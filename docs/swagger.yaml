@@ -1,0 +1,12 @@
+info:
+  contact: {}
+  description: admin接口文档
+  title: admin API
+  version: 0.0.1
+paths: {}
+securityDefinitions:
+  Bearer:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

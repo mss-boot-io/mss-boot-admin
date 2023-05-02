@@ -19,3 +19,12 @@
 
 # Go workspace file
 go.work
+go.work*
+
+# IDE
+.vscode
+.idea
+
+go.sum
+
+config/application-*
