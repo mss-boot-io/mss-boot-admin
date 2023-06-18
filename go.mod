@@ -4,8 +4,7 @@ go 1.20
 
 require (
 	github.com/gin-gonic/gin v1.9.0
-	github.com/mss-boot-io/mss-boot/core v0.1.1
-	github.com/mss-boot-io/mss-boot/pkg v0.1.1
+	github.com/mss-boot-io/mss-boot v0.0.1
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
 	github.com/swaggo/swag v1.16.1
