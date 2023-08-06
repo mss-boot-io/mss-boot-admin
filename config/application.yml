@@ -1,7 +1,5 @@
 server:
   addr: :8080
-#listen:
-#  addr: :5000
 logger:
   # 日志类型 default: go-admin-core构建的默认日志插件, zap: zap插件
   type: default

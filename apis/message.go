@@ -1,12 +1,5 @@
 package apis
 
-/*
- * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2023/8/6 08:33:26
- * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2023/8/6 08:33:26
- */
-
 import (
 	"github.com/mss-boot-io/mss-boot-admin-api/dto"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
@@ -15,18 +8,33 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 )
 
+/*
+ * @Author: lwnmengjing<lwnmengjing@qq.com>
+ * @Date: 2023/8/6 08:33:26
+ * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
+ * @Last Modified time: 2023/8/6 08:33:26
+ */
+
 func init() {
-	e := &Role{
+	e := &Message{
 		Simple: controller.NewSimple(
 			controller.WithAuth(false),
-			controller.WithModel(new(models.Role)),
-			controller.WithSearch(new(dto.RoleSearch)),
+			controller.WithModel(new(models.Message)),
+			controller.WithSearch(new(dto.MessageSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
 		),
 	}
 	response.AppendController(e)
 }
 
-type Role struct {
+type Message struct {
 	*controller.Simple
+}
+
+// GetAction get action
+func (e *Message) GetAction(key string) response.Action {
+	if key != response.Search {
+		return nil
+	}
+	return e.Simple.GetAction(key)
 }

@@ -1,11 +1,11 @@
-/*
- * @Author: lwnmengjing
- * @Date: 2023/5/1 19:46:15
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2023/5/1 19:46:15
- */
-
 package router
+
+/*
+ * @Author: lwnmengjing<lwnmengjing@qq.com>
+ * @Date: 2023/8/6 08:33:26
+ * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
+ * @Last Modified time: 2023/8/6 08:33:26
+ */
 
 import (
 	"github.com/gin-gonic/gin"

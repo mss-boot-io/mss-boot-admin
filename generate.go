@@ -1,10 +1,10 @@
-/*
- * @Author: lwnmengjing
- * @Date: 2021/6/23 11:23 上午
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2021/6/23 11:23 上午
- */
-
 package main
+
+/*
+ * @Author: lwnmengjing<lwnmengjing@qq.com>
+ * @Date: 2023/8/6 08:33:26
+ * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
+ * @Last Modified time: 2023/8/6 08:33:26
+ */
 
 //go:generate swag init --parseDependency --parseDepth=4 --parseVendor

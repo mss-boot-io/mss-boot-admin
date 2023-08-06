@@ -1,13 +1,14 @@
-/*
- * @Author: lwnmengjing
- * @Date: 2023/5/1 19:58:03
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2023/5/1 19:58:03
- */
-
 package config
 
+/*
+ * @Author: lwnmengjing<lwnmengjing@qq.com>
+ * @Date: 2023/8/6 08:33:26
+ * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
+ * @Last Modified time: 2023/8/6 08:33:26
+ */
+
 import (
+	"github.com/gin-gonic/gin"
 	"net/http"
 
 	log "github.com/mss-boot-io/mss-boot/core/logger"
@@ -21,10 +22,11 @@ import (
 var Cfg Config
 
 type Config struct {
-	Logger   config.Logger    `yaml:"logger" json:"logger"`
-	Server   config.Listen    `yaml:"server" json:"server"`
-	Listen   *config.Listen   `yaml:"listen" json:"listen"`
-	Database *gormdb.Database `yaml:"database" json:"database"`
+	Logger      config.Logger    `yaml:"logger" json:"logger"`
+	Server      config.Listen    `yaml:"server" json:"server"`
+	Listen      *config.Listen   `yaml:"listen" json:"listen"`
+	Database    *gormdb.Database `yaml:"database" json:"database"`
+	Application Application      `yaml:"application" json:"application"`
 }
 
 func (e *Config) Init(handler http.Handler) {
@@ -38,15 +40,15 @@ func (e *Config) Init(handler http.Handler) {
 	}
 	log.Info(e)
 
+	//e.Database.Init()
+	e.Application.Init(handler.(*gin.Engine))
+
 	e.Logger.Init()
-	e.Database.Init()
 
 	runnable := []server.Runnable{
-		listener.New("admin",
-			e.Server.Init(listener.WithHandler(handler))...),
-	}
-	if e.Listen != nil {
-		runnable = append(runnable, listener.New("listen", e.Listen.Init()...))
+		e.Server.Init(
+			listener.WithName("admin"),
+			listener.WithHandler(handler)),
 	}
 
 	server.Manage.Add(runnable...)
