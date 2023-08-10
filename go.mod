@@ -3,6 +3,7 @@ module github.com/mss-boot-io/mss-boot-admin-api
 go 1.20
 
 require (
+	github.com/gin-contrib/cors v1.4.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/mss-boot-io/mss-boot v0.0.1
 	github.com/swaggo/files v1.0.1

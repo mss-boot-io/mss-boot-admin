@@ -8,6 +8,7 @@ package router
  */
 
 import (
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	swaggerFiles "github.com/swaggo/files"
@@ -18,8 +19,9 @@ import (
 )
 
 func Init(r *gin.RouterGroup) {
-	v1 := r.Group("/api/v1")
+	v1 := r.Group("/api")
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	r.Use(cors.Default())
 
 	var e *gin.RouterGroup
 	for i := range response.Controllers {
