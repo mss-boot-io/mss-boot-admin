@@ -5,9 +5,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/core/server"
+	"github.com/mss-boot-io/mss-boot/core/server/listener"
 	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
+	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
+	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot-admin-api/router"
 )
 
@@ -47,10 +50,24 @@ func init() {
 }
 
 func setup() error {
+	// setup config
+	config.Cfg.Init()
+
+	middleware.Verifier = &models.User{}
+	middleware.Init()
+
 	r := gin.Default()
 	router.Init(r.Group(group))
+	config.Cfg.Application.Init(r)
 
-	config.Cfg.Init(r)
+	runnable := []server.Runnable{
+		config.Cfg.Server.Init(
+			listener.WithName("admin"),
+			listener.WithHandler(r)),
+	}
+
+	server.Manage.Add(runnable...)
+
 	return nil
 }
 

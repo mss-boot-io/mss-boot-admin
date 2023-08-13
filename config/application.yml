@@ -13,8 +13,8 @@ logger:
   formatter: default
 database:
   driver: mysql
-  url: ''
-  name: shop_cloud_admin
+  source: 'root:123456@tcp(127.0.0.1:3306)/mss-boot-admin?charset=utf8&parseTime=True&loc=Local&timeout=1000ms'
+  name: mss-boot-admin
   casbinModel: |
     [request_definition]
     r = sub, dom, obj, act
@@ -27,3 +27,9 @@ database:
     [matchers]
     m = g(r.sub, p.sub, r.dom) && r.sub == p.sub && (keyMatch2(r.obj, p.obj) || keyMatch(r.obj, p.obj)) && (r.act == p.act || p.act == "*")
   timeout: 10s
+auth:
+  realm: 'mss-boot-admin zone'
+  key: 'mss-boot-admin secret'
+  timeout: '1h'
+  maxRefresh: '1h'
+  identityKey: 'mss-boot-admin-identity-key'

@@ -33,7 +33,7 @@ func (e *Message) BeforeCreate(_ *gorm.DB) error {
 }
 
 func (*Message) TableName() string {
-	return "messages"
+	return "mss_boot_messages"
 }
 
 // Marshal json marshal

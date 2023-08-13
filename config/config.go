@@ -8,12 +8,7 @@ package config
  */
 
 import (
-	"github.com/gin-gonic/gin"
-	"net/http"
-
 	log "github.com/mss-boot-io/mss-boot/core/logger"
-	"github.com/mss-boot-io/mss-boot/core/server"
-	"github.com/mss-boot-io/mss-boot/core/server/listener"
 	"github.com/mss-boot-io/mss-boot/pkg/config"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
@@ -22,6 +17,7 @@ import (
 var Cfg Config
 
 type Config struct {
+	Auth        Auth             `yaml:"auth" json:"auth"`
 	Logger      config.Logger    `yaml:"logger" json:"logger"`
 	Server      config.Listen    `yaml:"server" json:"server"`
 	Listen      *config.Listen   `yaml:"listen" json:"listen"`
@@ -29,7 +25,7 @@ type Config struct {
 	Application Application      `yaml:"application" json:"application"`
 }
 
-func (e *Config) Init(handler http.Handler) {
+func (e *Config) Init() {
 	opts := []source.Option{
 		source.WithDir("config"),
 		source.WithProvider(source.Local),
@@ -38,20 +34,9 @@ func (e *Config) Init(handler http.Handler) {
 	if err != nil {
 		log.Fatalf("cfg init failed, %s\n", err.Error())
 	}
-	log.Info(e)
-
-	//e.Database.Init()
-	e.Application.Init(handler.(*gin.Engine))
 
 	e.Logger.Init()
-
-	runnable := []server.Runnable{
-		e.Server.Init(
-			listener.WithName("admin"),
-			listener.WithHandler(handler)),
-	}
-
-	server.Manage.Add(runnable...)
+	e.Database.Init()
 }
 
 func (e *Config) OnChange() {

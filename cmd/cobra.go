@@ -3,10 +3,13 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+
+	"github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate"
 	"github.com/mss-boot-io/mss-boot-admin-api/cmd/server"
 	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
-	"github.com/spf13/cobra"
-	"os"
 )
 
 /*
@@ -43,6 +46,7 @@ func tip() {
 
 func init() {
 	rootCmd.AddCommand(server.StartCmd)
+	rootCmd.AddCommand(migrate.StartCmd)
 }
 
 // Execute : apply commands

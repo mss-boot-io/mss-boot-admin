@@ -27,5 +27,5 @@ func (e *Role) BeforeCreate(_ *gorm.DB) (err error) {
 }
 
 func (*Role) TableName() string {
-	return "roles"
+	return "mss_boot_roles"
 }

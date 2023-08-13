@@ -3,6 +3,7 @@ package apis
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin-api/dto"
+	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
@@ -20,7 +21,7 @@ import (
 func init() {
 	e := &User{
 		Simple: controller.NewSimple(
-			controller.WithAuth(false),
+			controller.WithAuth(true),
 			controller.WithModel(new(models.User)),
 			controller.WithSearch(new(dto.UserSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
@@ -35,7 +36,8 @@ type User struct {
 
 // Other handler
 func (e *User) Other(r *gin.RouterGroup) {
-	r.POST("/login", e.Login)
+	r.POST("/user/login", middleware.Auth.LoginHandler)
+	r.GET("/user/refresh-token", middleware.Auth.RefreshHandler)
 	r.GET("/userInfo", e.UserInfo)
 }
 
@@ -47,9 +49,11 @@ func (e *User) Login(ctx *gin.Context) {
 func (e *User) UserInfo(ctx *gin.Context) {
 	api := response.Make(ctx)
 	user := &models.User{
+		UserLogin: models.UserLogin{
+			Email: "wangliqun@email.com",
+		},
 		Name:             "王立群",
 		Avatar:           "https://lf1-xgcdn-tos.pstatp.com/obj/vcloud/vadmin/start.8e0e4855ee346a46ccff8ff3e24db27b.png",
-		Email:            "wangliqun@email.com",
 		Job:              "frontend",
 		JobName:          "前端开发工程师",
 		Organization:     "Frontend",
