@@ -18,7 +18,7 @@ import (
 func init() {
 	e := &Message{
 		Simple: controller.NewSimple(
-			controller.WithAuth(false),
+			controller.WithAuth(true),
 			controller.WithModel(new(models.Message)),
 			controller.WithSearch(new(dto.MessageSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),

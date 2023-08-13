@@ -18,7 +18,7 @@ import (
 func init() {
 	e := &Role{
 		Simple: controller.NewSimple(
-			controller.WithAuth(false),
+			controller.WithAuth(true),
 			controller.WithModel(new(models.Role)),
 			controller.WithSearch(new(dto.RoleSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),

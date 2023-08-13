@@ -1,17 +1,18 @@
 package middleware
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/spf13/cast"
 	"reflect"
 	"time"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin-api/config"
 	log "github.com/mss-boot-io/mss-boot/core/logger"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
-
-	"github.com/mss-boot-io/mss-boot-admin-api/config"
 )
 
 /*
@@ -27,8 +28,7 @@ var (
 )
 
 func Init() {
-	var err error
-	Auth, err = jwt.New(&jwt.GinJWTMiddleware{
+	Auth = &jwt.GinJWTMiddleware{
 		Realm:       config.Cfg.Auth.Realm,
 		Key:         []byte(config.Cfg.Auth.Key),
 		Timeout:     config.Cfg.Auth.Timeout,
@@ -36,15 +36,21 @@ func Init() {
 		IdentityKey: config.Cfg.Auth.IdentityKey,
 		PayloadFunc: func(data any) jwt.MapClaims {
 			if v, ok := data.(security.Verifier); ok {
+				rb, _ := json.Marshal(v)
 				return jwt.MapClaims{
-					"verifier": v,
+					"verifier": string(rb),
 				}
 			}
 			return jwt.MapClaims{}
 		},
 		IdentityHandler: func(c *gin.Context) any {
 			claims := jwt.ExtractClaims(c)
-			return claims["verifier"].(security.Verifier)
+			verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
+			err := json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
+			if err != nil {
+				return nil
+			}
+			return verifier
 		},
 		Authenticator: func(c *gin.Context) (any, error) {
 			loginVals := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
@@ -93,11 +99,8 @@ func Init() {
 
 		// TimeFunc provides the current time. You can override it to use another time value. This is useful for testing or if your server uses a different time zone than your tokens.
 		TimeFunc: time.Now,
-	})
-	if err != nil {
-		log.Fatal("jwt error:", err)
 	}
-	err = Auth.MiddlewareInit()
+	err := Auth.MiddlewareInit()
 	if err != nil {
 		log.Fatal("authMiddleware.MiddlewareInit() Error:" + err.Error())
 	}
