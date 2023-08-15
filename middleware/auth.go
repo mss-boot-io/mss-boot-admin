@@ -106,3 +106,14 @@ func Init() {
 	}
 	response.AuthHandler = Auth.MiddlewareFunc()
 }
+
+// GetVerify 获取当前登录用户
+func GetVerify(ctx *gin.Context) security.Verifier {
+	claims := jwt.ExtractClaims(ctx)
+	verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
+	err := json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
+	if err != nil {
+		return nil
+	}
+	return verifier
+}

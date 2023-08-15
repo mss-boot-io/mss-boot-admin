@@ -2,8 +2,8 @@ package server
 
 import (
 	"context"
-
 	"github.com/gin-gonic/gin"
+	log "github.com/mss-boot-io/mss-boot/core/logger"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/core/server/listener"
 	"github.com/spf13/cobra"
@@ -60,6 +60,12 @@ func setup() error {
 	router.Init(r.Group(group))
 	config.Cfg.Application.Init(r)
 
+	if apiCheck {
+		err := models.SaveAPI(r.Routes())
+		if err != nil {
+			log.Fatalf("save api error: %v", err)
+		}
+	}
 	runnable := []server.Runnable{
 		config.Cfg.Server.Init(
 			listener.WithName("admin"),

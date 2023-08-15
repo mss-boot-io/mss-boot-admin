@@ -10,18 +10,25 @@ package router
 import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	_ "github.com/mss-boot-io/mss-boot-admin-api/apis"
+	_ "github.com/mss-boot-io/mss-boot-admin-api/docs"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-
-	_ "github.com/mss-boot-io/mss-boot-admin-api/apis"
-	_ "github.com/mss-boot-io/mss-boot-admin-api/docs"
+	"net/http"
 )
 
 func Init(r *gin.RouterGroup) {
 	v1 := r.Group("/api")
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	r.Use(cors.Default())
+	configCors := cors.DefaultConfig()
+	configCors.AllowOrigins = []string{"http://localhost:3000"}
+	configCors.AllowCredentials = true
+	configCors.AddAllowHeaders("Authorization")
+	v1.Use(cors.New(configCors))
+	v1.OPTIONS("/*path", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
 
 	var e *gin.RouterGroup
 	for i := range response.Controllers {

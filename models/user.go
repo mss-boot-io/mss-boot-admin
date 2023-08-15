@@ -56,6 +56,10 @@ func (*User) TableName() string {
 	return "mss_boot_users"
 }
 
+func (e *User) GetUserID() string {
+	return e.ID
+}
+
 // GetUserByUsername get user by username
 func GetUserByUsername(username string) (*User, error) {
 	var user User
@@ -70,7 +74,7 @@ type UserLogin struct {
 	RoleID       string      `json:"roleId" gorm:"index"`
 	Username     string      `json:"username" gorm:"size:100;uniqueIndex"`
 	Email        string      `json:"email"`
-	Password     string      `json:"password" gorm:"-"`
+	Password     string      `json:"password,omitempty" gorm:"-"`
 	PasswordHash string      `json:"-" gorm:"size:255;comment:密码hash"`
 	Salt         string      `json:"-" gorm:"size:255;comment:加盐"`
 	Status       enum.Status `json:"status"`

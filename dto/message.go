@@ -9,6 +9,10 @@ import "github.com/mss-boot-io/mss-boot/pkg/response/actions"
  * @Last Modified time: 2023/8/6 08:54:13
  */
 
+type MessageReadRequest struct {
+	IDS []string `json:"ids"`
+}
+
 type MessageSearch struct {
 	actions.Pagination `search:"inline"`
 	//状态

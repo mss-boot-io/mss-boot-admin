@@ -8,23 +8,23 @@ package models
  */
 
 import (
-	"strings"
-	"time"
-
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"gorm.io/gorm"
+	"strings"
 )
 
 type Message struct {
 	actions.ModelGorm
-	Title    string    `json:"title"`
-	Type     string    `json:"type"`
-	SubTitle string    `json:"subTitle"`
-	Avatar   string    `json:"avatar"`
-	Content  string    `json:"content"`
-	Time     time.Time `json:"time"`
-	Tag      []string  `json:"tag" gorm:"-"`
-	TagData  string    `json:"-" gorm:"type:text"`
+	UserID   string   `json:"userID"`
+	Title    string   `json:"title"`
+	Type     string   `json:"type"`
+	SubTitle string   `json:"subTitle"`
+	Avatar   string   `json:"avatar"`
+	Content  string   `json:"content"`
+	Time     string   `json:"time"`
+	Tag      []string `json:"tag" gorm:"-"`
+	TagData  string   `json:"-" gorm:"type:text"`
+	Read     bool     `json:"read"`
 }
 
 func (e *Message) BeforeCreate(_ *gorm.DB) error {
