@@ -45,8 +45,8 @@ func (e *Message) GetAction(key string) response.Action {
 
 func (e *Message) Other(r *gin.RouterGroup) {
 	r.Use(middleware.Auth.MiddlewareFunc())
-	r.GET("/message/list", e.List)
-	r.POST("/message/read", e.Read)
+	r.GET("/message/list", middleware.Auth.MiddlewareFunc(), e.List)
+	r.POST("/message/read", middleware.Auth.MiddlewareFunc(), e.Read)
 }
 
 func (e *Message) List(ctx *gin.Context) {

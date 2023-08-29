@@ -24,6 +24,8 @@ func _1691804837583Test(db *gorm.DB, version string) error {
 			new(models.Message),
 			new(models.API),
 			new(models.Menu),
+			new(models.Model),
+			new(models.Column),
 		)
 		if err != nil {
 			return err

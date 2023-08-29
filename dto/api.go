@@ -4,15 +4,13 @@ import "github.com/mss-boot-io/mss-boot/pkg/response/actions"
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2023/8/6 22:16:32
+ * @Date: 2023/8/24 01:48:31
  * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2023/8/6 22:16:32
+ * @Last Modified time: 2023/8/24 01:48:31
  */
 
-type UserSearch struct {
+type APISearch struct {
 	actions.Pagination `search:"inline"`
 	// ID
 	ID string `query:"id" form:"id" search:"type:contains;column:id"`
-	//名称
-	Name string `query:"name" form:"name" search:"type:contains;column:name"`
 }

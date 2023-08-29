@@ -10,20 +10,14 @@ package models
 import (
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
-	"gorm.io/gorm"
 )
 
 type Role struct {
 	actions.ModelGorm
 	Name   string      `json:"name"`
-	Root   bool        `json:"root"`
+	Root   bool        `json:"root" gorm:"->"`
 	Status enum.Status `json:"status"`
 	Remark string      `json:"remark" gorm:"type:text"`
-}
-
-func (e *Role) BeforeCreate(_ *gorm.DB) (err error) {
-	_, err = e.PrepareID(nil)
-	return err
 }
 
 func (*Role) TableName() string {

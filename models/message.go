@@ -9,7 +9,6 @@ package models
 
 import (
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
-	"gorm.io/gorm"
 	"strings"
 )
 
@@ -25,11 +24,6 @@ type Message struct {
 	Tag      []string `json:"tag" gorm:"-"`
 	TagData  string   `json:"-" gorm:"type:text"`
 	Read     bool     `json:"read"`
-}
-
-func (e *Message) BeforeCreate(_ *gorm.DB) error {
-	_, err := e.PrepareID(nil)
-	return err
 }
 
 func (*Message) TableName() string {

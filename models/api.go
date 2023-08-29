@@ -4,7 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
-	"gorm.io/gorm"
 	"strings"
 )
 
@@ -14,6 +13,17 @@ import (
  * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
  * @Last Modified time: 2023/8/14 08:41:16
  */
+
+type AccessType string
+
+const (
+	MenuAccessType AccessType = "MENU"
+	APIAccessType  AccessType = "API"
+)
+
+func (a AccessType) String() string {
+	return string(a)
+}
 
 type API struct {
 	actions.ModelGorm
@@ -26,11 +36,6 @@ type API struct {
 
 func (*API) TableName() string {
 	return "mss_boot_api"
-}
-
-func (e *API) BeforeCreate(_ *gorm.DB) error {
-	_, err := e.PrepareID(nil)
-	return err
 }
 
 func SaveAPI(routes gin.RoutesInfo) error {

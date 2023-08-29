@@ -8,13 +8,22 @@ package dto
  */
 
 import (
+	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 )
 
 type RoleSearch struct {
 	actions.Pagination `search:"inline"`
+	// ID
+	ID string `query:"id" form:"id" search:"type:contains;column:id"`
 	//名称
 	Name string `query:"name" form:"name" search:"type:contains;column:name"`
 	//状态
-	//Status enum.Status `query:"status" form:"status"`
+	Status []enum.Status `query:"status[]" form:"status[]" search:"type:in;column:status"`
+}
+
+type AuthorizeRequest struct {
+	RoleID  string   `json:"roleID"`
+	MenuIDS []string `json:"menuIDS"`
+	APIIDS  []string `json:"apiIDS"`
 }

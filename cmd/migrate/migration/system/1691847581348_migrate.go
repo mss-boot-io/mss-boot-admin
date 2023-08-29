@@ -80,6 +80,21 @@ func _1691847581348Test(db *gorm.DB, version string) error {
 				},
 			},
 			{
+				Name: "menu.role",
+				Key:  "role",
+				Children: []models.Menu{
+					{
+						Name: "menu.role.search",
+						Key:  "role/search",
+					},
+					{
+						Name:   "menu.role.control",
+						Key:    "role/control",
+						Ignore: true,
+					},
+				},
+			},
+			{
 				Name: "Example",
 				Key:  "example",
 			},
@@ -148,6 +163,42 @@ func _1691847581348Test(db *gorm.DB, version string) error {
 			},
 		}
 		err = tx.Create(&messages).Error
+		if err != nil {
+			return err
+		}
+
+		ms := []models.Model{
+			{
+				Name:        "demo",
+				Description: "demo",
+				Table:       "demo",
+			},
+		}
+		err = tx.Create(&ms).Error
+		if err != nil {
+			return err
+		}
+
+		cs := []models.Column{
+			{
+				Name:       "id",
+				Label:      "ID",
+				Show:       []byte(`{"show":true,"width":100,"align":"center","sortable":true,"ellipsis":true}`),
+				Type:       "string",
+				Size:       64,
+				PrimaryKey: "id",
+			},
+			{
+				Name:        "name",
+				Label:       "名称",
+				Show:        []byte(`{"show":true,"width":100,"align":"center","sortable":true,"ellipsis":true}`),
+				Type:        "string",
+				Size:        255,
+				UniqueIndex: "name",
+				PrimaryKey:  "112",
+			},
+		}
+		err = tx.Create(&cs).Error
 		if err != nil {
 			return err
 		}

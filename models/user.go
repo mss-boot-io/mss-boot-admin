@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
@@ -38,7 +39,7 @@ type User struct {
 }
 
 func (e *User) BeforeCreate(_ *gorm.DB) error {
-	_, err := e.PrepareID(nil)
+	err := e.ModelGorm.BeforeCreate(nil)
 	if err != nil {
 		return err
 	}
@@ -50,6 +51,14 @@ func (e *User) BeforeCreate(_ *gorm.DB) error {
 	e.RegistrationTime = time.Now()
 	e.PasswordHash = hash
 	return err
+}
+
+func (e *User) AfterFind(tx *gorm.DB) error {
+	fmt.Println("AfterFind", e.ID, e.Username, e.Password, e.PasswordHash, e.Salt)
+	e.Permissions = map[string][]string{
+		"menu.role.serach": {"*"},
+	}
+	return nil
 }
 
 func (*User) TableName() string {
@@ -106,8 +115,7 @@ func (e *UserLogin) GetUsername() string {
 
 // Verify verify password
 func (e *UserLogin) Verify() (bool, security.Verifier, error) {
-	user := &User{}
-	err := gormdb.DB.Model(e).First(user, "username = ?", e.Username).Error
+	user, err := GetUserByUsername(e.Username)
 	if err != nil {
 		return false, nil, err
 	}
