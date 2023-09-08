@@ -8,6 +8,8 @@ package router
  */
 
 import (
+	"net/http"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	_ "github.com/mss-boot-io/mss-boot-admin-api/apis"
@@ -15,7 +17,6 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"net/http"
 )
 
 func Init(r *gin.RouterGroup) {
