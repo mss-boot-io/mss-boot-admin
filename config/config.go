@@ -1,18 +1,14 @@
-/*
- * @Author: lwnmengjing
- * @Date: 2023/5/1 19:58:03
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2023/5/1 19:58:03
- */
-
 package config
 
-import (
-	"net/http"
+/*
+ * @Author: lwnmengjing<lwnmengjing@qq.com>
+ * @Date: 2023/8/6 08:33:26
+ * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
+ * @Last Modified time: 2023/8/6 08:33:26
+ */
 
+import (
 	log "github.com/mss-boot-io/mss-boot/core/logger"
-	"github.com/mss-boot-io/mss-boot/core/server"
-	"github.com/mss-boot-io/mss-boot/core/server/listener"
 	"github.com/mss-boot-io/mss-boot/pkg/config"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
@@ -21,13 +17,15 @@ import (
 var Cfg Config
 
 type Config struct {
-	Logger   config.Logger    `yaml:"logger" json:"logger"`
-	Server   config.Listen    `yaml:"server" json:"server"`
-	Listen   *config.Listen   `yaml:"listen" json:"listen"`
-	Database *gormdb.Database `yaml:"database" json:"database"`
+	Auth        Auth             `yaml:"auth" json:"auth"`
+	Logger      config.Logger    `yaml:"logger" json:"logger"`
+	Server      config.Listen    `yaml:"server" json:"server"`
+	Listen      *config.Listen   `yaml:"listen" json:"listen"`
+	Database    *gormdb.Database `yaml:"database" json:"database"`
+	Application Application      `yaml:"application" json:"application"`
 }
 
-func (e *Config) Init(handler http.Handler) {
+func (e *Config) Init() {
 	opts := []source.Option{
 		source.WithDir("config"),
 		source.WithProvider(source.Local),
@@ -36,20 +34,9 @@ func (e *Config) Init(handler http.Handler) {
 	if err != nil {
 		log.Fatalf("cfg init failed, %s\n", err.Error())
 	}
-	log.Info(e)
 
 	e.Logger.Init()
 	e.Database.Init()
-
-	runnable := []server.Runnable{
-		listener.New("admin",
-			e.Server.Init(listener.WithHandler(handler))...),
-	}
-	if e.Listen != nil {
-		runnable = append(runnable, listener.New("listen", e.Listen.Init()...))
-	}
-
-	server.Manage.Add(runnable...)
 }
 
 func (e *Config) OnChange() {
