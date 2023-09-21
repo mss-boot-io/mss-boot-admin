@@ -14,7 +14,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 	"net/http"
 )
@@ -25,7 +25,7 @@ func init() {
 			controller.WithAuth(true),
 			controller.WithModel(new(models.Role)),
 			controller.WithSearch(new(dto.RoleSearch)),
-			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithModelProvider(authentic.ModelProviderGorm),
 		),
 	}
 	response.AppendController(e)

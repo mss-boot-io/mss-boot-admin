@@ -8,12 +8,12 @@ package models
  */
 
 import (
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
 	"strings"
 )
 
 type Message struct {
-	actions.ModelGorm
+	authentic.ModelGorm
 	UserID   string   `json:"userID"`
 	Title    string   `json:"title"`
 	Type     string   `json:"type"`

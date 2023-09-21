@@ -11,10 +11,10 @@ import (
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
-	migration.Migrate.SetVersion(migration.GetFilename(fileName), _{{.GenerateTime}}Test)
+	migration.Migrate.SetVersion(migration.GetFilename(fileName), _{{.GenerateTime}}Migrate)
 }
 
-func _{{.GenerateTime}}Test(db *gorm.DB, version string) error {
+func _{{.GenerateTime}}Migrate(db *gorm.DB, version string) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 
 	    // TODO: here to write the content to be changed

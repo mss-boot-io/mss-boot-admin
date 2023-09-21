@@ -2,11 +2,11 @@ package server
 
 import (
 	"context"
-
 	"github.com/gin-gonic/gin"
 	log "github.com/mss-boot-io/mss-boot/core/logger"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/core/server/listener"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions/virtual"
 	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
@@ -73,6 +73,14 @@ func setup() error {
 			listener.WithHandler(r)),
 	}
 
+	// init virtual models
+	ms, err := models.GetModels()
+	if err != nil {
+		return err
+	}
+	for i := range ms {
+		virtual.SetModel(ms[i].Path, ms[i].MakeVirtualModel())
+	}
 	server.Manage.Add(runnable...)
 
 	return nil

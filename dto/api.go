@@ -1,6 +1,6 @@
 package dto
 
-import "github.com/mss-boot-io/mss-boot/pkg/response/actions"
+import "github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
@@ -10,7 +10,7 @@ import "github.com/mss-boot-io/mss-boot/pkg/response/actions"
  */
 
 type APISearch struct {
-	actions.Pagination `search:"inline"`
+	authentic.Pagination `search:"inline"`
 	// ID
 	ID string `query:"id" form:"id" search:"type:contains;column:id"`
 }

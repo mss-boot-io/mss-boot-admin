@@ -16,10 +16,10 @@ var Password string
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
-	migration.Migrate.SetVersion(migration.GetFilename(fileName), _1691847581348Test)
+	migration.Migrate.SetVersion(migration.GetFilename(fileName), _1691847581348Migrate)
 }
 
-func _1691847581348Test(db *gorm.DB, version string) error {
+func _1691847581348Migrate(db *gorm.DB, version string) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 
 		// TODO: here to write the content to be changed
@@ -167,35 +167,35 @@ func _1691847581348Test(db *gorm.DB, version string) error {
 			return err
 		}
 
-		ms := []models.Model{
-			{
-				Name:        "demo",
-				Description: "demo",
-				Table:       "demo",
-			},
+		m := &models.Model{
+			Name:        "demo",
+			Description: "demo",
+			Table:       "demo",
+			Path:        "demo",
 		}
-		err = tx.Create(&ms).Error
+		err = tx.Create(m).Error
 		if err != nil {
 			return err
 		}
 
-		cs := []models.Column{
+		cs := []models.Field{
 			{
+				ModelID:    m.ID,
 				Name:       "id",
 				Label:      "ID",
 				Show:       []byte(`{"show":true,"width":100,"align":"center","sortable":true,"ellipsis":true}`),
 				Type:       "string",
 				Size:       64,
-				PrimaryKey: "id",
+				PrimaryKey: "true",
 			},
 			{
+				ModelID:     m.ID,
 				Name:        "name",
 				Label:       "名称",
 				Show:        []byte(`{"show":true,"width":100,"align":"center","sortable":true,"ellipsis":true}`),
 				Type:        "string",
 				Size:        255,
 				UniqueIndex: "name",
-				PrimaryKey:  "112",
 			},
 		}
 		err = tx.Create(&cs).Error
