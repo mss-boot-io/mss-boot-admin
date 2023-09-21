@@ -9,11 +9,11 @@ package dto
 
 import (
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
 )
 
 type RoleSearch struct {
-	actions.Pagination `search:"inline"`
+	authentic.Pagination `search:"inline"`
 	// ID
 	ID string `query:"id" form:"id" search:"type:contains;column:id"`
 	//名称

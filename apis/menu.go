@@ -1,6 +1,7 @@
 package apis
 
 import (
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,7 +10,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 )
 
@@ -26,7 +26,7 @@ func init() {
 			controller.WithAuth(true),
 			controller.WithModel(new(models.Menu)),
 			controller.WithSearch(new(dto.RoleSearch)),
-			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithModelProvider(authentic.ModelProviderGorm),
 		),
 	}
 	response.AppendController(e)

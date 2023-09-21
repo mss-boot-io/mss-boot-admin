@@ -41,6 +41,12 @@ func Init(r *gin.RouterGroup) {
 			e.POST("", action.Handler())
 			e.PUT("/:"+response.Controllers[i].GetKey(), action.Handler())
 		}
+		if action := response.Controllers[i].GetAction(response.Create); action != nil {
+			e.POST("", action.Handler())
+		}
+		if action := response.Controllers[i].GetAction(response.Update); action != nil {
+			e.PUT("/:"+response.Controllers[i].GetKey(), action.Handler())
+		}
 		if action := response.Controllers[i].GetAction(response.Delete); action != nil {
 			e.DELETE("/:"+response.Controllers[i].GetKey(), action.Handler())
 		}
