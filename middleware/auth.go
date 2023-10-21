@@ -68,9 +68,13 @@ func Init() {
 		},
 		Authorizator: func(data any, c *gin.Context) bool {
 			if v, ok := data.(security.Verifier); ok {
-				//todo verify permission
-				path := c.Request.URL.Path
-				fmt.Println(v.GetRoleID(), path, c.Request.Method)
+				//enable, err := gormdb.Enforcer.Enforce(v.GetRoleID(), c.Request.URL.Path, c.Request.Method)
+				//if err != nil {
+				//	log.Errorf("Enforcer.Enforce error: %v", err)
+				//	return false
+				//}
+				fmt.Println(v.GetRoleID(), c.Request.URL.Path, c.Request.Method)
+				//return enable
 				return true
 			}
 			return false

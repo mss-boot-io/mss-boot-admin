@@ -36,6 +36,7 @@ type User struct {
 // Other handler
 func (e *User) Other(r *gin.RouterGroup) {
 	r.POST("/user/login", middleware.Auth.LoginHandler)
+	r.POST("/user/login/account", middleware.Auth.LoginHandler)
 	r.GET("/user/refresh-token", middleware.Auth.RefreshHandler)
 	r.GET("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UserInfo)
 }

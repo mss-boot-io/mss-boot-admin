@@ -48,7 +48,7 @@ func init() {
 	StartCmd.PersistentFlags().StringVarP(&username, "username", "u",
 		"admin", "system super administrator login username")
 	StartCmd.PersistentFlags().StringVarP(&password, "password", "p",
-		"admin", "system super administrator login password")
+		"ant.design", "system super administrator login password")
 }
 
 func Run() error {

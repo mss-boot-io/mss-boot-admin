@@ -95,6 +95,21 @@ func _1691847581348Migrate(db *gorm.DB, version string) error {
 				},
 			},
 			{
+				Name: "menu.user",
+				Key:  "user",
+				Children: []models.Menu{
+					{
+						Name: "menu.user.search",
+						Key:  "user/search",
+					},
+					{
+						Name:   "menu.user.control",
+						Key:    "user/control",
+						Ignore: true,
+					},
+				},
+			},
+			{
 				Name: "Example",
 				Key:  "example",
 			},
