@@ -1,4 +1,4 @@
-name: swagger
+name: Swagger
 
 on:
   push:
