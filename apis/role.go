@@ -38,9 +38,17 @@ type Role struct {
 }
 
 func (e *Role) Other(r *gin.RouterGroup) {
-	r.GET("/role/authorize", middleware.Auth.MiddlewareFunc(), e.Authorize)
+	r.POST("/role/authorize", middleware.Auth.MiddlewareFunc(), e.Authorize)
 }
 
+// Authorize 角色授权
+// @Summary 角色授权
+// @Description 给角色授权
+// @Tags role
+// @Param data body dto.AuthorizeRequest true "data"
+// @Success 200 {object} response.Response
+// @Router /admin/api/role/authorize [post]
+// @Security Bearer
 func (e *Role) Authorize(ctx *gin.Context) {
 	api := response.Make(ctx)
 	req := &dto.AuthorizeRequest{}

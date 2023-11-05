@@ -14,6 +14,17 @@ import (
  * @Last Modified time: 2023/8/15 11:28:08
  */
 
+type MenuSingle struct {
+	authentic.ModelGorm `json:"-" gorm:"embedded"`
+	ParentID            string `json:"parentId,omitempty" gorm:"column:parent_id;comment:父级id;type:varchar(255);default:'';index"`
+	Name                string `json:"name" gorm:"column:name;comment:菜单名称;type:varchar(255);not null"`
+	Title               string `json:"title" gorm:"-"`
+	Key                 string `json:"key" gorm:"column:key;comment:菜单key;type:varchar(255);not null"`
+	Breadcrumb          bool   `json:"breadcrumb,omitempty" gorm:"column:breadcrumb;comment:是否显示面包屑;type:tinyint(1);not null"`
+	Ignore              bool   `json:"ignore,omitempty" gorm:"column:ignore;comment:是否忽略;type:tinyint(1);not null"`
+	Select              bool   `json:"select" gorm:"-"`
+}
+
 type Menu struct {
 	authentic.ModelGorm `json:"-" gorm:"embedded"`
 	ParentID            string `json:"parentId,omitempty" gorm:"column:parent_id;comment:父级id;type:varchar(255);default:'';index"`

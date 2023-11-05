@@ -42,6 +42,13 @@ func (e *Model) Other(r *gin.RouterGroup) {
 	r.GET("/model/migrate/:id", e.Migrate)
 }
 
+// Migrate 迁移虚拟模型
+// @Summary 迁移虚拟模型
+// @Description 迁移虚拟模型
+// @Tags model
+// @Success 200 {object} response.Response
+// @Router /admin/api/model/migrate/{id} [get]
+// @Security Bearer
 func (e *Model) Migrate(ctx *gin.Context) {
 	api := response.Make(ctx)
 	m := &models.Model{}

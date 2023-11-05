@@ -16,7 +16,7 @@
                 ],
                 "description": "获取菜单树",
                 "tags": [
-                    "获取菜单树"
+                    "menu"
                 ],
                 "summary": "获取菜单树",
                 "responses": {
@@ -33,7 +33,22 @@
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/models.Menu"
+                                                "allOf": [
+                                                    {
+                                                        "$ref": "#/definitions/models.MenuSingle"
+                                                    },
+                                                    {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "children": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "$ref": "#/definitions/models.MenuSingle"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                ]
                                             }
                                         }
                                     }
@@ -82,7 +97,22 @@
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/models.Menu"
+                                                "allOf": [
+                                                    {
+                                                        "$ref": "#/definitions/models.MenuSingle"
+                                                    },
+                                                    {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "children": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "$ref": "#/definitions/models.MenuSingle"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                ]
                                             }
                                         }
                                     }
@@ -113,6 +143,15 @@
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateAuthorizeRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -124,20 +163,156 @@
                     }
                 }
             }
+        },
+        "/admin/api/model/migrate/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "迁移虚拟模型",
+                "tags": [
+                    "model"
+                ],
+                "summary": "迁移虚拟模型",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/role/authorize": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "给角色授权",
+                "tags": [
+                    "role"
+                ],
+                "summary": "角色授权",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AuthorizeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/user/userInfo": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取登录用户信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "获取登录用户信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{\"code\": 200, \"data\": [...]}",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.User"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
-        "models.Menu": {
+        "dto.AuthorizeRequest": {
+            "type": "object",
+            "properties": {
+                "apiIDS": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "menuIDS": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "roleID": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UpdateAuthorizeRequest": {
+            "type": "object",
+            "required": [
+                "keys",
+                "roleID"
+            ],
+            "properties": {
+                "keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "roleID": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.MenuSingle": {
             "type": "object",
             "properties": {
                 "breadcrumb": {
                     "type": "boolean"
-                },
-                "children": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.Menu"
-                    }
                 },
                 "createdAt": {
                     "description": "CreatedAt create time",
@@ -168,6 +343,89 @@
                 "updatedAt": {
                     "description": "UpdatedAt update time",
                     "type": "string"
+                }
+            }
+        },
+        "models.User": {
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "type": "string"
+                },
+                "avatar": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "CreatedAt create time",
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID primary key",
+                    "type": "string"
+                },
+                "introduction": {
+                    "type": "string"
+                },
+                "job": {
+                    "type": "string"
+                },
+                "jobName": {
+                    "type": "string"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "locationName": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization": {
+                    "type": "string"
+                },
+                "organizationName": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "permissions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "personalWebsite": {
+                    "type": "string"
+                },
+                "phoneNumber": {
+                    "type": "string"
+                },
+                "registrationTime": {
+                    "type": "string"
+                },
+                "roleId": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "description": "UpdatedAt update time",
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                },
+                "verified": {
+                    "type": "boolean"
                 }
             }
         },

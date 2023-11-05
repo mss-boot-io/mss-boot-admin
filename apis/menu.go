@@ -106,7 +106,7 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 // @Accept  application/json
 // @Product application/json
 // @Param id path string true "id"
-// @Success 200 {object} response.Response{data=[]models.Menu} "{"code": 200, "data": [...]}"
+// @Success 200 {object} response.Response{data=[]models.MenuSingle{children=[]models.MenuSingle}} "{"code": 200, "data": [...]}"
 // @Router /admin/api/menu/{id} [get]
 // @Security Bearer
 func (e *Menu) GetAuthorize(ctx *gin.Context) {
@@ -139,8 +139,8 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 // Tree 获取菜单树
 // @Summary 获取菜单树
 // @Description 获取菜单树
-// @Tags 获取菜单树
-// @Success 200 {object} response.Response{data=[]models.Menu} "{"code": 200, "data": [...]}"
+// @Tags menu
+// @Success 200 {object} response.Response{data=[]models.MenuSingle{children=[]models.MenuSingle}} "{"code": 200, "data": [...]}"
 // @Router /admin/api/menu/tree [get]
 // @Security Bearer
 func (e *Menu) Tree(ctx *gin.Context) {

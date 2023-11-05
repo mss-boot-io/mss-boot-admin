@@ -41,6 +41,16 @@ func (e *User) Other(r *gin.RouterGroup) {
 	r.GET("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UserInfo)
 }
 
+// UserInfo 获取登录用户信息
+// @Summary 获取登录用户信息
+// @Description 获取登录用户信息
+// @Tags user
+// @Accept  application/json
+// @Product application/json
+// @Param id path string true "id"
+// @Success 200 {object} response.Response{data=[]models.User} "{"code": 200, "data": [...]}"
+// @Router /admin/api/user/userInfo [get]
+// @Security Bearer
 func (e *User) UserInfo(ctx *gin.Context) {
 	api := response.Make(ctx)
 	user := middleware.GetVerify(ctx)
