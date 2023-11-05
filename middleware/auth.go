@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/cast"
+	"log/slog"
+	"os"
 	"reflect"
 	"time"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
-	log "github.com/mss-boot-io/mss-boot/core/logger"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 )
@@ -37,6 +38,7 @@ func Init() {
 		PayloadFunc: func(data any) jwt.MapClaims {
 			if v, ok := data.(security.Verifier); ok {
 				rb, _ := json.Marshal(v)
+
 				return jwt.MapClaims{
 					"verifier": string(rb),
 				}
@@ -106,7 +108,8 @@ func Init() {
 	}
 	err := Auth.MiddlewareInit()
 	if err != nil {
-		log.Fatal("authMiddleware.MiddlewareInit() Error:" + err.Error())
+		slog.Error("authMiddleware.MiddlewareInit() Error", "err", err)
+		os.Exit(-1)
 	}
 	response.AuthHandler = Auth.MiddlewareFunc()
 }

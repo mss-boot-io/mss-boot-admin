@@ -1,7 +1,8 @@
 package models
 
 import (
-	log "github.com/mss-boot-io/mss-boot/core/logger"
+	"log/slog"
+
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
 	"gorm.io/gorm"
 )
@@ -37,7 +38,7 @@ func (e *Menu) BeforeSave(tx *gorm.DB) error {
 	if len(e.Children) > 0 {
 		err = tx.Save(&e.Children).Error
 		if err != nil {
-			log.Errorf("save menu children error: %v", err)
+			slog.Error("save menu children error", "err", err)
 			return err
 		}
 	}

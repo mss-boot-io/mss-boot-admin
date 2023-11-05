@@ -1,11 +1,12 @@
 package models
 
 import (
-	log "github.com/mss-boot-io/mss-boot/core/logger"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
 	"github.com/mss-boot-io/mss-boot/virtual/model"
 	"gorm.io/gorm/schema"
+	"log/slog"
+	"os"
 )
 
 /*
@@ -59,7 +60,8 @@ func GetModels() ([]*Model, error) {
 	var models []*Model
 	err := gormdb.DB.Preload("Fields").Find(&models).Error
 	if err != nil {
-		log.Fatalf("get models failed, %s\n", err.Error())
+		slog.Error("get models failed", "err", err)
+		os.Exit(-1)
 	}
 	return models, err
 }

@@ -2,11 +2,11 @@ package migrate
 
 import (
 	"bytes"
+	"log/slog"
 	"strconv"
 	"text/template"
 	"time"
 
-	log "github.com/mss-boot-io/mss-boot/core/logger"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/spf13/cobra"
 
@@ -53,11 +53,11 @@ func init() {
 
 func Run() error {
 	if !generate {
-		log.Info(`start init`)
+		slog.Info("start init")
 		config.Cfg.Init()
 		return migrate()
 	}
-	log.Info(`generate migration file`)
+	slog.Info(`generate migration file`)
 	return genFile()
 }
 
@@ -67,7 +67,7 @@ func migrate() error {
 	db := gormdb.DB
 	err := db.AutoMigrate(&models.Migration{})
 	if err != nil {
-		log.Errorf("auto migrate error: %v", err)
+		slog.Error("auto migrate error", "err", err)
 		return err
 	}
 	migration.Migrate.SetDb(db)
@@ -78,7 +78,7 @@ func migrate() error {
 func genFile() error {
 	t1, err := template.ParseFiles("template/migrate.tpl")
 	if err != nil {
-		log.Error("parse template error", err)
+		slog.Error("parse template error", err)
 		return err
 	}
 	m := map[string]string{}

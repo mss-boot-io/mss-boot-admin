@@ -2,8 +2,9 @@ package server
 
 import (
 	"context"
+	"log/slog"
+
 	"github.com/gin-gonic/gin"
-	log "github.com/mss-boot-io/mss-boot/core/logger"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/core/server/listener"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions/virtual"
@@ -64,7 +65,7 @@ func setup() error {
 	if apiCheck {
 		err := models.SaveAPI(r.Routes())
 		if err != nil {
-			log.Fatalf("save api error: %v", err)
+			slog.Error("save api error", "err", err)
 		}
 	}
 	runnable := []server.Runnable{

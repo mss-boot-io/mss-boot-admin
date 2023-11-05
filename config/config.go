@@ -8,7 +8,8 @@ package config
  */
 
 import (
-	log "github.com/mss-boot-io/mss-boot/core/logger"
+	"log/slog"
+
 	"github.com/mss-boot-io/mss-boot/pkg/config"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
@@ -32,7 +33,7 @@ func (e *Config) Init() {
 	}
 	err := config.Init(e, opts...)
 	if err != nil {
-		log.Fatalf("cfg init failed, %s\n", err.Error())
+		slog.Error("cfg init failed", "err", err)
 	}
 
 	e.Logger.Init()
@@ -42,5 +43,5 @@ func (e *Config) Init() {
 func (e *Config) OnChange() {
 	e.Logger.Init()
 	e.Database.Init()
-	log.Info("!!! cfg change and reload")
+	slog.Info("!!! cfg change and reload")
 }

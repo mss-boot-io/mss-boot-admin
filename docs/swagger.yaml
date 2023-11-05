@@ -1,9 +1,127 @@
+definitions:
+  models.Menu:
+    properties:
+      breadcrumb:
+        type: boolean
+      children:
+        items:
+          $ref: '#/definitions/models.Menu'
+        type: array
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      id:
+        description: ID primary key
+        type: string
+      ignore:
+        type: boolean
+      key:
+        type: string
+      name:
+        type: string
+      parentId:
+        type: string
+      select:
+        type: boolean
+      title:
+        type: string
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+    type: object
+  response.Response:
+    properties:
+      code:
+        type: integer
+      errorCode:
+        type: string
+      errorMessage:
+        type: string
+      host:
+        type: string
+      showType:
+        type: integer
+      status:
+        type: string
+      success:
+        type: boolean
+      traceId:
+        type: string
+    type: object
 info:
   contact: {}
   description: admin接口文档
   title: admin API
   version: 0.0.1
-paths: {}
+paths:
+  /admin/api/menu/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 获取菜单权限
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{"code": 200, "data": [...]}'
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Menu'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: 获取菜单权限
+      tags:
+      - menu
+    put:
+      consumes:
+      - application/json
+      description: 更新菜单权限
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - Bearer: []
+      summary: 更新菜单权限
+      tags:
+      - menu
+  /admin/api/menu/tree:
+    get:
+      description: 获取菜单树
+      responses:
+        "200":
+          description: '{"code": 200, "data": [...]}'
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Menu'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: 获取菜单树
+      tags:
+      - 获取菜单树
 securityDefinitions:
   Bearer:
     in: header

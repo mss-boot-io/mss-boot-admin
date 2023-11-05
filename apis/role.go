@@ -8,15 +8,17 @@ package apis
  */
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin-api/dto"
-	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
-	"net/http"
+
+	"github.com/mss-boot-io/mss-boot-admin-api/dto"
+	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
+	"github.com/mss-boot-io/mss-boot-admin-api/models"
 )
 
 func init() {
@@ -49,7 +51,7 @@ func (e *Role) Authorize(ctx *gin.Context) {
 	// authorize
 	_, err := gormdb.Enforcer.DeletePermissionsForUser(req.RoleID)
 	if err != nil {
-		api.AddError(err).Log.Errorf("delete permissions for user error: %v", err)
+		api.AddError(err).Log.Error("delete permissions for user error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return
 	}
@@ -58,7 +60,7 @@ func (e *Role) Authorize(ctx *gin.Context) {
 	for i := range req.MenuIDS {
 		_, err = gormdb.Enforcer.AddPermissionForUser(req.RoleID, models.APIAccessType.String(), req.MenuIDS[i])
 		if err != nil {
-			api.AddError(err).Log.Errorf("add permission for user error: %v", err)
+			api.AddError(err).Log.Error("add permission for user error", "err", err)
 			api.Err(http.StatusInternalServerError)
 			return
 		}
@@ -66,7 +68,7 @@ func (e *Role) Authorize(ctx *gin.Context) {
 	for i := range req.APIIDS {
 		_, err = gormdb.Enforcer.AddPermissionForUser(req.RoleID, models.MenuAccessType.String(), req.APIIDS[i])
 		if err != nil {
-			api.AddError(err).Log.Errorf("add permission for user error: %v", err)
+			api.AddError(err).Log.Error("add permission for user error", "err", err)
 			api.Err(http.StatusInternalServerError)
 			return
 		}

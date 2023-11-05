@@ -55,7 +55,7 @@ func (e *Message) List(ctx *gin.Context) {
 	list := make([]*models.Message, 0)
 	err := gormdb.DB.Where("user_id", verify.GetUserID()).Where("read", false).Find(&list).Error
 	if err != nil {
-		api.Log.Errorf("list error: %s", err)
+		api.Log.Error("list error", "err", err)
 		api.Err(http.StatusInternalServerError, err.Error())
 		return
 	}
