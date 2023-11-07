@@ -48,7 +48,7 @@ func (e *User) Other(r *gin.RouterGroup) {
 // @Accept  application/json
 // @Product application/json
 // @Param id path string true "id"
-// @Success 200 {object} response.Response{data=[]models.User} "{"code": 200, "data": [...]}"
+// @Success 200 {object} models.User
 // @Router /admin/api/user/userInfo [get]
 // @Security Bearer
 func (e *User) UserInfo(ctx *gin.Context) {

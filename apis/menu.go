@@ -51,8 +51,8 @@ func (e *Menu) Other(r *gin.RouterGroup) {
 // @Product application/json
 // @Param id path string true "id"
 // @Param data body dto.UpdateAuthorizeRequest true "data"
-// @Success 200 {object} response.Response
-// @Router /admin/api/menu/{id} [put]
+// @Success 200
+// @Router /admin/api/menu/authorize/{id} [put]
 // @Security Bearer
 func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 	api := response.Make(ctx)
@@ -106,8 +106,8 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 // @Accept  application/json
 // @Product application/json
 // @Param id path string true "id"
-// @Success 200 {object} response.Response{data=[]models.MenuSingle{children=[]models.MenuSingle}} "{"code": 200, "data": [...]}"
-// @Router /admin/api/menu/{id} [get]
+// @Success 200 {object} []string
+// @Router /admin/api/menu/authorize/{id} [get]
 // @Security Bearer
 func (e *Menu) GetAuthorize(ctx *gin.Context) {
 	api := response.Make(ctx)
@@ -123,24 +123,28 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError, err.Error())
 		return
 	}
+	keys := make([]string, 0)
 	// check select menu
 	for i := range list {
-		list[i].Select, err = gormdb.Enforcer.Enforce(
+		ok, err := gormdb.Enforcer.Enforce(
 			req.RoleID, list[i].Key, models.MenuAccessType.String())
 		if err != nil {
 			api.AddError(err).Log.Error("get menu tree error", "err", err)
 			api.Err(http.StatusInternalServerError)
 			return
 		}
+		if ok {
+			keys = append(keys, list[i].Key)
+		}
 	}
-	api.OK(models.GetMenuTree(list))
+	api.OK(keys)
 }
 
 // Tree 获取菜单树
 // @Summary 获取菜单树
 // @Description 获取菜单树
 // @Tags menu
-// @Success 200 {object} response.Response{data=[]models.MenuSingle{children=[]models.MenuSingle}} "{"code": 200, "data": [...]}"
+// @Success 200 {object} []models.MenuSingle{children=[]models.MenuSingle}
 // @Router /admin/api/menu/tree [get]
 // @Security Bearer
 func (e *Menu) Tree(ctx *gin.Context) {

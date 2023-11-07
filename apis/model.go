@@ -46,7 +46,7 @@ func (e *Model) Other(r *gin.RouterGroup) {
 // @Summary 迁移虚拟模型
 // @Description 迁移虚拟模型
 // @Tags model
-// @Success 200 {object} response.Response
+// @Success 200
 // @Router /admin/api/model/migrate/{id} [get]
 // @Security Bearer
 func (e *Model) Migrate(ctx *gin.Context) {

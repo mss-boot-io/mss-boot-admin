@@ -50,6 +50,26 @@ definitions:
         description: UpdatedAt update time
         type: string
     type: object
+  models.Role:
+    properties:
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      id:
+        description: ID primary key
+        type: string
+      name:
+        type: string
+      remark:
+        type: string
+      root:
+        type: boolean
+      status:
+        type: integer
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+    type: object
   models.User:
     properties:
       accountId:
@@ -106,24 +126,14 @@ definitions:
       verified:
         type: boolean
     type: object
-  response.Response:
+  response.Page:
     properties:
-      code:
+      current:
         type: integer
-      errorCode:
-        type: string
-      errorMessage:
-        type: string
-      host:
-        type: string
-      showType:
+      pageSize:
         type: integer
-      status:
-        type: string
-      success:
-        type: boolean
-      traceId:
-        type: string
+      total:
+        type: integer
     type: object
 info:
   contact: {}
@@ -131,7 +141,7 @@ info:
   title: admin API
   version: 0.0.1
 paths:
-  /admin/api/menu/{id}:
+  /admin/api/menu/authorize/{id}:
     get:
       consumes:
       - application/json
@@ -144,23 +154,11 @@ paths:
         type: string
       responses:
         "200":
-          description: '{"code": 200, "data": [...]}'
+          description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/response.Response'
-            - properties:
-                data:
-                  items:
-                    allOf:
-                    - $ref: '#/definitions/models.MenuSingle'
-                    - properties:
-                        children:
-                          items:
-                            $ref: '#/definitions/models.MenuSingle'
-                          type: array
-                      type: object
-                  type: array
-              type: object
+            items:
+              type: string
+            type: array
       security:
       - Bearer: []
       summary: 获取菜单权限
@@ -185,8 +183,6 @@ paths:
       responses:
         "200":
           description: OK
-          schema:
-            $ref: '#/definitions/response.Response'
       security:
       - Bearer: []
       summary: 更新菜单权限
@@ -197,23 +193,18 @@ paths:
       description: 获取菜单树
       responses:
         "200":
-          description: '{"code": 200, "data": [...]}'
+          description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/response.Response'
-            - properties:
-                data:
-                  items:
-                    allOf:
-                    - $ref: '#/definitions/models.MenuSingle'
-                    - properties:
-                        children:
-                          items:
-                            $ref: '#/definitions/models.MenuSingle'
-                          type: array
-                      type: object
-                  type: array
-              type: object
+            items:
+              allOf:
+              - $ref: '#/definitions/models.MenuSingle'
+              - properties:
+                  children:
+                    items:
+                      $ref: '#/definitions/models.MenuSingle'
+                    type: array
+                type: object
+            type: array
       security:
       - Bearer: []
       summary: 获取菜单树
@@ -225,8 +216,6 @@ paths:
       responses:
         "200":
           description: OK
-          schema:
-            $ref: '#/definitions/response.Response'
       security:
       - Bearer: []
       summary: 迁移虚拟模型
@@ -245,11 +234,116 @@ paths:
       responses:
         "200":
           description: OK
-          schema:
-            $ref: '#/definitions/response.Response'
       security:
       - Bearer: []
       summary: 角色授权
+      tags:
+      - role
+  /admin/api/roles:
+    get:
+      consumes:
+      - application/json
+      description: 角色列表
+      parameters:
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: pageSize
+        in: query
+        name: page_size
+        type: integer
+      - description: id
+        in: query
+        name: id
+        type: string
+      - description: name
+        in: query
+        name: name
+        type: string
+      - description: status
+        in: query
+        name: status
+        type: integer
+      - description: remark
+        in: query
+        name: remark
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Page'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Role'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: 角色列表
+      tags:
+      - role
+    post:
+      consumes:
+      - application/json
+      description: 创建角色
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Role'
+      responses:
+        "201":
+          description: Created
+      security:
+      - Bearer: []
+      summary: 创建角色
+      tags:
+      - role
+  /admin/api/roles/{id}:
+    delete:
+      description: 删除角色
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除角色
+      tags:
+      - role
+    put:
+      consumes:
+      - application/json
+      description: 更新角色
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Role'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 更新角色
       tags:
       - role
   /admin/api/user/userInfo:
@@ -265,16 +359,9 @@ paths:
         type: string
       responses:
         "200":
-          description: '{"code": 200, "data": [...]}'
+          description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/response.Response'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/models.User'
-                  type: array
-              type: object
+            $ref: '#/definitions/models.User'
       security:
       - Bearer: []
       summary: 获取登录用户信息

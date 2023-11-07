@@ -46,7 +46,7 @@ func (e *Role) Other(r *gin.RouterGroup) {
 // @Description 给角色授权
 // @Tags role
 // @Param data body dto.AuthorizeRequest true "data"
-// @Success 200 {object} response.Response
+// @Success 200
 // @Router /admin/api/role/authorize [post]
 // @Security Bearer
 func (e *Role) Authorize(ctx *gin.Context) {
@@ -84,3 +84,55 @@ func (e *Role) Authorize(ctx *gin.Context) {
 
 	api.OK(nil)
 }
+
+// Create 创建角色
+// @Summary 创建角色
+// @Description 创建角色
+// @Tags role
+// @Accept  application/json
+// @Product application/json
+// @Param data body models.Role true "data"
+// @Success 201
+// @Router /admin/api/roles [post]
+// @Security Bearer
+func (e *Role) Create(*gin.Context) {}
+
+// Delete 删除角色
+// @Summary 删除角色
+// @Description 删除角色
+// @Tags role
+// @Param id path string true "id"
+// @Success 204
+// @Router /admin/api/roles/{id} [delete]
+// @Security Bearer
+func (e *Role) Delete(*gin.Context) {}
+
+// Update 更新角色
+// @Summary 更新角色
+// @Description 更新角色
+// @Tags role
+// @Accept  application/json
+// @Product application/json
+// @Param id path string true "id"
+// @Param data body models.Role true "data"
+// @Success 200
+// @Router /admin/api/roles/{id} [put]
+// @Security Bearer
+func (e *Role) Update(*gin.Context) {}
+
+// List 角色列表
+// @Summary 角色列表
+// @Description 角色列表
+// @Tags role
+// @Accept  application/json
+// @Product application/json
+// @Param page query int false "page"
+// @Param page_size query int false "pageSize"
+// @Param id query string false "id"
+// @Param name query string false "name"
+// @Param status query int false "status"
+// @Param remark query string false "remark"
+// @Success 200 {object} response.Page{data=[]models.Role}
+// @Router /admin/api/roles [get]
+// @Security Bearer
+func (e *Role) List(*gin.Context) {}

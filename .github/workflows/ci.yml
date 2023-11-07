@@ -2,8 +2,13 @@ name: CI
 
 on:
   push:
+    paths-ignore:
+      - 'docs/**'
+      - '.github/**'
+      - '.gitignore'
+      -
     branches:
-      - main
+      - main`
       - dev
     # Publish semver tags as releases.
     tags:
