@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/core/server/listener"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions/virtual"
+	"github.com/mss-boot-io/mss-boot/virtual/action"
 	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
@@ -80,7 +80,7 @@ func setup() error {
 		return err
 	}
 	for i := range ms {
-		virtual.SetModel(ms[i].Path, ms[i].MakeVirtualModel())
+		action.SetModel(ms[i].Path, ms[i].MakeVirtualModel())
 	}
 	server.Manage.Add(runnable...)
 

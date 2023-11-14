@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration"
-	common "github.com/mss-boot-io/mss-boot-admin-api/common/models"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
+	common "github.com/mss-boot-io/mss-boot/pkg/migration/models"
 )
 
 var Username string

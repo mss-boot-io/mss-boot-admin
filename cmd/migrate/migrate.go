@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot/pkg/migration/models"
 	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration"
 	_ "github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration/custom"
 	systemMigrate "github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration/system"
-	"github.com/mss-boot-io/mss-boot-admin-api/common/models"
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
 	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 )

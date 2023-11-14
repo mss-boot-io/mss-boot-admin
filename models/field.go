@@ -1,6 +1,8 @@
 package models
 
-import "github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
+import (
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+)
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
@@ -10,7 +12,7 @@ import "github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
  */
 
 type Field struct {
-	authentic.ModelGorm
+	actions.ModelGorm
 	ModelID     string `gorm:"column:model_id;type:varchar(64);not null;index;comment:模型id" json:"modelID"`
 	Name        string `gorm:"column:name;type:varchar(64);not null;comment:名称" json:"name"`
 	JsonTag     string `gorm:"column:json_tag;type:varchar(64);not null;comment:json标签" json:"json_tag"`

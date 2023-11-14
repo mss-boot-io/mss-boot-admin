@@ -1,10 +1,11 @@
 package models
 
 import (
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
-	"strings"
 )
 
 /*
@@ -26,7 +27,7 @@ func (a AccessType) String() string {
 }
 
 type API struct {
-	authentic.ModelGorm
+	actions.ModelGorm
 	Name    string `json:"name"`
 	Path    string `json:"path"`
 	Method  string `json:"method"`

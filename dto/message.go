@@ -1,6 +1,8 @@
 package dto
 
-import "github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
+import (
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+)
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
@@ -14,7 +16,7 @@ type MessageReadRequest struct {
 }
 
 type MessageSearch struct {
-	authentic.Pagination `search:"inline"`
+	actions.Pagination `search:"inline"`
 	//状态
 	//Status enum.Status `query:"status" form:"status"`
 }

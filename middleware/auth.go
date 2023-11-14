@@ -112,6 +112,7 @@ func Init() {
 		os.Exit(-1)
 	}
 	response.AuthHandler = Auth.MiddlewareFunc()
+	Middlewares.Store("auth", Auth.MiddlewareFunc())
 }
 
 // GetVerify 获取当前登录用户
