@@ -11,6 +11,7 @@ logger:
   level: info
   # 日志格式 json json格式
   formatter: default
+  addSource: true
 database:
   driver: mysql
   source: 'root:123456@tcp(127.0.0.1:3306)/mss-boot-admin?charset=utf8&parseTime=True&loc=Local&timeout=1000ms'

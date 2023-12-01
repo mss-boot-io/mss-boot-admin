@@ -9,6 +9,15 @@ import "time"
  * @Last Modified time: 2022/10/19 16:43:12
  */
 
+type GithubGetLoginURLReq struct {
+	State string `query:"state" form:"state" binding:"required"`
+}
+
+type GithubCallbackReq struct {
+	Code  string `query:"code" form:"code" binding:"required"`
+	State string `query:"state" form:"state" binding:"required"`
+}
+
 type GithubControlReq struct {
 	//github密码或者token
 	Password string `json:"password" binding:"required"`
