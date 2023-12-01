@@ -2,8 +2,13 @@ name: CI
 
 on:
   push:
+    paths-ignore:
+      - 'docs/**'
+      - '.github/**'
+      - '.gitignore'
+      -
     branches:
-      - main
+      - main`
       - dev
     # Publish semver tags as releases.
     tags:
@@ -28,7 +33,7 @@ jobs:
         - name: Setup golang
           uses: actions/setup-go@v4
           with:
-            go-version: 1.20.4
+            go-version: 1.21
         - name: Install dependencies
           run: make deps
         - name: Unit Test

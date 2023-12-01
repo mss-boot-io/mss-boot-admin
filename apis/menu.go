@@ -1,16 +1,17 @@
 package apis
 
 import (
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin-api/dto"
-	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+
+	"github.com/mss-boot-io/mss-boot-admin-api/dto"
+	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
+	"github.com/mss-boot-io/mss-boot-admin-api/models"
 )
 
 /*
@@ -26,7 +27,7 @@ func init() {
 			controller.WithAuth(true),
 			controller.WithModel(new(models.Menu)),
 			controller.WithSearch(new(dto.RoleSearch)),
-			controller.WithModelProvider(authentic.ModelProviderGorm),
+			controller.WithModelProvider(actions.ModelProviderGorm),
 		),
 	}
 	response.AppendController(e)
@@ -42,6 +43,17 @@ func (e *Menu) Other(r *gin.RouterGroup) {
 	r.PUT("/menu/authorize/:roleID", middleware.Auth.MiddlewareFunc(), e.UpdateAuthorize)
 }
 
+// UpdateAuthorize 更新菜单权限
+// @Summary 更新菜单权限
+// @Description 更新菜单权限
+// @Tags menu
+// @Accept  application/json
+// @Product application/json
+// @Param id path string true "id"
+// @Param data body dto.UpdateAuthorizeRequest true "data"
+// @Success 200
+// @Router /admin/api/menu/authorize/{id} [put]
+// @Security Bearer
 func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 	api := response.Make(ctx)
 	req := &dto.UpdateAuthorizeRequest{}
@@ -60,13 +72,13 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 		V0:    req.RoleID,
 	}).Delete(&models.CasbinRule{}).Error
 	if err != nil {
-		api.AddError(err).Log.Errorf("delete role error: %v", err)
+		api.AddError(err).Log.Error("delete role error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return
 	}
 	defer gormdb.Enforcer.LoadPolicy()
 	if err != nil {
-		api.AddError(err).Log.Errorf("delete role error: %v", err)
+		api.AddError(err).Log.Error("delete role error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return
 	}
@@ -80,13 +92,23 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 		}
 	}
 	if err = gormdb.DB.Create(&rules).Error; err != nil {
-		api.AddError(err).Log.Errorf("create casbin rule error: %v", err)
+		api.AddError(err).Log.Error("create casbin rule error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return
 	}
 	api.OK(nil)
 }
 
+// GetAuthorize 获取菜单权限
+// @Summary 获取菜单权限
+// @Description 获取菜单权限
+// @Tags menu
+// @Accept  application/json
+// @Product application/json
+// @Param id path string true "id"
+// @Success 200 {object} []string
+// @Router /admin/api/menu/authorize/{id} [get]
+// @Security Bearer
 func (e *Menu) GetAuthorize(ctx *gin.Context) {
 	api := response.Make(ctx)
 	req := &dto.GetAuthorizeRequest{}
@@ -97,29 +119,40 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 	list := make([]*models.Menu, 0)
 	err := gormdb.DB.WithContext(ctx).Find(&list).Error
 	if err != nil {
-		api.Log.Errorf("get menu tree error: %v", err)
+		api.Log.Error("get menu tree error", "err", err)
 		api.Err(http.StatusInternalServerError, err.Error())
 		return
 	}
+	keys := make([]string, 0)
 	// check select menu
 	for i := range list {
-		list[i].Select, err = gormdb.Enforcer.Enforce(
+		ok, err := gormdb.Enforcer.Enforce(
 			req.RoleID, list[i].Key, models.MenuAccessType.String())
 		if err != nil {
-			api.AddError(err).Log.Errorf("get menu tree error: %v", err)
+			api.AddError(err).Log.Error("get menu tree error", "err", err)
 			api.Err(http.StatusInternalServerError)
 			return
 		}
+		if ok {
+			keys = append(keys, list[i].Key)
+		}
 	}
-	api.OK(models.GetMenuTree(list))
+	api.OK(keys)
 }
 
+// Tree 获取菜单树
+// @Summary 获取菜单树
+// @Description 获取菜单树
+// @Tags menu
+// @Success 200 {object} []models.MenuSingle{children=[]models.MenuSingle}
+// @Router /admin/api/menu/tree [get]
+// @Security Bearer
 func (e *Menu) Tree(ctx *gin.Context) {
 	api := response.Make(ctx)
 	list := make([]*models.Menu, 0)
 	err := gormdb.DB.WithContext(ctx).Find(&list).Error
 	if err != nil {
-		api.Log.Errorf("get menu tree error: %v", err)
+		api.Log.Error("get menu tree error", "err", err)
 		api.Err(http.StatusInternalServerError, err.Error())
 		return
 	}

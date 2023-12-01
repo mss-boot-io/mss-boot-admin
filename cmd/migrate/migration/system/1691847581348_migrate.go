@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration"
-	common "github.com/mss-boot-io/mss-boot-admin-api/common/models"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
+	common "github.com/mss-boot-io/mss-boot/pkg/migration/models"
 )
 
 var Username string
@@ -80,6 +80,10 @@ func _1691847581348Migrate(db *gorm.DB, version string) error {
 				},
 			},
 			{
+				Name: "menu.generator",
+				Key:  "generator",
+			},
+			{
 				Name: "menu.role",
 				Key:  "role",
 				Children: []models.Menu{
@@ -90,6 +94,21 @@ func _1691847581348Migrate(db *gorm.DB, version string) error {
 					{
 						Name:   "menu.role.control",
 						Key:    "role/control",
+						Ignore: true,
+					},
+				},
+			},
+			{
+				Name: "menu.user",
+				Key:  "user",
+				Children: []models.Menu{
+					{
+						Name: "menu.user.search",
+						Key:  "user/search",
+					},
+					{
+						Name:   "menu.user.control",
+						Key:    "user/control",
 						Ignore: true,
 					},
 				},

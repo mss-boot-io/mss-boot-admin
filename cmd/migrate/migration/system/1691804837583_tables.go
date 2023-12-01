@@ -6,8 +6,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration"
-	common "github.com/mss-boot-io/mss-boot-admin-api/common/models"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
+	common "github.com/mss-boot-io/mss-boot/pkg/migration/models"
 )
 
 func init() {
@@ -26,6 +26,7 @@ func _1691804837583Tables(db *gorm.DB, version string) error {
 			new(models.Menu),
 			new(models.Model),
 			new(models.Field),
+			new(models.Github),
 		)
 		if err != nil {
 			return err

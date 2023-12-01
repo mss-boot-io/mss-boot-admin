@@ -28,3 +28,6 @@ go.work*
 go.sum
 
 config/application-*
+
+temp
+test

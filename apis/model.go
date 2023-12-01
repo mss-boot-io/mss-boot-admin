@@ -2,12 +2,12 @@ package apis
 
 import (
 	"errors"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 	"gorm.io/gorm"
 
@@ -28,7 +28,7 @@ func init() {
 			controller.WithAuth(true),
 			controller.WithModel(new(models.Model)),
 			controller.WithSearch(new(dto.ModelSearch)),
-			controller.WithModelProvider(authentic.ModelProviderGorm),
+			controller.WithModelProvider(actions.ModelProviderGorm),
 		),
 	}
 	response.AppendController(e)
@@ -42,6 +42,13 @@ func (e *Model) Other(r *gin.RouterGroup) {
 	r.GET("/model/migrate/:id", e.Migrate)
 }
 
+// Migrate 迁移虚拟模型
+// @Summary 迁移虚拟模型
+// @Description 迁移虚拟模型
+// @Tags model
+// @Success 200
+// @Router /admin/api/model/migrate/{id} [get]
+// @Security Bearer
 func (e *Model) Migrate(ctx *gin.Context) {
 	api := response.Make(ctx)
 	m := &models.Model{}

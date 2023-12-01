@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/cast"
+	"log/slog"
+	"os"
 	"reflect"
 	"time"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
-	log "github.com/mss-boot-io/mss-boot/core/logger"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 )
@@ -37,6 +38,7 @@ func Init() {
 		PayloadFunc: func(data any) jwt.MapClaims {
 			if v, ok := data.(security.Verifier); ok {
 				rb, _ := json.Marshal(v)
+
 				return jwt.MapClaims{
 					"verifier": string(rb),
 				}
@@ -68,9 +70,13 @@ func Init() {
 		},
 		Authorizator: func(data any, c *gin.Context) bool {
 			if v, ok := data.(security.Verifier); ok {
-				//todo verify permission
-				path := c.Request.URL.Path
-				fmt.Println(v.GetRoleID(), path, c.Request.Method)
+				//enable, err := gormdb.Enforcer.Enforce(v.GetRoleID(), c.Request.URL.Path, c.Request.Method)
+				//if err != nil {
+				//	log.Errorf("Enforcer.Enforce error: %v", err)
+				//	return false
+				//}
+				fmt.Println(v.GetRoleID(), c.Request.URL.Path, c.Request.Method)
+				//return enable
 				return true
 			}
 			return false
@@ -102,9 +108,11 @@ func Init() {
 	}
 	err := Auth.MiddlewareInit()
 	if err != nil {
-		log.Fatal("authMiddleware.MiddlewareInit() Error:" + err.Error())
+		slog.Error("authMiddleware.MiddlewareInit() Error", "err", err)
+		os.Exit(-1)
 	}
 	response.AuthHandler = Auth.MiddlewareFunc()
+	Middlewares.Store("auth", Auth.MiddlewareFunc())
 }
 
 // GetVerify 获取当前登录用户

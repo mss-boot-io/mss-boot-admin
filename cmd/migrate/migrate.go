@@ -2,18 +2,18 @@ package migrate
 
 import (
 	"bytes"
+	"log/slog"
 	"strconv"
 	"text/template"
 	"time"
 
-	log "github.com/mss-boot-io/mss-boot/core/logger"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot/pkg/migration/models"
 	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration"
 	_ "github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration/custom"
 	systemMigrate "github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration/system"
-	"github.com/mss-boot-io/mss-boot-admin-api/common/models"
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
 	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 )
@@ -48,16 +48,16 @@ func init() {
 	StartCmd.PersistentFlags().StringVarP(&username, "username", "u",
 		"admin", "system super administrator login username")
 	StartCmd.PersistentFlags().StringVarP(&password, "password", "p",
-		"admin", "system super administrator login password")
+		"ant.design", "system super administrator login password")
 }
 
 func Run() error {
 	if !generate {
-		log.Info(`start init`)
+		slog.Info("start init")
 		config.Cfg.Init()
 		return migrate()
 	}
-	log.Info(`generate migration file`)
+	slog.Info(`generate migration file`)
 	return genFile()
 }
 
@@ -67,7 +67,7 @@ func migrate() error {
 	db := gormdb.DB
 	err := db.AutoMigrate(&models.Migration{})
 	if err != nil {
-		log.Errorf("auto migrate error: %v", err)
+		slog.Error("auto migrate error", "err", err)
 		return err
 	}
 	migration.Migrate.SetDb(db)
@@ -78,7 +78,7 @@ func migrate() error {
 func genFile() error {
 	t1, err := template.ParseFiles("template/migrate.tpl")
 	if err != nil {
-		log.Error("parse template error", err)
+		slog.Error("parse template error", err)
 		return err
 	}
 	m := map[string]string{}
@@ -90,9 +90,15 @@ func genFile() error {
 	var b1 bytes.Buffer
 	err = t1.Execute(&b1, m)
 	if system {
-		pkg.FileCreate(b1, "./cmd/migrate/migration/system/"+m["GenerateTime"]+"_migrate.go")
+		err = pkg.FileCreate(b1, "./cmd/migrate/migration/system/"+m["GenerateTime"]+"_migrate.go")
+		if err != nil {
+			return err
+		}
 	} else {
-		pkg.FileCreate(b1, "./cmd/migrate/migration/custom/"+m["GenerateTime"]+"_migrate.go")
+		err = pkg.FileCreate(b1, "./cmd/migrate/migration/custom/"+m["GenerateTime"]+"_migrate.go")
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

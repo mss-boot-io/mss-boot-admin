@@ -9,11 +9,11 @@ package models
 
 import (
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 )
 
 type Role struct {
-	authentic.ModelGorm
+	actions.ModelGorm
 	Name   string      `json:"name"`
 	Root   bool        `json:"root" gorm:"->"`
 	Status enum.Status `json:"status"`

@@ -23,7 +23,7 @@ func Init(r *gin.RouterGroup) {
 	v1 := r.Group("/api")
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	configCors := cors.DefaultConfig()
-	configCors.AllowOrigins = []string{"http://localhost:3000"}
+	configCors.AllowOrigins = []string{"*"}
 	configCors.AllowCredentials = true
 	configCors.AddAllowHeaders("Authorization")
 	v1.Use(cors.New(configCors))

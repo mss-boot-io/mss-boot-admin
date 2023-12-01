@@ -4,7 +4,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin-api/dto"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 )
 
@@ -21,7 +21,7 @@ func init() {
 			controller.WithAuth(true),
 			controller.WithModel(new(models.API)),
 			controller.WithSearch(new(dto.APISearch)),
-			controller.WithModelProvider(authentic.ModelProviderGorm),
+			controller.WithModelProvider(actions.ModelProviderGorm),
 		),
 	}
 	response.AppendController(e)

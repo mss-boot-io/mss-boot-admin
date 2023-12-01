@@ -1,9 +1,11 @@
 package models
 
 import (
-	log "github.com/mss-boot-io/mss-boot/core/logger"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"log/slog"
+	"os"
+
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
 	"github.com/mss-boot-io/mss-boot/virtual/model"
 	"gorm.io/gorm/schema"
 )
@@ -16,7 +18,7 @@ import (
  */
 
 type Model struct {
-	authentic.ModelGorm
+	actions.ModelGorm
 	Name        string  `gorm:"column:name;type:varchar(255);not null;comment:名称" json:"name"`
 	Description string  `gorm:"column:description;type:text;not null;comment:描述" json:"description"`
 	HardDeleted bool    `gorm:"column:hard_deleted;type:tinyint(1);not null;default:0;comment:是否硬删除" json:"hardDeleted"`
@@ -59,7 +61,8 @@ func GetModels() ([]*Model, error) {
 	var models []*Model
 	err := gormdb.DB.Preload("Fields").Find(&models).Error
 	if err != nil {
-		log.Fatalf("get models failed, %s\n", err.Error())
+		slog.Error("get models failed", "err", err)
+		os.Exit(-1)
 	}
 	return models, err
 }

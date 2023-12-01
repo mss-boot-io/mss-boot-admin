@@ -2,8 +2,8 @@ package apis
 
 import (
 	"github.com/mss-boot-io/mss-boot/pkg/response"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions/virtual"
-	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+	"github.com/mss-boot-io/mss-boot/virtual/action"
+	"github.com/mss-boot-io/mss-boot/virtual/api"
 )
 
 /*
@@ -14,13 +14,13 @@ import (
  */
 
 type Virtual struct {
-	*controller.Virtual
+	*api.Virtual
 }
 
 func init() {
 	e := &Virtual{
-		Virtual: controller.NewVirtual(
-			virtual.GetBase(),
+		Virtual: api.NewVirtual(
+			action.GetBase(),
 			//controller.WithAuth(true),
 		),
 	}

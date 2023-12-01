@@ -1,9 +1,609 @@
+definitions:
+  dto.AuthorizeRequest:
+    properties:
+      apiIDS:
+        items:
+          type: string
+        type: array
+      menuIDS:
+        items:
+          type: string
+        type: array
+      roleID:
+        type: string
+    type: object
+  dto.GenerateParams:
+    properties:
+      params:
+        additionalProperties:
+          type: string
+        type: object
+      repo:
+        type: string
+      service:
+        type: string
+    required:
+    - repo
+    type: object
+  dto.GithubControlReq:
+    properties:
+      password:
+        description: github密码或者token
+        type: string
+    required:
+    - password
+    type: object
+  dto.GithubGetResp:
+    properties:
+      configured:
+        description: 已配置
+        type: boolean
+      createdAt:
+        description: 创建时间
+        type: string
+      email:
+        description: github邮箱
+        type: string
+      updatedAt:
+        description: 更新时间
+        type: string
+    type: object
+  dto.TemplateGenerateReq:
+    properties:
+      accessToken:
+        type: string
+      email:
+        type: string
+      generate:
+        $ref: '#/definitions/dto.GenerateParams'
+      template:
+        $ref: '#/definitions/dto.TemplateParams'
+    type: object
+  dto.TemplateGenerateResp:
+    properties:
+      branch:
+        type: string
+      repo:
+        type: string
+    type: object
+  dto.TemplateGetBranchesResp:
+    properties:
+      branches:
+        items:
+          type: string
+        type: array
+    type: object
+  dto.TemplateGetParamsResp:
+    properties:
+      params:
+        items:
+          $ref: '#/definitions/dto.TemplateParam'
+        type: array
+    type: object
+  dto.TemplateGetPathResp:
+    properties:
+      path:
+        items:
+          type: string
+        type: array
+    type: object
+  dto.TemplateParam:
+    properties:
+      name:
+        type: string
+      tip:
+        type: string
+    type: object
+  dto.TemplateParams:
+    properties:
+      branch:
+        type: string
+      path:
+        type: string
+      source:
+        type: string
+    required:
+    - source
+    type: object
+  dto.UpdateAuthorizeRequest:
+    properties:
+      keys:
+        items:
+          type: string
+        type: array
+      roleID:
+        type: string
+    required:
+    - keys
+    - roleID
+    type: object
+  models.MenuSingle:
+    properties:
+      breadcrumb:
+        type: boolean
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      id:
+        description: ID primary key
+        type: string
+      ignore:
+        type: boolean
+      key:
+        type: string
+      name:
+        type: string
+      parentId:
+        type: string
+      select:
+        type: boolean
+      title:
+        type: string
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+    type: object
+  models.Role:
+    properties:
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      id:
+        description: ID primary key
+        type: string
+      name:
+        type: string
+      remark:
+        type: string
+      root:
+        type: boolean
+      status:
+        type: integer
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+    type: object
+  models.User:
+    properties:
+      accountId:
+        type: string
+      avatar:
+        type: string
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      email:
+        type: string
+      id:
+        description: ID primary key
+        type: string
+      introduction:
+        type: string
+      job:
+        type: string
+      jobName:
+        type: string
+      location:
+        type: string
+      locationName:
+        type: string
+      name:
+        type: string
+      organization:
+        type: string
+      organizationName:
+        type: string
+      password:
+        type: string
+      permissions:
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        type: object
+      personalWebsite:
+        type: string
+      phoneNumber:
+        type: string
+      registrationTime:
+        type: string
+      roleId:
+        type: string
+      status:
+        type: integer
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+      username:
+        type: string
+      verified:
+        type: boolean
+    type: object
+  response.Page:
+    properties:
+      current:
+        type: integer
+      pageSize:
+        type: integer
+      total:
+        type: integer
+    type: object
 info:
   contact: {}
   description: admin接口文档
   title: admin API
   version: 0.0.1
-paths: {}
+paths:
+  /admin/api/github/control:
+    post:
+      consumes:
+      - application/json
+      description: 创建或更新github配置
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/dto.GithubControlReq'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 创建或更新github配置
+      tags:
+      - generator
+  /admin/api/github/get:
+    get:
+      consumes:
+      - application/json
+      description: 获取github配置
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.GithubGetResp'
+      security:
+      - Bearer: []
+      summary: 获取github配置
+      tags:
+      - generator
+  /admin/api/menu/authorize/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 获取菜单权限
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      security:
+      - Bearer: []
+      summary: 获取菜单权限
+      tags:
+      - menu
+    put:
+      consumes:
+      - application/json
+      description: 更新菜单权限
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateAuthorizeRequest'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 更新菜单权限
+      tags:
+      - menu
+  /admin/api/menu/tree:
+    get:
+      description: 获取菜单树
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              allOf:
+              - $ref: '#/definitions/models.MenuSingle'
+              - properties:
+                  children:
+                    items:
+                      $ref: '#/definitions/models.MenuSingle'
+                    type: array
+                type: object
+            type: array
+      security:
+      - Bearer: []
+      summary: 获取菜单树
+      tags:
+      - menu
+  /admin/api/model/migrate/{id}:
+    get:
+      description: 迁移虚拟模型
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 迁移虚拟模型
+      tags:
+      - model
+  /admin/api/role/authorize:
+    post:
+      description: 给角色授权
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AuthorizeRequest'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 角色授权
+      tags:
+      - role
+  /admin/api/roles:
+    get:
+      consumes:
+      - application/json
+      description: 角色列表
+      parameters:
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: pageSize
+        in: query
+        name: page_size
+        type: integer
+      - description: id
+        in: query
+        name: id
+        type: string
+      - description: name
+        in: query
+        name: name
+        type: string
+      - description: status
+        in: query
+        name: status
+        type: integer
+      - description: remark
+        in: query
+        name: remark
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Page'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Role'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: 角色列表
+      tags:
+      - role
+    post:
+      consumes:
+      - application/json
+      description: 创建角色
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Role'
+      responses:
+        "201":
+          description: Created
+      security:
+      - Bearer: []
+      summary: 创建角色
+      tags:
+      - role
+  /admin/api/roles/{id}:
+    delete:
+      description: 删除角色
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除角色
+      tags:
+      - role
+    put:
+      consumes:
+      - application/json
+      description: 更新角色
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Role'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 更新角色
+      tags:
+      - role
+  /admin/api/template/generate:
+    post:
+      consumes:
+      - application/json
+      description: 从模版生成代码
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TemplateGenerateReq'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TemplateGenerateResp'
+      security:
+      - Bearer: []
+      summary: 从模版生成代码
+      tags:
+      - generator
+  /admin/api/template/get-branches:
+    get:
+      consumes:
+      - application/json
+      description: 获取template分支
+      parameters:
+      - description: template source
+        in: query
+        name: source
+        required: true
+        type: string
+      - description: access token
+        in: query
+        name: accessToken
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TemplateGetBranchesResp'
+      security:
+      - Bearer: []
+      summary: 获取template分支
+      tags:
+      - generator
+  /admin/api/template/get-params:
+    get:
+      consumes:
+      - application/json
+      description: 获取template参数配置
+      parameters:
+      - description: template source
+        in: query
+        name: source
+        required: true
+        type: string
+      - description: branch default:HEAD
+        in: query
+        name: branch
+        type: string
+      - description: path default:.
+        in: query
+        name: path
+        type: string
+      - description: access token
+        in: query
+        name: accessToken
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TemplateGetParamsResp'
+      security:
+      - Bearer: []
+      summary: 获取template参数配置
+      tags:
+      - generator
+  /admin/api/template/get-path:
+    get:
+      consumes:
+      - application/json
+      description: 获取template文件路径list
+      parameters:
+      - description: template source
+        in: query
+        name: source
+        required: true
+        type: string
+      - description: branch default:HEAD
+        in: query
+        name: branch
+        type: string
+      - description: access token
+        in: query
+        name: accessToken
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TemplateGetPathResp'
+      security:
+      - Bearer: []
+      summary: 获取template文件路径list
+      tags:
+      - generator
+  /admin/api/user/userInfo:
+    get:
+      consumes:
+      - application/json
+      description: 获取登录用户信息
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+      security:
+      - Bearer: []
+      summary: 获取登录用户信息
+      tags:
+      - user
 securityDefinitions:
   Bearer:
     in: header

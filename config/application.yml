@@ -31,6 +31,6 @@ database:
 auth:
   realm: 'mss-boot-admin zone'
   key: 'mss-boot-admin-secret'
-  timeout: '1h'
+  timeout: '12h'
   maxRefresh: '1h'
   identityKey: 'mss-boot-admin-identity-key'

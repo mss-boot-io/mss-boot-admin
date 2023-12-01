@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 	"time"
 
@@ -19,23 +19,23 @@ import (
  */
 
 type User struct {
-	authentic.ModelGorm `json:",inline"`
-	UserLogin           `json:",inline"`
-	Name                string              `json:"name"`
-	Avatar              string              `json:"avatar"`
-	Job                 string              `json:"job"`
-	JobName             string              `json:"jobName" gorm:"-"`
-	Organization        string              `json:"organization"`
-	OrganizationName    string              `json:"organizationName" gorm:"-"`
-	Location            string              `json:"location"`
-	LocationName        string              `json:"locationName" gorm:"-"`
-	Introduction        string              `json:"introduction"`
-	PersonalWebsite     string              `json:"personalWebsite"`
-	Verified            bool                `json:"verified"`
-	PhoneNumber         string              `json:"phoneNumber"`
-	AccountID           string              `json:"accountId"`
-	RegistrationTime    time.Time           `json:"registrationTime"`
-	Permissions         map[string][]string `json:"permissions" gorm:"-"`
+	actions.ModelGorm `json:",inline"`
+	UserLogin         `json:",inline"`
+	Name              string              `json:"name"`
+	Avatar            string              `json:"avatar"`
+	Job               string              `json:"job"`
+	JobName           string              `json:"jobName" gorm:"-"`
+	Organization      string              `json:"organization"`
+	OrganizationName  string              `json:"organizationName" gorm:"-"`
+	Location          string              `json:"location"`
+	LocationName      string              `json:"locationName" gorm:"-"`
+	Introduction      string              `json:"introduction"`
+	PersonalWebsite   string              `json:"personalWebsite"`
+	Verified          bool                `json:"verified"`
+	PhoneNumber       string              `json:"phoneNumber"`
+	AccountID         string              `json:"accountId"`
+	RegistrationTime  time.Time           `json:"registrationTime"`
+	Permissions       map[string][]string `json:"permissions" gorm:"-"`
 }
 
 func (e *User) BeforeCreate(_ *gorm.DB) error {

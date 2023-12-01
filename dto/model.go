@@ -1,6 +1,8 @@
 package dto
 
-import "github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
+import (
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+)
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
@@ -10,7 +12,7 @@ import "github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
  */
 
 type ModelSearch struct {
-	authentic.Pagination `search:"inline"`
+	actions.Pagination `search:"inline"`
 	// ID
 	ID string `query:"id" form:"id" search:"type:contains;column:id"`
 	//名称

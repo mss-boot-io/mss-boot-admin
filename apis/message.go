@@ -7,7 +7,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions/authentic"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 	"net/http"
 )
@@ -25,7 +25,7 @@ func init() {
 			controller.WithAuth(true),
 			controller.WithModel(new(models.Message)),
 			controller.WithSearch(new(dto.MessageSearch)),
-			controller.WithModelProvider(authentic.ModelProviderGorm),
+			controller.WithModelProvider(actions.ModelProviderGorm),
 		),
 	}
 	response.AppendController(e)
@@ -55,7 +55,7 @@ func (e *Message) List(ctx *gin.Context) {
 	list := make([]*models.Message, 0)
 	err := gormdb.DB.Where("user_id", verify.GetUserID()).Where("read", false).Find(&list).Error
 	if err != nil {
-		api.Log.Errorf("list error: %s", err)
+		api.Log.Error("list error", "err", err)
 		api.Err(http.StatusInternalServerError, err.Error())
 		return
 	}
