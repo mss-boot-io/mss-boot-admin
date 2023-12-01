@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +23,7 @@ func PathCreate(dir string) error {
 func PathExist(addr string) bool {
 	s, err := os.Stat(addr)
 	if err != nil {
+		slog.Error("PathExist")
 		log.Println(err)
 		return false
 	}

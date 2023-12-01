@@ -12,7 +12,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
+	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
@@ -192,12 +194,12 @@ func GetGithubRepoAllBranches(ctx context.Context, organization, name, token str
 func CommitAndPushGithubRepo(directory, branch, path, accessToken string, auth *http.BasicAuth) error {
 	r, err := git.PlainOpen(directory)
 	if err != nil {
-		log.Println(err)
+		slog.Error("open git repo error", slog.String("directory", directory), slog.Any("err", err))
 		return err
 	}
 	w, err := r.Worktree()
 	if err != nil {
-		log.Println(err)
+		slog.Error("get git worktree error", slog.String("directory", directory), slog.Any("err", err))
 		return err
 	}
 	err = w.Checkout(&git.CheckoutOptions{
@@ -206,26 +208,34 @@ func CommitAndPushGithubRepo(directory, branch, path, accessToken string, auth *
 		Keep:   true,
 	})
 	if err != nil {
-		log.Println(err)
+		slog.Error("checkout git branch error",
+			slog.String("directory", directory),
+			slog.String("branch", branch),
+			slog.Any("err", err))
 		return err
 	}
 	if path == "" {
 		path = "."
 	}
-	fmt.Println("path:", path)
+	slog.Debug("add path", slog.String("path", path))
 	_, err = w.Add(path)
 	if err != nil {
-		log.Println(err)
+		slog.Error("add git path error",
+			slog.String("directory", directory),
+			slog.String("path", path),
+			slog.Any("err", err))
 		return err
 	}
 	_, err = w.Commit(":tada: generate "+path, &git.CommitOptions{
 		All: true,
 		Author: &object.Signature{
+			Name:  auth.Username,
 			Email: auth.Username,
+			When:  time.Now(),
 		},
 	})
 	if err != nil {
-		log.Println(err)
+		slog.Error("commit git error", slog.Any("err", err))
 		return err
 	}
 	return r.Push(&git.PushOptions{
