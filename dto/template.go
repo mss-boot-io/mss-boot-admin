@@ -1,7 +1,8 @@
 package dto
 
 type TemplateGetBranchesReq struct {
-	Source string `query:"source" form:"source" binding:"required"`
+	Source      string `query:"source" form:"source" binding:"required"`
+	AccessToken string `query:"accessToken" form:"accessToken"`
 }
 
 type TemplateGetBranchesResp struct {
@@ -9,8 +10,9 @@ type TemplateGetBranchesResp struct {
 }
 
 type TemplateGetPathReq struct {
-	Source string `query:"source" form:"source" binding:"required"`
-	Branch string `query:"branch" form:"branch"`
+	Source      string `query:"source" form:"source" binding:"required"`
+	Branch      string `query:"branch" form:"branch"`
+	AccessToken string `query:"accessToken" form:"accessToken"`
 }
 
 type TemplateGetPathResp struct {
@@ -18,9 +20,10 @@ type TemplateGetPathResp struct {
 }
 
 type TemplateGetParamsReq struct {
-	Source string `query:"source" form:"source" binding:"required"`
-	Branch string `query:"branch" form:"branch"`
-	Path   string `query:"path" form:"path"`
+	Source      string `query:"source" form:"source" binding:"required"`
+	Branch      string `query:"branch" form:"branch"`
+	Path        string `query:"path" form:"path"`
+	AccessToken string `query:"accessToken" form:"accessToken"`
 }
 
 type TemplateGetParamsResp struct {
@@ -33,8 +36,10 @@ type TemplateParam struct {
 }
 
 type TemplateGenerateReq struct {
-	Template TemplateParams `json:"template"`
-	Generate GenerateParams `json:"generate"`
+	Template    TemplateParams `json:"template"`
+	Generate    GenerateParams `json:"generate"`
+	AccessToken string         `query:"accessToken" form:"accessToken"`
+	Email       string         `query:"email" form:"email"`
 }
 
 type TemplateParams struct {

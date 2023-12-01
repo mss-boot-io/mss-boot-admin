@@ -90,12 +90,12 @@ func genFile() error {
 	var b1 bytes.Buffer
 	err = t1.Execute(&b1, m)
 	if system {
-		err = pkg.FileCreate(b1, "./cmd/migrate/migration/system/"+m["GenerateTime"]+"_migrate.go", 0666)
+		err = pkg.FileCreate(b1, "./cmd/migrate/migration/system/"+m["GenerateTime"]+"_migrate.go")
 		if err != nil {
 			return err
 		}
 	} else {
-		err = pkg.FileCreate(b1, "./cmd/migrate/migration/custom/"+m["GenerateTime"]+"_migrate.go", 0666)
+		err = pkg.FileCreate(b1, "./cmd/migrate/migration/custom/"+m["GenerateTime"]+"_migrate.go")
 		if err != nil {
 			return err
 		}

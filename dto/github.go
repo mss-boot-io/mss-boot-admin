@@ -9,7 +9,7 @@ import "time"
  * @Last Modified time: 2022/10/19 16:43:12
  */
 
-type GithubCreateReq struct {
+type GithubControlReq struct {
 	//github密码或者token
 	Password string `json:"password" binding:"required"`
 }

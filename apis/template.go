@@ -8,7 +8,6 @@ package apis
  */
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -19,12 +18,11 @@ import (
 	"github.com/gin-gonic/gin"
 	gitHttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/google/uuid"
-	"github.com/mss-boot-io/mss-boot/pkg/middlewares"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/dto"
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
+	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
 	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 )
 
@@ -42,7 +40,7 @@ func (Template) Path() string {
 }
 
 func (e Template) Other(r *gin.RouterGroup) {
-	r.Use(middlewares.AuthMiddleware())
+	r.Use(middleware.GetMiddlewares()...)
 	r.GET("/template/get-branches", e.GetBranches)
 	r.GET("/template/get-path", e.GetPath)
 	r.GET("/template/get-params", e.GetParams)
@@ -56,8 +54,9 @@ func (e Template) Other(r *gin.RouterGroup) {
 // @Accept  application/json
 // @Product application/json
 // @Param source query string true "template source"
-// @Success 200 {object} response.Response{data=dto.TemplateGetBranchesResp}
-// @Router /generator/api/v1/template/get-branches [get]
+// @Param accessToken query string false "access token"
+// @Success 200 {object} dto.TemplateGetBranchesResp
+// @Router /admin/api/template/get-branches [get]
 // @Security Bearer
 func (e Template) GetBranches(c *gin.Context) {
 	api := response.Make(c)
@@ -66,14 +65,8 @@ func (e Template) GetBranches(c *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	g, err := getGithubConfig(c)
-	if err != nil {
-		api.AddError(err).Log.Error("get github config error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
 	s := strings.Split(req.Source, "/")
-	branches, err := pkg.GetGithubRepoAllBranches(c, s[len(s)-2], s[len(s)-1], g.Password)
+	branches, err := pkg.GetGithubRepoAllBranches(c, s[len(s)-2], s[len(s)-1], req.AccessToken)
 	if err != nil {
 		api.AddError(err).Log.Error("get github branches error")
 		api.Err(http.StatusInternalServerError)
@@ -96,8 +89,9 @@ func (e Template) GetBranches(c *gin.Context) {
 // @Product application/json
 // @Param source query string true "template source"
 // @Param branch query string false "branch default:HEAD"
-// @Success 200 {object} response.Response{data=dto.TemplateGetPathResp}
-// @Router /generator/api/v1/template/get-path [get]
+// @Param accessToken query string false "access token"
+// @Success 200 {object} dto.TemplateGetPathResp
+// @Router /admin/api/template/get-path [get]
 // @Security Bearer
 func (e Template) GetPath(c *gin.Context) {
 	api := response.Make(c)
@@ -106,13 +100,6 @@ func (e Template) GetPath(c *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	g, err := getGithubConfig(c)
-	if err != nil {
-		api.AddError(err).Log.Error("get github config error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-
 	if req.Branch == "" {
 		req.Branch = "main"
 	}
@@ -123,7 +110,7 @@ func (e Template) GetPath(c *gin.Context) {
 		"",
 	), req.Branch)
 	//获取最新代码
-	_, err = pkg.GitClone(req.Source, req.Branch, dir, false, g.Password)
+	_, err := pkg.GitClone(req.Source, req.Branch, dir, false, req.AccessToken)
 	//更新
 	if err != nil {
 		api.AddError(err).Log.Error("git clone error")
@@ -161,8 +148,9 @@ func (e Template) GetPath(c *gin.Context) {
 // @Param source query string true "template source"
 // @Param branch query string false "branch default:HEAD"
 // @Param path query string false "path default:."
-// @Success 200 {object} response.Response{data=dto.TemplateGetParamsResp}
-// @Router /generator/api/v1/template/get-params [get]
+// @Param accessToken query string false "access token"
+// @Success 200 {object} dto.TemplateGetParamsResp
+// @Router /admin/api/template/get-params [get]
 // @Security Bearer
 func (e Template) GetParams(c *gin.Context) {
 	api := response.Make(c)
@@ -171,13 +159,6 @@ func (e Template) GetParams(c *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	g, err := getGithubConfig(c)
-	if err != nil {
-		api.AddError(err).Log.Error("get github config error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-
 	if req.Branch == "" {
 		req.Branch = "main"
 	}
@@ -188,7 +169,7 @@ func (e Template) GetParams(c *gin.Context) {
 		"",
 	), req.Branch)
 	//获取最新代码
-	_, err = pkg.GitClone(req.Source, req.Branch, dir, false, g.Password)
+	_, err := pkg.GitClone(req.Source, req.Branch, dir, false, req.AccessToken)
 	//更新
 	if err != nil {
 		api.AddError(err).Log.Error("git clone error")
@@ -229,20 +210,14 @@ func (e Template) GetParams(c *gin.Context) {
 // @Accept  application/json
 // @Product application/json
 // @Param data body dto.TemplateGenerateReq true "data"
-// @Success 200 {object} response.Response{data=dto.TemplateGenerateResp}
-// @Router /generator/api/v1/template/generate [post]
+// @Success 200 {object} dto.TemplateGenerateResp
+// @Router /admin/api/template/generate [post]
 // @Security Bearer
 func (e Template) Generate(c *gin.Context) {
 	api := response.Make(c)
 	req := &dto.TemplateGenerateReq{}
 	if api.Bind(req).Error != nil {
 		api.Err(http.StatusUnprocessableEntity)
-		return
-	}
-	g, err := getGithubConfig(c)
-	if err != nil {
-		api.AddError(err).Log.Error("get github config error")
-		api.Err(http.StatusInternalServerError)
 		return
 	}
 
@@ -256,10 +231,10 @@ func (e Template) Generate(c *gin.Context) {
 		"",
 	), req.Template.Branch)
 	//获取新代码
-	_, err = pkg.GitClone(
+	_, err := pkg.GitClone(
 		req.Template.Source,
 		req.Template.Branch, dir, false,
-		g.Password)
+		req.AccessToken)
 	if err != nil {
 		api.AddError(err).Log.Error("git clone error")
 		api.Err(http.StatusInternalServerError)
@@ -274,7 +249,7 @@ func (e Template) Generate(c *gin.Context) {
 		"",
 	), branch)
 
-	_, err = pkg.GitClone(req.Generate.Repo, "", codeDir, false, g.Password)
+	_, err = pkg.GitClone(req.Generate.Repo, "", codeDir, false, req.AccessToken)
 	if err != nil {
 		api.AddError(err).Log.Error("git clone error")
 		api.Err(http.StatusInternalServerError)
@@ -303,10 +278,10 @@ func (e Template) Generate(c *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	err = pkg.CommitAndPushGithubRepo(codeDir, branch, req.Generate.Service, g.Password,
+	err = pkg.CommitAndPushGithubRepo(codeDir, branch, req.Generate.Service, req.AccessToken,
 		&gitHttp.BasicAuth{
-			Username: g.Username,
-			Password: g.Password,
+			Username: req.Email,
+			Password: req.AccessToken,
 		})
 	if err != nil {
 		api.AddError(err).Log.Error("commit and push github repo error")
@@ -320,12 +295,12 @@ func (e Template) Generate(c *gin.Context) {
 	api.OK(resp)
 }
 
-// getGithubConfig 获取github配置
-func getGithubConfig(c *gin.Context) (g *models.Github, err error) {
-	user := middlewares.GetLoginUser(c)
-	if user == nil {
-		return nil, errors.New("user not found")
-	}
-	//todo 需要改成各人的
-	return models.GetMyGithubConfig(c, "lwnmengjing@qq.com")
-}
+//// getGithubConfig 获取github配置
+//func getGithubConfig(c *gin.Context) (g *models.Github, err error) {
+//	user := middlewares.GetLoginUser(c)
+//	if user == nil {
+//		return nil, errors.New("user not found")
+//	}
+//	//todo 需要改成各人的
+//	return models.GetMyGithubConfig(c, "lwnmengjing@qq.com")
+//}

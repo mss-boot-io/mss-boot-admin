@@ -80,6 +80,10 @@ func _1691847581348Migrate(db *gorm.DB, version string) error {
 				},
 			},
 			{
+				Name: "menu.generator",
+				Key:  "generator",
+			},
+			{
 				Name: "menu.role",
 				Key:  "role",
 				Children: []models.Menu{

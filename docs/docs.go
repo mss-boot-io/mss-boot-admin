@@ -16,6 +16,64 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/api/github/control": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "创建或更新github配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "generator"
+                ],
+                "summary": "创建或更新github配置",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.GithubControlReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/admin/api/github/get": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取github配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "generator"
+                ],
+                "summary": "获取github配置",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GithubGetResp"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/api/menu/authorize/{id}": {
             "get": {
                 "security": [
@@ -355,6 +413,180 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/api/template/generate": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "从模版生成代码",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "generator"
+                ],
+                "summary": "从模版生成代码",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.TemplateGenerateReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.TemplateGenerateResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/template/get-branches": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取template分支",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "generator"
+                ],
+                "summary": "获取template分支",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "template source",
+                        "name": "source",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "access token",
+                        "name": "accessToken",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.TemplateGetBranchesResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/template/get-params": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取template参数配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "generator"
+                ],
+                "summary": "获取template参数配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "template source",
+                        "name": "source",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "branch default:HEAD",
+                        "name": "branch",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "path default:.",
+                        "name": "path",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "access token",
+                        "name": "accessToken",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.TemplateGetParamsResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/template/get-path": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取template文件路径list",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "generator"
+                ],
+                "summary": "获取template文件路径list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "template source",
+                        "name": "source",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "branch default:HEAD",
+                        "name": "branch",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "access token",
+                        "name": "accessToken",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.TemplateGetPathResp"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/api/user/userInfo": {
             "get": {
                 "security": [
@@ -407,6 +639,148 @@ const docTemplate = `{
                     }
                 },
                 "roleID": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.GenerateParams": {
+            "type": "object",
+            "required": [
+                "repo"
+            ],
+            "properties": {
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "repo": {
+                    "type": "string"
+                },
+                "service": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.GithubControlReq": {
+            "type": "object",
+            "required": [
+                "password"
+            ],
+            "properties": {
+                "password": {
+                    "description": "github密码或者token",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.GithubGetResp": {
+            "type": "object",
+            "properties": {
+                "configured": {
+                    "description": "已配置",
+                    "type": "boolean"
+                },
+                "createdAt": {
+                    "description": "创建时间",
+                    "type": "string"
+                },
+                "email": {
+                    "description": "github邮箱",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "更新时间",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TemplateGenerateReq": {
+            "type": "object",
+            "properties": {
+                "accessToken": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "generate": {
+                    "$ref": "#/definitions/dto.GenerateParams"
+                },
+                "template": {
+                    "$ref": "#/definitions/dto.TemplateParams"
+                }
+            }
+        },
+        "dto.TemplateGenerateResp": {
+            "type": "object",
+            "properties": {
+                "branch": {
+                    "type": "string"
+                },
+                "repo": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TemplateGetBranchesResp": {
+            "type": "object",
+            "properties": {
+                "branches": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "dto.TemplateGetParamsResp": {
+            "type": "object",
+            "properties": {
+                "params": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.TemplateParam"
+                    }
+                }
+            }
+        },
+        "dto.TemplateGetPathResp": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "dto.TemplateParam": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "tip": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TemplateParams": {
+            "type": "object",
+            "required": [
+                "source"
+            ],
+            "properties": {
+                "branch": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "source": {
                     "type": "string"
                 }
             }

@@ -12,6 +12,99 @@ definitions:
       roleID:
         type: string
     type: object
+  dto.GenerateParams:
+    properties:
+      params:
+        additionalProperties:
+          type: string
+        type: object
+      repo:
+        type: string
+      service:
+        type: string
+    required:
+    - repo
+    type: object
+  dto.GithubControlReq:
+    properties:
+      password:
+        description: github密码或者token
+        type: string
+    required:
+    - password
+    type: object
+  dto.GithubGetResp:
+    properties:
+      configured:
+        description: 已配置
+        type: boolean
+      createdAt:
+        description: 创建时间
+        type: string
+      email:
+        description: github邮箱
+        type: string
+      updatedAt:
+        description: 更新时间
+        type: string
+    type: object
+  dto.TemplateGenerateReq:
+    properties:
+      accessToken:
+        type: string
+      email:
+        type: string
+      generate:
+        $ref: '#/definitions/dto.GenerateParams'
+      template:
+        $ref: '#/definitions/dto.TemplateParams'
+    type: object
+  dto.TemplateGenerateResp:
+    properties:
+      branch:
+        type: string
+      repo:
+        type: string
+    type: object
+  dto.TemplateGetBranchesResp:
+    properties:
+      branches:
+        items:
+          type: string
+        type: array
+    type: object
+  dto.TemplateGetParamsResp:
+    properties:
+      params:
+        items:
+          $ref: '#/definitions/dto.TemplateParam'
+        type: array
+    type: object
+  dto.TemplateGetPathResp:
+    properties:
+      path:
+        items:
+          type: string
+        type: array
+    type: object
+  dto.TemplateParam:
+    properties:
+      name:
+        type: string
+      tip:
+        type: string
+    type: object
+  dto.TemplateParams:
+    properties:
+      branch:
+        type: string
+      path:
+        type: string
+      source:
+        type: string
+    required:
+    - source
+    type: object
   dto.UpdateAuthorizeRequest:
     properties:
       keys:
@@ -141,6 +234,41 @@ info:
   title: admin API
   version: 0.0.1
 paths:
+  /admin/api/github/control:
+    post:
+      consumes:
+      - application/json
+      description: 创建或更新github配置
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/dto.GithubControlReq'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 创建或更新github配置
+      tags:
+      - generator
+  /admin/api/github/get:
+    get:
+      consumes:
+      - application/json
+      description: 获取github配置
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.GithubGetResp'
+      security:
+      - Bearer: []
+      summary: 获取github配置
+      tags:
+      - generator
   /admin/api/menu/authorize/{id}:
     get:
       consumes:
@@ -346,6 +474,115 @@ paths:
       summary: 更新角色
       tags:
       - role
+  /admin/api/template/generate:
+    post:
+      consumes:
+      - application/json
+      description: 从模版生成代码
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TemplateGenerateReq'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TemplateGenerateResp'
+      security:
+      - Bearer: []
+      summary: 从模版生成代码
+      tags:
+      - generator
+  /admin/api/template/get-branches:
+    get:
+      consumes:
+      - application/json
+      description: 获取template分支
+      parameters:
+      - description: template source
+        in: query
+        name: source
+        required: true
+        type: string
+      - description: access token
+        in: query
+        name: accessToken
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TemplateGetBranchesResp'
+      security:
+      - Bearer: []
+      summary: 获取template分支
+      tags:
+      - generator
+  /admin/api/template/get-params:
+    get:
+      consumes:
+      - application/json
+      description: 获取template参数配置
+      parameters:
+      - description: template source
+        in: query
+        name: source
+        required: true
+        type: string
+      - description: branch default:HEAD
+        in: query
+        name: branch
+        type: string
+      - description: path default:.
+        in: query
+        name: path
+        type: string
+      - description: access token
+        in: query
+        name: accessToken
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TemplateGetParamsResp'
+      security:
+      - Bearer: []
+      summary: 获取template参数配置
+      tags:
+      - generator
+  /admin/api/template/get-path:
+    get:
+      consumes:
+      - application/json
+      description: 获取template文件路径list
+      parameters:
+      - description: template source
+        in: query
+        name: source
+        required: true
+        type: string
+      - description: branch default:HEAD
+        in: query
+        name: branch
+        type: string
+      - description: access token
+        in: query
+        name: accessToken
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TemplateGetPathResp'
+      security:
+      - Bearer: []
+      summary: 获取template文件路径list
+      tags:
+      - generator
   /admin/api/user/userInfo:
     get:
       consumes:
