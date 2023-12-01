@@ -8,8 +8,7 @@ on:
       - '.gitignore'
       -
     branches:
-      - main`
-      - dev
+      - main
     # Publish semver tags as releases.
     tags:
       - 'v*.*.*'
