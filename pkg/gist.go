@@ -10,13 +10,13 @@ package pkg
 import (
 	"bytes"
 	"context"
-	"golang.org/x/oauth2"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/google/go-github/v41/github"
+	"golang.org/x/oauth2"
 )
 
 // GistClone clone gist repo
@@ -38,12 +38,15 @@ func GistClone(id, dir, accessToken string) error {
 	}
 
 	if !PathExist(dir) {
-		PathCreate(dir)
+		_ = PathCreate(dir)
 	}
 
 	// copy file to directory
 	for _, f := range gist.Files {
-		FileCreate(*bytes.NewBufferString(f.GetContent()), filepath.Join(dir, f.GetFilename()), os.ModePerm)
+		err = FileOpen(*bytes.NewBufferString(f.GetContent()), filepath.Join(dir, f.GetFilename()), os.ModePerm)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

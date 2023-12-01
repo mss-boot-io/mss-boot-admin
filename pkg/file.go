@@ -28,9 +28,8 @@ func PathExist(addr string) bool {
 	return s.IsDir()
 }
 
-// FileCreate create file
-func FileCreate(content bytes.Buffer, name string) error {
-	file, err := os.Create(name)
+func FileOpen(content bytes.Buffer, name string, mode os.FileMode) error {
+	file, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
 		log.Println(err)
 		return err
@@ -45,6 +44,12 @@ func FileCreate(content bytes.Buffer, name string) error {
 		log.Println(err)
 	}
 	return err
+
+}
+
+// FileCreate create file
+func FileCreate(content bytes.Buffer, name string) error {
+	return FileOpen(content, name, 0666)
 }
 
 type ReplaceHelper struct {

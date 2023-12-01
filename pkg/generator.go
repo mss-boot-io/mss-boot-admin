@@ -231,7 +231,7 @@ func (e *Generator) TraverseFunc(path string, f os.DirEntry, err error) error {
 	}
 	fmt.Println(path)
 	// create file
-	err = FileCreate(buffer, path, fi.Mode())
+	err = FileOpen(buffer, path, fi.Mode())
 	if err != nil {
 		log.Println(err)
 		return err
