@@ -54,7 +54,7 @@ func (e *Github) Other(r *gin.RouterGroup) {
 // @Tags generator
 // @Accept  application/json
 // @Product application/json
-// @Param data body dto.GithubGetLoginURLReq true "data"
+// @Param state query string true "state"
 // @Success 200 {object} string
 // @Router /admin/api/github/get-login-url [get]
 func (e *Github) GetLoginURL(c *gin.Context) {
@@ -81,7 +81,7 @@ func (e *Github) GetLoginURL(c *gin.Context) {
 // @Product application/json
 // @Param code query string true "code"
 // @Param state query string true "state"
-// @Success 200 {object} *oauth2.Token
+// @Success 200 {object} oauth2.Token
 // @Router /admin/api/github/callback [get]
 func (e *Github) Callback(c *gin.Context) {
 	api := response.Make(c)
