@@ -24,6 +24,7 @@ type Config struct {
 	Listen      *config.Listen   `yaml:"listen" json:"listen"`
 	Database    *gormdb.Database `yaml:"database" json:"database"`
 	Application Application      `yaml:"application" json:"application"`
+	OAuth2      *config.OAuth2   `yaml:"oauth2" json:"oauth2"`
 }
 
 func (e *Config) Init() {

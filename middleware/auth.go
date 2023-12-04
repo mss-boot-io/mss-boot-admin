@@ -55,11 +55,12 @@ func Init() {
 			return verifier
 		},
 		Authenticator: func(c *gin.Context) (any, error) {
+			// login
 			loginVals := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
 			if err := c.ShouldBind(&loginVals); err != nil {
 				return "", jwt.ErrMissingLoginValues
 			}
-			ok, user, err := loginVals.Verify()
+			ok, user, err := loginVals.Verify(c)
 			if err != nil {
 				return nil, err
 			}

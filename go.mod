@@ -5,11 +5,14 @@ go 1.21
 require (
 	github.com/appleboy/gin-jwt/v2 v2.9.1
 	github.com/gin-contrib/cors v1.5.0
+	github.com/gin-gonic/contrib v0.0.0-20221130124618-7e01895a63f2
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-git/go-git/v5 v5.10.1
+	github.com/golang/glog v1.1.2
+	github.com/google/go-github v17.0.0+incompatible
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.4.0
-	github.com/mss-boot-io/mss-boot v0.1.0
+	github.com/mss-boot-io/mss-boot v0.1.1
 	github.com/spf13/cast v1.6.0
 	github.com/spf13/cobra v1.8.0
 	github.com/swaggo/files v1.0.1
@@ -44,6 +47,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.26.1 // indirect
 	github.com/aws/smithy-go v1.18.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/boj/redistore v0.0.0-20180917114910-cd5dcc76aeff // indirect
 	github.com/bytedance/sonic v1.10.2 // indirect
 	github.com/casbin/casbin/v2 v2.79.0 // indirect
 	github.com/casbin/gorm-adapter/v3 v3.20.0 // indirect
@@ -80,7 +84,11 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/gorilla/context v1.1.2 // indirect
+	github.com/gorilla/securecookie v1.1.1 // indirect
+	github.com/gorilla/sessions v1.2.1 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
