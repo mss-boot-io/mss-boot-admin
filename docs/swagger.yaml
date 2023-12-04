@@ -48,6 +48,33 @@ definitions:
         description: 更新时间
         type: string
     type: object
+  dto.GithubToken:
+    properties:
+      accessToken:
+        description: |-
+          AccessToken is the token that authorizes and authenticates
+          the requests.
+        type: string
+      expiry:
+        description: |-
+          Expiry is the optional expiration time of the access token.
+
+          If zero, TokenSource implementations will reuse the same
+          token forever and RefreshToken or equivalent
+          mechanisms for that TokenSource will not be used.
+        type: string
+      refreshToken:
+        description: |-
+          RefreshToken is a token that's used by the application
+          (as opposed to the user) to refresh the access token
+          if it expires.
+        type: string
+      tokenType:
+        description: |-
+          TokenType is the type of token.
+          The Type method returns either this or "Bearer", the default.
+        type: string
+    type: object
   dto.TemplateGenerateReq:
     properties:
       accessToken:
@@ -219,33 +246,6 @@ definitions:
       verified:
         type: boolean
     type: object
-  oauth2.Token:
-    properties:
-      access_token:
-        description: |-
-          AccessToken is the token that authorizes and authenticates
-          the requests.
-        type: string
-      expiry:
-        description: |-
-          Expiry is the optional expiration time of the access token.
-
-          If zero, TokenSource implementations will reuse the same
-          token forever and RefreshToken or equivalent
-          mechanisms for that TokenSource will not be used.
-        type: string
-      refresh_token:
-        description: |-
-          RefreshToken is a token that's used by the application
-          (as opposed to the user) to refresh the access token
-          if it expires.
-        type: string
-      token_type:
-        description: |-
-          TokenType is the type of token.
-          The Type method returns either this or "Bearer", the default.
-        type: string
-    type: object
   response.Page:
     properties:
       current:
@@ -254,6 +254,25 @@ definitions:
         type: integer
       total:
         type: integer
+    type: object
+  response.Response:
+    properties:
+      code:
+        type: integer
+      errorCode:
+        type: string
+      errorMessage:
+        type: string
+      host:
+        type: string
+      showType:
+        type: integer
+      status:
+        type: string
+      success:
+        type: boolean
+      traceId:
+        type: string
     type: object
 info:
   contact: {}
@@ -281,7 +300,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/oauth2.Token'
+            $ref: '#/definitions/dto.GithubToken'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
       summary: github回调
       tags:
       - generator

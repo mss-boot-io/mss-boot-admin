@@ -1,11 +1,17 @@
 package models
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"github.com/mss-boot-io/mss-boot-admin-api/config"
+	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
+	"log/slog"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -87,6 +93,7 @@ type UserLogin struct {
 	PasswordHash string      `json:"-" gorm:"size:255;comment:密码hash"`
 	Salt         string      `json:"-" gorm:"size:255;comment:加盐"`
 	Status       enum.Status `json:"status"`
+	Provider     string      `json:"type"`
 }
 
 func (e *UserLogin) TableName() string {
@@ -114,7 +121,57 @@ func (e *UserLogin) GetUsername() string {
 }
 
 // Verify verify password
-func (e *UserLogin) Verify() (bool, security.Verifier, error) {
+func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error) {
+	switch strings.ToLower(e.Provider) {
+	case "github":
+		// get user from github, then add user to db
+		// github user
+		conf, err := config.Cfg.OAuth2.GetOAuth2Config(ctx)
+		if err != nil {
+			slog.Error("get oauth2 config error", slog.Any("error", err))
+			return false, nil, err
+		}
+		githubUser, err := pkg.GetUserFromGithub(ctx, conf, e.Password)
+		if err != nil {
+			slog.Error("get user from github error", slog.Any("error", err))
+			return false, nil, err
+		}
+		// get user from db
+		user := &User{}
+		err = gormdb.DB.First(user, "account_id = ?", fmt.Sprintf("%d", githubUser.ID)).Error
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				slog.Error("get user from db error", slog.Any("error", err))
+				return false, nil, err
+			}
+			err = nil
+			// register user
+			user = &User{
+				UserLogin: UserLogin{
+					Username: githubUser.Email,
+					Email:    githubUser.Email,
+					Password: e.Password,
+					Provider: "github",
+					Status:   enum.Enabled,
+				},
+				Name:            githubUser.Login,
+				Avatar:          githubUser.AvatarURL,
+				Organization:    githubUser.Company,
+				Location:        githubUser.Location,
+				Introduction:    githubUser.Bio,
+				PersonalWebsite: githubUser.Blog,
+				Verified:        true,
+				AccountID:       fmt.Sprintf("%d", githubUser.ID),
+			}
+			err = gormdb.DB.Create(user).Error
+			if err != nil {
+				slog.Error("create user error", slog.Any("error", err))
+				return false, nil, err
+			}
+		}
+		return true, user, nil
+	}
+	// username and password
 	user, err := GetUserByUsername(e.Username)
 	if err != nil {
 		return false, nil, err

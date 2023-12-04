@@ -70,7 +70,8 @@ func (e *Github) GetLoginURL(c *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(conf.AuthCodeURL(req.State))
+	//api.OK(conf.AuthCodeURL(req.State))
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(conf.AuthCodeURL(req.State)))
 }
 
 // Callback github回调
@@ -81,7 +82,9 @@ func (e *Github) GetLoginURL(c *gin.Context) {
 // @Product application/json
 // @Param code query string true "code"
 // @Param state query string true "state"
-// @Success 200 {object} oauth2.Token
+// @Success 200 {object} dto.GithubToken
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
 // @Router /admin/api/github/callback [get]
 func (e *Github) Callback(c *gin.Context) {
 	api := response.Make(c)
@@ -103,7 +106,15 @@ func (e *Github) Callback(c *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(token)
+	resp := &dto.GithubToken{
+		AccessToken:  token.AccessToken,
+		TokenType:    token.TokenType,
+		RefreshToken: token.RefreshToken,
+	}
+	if !token.Expiry.IsZero() {
+		resp.Expiry = &token.Expiry
+	}
+	api.OK(resp)
 }
 
 // Control 创建或更新github配置

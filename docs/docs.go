@@ -46,7 +46,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/oauth2.Token"
+                            "$ref": "#/definitions/dto.GithubToken"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
                         }
                     }
                 }
@@ -761,6 +773,27 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.GithubToken": {
+            "type": "object",
+            "properties": {
+                "accessToken": {
+                    "description": "AccessToken is the token that authorizes and authenticates\nthe requests.",
+                    "type": "string"
+                },
+                "expiry": {
+                    "description": "Expiry is the optional expiration time of the access token.\n\nIf zero, TokenSource implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
+                    "type": "string"
+                },
+                "refreshToken": {
+                    "description": "RefreshToken is a token that's used by the application\n(as opposed to the user) to refresh the access token\nif it expires.",
+                    "type": "string"
+                },
+                "tokenType": {
+                    "description": "TokenType is the type of token.\nThe Type method returns either this or \"Bearer\", the default.",
+                    "type": "string"
+                }
+            }
+        },
         "dto.TemplateGenerateReq": {
             "type": "object",
             "properties": {
@@ -1018,27 +1051,6 @@ const docTemplate = `{
                 }
             }
         },
-        "oauth2.Token": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "description": "AccessToken is the token that authorizes and authenticates\nthe requests.",
-                    "type": "string"
-                },
-                "expiry": {
-                    "description": "Expiry is the optional expiration time of the access token.\n\nIf zero, TokenSource implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
-                    "type": "string"
-                },
-                "refresh_token": {
-                    "description": "RefreshToken is a token that's used by the application\n(as opposed to the user) to refresh the access token\nif it expires.",
-                    "type": "string"
-                },
-                "token_type": {
-                    "description": "TokenType is the type of token.\nThe Type method returns either this or \"Bearer\", the default.",
-                    "type": "string"
-                }
-            }
-        },
         "response.Page": {
             "type": "object",
             "properties": {
@@ -1050,6 +1062,35 @@ const docTemplate = `{
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "response.Response": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "errorCode": {
+                    "type": "string"
+                },
+                "errorMessage": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "showType": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "traceId": {
+                    "type": "string"
                 }
             }
         }
