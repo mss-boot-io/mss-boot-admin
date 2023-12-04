@@ -4,4 +4,4 @@ LABEL authors="lwnmengjing"
 
 COPY ./admin /app/admin
 
-ENTRYPOINT ["/app/admin"]
+ENTRYPOINT ["/app/admin", "server"]
