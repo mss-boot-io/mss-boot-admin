@@ -57,3 +57,63 @@ func (e *User) UserInfo(ctx *gin.Context) {
 	user := middleware.GetVerify(ctx)
 	api.OK(user)
 }
+
+// Create 创建用户
+// @Summary 创建用户
+// @Description 创建用户
+// @Tags user
+// @Accept  application/json
+// @Product application/json
+// @Param data body models.User true "data"
+// @Success 201
+// @Router /admin/api/users [post]
+// @Security Bearer
+func (e *User) Create(*gin.Context) {}
+
+// Update 更新用户
+// @Summary 更新用户
+// @Description 更新用户
+// @Tags user
+// @Accept  application/json
+// @Product application/json
+// @Param id path string true "id"
+// @Param data body models.User true "data"
+// @Success 200
+// @Router /admin/api/users/{id} [put]
+// @Security Bearer
+func (e *User) Update(*gin.Context) {}
+
+// Get 获取用户
+// @Summary 获取用户
+// @Description 获取用户
+// @Tags user
+// @Param id path string true "id"
+// @Success 200 {object} models.User
+// @Router /admin/api/users/{id} [get]
+// @Security Bearer
+func (e *User) Get(*gin.Context) {}
+
+// List 用户列表
+// @Summary 用户列表
+// @Description 用户列表
+// @Tags user
+// @Accept  application/json
+// @Product application/json
+// @Param page query int false "page"
+// @Param pageSize query int false "pageSize"
+// @Param id query string false "id"
+// @Param name query string false "name"
+// @Success 200 {object} response.Page{data=[]models.User}
+// @Router /admin/api/users [get]
+// @Security Bearer
+func (e *User) List(*gin.Context) {}
+
+// Delete 删除用户
+// @Summary 删除用户
+// @Description 删除用户
+// @Tags user
+// @Param id path string true "id"
+// @Success 204
+// @Router /admin/api/users/{id} [delete]
+// @Security Bearer
+func (e *User) Delete(*gin.Context) {}

@@ -190,6 +190,48 @@ definitions:
         description: UpdatedAt update time
         type: string
     type: object
+  models.Task:
+    properties:
+      args:
+        items:
+          type: string
+        type: array
+      body:
+        type: string
+      checkedAt:
+        type: string
+      command:
+        type: string
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      endpoint:
+        type: string
+      entryID:
+        type: integer
+      id:
+        description: ID primary key
+        type: string
+      metadata:
+        type: string
+      method:
+        type: string
+      name:
+        type: string
+      python:
+        type: string
+      remark:
+        type: string
+      spec:
+        type: string
+      status:
+        type: integer
+      timeout:
+        type: integer
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+    type: object
   models.User:
     properties:
       accountId:
@@ -238,6 +280,8 @@ definitions:
         type: string
       status:
         type: integer
+      type:
+        type: string
       updatedAt:
         description: UpdatedAt update time
         type: string
@@ -547,6 +591,24 @@ paths:
       summary: 删除角色
       tags:
       - role
+    get:
+      description: 获取角色
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Role'
+      security:
+      - Bearer: []
+      summary: 获取角色
+      tags:
+      - role
     put:
       consumes:
       - application/json
@@ -571,6 +633,153 @@ paths:
       summary: 更新角色
       tags:
       - role
+  /admin/api/task/{operate}/{id}:
+    get:
+      description: 操作任务
+      parameters:
+      - description: 任务ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 操作类型
+        in: path
+        name: operate
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 操作任务
+      tags:
+      - task
+  /admin/api/tasks:
+    get:
+      consumes:
+      - application/json
+      description: 任务列表
+      parameters:
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: pageSize
+        in: query
+        name: pageSize
+        type: integer
+      - description: id
+        in: query
+        name: id
+        type: string
+      - description: name
+        in: query
+        name: name
+        type: string
+      - description: status
+        in: query
+        name: status
+        type: integer
+      - description: remark
+        in: query
+        name: remark
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Page'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Task'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: 任务列表
+      tags:
+      - task
+    post:
+      consumes:
+      - application/json
+      description: 创建任务
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Task'
+      responses:
+        "201":
+          description: Created
+      security:
+      - Bearer: []
+      summary: 创建任务
+      tags:
+      - task
+  /admin/api/tasks/{id}:
+    delete:
+      description: 删除任务
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除任务
+      tags:
+      - task
+    get:
+      description: 获取任务
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Task'
+      security:
+      - Bearer: []
+      summary: 获取任务
+      tags:
+      - task
+    put:
+      consumes:
+      - application/json
+      description: 更新任务
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Task'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 更新任务
+      tags:
+      - task
   /admin/api/template/generate:
     post:
       consumes:
@@ -699,6 +908,123 @@ paths:
       security:
       - Bearer: []
       summary: 获取登录用户信息
+      tags:
+      - user
+  /admin/api/users:
+    get:
+      consumes:
+      - application/json
+      description: 用户列表
+      parameters:
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: pageSize
+        in: query
+        name: pageSize
+        type: integer
+      - description: id
+        in: query
+        name: id
+        type: string
+      - description: name
+        in: query
+        name: name
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Page'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.User'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: 用户列表
+      tags:
+      - user
+    post:
+      consumes:
+      - application/json
+      description: 创建用户
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.User'
+      responses:
+        "201":
+          description: Created
+      security:
+      - Bearer: []
+      summary: 创建用户
+      tags:
+      - user
+  /admin/api/users/{id}:
+    delete:
+      description: 删除用户
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除用户
+      tags:
+      - user
+    get:
+      description: 获取用户
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+      security:
+      - Bearer: []
+      summary: 获取用户
+      tags:
+      - user
+    put:
+      consumes:
+      - application/json
+      description: 更新用户
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.User'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 更新用户
       tags:
       - user
 securityDefinitions:

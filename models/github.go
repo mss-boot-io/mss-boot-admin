@@ -20,6 +20,10 @@ type Github struct {
 	Password string `bson:"password" json:"password"`
 }
 
+func (*Github) TableName() string {
+	return "mss_boot_github"
+}
+
 // GetMyGithubConfig 获取当前用户的github配置
 func GetMyGithubConfig(c context.Context, email string) (*Github, error) {
 	g := &Github{}
