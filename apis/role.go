@@ -120,6 +120,16 @@ func (e *Role) Delete(*gin.Context) {}
 // @Security Bearer
 func (e *Role) Update(*gin.Context) {}
 
+// Get 获取角色
+// @Summary 获取角色
+// @Description 获取角色
+// @Tags role
+// @Param id path string true "id"
+// @Success 200 {object} models.Role
+// @Router /admin/api/roles/{id} [get]
+// @Security Bearer
+func (e *Role) Get(*gin.Context) {}
+
 // List 角色列表
 // @Summary 角色列表
 // @Description 角色列表

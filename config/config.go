@@ -25,6 +25,7 @@ type Config struct {
 	Database    *gormdb.Database `yaml:"database" json:"database"`
 	Application Application      `yaml:"application" json:"application"`
 	OAuth2      *config.OAuth2   `yaml:"oauth2" json:"oauth2"`
+	Task        Task             `yaml:"task" json:"task"`
 }
 
 func (e *Config) Init() {
