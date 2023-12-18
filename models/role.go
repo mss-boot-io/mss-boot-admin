@@ -14,10 +14,11 @@ import (
 
 type Role struct {
 	actions.ModelGorm
-	Name   string      `json:"name"`
-	Root   bool        `json:"root" gorm:"->"`
-	Status enum.Status `json:"status"`
-	Remark string      `json:"remark" gorm:"type:text"`
+	Name    string      `json:"name"`
+	Root    bool        `json:"root" gorm:"->"`
+	Default bool        `json:"default" gorm:"->"`
+	Status  enum.Status `json:"status"`
+	Remark  string      `json:"remark" gorm:"type:text"`
 }
 
 func (*Role) TableName() string {

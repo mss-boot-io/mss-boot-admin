@@ -1,7 +1,6 @@
 package models
 
 import (
-	"log/slog"
 	"sort"
 
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
@@ -83,17 +82,17 @@ func (e *Menu) BeforeSave(tx *gorm.DB) error {
 	if err != nil {
 		return err
 	}
-	tx.Where("path = ?", e.Path).First(e)
+	//tx.Where("path = ?", e.Path).First(e)
 	for i := range e.Children {
 		e.Children[i].ParentID = e.ID
 	}
-	if len(e.Children) > 0 {
-		err = tx.Save(&e.Children).Error
-		if err != nil {
-			slog.Error("save menu children error", "err", err)
-			return err
-		}
-	}
+	//if len(e.Children) > 0 {
+	//	err = tx.Save(&e.Children).Error
+	//	if err != nil {
+	//		slog.Error("save menu children error", "err", err)
+	//		return err
+	//	}
+	//}
 	return nil
 }
 
