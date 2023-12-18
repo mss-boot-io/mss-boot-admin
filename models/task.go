@@ -1,6 +1,7 @@
 package models
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -85,6 +86,7 @@ func (t *Task) Run() {
 		Endpoint: fmt.Sprintf("%s://%s", t.Protocol, t.Endpoint),
 		Method:   t.Method,
 		Command:  t.Command,
+		Body:     bytes.NewBuffer([]byte(t.Body)),
 		Args:     t.Args,
 		Python:   t.Python,
 		Writer:   taskRun,
