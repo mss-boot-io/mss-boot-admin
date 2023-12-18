@@ -1,9 +1,11 @@
 package apis
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin-api/config"
 	"github.com/mss-boot-io/mss-boot-admin-api/dto"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
@@ -83,6 +85,14 @@ func (e *Task) Operate(c *gin.Context) {
 		api.AddError(err).Log.Error("update task status error")
 		api.Err(http.StatusInternalServerError)
 		return
+	}
+	if status == enum.Enabled && config.Cfg.Task.Enable {
+		go func() {
+			err = models.TaskOnce(req.ID)
+			if err != nil {
+				slog.Error("task run error", slog.Any("err", err))
+			}
+		}()
 	}
 	api.OK(nil)
 }

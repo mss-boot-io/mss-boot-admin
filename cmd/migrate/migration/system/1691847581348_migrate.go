@@ -1,14 +1,13 @@
 package system
 
 import (
-	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	"gorm.io/gorm"
 	"runtime"
-	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
+	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	common "github.com/mss-boot-io/mss-boot/pkg/migration/models"
+	"gorm.io/gorm"
 )
 
 var Username string
@@ -47,20 +46,18 @@ func _1691847581348Migrate(db *gorm.DB, version string) error {
 				Email:    "lwnmengjing@gmail.com",
 				Status:   enum.Enabled,
 			},
-			Name:             "王力群",
-			Avatar:           "https://lf1-xgcdn-tos.pstatp.com/obj/vcloud/vadmin/start.8e0e4855ee346a46ccff8ff3e24db27b.png",
-			Job:              "backend",
-			JobName:          "后端开发工程师",
-			Organization:     "Backend",
-			OrganizationName: "后端",
-			Location:         "huaian",
-			LocationName:     "淮安",
-			Introduction:     "王力群并非是一个真实存在的人。",
-			PersonalWebsite:  "https://www.arco.design",
-			Verified:         true,
-			PhoneNumber:      "18012345678",
-			AccountID:        "1234567890",
-			RegistrationTime: time.Now(),
+			Name:     "林文祥",
+			Avatar:   "https://avatars.githubusercontent.com/u/12806223?v=4",
+			Country:  "China",
+			Province: "320000",
+			City:     "320800",
+			Address:  "生态新城枚槹路大桥",
+			Profile:  "https://docs.mss-boot-io.top",
+			Title:    "后端开发工程师",
+			Tags: models.ArrayString{
+				"有想法",
+			},
+			Phone: "18012345678",
 		}
 		err = tx.Create(user).Error
 		if err != nil {
@@ -70,52 +67,74 @@ func _1691847581348Migrate(db *gorm.DB, version string) error {
 		// init menu
 		menus := []models.Menu{
 			{
-				Name: "menu.dashboard",
-				Key:  "dashboard",
-				Children: []models.Menu{
+				Name: "welcome",
+				Path: "/welcome",
+				Icon: "smile",
+				Sort: 20,
+			},
+			{
+				Name: "generator",
+				Path: "/generator",
+				Icon: "form",
+				Sort: 19,
+			},
+			{
+				Name: "task",
+				Path: "/task",
+				Icon: "wallet",
+				Sort: 18,
+			},
+			{
+				Name: "role",
+				Path: "/role",
+				Icon: "team",
+				Sort: 17,
+				Children: []*models.Menu{
 					{
-						Name: "menu.dashboard.workplace",
-						Key:  "dashboard/workplace",
+						Name:       "control",
+						Path:       "/role/:id",
+						HideInMenu: true,
 					},
 				},
 			},
 			{
-				Name: "menu.generator",
-				Key:  "generator",
-			},
-			{
-				Name: "menu.role",
-				Key:  "role",
-				Children: []models.Menu{
+				Name: "user",
+				Path: "/users",
+				Icon: "user",
+				Sort: 16,
+				Children: []*models.Menu{
 					{
-						Name: "menu.role.search",
-						Key:  "role/search",
-					},
-					{
-						Name:   "menu.role.control",
-						Key:    "role/control",
-						Ignore: true,
+						Name:       "control",
+						Path:       "/users/:id",
+						HideInMenu: true,
 					},
 				},
 			},
 			{
-				Name: "menu.user",
-				Key:  "user",
-				Children: []models.Menu{
+				Name: "menu",
+				Path: "/menu",
+				Icon: "menu",
+				Sort: 15,
+				Children: []*models.Menu{
 					{
-						Name: "menu.user.search",
-						Key:  "user/search",
-					},
-					{
-						Name:   "menu.user.control",
-						Key:    "user/control",
-						Ignore: true,
+						Name:       "control",
+						Path:       "/menu/:id",
+						HideInMenu: true,
 					},
 				},
 			},
 			{
-				Name: "Example",
-				Key:  "example",
+				Name: "language",
+				Path: "/language",
+				Icon: "translation",
+				Sort: 14,
+				Children: []*models.Menu{
+					{
+						Name:       "control",
+						Path:       "/language/:id",
+						HideInMenu: true,
+					},
+				},
 			},
 		}
 
@@ -218,6 +237,21 @@ func _1691847581348Migrate(db *gorm.DB, version string) error {
 			},
 		}
 		err = tx.Create(&cs).Error
+		if err != nil {
+			return err
+		}
+
+		languages := []models.Language{
+			{
+				Name:   "zh-CN",
+				Status: enum.Enabled,
+			},
+			{
+				Name:   "en-US",
+				Status: enum.Enabled,
+			},
+		}
+		err = tx.Create(&languages).Error
 		if err != nil {
 			return err
 		}

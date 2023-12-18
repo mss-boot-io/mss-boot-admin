@@ -8,8 +8,9 @@ package apis
  */
 
 import (
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"net/http"
+
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
@@ -38,20 +39,55 @@ type Role struct {
 }
 
 func (e *Role) Other(r *gin.RouterGroup) {
-	r.POST("/role/authorize", middleware.Auth.MiddlewareFunc(), e.Authorize)
+	r.POST("/role/authorize/:roleID", middleware.Auth.MiddlewareFunc(), e.SetAuthorize)
+	r.GET("/role/authorize/:roleID", middleware.Auth.MiddlewareFunc(), e.GetAuthorize)
 }
 
-// Authorize 角色授权
+// GetAuthorize 获取角色授权
+// @Summary 获取角色授权
+// @Description 获取角色授权
+// @Tags role
+// @param roleID path string true "roleID"
+// @Success 200 {object} dto.GetAuthorizeResponse
+// @Router /admin/api/role/authorize/{roleID} [get]
+// @Security Bearer
+func (e *Role) GetAuthorize(ctx *gin.Context) {
+	api := response.Make(ctx)
+	req := &dto.GetAuthorizeRequest{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	resp := &dto.GetAuthorizeResponse{
+		RoleID:  req.RoleID,
+		MenuIDS: make([]string, 0),
+	}
+	// get permissions
+	permissions := gormdb.Enforcer.GetFilteredPolicy(0, req.RoleID, models.MenuAccessType.String())
+	for i := range permissions {
+		if len(permissions[i]) < 3 {
+			continue
+		}
+		if permissions[i][0] == req.RoleID &&
+			permissions[i][1] == models.MenuAccessType.String() {
+			resp.MenuIDS = append(resp.MenuIDS, permissions[i][2])
+		}
+	}
+	api.OK(resp)
+}
+
+// SetAuthorize 角色授权
 // @Summary 角色授权
 // @Description 给角色授权
 // @Tags role
-// @Param data body dto.AuthorizeRequest true "data"
+// @param roleID path string true "roleID"
+// @Param data body dto.SetAuthorizeRequest true "data"
 // @Success 200
-// @Router /admin/api/role/authorize [post]
+// @Router /admin/api/role/authorize/{roleID} [post]
 // @Security Bearer
-func (e *Role) Authorize(ctx *gin.Context) {
+func (e *Role) SetAuthorize(ctx *gin.Context) {
 	api := response.Make(ctx)
-	req := &dto.AuthorizeRequest{}
+	req := &dto.SetAuthorizeRequest{}
 	if api.Bind(req).Error != nil {
 		api.Err(http.StatusUnprocessableEntity)
 		return
@@ -66,7 +102,7 @@ func (e *Role) Authorize(ctx *gin.Context) {
 
 	// add permissions
 	for i := range req.MenuIDS {
-		_, err = gormdb.Enforcer.AddPermissionForUser(req.RoleID, models.APIAccessType.String(), req.MenuIDS[i])
+		_, err = gormdb.Enforcer.AddPermissionForUser(req.RoleID, models.MenuAccessType.String(), req.MenuIDS[i])
 		if err != nil {
 			api.AddError(err).Log.Error("add permission for user error", "err", err)
 			api.Err(http.StatusInternalServerError)
@@ -74,7 +110,7 @@ func (e *Role) Authorize(ctx *gin.Context) {
 		}
 	}
 	for i := range req.APIIDS {
-		_, err = gormdb.Enforcer.AddPermissionForUser(req.RoleID, models.MenuAccessType.String(), req.APIIDS[i])
+		_, err = gormdb.Enforcer.AddPermissionForUser(req.RoleID, models.APIAccessType.String(), req.APIIDS[i])
 		if err != nil {
 			api.AddError(err).Log.Error("add permission for user error", "err", err)
 			api.Err(http.StatusInternalServerError)

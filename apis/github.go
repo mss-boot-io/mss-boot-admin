@@ -8,8 +8,9 @@ package apis
  */
 
 import (
-	"github.com/mss-boot-io/mss-boot-admin-api/config"
 	"net/http"
+
+	"github.com/mss-boot-io/mss-boot-admin-api/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"

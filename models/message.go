@@ -8,8 +8,9 @@ package models
  */
 
 import (
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"strings"
+
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 )
 
 type Message struct {

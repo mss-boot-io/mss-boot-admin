@@ -1,9 +1,10 @@
 package models
 
 import (
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"strings"
 	"time"
+
+	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 
 	"github.com/google/uuid"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"

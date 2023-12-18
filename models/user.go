@@ -4,16 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
+
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
 	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
-	"log/slog"
-	"strings"
-	"time"
-
 	"gorm.io/gorm"
 )
 
@@ -27,21 +26,24 @@ import (
 type User struct {
 	actions.ModelGorm `json:",inline"`
 	UserLogin         `json:",inline"`
-	Name              string              `json:"name"`
-	Avatar            string              `json:"avatar"`
-	Job               string              `json:"job"`
-	JobName           string              `json:"jobName" gorm:"-"`
-	Organization      string              `json:"organization"`
-	OrganizationName  string              `json:"organizationName" gorm:"-"`
-	Location          string              `json:"location"`
-	LocationName      string              `json:"locationName" gorm:"-"`
-	Introduction      string              `json:"introduction"`
-	PersonalWebsite   string              `json:"personalWebsite"`
-	Verified          bool                `json:"verified"`
-	PhoneNumber       string              `json:"phoneNumber"`
-	AccountID         string              `json:"accountId"`
-	RegistrationTime  time.Time           `json:"registrationTime"`
+	Name              string              `json:"name" gorm:"column:name;type:varchar(100)"`
+	Avatar            string              `json:"avatar" gorm:"column:avatar;type:varchar(255)"`
+	Signature         string              `json:"signature" gorm:"column:signature;type:varchar(255)"`
+	Title             string              `json:"title" gorm:"column:title;type:varchar(100)"`
+	Group             string              `json:"group" gorm:"column:group;type:varchar(255)"`
+	Country           string              `json:"country" gorm:"column:country;type:varchar(20)"`
+	Province          string              `json:"province" gorm:"column:province;type:varchar(20)"`
+	City              string              `json:"city" gorm:"column:city;type:varchar(20)"`
+	Address           string              `json:"address" gorm:"column:address;type:varchar(255)"`
+	Phone             string              `json:"phone" gorm:"column:phone;type:varchar(20)"`
+	Profile           string              `json:"profile" gorm:"column:profile;type:blob"`
+	Tags              ArrayString         `json:"tags"  swaggertype:"array,string" gorm:"type:text"`
 	Permissions       map[string][]string `json:"permissions" gorm:"-"`
+}
+
+type Tag struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
 }
 
 func (e *User) BeforeCreate(_ *gorm.DB) error {
@@ -54,7 +56,6 @@ func (e *User) BeforeCreate(_ *gorm.DB) error {
 	if err != nil {
 		return err
 	}
-	e.RegistrationTime = time.Now()
 	e.PasswordHash = hash
 	return err
 }
@@ -75,6 +76,30 @@ func (e *User) GetUserID() string {
 	return e.ID
 }
 
+// PasswordReset reset password
+func PasswordReset(ctx context.Context, userID string, password string) error {
+	user := &User{}
+	err := gormdb.DB.WithContext(ctx).First(user, "id = ?", userID).Error
+	if err != nil {
+		return err
+	}
+	user.Salt = security.GenerateRandomKey6()
+	hash, err := security.SetPassword(password, user.Salt)
+	if err != nil {
+		return err
+	}
+	err = gormdb.DB.Model(user).Updates(User{
+		UserLogin: UserLogin{
+			PasswordHash: hash,
+			Salt:         user.Salt,
+		},
+	}).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // GetUserByUsername get user by username
 func GetUserByUsername(username string) (*User, error) {
 	var user User
@@ -86,14 +111,14 @@ func GetUserByUsername(username string) (*User, error) {
 }
 
 type UserLogin struct {
-	RoleID       string      `json:"roleId" gorm:"index"`
-	Username     string      `json:"username" gorm:"size:100;uniqueIndex"`
-	Email        string      `json:"email"`
+	RoleID       string      `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Username     string      `json:"username" gorm:"type:varchar(20);uniqueIndex"`
+	Email        string      `json:"email" gorm:"type:varchar(100);uniqueIndex"`
 	Password     string      `json:"password,omitempty" gorm:"-"`
-	PasswordHash string      `json:"-" gorm:"size:255;comment:密码hash"`
-	Salt         string      `json:"-" gorm:"size:255;comment:加盐"`
-	Status       enum.Status `json:"status"`
-	Provider     string      `json:"type"`
+	PasswordHash string      `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
+	Salt         string      `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
+	Status       enum.Status `json:"status" gorm:"size:2"`
+	Provider     string      `json:"type" gorm:"size:20"`
 }
 
 func (e *UserLogin) TableName() string {
@@ -154,14 +179,14 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 					Provider: "github",
 					Status:   enum.Enabled,
 				},
-				Name:            githubUser.Login,
-				Avatar:          githubUser.AvatarURL,
-				Organization:    githubUser.Company,
-				Location:        githubUser.Location,
-				Introduction:    githubUser.Bio,
-				PersonalWebsite: githubUser.Blog,
-				Verified:        true,
-				AccountID:       fmt.Sprintf("%d", githubUser.ID),
+				Name:   githubUser.Login,
+				Avatar: githubUser.AvatarURL,
+				//Organization:    githubUser.Company,
+				//Location:        githubUser.Location,
+				//Introduction:    githubUser.Bio,
+				Profile: githubUser.Blog,
+				//Verified:        true,
+				//AccountID:       fmt.Sprintf("%d", githubUser.ID),
 			}
 			err = gormdb.DB.Create(user).Error
 			if err != nil {
