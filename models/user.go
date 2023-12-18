@@ -162,7 +162,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			return false, nil, err
 		}
 		defaultRole := &Role{Default: true}
-		err = gormdb.DB.Where(defaultRole).First(defaultRole).Error
+		_ = gormdb.DB.Where(defaultRole).First(defaultRole).Error
 		// get user from db
 		user := &User{}
 		err = gormdb.DB.First(user, "account_id = ?", fmt.Sprintf("%d", githubUser.ID)).Error
@@ -175,6 +175,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			// register user
 			user = &User{
 				UserLogin: UserLogin{
+					RoleID:   defaultRole.ID,
 					Username: githubUser.Email,
 					Email:    githubUser.Email,
 					Password: e.Password,
