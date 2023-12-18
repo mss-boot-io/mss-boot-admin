@@ -15,7 +15,9 @@ logger:
 database:
   driver: mysql
   source: 'root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local&timeout=1000ms'
-  name: mss-boot-admin
+  name: mss-boot-admin-local
+  config:
+    disableForeignKeyConstraintWhenMigrating: true
   casbinModel: |
     [request_definition]
     r = sub, obj, act
