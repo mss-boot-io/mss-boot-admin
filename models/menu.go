@@ -1,7 +1,6 @@
 package models
 
 import (
-	"log/slog"
 	"sort"
 
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
