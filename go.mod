@@ -9,7 +9,7 @@ require (
 	github.com/go-git/go-git/v5 v5.11.0
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.5.0
-	github.com/mss-boot-io/mss-boot v0.1.2-fix01
+	github.com/mss-boot-io/mss-boot v0.1.3-0.20231218072735-f3d60056b51e
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cast v1.6.0
 	github.com/spf13/cobra v1.8.0
