@@ -1,9 +1,7 @@
 package pkg
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -32,6 +30,7 @@ type Task struct {
 	Method   string
 	Command  string
 	Args     []string
+	Body     io.Reader
 	Python   string
 	Writer   io.Writer
 	Metadata map[string]string
@@ -100,12 +99,7 @@ func (t *Task) Run() error {
 		var body io.Reader
 		switch t.Method {
 		case http.MethodPut, http.MethodPost:
-			data := map[string]any{
-				"command": t.Command,
-				"args":    t.Args,
-			}
-			b, _ := json.Marshal(data)
-			body = bytes.NewReader(b)
+			body = t.Body
 		}
 		req, err := http.NewRequest(t.Method, t.Endpoint, body)
 		if err != nil {
