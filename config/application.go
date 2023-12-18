@@ -23,6 +23,7 @@ const (
 type Application struct {
 	Name       string            `yaml:"name" json:"name"`
 	Mode       Mode              `yaml:"mode" json:"mode"`
+	Origin     string            `yaml:"origin" json:"origin"`
 	StaticPath map[string]string `yaml:"staticPath" json:"staticPath"`
 }
 
@@ -50,6 +51,8 @@ func (e *Application) Init(r *gin.Engine) {
 			}
 			r.Static(k, e.StaticPath[k])
 		}
+		r.StaticFile("/swagger.json", "docs/swagger.json")
+		r.StaticFile("/swagger.yaml", "docs/swagger.yaml")
 	case ModeTest:
 		// set gin mode
 		gin.SetMode(gin.TestMode)

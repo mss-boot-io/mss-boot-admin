@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
-	"github.com/mss-boot-io/mss-boot/core/server/task"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"log/slog"
 	"time"
 
+	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
+	"github.com/mss-boot-io/mss-boot/core/server/task"
+	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/robfig/cron/v3"
@@ -31,8 +31,9 @@ type Task struct {
 	EntryID    int          `json:"entryID"`
 	Spec       string       `json:"spec"`
 	Command    string       `json:"command"`
-	Args       Args         `json:"args" swaggertype:"array,string" gorm:"type:text"`
-	Protocol   string       `json:"-" gorm:"-"`
+	Args       ArrayString  `json:"args" swaggertype:"array,string" gorm:"type:text"`
+	Once       bool         `json:"once" gorm:"-"`
+	Protocol   string       `json:"protocol" gorm:"size:10"`
 	Endpoint   string       `json:"endpoint"`
 	Body       string       `json:"body" gorm:"type:bytes"`
 	Status     enum.Status  `json:"status"`
@@ -66,7 +67,9 @@ func (t *Task) Run() {
 		Time:  time.Now(),
 		Valid: true,
 	}
-	err := gormdb.DB.Updates(t).Error
+	err := gormdb.DB.Model(&Task{}).
+		Where("id = ?", t.ID).
+		Update("checked_at", t.CheckedAt.Time).Error
 	if err != nil {
 		slog.Error("task run update task error", slog.Any("err", err))
 		return
@@ -76,10 +79,10 @@ func (t *Task) Run() {
 		TaskID: t.ID,
 		Status: enum.Locked,
 	}
-	task := &pkg.Task{
+	taskO := &pkg.Task{
 		ID:       t.ID,
 		Name:     t.Name,
-		Endpoint: t.Endpoint,
+		Endpoint: fmt.Sprintf("%s://%s", t.Protocol, t.Endpoint),
 		Method:   t.Method,
 		Command:  t.Command,
 		Args:     t.Args,
@@ -89,7 +92,7 @@ func (t *Task) Run() {
 		Timeout:  time.Duration(t.Timeout) * time.Second,
 	}
 	if t.Metadata != "" {
-		err := json.Unmarshal([]byte(t.Metadata), &task.Metadata)
+		err := json.Unmarshal([]byte(t.Metadata), &taskO.Metadata)
 		if err != nil {
 			slog.Error("task metadata unmarshal error", slog.Any("err", err))
 		}
@@ -99,7 +102,7 @@ func (t *Task) Run() {
 		slog.Error("task run create task run error", slog.Any("err", err))
 		return
 	}
-	err = task.Run()
+	err = taskO.Run()
 	taskRun.Status = enum.Enabled
 	if err != nil {
 		slog.Error("task run error", slog.Any("err", err))
@@ -109,6 +112,16 @@ func (t *Task) Run() {
 	if err != nil {
 		slog.Error("task run update task run error", slog.Any("err", err))
 	}
+}
+
+func TaskOnce(id string) error {
+	t := &Task{}
+	err := gormdb.DB.Model(&Task{}).Where("id = ?", id).First(t).Error
+	if err != nil {
+		return err
+	}
+	t.Run()
+	return nil
 }
 
 type TaskStorage struct {
@@ -126,11 +139,11 @@ func (t *TaskStorage) Get(key string) (entryID cron.EntryID, spec string, job cr
 		err = fmt.Errorf("db is nil")
 		return
 	}
-	task := &Task{}
-	if err = t.DB.Where("id = ?", key).First(task).Error; err != nil {
+	tk := &Task{}
+	if err = t.DB.Where("id = ?", key).First(tk).Error; err != nil {
 		return
 	}
-	return cron.EntryID(task.EntryID), task.Spec, task, true, nil
+	return cron.EntryID(tk.EntryID), tk.Spec, tk, true, nil
 }
 
 func (t *TaskStorage) Set(key string, entryID cron.EntryID, spec string, job cron.Job) error {
@@ -142,14 +155,14 @@ func (t *TaskStorage) Set(key string, entryID cron.EntryID, spec string, job cro
 	if t.DB == nil {
 		return fmt.Errorf("db is nil")
 	}
-	task := &Task{}
-	err := t.DB.Where("id = ?", key).First(task).Error
+	tk := &Task{}
+	err := t.DB.Where("id = ?", key).First(tk).Error
 	if err != nil {
 		return err
 	}
-	task.EntryID = int(entryID)
-	task.Spec = spec
-	return t.DB.Updates(task).Error
+	tk.EntryID = int(entryID)
+	tk.Spec = spec
+	return t.DB.Updates(tk).Error
 }
 
 func (t *TaskStorage) Update(key string, entryID cron.EntryID) error {
@@ -160,13 +173,13 @@ func (t *TaskStorage) Update(key string, entryID cron.EntryID) error {
 	if t.DB == nil {
 		return fmt.Errorf("db is nil")
 	}
-	task := &Task{}
-	err := t.DB.Where("id = ?", key).First(task).Error
+	tk := &Task{}
+	err := t.DB.Where("id = ?", key).First(tk).Error
 	if err != nil {
 		return err
 	}
-	task.EntryID = int(entryID)
-	return t.DB.Updates(task).Error
+	tk.EntryID = int(entryID)
+	return t.DB.Updates(tk).Error
 }
 
 func (t *TaskStorage) Remove(key string) error {
@@ -176,17 +189,17 @@ func (t *TaskStorage) Remove(key string) error {
 	if t.DB == nil {
 		return fmt.Errorf("db is nil")
 	}
-	task := &Task{}
-	err := t.DB.Where("id = ?", key).First(task).Error
+	tk := &Task{}
+	err := t.DB.Where("id = ?", key).First(tk).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
 		return err
 	}
-	task.EntryID = 0
-	task.CheckedAt = sql.NullTime{}
-	return t.DB.Updates(task).Error
+	tk.EntryID = 0
+	tk.CheckedAt = sql.NullTime{}
+	return t.DB.Updates(tk).Error
 }
 
 func (t *TaskStorage) ListKeys() ([]string, error) {

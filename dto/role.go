@@ -24,8 +24,14 @@ type RoleSearch struct {
 	Remark string `query:"remark" form:"remark" search:"type:contains;column:remark"`
 }
 
-type AuthorizeRequest struct {
-	RoleID  string   `json:"roleID"`
+type SetAuthorizeRequest struct {
+	RoleID  string   `uri:"roleID" swaggerignore:"true" binding:"required"`
 	MenuIDS []string `json:"menuIDS"`
 	APIIDS  []string `json:"apiIDS"`
+}
+
+type GetAuthorizeResponse struct {
+	RoleID  string   `json:"roleID"`
+	MenuIDS []string `json:"menuIDS,omitempty"`
+	APIIDS  []string `json:"apiIDS,omitempty"`
 }

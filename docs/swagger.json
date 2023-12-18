@@ -142,7 +142,288 @@
                 }
             }
         },
-        "/admin/api/menu/authorize/{id}": {
+        "/admin/api/language-defines": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "创建/更新",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "language_define"
+                ],
+                "summary": "创建/更新",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.LanguageDefine"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    }
+                }
+            }
+        },
+        "/admin/api/language-defines/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "删除",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "language_define"
+                ],
+                "summary": "删除",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/admin/api/language/all": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取所有语言",
+                "tags": [
+                    "language"
+                ],
+                "summary": "获取所有语言",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Language"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/languages": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Language列表数据",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "language"
+                ],
+                "summary": "Language列表数据",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "name",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "pageSize",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Page"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.Language"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "创建Language",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "language"
+                ],
+                "summary": "创建Language",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Language"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    }
+                }
+            }
+        },
+        "/admin/api/languages/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取Language",
+                "tags": [
+                    "language"
+                ],
+                "summary": "获取Language",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Language"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "更新Language",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "language"
+                ],
+                "summary": "更新Language",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Language"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "删除Language",
+                "tags": [
+                    "language"
+                ],
+                "summary": "删除Language",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/admin/api/menu/authorize": {
             "get": {
                 "security": [
                     {
@@ -157,27 +438,35 @@
                     "menu"
                 ],
                 "summary": "获取菜单权限",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "id",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "string"
+                                "allOf": [
+                                    {
+                                        "$ref": "#/definitions/models.Menu"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "children": {
+                                                "type": "array",
+                                                "items": {
+                                                    "$ref": "#/definitions/models.Menu"
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
                             }
                         }
                     }
                 }
-            },
+            }
+        },
+        "/admin/api/menu/authorize/{id}": {
             "put": {
                 "security": [
                     {
@@ -237,7 +526,7 @@
                             "items": {
                                 "allOf": [
                                     {
-                                        "$ref": "#/definitions/models.MenuSingle"
+                                        "$ref": "#/definitions/models.Menu"
                                     },
                                     {
                                         "type": "object",
@@ -245,7 +534,7 @@
                                             "children": {
                                                 "type": "array",
                                                 "items": {
-                                                    "$ref": "#/definitions/models.MenuSingle"
+                                                    "$ref": "#/definitions/models.Menu"
                                                 }
                                             }
                                         }
@@ -253,6 +542,213 @@
                                 ]
                             }
                         }
+                    }
+                }
+            }
+        },
+        "/admin/api/menus": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "菜单列表数据",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "menu"
+                ],
+                "summary": "菜单列表数据",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "name",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "parentID",
+                        "name": "parentID",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "pageSize",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Page"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.Menu"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "创建菜单",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "menu"
+                ],
+                "summary": "创建菜单",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Menu"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    }
+                }
+            }
+        },
+        "/admin/api/menus/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取菜单",
+                "tags": [
+                    "menu"
+                ],
+                "summary": "获取菜单",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "preloads",
+                        "name": "preloads",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Menu"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "更新菜单",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "menu"
+                ],
+                "summary": "更新菜单",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Menu"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "删除菜单",
+                "tags": [
+                    "menu"
+                ],
+                "summary": "删除菜单",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -276,7 +772,36 @@
                 }
             }
         },
-        "/admin/api/role/authorize": {
+        "/admin/api/role/authorize/{roleID}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取角色授权",
+                "tags": [
+                    "role"
+                ],
+                "summary": "获取角色授权",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "roleID",
+                        "name": "roleID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.GetAuthorizeResponse"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -290,12 +815,19 @@
                 "summary": "角色授权",
                 "parameters": [
                     {
+                        "type": "string",
+                        "description": "roleID",
+                        "name": "roleID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
                         "description": "data",
                         "name": "data",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.AuthorizeRequest"
+                            "$ref": "#/definitions/dto.SetAuthorizeRequest"
                         }
                     }
                 ],
@@ -923,6 +1455,68 @@
                 }
             }
         },
+        "/admin/api/user/fakeCaptcha": {
+            "post": {
+                "description": "获取验证码",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "获取验证码",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.FakeCaptchaRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FakeCaptchaResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/user/login/account": {
+            "post": {
+                "description": "登录",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "登录",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UserLogin"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{\"code\": 200, \"expire\": \"2023-12-10T12:31:30+08:00\", \"token\": \"xxx\"}",
+                        "schema": {
+                            "$ref": "#/definitions/dto.LoginResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/api/user/userInfo": {
             "get": {
                 "security": [
@@ -938,21 +1532,83 @@
                     "user"
                 ],
                 "summary": "获取登录用户信息",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "id",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/models.User"
                         }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "更新用户信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "更新用户信息",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateUserInfoRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/admin/api/user/{userID}/password-reset": {
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "重置密码",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "重置密码",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "userID",
+                        "name": "userID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.PasswordResetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
@@ -1151,22 +1807,24 @@
         }
     },
     "definitions": {
-        "dto.AuthorizeRequest": {
+        "dto.FakeCaptchaRequest": {
+            "type": "object",
+            "required": [
+                "phone"
+            ],
+            "properties": {
+                "phone": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.FakeCaptchaResponse": {
             "type": "object",
             "properties": {
-                "apiIDS": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
+                "code": {
+                    "type": "integer"
                 },
-                "menuIDS": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "roleID": {
+                "status": {
                     "type": "string"
                 }
             }
@@ -1187,6 +1845,26 @@
                     "type": "string"
                 },
                 "service": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.GetAuthorizeResponse": {
+            "type": "object",
+            "properties": {
+                "apiIDS": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "menuIDS": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "roleID": {
                     "type": "string"
                 }
             }
@@ -1242,6 +1920,52 @@
                 "tokenType": {
                     "description": "TokenType is the type of token.\nThe Type method returns either this or \"Bearer\", the default.",
                     "type": "string"
+                }
+            }
+        },
+        "dto.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "expire": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.PasswordResetRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "userID"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "userID": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SetAuthorizeRequest": {
+            "type": "object",
+            "properties": {
+                "apiIDS": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "menuIDS": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -1352,36 +2076,242 @@
                 }
             }
         },
-        "models.MenuSingle": {
+        "dto.UpdateUserInfoRequest": {
             "type": "object",
             "properties": {
-                "breadcrumb": {
-                    "type": "boolean"
+                "address": {
+                    "description": "Address 地址",
+                    "type": "string"
                 },
+                "avatar": {
+                    "description": "Avatar 头像",
+                    "type": "string"
+                },
+                "city": {
+                    "description": "City 城市",
+                    "type": "string"
+                },
+                "country": {
+                    "description": "Country 国家",
+                    "type": "string"
+                },
+                "email": {
+                    "description": "Email 邮箱",
+                    "type": "string"
+                },
+                "group": {
+                    "description": "Group 组别",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name 昵称",
+                    "type": "string"
+                },
+                "phone": {
+                    "description": "Phone 手机号",
+                    "type": "string"
+                },
+                "profile": {
+                    "description": "Profile 个人简介",
+                    "type": "string"
+                },
+                "province": {
+                    "description": "Province 省份",
+                    "type": "string"
+                },
+                "signature": {
+                    "description": "Signature 个性签名",
+                    "type": "string"
+                },
+                "tags": {
+                    "description": "Tags 标签",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "description": "Title 职位",
+                    "type": "string"
+                }
+            }
+        },
+        "models.Language": {
+            "type": "object",
+            "properties": {
                 "createdAt": {
                     "description": "CreatedAt create time",
+                    "type": "string"
+                },
+                "defines": {
+                    "description": "Defines",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.LanguageDefine"
+                    }
+                },
+                "id": {
+                    "description": "ID primary key",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name 名称",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Statue 状态",
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "description": "UpdatedAt update time",
+                    "type": "string"
+                }
+            }
+        },
+        "models.LanguageDefine": {
+            "type": "object",
+            "required": [
+                "group",
+                "key",
+                "languageID",
+                "value"
+            ],
+            "properties": {
+                "createdAt": {
+                    "description": "CreatedAt create time",
+                    "type": "string"
+                },
+                "group": {
+                    "description": "Group 分组",
                     "type": "string"
                 },
                 "id": {
                     "description": "ID primary key",
                     "type": "string"
                 },
-                "ignore": {
+                "key": {
+                    "description": "Key 键",
+                    "type": "string"
+                },
+                "languageID": {
+                    "description": "LanguageID 语言ID",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "UpdatedAt update time",
+                    "type": "string"
+                },
+                "value": {
+                    "description": "Value 值",
+                    "type": "string"
+                }
+            }
+        },
+        "models.Menu": {
+            "type": "object",
+            "properties": {
+                "access": {
+                    "description": "Access 权限配置，需要与 plugin-access 插件配合使用",
+                    "type": "string"
+                },
+                "component": {
+                    "description": "Component 组件",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "CreatedAt create time",
+                    "type": "string"
+                },
+                "fixSiderbar": {
+                    "description": "FixedSideBar 固定菜单",
                     "type": "boolean"
                 },
-                "key": {
+                "fixedHeader": {
+                    "description": "FixedHeader 固定顶栏",
+                    "type": "boolean"
+                },
+                "flatMenu": {
+                    "description": "FlatMenu 子项往上提，仍旧展示",
+                    "type": "boolean"
+                },
+                "footerRender": {
+                    "description": "FooterRender 不展示页脚",
+                    "type": "boolean"
+                },
+                "headerRender": {
+                    "description": "HeaderRender 不展示顶栏",
+                    "type": "boolean"
+                },
+                "headerTheme": {
+                    "description": "HeaderTheme 顶部导航的主题，mix 模式生效",
                     "type": "string"
+                },
+                "hideChildrenInMenu": {
+                    "description": "HideChildrenInMenu 隐藏子菜单",
+                    "type": "boolean"
+                },
+                "hideInBreadcrumb": {
+                    "description": "HideInBreadcrumb 在面包屑中隐藏",
+                    "type": "boolean"
+                },
+                "hideInMenu": {
+                    "description": "HideInMenu 隐藏自己和子菜单",
+                    "type": "boolean"
+                },
+                "icon": {
+                    "description": "Icon 图标",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID primary key",
+                    "type": "string"
+                },
+                "layout": {
+                    "description": "Layout 导航菜单的位置, side 为正常模式，top菜单显示在顶部，mix 两种兼有",
+                    "type": "string"
+                },
+                "menuHeaderRender": {
+                    "description": "MenuHeaderRender 不展示菜单头部",
+                    "type": "boolean"
+                },
+                "menuRender": {
+                    "description": "MenuRender 不展示菜单",
+                    "type": "boolean"
                 },
                 "name": {
+                    "description": "Name 菜单名称",
                     "type": "string"
                 },
-                "parentId": {
+                "navTheme": {
+                    "description": "NavTheme 导航菜单的主题",
                     "type": "string"
                 },
-                "select": {
-                    "type": "boolean"
+                "parentID": {
+                    "description": "ParentID 父级id",
+                    "type": "string"
                 },
-                "title": {
+                "path": {
+                    "description": "// Title 菜单标题\nTitle string `json:\"title\" gorm:\"column:title;comment:菜单标题;type:varchar(255);not null\"`\nPath 路由",
+                    "type": "string"
+                },
+                "permission": {
+                    "description": "Permission 菜单权限",
+                    "type": "string"
+                },
+                "sort": {
+                    "description": "Sort 排序",
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "Status 状态",
+                    "type": "integer"
+                },
+                "target": {
+                    "description": "Target 新页面打开",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type 菜单类型",
                     "type": "string"
                 },
                 "updatedAt": {
@@ -1411,6 +2341,7 @@
                     "type": "boolean"
                 },
                 "status": {
+                    "description": "Status 状态",
                     "type": "integer"
                 },
                 "updatedAt": {
@@ -1460,6 +2391,9 @@
                 "name": {
                     "type": "string"
                 },
+                "protocol": {
+                    "type": "string"
+                },
                 "python": {
                     "type": "string"
                 },
@@ -1470,6 +2404,7 @@
                     "type": "string"
                 },
                 "status": {
+                    "description": "Status 状态",
                     "type": "integer"
                 },
                 "timeout": {
@@ -1484,10 +2419,16 @@
         "models.User": {
             "type": "object",
             "properties": {
-                "accountId": {
+                "address": {
                     "type": "string"
                 },
                 "avatar": {
+                    "type": "string"
+                },
+                "city": {
+                    "type": "string"
+                },
+                "country": {
                     "type": "string"
                 },
                 "createdAt": {
@@ -1497,32 +2438,14 @@
                 "email": {
                     "type": "string"
                 },
+                "group": {
+                    "type": "string"
+                },
                 "id": {
                     "description": "ID primary key",
                     "type": "string"
                 },
-                "introduction": {
-                    "type": "string"
-                },
-                "job": {
-                    "type": "string"
-                },
-                "jobName": {
-                    "type": "string"
-                },
-                "location": {
-                    "type": "string"
-                },
-                "locationName": {
-                    "type": "string"
-                },
                 "name": {
-                    "type": "string"
-                },
-                "organization": {
-                    "type": "string"
-                },
-                "organizationName": {
                     "type": "string"
                 },
                 "password": {
@@ -1537,20 +2460,30 @@
                         }
                     }
                 },
-                "personalWebsite": {
+                "phone": {
                     "type": "string"
                 },
-                "phoneNumber": {
+                "profile": {
                     "type": "string"
                 },
-                "registrationTime": {
+                "province": {
                     "type": "string"
                 },
-                "roleId": {
+                "signature": {
                     "type": "string"
                 },
                 "status": {
+                    "description": "Status 状态",
                     "type": "integer"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string"
                 },
                 "type": {
                     "type": "string"
@@ -1561,9 +2494,27 @@
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "models.UserLogin": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
                 },
-                "verified": {
-                    "type": "boolean"
+                "password": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status 状态",
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },

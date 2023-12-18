@@ -13,16 +13,16 @@ import (
  * @Last Modified time: 2023/12/5 23:09:49
  */
 
-type Args []string
+type ArrayString []string
 
-func (a *Args) Scan(val any) error {
+func (a *ArrayString) Scan(val any) error {
 	s := val.([]uint8)
 	ss := strings.Split(string(s), "|")
 	*a = ss
 	return nil
 }
 
-func (a *Args) Value() (driver.Value, error) {
+func (a *ArrayString) Value() (driver.Value, error) {
 	return strings.Join(*a, "|"), nil
 
 }

@@ -1,15 +1,16 @@
 definitions:
-  dto.AuthorizeRequest:
+  dto.FakeCaptchaRequest:
     properties:
-      apiIDS:
-        items:
-          type: string
-        type: array
-      menuIDS:
-        items:
-          type: string
-        type: array
-      roleID:
+      phone:
+        type: string
+    required:
+    - phone
+    type: object
+  dto.FakeCaptchaResponse:
+    properties:
+      code:
+        type: integer
+      status:
         type: string
     type: object
   dto.GenerateParams:
@@ -24,6 +25,19 @@ definitions:
         type: string
     required:
     - repo
+    type: object
+  dto.GetAuthorizeResponse:
+    properties:
+      apiIDS:
+        items:
+          type: string
+        type: array
+      menuIDS:
+        items:
+          type: string
+        type: array
+      roleID:
+        type: string
     type: object
   dto.GithubControlReq:
     properties:
@@ -74,6 +88,36 @@ definitions:
           TokenType is the type of token.
           The Type method returns either this or "Bearer", the default.
         type: string
+    type: object
+  dto.LoginResponse:
+    properties:
+      code:
+        type: integer
+      expire:
+        type: string
+      token:
+        type: string
+    type: object
+  dto.PasswordResetRequest:
+    properties:
+      password:
+        type: string
+      userID:
+        type: string
+    required:
+    - password
+    - userID
+    type: object
+  dto.SetAuthorizeRequest:
+    properties:
+      apiIDS:
+        items:
+          type: string
+        type: array
+      menuIDS:
+        items:
+          type: string
+        type: array
     type: object
   dto.TemplateGenerateReq:
     properties:
@@ -144,27 +188,184 @@ definitions:
     - keys
     - roleID
     type: object
-  models.MenuSingle:
+  dto.UpdateUserInfoRequest:
     properties:
-      breadcrumb:
-        type: boolean
+      address:
+        description: Address 地址
+        type: string
+      avatar:
+        description: Avatar 头像
+        type: string
+      city:
+        description: City 城市
+        type: string
+      country:
+        description: Country 国家
+        type: string
+      email:
+        description: Email 邮箱
+        type: string
+      group:
+        description: Group 组别
+        type: string
+      name:
+        description: Name 昵称
+        type: string
+      phone:
+        description: Phone 手机号
+        type: string
+      profile:
+        description: Profile 个人简介
+        type: string
+      province:
+        description: Province 省份
+        type: string
+      signature:
+        description: Signature 个性签名
+        type: string
+      tags:
+        description: Tags 标签
+        items:
+          type: string
+        type: array
+      title:
+        description: Title 职位
+        type: string
+    type: object
+  models.Language:
+    properties:
       createdAt:
         description: CreatedAt create time
+        type: string
+      defines:
+        description: Defines
+        items:
+          $ref: '#/definitions/models.LanguageDefine'
+        type: array
+      id:
+        description: ID primary key
+        type: string
+      name:
+        description: Name 名称
+        type: string
+      status:
+        description: Statue 状态
+        type: integer
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+    type: object
+  models.LanguageDefine:
+    properties:
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      group:
+        description: Group 分组
         type: string
       id:
         description: ID primary key
         type: string
-      ignore:
-        type: boolean
       key:
+        description: Key 键
         type: string
-      name:
+      languageID:
+        description: LanguageID 语言ID
         type: string
-      parentId:
+      updatedAt:
+        description: UpdatedAt update time
         type: string
-      select:
+      value:
+        description: Value 值
+        type: string
+    required:
+    - group
+    - key
+    - languageID
+    - value
+    type: object
+  models.Menu:
+    properties:
+      access:
+        description: Access 权限配置，需要与 plugin-access 插件配合使用
+        type: string
+      component:
+        description: Component 组件
+        type: string
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      fixSiderbar:
+        description: FixedSideBar 固定菜单
         type: boolean
-      title:
+      fixedHeader:
+        description: FixedHeader 固定顶栏
+        type: boolean
+      flatMenu:
+        description: FlatMenu 子项往上提，仍旧展示
+        type: boolean
+      footerRender:
+        description: FooterRender 不展示页脚
+        type: boolean
+      headerRender:
+        description: HeaderRender 不展示顶栏
+        type: boolean
+      headerTheme:
+        description: HeaderTheme 顶部导航的主题，mix 模式生效
+        type: string
+      hideChildrenInMenu:
+        description: HideChildrenInMenu 隐藏子菜单
+        type: boolean
+      hideInBreadcrumb:
+        description: HideInBreadcrumb 在面包屑中隐藏
+        type: boolean
+      hideInMenu:
+        description: HideInMenu 隐藏自己和子菜单
+        type: boolean
+      icon:
+        description: Icon 图标
+        type: string
+      id:
+        description: ID primary key
+        type: string
+      layout:
+        description: Layout 导航菜单的位置, side 为正常模式，top菜单显示在顶部，mix 两种兼有
+        type: string
+      menuHeaderRender:
+        description: MenuHeaderRender 不展示菜单头部
+        type: boolean
+      menuRender:
+        description: MenuRender 不展示菜单
+        type: boolean
+      name:
+        description: Name 菜单名称
+        type: string
+      navTheme:
+        description: NavTheme 导航菜单的主题
+        type: string
+      parentID:
+        description: ParentID 父级id
+        type: string
+      path:
+        description: |-
+          // Title 菜单标题
+          Title string `json:"title" gorm:"column:title;comment:菜单标题;type:varchar(255);not null"`
+          Path 路由
+        type: string
+      permission:
+        description: Permission 菜单权限
+        type: string
+      sort:
+        description: Sort 排序
+        type: integer
+      status:
+        description: Status 状态
+        type: integer
+      target:
+        description: Target 新页面打开
+        type: string
+      type:
+        description: Type 菜单类型
         type: string
       updatedAt:
         description: UpdatedAt update time
@@ -185,6 +386,7 @@ definitions:
       root:
         type: boolean
       status:
+        description: Status 状态
         type: integer
       updatedAt:
         description: UpdatedAt update time
@@ -218,6 +420,8 @@ definitions:
         type: string
       name:
         type: string
+      protocol:
+        type: string
       python:
         type: string
       remark:
@@ -225,6 +429,7 @@ definitions:
       spec:
         type: string
       status:
+        description: Status 状态
         type: integer
       timeout:
         type: integer
@@ -234,33 +439,25 @@ definitions:
     type: object
   models.User:
     properties:
-      accountId:
+      address:
         type: string
       avatar:
+        type: string
+      city:
+        type: string
+      country:
         type: string
       createdAt:
         description: CreatedAt create time
         type: string
       email:
         type: string
+      group:
+        type: string
       id:
         description: ID primary key
         type: string
-      introduction:
-        type: string
-      job:
-        type: string
-      jobName:
-        type: string
-      location:
-        type: string
-      locationName:
-        type: string
       name:
-        type: string
-      organization:
-        type: string
-      organizationName:
         type: string
       password:
         type: string
@@ -270,16 +467,23 @@ definitions:
             type: string
           type: array
         type: object
-      personalWebsite:
+      phone:
         type: string
-      phoneNumber:
+      profile:
         type: string
-      registrationTime:
+      province:
         type: string
-      roleId:
+      signature:
         type: string
       status:
+        description: Status 状态
         type: integer
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
       type:
         type: string
       updatedAt:
@@ -287,8 +491,20 @@ definitions:
         type: string
       username:
         type: string
-      verified:
-        type: boolean
+    type: object
+  models.UserLogin:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      status:
+        description: Status 状态
+        type: integer
+      type:
+        type: string
+      username:
+        type: string
     type: object
   response.Page:
     properties:
@@ -410,11 +626,137 @@ paths:
       summary: 获取github登录地址
       tags:
       - generator
-  /admin/api/menu/authorize/{id}:
+  /admin/api/language-defines:
+    post:
+      consumes:
+      - application/json
+      description: 创建/更新
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.LanguageDefine'
+      responses:
+        "201":
+          description: Created
+      security:
+      - Bearer: []
+      summary: 创建/更新
+      tags:
+      - language_define
+  /admin/api/language-defines/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除
+      tags:
+      - language_define
+  /admin/api/language/all:
+    get:
+      description: 获取所有语言
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Language'
+            type: array
+      security:
+      - Bearer: []
+      summary: 获取所有语言
+      tags:
+      - language
+  /admin/api/languages:
     get:
       consumes:
       - application/json
-      description: 获取菜单权限
+      description: Language列表数据
+      parameters:
+      - description: name
+        in: query
+        name: name
+        type: string
+      - description: status
+        in: query
+        name: status
+        type: string
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: pageSize
+        in: query
+        name: pageSize
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Page'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Language'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: Language列表数据
+      tags:
+      - language
+    post:
+      consumes:
+      - application/json
+      description: 创建Language
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Language'
+      responses:
+        "201":
+          description: Created
+      security:
+      - Bearer: []
+      summary: 创建Language
+      tags:
+      - language
+  /admin/api/languages/{id}:
+    delete:
+      description: 删除Language
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除Language
+      tags:
+      - language
+    get:
+      description: 获取Language
       parameters:
       - description: id
         in: path
@@ -425,14 +767,61 @@ paths:
         "200":
           description: OK
           schema:
+            $ref: '#/definitions/models.Language'
+      security:
+      - Bearer: []
+      summary: 获取Language
+      tags:
+      - language
+    put:
+      consumes:
+      - application/json
+      description: 更新Language
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Language'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 更新Language
+      tags:
+      - language
+  /admin/api/menu/authorize:
+    get:
+      consumes:
+      - application/json
+      description: 获取菜单权限
+      responses:
+        "200":
+          description: OK
+          schema:
             items:
-              type: string
+              allOf:
+              - $ref: '#/definitions/models.Menu'
+              - properties:
+                  children:
+                    items:
+                      $ref: '#/definitions/models.Menu'
+                    type: array
+                type: object
             type: array
       security:
       - Bearer: []
       summary: 获取菜单权限
       tags:
       - menu
+  /admin/api/menu/authorize/{id}:
     put:
       consumes:
       - application/json
@@ -466,17 +855,144 @@ paths:
           schema:
             items:
               allOf:
-              - $ref: '#/definitions/models.MenuSingle'
+              - $ref: '#/definitions/models.Menu'
               - properties:
                   children:
                     items:
-                      $ref: '#/definitions/models.MenuSingle'
+                      $ref: '#/definitions/models.Menu'
                     type: array
                 type: object
             type: array
       security:
       - Bearer: []
       summary: 获取菜单树
+      tags:
+      - menu
+  /admin/api/menus:
+    get:
+      consumes:
+      - application/json
+      description: 菜单列表数据
+      parameters:
+      - description: name
+        in: query
+        name: name
+        type: string
+      - description: status
+        in: query
+        name: status
+        type: string
+      - description: parentID
+        in: query
+        name: parentID
+        type: string
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: pageSize
+        in: query
+        name: pageSize
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Page'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Menu'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: 菜单列表数据
+      tags:
+      - menu
+    post:
+      consumes:
+      - application/json
+      description: 创建菜单
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Menu'
+      responses:
+        "201":
+          description: Created
+      security:
+      - Bearer: []
+      summary: 创建菜单
+      tags:
+      - menu
+  /admin/api/menus/{id}:
+    delete:
+      description: 删除菜单
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除菜单
+      tags:
+      - menu
+    get:
+      description: 获取菜单
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: preloads
+        in: query
+        items:
+          type: string
+        name: preloads
+        type: array
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Menu'
+      security:
+      - Bearer: []
+      summary: 获取菜单
+      tags:
+      - menu
+    put:
+      consumes:
+      - application/json
+      description: 更新菜单
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Menu'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 更新菜单
       tags:
       - menu
   /admin/api/model/migrate/{id}:
@@ -490,16 +1006,39 @@ paths:
       summary: 迁移虚拟模型
       tags:
       - model
-  /admin/api/role/authorize:
+  /admin/api/role/authorize/{roleID}:
+    get:
+      description: 获取角色授权
+      parameters:
+      - description: roleID
+        in: path
+        name: roleID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.GetAuthorizeResponse'
+      security:
+      - Bearer: []
+      summary: 获取角色授权
+      tags:
+      - role
     post:
       description: 给角色授权
       parameters:
+      - description: roleID
+        in: path
+        name: roleID
+        required: true
+        type: string
       - description: data
         in: body
         name: data
         required: true
         schema:
-          $ref: '#/definitions/dto.AuthorizeRequest'
+          $ref: '#/definitions/dto.SetAuthorizeRequest'
       responses:
         "200":
           description: OK
@@ -889,17 +1428,77 @@ paths:
       summary: 获取template文件路径list
       tags:
       - generator
+  /admin/api/user/{userID}/password-reset:
+    put:
+      consumes:
+      - application/json
+      description: 重置密码
+      parameters:
+      - description: userID
+        in: path
+        name: userID
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PasswordResetRequest'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 重置密码
+      tags:
+      - user
+  /admin/api/user/fakeCaptcha:
+    post:
+      consumes:
+      - application/json
+      description: 获取验证码
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/dto.FakeCaptchaRequest'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.FakeCaptchaResponse'
+      summary: 获取验证码
+      tags:
+      - user
+  /admin/api/user/login/account:
+    post:
+      consumes:
+      - application/json
+      description: 登录
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.UserLogin'
+      responses:
+        "200":
+          description: '{"code": 200, "expire": "2023-12-10T12:31:30+08:00", "token":
+            "xxx"}'
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+      summary: 登录
+      tags:
+      - user
   /admin/api/user/userInfo:
     get:
       consumes:
       - application/json
       description: 获取登录用户信息
-      parameters:
-      - description: id
-        in: path
-        name: id
-        required: true
-        type: string
       responses:
         "200":
           description: OK
@@ -908,6 +1507,25 @@ paths:
       security:
       - Bearer: []
       summary: 获取登录用户信息
+      tags:
+      - user
+    put:
+      consumes:
+      - application/json
+      description: 更新用户信息
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateUserInfoRequest'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 更新用户信息
       tags:
       - user
   /admin/api/users:

@@ -26,10 +26,11 @@ func _1691804837583Tables(db *gorm.DB, version string) error {
 			new(models.Menu),
 			new(models.Model),
 			new(models.Field),
-			new(models.Github),
 			new(models.Task),
 			new(models.TaskRun),
 			new(models.TaskRunLog),
+			new(models.Language),
+			new(models.LanguageDefine),
 		)
 		if err != nil {
 			return err
