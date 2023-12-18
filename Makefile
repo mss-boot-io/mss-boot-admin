@@ -8,3 +8,9 @@ test:
 	go test -v ./... -cover
 deps:
 	go mod tidy
+
+.PHONY: lint
+lint:
+	golangci-lint run -v ./...
+fix-lint:
+	goimports -w .

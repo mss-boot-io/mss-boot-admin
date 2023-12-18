@@ -8,8 +8,9 @@ package config
  */
 
 import (
-	"github.com/gin-gonic/gin"
 	"path/filepath"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Mode string

@@ -1,8 +1,9 @@
 package dto
 
 import (
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"time"
+
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 )
 
 /*

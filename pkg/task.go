@@ -13,10 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mss-boot-io/mss-boot/proto"
+	//"github.com/mss-boot-io/mss-boot/proto"
 	"golang.org/x/net/websocket"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -65,34 +63,35 @@ func (t *Task) Run() error {
 	// grpc or grpcs
 	if strings.Contains(t.Endpoint, "grpc://") ||
 		strings.Contains(t.Endpoint, "grpcs://") {
+		return fmt.Errorf("not support grpc")
 		//exec grpc
-		conn, err := grpc.Dial(t.Endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			slog.Error("task grpc dial error", slog.Any("err", err))
-			return err
-		}
-		defer conn.Close()
-		stream, err := proto.NewTaskClient(conn).Exec(ctx, &proto.ExecRequest{
-			Id:      t.ID,
-			Name:    &t.Name,
-			Command: t.Command,
-			Args:    t.Args,
-		})
-		for {
-			resp, err1 := stream.Recv()
-			if err1 != nil {
-				slog.Error("task grpc exec error", slog.Any("err", err))
-				break
-			}
-			if resp == nil || len(resp.Content) == 0 {
-				_, err1 = t.Writer.Write(resp.Content)
-				if err1 != nil {
-					slog.Error("task grpc write error", slog.Any("err", err))
-					break
-				}
-			}
-		}
-		return nil
+		//conn, err := grpc.Dial(t.Endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		//if err != nil {
+		//	slog.Error("task grpc dial error", slog.Any("err", err))
+		//	return err
+		//}
+		//defer conn.Close()
+		//stream, err := proto.NewTaskClient(conn).Exec(ctx, &proto.ExecRequest{
+		//	Id:      t.ID,
+		//	Name:    &t.Name,
+		//	Command: t.Command,
+		//	Args:    t.Args,
+		//})
+		//for {
+		//	resp, err1 := stream.Recv()
+		//	if err1 != nil {
+		//		slog.Error("task grpc exec error", slog.Any("err", err))
+		//		break
+		//	}
+		//	if resp == nil || len(resp.Content) == 0 {
+		//		_, err1 = t.Writer.Write(resp.Content)
+		//		if err1 != nil {
+		//			slog.Error("task grpc write error", slog.Any("err", err))
+		//			break
+		//		}
+		//	}
+		//}
+		//return nil
 	}
 
 	//http or https

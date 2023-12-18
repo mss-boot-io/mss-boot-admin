@@ -80,18 +80,18 @@ func copyStaticFile(srcPath, bin string) string {
 			if _, err := copyFile(filepath.Join(srcPath, bin), "/usr/local/bin/"+bin); err != nil {
 				log.Fatalln(err)
 			} else {
-				copyFile(filepath.Join(srcPath, bin), "/usr/local/bin/"+bin+"-update")
+				_, _ = copyFile(filepath.Join(srcPath, bin), "/usr/local/bin/"+bin+"-update")
 				chMod("/usr/local/bin/"+bin+"-update", 0755)
 				binPath = "/usr/local/bin/" + bin
 			}
 		} else {
-			copyFile(filepath.Join(srcPath, bin), "/usr/bin/"+bin+"-update")
+			_, _ = copyFile(filepath.Join(srcPath, bin), "/usr/bin/"+bin+"-update")
 			chMod("/usr/bin/"+bin+"-update", 0755)
 			binPath = "/usr/bin/" + bin
 		}
 	} else {
-		copyFile(filepath.Join(srcPath, bin+".exe"), filepath.Join(GetAppPath(), bin+"-update.exe"))
-		copyFile(filepath.Join(srcPath, bin+".exe"), filepath.Join(GetAppPath(), bin+".exe"))
+		_, _ = copyFile(filepath.Join(srcPath, bin+".exe"), filepath.Join(GetAppPath(), bin+"-update.exe"))
+		_, _ = copyFile(filepath.Join(srcPath, bin+".exe"), filepath.Join(GetAppPath(), bin+".exe"))
 	}
 	chMod(binPath, 0755)
 	return binPath
@@ -133,7 +133,7 @@ func CopyDir(srcPath string, destPath string) error {
 	return err
 }
 
-//生成目录并拷贝文件
+// 生成目录并拷贝文件
 func copyFile(src, dest string) (w int64, err error) {
 	srcFile, err := os.Open(src)
 	if err != nil {
@@ -168,7 +168,7 @@ func copyFile(src, dest string) (w int64, err error) {
 	return io.Copy(dstFile, srcFile)
 }
 
-//检测文件夹路径时候存在
+// 检测文件夹路径时候存在
 func pathExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {
@@ -182,6 +182,6 @@ func pathExists(path string) (bool, error) {
 
 func chMod(name string, mode os.FileMode) {
 	if !IsWindows() {
-		os.Chmod(name, mode)
+		_ = os.Chmod(name, mode)
 	}
 }

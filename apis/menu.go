@@ -1,9 +1,10 @@
 package apis
 
 import (
+	"net/http"
+
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/search/gorms"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
@@ -86,7 +87,9 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	defer gormdb.Enforcer.LoadPolicy()
+	defer func() {
+		_ = gormdb.Enforcer.LoadPolicy()
+	}()
 	if err != nil {
 		api.AddError(err).Log.Error("delete role error", "err", err)
 		api.Err(http.StatusInternalServerError)

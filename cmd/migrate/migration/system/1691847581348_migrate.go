@@ -1,12 +1,13 @@
 package system
 
 import (
+	"runtime"
+
 	"github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	common "github.com/mss-boot-io/mss-boot/pkg/migration/models"
 	"gorm.io/gorm"
-	"runtime"
 )
 
 var Username string
