@@ -371,11 +371,43 @@ definitions:
         description: UpdatedAt update time
         type: string
     type: object
+  models.Notice:
+    properties:
+      avatar:
+        type: string
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      datetime:
+        type: string
+      extra:
+        type: string
+      id:
+        description: ID primary key
+        type: string
+      key:
+        type: string
+      read:
+        type: boolean
+      status:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+      userID:
+        type: string
+    type: object
   models.Role:
     properties:
       createdAt:
         description: CreatedAt create time
         type: string
+      default:
+        type: boolean
       id:
         description: ID primary key
         type: string
@@ -420,6 +452,8 @@ definitions:
         type: string
       name:
         type: string
+      once:
+        type: boolean
       protocol:
         type: string
       python:
@@ -459,6 +493,10 @@ definitions:
         type: string
       name:
         type: string
+      oauth2:
+        items:
+          $ref: '#/definitions/models.UserOAuth2'
+        type: array
       password:
         type: string
       permissions:
@@ -473,6 +511,8 @@ definitions:
         type: string
       province:
         type: string
+      role:
+        $ref: '#/definitions/models.Role'
       signature:
         type: string
       status:
@@ -496,14 +536,74 @@ definitions:
     properties:
       email:
         type: string
+      oauth2:
+        items:
+          $ref: '#/definitions/models.UserOAuth2'
+        type: array
       password:
         type: string
+      role:
+        $ref: '#/definitions/models.Role'
       status:
         description: Status 状态
         type: integer
       type:
         type: string
       username:
+        type: string
+    type: object
+  models.UserOAuth2:
+    properties:
+      address:
+        type: string
+      birthdata:
+        type: string
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      family_name:
+        type: string
+      gender:
+        type: string
+      given_name:
+        type: string
+      id:
+        description: ID primary key
+        type: string
+      locale:
+        type: string
+      middle_name:
+        type: string
+      name:
+        type: string
+      nickname:
+        type: string
+      openID:
+        type: string
+      phone_number:
+        type: string
+      phone_number_verified:
+        type: boolean
+      picture:
+        type: string
+      preferred_username:
+        type: string
+      profile:
+        type: string
+      sub:
+        type: string
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+      user_id:
+        type: string
+      website:
+        type: string
+      zoneinfo:
         type: string
     type: object
   response.Page:
@@ -1006,8 +1106,150 @@ paths:
       summary: 迁移虚拟模型
       tags:
       - model
+  /admin/api/notice/unread:
+    get:
+      consumes:
+      - application/json
+      description: 获取未读通知列表
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Notice'
+            type: array
+      security:
+      - Bearer: []
+      summary: 获取未读通知列表
+      tags:
+      - notice
+  /admin/api/notices:
+    get:
+      consumes:
+      - application/json
+      description: 通知列表数据
+      parameters:
+      - description: title
+        in: query
+        name: title
+        type: string
+      - description: status
+        in: query
+        name: status
+        type: string
+      - description: userID
+        in: query
+        name: userID
+        type: string
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: pageSize
+        in: query
+        name: pageSize
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Page'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Notice'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: 通知列表数据
+      tags:
+      - notice
+    post:
+      consumes:
+      - application/json
+      description: 创建通知
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Notice'
+      responses:
+        "201":
+          description: Created
+      security:
+      - Bearer: []
+      summary: 创建通知
+      tags:
+      - notice
+  /admin/api/notices/{id}:
+    delete:
+      description: 删除通知
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除通知
+      tags:
+      - notice
+    get:
+      consumes:
+      - application/json
+      description: 获取通知
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Notice'
+      security:
+      - Bearer: []
+      summary: 获取通知
+      tags:
+      - notice
+    put:
+      consumes:
+      - application/json
+      description: 更新通知
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Notice'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 更新通知
+      tags:
+      - notice
   /admin/api/role/authorize/{roleID}:
     get:
+      consumes:
+      - application/json
       description: 获取角色授权
       parameters:
       - description: roleID

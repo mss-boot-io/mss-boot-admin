@@ -185,3 +185,16 @@ func chMod(name string, mode os.FileMode) {
 		_ = os.Chmod(name, mode)
 	}
 }
+
+// InArray 判断字符串是否在数组中
+func InArray(vals []string, array []string, replace string, n int) bool {
+	for j := range vals {
+		for i := range array {
+			fmt.Println(strings.Replace(array[i], replace, "", n))
+			if strings.ToLower(strings.Replace(array[i], replace, "", n)) == strings.ToLower(vals[j]) {
+				return true
+			}
+		}
+	}
+	return false
+}

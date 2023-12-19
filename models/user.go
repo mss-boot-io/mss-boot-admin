@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/sanity-io/litter"
 	"log/slog"
 	"strings"
 
@@ -103,7 +104,7 @@ func PasswordReset(ctx context.Context, userID string, password string) error {
 // GetUserByUsername get user by username
 func GetUserByUsername(username string) (*User, error) {
 	var user User
-	err := gormdb.DB.Model(&user).First(&user, "username = ?", username).Error
+	err := gormdb.DB.Model(&user).Preload("Role").First(&user, "username = ?", username).Error
 	if err != nil {
 		return nil, err
 	}
@@ -111,14 +112,16 @@ func GetUserByUsername(username string) (*User, error) {
 }
 
 type UserLogin struct {
-	RoleID       string      `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Username     string      `json:"username" gorm:"type:varchar(20);uniqueIndex"`
-	Email        string      `json:"email" gorm:"type:varchar(100);uniqueIndex"`
-	Password     string      `json:"password,omitempty" gorm:"-"`
-	PasswordHash string      `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
-	Salt         string      `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
-	Status       enum.Status `json:"status" gorm:"size:2"`
-	Provider     string      `json:"type" gorm:"size:20"`
+	RoleID       string        `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Role         *Role         `json:"role" gorm:"foreignKey:RoleID;references:ID"`
+	Username     string        `json:"username" gorm:"type:varchar(20);uniqueIndex"`
+	Email        string        `json:"email" gorm:"type:varchar(100);uniqueIndex"`
+	Password     string        `json:"password,omitempty" gorm:"-"`
+	PasswordHash string        `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
+	Salt         string        `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
+	Status       enum.Status   `json:"status" gorm:"size:2"`
+	OAuth2       []*UserOAuth2 `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
+	Provider     string        `json:"type" gorm:"-"`
 }
 
 func (e *UserLogin) TableName() string {
@@ -145,6 +148,13 @@ func (e *UserLogin) GetUsername() string {
 	return e.Username
 }
 
+func (e *UserLogin) Root() bool {
+	if e.Role == nil {
+		return false
+	}
+	return e.Role.Root
+}
+
 // Verify verify password
 func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error) {
 	switch strings.ToLower(e.Provider) {
@@ -161,43 +171,63 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			slog.Error("get user from github error", slog.Any("error", err))
 			return false, nil, err
 		}
+		litter.Dump(githubUser)
+		if len(config.Cfg.OAuth2.AllowGroup) > 0 &&
+			!pkg.InArray(config.Cfg.OAuth2.AllowGroup, strings.Split(githubUser.Company, " "), "@", 1) {
+			err = errors.New("user not in allow group")
+			slog.Error(err.Error())
+			return false, nil, err
+		}
 		defaultRole := &Role{Default: true}
 		_ = gormdb.DB.Where(defaultRole).First(defaultRole).Error
 		// get user from db
-		user := &User{}
-		err = gormdb.DB.First(user, "account_id = ?", fmt.Sprintf("%d", githubUser.ID)).Error
+		userOAuth2 := &UserOAuth2{}
+		err = gormdb.DB.Preload("User.Role").First(userOAuth2, "open_id = ?", fmt.Sprintf("%d", githubUser.ID)).Error
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				slog.Error("get user from db error", slog.Any("error", err))
 				return false, nil, err
 			}
 			err = nil
-			// register user
-			user = &User{
-				UserLogin: UserLogin{
-					RoleID:   defaultRole.ID,
-					Username: githubUser.Email,
-					Email:    githubUser.Email,
-					Password: e.Password,
-					Provider: "github",
-					Status:   enum.Enabled,
+			userOAuth2 = &UserOAuth2{
+				OpenID:        fmt.Sprintf("%d", githubUser.ID),
+				Sub:           "github",
+				Name:          githubUser.Login,
+				Email:         githubUser.Email,
+				Profile:       githubUser.Blog,
+				Picture:       githubUser.AvatarURL,
+				NickName:      githubUser.Login,
+				Website:       githubUser.HTMLURL,
+				EmailVerified: true,
+				Locale:        githubUser.Location,
+				User: &User{
+					UserLogin: UserLogin{
+						RoleID:   defaultRole.ID,
+						Username: githubUser.Email,
+						Email:    githubUser.Email,
+						Password: e.Password,
+						Provider: "github",
+						Status:   enum.Enabled,
+					},
+					Name:   githubUser.Login,
+					Avatar: githubUser.AvatarURL,
+					//Organization:    githubUser.Company,
+					//Location:        githubUser.Location,
+					//Introduction:    githubUser.Bio,
+					Profile: githubUser.Blog,
+					//Verified:        true,
+					//AccountID:       fmt.Sprintf("%d", githubUser.ID),
 				},
-				Name:   githubUser.Login,
-				Avatar: githubUser.AvatarURL,
-				//Organization:    githubUser.Company,
-				//Location:        githubUser.Location,
-				//Introduction:    githubUser.Bio,
-				Profile: githubUser.Blog,
-				//Verified:        true,
-				//AccountID:       fmt.Sprintf("%d", githubUser.ID),
 			}
-			err = gormdb.DB.Create(user).Error
+			// register user
+			err = gormdb.DB.Create(userOAuth2).Error
 			if err != nil {
 				slog.Error("create user error", slog.Any("error", err))
 				return false, nil, err
 			}
+			userOAuth2.User.Role = defaultRole
 		}
-		return true, user, nil
+		return true, userOAuth2.User, nil
 	}
 	// username and password
 	user, err := GetUserByUsername(e.Username)

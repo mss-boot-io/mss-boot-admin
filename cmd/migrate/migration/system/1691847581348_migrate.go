@@ -30,11 +30,17 @@ func _1691847581348Migrate(db *gorm.DB, version string) error {
 		//}
 		role := models.Role{
 			Name:   "admin",
-			Root:   true,
 			Status: enum.Enabled,
 			Remark: "admin",
 		}
 		err := tx.Create(&role).Error
+		if err != nil {
+			return err
+		}
+		err = tx.Table(role.TableName()).Where("id = ?", role.ID).Updates(map[string]interface{}{
+			"default": true,
+			"root":    true,
+		}).Error
 		if err != nil {
 			return err
 		}
