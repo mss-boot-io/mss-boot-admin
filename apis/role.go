@@ -47,6 +47,8 @@ func (e *Role) Other(r *gin.RouterGroup) {
 // @Summary 获取角色授权
 // @Description 获取角色授权
 // @Tags role
+// @Accept  application/json
+// @Product application/json
 // @param roleID path string true "roleID"
 // @Success 200 {object} dto.GetAuthorizeResponse
 // @Router /admin/api/role/authorize/{roleID} [get]

@@ -781,6 +781,235 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/api/notice/unread": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取未读通知列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notice"
+                ],
+                "summary": "获取未读通知列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Notice"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/notices": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "通知列表数据",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notice"
+                ],
+                "summary": "通知列表数据",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "title",
+                        "name": "title",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "userID",
+                        "name": "userID",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "pageSize",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Page"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.Notice"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "创建通知",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notice"
+                ],
+                "summary": "创建通知",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Notice"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    }
+                }
+            }
+        },
+        "/admin/api/notices/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取通知",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notice"
+                ],
+                "summary": "获取通知",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Notice"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "更新通知",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notice"
+                ],
+                "summary": "更新通知",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Notice"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "删除通知",
+                "tags": [
+                    "notice"
+                ],
+                "summary": "删除通知",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/admin/api/role/authorize/{roleID}": {
             "get": {
                 "security": [
@@ -789,6 +1018,9 @@ const docTemplate = `{
                     }
                 ],
                 "description": "获取角色授权",
+                "consumes": [
+                    "application/json"
+                ],
                 "tags": [
                     "role"
                 ],
@@ -2329,12 +2561,59 @@ const docTemplate = `{
                 }
             }
         },
+        "models.Notice": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "CreatedAt create time",
+                    "type": "string"
+                },
+                "datetime": {
+                    "type": "string"
+                },
+                "extra": {
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID primary key",
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "read": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "UpdatedAt update time",
+                    "type": "string"
+                },
+                "userID": {
+                    "type": "string"
+                }
+            }
+        },
         "models.Role": {
             "type": "object",
             "properties": {
                 "createdAt": {
                     "description": "CreatedAt create time",
                     "type": "string"
+                },
+                "default": {
+                    "type": "boolean"
                 },
                 "id": {
                     "description": "ID primary key",
@@ -2400,6 +2679,9 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "once": {
+                    "type": "boolean"
+                },
                 "protocol": {
                     "type": "string"
                 },
@@ -2457,6 +2739,12 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "oauth2": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.UserOAuth2"
+                    }
+                },
                 "password": {
                     "type": "string"
                 },
@@ -2477,6 +2765,9 @@ const docTemplate = `{
                 },
                 "province": {
                     "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/models.Role"
                 },
                 "signature": {
                     "type": "string"
@@ -2512,8 +2803,17 @@ const docTemplate = `{
                 "email": {
                     "type": "string"
                 },
+                "oauth2": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.UserOAuth2"
+                    }
+                },
                 "password": {
                     "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/models.Role"
                 },
                 "status": {
                     "description": "Status 状态",
@@ -2523,6 +2823,86 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.UserOAuth2": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "birthdata": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "CreatedAt create time",
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "email_verified": {
+                    "type": "boolean"
+                },
+                "family_name": {
+                    "type": "string"
+                },
+                "gender": {
+                    "type": "string"
+                },
+                "given_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID primary key",
+                    "type": "string"
+                },
+                "locale": {
+                    "type": "string"
+                },
+                "middle_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "openID": {
+                    "type": "string"
+                },
+                "phone_number": {
+                    "type": "string"
+                },
+                "phone_number_verified": {
+                    "type": "boolean"
+                },
+                "picture": {
+                    "type": "string"
+                },
+                "preferred_username": {
+                    "type": "string"
+                },
+                "profile": {
+                    "type": "string"
+                },
+                "sub": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "UpdatedAt update time",
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "website": {
+                    "type": "string"
+                },
+                "zoneinfo": {
                     "type": "string"
                 }
             }

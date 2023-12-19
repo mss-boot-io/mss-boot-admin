@@ -141,7 +141,7 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 			api.Err(http.StatusInternalServerError)
 			return
 		}
-		if ok {
+		if ok || verify.Root() {
 			canList = append(canList, list[i])
 		}
 	}
