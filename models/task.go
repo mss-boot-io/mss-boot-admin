@@ -76,6 +76,11 @@ func (t *Task) Run() {
 		return
 	}
 
+	gormdb.DB.Where("id = ?", t.ID).First(t)
+	if t.Status != 1 {
+		return
+	}
+
 	taskRun := &TaskRun{
 		TaskID: t.ID,
 		Status: enum.Locked,
