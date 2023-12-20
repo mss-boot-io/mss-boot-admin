@@ -77,7 +77,7 @@ func (t *Task) Run() {
 	}
 
 	gormdb.DB.Where("id = ?", t.ID).First(t)
-	if t.Status != 1 {
+	if t.Status != enum.Enabled {
 		return
 	}
 
