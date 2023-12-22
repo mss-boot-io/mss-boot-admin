@@ -23,7 +23,7 @@ type TaskRun struct {
 	ID        string      `gorm:"primarykey" json:"id" form:"id" query:"id"`
 	CreatedAt time.Time   `json:"createdAt"`
 	TaskID    string      `json:"taskID" gorm:"index;foreignKey:TaskID;references:ID"`
-	Status    enum.Status `json:"status"`
+	Status    enum.Status `json:"status" gorm:"size:10"`
 }
 
 func (*TaskRun) TableName() string {

@@ -2,7 +2,8 @@ package middleware
 
 import (
 	"encoding/json"
-	"fmt"
+	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
+	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"log/slog"
 	"os"
 	"reflect"
@@ -71,15 +72,24 @@ func Init() {
 			return nil, jwt.ErrFailedAuthentication
 		},
 		Authorizator: func(data any, c *gin.Context) bool {
-			if v, ok := data.(security.Verifier); ok {
-				//enable, err := gormdb.Enforcer.Enforce(v.GetRoleID(), c.Request.URL.Path, c.Request.Method)
-				//if err != nil {
-				//	log.Errorf("Enforcer.Enforce error: %v", err)
-				//	return false
-				//}
-				fmt.Println(v.GetRoleID(), c.Request.URL.Path, c.Request.Method)
-				//return enable
+			switch c.Request.URL.Path {
+			case "/admin/api/user/userInfo",
+				"/admin/api/menu/authorize",
+				"/admin/api/system-configs",
+				"/admin/api/languages":
 				return true
+			}
+			api := response.Make(c)
+			if v, ok := data.(security.Verifier); ok {
+				if v.Root() {
+					return true
+				}
+				enable, err := gormdb.Enforcer.Enforce(v.GetRoleID(), pkg.APIAccessType.String(), c.Request.URL.Path, c.Request.Method)
+				if err != nil {
+					api.AddError(err).Log.Error("Enforcer.Enforce error")
+					return false
+				}
+				return enable
 			}
 			return false
 		},

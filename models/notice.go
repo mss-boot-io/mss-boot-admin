@@ -29,7 +29,7 @@ type Notice struct {
 	Read     bool       `json:"read" gorm:"column:read;type:tinyint(1)"`
 	Avatar   string     `json:"avatar" gorm:"column:avatar;type:varchar(255)"`
 	Extra    string     `json:"extra" gorm:"column:extra;type:varchar(255)"`
-	Status   string     `json:"status" gorm:"column:status;type:varchar(20)"`
+	Status   string     `json:"status" gorm:"column:status;size:10"`
 	Datetime time.Time  `json:"datetime" gorm:"column:datetime;type:datetime"`
 	Type     NoticeType `json:"type" gorm:"column:type;type:varchar(20)"`
 }

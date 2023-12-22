@@ -27,19 +27,19 @@ import (
 type User struct {
 	actions.ModelGorm `json:",inline"`
 	UserLogin         `json:",inline"`
-	Name              string              `json:"name" gorm:"column:name;type:varchar(100)"`
-	Avatar            string              `json:"avatar" gorm:"column:avatar;type:varchar(255)"`
-	Signature         string              `json:"signature" gorm:"column:signature;type:varchar(255)"`
-	Title             string              `json:"title" gorm:"column:title;type:varchar(100)"`
-	Group             string              `json:"group" gorm:"column:group;type:varchar(255)"`
-	Country           string              `json:"country" gorm:"column:country;type:varchar(20)"`
-	Province          string              `json:"province" gorm:"column:province;type:varchar(20)"`
-	City              string              `json:"city" gorm:"column:city;type:varchar(20)"`
-	Address           string              `json:"address" gorm:"column:address;type:varchar(255)"`
-	Phone             string              `json:"phone" gorm:"column:phone;type:varchar(20)"`
-	Profile           string              `json:"profile" gorm:"column:profile;type:blob"`
-	Tags              ArrayString         `json:"tags"  swaggertype:"array,string" gorm:"type:text"`
-	Permissions       map[string][]string `json:"permissions" gorm:"-"`
+	Name              string          `json:"name" gorm:"column:name;type:varchar(100)"`
+	Avatar            string          `json:"avatar" gorm:"column:avatar;type:varchar(255)"`
+	Signature         string          `json:"signature" gorm:"column:signature;type:varchar(255)"`
+	Title             string          `json:"title" gorm:"column:title;type:varchar(100)"`
+	Group             string          `json:"group" gorm:"column:group;type:varchar(255)"`
+	Country           string          `json:"country" gorm:"column:country;type:varchar(20)"`
+	Province          string          `json:"province" gorm:"column:province;type:varchar(20)"`
+	City              string          `json:"city" gorm:"column:city;type:varchar(20)"`
+	Address           string          `json:"address" gorm:"column:address;type:varchar(255)"`
+	Phone             string          `json:"phone" gorm:"column:phone;type:varchar(20)"`
+	Profile           string          `json:"profile" gorm:"column:profile;type:blob"`
+	Tags              ArrayString     `json:"tags"  swaggertype:"array,string" gorm:"type:text"`
+	Permissions       map[string]bool `json:"permissions" gorm:"-"`
 }
 
 type Tag struct {
@@ -59,14 +59,6 @@ func (e *User) BeforeCreate(_ *gorm.DB) error {
 	}
 	e.PasswordHash = hash
 	return err
-}
-
-func (e *User) AfterFind(tx *gorm.DB) error {
-	fmt.Println("AfterFind", e.ID, e.Username, e.Password, e.PasswordHash, e.Salt)
-	e.Permissions = map[string][]string{
-		"menu.role.serach": {"*"},
-	}
-	return nil
 }
 
 func (*User) TableName() string {
@@ -119,7 +111,7 @@ type UserLogin struct {
 	Password     string        `json:"password,omitempty" gorm:"-"`
 	PasswordHash string        `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
 	Salt         string        `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
-	Status       enum.Status   `json:"status" gorm:"size:2"`
+	Status       enum.Status   `json:"status" gorm:"size:10"`
 	OAuth2       []*UserOAuth2 `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
 	Provider     string        `json:"type" gorm:"-"`
 }

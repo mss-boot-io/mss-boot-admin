@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/mss-boot-io/mss-boot/core/server/task"
@@ -32,6 +33,8 @@ import (
 var (
 	apiCheck bool
 	group    string
+	driver   string
+	dsn      string
 	StartCmd = &cobra.Command{
 		Use:     "server",
 		Short:   "start server",
@@ -55,11 +58,26 @@ func init() {
 		"group", "g",
 		"/admin",
 		"Start server with group path")
+	StartCmd.PersistentFlags().StringVarP(&driver,
+		"gorm-driver", "r",
+		"mysql", "Start server with db driver")
+	StartCmd.PersistentFlags().StringVarP(&dsn,
+		"gorm-dsn", "n",
+		"root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local",
+		"Start server with db dsn")
 }
 
 func setup() error {
+	// setup 00 set params
+	// env overwrite args
+	if os.Getenv("DB_DRIVER") != "" {
+		driver = os.Getenv("DB_DRIVER")
+	}
+	if os.Getenv("DB_DSN") != "" {
+		dsn = os.Getenv("DB_DSN")
+	}
 	// setup 01 config init
-	config.Cfg.Init()
+	config.Cfg.Init(driver, dsn, &models.SystemConfig{})
 
 	// setup 02 middleware init
 	middleware.Verifier = &models.User{}

@@ -22,6 +22,8 @@ type MenuSearch struct {
 	Status enum.Status `query:"status" form:"status" search:"type:exact;column:status"`
 	// ParentID 父级id
 	ParentID string `query:"parentID" form:"parentID" search:"-"`
+	// Type 类型
+	Type string `query:"type" form:"type" search:"type:exact;column:type"`
 }
 
 type GetAuthorizeRequest struct {
@@ -31,4 +33,9 @@ type GetAuthorizeRequest struct {
 type UpdateAuthorizeRequest struct {
 	GetAuthorizeRequest
 	Keys []string `json:"keys" binding:"required"`
+}
+
+type MenuBindAPIRequest struct {
+	MenuID string   `json:"menuID" binding:"required"`
+	Paths  []string `json:"paths" binding:"required"`
 }

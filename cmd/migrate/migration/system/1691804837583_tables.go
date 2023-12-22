@@ -19,6 +19,7 @@ func _1691804837583Tables(db *gorm.DB, version string) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 
 		err := tx.Migrator().AutoMigrate(
+			new(models.SystemConfig),
 			new(models.Role),
 			new(models.User),
 			new(models.UserOAuth2),
@@ -31,7 +32,6 @@ func _1691804837583Tables(db *gorm.DB, version string) error {
 			new(models.TaskRun),
 			new(models.TaskRunLog),
 			new(models.Language),
-			new(models.LanguageDefine),
 		)
 		if err != nil {
 			return err

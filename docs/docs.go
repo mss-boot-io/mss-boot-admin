@@ -16,6 +16,201 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/api/apis": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "API列表数据",
+                "consumes": [
+                    "application/json",
+                    "application/json"
+                ],
+                "tags": [
+                    "api"
+                ],
+                "summary": "API列表数据",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "pageSize",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Page"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.API"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "创建API",
+                "consumes": [
+                    "application/json",
+                    "application/json"
+                ],
+                "tags": [
+                    "api"
+                ],
+                "summary": "创建API",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.API"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.API"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/apis/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取API",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "api"
+                ],
+                "summary": "获取API",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.API"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "更新API",
+                "consumes": [
+                    "application/json",
+                    "application/json"
+                ],
+                "tags": [
+                    "api"
+                ],
+                "summary": "更新API",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.API"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.API"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "删除API",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "api"
+                ],
+                "summary": "删除API",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/admin/api/github/callback": {
             "get": {
                 "description": "github回调",
@@ -64,64 +259,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/api/github/control": {
-            "post": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "创建或更新github配置",
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "generator"
-                ],
-                "summary": "创建或更新github配置",
-                "parameters": [
-                    {
-                        "description": "data",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.GithubControlReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK"
-                    }
-                }
-            }
-        },
-        "/admin/api/github/get": {
-            "get": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "获取github配置",
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "generator"
-                ],
-                "summary": "获取github配置",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GithubGetResp"
-                        }
-                    }
-                }
-            }
-        },
         "/admin/api/github/get-login-url": {
             "get": {
                 "description": "获取github登录地址",
@@ -146,95 +283,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/api/language-defines": {
-            "post": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "创建/更新",
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "language_define"
-                ],
-                "summary": "创建/更新",
-                "parameters": [
-                    {
-                        "description": "data",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.LanguageDefine"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created"
-                    }
-                }
-            }
-        },
-        "/admin/api/language-defines/{id}": {
-            "delete": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "删除",
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "language_define"
-                ],
-                "summary": "删除",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "id",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
-        "/admin/api/language/all": {
-            "get": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "获取所有语言",
-                "tags": [
-                    "language"
-                ],
-                "summary": "获取所有语言",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.Language"
-                            }
                         }
                     }
                 }
@@ -332,7 +380,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created"
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Language"
+                        }
                     }
                 }
             }
@@ -401,7 +452,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Language"
+                        }
                     }
                 }
             },
@@ -428,6 +482,40 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/admin/api/menu/api/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取菜单下的接口",
+                "tags": [
+                    "menu"
+                ],
+                "summary": "获取菜单下的接口",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Menu"
+                            }
+                        }
                     }
                 }
             }
@@ -515,6 +603,39 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/api/menu/bind-api": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "绑定菜单下的接口",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "menu"
+                ],
+                "summary": "绑定菜单下的接口",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.MenuBindAPIRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/admin/api/menu/tree": {
             "get": {
                 "security": [
@@ -590,6 +711,12 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "type",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "page",
                         "name": "page",
@@ -653,7 +780,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created"
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Menu"
+                        }
                     }
                 }
             }
@@ -731,7 +861,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Menu"
+                        }
                     }
                 }
             },
@@ -1104,7 +1237,7 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "description": "pageSize",
-                        "name": "page_size",
+                        "name": "pageSize",
                         "in": "query"
                     },
                     {
@@ -1120,7 +1253,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "status",
                         "name": "status",
                         "in": "query"
@@ -1183,7 +1316,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created"
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Role"
+                        }
                     }
                 }
             }
@@ -1252,7 +1388,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Role"
+                        }
                     }
                 }
             },
@@ -1267,6 +1406,201 @@ const docTemplate = `{
                     "role"
                 ],
                 "summary": "删除角色",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/admin/api/system-configs": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "系统配置列表数据",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system_config"
+                ],
+                "summary": "系统配置列表数据",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "pageSize",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Page"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.SystemConfig"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "创建系统配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system_config"
+                ],
+                "summary": "创建系统配置",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.SystemConfig"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.SystemConfig"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/system-configs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取系统配置",
+                "tags": [
+                    "system_config"
+                ],
+                "summary": "获取系统配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SystemConfig"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "更新系统配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system_config"
+                ],
+                "summary": "更新系统配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.SystemConfig"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SystemConfig"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "删除系统配置",
+                "tags": [
+                    "system_config"
+                ],
+                "summary": "删除系统配置",
                 "parameters": [
                     {
                         "type": "string",
@@ -1359,7 +1693,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "status",
                         "name": "status",
                         "in": "query"
@@ -1422,7 +1756,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created"
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Task"
+                        }
                     }
                 }
             }
@@ -1491,7 +1828,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Task"
+                        }
                     }
                 }
             },
@@ -1946,7 +2286,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created"
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.User"
+                        }
                     }
                 }
             }
@@ -2015,7 +2358,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.User"
+                        }
                     }
                 }
             },
@@ -2093,52 +2439,13 @@ const docTemplate = `{
         "dto.GetAuthorizeResponse": {
             "type": "object",
             "properties": {
-                "apiIDS": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "menuIDS": {
+                "paths": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
                 "roleID": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.GithubControlReq": {
-            "type": "object",
-            "required": [
-                "password"
-            ],
-            "properties": {
-                "password": {
-                    "description": "github密码或者token",
-                    "type": "string"
-                }
-            }
-        },
-        "dto.GithubGetResp": {
-            "type": "object",
-            "properties": {
-                "configured": {
-                    "description": "已配置",
-                    "type": "boolean"
-                },
-                "createdAt": {
-                    "description": "创建时间",
-                    "type": "string"
-                },
-                "email": {
-                    "description": "github邮箱",
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "description": "更新时间",
                     "type": "string"
                 }
             }
@@ -2178,6 +2485,24 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.MenuBindAPIRequest": {
+            "type": "object",
+            "required": [
+                "menuID",
+                "paths"
+            ],
+            "properties": {
+                "menuID": {
+                    "type": "string"
+                },
+                "paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "dto.PasswordResetRequest": {
             "type": "object",
             "required": [
@@ -2196,13 +2521,7 @@ const docTemplate = `{
         "dto.SetAuthorizeRequest": {
             "type": "object",
             "properties": {
-                "apiIDS": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "menuIDS": {
+                "paths": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -2377,8 +2696,43 @@ const docTemplate = `{
                 }
             }
         },
+        "models.API": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "description": "CreatedAt create time",
+                    "type": "string"
+                },
+                "handler": {
+                    "type": "string"
+                },
+                "history": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "description": "ID primary key",
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "UpdatedAt update time",
+                    "type": "string"
+                }
+            }
+        },
         "models.Language": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "createdAt": {
                     "description": "CreatedAt create time",
@@ -2399,9 +2753,13 @@ const docTemplate = `{
                     "description": "Name 名称",
                     "type": "string"
                 },
+                "remark": {
+                    "description": "Remark 备注",
+                    "type": "string"
+                },
                 "status": {
                     "description": "Statue 状态",
-                    "type": "integer"
+                    "type": "string"
                 },
                 "updatedAt": {
                     "description": "UpdatedAt update time",
@@ -2414,32 +2772,19 @@ const docTemplate = `{
             "required": [
                 "group",
                 "key",
-                "languageID",
                 "value"
             ],
             "properties": {
-                "createdAt": {
-                    "description": "CreatedAt create time",
-                    "type": "string"
-                },
                 "group": {
                     "description": "Group 分组",
                     "type": "string"
                 },
                 "id": {
-                    "description": "ID primary key",
+                    "description": "ID 主键",
                     "type": "string"
                 },
                 "key": {
                     "description": "Key 键",
-                    "type": "string"
-                },
-                "languageID": {
-                    "description": "LanguageID 语言ID",
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "description": "UpdatedAt update time",
                     "type": "string"
                 },
                 "value": {
@@ -2519,6 +2864,10 @@ const docTemplate = `{
                     "description": "MenuRender 不展示菜单",
                     "type": "boolean"
                 },
+                "method": {
+                    "description": "Method 请求方法",
+                    "type": "string"
+                },
                 "name": {
                     "description": "Name 菜单名称",
                     "type": "string"
@@ -2545,7 +2894,7 @@ const docTemplate = `{
                 },
                 "status": {
                     "description": "Status 状态",
-                    "type": "integer"
+                    "type": "string"
                 },
                 "target": {
                     "description": "Target 新页面打开",
@@ -2630,7 +2979,48 @@ const docTemplate = `{
                 },
                 "status": {
                     "description": "Status 状态",
-                    "type": "integer"
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "UpdatedAt update time",
+                    "type": "string"
+                }
+            }
+        },
+        "models.SystemConfig": {
+            "type": "object",
+            "required": [
+                "ext",
+                "name"
+            ],
+            "properties": {
+                "content": {
+                    "description": "Content 内容",
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "CreatedAt create time",
+                    "type": "string"
+                },
+                "ext": {
+                    "description": "Ext 扩展名",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID primary key",
+                    "type": "string"
+                },
+                "isBuiltIn": {
+                    "description": "内置配置",
+                    "type": "boolean"
+                },
+                "name": {
+                    "description": "Name 名称",
+                    "type": "string"
+                },
+                "remark": {
+                    "description": "remark 备注",
+                    "type": "string"
                 },
                 "updatedAt": {
                     "description": "UpdatedAt update time",
@@ -2696,7 +3086,7 @@ const docTemplate = `{
                 },
                 "status": {
                     "description": "Status 状态",
-                    "type": "integer"
+                    "type": "string"
                 },
                 "timeout": {
                     "type": "integer"
@@ -2751,10 +3141,7 @@ const docTemplate = `{
                 "permissions": {
                     "type": "object",
                     "additionalProperties": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
+                        "type": "boolean"
                     }
                 },
                 "phone": {
@@ -2774,7 +3161,7 @@ const docTemplate = `{
                 },
                 "status": {
                     "description": "Status 状态",
-                    "type": "integer"
+                    "type": "string"
                 },
                 "tags": {
                     "type": "array",
@@ -2817,7 +3204,7 @@ const docTemplate = `{
                 },
                 "status": {
                     "description": "Status 状态",
-                    "type": "integer"
+                    "type": "string"
                 },
                 "type": {
                     "type": "string"

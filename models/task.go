@@ -37,7 +37,7 @@ type Task struct {
 	Protocol   string       `json:"protocol" gorm:"size:10"`
 	Endpoint   string       `json:"endpoint"`
 	Body       string       `json:"body" gorm:"type:bytes"`
-	Status     enum.Status  `json:"status"`
+	Status     enum.Status  `json:"status" gorm:"size:10"`
 	Remark     string       `json:"remark" gorm:"type:text"`
 	CheckedAtR *time.Time   `gorm:"-" json:"checkedAt"`
 	CheckedAt  sql.NullTime `gorm:"index" swaggertype:"string" json:"-"`

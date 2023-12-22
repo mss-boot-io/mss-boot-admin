@@ -82,8 +82,8 @@ func (t *Task) Run() error {
 		//		slog.Error("task grpc exec error", slog.Any("err", err))
 		//		break
 		//	}
-		//	if resp == nil || len(resp.Content) == 0 {
-		//		_, err1 = t.Writer.Write(resp.Content)
+		//	if resp == nil || len(resp.Defines) == 0 {
+		//		_, err1 = t.Writer.Write(resp.Defines)
 		//		if err1 != nil {
 		//			slog.Error("task grpc write error", slog.Any("err", err))
 		//			break
