@@ -9,7 +9,7 @@ require (
 	github.com/go-git/go-git/v5 v5.11.0
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.5.0
-	github.com/mss-boot-io/mss-boot v0.1.3-0.20231220092535-1b1d3b20dbd6
+	github.com/mss-boot-io/mss-boot v0.1.3-0.20231222100019-9006bc127566
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sanity-io/litter v1.5.5
 	github.com/spf13/cast v1.6.0
@@ -21,7 +21,6 @@ require (
 	golang.org/x/net v0.19.0
 	golang.org/x/oauth2 v0.15.0
 	google.golang.org/grpc v1.60.1
-	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.25.5
 )
 
@@ -146,6 +145,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231212172506-995d672761c0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.5.2 // indirect
 	gorm.io/driver/postgres v1.5.4 // indirect
 	gorm.io/driver/sqlite v1.5.4 // indirect
