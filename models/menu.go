@@ -3,6 +3,8 @@ package models
 import (
 	"sort"
 
+	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
+
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"gorm.io/gorm"
@@ -27,6 +29,8 @@ type Menu struct {
 	//Title string `json:"title" gorm:"column:title;comment:菜单标题;type:varchar(255);not null"`
 	// Path 路由
 	Path string `json:"path" gorm:"column:path;comment:菜单路径;type:varchar(255);not null"`
+	// Method 请求方法
+	Method string `json:"method" gorm:"column:method;comment:请求方法;type:varchar(10);default:'GET'"`
 	// Component 组件
 	Component string `json:"component" gorm:"column:component;comment:菜单组件;type:varchar(255);not null"`
 	// Icon 图标
@@ -62,11 +66,11 @@ type Menu struct {
 	// HeaderTheme 顶部导航的主题，mix 模式生效
 	HeaderTheme string `json:"headerTheme,omitempty" gorm:"column:header_theme;comment:头部主题;type:varchar(255);not null"`
 	// Type 菜单类型
-	Type string `json:"type" gorm:"column:type;comment:菜单类型;type:varchar(255);not null"`
+	Type pkg.AccessType `json:"type" gorm:"column:type;comment:菜单类型;type:varchar(20);not null"`
 	// Permission 菜单权限
 	Permission string `json:"permission" gorm:"column:permission;comment:菜单权限;type:varchar(255);not null"`
 	// Status 状态
-	Status enum.Status `json:"status" gorm:"column:status;comment:状态;type:tinyint(1);not null;default:1"`
+	Status enum.Status `json:"status" gorm:"column:status;comment:状态;size:10"`
 	// Sort 排序
 	Sort int `json:"sort" gorm:"column:sort;comment:排序;type:int(11);not null;default:0"`
 	// Children 子菜单
@@ -77,22 +81,29 @@ func (x MenuList) Len() int           { return len(x) }
 func (x MenuList) Less(i, j int) bool { return x[i].Sort > x[j].Sort }
 func (x MenuList) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
-func (e *Menu) BeforeSave(tx *gorm.DB) error {
-	err := e.ModelGorm.BeforeCreate(nil)
+func (e *Menu) BeforeCreate(tx *gorm.DB) error {
+	err := e.ModelGorm.BeforeCreate(tx)
 	if err != nil {
 		return err
 	}
-	//tx.Where("path = ?", e.Path).First(e)
+	if e.Status == "" {
+		e.Status = enum.Enabled
+	}
+	if e.Type == pkg.APIAccessType ||
+		e.Type == pkg.ComponentAccessType {
+		e.HideInMenu = true
+	}
+	return nil
+}
+
+func (e *Menu) BeforeSave(_ *gorm.DB) error {
+	if e.Type == pkg.APIAccessType ||
+		e.Type == pkg.ComponentAccessType {
+		e.HideInMenu = true
+	}
 	for i := range e.Children {
 		e.Children[i].ParentID = e.ID
 	}
-	//if len(e.Children) > 0 {
-	//	err = tx.Save(&e.Children).Error
-	//	if err != nil {
-	//		slog.Error("save menu children error", "err", err)
-	//		return err
-	//	}
-	//}
 	return nil
 }
 

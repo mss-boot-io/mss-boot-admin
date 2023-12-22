@@ -16,17 +16,6 @@ import (
  * @Last Modified time: 2023/8/14 08:41:16
  */
 
-type AccessType string
-
-const (
-	MenuAccessType AccessType = "MENU"
-	APIAccessType  AccessType = "API"
-)
-
-func (a AccessType) String() string {
-	return string(a)
-}
-
 type API struct {
 	actions.ModelGorm
 	Name    string `json:"name"`

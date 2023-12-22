@@ -3,12 +3,13 @@ package migrate
 import (
 	"bytes"
 	"log/slog"
+	"os"
 	"strconv"
 	"text/template"
 	"time"
 
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot/pkg/migration/models"
+	common "github.com/mss-boot-io/mss-boot/pkg/migration/models"
 	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration"
@@ -30,10 +31,15 @@ var (
 	username string
 	password string
 	system   bool
+	driver   string
+	dsn      string
 	StartCmd = &cobra.Command{
 		Use:     "migrate",
 		Short:   "Initialize the database",
 		Example: "mss-boot-admin migrate",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return setup()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return Run()
 		},
@@ -49,12 +55,38 @@ func init() {
 		"admin", "system super administrator login username")
 	StartCmd.PersistentFlags().StringVarP(&password, "password", "p",
 		"ant.design", "system super administrator login password")
+	StartCmd.PersistentFlags().StringVarP(&config.Cfg.Database.Driver,
+		"gorm-driver", "r",
+		"mysql", "Start server with db driver")
+	StartCmd.PersistentFlags().StringVarP(&config.Cfg.Database.Source,
+		"gorm-dsn", "n",
+		"root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local",
+		"Start server with db dsn")
+}
+
+func setup() error {
+	// setup 00 set params
+	// env overwrite args
+	if os.Getenv("DB_DRIVER") != "" {
+		config.Cfg.Database.Driver = os.Getenv("DB_DRIVER")
+	}
+	if os.Getenv("DB_DSN") != "" {
+		config.Cfg.Database.Source = os.Getenv("DB_DSN")
+	}
+	config.Cfg.Database.Config.DisableForeignKeyConstraintWhenMigrating = true
+	// setup 01 set logger
+	config.Cfg.Logger.Level = slog.LevelInfo
+	config.Cfg.Logger.AddSource = true
+
+	config.Cfg.Logger.Init()
+	return nil
 }
 
 func Run() error {
 	if !generate {
 		slog.Info("start init")
-		config.Cfg.Init()
+		//config.Cfg.Init(driver, dsn, &models.SystemConfig{})
+		config.Cfg.Database.Init()
 		return migrate()
 	}
 	slog.Info(`generate migration file`)
@@ -65,14 +97,14 @@ func migrate() error {
 	systemMigrate.Username = username
 	systemMigrate.Password = password
 	db := gormdb.DB
-	err := db.AutoMigrate(&models.Migration{})
+	err := db.AutoMigrate(&common.Migration{})
 	if err != nil {
 		slog.Error("auto migrate error", "err", err)
 		return err
 	}
 	migration.Migrate.SetDb(db)
 	migration.Migrate.Migrate()
-	return err
+	return nil
 }
 
 func genFile() error {

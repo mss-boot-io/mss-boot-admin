@@ -8,7 +8,9 @@ package migration
  */
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -53,18 +55,20 @@ func (e *Migration) Migrate() {
 	var err error
 	var count int64
 	for _, v := range versions {
-		err = e.db.Table("mss_boot_migration").Where("version = ?", v).Count(&count).Error
+		err = e.db.Table("mss_boot_migration").Where("version = ?", fmt.Sprintf("%d", v)).Count(&count).Error
 		if err != nil {
-			log.Fatalf("get migration version error: %v", err)
+			slog.Error("get migration version error", "err", err)
+			os.Exit(-1)
 		}
 		if count > 0 {
-			log.Println(count)
+			slog.Info("migration version already exists", "version", v)
 			count = 0
 			continue
 		}
 		err = (e.version[v])(e.db, strconv.Itoa(v))
 		if err != nil {
-			log.Fatalf("migrate version %d error: %v", v, err)
+			slog.Error("migrate version error", "version", v, "err", err)
+			os.Exit(-1)
 		}
 	}
 }

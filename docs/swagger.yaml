@@ -28,38 +28,11 @@ definitions:
     type: object
   dto.GetAuthorizeResponse:
     properties:
-      apiIDS:
-        items:
-          type: string
-        type: array
-      menuIDS:
+      paths:
         items:
           type: string
         type: array
       roleID:
-        type: string
-    type: object
-  dto.GithubControlReq:
-    properties:
-      password:
-        description: github密码或者token
-        type: string
-    required:
-    - password
-    type: object
-  dto.GithubGetResp:
-    properties:
-      configured:
-        description: 已配置
-        type: boolean
-      createdAt:
-        description: 创建时间
-        type: string
-      email:
-        description: github邮箱
-        type: string
-      updatedAt:
-        description: 更新时间
         type: string
     type: object
   dto.GithubToken:
@@ -98,6 +71,18 @@ definitions:
       token:
         type: string
     type: object
+  dto.MenuBindAPIRequest:
+    properties:
+      menuID:
+        type: string
+      paths:
+        items:
+          type: string
+        type: array
+    required:
+    - menuID
+    - paths
+    type: object
   dto.PasswordResetRequest:
     properties:
       password:
@@ -110,11 +95,7 @@ definitions:
     type: object
   dto.SetAuthorizeRequest:
     properties:
-      apiIDS:
-        items:
-          type: string
-        type: array
-      menuIDS:
+      paths:
         items:
           type: string
         type: array
@@ -232,6 +213,28 @@ definitions:
         description: Title 职位
         type: string
     type: object
+  models.API:
+    properties:
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      handler:
+        type: string
+      history:
+        type: boolean
+      id:
+        description: ID primary key
+        type: string
+      method:
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+    type: object
   models.Language:
     properties:
       createdAt:
@@ -248,32 +251,28 @@ definitions:
       name:
         description: Name 名称
         type: string
+      remark:
+        description: Remark 备注
+        type: string
       status:
         description: Statue 状态
-        type: integer
+        type: string
       updatedAt:
         description: UpdatedAt update time
         type: string
+    required:
+    - name
     type: object
   models.LanguageDefine:
     properties:
-      createdAt:
-        description: CreatedAt create time
-        type: string
       group:
         description: Group 分组
         type: string
       id:
-        description: ID primary key
+        description: ID 主键
         type: string
       key:
         description: Key 键
-        type: string
-      languageID:
-        description: LanguageID 语言ID
-        type: string
-      updatedAt:
-        description: UpdatedAt update time
         type: string
       value:
         description: Value 值
@@ -281,7 +280,6 @@ definitions:
     required:
     - group
     - key
-    - languageID
     - value
     type: object
   models.Menu:
@@ -337,6 +335,9 @@ definitions:
       menuRender:
         description: MenuRender 不展示菜单
         type: boolean
+      method:
+        description: Method 请求方法
+        type: string
       name:
         description: Name 菜单名称
         type: string
@@ -360,7 +361,7 @@ definitions:
         type: integer
       status:
         description: Status 状态
-        type: integer
+        type: string
       target:
         description: Target 新页面打开
         type: string
@@ -419,10 +420,40 @@ definitions:
         type: boolean
       status:
         description: Status 状态
-        type: integer
+        type: string
       updatedAt:
         description: UpdatedAt update time
         type: string
+    type: object
+  models.SystemConfig:
+    properties:
+      content:
+        description: Content 内容
+        type: string
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      ext:
+        description: Ext 扩展名
+        type: string
+      id:
+        description: ID primary key
+        type: string
+      isBuiltIn:
+        description: 内置配置
+        type: boolean
+      name:
+        description: Name 名称
+        type: string
+      remark:
+        description: remark 备注
+        type: string
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+    required:
+    - ext
+    - name
     type: object
   models.Task:
     properties:
@@ -464,7 +495,7 @@ definitions:
         type: string
       status:
         description: Status 状态
-        type: integer
+        type: string
       timeout:
         type: integer
       updatedAt:
@@ -501,9 +532,7 @@ definitions:
         type: string
       permissions:
         additionalProperties:
-          items:
-            type: string
-          type: array
+          type: boolean
         type: object
       phone:
         type: string
@@ -517,7 +546,7 @@ definitions:
         type: string
       status:
         description: Status 状态
-        type: integer
+        type: string
       tags:
         items:
           type: string
@@ -546,7 +575,7 @@ definitions:
         $ref: '#/definitions/models.Role'
       status:
         description: Status 状态
-        type: integer
+        type: string
       type:
         type: string
       username:
@@ -640,6 +669,126 @@ info:
   title: admin API
   version: 0.0.1
 paths:
+  /admin/api/apis:
+    get:
+      consumes:
+      - application/json
+      - application/json
+      description: API列表数据
+      parameters:
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: pageSize
+        in: query
+        name: pageSize
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Page'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.API'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: API列表数据
+      tags:
+      - api
+    post:
+      consumes:
+      - application/json
+      - application/json
+      description: 创建API
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.API'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.API'
+      security:
+      - Bearer: []
+      summary: 创建API
+      tags:
+      - api
+  /admin/api/apis/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除API
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除API
+      tags:
+      - api
+    get:
+      consumes:
+      - application/json
+      description: 获取API
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.API'
+      security:
+      - Bearer: []
+      summary: 获取API
+      tags:
+      - api
+    put:
+      consumes:
+      - application/json
+      - application/json
+      description: 更新API
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.API'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.API'
+      security:
+      - Bearer: []
+      summary: 更新API
+      tags:
+      - api
   /admin/api/github/callback:
     get:
       consumes:
@@ -672,41 +821,6 @@ paths:
       summary: github回调
       tags:
       - generator
-  /admin/api/github/control:
-    post:
-      consumes:
-      - application/json
-      description: 创建或更新github配置
-      parameters:
-      - description: data
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/dto.GithubControlReq'
-      responses:
-        "200":
-          description: OK
-      security:
-      - Bearer: []
-      summary: 创建或更新github配置
-      tags:
-      - generator
-  /admin/api/github/get:
-    get:
-      consumes:
-      - application/json
-      description: 获取github配置
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.GithubGetResp'
-      security:
-      - Bearer: []
-      summary: 获取github配置
-      tags:
-      - generator
   /admin/api/github/get-login-url:
     get:
       consumes:
@@ -726,60 +840,6 @@ paths:
       summary: 获取github登录地址
       tags:
       - generator
-  /admin/api/language-defines:
-    post:
-      consumes:
-      - application/json
-      description: 创建/更新
-      parameters:
-      - description: data
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/models.LanguageDefine'
-      responses:
-        "201":
-          description: Created
-      security:
-      - Bearer: []
-      summary: 创建/更新
-      tags:
-      - language_define
-  /admin/api/language-defines/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: 删除
-      parameters:
-      - description: id
-        in: path
-        name: id
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-      security:
-      - Bearer: []
-      summary: 删除
-      tags:
-      - language_define
-  /admin/api/language/all:
-    get:
-      description: 获取所有语言
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/models.Language'
-            type: array
-      security:
-      - Bearer: []
-      summary: 获取所有语言
-      tags:
-      - language
   /admin/api/languages:
     get:
       consumes:
@@ -833,6 +893,8 @@ paths:
       responses:
         "201":
           description: Created
+          schema:
+            $ref: '#/definitions/models.Language'
       security:
       - Bearer: []
       summary: 创建Language
@@ -892,11 +954,34 @@ paths:
       responses:
         "200":
           description: OK
+          schema:
+            $ref: '#/definitions/models.Language'
       security:
       - Bearer: []
       summary: 更新Language
       tags:
       - language
+  /admin/api/menu/api/{id}:
+    get:
+      description: 获取菜单下的接口
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Menu'
+            type: array
+      security:
+      - Bearer: []
+      summary: 获取菜单下的接口
+      tags:
+      - menu
   /admin/api/menu/authorize:
     get:
       consumes:
@@ -946,6 +1031,26 @@ paths:
       summary: 更新菜单权限
       tags:
       - menu
+  /admin/api/menu/bind-api:
+    post:
+      consumes:
+      - application/json
+      description: 绑定菜单下的接口
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/dto.MenuBindAPIRequest'
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 绑定菜单下的接口
+      tags:
+      - menu
   /admin/api/menu/tree:
     get:
       description: 获取菜单树
@@ -986,6 +1091,10 @@ paths:
         in: query
         name: parentID
         type: string
+      - description: type
+        in: query
+        name: type
+        type: string
       - description: page
         in: query
         name: page
@@ -1025,6 +1134,8 @@ paths:
       responses:
         "201":
           description: Created
+          schema:
+            $ref: '#/definitions/models.Menu'
       security:
       - Bearer: []
       summary: 创建菜单
@@ -1090,6 +1201,8 @@ paths:
       responses:
         "200":
           description: OK
+          schema:
+            $ref: '#/definitions/models.Menu'
       security:
       - Bearer: []
       summary: 更新菜单
@@ -1301,7 +1414,7 @@ paths:
         type: integer
       - description: pageSize
         in: query
-        name: page_size
+        name: pageSize
         type: integer
       - description: id
         in: query
@@ -1314,7 +1427,7 @@ paths:
       - description: status
         in: query
         name: status
-        type: integer
+        type: string
       - description: remark
         in: query
         name: remark
@@ -1350,6 +1463,8 @@ paths:
       responses:
         "201":
           description: Created
+          schema:
+            $ref: '#/definitions/models.Role'
       security:
       - Bearer: []
       summary: 创建角色
@@ -1409,11 +1524,132 @@ paths:
       responses:
         "200":
           description: OK
+          schema:
+            $ref: '#/definitions/models.Role'
       security:
       - Bearer: []
       summary: 更新角色
       tags:
       - role
+  /admin/api/system-configs:
+    get:
+      consumes:
+      - application/json
+      description: 系统配置列表数据
+      parameters:
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: pageSize
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Page'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.SystemConfig'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: 系统配置列表数据
+      tags:
+      - system_config
+    post:
+      consumes:
+      - application/json
+      description: 创建系统配置
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.SystemConfig'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.SystemConfig'
+      security:
+      - Bearer: []
+      summary: 创建系统配置
+      tags:
+      - system_config
+  /admin/api/system-configs/{id}:
+    delete:
+      description: 删除系统配置
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除系统配置
+      tags:
+      - system_config
+    get:
+      description: 获取系统配置
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SystemConfig'
+      security:
+      - Bearer: []
+      summary: 获取系统配置
+      tags:
+      - system_config
+    put:
+      consumes:
+      - application/json
+      description: 更新系统配置
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.SystemConfig'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SystemConfig'
+      security:
+      - Bearer: []
+      summary: 更新系统配置
+      tags:
+      - system_config
   /admin/api/task/{operate}/{id}:
     get:
       description: 操作任务
@@ -1461,7 +1697,7 @@ paths:
       - description: status
         in: query
         name: status
-        type: integer
+        type: string
       - description: remark
         in: query
         name: remark
@@ -1497,6 +1733,8 @@ paths:
       responses:
         "201":
           description: Created
+          schema:
+            $ref: '#/definitions/models.Task'
       security:
       - Bearer: []
       summary: 创建任务
@@ -1556,6 +1794,8 @@ paths:
       responses:
         "200":
           description: OK
+          schema:
+            $ref: '#/definitions/models.Task'
       security:
       - Bearer: []
       summary: 更新任务
@@ -1823,6 +2063,8 @@ paths:
       responses:
         "201":
           description: Created
+          schema:
+            $ref: '#/definitions/models.User'
       security:
       - Bearer: []
       summary: 创建用户
@@ -1882,6 +2124,8 @@ paths:
       responses:
         "200":
           description: OK
+          schema:
+            $ref: '#/definitions/models.User'
       security:
       - Bearer: []
       summary: 更新用户

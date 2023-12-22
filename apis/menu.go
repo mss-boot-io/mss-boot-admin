@@ -2,6 +2,9 @@ package apis
 
 import (
 	"net/http"
+	"strings"
+
+	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/search/gorms"
@@ -51,6 +54,8 @@ func (e *Menu) Other(r *gin.RouterGroup) {
 	r.GET("/menu/tree", middleware.Auth.MiddlewareFunc(), e.Tree)
 	r.GET("/menu/authorize", middleware.Auth.MiddlewareFunc(), e.GetAuthorize)
 	r.PUT("/menu/authorize/:roleID", middleware.Auth.MiddlewareFunc(), e.UpdateAuthorize)
+	r.GET("/menu/api/:id", middleware.Auth.MiddlewareFunc(), e.GetAPI)
+	r.POST("/menu/bind-api", middleware.Auth.MiddlewareFunc(), e.BindAPI)
 	r.GET("/menus", middleware.Auth.MiddlewareFunc(), e.List)
 }
 
@@ -101,7 +106,7 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 			PType: "p",
 			V0:    req.RoleID,
 			V1:    req.Keys[i],
-			V2:    models.MenuAccessType.String(),
+			V2:    pkg.MenuAccessType.String(),
 		}
 	}
 	if err = gormdb.DB.Create(&rules).Error; err != nil {
@@ -125,7 +130,9 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
 	list := make([]*models.Menu, 0)
-	err := gormdb.DB.WithContext(ctx).Find(&list).Error
+	err := gormdb.DB.WithContext(ctx).
+		Where("type = ? OR type = ?", pkg.MenuAccessType, pkg.DirectoryAccessType).
+		Find(&list).Error
 	if err != nil {
 		api.Log.Error("get menu tree error", "err", err)
 		api.Err(http.StatusInternalServerError, err.Error())
@@ -134,8 +141,12 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 	canList := make([]*models.Menu, 0)
 	// check select menu
 	for i := range list {
+		if list[i].Type == pkg.DirectoryAccessType {
+			canList = append(canList, list[i])
+			continue
+		}
 		ok, err := gormdb.Enforcer.Enforce(
-			verify.GetRoleID(), models.MenuAccessType.String(), list[i].Path)
+			verify.GetRoleID(), pkg.MenuAccessType.String(), list[i].Path, list[i].Method)
 		if err != nil {
 			api.AddError(err).Log.Error("get menu tree error", "err", err)
 			api.Err(http.StatusInternalServerError)
@@ -145,7 +156,14 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 			canList = append(canList, list[i])
 		}
 	}
-	api.OK(models.GetMenuTree(canList))
+	result := make([]*models.Menu, 0)
+	for _, m := range models.GetMenuTree(canList) {
+		if len(m.Children) == 0 && m.Type == pkg.DirectoryAccessType {
+			continue
+		}
+		result = append(result, m)
+	}
+	api.OK(result)
 }
 
 // Tree 获取菜单树
@@ -158,13 +176,168 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 func (e *Menu) Tree(ctx *gin.Context) {
 	api := response.Make(ctx)
 	list := make([]*models.Menu, 0)
-	err := gormdb.DB.WithContext(ctx).Find(&list).Error
+	err := gormdb.DB.WithContext(ctx).
+		Where("type <> ?", pkg.APIAccessType).
+		Find(&list).Error
 	if err != nil {
 		api.Log.Error("get menu tree error", "err", err)
 		api.Err(http.StatusInternalServerError, err.Error())
 		return
 	}
 	api.OK(models.CompleteName(models.GetMenuTree(list)))
+}
+
+// GetAPI 获取菜单下的接口
+// @Summary 获取菜单下的接口
+// @Description 获取菜单下的接口
+// @Tags menu
+// @Param id path string true "id"
+// @Success 200 {object} []models.Menu
+// @Router /admin/api/menu/api/{id} [get]
+// @Security Bearer
+func (e *Menu) GetAPI(ctx *gin.Context) {
+	api := response.Make(ctx)
+	id := ctx.Param("id")
+	m := &models.Menu{}
+	err := gormdb.DB.Model(&models.Menu{}).
+		Where("id = ?", id).First(m).Error
+	if err != nil {
+		api.AddError(err).Log.Error("get menu error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	list := make([]*models.Menu, 0)
+	err = gormdb.DB.Model(&models.Menu{}).Where("type = ?", pkg.APIAccessType).
+		Where("parent_id = ?", m.ID).Find(&list).Error
+	if err != nil {
+		api.AddError(err).Log.Error("get menu error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	api.OK(list)
+}
+
+// BindAPI 绑定菜单下的接口
+// @Summary 绑定菜单下的接口
+// @Description 绑定菜单下的接口
+// @Tags menu
+// @Accept  application/json
+// @Product application/json
+// @Param data body dto.MenuBindAPIRequest true "data"
+// @Success 200
+// @Router /admin/api/menu/bind-api [post]
+// @Security Bearer
+func (e *Menu) BindAPI(ctx *gin.Context) {
+	api := response.Make(ctx)
+	req := &dto.MenuBindAPIRequest{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	menu := &models.Menu{}
+	err := gormdb.DB.Model(menu).
+		Where("id = ?", req.MenuID).
+		First(menu).Error
+	if err != nil {
+		api.AddError(err).Log.Error("get menu error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	apis := make([]*models.API, len(req.Paths))
+	for i := range req.Paths {
+		arr := strings.Split(req.Paths[i], "---")
+		if len(arr) > 1 {
+			a := &models.API{}
+			err = gormdb.DB.Model(a).
+				Where("method = ?", arr[0]).
+				Where("path = ?", arr[1]).
+				First(a).Error
+			if err != nil {
+				api.AddError(err).Log.Error("get api error", "err", err)
+				api.Err(http.StatusInternalServerError)
+				return
+			}
+			apis[i] = a
+		}
+	}
+	menuApis := make([]*models.Menu, len(apis))
+	for i := range apis {
+		menuApis[i] = &models.Menu{
+			ParentID: menu.ID,
+			Name:     apis[i].Name,
+			Path:     apis[i].Name,
+			Method:   apis[i].Method,
+			Type:     pkg.APIAccessType,
+		}
+	}
+	err = gormdb.DB.Create(&menuApis).Error
+	if err != nil {
+		api.AddError(err).Log.Error("create menu error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	api.OK(nil)
+}
+
+// List 菜单列表数据
+// @Summary 菜单列表数据
+// @Description 菜单列表数据
+// @Tags menu
+// @Accept  application/json
+// @Product application/json
+// @Param name query string false "name"
+// @Param status query string false "status"
+// @Param parentID query string false "parentID"
+// @Param type query string false "type"
+// @Param page query int false "page"
+// @Param pageSize query int false "pageSize"
+// @Success 200 {object} response.Page{data=[]models.Menu}
+// @Router /admin/api/menus [get]
+// @Security Bearer
+func (*Menu) List(ctx *gin.Context) {
+	api := response.Make(ctx)
+	req := &dto.MenuSearch{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	list := make([]*models.Menu, 0)
+	query := gormdb.DB.Model(&models.Menu{}).WithContext(ctx).
+		Where("parent_id = ?", req.ParentID).
+		Order("sort desc").Scopes(
+		gorms.Paginate(int(req.GetPageSize()), int(req.GetPage())),
+	)
+
+	types := []pkg.AccessType{
+		pkg.MenuAccessType,
+		pkg.ComponentAccessType,
+		pkg.DirectoryAccessType,
+	}
+	if req.Name != "" {
+		query = query.Where("name LIKE ?", "%"+req.Name+"%")
+	}
+	if req.Status != "" {
+		query = query.Where("status = ?", req.Status)
+	}
+	query = query.Where("type IN ?", types)
+	var count int64
+	if err := query.Limit(-1).Offset(-1).Count(&count).Error; err != nil {
+		api.AddError(err).Log.Error("get menu list error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+
+	if err := query.
+		Preload("Children", "type IN ?", types).
+		Preload("Children.Children", "type IN ?", types).
+		Preload("Children.Children.Children", "type IN ?", types).
+		Find(&list).Error; err != nil {
+		api.AddError(err).Log.Error("get menu list error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	list = models.CompleteName(list)
+	api.PageOK(list, count, req.GetPage(), req.GetPageSize())
 }
 
 // Create 创建菜单
@@ -174,7 +347,7 @@ func (e *Menu) Tree(ctx *gin.Context) {
 // @Accept  application/json
 // @Product application/json
 // @Param data body models.Menu true "data"
-// @Success 201
+// @Success 201 {object} models.Menu
 // @Router /admin/api/menus [post]
 // @Security Bearer
 func (*Menu) Create(*gin.Context) {}
@@ -187,7 +360,7 @@ func (*Menu) Create(*gin.Context) {}
 // @Product application/json
 // @Param id path string true "id"
 // @Param data body models.Menu true "data"
-// @Success 200
+// @Success 200 {object} models.Menu
 // @Router /admin/api/menus/{id} [put]
 // @Security Bearer
 func (*Menu) Update(*gin.Context) {}
@@ -212,53 +385,3 @@ func (*Menu) Get(*gin.Context) {}
 // @Router /admin/api/menus/{id} [delete]
 // @Security Bearer
 func (*Menu) Delete(*gin.Context) {}
-
-// List 菜单列表数据
-// @Summary 菜单列表数据
-// @Description 菜单列表数据
-// @Tags menu
-// @Accept  application/json
-// @Product application/json
-// @Param name query string false "name"
-// @Param status query string false "status"
-// @Param parentID query string false "parentID"
-// @Param page query int false "page"
-// @Param pageSize query int false "pageSize"
-// @Success 200 {object} response.Page{data=[]models.Menu}
-// @Router /admin/api/menus [get]
-// @Security Bearer
-func (*Menu) List(ctx *gin.Context) {
-	api := response.Make(ctx)
-	req := &dto.MenuSearch{}
-	if api.Bind(req).Error != nil {
-		api.Err(http.StatusUnprocessableEntity)
-		return
-	}
-	list := make([]*models.Menu, 0)
-	query := gormdb.DB.Model(&models.Menu{}).WithContext(ctx).
-		Where("parent_id = ?", req.ParentID).
-		Order("sort desc").Scopes(
-		gorms.MakeCondition(req),
-		gorms.Paginate(int(req.GetPageSize()), int(req.GetPage())),
-	)
-	if req.Name != "" {
-		query = query.Where("name LIKE ?", "%"+req.Name+"%")
-	}
-	if req.Status > 0 {
-		query = query.Where("status = ?", req.Status)
-	}
-	var count int64
-	if err := query.Limit(-1).Offset(-1).Count(&count).Error; err != nil {
-		api.AddError(err).Log.Error("get menu list error", "err", err)
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-
-	if err := query.Preload("Children").Find(&list).Error; err != nil {
-		api.AddError(err).Log.Error("get menu list error", "err", err)
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	list = models.CompleteName(list)
-	api.PageOK(list, count, req.GetPage(), req.GetPageSize())
-}

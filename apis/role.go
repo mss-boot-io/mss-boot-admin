@@ -8,7 +8,10 @@ package apis
  */
 
 import (
+	"log/slog"
 	"net/http"
+
+	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 
@@ -61,18 +64,21 @@ func (e *Role) GetAuthorize(ctx *gin.Context) {
 		return
 	}
 	resp := &dto.GetAuthorizeResponse{
-		RoleID:  req.RoleID,
-		MenuIDS: make([]string, 0),
+		RoleID: req.RoleID,
+		Paths:  make([]string, 0),
 	}
 	// get permissions
-	permissions := gormdb.Enforcer.GetFilteredPolicy(0, req.RoleID, models.MenuAccessType.String())
+	permissions := gormdb.Enforcer.GetFilteredPolicy(0, req.RoleID, pkg.MenuAccessType.String())
+	permissions = append(permissions,
+		gormdb.Enforcer.GetFilteredPolicy(0, req.RoleID, pkg.ComponentAccessType.String())...)
 	for i := range permissions {
-		if len(permissions[i]) < 3 {
+		if len(permissions[i]) < 4 {
 			continue
 		}
 		if permissions[i][0] == req.RoleID &&
-			permissions[i][1] == models.MenuAccessType.String() {
-			resp.MenuIDS = append(resp.MenuIDS, permissions[i][2])
+			(permissions[i][1] == pkg.MenuAccessType.String() ||
+				permissions[i][1] == pkg.ComponentAccessType.String()) {
+			resp.Paths = append(resp.Paths, permissions[i][2])
 		}
 	}
 	api.OK(resp)
@@ -102,22 +108,51 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 		return
 	}
 
-	// add permissions
-	for i := range req.MenuIDS {
-		_, err = gormdb.Enforcer.AddPermissionForUser(req.RoleID, models.MenuAccessType.String(), req.MenuIDS[i])
+	//// add permissions
+	//for i := range req.Paths {
+	//	_, err = gormdb.Enforcer.AddPermissionForUser(req.RoleID, models.MenuAccessType.String(), req.Paths[i], )
+	//	if err != nil {
+	//		api.AddError(err).Log.Error("add permission for user error", "err", err)
+	//		api.Err(http.StatusInternalServerError)
+	//		return
+	//	}
+	//}
+	menus := make([]*models.Menu, 0)
+	err = gormdb.DB.Model(&models.Menu{}).
+		Where("path in (?)", req.Paths).
+		Where("type = ? or type = ?", pkg.MenuAccessType, pkg.ComponentAccessType).
+		Preload("Children").
+		Find(&menus).Error
+	for i := range menus {
+		_, err = gormdb.Enforcer.AddPermissionForUser(
+			req.RoleID, menus[i].Type.String(), menus[i].Path, menus[i].Method)
 		if err != nil {
-			api.AddError(err).Log.Error("add permission for user error", "err", err)
+			api.AddError(err).Log.
+				Error("add menu and component permission for role error",
+					slog.String("roleID", req.RoleID))
 			api.Err(http.StatusInternalServerError)
 			return
+		}
+		for j := range menus[i].Children {
+			if menus[i].Children[j].Type != pkg.APIAccessType {
+				continue
+			}
+			_, err = gormdb.Enforcer.AddPermissionForUser(
+				req.RoleID, pkg.APIAccessType.String(), menus[i].Children[j].Path, menus[i].Children[j].Method)
+			if err != nil {
+				api.AddError(err).Log.
+					Error("add api permission for role error",
+						slog.String("roleID", req.RoleID))
+				api.Err(http.StatusInternalServerError)
+				return
+			}
 		}
 	}
-	for i := range req.APIIDS {
-		_, err = gormdb.Enforcer.AddPermissionForUser(req.RoleID, models.APIAccessType.String(), req.APIIDS[i])
-		if err != nil {
-			api.AddError(err).Log.Error("add permission for user error", "err", err)
-			api.Err(http.StatusInternalServerError)
-			return
-		}
+	err = gormdb.Enforcer.SavePolicy()
+	if err != nil {
+		api.AddError(err).Log.Error("save policy error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
 	}
 
 	api.OK(nil)
@@ -130,7 +165,7 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 // @Accept  application/json
 // @Product application/json
 // @Param data body models.Role true "data"
-// @Success 201
+// @Success 201 {object} models.Role
 // @Router /admin/api/roles [post]
 // @Security Bearer
 func (e *Role) Create(*gin.Context) {}
@@ -153,7 +188,7 @@ func (e *Role) Delete(*gin.Context) {}
 // @Product application/json
 // @Param id path string true "id"
 // @Param data body models.Role true "data"
-// @Success 200
+// @Success 200 {object} models.Role
 // @Router /admin/api/roles/{id} [put]
 // @Security Bearer
 func (e *Role) Update(*gin.Context) {}
@@ -175,10 +210,10 @@ func (e *Role) Get(*gin.Context) {}
 // @Accept  application/json
 // @Product application/json
 // @Param page query int false "page"
-// @Param page_size query int false "pageSize"
+// @Param pageSize query int false "pageSize"
 // @Param id query string false "id"
 // @Param name query string false "name"
-// @Param status query int false "status"
+// @Param status query string false "status"
 // @Param remark query string false "remark"
 // @Success 200 {object} response.Page{data=[]models.Role}
 // @Router /admin/api/roles [get]

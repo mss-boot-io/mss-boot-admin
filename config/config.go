@@ -10,6 +10,8 @@ package config
 import (
 	"log/slog"
 
+	"github.com/sanity-io/litter"
+
 	"github.com/mss-boot-io/mss-boot/pkg/config"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
@@ -18,26 +20,32 @@ import (
 var Cfg Config
 
 type Config struct {
-	Auth        Auth             `yaml:"auth" json:"auth"`
-	Logger      config.Logger    `yaml:"logger" json:"logger"`
-	Server      config.Listen    `yaml:"server" json:"server"`
-	Listen      *config.Listen   `yaml:"listen" json:"listen"`
-	Database    *gormdb.Database `yaml:"database" json:"database"`
-	Application Application      `yaml:"application" json:"application"`
-	OAuth2      *config.OAuth2   `yaml:"oauth2" json:"oauth2"`
-	Task        Task             `yaml:"task" json:"task"`
+	Auth        Auth            `yaml:"auth" json:"auth"`
+	Logger      config.Logger   `yaml:"logger" json:"logger"`
+	Server      config.Listen   `yaml:"server" json:"server"`
+	Listen      *config.Listen  `yaml:"listen" json:"listen"`
+	Database    gormdb.Database `yaml:"database" json:"database"`
+	Application Application     `yaml:"application" json:"application"`
+	OAuth2      *config.OAuth2  `yaml:"oauth2" json:"oauth2"`
+	Task        Task            `yaml:"task" json:"task"`
 }
 
-func (e *Config) Init() {
+func (e *Config) Init(gormDriver, gormDsn string, driver source.Driver) {
 	opts := []source.Option{
-		source.WithDir("config"),
-		source.WithProvider(source.Local),
+		//source.WithDir("config"),
+		//source.WithProvider(source.Local),
+
+		source.WithProvider(source.GORM),
+		source.WithGORMDriver(gormDriver),
+		source.WithGORMDsn(gormDsn),
+		source.WithDriver(driver),
 	}
 	err := config.Init(e, opts...)
 	if err != nil {
 		slog.Error("cfg init failed", "err", err)
 	}
 
+	litter.Dump(e)
 	e.Logger.Init()
 	e.Database.Init()
 }

@@ -170,11 +170,28 @@ func (e *User) UserInfo(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
 	user := &models.User{}
-	err := gormdb.DB.Where("id = ?", verify.GetUserID()).First(user).Error
+	err := gormdb.DB.Preload("Role").Where("id = ?", verify.GetUserID()).First(user).Error
 	if err != nil {
 		api.AddError(err).Log.Error("GetUser error")
 		api.Err(http.StatusInternalServerError)
 		return
+	}
+	permissions := gormdb.Enforcer.GetFilteredPolicy(0, verify.GetRoleID(), pkg.MenuAccessType.String())
+	permissions = append(permissions,
+		gormdb.Enforcer.GetFilteredPolicy(0, verify.GetRoleID(), pkg.ComponentAccessType.String())...)
+	user.Permissions = make(map[string]bool)
+	if verify.Root() {
+		user.Permissions["canAdmin"] = true
+	}
+	for i := range permissions {
+		if len(permissions[i]) < 4 {
+			continue
+		}
+		if permissions[i][0] == verify.GetRoleID() &&
+			(permissions[i][1] == pkg.MenuAccessType.String() ||
+				permissions[i][1] == pkg.ComponentAccessType.String()) {
+			user.Permissions[permissions[i][2]] = true
+		}
 	}
 	api.OK(user)
 }
@@ -213,7 +230,7 @@ func (e *User) PasswordReset(ctx *gin.Context) {
 // @Accept  application/json
 // @Product application/json
 // @Param data body models.User true "data"
-// @Success 201
+// @Success 201 {object} models.User
 // @Router /admin/api/users [post]
 // @Security Bearer
 func (e *User) Create(*gin.Context) {}
@@ -226,7 +243,7 @@ func (e *User) Create(*gin.Context) {}
 // @Product application/json
 // @Param id path string true "id"
 // @Param data body models.User true "data"
-// @Success 200
+// @Success 200 {object} models.User
 // @Router /admin/api/users/{id} [put]
 // @Security Bearer
 func (e *User) Update(*gin.Context) {}

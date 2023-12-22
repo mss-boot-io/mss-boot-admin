@@ -104,7 +104,7 @@ func (e *Task) Operate(c *gin.Context) {
 // @Accept  application/json
 // @Product application/json
 // @Param data body models.Task true "data"
-// @Success 201
+// @Success 201 {object} models.Task
 // @Router /admin/api/tasks [post]
 // @Security Bearer
 func (e *Task) Create(*gin.Context) {}
@@ -127,7 +127,7 @@ func (e *Task) Delete(*gin.Context) {}
 // @Product application/json
 // @Param id path string true "id"
 // @Param data body models.Task true "data"
-// @Success 200
+// @Success 200 {object} models.Task
 // @Router /admin/api/tasks/{id} [put]
 // @Security Bearer
 func (e *Task) Update(*gin.Context) {}
@@ -152,7 +152,7 @@ func (e *Task) Get(*gin.Context) {}
 // @Param pageSize query int false "pageSize"
 // @Param id query string false "id"
 // @Param name query string false "name"
-// @Param status query int false "status"
+// @Param status query string false "status"
 // @Param remark query string false "remark"
 // @Success 200 {object} response.Page{data=[]models.Task}
 // @Router /admin/api/tasks [get]

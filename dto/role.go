@@ -25,13 +25,11 @@ type RoleSearch struct {
 }
 
 type SetAuthorizeRequest struct {
-	RoleID  string   `uri:"roleID" swaggerignore:"true" binding:"required"`
-	MenuIDS []string `json:"menuIDS"`
-	APIIDS  []string `json:"apiIDS"`
+	RoleID string   `uri:"roleID" swaggerignore:"true" binding:"required"`
+	Paths  []string `json:"paths"`
 }
 
 type GetAuthorizeResponse struct {
-	RoleID  string   `json:"roleID"`
-	MenuIDS []string `json:"menuIDS,omitempty"`
-	APIIDS  []string `json:"apiIDS,omitempty"`
+	RoleID string   `json:"roleID"`
+	Paths  []string `json:"paths,omitempty"`
 }
