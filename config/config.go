@@ -8,8 +8,9 @@ package config
  */
 
 import (
-	"github.com/sanity-io/litter"
 	"log/slog"
+
+	"github.com/sanity-io/litter"
 
 	"github.com/mss-boot-io/mss-boot/pkg/config"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
