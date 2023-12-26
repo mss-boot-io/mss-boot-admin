@@ -381,6 +381,8 @@ definitions:
         type: string
       datetime:
         type: string
+      description:
+        type: string
       extra:
         type: string
       id:

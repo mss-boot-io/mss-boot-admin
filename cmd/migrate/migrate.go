@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot/pkg/migration"
 	common "github.com/mss-boot-io/mss-boot/pkg/migration/models"
 	"github.com/spf13/cobra"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration"
 	_ "github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration/custom"
 	systemMigrate "github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration/system"
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
@@ -31,8 +31,6 @@ var (
 	username string
 	password string
 	system   bool
-	driver   string
-	dsn      string
 	StartCmd = &cobra.Command{
 		Use:     "migrate",
 		Short:   "Initialize the database",
@@ -103,6 +101,7 @@ func migrate() error {
 		return err
 	}
 	migration.Migrate.SetDb(db)
+	migration.Migrate.SetModel(&common.Migration{})
 	migration.Migrate.Migrate()
 	return nil
 }

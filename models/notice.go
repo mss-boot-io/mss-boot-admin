@@ -1,8 +1,7 @@
 package models
 
 import (
-	"time"
-
+	"database/sql"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 )
 
@@ -23,15 +22,16 @@ const (
 
 type Notice struct {
 	actions.ModelGorm
-	UserID   string     `json:"userID" gorm:"column:user_id;type:varchar(64)"`
-	Title    string     `json:"title" gorm:"column:title;type:varchar(255)"`
-	Key      string     `json:"key" gorm:"column:key;type:varchar(255)"`
-	Read     bool       `json:"read" gorm:"column:read;type:tinyint(1)"`
-	Avatar   string     `json:"avatar" gorm:"column:avatar;type:varchar(255)"`
-	Extra    string     `json:"extra" gorm:"column:extra;type:varchar(255)"`
-	Status   string     `json:"status" gorm:"column:status;size:10"`
-	Datetime time.Time  `json:"datetime" gorm:"column:datetime;type:datetime"`
-	Type     NoticeType `json:"type" gorm:"column:type;type:varchar(20)"`
+	UserID      string       `json:"userID" gorm:"column:user_id;type:varchar(64)"`
+	Title       string       `json:"title" gorm:"column:title;type:varchar(255)"`
+	Key         string       `json:"key" gorm:"column:key;type:varchar(255)"`
+	Read        bool         `json:"read" gorm:"column:read;type:tinyint(1)"`
+	Avatar      string       `json:"avatar" gorm:"column:avatar;type:varchar(255)"`
+	Extra       string       `json:"extra" gorm:"column:extra;type:varchar(255)"`
+	Status      string       `json:"status" gorm:"column:status;size:10"`
+	Description string       `json:"description" gorm:"column:description;type:text"`
+	Datetime    sql.NullTime `json:"datetime" gorm:"column:datetime;type:datetime"`
+	Type        NoticeType   `json:"type" gorm:"column:type;type:varchar(20)"`
 }
 
 func (e *Notice) TableName() string {

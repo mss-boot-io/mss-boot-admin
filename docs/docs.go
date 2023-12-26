@@ -2923,6 +2923,9 @@ const docTemplate = `{
                 "datetime": {
                     "type": "string"
                 },
+                "description": {
+                    "type": "string"
+                },
                 "extra": {
                     "type": "string"
                 },

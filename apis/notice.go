@@ -36,9 +36,9 @@ type Notice struct {
 	*controller.Simple
 }
 
-func (e *Notice) GetAction(key string) response.Action {
-	return nil
-}
+//func (e *Notice) GetAction(key string) response.Action {
+//	return nil
+//}
 
 func (e *Notice) Other(r *gin.RouterGroup) {
 	r.GET("/notice/unread", middleware.Auth.MiddlewareFunc(), e.Unread)
