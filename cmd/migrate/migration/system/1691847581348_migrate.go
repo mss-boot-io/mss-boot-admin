@@ -3,14 +3,14 @@ package system
 import (
 	"net/http"
 	"runtime"
+	"time"
 
-	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	common "github.com/mss-boot-io/mss-boot/pkg/migration/models"
 	"gorm.io/gorm"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	adminPKG "github.com/mss-boot-io/mss-boot-admin-api/pkg"
+	"github.com/mss-boot-io/mss-boot/pkg/enum"
+	"github.com/mss-boot-io/mss-boot/pkg/migration"
 )
 
 var Username string
@@ -573,10 +573,79 @@ oauth2:
 						},
 					},
 					{
+						Name: "notice",
+						Path: "/notice",
+						Icon: "message",
+						Sort: 15,
+						Type: adminPKG.MenuAccessType,
+						Children: []*models.Menu{
+							{
+								Name:   "/admin/api/notices",
+								Path:   "/admin/api/notices",
+								Method: http.MethodGet,
+								Type:   adminPKG.APIAccessType,
+							},
+							{
+								Name:   "/admin/api/notices/*",
+								Path:   "/admin/api/notices/:id",
+								Method: http.MethodGet,
+								Type:   adminPKG.APIAccessType,
+							},
+							{
+								Name:       "control",
+								Path:       "/notice/:id",
+								HideInMenu: true,
+								Type:       adminPKG.MenuAccessType,
+							},
+							{
+								Name:       "create",
+								Path:       "/notice/create",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/notices",
+										Path:   "/admin/api/notices",
+										Method: http.MethodPost,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
+								Name:       "edit",
+								Path:       "/notice/edit",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/notices/*",
+										Path:   "/admin/api/notices/:id",
+										Method: http.MethodPut,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
+								Name:       "delete",
+								Path:       "/notice/delete",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/notices/*",
+										Path:   "/admin/api/notices/:id",
+										Method: http.MethodDelete,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+						},
+					},
+					{
 						Name: "system-config",
 						Path: "/system-config",
 						Icon: "inbox",
-						Sort: 15,
+						Sort: 14,
 						Type: adminPKG.MenuAccessType,
 						Children: []*models.Menu{
 							{
@@ -683,64 +752,105 @@ oauth2:
 			return err
 		}
 
-		messages := []models.Message{
+		now := time.Now()
+		notices := []models.Notice{
 			{
 				UserID:   user.ID,
-				Type:     "message",
-				Title:    "郑曦月",
-				SubTitle: "的私信",
-				Avatar:   "//p1-arco.byteimg.com/tos-cn-i-uwbnlip3yd/8361eeb82904210b4f55fab888fe8416.png~tplv-uwbnlip3yd-webp.webp",
-				Content:  "审批请求已发送，请查收",
-				Time:     "今天 12:30:01",
-			},
-			{
-				UserID:   user.ID,
-				Type:     "message",
-				Title:    "宁波",
-				SubTitle: "的回复",
-				Avatar:   "//p1-arco.byteimg.com/tos-cn-i-uwbnlip3yd/3ee5f13fb09879ecb5185e440cef6eb9.png~tplv-uwbnlip3yd-webp.webp",
-				Content:  "此处 bug 已经修复，如有问题请查阅文档或者继续 github 提 issue～",
-				Time:     "今天 12:30:01",
+				Avatar:   "https://gw.alipayobjects.com/zos/rmsportal/ThXAXghbEsBCCSDihZxY.png",
+				Title:    "你收到了 14 份新周报",
+				Datetime: &now,
+				Type:     models.NoticeTypeNotification,
 			},
 			{
 				UserID:   user.ID,
-				Type:     "message",
-				Title:    "宁波",
-				SubTitle: "的回复",
-				Avatar:   "//p1-arco.byteimg.com/tos-cn-i-uwbnlip3yd/3ee5f13fb09879ecb5185e440cef6eb9.png~tplv-uwbnlip3yd-webp.webp",
-				Content:  "此处 bug 已经修复",
-				Time:     "今天 12:30:01",
+				Avatar:   "https://gw.alipayobjects.com/zos/rmsportal/OKJXDXrmkNshAMvwtvhu.png",
+				Title:    "你推荐的 曲妮妮 已通过第三轮面试",
+				Datetime: &now,
+				Type:     models.NoticeTypeNotification,
 			},
 			{
-				UserID:  user.ID,
-				Type:    "todo",
-				Title:   "域名服务",
-				Content: "内容质检队列于 2021-12-01 19:50:23 进行变更，请重新",
-				Tag:     []string{"未开始", "gray"},
+				UserID:   user.ID,
+				Avatar:   "https://gw.alipayobjects.com/zos/rmsportal/kISTdvpyTAhtGxpovNWd.png",
+				Title:    "这种模板可以区分多种通知类型",
+				Datetime: &now,
+				Read:     true,
+				Type:     models.NoticeTypeNotification,
 			},
 			{
-				UserID:  user.ID,
-				Type:    "todo",
-				Title:   "内容审批通知",
-				Content: "宁静提交于 2021-11-05，需要您在 2011-11-07之前审批",
-				Tag:     []string{"进行中", "arcoblue"},
+				UserID:   user.ID,
+				Avatar:   "https://gw.alipayobjects.com/zos/rmsportal/GvqBnKhFgObvnSGkDsje.png",
+				Title:    "左侧图标用于区分不同的类型",
+				Datetime: &now,
+				Type:     models.NoticeTypeNotification,
 			},
 			{
-				UserID:  user.ID,
-				Type:    "notice",
-				Title:   "质检队列变更",
-				Content: "您的产品使用期限即将截止，如需继续使用产品请前往购…",
-				Tag:     []string{"即将到期", "red"},
+				UserID:   user.ID,
+				Avatar:   "https://gw.alipayobjects.com/zos/rmsportal/ThXAXghbEsBCCSDihZxY.png",
+				Title:    "内容不要超过两行字，超出时自动截断",
+				Datetime: &now,
+				Type:     models.NoticeTypeNotification,
 			},
 			{
-				UserID:  user.ID,
-				Type:    "notice",
-				Title:   "规则开通成功",
-				Content: "内容屏蔽规则于 2021-12-01 开通成功并生效。",
-				Tag:     []string{"已开通", "green"},
+				UserID:      user.ID,
+				Avatar:      "https://gw.alipayobjects.com/zos/rmsportal/fcHMVNCjPOsbUGdEduuv.jpeg",
+				Title:       "曲丽丽 评论了你",
+				Description: "描述信息描述信息描述信息",
+				Datetime:    &now,
+				Type:        models.NoticeTypeMessage,
+				//ClickClose: true,
+			},
+			{
+				UserID:      user.ID,
+				Avatar:      "https://gw.alipayobjects.com/zos/rmsportal/fcHMVNCjPOsbUGdEduuv.jpeg",
+				Title:       "朱偏右 回复了你",
+				Description: "这种模板用于提醒谁与你发生了互动，左侧放『谁』的头像",
+				Datetime:    &now,
+				Type:        models.NoticeTypeMessage,
+				//clickClose: true,
+			},
+			{
+				UserID:      user.ID,
+				Avatar:      "https://gw.alipayobjects.com/zos/rmsportal/fcHMVNCjPOsbUGdEduuv.jpeg",
+				Title:       "标题",
+				Description: "这种模板用于提醒谁与你发生了互动，左侧放『谁』的头像",
+				Datetime:    &now,
+				Type:        models.NoticeTypeMessage,
+				//clickClose: true,
+			},
+			{
+				UserID:      user.ID,
+				Title:       "任务名称",
+				Description: "任务需要在 2017-01-12 20:00 前启动",
+				Extra:       "未开始",
+				Status:      "todo",
+				Type:        models.NoticeTypeEvent,
+			},
+			{
+				UserID:      user.ID,
+				Title:       "第三方紧急代码变更",
+				Description: "冠霖提交于 2017-01-06，需在 2017-01-07 前完成代码变更任务",
+				Extra:       "马上到期",
+				Status:      "urgent",
+				Type:        models.NoticeTypeEvent,
+			},
+			{
+				UserID:      user.ID,
+				Title:       "信息安全考试",
+				Description: "指派竹尔于 2017-01-09 前完成更新并发布",
+				Extra:       "已耗时 8 天",
+				Status:      "doing",
+				Type:        models.NoticeTypeEvent,
+			},
+			{
+				UserID:      user.ID,
+				Title:       "ABCD 版本发布",
+				Description: "冠霖提交于 2017-01-06，需在 2017-01-07 前完成代码变更任务",
+				Extra:       "进行中",
+				Status:      "processing",
+				Type:        models.NoticeTypeEvent,
 			},
 		}
-		err = tx.Create(&messages).Error
+		err = tx.Create(&notices).Error
 		if err != nil {
 			return err
 		}
@@ -798,8 +908,6 @@ oauth2:
 			return err
 		}
 
-		return tx.Create(&common.Migration{
-			Version: version,
-		}).Error
+		return migration.Migrate.CreateVersion(tx, version)
 	})
 }

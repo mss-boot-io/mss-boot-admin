@@ -914,6 +914,69 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/api/notice/read/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取通知",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notice"
+                ],
+                "summary": "获取通知",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Notice"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "标记已读",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notice"
+                ],
+                "summary": "标记已读",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/admin/api/notice/unread": {
             "get": {
                 "security": [
@@ -2921,6 +2984,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "datetime": {
+                    "type": "string"
+                },
+                "description": {
                     "type": "string"
                 },
                 "extra": {
