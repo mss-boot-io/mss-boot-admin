@@ -1,7 +1,6 @@
 package system
 
 import (
-	"database/sql"
 	"net/http"
 	"runtime"
 	"time"
@@ -574,10 +573,79 @@ oauth2:
 						},
 					},
 					{
+						Name: "notice",
+						Path: "/notice",
+						Icon: "message",
+						Sort: 15,
+						Type: adminPKG.MenuAccessType,
+						Children: []*models.Menu{
+							{
+								Name:   "/admin/api/notices",
+								Path:   "/admin/api/notices",
+								Method: http.MethodGet,
+								Type:   adminPKG.APIAccessType,
+							},
+							{
+								Name:   "/admin/api/notices/*",
+								Path:   "/admin/api/notices/:id",
+								Method: http.MethodGet,
+								Type:   adminPKG.APIAccessType,
+							},
+							{
+								Name:       "control",
+								Path:       "/notice/:id",
+								HideInMenu: true,
+								Type:       adminPKG.MenuAccessType,
+							},
+							{
+								Name:       "create",
+								Path:       "/notice/create",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/notices",
+										Path:   "/admin/api/notices",
+										Method: http.MethodPost,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
+								Name:       "edit",
+								Path:       "/notice/edit",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/notices/*",
+										Path:   "/admin/api/notices/:id",
+										Method: http.MethodPut,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
+								Name:       "delete",
+								Path:       "/notice/delete",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/notices/*",
+										Path:   "/admin/api/notices/:id",
+										Method: http.MethodDelete,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+						},
+					},
+					{
 						Name: "system-config",
 						Path: "/system-config",
 						Icon: "inbox",
-						Sort: 15,
+						Sort: 14,
 						Type: adminPKG.MenuAccessType,
 						Children: []*models.Menu{
 							{
@@ -684,87 +752,73 @@ oauth2:
 			return err
 		}
 
+		now := time.Now()
 		notices := []models.Notice{
 			{
-				Avatar: "https://gw.alipayobjects.com/zos/rmsportal/ThXAXghbEsBCCSDihZxY.png",
-				Title:  "你收到了 14 份新周报",
-				Datetime: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
-				Type: models.NoticeTypeNotification,
+				UserID:   user.ID,
+				Avatar:   "https://gw.alipayobjects.com/zos/rmsportal/ThXAXghbEsBCCSDihZxY.png",
+				Title:    "你收到了 14 份新周报",
+				Datetime: &now,
+				Type:     models.NoticeTypeNotification,
 			},
 			{
-				Avatar: "https://gw.alipayobjects.com/zos/rmsportal/OKJXDXrmkNshAMvwtvhu.png",
-				Title:  "你推荐的 曲妮妮 已通过第三轮面试",
-				Datetime: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
-				Type: models.NoticeTypeNotification,
+				UserID:   user.ID,
+				Avatar:   "https://gw.alipayobjects.com/zos/rmsportal/OKJXDXrmkNshAMvwtvhu.png",
+				Title:    "你推荐的 曲妮妮 已通过第三轮面试",
+				Datetime: &now,
+				Type:     models.NoticeTypeNotification,
 			},
 			{
-				Avatar: "https://gw.alipayobjects.com/zos/rmsportal/kISTdvpyTAhtGxpovNWd.png",
-				Title:  "这种模板可以区分多种通知类型",
-				Datetime: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
-				Read: true,
-				Type: models.NoticeTypeNotification,
+				UserID:   user.ID,
+				Avatar:   "https://gw.alipayobjects.com/zos/rmsportal/kISTdvpyTAhtGxpovNWd.png",
+				Title:    "这种模板可以区分多种通知类型",
+				Datetime: &now,
+				Read:     true,
+				Type:     models.NoticeTypeNotification,
 			},
 			{
-				Avatar: "https://gw.alipayobjects.com/zos/rmsportal/GvqBnKhFgObvnSGkDsje.png",
-				Title:  "左侧图标用于区分不同的类型",
-				Datetime: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
-				Type: models.NoticeTypeNotification,
+				UserID:   user.ID,
+				Avatar:   "https://gw.alipayobjects.com/zos/rmsportal/GvqBnKhFgObvnSGkDsje.png",
+				Title:    "左侧图标用于区分不同的类型",
+				Datetime: &now,
+				Type:     models.NoticeTypeNotification,
 			},
 			{
-				Avatar: "https://gw.alipayobjects.com/zos/rmsportal/ThXAXghbEsBCCSDihZxY.png",
-				Title:  "内容不要超过两行字，超出时自动截断",
-				Datetime: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
-				Type: models.NoticeTypeNotification,
+				UserID:   user.ID,
+				Avatar:   "https://gw.alipayobjects.com/zos/rmsportal/ThXAXghbEsBCCSDihZxY.png",
+				Title:    "内容不要超过两行字，超出时自动截断",
+				Datetime: &now,
+				Type:     models.NoticeTypeNotification,
 			},
 			{
+				UserID:      user.ID,
 				Avatar:      "https://gw.alipayobjects.com/zos/rmsportal/fcHMVNCjPOsbUGdEduuv.jpeg",
 				Title:       "曲丽丽 评论了你",
 				Description: "描述信息描述信息描述信息",
-				Datetime: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
-				Type: models.NoticeTypeMessage,
+				Datetime:    &now,
+				Type:        models.NoticeTypeMessage,
 				//ClickClose: true,
 			},
 			{
+				UserID:      user.ID,
 				Avatar:      "https://gw.alipayobjects.com/zos/rmsportal/fcHMVNCjPOsbUGdEduuv.jpeg",
 				Title:       "朱偏右 回复了你",
 				Description: "这种模板用于提醒谁与你发生了互动，左侧放『谁』的头像",
-				Datetime: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
-				Type: models.NoticeTypeMessage,
+				Datetime:    &now,
+				Type:        models.NoticeTypeMessage,
 				//clickClose: true,
 			},
 			{
+				UserID:      user.ID,
 				Avatar:      "https://gw.alipayobjects.com/zos/rmsportal/fcHMVNCjPOsbUGdEduuv.jpeg",
 				Title:       "标题",
 				Description: "这种模板用于提醒谁与你发生了互动，左侧放『谁』的头像",
-				Datetime: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
-				Type: models.NoticeTypeMessage,
+				Datetime:    &now,
+				Type:        models.NoticeTypeMessage,
 				//clickClose: true,
 			},
 			{
+				UserID:      user.ID,
 				Title:       "任务名称",
 				Description: "任务需要在 2017-01-12 20:00 前启动",
 				Extra:       "未开始",
@@ -772,6 +826,7 @@ oauth2:
 				Type:        models.NoticeTypeEvent,
 			},
 			{
+				UserID:      user.ID,
 				Title:       "第三方紧急代码变更",
 				Description: "冠霖提交于 2017-01-06，需在 2017-01-07 前完成代码变更任务",
 				Extra:       "马上到期",
@@ -779,6 +834,7 @@ oauth2:
 				Type:        models.NoticeTypeEvent,
 			},
 			{
+				UserID:      user.ID,
 				Title:       "信息安全考试",
 				Description: "指派竹尔于 2017-01-09 前完成更新并发布",
 				Extra:       "已耗时 8 天",
@@ -786,6 +842,7 @@ oauth2:
 				Type:        models.NoticeTypeEvent,
 			},
 			{
+				UserID:      user.ID,
 				Title:       "ABCD 版本发布",
 				Description: "冠霖提交于 2017-01-06，需在 2017-01-07 前完成代码变更任务",
 				Extra:       "进行中",

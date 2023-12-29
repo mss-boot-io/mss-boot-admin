@@ -1221,6 +1221,45 @@ paths:
       summary: 迁移虚拟模型
       tags:
       - model
+  /admin/api/notice/read/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 获取通知
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Notice'
+      security:
+      - Bearer: []
+      summary: 获取通知
+      tags:
+      - notice
+    put:
+      consumes:
+      - application/json
+      description: 标记已读
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+      security:
+      - Bearer: []
+      summary: 标记已读
+      tags:
+      - notice
   /admin/api/notice/unread:
     get:
       consumes:

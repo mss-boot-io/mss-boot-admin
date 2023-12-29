@@ -17,4 +17,6 @@ type NoticeSearch struct {
 	Title string `query:"title" form:"title" search:"type:contains;column:title"`
 	// Status 状态
 	Status string `query:"status" form:"status" search:"type:exact;column:status"`
+	// Type 类型
+	Type string `query:"type" form:"type" search:"type:exact;column:type"`
 }

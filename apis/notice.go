@@ -42,6 +42,68 @@ type Notice struct {
 
 func (e *Notice) Other(r *gin.RouterGroup) {
 	r.GET("/notice/unread", middleware.Auth.MiddlewareFunc(), e.Unread)
+	r.PUT("/notice/read/:id", middleware.Auth.MiddlewareFunc(), e.MarkRead)
+	r.GET("/notice/read/:id", middleware.Auth.MiddlewareFunc(), e.Read)
+}
+
+// Read 获取通知
+// @Summary 获取通知
+// @Description 获取通知
+// @Tags notice
+// @Accept  application/json
+// @Product application/json
+// @Param id path string true "id"
+// @Success 200 {object} models.Notice
+// @Router /admin/api/notice/read/{id} [get]
+// @Security Bearer
+func (e *Notice) Read(ctx *gin.Context) {
+	api := response.Make(ctx)
+	verify := middleware.GetVerify(ctx)
+	id := ctx.Param("id")
+	var notice models.Notice
+	err := gormdb.DB.Model(&models.Notice{}).
+		Where("id = ?", id).
+		Where("user_id = ?", verify.GetUserID()).
+		First(&notice).Error
+	if err != nil {
+		api.AddError(err).Log.Error("get notice error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	api.OK(notice)
+}
+
+// MarkRead 标记已读
+// @Summary 标记已读
+// @Description 标记已读
+// @Tags notice
+// @Accept  application/json
+// @Product application/json
+// @Param id path string true "id"
+// @Success 200
+// @Router /admin/api/notice/read/{id} [put]
+// @Security Bearer
+func (e *Notice) MarkRead(ctx *gin.Context) {
+	api := response.Make(ctx)
+	verify := middleware.GetVerify(ctx)
+	id := ctx.Param("id")
+	query := gormdb.DB.Model(&models.Notice{}).
+		Where("user_id = ?", verify.GetUserID())
+	switch id {
+	case models.NoticeTypeMessage.String(), models.NoticeTypeEvent.String(), models.NoticeTypeNotification.String():
+		query = query.Where("type = ?", id)
+	default:
+		query = query.Where("id = ?", id)
+	}
+	if id != "all" {
+	}
+	err := query.Update("`read`", true).Error
+	if err != nil {
+		api.AddError(err).Log.Error("update notice error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	api.OK(nil)
 }
 
 // Unread 获取未读通知列表
@@ -58,7 +120,7 @@ func (e *Notice) Unread(ctx *gin.Context) {
 	verify := middleware.GetVerify(ctx)
 	list := make([]*models.Notice, 0)
 	err := gormdb.DB.Model(&models.Notice{}).
-		Where("read = ?", false).
+		Where("`read` = ?", false).
 		Where("user_id = ?", verify.GetUserID()).
 		Find(&list).Error
 	if err != nil {
