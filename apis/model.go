@@ -46,6 +46,7 @@ func (e *Model) Other(r *gin.RouterGroup) {
 // @Summary 迁移虚拟模型
 // @Description 迁移虚拟模型
 // @Tags model
+// @Param id path string true "id"
 // @Success 200
 // @Router /admin/api/model/migrate/{id} [get]
 // @Security Bearer
@@ -72,3 +73,62 @@ func (e *Model) Migrate(ctx *gin.Context) {
 	}
 	api.OK(nil)
 }
+
+// Create 创建模型
+// @Summary 创建模型
+// @Description 创建模型
+// @Tags model
+// @Accept application/json
+// @Produce application/json
+// @Param data body models.Model true "data"
+// @Success 201 {object} models.Model
+// @Router /admin/api/models [post]
+// @Security Bearer
+func (e *Model) Create(*gin.Context) {}
+
+// Update 更新模型
+// @Summary 更新模型
+// @Description 更新模型
+// @Tags model
+// @Accept application/json
+// @Produce application/json
+// @Param id path string true "id"
+// @Param model body models.Model true "model"
+// @Success 200 {object} models.Model
+// @Router /admin/api/models/{id} [put]
+// @Security Bearer
+func (e *Model) Update(*gin.Context) {}
+
+// Delete 删除模型
+// @Summary 删除模型
+// @Description 删除模型
+// @Tags model
+// @Param id path string true "id"
+// @Success 204
+// @Router /admin/api/models/{id} [delete]
+// @Security Bearer
+func (e *Model) Delete(*gin.Context) {}
+
+// Get 获取模型
+// @Summary 获取模型
+// @Description 获取模型
+// @Tags model
+// @Param id path string true "id"
+// @Success 200 {object} models.Model
+// @Router /admin/api/models/{id} [get]
+// @Security Bearer
+func (e *Model) Get(*gin.Context) {}
+
+// List 模型列表
+// @Summary 模型列表
+// @Description 模型列表
+// @Tags model
+// @Accept application/json
+// @Produce application/json
+// @Param page query int false "page"
+// @Param pageSize query int false "pageSize"
+// @Param preloads query []string false "preloads"
+// @Success 200 {object} response.Page{data=[]models.Model}
+// @Router /admin/api/models [get]
+// @Security Bearer
+func (e *Model) List(*gin.Context) {}

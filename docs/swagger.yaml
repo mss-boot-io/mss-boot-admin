@@ -235,6 +235,48 @@ definitions:
         description: UpdatedAt update time
         type: string
     type: object
+  models.Field:
+    properties:
+      comment:
+        type: string
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      default:
+        type: string
+      id:
+        description: ID primary key
+        type: string
+      index:
+        type: string
+      jsonTag:
+        type: string
+      label:
+        type: string
+      modelID:
+        type: string
+      name:
+        type: string
+      notNull:
+        type: boolean
+      primaryKey:
+        type: string
+      search:
+        type: string
+      show:
+        items:
+          type: integer
+        type: array
+      size:
+        type: integer
+      type:
+        type: string
+      unique:
+        type: string
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+    type: object
   models.Language:
     properties:
       createdAt:
@@ -367,6 +409,32 @@ definitions:
         type: string
       type:
         description: Type 菜单类型
+        type: string
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+    type: object
+  models.Model:
+    properties:
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      description:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/models.Field'
+        type: array
+      hardDeleted:
+        type: boolean
+      id:
+        description: ID primary key
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      tableName:
         type: string
       updatedAt:
         description: UpdatedAt update time
@@ -791,6 +859,119 @@ paths:
       summary: 更新API
       tags:
       - api
+  /admin/api/fields:
+    get:
+      consumes:
+      - application/json
+      description: 字段列表
+      parameters:
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: pageSize
+        in: query
+        name: pageSize
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Page'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Field'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: 字段列表
+      tags:
+      - field
+    post:
+      consumes:
+      - application/json
+      description: 创建字段
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Field'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Field'
+      security:
+      - Bearer: []
+      summary: 创建字段
+      tags:
+      - field
+  /admin/api/fields/{id}:
+    delete:
+      description: 删除字段
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除字段
+      tags:
+      - field
+    get:
+      description: 获取字段
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Field'
+      security:
+      - Bearer: []
+      summary: 获取字段
+      tags:
+      - field
+    put:
+      consumes:
+      - application/json
+      description: 更新字段
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Field'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Field'
+      security:
+      - Bearer: []
+      summary: 更新字段
+      tags:
+      - field
   /admin/api/github/callback:
     get:
       consumes:
@@ -1213,12 +1394,143 @@ paths:
   /admin/api/model/migrate/{id}:
     get:
       description: 迁移虚拟模型
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
       responses:
         "200":
           description: OK
       security:
       - Bearer: []
       summary: 迁移虚拟模型
+      tags:
+      - model
+  /admin/api/models:
+    get:
+      consumes:
+      - application/json
+      description: 模型列表
+      parameters:
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: pageSize
+        in: query
+        name: pageSize
+        type: integer
+      - description: preloads
+        in: query
+        items:
+          type: string
+        name: preloads
+        type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Page'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Model'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: 模型列表
+      tags:
+      - model
+    post:
+      consumes:
+      - application/json
+      description: 创建模型
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Model'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Model'
+      security:
+      - Bearer: []
+      summary: 创建模型
+      tags:
+      - model
+  /admin/api/models/{id}:
+    delete:
+      description: 删除模型
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除模型
+      tags:
+      - model
+    get:
+      description: 获取模型
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Model'
+      security:
+      - Bearer: []
+      summary: 获取模型
+      tags:
+      - model
+    put:
+      consumes:
+      - application/json
+      description: 更新模型
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: model
+        in: body
+        name: model
+        required: true
+        schema:
+          $ref: '#/definitions/models.Model'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Model'
+      security:
+      - Bearer: []
+      summary: 更新模型
       tags:
       - model
   /admin/api/notice/read/{id}:
