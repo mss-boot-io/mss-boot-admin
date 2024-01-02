@@ -472,6 +472,47 @@ definitions:
       userID:
         type: string
     type: object
+  models.Option:
+    properties:
+      createdAt:
+        description: CreatedAt create time
+        type: string
+      id:
+        description: ID primary key
+        type: string
+      items:
+        description: Items 选项内容
+        items:
+          $ref: '#/definitions/models.OptionItem'
+        type: array
+      name:
+        description: Name 选项名称
+        type: string
+      remark:
+        description: Remark 备注
+        type: string
+      status:
+        description: Status 状态
+        type: string
+      updatedAt:
+        description: UpdatedAt update time
+        type: string
+    type: object
+  models.OptionItem:
+    properties:
+      color:
+        type: string
+      id:
+        type: string
+      key:
+        type: string
+      label:
+        type: string
+      sort:
+        type: integer
+      value:
+        type: string
+    type: object
   models.Role:
     properties:
       createdAt:
@@ -1712,6 +1753,131 @@ paths:
       summary: 更新通知
       tags:
       - notice
+  /admin/api/options:
+    get:
+      consumes:
+      - application/json
+      description: Option列表数据
+      parameters:
+      - description: name
+        in: query
+        name: name
+        type: string
+      - description: status
+        in: query
+        name: status
+        type: string
+      - description: page
+        in: query
+        name: page
+        type: integer
+      - description: pageSize
+        in: query
+        name: pageSize
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Page'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Option'
+                  type: array
+              type: object
+      security:
+      - Bearer: []
+      summary: Option列表数据
+      tags:
+      - option
+    post:
+      consumes:
+      - application/json
+      description: 创建Option
+      parameters:
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Option'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Option'
+      security:
+      - Bearer: []
+      summary: 创建Option
+      tags:
+      - option
+  /admin/api/options/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除Option
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+      summary: 删除Option
+      tags:
+      - option
+    get:
+      consumes:
+      - application/json
+      description: 获取Option
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Option'
+      security:
+      - Bearer: []
+      summary: 获取Option
+      tags:
+      - option
+    put:
+      consumes:
+      - application/json
+      description: 更新Option
+      parameters:
+      - description: id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.Option'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Option'
+      security:
+      - Bearer: []
+      summary: 更新Option
+      tags:
+      - option
   /admin/api/role/authorize/{roleID}:
     get:
       consumes:

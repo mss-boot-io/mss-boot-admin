@@ -573,10 +573,79 @@ oauth2:
 						},
 					},
 					{
+						Name: "option",
+						Path: "/option",
+						Icon: "message",
+						Sort: 15,
+						Type: adminPKG.MenuAccessType,
+						Children: []*models.Menu{
+							{
+								Name:   "/admin/api/options",
+								Path:   "/admin/api/options",
+								Method: http.MethodGet,
+								Type:   adminPKG.APIAccessType,
+							},
+							{
+								Name:   "/admin/api/options/*",
+								Path:   "/admin/api/options/:id",
+								Method: http.MethodGet,
+								Type:   adminPKG.APIAccessType,
+							},
+							{
+								Name:       "control",
+								Path:       "/option/:id",
+								HideInMenu: true,
+								Type:       adminPKG.MenuAccessType,
+							},
+							{
+								Name:       "create",
+								Path:       "/option/create",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/options",
+										Path:   "/admin/api/options",
+										Method: http.MethodPost,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
+								Name:       "edit",
+								Path:       "/option/edit",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/options/*",
+										Path:   "/admin/api/options/:id",
+										Method: http.MethodPut,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
+								Name:       "delete",
+								Path:       "/option/delete",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/options/*",
+										Path:   "/admin/api/options/:id",
+										Method: http.MethodDelete,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+						},
+					},
+					{
 						Name: "notice",
 						Path: "/notice",
 						Icon: "message",
-						Sort: 15,
+						Sort: 14,
 						Type: adminPKG.MenuAccessType,
 						Children: []*models.Menu{
 							{
@@ -645,7 +714,7 @@ oauth2:
 						Name: "system-config",
 						Path: "/system-config",
 						Icon: "inbox",
-						Sort: 14,
+						Sort: 13,
 						Type: adminPKG.MenuAccessType,
 						Children: []*models.Menu{
 							{
@@ -904,6 +973,41 @@ oauth2:
 			},
 		}
 		err = tx.Create(&languages).Error
+		if err != nil {
+			return err
+		}
+
+		systemItems := models.OptionItems{
+			{
+				Key:   "enabled",
+				Label: "启用",
+				Value: "enabled",
+				Color: "green",
+				Sort:  0,
+			},
+			{
+				Key:   "disabled",
+				Label: "禁用",
+				Value: "disabled",
+				Color: "red",
+				Sort:  1,
+			},
+			{
+				Key:   "locked",
+				Label: "锁定",
+				Value: "locked",
+				Color: "orange",
+				Sort:  2,
+			},
+		}
+		options := []models.Option{
+			{
+				Name:   "system.status",
+				Remark: "系统状态",
+				Items:  &systemItems,
+			},
+		}
+		err = tx.Create(&options).Error
 		if err != nil {
 			return err
 		}
