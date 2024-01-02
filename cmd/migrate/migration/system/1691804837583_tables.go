@@ -31,6 +31,7 @@ func _1691804837583Tables(db *gorm.DB, version string) error {
 			new(models.TaskRunLog),
 			new(models.Language),
 			new(models.Notice),
+			new(models.Option),
 		)
 		if err != nil {
 			return err
