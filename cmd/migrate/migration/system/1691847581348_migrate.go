@@ -45,8 +45,7 @@ logger:
   addSource: true
 database:
   driver: mysql
-  source: 'root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local&timeout=1000ms'
-  name: mss-boot-admin-local
+  source: '{{ .Env.DB_DSN }}'
   config:
     disableForeignKeyConstraintWhenMigrating: true
   casbinModel: |
@@ -573,10 +572,79 @@ oauth2:
 						},
 					},
 					{
+						Name: "model",
+						Path: "/model",
+						Icon: "desktop",
+						Sort: 15,
+						Type: adminPKG.MenuAccessType,
+						Children: []*models.Menu{
+							{
+								Name:   "/admin/api/models",
+								Path:   "/admin/api/models",
+								Method: http.MethodGet,
+								Type:   adminPKG.APIAccessType,
+							},
+							{
+								Name:   "/admin/api/models/*",
+								Path:   "/admin/api/models/:id",
+								Method: http.MethodGet,
+								Type:   adminPKG.APIAccessType,
+							},
+							{
+								Name:       "control",
+								Path:       "/model/:id",
+								HideInMenu: true,
+								Type:       adminPKG.MenuAccessType,
+							},
+							{
+								Name:       "create",
+								Path:       "/model/create",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/models",
+										Path:   "/admin/api/models",
+										Method: http.MethodPost,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
+								Name:       "edit",
+								Path:       "/model/edit",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/models/*",
+										Path:   "/admin/api/models/:id",
+										Method: http.MethodPut,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
+								Name:       "delete",
+								Path:       "/model/delete",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/models/*",
+										Path:   "/admin/api/models/:id",
+										Method: http.MethodDelete,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+						},
+					},
+					{
 						Name: "option",
 						Path: "/option",
 						Icon: "message",
-						Sort: 15,
+						Sort: 14,
 						Type: adminPKG.MenuAccessType,
 						Children: []*models.Menu{
 							{
@@ -645,7 +713,7 @@ oauth2:
 						Name: "notice",
 						Path: "/notice",
 						Icon: "message",
-						Sort: 14,
+						Sort: 13,
 						Type: adminPKG.MenuAccessType,
 						Children: []*models.Menu{
 							{
@@ -714,7 +782,7 @@ oauth2:
 						Name: "system-config",
 						Path: "/system-config",
 						Icon: "inbox",
-						Sort: 13,
+						Sort: 12,
 						Type: adminPKG.MenuAccessType,
 						Children: []*models.Menu{
 							{
@@ -940,19 +1008,28 @@ oauth2:
 				ModelID:    m.ID,
 				Name:       "id",
 				Label:      "ID",
-				Show:       []byte(`{"show":true,"width":100,"align":"center","sortable":true,"ellipsis":true}`),
 				Type:       "string",
 				Size:       64,
+				Sort:       100,
 				PrimaryKey: "true",
 			},
 			{
 				ModelID:     m.ID,
 				Name:        "name",
 				Label:       "名称",
-				Show:        []byte(`{"show":true,"width":100,"align":"center","sortable":true,"ellipsis":true}`),
 				Type:        "string",
 				Size:        255,
+				Sort:        99,
 				UniqueIndex: "name",
+			},
+			{
+				ModelID:       m.ID,
+				Name:          "status",
+				Label:         "状态",
+				Type:          "string",
+				Size:          10,
+				Sort:          98,
+				ValueEnumName: "system.status",
 			},
 		}
 		err = tx.Create(&cs).Error

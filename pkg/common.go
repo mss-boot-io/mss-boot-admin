@@ -198,3 +198,32 @@ func InArray(vals []string, array []string, replace string, n int) bool {
 	}
 	return false
 }
+
+func Pluralize(word string) string {
+	lastLetter := word[len(word)-1:]
+	beforeLastLetter := word[len(word)-2 : len(word)-1]
+	switch lastLetter {
+	case "y":
+		if beforeLastLetter == "a" || beforeLastLetter == "e" || beforeLastLetter == "i" || beforeLastLetter == "o" || beforeLastLetter == "u" {
+			return word + "s"
+		} else {
+			return word[:len(word)-1] + "ies"
+		}
+	case "x", "s", "z", "o":
+		return word + "es"
+	case "h":
+		if beforeLastLetter == "s" || beforeLastLetter == "c" {
+			return word + "es"
+		} else {
+			return word + "s"
+		}
+	case "f":
+		if beforeLastLetter == "f" {
+			return word[:len(word)-2] + "ves"
+		} else {
+			return word[:len(word)-1] + "ves"
+		}
+	default:
+		return word + "s"
+	}
+}

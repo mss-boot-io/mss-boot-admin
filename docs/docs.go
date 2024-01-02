@@ -211,6 +211,38 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/api/documentation/{key}": {
+            "get": {
+                "description": "文档",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "virtual"
+                ],
+                "summary": "文档",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.VirtualModelObject"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/api/fields": {
             "get": {
                 "security": [
@@ -237,6 +269,12 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "pageSize",
                         "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "modelID",
+                        "name": "modelID",
                         "in": "query"
                     }
                 ],
@@ -1082,7 +1120,7 @@ const docTemplate = `{
             }
         },
         "/admin/api/model/migrate/{id}": {
-            "get": {
+            "put": {
                 "security": [
                     {
                         "Bearer": []
@@ -3060,6 +3098,32 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.ColumnType": {
+            "type": "object",
+            "properties": {
+                "dataIndex": {
+                    "type": "string"
+                },
+                "hideInDescriptions": {
+                    "type": "boolean"
+                },
+                "hideInForm": {
+                    "type": "boolean"
+                },
+                "hideInTable": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "valueEnum": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/dto.ValueEnumType"
+                    }
+                }
+            }
+        },
         "dto.FakeCaptchaRequest": {
             "type": "object",
             "required": [
@@ -3362,6 +3426,37 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.ValueEnumType": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "disabled": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.VirtualModelObject": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ColumnType"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "models.API": {
             "type": "object",
             "properties": {
@@ -3407,6 +3502,15 @@ const docTemplate = `{
                 "default": {
                     "type": "string"
                 },
+                "hideInDescriptions": {
+                    "type": "boolean"
+                },
+                "hideInForm": {
+                    "type": "boolean"
+                },
+                "hideInTable": {
+                    "type": "boolean"
+                },
                 "id": {
                     "description": "ID primary key",
                     "type": "string"
@@ -3435,13 +3539,10 @@ const docTemplate = `{
                 "search": {
                     "type": "string"
                 },
-                "show": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
                 "size": {
+                    "type": "integer"
+                },
+                "sort": {
                     "type": "integer"
                 },
                 "type": {
@@ -3452,6 +3553,9 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "description": "UpdatedAt update time",
+                    "type": "string"
+                },
+                "valueEnumName": {
                     "type": "string"
                 }
             }
@@ -3660,6 +3764,9 @@ const docTemplate = `{
                 "id": {
                     "description": "ID primary key",
                     "type": "string"
+                },
+                "migrate": {
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"

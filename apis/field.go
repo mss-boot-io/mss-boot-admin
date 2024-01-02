@@ -86,6 +86,7 @@ func (e *Field) Get(*gin.Context) {}
 // @Product application/json
 // @Param page query int false "page"
 // @Param pageSize query int false "pageSize"
+// @Param modelID query string false "modelID"
 // @Success 200 {object} response.Page{data=[]models.Field}
 // @Router /admin/api/fields [get]
 // @Security Bearer

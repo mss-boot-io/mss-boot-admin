@@ -1,4 +1,21 @@
 definitions:
+  dto.ColumnType:
+    properties:
+      dataIndex:
+        type: string
+      hideInDescriptions:
+        type: boolean
+      hideInForm:
+        type: boolean
+      hideInTable:
+        type: boolean
+      title:
+        type: string
+      valueEnum:
+        additionalProperties:
+          $ref: '#/definitions/dto.ValueEnumType'
+        type: object
+    type: object
   dto.FakeCaptchaRequest:
     properties:
       phone:
@@ -213,6 +230,26 @@ definitions:
         description: Title 职位
         type: string
     type: object
+  dto.ValueEnumType:
+    properties:
+      color:
+        type: string
+      disabled:
+        type: boolean
+      status:
+        type: string
+      text:
+        type: string
+    type: object
+  dto.VirtualModelObject:
+    properties:
+      columns:
+        items:
+          $ref: '#/definitions/dto.ColumnType'
+        type: array
+      name:
+        type: string
+    type: object
   models.API:
     properties:
       createdAt:
@@ -244,6 +281,12 @@ definitions:
         type: string
       default:
         type: string
+      hideInDescriptions:
+        type: boolean
+      hideInForm:
+        type: boolean
+      hideInTable:
+        type: boolean
       id:
         description: ID primary key
         type: string
@@ -263,11 +306,9 @@ definitions:
         type: string
       search:
         type: string
-      show:
-        items:
-          type: integer
-        type: array
       size:
+        type: integer
+      sort:
         type: integer
       type:
         type: string
@@ -275,6 +316,8 @@ definitions:
         type: string
       updatedAt:
         description: UpdatedAt update time
+        type: string
+      valueEnumName:
         type: string
     type: object
   models.Language:
@@ -430,6 +473,8 @@ definitions:
       id:
         description: ID primary key
         type: string
+      migrate:
+        type: boolean
       name:
         type: string
       path:
@@ -900,6 +945,27 @@ paths:
       summary: 更新API
       tags:
       - api
+  /admin/api/documentation/{key}:
+    get:
+      consumes:
+      - application/json
+      description: 文档
+      parameters:
+      - description: key
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.VirtualModelObject'
+      summary: 文档
+      tags:
+      - virtual
   /admin/api/fields:
     get:
       consumes:
@@ -914,6 +980,10 @@ paths:
         in: query
         name: pageSize
         type: integer
+      - description: modelID
+        in: query
+        name: modelID
+        type: string
       responses:
         "200":
           description: OK
@@ -1433,7 +1503,7 @@ paths:
       tags:
       - menu
   /admin/api/model/migrate/{id}:
-    get:
+    put:
       description: 迁移虚拟模型
       parameters:
       - description: id

@@ -48,7 +48,7 @@ func (e *Model) Other(r *gin.RouterGroup) {
 // @Tags model
 // @Param id path string true "id"
 // @Success 200
-// @Router /admin/api/model/migrate/{id} [get]
+// @Router /admin/api/model/migrate/{id} [put]
 // @Security Bearer
 func (e *Model) Migrate(ctx *gin.Context) {
 	api := response.Make(ctx)
@@ -59,6 +59,19 @@ func (e *Model) Migrate(ctx *gin.Context) {
 			api.Err(http.StatusNotFound)
 			return
 		}
+	}
+	//事务
+	tx := gormdb.DB.Begin()
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+	err = tx.Model(m).Where("id = ?", m.ID).Update("migrate", true).Error
+	if err != nil {
+		api.AddError(err).Log.Error("update error")
+		api.Err(http.StatusInternalServerError)
+		return
 	}
 	vm := m.MakeVirtualModel()
 	if vm == nil {
@@ -71,6 +84,7 @@ func (e *Model) Migrate(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
+	tx.Commit()
 	api.OK(nil)
 }
 
