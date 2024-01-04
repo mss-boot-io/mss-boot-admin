@@ -32,16 +32,12 @@ func _1691847581348Migrate(db *gorm.DB, version string) error {
 server:
   addr: 0.0.0.0:8080
 logger:
-  # 日志类型 default: go-admin-core构建的默认日志插件, zap: zap插件
-  type: default
   # 日志存放路径，关闭控制台日志后，日志文件存放位置
   # path: temp/logs
   # 日志输出，file：文件，default：命令行，其他：命令行
   stdout: default #控制台日志，启用后，不输出到文件
   # 日志等级, trace, debug, info, warn, error, fatal
   level: info
-  # 日志格式 json json格式
-  formatter: default
   addSource: true
 database:
   driver: mysql

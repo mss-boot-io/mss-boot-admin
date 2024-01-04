@@ -52,7 +52,7 @@ func init() {
 	StartCmd.PersistentFlags().StringVarP(&username, "username", "u",
 		"admin", "system super administrator login username")
 	StartCmd.PersistentFlags().StringVarP(&password, "password", "p",
-		"ant.design", "system super administrator login password")
+		"123456", "system super administrator login password")
 	StartCmd.PersistentFlags().StringVarP(&config.Cfg.Database.Driver,
 		"gorm-driver", "r",
 		"mysql", "Start server with db driver")
