@@ -202,6 +202,230 @@
                 }
             }
         },
+        "/admin/api/documentation/{key}": {
+            "get": {
+                "description": "文档",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "virtual"
+                ],
+                "summary": "文档",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.VirtualModelObject"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/fields": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "字段列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "field"
+                ],
+                "summary": "字段列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "pageSize",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "modelID",
+                        "name": "modelID",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Page"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.Field"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "创建字段",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "field"
+                ],
+                "summary": "创建字段",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Field"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Field"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/fields/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取字段",
+                "tags": [
+                    "field"
+                ],
+                "summary": "获取字段",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Field"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "更新字段",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "field"
+                ],
+                "summary": "更新字段",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Field"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Field"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "删除字段",
+                "tags": [
+                    "field"
+                ],
+                "summary": "删除字段",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/admin/api/github/callback": {
             "get": {
                 "description": "github回调",
@@ -886,21 +1110,235 @@
                 }
             }
         },
-        "/admin/api/model/migrate/{id}": {
+        "/admin/api/model/generate-data": {
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "生成数据",
+                "tags": [
+                    "model"
+                ],
+                "summary": "生成数据",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ModelGenerateDataRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/admin/api/models": {
             "get": {
                 "security": [
                     {
                         "Bearer": []
                     }
                 ],
-                "description": "迁移虚拟模型",
+                "description": "模型列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "model"
                 ],
-                "summary": "迁移虚拟模型",
+                "summary": "模型列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "pageSize",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "preloads",
+                        "name": "preloads",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Page"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.Model"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "创建模型",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "model"
+                ],
+                "summary": "创建模型",
+                "parameters": [
+                    {
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Model"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Model"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/api/models/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "获取模型",
+                "tags": [
+                    "model"
+                ],
+                "summary": "获取模型",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Model"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "model"
+                ],
+                "summary": "更新模型",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "model",
+                        "name": "model",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Model"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Model"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "删除模型",
+                "tags": [
+                    "model"
+                ],
+                "summary": "删除模型",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -2652,6 +3090,41 @@
         }
     },
     "definitions": {
+        "dto.ColumnType": {
+            "type": "object",
+            "properties": {
+                "dataIndex": {
+                    "type": "string"
+                },
+                "hideInDescriptions": {
+                    "type": "boolean"
+                },
+                "hideInForm": {
+                    "type": "boolean"
+                },
+                "hideInTable": {
+                    "type": "boolean"
+                },
+                "pk": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "validateRules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pkg.BaseRule"
+                    }
+                },
+                "valueEnum": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/dto.ValueEnumType"
+                    }
+                }
+            }
+        },
         "dto.FakeCaptchaRequest": {
             "type": "object",
             "required": [
@@ -2758,6 +3231,20 @@
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "dto.ModelGenerateDataRequest": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "menuParentID": {
+                    "type": "string"
                 }
             }
         },
@@ -2954,6 +3441,37 @@
                 }
             }
         },
+        "dto.ValueEnumType": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "disabled": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.VirtualModelObject": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ColumnType"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "models.API": {
             "type": "object",
             "properties": {
@@ -2982,6 +3500,89 @@
                 },
                 "updatedAt": {
                     "description": "UpdatedAt update time",
+                    "type": "string"
+                }
+            }
+        },
+        "models.Field": {
+            "type": "object",
+            "properties": {
+                "associationsID": {
+                    "type": "string"
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "description": "CreatedAt create time",
+                    "type": "string"
+                },
+                "default": {
+                    "type": "string"
+                },
+                "hideInDescriptions": {
+                    "type": "boolean"
+                },
+                "hideInForm": {
+                    "type": "boolean"
+                },
+                "hideInTable": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "description": "ID primary key",
+                    "type": "string"
+                },
+                "index": {
+                    "type": "string"
+                },
+                "jsonTag": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "modelID": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notNull": {
+                    "type": "boolean"
+                },
+                "primaryKey": {
+                    "type": "string"
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pkg.BaseRule"
+                    }
+                },
+                "search": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "sort": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "unique": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "UpdatedAt update time",
+                    "type": "string"
+                },
+                "valueEnumName": {
+                    "type": "string"
+                },
+                "width": {
                     "type": "string"
                 }
             }
@@ -3160,6 +3761,47 @@
                 },
                 "type": {
                     "description": "Type 菜单类型",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "description": "UpdatedAt update time",
+                    "type": "string"
+                }
+            }
+        },
+        "models.Model": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "description": "CreatedAt create time",
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Field"
+                    }
+                },
+                "generatedData": {
+                    "type": "boolean"
+                },
+                "hardDeleted": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "description": "ID primary key",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "tableName": {
                     "type": "string"
                 },
                 "updatedAt": {
@@ -3611,6 +4253,44 @@
                 },
                 "zoneinfo": {
                     "type": "string"
+                }
+            }
+        },
+        "pkg.BaseRule": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "len": {
+                    "type": "integer"
+                },
+                "max": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "min": {
+                    "type": "integer"
+                },
+                "pattern": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "validateTrigger": {
+                    "type": "string"
+                },
+                "warningOnly": {
+                    "type": "boolean"
+                },
+                "whitespace": {
+                    "type": "boolean"
                 }
             }
         },

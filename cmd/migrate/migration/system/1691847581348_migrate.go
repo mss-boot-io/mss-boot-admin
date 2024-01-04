@@ -45,8 +45,7 @@ logger:
   addSource: true
 database:
   driver: mysql
-  source: 'root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local&timeout=1000ms'
-  name: mss-boot-admin-local
+  source: '{{ .Env.DB_DSN }}'
   config:
     disableForeignKeyConstraintWhenMigrating: true
   casbinModel: |
@@ -77,6 +76,7 @@ task:
   enable: false
   spec: '0/30 * * * * ?'
 oauth2:
+  #mss-boot-io组织用于测试的github oauth2配置
   clientID: 6f4b8f6b0eb0941896ee
   clientSecret: 1542df33bbfa7dca64760f9469c7276bebdf23e4
   scopes:
@@ -125,14 +125,14 @@ oauth2:
 				Email:    "lwnmengjing@gmail.com",
 				Status:   enum.Enabled,
 			},
-			Name:     "林文祥",
+			Name:     "mss-boot-io",
 			Avatar:   "https://avatars.githubusercontent.com/u/12806223?v=4",
 			Country:  "China",
 			Province: "320000",
 			City:     "320800",
-			Address:  "生态新城枚槹路大桥",
+			Address:  "一个有梦想的地方",
 			Profile:  "https://docs.mss-boot-io.top",
-			Title:    "后端开发工程师",
+			Title:    "方形固体空间移动工程师",
 			Tags: models.ArrayString{
 				"有想法",
 			},
@@ -573,10 +573,99 @@ oauth2:
 						},
 					},
 					{
+						Name: "model",
+						Path: "/model",
+						Icon: "desktop",
+						Sort: 15,
+						Type: adminPKG.MenuAccessType,
+						Children: []*models.Menu{
+							{
+								Name:   "/admin/api/models",
+								Path:   "/admin/api/models",
+								Method: http.MethodGet,
+								Type:   adminPKG.APIAccessType,
+							},
+							{
+								Name:   "/admin/api/models/*",
+								Path:   "/admin/api/models/:id",
+								Method: http.MethodGet,
+								Type:   adminPKG.APIAccessType,
+							},
+							{
+								Name:       "control",
+								Path:       "/model/:id",
+								HideInMenu: true,
+								Type:       adminPKG.MenuAccessType,
+							},
+							{
+								Name:       "create",
+								Path:       "/model/create",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/models",
+										Path:   "/admin/api/models",
+										Method: http.MethodPost,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
+								Name:       "edit",
+								Path:       "/model/edit",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/models/*",
+										Path:   "/admin/api/models/:id",
+										Method: http.MethodPut,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
+								Name:       "field",
+								Path:       "/model/field",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+							},
+							{
+								Name:       "generate-data",
+								Path:       "/model/generate-data",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/model/generate-data",
+										Path:   "/admin/api/model/generate-data",
+										Method: http.MethodPut,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
+								Name:       "delete",
+								Path:       "/model/delete",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/models/*",
+										Path:   "/admin/api/models/:id",
+										Method: http.MethodDelete,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+						},
+					},
+					{
 						Name: "option",
 						Path: "/option",
 						Icon: "message",
-						Sort: 15,
+						Sort: 14,
 						Type: adminPKG.MenuAccessType,
 						Children: []*models.Menu{
 							{
@@ -645,7 +734,7 @@ oauth2:
 						Name: "notice",
 						Path: "/notice",
 						Icon: "message",
-						Sort: 14,
+						Sort: 13,
 						Type: adminPKG.MenuAccessType,
 						Children: []*models.Menu{
 							{
@@ -708,13 +797,27 @@ oauth2:
 									},
 								},
 							},
+							{
+								Name:       "read",
+								Path:       "/notice/read",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/notice/read/*",
+										Path:   "/notice/read/:id",
+										Method: http.MethodPut,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
 						},
 					},
 					{
 						Name: "system-config",
 						Path: "/system-config",
 						Icon: "inbox",
-						Sort: 13,
+						Sort: 12,
 						Type: adminPKG.MenuAccessType,
 						Children: []*models.Menu{
 							{
@@ -940,19 +1043,38 @@ oauth2:
 				ModelID:    m.ID,
 				Name:       "id",
 				Label:      "ID",
-				Show:       []byte(`{"show":true,"width":100,"align":"center","sortable":true,"ellipsis":true}`),
 				Type:       "string",
 				Size:       64,
+				Sort:       100,
 				PrimaryKey: "true",
+				FieldFrontend: &models.FieldFrontend{
+					HideInForm: true,
+				},
 			},
 			{
 				ModelID:     m.ID,
 				Name:        "name",
 				Label:       "名称",
-				Show:        []byte(`{"show":true,"width":100,"align":"center","sortable":true,"ellipsis":true}`),
 				Type:        "string",
 				Size:        255,
+				Sort:        99,
 				UniqueIndex: "name",
+				FieldFrontend: &models.FieldFrontend{
+					Rules: []adminPKG.BaseRule{
+						{
+							Required: true,
+						},
+					},
+				},
+			},
+			{
+				ModelID:       m.ID,
+				Name:          "status",
+				Label:         "状态",
+				Type:          "string",
+				Size:          10,
+				Sort:          98,
+				ValueEnumName: "system.status",
 			},
 		}
 		err = tx.Create(&cs).Error

@@ -72,9 +72,13 @@ func setup() error {
 	// env overwrite args
 	if os.Getenv("DB_DRIVER") != "" {
 		driver = os.Getenv("DB_DRIVER")
+	} else {
+		_ = os.Setenv("DB_DRIVER", driver)
 	}
 	if os.Getenv("DB_DSN") != "" {
 		dsn = os.Getenv("DB_DSN")
+	} else {
+		_ = os.Setenv("DB_DSN", dsn)
 	}
 	// setup 01 config init
 	config.Cfg.Init(driver, dsn, &models.SystemConfig{})
@@ -94,6 +98,7 @@ func setup() error {
 		if err != nil {
 			slog.Error("save api error", "err", err)
 		}
+		os.Exit(0)
 	}
 
 	// setup 05 server init

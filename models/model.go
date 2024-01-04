@@ -3,12 +3,16 @@ package models
 import (
 	"log/slog"
 	"os"
+	"strings"
 
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/virtual/model"
 	"gorm.io/gorm/schema"
+
+	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 )
 
 /*
@@ -20,37 +24,46 @@ import (
 
 type Model struct {
 	actions.ModelGorm
-	Name        string  `gorm:"column:name;type:varchar(255);not null;comment:名称" json:"name"`
-	Description string  `gorm:"column:description;type:text;not null;comment:描述" json:"description"`
-	HardDeleted bool    `gorm:"column:hard_deleted;type:tinyint(1);not null;default:0;comment:是否硬删除" json:"hardDeleted"`
-	Table       string  `gorm:"column:table_name;type:varchar(255);not null;comment:表名" json:"tableName"`
-	Path        string  `gorm:"column:path;type:varchar(255);not null;comment:http路径" json:"path"`
-	Fields      []Field `gorm:"foreignKey:ModelID;references:ID" json:"fields"`
+	Name          string   `gorm:"column:name;type:varchar(255);not null;comment:名称" json:"name"`
+	Description   string   `gorm:"column:description;type:text;not null;comment:描述" json:"description"`
+	HardDeleted   bool     `gorm:"column:hard_deleted;type:tinyint(1);not null;default:0;comment:是否硬删除" json:"hardDeleted"`
+	Table         string   `gorm:"column:table_name;type:varchar(255);not null;comment:表名" json:"tableName"`
+	Path          string   `gorm:"column:path;type:varchar(255);not null;comment:http路径" json:"path"`
+	Fields        []*Field `gorm:"foreignKey:ModelID;references:ID" json:"fields"`
+	GeneratedData bool     `gorm:"column:generated_data;type:tinyint(1);not null;default:0;comment:是否生成数据" json:"generatedData"`
 }
 
 func (*Model) TableName() string {
 	return "mss_boot_models"
 }
 
-func (m *Model) MakeVirtualModel() *model.Model {
-	mm := &model.Model{
-		Table:       m.Table,
-		HardDeleted: m.HardDeleted,
-		Fields:      make([]*model.Field, len(m.Fields)),
+func (e *Model) BeforeCreate(_ *gorm.DB) error {
+	_ = e.ModelGorm.BeforeCreate(nil)
+	if e.Path == "" {
+		e.Path = pkg.Pluralize(strings.ReplaceAll(e.Table, "_", "-"))
 	}
-	for i := range m.Fields {
+	return nil
+}
+
+func (e *Model) MakeVirtualModel() *model.Model {
+	mm := &model.Model{
+		Table:       e.Table,
+		HardDeleted: e.HardDeleted,
+		Fields:      make([]*model.Field, len(e.Fields)),
+	}
+	for i := range e.Fields {
 		mm.Fields[i] = &model.Field{
-			Name:         m.Fields[i].Name,
-			JsonTag:      m.Fields[i].JsonTag,
-			DataType:     schema.DataType(m.Fields[i].Type),
-			PrimaryKey:   m.Fields[i].PrimaryKey,
-			DefaultValue: m.Fields[i].Default,
-			NotNull:      m.Fields[i].NotNull,
-			Unique:       m.Fields[i].UniqueIndex,
-			Index:        m.Fields[i].Index,
-			Comment:      m.Fields[i].Comment,
-			Size:         m.Fields[i].Size,
-			Search:       m.Fields[i].Search,
+			Name:         e.Fields[i].Name,
+			JsonTag:      e.Fields[i].JsonTag,
+			DataType:     schema.DataType(e.Fields[i].Type),
+			PrimaryKey:   e.Fields[i].PrimaryKey,
+			DefaultValue: e.Fields[i].Default,
+			NotNull:      e.Fields[i].NotNull,
+			Unique:       e.Fields[i].UniqueIndex,
+			Index:        e.Fields[i].Index,
+			Comment:      e.Fields[i].Comment,
+			Size:         e.Fields[i].Size,
+			Search:       e.Fields[i].Search,
 		}
 	}
 	mm.Init()
