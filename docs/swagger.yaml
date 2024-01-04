@@ -9,6 +9,8 @@ definitions:
         type: boolean
       hideInTable:
         type: boolean
+      pk:
+        type: boolean
       title:
         type: string
       validateRules:
@@ -287,6 +289,8 @@ definitions:
     type: object
   models.Field:
     properties:
+      associationsID:
+        type: string
       comment:
         type: string
       createdAt:
@@ -294,8 +298,12 @@ definitions:
         type: string
       default:
         type: string
-      fieldFrontend:
-        $ref: '#/definitions/models.FieldFrontend'
+      hideInDescriptions:
+        type: boolean
+      hideInForm:
+        type: boolean
+      hideInTable:
+        type: boolean
       id:
         description: ID primary key
         type: string
@@ -313,6 +321,10 @@ definitions:
         type: boolean
       primaryKey:
         type: string
+      rules:
+        items:
+          $ref: '#/definitions/pkg.BaseRule'
+        type: array
       search:
         type: string
       size:
@@ -328,19 +340,6 @@ definitions:
         type: string
       valueEnumName:
         type: string
-    type: object
-  models.FieldFrontend:
-    properties:
-      hideInDescriptions:
-        type: boolean
-      hideInForm:
-        type: boolean
-      hideInTable:
-        type: boolean
-      rules:
-        items:
-          $ref: '#/definitions/pkg.BaseRule'
-        type: array
       width:
         type: string
     type: object
@@ -817,6 +816,8 @@ definitions:
     type: object
   pkg.BaseRule:
     properties:
+      id:
+        type: string
       len:
         type: integer
       max:
@@ -832,9 +833,7 @@ definitions:
       type:
         type: string
       validateTrigger:
-        items:
-          type: string
-        type: array
+        type: string
       warningOnly:
         type: boolean
       whitespace:

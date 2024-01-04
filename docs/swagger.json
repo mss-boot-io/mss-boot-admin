@@ -3105,6 +3105,9 @@
                 "hideInTable": {
                     "type": "boolean"
                 },
+                "pk": {
+                    "type": "boolean"
+                },
                 "title": {
                     "type": "string"
                 },
@@ -3504,6 +3507,9 @@
         "models.Field": {
             "type": "object",
             "properties": {
+                "associationsID": {
+                    "type": "string"
+                },
                 "comment": {
                     "type": "string"
                 },
@@ -3514,8 +3520,14 @@
                 "default": {
                     "type": "string"
                 },
-                "fieldFrontend": {
-                    "$ref": "#/definitions/models.FieldFrontend"
+                "hideInDescriptions": {
+                    "type": "boolean"
+                },
+                "hideInForm": {
+                    "type": "boolean"
+                },
+                "hideInTable": {
+                    "type": "boolean"
                 },
                 "id": {
                     "description": "ID primary key",
@@ -3542,6 +3554,12 @@
                 "primaryKey": {
                     "type": "string"
                 },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pkg.BaseRule"
+                    }
+                },
                 "search": {
                     "type": "string"
                 },
@@ -3563,26 +3581,6 @@
                 },
                 "valueEnumName": {
                     "type": "string"
-                }
-            }
-        },
-        "models.FieldFrontend": {
-            "type": "object",
-            "properties": {
-                "hideInDescriptions": {
-                    "type": "boolean"
-                },
-                "hideInForm": {
-                    "type": "boolean"
-                },
-                "hideInTable": {
-                    "type": "boolean"
-                },
-                "rules": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/pkg.BaseRule"
-                    }
                 },
                 "width": {
                     "type": "string"
@@ -4261,6 +4259,9 @@
         "pkg.BaseRule": {
             "type": "object",
             "properties": {
+                "id": {
+                    "type": "string"
+                },
                 "len": {
                     "type": "integer"
                 },
@@ -4283,10 +4284,7 @@
                     "type": "string"
                 },
                 "validateTrigger": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
+                    "type": "string"
                 },
                 "warningOnly": {
                     "type": "boolean"

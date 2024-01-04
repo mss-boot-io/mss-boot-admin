@@ -3114,6 +3114,9 @@ const docTemplate = `{
                 "hideInTable": {
                     "type": "boolean"
                 },
+                "pk": {
+                    "type": "boolean"
+                },
                 "title": {
                     "type": "string"
                 },
@@ -3513,6 +3516,9 @@ const docTemplate = `{
         "models.Field": {
             "type": "object",
             "properties": {
+                "associationsID": {
+                    "type": "string"
+                },
                 "comment": {
                     "type": "string"
                 },
@@ -3523,8 +3529,14 @@ const docTemplate = `{
                 "default": {
                     "type": "string"
                 },
-                "fieldFrontend": {
-                    "$ref": "#/definitions/models.FieldFrontend"
+                "hideInDescriptions": {
+                    "type": "boolean"
+                },
+                "hideInForm": {
+                    "type": "boolean"
+                },
+                "hideInTable": {
+                    "type": "boolean"
                 },
                 "id": {
                     "description": "ID primary key",
@@ -3551,6 +3563,12 @@ const docTemplate = `{
                 "primaryKey": {
                     "type": "string"
                 },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pkg.BaseRule"
+                    }
+                },
                 "search": {
                     "type": "string"
                 },
@@ -3572,26 +3590,6 @@ const docTemplate = `{
                 },
                 "valueEnumName": {
                     "type": "string"
-                }
-            }
-        },
-        "models.FieldFrontend": {
-            "type": "object",
-            "properties": {
-                "hideInDescriptions": {
-                    "type": "boolean"
-                },
-                "hideInForm": {
-                    "type": "boolean"
-                },
-                "hideInTable": {
-                    "type": "boolean"
-                },
-                "rules": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/pkg.BaseRule"
-                    }
                 },
                 "width": {
                     "type": "string"
@@ -4270,6 +4268,9 @@ const docTemplate = `{
         "pkg.BaseRule": {
             "type": "object",
             "properties": {
+                "id": {
+                    "type": "string"
+                },
                 "len": {
                     "type": "integer"
                 },
@@ -4292,10 +4293,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "validateTrigger": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
+                    "type": "string"
                 },
                 "warningOnly": {
                     "type": "boolean"
