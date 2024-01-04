@@ -3,8 +3,9 @@ package apis
 import (
 	"errors"
 	"fmt"
-	adminPKG "github.com/mss-boot-io/mss-boot-admin-api/pkg"
 	"net/http"
+
+	adminPKG "github.com/mss-boot-io/mss-boot-admin-api/pkg"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"

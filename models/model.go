@@ -1,10 +1,11 @@
 package models
 
 import (
-	"gorm.io/gorm"
 	"log/slog"
 	"os"
 	"strings"
+
+	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
