@@ -18,3 +18,13 @@ type ModelSearch struct {
 	//名称
 	Name string `query:"name" form:"name" search:"type:contains;column:name"`
 }
+
+type ModelGenerateDataRequest struct {
+	ID           string `json:"id" binding:"required"`
+	MenuParentID string `json:"menuParentID"`
+}
+
+type ModelCreateMenuRequest struct {
+	ID       string `json:"id" binding:"required"`
+	ParentID string `json:"parentID"`
+}

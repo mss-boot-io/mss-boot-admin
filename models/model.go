@@ -23,13 +23,13 @@ import (
 
 type Model struct {
 	actions.ModelGorm
-	Name        string   `gorm:"column:name;type:varchar(255);not null;comment:名称" json:"name"`
-	Description string   `gorm:"column:description;type:text;not null;comment:描述" json:"description"`
-	HardDeleted bool     `gorm:"column:hard_deleted;type:tinyint(1);not null;default:0;comment:是否硬删除" json:"hardDeleted"`
-	Table       string   `gorm:"column:table_name;type:varchar(255);not null;comment:表名" json:"tableName"`
-	Path        string   `gorm:"column:path;type:varchar(255);not null;comment:http路径" json:"path"`
-	Fields      []*Field `gorm:"foreignKey:ModelID;references:ID" json:"fields"`
-	Migrate     bool     `gorm:"column:migrate;type:tinyint(1);default:0;comment:迁移" json:"migrate"`
+	Name          string   `gorm:"column:name;type:varchar(255);not null;comment:名称" json:"name"`
+	Description   string   `gorm:"column:description;type:text;not null;comment:描述" json:"description"`
+	HardDeleted   bool     `gorm:"column:hard_deleted;type:tinyint(1);not null;default:0;comment:是否硬删除" json:"hardDeleted"`
+	Table         string   `gorm:"column:table_name;type:varchar(255);not null;comment:表名" json:"tableName"`
+	Path          string   `gorm:"column:path;type:varchar(255);not null;comment:http路径" json:"path"`
+	Fields        []*Field `gorm:"foreignKey:ModelID;references:ID" json:"fields"`
+	GeneratedData bool     `gorm:"column:generated_data;type:tinyint(1);not null;default:0;comment:是否生成数据" json:"generatedData"`
 }
 
 func (*Model) TableName() string {

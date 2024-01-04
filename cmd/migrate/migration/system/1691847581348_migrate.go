@@ -76,6 +76,7 @@ task:
   enable: false
   spec: '0/30 * * * * ?'
 oauth2:
+  #mss-boot-io组织用于测试的github oauth2配置
   clientID: 6f4b8f6b0eb0941896ee
   clientSecret: 1542df33bbfa7dca64760f9469c7276bebdf23e4
   scopes:
@@ -124,14 +125,14 @@ oauth2:
 				Email:    "lwnmengjing@gmail.com",
 				Status:   enum.Enabled,
 			},
-			Name:     "林文祥",
+			Name:     "mss-boot-io",
 			Avatar:   "https://avatars.githubusercontent.com/u/12806223?v=4",
 			Country:  "China",
 			Province: "320000",
 			City:     "320800",
-			Address:  "生态新城枚槹路大桥",
+			Address:  "一个有梦想的地方",
 			Profile:  "https://docs.mss-boot-io.top",
-			Title:    "后端开发工程师",
+			Title:    "方形固体空间移动工程师",
 			Tags: models.ArrayString{
 				"有想法",
 			},
@@ -625,6 +626,26 @@ oauth2:
 								},
 							},
 							{
+								Name:       "field",
+								Path:       "/model/field",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+							},
+							{
+								Name:       "generate-data",
+								Path:       "/model/generate-data",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/admin/api/model/generate-data",
+										Path:   "/admin/api/model/generate-data",
+										Method: http.MethodPut,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
 								Name:       "delete",
 								Path:       "/model/delete",
 								HideInMenu: true,
@@ -772,6 +793,20 @@ oauth2:
 										Name:   "/admin/api/notices/*",
 										Path:   "/admin/api/notices/:id",
 										Method: http.MethodDelete,
+										Type:   adminPKG.APIAccessType,
+									},
+								},
+							},
+							{
+								Name:       "read",
+								Path:       "/notice/read",
+								HideInMenu: true,
+								Type:       adminPKG.ComponentAccessType,
+								Children: []*models.Menu{
+									{
+										Name:   "/notice/read/*",
+										Path:   "/notice/read/:id",
+										Method: http.MethodPut,
 										Type:   adminPKG.APIAccessType,
 									},
 								},
@@ -1012,6 +1047,9 @@ oauth2:
 				Size:       64,
 				Sort:       100,
 				PrimaryKey: "true",
+				FieldFrontend: &models.FieldFrontend{
+					HideInForm: true,
+				},
 			},
 			{
 				ModelID:     m.ID,
@@ -1021,6 +1059,13 @@ oauth2:
 				Size:        255,
 				Sort:        99,
 				UniqueIndex: "name",
+				FieldFrontend: &models.FieldFrontend{
+					Rules: []adminPKG.BaseRule{
+						{
+							Required: true,
+						},
+					},
+				},
 			},
 			{
 				ModelID:       m.ID,

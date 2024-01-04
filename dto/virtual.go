@@ -1,5 +1,7 @@
 package dto
 
+import "github.com/mss-boot-io/mss-boot-admin-api/pkg"
+
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
  * @Date: 2024/1/2 17:35:45
@@ -14,6 +16,8 @@ type ColumnType struct {
 	HideInTable        bool                     `json:"hideInTable,omitempty"`
 	HideInDescriptions bool                     `json:"hideInDescriptions,omitempty"`
 	ValueEnum          map[string]ValueEnumType `json:"valueEnum,omitempty"`
+	ValidateRules      []pkg.BaseRule           `json:"validateRules,omitempty"`
+	PK                 bool                     `json:"pk,omitempty"`
 }
 
 type ValueEnumType struct {

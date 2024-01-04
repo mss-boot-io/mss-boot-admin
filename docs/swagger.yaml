@@ -11,6 +11,10 @@ definitions:
         type: boolean
       title:
         type: string
+      validateRules:
+        items:
+          $ref: '#/definitions/pkg.BaseRule'
+        type: array
       valueEnum:
         additionalProperties:
           $ref: '#/definitions/dto.ValueEnumType'
@@ -99,6 +103,15 @@ definitions:
     required:
     - menuID
     - paths
+    type: object
+  dto.ModelGenerateDataRequest:
+    properties:
+      id:
+        type: string
+      menuParentID:
+        type: string
+    required:
+    - id
     type: object
   dto.PasswordResetRequest:
     properties:
@@ -281,12 +294,8 @@ definitions:
         type: string
       default:
         type: string
-      hideInDescriptions:
-        type: boolean
-      hideInForm:
-        type: boolean
-      hideInTable:
-        type: boolean
+      fieldFrontend:
+        $ref: '#/definitions/models.FieldFrontend'
       id:
         description: ID primary key
         type: string
@@ -318,6 +327,21 @@ definitions:
         description: UpdatedAt update time
         type: string
       valueEnumName:
+        type: string
+    type: object
+  models.FieldFrontend:
+    properties:
+      hideInDescriptions:
+        type: boolean
+      hideInForm:
+        type: boolean
+      hideInTable:
+        type: boolean
+      rules:
+        items:
+          $ref: '#/definitions/pkg.BaseRule'
+        type: array
+      width:
         type: string
     type: object
   models.Language:
@@ -468,13 +492,13 @@ definitions:
         items:
           $ref: '#/definitions/models.Field'
         type: array
+      generatedData:
+        type: boolean
       hardDeleted:
         type: boolean
       id:
         description: ID primary key
         type: string
-      migrate:
-        type: boolean
       name:
         type: string
       path:
@@ -790,6 +814,31 @@ definitions:
         type: string
       zoneinfo:
         type: string
+    type: object
+  pkg.BaseRule:
+    properties:
+      len:
+        type: integer
+      max:
+        type: integer
+      message:
+        type: string
+      min:
+        type: integer
+      pattern:
+        type: string
+      required:
+        type: boolean
+      type:
+        type: string
+      validateTrigger:
+        items:
+          type: string
+        type: array
+      warningOnly:
+        type: boolean
+      whitespace:
+        type: boolean
     type: object
   response.Page:
     properties:
@@ -1502,21 +1551,22 @@ paths:
       summary: 更新菜单
       tags:
       - menu
-  /admin/api/model/migrate/{id}:
+  /admin/api/model/generate-data:
     put:
-      description: 迁移虚拟模型
+      description: 生成数据
       parameters:
-      - description: id
-        in: path
-        name: id
+      - description: data
+        in: body
+        name: data
         required: true
-        type: string
+        schema:
+          $ref: '#/definitions/dto.ModelGenerateDataRequest'
       responses:
         "200":
           description: OK
       security:
       - Bearer: []
-      summary: 迁移虚拟模型
+      summary: 生成数据
       tags:
       - model
   /admin/api/models:
@@ -1619,7 +1669,6 @@ paths:
     put:
       consumes:
       - application/json
-      description: 更新模型
       parameters:
       - description: id
         in: path

@@ -69,11 +69,16 @@ func (e *Virtual) Documentation(ctx *gin.Context) {
 	sort.Sort(fields)
 	for i := range vm.Fields {
 		object.Columns[i] = &dto.ColumnType{
-			Title:              vm.Fields[i].Label,
-			DataIndex:          vm.Fields[i].Name,
-			HideInTable:        vm.Fields[i].HideInTable,
-			HideInDescriptions: vm.Fields[i].HideInDescriptions,
-			HideInForm:         vm.Fields[i].HideInForm,
+			Title:     vm.Fields[i].Label,
+			DataIndex: vm.Fields[i].Name,
+			PK:        vm.Fields[i].PrimaryKey != "",
+		}
+		if vm.Fields[i].FieldFrontend != nil {
+
+			object.Columns[i].HideInTable = vm.Fields[i].FieldFrontend.HideInTable
+			object.Columns[i].HideInDescriptions = vm.Fields[i].FieldFrontend.HideInDescriptions
+			object.Columns[i].HideInForm = vm.Fields[i].FieldFrontend.HideInForm
+			object.Columns[i].ValidateRules = vm.Fields[i].FieldFrontend.Rules
 		}
 		if vm.Fields[i].ValueEnumName != "" {
 			option := &models.Option{}

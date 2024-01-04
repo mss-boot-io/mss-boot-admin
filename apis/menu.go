@@ -180,8 +180,8 @@ func (e *Menu) Tree(ctx *gin.Context) {
 		Where("type <> ?", pkg.APIAccessType).
 		Find(&list).Error
 	if err != nil {
-		api.Log.Error("get menu tree error", "err", err)
-		api.Err(http.StatusInternalServerError, err.Error())
+		api.AddError(err).Log.Error("get menu tree error")
+		api.Err(http.StatusInternalServerError)
 		return
 	}
 	api.OK(models.CompleteName(models.GetMenuTree(list)))
@@ -319,7 +319,11 @@ func (*Menu) List(ctx *gin.Context) {
 	if req.Status != "" {
 		query = query.Where("status = ?", req.Status)
 	}
-	query = query.Where("type IN ?", types)
+	if req.Type != "" {
+		query = query.Where("type = ?", req.Type)
+	} else {
+		query = query.Where("type IN ?", types)
+	}
 	var count int64
 	if err := query.Limit(-1).Offset(-1).Count(&count).Error; err != nil {
 		api.AddError(err).Log.Error("get menu list error", "err", err)

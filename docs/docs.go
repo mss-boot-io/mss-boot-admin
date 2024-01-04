@@ -1119,25 +1119,27 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/api/model/migrate/{id}": {
+        "/admin/api/model/generate-data": {
             "put": {
                 "security": [
                     {
                         "Bearer": []
                     }
                 ],
-                "description": "迁移虚拟模型",
+                "description": "生成数据",
                 "tags": [
                     "model"
                 ],
-                "summary": "迁移虚拟模型",
+                "summary": "生成数据",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "id",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
+                        "description": "data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ModelGenerateDataRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -1286,7 +1288,6 @@ const docTemplate = `{
                         "Bearer": []
                     }
                 ],
-                "description": "更新模型",
                 "consumes": [
                     "application/json"
                 ],
@@ -3116,6 +3117,12 @@ const docTemplate = `{
                 "title": {
                     "type": "string"
                 },
+                "validateRules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pkg.BaseRule"
+                    }
+                },
                 "valueEnum": {
                     "type": "object",
                     "additionalProperties": {
@@ -3230,6 +3237,20 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "dto.ModelGenerateDataRequest": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "menuParentID": {
+                    "type": "string"
                 }
             }
         },
@@ -3502,14 +3523,8 @@ const docTemplate = `{
                 "default": {
                     "type": "string"
                 },
-                "hideInDescriptions": {
-                    "type": "boolean"
-                },
-                "hideInForm": {
-                    "type": "boolean"
-                },
-                "hideInTable": {
-                    "type": "boolean"
+                "fieldFrontend": {
+                    "$ref": "#/definitions/models.FieldFrontend"
                 },
                 "id": {
                     "description": "ID primary key",
@@ -3556,6 +3571,29 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "valueEnumName": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.FieldFrontend": {
+            "type": "object",
+            "properties": {
+                "hideInDescriptions": {
+                    "type": "boolean"
+                },
+                "hideInForm": {
+                    "type": "boolean"
+                },
+                "hideInTable": {
+                    "type": "boolean"
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pkg.BaseRule"
+                    }
+                },
+                "width": {
                     "type": "string"
                 }
             }
@@ -3758,15 +3796,15 @@ const docTemplate = `{
                         "$ref": "#/definitions/models.Field"
                     }
                 },
+                "generatedData": {
+                    "type": "boolean"
+                },
                 "hardDeleted": {
                     "type": "boolean"
                 },
                 "id": {
                     "description": "ID primary key",
                     "type": "string"
-                },
-                "migrate": {
-                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -4226,6 +4264,44 @@ const docTemplate = `{
                 },
                 "zoneinfo": {
                     "type": "string"
+                }
+            }
+        },
+        "pkg.BaseRule": {
+            "type": "object",
+            "properties": {
+                "len": {
+                    "type": "integer"
+                },
+                "max": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "min": {
+                    "type": "integer"
+                },
+                "pattern": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "validateTrigger": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "warningOnly": {
+                    "type": "boolean"
+                },
+                "whitespace": {
+                    "type": "boolean"
                 }
             }
         },
