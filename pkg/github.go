@@ -3,6 +3,7 @@ package pkg
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 
 	"golang.org/x/oauth2"
@@ -62,6 +63,21 @@ type GithubUser struct {
 	} `json:"plan"`
 }
 
+type GithubOrganization struct {
+	Login            string `json:"login"`
+	ID               int64  `json:"id"`
+	NodeID           string `json:"node_id"`
+	URL              string `json:"url"`
+	ReposURL         string `json:"repos_url"`
+	EventsURL        string `json:"events_url"`
+	HooksURL         string `json:"hooks_url"`
+	IssuesURL        string `json:"issues_url"`
+	MembersURL       string `json:"members_url"`
+	PublicMembersURL string `json:"public_members_url"`
+	AvatarURL        string `json:"avatar_url"`
+	Description      string `json:"description"`
+}
+
 func GetUserFromGithub(ctx context.Context, conf *oauth2.Config, accessToken string) (*GithubUser, error) {
 	client := conf.Client(ctx, &oauth2.Token{AccessToken: accessToken})
 	resp, err := client.Get("https://api.github.com/user")
@@ -77,4 +93,32 @@ func GetUserFromGithub(ctx context.Context, conf *oauth2.Config, accessToken str
 		return nil, err
 	}
 	return &user, nil
+}
+
+func GetOrganizationsFromGithub(ctx context.Context,
+	conf *oauth2.Config,
+	accessToken string) ([]string, error) {
+	client := conf.Client(ctx, &oauth2.Token{AccessToken: accessToken})
+	resp, err := client.Get("https://api.github.com/user/orgs")
+	if err != nil {
+		slog.Error("get organizations from github error", slog.Any("error", err))
+		return nil, err
+	}
+	defer resp.Body.Close()
+	rb, err := io.ReadAll(resp.Body)
+	if err != nil {
+		slog.Error("read organizations from github error", slog.Any("error", err))
+		return nil, err
+	}
+	list := make([]*GithubOrganization, 0)
+	err = json.Unmarshal(rb, &list)
+	if err != nil {
+		slog.Error("decode organizations from github error", slog.Any("error", err))
+		return nil, err
+	}
+	org := make([]string, len(list))
+	for i := range list {
+		org[i] = list[i].Login
+	}
+	return org, nil
 }

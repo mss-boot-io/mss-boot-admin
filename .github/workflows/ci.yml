@@ -6,7 +6,6 @@ on:
       - 'docs/**'
       - '.github/**'
       - '.gitignore'
-      -
     branches:
       - main
     # Publish semver tags as releases.

@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/sanity-io/litter"
-
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
 	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
@@ -164,12 +162,18 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			slog.Error("get user from github error", slog.Any("error", err))
 			return false, nil, err
 		}
-		litter.Dump(githubUser)
-		if len(config.Cfg.OAuth2.AllowGroup) > 0 &&
-			!pkg.InArray(config.Cfg.OAuth2.AllowGroup, strings.Split(githubUser.Company, " "), "@", 1) {
-			err = errors.New("user not in allow group")
-			slog.Error(err.Error())
-			return false, nil, err
+
+		if len(config.Cfg.OAuth2.AllowGroup) > 0 {
+			org, err := pkg.GetOrganizationsFromGithub(ctx, conf, e.Password)
+			if err != nil {
+				slog.Error("get organizations from github error", slog.Any("error", err))
+				return false, nil, err
+			}
+			if !pkg.InArray(config.Cfg.OAuth2.AllowGroup, org, "", 0) {
+				err = errors.New("user not in allow group")
+				slog.Error(err.Error())
+				return false, nil, err
+			}
 		}
 		defaultRole := &Role{Default: true}
 		_ = gormdb.DB.Where(defaultRole).First(defaultRole).Error
