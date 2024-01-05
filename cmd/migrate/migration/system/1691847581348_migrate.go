@@ -82,8 +82,6 @@ oauth2:
   endpoint:
     authURL: "https://github.com/login/oauth/authorize"
     tokenURL: "https://github.com/login/oauth/access_token"
-  allowGroup:
-    - mss-boot-io
 `,
 		}
 		err := tx.Create(systemConfig).Error
