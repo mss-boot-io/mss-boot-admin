@@ -7,7 +7,7 @@ build:
 test:
 	go test -v ./... -cover
 deps:
-	go mod tidy
+	go mod download
 
 .PHONY: lint
 lint:

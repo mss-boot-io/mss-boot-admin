@@ -4,7 +4,7 @@ WORKDIR /go/src/github.com/mss-boot-io/mss-boot-admin
 
 COPY . .
 
-RUN make build
+RUN CGO_ENABLED=0 go build -o admin main.go
 
 FROM alpine
 
