@@ -8,6 +8,7 @@ package config
  */
 
 import (
+	"embed"
 	"log/slog"
 
 	"github.com/sanity-io/litter"
@@ -16,6 +17,9 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 )
+
+//go:embed *.yml
+var FS embed.FS
 
 var Cfg Config
 
@@ -30,16 +34,7 @@ type Config struct {
 	Task        Task            `yaml:"task" json:"task"`
 }
 
-func (e *Config) Init(gormDriver, gormDsn string, driver source.Driver) {
-	opts := []source.Option{
-		//source.WithDir("config"),
-		//source.WithProvider(source.Local),
-
-		source.WithProvider(source.GORM),
-		source.WithGORMDriver(gormDriver),
-		source.WithGORMDsn(gormDsn),
-		source.WithDriver(driver),
-	}
+func (e *Config) Init(opts ...source.Option) {
 	err := config.Init(e, opts...)
 	if err != nil {
 		slog.Error("cfg init failed", "err", err)

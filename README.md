@@ -125,13 +125,13 @@ The `mss-boot-io` project has always been developed in the GoLand integrated dev
 
 1. [ant-design](https://github.com/ant-design/ant-design)
 2. [ant-design-pro](https://github.com/ant-design/ant-design-pro)
+3. [umi](https://umijs.org)
 4. [gin](https://github.com/gin-gonic/gin)
 5. [casbin](https://github.com/casbin/casbin)
-6. [spf13/viper](https://github.com/spf13/viper)
-7. [gorm](https://github.com/jinzhu/gorm)
-8. [gin-swagger](https://github.com/swaggo/gin-swagger)
-9. [jwt-go](https://github.com/dgrijalva/jwt-go)
-10. [oauth2](https://pkg.go.dev/golang.org/x/oauth2)
+6. [gorm](https://github.com/jinzhu/gorm)
+7. [gin-swagger](https://github.com/swaggo/gin-swagger)
+8. [jwt-go](https://github.com/dgrijalva/jwt-go)
+9. [oauth2](https://pkg.go.dev/golang.org/x/oauth2)
 
 ## 🔑 License
 

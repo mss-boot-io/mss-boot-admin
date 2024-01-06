@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  # Use docker.io for Docker Hub if empty
+  REGISTRY: ghcr.io
+  # github.repository as <account>/<repo>
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux, windows, darwin]
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup golang
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
+      - name: Install dependencies
+        run: make deps
+      - name: Unit Test
+        run: make test
+      - name: Build
+        run: GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o admin-${{ matrix.os }}-${{ matrix.arch }}
+      - name: Archive artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: admin-${{ matrix.os }}-${{ matrix.arch }}
+          path: admin-${{ matrix.os }}-${{ matrix.arch }}
+
+      # Login against a Docker registry except on PR
+      # https://github.com/docker/login-action
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Extract metadata (tags, labels) for Docker
+      # https://github.com/docker/metadata-action
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=auto
+          tags: |
+            type=schedule
+            type=ref,event=tag
+            type=sha,prefix=,format=long,enable=true,priority=100
+
+      # Build and push Docker image with Buildx (don't push on PR)
+      # https://github.com/docker/build-push-action
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v2
+        env:
+          TARGETOS: linux
+          TARGETARCH: ${{ matrix.arch }}
+        with:
+          context: .
+          file: Dockerfile.${{ matrix.arch }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/${{ matrix.arch }}
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          files: |
+            admin-linux-amd64
+            admin-linux-arm64
+            admin-darwin-amd64
+            admin-darwin-arm64
+            admin-windows-amd64.exe
+            admin-windows-arm64.exe
+          prerelease: false
