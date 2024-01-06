@@ -1,9 +1,0 @@
-FROM alpine
-
-LABEL authors="lwnmengjing"
-
-WORKDIR /app
-
-COPY ./admin-linux-arm64 /app/admin
-
-ENTRYPOINT ["/app/admin", "server"]
