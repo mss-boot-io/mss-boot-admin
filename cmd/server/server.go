@@ -2,19 +2,21 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
 
-	"github.com/mss-boot-io/mss-boot/core/server/task"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	"github.com/robfig/cron/v3"
-
+	"github.com/common-nighthawk/go-figure"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/core/server/listener"
+	"github.com/mss-boot-io/mss-boot/core/server/task"
+	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot/pkg/config/source"
+	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/virtual/action"
+	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
@@ -31,11 +33,12 @@ import (
  */
 
 var (
-	apiCheck bool
-	group    string
-	driver   string
-	dsn      string
-	StartCmd = &cobra.Command{
+	apiCheck       bool
+	group          string
+	driver         string
+	dsn            string
+	configProvider string
+	StartCmd       = &cobra.Command{
 		Use:     "server",
 		Short:   "start server",
 		Long:    "start mss-boot-admin server",
@@ -54,6 +57,10 @@ func init() {
 		"api", "a",
 		false,
 		"Start server with check api data")
+	StartCmd.PersistentFlags().StringVarP(&configProvider,
+		"config-provider", "p",
+		os.Getenv("CONFIG_PROVIDER"),
+		"Start server with config provider")
 	StartCmd.PersistentFlags().StringVarP(&group,
 		"group", "g",
 		"/admin",
@@ -81,7 +88,30 @@ func setup() error {
 		_ = os.Setenv("DB_DSN", dsn)
 	}
 	// setup 01 config init
-	config.Cfg.Init(driver, dsn, &models.SystemConfig{})
+	opts := []source.Option{
+		// use local config file
+		source.WithDir("config"),
+		source.WithProvider(source.Local),
+	}
+	switch source.Provider(configProvider) {
+	case source.GORM, "":
+		opts = []source.Option{
+			source.WithProvider(source.GORM),
+			source.WithGORMDriver(driver),
+			source.WithGORMDsn(dsn),
+			source.WithDriver(&models.SystemConfig{}),
+		}
+	case source.FS:
+		opts = []source.Option{
+			source.WithProvider(source.FS),
+			source.WithFrom(config.FS),
+		}
+	case source.Local:
+	default:
+		slog.Error("config provider not support", "provider", configProvider)
+		os.Exit(-1)
+	}
+	config.Cfg.Init(opts...)
 
 	// setup 02 middleware init
 	middleware.Verifier = &models.User{}
@@ -104,6 +134,7 @@ func setup() error {
 	// setup 05 server init
 	runnable := []server.Runnable{
 		config.Cfg.Server.Init(
+			listener.WithStartedHook(tips),
 			listener.WithName("admin"),
 			listener.WithHandler(r)),
 	}
@@ -133,6 +164,11 @@ func run() error {
 	ctx := context.Background()
 
 	return server.Manage.Start(ctx)
+}
+
+func tips() {
+	figure.NewFigure("mss-boot-admin", "rectangles", true).Print()
+	fmt.Println()
 }
 
 type taskE struct {

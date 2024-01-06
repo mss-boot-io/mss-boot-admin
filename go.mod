@@ -4,12 +4,13 @@ go 1.21
 
 require (
 	github.com/appleboy/gin-jwt/v2 v2.9.1
+	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
 	github.com/gin-contrib/cors v1.5.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-git/go-git/v5 v5.11.0
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.5.0
-	github.com/mss-boot-io/mss-boot v0.1.3-0.20231227024913-0379a033dda2
+	github.com/mss-boot-io/mss-boot v0.1.3
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sanity-io/litter v1.5.5
 	github.com/spf13/cast v1.6.0
