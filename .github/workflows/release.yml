@@ -32,7 +32,6 @@ jobs:
       - name: Archive artifact
         uses: actions/upload-artifact@v2
         with:
-          name: admin-${{ matrix.os }}-${{ matrix.arch }}
           path: admin-${{ matrix.os }}-${{ matrix.arch }}
 
   release:
@@ -85,6 +84,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64
+
+      - name: Download artifact
+        uses: actions/download-artifact@v2
 
       - name: Release
         uses: softprops/action-gh-release@v1
