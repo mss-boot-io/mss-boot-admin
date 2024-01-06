@@ -16,6 +16,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+      - name: Setup golang
+        uses: actions/setup-go@v4
+      - name: Install dependencies
+        run: make deps
+      - name: Vendor
+        run: go mod vendor
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
       - name: Log into registry ${{ env.REGISTRY }}
