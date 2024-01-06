@@ -4,10 +4,9 @@ on:
   push:
     branches:
       - main
-      - feat/workflow
 
 jobs:
   mirror:
-    uses: mss-boot-io/mss-boot/.github/workflows/mirror-template.yml@feat/mirror
+    uses: mss-boot-io/mss-boot/.github/workflows/mirror-template.yml@main
     secrets:
       ssh_private_key: ${{ secrets.ssh_private_key }}
