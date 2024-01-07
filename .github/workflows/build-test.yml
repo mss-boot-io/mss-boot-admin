@@ -36,7 +36,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: admin-${{ matrix.os }}-${{ matrix.arch }}
-          path: admin-${{ matrix.os }}-*
+          path: admin-${{ matrix.os }}-${{ matrix.arch }}*
 
   release:
     runs-on: ubuntu-latest
@@ -44,3 +44,5 @@ jobs:
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
+      - name: Check
+        run: ls
