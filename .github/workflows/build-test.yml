@@ -1,4 +1,4 @@
-name: Release
+name: Build
 
 on:
   push:
@@ -35,7 +35,8 @@ jobs:
       - name: Archive artifact
         uses: actions/upload-artifact@v4
         with:
-          path: admin-${{ matrix.os }}-${{ matrix.arch }}
+          name: admin-${{ matrix.os }}-${{ matrix.arch }}
+          path: admin-${{ matrix.os }}-*
 
   release:
     runs-on: ubuntu-latest
@@ -43,5 +44,3 @@ jobs:
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
-      - name: Check
-        run: ls
