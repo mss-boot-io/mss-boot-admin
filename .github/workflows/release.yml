@@ -61,6 +61,11 @@ jobs:
             admin-windows-amd64.exe
             admin-windows-arm64.exe
           prerelease: false
+          append_body: |
+            ## Pull Image
+            ```shell
+            docker pull ghcr.io/${{ github.repository }}:${{ github.ref }}
+            ```
 
       - name: Checkout
         uses: actions/checkout@v3
