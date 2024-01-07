@@ -46,20 +46,20 @@ jobs:
 
       - name: Add exe
         run: |
-          mv admin-windows-amd64 admin-windows-amd64.exe
-          mv admin-windows-arm64 admin-windows-arm64.exe
+          mv admin-windows-amd64/admin-windows-amd64 admin-windows-amd64/admin-windows-amd64.exe
+          mv admin-windows-arm64/admin-windows-arm64 admin-windows-arm64/admin-windows-arm64.exe
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           generate_release_notes: true
           files: |
-            ${{ github.workspace }}/admin-linux-amd64
-            ${{ github.workspace }}/admin-linux-arm64
-            ${{ github.workspace }}/admin-darwin-amd64
-            ${{ github.workspace }}/admin-darwin-arm64
-            ${{ github.workspace }}/admin-windows-amd64.exe
-            ${{ github.workspace }}/admin-windows-arm64.exe
+            admin-linux-amd64/admin-linux-amd64
+            admin-linux-arm64/admin-linux-arm64
+            admin-darwin-amd64/admin-darwin-amd64
+            admin-darwin-arm64/admin-darwin-arm64
+            admin-windows-amd64/admin-windows-amd64.exe
+            admin-windows-arm64/admin-windows-arm64.exe
           prerelease: false
           append_body: |
             ## Pull Image
