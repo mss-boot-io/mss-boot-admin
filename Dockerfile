@@ -14,4 +14,4 @@ WORKDIR /app
 
 COPY --from=builder /go/src/github.com/mss-boot-io/mss-boot-admin/admin /app/admin
 
-ENTRYPOINT ["/app/admin", "server"]
+CMD ["/app/admin", "server"]
