@@ -4,11 +4,12 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
+
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
 	"github.com/mss-boot-io/mss-boot-admin-api/dto"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
@@ -29,6 +30,7 @@ func init() {
 			controller.WithModel(new(models.Task)),
 			controller.WithSearch(new(dto.TaskSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -59,7 +61,7 @@ func (e *Task) Operate(c *gin.Context) {
 		return
 	}
 	var count int64
-	err := gormdb.DB.Model(&models.Task{}).Where("id = ?", req.ID).Count(&count).Error
+	err := center.Default.GetDB(c, &models.Task{}).Model(&models.Task{}).Where("id = ?", req.ID).Count(&count).Error
 	if err != nil {
 		api.AddError(err).Log.Error("count task error")
 		api.Err(http.StatusInternalServerError)
@@ -80,7 +82,7 @@ func (e *Task) Operate(c *gin.Context) {
 		return
 	}
 
-	err = gormdb.DB.Model(&models.Task{}).Where("id = ?", req.ID).Update("status", status).Error
+	err = center.Default.GetDB(c, &models.Task{}).Model(&models.Task{}).Where("id = ?", req.ID).Update("status", status).Error
 	if err != nil {
 		api.AddError(err).Log.Error("update task status error")
 		api.Err(http.StatusInternalServerError)

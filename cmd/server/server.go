@@ -19,6 +19,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
 	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
@@ -72,6 +73,8 @@ func init() {
 		"gorm-dsn", "n",
 		"root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local",
 		"Start server with db dsn")
+	center.SetTenant(&models.Tenant{}).
+		SetVerify(&models.User{})
 }
 
 func setup() error {
@@ -111,10 +114,14 @@ func setup() error {
 		slog.Error("config provider not support", "provider", configProvider)
 		os.Exit(-1)
 	}
-	config.Cfg.Init(opts...)
+	center.SetConfig(config.Cfg).Init(opts...)
+	err := models.InitTenant(gormdb.DB)
+	if err != nil {
+		return err
+	}
 
 	// setup 02 middleware init
-	middleware.Verifier = &models.User{}
+	middleware.Verifier = center.GetUser()
 	middleware.Init()
 
 	// setup 03 router init
@@ -146,16 +153,17 @@ func setup() error {
 	}
 
 	// setup 07 init virtual models
-	ms, err := models.GetModels()
+	//todo every tenant has different models
+	ms, err := center.SetVirtualModel(&models.Model{}).GetModels(nil)
 	if err != nil {
 		return err
 	}
 	for i := range ms {
-		action.SetModel(ms[i].Path, ms[i].MakeVirtualModel())
+		action.SetModel(ms[i].GetKey(), ms[i].Make())
 	}
 
 	// setup 08 add runnable to manager
-	server.Manage.Add(runnable...)
+	center.Default.Add(runnable...)
 
 	return nil
 }
@@ -163,7 +171,7 @@ func setup() error {
 func run() error {
 	ctx := context.Background()
 
-	return server.Manage.Start(ctx)
+	return center.Default.Start(ctx)
 }
 
 func tips() {

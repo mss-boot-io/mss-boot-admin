@@ -6,7 +6,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"gorm.io/gorm"
 )
 
@@ -20,7 +19,7 @@ import (
 type MenuList []*Menu
 
 type Menu struct {
-	actions.ModelGorm
+	ModelGormTenant
 	// ParentID 父级id
 	ParentID string `json:"parentID,omitempty" gorm:"column:parent_id;comment:父级id;type:varchar(255);default:'';index"`
 	// Name 菜单名称
@@ -82,7 +81,7 @@ func (x MenuList) Less(i, j int) bool { return x[i].Sort > x[j].Sort }
 func (x MenuList) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 func (e *Menu) BeforeCreate(tx *gorm.DB) error {
-	err := e.ModelGorm.BeforeCreate(tx)
+	err := e.ModelGormTenant.BeforeCreate(tx)
 	if err != nil {
 		return err
 	}

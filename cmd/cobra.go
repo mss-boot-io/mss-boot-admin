@@ -39,7 +39,7 @@ var rootCmd = &cobra.Command{
 
 func tip() {
 	usageStr := `欢迎使用 ` + pkg.Green(`mss-boot-admin `+pkg.Version) + ` 可以使用 ` + pkg.Red(`-h`) + ` 查看命令`
-	usageStr1 := `也可以参考 https://doc.mss-boot-io.top 的相关内容`
+	usageStr1 := `也可以参考 https://docs.mss-boot-io.top 的相关内容`
 	fmt.Printf("%s\n", usageStr)
 	fmt.Printf("%s\n", usageStr1)
 }

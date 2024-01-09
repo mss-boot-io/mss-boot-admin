@@ -13,7 +13,6 @@ import (
 	"github.com/mss-boot-io/mss-boot/core/server/task"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
@@ -27,7 +26,7 @@ import (
 
 // Task support http/grpc/script
 type Task struct {
-	actions.ModelGorm
+	ModelGormTenant
 	Name       string       `json:"name"`
 	EntryID    int          `json:"entryID"`
 	Spec       string       `json:"spec"`

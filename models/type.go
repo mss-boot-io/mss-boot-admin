@@ -3,7 +3,13 @@ package models
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"gorm.io/gorm"
 )
 
 /*
@@ -36,4 +42,45 @@ func (m *Metadata) Scan(val any) error {
 
 func (m *Metadata) Value() (driver.Value, error) {
 	return json.Marshal(m)
+}
+
+// ModelGormTenant model gorm support multi tenant
+type ModelGormTenant struct {
+	actions.ModelGorm
+	// TenantID tenant id
+	TenantID string `gorm:"column:tenant_id;type:varchar(64);not null;index;comment:租户ID" json:"tenantID"`
+}
+
+func (e *ModelGormTenant) BeforeCreate(tx *gorm.DB) (err error) {
+	_, err = e.PrepareID(nil)
+	if e.TenantID != "" {
+		return nil
+	}
+	ctx, ok := tx.Statement.Context.(*gin.Context)
+	if !ok {
+		return fmt.Errorf("not gin context")
+	}
+	tenant, err := center.Default.GetTenant().GetTenant(ctx)
+	if err != nil {
+		return err
+	}
+	// tenantID Can only be assigned at creation time
+	e.TenantID = tenant.GetID().(string)
+	return err
+}
+
+func (e *ModelGormTenant) BeforeDelete(tx *gorm.DB) error {
+	if e.TenantID != "" {
+		return nil
+	}
+	ctx, ok := tx.Statement.Context.(*gin.Context)
+	if !ok {
+		return fmt.Errorf("not gin context")
+	}
+	tenant, err := center.Default.GetTenant().GetTenant(ctx)
+	if err != nil {
+		return err
+	}
+	tx = tx.Where("tenant_id = ?", tenant.GetID())
+	return nil
 }

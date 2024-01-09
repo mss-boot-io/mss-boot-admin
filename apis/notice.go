@@ -3,11 +3,12 @@ package apis
 import (
 	"net/http"
 
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
+
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin-api/dto"
 	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
@@ -27,6 +28,7 @@ func init() {
 			controller.WithModel(new(models.Notice)),
 			controller.WithSearch(new(dto.NoticeSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -61,7 +63,7 @@ func (e *Notice) Read(ctx *gin.Context) {
 	verify := middleware.GetVerify(ctx)
 	id := ctx.Param("id")
 	var notice models.Notice
-	err := gormdb.DB.Model(&models.Notice{}).
+	err := center.Default.GetDB(ctx, &models.Notice{}).Model(&models.Notice{}).
 		Where("id = ?", id).
 		Where("user_id = ?", verify.GetUserID()).
 		First(&notice).Error
@@ -87,7 +89,7 @@ func (e *Notice) MarkRead(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
 	id := ctx.Param("id")
-	query := gormdb.DB.Model(&models.Notice{}).
+	query := center.Default.GetDB(ctx, &models.Notice{}).Model(&models.Notice{}).
 		Where("user_id = ?", verify.GetUserID())
 	switch id {
 	case models.NoticeTypeMessage.String(), models.NoticeTypeEvent.String(), models.NoticeTypeNotification.String():
@@ -119,7 +121,7 @@ func (e *Notice) Unread(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
 	list := make([]*models.Notice, 0)
-	err := gormdb.DB.Model(&models.Notice{}).
+	err := center.Default.GetDB(ctx, &models.Notice{}).Model(&models.Notice{}).
 		Where("`read` = ?", false).
 		Where("user_id = ?", verify.GetUserID()).
 		Find(&list).Error

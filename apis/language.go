@@ -2,11 +2,13 @@ package apis
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin-api/dto"
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
+	"github.com/mss-boot-io/mss-boot-admin-api/dto"
+	"github.com/mss-boot-io/mss-boot-admin-api/models"
 )
 
 /*
@@ -23,6 +25,7 @@ func init() {
 			controller.WithModel(new(models.Language)),
 			controller.WithSearch(new(dto.LanguageSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -32,17 +35,17 @@ type Language struct {
 	*controller.Simple
 }
 
-func (e *Language) GetAction(key string) response.Action {
-	if key == response.Search {
-		return nil
-	}
-	return e.Simple.GetAction(key)
-}
-
-func (e *Language) Other(r *gin.RouterGroup) {
-	search := e.Simple.GetAction(response.Search)
-	r.GET("/languages", search.Handler())
-}
+//func (e *Language) GetAction(key string) response.Action {
+//	if key == response.Search {
+//		return nil
+//	}
+//	return e.Simple.GetAction(key)
+//}
+//
+//func (e *Language) Other(r *gin.RouterGroup) {
+//	search := e.Simple.GetAction(response.Search)
+//	r.GET("/languages", search.Handler())
+//}
 
 // Create 创建Language
 // @Summary 创建Language

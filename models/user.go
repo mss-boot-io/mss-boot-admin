@@ -11,7 +11,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 	"gorm.io/gorm"
 )
@@ -24,21 +23,21 @@ import (
  */
 
 type User struct {
-	actions.ModelGorm `json:",inline"`
-	UserLogin         `json:",inline"`
-	Name              string          `json:"name" gorm:"column:name;type:varchar(100)"`
-	Avatar            string          `json:"avatar" gorm:"column:avatar;type:varchar(255)"`
-	Signature         string          `json:"signature" gorm:"column:signature;type:varchar(255)"`
-	Title             string          `json:"title" gorm:"column:title;type:varchar(100)"`
-	Group             string          `json:"group" gorm:"column:group;type:varchar(255)"`
-	Country           string          `json:"country" gorm:"column:country;type:varchar(20)"`
-	Province          string          `json:"province" gorm:"column:province;type:varchar(20)"`
-	City              string          `json:"city" gorm:"column:city;type:varchar(20)"`
-	Address           string          `json:"address" gorm:"column:address;type:varchar(255)"`
-	Phone             string          `json:"phone" gorm:"column:phone;type:varchar(20)"`
-	Profile           string          `json:"profile" gorm:"column:profile;type:blob"`
-	Tags              ArrayString     `json:"tags"  swaggertype:"array,string" gorm:"type:text"`
-	Permissions       map[string]bool `json:"permissions" gorm:"-"`
+	ModelGormTenant
+	UserLogin   `json:",inline"`
+	Name        string          `json:"name" gorm:"column:name;type:varchar(100)"`
+	Avatar      string          `json:"avatar" gorm:"column:avatar;type:varchar(255)"`
+	Signature   string          `json:"signature" gorm:"column:signature;type:varchar(255)"`
+	Title       string          `json:"title" gorm:"column:title;type:varchar(100)"`
+	Group       string          `json:"group" gorm:"column:group;type:varchar(255)"`
+	Country     string          `json:"country" gorm:"column:country;type:varchar(20)"`
+	Province    string          `json:"province" gorm:"column:province;type:varchar(20)"`
+	City        string          `json:"city" gorm:"column:city;type:varchar(20)"`
+	Address     string          `json:"address" gorm:"column:address;type:varchar(255)"`
+	Phone       string          `json:"phone" gorm:"column:phone;type:varchar(20)"`
+	Profile     string          `json:"profile" gorm:"column:profile;type:blob"`
+	Tags        ArrayString     `json:"tags"  swaggertype:"array,string" gorm:"type:text"`
+	Permissions map[string]bool `json:"permissions" gorm:"-"`
 }
 
 type Tag struct {
@@ -46,8 +45,8 @@ type Tag struct {
 	Label string `json:"label"`
 }
 
-func (e *User) BeforeCreate(_ *gorm.DB) error {
-	err := e.ModelGorm.BeforeCreate(nil)
+func (e *User) BeforeCreate(tx *gorm.DB) error {
+	err := e.ModelGormTenant.BeforeCreate(tx)
 	if err != nil {
 		return err
 	}

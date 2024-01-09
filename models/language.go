@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 )
 
 /*
@@ -29,7 +28,7 @@ type LanguageDefine struct {
 }
 
 type Language struct {
-	actions.ModelGorm
+	ModelGormTenant
 	// Name 名称
 	Name string `json:"name" gorm:"column:name;comment:名称;type:varchar(255);not null" binding:"required"`
 	// Remark 备注

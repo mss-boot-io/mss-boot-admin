@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
+
 	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
@@ -33,6 +35,7 @@ func init() {
 			controller.WithModel(new(models.Menu)),
 			controller.WithSearch(new(dto.RoleSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -130,7 +133,7 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
 	list := make([]*models.Menu, 0)
-	err := gormdb.DB.WithContext(ctx).
+	err := center.Default.GetDB(ctx, &models.Menu{}).
 		Where("type = ? OR type = ?", pkg.MenuAccessType, pkg.DirectoryAccessType).
 		Find(&list).Error
 	if err != nil {
@@ -176,7 +179,7 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 func (e *Menu) Tree(ctx *gin.Context) {
 	api := response.Make(ctx)
 	list := make([]*models.Menu, 0)
-	err := gormdb.DB.WithContext(ctx).
+	err := center.Default.GetDB(ctx, &models.Menu{}).WithContext(ctx).
 		Where("type <> ?", pkg.APIAccessType).
 		Find(&list).Error
 	if err != nil {
@@ -199,7 +202,7 @@ func (e *Menu) GetAPI(ctx *gin.Context) {
 	api := response.Make(ctx)
 	id := ctx.Param("id")
 	m := &models.Menu{}
-	err := gormdb.DB.Model(&models.Menu{}).
+	err := center.Default.GetDB(ctx, &models.Menu{}).Model(&models.Menu{}).
 		Where("id = ?", id).First(m).Error
 	if err != nil {
 		api.AddError(err).Log.Error("get menu error", "err", err)
@@ -207,7 +210,7 @@ func (e *Menu) GetAPI(ctx *gin.Context) {
 		return
 	}
 	list := make([]*models.Menu, 0)
-	err = gormdb.DB.Model(&models.Menu{}).Where("type = ?", pkg.APIAccessType).
+	err = center.Default.GetDB(ctx, &models.Menu{}).Model(&models.Menu{}).Where("type = ?", pkg.APIAccessType).
 		Where("parent_id = ?", m.ID).Find(&list).Error
 	if err != nil {
 		api.AddError(err).Log.Error("get menu error", "err", err)
@@ -235,7 +238,7 @@ func (e *Menu) BindAPI(ctx *gin.Context) {
 		return
 	}
 	menu := &models.Menu{}
-	err := gormdb.DB.Model(menu).
+	err := center.Default.GetDB(ctx, &models.Menu{}).Model(menu).
 		Where("id = ?", req.MenuID).
 		First(menu).Error
 	if err != nil {
@@ -270,7 +273,7 @@ func (e *Menu) BindAPI(ctx *gin.Context) {
 			Type:     pkg.APIAccessType,
 		}
 	}
-	err = gormdb.DB.Create(&menuApis).Error
+	err = center.Default.GetDB(ctx, &models.Menu{}).Create(&menuApis).Error
 	if err != nil {
 		api.AddError(err).Log.Error("create menu error", "err", err)
 		api.Err(http.StatusInternalServerError)
@@ -302,7 +305,7 @@ func (*Menu) List(ctx *gin.Context) {
 		return
 	}
 	list := make([]*models.Menu, 0)
-	query := gormdb.DB.Model(&models.Menu{}).WithContext(ctx).
+	query := center.Default.GetDB(ctx, &models.Menu{}).Model(&models.Menu{}).WithContext(ctx).
 		Where("parent_id = ?", req.ParentID).
 		Order("sort desc").Scopes(
 		gorms.Paginate(int(req.GetPageSize()), int(req.GetPage())),
