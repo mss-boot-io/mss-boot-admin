@@ -2,14 +2,14 @@ package models
 
 import (
 	"log/slog"
-	"os"
 	"strings"
 
-	"gorm.io/gorm"
-
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
+	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+
 	"github.com/mss-boot-io/mss-boot/virtual/model"
+	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
@@ -70,13 +70,25 @@ func (e *Model) MakeVirtualModel() *model.Model {
 	return mm
 }
 
+func (e *Model) Make() *model.Model {
+	return e.MakeVirtualModel()
+}
+
 // GetModels get all virtual models info
-func GetModels() ([]*Model, error) {
+func (e *Model) GetModels(ctx *gin.Context) ([]center.VirtualModelImp, error) {
 	var models []*Model
-	err := gormdb.DB.Preload("Fields").Find(&models).Error
+	err := center.Default.GetDB(ctx, e).Preload("Fields").Find(&models).Error
 	if err != nil {
 		slog.Error("get models failed", "err", err)
-		os.Exit(-1)
+		return nil, err
 	}
-	return models, err
+	vms := make([]center.VirtualModelImp, len(models))
+	for i := range models {
+		vms[i] = models[i]
+	}
+	return vms, nil
+}
+
+func (e *Model) GetKey() string {
+	return e.Path
 }

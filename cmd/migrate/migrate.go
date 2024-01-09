@@ -1,13 +1,12 @@
 package migrate
 
 import (
-	"bytes"
 	"log/slog"
 	"os"
-	"strconv"
-	"text/template"
-	"time"
+	"path/filepath"
 
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
+	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/migration"
 	common "github.com/mss-boot-io/mss-boot/pkg/migration/models"
@@ -16,7 +15,6 @@ import (
 	_ "github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration/custom"
 	systemMigrate "github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate/migration/system"
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
-	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 )
 
 /*
@@ -60,6 +58,8 @@ func init() {
 		"gorm-dsn", "n",
 		"root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local",
 		"Start server with db dsn")
+	center.SetTenant(&models.Tenant{}).
+		SetVerify(&models.User{})
 }
 
 func setup() error {
@@ -88,7 +88,7 @@ func Run() error {
 		return migrate()
 	}
 	slog.Info(`generate migration file`)
-	return genFile()
+	return migration.GenFile(system, filepath.Join("cmd", "migrate", "migration"))
 }
 
 func migrate() error {
@@ -103,33 +103,5 @@ func migrate() error {
 	migration.Migrate.SetDb(db)
 	migration.Migrate.SetModel(&common.Migration{})
 	migration.Migrate.Migrate()
-	return nil
-}
-
-func genFile() error {
-	t1, err := template.ParseFiles("template/migrate.tpl")
-	if err != nil {
-		slog.Error("parse template error", err)
-		return err
-	}
-	m := map[string]string{}
-	m["GenerateTime"] = strconv.FormatInt(time.Now().UnixNano()/1e6, 10)
-	m["Package"] = "custom"
-	if system {
-		m["Package"] = "system"
-	}
-	var b1 bytes.Buffer
-	err = t1.Execute(&b1, m)
-	if system {
-		err = pkg.FileCreate(b1, "./cmd/migrate/migration/system/"+m["GenerateTime"]+"_migrate.go")
-		if err != nil {
-			return err
-		}
-	} else {
-		err = pkg.FileCreate(b1, "./cmd/migrate/migration/custom/"+m["GenerateTime"]+"_migrate.go")
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }

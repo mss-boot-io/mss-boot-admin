@@ -2,8 +2,6 @@ package models
 
 import (
 	"time"
-
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 )
 
 /*
@@ -26,7 +24,7 @@ func (e NoticeType) String() string {
 }
 
 type Notice struct {
-	actions.ModelGorm
+	ModelGormTenant
 	UserID      string     `json:"userID" gorm:"column:user_id;type:varchar(64)"`
 	Title       string     `json:"title" gorm:"column:title;type:varchar(255)"`
 	Key         string     `json:"key" gorm:"column:key;type:varchar(255)"`

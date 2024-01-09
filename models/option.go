@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 )
 
 /*
@@ -45,7 +44,7 @@ func (o *OptionItems) Scan(val any) error {
 }
 
 type Option struct {
-	actions.ModelGorm
+	ModelGormTenant
 	// Name 选项名称
 	Name string `json:"name" gorm:"column:name;type:varchar(255);not null;unique_index:idx_name;comment:选项名称"`
 	// Remark 备注

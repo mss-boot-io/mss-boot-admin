@@ -251,6 +251,12 @@ func (e *Model) i18n(api *response.API, tx *gorm.DB, m *models.Model, req *dto.M
 				Key:   i18nKey + ".control",
 				Value: "Manage " + m.Name,
 			},
+			{
+				ID:    adminPKG.SimpleID(),
+				Group: "pages",
+				Key:   m.Name + ".list.title",
+				Value: m.Name + " List",
+			},
 		}
 		if languages[i].Name == "zh-CN" {
 			defines = []*models.LanguageDefine{
@@ -265,6 +271,12 @@ func (e *Model) i18n(api *response.API, tx *gorm.DB, m *models.Model, req *dto.M
 					Group: "menu",
 					Key:   i18nKey + ".control",
 					Value: "管理" + m.Name,
+				},
+				{
+					ID:    adminPKG.SimpleID(),
+					Group: "pages",
+					Key:   m.Name + ".list.title",
+					Value: m.Name + "列表",
 				},
 			}
 		}

@@ -11,8 +11,6 @@ import (
 	"embed"
 	"log/slog"
 
-	"github.com/sanity-io/litter"
-
 	"github.com/mss-boot-io/mss-boot/pkg/config"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
@@ -21,7 +19,7 @@ import (
 //go:embed *.yml
 var FS embed.FS
 
-var Cfg Config
+var Cfg = &Config{}
 
 type Config struct {
 	Auth        Auth            `yaml:"auth" json:"auth"`
@@ -40,7 +38,6 @@ func (e *Config) Init(opts ...source.Option) {
 		slog.Error("cfg init failed", "err", err)
 	}
 
-	litter.Dump(e)
 	e.Logger.Init()
 	e.Database.Init()
 }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
+
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
 	"github.com/mss-boot-io/mss-boot-admin-api/dto"
@@ -30,6 +32,7 @@ func init() {
 			controller.WithModel(new(models.User)),
 			controller.WithSearch(new(dto.UserSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -107,7 +110,7 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 		return
 	}
 	user := &models.User{}
-	err := gormdb.DB.Where("id = ?", verify.GetUserID()).First(user).Error
+	err := center.Default.GetDB(ctx, &models.User{}).Where("id = ?", verify.GetUserID()).First(user).Error
 	if err != nil {
 		api.AddError(err).Log.Error("GetUser error")
 		api.Err(http.StatusInternalServerError)
@@ -126,7 +129,7 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 	user.Phone = req.Phone
 	user.Profile = req.Profile
 	user.Tags = req.Tags
-	err = gormdb.DB.Model(&models.User{}).Where("id = ?", verify.GetUserID()).Updates(user).Error
+	err = center.Default.GetDB(ctx, &models.User{}).Model(&models.User{}).Where("id = ?", verify.GetUserID()).Updates(user).Error
 	if err != nil {
 		api.AddError(err).Log.Error("UpdateUserInfo error")
 		api.Err(http.StatusInternalServerError)
@@ -170,7 +173,7 @@ func (e *User) UserInfo(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
 	user := &models.User{}
-	err := gormdb.DB.Preload("Role").Where("id = ?", verify.GetUserID()).First(user).Error
+	err := center.Default.GetDB(ctx, &models.User{}).Preload("Role").Where("id = ?", verify.GetUserID()).First(user).Error
 	if err != nil {
 		api.AddError(err).Log.Error("GetUser error")
 		api.Err(http.StatusInternalServerError)

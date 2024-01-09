@@ -1,7 +1,5 @@
 package models
 
-import "github.com/mss-boot-io/mss-boot/pkg/response/actions"
-
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
  * @Date: 2023/12/11 13:48:02
@@ -10,7 +8,7 @@ import "github.com/mss-boot-io/mss-boot/pkg/response/actions"
  */
 
 type UserOAuth2 struct {
-	actions.ModelGorm
+	ModelGormTenant
 	User                *User  `json:"user" gorm:"foreignKey:UserID;references:ID" swaggerignore:"true"`
 	UserID              string `json:"user_id" gorm:"size:64"`
 	OpenID              string `json:"openID" gorm:"size:64"`

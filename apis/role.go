@@ -11,6 +11,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
+
 	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
@@ -32,6 +34,7 @@ func init() {
 			controller.WithModel(new(models.Role)),
 			controller.WithSearch(new(dto.RoleSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -118,7 +121,7 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	//	}
 	//}
 	menus := make([]*models.Menu, 0)
-	err = gormdb.DB.Model(&models.Menu{}).
+	err = center.Default.GetDB(ctx, &models.Menu{}).Model(&models.Menu{}).
 		Where("path in (?)", req.Paths).
 		Where("type = ? or type = ?", pkg.MenuAccessType, pkg.ComponentAccessType).
 		Preload("Children").

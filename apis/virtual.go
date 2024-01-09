@@ -9,7 +9,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/virtual/action"
-	"github.com/mss-boot-io/mss-boot/virtual/api"
+	vapi "github.com/mss-boot-io/mss-boot/virtual/api"
 
 	"github.com/mss-boot-io/mss-boot-admin-api/dto"
 	"github.com/mss-boot-io/mss-boot-admin-api/models"
@@ -24,7 +24,7 @@ import (
 
 func init() {
 	e := &Virtual{
-		Virtual: api.NewVirtual(
+		Virtual: vapi.NewVirtual(
 			action.GetBase(),
 			//controller.WithAuth(true),
 		),
@@ -33,7 +33,7 @@ func init() {
 }
 
 type Virtual struct {
-	*api.Virtual
+	*vapi.Virtual
 }
 
 func (e *Virtual) Other(r *gin.RouterGroup) {
