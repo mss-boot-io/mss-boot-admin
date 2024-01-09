@@ -1,8 +1,8 @@
 package apis
 
 import (
-	"github.com/mss-boot-io/mss-boot-admin-api/dto"
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"

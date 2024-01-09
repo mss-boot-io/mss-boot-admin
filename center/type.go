@@ -25,6 +25,7 @@ type Center interface {
 	VirtualModelImp
 	ConfigImp
 	server.Manager
+	gin.IRouter
 }
 
 type NoticeImp interface {

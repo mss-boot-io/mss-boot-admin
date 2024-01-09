@@ -19,11 +19,11 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin"
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin-api/center"
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
 	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
-	"github.com/mss-boot-io/mss-boot-admin-api/router"
 )
 
 /*
@@ -126,8 +126,9 @@ func setup() error {
 
 	// setup 03 router init
 	r := gin.Default()
-	router.Init(r.Group(group))
-	config.Cfg.Application.Init(r)
+	center.SetRouter(r)
+	admin.InitRouter(center.Default.Group(group))
+	config.Cfg.Application.Init(center.GetRouter())
 
 	// setup 04 api check
 	if apiCheck {

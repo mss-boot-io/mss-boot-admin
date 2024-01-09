@@ -7,10 +7,10 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin-api/center"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin-api/config"
-	"github.com/mss-boot-io/mss-boot-admin-api/dto"
 	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"

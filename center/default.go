@@ -1,6 +1,7 @@
 package center
 
 import (
+	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 )
@@ -23,6 +24,7 @@ type DefaultCenter struct {
 	VirtualModelImp
 	ConfigImp
 	server.Manager
+	gin.IRouter
 }
 
 func (d *DefaultCenter) SetNotice(n NoticeImp) {
@@ -49,6 +51,10 @@ func (d *DefaultCenter) SetServerManager(m server.Manager) {
 	d.Manager = m
 }
 
+func (d *DefaultCenter) SetRouter(r gin.IRouter) {
+	d.IRouter = r
+}
+
 func (d *DefaultCenter) GetNotice() NoticeImp {
 	return d.NoticeImp
 }
@@ -71,6 +77,10 @@ func (d *DefaultCenter) GetVirtualModel() VirtualModelImp {
 
 func (d *DefaultCenter) GetServerManager() server.Manager {
 	return d.Manager
+}
+
+func (d *DefaultCenter) GetRouter() gin.IRouter {
+	return d.IRouter
 }
 
 func SetNotice(n NoticeImp) *DefaultCenter {
@@ -103,6 +113,11 @@ func SetServerManager(m server.Manager) *DefaultCenter {
 	return Default
 }
 
+func SetRouter(r gin.IRouter) *DefaultCenter {
+	Default.SetRouter(r)
+	return Default
+}
+
 func GetNotice() NoticeImp {
 	return Default.GetNotice()
 }
@@ -125,4 +140,8 @@ func GetVirtualModel() VirtualModelImp {
 
 func GetServerManager() server.Manager {
 	return Default.GetServerManager()
+}
+
+func GetRouter() gin.IRouter {
+	return Default.GetRouter()
 }

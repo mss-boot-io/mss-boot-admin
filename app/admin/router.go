@@ -1,10 +1,10 @@
-package router
+package admin
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2023/8/6 08:33:26
+ * @Date: 2024/1/9 17:59:55
  * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2023/8/6 08:33:26
+ * @Last Modified time: 2024/1/9 17:59:55
  */
 
 import (
@@ -12,16 +12,16 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	_ "github.com/mss-boot-io/mss-boot-admin-api/apis"
-	_ "github.com/mss-boot-io/mss-boot-admin-api/docs"
+	_ "github.com/mss-boot-io/mss-boot-admin-api/app/admin/apis"
+	//_ "github.com/mss-boot-io/mss-boot-admin-api/docs"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
+	//swaggerFiles "github.com/swaggo/files"
+	//ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func Init(r *gin.RouterGroup) {
+func InitRouter(r *gin.RouterGroup) {
 	v1 := r.Group("/api")
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	//r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	configCors := cors.DefaultConfig()
 	configCors.AllowOrigins = []string{"*"}
 	configCors.AllowCredentials = true

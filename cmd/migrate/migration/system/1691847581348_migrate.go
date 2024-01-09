@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 
 	"github.com/mss-boot-io/mss-boot/pkg/migration"

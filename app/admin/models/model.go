@@ -30,6 +30,8 @@ type Model struct {
 	Table         string   `gorm:"column:table_name;type:varchar(255);not null;comment:表名" json:"tableName"`
 	Path          string   `gorm:"column:path;type:varchar(255);not null;comment:http路径" json:"path"`
 	Fields        []*Field `gorm:"foreignKey:ModelID;references:ID" json:"fields"`
+	MultiTenant   bool     `gorm:"column:multi_tenant;type:tinyint(1);default:0;comment:多租户" json:"multiTenant"`
+	Auth          bool     `gorm:"column:auth;type:tinyint(1);default:0;comment:是否需要认证" json:"auth"`
 	GeneratedData bool     `gorm:"column:generated_data;type:tinyint(1);not null;default:0;comment:是否生成数据" json:"generatedData"`
 }
 
@@ -47,8 +49,12 @@ func (e *Model) BeforeCreate(_ *gorm.DB) error {
 
 func (e *Model) MakeVirtualModel() *model.Model {
 	mm := &model.Model{
+		Name:        e.Name,
 		Table:       e.Table,
+		Description: e.Description,
 		HardDeleted: e.HardDeleted,
+		MultiTenant: e.MultiTenant,
+		Auth:        e.Auth,
 		Fields:      make([]*model.Field, len(e.Fields)),
 	}
 	for i := range e.Fields {

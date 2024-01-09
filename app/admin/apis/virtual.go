@@ -11,8 +11,8 @@ import (
 	"github.com/mss-boot-io/mss-boot/virtual/action"
 	vapi "github.com/mss-boot-io/mss-boot/virtual/api"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/dto"
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
 )
 
 /*
@@ -23,9 +23,12 @@ import (
  */
 
 func init() {
+	base := action.GetBase()
+	base.TenantIDFunc = models.TenantIDScope
+	//center.Default.GetTenant().GetTenant()
 	e := &Virtual{
 		Virtual: vapi.NewVirtual(
-			action.GetBase(),
+			base,
 			//controller.WithAuth(true),
 		),
 	}

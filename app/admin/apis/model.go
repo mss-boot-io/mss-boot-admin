@@ -3,19 +3,19 @@ package apis
 import (
 	"errors"
 	"fmt"
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
 	"net/http"
 
 	adminPKG "github.com/mss-boot-io/mss-boot-admin-api/pkg"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 	"gorm.io/gorm"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/dto"
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
 )
 
 /*
@@ -61,7 +61,7 @@ func (e *Model) GenerateData(ctx *gin.Context) {
 		return
 	}
 	m := &models.Model{}
-	err := gormdb.DB.Preload("Fields").First(m, "id = ?", req.ID).Error
+	err := center.Default.GetDB(ctx, m).Preload("Fields").First(m, "id = ?", req.ID).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			api.Err(http.StatusNotFound)
@@ -71,7 +71,7 @@ func (e *Model) GenerateData(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	tx := gormdb.DB.Begin()
+	tx := center.Default.GetDB(ctx, m).Begin()
 	defer func() {
 		if err != nil {
 			tx.Rollback()
@@ -109,7 +109,7 @@ func (e *Model) migrate(api *response.API, tx *gorm.DB, m *models.Model) error {
 	if vm == nil {
 		return fmt.Errorf("make virtual model error")
 	}
-	err := vm.Migrate(gormdb.DB)
+	err := vm.Migrate(tx)
 	if err != nil {
 		api.AddError(err).Log.Error("migrate error")
 		return err

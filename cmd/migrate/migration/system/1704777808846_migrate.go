@@ -10,7 +10,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
 	adminPKG "github.com/mss-boot-io/mss-boot-admin-api/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/migration"
@@ -1057,6 +1057,8 @@ oauth2:
 			Description: "demo",
 			Table:       "demo",
 			Path:        "demo",
+			Auth:        true,
+			MultiTenant: true,
 		}
 		err = tx.Create(m).Error
 		if err != nil {

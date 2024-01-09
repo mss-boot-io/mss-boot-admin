@@ -121,3 +121,12 @@ func (t *Tenant) Scope(ctx *gin.Context, table schema.Tabler) func(db *gorm.DB) 
 		return db.Where(query, tenant.GetID())
 	}
 }
+
+// TenantIDScope get tenant id scope
+func TenantIDScope(ctx *gin.Context) (any, error) {
+	tenant, err := center.Default.GetTenant().GetTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return tenant.GetID(), nil
+}
