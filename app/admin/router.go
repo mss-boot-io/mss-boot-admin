@@ -35,23 +35,23 @@ func InitRouter(r *gin.RouterGroup) {
 		response.Controllers[i].Other(r.Group("/api", cors.New(configCors)))
 		e := v1.Group(response.Controllers[i].Path(), response.Controllers[i].Handlers()...)
 		if action := response.Controllers[i].GetAction(response.Get); action != nil {
-			e.GET("/:"+response.Controllers[i].GetKey(), action.Handler())
+			e.GET("/:"+response.Controllers[i].GetKey(), action.Handler()...)
 		}
 		if action := response.Controllers[i].GetAction(response.Control); action != nil {
-			e.POST("", action.Handler())
-			e.PUT("/:"+response.Controllers[i].GetKey(), action.Handler())
+			e.POST("", action.Handler()...)
+			e.PUT("/:"+response.Controllers[i].GetKey(), action.Handler()...)
 		}
 		if action := response.Controllers[i].GetAction(response.Create); action != nil {
-			e.POST("", action.Handler())
+			e.POST("", action.Handler()...)
 		}
 		if action := response.Controllers[i].GetAction(response.Update); action != nil {
-			e.PUT("/:"+response.Controllers[i].GetKey(), action.Handler())
+			e.PUT("/:"+response.Controllers[i].GetKey(), action.Handler()...)
 		}
 		if action := response.Controllers[i].GetAction(response.Delete); action != nil {
-			e.DELETE("/:"+response.Controllers[i].GetKey(), action.Handler())
+			e.DELETE("/:"+response.Controllers[i].GetKey(), action.Handler()...)
 		}
 		if action := response.Controllers[i].GetAction(response.Search); action != nil {
-			e.GET("", action.Handler())
+			e.GET("", action.Handler()...)
 		}
 	}
 }

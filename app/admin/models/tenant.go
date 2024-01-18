@@ -29,14 +29,21 @@ var (
 	mux  sync.RWMutex
 )
 
+type AdminUser struct {
+	Username string `gorm:"-" json:"username"`
+	Password string `gorm:"-" json:"password"`
+	Email    string `gorm:"-" json:"email"`
+}
+
 type Tenant struct {
 	actions.ModelGorm
-	Name    string          `gorm:"column:name;type:varchar(255);not null;comment:租户名称" json:"name"`
-	Remark  string          `gorm:"column:remark;type:varchar(255);not null;comment:备注" json:"remark"`
-	Default bool            `gorm:"column:default;type:tinyint(1);default:0;comment:是否是默认租户;->" json:"default"`
-	Domains []*TenantDomain `gorm:"foreignKey:TenantID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;comment:域名" json:"domains"`
-	Status  enum.Status     `gorm:"column:status;type:varchar(10);not null;default:enabled;comment:状态" json:"status"`
-	Expire  *time.Time      `gorm:"column:expire;type:datetime;comment:过期时间" json:"expire"`
+	Name      string          `gorm:"column:name;type:varchar(255);not null;comment:租户名称" json:"name"`
+	Remark    string          `gorm:"column:remark;type:varchar(255);not null;comment:备注" json:"remark"`
+	Default   bool            `gorm:"column:default;type:tinyint(1);default:0;comment:是否是默认租户;->" json:"default"`
+	Domains   []*TenantDomain `gorm:"foreignKey:TenantID;references:ID" json:"domains"`
+	Status    enum.Status     `gorm:"column:status;type:varchar(10);not null;default:enabled;comment:状态" json:"status"`
+	Expire    *time.Time      `gorm:"column:expire;type:datetime;comment:过期时间" json:"expire"`
+	AdminUser `gorm:"-" json:",inline"`
 }
 
 func (*Tenant) TableName() string {
@@ -54,11 +61,24 @@ func (*TenantDomain) TableName() string {
 	return "mss_boot_tenant_domains"
 }
 
+func (t *Tenant) BeforeSave(_ *gorm.DB) error {
+	if len(t.Domains) == 0 || t.Domains[0].Domain == "" {
+		return fmt.Errorf("tenant domain is empty")
+	}
+	return nil
+}
+
 func (t *Tenant) AfterSave(tx *gorm.DB) error {
-	return InitTenant(tx)
+	err := InitTenant(tx)
+	if err != nil {
+		return err
+	}
+	// todo create tenant data
+	return t.Migrate(center.GetTenant().GetDB(nil, nil))
 }
 
 func (t *Tenant) AfterDelete(tx *gorm.DB) error {
+	//todo delete tenant data
 	return InitTenant(tx)
 }
 

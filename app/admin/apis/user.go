@@ -45,7 +45,6 @@ type User struct {
 // Other handler
 func (e *User) Other(r *gin.RouterGroup) {
 	r.POST("/user/login", middleware.Auth.LoginHandler)
-	r.POST("/user/login/account", middleware.Auth.LoginHandler)
 	r.POST("/user/login/github", middleware.Auth.LoginHandler)
 	r.GET("/user/refresh-token", middleware.Auth.RefreshHandler)
 	r.GET("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UserInfo)
@@ -146,7 +145,7 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 // @Product application/json
 // @Param data body models.UserLogin true "data"
 // @Success 200 {object} dto.LoginResponse "{"code": 200, "expire": "2023-12-10T12:31:30+08:00", "token": "xxx"}"
-// @Router /admin/api/user/login/account [post]
+// @Router /admin/api/user/login [post]
 func (e *User) Login(*gin.Context) {}
 
 // FakeCaptcha 获取验证码

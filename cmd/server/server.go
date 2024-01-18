@@ -120,6 +120,11 @@ func setup() error {
 		return err
 	}
 
+	// app config
+	center.SetAppConfig(&models.AppConfig{})
+	// statistics config
+	center.SetStatistics(&models.Statistics{})
+
 	// setup 02 middleware init
 	middleware.Verifier = center.GetUser()
 	middleware.Init()

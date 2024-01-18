@@ -142,7 +142,8 @@ func GetMenuTree(list []*Menu) []*Menu {
 }
 
 // CompleteName complete menu name
-func CompleteName(tree []*Menu) []*Menu {
+func CompleteName(tree MenuList) MenuList {
+	sort.Sort(tree)
 	for i := range tree {
 		for j := range tree[i].Children {
 			tree[i].Children[j].Name = tree[i].Name + "." + tree[i].Children[j].Name

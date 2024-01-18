@@ -77,6 +77,9 @@ func setup() error {
 	config.Cfg.Logger.AddSource = true
 
 	config.Cfg.Logger.Init()
+
+	center.SetStatistics(&models.Statistics{})
+
 	return nil
 }
 

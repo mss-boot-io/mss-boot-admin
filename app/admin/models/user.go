@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
 	"log/slog"
 	"strings"
 
@@ -236,3 +238,55 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 	}
 	return verify == user.PasswordHash, user, nil
 }
+
+// ********************* statistics *********************
+
+func (e *User) AfterCreate(tx *gorm.DB) error {
+	ctx, ok := tx.Statement.Context.(*gin.Context)
+	if !ok {
+		return nil
+	}
+	_ = center.Default.Increase(ctx, e)
+	return nil
+}
+
+func (e *User) AfterDelete(tx *gorm.DB) error {
+	ctx, ok := tx.Statement.Context.(*gin.Context)
+	if !ok {
+		return nil
+	}
+	_ = center.Default.Reduce(ctx, e)
+	return nil
+}
+
+// StatisticsName statistics name
+func (*User) StatisticsName() string {
+	return "user-total"
+}
+
+// StatisticsType statistics type
+func (*User) StatisticsType() string {
+	return "user"
+}
+
+// StatisticsTime statistics time
+func (*User) StatisticsTime() string {
+	return pkg.NowFormatDay()
+}
+
+func (*User) StatisticsStep() int {
+	return 100
+}
+
+// StatisticsCalibrate statistics calibrate
+func (e *User) StatisticsCalibrate() (int, error) {
+	var count int64
+	err := gormdb.DB.Model(e).
+		Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+	return int(count), nil
+}
+
+// ********************* statistics *********************
