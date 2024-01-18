@@ -30,3 +30,4 @@ config/application-*
 temp
 test
 public
+docs

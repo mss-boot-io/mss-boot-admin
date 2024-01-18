@@ -6,7 +6,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/migration"
 	"gorm.io/gorm"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
 )
 
 func init() {
@@ -20,6 +20,7 @@ func _1691804837583Tables(db *gorm.DB, version string) error {
 		err := tx.Migrator().AutoMigrate(
 			new(models.Tenant),
 			new(models.TenantDomain),
+			new(models.AppConfig),
 			new(models.SystemConfig),
 			new(models.Role),
 			new(models.User),
@@ -34,6 +35,7 @@ func _1691804837583Tables(db *gorm.DB, version string) error {
 			new(models.Language),
 			new(models.Notice),
 			new(models.Option),
+			new(models.Statistics),
 		)
 		if err != nil {
 			return err

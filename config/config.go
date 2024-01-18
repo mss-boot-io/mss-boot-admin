@@ -30,6 +30,7 @@ type Config struct {
 	Application Application     `yaml:"application" json:"application"`
 	OAuth2      *config.OAuth2  `yaml:"oauth2" json:"oauth2"`
 	Task        Task            `yaml:"task" json:"task"`
+	Pyroscope   Pyroscope       `yaml:"pyroscope" json:"pyroscope"`
 }
 
 func (e *Config) Init(opts ...source.Option) {
@@ -40,6 +41,10 @@ func (e *Config) Init(opts ...source.Option) {
 
 	e.Logger.Init()
 	e.Database.Init()
+	if e.Pyroscope.ApplicationName == "" {
+		e.Pyroscope.ApplicationName = e.Application.Name
+	}
+	e.Pyroscope.Init()
 }
 
 func (e *Config) OnChange() {
