@@ -11,11 +11,10 @@ require (
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.5.0
 	github.com/grafana/pyroscope-go v1.0.4
-	github.com/mss-boot-io/mss-boot v0.1.4-0.20240109065953-c55be42c71e5
+	github.com/mss-boot-io/mss-boot v0.1.4-0.20240118153854-a0547fbc4cce
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cast v1.6.0
 	github.com/spf13/cobra v1.8.0
-	github.com/swaggo/swag v1.16.2
 	github.com/zealic/xignore v0.3.3
 	golang.org/x/net v0.19.0
 	golang.org/x/oauth2 v0.15.0
@@ -25,7 +24,6 @@ require (
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
-	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20230923063757-afb1ddc0824c // indirect
 	github.com/aws/aws-sdk-go-v2 v1.24.0 // indirect
