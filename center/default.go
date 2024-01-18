@@ -1,8 +1,13 @@
 package center
 
 import (
+	"github.com/gin-gonic/gin"
+	"github.com/grafana/pyroscope-go"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
+	"os"
 )
 
 var Default = &DefaultCenter{
@@ -23,6 +28,11 @@ type DefaultCenter struct {
 	VirtualModelImp
 	ConfigImp
 	server.Manager
+	gin.IRouter
+	StageImp
+	AppConfigImp
+	Profiler *pyroscope.Profiler
+	StatisticsImp
 }
 
 func (d *DefaultCenter) SetNotice(n NoticeImp) {
@@ -49,6 +59,22 @@ func (d *DefaultCenter) SetServerManager(m server.Manager) {
 	d.Manager = m
 }
 
+func (d *DefaultCenter) SetRouter(r gin.IRouter) {
+	d.IRouter = r
+}
+
+func (d *DefaultCenter) SetAppConfig(a AppConfigImp) {
+	d.AppConfigImp = a
+}
+
+func (d *DefaultCenter) SetProfiler(p *pyroscope.Profiler) {
+	d.Profiler = p
+}
+
+func (d *DefaultCenter) SetStatistics(s StatisticsImp) {
+	d.StatisticsImp = s
+}
+
 func (d *DefaultCenter) GetNotice() NoticeImp {
 	return d.NoticeImp
 }
@@ -71,6 +97,37 @@ func (d *DefaultCenter) GetVirtualModel() VirtualModelImp {
 
 func (d *DefaultCenter) GetServerManager() server.Manager {
 	return d.Manager
+}
+
+func (d *DefaultCenter) GetRouter() gin.IRouter {
+	return d.IRouter
+}
+
+func (d *DefaultCenter) GetAppConfig() AppConfigImp {
+	return d.AppConfigImp
+}
+
+func (d *DefaultCenter) GetProfiler() *pyroscope.Profiler {
+	return d.Profiler
+}
+
+func (d *DefaultCenter) GetStatistics() StatisticsImp {
+	return d.StatisticsImp
+}
+
+func (d *DefaultCenter) Stage() string {
+	stage := os.Getenv("STAGE")
+	if stage == "" {
+		stage = os.Getenv("stage")
+	}
+	if stage == "" {
+		stage = "local"
+	}
+	return stage
+}
+
+func GetDB(ctx *gin.Context, table schema.Tabler) *gorm.DB {
+	return Default.GetDB(ctx, table)
 }
 
 func SetNotice(n NoticeImp) *DefaultCenter {
@@ -103,6 +160,26 @@ func SetServerManager(m server.Manager) *DefaultCenter {
 	return Default
 }
 
+func SetAppConfig(a AppConfigImp) *DefaultCenter {
+	Default.SetAppConfig(a)
+	return Default
+}
+
+func SetRouter(r gin.IRouter) *DefaultCenter {
+	Default.SetRouter(r)
+	return Default
+}
+
+func SetProfiler(p *pyroscope.Profiler) *DefaultCenter {
+	Default.SetProfiler(p)
+	return Default
+}
+
+func SetStatistics(s StatisticsImp) *DefaultCenter {
+	Default.SetStatistics(s)
+	return Default
+}
+
 func GetNotice() NoticeImp {
 	return Default.GetNotice()
 }
@@ -125,4 +202,24 @@ func GetVirtualModel() VirtualModelImp {
 
 func GetServerManager() server.Manager {
 	return Default.GetServerManager()
+}
+
+func GetRouter() gin.IRouter {
+	return Default.GetRouter()
+}
+
+func Stage() string {
+	return Default.Stage()
+}
+
+func GetAppConfig() AppConfigImp {
+	return Default.GetAppConfig()
+}
+
+func GetProfiler() *pyroscope.Profiler {
+	return Default.GetProfiler()
+}
+
+func GetStatistics() StatisticsImp {
+	return Default.GetStatistics()
 }

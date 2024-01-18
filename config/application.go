@@ -28,7 +28,7 @@ type Application struct {
 	StaticPath map[string]string `yaml:"staticPath" json:"staticPath"`
 }
 
-func (e *Application) Init(r *gin.Engine) {
+func (e *Application) Init(r gin.IRouter) {
 	if e.Mode == "" {
 		e.Mode = ModeDev
 	}
@@ -40,12 +40,12 @@ func (e *Application) Init(r *gin.Engine) {
 
 		// set static path
 		for k := range e.StaticPath {
-			if k == "404" {
-				r.NoRoute(func(c *gin.Context) {
-					c.File(e.StaticPath[k])
-				})
-				continue
-			}
+			//if k == "404" {
+			//	r.NoRoute(func(c *gin.Context) {
+			//		c.File(e.StaticPath[k])
+			//	})
+			//	continue
+			//}
 			if filepath.Ext(k) != "" {
 				r.StaticFile(k, e.StaticPath[k])
 				continue

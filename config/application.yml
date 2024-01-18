@@ -35,3 +35,7 @@ auth:
   timeout: '12h'
   maxRefresh: '1h'
   identityKey: 'mss-boot-admin-identity-key'
+pyroscope:
+  enabled: false
+  applicationName: mss-boot-admin
+  serverAddress: http://pyroscope:4040

@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin-api/center"
-	"github.com/mss-boot-io/mss-boot-admin-api/models"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/migration"
 	common "github.com/mss-boot-io/mss-boot/pkg/migration/models"
@@ -77,6 +77,9 @@ func setup() error {
 	config.Cfg.Logger.AddSource = true
 
 	config.Cfg.Logger.Init()
+
+	center.SetStatistics(&models.Statistics{})
+
 	return nil
 }
 

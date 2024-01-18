@@ -10,12 +10,11 @@ require (
 	github.com/go-git/go-git/v5 v5.11.0
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.5.0
+	github.com/grafana/pyroscope-go v1.0.4
 	github.com/mss-boot-io/mss-boot v0.1.4-0.20240109065953-c55be42c71e5
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cast v1.6.0
 	github.com/spf13/cobra v1.8.0
-	github.com/swaggo/files v1.0.1
-	github.com/swaggo/gin-swagger v1.6.0
 	github.com/swaggo/swag v1.16.2
 	github.com/zealic/xignore v0.3.3
 	golang.org/x/net v0.19.0
@@ -85,6 +84,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/grafana/pyroscope-go/godeltaprof v0.1.4 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

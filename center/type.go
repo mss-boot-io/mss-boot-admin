@@ -25,6 +25,14 @@ type Center interface {
 	VirtualModelImp
 	ConfigImp
 	server.Manager
+	gin.IRouter
+	StageImp
+	AppConfigImp
+	StatisticsImp
+}
+
+type StageImp interface {
+	Stage() string
 }
 
 type NoticeImp interface {
@@ -54,4 +62,24 @@ type UserImp interface {
 type ConfigImp interface {
 	config.Entity
 	Init(...source.Option)
+}
+
+type AppConfigImp interface {
+	SetAppConfig(ctx *gin.Context, key string, value string) error
+	GetAppConfig(ctx *gin.Context, key string) (string, bool)
+}
+
+type StatisticsObject interface {
+	StatisticsType() string
+	StatisticsName() string
+	StatisticsTime() string
+	// StatisticsStep 统计步长 * 100
+	StatisticsStep() int
+	StatisticsCalibrate() (int, error)
+}
+
+type StatisticsImp interface {
+	Calibrate(ctx *gin.Context, object StatisticsObject) error
+	Increase(ctx *gin.Context, object StatisticsObject) error
+	Reduce(ctx *gin.Context, object StatisticsObject) error
 }
