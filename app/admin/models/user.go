@@ -177,10 +177,10 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			}
 		}
 		defaultRole := &Role{Default: true}
-		_ = gormdb.DB.Where(defaultRole).First(defaultRole).Error
+		_ = center.GetDB(ctx.(*gin.Context), &Role{}).Where(defaultRole).First(defaultRole).Error
 		// get user from db
 		userOAuth2 := &UserOAuth2{}
-		err = gormdb.DB.Preload("User.Role").First(userOAuth2, "open_id = ?", fmt.Sprintf("%d", githubUser.ID)).Error
+		err = center.GetDB(ctx.(*gin.Context), &UserOAuth2{}).Preload("User.Role").First(userOAuth2, "open_id = ?", fmt.Sprintf("%d", githubUser.ID)).Error
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				slog.Error("get user from db error", slog.Any("error", err))
@@ -218,7 +218,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 				},
 			}
 			// register user
-			err = gormdb.DB.Create(userOAuth2).Error
+			err = center.GetDB(ctx.(*gin.Context), &User{}).Create(userOAuth2).Error
 			if err != nil {
 				slog.Error("create user error", slog.Any("error", err))
 				return false, nil, err

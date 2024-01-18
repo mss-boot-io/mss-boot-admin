@@ -26,6 +26,7 @@ func init() {
 			controller.WithSearch(new(dto.LanguageSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
 			controller.WithScope(center.Default.Scope),
+			controller.WithNoAuthAction(response.Search, response.Get),
 		),
 	}
 	response.AppendController(e)
