@@ -64,7 +64,7 @@ auth:
   identityKey: 'mss-boot-admin-identity-key'
 application:
   mode: dev
-  origin: http://127.0.0.1:8080
+  origin: http://localhost:8080
   staticPath:
     /public: public
 task:
@@ -77,7 +77,7 @@ oauth2:
   scopes:
     - user
     - repo
-  redirectURL: "http://127.0.0.1:8000/user/github-callback"
+  redirectURL: "http://localhost:8000/user/github-callback"
   endpoint:
     authURL: "https://github.com/login/oauth/authorize"
     tokenURL: "https://github.com/login/oauth/access_token"
