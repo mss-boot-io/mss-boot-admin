@@ -29,6 +29,13 @@ type Center interface {
 	StageImp
 	AppConfigImp
 	StatisticsImp
+	MakeRouterImp
+}
+
+type MakeRouterImp interface {
+	SetFunc(...func(*gin.RouterGroup))
+	GetFunc() []func(*gin.RouterGroup)
+	MakeRouter(*gin.RouterGroup)
 }
 
 type StageImp interface {

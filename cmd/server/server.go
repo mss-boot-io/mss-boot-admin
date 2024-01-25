@@ -131,8 +131,9 @@ func setup() error {
 
 	// setup 03 router init
 	r := gin.Default()
+	center.SetMakeRouter(admin.DefaultMakeRouter)
 	center.SetRouter(r)
-	admin.InitRouter(center.Default.Group(group))
+	center.Default.MakeRouter(r.Group(group))
 	config.Cfg.Application.Init(center.GetRouter())
 
 	// setup 04 api check
@@ -181,7 +182,7 @@ func run() error {
 }
 
 func tips() {
-	figure.NewFigure("mss-boot-admin", "rectangles", true).Print()
+	figure.NewFigure(config.Cfg.Application.Name, "rectangles", true).Print()
 	fmt.Println()
 }
 

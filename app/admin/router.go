@@ -55,3 +55,28 @@ func InitRouter(r *gin.RouterGroup) {
 		}
 	}
 }
+
+var DefaultMakeRouter = &MakeRouter{
+	funcs: []func(*gin.RouterGroup){InitRouter},
+}
+
+type MakeRouter struct {
+	funcs []func(*gin.RouterGroup)
+}
+
+func (m *MakeRouter) SetFunc(f ...func(*gin.RouterGroup)) {
+	if m.funcs == nil {
+		m.funcs = make([]func(*gin.RouterGroup), 0)
+	}
+	m.funcs = append(m.funcs, f...)
+}
+
+func (m *MakeRouter) GetFunc() []func(*gin.RouterGroup) {
+	return m.funcs
+}
+
+func (m *MakeRouter) MakeRouter(r *gin.RouterGroup) {
+	for i := range m.funcs {
+		m.funcs[i](r)
+	}
+}
