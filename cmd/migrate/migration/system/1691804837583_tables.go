@@ -25,6 +25,8 @@ func _1691804837583Tables(db *gorm.DB, version string) error {
 			new(models.Role),
 			new(models.User),
 			new(models.UserOAuth2),
+			new(models.Department),
+			new(models.Department),
 			new(models.API),
 			new(models.Menu),
 			new(models.Model),

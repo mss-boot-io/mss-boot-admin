@@ -8,13 +8,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin-api/center"
 	"github.com/mss-boot-io/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
+
+	"github.com/mss-boot-io/mss-boot-admin-api/center"
+	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
 )
 
 /*
@@ -123,7 +125,9 @@ func (t *Tenant) GetDB(ctx *gin.Context, table schema.Tabler) *gorm.DB {
 	if ctx == nil {
 		return gormdb.DB
 	}
-	return gormdb.DB.WithContext(ctx).Scopes(t.Scope(ctx, table))
+	verify := middleware.GetVerify(ctx)
+
+	return gormdb.DB.WithContext(ctx).Scopes(t.Scope(ctx, table), verify.(*User).Scope(ctx, table))
 }
 
 func (t *Tenant) Scope(ctx *gin.Context, table schema.Tabler) func(db *gorm.DB) *gorm.DB {

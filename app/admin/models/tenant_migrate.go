@@ -152,243 +152,201 @@ func (t *Tenant) Migrate(tx *gorm.DB) error {
 			},
 		},
 	}
-	tenantMenu := Menu{
-		Name: "tenant",
-		Path: "/",
-		Icon: "audit",
-		Sort: 17,
-		Type: pkg.DirectoryAccessType,
-		Children: []*Menu{
-			{
-				Name: "tenant",
-				Path: "/tenant",
-				Icon: "desktop",
-				Sort: 20,
-				Type: pkg.MenuAccessType,
-				Children: []*Menu{
-					{
-						Name:   "/admin/api/tenants",
-						Path:   "/admin/api/tenants",
-						Method: http.MethodGet,
-						Type:   pkg.APIAccessType,
-					},
-					{
-						Name:   "/admin/api/tenants/*",
-						Path:   "/admin/api/tenants/:id",
-						Method: http.MethodGet,
-						Type:   pkg.APIAccessType,
-					},
-					{
-						Name:       "control",
-						Path:       "/tenant/:id",
-						HideInMenu: true,
-						Type:       pkg.MenuAccessType,
-					},
-					{
-						Name:       "create",
-						Path:       "/tenant/create",
-						HideInMenu: true,
-						Type:       pkg.ComponentAccessType,
-						Children: []*Menu{
-							{
-								Name:   "/admin/api/tenants",
-								Path:   "/admin/api/tenants",
-								Method: http.MethodPost,
-								Type:   pkg.APIAccessType,
-							},
+
+	tenantMenu := []Menu{
+		{
+			Name: "develop",
+			Path: "/",
+			Icon: "tool",
+			Sort: 18,
+			Type: pkg.DirectoryAccessType,
+			Children: []*Menu{
+				&modelMenu,
+				{
+
+					Name: "generator",
+					Path: "/generator",
+					Icon: "form",
+					Sort: 18,
+					Type: pkg.MenuAccessType,
+					Children: []*Menu{
+						{
+							Name:   "/admin/api/template/get-branches",
+							Path:   "/admin/api/template/get-branches",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
 						},
-					},
-					{
-						Name:       "edit",
-						Path:       "/tenant/edit",
-						HideInMenu: true,
-						Type:       pkg.ComponentAccessType,
-						Children: []*Menu{
-							{
-								Name:   "/admin/api/tenants/*",
-								Path:   "/admin/api/tenants/:id",
-								Method: http.MethodPut,
-								Type:   pkg.APIAccessType,
-							},
+						{
+							Name:   "/admin/api/template/get-path",
+							Path:   "/admin/api/template/get-path",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
 						},
-					},
-					{
-						Name:       "delete",
-						Path:       "/tenant/delete",
-						HideInMenu: true,
-						Type:       pkg.ComponentAccessType,
-						Children: []*Menu{
-							{
-								Name:   "/admin/api/tenants/*",
-								Path:   "/admin/api/tenants/:id",
-								Method: http.MethodDelete,
-								Type:   pkg.APIAccessType,
-							},
+						{
+							Name:   "/admin/api/template/get-params",
+							Path:   "/admin/api/template/get-params",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:   "/admin/api/template/generate",
+							Path:   "/admin/api/template/generate",
+							Method: http.MethodPost,
+							Type:   pkg.APIAccessType,
 						},
 					},
 				},
 			},
-			{
-				Name: "model",
-				Path: "/model",
-				Icon: "desktop",
-				Sort: 15,
-				Type: pkg.MenuAccessType,
-				Children: []*Menu{
-					{
-						Name:   "/admin/api/models",
-						Path:   "/admin/api/models",
-						Method: http.MethodGet,
-						Type:   pkg.APIAccessType,
-					},
-					{
-						Name:   "/admin/api/models/*",
-						Path:   "/admin/api/models/:id",
-						Method: http.MethodGet,
-						Type:   pkg.APIAccessType,
-					},
-					{
-						Name:       "control",
-						Path:       "/model/:id",
-						HideInMenu: true,
-						Type:       pkg.MenuAccessType,
-					},
-					{
-						Name:       "create",
-						Path:       "/model/create",
-						HideInMenu: true,
-						Type:       pkg.ComponentAccessType,
-						Children: []*Menu{
-							{
-								Name:   "/admin/api/models",
-								Path:   "/admin/api/models",
-								Method: http.MethodPost,
-								Type:   pkg.APIAccessType,
+		},
+		{
+			Name: "tenant",
+			Path: "/",
+			Icon: "audit",
+			Sort: 17,
+			Type: pkg.DirectoryAccessType,
+			Children: []*Menu{
+				{
+					Name: "tenant",
+					Path: "/tenant",
+					Icon: "desktop",
+					Sort: 20,
+					Type: pkg.MenuAccessType,
+					Children: []*Menu{
+						{
+							Name:   "/admin/api/tenants",
+							Path:   "/admin/api/tenants",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:   "/admin/api/tenants/*",
+							Path:   "/admin/api/tenants/:id",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:       "control",
+							Path:       "/tenant/:id",
+							HideInMenu: true,
+							Type:       pkg.MenuAccessType,
+						},
+						{
+							Name:       "create",
+							Path:       "/tenant/create",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/tenants",
+									Path:   "/admin/api/tenants",
+									Method: http.MethodPost,
+									Type:   pkg.APIAccessType,
+								},
 							},
 						},
-					},
-					{
-						Name:       "edit",
-						Path:       "/model/edit",
-						HideInMenu: true,
-						Type:       pkg.ComponentAccessType,
-						Children: []*Menu{
-							{
-								Name:   "/admin/api/models/*",
-								Path:   "/admin/api/models/:id",
-								Method: http.MethodPut,
-								Type:   pkg.APIAccessType,
+						{
+							Name:       "edit",
+							Path:       "/tenant/edit",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/tenants/*",
+									Path:   "/admin/api/tenants/:id",
+									Method: http.MethodPut,
+									Type:   pkg.APIAccessType,
+								},
 							},
 						},
-					},
-					{
-						Name:       "field",
-						Path:       "/model/field",
-						HideInMenu: true,
-						Type:       pkg.ComponentAccessType,
-					},
-					{
-						Name:       "generate-data",
-						Path:       "/model/generate-data",
-						HideInMenu: true,
-						Type:       pkg.ComponentAccessType,
-						Children: []*Menu{
-							{
-								Name:   "/admin/api/model/generate-data",
-								Path:   "/admin/api/model/generate-data",
-								Method: http.MethodPut,
-								Type:   pkg.APIAccessType,
-							},
-						},
-					},
-					{
-						Name:       "delete",
-						Path:       "/model/delete",
-						HideInMenu: true,
-						Type:       pkg.ComponentAccessType,
-						Children: []*Menu{
-							{
-								Name:   "/admin/api/models/*",
-								Path:   "/admin/api/models/:id",
-								Method: http.MethodDelete,
-								Type:   pkg.APIAccessType,
+						{
+							Name:       "delete",
+							Path:       "/tenant/delete",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/tenants/*",
+									Path:   "/admin/api/tenants/:id",
+									Method: http.MethodDelete,
+									Type:   pkg.APIAccessType,
+								},
 							},
 						},
 					},
 				},
-			},
-			{
-				Name: "system-config",
-				Path: "/system-config",
-				Icon: "inbox",
-				Sort: 12,
-				Type: pkg.MenuAccessType,
-				Children: []*Menu{
-					{
-						Name:   "/admin/api/system-configs",
-						Path:   "/admin/api/system-configs",
-						Method: http.MethodGet,
-						Type:   pkg.APIAccessType,
-					},
-					{
+				{
+					Name: "system-config",
+					Path: "/system-config",
+					Icon: "inbox",
+					Sort: 12,
+					Type: pkg.MenuAccessType,
+					Children: []*Menu{
+						{
+							Name:   "/admin/api/system-configs",
+							Path:   "/admin/api/system-configs",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
 
-						Name:   "/admin/api/system-configs/*",
-						Path:   "/admin/api/system-configs/:id",
-						Method: http.MethodGet,
-						Type:   pkg.APIAccessType,
-					},
-					{
+							Name:   "/admin/api/system-configs/*",
+							Path:   "/admin/api/system-configs/:id",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
 
-						Name:       "control",
-						Path:       "/system-config/:id",
-						HideInMenu: true,
-						Type:       pkg.MenuAccessType,
-					},
-					{
+							Name:       "control",
+							Path:       "/system-config/:id",
+							HideInMenu: true,
+							Type:       pkg.MenuAccessType,
+						},
+						{
 
-						Name:       "create",
-						Path:       "/system-config/create",
-						HideInMenu: true,
-						Type:       pkg.ComponentAccessType,
-						Children: []*Menu{
-							{
+							Name:       "create",
+							Path:       "/system-config/create",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
 
-								Name:   "/admin/api/system-configs",
-								Path:   "/admin/api/system-configs",
-								Method: http.MethodPost,
-								Type:   pkg.APIAccessType,
+									Name:   "/admin/api/system-configs",
+									Path:   "/admin/api/system-configs",
+									Method: http.MethodPost,
+									Type:   pkg.APIAccessType,
+								},
 							},
 						},
-					},
-					{
+						{
 
-						Name:       "edit",
-						Path:       "/system-config/edit",
-						HideInMenu: true,
-						Type:       pkg.ComponentAccessType,
-						Children: []*Menu{
-							{
+							Name:       "edit",
+							Path:       "/system-config/edit",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
 
-								Name:   "/admin/api/system-configs/*",
-								Path:   "/admin/api/system-configs/:id",
-								Method: http.MethodPut,
-								Type:   pkg.APIAccessType,
+									Name:   "/admin/api/system-configs/*",
+									Path:   "/admin/api/system-configs/:id",
+									Method: http.MethodPut,
+									Type:   pkg.APIAccessType,
+								},
 							},
 						},
-					},
-					{
+						{
 
-						Name:       "delete",
-						Path:       "/system-config/delete",
-						HideInMenu: true,
-						Type:       pkg.ComponentAccessType,
-						Children: []*Menu{
-							{
+							Name:       "delete",
+							Path:       "/system-config/delete",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
 
-								Name:   "/admin/api/system-configs/*",
-								Path:   "/admin/api/system-configs/:id",
-								Method: http.MethodDelete,
-								Type:   pkg.APIAccessType,
+									Name:   "/admin/api/system-configs/*",
+									Path:   "/admin/api/system-configs/:id",
+									Method: http.MethodDelete,
+									Type:   pkg.APIAccessType,
+								},
 							},
 						},
 					},
@@ -980,52 +938,9 @@ func (t *Tenant) Migrate(tx *gorm.DB) error {
 				},
 			},
 		},
-		{
-			Name: "develop",
-			Path: "/",
-			Icon: "tool",
-			Sort: 18,
-			Children: []*Menu{
-				{
-
-					Name: "generator",
-					Path: "/generator",
-					Icon: "form",
-					Sort: 18,
-					Type: pkg.MenuAccessType,
-					Children: []*Menu{
-						{
-							Name:   "/admin/api/template/get-branches",
-							Path:   "/admin/api/template/get-branches",
-							Method: http.MethodGet,
-							Type:   pkg.APIAccessType,
-						},
-						{
-							Name:   "/admin/api/template/get-path",
-							Path:   "/admin/api/template/get-path",
-							Method: http.MethodGet,
-							Type:   pkg.APIAccessType,
-						},
-						{
-							Name:   "/admin/api/template/get-params",
-							Path:   "/admin/api/template/get-params",
-							Method: http.MethodGet,
-							Type:   pkg.APIAccessType,
-						},
-						{
-							Name:   "/admin/api/template/generate",
-							Path:   "/admin/api/template/generate",
-							Method: http.MethodPost,
-							Type:   pkg.APIAccessType,
-						},
-					},
-				},
-			},
-		},
 	}
 	if t.Default {
-		menus = append(menus, tenantMenu)
-		menus[2].Children = append(menus[2].Children, &modelMenu)
+		menus = append(menus, tenantMenu...)
 	}
 	err = tx.Create(&menus).Error
 	if err != nil {
