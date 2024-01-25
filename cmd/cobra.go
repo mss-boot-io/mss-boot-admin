@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/cmd/migrate"
-	"github.com/mss-boot-io/mss-boot-admin-api/cmd/server"
-	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/cmd/migrate"
+	"github.com/mss-boot-io/mss-boot-admin/cmd/server"
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 )
 
 /*

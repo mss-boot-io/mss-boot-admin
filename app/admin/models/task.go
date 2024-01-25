@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 	"github.com/mss-boot-io/mss-boot/core/server/task"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"

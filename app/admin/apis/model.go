@@ -3,10 +3,10 @@ package apis
 import (
 	"errors"
 	"fmt"
-	"github.com/mss-boot-io/mss-boot-admin-api/center"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"net/http"
 
-	adminPKG "github.com/mss-boot-io/mss-boot-admin-api/pkg"
+	adminPKG "github.com/mss-boot-io/mss-boot-admin/pkg"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
@@ -14,8 +14,8 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 	"gorm.io/gorm"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/dto"
-	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/app/admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
 )
 
 /*

@@ -1,11 +1,11 @@
 package system
 
 import (
-	adminPKG "github.com/mss-boot-io/mss-boot-admin-api/pkg"
+	adminPKG "github.com/mss-boot-io/mss-boot-admin/pkg"
 	"runtime"
 	"time"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 
 	"github.com/mss-boot-io/mss-boot/pkg/migration"

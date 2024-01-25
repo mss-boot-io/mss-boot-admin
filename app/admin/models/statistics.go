@@ -2,7 +2,7 @@ package models
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin-api/center"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"gorm.io/gorm"
 	"log/slog"
 )

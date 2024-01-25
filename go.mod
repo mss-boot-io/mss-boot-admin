@@ -1,4 +1,4 @@
-module github.com/mss-boot-io/mss-boot-admin-api
+module github.com/mss-boot-io/mss-boot-admin
 
 go 1.21
 
@@ -9,8 +9,8 @@ require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-git/go-git/v5 v5.11.0
 	github.com/google/go-github/v41 v41.0.0
-	github.com/google/uuid v1.5.0
-	github.com/grafana/pyroscope-go v1.0.4
+	github.com/google/uuid v1.6.0
+	github.com/grafana/pyroscope-go v1.1.0
 	github.com/mss-boot-io/mss-boot v0.1.5-0.20240125014702-179d40b3fedb
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cast v1.6.0
@@ -19,7 +19,7 @@ require (
 	github.com/zealic/xignore v0.3.3
 	golang.org/x/net v0.20.0
 	golang.org/x/oauth2 v0.16.0
-	google.golang.org/grpc v1.60.1
+	google.golang.org/grpc v1.61.0
 	gorm.io/gorm v1.25.5
 )
 

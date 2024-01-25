@@ -6,7 +6,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/migration"
 	"gorm.io/gorm"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
 )
 
 func init() {

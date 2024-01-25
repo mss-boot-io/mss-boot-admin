@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	_ "github.com/mss-boot-io/mss-boot-admin-api/app/admin/apis"
+	_ "github.com/mss-boot-io/mss-boot-admin/app/admin/apis"
 	//_ "github.com/mss-boot-io/mss-boot-admin-api/docs"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	//swaggerFiles "github.com/swaggo/files"

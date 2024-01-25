@@ -15,8 +15,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/center"
-	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
+	"github.com/mss-boot-io/mss-boot-admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/middleware"
 )
 
 /*

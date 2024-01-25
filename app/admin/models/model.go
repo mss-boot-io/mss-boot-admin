@@ -5,14 +5,14 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin-api/center"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 
 	"github.com/mss-boot-io/mss-boot/virtual/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 )
 
 /*

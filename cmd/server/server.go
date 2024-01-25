@@ -19,11 +19,11 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/app/admin"
-	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
-	"github.com/mss-boot-io/mss-boot-admin-api/center"
-	"github.com/mss-boot-io/mss-boot-admin-api/config"
-	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
+	"github.com/mss-boot-io/mss-boot-admin/app/admin"
+	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/config"
+	"github.com/mss-boot-io/mss-boot-admin/middleware"
 )
 
 /*
