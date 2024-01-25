@@ -11,10 +11,11 @@ require (
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.5.0
 	github.com/grafana/pyroscope-go v1.0.4
-	github.com/mss-boot-io/mss-boot v0.1.4-0.20240118153854-a0547fbc4cce
+	github.com/mss-boot-io/mss-boot v0.1.5-0.20240125014702-179d40b3fedb
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cast v1.6.0
 	github.com/spf13/cobra v1.8.0
+	github.com/swaggo/swag v1.16.2
 	github.com/zealic/xignore v0.3.3
 	golang.org/x/net v0.20.0
 	golang.org/x/oauth2 v0.16.0
@@ -24,6 +25,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
+	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v1.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.24.1 // indirect
@@ -103,7 +105,6 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-sqlite3 v1.14.19 // indirect
-	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/microsoft/go-mssqldb v1.6.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
