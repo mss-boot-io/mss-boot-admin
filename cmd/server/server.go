@@ -124,6 +124,7 @@ func setup() error {
 	center.SetAppConfig(&models.AppConfig{})
 	// statistics config
 	center.SetStatistics(&models.Statistics{})
+	center.SetGRPCClient(&config.Cfg.GRPC)
 
 	// setup 02 middleware init
 	middleware.Verifier = center.GetUser()

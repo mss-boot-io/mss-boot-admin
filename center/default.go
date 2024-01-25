@@ -1,13 +1,14 @@
 package center
 
 import (
+	"os"
+
 	"github.com/gin-gonic/gin"
 	"github.com/grafana/pyroscope-go"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"os"
 )
 
 var Default = &DefaultCenter{
@@ -34,6 +35,7 @@ type DefaultCenter struct {
 	Profiler *pyroscope.Profiler
 	StatisticsImp
 	MakeRouterImp
+	GRPCClientImp
 }
 
 func (d *DefaultCenter) SetNotice(n NoticeImp) {
@@ -78,6 +80,10 @@ func (d *DefaultCenter) SetStatistics(s StatisticsImp) {
 
 func (d *DefaultCenter) SetMakeRouter(m MakeRouterImp) {
 	d.MakeRouterImp = m
+}
+
+func (d *DefaultCenter) SetGRPCClient(g GRPCClientImp) {
+	d.GRPCClientImp = g
 }
 
 func (d *DefaultCenter) GetNotice() NoticeImp {
@@ -191,6 +197,11 @@ func SetStatistics(s StatisticsImp) *DefaultCenter {
 
 func SetMakeRouter(m MakeRouterImp) *DefaultCenter {
 	Default.SetMakeRouter(m)
+	return Default
+}
+
+func SetGRPCClient(g GRPCClientImp) *DefaultCenter {
+	Default.SetGRPCClient(g)
 	return Default
 }
 

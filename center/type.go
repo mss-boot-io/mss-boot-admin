@@ -7,6 +7,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 	"github.com/mss-boot-io/mss-boot/virtual/model"
+	"google.golang.org/grpc"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
@@ -30,6 +31,11 @@ type Center interface {
 	AppConfigImp
 	StatisticsImp
 	MakeRouterImp
+	GRPCClientImp
+}
+
+type GRPCClientImp interface {
+	GetGRPCClient(string) *grpc.ClientConn
 }
 
 type MakeRouterImp interface {

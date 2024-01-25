@@ -1,10 +1,11 @@
 package models
 
 import (
+	"log/slog"
+
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"gorm.io/gorm"
-	"log/slog"
 )
 
 /*
