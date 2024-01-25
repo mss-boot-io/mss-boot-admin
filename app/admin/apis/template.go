@@ -21,9 +21,9 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/dto"
-	"github.com/mss-boot-io/mss-boot-admin-api/middleware"
-	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/app/admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin/middleware"
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 )
 
 func init() {

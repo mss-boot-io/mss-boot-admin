@@ -3,7 +3,7 @@ package models
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin-api/center"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"strings"
 )
 

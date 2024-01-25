@@ -6,9 +6,9 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/dto"
-	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
-	"github.com/mss-boot-io/mss-boot-admin-api/center"
+	"github.com/mss-boot-io/mss-boot-admin/app/admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 )
 
 /*

@@ -4,12 +4,12 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/center"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/dto"
-	"github.com/mss-boot-io/mss-boot-admin-api/app/admin/models"
-	"github.com/mss-boot-io/mss-boot-admin-api/config"
+	"github.com/mss-boot-io/mss-boot-admin/app/admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"

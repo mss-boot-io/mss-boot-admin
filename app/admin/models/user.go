@@ -4,17 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin-api/center"
 	"log/slog"
 	"strings"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/config"
-	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
+	"github.com/gin-gonic/gin"
+	corePKG "github.com/mss-boot-io/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
+
+	"github.com/mss-boot-io/mss-boot-admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/config"
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 )
 
 /*
@@ -106,6 +109,10 @@ func GetUserByUsername(username string) (*User, error) {
 type UserLogin struct {
 	RoleID       string        `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
 	Role         *Role         `json:"role" gorm:"foreignKey:RoleID;references:ID"`
+	PostID       string        `json:"postID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Post         *Post         `json:"post" gorm:"foreignKey:PostID;references:ID"`
+	DepartmentID string        `json:"departmentID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Department   *Department   `json:"department" gorm:"foreignKey:DepartmentID;references:ID"`
 	Username     string        `json:"username" gorm:"type:varchar(20);uniqueIndex"`
 	Email        string        `json:"email" gorm:"type:varchar(100);uniqueIndex"`
 	Password     string        `json:"password,omitempty" gorm:"-"`
@@ -237,6 +244,88 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		return false, nil, err
 	}
 	return verify == user.PasswordHash, user, nil
+}
+
+func (e *UserLogin) GetDepartmentUserID(tx *gorm.DB) []string {
+	ids := make([]string, 0)
+	tx.Model(&User{}).
+		Where("department_id = ?", e.DepartmentID).Pluck("id", &ids)
+	return ids
+}
+
+func (e *UserLogin) GetDepartmentAndChildrenUserID(tx *gorm.DB) []string {
+	ids := make([]string, 0)
+	deptIDS := e.Department.GetAllChildrenID(tx)
+	tx.Model(&User{}).
+		Where("department_id in ?", deptIDS).Pluck("id", &ids)
+	return ids
+}
+
+func (e *UserLogin) GetCustomDepartmentUserID(tx *gorm.DB) []string {
+	ids := make([]string, 0)
+	tx.Model(&User{}).Where("department_id in ?", e.Post.DeptIDSArr).Pluck("id", &ids)
+	return ids
+}
+
+func (e *UserLogin) GetPostUserID(tx *gorm.DB) []string {
+	ids := make([]string, 0)
+	tx.Model(&User{}).Where("post_id = ?", e.PostID).Pluck("id", &ids)
+	return ids
+}
+
+func (e *UserLogin) GetPostAndChildrenUserID(tx *gorm.DB) []string {
+	ids := make([]string, 0)
+	postIDS := e.Post.GetChildrenID(tx)
+	tx.Model(&User{}).Where("post_id in ?", postIDS).Pluck("id", &ids)
+	return ids
+}
+
+func (e *UserLogin) GetPostAndAllChildrenUserID(tx *gorm.DB) []string {
+	ids := make([]string, 0)
+	postIDS := e.Post.GetAllChildrenID(tx)
+	postIDS = append(postIDS, e.PostID)
+	tx.Model(&User{}).Where("post_id in ?", postIDS).Pluck("id", &ids)
+	return ids
+}
+
+func (e *UserLogin) getDataScopeCreator(ctx context.Context) []string {
+	// get user from db
+	if e.Post == nil {
+		return nil
+	}
+	ids := make([]string, 0)
+	tx := center.GetDB(ctx.(*gin.Context), &User{})
+	switch e.Post.DataScope {
+	case DataScopeAll:
+		return nil
+	case DataScopeCurrentDept:
+		return e.GetDepartmentUserID(tx)
+	case DataScopeCurrentAndChildrenDept:
+		return e.GetDepartmentAndChildrenUserID(tx)
+	case DataScopeCustomDept:
+		return e.GetCustomDepartmentUserID(tx)
+	case DataScopeSelf:
+		return append(ids, e.GetUserID())
+	case DataScopeSelfAndChildren:
+		return e.GetPostAndChildrenUserID(tx)
+	case DataScopeSelfAndAllChildren:
+		return e.GetPostAndAllChildrenUserID(tx)
+	}
+	return nil
+}
+
+func (e *UserLogin) Scope(ctx *gin.Context, table schema.Tabler) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if !corePKG.SupportCreator(table) {
+			return db
+		}
+		ids := e.getDataScopeCreator(ctx)
+		if len(ids) == 0 {
+			return db
+		}
+		db = db.Where("creator_id in ?", ids)
+		return db
+	}
 }
 
 // ********************* statistics *********************

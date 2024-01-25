@@ -7,14 +7,14 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 
 	"github.com/spf13/cast"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin-api/config"
+	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 )

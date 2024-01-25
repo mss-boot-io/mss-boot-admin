@@ -1,6 +1,6 @@
 package dto
 
-import "github.com/mss-boot-io/mss-boot-admin-api/pkg"
+import "github.com/mss-boot-io/mss-boot-admin/pkg"
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>

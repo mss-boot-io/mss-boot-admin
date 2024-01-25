@@ -2,7 +2,7 @@ package config
 
 import (
 	"github.com/grafana/pyroscope-go"
-	"github.com/mss-boot-io/mss-boot-admin-api/center"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"log/slog"
 	"time"
 )

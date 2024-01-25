@@ -3,7 +3,7 @@ package models
 import (
 	"sort"
 
-	"github.com/mss-boot-io/mss-boot-admin-api/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"gorm.io/gorm"
@@ -24,8 +24,6 @@ type Menu struct {
 	ParentID string `json:"parentID,omitempty" gorm:"column:parent_id;comment:父级id;type:varchar(255);default:'';index"`
 	// Name 菜单名称
 	Name string `json:"name" gorm:"column:name;comment:菜单名称;type:varchar(255);not null"`
-	//// Title 菜单标题
-	//Title string `json:"title" gorm:"column:title;comment:菜单标题;type:varchar(255);not null"`
 	// Path 路由
 	Path string `json:"path" gorm:"column:path;comment:菜单路径;type:varchar(255);not null"`
 	// Method 请求方法
@@ -137,13 +135,13 @@ func GetMenuTree(list []*Menu) []*Menu {
 			tree = append(tree, list[i])
 		}
 	}
-	sort.Sort(tree)
+	SortMenu(tree)
 	return tree
 }
 
 // CompleteName complete menu name
 func CompleteName(tree MenuList) MenuList {
-	sort.Sort(tree)
+	SortMenu(tree)
 	for i := range tree {
 		for j := range tree[i].Children {
 			tree[i].Children[j].Name = tree[i].Name + "." + tree[i].Children[j].Name
@@ -153,4 +151,13 @@ func CompleteName(tree MenuList) MenuList {
 		}
 	}
 	return tree
+}
+
+func SortMenu(tree MenuList) {
+	sort.Sort(tree)
+	for i := range tree {
+		if len(tree[i].Children) > 0 {
+			SortMenu(tree[i].Children)
+		}
+	}
 }
