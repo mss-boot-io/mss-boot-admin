@@ -23,6 +23,7 @@ var Cfg = &Config{}
 
 type Config struct {
 	Auth        Auth            `yaml:"auth" json:"auth"`
+	GRPC        config.GRPC     `yaml:"grpc" json:"grpc"`
 	Logger      config.Logger   `yaml:"logger" json:"logger"`
 	Server      config.Listen   `yaml:"server" json:"server"`
 	Listen      *config.Listen  `yaml:"listen" json:"listen"`

@@ -1,10 +1,11 @@
 package config
 
 import (
-	"github.com/grafana/pyroscope-go"
-	"github.com/mss-boot-io/mss-boot-admin/center"
 	"log/slog"
 	"time"
+
+	"github.com/grafana/pyroscope-go"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 )
 
 /*

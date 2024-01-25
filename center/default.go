@@ -1,13 +1,14 @@
 package center
 
 import (
+	"os"
+
 	"github.com/gin-gonic/gin"
 	"github.com/grafana/pyroscope-go"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"os"
 )
 
 var Default = &DefaultCenter{
@@ -33,6 +34,8 @@ type DefaultCenter struct {
 	AppConfigImp
 	Profiler *pyroscope.Profiler
 	StatisticsImp
+	MakeRouterImp
+	GRPCClientImp
 }
 
 func (d *DefaultCenter) SetNotice(n NoticeImp) {
@@ -75,6 +78,14 @@ func (d *DefaultCenter) SetStatistics(s StatisticsImp) {
 	d.StatisticsImp = s
 }
 
+func (d *DefaultCenter) SetMakeRouter(m MakeRouterImp) {
+	d.MakeRouterImp = m
+}
+
+func (d *DefaultCenter) SetGRPCClient(g GRPCClientImp) {
+	d.GRPCClientImp = g
+}
+
 func (d *DefaultCenter) GetNotice() NoticeImp {
 	return d.NoticeImp
 }
@@ -113,6 +124,10 @@ func (d *DefaultCenter) GetProfiler() *pyroscope.Profiler {
 
 func (d *DefaultCenter) GetStatistics() StatisticsImp {
 	return d.StatisticsImp
+}
+
+func (d *DefaultCenter) GetMakeRouter() MakeRouterImp {
+	return d.MakeRouterImp
 }
 
 func (d *DefaultCenter) Stage() string {
@@ -180,6 +195,16 @@ func SetStatistics(s StatisticsImp) *DefaultCenter {
 	return Default
 }
 
+func SetMakeRouter(m MakeRouterImp) *DefaultCenter {
+	Default.SetMakeRouter(m)
+	return Default
+}
+
+func SetGRPCClient(g GRPCClientImp) *DefaultCenter {
+	Default.SetGRPCClient(g)
+	return Default
+}
+
 func GetNotice() NoticeImp {
 	return Default.GetNotice()
 }
@@ -222,4 +247,8 @@ func GetProfiler() *pyroscope.Profiler {
 
 func GetStatistics() StatisticsImp {
 	return Default.GetStatistics()
+}
+
+func GetMakeRouter() MakeRouterImp {
+	return Default.GetMakeRouter()
 }
