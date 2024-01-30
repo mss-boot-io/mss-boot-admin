@@ -319,8 +319,8 @@ github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe/go.mod h1:wL8QJ
 github.com/montanaflynn/stats v0.7.0/go.mod h1:etXPPgVO6n31NxCd9KQUMvCM+ve0ruNzt6R8Bnaayow=
 github.com/montanaflynn/stats v0.7.1 h1:etflOAAHORrCC44V+aR6Ftzort912ZU+YLiSTuV8eaE=
 github.com/montanaflynn/stats v0.7.1/go.mod h1:etXPPgVO6n31NxCd9KQUMvCM+ve0ruNzt6R8Bnaayow=
-github.com/mss-boot-io/mss-boot v0.1.5-0.20240125164813-7fd6bb84a62b h1:VAr4wzq9P6GZCCSCWbwcORV6nSofVQeh0LgWBuHCuqY=
-github.com/mss-boot-io/mss-boot v0.1.5-0.20240125164813-7fd6bb84a62b/go.mod h1:ezMmyuZBSYNWcm7KhycKu71QQccgmyjiNcqqRBzhVz0=
+github.com/mss-boot-io/mss-boot v0.1.5-0.20240130161523-d3e3f4b34b4a h1:C7d8N8Gkf3JFEkRwmOhd+Dz8kBBDudUmXf+7WdWZEho=
+github.com/mss-boot-io/mss-boot v0.1.5-0.20240130161523-d3e3f4b34b4a/go.mod h1:ezMmyuZBSYNWcm7KhycKu71QQccgmyjiNcqqRBzhVz0=
 github.com/nfjBill/gorm-driver-dm v1.0.1 h1:cE36dxtmfbGtkWWBuPCfEXaR2kgoF0nwQH7CGuMkaEM=
 github.com/nfjBill/gorm-driver-dm v1.0.1/go.mod h1:QGyYMleRqsM8759DJds5FgFlHZ6j+eySwgktsmq6+oc=
 github.com/onsi/gomega v1.27.10 h1:naR28SdDFlqrG6kScpT8VWpu1xWY5nJRCF3XaYyBjhI=

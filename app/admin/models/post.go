@@ -1,7 +1,10 @@
 package models
 
 import (
+	"sort"
 	"strings"
+
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"gorm.io/gorm"
@@ -95,4 +98,35 @@ func (e *Post) GetAllChildrenID(tx *gorm.DB) []string {
 		ids = append(ids, e.Children[i].GetChildrenID(tx)...)
 	}
 	return ids
+}
+
+func (x PostList) Len() int           { return len(x) }
+func (x PostList) Less(i, j int) bool { return x[i].Sort > x[j].Sort }
+func (x PostList) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
+
+func (e *Post) GetIndex() string {
+	return e.ID
+}
+
+func (e *Post) GetParentID() string {
+	return e.ParentID
+}
+
+func (e *Post) SortChildren() {
+	if len(e.Children) == 0 {
+		return
+	}
+	sort.Sort(PostList(e.Children))
+	for i := range e.Children {
+		e.Children[i].SortChildren()
+	}
+}
+
+func (e *Post) AddChildren(children []pkg.TreeImp) {
+	if e.Children == nil {
+		e.Children = make([]*Post, 0)
+	}
+	for i := range children {
+		e.Children = append(e.Children, children[i].(*Post))
+	}
 }

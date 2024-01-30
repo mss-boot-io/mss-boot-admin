@@ -11,7 +11,7 @@ require (
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.6.0
 	github.com/grafana/pyroscope-go v1.1.0
-	github.com/mss-boot-io/mss-boot v0.1.5-0.20240125164813-7fd6bb84a62b
+	github.com/mss-boot-io/mss-boot v0.1.5-0.20240130161523-d3e3f4b34b4a
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cast v1.6.0
 	github.com/spf13/cobra v1.8.0
