@@ -217,7 +217,10 @@ func (e *Model) i18n(api *response.API, tx *gorm.DB, m *models.Model, req *dto.M
 			api.AddError(err).Log.Error("get menu tree error")
 			return err
 		}
-		list = models.CompleteName(models.GetMenuTree(list))
+		list = models.CompleteName(
+			models.TreeTransferToMenuSlice(
+				adminPKG.BuildTree(
+					models.MenuTransferToTreeSlice(list), "")))
 		var ok bool
 		for i := range list {
 			if list[i].ID == req.MenuParentID {

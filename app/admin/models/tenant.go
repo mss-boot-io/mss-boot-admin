@@ -126,7 +126,9 @@ func (t *Tenant) GetDB(ctx *gin.Context, table schema.Tabler) *gorm.DB {
 		return gormdb.DB
 	}
 	verify := middleware.GetVerify(ctx)
-
+	if verify == nil {
+		return gormdb.DB.WithContext(ctx).Scopes(t.Scope(ctx, table))
+	}
 	return gormdb.DB.WithContext(ctx).Scopes(t.Scope(ctx, table), verify.(*User).Scope(ctx, table))
 }
 

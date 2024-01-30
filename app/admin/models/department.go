@@ -1,6 +1,9 @@
 package models
 
 import (
+	"sort"
+
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"gorm.io/gorm"
 )
@@ -53,4 +56,31 @@ func (e *Department) GetAllChildrenID(tx *gorm.DB) []string {
 		ids = append(ids, e.Children[i].GetAllChildrenID(tx)...)
 	}
 	return ids
+}
+
+func (e *Department) GetIndex() string {
+	return e.ID
+}
+
+func (e *Department) GetParentID() string {
+	return e.ParentID
+}
+
+func (e *Department) AddChildren(children []pkg.TreeImp) {
+	if e.Children == nil {
+		e.Children = make([]*Department, 0)
+	}
+	for i := range children {
+		e.Children = append(e.Children, children[i].(*Department))
+	}
+}
+
+func (e *Department) SortChildren() {
+	if len(e.Children) == 0 {
+		return
+	}
+	sort.Sort(DepartmentList(e.Children))
+	for i := range e.Children {
+		e.Children[i].SortChildren()
+	}
 }

@@ -4,7 +4,6 @@ import (
 	"sort"
 
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
-
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"gorm.io/gorm"
 )
@@ -104,10 +103,32 @@ func (e *Menu) BeforeSave(_ *gorm.DB) error {
 	return nil
 }
 
-//func (e *Menu) AfterFind(_ *gorm.DB) error {
-//	e.Title = e.Name
-//	return nil
-//}
+func (e *Menu) GetIndex() string {
+	return e.ID
+}
+
+func (e *Menu) GetParentID() string {
+	return e.ParentID
+}
+
+func (e *Menu) SortChildren() {
+	if len(e.Children) == 0 {
+		return
+	}
+	sort.Sort(MenuList(e.Children))
+	for i := range e.Children {
+		e.Children[i].SortChildren()
+	}
+}
+
+func (e *Menu) AddChildren(children []pkg.TreeImp) {
+	if e.Children == nil {
+		e.Children = make([]*Menu, 0)
+	}
+	for i := range children {
+		e.Children = append(e.Children, children[i].(*Menu))
+	}
+}
 
 func (*Menu) TableName() string {
 	return "mss_boot_menus"
@@ -125,7 +146,6 @@ func GetMenuTree(list []*Menu) []*Menu {
 				if parent.Children == nil {
 					parent.Children = make([]*Menu, 0)
 				}
-				parent.Children = append(parent.Children, list[i])
 			}
 		}
 	}
@@ -139,9 +159,25 @@ func GetMenuTree(list []*Menu) []*Menu {
 	return tree
 }
 
+func TreeTransferToMenuSlice(tree []pkg.TreeImp) []*Menu {
+	list := make([]*Menu, 0)
+	for i := range tree {
+		list = append(list, tree[i].(*Menu))
+	}
+	return list
+
+}
+
+func MenuTransferToTreeSlice(list []*Menu) []pkg.TreeImp {
+	tree := make([]pkg.TreeImp, 0)
+	for i := range list {
+		tree = append(tree, list[i])
+	}
+	return tree
+}
+
 // CompleteName complete menu name
-func CompleteName(tree MenuList) MenuList {
-	SortMenu(tree)
+func CompleteName(tree []*Menu) []*Menu {
 	for i := range tree {
 		for j := range tree[i].Children {
 			tree[i].Children[j].Name = tree[i].Name + "." + tree[i].Children[j].Name

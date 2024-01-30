@@ -132,6 +132,9 @@ func Init() {
 // GetVerify 获取当前登录用户
 func GetVerify(ctx *gin.Context) security.Verifier {
 	claims := jwt.ExtractClaims(ctx)
+	if len(claims) == 0 {
+		return nil
+	}
 	verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
 	err := json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
 	if err != nil {

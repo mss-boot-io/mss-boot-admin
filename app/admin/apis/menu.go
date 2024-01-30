@@ -4,10 +4,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mss-boot-io/mss-boot-admin/center"
-
-	"github.com/mss-boot-io/mss-boot-admin/pkg"
-
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/search/gorms"
 
@@ -18,7 +14,9 @@ import (
 
 	"github.com/mss-boot-io/mss-boot-admin/app/admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/middleware"
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 )
 
 /*
@@ -160,11 +158,12 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 		}
 	}
 	result := make([]*models.Menu, 0)
-	for _, m := range models.GetMenuTree(canList) {
-		if len(m.Children) == 0 && m.Type == pkg.DirectoryAccessType {
+	for _, m := range pkg.BuildTree(models.MenuTransferToTreeSlice(canList), "") {
+		menu := m.(*models.Menu)
+		if len(menu.Children) == 0 && menu.Type == pkg.DirectoryAccessType {
 			continue
 		}
-		result = append(result, m)
+		result = append(result, menu)
 	}
 	api.OK(result)
 }
@@ -187,7 +186,10 @@ func (e *Menu) Tree(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(models.CompleteName(models.GetMenuTree(list)))
+	api.OK(models.CompleteName(
+		models.TreeTransferToMenuSlice(
+			pkg.BuildTree(
+				models.MenuTransferToTreeSlice(list), ""))))
 }
 
 // GetAPI 获取菜单下的接口
