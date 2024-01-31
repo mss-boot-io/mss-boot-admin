@@ -292,8 +292,9 @@ func (e *Menu) BindAPI(ctx *gin.Context) {
 // @Product application/json
 // @Param name query string false "name"
 // @Param status query string false "status"
+// @Param show query bool false "show"
 // @Param parentID query string false "parentID"
-// @Param type query string false "type"
+// @Param type query []string false "type"
 // @Param page query int false "page"
 // @Param pageSize query int false "pageSize"
 // @Success 200 {object} response.Page{data=[]models.Menu}
@@ -324,10 +325,15 @@ func (*Menu) List(ctx *gin.Context) {
 	if req.Status != "" {
 		query = query.Where("status = ?", req.Status)
 	}
-	if req.Type != "" {
-		query = query.Where("type = ?", req.Type)
-	} else {
-		query = query.Where("type IN ?", types)
+	if len(req.Type) > 0 {
+		types = make([]pkg.AccessType, len(req.Type))
+		for i := range req.Type {
+			types[i] = pkg.AccessType(req.Type[i])
+		}
+	}
+	query = query.Where("type in ?", types)
+	if req.Show {
+		query = query.Where("hide_in_menu = ?", 0)
 	}
 	var count int64
 	if err := query.Limit(-1).Offset(-1).Count(&count).Error; err != nil {

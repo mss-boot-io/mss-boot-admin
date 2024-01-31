@@ -48,7 +48,7 @@ type Department struct {
 // @Param page query int false "页码"
 // @Param pageSize query int false "每页条数"
 // @Success 200 {object} response.Page{data=[]models.Department}
-// @Router /departments [get]
+// @Router /admin/api/departments [get]
 // @Security Bearer
 func (e *Department) List(c *gin.Context) {}
 
@@ -60,7 +60,7 @@ func (e *Department) List(c *gin.Context) {}
 // @Produce application/json
 // @Param data body models.Department true "data"
 // @Success 201 {object} models.Department
-// @Router /departments [post]
+// @Router /admin/api/departments [post]
 // @Security Bearer
 func (e *Department) Create(c *gin.Context) {}
 
@@ -73,7 +73,7 @@ func (e *Department) Create(c *gin.Context) {}
 // @Param id path string true "id"
 // @Param data body models.Department true "data"
 // @Success 200 {object} models.Department
-// @Router /departments/{id} [put]
+// @Router /admin/api/departments/{id} [put]
 // @Security Bearer
 func (e *Department) Update(c *gin.Context) {}
 
@@ -85,7 +85,7 @@ func (e *Department) Update(c *gin.Context) {}
 // @Produce application/json
 // @Param id path string true "id"
 // @Success 204
-// @Router /departments/{id} [delete]
+// @Router /admin/api/departments/{id} [delete]
 // @Security Bearer
 func (e *Department) Delete(c *gin.Context) {}
 
@@ -97,6 +97,6 @@ func (e *Department) Delete(c *gin.Context) {}
 // @Produce application/json
 // @Param id path string true "id"
 // @Success 200 {object} models.Department
-// @Router /departments/{id} [get]
+// @Router /admin/api/departments/{id} [get]
 // @Security Bearer
 func (e *Department) Get(c *gin.Context) {}
