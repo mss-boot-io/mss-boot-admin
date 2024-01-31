@@ -23,17 +23,17 @@ const (
 	// DataScopeAll 全部数据权限
 	DataScopeAll DataScope = "all"
 	// DataScopeCurrentDept 当前部门数据权限
-	DataScopeCurrentDept DataScope = "current_dept"
+	DataScopeCurrentDept DataScope = "currentDept"
 	// DataScopeCurrentAndChildrenDept 当前部门及以下数据权限
-	DataScopeCurrentAndChildrenDept DataScope = "current_and_children_dept"
+	DataScopeCurrentAndChildrenDept DataScope = "currentAndChildrenDept"
 	// DataScopeCustomDept 自定义部门
-	DataScopeCustomDept DataScope = "custom_dept"
+	DataScopeCustomDept DataScope = "customDept"
 	// DataScopeSelf 自己数据权限
 	DataScopeSelf DataScope = "self"
 	// DataScopeSelfAndChildren 自己和直属下级
-	DataScopeSelfAndChildren DataScope = "self_and_children"
+	DataScopeSelfAndChildren DataScope = "selfAndChildren"
 	// DataScopeSelfAndAllChildren 自己和全部下级
-	DataScopeSelfAndAllChildren DataScope = "self_and_all_children"
+	DataScopeSelfAndAllChildren DataScope = "selfAndAllChildren"
 )
 
 type PostList []*Post

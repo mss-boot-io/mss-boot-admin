@@ -34,7 +34,7 @@ type Department struct {
 	// Status 状态
 	Status enum.Status `json:"status" gorm:"column:status;comment:状态;size:10"`
 	// Sort 排序
-	Sort int `json:"sort" gorm:"column:sort;comment:排序;type:int;defualt:0"`
+	Sort int `json:"sort" gorm:"column:sort;comment:排序;type:tinyint;size:5;defualt:0"`
 	// Children 子部门
 	Children []*Department `json:"children,omitempty" gorm:"foreignKey:ParentID;references:ID" swaggerignore:"true"`
 }

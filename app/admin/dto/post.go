@@ -15,4 +15,6 @@ type PostSearch struct {
 	ID string `query:"id" form:"id" search:"type:contains;column:id"`
 	// Name 名称
 	Name string `query:"name" form:"name" search:"type:contains;column:name"`
+	// ParentID 父级部门ID
+	ParentID string `query:"parentID" form:"parentID" search:"type:exact;column:parent_id"`
 }

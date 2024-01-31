@@ -133,6 +133,7 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 	list := make([]*models.Menu, 0)
 	err := center.Default.GetDB(ctx, &models.Menu{}).
 		Where("type = ? OR type = ?", pkg.MenuAccessType, pkg.DirectoryAccessType).
+		Order("sort desc").
 		Find(&list).Error
 	if err != nil {
 		api.Log.Error("get menu tree error", "err", err)
