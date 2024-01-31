@@ -64,11 +64,44 @@ func (t *Tenant) Migrate(tx *gorm.DB) error {
 	if err != nil {
 		return err
 	}
+	department := &Department{
+		Name:     "mss-boot-io",
+		LeaderID: user.ID,
+		Phone:    user.Phone,
+		Email:    user.Email,
+		Code:     "mss-boot-io",
+		Status:   enum.Enabled,
+		Sort:     99,
+	}
+	err = tx.Create(department).Error
+	if err != nil {
+		return err
+	}
+	post := &Post{
+		Name:      "mss-boot-io",
+		Code:      "mss-boot-io",
+		Status:    enum.Enabled,
+		Sort:      99,
+		DataScope: DataScopeAll,
+		DeptIDS:   department.ID,
+	}
+	err = tx.Create(post).Error
+	if err != nil {
+		return err
+	}
+	user.DepartmentID = department.ID
+	user.PostID = post.ID
+
+	err = tx.Model(user).Select("DepartmentID", "PostID").Updates(user).Error
+	if err != nil {
+		return err
+	}
+
 	modelMenu := Menu{
 		Name: "model",
 		Path: "/model",
 		Icon: "desktop",
-		Sort: 15,
+		Sort: 19,
 		Type: pkg.MenuAccessType,
 		Children: []*Menu{
 			{
@@ -156,54 +189,10 @@ func (t *Tenant) Migrate(tx *gorm.DB) error {
 
 	tenantMenu := []Menu{
 		{
-			Name: "develop",
-			Path: "/",
-			Icon: "tool",
-			Sort: 18,
-			Type: pkg.DirectoryAccessType,
-			Children: []*Menu{
-				&modelMenu,
-				{
-
-					Name: "generator",
-					Path: "/generator",
-					Icon: "form",
-					Sort: 18,
-					Type: pkg.MenuAccessType,
-					Children: []*Menu{
-						{
-							Name:   "/admin/api/template/get-branches",
-							Path:   "/admin/api/template/get-branches",
-							Method: http.MethodGet,
-							Type:   pkg.APIAccessType,
-						},
-						{
-							Name:   "/admin/api/template/get-path",
-							Path:   "/admin/api/template/get-path",
-							Method: http.MethodGet,
-							Type:   pkg.APIAccessType,
-						},
-						{
-							Name:   "/admin/api/template/get-params",
-							Path:   "/admin/api/template/get-params",
-							Method: http.MethodGet,
-							Type:   pkg.APIAccessType,
-						},
-						{
-							Name:   "/admin/api/template/generate",
-							Path:   "/admin/api/template/generate",
-							Method: http.MethodPost,
-							Type:   pkg.APIAccessType,
-						},
-					},
-				},
-			},
-		},
-		{
 			Name: "tenant",
 			Path: "/",
 			Icon: "audit",
-			Sort: 17,
+			Sort: 16,
 			Type: pkg.DirectoryAccessType,
 			Children: []*Menu{
 				{
@@ -354,16 +343,74 @@ func (t *Tenant) Migrate(tx *gorm.DB) error {
 				},
 			},
 		},
+		{
+			Name: "develop",
+			Path: "/",
+			Icon: "tool",
+			Sort: 15,
+			Type: pkg.DirectoryAccessType,
+			Children: []*Menu{
+				&modelMenu,
+				{
+
+					Name: "generator",
+					Path: "/generator",
+					Icon: "form",
+					Sort: 18,
+					Type: pkg.MenuAccessType,
+					Children: []*Menu{
+						{
+							Name:   "/admin/api/template/get-branches",
+							Path:   "/admin/api/template/get-branches",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:   "/admin/api/template/get-path",
+							Path:   "/admin/api/template/get-path",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:   "/admin/api/template/get-params",
+							Path:   "/admin/api/template/get-params",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:   "/admin/api/template/generate",
+							Path:   "/admin/api/template/generate",
+							Method: http.MethodPost,
+							Type:   pkg.APIAccessType,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	// init menu
 	menus := []Menu{
 		{
-			Name: "welcome",
-			Path: "/welcome",
+			Name: "dashboard",
+			Path: "/",
 			Icon: "smile",
 			Sort: 20,
-			Type: pkg.MenuAccessType,
+			Type: pkg.DirectoryAccessType,
+			Children: []*Menu{
+				{
+					Name: "workplace",
+					Path: "/workplace",
+					Sort: 20,
+					Type: pkg.MenuAccessType,
+				},
+				{
+					Name: "analysis",
+					Path: "/analysis",
+					Sort: 19,
+					Type: pkg.MenuAccessType,
+				},
+			},
 		},
 		{
 			Name: "system",
@@ -449,267 +496,6 @@ func (t *Tenant) Migrate(tx *gorm.DB) error {
 									Name:   "/admin/api/tasks/*/*",
 									Path:   "/admin/api/tasks/:operate/:id",
 									Method: http.MethodGet,
-									Type:   pkg.APIAccessType,
-								},
-							},
-						},
-					},
-				},
-				{
-					Name: "role",
-					Path: "/role",
-					Icon: "team",
-					Sort: 18,
-					Type: pkg.MenuAccessType,
-					Children: []*Menu{
-						{
-							Name:   "/admin/api/roles",
-							Path:   "/admin/api/roles",
-							Method: http.MethodGet,
-							Type:   pkg.APIAccessType,
-						},
-						{
-							Name:   "/admin/api/roles/*",
-							Path:   "/admin/api/roles/:id",
-							Method: http.MethodGet,
-							Type:   pkg.APIAccessType,
-						},
-						{
-							Name:       "control",
-							Path:       "/role/:id",
-							HideInMenu: true,
-							Type:       pkg.MenuAccessType,
-						},
-						{
-							Name:       "auth",
-							Path:       "/role/auth",
-							HideInMenu: true,
-							Type:       pkg.ComponentAccessType,
-							Children: []*Menu{
-								{
-									Name:   "/admin/api/menu/tree",
-									Path:   "/admin/api/menu/tree",
-									Method: http.MethodGet,
-									Type:   pkg.APIAccessType,
-								},
-								{
-									Name:   "/admin/api/role/authorize/*",
-									Path:   "/admin/api/role/authorize/:id",
-									Method: http.MethodGet,
-									Type:   pkg.APIAccessType,
-								},
-								{
-									Name:   "/admin/api/role/authorize/*",
-									Path:   "/admin/api/role/authorize/:id",
-									Method: http.MethodPost,
-									Type:   pkg.APIAccessType,
-								},
-							},
-						},
-						{
-							Name:       "create",
-							Path:       "/role/create",
-							HideInMenu: true,
-							Type:       pkg.ComponentAccessType,
-							Children: []*Menu{
-								{
-									Name:   "/admin/api/roles",
-									Path:   "/admin/api/roles",
-									Method: http.MethodPost,
-									Type:   pkg.APIAccessType,
-								},
-							},
-						},
-						{
-							Name:       "edit",
-							Path:       "/role/edit",
-							HideInMenu: true,
-							Type:       pkg.ComponentAccessType,
-							Children: []*Menu{
-								{
-									Name:   "/admin/api/roles/*",
-									Path:   "/admin/api/roles/:id",
-									Method: http.MethodPut,
-									Type:   pkg.APIAccessType,
-								},
-							},
-						},
-						{
-							Name:       "delete",
-							Path:       "/role/delete",
-							HideInMenu: true,
-							Type:       pkg.ComponentAccessType,
-							Children: []*Menu{
-								{
-									Name:   "/admin/api/roles/*",
-									Path:   "/admin/api/roles/:id",
-									Method: http.MethodDelete,
-									Type:   pkg.APIAccessType,
-								},
-							},
-						},
-					},
-				},
-				{
-					Name: "user",
-					Path: "/users",
-					Icon: "user",
-					Sort: 17,
-					Type: pkg.MenuAccessType,
-					Children: []*Menu{
-						{
-							Name:   "/admin/api/users",
-							Path:   "/admin/api/users",
-							Method: http.MethodGet,
-							Type:   pkg.APIAccessType,
-						},
-						{
-							Name:   "/admin/api/users/*",
-							Path:   "/admin/api/users/:id",
-							Method: http.MethodGet,
-							Type:   pkg.APIAccessType,
-						},
-						{
-							Name:       "control",
-							Path:       "/users/:id",
-							HideInMenu: true,
-							Type:       pkg.MenuAccessType,
-						},
-						{
-							Name:       "create",
-							Path:       "/users/create",
-							HideInMenu: true,
-							Type:       pkg.ComponentAccessType,
-							Children: []*Menu{
-								{
-									Name:   "/admin/api/users",
-									Path:   "/admin/api/users",
-									Method: http.MethodPost,
-									Type:   pkg.APIAccessType,
-								},
-							},
-						},
-						{
-							Name:       "edit",
-							Path:       "/users/edit",
-							HideInMenu: true,
-							Type:       pkg.ComponentAccessType,
-							Children: []*Menu{
-								{
-									Name:   "/admin/api/users/*",
-									Path:   "/admin/api/users/:id",
-									Method: http.MethodPut,
-									Type:   pkg.APIAccessType,
-								},
-							},
-						},
-						{
-							Name:       "delete",
-							Path:       "/users/delete",
-							HideInMenu: true,
-							Type:       pkg.ComponentAccessType,
-							Children: []*Menu{
-								{
-									Name:   "/admin/api/users/*",
-									Path:   "/admin/api/users/:id",
-									Method: http.MethodDelete,
-									Type:   pkg.APIAccessType,
-								},
-							},
-						},
-						{
-							Name:       "password-reset",
-							Path:       "/users/password-reset",
-							HideInMenu: true,
-							Type:       pkg.ComponentAccessType,
-							Children: []*Menu{
-								{
-									Name:   "/admin/api/user/*/password-reset",
-									Path:   "/admin/api/user/:id/password-reset",
-									Method: http.MethodPut,
-									Type:   pkg.APIAccessType,
-								},
-							},
-						},
-					},
-				},
-				{
-					Name: "menu",
-					Path: "/menu",
-					Icon: "menu",
-					Sort: 16,
-					Type: pkg.MenuAccessType,
-					Children: []*Menu{
-						{
-							Name:   "/admin/api/menus",
-							Path:   "/admin/api/menus",
-							Method: http.MethodGet,
-							Type:   pkg.APIAccessType,
-						},
-						{
-							Name:   "/admin/api/menus/*",
-							Path:   "/admin/api/menus/:id",
-							Method: http.MethodGet,
-							Type:   pkg.APIAccessType,
-						},
-						{
-							Name:       "control",
-							Path:       "/menu/:id",
-							HideInMenu: true,
-							Type:       pkg.MenuAccessType,
-						},
-						{
-							Name:       "create",
-							Path:       "/menu/create",
-							HideInMenu: true,
-							Type:       pkg.ComponentAccessType,
-							Children: []*Menu{
-								{
-									Name:   "/admin/api/menus",
-									Path:   "/admin/api/menus",
-									Method: http.MethodPost,
-									Type:   pkg.APIAccessType,
-								},
-							},
-						},
-						{
-							Name:       "edit",
-							Path:       "/menu/edit",
-							HideInMenu: true,
-							Type:       pkg.ComponentAccessType,
-							Children: []*Menu{
-								{
-									Name:   "/admin/api/menus/*",
-									Path:   "/admin/api/menus/:id",
-									Method: http.MethodPut,
-									Type:   pkg.APIAccessType,
-								},
-							},
-						},
-						{
-							Name:       "delete",
-							Path:       "/menu/delete",
-							HideInMenu: true,
-							Type:       pkg.ComponentAccessType,
-							Children: []*Menu{
-								{
-									Name:   "/admin/api/menus/*",
-									Path:   "/admin/api/menus/:id",
-									Method: http.MethodDelete,
-									Type:   pkg.APIAccessType,
-								},
-							},
-						},
-						{
-							Name:       "bind-api",
-							Path:       "/menu/bind-api",
-							HideInMenu: true,
-							Type:       pkg.ComponentAccessType,
-							Children: []*Menu{
-								{
-									Name:   "/admin/api/menu/bind-api",
-									Path:   "/admin/api/menu/bind-api",
-									Method: http.MethodPost,
 									Type:   pkg.APIAccessType,
 								},
 							},
@@ -931,6 +717,419 @@ func (t *Tenant) Migrate(tx *gorm.DB) error {
 									Name:   "/notice/read/*",
 									Path:   "/notice/read/:id",
 									Method: http.MethodPut,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "origination",
+			Path: "/",
+			Icon: "apartment",
+			Sort: 18,
+			Type: pkg.DirectoryAccessType,
+			Children: []*Menu{
+				{
+					Name: "department",
+					Path: "/department",
+					Sort: 20,
+					Type: pkg.MenuAccessType,
+					Children: []*Menu{
+						{
+							Name:   "/admin/api/departments",
+							Path:   "/admin/api/departments",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:   "/admin/api/departments/*",
+							Path:   "/admin/api/departments/:id",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:       "control",
+							Path:       "/departments/:id",
+							HideInMenu: true,
+							Type:       pkg.MenuAccessType,
+						},
+						{
+							Name:       "create",
+							Path:       "/departments/create",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/departments",
+									Path:   "/admin/api/departments",
+									Method: http.MethodPost,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "edit",
+							Path:       "/departments/edit",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/departments/*",
+									Path:   "/admin/api/departments/:id",
+									Method: http.MethodPut,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "delete",
+							Path:       "/departments/delete",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/departments/*",
+									Path:   "/admin/api/departments/:id",
+									Method: http.MethodDelete,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+					},
+				},
+				{
+					Name: "post",
+					Path: "/post",
+					Sort: 17,
+					Type: pkg.MenuAccessType,
+					Children: []*Menu{
+						{
+							Name:   "/admin/api/posts",
+							Path:   "/admin/api/posts",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:   "/admin/api/posts/*",
+							Path:   "/admin/api/posts/:id",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:       "control",
+							Path:       "/posts/:id",
+							HideInMenu: true,
+							Type:       pkg.MenuAccessType,
+						},
+						{
+							Name:       "create",
+							Path:       "/posts/create",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/posts",
+									Path:   "/admin/api/posts",
+									Method: http.MethodPost,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "edit",
+							Path:       "/posts/edit",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/posts/*",
+									Path:   "/admin/api/posts/:id",
+									Method: http.MethodPut,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "delete",
+							Path:       "/posts/delete",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/posts/*",
+									Path:   "/admin/api/posts/:id",
+									Method: http.MethodDelete,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+					},
+				},
+				{
+					Name: "user",
+					Path: "/users",
+					Icon: "user",
+					Sort: 17,
+					Type: pkg.MenuAccessType,
+					Children: []*Menu{
+						{
+							Name:   "/admin/api/users",
+							Path:   "/admin/api/users",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:   "/admin/api/users/*",
+							Path:   "/admin/api/users/:id",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:       "control",
+							Path:       "/users/:id",
+							HideInMenu: true,
+							Type:       pkg.MenuAccessType,
+						},
+						{
+							Name:       "create",
+							Path:       "/users/create",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/users",
+									Path:   "/admin/api/users",
+									Method: http.MethodPost,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "edit",
+							Path:       "/users/edit",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/users/*",
+									Path:   "/admin/api/users/:id",
+									Method: http.MethodPut,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "delete",
+							Path:       "/users/delete",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/users/*",
+									Path:   "/admin/api/users/:id",
+									Method: http.MethodDelete,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "password-reset",
+							Path:       "/users/password-reset",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/user/*/password-reset",
+									Path:   "/admin/api/user/:id/password-reset",
+									Method: http.MethodPut,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "authority",
+			Path: "/",
+			Icon: "safetyCertificate",
+			Sort: 17,
+			Type: pkg.DirectoryAccessType,
+			Children: []*Menu{
+				{
+					Name: "role",
+					Path: "/role",
+					Sort: 18,
+					Type: pkg.MenuAccessType,
+					Children: []*Menu{
+						{
+							Name:   "/admin/api/roles",
+							Path:   "/admin/api/roles",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:   "/admin/api/roles/*",
+							Path:   "/admin/api/roles/:id",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:       "control",
+							Path:       "/role/:id",
+							HideInMenu: true,
+							Type:       pkg.MenuAccessType,
+						},
+						{
+							Name:       "auth",
+							Path:       "/role/auth",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/menu/tree",
+									Path:   "/admin/api/menu/tree",
+									Method: http.MethodGet,
+									Type:   pkg.APIAccessType,
+								},
+								{
+									Name:   "/admin/api/role/authorize/*",
+									Path:   "/admin/api/role/authorize/:id",
+									Method: http.MethodGet,
+									Type:   pkg.APIAccessType,
+								},
+								{
+									Name:   "/admin/api/role/authorize/*",
+									Path:   "/admin/api/role/authorize/:id",
+									Method: http.MethodPost,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "create",
+							Path:       "/role/create",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/roles",
+									Path:   "/admin/api/roles",
+									Method: http.MethodPost,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "edit",
+							Path:       "/role/edit",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/roles/*",
+									Path:   "/admin/api/roles/:id",
+									Method: http.MethodPut,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "delete",
+							Path:       "/role/delete",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/roles/*",
+									Path:   "/admin/api/roles/:id",
+									Method: http.MethodDelete,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+					},
+				},
+				{
+					Name: "menu",
+					Path: "/menu",
+					Sort: 16,
+					Type: pkg.MenuAccessType,
+					Children: []*Menu{
+						{
+							Name:   "/admin/api/menus",
+							Path:   "/admin/api/menus",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:   "/admin/api/menus/*",
+							Path:   "/admin/api/menus/:id",
+							Method: http.MethodGet,
+							Type:   pkg.APIAccessType,
+						},
+						{
+							Name:       "control",
+							Path:       "/menu/:id",
+							HideInMenu: true,
+							Type:       pkg.MenuAccessType,
+						},
+						{
+							Name:       "create",
+							Path:       "/menu/create",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/menus",
+									Path:   "/admin/api/menus",
+									Method: http.MethodPost,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "edit",
+							Path:       "/menu/edit",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/menus/*",
+									Path:   "/admin/api/menus/:id",
+									Method: http.MethodPut,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "delete",
+							Path:       "/menu/delete",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/menus/*",
+									Path:   "/admin/api/menus/:id",
+									Method: http.MethodDelete,
+									Type:   pkg.APIAccessType,
+								},
+							},
+						},
+						{
+							Name:       "bind-api",
+							Path:       "/menu/bind-api",
+							HideInMenu: true,
+							Type:       pkg.ComponentAccessType,
+							Children: []*Menu{
+								{
+									Name:   "/admin/api/menu/bind-api",
+									Path:   "/admin/api/menu/bind-api",
+									Method: http.MethodPost,
 									Type:   pkg.APIAccessType,
 								},
 							},

@@ -1,6 +1,7 @@
 package apis
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/app/admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
@@ -8,6 +9,8 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+	"github.com/mss-boot-io/mss-boot/pkg/search/gorms"
+	"net/http"
 )
 
 /*
@@ -36,6 +39,18 @@ type Post struct {
 	*controller.Simple
 }
 
+func (e *Post) GetAction(key string) response.Action {
+	if key == response.Search {
+		return nil
+	}
+	return e.Simple.GetAction(key)
+
+}
+
+func (e *Post) Other(r *gin.RouterGroup) {
+	r.GET("/posts", e.List)
+}
+
 // List 岗位列表
 // @Summary 岗位列表
 // @Description 岗位列表
@@ -50,7 +65,36 @@ type Post struct {
 // @Success 200 {object} response.Page{data=[]models.Post}
 // @Router /admin/api/posts [get]
 // @Security Bearer
-func (e *Post) List(c *gin.Context) {}
+func (e *Post) List(c *gin.Context) {
+	api := response.Make(c)
+	req := &dto.PostSearch{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	items := make([]models.Post, 0)
+	m := &models.Post{}
+	query := center.Default.GetDB(c, m).
+		Model(m).
+		Scopes(center.Default.Scope(c, m)).
+		Preload("Children.Children.Children.Children.Children").
+		Scopes(
+			gorms.MakeCondition(req),
+			gorms.Paginate(int(req.GetPageSize()), int(req.GetPage())),
+		).Where(fmt.Sprintf("`%s`.parent_id = ?", m.TableName()), "")
+
+	var count int64
+	if err := query.Limit(-1).Offset(-1).
+		Count(&count).Error; err != nil {
+		api.AddError(err).Err(http.StatusInternalServerError)
+		return
+	}
+	if err := query.Find(&items).Error; err != nil {
+		api.AddError(err).Err(http.StatusInternalServerError)
+		return
+	}
+	api.PageOK(items, count, req.GetPage(), req.GetPageSize())
+}
 
 // Create 创建岗位
 // @Summary 创建岗位
