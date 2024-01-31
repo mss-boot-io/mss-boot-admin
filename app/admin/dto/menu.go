@@ -23,7 +23,9 @@ type MenuSearch struct {
 	// ParentID 父级id
 	ParentID string `query:"parentID" form:"parentID" search:"-"`
 	// Type 类型
-	Type string `query:"type" form:"type" search:"type:exact;column:type"`
+	Type []string `query:"type[]" form:"type[]" search:"type:in;column:type"`
+	// Show 是否显示
+	Show bool `query:"show" form:"show" search:"type:exact;column:hide_in_menu"`
 }
 
 type GetAuthorizeRequest struct {
