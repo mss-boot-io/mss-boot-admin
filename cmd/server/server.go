@@ -97,7 +97,7 @@ func setup() error {
 		source.WithProvider(source.Local),
 	}
 	switch source.Provider(configProvider) {
-	case source.GORM, "":
+	case source.GORM:
 		opts = []source.Option{
 			source.WithProvider(source.GORM),
 			source.WithGORMDriver(driver),
@@ -109,7 +109,7 @@ func setup() error {
 			source.WithProvider(source.FS),
 			source.WithFrom(config.FS),
 		}
-	case source.Local:
+	case source.Local, "":
 	default:
 		slog.Error("config provider not support", "provider", configProvider)
 		os.Exit(-1)
