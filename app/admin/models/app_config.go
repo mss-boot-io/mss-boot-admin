@@ -45,7 +45,7 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, value string) err
 		Name:  key,
 	}
 	//set cache
-	err := center.GetCache().Set(ctx, key, value, 0)
+	err := center.GetCache().Set(ctx, key, value, -1)
 	if err != nil {
 		return err
 	}
