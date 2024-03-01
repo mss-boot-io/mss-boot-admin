@@ -1,8 +1,6 @@
 package center
 
 import (
-	"time"
-
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/storage"
 	"github.com/mss-boot-io/mss-boot/core/server"
@@ -38,12 +36,6 @@ type Center interface {
 	storage.AdapterCache
 	storage.AdapterQueue
 	storage.AdapterLocker
-}
-
-type CacheImp interface {
-	Get(key string) (string, error)
-	Set(key string, value any, expire time.Duration) error
-	Del(key string) error
 }
 
 type GRPCClientImp interface {

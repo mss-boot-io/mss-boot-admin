@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"time"
 
 	"github.com/bsm/redislock"
@@ -12,14 +13,14 @@ const (
 
 type AdapterCache interface {
 	String() string
-	Get(key string) (string, error)
-	Set(key string, val interface{}, expire time.Duration) error
-	Del(key string) error
-	HashGet(hk, key string) (string, error)
-	HashDel(hk, key string) error
-	Increase(key string) error
-	Decrease(key string) error
-	Expire(key string, dur time.Duration) error
+	Get(ctx context.Context, key string) (string, error)
+	Set(ctx context.Context, key string, val interface{}, expire time.Duration) error
+	Del(ctx context.Context, key string) error
+	HashGet(ctx context.Context, hk, key string) (string, error)
+	HashDel(ctx context.Context, hk, key string) error
+	Increase(ctx context.Context, key string) error
+	Decrease(ctx context.Context, key string) error
+	Expire(ctx context.Context, key string, dur time.Duration) error
 }
 
 type AdapterQueue interface {
@@ -47,5 +48,5 @@ type ConsumerFunc func(Messager) error
 
 type AdapterLocker interface {
 	String() string
-	Lock(key string, ttl int64, options *redislock.Options) (*redislock.Lock, error)
+	Lock(ctx context.Context, key string, ttl time.Duration, options *redislock.Options) (*redislock.Lock, error)
 }

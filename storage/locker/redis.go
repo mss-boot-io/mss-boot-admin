@@ -20,13 +20,13 @@ type Redis struct {
 	mutex  *redislock.Client
 }
 
-func (Redis) String() string {
+func (*Redis) String() string {
 	return "redis"
 }
 
-func (r *Redis) Lock(key string, ttl int64, options *redislock.Options) (*redislock.Lock, error) {
+func (r *Redis) Lock(ctx context.Context, key string, ttl time.Duration, options *redislock.Options) (*redislock.Lock, error) {
 	if r.mutex == nil {
 		r.mutex = redislock.New(r.client)
 	}
-	return r.mutex.Obtain(context.TODO(), key, time.Duration(ttl)*time.Second, options)
+	return r.mutex.Obtain(ctx, key, ttl, options)
 }

@@ -37,7 +37,7 @@ type DefaultCenter struct {
 	StatisticsImp
 	MakeRouterImp
 	GRPCClientImp
-	CacheImp
+	storage.AdapterCache
 	storage.AdapterQueue
 	storage.AdapterLocker
 }
@@ -90,8 +90,8 @@ func (d *DefaultCenter) SetGRPCClient(g GRPCClientImp) {
 	d.GRPCClientImp = g
 }
 
-func (d *DefaultCenter) SetCache(c CacheImp) {
-	d.CacheImp = c
+func (d *DefaultCenter) SetCache(c storage.AdapterCache) {
+	d.AdapterCache = c
 }
 
 func (d *DefaultCenter) SetQueue(q storage.AdapterQueue) {
@@ -150,8 +150,8 @@ func (d *DefaultCenter) GetGRPCClient() GRPCClientImp {
 	return d.GRPCClientImp
 }
 
-func (d *DefaultCenter) GetCache() CacheImp {
-	return d.CacheImp
+func (d *DefaultCenter) GetCache() storage.AdapterCache {
+	return d.AdapterCache
 }
 
 func (d *DefaultCenter) GetQueue() storage.AdapterQueue {
@@ -237,7 +237,7 @@ func SetGRPCClient(g GRPCClientImp) *DefaultCenter {
 	return Default
 }
 
-func SetCache(c CacheImp) *DefaultCenter {
+func SetCache(c storage.AdapterCache) *DefaultCenter {
 	Default.SetCache(c)
 	return Default
 }
@@ -304,7 +304,7 @@ func GetGRPCClient() GRPCClientImp {
 	return Default.GetGRPCClient()
 }
 
-func GetCache() CacheImp {
+func GetCache() storage.AdapterCache {
 	return Default.GetCache()
 }
 

@@ -32,7 +32,7 @@ type Redis struct {
 	producer *redisqueue.Producer
 }
 
-func (Redis) String() string {
+func (*Redis) String() string {
 	return "redis"
 }
 

@@ -63,7 +63,7 @@ type NSQOptions struct {
 	// Integer percentage to sample the channel (requires nsqd 0.2.25+)
 	SampleRate int32 `opt:"sample_rate" min:"0" max:"99"`
 
-	Tls *Tls `yaml:"tls" json:"tls"`
+	Tls *TLS `yaml:"tls" json:"tls"`
 
 	// Compression Settings
 	Deflate      bool `opt:"deflate"`

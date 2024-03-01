@@ -39,42 +39,42 @@ func (r *Redis) connect() error {
 }
 
 // Get from key
-func (r *Redis) Get(key string) (string, error) {
-	return r.client.Get(context.TODO(), key).Result()
+func (r *Redis) Get(ctx context.Context, key string) (string, error) {
+	return r.client.Get(ctx, key).Result()
 }
 
 // Set value with key and expire time
-func (r *Redis) Set(key string, val interface{}, expire time.Duration) error {
-	return r.client.Set(context.TODO(), key, val, expire).Err()
+func (r *Redis) Set(ctx context.Context, key string, val interface{}, expire time.Duration) error {
+	return r.client.Set(ctx, key, val, expire).Err()
 }
 
 // Del delete key in redis
-func (r *Redis) Del(key string) error {
-	return r.client.Del(context.TODO(), key).Err()
+func (r *Redis) Del(ctx context.Context, key string) error {
+	return r.client.Del(ctx, key).Err()
 }
 
 // HashGet from key
-func (r *Redis) HashGet(hk, key string) (string, error) {
-	return r.client.HGet(context.TODO(), hk, key).Result()
+func (r *Redis) HashGet(ctx context.Context, hk, key string) (string, error) {
+	return r.client.HGet(ctx, hk, key).Result()
 }
 
 // HashDel delete key in specify redis's hashtable
-func (r *Redis) HashDel(hk, key string) error {
-	return r.client.HDel(context.TODO(), hk, key).Err()
+func (r *Redis) HashDel(ctx context.Context, hk, key string) error {
+	return r.client.HDel(ctx, hk, key).Err()
 }
 
-// Increase
-func (r *Redis) Increase(key string) error {
-	return r.client.Incr(context.TODO(), key).Err()
+// Increase key's value
+func (r *Redis) Increase(ctx context.Context, key string) error {
+	return r.client.Incr(ctx, key).Err()
 }
 
-func (r *Redis) Decrease(key string) error {
-	return r.client.Decr(context.TODO(), key).Err()
+func (r *Redis) Decrease(ctx context.Context, key string) error {
+	return r.client.Decr(ctx, key).Err()
 }
 
-// Set ttl
-func (r *Redis) Expire(key string, dur time.Duration) error {
-	return r.client.Expire(context.TODO(), key, dur).Err()
+// Expire Set ttl
+func (r *Redis) Expire(ctx context.Context, key string, dur time.Duration) error {
+	return r.client.Expire(ctx, key, dur).Err()
 }
 
 // GetClient 暴露原生client

@@ -20,9 +20,6 @@ type Cache struct {
 	Memory interface{}
 }
 
-// CacheConfig cache配置
-var CacheConfig = new(Cache)
-
 // Init 构造cache 顺序 redis > 其他 > memory
 func (e Cache) Init() {
 	if e.Redis != nil {

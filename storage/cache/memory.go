@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
@@ -33,7 +34,7 @@ func (*Memory) String() string {
 func (m *Memory) connect() {
 }
 
-func (m *Memory) Get(key string) (string, error) {
+func (m *Memory) Get(_ context.Context, key string) (string, error) {
 	item, err := m.getItem(key)
 	if err != nil || item == nil {
 		return "", err
@@ -63,7 +64,7 @@ func (m *Memory) getItem(key string) (*item, error) {
 	}
 }
 
-func (m *Memory) Set(key string, val any, expire time.Duration) error {
+func (m *Memory) Set(_ context.Context, key string, val any, expire time.Duration) error {
 	s, err := cast.ToStringE(val)
 	if err != nil {
 		return err
@@ -80,7 +81,7 @@ func (m *Memory) setItem(key string, item *item) error {
 	return nil
 }
 
-func (m *Memory) Del(key string) error {
+func (m *Memory) Del(_ context.Context, key string) error {
 	return m.del(key)
 }
 
@@ -89,7 +90,7 @@ func (m *Memory) del(key string) error {
 	return nil
 }
 
-func (m *Memory) HashGet(hk, key string) (string, error) {
+func (m *Memory) HashGet(_ context.Context, hk, key string) (string, error) {
 	item, err := m.getItem(hk + key)
 	if err != nil || item == nil {
 		return "", err
@@ -97,15 +98,15 @@ func (m *Memory) HashGet(hk, key string) (string, error) {
 	return item.Value, err
 }
 
-func (m *Memory) HashDel(hk, key string) error {
+func (m *Memory) HashDel(_ context.Context, hk, key string) error {
 	return m.del(hk + key)
 }
 
-func (m *Memory) Increase(key string) error {
+func (m *Memory) Increase(_ context.Context, key string) error {
 	return m.calculate(key, 1)
 }
 
-func (m *Memory) Decrease(key string) error {
+func (m *Memory) Decrease(_ context.Context, key string) error {
 	return m.calculate(key, -1)
 }
 
@@ -131,7 +132,7 @@ func (m *Memory) calculate(key string, num int) error {
 	return m.setItem(key, item)
 }
 
-func (m *Memory) Expire(key string, dur time.Duration) error {
+func (m *Memory) Expire(_ context.Context, key string, dur time.Duration) error {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	item, err := m.getItem(key)

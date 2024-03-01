@@ -39,11 +39,11 @@ type RedisConnectOptions struct {
 	Password   string `yaml:"password" json:"password"`
 	DB         int    `yaml:"db" json:"db"`
 	PoolSize   int    `yaml:"pool_size" json:"pool_size"`
-	Tls        *Tls   `yaml:"tls" json:"tls"`
+	Tls        *TLS   `yaml:"tls" json:"tls"`
 	MaxRetries int    `yaml:"max_retries" json:"max_retries"`
 }
 
-type Tls struct {
+type TLS struct {
 	Cert string `yaml:"cert" json:"cert"`
 	Key  string `yaml:"key" json:"key"`
 	Ca   string `yaml:"ca" json:"ca"`
@@ -64,7 +64,7 @@ func (e RedisConnectOptions) GetRedisOptions() (*redis.Options, error) {
 	return r, err
 }
 
-func getTLS(c *Tls) (*tls.Config, error) {
+func getTLS(c *TLS) (*tls.Config, error) {
 	if c != nil && c.Cert != "" {
 		// 从证书相关文件中读取和解析信息，得到证书公钥、密钥对
 		cert, err := tls.LoadX509KeyPair(c.Cert, c.Key)

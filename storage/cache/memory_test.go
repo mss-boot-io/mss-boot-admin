@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -52,12 +53,12 @@ func TestMemory_Get(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := NewMemory()
-			if err := m.Set(tt.args.key, tt.args.value, tt.args.expire); err != nil {
+			if err := m.Set(context.TODO(), tt.args.key, tt.args.value, tt.args.expire); err != nil {
 				t.Errorf("Set() error = %v", err)
 				return
 			}
 			time.Sleep(2 * time.Second)
-			got, err := m.Get(tt.args.key)
+			got, err := m.Get(context.TODO(), tt.args.key)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Get() error = %v, wantErr %v", err, tt.wantErr)
 				return
