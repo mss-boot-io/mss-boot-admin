@@ -5,15 +5,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/grafana/pyroscope-go"
+	"github.com/mss-boot-io/mss-boot-admin/storage"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
-
-var Default = &DefaultCenter{
-	Manager: server.New(),
-}
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
@@ -21,6 +18,10 @@ var Default = &DefaultCenter{
  * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
  * @Last Modified time: 2024/1/8 09:54:13
  */
+
+var Default = &DefaultCenter{
+	Manager: server.New(),
+}
 
 type DefaultCenter struct {
 	NoticeImp
@@ -36,6 +37,9 @@ type DefaultCenter struct {
 	StatisticsImp
 	MakeRouterImp
 	GRPCClientImp
+	CacheImp
+	storage.AdapterQueue
+	storage.AdapterLocker
 }
 
 func (d *DefaultCenter) SetNotice(n NoticeImp) {
@@ -86,6 +90,18 @@ func (d *DefaultCenter) SetGRPCClient(g GRPCClientImp) {
 	d.GRPCClientImp = g
 }
 
+func (d *DefaultCenter) SetCache(c CacheImp) {
+	d.CacheImp = c
+}
+
+func (d *DefaultCenter) SetQueue(q storage.AdapterQueue) {
+	d.AdapterQueue = q
+}
+
+func (d *DefaultCenter) SetLocker(l storage.AdapterLocker) {
+	d.AdapterLocker = l
+}
+
 func (d *DefaultCenter) GetNotice() NoticeImp {
 	return d.NoticeImp
 }
@@ -128,6 +144,22 @@ func (d *DefaultCenter) GetStatistics() StatisticsImp {
 
 func (d *DefaultCenter) GetMakeRouter() MakeRouterImp {
 	return d.MakeRouterImp
+}
+
+func (d *DefaultCenter) GetGRPCClient() GRPCClientImp {
+	return d.GRPCClientImp
+}
+
+func (d *DefaultCenter) GetCache() CacheImp {
+	return d.CacheImp
+}
+
+func (d *DefaultCenter) GetQueue() storage.AdapterQueue {
+	return d.AdapterQueue
+}
+
+func (d *DefaultCenter) GetLocker() storage.AdapterLocker {
+	return d.AdapterLocker
 }
 
 func (d *DefaultCenter) Stage() string {
@@ -205,6 +237,21 @@ func SetGRPCClient(g GRPCClientImp) *DefaultCenter {
 	return Default
 }
 
+func SetCache(c CacheImp) *DefaultCenter {
+	Default.SetCache(c)
+	return Default
+}
+
+func SetQueue(q storage.AdapterQueue) *DefaultCenter {
+	Default.SetQueue(q)
+	return Default
+}
+
+func SetLocker(l storage.AdapterLocker) *DefaultCenter {
+	Default.SetLocker(l)
+	return Default
+}
+
 func GetNotice() NoticeImp {
 	return Default.GetNotice()
 }
@@ -251,4 +298,20 @@ func GetStatistics() StatisticsImp {
 
 func GetMakeRouter() MakeRouterImp {
 	return Default.GetMakeRouter()
+}
+
+func GetGRPCClient() GRPCClientImp {
+	return Default.GetGRPCClient()
+}
+
+func GetCache() CacheImp {
+	return Default.GetCache()
+}
+
+func GetQueue() storage.AdapterQueue {
+	return Default.GetQueue()
+}
+
+func GetLocker() storage.AdapterLocker {
+	return Default.GetLocker()
 }
