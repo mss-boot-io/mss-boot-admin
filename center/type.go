@@ -35,7 +35,7 @@ type Center interface {
 	StatisticsImp
 	MakeRouterImp
 	GRPCClientImp
-	CacheImp
+	storage.AdapterCache
 	storage.AdapterQueue
 	storage.AdapterLocker
 }
@@ -105,6 +105,6 @@ type StatisticsObject interface {
 
 type StatisticsImp interface {
 	Calibrate(ctx *gin.Context, object StatisticsObject) error
-	Increase(ctx *gin.Context, object StatisticsObject) error
-	Reduce(ctx *gin.Context, object StatisticsObject) error
+	NowIncrease(ctx *gin.Context, object StatisticsObject) error
+	NowReduce(ctx *gin.Context, object StatisticsObject) error
 }

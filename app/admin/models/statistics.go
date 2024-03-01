@@ -56,7 +56,7 @@ func (e *Statistics) Calibrate(ctx *gin.Context, object center.StatisticsObject)
 	return nil
 }
 
-func (e *Statistics) Increase(ctx *gin.Context, object center.StatisticsObject) error {
+func (e *Statistics) NowIncrease(ctx *gin.Context, object center.StatisticsObject) error {
 	s := &Statistics{
 		Name: object.StatisticsName(),
 		Type: object.StatisticsType(),
@@ -65,23 +65,23 @@ func (e *Statistics) Increase(ctx *gin.Context, object center.StatisticsObject) 
 	err := center.GetDB(ctx, s).Where(s).
 		FirstOrCreate(s).Error
 	if err != nil {
-		slog.Error("Statistics Increase", "error", err)
+		slog.Error("Statistics NowIncrease", "error", err)
 		return err
 	}
 	if err != nil {
-		slog.Error("Statistics Increase", "error", err)
+		slog.Error("Statistics NowIncrease", "error", err)
 		return err
 	}
 	err = center.GetDB(ctx, s).Model(e).
 		Update("value", gorm.Expr("value + ?", object.StatisticsStep())).Error
 	if err != nil {
-		slog.Error("Statistics Increase", "error", err)
+		slog.Error("Statistics NowIncrease", "error", err)
 		return err
 	}
 	return nil
 }
 
-func (e *Statistics) Reduce(ctx *gin.Context, object center.StatisticsObject) error {
+func (e *Statistics) NowReduce(ctx *gin.Context, object center.StatisticsObject) error {
 	s := &Statistics{
 		Name: object.StatisticsName(),
 		Type: object.StatisticsType(),
@@ -90,17 +90,17 @@ func (e *Statistics) Reduce(ctx *gin.Context, object center.StatisticsObject) er
 	err := center.GetDB(ctx, s).Where(s).
 		FirstOrCreate(s).Error
 	if err != nil {
-		slog.Error("Statistics Reduce", "error", err)
+		slog.Error("Statistics NowReduce", "error", err)
 		return err
 	}
 	if err != nil {
-		slog.Error("Statistics Reduce", "error", err)
+		slog.Error("Statistics NowReduce", "error", err)
 		return err
 	}
 	err = center.GetDB(ctx, s).Model(s).
 		Update("value", gorm.Expr("value - ?", object.StatisticsStep())).Error
 	if err != nil {
-		slog.Error("Statistics Reduce", "error", err)
+		slog.Error("Statistics NowReduce", "error", err)
 		return err
 	}
 	return nil

@@ -17,7 +17,7 @@ func TestMemory_Get(t *testing.T) {
 	type args struct {
 		key    string
 		value  string
-		expire int
+		expire time.Duration
 	}
 	tests := []struct {
 		name    string
@@ -32,7 +32,7 @@ func TestMemory_Get(t *testing.T) {
 			args{
 				key:    "test",
 				value:  "test",
-				expire: 10,
+				expire: 10 * time.Second,
 			},
 			"test",
 			false,
@@ -43,7 +43,7 @@ func TestMemory_Get(t *testing.T) {
 			args{
 				key:    "test",
 				value:  "test1",
-				expire: 1,
+				expire: 1 * time.Second,
 			},
 			"",
 			true,

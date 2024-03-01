@@ -39,3 +39,5 @@ pyroscope:
   enabled: false
   applicationName: mss-boot-admin
   serverAddress: http://pyroscope:4040
+cache:
+  memory: ''
