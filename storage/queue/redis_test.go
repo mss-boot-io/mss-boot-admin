@@ -116,7 +116,7 @@ func TestRedis_Register(t *testing.T) {
 				},
 			},
 			args{
-				name: "login_log_queue",
+				name: "test",
 				f: func(message storage.Messager) error {
 					fmt.Println("ok")
 					fmt.Println(message.GetValues())
@@ -131,9 +131,12 @@ func TestRedis_Register(t *testing.T) {
 				t.Errorf("SetQueue() error = %v", err)
 			} else {
 				r.Register(tt.args.name, tt.args.f)
+				go func() {
+					time.Sleep(time.Second)
+					r.Shutdown()
+				}()
 				r.Run()
 			}
 		})
 	}
-	t.Log("ok")
 }
