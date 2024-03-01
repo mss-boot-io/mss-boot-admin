@@ -44,7 +44,12 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, value string) err
 		Group: group,
 		Name:  key,
 	}
-	err := center.GetDB(ctx, e).
+	//set cache
+	err := center.GetCache().Set(ctx, key, value, -1)
+	if err != nil {
+		return err
+	}
+	err = center.GetDB(ctx, e).
 		Where("`group` = ?", group).
 		Where("name = ?", key).
 		FirstOrCreate(c).Error
@@ -68,6 +73,13 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 	if len(keys) > 1 {
 		group = keys[0]
 		key = strings.Join(keys[1:], ".")
+	}
+	v, _ := center.GetCache().Get(ctx, key)
+	if v != "" {
+		c.Group = group
+		c.Name = key
+		c.Value = v
+		return c, nil
 	}
 
 	err := center.GetTenant().GetDB(ctx, c).

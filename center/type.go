@@ -2,6 +2,7 @@ package center
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin/storage"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/pkg/config"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
@@ -32,6 +33,9 @@ type Center interface {
 	StatisticsImp
 	MakeRouterImp
 	GRPCClientImp
+	storage.AdapterCache
+	storage.AdapterQueue
+	storage.AdapterLocker
 }
 
 type GRPCClientImp interface {
@@ -93,6 +97,6 @@ type StatisticsObject interface {
 
 type StatisticsImp interface {
 	Calibrate(ctx *gin.Context, object StatisticsObject) error
-	Increase(ctx *gin.Context, object StatisticsObject) error
-	Reduce(ctx *gin.Context, object StatisticsObject) error
+	NowIncrease(ctx *gin.Context, object StatisticsObject) error
+	NowReduce(ctx *gin.Context, object StatisticsObject) error
 }

@@ -32,6 +32,9 @@ type Config struct {
 	OAuth2      *config.OAuth2  `yaml:"oauth2" json:"oauth2"`
 	Task        Task            `yaml:"task" json:"task"`
 	Pyroscope   Pyroscope       `yaml:"pyroscope" json:"pyroscope"`
+	Cache       *Cache          `yaml:"cache" json:"cache"`
+	Queue       *Queue          `yaml:"queue" json:"queue"`
+	Locker      *Locker         `yaml:"locker" json:"locker"`
 }
 
 func (e *Config) Init(opts ...source.Option) {
@@ -46,6 +49,11 @@ func (e *Config) Init(opts ...source.Option) {
 		e.Pyroscope.ApplicationName = e.Application.Name
 	}
 	e.Pyroscope.Init()
+
+	if e.Cache != nil {
+		e.Cache.Init()
+	}
+
 }
 
 func (e *Config) OnChange() {

@@ -39,3 +39,7 @@ pyroscope:
   enabled: false
   applicationName: mss-boot-admin
   serverAddress: http://pyroscope:4040
+cache:
+  memory: ''
+#  redis:
+#    addr: '127.0.0.1:6379'

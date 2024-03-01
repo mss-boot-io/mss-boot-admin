@@ -335,7 +335,7 @@ func (e *User) AfterCreate(tx *gorm.DB) error {
 	if !ok {
 		return nil
 	}
-	_ = center.Default.Increase(ctx, e)
+	_ = center.Default.NowIncrease(ctx, e)
 	return nil
 }
 
@@ -344,7 +344,7 @@ func (e *User) AfterDelete(tx *gorm.DB) error {
 	if !ok {
 		return nil
 	}
-	_ = center.Default.Reduce(ctx, e)
+	_ = center.Default.NowReduce(ctx, e)
 	return nil
 }
 
