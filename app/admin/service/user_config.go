@@ -11,17 +11,18 @@ import (
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2024/1/11 22:01:11
+ * @Date: 2024/3/2 00:42:39
  * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2024/1/11 22:01:11
+ * @Last Modified time: 2024/3/2 00:42:39
  */
 
-type AppConfig struct{}
+type UserConfig struct{}
 
-func (e *AppConfig) Group(ctx *gin.Context, group string) (map[string]string, error) {
-	list := make([]*models.AppConfig, 0)
-	err := center.GetTenant().GetDB(ctx, &models.AppConfig{}).
+func (e *UserConfig) Group(ctx *gin.Context, userID, group string) (map[string]string, error) {
+	list := make([]*models.UserConfig, 0)
+	err := center.GetTenant().GetDB(ctx, &models.UserConfig{}).
 		Where("`group` = ?", group).
+		Where("user_id = ?", userID).
 		Find(&list).Error
 	if err != nil {
 		return nil, err
@@ -33,10 +34,10 @@ func (e *AppConfig) Group(ctx *gin.Context, group string) (map[string]string, er
 	return result, nil
 }
 
-func (e *AppConfig) CreateOrUpdate(ctx *gin.Context, group string, data map[string]any) error {
+func (e *UserConfig) CreateOrUpdate(ctx *gin.Context, userID, group string, data map[string]any) error {
 	var err error
 	for k, v := range data {
-		err = center.GetAppConfig().SetAppConfig(ctx, fmt.Sprintf("%s.%s", group, k), cast.ToString(v))
+		err = center.GetUserConfig().SetUserConfig(ctx, userID, fmt.Sprintf("%s.%s", group, k), cast.ToString(v))
 		if err != nil {
 			return err
 		}

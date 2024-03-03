@@ -8,9 +8,10 @@ package config
  */
 
 import (
+	"log"
+
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/redis/go-redis/v9"
-	"log"
 
 	"github.com/mss-boot-io/mss-boot-admin/storage/locker"
 )

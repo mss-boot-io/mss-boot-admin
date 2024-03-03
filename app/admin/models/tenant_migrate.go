@@ -420,6 +420,13 @@ func (t *Tenant) Migrate(tx *gorm.DB) error {
 			Type: pkg.DirectoryAccessType,
 			Children: []*Menu{
 				{
+					Name: "appConfig",
+					Path: "/app-config",
+					Icon: "setting",
+					Sort: 21,
+					Type: pkg.MenuAccessType,
+				},
+				{
 					Name: "task",
 					Path: "/task",
 					Icon: "wallet",
