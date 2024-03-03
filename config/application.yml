@@ -33,7 +33,7 @@ auth:
   realm: 'mss-boot-admin zone'
   key: 'mss-boot-admin-secret'
   timeout: '12h'
-  maxRefresh: '1h'
+  maxRefresh: '2160h'
   identityKey: 'mss-boot-admin-identity-key'
 pyroscope:
   enabled: false

@@ -122,6 +122,8 @@ func setup() error {
 
 	// app config
 	center.SetAppConfig(&models.AppConfig{})
+	// user config
+	center.SetUserConfig(&models.UserConfig{})
 	// statistics config
 	center.SetStatistics(&models.Statistics{})
 	center.SetGRPCClient(&config.Cfg.GRPC)

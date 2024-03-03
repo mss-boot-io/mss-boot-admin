@@ -91,4 +91,5 @@ func (e *AppConfig) Control(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
+	api.OK(nil)
 }

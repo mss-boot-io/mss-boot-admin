@@ -33,6 +33,7 @@ type DefaultCenter struct {
 	gin.IRouter
 	StageImp
 	AppConfigImp
+	UserConfigImp
 	Profiler *pyroscope.Profiler
 	StatisticsImp
 	MakeRouterImp
@@ -72,6 +73,10 @@ func (d *DefaultCenter) SetRouter(r gin.IRouter) {
 
 func (d *DefaultCenter) SetAppConfig(a AppConfigImp) {
 	d.AppConfigImp = a
+}
+
+func (d *DefaultCenter) SetUserConfig(u UserConfigImp) {
+	d.UserConfigImp = u
 }
 
 func (d *DefaultCenter) SetProfiler(p *pyroscope.Profiler) {
@@ -132,6 +137,10 @@ func (d *DefaultCenter) GetRouter() gin.IRouter {
 
 func (d *DefaultCenter) GetAppConfig() AppConfigImp {
 	return d.AppConfigImp
+}
+
+func (d *DefaultCenter) GetUserConfig() UserConfigImp {
+	return d.UserConfigImp
 }
 
 func (d *DefaultCenter) GetProfiler() *pyroscope.Profiler {
@@ -212,6 +221,11 @@ func SetAppConfig(a AppConfigImp) *DefaultCenter {
 	return Default
 }
 
+func SetUserConfig(u UserConfigImp) *DefaultCenter {
+	Default.SetUserConfig(u)
+	return Default
+}
+
 func SetRouter(r gin.IRouter) *DefaultCenter {
 	Default.SetRouter(r)
 	return Default
@@ -286,6 +300,10 @@ func Stage() string {
 
 func GetAppConfig() AppConfigImp {
 	return Default.GetAppConfig()
+}
+
+func GetUserConfig() UserConfigImp {
+	return Default.GetUserConfig()
 }
 
 func GetProfiler() *pyroscope.Profiler {

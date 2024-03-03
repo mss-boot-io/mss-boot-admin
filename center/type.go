@@ -30,6 +30,7 @@ type Center interface {
 	gin.IRouter
 	StageImp
 	AppConfigImp
+	UserConfigImp
 	StatisticsImp
 	MakeRouterImp
 	GRPCClientImp
@@ -84,6 +85,11 @@ type ConfigImp interface {
 type AppConfigImp interface {
 	SetAppConfig(ctx *gin.Context, key string, value string) error
 	GetAppConfig(ctx *gin.Context, key string) (string, bool)
+}
+
+type UserConfigImp interface {
+	SetUserConfig(ctx *gin.Context, userID, key, value string) error
+	GetUserConfig(ctx *gin.Context, userID, key string) (string, bool)
 }
 
 type StatisticsObject interface {
