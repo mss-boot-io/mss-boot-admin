@@ -2,10 +2,15 @@ package models
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
+
+	larkauthen "github.com/larksuite/oapi-sdk-go/v3/service/authen/v1"
+	"golang.org/x/oauth2"
 
 	"github.com/gin-gonic/gin"
 	corePKG "github.com/mss-boot-io/mss-boot/pkg"
@@ -16,7 +21,6 @@ import (
 	"gorm.io/gorm/schema"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
-	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
 )
 
@@ -107,20 +111,20 @@ func GetUserByUsername(username string) (*User, error) {
 }
 
 type UserLogin struct {
-	RoleID       string        `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Role         *Role         `json:"role" gorm:"foreignKey:RoleID;references:ID"`
-	PostID       string        `json:"postID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Post         *Post         `json:"post" gorm:"foreignKey:PostID;references:ID"`
-	DepartmentID string        `json:"departmentID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Department   *Department   `json:"department" gorm:"foreignKey:DepartmentID;references:ID"`
-	Username     string        `json:"username" gorm:"type:varchar(20);uniqueIndex"`
-	Email        string        `json:"email" gorm:"type:varchar(100);uniqueIndex"`
-	Password     string        `json:"password,omitempty" gorm:"-"`
-	PasswordHash string        `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
-	Salt         string        `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
-	Status       enum.Status   `json:"status" gorm:"size:10"`
-	OAuth2       []*UserOAuth2 `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
-	Provider     string        `json:"type" gorm:"-"`
+	RoleID       string             `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Role         *Role              `json:"role" gorm:"foreignKey:RoleID;references:ID"`
+	PostID       string             `json:"postID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Post         *Post              `json:"post" gorm:"foreignKey:PostID;references:ID"`
+	DepartmentID string             `json:"departmentID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Department   *Department        `json:"department" gorm:"foreignKey:DepartmentID;references:ID"`
+	Username     string             `json:"username" gorm:"type:varchar(20);uniqueIndex"`
+	Email        string             `json:"email" gorm:"type:varchar(100);uniqueIndex"`
+	Password     string             `json:"password,omitempty" gorm:"-"`
+	PasswordHash string             `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
+	Salt         string             `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
+	Status       enum.Status        `json:"status" gorm:"size:10"`
+	OAuth2       []*UserOAuth2      `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
+	Provider     pkg.OAuth2Provider `json:"type" gorm:"-"`
 }
 
 func (e *UserLogin) TableName() string {
@@ -156,14 +160,29 @@ func (e *UserLogin) Root() bool {
 
 // Verify verify password
 func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error) {
-	switch strings.ToLower(e.Provider) {
-	case "github":
+	c := ctx.(*gin.Context)
+	defaultRole := &Role{Default: true}
+	_ = center.GetDB(ctx.(*gin.Context), &Role{}).Where(defaultRole).First(defaultRole).Error
+	switch e.Provider {
+	case pkg.OAuth2GithubProvider:
 		// get user from github, then add user to db
 		// github user
-		conf, err := config.Cfg.OAuth2.GetOAuth2Config(ctx)
-		if err != nil {
-			slog.Error("get oauth2 config error", slog.Any("error", err))
-			return false, nil, err
+		clientID, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientId")
+		clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientSecret")
+		redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security.githubRedirectUrl")
+		scope, _ := center.GetAppConfig().GetAppConfig(c, "security.githubScope")
+		scopes := strings.Split(scope, ",")
+		allowGroup, _ := center.GetAppConfig().GetAppConfig(c, "security.githubAllowGroup")
+		allowGroups := strings.Split(allowGroup, ",")
+		conf := &oauth2.Config{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Scopes:       scopes,
+			RedirectURL:  redirectURL,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "https://github.com/login/oauth/authorize",
+				TokenURL: "https://github.com/login/oauth/access_token",
+			},
 		}
 		githubUser, err := pkg.GetUserFromGithub(ctx, conf, e.Password)
 		if err != nil {
@@ -171,20 +190,18 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			return false, nil, err
 		}
 
-		if len(config.Cfg.OAuth2.AllowGroup) > 0 {
+		if len(allowGroups) > 0 {
 			org, err := pkg.GetOrganizationsFromGithub(ctx, conf, e.Password)
 			if err != nil {
 				slog.Error("get organizations from github error", slog.Any("error", err))
 				return false, nil, err
 			}
-			if !pkg.InArray(config.Cfg.OAuth2.AllowGroup, org, "", 0) {
+			if !pkg.InArray(allowGroups, org, "", 0) {
 				err = errors.New("user not in allow group")
 				slog.Error(err.Error())
 				return false, nil, err
 			}
 		}
-		defaultRole := &Role{Default: true}
-		_ = center.GetDB(ctx.(*gin.Context), &Role{}).Where(defaultRole).First(defaultRole).Error
 		// get user from db
 		userOAuth2 := &UserOAuth2{}
 		err = center.GetDB(ctx.(*gin.Context), &UserOAuth2{}).Preload("User.Role").First(userOAuth2, "open_id = ?", fmt.Sprintf("%d", githubUser.ID)).Error
@@ -205,13 +222,14 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 				Website:       githubUser.HTMLURL,
 				EmailVerified: true,
 				Locale:        githubUser.Location,
+				Provider:      pkg.OAuth2GithubProvider,
 				User: &User{
 					UserLogin: UserLogin{
 						RoleID:   defaultRole.ID,
 						Username: githubUser.Email,
 						Email:    githubUser.Email,
 						Password: e.Password,
-						Provider: "github",
+						Provider: pkg.OAuth2GithubProvider,
 						Status:   enum.Enabled,
 					},
 					Name:   githubUser.Login,
@@ -226,6 +244,86 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			}
 			// register user
 			err = center.GetDB(ctx.(*gin.Context), &User{}).Create(userOAuth2).Error
+			if err != nil {
+				slog.Error("create user error", slog.Any("error", err))
+				return false, nil, err
+			}
+			userOAuth2.User.Role = defaultRole
+		}
+		return true, userOAuth2.User, nil
+	case pkg.OAuth2LarkProvider:
+		client := http.Client{}
+		req, err := http.NewRequest(http.MethodGet, "https://open.larksuite.com/open-apis/authen/v1/user_info", nil)
+		if err != nil {
+			slog.Error("new request error", slog.Any("error", err))
+			return false, nil, err
+		}
+		req.Header.Add("Authorization", "Bearer "+e.Password)
+		resp, err := client.Do(req)
+		if err != nil {
+			slog.Error("do request error", slog.Any("error", err))
+			return false, nil, err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			err = errors.New("get user from lark error")
+			slog.Error(err.Error())
+			return false, nil, err
+		}
+		result := &larkauthen.GetUserInfoResp{}
+		err = json.NewDecoder(resp.Body).Decode(result)
+		if err != nil {
+			slog.Error("decode response error", slog.Any("error", err))
+			return false, nil, err
+		}
+		userOAuth2 := &UserOAuth2{}
+		err = center.GetDB(ctx.(*gin.Context), &UserOAuth2{}).
+			Preload("User.Role").
+			First(userOAuth2, "union_id = ?", result.Data.UnionId).Error
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				slog.Error("get user from db error", slog.Any("error", err))
+				return false, nil, err
+			}
+			err = nil
+			email := ""
+			if result.Data.EnterpriseEmail != nil {
+				email = *result.Data.EnterpriseEmail
+			}
+			if email == "" && result.Data.Email != nil {
+				email = *result.Data.Email
+			}
+			userOAuth2 = &UserOAuth2{
+				UnionID:       *result.Data.UnionId,
+				OpenID:        *result.Data.OpenId,
+				Sub:           *result.Data.TenantKey,
+				Name:          *result.Data.Name,
+				Email:         email,
+				Picture:       *result.Data.AvatarUrl,
+				NickName:      *result.Data.Name,
+				EmailVerified: email != "",
+				Provider:      pkg.OAuth2LarkProvider,
+				User: &User{
+					UserLogin: UserLogin{
+						RoleID:   defaultRole.ID,
+						Username: *result.Data.UserId,
+						Email:    email,
+						Password: e.Password,
+						Provider: pkg.OAuth2LarkProvider,
+						Status:   enum.Enabled,
+					},
+					Name:   *result.Data.Name,
+					Avatar: *result.Data.AvatarUrl,
+				},
+			}
+			if result.Data.Mobile != nil {
+				userOAuth2.PhoneNumber = *result.Data.Mobile
+			}
+			if result.Data.EmployeeNo != nil {
+				userOAuth2.EmployeeNO = *result.Data.EmployeeNo
+			}
+			// register user
+			err = center.GetDB(c, &User{}).Create(userOAuth2).Error
 			if err != nil {
 				slog.Error("create user error", slog.Any("error", err))
 				return false, nil, err
