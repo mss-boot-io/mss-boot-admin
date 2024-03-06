@@ -24,13 +24,15 @@ type AppConfig struct {
 	Group string `gorm:"column:group;size:128;index;default:'';not null" json:"group" binding:"required"`
 	// Value 值
 	Value string `gorm:"column:value;size:255;default:'';not null" json:"value"`
+	// Auth 是否需要认证 如果为true，只有登录后才会返回
+	Auth bool `gorm:"column:auth;default:false;not null" json:"auth"`
 }
 
 func (*AppConfig) TableName() string {
 	return "mss_boot_app_configs"
 }
 
-func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, value string) error {
+func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value string) error {
 	if key == "" {
 		return nil
 	}
@@ -57,10 +59,13 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, value string) err
 	if err != nil {
 		return err
 	}
+	c.Auth = auth
+	c.Value = value
 	return center.GetTenant().GetDB(ctx, e).
 		Model(e).Where("name = ?", key).
 		Where("`group` = ?", group).
-		Update("value", value).Error
+		Select("auth", "value").
+		Updates(*c).Error
 }
 
 func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {

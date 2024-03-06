@@ -83,7 +83,7 @@ type ConfigImp interface {
 }
 
 type AppConfigImp interface {
-	SetAppConfig(ctx *gin.Context, key string, value string) error
+	SetAppConfig(ctx *gin.Context, key string, auth bool, value string) error
 	GetAppConfig(ctx *gin.Context, key string) (string, bool)
 }
 

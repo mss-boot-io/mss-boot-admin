@@ -71,6 +71,10 @@ func (t *Tenant) BeforeSave(_ *gorm.DB) error {
 }
 
 func (t *Tenant) AfterSave(tx *gorm.DB) error {
+	return InitTenant(tx)
+}
+
+func (t *Tenant) AfterCreate(tx *gorm.DB) error {
 	err := InitTenant(tx)
 	if err != nil {
 		return err
@@ -113,7 +117,7 @@ func (t *Tenant) GetTenant(ctx *gin.Context) (center.TenantImp, error) {
 	}
 	tenant, ok := data[u.Host]
 	if !ok || tenant == nil {
-		return nil, fmt.Errorf("not found tenant for domain %s", ctx.Request.Host)
+		return nil, fmt.Errorf("not found tenant for domain %s", u.Host)
 	}
 	if tenant.Expire == nil || tenant.Expire.Before(time.Now()) {
 		return nil, fmt.Errorf("tenant %s is expired", tenant.Name)
@@ -130,6 +134,13 @@ func (t *Tenant) GetDB(ctx *gin.Context, table schema.Tabler) *gorm.DB {
 		return gormdb.DB.WithContext(ctx).Scopes(t.Scope(ctx, table))
 	}
 	return gormdb.DB.WithContext(ctx).Scopes(t.Scope(ctx, table), verify.(*User).Scope(ctx, table))
+}
+
+func (t *Tenant) GetMigrateDB(ctx *gin.Context, tx *gorm.DB, table schema.Tabler) *gorm.DB {
+	if ctx == nil {
+		return tx
+	}
+	return tx.WithContext(ctx).Scopes(t.Scope(ctx, table))
 }
 
 func (t *Tenant) Scope(ctx *gin.Context, table schema.Tabler) func(db *gorm.DB) *gorm.DB {

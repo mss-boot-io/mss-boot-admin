@@ -9,8 +9,10 @@ package apis
 
 import (
 	"net/http"
+	"strings"
 
-	"github.com/mss-boot-io/mss-boot-admin/config"
+	"github.com/mss-boot-io/mss-boot-admin/center"
+	"golang.org/x/oauth2"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
@@ -21,13 +23,15 @@ import (
 )
 
 func init() {
-	e := &Github{}
+	e := &Github{
+		Simple: controller.NewSimple(),
+	}
 	response.AppendController(e)
 }
 
 // Github github
 type Github struct {
-	controller.Simple
+	*controller.Simple
 }
 
 func (*Github) GetKey() string {
@@ -55,16 +59,24 @@ func (e *Github) Other(r *gin.RouterGroup) {
 // @Router /admin/api/github/get-login-url [get]
 func (e *Github) GetLoginURL(c *gin.Context) {
 	api := response.Make(c)
-	req := &dto.GithubGetLoginURLReq{}
+	req := &dto.OauthGetLoginURLReq{}
 	if api.Bind(req).Error != nil {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	conf, err := config.Cfg.OAuth2.GetOAuth2Config(c)
-	if err != nil {
-		api.AddError(err).Log.Error("get oauth2 config error")
-		api.Err(http.StatusInternalServerError)
-		return
+	clientID, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientId")
+	clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientSecret")
+	redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security.githubRedirectURL")
+	scopes, _ := center.GetAppConfig().GetAppConfig(c, "security.githubScope")
+	conf := &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Scopes:       strings.Split(scopes, ","),
+		RedirectURL:  redirectURL,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://github.com/login/oauth/authorize",
+			TokenURL: "https://github.com/login/oauth/access_token",
+		},
 	}
 	//api.OK(conf.AuthCodeURL(req.State))
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(conf.AuthCodeURL(req.State)))
@@ -78,19 +90,27 @@ func (e *Github) GetLoginURL(c *gin.Context) {
 // @Product application/json
 // @Param code query string true "code"
 // @Param state query string true "state"
-// @Success 200 {object} dto.GithubToken
+// @Success 200 {object} dto.OauthToken
 // @Failure 422 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/api/github/callback [get]
 func (e *Github) Callback(c *gin.Context) {
 	api := response.Make(c)
-	conf, err := config.Cfg.OAuth2.GetOAuth2Config(c)
-	if err != nil {
-		api.AddError(err).Log.Error("get oauth2 config error")
-		api.Err(http.StatusInternalServerError)
-		return
+	clientID, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientId")
+	clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientSecret")
+	redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security.githubRedirectUrl")
+	scopes, _ := center.GetAppConfig().GetAppConfig(c, "security.githubScope")
+	conf := &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Scopes:       strings.Split(scopes, ","),
+		RedirectURL:  redirectURL,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://github.com/login/oauth/authorize",
+			TokenURL: "https://github.com/login/oauth/access_token",
+		},
 	}
-	req := &dto.GithubCallbackReq{}
+	req := &dto.OauthCallbackReq{}
 	if api.Bind(req).Error != nil {
 		api.Err(http.StatusUnprocessableEntity)
 		return
@@ -102,13 +122,13 @@ func (e *Github) Callback(c *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	resp := &dto.GithubToken{
+	result := &dto.OauthToken{
 		AccessToken:  token.AccessToken,
 		TokenType:    token.TokenType,
 		RefreshToken: token.RefreshToken,
 	}
 	if !token.Expiry.IsZero() {
-		resp.Expiry = &token.Expiry
+		result.Expiry = &token.Expiry
 	}
-	api.OK(resp)
+	api.OK(result)
 }

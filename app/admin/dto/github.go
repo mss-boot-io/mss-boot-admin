@@ -9,11 +9,11 @@ import "time"
  * @Last Modified time: 2022/10/19 16:43:12
  */
 
-type GithubGetLoginURLReq struct {
+type OauthGetLoginURLReq struct {
 	State string `query:"state" form:"state" binding:"required"`
 }
 
-type GithubCallbackReq struct {
+type OauthCallbackReq struct {
 	Code  string `query:"code" form:"code" binding:"required"`
 	State string `query:"state" form:"state" binding:"required"`
 }
@@ -34,7 +34,7 @@ type GithubGetResp struct {
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
 
-type GithubToken struct {
+type OauthToken struct {
 	// AccessToken is the token that authorizes and authenticates
 	// the requests.
 	AccessToken string `json:"accessToken"`
@@ -54,4 +54,6 @@ type GithubToken struct {
 	// token forever and RefreshToken or equivalent
 	// mechanisms for that TokenSource will not be used.
 	Expiry *time.Time `json:"expiry,omitempty"`
+
+	RefreshExpiry *time.Time `json:"refreshExpiry,omitempty"`
 }
