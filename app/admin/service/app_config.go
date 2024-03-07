@@ -2,7 +2,6 @@ package service
 
 import (
 	"fmt"
-
 	"github.com/mss-boot-io/mss-boot-admin/app/admin/dto"
 
 	"github.com/gin-gonic/gin"
@@ -35,12 +34,23 @@ func (e *AppConfig) Profile(ctx *gin.Context, auth bool) (map[string]gin.H, erro
 		if result[list[i].Group] == nil {
 			result[list[i].Group] = make(gin.H)
 		}
-		result[list[i].Group][list[i].Name] = list[i].Value
+		result[list[i].Group][list[i].Name] = transferValue(list[i].Value)
 	}
 	return result, nil
 }
 
-func (e *AppConfig) Group(ctx *gin.Context, group string) (map[string]*models.AppConfig, error) {
+func transferValue(value string) any {
+	switch value {
+	case "true":
+		return true
+	case "false":
+		return false
+	default:
+		return value
+	}
+}
+
+func (e *AppConfig) Group(ctx *gin.Context, group string) (map[string]*dto.AppConfigControlItem, error) {
 	list := make([]*models.AppConfig, 0)
 	err := center.GetTenant().GetDB(ctx, &models.AppConfig{}).
 		Where("`group` = ?", group).
@@ -48,9 +58,12 @@ func (e *AppConfig) Group(ctx *gin.Context, group string) (map[string]*models.Ap
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]*models.AppConfig)
+	result := make(map[string]*dto.AppConfigControlItem)
 	for i := range list {
-		result[list[i].Name] = list[i]
+		result[list[i].Name] = &dto.AppConfigControlItem{
+			Auth:  list[i].Auth,
+			Value: transferValue(list[i].Value),
+		}
 	}
 	return result, nil
 }

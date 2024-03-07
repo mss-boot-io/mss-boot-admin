@@ -18,6 +18,24 @@ import (
 
 type UserConfig struct{}
 
+func (e *UserConfig) Profile(ctx *gin.Context, userID string) (map[string]gin.H, error) {
+	list := make([]*models.UserConfig, 0)
+	err := center.GetDB(ctx, &models.UserConfig{}).
+		Where("user_id = ?", userID).
+		Find(&list).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]gin.H)
+	for i := range list {
+		if _, ok := result[list[i].Group]; !ok {
+			result[list[i].Group] = make(gin.H)
+		}
+		result[list[i].Group][list[i].Name] = list[i].Value
+	}
+	return result, nil
+}
+
 func (e *UserConfig) Group(ctx *gin.Context, userID, group string) (map[string]string, error) {
 	list := make([]*models.UserConfig, 0)
 	err := center.GetTenant().GetDB(ctx, &models.UserConfig{}).

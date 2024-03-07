@@ -30,6 +30,28 @@ func (e *UserConfig) GetAction(string) response.Action {
 func (e *UserConfig) Other(r *gin.RouterGroup) {
 	r.GET("/user-configs/:group", response.AuthHandler, e.Group)
 	r.PUT("/user-configs/:group", response.AuthHandler, e.Control)
+	r.GET("/user-configs/profile", response.AuthHandler, e.Profile)
+}
+
+// Profile 用户配置
+// @Summary 用户配置
+// @Description 用户配置
+// @Tags user-config
+// @Accept application/json
+// @Product application/json
+// @Success 200 {object} map[string]map[string]string
+// @Router /admin/api/user-configs/profile [get]
+// @Security Bearer
+func (e *UserConfig) Profile(ctx *gin.Context) {
+	api := response.Make(ctx)
+	verify := middleware.GetVerify(ctx)
+	result, err := e.service.Profile(ctx, verify.GetUserID())
+	if err != nil {
+		api.AddError(err).Log.Error("get user config error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	api.OK(result)
 }
 
 // Group 用户配置分组

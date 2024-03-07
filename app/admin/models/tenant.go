@@ -145,7 +145,7 @@ func (t *Tenant) GetMigrateDB(ctx *gin.Context, tx *gorm.DB, table schema.Tabler
 
 func (t *Tenant) Scope(ctx *gin.Context, table schema.Tabler) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		if !pkg.SupportMultiTenant(table) {
+		if ctx == nil || table == nil || !pkg.SupportMultiTenant(table) {
 			return db
 		}
 		tenant, err := t.GetTenant(ctx)
