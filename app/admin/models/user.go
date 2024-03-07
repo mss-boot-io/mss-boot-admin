@@ -68,6 +68,11 @@ func (e *User) BeforeCreate(tx *gorm.DB) error {
 	return err
 }
 
+func (e *User) BeforeSave(*gorm.DB) error {
+	//todo 判断密码强度
+	return nil
+}
+
 func (*User) TableName() string {
 	return "mss_boot_users"
 }
@@ -111,20 +116,21 @@ func GetUserByUsername(username string) (*User, error) {
 }
 
 type UserLogin struct {
-	RoleID       string             `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Role         *Role              `json:"role" gorm:"foreignKey:RoleID;references:ID"`
-	PostID       string             `json:"postID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Post         *Post              `json:"post" gorm:"foreignKey:PostID;references:ID"`
-	DepartmentID string             `json:"departmentID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Department   *Department        `json:"department" gorm:"foreignKey:DepartmentID;references:ID"`
-	Username     string             `json:"username" gorm:"type:varchar(20);uniqueIndex"`
-	Email        string             `json:"email" gorm:"type:varchar(100);uniqueIndex"`
-	Password     string             `json:"password,omitempty" gorm:"-"`
-	PasswordHash string             `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
-	Salt         string             `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
-	Status       enum.Status        `json:"status" gorm:"size:10"`
-	OAuth2       []*UserOAuth2      `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
-	Provider     pkg.OAuth2Provider `json:"type" gorm:"-"`
+	RoleID           string             `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Role             *Role              `json:"role" gorm:"foreignKey:RoleID;references:ID"`
+	PostID           string             `json:"postID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Post             *Post              `json:"post" gorm:"foreignKey:PostID;references:ID"`
+	DepartmentID     string             `json:"departmentID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Department       *Department        `json:"department" gorm:"foreignKey:DepartmentID;references:ID"`
+	Username         string             `json:"username" gorm:"type:varchar(20);uniqueIndex"`
+	Email            string             `json:"email" gorm:"type:varchar(100);uniqueIndex"`
+	Password         string             `json:"password,omitempty" gorm:"-"`
+	PasswordHash     string             `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
+	PasswordStrength string             `json:"passwordStrength" gorm:"size:20;comment:密码强度"`
+	Salt             string             `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
+	Status           enum.Status        `json:"status" gorm:"size:10"`
+	OAuth2           []*UserOAuth2      `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
+	Provider         pkg.OAuth2Provider `json:"type" gorm:"-"`
 }
 
 func (e *UserLogin) TableName() string {
