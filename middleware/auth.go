@@ -126,6 +126,7 @@ func Init() {
 		os.Exit(-1)
 	}
 	response.AuthHandler = Auth.MiddlewareFunc()
+	response.VerifyHandler = GetVerify
 	Middlewares.Store("auth", Auth.MiddlewareFunc())
 }
 

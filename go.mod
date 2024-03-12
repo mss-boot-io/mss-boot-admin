@@ -13,7 +13,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grafana/pyroscope-go v1.1.1
 	github.com/larksuite/oapi-sdk-go/v3 v3.2.0
-	github.com/mss-boot-io/mss-boot v0.1.5-0.20240130161523-d3e3f4b34b4a
+	github.com/mss-boot-io/mss-boot v0.1.5-0.20240312175946-d07495ebfa0b
 	github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9
 	github.com/nsqio/go-nsq v1.1.0
 	github.com/redis/go-redis/v9 v9.5.1
@@ -83,7 +83,7 @@ require (
 	github.com/glebarez/sqlite v1.10.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.5.0 // indirect
-	github.com/go-jose/go-jose/v3 v3.0.2 // indirect
+	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.20.2 // indirect

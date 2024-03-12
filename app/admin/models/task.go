@@ -27,6 +27,7 @@ import (
 // Task support http/grpc/script
 type Task struct {
 	ModelGormTenant
+	ModelCreator
 	Name       string       `json:"name"`
 	EntryID    int          `json:"entryID"`
 	Spec       string       `json:"spec"`

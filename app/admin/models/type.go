@@ -84,3 +84,8 @@ func (e *ModelGormTenant) BeforeDelete(tx *gorm.DB) error {
 	tx = tx.Where("tenant_id = ?", tenant.GetID())
 	return nil
 }
+
+type ModelCreator struct {
+	// CreatorID creator id
+	CreatorID string `gorm:"column:creator_id;type:varchar(64);not null;index;comment:创建人ID" json:"creatorID"`
+}
