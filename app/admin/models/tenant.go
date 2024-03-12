@@ -155,7 +155,15 @@ func (t *Tenant) Scope(ctx *gin.Context, table schema.Tabler) func(db *gorm.DB) 
 			_ = db.AddError(err)
 			return db
 		}
-		return db.Where(query, tenant.GetID())
+		db = db.Where(query, tenant.GetID())
+		if pkg.SupportCreator(table) {
+			verify := middleware.GetVerify(ctx)
+			if verify == nil {
+				return db
+			}
+			db = db.Where(pkg.GetCreatorField(), verify.GetUserID())
+		}
+		return db
 	}
 }
 
