@@ -2,7 +2,6 @@ package queue
 
 import (
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -52,13 +51,13 @@ func TestRedis_Append(t *testing.T) {
 			},
 			args{
 				name: "test",
-				message: &Message{redisqueue.Message{
+				message: &Message{Message: redisqueue.Message{
 					ID:     "",
 					Stream: "test",
 					Values: map[string]interface{}{
 						"key": "value",
 					},
-				}, 3, sync.RWMutex{}},
+				}},
 			},
 			false,
 		},
@@ -130,7 +129,7 @@ func TestRedis_Register(t *testing.T) {
 			if r, err := NewRedis(tt.fields.ProducerOptions, tt.fields.ConsumerOptions); err != nil {
 				t.Errorf("SetQueue() error = %v", err)
 			} else {
-				r.Register(tt.args.name, tt.args.f)
+				r.Register(tt.args.name, "", tt.args.f)
 				go func() {
 					time.Sleep(time.Second)
 					r.Shutdown()
