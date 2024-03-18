@@ -9,7 +9,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/storage"
 )
 
-type queue chan storage.Messager
+type memoryQueue chan storage.Messager
 
 // NewMemory 内存模式
 func NewMemory(poolNum uint) *Memory {
@@ -30,11 +30,11 @@ func (*Memory) String() string {
 	return "memory"
 }
 
-func (m *Memory) makeQueue() queue {
+func (m *Memory) makeQueue() memoryQueue {
 	if m.PoolNum <= 0 {
-		return make(queue)
+		return make(memoryQueue)
 	}
-	return make(queue, m.PoolNum)
+	return make(memoryQueue, m.PoolNum)
 }
 
 func (m *Memory) Append(message storage.Messager) error {
@@ -52,22 +52,22 @@ func (m *Memory) Append(message storage.Messager) error {
 		m.queue.Store(message.GetStream(), v)
 	}
 
-	var q queue
+	var q memoryQueue
 	switch v.(type) {
-	case queue:
-		q = v.(queue)
+	case memoryQueue:
+		q = v.(memoryQueue)
 	default:
 		q = m.makeQueue()
 		m.queue.Store(message.GetStream(), q)
 	}
-	go func(gm storage.Messager, gq queue) {
+	go func(gm storage.Messager, gq memoryQueue) {
 		gm.SetID(uuid.New().String())
 		gq <- gm
 	}(memoryMessage, q)
 	return nil
 }
 
-func (m *Memory) Register(name string, f storage.ConsumerFunc) {
+func (m *Memory) Register(name, _ string, f storage.ConsumerFunc) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	v, ok := m.queue.Load(name)
@@ -75,15 +75,15 @@ func (m *Memory) Register(name string, f storage.ConsumerFunc) {
 		v = m.makeQueue()
 		m.queue.Store(name, v)
 	}
-	var q queue
+	var q memoryQueue
 	switch v.(type) {
-	case queue:
-		q = v.(queue)
+	case memoryQueue:
+		q = v.(memoryQueue)
 	default:
 		q = m.makeQueue()
 		m.queue.Store(name, q)
 	}
-	go func(out queue, gf storage.ConsumerFunc) {
+	go func(out memoryQueue, gf storage.ConsumerFunc) {
 		var err error
 		for message := range q {
 			err = gf(message)
