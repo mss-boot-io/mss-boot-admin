@@ -11,6 +11,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/segmentio/kafka-go"
+
 	"github.com/mss-boot-io/mss-boot-admin/center"
 
 	"github.com/mss-boot-io/redisqueue/v2"
@@ -23,6 +25,7 @@ type Queue struct {
 	Redis  *QueueRedis
 	Memory *QueueMemory
 	NSQ    *QueueNSQ `json:"nsq" yaml:"nsq"`
+	Kafka  *Kafka    `json:"kafka" yaml:"kafka"`
 }
 
 type QueueRedis struct {
@@ -37,7 +40,13 @@ type QueueMemory struct {
 
 type QueueNSQ struct {
 	NSQOptions
-	ChannelPrefix string
+}
+
+type Kafka struct {
+	Brokers      []string            `yaml:"brokers" json:"brokers"`
+	Partition    int                 `yaml:"partition" json:"partition"`
+	ReaderConfig *kafka.ReaderConfig `yaml:"readerConfig" json:"readerConfig"`
+	WriterConfig *kafka.Writer       `yaml:"writerConfig" json:"writerConfig"`
 }
 
 // Empty 空设置
@@ -74,12 +83,15 @@ func (e *Queue) Init() {
 		if err != nil {
 			log.Fatalf("queue nsq init error: %s", err.Error())
 		}
-		q, err := queue.NewNSQ(e.NSQ.Addresses, cfg, e.NSQ.ChannelPrefix)
+		q, err := queue.NewNSQ(e.NSQ.Addresses, cfg)
 		if err != nil {
 			log.Fatalf("queue nsq init error: %s", err.Error())
 		}
 		center.SetQueue(q)
 		return
+	}
+	if e.Kafka != nil {
+
 	}
 	center.SetQueue(queue.NewMemory(e.Memory.PoolSize))
 }

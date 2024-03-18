@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"context"
 	"sync"
 
 	"github.com/mss-boot-io/redisqueue/v2"
@@ -12,6 +13,7 @@ type Message struct {
 	redisqueue.Message
 	ErrorCount int
 	mux        sync.RWMutex
+	ctx        context.Context
 }
 
 func (m *Message) GetID() string {
@@ -46,6 +48,10 @@ func (m *Message) SetValues(values map[string]interface{}) {
 	m.Values = values
 }
 
+func (m *Message) SetContext(ctx context.Context) {
+	m.ctx = ctx
+}
+
 func (m *Message) GetPrefix() (prefix string) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
@@ -72,4 +78,8 @@ func (m *Message) SetErrorCount(count int) {
 
 func (m *Message) GetErrorCount() int {
 	return m.ErrorCount
+}
+
+func (m *Message) GetContext() context.Context {
+	return m.ctx
 }

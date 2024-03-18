@@ -4,7 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/storage"
 	"github.com/mss-boot-io/mss-boot/core/server"
-	"github.com/mss-boot-io/mss-boot/pkg/config"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 	"github.com/mss-boot-io/mss-boot/virtual/model"
@@ -78,7 +77,7 @@ type UserImp interface {
 }
 
 type ConfigImp interface {
-	config.Entity
+	source.Entity
 	Init(...source.Option)
 }
 

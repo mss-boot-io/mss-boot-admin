@@ -26,7 +26,7 @@ type AdapterCache interface {
 type AdapterQueue interface {
 	String() string
 	Append(message Messager) error
-	Register(name string, f ConsumerFunc)
+	Register(name, channel string, f ConsumerFunc)
 	Run()
 	Shutdown()
 }
@@ -42,6 +42,8 @@ type Messager interface {
 	SetPrefix(string)
 	SetErrorCount(count int)
 	GetErrorCount() int
+	SetContext(ctx context.Context)
+	GetContext() context.Context
 }
 
 type ConsumerFunc func(Messager) error

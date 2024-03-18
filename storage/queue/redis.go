@@ -59,7 +59,7 @@ func (r *Redis) Append(message storage.Messager) error {
 	return err
 }
 
-func (r *Redis) Register(name string, f storage.ConsumerFunc) {
+func (r *Redis) Register(name, _ string, f storage.ConsumerFunc) {
 	r.consumer.Register(name, func(message *redisqueue.Message) error {
 		m := new(Message)
 		m.SetValues(message.Values)

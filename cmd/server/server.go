@@ -95,6 +95,7 @@ func setup() error {
 		// use local config file
 		source.WithDir("config"),
 		source.WithProvider(source.Local),
+		source.WithWatch(true),
 	}
 	switch source.Provider(configProvider) {
 	case source.GORM:
