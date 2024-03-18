@@ -8,9 +8,10 @@ package config
  */
 
 import (
-	"github.com/segmentio/kafka-go"
 	"log"
 	"time"
+
+	"github.com/segmentio/kafka-go"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 
