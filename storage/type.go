@@ -27,7 +27,7 @@ type AdapterQueue interface {
 	String() string
 	Append(message Messager) error
 	Register(name, channel string, f ConsumerFunc)
-	Run()
+	Run(context.Context)
 	Shutdown()
 }
 

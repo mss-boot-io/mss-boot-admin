@@ -3,11 +3,14 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"os"
+	"reflect"
 	"sync"
 
+	"github.com/IBM/sarama"
 	"github.com/mss-boot-io/mss-boot-admin/storage"
-	"github.com/segmentio/kafka-go"
 )
 
 /*
@@ -17,28 +20,33 @@ import (
  * @Last Modified time: 2024/3/13 20:01:18
  */
 
-func NewKafka(brokers []string, partition int,
-	writerConfig *kafka.Writer,
-	readerConfig *kafka.ReaderConfig) *Kafka {
-	return &Kafka{
-		brokers:      brokers,
-		partition:    partition,
-		writerConfig: writerConfig,
-		readerConfig: readerConfig,
-		reader:       make(map[string]*kafka.Reader),
-		writer:       make(map[string]*kafka.Writer),
+type ConsumerGroupHandler interface {
+	sarama.ConsumerGroupHandler
+	SetConsumerFunc(f storage.ConsumerFunc)
+}
+
+func NewKafka(brokers []string, c *sarama.Config, h ConsumerGroupHandler) (k *Kafka, err error) {
+	k = &Kafka{config: c, consumerGroupHandler: h}
+	k.producer, err = sarama.NewSyncProducer(brokers, c)
+	if err != nil {
+		return nil, err
 	}
+	return
+}
+
+type ConsumerRegister struct {
+	Topic   string
+	GroupID string
+	Func    storage.ConsumerFunc
 }
 
 type Kafka struct {
-	brokers      []string
-	partition    int
-	readerConfig *kafka.ReaderConfig
-	writerConfig *kafka.Writer
-	reader       map[string]*kafka.Reader
-	writer       map[string]*kafka.Writer
-	runReaders   []KafkaRunReader
-	mux          sync.Mutex
+	mux                  sync.Mutex
+	consumers            map[*ConsumerRegister]sarama.ConsumerGroup
+	brokers              []string
+	config               *sarama.Config
+	producer             sarama.SyncProducer
+	consumerGroupHandler sarama.ConsumerGroupHandler
 }
 
 type KafkaRunReader struct {
@@ -51,169 +59,92 @@ func (*Kafka) String() string {
 	return "kafka"
 }
 
-func (e *Kafka) getWriter(topic string) *kafka.Writer {
-	if e.writer == nil {
-		e.writer = make(map[string]*kafka.Writer)
-	}
-	if w, ok := e.writer[topic]; ok {
-		return w
-	}
-	var w *kafka.Writer
-	if e.writerConfig != nil {
-		*w = *e.writerConfig
-		if len(e.brokers) > 0 {
-			w.Addr = kafka.TCP(e.brokers...)
-		}
-		w.Topic = topic
-		w.Balancer = &kafka.LeastBytes{}
-		e.mux.Lock()
-		e.writer[topic] = w
-		e.mux.Unlock()
-		return w
-	}
-	w = &kafka.Writer{
-		Addr:     kafka.TCP(e.brokers...),
-		Topic:    topic,
-		Balancer: &kafka.LeastBytes{},
-	}
-	return w
-}
-
-func (e *Kafka) getReader(topic string, groupID string) *kafka.Reader {
-	if e.reader == nil {
-		e.reader = make(map[string]*kafka.Reader)
-	}
-	if r, ok := e.reader[topic]; ok {
-		return r
-	}
-	var r *kafka.Reader
-	if e.readerConfig != nil {
-		config := *e.readerConfig
-		config.Topic = topic
-		config.GroupID = groupID
-		if len(e.brokers) > 0 {
-			config.Brokers = e.brokers
-		}
-		r = kafka.NewReader(config)
-		e.mux.Lock()
-		e.reader[topic] = r
-		e.mux.Unlock()
-		return r
-	}
-	r = kafka.NewReader(kafka.ReaderConfig{
-		Brokers:  e.brokers,
-		Topic:    topic,
-		GroupID:  groupID,
-		MaxBytes: 10e6,
-	})
-	return r
-}
-
 func (e *Kafka) Append(message storage.Messager) error {
 	rb, err := json.Marshal(message.GetValues())
 	if err != nil {
 		return err
 	}
-	w := e.getWriter(message.GetStream())
-	ctx := message.GetContext()
-	if ctx == nil {
-		ctx = context.Background()
+	msg := &sarama.ProducerMessage{
+		Topic: message.GetStream(),
+		Key:   sarama.StringEncoder(message.GetID()),
+		Value: sarama.ByteEncoder(rb),
 	}
-	return w.WriteMessages(ctx, kafka.Message{Value: rb})
+	_, _, err = e.producer.SendMessage(msg)
+	return err
 }
 
 func (e *Kafka) Register(topic, groupID string, f storage.ConsumerFunc) {
 	if f == nil {
-		panic("consumer func is nil")
+		slog.Error("consumer func is nil")
+		os.Exit(-1)
 	}
 	if topic == "" {
-		panic("topic is empty")
+		slog.Error("topic is empty")
+		os.Exit(-1)
 	}
-	if e.runReaders == nil {
-		e.runReaders = make([]KafkaRunReader, 0)
+	consumer, err := sarama.NewConsumerGroup(e.brokers, groupID, e.config)
+	if err != nil {
+		slog.Error("create consumer group error", slog.Any("error", err))
+		os.Exit(-1)
 	}
-	e.runReaders = append(e.runReaders, KafkaRunReader{
-		Topic:   topic,
-		GroupID: groupID,
-		Func:    f,
-	})
-	r := e.getReader(topic, groupID)
-	go func() {
-		for {
-			m, err := r.FetchMessage(context.Background())
-			if err != nil {
-				break
-			}
-			var data map[string]interface{}
-			err = json.Unmarshal(m.Value, &data)
-			if err != nil {
-				continue
-			}
-			message := &Message{}
-			message.SetValues(data)
-			message.SetStream(topic)
-			err = f(message)
-		}
-	}()
+	// copy the consumer to use it in the handler
+	cf, ok := reflect.New(reflect.TypeOf(e.consumerGroupHandler).Elem()).Interface().(ConsumerGroupHandler)
+	if !ok {
+		slog.Error("type assertion error")
+		os.Exit(-1)
+	}
+	cf.SetConsumerFunc(f)
+	if e.consumers == nil {
+		e.consumers = make(map[*ConsumerRegister]sarama.ConsumerGroup)
+	}
+	e.mux.Lock()
+	e.consumers[&ConsumerRegister{Topic: topic, GroupID: groupID, Func: f}] = consumer
+	e.mux.Unlock()
 }
 
-func (e *Kafka) Run() {
-	for i := range e.runReaders {
-		if e.runReaders[i].Func == nil {
-			panic("consumer func is nil")
-		}
-		if e.runReaders[i].Topic == "" {
-			panic("topic is empty")
-		}
-		r := e.getReader(e.runReaders[i].Topic, e.runReaders[i].GroupID)
-		if r == nil {
-			panic("reader is nil")
-		}
-		go func(topic, groupID string, reader *kafka.Reader, f storage.ConsumerFunc) {
+func (e *Kafka) Run(ctx context.Context) {
+	for r, c := range e.consumers {
+		go func(r *ConsumerRegister, c sarama.ConsumerGroup) {
 			for {
-				m, err := reader.FetchMessage(context.Background())
+				err := c.Consume(ctx, []string{r.Topic}, e.consumerGroupHandler)
 				if err != nil {
-					break
-				}
-				var data map[string]interface{}
-				err = json.Unmarshal(m.Value, &data)
-				if err != nil {
-					continue
-				}
-				message := &Message{}
-				message.SetValues(data)
-				message.SetID(groupID)
-				message.SetStream(topic)
-				err = f(message)
-				if err != nil {
-					slog.Error("consumer func error", slog.Any("error", err))
-					continue
-				}
-				err = reader.CommitMessages(context.Background(), m)
-				if err != nil {
-					slog.Error("commit message error", slog.Any("error", err))
-					continue
+					slog.Error("consume error", slog.Any("error", err))
 				}
 			}
-		}(e.runReaders[i].Topic, e.runReaders[i].GroupID, r, e.runReaders[i].Func)
+		}(r, c)
 	}
 }
 
 func (e *Kafka) Shutdown() {
-	for _, r := range e.reader {
-		if r != nil {
-			err := r.Close()
-			if err != nil {
-				slog.Error("close reader error", slog.Any("error", err))
-			}
+	for _, c := range e.consumers {
+		if err := c.Close(); err != nil {
+			slog.Error("close consumer error", slog.Any("error", err))
 		}
 	}
-	for _, w := range e.writer {
-		if w != nil {
-			err := w.Close()
-			if err != nil {
-				slog.Error("close writer error", slog.Any("error", err))
-			}
-		}
+}
+
+type MessageHandler struct {
+	f storage.ConsumerFunc
+}
+
+func (h MessageHandler) Setup(s sarama.ConsumerGroupSession) error {
+	fmt.Println("Partition allocation -", s.Claims())
+	return nil
+}
+
+func (h MessageHandler) Cleanup(sarama.ConsumerGroupSession) error {
+	fmt.Println("Consumer group clean up initiated")
+	return nil
+}
+func (h MessageHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.ConsumerGroupClaim) error {
+	for msg := range c.Messages() {
+		fmt.Printf("Message topic:%q partition:%d offset:%d\n", msg.Topic, msg.Partition, msg.Offset)
+		fmt.Println("Message content", string(msg.Value))
+		s.MarkMessage(msg, "")
 	}
+	return nil
+}
+
+func (h MessageHandler) SetConsumerFunc(f storage.ConsumerFunc) {
+	h.f = f
 }

@@ -1,6 +1,8 @@
 package queue
 
 import (
+	"context"
+
 	"github.com/mss-boot-io/redisqueue/v2"
 	"github.com/redis/go-redis/v9"
 
@@ -69,7 +71,7 @@ func (r *Redis) Register(name, _ string, f storage.ConsumerFunc) {
 	})
 }
 
-func (r *Redis) Run() {
+func (r *Redis) Run(context.Context) {
 	r.consumer.Run()
 }
 

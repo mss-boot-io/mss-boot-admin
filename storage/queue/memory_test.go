@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -100,7 +101,7 @@ func TestMemory_Register(t *testing.T) {
 				return
 			}
 			go func() {
-				m.Run()
+				m.Run(context.Background())
 			}()
 			time.Sleep(3 * time.Second)
 			m.Shutdown()
