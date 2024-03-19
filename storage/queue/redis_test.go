@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -134,7 +135,7 @@ func TestRedis_Register(t *testing.T) {
 					time.Sleep(time.Second)
 					r.Shutdown()
 				}()
-				r.Run()
+				r.Run(context.Background())
 			}
 		})
 	}
