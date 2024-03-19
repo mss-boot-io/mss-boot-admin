@@ -7,9 +7,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/mss-boot-io/mss-boot-admin/storage/queue"
-
 	"github.com/common-nighthawk/go-figure"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/core/server"
@@ -164,16 +161,6 @@ func setup() error {
 	if config.Cfg.Task.Enable {
 		runnable = append(runnable,
 			task.New(task.WithStorage(&models.TaskStorage{DB: gormdb.DB}), task.WithSchedule("task", config.Cfg.Task.Spec, &taskE{})))
-	}
-
-	m := &queue.Message{}
-	m.SetStream("test")
-	m.SetID(uuid.New().String())
-	m.SetValues(map[string]interface{}{"test": "test"})
-	//m.SetContext(ctx)
-	err = center.GetQueue().Append(m)
-	if err != nil {
-		panic(err)
 	}
 
 	// setup 07 init virtual models
