@@ -53,6 +53,9 @@ func (e *Config) Init(opts ...source.Option) {
 	if e.Cache != nil {
 		e.Cache.Init()
 	}
+	if e.Queue != nil {
+		e.Queue.Init()
+	}
 
 }
 

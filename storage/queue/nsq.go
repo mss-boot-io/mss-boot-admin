@@ -8,7 +8,9 @@
 package queue
 
 import (
+	"context"
 	"encoding/json"
+	"sync"
 
 	"github.com/nsqio/go-nsq"
 
@@ -31,6 +33,7 @@ type NSQ struct {
 	cfg       *nsq.Config
 	producer  *nsq.Producer
 	consumer  *nsq.Consumer
+	wait      sync.WaitGroup
 }
 
 // String 字符串类型
@@ -89,7 +92,9 @@ func (e *NSQ) Register(name, channel string, f storage.ConsumerFunc) {
 	}
 }
 
-func (e *NSQ) Run() {
+func (e *NSQ) Run(context.Context) {
+	e.wait.Add(1)
+	e.wait.Wait()
 }
 
 func (e *NSQ) Shutdown() {

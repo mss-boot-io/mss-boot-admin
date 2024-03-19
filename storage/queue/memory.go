@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -101,7 +102,7 @@ func (m *Memory) Register(name, _ string, f storage.ConsumerFunc) {
 	}(q, f)
 }
 
-func (m *Memory) Run() {
+func (m *Memory) Run(context.Context) {
 	m.wait.Add(1)
 	m.wait.Wait()
 }
