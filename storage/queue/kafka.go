@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/IBM/sarama"
+
 	"github.com/mss-boot-io/mss-boot-admin/storage"
 )
 
@@ -37,7 +39,7 @@ func NewKafka(brokers []string, c *sarama.Config, h ConsumerGroupHandler) (k *Ka
 type ConsumerRegister struct {
 	Topic   string
 	GroupID string
-	Func    storage.ConsumerFunc
+	Func    ConsumerGroupHandler
 }
 
 type Kafka struct {
@@ -94,11 +96,12 @@ func (e *Kafka) Register(topic, groupID string, f storage.ConsumerFunc) {
 		os.Exit(-1)
 	}
 	cf.SetConsumerFunc(f)
+
 	if e.consumers == nil {
 		e.consumers = make(map[*ConsumerRegister]sarama.ConsumerGroup)
 	}
 	e.mux.Lock()
-	e.consumers[&ConsumerRegister{Topic: topic, GroupID: groupID, Func: f}] = consumer
+	e.consumers[&ConsumerRegister{Topic: topic, GroupID: groupID, Func: cf}] = consumer
 	e.mux.Unlock()
 }
 
@@ -106,7 +109,7 @@ func (e *Kafka) Run(ctx context.Context) {
 	for r, c := range e.consumers {
 		go func(r *ConsumerRegister, c sarama.ConsumerGroup) {
 			for {
-				err := c.Consume(ctx, []string{r.Topic}, e.consumerGroupHandler)
+				err := c.Consume(ctx, []string{r.Topic}, r.Func)
 				if err != nil {
 					slog.Error("consume error", slog.Any("error", err))
 				}
@@ -127,24 +130,42 @@ type MessageHandler struct {
 	f storage.ConsumerFunc
 }
 
-func (h MessageHandler) Setup(s sarama.ConsumerGroupSession) error {
+func (h *MessageHandler) Setup(s sarama.ConsumerGroupSession) error {
 	fmt.Println("Partition allocation -", s.Claims())
 	return nil
 }
 
-func (h MessageHandler) Cleanup(sarama.ConsumerGroupSession) error {
+func (h *MessageHandler) Cleanup(sarama.ConsumerGroupSession) error {
 	fmt.Println("Consumer group clean up initiated")
 	return nil
 }
-func (h MessageHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.ConsumerGroupClaim) error {
+func (h *MessageHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.ConsumerGroupClaim) error {
+	if h.f == nil {
+		return errors.New("consumer func is nil")
+	}
+	var data map[string]interface{}
 	for msg := range c.Messages() {
 		fmt.Printf("Message topic:%q partition:%d offset:%d\n", msg.Topic, msg.Partition, msg.Offset)
 		fmt.Println("Message content", string(msg.Value))
 		s.MarkMessage(msg, "")
+		message := &Message{}
+		message.SetID(string(msg.Key))
+		message.SetStream(msg.Topic)
+		err := json.Unmarshal(msg.Value, &data)
+		if err != nil {
+			slog.Error("unmarshal message error", slog.Any("error", err))
+			return err
+		}
+		message.SetValues(data)
+		err = h.f(message)
+		if err != nil {
+			slog.Error("consumer func error", slog.Any("error", err))
+			return err
+		}
 	}
 	return nil
 }
 
-func (h MessageHandler) SetConsumerFunc(f storage.ConsumerFunc) {
+func (h *MessageHandler) SetConsumerFunc(f storage.ConsumerFunc) {
 	h.f = f
 }
