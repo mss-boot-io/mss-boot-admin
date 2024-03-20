@@ -26,7 +26,7 @@ type ConsumerGroupHandler interface {
 }
 
 func NewKafka(brokers []string, c *sarama.Config, h ConsumerGroupHandler) (k *Kafka, err error) {
-	k = &Kafka{config: c, consumerGroupHandler: h}
+	k = &Kafka{brokers: brokers, config: c, consumerGroupHandler: h}
 	k.producer, err = sarama.NewSyncProducer(brokers, c)
 	if err != nil {
 		return nil, err
