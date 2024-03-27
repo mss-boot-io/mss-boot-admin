@@ -1,4 +1,4 @@
-package admin
+package router
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	_ "github.com/mss-boot-io/mss-boot-admin/app/admin/apis"
+	_ "github.com/mss-boot-io/mss-boot-admin/apis"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 )
 

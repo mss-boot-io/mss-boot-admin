@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkauthen "github.com/larksuite/oapi-sdk-go/v3/service/authen/v1"
-	"github.com/mss-boot-io/mss-boot-admin/app/admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/dto"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 )

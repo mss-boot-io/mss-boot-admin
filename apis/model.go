@@ -15,8 +15,8 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 	"gorm.io/gorm"
 
-	"github.com/mss-boot-io/mss-boot-admin/app/admin/dto"
-	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin/models"
 )
 
 /*

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/mss-boot-io/mss-boot-admin/router"
 	"log/slog"
 	"os"
 	"time"
@@ -19,11 +20,10 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 
-	"github.com/mss-boot-io/mss-boot-admin/app/admin"
-	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/middleware"
+	"github.com/mss-boot-io/mss-boot-admin/models"
 )
 
 /*
@@ -135,7 +135,7 @@ func setup() error {
 
 	// setup 03 router init
 	r := gin.Default()
-	center.SetMakeRouter(admin.DefaultMakeRouter)
+	center.SetMakeRouter(router.DefaultMakeRouter)
 	center.SetRouter(r)
 	center.Default.MakeRouter(r.Group(group))
 	config.Cfg.Application.Init(center.GetRouter())

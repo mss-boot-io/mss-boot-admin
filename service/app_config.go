@@ -3,11 +3,11 @@ package service
 import (
 	"fmt"
 
-	"github.com/mss-boot-io/mss-boot-admin/app/admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin/dto"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/models"
 	"github.com/spf13/cast"
 )
 
