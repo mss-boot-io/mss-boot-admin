@@ -142,8 +142,9 @@ func (h *MessageHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.Co
 	if h.f == nil {
 		return errors.New("consumer func is nil")
 	}
-	var data map[string]interface{}
+	var data map[string]any
 	for msg := range c.Messages() {
+		data = make(map[string]any)
 		slog.Debug("Message topic:%q partition:%d offset:%d\n", msg.Topic, msg.Partition, msg.Offset)
 		slog.Debug("Message content", string(msg.Value))
 		s.MarkMessage(msg, "")

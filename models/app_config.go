@@ -1,7 +1,9 @@
 package models
 
 import (
+	"errors"
 	"fmt"
+	"github.com/mss-boot-io/mss-boot-admin/middleware"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -47,8 +49,12 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value 
 		Group: group,
 		Name:  key,
 	}
+	verify := middleware.GetVerify(ctx)
+	if verify == nil {
+		return errors.New("user not login")
+	}
 	//set cache
-	err := center.GetCache().Set(ctx, key, value, -1)
+	err := center.GetCache().Set(ctx, fmt.Sprintf("%s.%s", verify.GetTenantID(), key), value, -1)
 	if err != nil {
 		return err
 	}
@@ -80,7 +86,11 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 		group = keys[0]
 		key = strings.Join(keys[1:], ".")
 	}
-	v, _ := center.GetCache().Get(ctx, key)
+	verify := middleware.GetVerify(ctx)
+	if verify == nil {
+		return nil, errors.New("user not login")
+	}
+	v, _ := center.GetCache().Get(ctx, fmt.Sprintf("%s.%s", verify.GetTenantID(), key))
 	if v != "" {
 		c.Group = group
 		c.Name = key
