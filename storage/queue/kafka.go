@@ -131,22 +131,23 @@ type MessageHandler struct {
 }
 
 func (h *MessageHandler) Setup(s sarama.ConsumerGroupSession) error {
-	fmt.Println("Partition allocation -", s.Claims())
+	slog.Debug("Partition allocation -", slog.Any("claims", s.Claims()))
 	return nil
 }
 
 func (h *MessageHandler) Cleanup(sarama.ConsumerGroupSession) error {
-	fmt.Println("Consumer group clean up initiated")
+	slog.Debug("Consumer group clean up initiated")
 	return nil
 }
 func (h *MessageHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.ConsumerGroupClaim) error {
 	if h.f == nil {
 		return errors.New("consumer func is nil")
 	}
-	var data map[string]interface{}
+	var data map[string]any
 	for msg := range c.Messages() {
-		fmt.Printf("Message topic:%q partition:%d offset:%d\n", msg.Topic, msg.Partition, msg.Offset)
-		fmt.Println("Message content", string(msg.Value))
+		data = make(map[string]any)
+		slog.Debug(fmt.Sprintf("Message topic:%q partition:%d offset:%d\n", msg.Topic, msg.Partition, msg.Offset))
+		slog.Debug("Message content", slog.String("value", string(msg.Value)))
 		s.MarkMessage(msg, "")
 		message := &Message{}
 		message.SetID(string(msg.Key))

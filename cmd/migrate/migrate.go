@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/models"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/migration"
 	common "github.com/mss-boot-io/mss-boot/pkg/migration/models"

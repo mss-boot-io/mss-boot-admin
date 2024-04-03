@@ -6,7 +6,7 @@ import (
 
 	adminPKG "github.com/mss-boot-io/mss-boot-admin/pkg"
 
-	"github.com/mss-boot-io/mss-boot-admin/app/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/models"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 
 	"github.com/mss-boot-io/mss-boot/pkg/migration"
