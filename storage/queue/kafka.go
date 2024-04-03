@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"reflect"
@@ -130,7 +131,7 @@ type MessageHandler struct {
 }
 
 func (h *MessageHandler) Setup(s sarama.ConsumerGroupSession) error {
-	slog.Debug("Partition allocation -", s.Claims())
+	slog.Debug("Partition allocation -", slog.Any("claims", s.Claims()))
 	return nil
 }
 
@@ -145,8 +146,8 @@ func (h *MessageHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.Co
 	var data map[string]any
 	for msg := range c.Messages() {
 		data = make(map[string]any)
-		slog.Debug("Message topic:%q partition:%d offset:%d\n", msg.Topic, msg.Partition, msg.Offset)
-		slog.Debug("Message content", string(msg.Value))
+		slog.Debug(fmt.Sprintf("Message topic:%q partition:%d offset:%d\n", msg.Topic, msg.Partition, msg.Offset))
+		slog.Debug("Message content", slog.String("value", string(msg.Value)))
 		s.MarkMessage(msg, "")
 		message := &Message{}
 		message.SetID(string(msg.Key))
