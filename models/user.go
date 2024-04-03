@@ -142,7 +142,10 @@ func (e *UserLogin) GetUserID() string {
 }
 
 func (e *UserLogin) GetTenantID() string {
-	return ""
+	if e.Role == nil {
+		return ""
+	}
+	return e.Role.TenantID
 }
 
 func (e *UserLogin) GetRoleID() string {

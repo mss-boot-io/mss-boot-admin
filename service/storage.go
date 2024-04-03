@@ -24,6 +24,7 @@ type Storage struct{}
 
 func (s *Storage) Upload(c *gin.Context, f *multipart.FileHeader, tenantID, userID string) (string, error) {
 	storageType, _ := center.GetAppConfig().GetAppConfig(c, "storage.type")
+	endpoint, _ := center.GetAppConfig().GetAppConfig(c, "storage.endpoint")
 	switch storageType {
 	case "s3":
 		storage := config.Storage{}
@@ -39,7 +40,7 @@ func (s *Storage) Upload(c *gin.Context, f *multipart.FileHeader, tenantID, user
 		storage.SecretAccessKey, _ = center.GetAppConfig().GetAppConfig(c, "storage.s3SecretAccessKey")
 		storage.SigningMethod, _ = center.GetAppConfig().GetAppConfig(c, "storage.s3SigningMethod")
 		storage.Init()
-		//todo 上传文件对象存储
+		//上传文件对象存储
 		file, err := f.Open()
 		if err != nil {
 			return "", err
@@ -53,14 +54,13 @@ func (s *Storage) Upload(c *gin.Context, f *multipart.FileHeader, tenantID, user
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("%s/%s", storage.Endpoint, key), nil
+		return fmt.Sprintf("%s/%s", endpoint, key), nil
 	default:
 		//默认local
-		endpoint, _ := center.GetAppConfig().GetAppConfig(c, "storage.localEndpoint")
 		if endpoint == "" {
 			return "", errors.New("localEndpoint is empty")
 		}
-		//todo 上传文件到本地
+		//上传文件到本地
 		key := filepath.Join("public", tenantID, userID, f.Filename)
 		err := c.SaveUploadedFile(f, key)
 		if err != nil {

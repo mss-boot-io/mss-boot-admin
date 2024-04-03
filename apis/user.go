@@ -1,13 +1,12 @@
 package apis
 
 import (
-	"fmt"
+	"github.com/mss-boot-io/mss-boot-admin/service"
 	"net/http"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/models"
@@ -62,31 +61,13 @@ func (e *User) UpdateAvatar(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	path := fmt.Sprintf("public/%s", verify.GetUserID())
-	if !pkg.PathExist(path) {
-		err = pkg.PathCreate(path)
-		if err != nil {
-			api.AddError(err).Log.Error("PathCreate error")
-			api.Err(http.StatusInternalServerError)
-			return
-		}
-	}
-	filename := fmt.Sprintf("%s/%s", path, file.Filename)
-	err = ctx.SaveUploadedFile(file, filename)
+	s := service.Storage{}
+	filename, err := s.Upload(ctx, file, verify.GetTenantID(), verify.GetUserID())
 	if err != nil {
-		api.AddError(err).Log.Error("SaveUploadedFile error")
+		api.AddError(err).Log.Error("upload error")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	filename = config.Cfg.Application.Origin + "/" + filename
-	//err = gormdb.DB.Model(&models.User{}).
-	//	Where("id = ?", verify.GetUserID()).
-	//	Update("avatar", filename).Error
-	//if err != nil {
-	//	api.AddError(err).Log.Error("UpdateAvatar error")
-	//	api.Err(http.StatusInternalServerError)
-	//	return
-	//}
 	api.OK(dto.UpdateAvatarResponse{Avatar: filename})
 }
 
