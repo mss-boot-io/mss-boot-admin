@@ -21,7 +21,7 @@ type NSQOptions struct {
 	WriteTimeout time.Duration `opt:"write_timeout" min:"100ms" max:"5m" default:"1s"`
 
 	// Addresses is the local address to use when dialing an nsqd.
-	Addresses []string `opt:"addresses"`
+	Addresses []string `opt:"addresses" yaml:"addresses" json:"addresses"`
 
 	// Duration between polling lookupd for new producers, and fractional jitter to add to
 	// the lookupd pool loop. this helps evenly distribute requests even if multiple consumers

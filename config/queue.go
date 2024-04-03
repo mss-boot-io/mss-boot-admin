@@ -40,7 +40,7 @@ type QueueMemory struct {
 }
 
 type QueueNSQ struct {
-	NSQOptions
+	NSQOptions `yaml:",inline" json:",inline"`
 }
 
 type Kafka struct {
