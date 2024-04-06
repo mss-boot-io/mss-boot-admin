@@ -1,9 +1,7 @@
 package models
 
 import (
-	"errors"
 	"fmt"
-	"github.com/mss-boot-io/mss-boot-admin/middleware"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -49,12 +47,12 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value 
 		Group: group,
 		Name:  key,
 	}
-	verify := middleware.GetVerify(ctx)
-	if verify == nil {
-		return errors.New("user not login")
+	t, err := center.GetTenant().GetTenant(ctx)
+	if err != nil {
+		return err
 	}
 	//set cache
-	err := center.GetCache().Set(ctx, fmt.Sprintf("%s.%s", verify.GetTenantID(), key), value, -1)
+	err = center.GetCache().Set(ctx, fmt.Sprintf("%s.%s", t.GetID(), key), value, -1)
 	if err != nil {
 		return err
 	}
@@ -86,11 +84,11 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 		group = keys[0]
 		key = strings.Join(keys[1:], ".")
 	}
-	verify := middleware.GetVerify(ctx)
-	if verify == nil {
-		return nil, errors.New("user not login")
+	t, err := center.GetTenant().GetTenant(ctx)
+	if err != nil {
+		return nil, err
 	}
-	v, _ := center.GetCache().Get(ctx, fmt.Sprintf("%s.%s", verify.GetTenantID(), key))
+	v, _ := center.GetCache().Get(ctx, fmt.Sprintf("%s.%s", t.GetID(), key))
 	if v != "" {
 		c.Group = group
 		c.Name = key
@@ -98,13 +96,14 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 		return c, nil
 	}
 
-	err := center.GetTenant().GetDB(ctx, c).
+	err = center.GetTenant().GetDB(ctx, c).
 		Where("name = ?", key).
 		Where("`group` = ?", group).
 		First(c).Error
 	if err != nil {
 		return nil, err
 	}
+	_ = center.GetCache().Set(ctx, fmt.Sprintf("%s.%s", t.GetID(), key), c.Value, -1)
 	return c, nil
 }
 
