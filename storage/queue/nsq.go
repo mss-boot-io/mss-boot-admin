@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"log/slog"
 	"net"
 	"net/http"
@@ -34,11 +35,10 @@ func NewNSQ(cfg *nsq.Config, lookup, adminAddr string, addresses ...string) (*NS
 	}
 	//通过adminaddr获取节点信息
 	n.queryNSQAdmin()
-
-	//var err error
-	//if len(addresses) > 1 {
-	//	n.producer, err = n.newProducer()
-	//}
+	err := n.newProducers()
+	if err != nil {
+		return nil, err
+	}
 	return n, nil
 }
 
@@ -47,7 +47,7 @@ type NSQ struct {
 	lookupAddr string
 	adminAddr  string
 	cfg        *nsq.Config
-	producer   *nsq.Producer
+	producer   []*nsq.Producer
 	consumer   *nsq.Consumer
 	mux        sync.Mutex
 }
@@ -66,14 +66,29 @@ func (e *NSQ) switchAddress() {
 	}
 }
 
-func (e *NSQ) newProducer() (*nsq.Producer, error) {
+func (e *NSQ) newProducers() error {
 	e.mux.Lock()
 	defer e.mux.Unlock()
-	defer e.switchAddress()
 	if e.cfg == nil {
 		e.cfg = nsq.NewConfig()
 	}
-	return nsq.NewProducer(e.addresses[0], e.cfg)
+	var err error
+	e.producer = make([]*nsq.Producer, len(e.addresses))
+	for i := range e.addresses {
+		e.producer[i], err = nsq.NewProducer(e.addresses[i], e.cfg)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *NSQ) getProducer(topic string) *nsq.Producer {
+	// 获取字符串hashcode
+	hash := int(crc32.ChecksumIEEE([]byte(topic)))
+	// 取余
+	index := hash % len(e.producer)
+	return e.producer[index]
 }
 
 func (e *NSQ) newConsumer(topic, channel string, h nsq.Handler) (err error) {
@@ -101,26 +116,7 @@ func (e *NSQ) Append(message storage.Messager) error {
 	if err != nil {
 		return err
 	}
-	if e.producer == nil {
-		e.producer, err = e.newProducer()
-		if err != nil {
-			return err
-		}
-	}
-	var count int
-RETRY:
-	{
-		err = e.producer.Publish(message.GetStream(), rb)
-		if err != nil {
-			count++
-			if count >= len(e.addresses) {
-				return err
-			}
-			err = nil
-			goto RETRY
-		}
-	}
-	return err
+	return e.getProducer(message.GetStream()).Publish(message.GetStream(), rb)
 }
 
 // Register 监听消费者
@@ -135,10 +131,11 @@ func (e *NSQ) Register(name, channel string, f storage.ConsumerFunc) {
 
 func (e *NSQ) ping() {
 	for {
-		err := e.producer.Ping()
-		if err != nil {
-			e.switchAddress()
-			e.producer, _ = e.newProducer()
+		for i := range e.producer {
+			err := e.producer[i].Ping()
+			if err != nil {
+				slog.Error("nsq producer ping error", slog.Any("err", err))
+			}
 		}
 		time.Sleep(5 * time.Second)
 	}
@@ -149,8 +146,8 @@ func (e *NSQ) Run(context.Context) {
 }
 
 func (e *NSQ) Shutdown() {
-	if e.producer != nil {
-		e.producer.Stop()
+	for i := range e.producer {
+		e.producer[i].Stop()
 	}
 	if e.consumer != nil {
 		e.consumer.Stop()
