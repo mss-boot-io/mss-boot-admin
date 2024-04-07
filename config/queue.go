@@ -154,10 +154,11 @@ func (e *Queue) Init() {
 		if err != nil {
 			log.Fatalf("queue nsq init error: %s", err.Error())
 		}
-		q, err := queue.NewNSQ(e.NSQ.Addresses, cfg)
+		q, err := queue.NewNSQ(cfg, e.NSQ.LookupdAddr, e.NSQ.Addresses...)
 		if err != nil {
 			log.Fatalf("queue nsq init error: %s", err.Error())
 		}
+
 		center.SetQueue(q)
 		return
 	}

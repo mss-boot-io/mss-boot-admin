@@ -18,22 +18,26 @@ import (
 )
 
 // NewNSQ nsq模式 只能监听一个channel
-func NewNSQ(addresses []string, cfg *nsq.Config) (*NSQ, error) {
+func NewNSQ(cfg *nsq.Config, lookup string, addresses ...string) (*NSQ, error) {
 	n := &NSQ{
-		addresses: addresses,
-		cfg:       cfg,
+		lookupAddr: lookup,
+		addresses:  addresses,
+		cfg:        cfg,
 	}
 	var err error
-	n.producer, err = n.newProducer()
+	if len(addresses) > 1 {
+		n.producer, err = n.newProducer()
+	}
 	return n, err
 }
 
 type NSQ struct {
-	addresses []string
-	cfg       *nsq.Config
-	producer  *nsq.Producer
-	consumer  *nsq.Consumer
-	wait      sync.WaitGroup
+	addresses  []string
+	lookupAddr string
+	cfg        *nsq.Config
+	producer   *nsq.Producer
+	consumer   *nsq.Consumer
+	wait       sync.WaitGroup
 }
 
 // String 字符串类型
@@ -68,8 +72,11 @@ func (e *NSQ) newConsumer(topic, channel string, h nsq.Handler) (err error) {
 		}
 	}
 	e.consumer.AddHandler(h)
+	if e.lookupAddr != "" {
+		err = e.consumer.ConnectToNSQLookupd(e.lookupAddr)
+		return
+	}
 	err = e.consumer.ConnectToNSQDs(e.addresses)
-
 	return err
 }
 
