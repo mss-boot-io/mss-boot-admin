@@ -51,8 +51,12 @@ func (m *Message) SetStream(stream string) {
 func (m *Message) SetValues(values map[string]interface{}) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	m.ID, _ = values["__id"].(string)
-	m.Stream, _ = values["__steam"].(string)
+	if m.ID == "" {
+		m.ID, _ = values["__id"].(string)
+	}
+	if m.Stream == "" {
+		m.Stream, _ = values["__steam"].(string)
+	}
 	delete(values, "__id")
 	delete(values, "__steam")
 	m.Values = values
