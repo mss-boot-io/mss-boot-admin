@@ -83,9 +83,9 @@ func (e *NSQ) newProducers() error {
 	return nil
 }
 
-func (e *NSQ) getProducer(topic string) *nsq.Producer {
+func (e *NSQ) getProducer(id string) *nsq.Producer {
 	// 获取字符串hashcode
-	hash := int(crc32.ChecksumIEEE([]byte(topic)))
+	hash := int(crc32.ChecksumIEEE([]byte(id)))
 	// 取余
 	index := hash % len(e.producer)
 	return e.producer[index]
