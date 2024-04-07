@@ -116,7 +116,7 @@ func (e *NSQ) Append(message storage.Messager) error {
 	if err != nil {
 		return err
 	}
-	return e.getProducer(message.GetStream()).Publish(message.GetStream(), rb)
+	return e.getProducer(message.GetID()).Publish(message.GetStream(), rb)
 }
 
 // Register 监听消费者
