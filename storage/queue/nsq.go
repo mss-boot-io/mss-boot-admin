@@ -102,11 +102,12 @@ func (e *NSQ) newConsumer(topic, channel string, partition int, h nsq.Handler) (
 		}
 	}
 	e.consumer.AddHandler(h)
-	if e.lookupAddr != "" && partition > -1 {
+	if e.lookupAddr != "" && partition < 0 {
 		err = e.consumer.ConnectToNSQLookupd(e.lookupAddr)
 		return
 	}
-	if partition > -1 && len(e.addresses) > partition {
+	if partition > -1 {
+		partition = partition % len(e.addresses)
 		err = e.consumer.ConnectToNSQDs([]string{e.addresses[partition]})
 		return err
 	}
