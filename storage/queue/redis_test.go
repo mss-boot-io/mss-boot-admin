@@ -68,7 +68,7 @@ func TestRedis_Append(t *testing.T) {
 			if r, err := NewRedis(tt.fields.ProducerOptions, tt.fields.ConsumerOptions); err != nil {
 				t.Errorf("SetQueue() error = %v", err)
 			} else {
-				if err := r.Append(tt.args.message); (err != nil) != tt.wantErr {
+				if err := r.Append(storage.WithMessage(tt.args.message)); (err != nil) != tt.wantErr {
 					t.Errorf("SetQueue() error = %v, wantErr %v", err, tt.wantErr)
 				}
 			}
@@ -130,7 +130,7 @@ func TestRedis_Register(t *testing.T) {
 			if r, err := NewRedis(tt.fields.ProducerOptions, tt.fields.ConsumerOptions); err != nil {
 				t.Errorf("SetQueue() error = %v", err)
 			} else {
-				r.Register(tt.args.name, "", tt.args.f)
+				r.Register(storage.WithTopic(tt.args.name), storage.WithConsumerFunc(tt.args.f))
 				go func() {
 					time.Sleep(time.Second)
 					r.Shutdown()

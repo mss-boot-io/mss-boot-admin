@@ -38,19 +38,20 @@ func (m *Memory) makeQueue() memoryQueue {
 	return make(memoryQueue, m.PoolNum)
 }
 
-func (m *Memory) Append(message storage.Messager) error {
+func (m *Memory) Append(opts ...storage.Option) error {
+	o := storage.SetOptions(opts...)
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	memoryMessage := new(Message)
-	memoryMessage.SetID(message.GetID())
-	memoryMessage.SetStream(message.GetStream())
-	memoryMessage.SetValues(message.GetValues())
+	memoryMessage.SetID(o.Message.GetID())
+	memoryMessage.SetStream(o.Message.GetStream())
+	memoryMessage.SetValues(o.Message.GetValues())
 
-	v, ok := m.queue.Load(message.GetStream())
+	v, ok := m.queue.Load(o.Message.GetStream())
 
 	if !ok {
 		v = m.makeQueue()
-		m.queue.Store(message.GetStream(), v)
+		m.queue.Store(o.Message.GetStream(), v)
 	}
 
 	var q memoryQueue
@@ -59,7 +60,7 @@ func (m *Memory) Append(message storage.Messager) error {
 		q = v.(memoryQueue)
 	default:
 		q = m.makeQueue()
-		m.queue.Store(message.GetStream(), q)
+		m.queue.Store(o.Message.GetStream(), q)
 	}
 	go func(gm storage.Messager, gq memoryQueue) {
 		gm.SetID(uuid.New().String())
@@ -68,13 +69,14 @@ func (m *Memory) Append(message storage.Messager) error {
 	return nil
 }
 
-func (m *Memory) Register(name, _ string, f storage.ConsumerFunc) {
+func (m *Memory) Register(opts ...storage.Option) {
+	o := storage.SetOptions(opts...)
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	v, ok := m.queue.Load(name)
+	v, ok := m.queue.Load(o.Topic)
 	if !ok {
 		v = m.makeQueue()
-		m.queue.Store(name, v)
+		m.queue.Store(o.Topic, v)
 	}
 	var q memoryQueue
 	switch v.(type) {
@@ -82,7 +84,7 @@ func (m *Memory) Register(name, _ string, f storage.ConsumerFunc) {
 		q = v.(memoryQueue)
 	default:
 		q = m.makeQueue()
-		m.queue.Store(name, q)
+		m.queue.Store(o.Topic, q)
 	}
 	go func(out memoryQueue, gf storage.ConsumerFunc) {
 		var err error
@@ -99,7 +101,7 @@ func (m *Memory) Register(name, _ string, f storage.ConsumerFunc) {
 				err = nil
 			}
 		}
-	}(q, f)
+	}(q, o.F)
 }
 
 func (m *Memory) Run(context.Context) {

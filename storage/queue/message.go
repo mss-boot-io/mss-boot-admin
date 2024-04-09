@@ -29,7 +29,13 @@ func (m *Message) GetStream() string {
 func (m *Message) GetValues() map[string]interface{} {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	return m.Values
+	data := make(map[string]interface{})
+	for k, v := range m.Values {
+		data[k] = v
+	}
+	data["__id"] = m.ID
+	data["__steam"] = m.Stream
+	return data
 }
 
 func (m *Message) SetID(id string) {
@@ -45,6 +51,14 @@ func (m *Message) SetStream(stream string) {
 func (m *Message) SetValues(values map[string]interface{}) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
+	if m.ID == "" {
+		m.ID, _ = values["__id"].(string)
+	}
+	if m.Stream == "" {
+		m.Stream, _ = values["__steam"].(string)
+	}
+	delete(values, "__id")
+	delete(values, "__steam")
 	m.Values = values
 }
 

@@ -1,0 +1,62 @@
+package storage
+
+/*
+ * @Author: lwnmengjing<lwnmengjing@qq.com>
+ * @Date: 2024/4/9 11:28:26
+ * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
+ * @Last Modified time: 2024/4/9 11:28:26
+ */
+
+type Options struct {
+	Topic     string
+	GroupID   string
+	F         ConsumerFunc
+	Message   Messager
+	Partition int
+}
+
+func DefaultOptions() *Options {
+	return &Options{
+		Partition: -1,
+	}
+}
+
+func SetOptions(opts ...Option) *Options {
+	o := DefaultOptions()
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
+type Option func(*Options)
+
+func WithConsumerFunc(f ConsumerFunc) Option {
+	return func(o *Options) {
+		o.F = f
+	}
+}
+
+func WithMessage(message Messager) Option {
+	return func(o *Options) {
+		o.Message = message
+	}
+}
+
+func WithPartition(partition int) Option {
+	return func(o *Options) {
+		o.Partition = partition
+	}
+}
+
+func WithGroupID(groupID string) Option {
+	return func(o *Options) {
+		o.GroupID = groupID
+	}
+}
+
+func WithTopic(topic string) Option {
+	return func(o *Options) {
+		o.Topic = topic
+	}
+}

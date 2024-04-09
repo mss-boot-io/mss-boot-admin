@@ -25,8 +25,8 @@ type AdapterCache interface {
 
 type AdapterQueue interface {
 	String() string
-	Append(message Messager) error
-	Register(name, channel string, f ConsumerFunc)
+	Append(opts ...Option) error
+	Register(opts ...Option)
 	Run(context.Context)
 	Shutdown()
 }

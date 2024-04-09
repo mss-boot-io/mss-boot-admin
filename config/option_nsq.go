@@ -16,6 +16,10 @@ import (
 type NSQOptions struct {
 	DialTimeout time.Duration `opt:"dial_timeout" default:"1s"`
 
+	LookupdAddr string `opt:"-" json:"lookupdAddr" yaml:"lookupdAddr"`
+
+	AdminAddr string `opt:"-" json:"adminAddr" yaml:"adminAddr"`
+
 	// Deadlines for network reads and writes
 	ReadTimeout  time.Duration `opt:"read_timeout" min:"100ms" max:"5m" default:"60s"`
 	WriteTimeout time.Duration `opt:"write_timeout" min:"100ms" max:"5m" default:"1s"`
