@@ -34,8 +34,7 @@ func NewNSQ(cfg *nsq.Config, lookup, adminAddr string, addresses ...string) (*NS
 		cfg:        cfg,
 	}
 	//通过adminaddr获取节点信息
-	n.queryNSQAdmin()
-	err := n.newProducers()
+	err := n.queryNSQAdmin()
 	if err != nil {
 		return nil, err
 	}
@@ -55,15 +54,6 @@ type NSQ struct {
 // String 字符串类型
 func (*NSQ) String() string {
 	return "nsq"
-}
-
-// switchAddress ⚠️生产环境至少配置三个节点
-func (e *NSQ) switchAddress() {
-	if len(e.addresses) > 1 {
-		e.addresses[0], e.addresses[len(e.addresses)-1] =
-			e.addresses[1],
-			e.addresses[0]
-	}
 }
 
 func (e *NSQ) newProducers() error {
@@ -117,6 +107,12 @@ func (e *NSQ) newConsumer(topic, channel string, partition int, h nsq.Handler) (
 
 // Append 消息入生产者
 func (e *NSQ) Append(opts ...storage.Option) error {
+	if e.producer == nil {
+		err := e.newProducers()
+		if err != nil {
+			return err
+		}
+	}
 	o := storage.SetOptions(opts...)
 	rb, err := json.Marshal(o.Message.GetValues())
 	if err != nil {
@@ -161,9 +157,9 @@ func (e *NSQ) Shutdown() {
 	}
 }
 
-func (e *NSQ) queryNSQAdmin() {
+func (e *NSQ) queryNSQAdmin() error {
 	if e.adminAddr == "" {
-		return
+		return nil
 	}
 	endpoint := e.adminAddr
 	if strings.Index(endpoint, "http") < 0 {
@@ -175,7 +171,7 @@ func (e *NSQ) queryNSQAdmin() {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/nodes", endpoint), nil)
 	if err != nil {
 		slog.Error("error creating HTTP request to nsq admin", slog.Any("err", err))
-		return
+		return err
 	}
 	if e.cfg.AuthSecret != "" && e.cfg.LookupdAuthorization {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", e.cfg.AuthSecret))
@@ -183,17 +179,17 @@ func (e *NSQ) queryNSQAdmin() {
 	resp, err := client.Do(req)
 	if err != nil {
 		slog.Error("error querying nsq admin", slog.Any("err", err))
-		return
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		slog.Error("error querying nsq admin", slog.Any("status_code", resp.StatusCode))
-		return
+		return err
 	}
 	err = json.NewDecoder(resp.Body).Decode(&data)
 	if err != nil {
 		slog.Error("error decoding nsq admin response", slog.Any("err", err))
-		return
+		return err
 	}
 
 	for i := range data.Nodes {
@@ -211,6 +207,7 @@ func (e *NSQ) queryNSQAdmin() {
 			e.addresses = append(e.addresses, joined)
 		}
 	}
+	return nil
 }
 
 type NodesResp struct {
