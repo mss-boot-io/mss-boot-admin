@@ -2,11 +2,10 @@ package queue
 
 import (
 	"context"
+	"github.com/mss-boot-io/mss-boot-admin/storage"
 
 	"github.com/mss-boot-io/redisqueue/v2"
 	"github.com/redis/go-redis/v9"
-
-	"github.com/mss-boot-io/mss-boot-admin/storage"
 )
 
 // NewRedis redis模式
@@ -52,22 +51,24 @@ func (r *Redis) newProducer(options *redisqueue.ProducerOptions) (*redisqueue.Pr
 	return redisqueue.NewProducerWithOptions(options)
 }
 
-func (r *Redis) Append(message storage.Messager) error {
+func (r *Redis) Append(opts ...storage.Option) error {
+	o := storage.SetOptions(opts...)
 	err := r.producer.Enqueue(&redisqueue.Message{
-		ID:     message.GetID(),
-		Stream: message.GetStream(),
-		Values: message.GetValues(),
+		ID:     o.Message.GetID(),
+		Stream: o.Message.GetStream(),
+		Values: o.Message.GetValues(),
 	})
 	return err
 }
 
-func (r *Redis) Register(name, _ string, f storage.ConsumerFunc) {
-	r.consumer.Register(name, func(message *redisqueue.Message) error {
+func (r *Redis) Register(opts ...storage.Option) {
+	o := storage.SetOptions(opts...)
+	r.consumer.Register(o.Topic, func(message *redisqueue.Message) error {
 		m := new(Message)
 		m.SetValues(message.Values)
 		m.SetStream(message.Stream)
 		m.SetID(message.ID)
-		return f(m)
+		return o.F(m)
 	})
 }
 

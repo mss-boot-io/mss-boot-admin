@@ -115,26 +115,20 @@ func (e *NSQ) newConsumer(topic, channel string, partition int, h nsq.Handler) (
 }
 
 // Append 消息入生产者
-func (e *NSQ) Append(opts ...Option) error {
-	o := &Options{}
-	for _, opt := range opts {
-		opt(o)
-	}
-	rb, err := json.Marshal(o.message.GetValues())
+func (e *NSQ) Append(opts ...storage.Option) error {
+	o := storage.SetOptions(opts...)
+	rb, err := json.Marshal(o.Message.GetValues())
 	if err != nil {
 		return err
 	}
-	return e.getProducer(o.message.GetID()).Publish(o.message.GetStream(), rb)
+	return e.getProducer(o.Message.GetID()).Publish(o.Message.GetStream(), rb)
 }
 
 // Register 监听消费者
-func (e *NSQ) Register(opts ...Option) {
-	o := &Options{}
-	for _, opt := range opts {
-		opt(o)
-	}
-	h := &nsqConsumerHandler{o.f}
-	err := e.newConsumer(o.name, o.channel, o.partition, h)
+func (e *NSQ) Register(opts ...storage.Option) {
+	o := storage.SetOptions(opts...)
+	h := &nsqConsumerHandler{o.F}
+	err := e.newConsumer(o.Topic, o.GroupID, o.Partition, h)
 	if err != nil {
 		//目前不支持动态注册
 		panic(err)

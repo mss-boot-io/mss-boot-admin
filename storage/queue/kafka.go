@@ -61,30 +61,35 @@ func (*Kafka) String() string {
 	return "kafka"
 }
 
-func (e *Kafka) Append(message storage.Messager) error {
-	rb, err := json.Marshal(message.GetValues())
+func (e *Kafka) Append(opts ...storage.Option) error {
+	o := storage.DefaultOptions()
+	for _, opt := range opts {
+		opt(o)
+	}
+	rb, err := json.Marshal(o.Message.GetValues())
 	if err != nil {
 		return err
 	}
 	msg := &sarama.ProducerMessage{
-		Topic: message.GetStream(),
-		Key:   sarama.StringEncoder(message.GetID()),
+		Topic: o.Message.GetStream(),
+		Key:   sarama.StringEncoder(o.Message.GetID()),
 		Value: sarama.ByteEncoder(rb),
 	}
 	_, _, err = e.producer.SendMessage(msg)
 	return err
 }
 
-func (e *Kafka) Register(topic, groupID string, f storage.ConsumerFunc) {
-	if f == nil {
+func (e *Kafka) Register(opts ...storage.Option) {
+	o := storage.DefaultOptions()
+	if o.F == nil {
 		slog.Error("consumer func is nil")
 		os.Exit(-1)
 	}
-	if topic == "" {
+	if o.Topic == "" {
 		slog.Error("topic is empty")
 		os.Exit(-1)
 	}
-	consumer, err := sarama.NewConsumerGroup(e.brokers, groupID, e.config)
+	consumer, err := sarama.NewConsumerGroup(e.brokers, o.GroupID, e.config)
 	if err != nil {
 		slog.Error("create consumer group error", slog.Any("error", err))
 		os.Exit(-1)
@@ -95,13 +100,13 @@ func (e *Kafka) Register(topic, groupID string, f storage.ConsumerFunc) {
 		slog.Error("type assertion error")
 		os.Exit(-1)
 	}
-	cf.SetConsumerFunc(f)
+	cf.SetConsumerFunc(o.F)
 
 	if e.consumers == nil {
 		e.consumers = make(map[*ConsumerRegister]sarama.ConsumerGroup)
 	}
 	e.mux.Lock()
-	e.consumers[&ConsumerRegister{Topic: topic, GroupID: groupID, Func: cf}] = consumer
+	e.consumers[&ConsumerRegister{Topic: o.Topic, GroupID: o.GroupID, Func: cf}] = consumer
 	e.mux.Unlock()
 }
 

@@ -51,7 +51,7 @@ func TestMemory_Append(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := NewMemory(100)
-			if err := m.Append(tt.args.message); (err != nil) != tt.wantErr {
+			if err := m.Append(storage.WithMessage(tt.args.message)); (err != nil) != tt.wantErr {
 				t.Errorf("Append() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -90,13 +90,14 @@ func TestMemory_Register(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := NewMemory(100)
-			m.Register(tt.name, "", tt.args.f)
-			if err := m.Append(&Message{Message: redisqueue.Message{
+			m.Register(storage.WithTopic(tt.name),
+				storage.WithConsumerFunc(tt.args.f))
+			if err := m.Append(storage.WithMessage(&Message{Message: redisqueue.Message{
 				Stream: "test",
 				Values: map[string]interface{}{
 					"key": "value",
 				},
-			}}); err != nil {
+			}})); err != nil {
 				t.Error(err)
 				return
 			}
