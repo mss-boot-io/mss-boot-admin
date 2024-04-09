@@ -26,6 +26,7 @@ go.work*
 .idea
 
 config/application-*
+*.db
 
 temp
 test

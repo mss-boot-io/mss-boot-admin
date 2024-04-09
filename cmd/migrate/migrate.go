@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -25,11 +26,14 @@ import (
  */
 
 var (
-	generate bool
-	username string
-	password string
-	system   bool
-	StartCmd = &cobra.Command{
+	generate       bool
+	username       string
+	password       string
+	system         bool
+	configProvider string
+	driver         string
+	dsn            string
+	StartCmd       = &cobra.Command{
 		Use:     "migrate",
 		Short:   "Initialize the database",
 		Example: "mss-boot-admin migrate",
@@ -47,14 +51,17 @@ func init() {
 		false, "generate system migration file")
 	StartCmd.PersistentFlags().BoolVarP(&generate, "generate", "g",
 		false, "generate migration file")
+	StartCmd.PersistentFlags().StringVarP(&configProvider,
+		"config-provider", "c",
+		os.Getenv("CONFIG_PROVIDER"), "Start server with config provider")
 	StartCmd.PersistentFlags().StringVarP(&username, "username", "u",
 		"admin", "system super administrator login username")
 	StartCmd.PersistentFlags().StringVarP(&password, "password", "p",
 		"123456", "system super administrator login password")
-	StartCmd.PersistentFlags().StringVarP(&config.Cfg.Database.Driver,
+	StartCmd.PersistentFlags().StringVarP(&driver,
 		"gorm-driver", "r",
 		"mysql", "Start server with db driver")
-	StartCmd.PersistentFlags().StringVarP(&config.Cfg.Database.Source,
+	StartCmd.PersistentFlags().StringVarP(&dsn,
 		"gorm-dsn", "n",
 		"root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local",
 		"Start server with db dsn")
@@ -66,17 +73,37 @@ func setup() error {
 	// setup 00 set params
 	// env overwrite args
 	if os.Getenv("DB_DRIVER") != "" {
-		config.Cfg.Database.Driver = os.Getenv("DB_DRIVER")
+		driver = os.Getenv("DB_DRIVER")
 	}
 	if os.Getenv("DB_DSN") != "" {
-		config.Cfg.Database.Source = os.Getenv("DB_DSN")
+		dsn = os.Getenv("DB_DSN")
 	}
-	config.Cfg.Database.Config.DisableForeignKeyConstraintWhenMigrating = true
-	// setup 01 set logger
-	config.Cfg.Logger.Level = slog.LevelInfo
-	config.Cfg.Logger.AddSource = true
-
-	config.Cfg.Logger.Init()
+	// setup 01 config init
+	opts := []source.Option{
+		// use local config file
+		source.WithDir("config"),
+		source.WithProvider(source.Local),
+		source.WithWatch(true),
+	}
+	switch source.Provider(configProvider) {
+	case source.GORM:
+		opts = []source.Option{
+			source.WithProvider(source.GORM),
+			source.WithGORMDriver(driver),
+			source.WithGORMDsn(dsn),
+			source.WithDriver(&models.SystemConfig{}),
+		}
+	case source.FS:
+		opts = []source.Option{
+			source.WithProvider(source.FS),
+			source.WithFrom(config.FS),
+		}
+	case source.Local, "":
+	default:
+		slog.Error("config provider not support", "provider", configProvider)
+		os.Exit(-1)
+	}
+	center.SetConfig(config.Cfg).Init(opts...)
 
 	center.SetStatistics(&models.Statistics{})
 

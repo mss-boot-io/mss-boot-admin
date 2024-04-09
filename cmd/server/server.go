@@ -59,7 +59,7 @@ func init() {
 		false,
 		"Start server with check api data")
 	StartCmd.PersistentFlags().StringVarP(&configProvider,
-		"config-provider", "p",
+		"config-provider", "c",
 		os.Getenv("CONFIG_PROVIDER"),
 		"Start server with config provider")
 	StartCmd.PersistentFlags().StringVarP(&group,

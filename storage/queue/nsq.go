@@ -91,7 +91,7 @@ func (e *NSQ) getProducer(id string) *nsq.Producer {
 	return e.producer[index]
 }
 
-func (e *NSQ) newConsumer(topic, channel string, h nsq.Handler) (err error) {
+func (e *NSQ) newConsumer(topic, channel string, partition int, h nsq.Handler) (err error) {
 	if e.cfg == nil {
 		e.cfg = nsq.NewConfig()
 	}
@@ -102,27 +102,39 @@ func (e *NSQ) newConsumer(topic, channel string, h nsq.Handler) (err error) {
 		}
 	}
 	e.consumer.AddHandler(h)
-	if e.lookupAddr != "" {
+	if e.lookupAddr != "" && partition > -1 {
 		err = e.consumer.ConnectToNSQLookupd(e.lookupAddr)
 		return
+	}
+	if partition > -1 && len(e.addresses) > partition {
+		err = e.consumer.ConnectToNSQDs([]string{e.addresses[partition]})
+		return err
 	}
 	err = e.consumer.ConnectToNSQDs(e.addresses)
 	return err
 }
 
 // Append 消息入生产者
-func (e *NSQ) Append(message storage.Messager) error {
-	rb, err := json.Marshal(message.GetValues())
+func (e *NSQ) Append(opts ...Option) error {
+	o := &Options{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	rb, err := json.Marshal(o.message.GetValues())
 	if err != nil {
 		return err
 	}
-	return e.getProducer(message.GetID()).Publish(message.GetStream(), rb)
+	return e.getProducer(o.message.GetID()).Publish(o.message.GetStream(), rb)
 }
 
 // Register 监听消费者
-func (e *NSQ) Register(name, channel string, f storage.ConsumerFunc) {
-	h := &nsqConsumerHandler{f}
-	err := e.newConsumer(name, channel, h)
+func (e *NSQ) Register(opts ...Option) {
+	o := &Options{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	h := &nsqConsumerHandler{o.f}
+	err := e.newConsumer(o.name, o.channel, o.partition, h)
 	if err != nil {
 		//目前不支持动态注册
 		panic(err)
