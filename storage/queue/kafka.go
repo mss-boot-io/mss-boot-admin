@@ -62,7 +62,7 @@ func (*Kafka) String() string {
 }
 
 func (e *Kafka) Append(opts ...storage.Option) error {
-	o := storage.DefaultOptions()
+	o := storage.SetOptions(opts...)
 	for _, opt := range opts {
 		opt(o)
 	}
@@ -80,7 +80,7 @@ func (e *Kafka) Append(opts ...storage.Option) error {
 }
 
 func (e *Kafka) Register(opts ...storage.Option) {
-	o := storage.DefaultOptions()
+	o := storage.SetOptions(opts...)
 	if o.F == nil {
 		slog.Error("consumer func is nil")
 		os.Exit(-1)
