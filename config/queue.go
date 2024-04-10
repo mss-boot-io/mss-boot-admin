@@ -54,6 +54,7 @@ type KafkaParams struct {
 	KeyFile   string        `yaml:"keyFile" json:"keyFile"`
 	Timeout   time.Duration `yaml:"timeout" json:"timeout"` // default: 30
 	KeepAlive time.Duration `yaml:"keepAlive" json:"keepAlive"`
+	Version   string        `yaml:"version" json:"version"`
 }
 
 func (k *Kafka) getConfig() *sarama.Config {
@@ -78,6 +79,12 @@ func (k *Kafka) getConfig() *sarama.Config {
 		c.Net.SASL.Mechanism = k.SASL.Mechanism
 	}
 	c.Version = sarama.V1_0_0_0
+	if k.Version != "" {
+		v, err := sarama.ParseKafkaVersion(k.Version)
+		if err == nil {
+			c.Version = v
+		}
+	}
 	c.Producer.Return.Successes = true
 	return c
 }
