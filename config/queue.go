@@ -36,7 +36,7 @@ type QueueRedis struct {
 }
 
 type QueueMemory struct {
-	PoolSize uint
+	PoolSize uint `yaml:"poolSize" json:"poolSize"`
 }
 
 type QueueNSQ struct {

@@ -1,5 +1,7 @@
 package storage
 
+import "github.com/IBM/sarama"
+
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
  * @Date: 2024/4/9 11:28:26
@@ -8,11 +10,12 @@ package storage
  */
 
 type Options struct {
-	Topic     string
-	GroupID   string
-	F         ConsumerFunc
-	Message   Messager
-	Partition int
+	Topic                       string
+	GroupID                     string
+	F                           ConsumerFunc
+	Message                     Messager
+	Partition                   int
+	PartitionAssignmentStrategy sarama.BalanceStrategy
 }
 
 func DefaultOptions() *Options {
@@ -30,6 +33,12 @@ func SetOptions(opts ...Option) *Options {
 }
 
 type Option func(*Options)
+
+func WithStrategy(f sarama.BalanceStrategy) Option {
+	return func(o *Options) {
+		o.PartitionAssignmentStrategy = f
+	}
+}
 
 func WithConsumerFunc(f ConsumerFunc) Option {
 	return func(o *Options) {
