@@ -37,9 +37,10 @@ func NewKafka(brokers []string, c *sarama.Config, h ConsumerGroupHandler) (k *Ka
 }
 
 type ConsumerRegister struct {
-	Topic   string
-	GroupID string
-	Func    ConsumerGroupHandler
+	Topic     string
+	GroupID   string
+	Partition int
+	Func      ConsumerGroupHandler
 }
 
 type Kafka struct {
@@ -88,6 +89,10 @@ func (e *Kafka) Register(opts ...storage.Option) {
 	if o.Topic == "" {
 		slog.Error("topic is empty")
 		os.Exit(-1)
+	}
+	if o.PartitionAssignmentStrategy != nil && o.Partition >= 0 {
+		e.config.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{*o.PartitionAssignmentStrategy}
+		e.config.Consumer.Group.Member.UserData = []byte{byte(o.Partition)}
 	}
 	consumer, err := sarama.NewConsumerGroup(e.brokers, o.GroupID, e.config)
 	if err != nil {
