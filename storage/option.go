@@ -15,7 +15,7 @@ type Options struct {
 	F                           ConsumerFunc
 	Message                     Messager
 	Partition                   int
-	PartitionAssignmentStrategy *sarama.BalanceStrategy
+	PartitionAssignmentStrategy sarama.BalanceStrategy
 }
 
 func DefaultOptions() *Options {
@@ -34,7 +34,7 @@ func SetOptions(opts ...Option) *Options {
 
 type Option func(*Options)
 
-func WithStrategy(f *sarama.BalanceStrategy) Option {
+func WithStrategy(f sarama.BalanceStrategy) Option {
 	return func(o *Options) {
 		o.PartitionAssignmentStrategy = f
 	}

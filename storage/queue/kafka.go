@@ -91,7 +91,7 @@ func (e *Kafka) Register(opts ...storage.Option) {
 		os.Exit(-1)
 	}
 	if o.PartitionAssignmentStrategy != nil && o.Partition >= 0 {
-		e.config.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{*o.PartitionAssignmentStrategy}
+		e.config.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{o.PartitionAssignmentStrategy}
 		e.config.Consumer.Group.Member.UserData = []byte{byte(o.Partition)}
 	}
 	consumer, err := sarama.NewConsumerGroup(e.brokers, o.GroupID, e.config)
