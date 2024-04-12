@@ -16,6 +16,7 @@ type Options struct {
 	Message                     Messager
 	Partition                   int
 	PartitionAssignmentStrategy sarama.BalanceStrategy
+	KafkaConfig                 *sarama.Config
 }
 
 func DefaultOptions() *Options {
@@ -67,5 +68,11 @@ func WithGroupID(groupID string) Option {
 func WithTopic(topic string) Option {
 	return func(o *Options) {
 		o.Topic = topic
+	}
+}
+
+func WithKafkaConfig(c *sarama.Config) Option {
+	return func(o *Options) {
+		o.KafkaConfig = c
 	}
 }

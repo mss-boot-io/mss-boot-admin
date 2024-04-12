@@ -67,6 +67,15 @@ func (e *Kafka) Append(opts ...storage.Option) error {
 	for _, opt := range opts {
 		opt(o)
 	}
+	if o.KafkaConfig != nil && e.producer == nil {
+		var err error
+		c := *o.KafkaConfig
+		c.Producer = o.KafkaConfig.Producer
+		e.producer, err = sarama.NewSyncProducer(e.brokers, &c)
+		if err != nil {
+			return err
+		}
+	}
 	rb, err := json.Marshal(o.Message.GetValues())
 	if err != nil {
 		return err
@@ -94,7 +103,11 @@ func (e *Kafka) Register(opts ...storage.Option) {
 		e.config.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{o.PartitionAssignmentStrategy}
 		e.config.Consumer.Group.Member.UserData = []byte{byte(o.Partition)}
 	}
-	consumer, err := sarama.NewConsumerGroup(e.brokers, o.GroupID, e.config)
+	c := *e.config
+	if o.KafkaConfig != nil {
+		c.Consumer = o.KafkaConfig.Consumer
+	}
+	consumer, err := sarama.NewConsumerGroup(e.brokers, o.GroupID, &c)
 	if err != nil {
 		slog.Error("create consumer group error", slog.Any("error", err))
 		os.Exit(-1)
