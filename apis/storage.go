@@ -16,6 +16,13 @@ import (
  * @Last Modified time: 2024/3/29 00:36:27
  */
 
+func init() {
+	e := &Storage{
+		Simple: controller.NewSimple(),
+	}
+	response.AppendController(e)
+}
+
 type Storage struct {
 	*controller.Simple
 	service service.Storage
