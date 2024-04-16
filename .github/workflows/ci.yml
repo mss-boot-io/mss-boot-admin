@@ -41,7 +41,7 @@ jobs:
           run: make test
 
         - name: Convert coverage report to table
-          run: go tool cover -func=coverage.out | tail -n +2 | awk '{print $1,$3}' | awk 'BEGIN {print "| File | Coverage |"} {print "|",$1,"|",$2,"|"}' > coverage_table.md
+          run: go tool cover -func=coverage.out | tail -n +2 | awk '{print $1,$3}' | awk 'BEGIN {print "| File | Coverage |"} {"| --- | --- |"} {print "|",$1,"|",$2,"|"}' > coverage_table.md
 
         - name: Read coverage table
           id: read_coverage_table
