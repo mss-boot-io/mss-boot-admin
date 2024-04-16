@@ -2,8 +2,7 @@ package service
 
 import (
 	"fmt"
-
-	"github.com/mss-boot-io/mss-boot-admin/dto"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/center"
@@ -51,7 +50,7 @@ func transferValue(value string) any {
 	}
 }
 
-func (e *AppConfig) Group(ctx *gin.Context, group string) (map[string]*dto.AppConfigControlItem, error) {
+func (e *AppConfig) Group(ctx *gin.Context, group string) (map[string]any, error) {
 	list := make([]*models.AppConfig, 0)
 	err := center.GetTenant().GetDB(ctx, &models.AppConfig{}).
 		Where("`group` = ?", group).
@@ -59,23 +58,29 @@ func (e *AppConfig) Group(ctx *gin.Context, group string) (map[string]*dto.AppCo
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]*dto.AppConfigControlItem)
+	result := make(map[string]any)
 	for i := range list {
-		result[list[i].Name] = &dto.AppConfigControlItem{
-			Auth:  list[i].Auth,
-			Value: transferValue(list[i].Value),
-		}
+		result[list[i].Name] = list[i].Value
 	}
 	return result, nil
 }
 
-func (e *AppConfig) CreateOrUpdate(ctx *gin.Context, group string, data map[string]dto.AppConfigControlItem) error {
+func (e *AppConfig) CreateOrUpdate(ctx *gin.Context, group string, data map[string]any) error {
 	var err error
 	for k, v := range data {
-		err = center.GetAppConfig().SetAppConfig(ctx, fmt.Sprintf("%s.%s", group, k), v.Auth, cast.ToString(v.Value))
+		err = center.GetAppConfig().SetAppConfig(ctx, fmt.Sprintf("%s.%s", group, k), isAuth(cast.ToString(v)), cast.ToString(v))
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func isAuth(key string) bool {
+	key = strings.ToLower(key)
+	return strings.Contains(key, "auth") ||
+		strings.Contains(key, "secret") ||
+		strings.Contains(key, "password") ||
+		strings.Contains(key, "pwd") ||
+		strings.Contains(key, "token")
 }

@@ -12,11 +12,6 @@ type AppConfigGroupRequest struct {
 }
 
 type AppConfigControlRequest struct {
-	Group string                          `uri:"group" binding:"required" swaggerignore:"true"`
-	Data  map[string]AppConfigControlItem `json:"data" binding:"required"`
-}
-
-type AppConfigControlItem struct {
-	Auth  bool `json:"auth"`
-	Value any  `json:"value"`
+	Group string         `uri:"group" binding:"required" swaggerignore:"true"`
+	Data  map[string]any `json:"data" binding:"required"`
 }
