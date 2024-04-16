@@ -48,7 +48,6 @@ jobs:
           run: go mod tidy && go run main.go
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            REPO_OWNER: ${{ github.repository_owner }}
             REPO_NAME: ${{ github.repository }}
             PR_NUMBER: ${{ github.event.number }}
             COVERAGE_FILE: ../../../coverage_table.md

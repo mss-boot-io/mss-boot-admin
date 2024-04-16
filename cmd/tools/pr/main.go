@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cast"
 	"golang.org/x/oauth2"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -33,9 +34,10 @@ func main() {
 	fmt.Println(content)
 
 	// Create a comment with the coverage table and submit it to the PR
-	owner := os.Getenv("REPO_OWNER")   // Set by GitHub Actions
 	repo := os.Getenv("REPO_NAME")     // Set by GitHub Actions
 	prNumber := os.Getenv("PR_NUMBER") // Set by GitHub Actions
+	owner := strings.Split(repo, "/")[0]
+	repo = strings.Split(repo, "/")[1]
 
 	comment := &github.IssueComment{
 		Body: &content,
