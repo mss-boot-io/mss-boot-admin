@@ -5,7 +5,7 @@ PROJECT:=mss-boot-admin
 build:
 	CGO_ENABLED=0 go build -o admin main.go
 test:
-	go test -cover -coverprofile=coverage.out -v ./...
+	go test -coverprofile=coverage.out ./...
 deps:
 	go mod download
 
