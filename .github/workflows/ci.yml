@@ -38,12 +38,34 @@ jobs:
         - name: Install dependencies
           run: make deps
         - name: Unit Test
-          run: make test
-        - name: Archive code coverage results
-          uses: actions/upload-artifact@v4
+          run: go test -json ./... > test_report.json
+        - name: Retrieve PR number
+          id: pr_number
+          run: echo "::set-output name=number::$(echo $GITHUB_REF | cut -d'/' -f 3)"
+
+        - name: Read test report
+          id: read_test_report
+          run: echo "::set-output name=report::$(cat test_report.json)"
+
+        - name: Comment on PR with test report
+          uses: actions/github-script@v4
           with:
-            name: code-coverage
-            path: coverage.txt
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+            script: |
+              const prNumber = '${{ steps.pr_number.outputs.number }}';
+              const report = JSON.parse('${{ steps.read_test_report.outputs.report }}');
+              const body = `
+              ## Test Report
+              \`\`\`
+              ${JSON.stringify(report, null, 2)}
+              \`\`\`
+              `;
+              github.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+              });
         - name: Build
           run: make build
         - name: Vendor
@@ -90,13 +112,3 @@ jobs:
             tags: ${{ steps.meta.outputs.tags }}
             labels: ${{ steps.meta.outputs.labels }}
             platforms: linux/amd64,linux/arm64
-    code_coverage:
-      name: "Code coverage report"
-      if: github.event_name == 'pull_request' # Do not run when workflow is triggered by push to main branch
-      runs-on: ubuntu-latest
-      needs: build # Depends on the artifact uploaded by the "unit_tests" job
-      steps:
-        - uses: fgrosse/go-coverage-report@v1.0.0 # Consider using a Git revision for maximum security
-          with:
-            coverage-artifact-name: "code-coverage" # can be omitted if you used this default value
-            coverage-file-name: "coverage.txt"
