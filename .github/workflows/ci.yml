@@ -40,29 +40,27 @@ jobs:
         - name: Unit Test
           run: make test
 
-        - name: Generate coverage report
-          run: go tool cover -func=coverage.out > coverage.txt
+        - name: Convert coverage report to table
+          run: go tool cover -func=coverage.out | tail -n +2 | awk '{print $1,$3}' | awk 'BEGIN {print "| File | Coverage |"} {print "|",$1,"|",$2,"|"}' > coverage_table.md
 
-        - name: Read coverage report
-          id: read_coverage_report
-          run: echo "::set-output name=coverage::$(cat coverage.txt)"
+        - name: Read coverage table
+          id: read_coverage_table
+          run: echo "::set-output name=table::$(cat coverage_table.md)"
 
         - name: Retrieve PR number
           id: pr_number
           run: echo "::set-output name=number::$(echo $GITHUB_REF | cut -d'/' -f 3)"
 
-        - name: Comment on PR with coverage report
+        - name: Comment on PR with coverage table
           uses: actions/github-script@v4
           with:
             github-token: ${{ secrets.GITHUB_TOKEN }}
             script: |
               const prNumber = '${{ steps.pr_number.outputs.number }}';
-              const coverage = '${{ steps.read_coverage_report.outputs.coverage }}';
+              const table = '${{ steps.read_coverage_table.outputs.table }}';
               const body = `
-              ## Test Coverage Report
-              \`\`\`
-              ${coverage}
-              \`\`\`
+              ## Test Coverage Table
+              ${table}
               `;
               github.issues.createComment({
               issue_number: prNumber,
