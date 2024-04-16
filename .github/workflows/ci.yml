@@ -38,27 +38,29 @@ jobs:
         - name: Install dependencies
           run: make deps
         - name: Unit Test
-          run: go test -json ./... > test_report.json
+          run: make test
+
+        - name: Generate coverage report
+          run: go tool cover -func=coverage.out > coverage.txt
+
+        - name: Read coverage report
+          id: read_coverage_report
+          run: echo "::set-output name=coverage::$(cat coverage.txt)"
+
         - name: Retrieve PR number
           id: pr_number
           run: echo "::set-output name=number::$(echo $GITHUB_REF | cut -d'/' -f 3)"
 
-        - name: Read test report
-          id: read_test_report
-          run: echo "::set-output name=report::$(cat test_report.json)"
-
-        - name: Comment on PR with test report
+        - name: Comment on PR with coverage report
           uses: actions/github-script@v4
           with:
             github-token: ${{ secrets.GITHUB_TOKEN }}
             script: |
               const prNumber = '${{ steps.pr_number.outputs.number }}';
-              const report = JSON.parse('${{ steps.read_test_report.outputs.report }}');
               const coverage = '${{ steps.read_coverage_report.outputs.coverage }}';
               const body = `
-              ## Test Report
+              ## Test Coverage Report
               \`\`\`
-              ${JSON.stringify(report, null, 2)}\n
               ${coverage}
               \`\`\`
               `;
