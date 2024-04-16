@@ -54,10 +54,12 @@ jobs:
             script: |
               const prNumber = '${{ steps.pr_number.outputs.number }}';
               const report = JSON.parse('${{ steps.read_test_report.outputs.report }}');
+              const coverage = '${{ steps.read_coverage_report.outputs.coverage }}';
               const body = `
               ## Test Report
               \`\`\`
-              ${JSON.stringify(report, null, 2)}
+              ${JSON.stringify(report, null, 2)}\n
+              ${coverage}
               \`\`\`
               `;
               github.issues.createComment({
