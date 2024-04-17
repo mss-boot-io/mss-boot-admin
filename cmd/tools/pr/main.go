@@ -45,7 +45,7 @@ func main() {
 	_, _, err = client.Issues.CreateComment(ctx, owner, repo, cast.ToInt(prNumber), comment)
 	if err != nil {
 		fmt.Println("Error creating comment:", err)
-		return
+		os.Exit(-1)
 	}
 
 	fmt.Println("Comment submitted successfully!")
