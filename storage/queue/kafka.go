@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"reflect"
-	"strings"
 	"sync"
 
 	"github.com/IBM/sarama"
@@ -73,21 +72,15 @@ func (e *Kafka) Append(opts ...storage.Option) error {
 	for _, opt := range opts {
 		opt(o)
 	}
-	if o.KafkaConfig != nil && e.producer == nil {
+	if e.config != nil && e.producer == nil {
 		var err error
-		c := *o.KafkaConfig
-		c.Producer = o.KafkaConfig.Producer
-		switch strings.ToLower(e.provider) {
-		case "msk":
-			e.asyncProducer, err = sarama.NewAsyncProducer(e.brokers, &c)
-			if err != nil {
-				return err
-			}
-		default:
-			e.producer, err = sarama.NewSyncProducer(e.brokers, &c)
-			if err != nil {
-				return err
-			}
+		c := *e.config
+		if o.KafkaConfig != nil {
+			c.Producer = o.KafkaConfig.Producer
+		}
+		e.producer, err = sarama.NewSyncProducer(e.brokers, &c)
+		if err != nil {
+			return err
 		}
 	}
 	rb, err := json.Marshal(o.Message.GetValues())
@@ -98,11 +91,6 @@ func (e *Kafka) Append(opts ...storage.Option) error {
 		Topic: o.Message.GetStream(),
 		Key:   sarama.StringEncoder(o.Message.GetID()),
 		Value: sarama.ByteEncoder(rb),
-	}
-	switch strings.ToLower(e.provider) {
-	case "msk":
-		e.asyncProducer.Input() <- msg
-		return nil
 	}
 	_, _, err = e.producer.SendMessage(msg)
 	return err

@@ -63,43 +63,47 @@ type KafkaParams struct {
 
 func (k *Kafka) getConfig() *sarama.Config {
 	c := sarama.NewConfig()
-	if k.Timeout == 0 {
-		c.Net.DialTimeout = 10 * time.Second
-	}
-	if k.KeepAlive != 0 {
-		c.Net.KeepAlive = k.KeepAlive
-	}
-	c.Net.TLS.Enable = true
-
-	if k.KeyFile == "" && k.CertFile == "" {
-		c.Net.TLS.Enable = false
-		c.Net.TLS.Config = &tls.Config{
-			InsecureSkipVerify: true,
-			ClientAuth:         0,
-		}
-	}
-	if k.SASL != nil {
-		c.Net.SASL.Enable = k.SASL.Enable
-		c.Net.SASL.User = k.SASL.User
-		c.Net.SASL.Password = k.SASL.Password
-		c.Net.SASL.Mechanism = k.SASL.Mechanism
-	}
-	//c.Version = sarama.V1_0_0_0
-	if k.Version != "" {
-		v, err := sarama.ParseKafkaVersion(k.Version)
-		if err == nil {
-			c.Version = v
-		}
-	}
 	switch strings.ToLower(k.Provider) {
 	case "msk":
 		c.Net.SASL.Enable = true
-		c.Net.TLS.Enable = true
-		c.Net.TLS.Config = &tls.Config{}
-	}
-	if c.Net.SASL.Mechanism == sarama.SASLTypeOAuth {
+		c.Net.SASL.Mechanism = sarama.SASLTypeOAuth
 		c.Net.SASL.TokenProvider = &MSKAccessTokenProvider{
 			Region: k.SASL.Region,
+			Ctx:    context.Background(),
+		}
+
+		tlsConfig := tls.Config{}
+		c.Net.TLS.Enable = true
+		c.Net.TLS.Config = &tlsConfig
+	default:
+
+		if k.Timeout == 0 {
+			c.Net.DialTimeout = 10 * time.Second
+		}
+		if k.KeepAlive != 0 {
+			c.Net.KeepAlive = k.KeepAlive
+		}
+		c.Net.TLS.Enable = true
+
+		if k.KeyFile == "" && k.CertFile == "" {
+			c.Net.TLS.Enable = false
+			c.Net.TLS.Config = &tls.Config{
+				InsecureSkipVerify: true,
+				ClientAuth:         0,
+			}
+		}
+		if k.SASL != nil {
+			c.Net.SASL.Enable = k.SASL.Enable
+			c.Net.SASL.User = k.SASL.User
+			c.Net.SASL.Password = k.SASL.Password
+			c.Net.SASL.Mechanism = k.SASL.Mechanism
+		}
+		//c.Version = sarama.V1_0_0_0
+		if k.Version != "" {
+			v, err := sarama.ParseKafkaVersion(k.Version)
+			if err == nil {
+				c.Version = v
+			}
 		}
 	}
 	c.Producer.Return.Successes = true
