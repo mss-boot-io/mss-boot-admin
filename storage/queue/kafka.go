@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 
 	"github.com/IBM/sarama"
@@ -28,14 +29,14 @@ type ConsumerGroupHandler interface {
 	SetConsumerFunc(f storage.ConsumerFunc)
 }
 
-func NewKafka(brokers []string, c *sarama.Config, h ConsumerGroupHandler) (k *Kafka, err error) {
+func NewKafka(brokers []string, c *sarama.Config, h ConsumerGroupHandler, provider string) (k *Kafka, err error) {
 	if c.Net.SASL.Enable && c.Net.SASL.Mechanism == sarama.SASLTypeSCRAMSHA512 {
 		c.Net.SASL.Handshake = true
 		c.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
 			return &Sha512Client{}
 		}
 	}
-	k = &Kafka{brokers: brokers, config: c, consumerGroupHandler: h}
+	k = &Kafka{brokers: brokers, config: c, consumerGroupHandler: h, provider: provider}
 	return
 }
 
@@ -52,7 +53,9 @@ type Kafka struct {
 	brokers              []string
 	config               *sarama.Config
 	producer             sarama.SyncProducer
+	asyncProducer        sarama.AsyncProducer
 	consumerGroupHandler sarama.ConsumerGroupHandler
+	provider             string
 }
 
 type KafkaRunReader struct {
@@ -74,9 +77,17 @@ func (e *Kafka) Append(opts ...storage.Option) error {
 		var err error
 		c := *o.KafkaConfig
 		c.Producer = o.KafkaConfig.Producer
-		e.producer, err = sarama.NewSyncProducer(e.brokers, &c)
-		if err != nil {
-			return err
+		switch strings.ToLower(e.provider) {
+		case "msk":
+			e.asyncProducer, err = sarama.NewAsyncProducer(e.brokers, &c)
+			if err != nil {
+				return err
+			}
+		default:
+			e.producer, err = sarama.NewSyncProducer(e.brokers, &c)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	rb, err := json.Marshal(o.Message.GetValues())
@@ -87,6 +98,11 @@ func (e *Kafka) Append(opts ...storage.Option) error {
 		Topic: o.Message.GetStream(),
 		Key:   sarama.StringEncoder(o.Message.GetID()),
 		Value: sarama.ByteEncoder(rb),
+	}
+	switch strings.ToLower(e.provider) {
+	case "msk":
+		e.asyncProducer.Input() <- msg
+		return nil
 	}
 	_, _, err = e.producer.SendMessage(msg)
 	return err

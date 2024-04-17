@@ -8,17 +8,20 @@ package config
  */
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
+	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/IBM/sarama"
 
-	"github.com/mss-boot-io/mss-boot-admin/center"
-
+	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
 	"github.com/mss-boot-io/redisqueue/v2"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/storage/queue"
 )
 
@@ -55,6 +58,7 @@ type KafkaParams struct {
 	Timeout   time.Duration `yaml:"timeout" json:"timeout"` // default: 30
 	KeepAlive time.Duration `yaml:"keepAlive" json:"keepAlive"`
 	Version   string        `yaml:"version" json:"version"`
+	Provider  string        `yaml:"provider" json:"provider"`
 }
 
 func (k *Kafka) getConfig() *sarama.Config {
@@ -66,6 +70,7 @@ func (k *Kafka) getConfig() *sarama.Config {
 		c.Net.KeepAlive = k.KeepAlive
 	}
 	c.Net.TLS.Enable = true
+
 	if k.KeyFile == "" && k.CertFile == "" {
 		c.Net.TLS.Enable = false
 		c.Net.TLS.Config = &tls.Config{
@@ -79,18 +84,63 @@ func (k *Kafka) getConfig() *sarama.Config {
 		c.Net.SASL.Password = k.SASL.Password
 		c.Net.SASL.Mechanism = k.SASL.Mechanism
 	}
-	c.Version = sarama.V1_0_0_0
+	//c.Version = sarama.V1_0_0_0
 	if k.Version != "" {
 		v, err := sarama.ParseKafkaVersion(k.Version)
 		if err == nil {
 			c.Version = v
 		}
 	}
+	switch strings.ToLower(k.Provider) {
+	case "msk":
+		c.Net.SASL.Enable = true
+		c.Net.TLS.Enable = true
+		c.Net.TLS.Config = &tls.Config{}
+	}
+	if c.Net.SASL.Mechanism == sarama.SASLTypeOAuth {
+		c.Net.SASL.TokenProvider = &MSKAccessTokenProvider{
+			Region: k.SASL.Region,
+		}
+	}
 	c.Producer.Return.Successes = true
 	return c
 }
 
+type MSKAccessTokenProvider struct {
+	Region           string
+	Ctx              context.Context
+	accessToken      *sarama.AccessToken
+	expirationTimeMs int64
+}
+
+func (m *MSKAccessTokenProvider) Token() (*sarama.AccessToken, error) {
+	if m.Ctx == nil {
+		m.Ctx = context.Background()
+	}
+	var token string
+	var err error
+	token, m.expirationTimeMs, err = signer.GenerateAuthToken(m.Ctx, m.Region)
+	if err != nil {
+		return nil, err
+	}
+	m.accessToken = &sarama.AccessToken{Token: token}
+	//todo 重新获取token
+	go func(mp *MSKAccessTokenProvider) {
+		for {
+			var err error
+			time.Sleep(time.Duration(m.expirationTimeMs-10000) * time.Millisecond)
+			m.accessToken.Token, m.expirationTimeMs, err = signer.GenerateAuthToken(m.Ctx, m.Region)
+			if err != nil {
+				slog.Error("msk generate auth token error")
+				return
+			}
+		}
+	}(m)
+	return m.accessToken, nil
+}
+
 type SASL struct {
+	Region string `yaml:"region" json:"region"`
 	// Whether or not to use SASL authentication when connecting to the broker
 	// (defaults to false).
 	Enable bool `yaml:"enable" json:"enable"`
@@ -171,7 +221,7 @@ func (e *Queue) Init() {
 		return
 	}
 	if e.Kafka != nil {
-		q, err := queue.NewKafka(e.Kafka.Brokers, e.Kafka.getConfig(), &queue.MessageHandler{})
+		q, err := queue.NewKafka(e.Kafka.Brokers, e.Kafka.getConfig(), &queue.MessageHandler{}, e.Kafka.Provider)
 		if err != nil {
 			log.Fatalf("queue kafka init error: %s", err.Error())
 		}
