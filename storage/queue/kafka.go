@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/IBM/sarama"
+	"github.com/xdg-go/scram"
 
 	"github.com/mss-boot-io/mss-boot-admin/storage"
 )
@@ -28,11 +29,13 @@ type ConsumerGroupHandler interface {
 }
 
 func NewKafka(brokers []string, c *sarama.Config, h ConsumerGroupHandler) (k *Kafka, err error) {
+	if c.Net.SASL.Enable && c.Net.SASL.Mechanism == sarama.SASLTypeSCRAMSHA512 {
+		c.Net.SASL.Handshake = true
+		c.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+			return &Sha512Client{}
+		}
+	}
 	k = &Kafka{brokers: brokers, config: c, consumerGroupHandler: h}
-	//k.producer, err = sarama.NewSyncProducer(brokers, c)
-	//if err != nil {
-	//	return nil, err
-	//}
 	return
 }
 
@@ -192,4 +195,29 @@ func (h *MessageHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.Co
 
 func (h *MessageHandler) SetConsumerFunc(f storage.ConsumerFunc) {
 	h.f = f
+}
+
+// Sha512Client 实现 SCRAMClient 接口
+type Sha512Client struct {
+	Conversation *scram.ClientConversation
+}
+
+func (s *Sha512Client) Begin(userName, password, authzID string) error {
+	client, err := scram.SHA512.NewClient(userName, password, authzID)
+	if err != nil {
+		return err
+	}
+	s.Conversation = client.NewConversation()
+	if !s.Conversation.Valid() {
+		return errors.New("conversation invalid")
+	}
+	return nil
+}
+
+func (s *Sha512Client) Step(challenge string) (response string, err error) {
+	return s.Conversation.Step(challenge)
+}
+
+func (s *Sha512Client) Done() bool {
+	return s.Conversation.Done()
 }
