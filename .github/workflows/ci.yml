@@ -26,7 +26,7 @@ jobs:
 
         steps:
         - name: Checkout
-          uses: actions/checkout@v3
+          uses: actions/checkout@v4
         - name: Setup golang
           uses: actions/setup-go@v5
           with:
@@ -44,6 +44,7 @@ jobs:
           run: go tool cover -func=coverage.out | tail -n +2 | awk '{print "|",$1,"|",$3,"|"}' > coverage_table.md
 
         - name: Comment on PR with coverage table
+          if: github.event_name == 'pull_request'
           working-directory: cmd/tools/pr
           run: go mod tidy && go run main.go
           env:
