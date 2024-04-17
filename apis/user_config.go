@@ -18,6 +18,13 @@ import (
  * @Last Modified time: 2024/3/2 00:41:41
  */
 
+func init() {
+	e := &UserConfig{
+		Simple: controller.NewSimple(),
+	}
+	response.AppendController(e)
+}
+
 type UserConfig struct {
 	*controller.Simple
 	service service.UserConfig
@@ -44,8 +51,12 @@ func (e *UserConfig) Other(r *gin.RouterGroup) {
 // @Security Bearer
 func (e *UserConfig) Profile(ctx *gin.Context) {
 	api := response.Make(ctx)
-	verify := middleware.GetVerify(ctx)
-	result, err := e.service.Profile(ctx, verify.GetUserID())
+	verify := response.VerifyHandler(ctx)
+	if verify == nil {
+		api.OK(nil)
+		return
+	}
+	result, err := e.service.Profile(ctx, verify.GetTenantID(), verify.GetUserID())
 	if err != nil {
 		api.AddError(err).Log.Error("get user config error")
 		api.Err(http.StatusInternalServerError)

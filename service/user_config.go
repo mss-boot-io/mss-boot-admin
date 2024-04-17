@@ -18,9 +18,10 @@ import (
 
 type UserConfig struct{}
 
-func (e *UserConfig) Profile(ctx *gin.Context, userID string) (map[string]gin.H, error) {
+func (e *UserConfig) Profile(ctx *gin.Context, tenantID, userID string) (map[string]gin.H, error) {
 	list := make([]*models.UserConfig, 0)
 	err := center.GetDB(ctx, &models.UserConfig{}).
+		Where("tenant_id = ?", tenantID).
 		Where("user_id = ?", userID).
 		Find(&list).Error
 	if err != nil {
