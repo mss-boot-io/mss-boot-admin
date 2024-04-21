@@ -3,7 +3,7 @@ package models
 import (
 	"database/sql/driver"
 	"encoding/json"
-
+	"fmt"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
@@ -54,6 +54,25 @@ func (e *Field) BeforeSave(_ *gorm.DB) error {
 			if e.FieldFrontend.Rules[i].ID == "" {
 				e.FieldFrontend.Rules[i].ID = pkg.SimpleID()
 			}
+		}
+	}
+	return nil
+}
+
+func (e *Field) AfterCreate(tx *gorm.DB) error {
+	var m Model
+	err := tx.Where("id = ?", e.ModelID).Preload("Fields").First(&m).Error
+	if err != nil {
+		return err
+	}
+	if m.GeneratedData {
+		vm := m.MakeVirtualModel()
+		if vm == nil {
+			return fmt.Errorf("make virtual model error")
+		}
+		err = vm.Migrate(tx)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
