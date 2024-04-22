@@ -137,15 +137,15 @@ oauth2:
 					},
 				},
 			},
-			{
-				ModelID:       m.ID,
-				Name:          "status",
-				Label:         "状态",
-				Type:          "string",
-				Size:          10,
-				Sort:          98,
-				ValueEnumName: "system.status",
-			},
+			//{
+			//	ModelID:       m.ID,
+			//	Name:          "status",
+			//	Label:         "状态",
+			//	Type:          "string",
+			//	Size:          10,
+			//	Sort:          98,
+			//	ValueEnumName: "<optionID>",
+			//},
 		}
 		err = tx.Create(&cs).Error
 		if err != nil {

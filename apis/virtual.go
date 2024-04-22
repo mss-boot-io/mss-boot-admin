@@ -86,7 +86,7 @@ func (e *Virtual) Documentation(ctx *gin.Context) {
 		if vm.Fields[i].ValueEnumName != "" {
 			option := &models.Option{}
 			err = gormdb.DB.Model(option).
-				Where("name = ?", vm.Fields[i].ValueEnumName).
+				Where("id = ?", vm.Fields[i].ValueEnumName).
 				First(option).Error
 			if err != nil {
 				api.AddError(err).Log.Error("get option error", "name", vm.Fields[i].ValueEnumName)

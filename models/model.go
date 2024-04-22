@@ -27,7 +27,7 @@ type Model struct {
 	Name          string   `gorm:"column:name;type:varchar(255);not null;comment:名称" json:"name"`
 	Description   string   `gorm:"column:description;type:text;not null;comment:描述" json:"description"`
 	HardDeleted   bool     `gorm:"column:hard_deleted;type:tinyint(1);not null;default:0;comment:是否硬删除" json:"hardDeleted"`
-	Table         string   `gorm:"column:table_name;type:varchar(255);not null;comment:表名" json:"tableName"`
+	Table         string   `gorm:"column:table_name;type:varchar(255);not null;comment:表名" json:"table"`
 	Path          string   `gorm:"column:path;type:varchar(255);not null;comment:http路径" json:"path"`
 	Fields        []*Field `gorm:"foreignKey:ModelID;references:ID" json:"fields"`
 	MultiTenant   bool     `gorm:"column:multi_tenant;type:tinyint(1);default:0;comment:多租户" json:"multiTenant"`
