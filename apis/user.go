@@ -127,7 +127,20 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 // @Param data body models.UserLogin true "data"
 // @Success 200 {object} dto.LoginResponse "{"code": 200, "expire": "2023-12-10T12:31:30+08:00", "token": "xxx"}"
 // @Router /admin/api/user/login [post]
-func (e *User) Login(*gin.Context) {}
+func (e *User) Login(_ *gin.Context) {}
+
+// RefreshToken 刷新token
+// @Summary 刷新token
+// @Description 刷新token
+// @Tags user
+// @Accept  application/json
+// @Product application/json
+// @Success 200 {object} dto.LoginResponse "{"code": 200, "expire": "2023-12-10T12:31:30+08:00", "token":
+// @Router /admin/api/user/refresh-token [get]
+// @Security Bearer
+func (e *User) RefreshToken(_ *gin.Context) {
+
+}
 
 // FakeCaptcha 获取验证码
 // @Summary 获取验证码
