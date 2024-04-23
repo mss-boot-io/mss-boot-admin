@@ -84,6 +84,8 @@ type FieldFrontend struct {
 	HideInDescriptions bool           `json:"hideInDescriptions,omitempty"`
 	Width              string         `json:"width,omitempty"`
 	Rules              []pkg.BaseRule `json:"rules,omitempty"`
+	FormComponent      string         `json:"formComponent,omitempty"`
+	TableComponent     string         `json:"tableComponent,omitempty"`
 }
 
 func (f *FieldFrontend) Value() (driver.Value, error) {

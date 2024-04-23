@@ -11,7 +11,6 @@ import (
 	"context"
 	"crypto/tls"
 	"log"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -111,35 +110,25 @@ func (k *Kafka) getConfig() *sarama.Config {
 }
 
 type MSKAccessTokenProvider struct {
-	Region           string
-	Ctx              context.Context
-	accessToken      *sarama.AccessToken
-	expirationTimeMs int64
+	Region      string
+	Ctx         context.Context
+	accessToken *sarama.AccessToken
+	expired     time.Time
 }
 
 func (m *MSKAccessTokenProvider) Token() (*sarama.AccessToken, error) {
+	if m.accessToken != nil && time.Now().Before(m.expired) {
+		return m.accessToken, nil
+	}
 	if m.Ctx == nil {
 		m.Ctx = context.Background()
 	}
-	var token string
-	var err error
-	token, m.expirationTimeMs, err = signer.GenerateAuthToken(m.Ctx, m.Region)
+	token, expirationTimeMs, err := signer.GenerateAuthToken(m.Ctx, m.Region)
 	if err != nil {
 		return nil, err
 	}
+	m.expired = time.Now().Add(time.Duration(expirationTimeMs) * time.Millisecond)
 	m.accessToken = &sarama.AccessToken{Token: token}
-	//todo 重新获取token
-	go func(mp *MSKAccessTokenProvider) {
-		for {
-			var err error
-			time.Sleep(time.Duration(m.expirationTimeMs-10000) * time.Millisecond)
-			m.accessToken.Token, m.expirationTimeMs, err = signer.GenerateAuthToken(m.Ctx, m.Region)
-			if err != nil {
-				slog.Error("msk generate auth token error")
-				return
-			}
-		}
-	}(m)
 	return m.accessToken, nil
 }
 
