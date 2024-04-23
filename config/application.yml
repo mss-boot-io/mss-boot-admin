@@ -1,5 +1,9 @@
 server:
   addr: 0.0.0.0:8080
+  metrics: true
+  healthz: true
+  readyz: true
+  pprof: true
 logger:
   # 日志存放路径，关闭控制台日志后，日志文件存放位置
   # path: temp/logs
