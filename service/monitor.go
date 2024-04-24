@@ -1,11 +1,12 @@
 package service
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
-	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/dto"
 )

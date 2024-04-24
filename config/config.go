@@ -35,14 +35,31 @@ type Config struct {
 	Cache     *Cache    `yaml:"cache" json:"cache"`
 	Queue     *Queue    `yaml:"queue" json:"queue"`
 	Locker    *Locker   `yaml:"locker" json:"locker"`
+	Secret    *Secret   `yaml:"secret" json:"secret"`
+}
+
+type SecretConfig struct {
+	Secret *Secret `yaml:"secret" json:"secret"`
+}
+
+func (s *SecretConfig) Init() {
+	if s.Secret != nil {
+		s.Secret.Init()
+	}
 }
 
 func (e *Config) Init(opts ...source.Option) {
+	sc := &SecretConfig{}
+	opts = append(opts, source.WithPrefixHook(sc))
+
 	err := config.Init(e, opts...)
 	if err != nil {
 		slog.Error("cfg init failed", "err", err)
 	}
 
+	if e.Secret != nil {
+		e.Secret.Init()
+	}
 	e.Logger.Init()
 	e.Database.Init()
 	if e.Pyroscope.ApplicationName == "" {
@@ -56,7 +73,6 @@ func (e *Config) Init(opts ...source.Option) {
 	if e.Queue != nil {
 		e.Queue.Init()
 	}
-
 }
 
 func (e *Config) OnChange() {

@@ -3,10 +3,11 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/mss-boot-io/mss-boot-admin/router"
 	"log/slog"
 	"os"
 	"time"
+
+	"github.com/mss-boot-io/mss-boot-admin/router"
 
 	"github.com/common-nighthawk/go-figure"
 	"github.com/gin-gonic/gin"
