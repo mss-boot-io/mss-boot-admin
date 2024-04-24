@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/google/go-github/github"
 	"github.com/spf13/cast"
 	"golang.org/x/oauth2"
-	"os"
-	"strings"
 )
 
 func main() {

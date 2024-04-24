@@ -1,10 +1,11 @@
 package migrate
 
 import (
-	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 	"log/slog"
 	"os"
 	"path/filepath"
+
+	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/models"
