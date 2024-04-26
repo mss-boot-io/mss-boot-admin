@@ -10,12 +10,12 @@ package config
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"log"
 	"strings"
 	"time"
 
 	"github.com/IBM/sarama"
-
 	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
 	"github.com/mss-boot-io/redisqueue/v2"
 	"github.com/redis/go-redis/v9"
@@ -52,6 +52,7 @@ type Kafka struct {
 
 type KafkaParams struct {
 	Brokers   []string      `yaml:"brokers" json:"brokers"`
+	CaFile    string        `yaml:"caFile" json:"caFile"`
 	CertFile  string        `yaml:"certFile" json:"certFile"`
 	KeyFile   string        `yaml:"keyFile" json:"keyFile"`
 	Timeout   time.Duration `yaml:"timeout" json:"timeout"` // default: 30
@@ -83,14 +84,28 @@ func (k *Kafka) getConfig() *sarama.Config {
 			c.Net.KeepAlive = k.KeepAlive
 		}
 		c.Net.TLS.Enable = true
+		c.Net.TLS.Config = &tls.Config{
+			InsecureSkipVerify: true,
+			ClientAuth:         0,
+		}
 
-		if k.KeyFile == "" && k.CertFile == "" {
+		if k.KeyFile == "" && k.CertFile == "" && k.CaFile == "" {
 			c.Net.TLS.Enable = false
+			c.Net.TLS.Config = nil
+		} else {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM([]byte(k.CaFile))
+			clientCert, err := tls.X509KeyPair([]byte(k.CertFile), []byte(k.KeyFile))
+			if err != nil {
+				log.Fatalf("queue kafka load cert error: %s", err.Error())
+			}
 			c.Net.TLS.Config = &tls.Config{
-				InsecureSkipVerify: true,
-				ClientAuth:         0,
+				RootCAs:      caCertPool,
+				Certificates: []tls.Certificate{clientCert},
+				ClientAuth:   tls.RequireAndVerifyClientCert,
 			}
 		}
+
 		if k.SASL != nil {
 			c.Net.SASL.Enable = k.SASL.Enable
 			c.Net.SASL.User = k.SASL.User
