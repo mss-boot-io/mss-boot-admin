@@ -3,18 +3,16 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/mss-boot-io/mss-boot/pkg"
 	"log/slog"
 	"os"
 	"time"
-
-	"github.com/mss-boot-io/mss-boot-admin/router"
 
 	"github.com/common-nighthawk/go-figure"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/core/server/listener"
 	"github.com/mss-boot-io/mss-boot/core/server/task"
+	"github.com/mss-boot-io/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
@@ -26,6 +24,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/router"
 )
 
 /*
