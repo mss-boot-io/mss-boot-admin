@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/mss-boot-io/mss-boot/pkg"
 	"log/slog"
 	"os"
 	"time"
@@ -110,6 +111,12 @@ func setup() error {
 		opts = []source.Option{
 			source.WithProvider(source.FS),
 			source.WithFrom(config.FS),
+		}
+	case source.ConfigMap:
+		opts = []source.Option{
+			source.WithProvider(source.ConfigMap),
+			source.WithConfigmap("mss-boot-admin"),
+			source.WithNamespace(pkg.GetStage()),
 		}
 	case source.Local, "":
 	default:
