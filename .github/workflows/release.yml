@@ -52,6 +52,9 @@ jobs:
         run: |
           mv admin-windows-amd64/admin-windows-amd64 admin-windows-amd64/admin-windows-amd64.exe
           mv admin-windows-arm64/admin-windows-arm64 admin-windows-arm64/admin-windows-arm64.exe
+      - name: Get version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -68,6 +71,6 @@ jobs:
           body: |
             ## Pull Image
             ```shell
-            docker pull ghcr.io/${{ github.repository }}:${{ github.ref }}.split('/').last
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.get_version.outputs.VERSION }}
             ```
             
