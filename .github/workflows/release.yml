@@ -68,6 +68,6 @@ jobs:
           body: |
             ## Pull Image
             ```shell
-            docker pull ghcr.io/${{ github.repository }}:${{ github.ref }}
+            docker pull ghcr.io/${{ github.repository }}:${{ github.ref }}.split('/').last
             ```
             

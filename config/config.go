@@ -56,10 +56,6 @@ func (e *Config) Init(opts ...source.Option) {
 	if err != nil {
 		slog.Error("cfg init failed", "err", err)
 	}
-
-	if e.Secret != nil {
-		e.Secret.Init()
-	}
 	e.Logger.Init()
 	e.Database.Init()
 	if e.Pyroscope.ApplicationName == "" {
