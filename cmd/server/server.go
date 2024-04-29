@@ -117,6 +117,12 @@ func setup() error {
 			source.WithConfigmap("mss-boot-admin"),
 			source.WithNamespace(pkg.GetStage()),
 		}
+	case source.Consul:
+		opts = []source.Option{
+			source.WithProvider(source.Consul),
+			source.WithDir("mss-boot-admin/config"),
+			source.WithWatch(true),
+		}
 	case source.Local, "":
 	default:
 		slog.Error("config provider not support", "provider", configProvider)
