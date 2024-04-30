@@ -89,10 +89,7 @@ func (k *Kafka) getConfig() *sarama.Config {
 			ClientAuth:         0,
 		}
 
-		if k.KeyFile == "" && k.CertFile == "" && k.CaFile == "" {
-			c.Net.TLS.Enable = false
-			c.Net.TLS.Config = nil
-		} else {
+		if k.KeyFile != "" || k.CertFile != "" || k.CaFile != "" {
 			caCertPool := x509.NewCertPool()
 			caCertPool.AppendCertsFromPEM([]byte(k.CaFile))
 			clientCert, err := tls.X509KeyPair([]byte(k.CertFile), []byte(k.KeyFile))
@@ -111,6 +108,14 @@ func (k *Kafka) getConfig() *sarama.Config {
 			c.Net.SASL.User = k.SASL.User
 			c.Net.SASL.Password = k.SASL.Password
 			c.Net.SASL.Mechanism = k.SASL.Mechanism
+			switch c.Net.SASL.Mechanism {
+			case sarama.SASLTypeSCRAMSHA256:
+				c.Net.SASL.SCRAMClientGeneratorFunc = queue.SCRAMClientGeneratorFuncSHA256
+				c.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
+			case sarama.SASLTypeSCRAMSHA512:
+				c.Net.SASL.SCRAMClientGeneratorFunc = queue.SCRAMClientGeneratorFuncSHA512
+				c.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
+			}
 		}
 		//c.Version = sarama.V1_0_0_0
 		if k.Version != "" {
