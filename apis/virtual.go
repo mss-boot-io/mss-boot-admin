@@ -75,6 +75,7 @@ func (e *Virtual) Documentation(ctx *gin.Context) {
 			Title:     vm.Fields[i].Label,
 			DataIndex: vm.Fields[i].Name,
 			PK:        vm.Fields[i].PrimaryKey != "",
+			ValueType: vm.Fields[i].FieldFrontend.FormComponent,
 		}
 		if vm.Fields[i].FieldFrontend != nil {
 

@@ -19,7 +19,7 @@ type SystemConfig struct {
 	// Ext 扩展名
 	Ext source.Scheme `gorm:"column:ext;size:16;default:'';not null" json:"ext" binding:"required"`
 	// Content 内容
-	Content string `gorm:"column:content;type:longtext" json:"content"`
+	Content string `gorm:"column:content;type:text" json:"content"`
 	// remark 备注
 	Remark string `gorm:"column:remark;size:255;default:'';not null" json:"remark"`
 	// 内置配置

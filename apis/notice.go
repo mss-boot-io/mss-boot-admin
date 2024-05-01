@@ -7,7 +7,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/dto"
-	"github.com/mss-boot-io/mss-boot-admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/models"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
@@ -43,9 +42,9 @@ type Notice struct {
 //}
 
 func (e *Notice) Other(r *gin.RouterGroup) {
-	r.GET("/notice/unread", middleware.Auth.MiddlewareFunc(), e.Unread)
-	r.PUT("/notice/read/:id", middleware.Auth.MiddlewareFunc(), e.MarkRead)
-	r.GET("/notice/read/:id", middleware.Auth.MiddlewareFunc(), e.Read)
+	r.GET("/notice/unread", response.AuthHandler, e.Unread)
+	r.PUT("/notice/read/:id", response.AuthHandler, e.MarkRead)
+	r.GET("/notice/read/:id", response.AuthHandler, e.Read)
 }
 
 // Read 获取通知
@@ -60,7 +59,7 @@ func (e *Notice) Other(r *gin.RouterGroup) {
 // @Security Bearer
 func (e *Notice) Read(ctx *gin.Context) {
 	api := response.Make(ctx)
-	verify := middleware.GetVerify(ctx)
+	verify := response.VerifyHandler(ctx)
 	id := ctx.Param("id")
 	var notice models.Notice
 	err := center.Default.GetDB(ctx, &models.Notice{}).Model(&models.Notice{}).
@@ -87,12 +86,15 @@ func (e *Notice) Read(ctx *gin.Context) {
 // @Security Bearer
 func (e *Notice) MarkRead(ctx *gin.Context) {
 	api := response.Make(ctx)
-	verify := middleware.GetVerify(ctx)
+	verify := response.VerifyHandler(ctx)
 	id := ctx.Param("id")
 	query := center.Default.GetDB(ctx, &models.Notice{}).Model(&models.Notice{}).
 		Where("user_id = ?", verify.GetUserID())
 	switch id {
-	case models.NoticeTypeMessage.String(), models.NoticeTypeEvent.String(), models.NoticeTypeNotification.String():
+	case models.NoticeTypeMessage.String(),
+		models.NoticeTypeEvent.String(),
+		models.NoticeTypeNotification.String(),
+		models.NoticeTypeMail.String():
 		query = query.Where("type = ?", id)
 	default:
 		query = query.Where("id = ?", id)
@@ -119,11 +121,10 @@ func (e *Notice) MarkRead(ctx *gin.Context) {
 // @Security Bearer
 func (e *Notice) Unread(ctx *gin.Context) {
 	api := response.Make(ctx)
-	verify := middleware.GetVerify(ctx)
+	verify := response.VerifyHandler(ctx)
 	list := make([]*models.Notice, 0)
 	err := center.Default.GetDB(ctx, &models.Notice{}).Model(&models.Notice{}).
-		Where("`read` = ?", false).
-		Where("user_id = ?", verify.GetUserID()).
+		Where(&models.Notice{Read: false, UserID: verify.GetUserID()}).
 		Find(&list).Error
 	if err != nil {
 		api.AddError(err).Log.Error("get notice list error")

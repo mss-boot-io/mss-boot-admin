@@ -7,6 +7,8 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 /*
@@ -23,6 +25,10 @@ func init() {
 			controller.WithModel(new(models.Tenant)),
 			controller.WithSearch(new(dto.TenantSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithAfterCreate(func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error {
+				return m.(*models.Tenant).Migrate(db)
+				//return nil
+			}),
 		),
 	}
 	response.AppendController(e)

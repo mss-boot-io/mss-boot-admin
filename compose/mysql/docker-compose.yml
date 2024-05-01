@@ -1,0 +1,15 @@
+version: '3.7'
+services:
+  mysql:
+    image: mysql:latest
+    restart: always
+    environment:
+      MYSQL_DATABASE: mss-boot-admin-local
+      MYSQL_ROOT_PASSWORD: 123456
+    ports:
+      - "3306:3306"
+      - "33060:33060"
+    volumes:
+      - mysql-data:/var/lib/mysql
+volumes:
+  mysql-data:

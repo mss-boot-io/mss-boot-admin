@@ -53,7 +53,7 @@ func transferValue(value string) any {
 func (e *AppConfig) Group(ctx *gin.Context, group string) (map[string]any, error) {
 	list := make([]*models.AppConfig, 0)
 	err := center.GetTenant().GetDB(ctx, &models.AppConfig{}).
-		Where("`group` = ?", group).
+		Where(&models.AppConfig{Group: group}).
 		Find(&list).Error
 	if err != nil {
 		return nil, err

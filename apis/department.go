@@ -81,7 +81,8 @@ func (e *Department) List(c *gin.Context) {
 		Scopes(
 			gorms.MakeCondition(req),
 			gorms.Paginate(int(req.GetPageSize()), int(req.GetPage())),
-		).Where(fmt.Sprintf("`%s`.parent_id = ?", m.TableName()), "")
+		).
+		Where(fmt.Sprintf("%s.parent_id = ?", m.TableName()), "")
 
 	var count int64
 	if err := query.Limit(-1).Offset(-1).

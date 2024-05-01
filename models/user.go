@@ -44,7 +44,7 @@ type User struct {
 	City        string          `json:"city" gorm:"column:city;type:varchar(20)"`
 	Address     string          `json:"address" gorm:"column:address;type:varchar(255)"`
 	Phone       string          `json:"phone" gorm:"column:phone;type:varchar(20)"`
-	Profile     string          `json:"profile" gorm:"column:profile;type:blob"`
+	Profile     string          `json:"profile" gorm:"column:profile;type:bytes"`
 	Tags        ArrayString     `json:"tags"  swaggertype:"array,string" gorm:"type:text"`
 	Permissions map[string]bool `json:"permissions" gorm:"-"`
 }
@@ -171,7 +171,7 @@ func (e *UserLogin) Root() bool {
 func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error) {
 	c := ctx.(*gin.Context)
 	defaultRole := &Role{Default: true}
-	_ = center.GetDB(ctx.(*gin.Context), &Role{}).Where(defaultRole).First(defaultRole).Error
+	_ = center.GetDB(ctx.(*gin.Context), &Role{}).Where(*defaultRole).First(defaultRole).Error
 	switch e.Provider {
 	case pkg.OAuth2GithubProvider:
 		// get user from github, then add user to db

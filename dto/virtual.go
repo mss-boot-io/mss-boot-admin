@@ -16,6 +16,7 @@ type ColumnType struct {
 	HideInTable        bool                     `json:"hideInTable,omitempty"`
 	HideInDescriptions bool                     `json:"hideInDescriptions,omitempty"`
 	ValueEnum          map[string]ValueEnumType `json:"valueEnum,omitempty"`
+	ValueType          string                   `json:"valueType,omitempty"`
 	ValidateRules      []pkg.BaseRule           `json:"validateRules,omitempty"`
 	PK                 bool                     `json:"pk,omitempty"`
 }

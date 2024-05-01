@@ -49,7 +49,7 @@ type Post struct {
 	// Status 状态
 	Status enum.Status `json:"status" gorm:"column:status;comment:状态;size:10"`
 	// Sort 排序
-	Sort int `json:"sort" gorm:"column:sort;comment:排序;type:tinyint;size:5;defualt:0"`
+	Sort int `json:"sort" gorm:"column:sort;comment:排序;type:int;size:5;defualt:0"`
 	// DataScope 数据权限
 	DataScope DataScope `json:"dataScope" gorm:"column:data_scope;comment:数据权限;type:varchar(50)"`
 	// DeptIDS 部门id
