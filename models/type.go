@@ -22,8 +22,16 @@ import (
 type ArrayString []string
 
 func (a *ArrayString) Scan(val any) error {
-	s := val.([]uint8)
-	ss := strings.Split(string(s), "|")
+	var s string
+	switch val.(type) {
+	case []uint8:
+		// support mysql
+		s = string(val.([]uint8))
+	case string:
+		// support sqlite
+		s = val.(string)
+	}
+	ss := strings.Split(s, "|")
 	*a = ss
 	return nil
 }

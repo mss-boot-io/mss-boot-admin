@@ -34,27 +34,27 @@ type Menu struct {
 	// Target 新页面打开
 	Target string `json:"target" gorm:"column:target;comment:菜单打开方式;type:varchar(255);not null"`
 	// HeaderRender 不展示顶栏
-	HeaderRender bool `json:"headerRender,omitempty" gorm:"column:header_render;comment:是否显示在头部;type:tinyint(1);not null"`
+	HeaderRender bool `json:"headerRender,omitempty" gorm:"column:header_render;comment:是否显示在头部;size:1;not null"`
 	// FooterRender 不展示页脚
-	FooterRender bool `json:"footerRender,omitempty" gorm:"column:footer_render;comment:是否显示在底部;type:tinyint(1);not null"`
+	FooterRender bool `json:"footerRender,omitempty" gorm:"column:footer_render;comment:是否显示在底部;size:1;not null"`
 	// MenuRender 不展示菜单
-	MenuRender bool `json:"menuRender,omitempty" gorm:"column:menu_render;comment:是否显示在菜单;type:tinyint(1);not null"`
+	MenuRender bool `json:"menuRender,omitempty" gorm:"column:menu_render;comment:是否显示在菜单;size:1;not null"`
 	// MenuHeaderRender 不展示菜单头部
-	MenuHeaderRender bool `json:"menuHeaderRender,omitempty" gorm:"column:menu_header_render;comment:是否显示在菜单头部;type:tinyint(1);not null"`
+	MenuHeaderRender bool `json:"menuHeaderRender,omitempty" gorm:"column:menu_header_render;comment:是否显示在菜单头部;size:1;not null"`
 	// Access 权限配置，需要与 plugin-access 插件配合使用
 	Access string `json:"access,omitempty" gorm:"-"`
 	// HideChildrenInMenu 隐藏子菜单
-	HideChildrenInMenu bool `json:"hideChildrenInMenu,omitempty" gorm:"column:hide_children_in_menu;comment:是否隐藏子菜单;type:tinyint(1);not null"`
+	HideChildrenInMenu bool `json:"hideChildrenInMenu,omitempty" gorm:"column:hide_children_in_menu;comment:是否隐藏子菜单;size:1;not null"`
 	// HideInMenu 隐藏自己和子菜单
-	HideInMenu bool `json:"hideInMenu,omitempty" gorm:"column:hide_in_menu;comment:是否隐藏菜单;type:tinyint(1);not null"`
+	HideInMenu bool `json:"hideInMenu,omitempty" gorm:"column:hide_in_menu;comment:是否隐藏菜单;size:1;not null"`
 	// HideInBreadcrumb 在面包屑中隐藏
-	HideInBreadcrumb bool `json:"hideInBreadcrumb,omitempty" gorm:"column:hide_in_breadcrumb;comment:是否隐藏面包屑;type:tinyint(1);not null"`
+	HideInBreadcrumb bool `json:"hideInBreadcrumb,omitempty" gorm:"column:hide_in_breadcrumb;comment:是否隐藏面包屑;size:1;not null"`
 	// FlatMenu 子项往上提，仍旧展示
-	FlatMenu bool `json:"flatMenu,omitempty" gorm:"column:flat_menu;comment:是否平级菜单;type:tinyint(1);not null"`
+	FlatMenu bool `json:"flatMenu,omitempty" gorm:"column:flat_menu;comment:是否平级菜单;size:1;not null"`
 	// FixedHeader 固定顶栏
-	FixedHeader bool `json:"fixedHeader,omitempty" gorm:"column:fixed_header;comment:是否固定头部;type:tinyint(1);not null"`
+	FixedHeader bool `json:"fixedHeader,omitempty" gorm:"column:fixed_header;comment:是否固定头部;size:1;not null"`
 	// FixedSideBar 固定菜单
-	FixSiderbar bool `json:"fixSiderbar,omitempty" gorm:"column:fix_siderbar;comment:是否固定菜单;type:tinyint(1);not null"`
+	FixSiderbar bool `json:"fixSiderbar,omitempty" gorm:"column:fix_siderbar;comment:是否固定菜单;size:1;not null"`
 	// NavTheme 导航菜单的主题
 	NavTheme string `json:"navTheme,omitempty" gorm:"column:nav_theme;comment:菜单主题;type:varchar(255);not null"`
 	// Layout 导航菜单的位置, side 为正常模式，top菜单显示在顶部，mix 两种兼有
@@ -68,7 +68,7 @@ type Menu struct {
 	// Status 状态
 	Status enum.Status `json:"status" gorm:"column:status;comment:状态;size:10"`
 	// Sort 排序
-	Sort int `json:"sort" gorm:"column:sort;comment:排序;type:int(11);not null;default:0"`
+	Sort int `json:"sort" gorm:"column:sort;comment:排序;size:11;not null;default:0"`
 	// Children 子菜单
 	Children []*Menu `json:"children,omitempty" gorm:"foreignKey:ParentID;references:ID" swaggerignore:"true"`
 }

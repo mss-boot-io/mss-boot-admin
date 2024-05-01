@@ -40,7 +40,7 @@ type Field struct {
 	Default        string `gorm:"column:default;type:varchar(255);not null;comment:默认值" json:"default"`
 	Comment        string `gorm:"column:comment;type:varchar(255);not null;comment:注释" json:"comment"`
 	Search         string `gorm:"column:search;type:varchar(64);not null;comment:搜索类型" json:"search"`
-	NotNull        bool   `gorm:"column:not_null;type:tinyint(1);not null;comment:是否非空" json:"notNull"`
+	NotNull        bool   `gorm:"column:not_null;size:1;not null;comment:是否非空" json:"notNull"`
 	ValueEnumName  string `gorm:"column:value_enum_name;type:varchar(64);not null;comment:枚举值名称" json:"valueEnumName"`
 	*FieldFrontend `gorm:"column:field_frontend;type:json;comment:前端配置"`
 }

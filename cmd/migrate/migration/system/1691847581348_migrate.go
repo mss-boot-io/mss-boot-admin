@@ -182,6 +182,11 @@ oauth2:
 			return err
 		}
 
+		err = tenant.Migrate(tx)
+		if err != nil {
+			return err
+		}
+
 		return migration.Migrate.CreateVersion(tx, version)
 	})
 }

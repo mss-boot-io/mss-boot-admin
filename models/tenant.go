@@ -41,10 +41,10 @@ type Tenant struct {
 	actions.ModelGorm
 	Name      string          `gorm:"column:name;type:varchar(255);not null;comment:租户名称" json:"name"`
 	Remark    string          `gorm:"column:remark;type:varchar(255);not null;comment:备注" json:"remark"`
-	Default   bool            `gorm:"column:default;type:tinyint(1);default:0;comment:是否是默认租户;->" json:"default"`
+	Default   bool            `gorm:"column:default;size:1;comment:是否是默认租户;->" json:"default"`
 	Domains   []*TenantDomain `gorm:"foreignKey:TenantID;references:ID" json:"domains"`
 	Status    enum.Status     `gorm:"column:status;type:varchar(10);not null;default:enabled;comment:状态" json:"status"`
-	Expire    *time.Time      `gorm:"column:expire;type:datetime;comment:过期时间" json:"expire"`
+	Expire    *time.Time      `gorm:"column:expire;comment:过期时间" json:"expire"`
 	AdminUser `gorm:"-" json:",inline"`
 }
 
@@ -79,8 +79,9 @@ func (t *Tenant) AfterCreate(tx *gorm.DB) error {
 	if err != nil {
 		return err
 	}
+	return nil
 	// todo create tenant data
-	return t.Migrate(center.GetTenant().GetDB(nil, nil))
+	//return t.Migrate(tx)
 }
 
 func (t *Tenant) AfterDelete(tx *gorm.DB) error {
@@ -149,7 +150,7 @@ func (t *Tenant) Scope(ctx *gin.Context, table schema.Tabler) func(db *gorm.DB) 
 			return db
 		}
 		tenant, err := t.GetTenant(ctx)
-		query := fmt.Sprintf("`%s`.`tenant_id` = ?", table.TableName())
+		query := fmt.Sprintf("%s.tenant_id = ?", table.TableName())
 		if err != nil {
 			slog.Error("get tenant error", "error", err)
 			_ = db.AddError(err)

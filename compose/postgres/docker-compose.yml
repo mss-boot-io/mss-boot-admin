@@ -1,0 +1,17 @@
+version: '3.7'
+services:
+  pgsql:
+    image: postgres:latest
+    container_name: pgsql
+    restart: always
+    environment:
+      POSTGRES_USER: postgres  # PostgreSQL的默认超级用户名
+      POSTGRES_PASSWORD: 123456  # 设置超级用户的密码
+      POSTGRES_DB: mss-boot-admin-local  # 创建的数据库名
+      TZ: Asia/Shanghai  # 设置时区
+    ports:
+      - "5432:5432"  # 将容器的5432端口映射到主机的5432端口
+    volumes:
+      - postgres-data:/var/lib/postgresql/data  # 挂载数据卷，替换/path/to/your/data为你希望存储数据的路径
+volumes:
+  postgres-data:

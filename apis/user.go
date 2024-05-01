@@ -1,6 +1,8 @@
 package apis
 
 import (
+	"errors"
+	"gorm.io/gorm"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -168,6 +170,10 @@ func (e *User) UserInfo(ctx *gin.Context) {
 	user := &models.User{}
 	err := center.Default.GetDB(ctx, &models.User{}).Preload("Role").Where("id = ?", verify.GetUserID()).First(user).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			api.Err(http.StatusNotFound)
+			return
+		}
 		api.AddError(err).Log.Error("GetUser error")
 		api.Err(http.StatusInternalServerError)
 		return

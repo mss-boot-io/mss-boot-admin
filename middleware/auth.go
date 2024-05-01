@@ -3,6 +3,7 @@ package middleware
 import (
 	"encoding/json"
 	"log/slog"
+	"net/http"
 	"os"
 	"reflect"
 	"time"
@@ -92,6 +93,41 @@ func Init() {
 				return enable
 			}
 			return false
+		},
+		RefreshResponse: func(c *gin.Context, code int, token string, expire time.Time) {
+			claims := jwt.ExtractClaims(c)
+			if len(claims) == 0 {
+				c.JSON(http.StatusOK, gin.H{
+					"code":   http.StatusUnauthorized,
+					"status": "error",
+					"msg":    "refresh token error",
+				})
+				return
+			}
+			verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
+			err := json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"code":   http.StatusUnauthorized,
+					"status": "error",
+					"msg":    "refresh token error",
+				})
+				return
+			}
+			ok, _, err := verifier.Verify(c)
+			if err != nil || !ok {
+				c.JSON(http.StatusOK, gin.H{
+					"code":   http.StatusUnauthorized,
+					"status": "error",
+					"msg":    "refresh token error",
+				})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"code":   http.StatusOK,
+				"token":  token,
+				"expire": expire.Format(time.RFC3339),
+			})
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
 			c.JSON(code, gin.H{
