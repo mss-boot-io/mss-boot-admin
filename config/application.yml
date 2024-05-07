@@ -4,16 +4,28 @@ server:
   healthz: true
   readyz: true
   pprof: true
+application:
+  mode: dev
+  origin: http://127.0.0.1:8080
+  staticPath:
+    /public: public
+  labels:
+    app: mss-boot-admin
+    namespace: local
+    cluster: local
 logger:
   # 日志存放路径，关闭控制台日志后，日志文件存放位置
   # path: temp/logs
-  # 日志输出，file：文件，default：命令行，其他：命令行
+  # 日志输出，file：文件，default：命令行，其他：命令行 loki: 推送到loki
   stdout: default #控制台日志，启用后，不输出到文件
   # 日志等级, trace, debug, info, warn, error, fatal
   level: info
   # 日志格式 json json格式
   json: false
   addSource: true
+#  loki:
+#    url: http://loki:3100
+#    interval: 5s
 database:
   driver: mysql
   source: 'root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local&timeout=1000ms'
