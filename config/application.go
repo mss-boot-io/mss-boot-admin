@@ -26,6 +26,7 @@ type Application struct {
 	Mode       Mode              `yaml:"mode" json:"mode"`
 	Origin     string            `yaml:"origin" json:"origin"`
 	StaticPath map[string]string `yaml:"staticPath" json:"staticPath"`
+	Labels     map[string]string `yaml:"labels" json:"labels"`
 }
 
 func (e *Application) Init(r gin.IRouter) {

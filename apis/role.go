@@ -71,9 +71,19 @@ func (e *Role) GetAuthorize(ctx *gin.Context) {
 		Paths:  make([]string, 0),
 	}
 	// get permissions
-	permissions := gormdb.Enforcer.GetFilteredPolicy(0, req.RoleID, pkg.MenuAccessType.String())
-	permissions = append(permissions,
-		gormdb.Enforcer.GetFilteredPolicy(0, req.RoleID, pkg.ComponentAccessType.String())...)
+	permissions, err := gormdb.Enforcer.GetFilteredPolicy(0, req.RoleID, pkg.MenuAccessType.String())
+	if err != nil {
+		api.AddError(err).Log.Error("get filtered policy error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	enforcers, err := gormdb.Enforcer.GetFilteredPolicy(0, req.RoleID, pkg.ComponentAccessType.String())
+	if err != nil {
+		api.AddError(err).Log.Error("get filtered policy error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	permissions = append(permissions, enforcers...)
 	for i := range permissions {
 		if len(permissions[i]) < 4 {
 			continue

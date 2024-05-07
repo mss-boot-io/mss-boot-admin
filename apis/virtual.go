@@ -75,10 +75,9 @@ func (e *Virtual) Documentation(ctx *gin.Context) {
 			Title:     vm.Fields[i].Label,
 			DataIndex: vm.Fields[i].Name,
 			PK:        vm.Fields[i].PrimaryKey != "",
-			ValueType: vm.Fields[i].FieldFrontend.FormComponent,
 		}
 		if vm.Fields[i].FieldFrontend != nil {
-
+			object.Columns[i].ValueType = vm.Fields[i].FieldFrontend.FormComponent
 			object.Columns[i].HideInTable = vm.Fields[i].FieldFrontend.HideInTable
 			object.Columns[i].HideInDescriptions = vm.Fields[i].FieldFrontend.HideInDescriptions
 			object.Columns[i].HideInForm = vm.Fields[i].FieldFrontend.HideInForm

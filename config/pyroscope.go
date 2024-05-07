@@ -32,6 +32,13 @@ type Pyroscope struct {
 	HTTPHeaders            map[string]string       `yaml:"httpHeaders" json:"httpHeaders"`
 }
 
+func (e *Pyroscope) MergeTags(labels map[string]string) {
+	for k, v := range e.Tags {
+		labels[k] = v
+	}
+	e.Tags = labels
+}
+
 func (e *Pyroscope) Init() {
 	if e.Enabled {
 		c := pyroscope.Config{

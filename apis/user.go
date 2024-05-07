@@ -178,9 +178,19 @@ func (e *User) UserInfo(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	permissions := gormdb.Enforcer.GetFilteredPolicy(0, verify.GetRoleID(), pkg.MenuAccessType.String())
-	permissions = append(permissions,
-		gormdb.Enforcer.GetFilteredPolicy(0, verify.GetRoleID(), pkg.ComponentAccessType.String())...)
+	permissions, err := gormdb.Enforcer.GetFilteredPolicy(0, verify.GetRoleID(), pkg.MenuAccessType.String())
+	if err != nil {
+		api.AddError(err).Log.Error("get filtered policy error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	enforcers, err := gormdb.Enforcer.GetFilteredPolicy(0, verify.GetRoleID(), pkg.ComponentAccessType.String())
+	if err != nil {
+		api.AddError(err).Log.Error("get filtered policy error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	permissions = append(permissions, enforcers...)
 	user.Permissions = make(map[string]bool)
 	if verify.Root() {
 		user.Permissions["canAdmin"] = true

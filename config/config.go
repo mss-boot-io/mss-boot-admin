@@ -56,6 +56,12 @@ func (e *Config) Init(opts ...source.Option) {
 	if err != nil {
 		slog.Error("cfg init failed", "err", err)
 	}
+	if e.Logger.Loki != nil && len(e.Application.Labels) > 0 {
+		e.Logger.Loki.MergeLabels(e.Application.Labels)
+	}
+	if e.Pyroscope.Enabled && len(e.Application.Labels) > 0 {
+		e.Pyroscope.MergeTags(e.Application.Labels)
+	}
 	e.Logger.Init()
 	e.Database.Init()
 	if e.Pyroscope.ApplicationName == "" {
