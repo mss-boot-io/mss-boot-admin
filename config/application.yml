@@ -56,6 +56,10 @@ pyroscope:
   applicationName: mss-boot-admin
   serverAddress: http://pyroscope:4040
 cache:
+  queryCache: true
+  queryCacheDuration: 1h
+  queryCacheKeys:
+    - mss_boot_notices
   memory: ''
 #  redis:
 #    addr: '127.0.0.1:6379'

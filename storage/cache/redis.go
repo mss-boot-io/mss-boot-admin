@@ -5,15 +5,21 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 // NewRedis redis模式
-func NewRedis(client *redis.Client, options *redis.Options) (*Redis, error) {
+func NewRedis(client *redis.Client, options *redis.Options, opts ...Option) (*Redis, error) {
+	o := DefaultOptions()
+	for _, option := range opts {
+		option(&o)
+	}
 	if client == nil {
 		client = redis.NewClient(options)
 	}
 	r := &Redis{
 		client: client,
+		opts:   o,
 	}
 	err := r.connect()
 	if err != nil {
@@ -25,6 +31,15 @@ func NewRedis(client *redis.Client, options *redis.Options) (*Redis, error) {
 // Redis cache implement
 type Redis struct {
 	client *redis.Client
+	opts   Options
+}
+
+func (r *Redis) Initialize(tx *gorm.DB) error {
+	return tx.Callback().Query().Replace("gorm:query", r.Query)
+}
+
+func (*Redis) Name() string {
+	return "gorm:cache"
 }
 
 func (*Redis) String() string {
@@ -75,6 +90,18 @@ func (r *Redis) Decrease(ctx context.Context, key string) error {
 // Expire Set ttl
 func (r *Redis) Expire(ctx context.Context, key string, dur time.Duration) error {
 	return r.client.Expire(ctx, key, dur).Err()
+}
+
+func (r *Redis) Query(tx *gorm.DB) {
+
+}
+
+func (r *Redis) RemoveFromTag(ctx context.Context, tag string) error {
+	keys, err := r.client.SMembers(ctx, tag).Result()
+	if err != nil {
+		return err
+	}
+	return r.client.Del(ctx, keys...).Err()
 }
 
 // GetClient 暴露原生client

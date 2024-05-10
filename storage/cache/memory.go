@@ -2,12 +2,17 @@ package cache
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/spf13/cast"
+	"gorm.io/gorm"
+	"gorm.io/gorm/callbacks"
 )
 
 type item struct {
@@ -16,15 +21,29 @@ type item struct {
 }
 
 // NewMemory memory模式
-func NewMemory() *Memory {
+func NewMemory(options ...Option) *Memory {
+	o := DefaultOptions()
+	for _, option := range options {
+		option(&o)
+	}
 	return &Memory{
 		items: new(sync.Map),
+		opts:  o,
 	}
 }
 
 type Memory struct {
 	items *sync.Map
 	mutex sync.RWMutex
+	opts  Options
+}
+
+func (m *Memory) Initialize(tx *gorm.DB) error {
+	return tx.Callback().Query().Replace("gorm:query", m.Query)
+}
+
+func (*Memory) Name() string {
+	return "gorm:cache"
 }
 
 func (*Memory) String() string {
@@ -35,11 +54,11 @@ func (m *Memory) connect() {
 }
 
 func (m *Memory) Get(_ context.Context, key string) (string, error) {
-	item, err := m.getItem(key)
-	if err != nil || item == nil {
+	e, err := m.getItem(key)
+	if err != nil || e == nil {
 		return "", err
 	}
-	return item.Value, nil
+	return e.Value, nil
 }
 
 func (m *Memory) getItem(key string) (*item, error) {
@@ -50,14 +69,14 @@ func (m *Memory) getItem(key string) (*item, error) {
 	}
 	switch i.(type) {
 	case *item:
-		item := i.(*item)
-		if item.Expired.Before(time.Now()) {
+		e := i.(*item)
+		if e.Expired.Before(time.Now()) {
 			//过期
 			_ = m.del(key)
 			//过期后删除
 			return nil, nil
 		}
-		return item, nil
+		return e, nil
 	default:
 		err = fmt.Errorf("value of %s type error", key)
 		return nil, err
@@ -69,11 +88,11 @@ func (m *Memory) Set(_ context.Context, key string, val any, expire time.Duratio
 	if err != nil {
 		return err
 	}
-	item := &item{
+	e := &item{
 		Value:   s,
 		Expired: time.Now().Add(expire),
 	}
-	return m.setItem(key, item)
+	return m.setItem(key, e)
 }
 
 func (m *Memory) setItem(key string, item *item) error {
@@ -91,11 +110,11 @@ func (m *Memory) del(key string) error {
 }
 
 func (m *Memory) HashGet(_ context.Context, hk, key string) (string, error) {
-	item, err := m.getItem(hk + key)
-	if err != nil || item == nil {
+	e, err := m.getItem(hk + key)
+	if err != nil || e == nil {
 		return "", err
 	}
-	return item.Value, err
+	return e.Value, err
 }
 
 func (m *Memory) HashDel(_ context.Context, hk, key string) error {
@@ -113,36 +132,156 @@ func (m *Memory) Decrease(_ context.Context, key string) error {
 func (m *Memory) calculate(key string, num int) error {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	item, err := m.getItem(key)
+	e, err := m.getItem(key)
 	if err != nil {
 		return err
 	}
 
-	if item == nil {
+	if e == nil {
 		err = fmt.Errorf("%s not exist", key)
 		return err
 	}
 	var n int
-	n, err = cast.ToIntE(item.Value)
+	n, err = cast.ToIntE(e.Value)
 	if err != nil {
 		return err
 	}
 	n += num
-	item.Value = strconv.Itoa(n)
-	return m.setItem(key, item)
+	e.Value = strconv.Itoa(n)
+	return m.setItem(key, e)
 }
 
 func (m *Memory) Expire(_ context.Context, key string, dur time.Duration) error {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	item, err := m.getItem(key)
+	e, err := m.getItem(key)
 	if err != nil {
 		return err
 	}
-	if item == nil {
+	if e == nil {
 		err = fmt.Errorf("%s not exist", key)
 		return err
 	}
-	item.Expired = time.Now().Add(dur)
-	return m.setItem(key, item)
+	e.Expired = time.Now().Add(dur)
+	return m.setItem(key, e)
+}
+
+func (m *Memory) Query(tx *gorm.DB) {
+	ctx := tx.Statement.Context
+
+	var (
+		key    string
+		hasKey bool
+	)
+
+	// 调用gorm的方法生产SQL
+	callbacks.BuildQuerySQL(tx)
+
+	// 是否有自定义key
+	if key, hasKey = FromKey(ctx); !hasKey || !m.opts.HasKey(key) {
+		key = generateKey(tx.Statement.SQL.String())
+	}
+
+	// 查询缓存数据
+
+	if err := m.QueryCache(ctx, key, tx.Statement.Dest); err == nil {
+		tag, hasTag := FromTag(ctx)
+		if hasTag {
+			_ = m.SaveTagKey(ctx, tag, key)
+		}
+		return
+	}
+
+	// 查询数据库
+	m.QueryDB(tx)
+
+	if tx.Error != nil {
+		return
+	}
+
+	// 写入缓存
+	if err := m.SaveCache(ctx, key, tx.Statement.Dest, m.opts.QueryCacheDuration); err != nil {
+		tx.Logger.Error(ctx, err.Error())
+		return
+	}
+
+	if tag, hasTag := FromTag(ctx); hasTag {
+		_ = m.SaveTagKey(ctx, tag, key)
+	}
+}
+
+func (m *Memory) QueryCache(ctx context.Context, key string, dest interface{}) error {
+	s, err := m.Get(ctx, key)
+	if err != nil {
+		return err
+	}
+	if s == "" {
+		return gorm.ErrRecordNotFound
+	}
+
+	switch dest.(type) {
+	case *int64:
+		dest = 0
+	}
+	return json.Unmarshal([]byte(s), dest)
+}
+
+func (m *Memory) QueryDB(tx *gorm.DB) {
+	if tx.Error != nil || tx.DryRun {
+		return
+	}
+	rows, err := tx.Statement.ConnPool.QueryContext(tx.Statement.Context, tx.Statement.SQL.String(), tx.Statement.Vars...)
+	if err != nil {
+		_ = tx.AddError(err)
+		return
+	}
+
+	defer func() {
+		_ = tx.AddError(rows.Close())
+	}()
+
+	gorm.Scan(rows, tx, 0)
+}
+
+func (m *Memory) SaveCache(ctx context.Context, key string, dest any, ttl time.Duration) error {
+	s, err := json.Marshal(dest)
+	if err != nil {
+		return err
+	}
+	return m.Set(ctx, key, string(s), ttl)
+}
+
+func (m *Memory) SaveTagKey(ctx context.Context, tag, key string) error {
+	e, err := m.Get(ctx, tag)
+	if err != nil || e == "" {
+		// set tag
+		return m.Set(ctx, tag, key, m.opts.QueryCacheDuration)
+	}
+	e = strings.Join([]string{e, key}, ",")
+	return m.Set(ctx, tag, e, m.opts.QueryCacheDuration)
+}
+
+func (m *Memory) RemoveFromTag(ctx context.Context, tag string) error {
+	keys, err := m.Get(ctx, tag)
+	if err != nil {
+		return err
+	}
+	if keys == "" {
+		return nil
+	}
+	for _, key := range strings.Split(keys, ",") {
+		err = m.Del(ctx, key)
+		if err != nil {
+			return err
+		}
+	}
+	_ = m.Del(ctx, tag)
+	return nil
+}
+
+func generateKey(key string) string {
+	hash := fnv.New64a()
+	_, _ = hash.Write([]byte(key))
+
+	return strconv.FormatUint(hash.Sum64(), 36)
 }

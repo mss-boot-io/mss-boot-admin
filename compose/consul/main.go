@@ -58,7 +58,6 @@ func main() {
 			slog.Error("Error watching for config changes", slog.Any("err", err))
 			continue
 		}
-		fmt.Println(meta.LastIndex)
 		if pairs != nil {
 			fmt.Printf("Config updated: %s\n", pair.Value)
 		}
