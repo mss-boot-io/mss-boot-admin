@@ -51,9 +51,10 @@ func (e Cache) Init() {
 			_redis = r.GetClient()
 		}
 		center.SetCache(r)
-		return
 	}
-	center.SetCache(cache.NewMemory(opts...))
+	if e.Memory != nil {
+		center.SetCache(cache.NewMemory(opts...))
+	}
 	if e.QueryCache && e.QueryCacheDuration > 0 && gormdb.DB != nil {
 		cache.NewExpiration(context.Background(), e.QueryCacheDuration)
 		if err := gormdb.DB.Use(center.GetCache()); err != nil {

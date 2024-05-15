@@ -2,6 +2,9 @@ package cache
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"gorm.io/gorm/callbacks"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -93,7 +96,79 @@ func (r *Redis) Expire(ctx context.Context, key string, dur time.Duration) error
 }
 
 func (r *Redis) Query(tx *gorm.DB) {
+	ctx := tx.Statement.Context
 
+	var (
+		key    string
+		hasKey bool
+	)
+
+	// 调用gorm的方法生产SQL
+	callbacks.BuildQuerySQL(tx)
+
+	// 是否有自定义key
+	if key, hasKey = FromKey(ctx); !hasKey || !r.opts.HasKey(key) {
+		key = r.generateKey(tx.Statement.SQL.String())
+	}
+
+	var useCache bool
+	tag, hasTag := FromTag(ctx)
+	tag = r.opts.QueryCachePrefix + tag
+	if hasTag && r.opts.HasKey(tag) {
+		useCache = true
+	}
+
+	// 查询缓存数据
+
+	if useCache {
+		if err := r.QueryCache(ctx, key, tx.Statement.Dest); err == nil {
+			_ = r.SaveTagKey(ctx, tag, key)
+			return
+		}
+	}
+
+	// 查询数据库
+	QueryDB(tx)
+
+	if tx.Error != nil {
+		return
+	}
+	if !useCache {
+		return
+	}
+
+	// 写入缓存
+	if err := r.SaveCache(ctx, key, tx.Statement.Dest, r.opts.QueryCacheDuration); err != nil {
+		tx.Logger.Error(ctx, err.Error())
+		return
+	}
+}
+
+func (r *Redis) QueryCache(ctx context.Context, key string, dest any) error {
+	s, err := r.Get(ctx, key)
+	if err != nil {
+		return err
+	}
+	if s == "" {
+		return gorm.ErrRecordNotFound
+	}
+	switch dest.(type) {
+	case *int64:
+		dest = 0
+	}
+	return json.Unmarshal([]byte(s), dest)
+}
+
+func (r *Redis) SaveCache(ctx context.Context, key string, dest any, ttl time.Duration) error {
+	s, err := json.Marshal(dest)
+	if err != nil {
+		return err
+	}
+	return r.client.Set(ctx, key, string(s), ttl).Err()
+}
+
+func (r *Redis) SaveTagKey(ctx context.Context, tag, key string) error {
+	return r.client.SAdd(ctx, tag, key).Err()
 }
 
 func (r *Redis) RemoveFromTag(ctx context.Context, tag string) error {
@@ -107,4 +182,8 @@ func (r *Redis) RemoveFromTag(ctx context.Context, tag string) error {
 // GetClient 暴露原生client
 func (r *Redis) GetClient() *redis.Client {
 	return r.client
+}
+
+func (r *Redis) generateKey(key string) string {
+	return base64.StdEncoding.EncodeToString([]byte(key))
 }

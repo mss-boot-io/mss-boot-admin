@@ -179,23 +179,32 @@ func (m *Memory) Query(tx *gorm.DB) {
 
 	// 是否有自定义key
 	if key, hasKey = FromKey(ctx); !hasKey || !m.opts.HasKey(key) {
-		key = generateKey(tx.Statement.SQL.String())
+		key = m.generateKey(tx.Statement.SQL.String())
+	}
+
+	var useCache bool
+	tag, hasTag := FromTag(ctx)
+	tag = m.opts.QueryCachePrefix + tag
+	if hasTag && m.opts.HasKey(tag) {
+		useCache = true
 	}
 
 	// 查询缓存数据
 
-	if err := m.QueryCache(ctx, key, tx.Statement.Dest); err == nil {
-		tag, hasTag := FromTag(ctx)
-		if hasTag {
+	if useCache {
+		if err := m.QueryCache(ctx, key, tx.Statement.Dest); err == nil {
 			_ = m.SaveTagKey(ctx, tag, key)
+			return
 		}
-		return
 	}
 
 	// 查询数据库
-	m.QueryDB(tx)
+	QueryDB(tx)
 
 	if tx.Error != nil {
+		return
+	}
+	if !useCache {
 		return
 	}
 
@@ -204,13 +213,9 @@ func (m *Memory) Query(tx *gorm.DB) {
 		tx.Logger.Error(ctx, err.Error())
 		return
 	}
-
-	if tag, hasTag := FromTag(ctx); hasTag {
-		_ = m.SaveTagKey(ctx, tag, key)
-	}
 }
 
-func (m *Memory) QueryCache(ctx context.Context, key string, dest interface{}) error {
+func (m *Memory) QueryCache(ctx context.Context, key string, dest any) error {
 	s, err := m.Get(ctx, key)
 	if err != nil {
 		return err
@@ -226,7 +231,7 @@ func (m *Memory) QueryCache(ctx context.Context, key string, dest interface{}) e
 	return json.Unmarshal([]byte(s), dest)
 }
 
-func (m *Memory) QueryDB(tx *gorm.DB) {
+func QueryDB(tx *gorm.DB) {
 	if tx.Error != nil || tx.DryRun {
 		return
 	}
@@ -257,6 +262,15 @@ func (m *Memory) SaveTagKey(ctx context.Context, tag, key string) error {
 		// set tag
 		return m.Set(ctx, tag, key, m.opts.QueryCacheDuration)
 	}
+	switch key {
+	case "", "[]", "{}":
+		return nil
+	}
+	for _, k := range strings.Split(e, ",") {
+		if k == key {
+			return nil
+		}
+	}
 	e = strings.Join([]string{e, key}, ",")
 	return m.Set(ctx, tag, e, m.opts.QueryCacheDuration)
 }
@@ -279,7 +293,7 @@ func (m *Memory) RemoveFromTag(ctx context.Context, tag string) error {
 	return nil
 }
 
-func generateKey(key string) string {
+func (m *Memory) generateKey(key string) string {
 	hash := fnv.New64a()
 	_, _ = hash.Write([]byte(key))
 

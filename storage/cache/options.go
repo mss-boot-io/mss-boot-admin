@@ -14,6 +14,7 @@ type Option func(*Options)
 type Options struct {
 	QueryCacheDuration time.Duration
 	QueryCacheKeys     []string
+	QueryCachePrefix   string
 }
 
 func (o *Options) HasKey(key string) bool {
@@ -37,6 +38,7 @@ func DefaultOptions() Options {
 	return Options{
 		QueryCacheDuration: time.Hour,
 		QueryCacheKeys:     []string{},
+		QueryCachePrefix:   "gorm.cache:",
 	}
 }
 
@@ -62,5 +64,12 @@ func WithQueryCacheKeys(keys ...string) Option {
 			return
 		}
 		o.QueryCacheKeys = keys
+	}
+}
+
+// WithQueryCachePrefix 设置缓存前缀
+func WithQueryCachePrefix(prefix string) Option {
+	return func(o *Options) {
+		o.QueryCachePrefix = prefix
 	}
 }
