@@ -60,6 +60,6 @@ cache:
   queryCacheDuration: 1h
   queryCacheKeys:
     - '*'
-#  memory: ''
-  redis:
-    addr: '127.0.0.1:6379'
+  memory: ''
+#  redis:
+#    addr: '127.0.0.1:6379'
