@@ -22,7 +22,7 @@ require (
 	github.com/gorilla/websocket v1.5.1
 	github.com/grafana/pyroscope-go v1.1.1
 	github.com/larksuite/oapi-sdk-go/v3 v3.2.4
-	github.com/mss-boot-io/mss-boot v0.1.9
+	github.com/mss-boot-io/mss-boot v0.2.1-0.20240515103525-7d38636dc984
 	github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9
 	github.com/nsqio/go-nsq v1.1.0
 	github.com/redis/go-redis/v9 v9.5.1
@@ -159,7 +159,6 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
-	github.com/hashicorp/go-msgpack v0.5.5 // indirect
 	github.com/hashicorp/go-msgpack/v2 v2.1.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
@@ -242,7 +241,6 @@ require (
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/skeema/knownhosts v1.2.2 // indirect
-	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/sony/gobreaker v1.0.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/bsm/redislock"
+	"gorm.io/gorm"
 )
 
 const (
@@ -12,7 +13,10 @@ const (
 )
 
 type AdapterCache interface {
+	Name() string
 	String() string
+	Initialize(*gorm.DB) error
+	RemoveFromTag(ctx context.Context, tag string) error
 	Get(ctx context.Context, key string) (string, error)
 	Set(ctx context.Context, key string, val interface{}, expire time.Duration) error
 	Del(ctx context.Context, key string) error
