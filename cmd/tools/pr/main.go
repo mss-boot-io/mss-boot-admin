@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -19,17 +20,26 @@ func main() {
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
-	output, err := os.ReadFile(os.Getenv("COVERAGE_FILE"))
+	f, err := os.Open(os.Getenv("COVERAGE_FILE"))
 	if err != nil {
 		fmt.Println("Error reading file:", err)
 		os.Exit(-1)
 	}
-	content := string(output)
+	scanner := bufio.NewScanner(f)
+	var lastLine string
+	for scanner.Scan() {
+		lastLine = scanner.Text() // 最后一行是最后一个被扫描的行
+	}
 
-	content = `
-| File | Coverage |
+	if err = scanner.Err(); err != nil {
+		fmt.Println("Error reading file:", err)
+		os.Exit(-1)
+	}
+
+	content := `
+| Field | Coverage |
 | ---- | -------- |
-` + content
+` + lastLine
 
 	// Print or save the Markdown table.
 	fmt.Println(content)
