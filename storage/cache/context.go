@@ -16,33 +16,22 @@ type (
 	queryCacheTagCtx struct{}
 )
 
-// NewKey
-// @param ctx
-// @param key
-// @date 2022-07-02 08:11:44
+// NewKey creates a new context with the given key
 func NewKey(ctx context.Context, key string) context.Context {
 	return context.WithValue(ctx, queryCacheKeyCtx{}, key)
 }
 
-// NewTag
-// @param ctx
-// @param key
-// @date 2022-07-02 08:11:43
+// NewTag creates a new context with the given tag
 func NewTag(ctx context.Context, key string) context.Context {
 	return context.WithValue(ctx, queryCacheTagCtx{}, key)
 }
 
-// NewExpiration
-// @param ctx
-// @param ttl
-// @date 2022-07-02 08:11:41
+// NewExpiration creates a new context with the given expiration time
 func NewExpiration(ctx context.Context, ttl time.Duration) context.Context {
 	return context.WithValue(ctx, queryCacheCtx{}, ttl)
 }
 
-// FromExpiration
-// @param ctx
-// @date 2022-07-02 08:11:40
+// FromExpiration returns the expiration time from the context
 func FromExpiration(ctx context.Context) (time.Duration, bool) {
 	value := ctx.Value(queryCacheCtx{})
 
@@ -55,9 +44,7 @@ func FromExpiration(ctx context.Context) (time.Duration, bool) {
 	return 0, false
 }
 
-// FromKey
-// @param ctx
-// @date 2022-07-02 08:11:39
+// FromKey returns the key from the context
 func FromKey(ctx context.Context) (string, bool) {
 	value := ctx.Value("gorm:cache:key")
 
@@ -71,9 +58,7 @@ func FromKey(ctx context.Context) (string, bool) {
 	return "", false
 }
 
-// FromTag
-// @param ctx
-// @date 2022-07-02 08:11:37
+// FromTag returns the tag from the context
 func FromTag(ctx context.Context) (string, bool) {
 	value := ctx.Value("gorm:cache:tag")
 
