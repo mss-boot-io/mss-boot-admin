@@ -147,7 +147,7 @@ func (m *MSKAccessTokenProvider) Token() (*sarama.AccessToken, error) {
 	if err != nil {
 		return nil, err
 	}
-	m.expired = time.Now().Add(time.Duration(expirationTimeMs) * time.Millisecond).Add(-time.Minute)
+	m.expired = time.UnixMilli(expirationTimeMs).Add(-time.Minute)
 	m.accessToken = &sarama.AccessToken{Token: token}
 	return m.accessToken, nil
 }
