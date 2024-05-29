@@ -1,7 +1,6 @@
 package models
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -132,7 +131,8 @@ func (t *Tenant) GetDB(ctx *gin.Context, table schema.Tabler) *gorm.DB {
 		return gormdb.DB
 	}
 	verify := middleware.GetVerify(ctx)
-	query := gormdb.DB.WithContext(context.WithValue(ctx, "gorm:cache:tag", table.TableName()))
+	ctx.Set("gorm:cache:tag", table.TableName())
+	query := gormdb.DB.WithContext(ctx)
 	if verify == nil {
 		return query.Scopes(t.Scope(ctx, table))
 	}
