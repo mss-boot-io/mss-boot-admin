@@ -77,6 +77,10 @@ func Init() {
 			case "/admin/api/user/userInfo",
 				"/admin/api/menu/authorize",
 				"/admin/api/system-configs",
+				"/admin/api/notice/unread",
+				"/admin/api/notice/:id",
+				"/admin/api/user-configs/:group",
+				"/admin/api/user-configs/profile",
 				"/admin/api/languages":
 				return true
 			}

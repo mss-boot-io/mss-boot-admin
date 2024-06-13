@@ -13,12 +13,17 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	_ "github.com/mss-boot-io/mss-boot-admin/apis"
+	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func InitRouter(r *gin.RouterGroup) {
 	v1 := r.Group("/api")
-	//r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	if config.Cfg.Application.Mode == config.ModeDev {
+		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 	configCors := cors.DefaultConfig()
 	configCors.AllowOrigins = []string{"*"}
 	configCors.AllowCredentials = true

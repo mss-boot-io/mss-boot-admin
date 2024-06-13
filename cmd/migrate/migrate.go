@@ -107,7 +107,7 @@ func setup() error {
 
 	center.SetStatistics(&models.Statistics{})
 
-	return nil
+	return models.InitTenant(gormdb.DB)
 }
 
 func Run() error {
