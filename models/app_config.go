@@ -52,9 +52,11 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value 
 		return err
 	}
 	//set cache
-	err = center.GetCache().Set(ctx, fmt.Sprintf("%s.%s", t.GetID(), key), value, -1)
-	if err != nil {
-		return err
+	if center.GetCache() != nil {
+		err = center.GetCache().Set(ctx, fmt.Sprintf("%s.%s", t.GetID(), key), value, -1)
+		if err != nil {
+			return err
+		}
 	}
 	err = center.GetDB(ctx, e).
 		Where("`group` = ?", group).
@@ -88,12 +90,14 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	v, _ := center.GetCache().Get(ctx, fmt.Sprintf("%s.%s", t.GetID(), key))
-	if v != "" {
-		c.Group = group
-		c.Name = key
-		c.Value = v
-		return c, nil
+	if center.GetCache() == nil {
+		v, _ := center.GetCache().Get(ctx, fmt.Sprintf("%s.%s", t.GetID(), key))
+		if v != "" {
+			c.Group = group
+			c.Name = key
+			c.Value = v
+			return c, nil
+		}
 	}
 
 	err = center.GetTenant().GetDB(ctx, c).
