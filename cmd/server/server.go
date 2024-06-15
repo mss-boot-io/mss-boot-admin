@@ -173,7 +173,7 @@ func setup() error {
 	// setup 06 task init
 	if config.Cfg.Task.Enable {
 		runnable = append(runnable,
-			task.New(task.WithStorage(&models.TaskStorage{DB: gormdb.DB}), task.WithSchedule("task", config.Cfg.Task.Spec, &taskE{})))
+			task.New(task.WithStorage(&models.TaskStorage{}), task.WithSchedule("task", config.Cfg.Task.Spec, &taskE{})))
 	}
 
 	// setup 07 init virtual models
