@@ -132,7 +132,6 @@ func TaskOnce(id string) error {
 }
 
 type TaskStorage struct {
-	DB      *gorm.DB
 	Spec    string
 	job     cron.Job
 	entryID cron.EntryID
@@ -142,12 +141,8 @@ func (t *TaskStorage) Get(key string) (entryID cron.EntryID, spec string, job cr
 	if key == "task" {
 		return t.entryID, t.Spec, t.job, true, nil
 	}
-	if t.DB == nil {
-		err = fmt.Errorf("db is nil")
-		return
-	}
 	tk := &Task{}
-	if err = t.DB.Where("id = ?", key).First(tk).Error; err != nil {
+	if err = gormdb.DB.Where("id = ?", key).First(tk).Error; err != nil {
 		return
 	}
 	return cron.EntryID(tk.EntryID), tk.Spec, tk, true, nil
@@ -159,17 +154,14 @@ func (t *TaskStorage) Set(key string, entryID cron.EntryID, spec string, job cro
 		t.job = job
 		return nil
 	}
-	if t.DB == nil {
-		return fmt.Errorf("db is nil")
-	}
 	tk := &Task{}
-	err := t.DB.Where("id = ?", key).First(tk).Error
+	err := gormdb.DB.Where("id = ?", key).First(tk).Error
 	if err != nil {
 		return err
 	}
 	tk.EntryID = int(entryID)
 	tk.Spec = spec
-	return t.DB.Updates(tk).Error
+	return gormdb.DB.Updates(tk).Error
 }
 
 func (t *TaskStorage) Update(key string, entryID cron.EntryID) error {
@@ -177,27 +169,21 @@ func (t *TaskStorage) Update(key string, entryID cron.EntryID) error {
 		t.entryID = entryID
 		return nil
 	}
-	if t.DB == nil {
-		return fmt.Errorf("db is nil")
-	}
 	tk := &Task{}
-	err := t.DB.Where("id = ?", key).First(tk).Error
+	err := gormdb.DB.Where("id = ?", key).First(tk).Error
 	if err != nil {
 		return err
 	}
 	tk.EntryID = int(entryID)
-	return t.DB.Updates(tk).Error
+	return gormdb.DB.Updates(tk).Error
 }
 
 func (t *TaskStorage) Remove(key string) error {
 	if key == "task" {
 		return fmt.Errorf("task can not remove")
 	}
-	if t.DB == nil {
-		return fmt.Errorf("db is nil")
-	}
 	tk := &Task{}
-	err := t.DB.Where("id = ?", key).First(tk).Error
+	err := gormdb.DB.Where("id = ?", key).First(tk).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
@@ -206,15 +192,12 @@ func (t *TaskStorage) Remove(key string) error {
 	}
 	tk.EntryID = 0
 	tk.CheckedAt = sql.NullTime{}
-	return t.DB.Updates(tk).Error
+	return gormdb.DB.Updates(tk).Error
 }
 
 func (t *TaskStorage) ListKeys() ([]string, error) {
-	if t.DB == nil {
-		return nil, fmt.Errorf("db is nil")
-	}
 	var tasks []*Task
-	err := t.DB.Where("status = ?", enum.Enabled).Find(&tasks).Error
+	err := gormdb.DB.Where("status = ?", enum.Enabled).Find(&tasks).Error
 	if err != nil {
 		return nil, err
 	}
