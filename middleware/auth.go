@@ -171,13 +171,21 @@ func Init() {
 
 // GetVerify 获取当前登录用户
 func GetVerify(ctx *gin.Context) security.Verifier {
-	claims := jwt.ExtractClaims(ctx)
+	api := response.Make(ctx)
+	token, err := Auth.ParseToken(ctx)
+	if err != nil {
+		api.AddError(err).Log.WarnContext(ctx, "parseToken failed")
+		return nil
+	}
+	claims := jwt.ExtractClaimsFromToken(token)
 	if len(claims) == 0 {
+		slog.Debug("GetVerify claims is empty")
 		return nil
 	}
 	verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
-	err := json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
+	err = json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
 	if err != nil {
+		slog.Debug("GetVerify", "err", err)
 		return nil
 	}
 	return verifier
