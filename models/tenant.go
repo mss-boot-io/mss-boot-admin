@@ -94,6 +94,10 @@ func (t *Tenant) GetID() any {
 }
 
 func InitTenant(tx *gorm.DB) error {
+	//判断Tenant表是否存在
+	if !tx.Migrator().HasTable(&Tenant{}) {
+		return nil
+	}
 	list := make([]*Tenant, 0)
 	err := tx.Model(&Tenant{}).Preload("Domains").
 		Where("status = ?", enum.Enabled).Find(&list).Error

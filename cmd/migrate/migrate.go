@@ -15,6 +15,7 @@ import (
 	_ "github.com/mss-boot-io/mss-boot-admin/cmd/migrate/migration/custom"
 	systemMigrate "github.com/mss-boot-io/mss-boot-admin/cmd/migrate/migration/system"
 	"github.com/mss-boot-io/mss-boot-admin/config"
+	"github.com/mss-boot-io/mss-boot-admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/models"
 )
 
@@ -105,7 +106,17 @@ func setup() error {
 	}
 	center.SetConfig(config.Cfg).Init(opts...)
 
+	// app config
+	center.SetAppConfig(&models.AppConfig{})
+	// user config
+	center.SetUserConfig(&models.UserConfig{})
+	// statistics config
 	center.SetStatistics(&models.Statistics{})
+	center.SetGRPCClient(&config.Cfg.GRPC)
+
+	// setup 02 middleware init
+	middleware.Verifier = center.GetUser()
+	middleware.Init()
 
 	return models.InitTenant(gormdb.DB)
 }
