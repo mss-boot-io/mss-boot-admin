@@ -122,8 +122,8 @@ type UserLogin struct {
 	Post             *Post              `json:"post" gorm:"foreignKey:PostID;references:ID"`
 	DepartmentID     string             `json:"departmentID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
 	Department       *Department        `json:"department" gorm:"foreignKey:DepartmentID;references:ID"`
-	Username         string             `json:"username" gorm:"type:varchar(20);uniqueIndex"`
-	Email            string             `json:"email" gorm:"type:varchar(100);uniqueIndex"`
+	Username         string             `json:"username" gorm:"type:varchar(20);index"`
+	Email            string             `json:"email" gorm:"type:varchar(100);index"`
 	Password         string             `json:"password,omitempty" gorm:"-"`
 	PasswordHash     string             `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
 	PasswordStrength string             `json:"passwordStrength" gorm:"size:20;comment:密码强度"`
