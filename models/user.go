@@ -106,9 +106,9 @@ func PasswordReset(ctx context.Context, userID string, password string) error {
 }
 
 // GetUserByUsername get user by username
-func GetUserByUsername(username string) (*User, error) {
+func GetUserByUsername(ctx *gin.Context, username string) (*User, error) {
 	var user User
-	err := gormdb.DB.Model(&user).Preload("Role").First(&user, "username = ?", username).Error
+	err := center.GetDB(ctx, &user).Preload("Role").First(&user, "username = ?", username).Error
 	if err != nil {
 		return nil, err
 	}
@@ -342,7 +342,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		return true, userOAuth2.User, nil
 	}
 	// username and password
-	user, err := GetUserByUsername(e.Username)
+	user, err := GetUserByUsername(ctx.(*gin.Context), e.Username)
 	if err != nil {
 		return false, nil, err
 	}
