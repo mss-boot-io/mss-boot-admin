@@ -156,7 +156,7 @@ func (t *Tenant) Scope(ctx *gin.Context, table schema.Tabler) func(db *gorm.DB) 
 			return db
 		}
 		tenant, err := t.GetTenant(ctx)
-		query := fmt.Sprintf("%s.tenant_id = ?", table.TableName())
+		query := fmt.Sprintf("`%s`.`tenant_id` = ?", table.TableName())
 		if err != nil {
 			slog.Error("get tenant error", "error", err)
 			_ = db.AddError(err)

@@ -4,19 +4,19 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
-	"github.com/mss-boot-io/mss-boot/pkg/search/gorms"
-
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
+	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"github.com/mss-boot-io/mss-boot/pkg/search/gorms"
 )
 
 /*
@@ -213,8 +213,10 @@ func (e *Menu) GetAPI(ctx *gin.Context) {
 		return
 	}
 	list := make([]*models.Menu, 0)
-	err = center.Default.GetDB(ctx, &models.Menu{}).Model(&models.Menu{}).Where("type = ?", pkg.APIAccessType).
-		Where("parent_id = ?", m.ID).Find(&list).Error
+	err = center.Default.GetDB(ctx, &models.Menu{}).Where(&models.Menu{
+		Type:     pkg.APIAccessType,
+		ParentID: m.ID,
+	}).Find(&list).Error
 	if err != nil {
 		api.AddError(err).Log.Error("get menu error", "err", err)
 		api.Err(http.StatusInternalServerError)
@@ -271,12 +273,22 @@ func (e *Menu) BindAPI(ctx *gin.Context) {
 		menuApis[i] = &models.Menu{
 			ParentID: menu.ID,
 			Name:     apis[i].Name,
-			Path:     apis[i].Name,
+			Path:     apis[i].Path,
 			Method:   apis[i].Method,
 			Type:     pkg.APIAccessType,
 		}
 	}
-	err = center.Default.GetDB(ctx, &models.Menu{}).Create(&menuApis).Error
+
+	err = center.Default.GetDB(ctx, &models.Menu{}).Transaction(func(tx *gorm.DB) error {
+		err = tx.Where(&models.Menu{
+			ParentID: menu.ID,
+			Type:     pkg.APIAccessType,
+		}).Unscoped().Delete(&models.Menu{}).Error
+		if err != nil {
+			return err
+		}
+		return tx.Create(&menuApis).Error
+	})
 	if err != nil {
 		api.AddError(err).Log.Error("create menu error", "err", err)
 		api.Err(http.StatusInternalServerError)
