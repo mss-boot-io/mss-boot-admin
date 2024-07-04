@@ -720,8 +720,8 @@ github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe/go.mod h1:wL8QJ
 github.com/montanaflynn/stats v0.7.0/go.mod h1:etXPPgVO6n31NxCd9KQUMvCM+ve0ruNzt6R8Bnaayow=
 github.com/montanaflynn/stats v0.7.1 h1:etflOAAHORrCC44V+aR6Ftzort912ZU+YLiSTuV8eaE=
 github.com/montanaflynn/stats v0.7.1/go.mod h1:etXPPgVO6n31NxCd9KQUMvCM+ve0ruNzt6R8Bnaayow=
-github.com/mss-boot-io/mss-boot v0.2.3-0.20240624080129-8984f2f06ad8 h1:PjCw+/QXRz5f9OU9NRJQf2uY0fVaJDijdLW8RpLZylQ=
-github.com/mss-boot-io/mss-boot v0.2.3-0.20240624080129-8984f2f06ad8/go.mod h1:dFcZAdynDr6IUjQiAWJ5e0LJh80Rdf9qsZ+Evm9mC+Y=
+github.com/mss-boot-io/mss-boot v0.2.3 h1:vxYmCIMD0fuM7TGGre0w4RUgcZuby6BIxaQKxA/Csjc=
+github.com/mss-boot-io/mss-boot v0.2.3/go.mod h1:A5PSoNKWsIfMobhcuv98vztYJh8XOMtjW72nVS8DiXE=
 github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9 h1:/YgpHiqgrxz/0+mKoETXu21c6/fyDt7/j9bdD3UkbdU=
 github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9/go.mod h1:f/sISkwvecPq37zygQzWNj5ntJoP/jcoK0kPIjFTWFI=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
