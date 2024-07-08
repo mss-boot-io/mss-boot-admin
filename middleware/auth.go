@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"encoding/json"
-	"github.com/mss-boot-io/mss-boot-admin/center"
 	"log/slog"
 	"net/http"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 	"github.com/spf13/cast"
 
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
 )
