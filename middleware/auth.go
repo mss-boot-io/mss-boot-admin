@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/json"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"log/slog"
 	"net/http"
 	"os"
@@ -86,6 +87,15 @@ func Init() {
 			}
 			api := response.Make(c)
 			if v, ok := data.(security.Verifier); ok {
+				//todo check tenant domain
+				tenant, err := center.GetTenant().GetTenant(c)
+				if err != nil {
+					api.AddError(err).Log.Error("GetTenant error")
+					return false
+				}
+				if v.GetTenantID() != tenant.GetID() {
+					return false
+				}
 				if v.Root() {
 					return true
 				}

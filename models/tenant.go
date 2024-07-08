@@ -93,6 +93,10 @@ func (t *Tenant) GetID() any {
 	return t.ID
 }
 
+func (t *Tenant) GetDefault() bool {
+	return t.Default
+}
+
 func InitTenant(tx *gorm.DB) error {
 	//判断Tenant表是否存在
 	if !tx.Migrator().HasTable(&Tenant{}) {

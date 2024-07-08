@@ -64,6 +64,7 @@ type TenantImp interface {
 	GetTenant(ctx *gin.Context) (TenantImp, error)
 	GetDB(ctx *gin.Context, table schema.Tabler) *gorm.DB
 	GetID() any
+	GetDefault() bool
 }
 
 type VirtualModelImp interface {
