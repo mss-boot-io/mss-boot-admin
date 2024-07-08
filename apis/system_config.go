@@ -1,11 +1,14 @@
 package apis
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/models"
 )
@@ -23,6 +26,24 @@ func init() {
 			controller.WithAuth(true),
 			controller.WithModel(new(models.SystemConfig)),
 			controller.WithSearch(new(dto.SystemConfigSearch)),
+			controller.WithHandlers(gin.HandlersChain{
+				func(ctx *gin.Context) {
+					api := response.Make(ctx)
+					tenant, err := center.GetTenant().GetTenant(ctx)
+					if err != nil {
+						api.AddError(err)
+						api.Err(http.StatusUnauthorized)
+						ctx.Abort()
+						return
+					}
+					if !tenant.GetDefault() {
+						api.Err(http.StatusUnauthorized)
+						ctx.Abort()
+						return
+					}
+					ctx.Next()
+				},
+			}),
 			controller.WithModelProvider(actions.ModelProviderGorm),
 		),
 	}
