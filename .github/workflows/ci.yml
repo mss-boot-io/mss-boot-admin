@@ -47,6 +47,7 @@ jobs:
           if: github.event_name == 'pull_request'
           working-directory: cmd/tools/pr
           run: go mod tidy && go run main.go
+          continue-on-error: true
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             REPO_NAME: ${{ github.repository }}
