@@ -67,6 +67,10 @@ type TenantImp interface {
 	GetDefault() bool
 }
 
+type TenantMigrator interface {
+	Migrate(t TenantImp, tx *gorm.DB) error
+}
+
 type VirtualModelImp interface {
 	GetModels(ctx *gin.Context) ([]VirtualModelImp, error)
 	Make() *model.Model

@@ -76,6 +76,7 @@ func init() {
 		"Start server with db dsn")
 	center.SetTenant(&models.Tenant{}).
 		SetVerify(&models.User{})
+	center.SetTenantMigrator(&models.Tenant{})
 }
 
 func setup() error {

@@ -182,7 +182,7 @@ oauth2:
 			return err
 		}
 
-		err = tenant.Migrate(tx)
+		err = tenant.Migrate(tenant, tx)
 		if err != nil {
 			return err
 		}
