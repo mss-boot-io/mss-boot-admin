@@ -54,7 +54,7 @@ func init() {
 				},
 			}),
 			controller.WithAfterCreate(func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error {
-				return m.(*models.Tenant).Migrate(db)
+				return center.GetTenantMigrator().Migrate(m.(center.TenantImp), db)
 				//return nil
 			}),
 		),

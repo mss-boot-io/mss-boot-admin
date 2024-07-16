@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"net/http"
 	"net/http/httptest"
 
@@ -18,10 +19,11 @@ import (
  * @Last Modified time: 2024/1/10 06:50:14
  */
 
-func (t *Tenant) Migrate(tx *gorm.DB) error {
+func (t *Tenant) Migrate(tenantImp center.TenantImp, tx *gorm.DB) error {
+	tenant := tenantImp.(*Tenant)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request, _ = http.NewRequest(http.MethodGet, "/", nil)
-	c.Request.Header.Set("Referer", fmt.Sprintf("http://%s/", t.Domains[0].Domain))
+	c.Request.Header.Set("Referer", fmt.Sprintf("http://%s/", tenant.Domains[0].Domain))
 	tx = tx.WithContext(c)
 
 	role := Role{
@@ -43,12 +45,12 @@ func (t *Tenant) Migrate(tx *gorm.DB) error {
 	user := &User{
 		UserLogin: UserLogin{
 			RoleID:   role.ID,
-			Username: t.AdminUser.Username,
-			Password: t.AdminUser.Password,
+			Username: tenant.AdminUser.Username,
+			Password: tenant.AdminUser.Password,
 			Email:    "",
 			Status:   enum.Enabled,
 		},
-		Name:     t.AdminUser.Username,
+		Name:     tenant.AdminUser.Username,
 		Avatar:   "https://avatars.githubusercontent.com/u/12806223?v=4",
 		Country:  "China",
 		Province: "320000",
@@ -1146,7 +1148,7 @@ func (t *Tenant) Migrate(tx *gorm.DB) error {
 			},
 		},
 	}
-	if t.Default {
+	if tenant.Default {
 		menus = append(menus, tenantMenu...)
 	}
 	err = tx.Create(&menus).Error
