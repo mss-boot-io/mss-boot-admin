@@ -48,7 +48,7 @@ func (e *Department) GetAction(key string) response.Action {
 }
 
 func (e *Department) Other(r *gin.RouterGroup) {
-	r.GET("/departments", e.List)
+	r.GET("/departments", response.AuthHandler, e.List)
 }
 
 // List 部门列表
