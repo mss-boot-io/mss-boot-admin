@@ -49,7 +49,7 @@ func (e *Post) GetAction(key string) response.Action {
 }
 
 func (e *Post) Other(r *gin.RouterGroup) {
-	r.GET("/posts", e.List)
+	r.GET("/posts", response.AuthHandler, e.List)
 }
 
 // List 岗位列表
