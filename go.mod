@@ -25,7 +25,7 @@ require (
 	github.com/mss-boot-io/mss-boot v0.2.4-0.20240708122919-cf4885fef076
 	github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9
 	github.com/nsqio/go-nsq v1.1.0
-	github.com/redis/go-redis/v9 v9.5.4
+	github.com/redis/go-redis/v9 v9.6.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v3 v3.24.4
 	github.com/spf13/cast v1.6.0
