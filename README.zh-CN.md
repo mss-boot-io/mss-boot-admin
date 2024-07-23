@@ -134,6 +134,11 @@ npm run start
 8. [jwt-go](https://github.com/dgrijalva/jwt-go)
 9. [oauth2](https://pkg.go.dev/golang.org/x/oauth2)
 
+## 🤟 打赏
+如果你觉得这个项目帮助到了你，你可以帮作者买一杯果汁表示鼓励 🍹
+
+<img class="no-margin" src="https://mss-boot-io.github.io/.github/images/sponsor-us.jpg"  height="400px"  alt="Sponsor Us">
+
 ## 🔑 License
 
 [MIT](https://github.com/mss-boot-io/mss-boot-admin/blob/main/LICENSE)

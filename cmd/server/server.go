@@ -124,6 +124,12 @@ func setup() error {
 			source.WithDir("mss-boot-admin/config"),
 			source.WithWatch(true),
 		}
+	case source.APPConfig:
+		opts = []source.Option{
+			source.WithProvider(source.APPConfig),
+			source.WithProjectName(pkg.GetProjectName()),
+			source.WithNamespace(pkg.GetStage()),
+		}
 	case source.Local, "":
 	default:
 		slog.Error("config provider not support", "provider", configProvider)
@@ -185,6 +191,12 @@ func setup() error {
 	}
 	for i := range ms {
 		action.SetModel(ms[i].GetKey(), ms[i].Make())
+	}
+
+	// ui server init for dev
+	if config.Cfg.Application.Mode == config.ModeDev &&
+		config.Cfg.Application.UI.Enabled {
+		runnable = append(runnable, config.Cfg.Application.UI.Init())
 	}
 
 	// setup 08 add runnable to manager
