@@ -20,9 +20,9 @@ jobs:
         arch: [amd64, arm64]
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Setup golang
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: 1.22
       - name: Start Redis
@@ -34,12 +34,28 @@ jobs:
       - name: Unit Test
         run: make test
       - name: Build
-        run: GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o admin-${{ matrix.os }}-${{ matrix.arch }}
+        run: GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o admin
+      - name: Windows
+        if: matrix.os == 'windows'
+        run: mv admin admin.exe
       - name: Archive artifact
+        if: matrix.os != 'windows'
         uses: actions/upload-artifact@v4
         with:
           name: admin-${{ matrix.os }}-${{ matrix.arch }}
-          path: admin-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            admin
+            public
+            config/*.yml
+      - name: Archive artifact exe
+        if: matrix.os == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            admin.exe
+            public
+            config/*.yml
 
   release:
     runs-on: ubuntu-latest

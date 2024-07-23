@@ -39,7 +39,7 @@ type Center interface {
 }
 
 type GRPCClientImp interface {
-	GetGRPCClient(string) *grpc.ClientConn
+	GetGRPCClient(string, ...grpc.DialOption) *grpc.ClientConn
 }
 
 type MakeRouterImp interface {

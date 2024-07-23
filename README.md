@@ -137,6 +137,12 @@ The `mss-boot-io` project has always been developed in the GoLand integrated dev
 8. [jwt-go](https://github.com/dgrijalva/jwt-go)
 9. [oauth2](https://pkg.go.dev/golang.org/x/oauth2)
 
+## 🤟 Sponsor Us
+
+If you think this project helped you, you can buy a glass of juice for the author to show encouragement 🍹
+
+<img class="no-margin" src="https://mss-boot-io.github.io/.github/images/sponsor-us.jpg"  height="400px"  alt="Sponsor Us">
+
 ## 🔑 License
 
 [MIT](https://github.com/mss-boot-io/mss-boot-admin/blob/main/LICENSE)

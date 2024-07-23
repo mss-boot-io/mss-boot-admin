@@ -7,6 +7,10 @@ server:
 application:
   mode: dev
   origin: http://127.0.0.1:8080
+  ui:
+    enabled: true
+    addr: 0.0.0.0:8000
+    path: dist
   staticPath:
     /public: public
   labels:

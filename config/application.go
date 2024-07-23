@@ -8,6 +8,9 @@ package config
  */
 
 import (
+	"github.com/mss-boot-io/mss-boot/core/server"
+	"github.com/mss-boot-io/mss-boot/core/server/listener"
+	"github.com/mss-boot-io/mss-boot/pkg/config"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -27,6 +30,7 @@ type Application struct {
 	Origin     string            `yaml:"origin" json:"origin"`
 	StaticPath map[string]string `yaml:"staticPath" json:"staticPath"`
 	Labels     map[string]string `yaml:"labels" json:"labels"`
+	UI         UIServer          `yaml:"ui" json:"ui"`
 }
 
 func (e *Application) Init(r gin.IRouter) {
@@ -64,4 +68,24 @@ func (e *Application) Init(r gin.IRouter) {
 		gin.SetMode(gin.ReleaseMode)
 		// no static
 	}
+}
+
+type UIServer struct {
+	Enabled       bool   `yaml:"enabled" json:"enabled"`
+	Path          string `yaml:"path" json:"path"`
+	config.Listen `yaml:",inline" json:",inline"`
+}
+
+func (u *UIServer) Init() server.Runnable {
+	if !u.Enabled {
+		return nil
+	}
+
+	r := gin.Default()
+	r.Static("/", u.Path)
+	r.LoadHTMLFiles(filepath.Join(u.Path, "index.html"))
+	r.NoRoute(func(c *gin.Context) {
+		c.HTML(200, "index.html", nil)
+	})
+	return u.Listen.Init(listener.WithHandler(r))
 }

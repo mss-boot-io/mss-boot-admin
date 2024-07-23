@@ -33,3 +33,5 @@ temp
 test
 public
 docs
+dist/*
+mss-boot-admin*
