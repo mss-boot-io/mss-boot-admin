@@ -66,6 +66,7 @@ jobs:
 
       - name: Package
         run: |
+          ls 
           zip admin-linux-amd64.zip admin-linux-amd64
           zip admin-linux-arm64.zip admin-linux-arm64
           zip admin-darwin-amd64.zip admin-darwin-amd64
