@@ -64,6 +64,24 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
 
+      - name: Get latest release version
+        id: get_release
+        run: |
+          LATEST_RELEASE=$(curl -s https://api.github.com/repos/mss-boot-io/mss-boot-admin-antd/releases/latest)
+          VERSION=$(echo $LATEST_RELEASE | jq -r '.tag_name')
+          echo "LATEST_RELEASE_VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Download dist-local.tar.gz
+        run: |
+          wget https://github.com/mss-boot-io/mss-boot-admin-antd/releases/download/${{ env.LATEST_RELEASE_VERSION }}/dist-local.tar.gz
+          tar -zxvf dist-local.tar.gz
+          cp -r dist admin-linux-amd64/
+          cp -r dist admin-linux-arm64/
+          cp -r dist admin-darwin-amd64/
+          cp -r dist admin-darwin-arm64/
+          cp -r dist admin-windows-amd64/
+          cp -r dist admin-windows-arm64/
+
       - name: Package
         run: |
           zip -r admin-linux-amd64.zip admin-linux-amd64
