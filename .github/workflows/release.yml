@@ -66,13 +66,12 @@ jobs:
 
       - name: Package
         run: |
-          ls 
-          zip admin-linux-amd64.zip admin-linux-amd64
-          zip admin-linux-arm64.zip admin-linux-arm64
-          zip admin-darwin-amd64.zip admin-darwin-amd64
-          zip admin-darwin-arm64.zip admin-darwin-arm64
-          zip admin-windows-amd64.zip admin-windows-amd64
-          zip admin-windows-arm64.zip admin-windows-arm64
+          zip -r admin-linux-amd64.zip admin-linux-amd64
+          zip -r admin-linux-arm64.zip admin-linux-arm64
+          zip -r admin-darwin-amd64.zip admin-darwin-amd64
+          zip -r admin-darwin-arm64.zip admin-darwin-arm64
+          zip -r admin-windows-amd64.zip admin-windows-amd64
+          zip -r admin-windows-arm64.zip admin-windows-arm64
 
       - name: Get version
         id: get_version
