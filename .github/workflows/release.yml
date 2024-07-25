@@ -47,7 +47,7 @@ jobs:
             admin
             public
             config/*.yml
-      - name: Archive artifact exe
+      - name: Archive artifact
         if: matrix.os == 'windows'
         uses: actions/upload-artifact@v4
         with:
@@ -64,10 +64,33 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
 
-      - name: Add exe
+      - name: Get latest release version
+        id: get_release
         run: |
-          mv admin-windows-amd64/admin-windows-amd64 admin-windows-amd64/admin-windows-amd64.exe
-          mv admin-windows-arm64/admin-windows-arm64 admin-windows-arm64/admin-windows-arm64.exe
+          LATEST_RELEASE=$(curl -s https://api.github.com/repos/mss-boot-io/mss-boot-admin-antd/releases/latest)
+          VERSION=$(echo $LATEST_RELEASE | jq -r '.tag_name')
+          echo "LATEST_RELEASE_VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Download dist-local.tar.gz
+        run: |
+          wget https://github.com/mss-boot-io/mss-boot-admin-antd/releases/download/${{ env.LATEST_RELEASE_VERSION }}/dist-local.tar.gz
+          tar -zxvf dist-local.tar.gz
+          cp -r dist admin-linux-amd64/
+          cp -r dist admin-linux-arm64/
+          cp -r dist admin-darwin-amd64/
+          cp -r dist admin-darwin-arm64/
+          cp -r dist admin-windows-amd64/
+          cp -r dist admin-windows-arm64/
+
+      - name: Package
+        run: |
+          zip -r admin-linux-amd64.zip admin-linux-amd64
+          zip -r admin-linux-arm64.zip admin-linux-arm64
+          zip -r admin-darwin-amd64.zip admin-darwin-amd64
+          zip -r admin-darwin-arm64.zip admin-darwin-arm64
+          zip -r admin-windows-amd64.zip admin-windows-amd64
+          zip -r admin-windows-arm64.zip admin-windows-arm64
+
       - name: Get version
         id: get_version
         run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
@@ -77,12 +100,12 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            admin-linux-amd64/admin-linux-amd64
-            admin-linux-arm64/admin-linux-arm64
-            admin-darwin-amd64/admin-darwin-amd64
-            admin-darwin-arm64/admin-darwin-arm64
-            admin-windows-amd64/admin-windows-amd64.exe
-            admin-windows-arm64/admin-windows-arm64.exe
+            admin-linux-amd64.zip
+            admin-linux-arm64.zip
+            admin-darwin-amd64.zip
+            admin-darwin-arm64.zip
+            admin-windows-amd64.zip
+            admin-windows-arm64.zip
           prerelease: false
           body: |
             ## Pull Image
