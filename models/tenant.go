@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -120,7 +121,11 @@ func InitTenant(tx *gorm.DB) error {
 }
 
 func (t *Tenant) GetTenant(ctx *gin.Context) (center.TenantImp, error) {
-	u, err := url.Parse(ctx.GetHeader("Referer"))
+	urlStr := ctx.GetHeader("Referer")
+	if strings.Index(urlStr, "http://") < 0 && strings.Index(urlStr, "https://") < 0 {
+		urlStr = "http://" + urlStr
+	}
+	u, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, err
 	}

@@ -56,6 +56,14 @@ func Init() {
 			if err != nil {
 				return nil
 			}
+			if verifier.GetRefreshTokenDisable() {
+				// check token revoked
+				token := jwt.GetToken(c)
+				err = verifier.CheckToken(c, token)
+				if err != nil {
+					return nil
+				}
+			}
 			return verifier
 		},
 		Authenticator: func(c *gin.Context) (any, error) {
@@ -119,6 +127,14 @@ func Init() {
 				return
 			}
 			verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
+			if verifier.GetRefreshTokenDisable() {
+				c.JSON(http.StatusOK, gin.H{
+					"code":   http.StatusUnauthorized,
+					"status": "error",
+					"msg":    "refresh token disabled",
+				})
+				return
+			}
 			err := json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
 			if err != nil {
 				c.JSON(http.StatusOK, gin.H{

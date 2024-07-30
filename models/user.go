@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	larkauthen "github.com/larksuite/oapi-sdk-go/v3/service/authen/v1"
 	"golang.org/x/oauth2"
@@ -116,21 +117,22 @@ func GetUserByUsername(ctx *gin.Context, username string) (*User, error) {
 }
 
 type UserLogin struct {
-	RoleID           string             `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Role             *Role              `json:"role" gorm:"foreignKey:RoleID;references:ID"`
-	PostID           string             `json:"postID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Post             *Post              `json:"post" gorm:"foreignKey:PostID;references:ID"`
-	DepartmentID     string             `json:"departmentID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Department       *Department        `json:"department" gorm:"foreignKey:DepartmentID;references:ID"`
-	Username         string             `json:"username" gorm:"type:varchar(20);index"`
-	Email            string             `json:"email" gorm:"type:varchar(100);index"`
-	Password         string             `json:"password,omitempty" gorm:"-"`
-	PasswordHash     string             `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
-	PasswordStrength string             `json:"passwordStrength" gorm:"size:20;comment:密码强度"`
-	Salt             string             `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
-	Status           enum.Status        `json:"status" gorm:"size:10"`
-	OAuth2           []*UserOAuth2      `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
-	Provider         pkg.OAuth2Provider `json:"type" gorm:"-"`
+	RoleID              string             `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Role                *Role              `json:"role" gorm:"foreignKey:RoleID;references:ID"`
+	PostID              string             `json:"postID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Post                *Post              `json:"post" gorm:"foreignKey:PostID;references:ID"`
+	DepartmentID        string             `json:"departmentID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Department          *Department        `json:"department" gorm:"foreignKey:DepartmentID;references:ID"`
+	Username            string             `json:"username" gorm:"type:varchar(20);index"`
+	Email               string             `json:"email" gorm:"type:varchar(100);index"`
+	Password            string             `json:"password,omitempty" gorm:"-"`
+	PasswordHash        string             `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
+	PasswordStrength    string             `json:"passwordStrength" gorm:"size:20;comment:密码强度"`
+	Salt                string             `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
+	Status              enum.Status        `json:"status" gorm:"size:10"`
+	OAuth2              []*UserOAuth2      `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
+	Provider            pkg.OAuth2Provider `json:"type" gorm:"-"`
+	RefreshTokenDisable bool               `json:"refreshTokenDisable" gorm:"-"`
 }
 
 func (e *UserLogin) TableName() string {
@@ -158,6 +160,31 @@ func (e *UserLogin) GetEmail() string {
 
 func (e *UserLogin) GetUsername() string {
 	return e.Username
+}
+
+func (e *UserLogin) GetRefreshTokenDisable() bool {
+	return e.RefreshTokenDisable
+}
+
+func (e *UserLogin) SetRefreshTokenDisable(support bool) {
+	e.RefreshTokenDisable = support
+}
+
+func (e *UserLogin) CheckToken(ctx context.Context, token string) error {
+	userAuthToken := &UserAuthToken{}
+	err := center.GetDB(ctx.(*gin.Context), &UserAuthToken{}).
+		Where("user_id = ?", e.GetUserID()).
+		First(userAuthToken, "token = ?", token).Error
+	if err != nil {
+		return err
+	}
+	if userAuthToken.ExpiredAt.Before(time.Now()) {
+		return errors.New("token expired")
+	}
+	if userAuthToken.Revoked {
+		return errors.New("token revoked")
+	}
+	return nil
 }
 
 func (e *UserLogin) Root() bool {
