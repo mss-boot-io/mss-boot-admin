@@ -40,11 +40,19 @@ func Init() {
 		MaxRefresh:  config.Cfg.Auth.MaxRefresh,
 		IdentityKey: config.Cfg.Auth.IdentityKey,
 		PayloadFunc: func(data any) jwt.MapClaims {
-			if v, ok := data.(security.Verifier); ok {
-				rb, _ := json.Marshal(v)
 
+			if v, ok := data.(security.Verifier); ok {
+				if v.GetRefreshTokenDisable() {
+					return jwt.MapClaims{
+						"refreshTokenDisabled": v.GetRefreshTokenDisable(),
+						"personAccessToken":    v.GetPersonAccessToken(),
+					}
+				}
+				rb, _ := json.Marshal(v)
 				return jwt.MapClaims{
-					"verifier": string(rb),
+					"verifier":             string(rb),
+					"refreshTokenDisabled": false,
+					"personAccessToken":    "",
 				}
 			}
 			return jwt.MapClaims{}
@@ -52,6 +60,15 @@ func Init() {
 		IdentityHandler: func(c *gin.Context) any {
 			claims := jwt.ExtractClaims(c)
 			verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
+			if personAccessToken, ok := claims["personAccessToken"]; ok && personAccessToken != "" {
+				verifier.SetRefreshTokenDisable(true)
+				verifier.SetPersonAccessToken(personAccessToken.(string))
+				err := verifier.CheckToken(c, personAccessToken.(string))
+				if err != nil {
+					return nil
+				}
+				return verifier
+			}
 			err := json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
 			if err != nil {
 				return nil
@@ -207,6 +224,16 @@ func GetVerify(ctx *gin.Context) security.Verifier {
 	if len(claims) == 0 {
 		slog.Debug("GetVerify claims is empty")
 		return nil
+	}
+	if personAccessToken, ok := claims["personAccessToken"]; ok && personAccessToken != "" {
+		verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
+		verifier.SetPersonAccessToken(personAccessToken.(string))
+		verifier.SetRefreshTokenDisable(true)
+		err = verifier.CheckToken(ctx, personAccessToken.(string))
+		if err != nil {
+			return nil
+		}
+		return verifier
 	}
 	verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
 	err = json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
