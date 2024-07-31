@@ -167,6 +167,10 @@ func (e *User) FakeCaptcha(*gin.Context) {}
 func (e *User) UserInfo(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
+	if verify == nil {
+		api.Err(http.StatusForbidden)
+		return
+	}
 	user := &models.User{}
 	err := center.Default.GetDB(ctx, &models.User{}).Preload("Role").Where("id = ?", verify.GetUserID()).First(user).Error
 	if err != nil {

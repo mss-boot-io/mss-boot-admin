@@ -132,7 +132,8 @@ type UserLogin struct {
 	Status              enum.Status        `json:"status" gorm:"size:10"`
 	OAuth2              []*UserOAuth2      `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
 	Provider            pkg.OAuth2Provider `json:"type" gorm:"-"`
-	RefreshTokenDisable bool               `json:"refreshTokenDisable" gorm:"-"`
+	RefreshTokenDisable bool               `json:"-" gorm:"-"`
+	PersonAccessToken   string             `json:"-" gorm:"-"`
 }
 
 func (e *UserLogin) TableName() string {
@@ -170,11 +171,20 @@ func (e *UserLogin) SetRefreshTokenDisable(support bool) {
 	e.RefreshTokenDisable = support
 }
 
-func (e *UserLogin) CheckToken(ctx context.Context, token string) error {
+func (e *UserLogin) GetPersonAccessToken() string {
+	return e.PersonAccessToken
+}
+
+func (e *UserLogin) SetPersonAccessToken(token string) {
+	e.PersonAccessToken = token
+}
+
+func (e *User) CheckToken(ctx context.Context, token string) error {
 	userAuthToken := &UserAuthToken{}
-	err := center.GetDB(ctx.(*gin.Context), &UserAuthToken{}).
-		Where("user_id = ?", e.GetUserID()).
-		First(userAuthToken, "token = ?", token).Error
+	err := gormdb.DB.Model(&UserAuthToken{}).
+		//Where("revoked = ?", false).
+		Where("id = ?", token).
+		First(userAuthToken).Error
 	if err != nil {
 		return err
 	}
@@ -183,6 +193,13 @@ func (e *UserLogin) CheckToken(ctx context.Context, token string) error {
 	}
 	if userAuthToken.Revoked {
 		return errors.New("token revoked")
+	}
+	err = gormdb.DB.Model(&User{}).
+		Preload("Role").
+		Where("id = ?", userAuthToken.UserID).
+		First(e).Error
+	if err != nil {
+		return err
 	}
 	return nil
 }

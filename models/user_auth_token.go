@@ -3,6 +3,7 @@ package models
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 	"time"
 
 	"github.com/mss-boot-io/mss-boot/pkg/security"
@@ -20,7 +21,7 @@ import (
 type UserAuthToken struct {
 	ModelGormTenant
 	UserID    string    `gorm:"type:varchar(64);index;comment:用户ID" json:"userID"`
-	Token     string    `gorm:"type:text;uniqueIndex;comment:token" json:"token"`
+	Token     string    `gorm:"type:text;comment:token" json:"token"`
 	ExpiredAt time.Time `gorm:"index;comment:过期时间" json:"expiredAt"`
 	Revoked   bool      `gorm:"type:tinyint(1);index;comment:是否撤销" json:"revoked"`
 }
@@ -36,12 +37,16 @@ func GenerateUserAuthToken(ctx *gin.Context, verify security.Verifier, validityP
 	}
 	auth := *middleware.Auth
 	auth.Timeout = validityPeriod
-	verify.SetRefreshTokenDisable(true)
-	token, expire, err := auth.TokenGenerator(verify)
 	userAuthToken := &UserAuthToken{
-		UserID:    verify.GetUserID(),
-		Token:     token,
-		ExpiredAt: expire,
+		UserID: verify.GetUserID(),
+	}
+	userAuthToken.ID = pkg.SimpleID()
+	verify.SetRefreshTokenDisable(true)
+	verify.SetPersonAccessToken(userAuthToken.ID)
+	var err error
+	userAuthToken.Token, userAuthToken.ExpiredAt, err = auth.TokenGenerator(verify)
+	if err != nil {
+		return nil, err
 	}
 	err = center.GetDB(ctx, &UserAuthToken{}).Create(userAuthToken).Error
 	if err != nil {
