@@ -239,6 +239,9 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		scopes := strings.Split(scope, ",")
 		allowGroup, _ := center.GetAppConfig().GetAppConfig(c, "security.githubAllowGroup")
 		allowGroups := strings.Split(allowGroup, ",")
+		if len(allowGroup) == 0 {
+			allowGroups = nil
+		}
 		conf := &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
