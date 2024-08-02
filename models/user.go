@@ -201,6 +201,18 @@ func (e *User) CheckToken(ctx context.Context, token string) error {
 	if err != nil {
 		return err
 	}
+	tenant := &Tenant{}
+	err = gormdb.DB.Model(&Tenant{}).
+		Where("id = ?", e.TenantID).
+		Preload("Domains").
+		First(tenant).Error
+	if err != nil {
+		return err
+	}
+	if len(tenant.Domains) == 0 {
+		return errors.New("tenant domain not found")
+	}
+	ctx.(*gin.Context).Request.Header.Set("Referer", tenant.Domains[0].Domain)
 	return nil
 }
 
