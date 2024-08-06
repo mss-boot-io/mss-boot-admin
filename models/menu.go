@@ -70,7 +70,8 @@ type Menu struct {
 	// Sort 排序
 	Sort int `json:"sort" gorm:"column:sort;comment:排序;size:11;not null;default:0"`
 	// Children 子菜单
-	Children []*Menu `json:"children,omitempty" gorm:"foreignKey:ParentID;references:ID" swaggerignore:"true"`
+	Children   []*Menu `json:"children,omitempty" gorm:"foreignKey:ParentID;references:ID" swaggerignore:"true"`
+	ParentPath string  `json:"parentPath" gorm:"-" swaggerignore:"true"`
 }
 
 func (x MenuList) Len() int           { return len(x) }
@@ -88,6 +89,15 @@ func (e *Menu) BeforeCreate(tx *gorm.DB) error {
 	if e.Type == pkg.APIAccessType ||
 		e.Type == pkg.ComponentAccessType {
 		e.HideInMenu = true
+	}
+	if e.ParentPath != "" {
+		var parent struct{ ID string }
+		if tx.Model(&Menu{}).
+			Where("path = ?", e.ParentPath).
+			Select("id").
+			First(&parent).Error == nil {
+			e.ParentID = parent.ID
+		}
 	}
 	return nil
 }

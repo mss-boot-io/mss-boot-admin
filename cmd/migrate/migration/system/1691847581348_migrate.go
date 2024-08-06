@@ -2,6 +2,7 @@ package system
 
 import (
 	"runtime"
+	"strings"
 	"time"
 
 	adminPKG "github.com/mss-boot-io/mss-boot-admin/pkg"
@@ -13,8 +14,11 @@ import (
 	"gorm.io/gorm"
 )
 
-var Username string
-var Password string
+var (
+	Username string
+	Password string
+	Domain   string
+)
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
@@ -170,6 +174,10 @@ oauth2:
 				Username: Username,
 				Password: Password,
 			},
+		}
+		if Domain != "" {
+			tenant.Domains[0].Name = strings.Split(Domain, ":")[0]
+			tenant.Domains[0].Domain = Domain
 		}
 		err = tx.Create(tenant).Error
 		if err != nil {

@@ -30,6 +30,7 @@ var (
 	generate       bool
 	username       string
 	password       string
+	domain         string
 	system         bool
 	configProvider string
 	driver         string
@@ -59,6 +60,8 @@ func init() {
 		"admin", "system super administrator login username")
 	StartCmd.PersistentFlags().StringVarP(&password, "password", "p",
 		"123456", "system super administrator login password")
+	StartCmd.PersistentFlags().StringVarP(&domain, "domain", "d",
+		"localhost:8000", "system tenant domain")
 	StartCmd.PersistentFlags().StringVarP(&driver,
 		"gorm-driver", "r",
 		"mysql", "Start server with db driver")
