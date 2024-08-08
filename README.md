@@ -7,8 +7,12 @@
 English | [简体中文](./README.zh-CN.md)
 
 ## Introduction
-> Based on Gin + React + Atn Design v5 + Umi v4 + mss-boot's front and back end separation permission management system, the system initialization only needs an environment variable to start the system,
-> The system supports multiple configuration sources, and the migration command can make the initialization database information simpler. The service command can easily start the service.
+> A front-end and back-end separation authority management system based on Gin, React, Ant Design v5, Umi v4, and mss-boot. Initialized with an environment variable, it supports multiple configuration sources, simplifies database setup, and eases service startup. 
+> Features include multi-tenancy, roles, users, menus, internationalization, system configuration, permissions, virtual models, notifications, and dictionaries.
+
+[Beta Environment](https://admin-beta.mss-boot-io.top)
+
+[Swagger](https://mss-boot-io.github.io/mss-boot-admin/swagger.json)
 
 ## Tutorial
 [Online documentation](https://docs.mss-boot-io.top)

@@ -3,7 +3,10 @@ name: Feature Request
 about: Suggest an idea for this project
 title: "[FEATURE] "
 labels: enhancement
-assignees: ''
+assignees:
+  - 'lwnmengjing'
+projects:
+  - 'mss-boot-admin'
 ---
 
 **Is your feature request related to a problem? Please describe.**

@@ -10,6 +10,12 @@
 > 基于Gin + React + Atn Design v5 + Umi v4 + mss-boot 的前后端分离权限管理系统，系统初始化只需要一个环境变量即可启动系统，
 系统支持多种配置源，迁移指令可以让初始化数据库信息更简单，服务指令可以很方便启动服务。
 
+[Beta环境](https://admin-beta.mss-boot-io.top)
+
+[Swagger](https://mss-boot-io.github.io/mss-boot-admin/swagger.json)
+
+
+
 ## 教程
 [在线文档](https://docs.mss-boot-io.top)
 [视频教程](https://space.bilibili.com/597294782/channel/seriesdetail?sid=3881026)
