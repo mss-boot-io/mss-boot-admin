@@ -3,7 +3,10 @@ name: Custom Issue
 about: Create a custom issue or suggestion
 title: ''
 labels: ''
-assignees: ''
+assignees:
+  - 'lwnmengjing'
+projects:
+  - 'mss-boot-admin'
 ---
 
 **Issue or Suggestion**
