@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Issues and Suggestions
+    url: https://github.com/mss-boot-io/mss-boot-admin/issues/new
+    about: If none of the templates fit, you can submit a custom issue or suggestion.
