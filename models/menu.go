@@ -1,11 +1,14 @@
 package models
 
 import (
+	"fmt"
 	"sort"
 
-	"github.com/mss-boot-io/mss-boot-admin/pkg"
+	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"gorm.io/gorm"
+
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 )
 
 /*
@@ -111,6 +114,31 @@ func (e *Menu) BeforeSave(_ *gorm.DB) error {
 		e.Children[i].ParentID = e.ID
 	}
 	return nil
+}
+
+func (e *Menu) AfterDelete(tx *gorm.DB) error {
+	ctx := tx.Statement.Context.(*gin.Context)
+	idsInterface, ok := ctx.Get("ids")
+	if !ok {
+		return nil
+	}
+	ids, ok := idsInterface.([]string)
+	if !ok {
+		return nil
+	}
+	sqlTemp := fmt.Sprintf(`WITH RECURSIVE MenuHierarchy AS (
+    SELECT id
+    FROM %s
+    WHERE id IN ?
+    UNION ALL
+    SELECT m.id
+    FROM %s m
+    INNER JOIN MenuHierarchy mh ON m.parent_id = mh.id
+)
+UPDATE %s
+SET deleted_at = datetime('now')
+WHERE id IN (SELECT id FROM MenuHierarchy)`, e.TableName(), e.TableName(), e.TableName())
+	return tx.Exec(sqlTemp, ids).Error
 }
 
 func (e *Menu) GetIndex() string {
