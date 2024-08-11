@@ -22,7 +22,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/grafana/pyroscope-go v1.1.1
 	github.com/larksuite/oapi-sdk-go/v3 v3.3.1
-	github.com/mss-boot-io/mss-boot v0.2.6
+	github.com/mss-boot-io/mss-boot v0.2.7-0.20240810123304-2ea7f0e578e3
 	github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9
 	github.com/nsqio/go-nsq v1.1.0
 	github.com/redis/go-redis/v9 v9.6.1
@@ -223,7 +223,7 @@ require (
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/exporter-toolkit v0.11.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/prometheus/prometheus v0.53.1 // indirect
+	github.com/prometheus/prometheus v0.54.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
