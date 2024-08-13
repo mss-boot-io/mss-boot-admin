@@ -42,6 +42,7 @@ type DefaultCenter struct {
 	storage.AdapterCache
 	storage.AdapterQueue
 	storage.AdapterLocker
+	VerifyCodeStoreImp
 }
 
 func (d *DefaultCenter) SetNotice(n NoticeImp) {
@@ -112,6 +113,10 @@ func (d *DefaultCenter) SetLocker(l storage.AdapterLocker) {
 	d.AdapterLocker = l
 }
 
+func (d *DefaultCenter) SetVerifyCodeStore(v VerifyCodeStoreImp) {
+	d.VerifyCodeStoreImp = v
+}
+
 func (d *DefaultCenter) GetNotice() NoticeImp {
 	return d.NoticeImp
 }
@@ -178,6 +183,10 @@ func (d *DefaultCenter) GetQueue() storage.AdapterQueue {
 
 func (d *DefaultCenter) GetLocker() storage.AdapterLocker {
 	return d.AdapterLocker
+}
+
+func (d *DefaultCenter) GetVerifyCodeStore() VerifyCodeStoreImp {
+	return d.VerifyCodeStoreImp
 }
 
 func (d *DefaultCenter) Stage() string {
@@ -280,6 +289,11 @@ func SetLocker(l storage.AdapterLocker) *DefaultCenter {
 	return Default
 }
 
+func SetVerifyCodeStore(v VerifyCodeStoreImp) *DefaultCenter {
+	Default.SetVerifyCodeStore(v)
+	return Default
+}
+
 func GetNotice() NoticeImp {
 	return Default.GetNotice()
 }
@@ -350,4 +364,8 @@ func GetQueue() storage.AdapterQueue {
 
 func GetLocker() storage.AdapterLocker {
 	return Default.GetLocker()
+}
+
+func GetVerifyCodeStore() VerifyCodeStoreImp {
+	return Default.GetVerifyCodeStore()
 }

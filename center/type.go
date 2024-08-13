@@ -1,8 +1,10 @@
 package center
 
 import (
+	"context"
+	"time"
+
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin/storage"
 	"github.com/mss-boot-io/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
@@ -10,6 +12,8 @@ import (
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
+
+	"github.com/mss-boot-io/mss-boot-admin/storage"
 )
 
 /*
@@ -36,6 +40,7 @@ type Center interface {
 	storage.AdapterCache
 	storage.AdapterQueue
 	storage.AdapterLocker
+	VerifyCodeStoreImp
 }
 
 type GRPCClientImp interface {
@@ -109,4 +114,9 @@ type StatisticsImp interface {
 	Calibrate(ctx *gin.Context, object StatisticsObject) error
 	NowIncrease(ctx *gin.Context, object StatisticsObject) error
 	NowReduce(ctx *gin.Context, object StatisticsObject) error
+}
+
+type VerifyCodeStoreImp interface {
+	GenerateCode(ctx context.Context, key string, expire time.Duration) (string, error)
+	VerifyCode(ctx context.Context, key, code string) (bool, error)
 }

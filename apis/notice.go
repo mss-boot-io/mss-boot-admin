@@ -42,7 +42,7 @@ type Notice struct {
 //}
 
 func (e *Notice) Other(r *gin.RouterGroup) {
-	r.GET("/notice/unread", response.AuthHandler, e.Unread)
+	r.GET("/notice/unread", e.Unread)
 	r.PUT("/notice/read/:id", response.AuthHandler, e.MarkRead)
 	r.GET("/notice/read/:id", response.AuthHandler, e.Read)
 }
@@ -122,6 +122,10 @@ func (e *Notice) MarkRead(ctx *gin.Context) {
 func (e *Notice) Unread(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := response.VerifyHandler(ctx)
+	if verify == nil {
+		api.OK(nil)
+		return
+	}
 	list := make([]*models.Notice, 0)
 	err := center.Default.GetDB(ctx, &models.Notice{}).Model(&models.Notice{}).
 		Where(&models.Notice{Read: false, UserID: verify.GetUserID()}).
