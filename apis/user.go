@@ -2,8 +2,11 @@ package apis
 
 import (
 	"errors"
+	"fmt"
+	"github.com/mss-boot-io/mss-boot-admin/notice/email"
 	"gorm.io/gorm"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/dto"
@@ -46,6 +49,7 @@ type User struct {
 // Other handler
 func (e *User) Other(r *gin.RouterGroup) {
 	r.POST("/user/login", middleware.Auth.LoginHandler)
+	r.POST("/user/fakeCaptcha", e.FakeCaptcha)
 	r.POST("/user/login/github", middleware.Auth.LoginHandler)
 	r.GET("/user/refresh-token", middleware.Auth.RefreshHandler)
 	r.GET("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UserInfo)
@@ -153,7 +157,88 @@ func (e *User) RefreshToken(_ *gin.Context) {
 // @Param data body dto.FakeCaptchaRequest true "data"
 // @Success 200 {object} dto.FakeCaptchaResponse
 // @Router /admin/api/user/fakeCaptcha [post]
-func (e *User) FakeCaptcha(*gin.Context) {}
+func (e *User) FakeCaptcha(ctx *gin.Context) {
+	api := response.Make(ctx)
+	req := &dto.FakeCaptchaRequest{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	resp := &dto.FakeCaptchaResponse{}
+	if req.Email != "" {
+		// setup 01 get user by email
+		user := &models.User{}
+		err := center.Default.
+			GetDB(ctx, &models.User{}).
+			Where("email = ?", req.Email).
+			First(user).Error
+		if err != nil {
+			api.AddError(err)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				api.Err(http.StatusNotFound)
+				return
+			}
+			api.Log.Error("GetUser error")
+			api.Err(http.StatusInternalServerError)
+			return
+		}
+		// setup 02 generate verify code
+		code, err := center.Default.GenerateCode(ctx, req.Email, 5*time.Minute)
+		if err != nil {
+			api.AddError(err).Log.Error("GenerateCode error")
+			api.Err(http.StatusInternalServerError)
+			return
+		}
+		// setup 03 send email
+		smtpHost, ok := center.GetAppConfig().GetAppConfig(ctx, "email.smtpHost")
+		if !ok {
+			api.AddError(fmt.Errorf("not support send email")).
+				Err(http.StatusNotImplemented)
+			return
+		}
+		smtpPort, ok := center.GetAppConfig().GetAppConfig(ctx, "email.smtpPort")
+		if !ok {
+			api.AddError(fmt.Errorf("not support send email")).
+				Err(http.StatusNotImplemented)
+			return
+		}
+		username, ok := center.GetAppConfig().GetAppConfig(ctx, "email.username")
+		if !ok {
+			api.AddError(fmt.Errorf("not support send email")).
+				Err(http.StatusNotImplemented)
+			return
+		}
+		password, ok := center.GetAppConfig().GetAppConfig(ctx, "email.password")
+		if !ok {
+			api.AddError(fmt.Errorf("not support send email")).
+				Err(http.StatusNotImplemented)
+			return
+		}
+		organization, ok := center.GetAppConfig().GetAppConfig(ctx, "base.websiteName")
+		if !ok || organization == "" {
+			organization = "mss-boot-io"
+		}
+		err = email.SendVerifyCode(
+			smtpHost, smtpPort,
+			username, password,
+			user.Username,
+			user.Email,
+			code,
+			organization)
+		if err != nil {
+			api.AddError(err).Log.Error("send email error")
+			api.Err(http.StatusInternalServerError)
+			return
+		}
+
+		resp.Status = "ok"
+		api.OK(resp)
+		return
+	}
+	err := fmt.Errorf("not support phone")
+	api.AddError(err).Err(http.StatusNotImplemented)
+	return
+}
 
 // UserInfo 获取登录用户信息
 // @Summary 获取登录用户信息

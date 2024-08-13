@@ -24,15 +24,17 @@ func (a AccessType) String() string {
 	return string(a)
 }
 
-type OAuth2Provider string
+type LoginProvider string
 
 const (
-	// OAuth2GithubProvider github oauth provider
-	OAuth2GithubProvider OAuth2Provider = "github"
-	// OAuth2LarkProvider lark oauth provider
-	OAuth2LarkProvider OAuth2Provider = "lark"
+	// GithubLoginProvider github oauth provider
+	GithubLoginProvider LoginProvider = "github"
+	// LarkLoginProvider lark oauth provider
+	LarkLoginProvider LoginProvider = "lark"
+	// EmailLoginProvider email login provider
+	EmailLoginProvider LoginProvider = "email"
 )
 
-func (o OAuth2Provider) String() string {
+func (o LoginProvider) String() string {
 	return string(o)
 }

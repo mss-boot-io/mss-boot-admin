@@ -28,11 +28,11 @@ type LoginResponse struct {
 }
 
 type FakeCaptchaRequest struct {
-	Phone string `json:"phone" binding:"required"`
+	Phone string `json:"phone"`
+	Email string `json:"email"`
 }
 
 type FakeCaptchaResponse struct {
-	Code   int8   `json:"code"`
 	Status string `json:"status"`
 }
 

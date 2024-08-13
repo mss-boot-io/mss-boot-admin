@@ -51,9 +51,12 @@ func (e Cache) Init() {
 			_redis = r.GetClient()
 		}
 		center.SetCache(r)
+		center.SetVerifyCodeStore(cache.NewVerifyCode(r))
 	}
 	if e.Memory != nil {
-		center.SetCache(cache.NewMemory(opts...))
+		m := cache.NewMemory(opts...)
+		center.SetCache(m)
+		center.SetVerifyCodeStore(cache.NewVerifyCode(m))
 	}
 	if e.QueryCache && e.QueryCacheDuration > 0 && gormdb.DB != nil {
 		cache.NewExpiration(context.Background(), e.QueryCacheDuration)

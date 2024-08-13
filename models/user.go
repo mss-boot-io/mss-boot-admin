@@ -116,24 +116,35 @@ func GetUserByUsername(ctx *gin.Context, username string) (*User, error) {
 	return &user, nil
 }
 
+// GetUserByEmail get user by email
+func GetUserByEmail(ctx *gin.Context, email string) (*User, error) {
+	var user User
+	err := center.GetDB(ctx, &user).Preload("Role").First(&user, "email = ?", email).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 type UserLogin struct {
-	RoleID              string             `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Role                *Role              `json:"role" gorm:"foreignKey:RoleID;references:ID"`
-	PostID              string             `json:"postID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Post                *Post              `json:"post" gorm:"foreignKey:PostID;references:ID"`
-	DepartmentID        string             `json:"departmentID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Department          *Department        `json:"department" gorm:"foreignKey:DepartmentID;references:ID"`
-	Username            string             `json:"username" gorm:"type:varchar(20);index"`
-	Email               string             `json:"email" gorm:"type:varchar(100);index"`
-	Password            string             `json:"password,omitempty" gorm:"-"`
-	PasswordHash        string             `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
-	PasswordStrength    string             `json:"passwordStrength" gorm:"size:20;comment:密码强度"`
-	Salt                string             `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
-	Status              enum.Status        `json:"status" gorm:"size:10"`
-	OAuth2              []*UserOAuth2      `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
-	Provider            pkg.OAuth2Provider `json:"type" gorm:"-"`
-	RefreshTokenDisable bool               `json:"-" gorm:"-"`
-	PersonAccessToken   string             `json:"-" gorm:"-"`
+	RoleID              string            `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Role                *Role             `json:"role" gorm:"foreignKey:RoleID;references:ID"`
+	PostID              string            `json:"postID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Post                *Post             `json:"post" gorm:"foreignKey:PostID;references:ID"`
+	DepartmentID        string            `json:"departmentID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Department          *Department       `json:"department" gorm:"foreignKey:DepartmentID;references:ID"`
+	Username            string            `json:"username" gorm:"type:varchar(20);index"`
+	Email               string            `json:"email" gorm:"type:varchar(100);index"`
+	Password            string            `json:"password,omitempty" gorm:"-"`
+	PasswordHash        string            `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
+	PasswordStrength    string            `json:"passwordStrength" gorm:"size:20;comment:密码强度"`
+	Salt                string            `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
+	Status              enum.Status       `json:"status" gorm:"size:10"`
+	OAuth2              []*UserOAuth2     `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
+	Provider            pkg.LoginProvider `json:"type" gorm:"-"`
+	RefreshTokenDisable bool              `json:"-" gorm:"-"`
+	PersonAccessToken   string            `json:"-" gorm:"-"`
+	Captcha             string            `json:"captcha" gorm:"-"`
 }
 
 func (e *UserLogin) TableName() string {
@@ -229,7 +240,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 	defaultRole := &Role{Default: true}
 	_ = center.GetDB(ctx.(*gin.Context), &Role{}).Where(*defaultRole).First(defaultRole).Error
 	switch e.Provider {
-	case pkg.OAuth2GithubProvider:
+	case pkg.GithubLoginProvider:
 		// get user from github, then add user to db
 		// github user
 		clientID, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientId")
@@ -290,14 +301,14 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 				Website:       githubUser.HTMLURL,
 				EmailVerified: true,
 				Locale:        githubUser.Location,
-				Provider:      pkg.OAuth2GithubProvider,
+				Provider:      pkg.GithubLoginProvider,
 				User: &User{
 					UserLogin: UserLogin{
 						RoleID:   defaultRole.ID,
 						Username: githubUser.Email,
 						Email:    githubUser.Email,
 						Password: e.Password,
-						Provider: pkg.OAuth2GithubProvider,
+						Provider: pkg.GithubLoginProvider,
 						Status:   enum.Enabled,
 					},
 					Name:   githubUser.Login,
@@ -319,7 +330,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			userOAuth2.User.Role = defaultRole
 		}
 		return true, userOAuth2.User, nil
-	case pkg.OAuth2LarkProvider:
+	case pkg.LarkLoginProvider:
 		client := http.Client{}
 		req, err := http.NewRequest(http.MethodGet, "https://open.larksuite.com/open-apis/authen/v1/user_info", nil)
 		if err != nil {
@@ -370,14 +381,14 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 				Picture:       *result.Data.AvatarUrl,
 				NickName:      *result.Data.Name,
 				EmailVerified: email != "",
-				Provider:      pkg.OAuth2LarkProvider,
+				Provider:      pkg.LarkLoginProvider,
 				User: &User{
 					UserLogin: UserLogin{
 						RoleID:   defaultRole.ID,
 						Username: *result.Data.UserId,
 						Email:    email,
 						Password: e.Password,
-						Provider: pkg.OAuth2LarkProvider,
+						Provider: pkg.LarkLoginProvider,
 						Status:   enum.Enabled,
 					},
 					Name:   *result.Data.Name,
@@ -399,11 +410,38 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			userOAuth2.User.Role = defaultRole
 		}
 		return true, userOAuth2.User, nil
+	case pkg.EmailLoginProvider:
+		fmt.Println("email login", e)
+		// verify captcha
+		if e.Captcha == "" {
+			return false, nil, nil
+		}
+		ok, err := center.Default.VerifyCode(c, e.Email, e.Captcha)
+		if err != nil {
+			return false, nil, err
+		}
+		if !ok {
+			return false, nil, nil
+		}
+		// get user from db
+		user, err := GetUserByEmail(c, e.Email)
+		if err != nil {
+			return false, nil, err
+		}
+		return true, user, nil
 	}
 	// username and password
 	user, err := GetUserByUsername(ctx.(*gin.Context), e.Username)
 	if err != nil {
 		return false, nil, err
+	}
+	if e.Captcha != "" {
+		var ok bool
+		ok, err = center.Default.VerifyCode(c, e.Username, e.Captcha)
+		if err != nil {
+			return false, nil, err
+		}
+		return ok, user, nil
 	}
 	verify, err := security.SetPassword(e.Password, user.Salt)
 	if err != nil {
