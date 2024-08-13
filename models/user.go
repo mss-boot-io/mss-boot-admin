@@ -435,14 +435,6 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 	if err != nil {
 		return false, nil, err
 	}
-	if e.Captcha != "" {
-		var ok bool
-		ok, err = center.Default.VerifyCode(c, e.Username, e.Captcha)
-		if err != nil {
-			return false, nil, err
-		}
-		return ok, user, nil
-	}
 	verify, err := security.SetPassword(e.Password, user.Salt)
 	if err != nil {
 		return false, nil, err
