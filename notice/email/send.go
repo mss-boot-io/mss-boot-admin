@@ -21,8 +21,16 @@ import (
 //go:embed *.html
 var FS embed.FS
 
-func SendVerifyCode(smtpHost, smtpPort, from, password, username, to, code, organization string) error {
-	rb, err := FS.ReadFile("login_verify_code.html")
+func SendLoginVerifyCode(smtpHost, smtpPort, from, password, username, to, code, organization string) error {
+	return sendVerifyCode("login_verify_code.html", smtpHost, smtpPort, from, password, username, to, code, organization)
+}
+
+func SendResetPasswordVerifyCode(smtpHost, smtpPort, from, password, username, to, code, organization string) error {
+	return sendVerifyCode("password_reset_code.html", smtpHost, smtpPort, from, password, username, to, code, organization)
+}
+
+func sendVerifyCode(temp, smtpHost, smtpPort, from, password, username, to, code, organization string) error {
+	rb, err := FS.ReadFile(temp)
 	if err != nil {
 		return err
 	}

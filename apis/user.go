@@ -260,13 +260,25 @@ func (e *User) FakeCaptcha(ctx *gin.Context) {
 		if !ok || organization == "" {
 			organization = "mss-boot-io"
 		}
-		err = email.SendVerifyCode(
-			smtpHost, smtpPort,
-			username, password,
-			user.Username,
-			user.Email,
-			code,
-			organization)
+		switch req.UseBy {
+		case "login":
+			err = email.SendLoginVerifyCode(
+				smtpHost, smtpPort,
+				username, password,
+				user.Username,
+				user.Email,
+				code,
+				organization)
+		case "resetPassword":
+			err = email.SendResetPasswordVerifyCode(
+				smtpHost, smtpPort,
+				username, password,
+				user.Username,
+				user.Email,
+				code,
+				organization)
+		}
+
 		if err != nil {
 			api.AddError(err).Log.Error("send email error")
 			api.Err(http.StatusInternalServerError)

@@ -36,6 +36,7 @@ type LoginResponse struct {
 type FakeCaptchaRequest struct {
 	Phone string `json:"phone"`
 	Email string `json:"email"`
+	UseBy string `json:"useBy"`
 }
 
 type FakeCaptchaResponse struct {
