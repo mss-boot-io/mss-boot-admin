@@ -13,6 +13,12 @@ import (
  * @Last Modified time: 2023/8/6 22:16:32
  */
 
+type ResetPasswordRequest struct {
+	Email    string `json:"email" binding:"required"`
+	Captcha  string `json:"captcha" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
 type UserSearch struct {
 	actions.Pagination `search:"inline"`
 	// ID

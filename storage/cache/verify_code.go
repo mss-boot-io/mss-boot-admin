@@ -47,5 +47,6 @@ func (v *VerifyCode) VerifyCode(ctx context.Context, key, code string) (bool, er
 	if s == "" {
 		return false, nil
 	}
+	_ = v.Cache.Del(ctx, fmt.Sprintf("verify-code-%s", key))
 	return s == code, nil
 }

@@ -49,6 +49,7 @@ type User struct {
 // Other handler
 func (e *User) Other(r *gin.RouterGroup) {
 	r.POST("/user/login", middleware.Auth.LoginHandler)
+	r.POST("/user/reset-password", e.ResetPassword)
 	r.POST("/user/fakeCaptcha", e.FakeCaptcha)
 	r.POST("/user/login/github", middleware.Auth.LoginHandler)
 	r.GET("/user/refresh-token", middleware.Auth.RefreshHandler)
@@ -56,6 +57,47 @@ func (e *User) Other(r *gin.RouterGroup) {
 	r.PUT("/user/:userID/password-reset", e.PasswordReset)
 	r.PUT("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UpdateUserInfo)
 	r.POST("/user/avatar", middleware.Auth.MiddlewareFunc(), e.UpdateAvatar)
+}
+
+// ResetPassword 重置密码
+// @Summary 重置密码
+// @Description 重置密码
+// @Tags user
+// @Accept  application/json
+// @Product application/json
+// @Param data body dto.ResetPasswordRequest true "data"
+// @Success 200
+// @Router /admin/api/user/reset-password [post]
+func (e *User) ResetPassword(ctx *gin.Context) {
+	api := response.Make(ctx)
+	req := &dto.ResetPasswordRequest{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	ok, err := center.Default.VerifyCode(ctx, req.Email, req.Captcha)
+	if err != nil {
+		api.AddError(err).Log.Error("VerifyCode error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		api.Err(http.StatusForbidden)
+		return
+	}
+	user, err := models.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		api.AddError(err).Log.Error("GetUser error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	err = models.PasswordReset(ctx, user.ID, req.Password)
+	if err != nil {
+		api.AddError(err).Log.Error("PasswordReset error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	api.OK(nil)
 }
 
 func (e *User) UpdateAvatar(ctx *gin.Context) {
