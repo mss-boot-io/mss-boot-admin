@@ -234,6 +234,8 @@ func (e *UserLogin) Root() bool {
 	return e.Role.Root
 }
 
+var BeforeGithubVerify func(ctx context.Context, user *pkg.GithubUser, token string) error
+
 // Verify verify password
 func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error) {
 	c := ctx.(*gin.Context)
@@ -281,6 +283,14 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 				return false, nil, err
 			}
 		}
+		// custom access func
+		if BeforeGithubVerify != nil {
+			err = BeforeGithubVerify(ctx, githubUser, e.Password)
+			if err != nil {
+				return false, nil, err
+			}
+		}
+
 		// get user from db
 		userOAuth2 := &UserOAuth2{}
 		err = center.GetDB(ctx.(*gin.Context), &UserOAuth2{}).Preload("User.Role").First(userOAuth2, "open_id = ?", fmt.Sprintf("%d", githubUser.ID)).Error
