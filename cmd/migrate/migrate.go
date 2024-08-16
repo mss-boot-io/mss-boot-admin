@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mss-boot-io/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot/pkg/migration"
@@ -101,6 +102,24 @@ func setup() error {
 		opts = []source.Option{
 			source.WithProvider(source.FS),
 			source.WithFrom(config.FS),
+		}
+	case source.ConfigMap:
+		opts = []source.Option{
+			source.WithProvider(source.ConfigMap),
+			source.WithConfigmap("mss-boot-admin"),
+			source.WithNamespace(pkg.GetStage()),
+		}
+	case source.Consul:
+		opts = []source.Option{
+			source.WithProvider(source.Consul),
+			source.WithDir("mss-boot-admin/config"),
+			source.WithWatch(true),
+		}
+	case source.APPConfig:
+		opts = []source.Option{
+			source.WithProvider(source.APPConfig),
+			source.WithProjectName(pkg.GetProjectName()),
+			source.WithNamespace(pkg.GetStage()),
 		}
 	case source.Local, "":
 	default:

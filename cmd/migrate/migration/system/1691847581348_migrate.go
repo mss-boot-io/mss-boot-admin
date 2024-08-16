@@ -176,8 +176,10 @@ oauth2:
 			},
 		}
 		if Domain != "" {
-			tenant.Domains[0].Name = strings.Split(Domain, ":")[0]
-			tenant.Domains[0].Domain = Domain
+			tenant.Domains = append(tenant.Domains, &models.TenantDomain{
+				Name:   strings.Split(Domain, ":")[0],
+				Domain: Domain,
+			})
 		}
 		err = tx.Create(tenant).Error
 		if err != nil {
