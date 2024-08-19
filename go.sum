@@ -578,6 +578,8 @@ github.com/mss-boot-io/mss-boot v0.2.7-0.20240814083825-9c11318051a4 h1:uLHTKmLS
 github.com/mss-boot-io/mss-boot v0.2.7-0.20240814083825-9c11318051a4/go.mod h1:3uK5dTvEUPuiXOY6idFYlQ82nD1ewl2tcfGulukTL2s=
 github.com/mss-boot-io/mss-boot v0.2.7-0.20240819033934-ff0cee039cce h1:n1hb8+dViBunkCZz0b3sVkjd0V8vyUMK9gdXwvwtnBg=
 github.com/mss-boot-io/mss-boot v0.2.7-0.20240819033934-ff0cee039cce/go.mod h1:3uK5dTvEUPuiXOY6idFYlQ82nD1ewl2tcfGulukTL2s=
+github.com/mss-boot-io/mss-boot v0.2.7-0.20240819055506-8ee0e82149e5 h1:sAPJh7tu1fMw8YjpYWhOw+sYXtj2LIkjfhLc3rCPGjU=
+github.com/mss-boot-io/mss-boot v0.2.7-0.20240819055506-8ee0e82149e5/go.mod h1:3uK5dTvEUPuiXOY6idFYlQ82nD1ewl2tcfGulukTL2s=
 github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9 h1:/YgpHiqgrxz/0+mKoETXu21c6/fyDt7/j9bdD3UkbdU=
 github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9/go.mod h1:f/sISkwvecPq37zygQzWNj5ntJoP/jcoK0kPIjFTWFI=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
