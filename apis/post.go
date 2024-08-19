@@ -2,6 +2,7 @@ package apis
 
 import (
 	"fmt"
+	"gorm.io/gorm"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -85,7 +86,9 @@ func (e *Post) List(c *gin.Context) {
 		).Where(fmt.Sprintf("%s.parent_id = ?", m.TableName()), "")
 
 	var count int64
-	if err := query.Limit(-1).Offset(-1).
+	if err := query.Scopes(func(db *gorm.DB) *gorm.DB {
+		return db.Limit(-1).Offset(-1)
+	}).
 		Count(&count).Error; err != nil {
 		api.AddError(err).Err(http.StatusInternalServerError)
 		return
