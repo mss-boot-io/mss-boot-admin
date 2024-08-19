@@ -349,7 +349,9 @@ func (*Menu) List(ctx *gin.Context) {
 		query = query.Where("hide_in_menu = ?", 0)
 	}
 	var count int64
-	if err := query.Limit(-1).Offset(-1).Count(&count).Error; err != nil {
+	if err := query.Scopes(func(db *gorm.DB) *gorm.DB {
+		return db.Limit(-1).Offset(-1)
+	}).Count(&count).Error; err != nil {
 		api.AddError(err).Log.Error("get menu list error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return

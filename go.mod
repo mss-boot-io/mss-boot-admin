@@ -22,7 +22,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/grafana/pyroscope-go v1.1.1
 	github.com/larksuite/oapi-sdk-go/v3 v3.3.1
-	github.com/mss-boot-io/mss-boot v0.2.7-0.20240814083825-9c11318051a4
+	github.com/mss-boot-io/mss-boot v0.2.7-0.20240819055506-8ee0e82149e5
 	github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9
 	github.com/nsqio/go-nsq v1.1.0
 	github.com/redis/go-redis/v9 v9.6.1
