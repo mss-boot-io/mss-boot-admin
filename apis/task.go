@@ -150,7 +150,7 @@ func (e *Task) Get(*gin.Context) {}
 // @Tags task
 // @Accept  application/json
 // @Product application/json
-// @Param page query int false "page"
+// @Param current query int false "current"
 // @Param pageSize query int false "pageSize"
 // @Param id query string false "id"
 // @Param name query string false "name"
