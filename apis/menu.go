@@ -308,7 +308,7 @@ func (e *Menu) BindAPI(ctx *gin.Context) {
 // @Param show query bool false "show"
 // @Param parentID query string false "parentID"
 // @Param type query []string false "type"
-// @Param page query int false "page"
+// @Param current query int false "current"
 // @Param pageSize query int false "pageSize"
 // @Success 200 {object} response.Page{data=[]models.Menu}
 // @Router /admin/api/menus [get]

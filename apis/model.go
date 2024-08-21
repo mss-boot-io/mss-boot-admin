@@ -368,7 +368,7 @@ func (e *Model) Get(*gin.Context) {}
 // @Tags model
 // @Accept application/json
 // @Produce application/json
-// @Param page query int false "page"
+// @Param current query int false "current"
 // @Param pageSize query int false "pageSize"
 // @Param preloads query []string false "preloads"
 // @Success 200 {object} response.Page{data=[]models.Model}

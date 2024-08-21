@@ -97,7 +97,7 @@ func (*Option) Get(*gin.Context) {}
 // @Product application/json
 // @Param name query string false "name"
 // @Param status query string false "status"
-// @Param page query int false "page"
+// @Param current query int false "current"
 // @Param pageSize query int false "pageSize"
 // @Success 200 {object} response.Page{data=[]models.Option}
 // @Router /admin/api/options [get]

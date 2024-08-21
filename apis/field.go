@@ -84,7 +84,7 @@ func (e *Field) Get(*gin.Context) {}
 // @Tags field
 // @Accept application/json
 // @Product application/json
-// @Param page query int false "page"
+// @Param current query int false "current"
 // @Param pageSize query int false "pageSize"
 // @Param modelID query string false "modelID"
 // @Success 200 {object} response.Page{data=[]models.Field}

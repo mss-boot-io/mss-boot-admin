@@ -194,7 +194,7 @@ func (e *Notice) Delete(*gin.Context) {}
 // @Param title query string false "title"
 // @Param status query string false "status"
 // @Param userID query string false "userID"
-// @Param page query int false "page"
+// @Param current query int false "current"
 // @Param pageSize query int false "pageSize"
 // @Success 200 {object} response.Page{data=[]models.Notice}
 // @Router /admin/api/notices [get]

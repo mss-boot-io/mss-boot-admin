@@ -105,7 +105,7 @@ func (*SystemConfig) Get(*gin.Context) {}
 // @Tags system_config
 // @Accept application/json
 // @Produce application/json
-// @Param page query int false "page"
+// @Param current query int false "current"
 // @Param pageSize query int false "pageSize"
 // @Success 200 {object} response.Page{data=[]models.SystemConfig}
 // @Router /admin/api/system-configs [get]
