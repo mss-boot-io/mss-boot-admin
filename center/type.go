@@ -29,6 +29,7 @@ type Center interface {
 	UserImp
 	VirtualModelImp
 	ConfigImp
+	CustomConfigImp
 	server.Manager
 	gin.IRouter
 	StageImp
@@ -89,6 +90,10 @@ type UserImp interface {
 type ConfigImp interface {
 	source.Entity
 	Init(...source.Option)
+}
+
+type CustomConfigImp interface {
+	ConfigImp
 }
 
 type AppConfigImp interface {

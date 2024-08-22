@@ -139,7 +139,13 @@ func setup() error {
 		slog.Error("config provider not support", "provider", configProvider)
 		os.Exit(-1)
 	}
-	center.SetConfig(config.Cfg).Init(opts...)
+	if customConfig := center.GetCustomConfig(); customConfig != nil {
+		opts = append(opts, source.WithPostfixHook(customConfig))
+	}
+	center.SetConfig(config.Cfg).GetConfig().Init(opts...)
+	if center.GetCustomConfig() != nil {
+		center.GetCustomConfig().Init()
+	}
 	err := models.InitTenant(gormdb.DB)
 	if err != nil {
 		return err

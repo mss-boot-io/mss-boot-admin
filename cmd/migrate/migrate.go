@@ -126,7 +126,7 @@ func setup() error {
 		slog.Error("config provider not support", "provider", configProvider)
 		os.Exit(-1)
 	}
-	center.SetConfig(config.Cfg).Init(opts...)
+	center.SetConfig(config.Cfg).GetConfig().Init(opts...)
 
 	// app config
 	center.SetAppConfig(&models.AppConfig{})
