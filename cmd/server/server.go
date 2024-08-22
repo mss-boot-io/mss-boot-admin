@@ -99,6 +99,10 @@ func setup() error {
 		source.WithProvider(source.Local),
 		source.WithWatch(true),
 	}
+	switch pkg.GetStage() {
+	case "local", "dev":
+		configProvider = string(source.Local)
+	}
 	switch source.Provider(configProvider) {
 	case source.GORM:
 		opts = []source.Option{
