@@ -30,6 +30,7 @@ type DefaultCenter struct {
 	UserImp
 	VirtualModelImp
 	ConfigImp
+	CustomConfigImp
 	server.Manager
 	gin.IRouter
 	StageImp
@@ -63,6 +64,10 @@ func (d *DefaultCenter) SetVerify(v UserImp) {
 
 func (d *DefaultCenter) SetConfig(e ConfigImp) {
 	d.ConfigImp = e
+}
+
+func (d *DefaultCenter) SetCustomConfig(e CustomConfigImp) {
+	d.CustomConfigImp = e
 }
 
 func (d *DefaultCenter) SetVirtualModel(v VirtualModelImp) {
@@ -135,6 +140,10 @@ func (d *DefaultCenter) GetVerify() UserImp {
 
 func (d *DefaultCenter) GetConfig() ConfigImp {
 	return d.ConfigImp
+}
+
+func (d *DefaultCenter) GetCustomConfig() CustomConfigImp {
+	return d.CustomConfigImp
 }
 
 func (d *DefaultCenter) GetVirtualModel() VirtualModelImp {
@@ -229,6 +238,11 @@ func SetConfig(e ConfigImp) *DefaultCenter {
 	return Default
 }
 
+func SetCustomConfig(e CustomConfigImp) *DefaultCenter {
+	Default.SetCustomConfig(e)
+	return Default
+}
+
 func SetVirtualModel(v VirtualModelImp) *DefaultCenter {
 	Default.SetVirtualModel(v)
 	return Default
@@ -312,6 +326,10 @@ func GetUser() UserImp {
 
 func GetConfig() ConfigImp {
 	return Default.GetConfig()
+}
+
+func GetCustomConfig() CustomConfigImp {
+	return Default.GetCustomConfig()
 }
 
 func GetVirtualModel() VirtualModelImp {
