@@ -8,79 +8,57 @@ package pkg
  */
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
-	"sigs.k8s.io/yaml"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 // FetchEKSKubeconfig fetches the kubeconfig for the specified EKS cluster.
-func FetchEKSKubeconfig(ctx context.Context, svc *eks.Client, clusterName string) (string, error) {
+func FetchEKSKubeconfig(ctx context.Context, svc *eks.Client, region, clusterName string) (*clientcmdapi.Config, error) {
 	result, err := svc.DescribeCluster(ctx, &eks.DescribeClusterInput{
 		Name: aws.String(clusterName),
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	cluster := result.Cluster
 	if cluster == nil {
-		return "", fmt.Errorf("cluster %s not found", clusterName)
+		return nil, fmt.Errorf("cluster %s not found", clusterName)
 	}
 
-	kubeconfig := map[string]interface{}{
-		"apiVersion": "v1",
-		"clusters": []map[string]interface{}{
-			{
-				"cluster": map[string]interface{}{
-					"server":                     aws.ToString(cluster.Endpoint),
-					"certificate-authority-data": aws.ToString(cluster.CertificateAuthority.Data),
-				},
-				"name": clusterName,
+	return &clientcmdapi.Config{
+		APIVersion: "v1",
+		Clusters: map[string]*clientcmdapi.Cluster{
+			clusterName: {
+				Server:                   aws.ToString(cluster.Endpoint),
+				CertificateAuthorityData: []byte(*cluster.CertificateAuthority.Data),
 			},
 		},
-		"contexts": []map[string]interface{}{
-			{
-				"context": map[string]interface{}{
-					"cluster": clusterName,
-					"user":    clusterName,
-				},
-				"name": "default",
+		Contexts: map[string]*clientcmdapi.Context{
+			"default": {
+				Cluster:  clusterName,
+				AuthInfo: clusterName,
 			},
 		},
-		"current-context": "default",
-		"users": []map[string]interface{}{
-			{
-				"name": clusterName,
-				"user": map[string]interface{}{
-					"exec": map[string]interface{}{
-						"apiVersion": "client.authentication.k8s.io/v1beta1",
-						"command":    "aws",
-						"args": []string{
-							"--region", "ap-northeast-1",
-							"eks", "get-token",
-							"--cluster-name", clusterName,
-						},
-						"interactiveMode":    "IfAvailable",
-						"provideClusterInfo": false,
+		CurrentContext: "default",
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			clusterName: {
+				Exec: &clientcmdapi.ExecConfig{
+					APIVersion: "client.authentication.k8s.io/v1beta1",
+					Command:    "aws",
+					Args: []string{
+						"--region",
+						region,
+						"eks",
+						"get-token",
+						"--cluster-name",
+						clusterName,
 					},
 				},
 			},
 		},
-	}
-
-	kubeconfigBytes, err := json.MarshalIndent(kubeconfig, "", "  ")
-	if err != nil {
-		return "", err
-	}
-
-	// Convert JSON to YAML
-	kubeconfigYAML, err := yaml.JSONToYAML(kubeconfigBytes)
-	if err != nil {
-		return "", err
-	}
-
-	return string(kubeconfigYAML), nil
+	}, nil
 }

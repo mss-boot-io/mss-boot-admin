@@ -28,34 +28,34 @@ import (
 
 type Clusters []*Cluster
 
-func (e Clusters) Init() {
-	for i := range e {
-		e[i].Init()
+func (e *Clusters) Init() {
+	for _, cluster := range *e {
+		cluster.Init()
 	}
 }
 
-func (e Clusters) GetDynamicClient(name string) *dynamic.DynamicClient {
-	for i := range e {
-		if e[i].Name == name {
-			return e[i].GetDynamicClient()
+func (e *Clusters) GetDynamicClient(name string) *dynamic.DynamicClient {
+	for _, cluster := range *e {
+		if cluster.Name == name {
+			return cluster.GetDynamicClient()
 		}
 	}
 	return nil
 }
 
-func (e Clusters) GetClientSet(name string) *kubernetes.Clientset {
-	for i := range e {
-		if e[i].Name == name {
-			return e[i].GetClientSet()
+func (e *Clusters) GetClientSet(name string) *kubernetes.Clientset {
+	for _, cluster := range *e {
+		if cluster.Name == name {
+			return cluster.GetClientSet()
 		}
 	}
 	return nil
 }
 
-func (e Clusters) GetConfig(name string) *rest.Config {
-	for i := range e {
-		if e[i].Name == name {
-			return e[i].GetConfig()
+func (e *Clusters) GetConfig(name string) *rest.Config {
+	for _, cluster := range *e {
+		if cluster.Name == name {
+			return cluster.GetConfig()
 		}
 	}
 	return nil
@@ -85,8 +85,9 @@ func (e *Cluster) GetConfig() *rest.Config {
 
 func (e *Cluster) Init() {
 	var err error
+	var apiConfig *clientcmdapi.Config
 	if e.EKS != nil {
-		e.KubeConfig, err = e.EKS.GetKubeconfig()
+		apiConfig, err = e.EKS.GetKubeconfig()
 		if err != nil {
 			slog.Error("Failed to get kubeconfig", "err", err)
 			os.Exit(-1)
@@ -95,14 +96,14 @@ func (e *Cluster) Init() {
 			e.Name = e.EKS.Name
 		}
 	}
-	if e.KubeConfigPath == "" && e.KubeConfig == "" {
+	if apiConfig == nil && e.KubeConfigPath == "" && e.KubeConfig == "" {
 		e.config, err = rest.InClusterConfig()
 		if err != nil {
 			slog.Error("Failed to get in cluster config", "err", err)
 			os.Exit(-1)
 		}
-	} else {
-		var apiConfig *clientcmdapi.Config
+	}
+	if apiConfig == nil || e.config == nil {
 		if e.KubeConfig != "" {
 			apiConfig, err = clientcmd.Load([]byte(e.KubeConfig))
 			if err != nil {
@@ -119,6 +120,8 @@ func (e *Cluster) Init() {
 				os.Exit(-1)
 			}
 		}
+	}
+	if e.config == nil {
 		// 创建一个 rest.Config 对象
 		e.config, err = clientcmd.NewDefaultClientConfig(*apiConfig, &clientcmd.ConfigOverrides{}).ClientConfig()
 		if err != nil {
@@ -126,6 +129,7 @@ func (e *Cluster) Init() {
 			os.Exit(-1)
 		}
 	}
+
 	e.clientSet, err = kubernetes.NewForConfig(e.config)
 	if err != nil {
 		slog.Error("Failed to create clientset", "err", err)
@@ -143,15 +147,15 @@ type EKSCluster struct {
 	Region string `yaml:"region" json:"region"`
 }
 
-func (e *EKSCluster) GetKubeconfig() (string, error) {
+func (e *EKSCluster) GetKubeconfig() (*clientcmdapi.Config, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(e.Region))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	svc := eks.NewFromConfig(cfg)
 
-	return pkg.FetchEKSKubeconfig(ctx, svc, e.Name)
+	return pkg.FetchEKSKubeconfig(ctx, svc, e.Region, e.Name)
 }

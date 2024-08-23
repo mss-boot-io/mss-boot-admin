@@ -6,19 +6,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/mss-boot-io/mss-boot-admin/config"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"log/slog"
 	"time"
 
-	"github.com/mss-boot-io/mss-boot-admin/pkg"
 	"github.com/mss-boot-io/mss-boot/core/server/task"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/mss-boot-io/mss-boot-admin/config"
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
 )
 
 /*
@@ -50,7 +51,7 @@ type Task struct {
 	Args       ArrayString  `json:"args" swaggertype:"array,string" gorm:"type:text"`
 	Once       bool         `json:"once" gorm:"-"`
 	Protocol   string       `json:"protocol" gorm:"size:10"`
-	Endpoint   string       `json:"endpoint"`
+	Endpoint   string       `json:"endpoint" gorm:"type:varchar(255);not null;comment:地址"`
 	Body       string       `json:"body" gorm:"type:bytes"`
 	Status     enum.Status  `json:"status" gorm:"size:10"`
 	Remark     string       `json:"remark" gorm:"type:text"`
@@ -68,7 +69,7 @@ func (*Task) TableName() string {
 
 func (t *Task) AfterCreate(tx *gorm.DB) error {
 	switch t.Provider {
-	case TaskProviderDefault:
+	case TaskProviderDefault, "":
 		return nil
 	}
 	clientSet := config.Cfg.Clusters.GetClientSet(t.Cluster)
@@ -126,7 +127,7 @@ func (t *Task) AfterCreate(tx *gorm.DB) error {
 
 func (t *Task) AfterUpdate(tx *gorm.DB) error {
 	switch t.Provider {
-	case TaskProviderDefault:
+	case TaskProviderDefault, "":
 		return nil
 	}
 	clientSet := config.Cfg.Clusters.GetClientSet(t.Cluster)
@@ -154,7 +155,7 @@ func (t *Task) AfterUpdate(tx *gorm.DB) error {
 
 func (t *Task) AfterDelete(tx *gorm.DB) error {
 	switch t.Provider {
-	case TaskProviderDefault:
+	case TaskProviderDefault, "":
 		return nil
 	}
 	clientSet := config.Cfg.Clusters.GetClientSet(t.Cluster)
