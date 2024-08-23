@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.0
 	github.com/aws/aws-sdk-go-v2 v1.30.4
 	github.com/aws/aws-sdk-go-v2/config v1.27.28
+	github.com/aws/aws-sdk-go-v2/service/eks v1.48.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.60.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.32.5
 	github.com/bsm/redislock v0.9.4
@@ -41,6 +42,7 @@ require (
 	gorm.io/gorm v1.25.11
 	k8s.io/apimachinery v0.31.0
 	k8s.io/client-go v0.31.0
+	sigs.k8s.io/yaml v1.4.0
 )
 
 require (
@@ -181,6 +183,7 @@ require (
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -300,5 +303,4 @@ require (
 	modernc.org/sqlite v1.32.0 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
-	sigs.k8s.io/yaml v1.4.0 // indirect
 )

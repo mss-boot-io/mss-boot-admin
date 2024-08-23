@@ -37,6 +37,7 @@ type Config struct {
 	Locker    *Locker         `yaml:"locker" json:"locker"`
 	Secret    *Secret         `yaml:"secret" json:"secret"`
 	Storage   *config.Storage `yaml:"storage" json:"storage"`
+	Clusters  Clusters        `yaml:"clusters" json:"clusters"`
 }
 
 type SecretConfig struct {
@@ -78,6 +79,9 @@ func (e *Config) Init(opts ...source.Option) {
 	}
 	if e.Storage != nil {
 		e.Storage.Init()
+	}
+	if len(e.Clusters) > 0 {
+		e.Clusters.Init()
 	}
 }
 

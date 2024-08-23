@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mss-boot-io/mss-boot-admin/config"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"log/slog"
 	"time"
 
@@ -15,6 +18,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
+	batchv1 "k8s.io/api/batch/v1"
 )
 
 /*
@@ -24,14 +28,25 @@ import (
  * @Last Modified time: 2023/12/5 16:11:48
  */
 
+type TaskProvider string
+
+const (
+	TaskProviderDefault TaskProvider = "default"
+	TaskProviderK8S     TaskProvider = "k8s"
+)
+
 // Task support http/grpc/script
 type Task struct {
 	ModelGormTenant
 	ModelCreator
-	Name       string       `json:"name"`
-	EntryID    int          `json:"entryID"`
-	Spec       string       `json:"spec"`
-	Command    string       `json:"command"`
+	Name       string       `json:"name" gorm:"type:varchar(255);not null;comment:任务名称"`
+	Namespace  string       `json:"namespace" gorm:"type:varchar(255);not null;comment:命名空间"`
+	Cluster    string       `json:"cluster" gorm:"type:varchar(50);comment:集群"`
+	Provider   TaskProvider `json:"provider" gorm:"type:varchar(255);not null;comment:提供者"`
+	Image      string       `json:"image" gorm:"type:varchar(255);not null;default:default;comment:镜像"`
+	EntryID    int          `json:"entryID" gorm:"size:10;comment:任务ID"`
+	Spec       string       `json:"spec" gorm:"type:varchar(255);not null;comment:任务规则"`
+	Command    string       `json:"command" gorm:"type:varchar(255);not null;comment:命令"`
 	Args       ArrayString  `json:"args" swaggertype:"array,string" gorm:"type:text"`
 	Once       bool         `json:"once" gorm:"-"`
 	Protocol   string       `json:"protocol" gorm:"size:10"`
@@ -51,7 +66,105 @@ func (*Task) TableName() string {
 	return "mss_boot_tasks"
 }
 
-func (t *Task) AfterFind(tx *gorm.DB) (err error) {
+func (t *Task) AfterCreate(tx *gorm.DB) error {
+	switch t.Provider {
+	case TaskProviderDefault:
+		return nil
+	}
+	clientSet := config.Cfg.Clusters.GetClientSet(t.Cluster)
+	if clientSet == nil {
+		return fmt.Errorf("cluster %s not found", t.Cluster)
+	}
+	var limitCount int32 = 10
+	command := make([]string, 0)
+	if t.Command != "" {
+		command = append(command, t.Command)
+	}
+	// 失败的pod只能重试3次
+	_, err := clientSet.BatchV1().CronJobs(t.Namespace).Create(tx.Statement.Context,
+		&batchv1.CronJob{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      t.ID,
+				Namespace: t.Namespace,
+				Labels: map[string]string{
+					"id":   t.ID,
+					"name": t.Name,
+				},
+			},
+			Spec: batchv1.CronJobSpec{
+				SuccessfulJobsHistoryLimit: &limitCount,
+				FailedJobsHistoryLimit:     &limitCount,
+				Schedule:                   t.Spec,
+				JobTemplate: batchv1.JobTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
+							"id":   t.ID,
+							"name": t.Name,
+						},
+					},
+					Spec: batchv1.JobSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:            t.Name,
+										Image:           t.Image,
+										Command:         command,
+										Args:            t.Args,
+										ImagePullPolicy: corev1.PullIfNotPresent,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		metav1.CreateOptions{})
+	return err
+}
+
+func (t *Task) AfterUpdate(tx *gorm.DB) error {
+	switch t.Provider {
+	case TaskProviderDefault:
+		return nil
+	}
+	clientSet := config.Cfg.Clusters.GetClientSet(t.Cluster)
+	if clientSet == nil {
+		return fmt.Errorf("cluster %s not found", t.Cluster)
+	}
+	job, err := clientSet.BatchV1().CronJobs(t.Namespace).
+		Get(tx.Statement.Context, t.ID, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	command := make([]string, 0)
+	if t.Command != "" {
+		command = append(command, t.Command)
+	}
+	job.Spec.Schedule = t.Spec
+	job.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Image = t.Image
+	job.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Command = command
+	job.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args = t.Args
+	_, err = clientSet.BatchV1().
+		CronJobs(t.Namespace).
+		Update(tx.Statement.Context, job, metav1.UpdateOptions{})
+	return err
+}
+
+func (t *Task) AfterDelete(tx *gorm.DB) error {
+	switch t.Provider {
+	case TaskProviderDefault:
+		return nil
+	}
+	clientSet := config.Cfg.Clusters.GetClientSet(t.Cluster)
+	if clientSet == nil {
+		return fmt.Errorf("cluster %s not found", t.Cluster)
+	}
+	return clientSet.BatchV1().CronJobs(t.Namespace).Delete(tx.Statement.Context, t.ID, metav1.DeleteOptions{})
+}
+
+func (t *Task) AfterFind(_ *gorm.DB) (err error) {
 	if t.CheckedAt.Valid {
 		t.CheckedAtR = &t.CheckedAt.Time
 	}
