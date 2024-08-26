@@ -1,13 +1,9 @@
 package pkg
 
-/*
- * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2024/8/23 11:34:49
- * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2024/8/23 11:34:49
- */
 import (
 	"context"
+	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -29,12 +25,23 @@ func FetchEKSKubeconfig(ctx context.Context, svc *eks.Client, region, clusterNam
 		return nil, fmt.Errorf("cluster %s not found", clusterName)
 	}
 
+	// Decode and validate the Certificate Authority data
+	certData, err := base64.StdEncoding.DecodeString(aws.ToString(cluster.CertificateAuthority.Data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode certificate authority data: %w", err)
+	}
+
+	pemBlock, _ := pem.Decode(certData)
+	if pemBlock == nil {
+		return nil, fmt.Errorf("failed to parse certificate authority data as PEM block")
+	}
+
 	return &clientcmdapi.Config{
 		APIVersion: "v1",
 		Clusters: map[string]*clientcmdapi.Cluster{
 			clusterName: {
 				Server:                   aws.ToString(cluster.Endpoint),
-				CertificateAuthorityData: []byte(*cluster.CertificateAuthority.Data),
+				CertificateAuthorityData: certData,
 			},
 		},
 		Contexts: map[string]*clientcmdapi.Context{
@@ -57,6 +64,8 @@ func FetchEKSKubeconfig(ctx context.Context, svc *eks.Client, region, clusterNam
 						"--cluster-name",
 						clusterName,
 					},
+					InteractiveMode:    clientcmdapi.IfAvailableExecInteractiveMode,
+					ProvideClusterInfo: false,
 				},
 			},
 		},

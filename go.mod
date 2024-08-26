@@ -23,7 +23,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/grafana/pyroscope-go v1.1.2
 	github.com/larksuite/oapi-sdk-go/v3 v3.3.1
-	github.com/mss-boot-io/mss-boot v0.2.7-0.20240822072236-e542a7a55c43
+	github.com/mss-boot-io/mss-boot v0.2.7
 	github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9
 	github.com/nsqio/go-nsq v1.1.0
 	github.com/redis/go-redis/v9 v9.6.1
@@ -40,9 +40,9 @@ require (
 	golang.org/x/oauth2 v0.22.0
 	google.golang.org/grpc v1.65.0
 	gorm.io/gorm v1.25.11
+	k8s.io/api v0.31.0
 	k8s.io/apimachinery v0.31.0
 	k8s.io/client-go v0.31.0
-	sigs.k8s.io/yaml v1.4.0
 )
 
 require (
@@ -293,7 +293,6 @@ require (
 	gorm.io/driver/postgres v1.5.9 // indirect
 	gorm.io/driver/sqlserver v1.5.3 // indirect
 	gorm.io/plugin/dbresolver v1.5.2 // indirect
-	k8s.io/api v0.31.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240816214639-573285566f34 // indirect
 	k8s.io/utils v0.0.0-20240821151609-f90d01438635 // indirect
@@ -303,4 +302,5 @@ require (
 	modernc.org/sqlite v1.32.0 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
+	sigs.k8s.io/yaml v1.4.0 // indirect
 )

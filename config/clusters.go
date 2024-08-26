@@ -28,14 +28,14 @@ import (
 
 type Clusters []*Cluster
 
-func (e *Clusters) Init() {
-	for _, cluster := range *e {
-		cluster.Init()
+func (e Clusters) Init() {
+	for i := range e {
+		(e)[i].Init()
 	}
 }
 
-func (e *Clusters) GetDynamicClient(name string) *dynamic.DynamicClient {
-	for _, cluster := range *e {
+func (e Clusters) GetDynamicClient(name string) *dynamic.DynamicClient {
+	for _, cluster := range e {
 		if cluster.Name == name {
 			return cluster.GetDynamicClient()
 		}
@@ -43,8 +43,8 @@ func (e *Clusters) GetDynamicClient(name string) *dynamic.DynamicClient {
 	return nil
 }
 
-func (e *Clusters) GetClientSet(name string) *kubernetes.Clientset {
-	for _, cluster := range *e {
+func (e Clusters) GetClientSet(name string) *kubernetes.Clientset {
+	for _, cluster := range e {
 		if cluster.Name == name {
 			return cluster.GetClientSet()
 		}
@@ -52,8 +52,8 @@ func (e *Clusters) GetClientSet(name string) *kubernetes.Clientset {
 	return nil
 }
 
-func (e *Clusters) GetConfig(name string) *rest.Config {
-	for _, cluster := range *e {
+func (e Clusters) GetConfig(name string) *rest.Config {
+	for _, cluster := range e {
 		if cluster.Name == name {
 			return cluster.GetConfig()
 		}
@@ -103,7 +103,7 @@ func (e *Cluster) Init() {
 			os.Exit(-1)
 		}
 	}
-	if apiConfig == nil || e.config == nil {
+	if apiConfig == nil && e.config == nil {
 		if e.KubeConfig != "" {
 			apiConfig, err = clientcmd.Load([]byte(e.KubeConfig))
 			if err != nil {

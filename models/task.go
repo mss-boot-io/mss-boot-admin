@@ -48,7 +48,7 @@ type Task struct {
 	EntryID    int          `json:"entryID" gorm:"size:10;comment:任务ID"`
 	Spec       string       `json:"spec" gorm:"type:varchar(255);not null;comment:任务规则"`
 	Command    string       `json:"command" gorm:"type:varchar(255);not null;comment:命令"`
-	Args       ArrayString  `json:"args" swaggertype:"array,string" gorm:"type:text"`
+	Args       string       `json:"args" gorm:"type:text"`
 	Once       bool         `json:"once" gorm:"-"`
 	Protocol   string       `json:"protocol" gorm:"size:10"`
 	Endpoint   string       `json:"endpoint" gorm:"type:varchar(255);not null;comment:地址"`
@@ -61,6 +61,30 @@ type Task struct {
 	Method     string       `gorm:"size:10" json:"method"`
 	Python     string       `json:"python"`
 	Metadata   string       `json:"metadata" gorm:"type:bytes"`
+}
+
+func (t *Task) GetArgs() []string {
+	if t.Args == "" {
+		return nil
+	}
+	args := make([]string, 0)
+	err := json.Unmarshal([]byte(t.Args), &args)
+	if err != nil {
+		slog.Error("task args unmarshal error", slog.Any("err", err))
+	}
+	return args
+}
+
+func (t *Task) GetCommand() []string {
+	if t.Command == "" {
+		return nil
+	}
+	commands := make([]string, 0)
+	err := json.Unmarshal([]byte(t.Command), &commands)
+	if err != nil {
+		slog.Error("task command unmarshal error", slog.Any("err", err))
+	}
+	return commands
 }
 
 func (*Task) TableName() string {
@@ -80,6 +104,9 @@ func (t *Task) AfterCreate(tx *gorm.DB) error {
 	command := make([]string, 0)
 	if t.Command != "" {
 		command = append(command, t.Command)
+	}
+	if t.Namespace == "" {
+		t.Namespace = "default"
 	}
 	// 失败的pod只能重试3次
 	_, err := clientSet.BatchV1().CronJobs(t.Namespace).Create(tx.Statement.Context,
@@ -110,11 +137,12 @@ func (t *Task) AfterCreate(tx *gorm.DB) error {
 									{
 										Name:            t.Name,
 										Image:           t.Image,
-										Command:         command,
-										Args:            t.Args,
+										Command:         t.GetCommand(),
+										Args:            t.GetArgs(),
 										ImagePullPolicy: corev1.PullIfNotPresent,
 									},
 								},
+								RestartPolicy: corev1.RestartPolicyOnFailure,
 							},
 						},
 					},
@@ -122,7 +150,11 @@ func (t *Task) AfterCreate(tx *gorm.DB) error {
 			},
 		},
 		metav1.CreateOptions{})
-	return err
+	if err != nil {
+		slog.Error("task create cron job error", slog.Any("err", err))
+		return err
+	}
+	return nil
 }
 
 func (t *Task) AfterUpdate(tx *gorm.DB) error {
@@ -134,23 +166,27 @@ func (t *Task) AfterUpdate(tx *gorm.DB) error {
 	if clientSet == nil {
 		return fmt.Errorf("cluster %s not found", t.Cluster)
 	}
+	if t.Namespace == "" {
+		t.Namespace = "default"
+	}
 	job, err := clientSet.BatchV1().CronJobs(t.Namespace).
 		Get(tx.Statement.Context, t.ID, metav1.GetOptions{})
 	if err != nil {
+		slog.Error("task get cron job error", slog.Any("err", err))
 		return err
-	}
-	command := make([]string, 0)
-	if t.Command != "" {
-		command = append(command, t.Command)
 	}
 	job.Spec.Schedule = t.Spec
 	job.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Image = t.Image
-	job.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Command = command
-	job.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args = t.Args
+	job.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Command = t.GetCommand()
+	job.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args = t.GetArgs()
 	_, err = clientSet.BatchV1().
 		CronJobs(t.Namespace).
 		Update(tx.Statement.Context, job, metav1.UpdateOptions{})
-	return err
+	if err != nil {
+		slog.Error("task update cron job error", slog.Any("err", err))
+		return err
+	}
+	return nil
 }
 
 func (t *Task) AfterDelete(tx *gorm.DB) error {
@@ -206,7 +242,7 @@ func (t *Task) Run() {
 		Method:   t.Method,
 		Command:  t.Command,
 		Body:     bytes.NewBuffer([]byte(t.Body)),
-		Args:     t.Args,
+		Args:     t.GetArgs(),
 		Python:   t.Python,
 		Writer:   taskRun,
 		Metadata: make(map[string]string),
