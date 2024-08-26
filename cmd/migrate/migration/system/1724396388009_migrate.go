@@ -1,11 +1,12 @@
 package system
 
 import (
-	"github.com/mss-boot-io/mss-boot-admin/models"
 	"runtime"
 
 	"github.com/mss-boot-io/mss-boot/pkg/migration"
 	"gorm.io/gorm"
+
+	"github.com/mss-boot-io/mss-boot-admin/models"
 )
 
 func init() {
