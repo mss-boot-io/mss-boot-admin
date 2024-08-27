@@ -140,6 +140,16 @@ func (t *Task) AfterCreate(tx *gorm.DB) error {
 										Command:         t.GetCommand(),
 										Args:            t.GetArgs(),
 										ImagePullPolicy: corev1.PullIfNotPresent,
+										Env: []corev1.EnvVar{
+											{
+												Name: "STAGE",
+												ValueFrom: &corev1.EnvVarSource{
+													FieldRef: &corev1.ObjectFieldSelector{
+														FieldPath: "metadata.namespace",
+													},
+												},
+											},
+										},
 									},
 								},
 								RestartPolicy: corev1.RestartPolicyOnFailure,
