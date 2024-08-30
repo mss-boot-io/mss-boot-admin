@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"github.com/spf13/cast"
 	"gorm.io/gorm"
 )
 
@@ -18,6 +19,24 @@ import (
  * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
  * @Last Modified time: 2023/12/5 23:09:49
  */
+
+type JsonRawMessage string
+
+func (j *JsonRawMessage) Scan(val any) error {
+	if val == nil {
+		return nil
+	}
+	s := cast.ToString(val)
+	*j = JsonRawMessage(s)
+	return nil
+}
+
+func (j *JsonRawMessage) Value() (driver.Value, error) {
+	if len(*j) == 0 {
+		return nil, nil
+	}
+	return json.RawMessage(*j), nil
+}
 
 type ArrayString []string
 
