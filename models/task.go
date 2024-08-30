@@ -40,31 +40,31 @@ const (
 type Task struct {
 	ModelGormTenant
 	ModelCreator
-	Name       string       `json:"name" gorm:"type:varchar(255);not null;comment:任务名称"`
-	Namespace  string       `json:"namespace" gorm:"type:varchar(255);not null;comment:命名空间"`
-	Cluster    string       `json:"cluster" gorm:"type:varchar(50);comment:集群"`
-	Provider   TaskProvider `json:"provider" gorm:"type:varchar(255);not null;comment:提供者"`
-	Image      string       `json:"image" gorm:"type:varchar(255);not null;default:default;comment:镜像"`
-	EntryID    int          `json:"entryID" gorm:"size:10;comment:任务ID"`
-	Spec       string       `json:"spec" gorm:"type:varchar(255);not null;comment:任务规则"`
-	Command    string       `json:"command" gorm:"type:varchar(255);not null;comment:命令"`
-	Args       string       `json:"args" gorm:"type:text"`
-	Once       bool         `json:"once" gorm:"-"`
-	Protocol   string       `json:"protocol" gorm:"size:10"`
-	Endpoint   string       `json:"endpoint" gorm:"type:varchar(255);not null;comment:地址"`
-	Body       string       `json:"body" gorm:"type:bytes"`
-	Status     enum.Status  `json:"status" gorm:"size:10"`
-	Remark     string       `json:"remark" gorm:"type:text"`
-	CheckedAtR *time.Time   `gorm:"-" json:"checkedAt"`
-	CheckedAt  sql.NullTime `gorm:"index" swaggertype:"string" json:"-"`
-	Timeout    int          `json:"timeout"`
-	Method     string       `gorm:"size:10" json:"method"`
-	Python     string       `json:"python"`
-	Metadata   string       `json:"metadata" gorm:"type:bytes"`
+	Name       string         `json:"name" gorm:"type:varchar(255);not null;comment:任务名称"`
+	Namespace  string         `json:"namespace" gorm:"type:varchar(255);not null;comment:命名空间"`
+	Cluster    string         `json:"cluster" gorm:"type:varchar(50);comment:集群"`
+	Provider   TaskProvider   `json:"provider" gorm:"type:varchar(255);not null;comment:提供者"`
+	Image      string         `json:"image" gorm:"type:varchar(255);not null;default:default;comment:镜像"`
+	EntryID    int            `json:"entryID" gorm:"size:10;comment:任务ID"`
+	Spec       string         `json:"spec" gorm:"type:varchar(255);not null;comment:任务规则"`
+	Command    JsonRawMessage `json:"command" gorm:"type:varchar(255);not null;comment:命令"`
+	Args       JsonRawMessage `json:"args" gorm:"type:text"`
+	Once       bool           `json:"once" gorm:"-"`
+	Protocol   string         `json:"protocol" gorm:"size:10"`
+	Endpoint   string         `json:"endpoint" gorm:"type:varchar(255);not null;comment:地址"`
+	Body       string         `json:"body" gorm:"type:bytes"`
+	Status     enum.Status    `json:"status" gorm:"size:10"`
+	Remark     string         `json:"remark" gorm:"type:text"`
+	CheckedAtR *time.Time     `gorm:"-" json:"checkedAt"`
+	CheckedAt  sql.NullTime   `gorm:"index" swaggertype:"string" json:"-"`
+	Timeout    int            `json:"timeout"`
+	Method     string         `gorm:"size:10" json:"method"`
+	Python     string         `json:"python"`
+	Metadata   string         `json:"metadata" gorm:"type:bytes"`
 }
 
 func (t *Task) GetArgs() []string {
-	if t.Args == "" {
+	if len(t.Args) == 0 {
 		return nil
 	}
 	args := make([]string, 0)
@@ -76,7 +76,7 @@ func (t *Task) GetArgs() []string {
 }
 
 func (t *Task) GetCommand() []string {
-	if t.Command == "" {
+	if len(t.Command) == 0 {
 		return nil
 	}
 	commands := make([]string, 0)
@@ -101,10 +101,6 @@ func (t *Task) AfterCreate(tx *gorm.DB) error {
 		return fmt.Errorf("cluster %s not found", t.Cluster)
 	}
 	var limitCount int32 = 10
-	command := make([]string, 0)
-	if t.Command != "" {
-		command = append(command, t.Command)
-	}
 	if t.Namespace == "" {
 		t.Namespace = "default"
 	}
@@ -230,6 +226,7 @@ func (t *Task) Run() {
 	}
 	err := gormdb.DB.Model(&Task{}).
 		Where("id = ?", t.ID).
+		Where("provider = ?", TaskProviderDefault).
 		Update("checked_at", t.CheckedAt.Time).Error
 	if err != nil {
 		slog.Error("task run update task error", slog.Any("err", err))
@@ -250,7 +247,7 @@ func (t *Task) Run() {
 		Name:     t.Name,
 		Endpoint: fmt.Sprintf("%s://%s", t.Protocol, t.Endpoint),
 		Method:   t.Method,
-		Command:  t.Command,
+		Command:  t.GetCommand()[0],
 		Body:     bytes.NewBuffer([]byte(t.Body)),
 		Args:     t.GetArgs(),
 		Python:   t.Python,
