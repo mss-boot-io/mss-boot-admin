@@ -230,6 +230,7 @@ func (t *Task) Run() {
 	}
 	err := gormdb.DB.Model(&Task{}).
 		Where("id = ?", t.ID).
+		Where("provider = ?", TaskProviderDefault).
 		Update("checked_at", t.CheckedAt.Time).Error
 	if err != nil {
 		slog.Error("task run update task error", slog.Any("err", err))
