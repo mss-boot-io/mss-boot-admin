@@ -304,7 +304,7 @@ func (t *TaskStorage) Get(key string) (entryID cron.EntryID, spec string, job cr
 		return
 	}
 	tk := &Task{}
-	if err = t.DB.Where("id = ?", key).First(tk).Error; err != nil {
+	if err = t.DB.Where("id = ?", key).Where("provider = ?", TaskProviderDefault).First(tk).Error; err != nil {
 		return
 	}
 	return cron.EntryID(tk.EntryID), tk.Spec, tk, true, nil
@@ -320,7 +320,7 @@ func (t *TaskStorage) Set(key string, entryID cron.EntryID, spec string, job cro
 		return fmt.Errorf("db is nil")
 	}
 	tk := &Task{}
-	err := t.DB.Where("id = ?", key).First(tk).Error
+	err := t.DB.Where("id = ?", key).Where("provider = ?", TaskProviderDefault).First(tk).Error
 	if err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func (t *TaskStorage) Update(key string, entryID cron.EntryID) error {
 		return fmt.Errorf("db is nil")
 	}
 	tk := &Task{}
-	err := t.DB.Where("id = ?", key).First(tk).Error
+	err := t.DB.Where("id = ?", key).Where("provider = ?", TaskProviderDefault).First(tk).Error
 	if err != nil {
 		return err
 	}
@@ -371,7 +371,7 @@ func (t *TaskStorage) ListKeys() ([]string, error) {
 		return nil, fmt.Errorf("db is nil")
 	}
 	var tasks []*Task
-	err := t.DB.Where("status = ?", enum.Enabled).Find(&tasks).Error
+	err := t.DB.Where("status = ?", enum.Enabled).Where("provider = ?", TaskProviderDefault).Find(&tasks).Error
 	if err != nil {
 		return nil, err
 	}

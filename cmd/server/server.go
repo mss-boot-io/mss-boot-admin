@@ -231,7 +231,9 @@ type taskE struct {
 
 func (t *taskE) Run() {
 	tasks := make([]*models.Task, 0)
-	err := gormdb.DB.Where("checked_at < ? or checked_at is null", time.Now().Add(-1*time.Minute)).
+	err := gormdb.DB.
+		Where("provider = ?", models.TaskProviderDefault).
+		Where("checked_at < ? or checked_at is null", time.Now().Add(-1*time.Minute)).
 		Where("status = ?", enum.Enabled).Find(&tasks).Error
 	if err != nil {
 		slog.Error("task run get tasks error", slog.Any("err", err))
@@ -246,7 +248,7 @@ func (t *taskE) Run() {
 		}
 	}
 	//check
-	err = gormdb.DB.Where("status = ?", enum.Enabled).Find(&tasks).Error
+	err = gormdb.DB.Where("provider = ?", models.TaskProviderDefault).Where("status = ?", enum.Enabled).Find(&tasks).Error
 	if err != nil {
 		slog.Error("task run get tasks error", slog.Any("err", err))
 		return
