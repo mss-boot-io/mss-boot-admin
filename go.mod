@@ -8,7 +8,7 @@ require (
 	github.com/IBM/sarama v1.43.3
 	github.com/appleboy/gin-jwt/v2 v2.10.0
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.0
-	github.com/aws/aws-sdk-go-v2 v1.30.4
+	github.com/aws/aws-sdk-go-v2 v1.30.5
 	github.com/aws/aws-sdk-go-v2/config v1.27.31
 	github.com/aws/aws-sdk-go-v2/service/eks v1.48.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.61.0
