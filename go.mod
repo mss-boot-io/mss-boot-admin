@@ -36,7 +36,7 @@ require (
 	github.com/xdg-go/scram v1.1.2
 	github.com/zealic/xignore v0.3.3
 	golang.org/x/net v0.28.0
-	golang.org/x/oauth2 v0.22.0
+	golang.org/x/oauth2 v0.23.0
 	google.golang.org/grpc v1.66.0
 	gorm.io/gorm v1.25.11
 	k8s.io/api v0.31.0
