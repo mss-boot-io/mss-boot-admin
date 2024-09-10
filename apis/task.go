@@ -42,6 +42,7 @@ type Task struct {
 
 func (e *Task) Other(r *gin.RouterGroup) {
 	r.GET("/task/:operate/:id", e.Operate)
+	r.DELETE("/task/cronJob/:id", e.DeleteCronJob)
 }
 
 // Operate 操作任务
@@ -95,6 +96,39 @@ func (e *Task) Operate(c *gin.Context) {
 				slog.Error("task run error", slog.Any("err", err))
 			}
 		}()
+	}
+	api.OK(nil)
+}
+
+// DeleteCronJob 删除CronJob任务
+// @Summary 删除CronJob任务
+// @Description 删除CronJob任务
+// @Tags task
+// @Param id path string true "任务ID"
+// @Success 204
+// @Router /admin/api/task/cronJob/{id} [delete]
+// @Security Bearer
+func (e *Task) DeleteCronJob(c *gin.Context) {
+	api := response.Make(c)
+	task := &models.Task{}
+	err := center.GetDB(c, &models.Task{}).
+		Model(&models.Task{}).
+		Where("id = ?", c.Param("id")).
+		Find(task).Error
+	if err != nil {
+		api.AddError(err).Err(http.StatusInternalServerError)
+		return
+	}
+	if task.ID == "" {
+		api.OK(nil)
+		return
+	}
+
+	err = center.GetDB(c, &models.Task{}).
+		Where(task).Delete(task).Error
+	if err != nil {
+		api.AddError(err).Err(http.StatusInternalServerError)
+		return
 	}
 	api.OK(nil)
 }
