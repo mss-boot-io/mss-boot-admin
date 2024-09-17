@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -52,55 +51,12 @@ func (e *User) Other(r *gin.RouterGroup) {
 	r.POST("/user/login", middleware.Auth.LoginHandler)
 	r.POST("/user/reset-password", e.ResetPassword)
 	r.POST("/user/fakeCaptcha", e.FakeCaptcha)
-	r.POST("/user/register", middleware.Auth.LoginHandler)
 	r.POST("/user/login/github", middleware.Auth.LoginHandler)
 	r.GET("/user/refresh-token", middleware.Auth.RefreshHandler)
 	r.GET("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UserInfo)
 	r.PUT("/user/:userID/password-reset", e.PasswordReset)
 	r.PUT("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UpdateUserInfo)
 	r.POST("/user/avatar", middleware.Auth.MiddlewareFunc(), e.UpdateAvatar)
-}
-
-// Register 注册
-// @Summary 注册
-// @Description 注册
-// @Tags user
-// @Accept  application/json
-// @Product application/json
-// @Param data body dto.RegisterRequest true "data"
-// @Success 200
-// @Router /admin/api/user/register [post]
-func (e *User) Register(ctx *gin.Context) {
-	api := response.Make(ctx)
-	req := &dto.RegisterRequest{}
-	if api.Bind(req).Error != nil {
-		api.Err(http.StatusUnprocessableEntity)
-		return
-	}
-	ok, err := center.Default.VerifyCode(ctx, req.Email, req.Captcha)
-	if err != nil {
-		api.AddError(err).Log.Error("VerifyCode error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	if !ok {
-		api.Err(http.StatusForbidden)
-		return
-	}
-	// fixme: 头像生成需要自己实现
-	user := &models.User{}
-	user.Username = req.Email
-	user.Name = strings.Split(req.Email, "@")[0]
-	user.Email = req.Email
-	user.Password = req.Password
-	user.Avatar = "https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png"
-	err = models.UserRegister(ctx, user)
-	if err != nil {
-		api.AddError(err).Log.Error("UserRegister error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	//api.OK(nil)
 }
 
 // ResetPassword 重置密码
