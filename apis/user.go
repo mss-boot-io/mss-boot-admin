@@ -3,8 +3,8 @@ package apis
 import (
 	"errors"
 	"fmt"
-	"gorm.io/gorm"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +12,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/dto"
@@ -51,12 +52,55 @@ func (e *User) Other(r *gin.RouterGroup) {
 	r.POST("/user/login", middleware.Auth.LoginHandler)
 	r.POST("/user/reset-password", e.ResetPassword)
 	r.POST("/user/fakeCaptcha", e.FakeCaptcha)
+	r.POST("/user/register", middleware.Auth.LoginHandler)
 	r.POST("/user/login/github", middleware.Auth.LoginHandler)
 	r.GET("/user/refresh-token", middleware.Auth.RefreshHandler)
 	r.GET("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UserInfo)
 	r.PUT("/user/:userID/password-reset", e.PasswordReset)
 	r.PUT("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UpdateUserInfo)
 	r.POST("/user/avatar", middleware.Auth.MiddlewareFunc(), e.UpdateAvatar)
+}
+
+// Register 注册
+// @Summary 注册
+// @Description 注册
+// @Tags user
+// @Accept  application/json
+// @Product application/json
+// @Param data body dto.RegisterRequest true "data"
+// @Success 200
+// @Router /admin/api/user/register [post]
+func (e *User) Register(ctx *gin.Context) {
+	api := response.Make(ctx)
+	req := &dto.RegisterRequest{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	ok, err := center.Default.VerifyCode(ctx, req.Email, req.Captcha)
+	if err != nil {
+		api.AddError(err).Log.Error("VerifyCode error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		api.Err(http.StatusForbidden)
+		return
+	}
+	// fixme: 头像生成需要自己实现
+	user := &models.User{}
+	user.Username = req.Email
+	user.Name = strings.Split(req.Email, "@")[0]
+	user.Email = req.Email
+	user.Password = req.Password
+	user.Avatar = "https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png"
+	err = models.UserRegister(ctx, user)
+	if err != nil {
+		api.AddError(err).Log.Error("UserRegister error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	//api.OK(nil)
 }
 
 // ResetPassword 重置密码
@@ -210,19 +254,22 @@ func (e *User) FakeCaptcha(ctx *gin.Context) {
 	if req.Email != "" {
 		// setup 01 get user by email
 		user := &models.User{}
-		err := center.Default.
-			GetDB(ctx, &models.User{}).
-			Where("email = ?", req.Email).
-			First(user).Error
-		if err != nil {
-			api.AddError(err)
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				api.Err(http.StatusNotFound)
+		user.Email = req.Email
+		if req.UseBy != email.RegisterSender.String() {
+			err := center.Default.
+				GetDB(ctx, &models.User{}).
+				Where("email = ?", req.Email).
+				First(user).Error
+			if err != nil {
+				api.AddError(err)
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					api.Err(http.StatusNotFound)
+					return
+				}
+				api.Log.Error("GetUser error")
+				api.Err(http.StatusInternalServerError)
 				return
 			}
-			api.Log.Error("GetUser error")
-			api.Err(http.StatusInternalServerError)
-			return
 		}
 		// setup 02 generate verify code
 		code, err := center.Default.GenerateCode(ctx, req.Email, 5*time.Minute)
@@ -260,24 +307,21 @@ func (e *User) FakeCaptcha(ctx *gin.Context) {
 		if !ok || organization == "" {
 			organization = "mss-boot-io"
 		}
+		var sender email.VerifyCodeSender
 		switch req.UseBy {
-		case "login":
-			err = email.SendLoginVerifyCode(
-				smtpHost, smtpPort,
-				username, password,
-				user.Username,
-				user.Email,
-				code,
-				organization)
-		case "resetPassword":
-			err = email.SendResetPasswordVerifyCode(
-				smtpHost, smtpPort,
-				username, password,
-				user.Username,
-				user.Email,
-				code,
-				organization)
+		case email.RegisterSender.String(), email.LoginSender.String(), email.ResetPasswordSender.String():
+			sender = email.Sender[email.SendType(req.UseBy)]
+		default:
+			api.AddError(fmt.Errorf("not support send email")).
+				Err(http.StatusNotImplemented)
+			return
 		}
+		err = sender(smtpHost, smtpPort,
+			username, password,
+			user.Username,
+			user.Email,
+			code,
+			organization)
 
 		if err != nil {
 			api.AddError(err).Log.Error("send email error")

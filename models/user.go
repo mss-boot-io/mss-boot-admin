@@ -421,7 +421,6 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		}
 		return true, userOAuth2.User, nil
 	case pkg.EmailLoginProvider:
-		fmt.Println("email login", e)
 		// verify captcha
 		if e.Captcha == "" {
 			return false, nil, nil
@@ -438,6 +437,44 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		if err != nil {
 			return false, nil, err
 		}
+		return true, user, nil
+	case pkg.EmailRegisterProvider:
+		if e.RoleID != "" && e.Username != "" {
+			// refresh token
+			var user User
+			err := center.GetDB(c, &User{}).Where("username = ?", e.Username).First(&user).Error
+			if err != nil {
+				return false, nil, err
+			}
+			return true, &user, nil
+		}
+		// verify captcha
+		if e.Captcha == "" {
+			return false, nil, nil
+		}
+		ok, err := center.Default.VerifyCode(c, e.Email, e.Captcha)
+		if err != nil {
+			return false, nil, err
+		}
+		if !ok {
+			return false, nil, nil
+		}
+		// fixme: 头像生成需要自己实现
+		user := &User{}
+		user.Username = e.Email
+		user.Name = strings.Split(e.Email, "@")[0]
+		user.Email = e.Email
+		user.Password = e.Password
+		user.Avatar = "https://avatars.githubusercontent.com/u/12806223?v=4"
+		user.RoleID = defaultRole.ID
+		user.Status = enum.Enabled                // register user
+		user.Provider = pkg.EmailRegisterProvider // support email login
+		err = center.GetDB(c, &User{}).Create(user).Error
+		if err != nil {
+			slog.Error("create user error", slog.Any("error", err))
+			return false, nil, err
+		}
+		user.Role = defaultRole
 		return true, user, nil
 	}
 	// username and password
@@ -532,6 +569,14 @@ func (e *UserLogin) Scope(ctx *gin.Context, table schema.Tabler) func(db *gorm.D
 		db = db.Where("creator_id in ?", ids)
 		return db
 	}
+}
+
+func UserRegister(ctx *gin.Context, user *User) error {
+	err := center.GetDB(ctx, user).Create(user).Error
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // ********************* statistics *********************

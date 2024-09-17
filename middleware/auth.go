@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -86,6 +87,7 @@ func Init() {
 		Authenticator: func(c *gin.Context) (any, error) {
 			// login
 			loginVals := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
+			fmt.Println(loginVals)
 			if err := c.ShouldBind(&loginVals); err != nil {
 				return "", jwt.ErrMissingLoginValues
 			}
@@ -134,7 +136,16 @@ func Init() {
 			return false
 		},
 		RefreshResponse: func(c *gin.Context, code int, token string, expire time.Time) {
-			claims := jwt.ExtractClaims(c)
+			jwtToken, err := Auth.ParseTokenString(token)
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"code":   http.StatusUnauthorized,
+					"status": "error",
+					"msg":    "refresh token error",
+				})
+				return
+			}
+			claims := jwt.ExtractClaimsFromToken(jwtToken)
 			if len(claims) == 0 {
 				c.JSON(http.StatusOK, gin.H{
 					"code":   http.StatusUnauthorized,
@@ -152,7 +163,7 @@ func Init() {
 				})
 				return
 			}
-			err := json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
+			err = json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
 			if err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"code":   http.StatusUnauthorized,
@@ -170,6 +181,7 @@ func Init() {
 				})
 				return
 			}
+			//todo 重新颁发token
 			c.JSON(http.StatusOK, gin.H{
 				"code":   http.StatusOK,
 				"token":  token,

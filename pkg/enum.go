@@ -33,6 +33,8 @@ const (
 	LarkLoginProvider LoginProvider = "lark"
 	// EmailLoginProvider email login provider
 	EmailLoginProvider LoginProvider = "email"
+	// EmailRegisterProvider email register provider
+	EmailRegisterProvider LoginProvider = "email_register"
 )
 
 func (o LoginProvider) String() string {

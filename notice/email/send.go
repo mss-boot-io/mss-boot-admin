@@ -21,10 +21,37 @@ import (
 //go:embed *.html
 var FS embed.FS
 
+type SendType string
+
+const (
+	RegisterSender      SendType = "register"
+	LoginSender         SendType = "login"
+	ResetPasswordSender SendType = "resetPassword"
+)
+
+func (s SendType) String() string {
+	return string(s)
+}
+
+type VerifyCodeSender func(smtpHost, smtpPort, from, password, username, to, code, organization string) error
+
+var Sender = map[SendType]VerifyCodeSender{
+	RegisterSender:      SendRegisterVerifyCode,
+	LoginSender:         SendLoginVerifyCode,
+	ResetPasswordSender: SendResetPasswordVerifyCode,
+}
+
+// SendRegisterVerifyCode 发送注册验证码
+func SendRegisterVerifyCode(smtpHost, smtpPort, from, password, username, to, code, organization string) error {
+	return sendVerifyCode("register_verify_code.html", smtpHost, smtpPort, from, password, username, to, code, organization)
+}
+
+// SendLoginVerifyCode 发送登录验证码
 func SendLoginVerifyCode(smtpHost, smtpPort, from, password, username, to, code, organization string) error {
 	return sendVerifyCode("login_verify_code.html", smtpHost, smtpPort, from, password, username, to, code, organization)
 }
 
+// SendResetPasswordVerifyCode 发送重置密码验证码
 func SendResetPasswordVerifyCode(smtpHost, smtpPort, from, password, username, to, code, organization string) error {
 	return sendVerifyCode("password_reset_code.html", smtpHost, smtpPort, from, password, username, to, code, organization)
 }

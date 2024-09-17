@@ -13,6 +13,15 @@ import (
  * @Last Modified time: 2023/8/6 22:16:32
  */
 
+type RegisterRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Captcha  string `json:"captcha" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type RegisterResponse struct {
+}
+
 type ResetPasswordRequest struct {
 	Email    string `json:"email" binding:"required"`
 	Captcha  string `json:"captcha" binding:"required"`
