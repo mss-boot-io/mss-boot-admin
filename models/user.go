@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/spf13/cast"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -439,6 +440,11 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		}
 		return true, user, nil
 	case pkg.EmailRegisterProvider:
+		if val, ok := center.GetAppConfig().GetAppConfig(c, "security.emailRegister"); ok {
+			if !cast.ToBool(val) {
+				return false, nil, fmt.Errorf("email register not support")
+			}
+		}
 		if e.RoleID != "" && e.Username != "" {
 			// refresh token
 			var user User
