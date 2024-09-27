@@ -57,6 +57,94 @@ func (e *User) Other(r *gin.RouterGroup) {
 	r.PUT("/user/:userID/password-reset", e.PasswordReset)
 	r.PUT("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UpdateUserInfo)
 	r.POST("/user/avatar", middleware.Auth.MiddlewareFunc(), e.UpdateAvatar)
+	r.GET("/user/oauth2", response.AuthHandler, e.GetOauth2)
+	r.POST("/user/binding", response.AuthHandler, e.Binding)
+}
+
+// Binding 绑定第三方登录
+// @Summary 绑定第三方登录
+// @Description 绑定第三方登录
+// @Tags user
+// @Accept  application/json
+// @Product application/json
+// @Param data body models.UserLogin true "data"
+// @Success 200
+// @Router /admin/api/user/binding [post]
+// @Security Bearer
+func (e *User) Binding(ctx *gin.Context) {
+	api := response.Make(ctx)
+	verify := response.VerifyHandler(ctx)
+	if verify == nil {
+		api.Err(http.StatusForbidden)
+		return
+	}
+	req := &models.UserLogin{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	var err error
+	user := verify.(*models.User)
+	user.Password = req.Password
+	userOAuth2 := &models.UserOAuth2{}
+	switch req.Provider {
+	case pkg.GithubLoginProvider:
+		userOAuth2, err = user.GetUserGithubOAuth2(ctx)
+	default:
+		api.Err(http.StatusNotImplemented)
+		return
+	}
+	if err != nil {
+		api.AddError(err).Log.Error("GetUserGithubOAuth2 error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	if userOAuth2.ID != "" {
+		api.OK(nil)
+		return
+	}
+	userOAuth2.User = nil
+	userOAuth2.UserID = verify.GetUserID()
+	err = center.GetDB(ctx, &models.UserOAuth2{}).Create(userOAuth2).Error
+	if err != nil {
+		api.AddError(err).Log.Error("CreateUserOAuth2 error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	api.OK(nil)
+}
+
+// GetOauth2 获取用户第三方登录信息
+// @Summary 获取用户第三方登录信息
+// @Description 获取用户第三方登录信息
+// @Tags user
+// @Accept  application/json
+// @Product application/json
+// @Success 200 {object} []models.UserOAuth2
+// @Router /admin/api/user/oauth2 [get]
+// @Security Bearer
+func (e *User) GetOauth2(ctx *gin.Context) {
+	api := response.Make(ctx)
+	verify := response.VerifyHandler(ctx)
+	if verify == nil {
+		api.Err(http.StatusForbidden)
+		return
+	}
+	user := &models.User{}
+	err := center.Default.GetDB(ctx, &models.User{}).
+		Preload("OAuth2").
+		Where("id = ?", verify.GetUserID()).
+		First(user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			api.Err(http.StatusNotFound)
+			return
+		}
+		api.AddError(err).Log.Error("GetUser error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	api.OK(user.OAuth2)
 }
 
 // ResetPassword 重置密码

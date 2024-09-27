@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/sanity-io/litter"
 	"github.com/spf13/cast"
 	"log/slog"
 	"net/http"
@@ -244,101 +245,36 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 	_ = center.GetDB(ctx.(*gin.Context), &Role{}).Where(*defaultRole).First(defaultRole).Error
 	switch e.Provider {
 	case pkg.GithubLoginProvider:
-		// get user from github, then add user to db
-		// github user
-		clientID, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientId")
-		clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientSecret")
-		redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security.githubRedirectUrl")
-		scope, _ := center.GetAppConfig().GetAppConfig(c, "security.githubScope")
-		scopes := strings.Split(scope, ",")
-		allowGroup, _ := center.GetAppConfig().GetAppConfig(c, "security.githubAllowGroup")
-		allowGroups := strings.Split(allowGroup, ",")
-		if len(allowGroup) == 0 {
-			allowGroups = nil
-		}
-		conf := &oauth2.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Scopes:       scopes,
-			RedirectURL:  redirectURL,
-			Endpoint: oauth2.Endpoint{
-				AuthURL:  "https://github.com/login/oauth/authorize",
-				TokenURL: "https://github.com/login/oauth/access_token",
-			},
-		}
-		githubUser, err := pkg.GetUserFromGithub(ctx, conf, e.Password)
+		// get user from db
+		userOAuth2, err := e.GetUserGithubOAuth2(c)
 		if err != nil {
 			slog.Error("get user from github error", slog.Any("error", err))
 			return false, nil, err
 		}
-
-		if len(allowGroups) > 0 {
-			org, err := pkg.GetOrganizationsFromGithub(ctx, conf, e.Password)
-			if err != nil {
-				slog.Error("get organizations from github error", slog.Any("error", err))
-				return false, nil, err
-			}
-			if !pkg.InArray(allowGroups, org, "", 0) {
-				err = errors.New("user not in allow group")
-				slog.Error(err.Error())
-				return false, nil, err
-			}
-		}
-		// custom access func
-		if BeforeGithubVerify != nil {
-			err = BeforeGithubVerify(ctx, githubUser, e.Password)
-			if err != nil {
-				return false, nil, err
-			}
-		}
-
-		// get user from db
-		userOAuth2 := &UserOAuth2{}
-		err = center.GetDB(ctx.(*gin.Context), &UserOAuth2{}).Preload("User.Role").First(userOAuth2, "open_id = ?", fmt.Sprintf("%d", githubUser.ID)).Error
-		if err != nil {
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				slog.Error("get user from db error", slog.Any("error", err))
-				return false, nil, err
-			}
-			err = nil
-			userOAuth2 = &UserOAuth2{
-				OpenID:        fmt.Sprintf("%d", githubUser.ID),
-				Sub:           "github",
-				Name:          githubUser.Login,
-				Email:         githubUser.Email,
-				Profile:       githubUser.Blog,
-				Picture:       githubUser.AvatarURL,
-				NickName:      githubUser.Login,
-				Website:       githubUser.HTMLURL,
-				EmailVerified: true,
-				Locale:        githubUser.Location,
-				Provider:      pkg.GithubLoginProvider,
-				User: &User{
-					UserLogin: UserLogin{
-						RoleID:   defaultRole.ID,
-						Username: githubUser.Email,
-						Email:    githubUser.Email,
-						Password: e.Password,
-						Provider: pkg.GithubLoginProvider,
-						Status:   enum.Enabled,
-					},
-					Name:   githubUser.Login,
-					Avatar: githubUser.AvatarURL,
-					//Organization:    githubUser.Company,
-					//Location:        githubUser.Location,
-					//Introduction:    githubUser.Bio,
-					Profile: githubUser.Blog,
-					//Verified:        true,
-					//AccountID:       fmt.Sprintf("%d", githubUser.ID),
+		if userOAuth2.ID == "" {
+			// register
+			userOAuth2.User = &User{
+				UserLogin: UserLogin{
+					RoleID:   defaultRole.ID,
+					Username: userOAuth2.Email,
+					Email:    userOAuth2.Email,
+					Password: e.Password,
+					Provider: pkg.GithubLoginProvider,
+					Status:   enum.Enabled,
 				},
+				Name:    userOAuth2.Name,
+				Avatar:  userOAuth2.Picture,
+				Profile: userOAuth2.Profile,
 			}
-			// register user
-			err = center.GetDB(ctx.(*gin.Context), &User{}).Create(userOAuth2).Error
+			litter.Dump(e)
+			if e.GetUserID() != "" {
+				userOAuth2.User = nil
+			}
+			err = center.GetDB(c, &UserOAuth2{}).Create(userOAuth2).Error
 			if err != nil {
 				slog.Error("create user error", slog.Any("error", err))
 				return false, nil, err
 			}
-			userOAuth2.User.Role = defaultRole
 		}
 		return true, userOAuth2.User, nil
 	case pkg.LarkLoginProvider:
@@ -493,6 +429,79 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		return false, nil, err
 	}
 	return verify == user.PasswordHash, user, nil
+}
+
+func (e *UserLogin) GetUserGithubOAuth2(c *gin.Context) (*UserOAuth2, error) {
+	clientID, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientId")
+	clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientSecret")
+	redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security.githubRedirectUrl")
+	scope, _ := center.GetAppConfig().GetAppConfig(c, "security.githubScope")
+	scopes := strings.Split(scope, ",")
+	allowGroup, _ := center.GetAppConfig().GetAppConfig(c, "security.githubAllowGroup")
+	allowGroups := strings.Split(allowGroup, ",")
+	if len(allowGroup) == 0 {
+		allowGroups = nil
+	}
+	conf := &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Scopes:       scopes,
+		RedirectURL:  redirectURL,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://github.com/login/oauth/authorize",
+			TokenURL: "https://github.com/login/oauth/access_token",
+		},
+	}
+	githubUser, err := pkg.GetUserFromGithub(c, conf, e.Password)
+	if err != nil {
+		slog.Error("get user from github error", slog.Any("error", err))
+		return nil, err
+	}
+	if len(allowGroups) > 0 {
+		org, err := pkg.GetOrganizationsFromGithub(c, conf, e.Password)
+		if err != nil {
+			slog.Error("get organizations from github error", slog.Any("error", err))
+			return nil, err
+		}
+		if !pkg.InArray(allowGroups, org, "", 0) {
+			err = errors.New("user not in allow group")
+			slog.Error(err.Error())
+			return nil, err
+
+		}
+	}
+	// custom access func
+	if BeforeGithubVerify != nil {
+		err = BeforeGithubVerify(c, githubUser, e.Password)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// get user from db
+	userOAuth2 := &UserOAuth2{}
+	err = center.GetDB(c, &UserOAuth2{}).Preload("User.Role").First(userOAuth2, "open_id = ?", fmt.Sprintf("%d", githubUser.ID)).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Error("get user from db error", slog.Any("error", err))
+			return nil, err
+		}
+		err = nil
+		userOAuth2 = &UserOAuth2{
+			UserID:        e.GetUserID(),
+			OpenID:        fmt.Sprintf("%d", githubUser.ID),
+			Sub:           "github",
+			Name:          githubUser.Login,
+			Email:         githubUser.Email,
+			Profile:       githubUser.Blog,
+			Picture:       githubUser.AvatarURL,
+			NickName:      githubUser.Login,
+			Website:       githubUser.HTMLURL,
+			EmailVerified: true,
+			Locale:        githubUser.Location,
+			Provider:      pkg.GithubLoginProvider,
+		}
+	}
+	return userOAuth2, nil
 }
 
 func (e *UserLogin) GetDepartmentUserID(tx *gorm.DB) []string {
