@@ -28,6 +28,7 @@ require (
 	github.com/nsqio/go-nsq v1.1.0
 	github.com/redis/go-redis/v9 v9.6.1
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/sanity-io/litter v1.5.5
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cast v1.7.0
 	github.com/spf13/cobra v1.8.1

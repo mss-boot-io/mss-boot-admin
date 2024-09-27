@@ -192,8 +192,8 @@ func (t *Tenant) Migrate(tenantImp center.TenantImp, tx *gorm.DB) error {
 
 	tenantMenu := []Menu{
 		{
-			Name: "tenant",
-			Path: "/",
+			Name: "super-permission",
+			Path: "/super-permission",
 			Icon: "audit",
 			Sort: 16,
 			Type: pkg.DirectoryAccessType,
@@ -348,7 +348,7 @@ func (t *Tenant) Migrate(tenantImp center.TenantImp, tx *gorm.DB) error {
 		},
 		{
 			Name: "develop",
-			Path: "/",
+			Path: "/development-tools",
 			Icon: "tool",
 			Sort: 15,
 			Type: pkg.DirectoryAccessType,
@@ -396,7 +396,7 @@ func (t *Tenant) Migrate(tenantImp center.TenantImp, tx *gorm.DB) error {
 	menus := []Menu{
 		{
 			Name: "dashboard",
-			Path: "/",
+			Path: "/dashboard",
 			Icon: "smile",
 			Sort: 20,
 			Type: pkg.DirectoryAccessType,
@@ -417,7 +417,7 @@ func (t *Tenant) Migrate(tenantImp center.TenantImp, tx *gorm.DB) error {
 		},
 		{
 			Name: "system",
-			Path: "/",
+			Path: "/system",
 			Icon: "setting",
 			Sort: 19,
 			Type: pkg.DirectoryAccessType,
@@ -737,7 +737,7 @@ func (t *Tenant) Migrate(tenantImp center.TenantImp, tx *gorm.DB) error {
 		},
 		{
 			Name: "origination",
-			Path: "/",
+			Path: "/origination",
 			Icon: "apartment",
 			Sort: 18,
 			Type: pkg.DirectoryAccessType,
@@ -964,8 +964,8 @@ func (t *Tenant) Migrate(tenantImp center.TenantImp, tx *gorm.DB) error {
 			},
 		},
 		{
-			Name: "authority",
-			Path: "/",
+			Name: "permission",
+			Path: "/permission",
 			Icon: "safetyCertificate",
 			Sort: 17,
 			Type: pkg.DirectoryAccessType,
