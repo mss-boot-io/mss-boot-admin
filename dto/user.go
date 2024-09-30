@@ -23,8 +23,8 @@ type RegisterResponse struct {
 }
 
 type ResetPasswordRequest struct {
-	Email    string `json:"email" binding:"required"`
-	Captcha  string `json:"captcha" binding:"required"`
+	Email    string `json:"email"`
+	Captcha  string `json:"captcha"`
 	Password string `json:"password" binding:"required"`
 }
 
