@@ -90,6 +90,8 @@ func (e *User) Binding(ctx *gin.Context) {
 	switch req.Provider {
 	case pkg.GithubLoginProvider:
 		userOAuth2, err = user.GetUserGithubOAuth2(ctx)
+	case pkg.LarkLoginProvider:
+		userOAuth2, err = user.GetUserLarkOAuth2(ctx)
 	default:
 		api.Err(http.StatusNotImplemented)
 		return
@@ -158,10 +160,26 @@ func (e *User) GetOauth2(ctx *gin.Context) {
 // @Router /admin/api/user/reset-password [post]
 func (e *User) ResetPassword(ctx *gin.Context) {
 	api := response.Make(ctx)
+	verify := response.VerifyHandler(ctx)
 	req := &dto.ResetPasswordRequest{}
 	if api.Bind(req).Error != nil {
 		api.Err(http.StatusUnprocessableEntity)
 		return
+	}
+	if verify != nil {
+		err := models.PasswordReset(ctx, verify.GetUserID(), req.Password)
+		if err != nil {
+			api.AddError(err).Log.Error("PasswordReset error")
+			api.Err(http.StatusInternalServerError)
+			return
+		}
+		api.OK(nil)
+		return
+	}
+	if req.Email == "" || req.Captcha == "" {
+		api.Err(http.StatusForbidden)
+		return
+
 	}
 	ok, err := center.Default.VerifyCode(ctx, req.Email, req.Captcha)
 	if err != nil {

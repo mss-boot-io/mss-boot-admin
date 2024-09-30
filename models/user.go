@@ -5,21 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/sanity-io/litter"
-	"github.com/spf13/cast"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
-	larkauthen "github.com/larksuite/oapi-sdk-go/v3/service/authen/v1"
-	"golang.org/x/oauth2"
-
 	"github.com/gin-gonic/gin"
+	larkauthen "github.com/larksuite/oapi-sdk-go/v3/service/authen/v1"
 	corePKG "github.com/mss-boot-io/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
+	"github.com/spf13/cast"
+	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 
@@ -266,7 +264,6 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 				Avatar:  userOAuth2.Picture,
 				Profile: userOAuth2.Profile,
 			}
-			litter.Dump(e)
 			if e.GetUserID() != "" {
 				userOAuth2.User = nil
 			}
@@ -278,83 +275,33 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		}
 		return true, userOAuth2.User, nil
 	case pkg.LarkLoginProvider:
-		client := http.Client{}
-		req, err := http.NewRequest(http.MethodGet, "https://open.larksuite.com/open-apis/authen/v1/user_info", nil)
+		userOAuth2, err := e.GetUserLarkOAuth2(c)
 		if err != nil {
-			slog.Error("new request error", slog.Any("error", err))
+			slog.Error("get user from lark error", slog.Any("error", err))
 			return false, nil, err
 		}
-		req.Header.Add("Authorization", "Bearer "+e.Password)
-		resp, err := client.Do(req)
-		if err != nil {
-			slog.Error("do request error", slog.Any("error", err))
-			return false, nil, err
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			err = errors.New("get user from lark error")
-			slog.Error(err.Error())
-			return false, nil, err
-		}
-		result := &larkauthen.GetUserInfoResp{}
-		err = json.NewDecoder(resp.Body).Decode(result)
-		if err != nil {
-			slog.Error("decode response error", slog.Any("error", err))
-			return false, nil, err
-		}
-		userOAuth2 := &UserOAuth2{}
-		err = center.GetDB(ctx.(*gin.Context), &UserOAuth2{}).
-			Preload("User.Role").
-			First(userOAuth2, "union_id = ?", result.Data.UnionId).Error
-		if err != nil {
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				slog.Error("get user from db error", slog.Any("error", err))
-				return false, nil, err
-			}
-			err = nil
-			email := ""
-			if result.Data.EnterpriseEmail != nil {
-				email = *result.Data.EnterpriseEmail
-			}
-			if email == "" && result.Data.Email != nil {
-				email = *result.Data.Email
-			}
-			userOAuth2 = &UserOAuth2{
-				UnionID:       *result.Data.UnionId,
-				OpenID:        *result.Data.OpenId,
-				Sub:           *result.Data.TenantKey,
-				Name:          *result.Data.Name,
-				Email:         email,
-				Picture:       *result.Data.AvatarUrl,
-				NickName:      *result.Data.Name,
-				EmailVerified: email != "",
-				Provider:      pkg.LarkLoginProvider,
-				User: &User{
-					UserLogin: UserLogin{
-						RoleID:   defaultRole.ID,
-						Username: *result.Data.UserId,
-						Email:    email,
-						Password: e.Password,
-						Provider: pkg.LarkLoginProvider,
-						Status:   enum.Enabled,
-					},
-					Name:   *result.Data.Name,
-					Avatar: *result.Data.AvatarUrl,
+		if userOAuth2.ID == "" {
+			// register
+			userOAuth2.User = &User{
+				UserLogin: UserLogin{
+					RoleID:   defaultRole.ID,
+					Username: userOAuth2.PreferredUsername,
+					Email:    userOAuth2.Email,
+					Password: e.Password,
+					Provider: pkg.LarkLoginProvider,
+					Status:   enum.Enabled,
 				},
+				Name:   userOAuth2.Name,
+				Avatar: userOAuth2.Picture,
 			}
-			if result.Data.Mobile != nil {
-				userOAuth2.PhoneNumber = *result.Data.Mobile
+			if e.GetUserID() != "" {
+				userOAuth2.User = nil
 			}
-			if result.Data.EmployeeNo != nil {
-				userOAuth2.EmployeeNO = *result.Data.EmployeeNo
-			}
-			// register user
-			err = center.GetDB(c, &User{}).Create(userOAuth2).Error
+			err = center.GetDB(c, &UserOAuth2{}).Create(userOAuth2).Error
 			if err != nil {
 				slog.Error("create user error", slog.Any("error", err))
 				return false, nil, err
 			}
-			userOAuth2.User.Role = defaultRole
 		}
 		return true, userOAuth2.User, nil
 	case pkg.EmailLoginProvider:
@@ -429,6 +376,70 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		return false, nil, err
 	}
 	return verify == user.PasswordHash, user, nil
+}
+
+func (e *UserLogin) GetUserLarkOAuth2(c *gin.Context) (*UserOAuth2, error) {
+	client := http.Client{}
+	req, err := http.NewRequest(http.MethodGet, "https://open.larksuite.com/open-apis/authen/v1/user_info", nil)
+	if err != nil {
+		slog.Error("new request error", slog.Any("error", err))
+		return nil, err
+	}
+	req.Header.Add("Authorization", "Bearer "+e.Password)
+	resp, err := client.Do(req)
+	if err != nil {
+		slog.Error("do request error", slog.Any("error", err))
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		err = errors.New("get user from lark error")
+		slog.Error(err.Error())
+		return nil, err
+	}
+	result := &larkauthen.GetUserInfoResp{}
+	err = json.NewDecoder(resp.Body).Decode(result)
+	if err != nil {
+		slog.Error("decode response error", slog.Any("error", err))
+		return nil, err
+	}
+	userOAuth2 := &UserOAuth2{}
+	err = center.GetDB(c, &UserOAuth2{}).
+		Preload("User.Role").
+		First(userOAuth2, "union_id = ?", result.Data.UnionId).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Error("get user from db error", slog.Any("error", err))
+			return nil, err
+		}
+		err = nil
+		email := ""
+		if result.Data.EnterpriseEmail != nil {
+			email = *result.Data.EnterpriseEmail
+		}
+		if email == "" && result.Data.Email != nil {
+			email = *result.Data.Email
+		}
+		userOAuth2 = &UserOAuth2{
+			UnionID:           *result.Data.UnionId,
+			OpenID:            *result.Data.OpenId,
+			Sub:               *result.Data.TenantKey,
+			Name:              *result.Data.Name,
+			Email:             email,
+			Picture:           *result.Data.AvatarUrl,
+			NickName:          *result.Data.Name,
+			EmailVerified:     email != "",
+			Provider:          pkg.LarkLoginProvider,
+			PreferredUsername: *result.Data.UserId,
+		}
+		if result.Data.Mobile != nil {
+			userOAuth2.PhoneNumber = *result.Data.Mobile
+		}
+		if result.Data.EmployeeNo != nil {
+			userOAuth2.EmployeeNO = *result.Data.EmployeeNo
+		}
+	}
+	return userOAuth2, nil
 }
 
 func (e *UserLogin) GetUserGithubOAuth2(c *gin.Context) (*UserOAuth2, error) {
