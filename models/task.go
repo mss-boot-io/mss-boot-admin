@@ -64,7 +64,7 @@ type Task struct {
 }
 
 func (t *Task) GetArgs() []string {
-	if len(t.Args) == 0 {
+	if len(t.Args) == 0 || t.Args == "[]" {
 		return nil
 	}
 	args := make([]string, 0)
@@ -76,7 +76,7 @@ func (t *Task) GetArgs() []string {
 }
 
 func (t *Task) GetCommand() []string {
-	if len(t.Command) == 0 {
+	if len(t.Command) == 0 || t.Command == "[]" {
 		return nil
 	}
 	commands := make([]string, 0)
