@@ -4,13 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larkauthen "github.com/larksuite/oapi-sdk-go/v3/service/authen/v1"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
@@ -59,6 +63,42 @@ func (e *User) Other(r *gin.RouterGroup) {
 	r.POST("/user/avatar", middleware.Auth.MiddlewareFunc(), e.UpdateAvatar)
 	r.GET("/user/oauth2", response.AuthHandler, e.GetOauth2)
 	r.POST("/user/binding", response.AuthHandler, e.Binding)
+	r.DELETE("/user/unbinding", response.AuthHandler, e.Unbinding)
+	r.GET("/user/:provider/callback", e.Callback)
+}
+
+// Unbinding 解绑第三方登录
+// @Summary 解绑第三方登录
+// @Description 解绑第三方登录
+// @Tags user
+// @Accept  application/json
+// @Product application/json
+// @Param data body models.UserLogin true "data"
+// @Success 204
+// @Router /admin/api/user/unbinding [delete]
+// @Security Bearer
+func (e *User) Unbinding(ctx *gin.Context) {
+	api := response.Make(ctx)
+	verify := response.VerifyHandler(ctx)
+	if verify == nil {
+		api.Err(http.StatusForbidden)
+		return
+	}
+	req := &models.UserLogin{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	user := verify.(*models.User)
+	err := center.GetDB(ctx, &models.UserOAuth2{}).Where("user_id = ?", user.ID).
+		Where("provider = ?", req.Provider).
+		Unscoped().Delete(&models.UserOAuth2{}).Error
+	if err != nil {
+		api.AddError(err).Log.Error("DeleteUserOAuth2 error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	api.OK(nil)
 }
 
 // Binding 绑定第三方登录
@@ -543,3 +583,97 @@ func (e *User) List(*gin.Context) {}
 // @Router /admin/api/users/{id} [delete]
 // @Security Bearer
 func (e *User) Delete(*gin.Context) {}
+
+// Callback oauth2回调
+// @Summary oauth2回调
+// @Description oauth2回调
+// @Tags user
+// @Accept  application/json
+// @Product application/json
+// @Param provider path string true "provider"
+// @Param code query string true "code"
+// @Param state query string true "state"
+// @Success 200 {object} dto.OauthToken
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/api/user/{provider}/callback [get]
+func (e *User) Callback(c *gin.Context) {
+	api := response.Make(c)
+	req := &dto.OauthCallbackReq{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+
+	switch req.Provider {
+	case pkg.GithubLoginProvider:
+		clientID, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientId")
+		clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientSecret")
+		redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security.githubRedirectUrl")
+		scopes, _ := center.GetAppConfig().GetAppConfig(c, "security.githubScope")
+		conf := &oauth2.Config{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Scopes:       strings.Split(scopes, ","),
+			RedirectURL:  redirectURL,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "https://github.com/login/oauth/authorize",
+				TokenURL: "https://github.com/login/oauth/access_token",
+			},
+		}
+
+		token, err := conf.Exchange(c, req.Code)
+		if err != nil {
+			api.AddError(err).Log.Error("exchange token error")
+			api.Err(http.StatusInternalServerError)
+			return
+		}
+		result := &dto.OauthToken{
+			AccessToken:  token.AccessToken,
+			TokenType:    token.TokenType,
+			RefreshToken: token.RefreshToken,
+		}
+		if !token.Expiry.IsZero() {
+			result.Expiry = &token.Expiry
+		}
+		api.OK(result)
+		return
+	case pkg.LarkLoginProvider:
+		appID, _ := center.GetAppConfig().GetAppConfig(c, "security.larkAppId")
+		appSecret, _ := center.GetAppConfig().GetAppConfig(c, "security.larkAppSecret")
+		client := lark.NewClient(appID, appSecret)
+		r := larkauthen.NewCreateAccessTokenReqBuilder().
+			Body(larkauthen.NewCreateAccessTokenReqBodyBuilder().
+				GrantType(`authorization_code`).
+				Code(req.Code).
+				Build()).Build()
+
+		// 发起请求
+		resp, err := client.Authen.AccessToken.Create(c, r)
+		if err != nil {
+			api.AddError(err).Err(http.StatusUnauthorized)
+			return
+		}
+
+		// 服务端错误处理
+		if !resp.Success() {
+			api.Err(http.StatusUnauthorized)
+			return
+		}
+		expiry := time.Now().Add(time.Duration(*resp.Data.ExpiresIn) * time.Second)
+		refreshExpiry := time.Now().Add(time.Duration(*resp.Data.RefreshExpiresIn) * time.Second)
+
+		result := &dto.OauthToken{
+			AccessToken:   *resp.Data.AccessToken,
+			TokenType:     *resp.Data.TokenType,
+			RefreshToken:  *resp.Data.RefreshToken,
+			Expiry:        &expiry,
+			RefreshExpiry: &refreshExpiry,
+		}
+		api.OK(result)
+		return
+	default:
+		api.Err(http.StatusNotImplemented)
+		return
+	}
+}

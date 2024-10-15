@@ -1,6 +1,9 @@
 package dto
 
-import "time"
+import (
+	"github.com/mss-boot-io/mss-boot-admin/pkg"
+	"time"
+)
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
@@ -14,8 +17,9 @@ type OauthGetLoginURLReq struct {
 }
 
 type OauthCallbackReq struct {
-	Code  string `query:"code" form:"code" binding:"required"`
-	State string `query:"state" form:"state" binding:"required"`
+	Provider pkg.LoginProvider `uri:"provider" binding:"required"`
+	Code     string            `query:"code" form:"code" binding:"required"`
+	State    string            `query:"state" form:"state" binding:"required"`
 }
 
 type GithubControlReq struct {
@@ -35,6 +39,8 @@ type GithubGetResp struct {
 }
 
 type OauthToken struct {
+	// Provider is the name of the OAuth2 provider[GitHub, Lark].
+	Provider string `uri:"provider" binding:"required"`
 	// AccessToken is the token that authorizes and authenticates
 	// the requests.
 	AccessToken string `json:"accessToken"`
