@@ -45,7 +45,6 @@ func (*Github) GetAction(string) response.Action {
 func (e *Github) Other(r *gin.RouterGroup) {
 	r.Use(middleware.GetMiddlewares()...)
 	r.GET("/github/get-login-url", e.GetLoginURL)
-	r.GET("/github/callback", e.Callback)
 }
 
 // GetLoginURL 获取github登录地址
@@ -80,55 +79,4 @@ func (e *Github) GetLoginURL(c *gin.Context) {
 	}
 	//api.OK(conf.AuthCodeURL(req.State))
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(conf.AuthCodeURL(req.State)))
-}
-
-// Callback github回调
-// @Summary github回调
-// @Description github回调
-// @Tags generator
-// @Accept  application/json
-// @Product application/json
-// @Param code query string true "code"
-// @Param state query string true "state"
-// @Success 200 {object} dto.OauthToken
-// @Failure 422 {object} response.Response
-// @Failure 500 {object} response.Response
-// @Router /admin/api/github/callback [get]
-func (e *Github) Callback(c *gin.Context) {
-	api := response.Make(c)
-	clientID, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientId")
-	clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientSecret")
-	redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security.githubRedirectUrl")
-	scopes, _ := center.GetAppConfig().GetAppConfig(c, "security.githubScope")
-	conf := &oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Scopes:       strings.Split(scopes, ","),
-		RedirectURL:  redirectURL,
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://github.com/login/oauth/authorize",
-			TokenURL: "https://github.com/login/oauth/access_token",
-		},
-	}
-	req := &dto.OauthCallbackReq{}
-	if api.Bind(req).Error != nil {
-		api.Err(http.StatusUnprocessableEntity)
-		return
-	}
-
-	token, err := conf.Exchange(c, req.Code)
-	if err != nil {
-		api.AddError(err).Log.Error("exchange token error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	result := &dto.OauthToken{
-		AccessToken:  token.AccessToken,
-		TokenType:    token.TokenType,
-		RefreshToken: token.RefreshToken,
-	}
-	if !token.Expiry.IsZero() {
-		result.Expiry = &token.Expiry
-	}
-	api.OK(result)
 }
