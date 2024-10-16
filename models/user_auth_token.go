@@ -37,6 +37,9 @@ func GenerateUserAuthToken(ctx *gin.Context, verify security.Verifier, validityP
 	}
 	auth := *middleware.Auth
 	auth.Timeout = validityPeriod
+	auth.TimeoutFunc = func(_ interface{}) time.Duration {
+		return validityPeriod
+	}
 	userAuthToken := &UserAuthToken{
 		UserID: verify.GetUserID(),
 	}
