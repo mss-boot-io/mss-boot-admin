@@ -24,14 +24,13 @@ require (
 	github.com/mss-boot-io/mss-boot v0.2.8-0.20241006070153-c1a2ee0f76cf
 	github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9
 	github.com/nsqio/go-nsq v1.1.0
-	github.com/redis/go-redis/v9 v9.6.1
+	github.com/redis/go-redis/v9 v9.7.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cast v1.7.0
 	github.com/spf13/cobra v1.8.1
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
-	github.com/swaggo/swag v1.16.3
 	github.com/xdg-go/scram v1.1.2
 	github.com/zealic/xignore v0.3.3
 	golang.org/x/net v0.30.0
@@ -244,6 +243,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
+	github.com/swaggo/swag v1.16.3 // indirect
 	github.com/thoas/go-funk v0.9.3 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
