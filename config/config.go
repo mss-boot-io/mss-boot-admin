@@ -11,9 +11,12 @@ import (
 	"embed"
 	"log/slog"
 
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot/pkg/config"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
+	"github.com/mss-boot-io/mss-boot/pkg/config/storage"
+	"github.com/mss-boot-io/mss-boot/pkg/config/storage/cache"
 )
 
 //go:embed *.yml
@@ -32,9 +35,9 @@ type Config struct {
 	//OAuth2      *config.OAuth2  `yaml:"oauth2" json:"oauth2"`
 	Task      Task            `yaml:"task" json:"task"`
 	Pyroscope Pyroscope       `yaml:"pyroscope" json:"pyroscope"`
-	Cache     *Cache          `yaml:"cache" json:"cache"`
-	Queue     *Queue          `yaml:"queue" json:"queue"`
-	Locker    *Locker         `yaml:"locker" json:"locker"`
+	Cache     *config.Cache   `yaml:"cache" json:"cache"`
+	Queue     *config.Queue   `yaml:"queue" json:"queue"`
+	Locker    *config.Locker  `yaml:"locker" json:"locker"`
 	Secret    *Secret         `yaml:"secret" json:"secret"`
 	Storage   *config.Storage `yaml:"storage" json:"storage"`
 	Clusters  Clusters        `yaml:"clusters" json:"clusters"`
@@ -58,9 +61,9 @@ func (e *Config) Init(opts ...source.Option) {
 	if err != nil {
 		slog.Error("cfg init failed", "err", err)
 	}
-	if e.Logger.Loki != nil && len(e.Application.Labels) > 0 {
-		e.Logger.Loki.MergeLabels(e.Application.Labels)
-	}
+	//if e.Logger.Loki != nil && len(e.Application.Labels) > 0 {
+	//	e.Logger.Loki.MergeLabels(e.Application.Labels)
+	//}
 	if e.Pyroscope.Enabled && len(e.Application.Labels) > 0 {
 		e.Pyroscope.MergeTags(e.Application.Labels)
 	}
@@ -72,10 +75,20 @@ func (e *Config) Init(opts ...source.Option) {
 	e.Pyroscope.Init()
 
 	if e.Cache != nil {
-		e.Cache.Init()
+		e.Cache.Init(func(c storage.AdapterCache) {
+			center.SetCache(c)
+			center.SetVerifyCodeStore(cache.NewVerifyCode(c))
+		}, nil)
 	}
 	if e.Queue != nil {
-		e.Queue.Init()
+		e.Queue.Init(func(q storage.AdapterQueue) {
+			center.SetQueue(q)
+		})
+	}
+	if e.Locker != nil {
+		e.Locker.Init(func(l storage.AdapterLocker) {
+			center.SetLocker(l)
+		})
 	}
 	if e.Storage != nil {
 		e.Storage.Init()

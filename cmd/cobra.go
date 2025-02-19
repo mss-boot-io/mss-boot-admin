@@ -52,6 +52,6 @@ func init() {
 // Execute : apply commands
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(-1)
+		os.Exit(-2)
 	}
 }
