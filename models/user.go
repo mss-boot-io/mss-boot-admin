@@ -420,6 +420,17 @@ func (e *UserLogin) GetUserLarkOAuth2(c *gin.Context) (*UserOAuth2, error) {
 		if email == "" && result.Data.Email != nil {
 			email = *result.Data.Email
 		}
+		preferredUsername := ""
+		if result.Data.UserId != nil {
+			preferredUsername = *result.Data.UserId
+		}
+		if preferredUsername == "" && result.Data.EnName != nil {
+			preferredUsername = *result.Data.EnName
+		}
+		if preferredUsername == "" && result.Data.Name != nil {
+			preferredUsername = *result.Data.Name
+		}
+		
 		userOAuth2 = &UserOAuth2{
 			UnionID:           *result.Data.UnionId,
 			OpenID:            *result.Data.OpenId,
@@ -430,7 +441,7 @@ func (e *UserLogin) GetUserLarkOAuth2(c *gin.Context) (*UserOAuth2, error) {
 			NickName:          *result.Data.Name,
 			EmailVerified:     email != "",
 			Provider:          pkg.LarkLoginProvider,
-			PreferredUsername: *result.Data.UserId,
+			PreferredUsername: preferredUsername,
 		}
 		if result.Data.Mobile != nil {
 			userOAuth2.PhoneNumber = *result.Data.Mobile
