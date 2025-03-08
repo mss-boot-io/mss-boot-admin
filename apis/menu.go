@@ -141,6 +141,7 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 		return
 	}
 	canList := make([]*models.Menu, 0)
+	roleID := verify.GetRoleID()
 	// check select menu
 	for i := range list {
 		if list[i].Type == pkg.DirectoryAccessType {
@@ -148,7 +149,7 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 			continue
 		}
 		ok, err := gormdb.Enforcer.Enforce(
-			verify.GetRoleID(), pkg.MenuAccessType.String(), list[i].Path, list[i].Method)
+			roleID, pkg.MenuAccessType.String(), list[i].Path, list[i].Method)
 		if err != nil {
 			api.AddError(err).Log.Error("get menu tree error", "err", err)
 			api.Err(http.StatusInternalServerError)

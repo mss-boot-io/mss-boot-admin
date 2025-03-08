@@ -272,6 +272,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 				slog.Error("create user error", slog.Any("error", err))
 				return false, nil, err
 			}
+			userOAuth2.User.Role = defaultRole
 		}
 		return true, userOAuth2.User, nil
 	case pkg.LarkLoginProvider:
@@ -302,6 +303,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 				slog.Error("create user error", slog.Any("error", err))
 				return false, nil, err
 			}
+			userOAuth2.User.Role = defaultRole
 		}
 		return true, userOAuth2.User, nil
 	case pkg.EmailLoginProvider:
@@ -430,7 +432,7 @@ func (e *UserLogin) GetUserLarkOAuth2(c *gin.Context) (*UserOAuth2, error) {
 		if preferredUsername == "" && result.Data.Name != nil {
 			preferredUsername = *result.Data.Name
 		}
-		
+
 		userOAuth2 = &UserOAuth2{
 			UnionID:           *result.Data.UnionId,
 			OpenID:            *result.Data.OpenId,
