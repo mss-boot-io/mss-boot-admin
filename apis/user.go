@@ -33,6 +33,10 @@ import (
  * @Last Modified time: 2023/8/6 22:13:11
  */
 
+var (
+	errNotSupportEmail = errors.New("not support send email")
+)
+
 func init() {
 	e := &User{
 		Simple: controller.NewSimple(
@@ -383,25 +387,25 @@ func (e *User) FakeCaptcha(ctx *gin.Context) {
 		// setup 03 send email
 		smtpHost, ok := center.GetAppConfig().GetAppConfig(ctx, "email.smtpHost")
 		if !ok {
-			api.AddError(fmt.Errorf("not support send email")).
+			api.AddError(errNotSupportEmail).
 				Err(http.StatusNotImplemented)
 			return
 		}
 		smtpPort, ok := center.GetAppConfig().GetAppConfig(ctx, "email.smtpPort")
 		if !ok {
-			api.AddError(fmt.Errorf("not support send email")).
+			api.AddError(errNotSupportEmail).
 				Err(http.StatusNotImplemented)
 			return
 		}
 		username, ok := center.GetAppConfig().GetAppConfig(ctx, "email.username")
 		if !ok {
-			api.AddError(fmt.Errorf("not support send email")).
+			api.AddError(errNotSupportEmail).
 				Err(http.StatusNotImplemented)
 			return
 		}
 		password, ok := center.GetAppConfig().GetAppConfig(ctx, "email.password")
 		if !ok {
-			api.AddError(fmt.Errorf("not support send email")).
+			api.AddError(errNotSupportEmail).
 				Err(http.StatusNotImplemented)
 			return
 		}
@@ -414,7 +418,7 @@ func (e *User) FakeCaptcha(ctx *gin.Context) {
 		case email.RegisterSender.String(), email.LoginSender.String(), email.ResetPasswordSender.String():
 			sender = email.Sender[email.SendType(req.UseBy)]
 		default:
-			api.AddError(fmt.Errorf("not support send email")).
+			api.AddError(errNotSupportEmail).
 				Err(http.StatusNotImplemented)
 			return
 		}
@@ -493,6 +497,14 @@ func (e *User) UserInfo(ctx *gin.Context) {
 				permissions[i][1] == pkg.ComponentAccessType.String()) {
 			user.Permissions[permissions[i][2]] = true
 		}
+	}
+	if user.DepartmentID != "" && user.Department == nil {
+		user.Department = &models.Department{}
+		user.Department.ID = user.DepartmentID
+	}
+	if user.PostID != "" && user.Post == nil {
+		user.Post = &models.Post{}
+		user.Post.ID = user.PostID
 	}
 	api.OK(user)
 }
