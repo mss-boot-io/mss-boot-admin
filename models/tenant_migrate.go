@@ -964,8 +964,8 @@ func (t *Tenant) Migrate(tenantImp center.TenantImp, tx *gorm.DB) error {
 			},
 		},
 		{
-			Name: "permission",
-			Path: "/permission",
+			Name: "authority",
+			Path: "/authority",
 			Icon: "safetyCertificate",
 			Sort: 17,
 			Type: pkg.DirectoryAccessType,
