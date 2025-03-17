@@ -2,6 +2,8 @@ module github.com/mss-boot-io/mss-boot-admin
 
 go 1.23.2
 
+toolchain go1.24.1
+
 require (
 	github.com/appleboy/gin-jwt/v2 v2.10.1
 	github.com/aws/aws-sdk-go-v2 v1.36.2
@@ -27,14 +29,13 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
-	github.com/swaggo/swag v1.16.4
 	github.com/zealic/xignore v0.3.3
 	golang.org/x/net v0.35.0
 	golang.org/x/oauth2 v0.26.0
 	google.golang.org/grpc v1.70.0
 	gorm.io/gorm v1.25.12
-	k8s.io/api v0.32.2
-	k8s.io/apimachinery v0.32.2
+	k8s.io/api v0.32.3
+	k8s.io/apimachinery v0.32.3
 	k8s.io/client-go v0.32.2
 )
 
@@ -204,6 +205,7 @@ require (
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
+	github.com/swaggo/swag v1.16.4 // indirect
 	github.com/thoas/go-funk v0.9.3 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
