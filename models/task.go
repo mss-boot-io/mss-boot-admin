@@ -29,11 +29,14 @@ import (
  * @Last Modified time: 2023/12/5 16:11:48
  */
 
+var taskFuncMap = make(map[string]func())
+
 type TaskProvider string
 
 const (
 	TaskProviderDefault TaskProvider = "default"
 	TaskProviderK8S     TaskProvider = "k8s"
+	TaskProviderFunc    TaskProvider = "func"
 )
 
 // Task support http/grpc/script
