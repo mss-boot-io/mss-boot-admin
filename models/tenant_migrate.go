@@ -744,7 +744,7 @@ func (t *Tenant) Migrate(tenantImp center.TenantImp, tx *gorm.DB) error {
 			Children: []*Menu{
 				{
 					Name: "department",
-					Path: "/department",
+					Path: "/departments",
 					Sort: 20,
 					Type: pkg.MenuAccessType,
 					Children: []*Menu{
@@ -813,7 +813,7 @@ func (t *Tenant) Migrate(tenantImp center.TenantImp, tx *gorm.DB) error {
 				{
 					Name: "post",
 					Path: "/post",
-					Sort: 17,
+					Sort: 19,
 					Type: pkg.MenuAccessType,
 					Children: []*Menu{
 						{
@@ -882,7 +882,7 @@ func (t *Tenant) Migrate(tenantImp center.TenantImp, tx *gorm.DB) error {
 					Name: "user",
 					Path: "/users",
 					Icon: "user",
-					Sort: 17,
+					Sort: 18,
 					Type: pkg.MenuAccessType,
 					Children: []*Menu{
 						{
