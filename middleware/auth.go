@@ -9,8 +9,9 @@ import (
 	"reflect"
 	"time"
 
-	jwt "github.com/appleboy/gin-jwt/v2"
+	ginJwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
@@ -29,12 +30,12 @@ import (
  */
 
 var (
-	Auth     *jwt.GinJWTMiddleware
+	Auth     *ginJwt.GinJWTMiddleware
 	Verifier security.Verifier
 )
 
 func Init() {
-	Auth = &jwt.GinJWTMiddleware{
+	Auth = &ginJwt.GinJWTMiddleware{
 		Realm:       config.Cfg.Auth.Realm,
 		Key:         []byte(config.Cfg.Auth.Key),
 		Timeout:     config.Cfg.Auth.Timeout,
@@ -59,7 +60,7 @@ func Init() {
 			return jwt.MapClaims{}
 		},
 		IdentityHandler: func(c *gin.Context) any {
-			claims := jwt.ExtractClaims(c)
+			claims := ginJwt.ExtractClaims(c)
 			verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
 			if personAccessToken, ok := claims["personAccessToken"]; ok && personAccessToken != "" {
 				verifier.SetRefreshTokenDisable(true)
@@ -76,7 +77,7 @@ func Init() {
 			}
 			if verifier.GetRefreshTokenDisable() {
 				// check token revoked
-				token := jwt.GetToken(c)
+				token := ginJwt.GetToken(c)
 				err = verifier.CheckToken(c, token)
 				if err != nil {
 					return nil
@@ -89,7 +90,7 @@ func Init() {
 			loginVals := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
 			fmt.Println(loginVals)
 			if err := c.ShouldBind(&loginVals); err != nil {
-				return "", jwt.ErrMissingLoginValues
+				return "", ginJwt.ErrMissingLoginValues
 			}
 			ok, user, err := loginVals.Verify(c)
 			if err != nil {
@@ -98,7 +99,7 @@ func Init() {
 			if ok {
 				return user, nil
 			}
-			return nil, jwt.ErrFailedAuthentication
+			return nil, ginJwt.ErrFailedAuthentication
 		},
 		Authorizator: func(data any, c *gin.Context) bool {
 			switch c.Request.URL.Path {
@@ -145,7 +146,7 @@ func Init() {
 				})
 				return
 			}
-			claims := jwt.ExtractClaimsFromToken(jwtToken)
+			claims := ginJwt.ExtractClaimsFromToken(jwtToken)
 			if len(claims) == 0 {
 				c.JSON(http.StatusOK, gin.H{
 					"code":   http.StatusUnauthorized,
@@ -203,7 +204,7 @@ func Init() {
 		// - "query:<name>"
 		// - "cookie:<name>"
 		// - "param:<name>"
-		TokenLookup: "header: Authorization, query: token, cookie: jwt",
+		TokenLookup: "header: Authorization, query: token, cookie: ginJwt",
 		// TokenLookup: "query:token",
 		// TokenLookup: "cookie:token",
 
@@ -232,7 +233,7 @@ func GetVerify(ctx *gin.Context) security.Verifier {
 		api.AddError(err).Log.WarnContext(ctx, "parseToken failed")
 		return nil
 	}
-	claims := jwt.ExtractClaimsFromToken(token)
+	claims := ginJwt.ExtractClaimsFromToken(token)
 	if len(claims) == 0 {
 		slog.Debug("GetVerify claims is empty")
 		return nil
