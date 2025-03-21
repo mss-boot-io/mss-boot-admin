@@ -812,7 +812,7 @@ func (t *Tenant) Migrate(tenantImp center.TenantImp, tx *gorm.DB) error {
 				},
 				{
 					Name: "post",
-					Path: "/post",
+					Path: "/posts",
 					Sort: 19,
 					Type: pkg.MenuAccessType,
 					Children: []*Menu{
