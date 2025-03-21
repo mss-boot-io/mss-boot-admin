@@ -13,14 +13,15 @@ require (
 	github.com/gin-contrib/cors v1.7.4
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-git/go-git/v5 v5.14.0
+	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/grafana/pyroscope-go v1.2.1
 	github.com/larksuite/oapi-sdk-go/v3 v3.4.12
-	github.com/mss-boot-io/mss-boot v0.3.0
+	github.com/mss-boot-io/mss-boot v0.4.0
 	github.com/nsqio/go-nsq v1.1.0
-	github.com/redis/go-redis/v9 v9.7.1
+	github.com/redis/go-redis/v9 v9.7.3
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cast v1.7.1
@@ -42,6 +43,8 @@ require (
 	dario.cat/mergo v1.0.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/AlecAivazis/survey/v2 v2.3.7 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.12.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.7.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 // indirect
 	github.com/IBM/sarama v1.45.1 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
@@ -72,7 +75,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.8.1 // indirect
 	github.com/bsm/redislock v0.9.4 // indirect
-	github.com/bytedance/sonic v1.13.1 // indirect
+	github.com/bytedance/sonic v1.13.2 // indirect
 	github.com/bytedance/sonic/loader v0.2.4 // indirect
 	github.com/casbin/casbin/v2 v2.104.0 // indirect
 	github.com/casbin/gorm-adapter/v3 v3.32.0 // indirect
@@ -115,10 +118,9 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.25.0 // indirect
-	github.com/go-sql-driver/mysql v1.9.0 // indirect
+	github.com/go-sql-driver/mysql v1.9.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.1 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
