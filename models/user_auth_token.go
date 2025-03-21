@@ -23,7 +23,7 @@ type UserAuthToken struct {
 	UserID    string    `gorm:"type:varchar(64);index;comment:用户ID" json:"userID"`
 	Token     string    `gorm:"type:text;comment:token" json:"token"`
 	ExpiredAt time.Time `gorm:"index;comment:过期时间" json:"expiredAt"`
-	Revoked   bool      `gorm:"type:tinyint(1);index;comment:是否撤销" json:"revoked"`
+	Revoked   bool      `gorm:"index;comment:是否撤销" json:"revoked"`
 }
 
 func (*UserAuthToken) TableName() string {
