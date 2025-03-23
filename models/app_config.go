@@ -107,7 +107,7 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 
 	err = center.GetTenant().GetDB(ctx, c).
 		Where("name = ?", key).
-		Where("`group` = ?", group).
+		Where("group = ?", group).
 		First(c).Error
 	if err != nil {
 		return nil, err

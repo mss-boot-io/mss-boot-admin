@@ -40,7 +40,7 @@ func (e *UserConfig) Profile(ctx *gin.Context, tenantID, userID string) (map[str
 func (e *UserConfig) Group(ctx *gin.Context, userID, group string) (map[string]string, error) {
 	list := make([]*models.UserConfig, 0)
 	err := center.GetTenant().GetDB(ctx, &models.UserConfig{}).
-		Where("`group` = ?", group).
+		Where("group = ?", group).
 		Where("user_id = ?", userID).
 		Find(&list).Error
 	if err != nil {
