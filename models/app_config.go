@@ -61,10 +61,12 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value 
 	c.Auth = auth
 	c.Value = value
 	var count int64
+	condition := &AppConfig{
+		Group: group,
+		Name:  key,
+	}
 	err = center.GetDB(ctx, e).
-		Model(&AppConfig{}).
-		Where("`group` = ?", group).
-		Where("name = ?", key).
+		Model(condition).
 		Count(&count).Error
 	if err != nil {
 		return err
@@ -73,9 +75,7 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value 
 		return center.GetDB(ctx, e).Create(c).Error
 	}
 	return center.GetDB(ctx, e).
-		Model(&AppConfig{}).
-		Where("`group` = ?", group).
-		Where("name = ?", key).
+		Model(condition).
 		Updates(c).Error
 }
 
@@ -104,10 +104,12 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 			return c, nil
 		}
 	}
-
+	condition := &AppConfig{
+		Group: group,
+		Name:  key,
+	}
 	err = center.GetTenant().GetDB(ctx, c).
-		Where("name = ?", key).
-		Where("group = ?", group).
+		Model(condition).
 		First(c).Error
 	if err != nil {
 		return nil, err
