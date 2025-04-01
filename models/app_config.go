@@ -67,6 +67,7 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value 
 	}
 	err = center.GetDB(ctx, e).
 		Model(condition).
+		Where(condition).
 		Count(&count).Error
 	if err != nil {
 		return err
@@ -76,6 +77,7 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value 
 	}
 	return center.GetDB(ctx, e).
 		Model(condition).
+		Where(condition).
 		Updates(c).Error
 }
 
@@ -110,6 +112,7 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 	}
 	err = center.GetTenant().GetDB(ctx, c).
 		Model(condition).
+		Where(condition).
 		First(c).Error
 	if err != nil {
 		return nil, err
