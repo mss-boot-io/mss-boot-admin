@@ -3,6 +3,7 @@ package models
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
@@ -136,9 +137,9 @@ func (e *Menu) AfterDelete(tx *gorm.DB) error {
     INNER JOIN MenuHierarchy mh ON m.parent_id = mh.id
 )
 UPDATE %s
-SET deleted_at = datetime('now')
+SET deleted_at = ?
 WHERE id IN (SELECT id FROM MenuHierarchy)`, e.TableName(), e.TableName(), e.TableName())
-	return tx.Exec(sqlTemp, ids).Error
+	return tx.Exec(sqlTemp, ids, time.Now()).Error
 }
 
 func (e *Menu) GetIndex() string {
