@@ -347,7 +347,7 @@ func (*Menu) List(ctx *gin.Context) {
 	}
 	query = query.Where("type in ?", types)
 	if req.Show {
-		query = query.Where("hide_in_menu = ?", 0)
+		query = query.Where("hide_in_menu = ?", false)
 	}
 	var count int64
 	if err := query.Scopes(func(db *gorm.DB) *gorm.DB {
