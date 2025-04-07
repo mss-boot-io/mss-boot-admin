@@ -57,7 +57,7 @@ services:
       - "26380:26379"
     volumes:
       - "./sentinel1/sentinel.conf:/etc/sentinel.conf"
-    command: ["/bin/bash", "-c", "cp /etc/sentinel.conf /sentinel.conf && redis-sentinel /sentinel.conf"]
+    entrypoint: ["/bin/bash", "/usr/local/bin/entrypoint.sh"]
     restart: always
     networks:
       redis-replication:
