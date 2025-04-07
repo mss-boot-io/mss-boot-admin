@@ -29,7 +29,7 @@ require (
 	github.com/swaggo/gin-swagger v1.6.0
 	github.com/zealic/xignore v0.3.3
 	golang.org/x/net v0.38.0
-	golang.org/x/oauth2 v0.28.0
+	golang.org/x/oauth2 v0.29.0
 	google.golang.org/grpc v1.71.1
 	gorm.io/gorm v1.25.12
 	k8s.io/api v0.32.3
