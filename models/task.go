@@ -246,7 +246,7 @@ func (t *Task) Run() {
 		Status: enum.Locked,
 	}
 	var command string
-	if t.GetCommand() != nil {
+	if t.GetCommand() != nil && len(t.GetCommand()) > 0 {
 		command = t.GetCommand()[0]
 	}
 	taskO := &pkg.Task{
