@@ -245,12 +245,16 @@ func (t *Task) Run() {
 		TaskID: t.ID,
 		Status: enum.Locked,
 	}
+	var command string
+	if t.GetCommand() != nil && len(t.GetCommand()) > 0 {
+		command = t.GetCommand()[0]
+	}
 	taskO := &pkg.Task{
 		ID:       t.ID,
 		Name:     t.Name,
 		Endpoint: fmt.Sprintf("%s://%s", t.Protocol, t.Endpoint),
 		Method:   t.Method,
-		Command:  t.GetCommand()[0],
+		Command:  command,
 		Body:     bytes.NewBuffer([]byte(t.Body)),
 		Args:     t.GetArgs(),
 		Python:   t.Python,
