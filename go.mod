@@ -6,7 +6,7 @@ require (
 	github.com/appleboy/gin-jwt/v2 v2.10.3
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/config v1.29.13
-	github.com/aws/aws-sdk-go-v2/service/eks v1.63.1
+	github.com/aws/aws-sdk-go-v2/service/eks v1.63.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.35.3
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
