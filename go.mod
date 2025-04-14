@@ -16,7 +16,7 @@ require (
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/grafana/pyroscope-go v1.2.1
+	github.com/grafana/pyroscope-go v1.2.2
 	github.com/larksuite/oapi-sdk-go/v3 v3.4.13
 	github.com/mss-boot-io/mss-boot v0.5.0
 	github.com/nsqio/go-nsq v1.1.0
