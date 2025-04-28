@@ -100,7 +100,7 @@ func (t *Task) AfterCreate(tx *gorm.DB) error {
 		return nil
 	case TaskProviderFunc:
 		if _, exist := TaskFuncMap[t.Method]; !exist {
-			return fmt.Errorf("task func %s not exist", t.Method)
+			return fmt.Errorf("task func %s does not exist", t.Method)
 		}
 		return nil
 	}
