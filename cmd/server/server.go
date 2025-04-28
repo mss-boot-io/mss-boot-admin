@@ -232,7 +232,6 @@ type taskE struct {
 func (t *taskE) Run() {
 	tasks := make([]*models.Task, 0)
 	err := gormdb.DB.
-		Where("provider = ?", models.TaskProviderDefault).
 		Where("checked_at < ? or checked_at is null", time.Now().Add(-1*time.Minute)).
 		Where("status = ?", enum.Enabled).Find(&tasks).Error
 	if err != nil {
@@ -240,6 +239,9 @@ func (t *taskE) Run() {
 		return
 	}
 	for i := range tasks {
+		if tasks[i] == nil || tasks[i].Provider == models.TaskProviderK8S {
+			continue
+		}
 		slog.Info("task", "id", tasks[i].ID, "checked_at", tasks[i].CheckedAt)
 		err = task.UpdateJob(tasks[i].ID, tasks[i].Spec, tasks[i])
 		if err != nil {

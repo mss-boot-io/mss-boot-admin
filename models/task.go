@@ -29,7 +29,7 @@ import (
  * @Last Modified time: 2023/12/5 16:11:48
  */
 
-var taskFuncMap = make(map[string]func())
+var TaskFuncMap = make(map[string]pkg.TaskFunc)
 
 type TaskProvider string
 
@@ -97,6 +97,11 @@ func (*Task) TableName() string {
 func (t *Task) AfterCreate(tx *gorm.DB) error {
 	switch t.Provider {
 	case TaskProviderDefault, "":
+		return nil
+	case TaskProviderFunc:
+		if _, exist := TaskFuncMap[t.Method]; !exist {
+			return fmt.Errorf("task func %s not exist", t.Method)
+		}
 		return nil
 	}
 	clientSet := config.Cfg.Clusters.GetClientSet(t.Cluster)
@@ -170,6 +175,11 @@ func (t *Task) AfterUpdate(tx *gorm.DB) error {
 	switch t.Provider {
 	case TaskProviderDefault, "":
 		return nil
+	case TaskProviderFunc:
+		if _, exist := TaskFuncMap[t.Method]; !exist {
+			return fmt.Errorf("task func %s not exist", t.Method)
+		}
+		return nil
 	}
 	clientSet := config.Cfg.Clusters.GetClientSet(t.Cluster)
 	if clientSet == nil {
@@ -221,7 +231,7 @@ func (t *Task) BeforeDelete(_ *gorm.DB) (err error) {
 	return task.RemoveJob(t.ID)
 }
 
-// Run task todo
+// Run task
 func (t *Task) Run() {
 	t.CheckedAt = sql.NullTime{
 		Time:  time.Now(),
@@ -229,7 +239,7 @@ func (t *Task) Run() {
 	}
 	err := gormdb.DB.Model(&Task{}).
 		Where("id = ?", t.ID).
-		Where("provider = ?", TaskProviderDefault).
+		Where("provider in ?", []TaskProvider{TaskProviderDefault, TaskProviderFunc}).
 		Update("checked_at", t.CheckedAt.Time).Error
 	if err != nil {
 		slog.Error("task run update task error", slog.Any("err", err))
@@ -261,6 +271,9 @@ func (t *Task) Run() {
 		Writer:   taskRun,
 		Metadata: make(map[string]string),
 		Timeout:  time.Duration(t.Timeout) * time.Second,
+	}
+	if t.Provider == TaskProviderFunc {
+		taskO.Func, _ = TaskFuncMap[t.Method]
 	}
 	if t.Metadata != "" {
 		err := json.Unmarshal([]byte(t.Metadata), &taskO.Metadata)
@@ -311,7 +324,7 @@ func (t *TaskStorage) Get(key string) (entryID cron.EntryID, spec string, job cr
 		return
 	}
 	tk := &Task{}
-	if err = t.DB.Where("id = ?", key).Where("provider = ?", TaskProviderDefault).First(tk).Error; err != nil {
+	if err = t.DB.Where("id = ?", key).Not("provider = ?", TaskProviderK8S).First(tk).Error; err != nil {
 		return
 	}
 	return cron.EntryID(tk.EntryID), tk.Spec, tk, true, nil
@@ -345,12 +358,12 @@ func (t *TaskStorage) Update(key string, entryID cron.EntryID) error {
 		return fmt.Errorf("db is nil")
 	}
 	tk := &Task{}
-	err := t.DB.Where("id = ?", key).Where("provider = ?", TaskProviderDefault).First(tk).Error
+	err := t.DB.Where("id = ?", key).Not("provider = ?", TaskProviderK8S).First(tk).Error
 	if err != nil {
 		return err
 	}
 	tk.EntryID = int(entryID)
-	return t.DB.Updates(tk).Error
+	return t.DB.Model(tk).Update("entry_id", entryID).Error
 }
 
 func (t *TaskStorage) Remove(key string) error {

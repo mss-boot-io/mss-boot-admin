@@ -23,3 +23,8 @@ type TaskOperateRequest struct {
 	ID      string `uri:"id" binding:"required"`
 	Operate string `uri:"operate" binding:"required"`
 }
+
+type TaskFuncItem struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
