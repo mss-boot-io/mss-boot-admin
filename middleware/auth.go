@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"regexp"
 	"time"
 
 	"github.com/appleboy/gin-jwt/v2"
@@ -105,11 +106,28 @@ func Init() {
 				"/admin/api/menu/authorize",
 				"/admin/api/system-configs",
 				"/admin/api/notice/unread",
-				"/admin/api/notice/:id",
-				"/admin/api/user-configs/:group",
 				"/admin/api/user-configs/profile",
+				"user-auth-tokens",
+				"/admin/api/user/oauth2",
+				"/admin/api/user-configs/notification",
+				"/admin/api/app-configs/theme",
+				"/admin/api/user-auth-tokens",
 				"/admin/api/languages":
-				return true
+				if c.Request.Method == http.MethodGet {
+					return true
+				}
+			}
+			passPath := []string{
+				"/admin/api/notice/.*",
+				"/admin/api/user-configs/.*",
+				"/admin/api/departments/.*",
+				"/admin/api/posts/.*",
+			}
+			for i := range passPath {
+				// 使用正则匹配
+				if ok, _ := regexp.MatchString(passPath[i], c.Request.URL.Path); ok {
+					return true
+				}
 			}
 			api := response.Make(c)
 			if v, ok := data.(security.Verifier); ok {

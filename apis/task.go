@@ -42,6 +42,28 @@ type Task struct {
 
 func (e *Task) Other(r *gin.RouterGroup) {
 	r.GET("/task/:operate/:id", e.Operate)
+	r.GET("/task/func-list", e.FuncList)
+}
+
+// FuncList 任务函数列表
+// @Summary 任务函数列表
+// @Description 任务函数列表
+// @Tags task
+// @Accept  application/json
+// @Product application/json
+// @Success 200 {object} []dto.TaskFuncItem
+// @Router /admin/api/task/func-list [get]
+// @Security Bearer
+func (e *Task) FuncList(c *gin.Context) {
+	api := response.Make(c)
+	resp := make([]*dto.TaskFuncItem, 0)
+	// 获取所有的任务函数
+	for k := range models.TaskFuncMap {
+		resp = append(resp, &dto.TaskFuncItem{
+			Name: k,
+		})
+	}
+	api.OK(resp)
 }
 
 // Operate 操作任务

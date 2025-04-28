@@ -23,6 +23,8 @@ import (
  * @Last Modified time: 2023/12/5 18:39:41
  */
 
+type TaskFunc func(ctx context.Context, args ...string) error
+
 type Task struct {
 	ID       string
 	Name     string
@@ -32,6 +34,7 @@ type Task struct {
 	Args     []string
 	Body     io.Reader
 	Python   string
+	Func     TaskFunc
 	Writer   io.Writer
 	Metadata map[string]string
 	Timeout  time.Duration
@@ -44,6 +47,15 @@ func (t *Task) Run() error {
 	}
 	ctx, cancel := context.WithTimeout(ctx, t.Timeout)
 	defer cancel()
+	if t.Func != nil {
+		//exec func
+		err := t.Func(ctx, t.Args...)
+		if err != nil {
+			slog.Error("task run error", slog.Any("err", err))
+			return err
+		}
+		return nil
+	}
 	// script
 	if t.Endpoint == "" {
 		//exec script
