@@ -2,7 +2,9 @@ package models
 
 import (
 	"fmt"
+	"gorm.io/gorm/clause"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -60,25 +62,21 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value 
 	}
 	c.Auth = auth
 	c.Value = value
-	var count int64
-	condition := &AppConfig{
-		Group: group,
-		Name:  key,
-	}
-	err = center.GetDB(ctx, e).
-		Model(condition).
-		Where(condition).
-		Count(&count).Error
-	if err != nil {
-		return err
-	}
-	if count == 0 {
-		return center.GetDB(ctx, e).Create(c).Error
-	}
-	return center.GetDB(ctx, e).
-		Model(condition).
-		Where(condition).
-		Updates(c).Error
+	c.UpdatedAt = time.Now()
+	return center.GetTenant().GetDB(ctx, e).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "tenant_id"},
+				{Name: "name"},
+				{Name: "group"},
+			},
+			DoUpdates: clause.AssignmentColumns(
+				[]string{
+					"auth",
+					"value",
+					"updated_at"}),
+		}).
+		Create(c).Error
 }
 
 func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {

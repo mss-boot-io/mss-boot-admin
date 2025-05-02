@@ -2,7 +2,9 @@ package models
 
 import (
 	"fmt"
+	"gorm.io/gorm/clause"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -47,19 +49,20 @@ func (e *UserConfig) SetUserConfig(ctx *gin.Context, userID, key string, value s
 		Group:  group,
 		Name:   key,
 		UserID: userID,
+		Value:  value,
 	}
-	err := center.GetDB(ctx, e).
-		Where("user_id = ?", userID).
-		Where("`group` = ?", group).
-		Where("name = ?", key).
-		FirstOrCreate(c).Error
-	if err != nil {
-		return err
-	}
+	c.UpdatedAt = time.Now()
 	return center.GetTenant().GetDB(ctx, e).
-		Model(e).Where("name = ?", key).
-		Where("user_id = ?", userID).
-		Update("value", value).Error
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "tenant_id"},
+				{Name: "user_id"},
+				{Name: "name"},
+				{Name: "group"},
+			},
+			DoUpdates: clause.AssignmentColumns([]string{"value", "updated_at"}),
+		}).
+		Create(c).Error
 }
 
 func getUserConfig(ctx *gin.Context, userID, key string) (*UserConfig, error) {
@@ -75,7 +78,7 @@ func getUserConfig(ctx *gin.Context, userID, key string) (*UserConfig, error) {
 		key = strings.Join(keys[1:], ".")
 	}
 	err := center.GetTenant().GetDB(ctx, c).
-		Where("`group` = ?", group).
+		Where("group = ?", group).
 		Where("user_id = ?", userID).
 		Where("name = ?", key).
 		First(c).Error
