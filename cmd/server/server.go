@@ -190,7 +190,11 @@ func setup() error {
 	// setup 06 task init
 	if config.Cfg.Task.Enable {
 		runnable = append(runnable,
-			task.New(task.WithStorage(&models.TaskStorage{DB: gormdb.DB}), task.WithSchedule("task", config.Cfg.Task.Spec, &taskE{})))
+			task.New(
+				task.WithStorage(&models.TaskStorage{DB: gormdb.DB}),
+				task.WithSchedule("task", config.Cfg.Task.Spec, &taskE{}),
+			),
+		)
 	}
 
 	// setup 07 init virtual models
@@ -250,7 +254,7 @@ func (t *taskE) Run() {
 		}
 	}
 	//check
-	err = gormdb.DB.Where("provider = ?", models.TaskProviderDefault).Where("status = ?", enum.Enabled).Find(&tasks).Error
+	err = gormdb.DB.Not("provider = ?", models.TaskProviderK8S).Where("status = ?", enum.Enabled).Find(&tasks).Error
 	if err != nil {
 		slog.Error("task run get tasks error", slog.Any("err", err))
 		return

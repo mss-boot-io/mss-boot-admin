@@ -1,19 +1,21 @@
 package apis
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
-	"github.com/mss-boot-io/mss-boot-admin/center"
-
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/models"
+	"github.com/mss-boot-io/mss-boot/core/server/task"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+	"gorm.io/gorm"
 )
 
 /*
@@ -82,25 +84,35 @@ func (e *Task) Operate(c *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	var count int64
-	err := center.Default.GetDB(c, &models.Task{}).Model(&models.Task{}).Where("id = ?", req.ID).Count(&count).Error
+	t := &models.Task{}
+	err := center.Default.GetDB(c, &models.Task{}).
+		Model(&models.Task{}).
+		Where("id = ?", req.ID).
+		First(t).Error
 	if err != nil {
-		api.AddError(err).Log.Error("count task error")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			api.Err(http.StatusNotFound)
+			return
+		}
+		api.AddError(err).Log.Error("get task error")
 		api.Err(http.StatusInternalServerError)
-		return
-	}
-	if count == 0 {
-		api.Err(http.StatusNotFound)
 		return
 	}
 	var status enum.Status
 	switch req.Operate {
 	case "start":
+		err = task.UpdateJob(t.ID, t.Spec, t)
 		status = enum.Enabled
 	case "stop":
+		err = task.RemoveJob(t.ID)
 		status = enum.Disabled
 	default:
 		api.Err(http.StatusBadRequest, "operate not support")
+		return
+	}
+	if err != nil {
+		api.AddError(err).Log.Error("task operate error")
+		api.Err(http.StatusInternalServerError)
 		return
 	}
 

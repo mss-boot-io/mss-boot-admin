@@ -2,6 +2,7 @@ package models
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -38,6 +39,13 @@ const (
 	TaskProviderK8S     TaskProvider = "k8s"
 	TaskProviderFunc    TaskProvider = "func"
 )
+
+func init() {
+	TaskFuncMap["test"] = func(ctx context.Context, args ...string) error {
+		fmt.Println("task", time.Now(), args)
+		return nil
+	}
+}
 
 // Task support http/grpc/script
 type Task struct {
@@ -210,7 +218,7 @@ func (t *Task) AfterUpdate(tx *gorm.DB) error {
 
 func (t *Task) AfterDelete(tx *gorm.DB) error {
 	switch t.Provider {
-	case TaskProviderDefault, "":
+	case TaskProviderDefault, "", TaskProviderFunc:
 		return nil
 	}
 	clientSet := config.Cfg.Clusters.GetClientSet(t.Cluster)
@@ -383,7 +391,10 @@ func (t *TaskStorage) Remove(key string) error {
 	}
 	tk.EntryID = 0
 	tk.CheckedAt = sql.NullTime{}
-	return t.DB.Updates(tk).Error
+	return t.DB.Model(tk).UpdateColumns(map[string]interface{}{
+		"entry_id":   0,
+		"checked_at": nil,
+	}).Error
 }
 
 func (t *TaskStorage) ListKeys() ([]string, error) {
@@ -391,7 +402,7 @@ func (t *TaskStorage) ListKeys() ([]string, error) {
 		return nil, fmt.Errorf("db is nil")
 	}
 	var tasks []*Task
-	err := t.DB.Where("status = ?", enum.Enabled).Where("provider = ?", TaskProviderDefault).Find(&tasks).Error
+	err := t.DB.Where("status = ?", enum.Enabled).Not("provider = ?", TaskProviderK8S).Find(&tasks).Error
 	if err != nil {
 		return nil, err
 	}
