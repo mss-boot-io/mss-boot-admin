@@ -151,7 +151,7 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 				continue
 			}
 			_, err = gormdb.Enforcer.AddPermissionForUser(
-				req.RoleID, pkg.APIAccessType.String(), menus[i].Children[j].Name, menus[i].Children[j].Method)
+				req.RoleID, pkg.APIAccessType.String(), menus[i].Children[j].Path, menus[i].Children[j].Method)
 			if err != nil {
 				api.AddError(err).Log.
 					Error("add api permission for role error",
