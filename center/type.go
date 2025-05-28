@@ -12,8 +12,6 @@ import (
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage"
 )
 
 /*
@@ -38,9 +36,6 @@ type Center interface {
 	StatisticsImp
 	MakeRouterImp
 	GRPCClientImp
-	storage.AdapterCache
-	storage.AdapterQueue
-	storage.AdapterLocker
 	VerifyCodeStoreImp
 }
 
