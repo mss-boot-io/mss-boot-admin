@@ -9,6 +9,10 @@ import "time"
  * @Last Modified time: 2024/7/30 14:10:02
  */
 
+type ResponseNonce struct {
+	Nonce string `json:"nonce"`
+}
+
 type UserAuthTokenGenerateRequest struct {
 	ValidityPeriod time.Duration `form:"validityPeriod" query:"validityPeriod"`
 }

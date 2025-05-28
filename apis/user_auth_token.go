@@ -1,6 +1,8 @@
 package apis
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -45,6 +47,20 @@ func (e *UserAuthToken) Other(r *gin.RouterGroup) {
 	r.GET("/user-auth-tokens", response.AuthHandler, e.List)
 	r.PUT("/user-auth-token/:id/revoke", response.AuthHandler, e.Revoked)
 	r.PUT("/user-auth-token/:id/refresh", response.AuthHandler, e.Refresh)
+	r.GET("/user-auth-token/nonce", e.GetNonce)
+}
+
+func (e *UserAuthToken) GetNonce(ctx *gin.Context) {
+	api := response.Make(ctx)
+	nonceBytes := make([]byte, 16)
+	_, err := rand.Read(nonceBytes)
+	if err != nil {
+		api.AddError(err).Log.Error("generate nonce failed")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	nonce := hex.EncodeToString(nonceBytes)
+	api.OK(gin.H{"nonce": nonce})
 }
 
 // Refresh 刷新用户令牌

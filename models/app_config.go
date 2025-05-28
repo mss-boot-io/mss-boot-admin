@@ -40,10 +40,10 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value 
 	}
 
 	var group string
-	keys := strings.Split(key, ".")
+	keys := strings.Split(key, ":")
 	if len(keys) > 1 {
 		group = keys[0]
-		key = strings.Join(keys[1:], ".")
+		key = strings.Join(keys[1:], ":")
 	}
 	c := &AppConfig{
 		Group: group,
@@ -54,15 +54,18 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value 
 		return err
 	}
 	//set cache
+
+	c.Auth = auth
+	c.Value = value
+	c.UpdatedAt = time.Now()
 	if center.GetCache() != nil {
-		err = center.GetCache().Set(ctx, fmt.Sprintf("%s.%s", t.GetID(), key), value, -1)
+		err = center.GetCache().HSet(ctx,
+			fmt.Sprintf("%s:%s", t.GetID(), "appConfig"),
+			fmt.Sprintf("%s:%s", c.Group, c.Name), value).Err()
 		if err != nil {
 			return err
 		}
 	}
-	c.Auth = auth
-	c.Value = value
-	c.UpdatedAt = time.Now()
 	return center.GetTenant().GetDB(ctx, e).
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{
@@ -86,17 +89,19 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 	}
 
 	var group string
-	keys := strings.Split(key, ".")
+	keys := strings.Split(key, ":")
 	if len(keys) > 1 {
 		group = keys[0]
-		key = strings.Join(keys[1:], ".")
+		key = strings.Join(keys[1:], ":")
 	}
 	t, err := center.GetTenant().GetTenant(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if center.GetCache() == nil {
-		v, _ := center.GetCache().Get(ctx, fmt.Sprintf("%s.%s", t.GetID(), key))
+		v, _ := center.GetCache().HGet(ctx,
+			fmt.Sprintf("%s:%s", t.GetID(), "appConfig"),
+			fmt.Sprintf("%s:%s", group, key)).Result()
 		if v != "" {
 			c.Group = group
 			c.Name = key
@@ -115,7 +120,10 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = center.GetCache().Set(ctx, fmt.Sprintf("%s.%s", t.GetID(), key), c.Value, -1)
+	_ = center.GetCache().HSet(ctx,
+		fmt.Sprintf("%s:%s", t.GetID(), "appConfig"),
+		fmt.Sprintf("%s:%s", c.Group, c.Name),
+		c.Value, -1).Err()
 	return c, nil
 }
 

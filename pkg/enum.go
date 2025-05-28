@@ -31,6 +31,8 @@ const (
 	GithubLoginProvider LoginProvider = "github"
 	// LarkLoginProvider lark oauth provider
 	LarkLoginProvider LoginProvider = "lark"
+	// GethLoginProvider geth oauth provider
+	GethLoginProvider LoginProvider = "geth"
 	// EmailLoginProvider email login provider
 	EmailLoginProvider LoginProvider = "email"
 	// EmailRegisterProvider email register provider
