@@ -306,8 +306,6 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			userOAuth2.User.Role = defaultRole
 		}
 		return true, userOAuth2.User, nil
-	case pkg.GethLoginProvider:
-
 	case pkg.EmailLoginProvider:
 		// verify captcha
 		if e.Captcha == "" {
