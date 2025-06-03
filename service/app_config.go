@@ -45,7 +45,7 @@ func (e *AppConfig) Profile(ctx *gin.Context, auth bool) (map[string]gin.H, erro
 					result[groups[i]][k] = transferValue(v)
 				}
 			}
-			if err == nil {
+			if err == nil && len(result) > 0 {
 				return result, nil
 			}
 			result = make(map[string]gin.H) // Reset result if cache retrieval fails
