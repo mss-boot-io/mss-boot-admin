@@ -78,7 +78,7 @@ func (e *Language) Profile(ctx *gin.Context) {
 				}
 				resp[keys[i]] = v
 			}
-			if err == nil {
+			if err == nil && len(keys) > 0 {
 				api.OK(resp)
 				return
 			}
