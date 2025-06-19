@@ -25,22 +25,22 @@ import (
 type Storage struct{}
 
 func (s *Storage) Upload(c *gin.Context, f *multipart.FileHeader, tenantID, userID string) (string, error) {
-	storageType, _ := center.GetAppConfig().GetAppConfig(c, "storage.type")
-	endpoint, _ := center.GetAppConfig().GetAppConfig(c, "storage.endpoint")
+	storageType, _ := center.GetAppConfig().GetAppConfig(c, "storage:type")
+	endpoint, _ := center.GetAppConfig().GetAppConfig(c, "storage:endpoint")
 	switch storageType {
 	case "s3":
 		storage := config.Storage{}
-		s3Type, _ := center.GetAppConfig().GetAppConfig(c, "storage.type")
+		s3Type, _ := center.GetAppConfig().GetAppConfig(c, "storage:type")
 		if s3Type == "" {
 			s3Type = string(config.S3)
 		}
 		storage.Type = config.ProviderType(s3Type)
-		storage.Region, _ = center.GetAppConfig().GetAppConfig(c, "storage.s3Region")
-		storage.Endpoint, _ = center.GetAppConfig().GetAppConfig(c, "storage.s3Endpoint")
-		storage.Bucket, _ = center.GetAppConfig().GetAppConfig(c, "storage.s3Bucket")
-		storage.AccessKeyID, _ = center.GetAppConfig().GetAppConfig(c, "storage.s3AccessKeyID")
-		storage.SecretAccessKey, _ = center.GetAppConfig().GetAppConfig(c, "storage.s3SecretAccessKey")
-		storage.SigningMethod, _ = center.GetAppConfig().GetAppConfig(c, "storage.s3SigningMethod")
+		storage.Region, _ = center.GetAppConfig().GetAppConfig(c, "storage:s3Region")
+		storage.Endpoint, _ = center.GetAppConfig().GetAppConfig(c, "storage:s3Endpoint")
+		storage.Bucket, _ = center.GetAppConfig().GetAppConfig(c, "storage:s3Bucket")
+		storage.AccessKeyID, _ = center.GetAppConfig().GetAppConfig(c, "storage:s3AccessKeyID")
+		storage.SecretAccessKey, _ = center.GetAppConfig().GetAppConfig(c, "storage:s3SecretAccessKey")
+		storage.SigningMethod, _ = center.GetAppConfig().GetAppConfig(c, "storage:s3SigningMethod")
 		storage.Init()
 		//上传文件对象存储
 		file, err := f.Open()

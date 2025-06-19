@@ -63,10 +63,10 @@ func (e *Github) GetLoginURL(c *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	clientID, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientId")
-	clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientSecret")
-	redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security.githubRedirectURL")
-	scopes, _ := center.GetAppConfig().GetAppConfig(c, "security.githubScope")
+	clientID, _ := center.GetAppConfig().GetAppConfig(c, "security:githubClientId")
+	clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security:githubClientSecret")
+	redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security:githubRedirectURL")
+	scopes, _ := center.GetAppConfig().GetAppConfig(c, "security:githubScope")
 	conf := &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
