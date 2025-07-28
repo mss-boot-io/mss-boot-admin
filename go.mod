@@ -27,11 +27,10 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
-	github.com/swaggo/swag v1.16.4
 	github.com/zealic/xignore v0.3.3
 	golang.org/x/net v0.41.0
 	golang.org/x/oauth2 v0.30.0
-	google.golang.org/grpc v1.73.0
+	google.golang.org/grpc v1.74.2
 	gorm.io/gorm v1.30.0
 	k8s.io/api v0.33.2
 	k8s.io/apimachinery v0.33.2
@@ -204,6 +203,7 @@ require (
 	github.com/spf13/afero v1.14.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
+	github.com/swaggo/swag v1.16.4 // indirect
 	github.com/thoas/go-funk v0.9.3 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
