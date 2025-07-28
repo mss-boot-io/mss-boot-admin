@@ -385,31 +385,31 @@ func (e *User) FakeCaptcha(ctx *gin.Context) {
 			return
 		}
 		// setup 03 send email
-		smtpHost, ok := center.GetAppConfig().GetAppConfig(ctx, "email.smtpHost")
+		smtpHost, ok := center.GetAppConfig().GetAppConfig(ctx, "email:smtpHost")
 		if !ok {
 			api.AddError(errNotSupportEmail).
 				Err(http.StatusNotImplemented)
 			return
 		}
-		smtpPort, ok := center.GetAppConfig().GetAppConfig(ctx, "email.smtpPort")
+		smtpPort, ok := center.GetAppConfig().GetAppConfig(ctx, "email:smtpPort")
 		if !ok {
 			api.AddError(errNotSupportEmail).
 				Err(http.StatusNotImplemented)
 			return
 		}
-		username, ok := center.GetAppConfig().GetAppConfig(ctx, "email.username")
+		username, ok := center.GetAppConfig().GetAppConfig(ctx, "email:username")
 		if !ok {
 			api.AddError(errNotSupportEmail).
 				Err(http.StatusNotImplemented)
 			return
 		}
-		password, ok := center.GetAppConfig().GetAppConfig(ctx, "email.password")
+		password, ok := center.GetAppConfig().GetAppConfig(ctx, "email:password")
 		if !ok {
 			api.AddError(errNotSupportEmail).
 				Err(http.StatusNotImplemented)
 			return
 		}
-		organization, ok := center.GetAppConfig().GetAppConfig(ctx, "base.websiteName")
+		organization, ok := center.GetAppConfig().GetAppConfig(ctx, "base:websiteName")
 		if !ok || organization == "" {
 			organization = "mss-boot-io"
 		}
@@ -619,10 +619,10 @@ func (e *User) Callback(c *gin.Context) {
 
 	switch req.Provider {
 	case pkg.GithubLoginProvider:
-		clientID, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientId")
-		clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientSecret")
-		redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security.githubRedirectUrl")
-		scopes, _ := center.GetAppConfig().GetAppConfig(c, "security.githubScope")
+		clientID, _ := center.GetAppConfig().GetAppConfig(c, "security:githubClientId")
+		clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security:githubClientSecret")
+		redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security:githubRedirectUrl")
+		scopes, _ := center.GetAppConfig().GetAppConfig(c, "security:githubScope")
 		conf := &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
@@ -651,8 +651,8 @@ func (e *User) Callback(c *gin.Context) {
 		api.OK(result)
 		return
 	case pkg.LarkLoginProvider:
-		appID, _ := center.GetAppConfig().GetAppConfig(c, "security.larkAppId")
-		appSecret, _ := center.GetAppConfig().GetAppConfig(c, "security.larkAppSecret")
+		appID, _ := center.GetAppConfig().GetAppConfig(c, "security:larkAppId")
+		appSecret, _ := center.GetAppConfig().GetAppConfig(c, "security:larkAppSecret")
 		client := lark.NewClient(appID, appSecret)
 		r := larkauthen.NewCreateAccessTokenReqBuilder().
 			Body(larkauthen.NewCreateAccessTokenReqBodyBuilder().
