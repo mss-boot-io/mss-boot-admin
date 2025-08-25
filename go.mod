@@ -17,7 +17,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/grafana/pyroscope-go v1.2.4
-	github.com/larksuite/oapi-sdk-go/v3 v3.4.23
+	github.com/larksuite/oapi-sdk-go/v3 v3.4.24
 	github.com/mss-boot-io/mss-boot v0.5.1-0.20250816083835-4a92940392e4
 	github.com/nsqio/go-nsq v1.1.0
 	github.com/redis/go-redis/v9 v9.12.1
@@ -27,7 +27,6 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
-	github.com/swaggo/swag v1.16.6
 	github.com/zealic/xignore v0.3.3
 	golang.org/x/net v0.43.0
 	golang.org/x/oauth2 v0.30.0
@@ -200,6 +199,7 @@ require (
 	github.com/spf13/afero v1.14.0 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
+	github.com/swaggo/swag v1.16.6 // indirect
 	github.com/thoas/go-funk v0.9.3 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
