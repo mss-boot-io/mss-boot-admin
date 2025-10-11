@@ -10,6 +10,7 @@ package config
 import (
 	"embed"
 	"log/slog"
+	"os"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot/pkg/config"
@@ -17,6 +18,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot/pkg/config/storage"
 	"github.com/mss-boot-io/mss-boot/pkg/config/storage/cache"
+	"github.com/mss-boot-io/mss-boot/pkg/config/storage/queue"
 )
 
 //go:embed *.yml
@@ -83,6 +85,24 @@ func (e *Config) Init(opts ...source.Option) {
 	if e.Queue != nil {
 		e.Queue.Init(func(q storage.AdapterQueue) {
 			center.SetQueue(q)
+			w := queue.NewSampleWatcher(q)
+			err = w.SetUpdateCallback(func(_ string) {
+				err = gormdb.Enforcer.LoadPolicy()
+				if err != nil {
+					slog.Error("enforcer load policy failed", "err", err)
+					return
+				}
+			})
+			if err != nil {
+				slog.Error("casbin set callback failed", slog.Any("err", err))
+				os.Exit(-1)
+			}
+			err = gormdb.Enforcer.SetWatcher(w)
+			if err != nil {
+				slog.Error("casbin set watcher failed", slog.Any("err", err))
+				os.Exit(-1)
+			}
+			gormdb.Enforcer.EnableAutoNotifyWatcher(true)
 		})
 	}
 	if e.Locker != nil {

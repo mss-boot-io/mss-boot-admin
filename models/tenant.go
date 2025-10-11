@@ -121,6 +121,14 @@ func InitTenant(tx *gorm.DB) error {
 }
 
 func (t *Tenant) GetTenant(ctx *gin.Context) (center.TenantImp, error) {
+	// 当tenant只有一个时
+	if len(data) == 1 {
+		var tenant *Tenant
+		for _, v := range data {
+			tenant = v
+		}
+		return tenant, nil
+	}
 	urlStr := ctx.GetHeader("Referer")
 	if strings.Index(urlStr, "http://") < 0 && strings.Index(urlStr, "https://") < 0 {
 		urlStr = "http://" + urlStr

@@ -222,6 +222,10 @@ func setup() error {
 func run() error {
 	ctx := context.Background()
 
+	if center.GetQueue() != nil {
+		go center.GetQueue().Run(ctx)
+	}
+
 	return center.Default.Start(ctx)
 }
 
