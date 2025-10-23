@@ -28,8 +28,9 @@ import (
  */
 
 var (
-	data map[string]*Tenant
-	mux  sync.RWMutex
+	data        map[string]*Tenant
+	tenantCount uint
+	mux         sync.RWMutex
 )
 
 type AdminUser struct {
@@ -111,6 +112,7 @@ func InitTenant(tx *gorm.DB) error {
 	}
 	mux.Lock()
 	defer mux.Unlock()
+	tenantCount = uint(len(list))
 	data = make(map[string]*Tenant)
 	for i := range list {
 		for j := range list[i].Domains {
@@ -122,10 +124,11 @@ func InitTenant(tx *gorm.DB) error {
 
 func (t *Tenant) GetTenant(ctx *gin.Context) (center.TenantImp, error) {
 	// 当tenant只有一个时
-	if len(data) == 1 {
+	if tenantCount == 1 {
 		var tenant *Tenant
 		for _, v := range data {
 			tenant = v
+			break
 		}
 		return tenant, nil
 	}

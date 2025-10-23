@@ -98,7 +98,7 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	if center.GetCache() == nil {
+	if center.GetCache() != nil {
 		v, _ := center.GetCache().HGet(ctx,
 			fmt.Sprintf("%s:%s", t.GetID(), "appConfig"),
 			fmt.Sprintf("%s:%s", group, key)).Result()
