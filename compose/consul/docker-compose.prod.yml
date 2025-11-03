@@ -1,0 +1,102 @@
+version: "3.8"
+
+# Production-grade Consul cluster (3 servers) with TLS and ACLs enabled.
+# Notes:
+# - Requires TLS certs present in ./certs (see README-PRODUCTION.md)
+# - Requires a gossip encryption key provided via environment (.env)
+# - Exposes only HTTPS (8501) on server-1 by default; adjust as needed
+
+x-consul-common: &consul-common
+  image: hashicorp/consul:1.18
+  restart: unless-stopped
+  networks:
+    - consul
+  volumes:
+    - ./config:/consul/config:ro
+    - ./certs:/consul/certs:ro
+  environment:
+    # Make consul CLI inside the container use TLS by default (for healthchecks, etc.)
+    CONSUL_HTTP_ADDR: https://127.0.0.1:8501
+    CONSUL_CACERT: /consul/certs/ca.pem
+    CONSUL_CLIENT_CERT: /consul/certs/server.pem
+    CONSUL_CLIENT_KEY: /consul/certs/server-key.pem
+  healthcheck:
+    test: ["CMD", "sh", "-c", "consul info >/dev/null 2>&1"]
+    interval: 15s
+    timeout: 5s
+    retries: 5
+
+services:
+  consul-server-1:
+    <<: *consul-common
+    container_name: consul-server-1
+    hostname: consul-server-1
+    command: >-
+      agent
+      -server
+      -bootstrap-expect=3
+      -node=consul-server-1
+      -datacenter=${CONSUL_DATACENTER:-dc1}
+      -bind=0.0.0.0
+      -client=0.0.0.0
+      -encrypt=${GOSSIP_KEY}
+      -retry-join=consul-server-1
+      -retry-join=consul-server-2
+      -retry-join=consul-server-3
+      -config-dir=/consul/config
+    ports:
+      # Only expose HTTPS and DNS from a single node by default
+      - "8501:8501"   # HTTPS API/UI
+      - "8502:8502"   # gRPC (TLS)
+      - "8600:8600/udp" # DNS (UDP)
+    volumes:
+      - consul-data-server1:/consul/data
+
+  consul-server-2:
+    <<: *consul-common
+    container_name: consul-server-2
+    hostname: consul-server-2
+    command: >-
+      agent
+      -server
+      -bootstrap-expect=3
+      -node=consul-server-2
+      -datacenter=${CONSUL_DATACENTER:-dc1}
+      -bind=0.0.0.0
+      -client=0.0.0.0
+      -encrypt=${GOSSIP_KEY}
+      -retry-join=consul-server-1
+      -retry-join=consul-server-2
+      -retry-join=consul-server-3
+      -config-dir=/consul/config
+    volumes:
+      - consul-data-server2:/consul/data
+
+  consul-server-3:
+    <<: *consul-common
+    container_name: consul-server-3
+    hostname: consul-server-3
+    command: >-
+      agent
+      -server
+      -bootstrap-expect=3
+      -node=consul-server-3
+      -datacenter=${CONSUL_DATACENTER:-dc1}
+      -bind=0.0.0.0
+      -client=0.0.0.0
+      -encrypt=${GOSSIP_KEY}
+      -retry-join=consul-server-1
+      -retry-join=consul-server-2
+      -retry-join=consul-server-3
+      -config-dir=/consul/config
+    volumes:
+      - consul-data-server3:/consul/data
+
+networks:
+  consul:
+    driver: bridge
+
+volumes:
+  consul-data-server1:
+  consul-data-server2:
+  consul-data-server3:
