@@ -43,8 +43,8 @@ services:
         --cluster cluster-a \
         --zookeeper zookeeper:2181 \
         --configuration-store zookeeper:2181 \
-        --web-service-url http://broker:8080 \
-        --broker-service-url pulsar://broker:6650
+        --web-service-url http://broker-1:8080 \
+        --broker-service-url pulsar://broker-1:6650
     depends_on:
       zookeeper:
         condition: service_healthy
