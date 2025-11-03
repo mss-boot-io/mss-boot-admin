@@ -150,41 +150,41 @@ broker-1:
       - "6650:6650"
     command: bash -c "bin/apply-config-from-env.py conf/broker.conf && exec bin/pulsar broker"
 
-    # Start broker 2
-    broker-2:
-      image: apachepulsar/pulsar:latest
-      container_name: broker-2
-      hostname: broker-2
-      restart: on-failure
-      networks:
-        - pulsar
-      environment:
-        - metadataStoreUrl=zk:zookeeper:2181
-        - zookeeperServers=zookeeper:2181
-        - clusterName=cluster-a
-        - managedLedgerDefaultEnsembleSize=3
-        - managedLedgerDefaultWriteQuorum=2
-        - managedLedgerDefaultAckQuorum=2
-        - advertisedAddress=broker-2
-        - advertisedListeners=external:pulsar://127.0.0.1:6651
-        - PULSAR_MEM=-Xms1g -Xmx1g -XX:MaxDirectMemorySize=512m
-        - loadBalancerEnabled=true
-        - loadBalancerAutoBundleSplitEnabled=true
-        - loadBalancerAutoUnloadSplitBundlesEnabled=true
-      depends_on:
-        zookeeper:
-          condition: service_healthy
-        bookie-1:
-          condition: service_started
-        bookie-2:
-          condition: service_started
-        bookie-3:
-          condition: service_started
-      ports:
-        - "6651:6650"
-      command: bash -c "bin/apply-config-from-env.py conf/broker.conf && exec bin/pulsar broker"
+  # Start broker 2
+  broker-2:
+    image: apachepulsar/pulsar:latest
+    container_name: broker-2
+    hostname: broker-2
+    restart: on-failure
+    networks:
+      - pulsar
+    environment:
+      - metadataStoreUrl=zk:zookeeper:2181
+      - zookeeperServers=zookeeper:2181
+      - clusterName=cluster-a
+      - managedLedgerDefaultEnsembleSize=3
+      - managedLedgerDefaultWriteQuorum=2
+      - managedLedgerDefaultAckQuorum=2
+      - advertisedAddress=broker-2
+      - advertisedListeners=external:pulsar://127.0.0.1:6651
+      - PULSAR_MEM=-Xms1g -Xmx1g -XX:MaxDirectMemorySize=512m
+      - loadBalancerEnabled=true
+      - loadBalancerAutoBundleSplitEnabled=true
+      - loadBalancerAutoUnloadSplitBundlesEnabled=true
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      bookie-1:
+        condition: service_started
+      bookie-2:
+        condition: service_started
+      bookie-3:
+        condition: service_started
+    ports:
+      - "6651:6650"
+    command: bash -c "bin/apply-config-from-env.py conf/broker.conf && exec bin/pulsar broker"
 
-    # Start broker 3
+  # Start broker 3
     broker-3:
       image: apachepulsar/pulsar:latest
       container_name: broker-3
