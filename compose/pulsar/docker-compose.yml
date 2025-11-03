@@ -115,9 +115,9 @@ services:
       - ./data/bookkeeper-3:/pulsar/data/bookkeeper
     command: bash -c "bin/apply-config-from-env.py conf/bookkeeper.conf && exec bin/pulsar bookie"
 
-    # Start broker 1
-  broker-1:
-    image: apachepulsar/pulsar:latest
+  # Start broker 1
+broker-1:
+  image: apachepulsar/pulsar:latest
     container_name: broker-1
     hostname: broker-1
     restart: on-failure
