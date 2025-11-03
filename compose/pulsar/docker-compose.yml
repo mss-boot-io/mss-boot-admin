@@ -226,7 +226,11 @@ broker-1:
     networks:
       - pulsar
     depends_on:
-      broker:
+      broker-1:
+        condition: service_started
+      broker-2:
+        condition: service_started
+      broker-3:
         condition: service_started
     # Expose console on localhost:8088
     ports:
