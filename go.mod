@@ -37,9 +37,9 @@ require (
 	golang.org/x/oauth2 v0.32.0
 	google.golang.org/grpc v1.76.0
 	gorm.io/gorm v1.31.1
-	k8s.io/api v0.35.0-alpha.2
-	k8s.io/apimachinery v0.35.0-alpha.2
-	k8s.io/client-go v0.35.0-alpha.2
+	k8s.io/api v0.35.0-alpha.3
+	k8s.io/apimachinery v0.35.0-alpha.3
+	k8s.io/client-go v0.35.0-alpha.3
 )
 
 require (
