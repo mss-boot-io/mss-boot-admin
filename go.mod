@@ -9,7 +9,7 @@ replace (
 
 require (
 	github.com/appleboy/gin-jwt/v2 v2.10.3
-	github.com/aws/aws-sdk-go-v2 v1.40.0
+	github.com/aws/aws-sdk-go-v2 v1.40.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.2
 	github.com/aws/aws-sdk-go-v2/service/eks v1.75.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.92.1
