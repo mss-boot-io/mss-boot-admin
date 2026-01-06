@@ -121,7 +121,7 @@ func (e *AppConfig) CreateOrUpdate(ctx *gin.Context, group string, data map[stri
 	var err error
 	if center.GetCache() != nil {
 		// Clear cache for the group
-		err = center.GetCache().Del(ctx, fmt.Sprintf("%v:app-configs:%s", center.GetTenant().GetID(), group)).Err()
+		err = center.GetCache().Del(ctx, fmt.Sprintf("%v:app-configs", center.GetTenant().GetID())).Err()
 		if err != nil {
 			return err
 		}

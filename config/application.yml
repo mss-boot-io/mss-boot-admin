@@ -64,9 +64,10 @@ cache:
   queryCacheDuration: 1h
   queryCacheKeys:
     - '*'
-  memory: ''
-#  redis:
-#    addr: '127.0.0.1:6379'
+#  memory: ''
+  redis:
+    addr: '127.0.0.1:6666'
+    password: 123456
 queue:
   memory:
     poolSize: 10
