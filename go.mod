@@ -1,11 +1,6 @@
 module github.com/mss-boot-io/mss-boot-admin
 
-go 1.25.3
-
-replace (
-	github.com/armon/go-metrics => github.com/hashicorp/go-metrics v0.4.1
-	github.com/imdario/mergo => dario.cat/mergo v0.3.16
-)
+go 1.26
 
 require (
 	github.com/appleboy/gin-jwt/v2 v2.10.3
