@@ -30,7 +30,6 @@ func init() {
 			controller.WithModel(new(models.Language)),
 			controller.WithSearch(new(dto.LanguageSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
-			controller.WithScope(center.Default.Scope),
 			controller.WithAfterDelete(LanguageDeleteCache),
 			controller.WithAfterUpdate(func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error {
 				err := LanguageDeleteCache(ctx, db, m)
@@ -65,14 +64,14 @@ func (e *Language) Profile(ctx *gin.Context) {
 	api := response.Make(ctx)
 	items := make([]*models.Language, 0)
 	resp := make(map[string]map[string]string)
-	tenant, err := center.GetTenant().GetTenant(ctx)
-	if err == nil && tenant != nil && center.GetCache() != nil {
+	var err error
+	if center.GetCache() != nil {
 		keys := make([]string, 0)
-		err = center.GetCache().SMembers(ctx, fmt.Sprintf("%s:language", tenant.GetID())).ScanSlice(&keys)
+		err = center.GetCache().SMembers(ctx, "language").ScanSlice(&keys)
 		if err == nil {
 			for i := range keys {
 				var v map[string]string
-				v, err = center.GetCache().HGetAll(ctx, fmt.Sprintf("%s:language:%s", tenant.GetID(), keys[i])).Result()
+				v, err = center.GetCache().HGetAll(ctx, fmt.Sprintf("language:%s", keys[i])).Result()
 				if err != nil {
 					break
 				}
@@ -108,12 +107,12 @@ func (e *Language) Profile(ctx *gin.Context) {
 	if len(resp) > 0 {
 		if center.GetCache() != nil {
 			for k, v := range resp {
-				err = center.GetCache().HSet(ctx, fmt.Sprintf("%v:language:%s", tenant.GetID(), k), v).Err()
+				err := center.GetCache().HSet(ctx, fmt.Sprintf("language:%s", k), v).Err()
 				if err != nil {
 					slog.Error("set language cache error", "error", err)
 					continue
 				}
-				err = center.GetCache().SAdd(ctx, fmt.Sprintf("%s:language", tenant.GetID()), k).Err()
+				err = center.GetCache().SAdd(ctx, "language", k).Err()
 				if err != nil {
 					slog.Error("set language cache error", "error", err)
 					continue
@@ -184,8 +183,7 @@ func (*Language) List(*gin.Context) {}
 func (*Language) Delete(*gin.Context) {}
 
 func LanguageDeleteCache(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error {
-	tenant, err := center.GetTenant().GetTenant(ctx)
-	if err != nil || tenant == nil || center.GetCache() == nil {
+	if center.GetCache() == nil {
 		return nil
 	}
 	if db == nil {
@@ -195,8 +193,8 @@ func LanguageDeleteCache(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error {
 	if name == "" {
 		return nil
 	}
-	slog.Debug(fmt.Sprintf("%s:language:%s", tenant.GetID(), name))
-	err = center.GetCache().Del(ctx, fmt.Sprintf("%s:language:%s", tenant.GetID(), name), "name").Err()
+	slog.Debug(fmt.Sprintf("language:%s", name))
+	err := center.GetCache().Del(ctx, fmt.Sprintf("language:%s", name), "name").Err()
 	if err != nil {
 		slog.Error("delete language cache error", "error", err)
 	}
@@ -204,8 +202,7 @@ func LanguageDeleteCache(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error {
 }
 
 func LanguageAddCache(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error {
-	tenant, err := center.GetTenant().GetTenant(ctx)
-	if err != nil || tenant == nil || center.GetCache() == nil {
+	if center.GetCache() == nil {
 		return nil
 	}
 	if db == nil {
@@ -219,12 +216,12 @@ func LanguageAddCache(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error {
 	for i := range *l.Defines {
 		data[(*l.Defines)[i].Group+"."+(*l.Defines)[i].Key] = (*l.Defines)[i].Value
 	}
-	err = center.GetCache().HSet(ctx, fmt.Sprintf("%s:language:%s", tenant.GetID(), l.Name), data).Err()
+	err := center.GetCache().HSet(ctx, fmt.Sprintf("language:%s", l.Name), data).Err()
 	if err != nil {
 		slog.Error("add language cache error", "error", err)
 		return err
 	}
-	err = center.GetCache().SAdd(ctx, fmt.Sprintf("%s:language", tenant.GetID()), l.Name).Err()
+	err = center.GetCache().SAdd(ctx, "language", l.Name).Err()
 	if err != nil {
 		slog.Error("add language cache error", "error", err)
 		return err

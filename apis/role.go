@@ -34,7 +34,6 @@ func init() {
 			controller.WithModel(new(models.Role)),
 			controller.WithSearch(new(dto.RoleSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
-			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)

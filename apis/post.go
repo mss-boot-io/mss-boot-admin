@@ -29,7 +29,6 @@ func init() {
 			controller.WithModel(&models.Post{}),
 			controller.WithSearch(&dto.PostSearch{}),
 			controller.WithModelProvider(actions.ModelProviderGorm),
-			controller.WithScope(center.Default.Scope),
 			controller.WithTreeField("Children"),
 			controller.WithDepth(5),
 		),
@@ -78,7 +77,6 @@ func (e *Post) List(c *gin.Context) {
 	m := &models.Post{}
 	query := center.Default.GetDB(c, m).
 		Model(m).
-		Scopes(center.Default.Scope(c, m)).
 		Preload("Children").
 		Scopes(
 			gorms.MakeCondition(req),

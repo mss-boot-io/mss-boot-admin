@@ -44,7 +44,6 @@ func init() {
 			controller.WithModel(new(models.User)),
 			controller.WithSearch(new(dto.UserSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
-			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -260,7 +259,7 @@ func (e *User) UpdateAvatar(ctx *gin.Context) {
 		return
 	}
 	s := service.Storage{}
-	filename, err := s.Upload(ctx, file, verify.GetTenantID(), verify.GetUserID())
+	filename, err := s.Upload(ctx, file, verify.GetUserID())
 	if err != nil {
 		api.AddError(err).Log.Error("upload error")
 		api.Err(http.StatusInternalServerError)

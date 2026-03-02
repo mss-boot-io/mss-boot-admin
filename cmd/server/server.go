@@ -74,9 +74,7 @@ func init() {
 		"gorm-dsn", "n",
 		"root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local",
 		"Start server with db dsn")
-	center.SetTenant(&models.Tenant{}).
-		SetVerify(&models.User{})
-	center.SetTenantMigrator(&models.Tenant{})
+	center.SetVerify(&models.User{})
 }
 
 func setup() error {
@@ -146,10 +144,7 @@ func setup() error {
 	if center.GetCustomConfig() != nil {
 		center.GetCustomConfig().Init()
 	}
-	err := models.InitTenant(gormdb.DB)
-	if err != nil {
-		return err
-	}
+	var err error
 
 	// app config
 	center.SetAppConfig(&models.AppConfig{})

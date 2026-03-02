@@ -33,7 +33,6 @@ func init() {
 			controller.WithModel(new(models.Menu)),
 			controller.WithSearch(new(dto.RoleSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
-			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -167,7 +166,23 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 		}
 		result = append(result, menu)
 	}
+	normalizeMenuNameForLayout(result)
 	api.OK(result)
+}
+
+func normalizeMenuNameForLayout(menus []*models.Menu) {
+	for i := range menus {
+		if strings.HasPrefix(menus[i].Name, "menu.") {
+			menus[i].Name = strings.TrimPrefix(menus[i].Name, "menu.")
+		}
+		if strings.Contains(menus[i].Name, ".") {
+			parts := strings.Split(menus[i].Name, ".")
+			menus[i].Name = parts[len(parts)-1]
+		}
+		if len(menus[i].Children) > 0 {
+			normalizeMenuNameForLayout(menus[i].Children)
+		}
+	}
 }
 
 // Tree 获取菜单树

@@ -20,13 +20,13 @@ import (
  */
 
 var Default = &DefaultCenter{
-	Manager: server.New(),
+	Manager:   server.New(),
+	TenantImp: &SingleTenant{},
 }
 
 type DefaultCenter struct {
 	NoticeImp
 	TenantImp
-	TenantMigrator
 	UserImp
 	VirtualModelImp
 	ConfigImp
@@ -52,10 +52,6 @@ func (d *DefaultCenter) SetNotice(n NoticeImp) {
 
 func (d *DefaultCenter) SetTenant(t TenantImp) {
 	d.TenantImp = t
-}
-
-func (d *DefaultCenter) SetTenantMigrator(t TenantMigrator) {
-	d.TenantMigrator = t
 }
 
 func (d *DefaultCenter) SetVerify(v UserImp) {
@@ -128,10 +124,6 @@ func (d *DefaultCenter) GetNotice() NoticeImp {
 
 func (d *DefaultCenter) GetTenant() TenantImp {
 	return d.TenantImp
-}
-
-func (d *DefaultCenter) GetTenantMigrator() TenantMigrator {
-	return d.TenantMigrator
 }
 
 func (d *DefaultCenter) GetVerify() UserImp {
@@ -223,11 +215,6 @@ func SetTenant(t TenantImp) *DefaultCenter {
 	return Default
 }
 
-func SetTenantMigrator(t TenantMigrator) *DefaultCenter {
-	Default.SetTenantMigrator(t)
-	return Default
-}
-
 func SetVerify(v security.Verifier) *DefaultCenter {
 	Default.SetVerify(v)
 	return Default
@@ -314,10 +301,6 @@ func GetNotice() NoticeImp {
 
 func GetTenant() TenantImp {
 	return Default.GetTenant()
-}
-
-func GetTenantMigrator() TenantMigrator {
-	return Default.GetTenantMigrator()
 }
 
 func GetUser() UserImp {

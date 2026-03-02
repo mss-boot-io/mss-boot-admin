@@ -24,7 +24,7 @@ import (
 
 type Storage struct{}
 
-func (s *Storage) Upload(c *gin.Context, f *multipart.FileHeader, tenantID, userID string) (string, error) {
+func (s *Storage) Upload(c *gin.Context, f *multipart.FileHeader, userID string) (string, error) {
 	storageType, _ := center.GetAppConfig().GetAppConfig(c, "storage:type")
 	endpoint, _ := center.GetAppConfig().GetAppConfig(c, "storage:endpoint")
 	switch storageType {
@@ -47,7 +47,7 @@ func (s *Storage) Upload(c *gin.Context, f *multipart.FileHeader, tenantID, user
 		if err != nil {
 			return "", err
 		}
-		key := fmt.Sprintf("%s/%s/%s", tenantID, userID, f.Filename)
+		key := fmt.Sprintf("%s/%s", userID, f.Filename)
 		_, err = storage.GetClient().PutObject(c, &s3.PutObjectInput{
 			Bucket: &storage.Bucket,
 			Key:    aws.String(key),
@@ -63,11 +63,11 @@ func (s *Storage) Upload(c *gin.Context, f *multipart.FileHeader, tenantID, user
 			return "", errors.New("localEndpoint is empty")
 		}
 		//上传文件到本地
-		key := filepath.Join("public", tenantID, userID, f.Filename)
+		key := filepath.Join("public", userID, f.Filename)
 		err := c.SaveUploadedFile(f, key)
 		if err != nil {
 			return "", err
 		}
-		return strings.Join([]string{endpoint, "public", tenantID, userID, f.Filename}, "/"), nil
+		return strings.Join([]string{endpoint, "public", userID, f.Filename}, "/"), nil
 	}
 }

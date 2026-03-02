@@ -51,7 +51,7 @@ func (e *Storage) Upload(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	u, err := e.service.Upload(ctx, file, verify.GetTenantID(), verify.GetUserID())
+	u, err := e.service.Upload(ctx, file, verify.GetUserID())
 	if err != nil {
 		api.AddError(err).Log.Error("upload error")
 		api.Err(http.StatusInternalServerError)

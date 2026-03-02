@@ -1,9 +1,8 @@
 package system
 
 import (
+	"errors"
 	"runtime"
-	"strings"
-	"time"
 
 	adminPKG "github.com/mss-boot-io/mss-boot-admin/pkg"
 
@@ -105,7 +104,7 @@ oauth2:
 			Table:       "mss_boot_demo",
 			Path:        "demo",
 			Auth:        true,
-			MultiTenant: true,
+			MultiTenant: false,
 		}
 		err = tx.Create(m).Error
 		if err != nil {
@@ -156,43 +155,42 @@ oauth2:
 			return err
 		}
 
-		expire := time.Now().Add(100 * 365 * 24 * time.Hour)
-
-		tenant := &models.Tenant{
-			Name:   "mss-boot-io",
-			Remark: "mss-boot-io",
-			Status: enum.Enabled,
-			Expire: &expire,
-			Domains: []*models.TenantDomain{
-				{
-					Name:   "local",
-					Domain: "localhost:8000",
-				},
-			},
-			Default: true,
-			AdminUser: models.AdminUser{
+		adminRole := &models.Role{Default: true}
+		err = tx.Model(&models.Role{}).Where("`default` = ?", true).First(adminRole).Error
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			adminRole = &models.Role{
+				Name:   "admin",
+				Status: enum.Enabled,
+				Remark: "admin",
+			}
+			err = tx.Create(adminRole).Error
+			if err != nil {
+				return err
+			}
+			err = tx.Table(adminRole.TableName()).Where("id = ?", adminRole.ID).Updates(map[string]any{
+				"default": true,
+				"root":    true,
+			}).Error
+			if err != nil {
+				return err
+			}
+		}
+		if adminRole.ID == "" {
+			return migration.Migrate.CreateVersion(tx, version)
+		}
+		adminUser := &models.User{
+			UserLogin: models.UserLogin{
+				RoleID:   adminRole.ID,
 				Username: Username,
 				Password: Password,
+				Status:   enum.Enabled,
 			},
+			Name: "admin",
 		}
-		if Domain != "" {
-			tenant.Domains = append(tenant.Domains, &models.TenantDomain{
-				Name:   strings.Split(Domain, ":")[0],
-				Domain: Domain,
-			})
-		}
-		err = tx.Create(tenant).Error
-		if err != nil {
-			return err
-		}
-		err = tx.Table(tenant.TableName()).
-			Where("id = ?", tenant.ID).
-			Update("default", true).Error
-		if err != nil {
-			return err
-		}
-
-		err = tenant.Migrate(tenant, tx)
+		err = tx.Where("username = ?", Username).FirstOrCreate(adminUser).Error
 		if err != nil {
 			return err
 		}

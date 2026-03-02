@@ -27,7 +27,6 @@ func init() {
 			controller.WithModel(new(models.Notice)),
 			controller.WithSearch(new(dto.NoticeSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
-			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)

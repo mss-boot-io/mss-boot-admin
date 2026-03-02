@@ -49,27 +49,20 @@ func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value 
 		Group: group,
 		Name:  key,
 	}
-	t, err := center.GetTenant().GetTenant(ctx)
-	if err != nil {
-		return err
-	}
-	//set cache
-
 	c.Auth = auth
 	c.Value = value
 	c.UpdatedAt = time.Now()
 	if center.GetCache() != nil {
-		err = center.GetCache().HSet(ctx,
-			fmt.Sprintf("%s:%s", t.GetID(), "appConfig"),
+		err := center.GetCache().HSet(ctx,
+			"appConfig",
 			fmt.Sprintf("%s:%s", c.Group, c.Name), value).Err()
 		if err != nil {
 			return err
 		}
 	}
-	return center.GetTenant().GetDB(ctx, e).
+	return center.GetDB(ctx, e).
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{
-				{Name: "tenant_id"},
 				{Name: "name"},
 				{Name: "group"},
 			},
@@ -94,13 +87,9 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 		group = keys[0]
 		key = strings.Join(keys[1:], ":")
 	}
-	t, err := center.GetTenant().GetTenant(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if center.GetCache() == nil {
+	if center.GetCache() != nil {
 		v, _ := center.GetCache().HGet(ctx,
-			fmt.Sprintf("%s:%s", t.GetID(), "appConfig"),
+			"appConfig",
 			fmt.Sprintf("%s:%s", group, key)).Result()
 		if v != "" {
 			c.Group = group
@@ -113,17 +102,19 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 		Group: group,
 		Name:  key,
 	}
-	err = center.GetTenant().GetDB(ctx, c).
+	err := center.GetDB(ctx, c).
 		Model(condition).
 		Where(condition).
 		First(c).Error
 	if err != nil {
 		return nil, err
 	}
-	_ = center.GetCache().HSet(ctx,
-		fmt.Sprintf("%s:%s", t.GetID(), "appConfig"),
-		fmt.Sprintf("%s:%s", c.Group, c.Name),
-		c.Value, -1).Err()
+	if center.GetCache() != nil {
+		_ = center.GetCache().HSet(ctx,
+			"appConfig",
+			fmt.Sprintf("%s:%s", c.Group, c.Name),
+			c.Value, -1).Err()
+	}
 	return c, nil
 }
 
