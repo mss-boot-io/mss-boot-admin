@@ -4,6 +4,7 @@
 - `mss-boot` 简称 `mss`
 - `mss-boot-admin` 简称 `admin`
 - `mss-boot-admin-antd` 简称 `antd`
+- `mss-boot-docs` 简称 `docs`
 
 ## 启动项目复用约束
 
