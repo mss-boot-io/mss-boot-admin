@@ -77,44 +77,78 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 		api.Err(http.StatusUnauthorized)
 		return
 	}
-	// todo check roleID
-	// todo check menu keys
+	if req.RoleID == "" {
+		req.RoleID = ctx.Param("roleID")
+	}
+	if req.RoleID == "" {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 
-	// todo commit transaction
-
-	// delete all policy for role
-	err := gormdb.DB.Where(&models.CasbinRule{
-		PType: "p",
-		V0:    req.RoleID,
-	}).Delete(&models.CasbinRule{}).Error
-	if err != nil {
-		api.AddError(err).Log.Error("delete role error", "err", err)
+	if err := center.Default.GetDB(ctx, &models.Role{}).
+		Where("id = ?", req.RoleID).
+		First(&models.Role{}).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			api.Err(http.StatusNotFound)
+			return
+		}
+		api.AddError(err).Log.Error("check role error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	defer func() {
-		_ = gormdb.Enforcer.LoadPolicy()
-	}()
-	if err != nil {
-		api.AddError(err).Log.Error("delete role error", "err", err)
-		api.Err(http.StatusInternalServerError)
+
+	keys := sanitizeMenuAuthorizeKeys(req.Keys)
+	if len(keys) == 0 {
+		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	rules := make([]*models.CasbinRule, len(req.Keys))
-	for i := range req.Keys {
-		rules[i] = &models.CasbinRule{
+
+	err := center.Default.GetDB(ctx, &models.CasbinRule{}).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where(&models.CasbinRule{
 			PType: "p",
 			V0:    req.RoleID,
-			V1:    req.Keys[i],
-			V2:    pkg.MenuAccessType.String(),
+			V1:    pkg.MenuAccessType.String(),
+		}).Delete(&models.CasbinRule{}).Error; err != nil {
+			return err
 		}
-	}
-	if err = gormdb.DB.Create(&rules).Error; err != nil {
-		api.AddError(err).Log.Error("create casbin rule error", "err", err)
+		rules := make([]*models.CasbinRule, len(keys))
+		for i := range keys {
+			rules[i] = &models.CasbinRule{
+				PType: "p",
+				V0:    req.RoleID,
+				V1:    pkg.MenuAccessType.String(),
+				V2:    keys[i],
+			}
+		}
+		if err := tx.Create(&rules).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		api.AddError(err).Log.Error("update role menu authorize error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return
 	}
+	_ = gormdb.Enforcer.LoadPolicy()
 	api.OK(nil)
+}
+
+func sanitizeMenuAuthorizeKeys(keys []string) []string {
+	result := make([]string, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
+	for i := range keys {
+		key := strings.TrimSpace(keys[i])
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, key)
+	}
+	return result
 }
 
 // GetAuthorize 获取菜单权限
