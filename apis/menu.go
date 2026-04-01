@@ -118,15 +118,7 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 		}).Delete(&models.CasbinRule{}).Error; err != nil {
 			return err
 		}
-		rules := make([]*models.CasbinRule, len(keys))
-		for i := range keys {
-			rules[i] = &models.CasbinRule{
-				PType: "p",
-				V0:    req.RoleID,
-				V1:    pkg.MenuAccessType.String(),
-				V2:    keys[i],
-			}
-		}
+		rules := buildMenuAuthorizeRules(req.RoleID, keys)
 		if err := tx.Create(&rules).Error; err != nil {
 			return err
 		}

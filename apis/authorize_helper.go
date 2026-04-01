@@ -1,6 +1,7 @@
 package apis
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -96,4 +97,48 @@ func respondInvalidAuthorizeRequest(api *response.API, message string, roleID st
 
 func hasEmptyAuthorizeRoleID(roleID string) bool {
 	return strings.TrimSpace(roleID) == ""
+}
+
+func buildMenuAuthorizeRules(roleID string, keys []string) []*models.CasbinRule {
+	rules := make([]*models.CasbinRule, len(keys))
+	for i := range keys {
+		rules[i] = &models.CasbinRule{
+			PType: "p",
+			V0:    roleID,
+			V1:    pkg.MenuAccessType.String(),
+			V2:    keys[i],
+		}
+	}
+	return rules
+}
+
+func buildRoleAuthorizeRules(roleID string, menus []*models.Menu) []*models.CasbinRule {
+	rules := make([]*models.CasbinRule, 0, len(menus)*2)
+	seen := make(map[string]struct{}, len(menus)*2)
+	for i := range menus {
+		rules = appendRuleIfNotExists(rules, seen, roleID, menus[i].Type.String(), menus[i].Path, menus[i].Method)
+		for j := range menus[i].Children {
+			if menus[i].Children[j].Type != pkg.APIAccessType {
+				continue
+			}
+			rules = appendRuleIfNotExists(rules, seen, roleID, pkg.APIAccessType.String(), menus[i].Children[j].Path, menus[i].Children[j].Method)
+		}
+	}
+	return rules
+}
+
+func appendRuleIfNotExists(rules []*models.CasbinRule, seen map[string]struct{}, roleID, accessType, path, method string) []*models.CasbinRule {
+	key := fmt.Sprintf("%s|%s|%s|%s", roleID, accessType, path, method)
+	if _, ok := seen[key]; ok {
+		return rules
+	}
+	seen[key] = struct{}{}
+	rules = append(rules, &models.CasbinRule{
+		PType: "p",
+		V0:    roleID,
+		V1:    accessType,
+		V2:    path,
+		V3:    method,
+	})
+	return rules
 }

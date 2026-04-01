@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
 
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
@@ -19,6 +20,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot-admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/middleware"
@@ -154,46 +156,30 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	}
 	pathSet := authorizePathSet(paths)
 	menus = filterAuthorizeMenusByPathSet(menus, pathSet)
-
-	// authorize
-	_, err = gormdb.Enforcer.DeletePermissionsForUser(req.RoleID)
-	if err != nil {
-		api.AddError(err).Log.Error("delete permissions for user error", "err", err)
-		api.Err(http.StatusInternalServerError)
+	rules := buildRoleAuthorizeRules(req.RoleID, menus)
+	if len(rules) == 0 {
+		respondInvalidAuthorizeRequest(api, "set role authorize request resolves no permission rules", req.RoleID, paths)
 		return
 	}
 
-	for i := range menus {
-		_, err = gormdb.Enforcer.AddPermissionForUser(
-			req.RoleID, menus[i].Type.String(), menus[i].Path, menus[i].Method)
-		if err != nil {
-			api.AddError(err).Log.
-				Error("add menu and component permission for role error",
-					slog.String("roleID", req.RoleID))
-			api.Err(http.StatusInternalServerError)
-			return
+	err = center.Default.GetDB(ctx, &models.CasbinRule{}).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where(&models.CasbinRule{
+			PType: "p",
+			V0:    req.RoleID,
+		}).Delete(&models.CasbinRule{}).Error; err != nil {
+			return err
 		}
-		for j := range menus[i].Children {
-			if menus[i].Children[j].Type != pkg.APIAccessType {
-				continue
-			}
-			_, err = gormdb.Enforcer.AddPermissionForUser(
-				req.RoleID, pkg.APIAccessType.String(), menus[i].Children[j].Path, menus[i].Children[j].Method)
-			if err != nil {
-				api.AddError(err).Log.
-					Error("add api permission for role error",
-						slog.String("roleID", req.RoleID))
-				api.Err(http.StatusInternalServerError)
-				return
-			}
+		if err := tx.Create(&rules).Error; err != nil {
+			return err
 		}
-	}
-	err = gormdb.Enforcer.SavePolicy()
+		return nil
+	})
 	if err != nil {
-		api.AddError(err).Log.Error("save policy error", "err", err)
+		api.AddError(err).Log.Error("update role authorize policy error", "err", err, slog.String("roleID", req.RoleID))
 		api.Err(http.StatusInternalServerError)
 		return
 	}
+	_ = gormdb.Enforcer.LoadPolicy()
 
 	api.OK(nil)
 }

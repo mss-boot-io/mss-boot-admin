@@ -108,3 +108,48 @@ func TestHasEmptyAuthorizeRoleID(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildMenuAuthorizeRules(t *testing.T) {
+	rules := buildMenuAuthorizeRules("role-1", []string{"/menu/a", "/menu/b"})
+	if len(rules) != 2 {
+		t.Fatalf("unexpected menu rule length: got=%d want=2", len(rules))
+	}
+	if rules[0].V0 != "role-1" || rules[0].V1 != "MENU" || rules[0].V2 != "/menu/a" {
+		t.Fatalf("unexpected first menu rule: %#v", rules[0])
+	}
+	if rules[1].V2 != "/menu/b" {
+		t.Fatalf("unexpected second menu path: got=%q want=%q", rules[1].V2, "/menu/b")
+	}
+}
+
+func TestBuildRoleAuthorizeRulesDeduplicate(t *testing.T) {
+	menus := []*models.Menu{
+		{
+			Path:   "/menu/a",
+			Type:   "MENU",
+			Method: "GET",
+			Children: []*models.Menu{
+				{Path: "/api/a", Type: "API", Method: "GET"},
+				{Path: "/api/a", Type: "API", Method: "GET"},
+			},
+		},
+		{
+			Path:   "/menu/a",
+			Type:   "MENU",
+			Method: "GET",
+		},
+	}
+	rules := buildRoleAuthorizeRules("role-1", menus)
+	if len(rules) != 2 {
+		t.Fatalf("unexpected role rule length: got=%d want=2", len(rules))
+	}
+	if rules[0].V0 != "role-1" {
+		t.Fatalf("unexpected role id on first rule: got=%q", rules[0].V0)
+	}
+	if rules[0].V1 != "MENU" || rules[0].V2 != "/menu/a" || rules[0].V3 != "GET" {
+		t.Fatalf("unexpected first role rule: %#v", rules[0])
+	}
+	if rules[1].V1 != "API" || rules[1].V2 != "/api/a" || rules[1].V3 != "GET" {
+		t.Fatalf("unexpected second role rule: %#v", rules[1])
+	}
+}
