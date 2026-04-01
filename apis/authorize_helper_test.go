@@ -153,3 +153,26 @@ func TestBuildRoleAuthorizeRulesDeduplicate(t *testing.T) {
 		t.Fatalf("unexpected second role rule: %#v", rules[1])
 	}
 }
+
+func TestBuildRoleAuthorizeRulesPersistsMethod(t *testing.T) {
+	menus := []*models.Menu{
+		{
+			Path:   "/menu/trace",
+			Type:   "MENU",
+			Method: "POST",
+			Children: []*models.Menu{
+				{Path: "/api/trace", Type: "API", Method: "PUT"},
+			},
+		},
+	}
+	rules := buildRoleAuthorizeRules("role-2", menus)
+	if len(rules) != 2 {
+		t.Fatalf("unexpected role rule length: got=%d want=2", len(rules))
+	}
+	if rules[0].V3 != "POST" {
+		t.Fatalf("menu method not persisted: got=%q want=%q", rules[0].V3, "POST")
+	}
+	if rules[1].V3 != "PUT" {
+		t.Fatalf("api method not persisted: got=%q want=%q", rules[1].V3, "PUT")
+	}
+}

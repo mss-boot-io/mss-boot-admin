@@ -26,7 +26,7 @@ type RoleSearch struct {
 
 type SetAuthorizeRequest struct {
 	RoleID string   `uri:"roleID" swaggerignore:"true" binding:"required"`
-	Paths  []string `json:"paths"`
+	Paths  []string `json:"paths" binding:"required"`
 }
 
 type GetAuthorizeResponse struct {
