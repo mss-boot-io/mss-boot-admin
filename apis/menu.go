@@ -99,6 +99,7 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 
 	keys := sanitizeAuthorizePaths(req.Keys)
 	if len(keys) == 0 {
+		api.Log.Error("update role menu authorize request has no valid keys", "roleID", req.RoleID)
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
@@ -109,6 +110,7 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 		return
 	}
 	if missing := missingAuthorizePaths(keys, keySet); len(missing) > 0 {
+		api.Log.Error("update role menu authorize request contains invalid keys", "roleID", req.RoleID, "missing", missing)
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
