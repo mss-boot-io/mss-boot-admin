@@ -10,6 +10,7 @@ package apis
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot-admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/middleware"
@@ -112,11 +114,29 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	// authorize
-	_, err := gormdb.Enforcer.DeletePermissionsForUser(req.RoleID)
-	if err != nil {
-		api.AddError(err).Log.Error("delete permissions for user error", "err", err)
+	if req.RoleID == "" {
+		req.RoleID = ctx.Param("roleID")
+	}
+	if req.RoleID == "" {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+
+	if err := center.Default.GetDB(ctx, &models.Role{}).
+		Where("id = ?", req.RoleID).
+		First(&models.Role{}).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			api.Err(http.StatusNotFound)
+			return
+		}
+		api.AddError(err).Log.Error("check role error", "err", err)
 		api.Err(http.StatusInternalServerError)
+		return
+	}
+
+	paths := sanitizeAuthorizePaths(req.Paths)
+	if len(paths) == 0 {
+		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -130,11 +150,30 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	//	}
 	//}
 	menus := make([]*models.Menu, 0)
-	err = center.Default.GetDB(ctx, &models.Menu{}).Model(&models.Menu{}).
-		Where("path in (?)", req.Paths).
+	err := center.Default.GetDB(ctx, &models.Menu{}).Model(&models.Menu{}).
+		Where("path in (?)", paths).
 		Where("type = ? or type = ?", pkg.MenuAccessType, pkg.ComponentAccessType).
 		Preload("Children").
 		Find(&menus).Error
+	if err != nil {
+		api.AddError(err).Log.Error("query authorize menu error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+
+	if len(menus) == 0 {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+
+	// authorize
+	_, err = gormdb.Enforcer.DeletePermissionsForUser(req.RoleID)
+	if err != nil {
+		api.AddError(err).Log.Error("delete permissions for user error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+
 	for i := range menus {
 		_, err = gormdb.Enforcer.AddPermissionForUser(
 			req.RoleID, menus[i].Type.String(), menus[i].Path, menus[i].Method)
@@ -168,6 +207,23 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	}
 
 	api.OK(nil)
+}
+
+func sanitizeAuthorizePaths(paths []string) []string {
+	result := make([]string, 0, len(paths))
+	seen := make(map[string]struct{}, len(paths))
+	for i := range paths {
+		path := strings.TrimSpace(paths[i])
+		if path == "" {
+			continue
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		result = append(result, path)
+	}
+	return result
 }
 
 // Create 创建角色
