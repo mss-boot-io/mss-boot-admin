@@ -111,7 +111,7 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 		return
 	}
 	req.RoleID = resolveAuthorizeRoleID(req.RoleID, ctx.Param("roleID"))
-	if req.RoleID == "" {
+	if hasEmptyAuthorizeRoleID(req.RoleID) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}

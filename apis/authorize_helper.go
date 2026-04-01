@@ -93,3 +93,7 @@ func respondInvalidAuthorizeRequest(api *response.API, message string, roleID st
 	}
 	api.Err(http.StatusUnprocessableEntity)
 }
+
+func hasEmptyAuthorizeRoleID(roleID string) bool {
+	return strings.TrimSpace(roleID) == ""
+}
