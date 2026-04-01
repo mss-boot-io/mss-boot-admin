@@ -129,8 +129,7 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 
 	paths := sanitizeAuthorizePaths(req.Paths)
 	if len(paths) == 0 {
-		api.Log.Error("set role authorize request has no valid paths", "roleID", req.RoleID)
-		api.Err(http.StatusUnprocessableEntity)
+		respondInvalidAuthorizeRequest(api, "set role authorize request has no valid paths", req.RoleID, nil)
 		return
 	}
 
@@ -150,8 +149,7 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 		return
 	}
 	if missing := missingAuthorizePaths(paths, menuSet); len(missing) > 0 {
-		api.Log.Error("set role authorize request contains invalid paths", "roleID", req.RoleID, "missing", missing)
-		api.Err(http.StatusUnprocessableEntity)
+		respondInvalidAuthorizeRequest(api, "set role authorize request contains invalid paths", req.RoleID, missing)
 		return
 	}
 	pathSet := authorizePathSet(paths)

@@ -1,12 +1,14 @@
 package apis
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
+	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"gorm.io/gorm"
 )
 
@@ -81,4 +83,13 @@ func authorizePathSet(paths []string) map[string]struct{} {
 		set[paths[i]] = struct{}{}
 	}
 	return set
+}
+
+func respondInvalidAuthorizeRequest(api *response.API, message string, roleID string, invalid []string) {
+	if len(invalid) > 0 {
+		api.Log.Error(message, "roleID", roleID, "invalid", invalid)
+	} else {
+		api.Log.Error(message, "roleID", roleID)
+	}
+	api.Err(http.StatusUnprocessableEntity)
 }
