@@ -122,6 +122,16 @@ func TestBuildMenuAuthorizeRules(t *testing.T) {
 	}
 }
 
+func TestBuildMenuAuthorizeRulesDeduplicate(t *testing.T) {
+	rules := buildMenuAuthorizeRules("role-1", []string{" /menu/a ", "/menu/a", "", "  ", "/menu/b"})
+	if len(rules) != 2 {
+		t.Fatalf("unexpected deduplicated menu rule length: got=%d want=2", len(rules))
+	}
+	if rules[0].V2 != "/menu/a" || rules[1].V2 != "/menu/b" {
+		t.Fatalf("unexpected menu rule values after dedup: got=%q,%q", rules[0].V2, rules[1].V2)
+	}
+}
+
 func TestBuildRoleAuthorizeRulesDeduplicate(t *testing.T) {
 	menus := []*models.Menu{
 		{

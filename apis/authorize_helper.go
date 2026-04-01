@@ -130,14 +130,24 @@ func hasEmptyAuthorizeRoleID(roleID string) bool {
 }
 
 func buildMenuAuthorizeRules(roleID string, keys []string) []*models.CasbinRule {
-	rules := make([]*models.CasbinRule, len(keys))
+	rules := make([]*models.CasbinRule, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
 	for i := range keys {
-		rules[i] = &models.CasbinRule{
+		key := strings.TrimSpace(keys[i])
+		if key == "" {
+			continue
+		}
+		dedupKey := fmt.Sprintf("%s|%s|%s", roleID, pkg.MenuAccessType.String(), key)
+		if _, ok := seen[dedupKey]; ok {
+			continue
+		}
+		seen[dedupKey] = struct{}{}
+		rules = append(rules, &models.CasbinRule{
 			PType: "p",
 			V0:    roleID,
 			V1:    pkg.MenuAccessType.String(),
-			V2:    keys[i],
-		}
+			V2:    key,
+		})
 	}
 	return rules
 }
