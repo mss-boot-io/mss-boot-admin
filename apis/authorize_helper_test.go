@@ -1,6 +1,10 @@
 package apis
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/mss-boot-io/mss-boot-admin/models"
+)
 
 func TestSanitizeAuthorizePaths(t *testing.T) {
 	paths := []string{" /user/list ", "", " /user/list", "/role/list", "   ", "/role/list"}
@@ -28,5 +32,38 @@ func TestMissingAuthorizePaths(t *testing.T) {
 	}
 	if missing[0] != "/menu/b" {
 		t.Fatalf("unexpected missing path: got=%q want=%q", missing[0], "/menu/b")
+	}
+}
+
+func TestAuthorizePathSet(t *testing.T) {
+	paths := []string{"/menu/a", "/menu/b", "/menu/a"}
+	set := authorizePathSet(paths)
+	if len(set) != 2 {
+		t.Fatalf("unexpected set length: got=%d want=2", len(set))
+	}
+	if _, ok := set["/menu/a"]; !ok {
+		t.Fatalf("missing expected path %q", "/menu/a")
+	}
+	if _, ok := set["/menu/b"]; !ok {
+		t.Fatalf("missing expected path %q", "/menu/b")
+	}
+}
+
+func TestFilterAuthorizeMenusByPathSet(t *testing.T) {
+	menus := []*models.Menu{
+		{Path: "/menu/a"},
+		{Path: "/menu/b"},
+		{Path: "/menu/c"},
+	}
+	pathSet := map[string]struct{}{
+		"/menu/b": {},
+		"/menu/c": {},
+	}
+	filtered := filterAuthorizeMenusByPathSet(menus, pathSet)
+	if len(filtered) != 2 {
+		t.Fatalf("unexpected filtered length: got=%d want=2", len(filtered))
+	}
+	if filtered[0].Path != "/menu/b" || filtered[1].Path != "/menu/c" {
+		t.Fatalf("unexpected filtered order or values: got=%q,%q", filtered[0].Path, filtered[1].Path)
 	}
 }

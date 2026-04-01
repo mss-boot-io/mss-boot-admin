@@ -160,21 +160,8 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	err = center.Default.GetDB(ctx, &models.Menu{}).Model(&models.Menu{}).
-		Where("path in (?)", paths).
-		Where("type = ? or type = ?", pkg.MenuAccessType, pkg.ComponentAccessType).
-		Preload("Children").
-		Find(&menus).Error
-	if err != nil {
-		api.AddError(err).Log.Error("query authorize menu error", "err", err)
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-
-	if len(menus) == 0 {
-		api.Err(http.StatusUnprocessableEntity)
-		return
-	}
+	pathSet := authorizePathSet(paths)
+	menus = filterAuthorizeMenusByPathSet(menus, pathSet)
 
 	// authorize
 	_, err = gormdb.Enforcer.DeletePermissionsForUser(req.RoleID)
@@ -217,6 +204,17 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	}
 
 	api.OK(nil)
+}
+
+func filterAuthorizeMenusByPathSet(menus []*models.Menu, pathSet map[string]struct{}) []*models.Menu {
+	filtered := make([]*models.Menu, 0, len(menus))
+	for i := range menus {
+		if _, ok := pathSet[menus[i].Path]; !ok {
+			continue
+		}
+		filtered = append(filtered, menus[i])
+	}
+	return filtered
 }
 
 // Create 创建角色

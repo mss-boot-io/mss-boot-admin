@@ -52,3 +52,11 @@ func missingAuthorizePaths(paths []string, loaded map[string]struct{}) []string 
 	}
 	return missing
 }
+
+func authorizePathSet(paths []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(paths))
+	for i := range paths {
+		set[paths[i]] = struct{}{}
+	}
+	return set
+}
