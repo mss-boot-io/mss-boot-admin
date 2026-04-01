@@ -7,7 +7,29 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
+	"gorm.io/gorm"
 )
+
+func resolveAuthorizeRoleID(requestRoleID, pathRoleID string) string {
+	roleID := strings.TrimSpace(requestRoleID)
+	if roleID != "" {
+		return roleID
+	}
+	return strings.TrimSpace(pathRoleID)
+}
+
+func checkAuthorizeRoleExists(ctx *gin.Context, roleID string) (bool, error) {
+	err := center.Default.GetDB(ctx, &models.Role{}).
+		Where("id = ?", roleID).
+		First(&models.Role{}).Error
+	if err == nil {
+		return true, nil
+	}
+	if err == gorm.ErrRecordNotFound {
+		return false, nil
+	}
+	return false, err
+}
 
 func sanitizeAuthorizePaths(paths []string) []string {
 	result := make([]string, 0, len(paths))

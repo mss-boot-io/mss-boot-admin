@@ -67,3 +67,24 @@ func TestFilterAuthorizeMenusByPathSet(t *testing.T) {
 		t.Fatalf("unexpected filtered order or values: got=%q,%q", filtered[0].Path, filtered[1].Path)
 	}
 }
+
+func TestResolveAuthorizeRoleID(t *testing.T) {
+	tests := []struct {
+		name     string
+		request  string
+		path     string
+		expected string
+	}{
+		{name: "prefer request role id", request: " role-1 ", path: "role-2", expected: "role-1"},
+		{name: "fallback to path role id", request: "  ", path: " role-2 ", expected: "role-2"},
+		{name: "empty when both invalid", request: " ", path: " ", expected: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveAuthorizeRoleID(tt.request, tt.path)
+			if got != tt.expected {
+				t.Fatalf("unexpected role id: got=%q want=%q", got, tt.expected)
+			}
+		})
+	}
+}

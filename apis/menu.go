@@ -77,23 +77,20 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 		api.Err(http.StatusUnauthorized)
 		return
 	}
-	if req.RoleID == "" {
-		req.RoleID = ctx.Param("roleID")
-	}
+	req.RoleID = resolveAuthorizeRoleID(req.RoleID, ctx.Param("roleID"))
 	if req.RoleID == "" {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
 
-	if err := center.Default.GetDB(ctx, &models.Role{}).
-		Where("id = ?", req.RoleID).
-		First(&models.Role{}).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			api.Err(http.StatusNotFound)
-			return
-		}
+	exists, err := checkAuthorizeRoleExists(ctx, req.RoleID)
+	if err != nil {
 		api.AddError(err).Log.Error("check role error", "err", err)
 		api.Err(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		api.Err(http.StatusNotFound)
 		return
 	}
 
