@@ -74,7 +74,7 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 	api := response.Make(ctx)
 	req := &dto.UpdateAuthorizeRequest{}
 	if api.Bind(req).Error != nil {
-		api.Err(http.StatusUnauthorized)
+		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
 	req.RoleID = resolveAuthorizeRoleID(req.RoleID, ctx.Param("roleID"))
