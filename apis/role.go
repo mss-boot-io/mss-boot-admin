@@ -10,7 +10,6 @@ package apis
 import (
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 
@@ -149,8 +148,17 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	//		return
 	//	}
 	//}
-	menus := make([]*models.Menu, 0)
-	err := center.Default.GetDB(ctx, &models.Menu{}).Model(&models.Menu{}).
+	menus, menuSet, err := loadAuthorizeMenusByPaths(ctx, paths, pkg.MenuAccessType, pkg.ComponentAccessType)
+	if err != nil {
+		api.AddError(err).Log.Error("query authorize menu error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	if missing := missingAuthorizePaths(paths, menuSet); len(missing) > 0 {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	err = center.Default.GetDB(ctx, &models.Menu{}).Model(&models.Menu{}).
 		Where("path in (?)", paths).
 		Where("type = ? or type = ?", pkg.MenuAccessType, pkg.ComponentAccessType).
 		Preload("Children").
@@ -207,23 +215,6 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	}
 
 	api.OK(nil)
-}
-
-func sanitizeAuthorizePaths(paths []string) []string {
-	result := make([]string, 0, len(paths))
-	seen := make(map[string]struct{}, len(paths))
-	for i := range paths {
-		path := strings.TrimSpace(paths[i])
-		if path == "" {
-			continue
-		}
-		if _, ok := seen[path]; ok {
-			continue
-		}
-		seen[path] = struct{}{}
-		result = append(result, path)
-	}
-	return result
 }
 
 // Create 创建角色

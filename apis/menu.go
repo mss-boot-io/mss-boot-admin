@@ -97,13 +97,23 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 		return
 	}
 
-	keys := sanitizeMenuAuthorizeKeys(req.Keys)
+	keys := sanitizeAuthorizePaths(req.Keys)
 	if len(keys) == 0 {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
+	_, keySet, err := loadAuthorizeMenusByPaths(ctx, keys, pkg.MenuAccessType)
+	if err != nil {
+		api.AddError(err).Log.Error("query authorize menus error", "err", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	if missing := missingAuthorizePaths(keys, keySet); len(missing) > 0 {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 
-	err := center.Default.GetDB(ctx, &models.CasbinRule{}).Transaction(func(tx *gorm.DB) error {
+	err = center.Default.GetDB(ctx, &models.CasbinRule{}).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where(&models.CasbinRule{
 			PType: "p",
 			V0:    req.RoleID,
@@ -132,23 +142,6 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 	}
 	_ = gormdb.Enforcer.LoadPolicy()
 	api.OK(nil)
-}
-
-func sanitizeMenuAuthorizeKeys(keys []string) []string {
-	result := make([]string, 0, len(keys))
-	seen := make(map[string]struct{}, len(keys))
-	for i := range keys {
-		key := strings.TrimSpace(keys[i])
-		if key == "" {
-			continue
-		}
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		result = append(result, key)
-	}
-	return result
 }
 
 // GetAuthorize 获取菜单权限
