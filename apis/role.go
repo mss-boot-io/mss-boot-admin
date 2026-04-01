@@ -144,7 +144,7 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	//		return
 	//	}
 	//}
-	menus, menuSet, err := loadAuthorizeMenusByPaths(ctx, paths, pkg.MenuAccessType, pkg.ComponentAccessType)
+	menus, menuSet, err := loadAuthorizeMenusByPathsWithChildren(ctx, paths, pkg.MenuAccessType, pkg.ComponentAccessType)
 	if err != nil {
 		api.AddError(err).Log.Error("query authorize menu error", "err", err)
 		api.Err(http.StatusInternalServerError)

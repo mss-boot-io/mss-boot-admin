@@ -176,3 +176,24 @@ func TestBuildRoleAuthorizeRulesPersistsMethod(t *testing.T) {
 		t.Fatalf("api method not persisted: got=%q want=%q", rules[1].V3, "PUT")
 	}
 }
+
+func TestBuildRoleAuthorizeRulesIncludesChildrenApis(t *testing.T) {
+	menus := []*models.Menu{
+		{
+			Path:   "/menu/root",
+			Type:   "MENU",
+			Method: "GET",
+			Children: []*models.Menu{
+				{Path: "/api/c1", Type: "API", Method: "GET"},
+				{Path: "/api/c2", Type: "API", Method: "POST"},
+			},
+		},
+	}
+	rules := buildRoleAuthorizeRules("role-child", menus)
+	if len(rules) != 3 {
+		t.Fatalf("unexpected rule length for children apis: got=%d want=3", len(rules))
+	}
+	if rules[1].V2 != "/api/c1" || rules[2].V2 != "/api/c2" {
+		t.Fatalf("children api rules missing: got second=%q third=%q", rules[1].V2, rules[2].V2)
+	}
+}

@@ -67,6 +67,36 @@ func loadAuthorizeMenusByPaths(ctx *gin.Context, paths []string, accessTypes ...
 	return menus, menuSet, nil
 }
 
+func loadAuthorizeMenusByPathsWithChildren(ctx *gin.Context, paths []string, accessTypes ...pkg.AccessType) ([]*models.Menu, map[string]struct{}, error) {
+	menus, menuSet, err := loadAuthorizeMenusByPaths(ctx, paths, accessTypes...)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(menus) == 0 {
+		return menus, menuSet, nil
+	}
+	ids := make([]string, 0, len(menus))
+	for i := range menus {
+		ids = append(ids, menus[i].ID)
+	}
+	children := make([]*models.Menu, 0)
+	err = center.Default.GetDB(ctx, &models.Menu{}).Model(&models.Menu{}).
+		Where("parent_id in (?)", ids).
+		Where("type = ?", pkg.APIAccessType).
+		Find(&children).Error
+	if err != nil {
+		return nil, nil, err
+	}
+	childrenByParent := make(map[string][]*models.Menu, len(ids))
+	for i := range children {
+		childrenByParent[children[i].ParentID] = append(childrenByParent[children[i].ParentID], children[i])
+	}
+	for i := range menus {
+		menus[i].Children = childrenByParent[menus[i].ID]
+	}
+	return menus, menuSet, nil
+}
+
 func missingAuthorizePaths(paths []string, loaded map[string]struct{}) []string {
 	missing := make([]string, 0)
 	for i := range paths {
