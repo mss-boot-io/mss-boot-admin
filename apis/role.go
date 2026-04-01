@@ -163,10 +163,10 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	}
 
 	err = center.Default.GetDB(ctx, &models.CasbinRule{}).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where(&models.CasbinRule{
-			PType: "p",
-			V0:    req.RoleID,
-		}).Delete(&models.CasbinRule{}).Error; err != nil {
+		if err := tx.Where("ptype = ?", "p").
+			Where("v0 = ?", req.RoleID).
+			Where("v1 in ?", authorizeRuleScopesForRole()).
+			Delete(&models.CasbinRule{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Create(&rules).Error; err != nil {

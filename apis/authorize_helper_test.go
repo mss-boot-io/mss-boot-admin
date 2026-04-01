@@ -197,3 +197,13 @@ func TestBuildRoleAuthorizeRulesIncludesChildrenApis(t *testing.T) {
 		t.Fatalf("children api rules missing: got second=%q third=%q", rules[1].V2, rules[2].V2)
 	}
 }
+
+func TestAuthorizeRuleScopesForRole(t *testing.T) {
+	scopes := authorizeRuleScopesForRole()
+	if len(scopes) != 3 {
+		t.Fatalf("unexpected scopes length: got=%d want=3", len(scopes))
+	}
+	if scopes[0] != "MENU" || scopes[1] != "COMPONENT" || scopes[2] != "API" {
+		t.Fatalf("unexpected scopes order/value: got=%v", scopes)
+	}
+}

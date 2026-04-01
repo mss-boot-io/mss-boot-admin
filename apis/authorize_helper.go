@@ -142,6 +142,14 @@ func buildMenuAuthorizeRules(roleID string, keys []string) []*models.CasbinRule 
 	return rules
 }
 
+func authorizeRuleScopesForRole() []string {
+	return []string{
+		pkg.MenuAccessType.String(),
+		pkg.ComponentAccessType.String(),
+		pkg.APIAccessType.String(),
+	}
+}
+
 func buildRoleAuthorizeRules(roleID string, menus []*models.Menu) []*models.CasbinRule {
 	rules := make([]*models.CasbinRule, 0, len(menus)*2)
 	seen := make(map[string]struct{}, len(menus)*2)
