@@ -45,9 +45,9 @@ func (s *AuditService) Log(db *gorm.DB, log *models.AuditLog) error {
 	return db.Create(log).Error
 }
 
-func (s *AuditService) LogWithContext(db *gorm.DB, logType models.AuditLogType, userID, username, action, resource, method, path, ip, userAgent string, status enum.Status, message string, duration int64) error {
+func (s *AuditService) LogWithContext(db *gorm.DB, logType string, userID, username, action, resource, method, path, ip, userAgent string, status enum.Status, message string, duration int64) error {
 	return s.Log(db, &models.AuditLog{
-		Type:      logType,
+		Type:      models.AuditLogType(logType),
 		UserID:    userID,
 		Username:  username,
 		Action:    action,

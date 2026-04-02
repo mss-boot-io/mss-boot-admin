@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -179,17 +178,15 @@ func (s *Storage) uploadS3(c *gin.Context, f *multipart.FileHeader, userID strin
 }
 
 func (s *Storage) uploadLocal(c *gin.Context, f *multipart.FileHeader, userID, endpoint string) (string, error) {
-	if endpoint == "" {
-		return "", errors.New("localEndpoint is empty")
-	}
-
-	key := filepath.Join("public", userID, s.sanitizeFilename(f.Filename))
-	err := c.SaveUploadedFile(f, key)
+	filename := s.sanitizeFilename(f.Filename)
+	relativePath := filepath.Join("public", userID, filename)
+	
+	err := c.SaveUploadedFile(f, relativePath)
 	if err != nil {
 		return "", err
 	}
 
-	return strings.Join([]string{endpoint, "public", userID, s.sanitizeFilename(f.Filename)}, "/"), nil
+	return fmt.Sprintf("/public/%s/%s", userID, filename), nil
 }
 
 func (s *Storage) sanitizeFilename(filename string) string {

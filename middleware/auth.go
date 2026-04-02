@@ -11,6 +11,7 @@ import (
 
 	"github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
@@ -84,18 +85,54 @@ func Init() {
 			return verifier
 		},
 		Authenticator: func(c *gin.Context) (any, error) {
-			// login
 			loginVals := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
-			//fmt.Println(loginVals)
 			if err := c.ShouldBind(&loginVals); err != nil {
 				return "", jwt.ErrMissingLoginValues
 			}
 			ok, user, err := loginVals.Verify(c)
+			ip := c.ClientIP()
+			userAgent := c.GetHeader("User-Agent")
+			db := center.Default.GetDB(c, nil)
+
 			if err != nil {
+				if v, ok := loginVals.(interface{ GetUsername() string }); ok {
+					db.Table("mss_boot_login_logs").Create(map[string]interface{}{
+						"id":         pkg.SimpleID(),
+						"username":   v.GetUsername(),
+						"ip":         ip,
+						"user_agent": userAgent,
+						"status":     "disabled",
+						"message":    err.Error(),
+						"login_at":   time.Now(),
+					})
+				}
 				return nil, err
 			}
 			if ok {
+				if v, ok := user.(security.Verifier); ok {
+					db.Table("mss_boot_login_logs").Create(map[string]interface{}{
+						"id":         pkg.SimpleID(),
+						"user_id":    v.GetUserID(),
+						"username":   v.GetUsername(),
+						"ip":         ip,
+						"user_agent": userAgent,
+						"status":     "enabled",
+						"message":    "login success",
+						"login_at":   time.Now(),
+					})
+				}
 				return user, nil
+			}
+			if v, ok := loginVals.(interface{ GetUsername() string }); ok {
+				db.Table("mss_boot_login_logs").Create(map[string]interface{}{
+					"id":         pkg.SimpleID(),
+					"username":   v.GetUsername(),
+					"ip":         ip,
+					"user_agent": userAgent,
+					"status":     "disabled",
+					"message":    "authentication failed",
+					"login_at":   time.Now(),
+				})
 			}
 			return nil, jwt.ErrFailedAuthentication
 		},

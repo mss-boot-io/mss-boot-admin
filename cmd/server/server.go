@@ -16,7 +16,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	"github.com/mss-boot-io/mss-boot/virtual/action"
+	// "github.com/mss-boot-io/mss-boot/virtual/action" // disabled: virtual model feature
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 
@@ -144,7 +144,6 @@ func setup() error {
 	if center.GetCustomConfig() != nil {
 		center.GetCustomConfig().Init()
 	}
-	var err error
 
 	// app config
 	center.SetAppConfig(&models.AppConfig{})
@@ -160,6 +159,7 @@ func setup() error {
 
 	// setup 03 router init
 	r := gin.Default()
+	r.Use(middleware.AuditLogMiddleware("/admin/api/user", "/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
 	center.SetMakeRouter(router.DefaultMakeRouter)
 	center.SetRouter(r)
 	center.Default.MakeRouter(r.Group(group))
@@ -192,15 +192,15 @@ func setup() error {
 		)
 	}
 
-	// setup 07 init virtual models
-	//todo every tenant has different models
-	ms, err := center.SetVirtualModel(&models.Model{}).GetModels(nil)
-	if err != nil {
-		return err
-	}
-	for i := range ms {
-		action.SetModel(ms[i].GetKey(), ms[i].Make())
-	}
+	// setup 07 init virtual models (disabled: virtual model feature causes route conflicts)
+	// todo every tenant has different models
+	// ms, err := center.SetVirtualModel(&models.Model{}).GetModels(nil)
+	// if err != nil {
+	// 	return err
+	// }
+	// for i := range ms {
+	// 	action.SetModel(ms[i].GetKey(), ms[i].Make())
+	// }
 
 	// ui server init for dev
 	if config.Cfg.Application.Mode == config.ModeDev &&

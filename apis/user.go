@@ -281,11 +281,13 @@ func (e *User) UpdateAvatar(ctx *gin.Context) {
 func (e *User) UpdateUserInfo(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
-	req := &dto.UpdateUserInfoRequest{}
-	if api.Bind(req).Error != nil {
+	
+	var reqMap map[string]interface{}
+	if err := ctx.ShouldBindJSON(&reqMap); err != nil {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
+
 	user := &models.User{}
 	err := center.Default.GetDB(ctx, &models.User{}).Where("id = ?", verify.GetUserID()).First(user).Error
 	if err != nil {
@@ -293,19 +295,53 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	user.Name = req.Name
-	user.Email = req.Email
-	user.Avatar = req.Avatar
-	user.Signature = req.Signature
-	user.Title = req.Title
-	user.Group = req.Group
-	user.Country = req.Country
-	user.Province = req.Province
-	user.City = req.City
-	user.Address = req.Address
-	user.Phone = req.Phone
-	user.Profile = req.Profile
-	user.Tags = req.Tags
+
+	if v, ok := reqMap["name"].(string); ok {
+		user.Name = v
+	}
+	if v, ok := reqMap["email"].(string); ok {
+		user.Email = v
+	}
+	if v, ok := reqMap["avatar"].(string); ok {
+		user.Avatar = v
+	}
+	if v, ok := reqMap["signature"].(string); ok {
+		user.Signature = v
+	}
+	if v, ok := reqMap["title"].(string); ok {
+		user.Title = v
+	}
+	if v, ok := reqMap["group"].(string); ok {
+		user.Group = v
+	}
+	if v, ok := reqMap["country"].(string); ok {
+		user.Country = v
+	}
+	if v, ok := reqMap["province"].(string); ok {
+		user.Province = v
+	}
+	if v, ok := reqMap["city"].(string); ok {
+		user.City = v
+	}
+	if v, ok := reqMap["address"].(string); ok {
+		user.Address = v
+	}
+	if v, ok := reqMap["phone"].(string); ok {
+		user.Phone = v
+	}
+	if v, ok := reqMap["profile"].(string); ok {
+		user.Profile = v
+	}
+	if v, ok := reqMap["tags"].([]interface{}); ok {
+		tags := make([]string, 0, len(v))
+		for _, tag := range v {
+			if s, ok := tag.(string); ok {
+				tags = append(tags, s)
+			}
+		}
+		user.Tags = tags
+	}
+
 	err = center.Default.GetDB(ctx, &models.User{}).Model(&models.User{}).Where("id = ?", verify.GetUserID()).Updates(user).Error
 	if err != nil {
 		api.AddError(err).Log.Error("UpdateUserInfo error")

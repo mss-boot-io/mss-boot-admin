@@ -50,6 +50,18 @@ type Language struct {
 
 func (e *Language) Other(r *gin.RouterGroup) {
 	r.GET("/language/profile", e.Profile)
+	r.GET("/languages/public", e.publicList)
+}
+
+func (e *Language) publicList(ctx *gin.Context) {
+	api := response.Make(ctx)
+	items := make([]*models.Language, 0)
+	err := center.GetDB(ctx, &models.Language{}).Find(&items).Error
+	if err != nil {
+		api.AddError(err).Err(http.StatusInternalServerError)
+		return
+	}
+	api.OK(items)
 }
 
 // Profile 获取语言配置
