@@ -259,13 +259,13 @@ func (e *User) UpdateAvatar(ctx *gin.Context) {
 		return
 	}
 	s := service.Storage{}
-	filename, err := s.Upload(ctx, file, verify.GetUserID())
+	result, err := s.Upload(ctx, file, verify.GetUserID())
 	if err != nil {
 		api.AddError(err).Log.Error("upload error")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(dto.UpdateAvatarResponse{Avatar: filename})
+	api.OK(dto.UpdateAvatarResponse{Avatar: result.URL})
 }
 
 // UpdateUserInfo 更新用户信息

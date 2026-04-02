@@ -1,10 +1,20 @@
 package websocket
 
 import (
+	"context"
+	"encoding/json"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mss-boot-io/mss-boot-admin/config"
+	"github.com/redis/go-redis/v9"
+)
+
+const (
+	redisChannelBroadcast = "websocket:cluster:broadcast"
+	redisChannelUsercast  = "websocket:cluster:usercast"
 )
 
 type Hub struct {
@@ -19,11 +29,21 @@ type Hub struct {
 	stop       chan struct{}
 
 	onMessage func(*Client, *WRequest)
+
+	redisClient *redis.Client
+	pubsub      *redis.PubSub
+	clusterMode bool
 }
 
 type userMessage struct {
 	userID string
 	msg    *WResponse
+}
+
+type redisMessage struct {
+	Type    string          `json:"type"`
+	UserID  string          `json:"userId,omitempty"`
+	Message *WResponse      `json:"message"`
 }
 
 var hub *Hub
@@ -40,6 +60,12 @@ func GetHub() *Hub {
 			usercast:    make(chan *userMessage, 100),
 			stop:        make(chan struct{}),
 		}
+
+		if rc := config.GetRedisClient(); rc != nil {
+			hub.redisClient = rc
+			hub.clusterMode = true
+			slog.Info("WebSocket cluster mode enabled with Redis Pub/Sub")
+		}
 	})
 	return hub
 }
@@ -49,6 +75,10 @@ func (h *Hub) SetOnMessage(fn func(*Client, *WRequest)) {
 }
 
 func (h *Hub) Run() {
+	if h.clusterMode {
+		go h.subscribeRedis()
+	}
+
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
@@ -67,20 +97,71 @@ func (h *Hub) Run() {
 		case msg := <-h.broadcast:
 			if msg != nil {
 				h.broadcastMessage(msg)
+				if h.clusterMode {
+					h.publishBroadcast(msg)
+				}
 			}
 
 		case um := <-h.usercast:
 			if um != nil {
 				h.sendToUser(um.userID, um.msg)
+				if h.clusterMode {
+					h.publishUsercast(um.userID, um.msg)
+				}
 			}
 
 		case <-ticker.C:
 			h.cleanupStaleConnections()
 
 		case <-h.stop:
+			if h.pubsub != nil {
+				h.pubsub.Close()
+			}
 			return
 		}
 	}
+}
+
+func (h *Hub) subscribeRedis() {
+	ctx := context.Background()
+	h.pubsub = h.redisClient.Subscribe(ctx, redisChannelBroadcast, redisChannelUsercast)
+
+	ch := h.pubsub.Channel()
+	for msg := range ch {
+		var rm redisMessage
+		if err := json.Unmarshal([]byte(msg.Payload), &rm); err != nil {
+			slog.Error("failed to unmarshal redis message", "error", err)
+			continue
+		}
+
+		switch msg.Channel {
+		case redisChannelBroadcast:
+			h.broadcastMessageLocal(rm.Message)
+		case redisChannelUsercast:
+			h.sendToUserLocal(rm.UserID, rm.Message)
+		}
+	}
+}
+
+func (h *Hub) publishBroadcast(msg *WResponse) {
+	ctx := context.Background()
+	rm := redisMessage{
+		Type:    "broadcast",
+		Message: msg,
+	}
+	data, _ := json.Marshal(rm)
+	h.redisClient.Publish(ctx, redisChannelBroadcast, data)
+}
+
+func (h *Hub) publishUsercast(userID string, msg *WResponse) {
+	ctx := context.Background()
+	rm := redisMessage{
+		Type:    "usercast",
+		UserID:  userID,
+		Message: msg,
+	}
+	data, _ := json.Marshal(rm)
+	h.redisClient.Publish(ctx, redisChannelUsercast, data)
 }
 
 func (h *Hub) registerClient(client *Client) {
@@ -112,6 +193,10 @@ func (h *Hub) unregisterClient(client *Client) {
 }
 
 func (h *Hub) broadcastMessage(msg *WResponse) {
+	h.broadcastMessageLocal(msg)
+}
+
+func (h *Hub) broadcastMessageLocal(msg *WResponse) {
 	h.clientsMu.RLock()
 	defer h.clientsMu.RUnlock()
 
@@ -121,6 +206,10 @@ func (h *Hub) broadcastMessage(msg *WResponse) {
 }
 
 func (h *Hub) sendToUser(userID string, msg *WResponse) {
+	h.sendToUserLocal(userID, msg)
+}
+
+func (h *Hub) sendToUserLocal(userID string, msg *WResponse) {
 	h.clientsMu.RLock()
 	defer h.clientsMu.RUnlock()
 
