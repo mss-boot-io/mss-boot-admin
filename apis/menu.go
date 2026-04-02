@@ -99,7 +99,7 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 		respondInvalidAuthorizeRequest(api, "update role menu authorize request has no valid keys", req.RoleID, nil)
 		return
 	}
-	_, keySet, err := loadAuthorizeMenusByPaths(ctx, keys, pkg.MenuAccessType)
+	menus, keySet, err := loadAuthorizeMenusByPaths(ctx, keys, pkg.MenuAccessType)
 	if err != nil {
 		api.AddError(err).Log.Error("query authorize menus error", "err", err)
 		api.Err(http.StatusInternalServerError)
@@ -118,13 +118,20 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 		}).Delete(&models.CasbinRule{}).Error; err != nil {
 			return err
 		}
-		rules := buildMenuAuthorizeRules(req.RoleID, keys)
+		rules := buildMenuAuthorizeRules(req.RoleID, menus)
+		if len(rules) == 0 {
+			return gorm.ErrInvalidData
+		}
 		if err := tx.Create(&rules).Error; err != nil {
 			return err
 		}
 		return nil
 	})
 	if err != nil {
+		if err == gorm.ErrInvalidData {
+			respondInvalidAuthorizeRequest(api, "update role menu authorize request resolves no permission rules", req.RoleID, keys)
+			return
+		}
 		api.AddError(err).Log.Error("update role menu authorize error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return

@@ -129,25 +129,11 @@ func hasEmptyAuthorizeRoleID(roleID string) bool {
 	return strings.TrimSpace(roleID) == ""
 }
 
-func buildMenuAuthorizeRules(roleID string, keys []string) []*models.CasbinRule {
-	rules := make([]*models.CasbinRule, 0, len(keys))
-	seen := make(map[string]struct{}, len(keys))
-	for i := range keys {
-		key := strings.TrimSpace(keys[i])
-		if key == "" {
-			continue
-		}
-		dedupKey := fmt.Sprintf("%s|%s|%s", roleID, pkg.MenuAccessType.String(), key)
-		if _, ok := seen[dedupKey]; ok {
-			continue
-		}
-		seen[dedupKey] = struct{}{}
-		rules = append(rules, &models.CasbinRule{
-			PType: "p",
-			V0:    roleID,
-			V1:    pkg.MenuAccessType.String(),
-			V2:    key,
-		})
+func buildMenuAuthorizeRules(roleID string, menus []*models.Menu) []*models.CasbinRule {
+	rules := make([]*models.CasbinRule, 0, len(menus))
+	seen := make(map[string]struct{}, len(menus))
+	for i := range menus {
+		rules = appendRuleIfNotExists(rules, seen, roleID, pkg.MenuAccessType.String(), menus[i].Path, menus[i].Method)
 	}
 	return rules
 }
@@ -176,6 +162,7 @@ func buildRoleAuthorizeRules(roleID string, menus []*models.Menu) []*models.Casb
 }
 
 func appendRuleIfNotExists(rules []*models.CasbinRule, seen map[string]struct{}, roleID, accessType, path, method string) []*models.CasbinRule {
+	method = normalizeAuthorizeMethod(method)
 	key := fmt.Sprintf("%s|%s|%s|%s", roleID, accessType, path, method)
 	if _, ok := seen[key]; ok {
 		return rules
@@ -189,4 +176,12 @@ func appendRuleIfNotExists(rules []*models.CasbinRule, seen map[string]struct{},
 		V3:    method,
 	})
 	return rules
+}
+
+func normalizeAuthorizeMethod(method string) string {
+	method = strings.TrimSpace(method)
+	if method == "" {
+		return ".*"
+	}
+	return method
 }

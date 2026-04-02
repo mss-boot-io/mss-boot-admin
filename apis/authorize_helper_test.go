@@ -110,25 +110,36 @@ func TestHasEmptyAuthorizeRoleID(t *testing.T) {
 }
 
 func TestBuildMenuAuthorizeRules(t *testing.T) {
-	rules := buildMenuAuthorizeRules("role-1", []string{"/menu/a", "/menu/b"})
+	menus := []*models.Menu{
+		{Path: "/menu/a", Method: "GET"},
+		{Path: "/menu/b", Method: "POST"},
+	}
+	rules := buildMenuAuthorizeRules("role-1", menus)
 	if len(rules) != 2 {
 		t.Fatalf("unexpected menu rule length: got=%d want=2", len(rules))
 	}
-	if rules[0].V0 != "role-1" || rules[0].V1 != "MENU" || rules[0].V2 != "/menu/a" {
+	if rules[0].V0 != "role-1" || rules[0].V1 != "MENU" || rules[0].V2 != "/menu/a" || rules[0].V3 != "GET" {
 		t.Fatalf("unexpected first menu rule: %#v", rules[0])
 	}
-	if rules[1].V2 != "/menu/b" {
-		t.Fatalf("unexpected second menu path: got=%q want=%q", rules[1].V2, "/menu/b")
+	if rules[1].V2 != "/menu/b" || rules[1].V3 != "POST" {
+		t.Fatalf("unexpected second menu rule: %#v", rules[1])
 	}
 }
 
 func TestBuildMenuAuthorizeRulesDeduplicate(t *testing.T) {
-	rules := buildMenuAuthorizeRules("role-1", []string{" /menu/a ", "/menu/a", "", "  ", "/menu/b"})
+	rules := buildMenuAuthorizeRules("role-1", []*models.Menu{
+		{Path: "/menu/a", Method: "GET"},
+		{Path: "/menu/a", Method: "GET"},
+		{Path: "/menu/b", Method: ""},
+	})
 	if len(rules) != 2 {
 		t.Fatalf("unexpected deduplicated menu rule length: got=%d want=2", len(rules))
 	}
-	if rules[0].V2 != "/menu/a" || rules[1].V2 != "/menu/b" {
-		t.Fatalf("unexpected menu rule values after dedup: got=%q,%q", rules[0].V2, rules[1].V2)
+	if rules[0].V2 != "/menu/a" || rules[0].V3 != "GET" {
+		t.Fatalf("unexpected first dedup menu rule: %#v", rules[0])
+	}
+	if rules[1].V2 != "/menu/b" || rules[1].V3 != ".*" {
+		t.Fatalf("unexpected second dedup menu rule: %#v", rules[1])
 	}
 }
 
