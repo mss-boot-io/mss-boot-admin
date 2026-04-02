@@ -9,10 +9,9 @@ package apis
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
+	"github.com/mss-boot-io/mss-boot-admin/center/websocket"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
-	"net/http"
 )
 
 func init() {
@@ -20,17 +19,8 @@ func init() {
 		Simple: controller.NewSimple(),
 	}
 	response.AppendController(e)
-}
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	Subprotocols: []string{
-		"Sec-WebSocket-Extensions",
-	},
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
+	go websocket.GetHub().Run()
 }
 
 type WS struct {
@@ -42,23 +32,15 @@ func (e *WS) GetAction(_ string) response.Action {
 }
 
 func (e *WS) Other(r *gin.RouterGroup) {
-	r.GET("/ws/event", e.Event)
+	r.GET("/ws/connect", response.AuthHandler, e.Connect)
+	r.GET("/ws/online", e.Online)
 }
 
-// Event 长连接事件
-func (e *WS) Event(ctx *gin.Context) {
+func (e *WS) Connect(ctx *gin.Context) {
+	websocket.HandleWebSocket(ctx)
+}
+
+func (e *WS) Online(ctx *gin.Context) {
 	api := response.Make(ctx)
-	conn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
-	if err != nil {
-		api.AddError(err).Log.Error("websocket upgrade error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	err = conn.WriteJSON(gin.H{
-		"code": 200,
-	})
-	if err != nil {
-		api.AddError(err).Log.Error("websocket write error")
-	}
-	return
+	api.OK(websocket.GetOnlineInfo())
 }
