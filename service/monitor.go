@@ -54,10 +54,17 @@ func (e *Monitor) Monitor(ctx *gin.Context) (*dto.MonitorResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(percent) > 0 {
+		resp.CPUUsage = percent[0]
+	}
 	for i := range physicalCPU {
+		idx := i
+		if idx >= len(percent) {
+			idx = len(percent) - 1
+		}
 		resp.CPUInfo = append(resp.CPUInfo, dto.MonitorCPUInfo{
 			InfoStat:        physicalCPU[i],
-			CPUUsagePercent: percent[i] / 100,
+			CPUUsagePercent: percent[idx] / 100,
 		})
 	}
 
@@ -67,7 +74,7 @@ func (e *Monitor) Monitor(ctx *gin.Context) (*dto.MonitorResponse, error) {
 	}
 	resp.MemoryTotal = m.Total
 	resp.MemoryUsage = m.Used
-	resp.MemoryUsagePercent = m.UsedPercent / 100
+	resp.MemoryUsagePercent = m.UsedPercent
 	resp.MemoryAvailable = m.Available
 	resp.MemoryFree = m.Free
 
@@ -81,6 +88,7 @@ func (e *Monitor) Monitor(ctx *gin.Context) (*dto.MonitorResponse, error) {
 	}
 	resp.DiskTotal = diskUsageStat.Total
 	resp.DiskUsage = diskUsageStat.Used
+	resp.DiskUsageGB = float64(diskUsageStat.Used) / 1024 / 1024 / 1024
 	resp.DiskUsagePercent = diskUsageStat.UsedPercent
 
 	netIO, err := net.IOCountersWithContext(ctx, false)

@@ -17,6 +17,8 @@ type MonitorResponse struct {
 	CPUPhysicalCore int `json:"cpuPhysicalCore"`
 	// CPULogicalCore CPU逻辑核心数
 	CPULogicalCore int `json:"cpuLogicalCore"`
+	// CPUUsage CPU使用率百分比
+	CPUUsage float64 `json:"cpuUsage"`
 	// CPUInfo CPU信息
 	CPUInfo []MonitorCPUInfo `json:"cpuInfo"`
 	// MemoryTotal 内存总量
@@ -31,8 +33,10 @@ type MonitorResponse struct {
 	MemoryFree uint64 `json:"memoryFree"`
 	// DiskTotal 磁盘总量
 	DiskTotal uint64 `json:"diskTotal"`
-	// DiskUsage 磁盘使用量
-	DiskUsage uint64 `json:"diskUsage"`
+	// DiskUsage 磁盘使用量(bytes)
+	DiskUsage uint64 `json:"diskUsageBytes"`
+	// DiskUsageGB 磁盘使用量(GB)
+	DiskUsageGB float64 `json:"diskUsage"`
 	// DiskUsagePercent 磁盘使用率
 	DiskUsagePercent float64 `json:"diskUsagePercent"`
 	// Network 网络信息
