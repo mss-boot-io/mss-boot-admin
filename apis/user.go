@@ -282,7 +282,7 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
 
-	var reqMap map[string]interface{}
+	var reqMap map[string]any
 	if err := ctx.ShouldBindJSON(&reqMap); err != nil {
 		api.Err(http.StatusUnprocessableEntity)
 		return
@@ -332,7 +332,7 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 	if v, ok := reqMap["profile"].(string); ok {
 		user.Profile = v
 	}
-	if v, ok := reqMap["tags"].([]interface{}); ok {
+	if v, ok := reqMap["tags"].([]any); ok {
 		tags := make([]string, 0, len(v))
 		for _, tag := range v {
 			if s, ok := tag.(string); ok {
@@ -476,7 +476,6 @@ func (e *User) FakeCaptcha(ctx *gin.Context) {
 	}
 	err := fmt.Errorf("not support phone")
 	api.AddError(err).Err(http.StatusNotImplemented)
-	return
 }
 
 // UserInfo 获取登录用户信息
