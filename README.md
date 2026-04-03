@@ -11,6 +11,16 @@ English | [简体中文](./README.zh-CN.md)
 
 > The repository still contains some historical dynamic-model and code-generation related capabilities, but they are no longer the primary direction for future product investment.
 
+## Recent Updates
+
+The project has undergone comprehensive polish rounds focusing on:
+
+- **Stability (P0)**: Fixed nil dereference risks, boundary checks, panic prevention, auth coverage, and polling cleanup
+- **Code Quality**: Eliminated all TypeScript errors, unified page structures, removed duplicate keys
+- **Abstraction**: Created reusable components (AuthShell, useMonitorData hook), unified API response format
+- **Testing**: Documented 70+ test cases, executed core scenarios successfully
+- **Documentation**: Added CHANGELOG, CONTRIBUTING guide, and comprehensive configuration tutorial
+
 [Beta Environment](https://admin-beta.mss-boot-io.top)
 
 [Swagger](https://mss-boot-io.github.io/mss-boot-admin/swagger.json)
