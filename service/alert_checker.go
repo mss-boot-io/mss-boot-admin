@@ -150,15 +150,17 @@ func (a *AlertChecker) triggerAlert(rule *models.AlertRule, value float64) {
 		Code:      200,
 		Timestamp: time.Now().Unix(),
 		Data: map[string]interface{}{
-			"type":    "alert",
-			"ruleId":  rule.ID,
-			"ruleName": rule.Name,
-			"metric":  rule.Metric,
-			"value":   value,
+			"type":      "alert",
+			"ruleId":    rule.ID,
+			"ruleName":  rule.Name,
+			"metric":    rule.Metric,
+			"value":     value,
 			"threshold": rule.Threshold,
-			"message": message,
+			"message":   message,
 		},
 	})
+
+	SendAlertToChannels(rule, value, message)
 
 	slog.Info("alert triggered",
 		"rule", rule.Name,

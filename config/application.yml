@@ -67,3 +67,18 @@ cache:
 queue:
   memory:
     poolSize: 10
+notification:
+  email:
+    enabled: false
+    host: ""
+    port: 587
+    username: ""
+    password: ""
+    from: ""
+  dingtalk:
+    enabled: false
+    webhook: ""
+    secret: ""
+  wechat:
+    enabled: false
+    webhook: ""
