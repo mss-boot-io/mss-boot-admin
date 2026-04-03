@@ -9,7 +9,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/center"
-	"github.com/mss-boot-io/mss-boot-admin/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/service"
+	"github.com/mss-boot-io/mss-boot/pkg/enum"
+	"github.com/mss-boot-io/mss-boot/pkg/response"
 )
 
 type responseWriter struct {
@@ -80,9 +83,9 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 			return
 		}
 
-		auditStatus := "enabled"
+		auditStatus := enum.Status("enabled")
 		if status >= 400 {
-			auditStatus = "disabled"
+			auditStatus = enum.Status("disabled")
 		}
 
 		action := c.Request.Method + " " + path
@@ -92,22 +95,24 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 		}
 
 		db := center.Default.GetDB(c, nil)
-		db.Table("mss_boot_audit_logs").Create(map[string]interface{}{
-			"id":         pkg.SimpleID(),
-			"type":       logType,
-			"user_id":    verify.GetUserID(),
-			"username":   verify.GetUsername(),
-			"action":     action,
-			"resource":   resource,
-			"method":     c.Request.Method,
-			"path":       path,
-			"ip":         c.ClientIP(),
-			"user_agent": c.GetHeader("User-Agent"),
-			"status":     auditStatus,
-			"message":    "",
-			"request":    requestBody,
-			"duration":   duration,
-			"created_at": time.Now(),
+		err := service.Audit.Log(db, &models.AuditLog{
+			Type:      models.AuditLogType(logType),
+			UserID:    verify.GetUserID(),
+			Username:  verify.GetUsername(),
+			Action:    action,
+			Resource:  resource,
+			Method:    c.Request.Method,
+			Path:      path,
+			IP:        c.ClientIP(),
+			UserAgent: c.GetHeader("User-Agent"),
+			Status:    auditStatus,
+			Message:   "",
+			Request:   requestBody,
+			Duration:  duration,
+			CreatedAt: time.Now(),
 		})
+		if err != nil {
+			response.Make(c).AddError(err).Log.Error("write audit log failed")
+		}
 	}
 }

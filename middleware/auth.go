@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/service"
+	bootpkg "github.com/mss-boot-io/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
@@ -85,6 +88,7 @@ func Init() {
 			return verifier
 		},
 		Authenticator: func(c *gin.Context) (any, error) {
+			api := response.Make(c)
 			loginVals := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
 			if err := c.ShouldBind(&loginVals); err != nil {
 				return "", jwt.ErrMissingLoginValues
@@ -95,44 +99,19 @@ func Init() {
 			db := center.Default.GetDB(c, nil)
 
 			if err != nil {
-				if v, ok := loginVals.(interface{ GetUsername() string }); ok {
-					db.Table("mss_boot_login_logs").Create(map[string]interface{}{
-						"id":         pkg.SimpleID(),
-						"username":   v.GetUsername(),
-						"ip":         ip,
-						"user_agent": userAgent,
-						"status":     "disabled",
-						"message":    err.Error(),
-						"login_at":   time.Now(),
-					})
+				if logErr := service.Audit.LogLogin(db, "", extractLoginUsername(loginVals), ip, userAgent, err.Error(), false); logErr != nil {
+					api.AddError(logErr).Log.Warn("write login log failed")
 				}
 				return nil, err
 			}
 			if ok {
-				if v, ok := user.(security.Verifier); ok {
-					db.Table("mss_boot_login_logs").Create(map[string]interface{}{
-						"id":         pkg.SimpleID(),
-						"user_id":    v.GetUserID(),
-						"username":   v.GetUsername(),
-						"ip":         ip,
-						"user_agent": userAgent,
-						"status":     "enabled",
-						"message":    "login success",
-						"login_at":   time.Now(),
-					})
+				if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent, "login success", true); logErr != nil {
+					api.AddError(logErr).Log.Warn("write login log failed")
 				}
 				return user, nil
 			}
-			if v, ok := loginVals.(interface{ GetUsername() string }); ok {
-				db.Table("mss_boot_login_logs").Create(map[string]interface{}{
-					"id":         pkg.SimpleID(),
-					"username":   v.GetUsername(),
-					"ip":         ip,
-					"user_agent": userAgent,
-					"status":     "disabled",
-					"message":    "authentication failed",
-					"login_at":   time.Now(),
-				})
+			if logErr := service.Audit.LogLogin(db, "", extractLoginUsername(loginVals), ip, userAgent, "authentication failed", false); logErr != nil {
+				api.AddError(logErr).Log.Warn("write login log failed")
 			}
 			return nil, jwt.ErrFailedAuthentication
 		},
@@ -182,47 +161,27 @@ func Init() {
 		RefreshResponse: func(c *gin.Context, code int, token string, expire time.Time) {
 			jwtToken, err := Auth.ParseTokenString(token)
 			if err != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"code":   http.StatusUnauthorized,
-					"status": "error",
-					"msg":    "refresh token error",
-				})
+				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
 			}
 			claims := jwt.ExtractClaimsFromToken(jwtToken)
 			if len(claims) == 0 {
-				c.JSON(http.StatusOK, gin.H{
-					"code":   http.StatusUnauthorized,
-					"status": "error",
-					"msg":    "refresh token error",
-				})
+				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
 			}
 			verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
 			if verifier.GetRefreshTokenDisable() {
-				c.JSON(http.StatusOK, gin.H{
-					"code":   http.StatusUnauthorized,
-					"status": "error",
-					"msg":    "refresh token disabled",
-				})
+				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token disabled")
 				return
 			}
 			err = json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
 			if err != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"code":   http.StatusUnauthorized,
-					"status": "error",
-					"msg":    "refresh token error",
-				})
+				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
 			}
 			ok, _, err := verifier.Verify(c)
 			if err != nil || !ok {
-				c.JSON(http.StatusOK, gin.H{
-					"code":   http.StatusUnauthorized,
-					"status": "error",
-					"msg":    "refresh token error",
-				})
+				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
 			}
 			//todo 重新颁发token
@@ -233,11 +192,7 @@ func Init() {
 			})
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
-			c.JSON(code, gin.H{
-				"code":   code,
-				"status": "error",
-				"msg":    message,
-			})
+			writeAuthErrorResponse(c, code, code, message)
 		},
 		// TokenLookup is a string in the form of "<source>:<name>" that is used
 		// to extract token from the request.
@@ -298,4 +253,36 @@ func GetVerify(ctx *gin.Context) security.Verifier {
 		return nil
 	}
 	return verifier
+}
+
+func extractLoginUsername(loginVals any) string {
+	if loginVals == nil {
+		return ""
+	}
+	if v, ok := loginVals.(interface{ GetUsername() string }); ok {
+		return v.GetUsername()
+	}
+	if v, ok := loginVals.(security.Verifier); ok {
+		return v.GetUsername()
+	}
+	return ""
+}
+
+func writeAuthErrorResponse(c *gin.Context, httpStatus, businessCode int, message string) {
+	if c == nil {
+		return
+	}
+	if message == "" {
+		message = http.StatusText(httpStatus)
+		if message == "" {
+			message = errors.New("request error").Error()
+		}
+	}
+	c.AbortWithStatusJSON(httpStatus, gin.H{
+		"code":         businessCode,
+		"status":       "error",
+		"msg":          message,
+		"errorMessage": message,
+		"traceId":      bootpkg.GenerateMsgIDFromContext(c),
+	})
 }
