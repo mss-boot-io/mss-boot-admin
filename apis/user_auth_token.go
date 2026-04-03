@@ -113,7 +113,7 @@ func (e *UserAuthToken) Revoked(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // Generate 生成用户令牌
@@ -133,7 +133,7 @@ func (e *UserAuthToken) Generate(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	userAuthToken, err := models.GenerateUserAuthToken(ctx, verify, req.ValidityPeriod)
+	userAuthToken, err := models.GenerateUserAuthToken(ctx, middleware.Auth, verify, req.ValidityPeriod)
 	if err != nil {
 		api.AddError(err).Log.Error("generate user auth token failed")
 		api.Err(http.StatusInternalServerError)

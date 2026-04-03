@@ -2,9 +2,10 @@ package models
 
 import (
 	"fmt"
-	"gorm.io/gorm/clause"
 	"strings"
 	"time"
+
+	"gorm.io/gorm/clause"
 
 	"github.com/gin-gonic/gin"
 
@@ -52,10 +53,9 @@ func (e *UserConfig) SetUserConfig(ctx *gin.Context, userID, key string, value s
 		Value:  value,
 	}
 	c.UpdatedAt = time.Now()
-	return center.GetTenant().GetDB(ctx, e).
+	return center.GetDB(ctx, e).
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{
-				{Name: "tenant_id"},
 				{Name: "user_id"},
 				{Name: "name"},
 				{Name: "group"},
@@ -77,7 +77,7 @@ func getUserConfig(ctx *gin.Context, userID, key string) (*UserConfig, error) {
 		group = keys[0]
 		key = strings.Join(keys[1:], ".")
 	}
-	err := center.GetTenant().GetDB(ctx, c).
+	err := center.GetDB(ctx, c).
 		Where("group = ?", group).
 		Where("user_id = ?", userID).
 		Where("name = ?", key).

@@ -12,7 +12,6 @@ import (
 	"net/http"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
-
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
 
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
@@ -21,6 +20,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot-admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/middleware"
@@ -34,7 +34,6 @@ func init() {
 			controller.WithModel(new(models.Role)),
 			controller.WithSearch(new(dto.RoleSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
-			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -113,11 +112,26 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	// authorize
-	_, err := gormdb.Enforcer.DeletePermissionsForUser(req.RoleID)
+	req.RoleID = resolveAuthorizeRoleID(req.RoleID, ctx.Param("roleID"))
+	if hasEmptyAuthorizeRoleID(req.RoleID) {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+
+	exists, err := checkAuthorizeRoleExists(ctx, req.RoleID)
 	if err != nil {
-		api.AddError(err).Log.Error("delete permissions for user error", "err", err)
+		api.AddError(err).Log.Error("check role error", "err", err)
 		api.Err(http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		api.Err(http.StatusNotFound)
+		return
+	}
+
+	paths := sanitizeAuthorizePaths(req.Paths)
+	if len(paths) == 0 {
+		respondInvalidAuthorizeRequest(api, "set role authorize request has no valid paths", req.RoleID, nil)
 		return
 	}
 
@@ -130,45 +144,55 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	//		return
 	//	}
 	//}
-	menus := make([]*models.Menu, 0)
-	err = center.Default.GetDB(ctx, &models.Menu{}).Model(&models.Menu{}).
-		Where("path in (?)", req.Paths).
-		Where("type = ? or type = ?", pkg.MenuAccessType, pkg.ComponentAccessType).
-		Preload("Children").
-		Find(&menus).Error
-	for i := range menus {
-		_, err = gormdb.Enforcer.AddPermissionForUser(
-			req.RoleID, menus[i].Type.String(), menus[i].Path, menus[i].Method)
-		if err != nil {
-			api.AddError(err).Log.
-				Error("add menu and component permission for role error",
-					slog.String("roleID", req.RoleID))
-			api.Err(http.StatusInternalServerError)
-			return
-		}
-		for j := range menus[i].Children {
-			if menus[i].Children[j].Type != pkg.APIAccessType {
-				continue
-			}
-			_, err = gormdb.Enforcer.AddPermissionForUser(
-				req.RoleID, pkg.APIAccessType.String(), menus[i].Children[j].Path, menus[i].Children[j].Method)
-			if err != nil {
-				api.AddError(err).Log.
-					Error("add api permission for role error",
-						slog.String("roleID", req.RoleID))
-				api.Err(http.StatusInternalServerError)
-				return
-			}
-		}
-	}
-	err = gormdb.Enforcer.SavePolicy()
+	menus, menuSet, err := loadAuthorizeMenusByPathsWithChildren(ctx, paths, pkg.MenuAccessType, pkg.ComponentAccessType)
 	if err != nil {
-		api.AddError(err).Log.Error("save policy error", "err", err)
+		api.AddError(err).Log.Error("query authorize menu error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return
 	}
+	if missing := missingAuthorizePaths(paths, menuSet); len(missing) > 0 {
+		respondInvalidAuthorizeRequest(api, "set role authorize request contains invalid paths", req.RoleID, missing)
+		return
+	}
+	pathSet := authorizePathSet(paths)
+	menus = filterAuthorizeMenusByPathSet(menus, pathSet)
+	rules := buildRoleAuthorizeRules(req.RoleID, menus)
+	if len(rules) == 0 {
+		respondInvalidAuthorizeRequest(api, "set role authorize request resolves no permission rules", req.RoleID, paths)
+		return
+	}
 
-	api.OK(nil)
+	err = center.Default.GetDB(ctx, &models.CasbinRule{}).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("ptype = ?", "p").
+			Where("v0 = ?", req.RoleID).
+			Where("v1 in ?", authorizeRuleScopesForRole()).
+			Delete(&models.CasbinRule{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&rules).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		api.AddError(err).Log.Error("update role authorize policy error", "err", err, slog.String("roleID", req.RoleID))
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	_ = gormdb.Enforcer.LoadPolicy()
+
+	api.OK(struct{}{})
+}
+
+func filterAuthorizeMenusByPathSet(menus []*models.Menu, pathSet map[string]struct{}) []*models.Menu {
+	filtered := make([]*models.Menu, 0, len(menus))
+	for i := range menus {
+		if _, ok := pathSet[menus[i].Path]; !ok {
+			continue
+		}
+		filtered = append(filtered, menus[i])
+	}
+	return filtered
 }
 
 // Create 创建角色

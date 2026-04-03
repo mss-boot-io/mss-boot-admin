@@ -33,7 +33,6 @@ func init() {
 			controller.WithModel(new(models.Menu)),
 			controller.WithSearch(new(dto.RoleSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
-			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -75,47 +74,70 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 	api := response.Make(ctx)
 	req := &dto.UpdateAuthorizeRequest{}
 	if api.Bind(req).Error != nil {
-		api.Err(http.StatusUnauthorized)
+		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	// todo check roleID
-	// todo check menu keys
+	req.RoleID = resolveAuthorizeRoleID(req.RoleID, ctx.Param("roleID"))
+	if hasEmptyAuthorizeRoleID(req.RoleID) {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 
-	// todo commit transaction
-
-	// delete all policy for role
-	err := gormdb.DB.Where(&models.CasbinRule{
-		PType: "p",
-		V0:    req.RoleID,
-	}).Delete(&models.CasbinRule{}).Error
+	exists, err := checkAuthorizeRoleExists(ctx, req.RoleID)
 	if err != nil {
-		api.AddError(err).Log.Error("delete role error", "err", err)
+		api.AddError(err).Log.Error("check role error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	defer func() {
-		_ = gormdb.Enforcer.LoadPolicy()
-	}()
+	if !exists {
+		api.Err(http.StatusNotFound)
+		return
+	}
+
+	keys := sanitizeAuthorizePaths(req.Keys)
+	if len(keys) == 0 {
+		respondInvalidAuthorizeRequest(api, "update role menu authorize request has no valid keys", req.RoleID, nil)
+		return
+	}
+	menus, keySet, err := loadAuthorizeMenusByPaths(ctx, keys, pkg.MenuAccessType)
 	if err != nil {
-		api.AddError(err).Log.Error("delete role error", "err", err)
+		api.AddError(err).Log.Error("query authorize menus error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	rules := make([]*models.CasbinRule, len(req.Keys))
-	for i := range req.Keys {
-		rules[i] = &models.CasbinRule{
+	if missing := missingAuthorizePaths(keys, keySet); len(missing) > 0 {
+		respondInvalidAuthorizeRequest(api, "update role menu authorize request contains invalid keys", req.RoleID, missing)
+		return
+	}
+
+	err = center.Default.GetDB(ctx, &models.CasbinRule{}).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where(&models.CasbinRule{
 			PType: "p",
 			V0:    req.RoleID,
-			V1:    req.Keys[i],
-			V2:    pkg.MenuAccessType.String(),
+			V1:    pkg.MenuAccessType.String(),
+		}).Delete(&models.CasbinRule{}).Error; err != nil {
+			return err
 		}
-	}
-	if err = gormdb.DB.Create(&rules).Error; err != nil {
-		api.AddError(err).Log.Error("create casbin rule error", "err", err)
+		rules := buildMenuAuthorizeRules(req.RoleID, menus)
+		if len(rules) == 0 {
+			return gorm.ErrInvalidData
+		}
+		if err := tx.Create(&rules).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		if err == gorm.ErrInvalidData {
+			respondInvalidAuthorizeRequest(api, "update role menu authorize request resolves no permission rules", req.RoleID, keys)
+			return
+		}
+		api.AddError(err).Log.Error("update role menu authorize error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	_ = gormdb.Enforcer.LoadPolicy()
+	api.OK(struct{}{})
 }
 
 // GetAuthorize 获取菜单权限
@@ -167,7 +189,21 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 		}
 		result = append(result, menu)
 	}
+	normalizeMenuNameForLayout(result)
 	api.OK(result)
+}
+
+func normalizeMenuNameForLayout(menus []*models.Menu) {
+	for i := range menus {
+		menus[i].Name = strings.TrimPrefix(menus[i].Name, "menu.")
+		if strings.Contains(menus[i].Name, ".") {
+			parts := strings.Split(menus[i].Name, ".")
+			menus[i].Name = parts[len(parts)-1]
+		}
+		if len(menus[i].Children) > 0 {
+			normalizeMenuNameForLayout(menus[i].Children)
+		}
+	}
 }
 
 // Tree 获取菜单树
@@ -252,32 +288,38 @@ func (e *Menu) BindAPI(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	apis := make([]*models.API, len(req.Paths))
+	apis := make([]*models.API, 0, len(req.Paths))
 	for i := range req.Paths {
-		arr := strings.Split(req.Paths[i], "---")
-		if len(arr) > 1 {
-			a := &models.API{}
-			err = gormdb.DB.Model(a).
-				Where("method = ?", arr[0]).
-				Where("path = ?", arr[1]).
-				First(a).Error
-			if err != nil {
-				api.AddError(err).Log.Error("get api error", "err", err)
-				api.Err(http.StatusInternalServerError)
-				return
-			}
-			apis[i] = a
+		arr := strings.SplitN(req.Paths[i], "---", 2)
+		if len(arr) != 2 || strings.TrimSpace(arr[0]) == "" || strings.TrimSpace(arr[1]) == "" {
+			api.Err(http.StatusUnprocessableEntity)
+			return
 		}
+		a := &models.API{}
+		err = gormdb.DB.Model(a).
+			Where("method = ?", strings.TrimSpace(arr[0])).
+			Where("path = ?", strings.TrimSpace(arr[1])).
+			First(a).Error
+		if err != nil {
+			api.AddError(err).Log.Error("get api error", "err", err)
+			api.Err(http.StatusInternalServerError)
+			return
+		}
+		apis = append(apis, a)
 	}
-	menuApis := make([]*models.Menu, len(apis))
+	if len(apis) == 0 {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	menuApis := make([]*models.Menu, 0, len(apis))
 	for i := range apis {
-		menuApis[i] = &models.Menu{
+		menuApis = append(menuApis, &models.Menu{
 			ParentID: menu.ID,
 			Name:     apis[i].Name,
 			Path:     apis[i].Path,
 			Method:   apis[i].Method,
 			Type:     pkg.APIAccessType,
-		}
+		})
 	}
 
 	err = center.Default.GetDB(ctx, &models.Menu{}).Transaction(func(tx *gorm.DB) error {
@@ -295,7 +337,7 @@ func (e *Menu) BindAPI(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // List 菜单列表数据

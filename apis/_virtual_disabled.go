@@ -24,8 +24,6 @@ import (
 
 func init() {
 	base := action.GetBase()
-	base.TenantIDFunc = models.TenantIDScope
-	//center.Default.GetTenant().GetTenant()
 	e := &Virtual{
 		Virtual: vapi.NewVirtual(
 			base,

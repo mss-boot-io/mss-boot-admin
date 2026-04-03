@@ -57,7 +57,7 @@ func (e *UserConfig) Profile(ctx *gin.Context) {
 		api.OK(nil)
 		return
 	}
-	result, err := e.service.Profile(ctx, verify.GetTenantID(), verify.GetUserID())
+	result, err := e.service.Profile(ctx, verify.GetUserID())
 	if err != nil {
 		api.AddError(err).Log.Error("get user config error")
 		api.Err(http.StatusInternalServerError)
@@ -118,5 +118,5 @@ func (e *UserConfig) Control(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }

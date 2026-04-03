@@ -44,7 +44,6 @@ func init() {
 			controller.WithModel(new(models.User)),
 			controller.WithSearch(new(dto.UserSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
-			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -102,7 +101,7 @@ func (e *User) Unbinding(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // Binding 绑定第三方登录
@@ -146,7 +145,7 @@ func (e *User) Binding(ctx *gin.Context) {
 		return
 	}
 	if userOAuth2.ID != "" {
-		api.OK(nil)
+		api.OK(struct{}{})
 		return
 	}
 	userOAuth2.User = nil
@@ -157,7 +156,7 @@ func (e *User) Binding(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // GetOauth2 获取用户第三方登录信息
@@ -217,7 +216,7 @@ func (e *User) ResetPassword(ctx *gin.Context) {
 			api.Err(http.StatusInternalServerError)
 			return
 		}
-		api.OK(nil)
+		api.OK(struct{}{})
 		return
 	}
 	if req.Email == "" || req.Captcha == "" {
@@ -247,7 +246,7 @@ func (e *User) ResetPassword(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 func (e *User) UpdateAvatar(ctx *gin.Context) {
@@ -260,13 +259,13 @@ func (e *User) UpdateAvatar(ctx *gin.Context) {
 		return
 	}
 	s := service.Storage{}
-	filename, err := s.Upload(ctx, file, verify.GetTenantID(), verify.GetUserID())
+	result, err := s.Upload(ctx, file, verify.GetUserID())
 	if err != nil {
 		api.AddError(err).Log.Error("upload error")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(dto.UpdateAvatarResponse{Avatar: filename})
+	api.OK(dto.UpdateAvatarResponse{Avatar: result.URL})
 }
 
 // UpdateUserInfo 更新用户信息
@@ -282,11 +281,13 @@ func (e *User) UpdateAvatar(ctx *gin.Context) {
 func (e *User) UpdateUserInfo(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
-	req := &dto.UpdateUserInfoRequest{}
-	if api.Bind(req).Error != nil {
+
+	var reqMap map[string]any
+	if err := ctx.ShouldBindJSON(&reqMap); err != nil {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
+
 	user := &models.User{}
 	err := center.Default.GetDB(ctx, &models.User{}).Where("id = ?", verify.GetUserID()).First(user).Error
 	if err != nil {
@@ -294,26 +295,60 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	user.Name = req.Name
-	user.Email = req.Email
-	user.Avatar = req.Avatar
-	user.Signature = req.Signature
-	user.Title = req.Title
-	user.Group = req.Group
-	user.Country = req.Country
-	user.Province = req.Province
-	user.City = req.City
-	user.Address = req.Address
-	user.Phone = req.Phone
-	user.Profile = req.Profile
-	user.Tags = req.Tags
+
+	if v, ok := reqMap["name"].(string); ok {
+		user.Name = v
+	}
+	if v, ok := reqMap["email"].(string); ok {
+		user.Email = v
+	}
+	if v, ok := reqMap["avatar"].(string); ok {
+		user.Avatar = v
+	}
+	if v, ok := reqMap["signature"].(string); ok {
+		user.Signature = v
+	}
+	if v, ok := reqMap["title"].(string); ok {
+		user.Title = v
+	}
+	if v, ok := reqMap["group"].(string); ok {
+		user.Group = v
+	}
+	if v, ok := reqMap["country"].(string); ok {
+		user.Country = v
+	}
+	if v, ok := reqMap["province"].(string); ok {
+		user.Province = v
+	}
+	if v, ok := reqMap["city"].(string); ok {
+		user.City = v
+	}
+	if v, ok := reqMap["address"].(string); ok {
+		user.Address = v
+	}
+	if v, ok := reqMap["phone"].(string); ok {
+		user.Phone = v
+	}
+	if v, ok := reqMap["profile"].(string); ok {
+		user.Profile = v
+	}
+	if v, ok := reqMap["tags"].([]any); ok {
+		tags := make([]string, 0, len(v))
+		for _, tag := range v {
+			if s, ok := tag.(string); ok {
+				tags = append(tags, s)
+			}
+		}
+		user.Tags = tags
+	}
+
 	err = center.Default.GetDB(ctx, &models.User{}).Model(&models.User{}).Where("id = ?", verify.GetUserID()).Updates(user).Error
 	if err != nil {
 		api.AddError(err).Log.Error("UpdateUserInfo error")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // Login 登录
@@ -441,7 +476,6 @@ func (e *User) FakeCaptcha(ctx *gin.Context) {
 	}
 	err := fmt.Errorf("not support phone")
 	api.AddError(err).Err(http.StatusNotImplemented)
-	return
 }
 
 // UserInfo 获取登录用户信息
@@ -533,7 +567,7 @@ func (e *User) PasswordReset(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // Create 创建用户

@@ -21,19 +21,15 @@ import (
 type AppConfig struct{}
 
 func (e *AppConfig) Profile(ctx *gin.Context, auth bool) (map[string]gin.H, error) {
-	tenant, err := center.GetTenant().GetTenant(ctx)
-	if err != nil {
-		slog.Error("get tenant error", "err", err)
-		return nil, err
-	}
+	var err error
 	result := make(map[string]gin.H)
 	if center.GetCache() != nil {
 		groups := make([]string, 0)
-		err = center.GetCache().SMembers(ctx, fmt.Sprintf("%s:app-configs", tenant.GetID())).ScanSlice(&groups)
+		err = center.GetCache().SMembers(ctx, "app-configs").ScanSlice(&groups)
 		if err == nil {
 			for i := range groups {
 				configMap := make(map[string]string)
-				configMap, err = center.GetCache().HGetAll(ctx, fmt.Sprintf("%v:app-configs:%s", tenant.GetID(), groups[i])).Result()
+				configMap, err = center.GetCache().HGetAll(ctx, fmt.Sprintf("app-configs:%s", groups[i])).Result()
 				if err != nil {
 					slog.Error("get app config group error", "group", groups[i], "err", err)
 					break
@@ -52,7 +48,7 @@ func (e *AppConfig) Profile(ctx *gin.Context, auth bool) (map[string]gin.H, erro
 		}
 	}
 	list := make([]*models.AppConfig, 0)
-	query := center.GetTenant().GetDB(ctx, &models.AppConfig{})
+	query := center.GetDB(ctx, &models.AppConfig{})
 	if !auth {
 		query = query.Where("auth = ?", false)
 	}
@@ -76,12 +72,12 @@ func (e *AppConfig) Profile(ctx *gin.Context, auth bool) (map[string]gin.H, erro
 				data[k] = cast.ToString(v)
 			}
 			// Set cache for each group
-			err = center.GetCache().HSet(ctx, fmt.Sprintf("%v:app-configs:%s", tenant.GetID(), group), data).Err()
+			err = center.GetCache().HSet(ctx, fmt.Sprintf("app-configs:%s", group), data).Err()
 			if err != nil {
 				slog.Error("set app config group error", "group", group, "err", err)
 				continue
 			}
-			err = center.GetCache().SAdd(ctx, fmt.Sprintf("%v:app-configs", tenant.GetID()), group).Err()
+			err = center.GetCache().SAdd(ctx, "app-configs", group).Err()
 			if err != nil {
 				slog.Error("set app config group error", "group", group, "err", err)
 				continue
@@ -104,7 +100,7 @@ func transferValue(value string) any {
 
 func (e *AppConfig) Group(ctx *gin.Context, group string) (map[string]any, error) {
 	list := make([]*models.AppConfig, 0)
-	err := center.GetTenant().GetDB(ctx, &models.AppConfig{}).
+	err := center.GetDB(ctx, &models.AppConfig{}).
 		Where(&models.AppConfig{Group: group}).
 		Find(&list).Error
 	if err != nil {
@@ -121,7 +117,7 @@ func (e *AppConfig) CreateOrUpdate(ctx *gin.Context, group string, data map[stri
 	var err error
 	if center.GetCache() != nil {
 		// Clear cache for the group
-		err = center.GetCache().Del(ctx, fmt.Sprintf("%v:app-configs:%s", center.GetTenant().GetID(), group)).Err()
+		err = center.GetCache().Del(ctx, "app-configs").Err()
 		if err != nil {
 			return err
 		}

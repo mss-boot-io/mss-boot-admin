@@ -18,8 +18,6 @@ func _1691804837583Tables(db *gorm.DB, version string) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 
 		err := tx.Migrator().AutoMigrate(
-			new(models.Tenant),
-			new(models.TenantDomain),
 			new(models.AppConfig),
 			new(models.SystemConfig),
 			new(models.Role),

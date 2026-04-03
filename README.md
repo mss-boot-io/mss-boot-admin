@@ -7,8 +7,19 @@
 English | [简体中文](./README.zh-CN.md)
 
 ## Introduction
-> A front-end and back-end separation authority management system based on Gin, React, Ant Design v5, Umi v4, and mss-boot. Initialized with an environment variable, it supports multiple configuration sources, simplifies database setup, and eases service startup. 
-> Features include multi-tenancy, roles, users, menus, internationalization, system configuration, permissions, virtual models, notifications, and dictionaries.
+> `mss-boot-admin` is a front-end and back-end separation admin platform based on Gin, React, Ant Design v5, Umi v4, and mss-boot. Its current product focus is governance, operations, configuration, access control, internationalization, and AI-annotation-assisted engineering collaboration.
+
+> The repository still contains some historical dynamic-model and code-generation related capabilities, but they are no longer the primary direction for future product investment.
+
+## Recent Updates
+
+The project has undergone comprehensive polish rounds focusing on:
+
+- **Stability (P0)**: Fixed nil dereference risks, boundary checks, panic prevention, auth coverage, and polling cleanup
+- **Code Quality**: Eliminated all TypeScript errors, unified page structures, removed duplicate keys
+- **Abstraction**: Created reusable components (AuthShell, useMonitorData hook), unified API response format
+- **Testing**: Documented 70+ test cases, executed core scenarios successfully
+- **Documentation**: Added CHANGELOG, CONTRIBUTING guide, and comprehensive configuration tutorial
 
 [Beta Environment](https://admin-beta.mss-boot-io.top)
 
@@ -36,21 +47,25 @@ English | [简体中文](./README.zh-CN.md)
 - Support oauth2.0 third-party login
 - Support swagger document generation
 - Support multiple configuration sources (local files, embed, object storage s3, etc., databases supported by gorm, mongodb)
-- Support virtual model (dynamic configuration supports front-end and back-end functions)
 - Support database migration
-- Support microservice code generation
+- Support governance-oriented admin modules such as users, roles, menus, departments, posts, APIs, and configuration
+- Support operational modules such as notices, tasks, monitoring, and statistics
+- Evolving toward AI-annotation-assisted engineering workflows for clearer collaboration and delivery discipline
 
 ## 📦 Built-in functions
 - User management: Users are system operators, and this function mainly completes the configuration of system users.
+- Department management: Maintain organization hierarchy and ownership boundaries.
+- Post management: Maintain post data for organization and permission collaboration.
 - Role management: Role menu permission allocation, set role data range permission division by organization.
 - Menu management: Configure system menus, operation permissions, button permission identifiers, etc.
+- API management: Maintain API registry information for governance and permission mapping.
 - Option management: dynamically configure enumerations.
-- Model management: Manage virtual models.
 - System configuration: Manage the configuration of various environments.
 - Notice announcement: user notification message.
 - Task management: Manage scheduled tasks, including execution logs.
 - Internationalization management: Manage internationalization resources.
-- Microservice code generation: Generate microservice code based on templates.
+- Account and token management: Support OAuth2 binding and personal access tokens.
+- Monitoring and statistics: Provide runtime visibility and statistics querying capabilities.
 
 ## 📦 Preparation
 - Install golang1.21+

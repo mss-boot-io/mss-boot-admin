@@ -10,7 +10,6 @@ package pack
 import (
 	"archive/zip"
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -74,9 +73,8 @@ func Unzip(src, dst string) error {
 		return err
 	}
 	defer or.Close()
-	fmt.Sprintf("src: %v, dst: %v", src, dst)
 
-	return unzipFromReader(or.Reader, dst)
+	return unzipFromReader(&or.Reader, dst)
 }
 
 func UnzipByContent(content []byte, dst string) error {
@@ -86,43 +84,36 @@ func UnzipByContent(content []byte, dst string) error {
 		return err
 	}
 
-	return unzipFromReader(*or, dst)
+	return unzipFromReader(or, dst)
 }
 
-func unzipFromReader(or zip.Reader, dst string) error {
+func unzipFromReader(or *zip.Reader, dst string) error {
 	for _, f := range or.File {
 		filePath := filepath.Join(dst, f.Name)
-		fmt.Sprintf("unzipping file: %v", filePath)
 
 		if !strings.HasPrefix(filePath, filepath.Clean(dst)+string(os.PathSeparator)) {
-			fmt.Sprintf("invalid file path: %v", filePath)
 			return nil
 		}
 		if f.FileInfo().IsDir() {
-			fmt.Sprintf("creating directory: %v", filePath)
 			os.MkdirAll(filePath, os.ModePerm)
 			continue
 		}
 
 		if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
-			fmt.Sprintf("create file: %v failed", filePath)
 			panic(err)
 		}
 
 		dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 		if err != nil {
-			fmt.Sprintf("open dst file: %v failed", filePath)
 			panic(err)
 		}
 
 		fileInArchive, err := f.Open()
 		if err != nil {
-			fmt.Sprintf("open src file: %v failed", f.Name)
 			panic(err)
 		}
 
 		if _, err := io.Copy(dstFile, fileInArchive); err != nil {
-			fmt.Sprintf("copy file to dst file: %v failed", dstFile)
 			panic(err)
 		}
 

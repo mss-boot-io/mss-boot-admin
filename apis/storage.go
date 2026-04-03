@@ -42,6 +42,15 @@ func (e *Storage) Other(r *gin.RouterGroup) {
 	r.POST("/storage/upload", middleware.Auth.MiddlewareFunc(), e.Upload)
 }
 
+// Upload 上传文件
+// @Summary 上传文件
+// @Description 上传文件到存储服务
+// @Tags storage
+// @Accept multipart/form-data
+// @Param file formData file true "文件"
+// @Success 200 {object} service.UploadResult
+// @Router /admin/api/storage/upload [post]
+// @Security Bearer
 func (e *Storage) Upload(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
@@ -51,7 +60,7 @@ func (e *Storage) Upload(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	u, err := e.service.Upload(ctx, file, verify.GetTenantID(), verify.GetUserID())
+	u, err := e.service.Upload(ctx, file, verify.GetUserID())
 	if err != nil {
 		api.AddError(err).Log.Error("upload error")
 		api.Err(http.StatusInternalServerError)

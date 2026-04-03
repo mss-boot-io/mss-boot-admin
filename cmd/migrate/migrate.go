@@ -70,8 +70,7 @@ func init() {
 		"gorm-dsn", "n",
 		"root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local",
 		"Start server with db dsn")
-	center.SetTenant(&models.Tenant{}).
-		SetVerify(&models.User{})
+	center.SetVerify(&models.User{})
 }
 
 func setup() error {
@@ -140,7 +139,7 @@ func setup() error {
 	middleware.Verifier = center.GetUser()
 	middleware.Init()
 
-	return models.InitTenant(gormdb.DB)
+	return nil
 }
 
 func Run() error {

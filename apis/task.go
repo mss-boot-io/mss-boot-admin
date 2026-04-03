@@ -32,7 +32,6 @@ func init() {
 			controller.WithModel(new(models.Task)),
 			controller.WithSearch(new(dto.TaskSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
-			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -130,7 +129,7 @@ func (e *Task) Operate(c *gin.Context) {
 			}
 		}()
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // Create 创建任务

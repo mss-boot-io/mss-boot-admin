@@ -1,0 +1,158 @@
+version: '3'
+networks:
+  pulsar:
+    driver: bridge
+services:
+  # Start zookeeper
+  zookeeper:
+    image: apachepulsar/pulsar:latest
+    container_name: zookeeper
+    restart: on-failure
+    networks:
+      - pulsar
+    volumes:
+      - ./data/zookeeper:/pulsar/data/zookeeper
+    environment:
+      - metadataStoreUrl=zk:zookeeper:2181
+      - PULSAR_MEM=-Xms256m -Xmx256m -XX:MaxDirectMemorySize=256m
+    command:
+      - bash
+      - -c
+      - |
+        bin/apply-config-from-env.py conf/zookeeper.conf && \
+        bin/generate-zookeeper-config.sh conf/zookeeper.conf && \
+        exec bin/pulsar zookeeper
+    healthcheck:
+      test: ["CMD", "bin/pulsar-zookeeper-ruok.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # Init cluster metadata
+  pulsar-init:
+    container_name: pulsar-init
+    hostname: pulsar-init
+    image: apachepulsar/pulsar:latest
+    networks:
+      - pulsar
+    command:
+      - bash
+      - -c
+      - |
+        bin/pulsar initialize-cluster-metadata \
+        --cluster cluster-a \
+        --zookeeper zookeeper:2181 \
+        --configuration-store zookeeper:2181 \
+        --web-service-url http://broker:8080 \
+        --broker-service-url pulsar://broker:6650
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+
+  # Start bookie
+  bookie:
+    image: apachepulsar/pulsar:latest
+    container_name: bookie
+    restart: on-failure
+    networks:
+      - pulsar
+    environment:
+      - clusterName=cluster-a
+      - zkServers=zookeeper:2181
+      - metadataServiceUri=metadata-store:zk:zookeeper:2181
+      # otherwise every time we run docker compose up or down we fail to start due to Cookie
+      # See: https://github.com/apache/bookkeeper/blob/405e72acf42bb1104296447ea8840d805094c787/bookkeeper-server/src/main/java/org/apache/bookkeeper/bookie/Cookie.java#L57-68
+      - advertisedAddress=bookie
+      - BOOKIE_MEM=-Xms512m -Xmx512m -XX:MaxDirectMemorySize=256m
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      pulsar-init:
+        condition: service_completed_successfully
+    # Map the local directory to the container to avoid bookie startup failure due to insufficient container disks.
+    volumes:
+      - ./data/bookkeeper:/pulsar/data/bookkeeper
+    command: bash -c "bin/apply-config-from-env.py conf/bookkeeper.conf && exec bin/pulsar bookie"
+
+  # Start broker
+  broker:
+    image: apachepulsar/pulsar:latest
+    container_name: broker
+    hostname: broker
+    restart: on-failure
+    networks:
+      - pulsar
+    environment:
+      - metadataStoreUrl=zk:zookeeper:2181
+      - zookeeperServers=zookeeper:2181
+      - clusterName=cluster-a
+      - managedLedgerDefaultEnsembleSize=1
+      - managedLedgerDefaultWriteQuorum=1
+      - managedLedgerDefaultAckQuorum=1
+      - advertisedAddress=broker
+      - advertisedListeners=external:pulsar://127.0.0.1:6650
+      - PULSAR_MEM=-Xms512m -Xmx512m -XX:MaxDirectMemorySize=256m
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      bookie:
+        condition: service_started
+    ports:
+      - "6650:6650"
+      - "8080:8080"
+    command: bash -c "bin/apply-config-from-env.py conf/broker.conf && exec bin/pulsar broker"
+
+  # Pulsar Console UI (https://github.com/gaecfov/pulsar-console)
+  pulsar-console:
+    image: gaecfovdocker/pulsar-console:latest
+    container_name: pulsar-console
+    restart: unless-stopped
+    networks:
+      - pulsar
+    depends_on:
+      broker:
+        condition: service_started
+    # Expose console on localhost:8088
+    ports:
+      - "8088:8080"
+    environment:
+      # Optional: set timezone; configure external DB via PC_JDBC_* variables if desired
+      - TZ=Asia/Shanghai
+  dashboard:
+    container_name: dashboard 
+    image: datastax/pulsar-admin-console
+    ports:
+      - "6454:6454"
+    networks:
+      - pulsar
+    environment:
+      PULSAR_BROKER_SERVICE_URL: pulsar://broker:6650
+      PULSAR_WEBSOCKET_SERVICE_URL: ws://broker:8080/ws/v2
+    depends_on:
+      broker:
+        condition: service_started
+  # ✅ StreamNative Console —— 替换原有的 gaecfov 版本控制台
+  streamnative-console:
+    image: streamnative/console:latest
+    container_name: streamnative-console
+    restart: unless-stopped
+    networks:
+      - pulsar
+    ports:
+      - "8088:8080"   # 访问地址: http://localhost:8088
+    environment:
+      # 设置 Pulsar 服务 URL，这里假设使用了上面定义的 broker 服务
+      PULSAR_SERVICE_URL: pulsar://broker:6650
+      PULSAR_WEB_SERVICE_URL: http://broker:8080
+    depends_on:
+      broker:
+        condition: service_started
+    command: >
+      sh -c "
+        echo 'Waiting for Pulsar broker to be ready...' &&
+        until curl -sf http://broker:8080/admin/v2/namespaces/public > /dev/null 2>&1; do
+          sleep 3;
+        done &&
+        echo 'Broker is ready. Starting StreamNative Console...' &&
+        npm run start
+      "

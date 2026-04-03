@@ -35,14 +35,15 @@ type Config struct {
 	Database    gormdb.Database `yaml:"database" json:"database"`
 	Application Application     `yaml:"application" json:"application"`
 	//OAuth2      *config.OAuth2  `yaml:"oauth2" json:"oauth2"`
-	Task      Task            `yaml:"task" json:"task"`
-	Pyroscope Pyroscope       `yaml:"pyroscope" json:"pyroscope"`
-	Cache     *config.Cache   `yaml:"cache" json:"cache"`
-	Queue     *config.Queue   `yaml:"queue" json:"queue"`
-	Locker    *config.Locker  `yaml:"locker" json:"locker"`
-	Secret    *Secret         `yaml:"secret" json:"secret"`
-	Storage   *config.Storage `yaml:"storage" json:"storage"`
-	Clusters  Clusters        `yaml:"clusters" json:"clusters"`
+	Task         Task            `yaml:"task" json:"task"`
+	Pyroscope    Pyroscope       `yaml:"pyroscope" json:"pyroscope"`
+	Cache        *config.Cache   `yaml:"cache" json:"cache"`
+	Queue        *config.Queue   `yaml:"queue" json:"queue"`
+	Locker       *config.Locker  `yaml:"locker" json:"locker"`
+	Secret       *Secret         `yaml:"secret" json:"secret"`
+	Storage      *config.Storage `yaml:"storage" json:"storage"`
+	Clusters     Clusters        `yaml:"clusters" json:"clusters"`
+	Notification Notification    `yaml:"notification" json:"notification"`
 }
 
 type SecretConfig struct {

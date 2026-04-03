@@ -18,10 +18,9 @@ import (
 
 type UserConfig struct{}
 
-func (e *UserConfig) Profile(ctx *gin.Context, tenantID, userID string) (map[string]gin.H, error) {
+func (e *UserConfig) Profile(ctx *gin.Context, userID string) (map[string]gin.H, error) {
 	list := make([]*models.UserConfig, 0)
 	err := center.GetDB(ctx, &models.UserConfig{}).
-		Where("tenant_id = ?", tenantID).
 		Where("user_id = ?", userID).
 		Find(&list).Error
 	if err != nil {
@@ -39,7 +38,7 @@ func (e *UserConfig) Profile(ctx *gin.Context, tenantID, userID string) (map[str
 
 func (e *UserConfig) Group(ctx *gin.Context, userID, group string) (map[string]string, error) {
 	list := make([]*models.UserConfig, 0)
-	err := center.GetTenant().GetDB(ctx, &models.UserConfig{}).
+	err := center.GetDB(ctx, &models.UserConfig{}).
 		Where(models.UserConfig{UserID: userID, Group: group}).
 		Find(&list).Error
 	if err != nil {

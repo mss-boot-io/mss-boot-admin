@@ -27,7 +27,6 @@ func init() {
 			controller.WithModel(new(models.Notice)),
 			controller.WithSearch(new(dto.NoticeSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
-			controller.WithScope(center.Default.Scope),
 		),
 	}
 	response.AppendController(e)
@@ -107,7 +106,7 @@ func (e *Notice) MarkRead(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // Unread 获取未读通知列表

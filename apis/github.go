@@ -43,7 +43,7 @@ func (*Github) GetAction(string) response.Action {
 }
 
 func (e *Github) Other(r *gin.RouterGroup) {
-	r.Use(middleware.GetMiddlewares()...)
+	r.Use(middleware.GetMiddlewares("auth")...)
 	r.GET("/github/get-login-url", e.GetLoginURL)
 }
 

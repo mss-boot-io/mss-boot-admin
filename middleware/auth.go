@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,12 +12,14 @@ import (
 
 	"github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/service"
+	bootpkg "github.com/mss-boot-io/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 	"github.com/spf13/cast"
 
-	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
 )
@@ -85,18 +88,30 @@ func Init() {
 			return verifier
 		},
 		Authenticator: func(c *gin.Context) (any, error) {
-			// login
+			api := response.Make(c)
 			loginVals := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
-			//fmt.Println(loginVals)
 			if err := c.ShouldBind(&loginVals); err != nil {
 				return "", jwt.ErrMissingLoginValues
 			}
 			ok, user, err := loginVals.Verify(c)
+			ip := c.ClientIP()
+			userAgent := c.GetHeader("User-Agent")
+			db := center.Default.GetDB(c, nil)
+
 			if err != nil {
+				if logErr := service.Audit.LogLogin(db, "", extractLoginUsername(loginVals), ip, userAgent, err.Error(), false); logErr != nil {
+					api.AddError(logErr).Log.Warn("write login log failed")
+				}
 				return nil, err
 			}
 			if ok {
+				if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent, "login success", true); logErr != nil {
+					api.AddError(logErr).Log.Warn("write login log failed")
+				}
 				return user, nil
+			}
+			if logErr := service.Audit.LogLogin(db, "", extractLoginUsername(loginVals), ip, userAgent, "authentication failed", false); logErr != nil {
+				api.AddError(logErr).Log.Warn("write login log failed")
 			}
 			return nil, jwt.ErrFailedAuthentication
 		},
@@ -131,15 +146,6 @@ func Init() {
 			}
 			api := response.Make(c)
 			if v, ok := data.(security.Verifier); ok {
-				//todo check tenant domain
-				tenant, err := center.GetTenant().GetTenant(c)
-				if err != nil {
-					api.AddError(err).Log.Error("GetTenant error")
-					return false
-				}
-				if v.GetTenantID() != tenant.GetID() {
-					return false
-				}
 				if v.Root() {
 					return true
 				}
@@ -155,47 +161,27 @@ func Init() {
 		RefreshResponse: func(c *gin.Context, code int, token string, expire time.Time) {
 			jwtToken, err := Auth.ParseTokenString(token)
 			if err != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"code":   http.StatusUnauthorized,
-					"status": "error",
-					"msg":    "refresh token error",
-				})
+				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
 			}
 			claims := jwt.ExtractClaimsFromToken(jwtToken)
 			if len(claims) == 0 {
-				c.JSON(http.StatusOK, gin.H{
-					"code":   http.StatusUnauthorized,
-					"status": "error",
-					"msg":    "refresh token error",
-				})
+				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
 			}
 			verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
 			if verifier.GetRefreshTokenDisable() {
-				c.JSON(http.StatusOK, gin.H{
-					"code":   http.StatusUnauthorized,
-					"status": "error",
-					"msg":    "refresh token disabled",
-				})
+				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token disabled")
 				return
 			}
 			err = json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
 			if err != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"code":   http.StatusUnauthorized,
-					"status": "error",
-					"msg":    "refresh token error",
-				})
+				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
 			}
 			ok, _, err := verifier.Verify(c)
 			if err != nil || !ok {
-				c.JSON(http.StatusOK, gin.H{
-					"code":   http.StatusUnauthorized,
-					"status": "error",
-					"msg":    "refresh token error",
-				})
+				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
 			}
 			//todo 重新颁发token
@@ -206,11 +192,7 @@ func Init() {
 			})
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
-			c.JSON(code, gin.H{
-				"code":   code,
-				"status": "error",
-				"msg":    message,
-			})
+			writeAuthErrorResponse(c, code, code, message)
 		},
 		// TokenLookup is a string in the form of "<source>:<name>" that is used
 		// to extract token from the request.
@@ -271,4 +253,36 @@ func GetVerify(ctx *gin.Context) security.Verifier {
 		return nil
 	}
 	return verifier
+}
+
+func extractLoginUsername(loginVals any) string {
+	if loginVals == nil {
+		return ""
+	}
+	if v, ok := loginVals.(interface{ GetUsername() string }); ok {
+		return v.GetUsername()
+	}
+	if v, ok := loginVals.(security.Verifier); ok {
+		return v.GetUsername()
+	}
+	return ""
+}
+
+func writeAuthErrorResponse(c *gin.Context, httpStatus, businessCode int, message string) {
+	if c == nil {
+		return
+	}
+	if message == "" {
+		message = http.StatusText(httpStatus)
+		if message == "" {
+			message = errors.New("request error").Error()
+		}
+	}
+	c.AbortWithStatusJSON(httpStatus, gin.H{
+		"code":         businessCode,
+		"status":       "error",
+		"msg":          message,
+		"errorMessage": message,
+		"traceId":      bootpkg.GenerateMsgIDFromContext(c),
+	})
 }

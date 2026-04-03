@@ -29,7 +29,6 @@ func init() {
 			controller.WithModel(&models.Department{}),
 			controller.WithSearch(&dto.DepartmentSearch{}),
 			controller.WithModelProvider(actions.ModelProviderGorm),
-			controller.WithScope(center.Default.Scope),
 			controller.WithTreeField("Children"),
 			controller.WithDepth(5),
 		),
@@ -77,7 +76,6 @@ func (e *Department) List(c *gin.Context) {
 	m := &models.Department{}
 	query := center.Default.GetDB(c, m).
 		Model(m).
-		Scopes(center.Default.Scope(c, m)).
 		Preload("Children.Children.Children.Children.Children").
 		Scopes(
 			gorms.MakeCondition(req),

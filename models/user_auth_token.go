@@ -1,14 +1,13 @@
 package models
 
 import (
+	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
 	"time"
 
 	"github.com/mss-boot-io/mss-boot/pkg/security"
-
-	"github.com/mss-boot-io/mss-boot-admin/middleware"
 )
 
 /*
@@ -31,13 +30,13 @@ func (*UserAuthToken) TableName() string {
 }
 
 // GenerateUserAuthToken 生成用户令牌
-func GenerateUserAuthToken(ctx *gin.Context, verify security.Verifier, validityPeriod time.Duration) (*UserAuthToken, error) {
+func GenerateUserAuthToken(ctx *gin.Context, authMiddleware *jwt.GinJWTMiddleware, verify security.Verifier, validityPeriod time.Duration) (*UserAuthToken, error) {
 	if validityPeriod <= 0 {
 		validityPeriod = 100 * 12 * 30 * 24 * time.Hour
 	}
-	auth := *middleware.Auth
+	auth := *authMiddleware
 	auth.Timeout = validityPeriod
-	auth.TimeoutFunc = func(_ interface{}) time.Duration {
+	auth.TimeoutFunc = func(_ any) time.Duration {
 		return validityPeriod
 	}
 	userAuthToken := &UserAuthToken{
