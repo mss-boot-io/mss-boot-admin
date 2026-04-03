@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"math"
 	"runtime"
 	"time"
@@ -82,6 +83,9 @@ func (e *Monitor) Monitor(ctx *gin.Context) (*dto.MonitorResponse, error) {
 	d, err := disk.Partitions(false)
 	if err != nil {
 		return nil, err
+	}
+	if len(d) == 0 {
+		return nil, fmt.Errorf("no disk partitions found")
 	}
 	diskUsageStat, err := disk.Usage(d[0].Mountpoint)
 	if err != nil {

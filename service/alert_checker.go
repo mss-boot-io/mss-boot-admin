@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/center/websocket"
@@ -19,11 +20,15 @@ type AlertChecker struct {
 	ticker    *time.Ticker
 	stopChan  chan struct{}
 	interval  time.Duration
+	closeOnce sync.Once
 }
 
 var alertChecker *AlertChecker
+var alertCheckerMu sync.Mutex
 
 func InitAlertChecker(db *gorm.DB, interval time.Duration) {
+	alertCheckerMu.Lock()
+	defer alertCheckerMu.Unlock()
 	if alertChecker != nil {
 		return
 	}
@@ -36,8 +41,14 @@ func InitAlertChecker(db *gorm.DB, interval time.Duration) {
 }
 
 func StopAlertChecker() {
-	if alertChecker != nil {
-		close(alertChecker.stopChan)
+	alertCheckerMu.Lock()
+	checker := alertChecker
+	alertChecker = nil
+	alertCheckerMu.Unlock()
+	if checker != nil {
+		checker.closeOnce.Do(func() {
+			close(checker.stopChan)
+		})
 	}
 }
 
@@ -149,7 +160,7 @@ func (a *AlertChecker) triggerAlert(rule *models.AlertRule, value float64) {
 		Event:     websocket.EventNotify,
 		Code:      200,
 		Timestamp: time.Now().Unix(),
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"type":      "alert",
 			"ruleId":    rule.ID,
 			"ruleName":  rule.Name,

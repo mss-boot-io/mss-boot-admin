@@ -40,7 +40,7 @@ func (Template) Path() string {
 }
 
 func (e Template) Other(r *gin.RouterGroup) {
-	r.Use(middleware.GetMiddlewares()...)
+	r.Use(middleware.GetMiddlewares("auth")...)
 	r.GET("/template/get-branches", e.GetBranches)
 	r.GET("/template/get-path", e.GetPath)
 	r.GET("/template/get-params", e.GetParams)

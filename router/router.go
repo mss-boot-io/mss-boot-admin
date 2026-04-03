@@ -34,7 +34,7 @@ func InitRouter(r *gin.RouterGroup) {
 	})
 
 	for i := range response.Controllers {
-		response.Controllers[i].Other(r.Group("/api", cors.New(configCors)))
+		response.Controllers[i].Other(v1.Group("", response.Controllers[i].Handlers()...))
 		e := v1.Group(response.Controllers[i].Path(), response.Controllers[i].Handlers()...)
 		if action := response.Controllers[i].GetAction(response.Get); action != nil {
 			e.GET("/:"+response.Controllers[i].GetKey(), action.Handler()...)

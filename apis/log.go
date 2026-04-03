@@ -53,14 +53,14 @@ type LogListRequest struct {
 
 // LogListResponse 日志列表响应
 type LogListResponse struct {
-	Total int         `json:"total"`
+	Total int        `json:"total"`
 	List  []LogEntry `json:"list"`
 }
 
 func (e *Log) Other(r *gin.RouterGroup) {
-	r.GET("/logs", e.List)
-	r.GET("/logs/files", e.Files)
-	r.GET("/logs/export", e.Export)
+	r.GET("/logs", response.AuthHandler, e.List)
+	r.GET("/logs/files", response.AuthHandler, e.Files)
+	r.GET("/logs/export", response.AuthHandler, e.Export)
 }
 
 // List 日志列表

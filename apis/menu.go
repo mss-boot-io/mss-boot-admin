@@ -195,9 +195,7 @@ func (e *Menu) GetAuthorize(ctx *gin.Context) {
 
 func normalizeMenuNameForLayout(menus []*models.Menu) {
 	for i := range menus {
-		if strings.HasPrefix(menus[i].Name, "menu.") {
-			menus[i].Name = strings.TrimPrefix(menus[i].Name, "menu.")
-		}
+		menus[i].Name = strings.TrimPrefix(menus[i].Name, "menu.")
 		if strings.Contains(menus[i].Name, ".") {
 			parts := strings.Split(menus[i].Name, ".")
 			menus[i].Name = parts[len(parts)-1]
@@ -290,32 +288,38 @@ func (e *Menu) BindAPI(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	apis := make([]*models.API, len(req.Paths))
+	apis := make([]*models.API, 0, len(req.Paths))
 	for i := range req.Paths {
-		arr := strings.Split(req.Paths[i], "---")
-		if len(arr) > 1 {
-			a := &models.API{}
-			err = gormdb.DB.Model(a).
-				Where("method = ?", arr[0]).
-				Where("path = ?", arr[1]).
-				First(a).Error
-			if err != nil {
-				api.AddError(err).Log.Error("get api error", "err", err)
-				api.Err(http.StatusInternalServerError)
-				return
-			}
-			apis[i] = a
+		arr := strings.SplitN(req.Paths[i], "---", 2)
+		if len(arr) != 2 || strings.TrimSpace(arr[0]) == "" || strings.TrimSpace(arr[1]) == "" {
+			api.Err(http.StatusUnprocessableEntity)
+			return
 		}
+		a := &models.API{}
+		err = gormdb.DB.Model(a).
+			Where("method = ?", strings.TrimSpace(arr[0])).
+			Where("path = ?", strings.TrimSpace(arr[1])).
+			First(a).Error
+		if err != nil {
+			api.AddError(err).Log.Error("get api error", "err", err)
+			api.Err(http.StatusInternalServerError)
+			return
+		}
+		apis = append(apis, a)
 	}
-	menuApis := make([]*models.Menu, len(apis))
+	if len(apis) == 0 {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	menuApis := make([]*models.Menu, 0, len(apis))
 	for i := range apis {
-		menuApis[i] = &models.Menu{
+		menuApis = append(menuApis, &models.Menu{
 			ParentID: menu.ID,
 			Name:     apis[i].Name,
 			Path:     apis[i].Path,
 			Method:   apis[i].Method,
 			Type:     pkg.APIAccessType,
-		}
+		})
 	}
 
 	err = center.Default.GetDB(ctx, &models.Menu{}).Transaction(func(tx *gorm.DB) error {

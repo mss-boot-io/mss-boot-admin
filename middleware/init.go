@@ -13,7 +13,9 @@ func GetMiddlewares(keys ...string) gin.HandlersChain {
 	var mws gin.HandlersChain
 	for _, key := range keys {
 		if v, ok := Middlewares.Load(key); ok {
-			mws = append(mws, v.(gin.HandlerFunc))
+			if handler, ok := v.(gin.HandlerFunc); ok {
+				mws = append(mws, handler)
+			}
 		}
 	}
 	return mws

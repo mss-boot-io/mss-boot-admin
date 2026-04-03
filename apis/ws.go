@@ -33,7 +33,7 @@ func (e *WS) GetAction(_ string) response.Action {
 
 func (e *WS) Other(r *gin.RouterGroup) {
 	r.GET("/ws/connect", response.AuthHandler, e.Connect)
-	r.GET("/ws/online", e.Online)
+	r.GET("/ws/online", response.AuthHandler, e.Online)
 }
 
 func (e *WS) Connect(ctx *gin.Context) {
