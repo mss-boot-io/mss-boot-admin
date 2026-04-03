@@ -101,7 +101,7 @@ func (e *User) Unbinding(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // Binding 绑定第三方登录
@@ -145,7 +145,7 @@ func (e *User) Binding(ctx *gin.Context) {
 		return
 	}
 	if userOAuth2.ID != "" {
-		api.OK(nil)
+		api.OK(struct{}{})
 		return
 	}
 	userOAuth2.User = nil
@@ -156,7 +156,7 @@ func (e *User) Binding(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // GetOauth2 获取用户第三方登录信息
@@ -216,7 +216,7 @@ func (e *User) ResetPassword(ctx *gin.Context) {
 			api.Err(http.StatusInternalServerError)
 			return
 		}
-		api.OK(nil)
+		api.OK(struct{}{})
 		return
 	}
 	if req.Email == "" || req.Captcha == "" {
@@ -246,7 +246,7 @@ func (e *User) ResetPassword(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 func (e *User) UpdateAvatar(ctx *gin.Context) {
@@ -281,7 +281,7 @@ func (e *User) UpdateAvatar(ctx *gin.Context) {
 func (e *User) UpdateUserInfo(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
-	
+
 	var reqMap map[string]interface{}
 	if err := ctx.ShouldBindJSON(&reqMap); err != nil {
 		api.Err(http.StatusUnprocessableEntity)
@@ -348,7 +348,7 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // Login 登录
@@ -568,7 +568,7 @@ func (e *User) PasswordReset(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // Create 创建用户

@@ -106,7 +106,7 @@ func (e *Notice) MarkRead(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // Unread 获取未读通知列表

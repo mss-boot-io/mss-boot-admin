@@ -113,7 +113,7 @@ func (e *UserAuthToken) Revoked(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // Generate 生成用户令牌

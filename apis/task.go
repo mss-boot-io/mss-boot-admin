@@ -129,7 +129,7 @@ func (e *Task) Operate(c *gin.Context) {
 			}
 		}()
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // Create 创建任务

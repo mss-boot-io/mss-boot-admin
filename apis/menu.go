@@ -137,7 +137,7 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 		return
 	}
 	_ = gormdb.Enforcer.LoadPolicy()
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // GetAuthorize 获取菜单权限
@@ -337,7 +337,7 @@ func (e *Menu) BindAPI(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 // List 菜单列表数据

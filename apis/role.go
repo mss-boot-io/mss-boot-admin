@@ -181,7 +181,7 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	}
 	_ = gormdb.Enforcer.LoadPolicy()
 
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 func filterAuthorizeMenusByPathSet(menus []*models.Menu, pathSet map[string]struct{}) []*models.Menu {

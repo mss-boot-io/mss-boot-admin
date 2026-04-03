@@ -101,7 +101,7 @@ func (e *Model) GenerateData(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(nil)
+	api.OK(struct{}{})
 }
 
 func (e *Model) migrate(api *response.API, tx *gorm.DB, m *models.Model) error {
