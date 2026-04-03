@@ -36,3 +36,4 @@ docs
 dist/*
 mss-boot-admin*
 compose/**/**/datalogs/
+logs/

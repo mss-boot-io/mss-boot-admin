@@ -82,3 +82,6 @@ notification:
   wechat:
     enabled: false
     webhook: ""
+task:
+  enable: true
+  spec: "0 */1 * * * *"
