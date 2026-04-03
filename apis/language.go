@@ -50,10 +50,18 @@ type Language struct {
 
 func (e *Language) Other(r *gin.RouterGroup) {
 	r.GET("/language/profile", e.Profile)
-	r.GET("/languages/public", e.publicList)
+	r.GET("/languages/public", e.PublicList)
 }
 
-func (e *Language) publicList(ctx *gin.Context) {
+// PublicList 获取公开语言列表
+// @Summary 获取公开语言列表
+// @Description 获取公开语言列表（无需认证）
+// @Tags language
+// @Accept application/json
+// @Product application/json
+// @Success 200 {object} []models.Language
+// @Router /admin/api/languages/public [get]
+func (e *Language) PublicList(ctx *gin.Context) {
 	api := response.Make(ctx)
 	items := make([]*models.Language, 0)
 	err := center.GetDB(ctx, &models.Language{}).Find(&items).Error
