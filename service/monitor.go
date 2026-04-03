@@ -1,6 +1,7 @@
 package service
 
 import (
+	"math"
 	"runtime"
 	"time"
 
@@ -55,7 +56,7 @@ func (e *Monitor) Monitor(ctx *gin.Context) (*dto.MonitorResponse, error) {
 		return nil, err
 	}
 	if len(percent) > 0 {
-		resp.CPUUsage = percent[0]
+		resp.CPUUsage = math.Round(percent[0]*100) / 100
 	}
 	for i := range physicalCPU {
 		idx := i
@@ -74,7 +75,7 @@ func (e *Monitor) Monitor(ctx *gin.Context) (*dto.MonitorResponse, error) {
 	}
 	resp.MemoryTotal = m.Total
 	resp.MemoryUsage = m.Used
-	resp.MemoryUsagePercent = m.UsedPercent
+	resp.MemoryUsagePercent = math.Round(m.UsedPercent*100) / 100
 	resp.MemoryAvailable = m.Available
 	resp.MemoryFree = m.Free
 
@@ -87,9 +88,10 @@ func (e *Monitor) Monitor(ctx *gin.Context) (*dto.MonitorResponse, error) {
 		return nil, err
 	}
 	resp.DiskTotal = diskUsageStat.Total
+	resp.DiskTotalGB = math.Round(float64(diskUsageStat.Total)/1024/1024/1024*100) / 100
 	resp.DiskUsage = diskUsageStat.Used
-	resp.DiskUsageGB = float64(diskUsageStat.Used) / 1024 / 1024 / 1024
-	resp.DiskUsagePercent = diskUsageStat.UsedPercent
+	resp.DiskUsageGB = math.Round(float64(diskUsageStat.Used)/1024/1024/1024*100) / 100
+	resp.DiskUsagePercent = math.Round(diskUsageStat.UsedPercent*100) / 100
 
 	netIO, err := net.IOCountersWithContext(ctx, false)
 	if err == nil && len(netIO) > 0 {

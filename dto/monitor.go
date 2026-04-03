@@ -17,7 +17,7 @@ type MonitorResponse struct {
 	CPUPhysicalCore int `json:"cpuPhysicalCore"`
 	// CPULogicalCore CPU逻辑核心数
 	CPULogicalCore int `json:"cpuLogicalCore"`
-	// CPUUsage CPU使用率百分比
+	// CPUUsage CPU使用率百分比(保留2位小数)
 	CPUUsage float64 `json:"cpuUsage"`
 	// CPUInfo CPU信息
 	CPUInfo []MonitorCPUInfo `json:"cpuInfo"`
@@ -25,19 +25,21 @@ type MonitorResponse struct {
 	MemoryTotal uint64 `json:"memoryTotal"`
 	// MemoryUsage 内存使用量
 	MemoryUsage uint64 `json:"memoryUsage"`
-	// MemoryUsagePercent 内存使用率
+	// MemoryUsagePercent 内存使用率(保留2位小数)
 	MemoryUsagePercent float64 `json:"memoryUsagePercent"`
 	// MemoryAvailable 内存可用量
 	MemoryAvailable uint64 `json:"memoryAvailable"`
 	// MemoryFree 内存空闲量
 	MemoryFree uint64 `json:"memoryFree"`
-	// DiskTotal 磁盘总量
-	DiskTotal uint64 `json:"diskTotal"`
+	// DiskTotal 磁盘总量(bytes)
+	DiskTotal uint64 `json:"diskTotalBytes"`
+	// DiskTotalGB 磁盘总量(GB, 保留2位小数)
+	DiskTotalGB float64 `json:"diskTotal"`
 	// DiskUsage 磁盘使用量(bytes)
 	DiskUsage uint64 `json:"diskUsageBytes"`
-	// DiskUsageGB 磁盘使用量(GB)
+	// DiskUsageGB 磁盘使用量(GB, 保留2位小数)
 	DiskUsageGB float64 `json:"diskUsage"`
-	// DiskUsagePercent 磁盘使用率
+	// DiskUsagePercent 磁盘使用率(保留2位小数)
 	DiskUsagePercent float64 `json:"diskUsagePercent"`
 	// Network 网络信息
 	Network *MonitorNetwork `json:"network,omitempty"`
