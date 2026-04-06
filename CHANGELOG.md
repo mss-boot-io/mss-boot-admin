@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [v1.0.0] - 2026-04-06
 
 ### Added - Phase 4 Runtime & Operations
 
@@ -163,7 +163,7 @@ All notable changes to this project will be documented in this file.
 
 | Version | Date | Description |
 |---------|------|-------------|
-| Unreleased | 2026-04-03 | Product polish, full testing, production readiness |
+| v1.0.0 | 2026-04-06 | Product polish, full testing, production readiness |
 | - | - | Phase 4: Runtime, monitoring, alerts, i18n |
 | - | - | Phase 5: Deployment, testing, security, docs |
 | - | - | Three rounds of product polish |

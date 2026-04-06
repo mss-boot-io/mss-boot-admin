@@ -160,6 +160,104 @@ The `mss-boot-io` project has always been developed in the GoLand integrated dev
 
 If you think this project helped you, you can buy a glass of juice for the author to show encouragement 🍹
 
+## Testing
+
+The project follows strict testing requirements to ensure code quality and reliability.
+
+### Test Types
+
+#### 1. Unit Tests
+- **Location**: `*_test.go` alongside source files
+- **Minimum coverage**: **80%**
+- **Run command**: 
+  ```bash
+  go test ./... -v -coverprofile=coverage.out
+  ```
+- **Verify coverage**:
+  ```bash
+  go tool cover -html=coverage.out
+  # Or check terminal summary
+  go tool cover -func=coverage.out | grep total
+  ```
+
+#### 2. Integration Tests
+- **Focus**: API endpoints with database interactions
+- **Test databases**: Use test databases (SQLite in-memory for unit tests, real DB for integration)
+- **Run command**:
+  ```bash
+  go test -tags=integration ./...
+  ```
+- **Verify**: Database migrations, API contracts, and service integrations
+
+#### 3. End-to-End (E2E) Tests
+- **Full Stack Testing**: Uses Playwright for browser automation
+- **Critical user flows**: login, CRUD operations, permissions
+- **Run command**: `pnpm e2e` (executed in frontend project)
+
+### Development Workflow
+
+```text
+1. DEVELOPMENT PHASE
+   └── Write code
+   └── Write tests (TDD preferred)
+   └── Ensure compilation
+
+2. TESTING PHASE (MANDATORY)
+   ├── Unit Tests: go test ./...
+   ├── Integration Tests: go test -tags=integration ./...
+   └── E2E Tests: pnpm e2e (for major features)
+
+3. VERIFICATION PHASE
+   ├── Check test coverage (≥80%)
+   ├── All tests must pass
+   └── Document test results
+```
+
+### Coverage Requirements by Component
+
+| Component | Unit Tests | Integration Tests | Min Coverage |
+|-----------|-----------|-------------------|--------------|
+| Models | ✅ Required | Optional | 80% |
+| Services | ✅ Required | ✅ Required | 85% |
+| APIs | ✅ Required | ✅ Required | 80% |
+| Utils | ✅ Required | Optional | 90% |
+
+### Test Structure Example
+
+```go
+// service/user_test.go
+package service
+
+import (
+    "testing"
+    "github.com/stretchr/testify/assert"
+)
+
+func TestUserService_Create(t *testing.T) {
+    // Setup
+    db := setupTestDB(t)
+    svc := &UserService{}
+    
+    // Execute
+    user, err := svc.Create(ctx, &CreateUserRequest{...})
+    
+    // Verify
+    assert.NoError(t, err)
+    assert.NotNil(t, user)
+    assert.Equal(t, "expected", user.Field)
+}
+```
+
+### Pre-commit Hooks
+Before committing, run:
+```bash
+# Run all tests
+go test ./... -v -race -coverprofile=coverage.out
+
+# Check coverage meets requirements
+go tool cover -func=coverage.out | grep total # Must be ≥ 80.0%
+```
+
 <img class="no-margin" src="https://mss-boot-io.github.io/.github/images/sponsor-us.jpg"  height="400px"  alt="Sponsor Us">
 
 ## 🔑 License
