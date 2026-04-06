@@ -18,7 +18,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/grafana/pyroscope-go v1.2.7
 	github.com/larksuite/oapi-sdk-go/v3 v3.4.26
-	github.com/mss-boot-io/mss-boot v0.7.0
+	github.com/mss-boot-io/mss-boot v0.7.1
 	github.com/nsqio/go-nsq v1.1.0
 	github.com/redis/go-redis/v9 v9.18.0
 	github.com/robfig/cron/v3 v3.0.1
@@ -79,8 +79,7 @@ require (
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/casbin/casbin/v2 v2.135.0 // indirect
-	github.com/casbin/casbin/v3 v3.10.0 // indirect
-	github.com/casbin/gorm-adapter/v3 v3.41.0 // indirect
+	github.com/casbin/gorm-adapter/v3 v3.38.0 // indirect
 	github.com/casbin/govaluate v1.10.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
