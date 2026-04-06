@@ -84,3 +84,38 @@
 - Follow normal Go formatting/lint expectations already used in the project.
 - Keep docs and annotations in sync with behavior changes.
 - Do not bypass the framework’s existing extension points when an established pattern already exists.
+
+## Backend startup commands
+**IMPORTANT**: Backend startup commands must be run asynchronously to avoid blocking the terminal.
+
+### Correct async startup pattern
+```bash
+# From mss-boot-admin directory, use setsid to run in background:
+cd /home/lwx/go/src/github.com/mss-boot-io/mss-boot-admin
+setsid /tmp/mss-boot-admin server > /tmp/backend.log 2>&1 &
+sleep 5
+lsof -i :8080  # Verify port is listening
+
+# Or with go run (build first for reliability):
+go build -o /tmp/mss-boot-admin .
+setsid /tmp/mss-boot-admin server > /tmp/backend.log 2>&1 &
+```
+
+### WRONG - will block terminal
+```bash
+# These will cause the terminal to hang:
+go run . server      # Blocks until killed
+go run . server -a   # Blocks until killed
+/tmp/mss-boot-admin server  # Blocks until killed
+```
+
+### API endpoint format
+- All API endpoints are under `/admin/api/` path
+- Example: `/admin/api/options`, `/admin/api/users`
+- Requires authentication (JWT token in cookie or header)
+- Frontend proxy: `/admin/` -> `http://localhost:8080`
+
+### Common startup issues
+- `-a` flag requires database data and will exit after saving API routes
+- If `-a` causes startup failure, run without it first
+- Redis must be running on `127.0.0.1:6379` (check with `docker ps`)
