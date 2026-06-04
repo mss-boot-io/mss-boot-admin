@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   mirror:
     uses: mss-boot-io/mss-boot/.github/workflows/mirror-template.yml@main
