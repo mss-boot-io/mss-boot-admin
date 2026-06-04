@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/google/go-github v17.0.0+incompatible
-	github.com/spf13/cast v1.6.0
+	github.com/spf13/cast v1.10.0
 	golang.org/x/oauth2 v0.19.0
 )
 
