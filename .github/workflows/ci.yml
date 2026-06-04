@@ -8,6 +8,7 @@ on:
       - '.gitignore'
     branches:
       - main
+      - 'codex/**'
     tags:
       - 'v*.*.*'
   pull_request:
@@ -88,6 +89,7 @@ jobs:
               latest=auto
             tags: |
               type=schedule
+              type=ref,event=branch
               type=ref,event=tag
               type=sha,prefix=,format=long,enable=true,priority=100
 
