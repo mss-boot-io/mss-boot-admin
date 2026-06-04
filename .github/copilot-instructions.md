@@ -37,7 +37,9 @@
 5. 注释和建议应面向外部贡献者可理解，避免依赖内部上下文。
 
 ## 项目概述
-mss-boot-admin 是一个基于 Gin + React + Ant Design v5 + Umi v4 + mss-boot 的前后端分离权限管理系统。本项目采用现代化的微服务架构设计，支持多租户、RBAC权限管理、国际化、虚拟模型等企业级功能。
+mss-boot-admin 是一个基于 Gin + React + Ant Design v5 + Umi v4 + mss-boot 的前后端分离权限管理系统。当前产品主线是治理优先、Agent 可读、可持续维护的后台管理能力：RBAC 权限、系统配置、通知、国际化、可观测与发布治理。
+
+历史代码中仍保留租户、虚拟模型和代码生成相关实现。除非用户明确要求维护这些历史能力，否则不要把它们作为新功能设计的默认方向；新开发应优先围绕单租户可维护后台、清晰契约、可审计发布和 AI 协作上下文展开。
 
 ## 核心技术栈
 
@@ -84,16 +86,15 @@ mss-boot-admin/
 
 ### 核心设计模式
 
-#### 1. **多租户架构 (Multi-Tenancy)**
-- 通过 `ModelGormTenant` 基类实现租户隔离
-- 租户通过请求头 `Referer` 中的域名识别
-- 支持租户级别的数据库作用域过滤
-- 核心类型: `models.Tenant`, `center.TenantImp`
+#### 1. **租户相关历史能力 (Compatibility)**
+- `ModelGormTenant`、`models.Tenant`、`center.TenantImp` 等租户相关代码仍存在，主要作为兼容和维护对象。
+- 新功能不要默认引入租户隔离，除非需求明确说明需要恢复或维护租户能力。
+- 修改这些代码时必须补充兼容性、数据隔离和回滚说明。
 
 ```go
-// 示例：多租户模型定义
+// 历史能力示例：租户模型定义
 type YourModel struct {
-    models.ModelGormTenant  // 继承多租户基类
+    models.ModelGormTenant  // 仅在明确需要租户兼容时使用
     // 其他字段...
 }
 ```
@@ -124,10 +125,10 @@ const (
 - 支持Personal Access Token (PAT)
 - 核心类型: `middleware.Auth`, `models.UserLogin`, `models.UserAuthToken`
 
-#### 4. **虚拟模型 (Virtual Model)**
-- 支持动态配置模型字段和行为
-- 前端可通过配置生成CRUD界面
-- 核心类型: `models.Model`, `models.Field`
+#### 4. **虚拟模型历史能力 (Virtual Model Compatibility)**
+- `models.Model`、`models.Field` 等动态模型代码仍存在，主要作为兼容和维护对象。
+- 新功能不要默认走动态模型或配置生成 CRUD，除非用户明确指定。
+- 需要新增后台能力时，优先使用清晰的模型、DTO、API、权限和文档契约。
 
 #### 5. **统计分析 (Statistics)**
 - 内置统计接口，自动跟踪数据变化
@@ -153,9 +154,9 @@ func (*YourModel) AfterCreate(tx *gorm.DB) error {
    - ID (varchar 64)
    - CreatedAt, UpdatedAt, DeletedAt (软删除)
 
-2. **ModelGormTenant** - 多租户模型
+2. **ModelGormTenant** - 历史租户兼容模型
    - 继承 ModelGorm
-   - TenantID (varchar 64) - 租户隔离字段
+   - TenantID (varchar 64) - 历史租户隔离字段
    - CreatorID (varchar 64) - 创建人（支持数据权限）
    - Remark (text) - 备注
 
@@ -357,12 +358,13 @@ go run main.go server
 - Dockerfile提供标准镜像构建
 - 支持多阶段构建优化镜像体积
 
-### 代码生成工具
+### 代码生成工具（历史能力）
 
 #### 微服务代码生成
-- 基于模板生成微服务脚手架
+- 基于模板生成微服务脚手架，当前不作为新增能力主线
 - 模板管理: `models.Template`
 - 生成器: `pkg.Generator`
+- 除非用户明确要求修复或维护代码生成，否则新功能不要依赖生成器作为核心实现路径。
 
 ### 性能优化建议
 

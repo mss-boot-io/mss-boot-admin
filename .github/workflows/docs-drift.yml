@@ -1,0 +1,14 @@
+name: Docs Drift
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  docs-drift:
+    uses: mss-boot-io/.github/.github/workflows/docs-drift.yml@main

@@ -9,3 +9,34 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    labels:
+      - "area/backend"
+      - "type/security"
+  - package-ecosystem: "gomod"
+    directory: "/cmd/tools/pr"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "area/devops"
+      - "type/security"
+  - package-ecosystem: "gomod"
+    directory: "/compose/consul"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "area/devops"
+      - "type/security"
+  - package-ecosystem: "gomod"
+    directory: "/compose/kafka"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "area/devops"
+      - "type/security"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "area/devops"
+      - "type/security"
