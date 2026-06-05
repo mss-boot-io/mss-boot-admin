@@ -9,6 +9,7 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
     labels:
       - "area/backend"
       - "type/security"
@@ -16,6 +17,7 @@ updates:
     directory: "/cmd/tools/pr"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 3
     labels:
       - "area/devops"
       - "type/security"
@@ -23,6 +25,7 @@ updates:
     directory: "/compose/consul"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 3
     labels:
       - "area/devops"
       - "type/security"
@@ -30,6 +33,7 @@ updates:
     directory: "/compose/kafka"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 3
     labels:
       - "area/devops"
       - "type/security"
@@ -37,6 +41,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     labels:
       - "area/devops"
       - "type/security"
