@@ -26,6 +26,7 @@ jobs:
         with:
           go-version-file: go.mod
           go-package: ./...
+          repo-checkout: false
       - name: Run submodule govulncheck
         run: |
           set -euo pipefail
