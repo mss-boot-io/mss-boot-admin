@@ -1,28 +1,43 @@
 package pkg
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/google/go-github/v41/github"
 )
 
 func Test_GistClone(t *testing.T) {
-	tests := []struct {
-		id    string
-		dir   string
-		token string
-		want  []string
-	}{
-		{
-			id:   "1",
-			dir:  "../test",
-			want: []string{},
-		},
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/gists/1" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"files":{"hello.txt":{"filename":"hello.txt","content":"hello"}}}`))
+	}))
+	defer server.Close()
+
+	client := github.NewClient(server.Client())
+	baseURL, err := url.Parse(server.URL + "/")
+	if err != nil {
+		t.Fatalf("parse test server url: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.id, func(t *testing.T) {
-			err := GistClone(tt.id, tt.dir, tt.token)
-			if err != nil {
-				t.Errorf("GistClone() err %v", err)
-			}
-		})
+	client.BaseURL = baseURL
+
+	dir := t.TempDir()
+	if err := gistClone(t.Context(), client, "1", dir); err != nil {
+		t.Fatalf("gistClone() error = %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(dir, "hello.txt"))
+	if err != nil {
+		t.Fatalf("read cloned gist file: %v", err)
+	}
+	if string(got) != "hello" {
+		t.Fatalf("cloned gist content = %q, want %q", string(got), "hello")
 	}
 }

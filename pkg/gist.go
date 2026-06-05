@@ -10,7 +10,6 @@ package pkg
 import (
 	"bytes"
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -31,9 +30,12 @@ func GistClone(id, dir, accessToken string) error {
 	}
 
 	client := github.NewClient(tc)
+	return gistClone(ctx, client, id, dir)
+}
+
+func gistClone(ctx context.Context, client *github.Client, id, dir string) error {
 	gist, _, err := client.Gists.Get(ctx, id)
 	if err != nil {
-		log.Fatal(err)
 		return err
 	}
 
