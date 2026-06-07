@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -8,11 +9,14 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/service"
 	bootpkg "github.com/mss-boot-io/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
@@ -53,11 +57,33 @@ func Init() {
 					}
 				}
 				rb, _ := json.Marshal(v)
-				return jwt.MapClaims{
+				claims := jwt.MapClaims{
 					"verifier":             string(rb),
 					"refreshTokenDisabled": false,
 					"personAccessToken":    "",
 				}
+				if config.Cfg.Auth.SessionEnabled {
+					bag := loginContext.Load()
+					loginContext.Clear()
+					if bag.req == nil {
+						slog.Error("session create skipped: missing login context")
+						return jwt.MapClaims{}
+					}
+					sid, err := service.Session.Create(bag.req, center.Default.GetDB(bag.req, &models.UserSession{}), service.CreateSessionInput{
+						UserID:    v.GetUserID(),
+						Username:  v.GetUsername(),
+						RoleID:    v.GetRoleID(),
+						IP:        bag.req.ClientIP(),
+						UserAgent: bag.req.GetHeader("User-Agent"),
+						TTL:       config.Cfg.Auth.Timeout,
+					})
+					if err != nil {
+						slog.Error("session create failed", "err", err)
+						return jwt.MapClaims{}
+					}
+					claims["sid"] = sid
+				}
+				return claims
 			}
 			return jwt.MapClaims{}
 		},
@@ -84,6 +110,24 @@ func Init() {
 				if err != nil {
 					return nil
 				}
+				return verifier
+			}
+			if config.Cfg.Auth.SessionEnabled {
+				sid := cast.ToString(claims["sid"])
+				if sid == "" {
+					return nil
+				}
+				db := center.Default.GetDB(c, &models.UserSession{})
+				res, err := service.Session.Lookup(c, db, sid)
+				if err != nil || res.Status != service.LookupActive {
+					return nil
+				}
+				go func(sid string) {
+					bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					bgDB := gormdb.DB.WithContext(bgCtx)
+					_ = service.Session.Touch(bgCtx, bgDB, sid)
+				}(sid)
 			}
 			return verifier
 		},
@@ -107,6 +151,9 @@ func Init() {
 			if ok {
 				if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent, "login success", true); logErr != nil {
 					api.AddError(logErr).Log.Warn("write login log failed")
+				}
+				if config.Cfg.Auth.SessionEnabled {
+					loginContext.Store(c)
 				}
 				return user, nil
 			}
@@ -183,6 +230,19 @@ func Init() {
 			if err != nil || !ok {
 				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
+			}
+			if config.Cfg.Auth.SessionEnabled {
+				sid := cast.ToString(claims["sid"])
+				if sid == "" {
+					writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "session missing")
+					return
+				}
+				db := center.Default.GetDB(c, &models.UserSession{})
+				res, lerr := service.Session.Lookup(c, db, sid)
+				if lerr != nil || res.Status != service.LookupActive {
+					writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "session revoked")
+					return
+				}
 			}
 			//todo 重新颁发token
 			c.JSON(http.StatusOK, gin.H{
@@ -285,4 +345,44 @@ func writeAuthErrorResponse(c *gin.Context, httpStatus, businessCode int, messag
 		"errorMessage": message,
 		"traceId":      bootpkg.GenerateMsgIDFromContext(c),
 	})
+}
+
+type loginCtxBag struct {
+	req *gin.Context
+}
+
+var loginContextMap sync.Map // goroutine id -> *loginCtxBag
+
+type loginContextHandle struct{}
+
+var loginContext loginContextHandle
+
+func (loginContextHandle) Store(c *gin.Context) {
+	loginContextMap.Store(goroutineID(), &loginCtxBag{req: c})
+}
+
+func (loginContextHandle) Load() *loginCtxBag {
+	v, _ := loginContextMap.Load(goroutineID())
+	if v == nil {
+		return &loginCtxBag{}
+	}
+	return v.(*loginCtxBag)
+}
+
+func (loginContextHandle) Clear() {
+	loginContextMap.Delete(goroutineID())
+}
+
+func goroutineID() uint64 {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	// "goroutine 12345 [running]:" → 12345
+	var id uint64
+	for i := len("goroutine "); i < n; i++ {
+		if buf[i] < '0' || buf[i] > '9' {
+			break
+		}
+		id = id*10 + uint64(buf[i]-'0')
+	}
+	return id
 }
