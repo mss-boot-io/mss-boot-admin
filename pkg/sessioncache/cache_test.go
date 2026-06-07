@@ -75,3 +75,21 @@ func TestTouchThrottle(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, second)
 }
+
+func TestTouchThrottleLocalFallback(t *testing.T) {
+	// Redis 不可用（clientFn 返回 nil）时仍应按 touchTTL 限频。
+	c := New(func() *redis.Client { return nil })
+	ctx := context.Background()
+
+	first, err := c.TryTouch(ctx, "sid-1")
+	assert.NoError(t, err)
+	assert.True(t, first, "first call should win the slot")
+
+	second, err := c.TryTouch(ctx, "sid-1")
+	assert.NoError(t, err)
+	assert.False(t, second, "second call within touchTTL should be throttled")
+
+	third, err := c.TryTouch(ctx, "other-sid")
+	assert.NoError(t, err)
+	assert.True(t, third, "different sid should not be throttled")
+}

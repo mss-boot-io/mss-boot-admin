@@ -1,6 +1,8 @@
 package apis
 
 import (
+	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -179,12 +181,18 @@ func (e *OnlineSessionAPI) RevokeBySID(c *gin.Context) {
 	actorID, actorName := e.actor(c)
 
 	row, err := service.Session.RevokeBySID(c, e.getDB(c), sid, actorID, models.SessionRevokeForceBySession)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		api.Err(http.StatusNotFound)
+		return
+	}
 	if err != nil {
 		api.AddError(err).Err(http.StatusInternalServerError)
 		return
 	}
-	_ = service.Audit.LogSecurity(e.getDB(c), "force_logout", "session:"+sid, actorID, actorName,
-		c.ClientIP(), c.GetHeader("User-Agent"), "force-by-session")
+	if err := service.Audit.LogSecurity(e.getDB(c), "force_logout", "session:"+sid, actorID, actorName,
+		c.ClientIP(), c.GetHeader("User-Agent"), "force-by-session"); err != nil {
+		slog.Warn("audit log force_logout failed", "sid", sid, "err", err)
+	}
 
 	api.OK(gin.H{"id": row.ID, "userID": row.UserID, "revokedAt": row.RevokedAt})
 }
@@ -206,8 +214,10 @@ func (e *OnlineSessionAPI) RevokeByUserID(c *gin.Context) {
 		api.AddError(err).Err(http.StatusInternalServerError)
 		return
 	}
-	_ = service.Audit.LogSecurity(e.getDB(c), "force_logout", "user:"+uid, actorID, actorName,
-		c.ClientIP(), c.GetHeader("User-Agent"), "force-by-user")
+	if err := service.Audit.LogSecurity(e.getDB(c), "force_logout", "user:"+uid, actorID, actorName,
+		c.ClientIP(), c.GetHeader("User-Agent"), "force-by-user"); err != nil {
+		slog.Warn("audit log force_logout failed", "userID", uid, "err", err)
+	}
 
 	api.OK(gin.H{"affected": n, "userID": uid})
 }
@@ -231,11 +241,17 @@ func (e *OnlineSessionAPI) Logout(c *gin.Context) {
 		return
 	}
 	if _, err := service.Session.RevokeBySID(c, e.getDB(c), sid, userID, models.SessionRevokeLogout); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			api.Err(http.StatusNotFound)
+			return
+		}
 		api.AddError(err).Err(http.StatusInternalServerError)
 		return
 	}
-	_ = service.Audit.LogSecurity(e.getDB(c), "logout", "session:"+sid, userID, username,
-		c.ClientIP(), c.GetHeader("User-Agent"), "self-logout")
+	if err := service.Audit.LogSecurity(e.getDB(c), "logout", "session:"+sid, userID, username,
+		c.ClientIP(), c.GetHeader("User-Agent"), "self-logout"); err != nil {
+		slog.Warn("audit log logout failed", "sid", sid, "err", err)
+	}
 	api.OK(gin.H{"ok": true})
 }
 

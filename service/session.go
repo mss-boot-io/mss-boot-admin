@@ -82,18 +82,20 @@ func (s *SessionService) Lookup(ctx context.Context, db *gorm.DB, sid string) (L
 	if sid == "" {
 		return LookupResult{Status: LookupMissing}, nil
 	}
-	if entry, ok, _ := s.cache.Get(ctx, sid); ok {
+	entry, ok, err := s.cache.Get(ctx, sid)
+	if err != nil {
+		slog.Warn("session cache lookup failed", "sid", sid, "err", err)
+	}
+	if ok {
 		if entry.ExpUnix > 0 && time.Unix(entry.ExpUnix, 0).Before(time.Now()) {
 			return LookupResult{Status: LookupExpired}, nil
 		}
 		return LookupResult{Status: LookupActive, Entry: entry}, nil
 	}
 	var row models.UserSession
-	err := db.WithContext(ctx).Where("id = ?", sid).First(&row).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if err = db.WithContext(ctx).Where("id = ?", sid).First(&row).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return LookupResult{Status: LookupMissing}, nil
-	}
-	if err != nil {
+	} else if err != nil {
 		return LookupResult{}, err
 	}
 	now := time.Now()
@@ -103,19 +105,11 @@ func (s *SessionService) Lookup(ctx context.Context, db *gorm.DB, sid string) (L
 	case row.ExpiredAt.Before(now):
 		return LookupResult{Status: LookupExpired}, nil
 	}
-	entry := sessioncache.Entry{UserID: row.UserID, RoleID: row.RoleID, ExpUnix: row.ExpiredAt.Unix()}
-	if err := s.cache.Set(ctx, sid, entry, time.Until(row.ExpiredAt)); err != nil {
+	freshEntry := sessioncache.Entry{UserID: row.UserID, RoleID: row.RoleID, ExpUnix: row.ExpiredAt.Unix()}
+	if err := s.cache.Set(ctx, sid, freshEntry, time.Until(row.ExpiredAt)); err != nil {
 		slog.Warn("session cache backfill failed", "sid", sid, "err", err)
 	}
-	return LookupResult{Status: LookupActive, Entry: entry}, nil
-}
-
-func (s *SessionService) Touch(ctx context.Context, db *gorm.DB, sid string) error {
-	ok, err := s.MarkLastSeen(ctx, sid)
-	if err != nil || !ok {
-		return err
-	}
-	return s.RecordLastSeen(ctx, db, sid)
+	return LookupResult{Status: LookupActive, Entry: freshEntry}, nil
 }
 
 // MarkLastSeen asks the cache whether this caller wins the throttle slot for

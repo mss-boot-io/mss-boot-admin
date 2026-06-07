@@ -23,6 +23,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 	"github.com/spf13/cast"
+	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
@@ -65,23 +66,13 @@ func Init() {
 				if config.Cfg.Auth.SessionEnabled {
 					bag := loginContext.Load()
 					loginContext.Clear()
-					if bag.req == nil {
-						slog.Error("session create skipped: missing login context")
+					if bag.sid == "" {
+						// Authenticator 已经在 SessionEnabled 路径强制创建 session；
+						// 落到这里只可能是 sid 在 store→load 之间被冲掉，属于异常。
+						slog.Error("session sid missing in payload")
 						return jwt.MapClaims{}
 					}
-					sid, err := service.Session.Create(bag.req, center.Default.GetDB(bag.req, &models.UserSession{}), service.CreateSessionInput{
-						UserID:    v.GetUserID(),
-						Username:  v.GetUsername(),
-						RoleID:    v.GetRoleID(),
-						IP:        bag.req.ClientIP(),
-						UserAgent: bag.req.GetHeader("User-Agent"),
-						TTL:       config.Cfg.Auth.Timeout,
-					})
-					if err != nil {
-						slog.Error("session create failed", "err", err)
-						return jwt.MapClaims{}
-					}
-					claims["sid"] = sid
+					claims["sid"] = bag.sid
 				}
 				return claims
 			}
@@ -123,13 +114,18 @@ func Init() {
 					return nil
 				}
 				if shouldTouch, terr := service.Session.MarkLastSeen(c, sid); terr == nil && shouldTouch {
-					go func(sid string) {
+					// Capture the request-scoped DB in the request goroutine so
+					// the async Touch keeps any tenant scope; rebind ctx to a
+					// fresh timeout so it doesn't get cancelled when the
+					// request finishes.
+					scopedDB := db
+					go func(sid string, db *gorm.DB) {
 						bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 						defer cancel()
-						if err := service.Session.RecordLastSeen(bgCtx, gormdb.DB, sid); err != nil {
+						if err := service.Session.RecordLastSeen(bgCtx, db.WithContext(bgCtx), sid); err != nil {
 							slog.Warn("session record last_seen failed", "sid", sid, "err", err)
 						}
-					}(sid)
+					}(sid, scopedDB)
 				}
 			}
 			return verifier
@@ -156,7 +152,19 @@ func Init() {
 					api.AddError(logErr).Log.Warn("write login log failed")
 				}
 				if config.Cfg.Auth.SessionEnabled {
-					loginContext.Store(c)
+					sid, sErr := service.Session.Create(c, center.Default.GetDB(c, &models.UserSession{}), service.CreateSessionInput{
+						UserID:    user.GetUserID(),
+						Username:  user.GetUsername(),
+						RoleID:    user.GetRoleID(),
+						IP:        ip,
+						UserAgent: userAgent,
+						TTL:       config.Cfg.Auth.Timeout,
+					})
+					if sErr != nil {
+						api.AddError(sErr).Log.Error("session create failed")
+						return nil, jwt.ErrFailedAuthentication
+					}
+					loginContext.Store(sid)
 				}
 				return user, nil
 			}
@@ -351,7 +359,7 @@ func writeAuthErrorResponse(c *gin.Context, httpStatus, businessCode int, messag
 }
 
 type loginCtxBag struct {
-	req *gin.Context
+	sid string
 }
 
 var loginContextMap sync.Map // goroutine id -> *loginCtxBag
@@ -360,8 +368,8 @@ type loginContextHandle struct{}
 
 var loginContext loginContextHandle
 
-func (loginContextHandle) Store(c *gin.Context) {
-	loginContextMap.Store(goroutineID(), &loginCtxBag{req: c})
+func (loginContextHandle) Store(sid string) {
+	loginContextMap.Store(goroutineID(), &loginCtxBag{sid: sid})
 }
 
 func (loginContextHandle) Load() *loginCtxBag {
@@ -379,9 +387,10 @@ func (loginContextHandle) Clear() {
 // goroutineID parses the current goroutine id from runtime.Stack output.
 //
 // Background: gin-jwt/v2.PayloadFunc receives only the authenticated principal,
-// not the *gin.Context. To create a server-side session bound to the request
-// (IP / User-Agent) we stash the context in loginContextMap keyed by goroutine
-// id inside Authenticator and read it back inside PayloadFunc.
+// not the *gin.Context. The Authenticator creates the server-side session
+// (so failures can short-circuit the login) and stashes the resulting sid in
+// loginContextMap keyed by goroutine id; PayloadFunc reads it back to embed
+// the sid in the JWT claims.
 //
 // CAVEAT: The "goroutine N [...]:" prefix is a Go runtime implementation
 // detail, not part of the language spec. If a future Go release changes the

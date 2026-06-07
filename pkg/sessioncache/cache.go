@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -15,6 +16,9 @@ const (
 	userKeyPrefix    = "mss:session:user:"
 	seenKeyPrefix    = "mss:session:seen:"
 	touchTTL         = 60 * time.Second
+	// localTouchSweepThreshold bounds the in-memory throttle map. When it
+	// exceeds this size the next TryTouch call evicts expired entries inline.
+	localTouchSweepThreshold = 1024
 )
 
 type Entry struct {
@@ -25,6 +29,9 @@ type Entry struct {
 
 type Cache struct {
 	clientFn func() *redis.Client
+
+	localMu    sync.Mutex
+	localTouch map[string]time.Time
 }
 
 // New builds a Cache that resolves the Redis client lazily via fn. fn may
@@ -123,11 +130,35 @@ func (c *Cache) DelByUser(ctx context.Context, uid string) error {
 func (c *Cache) TryTouch(ctx context.Context, sid string) (bool, error) {
 	cli := c.client()
 	if cli == nil {
-		return true, nil
+		return c.tryTouchLocal(sid), nil
 	}
 	ok, err := cli.SetNX(ctx, seenKey(sid), "1", touchTTL).Result()
 	if err != nil {
 		return false, fmt.Errorf("sessioncache: touch %s: %w", sid, err)
 	}
 	return ok, nil
+}
+
+// tryTouchLocal is the in-memory fallback when Redis is unavailable. It keeps
+// last_seen updates per-instance throttled to touchTTL, trading multi-replica
+// coherence for protection against unbounded DB writes.
+func (c *Cache) tryTouchLocal(sid string) bool {
+	c.localMu.Lock()
+	defer c.localMu.Unlock()
+	if c.localTouch == nil {
+		c.localTouch = make(map[string]time.Time)
+	}
+	now := time.Now()
+	if last, ok := c.localTouch[sid]; ok && now.Sub(last) < touchTTL {
+		return false
+	}
+	c.localTouch[sid] = now
+	if len(c.localTouch) > localTouchSweepThreshold {
+		for k, v := range c.localTouch {
+			if now.Sub(v) >= touchTTL {
+				delete(c.localTouch, k)
+			}
+		}
+	}
+	return true
 }
