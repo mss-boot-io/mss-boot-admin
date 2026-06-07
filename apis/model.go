@@ -3,17 +3,21 @@ package apis
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 
 	adminPKG "github.com/mss-boot-io/mss-boot-admin/pkg"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 
 	"github.com/mss-boot-io/mss-boot-admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/models"
@@ -33,6 +37,7 @@ func init() {
 			controller.WithModel(new(models.Model)),
 			controller.WithSearch(new(dto.ModelSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithAfterDelete(deleteGeneratedModelMenus),
 		),
 	}
 	response.AppendController(e)
@@ -313,6 +318,175 @@ func (e *Model) i18n(api *response.API, tx *gorm.DB, m *models.Model, req *dto.M
 	if err != nil {
 		api.AddError(err).Log.Error("save error")
 		return err
+	}
+	return nil
+}
+
+type generatedMenuPolicyTarget struct {
+	ID     string
+	Path   string
+	Method string
+	Type   adminPKG.AccessType
+}
+
+func deleteGeneratedModelMenus(ctx *gin.Context, db *gorm.DB, _ schema.Tabler) error {
+	idsValue, ok := ctx.Get("ids")
+	if !ok {
+		return nil
+	}
+	modelIDs, ok := idsValue.([]string)
+	if !ok || len(modelIDs) == 0 {
+		return nil
+	}
+
+	modelsToClean := make([]*models.Model, 0, len(modelIDs))
+	if err := db.Unscoped().Where("id IN ?", modelIDs).Find(&modelsToClean).Error; err != nil {
+		return err
+	}
+
+	changed := false
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		rootPaths, err := generatedMenuRootPaths(tx, modelsToClean)
+		if err != nil {
+			return err
+		}
+		if len(rootPaths) == 0 {
+			return nil
+		}
+
+		rootIDs := make([]string, 0, len(rootPaths))
+		if err := tx.Model(&models.Menu{}).
+			Where("type = ? AND path IN ?", adminPKG.MenuAccessType, rootPaths).
+			Pluck("id", &rootIDs).Error; err != nil {
+			return err
+		}
+		if len(rootIDs) == 0 {
+			return nil
+		}
+
+		menuTargets, err := collectGeneratedMenuHierarchy(tx, rootIDs)
+		if err != nil {
+			return err
+		}
+		if err := softDeleteGeneratedMenuHierarchy(tx, rootIDs); err != nil {
+			return err
+		}
+		if err := deleteGeneratedMenuPolicies(tx, menuTargets); err != nil {
+			return err
+		}
+		changed = true
+		return nil
+	}); err != nil {
+		return err
+	}
+	if changed && gormdb.Enforcer != nil {
+		if err := gormdb.Enforcer.LoadPolicy(); err != nil {
+			slog.Warn("reload casbin policy failed after model menu cleanup", "err", err)
+		}
+	}
+	return nil
+}
+
+func generatedMenuRootPaths(db *gorm.DB, modelsToClean []*models.Model) ([]string, error) {
+	modelPaths := make([]string, 0, len(modelsToClean))
+	seenModelPaths := make(map[string]struct{}, len(modelsToClean))
+	for i := range modelsToClean {
+		if !modelsToClean[i].GeneratedData || modelsToClean[i].Path == "" {
+			continue
+		}
+		if _, ok := seenModelPaths[modelsToClean[i].Path]; ok {
+			continue
+		}
+		seenModelPaths[modelsToClean[i].Path] = struct{}{}
+		modelPaths = append(modelPaths, modelsToClean[i].Path)
+	}
+	if len(modelPaths) == 0 {
+		return nil, nil
+	}
+
+	activePaths := make([]string, 0)
+	if err := db.Model(&models.Model{}).Where("path IN ?", modelPaths).Pluck("path", &activePaths).Error; err != nil {
+		return nil, err
+	}
+	activePathSet := make(map[string]struct{}, len(activePaths))
+	for i := range activePaths {
+		activePathSet[activePaths[i]] = struct{}{}
+	}
+
+	paths := make([]string, 0, len(modelsToClean))
+	seen := make(map[string]struct{}, len(modelsToClean))
+	for i := range modelsToClean {
+		if !modelsToClean[i].GeneratedData || modelsToClean[i].Path == "" {
+			continue
+		}
+		if _, ok := activePathSet[modelsToClean[i].Path]; ok {
+			continue
+		}
+		path := "/virtual/" + modelsToClean[i].Path
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		paths = append(paths, path)
+	}
+	return paths, nil
+}
+
+func collectGeneratedMenuHierarchy(db *gorm.DB, rootIDs []string) ([]generatedMenuPolicyTarget, error) {
+	rows := make([]generatedMenuPolicyTarget, 0)
+	menu := &models.Menu{}
+	sqlTemp := fmt.Sprintf(`WITH RECURSIVE MenuHierarchy AS (
+    SELECT id, path, method, type
+    FROM %s
+    WHERE id IN ? AND deleted_at IS NULL
+    UNION ALL
+    SELECT m.id, m.path, m.method, m.type
+    FROM %s m
+    INNER JOIN MenuHierarchy mh ON m.parent_id = mh.id
+    WHERE m.deleted_at IS NULL
+)
+SELECT id, path, method, type FROM MenuHierarchy`, menu.TableName(), menu.TableName())
+	return rows, db.Raw(sqlTemp, rootIDs).Scan(&rows).Error
+}
+
+func softDeleteGeneratedMenuHierarchy(db *gorm.DB, rootIDs []string) error {
+	menu := &models.Menu{}
+	sqlTemp := fmt.Sprintf(`WITH RECURSIVE MenuHierarchy AS (
+    SELECT id
+    FROM %s
+    WHERE id IN ? AND deleted_at IS NULL
+    UNION ALL
+    SELECT m.id
+    FROM %s m
+    INNER JOIN MenuHierarchy mh ON m.parent_id = mh.id
+    WHERE m.deleted_at IS NULL
+)
+UPDATE %s
+SET deleted_at = ?
+WHERE id IN (SELECT id FROM MenuHierarchy)`, menu.TableName(), menu.TableName(), menu.TableName())
+	return db.Exec(sqlTemp, rootIDs, time.Now()).Error
+}
+
+func deleteGeneratedMenuPolicies(db *gorm.DB, menuTargets []generatedMenuPolicyTarget) error {
+	seen := make(map[string]struct{}, len(menuTargets))
+	for i := range menuTargets {
+		if menuTargets[i].Path == "" {
+			continue
+		}
+		method := menuTargets[i].Method
+		if method == "" {
+			method = http.MethodGet
+		}
+		key := fmt.Sprintf("%s|%s|%s", menuTargets[i].Type.String(), menuTargets[i].Path, method)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		if err := db.Where("ptype = ? AND v1 = ? AND v2 = ? AND v3 = ?",
+			"p", menuTargets[i].Type.String(), menuTargets[i].Path, method).
+			Delete(&models.CasbinRule{}).Error; err != nil {
+			return err
+		}
 	}
 	return nil
 }
