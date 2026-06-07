@@ -16,7 +16,13 @@
 - 清理范围只覆盖模型生成的 `/virtual/<model.path>` 根菜单及其子节点。
 - 如果仍有其他 active 模型使用相同 `path`，不清理该菜单树，避免误删共享 path 的
   仍在用菜单。
-- 同步删除这些菜单/API 路径对应的 Casbin policy，并重新加载 policy。
+- 只清理 `generated_data=true` 的模型对应菜单，避免模型未生成数据时误删用户手工菜单。
+- 根菜单必须是 `MenuAccessType`，避免相同 path 的非菜单节点被当作生成菜单树根。
+- 菜单软删除和 Casbin policy 删除必须在同一 DB transaction 中完成。
+- 同步精确删除这些菜单/API 路径对应的 Casbin policy；匹配条件使用
+  `ptype + v1(type) + v2(path) + v3(method)`，避免仅按 path 误删复用 policy。
+- 事务提交后重新加载 policy；`LoadPolicy` 失败只记录 warning，不把已完成的数据清理
+  上报为接口 500。
 - 不处理无关菜单，避免误删用户手动维护的其他菜单。
 
 ## 本轮变更
@@ -25,17 +31,22 @@
   - 为模型 controller 增加 `WithAfterDelete(deleteGeneratedModelMenus)`。
   - 根据通用 Delete action 写入的 `ids` 找到已删除模型。
   - 递归软删除 `/virtual/<path>` 菜单树。
-  - 删除关联 Casbin policy。
+  - 删除关联 Casbin policy，并保护同 path active 模型和未生成数据的手工菜单。
 - `apis/model_test.go`
   - 覆盖模型删除后生成菜单树被软删除。
   - 覆盖关联 policy 被清理。
   - 覆盖无关菜单和 policy 不受影响。
   - 覆盖仍有 active 模型使用相同 path 时不清理菜单和 policy。
+  - 覆盖 policy 删除失败时菜单软删除回滚。
+  - 覆盖 `LoadPolicy` 失败时不阻断已完成清理。
+  - 覆盖同 path 但 type/method 不同的 policy 不被误删。
+  - 覆盖 `generated_data=false` 时手工菜单和 policy 不被误删。
 
 ## 验证
 
 ```text
 go test ./apis
+go test ./apis ./models ./middleware
 ```
 
 ## 后续
