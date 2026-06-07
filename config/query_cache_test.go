@@ -3,11 +3,13 @@ package config
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
+	bootconfig "github.com/mss-boot-io/mss-boot/pkg/config"
 	responsegorm "github.com/mss-boot-io/mss-boot/pkg/response/actions/gorm"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -19,6 +21,7 @@ type queryCacheStub struct {
 	queryCallbacked bool
 	db              *gorm.DB
 	removedTag      string
+	removeErr       error
 }
 
 func (s *queryCacheStub) Initialize(db *gorm.DB) error {
@@ -32,7 +35,7 @@ func (s *queryCacheStub) Initialize(db *gorm.DB) error {
 
 func (s *queryCacheStub) RemoveFromTag(_ context.Context, tag string) error {
 	s.removedTag = tag
-	return nil
+	return s.removeErr
 }
 
 type queryCacheTenant struct {
@@ -90,6 +93,39 @@ func TestBindQueryCacheInitializesAndCleansPrefixedTag(t *testing.T) {
 	}
 }
 
+func TestCleanCacheFromTagLogsRemoveError(t *testing.T) {
+	previousCleaner := responsegorm.CleanCacheFromTag
+	defer func() {
+		responsegorm.CleanCacheFromTag = previousCleaner
+	}()
+
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	defer slog.SetDefault(previousLogger)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite db: %v", err)
+	}
+
+	removeErr := errors.New("redis unavailable")
+	cache := &queryCacheStub{removeErr: removeErr}
+	bindQueryCache(cache, db, time.Hour)
+
+	err = responsegorm.CleanCacheFromTag(context.Background(), "tenants")
+	if !errors.Is(err, removeErr) {
+		t.Fatalf("expected remove error, got %v", err)
+	}
+	if cache.removedTag != "gorm.cache:tenants" {
+		t.Fatalf("expected prefixed tag, got %q", cache.removedTag)
+	}
+	if !strings.Contains(logs.String(), "query cache invalidation failed") ||
+		!strings.Contains(logs.String(), "tenants") {
+		t.Fatalf("expected invalidation failure log with tag, got logs: %s", logs.String())
+	}
+}
+
 func TestBindQueryCacheWarnsWhenAdapterMissing(t *testing.T) {
 	previousCleaner := responsegorm.CleanCacheFromTag
 	responsegorm.CleanCacheFromTag = nil
@@ -114,6 +150,19 @@ func TestBindQueryCacheWarnsWhenAdapterMissing(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), "query cache enabled but no cache adapter available") {
 		t.Fatalf("expected missing cache adapter warning, got logs: %s", logs.String())
+	}
+}
+
+func TestWarnQueryCacheDurationWhenZero(t *testing.T) {
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	defer slog.SetDefault(previousLogger)
+
+	warnQueryCacheDuration(&bootconfig.Cache{QueryCache: true})
+
+	if !strings.Contains(logs.String(), "cache.queryCache enabled but queryCacheDuration is zero") {
+		t.Fatalf("expected query cache duration warning, got logs: %s", logs.String())
 	}
 }
 

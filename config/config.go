@@ -89,6 +89,7 @@ func (e *Config) Init(opts ...source.Option) {
 	e.Pyroscope.Init()
 
 	if e.Cache != nil {
+		warnQueryCacheDuration(e.Cache)
 		var cacheAdapter storage.AdapterCache
 		// Cache.Init invokes set before queryCache in the same goroutine when Redis is configured.
 		// bindQueryCache relies on that order so it can reuse the initialized cache adapter.
@@ -136,6 +137,12 @@ func (e *Config) Init(opts ...source.Option) {
 	}
 }
 
+func warnQueryCacheDuration(cacheConfig *config.Cache) {
+	if cacheConfig != nil && cacheConfig.QueryCache && cacheConfig.QueryCacheDuration <= 0 {
+		slog.Warn("cache.queryCache enabled but queryCacheDuration is zero; query cache plugin will not register; set queryCacheDuration > 0")
+	}
+}
+
 func bindQueryCache(cache queryCacheAdapter, tx *gorm.DB, _ time.Duration) {
 	if tx == nil {
 		return
@@ -153,7 +160,11 @@ func bindQueryCache(cache queryCacheAdapter, tx *gorm.DB, _ time.Duration) {
 			slog.Warn("CleanCacheFromTag called with empty tag; model TableName() may be misconfigured")
 			return nil
 		}
-		return cache.RemoveFromTag(ctx, queryCacheTagPrefix+tag)
+		if err := cache.RemoveFromTag(ctx, queryCacheTagPrefix+tag); err != nil {
+			slog.ErrorContext(ctx, "query cache invalidation failed", "tag", tag, "err", err)
+			return err
+		}
+		return nil
 	}
 }
 

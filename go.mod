@@ -18,7 +18,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/grafana/pyroscope-go v1.2.7
 	github.com/larksuite/oapi-sdk-go/v3 v3.4.26
-	github.com/mss-boot-io/mss-boot v0.7.3-0.20260607064058-ea17965d7546
+	github.com/mss-boot-io/mss-boot v0.7.3
 	github.com/nsqio/go-nsq v1.1.0
 	github.com/redis/go-redis/v9 v9.20.0
 	github.com/robfig/cron/v3 v3.0.1
