@@ -8,9 +8,11 @@ package config
  */
 
 import (
+	"context"
 	"embed"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot/pkg/config"
@@ -19,12 +21,21 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/config/storage"
 	"github.com/mss-boot-io/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot/pkg/config/storage/queue"
+	responsegorm "github.com/mss-boot-io/mss-boot/pkg/response/actions/gorm"
+	"gorm.io/gorm"
 )
 
 //go:embed *.yml
 var FS embed.FS
 
 var Cfg = &Config{}
+
+const queryCacheTagPrefix = "gorm.cache:"
+
+type queryCacheAdapter interface {
+	Initialize(*gorm.DB) error
+	RemoveFromTag(context.Context, string) error
+}
 
 type Config struct {
 	Auth        Auth            `yaml:"auth" json:"auth"`
@@ -78,10 +89,14 @@ func (e *Config) Init(opts ...source.Option) {
 	e.Pyroscope.Init()
 
 	if e.Cache != nil {
+		var cacheAdapter storage.AdapterCache
 		e.Cache.Init(func(c storage.AdapterCache) {
+			cacheAdapter = c
 			center.SetCache(c)
 			center.SetVerifyCodeStore(cache.NewVerifyCode(c))
-		}, nil)
+		}, func(tx *gorm.DB, duration time.Duration) {
+			bindQueryCache(cacheAdapter, tx, duration)
+		})
 	}
 	if e.Queue != nil {
 		e.Queue.Init(func(q storage.AdapterQueue) {
@@ -116,6 +131,22 @@ func (e *Config) Init(opts ...source.Option) {
 	}
 	if len(e.Clusters) > 0 {
 		e.Clusters.Init()
+	}
+}
+
+func bindQueryCache(cache queryCacheAdapter, tx *gorm.DB, _ time.Duration) {
+	if cache == nil || tx == nil {
+		return
+	}
+	if err := cache.Initialize(tx); err != nil {
+		slog.Error("query cache init failed", "err", err)
+		return
+	}
+	responsegorm.CleanCacheFromTag = func(ctx context.Context, tag string) error {
+		if tag == "" {
+			return nil
+		}
+		return cache.RemoveFromTag(ctx, queryCacheTagPrefix+tag)
 	}
 }
 
