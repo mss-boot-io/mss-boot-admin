@@ -17,6 +17,9 @@ func init() {
 
 func _1772445829126Migrate(db *gorm.DB, version string) error {
 	return db.Transaction(func(tx *gorm.DB) error {
+		if err := relaxLegacyTenantColumns(tx); err != nil {
+			return err
+		}
 
 		// TODO: here to write the content to be changed
 
