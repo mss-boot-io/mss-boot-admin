@@ -148,9 +148,6 @@ func Init() {
 				return nil, err
 			}
 			if ok {
-				if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent, "login success", true); logErr != nil {
-					api.AddError(logErr).Log.Warn("write login log failed")
-				}
 				if config.Cfg.Auth.SessionEnabled {
 					sid, sErr := service.Session.Create(c, center.Default.GetDB(c, &models.UserSession{}), service.CreateSessionInput{
 						UserID:    user.GetUserID(),
@@ -162,9 +159,16 @@ func Init() {
 					})
 					if sErr != nil {
 						api.AddError(sErr).Log.Error("session create failed")
+						if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent,
+							"session create failed: "+sErr.Error(), false); logErr != nil {
+							api.AddError(logErr).Log.Warn("write login log failed")
+						}
 						return nil, jwt.ErrFailedAuthentication
 					}
 					loginContext.Store(sid)
+				}
+				if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent, "login success", true); logErr != nil {
+					api.AddError(logErr).Log.Warn("write login log failed")
 				}
 				return user, nil
 			}

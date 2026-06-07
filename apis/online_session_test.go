@@ -126,6 +126,27 @@ func TestOnlineSessionGetNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+func TestOnlineSessionGetDBError(t *testing.T) {
+	// DB 故障（非 RecordNotFound）应该返回 500 而非 404。
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+	assert.NoError(t, db.AutoMigrate(&models.UserSession{}))
+
+	sqlDB, err := db.DB()
+	assert.NoError(t, err)
+	assert.NoError(t, sqlDB.Close())
+
+	r := gin.New()
+	api := &OnlineSessionAPI{db: db}
+	r.GET("/admin/api/online-sessions/:id", api.Get)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/api/online-sessions/anyid", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
 func TestOnlineSessionLogoutSuccess(t *testing.T) {
 	r, db, sid := setupOnlineSessionTest(t)
 	req := httptest.NewRequest(http.MethodPost, "/admin/api/online-sessions/logout", nil)

@@ -161,8 +161,13 @@ func (e *OnlineSessionAPI) List(c *gin.Context) {
 func (e *OnlineSessionAPI) Get(c *gin.Context) {
 	api := response.Make(c)
 	var row models.UserSession
-	if err := e.getDB(c).Where("id = ?", c.Param("id")).First(&row).Error; err != nil {
-		api.AddError(err).Err(http.StatusNotFound)
+	err := e.getDB(c).Where("id = ?", c.Param("id")).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		api.Err(http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		api.AddError(err).Err(http.StatusInternalServerError)
 		return
 	}
 	api.OK(row)
@@ -172,7 +177,7 @@ func (e *OnlineSessionAPI) Get(c *gin.Context) {
 // @Summary 强制下线指定会话
 // @Tags OnlineSession
 // @Param id path string true "session id"
-// @Success 200
+// @Success 204
 // @Router /admin/api/online-sessions/{id} [delete]
 // @Security Bearer
 func (e *OnlineSessionAPI) RevokeBySID(c *gin.Context) {
@@ -201,7 +206,7 @@ func (e *OnlineSessionAPI) RevokeBySID(c *gin.Context) {
 // @Summary 强制下线该用户全部会话
 // @Tags OnlineSession
 // @Param userID path string true "user id"
-// @Success 200
+// @Success 204
 // @Router /admin/api/online-sessions/user/{userID} [delete]
 // @Security Bearer
 func (e *OnlineSessionAPI) RevokeByUserID(c *gin.Context) {
@@ -225,7 +230,7 @@ func (e *OnlineSessionAPI) RevokeByUserID(c *gin.Context) {
 // Logout 当前用户自登出
 // @Summary 当前用户自登出
 // @Tags OnlineSession
-// @Success 200
+// @Success 201
 // @Router /admin/api/online-sessions/logout [post]
 // @Security Bearer
 func (e *OnlineSessionAPI) Logout(c *gin.Context) {
