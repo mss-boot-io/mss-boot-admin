@@ -104,28 +104,8 @@ func Init() {
 				return verifier
 			}
 			if config.Cfg.Auth.SessionEnabled {
-				sid := cast.ToString(claims["sid"])
-				if sid == "" {
+				if !validateSessionFromClaims(c, claims) {
 					return nil
-				}
-				db := center.Default.GetDB(c, &models.UserSession{})
-				res, err := service.Session.Lookup(c, db, sid)
-				if err != nil || res.Status != service.LookupActive {
-					return nil
-				}
-				if shouldTouch, terr := service.Session.MarkLastSeen(c, sid); terr == nil && shouldTouch {
-					// Capture the request-scoped DB in the request goroutine so
-					// the async Touch keeps any tenant scope; rebind ctx to a
-					// fresh timeout so it doesn't get cancelled when the
-					// request finishes.
-					scopedDB := db
-					go func(sid string, db *gorm.DB) {
-						bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-						defer cancel()
-						if err := service.Session.RecordLastSeen(bgCtx, db.WithContext(bgCtx), sid); err != nil {
-							slog.Warn("session record last_seen failed", "sid", sid, "err", err)
-						}
-					}(sid, scopedDB)
 				}
 			}
 			return verifier
@@ -360,6 +340,40 @@ func writeAuthErrorResponse(c *gin.Context, httpStatus, businessCode int, messag
 		"errorMessage": message,
 		"traceId":      bootpkg.GenerateMsgIDFromContext(c),
 	})
+}
+
+// validateSessionFromClaims checks that the JWT `sid` claim points to an
+// active server-side session. Returns false when the auth layer must reject
+// the request (missing sid, missing/revoked/expired session, or unrecoverable
+// DB error). On success it kicks off a throttled async last_seen update.
+//
+// Extracted from middleware.Init so integration tests can exercise the four
+// branches the reviewer flagged (PR #376 review #5): sid present + active,
+// missing-sid legacy JWT, DB-revoked session, and DB-expired session.
+func validateSessionFromClaims(c *gin.Context, claims jwt.MapClaims) bool {
+	sid := cast.ToString(claims["sid"])
+	if sid == "" {
+		return false
+	}
+	db := center.Default.GetDB(c, &models.UserSession{})
+	res, err := service.Session.Lookup(c, db, sid)
+	if err != nil || res.Status != service.LookupActive {
+		return false
+	}
+	if shouldTouch, terr := service.Session.MarkLastSeen(c, sid); terr == nil && shouldTouch {
+		// Capture the request-scoped DB in the request goroutine so the
+		// async Touch keeps any tenant scope; rebind ctx to a fresh timeout
+		// so it doesn't get cancelled when the request finishes.
+		scopedDB := db
+		go func(sid string, db *gorm.DB) {
+			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := service.Session.RecordLastSeen(bgCtx, db.WithContext(bgCtx), sid); err != nil {
+				slog.Warn("session record last_seen failed", "sid", sid, "err", err)
+			}
+		}(sid, scopedDB)
+	}
+	return true
 }
 
 type loginCtxBag struct {

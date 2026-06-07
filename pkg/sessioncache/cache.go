@@ -25,6 +25,7 @@ type Entry struct {
 	UserID  string `json:"userID"`
 	RoleID  string `json:"roleID"`
 	ExpUnix int64  `json:"exp"`
+	Revoked bool   `json:"revoked,omitempty"`
 }
 
 type Cache struct {
@@ -109,6 +110,33 @@ func (c *Cache) Del(ctx context.Context, sid string) error {
 	pipe.Del(ctx, sessionKey(sid))
 	if ok {
 		pipe.SRem(ctx, userKey(entry.UserID), sid)
+	}
+	_, err = pipe.Exec(ctx)
+	return err
+}
+
+// SetRevoked overwrites an existing cache entry with the same payload plus
+// Revoked=true, so Lookup callers never observe an "active" snapshot for a
+// session that has been revoked in DB. Callers must still treat DB as the
+// source of truth; SetRevoked is a fast-path so the common case never has to
+// hit DB to discover the revoke.
+func (c *Cache) SetRevoked(ctx context.Context, sid string, e Entry, ttl time.Duration) error {
+	cli := c.client()
+	if cli == nil {
+		return nil
+	}
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	e.Revoked = true
+	payload, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	pipe := cli.TxPipeline()
+	pipe.Set(ctx, sessionKey(sid), payload, ttl)
+	if e.UserID != "" {
+		pipe.SRem(ctx, userKey(e.UserID), sid)
 	}
 	_, err = pipe.Exec(ctx)
 	return err

@@ -98,6 +98,39 @@ func TestSessionLookupExpired(t *testing.T) {
 	assert.Equal(t, LookupExpired, res.Status)
 }
 
+// TestSessionLookupRevokedInDBOnly is the regression for PR #376 review item #1:
+// if a session is revoked in DB but Redis still holds the previous active
+// entry (e.g. cache delete failed during a previous revoke), Lookup must NOT
+// return LookupActive — DB is the source of truth on the auth path.
+func TestSessionLookupRevokedInDBOnly(t *testing.T) {
+	svc, db, _ := setupSessionEnv(t)
+	ctx := context.Background()
+	sid, _ := svc.Create(ctx, db, CreateSessionInput{UserID: "u1", Username: "a", RoleID: "r1", TTL: time.Hour})
+
+	// Confirm cache currently has an active entry.
+	entry, ok, err := svc.cache.Get(ctx, sid)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	assert.False(t, entry.Revoked, "precondition: cache should hold an active entry")
+
+	// Bypass RevokeBySID — simulate the path where DB was updated but cache
+	// repair never happened (Redis down at revoke time, or out-of-band UPDATE).
+	now := time.Now()
+	assert.NoError(t, db.Model(&models.UserSession{}).Where("id = ?", sid).
+		Updates(map[string]any{"revoked": true, "revoked_at": now, "revoked_by": "ops"}).Error)
+
+	// Cache still says active — but Lookup must consult DB and reject.
+	res, err := svc.Lookup(ctx, db, sid)
+	assert.NoError(t, err)
+	assert.Equal(t, LookupRevoked, res.Status, "Lookup must not return active when DB is revoked")
+
+	// Cache should now be repaired to the revoked sentinel so the next call is fast.
+	entry, ok, err = svc.cache.Get(ctx, sid)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	assert.True(t, entry.Revoked, "cache should be repaired to a revoked sentinel")
+}
+
 func TestSessionLookupMissing(t *testing.T) {
 	svc, db, _ := setupSessionEnv(t)
 	res, err := svc.Lookup(context.Background(), db, "nope")

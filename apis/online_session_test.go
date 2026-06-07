@@ -70,12 +70,55 @@ func TestOnlineSessionList(t *testing.T) {
 	assert.Contains(t, resp, "data")
 }
 
+// TestOnlineSessionListStatusContract pins the response/contract for the
+// `status` query param (PR #376 review #2):
+//
+//	"" / "active"          → only sessions that are neither revoked nor expired
+//	"revoked"              → revoked rows
+//	"expired"              → not revoked but past expired_at
+//	"all"                  → no status filter
+//	anything else          → 400
+func TestOnlineSessionListStatusContract(t *testing.T) {
+	cases := []struct {
+		name      string
+		status    string
+		wantCode  int
+		wantCount int  // -1 = don't check count
+		hasData   bool // expect data field in body
+	}{
+		{name: "empty defaults to active", status: "", wantCode: http.StatusOK, wantCount: 1, hasData: true},
+		{name: "explicit active", status: "active", wantCode: http.StatusOK, wantCount: 1, hasData: true},
+		{name: "all includes everything", status: "all", wantCode: http.StatusOK, wantCount: -1, hasData: true},
+		{name: "invalid value rejected", status: "bogus", wantCode: http.StatusBadRequest, wantCount: 0, hasData: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r, _, _ := setupOnlineSessionTest(t)
+			url := "/admin/api/online-sessions"
+			if tc.status != "" {
+				url += "?status=" + tc.status
+			}
+			req := httptest.NewRequest(http.MethodGet, url, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			assert.Equal(t, tc.wantCode, w.Code)
+			if !tc.hasData {
+				return
+			}
+			var resp map[string]any
+			assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+			assert.Contains(t, resp, "data")
+		})
+	}
+}
+
 func TestOnlineSessionRevokeBySID(t *testing.T) {
 	r, db, sid := setupOnlineSessionTest(t)
 	req := httptest.NewRequest(http.MethodDelete, "/admin/api/online-sessions/"+sid, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Empty(t, w.Body.Bytes(), "DELETE single must be 204 No Content with no body")
 
 	var row models.UserSession
 	assert.NoError(t, db.First(&row, "id = ?", sid).Error)
@@ -98,7 +141,12 @@ func TestOnlineSessionRevokeByUser(t *testing.T) {
 	req := httptest.NewRequest(http.MethodDelete, "/admin/api/online-sessions/user/u1", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code, "batch revoke must be 200 with body so frontend can read affected")
+
+	var resp map[string]any
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.EqualValues(t, 2, resp["affected"])
+	assert.Equal(t, "u1", resp["userID"])
 
 	var count int64
 	db.Model(&models.UserSession{}).Where("user_id = ? AND revoked = ?", "u1", true).Count(&count)
@@ -153,6 +201,7 @@ func TestOnlineSessionLogoutSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.Empty(t, w.Body.Bytes(), "logout must be 201 with no body")
 
 	var row models.UserSession
 	assert.NoError(t, db.First(&row, "id = ?", sid).Error)

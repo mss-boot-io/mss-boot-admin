@@ -89,13 +89,14 @@ type onlineSessionListQuery struct {
 // @Tags OnlineSession
 // @Accept application/json
 // @Produce application/json
-// @Param status query string false "active|revoked|expired"
+// @Param status query string false "active|revoked|expired|all (default active)"
 // @Param userID query string false "用户ID"
 // @Param username query string false "用户名"
 // @Param ip query string false "登录IP"
 // @Param current query int false "当前页"
 // @Param pageSize query int false "每页数量"
 // @Success 200 {object} response.Page{data=[]models.UserSession}
+// @Failure 400 {object} response.Response "unknown status value"
 // @Router /admin/api/online-sessions [get]
 // @Security Bearer
 func (e *OnlineSessionAPI) List(c *gin.Context) {
@@ -111,19 +112,21 @@ func (e *OnlineSessionAPI) List(c *gin.Context) {
 	if q.PageSize <= 0 {
 		q.PageSize = 20
 	}
-	if q.Status == "" {
-		q.Status = "active"
-	}
 
 	db := e.getDB(c).Model(&models.UserSession{})
 	now := time.Now()
 	switch q.Status {
-	case "active":
+	case "", "active":
 		db = db.Where("revoked = ? AND expired_at > ?", false, now)
 	case "revoked":
 		db = db.Where("revoked = ?", true)
 	case "expired":
 		db = db.Where("revoked = ? AND expired_at <= ?", false, now)
+	case "all":
+		// no status filter
+	default:
+		api.AddError(errors.New("unknown status: " + q.Status)).Err(http.StatusBadRequest)
+		return
 	}
 	if q.UserID != "" {
 		db = db.Where("user_id = ?", q.UserID)
@@ -177,7 +180,8 @@ func (e *OnlineSessionAPI) Get(c *gin.Context) {
 // @Summary 强制下线指定会话
 // @Tags OnlineSession
 // @Param id path string true "session id"
-// @Success 204
+// @Success 204 "session revoked, no body"
+// @Failure 404 "session not found"
 // @Router /admin/api/online-sessions/{id} [delete]
 // @Security Bearer
 func (e *OnlineSessionAPI) RevokeBySID(c *gin.Context) {
@@ -185,7 +189,7 @@ func (e *OnlineSessionAPI) RevokeBySID(c *gin.Context) {
 	sid := c.Param("id")
 	actorID, actorName := e.actor(c)
 
-	row, err := service.Session.RevokeBySID(c, e.getDB(c), sid, actorID, models.SessionRevokeForceBySession)
+	_, err := service.Session.RevokeBySID(c, e.getDB(c), sid, actorID, models.SessionRevokeForceBySession)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		api.Err(http.StatusNotFound)
 		return
@@ -199,14 +203,16 @@ func (e *OnlineSessionAPI) RevokeBySID(c *gin.Context) {
 		slog.Warn("audit log force_logout failed", "sid", sid, "err", err)
 	}
 
-	api.OK(gin.H{"id": row.ID, "userID": row.UserID, "revokedAt": row.RevokedAt})
+	// DELETE single resource → 204 No Content, no body (per RFC 7231 §6.3.5
+	// and mss-boot's response.OK(nil) convention).
+	api.OK(nil)
 }
 
 // RevokeByUserID 强制下线该用户全部会话
 // @Summary 强制下线该用户全部会话
 // @Tags OnlineSession
 // @Param userID path string true "user id"
-// @Success 204
+// @Success 200 {object} response.Response{data=object{affected=int,userID=string}} "batch revoke result"
 // @Router /admin/api/online-sessions/user/{userID} [delete]
 // @Security Bearer
 func (e *OnlineSessionAPI) RevokeByUserID(c *gin.Context) {
@@ -224,13 +230,19 @@ func (e *OnlineSessionAPI) RevokeByUserID(c *gin.Context) {
 		slog.Warn("audit log force_logout failed", "userID", uid, "err", err)
 	}
 
-	api.OK(gin.H{"affected": n, "userID": uid})
+	// Batch revoke returns a real payload (frontend reads `affected`), so we
+	// emit 200 explicitly instead of going through api.OK which would map
+	// DELETE to 204 and silently drop the body.
+	c.AbortWithStatusJSON(http.StatusOK, gin.H{"affected": n, "userID": uid})
 }
 
 // Logout 当前用户自登出
 // @Summary 当前用户自登出
 // @Tags OnlineSession
-// @Success 201
+// @Success 201 "session revoked, no body"
+// @Failure 400 "missing sid in token"
+// @Failure 401 "unauthenticated"
+// @Failure 404 "session not found"
 // @Router /admin/api/online-sessions/logout [post]
 // @Security Bearer
 func (e *OnlineSessionAPI) Logout(c *gin.Context) {
@@ -257,7 +269,10 @@ func (e *OnlineSessionAPI) Logout(c *gin.Context) {
 		c.ClientIP(), c.GetHeader("User-Agent"), "self-logout"); err != nil {
 		slog.Warn("audit log logout failed", "sid", sid, "err", err)
 	}
-	api.OK(gin.H{"ok": true})
+	// Logout doesn't create a resource; mss-boot's OK on POST maps to 201
+	// with no body which is the contract used elsewhere for "operation
+	// accepted, nothing to return".
+	api.OK(nil)
 }
 
 func (e *OnlineSessionAPI) resolveVerify(c *gin.Context) (string, string, bool) {

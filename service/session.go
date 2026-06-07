@@ -87,7 +87,47 @@ func (s *SessionService) Lookup(ctx context.Context, db *gorm.DB, sid string) (L
 		slog.Warn("session cache lookup failed", "sid", sid, "err", err)
 	}
 	if ok {
+		// Fast path: cache already records the revoke (RevokeBySID/ByUserID
+		// flips this synchronously on every revoke that succeeds against DB).
+		if entry.Revoked {
+			return LookupResult{Status: LookupRevoked}, nil
+		}
 		if entry.ExpUnix > 0 && time.Unix(entry.ExpUnix, 0).Before(time.Now()) {
+			return LookupResult{Status: LookupExpired}, nil
+		}
+		// Authoritative check: cache hit alone is not enough — a Set/Del that
+		// failed during a previous revoke could leave a stale "active" entry.
+		// Re-read the minimal columns from DB and trust them. The lookup is by
+		// primary key so the cost is one indexed point query per request.
+		var probe struct {
+			Revoked   bool
+			ExpiredAt time.Time
+		}
+		err := db.WithContext(ctx).Model(&models.UserSession{}).
+			Select("revoked", "expired_at").
+			Where("id = ?", sid).
+			First(&probe).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Cache out of sync with DB; treat as missing.
+			if delErr := s.cache.Del(ctx, sid); delErr != nil {
+				slog.Warn("session cache cleanup after missing DB row failed", "sid", sid, "err", delErr)
+			}
+			return LookupResult{Status: LookupMissing}, nil
+		}
+		if err != nil {
+			return LookupResult{}, err
+		}
+		if probe.Revoked {
+			ttl := time.Until(probe.ExpiredAt)
+			if ttl <= 0 {
+				ttl = time.Minute
+			}
+			if rErr := s.cache.SetRevoked(ctx, sid, entry, ttl); rErr != nil {
+				slog.Warn("session cache repair after stale active hit failed", "sid", sid, "err", rErr)
+			}
+			return LookupResult{Status: LookupRevoked}, nil
+		}
+		if probe.ExpiredAt.Before(time.Now()) {
 			return LookupResult{Status: LookupExpired}, nil
 		}
 		return LookupResult{Status: LookupActive, Entry: entry}, nil
@@ -133,9 +173,7 @@ func (s *SessionService) RevokeBySID(ctx context.Context, db *gorm.DB, sid, acto
 		return nil, err
 	}
 	if row.Revoked {
-		if err := s.cache.Del(ctx, sid); err != nil {
-			slog.Warn("session cache delete after revoke failed", "sid", sid, "err", err)
-		}
+		s.markCacheRevoked(ctx, &row)
 		return &row, nil
 	}
 	now := time.Now()
@@ -146,13 +184,20 @@ func (s *SessionService) RevokeBySID(ctx context.Context, db *gorm.DB, sid, acto
 	if err := db.WithContext(ctx).Save(&row).Error; err != nil {
 		return nil, err
 	}
-	if err := s.cache.Del(ctx, sid); err != nil {
-		slog.Warn("session cache delete after revoke failed", "sid", sid, "err", err)
-	}
+	s.markCacheRevoked(ctx, &row)
 	return &row, nil
 }
 
 func (s *SessionService) RevokeByUserID(ctx context.Context, db *gorm.DB, userID, actor string, reason models.SessionRevokeReason) (int64, error) {
+	var rows []models.UserSession
+	if err := db.WithContext(ctx).
+		Where("user_id = ? AND revoked = ?", userID, false).
+		Find(&rows).Error; err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
 	now := time.Now()
 	res := db.WithContext(ctx).Model(&models.UserSession{}).
 		Where("user_id = ? AND revoked = ?", userID, false).
@@ -165,10 +210,29 @@ func (s *SessionService) RevokeByUserID(ctx context.Context, db *gorm.DB, userID
 	if res.Error != nil {
 		return 0, res.Error
 	}
-	if err := s.cache.DelByUser(ctx, userID); err != nil {
-		slog.Warn("session cache bulk-delete after revoke failed", "userID", userID, "err", err)
+	for i := range rows {
+		rows[i].Revoked = true
+		rows[i].RevokedAt = &now
+		s.markCacheRevoked(ctx, &rows[i])
 	}
 	return res.RowsAffected, nil
+}
+
+// markCacheRevoked best-effort writes a revoked sentinel into the cache so
+// Lookup's fast path returns LookupRevoked without DB. Failures are logged;
+// the authoritative check in Lookup (DB SELECT) still catches the revoke.
+func (s *SessionService) markCacheRevoked(ctx context.Context, row *models.UserSession) {
+	ttl := time.Until(row.ExpiredAt)
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	if err := s.cache.SetRevoked(ctx, row.ID, sessioncache.Entry{
+		UserID:  row.UserID,
+		RoleID:  row.RoleID,
+		ExpUnix: row.ExpiredAt.Unix(),
+	}, ttl); err != nil {
+		slog.Warn("session cache mark revoked failed", "sid", row.ID, "err", err)
+	}
 }
 
 func (s *SessionService) CleanupOlderThan(ctx context.Context, db *gorm.DB, age time.Duration) (int64, error) {
