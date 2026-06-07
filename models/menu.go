@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
 )
@@ -111,7 +112,9 @@ func (e *Menu) AfterCreate(tx *gorm.DB) error {
 		return nil
 	}
 	var defaultRole Role
-	if err := tx.Model(&Role{}).Where("`default` = ?", true).First(&defaultRole).Error; err != nil {
+	if err := tx.Model(&Role{}).
+		Where(clause.Eq{Column: clause.Column{Name: "default"}, Value: true}).
+		First(&defaultRole).Error; err != nil {
 		return nil
 	}
 	method := e.Method

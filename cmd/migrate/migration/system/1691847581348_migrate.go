@@ -11,6 +11,7 @@ import (
 
 	"github.com/mss-boot-io/mss-boot/pkg/migration"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -156,7 +157,9 @@ oauth2:
 		}
 
 		adminRole := &models.Role{Default: true}
-		err = tx.Model(&models.Role{}).Where("`default` = ?", true).First(adminRole).Error
+		err = tx.Model(&models.Role{}).
+			Where(clause.Eq{Column: clause.Column{Name: "default"}, Value: true}).
+			First(adminRole).Error
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
