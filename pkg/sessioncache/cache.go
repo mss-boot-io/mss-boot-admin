@@ -24,11 +24,21 @@ type Entry struct {
 }
 
 type Cache struct {
-	cli *redis.Client
+	clientFn func() *redis.Client
 }
 
-func New(cli *redis.Client) *Cache {
-	return &Cache{cli: cli}
+// New builds a Cache that resolves the Redis client lazily via fn. fn may
+// return nil when Redis is not configured; in that case all cache methods
+// degrade gracefully and the caller falls back to DB.
+func New(fn func() *redis.Client) *Cache {
+	return &Cache{clientFn: fn}
+}
+
+func (c *Cache) client() *redis.Client {
+	if c == nil || c.clientFn == nil {
+		return nil
+	}
+	return c.clientFn()
 }
 
 func sessionKey(sid string) string { return sessionKeyPrefix + sid }
@@ -36,7 +46,8 @@ func userKey(uid string) string    { return userKeyPrefix + uid }
 func seenKey(sid string) string    { return seenKeyPrefix + sid }
 
 func (c *Cache) Set(ctx context.Context, sid string, e Entry, ttl time.Duration) error {
-	if c == nil || c.cli == nil {
+	cli := c.client()
+	if cli == nil {
 		return nil
 	}
 	if ttl <= 0 {
@@ -46,7 +57,7 @@ func (c *Cache) Set(ctx context.Context, sid string, e Entry, ttl time.Duration)
 	if err != nil {
 		return err
 	}
-	pipe := c.cli.TxPipeline()
+	pipe := cli.TxPipeline()
 	pipe.Set(ctx, sessionKey(sid), payload, ttl)
 	pipe.SAdd(ctx, userKey(e.UserID), sid)
 	pipe.Expire(ctx, userKey(e.UserID), ttl+time.Hour)
@@ -55,10 +66,11 @@ func (c *Cache) Set(ctx context.Context, sid string, e Entry, ttl time.Duration)
 }
 
 func (c *Cache) Get(ctx context.Context, sid string) (Entry, bool, error) {
-	if c == nil || c.cli == nil {
+	cli := c.client()
+	if cli == nil {
 		return Entry{}, false, nil
 	}
-	raw, err := c.cli.Get(ctx, sessionKey(sid)).Bytes()
+	raw, err := cli.Get(ctx, sessionKey(sid)).Bytes()
 	if errors.Is(err, redis.Nil) {
 		return Entry{}, false, nil
 	}
@@ -73,14 +85,15 @@ func (c *Cache) Get(ctx context.Context, sid string) (Entry, bool, error) {
 }
 
 func (c *Cache) Del(ctx context.Context, sid string) error {
-	if c == nil || c.cli == nil {
+	cli := c.client()
+	if cli == nil {
 		return nil
 	}
 	entry, ok, err := c.Get(ctx, sid)
 	if err != nil {
 		return err
 	}
-	pipe := c.cli.TxPipeline()
+	pipe := cli.TxPipeline()
 	pipe.Del(ctx, sessionKey(sid))
 	if ok {
 		pipe.SRem(ctx, userKey(entry.UserID), sid)
@@ -90,14 +103,15 @@ func (c *Cache) Del(ctx context.Context, sid string) error {
 }
 
 func (c *Cache) DelByUser(ctx context.Context, uid string) error {
-	if c == nil || c.cli == nil {
+	cli := c.client()
+	if cli == nil {
 		return nil
 	}
-	sids, err := c.cli.SMembers(ctx, userKey(uid)).Result()
+	sids, err := cli.SMembers(ctx, userKey(uid)).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return err
 	}
-	pipe := c.cli.TxPipeline()
+	pipe := cli.TxPipeline()
 	for _, sid := range sids {
 		pipe.Del(ctx, sessionKey(sid))
 	}
@@ -107,10 +121,11 @@ func (c *Cache) DelByUser(ctx context.Context, uid string) error {
 }
 
 func (c *Cache) TryTouch(ctx context.Context, sid string) (bool, error) {
-	if c == nil || c.cli == nil {
+	cli := c.client()
+	if cli == nil {
 		return true, nil
 	}
-	ok, err := c.cli.SetNX(ctx, seenKey(sid), "1", touchTTL).Result()
+	ok, err := cli.SetNX(ctx, seenKey(sid), "1", touchTTL).Result()
 	if err != nil {
 		return false, fmt.Errorf("sessioncache: touch %s: %w", sid, err)
 	}

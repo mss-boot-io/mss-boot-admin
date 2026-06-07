@@ -122,12 +122,15 @@ func Init() {
 				if err != nil || res.Status != service.LookupActive {
 					return nil
 				}
-				go func(sid string) {
-					bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-					bgDB := gormdb.DB.WithContext(bgCtx)
-					_ = service.Session.Touch(bgCtx, bgDB, sid)
-				}(sid)
+				if shouldTouch, terr := service.Session.MarkLastSeen(c, sid); terr == nil && shouldTouch {
+					go func(sid string) {
+						bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancel()
+						if err := service.Session.RecordLastSeen(bgCtx, gormdb.DB, sid); err != nil {
+							slog.Warn("session record last_seen failed", "sid", sid, "err", err)
+						}
+					}(sid)
+				}
 			}
 			return verifier
 		},
@@ -373,6 +376,18 @@ func (loginContextHandle) Clear() {
 	loginContextMap.Delete(goroutineID())
 }
 
+// goroutineID parses the current goroutine id from runtime.Stack output.
+//
+// Background: gin-jwt/v2.PayloadFunc receives only the authenticated principal,
+// not the *gin.Context. To create a server-side session bound to the request
+// (IP / User-Agent) we stash the context in loginContextMap keyed by goroutine
+// id inside Authenticator and read it back inside PayloadFunc.
+//
+// CAVEAT: The "goroutine N [...]:" prefix is a Go runtime implementation
+// detail, not part of the language spec. If a future Go release changes the
+// format this parser will silently return zero and PayloadFunc will skip
+// session creation. The login regression tests exercise the happy path; bump
+// this if Go runtime debug output ever shifts.
 func goroutineID() uint64 {
 	var buf [64]byte
 	n := runtime.Stack(buf[:], false)

@@ -157,7 +157,7 @@ func setup() error {
 
 	// setup 02 middleware init
 	middleware.Verifier = center.GetUser()
-	service.Session.SetCache(sessioncache.New(config.GetRedisClient()))
+	service.Session.SetCache(sessioncache.New(config.GetRedisClient))
 	middleware.Init()
 
 	// setup 03 router init

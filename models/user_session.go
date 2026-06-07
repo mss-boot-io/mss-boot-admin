@@ -8,7 +8,6 @@ const (
 	SessionRevokeLogout         SessionRevokeReason = "logout"
 	SessionRevokeForceBySession SessionRevokeReason = "force-by-session"
 	SessionRevokeForceByUser    SessionRevokeReason = "force-by-user"
-	SessionRevokeExpired        SessionRevokeReason = "expired"
 )
 
 type UserSession struct {
@@ -29,8 +28,4 @@ type UserSession struct {
 
 func (*UserSession) TableName() string {
 	return "mss_boot_user_sessions"
-}
-
-func (s *UserSession) Active(now time.Time) bool {
-	return !s.Revoked && s.ExpiredAt.After(now)
 }

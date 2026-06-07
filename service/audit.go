@@ -116,7 +116,7 @@ func (s *AuditService) LogSecurity(db *gorm.DB, action, resource, actorID, actor
 		Resource:  resource,
 		IP:        ip,
 		UserAgent: ua,
-		Status:    enum.Status("enabled"),
+		Status:    enum.Enabled,
 		Message:   message,
 	})
 }

@@ -15,7 +15,7 @@ func newCache(t *testing.T) (*Cache, *miniredis.Miniredis) {
 	assert.NoError(t, err)
 	t.Cleanup(mr.Close)
 	cli := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	return New(cli), mr
+	return New(func() *redis.Client { return cli }), mr
 }
 
 func TestSetGet(t *testing.T) {

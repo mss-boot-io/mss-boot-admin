@@ -31,9 +31,10 @@ func init() {
 
 type OnlineSessionAPI struct {
 	*controller.Simple
-	db            *gorm.DB
-	actorResolver func(*gin.Context) (string, string)
-	sidExtractor  func(*gin.Context) string
+	db             *gorm.DB
+	actorResolver  func(*gin.Context) (string, string)
+	sidExtractor   func(*gin.Context) string
+	verifyResolver func(*gin.Context) (userID, username string, ok bool)
 }
 
 func (e *OnlineSessionAPI) GetAction(_ string) response.Action { return nil }
@@ -219,8 +220,8 @@ func (e *OnlineSessionAPI) RevokeByUserID(c *gin.Context) {
 // @Security Bearer
 func (e *OnlineSessionAPI) Logout(c *gin.Context) {
 	api := response.Make(c)
-	v := middleware.GetVerify(c)
-	if v == nil {
+	userID, username, ok := e.resolveVerify(c)
+	if !ok {
 		api.Err(http.StatusUnauthorized)
 		return
 	}
@@ -229,11 +230,22 @@ func (e *OnlineSessionAPI) Logout(c *gin.Context) {
 		api.Err(http.StatusBadRequest)
 		return
 	}
-	if _, err := service.Session.RevokeBySID(c, e.getDB(c), sid, v.GetUserID(), models.SessionRevokeLogout); err != nil {
+	if _, err := service.Session.RevokeBySID(c, e.getDB(c), sid, userID, models.SessionRevokeLogout); err != nil {
 		api.AddError(err).Err(http.StatusInternalServerError)
 		return
 	}
-	_ = service.Audit.LogSecurity(e.getDB(c), "logout", "session:"+sid, v.GetUserID(), v.GetUsername(),
+	_ = service.Audit.LogSecurity(e.getDB(c), "logout", "session:"+sid, userID, username,
 		c.ClientIP(), c.GetHeader("User-Agent"), "self-logout")
 	api.OK(gin.H{"ok": true})
+}
+
+func (e *OnlineSessionAPI) resolveVerify(c *gin.Context) (string, string, bool) {
+	if e.verifyResolver != nil {
+		return e.verifyResolver(c)
+	}
+	v := middleware.GetVerify(c)
+	if v == nil {
+		return "", "", false
+	}
+	return v.GetUserID(), v.GetUsername(), true
 }

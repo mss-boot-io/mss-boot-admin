@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"gorm.io/gorm"
@@ -67,11 +68,13 @@ func (s *SessionService) Create(ctx context.Context, db *gorm.DB, in CreateSessi
 	if err := db.WithContext(ctx).Create(row).Error; err != nil {
 		return "", err
 	}
-	_ = s.cache.Set(ctx, sid, sessioncache.Entry{
+	if err := s.cache.Set(ctx, sid, sessioncache.Entry{
 		UserID:  in.UserID,
 		RoleID:  in.RoleID,
 		ExpUnix: row.ExpiredAt.Unix(),
-	}, in.TTL)
+	}, in.TTL); err != nil {
+		slog.Warn("session cache write failed", "sid", sid, "err", err)
+	}
 	return sid, nil
 }
 
@@ -101,15 +104,30 @@ func (s *SessionService) Lookup(ctx context.Context, db *gorm.DB, sid string) (L
 		return LookupResult{Status: LookupExpired}, nil
 	}
 	entry := sessioncache.Entry{UserID: row.UserID, RoleID: row.RoleID, ExpUnix: row.ExpiredAt.Unix()}
-	_ = s.cache.Set(ctx, sid, entry, time.Until(row.ExpiredAt))
+	if err := s.cache.Set(ctx, sid, entry, time.Until(row.ExpiredAt)); err != nil {
+		slog.Warn("session cache backfill failed", "sid", sid, "err", err)
+	}
 	return LookupResult{Status: LookupActive, Entry: entry}, nil
 }
 
 func (s *SessionService) Touch(ctx context.Context, db *gorm.DB, sid string) error {
-	ok, err := s.cache.TryTouch(ctx, sid)
+	ok, err := s.MarkLastSeen(ctx, sid)
 	if err != nil || !ok {
 		return err
 	}
+	return s.RecordLastSeen(ctx, db, sid)
+}
+
+// MarkLastSeen asks the cache whether this caller wins the throttle slot for
+// updating last_seen_at. Callers are expected to call RecordLastSeen only when
+// the result is true (typically in a background goroutine to keep the request
+// path cheap).
+func (s *SessionService) MarkLastSeen(ctx context.Context, sid string) (bool, error) {
+	return s.cache.TryTouch(ctx, sid)
+}
+
+// RecordLastSeen writes the current time into last_seen_at for an active session.
+func (s *SessionService) RecordLastSeen(ctx context.Context, db *gorm.DB, sid string) error {
 	return db.WithContext(ctx).Model(&models.UserSession{}).
 		Where("id = ? AND revoked = ?", sid, false).
 		Update("last_seen_at", time.Now()).Error
@@ -121,7 +139,9 @@ func (s *SessionService) RevokeBySID(ctx context.Context, db *gorm.DB, sid, acto
 		return nil, err
 	}
 	if row.Revoked {
-		_ = s.cache.Del(ctx, sid)
+		if err := s.cache.Del(ctx, sid); err != nil {
+			slog.Warn("session cache delete after revoke failed", "sid", sid, "err", err)
+		}
 		return &row, nil
 	}
 	now := time.Now()
@@ -132,7 +152,9 @@ func (s *SessionService) RevokeBySID(ctx context.Context, db *gorm.DB, sid, acto
 	if err := db.WithContext(ctx).Save(&row).Error; err != nil {
 		return nil, err
 	}
-	_ = s.cache.Del(ctx, sid)
+	if err := s.cache.Del(ctx, sid); err != nil {
+		slog.Warn("session cache delete after revoke failed", "sid", sid, "err", err)
+	}
 	return &row, nil
 }
 
@@ -149,7 +171,9 @@ func (s *SessionService) RevokeByUserID(ctx context.Context, db *gorm.DB, userID
 	if res.Error != nil {
 		return 0, res.Error
 	}
-	_ = s.cache.DelByUser(ctx, userID)
+	if err := s.cache.DelByUser(ctx, userID); err != nil {
+		slog.Warn("session cache bulk-delete after revoke failed", "userID", userID, "err", err)
+	}
 	return res.RowsAffected, nil
 }
 
