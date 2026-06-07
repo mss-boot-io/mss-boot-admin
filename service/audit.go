@@ -107,6 +107,20 @@ func (s *AuditService) GetAuditLogs(db *gorm.DB, userID string, logType models.A
 	return logs, total, nil
 }
 
+func (s *AuditService) LogSecurity(db *gorm.DB, action, resource, actorID, actorName, ip, ua, message string) error {
+	return s.Log(db, &models.AuditLog{
+		Type:      models.AuditLogTypeSecurity,
+		UserID:    actorID,
+		Username:  actorName,
+		Action:    action,
+		Resource:  resource,
+		IP:        ip,
+		UserAgent: ua,
+		Status:    enum.Enabled,
+		Message:   message,
+	})
+}
+
 func (s *AuditService) CleanOldLogs(db *gorm.DB, days int) error {
 	cutoff := time.Now().AddDate(0, 0, -days)
 

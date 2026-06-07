@@ -10,9 +10,10 @@ import "time"
  */
 
 type Auth struct {
-	Realm       string        `yaml:"realm" json:"realm"`
-	Key         string        `yaml:"key" json:"key"`
-	IdentityKey string        `yaml:"identityKey" json:"identityKey"`
-	Timeout     time.Duration `yaml:"timeout" json:"timeout"`
-	MaxRefresh  time.Duration `yaml:"maxRefresh" json:"maxRefresh"`
+	Realm          string        `yaml:"realm" json:"realm"`
+	Key            string        `yaml:"key" json:"key"`
+	IdentityKey    string        `yaml:"identityKey" json:"identityKey"`
+	Timeout        time.Duration `yaml:"timeout" json:"timeout"`
+	MaxRefresh     time.Duration `yaml:"maxRefresh" json:"maxRefresh"`
+	SessionEnabled bool          `yaml:"sessionEnabled" json:"sessionEnabled"`
 }

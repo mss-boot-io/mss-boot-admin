@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -8,17 +9,21 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/service"
 	bootpkg "github.com/mss-boot-io/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot/pkg/security"
 	"github.com/spf13/cast"
+	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
@@ -53,11 +58,23 @@ func Init() {
 					}
 				}
 				rb, _ := json.Marshal(v)
-				return jwt.MapClaims{
+				claims := jwt.MapClaims{
 					"verifier":             string(rb),
 					"refreshTokenDisabled": false,
 					"personAccessToken":    "",
 				}
+				if config.Cfg.Auth.SessionEnabled {
+					bag := loginContext.Load()
+					loginContext.Clear()
+					if bag.sid == "" {
+						// Authenticator 已经在 SessionEnabled 路径强制创建 session；
+						// 落到这里只可能是 sid 在 store→load 之间被冲掉，属于异常。
+						slog.Error("session sid missing in payload")
+						return jwt.MapClaims{}
+					}
+					claims["sid"] = bag.sid
+				}
+				return claims
 			}
 			return jwt.MapClaims{}
 		},
@@ -84,6 +101,12 @@ func Init() {
 				if err != nil {
 					return nil
 				}
+				return verifier
+			}
+			if config.Cfg.Auth.SessionEnabled {
+				if !validateSessionFromClaims(c, claims) {
+					return nil
+				}
 			}
 			return verifier
 		},
@@ -105,6 +128,25 @@ func Init() {
 				return nil, err
 			}
 			if ok {
+				if config.Cfg.Auth.SessionEnabled {
+					sid, sErr := service.Session.Create(c, center.Default.GetDB(c, &models.UserSession{}), service.CreateSessionInput{
+						UserID:    user.GetUserID(),
+						Username:  user.GetUsername(),
+						RoleID:    user.GetRoleID(),
+						IP:        ip,
+						UserAgent: userAgent,
+						TTL:       config.Cfg.Auth.Timeout,
+					})
+					if sErr != nil {
+						api.AddError(sErr).Log.Error("session create failed")
+						if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent,
+							"session create failed: "+sErr.Error(), false); logErr != nil {
+							api.AddError(logErr).Log.Warn("write login log failed")
+						}
+						return nil, jwt.ErrFailedAuthentication
+					}
+					loginContext.Store(sid)
+				}
 				if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent, "login success", true); logErr != nil {
 					api.AddError(logErr).Log.Warn("write login log failed")
 				}
@@ -183,6 +225,19 @@ func Init() {
 			if err != nil || !ok {
 				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
+			}
+			if config.Cfg.Auth.SessionEnabled {
+				sid := cast.ToString(claims["sid"])
+				if sid == "" {
+					writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "session missing")
+					return
+				}
+				db := center.Default.GetDB(c, &models.UserSession{})
+				res, lerr := service.Session.Lookup(c, db, sid)
+				if lerr != nil || res.Status != service.LookupActive {
+					writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "session revoked")
+					return
+				}
 			}
 			//todo 重新颁发token
 			c.JSON(http.StatusOK, gin.H{
@@ -285,4 +340,91 @@ func writeAuthErrorResponse(c *gin.Context, httpStatus, businessCode int, messag
 		"errorMessage": message,
 		"traceId":      bootpkg.GenerateMsgIDFromContext(c),
 	})
+}
+
+// validateSessionFromClaims checks that the JWT `sid` claim points to an
+// active server-side session. Returns false when the auth layer must reject
+// the request (missing sid, missing/revoked/expired session, or unrecoverable
+// DB error). On success it kicks off a throttled async last_seen update.
+//
+// Extracted from middleware.Init so integration tests can exercise the four
+// branches the reviewer flagged (PR #376 review #5): sid present + active,
+// missing-sid legacy JWT, DB-revoked session, and DB-expired session.
+func validateSessionFromClaims(c *gin.Context, claims jwt.MapClaims) bool {
+	sid := cast.ToString(claims["sid"])
+	if sid == "" {
+		return false
+	}
+	db := center.Default.GetDB(c, &models.UserSession{})
+	res, err := service.Session.Lookup(c, db, sid)
+	if err != nil || res.Status != service.LookupActive {
+		return false
+	}
+	if shouldTouch, terr := service.Session.MarkLastSeen(c, sid); terr == nil && shouldTouch {
+		// Capture the request-scoped DB in the request goroutine so the
+		// async Touch keeps any tenant scope; rebind ctx to a fresh timeout
+		// so it doesn't get cancelled when the request finishes.
+		scopedDB := db
+		go func(sid string, db *gorm.DB) {
+			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := service.Session.RecordLastSeen(bgCtx, db.WithContext(bgCtx), sid); err != nil {
+				slog.Warn("session record last_seen failed", "sid", sid, "err", err)
+			}
+		}(sid, scopedDB)
+	}
+	return true
+}
+
+type loginCtxBag struct {
+	sid string
+}
+
+var loginContextMap sync.Map // goroutine id -> *loginCtxBag
+
+type loginContextHandle struct{}
+
+var loginContext loginContextHandle
+
+func (loginContextHandle) Store(sid string) {
+	loginContextMap.Store(goroutineID(), &loginCtxBag{sid: sid})
+}
+
+func (loginContextHandle) Load() *loginCtxBag {
+	v, _ := loginContextMap.Load(goroutineID())
+	if v == nil {
+		return &loginCtxBag{}
+	}
+	return v.(*loginCtxBag)
+}
+
+func (loginContextHandle) Clear() {
+	loginContextMap.Delete(goroutineID())
+}
+
+// goroutineID parses the current goroutine id from runtime.Stack output.
+//
+// Background: gin-jwt/v2.PayloadFunc receives only the authenticated principal,
+// not the *gin.Context. The Authenticator creates the server-side session
+// (so failures can short-circuit the login) and stashes the resulting sid in
+// loginContextMap keyed by goroutine id; PayloadFunc reads it back to embed
+// the sid in the JWT claims.
+//
+// CAVEAT: The "goroutine N [...]:" prefix is a Go runtime implementation
+// detail, not part of the language spec. If a future Go release changes the
+// format this parser will silently return zero and PayloadFunc will skip
+// session creation. The login regression tests exercise the happy path; bump
+// this if Go runtime debug output ever shifts.
+func goroutineID() uint64 {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	// "goroutine 12345 [running]:" → 12345
+	var id uint64
+	for i := len("goroutine "); i < n; i++ {
+		if buf[i] < '0' || buf[i] > '9' {
+			break
+		}
+		id = id*10 + uint64(buf[i]-'0')
+	}
+	return id
 }
