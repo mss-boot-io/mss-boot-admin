@@ -8,6 +8,7 @@ on:
       - '.gitignore'
     branches:
       - main
+      - 'codex/**'
     tags:
       - 'v*.*.*'
   pull_request:
