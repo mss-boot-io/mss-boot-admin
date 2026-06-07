@@ -15,7 +15,7 @@ func newCache(t *testing.T) (*Cache, *miniredis.Miniredis) {
 	assert.NoError(t, err)
 	t.Cleanup(mr.Close)
 	cli := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	return New(func() *redis.Client { return cli }), mr
+	return New(cli), mr
 }
 
 func TestSetGet(t *testing.T) {
@@ -77,8 +77,8 @@ func TestTouchThrottle(t *testing.T) {
 }
 
 func TestTouchThrottleLocalFallback(t *testing.T) {
-	// Redis 不可用（clientFn 返回 nil）时仍应按 touchTTL 限频。
-	c := New(func() *redis.Client { return nil })
+	// Redis 不可用（client 为 nil）时仍应按 touchTTL 限频。
+	c := New(nil)
 	ctx := context.Background()
 
 	first, err := c.TryTouch(ctx, "sid-1")

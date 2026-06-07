@@ -28,24 +28,29 @@ type Entry struct {
 }
 
 type Cache struct {
-	clientFn func() *redis.Client
+	cli redis.UniversalClient
 
 	localMu    sync.Mutex
 	localTouch map[string]time.Time
 }
 
-// New builds a Cache that resolves the Redis client lazily via fn. fn may
-// return nil when Redis is not configured; in that case all cache methods
-// degrade gracefully and the caller falls back to DB.
-func New(fn func() *redis.Client) *Cache {
-	return &Cache{clientFn: fn}
+// New builds a Cache backed by cli. cli may be nil when Redis is not
+// configured; in that case Set/Get/Del/DelByUser degrade to no-ops and
+// TryTouch falls back to an in-memory per-instance throttle so the caller
+// still has a reasonable last_seen_at limiter.
+//
+// To plug into the mss-boot upstream Redis wiring, pass
+// `mss-boot/pkg/config/storage.GetRedisClient()` (set by Cache.Init) or
+// `center.GetCache()` (which embeds redis.UniversalClient).
+func New(cli redis.UniversalClient) *Cache {
+	return &Cache{cli: cli}
 }
 
-func (c *Cache) client() *redis.Client {
-	if c == nil || c.clientFn == nil {
+func (c *Cache) client() redis.UniversalClient {
+	if c == nil {
 		return nil
 	}
-	return c.clientFn()
+	return c.cli
 }
 
 func sessionKey(sid string) string { return sessionKeyPrefix + sid }

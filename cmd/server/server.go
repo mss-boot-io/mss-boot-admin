@@ -17,6 +17,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	// "github.com/mss-boot-io/mss-boot/virtual/action" // disabled: virtual model feature
+	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 
@@ -157,7 +158,10 @@ func setup() error {
 
 	// setup 02 middleware init
 	middleware.Verifier = center.GetUser()
-	service.Session.SetCache(sessioncache.New(config.GetRedisClient))
+	// Session cache reuses the upstream Redis client wired by Cache.Init
+	// (via center.SetCache). When Redis is not configured Cache falls
+	// back to an in-memory throttle for last_seen updates.
+	service.Session.SetCache(sessioncache.New(redisClientFromCenter()))
 	middleware.Init()
 
 	// setup 03 router init
@@ -286,4 +290,15 @@ func (taskSessionCleanup) Run() {
 		return
 	}
 	slog.Info("session cleanup done", "deleted", n)
+}
+
+// redisClientFromCenter returns the Redis client wired by the upstream
+// mss-boot Cache.Init (via center.SetCache). Returns nil when Redis is not
+// configured; callers should degrade gracefully.
+func redisClientFromCenter() redis.UniversalClient {
+	cc := center.GetCache()
+	if cc == nil {
+		return nil
+	}
+	return cc
 }

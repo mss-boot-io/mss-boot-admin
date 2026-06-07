@@ -23,7 +23,7 @@ func setupSessionEnv(t *testing.T) (*SessionService, *gorm.DB, *miniredis.Minire
 	assert.NoError(t, err)
 	t.Cleanup(mr.Close)
 	cli := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	svc := NewSessionService(sessioncache.New(func() *redis.Client { return cli }))
+	svc := NewSessionService(sessioncache.New(cli))
 	return svc, db, mr
 }
 

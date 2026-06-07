@@ -32,7 +32,7 @@ func setupOnlineSessionTest(t *testing.T) (*gin.Engine, *gorm.DB, string) {
 	t.Cleanup(mr.Close)
 
 	cli := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	service.Session.SetCache(sessioncache.New(func() *redis.Client { return cli }))
+	service.Session.SetCache(sessioncache.New(cli))
 
 	ctx := context.Background()
 	sid, err := service.Session.Create(ctx, db, service.CreateSessionInput{
@@ -176,7 +176,7 @@ func TestOnlineSessionRevokeBySID_CacheDown(t *testing.T) {
 	mr, err := miniredis.Run()
 	assert.NoError(t, err)
 	cli := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	service.Session.SetCache(sessioncache.New(func() *redis.Client { return cli }))
+	service.Session.SetCache(sessioncache.New(cli))
 
 	sid, err := service.Session.Create(context.Background(), db, service.CreateSessionInput{
 		UserID: "u1", Username: "alice", RoleID: "r1", TTL: time.Hour,

@@ -87,6 +87,8 @@ Migration：`cmd/migrate/migration/system/20260607162057_user_sessions.go`。
 
 封装在 `pkg/sessioncache`，全部经 `Cache.Set/Get/Del/DelByUser/TryTouch` 走，禁止直接拼 key。
 
+`sessioncache.Cache` 接受 `redis.UniversalClient`，**复用 mss-boot 上游的 Redis client**——配置层 `config.Cfg.Cache.Init(...)` 已自动 `storage.SetRedisClient(...)` 并把 `storage.AdapterCache` 注入到 `center.GetCache()`。`cmd/server/server.go` 在 `middleware.Init()` 之前从 `center.GetCache()` 取 client 注入 SessionService，无需新增 admin 侧 redis 配置项；Redis 未配置时 Cache 自动降级（写操作 no-op、`TryTouch` 用内存 sync.Map 做 per-instance 节流）。
+
 ## 5. 模块边界
 
 | 包 | 职责 |
