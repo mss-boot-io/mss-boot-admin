@@ -281,9 +281,17 @@ func TestDeleteGeneratedModelMenusRollsBackMenuSoftDeleteWhenPolicyDeleteFails(t
 	if activeMenus != 1 {
 		t.Fatalf("expected menu soft delete to roll back, got %d active menus", activeMenus)
 	}
+
+	var activeModels int64
+	if err := db.Model(&models.Model{}).Where("id = ?", model.ID).Count(&activeModels).Error; err != nil {
+		t.Fatalf("count active model: %v", err)
+	}
+	if activeModels != 1 {
+		t.Fatalf("expected model delete to be restored after cleanup failure, got %d active models", activeModels)
+	}
 }
 
-func TestDeleteGeneratedModelMenusIgnoresLoadPolicyFailureAfterCleanup(t *testing.T) {
+func TestDeleteGeneratedModelMenusRestoresStateWhenLoadPolicyFails(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:model-menu-load-policy-fail?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
@@ -335,23 +343,31 @@ m = r.sub == p.sub && r.tp == p.tp && keyMatch(r.obj, p.obj) && regexMatch(r.act
 	ctx, _ := gin.CreateTestContext(nil)
 	ctx.Set("ids", []string{model.ID})
 
-	if err := deleteGeneratedModelMenus(ctx, db, &models.Model{}); err != nil {
-		t.Fatalf("delete generated menus: %v", err)
+	if err := deleteGeneratedModelMenus(ctx, db, &models.Model{}); err == nil {
+		t.Fatalf("expected load policy error")
 	}
 
-	var deletedMenus int64
-	if err := db.Unscoped().Model(&models.Menu{}).Where("id = ? AND deleted_at IS NOT NULL", menu.ID).Count(&deletedMenus).Error; err != nil {
-		t.Fatalf("count deleted menu: %v", err)
+	var activeModels int64
+	if err := db.Model(&models.Model{}).Where("id = ?", model.ID).Count(&activeModels).Error; err != nil {
+		t.Fatalf("count active model: %v", err)
 	}
-	if deletedMenus != 1 {
-		t.Fatalf("expected menu to be soft deleted, got %d", deletedMenus)
+	if activeModels != 1 {
+		t.Fatalf("expected model delete to be restored after load policy failure, got %d active models", activeModels)
+	}
+
+	var activeMenus int64
+	if err := db.Model(&models.Menu{}).Where("id = ?", menu.ID).Count(&activeMenus).Error; err != nil {
+		t.Fatalf("count active menu: %v", err)
+	}
+	if activeMenus != 1 {
+		t.Fatalf("expected menu to be restored after load policy failure, got %d active menus", activeMenus)
 	}
 
 	var rules int64
 	if err := db.Model(&models.CasbinRule{}).Where("id = ?", rule.ID).Count(&rules).Error; err != nil {
 		t.Fatalf("count rule: %v", err)
 	}
-	if rules != 0 {
-		t.Fatalf("expected policy to be deleted, got %d", rules)
+	if rules != 1 {
+		t.Fatalf("expected policy to be restored after load policy failure, got %d", rules)
 	}
 }
