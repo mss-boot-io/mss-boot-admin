@@ -24,7 +24,9 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/pkg/sessioncache"
 	"github.com/mss-boot-io/mss-boot-admin/router"
+	"github.com/mss-boot-io/mss-boot-admin/service"
 )
 
 /*
@@ -155,6 +157,7 @@ func setup() error {
 
 	// setup 02 middleware init
 	middleware.Verifier = center.GetUser()
+	service.Session.SetCache(sessioncache.New(config.GetRedisClient()))
 	middleware.Init()
 
 	// setup 03 router init
