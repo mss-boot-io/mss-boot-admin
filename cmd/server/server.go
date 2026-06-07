@@ -191,6 +191,7 @@ func setup() error {
 			task.New(
 				task.WithStorage(&models.TaskStorage{DB: gormdb.DB}),
 				task.WithSchedule("task", config.Cfg.Task.Spec, &taskE{}),
+				task.WithSchedule("session-cleanup", "0 30 3 * * *", taskSessionCleanup{}),
 			),
 		)
 	}
@@ -272,4 +273,17 @@ func (t *taskE) Run() {
 			}
 		}
 	}
+}
+
+type taskSessionCleanup struct{}
+
+func (taskSessionCleanup) Run() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	n, err := service.Session.CleanupOlderThan(ctx, gormdb.DB, 30*24*time.Hour)
+	if err != nil {
+		slog.Error("session cleanup failed", "err", err)
+		return
+	}
+	slog.Info("session cleanup done", "deleted", n)
 }

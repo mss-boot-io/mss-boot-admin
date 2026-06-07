@@ -123,3 +123,25 @@ func TestRevokeByUser(t *testing.T) {
 	assert.Equal(t, LookupRevoked, r2.Status)
 	assert.Equal(t, LookupActive, r3.Status)
 }
+
+func TestCleanupOldSessions(t *testing.T) {
+	svc, db, _ := setupSessionEnv(t)
+	ctx := context.Background()
+
+	old := time.Now().Add(-40 * 24 * time.Hour)
+	r := &models.UserSession{UserID: "u1", LoginAt: old, LastSeenAt: old, ExpiredAt: old, Revoked: true}
+	r.ID = "old-1"
+	rt := old
+	r.RevokedAt = &rt
+	assert.NoError(t, db.Create(r).Error)
+
+	_, _ = svc.Create(ctx, db, CreateSessionInput{UserID: "u2", Username: "b", RoleID: "r1", TTL: time.Hour})
+
+	n, err := svc.CleanupOlderThan(ctx, db, 30*24*time.Hour)
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, n)
+
+	var count int64
+	db.Model(&models.UserSession{}).Count(&count)
+	assert.EqualValues(t, 1, count)
+}

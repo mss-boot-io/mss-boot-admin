@@ -152,3 +152,12 @@ func (s *SessionService) RevokeByUserID(ctx context.Context, db *gorm.DB, userID
 	_ = s.cache.DelByUser(ctx, userID)
 	return res.RowsAffected, nil
 }
+
+func (s *SessionService) CleanupOlderThan(ctx context.Context, db *gorm.DB, age time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-age)
+	res := db.WithContext(ctx).
+		Where("(revoked = ? AND revoked_at < ?) OR (revoked = ? AND expired_at < ?)",
+			true, cutoff, false, cutoff).
+		Delete(&models.UserSession{})
+	return res.RowsAffected, res.Error
+}
