@@ -191,3 +191,20 @@ func TestAuditService_CleanOldLogs(t *testing.T) {
 	assert.Len(t, logs, 1)
 	assert.Equal(t, "new_action", logs[0].Action)
 }
+
+func TestAuditService_LogSecurity(t *testing.T) {
+	db := setupTestDB(t)
+	svc := &AuditService{}
+
+	err := svc.LogSecurity(db, "force_logout", "session:sid-1", "admin-1", "alice", "1.2.3.4", "ua", "by-session")
+	assert.NoError(t, err)
+
+	var logs []models.AuditLog
+	assert.NoError(t, db.Find(&logs).Error)
+	assert.Len(t, logs, 1)
+	assert.Equal(t, models.AuditLogTypeSecurity, logs[0].Type)
+	assert.Equal(t, "force_logout", logs[0].Action)
+	assert.Equal(t, "session:sid-1", logs[0].Resource)
+	assert.Equal(t, "admin-1", logs[0].UserID)
+	assert.Equal(t, "alice", logs[0].Username)
+}
