@@ -7,6 +7,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot/pkg/migration"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/mss-boot-io/mss-boot-admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
@@ -81,7 +82,9 @@ func _20260607162058SessionMenus(db *gorm.DB, version string) error {
 		}
 
 		var defaultRole models.Role
-		if err := tx.Model(&models.Role{}).Where("`default` = ?", true).First(&defaultRole).Error; err != nil {
+		if err := tx.Model(&models.Role{}).
+			Where(clause.Eq{Column: clause.Column{Name: "default"}, Value: true}).
+			First(&defaultRole).Error; err != nil {
 			// No default role on this install (fresh DB before role seed) —
 			// leave Casbin policies unseeded; admin role will be Root anyway.
 			if errors.Is(err, gorm.ErrRecordNotFound) {
