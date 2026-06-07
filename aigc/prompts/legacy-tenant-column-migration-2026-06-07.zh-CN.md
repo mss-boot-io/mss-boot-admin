@@ -18,3 +18,8 @@
 - `go test ./cmd/migrate/migration/system`。
 - dev 环境新镜像 init migration 不再因 `tenant_id` 非空失败。
 - 后续 #371/#372 的 dev 验证必须基于包含该迁移兼容修复的验证镜像。
+
+## 追加发现
+
+- 解除 `tenant_id NOT NULL` 后，dev migration 继续暴露 PostgreSQL 方言问题：`Menu.AfterCreate` 和 `1691847581348` 迁移使用 MySQL 反引号查询 `default` 列。
+- 修复方式：统一使用 `gorm.io/gorm/clause` 构造 `default = true` 条件，让 GORM 按当前数据库方言 quote 标识符。
