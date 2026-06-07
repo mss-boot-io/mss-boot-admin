@@ -90,6 +90,8 @@ func (e *Config) Init(opts ...source.Option) {
 
 	if e.Cache != nil {
 		var cacheAdapter storage.AdapterCache
+		// Cache.Init invokes set before queryCache in the same goroutine when Redis is configured.
+		// bindQueryCache relies on that order so it can reuse the initialized cache adapter.
 		e.Cache.Init(func(c storage.AdapterCache) {
 			cacheAdapter = c
 			center.SetCache(c)
@@ -135,7 +137,11 @@ func (e *Config) Init(opts ...source.Option) {
 }
 
 func bindQueryCache(cache queryCacheAdapter, tx *gorm.DB, _ time.Duration) {
-	if cache == nil || tx == nil {
+	if tx == nil {
+		return
+	}
+	if cache == nil {
+		slog.Warn("query cache enabled but no cache adapter available; check cache.redis configuration")
 		return
 	}
 	if err := cache.Initialize(tx); err != nil {
@@ -144,6 +150,7 @@ func bindQueryCache(cache queryCacheAdapter, tx *gorm.DB, _ time.Duration) {
 	}
 	responsegorm.CleanCacheFromTag = func(ctx context.Context, tag string) error {
 		if tag == "" {
+			slog.Warn("CleanCacheFromTag called with empty tag; model TableName() may be misconfigured")
 			return nil
 		}
 		return cache.RemoveFromTag(ctx, queryCacheTagPrefix+tag)
