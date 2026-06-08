@@ -27,4 +27,5 @@
 - `tenant-removal-impact-plan.zh-CN.md`
 - `tenant-removal-handoff-summary.zh-CN.md`
 - `legacy-tenant-column-migration-2026-06-07.zh-CN.md`
+- `language-fallback-test-2026-06-09.zh-CN.md`
 - `readme-test-rbac-glossary-2026-06-09.zh-CN.md`
