@@ -83,8 +83,8 @@ The project has undergone comprehensive polish rounds focusing on:
 
 ## 📦 Preparation
 - Install Go 1.26+
-- Install mysql8.0+
-- Install nodejs18.16.0+
+- Optional for backend integration testing: MySQL 8.0+ and Redis 7+
+- Frontend development: Node.js 22+ and pnpm 9+
 
 ## 📦 Quick start
 ### 1. Download the project
@@ -99,11 +99,13 @@ git clone https://github.com/mss-boot-io/mss-boot-admin-antd.git
 ```shell
 # Enter the backend project
 cd mss-boot-admin
-# Configure database connection information (can be modified according to actual situation)
-export DB_DSN="root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8mb4&parseTime=True&loc=Local"
-# Migrate the database
+# The default local config uses SQLite: mss-boot-admin-local.db
 go run main.go migrate
 ```
+
+If you want to use MySQL locally, start `compose/mysql/docker-compose.yml` and update
+`config/application.yml` (`database.driver` and `database.source`) before running the
+migration command.
 
 ### 3. Generate API interface information
 ```shell
@@ -122,9 +124,10 @@ go run main.go server
 # Enter the front-end project
 cd mss-boot-admin-antd
 # Install dependencies
-npm install
+corepack enable
+pnpm install
 # Start the front-end service
-npm run start
+pnpm start:dev
 ```
 
 ## 📨 Interaction
