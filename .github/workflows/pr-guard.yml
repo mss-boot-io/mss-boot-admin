@@ -1,0 +1,16 @@
+name: PR Guard
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard:
+    uses: mss-boot-io/.github/.github/workflows/pr-guard.yml@main
+    with:
+      max_changed_files: 140

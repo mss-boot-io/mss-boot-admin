@@ -1,8 +1,8 @@
 module github.com/mss-boot-io/mss-boot-admin/compose/kafka
 
-go 1.21
+go 1.23
 
-require github.com/segmentio/kafka-go v0.4.47
+require github.com/segmentio/kafka-go v0.4.51
 
 require (
 	github.com/klauspost/compress v1.15.9 // indirect

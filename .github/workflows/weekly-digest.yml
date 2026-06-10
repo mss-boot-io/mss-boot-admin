@@ -1,0 +1,16 @@
+name: Weekly Digest
+
+on:
+  schedule:
+    - cron: "7 21 * * 0"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  digest:
+    uses: mss-boot-io/.github/.github/workflows/weekly-digest.yml@main

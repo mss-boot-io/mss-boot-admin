@@ -17,6 +17,7 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	// "github.com/mss-boot-io/mss-boot/virtual/action" // disabled: virtual model feature
+	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 
@@ -24,7 +25,9 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/pkg/sessioncache"
 	"github.com/mss-boot-io/mss-boot-admin/router"
+	"github.com/mss-boot-io/mss-boot-admin/service"
 )
 
 /*
@@ -155,6 +158,10 @@ func setup() error {
 
 	// setup 02 middleware init
 	middleware.Verifier = center.GetUser()
+	// Session cache reuses the upstream Redis client wired by Cache.Init
+	// (via center.SetCache). When Redis is not configured Cache falls
+	// back to an in-memory throttle for last_seen updates.
+	service.Session.SetCache(sessioncache.New(redisClientFromCenter()))
 	middleware.Init()
 
 	// setup 03 router init
@@ -188,6 +195,7 @@ func setup() error {
 			task.New(
 				task.WithStorage(&models.TaskStorage{DB: gormdb.DB}),
 				task.WithSchedule("task", config.Cfg.Task.Spec, &taskE{}),
+				task.WithSchedule("session-cleanup", "0 30 3 * * *", taskSessionCleanup{}),
 			),
 		)
 	}
@@ -269,4 +277,28 @@ func (t *taskE) Run() {
 			}
 		}
 	}
+}
+
+type taskSessionCleanup struct{}
+
+func (taskSessionCleanup) Run() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	n, err := service.Session.CleanupOlderThan(ctx, gormdb.DB, 30*24*time.Hour)
+	if err != nil {
+		slog.Error("session cleanup failed", "err", err)
+		return
+	}
+	slog.Info("session cleanup done", "deleted", n)
+}
+
+// redisClientFromCenter returns the Redis client wired by the upstream
+// mss-boot Cache.Init (via center.SetCache). Returns nil when Redis is not
+// configured; callers should degrade gracefully.
+func redisClientFromCenter() redis.UniversalClient {
+	cc := center.GetCache()
+	if cc == nil {
+		return nil
+	}
+	return cc
 }

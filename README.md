@@ -1,8 +1,8 @@
 # mss-boot-admin
 
-[![Build Status](https://github.com/mss-boot-io/mss-boot-admin/workflows/CI/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin)
+[![CI](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/ci.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/mss-boot-io/mss-boot-admin.svg?style=flat-square)](https://github.com/mss-boot-io/mss-boot-admin/releases)
-[![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://github.com/mss-boot-io/mss-boot-admin)
+[![License](https://img.shields.io/github/license/mss-boot-io/mss-boot-admin.svg?style=flat-square)](https://github.com/mss-boot-io/mss-boot-admin/blob/main/LICENSE)
 
 English | [简体中文](./README.zh-CN.md)
 
@@ -66,6 +66,20 @@ The project has undergone comprehensive polish rounds focusing on:
 - Internationalization management: Manage internationalization resources.
 - Account and token management: Support OAuth2 binding and personal access tokens.
 - Monitoring and statistics: Provide runtime visibility and statistics querying capabilities.
+
+## RBAC Glossary
+
+| Term | Meaning in mss-boot-admin |
+| --- | --- |
+| User | A system operator. Users authenticate, receive roles, and operate within the permissions granted by those roles. |
+| Role | A permission group stored in `mss_boot_roles`. Roles are the main subject in Casbin policies and are assigned to users. |
+| Menu | A frontend navigation or permission node stored in `mss_boot_menus`. Menu records can represent directories, pages, components, or API permission nodes. |
+| API | A backend route record stored in `mss_boot_api`, usually generated from Gin route metadata and used for permission governance. |
+| Permission path | The menu/API path written into authorization requests and Casbin rules. Duplicate or blank paths are ignored before rules are built. |
+| Casbin rule | A policy row in `mss_boot_casbin_rule`. The common shape is `p, roleID, accessType, path, method`. |
+| Access type | The rule scope, such as `MENU`, `API`, or component access. Role authorization can combine menu rules and child API rules. |
+| Data scope | The organization/data boundary attached to a role. It controls which department-owned data a role should be able to access. |
+| Default role | A role marked as default. New menu access can be granted to it automatically when menu records are created. |
 
 ## 📦 Preparation
 - Install Go 1.26+
@@ -166,6 +180,18 @@ If you think this project helped you, you can buy a glass of juice for the autho
 ## Testing
 
 The project follows strict testing requirements to ensure code quality and reliability.
+
+### Local Test Prerequisites
+
+`make test` runs `go test -coverprofile=coverage.out ./...`. Before opening a backend PR, check these local prerequisites:
+
+- Use Go 1.26+, matching `go.mod` and GitHub Actions.
+- Run `make deps` once after pulling dependency or `go.sum` changes.
+- Redis-backed tests generally use `miniredis`, but a local Redis 7 instance is useful when validating cache/session behavior manually.
+- No real production DSN, token, Kubernetes cluster, or private credential is required for `make test`.
+- CI starts Redis 7 with `supercharge/redis-github-action`, then runs `make deps`, `make test`, and `make build`.
+
+If a local test fails because an optional external service is unavailable, mention that in the PR verification notes and include the exact command output. Do not paste real credentials or production endpoints.
 
 ### Test Types
 

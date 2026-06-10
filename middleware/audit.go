@@ -15,16 +15,6 @@ import (
 	"github.com/mss-boot-io/mss-boot/pkg/response"
 )
 
-type responseWriter struct {
-	gin.ResponseWriter
-	body *bytes.Buffer
-}
-
-func (w *responseWriter) Write(b []byte) (int, error) {
-	w.body.Write(b)
-	return w.ResponseWriter.Write(b)
-}
-
 func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 	skipMap := make(map[string]bool)
 	for _, path := range skipPaths {
@@ -33,9 +23,6 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		start := time.Now()
-
-		blw := &responseWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
-		c.Writer = blw
 
 		var requestBody string
 		if c.Request.Body != nil && c.Request.Method != http.MethodGet {
