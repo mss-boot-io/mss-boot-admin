@@ -1,6 +1,6 @@
 PROJECT:=mss-boot-admin
 
-.PHONY: build
+.PHONY: build test deps generate lint fix-lint
 
 build:
 	CGO_ENABLED=0 go build -o admin main.go

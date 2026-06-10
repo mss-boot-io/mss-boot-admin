@@ -269,8 +269,10 @@ type Config struct {
 ```
 
 #### 环境变量约定
-- `DB_DSN` - 数据库连接字符串（必需）
-- `REDIS_ADDR` - Redis地址
+- 默认本地开发读取 `config/application.yml`，当前基线使用 SQLite: `mss-boot-admin-local.db`。
+- `DB_DSN` - 数据库连接字符串；仅在使用 GORM/远程配置源或自定义数据库配置时需要。
+- `DB_DRIVER` - 数据库驱动；与 `DB_DSN` 配套使用，常见值为 `mysql`、`postgres`、`sqlite`。
+- `REDIS_ADDR` - Redis 地址；仅在启用 Redis 缓存、队列或分布式锁时需要。
 - `CONFIG_CENTER` - 配置中心地址
 - `LOG_LEVEL` - 日志级别
 
@@ -340,8 +342,8 @@ pkg.RegisterTaskHandler("your-handler", YourHandlerFunc)
 
 #### 启动流程
 ```bash
-# 1. 设置数据库连接
-export DB_DSN="user:pass@tcp(host:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local"
+# 1. 默认本地配置使用 SQLite
+# 如需 MySQL/PostgreSQL，请先修改 config/application.yml 的 database 配置。
 
 # 2. 数据库迁移
 go run main.go migrate
@@ -414,7 +416,8 @@ go run main.go server
 - 查看 `mss_boot_casbin_rules` 表数据
 
 #### 3. 数据库迁移问题
-- 检查 `DB_DSN` 环境变量
+- 默认本地开发先检查 `config/application.yml` 的 `database.driver` 与 `database.source`
+- 使用 GORM/远程配置源时再检查 `DB_DRIVER`、`DB_DSN` 环境变量
 - 确认数据库版本兼容性
 - 查看 `cmd/migrate/migration/` 迁移文件
 
