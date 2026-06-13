@@ -41,7 +41,16 @@ func migrateStandardOptions(tx *gorm.DB) error {
 	}
 	for _, c := range cols {
 		var count int64
-		tx.Raw("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mss_boot_options' AND column_name = ?", c.name).Scan(&count)
+		schemaExpr := "table_schema = DATABASE()"
+		if tx.Dialector.Name() != "mysql" {
+			schemaExpr = "table_schema = current_schema()"
+		}
+		if err := tx.Raw(
+			"SELECT COUNT(*) FROM information_schema.columns WHERE "+schemaExpr+" AND table_name = 'mss_boot_options' AND column_name = ?",
+			c.name,
+		).Scan(&count).Error; err != nil {
+			return err
+		}
 		if count == 0 {
 			if err := tx.Exec("ALTER TABLE mss_boot_options ADD COLUMN " + c.name + " " + c.def).Error; err != nil {
 				return err
