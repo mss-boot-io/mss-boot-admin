@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
 	github.com/aws/aws-sdk-go-v2/service/eks v1.84.5
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.2
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.40.2
 	github.com/casbin/casbin/v2 v2.135.0
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
@@ -64,9 +64,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.30 // indirect
 	github.com/aws/aws-sdk-go-v2/service/appconfigdata v1.24.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.12 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.29 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.28 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.30 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.2.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.31.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.6 // indirect
