@@ -1,11 +1,6 @@
 name: One-time Go security dependency migration
 
 on:
-  push:
-    branches:
-      - codex/monorepo-integration
-    paths:
-      - '.github/workflows/security-dependency-migration.yml'
   pull_request:
     branches:
       - main
