@@ -9,7 +9,9 @@
 | `web/antd/` | React + Ant Design frontend |
 | `docs/` | Dumi documentation site |
 
-`go.work` activates the backend and framework modules together. Do not add a permanent local `replace` directive to either published `go.mod`; workspace mode is the source of truth for repository-local development.
+`go.work` activates the backend and framework modules together. Do not add a local `replace` directive to either published `go.mod`; workspace mode is the source of truth for repository-local development.
+
+Until the first nested-module tag is published, `go.work` contains a version-scoped bridge from `mss-boot v0.8.0` to `./mss-boot`. After publishing `mss-boot/v0.8.0`, remove that bridge, refresh the root module metadata, and verify a build with `GOWORK=off`.
 
 ## Common commands
 
