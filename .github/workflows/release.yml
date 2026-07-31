@@ -9,22 +9,16 @@ permissions:
   contents: read
 
 env:
-  # Use docker.io for Docker Hub if empty
   REGISTRY: ghcr.io
-  # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        os: [linux, windows, darwin]
-        arch: [amd64, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Setup golang
+      - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version: 1.26
@@ -33,74 +27,103 @@ jobs:
         with:
           redis-version: 7
       - name: Install dependencies
-        run: make deps
-      - name: Unit Test
-        run: make test
-      - name: Build
-        run: GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o admin
-      - name: Windows
-        if: matrix.os == 'windows'
-        run: mv admin admin.exe
-      - name: Archive artifact
-        if: matrix.os != 'windows'
+        run: make deps-all
+      - name: Unit tests
+        run: make test-all
+
+  backend-build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, windows, darwin]
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.26
+      - name: Build backend
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          output=admin
+          if [[ "${GOOS}" == "windows" ]]; then
+            output=admin.exe
+          fi
+          go build -trimpath -o "${output}" .
+      - name: Upload backend artifact
         uses: actions/upload-artifact@v7
         with:
           name: admin-${{ matrix.os }}-${{ matrix.arch }}
           path: |
             admin
-            public
-            config/*.yml
-      - name: Archive artifact
-        if: matrix.os == 'windows'
-        uses: actions/upload-artifact@v7
-        with:
-          name: admin-${{ matrix.os }}-${{ matrix.arch }}
-          path: |
             admin.exe
             public
             config/*.yml
+          if-no-files-found: error
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/antd
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/antd/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build local frontend
+        run: pnpm build:local
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: web/antd/dist
+          if-no-files-found: error
 
   release:
+    needs:
+      - backend-build
+      - frontend-build
     runs-on: ubuntu-latest
-    needs: build
     permissions:
       contents: write
     steps:
-      - name: Download artifact
+      - name: Download all artifacts
         uses: actions/download-artifact@v8
 
-      - name: Get latest release version
-        id: get_release
+      - name: Assemble release packages
         run: |
-          LATEST_RELEASE=$(curl -s https://api.github.com/repos/mss-boot-io/mss-boot-admin-antd/releases/latest)
-          VERSION=$(echo $LATEST_RELEASE | jq -r '.tag_name')
-          echo "LATEST_RELEASE_VERSION=${VERSION}" >> $GITHUB_ENV
+          set -euo pipefail
+          test -d frontend-dist
+          for dir in admin-linux-amd64 admin-linux-arm64 admin-darwin-amd64 admin-darwin-arm64 admin-windows-amd64 admin-windows-arm64; do
+            test -d "${dir}"
+            rm -rf "${dir}/dist"
+            cp -a frontend-dist "${dir}/dist"
+            zip -r "${dir}.zip" "${dir}"
+          done
 
-      - name: Download dist-local.tar.gz
-        run: |
-          wget https://github.com/mss-boot-io/mss-boot-admin-antd/releases/download/${{ env.LATEST_RELEASE_VERSION }}/dist-local.tar.gz
-          tar -zxvf dist-local.tar.gz
-          cp -r dist admin-linux-amd64/
-          cp -r dist admin-linux-arm64/
-          cp -r dist admin-darwin-amd64/
-          cp -r dist admin-darwin-arm64/
-          cp -r dist admin-windows-amd64/
-          cp -r dist admin-windows-arm64/
+      - name: Resolve version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Package
-        run: |
-          zip -r admin-linux-amd64.zip admin-linux-amd64
-          zip -r admin-linux-arm64.zip admin-linux-arm64
-          zip -r admin-darwin-amd64.zip admin-darwin-amd64
-          zip -r admin-darwin-arm64.zip admin-darwin-arm64
-          zip -r admin-windows-amd64.zip admin-windows-amd64
-          zip -r admin-windows-arm64.zip admin-windows-arm64
-
-      - name: Get version
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-
-      - name: Release
+      - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
@@ -113,7 +136,7 @@ jobs:
             admin-windows-arm64.zip
           prerelease: false
           body: |
-            ## Pull Image
+            ## Pull image
             ```shell
-            docker pull ghcr.io/${{ github.repository }}:${{ steps.get_version.outputs.VERSION }}
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
             ```
