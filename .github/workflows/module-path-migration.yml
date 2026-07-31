@@ -1,11 +1,6 @@
 name: One-time framework module path migration
 
 on:
-  push:
-    branches:
-      - codex/monorepo-integration
-    paths:
-      - '.github/workflows/module-path-migration.yml'
   pull_request:
     branches:
       - main
@@ -18,7 +13,7 @@ permissions:
 
 concurrency:
   group: mss-boot-admin-module-path-migration
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   migrate:
@@ -37,6 +32,11 @@ jobs:
         with:
           go-version: '1.26'
 
+      - name: Start Redis
+        uses: supercharge/redis-github-action@1.8.1
+        with:
+          redis-version: 7
+
       - name: Configure Git identity
         run: |
           git config user.name "github-actions[bot]"
@@ -51,26 +51,41 @@ jobs:
 
           old = "github.com/mss-boot-io/mss-boot"
           new = "github.com/mss-boot-io/mss-boot-admin/mss-boot"
+          framework_version = "v0.8.0"
           skip_roots = {".git", "vendor", "docs", "web", "aigc"}
 
+          # Match the former module only at a real Go-module boundary. This must
+          # not match the target repository path, whose next character is '-'.
+          old_module_pattern = re.compile(
+              re.escape(old) + r"(?=$|[/@\s\"'])"
+          )
+
+          active_files: list[Path] = []
           for path in Path(".").rglob("*"):
               if not path.is_file() or any(part in skip_roots for part in path.parts):
                   continue
               if path.suffix != ".go" and path.name != "go.mod":
                   continue
+              active_files.append(path)
               try:
                   text = path.read_text(encoding="utf-8")
               except UnicodeDecodeError:
                   continue
-              updated = text.replace(old, new)
+              updated = old_module_pattern.sub(new, text)
               if updated != text:
                   path.write_text(updated, encoding="utf-8")
 
           root_go_mod = Path("go.mod")
           root_text = root_go_mod.read_text(encoding="utf-8")
+          expected_root_module = "module github.com/mss-boot-io/mss-boot-admin\n"
+          if not root_text.startswith(expected_root_module):
+              raise SystemExit(
+                  "root module path changed unexpectedly; refusing to commit migration"
+              )
+
           root_text, replacements = re.subn(
               rf"(?m)^(\s*){re.escape(new)}\s+v[^\s]+(\s*(?://.*)?)$",
-              rf"\1{new} v0.7.3\2",
+              rf"\1{new} {framework_version}\2",
               root_text,
               count=1,
           )
@@ -80,15 +95,36 @@ jobs:
               raise SystemExit("a permanent local replace directive is not allowed")
           root_go_mod.write_text(root_text, encoding="utf-8")
 
+          framework_go_mod = Path("mss-boot/go.mod")
+          framework_text = framework_go_mod.read_text(encoding="utf-8")
+          expected_framework_module = f"module {new}\n"
+          if not framework_text.startswith(expected_framework_module):
+              raise SystemExit("framework module path was not migrated correctly")
+
+          # The new nested module tag does not exist until after this PR merges.
+          # Workspace mode does not require a checksum for another workspace
+          # module, so remove only the obsolete standalone-module checksums.
+          root_go_sum = Path("go.sum")
+          sum_lines = root_go_sum.read_text(encoding="utf-8").splitlines()
+          sum_lines = [line for line in sum_lines if not line.startswith(old + " ")]
+          root_go_sum.write_text("\n".join(sum_lines) + "\n", encoding="utf-8")
+
           makefile = Path("Makefile")
           make_text = makefile.read_text(encoding="utf-8")
-          make_text = make_text.replace("\tGOWORK=off go mod download\n", "\tgo mod download\n", 1)
-          makefile.write_text(make_text, encoding="utf-8")
+          old_deps = "deps:\n\tGOWORK=off go mod download\n"
+          new_deps = "deps:\n\tgo list -deps ./... >/dev/null\n"
+          if old_deps not in make_text:
+              raise SystemExit("unexpected root deps target in Makefile")
+          makefile.write_text(
+              make_text.replace(old_deps, new_deps, 1), encoding="utf-8"
+          )
 
           def replace_required(path: Path, old_text: str, new_text: str) -> None:
               text = path.read_text(encoding="utf-8")
               if old_text not in text:
-                  raise SystemExit(f"expected text not found in {path}: {old_text[:80]!r}")
+                  raise SystemExit(
+                      f"expected text not found in {path}: {old_text[:80]!r}"
+                  )
               path.write_text(text.replace(old_text, new_text, 1), encoding="utf-8")
 
           readme = Path("README.md")
@@ -163,29 +199,26 @@ jobs:
           )
           replace_required(readme_zh, "cd mss-boot-admin-antd", "cd web/antd")
 
-          for path in (Path("mss-boot/README.md"), Path("mss-boot/README.Zh-cn.md")):
-              text = path.read_text(encoding="utf-8")
-              text = text.replace(
-                  "go get github.com/mss-boot-io/mss-boot@v0.7.3",
-                  f"go get {new}@v0.7.3",
-              )
-              text = text.replace(
-                  '"github.com/mss-boot-io/mss-boot/core/server"',
-                  f'"{new}/core/server"',
-              )
-              text = text.replace(
-                  '"github.com/mss-boot-io/mss-boot/pkg/log"',
-                  f'"{new}/pkg/log"',
-              )
-              text = text.replace(
-                  "https://github.com/mss-boot-io/mss-boot/issues",
-                  "https://github.com/mss-boot-io/mss-boot-admin/issues",
-              )
-              text = text.replace(
-                  "https://raw.githubusercontent.com/mss-boot-io/mss-boot/main/LICENSE",
-                  "https://raw.githubusercontent.com/mss-boot-io/mss-boot-admin/main/mss-boot/LICENSE",
-              )
-              path.write_text(text, encoding="utf-8")
+          framework_readme = Path("mss-boot/README.md")
+          framework_readme_text = framework_readme.read_text(encoding="utf-8")
+          framework_readme_text = framework_readme_text.replace(
+              "go get github.com/mss-boot-io/mss-boot@v0.7.3",
+              f"go get {new}@{framework_version}",
+          )
+          framework_readme_text = old_module_pattern.sub(
+              new, framework_readme_text
+          )
+          framework_readme.write_text(framework_readme_text, encoding="utf-8")
+
+          framework_readme_zh = Path("mss-boot/README.Zh-cn.md")
+          framework_readme_zh_text = framework_readme_zh.read_text(encoding="utf-8")
+          framework_readme_zh_text = framework_readme_zh_text.replace(
+              "go get github.com/mss-boot-io/mss-boot@v0.7.3",
+              f"go get {new}@{framework_version}",
+          )
+          framework_readme_zh.write_text(
+              framework_readme_zh_text, encoding="utf-8"
+          )
 
           monorepo_guide = """# Monorepo guide
 
@@ -216,7 +249,7 @@ jobs:
           - Ant Design frontend: `web/antd/vX.Y.Z`
           - Documentation: built and deployed from `main`
 
-          For a coordinated release, publish the framework tag before the backend tag so the backend's `go.mod` requirement is available outside workspace mode.
+          The first framework release after consolidation is `mss-boot/v0.8.0`. For a coordinated release, publish the framework tag before the backend tag so the backend's `go.mod` requirement is available outside workspace mode.
 
           ## Workflow location
 
@@ -227,14 +260,28 @@ jobs:
           See `MONOREPO_IMPORTS.md` for the exact source repositories and imported commit revisions. After this migration is merged and production verification succeeds, the three former standalone repositories should be marked deprecated and archived rather than deleted, preserving issues, releases, tags, and external links.
           """
           Path("MONOREPO.md").write_text(
-              "\n".join(line[10:] if line.startswith("          ") else line for line in monorepo_guide.splitlines()) + "\n",
+              "\n".join(
+                  line[10:] if line.startswith("          ") else line
+                  for line in monorepo_guide.splitlines()
+              )
+              + "\n",
               encoding="utf-8",
           )
+
+          # Verify that no live Go source or module manifest still references the
+          # old framework module, while the root module remains untouched.
+          leftovers: list[str] = []
+          for path in active_files:
+              text = path.read_text(encoding="utf-8")
+              if old_module_pattern.search(text):
+                  leftovers.append(str(path))
+          if leftovers:
+              raise SystemExit(
+                  "old framework module references remain in: " + ", ".join(leftovers)
+              )
           PY
 
           git diff --name-only -z -- '*.go' | xargs -0 -r gofmt -w
-          go mod tidy
-          (cd mss-boot && GOWORK=off go mod tidy)
 
       - name: Commit migration before validation
         run: |
@@ -247,6 +294,7 @@ jobs:
       - name: Validate committed Go workspace
         run: |
           set -euo pipefail
+          test "$(go env GOWORK)" = "${GITHUB_WORKSPACE}/go.work"
           make deps-all
           make test-all
           go work vendor
