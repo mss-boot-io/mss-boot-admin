@@ -41,21 +41,117 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Migrate go-github imports
+      - name: Migrate go-github API
         run: |
           set -euo pipefail
           python3 <<'PY'
           from pathlib import Path
 
-          old = 'github.com/google/go-github/v41/github'
-          new = 'github.com/google/go-github/v88/github'
-          files = [Path('pkg/git.go'), Path('pkg/gist.go'), Path('pkg/gist_test.go')]
+          old_import = 'github.com/google/go-github/v41/github'
+          new_import = 'github.com/google/go-github/v88/github'
 
-          for path in files:
+          def replace_required(path: Path, old: str, new: str) -> None:
               text = path.read_text(encoding='utf-8')
               if old not in text:
+                  raise SystemExit(f'expected text not found in {path}: {old[:100]!r}')
+              path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          source_files = [Path('pkg/git.go'), Path('pkg/gist.go'), Path('pkg/gist_test.go')]
+          for path in source_files:
+              text = path.read_text(encoding='utf-8')
+              if old_import not in text:
                   raise SystemExit(f'expected old import not found in {path}')
-              path.write_text(text.replace(old, new), encoding='utf-8')
+              path.write_text(text.replace(old_import, new_import), encoding='utf-8')
+
+          gist = Path('pkg/gist.go')
+          replace_required(gist, '\t"net/http"\n', '')
+          replace_required(gist, '\t"golang.org/x/oauth2"\n', '')
+          replace_required(
+              gist,
+              '''\tctx := context.Background()
+          \tvar tc *http.Client
+          \tif accessToken != "" {
+          \t\tts := oauth2.StaticTokenSource(
+          \t\t\t&oauth2.Token{AccessToken: accessToken},
+          \t\t)
+          \t\ttc = oauth2.NewClient(ctx, ts)
+          \t}
+
+          \tclient := github.NewClient(tc)
+          \treturn gistClone(ctx, client, id, dir)
+          ''',
+              '''\tctx := context.Background()
+          \tvar opts []github.ClientOptionsFunc
+          \tif accessToken != "" {
+          \t\topts = append(opts, github.WithAuthToken(accessToken))
+          \t}
+
+          \tclient, err := github.NewClient(opts...)
+          \tif err != nil {
+          \t\treturn err
+          \t}
+          \treturn gistClone(ctx, client, id, dir)
+          ''',
+          )
+
+          git_file = Path('pkg/git.go')
+          replace_required(git_file, '\t"golang.org/x/oauth2"\n', '')
+          replace_required(
+              git_file,
+              '''\tctx := context.Background()
+          \tts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+          \ttc := oauth2.NewClient(ctx, ts)
+          \tclient := github.NewClient(tc)
+
+          \tr := &github.Repository{Name: &name, Private: &private, Description: &description}
+          ''',
+              '''\tctx := context.Background()
+          \tclient, err := github.NewClient(github.WithAuthToken(token))
+          \tif err != nil {
+          \t\treturn nil, err
+          \t}
+
+          \tr := &github.Repository{Name: &name, Private: &private, Description: &description}
+          ''',
+          )
+          replace_required(
+              git_file,
+              '''\tts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+          \ttc := oauth2.NewClient(ctx, ts)
+          \tclient := github.NewClient(tc)
+
+          \tbranches, _, err := client.Repositories.ListBranches(ctx, organization, name, &github.BranchListOptions{
+          ''',
+              '''\tclient, err := github.NewClient(github.WithAuthToken(token))
+          \tif err != nil {
+          \t\treturn nil, err
+          \t}
+
+          \tbranches, _, err := client.Repositories.ListBranches(ctx, organization, name, &github.BranchListOptions{
+          ''',
+          )
+
+          gist_test = Path('pkg/gist_test.go')
+          replace_required(gist_test, '\t"net/url"\n', '')
+          replace_required(
+              gist_test,
+              '''\tclient := github.NewClient(server.Client())
+          \tbaseURL, err := url.Parse(server.URL + "/")
+          \tif err != nil {
+          \t\tt.Fatalf("parse test server url: %v", err)
+          \t}
+          \tclient.BaseURL = baseURL
+          ''',
+              '''\tbaseURL := server.URL + "/"
+          \tclient, err := github.NewClient(
+          \t\tgithub.WithHTTPClient(server.Client()),
+          \t\tgithub.WithURLs(&baseURL, nil),
+          \t)
+          \tif err != nil {
+          \t\tt.Fatalf("create GitHub client: %v", err)
+          \t}
+          ''',
+          )
           PY
           gofmt -w pkg/git.go pkg/gist.go pkg/gist_test.go
 
