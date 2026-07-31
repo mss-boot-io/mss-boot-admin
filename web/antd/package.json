@@ -24,7 +24,7 @@
     "lint:prettier": "prettier -c --write \"**/**.{js,jsx,tsx,ts,less,md,json}\" --end-of-line auto",
     "openapi": "max openapi",
     "playwright:install": "playwright install chromium",
-    "prepare": "husky install",
+    "prepare": "cd ../.. && husky install web/antd/.husky",
     "prettier": "prettier -c --write \"**/**.{js,jsx,tsx,ts,less,md,json}\"",
     "preview": "pnpm build && max preview --port 8000",
     "record": "cross-env NODE_ENV=development REACT_APP_ENV=test max record --scene=login",
