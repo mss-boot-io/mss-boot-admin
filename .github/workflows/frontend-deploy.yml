@@ -1,0 +1,25 @@
+name: Deploy Frontend
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - alpha
+          - beta
+          - prod
+        default: beta
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/frontend-cloudflare.yml
+    with:
+      env: ${{ inputs.env }}
+    secrets:
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
