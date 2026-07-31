@@ -49,7 +49,7 @@ jobs:
 
           old = 'github.com/google/go-github/v41/github'
           new = 'github.com/google/go-github/v88/github'
-          files = [Path('pkg/git.go'), Path('pkg/gist.go')]
+          files = [Path('pkg/git.go'), Path('pkg/gist.go'), Path('pkg/gist_test.go')]
 
           for path in files:
               text = path.read_text(encoding='utf-8')
@@ -57,7 +57,7 @@ jobs:
                   raise SystemExit(f'expected old import not found in {path}')
               path.write_text(text.replace(old, new), encoding='utf-8')
           PY
-          gofmt -w pkg/git.go pkg/gist.go
+          gofmt -w pkg/git.go pkg/gist.go pkg/gist_test.go
 
       - name: Upgrade vulnerable dependencies
         run: |
