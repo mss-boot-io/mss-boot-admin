@@ -6,6 +6,11 @@ on:
       - codex/monorepo-integration
     paths:
       - '.github/workflows/security-dependency-migration.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/security-dependency-migration.yml'
   workflow_dispatch:
 
 permissions:
@@ -13,10 +18,11 @@ permissions:
 
 concurrency:
   group: mss-boot-admin-security-dependency-migration
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   migrate:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout migration branch
