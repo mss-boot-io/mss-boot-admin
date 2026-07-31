@@ -27,10 +27,10 @@ jobs:
           go-version-file: go.mod
           go-package: ./...
           repo-checkout: false
-      - name: Run submodule govulncheck
+      - name: Run nested-module govulncheck
         run: |
           set -euo pipefail
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          for dir in cmd/tools/pr compose/consul compose/kafka; do
-            (cd "$dir" && govulncheck ./...)
+          for dir in mss-boot cmd/tools/pr compose/consul compose/kafka; do
+            (cd "$dir" && GOWORK=off govulncheck ./...)
           done
