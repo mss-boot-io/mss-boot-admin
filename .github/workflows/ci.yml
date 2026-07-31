@@ -4,6 +4,7 @@ on:
   push:
     paths-ignore:
       - 'docs/**'
+      - 'web/antd/**'
       - '.github/**'
       - '.gitignore'
     branches:
@@ -43,9 +44,9 @@ jobs:
           with:
             redis-version: 7
         - name: Install dependencies
-          run: make deps
+          run: make deps-all
         - name: Unit Test
-          run: make test
+          run: make test-all
 
         - name: Convert coverage report to table
           run: go tool cover -func=coverage.out | tail -n +2 | awk '{print "|",$1,"|",$3,"|"}' > coverage_table.md
@@ -61,8 +62,8 @@ jobs:
             COVERAGE_FILE: ../../../coverage_table.md
         - name: Build
           run: make build
-        - name: Vendor
-          run: go mod vendor
+        - name: Vendor workspace
+          run: go work vendor
 
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
@@ -101,14 +102,13 @@ jobs:
               type=sha,prefix=,format=long,enable=true,priority=100
 
       # Build and push Docker image with Buildx (don't push on PR)
-      # https://github.com/docker/build-push-action
-        - name: Build and push Docker image
-          if: github.event_name != 'pull_request'
-          uses: docker/build-push-action@v7
-          with:
-            context: .
-            file: Dockerfile
-            push: ${{ github.event_name != 'pull_request' }}
-            tags: ${{ steps.meta.outputs.tags }}
-            labels: ${{ steps.meta.outputs.labels }}
-            platforms: linux/amd64
+      - name: Build and push Docker image
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
