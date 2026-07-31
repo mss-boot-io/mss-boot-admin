@@ -1,0 +1,13 @@
+name = "mss-boot-docs"
+account_id = "126f4a0c75180e9493cb3716f5178574"
+workers_dev = true
+compatibility_date = "2026-03-02"
+
+[assets]
+directory = "./dist"
+
+[env.prod]
+name = "mss-boot-docs"
+routes = [
+	{ pattern = "docs.mss-boot-io.top/*", zone_id = "83499b45e20e8e3c34b2c0b6507c2f66" }
+]
