@@ -1,0 +1,47 @@
+name: Feature Request
+description: Propose a focused mss-boot improvement.
+title: "feat: "
+labels:
+  - enhancement
+  - needs-triage
+  - type/feature
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What limitation or workflow problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the expected behavior and the smallest useful scope.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Backend/API
+        - Middleware/security
+        - Configuration/deployment
+        - Documentation/examples
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility, migration, or release impact
+      description: Note expected migration, rollback, API, or configuration impact.
+    validations:
+      required: false

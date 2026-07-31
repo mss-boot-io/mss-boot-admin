@@ -1,0 +1,16 @@
+name: Issue Triage
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+      - reopened
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  triage:
+    uses: mss-boot-io/.github/.github/workflows/issue-triage.yml@main

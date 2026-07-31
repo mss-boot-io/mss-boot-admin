@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "./proto";
+option java_multiple_files = true;
+option java_package = "mss-boot-io.task";
+option java_outer_classname = "TaskProto";
+
+service Task{
+  // Exec task stream
+  rpc Exec(ExecRequest) returns (stream ExecResponse) {}
+  // Stop task stop, optional
+  rpc Stop(StopRequest) returns (StopResponse) {}
+}
+
+message ExecRequest{
+  string id = 1;
+  optional string name = 2;
+  string command = 3;
+  repeated string args = 4;
+}
+
+message ExecResponse {
+  bytes content = 1;
+}
+
+message StopRequest {
+  string id = 1;
+  optional string name = 2;
+}
+
+message StopResponse {
+  bool success = 1;
+  string message = 2;
+}

@@ -1,0 +1,20 @@
+tableName: test
+fields:
+  - name: id
+    type: string
+    primaryKey: true
+    size: 64
+    creatable: true
+    updatable: false
+    readable: true
+    comment: ID
+    search: exact
+  - name: name
+    type: string
+    size: 63
+    creatable: true
+    updatable: true
+    readable: true
+    comment: 名称
+    index: name_index
+    search: contains
