@@ -112,295 +112,152 @@ func TestRedis_RemoveFromTagHandlesEmptyTag(t *testing.T) {
 }
 
 func TestRedis_HashSet(t *testing.T) {
-	type fields struct {
-		client redis.UniversalClient
-	}
-	type args struct {
-		ctx    context.Context
-		hk     string
-		key    string
-		val    interface{}
-		expire time.Duration
-	}
 	client := testRedisClient(t)
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "hash set",
-			fields: fields{
-				client: client,
-			},
-			args: args{
-				ctx:    context.Background(),
-				hk:     "h-set-test",
-				key:    "h-set-key",
-				val:    "h-set-value",
-				expire: time.Minute,
-			},
-			wantErr: false,
-		},
+	r := &Redis{UniversalClient: client}
+	ctx := context.Background()
+	hashKey := "cache:test:hash-set"
+	field := "field"
+	value := "value"
+	t.Cleanup(func() {
+		_ = r.Del(context.Background(), hashKey).Err()
+	})
+
+	if err := r.HSet(ctx, hashKey, field, value).Err(); err != nil {
+		t.Fatalf("HSet() error = %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := &Redis{
-				UniversalClient: tt.fields.client,
-			}
-			if err := r.HSet(tt.args.ctx, tt.args.hk, tt.args.key, tt.args.val, tt.args.expire).Err(); (err != nil) != tt.wantErr {
-				t.Errorf("HashSet() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
+	if err := r.Expire(ctx, hashKey, time.Minute).Err(); err != nil {
+		t.Fatalf("Expire() error = %v", err)
+	}
+
+	got, err := r.HGet(ctx, hashKey, field).Result()
+	if err != nil {
+		t.Fatalf("HGet() after HSet error = %v", err)
+	}
+	if got != value {
+		t.Fatalf("HGet() after HSet got = %q, want %q", got, value)
+	}
+	ttl, err := r.TTL(ctx, hashKey).Result()
+	if err != nil {
+		t.Fatalf("TTL() error = %v", err)
+	}
+	if ttl <= 0 || ttl > time.Minute {
+		t.Fatalf("TTL() got = %v, want a positive value no greater than %v", ttl, time.Minute)
 	}
 }
 
 func TestRedis_HashGet(t *testing.T) {
-	type fields struct {
-		client redis.UniversalClient
+	client := testRedisClient(t)
+	r := &Redis{UniversalClient: client}
+	ctx := context.Background()
+	hashKey := "cache:test:hash-get"
+	field := "field"
+	want := "value"
+	t.Cleanup(func() {
+		_ = r.Del(context.Background(), hashKey).Err()
+	})
+
+	if err := r.HSet(ctx, hashKey, field, want).Err(); err != nil {
+		t.Fatalf("seed hash: %v", err)
 	}
-	type args struct {
-		ctx context.Context
-		hk  string
-		key string
+	got, err := r.HGet(ctx, hashKey, field).Result()
+	if err != nil {
+		t.Fatalf("HGet() error = %v", err)
 	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    string
-		wantErr bool
-	}{
-		{
-			name: "hash get",
-			fields: fields{
-				client: testRedisClient(t),
-			},
-			args: args{
-				ctx: context.Background(),
-				hk:  "h-set-test",
-				key: "h-set-key",
-			},
-			want:    "h-set-value",
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := &Redis{
-				UniversalClient: tt.fields.client,
-			}
-			got, err := r.HGet(tt.args.ctx, tt.args.hk, tt.args.key).Result()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("HashGet() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("HashGet() got = %v, want %v", got, tt.want)
-			}
-		})
+	if got != want {
+		t.Fatalf("HGet() got = %q, want %q", got, want)
 	}
 }
 
 func TestRedis_HashDel(t *testing.T) {
-	type fields struct {
-		client redis.UniversalClient
+	client := testRedisClient(t)
+	r := &Redis{UniversalClient: client}
+	ctx := context.Background()
+	hashKey := "cache:test:hash-del"
+	field := "field"
+	t.Cleanup(func() {
+		_ = r.Del(context.Background(), hashKey).Err()
+	})
+
+	if err := r.HSet(ctx, hashKey, field, "value").Err(); err != nil {
+		t.Fatalf("seed hash: %v", err)
 	}
-	type args struct {
-		ctx context.Context
-		hk  string
-		key string
+	if err := r.HDel(ctx, hashKey, field).Err(); err != nil {
+		t.Fatalf("HDel() error = %v", err)
 	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "hash del",
-			fields: fields{
-				client: testRedisClient(t),
-			},
-			args: args{
-				ctx: context.Background(),
-				hk:  "h-set-test",
-				key: "h-set-key",
-			},
-			wantErr: false,
-		},
+	exists, err := r.HExists(ctx, hashKey, field).Result()
+	if err != nil {
+		t.Fatalf("HExists() error = %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := &Redis{
-				UniversalClient: tt.fields.client,
-			}
-			if err := r.HDel(tt.args.ctx, tt.args.hk, tt.args.key).Err(); (err != nil) != tt.wantErr {
-				t.Errorf("HashDel() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
+	if exists {
+		t.Fatal("HDel() left the field in the hash")
 	}
 }
 
 func TestRedis_Set(t *testing.T) {
-	type fields struct {
-		client redis.UniversalClient
-		opts   Options
-	}
-	type args struct {
-		ctx    context.Context
-		key    string
-		val    interface{}
-		expire time.Duration
-	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
+		name  string
+		key   string
+		value any
 	}{
-		{
-			name: "set",
-			fields: fields{
-				client: testRedisClient(t),
-				opts: Options{
-					QueryCacheDuration: 10 * time.Second,
-				},
-			},
-			args: args{
-				ctx:    context.Background(),
-				key:    "set-test",
-				val:    "set-value",
-				expire: 10 * time.Second,
-			},
-			wantErr: false,
-		},
-		{
-			name: "set with empty value",
-			fields: fields{
-				client: testRedisClient(t),
-				opts: Options{
-					QueryCacheDuration: 10 * time.Second,
-				},
-			},
-			args: args{
-				ctx:    context.Background(),
-				key:    "set-test",
-				val:    "",
-				expire: 10 * time.Second,
-			},
-			wantErr: false,
-		},
-		{
-			name: "set with int value",
-			fields: fields{
-				client: testRedisClient(t),
-				opts: Options{
-					QueryCacheDuration: 10 * time.Second,
-				},
-			},
-			args: args{
-				ctx:    context.Background(),
-				key:    "set-test-int",
-				val:    123,
-				expire: 10 * time.Second,
-			},
-			wantErr: false,
-		},
+		{name: "string", key: "cache:test:set:string", value: "set-value"},
+		{name: "empty string", key: "cache:test:set:empty", value: ""},
+		{name: "integer", key: "cache:test:set:int", value: 123},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &Redis{
-				UniversalClient: tt.fields.client,
-				opts:            tt.fields.opts,
+			client := testRedisClient(t)
+			r := &Redis{UniversalClient: client}
+			ctx := context.Background()
+			t.Cleanup(func() {
+				_ = r.Del(context.Background(), tt.key).Err()
+			})
+
+			if err := r.Set(ctx, tt.key, tt.value, 10*time.Second).Err(); err != nil {
+				t.Fatalf("Set() error = %v", err)
 			}
-			if err := r.Set(tt.args.ctx, tt.args.key, tt.args.val, tt.args.expire).Err(); (err != nil) != tt.wantErr {
-				t.Errorf("Set() error = %v, wantErr %v", err, tt.wantErr)
+			if exists, err := r.Exists(ctx, tt.key).Result(); err != nil || exists != 1 {
+				t.Fatalf("Set() did not persist key, exists=%d err=%v", exists, err)
 			}
 		})
 	}
 }
 
 func TestRedis_Get(t *testing.T) {
-	type fields struct {
-		client redis.UniversalClient
+	client := testRedisClient(t)
+	r := &Redis{UniversalClient: client}
+	ctx := context.Background()
+	key := "cache:test:get"
+	want := "get-value"
+	t.Cleanup(func() {
+		_ = r.Del(context.Background(), key).Err()
+	})
+
+	if err := r.Set(ctx, key, want, time.Minute).Err(); err != nil {
+		t.Fatalf("seed value: %v", err)
 	}
-	type args struct {
-		ctx context.Context
-		key string
+	got, err := r.Get(ctx, key).Result()
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
 	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    string
-		wantErr bool
-	}{
-		{
-			name: "get",
-			fields: fields{
-				client: testRedisClient(t),
-			},
-			args: args{
-				ctx: context.Background(),
-				key: "set-test",
-			},
-			want:    "",
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := &Redis{
-				UniversalClient: tt.fields.client,
-			}
-			got, err := r.Get(tt.args.ctx, tt.args.key).Result()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Get() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("Get() got = %v, want %v", got, tt.want)
-			}
-		})
+	if got != want {
+		t.Fatalf("Get() got = %q, want %q", got, want)
 	}
 }
 
 func TestRedis_Del(t *testing.T) {
-	type fields struct {
-		client redis.UniversalClient
+	client := testRedisClient(t)
+	r := &Redis{UniversalClient: client}
+	ctx := context.Background()
+	key := "cache:test:del"
+
+	if err := r.Set(ctx, key, "value", time.Minute).Err(); err != nil {
+		t.Fatalf("seed value: %v", err)
 	}
-	type args struct {
-		ctx context.Context
-		key string
+	if err := r.Del(ctx, key).Err(); err != nil {
+		t.Fatalf("Del() error = %v", err)
 	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "del",
-			fields: fields{
-				client: testRedisClient(t),
-			},
-			args: args{
-				ctx: context.Background(),
-				key: "set-test",
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := &Redis{
-				UniversalClient: tt.fields.client,
-			}
-			if err := r.Del(tt.args.ctx, tt.args.key).Err(); (err != nil) != tt.wantErr {
-				t.Errorf("Del() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
+	if exists, err := r.Exists(ctx, key).Result(); err != nil || exists != 0 {
+		t.Fatalf("Del() left key behind, exists=%d err=%v", exists, err)
 	}
 }
