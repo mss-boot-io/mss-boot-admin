@@ -59,7 +59,7 @@ jobs:
           PY
           gofmt -w pkg/git.go pkg/gist.go pkg/gist_test.go
 
-      - name: Upgrade vulnerable dependencies
+      - name: Upgrade root application dependencies
         run: |
           set -euo pipefail
           framework='github.com/mss-boot-io/mss-boot-admin/mss-boot'
@@ -87,6 +87,16 @@ jobs:
             echo 'temporary framework replace leaked into go.mod' >&2
             exit 1
           fi
+
+      - name: Upgrade framework dependencies
+        working-directory: mss-boot
+        env:
+          GOWORK: 'off'
+        run: |
+          set -euo pipefail
+          go get google.golang.org/grpc@v1.82.1
+          go get golang.org/x/text@v0.39.0
+          go mod tidy
 
       - name: Test Go workspace
         run: |
