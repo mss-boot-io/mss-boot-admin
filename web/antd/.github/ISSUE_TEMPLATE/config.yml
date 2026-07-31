@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/mss-boot-io/mss-boot-admin-antd/security/policy
+    about: Please do not disclose vulnerabilities in public issues.
+  - name: Public documentation
+    url: https://docs.mss-boot-io.top
+    about: Check the docs before opening a usage question.
+  - name: Backend repository
+    url: https://github.com/mss-boot-io/mss-boot-admin/issues
+    about: Open backend API, data, or server issues in mss-boot-admin.

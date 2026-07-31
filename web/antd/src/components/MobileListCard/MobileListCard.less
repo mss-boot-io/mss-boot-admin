@@ -1,0 +1,71 @@
+.mobileListCard {
+  padding: 0 12px;
+  
+  .card {
+    margin-bottom: 12px;
+    border-radius: 8px;
+    
+    :global {
+      .ant-card-body {
+        padding: 12px;
+      }
+      
+      .ant-card-actions {
+        border-top: 1px solid #f0f0f0;
+        background: #fafafa;
+        border-radius: 0 0 8px 8px;
+        
+        > li {
+          margin: 8px 0;
+          
+          &:not(:last-child) {
+            border-right: 1px solid #f0f0f0;
+          }
+        }
+      }
+    }
+  }
+  
+  .fieldRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    
+    &:not(:last-child) {
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px dashed #f0f0f0;
+    }
+  }
+  
+  .label {
+    flex-shrink: 0;
+    min-width: 70px;
+    font-size: 13px;
+  }
+  
+  .value {
+    flex: 1;
+    text-align: right;
+    font-size: 13px;
+    word-break: break-all;
+    
+    :global {
+      .ant-tag {
+        margin: 0;
+      }
+      
+      .ant-typography {
+        margin-bottom: 0;
+      }
+    }
+  }
+  
+  .empty {
+    text-align: center;
+    padding: 40px 0;
+    background: #fafafa;
+    border-radius: 8px;
+  }
+}

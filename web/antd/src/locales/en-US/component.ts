@@ -1,0 +1,15 @@
+export default {
+  'component.tagSelect.expand': 'Expand',
+  'component.tagSelect.collapse': 'Collapse',
+  'component.tagSelect.all': 'All',
+  'component.search.placeholder': 'Search In Site',
+  'component.noticeIcon.cleared': 'Cleared',
+  'component.noticeIcon.clear': 'Clear',
+  'component.noticeIcon.view-more': 'View More',
+  'component.noticeIcon.notification': 'Notification',
+  'component.noticeIcon.notification.empty': 'You have viewed all notifications',
+  'component.noticeIcon.message': 'Message',
+  'component.noticeIcon.message.empty': 'You have read all the messages',
+  'component.noticeIcon.event': 'Event',
+  'component.noticeIcon.event.empty': 'You have completed all the Event',
+};

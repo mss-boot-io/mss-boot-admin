@@ -1,0 +1,303 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
+}
+
+.colorWeak {
+  filter: invert(80%);
+}
+
+.ant-layout {
+  min-height: 100vh;
+}
+.ant-pro-sider.ant-layout-sider.ant-pro-sider-fixed {
+  left: unset;
+}
+
+canvas {
+  display: block;
+}
+
+body {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+@media (max-width: 768px) {
+  html, body, #root {
+    width: 100%;
+    overflow-x: hidden;
+  }
+  
+  .ant-pro-layout {
+    width: 100%;
+    max-width: 100vw;
+  }
+  
+  .ant-pro-layout-content {
+    width: 100%;
+    max-width: 100vw;
+    padding: 0 !important;
+    margin: 0 !important;
+    margin-left: 0 !important;
+  }
+  
+  .ant-pro-page-container {
+    width: 100%;
+    max-width: 100vw;
+    padding: 12px !important;
+    margin: 0 !important;
+    box-sizing: border-box;
+  }
+  
+  .ant-pro-page-container-children-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box;
+  }
+  
+  .ant-pro-grid-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  .ant-pro-grid-content-children {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  .ant-pro-layout-watermark-wrapper {
+    width: 100% !important;
+    padding: 0 !important;
+  }
+  
+  // 只影响 PageContainer 内容区域，不影响 Drawer 菜单
+  .ant-pro-page-container {
+    .css-dev-only-do-not-override-1a97duy {
+      padding: 0 !important;
+    }
+  }
+  
+  .ant-table {
+    width: 100% !important;
+    max-width: 100%;
+    overflow-x: auto;
+    &-thead > tr,
+    &-tbody > tr {
+      > th,
+      > td {
+        white-space: pre;
+        > span {
+          display: block;
+        }
+      }
+    }
+  }
+
+  .ant-pro-sider.ant-pro-sider-fixed {
+    display: none !important;
+  }
+
+  .ant-pro-layout-content {
+    margin-left: 0 !important;
+    background: var(--ant-color-bg-layout);
+  }
+
+  .ant-pro-layout-header-actions,
+  .ant-pro-layout-header-actions-avatar {
+    display: flex !important;
+  }
+
+  // 移动端抽屉菜单样式 - 支持主题切换
+  .ant-drawer {
+    .ant-drawer-content-wrapper {
+      width: 280px !important;
+      max-width: 85vw !important;
+    }
+    .ant-drawer-content {
+      // 继承主题背景色
+    }
+    .ant-pro-sider {
+      display: block !important;
+      max-width: 100% !important;
+      min-width: 100% !important;
+      width: 100% !important;
+      flex: none !important;
+    }
+    .ant-menu-item,
+    .ant-menu-submenu-title {
+      &:hover {
+        background: rgba(0, 0, 0, 0.04);
+      }
+    }
+    .ant-menu-item-selected {
+      background: rgba(0, 0, 0, 0.04);
+    }
+  }
+  
+  // 深色主题下的菜单样式
+  [data-theme='dark'] {
+    .ant-drawer {
+      .ant-menu-item,
+      .ant-menu-submenu-title {
+        &:hover {
+          background: rgba(255, 255, 255, 0.08);
+        }
+      }
+      .ant-menu-item-selected {
+        background: rgba(255, 255, 255, 0.08);
+      }
+    }
+  }
+
+  .ant-pro-page-container {
+    padding: 12px;
+  }
+
+  .ant-card {
+    margin-bottom: 12px;
+    background: var(--ant-color-bg-container);
+    border-color: var(--ant-color-border);
+  }
+
+  .ant-form-item {
+    margin-bottom: 16px;
+  }
+
+  .ant-pro-table-search {
+    padding: 12px;
+    background: var(--ant-color-bg-container);
+  }
+
+  .ant-pro-table-list-toolbar-container {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ant-pro-table-list-toolbar-left {
+    margin-bottom: 12px;
+  }
+
+  .ant-pro-table-list-toolbar-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .ant-pro-table-list-toolbar-title {
+    font-size: 16px;
+    color: var(--ant-color-text);
+  }
+
+  .ant-modal {
+    max-width: 95vw;
+    margin: 12px auto;
+  }
+
+  .ant-modal-content {
+    padding: 12px;
+    background: var(--ant-color-bg-container);
+  }
+
+  .ant-drawer-content-wrapper {
+    max-width: 95vw;
+  }
+
+  .ant-pro-form-group-title {
+    font-size: 14px;
+    color: var(--ant-color-text);
+  }
+
+  // 按钮样式适配
+  .ant-btn {
+    border-color: var(--ant-color-border);
+  }
+
+  // 输入框样式适配
+  .ant-input,
+  .ant-select-selector,
+  .ant-picker {
+    background: var(--ant-color-bg-container) !important;
+    border-color: var(--ant-color-border) !important;
+  }
+
+  // 列表样式适配
+  .ant-list-item {
+    border-color: var(--ant-color-border);
+  }
+
+  // 表格样式适配
+  .ant-table {
+    background: var(--ant-color-bg-container);
+    .ant-table-thead > tr > th {
+      background: var(--ant-color-bg-layout);
+      color: var(--ant-color-text);
+    }
+    .ant-table-tbody > tr > td {
+      border-color: var(--ant-color-border);
+    }
+    .ant-table-placeholder {
+      background: var(--ant-color-bg-container);
+    }
+  }
+  
+  // Tabs 移动端适配
+  .ant-tabs-top {
+    .ant-tabs-nav {
+      margin-bottom: 12px;
+    }
+    .ant-tabs-tab {
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+  }
+  
+  .ant-tabs-card {
+    .ant-tabs-tab {
+      background: var(--ant-color-bg-container);
+      border-color: var(--ant-color-border);
+    }
+    .ant-tabs-tab-active {
+      background: var(--ant-color-primary-bg);
+    }
+  }
+  
+  // 表单移动端适配
+  .ant-form {
+    .ant-form-item-label {
+      padding-bottom: 4px;
+    }
+    .ant-input,
+    .ant-select-selector,
+    .ant-picker {
+      font-size: 16px;
+    }
+  }
+  
+  // Descriptions 移动端适配
+  .ant-descriptions {
+    .ant-descriptions-item-label {
+      color: var(--ant-color-text-secondary);
+    }
+    .ant-descriptions-item-content {
+      color: var(--ant-color-text);
+    }
+  }
+}

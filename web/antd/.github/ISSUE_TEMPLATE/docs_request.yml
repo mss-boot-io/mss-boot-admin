@@ -1,0 +1,34 @@
+name: Documentation Request
+description: Request clearer frontend docs, examples, or contributor guidance.
+title: "docs: "
+labels:
+  - documentation
+  - area/docs
+  - needs-triage
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page or topic
+      placeholder: "README, local dev, deployment, testing, Cloudflare..."
+    validations:
+      required: true
+  - type: textarea
+    id: gap
+    attributes:
+      label: What is unclear or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected documentation
+      description: What example, command, checklist, or screenshot would help?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+    validations:
+      required: false
