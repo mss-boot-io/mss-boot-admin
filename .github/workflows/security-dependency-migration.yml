@@ -51,30 +51,40 @@ jobs:
           new = 'github.com/google/go-github/v88/github'
           files = [Path('pkg/git.go'), Path('pkg/gist.go')]
 
-          changed = 0
           for path in files:
               text = path.read_text(encoding='utf-8')
               if old not in text:
                   raise SystemExit(f'expected old import not found in {path}')
               path.write_text(text.replace(old, new), encoding='utf-8')
-              changed += 1
-
-          if changed != len(files):
-              raise SystemExit('not all go-github imports were migrated')
           PY
           gofmt -w pkg/git.go pkg/gist.go
 
       - name: Upgrade vulnerable dependencies
         run: |
           set -euo pipefail
-          go get github.com/google/go-github/v88@v88.0.0
-          go get google.golang.org/grpc@v1.82.1
-          go get golang.org/x/text@v0.39.0
-          go mod tidy
+          framework='github.com/mss-boot-io/mss-boot-admin/mss-boot'
+
+          # The first nested-module tag is intentionally published only after
+          # this PR merges. Add a temporary root-module bridge so module-editing
+          # commands can resolve the framework with workspace mode disabled.
+          GOWORK=off go mod edit -replace="${framework}@v0.8.0=./mss-boot"
+          trap 'GOWORK=off go mod edit -dropreplace="${framework}@v0.8.0"' EXIT
+
+          GOWORK=off go get github.com/google/go-github/v88@v88.0.0
+          GOWORK=off go get google.golang.org/grpc@v1.82.1
+          GOWORK=off go get golang.org/x/text@v0.39.0
+          GOWORK=off go mod tidy
+
+          GOWORK=off go mod edit -dropreplace="${framework}@v0.8.0"
+          trap - EXIT
 
           if grep -R --line-number --fixed-strings 'github.com/google/go-github/v41' \
             --include='*.go' --include='go.mod' --exclude-dir=.git .; then
             echo 'old go-github/v41 references remain' >&2
+            exit 1
+          fi
+          if grep -q '^replace .*mss-boot' go.mod; then
+            echo 'temporary framework replace leaked into go.mod' >&2
             exit 1
           fi
 
