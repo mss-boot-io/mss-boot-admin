@@ -30,6 +30,8 @@ jobs:
             build-mode: none
           - language: go
             build-mode: autobuild
+          - language: javascript-typescript
+            build-mode: none
     steps:
       - name: Checkout
         uses: actions/checkout@v7
