@@ -6,6 +6,11 @@ on:
       - codex/monorepo-integration
     paths:
       - '.github/workflows/module-path-migration.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/module-path-migration.yml'
   workflow_dispatch:
 
 permissions:
@@ -18,21 +23,19 @@ concurrency:
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    env:
+      TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
       - name: Checkout monorepo branch
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version: '1.26'
-
-      - name: Start Redis
-        uses: supercharge/redis-github-action@1.8.1
-        with:
-          redis-version: 7
 
       - name: Configure Git identity
         run: |
@@ -50,13 +53,8 @@ jobs:
           new = "github.com/mss-boot-io/mss-boot-admin/mss-boot"
           skip_roots = {".git", "vendor", "docs", "web", "aigc"}
 
-          # Rewrite all live Go source and module manifests. Imported historical
-          # documentation is handled separately so source-repository provenance
-          # in MONOREPO_IMPORTS.md remains unchanged.
           for path in Path(".").rglob("*"):
-              if not path.is_file():
-                  continue
-              if any(part in skip_roots for part in path.parts):
+              if not path.is_file() or any(part in skip_roots for part in path.parts):
                   continue
               if path.suffix != ".go" and path.name != "go.mod":
                   continue
@@ -165,31 +163,29 @@ jobs:
           )
           replace_required(readme_zh, "cd mss-boot-admin-antd", "cd web/antd")
 
-          framework_readme = Path("mss-boot/README.md")
-          framework_text = framework_readme.read_text(encoding="utf-8")
-          framework_replacements = {
-              "go get github.com/mss-boot-io/mss-boot@v0.7.3": f"go get {new}@v0.7.3",
-              '"github.com/mss-boot-io/mss-boot/core/server"': f'"{new}/core/server"',
-              '"github.com/mss-boot-io/mss-boot/pkg/log"': f'"{new}/pkg/log"',
-              "https://github.com/mss-boot-io/mss-boot/blob/main/README.Zh-cn.md": "./README.Zh-cn.md",
-              "https://github.com/mss-boot-io/mss-boot/issues": "https://github.com/mss-boot-io/mss-boot-admin/issues",
-              "https://raw.githubusercontent.com/mss-boot-io/mss-boot/main/LICENSE": "https://raw.githubusercontent.com/mss-boot-io/mss-boot-admin/main/mss-boot/LICENSE",
-          }
-          for source, destination in framework_replacements.items():
-              framework_text = framework_text.replace(source, destination)
-          framework_readme.write_text(framework_text, encoding="utf-8")
-
-          framework_readme_zh = Path("mss-boot/README.Zh-cn.md")
-          framework_zh_text = framework_readme_zh.read_text(encoding="utf-8")
-          framework_zh_replacements = {
-              "go get github.com/mss-boot-io/mss-boot@v0.7.3": f"go get {new}@v0.7.3",
-              "https://github.com/mss-boot-io/mss-boot/blob/main/README.md": "./README.md",
-              "https://github.com/mss-boot-io/mss-boot/issues": "https://github.com/mss-boot-io/mss-boot-admin/issues",
-              "https://raw.githubusercontent.com/mss-boot-io/mss-boot/main/LICENSE": "https://raw.githubusercontent.com/mss-boot-io/mss-boot-admin/main/mss-boot/LICENSE",
-          }
-          for source, destination in framework_zh_replacements.items():
-              framework_zh_text = framework_zh_text.replace(source, destination)
-          framework_readme_zh.write_text(framework_zh_text, encoding="utf-8")
+          for path in (Path("mss-boot/README.md"), Path("mss-boot/README.Zh-cn.md")):
+              text = path.read_text(encoding="utf-8")
+              text = text.replace(
+                  "go get github.com/mss-boot-io/mss-boot@v0.7.3",
+                  f"go get {new}@v0.7.3",
+              )
+              text = text.replace(
+                  '"github.com/mss-boot-io/mss-boot/core/server"',
+                  f'"{new}/core/server"',
+              )
+              text = text.replace(
+                  '"github.com/mss-boot-io/mss-boot/pkg/log"',
+                  f'"{new}/pkg/log"',
+              )
+              text = text.replace(
+                  "https://github.com/mss-boot-io/mss-boot/issues",
+                  "https://github.com/mss-boot-io/mss-boot-admin/issues",
+              )
+              text = text.replace(
+                  "https://raw.githubusercontent.com/mss-boot-io/mss-boot/main/LICENSE",
+                  "https://raw.githubusercontent.com/mss-boot-io/mss-boot-admin/main/mss-boot/LICENSE",
+              )
+              path.write_text(text, encoding="utf-8")
 
           monorepo_guide = """# Monorepo guide
 
@@ -237,25 +233,20 @@ jobs:
           PY
 
           git diff --name-only -z -- '*.go' | xargs -0 -r gofmt -w
-
-      - name: Normalize Go module metadata
-        run: |
-          set -euo pipefail
           go mod tidy
           (cd mss-boot && GOWORK=off go mod tidy)
 
-      - name: Verify monorepo Go modules
-        run: |
-          set -euo pipefail
-          make deps-all
-          make test-all
-          go work vendor
-          git status --short
-
-      - name: Commit migration and remove bootstrap workflow
+      - name: Commit migration before validation
         run: |
           set -euo pipefail
           rm -f .github/workflows/module-path-migration.yml
           git add -A
           git commit -m "refactor: migrate framework to monorepo module path"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Validate committed Go workspace
+        run: |
+          set -euo pipefail
+          make deps-all
+          make test-all
+          go work vendor
