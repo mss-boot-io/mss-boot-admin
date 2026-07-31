@@ -1,0 +1,106 @@
+name: One-time Go security dependency migration
+
+on:
+  push:
+    branches:
+      - codex/monorepo-integration
+    paths:
+      - '.github/workflows/security-dependency-migration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mss-boot-admin-security-dependency-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: codex/monorepo-integration
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+
+      - name: Start Redis
+        uses: supercharge/redis-github-action@1.8.1
+        with:
+          redis-version: 7
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Migrate go-github imports
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          old = 'github.com/google/go-github/v41/github'
+          new = 'github.com/google/go-github/v88/github'
+          files = [Path('pkg/git.go'), Path('pkg/gist.go')]
+
+          changed = 0
+          for path in files:
+              text = path.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'expected old import not found in {path}')
+              path.write_text(text.replace(old, new), encoding='utf-8')
+              changed += 1
+
+          if changed != len(files):
+              raise SystemExit('not all go-github imports were migrated')
+          PY
+          gofmt -w pkg/git.go pkg/gist.go
+
+      - name: Upgrade vulnerable dependencies
+        run: |
+          set -euo pipefail
+          go get github.com/google/go-github/v88@v88.0.0
+          go get google.golang.org/grpc@v1.82.1
+          go get golang.org/x/text@v0.39.0
+          go mod tidy
+
+          if grep -R --line-number --fixed-strings 'github.com/google/go-github/v41' \
+            --include='*.go' --include='go.mod' --exclude-dir=.git .; then
+            echo 'old go-github/v41 references remain' >&2
+            exit 1
+          fi
+
+      - name: Test Go workspace
+        run: |
+          set -euo pipefail
+          make deps-all
+          make test-all
+          go work vendor
+
+      - name: Scan root application
+        run: |
+          set -euo pipefail
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Scan framework module
+        working-directory: mss-boot
+        env:
+          GOWORK: 'off'
+        run: govulncheck ./...
+
+      - name: Commit verified dependency migration
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/security-dependency-migration.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix(security): upgrade vulnerable Go dependencies'
+          git push origin HEAD:codex/monorepo-integration
