@@ -9,14 +9,14 @@ import (
 
 	"github.com/common-nighthawk/go-figure"
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot/core/server"
-	"github.com/mss-boot-io/mss-boot/core/server/listener"
-	"github.com/mss-boot-io/mss-boot/core/server/task"
-	"github.com/mss-boot-io/mss-boot/pkg"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot/pkg/config/source"
-	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	// "github.com/mss-boot-io/mss-boot/virtual/action" // disabled: virtual model feature
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/listener"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/task"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
+	// "github.com/mss-boot-io/mss-boot-admin/mss-boot/virtual/action" // disabled: virtual model feature
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"

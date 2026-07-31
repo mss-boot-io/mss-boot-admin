@@ -6,10 +6,10 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot/pkg"
-	"github.com/mss-boot-io/mss-boot/pkg/config/k8s"
-	"github.com/mss-boot-io/mss-boot/pkg/response"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/k8s"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

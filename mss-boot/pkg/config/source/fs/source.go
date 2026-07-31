@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"io/fs"
 
-	"github.com/mss-boot-io/mss-boot/pkg/config/source"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
 )
 
 // Source is a local file source

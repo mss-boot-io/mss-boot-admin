@@ -17,8 +17,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"github.com/mss-boot-io/mss-boot/pkg"
-	"github.com/mss-boot-io/mss-boot/pkg/response"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 )
 
 // Get action

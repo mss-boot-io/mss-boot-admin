@@ -29,9 +29,16 @@ The project has undergone comprehensive polish rounds focusing on:
 [Online documentation](https://docs.mss-boot-io.top)
 [Video tutorial](https://space.bilibili.com/597294782/channel/seriesdetail?sid=3881026)
 
-## Project address
-[Backend project](https://github.com/mss-boot-io/mss-boot-admin)
-[Front-end project](https://github.com/mss-boot-io/mss-boot-admin-antd)
+## Repository layout
+
+| Path | Component |
+| --- | --- |
+| `/` | Go admin backend |
+| `mss-boot/` | Reusable Go framework module |
+| `web/antd/` | React + Ant Design frontend |
+| `docs/` | Dumi documentation site |
+
+All active development now happens in this repository. The former standalone repositories are retained only as migration history and compatibility references.
 
 ## 🎬 Experience environment
 [Experience address](https://admin-beta.mss-boot-io.top)
@@ -87,12 +94,10 @@ The project has undergone comprehensive polish rounds focusing on:
 - Frontend development: Node.js 22+ and pnpm 9+
 
 ## 📦 Quick start
-### 1. Download the project
+### 1. Download the monorepo
 ```shell
-# Download the backend project
 git clone https://github.com/mss-boot-io/mss-boot-admin.git
-# Download the front-end project
-git clone https://github.com/mss-boot-io/mss-boot-admin-antd.git
+cd mss-boot-admin
 ```
 
 ### 2. Migrate the database
@@ -122,7 +127,7 @@ go run main.go server
 ### 5. Start the front-end service
 ```shell
 # Enter the front-end project
-cd mss-boot-admin-antd
+cd web/antd
 # Install dependencies
 corepack enable
 pnpm install

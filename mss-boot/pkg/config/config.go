@@ -19,16 +19,16 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/mss-boot-io/mss-boot/pkg"
-	"github.com/mss-boot-io/mss-boot/pkg/config/source"
-	"github.com/mss-boot-io/mss-boot/pkg/config/source/appconfig"
-	"github.com/mss-boot-io/mss-boot/pkg/config/source/configmap"
-	sourceConsul "github.com/mss-boot-io/mss-boot/pkg/config/source/consul"
-	sourceFS "github.com/mss-boot-io/mss-boot/pkg/config/source/fs"
-	"github.com/mss-boot-io/mss-boot/pkg/config/source/gorm"
-	sourceLocal "github.com/mss-boot-io/mss-boot/pkg/config/source/local"
-	"github.com/mss-boot-io/mss-boot/pkg/config/source/mgdb"
-	sourceS3 "github.com/mss-boot-io/mss-boot/pkg/config/source/s3"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source/appconfig"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source/configmap"
+	sourceConsul "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source/consul"
+	sourceFS "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source/fs"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source/gorm"
+	sourceLocal "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source/local"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source/mgdb"
+	sourceS3 "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source/s3"
 )
 
 // Init 初始化配置

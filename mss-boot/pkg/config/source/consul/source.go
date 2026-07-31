@@ -9,8 +9,8 @@ import (
 
 	consul "github.com/hashicorp/consul/api"
 
-	"github.com/mss-boot-io/mss-boot/pkg"
-	"github.com/mss-boot-io/mss-boot/pkg/config/source"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
 )
 
 /*

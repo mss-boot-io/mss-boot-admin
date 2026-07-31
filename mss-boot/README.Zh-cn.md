@@ -86,7 +86,7 @@ GitHub Actions 会在仓库根目录运行 action 提供的 latest `golangci-lin
 
 ### 使用 Go Modules
 ```bash
-go get github.com/mss-boot-io/mss-boot@v0.7.3
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v0.8.0
 ```
 
 ### 本地检查

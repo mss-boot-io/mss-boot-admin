@@ -8,9 +8,9 @@ package config
  */
 
 import (
-	"github.com/mss-boot-io/mss-boot/core/server"
-	"github.com/mss-boot-io/mss-boot/core/server/listener"
-	"github.com/mss-boot-io/mss-boot/pkg/config"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/listener"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"

@@ -6,10 +6,10 @@ import (
 	"sort"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot/pkg/response"
-	"github.com/mss-boot-io/mss-boot/virtual/action"
-	vapi "github.com/mss-boot-io/mss-boot/virtual/api"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/virtual/action"
+	vapi "github.com/mss-boot-io/mss-boot-admin/mss-boot/virtual/api"
 
 	"github.com/mss-boot-io/mss-boot-admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/models"

@@ -9,7 +9,7 @@ import (
 	"github.com/mss-boot-io/redisqueue/v2"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
 )
 
 func testRedisClient(t *testing.T) *redis.Client {

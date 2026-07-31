@@ -14,14 +14,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mss-boot-io/mss-boot/pkg/security"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 
-	"github.com/mss-boot-io/mss-boot/pkg"
-	"github.com/mss-boot-io/mss-boot/pkg/language"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/language"
 )
 
 // DefaultLanguage 默认语言

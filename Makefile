@@ -11,7 +11,7 @@ test:
 	go test -coverprofile=coverage.out ./...
 
 deps:
-	GOWORK=off go mod download
+	go list -deps ./... >/dev/null
 
 deps-framework:
 	cd mss-boot && GOWORK=off go mod download

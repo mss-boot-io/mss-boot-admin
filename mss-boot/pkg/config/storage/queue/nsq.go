@@ -23,7 +23,7 @@ import (
 
 	"github.com/nsqio/go-nsq"
 
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
 )
 
 // NewNSQ nsq模式 只能监听一个channel

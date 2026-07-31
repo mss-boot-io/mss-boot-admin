@@ -8,8 +8,8 @@ package config
  */
 
 import (
-	"github.com/mss-boot-io/mss-boot/core/server"
-	"github.com/mss-boot-io/mss-boot/core/server/listener"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/listener"
 )
 
 // Listen tcp listener config

@@ -10,8 +10,8 @@ package api
 import (
 	"fmt"
 
-	"github.com/mss-boot-io/mss-boot/pkg/response"
-	"github.com/mss-boot-io/mss-boot/virtual/model"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/virtual/model"
 )
 
 // Option set options

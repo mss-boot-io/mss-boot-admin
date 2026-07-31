@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot/pkg/config"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 )
@@ -19,8 +19,8 @@ import (
 type Storage struct{}
 
 const (
-	defaultMaxSize       = 10 * 1024 * 1024 // 10MB
-	maxSizeConfigKey     = "storage:maxSize"
+	defaultMaxSize        = 10 * 1024 * 1024 // 10MB
+	maxSizeConfigKey      = "storage:maxSize"
 	allowedTypesConfigKey = "storage:allowedTypes"
 )
 
@@ -180,7 +180,7 @@ func (s *Storage) uploadS3(c *gin.Context, f *multipart.FileHeader, userID strin
 func (s *Storage) uploadLocal(c *gin.Context, f *multipart.FileHeader, userID, endpoint string) (string, error) {
 	filename := s.sanitizeFilename(f.Filename)
 	relativePath := filepath.Join("public", userID, filename)
-	
+
 	err := c.SaveUploadedFile(f, relativePath)
 	if err != nil {
 		return "", err

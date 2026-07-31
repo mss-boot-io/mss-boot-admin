@@ -6,7 +6,7 @@ import (
 
 	"github.com/mss-boot-io/redisqueue/v2"
 
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
 )
 
 type Message struct {

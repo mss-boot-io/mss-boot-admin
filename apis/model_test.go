@@ -8,8 +8,8 @@ import (
 	casbinModel "github.com/casbin/casbin/v2/model"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	adminPKG "github.com/mss-boot-io/mss-boot-admin/pkg"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

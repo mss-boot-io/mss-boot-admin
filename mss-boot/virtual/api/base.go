@@ -10,7 +10,7 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/mss-boot-io/mss-boot/pkg/response"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 )
 
 // DefaultKey default key

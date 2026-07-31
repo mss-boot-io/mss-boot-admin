@@ -8,8 +8,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/mss-boot-io/mss-boot/core/server"
-	serverGRPC "github.com/mss-boot-io/mss-boot/core/server/grpc"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
+	serverGRPC "github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/grpc"
 )
 
 // GRPC grpc服务公共配置(选用)

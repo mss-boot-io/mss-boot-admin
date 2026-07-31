@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mss-boot-io/mss-boot/pkg"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot/pkg/config/source"
-	"github.com/mss-boot-io/mss-boot/pkg/migration"
-	common "github.com/mss-boot-io/mss-boot/pkg/migration/models"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
+	common "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
 	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"

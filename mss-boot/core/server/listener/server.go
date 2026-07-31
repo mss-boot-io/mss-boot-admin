@@ -16,7 +16,7 @@ import (
 
 	ginPprof "github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot/core/server"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 

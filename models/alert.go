@@ -1,7 +1,7 @@
 package models
 
 import (
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 )
 
 /*
@@ -11,14 +11,14 @@ import (
 
 type AlertRule struct {
 	actions.ModelGorm
-	Name      string   `json:"name" gorm:"column:name;type:varchar(255);not null;comment:规则名称"`
-	Metric    string   `json:"metric" gorm:"column:metric;type:varchar(50);not null;comment:监控指标"`
-	Operator  string   `json:"operator" gorm:"column:operator;type:varchar(10);not null;comment:比较运算符"`
-	Threshold float64  `json:"threshold" gorm:"column:threshold;type:decimal(10,2);not null;comment:阈值"`
-	Duration  int      `json:"duration" gorm:"column:duration;type:int;default:60;comment:持续时间(秒)"`
-	Channels  string   `json:"channels" gorm:"column:channels;type:text;comment:通知渠道(JSON数组)"`
-	Message   string   `json:"message" gorm:"column:message;type:text;comment:告警消息模板"`
-	Status    string   `json:"status" gorm:"column:status;type:varchar(20);default:'enabled';comment:状态"`
+	Name      string  `json:"name" gorm:"column:name;type:varchar(255);not null;comment:规则名称"`
+	Metric    string  `json:"metric" gorm:"column:metric;type:varchar(50);not null;comment:监控指标"`
+	Operator  string  `json:"operator" gorm:"column:operator;type:varchar(10);not null;comment:比较运算符"`
+	Threshold float64 `json:"threshold" gorm:"column:threshold;type:decimal(10,2);not null;comment:阈值"`
+	Duration  int     `json:"duration" gorm:"column:duration;type:int;default:60;comment:持续时间(秒)"`
+	Channels  string  `json:"channels" gorm:"column:channels;type:text;comment:通知渠道(JSON数组)"`
+	Message   string  `json:"message" gorm:"column:message;type:text;comment:告警消息模板"`
+	Status    string  `json:"status" gorm:"column:status;type:varchar(20);default:'enabled';comment:状态"`
 }
 
 func (*AlertRule) TableName() string {

@@ -3,8 +3,8 @@ package models
 import (
 	"testing"
 
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
-	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

@@ -11,7 +11,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/mss-boot-io/mss-boot/core/tools/utils"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/tools/utils"
 )
 
 // Handler 基类

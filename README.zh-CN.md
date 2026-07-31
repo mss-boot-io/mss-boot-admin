@@ -21,9 +21,16 @@
 [在线文档](https://docs.mss-boot-io.top)
 [视频教程](https://space.bilibili.com/597294782/channel/seriesdetail?sid=3881026)
 
-## 项目地址
-[后端项目](https://github.com/mss-boot-io/mss-boot-admin)
-[前端项目](https://github.com/mss-boot-io/mss-boot-admin-antd)
+## 仓库结构
+
+| 路径 | 组件 |
+| --- | --- |
+| `/` | Go 管理后台后端 |
+| `mss-boot/` | 可复用 Go 框架模块 |
+| `web/antd/` | React + Ant Design 前端 |
+| `docs/` | Dumi 文档站点 |
+
+后续所有有效开发统一在本仓库进行，原有独立仓库仅保留为迁移历史与兼容性参考。
 
 ## 🎬 体验环境
 [体验地址](https://admin-beta.mss-boot-io.top)
@@ -79,12 +86,10 @@
 - 前端开发安装 Node.js 22+、pnpm 9+
 
 ## 📦 快速开始
-### 1. 下载项目
+### 1. 下载单体仓库
 ```shell
-# 下载后端项目
 git clone https://github.com/mss-boot-io/mss-boot-admin.git
-# 下载前端项目
-git clone https://github.com/mss-boot-io/mss-boot-admin-antd.git
+cd mss-boot-admin
 ```
 
 ### 2. 迁移数据库
@@ -110,7 +115,7 @@ go run main.go server
 ### 5. 启动前端服务
 ```shell
 # 进入前端项目
-cd mss-boot-admin-antd
+cd web/antd
 # 安装依赖
 corepack enable
 pnpm install

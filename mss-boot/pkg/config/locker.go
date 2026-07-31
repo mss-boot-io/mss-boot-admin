@@ -12,8 +12,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage"
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage/locker"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/locker"
 )
 
 type Locker struct {

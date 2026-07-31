@@ -19,8 +19,8 @@ import (
 	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage"
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage/queue"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/queue"
 	"github.com/mss-boot-io/redisqueue/v2"
 )
 

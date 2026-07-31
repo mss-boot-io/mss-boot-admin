@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/mss-boot-io/mss-boot/virtual/model"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/virtual/model"
 )
 
 /*

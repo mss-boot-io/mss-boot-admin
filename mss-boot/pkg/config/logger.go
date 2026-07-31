@@ -17,7 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm/logger"
 
-	"github.com/mss-boot-io/mss-boot/core/logger/writer"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/logger/writer"
 )
 
 // Logger logger配置

@@ -13,9 +13,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage"
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage/cache"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 )
 
 type Cache struct {

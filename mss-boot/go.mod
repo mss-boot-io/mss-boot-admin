@@ -1,4 +1,4 @@
-module github.com/mss-boot-io/mss-boot
+module github.com/mss-boot-io/mss-boot-admin/mss-boot
 
 go 1.26.0
 

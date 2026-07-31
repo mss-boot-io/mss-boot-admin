@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	bootconfig "github.com/mss-boot-io/mss-boot/pkg/config"
-	responsegorm "github.com/mss-boot-io/mss-boot/pkg/response/actions/gorm"
+	bootconfig "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config"
+	responsegorm "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions/gorm"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/callbacks"

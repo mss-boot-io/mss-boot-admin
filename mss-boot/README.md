@@ -1,16 +1,16 @@
 # mss-boot
 
 ---
-<img align="right" width="320" src="https://docs.mss-boot-io.top/favicon.ico"  alt="https://github.com/mss-boot-io/mss-boot"/>
+<img align="right" width="320" src="https://docs.mss-boot-io.top/favicon.ico"  alt="https://github.com/mss-boot-io/mss-boot-admin/mss-boot"/>
 
 
-[![ci](https://github.com/mss-boot-io/mss-boot/actions/workflows/ci.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/mss-boot-io/mss-boot/actions/workflows/codeql.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot/actions/workflows/codeql.yml)
-[![OpenSSF Scorecard](https://github.com/mss-boot-io/mss-boot/actions/workflows/scorecard.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot/actions/workflows/scorecard.yml)
-[![Release](https://img.shields.io/github/v/release/mss-boot-io/mss-boot.svg?style=flat-square)](https://github.com/mss-boot-io/mss-boot/releases)
-[![License](https://img.shields.io/github/license/mss-boot-io/mss-boot.svg?style=flat-square)](https://github.com/mss-boot-io/mss-boot/blob/main/LICENSE)
+[![ci](https://github.com/mss-boot-io/mss-boot-admin/mss-boot/actions/workflows/ci.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin/mss-boot/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/mss-boot-io/mss-boot-admin/mss-boot/actions/workflows/codeql.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin/mss-boot/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://github.com/mss-boot-io/mss-boot-admin/mss-boot/actions/workflows/scorecard.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin/mss-boot/actions/workflows/scorecard.yml)
+[![Release](https://img.shields.io/github/v/release/mss-boot-io/mss-boot.svg?style=flat-square)](https://github.com/mss-boot-io/mss-boot-admin/mss-boot/releases)
+[![License](https://img.shields.io/github/license/mss-boot-io/mss-boot.svg?style=flat-square)](https://github.com/mss-boot-io/mss-boot-admin/mss-boot/blob/main/LICENSE)
 
-English | [简体中文](https://github.com/mss-boot-io/mss-boot/blob/main/README.Zh-cn.md)
+English | [简体中文](https://github.com/mss-boot-io/mss-boot-admin/mss-boot/blob/main/README.Zh-cn.md)
 
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/mss-boot-io/mss-boot)
 
@@ -20,7 +20,7 @@ An enterprise-level language heterogeneous microservice solution that supports g
 
 [documentation](https://docs.mss-boot-io.top)
 
-[contributing](./CONTRIBUTING.md) · [security](./SECURITY.md) · [good first issues](https://github.com/mss-boot-io/mss-boot/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
+[contributing](./CONTRIBUTING.md) · [security](./SECURITY.md) · [good first issues](https://github.com/mss-boot-io/mss-boot-admin/mss-boot/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
 
 [http service template](https://github.com/mss-boot-io/service-http)
 
@@ -127,7 +127,7 @@ The GitHub Actions lint job runs `golangci-lint` from the repository root with t
 
 ### Using Go Modules
 ```bash
-go get github.com/mss-boot-io/mss-boot@v0.7.3
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v0.8.0
 ```
 
 ### Basic Usage
@@ -135,8 +135,8 @@ go get github.com/mss-boot-io/mss-boot@v0.7.3
 package main
 
 import (
-    "github.com/mss-boot-io/mss-boot/core/server"
-    "github.com/mss-boot-io/mss-boot/pkg/log"
+    "github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
+    "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/log"
 )
 
 func main() {
