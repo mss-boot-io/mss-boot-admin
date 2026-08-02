@@ -3,6 +3,7 @@ package command
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -87,7 +88,7 @@ func Run(parent context.Context, spec Spec) Result {
 		result.Error = err.Error()
 	}
 	var exitError *exec.ExitError
-	if errorsAs(err, &exitError) {
+	if errors.As(err, &exitError) {
 		result.ExitCode = exitError.ExitCode()
 	}
 	return result
@@ -127,9 +128,4 @@ func mergeEnvironment(base []string, overrides map[string]string) []string {
 		result = append(result, key+"="+values[key])
 	}
 	return result
-}
-
-// errorsAs is a small seam that keeps Result construction easy to test.
-func errorsAs(err error, target any) bool {
-	return errors.As(err, target)
 }
