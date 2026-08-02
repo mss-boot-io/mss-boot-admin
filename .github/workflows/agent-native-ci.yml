@@ -8,8 +8,10 @@ on:
     paths:
       - '.mss/**'
       - '.agents/**'
+      - '.codex/**'
       - 'AGENTS.md'
       - 'cmd/mss/**'
+      - 'cmd/mss-mcp/**'
       - 'internal/mss/**'
       - 'modules/**'
       - 'templates/module/**'
@@ -27,8 +29,10 @@ on:
     paths:
       - '.mss/**'
       - '.agents/**'
+      - '.codex/**'
       - 'AGENTS.md'
       - 'cmd/mss/**'
+      - 'cmd/mss-mcp/**'
       - 'internal/mss/**'
       - 'modules/**'
       - 'templates/module/**'
@@ -50,8 +54,8 @@ concurrency:
 
 jobs:
   contracts-and-go:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -64,11 +68,22 @@ jobs:
           go-version: '1.26'
           cache: true
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
       - name: Check Go formatting
         run: |
           set -euo pipefail
           unformatted="$(gofmt -l \
             cmd/mss \
+            cmd/mss-mcp \
             internal/mss \
             modules/runtime \
             modules/all \
@@ -80,8 +95,11 @@ jobs:
             exit 1
           fi
 
-      - name: Test agent infrastructure
-        run: go test ./internal/mss/... ./cmd/mss/... ./modules/runtime/...
+      - name: Test Agent infrastructure
+        run: go test ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/... ./modules/runtime/...
+
+      - name: Build Agent executables
+        run: go build ./cmd/mss ./cmd/mss-mcp
 
       - name: Load project context
         run: go run ./cmd/mss context --format json > /tmp/mss-context.json
@@ -89,16 +107,22 @@ jobs:
       - name: Run environment doctor
         run: go run ./cmd/mss doctor --format json > /tmp/mss-doctor.json
 
+      - name: Validate Agent Skills
+        run: go run ./cmd/mss skills validate --format json > /tmp/mss-skills.json
+
       - name: Validate example module specification
-        run: go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json
+        run: go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json > /tmp/mss-spec.json
 
       - name: Dry-run module generation
         run: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --format json > /tmp/mss-generation.json
 
       - name: Plan changed-file verification
-        run: go run ./cmd/mss verify --changed --plan --format json
+        run: go run ./cmd/mss verify --changed --plan --format json > /tmp/mss-verification-plan.json
 
-      - name: Upload agent reports
+      - name: Run deterministic Agent evaluations
+        run: go run ./cmd/mss eval run --all --format json > /tmp/mss-evals.json
+
+      - name: Upload Agent reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -106,8 +130,14 @@ jobs:
           path: |
             /tmp/mss-context.json
             /tmp/mss-doctor.json
+            /tmp/mss-skills.json
+            /tmp/mss-spec.json
             /tmp/mss-generation.json
+            /tmp/mss-verification-plan.json
+            /tmp/mss-evals.json
             .mss/reports/verify.json
             .mss/reports/verify.md
+            .mss/reports/evals/latest.json
+            .mss/reports/evals/latest.md
           if-no-files-found: warn
           retention-days: 7
