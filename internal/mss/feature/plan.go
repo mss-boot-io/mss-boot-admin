@@ -21,20 +21,20 @@ type Options struct {
 
 // Plan combines Feature intent, validated modules, generation impact, and acceptance evidence.
 type Plan struct {
-	Feature       FeatureSummary          `json:"feature"`
-	Root          string                  `json:"root"`
-	FeaturePath   string                  `json:"featurePath"`
-	Success       bool                    `json:"success"`
-	Goals         []string                `json:"goals"`
-	NonGoals      []string                `json:"nonGoals"`
-	Modules       []ModulePlan            `json:"modules"`
-	Requirements  []RequirementPlan       `json:"requirements"`
-	Constraints   []spec.FeatureConstraint `json:"constraints"`
-	Acceptance    []AcceptancePlan        `json:"acceptance"`
-	Risks         []spec.FeatureRisk      `json:"risks,omitempty"`
-	Validation    spec.FeatureValidation  `json:"validation"`
-	Rollout       spec.FeatureRollout     `json:"rollout"`
-	Issues        []string                `json:"issues,omitempty"`
+	Feature      FeatureSummary           `json:"feature"`
+	Root         string                   `json:"root"`
+	FeaturePath  string                   `json:"featurePath"`
+	Success      bool                     `json:"success"`
+	Goals        []string                 `json:"goals"`
+	NonGoals     []string                 `json:"nonGoals"`
+	Modules      []ModulePlan             `json:"modules"`
+	Requirements []RequirementPlan        `json:"requirements"`
+	Constraints  []spec.FeatureConstraint `json:"constraints"`
+	Acceptance   []AcceptancePlan         `json:"acceptance"`
+	Risks        []spec.FeatureRisk       `json:"risks,omitempty"`
+	Validation   spec.FeatureValidation   `json:"validation"`
+	Rollout      spec.FeatureRollout      `json:"rollout"`
+	Issues       []string                 `json:"issues,omitempty"`
 }
 
 // FeatureSummary is the stable identity used by Agent handoffs.
@@ -48,16 +48,16 @@ type FeatureSummary struct {
 
 // ModulePlan is one validated vertical-module impact.
 type ModulePlan struct {
-	Name             string         `json:"name"`
-	Operation        string         `json:"operation"`
-	Description      string         `json:"description,omitempty"`
-	SpecPath         string         `json:"specPath,omitempty"`
-	SpecValid        bool           `json:"specValid"`
-	SpecName         string         `json:"specName,omitempty"`
-	GenerationDryRun bool           `json:"generationDryRun,omitempty"`
-	GeneratedOutputs int            `json:"generatedOutputs,omitempty"`
+	Name              string         `json:"name"`
+	Operation         string         `json:"operation"`
+	Description       string         `json:"description,omitempty"`
+	SpecPath          string         `json:"specPath,omitempty"`
+	SpecValid         bool           `json:"specValid"`
+	SpecName          string         `json:"specName,omitempty"`
+	GenerationDryRun  bool           `json:"generationDryRun,omitempty"`
+	GeneratedOutputs  int            `json:"generatedOutputs,omitempty"`
 	GenerationActions map[string]int `json:"generationActions,omitempty"`
-	Issue            string         `json:"issue,omitempty"`
+	Issue             string         `json:"issue,omitempty"`
 }
 
 // RequirementPlan keeps actor/module/permission/rule context together.
@@ -106,18 +106,18 @@ func Build(options Options) (Plan, error) {
 			Owner:       feature.Metadata.Owner,
 			Labels:      cloneLabels(feature.Metadata.Labels),
 		},
-		Root:        root,
-		FeaturePath: relative,
-		Success:     true,
-		Goals:       append([]string(nil), feature.Spec.Goals...),
-		NonGoals:    append([]string(nil), feature.Spec.NonGoals...),
-		Constraints: append([]spec.FeatureConstraint(nil), feature.Spec.Constraints...),
-		Risks:       append([]spec.FeatureRisk(nil), feature.Spec.Risks...),
-		Validation:  feature.Spec.Validation,
-		Rollout:     feature.Spec.Rollout,
-		Modules:     make([]ModulePlan, 0, len(feature.Spec.Modules)),
+		Root:         root,
+		FeaturePath:  relative,
+		Success:      true,
+		Goals:        append([]string(nil), feature.Spec.Goals...),
+		NonGoals:     append([]string(nil), feature.Spec.NonGoals...),
+		Constraints:  append([]spec.FeatureConstraint(nil), feature.Spec.Constraints...),
+		Risks:        append([]spec.FeatureRisk(nil), feature.Spec.Risks...),
+		Validation:   feature.Spec.Validation,
+		Rollout:      feature.Spec.Rollout,
+		Modules:      make([]ModulePlan, 0, len(feature.Spec.Modules)),
 		Requirements: make([]RequirementPlan, 0, len(feature.Spec.Requirements)),
-		Acceptance:  make([]AcceptancePlan, 0, len(feature.Spec.Acceptance)),
+		Acceptance:   make([]AcceptancePlan, 0, len(feature.Spec.Acceptance)),
 	}
 
 	for _, module := range feature.Spec.Modules {
@@ -201,7 +201,7 @@ func buildModulePlan(root string, module spec.FeatureModule) ModulePlan {
 		plan.Issue = fmt.Sprintf("Feature module name %s does not match AdminModule name %s", module.Name, document.Name)
 		return plan
 	}
-	moduleSpec, ok := document.Document.(*spec.ModuleSpec)
+	moduleSpec, ok := document.Document.(*spec.Module)
 	if !ok {
 		plan.Issue = "validated AdminModule has an unexpected Go representation"
 		return plan

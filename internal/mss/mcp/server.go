@@ -239,6 +239,12 @@ func (s *Server) callTool(ctx context.Context, name string, arguments map[string
 	case "mss_run_validation":
 		value, err = s.runValidation(ctx, arguments)
 	default:
+		if result, known := s.callSpecificationTool(ctx, name, arguments); known {
+			return result, true
+		}
+		if result, known := s.callFeatureTool(ctx, name, arguments); known {
+			return result, true
+		}
 		if result, known := s.callBlueprintTool(ctx, name, arguments); known {
 			return result, true
 		}
@@ -487,6 +493,8 @@ func tools() []Tool {
 			Annotations: writeIdempotent,
 		},
 	}
+	definitions = append(definitions, specificationToolDefinitions()...)
+	definitions = append(definitions, featureToolDefinitions()...)
 	definitions = append(definitions, blueprintToolDefinitions()...)
 	sort.SliceStable(definitions, func(i, j int) bool { return definitions[i].Name < definitions[j].Name })
 	return definitions

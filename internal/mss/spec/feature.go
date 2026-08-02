@@ -1,7 +1,6 @@
 package spec
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,13 +30,13 @@ type FeatureMetadata struct {
 
 // FeatureBody describes intent, actors, modules, constraints, acceptance, and rollout.
 type FeatureBody struct {
-	Problem      string              `yaml:"problem" json:"problem"`
-	Goals        []string            `yaml:"goals" json:"goals"`
-	NonGoals     []string            `yaml:"nonGoals" json:"nonGoals"`
-	Actors       []FeatureActor      `yaml:"actors" json:"actors"`
-	Modules      []FeatureModule     `yaml:"modules" json:"modules"`
-	Requirements []FeatureRequirement `yaml:"requirements" json:"requirements"`
-	Constraints  []FeatureConstraint  `yaml:"constraints" json:"constraints"`
+	Problem      string                `yaml:"problem" json:"problem"`
+	Goals        []string              `yaml:"goals" json:"goals"`
+	NonGoals     []string              `yaml:"nonGoals" json:"nonGoals"`
+	Actors       []FeatureActor        `yaml:"actors" json:"actors"`
+	Modules      []FeatureModule       `yaml:"modules" json:"modules"`
+	Requirements []FeatureRequirement  `yaml:"requirements" json:"requirements"`
+	Constraints  []FeatureConstraint   `yaml:"constraints" json:"constraints"`
 	Acceptance   []AcceptanceCriterion `yaml:"acceptance" json:"acceptance"`
 	Risks        []FeatureRisk         `yaml:"risks,omitempty" json:"risks,omitempty"`
 	Validation   FeatureValidation     `yaml:"validation" json:"validation"`
@@ -425,23 +424,19 @@ func (f *FeatureSpec) Summary() map[string]any {
 		severities[risk.Severity]++
 	}
 	return map[string]any{
-		"name":                 f.Metadata.Name,
-		"displayName":          f.Metadata.DisplayName,
-		"owner":                f.Metadata.Owner,
-		"actors":               len(f.Spec.Actors),
-		"modules":              len(f.Spec.Modules),
-		"requirements":         len(f.Spec.Requirements),
+		"name":                  f.Metadata.Name,
+		"displayName":           f.Metadata.DisplayName,
+		"owner":                 f.Metadata.Owner,
+		"actors":                len(f.Spec.Actors),
+		"modules":               len(f.Spec.Modules),
+		"requirements":          len(f.Spec.Requirements),
 		"requirementPriorities": priorities,
-		"constraints":          len(f.Spec.Constraints),
-		"acceptance":           len(f.Spec.Acceptance),
-		"requiredAcceptance":   required,
-		"acceptanceLevels":     levels,
-		"risks":                len(f.Spec.Risks),
-		"riskSeverities":       severities,
-		"rolloutStrategy":      f.Spec.Rollout.Strategy,
+		"constraints":           len(f.Spec.Constraints),
+		"acceptance":            len(f.Spec.Acceptance),
+		"requiredAcceptance":    required,
+		"acceptanceLevels":      levels,
+		"risks":                 len(f.Spec.Risks),
+		"riskSeverities":        severities,
+		"rolloutStrategy":       f.Spec.Rollout.Strategy,
 	}
 }
-
-// Ensure FeatureSpec's validator remains independently usable by callers.
-var _ error = validationError{}
-var _ = errors.New

@@ -16,7 +16,7 @@ keywords: [agent native codex infrastructure generator mcp skills eval]
 
 项目不再只被理解为一个可运行的 Go 后台管理系统，也不以“在后台里增加聊天框”作为 AI 化目标。新的核心定位是：
 
-> `mss-boot-admin` 是一套面向 Codex、Claude Code、GitHub Copilot、Cursor 及其他编码 Agent 的管理系统开发基础设施。它提供稳定运行时、机器可读项目契约、确定性代码生成、标准 Agent Skills、统一 CLI、可重复开发环境、自动验证、能力评测和持续升级机制，使 Agent 在克隆仓库后可以直接进入开发闭环。
+> `mss-boot-admin` 是一套面向 Codex、Claude Code、other coding agents、Cursor 及其他编码 Agent 的管理系统开发基础设施。它提供稳定运行时、机器可读项目契约、确定性代码生成、标准 Agent Skills、统一 CLI、可重复开发环境、自动验证、能力评测和持续升级机制，使 Agent 在克隆仓库后可以直接进入开发闭环。
 
 项目的最终用户既包括人类开发者，也包括编码 Agent。任何核心工程能力都必须同时满足“人能理解”和“机器能执行”。
 
@@ -83,7 +83,7 @@ mss CLI              所有确定性操作入口
 .agents/skills/      Agent 工作流编排
 ```
 
-`CLAUDE.md`、Copilot 指令和 Cursor Rules 只能是由事实源生成或引用的薄适配层。
+`CLAUDE.md`、other coding agents 指令和 Cursor Rules 只能是由事实源生成或引用的薄适配层。
 
 ### 4.2 规格优先
 
@@ -143,7 +143,7 @@ MCP ───┘
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
-│                 Codex / Claude / Copilot / Cursor          │
+│                 Codex / Claude / other coding agents / Cursor          │
 └──────────────┬──────────────────┬──────────────────────────┘
                │                  │
           AGENTS.md          Agent Skills

@@ -7,9 +7,31 @@
 [English](./README.md) | 简体中文
 
 ## 简介
-> `mss-boot-admin` 是基于 Gin + React + Ant Design v5 + Umi v4 + mss-boot 的前后端分离后台管理平台。当前产品主线聚焦于权限治理、组织管理、系统配置、访问控制、国际化，以及 AI 注解协同驱动的研发流程。
 
-> 当前仓库中仍然保留了部分动态模型与代码生成相关实现，但它们不再是后续阶段的主要产品投入方向。
+> `mss-boot-admin` 是一套 Agent 原生的管理系统开发基础设施。它把可生产使用的 Gin + React + Ant Design 参考应用，与机器可读项目契约、Feature/Acceptance/AdminModule 规格、确定性全栈生成、仓库级 Skills、项目 MCP、可重复环境、变更感知验证、Agent Evals、应用 Blueprint 和三方 Foundation 升级能力整合在同一个仓库中。
+
+> 运行时管理平台继续提供身份、RBAC、组织、配置、审计、通知、任务、国际化、存储、WebSocket 和可观测性。历史动态模型与运行时代码生成仅保留兼容；新业务模块使用开发期规格和可编译的垂直模块。
+
+## Agent 原生开发闭环
+
+```text
+业务意图
+  → Feature 与 Acceptance 契约
+  → AdminModule 契约
+  → 确定性生成
+  → Agent 实现非模板化业务规则
+  → 变更感知验证与 Evals
+  → 可审查 PR 与可持续升级的下游系统
+```
+
+```shell
+./mss context --format json
+./mss doctor --strict --format json
+./mss setup
+./mss dev --detach
+./mss verify --changed
+./mss eval run --all
+```
 
 [Beta环境](https://admin-beta.mss-boot-io.top)
 
@@ -49,7 +71,7 @@
 - 支持数据库迁移
 - 支持用户、角色、部门、岗位、菜单、API、配置等治理型后台能力
 - 支持通知、任务、监控、统计等运营型能力
-- 正在向 AI 注解协同驱动的工程化研发流程演进
+- 提供 Agent 原生契约、确定性生成、项目 MCP、变更感知验证、应用 Blueprint 和三方 Foundation 升级
 
 ## 📦 内置功能
 - 用户管理: 用户是系统操作者，该功能主要完成系统用户配置。
@@ -86,42 +108,27 @@
 - 前端开发安装 Node.js 22+、pnpm 9+
 
 ## 📦 快速开始
-### 1. 下载单体仓库
+
 ```shell
 git clone https://github.com/mss-boot-io/mss-boot-admin.git
 cd mss-boot-admin
+
+./mss doctor --strict --format json
+./mss setup
+./mss dev --detach
+./mss dev status --format json
 ```
 
-### 2. 迁移数据库
+在编写重复代码前先创建或验证结构化契约：
+
 ```shell
-# 进入后端项目
-cd mss-boot-admin
-# 默认本地配置使用 SQLite: mss-boot-admin-local.db
-go run main.go migrate
+./mss spec validate .mss/features/example-supplier-onboarding.yaml
+./mss feature plan .mss/features/example-supplier-onboarding.yaml
+./mss module generate .mss/modules/example-supplier.yaml --format json
+./mss verify --changed
 ```
 
-如果要在本地使用 MySQL，可以先启动 `compose/mysql/docker-compose.yml`，再修改
-`config/application.yml` 中的 `database.driver` 与 `database.source`，然后执行迁移命令。
-### 3. 生成API接口信息
-```shell
-# 生成api接口信息
-go run main.go server -a
-```
-### 4. 启动后端服务
-```shell
-# 启动后端服务
-go run main.go server
-```
-### 5. 启动前端服务
-```shell
-# 进入前端项目
-cd web/antd
-# 安装依赖
-corepack enable
-pnpm install
-# 启动前端服务
-pnpm start:dev
-```
+后端、前端、迁移、Blueprint、升级、Skills、MCP 与 Evals 的详细流程位于 `docs/docs/agent/`。
 
 ## 本地测试前置条件
 

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -23,32 +22,14 @@ import (
 
 const version = "0.1.0-dev"
 
-// Execute runs the agent-facing mss CLI.
+// Execute runs the complete agent-facing mss CLI.
 func Execute() error {
-	return NewRootCommand().Execute()
+	return ExecuteAgent()
 }
 
-// NewRootCommand creates a fresh command tree for tests and embedding.
+// NewRootCommand returns the same complete command tree used by cmd/mss.
 func NewRootCommand() *cobra.Command {
-	var rootOverride string
-	root := &cobra.Command{
-		Use:           "mss",
-		Short:         "Agent-native management-system foundation CLI",
-		SilenceUsage:  true,
-		SilenceErrors: true,
-		Version:       version,
-	}
-	root.PersistentFlags().StringVar(&rootOverride, "root", "", "repository root override")
-	root.SetOut(os.Stdout)
-	root.SetErr(os.Stderr)
-
-	root.AddCommand(newContextCommand(&rootOverride))
-	root.AddCommand(newDoctorCommand(&rootOverride))
-	root.AddCommand(newSetupCommand(&rootOverride))
-	root.AddCommand(newSpecCommand(&rootOverride))
-	root.AddCommand(newModuleCommand(&rootOverride))
-	root.AddCommand(newVerifyCommand(&rootOverride))
-	return root
+	return NewAgentRootCommand()
 }
 
 func newContextCommand(rootOverride *string) *cobra.Command {
@@ -138,74 +119,6 @@ func newSetupCommand(rootOverride *string) *cobra.Command {
 	command.Flags().BoolVar(&options.SkipFramework, "skip-framework", false, "skip framework dependency download")
 	command.Flags().BoolVar(&options.SkipFrontend, "skip-frontend", false, "skip frontend dependency install")
 	command.Flags().BoolVar(&options.SkipDocs, "skip-docs", false, "skip docs dependency install")
-	return command
-}
-
-func newSpecCommand(rootOverride *string) *cobra.Command {
-	command := &cobra.Command{
-		Use:   "spec",
-		Short: "Create and validate machine-readable specifications",
-	}
-	command.AddCommand(newSpecValidateCommand(rootOverride))
-	return command
-}
-
-func newSpecValidateCommand(rootOverride *string) *cobra.Command {
-	var format string
-	var normalized bool
-	command := &cobra.Command{
-		Use:   "validate <module-spec.yaml> [more-specs...]",
-		Short: "Validate AdminModule specifications",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, err := loadProject(*rootOverride)
-			if err != nil {
-				return err
-			}
-			type result struct {
-				Path       string       `json:"path"`
-				Module     string       `json:"module,omitempty"`
-				Valid      bool         `json:"valid"`
-				Issues     []spec.Issue `json:"issues,omitempty"`
-				Normalized string       `json:"normalized,omitempty"`
-			}
-			results := make([]result, 0, len(args))
-			valid := true
-			for _, arg := range args {
-				path := resolveInputPath(ctx.Root, arg)
-				module, loadErr := spec.LoadModule(path)
-				entry := result{Path: relativePath(ctx.Root, path), Valid: loadErr == nil}
-				if loadErr == nil {
-					entry.Module = module.Metadata.Name
-					if normalized {
-						data, yamlErr := module.YAML()
-						if yamlErr != nil {
-							return yamlErr
-						}
-						entry.Normalized = string(data)
-					}
-				} else {
-					valid = false
-					var validationError *spec.ValidationError
-					if errors.As(loadErr, &validationError) {
-						entry.Issues = validationError.Issues
-					} else {
-						entry.Issues = []spec.Issue{{Path: entry.Path, Code: "load-error", Message: loadErr.Error()}}
-					}
-				}
-				results = append(results, entry)
-			}
-			if err := writeSpecResults(cmd.OutOrStdout(), results, format); err != nil {
-				return err
-			}
-			if !valid {
-				return errors.New("one or more module specifications are invalid")
-			}
-			return nil
-		},
-	}
-	command.Flags().StringVar(&format, "format", "text", "output format: text or json")
-	command.Flags().BoolVar(&normalized, "normalized", false, "include normalized YAML in JSON output")
 	return command
 }
 

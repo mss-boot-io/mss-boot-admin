@@ -16,6 +16,7 @@ import (
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/blueprint"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/doctor"
+	featurecmd "github.com/mss-boot-io/mss-boot-admin/internal/mss/feature"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/generator"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/mcp"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
@@ -140,6 +141,8 @@ func (c *Catalog) Validate() error {
 		"module-spec":                true,
 		"module-generation-plan":     true,
 		"application-blueprint-plan": true,
+		"feature-spec":               true,
+		"feature-plan":               true,
 		"validation-plan":            true,
 		"mcp-tools":                  true,
 	}
@@ -164,7 +167,10 @@ func (c *Catalog) Validate() error {
 			if !knownChecks[check.Type] {
 				problems = append(problems, checkPrefix+".type is unsupported: "+check.Type)
 			}
-			if (check.Type == "module-spec" || check.Type == "module-generation-plan") && strings.TrimSpace(check.Path) == "" {
+			if (check.Type == "module-spec" ||
+				check.Type == "module-generation-plan" ||
+				check.Type == "feature-spec" ||
+				check.Type == "feature-plan") && strings.TrimSpace(check.Path) == "" {
 				problems = append(problems, checkPrefix+".path is required")
 			}
 			if check.Minimum < 0 {
@@ -296,6 +302,10 @@ func runCheck(ctx context.Context, root string, projectContext *project.Context,
 		value, err = checkModuleGeneration(root, check.Path, check.Minimum)
 	case "application-blueprint-plan":
 		value, err = checkApplicationBlueprint(ctx, root, check.Minimum)
+	case "feature-spec":
+		value, err = checkFeatureSpec(root, check.Path)
+	case "feature-plan":
+		value, err = checkFeaturePlan(root, check.Path, check.Minimum)
 	case "validation-plan":
 		value, err = checkValidationPlan(projectContext, check.Mode, check.Minimum)
 	case "mcp-tools":
@@ -405,6 +415,43 @@ func checkModuleGeneration(root, inputPath string, minimum int) (map[string]any,
 		"outputs": len(plan.Changes),
 		"actions": actions,
 		"dryRun":  plan.DryRun,
+	}, nil
+}
+
+func checkFeatureSpec(root, inputPath string) (map[string]any, error) {
+	absolute, relative, err := resolveFile(root, inputPath)
+	if err != nil {
+		return nil, err
+	}
+	feature, err := spec.LoadFeature(absolute)
+	if err != nil {
+		return nil, err
+	}
+	feature.SourcePath = relative
+	summary := feature.Summary()
+	summary["path"] = relative
+	return summary, nil
+}
+
+func checkFeaturePlan(root, inputPath string, minimum int) (map[string]any, error) {
+	plan, err := featurecmd.Build(featurecmd.Options{Root: root, FeaturePath: inputPath})
+	if err != nil {
+		return nil, err
+	}
+	outputs := 0
+	for _, module := range plan.Modules {
+		outputs += module.GeneratedOutputs
+	}
+	if outputs < minimum {
+		return nil, fmt.Errorf("Feature plan contains %d generated outputs, expected at least %d", outputs, minimum)
+	}
+	return map[string]any{
+		"feature":      plan.Feature.Name,
+		"modules":      len(plan.Modules),
+		"requirements": len(plan.Requirements),
+		"acceptance":   len(plan.Acceptance),
+		"outputs":      outputs,
+		"rollout":      plan.Rollout.Strategy,
 	}, nil
 }
 

@@ -7,6 +7,8 @@ cd "${ROOT}"
 export CI="${CI:-true}"
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
+mkdir -p .mss/cache
+
 printf 'mss Codex setup\n'
 printf 'root: %s\n' "${ROOT}"
 printf 'go: %s\n' "$(go version)"

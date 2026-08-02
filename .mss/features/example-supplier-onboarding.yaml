@@ -135,6 +135,14 @@ spec:
       evidence:
         - type: report
           value: .mss/reports/verify.json
+    - id: supplier-audit-safe
+      requirement: supplier-audit
+      statement: Supplier mutations produce safe audit metadata without persisting credentials, tokens, attachment content, or sensitive request bodies.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: modules/supplier/tests/audit_test.go
     - id: changed-verification
       statement: The change-aware verifier completes without failed required checks.
       level: integration

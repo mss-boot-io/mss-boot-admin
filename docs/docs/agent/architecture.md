@@ -14,13 +14,13 @@ keywords: [agent architecture contracts generator cli mcp blueprint]
 
 项目的目标不是“在后台里增加一个 AI 聊天框”，也不是“让大模型自由修改所有文件”。完成形态是：
 
-> 一套面向 Codex、Claude Code、Copilot、Cursor 等编码 Agent 的管理系统工程基础设施，提供稳定运行时、结构化项目事实、确定性生成、可重复开发环境、自动验证、Agent Skills、MCP 工具、应用 Blueprint 和持续升级能力。
+> 一套面向 Codex、Claude Code、other coding agents、Cursor 等编码 Agent 的管理系统工程基础设施，提供稳定运行时、结构化项目事实、确定性生成、可重复开发环境、自动验证、Agent Skills、MCP 工具、应用 Blueprint 和持续升级能力。
 
 ## 分层
 
 ```text
 ┌────────────────────────────────────────────┐
-│ Codex / Claude Code / Copilot / Cursor     │
+│ Codex / Claude Code / other coding agents / Cursor     │
 └──────────────────────┬─────────────────────┘
                        │
 ┌──────────────────────▼─────────────────────┐

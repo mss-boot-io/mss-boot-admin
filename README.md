@@ -7,9 +7,31 @@
 English | [简体中文](./README.zh-CN.md)
 
 ## Introduction
-> `mss-boot-admin` is a front-end and back-end separation admin platform based on Gin, React, Ant Design v5, Umi v4, and mss-boot. Its current product focus is governance, operations, configuration, access control, internationalization, and AI-annotation-assisted engineering collaboration.
 
-> The repository still contains some historical dynamic-model and code-generation related capabilities, but they are no longer the primary direction for future product investment.
+> `mss-boot-admin` is an Agent-native management-system development foundation. It combines a production-oriented Gin + React + Ant Design reference application with machine-readable project contracts, Feature and AdminModule specifications, deterministic full-stack generation, repository Skills, a project MCP server, reproducible setup, change-aware verification, Agent Evals, versioned application Blueprints, and conflict-aware downstream upgrades.
+
+> The runtime admin platform still provides identity, RBAC, organization, configuration, audit, notification, task, internationalization, storage, WebSocket, and observability capabilities. Historical runtime dynamic-model and virtual code-generation paths remain compatibility-only; new business modules use development-time specifications and compiled vertical modules.
+
+## Agent-native workflow
+
+```text
+business intent
+  → Feature and Acceptance contract
+  → AdminModule contract
+  → deterministic generation
+  → Agent implements non-template business rules
+  → change-aware verification and Evals
+  → reviewable PR and upgradeable downstream application
+```
+
+```shell
+./mss context --format json
+./mss doctor --strict --format json
+./mss setup
+./mss dev --detach
+./mss verify --changed
+./mss eval run --all
+```
 
 ## Recent Updates
 
@@ -57,7 +79,7 @@ All active development now happens in this repository. The former standalone rep
 - Support database migration
 - Support governance-oriented admin modules such as users, roles, menus, departments, posts, APIs, and configuration
 - Support operational modules such as notices, tasks, monitoring, and statistics
-- Evolving toward AI-annotation-assisted engineering workflows for clearer collaboration and delivery discipline
+- Agent-native contracts, deterministic generation, project MCP tools, change-aware verification, downstream Blueprints, and three-way foundation upgrades
 
 ## 📦 Built-in functions
 - User management: Users are system operators, and this function mainly completes the configuration of system users.
@@ -94,46 +116,27 @@ All active development now happens in this repository. The former standalone rep
 - Frontend development: Node.js 22+ and pnpm 9+
 
 ## 📦 Quick start
-### 1. Download the monorepo
+
 ```shell
 git clone https://github.com/mss-boot-io/mss-boot-admin.git
 cd mss-boot-admin
+
+./mss doctor --strict --format json
+./mss setup
+./mss dev --detach
+./mss dev status --format json
 ```
 
-### 2. Migrate the database
+Create or validate development contracts before editing repetitive code:
+
 ```shell
-# Enter the backend project
-cd mss-boot-admin
-# The default local config uses SQLite: mss-boot-admin-local.db
-go run main.go migrate
+./mss spec validate .mss/features/example-supplier-onboarding.yaml
+./mss feature plan .mss/features/example-supplier-onboarding.yaml
+./mss module generate .mss/modules/example-supplier.yaml --format json
+./mss verify --changed
 ```
 
-If you want to use MySQL locally, start `compose/mysql/docker-compose.yml` and update
-`config/application.yml` (`database.driver` and `database.source`) before running the
-migration command.
-
-### 3. Generate API interface information
-```shell
-# Generate API interface information
-go run main.go server -a
-```
-
-### 4. Start the backend service
-```shell
-# Start the backend service
-go run main.go server
-```
-
-### 5. Start the front-end service
-```shell
-# Enter the front-end project
-cd web/antd
-# Install dependencies
-corepack enable
-pnpm install
-# Start the front-end service
-pnpm start:dev
-```
+The manual backend, frontend, migration, Blueprint, upgrade, Skills, MCP, and Eval workflows are documented under `docs/docs/agent/`.
 
 ## 📨 Interaction
 <table>

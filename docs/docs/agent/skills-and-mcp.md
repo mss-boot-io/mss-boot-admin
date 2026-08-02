@@ -158,12 +158,12 @@ Codex 会读取根 `AGENTS.md` 和路径附近的覆盖规则，并通过 `.code
 
 不要在 `CLAUDE.md` 再维护一套架构和命令清单。
 
-## Copilot 与 Cursor
+## other coding agents 与 Cursor
 
 适配文件：
 
 ```text
-.github/copilot-instructions.md
+.github/other coding agents-instructions.md
 .cursor/rules/mss-agent-foundation.mdc
 ```
 

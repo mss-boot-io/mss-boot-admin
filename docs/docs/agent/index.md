@@ -4,8 +4,8 @@ order: 1
 nav:
   title: Agent 开发
   order: 2
-description: 使用 Codex、Claude Code、Copilot、Cursor 等编码 Agent 开发管理系统的统一基础设施
-keywords: [agent codex claude copilot cursor mss management system]
+description: 使用 Codex、Claude Code、other coding agents、Cursor 等编码 Agent 开发管理系统的统一基础设施
+keywords: [agent codex claude other coding agents cursor mss management system]
 ---
 
 # Agent 原生管理系统开发基础设施
@@ -44,7 +44,7 @@ Agent Eval：验证基础设施本身仍然可被 Agent 正确使用
 - `mss` CLI：确定性实现；
 - MCP：将同一套实现暴露给支持 MCP 的 Agent。
 
-`CLAUDE.md`、Copilot instructions、Cursor rules 和 Codex 配置只是薄适配层，不复制架构真相。
+`CLAUDE.md`、other coding agents instructions、Cursor rules 和 Codex 配置只是薄适配层，不复制架构真相。
 
 ### 自然语言不直接生成最终代码
 
