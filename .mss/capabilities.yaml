@@ -1,0 +1,258 @@
+apiVersion: mss.io/v1alpha1
+kind: CapabilityCatalog
+metadata:
+  project: mss-boot-admin
+spec:
+  statuses:
+    stable: supported for new production modules
+    beta: usable with explicit validation and compatibility review
+    legacy: maintained for compatibility, not recommended for new modules
+    planned: part of the approved roadmap but not yet implemented
+  capabilities:
+    - id: identity.authentication
+      displayName: Authentication
+      status: stable
+      owners: [backend, frontend]
+      backendPaths:
+        - middleware/auth.go
+        - models/user.go
+        - apis/user.go
+      frontendPaths:
+        - web/antd/src/pages/User/Login
+        - web/antd/src/access.ts
+      guidance: Reuse existing JWT and OAuth2 flows; do not create a parallel login system.
+
+    - id: identity.personal-access-token
+      displayName: Personal Access Token
+      status: stable
+      owners: [backend, frontend]
+      backendPaths:
+        - models/user_auth_token.go
+        - apis/user_auth_token.go
+      frontendPaths:
+        - web/antd/src/pages/Account/Settings/components/AccessToken.tsx
+      guidance: Preserve one-time display and revocation semantics.
+
+    - id: authorization.rbac
+      displayName: Casbin RBAC
+      status: stable
+      owners: [backend, frontend]
+      backendPaths:
+        - models/role.go
+        - models/menu.go
+        - apis/role.go
+        - middleware/auth.go
+      frontendPaths:
+        - web/antd/src/access.ts
+        - web/antd/src/pages/Role
+        - web/antd/src/pages/Menu
+      guidance: Enforce permissions on the backend; frontend checks are advisory only.
+
+    - id: organization.directory
+      displayName: User, Department, Post, and Role Directory
+      status: stable
+      owners: [backend, frontend]
+      backendPaths:
+        - models/user.go
+        - models/department.go
+        - models/post.go
+        - models/role.go
+      frontendPaths:
+        - web/antd/src/pages/User
+        - web/antd/src/pages/Department
+        - web/antd/src/pages/Post
+        - web/antd/src/pages/Role
+      guidance: Reuse existing organization entities for management applications.
+
+    - id: governance.audit
+      displayName: Audit and Login Logs
+      status: stable
+      owners: [backend]
+      backendPaths:
+        - middleware/audit.go
+        - models/audit_log.go
+        - service/audit.go
+      guidance: Redact secrets and sensitive request bodies before persistence.
+
+    - id: platform.configuration
+      displayName: Application and System Configuration
+      status: stable
+      owners: [backend, frontend]
+      backendPaths:
+        - config/config.go
+        - apis/app_config.go
+        - apis/system_config.go
+      frontendPaths:
+        - web/antd/src/pages/AppConfig
+        - web/antd/src/pages/SystemConfig
+      guidance: Prefer typed configuration and secret references over raw unvalidated values.
+
+    - id: platform.cache-lock-queue
+      displayName: Cache, Distributed Lock, and Queue Adapters
+      status: stable
+      owners: [framework]
+      frameworkPaths:
+        - mss-boot/pkg/config/cache.go
+        - mss-boot/pkg/config/locker.go
+        - mss-boot/pkg/config/queue.go
+        - mss-boot/pkg/config/storage
+      guidance: Keep adapters domain-neutral and test fallback behavior.
+
+    - id: platform.storage
+      displayName: Local and S3-Compatible Object Storage
+      status: beta
+      owners: [backend, framework]
+      backendPaths:
+        - service/storage.go
+      frameworkPaths:
+        - mss-boot/pkg/config/storage.go
+      guidance: Validate size, content type, path confinement, and credential handling.
+
+    - id: operations.task
+      displayName: Scheduled and On-Demand Tasks
+      status: beta
+      owners: [backend, framework]
+      backendPaths:
+        - models/task.go
+        - models/task_run.go
+        - apis/task.go
+      frameworkPaths:
+        - mss-boot/core/server/task
+      guidance: Keep management maintenance tasks here; new domain workflows should use explicit services.
+
+    - id: operations.notification
+      displayName: Notices and Notification Channels
+      status: beta
+      owners: [backend, frontend]
+      backendPaths:
+        - models/notice.go
+        - service/notification_channel.go
+      frontendPaths:
+        - web/antd/src/pages/Notice
+      guidance: Treat channel credentials as secrets and test failure paths.
+
+    - id: operations.monitoring
+      displayName: Process and Host Monitoring
+      status: beta
+      owners: [backend, frontend]
+      backendPaths:
+        - service/monitor.go
+        - apis/monitor.go
+      frontendPaths:
+        - web/antd/src/pages/Monitor
+      guidance: This is application-local monitoring, not a replacement for external observability.
+
+    - id: integration.websocket
+      displayName: WebSocket Events
+      status: beta
+      owners: [backend, frontend]
+      backendPaths:
+        - apis/ws.go
+        - center/websocket
+      frontendPaths:
+        - web/antd/src/hooks/useWebSocket.ts
+      guidance: Reuse the current event path and validate clustered Redis behavior when enabled.
+
+    - id: integration.kubernetes
+      displayName: Kubernetes Client and Resource Actions
+      status: beta
+      owners: [backend, framework]
+      backendPaths:
+        - config/clusters.go
+      frameworkPaths:
+        - mss-boot/pkg/config/k8s
+        - mss-boot/pkg/response/actions/k8s
+      guidance: Avoid process-wide exits and broad credentials for optional cluster integrations.
+
+    - id: internationalization.runtime
+      displayName: Runtime Internationalization Resources
+      status: stable
+      owners: [backend, frontend]
+      backendPaths:
+        - models/language.go
+        - apis/language.go
+      frontendPaths:
+        - web/antd/src/locales
+        - web/antd/src/pages/Language
+      guidance: Keep zh-CN and en-US user-facing keys synchronized.
+
+    - id: legacy.dynamic-schema
+      displayName: Runtime Dynamic Schema and Virtual Model
+      status: legacy
+      owners: [backend, frontend]
+      backendPaths:
+        - models/model.go
+        - models/field.go
+        - apis/model.go
+        - apis/field.go
+        - mss-boot/virtual
+      frontendPaths:
+        - web/antd/src/pages/Model
+        - web/antd/src/pages/Field
+        - web/antd/src/pages/Virtual
+      guidance: Do not use for new production modules; prefer specification-driven development-time generation.
+
+    - id: agent.project-contract
+      displayName: Machine-Readable Project Contract
+      status: beta
+      owners: [agent-infrastructure]
+      paths:
+        - AGENTS.md
+        - .mss/project.yaml
+        - .mss/capabilities.yaml
+        - .mss/commands.yaml
+      guidance: Keep machine-readable facts synchronized with code and validation.
+
+    - id: agent.cli
+      displayName: Unified mss CLI
+      status: planned
+      owners: [agent-infrastructure]
+      paths:
+        - cmd/mss
+        - internal/mss
+      guidance: CLI is the source of truth for deterministic operations used by Skills, CI, and MCP.
+
+    - id: agent.module-generator
+      displayName: Deterministic Admin Module Generator
+      status: planned
+      owners: [agent-infrastructure]
+      paths:
+        - .mss/schemas/admin-module.schema.json
+        - internal/mss/generator
+        - templates/module
+      guidance: Require dry-run, path confinement, stable ordering, golden tests, and two-run idempotency.
+
+    - id: agent.skills
+      displayName: Repository Agent Skills
+      status: planned
+      owners: [agent-infrastructure]
+      paths:
+        - .agents/skills
+      guidance: Skills orchestrate the CLI and must not duplicate generator or verifier logic.
+
+    - id: agent.mcp
+      displayName: mss MCP Server
+      status: planned
+      owners: [agent-infrastructure]
+      paths:
+        - cmd/mss-mcp
+      guidance: Thin protocol adapter over stable CLI packages; write tools default to dry-run.
+
+    - id: agent.evals
+      displayName: Agent Task Evaluations
+      status: planned
+      owners: [agent-infrastructure, dev-test]
+      paths:
+        - .mss/evals
+        - internal/mss/eval
+      guidance: Measure correctness, authorization, idempotency, unrelated changes, and upgrade behavior.
+
+    - id: foundation.upgrade
+      displayName: Blueprint and Downstream Upgrade System
+      status: planned
+      owners: [agent-infrastructure]
+      paths:
+        - .mss/lock.yaml
+        - internal/mss/upgrader
+        - tools/codemods
+      guidance: Preserve downstream customizations and emit an explicit conflict and migration report.
