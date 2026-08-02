@@ -36,17 +36,17 @@ type ProjectDocument struct {
 
 // ProjectSpec contains the subset of project.yaml consumed by the CLI.
 type ProjectSpec struct {
-	Mission             string            `yaml:"mission" json:"mission"`
-	FoundationVersion   string            `yaml:"foundationVersion" json:"foundationVersion"`
-	RepositoryLayout    map[string]string `yaml:"repositoryLayout" json:"repositoryLayout"`
-	Backend             BackendSpec       `yaml:"backend" json:"backend"`
-	Frontend            FrontendSpec      `yaml:"frontend" json:"frontend"`
-	Documentation       DocumentationSpec `yaml:"documentation" json:"documentation"`
-	Database            DatabaseSpec      `yaml:"database" json:"database"`
-	LocalDependencies   DependencySpec    `yaml:"localDependencies" json:"localDependencies"`
-	Conventions         map[string]any    `yaml:"conventions" json:"conventions"`
-	Entrypoints         map[string]string `yaml:"entrypoints" json:"entrypoints"`
-	Validation          ValidationSpec    `yaml:"validation" json:"validation"`
+	Mission           string            `yaml:"mission" json:"mission"`
+	FoundationVersion string            `yaml:"foundationVersion" json:"foundationVersion"`
+	RepositoryLayout  map[string]string `yaml:"repositoryLayout" json:"repositoryLayout"`
+	Backend           BackendSpec       `yaml:"backend" json:"backend"`
+	Frontend          FrontendSpec      `yaml:"frontend" json:"frontend"`
+	Documentation     DocumentationSpec `yaml:"documentation" json:"documentation"`
+	Database          DatabaseSpec      `yaml:"database" json:"database"`
+	LocalDependencies DependencySpec    `yaml:"localDependencies" json:"localDependencies"`
+	Conventions       map[string]any    `yaml:"conventions" json:"conventions"`
+	Entrypoints       map[string]string `yaml:"entrypoints" json:"entrypoints"`
+	Validation        ValidationSpec    `yaml:"validation" json:"validation"`
 }
 
 // BackendSpec describes the Go backend contract.
@@ -114,15 +114,15 @@ type CapabilityCatalogSpec struct {
 
 // Capability is one reusable project capability.
 type Capability struct {
-	ID            string   `yaml:"id" json:"id"`
-	DisplayName   string   `yaml:"displayName" json:"displayName"`
-	Status        string   `yaml:"status" json:"status"`
-	Owners        []string `yaml:"owners" json:"owners"`
-	Paths         []string `yaml:"paths,omitempty" json:"paths,omitempty"`
-	BackendPaths  []string `yaml:"backendPaths,omitempty" json:"backendPaths,omitempty"`
+	ID             string   `yaml:"id" json:"id"`
+	DisplayName    string   `yaml:"displayName" json:"displayName"`
+	Status         string   `yaml:"status" json:"status"`
+	Owners         []string `yaml:"owners" json:"owners"`
+	Paths          []string `yaml:"paths,omitempty" json:"paths,omitempty"`
+	BackendPaths   []string `yaml:"backendPaths,omitempty" json:"backendPaths,omitempty"`
 	FrameworkPaths []string `yaml:"frameworkPaths,omitempty" json:"frameworkPaths,omitempty"`
-	FrontendPaths []string `yaml:"frontendPaths,omitempty" json:"frontendPaths,omitempty"`
-	Guidance      string   `yaml:"guidance" json:"guidance"`
+	FrontendPaths  []string `yaml:"frontendPaths,omitempty" json:"frontendPaths,omitempty"`
+	Guidance       string   `yaml:"guidance" json:"guidance"`
 }
 
 // CommandCatalog describes canonical repository commands.
@@ -135,7 +135,7 @@ type CommandCatalog struct {
 
 // CommandCatalogSpec contains conventions and named commands.
 type CommandCatalogSpec struct {
-	Conventions map[string]any      `yaml:"conventions" json:"conventions"`
+	Conventions map[string]any     `yaml:"conventions" json:"conventions"`
 	Commands    map[string]Command `yaml:"commands" json:"commands"`
 }
 

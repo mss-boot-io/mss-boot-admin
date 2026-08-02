@@ -39,14 +39,14 @@ type Options struct {
 
 // Change is one deterministic output decision.
 type Change struct {
-	Path       string `json:"path"`
-	Action     Action `json:"action"`
-	Managed    bool   `json:"managed"`
-	Bytes      int    `json:"bytes"`
-	SHA256     string `json:"sha256"`
-	Source     string `json:"source,omitempty"`
-	content    []byte
-	fileMode   os.FileMode
+	Path     string `json:"path"`
+	Action   Action `json:"action"`
+	Managed  bool   `json:"managed"`
+	Bytes    int    `json:"bytes"`
+	SHA256   string `json:"sha256"`
+	Source   string `json:"source,omitempty"`
+	content  []byte
+	fileMode os.FileMode
 }
 
 // Plan is safe to render for humans or agents before applying writes.

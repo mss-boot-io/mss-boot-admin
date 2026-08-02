@@ -37,11 +37,11 @@ type Options struct {
 
 // Plan describes the exact checks selected for a change.
 type Plan struct {
-	Mode         Mode           `json:"mode"`
-	BaseRef      string         `json:"baseRef,omitempty"`
-	Module       string         `json:"module,omitempty"`
-	ChangedFiles []string       `json:"changedFiles,omitempty"`
-	Checks       []command.Spec `json:"checks"`
+	Mode         Mode                `json:"mode"`
+	BaseRef      string              `json:"baseRef,omitempty"`
+	Module       string              `json:"module,omitempty"`
+	ChangedFiles []string            `json:"changedFiles,omitempty"`
+	Checks       []command.Spec      `json:"checks"`
 	Reasons      map[string][]string `json:"reasons"`
 }
 

@@ -45,16 +45,16 @@ type ModuleMetadata struct {
 
 // ModuleSpec defines backend, frontend, permission, and verification behavior.
 type ModuleSpec struct {
-	Entity      EntitySpec      `yaml:"entity" json:"entity"`
-	API         APISpec         `yaml:"api,omitempty" json:"api,omitempty"`
-	Permissions []Permission    `yaml:"permissions" json:"permissions"`
-	Ownership   OwnershipSpec   `yaml:"ownership,omitempty" json:"ownership,omitempty"`
-	Menu        MenuSpec        `yaml:"menu" json:"menu"`
-	UI          UISpec          `yaml:"ui" json:"ui"`
-	Workflow    *WorkflowSpec   `yaml:"workflow,omitempty" json:"workflow,omitempty"`
-	Events      []EventSpec     `yaml:"events,omitempty" json:"events,omitempty"`
-	Tests       TestSpec        `yaml:"tests" json:"tests"`
-	Generation  GenerationSpec  `yaml:"generation,omitempty" json:"generation,omitempty"`
+	Entity      EntitySpec     `yaml:"entity" json:"entity"`
+	API         APISpec        `yaml:"api,omitempty" json:"api,omitempty"`
+	Permissions []Permission   `yaml:"permissions" json:"permissions"`
+	Ownership   OwnershipSpec  `yaml:"ownership,omitempty" json:"ownership,omitempty"`
+	Menu        MenuSpec       `yaml:"menu" json:"menu"`
+	UI          UISpec         `yaml:"ui" json:"ui"`
+	Workflow    *WorkflowSpec  `yaml:"workflow,omitempty" json:"workflow,omitempty"`
+	Events      []EventSpec    `yaml:"events,omitempty" json:"events,omitempty"`
+	Tests       TestSpec       `yaml:"tests" json:"tests"`
+	Generation  GenerationSpec `yaml:"generation,omitempty" json:"generation,omitempty"`
 }
 
 // EntitySpec defines persistent data shape.
@@ -70,28 +70,28 @@ type EntitySpec struct {
 
 // FieldSpec defines one entity field and its generated API/UI behavior.
 type FieldSpec struct {
-	Name        string            `yaml:"name" json:"name"`
-	Column      string            `yaml:"column,omitempty" json:"column,omitempty"`
-	GoName      string            `yaml:"goName,omitempty" json:"goName,omitempty"`
-	DisplayName string            `yaml:"displayName" json:"displayName"`
-	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
-	Type        string            `yaml:"type" json:"type"`
-	Required    bool              `yaml:"required,omitempty" json:"required,omitempty"`
-	Nullable    bool              `yaml:"nullable,omitempty" json:"nullable,omitempty"`
-	Unique      bool              `yaml:"unique,omitempty" json:"unique,omitempty"`
-	Index       bool              `yaml:"index,omitempty" json:"index,omitempty"`
-	Searchable  bool              `yaml:"searchable,omitempty" json:"searchable,omitempty"`
-	Sortable    bool              `yaml:"sortable,omitempty" json:"sortable,omitempty"`
-	Filterable  bool              `yaml:"filterable,omitempty" json:"filterable,omitempty"`
-	List        *bool             `yaml:"list,omitempty" json:"list,omitempty"`
-	Form        *bool             `yaml:"form,omitempty" json:"form,omitempty"`
-	Detail      *bool             `yaml:"detail,omitempty" json:"detail,omitempty"`
-	Immutable   bool              `yaml:"immutable,omitempty" json:"immutable,omitempty"`
-	Default     any               `yaml:"default,omitempty" json:"default,omitempty"`
-	Validation  ValidationSpec    `yaml:"validation,omitempty" json:"validation,omitempty"`
-	EnumValues  []EnumValue       `yaml:"enumValues,omitempty" json:"enumValues,omitempty"`
-	Relation    *RelationSpec     `yaml:"relation,omitempty" json:"relation,omitempty"`
-	UI          FieldUISpec       `yaml:"ui,omitempty" json:"ui,omitempty"`
+	Name        string         `yaml:"name" json:"name"`
+	Column      string         `yaml:"column,omitempty" json:"column,omitempty"`
+	GoName      string         `yaml:"goName,omitempty" json:"goName,omitempty"`
+	DisplayName string         `yaml:"displayName" json:"displayName"`
+	Description string         `yaml:"description,omitempty" json:"description,omitempty"`
+	Type        string         `yaml:"type" json:"type"`
+	Required    bool           `yaml:"required,omitempty" json:"required,omitempty"`
+	Nullable    bool           `yaml:"nullable,omitempty" json:"nullable,omitempty"`
+	Unique      bool           `yaml:"unique,omitempty" json:"unique,omitempty"`
+	Index       bool           `yaml:"index,omitempty" json:"index,omitempty"`
+	Searchable  bool           `yaml:"searchable,omitempty" json:"searchable,omitempty"`
+	Sortable    bool           `yaml:"sortable,omitempty" json:"sortable,omitempty"`
+	Filterable  bool           `yaml:"filterable,omitempty" json:"filterable,omitempty"`
+	List        *bool          `yaml:"list,omitempty" json:"list,omitempty"`
+	Form        *bool          `yaml:"form,omitempty" json:"form,omitempty"`
+	Detail      *bool          `yaml:"detail,omitempty" json:"detail,omitempty"`
+	Immutable   bool           `yaml:"immutable,omitempty" json:"immutable,omitempty"`
+	Default     any            `yaml:"default,omitempty" json:"default,omitempty"`
+	Validation  ValidationSpec `yaml:"validation,omitempty" json:"validation,omitempty"`
+	EnumValues  []EnumValue    `yaml:"enumValues,omitempty" json:"enumValues,omitempty"`
+	Relation    *RelationSpec  `yaml:"relation,omitempty" json:"relation,omitempty"`
+	UI          FieldUISpec    `yaml:"ui,omitempty" json:"ui,omitempty"`
 }
 
 // ValidationSpec defines generated validation constraints.
@@ -174,13 +174,13 @@ type MenuSpec struct {
 
 // UISpec defines which standard pages and operations are generated.
 type UISpec struct {
-	List        bool `yaml:"list" json:"list"`
-	Form        bool `yaml:"form" json:"form"`
-	Detail      bool `yaml:"detail" json:"detail"`
+	List        bool  `yaml:"list" json:"list"`
+	Form        bool  `yaml:"form" json:"form"`
+	Detail      bool  `yaml:"detail" json:"detail"`
 	Mobile      *bool `yaml:"mobile,omitempty" json:"mobile,omitempty"`
-	BatchDelete bool `yaml:"batchDelete,omitempty" json:"batchDelete,omitempty"`
-	Export      bool `yaml:"export,omitempty" json:"export,omitempty"`
-	Import      bool `yaml:"import,omitempty" json:"import,omitempty"`
+	BatchDelete bool  `yaml:"batchDelete,omitempty" json:"batchDelete,omitempty"`
+	Export      bool  `yaml:"export,omitempty" json:"export,omitempty"`
+	Import      bool  `yaml:"import,omitempty" json:"import,omitempty"`
 }
 
 // WorkflowSpec defines a finite-state workflow for one enum field.
