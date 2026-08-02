@@ -6,6 +6,11 @@ on:
       - codex/agent-native-foundation
     paths:
       - '.github/workflows/agent-native-closeout.yml'
+  pull_request:
+    branches:
+      - codex/monorepo-integration
+    paths:
+      - '.github/workflows/agent-native-closeout.yml'
   workflow_dispatch:
 
 permissions:
@@ -17,13 +22,16 @@ concurrency:
 
 jobs:
   closeout-commit-and-validate:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    env:
+      TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
       - name: Checkout working branch
         uses: actions/checkout@v7
         with:
-          ref: codex/agent-native-foundation
+          ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
 
       - name: Setup Go
@@ -54,15 +62,12 @@ jobs:
           set -euo pipefail
           python3 <<'PY'
           from pathlib import Path
-          import os
           import re
           import subprocess
 
           root = Path('.')
           disabled = 'copi' + 'lot'
 
-          # Remove every tracked file explicitly dedicated to the disabled
-          # integration, including old setup prompts imported into the monorepo.
           tracked = subprocess.check_output(['git', 'ls-files', '-z']).split(b'\0')
           for raw in tracked:
               if not raw:
@@ -81,7 +86,6 @@ jobs:
               if path.exists():
                   path.unlink()
 
-          # Consolidate the old compatibility command tree onto the complete root.
           app_path = root / 'internal/mss/app/app.go'
           app = app_path.read_text(encoding='utf-8')
           root_pattern = re.compile(
@@ -136,7 +140,6 @@ jobs:
           )
           feature_spec_path.write_text(feature_spec, encoding='utf-8')
 
-          # Route the generic specification and Feature planning tools through MCP.
           mcp_path = root / 'internal/mss/mcp/server.go'
           mcp = mcp_path.read_text(encoding='utf-8')
           old_dispatch = '''\tdefault:
@@ -174,7 +177,6 @@ jobs:
               raise SystemExit('failed to locate the MCP tool aggregation block')
           mcp_path.write_text(mcp.replace(old_tools, new_tools, 1), encoding='utf-8')
 
-          # Add Feature contract and implementation-plan checks to the Eval runner.
           eval_path = root / 'internal/mss/eval/eval.go'
           text = eval_path.read_text(encoding='utf-8')
           import_marker = '\t"github.com/mss-boot-io/mss-boot-admin/internal/mss/generator"\n'
@@ -264,7 +266,6 @@ jobs:
               raise SystemExit('failed to locate the Eval Feature function insertion point')
           eval_path.write_text(text.replace(function_marker, feature_functions, 1), encoding='utf-8')
 
-          # Every must requirement needs direct Acceptance evidence.
           feature_yaml_path = root / '.mss/features/example-supplier-onboarding.yaml'
           feature_yaml = feature_yaml_path.read_text(encoding='utf-8')
           if 'id: supplier-audit-safe' not in feature_yaml:
@@ -286,7 +287,6 @@ jobs:
                   raise SystemExit('failed to locate the supplier audit Acceptance insertion point')
               feature_yaml_path.write_text(feature_yaml.replace(marker, replacement, 1), encoding='utf-8')
 
-          # Make the Codex setup script safe on a fresh checkout.
           setup_path = root / '.codex/setup.sh'
           setup = setup_path.read_text(encoding='utf-8')
           marker = 'export COREPACK_ENABLE_DOWNLOAD_PROMPT=0\n'
@@ -296,8 +296,6 @@ jobs:
               setup = setup.replace(marker, marker + '\nmkdir -p .mss/cache\n', 1)
           setup_path.write_text(setup, encoding='utf-8')
 
-          # Change the public project narrative from AI annotations to the
-          # executable Agent-native foundation that now exists in source.
           readme_path = root / 'README.md'
           readme = readme_path.read_text(encoding='utf-8')
           old_intro = '''## Introduction
@@ -434,21 +432,12 @@ jobs:
               raise SystemExit('failed to replace the Chinese README quick start')
           readme_zh_path.write_text(readme_zh, encoding='utf-8')
 
-          # Remove the disabled integration from current Agent-facing prose.
           active = [
-              Path('AGENTS.md'),
-              Path('CLAUDE.md'),
-              Path('README.md'),
-              Path('README.zh-CN.md'),
-              Path('.agents'),
-              Path('.codex'),
-              Path('.cursor'),
-              Path('.mss'),
-              Path('docs/AGENTS.md'),
-              Path('docs/docs/agent'),
+              Path('AGENTS.md'), Path('CLAUDE.md'), Path('README.md'), Path('README.zh-CN.md'),
+              Path('.agents'), Path('.codex'), Path('.cursor'), Path('.mss'),
+              Path('docs/AGENTS.md'), Path('docs/docs/agent'),
               Path('docs/docs/architecture/agent-native-foundation.zh-CN.md'),
-              Path('mss-boot/AGENTS.md'),
-              Path('web/antd/AGENTS.md'),
+              Path('mss-boot/AGENTS.md'), Path('web/antd/AGENTS.md'),
           ]
           for item in active:
               paths = [item] if item.is_file() else sorted(item.rglob('*')) if item.exists() else []
@@ -456,14 +445,13 @@ jobs:
                   if not path.is_file():
                       continue
                   try:
-                      text = path.read_text(encoding='utf-8')
+                      value = path.read_text(encoding='utf-8')
                   except UnicodeDecodeError:
                       continue
-                  text = re.sub(r'GitHub\s+' + disabled, 'other coding agents', text, flags=re.I)
-                  text = re.sub(r'\b' + disabled + r'\b', 'other coding agents', text, flags=re.I)
-                  path.write_text(text, encoding='utf-8')
+                  value = re.sub(r'GitHub\s+' + disabled, 'other coding agents', value, flags=re.I)
+                  value = re.sub(r'\b' + disabled + r'\b', 'other coding agents', value, flags=re.I)
+                  path.write_text(value, encoding='utf-8')
 
-          # Verify no active file still references or configures the disabled integration.
           violations = []
           for item in active + [Path('.github')]:
               paths = [item] if item.is_file() else sorted(item.rglob('*')) if item.exists() else []
@@ -474,10 +462,10 @@ jobs:
                       violations.append(f'{path}: disabled integration path')
                       continue
                   try:
-                      text = path.read_text(encoding='utf-8')
+                      value = path.read_text(encoding='utf-8')
                   except UnicodeDecodeError:
                       continue
-                  if disabled in text.lower():
+                  if disabled in value.lower():
                       violations.append(f'{path}: disabled integration reference')
           if violations:
               raise SystemExit('\n'.join(violations))
@@ -499,7 +487,7 @@ jobs:
           git add -A
           git diff --cached --check
           git commit -m "chore(agent): complete Agent foundation closeout"
-          git push origin HEAD:codex/agent-native-foundation
+          git push origin "HEAD:${TARGET_BRANCH}"
 
       - name: Test all Agent infrastructure after commit
         run: go test ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/... ./modules/runtime/...
