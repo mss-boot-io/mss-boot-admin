@@ -1,121 +1,179 @@
-# mss-boot-admin AGENTS
+# mss-boot-admin Agent Contract
 
-## Scope
-- This file applies to the Go backend in `mss-boot-admin/`.
-- Inherit workspace rules from the root `AGENTS.md`, then apply the backend-specific rules below.
+## Mission
 
-## Default interaction model
-- Even when backend work is needed, the default user-facing entry remains leader.
-- Treat backend implementation here as leader-routed work unless the user explicitly asks to work directly at the backend-specialist level.
-- Use `aigc/prompts/roles/leader-role.zh-CN.md` for orchestration and `aigc/prompts/roles/backend-developer-role.zh-CN.md` for backend-specialist execution context.
+This repository is the source of truth for an agent-native management-system foundation. It contains the Go backend, the reusable `mss-boot` framework module, the Ant Design frontend, documentation, project specifications, deterministic generators, validation tooling, and agent workflows.
 
-## Project shape
-- Stack: Gin + GORM + Casbin + JWT/OAuth2 + Swagger.
-- This project is the backend service for the admin system.
-- Primary directories and responsibilities:
-  - `apis/`: REST controllers and route-facing handlers.
-  - `cmd/`: CLI entrypoints such as `migrate` and `server`.
-  - `config/`: configuration loading and definitions.
-  - `dto/`: request, response, and search DTOs.
-  - `models/`: GORM entities and shared model bases.
-  - `service/`: business logic.
-  - `middleware/`: auth, permission, tenant, logging, recovery.
-  - `router/`: controller registration and route wiring.
-  - `center/`: central services such as tenant, cache, queue, and statistics.
-  - `pkg/`: shared helpers and extension points.
-  - `compose/`: integration and dependency environments.
+A successful change must be understandable by humans, executable by coding agents, reproducible in CI, and upgradeable after downstream applications adopt it.
 
-## Data and tenancy conventions
-- Use the project base model types instead of inventing parallel model foundations.
-- Tenant-aware models should build on `ModelGormTenant`.
-- Tenant isolation relies on tenant-aware scoping and the existing tenant model infrastructure.
-- Keep `TenantID`, creator-related fields, and remark-style metadata aligned with existing model patterns.
-- Respect existing table, foreign-key, and index naming conventions.
+## Instruction scope
 
-## Controller and API conventions
-- Prefer the existing `response.Controller` and `controller.NewSimple(...)` patterns for CRUD-style APIs.
-- Register controllers through the established controller/response registration flow.
-- Keep REST routes aligned with existing generated CRUD conventions.
-- Add Swagger annotations for public API handlers and keep them in the project’s established annotation style.
+- This file applies to the entire repository.
+- A closer `AGENTS.md` may add directory-specific rules; it must not weaken security, compatibility, or validation requirements from this file.
+- Do not depend on personal absolute paths, workstation-specific tools, or hidden conversation context.
+- Treat `.mss/` as the machine-readable project contract and this file as the human-readable top-level contract.
 
-## DTO conventions
-- Search DTOs should reuse the project search base types where applicable.
-- Request/response DTOs should use the existing tag conventions:
-  - `json` for payload fields
-  - `binding` for validation rules
-  - `query` together with `form` for query/form parameters
-  - `uri` for path parameters
-- Match current DTO naming and validation style instead of introducing a new schema pattern.
+## Repository map
 
-## Auth, middleware, and task patterns
-- Reuse existing auth and login provider patterns rather than creating parallel authentication flows.
-- Register middleware through the existing middleware registry/pipeline.
-- For scheduled work, follow the current task model and handler registration approach.
-- For permission work, stay aligned with existing Casbin role/menu/API modeling.
+| Path | Responsibility |
+| --- | --- |
+| `/` | Go admin backend and current reference application |
+| `mss-boot/` | Reusable Go framework module; keep domain-neutral |
+| `web/antd/` | React + Ant Design frontend |
+| `docs/` | Product, architecture, operations, and contributor documentation |
+| `.mss/` | Machine-readable project, capability, command, schema, module, eval, and lock contracts |
+| `.agents/skills/` | Reusable agent workflows; skills call the `mss` CLI instead of duplicating implementation logic |
+| `cmd/mss/` | Agent-facing deterministic CLI entrypoint |
+| `internal/mss/` | CLI implementation packages: project, doctor, generator, inspector, verifier, upgrader, eval |
+| `modules/` | New vertical business modules and generated module registry |
+| `templates/` | Deterministic application and module templates |
+| `tools/` | Codemods and contract tooling |
+| `compose/` | Local integration dependencies |
 
-## Configuration and startup
-- Configuration priority is environment variables first, then CLI/config providers down to local/embed config.
-- Treat `DB_DSN` as a key environment variable for local startup and migration flows.
-- Standard backend workflow:
-  1. Set database connection variables.
-  2. Run `go run main.go migrate`.
-  3. Run `go run main.go server -a` when API docs/routes need regeneration.
-  4. Run `go run main.go server`.
+## Source-of-truth order
 
-## Testing and verification
-- Unit tests use `*_test.go` naming.
-- Shared test fixtures belong in `testdata/`.
-- Integration-style validation can depend on `compose/*/docker-compose.yml` environments.
-- Before considering backend work complete, prefer the smallest relevant verification: focused tests first, then broader checks if your change affects startup, generated API docs, migrations, or integration boundaries.
+When information conflicts, use this order:
 
-## Security and performance guardrails
-- Avoid raw SQL string concatenation when GORM parameterization fits.
-- Preserve password, token, and revocation patterns already used by the project.
-- Validate input and avoid output patterns that would weaken XSS protections.
-- Watch for N+1 queries, missing indexes, and cache misuse when changing data-heavy code.
-- Use existing locking, queue, and context-based timeout patterns for concurrency-sensitive work.
+1. Compiling code and database migrations.
+2. `.mss/` machine-readable contracts.
+3. Tests and generated validation reports.
+4. Current architecture decisions and user documentation.
+5. This file and directory-specific `AGENTS.md` files.
+6. Historical prompts or archived handoff notes.
 
-## Common troubleshooting anchors
-- Tenant issues: check `Referer` handling and tenant-domain configuration.
-- Permission issues: inspect Casbin policy loading and role/menu/API relationships.
-- Migration issues: check `DB_DSN`, database compatibility, and migration files under `cmd/migrate/migration/`.
+Historical prompt files are evidence, not active requirements, unless a current specification explicitly references them.
 
-## Contribution hygiene
-- Follow normal Go formatting/lint expectations already used in the project.
-- Keep docs and annotations in sync with behavior changes.
-- Do not bypass the framework’s existing extension points when an established pattern already exists.
+## Standard workflow
 
-## Backend startup commands
-**IMPORTANT**: Backend startup commands must be run asynchronously to avoid blocking the terminal.
+1. Read the nearest applicable `AGENTS.md` files.
+2. Read `.mss/project.yaml`, `.mss/capabilities.yaml`, and `.mss/commands.yaml` when present.
+3. Inspect existing capabilities before creating a parallel implementation.
+4. For medium or large changes, create or update a structured spec before implementation.
+5. Prefer deterministic CLI or generator operations for repetitive code.
+6. Implement the smallest coherent change.
+7. Commit completed implementation or specifications before broad testing when repository state might be lost.
+8. Run the smallest relevant validation first, then broader checks based on change impact.
+9. Report commands, results, skipped checks, migrations, security impact, compatibility impact, and remaining risk.
 
-### Correct async startup pattern
-```bash
-# From mss-boot-admin directory, use setsid to run in background:
-cd /home/lwx/go/src/github.com/mss-boot-io/mss-boot-admin
-setsid /tmp/mss-boot-admin server > /tmp/backend.log 2>&1 &
-sleep 5
-lsof -i :8080  # Verify port is listening
+Do not rewrite pushed history to hide intermediate fixes. Follow-up repair commits are preferred over force-push, rebase, or destructive reset.
 
-# Or with go run (build first for reliability):
-go build -o /tmp/mss-boot-admin .
-setsid /tmp/mss-boot-admin server > /tmp/backend.log 2>&1 &
+## Canonical commands
+
+Use the repository wrappers instead of inventing workstation-specific command sequences:
+
+```shell
+# Agent and environment context
+go run ./cmd/mss context
+go run ./cmd/mss doctor
+
+# Setup and validation
+go run ./cmd/mss setup
+go run ./cmd/mss verify --changed
+go run ./cmd/mss verify --all
+
+# Existing direct targets remain valid during migration
+make deps-all
+make test-all
+make web-install web-lint web-test web-build
+make docs-install docs-build
 ```
 
-### WRONG - will block terminal
-```bash
-# These will cause the terminal to hang:
-go run . server      # Blocks until killed
-go run . server -a   # Blocks until killed
-/tmp/mss-boot-admin server  # Blocks until killed
-```
+If `cmd/mss` is not yet available on an older branch, fall back to the Make targets documented in `.mss/commands.yaml`.
 
-### API endpoint format
-- All API endpoints are under `/admin/api/` path
-- Example: `/admin/api/options`, `/admin/api/users`
-- Requires authentication (JWT token in cookie or header)
-- Frontend proxy: `/admin/` -> `http://localhost:8080`
+## Architecture rules
 
-### Common startup issues
-- `-a` flag requires database data and will exit after saving API routes
-- If `-a` causes startup failure, run without it first
-- Redis must be running on `127.0.0.1:6379` (check with `docker ps`)
+### Go framework boundary
+
+- `mss-boot/` contains reusable, domain-neutral infrastructure.
+- Do not add admin-specific entities, menus, pages, or business workflows to `mss-boot/`.
+- Framework changes require independent tests with `GOWORK=off` where relevant.
+- The root application may depend on `mss-boot`; the framework must not depend on the root application.
+
+### New business modules
+
+- New business capabilities should use vertical modules under `modules/<name>/` once the module infrastructure is available.
+- Existing horizontal directories such as `apis/`, `dto/`, `models/`, and `service/` remain supported for compatibility.
+- Do not perform a broad mechanical migration of legacy modules unless a dedicated migration spec exists.
+- A complete module change includes backend behavior, migration, permission, menu/route, frontend, tests, and documentation as applicable.
+
+### Dynamic model legacy boundary
+
+The existing runtime dynamic-model or virtual-model capability is legacy. Do not use it as the default implementation for new production business modules. Development-time deterministic generation is the preferred path.
+
+### Contracts before generated code
+
+- Structured specifications are edited by humans or agents.
+- Generated files must identify their source specification and generator version.
+- Do not hand-edit generated regions when the change can be expressed in the source spec or template.
+- Generators must support dry-run, idempotency, path confinement, and stable output ordering.
+
+## Backend rules
+
+- Stack: Go, Gin, GORM, Casbin, Cobra, Swagger/OpenAPI.
+- Reuse existing authentication, authorization, response, configuration, cache, queue, locking, and storage abstractions.
+- API authorization must be enforced on the backend; hiding a frontend control is not authorization.
+- State-changing operations must not use GET.
+- Use parameterized database operations and explicit transactions where multiple writes form one logical operation.
+- Add forward-compatible migrations for persistent model changes.
+- Avoid external side effects in GORM hooks when an explicit service or reconciliation boundary is possible.
+- Do not terminate the whole process for an optional external integration failure; return or surface a diagnosable state.
+
+## Frontend rules
+
+- Stack: React, TypeScript, Ant Design, Umi, pnpm.
+- Use repository-relative paths only.
+- Keep API client types aligned with the generated OpenAPI contract.
+- Permission checks in the UI improve experience but never replace backend authorization.
+- New pages must include loading, empty, error, and permission-denied states where applicable.
+- Keep Chinese and English locale keys synchronized for user-facing additions.
+- Run focused tests and TypeScript checks for changed modules.
+
+## Documentation rules
+
+- Long-lived architecture and product guidance belongs under `docs/docs/`.
+- Architecture decisions belong under `docs/adr/` when introduced.
+- Machine-executable facts belong under `.mss/`, not only in prose.
+- Update examples, commands, repository names, and paths when structure changes.
+- Do not publish production credentials, private endpoints, personal paths, or unredacted sensitive logs.
+
+## Security rules
+
+- Never commit passwords, tokens, private keys, production DSNs, kubeconfigs, or cloud credentials.
+- Setup, tests, and evals must run without production access.
+- Agent tools must not write outside the repository root.
+- Shell execution must use validated arguments; do not concatenate untrusted text into a command line.
+- MCP and generator write operations default to dry-run and return a changed-file list.
+- Audit output must redact secrets and sensitive request bodies.
+- API keys are displayed once and stored as hashes when application features introduce them.
+
+## Validation expectations
+
+Choose checks from the change impact; do not claim checks that were not run.
+
+| Change | Minimum validation |
+| --- | --- |
+| Go implementation | focused `go test`, then affected module tests |
+| `mss-boot/` | `cd mss-boot && GOWORK=off go test ./...` |
+| root backend or shared contract | `make test-all` and `make build` |
+| frontend | `pnpm lint:js`, `pnpm tsc`, focused Jest, relevant build |
+| docs | `pnpm --dir docs build` |
+| migration | fresh database migration and upgrade-path test |
+| permission | positive and negative authorization tests |
+| generator | schema tests, golden tests, path-confinement tests, two-run idempotency test |
+| generated contract | drift check after regeneration |
+| workflow | syntax validation plus a real GitHub Actions run when possible |
+
+Use `mss verify --changed` once available. Full verification is required before release but not before every checkpoint commit.
+
+## Delivery summary
+
+A final handoff for a non-trivial change must state:
+
+- Goal and implemented scope.
+- Important files and architectural decisions.
+- Commits created.
+- Commands actually run and their results.
+- Migrations and compatibility impact.
+- Security impact.
+- Known limitations or skipped checks with concrete reasons.
+- The next executable step, not a vague recommendation.
