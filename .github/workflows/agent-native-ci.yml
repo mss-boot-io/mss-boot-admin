@@ -9,12 +9,19 @@ on:
       - '.mss/**'
       - '.agents/**'
       - '.codex/**'
+      - '.cursor/**'
       - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'README.md'
+      - 'README.zh-CN.md'
+      - 'mss'
       - 'cmd/mss/**'
       - 'cmd/mss-mcp/**'
       - 'internal/mss/**'
       - 'modules/**'
       - 'templates/module/**'
+      - 'docs/docs/agent/**'
+      - 'docs/docs/architecture/agent-native-foundation.zh-CN.md'
       - 'main.go'
       - 'cmd/migrate/migrate.go'
       - 'web/antd/config/routes.custom.ts'
@@ -22,6 +29,8 @@ on:
       - 'web/antd/src/locales/generated.*.ts'
       - 'web/antd/src/locales/*/custom.ts'
       - '.github/workflows/agent-native-ci.yml'
+      - '.github/workflows/foundation-compatibility.yml'
+      - '.github/workflows/release.yml'
   pull_request:
     branches:
       - main
@@ -30,12 +39,19 @@ on:
       - '.mss/**'
       - '.agents/**'
       - '.codex/**'
+      - '.cursor/**'
       - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'README.md'
+      - 'README.zh-CN.md'
+      - 'mss'
       - 'cmd/mss/**'
       - 'cmd/mss-mcp/**'
       - 'internal/mss/**'
       - 'modules/**'
       - 'templates/module/**'
+      - 'docs/docs/agent/**'
+      - 'docs/docs/architecture/agent-native-foundation.zh-CN.md'
       - 'main.go'
       - 'cmd/migrate/migrate.go'
       - 'web/antd/config/routes.custom.ts'
@@ -43,6 +59,8 @@ on:
       - 'web/antd/src/locales/generated.*.ts'
       - 'web/antd/src/locales/*/custom.ts'
       - '.github/workflows/agent-native-ci.yml'
+      - '.github/workflows/foundation-compatibility.yml'
+      - '.github/workflows/release.yml'
   workflow_dispatch:
 
 permissions:
@@ -55,7 +73,7 @@ concurrency:
 jobs:
   contracts-and-go:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -77,6 +95,58 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: pnpm
+          cache-dependency-path: docs/pnpm-lock.yaml
+
+      - name: Reject disabled assistant integration
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('.')
+          banned = ('copi' + 'lot').lower()
+          scan = [
+              Path('AGENTS.md'),
+              Path('CLAUDE.md'),
+              Path('README.md'),
+              Path('README.zh-CN.md'),
+              Path('.agents'),
+              Path('.codex'),
+              Path('.cursor'),
+              Path('.mss'),
+              Path('.github'),
+              Path('docs/AGENTS.md'),
+              Path('docs/docs/agent'),
+              Path('docs/docs/architecture/agent-native-foundation.zh-CN.md'),
+              Path('mss-boot/AGENTS.md'),
+              Path('web/antd/AGENTS.md'),
+          ]
+          violations = []
+          for item in scan:
+              paths = [item] if item.is_file() else sorted(item.rglob('*')) if item.exists() else []
+              for path in paths:
+                  if not path.is_file():
+                      continue
+                  if path == Path('.github/workflows/agent-native-ci.yml'):
+                      continue
+                  if banned in path.as_posix().lower():
+                      violations.append(f'{path}: disabled integration file')
+                      continue
+                  try:
+                      text = path.read_text(encoding='utf-8')
+                  except UnicodeDecodeError:
+                      continue
+                  if banned in text.lower():
+                      violations.append(f'{path}: disabled integration reference')
+          if violations:
+              raise SystemExit('\n'.join(violations))
+          PY
+
+      - name: Check executable entrypoints
+        run: |
+          test -x mss
+          test -x .codex/setup.sh
 
       - name: Check Go formatting
         run: |
@@ -102,25 +172,62 @@ jobs:
         run: go build ./cmd/mss ./cmd/mss-mcp
 
       - name: Load project context
-        run: go run ./cmd/mss context --format json > /tmp/mss-context.json
+        run: go run ./cmd/mss context --format json > "${RUNNER_TEMP}/mss-context.json"
 
-      - name: Run environment doctor
-        run: go run ./cmd/mss doctor --format json > /tmp/mss-doctor.json
+      - name: Run strict environment doctor
+        run: go run ./cmd/mss doctor --strict --format json > "${RUNNER_TEMP}/mss-doctor.json"
 
       - name: Validate Agent Skills
-        run: go run ./cmd/mss skills validate --format json > /tmp/mss-skills.json
+        run: go run ./cmd/mss skills validate --format json > "${RUNNER_TEMP}/mss-skills.json"
 
-      - name: Validate example module specification
-        run: go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json > /tmp/mss-spec.json
+      - name: Validate example specifications and Feature plan
+        run: |
+          set -euo pipefail
+          go run ./cmd/mss spec validate \
+            .mss/modules/example-supplier.yaml \
+            --format json \
+            > "${RUNNER_TEMP}/mss-module-spec.json"
+          go run ./cmd/mss spec validate \
+            .mss/features/example-supplier-onboarding.yaml \
+            --format json \
+            > "${RUNNER_TEMP}/mss-feature-spec.json"
+          go run ./cmd/mss feature plan \
+            .mss/features/example-supplier-onboarding.yaml \
+            --format json \
+            > "${RUNNER_TEMP}/mss-feature-plan.json"
 
-      - name: Dry-run module generation
-        run: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --format json > /tmp/mss-generation.json
+      - name: Write, test, and drift-check a generated module in an isolated worktree
+        run: |
+          set -euo pipefail
+          worktree="${RUNNER_TEMP}/mss-generator-worktree"
+          rm -rf "${worktree}"
+          git worktree add --detach "${worktree}" HEAD
+          trap 'git worktree remove --force "${worktree}" || true' EXIT
+          (
+            cd "${worktree}"
+            go run ./cmd/mss module generate \
+              .mss/modules/example-supplier.yaml \
+              --write \
+              --format json \
+              > "${RUNNER_TEMP}/mss-generation-write.json"
+            go test ./modules/supplier/...
+            go run ./cmd/mss module generate \
+              .mss/modules/example-supplier.yaml \
+              --check \
+              --format json \
+              > "${RUNNER_TEMP}/mss-generation-check.json"
+          )
 
       - name: Plan changed-file verification
-        run: go run ./cmd/mss verify --changed --plan --format json > /tmp/mss-verification-plan.json
+        run: go run ./cmd/mss verify --changed --plan --format json > "${RUNNER_TEMP}/mss-verification-plan.json"
 
       - name: Run deterministic Agent evaluations
-        run: go run ./cmd/mss eval run --all --format json > /tmp/mss-evals.json
+        run: go run ./cmd/mss eval run --all --format json > "${RUNNER_TEMP}/mss-evals.json"
+
+      - name: Build Agent documentation
+        run: |
+          pnpm --dir docs install --frozen-lockfile
+          pnpm --dir docs build
 
       - name: Upload Agent reports
         if: always()
@@ -128,16 +235,51 @@ jobs:
         with:
           name: agent-native-reports
           path: |
-            /tmp/mss-context.json
-            /tmp/mss-doctor.json
-            /tmp/mss-skills.json
-            /tmp/mss-spec.json
-            /tmp/mss-generation.json
-            /tmp/mss-verification-plan.json
-            /tmp/mss-evals.json
+            ${{ runner.temp }}/mss-context.json
+            ${{ runner.temp }}/mss-doctor.json
+            ${{ runner.temp }}/mss-skills.json
+            ${{ runner.temp }}/mss-module-spec.json
+            ${{ runner.temp }}/mss-feature-spec.json
+            ${{ runner.temp }}/mss-feature-plan.json
+            ${{ runner.temp }}/mss-generation-write.json
+            ${{ runner.temp }}/mss-generation-check.json
+            ${{ runner.temp }}/mss-verification-plan.json
+            ${{ runner.temp }}/mss-evals.json
             .mss/reports/verify.json
             .mss/reports/verify.md
             .mss/reports/evals/latest.json
             .mss/reports/evals/latest.md
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 14
+
+  cross-platform-agent-tools:
+    name: Agent tools (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-15
+          - windows-2025
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Test portable Agent packages
+        run: go test ./internal/mss/dev ./internal/mss/project ./internal/mss/spec ./internal/mss/blueprint ./internal/mss/mcp
+
+      - name: Build portable Agent executables
+        run: go build ./cmd/mss ./cmd/mss-mcp
+
+  foundation-compatibility:
+    needs:
+      - contracts-and-go
+      - cross-platform-agent-tools
+    uses: ./.github/workflows/foundation-compatibility.yml
