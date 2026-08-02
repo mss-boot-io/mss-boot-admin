@@ -239,6 +239,9 @@ func (s *Server) callTool(ctx context.Context, name string, arguments map[string
 	case "mss_run_validation":
 		value, err = s.runValidation(ctx, arguments)
 	default:
+		if result, known := s.callBlueprintTool(ctx, name, arguments); known {
+			return result, true
+		}
 		return callToolResult{}, false
 	}
 	if err != nil {
@@ -484,6 +487,7 @@ func tools() []Tool {
 			Annotations: writeIdempotent,
 		},
 	}
+	definitions = append(definitions, blueprintToolDefinitions()...)
 	sort.SliceStable(definitions, func(i, j int) bool { return definitions[i].Name < definitions[j].Name })
 	return definitions
 }

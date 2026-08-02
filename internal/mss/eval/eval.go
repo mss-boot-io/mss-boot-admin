@@ -14,6 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/blueprint"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/doctor"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/generator"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/mcp"
@@ -133,13 +134,14 @@ func (c *Catalog) Validate() error {
 		problems = append(problems, "spec.cases must contain at least one evaluation")
 	}
 	knownChecks := map[string]bool{
-		"project-context":        true,
-		"skills-contract":        true,
-		"doctor-required":        true,
-		"module-spec":            true,
-		"module-generation-plan": true,
-		"validation-plan":        true,
-		"mcp-tools":              true,
+		"project-context":            true,
+		"skills-contract":            true,
+		"doctor-required":            true,
+		"module-spec":                true,
+		"module-generation-plan":     true,
+		"application-blueprint-plan": true,
+		"validation-plan":            true,
+		"mcp-tools":                  true,
 	}
 	seen := make(map[string]bool)
 	for index, evaluation := range c.Spec.Cases {
@@ -292,6 +294,8 @@ func runCheck(ctx context.Context, root string, projectContext *project.Context,
 		value, err = checkModuleSpec(root, check.Path)
 	case "module-generation-plan":
 		value, err = checkModuleGeneration(root, check.Path, check.Minimum)
+	case "application-blueprint-plan":
+		value, err = checkApplicationBlueprint(ctx, root, check.Minimum)
 	case "validation-plan":
 		value, err = checkValidationPlan(projectContext, check.Mode, check.Minimum)
 	case "mcp-tools":
@@ -401,6 +405,42 @@ func checkModuleGeneration(root, inputPath string, minimum int) (map[string]any,
 		"outputs": len(plan.Changes),
 		"actions": actions,
 		"dryRun":  plan.DryRun,
+	}, nil
+}
+
+func checkApplicationBlueprint(ctx context.Context, root string, minimum int) (map[string]any, error) {
+	plan, err := blueprint.Generate(ctx, blueprint.Options{
+		FoundationRoot: root,
+		Application: blueprint.Application{
+			Name:        "eval-admin",
+			DisplayName: "Evaluation Administration",
+			Module:      "github.com/example/eval-admin",
+			Repository:  "example/eval-admin",
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !plan.DryRun || !plan.Success {
+		return nil, errors.New("application Blueprint plan must be a successful dry-run")
+	}
+	if plan.TotalFiles < minimum {
+		return nil, fmt.Errorf("application Blueprint planned %d files, expected at least %d", plan.TotalFiles, minimum)
+	}
+	if plan.FoundationCommit == "" {
+		return nil, errors.New("application Blueprint plan does not record a foundation commit")
+	}
+	actions := make(map[string]int)
+	for _, change := range plan.Changes {
+		actions[string(change.Action)]++
+	}
+	return map[string]any{
+		"blueprint":        plan.Blueprint,
+		"version":          plan.BlueprintVersion,
+		"foundationCommit": plan.FoundationCommit,
+		"files":            plan.TotalFiles,
+		"bytes":            plan.TotalBytes,
+		"actions":          actions,
 	}, nil
 }
 
