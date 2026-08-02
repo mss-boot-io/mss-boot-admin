@@ -1,0 +1,152 @@
+name: One-time Agent-Native test repair
+
+on:
+  pull_request:
+    branches:
+      - codex/monorepo-integration
+    paths:
+      - '.github/workflows/agent-native-test-repair.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-native-test-repair
+  cancel-in-progress: true
+
+jobs:
+  repair-and-test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Apply test-driven fixes
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          module_path = Path('internal/mss/spec/module.go')
+          text = module_path.read_text(encoding='utf-8')
+
+          pascal_pattern = re.compile(
+              r'func PascalCase\(value string\) string \{.*?\n\}\n\n// SnakeCase',
+              re.S,
+          )
+          pascal_replacement = r'''func PascalCase(value string) string {
+          	words := splitIdentifier(value)
+          	initialisms := map[string]string{
+          		"api": "API", "css": "CSS", "html": "HTML", "http": "HTTP",
+          		"https": "HTTPS", "id": "ID", "ip": "IP", "json": "JSON",
+          		"oauth": "OAuth", "sql": "SQL", "ui": "UI", "uri": "URI",
+          		"url": "URL", "uuid": "UUID",
+          	}
+          	for index, word := range words {
+          		if replacement, exists := initialisms[word]; exists {
+          			words[index] = replacement
+          			continue
+          		}
+          		if word == "" {
+          			continue
+          		}
+          		runes := []rune(word)
+          		runes[0] = unicode.ToUpper(runes[0])
+          		words[index] = string(runes)
+          	}
+          	return strings.Join(words, "")
+          }
+
+          // SnakeCase'''
+          text, count = pascal_pattern.subn(pascal_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('failed to replace PascalCase implementation')
+
+          split_pattern = re.compile(
+              r'func splitIdentifier\(value string\) \[\]string \{.*?\n\}\n\nfunc validateEnum',
+              re.S,
+          )
+          split_replacement = r'''func splitIdentifier(value string) []string {
+          	runes := []rune(strings.TrimSpace(value))
+          	if len(runes) == 0 {
+          		return nil
+          	}
+          	words := make([]string, 0, 4)
+          	current := make([]rune, 0, len(runes))
+          	flush := func() {
+          		if len(current) == 0 {
+          			return
+          		}
+          		words = append(words, strings.ToLower(string(current)))
+          		current = current[:0]
+          	}
+          	for index, char := range runes {
+          		if char == '-' || char == '_' || unicode.IsSpace(char) {
+          			flush()
+          			continue
+          		}
+          		if unicode.IsUpper(char) && len(current) > 0 {
+          			previous := current[len(current)-1]
+          			nextIsLower := index+1 < len(runes) && unicode.IsLower(runes[index+1])
+          			if unicode.IsLower(previous) || unicode.IsDigit(previous) ||
+          				(unicode.IsUpper(previous) && nextIsLower) {
+          				flush()
+          			}
+          		}
+          		current = append(current, char)
+          	}
+          	flush()
+          	return words
+          }
+
+          func validateEnum'''
+          text, count = split_pattern.subn(split_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('failed to replace splitIdentifier implementation')
+          module_path.write_text(text, encoding='utf-8')
+
+          template_path = Path('templates/module/frontend/index.tsx.tmpl')
+          template = template_path.read_text(encoding='utf-8')
+          old = 'modalProps={{ destroyOnClose: true }}'
+          new = 'modalProps={ { destroyOnClose: true } }'
+          if old not in template:
+              raise SystemExit('expected TSX modalProps template was not found')
+          template_path.write_text(template.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          gofmt -w internal/mss/spec/module.go
+          rm -f .github/workflows/agent-native-test-repair.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(agent): preserve Go initialisms and escape TSX templates"
+          git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Test repaired agent infrastructure
+        run: go test ./internal/mss/... ./cmd/mss/... ./modules/runtime/...
+
+      - name: Exercise CLI contracts
+        run: |
+          go run ./cmd/mss context --format json >/tmp/mss-context.json
+          go run ./cmd/mss doctor --format json >/tmp/mss-doctor.json
+          go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json
+          go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --format json >/tmp/mss-generation.json
