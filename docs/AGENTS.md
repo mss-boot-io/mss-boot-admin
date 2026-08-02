@@ -1,30 +1,51 @@
-# mss-boot-docs AGENTS
+# Documentation agent instructions
 
 ## Scope
-- This file applies to the documentation site in `mss-boot-docs/`.
-- Inherit workspace rules from the root `AGENTS.md`, especially the open-source wording constraints.
 
-## Default interaction model
-- Documentation and test handoff work also follow the repository's leader-first workflow by default.
-- Use `aigc/prompts/roles/role-collaboration-map.zh-CN.md` when clarifying how leader should involve dev-test and return unified results to the user.
+This file applies to the Dumi site under `docs/` and inherits the repository-wide contract from the root `AGENTS.md`.
 
-## Project shape
-- This project is a Dumi-based static documentation site.
-- Key locations:
-  - `docs/`: documentation content.
-  - `.dumirc.ts` and `.dumi/`: docs-site configuration.
-  - `public/`: static assets.
+The documentation site is no longer a separate `mss-boot-docs` checkout. Use repository-relative links and paths throughout.
 
-## Authoring rules
-- Follow the root `AGENTS.md` open-source collaboration rules by default.
-- For evaluation or comparison writeups, include the evaluation time and baseline branch or commit when that reduces ambiguity.
+## Information placement
 
-## Boundary rules
-- Do not assume backend or frontend startup workflows apply when editing docs only.
-- If a docs task also changes sibling projects, follow the child project context for those directories.
-- Keep docs-specific guidance here; backend architecture rules belong in `mss-boot-admin/AGENTS.md`.
+- Long-lived product and contributor documentation: `docs/docs/`.
+- Architecture overviews: `docs/docs/architecture/`.
+- Architecture decisions: `docs/adr/`.
+- User-facing module documentation generated from a module spec: `docs/docs/modules/`.
+- Machine-executable facts: `.mss/`, not prose only.
+- Historical prompts and old handoffs: archive locations; they are not automatically current requirements.
 
-## Working commands
-- Install dependencies: `pnpm install`
-- Start local docs server: `pnpm start`
-- Build docs: `pnpm run build`
+When a prose statement duplicates a machine-readable fact, link to the contract and keep the two synchronized.
+
+## Canonical commands
+
+From the repository root:
+
+```shell
+make docs-install
+make docs-build
+go run ./cmd/mss verify --changed
+```
+
+From `docs/`:
+
+```shell
+pnpm install --frozen-lockfile
+pnpm build
+pnpm start
+```
+
+## Authoring requirements
+
+- State the applicable version, branch, or commit when a document evaluates current behavior.
+- Use concrete repository paths, API paths, commands, and validation evidence.
+- Separate implemented behavior, approved roadmap, examples, and speculation.
+- Do not copy production credentials, private endpoints, personal absolute paths, or unredacted sensitive logs.
+- Update both Chinese and English material when both variants are part of the same public contract.
+- Keep generated module documents sourced from `modules/<module>/module.yaml`; do not hand-edit generated text.
+
+## Cross-component changes
+
+A docs-only change does not require starting the backend or frontend. When documentation accompanies code, follow the nearest child `AGENTS.md` for those changed directories and run the corresponding focused checks.
+
+Architecture and roadmap documents must identify a next executable step and a measurable completion definition; avoid vague “continue improving” conclusions.
