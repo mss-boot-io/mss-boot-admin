@@ -38,7 +38,8 @@ mss-boot-admin*
 compose/**/**/datalogs/
 logs/
 
-# Local agent-native reports, process state, and caches
+# Local agent-native reports, process state, logs, and caches
 .mss/reports/
 .mss/run/
+.mss/logs/
 .mss/cache/
