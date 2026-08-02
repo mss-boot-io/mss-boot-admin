@@ -11,15 +11,17 @@ jobs:
   downstream-generation-and-upgrade:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
-    env:
-      DOWNSTREAM: ${{ runner.temp }}/mss-compatibility-admin
-      NEXT_FOUNDATION: ${{ runner.temp }}/mss-foundation-next
-      CONFLICT_FOUNDATION: ${{ runner.temp }}/mss-foundation-conflict
     steps:
       - name: Checkout foundation
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Initialize compatibility paths
+        run: |
+          echo "DOWNSTREAM=${RUNNER_TEMP}/mss-compatibility-admin" >> "${GITHUB_ENV}"
+          echo "NEXT_FOUNDATION=${RUNNER_TEMP}/mss-foundation-next" >> "${GITHUB_ENV}"
+          echo "CONFLICT_FOUNDATION=${RUNNER_TEMP}/mss-foundation-conflict" >> "${GITHUB_ENV}"
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -74,7 +76,9 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf "${NEXT_FOUNDATION}"
-          git clone --no-hardlinks . "${NEXT_FOUNDATION}"
+          foundation_commit="$(git rev-parse HEAD)"
+          git clone --no-hardlinks --no-checkout . "${NEXT_FOUNDATION}"
+          git -C "${NEXT_FOUNDATION}" checkout --detach "${foundation_commit}"
 
           python3 - <<'PY'
           from pathlib import Path
@@ -194,7 +198,9 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf "${CONFLICT_FOUNDATION}"
-          git clone --no-hardlinks "${NEXT_FOUNDATION}" "${CONFLICT_FOUNDATION}"
+          next_commit="$(git -C "${NEXT_FOUNDATION}" rev-parse HEAD)"
+          git clone --no-hardlinks --no-checkout "${NEXT_FOUNDATION}" "${CONFLICT_FOUNDATION}"
+          git -C "${CONFLICT_FOUNDATION}" checkout --detach "${next_commit}"
 
           printf '\nconst FoundationConflictProbe = true\n' >> "${CONFLICT_FOUNDATION}/main.go"
           git -C "${CONFLICT_FOUNDATION}" add main.go
