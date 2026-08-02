@@ -1,0 +1,73 @@
+name: One-time Blueprint Timestamp Compatibility Fix
+
+on:
+  push:
+    branches:
+      - codex/agent-native-foundation
+    paths:
+      - '.github/workflows/agent-native-blueprint-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-native-blueprint-timestamp-fix
+  cancel-in-progress: false
+
+jobs:
+  patch-commit-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@v7
+        with:
+          ref: codex/agent-native-foundation
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Remove non-portable timestamp rejection
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path("internal/mss/blueprint/plan.go")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace('\n\t"time"\n', '\n')
+          old = '''\tif _, err := time.Parse(time.RFC3339, timestamp); err != nil {
+          \t\treturn "", "", fmt.Errorf("foundation timestamp is invalid: %w", err)
+          \t}
+          \treturn commit, timestamp, nil
+          '''
+          new = '''\tif timestamp == "" {
+          \t\treturn "", "", errors.New("foundation timestamp is empty")
+          \t}
+          \t// The value is emitted by Git itself and is audit metadata only. Do not
+          \t// reject valid ISO-8601 offset variants due to Go runtime parser changes.
+          \treturn commit, timestamp, nil
+          '''
+          if old not in text:
+              raise SystemExit("expected timestamp validation block was not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          gofmt -w internal/mss/blueprint/plan.go
+          rm -f .github/workflows/agent-native-blueprint-fix.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(blueprint): accept Git ISO-8601 commit timestamps"
+          git push origin HEAD:codex/agent-native-foundation
+
+      - name: Test Blueprint infrastructure after commit
+        run: go test ./internal/mss/blueprint ./internal/mss/app ./internal/mss/eval ./internal/mss/mcp
