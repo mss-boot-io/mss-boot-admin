@@ -1,0 +1,122 @@
+apiVersion: mss.io/v1alpha1
+kind: CommandCatalog
+metadata:
+  project: mss-boot-admin
+spec:
+  conventions:
+    shell: sh
+    workingDirectory: repository-root
+    nonInteractive: true
+    productionCredentialsRequired: false
+  commands:
+    context:
+      command: go run ./cmd/mss context
+      description: Print the normalized project and capability context.
+      outputFormats: [text, json]
+      category: agent
+
+    doctor:
+      command: go run ./cmd/mss doctor
+      description: Check toolchain, repository, ports, and optional local dependencies.
+      outputFormats: [text, json]
+      category: environment
+
+    setup:
+      command: go run ./cmd/mss setup
+      description: Install repository dependencies and create safe local development state.
+      category: environment
+      idempotent: true
+
+    backend-build:
+      command: make build
+      description: Build the admin backend.
+      category: backend
+
+    backend-test:
+      command: make test
+      description: Run root backend tests and write coverage.out.
+      category: backend
+
+    framework-test:
+      command: make test-framework
+      description: Run reusable framework tests.
+      category: framework
+
+    go-test-all:
+      command: make test-all
+      description: Run root backend and framework tests.
+      category: backend
+
+    backend-lint:
+      command: make lint
+      description: Run Go lint checks.
+      category: backend
+
+    frontend-install:
+      command: make web-install
+      description: Install frontend dependencies with the frozen lockfile.
+      category: frontend
+
+    frontend-lint:
+      command: make web-lint
+      description: Run frontend ESLint and TypeScript checks.
+      category: frontend
+
+    frontend-test:
+      command: make web-test
+      description: Run frontend Jest tests.
+      category: frontend
+
+    frontend-build:
+      command: make web-build
+      description: Build the local frontend profile.
+      category: frontend
+
+    docs-install:
+      command: make docs-install
+      description: Install documentation dependencies with the frozen lockfile.
+      category: docs
+
+    docs-build:
+      command: make docs-build
+      description: Build the documentation site.
+      category: docs
+
+    verify-changed:
+      command: go run ./cmd/mss verify --changed
+      description: Compute and execute the minimum sufficient checks for the current Git diff.
+      outputFormats: [text, json]
+      category: verification
+
+    verify-all:
+      command: go run ./cmd/mss verify --all
+      description: Execute the complete repository validation suite.
+      outputFormats: [text, json]
+      category: verification
+
+    direct-verify-all:
+      command: make verify-all
+      description: Compatibility fallback before the mss verifier is available.
+      category: verification
+
+    module-spec-validate:
+      command: go run ./cmd/mss spec validate
+      description: Validate an AdminModuleSpec against schema and semantic rules.
+      category: generation
+
+    module-generate:
+      command: go run ./cmd/mss module generate
+      description: Generate or synchronize a vertical admin module from its specification.
+      category: generation
+      dryRunByDefault: true
+      idempotent: true
+
+    eval-list:
+      command: go run ./cmd/mss eval list
+      description: List repository agent evaluation cases.
+      category: eval
+
+    eval-run:
+      command: go run ./cmd/mss eval run
+      description: Execute one agent evaluation case and store a structured report.
+      category: eval
