@@ -42,14 +42,14 @@ type UpgradeChange struct {
 
 // UpgradePlan is safe to review before any downstream files change.
 type UpgradePlan struct {
-	Application         Application     `json:"application"`
-	ApplicationRoot     string          `json:"applicationRoot"`
-	FoundationRoot      string          `json:"foundationRoot"`
-	Blueprint           string          `json:"blueprint"`
-	FromBlueprintVersion string         `json:"fromBlueprintVersion"`
-	ToBlueprintVersion   string         `json:"toBlueprintVersion"`
-	FromFoundationCommit string         `json:"fromFoundationCommit"`
-	ToFoundationCommit   string         `json:"toFoundationCommit"`
+	Application          Application     `json:"application"`
+	ApplicationRoot      string          `json:"applicationRoot"`
+	FoundationRoot       string          `json:"foundationRoot"`
+	Blueprint            string          `json:"blueprint"`
+	FromBlueprintVersion string          `json:"fromBlueprintVersion"`
+	ToBlueprintVersion   string          `json:"toBlueprintVersion"`
+	FromFoundationCommit string          `json:"fromFoundationCommit"`
+	ToFoundationCommit   string          `json:"toFoundationCommit"`
 	DryRun               bool            `json:"dryRun"`
 	Success              bool            `json:"success"`
 	Changes              []UpgradeChange `json:"changes"`
@@ -79,7 +79,6 @@ func Upgrade(ctx context.Context, options UpgradeOptions) (UpgradePlan, error) {
 	if options.Blueprint != oldManifest.Metadata.Blueprint {
 		return UpgradePlan{}, fmt.Errorf("blueprint switch from %s to %s requires an explicit migration recipe", oldManifest.Metadata.Blueprint, options.Blueprint)
 	}
-	options.Application = normalizeApplication(options.Application)
 	if options.Application.Name == "" {
 		options.Application.Name = oldManifest.Metadata.Project
 	}
@@ -260,33 +259,55 @@ func buildUpgradePlan(
 }
 
 func applyUpgrade(root string, plan UpgradePlan, desired map[string]desiredFile) error {
-	for _, change := range plan.Changes {
-		switch change.Action {
-		case ActionCreate, ActionUpdate:
-			file, exists := desired[change.Path]
-			if !exists {
-				return fmt.Errorf("upgrade plan requires missing desired file %s", change.Path)
-			}
-			target := filepath.Join(root, filepath.FromSlash(change.Path))
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return fmt.Errorf("create upgrade parent for %s: %w", change.Path, err)
-			}
-			if err := writeAtomic(target, file.Data, file.Mode); err != nil {
-				return fmt.Errorf("write upgraded file %s: %w", change.Path, err)
-			}
-		case ActionDelete:
-			target := filepath.Join(root, filepath.FromSlash(change.Path))
-			if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("delete obsolete managed file %s: %w", change.Path, err)
-			}
-			removeEmptyParents(root, filepath.Dir(target))
-		case ActionUnchanged, ActionPreserve:
+	var manifestChange *UpgradeChange
+	for index := range plan.Changes {
+		change := plan.Changes[index]
+		if strings.HasSuffix(change.Path, "blueprint-manifest.json") &&
+			(change.Action == ActionCreate || change.Action == ActionUpdate) {
+			copy := change
+			manifestChange = &copy
 			continue
-		case ActionConflict:
-			return errors.New("refusing to apply an upgrade plan containing conflicts")
-		default:
-			return fmt.Errorf("unsupported upgrade action %q", change.Action)
 		}
+		if err := applyUpgradeChange(root, change, desired); err != nil {
+			return err
+		}
+	}
+	// The new baseline is committed only after every managed file operation
+	// succeeds. A partial write can therefore never claim a completed upgrade.
+	if manifestChange != nil {
+		if err := applyUpgradeChange(root, *manifestChange, desired); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func applyUpgradeChange(root string, change UpgradeChange, desired map[string]desiredFile) error {
+	switch change.Action {
+	case ActionCreate, ActionUpdate:
+		file, exists := desired[change.Path]
+		if !exists {
+			return fmt.Errorf("upgrade plan requires missing desired file %s", change.Path)
+		}
+		target := filepath.Join(root, filepath.FromSlash(change.Path))
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return fmt.Errorf("create upgrade parent for %s: %w", change.Path, err)
+		}
+		if err := writeAtomic(target, file.Data, file.Mode); err != nil {
+			return fmt.Errorf("write upgraded file %s: %w", change.Path, err)
+		}
+	case ActionDelete:
+		target := filepath.Join(root, filepath.FromSlash(change.Path))
+		if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("delete obsolete managed file %s: %w", change.Path, err)
+		}
+		removeEmptyParents(root, filepath.Dir(target))
+	case ActionUnchanged, ActionPreserve:
+		return nil
+	case ActionConflict:
+		return errors.New("refusing to apply an upgrade plan containing conflicts")
+	default:
+		return fmt.Errorf("unsupported upgrade action %q", change.Action)
 	}
 	return nil
 }

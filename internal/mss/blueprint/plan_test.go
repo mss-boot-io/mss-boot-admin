@@ -204,10 +204,10 @@ spec:
   textNames: [Makefile]
 `),
 		"AGENTS.md": []byte("# mss-boot-admin Agent Contract\n"),
-		"go.mod": []byte("module github.com/mss-boot-io/mss-boot-admin\n\ngo 1.26.0\n"),
-		"go.work": []byte("go 1.26.0\n\nuse (\n\t.\n\t./mss-boot\n)\n"),
-		"main.go": []byte("package main\n\nimport (\n\t_ \"github.com/mss-boot-io/mss-boot-admin/internal/example\"\n\t_ \"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config\"\n)\n\nfunc main() {}\n"),
-		"Makefile": []byte("PROJECT:=mss-boot-admin\n"),
+		"go.mod":    []byte("module github.com/mss-boot-io/mss-boot-admin\n\ngo 1.26.0\n"),
+		"go.work":   []byte("go 1.26.0\n\nuse (\n\t.\n\t./mss-boot\n)\n"),
+		"main.go":   []byte("package main\n\nimport (\n\t_ \"github.com/mss-boot-io/mss-boot-admin/internal/example\"\n\t_ \"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config\"\n)\n\nfunc main() {}\n"),
+		"Makefile":  []byte("PROJECT:=mss-boot-admin\n"),
 		".mss/project.yaml": []byte(`apiVersion: mss.io/v1alpha1
 kind: Project
 metadata:
@@ -225,14 +225,14 @@ spec:
     module: github.com/mss-boot-io/mss-boot-admin
     frameworkModule: github.com/mss-boot-io/mss-boot-admin/mss-boot
 `),
-		".mss/capabilities.yaml": []byte("apiVersion: mss.io/v1alpha1\nkind: CapabilityCatalog\nmetadata:\n  project: mss-boot-admin\nspec:\n  capabilities: []\n"),
-		".mss/commands.yaml": []byte("apiVersion: mss.io/v1alpha1\nkind: CommandCatalog\nmetadata:\n  project: mss-boot-admin\nspec:\n  commands:\n    context:\n      command: go run ./cmd/mss context\n      description: Context\n      category: agent\n"),
-		".mss/lock.yaml": []byte("apiVersion: mss.io/v1alpha1\nkind: FoundationLock\nmetadata:\n  project: mss-boot-admin\n"),
-		"web/antd/package.json": []byte(`{"name":"mss-boot-admin"}`),
-		"docs/package.json": []byte(`{"name":"mss-boot-docs"}`),
-		"mss-boot/go.mod": []byte("module github.com/mss-boot-io/mss-boot-admin/mss-boot\n\ngo 1.26.0\n"),
+		".mss/capabilities.yaml":      []byte("apiVersion: mss.io/v1alpha1\nkind: CapabilityCatalog\nmetadata:\n  project: mss-boot-admin\nspec:\n  capabilities: []\n"),
+		".mss/commands.yaml":          []byte("apiVersion: mss.io/v1alpha1\nkind: CommandCatalog\nmetadata:\n  project: mss-boot-admin\nspec:\n  commands:\n    context:\n      command: go run ./cmd/mss context\n      description: Context\n      category: agent\n"),
+		".mss/lock.yaml":              []byte("apiVersion: mss.io/v1alpha1\nkind: FoundationLock\nmetadata:\n  project: mss-boot-admin\n"),
+		"web/antd/package.json":       []byte(`{"name":"mss-boot-admin"}`),
+		"docs/package.json":           []byte(`{"name":"mss-boot-docs"}`),
+		"mss-boot/go.mod":             []byte("module github.com/mss-boot-io/mss-boot-admin/mss-boot\n\ngo 1.26.0\n"),
 		"web/antd/public/fixture.bin": {0, 1, 2, 255},
-		".mss/reports/ignored.txt": []byte("ignore me"),
+		".mss/reports/ignored.txt":    []byte("ignore me"),
 	}
 	for relative, data := range files {
 		path := filepath.Join(root, filepath.FromSlash(relative))
@@ -278,8 +278,8 @@ func TestManifestJSONRoundTrip(t *testing.T) {
 		APIVersion: "mss.io/v1alpha1",
 		Kind:       "BlueprintManifest",
 		Metadata: ManifestMetadata{
-			Project:  "test",
-			Module:   "github.com/acme/test",
+			Project:   "test",
+			Module:    "github.com/acme/test",
 			Blueprint: "management-system",
 		},
 		Files: map[string]ManifestFile{"go.mod": {SHA256: "abc", Mode: 0o644, Size: 10}},

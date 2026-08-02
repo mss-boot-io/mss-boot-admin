@@ -50,23 +50,23 @@ type FileChange struct {
 
 // Plan is returned in dry-run and write modes.
 type Plan struct {
-	Blueprint       string       `json:"blueprint"`
-	BlueprintVersion string      `json:"blueprintVersion"`
-	FoundationCommit string      `json:"foundationCommit"`
-	Application     Application  `json:"application"`
-	Destination     string       `json:"destination"`
-	DryRun          bool         `json:"dryRun"`
-	Success         bool         `json:"success"`
-	TotalFiles      int          `json:"totalFiles"`
-	TotalBytes      int64        `json:"totalBytes"`
-	Changes         []FileChange `json:"changes"`
+	Blueprint        string       `json:"blueprint"`
+	BlueprintVersion string       `json:"blueprintVersion"`
+	FoundationCommit string       `json:"foundationCommit"`
+	Application      Application  `json:"application"`
+	Destination      string       `json:"destination"`
+	DryRun           bool         `json:"dryRun"`
+	Success          bool         `json:"success"`
+	TotalFiles       int          `json:"totalFiles"`
+	TotalBytes       int64        `json:"totalBytes"`
+	Changes          []FileChange `json:"changes"`
 }
 
 // Manifest records the exact foundation file hashes used for future three-way upgrades.
 type Manifest struct {
-	APIVersion string           `json:"apiVersion"`
-	Kind       string           `json:"kind"`
-	Metadata   ManifestMetadata `json:"metadata"`
+	APIVersion string                  `json:"apiVersion"`
+	Kind       string                  `json:"kind"`
+	Metadata   ManifestMetadata        `json:"metadata"`
 	Files      map[string]ManifestFile `json:"files"`
 }
 
