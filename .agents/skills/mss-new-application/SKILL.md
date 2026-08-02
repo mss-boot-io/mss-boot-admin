@@ -1,68 +1,79 @@
 ---
 name: mss-new-application
-description: Create a new standalone management-system repository from the MSS foundation blueprint, with project contracts, selected capabilities, safe local setup, baseline tests, and an upgrade lock. Trigger for “create a new admin/management system/project based on mss-boot”. Do not use to add a module to the current reference application.
+description: Create a new standalone management-system repository from the MSS foundation blueprint, with project contracts, safe local setup, baseline tests, and a three-way upgrade manifest. Trigger for “create a new admin/management system/project based on mss-boot”. Do not use to add a module to the current reference application.
 ---
 
 # Create a new MSS application
 
-Generate a downstream application from a versioned blueprint instead of cloning and permanently forking the whole foundation without upgrade metadata.
+Generate a complete downstream application from a versioned blueprint. The blueprint copies only Git-tracked foundation files, applies deterministic project/module substitutions, omits local state and historical prompt archives, and records content hashes for later three-way upgrades.
 
-## Inputs
+## Required inputs
 
-- application name, Go module, display name, and repository destination;
-- selected database and deployment profile;
-- required built-in capabilities;
-- frontend branding and default locale;
-- initial organization/admin seed policy;
-- foundation and blueprint version or channel.
+- lower-case kebab-case application name;
+- Go module, such as `github.com/acme/customer-admin`;
+- display name when the title should not be derived from the application name;
+- target repository in `owner/name` form when it cannot be inferred from a GitHub module;
+- destination when the safe default `.mss/output/<name>` is not appropriate.
 
 ## Procedure
 
-1. Confirm the destination is empty or explicitly approved and remains outside the current repository unless creating a test fixture.
-2. Inspect available blueprint and capability contracts:
+1. Inspect the current foundation and blueprint contract:
 
    ```shell
    go run ./cmd/mss context --format json
    go run ./cmd/mss new app --help
    ```
 
-3. Produce a dry-run plan:
+2. Produce the default dry-run plan. Do not pass `--write` yet:
 
    ```shell
    go run ./cmd/mss new app <name> \
      --module <go-module> \
+     --repository <owner/name> \
      --destination <path> \
-     --dry-run \
      --format json
    ```
 
-4. Review planned files, substitutions, selected capabilities, generated secrets policy, and the initial `.mss/lock.yaml`.
-5. Generate only after the plan is valid.
-6. Run in the new application:
+3. Review:
+   - destination and whether it is empty;
+   - module and repository substitutions;
+   - excluded local/runtime files;
+   - file count, conflicts, and total bytes;
+   - generated `.mss/lock.yaml` and `.mss/blueprint-manifest.json` provenance.
+
+4. Write only after the plan is conflict-free:
 
    ```shell
-   go run ./cmd/mss doctor --strict
-   go run ./cmd/mss setup
-   go run ./cmd/mss verify --all
+   go run ./cmd/mss new app <name> \
+     --module <go-module> \
+     --repository <owner/name> \
+     --destination <path> \
+     --write \
+     --git-init \
+     --format json
    ```
 
-7. Confirm that:
-   - no foundation Git history or hidden credentials were copied unintentionally;
-   - the downstream repository has its own module, project metadata, and README;
-   - generated files record blueprint and generator versions;
-   - the FoundationLock points to a released or explicitly selected development foundation;
-   - upgrade planning can discover the installed version.
-8. Initialize Git and commit the generated baseline before adding business modules.
-9. Add business capabilities through `$mss-add-module`, not by editing blueprint templates in the downstream repository.
+5. Enter the generated repository and verify the foundation:
+
+   ```shell
+   go run ./cmd/mss doctor --format json
+   go run ./cmd/mss setup
+   go run ./cmd/mss verify --all
+   go run ./cmd/mss upgrade status
+   ```
+
+6. Commit the generated baseline before adding business modules. The generated Git repository is intentionally not auto-committed.
+7. Add business capabilities through `$mss-add-module`; do not edit foundation templates for application-specific behavior.
 
 ## Guardrails
 
-- Never embed real passwords, tokens, private keys, production DSNs, or kubeconfigs in a new application.
-- Never overwrite a non-empty destination silently.
-- Never copy `.git`, local reports, node_modules, build output, or personal editor state.
-- Do not remove the foundation lock or generator provenance.
-- Do not make downstream applications depend on unreleased moving branch content unless the user explicitly selects a development channel.
+- Never embed passwords, tokens, private keys, production DSNs, kubeconfigs, or environment-specific secrets.
+- The command defaults to dry-run and must never silently overwrite differing or unknown destination files.
+- An explicit destination may be outside the foundation checkout only for this application-creation workflow; review it before `--write`.
+- Never copy `.git`, reports, PID state, logs, caches, build output, `node_modules`, or archived one-off prompts.
+- Preserve the generated lock and blueprint manifest; they are the base side of future three-way upgrades.
+- Do not select a moving development foundation for a production application without explicitly documenting that risk.
 
 ## Output
 
-Report destination, foundation/blueprint versions, selected capabilities, generated files, setup and validation results, initial Git commit, and the next module-development step.
+Report the destination, application module/repository, blueprint version, foundation commit, generated file count, conflicts, Git initialization status, validation results, and next module-development step.
