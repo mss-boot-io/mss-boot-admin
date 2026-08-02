@@ -107,7 +107,7 @@ const {{ .ModelName }}Page: React.FC = () => {
         title={current ? `${intl.formatMessage({ id: 'pages.edit', defaultMessage: '编辑' })}${title}` : `${intl.formatMessage({ id: 'pages.create', defaultMessage: '新建' })}${title}`}
         open={editorOpen}
         initialValues={current}
-        modalProps={{ destroyOnClose: true }}
+        modalProps={ { destroyOnClose: true } }
         onOpenChange={setEditorOpen}
         onFinish={async (values) => {
           if (current?.id) {

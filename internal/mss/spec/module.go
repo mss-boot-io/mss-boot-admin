@@ -559,11 +559,21 @@ func (m *Module) Field(name string) (FieldSpec, bool) {
 // PascalCase converts kebab, snake, and camel names to an exported Go identifier.
 func PascalCase(value string) string {
 	words := splitIdentifier(value)
+	initialisms := map[string]string{
+		"api": "API", "css": "CSS", "html": "HTML", "http": "HTTP",
+		"https": "HTTPS", "id": "ID", "ip": "IP", "json": "JSON",
+		"oauth": "OAuth", "sql": "SQL", "ui": "UI", "uri": "URI",
+		"url": "URL", "uuid": "UUID",
+	}
 	for index, word := range words {
+		if replacement, exists := initialisms[word]; exists {
+			words[index] = replacement
+			continue
+		}
 		if word == "" {
 			continue
 		}
-		runes := []rune(strings.ToLower(word))
+		runes := []rune(word)
 		runes[0] = unicode.ToUpper(runes[0])
 		words[index] = string(runes)
 	}
@@ -576,12 +586,12 @@ func SnakeCase(value string) string {
 }
 
 func splitIdentifier(value string) []string {
-	value = strings.TrimSpace(value)
-	if value == "" {
+	runes := []rune(strings.TrimSpace(value))
+	if len(runes) == 0 {
 		return nil
 	}
-	var words []string
-	var current []rune
+	words := make([]string, 0, 4)
+	current := make([]rune, 0, len(runes))
 	flush := func() {
 		if len(current) == 0 {
 			return
@@ -589,15 +599,20 @@ func splitIdentifier(value string) []string {
 		words = append(words, strings.ToLower(string(current)))
 		current = current[:0]
 	}
-	for index, r := range []rune(value) {
-		if r == '-' || r == '_' || unicode.IsSpace(r) {
+	for index, char := range runes {
+		if char == '-' || char == '_' || unicode.IsSpace(char) {
 			flush()
 			continue
 		}
-		if unicode.IsUpper(r) && index > 0 && len(current) > 0 {
-			flush()
+		if unicode.IsUpper(char) && len(current) > 0 {
+			previous := current[len(current)-1]
+			nextIsLower := index+1 < len(runes) && unicode.IsLower(runes[index+1])
+			if unicode.IsLower(previous) || unicode.IsDigit(previous) ||
+				(unicode.IsUpper(previous) && nextIsLower) {
+				flush()
+			}
 		}
-		current = append(current, r)
+		current = append(current, char)
 	}
 	flush()
 	return words
