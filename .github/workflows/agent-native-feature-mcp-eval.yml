@@ -1,0 +1,220 @@
+name: One-time FeatureSpec MCP and Eval Integration
+
+on:
+  push:
+    branches:
+      - codex/agent-native-foundation
+    paths:
+      - '.github/workflows/agent-native-feature-mcp-eval.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-native-feature-mcp-eval
+  cancel-in-progress: false
+
+jobs:
+  patch-commit-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@v7
+        with:
+          ref: codex/agent-native-foundation
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add FeatureSpec MCP routing, Eval, and missing audit evidence
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          server_path = Path("internal/mss/mcp/server.go")
+          server = server_path.read_text(encoding="utf-8")
+          old_default = '''\tdefault:
+          \t\tif result, known := s.callBlueprintTool(ctx, name, arguments); known {
+          \t\t\treturn result, true
+          \t\t}
+          \t\treturn callToolResult{}, false
+          \t}
+          '''
+          new_default = '''\tdefault:
+          \t\tif result, known := s.callSpecificationTool(ctx, name, arguments); known {
+          \t\t\treturn result, true
+          \t\t}
+          \t\tif result, known := s.callBlueprintTool(ctx, name, arguments); known {
+          \t\t\treturn result, true
+          \t\t}
+          \t\treturn callToolResult{}, false
+          \t}
+          '''
+          if old_default not in server:
+              raise SystemExit("expected MCP extension dispatch block was not found")
+          server = server.replace(old_default, new_default, 1)
+          old_append = '''\tdefinitions = append(definitions, blueprintToolDefinitions()...)
+          \tsort.SliceStable(definitions, func(i, j int) bool { return definitions[i].Name < definitions[j].Name })
+          '''
+          new_append = '''\tdefinitions = append(definitions, specificationToolDefinitions()...)
+          \tdefinitions = append(definitions, blueprintToolDefinitions()...)
+          \tsort.SliceStable(definitions, func(i, j int) bool { return definitions[i].Name < definitions[j].Name })
+          '''
+          if old_append not in server:
+              raise SystemExit("expected MCP Blueprint tool append block was not found")
+          server_path.write_text(server.replace(old_append, new_append, 1), encoding="utf-8")
+
+          eval_path = Path("internal/mss/eval/eval.go")
+          text = eval_path.read_text(encoding="utf-8")
+          old_known = '''\t\t"application-blueprint-plan": true,
+          \t\t"validation-plan":          true,
+          \t\t"mcp-tools":                true,
+          '''
+          new_known = '''\t\t"application-blueprint-plan": true,
+          \t\t"feature-spec":               true,
+          \t\t"validation-plan":            true,
+          \t\t"mcp-tools":                  true,
+          '''
+          if old_known not in text:
+              raise SystemExit("expected Eval known-check block was not found")
+          text = text.replace(old_known, new_known, 1)
+          old_switch = '''\tcase "application-blueprint-plan":
+          \t\tvalue, err = checkApplicationBlueprint(ctx, root, check.Minimum)
+          \tcase "validation-plan":
+          '''
+          new_switch = '''\tcase "application-blueprint-plan":
+          \t\tvalue, err = checkApplicationBlueprint(ctx, root, check.Minimum)
+          \tcase "feature-spec":
+          \t\tvalue, err = checkFeatureSpec(root, check.Path)
+          \tcase "validation-plan":
+          '''
+          if old_switch not in text:
+              raise SystemExit("expected Eval Feature insertion point was not found")
+          text = text.replace(old_switch, new_switch, 1)
+          marker = '''func checkApplicationBlueprint(ctx context.Context, root string, minimum int) (map[string]any, error) {
+          '''
+          function = '''func checkFeatureSpec(root, inputPath string) (map[string]any, error) {
+          \tabsolute, relative, err := resolveFile(root, inputPath)
+          \tif err != nil {
+          \t\treturn nil, err
+          \t}
+          \tfeature, err := spec.LoadFeature(absolute)
+          \tif err != nil {
+          \t\treturn nil, err
+          \t}
+          \tfeature.SourcePath = relative
+          \tsummary := feature.Summary()
+          \tsummary["path"] = relative
+          \treturn summary, nil
+          }
+
+          ''' + marker
+          if marker not in text:
+              raise SystemExit("expected Eval Feature function insertion point was not found")
+          eval_path.write_text(text.replace(marker, function, 1), encoding="utf-8")
+
+          catalog_path = Path(".mss/evals/catalog.yaml")
+          catalog = catalog_path.read_text(encoding="utf-8")
+          catalog = catalog.replace("minimum: 11", "minimum: 12", 1)
+          feature_case = '''
+              - id: supplier-feature-contract
+                title: Agent can validate a cross-module Feature and executable acceptance contract
+                description: Ensures goals, non-goals, actors, modules, requirements, security constraints, risks, rollout, and required evidence remain machine-readable and reference-safe.
+                tags: [feature, acceptance, security]
+                checks:
+                  - type: feature-spec
+                    path: .mss/features/example-supplier-onboarding.yaml
+          '''
+          insertion = '''
+              - id: full-verification-plan
+          '''
+          if "id: supplier-feature-contract" not in catalog:
+              if insertion not in catalog:
+                  raise SystemExit("expected Eval catalog insertion point was not found")
+              catalog = catalog.replace(insertion, feature_case + insertion, 1)
+          catalog_path.write_text(catalog, encoding="utf-8")
+
+          example_path = Path(".mss/features/example-supplier-onboarding.yaml")
+          example = example_path.read_text(encoding="utf-8")
+          marker = '''    - id: changed-verification
+              statement: The change-aware verifier completes without failed required checks.
+          '''
+          audit = '''    - id: supplier-audit-safe
+              requirement: supplier-audit
+              statement: Supplier mutations produce safe audit metadata without persisting credentials, tokens, attachment content, or sensitive request bodies.
+              level: security
+              required: true
+              evidence:
+                - type: test
+                  value: modules/supplier/tests/audit_test.go
+            - id: changed-verification
+              statement: The change-aware verifier completes without failed required checks.
+          '''
+          if "id: supplier-audit-safe" not in example:
+              if marker not in example:
+                  raise SystemExit("expected supplier acceptance insertion point was not found")
+              example = example.replace(marker, audit, 1)
+          example_path.write_text(example, encoding="utf-8")
+          PY
+
+          gofmt -w internal/mss/mcp internal/mss/eval internal/mss/spec internal/mss/app
+          rm -f .github/workflows/agent-native-feature-mcp-eval.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "feat(agent): integrate FeatureSpec with MCP and Evals"
+          git push origin HEAD:codex/agent-native-foundation
+
+      - name: Test specification, MCP, Eval, and CLI packages after commit
+        run: go test ./internal/mss/spec ./internal/mss/mcp ./internal/mss/eval ./internal/mss/app
+
+      - name: Validate example Feature specification
+        run: go run ./cmd/mss spec validate .mss/features/example-supplier-onboarding.yaml --format json > /tmp/mss-feature.json
+
+      - name: Run Feature and MCP Agent evaluations
+        run: |
+          go run ./cmd/mss eval run \
+            supplier-feature-contract \
+            mcp-project-tools \
+            --format json > /tmp/mss-feature-evals.json
+
+      - name: Exercise generic specification MCP tool
+        run: |
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mss_validate_spec","arguments":{"path":".mss/features/example-supplier-onboarding.yaml"},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}' \
+            | go run ./cmd/mss-mcp --root . > /tmp/mss-feature-mcp.json
+
+      - name: Upload FeatureSpec integration evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-native-feature-mcp-eval-validation
+          path: |
+            /tmp/mss-feature.json
+            /tmp/mss-feature-evals.json
+            /tmp/mss-feature-mcp.json
+            .mss/reports/evals/latest.json
+            .mss/reports/evals/latest.md
+          if-no-files-found: warn
+          retention-days: 7
