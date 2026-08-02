@@ -52,6 +52,42 @@ spec:
       description: Read or follow one managed development service log.
       category: environment
 
+    new-app-plan:
+      command: go run ./cmd/mss new app <name> --module <go-module> --format json
+      description: Build a conflict-aware dry-run plan for a complete downstream management-system repository.
+      outputFormats: [text, json]
+      category: blueprint
+      dryRunByDefault: true
+      idempotent: true
+
+    new-app-write:
+      command: go run ./cmd/mss new app <name> --module <go-module> --write --format json
+      description: Write a conflict-free downstream application and its upgrade baseline.
+      outputFormats: [text, json]
+      category: blueprint
+      idempotent: true
+
+    upgrade-status:
+      command: go run ./cmd/mss upgrade status --format json
+      description: Print the downstream application's recorded foundation baseline.
+      outputFormats: [text, json]
+      category: upgrade
+
+    upgrade-plan:
+      command: go run ./cmd/mss upgrade plan --foundation <checkout> --format json
+      description: Perform a read-only three-way comparison against a newer foundation checkout.
+      outputFormats: [text, json]
+      category: upgrade
+      dryRunByDefault: true
+      idempotent: true
+
+    upgrade-apply:
+      command: go run ./cmd/mss upgrade apply --foundation <checkout> --yes --format json
+      description: Apply a reviewed conflict-free foundation upgrade and commit the new baseline last.
+      outputFormats: [text, json]
+      category: upgrade
+      idempotent: true
+
     skills-list:
       command: go run ./cmd/mss skills list
       description: List repository-local Agent Skills.
@@ -150,10 +186,18 @@ spec:
 
     eval-list:
       command: go run ./cmd/mss eval list
-      description: List repository agent evaluation cases.
+      description: List repository Agent evaluation cases.
+      outputFormats: [text, json]
       category: eval
 
     eval-run:
       command: go run ./cmd/mss eval run
-      description: Execute one agent evaluation case and store a structured report.
+      description: Execute Agent evaluation cases and store structured reports.
+      outputFormats: [text, markdown, json]
+      category: eval
+
+    eval-report:
+      command: go run ./cmd/mss eval report
+      description: Read the latest persisted Agent evaluation report.
+      outputFormats: [text, markdown, json]
       category: eval
