@@ -20,15 +20,32 @@ spec:
     - .mss/project.yaml
     - .mss/capabilities.yaml
     - .mss/commands.yaml
+    - .mss/modules/example-supplier.yaml
+    - .mss/features/example-supplier-onboarding.yaml
+    - .mss/evals/catalog.yaml
     - web/antd/package.json
     - docs/package.json
     - mss-boot/go.mod
   excludePaths:
     - MONOREPO_IMPORTS.md
-    - .mss/modules/example-supplier.yaml
+    - internal/mss/blueprint/plan_test.go
+    - internal/mss/blueprint/upgrade_test.go
+    - internal/mss/blueprint/workspace_test.go
+    - internal/mss/dev/config_test.go
+    - internal/mss/dev/manager_test.go
+    - internal/mss/eval/eval_test.go
+    - internal/mss/feature/plan_test.go
+    - internal/mss/generator/generator_test.go
+    - internal/mss/mcp/blueprint_tools_test.go
+    - internal/mss/mcp/server_test.go
+    - internal/mss/project/context_test.go
+    - internal/mss/skills/skills_test.go
+    - internal/mss/spec/feature_test.go
+    - internal/mss/spec/module_test.go
     - web/antd/test-results/.last-run.json
   excludePrefixes:
     - vendor/
+    - .github/prompts/
     - .mss/reports/
     - .mss/run/
     - .mss/logs/
