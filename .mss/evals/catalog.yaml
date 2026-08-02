@@ -2,7 +2,7 @@ apiVersion: mss.io/v1alpha1
 kind: AgentEvaluationCatalog
 metadata:
   project: mss-boot-admin
-  version: 0.2.0
+  version: 0.3.0
 spec:
   cases:
     - id: project-onboarding
@@ -26,6 +26,17 @@ spec:
           path: .mss/modules/example-supplier.yaml
           minimum: 12
 
+    - id: supplier-feature-contract
+      title: Agent can validate a cross-module Feature and executable acceptance contract
+      description: Ensures goals, non-goals, actors, modules, requirements, security constraints, risks, rollout, and required evidence remain machine-readable and reference-safe.
+      tags: [acceptance, feature, security]
+      checks:
+        - type: feature-spec
+          path: .mss/features/example-supplier-onboarding.yaml
+        - type: feature-plan
+          path: .mss/features/example-supplier-onboarding.yaml
+          minimum: 12
+
     - id: downstream-application-blueprint
       title: Agent can plan a complete standalone management-system repository
       description: Validates the versioned Blueprint, Git-tracked file selection, project identity rewrites, Foundation Lock, and three-way upgrade baseline.
@@ -37,7 +48,7 @@ spec:
     - id: full-verification-plan
       title: Agent can derive the complete repository validation plan
       description: Ensures the verifier exposes all major backend, framework, frontend, docs, and tooling checks.
-      tags: [verification, ci]
+      tags: [ci, verification]
       checks:
         - type: validation-plan
           mode: all
@@ -45,8 +56,8 @@ spec:
 
     - id: mcp-project-tools
       title: Codex-compatible project tools remain discoverable
-      description: Ensures the stdio MCP server exposes project context, module generation, validation, application Blueprint, and foundation upgrade tools.
-      tags: [mcp, codex, tools]
+      description: Ensures the stdio MCP server exposes project context, Feature planning, module generation, validation, application Blueprint, and foundation upgrade tools.
+      tags: [codex, mcp, tools]
       checks:
         - type: mcp-tools
-          minimum: 11
+          minimum: 13
