@@ -1,0 +1,81 @@
+apiVersion: mss.io/v1alpha1
+kind: ApplicationBlueprint
+metadata:
+  name: management-system
+  displayName: Agent-Native Management System
+  version: 0.1.0
+spec:
+  sourceMode: git-tracked
+  sourceModule: github.com/mss-boot-io/mss-boot-admin
+  sourceProjectName: mss-boot-admin
+  defaultOutputDirectory: .mss/output
+  manifestPath: .mss/blueprint-manifest.json
+  lockPath: .mss/lock.yaml
+  requiredFiles:
+    - AGENTS.md
+    - go.mod
+    - go.work
+    - main.go
+    - Makefile
+    - .mss/project.yaml
+    - .mss/capabilities.yaml
+    - .mss/commands.yaml
+    - web/antd/package.json
+    - docs/package.json
+    - mss-boot/go.mod
+  excludePaths:
+    - MONOREPO_IMPORTS.md
+    - .mss/modules/example-supplier.yaml
+    - web/antd/test-results/.last-run.json
+  excludePrefixes:
+    - vendor/
+    - .mss/reports/
+    - .mss/run/
+    - .mss/logs/
+    - .mss/cache/
+    - .mss/output/
+    - docs/aigc/prompts/
+    - mss-boot/aigc/prompts/
+    - web/antd/aigc/prompts/
+    - docs/.github/
+    - mss-boot/.github/
+    - web/antd/.github/
+    - web/antd/test-results/
+    - web/antd/playwright-report/
+  textExtensions:
+    - .cjs
+    - .css
+    - .go
+    - .graphql
+    - .html
+    - .js
+    - .json
+    - .jsx
+    - .less
+    - .md
+    - .mjs
+    - .mod
+    - .proto
+    - .sh
+    - .sql
+    - .sum
+    - .toml
+    - .ts
+    - .tsx
+    - .txt
+    - .yaml
+    - .yml
+  textNames:
+    - Dockerfile
+    - LICENSE
+    - Makefile
+    - CNAME
+    - .dockerignore
+    - .editorconfig
+    - .eslintignore
+    - .eslintrc.js
+    - .gitignore
+    - .golangci.yml
+    - .nvmrc
+    - .prettierignore
+    - .prettierrc.js
