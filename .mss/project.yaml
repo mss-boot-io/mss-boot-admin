@@ -1,0 +1,72 @@
+apiVersion: mss.io/v1alpha1
+kind: Project
+metadata:
+  name: mss-boot-admin
+  displayName: mss-boot Agent-Native Management Foundation
+  repository: mss-boot-io/mss-boot-admin
+spec:
+  mission: >-
+    Agent-native infrastructure for building, validating, operating, and upgrading
+    management systems with Codex and other coding agents.
+  foundationVersion: 0.1.0
+  repositoryLayout:
+    backend: .
+    framework: mss-boot
+    frontend: web/antd
+    documentation: docs
+    modules: modules
+    specifications: .mss
+    skills: .agents/skills
+    templates: templates
+    reports: .mss/reports
+  backend:
+    language: go
+    goVersion: "1.26"
+    module: github.com/mss-boot-io/mss-boot-admin
+    frameworkModule: github.com/mss-boot-io/mss-boot-admin/mss-boot
+    httpFramework: gin
+    orm: gorm
+    cli: cobra
+    authorization: casbin
+    contract: openapi
+  frontend:
+    language: typescript
+    nodeVersion: ">=22"
+    packageManager: pnpm
+    packageManagerVersion: "9.15.9"
+    framework: react
+    applicationFramework: umi
+    componentLibrary: ant-design
+  documentation:
+    framework: dumi
+    packageManager: pnpm
+  database:
+    local: sqlite
+    supported:
+      - mysql
+      - postgresql
+      - sqlite
+  localDependencies:
+    required: []
+    optional:
+      - redis
+      - mysql
+      - postgresql
+  conventions:
+    newBusinessModuleLayout: vertical
+    legacyBusinessModuleLayout: horizontal
+    runtimeDynamicModelForNewModules: false
+    specificationFirst: true
+    deterministicGeneration: true
+    generatedFilesMustBeIdempotent: true
+    writesDefaultToDryRun: true
+    productionCredentialsRequiredForDevelopment: false
+  entrypoints:
+    admin: go run .
+    mss: go run ./cmd/mss
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    reports:
+      json: .mss/reports/verify.json
+      markdown: .mss/reports/verify.md
