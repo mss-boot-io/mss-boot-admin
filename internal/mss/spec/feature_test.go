@@ -41,7 +41,7 @@ func TestFeatureRejectsUnknownActorAndRequirement(t *testing.T) {
 }
 
 func TestFeatureRequiresAcceptanceForMustRequirement(t *testing.T) {
-	content := strings.Replace(validFeatureYAML, "requirement: supplier-create\n", "", 1)
+	content := strings.Replace(validFeatureYAML, "requirement: supplier-create", "requirement: \"\"", 1)
 	path := writeFeatureFixture(t, content)
 	_, err := LoadFeature(path)
 	if err == nil || !strings.Contains(err.Error(), "needs at least one linked acceptance criterion") {
