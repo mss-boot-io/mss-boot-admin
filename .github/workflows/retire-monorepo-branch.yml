@@ -1,0 +1,58 @@
+name: One-time Retire Monorepo Integration Branch
+
+on:
+  push:
+    branches:
+      - codex/agent-native-foundation
+    paths:
+      - '.github/workflows/retire-monorepo-branch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: retire-monorepo-integration-branch
+  cancel-in-progress: false
+
+jobs:
+  retire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout retained branch
+        uses: actions/checkout@v7
+        with:
+          ref: codex/agent-native-foundation
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Verify old branch is fully contained
+        run: |
+          set -euo pipefail
+          git fetch origin \
+            codex/monorepo-integration \
+            codex/agent-native-foundation
+          git merge-base --is-ancestor \
+            origin/codex/monorepo-integration \
+            HEAD
+          echo "The retained Agent-native branch contains the complete Monorepo branch history."
+
+      - name: Delete retired remote branch
+        run: |
+          set -euo pipefail
+          git push origin --delete codex/monorepo-integration
+
+      - name: Remove this one-time workflow
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/retire-monorepo-branch.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "chore: retire monorepo integration branch"
+          git push origin HEAD:codex/agent-native-foundation
