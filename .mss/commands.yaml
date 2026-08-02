@@ -27,6 +27,43 @@ spec:
       category: environment
       idempotent: true
 
+    dev-start:
+      command: go run ./cmd/mss dev --detach
+      description: Start the canonical backend and frontend development services.
+      outputFormats: [text, json]
+      category: environment
+      idempotent: true
+
+    dev-status:
+      command: go run ./cmd/mss dev status
+      description: Inspect managed development process state and HTTP readiness.
+      outputFormats: [text, json]
+      category: environment
+
+    dev-stop:
+      command: go run ./cmd/mss dev stop
+      description: Stop managed development process trees in reverse dependency order.
+      outputFormats: [text, json]
+      category: environment
+      idempotent: true
+
+    dev-logs:
+      command: go run ./cmd/mss dev logs
+      description: Read or follow one managed development service log.
+      category: environment
+
+    skills-list:
+      command: go run ./cmd/mss skills list
+      description: List repository-local Agent Skills.
+      outputFormats: [text, json]
+      category: agent
+
+    skills-validate:
+      command: go run ./cmd/mss skills validate
+      description: Validate Agent Skill metadata, portability, and command references.
+      outputFormats: [text, json]
+      category: agent
+
     backend-build:
       command: make build
       description: Build the admin backend.
