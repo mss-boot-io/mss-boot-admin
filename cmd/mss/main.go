@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	if err := app.Execute(); err != nil {
+	if err := app.ExecuteAgent(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
