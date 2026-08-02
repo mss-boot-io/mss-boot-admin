@@ -81,10 +81,10 @@ type listToolsResult struct {
 }
 
 type callToolResult struct {
-	ResultType       string        `json:"resultType,omitempty"`
-	Content          []textContent `json:"content"`
-	StructuredContent any          `json:"structuredContent,omitempty"`
-	IsError          bool          `json:"isError,omitempty"`
+	ResultType        string        `json:"resultType,omitempty"`
+	Content           []textContent `json:"content"`
+	StructuredContent any           `json:"structuredContent,omitempty"`
+	IsError           bool          `json:"isError,omitempty"`
 }
 
 type textContent struct {
@@ -602,10 +602,10 @@ func optionalBool(arguments map[string]any, key string, fallback bool) (bool, er
 
 func negotiateProtocol(requested string) string {
 	supported := map[string]bool{
-		"2024-11-05": true,
-		"2025-03-26": true,
-		"2025-06-18": true,
-		"2025-11-25": true,
+		"2024-11-05":   true,
+		"2025-03-26":   true,
+		"2025-06-18":   true,
+		"2025-11-25":   true,
 		protocolLatest: true,
 	}
 	if supported[requested] {

@@ -29,13 +29,13 @@ const (
 
 // ServiceState is persisted under .mss/run for detached processes.
 type ServiceState struct {
-	ServiceID string            `json:"serviceId"`
-	PID       int               `json:"pid"`
-	StartedAt time.Time         `json:"startedAt"`
-	Command   []string          `json:"command"`
-	Directory string            `json:"directory"`
-	LogPath   string            `json:"logPath"`
-	Detached  bool              `json:"detached"`
+	ServiceID   string            `json:"serviceId"`
+	PID         int               `json:"pid"`
+	StartedAt   time.Time         `json:"startedAt"`
+	Command     []string          `json:"command"`
+	Directory   string            `json:"directory"`
+	LogPath     string            `json:"logPath"`
+	Detached    bool              `json:"detached"`
 	Environment map[string]string `json:"environment,omitempty"`
 }
 
@@ -379,13 +379,13 @@ func startService(parent context.Context, config *Config, service ServiceSpec, o
 		return nil, ServiceResult{ServiceID: service.ID, Status: "failed", Detail: err.Error()}, fmt.Errorf("start development service %s: %w", service.ID, err)
 	}
 	state := ServiceState{
-		ServiceID: service.ID,
-		PID:       command.Process.Pid,
-		StartedAt: time.Now().UTC(),
-		Command:   append([]string(nil), service.Command...),
-		Directory: command.Dir,
-		LogPath:   logPath,
-		Detached:  options.Detach,
+		ServiceID:   service.ID,
+		PID:         command.Process.Pid,
+		StartedAt:   time.Now().UTC(),
+		Command:     append([]string(nil), service.Command...),
+		Directory:   command.Dir,
+		LogPath:     logPath,
+		Detached:    options.Detach,
 		Environment: cloneMap(service.Environment),
 	}
 	if err := writeState(statePath, state); err != nil {
