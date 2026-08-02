@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -427,9 +426,11 @@ func foundationRevision(ctx context.Context, root string) (string, string, error
 		return "", "", fmt.Errorf("resolve foundation timestamp: %w", err)
 	}
 	timestamp := strings.TrimSpace(string(timeOutput))
-	if _, err := time.Parse(time.RFC3339, timestamp); err != nil {
-		return "", "", fmt.Errorf("foundation timestamp is invalid: %w", err)
+	if timestamp == "" {
+		return "", "", errors.New("foundation timestamp is empty")
 	}
+	// The value is emitted by Git itself and is audit metadata only. Do not
+	// reject valid ISO-8601 offset variants due to Go runtime parser changes.
 	return commit, timestamp, nil
 }
 
