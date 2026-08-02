@@ -35,6 +35,7 @@ func NewAgentRootCommand() *cobra.Command {
 	root.AddCommand(newSpecCommand(&rootOverride))
 	root.AddCommand(newModuleCommand(&rootOverride))
 	root.AddCommand(newSkillsCommand(&rootOverride))
+	root.AddCommand(newEvalCommand(&rootOverride))
 	root.AddCommand(newVerifyCommand(&rootOverride))
 	return root
 }
