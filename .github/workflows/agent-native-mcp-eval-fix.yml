@@ -1,0 +1,207 @@
+name: One-time MCP Blueprint and Eval Integration
+
+on:
+  push:
+    branches:
+      - codex/agent-native-foundation
+    paths:
+      - '.github/workflows/agent-native-mcp-eval-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-native-mcp-eval-integration
+  cancel-in-progress: false
+
+jobs:
+  patch-commit-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@v7
+        with:
+          ref: codex/agent-native-foundation
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Route Blueprint tools and add Blueprint Eval
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          server_path = Path("internal/mss/mcp/server.go")
+          server = server_path.read_text(encoding="utf-8")
+          old_dispatch = '''\tcase "mss_run_validation":
+          \t\tvalue, err = s.runValidation(ctx, arguments)
+          \tdefault:
+          \t\treturn callToolResult{}, false
+          \t}
+          '''
+          new_dispatch = '''\tcase "mss_run_validation":
+          \t\tvalue, err = s.runValidation(ctx, arguments)
+          \tdefault:
+          \t\tif result, known := s.callBlueprintTool(ctx, name, arguments); known {
+          \t\t\treturn result, true
+          \t\t}
+          \t\treturn callToolResult{}, false
+          \t}
+          '''
+          if old_dispatch not in server:
+              raise SystemExit("expected MCP dispatch block was not found")
+          server = server.replace(old_dispatch, new_dispatch, 1)
+          old_sort = '''\t}
+          \tsort.SliceStable(definitions, func(i, j int) bool { return definitions[i].Name < definitions[j].Name })
+          \treturn definitions
+          }
+          '''
+          new_sort = '''\t}
+          \tdefinitions = append(definitions, blueprintToolDefinitions()...)
+          \tsort.SliceStable(definitions, func(i, j int) bool { return definitions[i].Name < definitions[j].Name })
+          \treturn definitions
+          }
+          '''
+          if old_sort not in server:
+              raise SystemExit("expected MCP tool sort block was not found")
+          server_path.write_text(server.replace(old_sort, new_sort, 1), encoding="utf-8")
+
+          eval_path = Path("internal/mss/eval/eval.go")
+          text = eval_path.read_text(encoding="utf-8")
+          old_import = '''\t"gopkg.in/yaml.v3"
+
+          \t"github.com/mss-boot-io/mss-boot-admin/internal/mss/doctor"
+          '''
+          new_import = '''\t"gopkg.in/yaml.v3"
+
+          \t"github.com/mss-boot-io/mss-boot-admin/internal/mss/blueprint"
+          \t"github.com/mss-boot-io/mss-boot-admin/internal/mss/doctor"
+          '''
+          if old_import not in text:
+              raise SystemExit("expected Eval import block was not found")
+          text = text.replace(old_import, new_import, 1)
+
+          old_known = '''\t\t"module-generation-plan": true,
+          \t\t"validation-plan":        true,
+          \t\t"mcp-tools":              true,
+          '''
+          new_known = '''\t\t"module-generation-plan":   true,
+          \t\t"application-blueprint-plan": true,
+          \t\t"validation-plan":          true,
+          \t\t"mcp-tools":                true,
+          '''
+          if old_known not in text:
+              raise SystemExit("expected Eval known checks block was not found")
+          text = text.replace(old_known, new_known, 1)
+
+          old_switch = '''\tcase "module-generation-plan":
+          \t\tvalue, err = checkModuleGeneration(root, check.Path, check.Minimum)
+          \tcase "validation-plan":
+          '''
+          new_switch = '''\tcase "module-generation-plan":
+          \t\tvalue, err = checkModuleGeneration(root, check.Path, check.Minimum)
+          \tcase "application-blueprint-plan":
+          \t\tvalue, err = checkApplicationBlueprint(ctx, root, check.Minimum)
+          \tcase "validation-plan":
+          '''
+          if old_switch not in text:
+              raise SystemExit("expected Eval switch block was not found")
+          text = text.replace(old_switch, new_switch, 1)
+
+          marker = '''func checkValidationPlan(projectContext *project.Context, mode string, minimum int) (map[string]any, error) {
+          '''
+          function = '''func checkApplicationBlueprint(ctx context.Context, root string, minimum int) (map[string]any, error) {
+          \tplan, err := blueprint.Generate(ctx, blueprint.Options{
+          \t\tFoundationRoot: root,
+          \t\tApplication: blueprint.Application{
+          \t\t\tName:        "eval-admin",
+          \t\t\tDisplayName: "Evaluation Administration",
+          \t\t\tModule:      "github.com/example/eval-admin",
+          \t\t\tRepository:  "example/eval-admin",
+          \t\t},
+          \t})
+          \tif err != nil {
+          \t\treturn nil, err
+          \t}
+          \tif !plan.DryRun || !plan.Success {
+          \t\treturn nil, errors.New("application Blueprint plan must be a successful dry-run")
+          \t}
+          \tif plan.TotalFiles < minimum {
+          \t\treturn nil, fmt.Errorf("application Blueprint planned %d files, expected at least %d", plan.TotalFiles, minimum)
+          \t}
+          \tif plan.FoundationCommit == "" {
+          \t\treturn nil, errors.New("application Blueprint plan does not record a foundation commit")
+          \t}
+          \tactions := make(map[string]int)
+          \tfor _, change := range plan.Changes {
+          \t\tactions[string(change.Action)]++
+          \t}
+          \treturn map[string]any{
+          \t\t"blueprint":        plan.Blueprint,
+          \t\t"version":          plan.BlueprintVersion,
+          \t\t"foundationCommit": plan.FoundationCommit,
+          \t\t"files":            plan.TotalFiles,
+          \t\t"bytes":            plan.TotalBytes,
+          \t\t"actions":          actions,
+          \t}, nil
+          }
+
+          ''' + marker
+          if marker not in text:
+              raise SystemExit("expected Eval insertion point was not found")
+          eval_path.write_text(text.replace(marker, function, 1), encoding="utf-8")
+          PY
+
+          gofmt -w internal/mss/mcp internal/mss/eval
+          rm -f .github/workflows/agent-native-mcp-eval-fix.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "feat(agent): integrate Blueprint MCP tools and evaluations"
+          git push origin HEAD:codex/agent-native-foundation
+
+      - name: Test MCP and Agent Evals after commit
+        run: go test ./internal/mss/mcp ./internal/mss/eval ./internal/mss/blueprint
+
+      - name: Run all deterministic Agent evaluations
+        run: go run ./cmd/mss eval run --all --format json > /tmp/mss-evals.json
+
+      - name: Exercise stateless MCP tool discovery
+        run: |
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}' \
+            | go run ./cmd/mss-mcp --root . > /tmp/mss-mcp-tools.json
+
+      - name: Upload MCP and Eval evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-native-mcp-eval-validation
+          path: |
+            /tmp/mss-evals.json
+            /tmp/mss-mcp-tools.json
+            .mss/reports/evals/latest.json
+            .mss/reports/evals/latest.md
+          if-no-files-found: warn
+          retention-days: 7
