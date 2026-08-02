@@ -28,6 +28,7 @@ func NewAgentRootCommand() *cobra.Command {
 	root.SetOut(os.Stdout)
 	root.SetErr(os.Stderr)
 
+	root.AddCommand(newNewCommand(&rootOverride))
 	root.AddCommand(newContextCommand(&rootOverride))
 	root.AddCommand(newDoctorCommand(&rootOverride))
 	root.AddCommand(newSetupCommand(&rootOverride))
