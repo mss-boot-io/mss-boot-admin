@@ -89,7 +89,7 @@
     "@types/react-dom": "^18.0.11",
     "@types/react-helmet": "^6.1.6",
     "@umijs/fabric": "^2.14.1",
-    "@umijs/lint": "^4.6.61",
+    "@umijs/lint": "^4.6.84",
     "@umijs/max": "^4.6.61",
     "cross-env": "^10.1.0",
     "eslint": "^8.34.0",
