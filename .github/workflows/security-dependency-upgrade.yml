@@ -48,11 +48,21 @@ jobs:
       - name: Upgrade vulnerable dependencies
         run: |
           set -euo pipefail
+          framework='github.com/mss-boot-io/mss-boot-admin/mss-boot'
 
-          go get github.com/google/go-github/v88@v88.0.0
-          go get google.golang.org/grpc@v1.82.1
-          go get golang.org/x/text@v0.39.0
-          go mod tidy
+          # The first nested-module tag is intentionally published only after
+          # this PR merges. Resolve it locally while editing root module metadata,
+          # then remove the temporary bridge before committing.
+          GOWORK=off go mod edit -replace="${framework}@v0.8.0=./mss-boot"
+          trap 'GOWORK=off go mod edit -dropreplace="${framework}@v0.8.0"' EXIT
+
+          GOWORK=off go get github.com/google/go-github/v88@v88.0.0
+          GOWORK=off go get google.golang.org/grpc@v1.82.1
+          GOWORK=off go get golang.org/x/text@v0.39.0
+          GOWORK=off go mod tidy
+
+          GOWORK=off go mod edit -dropreplace="${framework}@v0.8.0"
+          trap - EXIT
 
           (
             cd mss-boot
@@ -64,6 +74,10 @@ jobs:
           if grep -R --line-number --fixed-strings 'github.com/google/go-github/v41' \
             --include='*.go' --include='go.mod' --exclude-dir=.git .; then
             echo 'go-github/v41 references remain after migration' >&2
+            exit 1
+          fi
+          if grep -qE '^replace[[:space:]]+.*mss-boot' go.mod; then
+            echo 'temporary nested-module replace leaked into root go.mod' >&2
             exit 1
           fi
 
