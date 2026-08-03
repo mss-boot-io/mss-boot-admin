@@ -67,16 +67,18 @@ func (k *Kafka) getConfig() *sarama.Config {
 	case "msk":
 		c.Net.SASL.Enable = true
 		c.Net.SASL.Mechanism = sarama.SASLTypeOAuth
+		region := ""
+		if k.SASL != nil {
+			region = k.SASL.Region
+		}
 		c.Net.SASL.TokenProvider = &MSKAccessTokenProvider{
-			Region: k.SASL.Region,
+			Region: region,
 			Ctx:    context.Background(),
 		}
 
-		tlsConfig := tls.Config{}
 		c.Net.TLS.Enable = true
-		c.Net.TLS.Config = &tlsConfig
+		c.Net.TLS.Config = &tls.Config{MinVersion: tls.VersionTLS12}
 	default:
-
 		if k.Timeout == 0 {
 			c.Net.DialTimeout = 10 * time.Second
 		}
@@ -84,21 +86,23 @@ func (k *Kafka) getConfig() *sarama.Config {
 			c.Net.KeepAlive = k.KeepAlive
 		}
 		c.Net.TLS.Enable = true
-		tlsConfig := &tls.Config{
-			InsecureSkipVerify: true,
-			ClientAuth:         tls.NoClientCert,
-		}
+		tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 
-		if k.KeyFile != "" || k.CertFile != "" || k.CaFile != "" {
+		if k.CaFile != "" {
 			caCertPool := x509.NewCertPool()
 			if !caCertPool.AppendCertsFromPEM([]byte(k.CaFile)) {
 				log.Fatalf("queue kafka failed to append CA certificate")
+			}
+			tlsConfig.RootCAs = caCertPool
+		}
+		if k.KeyFile != "" || k.CertFile != "" {
+			if k.KeyFile == "" || k.CertFile == "" {
+				log.Fatalf("queue kafka requires both client certificate and key")
 			}
 			clientCert, err := tls.X509KeyPair([]byte(k.CertFile), []byte(k.KeyFile))
 			if err != nil {
 				log.Fatalf("queue kafka load cert error: %s", err.Error())
 			}
-			tlsConfig.RootCAs = caCertPool
 			tlsConfig.Certificates = []tls.Certificate{clientCert}
 		}
 		c.Net.TLS.Config = tlsConfig
@@ -117,7 +121,6 @@ func (k *Kafka) getConfig() *sarama.Config {
 				c.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
 			}
 		}
-		// c.Version = sarama.V1_0_0_0
 		if k.Version != "" {
 			v, err := sarama.ParseKafkaVersion(k.Version)
 			if err == nil {
