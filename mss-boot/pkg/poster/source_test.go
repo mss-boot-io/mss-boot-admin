@@ -2,6 +2,7 @@ package poster
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,7 +21,11 @@ func TestGetResourceReaderHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getResourceReader() error = %v", err)
 	}
-	if got := reader.String(); got != "image-data" {
+	got, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read resource: %v", err)
+	}
+	if string(got) != "image-data" {
 		t.Fatalf("resource content = %q, want %q", got, "image-data")
 	}
 }
@@ -57,8 +62,12 @@ func TestGetResourceReaderLocalFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getResourceReader() error = %v", err)
 	}
-	if !bytes.Equal(reader.Bytes(), []byte("local-image")) {
-		t.Fatalf("local resource content = %q", reader.Bytes())
+	got, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read local resource: %v", err)
+	}
+	if !bytes.Equal(got, []byte("local-image")) {
+		t.Fatalf("local resource content = %q", got)
 	}
 }
 
