@@ -14,6 +14,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: govulncheck-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   root:
     name: Root application
@@ -66,3 +70,24 @@ jobs:
         env:
           GOWORK: "off"
         run: govulncheck ./...
+
+  required-status:
+    # Keep this exact job name for the existing main-branch required check.
+    # It aggregates every module scan, so the compatibility context is not a bypass.
+    name: govulncheck
+    needs:
+      - root
+      - nested-modules
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every vulnerability scan to pass
+        env:
+          ROOT_RESULT: ${{ needs.root.result }}
+          NESTED_RESULT: ${{ needs.nested-modules.result }}
+        run: |
+          echo "root=${ROOT_RESULT}"
+          echo "nested-modules=${NESTED_RESULT}"
+          test "${ROOT_RESULT}" = "success"
+          test "${NESTED_RESULT}" = "success"
