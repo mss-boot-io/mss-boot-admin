@@ -1,6 +1,6 @@
 module github.com/mss-boot-io/mss-boot-admin/mss-boot
 
-go 1.26.0
+go 1.26.5
 
 require (
 	github.com/IBM/sarama v1.50.2
