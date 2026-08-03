@@ -10,27 +10,19 @@ package pkg
 import (
 	"bytes"
 	"context"
-	"net/http"
 	"os"
 	"path/filepath"
 
-	"github.com/google/go-github/v41/github"
-	"golang.org/x/oauth2"
+	"github.com/google/go-github/v88/github"
 )
 
 // GistClone clone gist repo
 func GistClone(id, dir, accessToken string) error {
-	ctx := context.Background()
-	var tc *http.Client
-	if accessToken != "" {
-		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: accessToken},
-		)
-		tc = oauth2.NewClient(ctx, ts)
+	client, err := newGitHubClient(accessToken)
+	if err != nil {
+		return err
 	}
-
-	client := github.NewClient(tc)
-	return gistClone(ctx, client, id, dir)
+	return gistClone(context.Background(), client, id, dir)
 }
 
 func gistClone(ctx context.Context, client *github.Client, id, dir string) error {
