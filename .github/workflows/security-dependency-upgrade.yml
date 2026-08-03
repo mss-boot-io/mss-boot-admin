@@ -1,0 +1,97 @@
+name: One-time security dependency upgrade
+
+on:
+  push:
+    branches:
+      - codex/agent-native-foundation
+    paths:
+      - '.github/workflows/security-dependency-upgrade.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: security-dependency-upgrade
+  cancel-in-progress: false
+
+jobs:
+  upgrade-commit-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@v7
+        with:
+          ref: codex/agent-native-foundation
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Start Redis
+        uses: supercharge/redis-github-action@1.8.1
+        with:
+          redis-version: 7
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Upgrade vulnerable dependencies
+        run: |
+          set -euo pipefail
+
+          go get github.com/google/go-github/v88@v88.0.0
+          go get google.golang.org/grpc@v1.82.1
+          go get golang.org/x/text@v0.39.0
+          go mod tidy
+
+          (
+            cd mss-boot
+            GOWORK=off go get google.golang.org/grpc@v1.82.1
+            GOWORK=off go get golang.org/x/text@v0.39.0
+            GOWORK=off go mod tidy
+          )
+
+          if grep -R --line-number --fixed-strings 'github.com/google/go-github/v41' \
+            --include='*.go' --include='go.mod' --exclude-dir=.git .; then
+            echo 'go-github/v41 references remain after migration' >&2
+            exit 1
+          fi
+
+      - name: Commit dependency graph before verification
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/security-dependency-upgrade.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(security): upgrade vulnerable Go dependencies"
+          git push origin HEAD:codex/agent-native-foundation
+
+      - name: Test root application
+        run: go test ./...
+
+      - name: Test framework module
+        working-directory: mss-boot
+        env:
+          GOWORK: "off"
+        run: go test ./...
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Scan root application
+        run: govulncheck ./...
+
+      - name: Scan nested modules
+        run: |
+          set -euo pipefail
+          for dir in mss-boot cmd/tools/pr compose/consul compose/kafka; do
+            echo "Scanning ${dir}"
+            (cd "${dir}" && GOWORK=off govulncheck ./...)
+          done
