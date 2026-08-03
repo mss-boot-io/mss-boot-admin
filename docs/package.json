@@ -46,6 +46,6 @@
     "dumi": "^2.4.30",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.7",
-    "prettier": "^3.8.4"
+    "prettier": "^3.9.6"
   }
 }
