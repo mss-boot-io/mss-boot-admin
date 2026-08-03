@@ -10,15 +10,19 @@ package mgos
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 const (
 	// FromQueryTag tag标记
 	FromQueryTag = "search"
 )
+
+var mongoFieldPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*$`)
 
 // ResolveSearchQuery 解析
 /**
@@ -34,64 +38,95 @@ const (
  */
 func ResolveSearchQuery(q any, condition Condition) {
 	qType := reflect.TypeOf(q)
+	if qType == nil {
+		return
+	}
 	if qType.Kind() == reflect.Ptr {
 		qType = qType.Elem()
 	}
 	qValue := reflect.ValueOf(q)
 	if qValue.Kind() == reflect.Ptr {
+		if qValue.IsNil() {
+			return
+		}
 		qValue = qValue.Elem()
 	}
-	var tag string
-	var ok bool
-	var t *resolveSearchTag
+	if qType.Kind() != reflect.Struct || qValue.Kind() != reflect.Struct {
+		return
+	}
+
 	for i := 0; i < qType.NumField(); i++ {
-		tag, ok = qType.Field(i).Tag.Lookup(FromQueryTag)
-		if !ok {
+		tag, ok := qType.Field(i).Tag.Lookup(FromQueryTag)
+		if !ok || tag == "-" {
 			continue
 		}
-		switch tag {
-		case "-":
-			continue
-		case "dlv":
-			// 递归调用
+		if tag == "dlv" {
 			ResolveSearchQuery(qValue.Field(i).Interface(), condition)
 			continue
 		}
-		t = makeTag(tag)
-		if qValue.Field(i).IsZero() {
+
+		resolved := makeTag(tag)
+		if !safeMongoField(resolved.Column) || qValue.Field(i).IsZero() {
 			continue
 		}
-		// 解析
-		switch t.Type {
-		// case "left":
-		// todo 左关联
-		case "exact", "iexact":
-			condition.SetAnd(bson.M{t.Column: qValue.Field(i).Interface()})
-		case "contains", "icontains":
-			condition.SetAnd(bson.M{t.Column: bson.M{"$regex": qValue.Field(i).Interface()}})
+		value := qValue.Field(i).Interface()
+
+		switch resolved.Type {
+		case "exact":
+			// $eq forces even document-shaped input to be interpreted as a literal value.
+			condition.SetAnd(bson.M{resolved.Column: bson.M{"$eq": value}})
+		case "iexact":
+			condition.SetAnd(bson.M{resolved.Column: safeRegex(value, true, true, true)})
+		case "contains":
+			condition.SetAnd(bson.M{resolved.Column: safeRegex(value, false, false, false)})
+		case "icontains":
+			condition.SetAnd(bson.M{resolved.Column: safeRegex(value, false, false, true)})
 		case "gt":
-			condition.SetAnd(bson.M{t.Column: bson.M{"$gt": qValue.Field(i).Interface()}})
+			condition.SetAnd(bson.M{resolved.Column: bson.M{"$gt": value}})
 		case "gte":
-			condition.SetAnd(bson.M{t.Column: bson.M{"$gte": qValue.Field(i).Interface()}})
+			condition.SetAnd(bson.M{resolved.Column: bson.M{"$gte": value}})
 		case "lt":
-			condition.SetAnd(bson.M{t.Column: bson.M{"$lt": qValue.Field(i).Interface()}})
+			condition.SetAnd(bson.M{resolved.Column: bson.M{"$lt": value}})
 		case "lte":
-			condition.SetAnd(bson.M{t.Column: bson.M{"$lte": qValue.Field(i).Interface()}})
-		case "startswith", "istartswith":
-			condition.SetAnd(bson.M{t.Column: bson.M{"$regex": fmt.Sprintf("^%v.*", qValue.Field(i).Interface())}})
-		case "endswith", "iendswith":
-			condition.SetAnd(bson.M{t.Column: bson.M{"$regex": fmt.Sprintf("*.%v$", qValue.Field(i).Interface())}})
+			condition.SetAnd(bson.M{resolved.Column: bson.M{"$lte": value}})
+		case "startswith":
+			condition.SetAnd(bson.M{resolved.Column: safeRegex(value, true, false, false)})
+		case "istartswith":
+			condition.SetAnd(bson.M{resolved.Column: safeRegex(value, true, false, true)})
+		case "endswith":
+			condition.SetAnd(bson.M{resolved.Column: safeRegex(value, false, true, false)})
+		case "iendswith":
+			condition.SetAnd(bson.M{resolved.Column: safeRegex(value, false, true, true)})
 		case "in":
-			condition.SetAnd(bson.M{t.Column: bson.M{"$in": qValue.Field(i).Interface()}})
+			condition.SetAnd(bson.M{resolved.Column: bson.M{"$in": value}})
 		case "isnull":
-			condition.SetAnd(bson.M{t.Column: bson.M{"$in": []any{nil}, "$exists": true}})
+			condition.SetAnd(bson.M{resolved.Column: bson.M{"$in": []any{nil}, "$exists": true}})
 		case "order":
 			switch strings.ToLower(qValue.Field(i).String()) {
 			case "asc":
-				condition.SetOrder(t.Column, 1)
+				condition.SetOrder(resolved.Column, 1)
 			case "desc":
-				condition.SetOrder(t.Column, -1)
+				condition.SetOrder(resolved.Column, -1)
 			}
 		}
 	}
+}
+
+func safeMongoField(column string) bool {
+	return mongoFieldPattern.MatchString(column) && !strings.Contains(column, "..")
+}
+
+func safeRegex(value any, anchorStart, anchorEnd, caseInsensitive bool) primitive.Regex {
+	pattern := regexp.QuoteMeta(fmt.Sprint(value))
+	if anchorStart {
+		pattern = "^" + pattern
+	}
+	if anchorEnd {
+		pattern += "$"
+	}
+	options := ""
+	if caseInsensitive {
+		options = "i"
+	}
+	return primitive.Regex{Pattern: pattern, Options: options}
 }
