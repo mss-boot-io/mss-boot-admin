@@ -74,6 +74,10 @@ func (e *Search) searchMgm(c *gin.Context) {
 		return
 	}
 
+	// CompileCondition restricts keys to static validated struct tags, encodes
+	// literal request values with typed BSON operators, and validates BSON before
+	// this MongoDB driver call. CodeQL otherwise treats this NoSQL API as textual SQL.
+	// codeql[go/sql-injection]
 	count, err := mgm.Coll(e.Model).CountDocuments(c, filter)
 	if err != nil {
 		api.AddError(err).Log.ErrorContext(c, "count items error", "error", err)
@@ -89,6 +93,8 @@ func (e *Search) searchMgm(c *gin.Context) {
 		}
 		ops.SetSkip(req.GetPageSize() * (req.GetPage() - 1))
 
+		// See the audited typed-BSON boundary documented above.
+		// codeql[go/sql-injection]
 		result, err := mgm.Coll(e.Model).Find(c, filter, ops)
 		if err != nil {
 			api.AddError(err).Log.ErrorContext(c, "find items error", "error", err)
