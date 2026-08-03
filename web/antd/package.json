@@ -66,7 +66,7 @@
     "antd": "^5.2.2",
     "braft-editor": "^2.3.9",
     "classnames": "^2.3.2",
-    "immutable": "3.8.3",
+    "immutable": "4.3.9",
     "lodash": "^4.18.1",
     "moment": "^2.29.4",
     "omit.js": "^2.0.2",
