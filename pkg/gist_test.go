@@ -3,12 +3,11 @@ package pkg
 import (
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/google/go-github/v41/github"
+	"github.com/google/go-github/v88/github"
 )
 
 func Test_GistClone(t *testing.T) {
@@ -21,12 +20,14 @@ func Test_GistClone(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := github.NewClient(server.Client())
-	baseURL, err := url.Parse(server.URL + "/")
+	baseURL := server.URL + "/"
+	client, err := github.NewClient(
+		github.WithHTTPClient(server.Client()),
+		github.WithURLs(&baseURL, nil),
+	)
 	if err != nil {
-		t.Fatalf("parse test server url: %v", err)
+		t.Fatalf("create GitHub client: %v", err)
 	}
-	client.BaseURL = baseURL
 
 	dir := t.TempDir()
 	if err := gistClone(t.Context(), client, "1", dir); err != nil {

@@ -14,7 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/mss-boot-io/mss-boot-admin/apis"
 	"github.com/mss-boot-io/mss-boot-admin/config"
-	"github.com/mss-boot-io/mss-boot/pkg/response"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )

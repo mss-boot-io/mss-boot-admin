@@ -1,0 +1,9 @@
+.git
+.github
+web
+docs
+**/node_modules
+**/dist
+**/.cache
+coverage.out
+*.log

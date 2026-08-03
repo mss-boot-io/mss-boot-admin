@@ -1,0 +1,644 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mss-boot.io/schemas/admin-module.v1alpha1.json",
+  "title": "mss AdminModuleSpec",
+  "description": "Deterministic specification for a vertical management-system module.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {
+      "const": "mss.io/v1alpha1"
+    },
+    "kind": {
+      "const": "AdminModule"
+    },
+    "metadata": {
+      "$ref": "#/$defs/metadata"
+    },
+    "spec": {
+      "$ref": "#/$defs/spec"
+    }
+  },
+  "$defs": {
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "displayName"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+          "minLength": 2,
+          "maxLength": 63
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 100
+          }
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity", "permissions", "menu", "ui", "tests"],
+      "properties": {
+        "entity": {
+          "$ref": "#/$defs/entity"
+        },
+        "api": {
+          "$ref": "#/$defs/api"
+        },
+        "permissions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/permission"
+          }
+        },
+        "ownership": {
+          "$ref": "#/$defs/ownership"
+        },
+        "menu": {
+          "$ref": "#/$defs/menu"
+        },
+        "ui": {
+          "$ref": "#/$defs/ui"
+        },
+        "workflow": {
+          "$ref": "#/$defs/workflow"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/event"
+          }
+        },
+        "tests": {
+          "$ref": "#/$defs/tests"
+        },
+        "generation": {
+          "$ref": "#/$defs/generation"
+        }
+      }
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["table", "fields"],
+      "properties": {
+        "goName": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*$"
+        },
+        "table": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "maxLength": 63
+        },
+        "idType": {
+          "type": "string",
+          "enum": ["uuid", "string", "int64"],
+          "default": "uuid"
+        },
+        "timestamps": {
+          "type": "boolean",
+          "default": true
+        },
+        "softDelete": {
+          "type": "boolean",
+          "default": true
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/field"
+          }
+        },
+        "indexes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/index"
+          }
+        }
+      }
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type", "displayName"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z0-9]*$",
+          "maxLength": 64
+        },
+        "column": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "maxLength": 63
+        },
+        "goName": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "string",
+            "text",
+            "int",
+            "int64",
+            "uint",
+            "float64",
+            "decimal",
+            "bool",
+            "date",
+            "datetime",
+            "uuid",
+            "json",
+            "enum",
+            "relation",
+            "file",
+            "files"
+          ]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "nullable": {
+          "type": "boolean",
+          "default": false
+        },
+        "unique": {
+          "type": "boolean",
+          "default": false
+        },
+        "index": {
+          "type": "boolean",
+          "default": false
+        },
+        "searchable": {
+          "type": "boolean",
+          "default": false
+        },
+        "sortable": {
+          "type": "boolean",
+          "default": false
+        },
+        "filterable": {
+          "type": "boolean",
+          "default": false
+        },
+        "list": {
+          "type": "boolean",
+          "default": true
+        },
+        "form": {
+          "type": "boolean",
+          "default": true
+        },
+        "detail": {
+          "type": "boolean",
+          "default": true
+        },
+        "immutable": {
+          "type": "boolean",
+          "default": false
+        },
+        "default": {},
+        "validation": {
+          "$ref": "#/$defs/validation"
+        },
+        "enumValues": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/enumValue"
+          }
+        },
+        "relation": {
+          "$ref": "#/$defs/relation"
+        },
+        "ui": {
+          "$ref": "#/$defs/fieldUI"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["email", "uri", "hostname", "ipv4", "ipv6", "phone", "slug"]
+        },
+        "precision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65
+        },
+        "scale": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 30
+        }
+      }
+    },
+    "enumValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "label"],
+      "properties": {
+        "value": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "labelEn": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetModule", "targetField", "onDelete"],
+      "properties": {
+        "targetModule": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+        },
+        "targetField": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z0-9]*$"
+        },
+        "displayField": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z0-9]*$"
+        },
+        "cardinality": {
+          "type": "string",
+          "enum": ["many-to-one", "one-to-one", "one-to-many", "many-to-many"],
+          "default": "many-to-one"
+        },
+        "onDelete": {
+          "type": "string",
+          "enum": ["restrict", "cascade", "set-null", "no-action"]
+        }
+      }
+    },
+    "fieldUI": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "component": {
+          "type": "string",
+          "enum": [
+            "input",
+            "textarea",
+            "number",
+            "money",
+            "select",
+            "radio",
+            "checkbox",
+            "switch",
+            "date",
+            "datetime",
+            "upload",
+            "relation-select",
+            "json-editor"
+          ]
+        },
+        "width": {
+          "oneOf": [
+            {"type": "integer", "minimum": 40},
+            {"type": "string"}
+          ]
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "help": {
+          "type": "string"
+        },
+        "hidden": {
+          "type": "boolean"
+        }
+      }
+    },
+    "index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "fields"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9]*$"
+          }
+        },
+        "unique": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "basePath": {
+          "type": "string",
+          "pattern": "^/[a-z0-9][a-z0-9/-]*$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^v[0-9]+$",
+          "default": "v1"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["list", "get", "create", "update", "delete", "export", "import"]
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "permission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "displayName"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "defaultRoles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["none", "creator", "department", "custom"]
+        },
+        "field": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z0-9]*$"
+        },
+        "adminBypass": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "menu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "displayName"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^/[a-z0-9][a-z0-9/-]*$"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "displayNameEn": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "parent": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "hidden": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["list", "form", "detail"],
+      "properties": {
+        "list": {
+          "type": "boolean"
+        },
+        "form": {
+          "type": "boolean"
+        },
+        "detail": {
+          "type": "boolean"
+        },
+        "mobile": {
+          "type": "boolean",
+          "default": true
+        },
+        "batchDelete": {
+          "type": "boolean",
+          "default": false
+        },
+        "export": {
+          "type": "boolean",
+          "default": false
+        },
+        "import": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "states", "transitions"],
+      "properties": {
+        "field": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z0-9]*$"
+        },
+        "initial": {
+          "type": "string"
+        },
+        "states": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          }
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/transition"
+          }
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "from", "to", "permission"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "from": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "to": {
+          "type": "string"
+        },
+        "permission": {
+          "type": "string"
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "when"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9.-]*$"
+        },
+        "when": {
+          "type": "string",
+          "enum": ["created", "updated", "deleted", "workflow-transition"]
+        }
+      }
+    },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit", "api", "e2e", "permissionMatrix"],
+      "properties": {
+        "unit": {
+          "type": "boolean"
+        },
+        "api": {
+          "type": "boolean"
+        },
+        "e2e": {
+          "type": "boolean"
+        },
+        "permissionMatrix": {
+          "type": "boolean"
+        },
+        "ownershipIsolation": {
+          "type": "boolean",
+          "default": false
+        },
+        "migrationUpgrade": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "type": "boolean",
+          "default": true
+        },
+        "frontend": {
+          "type": "boolean",
+          "default": true
+        },
+        "docs": {
+          "type": "boolean",
+          "default": true
+        },
+        "tests": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    }
+  }
+}

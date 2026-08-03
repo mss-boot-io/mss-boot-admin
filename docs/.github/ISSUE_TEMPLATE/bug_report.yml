@@ -1,0 +1,36 @@
+name: Docs Bug Report
+description: Report incorrect, broken, or outdated documentation.
+title: "fix(docs): "
+labels:
+  - bug
+  - documentation
+  - area/docs
+  - needs-triage
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page, route, or file
+      placeholder: "https://docs.mss-boot-io.top/... or docs/...md"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is wrong, stale, broken, or misleading?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected correction
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification context
+      description: Browser, command output, screenshot, release version, or local build details.
+    validations:
+      required: false

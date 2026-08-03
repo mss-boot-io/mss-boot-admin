@@ -3,8 +3,8 @@ package models
 import (
 	"sort"
 
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
-	"github.com/mss-boot-io/mss-boot/pkg/enum"
 	"gorm.io/gorm"
 )
 

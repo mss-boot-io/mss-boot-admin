@@ -1,0 +1,51 @@
+name: Documentation Request
+description: Request a docs improvement or missing guide.
+title: "docs: "
+labels:
+  - documentation
+  - area/docs
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for improving the mss-boot documentation. Please avoid posting
+        secrets, tokens, private URLs, or exploit details in public issues.
+  - type: input
+    id: page
+    attributes:
+      label: Page or section
+      placeholder: "Guide, admin, devops, coding, AI memory..."
+    validations:
+      required: true
+  - type: textarea
+    id: gap
+    attributes:
+      label: What is unclear or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected content
+      description: What explanation, command, example, checklist, or diagram should be added?
+    validations:
+      required: true
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Audience
+      options:
+        - New user
+        - Contributor
+        - Maintainer
+        - Operator/DevOps
+        - AI agent handoff
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+    validations:
+      required: false

@@ -3,10 +3,10 @@ package models
 import (
 	"strings"
 
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 )
 
 /*

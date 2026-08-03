@@ -1,0 +1,14 @@
+name: Release Draft
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  release-draft:
+    uses: mss-boot-io/.github/.github/workflows/release-draft.yml@main

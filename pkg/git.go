@@ -22,8 +22,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
-	"github.com/google/go-github/v41/github"
-	"golang.org/x/oauth2"
+	"github.com/google/go-github/v88/github"
 )
 
 type GithubConfig struct {
@@ -142,9 +141,10 @@ func GitCloneSSH(url, directory, reference, privateKeyFile, password string) err
 // CreateGithubRepo create github repo
 func CreateGithubRepo(organization, name, description, token string, private bool) (*github.Repository, error) {
 	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	tc := oauth2.NewClient(ctx, ts)
-	client := github.NewClient(tc)
+	client, err := newGitHubClient(token)
+	if err != nil {
+		return nil, err
+	}
 
 	r := &github.Repository{Name: &name, Private: &private, Description: &description}
 	repo, _, err := client.Repositories.Create(ctx, organization, r)
@@ -158,9 +158,10 @@ func CreateGithubRepo(organization, name, description, token string, private boo
 
 // GetGithubRepoAllBranches get all branches of github repo
 func GetGithubRepoAllBranches(ctx context.Context, organization, name, token string) ([]*github.Branch, error) {
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	tc := oauth2.NewClient(ctx, ts)
-	client := github.NewClient(tc)
+	client, err := newGitHubClient(token)
+	if err != nil {
+		return nil, err
+	}
 
 	branches, _, err := client.Repositories.ListBranches(ctx, organization, name, &github.BranchListOptions{
 		ListOptions: github.ListOptions{

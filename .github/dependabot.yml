@@ -5,14 +5,25 @@
 
 version: 2
 updates:
-  - package-ecosystem: "gomod" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  - package-ecosystem: "gomod"
+    directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
     labels:
       - "area/backend"
       - "type/security"
+  - package-ecosystem: "gomod"
+    directory: "/mss-boot"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "area/backend"
+      - "type/security"
+    ignore:
+      - dependency-name: "github.com/casbin/gorm-adapter/v3"
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
   - package-ecosystem: "gomod"
     directory: "/cmd/tools/pr"
     schedule:
@@ -36,6 +47,20 @@ updates:
     open-pull-requests-limit: 3
     labels:
       - "area/devops"
+      - "type/security"
+  - package-ecosystem: "npm"
+    directory: "/web/antd"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "type/security"
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
       - "type/security"
   - package-ecosystem: "github-actions"
     directory: "/"

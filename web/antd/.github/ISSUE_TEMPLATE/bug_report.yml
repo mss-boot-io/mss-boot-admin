@@ -1,0 +1,57 @@
+name: Frontend Bug Report
+description: Report a reproducible defect in the mss-boot admin console.
+title: "fix: "
+labels:
+  - bug
+  - needs-triage
+  - area/frontend
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the admin console. Please do not include
+        secrets, tokens, private URLs, or vulnerability details in a public issue.
+  - type: input
+    id: version
+    attributes:
+      label: Version, commit, or deployment
+      placeholder: "v0.7.0, main@<sha>, admin-beta, or local dev"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Browser and environment
+      placeholder: "Chrome/Safari/Firefox version, OS, Node version, local or beta environment..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include screenshots, console output, or network errors when useful.
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: Related API or backend context
+      description: Include backend endpoint, status code, or response shape if the issue crosses frontend/backend boundaries.
+    validations:
+      required: false

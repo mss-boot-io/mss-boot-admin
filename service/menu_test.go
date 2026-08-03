@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/mss-boot-io/mss-boot-admin/models"
-	"github.com/mss-boot-io/mss-boot/pkg/enum"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"gorm.io/gorm"

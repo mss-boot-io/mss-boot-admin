@@ -7,7 +7,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
 	"time"
 
-	"github.com/mss-boot-io/mss-boot/pkg/security"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 )
 
 /*

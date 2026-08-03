@@ -1,0 +1,176 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: supplier-onboarding
+  displayName: Supplier onboarding and governance
+  description: A representative cross-layer management-system feature used by agents, tests, and documentation.
+  owner: procurement-platform
+  labels:
+    domain: procurement
+    sensitivity: internal
+spec:
+  problem: >-
+    Procurement teams need one governed place to register suppliers, maintain contact and credit information,
+    attach review documents, and enforce different mutation rights for procurement, finance, and administrators.
+  goals:
+    - Create a complete supplier management module from a structured AdminModule contract.
+    - Enforce procurement edit rights and finance read-only rights on the backend.
+    - Preserve an auditable record of supplier creation and updates.
+    - Provide deterministic backend, frontend, migration, permission, documentation, and test outputs.
+  nonGoals:
+    - Implement purchase orders, invoices, payments, or external supplier self-service.
+    - Store production object-storage credentials in project source or generated configuration.
+  actors:
+    - id: administrator
+      displayName: Administrator
+      description: Manages supplier records and permission assignments.
+    - id: procurement
+      displayName: Procurement specialist
+      description: Creates and maintains supplier records.
+    - id: finance
+      displayName: Finance reviewer
+      description: Reviews supplier identity and credit information without modifying records.
+  modules:
+    - name: supplier
+      operation: create
+      specPath: .mss/modules/example-supplier.yaml
+      description: Vertical supplier management module generated from the checked-in AdminModule specification.
+  requirements:
+    - id: supplier-create
+      title: Procurement can register suppliers
+      description: Procurement and administrators can create a supplier with identity, contact, status, and credit fields.
+      priority: must
+      actor: procurement
+      module: supplier
+      permission: supplier:create
+      rules:
+        - Supplier code is unique and required.
+        - Name, status, and primary contact are required.
+        - Invalid credit levels are rejected by the backend.
+    - id: supplier-update
+      title: Procurement can maintain suppliers
+      description: Procurement and administrators can edit supplier details while finance remains read-only.
+      priority: must
+      actor: procurement
+      module: supplier
+      permission: supplier:update
+      rules:
+        - Every mutation passes backend authorization.
+        - Update requests cannot modify system ownership or audit fields.
+        - Finance users receive a forbidden response for all mutation endpoints.
+    - id: supplier-review
+      title: Finance can review supplier data
+      description: Finance users can list, search, and inspect suppliers without create, update, or delete capability.
+      priority: must
+      actor: finance
+      module: supplier
+      permission: supplier:read
+      rules:
+        - Search supports supplier code, name, status, and credit level.
+        - Read-only access is enforced by the backend and covered by an authorization test.
+    - id: supplier-audit
+      title: Supplier changes are auditable
+      description: Successful and rejected mutations emit safe audit metadata without storing credentials or attachment content.
+      priority: must
+      actor: administrator
+      module: supplier
+      permission: supplier:read
+      rules:
+        - Audit records include actor, resource, operation, status, and duration.
+        - Audit records exclude passwords, access keys, tokens, raw attachments, and production endpoint credentials.
+  constraints:
+    - id: backend-authorization
+      type: security
+      statement: Every supplier mutation is authorized on the backend; hiding a frontend action is never considered enforcement.
+    - id: safe-attachments
+      type: security
+      statement: Attachments use the existing storage capability and secret references, with file size and content-type validation.
+    - id: migration-compatible
+      type: compatibility
+      statement: The database migration is additive and reversible without rebuilding unrelated tables or deleting existing business data.
+    - id: generator-idempotency
+      type: operations
+      statement: Repeating module generation with the same specification produces no additional diff and does not overwrite custom business logic.
+    - id: no-runtime-dynamic-model
+      type: dependency
+      statement: The feature must not extend the legacy runtime dynamic-model or virtual CRUD implementation.
+  acceptance:
+    - id: module-spec-valid
+      requirement: supplier-create
+      statement: The supplier AdminModule specification passes semantic validation.
+      level: contract
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json
+    - id: module-plan-complete
+      requirement: supplier-create
+      statement: Deterministic generation returns a conflict-free dry-run plan covering backend, migration, permissions, frontend, documentation, and tests.
+      level: contract
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --format json
+    - id: procurement-mutation-authorized
+      requirement: supplier-update
+      statement: Procurement can create and update a supplier while a finance identity receives forbidden for the same mutation.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: modules/supplier/tests/authorization_test.go
+    - id: supplier-flow-e2e
+      requirement: supplier-review
+      statement: A browser user can list, search, create, edit, inspect, and delete a supplier according to assigned permissions.
+      level: e2e
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/e2e/supplier.spec.ts
+    - id: migration-roundtrip
+      requirement: supplier-create
+      statement: The supplier migration applies on an empty development database and its rollback path is documented and verified.
+      level: migration
+      required: true
+      evidence:
+        - type: report
+          value: .mss/reports/verify.json
+    - id: supplier-audit-safe
+      requirement: supplier-audit
+      statement: Supplier mutations produce safe audit metadata without persisting credentials, tokens, attachment content, or sensitive request bodies.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: modules/supplier/tests/audit_test.go
+    - id: changed-verification
+      statement: The change-aware verifier completes without failed required checks.
+      level: integration
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss verify --changed
+  risks:
+    - id: permission-drift
+      description: Backend permissions, frontend visibility, menu registration, and generated policy seeds may diverge.
+      severity: high
+      mitigation: Generate all permission identifiers from one AdminModule specification and enforce contract and authorization tests.
+    - id: attachment-secret-leak
+      description: A generated example or debug log could accidentally persist object-storage credentials or attachment content.
+      severity: critical
+      mitigation: Use secret references, redact audit metadata, prohibit credentials in fixtures, and run repository secret scanning.
+    - id: downstream-customization-loss
+      description: Future foundation upgrades could overwrite supplier-specific business logic.
+      severity: high
+      mitigation: Keep generated and custom extension boundaries explicit and rely on the three-way Blueprint upgrade manifest.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss eval run supplier-module-contract --format json
+      - go test ./modules/supplier/...
+      - pnpm --dir web/antd test -- --runInBand supplier
+  rollout:
+    strategy: phased
+    migration: Apply the additive supplier table and permission seed migration in a non-production environment before enabling the menu.
+    rollback: Disable the supplier menu and permission grants, roll back the additive migration only when no supplier data must be retained, and revert the feature commit.

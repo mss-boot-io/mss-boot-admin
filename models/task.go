@@ -10,9 +10,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/mss-boot-io/mss-boot/core/server/task"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot/pkg/enum"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/task"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 	batchv1 "k8s.io/api/batch/v1"

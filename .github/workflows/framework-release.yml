@@ -1,0 +1,55 @@
+name: Framework Release
+
+on:
+  push:
+    tags:
+      - 'mss-boot/v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.26
+
+      - name: Resolve framework version
+        id: version
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#mss-boot/}"
+          if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid framework tag: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Test framework module
+        working-directory: mss-boot
+        env:
+          GOWORK: 'off'
+        run: |
+          go mod download
+          go test ./...
+          go vet ./...
+
+      - name: Publish framework release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: mss-boot ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          body: |
+            ## Install
+            ```shell
+            go get github.com/mss-boot-io/mss-boot-admin/mss-boot@${{ steps.version.outputs.version }}
+            ```

@@ -1,6 +1,9 @@
 package main
 
-import "github.com/mss-boot-io/mss-boot-admin/cmd"
+import (
+	"github.com/mss-boot-io/mss-boot-admin/cmd"
+	_ "github.com/mss-boot-io/mss-boot-admin/modules/all"
+)
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>

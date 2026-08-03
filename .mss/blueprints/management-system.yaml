@@ -1,0 +1,99 @@
+apiVersion: mss.io/v1alpha1
+kind: ApplicationBlueprint
+metadata:
+  name: management-system
+  displayName: Agent-Native Management System
+  version: 0.1.0
+spec:
+  sourceMode: git-tracked
+  sourceModule: github.com/mss-boot-io/mss-boot-admin
+  sourceProjectName: mss-boot-admin
+  defaultOutputDirectory: .mss/output
+  manifestPath: .mss/blueprint-manifest.json
+  lockPath: .mss/lock.yaml
+  requiredFiles:
+    - AGENTS.md
+    - go.mod
+    - go.work
+    - main.go
+    - Makefile
+    - .mss/project.yaml
+    - .mss/capabilities.yaml
+    - .mss/commands.yaml
+    - .mss/modules/example-supplier.yaml
+    - .mss/features/example-supplier-onboarding.yaml
+    - .mss/evals/catalog.yaml
+    - web/antd/package.json
+    - docs/package.json
+    - mss-boot/go.mod
+  excludePaths:
+    - MONOREPO_IMPORTS.md
+    - internal/mss/blueprint/plan_test.go
+    - internal/mss/blueprint/upgrade_test.go
+    - internal/mss/blueprint/workspace_test.go
+    - internal/mss/dev/config_test.go
+    - internal/mss/dev/manager_test.go
+    - internal/mss/eval/eval_test.go
+    - internal/mss/feature/plan_test.go
+    - internal/mss/generator/generator_test.go
+    - internal/mss/mcp/blueprint_tools_test.go
+    - internal/mss/mcp/server_test.go
+    - internal/mss/project/context_test.go
+    - internal/mss/skills/skills_test.go
+    - internal/mss/spec/feature_test.go
+    - internal/mss/spec/module_test.go
+    - web/antd/test-results/.last-run.json
+  excludePrefixes:
+    - vendor/
+    - .github/prompts/
+    - .mss/reports/
+    - .mss/run/
+    - .mss/logs/
+    - .mss/cache/
+    - .mss/output/
+    - docs/aigc/prompts/
+    - mss-boot/aigc/prompts/
+    - web/antd/aigc/prompts/
+    - docs/.github/
+    - mss-boot/.github/
+    - web/antd/.github/
+    - web/antd/test-results/
+    - web/antd/playwright-report/
+  textExtensions:
+    - .cjs
+    - .css
+    - .go
+    - .graphql
+    - .html
+    - .js
+    - .json
+    - .jsx
+    - .less
+    - .md
+    - .mjs
+    - .mod
+    - .proto
+    - .sh
+    - .sql
+    - .sum
+    - .toml
+    - .ts
+    - .tsx
+    - .txt
+    - .work
+    - .yaml
+    - .yml
+  textNames:
+    - Dockerfile
+    - LICENSE
+    - Makefile
+    - CNAME
+    - .dockerignore
+    - .editorconfig
+    - .eslintignore
+    - .eslintrc.js
+    - .gitignore
+    - .golangci.yml
+    - .nvmrc
+    - .prettierignore
+    - .prettierrc.js

@@ -14,12 +14,12 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/pkg"
 
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot/pkg/response"
-	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
 	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot-admin/dto"

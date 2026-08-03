@@ -1,0 +1,61 @@
+name: Bug Report
+description: Report a reproducible defect in mss-boot.
+title: "fix: "
+labels:
+  - bug
+  - needs-triage
+  - area/backend
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve mss-boot. Please do not include secrets,
+        tokens, private URLs, or vulnerability details in a public issue.
+        Security reports should use the repository security policy.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Which release, branch, or commit are you using?
+      placeholder: "v0.7.2 or main@<sha>"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Runtime, OS, Go version, database, Kubernetes/Istio context, and relevant dependencies.
+      placeholder: "Go 1.26.x, macOS/Linux, MySQL/PostgreSQL, Kubernetes version..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest set of steps or code needed to reproduce the issue.
+      placeholder: |
+        1. Configure ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include relevant logs or errors. Redact private values.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Who is affected, how often it happens, and whether a workaround exists.
+    validations:
+      required: false

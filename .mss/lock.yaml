@@ -1,0 +1,24 @@
+apiVersion: mss.io/v1alpha1
+kind: FoundationLock
+metadata:
+  project: mss-boot-admin
+spec:
+  foundation:
+    repository: mss-boot-io/mss-boot-admin
+    version: 0.1.0
+    channel: development
+  blueprint:
+    name: management-system
+    version: 0.1.0
+  contracts:
+    project: v1alpha1
+    capabilityCatalog: v1alpha1
+    commandCatalog: v1alpha1
+    adminModule: v1alpha1
+    feature: v1alpha1
+    evaluation: v1alpha1
+  generatedBy:
+    tool: mss
+    version: 0.1.0-dev
+  modules: {}
+  upgrades: []

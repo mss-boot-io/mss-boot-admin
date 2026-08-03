@@ -1,0 +1,52 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'web/antd/**'
+      - '.github/workflows/frontend-ci.yml'
+  push:
+    branches:
+      - main
+      - 'codex/**'
+    paths:
+      - 'web/antd/**'
+      - '.github/workflows/frontend-ci.yml'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: web/antd
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/antd/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: ESLint
+        run: pnpm lint:js
+      - name: Type check
+        run: pnpm tsc
+      - name: Unit tests
+        run: pnpm test -- --runInBand
+      - name: Build local
+        run: pnpm build:local

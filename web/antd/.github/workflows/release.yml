@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  # Use docker.io for Docker Hub if empty
+  REGISTRY: ghcr.io
+  # github.repository as <account>/<repo>
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    name: Release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build for run local
+        run: pnpm build:local
+
+      - name: Pack dist for run local
+        run: tar -czvf dist-local.tar.gz dist
+
+      - name: Build
+        run: |
+          rm -rf dist
+          rm -rf config/config.prod.*
+          pnpm build
+
+      - name: Pack dist
+        run: tar -czvf dist.tar.gz dist
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist-release
+          path: dist
+
+      - name: Upsert release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          title="mss-boot-admin-antd ${tag}"
+          body="$(mktemp)"
+          cat > "${body}" <<'EOF'
+          ## Pull Image
+          ```shell
+          docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          ```
+          EOF
+
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release edit "${tag}" \
+              --title "${title}" \
+              --notes-file "${body}" \
+              --draft=false \
+              --prerelease=false
+          else
+            gh release create "${tag}" \
+              --verify-tag \
+              --title "${title}" \
+              --notes-file "${body}"
+          fi
+
+          gh release upload "${tag}" \
+            dist.tar.gz \
+            dist-local.tar.gz \
+            --clobber
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Extract metadata (tags, labels) for Docker
+      # https://github.com/docker/metadata-action
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=auto
+          tags: |
+            type=schedule
+            type=ref,event=tag
+            type=sha,prefix=,format=long,enable=true,priority=100
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64

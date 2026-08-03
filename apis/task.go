@@ -10,11 +10,11 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/models"
-	"github.com/mss-boot-io/mss-boot/core/server/task"
-	"github.com/mss-boot-io/mss-boot/pkg/enum"
-	"github.com/mss-boot-io/mss-boot/pkg/response"
-	"github.com/mss-boot-io/mss-boot/pkg/response/actions"
-	"github.com/mss-boot-io/mss-boot/pkg/response/controller"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/task"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
 	"gorm.io/gorm"
 )
 

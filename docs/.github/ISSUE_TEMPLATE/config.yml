@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/mss-boot-io/mss-boot-docs/security/policy
+    about: Please do not disclose vulnerabilities or private deployment details in public issues.
+  - name: mss-boot documentation
+    url: https://docs.mss-boot-io.top
+    about: Check the published documentation before opening a request.

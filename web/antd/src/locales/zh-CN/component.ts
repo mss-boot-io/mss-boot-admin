@@ -1,0 +1,15 @@
+export default {
+  'component.tagSelect.expand': '展开',
+  'component.tagSelect.collapse': '收起',
+  'component.tagSelect.all': '全部',
+  'component.search.placeholder': '站内搜索',
+  'component.noticeIcon.cleared': '清空了',
+  'component.noticeIcon.clear': '清空',
+  'component.noticeIcon.view-more': '查看更多',
+  'component.noticeIcon.notification': '通知',
+  'component.noticeIcon.notification.empty': '您已查看所有通知',
+  'component.noticeIcon.message': '消息',
+  'component.noticeIcon.message.empty': '您已读完所有消息',
+  'component.noticeIcon.event': '待办',
+  'component.noticeIcon.event.empty': '您已完成所有待办',
+};

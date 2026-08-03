@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mss-boot.io/schemas/feature.v1alpha1.json",
+  "title": "mss FeatureSpec",
+  "description": "Cross-module product, implementation, security, rollout, and executable acceptance contract for coding agents.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {"const": "mss.io/v1alpha1"},
+    "kind": {"const": "Feature"},
+    "metadata": {"$ref": "#/$defs/metadata"},
+    "spec": {"$ref": "#/$defs/spec"}
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 80
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "displayName", "owner"],
+      "properties": {
+        "name": {"$ref": "#/$defs/identifier"},
+        "displayName": {"type": "string", "minLength": 1, "maxLength": 160},
+        "description": {"type": "string", "maxLength": 1000},
+        "owner": {"type": "string", "minLength": 1, "maxLength": 120},
+        "labels": {
+          "type": "object",
+          "additionalProperties": {"type": "string", "maxLength": 120}
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["problem", "goals", "nonGoals", "actors", "modules", "requirements", "constraints", "acceptance", "validation", "rollout"],
+      "properties": {
+        "problem": {"type": "string", "minLength": 20, "maxLength": 3000},
+        "goals": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 5, "maxLength": 500}
+        },
+        "nonGoals": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 5, "maxLength": 500}
+        },
+        "actors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/actor"}
+        },
+        "modules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/module"}
+        },
+        "requirements": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/requirement"}
+        },
+        "constraints": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/constraint"}
+        },
+        "acceptance": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/acceptance"}
+        },
+        "risks": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/risk"}
+        },
+        "validation": {"$ref": "#/$defs/validation"},
+        "rollout": {"$ref": "#/$defs/rollout"}
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "displayName": {"type": "string", "minLength": 1, "maxLength": 120},
+        "description": {"type": "string", "maxLength": 500}
+      }
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "operation"],
+      "properties": {
+        "name": {"$ref": "#/$defs/identifier"},
+        "operation": {"type": "string", "enum": ["create", "extend", "deprecate", "remove"]},
+        "specPath": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\.\.(?:/|$)).+$"},
+        "description": {"type": "string", "maxLength": 500}
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "description", "priority", "actor", "module", "rules"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "title": {"type": "string", "minLength": 1, "maxLength": 160},
+        "description": {"type": "string", "minLength": 10, "maxLength": 1500},
+        "priority": {"type": "string", "enum": ["must", "should", "could"]},
+        "actor": {"$ref": "#/$defs/identifier"},
+        "module": {"$ref": "#/$defs/identifier"},
+        "permission": {"type": "string", "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"},
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 5, "maxLength": 800}
+        }
+      }
+    },
+    "constraint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "statement"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "type": {"type": "string", "enum": ["compatibility", "security", "privacy", "performance", "data", "operations", "ux", "dependency"]},
+        "statement": {"type": "string", "minLength": 10, "maxLength": 1000}
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "statement", "level", "required", "evidence"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "requirement": {"$ref": "#/$defs/identifier"},
+        "statement": {"type": "string", "minLength": 10, "maxLength": 1000},
+        "level": {"type": "string", "enum": ["unit", "contract", "integration", "e2e", "security", "migration", "manual"]},
+        "required": {"type": "boolean"},
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/evidence"}
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "value"],
+      "properties": {
+        "type": {"type": "string", "enum": ["command", "test", "path", "report", "manual"]},
+        "value": {"type": "string", "minLength": 1, "maxLength": 1000}
+      }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "severity", "mitigation"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "description": {"type": "string", "minLength": 10, "maxLength": 1000},
+        "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+        "mitigation": {"type": "string", "minLength": 10, "maxLength": 1000}
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["changed", "all"],
+      "properties": {
+        "changed": {"type": "string", "minLength": 1, "maxLength": 500},
+        "all": {"type": "string", "minLength": 1, "maxLength": 500},
+        "custom": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 500}
+        }
+      }
+    },
+    "rollout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "migration", "rollback"],
+      "properties": {
+        "strategy": {"type": "string", "enum": ["direct", "phased", "feature-flag", "shadow"]},
+        "migration": {"type": "string", "minLength": 5, "maxLength": 1500},
+        "rollback": {"type": "string", "minLength": 5, "maxLength": 1500}
+      }
+    }
+  }
+}

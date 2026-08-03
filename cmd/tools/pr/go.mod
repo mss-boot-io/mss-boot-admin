@@ -1,6 +1,6 @@
 module github.com/mss-boot-io/mss-boot-admin/cmd/tools/pr
 
-go 1.25.0
+go 1.26.5
 
 require (
 	github.com/google/go-github v17.0.0+incompatible

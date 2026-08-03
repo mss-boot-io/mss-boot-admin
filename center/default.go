@@ -5,9 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/grafana/pyroscope-go"
-	"github.com/mss-boot-io/mss-boot/core/server"
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage"
-	"github.com/mss-boot-io/mss-boot/pkg/security"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )

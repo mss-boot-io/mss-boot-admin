@@ -1,0 +1,43 @@
+apiVersion: mss.io/v1alpha1
+kind: DevelopmentEnvironment
+metadata:
+  project: mss-boot-admin
+spec:
+  runtimeDirectory: .mss/run
+  logDirectory: .mss/logs
+  startupTimeout: 90s
+  stopTimeout: 10s
+  services:
+    - id: backend
+      description: Go admin API and static development server
+      directory: .
+      command:
+        - go
+        - run
+        - .
+        - server
+      required: true
+      environment:
+        MSS_DEV_MANAGED: "true"
+      health:
+        url: http://127.0.0.1:8080/healthz
+        interval: 500ms
+        timeout: 90s
+        successStatus: [200, 204]
+
+    - id: frontend
+      description: React and Ant Design development server
+      directory: web/antd
+      command:
+        - pnpm
+        - start:dev
+      required: true
+      dependsOn: [backend]
+      environment:
+        BROWSER: none
+        MSS_DEV_MANAGED: "true"
+      health:
+        url: http://127.0.0.1:8000/
+        interval: 500ms
+        timeout: 90s
+        successStatus: [200, 304]

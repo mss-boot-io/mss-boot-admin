@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - "codex/**"
   pull_request:
     branches:
       - main
@@ -18,10 +17,14 @@ permissions:
   packages: read
   security-events: write
 
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -30,14 +33,18 @@ jobs:
             build-mode: none
           - language: go
             build-mode: autobuild
+          - language: javascript-typescript
+            build-mode: none
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
+
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
         with:

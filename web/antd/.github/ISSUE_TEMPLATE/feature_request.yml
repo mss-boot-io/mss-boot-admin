@@ -1,0 +1,51 @@
+name: Frontend Feature Request
+description: Propose a focused admin console improvement.
+title: "feat: "
+labels:
+  - enhancement
+  - needs-triage
+  - area/frontend
+  - type/feature
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user workflow or operator problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the smallest useful behavior and expected UI/API contract.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Routing/navigation
+        - Forms/tables
+        - Permissions/RBAC
+        - Internationalization
+        - Build/deployment
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: What local, beta, or smoke test should prove this works?
+    validations:
+      required: false
+  - type: textarea
+    id: release
+    attributes:
+      label: Release or compatibility impact
+      description: Note Cloudflare beta/prod, API compatibility, or rollback impact.
+    validations:
+      required: false

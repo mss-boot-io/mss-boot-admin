@@ -1,6 +1,6 @@
 package dto
 
-import "github.com/mss-boot-io/mss-boot/pkg/response/actions"
+import "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>

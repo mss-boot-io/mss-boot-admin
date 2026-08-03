@@ -15,13 +15,13 @@ import (
 	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
-	"github.com/mss-boot-io/mss-boot/pkg/config"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot/pkg/config/source"
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage"
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage/cache"
-	"github.com/mss-boot-io/mss-boot/pkg/config/storage/queue"
-	responsegorm "github.com/mss-boot-io/mss-boot/pkg/response/actions/gorm"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/queue"
+	responsegorm "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions/gorm"
 	"gorm.io/gorm"
 )
 

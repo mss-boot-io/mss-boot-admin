@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/models"
-	"github.com/mss-boot-io/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"gorm.io/gorm"
 )
 
