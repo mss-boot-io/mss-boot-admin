@@ -67,7 +67,12 @@ func (e *Search) searchMgm(c *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	filter, sort := mgos.MakeCondition(req)
+	filter, sort, err := mgos.CompileCondition(req)
+	if err != nil {
+		api.AddError(err).Log.ErrorContext(c, "compile Mongo search condition error", "error", err)
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 
 	count, err := mgm.Coll(e.Model).CountDocuments(c, filter)
 	if err != nil {
@@ -93,7 +98,6 @@ func (e *Search) searchMgm(c *gin.Context) {
 		defer result.Close(c)
 		items := make([]any, 0, req.GetPageSize())
 		for result.Next(c) {
-			// var data any
 			m := pkg.ModelDeepCopy(e.Model)
 			err = result.Decode(m)
 			if err != nil {
@@ -106,11 +110,10 @@ func (e *Search) searchMgm(c *gin.Context) {
 		api.PageOK(items, count, req.GetPage(), req.GetPageSize())
 		return
 	}
+
 	// use Aggregate
-	//https://docs.mongodb.com/manual/reference/operator/aggregation/lookup/
-	pipeline := bson.A{
-		// builder.S(builder.Lookup(authorColl.Name(), "author_id", field.ID, "author")),
-	}
+	// https://docs.mongodb.com/manual/reference/operator/aggregation/lookup/
+	pipeline := bson.A{}
 	for i := range linkConfigs {
 		pipeline = append(pipeline,
 			builder.S(
@@ -119,13 +122,12 @@ func (e *Search) searchMgm(c *gin.Context) {
 					linkConfigs[i].LocalField,
 					field.ID, linkConfigs[i].ForeignField)))
 	}
-	// limit skip sort
 	pipeline = append(pipeline, bson.D{
 		{Key: "$limit", Value: req.GetPageSize()},
 	}, bson.D{
 		{Key: "$skip", Value: req.GetPageSize() * (req.GetPage() - 1)},
 	})
-	if sort != nil {
+	if len(sort) > 0 {
 		pipeline = append(pipeline, bson.D{
 			{Key: "$sort", Value: sort},
 		})
@@ -141,7 +143,7 @@ func (e *Search) searchMgm(c *gin.Context) {
 	for result.Next(c) {
 		m := pkg.ModelDeepCopy(e.Model)
 		var bm bson.M
-		err = result.Decode(bm)
+		err = result.Decode(&bm)
 		if err != nil {
 			api.AddError(err)
 			api.Err(http.StatusInternalServerError)
@@ -150,7 +152,6 @@ func (e *Search) searchMgm(c *gin.Context) {
 		if bm == nil {
 			continue
 		}
-		// todo bson.M to model
 		err = BsonMTransferModel(bm, m)
 		if err != nil {
 			api.AddError(err).Log.ErrorContext(c, "transfer bson.M to model error", "error", err)
@@ -201,11 +202,9 @@ func BsonMTransferModel(bm bson.M, model any) error {
 				}
 				continue
 			}
-
 			continue
 		}
 		if f.Type.Kind() == reflect.Array {
-			// transfer bson.M to array model
 			switch ms := bm[tagBson].(type) {
 			case []bson.M:
 				bsonBytes, _ := bson.Marshal(ms)
