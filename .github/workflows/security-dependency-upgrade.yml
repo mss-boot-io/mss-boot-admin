@@ -1,9 +1,9 @@
 name: One-time security dependency upgrade
 
 on:
-  push:
+  pull_request:
     branches:
-      - codex/agent-native-foundation
+      - main
     paths:
       - '.github/workflows/security-dependency-upgrade.yml'
   workflow_dispatch:
@@ -13,17 +13,20 @@ permissions:
 
 concurrency:
   group: security-dependency-upgrade
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   upgrade-commit-verify:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 75
+    env:
+      TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
       - name: Checkout working branch
         uses: actions/checkout@v7
         with:
-          ref: codex/agent-native-foundation
+          ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
 
       - name: Setup Go
@@ -71,7 +74,7 @@ jobs:
           git add -A
           git diff --cached --check
           git commit -m "fix(security): upgrade vulnerable Go dependencies"
-          git push origin HEAD:codex/agent-native-foundation
+          git push origin "HEAD:${TARGET_BRANCH}"
 
       - name: Test root application
         run: go test ./...
