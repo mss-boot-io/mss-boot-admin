@@ -1,13 +1,14 @@
 {
-  "name": "workers-site",
+  "name": "@mss-boot-admin/workers-site",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "main": "index.js",
   "license": "MIT",
   "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": ">=22.0.0",
-    "pnpm": ">=9.0.0 <10"
+    "node": ">=22.0.0 <23",
+    "pnpm": "9.15.9"
   },
   "dependencies": {
     "@cloudflare/kv-asset-handler": "0.5.0"
