@@ -1,0 +1,164 @@
+name: One-shot web dependency audit
+
+on:
+  push:
+    branches:
+      - refactor/split-admin-module-and-coverage-r1
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: one-shot-web-deps-audit
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  HUSKY: '0'
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout audit branch
+        uses: actions/checkout@v7
+        with:
+          ref: refactor/split-admin-module-and-coverage-r1
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6.0.9
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/antd/pnpm-lock.yaml
+
+      - name: Record dependency environment
+        working-directory: web/antd
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/web-deps-audit"
+          {
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "pnpm=$(pnpm --version)"
+            echo "autoInstallPeers=$(pnpm config get auto-install-peers)"
+            echo "strictPeerDependencies=$(pnpm config get strict-peer-dependencies)"
+            echo "registry=$(pnpm config get registry)"
+          } | tee "${RUNNER_TEMP}/web-deps-audit/environment.txt"
+          find . -maxdepth 2 -type f \
+            \( -name 'package.json' -o -name 'pnpm-lock.yaml' -o -name '.npmrc' \
+               -o -name 'jest.config.*' -o -name 'tsconfig*.json' -o -name '.eslintrc*' \
+               -o -name '.prettierrc*' -o -name 'playwright.config.*' \) \
+            -print | sort > "${RUNNER_TEMP}/web-deps-audit/config-files.txt"
+
+      - name: Probe strict peer dependency installation
+        working-directory: web/antd
+        run: |
+          set -uo pipefail
+          rm -rf node_modules
+          pnpm install \
+            --frozen-lockfile \
+            --ignore-scripts \
+            --strict-peer-dependencies \
+            --reporter=append-only \
+            2>&1 | tee "${RUNNER_TEMP}/web-deps-audit/strict-install.log"
+          status=${PIPESTATUS[0]}
+          echo "${status}" > "${RUNNER_TEMP}/web-deps-audit/strict-install.exit"
+          exit 0
+
+      - name: Capture graph, dedupe, outdated, and audit reports
+        working-directory: web/antd
+        run: |
+          set +e
+          pnpm list --depth 0 --json > "${RUNNER_TEMP}/web-deps-audit/top-level.json" 2> "${RUNNER_TEMP}/web-deps-audit/top-level.err"
+          echo $? > "${RUNNER_TEMP}/web-deps-audit/top-level.exit"
+
+          pnpm list --depth Infinity --json > "${RUNNER_TEMP}/web-deps-audit/full-tree.json" 2> "${RUNNER_TEMP}/web-deps-audit/full-tree.err"
+          echo $? > "${RUNNER_TEMP}/web-deps-audit/full-tree.exit"
+
+          pnpm outdated --format json > "${RUNNER_TEMP}/web-deps-audit/outdated.json" 2> "${RUNNER_TEMP}/web-deps-audit/outdated.err"
+          echo $? > "${RUNNER_TEMP}/web-deps-audit/outdated.exit"
+
+          pnpm audit --prod --json > "${RUNNER_TEMP}/web-deps-audit/audit-prod.json" 2> "${RUNNER_TEMP}/web-deps-audit/audit-prod.err"
+          echo $? > "${RUNNER_TEMP}/web-deps-audit/audit-prod.exit"
+
+          pnpm audit --json > "${RUNNER_TEMP}/web-deps-audit/audit-all.json" 2> "${RUNNER_TEMP}/web-deps-audit/audit-all.err"
+          echo $? > "${RUNNER_TEMP}/web-deps-audit/audit-all.exit"
+
+          pnpm dedupe --check --reporter=append-only > "${RUNNER_TEMP}/web-deps-audit/dedupe.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-audit/dedupe.exit"
+
+          for dependency in \
+            @umijs/max @umijs/lint umi umi-presets-pro \
+            vite @vitejs/plugin-react webpack typescript eslint jest \
+            react-router react-router-dom immutable axios ajv caniuse-lite; do
+            safe="$(printf '%s' "${dependency}" | tr '/@' '__')"
+            pnpm why "${dependency}" --json \
+              > "${RUNNER_TEMP}/web-deps-audit/why-${safe}.json" \
+              2> "${RUNNER_TEMP}/web-deps-audit/why-${safe}.err"
+          done
+          exit 0
+
+      - name: Run clean scripted install and detect generated drift
+        working-directory: web/antd
+        run: |
+          set -uo pipefail
+          rm -rf node_modules .umi
+          before="$(git status --porcelain=v1)"
+          pnpm install --frozen-lockfile --prefer-offline --reporter=append-only \
+            2>&1 | tee "${RUNNER_TEMP}/web-deps-audit/scripted-install.log"
+          status=${PIPESTATUS[0]}
+          echo "${status}" > "${RUNNER_TEMP}/web-deps-audit/scripted-install.exit"
+          {
+            echo '--- before ---'
+            printf '%s\n' "${before}"
+            echo '--- after ---'
+            git status --porcelain=v1
+          } > "${RUNNER_TEMP}/web-deps-audit/install-git-status.txt"
+          exit 0
+
+      - name: Diagnose frontend quality and open handles
+        working-directory: web/antd
+        run: |
+          set +e
+          pnpm lint:js > "${RUNNER_TEMP}/web-deps-audit/lint.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-audit/lint.exit"
+          pnpm tsc > "${RUNNER_TEMP}/web-deps-audit/tsc.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-audit/tsc.exit"
+          timeout 180s pnpm test -- --runInBand --detectOpenHandles \
+            > "${RUNNER_TEMP}/web-deps-audit/jest-open-handles.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-audit/jest-open-handles.exit"
+          pnpm build:local > "${RUNNER_TEMP}/web-deps-audit/build.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-audit/build.exit"
+          exit 0
+
+      - name: Summarize audit exit codes
+        run: |
+          set -euo pipefail
+          echo '### Web dependency audit' >> "${GITHUB_STEP_SUMMARY}"
+          for file in "${RUNNER_TEMP}"/web-deps-audit/*.exit; do
+            name="$(basename "${file}" .exit)"
+            value="$(cat "${file}")"
+            echo "- ${name}: ${value}" >> "${GITHUB_STEP_SUMMARY}"
+          done
+          echo '' >> "${GITHUB_STEP_SUMMARY}"
+          echo 'The audit is diagnostic; findings are fixed in follow-up commits before this workflow is removed.' >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload dependency audit evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-deps-audit
+          path: ${{ runner.temp }}/web-deps-audit
+          if-no-files-found: error
+          retention-days: 7
