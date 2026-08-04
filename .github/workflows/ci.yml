@@ -187,12 +187,16 @@ jobs:
           go mod tidy
           git diff --exit-code -- go.mod go.sum
 
-      - name: Reject reverse Admin imports
+      - name: Reject actual reverse Admin dependencies
         run: |
-          if grep -R --line-number --include='*.go' \
-            'github.com/mss-boot-io/mss-boot-admin/admin/' \
-            internal cmd/mss cmd/mss-mcp mss-boot; then
-            echo 'Agent/Foundation and mss-boot must not import Admin packages' >&2
+          set -euo pipefail
+          admin_prefix='github.com/mss-boot-io/mss-boot-admin/admin'
+          if GOWORK=off go list -deps ./... | grep -E "^${admin_prefix}(/|$)"; then
+            echo 'Agent/Foundation module must not depend on Admin packages' >&2
+            exit 1
+          fi
+          if (cd mss-boot && GOWORK=off go list -deps ./...) | grep -E "^${admin_prefix}(/|$)"; then
+            echo 'mss-boot must not depend on Admin packages' >&2
             exit 1
           fi
 
