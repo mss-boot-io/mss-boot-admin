@@ -154,8 +154,8 @@ importers:
         specifier: ^6.3.0
         version: 6.3.0
       husky:
-        specifier: ^7.0.4
-        version: 7.0.4
+        specifier: ^9.1.7
+        version: 9.1.7
       jest:
         specifier: ^29.4.3
         version: 29.7.0(@types/node@20.10.3)(babel-plugin-macros@3.1.0)(ts-node@10.9.1(@types/node@20.10.3)(typescript@4.9.5))
@@ -2502,6 +2502,10 @@ packages:
 
   '@types/history@4.7.11':
     resolution: {integrity: sha512-qjDJRrmvBMiTx+jyLxvLfJU7UznFuokDv4f3WRuriHKERccVpFU+8XMQUAbDzoiJCsmexxRExQeMwwCdamSKDA==}
+
+  '@types/history@5.0.0':
+    resolution: {integrity: sha512-hy8b7Y1J8OGe6LbAjj3xniQrj3v6lsivCcrmf4TzSgPzLkhIeKgc5IZnT7ReIqmEuodjfO8EYAuoFvIrHi/+jQ==}
+    deprecated: This is a stub types definition. history provides its own type definitions, so you do not need this installed.
 
   '@types/hoist-non-react-statics@3.3.5':
     resolution: {integrity: sha512-SbcrWzkKBw2cdwRTwQAswfpB9g9LJWfjtUeW/jvNwbhC8cpmmNYVePa+ncbUe0rGTQ7G3Ff6mYUN2VMfLVr+Sg==}
@@ -5300,9 +5304,9 @@ packages:
     resolution: {integrity: sha512-nZXjEF2nbo7lIw3mgYjItAfgQXog3OjJogSbKa2CQIIvSGWcKgeJnQlNXip6NglNzYH45nSRiEVimMvYL8DDqQ==}
     engines: {node: '>=14.18.0'}
 
-  husky@7.0.4:
-    resolution: {integrity: sha512-vbaCKN2QLtP/vD4yvs6iz6hBEo6wkSzs8HpRah1Z6aGmF2KW5PdYuAd7uX5a+OyBZHBhd+TFLqgjUgytQr4RvQ==}
-    engines: {node: '>=12'}
+  husky@9.1.7:
+    resolution: {integrity: sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA==}
+    engines: {node: '>=18'}
     hasBin: true
 
   iconv-lite@0.4.24:
@@ -12173,26 +12177,26 @@ snapshots:
 
   '@stagewise/toolbar@0.6.2': {}
 
-  '@stylelint/postcss-css-in-js@0.37.3(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15)':
+  '@stylelint/postcss-css-in-js@0.37.3(postcss-syntax@0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15))(postcss@8.5.15)':
     dependencies:
       '@babel/core': 7.29.7
       postcss: 8.5.15
-      postcss-syntax: 0.36.2(postcss-html@0.36.0)(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
+      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
     transitivePeerDependencies:
       - supports-color
 
-  '@stylelint/postcss-css-in-js@0.38.0(postcss-syntax@0.36.2(postcss-html@0.36.0)(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15))(postcss@8.5.15)':
+  '@stylelint/postcss-css-in-js@0.38.0(postcss-syntax@0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15))(postcss@8.5.15)':
     dependencies:
       '@babel/core': 7.29.7
       postcss: 8.5.15
-      postcss-syntax: 0.36.2(postcss-html@0.36.0)(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
+      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
     transitivePeerDependencies:
       - supports-color
 
-  '@stylelint/postcss-markdown@0.36.2(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15)':
+  '@stylelint/postcss-markdown@0.36.2(postcss-syntax@0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15))(postcss@8.5.15)':
     dependencies:
       postcss: 8.5.15
-      postcss-syntax: 0.36.2(postcss-html@0.36.0)(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
+      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
       remark: 13.0.0
       unist-util-find-all-after: 3.0.2
     transitivePeerDependencies:
@@ -12551,6 +12555,10 @@ snapshots:
 
   '@types/history@4.7.11': {}
 
+  '@types/history@5.0.0':
+    dependencies:
+      history: 5.3.0
+
   '@types/hoist-non-react-statics@3.3.5':
     dependencies:
       '@types/react': 18.3.31
@@ -12640,7 +12648,7 @@ snapshots:
 
   '@types/react-router-dom@4.3.5':
     dependencies:
-      '@types/history': 4.7.11
+      '@types/history': 5.0.0
       '@types/react': 18.3.31
       '@types/react-router': 5.1.20
 
@@ -13153,7 +13161,7 @@ snapshots:
     dependencies:
       '@babel/core': 7.29.7
       '@babel/eslint-parser': 7.23.3(@babel/core@7.29.7)(eslint@8.35.0)
-      '@stylelint/postcss-css-in-js': 0.38.0(postcss-syntax@0.36.2(postcss-html@0.36.0)(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15))(postcss@8.5.15)
+      '@stylelint/postcss-css-in-js': 0.38.0(postcss-syntax@0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15))(postcss@8.5.15)
       '@typescript-eslint/eslint-plugin': 5.62.0(@typescript-eslint/parser@5.62.0(eslint@8.55.0)(typescript@4.9.5))(eslint@8.35.0)(typescript@4.9.5)
       '@typescript-eslint/parser': 5.62.0(eslint@8.35.0)(typescript@4.9.5)
       '@umijs/babel-preset-umi': 4.7.0
@@ -13161,7 +13169,7 @@ snapshots:
       eslint-plugin-react: 7.33.2(eslint@8.35.0)
       eslint-plugin-react-hooks: 4.6.0(eslint@8.35.0)
       postcss: 8.5.15
-      postcss-syntax: 0.36.2(postcss-html@0.36.0)(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
+      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
       stylelint-config-standard: 25.0.0(stylelint@14.8.2)
     transitivePeerDependencies:
       - eslint
@@ -13179,7 +13187,7 @@ snapshots:
     dependencies:
       '@babel/core': 7.29.7
       '@babel/eslint-parser': 7.23.3(@babel/core@7.29.7)(eslint@8.55.0)
-      '@stylelint/postcss-css-in-js': 0.38.0(postcss-syntax@0.36.2(postcss-html@0.36.0)(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15))(postcss@8.5.15)
+      '@stylelint/postcss-css-in-js': 0.38.0(postcss-syntax@0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15))(postcss@8.5.15)
       '@typescript-eslint/eslint-plugin': 5.62.0(@typescript-eslint/parser@5.62.0(eslint@8.55.0)(typescript@4.9.5))(eslint@8.55.0)(typescript@4.9.5)
       '@typescript-eslint/parser': 5.62.0(eslint@8.55.0)(typescript@4.9.5)
       '@umijs/babel-preset-umi': 4.7.0
@@ -13187,7 +13195,7 @@ snapshots:
       eslint-plugin-react: 7.33.2(eslint@8.55.0)
       eslint-plugin-react-hooks: 4.6.0(eslint@8.55.0)
       postcss: 8.5.15
-      postcss-syntax: 0.36.2(postcss-html@0.36.0)(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
+      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
       stylelint-config-standard: 25.0.0(stylelint@13.13.1)
     transitivePeerDependencies:
       - eslint
@@ -16733,7 +16741,7 @@ snapshots:
 
   human-signals@4.3.1: {}
 
-  husky@7.0.4: {}
+  husky@9.1.7: {}
 
   iconv-lite@0.4.24:
     dependencies:
@@ -18620,7 +18628,7 @@ snapshots:
     dependencies:
       htmlparser2: 3.10.1
       postcss: 8.5.15
-      postcss-syntax: 0.36.2(postcss-html@0.36.0)(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
+      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
 
   postcss-image-set-function@4.0.7(postcss@8.5.15):
     dependencies:
@@ -18812,7 +18820,7 @@ snapshots:
       lodash: 4.18.1
       postcss: 8.5.15
 
-  postcss-syntax@0.36.2(postcss-html@0.36.0)(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15):
+  postcss-syntax@0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15):
     dependencies:
       postcss: 8.5.15
     optionalDependencies:
@@ -20931,8 +20939,8 @@ snapshots:
 
   stylelint@13.13.1:
     dependencies:
-      '@stylelint/postcss-css-in-js': 0.37.3(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15)
-      '@stylelint/postcss-markdown': 0.36.2(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15)
+      '@stylelint/postcss-css-in-js': 0.37.3(postcss-syntax@0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15))(postcss@8.5.15)
+      '@stylelint/postcss-markdown': 0.36.2(postcss-syntax@0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15))(postcss@8.5.15)
       autoprefixer: 9.8.8
       balanced-match: 2.0.0
       chalk: 4.1.2
@@ -20966,7 +20974,7 @@ snapshots:
       postcss-sass: 0.4.4
       postcss-scss: 2.1.1
       postcss-selector-parser: 6.1.2
-      postcss-syntax: 0.36.2(postcss-html@0.36.0)(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
+      postcss-syntax: 0.36.2(postcss-html@0.36.0(postcss-syntax@0.36.2(postcss@8.5.15))(postcss@8.5.15))(postcss-less@3.1.4)(postcss-scss@2.1.1)(postcss@8.5.15)
       postcss-value-parser: 4.2.0
       resolve-from: 5.0.0
       slash: 3.0.0
