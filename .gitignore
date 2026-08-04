@@ -14,6 +14,7 @@
 # Output of the go coverage tool
 *.out
 coverage*
+.coverage/
 
 # Dependency directories are generated on demand.
 vendor/
@@ -25,12 +26,15 @@ vendor/
 
 # Local configuration and databases
 config/application-*
+admin/config/application-*
 *.db
 
 # Runtime and build output
+bin/
 temp/
 test/
 public/
+admin/public/
 dist/
 **/dist/
 mss-boot-admin

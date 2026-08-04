@@ -7,34 +7,32 @@ import (
 	"text/template"
 	"text/template/parse"
 
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
-	"github.com/spf13/cast"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	mgm "github.com/kamva/mgm/v3"
+	"github.com/spf13/cast"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm/schema"
+
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 )
 
 const (
-	// TrafficKey traffic key
 	TrafficKey = "X-Request-ID"
-	// LoggerKey logger key
-	LoggerKey = "_go-admin-logger-request"
+	LoggerKey  = "_go-admin-logger-request"
 )
 
-// CompareHashAndPassword compare hash and password
 func CompareHashAndPassword(hash string, password string) (bool, error) {
-	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-	if err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-// GenerateMsgIDFromContext 生成msgID
 func GenerateMsgIDFromContext(c *gin.Context) string {
+	if c == nil {
+		return uuid.New().String()
+	}
 	requestID := c.GetHeader(TrafficKey)
 	if requestID == "" {
 		requestID = uuid.New().String()
@@ -43,77 +41,97 @@ func GenerateMsgIDFromContext(c *gin.Context) string {
 	return requestID
 }
 
-// ModelDeepCopy model deep copy
-func ModelDeepCopy(m mgm.Model) mgm.Model {
-	return reflect.New(reflect.TypeOf(m).Elem()).Interface().(mgm.Model)
+func ModelDeepCopy(model mgm.Model) mgm.Model {
+	clone := clonePointer(model)
+	if clone == nil {
+		return nil
+	}
+	result, _ := clone.(mgm.Model)
+	return result
 }
 
-// TablerDeepCopy model deep copy
-func TablerDeepCopy(m schema.Tabler) schema.Tabler {
-	return reflect.New(reflect.TypeOf(m).Elem()).Interface().(schema.Tabler)
+func TablerDeepCopy(model schema.Tabler) schema.Tabler {
+	clone := clonePointer(model)
+	if clone == nil {
+		return nil
+	}
+	result, _ := clone.(schema.Tabler)
+	return result
 }
 
-// DeepCopy deep copy
-func DeepCopy(d any) any {
-	return reflect.New(reflect.TypeOf(d).Elem()).Interface()
+func DeepCopy(value any) any {
+	return clonePointer(value)
 }
 
-// BuildMap build map
+func clonePointer(value any) any {
+	if value == nil {
+		return nil
+	}
+	typeOf := reflect.TypeOf(value)
+	if typeOf.Kind() != reflect.Ptr {
+		return nil
+	}
+	return reflect.New(typeOf.Elem()).Interface()
+}
+
 func BuildMap(keys []string, value string, dataType enum.DataType) map[string]any {
-	data := make(map[string]any)
+	if len(keys) == 0 {
+		return map[string]any{}
+	}
+	key := keys[0]
 	if len(keys) > 1 {
-		data[keys[0]] = BuildMap(keys[1:], value, dataType)
-	} else {
-		var v any
-		switch dataType {
-		case enum.DataTypeInt:
-			v, _ = cast.ToIntE(value)
-		case enum.DataTypeFloat:
-			v, _ = cast.ToFloat64E(value)
-		case enum.DataTypeBool:
-			v, _ = cast.ToBoolE(value)
-		default:
-			v = value
+		return map[string]any{key: BuildMap(keys[1:], value, dataType)}
+	}
+
+	var converted any
+	switch dataType {
+	case enum.DataTypeInt:
+		converted, _ = cast.ToIntE(value)
+	case enum.DataTypeFloat:
+		converted, _ = cast.ToFloat64E(value)
+	case enum.DataTypeBool:
+		converted, _ = cast.ToBoolE(value)
+	default:
+		converted = value
+	}
+	return map[string]any{key: converted}
+}
+
+func MergeMapsDepth(maps ...map[string]any) map[string]any {
+	result := make(map[string]any)
+	for _, current := range maps {
+		result = MergeMapDepth(result, current)
+	}
+	return result
+}
+
+func MergeMapDepth(destination, source map[string]any) map[string]any {
+	if destination == nil {
+		destination = make(map[string]any)
+	}
+	for key, sourceValue := range source {
+		destinationValue, exists := destination[key]
+		destinationMap, destinationIsMap := destinationValue.(map[string]any)
+		sourceMap, sourceIsMap := sourceValue.(map[string]any)
+		if exists && destinationIsMap && sourceIsMap {
+			destination[key] = MergeMapDepth(destinationMap, sourceMap)
+			continue
 		}
-		return map[string]any{keys[0]: v}
+		destination[key] = sourceValue
 	}
-	return data
+	return destination
 }
 
-// MergeMapsDepth deep merge multi map
-func MergeMapsDepth(ms ...map[string]any) map[string]any {
-	data := make(map[string]any)
-	for i := range ms {
-		data = MergeMapDepth(data, ms[i])
+func MergeMap(destination, source map[string]any) map[string]any {
+	if destination == nil {
+		destination = make(map[string]any)
 	}
-	return data
+	for key, value := range source {
+		destination[key] = value
+	}
+	return destination
 }
 
-// MergeMapDepth deep merge map
-func MergeMapDepth(m1, m2 map[string]any) map[string]any {
-	for k := range m2 {
-		if v, ok := m1[k]; ok {
-			if m, ok := v.(map[string]any); ok {
-				m1[k] = MergeMapDepth(m, m2[k].(map[string]any))
-			} else {
-				m1[k] = m2[k]
-			}
-		} else {
-			m1[k] = m2[k]
-		}
-	}
-	return m1
-}
-
-// MergeMap merge map
-func MergeMap(m1, m2 map[string]any) map[string]any {
-	for k := range m2 {
-		m1[k] = m2[k]
-	}
-	return m1
-}
-
-// SupportMultiTenant support multi tenant
 func SupportMultiTenant(data any) bool {
 	return supportColumn(data, "tenantID", "tenant_id")
 }
@@ -131,105 +149,154 @@ func SetCreator(data any, id string) {
 }
 
 func supportColumn(data any, fields ...string) bool {
-	typeOf := reflect.TypeOf(data)
-	valueOf := reflect.ValueOf(data)
-	if typeOf.Kind() == reflect.Ptr {
-		typeOf = typeOf.Elem()
-		valueOf = valueOf.Elem()
-	}
+	return typeSupportsColumn(reflect.TypeOf(data), fields)
+}
 
-	var exist bool
-	for i := 0; i < typeOf.NumField(); i++ {
-		field := typeOf.Field(i)
-		if field.Type.Kind() == reflect.Struct {
-			exist = supportColumn(valueOf.Field(i).Interface(), fields...)
-		}
-		if field.Type.Kind() == reflect.Ptr {
-			continue
-		}
-		for j := range fields {
-			exist = exist || strings.EqualFold(field.Name, fields[j])
-			if exist {
-				break
+func typeSupportsColumn(typeOf reflect.Type, fields []string) bool {
+	for typeOf != nil && typeOf.Kind() == reflect.Ptr {
+		typeOf = typeOf.Elem()
+	}
+	if typeOf == nil || typeOf.Kind() != reflect.Struct {
+		return false
+	}
+	for index := 0; index < typeOf.NumField(); index++ {
+		field := typeOf.Field(index)
+		for _, candidate := range fields {
+			if strings.EqualFold(field.Name, candidate) ||
+				strings.EqualFold(parseTagName(field.Tag.Get("gorm"), "column"), candidate) ||
+				strings.EqualFold(parseJSONName(field.Tag.Get("json")), candidate) {
+				return true
 			}
 		}
-		if exist {
-			break
+		if field.Anonymous || field.Type.Kind() == reflect.Struct ||
+			(field.Type.Kind() == reflect.Ptr && field.Type.Elem().Kind() == reflect.Struct) {
+			if typeSupportsColumn(field.Type, fields) {
+				return true
+			}
 		}
 	}
-	return exist
+	return false
+}
+
+func parseTagName(tag, key string) string {
+	for _, part := range strings.Split(tag, ";") {
+		part = strings.TrimSpace(part)
+		prefix := key + ":"
+		if strings.HasPrefix(part, prefix) {
+			return strings.TrimPrefix(part, prefix)
+		}
+	}
+	return ""
+}
+
+func parseJSONName(tag string) string {
+	return strings.Split(tag, ",")[0]
 }
 
 func SetValue(data any, key string, value any) {
-	typeOf := reflect.TypeOf(data)
-	valueOf := reflect.ValueOf(data)
-	if typeOf.Kind() == reflect.Ptr {
-		typeOf = typeOf.Elem()
-		valueOf = valueOf.Elem()
-	}
-	key = strings.ToLower(key)
-	for i := 0; i < typeOf.NumField(); i++ {
-		field := typeOf.Field(i)
-		if field.Type.Kind() == reflect.Ptr {
-			continue
-		}
-		if field.Type.Kind() == reflect.Struct {
-			SetValue(valueOf.Field(i).Interface(), key, value)
-			continue
-		}
-		if strings.EqualFold(field.Name, key) {
-			v := reflect.ValueOf(value)
-			valueOf.FieldByName(field.Name).Set(v)
-		}
-	}
+	setReflectValue(reflect.ValueOf(data), key, reflect.ValueOf(value))
 }
 
-// ParseEnvTemplate 替换环境变量模板
-func ParseEnvTemplate(t string) string {
-	var err error
-	temp := template.New("env")
-	temp, err = temp.Parse(t)
-	if err != nil {
-		return t
+func setReflectValue(current reflect.Value, key string, value reflect.Value) bool {
+	if !current.IsValid() {
+		return false
 	}
-	tree, err := parse.Parse("env", t, "{{", "}}")
-	if err != nil {
-		return t
+	for current.Kind() == reflect.Ptr {
+		if current.IsNil() {
+			if !current.CanSet() {
+				return false
+			}
+			current.Set(reflect.New(current.Type().Elem()))
+		}
+		current = current.Elem()
 	}
-	vars := make(map[string]string)
-	for _, v := range getParseKeys(tree["env"].Root) {
-		vars[v] = os.Getenv(v)
+	if current.Kind() != reflect.Struct {
+		return false
 	}
-	var buf strings.Builder
-	err = temp.Execute(&buf, vars)
-	if err != nil {
-		return t
+
+	for index := 0; index < current.NumField(); index++ {
+		fieldValue := current.Field(index)
+		fieldType := current.Type().Field(index)
+		if strings.EqualFold(fieldType.Name, key) ||
+			strings.EqualFold(parseJSONName(fieldType.Tag.Get("json")), key) ||
+			strings.EqualFold(parseTagName(fieldType.Tag.Get("gorm"), "column"), key) {
+			if assignReflectValue(fieldValue, value) {
+				return true
+			}
+		}
+		if fieldType.Anonymous || fieldValue.Kind() == reflect.Struct || fieldValue.Kind() == reflect.Ptr {
+			if setReflectValue(fieldValue, key, value) {
+				return true
+			}
+		}
 	}
-	return buf.String()
+	return false
 }
 
-// getParseKeys get parse keys from template text
+func assignReflectValue(destination, source reflect.Value) bool {
+	if !destination.IsValid() || !destination.CanSet() || !source.IsValid() {
+		return false
+	}
+	if source.Type().AssignableTo(destination.Type()) {
+		destination.Set(source)
+		return true
+	}
+	if source.Type().ConvertibleTo(destination.Type()) {
+		destination.Set(source.Convert(destination.Type()))
+		return true
+	}
+	return false
+}
+
+func ParseEnvTemplate(text string) string {
+	tmpl, err := template.New("env").Option("missingkey=error").Parse(text)
+	if err != nil {
+		return text
+	}
+	tree, err := parse.Parse("env", text, "{{", "}}")
+	if err != nil || tree["env"] == nil {
+		return text
+	}
+
+	values := make(map[string]any)
+	environment := make(map[string]string)
+	values["Env"] = environment
+	for _, key := range getParseKeys(tree["env"].Root) {
+		if strings.HasPrefix(key, "Env.") {
+			environmentKey := strings.TrimPrefix(key, "Env.")
+			environment[environmentKey] = os.Getenv(environmentKey)
+			continue
+		}
+		values[key] = os.Getenv(key)
+	}
+
+	var builder strings.Builder
+	if err = tmpl.Execute(&builder, values); err != nil {
+		return text
+	}
+	return builder.String()
+}
+
 func getParseKeys(nodes *parse.ListNode) []string {
 	keys := make([]string, 0)
 	if nodes == nil {
 		return keys
 	}
-	for a := range nodes.Nodes {
-		if actionNode, ok := nodes.Nodes[a].(*parse.ActionNode); ok {
-			if actionNode == nil || actionNode.Pipe == nil {
-				continue
-			}
-			for b := range actionNode.Pipe.Cmds {
-				if strings.Index(actionNode.Pipe.Cmds[b].String(), ".") == 0 {
-					keys = append(keys, actionNode.Pipe.Cmds[b].String()[1:])
-				}
+	for _, node := range nodes.Nodes {
+		actionNode, ok := node.(*parse.ActionNode)
+		if !ok || actionNode == nil || actionNode.Pipe == nil {
+			continue
+		}
+		for _, command := range actionNode.Pipe.Cmds {
+			value := command.String()
+			if strings.HasPrefix(value, ".") {
+				keys = append(keys, strings.TrimPrefix(value, "."))
 			}
 		}
 	}
 	return keys
 }
 
-// GetStage get stage
 func GetStage() string {
 	stage := os.Getenv("stage")
 	if stage == "" {

@@ -1,12 +1,5 @@
 package language
 
-/*
- * @Author: lwnmengjing
- * @Date: 2021/6/9 10:59 上午
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2021/6/9 10:59 上午
- */
-
 import (
 	"sort"
 	"strconv"
@@ -21,7 +14,7 @@ type language struct {
 type languageSlice []language
 
 func (e languageSlice) SortByQuality() {
-	sort.Sort(e)
+	sort.Stable(e)
 }
 
 func (e languageSlice) Len() int {
@@ -36,76 +29,77 @@ func (e languageSlice) Less(i, j int) bool {
 	return e[i].quality > e[j].quality
 }
 
-// ParseAcceptLanguage returns RFC1766 language codes parsed and sorted from
-// languages.
-//
-// If supportedLanguages is not empty, the returned codes will be filtered
-// by its contents.
+// ParseAcceptLanguage returns normalized RFC language codes ordered by quality.
+// A quality of zero excludes an entry. Malformed or out-of-range quality values
+// are ignored rather than being promoted above valid client preferences. When
+// supportedLanguages is not empty, matching is case-insensitive and accepts
+// underscores as hyphens.
 func ParseAcceptLanguage(languages string, supportedLanguages []string) []string {
-	preferredLanguages := strings.Split(languages, ",")
-	preferredLanguagesLen := len(preferredLanguages)
-
-	// Preallocate processed languages, as we know the maximum possible.
-	langCap := preferredLanguagesLen
-	if len(supportedLanguages) > 0 {
-		langCap = len(supportedLanguages)
+	preferred := strings.Split(languages, ",")
+	supported := make(map[string]struct{}, len(supportedLanguages))
+	for _, value := range supportedLanguages {
+		value = normalizeLanguage(value)
+		if value != "" {
+			supported[value] = struct{}{}
+		}
 	}
-	langs := make(languageSlice, 0, langCap)
 
-	for i, rawPreferredLanguage := range preferredLanguages {
-		// Format strings.
-		preferredLanguage := strings.ReplaceAll(
-			strings.ToLower(strings.TrimSpace(rawPreferredLanguage)),
-			"_", "-")
+	capacity := len(preferred)
+	if len(supported) > 0 && len(supported) < capacity {
+		capacity = len(supported)
+	}
+	languagesByQuality := make(languageSlice, 0, capacity)
+	seen := make(map[string]struct{}, capacity)
 
-		if preferredLanguage == "" {
+	for _, raw := range preferred {
+		value := strings.ToLower(strings.TrimSpace(raw))
+		if value == "" {
+			continue
+		}
+		parts := strings.Split(value, ";")
+		name := normalizeLanguage(parts[0])
+		if name == "" {
+			continue
+		}
+		if len(supported) > 0 {
+			if _, ok := supported[name]; !ok {
+				continue
+			}
+		}
+		if _, duplicate := seen[name]; duplicate {
 			continue
 		}
 
-		// Split out quality factor.
-		parts := strings.SplitN(preferredLanguage, ";", 2)
-
-		// If supported languages are given, return only the langs that fit.
-		supported := len(supportedLanguages) == 0
-		for _, supportedLanguage := range supportedLanguages {
-			if supported = supportedLanguage == parts[0]; supported {
+		quality := 1.0
+		valid := true
+		for _, rawParameter := range parts[1:] {
+			parameter := strings.TrimSpace(rawParameter)
+			if !strings.HasPrefix(parameter, "q=") {
+				continue
+			}
+			parsed, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimPrefix(parameter, "q=")), 64)
+			if err != nil || parsed < 0 || parsed > 1 {
+				valid = false
 				break
 			}
+			quality = parsed
 		}
-
-		if !supported {
+		if !valid || quality == 0 {
 			continue
 		}
 
-		lang := language{parts[0], 0}
-		if len(parts) == 2 {
-			q := parts[1]
-
-			if strings.HasPrefix(q, "q=") {
-				q = strings.SplitN(q, "=", 2)[1]
-				var err error
-				if lang.quality, err = strconv.ParseFloat(q, 64); err != nil {
-					// Default value (1) if quality is empty.
-					lang.quality = 1
-				}
-			}
-		}
-
-		// Use order of items if no quality is given.
-		if lang.quality == 0 {
-			lang.quality = float64(preferredLanguagesLen - i)
-		}
-
-		langs = append(langs, lang)
+		seen[name] = struct{}{}
+		languagesByQuality = append(languagesByQuality, language{name: name, quality: quality})
 	}
 
-	langs.SortByQuality()
-
-	// Filter quality string.
-	langString := make([]string, 0, len(langs))
-	for _, lang := range langs {
-		langString = append(langString, lang.name)
+	languagesByQuality.SortByQuality()
+	result := make([]string, 0, len(languagesByQuality))
+	for _, value := range languagesByQuality {
+		result = append(result, value.name)
 	}
+	return result
+}
 
-	return langString
+func normalizeLanguage(value string) string {
+	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(value)), "_", "-")
 }

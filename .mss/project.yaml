@@ -10,11 +10,11 @@ spec:
     management systems with Codex and other coding agents.
   foundationVersion: 0.1.0
   repositoryLayout:
-    backend: .
+    backend: admin
     framework: mss-boot
     frontend: web/antd
     documentation: docs
-    modules: modules
+    modules: admin/modules
     specifications: .mss
     skills: .agents/skills
     templates: templates
@@ -22,7 +22,7 @@ spec:
   backend:
     language: go
     goVersion: "1.26.5"
-    module: github.com/mss-boot-io/mss-boot-admin
+    module: github.com/mss-boot-io/mss-boot-admin/admin
     frameworkModule: github.com/mss-boot-io/mss-boot-admin/mss-boot
     httpFramework: gin
     orm: gorm
@@ -62,7 +62,7 @@ spec:
     writesDefaultToDryRun: true
     productionCredentialsRequiredForDevelopment: false
   entrypoints:
-    admin: go run .
+    admin: cd admin && go run .
     mss: go run ./cmd/mss
   validation:
     changed: go run ./cmd/mss verify --changed

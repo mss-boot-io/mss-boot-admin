@@ -1,49 +1,104 @@
-PROJECT:=mss-boot-admin
+PROJECT := mss-boot-admin
+ADMIN_DIR := admin
+FRAMEWORK_DIR := mss-boot
+BIN_DIR ?= bin
+COVERAGE_DIR ?= .coverage
+COVERAGE_POLICY := .mss/coverage.json
 
-.PHONY: build test deps generate lint fix-lint \
-	deps-framework deps-all test-framework test-framework-race \
-	vet-framework tidy-framework-check verify-framework test-all \
+.PHONY: build build-admin build-agent test test-agent test-admin test-admin-race \
+	coverage-admin vet-admin tidy-admin-check verify-admin compatibility-admin \
+	deps deps-agent deps-admin deps-framework deps-all \
+	test-framework test-framework-race coverage-framework vet-framework \
+	tidy-framework-check verify-framework test-all generate lint fix-lint clean \
 	web-install web-lint web-test web-build docs-install docs-build verify-all
 
-build:
-	CGO_ENABLED=0 go build -o admin main.go
+build: build-admin
 
-test:
-	go test -coverprofile=coverage.out ./...
+build-admin:
+	mkdir -p $(BIN_DIR)
+	cd $(ADMIN_DIR) && CGO_ENABLED=0 GOWORK=off go build -trimpath -o ../$(BIN_DIR)/$(PROJECT) .
+
+build-agent:
+	mkdir -p $(BIN_DIR)
+	GOWORK=off go build -trimpath -o $(BIN_DIR)/mss ./cmd/mss
+	GOWORK=off go build -trimpath -o $(BIN_DIR)/mss-mcp ./cmd/mss-mcp
+
+test: test-agent test-admin
+
+test-agent:
+	GOWORK=off go test -shuffle=on -count=1 ./...
+
+test-admin:
+	cd $(ADMIN_DIR) && GOWORK=off go test -shuffle=on -count=1 ./...
+
+test-admin-race:
+	cd $(ADMIN_DIR) && GOWORK=off go test -race -shuffle=on -count=1 ./...
+
+coverage-admin:
+	mkdir -p $(COVERAGE_DIR)
+	cd $(ADMIN_DIR) && GOWORK=off go test -shuffle=on -count=1 -covermode=atomic -coverpkg=./... -coverprofile=../$(COVERAGE_DIR)/admin.out ./...
+	python3 scripts/check-go-coverage.py --profile $(COVERAGE_DIR)/admin.out --policy $(COVERAGE_POLICY) --component admin --summary
+
+vet-admin:
+	cd $(ADMIN_DIR) && GOWORK=off go vet ./...
+
+tidy-admin-check:
+	cd $(ADMIN_DIR) && GOWORK=off go mod tidy
+	git diff --exit-code -- $(ADMIN_DIR)/go.mod $(ADMIN_DIR)/go.sum
+
+compatibility-admin:
+	cd $(ADMIN_DIR) && GOWORK=off go test -count=1 ./compatibility
+	go test -count=1 ./$(ADMIN_DIR)/compatibility
+
+verify-admin: test-admin-race coverage-admin vet-admin tidy-admin-check compatibility-admin build-admin
 
 deps:
-	go list -deps ./... >/dev/null
+	$(MAKE) deps-all
+
+deps-agent:
+	GOWORK=off go mod download
+
+deps-admin:
+	cd $(ADMIN_DIR) && GOWORK=off go mod download
 
 deps-framework:
-	cd mss-boot && GOWORK=off go mod download
+	cd $(FRAMEWORK_DIR) && GOWORK=off go mod download
 
-deps-all: deps deps-framework
+deps-all: deps-agent deps-admin deps-framework
 
 test-framework:
-	cd mss-boot && GOWORK=off go test -shuffle=on -count=1 ./...
+	cd $(FRAMEWORK_DIR) && GOWORK=off go test -shuffle=on -count=1 ./...
 
 test-framework-race:
-	cd mss-boot && GOWORK=off go test -race -shuffle=on -count=1 ./...
+	cd $(FRAMEWORK_DIR) && GOWORK=off go test -race -shuffle=on -count=1 ./...
+
+coverage-framework:
+	mkdir -p $(COVERAGE_DIR)
+	cd $(FRAMEWORK_DIR) && GOWORK=off go test -shuffle=on -count=1 -covermode=atomic -coverpkg=./... -coverprofile=../$(COVERAGE_DIR)/mss-boot.out ./...
+	python3 scripts/check-go-coverage.py --profile $(COVERAGE_DIR)/mss-boot.out --policy $(COVERAGE_POLICY) --component mss-boot --summary
 
 vet-framework:
-	cd mss-boot && GOWORK=off go vet ./...
+	cd $(FRAMEWORK_DIR) && GOWORK=off go vet ./...
 
 tidy-framework-check:
-	cd mss-boot && GOWORK=off go mod tidy
-	git diff --exit-code -- mss-boot/go.mod mss-boot/go.sum
+	cd $(FRAMEWORK_DIR) && GOWORK=off go mod tidy
+	git diff --exit-code -- $(FRAMEWORK_DIR)/go.mod $(FRAMEWORK_DIR)/go.sum
 
-verify-framework: test-framework-race vet-framework tidy-framework-check
+verify-framework: test-framework-race coverage-framework vet-framework tidy-framework-check
 
-test-all: test-framework test
+test-all: test-agent test-admin test-framework
 
 generate:
-	go generate ./...
+	GOWORK=off go generate ./...
+	cd $(ADMIN_DIR) && GOWORK=off go generate ./...
 
 lint:
-	golangci-lint run -v ./...
+	GOWORK=off golangci-lint run -v ./...
+	cd $(ADMIN_DIR) && GOWORK=off golangci-lint run -v ./...
+	cd $(FRAMEWORK_DIR) && GOWORK=off golangci-lint run -v ./...
 
 fix-lint:
-	goimports -w .
+	goimports -w cmd internal $(ADMIN_DIR) $(FRAMEWORK_DIR)
 
 web-install:
 	cd web/antd && corepack enable && pnpm install --frozen-lockfile
@@ -63,4 +118,7 @@ docs-install:
 docs-build:
 	cd docs && pnpm build
 
-verify-all: verify-framework test web-lint web-test web-build docs-build
+verify-all: verify-admin verify-framework test-agent web-lint web-test web-build docs-build
+
+clean:
+	rm -rf $(BIN_DIR) $(COVERAGE_DIR)

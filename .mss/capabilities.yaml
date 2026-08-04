@@ -14,9 +14,9 @@ spec:
       status: stable
       owners: [backend, frontend]
       backendPaths:
-        - middleware/auth.go
-        - models/user.go
-        - apis/user.go
+        - admin/middleware/auth.go
+        - admin/models/user.go
+        - admin/apis/user.go
       frontendPaths:
         - web/antd/src/pages/User/Login
         - web/antd/src/access.ts
@@ -27,8 +27,8 @@ spec:
       status: stable
       owners: [backend, frontend]
       backendPaths:
-        - models/user_auth_token.go
-        - apis/user_auth_token.go
+        - admin/models/user_auth_token.go
+        - admin/apis/user_auth_token.go
       frontendPaths:
         - web/antd/src/pages/Account/Settings/components/AccessToken.tsx
       guidance: Preserve one-time display and revocation semantics.
@@ -38,10 +38,10 @@ spec:
       status: stable
       owners: [backend, frontend]
       backendPaths:
-        - models/role.go
-        - models/menu.go
-        - apis/role.go
-        - middleware/auth.go
+        - admin/models/role.go
+        - admin/models/menu.go
+        - admin/apis/role.go
+        - admin/middleware/auth.go
       frontendPaths:
         - web/antd/src/access.ts
         - web/antd/src/pages/Role
@@ -53,10 +53,10 @@ spec:
       status: stable
       owners: [backend, frontend]
       backendPaths:
-        - models/user.go
-        - models/department.go
-        - models/post.go
-        - models/role.go
+        - admin/models/user.go
+        - admin/models/department.go
+        - admin/models/post.go
+        - admin/models/role.go
       frontendPaths:
         - web/antd/src/pages/User
         - web/antd/src/pages/Department
@@ -69,9 +69,9 @@ spec:
       status: stable
       owners: [backend]
       backendPaths:
-        - middleware/audit.go
-        - models/audit_log.go
-        - service/audit.go
+        - admin/middleware/audit.go
+        - admin/models/audit_log.go
+        - admin/service/audit.go
       guidance: Redact secrets and sensitive request bodies before persistence.
 
     - id: platform.configuration
@@ -79,9 +79,9 @@ spec:
       status: stable
       owners: [backend, frontend]
       backendPaths:
-        - config/config.go
-        - apis/app_config.go
-        - apis/system_config.go
+        - admin/config/config.go
+        - admin/apis/app_config.go
+        - admin/apis/system_config.go
       frontendPaths:
         - web/antd/src/pages/AppConfig
         - web/antd/src/pages/SystemConfig
@@ -103,7 +103,7 @@ spec:
       status: beta
       owners: [backend, framework]
       backendPaths:
-        - service/storage.go
+        - admin/service/storage.go
       frameworkPaths:
         - mss-boot/pkg/config/storage.go
       guidance: Validate size, content type, path confinement, and credential handling.
@@ -113,9 +113,9 @@ spec:
       status: beta
       owners: [backend, framework]
       backendPaths:
-        - models/task.go
-        - models/task_run.go
-        - apis/task.go
+        - admin/models/task.go
+        - admin/models/task_run.go
+        - admin/apis/task.go
       frameworkPaths:
         - mss-boot/core/server/task
       guidance: Keep management maintenance tasks here; new domain workflows should use explicit services.
@@ -125,8 +125,8 @@ spec:
       status: beta
       owners: [backend, frontend]
       backendPaths:
-        - models/notice.go
-        - service/notification_channel.go
+        - admin/models/notice.go
+        - admin/service/notification_channel.go
       frontendPaths:
         - web/antd/src/pages/Notice
       guidance: Treat channel credentials as secrets and test failure paths.
@@ -136,8 +136,8 @@ spec:
       status: beta
       owners: [backend, frontend]
       backendPaths:
-        - service/monitor.go
-        - apis/monitor.go
+        - admin/service/monitor.go
+        - admin/apis/monitor.go
       frontendPaths:
         - web/antd/src/pages/Monitor
       guidance: This is application-local monitoring, not a replacement for external observability.
@@ -147,8 +147,8 @@ spec:
       status: beta
       owners: [backend, frontend]
       backendPaths:
-        - apis/ws.go
-        - center/websocket
+        - admin/apis/ws.go
+        - admin/center/websocket
       frontendPaths:
         - web/antd/src/hooks/useWebSocket.ts
       guidance: Reuse the current event path and validate clustered Redis behavior when enabled.
@@ -158,7 +158,7 @@ spec:
       status: beta
       owners: [backend, framework]
       backendPaths:
-        - config/clusters.go
+        - admin/config/clusters.go
       frameworkPaths:
         - mss-boot/pkg/config/k8s
         - mss-boot/pkg/response/actions/k8s
@@ -169,8 +169,8 @@ spec:
       status: stable
       owners: [backend, frontend]
       backendPaths:
-        - models/language.go
-        - apis/language.go
+        - admin/models/language.go
+        - admin/apis/language.go
       frontendPaths:
         - web/antd/src/locales
         - web/antd/src/pages/Language
@@ -181,11 +181,11 @@ spec:
       status: legacy
       owners: [backend, frontend]
       backendPaths:
-        - models/model.go
-        - models/field.go
-        - apis/model.go
-        - apis/field.go
-        - mss-boot/virtual
+        - admin/models/model.go
+        - admin/models/field.go
+        - admin/apis/model.go
+        - admin/apis/field.go
+        - admin/mss-boot/virtual
       frontendPaths:
         - web/antd/src/pages/Model
         - web/antd/src/pages/Field

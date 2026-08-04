@@ -62,10 +62,10 @@ const Virtual: React.FC = () => {
                 {...props}
                 defaultValue={props.value}
                 onChange={(value) => {
-                  let o = {};
+                  const fields: Record<string, string> = {};
                   // @ts-ignore
-                  o[text.dataIndex] = value.toHTML();
-                  formRef.current?.setFieldsValue(o);
+                  fields[text.dataIndex] = value;
+                  formRef.current?.setFieldsValue(fields);
                 }}
               />
             );

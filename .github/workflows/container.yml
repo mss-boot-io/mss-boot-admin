@@ -5,15 +5,12 @@ on:
     branches:
       - main
     paths:
-      - '**/*.go'
+      - 'admin/**'
+      - 'mss-boot/**'
       - 'go.mod'
       - 'go.sum'
       - 'go.work'
       - 'go.work.sum'
-      - 'mss-boot/go.mod'
-      - 'mss-boot/go.sum'
-      - 'config/**'
-      - 'modules/**'
       - 'templates/**'
       - 'Dockerfile'
       - '.dockerignore'
@@ -24,15 +21,12 @@ on:
     tags:
       - 'v*.*.*'
     paths:
-      - '**/*.go'
+      - 'admin/**'
+      - 'mss-boot/**'
       - 'go.mod'
       - 'go.sum'
       - 'go.work'
       - 'go.work.sum'
-      - 'mss-boot/go.mod'
-      - 'mss-boot/go.sum'
-      - 'config/**'
-      - 'modules/**'
       - 'templates/**'
       - 'Dockerfile'
       - '.dockerignore'
@@ -56,7 +50,7 @@ jobs:
   build:
     name: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -64,11 +58,12 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version-file: admin/go.mod
           cache: true
           cache-dependency-path: |
             go.sum
             go.work.sum
+            admin/go.sum
             mss-boot/go.sum
 
       - name: Vendor workspace for Docker context

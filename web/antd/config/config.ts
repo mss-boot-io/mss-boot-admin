@@ -3,7 +3,6 @@ import { defineConfig } from '@umijs/max';
 import defaultSettings from './defaultSettings';
 import proxy from './proxy';
 import routes from './routes';
-import path from 'path';
 
 const { REACT_APP_ENV = 'dev' } = process.env;
 
@@ -127,25 +126,10 @@ export default defineConfig({
     // 解决首次加载时白屏的问题
     { src: '/scripts/loading.js', async: true },
   ],
-  //================ pro 插件配置 =================
-  presets: ['umi-presets-pro'],
-  /**
-   * @name openAPI 插件的配置
-   * @description 基于 openapi 的规范生成serve 和mock，能减少很多样板代码
-   * @doc https://pro.ant.design/zh-cn/docs/openapi/
-   */
-  openAPI: [
-    {
-      requestLibPath: "import { request } from '@umijs/max'",
-      schemaPath: path.resolve(__dirname, '../../mss-boot-admin/docs/swagger.json'),
-      projectName: 'admin',
-    },
-  ],
   mfsu: {
     strategy: 'normal',
   },
   esbuildMinifyIIFE: true,
-  requestRecord: {},
   define: {
     API_URL: '',
   },

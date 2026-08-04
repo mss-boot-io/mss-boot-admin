@@ -10,7 +10,7 @@ permissions:
 jobs:
   downstream-generation-and-upgrade:
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 85
     steps:
       - name: Checkout foundation
         uses: actions/checkout@v7
@@ -28,6 +28,11 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
+          cache-dependency-path: |
+            go.sum
+            go.work.sum
+            admin/go.sum
+            mss-boot/go.sum
 
       - name: Configure Git identity
         run: |
@@ -35,6 +40,8 @@ jobs:
           git config --global user.email "mss-foundation-ci@users.noreply.github.com"
 
       - name: Test Blueprint and upgrade engines
+        env:
+          GOWORK: 'off'
         run: |
           set -euo pipefail
           go test \
@@ -62,14 +69,18 @@ jobs:
           git -C "${DOWNSTREAM}" add -A
           git -C "${DOWNSTREAM}" commit -m "chore: record generated foundation baseline"
 
-      - name: Validate generated downstream tooling
+      - name: Validate generated downstream modules and tooling
         run: |
           set -euo pipefail
           (
             cd "${DOWNSTREAM}"
             go run ./cmd/mss context --format json > "${RUNNER_TEMP}/downstream-context.json"
+            go run ./cmd/mss doctor --strict --component agent --format json > "${RUNNER_TEMP}/downstream-agent-doctor.json"
+            go run ./cmd/mss doctor --strict --component backend --format json > "${RUNNER_TEMP}/downstream-admin-doctor.json"
             go run ./cmd/mss skills validate --format json > "${RUNNER_TEMP}/downstream-skills.json"
-            go test ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/... ./modules/runtime/...
+            go test ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/...
+            go test ./admin/...
+            go test ./mss-boot/...
           )
 
       - name: Create a deterministic next foundation revision
@@ -110,18 +121,18 @@ jobs:
           git -C "${NEXT_FOUNDATION}" add -A
           git -C "${NEXT_FOUNDATION}" commit -m "test: create next foundation fixture"
 
-      - name: Add downstream-only customizations
+      - name: Add downstream-only Admin customizations
         run: |
           set -euo pipefail
           printf '\n# Downstream custom policy\n' >> "${DOWNSTREAM}/AGENTS.md"
-          mkdir -p "${DOWNSTREAM}/modules/customer-extension"
-          cat > "${DOWNSTREAM}/modules/customer-extension/custom.go" <<'EOF'
+          mkdir -p "${DOWNSTREAM}/admin/modules/customer-extension"
+          cat > "${DOWNSTREAM}/admin/modules/customer-extension/custom.go" <<'EOF'
           package customerextension
 
           const Preserved = true
           EOF
           git -C "${DOWNSTREAM}" add -A
-          git -C "${DOWNSTREAM}" commit -m "feat: add downstream customizations"
+          git -C "${DOWNSTREAM}" commit -m "feat: add downstream Admin customizations"
 
       - name: Plan the next foundation upgrade
         run: |
@@ -166,7 +177,7 @@ jobs:
           )
 
           grep -q "# Downstream custom policy" "${DOWNSTREAM}/AGENTS.md"
-          test -f "${DOWNSTREAM}/modules/customer-extension/custom.go"
+          test -f "${DOWNSTREAM}/admin/modules/customer-extension/custom.go"
           grep -q "foundationVersion: 0.1.1-ci" "${DOWNSTREAM}/.mss/project.yaml"
           test -f "${DOWNSTREAM}/docs/docs/agent/foundation-compatibility-probe.md"
           test ! -e "${DOWNSTREAM}/docs/docs/agent/architecture.md"
@@ -176,7 +187,9 @@ jobs:
             go run ./cmd/mss upgrade status --format json > "${RUNNER_TEMP}/upgrade-status.json"
             go run ./cmd/mss context --format json > "${RUNNER_TEMP}/upgraded-context.json"
             go run ./cmd/mss skills validate --format json > "${RUNNER_TEMP}/upgraded-skills.json"
-            go test ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/... ./modules/runtime/...
+            go test ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/...
+            go test ./admin/...
+            go test ./mss-boot/...
           )
 
           python3 - <<'PY'
@@ -194,7 +207,7 @@ jobs:
           git -C "${DOWNSTREAM}" add -A
           git -C "${DOWNSTREAM}" commit -m "chore: apply next foundation fixture"
 
-      - name: Create concurrent changes and require a conflict
+      - name: Create concurrent Admin changes and require a conflict
         run: |
           set -euo pipefail
           rm -rf "${CONFLICT_FOUNDATION}"
@@ -202,12 +215,12 @@ jobs:
           git clone --no-hardlinks --no-checkout "${NEXT_FOUNDATION}" "${CONFLICT_FOUNDATION}"
           git -C "${CONFLICT_FOUNDATION}" checkout --detach "${next_commit}"
 
-          printf '\nconst FoundationConflictProbe = true\n' >> "${CONFLICT_FOUNDATION}/main.go"
-          git -C "${CONFLICT_FOUNDATION}" add main.go
-          git -C "${CONFLICT_FOUNDATION}" commit -m "test: change foundation main"
+          printf '\nconst FoundationConflictProbe = true\n' >> "${CONFLICT_FOUNDATION}/admin/main.go"
+          git -C "${CONFLICT_FOUNDATION}" add admin/main.go
+          git -C "${CONFLICT_FOUNDATION}" commit -m "test: change foundation Admin entrypoint"
 
-          printf '\nconst DownstreamConflictProbe = true\n' >> "${DOWNSTREAM}/main.go"
-          cp "${DOWNSTREAM}/main.go" "${RUNNER_TEMP}/downstream-main-before-conflict.go"
+          printf '\nconst DownstreamConflictProbe = true\n' >> "${DOWNSTREAM}/admin/main.go"
+          cp "${DOWNSTREAM}/admin/main.go" "${RUNNER_TEMP}/downstream-admin-main-before-conflict.go"
 
           set +e
           (
@@ -235,8 +248,8 @@ jobs:
           if plan.get("success"):
               raise SystemExit("concurrent changes did not produce a failed plan")
           conflicts = [change for change in plan["changes"] if change["action"] == "conflict"]
-          if not any(change["path"] == "main.go" for change in conflicts):
-              raise SystemExit(f"main.go conflict is missing: {conflicts}")
+          if not any(change["path"] == "admin/main.go" for change in conflicts):
+              raise SystemExit(f"admin/main.go conflict is missing: {conflicts}")
           PY
 
           if (
@@ -253,7 +266,7 @@ jobs:
             exit 1
           fi
 
-          cmp "${DOWNSTREAM}/main.go" "${RUNNER_TEMP}/downstream-main-before-conflict.go"
+          cmp "${DOWNSTREAM}/admin/main.go" "${RUNNER_TEMP}/downstream-admin-main-before-conflict.go"
 
       - name: Upload compatibility evidence
         if: always()
@@ -263,6 +276,8 @@ jobs:
           path: |
             ${{ runner.temp }}/new-app.json
             ${{ runner.temp }}/downstream-context.json
+            ${{ runner.temp }}/downstream-agent-doctor.json
+            ${{ runner.temp }}/downstream-admin-doctor.json
             ${{ runner.temp }}/downstream-skills.json
             ${{ runner.temp }}/upgrade-plan.json
             ${{ runner.temp }}/upgrade-apply.json
