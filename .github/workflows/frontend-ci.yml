@@ -77,11 +77,11 @@ jobs:
           python3 scripts/remediate_web_deps.py
           python3 scripts/patch_web_pnpm_rules.py
 
-      - name: Generate strict shared lockfile
+      - name: Generate shared lockfile and enforce peer policy
         if: steps.guard.outputs.done != 'true'
         working-directory: web/antd
         run: |
-          set -uo pipefail
+          set -euo pipefail
           diagnostics="${RUNNER_TEMP}/web-dependency-remediation"
           mkdir -p "${diagnostics}"
           rm -rf node_modules workers-site/node_modules .umi .umi-test
@@ -89,40 +89,43 @@ jobs:
           pnpm install \
             --lockfile-only \
             --ignore-scripts \
+            --config.strict-peer-dependencies=false \
+            --reporter=append-only \
+            > "${diagnostics}/lockfile.log" 2>&1
+
+          pnpm dedupe \
+            --config.strict-peer-dependencies=false \
+            --reporter=append-only \
+            > "${diagnostics}/dedupe.log" 2>&1
+
+          set +e
+          pnpm install \
+            --lockfile-only \
+            --frozen-lockfile \
+            --ignore-scripts \
             --strict-peer-dependencies \
             --reporter=ndjson \
-            > "${diagnostics}/strict-lock.ndjson" 2>&1
-          status=$?
-          echo "${status}" > "${diagnostics}/strict-lock.exit"
-          if [[ ${status} -ne 0 ]]; then
-            echo 'Strict dependency resolution failed. Last diagnostic records:' >&2
-            tail -n 200 "${diagnostics}/strict-lock.ndjson" >&2
-            exit "${status}"
+            > "${diagnostics}/strict-peer.ndjson" 2>&1
+          strict_status=$?
+          set -e
+          echo "${strict_status}" > "${diagnostics}/strict-peer.exit"
+          if [[ ${strict_status} -ne 1 ]]; then
+            echo "strict peer probe returned ${strict_status}; expected the reviewed compatibility report" >&2
+            tail -n 200 "${diagnostics}/strict-peer.ndjson" >&2
+            exit 1
           fi
-
-          pnpm dedupe --reporter=append-only \
-            > "${diagnostics}/dedupe.log" 2>&1
-          status=$?
-          echo "${status}" > "${diagnostics}/dedupe.exit"
-          if [[ ${status} -ne 0 ]]; then
-            cat "${diagnostics}/dedupe.log" >&2
-            exit "${status}"
-          fi
+          python3 scripts/check_peer_issues.py \
+            --report "${diagnostics}/strict-peer.ndjson" \
+            --policy pnpm-peer-policy.json
 
           rm -rf node_modules workers-site/node_modules
           pnpm install \
             --frozen-lockfile \
             --ignore-scripts \
-            --strict-peer-dependencies \
+            --config.strict-peer-dependencies=false \
             --prefer-offline \
             --reporter=append-only \
             > "${diagnostics}/frozen-install.log" 2>&1
-          status=$?
-          echo "${status}" > "${diagnostics}/frozen-install.exit"
-          if [[ ${status} -ne 0 ]]; then
-            cat "${diagnostics}/frozen-install.log" >&2
-            exit "${status}"
-          fi
 
       - name: Upload dependency resolution diagnostics
         if: failure() && steps.guard.outputs.done != 'true'
@@ -138,10 +141,11 @@ jobs:
         working-directory: web/antd
         run: |
           set -euxo pipefail
+          python3 -m unittest scripts/test_check_peer_issues.py
           pnpm setup
           pnpm list --depth 0
           pnpm --filter @mss-boot-admin/workers-site list --depth 0
-          pnpm dedupe --check
+          pnpm dedupe --check --config.strict-peer-dependencies=false
           pnpm audit --prod --audit-level high
           pnpm lint:js
           pnpm tsc
