@@ -1,5 +1,4 @@
 import { Access } from '@/components/MssBoot/Access';
-import RichTextEditor from '@/components/MssBoot/Editor';
 import { addOption } from '@/util/addOption';
 import { idRender } from '@/util/columnOptions';
 import { indexTitle } from '@/util/indexTitle';
@@ -24,6 +23,7 @@ import {
   listVirtualModels,
   updateVirtualModel,
 } from './service/virtual';
+import RichTextEditor from '@/components/MssBoot/Editor';
 
 const Virtual: React.FC = () => {
   /**
@@ -48,10 +48,10 @@ const Virtual: React.FC = () => {
   );
 
   const setFormItemProps = (rules: API.ColumnType[]): ProColumns<{ [key: string]: any }>[] => {
-    const columns: ProColumns<{ [key: string]: any }>[] = [];
+    let columns: ProColumns<{ [key: string]: any }>[] = [];
     rules.forEach((item) => {
       // @ts-ignore
-      const column: ProColumns<{ [key: string]: any }> = {
+      let column: ProColumns<{ [key: string]: any }> = {
         ...item,
       };
       switch (item.valueType) {
@@ -122,45 +122,50 @@ const Virtual: React.FC = () => {
     history.push(getListPath(pathname));
   };
 
-  const load = async (params: { [key: string]: any }) => {
-    params.key = key;
-    const list = await listVirtualModels(params);
-    return {
-      ...list,
-      total: list.count,
-    };
-  };
-
-  const columns = setFormItemProps((data?.form?.columns || []) as API.ColumnType[]);
-
-  return (
-    <PageContainer title={indexTitle(intl, data?.model?.displayName)}>
-      <ProTable<API.Model, API.PageParams>
+  return loading ? (
+    <></>
+  ) : (
+    <PageContainer title={indexTitle(id)}>
+      <ProTable<
+        { [key: string]: any },
+        // @ts-ignore
+        API.listVirtualModelsParams
+      >
         headerTitle={intl.formatMessage({
-          id: 'pages.searchTable.title',
-          defaultMessage: 'Query Form',
+          id: `pages.${data.name}.list.title`,
+          defaultMessage: `${data.name} List`,
         })}
         actionRef={actionRef}
         formRef={formRef}
         rowKey="id"
-        loading={loading}
-        search={{
-          labelWidth: 120,
-        }}
+        search={false}
+        type={id ? 'form' : 'table'}
+        onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="create" accessible={data?.operations?.includes('create')} fallback={null}>
-            <Link to={`${pathname}/create`}>
-              <Button type="primary">
-                <PlusOutlined />
-                <FormattedMessage id="pages.searchTable.new" defaultMessage="New" />
-              </Button>
-            </Link>
+          <Access key="/model/create">
+            <Button type="primary" key="create">
+              <Link type="primary" key="primary" to={`${pathname}/create`}>
+                <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />
+              </Link>
+            </Button>
           </Access>,
         ]}
-        request={load}
-        columns={addOption(columns, actionRef, setCurrentRow, setShowDetail)}
-        onSubmit={onSubmit}
+        form={
+          id && id !== 'create'
+            ? {
+                request: async () => {
+                  const res = await getVirtualModel({ id, key });
+                  return res;
+                },
+              }
+            : undefined
+        }
+        params={{ key }}
+        request={listVirtualModels}
+        // @ts-ignore
+        columns={addOption(intl, pathname, key, actionRef, setFormItemProps(data.columns))}
       />
+
       <Drawer
         width={600}
         open={showDetail}
@@ -170,17 +175,19 @@ const Virtual: React.FC = () => {
         }}
         closable={false}
       >
-        {currentRow?.id && (
-          <ProDescriptions<API.Model>
-            column={2}
+        {currentRow?.name && (
+          <ProDescriptions<{ [key: string]: any }>
+            column={1}
             title={currentRow?.name}
             request={async () => ({
-              data: await getVirtualModel({ id: currentRow?.id, key }),
+              data: currentRow || {},
             })}
             params={{
               id: currentRow?.id,
             }}
-            columns={data?.form?.columns as ProDescriptionsItemProps<API.Model>[]}
+            columns={
+              setFormItemProps(data.columns) as ProDescriptionsItemProps<{ [key: string]: any }>[]
+            }
           />
         )}
       </Drawer>
