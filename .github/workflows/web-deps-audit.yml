@@ -1,4 +1,4 @@
-name: One-shot web dependency audit
+name: One-shot web dependency source inventory
 
 on:
   push:
@@ -13,181 +13,66 @@ permissions:
   contents: read
 
 concurrency:
-  group: one-shot-web-deps-audit
+  group: one-shot-web-dependency-source-inventory
   cancel-in-progress: true
 
-env:
-  CI: 'true'
-  HUSKY: '0'
-
 jobs:
-  audit:
+  inventory:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 10
     steps:
-      - name: Checkout audit branch
+      - name: Checkout inventory branch
         uses: actions/checkout@v7
         with:
           ref: refactor/split-admin-module-and-coverage-r1
-          fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6.0.9
-        with:
-          version: 9.15.9
-
-      - name: Setup Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: |
-            web/antd/pnpm-lock.yaml
-            web/antd/workers-site/pnpm-lock.yaml
-
-      - name: Install root graph without lifecycle scripts
-        working-directory: web/antd
-        run: pnpm install --frozen-lockfile --ignore-scripts --strict-peer-dependencies --prefer-offline
-
-      - name: Audit direct dependency usage
-        working-directory: web/antd
+      - name: Inventory frontend dependency usage
         run: |
-          set +e
-          mkdir -p "${RUNNER_TEMP}/web-deps-usage"
-          pnpm dlx depcheck@1.4.7 --json \
-            > "${RUNNER_TEMP}/web-deps-usage/depcheck.json" \
-            2> "${RUNNER_TEMP}/web-deps-usage/depcheck.err"
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/depcheck.exit"
+          set -euo pipefail
+          output="${RUNNER_TEMP}/web-dependency-source-inventory"
+          mkdir -p "${output}"
 
-          python3 - <<'PY' > "${RUNNER_TEMP}/web-deps-usage/direct-usage.json"
+          grep -R --line-number \
+            --include='*.js' --include='*.jsx' --include='*.ts' --include='*.tsx' \
+            -E "MssBoot/Editor|RichTextEditor|braft-editor|requestRecordMock|umi-presets-pro|requestRecord" \
+            web/antd \
+            --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.umi --exclude-dir=.umi-test \
+            > "${output}/legacy-usage.txt" || true
+
+          python3 - <<'PY' > "${output}/imports.json"
           import json
+          import re
           from pathlib import Path
 
-          root = Path('.')
-          package = json.loads((root / 'package.json').read_text(encoding='utf-8'))
-          dependencies = {
-              **package.get('dependencies', {}),
-              **package.get('devDependencies', {}),
-          }
-          allowed_suffixes = {
-              '.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.json', '.less',
-              '.css', '.md', '.html', '.ejs', '.yaml', '.yml', '.toml', '.sh',
-          }
+          root = Path('web/antd')
           excluded = {'node_modules', 'dist', '.git', '.umi', '.umi-test', 'playwright-report', 'test-results'}
-          files = []
-          for path in root.rglob('*'):
-              if not path.is_file() or path.name == 'pnpm-lock.yaml':
+          imports = {}
+          pattern = re.compile(r"(?:from\s+|import\s*\(|require\s*\()\s*['\"]([^'\"]+)['\"]")
+          for path in sorted(root.rglob('*')):
+              if not path.is_file() or path.suffix not in {'.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx'}:
                   continue
               if any(part in excluded for part in path.parts):
                   continue
-              if path.suffix.lower() not in allowed_suffixes and path.name not in {'Dockerfile'}:
-                  continue
               try:
-                  files.append((path, path.read_text(encoding='utf-8')))
+                  text = path.read_text(encoding='utf-8')
               except UnicodeDecodeError:
-                  pass
-
-          usage = {}
-          for name in sorted(dependencies):
-              matches = []
-              for path, text in files:
-                  if name in text:
-                      matches.append(path.as_posix())
-              usage[name] = matches
-          print(json.dumps(usage, indent=2, ensure_ascii=False))
-          PY
-          exit 0
-
-      - name: Audit Workers Site dependency graph
-        working-directory: web/antd/workers-site
-        run: |
-          set +e
-          pnpm install --frozen-lockfile --ignore-scripts --strict-peer-dependencies \
-            > "${RUNNER_TEMP}/web-deps-usage/workers-install.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/workers-install.exit"
-          pnpm outdated --format json \
-            > "${RUNNER_TEMP}/web-deps-usage/workers-outdated.json" \
-            2> "${RUNNER_TEMP}/web-deps-usage/workers-outdated.err"
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/workers-outdated.exit"
-          pnpm audit --prod --json \
-            > "${RUNNER_TEMP}/web-deps-usage/workers-audit.json" \
-            2> "${RUNNER_TEMP}/web-deps-usage/workers-audit.err"
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/workers-audit.exit"
-          exit 0
-
-      - name: Probe removal of legacy Umi preset
-        run: |
-          set +e
-          probe="${RUNNER_TEMP}/web-no-legacy-preset"
-          mkdir -p "${probe}"
-          rsync -a \
-            --exclude node_modules \
-            --exclude dist \
-            --exclude .umi \
-            --exclude .umi-test \
-            --exclude playwright-report \
-            --exclude test-results \
-            web/antd/ "${probe}/"
-
-          PROBE="${probe}" python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          root = Path(os.environ['PROBE'])
-          path = root / 'package.json'
-          package = json.loads(path.read_text(encoding='utf-8'))
-          package.get('devDependencies', {}).pop('umi-presets-pro', None)
-          package.get('scripts', {}).pop('record', None)
-          path.write_text(json.dumps(package, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
-
-          config = root / 'config/config.ts'
-          text = config.read_text(encoding='utf-8')
-          text = text.replace("  presets: ['umi-presets-pro'],\n", '')
-          text = text.replace('  requestRecord: {},\n', '')
-          config.write_text(text, encoding='utf-8')
+                  continue
+              for module in pattern.findall(text):
+                  imports.setdefault(module, []).append(path.as_posix())
+          print(json.dumps(imports, ensure_ascii=False, indent=2, sort_keys=True))
           PY
 
-          cd "${probe}"
-          pnpm install --lockfile-only --ignore-scripts --strict-peer-dependencies \
-            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lock.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lock.exit"
+          find web/antd -maxdepth 2 -type f \
+            \( -name 'check_login*' -o -name 'package.json' -o -name 'pnpm-lock.yaml' \
+               -o -name 'pnpm-workspace.yaml' -o -name '.npmrc' \) \
+            -print | sort > "${output}/dependency-files.txt"
 
-          pnpm install --frozen-lockfile --ignore-scripts --strict-peer-dependencies --prefer-offline \
-            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-install.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-install.exit"
+          cat "${output}/legacy-usage.txt" >> "${GITHUB_STEP_SUMMARY}"
 
-          pnpm exec max setup \
-            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-setup.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-setup.exit"
-
-          pnpm lint:js > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lint.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lint.exit"
-          pnpm tsc > "${RUNNER_TEMP}/web-deps-usage/no-legacy-tsc.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-tsc.exit"
-          MOCK=none timeout 180s pnpm test -- --runInBand \
-            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-test.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-test.exit"
-          pnpm build:local > "${RUNNER_TEMP}/web-deps-usage/no-legacy-build.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-build.exit"
-
-          pnpm audit --prod --json \
-            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-audit-prod.json" \
-            2> "${RUNNER_TEMP}/web-deps-usage/no-legacy-audit-prod.err"
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-audit-prod.exit"
-          pnpm list --depth 0 --json \
-            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-top-level.json" \
-            2> "${RUNNER_TEMP}/web-deps-usage/no-legacy-top-level.err"
-          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-top-level.exit"
-          grep -c '^  [^ ].*:$' pnpm-lock.yaml \
-            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lock-entry-count.txt"
-          exit 0
-
-      - name: Upload usage and migration probe
-        if: always()
+      - name: Upload source inventory
         uses: actions/upload-artifact@v7
         with:
-          name: web-deps-usage
-          path: ${{ runner.temp }}/web-deps-usage
+          name: web-dependency-source-inventory
+          path: ${{ runner.temp }}/web-dependency-source-inventory
           if-no-files-found: error
           retention-days: 7
