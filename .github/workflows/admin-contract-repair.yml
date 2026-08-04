@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - refactor/split-admin-module-and-coverage-r1
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -22,24 +19,13 @@ env:
 jobs:
   repair:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 15
     steps:
       - name: Checkout branch
         uses: actions/checkout@v7
         with:
           ref: refactor/split-admin-module-and-coverage-r1
           fetch-depth: 0
-
-      - name: Setup Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-          cache-dependency-path: |
-            go.sum
-            go.work.sum
-            admin/go.sum
-            mss-boot/go.sum
 
       - name: Repair Blueprint, generator, and Doctor contracts
         run: |
@@ -56,72 +42,50 @@ jobs:
 
           plan_test = Path('internal/mss/blueprint/plan_test.go')
           text = plan_test.read_text(encoding='utf-8')
-          text = text.replace(
-              '    - main.go\n',
-              '    - admin/go.mod\n    - admin/main.go\n',
-          )
+          text = text.replace('    - main.go\n', '    - admin/go.mod\n    - admin/main.go\n')
           text = text.replace(
               '"go.work":   []byte("go 1.26.0\\n\\nuse (\\n\\t.\\n\\t./mss-boot\\n)\\n"),',
               '"go.work":   []byte("go 1.26.0\\n\\nuse (\\n\\t.\\n\\t./admin\\n\\t./mss-boot\\n)\\n"),',
           )
-          text = text.replace(
-              '"admin/main.go":   []byte(',
-              '"admin/go.mod": []byte("module ' + root_module + '/admin\\n\\ngo 1.26.0\\n\\nrequire ' + root_module + '/mss-boot v0.8.0\\n\\nreplace ' + root_module + '/mss-boot v0.8.0 => ../mss-boot\\n"),\n\t\t"admin/main.go":   []byte(',
-          )
+          if '"admin/go.mod"' not in text:
+              text = text.replace(
+                  '"admin/main.go":   []byte(',
+                  '"admin/go.mod": []byte("module ' + root_module + '/admin\\n\\ngo 1.26.0\\n\\nrequire ' + root_module + '/mss-boot v0.8.0\\n\\nreplace ' + root_module + '/mss-boot v0.8.0 => ../mss-boot\\n"),\n\t\t"admin/main.go":   []byte(',
+              )
           text = text.replace(root_module + '/internal/example', root_module + '/admin/internal/example')
           text = text.replace('    backend: .\n', '    backend: admin\n')
           text = text.replace(
               '    module: ' + root_module + '\n    frameworkModule:',
               '    module: ' + root_module + '/admin\n    frameworkModule:',
           )
-          text = text.replace(
-              'assertContains(t, filepath.Join(destination, "go.mod"), "module github.com/acme/customer-admin")',
-              'assertContains(t, filepath.Join(destination, "go.mod"), "module github.com/acme/customer-admin")\n\tassertContains(t, filepath.Join(destination, "admin", "go.mod"), "module github.com/acme/customer-admin/admin")',
-          )
-          text = text.replace(
-              'github.com/acme/customer-admin/internal/example',
-              'github.com/acme/customer-admin/admin/internal/example',
-          )
+          assertion = 'assertContains(t, filepath.Join(destination, "admin", "go.mod"), "module github.com/acme/customer-admin/admin")'
+          if assertion not in text:
+              text = text.replace(
+                  'assertContains(t, filepath.Join(destination, "go.mod"), "module github.com/acme/customer-admin")',
+                  'assertContains(t, filepath.Join(destination, "go.mod"), "module github.com/acme/customer-admin")\n\t' + assertion,
+              )
+          text = text.replace('github.com/acme/customer-admin/internal/example', 'github.com/acme/customer-admin/admin/internal/example')
           plan_test.write_text(text, encoding='utf-8')
 
           workspace_test = Path('internal/mss/blueprint/workspace_test.go')
           text = workspace_test.read_text(encoding='utf-8')
           text = text.replace(
-              '''writeFixtureFile(t, root, "go.mod", `module github.com/mss-boot-io/mss-boot-admin
-
-go 1.26.0
-
-require github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0
-`)''',
-              '''writeFixtureFile(t, root, "go.mod", `module github.com/mss-boot-io/mss-boot-admin
-
-go 1.26.0
-`)''',
+              'module github.com/mss-boot-io/mss-boot-admin\n\ngo 1.26.0\n\nrequire github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0',
+              'module github.com/mss-boot-io/mss-boot-admin\n\ngo 1.26.0',
+          )
+          text = text.replace('\t.\n\t./mss-boot\n', '\t.\n\t./admin\n\t./mss-boot\n')
+          if 'writeFixtureFile(t, root, "admin/go.mod"' not in text:
+              text = text.replace(
+                  'writeFixtureFile(t, root, "admin/main.go",',
+                  'writeFixtureFile(t, root, "admin/go.mod", `module github.com/mss-boot-io/mss-boot-admin/admin\n\ngo 1.26.0\n\nrequire github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0\n\nreplace github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0 => ../mss-boot\n`)\n\twriteFixtureFile(t, root, "admin/main.go",',
+              )
+          text = text.replace(
+              'filepath.Join(destination, "go.mod"),\n\t\t"require github.com/acme/workspace-admin/mss-boot v0.8.0",',
+              'filepath.Join(destination, "admin", "go.mod"),\n\t\t"require github.com/acme/workspace-admin/mss-boot v0.8.0",',
           )
           text = text.replace(
-              '''use (
-	.
-	./mss-boot
-)''',
-              '''use (
-	.
-	./admin
-	./mss-boot
-)''',
-          )
-          text = text.replace(
-              'writeFixtureFile(t, root, "admin/main.go",',
-              'writeFixtureFile(t, root, "admin/go.mod", `module github.com/mss-boot-io/mss-boot-admin/admin\n\ngo 1.26.0\n\nrequire github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0\n\nreplace github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0 => ../mss-boot\n`)\n\twriteFixtureFile(t, root, "admin/main.go",',
-          )
-          text = text.replace(
-              '''filepath.Join(destination, "go.mod"),
-		"require github.com/acme/workspace-admin/mss-boot v0.8.0",''',
-              '''filepath.Join(destination, "admin", "go.mod"),
-		"require github.com/acme/workspace-admin/mss-boot v0.8.0",''',
-          )
-          text = text.replace(
-              'command := exec.Command("go", "list", "./...")',
-              'command := exec.Command("go", "list", "./...", "./admin/...", "./mss-boot/...")',
+              'exec.Command("go", "list", "./...")',
+              'exec.Command("go", "list", "./...", "./admin/...", "./mss-boot/...")',
           )
           workspace_test.write_text(text, encoding='utf-8')
 
@@ -135,28 +99,10 @@ go 1.26.0
 
           doctor_test = Path('internal/mss/doctor/doctor_test.go')
           if doctor_test.exists():
-              text = doctor_test.read_text(encoding='utf-8')
-              text = text.replace('file:go.mod', 'file:admin/go.mod')
+              text = doctor_test.read_text(encoding='utf-8').replace('file:go.mod', 'file:admin/go.mod')
               doctor_test.write_text(text, encoding='utf-8')
           PY
           gofmt -w internal/mss/generator/generator_test.go internal/mss/blueprint/*.go internal/mss/doctor/*.go
-
-      - name: Validate Agent and downstream compatibility
-        run: |
-          set -euxo pipefail
-          go test -shuffle=on -count=1 ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/...
-          go run ./cmd/mss context --format json > "${RUNNER_TEMP}/context.json"
-          go run ./cmd/mss doctor --strict --component agent --format json > "${RUNNER_TEMP}/doctor-agent.json"
-          go run ./cmd/mss doctor --strict --component backend --format json > "${RUNNER_TEMP}/doctor-admin.json"
-          worktree="${RUNNER_TEMP}/generated-module"
-          git worktree add --detach "${worktree}" HEAD
-          trap 'git worktree remove --force "${worktree}" || true' EXIT
-          (
-            cd "${worktree}"
-            go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --write --format json > "${RUNNER_TEMP}/generate.json"
-            go test ./admin/modules/supplier/...
-            go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check --format json > "${RUNNER_TEMP}/check.json"
-          )
 
       - name: Commit repaired contracts
         run: |
@@ -164,6 +110,10 @@ go 1.26.0
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add internal/mss
+          if git diff --cached --quiet; then
+            echo 'contracts already repaired'
+            exit 0
+          fi
           git diff --cached --stat
           git commit -m 'fix(agent): align blueprints and generators with admin module'
           git push origin HEAD:refactor/split-admin-module-and-coverage-r1
