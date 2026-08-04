@@ -1,52 +1,115 @@
 name: Frontend CI
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'web/antd/**'
+      - 'modules/**/module.yaml'
+      - 'templates/module/frontend/**'
+      - '.github/workflows/frontend-ci.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'web/antd/**'
+      - 'modules/**/module.yaml'
+      - 'templates/module/frontend/**'
       - '.github/workflows/frontend-ci.yml'
-  push:
-    branches:
-      - main
-      - 'codex/**'
-    paths:
-      - 'web/antd/**'
-      - '.github/workflows/frontend-ci.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-defaults:
-  run:
-    working-directory: web/antd
+concurrency:
+  group: frontend-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  HUSKY: '0'
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    env:
-      CI: true
+  quality:
+    name: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: web/antd
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
           version: 9.15.9
+
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: web/antd/pnpm-lock.yaml
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: ESLint
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Lint JavaScript and TypeScript
         run: pnpm lint:js
-      - name: Type check
+
+      - name: Type-check frontend
         run: pnpm tsc
-      - name: Unit tests
+
+      - name: Run frontend tests
         run: pnpm test -- --runInBand
-      - name: Build local
+
+  build:
+    name: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: web/antd
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/antd/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Build frontend
         run: pnpm build:local
+
+  required:
+    name: frontend
+    if: ${{ always() }}
+    needs:
+      - quality
+      - build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every frontend check to pass
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          echo "quality=${QUALITY_RESULT}"
+          echo "build=${BUILD_RESULT}"
+          test "${QUALITY_RESULT}" = "success"
+          test "${BUILD_RESULT}" = "success"
