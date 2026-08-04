@@ -60,7 +60,7 @@ jobs:
           set -euxo pipefail
           go mod edit -replace=github.com/mss-boot-io/mss-boot-admin/mss-boot=./mss-boot
           go get \
-            github.com/aws/aws-sdk-go-v2@v1.42.1 \
+            github.com/aws/aws-sdk-go-v2@v1.43.3 \
             github.com/aws/aws-sdk-go-v2/config@v1.32.27 \
             github.com/redis/go-redis/v9@v9.21.0 \
             google.golang.org/grpc@v1.83.0 \
@@ -72,7 +72,7 @@ jobs:
           (
             cd mss-boot
             GOWORK=off go get \
-              github.com/aws/aws-sdk-go-v2@v1.42.1 \
+              github.com/aws/aws-sdk-go-v2@v1.43.3 \
               github.com/aws/aws-sdk-go-v2/config@v1.32.27 \
               github.com/aws/aws-sdk-go-v2/feature/rds/auth@v1.6.34 \
               github.com/go-playground/validator/v10@v10.30.3 \
