@@ -83,7 +83,8 @@ jobs:
         run: |
           set -euo pipefail
           diagnostics="${RUNNER_TEMP}/web-dependency-remediation"
-          mkdir -p "${diagnostics}"
+          peer_audit="${RUNNER_TEMP}/web-peer-audit"
+          mkdir -p "${diagnostics}" "${peer_audit}/workers-site"
           rm -rf node_modules workers-site/node_modules .umi .umi-test
 
           pnpm install \
@@ -98,21 +99,20 @@ jobs:
             --reporter=append-only \
             > "${diagnostics}/dedupe.log" 2>&1
 
-          cp pnpm-lock.yaml "${diagnostics}/pnpm-lock.before"
+          cp package.json pnpm-workspace.yaml .npmrc "${peer_audit}/"
+          cp workers-site/package.json "${peer_audit}/workers-site/"
           set +e
-          pnpm install \
-            --lockfile-only \
-            --ignore-scripts \
-            --strict-peer-dependencies \
-            --reporter=ndjson \
-            > "${diagnostics}/strict-peer.ndjson" 2>&1
+          (
+            cd "${peer_audit}"
+            pnpm install \
+              --lockfile-only \
+              --ignore-scripts \
+              --strict-peer-dependencies \
+              --reporter=ndjson
+          ) > "${diagnostics}/strict-peer.ndjson" 2>&1
           strict_status=$?
           set -e
           echo "${strict_status}" > "${diagnostics}/strict-peer.exit"
-          if ! cmp -s pnpm-lock.yaml "${diagnostics}/pnpm-lock.before"; then
-            echo 'strict peer audit modified pnpm-lock.yaml' >&2
-            exit 1
-          fi
           if [[ ${strict_status} -ne 1 ]]; then
             echo "strict peer probe returned ${strict_status}; expected the reviewed compatibility report" >&2
             tail -n 200 "${diagnostics}/strict-peer.ndjson" >&2
@@ -233,7 +233,6 @@ jobs:
         run: pnpm build:local
 
   build:
-    # Preserve the historical required check: Frontend CI / build.
     name: build
     if: ${{ always() }}
     needs:
