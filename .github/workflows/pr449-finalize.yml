@@ -1,0 +1,135 @@
+name: PR 449 final validation
+
+on:
+  push:
+    branches:
+      - refactor/split-admin-module-and-coverage-r1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-449-final-validation
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            go.work.sum
+            admin/go.sum
+            mss-boot/go.sum
+
+      - name: Check formatting and coverage policy tests
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l internal cmd modules admin mss-boot)"
+          test -z "${unformatted}" || { echo "${unformatted}"; exit 1; }
+          python3 -m unittest scripts/test_check_go_coverage.py
+
+      - name: Validate Agent/Foundation root module
+        env:
+          GOWORK: 'off'
+        run: |
+          set -euo pipefail
+          go test -shuffle=on -count=1 ./...
+          go vet ./...
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Validate Admin module and coverage
+        run: |
+          set -euo pipefail
+          mkdir -p .coverage
+          cd admin
+          GOWORK=off go test -shuffle=on -count=1 -covermode=atomic -coverpkg=./... -coverprofile=../.coverage/admin.out ./...
+          cd ..
+          python3 scripts/check-go-coverage.py --config .mss/coverage.json --component admin --profile .coverage/admin.out
+          cd admin
+          GOWORK=off go test -race -shuffle=on -count=1 ./...
+          GOWORK=off go vet ./...
+          GOWORK=off go mod tidy
+          git diff --exit-code -- go.mod go.sum
+          GOWORK=off go build -trimpath -o /tmp/mss-boot-admin .
+          /tmp/mss-boot-admin --help >/dev/null
+          /tmp/mss-boot-admin server --help >/dev/null
+          /tmp/mss-boot-admin migrate --help >/dev/null
+          GOWORK=off go test -shuffle=on -count=1 ./compatibility
+
+      - name: Validate framework module and coverage
+        run: |
+          set -euo pipefail
+          mkdir -p .coverage
+          cd mss-boot
+          GOWORK=off go test -shuffle=on -count=1 -covermode=atomic -coverpkg=./... -coverprofile=../.coverage/mss-boot.out ./...
+          cd ..
+          python3 scripts/check-go-coverage.py --config .mss/coverage.json --component mss-boot --profile .coverage/mss-boot.out
+          cd mss-boot
+          GOWORK=off go test -race -shuffle=on -count=1 ./...
+          GOWORK=off go vet ./...
+          GOWORK=off go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Validate workspace composition and import direction
+        run: |
+          set -euo pipefail
+          go test ./...
+          go test ./admin/compatibility
+          go list -m all >/dev/null
+          go work sync
+          git diff --exit-code -- go.work go.work.sum go.mod go.sum admin/go.mod admin/go.sum mss-boot/go.mod mss-boot/go.sum
+          go work vendor
+          rm -rf vendor
+          ! grep -R --line-number --include='*.go' 'github.com/mss-boot-io/mss-boot-admin/admin' mss-boot internal cmd modules
+          ! grep -R --line-number --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.coverage --exclude=go.sum 'github.com/mss-boot-io/mss-boot-admin/\(apis\|center\|config\|dto\|middleware\|models\|modules\|notice\|pkg\|router\|service\|cmd/server\|cmd/migrate\)' .
+          git diff --check
+
+      - name: Publish measured coverage and mark PR ready
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          admin_total="$(go tool cover -func=.coverage/admin.out | awk '/^total:/ {print $3}')"
+          framework_total="$(go tool cover -func=.coverage/mss-boot.out | awk '/^total:/ {print $3}')"
+          cat > /tmp/pr449-validation.md <<EOF
+          Final remote validation for \`${GITHUB_SHA}\` passed.
+
+          - Admin statement coverage: **${admin_total}**
+          - mss-boot statement coverage: **${framework_total}**
+          - Agent root module: tests, vet, tidy passed
+          - Admin: independent tests, coverage policy, race, vet, tidy, binary/help smoke tests passed
+          - mss-boot: independent tests, coverage policy, race, vet, tidy passed
+          - Admin↔mss-boot: independent and workspace compatibility tests passed
+          - Three-module workspace, import direction, module graph, vendoring, and diff checks passed
+          EOF
+          gh pr comment 449 --body-file /tmp/pr449-validation.md
+          gh pr ready 449 || true
