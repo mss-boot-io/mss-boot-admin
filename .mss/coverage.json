@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "components": {
+    "admin": {
+      "baseline": 16.2,
+      "minimum": 18.5,
+      "packages": {
+        "github.com/mss-boot-io/mss-boot-admin/admin/center": 12.0,
+        "github.com/mss-boot-io/mss-boot-admin/admin/config": 10.0,
+        "github.com/mss-boot-io/mss-boot-admin/admin/notice/email": 65.0,
+        "github.com/mss-boot-io/mss-boot-admin/admin/router": 65.0,
+        "github.com/mss-boot-io/mss-boot-admin/admin/service": 28.0
+      }
+    },
+    "mss-boot": {
+      "baseline": 26.5,
+      "minimum": 28.0,
+      "packages": {
+        "github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/...": 60.0,
+        "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg": 35.0,
+        "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb": 35.0,
+        "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/language": 85.0,
+        "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response": 25.0,
+        "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security": 75.0
+      }
+    }
+  }
+}
