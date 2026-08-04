@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import pathlib
+import sys
 import tempfile
 import unittest
 
@@ -11,6 +12,7 @@ SCRIPT = pathlib.Path(__file__).with_name("check-go-coverage.py")
 SPEC = importlib.util.spec_from_file_location("check_go_coverage", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
+sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
