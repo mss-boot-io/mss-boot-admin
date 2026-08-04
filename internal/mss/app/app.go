@@ -65,6 +65,7 @@ func newContextCommand(rootOverride *string) *cobra.Command {
 func newDoctorCommand(rootOverride *string) *cobra.Command {
 	var format string
 	var strict bool
+	var componentNames []string
 	command := &cobra.Command{
 		Use:   "doctor",
 		Short: "Check repository contracts and local toolchain readiness",
@@ -74,7 +75,15 @@ func newDoctorCommand(rootOverride *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			report := doctor.Run(cmd.Context(), ctx)
+			components, err := doctor.ParseComponents(componentNames)
+			if err != nil {
+				return err
+			}
+			options := make([]doctor.Option, 0, 1)
+			if len(components) > 0 {
+				options = append(options, doctor.WithComponents(components...))
+			}
+			report := doctor.Run(cmd.Context(), ctx, options...)
 			if err := writeDoctor(cmd.OutOrStdout(), report, format); err != nil {
 				return err
 			}
@@ -86,6 +95,7 @@ func newDoctorCommand(rootOverride *string) *cobra.Command {
 	}
 	command.Flags().StringVar(&format, "format", "text", "output format: text or json")
 	command.Flags().BoolVar(&strict, "strict", false, "return a non-zero exit code when required checks fail")
+	command.Flags().StringSliceVar(&componentNames, "component", nil, "limit checks to components: backend, framework, frontend, docs, or agent")
 	return command
 }
 
