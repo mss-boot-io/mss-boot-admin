@@ -1,0 +1,57 @@
+name: One-shot frontend snapshot refresh
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/update-frontend-snapshot.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CI: 'true'
+  HUSKY: '0'
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout upgrade branch
+        uses: actions/checkout@v7
+        with:
+          ref: chore/consolidate-dependency-upgrades-r1
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6.0.9
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/antd/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: web/antd
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Update Jest snapshots
+        working-directory: web/antd
+        run: pnpm test -- --runInBand -u
+
+      - name: Commit snapshot update
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add web/antd/src/pages/User/Login/__snapshots__/login.test.tsx.snap
+          git diff --cached --stat
+          git commit -m 'test(frontend): update login snapshot for dependency upgrades'
+          git push origin HEAD:chore/consolidate-dependency-upgrades-r1
