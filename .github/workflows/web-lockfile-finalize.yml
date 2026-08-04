@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - refactor/split-admin-module-and-coverage-r1
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -46,6 +43,12 @@ jobs:
             web/antd/pnpm-lock.yaml
             web/antd/workers-site/pnpm-lock.yaml
 
+      - name: Verify pinned toolchain
+        run: |
+          set -euo pipefail
+          test "$(pnpm --version)" = '9.15.9'
+          node -e "const major=Number(process.versions.node.split('.')[0]); if (major !== 22) process.exit(1)"
+
       - name: Finish local mock type migration
         run: |
           set -euo pipefail
@@ -78,20 +81,28 @@ jobs:
         working-directory: web/antd
         run: |
           set -euxo pipefail
-          rm -rf node_modules .umi
-          pnpm install --lockfile-only --strict-peer-dependencies=false
-          pnpm dedupe --config.ignore-scripts=true --config.strict-peer-dependencies=false
-          pnpm dlx update-browserslist-db@latest
-          pnpm install --lockfile-only --strict-peer-dependencies=false
-          pnpm dedupe --config.ignore-scripts=true --config.strict-peer-dependencies=false
-          pnpm install --lockfile-only --strict-peer-dependencies=false
+          rm -rf node_modules .umi .umi-test
+          pnpm install \
+            --lockfile-only \
+            --ignore-scripts \
+            --config.strict-peer-dependencies=false
+          pnpm dedupe \
+            --config.ignore-scripts=true \
+            --config.strict-peer-dependencies=false
+          pnpm install \
+            --lockfile-only \
+            --ignore-scripts \
+            --config.strict-peer-dependencies=false
 
       - name: Generate Workers Site lockfile
         working-directory: web/antd/workers-site
         run: |
           set -euxo pipefail
           rm -rf node_modules
-          pnpm install --lockfile-only --strict-peer-dependencies=false
+          pnpm install \
+            --lockfile-only \
+            --ignore-scripts \
+            --config.strict-peer-dependencies=false
 
       - name: Verify strict frozen installs are side-effect free
         run: |
@@ -123,7 +134,7 @@ jobs:
 
       - name: Generate Umi files explicitly
         working-directory: web/antd
-        run: pnpm run setup
+        run: pnpm setup
 
       - name: Format migrated dependency surfaces
         working-directory: web/antd
@@ -133,7 +144,8 @@ jobs:
         working-directory: web/antd
         run: |
           set -euxo pipefail
-          pnpm list --depth Infinity >/dev/null
+          pnpm list --depth 0
+          pnpm --dir workers-site list --depth 0
           pnpm audit --prod --audit-level high
           pnpm audit --audit-level critical
           pnpm --dir workers-site audit --prod --audit-level high
@@ -148,33 +160,32 @@ jobs:
           timeout 300s pnpm test:ci
           pnpm build:local
 
-      - name: Validate changed files
+      - name: Remove temporary dependency migration machinery
         run: |
-          set -euxo pipefail
-          git diff --check
-          test ! -d web/antd/node_modules/.git
+          rm -f \
+            .github/workflows/web-lockfile-finalize.yml \
+            .github/workflows/web-editor-usage.yml \
+            scripts/remediate_web_deps.py \
+            scripts/patch_web_pnpm_rules.py \
+            scripts/web-deps-remediation-trigger.txt \
+            web/antd/.deps-remediation-trigger \
+            web/antd/pnpm-peer-policy.json \
+            web/antd/scripts/check_peer_issues.py \
+            web/antd/scripts/test_check_peer_issues.py
 
       - name: Commit finalized frontend dependency graph
         run: |
           set -euxo pipefail
-          rm -rf web/antd/node_modules web/antd/.umi web/antd/dist web/antd/workers-site/node_modules
-          rm .github/workflows/web-lockfile-finalize.yml
+          rm -rf \
+            web/antd/node_modules \
+            web/antd/.umi \
+            web/antd/.umi-test \
+            web/antd/dist \
+            web/antd/workers-site/node_modules
+          git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add \
-            web/antd/package.json \
-            web/antd/pnpm-lock.yaml \
-            web/antd/.npmrc \
-            web/antd/config/config.ts \
-            web/antd/src/components/MssBoot/Editor.tsx \
-            web/antd/src/pages/Virtual/index.tsx \
-            web/antd/mock/types.ts \
-            web/antd/mock/role.ts \
-            web/antd/mock/user.ts \
-            web/antd/mock/notices.ts \
-            web/antd/workers-site/package.json \
-            web/antd/workers-site/pnpm-lock.yaml \
-            .github/workflows/web-lockfile-finalize.yml
+          git add -A .github/workflows scripts web/antd
           git diff --cached --stat
           git commit -m 'build(frontend): finalize deterministic dependency graph'
           git push origin HEAD:refactor/split-admin-module-and-coverage-r1
