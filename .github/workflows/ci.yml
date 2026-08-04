@@ -9,16 +9,13 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'web/antd/**'
-      - '.mss/**'
       - '.agents/**'
       - '.codex/**'
       - '.cursor/**'
       - '**/*.md'
       - '.github/workflows/agent-native-ci.yml'
-      - '.github/workflows/container.yml'
       - '.github/workflows/docs.yml'
       - '.github/workflows/frontend-ci.yml'
-      - '.github/workflows/mss-boot-ci.yml'
       - '.github/workflows/swagger.yml'
   pull_request:
     branches:
@@ -26,16 +23,13 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'web/antd/**'
-      - '.mss/**'
       - '.agents/**'
       - '.codex/**'
       - '.cursor/**'
       - '**/*.md'
       - '.github/workflows/agent-native-ci.yml'
-      - '.github/workflows/container.yml'
       - '.github/workflows/docs.yml'
       - '.github/workflows/frontend-ci.yml'
-      - '.github/workflows/mss-boot-ci.yml'
       - '.github/workflows/swagger.yml'
   workflow_dispatch:
 
@@ -53,7 +47,7 @@ jobs:
   test:
     name: admin-test
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     permissions:
       contents: read
       issues: write
@@ -75,40 +69,74 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version-file: admin/go.mod
           cache: true
           cache-dependency-path: |
-            go.sum
-            go.work.sum
+            admin/go.sum
             mss-boot/go.sum
+            go.work.sum
             cmd/tools/pr/go.sum
 
-      - name: Test admin backend
-        run: go test -coverprofile=coverage.out ./...
+      - name: Test coverage policy tooling
+        run: python3 -m unittest scripts/test_check_go_coverage.py
 
-      - name: Convert coverage report to table
+      - name: Test independent Admin module with atomic coverage
+        working-directory: admin
+        env:
+          GOWORK: 'off'
+        run: >-
+          go test -shuffle=on -count=1 -covermode=atomic -coverpkg=./...
+          -coverprofile="${RUNNER_TEMP}/admin.coverage.out" ./...
+
+      - name: Enforce Admin coverage policy
+        run: >-
+          python3 scripts/check-go-coverage.py
+          --profile "${RUNNER_TEMP}/admin.coverage.out"
+          --policy .mss/coverage.json
+          --component admin
+          --summary
+
+      - name: Convert Admin coverage report to table
         if: github.event_name == 'pull_request'
         run: |
-          go tool cover -func=coverage.out \
+          go tool cover -func="${RUNNER_TEMP}/admin.coverage.out" \
             | tail -n +2 \
             | awk '{print "|",$1,"|",$3,"|"}' \
-            > coverage_table.md
+            > admin_coverage_table.md
 
-      - name: Comment on PR with coverage table
+      - name: Comment on PR with Admin coverage
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         working-directory: cmd/tools/pr
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO_NAME: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.number }}
-          COVERAGE_FILE: ../../../coverage_table.md
+          COVERAGE_FILE: ../../../admin_coverage_table.md
           GOWORK: 'off'
         run: go run -mod=readonly .
 
-  compile:
-    name: admin-build
+      - name: Upload Admin coverage profile
+        uses: actions/upload-artifact@v7
+        with:
+          name: admin-coverage
+          path: ${{ runner.temp }}/admin.coverage.out
+          if-no-files-found: error
+          retention-days: 14
+
+  race:
+    name: admin-race
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 55
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -116,15 +144,128 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version-file: admin/go.mod
           cache: true
           cache-dependency-path: |
-            go.sum
-            go.work.sum
+            admin/go.sum
             mss-boot/go.sum
 
-      - name: Build admin backend
-        run: CGO_ENABLED=0 go build -trimpath -o admin main.go
+      - name: Race-test independent Admin module
+        working-directory: admin
+        env:
+          GOWORK: 'off'
+        run: go test -race -shuffle=on -count=1 ./...
+
+  static-and-module:
+    name: admin-static-and-module
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: admin/go.mod
+          cache: true
+          cache-dependency-path: |
+            admin/go.sum
+            mss-boot/go.sum
+
+      - name: Vet Admin module
+        working-directory: admin
+        env:
+          GOWORK: 'off'
+        run: go vet ./...
+
+      - name: Verify Admin module metadata
+        working-directory: admin
+        env:
+          GOWORK: 'off'
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Reject reverse Admin imports
+        run: |
+          if grep -R --line-number --include='*.go' \
+            'github.com/mss-boot-io/mss-boot-admin/admin/' \
+            internal cmd/mss cmd/mss-mcp mss-boot; then
+            echo 'Agent/Foundation and mss-boot must not import Admin packages' >&2
+            exit 1
+          fi
+
+  compatibility:
+    name: admin-mss-boot-compatibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: admin/go.mod
+          cache: true
+          cache-dependency-path: |
+            admin/go.sum
+            mss-boot/go.sum
+            go.work.sum
+
+      - name: Verify independent compatibility contract
+        working-directory: admin
+        env:
+          GOWORK: 'off'
+        run: go test -count=1 ./compatibility
+
+      - name: Verify workspace compatibility contract
+        run: go test -count=1 ./admin/compatibility
+
+      - name: Verify workspace module graph
+        run: |
+          go list -m all > "${RUNNER_TEMP}/workspace-modules.txt"
+          grep -F 'github.com/mss-boot-io/mss-boot-admin/admin' "${RUNNER_TEMP}/workspace-modules.txt"
+          grep -F 'github.com/mss-boot-io/mss-boot-admin/mss-boot' "${RUNNER_TEMP}/workspace-modules.txt"
+
+  compile:
+    name: admin-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: admin/go.mod
+          cache: true
+          cache-dependency-path: |
+            admin/go.sum
+            mss-boot/go.sum
+
+      - name: Build independent Admin binary
+        working-directory: admin
+        env:
+          GOWORK: 'off'
+          BINARY: ${{ runner.temp }}/mss-boot-admin
+        run: |
+          CGO_ENABLED=0 go build -trimpath -o "${BINARY}" .
+          "${BINARY}" --help >/dev/null
+          "${BINARY}" server --help >/dev/null
+          "${BINARY}" migrate --help >/dev/null
 
   build:
     # Keep this job name stable for the existing required check: CI / build.
@@ -132,16 +273,28 @@ jobs:
     if: ${{ always() }}
     needs:
       - test
+      - race
+      - static-and-module
+      - compatibility
       - compile
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require admin validation to pass
+      - name: Require every Admin check to pass
         env:
           TEST_RESULT: ${{ needs.test.result }}
+          RACE_RESULT: ${{ needs.race.result }}
+          STATIC_RESULT: ${{ needs.static-and-module.result }}
+          COMPATIBILITY_RESULT: ${{ needs.compatibility.result }}
           COMPILE_RESULT: ${{ needs.compile.result }}
         run: |
           echo "test=${TEST_RESULT}"
+          echo "race=${RACE_RESULT}"
+          echo "static-and-module=${STATIC_RESULT}"
+          echo "compatibility=${COMPATIBILITY_RESULT}"
           echo "compile=${COMPILE_RESULT}"
           test "${TEST_RESULT}" = "success"
+          test "${RACE_RESULT}" = "success"
+          test "${STATIC_RESULT}" = "success"
+          test "${COMPATIBILITY_RESULT}" = "success"
           test "${COMPILE_RESULT}" = "success"
