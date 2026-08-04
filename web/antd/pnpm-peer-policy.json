@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "allowedBad": [
+    {
+      "dependency": "dva-core",
+      "foundVersion": "2.0.4",
+      "wantedRange": "^1.1.0 || ^1.5.0-0 || ^1.6.0-0",
+      "parents": [
+        "@umijs/max@4.7.0",
+        "@umijs/plugins@4.7.0",
+        "dva-loading@3.0.25"
+      ]
+    },
+    {
+      "dependency": "less-loader",
+      "foundVersion": "11.1.0",
+      "wantedRange": "^12.0.0",
+      "parents": [
+        "@umijs/max@4.7.0",
+        "umi@4.7.0",
+        "@umijs/preset-umi@4.7.0",
+        "@umijs/bundler-utoopack@4.7.0",
+        "@utoo/pack@1.5.0"
+      ]
+    },
+    {
+      "dependency": "react",
+      "foundVersion": "18.2.0",
+      "wantedRange": "15.x || ^16.0.0-0",
+      "parents": ["dva@2.5.0-beta.2"]
+    },
+    {
+      "dependency": "react",
+      "foundVersion": "18.2.0",
+      "wantedRange": "^0.14.0 || ^15.0.0-0 || ^16.0.0-0",
+      "parents": [
+        "dva@2.5.0-beta.2",
+        "react-redux@5.1.2"
+      ]
+    },
+    {
+      "dependency": "react",
+      "foundVersion": "18.2.0",
+      "wantedRange": "^0.14.0 || ^15.0.0-rc || ^16.0.0-rc || ^16.0.0",
+      "parents": [
+        "braft-editor@2.3.9",
+        "braft-convert@2.3.0",
+        "draft-js@0.10.5"
+      ]
+    },
+    {
+      "dependency": "react",
+      "foundVersion": "18.2.0",
+      "wantedRange": "^15.0.2|| ^16.0.0-rc || ^16.0.0",
+      "parents": ["braft-editor@2.3.9"]
+    },
+    {
+      "dependency": "react",
+      "foundVersion": "18.2.0",
+      "wantedRange": "^16.0.0",
+      "parents": [
+        "braft-editor@2.3.9",
+        "braft-convert@2.3.0"
+      ]
+    },
+    {
+      "dependency": "react",
+      "foundVersion": "18.2.0",
+      "wantedRange": "^16.3.0",
+      "parents": [
+        "@umijs/max@4.7.0",
+        "@umijs/plugins@4.7.0",
+        "react-intl@3.12.1"
+      ]
+    },
+    {
+      "dependency": "react",
+      "foundVersion": "18.2.0",
+      "wantedRange": "^16.4.1",
+      "parents": [
+        "braft-editor@2.3.9",
+        "braft-finder@0.0.19"
+      ]
+    },
+    {
+      "dependency": "react",
+      "foundVersion": "18.2.0",
+      "wantedRange": "^16.8.0 || ^17.0.0",
+      "parents": [
+        "@umijs/max@4.7.0",
+        "@umijs/plugins@4.7.0",
+        "@ahooksjs/use-request@2.8.15"
+      ]
+    },
+    {
+      "dependency": "react-dom",
+      "foundVersion": "18.2.0",
+      "wantedRange": "15.x || ^16.0.0-0",
+      "parents": ["dva@2.5.0-beta.2"]
+    },
+    {
+      "dependency": "react-dom",
+      "foundVersion": "18.2.0",
+      "wantedRange": "^0.14.0 || ^15.0.0-rc || ^16.0.0-rc || ^16.0.0",
+      "parents": [
+        "braft-editor@2.3.9",
+        "braft-convert@2.3.0",
+        "draft-js@0.10.5"
+      ]
+    },
+    {
+      "dependency": "react-dom",
+      "foundVersion": "18.2.0",
+      "wantedRange": "^15.0.2|| ^16.0.0-rc || ^16.0.0",
+      "parents": ["braft-editor@2.3.9"]
+    },
+    {
+      "dependency": "react-dom",
+      "foundVersion": "18.2.0",
+      "wantedRange": "^16.4.1",
+      "parents": [
+        "braft-editor@2.3.9",
+        "braft-finder@0.0.19"
+      ]
+    }
+  ],
+  "allowedMissingOptional": [
+    "@minify-html/node",
+    "@rspack/core",
+    "@swc/core",
+    "@swc/css",
+    "@swc/html",
+    "@swc/wasm",
+    "@types/webpack",
+    "@volar/vue-language-plugin-pug",
+    "@volar/vue-typescript",
+    "bufferutil",
+    "canvas",
+    "clean-css",
+    "cssnano",
+    "csso",
+    "debug",
+    "encoding",
+    "esbuild",
+    "fibers",
+    "html-minifier-terser",
+    "luxon",
+    "node-notifier",
+    "node-sass",
+    "postcss",
+    "postcss-html",
+    "postcss-jsx",
+    "postcss-less",
+    "postcss-markdown",
+    "postcss-scss",
+    "react-native",
+    "sass-embedded",
+    "sockjs-client",
+    "stylus",
+    "supports-color",
+    "uglify-js",
+    "utf-8-validate",
+    "webpack-cli",
+    "webpack-dev-server",
+    "webpack-hot-middleware",
+    "webpack-plugin-serve"
+  ]
+}
