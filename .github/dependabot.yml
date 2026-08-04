@@ -1,3 +1,5 @@
+# Temporary trigger for the one-shot consolidated dependency refresh.
+# The refresh job replaces this file with grouped component updates.
 # To get started with Dependabot version updates, you'll need to specify which
 # package ecosystems to update and where the package manifests are located.
 # Please see the documentation for all configuration options:
