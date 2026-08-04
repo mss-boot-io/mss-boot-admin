@@ -1,5 +1,5 @@
 import { act, fireEvent, render } from '@testing-library/react';
-import React from 'react';
+import * as React from 'react';
 import { TestBrowser } from '@@/testBrowser';
 import { persistLoginState } from './index';
 import { resolveSafeRedirect } from './redirect';
