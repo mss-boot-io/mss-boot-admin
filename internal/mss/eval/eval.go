@@ -355,7 +355,7 @@ func checkSkills(root string, minimum int) (map[string]any, error) {
 }
 
 func checkDoctor(ctx context.Context, projectContext *project.Context) (map[string]any, error) {
-	report := doctor.Run(ctx, projectContext)
+	report := doctor.Run(ctx, projectContext, doctor.WithComponents(doctor.ComponentAgent))
 	failedRequired := make([]string, 0)
 	for _, check := range report.Checks {
 		if check.Required && check.Status == doctor.StatusFail {
@@ -365,7 +365,11 @@ func checkDoctor(ctx context.Context, projectContext *project.Context) (map[stri
 	if len(failedRequired) > 0 {
 		return map[string]any{"failedRequired": failedRequired}, fmt.Errorf("required doctor checks failed: %s", strings.Join(failedRequired, ", "))
 	}
-	return map[string]any{"ready": report.Ready, "checks": len(report.Checks)}, nil
+	return map[string]any{
+		"ready":      report.Ready,
+		"checks":     len(report.Checks),
+		"components": report.Components,
+	}, nil
 }
 
 func checkModuleSpec(root, inputPath string) (map[string]any, error) {
