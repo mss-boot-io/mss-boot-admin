@@ -1,66 +1,66 @@
 package controller
 
-/*
- * @Author: lwnmengjing
- * @Date: 2023/1/26 01:22:21
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2023/1/26 01:22:21
- */
-
 import (
 	"fmt"
+	"net/http"
 	"strings"
-
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions/k8s"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kamva/mgm/v3"
-
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions/gorm"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions/k8s"
 	mgmActions "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions/mgm"
 )
 
-// Simple controller
+// Simple dispatches standard controller actions to a configured provider.
 type Simple struct {
 	Base
 	options Options
 }
 
-// NewSimple new simple
+// NewSimple creates a controller.
 func NewSimple(options ...Option) *Simple {
-	s := &Simple{
-		options: DefaultOptions(),
-	}
-	for i := range options {
-		options[i](&s.options)
+	s := &Simple{options: DefaultOptions()}
+	for _, option := range options {
+		if option != nil {
+			option(&s.options)
+		}
 	}
 	return s
 }
 
-// GetProvider get provider
+// GetProvider returns the configured model provider.
 func (e *Simple) GetProvider() fmt.Stringer {
 	return e.options.modelProvider
 }
 
-// Path route path
+// Path preserves the historical model-derived route for GORM and MongoDB
+// controllers. Kubernetes controllers without a database model fall back to
+// their resource type instead of passing nil to mgm.CollName.
 func (e *Simple) Path() string {
-	if e.options.model == nil {
-		return ""
+	if e.options.model != nil {
+		return normalizePath(mgm.CollName(e.options.model))
 	}
-	return strings.ReplaceAll(strings.ToLower(mgm.CollName(e.options.model)), "_", "-")
+	if e.options.modelProvider == actions.ModelProviderK8S {
+		return normalizePath(string(e.options.resourceType))
+	}
+	return ""
 }
 
-// Handlers return handlers
-func (e *Simple) Handlers() gin.HandlersChain {
+// Handlers is intentionally empty because authentication can vary by action.
+// Common controller middleware is attached by GetAction so it runs exactly once
+// and preserves WithNoAuthAction semantics.
+func (*Simple) Handlers() gin.HandlersChain {
 	return nil
 }
 
-// GetAction get action
+// GetAction returns an action with consistent authentication and middleware
+// semantics across built-in and custom providers.
 func (e *Simple) GetAction(key string) response.Action {
 	if action := e.options.getAction(key); action != nil {
-		return action
+		return wrapAction(action, e.actionHandlers(key))
 	}
 	switch e.options.modelProvider {
 	case actions.ModelProviderMgm:
@@ -75,21 +75,19 @@ func (e *Simple) GetAction(key string) response.Action {
 }
 
 func (e *Simple) getActionMgm(key string) response.Action {
-	b := mgmActions.Base{
-		Model: e.options.model,
-	}
+	base := mgmActions.Base{Model: e.options.model}
+	var action response.Action
 	switch key {
 	case response.Get:
-		return mgmActions.NewGet(b, e.GetKey())
+		action = mgmActions.NewGet(base, e.GetKey())
 	case response.Control:
-		return mgmActions.NewControl(b, e.GetKey())
+		action = mgmActions.NewControl(base, e.GetKey())
 	case response.Delete:
-		return mgmActions.NewDelete(b, e.GetKey())
+		action = mgmActions.NewDelete(base, e.GetKey())
 	case response.Search:
-		return mgmActions.NewSearch(b, e.options.search)
-	default:
-		return nil
+		action = mgmActions.NewSearch(base, e.options.search)
 	}
+	return wrapAction(action, e.actionHandlers(key))
 }
 
 func (e *Simple) getActionGorm(key string) response.Action {
@@ -98,7 +96,7 @@ func (e *Simple) getActionGorm(key string) response.Action {
 		gorm.WithScope(e.options.scope),
 		gorm.WithTreeField(e.options.treeField),
 		gorm.WithDepth(e.options.depth),
-		gorm.WithHandlers(e.options.handlers),
+		gorm.WithHandlers(e.commonHandlers(key)),
 		gorm.WithControlHandlers(e.options.createHandlers),
 		gorm.WithGetHandlers(e.options.getHandlers),
 		gorm.WithDeleteHandlers(e.options.deleteHandlers),
@@ -115,9 +113,6 @@ func (e *Simple) getActionGorm(key string) response.Action {
 		gorm.WithAfterSearch(e.options.afterSearch),
 		gorm.WithKey(e.GetKey()),
 		gorm.WithSearch(e.options.search),
-	}
-	if e.options.needAuth(key) {
-		opts = append(opts, gorm.WithHandlers(gin.HandlersChain{response.AuthHandler}))
 	}
 	switch key {
 	case response.Get:
@@ -137,7 +132,7 @@ func (e *Simple) getActionK8S(key string) response.Action {
 	opts := []k8s.Option{
 		k8s.WithModel(e.options.resourceModel),
 		k8s.WithResourceType(e.options.resourceType),
-		k8s.WithHandlers(e.options.handlers),
+		k8s.WithHandlers(e.commonHandlers(key)),
 		k8s.WithControlHandlers(e.options.createHandlers),
 		k8s.WithGetHandlers(e.options.getHandlers),
 		k8s.WithDeleteHandlers(e.options.deleteHandlers),
@@ -154,9 +149,6 @@ func (e *Simple) getActionK8S(key string) response.Action {
 		k8s.WithAfterSearch(e.options.resourceAfterSearch),
 		k8s.WithKey(e.GetKey()),
 	}
-	if e.options.needAuth(key) {
-		opts = append(opts, k8s.WithHandlers(gin.HandlersChain{response.AuthHandler}))
-	}
 	switch key {
 	case response.Get:
 		return k8s.NewGet(opts...)
@@ -169,4 +161,66 @@ func (e *Simple) getActionK8S(key string) response.Action {
 	default:
 		return nil
 	}
+}
+
+func (e *Simple) commonHandlers(key string) gin.HandlersChain {
+	handlers := make(gin.HandlersChain, 0, len(e.options.handlers)+1)
+	if e.options.needAuth(key) {
+		handlers = append(handlers, configuredAuthHandler())
+	}
+	handlers = append(handlers, e.options.handlers...)
+	return handlers
+}
+
+func (e *Simple) actionHandlers(key string) gin.HandlersChain {
+	handlers := e.commonHandlers(key)
+	switch key {
+	case response.Get:
+		handlers = append(handlers, e.options.getHandlers...)
+	case response.Control:
+		handlers = append(handlers, e.options.createHandlers...)
+	case response.Delete:
+		handlers = append(handlers, e.options.deleteHandlers...)
+	case response.Search:
+		handlers = append(handlers, e.options.searchHandlers...)
+	}
+	return handlers
+}
+
+func configuredAuthHandler() gin.HandlerFunc {
+	if response.AuthHandler != nil {
+		return response.AuthHandler
+	}
+	return func(c *gin.Context) {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"success":      false,
+			"errorMessage": "authentication middleware is not configured",
+		})
+	}
+}
+
+func wrapAction(action response.Action, handlers gin.HandlersChain) response.Action {
+	if action == nil || len(handlers) == 0 {
+		return action
+	}
+	return &actionWithHandlers{
+		Action:   action,
+		handlers: append(gin.HandlersChain(nil), handlers...),
+	}
+}
+
+type actionWithHandlers struct {
+	response.Action
+	handlers gin.HandlersChain
+}
+
+func (e *actionWithHandlers) Handler() gin.HandlersChain {
+	chain := append(gin.HandlersChain(nil), e.handlers...)
+	return append(chain, e.Action.Handler()...)
+}
+
+func normalizePath(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.ReplaceAll(name, "_", "-")
+	return strings.ToLower(name)
 }
