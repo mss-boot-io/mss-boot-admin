@@ -117,7 +117,7 @@ jobs:
 
       - name: Probe removal of legacy Umi preset
         run: |
-          set -euo pipefail
+          set +e
           probe="${RUNNER_TEMP}/web-no-legacy-preset"
           mkdir -p "${probe}"
           rsync -a \
@@ -151,17 +151,26 @@ jobs:
           cd "${probe}"
           pnpm install --lockfile-only --ignore-scripts --strict-peer-dependencies \
             > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lock.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lock.exit"
+
           pnpm install --frozen-lockfile --ignore-scripts --strict-peer-dependencies --prefer-offline \
             > "${RUNNER_TEMP}/web-deps-usage/no-legacy-install.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-install.exit"
+
           pnpm exec max setup \
             > "${RUNNER_TEMP}/web-deps-usage/no-legacy-setup.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-setup.exit"
+
           pnpm lint:js > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lint.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lint.exit"
           pnpm tsc > "${RUNNER_TEMP}/web-deps-usage/no-legacy-tsc.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-tsc.exit"
           MOCK=none timeout 180s pnpm test -- --runInBand \
             > "${RUNNER_TEMP}/web-deps-usage/no-legacy-test.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-test.exit"
           pnpm build:local > "${RUNNER_TEMP}/web-deps-usage/no-legacy-build.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-build.exit"
 
-          set +e
           pnpm audit --prod --json \
             > "${RUNNER_TEMP}/web-deps-usage/no-legacy-audit-prod.json" \
             2> "${RUNNER_TEMP}/web-deps-usage/no-legacy-audit-prod.err"
@@ -169,11 +178,13 @@ jobs:
           pnpm list --depth 0 --json \
             > "${RUNNER_TEMP}/web-deps-usage/no-legacy-top-level.json" \
             2> "${RUNNER_TEMP}/web-deps-usage/no-legacy-top-level.err"
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-top-level.exit"
           grep -c '^  [^ ].*:$' pnpm-lock.yaml \
             > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lock-entry-count.txt"
           exit 0
 
       - name: Upload usage and migration probe
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: web-deps-usage
