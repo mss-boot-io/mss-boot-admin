@@ -252,6 +252,8 @@ jobs:
           pnpm dedupe --config.strict-peer-dependencies=false
           pnpm dlx update-browserslist-db@latest
           pnpm install --lockfile-only --strict-peer-dependencies=false
+          pnpm dedupe --config.strict-peer-dependencies=false
+          pnpm install --lockfile-only --strict-peer-dependencies=false
 
       - name: Upgrade and lock Workers Site dependency
         working-directory: web/antd/workers-site
@@ -281,7 +283,7 @@ jobs:
 
       - name: Generate Umi files explicitly
         working-directory: web/antd
-        run: pnpm setup
+        run: pnpm run setup
 
       - name: Validate dependency graph and security policy
         working-directory: web/antd
