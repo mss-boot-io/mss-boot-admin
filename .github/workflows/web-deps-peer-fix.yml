@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - refactor/split-admin-module-and-coverage-r1
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
