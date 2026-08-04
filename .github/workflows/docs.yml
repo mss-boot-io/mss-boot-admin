@@ -1,7 +1,6 @@
 name: Docs
 
 on:
-  workflow_dispatch:
   pull_request:
     branches:
       - main
@@ -14,63 +13,79 @@ on:
     paths:
       - 'docs/**'
       - '.github/workflows/docs.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: docs-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CI: 'true'
+  HUSKY: '0'
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: docs
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: 9
+          version: 9.15.9
+
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: docs/pnpm-lock.yaml
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Build
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Build documentation
         run: pnpm build
-      - name: Package dist
-        run: tar -czvf dist.tar.gz dist
-      - name: Upload artifact
+
+      - name: Upload deployment artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v7
         with:
-          name: docs
-          path: docs/dist.tar.gz
+          name: docs-dist
+          path: docs/dist
+          if-no-files-found: error
           retention-days: 3
 
   deployment:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    needs: build
     name: deployment
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     environment: prod
     concurrency:
       group: cloudflare-docs-prod
       cancel-in-progress: false
     steps:
-      - name: Checkout
+      - name: Checkout deployment configuration
         uses: actions/checkout@v7
-      - name: Download artifact
+
+      - name: Download documentation artifact
         uses: actions/download-artifact@v8
         with:
-          name: docs
-          path: docs
-      - name: Unpack artifact
-        working-directory: docs
-        run: tar -xzvf dist.tar.gz
-      - name: Deploy prod
+          name: docs-dist
+          path: docs/dist
+
+      - name: Deploy production documentation
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.cf_api_token }}

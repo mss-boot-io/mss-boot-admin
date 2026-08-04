@@ -4,8 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/doctor"
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
 func TestCatalogRejectsDuplicateCases(t *testing.T) {
@@ -46,6 +50,25 @@ func TestRunMCPToolsEvaluation(t *testing.T) {
 	}
 	if latest.Project != "fixture" || !latest.Success {
 		t.Fatalf("unexpected latest report: %#v", latest)
+	}
+}
+
+func TestDoctorEvaluationUsesAgentScope(t *testing.T) {
+	root := writeEvaluationFixture(t)
+	projectContext, err := project.Load(root)
+	if err != nil {
+		t.Fatalf("load project fixture: %v", err)
+	}
+	details, err := checkDoctor(context.Background(), projectContext)
+	if err != nil {
+		t.Fatalf("check Agent doctor: %v", err)
+	}
+	components, ok := details["components"].([]doctor.Component)
+	if !ok {
+		t.Fatalf("doctor components have unexpected type: %#v", details["components"])
+	}
+	if want := []doctor.Component{doctor.ComponentAgent}; !reflect.DeepEqual(components, want) {
+		t.Fatalf("doctor components = %#v, want %#v", components, want)
 	}
 }
 

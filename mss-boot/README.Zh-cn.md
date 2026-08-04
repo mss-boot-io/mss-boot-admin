@@ -1,6 +1,6 @@
 # mss-boot
 
-[![CI](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/ci.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/ci.yml)
+[![CI](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/mss-boot-ci.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/mss-boot-ci.yml)
 [![CodeQL](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/codeql.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/codeql.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 

@@ -1,60 +1,70 @@
-# Sample workflow for building and deploying a Jekyll site to GitHub Pages
 name: Swagger
 
 on:
-  # Runs on pushes targeting the default branch
   push:
     branches:
       - main
-
-  # Allows you to run this workflow manually from the Actions tab
+    paths:
+      - '**/*.go'
+      - '!mss-boot/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'go.work'
+      - 'go.work.sum'
+      - '.github/workflows/swagger.yml'
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  group: swagger-pages
+  cancel-in-progress: true
 
 jobs:
-  # Build job
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Setup golang
+
+      - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: 1.26
-      - name: Install swag
-        run: go install github.com/swaggo/swag/cmd/swag@latest
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            go.work.sum
+            mss-boot/go.sum
+
+      - name: Install pinned Swagger generator
+        run: go install github.com/swaggo/swag/cmd/swag@v1.16.6
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
 
-      - name: Generate
+      - name: Generate API documentation
         run: go generate ./...
 
-      - name: Delete Redundant Files
-        run: rm -rf docs/docs.go
-      - name: Upload artifact
+      - name: Remove generated Go source from site artifact
+        run: rm -f docs/docs.go
+
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
           path: ./docs
 
-  # Deployment job
   deploy:
+    name: deploy
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     needs: build
     steps:
       - name: Deploy to GitHub Pages

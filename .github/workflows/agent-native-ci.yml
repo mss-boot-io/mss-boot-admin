@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - 'codex/**'
     paths:
       - '.mss/**'
       - '.agents/**'
@@ -34,7 +33,6 @@ on:
   pull_request:
     branches:
       - main
-      - codex/monorepo-integration
     paths:
       - '.mss/**'
       - '.agents/**'
@@ -67,8 +65,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: agent-native-ci-${{ github.workflow }}-${{ github.ref }}
+  group: agent-native-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
 
 jobs:
   contracts-and-go:
@@ -83,20 +84,12 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
           cache: true
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9.15.9
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: docs/pnpm-lock.yaml
+          cache-dependency-path: |
+            go.sum
+            go.work.sum
+            mss-boot/go.sum
 
       - name: Reject disabled assistant integration
         run: |
@@ -104,7 +97,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          root = Path('.')
           banned = ('copi' + 'lot').lower()
           scan = [
               Path('AGENTS.md'),
@@ -174,8 +166,8 @@ jobs:
       - name: Load project context
         run: go run ./cmd/mss context --format json > "${RUNNER_TEMP}/mss-context.json"
 
-      - name: Run strict environment doctor
-        run: go run ./cmd/mss doctor --strict --format json > "${RUNNER_TEMP}/mss-doctor.json"
+      - name: Run strict Agent environment doctor
+        run: go run ./cmd/mss doctor --strict --component agent --format json > "${RUNNER_TEMP}/mss-doctor.json"
 
       - name: Validate Agent Skills
         run: go run ./cmd/mss skills validate --format json > "${RUNNER_TEMP}/mss-skills.json"
@@ -224,11 +216,6 @@ jobs:
       - name: Run deterministic Agent evaluations
         run: go run ./cmd/mss eval run --all --format json > "${RUNNER_TEMP}/mss-evals.json"
 
-      - name: Build Agent documentation
-        run: |
-          pnpm --dir docs install --frozen-lockfile
-          pnpm --dir docs build
-
       - name: Upload Agent reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -269,7 +256,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
           cache: true
 
       - name: Test portable Agent packages

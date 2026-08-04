@@ -26,6 +26,67 @@ const (
 	StatusInfo Status = "info"
 )
 
+// Component identifies one independently validated monorepo component.
+type Component string
+
+const (
+	ComponentAll       Component = "all"
+	ComponentBackend   Component = "backend"
+	ComponentFramework Component = "framework"
+	ComponentFrontend  Component = "frontend"
+	ComponentDocs      Component = "docs"
+	ComponentAgent     Component = "agent"
+)
+
+var componentOrder = []Component{
+	ComponentBackend,
+	ComponentFramework,
+	ComponentFrontend,
+	ComponentDocs,
+	ComponentAgent,
+}
+
+// Options configures the readiness surface checked by Run.
+type Options struct {
+	Components []Component
+}
+
+// Option mutates doctor Options.
+type Option func(*Options)
+
+// WithComponents limits checks to the supplied monorepo components.
+func WithComponents(components ...Component) Option {
+	return func(options *Options) {
+		options.Components = append([]Component(nil), components...)
+	}
+}
+
+// ParseComponents validates CLI component names and returns stable, deduplicated values.
+func ParseComponents(values []string) ([]Component, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	selected := make(map[Component]bool, len(values))
+	for _, value := range values {
+		component := Component(strings.ToLower(strings.TrimSpace(value)))
+		switch component {
+		case ComponentAll:
+			return []Component{ComponentAll}, nil
+		case ComponentBackend, ComponentFramework, ComponentFrontend, ComponentDocs, ComponentAgent:
+			selected[component] = true
+		default:
+			return nil, fmt.Errorf("unsupported doctor component %q", value)
+		}
+	}
+	components := make([]Component, 0, len(selected))
+	for _, component := range componentOrder {
+		if selected[component] {
+			components = append(components, component)
+		}
+	}
+	return components, nil
+}
+
 // Check records one deterministic doctor result.
 type Check struct {
 	ID          string `json:"id"`
@@ -38,47 +99,89 @@ type Check struct {
 
 // Report is emitted in text or JSON form for humans and agents.
 type Report struct {
-	Project     string    `json:"project"`
-	Root        string    `json:"root"`
-	GeneratedAt time.Time `json:"generatedAt"`
-	Platform    string    `json:"platform"`
-	Ready       bool      `json:"ready"`
-	Checks      []Check   `json:"checks"`
+	Project     string      `json:"project"`
+	Root        string      `json:"root"`
+	GeneratedAt time.Time   `json:"generatedAt"`
+	Platform    string      `json:"platform"`
+	Components  []Component `json:"components"`
+	Ready       bool        `json:"ready"`
+	Checks      []Check     `json:"checks"`
 }
 
 // Run executes environment and repository checks without mutating the workspace.
-func Run(ctx context.Context, projectContext *project.Context) Report {
+// Without options it preserves the historical full-repository readiness check.
+func Run(ctx context.Context, projectContext *project.Context, options ...Option) Report {
+	configured := Options{Components: []Component{ComponentAll}}
+	for _, option := range options {
+		if option != nil {
+			option(&configured)
+		}
+	}
+	components := normalizeComponents(configured.Components)
+	selected := componentSet(components)
+
 	report := Report{
 		Project:     projectContext.Project.Metadata.Name,
 		Root:        projectContext.Root,
 		GeneratedAt: time.Now().UTC(),
 		Platform:    runtime.GOOS + "/" + runtime.GOARCH,
+		Components:  components,
 		Ready:       true,
 	}
 
-	report.Checks = append(report.Checks,
-		fileCheck(projectContext.Root, ".mss/project.yaml", true),
-		fileCheck(projectContext.Root, ".mss/capabilities.yaml", true),
-		fileCheck(projectContext.Root, ".mss/commands.yaml", true),
-		fileCheck(projectContext.Root, "go.mod", true),
-		fileCheck(projectContext.Root, "go.work", true),
-		fileCheck(projectContext.Root, "web/antd/pnpm-lock.yaml", true),
-		fileCheck(projectContext.Root, "docs/pnpm-lock.yaml", true),
-	)
+	if selected(ComponentAgent) {
+		report.Checks = append(report.Checks,
+			fileCheck(projectContext.Root, ".mss/project.yaml", true),
+			fileCheck(projectContext.Root, ".mss/capabilities.yaml", true),
+			fileCheck(projectContext.Root, ".mss/commands.yaml", true),
+		)
+	}
+	if selected(ComponentBackend) {
+		report.Checks = append(report.Checks,
+			fileCheck(projectContext.Root, "go.mod", true),
+			fileCheck(projectContext.Root, "go.work", true),
+		)
+	}
+	if selected(ComponentFramework) {
+		report.Checks = append(report.Checks,
+			fileCheck(projectContext.Root, "mss-boot/go.mod", true),
+			fileCheck(projectContext.Root, "mss-boot/go.sum", true),
+		)
+	}
+	if selected(ComponentFrontend) {
+		report.Checks = append(report.Checks,
+			fileCheck(projectContext.Root, "web/antd/pnpm-lock.yaml", true),
+		)
+	}
+	if selected(ComponentDocs) {
+		report.Checks = append(report.Checks,
+			fileCheck(projectContext.Root, "docs/pnpm-lock.yaml", true),
+		)
+	}
 
-	report.Checks = append(report.Checks,
-		toolCheck(ctx, "git", true, "git", "--version"),
-		toolCheck(ctx, "go", true, "go", "version"),
-		toolCheck(ctx, "node", true, "node", "--version"),
-		toolCheck(ctx, "pnpm", true, "pnpm", "--version"),
-		toolCheck(ctx, "docker", false, "docker", "--version"),
-	)
+	report.Checks = append(report.Checks, toolCheck(ctx, "git", true, "git", "--version"))
+	if selected(ComponentBackend) || selected(ComponentFramework) || selected(ComponentAgent) {
+		report.Checks = append(report.Checks, toolCheck(ctx, "go", true, "go", "version"))
+	}
+	if selected(ComponentFrontend) || selected(ComponentDocs) {
+		report.Checks = append(report.Checks,
+			toolCheck(ctx, "node", true, "node", "--version"),
+			toolCheck(ctx, "pnpm", true, "pnpm", "--version"),
+		)
+	}
+	if selected(ComponentBackend) {
+		report.Checks = append(report.Checks, toolCheck(ctx, "docker", false, "docker", "--version"))
+	}
 
-	report.Checks = append(report.Checks,
-		portCheck("backend-port", 8080),
-		portCheck("frontend-port", 8000),
-		portCheck("redis-port", 6379),
-	)
+	if selected(ComponentBackend) {
+		report.Checks = append(report.Checks,
+			portCheck("backend-port", 8080),
+			portCheck("redis-port", 6379),
+		)
+	}
+	if selected(ComponentFrontend) {
+		report.Checks = append(report.Checks, portCheck("frontend-port", 8000))
+	}
 
 	for _, check := range report.Checks {
 		if check.Required && check.Status == StatusFail {
@@ -104,6 +207,7 @@ func (r Report) Text() string {
 	fmt.Fprintf(&builder, "mss doctor: %s\n", r.Project)
 	fmt.Fprintf(&builder, "root: %s\n", r.Root)
 	fmt.Fprintf(&builder, "platform: %s\n", r.Platform)
+	fmt.Fprintf(&builder, "components: %s\n", joinComponents(r.Components))
 	fmt.Fprintf(&builder, "ready: %t\n\n", r.Ready)
 	for _, check := range r.Checks {
 		required := "optional"
@@ -120,6 +224,48 @@ func (r Report) Text() string {
 		}
 	}
 	return builder.String()
+}
+
+func normalizeComponents(components []Component) []Component {
+	if len(components) == 0 {
+		return []Component{ComponentAll}
+	}
+	selected := make(map[Component]bool, len(components))
+	for _, component := range components {
+		if component == ComponentAll {
+			return []Component{ComponentAll}
+		}
+		selected[component] = true
+	}
+	normalized := make([]Component, 0, len(selected))
+	for _, component := range componentOrder {
+		if selected[component] {
+			normalized = append(normalized, component)
+		}
+	}
+	if len(normalized) == 0 {
+		return []Component{ComponentAll}
+	}
+	return normalized
+}
+
+func componentSet(components []Component) func(Component) bool {
+	all := len(components) == 1 && components[0] == ComponentAll
+	selected := make(map[Component]bool, len(components))
+	for _, component := range components {
+		selected[component] = true
+	}
+	return func(component Component) bool {
+		return all || selected[component]
+	}
+}
+
+func joinComponents(components []Component) string {
+	values := make([]string, len(components))
+	for i, component := range components {
+		values[i] = string(component)
+	}
+	return strings.Join(values, ",")
 }
 
 func fileCheck(root, relative string, required bool) Check {
