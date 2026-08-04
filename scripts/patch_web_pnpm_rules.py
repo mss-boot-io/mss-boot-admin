@@ -22,7 +22,7 @@ def main() -> None:
         {
             "@ant-design/charts": "2.6.7",
             "@ant-design/pro-components": "2.9.20",
-            "ahooks": "3.9.8",
+            "ahooks": "3.9.7",
         }
     )
     pnpm = package.setdefault("pnpm", {})
