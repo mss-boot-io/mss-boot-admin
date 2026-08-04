@@ -14,9 +14,13 @@ and the project uses semantic versioning for nested-module releases.
 - HTTP and gRPC lifecycle tests for listener errors, TLS configuration,
   operational hooks, metrics registration, and bounded shutdown.
 - Race-oriented tests for task storage and shutdown, validation translator
-  initialization, request binding plans, provider authentication, and search
-  reflection.
-- A compiled basic HTTP example and an architecture contract document.
+  initialization, request binding plans, provider authentication, search
+  reflection, database ownership, and per-connection IAM token refresh.
+- A compiled basic HTTP example and architecture contracts for runtime/request
+  behavior and database ownership/RDS IAM.
+- `gormdb.Handle`, `Database.Open`, `InstallDefault`, `DefaultHandle`, and
+  `ClearDefault` APIs for explicit database resource ownership and gradual
+  migration away from process globals.
 
 ### Changed
 
@@ -43,6 +47,11 @@ and the project uses semantic versioning for nested-module releases.
   pagination, and returns initialization and row-iteration errors explicitly.
 - GORM, MGM, Kubernetes, and custom actions share the same per-action
   authentication and middleware semantics.
+- Database initialization can return an owned Handle and errors without
+  mutating configuration or package globals. The historical `Init` method is a
+  logging-only compatibility wrapper rather than a process-terminating API.
+- RDS IAM generates credentials before every new MySQL or PostgreSQL physical
+  connection and caps pool connection lifetime at 14 minutes.
 
 ### Fixed
 
@@ -65,6 +74,11 @@ and the project uses semantic versioning for nested-module releases.
   programming-error panic.
 - Removed unused synchronization-bearing table-test fields that caused `go vet`
   `copylocks` failures.
+- Replaced GORM database initialization exits with returned errors and ensured
+  post-open failures close the owned primary connection pool.
+- Fixed PostgreSQL RDS IAM storing one startup-time token in the DSN.
+- Fixed MySQL RDS IAM forcing `tls=skip-verify` and mutating the global dialector
+  registry.
 
 ### Security
 
@@ -73,6 +87,10 @@ and the project uses semantic versioning for nested-module releases.
 - HTTP servers have non-zero defensive I/O timeouts by default.
 - Invalid TLS configuration is returned to the embedding application as an
   error instead of terminating the process.
+- RDS IAM verifies certificate chains and server names by default, supports an
+  explicit root CA file, and prevents connection params from downgrading TLS.
+- `insecureSkipVerify` remains only as an explicit compatibility escape hatch
+  and defaults to false.
 
 ### Compatibility
 
@@ -87,6 +105,13 @@ and the project uses semantic versioning for nested-module releases.
 - Correctness changes make previously ignored pagination, filters, and
   authentication settings effective. Roll back this change set as a unit if an
   application depended on the old unsafe behavior.
+- `gormdb.DB`, `gormdb.Enforcer`, and `Database.Init` remain available while
+  applications migrate to owned Handles. `Database.Init` no longer exits on
+  failure; callers that require startup guarantees must use `Open` or
+  `InitContext` and handle the returned error.
+- RDS IAM combined with dbresolver registrations now returns an explicit error
+  until every source and replica pool has an ownership-aware dynamic credential
+  adapter.
 
 ### Documentation
 
@@ -95,6 +120,8 @@ and the project uses semantic versioning for nested-module releases.
 - Removed historical free-form migration examples that referenced APIs not
   present in the current module. Released source tags remain the authority for
   older behavior.
+- Added database Handle ownership, RDS IAM TLS, migration, and rollback
+  guidance.
 
 ## v0.7.3 - 2026-06-07
 
