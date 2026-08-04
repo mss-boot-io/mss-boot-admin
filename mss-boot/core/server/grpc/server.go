@@ -1,42 +1,39 @@
 package grpc
 
-/*
- * @Author: lwnmengjing
- * @Date: 2021/6/2 4:26 下午
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2021/6/2 4:26 下午
- */
-
 import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
-	"os"
 	"sync"
 
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
-
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 )
 
-// Server server
+var (
+	// ErrAlreadyStarted is returned when a gRPC server is started twice.
+	ErrAlreadyStarted = errors.New("gRPC server has already been started")
+	// ErrIncompleteTLSConfiguration is returned when only one TLS file is set.
+	ErrIncompleteTLSConfiguration = errors.New("both TLS certificate and key files are required")
+)
+
+// Server is a managed gRPC server.
 type Server struct {
 	name    string
 	srv     *grpc.Server
 	mux     sync.Mutex
 	started bool
 	options Options
+	initErr error
 }
 
-// New grpc server
+// New creates a gRPC server and records initialization errors for Start.
 func New(name string, options ...Option) *Server {
 	s := &Server{name: name}
 	s.Options(options...)
@@ -44,40 +41,141 @@ func New(name string, options ...Option) *Server {
 	return s
 }
 
-// String string
+// String returns the server name.
 func (e *Server) String() string {
 	return e.name
 }
 
-// Options set options
+// Options resets defaults and applies options.
 func (e *Server) Options(options ...Option) {
 	e.options = *defaultOptions()
-	for _, o := range options {
-		o(&e.options)
+	for _, option := range options {
+		if option != nil {
+			option(&e.options)
+		}
 	}
 }
 
-// Server return server
+// Server returns the underlying gRPC server.
 func (e *Server) Server() *grpc.Server {
 	return e.srv
 }
 
-// NewServer new a server
+// NewServer rebuilds the underlying gRPC server. Initialization failures are
+// returned later by Start so the historical constructor remains source
+// compatible.
 func (e *Server) NewServer() {
-	grpc.EnableTracing = true
-	e.srv = grpc.NewServer(e.initGrpcServerOptions()...)
-	prometheus.MustRegister(e.options.metrcsServer)
-	e.options.metrcsServer.InitializeMetrics(e.srv)
-	reflection.Register(e.srv)
+	e.srv, e.initErr = e.buildServer()
 }
 
-// Register register
-func (e *Server) Register(do func(server *Server)) {
-	do(e)
+// Register invokes a service registration callback when initialization
+// succeeded. Start still reports any initialization failure.
+func (e *Server) Register(register func(server *Server)) {
+	if register != nil && e.srv != nil {
+		register(e)
+	}
 }
 
-func (e *Server) initGrpcServerOptions() []grpc.ServerOption {
-	opts := []grpc.ServerOption{
+// Start listens and blocks until the gRPC server exits or its lifecycle context
+// is cancelled.
+func (e *Server) Start(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, stop := mergeContexts(ctx, e.options.ctx)
+	defer stop()
+
+	e.mux.Lock()
+	if e.started {
+		e.mux.Unlock()
+		return ErrAlreadyStarted
+	}
+	if e.initErr != nil {
+		e.mux.Unlock()
+		return e.initErr
+	}
+	if e.srv == nil {
+		e.mux.Unlock()
+		return errors.New("gRPC server is not initialized")
+	}
+
+	listener, err := net.Listen("tcp", e.options.addr)
+	if err != nil {
+		e.mux.Unlock()
+		return fmt.Errorf("gRPC server listening on %s failed: %w", e.options.addr, err)
+	}
+	e.started = true
+	srv := e.srv
+	e.mux.Unlock()
+
+	serveErr := make(chan error, 1)
+	go func() {
+		serveErr <- srv.Serve(listener)
+	}()
+
+	if e.options.startedHook != nil {
+		e.options.startedHook()
+	}
+	server.PrintRunningInfo(listener.Addr().String(), "grpc")
+
+	select {
+	case err := <-serveErr:
+		return normalizeServeError(err)
+	case <-ctx.Done():
+		shutdownErr := e.shutdownWithTimeout()
+		return errors.Join(shutdownErr, normalizeServeError(<-serveErr))
+	}
+}
+
+// Shutdown gracefully stops the server and forcefully stops it when ctx ends.
+func (e *Server) Shutdown(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	e.mux.Lock()
+	srv := e.srv
+	e.mux.Unlock()
+	if srv == nil {
+		return nil
+	}
+
+	done := make(chan struct{})
+	go func() {
+		srv.GracefulStop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		srv.Stop()
+		<-done
+		return ctx.Err()
+	}
+}
+
+func (e *Server) buildServer() (*grpc.Server, error) {
+	options, err := e.initGrpcServerOptions()
+	if err != nil {
+		return nil, err
+	}
+	if err := registerCollector(e.options.metricsRegisterer, e.options.metricsServer); err != nil {
+		return nil, fmt.Errorf("register gRPC metrics: %w", err)
+	}
+
+	srv := grpc.NewServer(options...)
+	if e.options.metricsServer != nil {
+		e.options.metricsServer.InitializeMetrics(srv)
+	}
+	if e.options.reflection {
+		reflection.Register(srv)
+	}
+	return srv, nil
+}
+
+func (e *Server) initGrpcServerOptions() ([]grpc.ServerOption, error) {
+	options := []grpc.ServerOption{
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ConnectionTimeout(e.options.timeout),
 		grpc.ChainUnaryInterceptor(e.options.unaryServerInterceptors...),
@@ -94,58 +192,62 @@ func (e *Server) initGrpcServerOptions() []grpc.ServerOption {
 			MaxConnectionAgeGrace: e.options.maxConnectionAgeGrace,
 		}),
 	}
-	if e.options.certFile != "" && e.options.keyFile != "" {
+
+	if e.options.tls != nil {
+		options = append(options, grpc.Creds(credentials.NewTLS(e.options.tls.Clone())))
+		return options, nil
+	}
+	if (e.options.certFile == "") != (e.options.keyFile == "") {
+		return nil, ErrIncompleteTLSConfiguration
+	}
+	if e.options.certFile != "" {
 		creds, err := credentials.NewServerTLSFromFile(e.options.certFile, e.options.keyFile)
 		if err != nil {
-			slog.Error("Failed to generate credentials", slog.Any("err", err))
-			os.Exit(-1)
+			return nil, fmt.Errorf("load gRPC TLS credentials: %w", err)
 		}
-		opts = append(opts, grpc.Creds(creds))
+		options = append(options, grpc.Creds(creds))
 	}
-	return opts
+	return options, nil
 }
 
-// Start run
-func (e *Server) Start(ctx context.Context) error {
-	e.mux.Lock()
-	defer e.mux.Unlock()
-
-	if e.started {
-		return errors.New("gRPC Server was started more than once. " +
-			"This is likely to be caused by being added to a manage multiple times")
+func (e *Server) shutdownWithTimeout() error {
+	if e.options.shutdownTimeout <= 0 {
+		return e.Shutdown(context.Background())
 	}
-	// Set the internal context
-	if e.options.ctx != nil {
-		ctx = e.options.ctx
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), e.options.shutdownTimeout)
+	defer cancel()
+	return e.Shutdown(ctx)
+}
 
-	ts, err := net.Listen("tcp", e.options.addr)
-	if err != nil {
-		return fmt.Errorf("gRPC Server listening on %s failed: %w", e.options.addr, err)
+func normalizeServeError(err error) error {
+	if err == nil || errors.Is(err, grpc.ErrServerStopped) {
+		return nil
 	}
-	//log.Printf("gRPC Server listening on %s\n", ts.Addr().String())
-	e.started = true
+	return err
+}
 
-	go func() {
-		if err = e.srv.Serve(ts); err != nil {
-			slog.ErrorContext(ctx, "gRPC Server start error", slog.Any("err", err))
+func registerCollector(registerer prometheus.Registerer, collector prometheus.Collector) error {
+	if registerer == nil || collector == nil {
+		return nil
+	}
+	if err := registerer.Register(collector); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if errors.As(err, &alreadyRegistered) {
+			return nil
 		}
-		<-ctx.Done()
-		err = e.Shutdown(ctx)
-		if err != nil {
-			slog.ErrorContext(ctx, "gRPC Server shutdown error", slog.Any("err", err))
-		}
-	}()
-	if e.options.startedHook != nil {
-		e.options.startedHook()
+		return err
 	}
-	server.PrintRunningInfo(e.options.addr, "grpc")
 	return nil
 }
 
-// Shutdown shutdown
-func (e *Server) Shutdown(ctx context.Context) error {
-	slog.InfoContext(ctx, "gRPC Server will be shutdown gracefully")
-	e.srv.GracefulStop()
-	return nil
+func mergeContexts(primary, secondary context.Context) (context.Context, context.CancelFunc) {
+	if secondary == nil {
+		return context.WithCancel(primary)
+	}
+	ctx, cancel := context.WithCancel(primary)
+	stopSecondary := context.AfterFunc(secondary, cancel)
+	return ctx, func() {
+		stopSecondary()
+		cancel()
+	}
 }

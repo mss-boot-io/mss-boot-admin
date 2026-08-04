@@ -1,26 +1,22 @@
 package server
 
-/*
- * @Author: lwnmengjing
- * @Date: 2021/6/7 5:39 下午
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2021/6/7 5:39 下午
- */
-
 import (
 	"context"
 	"fmt"
 )
 
-// Manager server manage
+// Manager coordinates the lifecycle of one or more Runnable components.
 type Manager interface {
 	Add(...Runnable)
 	Start(context.Context) error
 }
 
-// Runnable runnable
+// Runnable is a long-running component managed by Manager.
+//
+// Start must block until the component stops, the supplied context is
+// cancelled, or an unrecoverable runtime error occurs. Implementations must
+// release owned resources before returning.
 type Runnable interface {
 	fmt.Stringer
-	// Start 启动
 	Start(ctx context.Context) error
 }

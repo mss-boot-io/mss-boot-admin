@@ -1,177 +1,173 @@
 package server
 
-/*
- * @Author: lwnmengjing
- * @Date: 2021/6/7 5:43 下午
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2021/6/7 5:43 下午
- */
-
 import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
-	"syscall"
+	"time"
 )
 
-// Server server
+var (
+	// ErrAlreadyStarted is returned when a manager is started more than once.
+	ErrAlreadyStarted = errors.New("server manager has already been started")
+	// ErrRunnableStopped is returned when a runnable exits successfully before
+	// the manager has begun its shutdown sequence.
+	ErrRunnableStopped = errors.New("runnable stopped before shutdown")
+	// ErrGracefulShutdownTimeout is returned when one or more runnables fail to
+	// stop within the configured grace period.
+	ErrGracefulShutdownTimeout = errors.New("graceful shutdown timed out")
+)
+
+// Server coordinates Runnable components as one lifecycle unit.
 type Server struct {
-	services               map[string]Runnable
-	started                sync.Map
-	mux                    sync.Mutex
-	errChan                chan error
-	waitForRunnable        sync.WaitGroup
-	internalCtx            context.Context
-	internalCancel         context.CancelFunc
-	internalProceduresStop chan struct{}
-	shutdownCtx            context.Context
-	shutdownCancel         context.CancelFunc
-	opts                   Options
+	mux      sync.Mutex
+	services map[string]Runnable
+	order    []string
+	started  bool
+	opts     Options
 }
 
-// New 实例化
+// New creates a server manager.
 func New(opts ...Option) Manager {
 	s := &Server{
-		services:               make(map[string]Runnable),
-		errChan:                make(chan error),
-		internalProceduresStop: make(chan struct{}),
+		services: make(map[string]Runnable),
+		opts:     setDefaultOptions(),
 	}
-	s.opts = setDefaultOptions()
-	for i := range opts {
-		opts[i](&s.opts)
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&s.opts)
+		}
 	}
 	return s
 }
 
-// Add runnable
-func (e *Server) Add(r ...Runnable) {
+// Add registers runnables before Start is called. A runnable with the same name
+// replaces the previous registration while preserving deterministic start
+// order. Nil runnables and additions after Start are ignored for compatibility
+// with the existing interface, which cannot return an error.
+func (e *Server) Add(runnables ...Runnable) {
+	e.mux.Lock()
+	defer e.mux.Unlock()
+
+	if e.started {
+		return
+	}
 	if e.services == nil {
 		e.services = make(map[string]Runnable)
 	}
-	for i := range r {
-		if r[i] == nil {
+	for _, runnable := range runnables {
+		if runnable == nil {
 			continue
 		}
-		e.services[r[i].String()] = r[i]
+		name := runnable.String()
+		if _, exists := e.services[name]; !exists {
+			e.order = append(e.order, name)
+		}
+		e.services[name] = runnable
 	}
 }
 
-// Start runnable
-func (e *Server) Start(ctx context.Context) (err error) {
-	//e.mux.Lock()
-	//defer e.mux.Unlock()
-	e.internalCtx, e.internalCancel = context.WithCancel(ctx)
-	stopComplete := make(chan struct{})
-	defer close(stopComplete)
-	defer func() {
-		stopErr := e.engageStopProcedure(stopComplete)
-		if stopErr != nil {
-			if err != nil {
-				err = fmt.Errorf("%s, %w", stopErr.Error(), err)
-			} else {
-				err = stopErr
-			}
-		}
-	}()
-	e.errChan = make(chan error, len(e.services))
+// Start runs all registered components concurrently. The first unexpected
+// component exit or runtime error cancels every peer. Cancellation from the
+// caller or a configured operating-system signal is treated as a normal stop.
+func (e *Server) Start(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
-	for k := range e.services {
-		if e.getStarted(k) {
-			//先判断是否可以启动
-			return errors.New("can't accept new runnable as stop procedure is already engaged")
-		}
-	}
-	//按顺序启动
-	for k := range e.services {
-		e.startRunnable(e.services[k])
-		e.setStarted(k)
-	}
-	done := make(chan os.Signal, 1)
-	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-	e.waitForRunnable.Wait()
-	select {
-	case <-ctx.Done():
-		return nil
-	case err = <-e.errChan:
+	runnables, options, err := e.beginStart()
+	if err != nil {
 		return err
-	case <-done:
-		// 优雅退出
-		fmt.Println("received SIGINT, shutting down server")
+	}
+
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	if len(options.signals) > 0 {
+		var stopSignals context.CancelFunc
+		runCtx, stopSignals = signal.NotifyContext(runCtx, options.signals...)
+		defer stopSignals()
+	}
+
+	if len(runnables) == 0 {
+		<-runCtx.Done()
 		return nil
 	}
+
+	type result struct {
+		name string
+		err  error
+	}
+
+	results := make(chan result, len(runnables))
+	var wait sync.WaitGroup
+	wait.Add(len(runnables))
+	for _, runnable := range runnables {
+		runnable := runnable
+		go func() {
+			defer wait.Done()
+			results <- result{name: runnable.String(), err: runnable.Start(runCtx)}
+		}()
+	}
+
+	var runErr error
+	select {
+	case <-runCtx.Done():
+		// Caller cancellation and process signals are normal shutdown paths.
+	case result := <-results:
+		if result.err != nil {
+			runErr = fmt.Errorf("runnable %q failed: %w", result.name, result.err)
+		} else {
+			runErr = fmt.Errorf("runnable %q: %w", result.name, ErrRunnableStopped)
+		}
+	}
+
+	cancel()
+	shutdownErr := waitForRunnables(&wait, options.gracefulShutdownTimeout)
+	return errors.Join(runErr, shutdownErr)
 }
 
-func (e *Server) startRunnable(r Runnable) {
-	e.waitForRunnable.Add(1)
-	go func() {
-		defer e.waitForRunnable.Done()
-		if err := r.Start(e.internalCtx); err != nil {
-			e.errChan <- err
-		}
-	}()
-}
-
-func (e *Server) engageStopProcedure(stopComplete <-chan struct{}) error {
-	if e.opts.gracefulShutdownTimeout > 0 {
-		e.shutdownCtx, e.shutdownCancel = context.WithTimeout(
-			context.Background(), e.opts.gracefulShutdownTimeout)
-	} else {
-		e.shutdownCtx, e.shutdownCancel = context.WithCancel(context.Background())
-	}
-	defer e.shutdownCancel()
-	close(e.internalProceduresStop)
-	e.internalCancel()
-
-	go func() {
-		for {
-			select {
-			case err, ok := <-e.errChan:
-				if ok {
-					slog.Error("error received after stop sequence was engaged", slog.Any("err", err))
-				}
-			case <-stopComplete:
-				return
-			}
-		}
-	}()
-	if e.opts.gracefulShutdownTimeout == 0 {
-		return nil
-	}
+func (e *Server) beginStart() ([]Runnable, Options, error) {
 	e.mux.Lock()
 	defer e.mux.Unlock()
-	return e.waitForRunnableToEnd(e.shutdownCancel)
-}
 
-func (e *Server) waitForRunnableToEnd(shutdownCancel context.CancelFunc) error {
-	go func() {
-		e.waitForRunnable.Wait()
-		shutdownCancel()
-	}()
-	<-e.shutdownCtx.Done()
-	if err := e.shutdownCtx.Err(); err != nil && err != context.Canceled {
-		return fmt.Errorf(
-			"failed waiting for all runnables to end within grace period of %s: %w",
-			e.opts.gracefulShutdownTimeout, err)
+	if e.started {
+		return nil, Options{}, ErrAlreadyStarted
 	}
-	return nil
-}
+	e.started = true
 
-func (e *Server) setStarted(key string) {
-	e.started.Store(key, true)
-}
-
-func (e *Server) getStarted(keys ...string) bool {
-	var start bool
-	for i := range keys {
-		v, ok := e.started.Load(keys[i])
-		start = start || (ok && v.(bool))
-		if start {
-			return start
+	runnables := make([]Runnable, 0, len(e.order))
+	for _, name := range e.order {
+		if runnable := e.services[name]; runnable != nil {
+			runnables = append(runnables, runnable)
 		}
 	}
-	return start
+	options := e.opts
+	options.signals = append([]os.Signal(nil), e.opts.signals...)
+	return runnables, options, nil
+}
+
+func waitForRunnables(wait *sync.WaitGroup, timeout time.Duration) error {
+	done := make(chan struct{})
+	go func() {
+		wait.Wait()
+		close(done)
+	}()
+
+	if timeout <= 0 {
+		<-done
+		return nil
+	}
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return nil
+	case <-timer.C:
+		return fmt.Errorf("%w after %s", ErrGracefulShutdownTimeout, timeout)
+	}
 }

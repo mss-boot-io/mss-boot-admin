@@ -1,103 +1,63 @@
 package task
 
-/*
- * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2023/4/30 10:33:36
- * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2023/4/30 10:33:36
- */
-
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 )
 
-var chanResult = make(chan string, 4)
-
-type testJob struct {
-	key string
-}
-
-func (t *testJob) Run() {
-	fmt.Printf("%v test job run: %s\n", time.Now(), t.key)
+func TestStartBlocksUntilCancellation(t *testing.T) {
+	srv := &Server{opts: setDefaultOption()}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
 	go func() {
-		chanResult <- t.key
+		done <- srv.Start(ctx)
 	}()
+
+	time.Sleep(20 * time.Millisecond)
+	select {
+	case err := <-done:
+		t.Fatalf("Start returned before cancellation: %v", err)
+	default:
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("task shutdown failed: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("task server did not stop")
+	}
 }
 
-// TestNew non-blocking test
-func TestNew(t *testing.T) {
-	type args struct {
-		opts []Option
+func TestStartCanOnlyRunOnce(t *testing.T) {
+	srv := &Server{opts: setDefaultOption()}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- srv.Start(ctx)
+	}()
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("first start failed: %v", err)
 	}
-	tests := []struct {
-		name    string
-		args    args
-		want    bool
-		wantArr []string
-	}{
-		{
-			name: "test",
-			args: args{
-				opts: []Option{},
-			},
-			want:    true,
-			wantArr: []string{"a", "b", "c"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := New()
-			err := c.Start(context.TODO())
-			if (err == nil) != tt.want {
-				t.Errorf("New() error = %v, wantErr %v", err, tt.want)
-				return
-			}
-			for _, k := range tt.wantArr {
-				err = UpdateJob(fmt.Sprintf("test-%s", k), "* * * * * *", &testJob{key: k})
-				if (err == nil) != tt.want {
-					t.Errorf("New() error = %v, wantErr %v", err, tt.want)
-					return
-				}
-			}
-			var count int
-			for r := range chanResult {
-				count++
-				var ok bool
-				for _, k := range tt.wantArr {
-					if r == k {
-						t.Logf("New() success, wantArr %v", tt.wantArr)
-						ok = true
-						break
-					}
-				}
-				if !ok {
-					t.Errorf("New() error, wantArr %v", tt.wantArr)
-					return
-				}
-				if count == len(tt.wantArr) {
-					break
-				}
-			}
-			for i := range tt.wantArr {
-				count++
-				if i == len(tt.wantArr)-1 {
-					break
-				}
-				err = RemoveJob(fmt.Sprintf("test-%s", tt.wantArr[i]))
-				if (err == nil) != tt.want {
-					t.Errorf("New() error = %v, wantErr %v", err, tt.want)
-					return
-				}
-			}
-			k := <-chanResult
-			t.Logf("Print %s", k)
-			if count-1 < len(tt.wantArr) {
-				t.Errorf("New() error, wantArr %v", tt.wantArr)
-				return
-			}
-		})
+	if err := srv.Start(context.Background()); !errors.Is(err, ErrAlreadyStarted) {
+		t.Fatalf("expected ErrAlreadyStarted, got %v", err)
 	}
 }
+
+func TestStartReturnsInvalidScheduleError(t *testing.T) {
+	srv := &Server{opts: setDefaultOption()}
+	WithSchedule("invalid", "not-a-cron-expression", testJob{})(&srv.opts)
+	if err := srv.Start(context.Background()); err == nil {
+		t.Fatal("expected invalid schedule error")
+	}
+}
+
+type testJob struct{}
+
+func (testJob) Run() {}
