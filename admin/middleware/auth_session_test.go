@@ -80,9 +80,31 @@ func TestValidateSessionFromClaims_ActiveSession(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
+	var before models.UserSession
+	assert.NoError(t, db.First(&before, "id = ?", sid).Error)
+
 	c := newTestGinCtx()
 	assert.True(t, validateSessionFromClaims(c, jwt.MapClaims{"sid": sid}),
 		"active session must be accepted")
+	waitForSessionTouch(t, db, sid, before.LastSeenAt)
+}
+
+func waitForSessionTouch(t *testing.T, db *gorm.DB, sid string, previous time.Time) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		var current models.UserSession
+		if err := db.First(&current, "id = ?", sid).Error; err != nil {
+			t.Fatalf("read touched session: %v", err)
+		}
+		if current.LastSeenAt.After(previous) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("session %q was not touched before test cleanup", sid)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 // TestValidateSessionFromClaims_RevokedRejected is the integration regression
