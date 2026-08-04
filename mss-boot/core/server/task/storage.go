@@ -1,19 +1,13 @@
 package task
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/robfig/cron/v3"
 )
 
-/*
- * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2023/12/5 16:56:16
- * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2023/12/5 16:56:16
- */
-
-// Storage storage interface
+// Storage persists scheduled-job metadata.
 type Storage interface {
 	Get(key string) (entryID cron.EntryID, spec string, job cron.Job, exist bool, err error)
 	Set(key string, entryID cron.EntryID, spec string, job cron.Job) error
@@ -24,16 +18,18 @@ type Storage interface {
 
 type defaultStorage struct {
 	schedules map[string]*schedule
-	mux       sync.Mutex
+	mux       sync.RWMutex
 }
 
-// Get schedule
+// Get returns one schedule.
 func (s *defaultStorage) Get(key string) (entryID cron.EntryID, spec string, job cron.Job, exist bool, err error) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	if s.schedules == nil {
 		return
 	}
 	item, ok := s.schedules[key]
-	if !ok {
+	if !ok || item == nil {
 		return
 	}
 	entryID = item.entryID
@@ -43,7 +39,7 @@ func (s *defaultStorage) Get(key string) (entryID cron.EntryID, spec string, job
 	return
 }
 
-// Set schedule
+// Set creates or replaces a schedule.
 func (s *defaultStorage) Set(key string, entryID cron.EntryID, spec string, job cron.Job) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -58,21 +54,26 @@ func (s *defaultStorage) Set(key string, entryID cron.EntryID, spec string, job 
 	return nil
 }
 
-// Update schedule
+// Update changes the cron entry ID for a schedule.
 func (s *defaultStorage) Update(key string, entryID cron.EntryID) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	if s.schedules == nil {
 		s.schedules = make(map[string]*schedule)
 		return nil
 	}
 	item, ok := s.schedules[key]
-	if !ok {
+	if !ok || item == nil {
 		return nil
 	}
 	item.entryID = entryID
 	return nil
 }
 
+// Remove deletes a schedule.
 func (s *defaultStorage) Remove(key string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	if s.schedules == nil {
 		return nil
 	}
@@ -80,11 +81,14 @@ func (s *defaultStorage) Remove(key string) error {
 	return nil
 }
 
-// ListKeys list keys
+// ListKeys returns schedule keys in deterministic order.
 func (s *defaultStorage) ListKeys() ([]string, error) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	keys := make([]string, 0, len(s.schedules))
-	for k := range s.schedules {
-		keys = append(keys, k)
+	for key := range s.schedules {
+		keys = append(keys, key)
 	}
+	sort.Strings(keys)
 	return keys, nil
 }

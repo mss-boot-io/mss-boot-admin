@@ -1,18 +1,12 @@
 package response
 
-import (
-	"log/slog"
-	"os"
+import "github.com/gin-gonic/gin"
 
-	"github.com/gin-gonic/gin"
-)
-
-// Default 默认返回
+// Default is the process-wide response renderer retained for compatibility.
 var Default Responses = &response{}
 
 func checkContext(c *gin.Context) {
 	if c == nil {
-		slog.Error("context is nil, please check, e.g. e.Make(c) add your controller function")
-		os.Exit(-1)
+		panic("response: nil gin context")
 	}
 }

@@ -7,132 +7,179 @@ import (
 )
 
 const (
-	// FromQueryTag tag标记
+	// FromQueryTag marks fields that participate in generated search clauses.
 	FromQueryTag = "search"
-	// Mysql 数据库标识
+	// Mysql identifies the MySQL SQL dialect.
 	Mysql = "mysql"
-	// Postgres 数据库标识
+	// Postgres identifies the PostgreSQL SQL dialect.
 	Postgres = "postgres"
-	// Dm 数据库标识
+	// Dm identifies the DM SQL dialect.
 	Dm = "dm"
 )
 
-// ResolveSearchQuery 解析
-/**
- * 	exact / iexact 等于
- * 	contains / icontains 包含
- *	gt / gte 大于 / 大于等于
- *	lt / lte 小于 / 小于等于
- *	startswith / istartswith 以…起始
- *	endswith / iendswith 以…结束
- *	between 范围     e.g. receiveAt[]=2021-01-01&receiveAt[]=2021-01-02
- *	in
- *	isnull
- *  order 排序		e.g. order[key]=desc     order[key]=asc
- */
-func ResolveSearchQuery(driver string, q any, condition Condition) {
-	qType := reflect.TypeOf(q)
-	qValue := reflect.ValueOf(q)
-	if qType.Kind() == reflect.Ptr {
-		qType = qType.Elem()
+// ResolveSearchQuery translates search-tagged fields into Condition calls.
+//
+// Fields without a search tag are traversed only when they are nested structs.
+// Invalid, nil, or unsupported values are ignored instead of panicking because
+// this function is used on request DTOs that commonly embed pagination and
+// other non-search fields.
+func ResolveSearchQuery(driver string, query any, condition Condition) {
+	if query == nil || condition == nil {
+		return
 	}
-	if qValue.Kind() == reflect.Ptr {
-		qValue = qValue.Elem()
-	}
-	var t *resolveSearchTag
 
-	for i := 0; i < qType.NumField(); i++ {
-		tag, ok := qType.Field(i).Tag.Lookup(FromQueryTag)
-		if !ok {
-			// 递归调用
-			ResolveSearchQuery(driver, qValue.Field(i).Interface(), condition)
-			continue
-		}
-		switch tag {
-		case "-":
-			continue
-		}
-		t = makeTag(tag)
-		if qValue.Field(i).IsZero() {
+	queryValue, ok := indirectValue(reflect.ValueOf(query))
+	if !ok || queryValue.Kind() != reflect.Struct {
+		return
+	}
+	queryType := queryValue.Type()
+
+	for i := 0; i < queryType.NumField(); i++ {
+		structField := queryType.Field(i)
+		fieldValue := queryValue.Field(i)
+		if structField.PkgPath != "" && !structField.Anonymous {
+			// Unexported fields cannot be converted to interface values safely.
 			continue
 		}
 
-		parseSQL(driver, t, condition, qValue, i)
+		tag, tagged := structField.Tag.Lookup(FromQueryTag)
+		if !tagged {
+			if fieldValue.CanInterface() && isNestedStruct(fieldValue) {
+				ResolveSearchQuery(driver, fieldValue.Interface(), condition)
+			}
+			continue
+		}
+		if tag == "-" || !fieldValue.CanInterface() || fieldValue.IsZero() {
+			continue
+		}
+
+		parseSQL(driver, makeTag(tag), condition, fieldValue)
 	}
 }
 
-func parseSQL(driver string, searchTag *resolveSearchTag, condition Condition, qValue reflect.Value, i int) {
-	var sep = "`"
-	if driver == Postgres {
-		sep = "\""
+func parseSQL(driver string, searchTag *resolveSearchTag, condition Condition, fieldValue reflect.Value) {
+	if searchTag == nil || condition == nil || searchTag.Type == "" {
+		return
 	}
 
+	separator := "`"
+	if driver == Postgres {
+		separator = "\""
+	}
 	if driver == Dm {
 		searchTag.Table = strings.ToUpper(searchTag.Table)
 		searchTag.Column = strings.ToUpper(searchTag.Column)
 	}
-	iStr := ""
+	if searchTag.Column == "" && searchTag.Type != "left" {
+		return
+	}
+
+	insensitivePrefix := ""
 	if driver == Postgres {
-		iStr = "i"
+		insensitivePrefix = "i"
 	}
-	column := fmt.Sprintf("%s%s%s", sep, searchTag.Column, sep)
+	column := fmt.Sprintf("%s%s%s", separator, searchTag.Column, separator)
 	if searchTag.Table != "" {
-		searchTag.Table = fmt.Sprintf("%s%s%s.", sep, searchTag.Table, sep)
-		column = searchTag.Table + column
+		column = fmt.Sprintf("%s%s%s.%s", separator, searchTag.Table, separator, column)
 	}
+
 	switch searchTag.Type {
 	case "left":
-		// 左关联
+		if searchTag.Join == "" || searchTag.Table == "" || len(searchTag.On) < 2 {
+			return
+		}
 		join := condition.SetJoinOn(searchTag.Type, fmt.Sprintf(
 			"left join %s%s%s on %s%s%s.%s%s%s = %s%s%s.%s%s%s",
-			sep,
+			separator,
 			searchTag.Join,
-			sep, sep,
+			separator,
+			separator,
 			searchTag.Join,
-			sep, sep,
+			separator,
+			separator,
 			searchTag.On[0],
-			sep, sep,
+			separator,
+			separator,
 			searchTag.Table,
-			sep, sep,
+			separator,
+			separator,
 			searchTag.On[1],
-			sep,
+			separator,
 		))
-		ResolveSearchQuery(driver, qValue.Field(i).Interface(), join)
-	case "exact", "iexact":
-		condition.SetWhere(fmt.Sprintf("%s = ?", column), []any{qValue.Field(i).Interface()})
-	case "contains":
-		condition.SetWhere(fmt.Sprintf("%s like ?", column), []any{"%" + qValue.Field(i).String() + "%"})
-	case "icontains":
-		condition.SetWhere(fmt.Sprintf("%s %slike ?", column, iStr), []any{"%" + qValue.Field(i).String() + "%"})
-	case "gt":
-		condition.SetWhere(fmt.Sprintf("%s > ?", column), []any{qValue.Field(i).Interface()})
-	case "gte":
-		condition.SetWhere(fmt.Sprintf("%s >= ?", column), []any{qValue.Field(i).Interface()})
-	case "lt":
-		condition.SetWhere(fmt.Sprintf("%s < ?", column), []any{qValue.Field(i).Interface()})
-	case "lte":
-		condition.SetWhere(fmt.Sprintf("%s <= ?", column), []any{qValue.Field(i).Interface()})
-	case "startswith":
-		condition.SetWhere(fmt.Sprintf("%s like ?", column), []any{qValue.Field(i).String() + "%"})
-	case "istartswith":
-		condition.SetWhere(fmt.Sprintf("%s %slike ?", column, iStr), []any{qValue.Field(i).String() + "%"})
-	case "endswith":
-		condition.SetWhere(fmt.Sprintf("%s like ?", column), []any{"%" + qValue.Field(i).String()})
-	case "iendswith":
-		condition.SetWhere(fmt.Sprintf("%s %slike ?", column, iStr), []any{"%" + qValue.Field(i).String()})
-	case "in":
-		condition.SetWhere(fmt.Sprintf("%s in (?)", column), []any{qValue.Field(i).Interface()})
-	case "isnull":
-		if !qValue.Field(i).IsZero() || !qValue.Field(i).IsNil() {
-			condition.SetWhere(fmt.Sprintf("%s isnull", column), make([]any, 0))
+		if join != nil && fieldValue.CanInterface() {
+			ResolveSearchQuery(driver, fieldValue.Interface(), join)
 		}
+	case "exact", "iexact":
+		condition.SetWhere(fmt.Sprintf("%s = ?", column), []any{fieldValue.Interface()})
+	case "contains":
+		if fieldValue.Kind() == reflect.String {
+			condition.SetWhere(fmt.Sprintf("%s like ?", column), []any{"%" + fieldValue.String() + "%"})
+		}
+	case "icontains":
+		if fieldValue.Kind() == reflect.String {
+			condition.SetWhere(fmt.Sprintf("%s %slike ?", column, insensitivePrefix), []any{"%" + fieldValue.String() + "%"})
+		}
+	case "gt":
+		condition.SetWhere(fmt.Sprintf("%s > ?", column), []any{fieldValue.Interface()})
+	case "gte":
+		condition.SetWhere(fmt.Sprintf("%s >= ?", column), []any{fieldValue.Interface()})
+	case "lt":
+		condition.SetWhere(fmt.Sprintf("%s < ?", column), []any{fieldValue.Interface()})
+	case "lte":
+		condition.SetWhere(fmt.Sprintf("%s <= ?", column), []any{fieldValue.Interface()})
+	case "startswith":
+		if fieldValue.Kind() == reflect.String {
+			condition.SetWhere(fmt.Sprintf("%s like ?", column), []any{fieldValue.String() + "%"})
+		}
+	case "istartswith":
+		if fieldValue.Kind() == reflect.String {
+			condition.SetWhere(fmt.Sprintf("%s %slike ?", column, insensitivePrefix), []any{fieldValue.String() + "%"})
+		}
+	case "endswith":
+		if fieldValue.Kind() == reflect.String {
+			condition.SetWhere(fmt.Sprintf("%s like ?", column), []any{"%" + fieldValue.String()})
+		}
+	case "iendswith":
+		if fieldValue.Kind() == reflect.String {
+			condition.SetWhere(fmt.Sprintf("%s %slike ?", column, insensitivePrefix), []any{"%" + fieldValue.String()})
+		}
+	case "in":
+		if fieldValue.Kind() == reflect.Slice || fieldValue.Kind() == reflect.Array {
+			condition.SetWhere(fmt.Sprintf("%s in (?)", column), []any{fieldValue.Interface()})
+		}
+	case "isnull":
+		// Zero values were filtered by ResolveSearchQuery. A non-zero flag means
+		// the caller explicitly requested the NULL predicate.
+		condition.SetWhere(fmt.Sprintf("%s is null", column), nil)
 	case "between":
-		condition.SetWhere(fmt.Sprintf("%s between ? and ?", column),
-			[]any{qValue.Field(i).Index(0).Interface(), qValue.Field(i).Index(1).Interface()})
+		if (fieldValue.Kind() == reflect.Slice || fieldValue.Kind() == reflect.Array) && fieldValue.Len() >= 2 {
+			condition.SetWhere(
+				fmt.Sprintf("%s between ? and ?", column),
+				[]any{fieldValue.Index(0).Interface(), fieldValue.Index(1).Interface()},
+			)
+		}
 	case "order":
-		switch strings.ToLower(qValue.Field(i).String()) {
-		case "desc", "asc":
-			condition.SetOrder(fmt.Sprintf("%s %s", column, qValue.Field(i).String()))
+		if fieldValue.Kind() != reflect.String {
+			return
+		}
+		direction := strings.ToLower(fieldValue.String())
+		if direction == "desc" || direction == "asc" {
+			condition.SetOrder(fmt.Sprintf("%s %s", column, direction))
 		}
 	}
+}
+
+func indirectValue(value reflect.Value) (reflect.Value, bool) {
+	for value.IsValid() && (value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface) {
+		if value.IsNil() {
+			return reflect.Value{}, false
+		}
+		value = value.Elem()
+	}
+	return value, value.IsValid()
+}
+
+func isNestedStruct(value reflect.Value) bool {
+	value, ok := indirectValue(value)
+	return ok && value.Kind() == reflect.Struct
 }

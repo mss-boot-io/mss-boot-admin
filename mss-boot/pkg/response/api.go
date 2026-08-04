@@ -1,38 +1,32 @@
 package response
 
-/*
- * @Author: lwnmengjing
- * @Date: 2021/6/22 4:48 下午
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2021/6/22 4:48 下午
- */
-
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
-
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
-
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/language"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 )
 
-// DefaultLanguage 默认语言
+// DefaultLanguage is used when Accept-Language is absent.
 var DefaultLanguage = "zh-CN"
 
-// AuthHandler 鉴权
+// AuthHandler is the default authentication middleware used by controllers.
 var AuthHandler gin.HandlerFunc
 
+// VerifyHandler resolves the request verifier.
 var VerifyHandler func(ctx *gin.Context) security.Verifier
 
-// API api接口
+// API contains request-scoped response state.
 type API struct {
 	Context  *gin.Context
 	Log      *slog.Logger
@@ -41,175 +35,247 @@ type API struct {
 	language string
 }
 
-// Path 路径
-func (*API) Path() string {
-	return ""
-}
+// Path returns the route path.
+func (*API) Path() string { return "" }
 
-// Handlers 路由
-func (*API) Handlers() gin.HandlersChain {
-	return []gin.HandlerFunc{}
-}
+// Handlers returns middleware registered by the API.
+func (*API) Handlers() gin.HandlersChain { return nil }
 
-// Create 创建
-func (*API) Create(c *gin.Context) {
-	c.JSON(http.StatusMethodNotAllowed, gin.H{
-		"success":      false,
-		"errorMessage": "Method Not Allowed",
-	})
-}
+// Create responds with Method Not Allowed by default.
+func (*API) Create(c *gin.Context) { methodNotAllowed(c) }
 
-// Update 更新
-func (*API) Update(c *gin.Context) {
-	c.JSON(http.StatusMethodNotAllowed, gin.H{
-		"success":      false,
-		"errorMessage": "Method Not Allowed",
-	})
-}
+// Update responds with Method Not Allowed by default.
+func (*API) Update(c *gin.Context) { methodNotAllowed(c) }
 
-// Delete 删除
-func (*API) Delete(c *gin.Context) {
-	c.JSON(http.StatusMethodNotAllowed, gin.H{
-		"success":      false,
-		"errorMessage": "Method Not Allowed",
-	})
-}
+// Delete responds with Method Not Allowed by default.
+func (*API) Delete(c *gin.Context) { methodNotAllowed(c) }
 
-// Get 获取
-func (*API) Get(c *gin.Context) {
-	c.JSON(http.StatusMethodNotAllowed, gin.H{
-		"success":      false,
-		"errorMessage": "Method Not Allowed",
-	})
-}
+// Get responds with Method Not Allowed by default.
+func (*API) Get(c *gin.Context) { methodNotAllowed(c) }
 
-// List 列表
-func (*API) List(c *gin.Context) {
-	c.JSON(http.StatusMethodNotAllowed, gin.H{
-		"success":      false,
-		"errorMessage": "Method Not Allowed",
-	})
-}
+// List responds with Method Not Allowed by default.
+func (*API) List(c *gin.Context) { methodNotAllowed(c) }
 
-// Other 其他方法
+// Other registers additional routes.
 func (*API) Other(_ *gin.RouterGroup) {}
 
-// SetEngine 设置路由组
-func (e *API) SetEngine(engine *gin.RouterGroup) {
-	e.engine = engine
-}
+// SetEngine sets the router group.
+func (e *API) SetEngine(engine *gin.RouterGroup) { e.engine = engine }
 
-// AddError 添加错误
+// AddError adds an error to the request state without losing prior causes.
 func (e *API) AddError(err error) *API {
-	if err == nil {
+	if e == nil || err == nil {
 		return e
 	}
 	if e.Error == nil {
 		e.Error = err
 	} else {
-		e.Error = fmt.Errorf("%w; %w", e.Error, err)
+		e.Error = errors.Join(e.Error, err)
 	}
-	if e.Error != nil {
-		e.Log = e.Log.With("error", e.Error)
+	if e.Log == nil {
+		e.Log = slog.Default()
 	}
+	e.Log = e.Log.With("error", e.Error)
 	return e
 }
 
-// Make 设置http上下文
+// Make sets the HTTP context on an existing API.
 func (e *API) Make(c *gin.Context) *API {
 	e.Context = c
 	e.Log = GetRequestLogger(c)
 	return e
 }
 
-// Make 设置http上下文, 返回api
+// Make creates a request-scoped API.
 func Make(c *gin.Context) *API {
-	return &API{
-		Context: c,
-		Log:     GetRequestLogger(c),
-	}
+	return &API{Context: c, Log: GetRequestLogger(c)}
 }
 
-// Bind 参数校验
+// Bind populates d from URI, query/form, and at most one request-body format,
+// then validates the fully populated object once.
 func (e *API) Bind(d any, bindings ...binding.Binding) *API {
-	var err error
+	if e == nil {
+		return e
+	}
+	if e.Context == nil || e.Context.Request == nil {
+		return e.AddError(errors.New("response: request context is nil"))
+	}
+	if d == nil {
+		return e.AddError(errors.New("response: bind destination is nil"))
+	}
 	if len(bindings) == 0 {
 		bindings = constructor.GetBindingForGin(d)
 	}
-	switch e.Context.Request.Method {
-	case http.MethodGet, http.MethodHead, http.MethodOptions:
-		// 去除json、yaml、xml
-		for i := range bindings {
-			switch bindings[i] {
-			case binding.JSON, binding.XML, binding.YAML:
-				bindings = append(bindings[:i], bindings[i:]...)
-			}
-		}
+	bindings = normalizeBindings(e.Context.Request, bindings)
+	if e.Log == nil {
+		e.Log = slog.Default()
 	}
-	needValidateNum := len(bindings) - 1
-	for i := range bindings {
-		switch bindings[i] {
-		case nil:
-			err = e.Context.ShouldBindUri(d)
-		case binding.Query:
-			err = e.Context.ShouldBindWith(d, binding.Query)
-		default:
-			err = e.Context.ShouldBindWith(d, bindings[i])
-		}
-		if err != nil && err.Error() == "EOF" {
-			e.Log.Warn("request body is not present anymore. ")
-			err = nil
+
+	for _, requestBinding := range bindings {
+		err := e.bindWith(d, requestBinding)
+		if errors.Is(err, io.EOF) {
+			e.Log.Debug("request body is empty")
 			continue
 		}
-		if err != nil {
-			var errs validator.ValidationErrors
-			ok := errors.As(err, &errs)
-			if ok && i < needValidateNum {
-				err = nil
-				continue
-			}
-			if err != nil {
-				e.AddError(err)
-				return e
-			}
-			trans, errT := transInit(e.getAcceptLanguage())
-			if errT != nil {
-				err = fmt.Errorf(errT.Error()+", %w", err)
-				e.AddError(err)
-				return e
-			}
-			validatorErrs := errs.Translate(trans)
-			strArr := make([]string, 0)
-			for k, v := range validatorErrs {
-				strArr = append(strArr, k+":"+v)
-			}
-			if len(strArr) != 0 {
-				err = errors.New(strings.Join(strArr, ","))
-				e.AddError(err)
-				return e
-			}
+		if err == nil {
+			continue
 		}
+		var validationErrors validator.ValidationErrors
+		if errors.As(err, &validationErrors) {
+			// Individual binders validate partial state. Defer validation until URI,
+			// query values, and the selected body have all been applied.
+			continue
+		}
+		return e.AddError(err)
+	}
+
+	if binding.Validator == nil {
+		return e
+	}
+	if err := binding.Validator.ValidateStruct(d); err != nil {
+		return e.addValidationError(err)
 	}
 	return e
 }
 
-// Err 通常错误数据处理
+func (e *API) bindWith(destination any, requestBinding binding.Binding) error {
+	switch requestBinding {
+	case nil:
+		return e.Context.ShouldBindUri(destination)
+	case binding.Query:
+		return e.Context.ShouldBindWith(destination, binding.Query)
+	default:
+		return e.Context.ShouldBindWith(destination, requestBinding)
+	}
+}
+
+func (e *API) addValidationError(err error) *API {
+	var validationErrors validator.ValidationErrors
+	if !errors.As(err, &validationErrors) {
+		return e.AddError(err)
+	}
+	translator, translatorErr := transInit(e.getAcceptLanguage())
+	if translatorErr != nil {
+		return e.AddError(errors.Join(err, fmt.Errorf("initialize validation translator: %w", translatorErr)))
+	}
+	translated := validationErrors.Translate(translator)
+	keys := make([]string, 0, len(translated))
+	for key := range translated {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	messages := make([]string, 0, len(keys))
+	for _, key := range keys {
+		messages = append(messages, key+":"+translated[key])
+	}
+	if len(messages) == 0 {
+		return e.AddError(err)
+	}
+	return e.AddError(errors.New(strings.Join(messages, ",")))
+}
+
+func normalizeBindings(request *http.Request, candidates []binding.Binding) []binding.Binding {
+	if request == nil {
+		return nil
+	}
+
+	method := request.Method
+	bodyAllowed := method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions
+	contentType := request.Header.Get("Content-Type")
+	if index := strings.IndexByte(contentType, ';'); index >= 0 {
+		contentType = contentType[:index]
+	}
+	selected := binding.Default(method, strings.TrimSpace(contentType))
+
+	result := make([]binding.Binding, 0, len(candidates))
+	bodyCandidates := make([]binding.Binding, 0, 3)
+	formCandidate := false
+	seen := make(map[string]bool)
+	appendUnique := func(item binding.Binding) {
+		key := bindingName(item)
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		result = append(result, item)
+	}
+
+	for _, candidate := range candidates {
+		switch candidate {
+		case nil:
+			appendUnique(nil)
+		case binding.Query:
+			appendUnique(binding.Query)
+		case binding.Form:
+			formCandidate = true
+		case binding.JSON, binding.XML, binding.YAML:
+			bodyCandidates = append(bodyCandidates, candidate)
+		default:
+			appendUnique(candidate)
+		}
+	}
+
+	// Gin's query binder uses the `form` tag. Apply it before a body binder so
+	// form-tagged query parameters remain available on POST/PUT/PATCH requests.
+	if formCandidate {
+		appendUnique(binding.Query)
+	}
+	if !bodyAllowed {
+		return result
+	}
+	if formCandidate && (sameBinding(selected, binding.Form) || sameBinding(selected, binding.FormMultipart)) {
+		appendUnique(selected)
+	}
+
+	var bodyBinding binding.Binding
+	for _, candidate := range bodyCandidates {
+		if sameBinding(candidate, selected) {
+			bodyBinding = candidate
+			break
+		}
+	}
+	if bodyBinding == nil && len(bodyCandidates) == 1 && strings.TrimSpace(contentType) == "" {
+		// Preserve the historical ability to bind a single declared body format
+		// when clients omit Content-Type, without misreading an explicitly
+		// different media type.
+		bodyBinding = bodyCandidates[0]
+	}
+	if bodyBinding != nil {
+		appendUnique(bodyBinding)
+	}
+	return result
+}
+
+func bindingName(requestBinding binding.Binding) string {
+	if requestBinding == nil {
+		return "uri"
+	}
+	return requestBinding.Name()
+}
+
+func sameBinding(left, right binding.Binding) bool {
+	return bindingName(left) == bindingName(right)
+}
+
+// Err writes an error response.
 func (e *API) Err(code int, msg ...string) {
 	Default.Error(e.Context, code, e.Error, msg...)
 }
 
-// OK 通常成功数据处理
-func (e *API) OK(data any, msg ...string) {
+// OK writes a success response.
+func (e *API) OK(data any, _ ...string) {
 	Default.OK(e.Context, data)
 }
 
-// PageOK 分页数据处理
-func (e *API) PageOK(result any, count int64, pageIndex int64, pageSize int64, msg ...string) {
+// PageOK writes a paginated success response.
+func (e *API) PageOK(result any, count int64, pageIndex int64, pageSize int64, _ ...string) {
 	Default.PageOK(e.Context, result, count, pageIndex, pageSize)
 }
 
-// getAcceptLanguage 获取当前语言
 func (e *API) getAcceptLanguage() string {
+	if e == nil || e.Context == nil {
+		return DefaultLanguage
+	}
 	languages := language.ParseAcceptLanguage(e.Context.GetHeader("Accept-Language"), nil)
 	if len(languages) == 0 {
 		return DefaultLanguage
@@ -217,15 +283,23 @@ func (e *API) getAcceptLanguage() string {
 	return languages[0]
 }
 
-// GetRequestLogger 获取上下文提供的日志
+// GetRequestLogger returns the request logger or creates one from the trace ID.
 func GetRequestLogger(c *gin.Context) *slog.Logger {
-	if l, exist := c.Get(pkg.LoggerKey); exist {
-		log, ok := l.(*slog.Logger)
-		if ok && log != nil {
-			return log
+	if c == nil {
+		return slog.Default()
+	}
+	if loggerValue, exists := c.Get(pkg.LoggerKey); exists {
+		if logger, ok := loggerValue.(*slog.Logger); ok && logger != nil {
+			return logger
 		}
 	}
-	// 如果没有在上下文中放入logger
 	requestID := pkg.GenerateMsgIDFromContext(c)
 	return slog.Default().With(strings.ToLower(pkg.TrafficKey), requestID)
+}
+
+func methodNotAllowed(c *gin.Context) {
+	c.JSON(http.StatusMethodNotAllowed, gin.H{
+		"success":      false,
+		"errorMessage": "Method Not Allowed",
+	})
 }

@@ -1,14 +1,9 @@
 package response
 
-/*
- * @Author: lwnmengjing
- * @Date: 2021/6/9 10:39 上午
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2021/6/9 10:39 上午
- */
-
 import (
+	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/locales/en"
@@ -19,31 +14,54 @@ import (
 	chTranslations "github.com/go-playground/validator/v10/translations/zh"
 )
 
-// transInit local 通常取决于 http 请求头的 'Accept-Language'
-func transInit(local string) (trans ut.Translator, err error) {
-	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		zhT := zh.New() // chinese
-		enT := en.New() // english
-		uni := ut.New(enT, zhT, enT)
+var validationTranslations struct {
+	once sync.Once
+	en   ut.Translator
+	zh   ut.Translator
+	err  error
+}
 
-		var o bool
-		// register translate
-		// 注册翻译器
-		switch local {
-		case "zh", "zh-CN":
-			trans, o = uni.GetTranslator("zh")
-			if !o {
-				return nil, fmt.Errorf("uni.GetTranslator(%s) failed", "zh")
-			}
-			err = chTranslations.RegisterDefaultTranslations(v, trans)
-		default:
-			trans, o = uni.GetTranslator("en")
-			if !o {
-				return nil, fmt.Errorf("uni.GetTranslator(%s) failed", "en")
-			}
-			err = enTranslations.RegisterDefaultTranslations(v, trans)
+// transInit returns a pre-registered validator translator. Registration mutates
+// validator state, so it is performed exactly once before concurrent requests
+// begin translating validation errors.
+func transInit(locale string) (ut.Translator, error) {
+	validationTranslations.once.Do(func() {
+		engine := binding.Validator.Engine()
+		validate, ok := engine.(*validator.Validate)
+		if !ok || validate == nil {
+			validationTranslations.err = fmt.Errorf("unsupported validator engine %T", engine)
+			return
 		}
-		return
+
+		zhLocale := zh.New()
+		enLocale := en.New()
+		universal := ut.New(enLocale, zhLocale, enLocale)
+
+		var okTranslator bool
+		validationTranslations.zh, okTranslator = universal.GetTranslator("zh")
+		if !okTranslator {
+			validationTranslations.err = errors.New("validation translator zh is unavailable")
+			return
+		}
+		validationTranslations.en, okTranslator = universal.GetTranslator("en")
+		if !okTranslator {
+			validationTranslations.err = errors.New("validation translator en is unavailable")
+			return
+		}
+
+		validationTranslations.err = errors.Join(
+			chTranslations.RegisterDefaultTranslations(validate, validationTranslations.zh),
+			enTranslations.RegisterDefaultTranslations(validate, validationTranslations.en),
+		)
+	})
+	if validationTranslations.err != nil {
+		return nil, validationTranslations.err
 	}
-	return
+
+	switch locale {
+	case "zh", "zh-CN", "zh-Hans":
+		return validationTranslations.zh, nil
+	default:
+		return validationTranslations.en, nil
+	}
 }

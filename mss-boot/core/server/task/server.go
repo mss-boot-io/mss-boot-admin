@@ -1,36 +1,37 @@
 package task
 
-/*
- * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2023/2/21 15:35:43
- * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2023/2/21 15:35:43
- */
-
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"sync"
 
 	"github.com/robfig/cron/v3"
 )
 
-var task = &Server{
-	opts: setDefaultOption(),
-}
+var (
+	task = &Server{
+		opts: setDefaultOption(),
+	}
+	// ErrAlreadyStarted is returned when a task server is started twice.
+	ErrAlreadyStarted = errors.New("task server has already been started")
+)
 
-// Server manage
+// Server manages scheduled jobs.
 type Server struct {
-	ctx  context.Context
-	opts options
+	ctx     context.Context
+	opts    options
+	mux     sync.Mutex
+	started bool
 }
 
-// New server
+// New configures and returns the process-wide task server for compatibility.
 func New(opts ...Option) *Server {
 	task.Options(opts...)
 	return task
 }
 
-// GetJob get job
+// GetJob returns a configured job.
 func GetJob(key string) (string, cron.Job, bool) {
 	_, spec, job, ok, _ := task.opts.storage.Get(key)
 	if !ok {
@@ -39,37 +40,35 @@ func GetJob(key string) (string, cron.Job, bool) {
 	return spec, job, true
 }
 
-// Entry get entry
+// Entry returns a cron entry.
 func Entry(entryID cron.EntryID) cron.Entry {
 	return task.opts.task.Entry(entryID)
-
 }
 
-// UpdateJob update or create job
+// UpdateJob updates or creates a scheduled job.
 func UpdateJob(key string, spec string, job cron.Job) error {
-	var err error
 	entryID, entrySpec, _, ok, _ := task.opts.storage.Get(key)
 	if ok && spec != entrySpec && entryID != 0 {
 		task.opts.task.Remove(entryID)
-		entryID, err = task.opts.task.AddJob(spec, job)
+		newEntryID, err := task.opts.task.AddJob(spec, job)
 		if err != nil {
 			slog.Error("task update job error", slog.Any("err", err))
 			return err
 		}
-		return task.opts.storage.Update(key, entryID)
+		return task.opts.storage.Update(key, newEntryID)
 	}
 	if ok && entryID != 0 {
 		return nil
 	}
-	entryID, err = task.opts.task.AddJob(spec, job)
+	newEntryID, err := task.opts.task.AddJob(spec, job)
 	if err != nil {
 		slog.Error("task add job error", slog.Any("err", err))
 		return err
 	}
-	return task.opts.storage.Update(key, entryID)
+	return task.opts.storage.Update(key, newEntryID)
 }
 
-// RemoveJob remove job
+// RemoveJob removes a scheduled job.
 func RemoveJob(key string) error {
 	entryID, _, _, ok, _ := task.opts.storage.Get(key)
 	if !ok {
@@ -79,52 +78,101 @@ func RemoveJob(key string) error {
 	return task.opts.storage.Remove(key)
 }
 
-// Options set options
+// Options applies task options before Start.
 func (e *Server) Options(opts ...Option) {
-	for _, o := range opts {
-		o(&e.opts)
+	e.mux.Lock()
+	defer e.mux.Unlock()
+	if e.started {
+		return
+	}
+	for _, option := range opts {
+		if option != nil {
+			option(&e.opts)
+		}
 	}
 }
 
-// String server name
+// String returns the server name.
 func (e *Server) String() string {
 	return "task"
 }
 
-// Start server
+// Start loads jobs, starts cron, and blocks until ctx is cancelled and running
+// jobs have completed or the configured shutdown timeout expires.
 func (e *Server) Start(ctx context.Context) error {
-	var err error
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	e.mux.Lock()
+	if e.started {
+		e.mux.Unlock()
+		return ErrAlreadyStarted
+	}
 	e.ctx = ctx
-	keys, _ := e.opts.storage.ListKeys()
-	for i := range keys {
-		_, spec, job, ok, _ := e.opts.storage.Get(keys[i])
+
+	keys, err := e.opts.storage.ListKeys()
+	if err != nil {
+		e.mux.Unlock()
+		return err
+	}
+	for _, key := range keys {
+		_, spec, job, ok, getErr := e.opts.storage.Get(key)
+		if getErr != nil {
+			e.mux.Unlock()
+			return getErr
+		}
 		if !ok {
 			continue
 		}
-		entryID, err := e.opts.task.AddJob(spec, job)
-		if err != nil {
-			slog.ErrorContext(ctx, "task add job error", slog.Any("err", err))
-			return err
+		entryID, addErr := e.opts.task.AddJob(spec, job)
+		if addErr != nil {
+			e.mux.Unlock()
+			slog.ErrorContext(ctx, "task add job error", slog.Any("err", addErr))
+			return addErr
 		}
-		err = e.opts.storage.Update(keys[i], entryID)
-		if err != nil {
-			slog.ErrorContext(ctx, "task update job error", slog.Any("err", err))
-			return err
+		if updateErr := e.opts.storage.Update(key, entryID); updateErr != nil {
+			e.mux.Unlock()
+			slog.ErrorContext(ctx, "task update job error", slog.Any("err", updateErr))
+			return updateErr
 		}
 	}
-	go func() {
-		e.opts.task.Run()
-		<-ctx.Done()
-		err = e.Shutdown(ctx)
-		if err != nil {
-			slog.ErrorContext(ctx, e.String()+" Server shutdown error", slog.Any("err", err.Error()))
-		}
-	}()
-	return nil
+
+	e.started = true
+	e.opts.task.Start()
+	e.mux.Unlock()
+
+	<-ctx.Done()
+	return e.shutdownWithTimeout()
 }
 
-// Shutdown server
-func (e *Server) Shutdown(_ context.Context) error {
-	e.opts.task.Stop()
-	return nil
+// Shutdown stops scheduling new work and waits for running jobs to finish.
+func (e *Server) Shutdown(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	e.mux.Lock()
+	started := e.started
+	cronServer := e.opts.task
+	e.mux.Unlock()
+	if !started || cronServer == nil {
+		return nil
+	}
+
+	stopped := cronServer.Stop()
+	select {
+	case <-stopped.Done():
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (e *Server) shutdownWithTimeout() error {
+	if e.opts.shutdownTimeout <= 0 {
+		return e.Shutdown(context.Background())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), e.opts.shutdownTimeout)
+	defer cancel()
+	return e.Shutdown(ctx)
 }

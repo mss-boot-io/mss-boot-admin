@@ -1,26 +1,25 @@
 package listener
 
-/*
- * @Author: lwnmengjing
- * @Date: 2021/6/8 2:15 下午
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2021/6/8 2:15 下午
- */
-
 import (
 	"net/http"
 	"time"
 )
 
-// Option 参数设置类型
+// Option configures an HTTP listener.
 type Option func(*Options)
 
+// Options controls the HTTP server and its lifecycle.
 type Options struct {
 	name, addr, certFile, keyFile string
 	handler                       http.Handler
 	startedHook                   func()
 	endHook                       func()
 	timeout                       time.Duration
+	readHeaderTimeout             time.Duration
+	readTimeout                   time.Duration
+	writeTimeout                  time.Duration
+	idleTimeout                   time.Duration
+	shutdownTimeout               time.Duration
 	metrics                       bool
 	healthz                       bool
 	readyz                        bool
@@ -29,93 +28,142 @@ type Options struct {
 
 func defaultOptions() *Options {
 	return &Options{
-		name:    "http",
-		addr:    ":5000",
-		timeout: 10 * time.Second,
-		handler: http.DefaultServeMux,
+		name:              "http",
+		addr:              ":5000",
+		timeout:           10 * time.Second,
+		readHeaderTimeout: 10 * time.Second,
+		readTimeout:       30 * time.Second,
+		writeTimeout:      30 * time.Second,
+		idleTimeout:       2 * time.Minute,
+		shutdownTimeout:   10 * time.Second,
+		handler:           http.DefaultServeMux,
 	}
 }
 
-// WithName set name
+// WithName sets the listener name.
 func WithName(name string) Option {
 	return func(o *Options) {
 		o.name = name
 	}
 }
 
-// WithMetrics set metrics
+// WithMetrics enables the Prometheus metrics route.
 func WithMetrics(enable bool) Option {
 	return func(o *Options) {
 		o.metrics = enable
 	}
 }
 
-// WithHealthz set healthz
+// WithHealthz enables the liveness route.
 func WithHealthz(enable bool) Option {
 	return func(o *Options) {
 		o.healthz = enable
 	}
 }
 
-// WithReadyz set readyz
+// WithReadyz enables the readiness route.
 func WithReadyz(enable bool) Option {
 	return func(o *Options) {
 		o.readyz = enable
 	}
 }
 
-// WithPprof set pprof
+// WithPprof enables pprof routes.
 func WithPprof(enable bool) Option {
 	return func(o *Options) {
 		o.pprof = enable
 	}
 }
 
-// WithEndHook set EndHook
+// WithEndHook registers a function invoked by http.Server during shutdown.
 func WithEndHook(f func()) Option {
 	return func(o *Options) {
 		o.endHook = f
 	}
 }
 
-// WithStartedHook 设置启动回调函数
+// WithStartedHook registers a function invoked after the listening socket is
+// ready and the serve loop has started.
 func WithStartedHook(f func()) Option {
 	return func(o *Options) {
 		o.startedHook = f
 	}
 }
 
-// WithAddr 设置addr
+// WithAddr sets the listen address.
 func WithAddr(s string) Option {
 	return func(o *Options) {
 		o.addr = s
 	}
 }
 
-// WithHandler 设置handler
+// WithHandler sets the HTTP handler.
 func WithHandler(handler http.Handler) Option {
 	return func(o *Options) {
 		o.handler = handler
 	}
 }
 
-// WithCert 设置cert
+// WithCert sets the TLS certificate path.
 func WithCert(s string) Option {
 	return func(o *Options) {
 		o.certFile = s
 	}
 }
 
-// WithKey 设置key
+// WithKey sets the TLS private-key path.
 func WithKey(s string) Option {
 	return func(o *Options) {
 		o.keyFile = s
 	}
 }
 
-// WithTimeout 设置timeout
-func WithTimeout(t int) Option {
+// WithTimeout preserves the legacy seconds-based timeout option while applying
+// it to all HTTP I/O and graceful-shutdown timeouts.
+func WithTimeout(seconds int) Option {
 	return func(o *Options) {
-		o.timeout = time.Second * time.Duration(t)
+		timeout := time.Second * time.Duration(seconds)
+		o.timeout = timeout
+		o.readHeaderTimeout = timeout
+		o.readTimeout = timeout
+		o.writeTimeout = timeout
+		o.idleTimeout = timeout
+		o.shutdownTimeout = timeout
+	}
+}
+
+// WithReadHeaderTimeout limits the time used to read request headers.
+func WithReadHeaderTimeout(timeout time.Duration) Option {
+	return func(o *Options) {
+		o.readHeaderTimeout = timeout
+	}
+}
+
+// WithReadTimeout limits the time used to read an entire request.
+func WithReadTimeout(timeout time.Duration) Option {
+	return func(o *Options) {
+		o.readTimeout = timeout
+	}
+}
+
+// WithWriteTimeout limits the time used to write a response.
+func WithWriteTimeout(timeout time.Duration) Option {
+	return func(o *Options) {
+		o.writeTimeout = timeout
+	}
+}
+
+// WithIdleTimeout limits how long keep-alive connections remain idle.
+func WithIdleTimeout(timeout time.Duration) Option {
+	return func(o *Options) {
+		o.idleTimeout = timeout
+	}
+}
+
+// WithShutdownTimeout limits graceful shutdown before active connections are
+// forcefully closed. A non-positive duration waits without a timeout.
+func WithShutdownTimeout(timeout time.Duration) Option {
+	return func(o *Options) {
+		o.shutdownTimeout = timeout
 	}
 }

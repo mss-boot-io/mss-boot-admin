@@ -1,18 +1,13 @@
 package listener
 
-/*
- * @Author: lwnmengjing
- * @Date: 2021/6/8 2:04 下午
- * @Last Modified by: lwnmengjing
- * @Last Modified time: 2021/6/8 2:04 下午
- */
-
 import (
 	"context"
-	"log/slog"
+	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"sync"
 
 	ginPprof "github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
@@ -20,118 +15,182 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// Server server manage
+var (
+	// ErrAlreadyStarted is returned when an HTTP listener is started twice.
+	ErrAlreadyStarted = errors.New("HTTP server has already been started")
+	// ErrIncompleteTLSConfiguration is returned when only one TLS file is set.
+	ErrIncompleteTLSConfiguration = errors.New("both TLS certificate and key files are required")
+)
+
+// Server is a managed HTTP listener.
 type Server struct {
-	ctx     context.Context
+	mux     sync.Mutex
 	srv     *http.Server
 	options Options
 	started bool
 }
 
-// New 实例化
+// New creates an HTTP listener. It returns nil when no handler is configured,
+// preserving the historical optional-listener behavior.
 func New(opts ...Option) server.Runnable {
 	s := &Server{}
-
 	s.Options(opts...)
 	if s.options.handler == nil {
 		return nil
 	}
-	switch h := s.options.handler.(type) {
-	case *http.ServeMux:
-		if s.options.pprof && h != http.DefaultServeMux {
-			h.HandleFunc("/debug/pprof/", pprof.Index)
-			h.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-			h.HandleFunc("/debug/pprof/profile", pprof.Profile)
-			h.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-			h.HandleFunc("/debug/pprof/trace", pprof.Trace)
-		}
-		if s.options.metrics {
-			h.Handle("/metrics", promhttp.Handler())
-		}
-		if s.options.healthz {
-			h.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			})
-		}
-		if s.options.readyz {
-			h.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			})
-		}
-		s.options.handler = h
-	case *gin.Engine:
-		if s.options.pprof {
-			ginPprof.Register(h)
-		}
-		if s.options.metrics {
-			h.GET("/metrics", gin.WrapH(promhttp.Handler()))
-		}
-		if s.options.healthz {
-			h.GET("/healthz", func(c *gin.Context) {
-				c.AbortWithStatus(http.StatusOK)
-			})
-		}
-		if s.options.readyz {
-			h.GET("/readyz", func(c *gin.Context) {
-				c.AbortWithStatus(http.StatusOK)
-			})
-		}
-	}
+	s.registerOperationalRoutes()
 	return s
 }
 
-// Options 设置参数
+// Options resets the listener to defaults and applies options.
 func (e *Server) Options(options ...Option) {
 	e.options = *defaultOptions()
-	for _, o := range options {
-		o(&e.options)
+	for _, option := range options {
+		if option != nil {
+			option(&e.options)
+		}
 	}
 }
 
-// String string
+// String returns the listener name.
 func (e *Server) String() string {
 	return e.options.name
 }
 
-// Start server
+// Start listens and blocks until the HTTP server exits or ctx is cancelled.
 func (e *Server) Start(ctx context.Context) error {
-	l, err := net.Listen("tcp", e.options.addr)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if (e.options.certFile == "") != (e.options.keyFile == "") {
+		return ErrIncompleteTLSConfiguration
+	}
+
+	e.mux.Lock()
+	if e.started {
+		e.mux.Unlock()
+		return ErrAlreadyStarted
+	}
+	listener, err := net.Listen("tcp", e.options.addr)
 	if err != nil {
-		return err
+		e.mux.Unlock()
+		return fmt.Errorf("HTTP server listening on %s failed: %w", e.options.addr, err)
 	}
-	e.ctx = ctx
+
+	e.srv = &http.Server{
+		Handler:           e.options.handler,
+		ReadHeaderTimeout: e.options.readHeaderTimeout,
+		ReadTimeout:       e.options.readTimeout,
+		WriteTimeout:      e.options.writeTimeout,
+		IdleTimeout:       e.options.idleTimeout,
+		BaseContext: func(net.Listener) context.Context {
+			return ctx
+		},
+	}
 	e.started = true
-	e.srv = &http.Server{Handler: e.options.handler}
-	if e.options.endHook != nil {
-		e.srv.RegisterOnShutdown(e.options.endHook)
-	}
-	e.srv.BaseContext = func(_ net.Listener) context.Context {
-		return ctx
-	}
+	srv := e.srv
+	e.mux.Unlock()
+
+	serveErr := make(chan error, 1)
 	go func() {
-		if e.options.keyFile == "" || e.options.certFile == "" {
-			if err = e.srv.Serve(l); err != nil {
-				slog.ErrorContext(ctx, e.options.name+" Server start error", slog.Any("err", err.Error()))
-			}
-		} else {
-			if err = e.srv.ServeTLS(l, e.options.certFile, e.options.keyFile); err != nil {
-				slog.ErrorContext(ctx, e.options.name+" Server start error", slog.Any("err", err.Error()))
-			}
+		if e.options.certFile == "" {
+			serveErr <- srv.Serve(listener)
+			return
 		}
-		<-ctx.Done()
-		err = e.Shutdown(ctx)
-		if err != nil {
-			slog.ErrorContext(ctx, e.options.name+" Server shutdown error", slog.Any("err", err.Error()))
-		}
+		serveErr <- srv.ServeTLS(listener, e.options.certFile, e.options.keyFile)
 	}()
+
 	if e.options.startedHook != nil {
 		e.options.startedHook()
 	}
-	server.PrintRunningInfo(e.options.addr, "http")
-	return nil
+	if e.options.endHook != nil {
+		defer e.options.endHook()
+	}
+	server.PrintRunningInfo(listener.Addr().String(), "http")
+
+	select {
+	case err := <-serveErr:
+		return normalizeServeError(err)
+	case <-ctx.Done():
+		shutdownErr := e.shutdownWithTimeout()
+		if shutdownErr != nil {
+			closeErr := srv.Close()
+			shutdownErr = errors.Join(shutdownErr, normalizeServeError(closeErr))
+		}
+		return errors.Join(shutdownErr, normalizeServeError(<-serveErr))
+	}
 }
 
-// Shutdown 停止
+// Shutdown gracefully stops the HTTP server.
 func (e *Server) Shutdown(ctx context.Context) error {
-	return e.srv.Shutdown(ctx)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	e.mux.Lock()
+	srv := e.srv
+	e.mux.Unlock()
+	if srv == nil {
+		return nil
+	}
+	return srv.Shutdown(ctx)
+}
+
+func (e *Server) shutdownWithTimeout() error {
+	if e.options.shutdownTimeout <= 0 {
+		return e.Shutdown(context.Background())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), e.options.shutdownTimeout)
+	defer cancel()
+	return e.Shutdown(ctx)
+}
+
+func normalizeServeError(err error) error {
+	if err == nil || errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
+}
+
+func (e *Server) registerOperationalRoutes() {
+	switch handler := e.options.handler.(type) {
+	case *http.ServeMux:
+		if e.options.pprof && handler != http.DefaultServeMux {
+			handler.HandleFunc("/debug/pprof/", pprof.Index)
+			handler.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+			handler.HandleFunc("/debug/pprof/profile", pprof.Profile)
+			handler.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+			handler.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		}
+		if e.options.metrics {
+			handler.Handle("/metrics", promhttp.Handler())
+		}
+		if e.options.healthz {
+			handler.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+		}
+		if e.options.readyz {
+			handler.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+		}
+		e.options.handler = handler
+	case *gin.Engine:
+		if e.options.pprof {
+			ginPprof.Register(handler)
+		}
+		if e.options.metrics {
+			handler.GET("/metrics", gin.WrapH(promhttp.Handler()))
+		}
+		if e.options.healthz {
+			handler.GET("/healthz", func(c *gin.Context) {
+				c.AbortWithStatus(http.StatusOK)
+			})
+		}
+		if e.options.readyz {
+			handler.GET("/readyz", func(c *gin.Context) {
+				c.AbortWithStatus(http.StatusOK)
+			})
+		}
+	}
 }

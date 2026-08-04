@@ -1,17 +1,14 @@
 package task
 
-/*
- * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2023/2/21 16:23:53
- * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2023/2/21 16:23:53
- */
-
 import (
+	"time"
+
 	"github.com/robfig/cron/v3"
 )
 
-// Option params set
+const defaultShutdownTimeout = 5 * time.Second
+
+// Option configures the task server.
 type Option func(*options)
 
 type schedule struct {
@@ -21,30 +18,39 @@ type schedule struct {
 }
 
 type options struct {
-	task    *cron.Cron
-	storage Storage
+	task            *cron.Cron
+	storage         Storage
+	shutdownTimeout time.Duration
 }
 
-// WithSchedule set schedule
+// WithSchedule registers a schedule in task storage.
 func WithSchedule(key string, spec string, job cron.Job) Option {
 	return func(o *options) {
 		_ = o.storage.Set(key, 0, spec, job)
 	}
 }
 
-// WithStorage set storage
-func WithStorage(s Storage) Option {
+// WithStorage replaces task storage.
+func WithStorage(storage Storage) Option {
 	return func(o *options) {
-		o.storage = s
+		if storage != nil {
+			o.storage = storage
+		}
 	}
+}
 
+// WithShutdownTimeout limits how long Start waits for running cron jobs after
+// cancellation. A non-positive duration waits without a timeout.
+func WithShutdownTimeout(timeout time.Duration) Option {
+	return func(o *options) {
+		o.shutdownTimeout = timeout
+	}
 }
 
 func setDefaultOption() options {
 	return options{
-		task: cron.New(cron.WithSeconds(), cron.WithChain()),
-		storage: &defaultStorage{
-			schedules: make(map[string]*schedule),
-		},
+		task:            cron.New(cron.WithSeconds(), cron.WithChain()),
+		storage:         &defaultStorage{schedules: make(map[string]*schedule)},
+		shutdownTimeout: defaultShutdownTimeout,
 	}
 }
