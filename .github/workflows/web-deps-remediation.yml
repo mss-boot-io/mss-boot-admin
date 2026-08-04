@@ -1,0 +1,368 @@
+name: One-shot web dependency remediation
+
+on:
+  push:
+    branches:
+      - refactor/split-admin-module-and-coverage-r1
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-web-dependency-remediation
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v7
+        with:
+          ref: refactor/split-admin-module-and-coverage-r1
+          fetch-depth: 0
+
+      - name: Detect completed remediation
+        id: guard
+        run: |
+          if [[ -f web/antd/pnpm-workspace.yaml ]] && \
+             ! grep -q 'umi-presets-pro' web/antd/package.json; then
+            echo 'done=true' >> "${GITHUB_OUTPUT}"
+          else
+            echo 'done=false' >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Setup pnpm
+        if: steps.guard.outputs.done != 'true'
+        uses: pnpm/action-setup@v6.0.9
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        if: steps.guard.outputs.done != 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            web/antd/pnpm-lock.yaml
+            web/antd/workers-site/pnpm-lock.yaml
+
+      - name: Rewrite dependency and test contracts
+        if: steps.guard.outputs.done != 'true'
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('web/antd')
+          package_path = root / 'package.json'
+          package = json.loads(package_path.read_text(encoding='utf-8'))
+          package['private'] = True
+          package['packageManager'] = 'pnpm@9.15.9'
+          package['engines'] = {
+              'node': '>=22.0.0 <23',
+              'pnpm': '9.15.9',
+          }
+
+          package['scripts'] = {
+              'analyze': 'cross-env ANALYZE=1 max build',
+              'build': 'max build',
+              'build:alpha': 'cross-env REACT_APP_ENV=alpha UMI_ENV=alpha max build',
+              'build:beta': 'cross-env REACT_APP_ENV=beta UMI_ENV=beta max build',
+              'build:local': 'cross-env REACT_APP_ENV=local UMI_ENV=local max build',
+              'build:prod': 'cross-env REACT_APP_ENV=prod UMI_ENV=prod max build',
+              'deploy': 'pnpm build && pnpm gh-pages',
+              'dev': 'pnpm start:dev',
+              'format': 'prettier --write "**/*.{js,jsx,tsx,ts,less,md,json}"',
+              'gh-pages': 'gh-pages -d dist',
+              'hooks:install': 'node scripts/install-hooks.mjs',
+              'jest': 'jest',
+              'lint': 'pnpm lint:js && pnpm lint:prettier && pnpm tsc',
+              'lint-staged': 'lint-staged',
+              'lint-staged:js': 'eslint --cache --fix --max-warnings=0',
+              'lint:fix': 'eslint --fix --cache --ext .js,.jsx,.ts,.tsx --format=stylish ./src',
+              'lint:js': 'eslint --cache --ext .js,.jsx,.ts,.tsx --format=stylish ./src',
+              'lint:prettier': 'prettier --check "**/*.{js,jsx,tsx,ts,less,md,json}"',
+              'openapi': 'max openapi',
+              'playwright:install': 'playwright install chromium',
+              'preview': 'pnpm build && max preview --port 8000',
+              'setup': 'max setup',
+              'start': 'cross-env UMI_ENV=dev max dev',
+              'start:alpha': 'cross-env REACT_APP_ENV=alpha MOCK=none UMI_ENV=alpha max dev',
+              'start:beta': 'cross-env REACT_APP_ENV=beta MOCK=none UMI_ENV=beta max dev',
+              'start:dev': 'cross-env REACT_APP_ENV=dev MOCK=none UMI_ENV=dev max dev',
+              'start:no-mock': 'cross-env MOCK=none UMI_ENV=dev max dev',
+              'start:pre': 'cross-env REACT_APP_ENV=pre UMI_ENV=dev max dev',
+              'start:prod': 'cross-env REACT_APP_ENV=prod MOCK=none UMI_ENV=prod max dev',
+              'start:test': 'cross-env REACT_APP_ENV=test MOCK=none UMI_ENV=dev max dev',
+              'test': 'cross-env MOCK=none jest',
+              'test:ci': 'cross-env MOCK=none jest --runInBand --detectOpenHandles',
+              'test:coverage': 'cross-env MOCK=none jest --coverage',
+              'test:e2e': 'playwright test',
+              'test:e2e:debug': 'playwright test --debug',
+              'test:e2e:ui': 'playwright test --ui',
+              'test:update': 'cross-env MOCK=none jest -u',
+              'tsc': 'tsc --noEmit',
+          }
+          package['lint-staged'] = {
+              '**/*.{js,jsx,ts,tsx}': [
+                  'pnpm lint-staged:js',
+                  'prettier --write',
+              ],
+              '**/*.{less,md,json}': 'prettier --write',
+          }
+          package['browserslist'] = [
+              'defaults and supports es6-module',
+              'not IE 11',
+              'not dead',
+          ]
+          package['dependencies'] = {
+              '@ant-design/charts': '2.6.7',
+              '@ant-design/icons': '4.8.1',
+              '@ant-design/pro-components': '2.8.10',
+              '@ant-design/use-emotion-css': '1.0.4',
+              'ahooks': '3.9.7',
+              'antd': '5.12.1',
+              'braft-editor': '2.3.9',
+              'classnames': '2.5.1',
+              'lodash': '4.18.1',
+              'moment': '2.30.1',
+              'rc-menu': '9.16.1',
+              'rc-util': '5.44.4',
+              'react': '18.2.0',
+              'react-dom': '18.2.0',
+              'uuid': '14.0.1',
+          }
+          package['devDependencies'] = {
+              '@playwright/test': '1.62.1',
+              '@testing-library/react': '15.0.7',
+              '@types/express': '4.17.21',
+              '@types/jest': '29.5.10',
+              '@types/lodash': '4.17.25',
+              '@types/node': '20.10.3',
+              '@types/react': '18.2.41',
+              '@types/react-dom': '18.2.17',
+              '@umijs/lint': '4.7.0',
+              '@umijs/max': '4.7.0',
+              '@umijs/max-plugin-openapi': '2.0.3',
+              'cross-env': '10.1.0',
+              'eslint': '8.57.1',
+              'express': '4.22.2',
+              'gh-pages': '6.3.0',
+              'husky': '9.1.7',
+              'jest': '29.7.0',
+              'jest-environment-jsdom': '29.7.0',
+              'lint-staged': '17.3.0',
+              'prettier': '2.8.8',
+              'ts-node': '10.9.2',
+              'typescript': '4.9.5',
+          }
+          package['pnpm'] = {
+              'peerDependencyRules': {
+                  'allowedVersions': {
+                      'dva-core': '2.0.4',
+                      'less-loader': '11.1.0',
+                      'react': '18.2.0',
+                      'react-dom': '18.2.0',
+                  },
+              },
+              'overrides': {
+                  '@babel/core': '7.29.7',
+                  '@babel/plugin-transform-modules-systemjs': '7.29.7',
+                  '@babel/runtime': '7.29.7',
+                  '@remix-run/router': '1.23.3',
+                  '@tootallnate/once': '2.0.1',
+                  '@vitejs/plugin-react@4.0.0': '4.7.0',
+                  'ajv@6.12.6': '6.15.0',
+                  'ajv@8.12.0': '8.20.0',
+                  'axios': '0.33.0',
+                  'body-parser': '1.20.6',
+                  'brace-expansion@1.1.15': '1.1.16',
+                  'brace-expansion@2.1.1': '2.1.2',
+                  'braces': '3.0.3',
+                  'braft-editor>immutable': '4.3.9',
+                  'braft-utils>immutable': '4.3.9',
+                  'cross-spawn': '7.0.6',
+                  'diff': '4.0.4',
+                  'draft-convert>immutable': '4.3.9',
+                  'draft-js>immutable': '4.3.9',
+                  'draftjs-utils>immutable': '4.3.9',
+                  'es5-ext': '0.10.63',
+                  'esbuild': '0.28.1',
+                  'fast-uri': '3.1.4',
+                  'flatted': '3.4.2',
+                  'form-data': '4.0.6',
+                  'hono': '4.12.27',
+                  'immer': '9.0.21',
+                  'isomorphic-fetch>node-fetch': '2.7.0',
+                  'js-cookie': '3.0.8',
+                  'js-yaml': '4.3.0',
+                  'micromatch': '4.0.8',
+                  'min-document@2.19.0': '2.19.2',
+                  'minimatch@3.1.2': '3.1.4',
+                  'minimatch@8.0.4': '8.0.6',
+                  'picomatch': '2.3.2',
+                  'piscina': '4.9.3',
+                  'postcss': '8.5.23',
+                  'qs': '6.15.2',
+                  'react-router@6.3.0': '6.30.4',
+                  'react-router@6.20.1': '6.30.4',
+                  'react-router-dom@6.3.0': '6.30.4',
+                  'react-router-dom@6.20.1': '6.30.4',
+                  'send': '0.19.2',
+                  'svgo': '2.8.3',
+                  'webpack': '5.109.2',
+                  'ws': '8.21.0',
+                  'yaml': '1.10.3',
+              },
+          }
+          package_path.write_text(json.dumps(package, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          config_path = root / 'config/config.ts'
+          config = config_path.read_text(encoding='utf-8')
+          config = config.replace(
+              "  presets: ['umi-presets-pro'],\n",
+              "  plugins: ['@umijs/max-plugin-openapi'],\n",
+          )
+          config = config.replace(
+              "path.resolve(__dirname, '../../mss-boot-admin/docs/swagger.json')",
+              "path.resolve(__dirname, '../../../admin/docs/swagger.json')",
+          )
+          config = config.replace('  requestRecord: {},\n', '')
+          config_path.write_text(config, encoding='utf-8')
+
+          login_test_path = root / 'src/pages/User/Login/login.test.tsx'
+          login_test = login_test_path.read_text(encoding='utf-8-sig')
+          login_test = login_test.replace("// @ts-ignore\nimport { startMock } from '@@/requestRecordMock';\n\n", '')
+          start = login_test.find('let server: {')
+          describe = login_test.find("describe('Login Page'")
+          if start >= 0 and describe > start:
+              login_test = login_test[:start] + login_test[describe:]
+          mock = "jest.mock('@/services/admin/appConfig', () => ({\n  getAppConfigsProfile: jest.fn().mockResolvedValue(undefined),\n}));\n\n"
+          marker = "import { resolveSafeRedirect } from './redirect';\n\n"
+          if mock not in login_test:
+              login_test = login_test.replace(marker, marker + mock)
+          login_test_path.write_text(login_test, encoding='utf-8')
+
+          jest_path = root / 'jest.config.ts'
+          jest = jest_path.read_text(encoding='utf-8')
+          jest = jest.replace('  console.log();\n', '')
+          jest_path.write_text(jest, encoding='utf-8')
+
+          typings_path = root / 'src/typings.d.ts'
+          typings = typings_path.read_text(encoding='utf-8')
+          typings = typings.replace("declare module 'omit.js';\n", '')
+          typings = typings.replace("declare module 'uuid';\n", '')
+          typings_path.write_text(typings, encoding='utf-8')
+
+          intl_path = root / 'src/util/intl.ts'
+          intl_path.write_text(
+              "export type IntlFormatter = {\n"
+              "  formatMessage(descriptor: { id: string; defaultMessage?: string }): string;\n"
+              "};\n",
+              encoding='utf-8',
+          )
+          for relative in ['src/util/addOption.tsx', 'src/util/fieldIntl.tsx', 'src/util/menuTransferTree.tsx']:
+              path = root / relative
+              text = path.read_text(encoding='utf-8-sig')
+              text = text.replace("// @ts-ignore\nimport { IntlShape } from 'react-intl';", "import type { IntlFormatter } from './intl';")
+              text = text.replace('IntlShape', 'IntlFormatter')
+              path.write_text(text, encoding='utf-8')
+
+          scripts = root / 'scripts'
+          scripts.mkdir(exist_ok=True)
+          (scripts / 'install-hooks.mjs').write_text(
+              "import { execFileSync } from 'node:child_process';\n"
+              "import { fileURLToPath } from 'node:url';\n"
+              "import path from 'node:path';\n\n"
+              "const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');\n"
+              "const repositoryRoot = path.resolve(packageRoot, '../..');\n"
+              "const huskyBin = path.join(packageRoot, 'node_modules/husky/bin.js');\n"
+              "execFileSync(process.execPath, [huskyBin, 'web/antd/.husky'], { cwd: repositoryRoot, stdio: 'inherit' });\n",
+              encoding='utf-8',
+          )
+
+          workers_path = root / 'workers-site/package.json'
+          workers = json.loads(workers_path.read_text(encoding='utf-8'))
+          workers.update({
+              'name': '@mss-boot-admin/workers-site',
+              'version': '1.0.0',
+              'private': True,
+              'type': 'module',
+              'packageManager': 'pnpm@9.15.9',
+          })
+          workers['dependencies'] = {'@cloudflare/kv-asset-handler': '0.5.0'}
+          workers_path.write_text(json.dumps(workers, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
+
+          cat > web/antd/.npmrc <<'EOF'
+          auto-install-peers=false
+          engine-strict=true
+          prefer-frozen-lockfile=true
+          save-exact=true
+          strict-peer-dependencies=true
+          verify-store-integrity=true
+          EOF
+
+          cat > web/antd/pnpm-workspace.yaml <<'EOF'
+          packages:
+            - workers-site
+          EOF
+
+          cat > web/antd/.husky/pre-commit <<'EOF'
+          pnpm --dir web/antd lint-staged
+          EOF
+          chmod +x web/antd/.husky/pre-commit
+
+          rm -f \
+            web/antd/.husky/commit-msg \
+            web/antd/check_login.js \
+            web/antd/check_login.mjs \
+            web/antd/workers-site/pnpm-lock.yaml
+
+      - name: Generate a strict shared lockfile
+        if: steps.guard.outputs.done != 'true'
+        working-directory: web/antd
+        run: |
+          set -euxo pipefail
+          rm -rf node_modules workers-site/node_modules .umi .umi-test
+          pnpm install --lockfile-only --ignore-scripts --strict-peer-dependencies
+          pnpm dedupe
+          pnpm install --frozen-lockfile --ignore-scripts --strict-peer-dependencies --prefer-offline
+
+      - name: Validate setup, dependency health, and frontend behavior
+        if: steps.guard.outputs.done != 'true'
+        working-directory: web/antd
+        run: |
+          set -euxo pipefail
+          pnpm setup
+          pnpm list --depth 0
+          pnpm --filter @mss-boot-admin/workers-site list --depth 0
+          pnpm dedupe --check
+          pnpm audit --prod --audit-level high
+          pnpm lint:js
+          pnpm tsc
+          timeout 240s pnpm test:ci
+          pnpm build:local
+          git diff --check
+
+      - name: Commit converged frontend dependencies
+        if: steps.guard.outputs.done != 'true'
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A web/antd
+          git diff --cached --stat
+          git commit -m 'build(frontend): converge dependency graph and lockfile'
+          git push origin HEAD:refactor/split-admin-module-and-coverage-r1
