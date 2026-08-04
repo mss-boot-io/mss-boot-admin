@@ -7,18 +7,10 @@ on:
     tags:
       - 'mss-boot/v*.*.*'
     paths:
-      - 'mss-boot/**/*.go'
-      - 'mss-boot/**/*.proto'
-      - 'mss-boot/**/*.sql'
-      - 'mss-boot/**/*.json'
-      - 'mss-boot/**/*.toml'
-      - 'mss-boot/**/*.yaml'
-      - 'mss-boot/**/*.yml'
-      - 'mss-boot/**/*.tmpl'
-      - 'mss-boot/**/*.tpl'
-      - 'mss-boot/go.mod'
-      - 'mss-boot/go.sum'
-      - 'mss-boot/Makefile'
+      - 'mss-boot/**'
+      - '.mss/coverage.json'
+      - 'scripts/check-go-coverage.py'
+      - 'scripts/test_check_go_coverage.py'
       - 'go.work'
       - 'go.work.sum'
       - 'Makefile'
@@ -27,18 +19,10 @@ on:
     branches:
       - main
     paths:
-      - 'mss-boot/**/*.go'
-      - 'mss-boot/**/*.proto'
-      - 'mss-boot/**/*.sql'
-      - 'mss-boot/**/*.json'
-      - 'mss-boot/**/*.toml'
-      - 'mss-boot/**/*.yaml'
-      - 'mss-boot/**/*.yml'
-      - 'mss-boot/**/*.tmpl'
-      - 'mss-boot/**/*.tpl'
-      - 'mss-boot/go.mod'
-      - 'mss-boot/go.sum'
-      - 'mss-boot/Makefile'
+      - 'mss-boot/**'
+      - '.mss/coverage.json'
+      - 'scripts/check-go-coverage.py'
+      - 'scripts/test_check_go_coverage.py'
       - 'go.work'
       - 'go.work.sum'
       - 'Makefile'
@@ -60,7 +44,7 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     services:
       redis:
         image: redis:7-alpine
@@ -82,14 +66,35 @@ jobs:
           cache: true
           cache-dependency-path: mss-boot/go.sum
 
-      - name: Run framework tests
+      - name: Test coverage policy tooling
+        run: python3 -m unittest scripts/test_check_go_coverage.py
+
+      - name: Run framework tests with atomic coverage
         working-directory: mss-boot
-        run: go test -shuffle=on -count=1 ./...
+        run: >-
+          go test -shuffle=on -count=1 -covermode=atomic -coverpkg=./...
+          -coverprofile="${RUNNER_TEMP}/mss-boot.coverage.out" ./...
+
+      - name: Enforce framework coverage policy
+        run: >-
+          python3 scripts/check-go-coverage.py
+          --profile "${RUNNER_TEMP}/mss-boot.coverage.out"
+          --policy .mss/coverage.json
+          --component mss-boot
+          --summary
+
+      - name: Upload framework coverage profile
+        uses: actions/upload-artifact@v7
+        with:
+          name: mss-boot-coverage
+          path: ${{ runner.temp }}/mss-boot.coverage.out
+          if-no-files-found: error
+          retention-days: 14
 
   race:
     name: race
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 55
     services:
       redis:
         image: redis:7-alpine
@@ -118,7 +123,7 @@ jobs:
   static-and-module:
     name: static-and-module
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -139,6 +144,14 @@ jobs:
         run: |
           go mod tidy
           git diff --exit-code -- go.mod go.sum
+
+      - name: Reject Admin imports
+        run: |
+          if grep -R --line-number --include='*.go' \
+            'github.com/mss-boot-io/mss-boot-admin/admin/' mss-boot; then
+            echo 'mss-boot must remain independent from Admin business packages' >&2
+            exit 1
+          fi
 
   required:
     name: mss-boot
