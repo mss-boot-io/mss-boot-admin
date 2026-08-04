@@ -21,6 +21,11 @@ var (
 	ErrGracefulShutdownTimeout = errors.New("graceful shutdown timed out")
 )
 
+type runnableResult struct {
+	name string
+	err  error
+}
+
 // Server coordinates Runnable components as one lifecycle unit.
 type Server struct {
 	mux      sync.Mutex
@@ -97,41 +102,37 @@ func (e *Server) Start(ctx context.Context) error {
 		return nil
 	}
 
-	type result struct {
-		name string
-		err  error
-	}
-
-	results := make(chan result, len(runnables))
+	results := make(chan runnableResult, len(runnables))
 	var wait sync.WaitGroup
 	wait.Add(len(runnables))
 	for _, runnable := range runnables {
 		runnable := runnable
 		go func() {
 			defer wait.Done()
-			results <- result{name: runnable.String(), err: runnable.Start(runCtx)}
+			results <- runnableResult{name: runnable.String(), err: runnable.Start(runCtx)}
 		}()
 	}
 
 	var runErr error
+	received := 0
 	select {
 	case <-runCtx.Done():
 		// Caller cancellation and process signals are normal shutdown paths.
 	case result := <-results:
+		received++
 		if runCtx.Err() != nil {
-			// A runnable may observe cancellation and return at the same instant as
-			// this select. External cancellation remains a normal shutdown path.
-			break
-		}
-		if result.err != nil {
-			runErr = fmt.Errorf("runnable %q failed: %w", result.name, result.err)
+			// A runnable may observe external cancellation and return at the same
+			// instant as this select. Preserve real shutdown errors while treating
+			// the matching context error as normal.
+			runErr = errors.Join(runErr, shutdownResultError(result.name, result.err, runCtx.Err()))
 		} else {
-			runErr = fmt.Errorf("runnable %q: %w", result.name, ErrRunnableStopped)
+			runErr = errors.Join(runErr, runningResultError(result.name, result.err))
 		}
 	}
 
 	cancel()
 	shutdownErr := waitForRunnables(&wait, options.gracefulShutdownTimeout)
+	runErr = errors.Join(runErr, collectShutdownResults(results, len(runnables), received, runCtx.Err(), shutdownErr == nil))
 	return errors.Join(runErr, shutdownErr)
 }
 
@@ -153,6 +154,52 @@ func (e *Server) beginStart() ([]Runnable, Options, error) {
 	options := e.opts
 	options.signals = append([]os.Signal(nil), e.opts.signals...)
 	return runnables, options, nil
+}
+
+func runningResultError(name string, err error) error {
+	if err != nil {
+		return fmt.Errorf("runnable %q failed: %w", name, err)
+	}
+	return fmt.Errorf("runnable %q: %w", name, ErrRunnableStopped)
+}
+
+func shutdownResultError(name string, err, cancellationErr error) error {
+	if err == nil {
+		return nil
+	}
+	if err == context.Canceled || (cancellationErr != nil && err == cancellationErr) {
+		return nil
+	}
+	return fmt.Errorf("runnable %q failed during shutdown: %w", name, err)
+}
+
+func collectShutdownResults(
+	results <-chan runnableResult,
+	total int,
+	received int,
+	cancellationErr error,
+	waitCompleted bool,
+) error {
+	var resultErr error
+	if waitCompleted {
+		for received < total {
+			result := <-results
+			received++
+			resultErr = errors.Join(resultErr, shutdownResultError(result.name, result.err, cancellationErr))
+		}
+		return resultErr
+	}
+
+	for received < total {
+		select {
+		case result := <-results:
+			received++
+			resultErr = errors.Join(resultErr, shutdownResultError(result.name, result.err, cancellationErr))
+		default:
+			return resultErr
+		}
+	}
+	return resultErr
 }
 
 func waitForRunnables(wait *sync.WaitGroup, timeout time.Duration) error {

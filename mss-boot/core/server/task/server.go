@@ -98,7 +98,7 @@ func (e *Server) String() string {
 }
 
 // Start loads jobs, starts cron, and blocks until ctx is cancelled and running
-// jobs have completed.
+// jobs have completed or the configured shutdown timeout expires.
 func (e *Server) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -143,7 +143,7 @@ func (e *Server) Start(ctx context.Context) error {
 	e.mux.Unlock()
 
 	<-ctx.Done()
-	return e.Shutdown(context.Background())
+	return e.shutdownWithTimeout()
 }
 
 // Shutdown stops scheduling new work and waits for running jobs to finish.
@@ -166,4 +166,13 @@ func (e *Server) Shutdown(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (e *Server) shutdownWithTimeout() error {
+	if e.opts.shutdownTimeout <= 0 {
+		return e.Shutdown(context.Background())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), e.opts.shutdownTimeout)
+	defer cancel()
+	return e.Shutdown(ctx)
 }
