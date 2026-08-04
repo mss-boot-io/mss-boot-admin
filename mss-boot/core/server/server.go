@@ -167,7 +167,7 @@ func shutdownResultError(name string, err, cancellationErr error) error {
 	if err == nil {
 		return nil
 	}
-	if err == context.Canceled || (cancellationErr != nil && err == cancellationErr) {
+	if errors.Is(err, context.Canceled) || (cancellationErr != nil && errors.Is(err, cancellationErr)) {
 		return nil
 	}
 	return fmt.Errorf("runnable %q failed during shutdown: %w", name, err)
