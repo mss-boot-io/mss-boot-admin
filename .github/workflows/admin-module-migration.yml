@@ -217,7 +217,9 @@ jobs:
         if: steps.guard.outputs.done != 'true'
         run: |
           set -euxo pipefail
+          GOWORK=off go mod edit -replace=github.com/mss-boot-io/mss-boot-admin/mss-boot=./mss-boot
           GOWORK=off go mod tidy
+          GOWORK=off go mod edit -dropreplace=github.com/mss-boot-io/mss-boot-admin/mss-boot
           (
             cd admin
             GOWORK=off go mod tidy
