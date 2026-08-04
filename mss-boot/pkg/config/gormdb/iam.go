@@ -233,15 +233,16 @@ func makeIAMPostgresBeforeConnect(
 	credentials aws.CredentialsProvider,
 	builder iamTokenBuilder,
 ) func(context.Context, *pgx.ConnConfig) error {
+	tokenBuilder := builder
+	if tokenBuilder == nil {
+		tokenBuilder = buildIAMToken
+	}
 	return func(ctx context.Context, cfg *pgx.ConnConfig) error {
 		if cfg == nil {
 			return fmt.Errorf("gormdb: PostgreSQL IAM connection config is nil")
 		}
-		if builder == nil {
-			builder = buildIAMToken
-		}
 		endpoint := net.JoinHostPort(cfg.Host, strconv.Itoa(int(cfg.Port)))
-		token, err := builder(ctx, endpoint, region, cfg.User, credentials)
+		token, err := tokenBuilder(ctx, endpoint, region, cfg.User, credentials)
 		if err != nil {
 			return fmt.Errorf("build PostgreSQL RDS IAM token: %w", err)
 		}
