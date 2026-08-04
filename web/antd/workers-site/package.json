@@ -1,9 +1,15 @@
 {
   "name": "workers-site",
   "version": "1.0.0",
+  "private": true,
   "main": "index.js",
   "license": "MIT",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0 <10"
+  },
   "dependencies": {
-    "@cloudflare/kv-asset-handler": "^0.5.0"
+    "@cloudflare/kv-asset-handler": "0.5.0"
   }
 }
