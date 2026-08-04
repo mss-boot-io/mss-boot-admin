@@ -20,7 +20,7 @@ def main() -> None:
     package = json.loads(package_path.read_text(encoding="utf-8"))
     package["dependencies"].update(
         {
-            "@ant-design/charts": "2.7.2",
+            "@ant-design/charts": "2.6.7",
             "@ant-design/pro-components": "2.9.20",
             "ahooks": "3.9.8",
         }
