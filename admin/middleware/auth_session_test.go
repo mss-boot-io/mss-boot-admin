@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -25,13 +26,15 @@ import (
 // validateSessionFromClaims depends on without booting the whole admin server:
 // a sqlite DB exposed via gormdb.DB (single-tenant center.GetDB reads it),
 // a miniredis-backed Cache injected into SessionService, and the
-// SessionEnabled flag flipped on. Returns the DB so individual tests can
-// create / mutate session rows.
+// SessionEnabled flag flipped on. A temporary SQLite file is used instead of
+// :memory: so the asynchronous last-seen writer and the assertion connection
+// observe the same database when GORM opens more than one physical connection.
 func setupAuthSessionTest(t *testing.T) (*gorm.DB, *miniredis.Miniredis) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	databasePath := filepath.Join(t.TempDir(), "auth-session.db")
+	db, err := gorm.Open(sqlite.Open(databasePath), &gorm.Config{})
 	assert.NoError(t, err)
 	assert.NoError(t, db.AutoMigrate(&models.UserSession{}))
 
