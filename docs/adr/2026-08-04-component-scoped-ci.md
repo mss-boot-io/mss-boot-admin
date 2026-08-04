@@ -27,7 +27,7 @@ Validation is split into component-owned workflows:
 | Framework | `.github/workflows/mss-boot-ci.yml` | Independent `GOWORK=off` tests, race tests, vet, and module-tidiness checks. |
 | Frontend | `.github/workflows/frontend-ci.yml` | ESLint, TypeScript, Jest, and production-equivalent local build run in two parallel jobs; the historical `Frontend CI / build` check aggregates both. |
 | Documentation | `.github/workflows/docs.yml` | Dumi build on documentation changes and Cloudflare deployment only after a successful `main` build. |
-| Container image | `.github/workflows/container.yml` | Image publishing is independent from validation and uses the GitHub Actions build cache. |
+| Container image | `.github/workflows/container.yml` | Pull requests build the vendored image without pushing; `main`, tags, and manual dispatch publish with the GitHub Actions BuildKit cache. |
 
 Additional rules:
 
@@ -37,12 +37,14 @@ Additional rules:
 - Agent infrastructure CI no longer installs Node or builds docs. It still validates Agent contracts that happen to live under `docs/`.
 - Inactive workflows under `mss-boot/.github/workflows/` are removed because GitHub only loads workflows from the repository-root `.github/workflows/` directory. Root workflows now own framework CI, CodeQL, Scorecard, and nested-module release behavior.
 - The legacy Swagger deployment is path-scoped and version-pins the generator.
+- The repository does not commit `vendor/`. The container workflow must therefore run `go work vendor` before every Docker build because the Dockerfile copies the generated workspace vendor directory and compiles with vendoring enabled.
+- Container changes are verified on pull requests with `push: false`; registry authentication and package writes occur only outside pull requests.
 
 ## Compatibility
 
 The workflow file `.github/workflows/ci.yml` keeps the workflow name `CI` and exposes a final job named `build`. Existing branch rules that require `CI / build` therefore continue to represent both root tests and root compilation.
 
-The frontend workflow similarly keeps `Frontend CI / build` as an aggregate over quality and compilation. New framework checks can be made required after one successful pull-request run establishes their exact check names.
+The frontend workflow similarly keeps `Frontend CI / build` as an aggregate over quality and compilation. New framework and container checks can be made required after one successful pull-request run establishes their exact check names.
 
 ## Expected effect
 
@@ -53,6 +55,7 @@ The frontend workflow similarly keeps `Frontend CI / build` as an aggregate over
 - A frontend-only pull request does not start the root, framework, or docs workflow.
 - A framework change still triggers root admin compatibility validation, but the two workflows execute independently and concurrently.
 - Main-branch image publishing no longer extends the required `CI / build` duration.
+- Dockerfile, Go dependency, and container-workflow changes fail in the pull request if workspace vendoring or the image context is invalid, instead of failing for the first time after merge.
 
 ## Validation
 
@@ -62,5 +65,6 @@ A workflow change is complete when a pull request demonstrates:
 - `mss-boot CI / mss-boot` succeeds;
 - `Frontend CI / build` succeeds when frontend paths change;
 - `Docs / build` succeeds when docs paths change;
+- `Container Image / build` succeeds for image-affecting changes without pushing an image;
 - Agent, security, PR guard, and docs-drift workflows remain green;
 - no workflow is triggered twice for the same feature-branch commit solely because both `push` and `pull_request` matched.
