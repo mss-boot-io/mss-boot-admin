@@ -23,13 +23,13 @@ type testMGMModel struct {
 	mgm.DefaultModel `bson:",inline"`
 }
 
-type ownershipFields struct {
+type OwnershipFields struct {
 	TenantID  string `json:"tenantID" gorm:"column:tenant_id"`
 	CreatorID string `json:"creatorID" gorm:"column:creator_id"`
 }
 
 type ownershipModel struct {
-	*ownershipFields
+	*OwnershipFields
 }
 
 func TestCompareHashAndPassword(t *testing.T) {
@@ -71,10 +71,10 @@ func TestGenerateMsgIDFromContext(t *testing.T) {
 }
 
 func TestPointerCopyHelpers(t *testing.T) {
-	if clone, ok := DeepCopy(&ownershipFields{}).(*ownershipFields); !ok || clone == nil {
+	if clone, ok := DeepCopy(&OwnershipFields{}).(*OwnershipFields); !ok || clone == nil {
 		t.Fatalf("DeepCopy result = %#v", clone)
 	}
-	if DeepCopy(ownershipFields{}) != nil || DeepCopy(nil) != nil {
+	if DeepCopy(OwnershipFields{}) != nil || DeepCopy(nil) != nil {
 		t.Fatal("DeepCopy must reject non-pointers and nil")
 	}
 	if clone := TablerDeepCopy(&testTabler{}); clone == nil || clone.TableName() != "test_table" {
@@ -138,7 +138,7 @@ func TestOwnershipReflectionHelpers(t *testing.T) {
 		t.Fatalf("creator field = %q", GetCreatorField())
 	}
 	SetCreator(model, "creator-1")
-	if model.ownershipFields == nil || model.CreatorID != "creator-1" {
+	if model.OwnershipFields == nil || model.CreatorID != "creator-1" {
 		t.Fatalf("creator was not assigned: %#v", model)
 	}
 	SetValue(model, "tenant_id", "tenant-1")
