@@ -10,7 +10,7 @@ spec:
   services:
     - id: backend
       description: Go admin API and static development server
-      directory: .
+      directory: admin
       command:
         - go
         - run

@@ -47,7 +47,7 @@ func TestUpgradeAppliesFoundationChangesAndPreservesCustomization(t *testing.T) 
 		t.Fatalf("unexpected upgrade plan: %#v", plan)
 	}
 	assertUpgradeAction(t, plan, "AGENTS.md", ActionPreserve)
-	assertUpgradeAction(t, plan, "main.go", ActionUpdate)
+	assertUpgradeAction(t, plan, "admin/main.go", ActionUpdate)
 	assertUpgradeAction(t, plan, "NEW.md", ActionCreate)
 	assertUpgradeAction(t, plan, "web/antd/public/fixture.bin", ActionDelete)
 
@@ -70,7 +70,7 @@ func TestUpgradeAppliesFoundationChangesAndPreservesCustomization(t *testing.T) 
 	if string(agents) != string(customAgents) {
 		t.Fatalf("customized AGENTS.md was overwritten: %q", agents)
 	}
-	assertContains(t, filepath.Join(applicationRoot, "main.go"), "FoundationRevision = \"v2\"")
+	assertContains(t, filepath.Join(applicationRoot, "admin/main.go"), "FoundationRevision = \"v2\"")
 	assertContains(t, filepath.Join(applicationRoot, "NEW.md"), "new foundation capability")
 	if _, err := os.Stat(filepath.Join(applicationRoot, "web", "antd", "public", "fixture.bin")); !os.IsNotExist(err) {
 		t.Fatalf("obsolete unmodified file was not removed: %v", err)
@@ -128,7 +128,7 @@ func TestUpgradeDetectsConcurrentFoundationAndDownstreamChanges(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("generate old application: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(applicationRoot, "main.go"), []byte("package downstream\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(applicationRoot, "admin/main.go"), []byte("package downstream\n"), 0o644); err != nil {
 		t.Fatalf("customize main.go: %v", err)
 	}
 
@@ -144,8 +144,8 @@ func TestUpgradeDetectsConcurrentFoundationAndDownstreamChanges(t *testing.T) {
 	if plan.Success {
 		t.Fatalf("conflicting upgrade reported success: %#v", plan)
 	}
-	assertUpgradeAction(t, plan, "main.go", ActionConflict)
-	assertContains(t, filepath.Join(applicationRoot, "main.go"), "package downstream")
+	assertUpgradeAction(t, plan, "admin/main.go", ActionConflict)
+	assertContains(t, filepath.Join(applicationRoot, "admin/main.go"), "package downstream")
 }
 
 func TestUpgradeDetectsCustomizedFileRemovedByFoundation(t *testing.T) {
@@ -196,7 +196,7 @@ func prepareNewFoundation(t *testing.T, root string) {
 	if err := os.WriteFile(blueprintPath, blueprintData, 0o644); err != nil {
 		t.Fatalf("write new blueprint: %v", err)
 	}
-	mainPath := filepath.Join(root, "main.go")
+	mainPath := filepath.Join(root, "admin/main.go")
 	mainData, err := os.ReadFile(mainPath)
 	if err != nil {
 		t.Fatalf("read new main.go: %v", err)

@@ -17,7 +17,8 @@ A successful change must be understandable by humans, executable by coding agent
 
 | Path | Responsibility |
 | --- | --- |
-| `/` | Go admin backend and current reference application |
+| `/` | Agent/Foundation Go tooling, workspace orchestration, and repository contracts |
+| `admin/` | Deployable reference Admin application and legacy business implementation |
 | `mss-boot/` | Reusable Go framework module; keep domain-neutral |
 | `web/antd/` | React + Ant Design frontend |
 | `docs/` | Product, architecture, operations, and contributor documentation |
@@ -87,7 +88,7 @@ If `cmd/mss` is not yet available on an older branch, fall back to the Make targ
 - `mss-boot/` contains reusable, domain-neutral infrastructure.
 - Do not add admin-specific entities, menus, pages, or business workflows to `mss-boot/`.
 - Framework changes require independent tests with `GOWORK=off` where relevant.
-- The root application may depend on `mss-boot`; the framework must not depend on the root application.
+- The `admin/` module may depend on `mss-boot`; the framework and root Agent module must not depend on Admin business packages.
 
 ### New business modules
 

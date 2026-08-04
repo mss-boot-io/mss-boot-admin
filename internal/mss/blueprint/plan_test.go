@@ -47,8 +47,8 @@ func TestGenerateWritesCompleteIdempotentApplication(t *testing.T) {
 	}
 
 	assertContains(t, filepath.Join(destination, "go.mod"), "module github.com/acme/customer-admin")
-	assertContains(t, filepath.Join(destination, "main.go"), `"github.com/acme/customer-admin/internal/example"`)
-	assertContains(t, filepath.Join(destination, "main.go"), `"github.com/acme/customer-admin/mss-boot/pkg/config"`)
+	assertContains(t, filepath.Join(destination, "admin/main.go"), `"github.com/acme/customer-admin/internal/example"`)
+	assertContains(t, filepath.Join(destination, "admin/main.go"), `"github.com/acme/customer-admin/mss-boot/pkg/config"`)
 	assertContains(t, filepath.Join(destination, "mss-boot", "go.mod"), "module github.com/acme/customer-admin/mss-boot")
 	assertContains(t, filepath.Join(destination, ".mss", "project.yaml"), "repository: acme/customer-admin")
 	assertContains(t, filepath.Join(destination, ".mss", "lock.yaml"), "repository: mss-boot-io/mss-boot-admin")
@@ -105,7 +105,7 @@ func TestGenerateRejectsModifiedDestination(t *testing.T) {
 	if _, err := Generate(context.Background(), options); err != nil {
 		t.Fatalf("initial application generation: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(destination, "main.go"), []byte("package changed\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(destination, "admin/main.go"), []byte("package changed\n"), 0o644); err != nil {
 		t.Fatalf("modify generated file: %v", err)
 	}
 	plan, err := Generate(context.Background(), options)
@@ -117,7 +117,7 @@ func TestGenerateRejectsModifiedDestination(t *testing.T) {
 	}
 	var found bool
 	for _, change := range plan.Changes {
-		if change.Path == "main.go" && change.Action == ActionConflict {
+		if change.Path == "admin/main.go" && change.Action == ActionConflict {
 			found = true
 		}
 	}
@@ -206,7 +206,7 @@ spec:
 		"AGENTS.md": []byte("# mss-boot-admin Agent Contract\n"),
 		"go.mod":    []byte("module github.com/mss-boot-io/mss-boot-admin\n\ngo 1.26.0\n"),
 		"go.work":   []byte("go 1.26.0\n\nuse (\n\t.\n\t./mss-boot\n)\n"),
-		"main.go":   []byte("package main\n\nimport (\n\t_ \"github.com/mss-boot-io/mss-boot-admin/internal/example\"\n\t_ \"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config\"\n)\n\nfunc main() {}\n"),
+		"admin/main.go":   []byte("package main\n\nimport (\n\t_ \"github.com/mss-boot-io/mss-boot-admin/internal/example\"\n\t_ \"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config\"\n)\n\nfunc main() {}\n"),
 		"Makefile":  []byte("PROJECT:=mss-boot-admin\n"),
 		".mss/project.yaml": []byte(`apiVersion: mss.io/v1alpha1
 kind: Project

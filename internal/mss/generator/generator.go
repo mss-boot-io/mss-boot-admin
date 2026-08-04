@@ -402,7 +402,7 @@ func buildBindingTag(field spec.FieldSpec) string {
 }
 
 func renderModuleOutputs(root string, module *spec.Module, data templateData) ([]output, error) {
-	moduleDir := filepath.Join("modules", module.Metadata.Name)
+	moduleDir := filepath.Join("admin", "modules", module.Metadata.Name)
 	frontendDir := filepath.Join("web", "antd", "src", "modules", module.Metadata.Name)
 	pageDir := filepath.Join("web", "antd", "src", "pages", "generated", module.Spec.Entity.GoName)
 	mappings := []struct {
@@ -486,7 +486,7 @@ func renderRegistryOutputs(root string, current *spec.Module) ([]output, error) 
 	if len(modules) > 0 {
 		goRegistry.WriteString("\nimport (\n")
 		for _, module := range modules {
-			fmt.Fprintf(&goRegistry, "\t_ \"github.com/mss-boot-io/mss-boot-admin/modules/%s\"\n", module.Metadata.Name)
+			fmt.Fprintf(&goRegistry, "\t_ \"github.com/mss-boot-io/mss-boot-admin/admin/modules/%s\"\n", module.Metadata.Name)
 		}
 		goRegistry.WriteString(")\n")
 	}
@@ -511,31 +511,31 @@ func renderRegistryOutputs(root string, current *spec.Module) ([]output, error) 
 	zhCN, enUS := renderLocales(modules)
 	return []output{
 		{
-			path:     "modules/all/generated.go",
+			path:     "admin/modules/all/generated.go",
 			content:  normalizeNewline(formattedRegistry),
 			managed:  true,
-			source:   "modules/*/module.yaml",
+			source:   "admin/modules/*/module.yaml",
 			fileMode: 0o644,
 		},
 		{
 			path:     "web/antd/config/routes.generated.ts",
 			content:  normalizeNewline([]byte(routes.String())),
 			managed:  true,
-			source:   "modules/*/module.yaml",
+			source:   "admin/modules/*/module.yaml",
 			fileMode: 0o644,
 		},
 		{
 			path:     "web/antd/src/locales/generated.zh-CN.ts",
 			content:  normalizeNewline([]byte(zhCN)),
 			managed:  true,
-			source:   "modules/*/module.yaml",
+			source:   "admin/modules/*/module.yaml",
 			fileMode: 0o644,
 		},
 		{
 			path:     "web/antd/src/locales/generated.en-US.ts",
 			content:  normalizeNewline([]byte(enUS)),
 			managed:  true,
-			source:   "modules/*/module.yaml",
+			source:   "admin/modules/*/module.yaml",
 			fileMode: 0o644,
 		},
 	}, nil
@@ -543,7 +543,7 @@ func renderRegistryOutputs(root string, current *spec.Module) ([]output, error) 
 
 func discoverModules(root string, current *spec.Module) ([]*spec.Module, error) {
 	byName := map[string]*spec.Module{current.Metadata.Name: current}
-	matches, err := filepath.Glob(filepath.Join(root, "modules", "*", "module.yaml"))
+	matches, err := filepath.Glob(filepath.Join(root, "admin", "modules", "*", "module.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("discover module specs: %w", err)
 	}

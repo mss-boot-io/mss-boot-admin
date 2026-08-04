@@ -16,7 +16,7 @@ func TestGenerateDryRunWriteCheckAndDrift(t *testing.T) {
 	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
 
 	module := generatorTestModule()
-	module.SourcePath = ".mss/modules/supplier.yaml"
+	module.SourcePath = ".mss/admin/modules/supplier.yaml"
 
 	dryRun, err := Generate(module, Options{Root: root})
 	if err != nil {
@@ -44,7 +44,7 @@ func TestGenerateDryRunWriteCheckAndDrift(t *testing.T) {
 	if written.DryRun {
 		t.Fatal("write plan was marked dry-run")
 	}
-	modelPath := filepath.Join(root, filepath.FromSlash("modules/supplier/model_generated.go"))
+	modelPath := filepath.Join(root, filepath.FromSlash("admin/modules/supplier/model_generated.go"))
 	modelData, err := os.ReadFile(modelPath)
 	if err != nil {
 		t.Fatalf("read generated model: %v", err)
@@ -71,7 +71,7 @@ func TestGenerateDryRunWriteCheckAndDrift(t *testing.T) {
 	if !errors.As(err, &drift) {
 		t.Fatalf("Generate(check stale) error = %v, want DriftError", err)
 	}
-	if !containsPath(drift.Paths, "modules/supplier/model_generated.go") {
+	if !containsPath(drift.Paths, "admin/modules/supplier/model_generated.go") {
 		t.Fatalf("drift paths = %#v", drift.Paths)
 	}
 }
@@ -83,7 +83,7 @@ func TestSafePathRejectsEscapes(t *testing.T) {
 			t.Fatalf("safePath(%q) unexpectedly succeeded", path)
 		}
 	}
-	if path, err := safePath(root, "modules/supplier/model.go"); err != nil || !strings.HasPrefix(path, root) {
+	if path, err := safePath(root, "admin/modules/supplier/model.go"); err != nil || !strings.HasPrefix(path, root) {
 		t.Fatalf("safePath(valid) = %q, %v", path, err)
 	}
 }

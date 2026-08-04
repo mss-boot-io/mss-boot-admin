@@ -43,7 +43,7 @@ use (
 
 replace github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0 => ./mss-boot
 `)
-	writeFixtureFile(t, root, "main.go", `package main
+	writeFixtureFile(t, root, "admin/main.go", `package main
 
 import (
 	"fmt"
