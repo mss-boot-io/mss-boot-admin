@@ -30,8 +30,10 @@ func (e languageSlice) Less(i, j int) bool {
 }
 
 // ParseAcceptLanguage returns normalized RFC language codes ordered by quality.
-// A quality of zero excludes an entry. When supportedLanguages is not empty,
-// matching is case-insensitive and accepts underscores as hyphens.
+// A quality of zero excludes an entry. Malformed or out-of-range quality values
+// are ignored rather than being promoted above valid client preferences. When
+// supportedLanguages is not empty, matching is case-insensitive and accepts
+// underscores as hyphens.
 func ParseAcceptLanguage(languages string, supportedLanguages []string) []string {
 	preferred := strings.Split(languages, ",")
 	supported := make(map[string]struct{}, len(supportedLanguages))
@@ -49,12 +51,12 @@ func ParseAcceptLanguage(languages string, supportedLanguages []string) []string
 	languagesByQuality := make(languageSlice, 0, capacity)
 	seen := make(map[string]struct{}, capacity)
 
-	for index, raw := range preferred {
+	for _, raw := range preferred {
 		value := strings.ToLower(strings.TrimSpace(raw))
 		if value == "" {
 			continue
 		}
-		parts := strings.SplitN(value, ";", 2)
+		parts := strings.Split(value, ";")
 		name := normalizeLanguage(parts[0])
 		if name == "" {
 			continue
@@ -68,18 +70,22 @@ func ParseAcceptLanguage(languages string, supportedLanguages []string) []string
 			continue
 		}
 
-		quality := float64(len(preferred) - index)
-		if len(parts) == 2 {
-			parameter := strings.TrimSpace(parts[1])
-			if strings.HasPrefix(parameter, "q=") {
-				parsed, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimPrefix(parameter, "q=")), 64)
-				if err == nil && parsed >= 0 && parsed <= 1 {
-					if parsed == 0 {
-						continue
-					}
-					quality = parsed
-				}
+		quality := 1.0
+		valid := true
+		for _, rawParameter := range parts[1:] {
+			parameter := strings.TrimSpace(rawParameter)
+			if !strings.HasPrefix(parameter, "q=") {
+				continue
 			}
+			parsed, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimPrefix(parameter, "q=")), 64)
+			if err != nil || parsed < 0 || parsed > 1 {
+				valid = false
+				break
+			}
+			quality = parsed
+		}
+		if !valid || quality == 0 {
+			continue
 		}
 
 		seen[name] = struct{}{}
