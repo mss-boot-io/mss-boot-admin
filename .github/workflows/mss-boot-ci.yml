@@ -1,0 +1,142 @@
+name: mss-boot CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'mss-boot/v*.*.*'
+    paths:
+      - 'mss-boot/**'
+      - 'go.work'
+      - 'go.work.sum'
+      - 'Makefile'
+      - '.github/workflows/mss-boot-ci.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'mss-boot/**'
+      - 'go.work'
+      - 'go.work.sum'
+      - 'Makefile'
+      - '.github/workflows/mss-boot-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mss-boot-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  GOTOOLCHAIN: local
+  GOWORK: 'off'
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: mss-boot/go.mod
+          cache: true
+          cache-dependency-path: mss-boot/go.sum
+
+      - name: Run framework tests
+        working-directory: mss-boot
+        run: go test -shuffle=on -count=1 ./...
+
+  race:
+    name: race
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: mss-boot/go.mod
+          cache: true
+          cache-dependency-path: mss-boot/go.sum
+
+      - name: Run framework race tests
+        working-directory: mss-boot
+        run: go test -race -shuffle=on -count=1 ./...
+
+  static-and-module:
+    name: static-and-module
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: mss-boot/go.mod
+          cache: true
+          cache-dependency-path: mss-boot/go.sum
+
+      - name: Vet framework
+        working-directory: mss-boot
+        run: go vet ./...
+
+      - name: Verify framework module metadata
+        working-directory: mss-boot
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+  required:
+    name: mss-boot
+    if: ${{ always() }}
+    needs:
+      - test
+      - race
+      - static-and-module
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every framework check to pass
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+          RACE_RESULT: ${{ needs.race.result }}
+          STATIC_RESULT: ${{ needs.static-and-module.result }}
+        run: |
+          echo "test=${TEST_RESULT}"
+          echo "race=${RACE_RESULT}"
+          echo "static-and-module=${STATIC_RESULT}"
+          test "${TEST_RESULT}" = "success"
+          test "${RACE_RESULT}" = "success"
+          test "${STATIC_RESULT}" = "success"
