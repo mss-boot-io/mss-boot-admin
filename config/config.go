@@ -1,28 +1,24 @@
 package config
 
-/*
- * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2023/8/6 08:33:26
- * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2023/8/6 08:33:26
- */
-
 import (
 	"context"
 	"embed"
+	"fmt"
 	"log/slog"
-	"os"
+	"sync"
 	"time"
 
+	"github.com/casbin/casbin/v2"
+	"gorm.io/gorm"
+
 	"github.com/mss-boot-io/mss-boot-admin/center"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config"
+	frameworkconfig "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/queue"
 	responsegorm "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions/gorm"
-	"gorm.io/gorm"
 )
 
 //go:embed *.yml
@@ -38,23 +34,25 @@ type queryCacheAdapter interface {
 }
 
 type Config struct {
-	Auth        Auth            `yaml:"auth" json:"auth"`
-	GRPC        config.GRPC     `yaml:"grpc" json:"grpc"`
-	Logger      config.Logger   `yaml:"logger" json:"logger"`
-	Server      config.Listen   `yaml:"server" json:"server"`
-	Listen      *config.Listen  `yaml:"listen" json:"listen"`
-	Database    gormdb.Database `yaml:"database" json:"database"`
-	Application Application     `yaml:"application" json:"application"`
-	//OAuth2      *config.OAuth2  `yaml:"oauth2" json:"oauth2"`
-	Task         Task            `yaml:"task" json:"task"`
-	Pyroscope    Pyroscope       `yaml:"pyroscope" json:"pyroscope"`
-	Cache        *config.Cache   `yaml:"cache" json:"cache"`
-	Queue        *config.Queue   `yaml:"queue" json:"queue"`
-	Locker       *config.Locker  `yaml:"locker" json:"locker"`
-	Secret       *Secret         `yaml:"secret" json:"secret"`
-	Storage      *config.Storage `yaml:"storage" json:"storage"`
-	Clusters     Clusters        `yaml:"clusters" json:"clusters"`
-	Notification Notification    `yaml:"notification" json:"notification"`
+	Auth        Auth                     `yaml:"auth" json:"auth"`
+	GRPC        frameworkconfig.GRPC     `yaml:"grpc" json:"grpc"`
+	Logger      frameworkconfig.Logger   `yaml:"logger" json:"logger"`
+	Server      frameworkconfig.Listen   `yaml:"server" json:"server"`
+	Listen      *frameworkconfig.Listen  `yaml:"listen" json:"listen"`
+	Database    gormdb.Database          `yaml:"database" json:"database"`
+	Application Application              `yaml:"application" json:"application"`
+	Task        Task                     `yaml:"task" json:"task"`
+	Pyroscope    Pyroscope                `yaml:"pyroscope" json:"pyroscope"`
+	Cache        *frameworkconfig.Cache   `yaml:"cache" json:"cache"`
+	Queue        *frameworkconfig.Queue   `yaml:"queue" json:"queue"`
+	Locker       *frameworkconfig.Locker  `yaml:"locker" json:"locker"`
+	Secret       *Secret                  `yaml:"secret" json:"secret"`
+	Storage      *frameworkconfig.Storage `yaml:"storage" json:"storage"`
+	Clusters     Clusters                 `yaml:"clusters" json:"clusters"`
+	Notification Notification             `yaml:"notification" json:"notification"`
+
+	databaseMu     sync.Mutex
+	databaseHandle *gormdb.Handle
 }
 
 type SecretConfig struct {
@@ -67,22 +65,52 @@ func (s *SecretConfig) Init() {
 	}
 }
 
+// Init preserves the ConfigImp compatibility surface. New startup code should
+// call InitContext and propagate its error.
 func (e *Config) Init(opts ...source.Option) {
-	sc := &SecretConfig{}
-	opts = append(opts, source.WithPrefixHook(sc))
-
-	err := config.Init(e, opts...)
-	if err != nil {
-		slog.Error("cfg init failed", "err", err)
+	if err := e.InitContext(context.Background(), opts...); err != nil {
+		slog.Error("configuration initialization failed", "err", err)
 	}
-	//if e.Logger.Loki != nil && len(e.Application.Labels) > 0 {
-	//	e.Logger.Loki.MergeLabels(e.Application.Labels)
-	//}
+}
+
+// InitContext loads configuration, opens an owned database Handle, publishes it
+// through the legacy compatibility bridge, and initializes dependent adapters.
+// If a dependent adapter fails, the new Handle is closed and the previous
+// default is restored.
+func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	e.databaseMu.Lock()
+	defer e.databaseMu.Unlock()
+
+	secretConfig := &SecretConfig{}
+	opts = append(opts, source.WithPrefixHook(secretConfig))
+	if err := frameworkconfig.Init(e, opts...); err != nil {
+		return fmt.Errorf("initialize configuration source: %w", err)
+	}
+
 	if e.Pyroscope.Enabled && len(e.Application.Labels) > 0 {
 		e.Pyroscope.MergeTags(e.Application.Labels)
 	}
 	e.Logger.Init()
-	e.Database.Init()
+
+	newHandle, err := e.Database.Open(ctx)
+	if err != nil {
+		return fmt.Errorf("initialize application database: %w", err)
+	}
+	previousDefault := gormdb.InstallDefault(newHandle)
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		gormdb.InstallDefault(previousDefault)
+		if closeErr := newHandle.Close(); closeErr != nil {
+			err = errorsJoin(err, fmt.Errorf("close failed database handle: %w", closeErr))
+		}
+	}()
+
 	if e.Pyroscope.ApplicationName == "" {
 		e.Pyroscope.ApplicationName = e.Application.Name
 	}
@@ -102,27 +130,16 @@ func (e *Config) Init(opts ...source.Option) {
 		})
 	}
 	if e.Queue != nil {
+		var policyWatcherErr error
 		e.Queue.Init(func(q storage.AdapterQueue) {
-			center.SetQueue(q)
-			w := queue.NewSampleWatcher(q)
-			err = w.SetUpdateCallback(func(_ string) {
-				err = gormdb.Enforcer.LoadPolicy()
-				if err != nil {
-					slog.Error("enforcer load policy failed", "err", err)
-					return
-				}
-			})
-			if err != nil {
-				slog.Error("casbin set callback failed", slog.Any("err", err))
-				os.Exit(-1)
+			policyWatcherErr = bindPolicyWatcher(q, newHandle.Enforcer)
+			if policyWatcherErr == nil {
+				center.SetQueue(q)
 			}
-			err = gormdb.Enforcer.SetWatcher(w)
-			if err != nil {
-				slog.Error("casbin set watcher failed", slog.Any("err", err))
-				os.Exit(-1)
-			}
-			gormdb.Enforcer.EnableAutoNotifyWatcher(true)
 		})
+		if policyWatcherErr != nil {
+			return fmt.Errorf("initialize policy watcher: %w", policyWatcherErr)
+		}
 	}
 	if e.Locker != nil {
 		e.Locker.Init(func(l storage.AdapterLocker) {
@@ -135,9 +152,42 @@ func (e *Config) Init(opts ...source.Option) {
 	if len(e.Clusters) > 0 {
 		e.Clusters.Init()
 	}
+
+	oldHandle := e.databaseHandle
+	e.databaseHandle = newHandle
+	committed = true
+	if oldHandle != nil && oldHandle != newHandle {
+		if closeErr := oldHandle.Close(); closeErr != nil {
+			return fmt.Errorf("close previous application database: %w", closeErr)
+		}
+	}
+	return nil
 }
 
-func warnQueryCacheDuration(cacheConfig *config.Cache) {
+// DatabaseHandle returns the database Handle owned by this Config.
+func (e *Config) DatabaseHandle() *gormdb.Handle {
+	e.databaseMu.Lock()
+	defer e.databaseMu.Unlock()
+	return e.databaseHandle
+}
+
+// Close releases the database Handle owned by this Config. It only clears the
+// legacy globals when the same Handle is still installed.
+func (e *Config) Close() error {
+	e.databaseMu.Lock()
+	handle := e.databaseHandle
+	e.databaseHandle = nil
+	if handle != nil {
+		gormdb.ClearDefault(handle)
+	}
+	e.databaseMu.Unlock()
+	if handle == nil {
+		return nil
+	}
+	return handle.Close()
+}
+
+func warnQueryCacheDuration(cacheConfig *frameworkconfig.Cache) {
 	if cacheConfig != nil && cacheConfig.QueryCache && cacheConfig.QueryCacheDuration <= 0 {
 		slog.Warn("cache.queryCache enabled but queryCacheDuration is zero; query cache plugin will not register; set queryCacheDuration > 0")
 	}
@@ -168,8 +218,69 @@ func bindQueryCache(cache queryCacheAdapter, tx *gorm.DB, _ time.Duration) {
 	}
 }
 
+func bindPolicyWatcher(adapter storage.AdapterQueue, enforcer casbin.IEnforcer) error {
+	if adapter == nil || enforcer == nil {
+		return nil
+	}
+	watcher := queue.NewSampleWatcher(adapter)
+	if err := watcher.SetUpdateCallback(func(string) {
+		if err := enforcer.LoadPolicy(); err != nil {
+			slog.Error("enforcer load policy failed", "err", err)
+		}
+	}); err != nil {
+		return fmt.Errorf("set Casbin watcher callback: %w", err)
+	}
+	if err := enforcer.SetWatcher(watcher); err != nil {
+		return fmt.Errorf("set Casbin watcher: %w", err)
+	}
+	enforcer.EnableAutoNotifyWatcher(true)
+	return nil
+}
+
 func (e *Config) OnChange() {
 	e.Logger.Init()
-	e.Database.Init()
-	slog.Info("!!! cfg change and reload")
+	if err := e.reloadDatabase(context.Background()); err != nil {
+		slog.Error("configuration changed but database reload failed; keeping previous handle", "err", err)
+		return
+	}
+	slog.Info("configuration changed and database handle reloaded")
+}
+
+func (e *Config) reloadDatabase(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	e.databaseMu.Lock()
+	defer e.databaseMu.Unlock()
+
+	newHandle, err := e.Database.Open(ctx)
+	if err != nil {
+		return fmt.Errorf("open replacement database: %w", err)
+	}
+	if adapter := center.GetQueue(); adapter != nil {
+		if err := bindPolicyWatcher(adapter, newHandle.Enforcer); err != nil {
+			_ = newHandle.Close()
+			return fmt.Errorf("bind replacement policy watcher: %w", err)
+		}
+	}
+
+	oldHandle := e.databaseHandle
+	gormdb.InstallDefault(newHandle)
+	e.databaseHandle = newHandle
+	if oldHandle != nil && oldHandle != newHandle {
+		if err := oldHandle.Close(); err != nil {
+			return fmt.Errorf("close replaced database handle: %w", err)
+		}
+	}
+	return nil
+}
+
+func errorsJoin(left, right error) error {
+	if left == nil {
+		return right
+	}
+	if right == nil {
+		return left
+	}
+	return fmt.Errorf("%w; %v", left, right)
 }
