@@ -47,8 +47,14 @@ contract. The manager treats a successful early return as
 - Components run concurrently.
 - The first unexpected error or early exit cancels the shared context.
 - Caller cancellation and configured process signals are normal shutdown paths.
-- The manager waits for components to return. If the configured grace period
-  expires it returns `ErrGracefulShutdownTimeout`.
+- The manager waits for components to return and joins real errors returned
+  during shutdown. A matching `context.Canceled` result is treated as normal;
+  flush, close, and component deadline errors remain visible to the caller.
+- If the configured outer grace period expires, the manager returns
+  `ErrGracefulShutdownTimeout`.
+- The default outer grace period is 30 seconds. It is deliberately longer than
+  built-in component shutdown deadlines. Custom configurations should preserve
+  this hierarchy so component-specific errors can be returned first.
 - A manager instance can be started once. Additions after start are ignored for
   compatibility with the existing `Add` signature, which cannot return an
   error.
@@ -116,6 +122,11 @@ The task server loads stored schedules, starts cron, waits for cancellation,
 and then waits for running jobs to complete. The default in-memory storage uses
 a read/write lock and sorted key enumeration so concurrent access and startup
 order are deterministic.
+
+Task shutdown has an independent configurable timeout. The default is five
+seconds. When a running cron job does not finish before that deadline, `Start`
+returns `context.DeadlineExceeded`; the outer manager then reports the component
+shutdown failure instead of waiting forever.
 
 The current process-wide task singleton is retained for compatibility. Replacing
 it with instance-scoped schedulers is a later architectural milestone.
@@ -190,6 +201,7 @@ tighten observable behavior:
 - configured filters and pagination are now effective;
 - authentication-enabled MGM actions are now protected;
 - GET-family methods no longer read structured bodies;
+- task shutdown is bounded and can return a deadline error;
 - invalid TLS and framework configuration return errors instead of exiting.
 
 Applications should run API and integration tests before release. If an
