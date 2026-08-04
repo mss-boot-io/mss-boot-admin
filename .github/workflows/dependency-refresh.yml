@@ -58,6 +58,7 @@ jobs:
       - name: Upgrade Go modules
         run: |
           set -euxo pipefail
+          go mod edit -replace=github.com/mss-boot-io/mss-boot-admin/mss-boot=./mss-boot
           go get \
             github.com/aws/aws-sdk-go-v2@v1.42.1 \
             github.com/aws/aws-sdk-go-v2/config@v1.32.27 \
@@ -67,6 +68,7 @@ jobs:
             k8s.io/apimachinery@v0.36.3 \
             k8s.io/client-go@v0.36.3
           go mod tidy
+          go mod edit -dropreplace=github.com/mss-boot-io/mss-boot-admin/mss-boot
           (
             cd mss-boot
             GOWORK=off go get \
