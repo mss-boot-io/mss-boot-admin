@@ -29,40 +29,26 @@ concurrency:
 env:
   CI: 'true'
   HUSKY: '0'
+  NODE_OPTIONS: '--max-old-space-size=4096'
 
 jobs:
-  dependency-remediation:
-    name: dependency-remediation
-    if: github.event_name == 'pull_request'
+  dependency-contract:
+    name: dependency-contract
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    permissions:
-      contents: write
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: web/antd
     steps:
-      - name: Checkout remediation branch
+      - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: refactor/split-admin-module-and-coverage-r1
-          fetch-depth: 0
-
-      - name: Detect completed remediation
-        id: guard
-        run: |
-          if [[ -f web/antd/pnpm-workspace.yaml ]] && \
-             ! grep -q 'umi-presets-pro' web/antd/package.json; then
-            echo 'done=true' >> "${GITHUB_OUTPUT}"
-          else
-            echo 'done=false' >> "${GITHUB_OUTPUT}"
-          fi
 
       - name: Setup pnpm
-        if: steps.guard.outputs.done != 'true'
         uses: pnpm/action-setup@v6.0.9
         with:
           version: 9.15.9
 
       - name: Setup Node
-        if: steps.guard.outputs.done != 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -71,107 +57,54 @@ jobs:
             web/antd/pnpm-lock.yaml
             web/antd/workers-site/pnpm-lock.yaml
 
-      - name: Rewrite dependency and test contracts
-        if: steps.guard.outputs.done != 'true'
-        run: |
-          python3 scripts/remediate_web_deps.py
-          python3 scripts/patch_web_pnpm_rules.py
-
-      - name: Generate shared lockfile and enforce peer policy
-        if: steps.guard.outputs.done != 'true'
-        working-directory: web/antd
+      - name: Verify pinned toolchain
         run: |
           set -euo pipefail
-          diagnostics="${RUNNER_TEMP}/web-dependency-remediation"
-          peer_audit="${RUNNER_TEMP}/web-peer-audit"
-          mkdir -p "${diagnostics}" "${peer_audit}/workers-site"
-          rm -rf node_modules workers-site/node_modules .umi .umi-test
+          test "$(pnpm --version)" = '9.15.9'
+          node -e "const major=Number(process.versions.node.split('.')[0]); if (major !== 22) process.exit(1)"
 
-          pnpm install \
-            --lockfile-only \
-            --ignore-scripts \
-            --config.strict-peer-dependencies=false \
-            --reporter=append-only \
-            > "${diagnostics}/lockfile.log" 2>&1
+      - name: Install frontend graph from the frozen lockfile
+        run: >-
+          pnpm install
+          --frozen-lockfile
+          --ignore-scripts
+          --strict-peer-dependencies
+          --prefer-offline
 
-          pnpm dedupe \
-            --config.strict-peer-dependencies=false \
-            --reporter=append-only \
-            > "${diagnostics}/dedupe.log" 2>&1
+      - name: Install Workers Site graph from the frozen lockfile
+        run: >-
+          pnpm --dir workers-site install
+          --frozen-lockfile
+          --ignore-scripts
+          --strict-peer-dependencies
+          --prefer-offline
 
-          cp package.json pnpm-workspace.yaml .npmrc "${peer_audit}/"
-          cp workers-site/package.json "${peer_audit}/workers-site/"
-          set +e
-          (
-            cd "${peer_audit}"
-            pnpm install \
-              --lockfile-only \
-              --ignore-scripts \
-              --strict-peer-dependencies \
-              --reporter=ndjson
-          ) > "${diagnostics}/strict-peer.ndjson" 2>&1
-          strict_status=$?
-          set -e
-          echo "${strict_status}" > "${diagnostics}/strict-peer.exit"
-          if [[ ${strict_status} -ne 1 ]]; then
-            echo "strict peer probe returned ${strict_status}; expected the reviewed compatibility report" >&2
-            tail -n 200 "${diagnostics}/strict-peer.ndjson" >&2
-            exit 1
-          fi
-          python3 scripts/check_peer_issues.py \
-            --report "${diagnostics}/strict-peer.ndjson" \
-            --policy pnpm-peer-policy.json
-
-          rm -rf node_modules workers-site/node_modules
-          pnpm install \
-            --frozen-lockfile \
-            --ignore-scripts \
-            --config.strict-peer-dependencies=false \
-            --prefer-offline \
-            --reporter=append-only \
-            > "${diagnostics}/frozen-install.log" 2>&1
-
-      - name: Upload dependency resolution diagnostics
-        if: failure() && steps.guard.outputs.done != 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: web-dependency-remediation-diagnostics
-          path: ${{ runner.temp }}/web-dependency-remediation
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Validate dependency health and frontend behavior
-        if: steps.guard.outputs.done != 'true'
-        working-directory: web/antd
+      - name: Verify dependency graph health
         run: |
-          set -euxo pipefail
-          python3 -m unittest scripts/test_check_peer_issues.py
-          pnpm setup
+          set -euo pipefail
           pnpm list --depth 0
-          pnpm --filter @mss-boot-admin/workers-site list --depth 0
-          pnpm dedupe --check --config.strict-peer-dependencies=false
+          pnpm --dir workers-site list --depth 0
+          pnpm dedupe --check \
+            --config.ignore-scripts=true \
+            --config.strict-peer-dependencies=false
           pnpm audit --prod --audit-level high
-          pnpm lint:js
-          pnpm tsc
-          timeout 240s pnpm test:ci
-          pnpm build:local
-          git diff --check
+          pnpm audit --audit-level critical
+          pnpm --dir workers-site audit --prod --audit-level high
 
-      - name: Commit converged frontend dependency graph
-        if: steps.guard.outputs.done != 'true'
-        run: |
-          set -euxo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A web/antd
-          git diff --cached --stat
-          git commit -m 'build(frontend): converge dependency graph and lockfile'
-          git push origin HEAD:refactor/split-admin-module-and-coverage-r1
+      - name: Require install and dedupe to leave manifests unchanged
+        run: >-
+          git diff --exit-code --
+          package.json
+          pnpm-lock.yaml
+          .npmrc
+          workers-site/package.json
+          workers-site/pnpm-lock.yaml
 
   quality:
     name: quality
+    needs: dependency-contract
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: web/antd
@@ -192,21 +125,33 @@ jobs:
           cache-dependency-path: web/antd/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
+        run: >-
+          pnpm install
+          --frozen-lockfile
+          --ignore-scripts
+          --strict-peer-dependencies
+          --prefer-offline
+
+      - name: Generate Umi type surfaces
+        run: pnpm setup
 
       - name: Lint JavaScript and TypeScript
         run: pnpm lint:js
+
+      - name: Check formatted dependency and configuration surfaces
+        run: pnpm lint:prettier
 
       - name: Type-check frontend
         run: pnpm tsc
 
       - name: Run frontend tests
-        run: pnpm test -- --runInBand
+        run: pnpm test:ci
 
   compile:
     name: frontend-build
+    needs: dependency-contract
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: web/antd
@@ -227,15 +172,25 @@ jobs:
           cache-dependency-path: web/antd/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
+        run: >-
+          pnpm install
+          --frozen-lockfile
+          --ignore-scripts
+          --strict-peer-dependencies
+          --prefer-offline
+
+      - name: Generate Umi build surfaces
+        run: pnpm setup
 
       - name: Build frontend
         run: pnpm build:local
 
   build:
+    # Preserve the historical required check: Frontend CI / build.
     name: build
     if: ${{ always() }}
     needs:
+      - dependency-contract
       - quality
       - compile
     runs-on: ubuntu-24.04
@@ -243,10 +198,13 @@ jobs:
     steps:
       - name: Require every frontend check to pass
         env:
+          DEPENDENCY_RESULT: ${{ needs.dependency-contract.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           COMPILE_RESULT: ${{ needs.compile.result }}
         run: |
+          echo "dependency-contract=${DEPENDENCY_RESULT}"
           echo "quality=${QUALITY_RESULT}"
           echo "compile=${COMPILE_RESULT}"
+          test "${DEPENDENCY_RESULT}" = "success"
           test "${QUALITY_RESULT}" = "success"
           test "${COMPILE_RESULT}" = "success"
