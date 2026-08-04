@@ -166,8 +166,8 @@ jobs:
       - name: Load project context
         run: go run ./cmd/mss context --format json > "${RUNNER_TEMP}/mss-context.json"
 
-      - name: Run strict environment doctor
-        run: go run ./cmd/mss doctor --strict --format json > "${RUNNER_TEMP}/mss-doctor.json"
+      - name: Run strict Agent environment doctor
+        run: go run ./cmd/mss doctor --strict --component agent --format json > "${RUNNER_TEMP}/mss-doctor.json"
 
       - name: Validate Agent Skills
         run: go run ./cmd/mss skills validate --format json > "${RUNNER_TEMP}/mss-skills.json"
