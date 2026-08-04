@@ -1,216 +1,98 @@
 # Changelog
 
-All notable changes to the mss-boot framework will be documented in this file.
+All notable, verifiable changes to the `mss-boot` framework are documented in
+this file. The format follows [Keep a Changelog](https://keepachangelog.com/),
+and the project uses semantic versioning for nested-module releases.
 
-## [v0.7.3] - 2026-06-07
-
-### Added
-
-- Structured GitHub issue forms and refreshed open-source entry points.
-- Local developer Makefile targets for `test`, `coverage`, and `tidy`.
-
-### Changed
-
-- Refreshed README quick-start guidance to use the latest `v0.7.3` module version.
-- Corrected Makefile build metadata import path to `github.com/mss-boot-io/mss-boot`.
-
-### Fixed
-
-- Kept GORM query-cache tag invalidation complete for create, update, and delete paths.
-- Hardened Mongo delete handling by validating ObjectID input before deletion.
-
-### Validation
-
-- GitHub CI, lint, CodeQL, docs-drift, PR guard, and govulncheck passed before release.
-- Local `go test ./pkg/response/actions/mgm ./...` passed on the release commit.
-
-## [v0.7.1] - 2026-04-06
+## Unreleased
 
 ### Added
 
-#### Core Framework Enhancements
-- **Advanced Error Handling**: Standardized error codes with comprehensive error categorization
-- **Action Scope Management**: Context-aware operation scoping for better resource management
-- **Enhanced Testing Infrastructure**: Comprehensive test suite with 80%+ coverage requirements
-- **Integration Testing Support**: Robust integration tests for database and API interactions
-
-#### Documentation
-- **Comprehensive API Documentation**: Complete Swagger documentation for all core components
-- **Migration Guides**: Clear upgrade paths from previous versions
-- **Usage Examples**: Detailed code examples for common use cases
+- Blocking lifecycle regression tests for cancellation, peer-error propagation,
+  unexpected exits, graceful-shutdown deadlines, duplicate starts, and signal
+  ownership.
+- HTTP and gRPC lifecycle tests for listener errors, TLS configuration,
+  operational hooks, metrics registration, and bounded shutdown.
+- Race-oriented tests for task storage, validation translator initialization,
+  request binding plans, provider authentication, and search reflection.
+- A compiled basic HTTP example and an architecture contract document.
 
 ### Changed
 
-#### Dependency Updates
-- Updated all Go module dependencies to latest stable versions
-- Enhanced compatibility with Go 1.21+
-- Improved security by addressing known vulnerabilities in dependencies
-- Optimized dependency tree for reduced binary size
-
-#### Error Handling
-- Unified error response format across all components
-- Enhanced error propagation with proper context preservation
-- Improved error logging with structured fields
-- Better error recovery mechanisms
-
-#### Action Scope Management
-- Refined scope boundaries for clearer operation isolation
-- Enhanced context passing between components
-- Improved resource cleanup and lifecycle management
-- Better integration with existing middleware stack
+- `Runnable.Start(context.Context) error` now has an explicit blocking lifecycle
+  contract. The manager concurrently runs registered components, cancels peers
+  on the first unexpected exit, and waits for bounded graceful shutdown.
+- HTTP servers now configure read-header, read, write, idle, and shutdown
+  timeouts and return listen/serve errors to the manager.
+- gRPC servers no longer terminate the process during TLS initialization,
+  mutate global tracing state, or panic on duplicate default metrics
+  registration. Reflection, metrics registry, connection timeout, and shutdown
+  timeout are configurable.
+- Task servers block until cancellation and wait for in-flight cron jobs. The
+  default task storage is concurrency-safe and returns deterministic key order.
+- Request binding uses a deterministic cached plan: URI and query/form values
+  are applied before one media-type-matched body, followed by one final
+  validation pass.
+- Validation translators are registered once before concurrent use.
+- GORM search uses one shared filter chain for rows and count, always applies
+  pagination, and returns initialization and row-iteration errors explicitly.
+- GORM, MGM, Kubernetes, and custom actions share the same per-action
+  authentication and middleware semantics.
 
 ### Fixed
 
-#### Stability Improvements
-- Resolved nil pointer dereference risks in core components
-- Fixed race conditions in concurrent operations
-- Addressed memory leaks in long-running services
-- Improved error handling in edge cases
-
-#### Performance Optimizations
-- Reduced memory allocation in hot paths
-- Optimized database query performance
-- Enhanced caching strategies for frequently accessed data
-- Improved response times for high-concurrency scenarios
+- Fixed the manager deadlock/error-loss lifecycle in which long-running
+  components could not be cancelled or background serve errors could be lost.
+- Fixed `grpc.WithTimeout` writing the keepalive field instead of the connection
+  timeout field.
+- Fixed GORM Search silently skipping request conditions and pagination when no
+  custom scope was configured.
+- Fixed `GET`, `HEAD`, and `OPTIONS` binding from attempting to consume JSON,
+  XML, or YAML request bodies.
+- Fixed Mongo/MGM controllers ignoring `WithAuth(true)`.
+- Fixed search reflection recursing into scalar pagination fields and panicking;
+  nil nested values, malformed `between` values, and `isnull` fields are now
+  handled safely.
+- Replaced library-level process exit on nil response context with a recoverable
+  programming-error panic.
 
 ### Security
 
-#### Security Enhancements
-- Strengthened input validation across all components
-- Enhanced authentication and authorization checks
-- Improved secret handling and storage
-- Added security headers to HTTP responses
+- Authentication-enabled controllers now fail closed when the compatibility
+  `response.AuthHandler` is missing, rather than registering an anonymous route.
+- HTTP servers have non-zero defensive I/O timeouts by default.
+- Invalid TLS configuration is returned to the embedding application as an
+  error instead of terminating the process.
 
-## [v0.7.0] - Previous Version
+### Compatibility
+
+- Custom `Runnable` implementations that previously launched a goroutine and
+  returned immediately must now block until their work stops. Returning early
+  is treated as an unexpected component exit.
+- HTTP and gRPC `Start` methods now block and report runtime errors.
+- GORM and MGM route naming retains the historical `mgm.CollName` behavior;
+  Kubernetes controllers without a database model use their resource type.
+- Correctness changes make previously ignored pagination, filters, and
+  authentication settings effective. Roll back this change set as a unit if an
+  application depended on the old unsafe behavior.
+
+### Documentation
+
+- Replaced stale repository links, nonexistent quick-start APIs, unsupported
+  version instructions, and unenforced coverage claims.
+- Removed historical free-form migration examples that referenced APIs not
+  present in the current module. Released source tags remain the authority for
+  older behavior.
+
+## v0.7.3 - 2026-06-07
 
 ### Added
-- Initial support for DynamoDB
-- Configuration provider framework
-- Istio tracing integration
-- Out-of-the-box service templates
 
-### Changed
-- Core architecture refactoring
-- Improved modularity and extensibility
-- Enhanced documentation structure
+- Structured GitHub issue forms and refreshed open-source contribution entry
+  points.
 
-### Removed
-- Deprecated legacy components
-- Insecure default configurations
+### Fixed
 
-## Migration Guide
-
-### From v0.7.0 to v0.7.1
-
-#### Error Handling Changes
-```go
-// Old (v0.7.0)
-if err != nil {
-    return err
-}
-
-// New (v0.7.1) - Use standardized error codes
-if err != nil {
-    return errors.Wrap(err, "operation_failed", errors.WithCode(errors.CodeInternal))
-}
-```
-
-#### Action Scope Usage
-```go
-// New in v0.7.1 - Context-aware operations
-ctx := action.NewContext(context.Background(), "user_operation")
-result, err := service.Process(ctx, request)
-```
-
-#### Dependency Updates
-Ensure your `go.mod` is updated:
-```go
-require github.com/mss-boot-io/mss-boot v0.7.1
-```
-
-Run dependency update:
-```bash
-go mod tidy
-```
-
-## Upgrade Instructions
-
-### Basic Upgrade
-```bash
-# Update go.mod
-go get github.com/mss-boot-io/mss-boot@v0.7.1
-
-# Tidy dependencies
-go mod tidy
-
-# Run tests to verify compatibility
-go test ./...
-```
-
-### Full Migration
-```bash
-# 1. Backup your current code
-cp -r my-service my-service-backup
-
-# 2. Update dependency
-go get github.com/mss-boot-io/mss-boot@v0.7.1
-
-# 3. Update error handling patterns
-#   - Replace custom error codes with standardized ones
-#   - Add action scopes to critical operations
-
-# 4. Run comprehensive tests
-go test ./... -coverprofile=coverage.out
-go test -tags=integration ./...
-
-# 5. Verify functionality
-#   - Test all critical user flows
-#   - Validate error scenarios
-#   - Check performance metrics
-```
-
-## Breaking Changes
-
-### Minimal Breaking Changes
-- **Error Code Structure**: Custom error codes should be migrated to standardized format
-- **Context Usage**: Consider adding action scopes for better operation tracking
-- **Dependency Updates**: Some third-party APIs may have minor breaking changes
-
-### Compatibility Notes
-- All existing APIs remain functional with warnings for deprecated patterns
-- Database schemas are backward compatible
-- Configuration formats remain unchanged
-
-## Known Issues
-
-### Current Limitations
-1. **Multi-tenant Support**: Still experimental, not recommended for production
-2. **Advanced Tracing**: Some tracing features require manual configuration
-3. **Edge Case Error Handling**: Rare edge cases may still produce generic errors
-
-### Workarounds
-- Use standardized error codes for all new development
-- Implement proper action scoping for complex operations
-- Monitor logs for any unexpected error patterns
-
-## Future Roadmap
-
-### Planned Features
-- **v0.8.0**: Enhanced multi-tenant support
-- **v0.8.0**: Advanced observability with OpenTelemetry
-- **v0.9.0**: Service mesh integration improvements
-- **v1.0.0**: Production-ready stability guarantee
-
-### Long-term Goals
-- Comprehensive testing suite with 90%+ coverage
-- Advanced security features including RBAC
-- Enhanced developer experience with better tooling
-- Expanded ecosystem with additional service templates
-
-## Contributors
-
-Thanks to all contributors who made v0.7.1 possible.
-
-## License
-
-MIT License - see [LICENSE](./LICENSE) for details.
+- Completed GORM query-cache tag invalidation for create, update, and delete
+  paths.
+- Validated MongoDB ObjectID input before delete operations.

@@ -1,114 +1,146 @@
 # mss-boot
 
----
-<img align="right" width="32" src="https://docs.mss-boot-io.top/favicon.ico"  alt="https://github.com/mss-boot-io/mss-boot"/>
+[![CI](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/ci.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/codeql.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/codeql.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
+[English](./README.md) | 简体中文
 
-[![ci](https://github.com/mss-boot-io/mss-boot/actions/workflows/ci.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/mss-boot-io/mss-boot/actions/workflows/codeql.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot/actions/workflows/codeql.yml)
-[![OpenSSF Scorecard](https://github.com/mss-boot-io/mss-boot/actions/workflows/scorecard.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot/actions/workflows/scorecard.yml)
-[![Release](https://img.shields.io/github/v/release/mss-boot-io/mss-boot.svg?style=flat-square)](https://github.com/mss-boot-io/mss-boot/releases)
-[![License](https://img.shields.io/github/license/mss-boot-io/mss-boot.svg?style=flat-square)](https://github.com/mss-boot-io/mss-boot/blob/main/LICENSE)
+`mss-boot` 是 [`mss-boot-admin`](https://github.com/mss-boot-io/mss-boot-admin)
+单仓中的可复用 Go 框架模块，提供统一管理的 HTTP、gRPC、定时任务运行时，以及配置、
+持久化、存储、安全和请求控制器适配能力。
 
-[English](https://github.com/mss-boot-io/mss-boot/blob/main/README.md) | 简体中文
+该目录仍保持独立 Go module，并通过 `GOWORK=off` 验证，避免仓库工作区掩盖依赖缺失。
 
-支持grpc、http协议的企业级语言异构微服务解决方案，单服务代码框架坚持极简的原则，同时提供完善的devops流程支撑(gitops)
+## 当前状态
 
-## 📦 当前版本: v0.7.3
+- Module 路径：`github.com/mss-boot-io/mss-boot-admin/mss-boot`
+- 源码目录：`mss-boot/`
+- Go 要求：Go 1.26 或更高版本
+- 稳定性：v1 之前；导出 API 属于兼容面，但正确性修复可能收紧过去含糊的行为
 
-[在线文档](https://docs.mss-boot-io.top)
-
-[贡献指南](./CONTRIBUTING.md) · [安全策略](./SECURITY.md) · [新手任务](https://github.com/mss-boot-io/mss-boot/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
-
-[微服务集合](https://github.com/mss-boot-io/mss-boot-monorepo)
-
-## ✨ 特性
-> - 遵循 RESTful API 设计规范
-> - 登录支持idp(dex)
-> - 支持 Swagger 文档(基于swaggo)
-> - AI 可读契约、发布治理与可观测能力
-> - 标准化错误处理与 Action Scope 上下文治理
-> - GORM 查询缓存标签失效、Mongo ObjectID 安全校验等稳定性增强
-> - 完善的cicd配套
-
-## todo list
-> - [ ] 支持租户
-> - [ ] 支持dynamodb
-> - [x] 支持config provider
-> - [ ] 支持istio链路追踪
-> - [ ] 开箱即用支持
-
-## 🧭 Action/Controller 术语
-
-mss-boot 的请求流程会反复出现以下概念：
-
-- **Controller**：实现 `pkg/response.Controller` 的控制器，负责路由路径、路由级 Gin handlers，以及按 action 名称取得具体 `Action`。`pkg/response/controller.Simple` 会根据 GORM、MGM 或 Kubernetes 模型 provider 选择对应 action。
-- **Action**：`get`、`search`、`control`、`delete` 等具名请求动作。Action 实现 `response.Action`，返回 Gin handler chain，并封装该动作在具体 provider 下的处理逻辑。
-- **Hook**：挂在生命周期节点上的回调，例如 `BeforeCreate`、`AfterUpdate`、`BeforeSearch`，配置源的 `PrefixHook` / `PostHook`，以及服务启动或关闭回调。
-- **Scope**：通常通过 `WithScope` 注入的按请求查询过滤器，会把当前 Gin context 和模型表转换成 GORM scope。常用于租户、归属关系或其他上下文约束。
-- **Provider**：用于选择后端实现的枚举或 `Stringer`。控制器常见的是 `ModelProviderGorm`、`ModelProviderMgm`、`ModelProviderK8S`；配置源与存储包也有各自的 provider。
-
-## 🧪 本地验证
-
-提交 PR 前建议先在仓库根目录运行：
+开发版本可使用 `main`；生产环境应替换为已发布的子模块标签或不可变提交：
 
 ```bash
-# 必须通过的本地测试入口
-go test ./...
-
-# 覆盖率报告
-go test ./... -coverprofile=coverage.out
-go tool cover -func=coverage.out
-
-# 集成测试，需要先配置对应外部服务
-go test -tags=integration ./...
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@main
 ```
 
-依赖数据库、对象存储、Kubernetes、云凭证或其他可选外部服务的集成类测试，在配置缺失时应主动 skip，而不是让普通本地验证失败。
+## 核心能力
 
-Lint 流程与 CI 保持一致：
+- 基于 Context 的 HTTP、gRPC、cron 生命周期管理
+- HTTP 运维路由、超时、TLS、指标和优雅关闭
+- gRPC 中间件、OpenTelemetry、Prometheus、TLS 和有界优雅关闭
+- GORM、MongoDB/MGM、Kubernetes 控制器 Action
+- 本地文件、数据库、对象存储、ConfigMap、Consul、AWS AppConfig 等配置源
+- 缓存、队列、对象存储、迁移、安全、语言和响应工具
+
+可选集成在未配置时必须返回错误或跳过；框架包不能直接终止宿主进程。
+
+## 运行时契约
+
+被管理组件实现：
+
+```go
+type Runnable interface {
+    fmt.Stringer
+    Start(context.Context) error
+}
+```
+
+`Start` 必须阻塞，直到组件停止、Context 被取消，或发生不可恢复的运行时错误；返回前必须
+释放自己持有的资源。Manager 并发运行组件，首个异常退出会取消同组组件，并在配置的时间内
+等待优雅关闭完成。
+
+为兼容现有应用，Manager 默认处理 `SIGINT` 和 `SIGTERM`。自行管理进程信号的应用应使用
+`server.WithoutSignalHandling()`，并传入由 `signal.NotifyContext` 创建的 Context。
+
+生命周期、绑定、鉴权、查询和兼容性细节见
+[运行时与请求契约](./docs/architecture/runtime-and-request-contracts.md)。
+
+## 快速开始
+
+完整示例位于 [`examples/basic-http/main.go`](./examples/basic-http/main.go)，并会随框架测试一起编译。
+
+```go
+package main
+
+import (
+    "context"
+    "log/slog"
+    "net/http"
+    "os"
+    "os/signal"
+    "syscall"
+
+    "github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
+    "github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/listener"
+)
+
+func main() {
+    ctx, stop := signal.NotifyContext(
+        context.Background(),
+        os.Interrupt,
+        syscall.SIGTERM,
+    )
+    defer stop()
+
+    mux := http.NewServeMux()
+    mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+        _, _ = w.Write([]byte("ok\n"))
+    })
+
+    manager := server.New(server.WithoutSignalHandling())
+    manager.Add(listener.New(
+        listener.WithAddr(":8080"),
+        listener.WithHandler(mux),
+    ))
+
+    if err := manager.Start(ctx); err != nil {
+        slog.Error("server stopped unexpectedly", "error", err)
+        os.Exit(1)
+    }
+}
+```
+
+## 请求与控制器保证
+
+- 先绑定 URI 和 Query/Form，再按媒体类型最多读取一种 Body，最后只校验一次完整 DTO。
+- `GET`、`HEAD`、`OPTIONS` 不读取 JSON、XML、YAML Body。
+- GORM、MGM、Kubernetes 和自定义 Action 的 `WithAuth(true)` 均默认拒绝：全局兼容鉴权
+  Handler 缺失时返回服务配置错误，不能悄悄变成匿名接口。
+- GORM Search 必定应用请求条件和分页；Count 使用同样过滤条件但不带分页。
+- Search 反射遇到不支持的 DTO 字段时安全忽略，不再 panic。
+
+## 验证
+
+在仓库根目录执行：
 
 ```bash
-# 未安装工具时先安装
-go install golang.org/x/tools/cmd/goimports@latest
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-
-# 本地 lint 扫描
-golangci-lint run ./...
+make deps-framework
+make test-framework
 ```
 
-GitHub Actions 会在仓库根目录运行 action 提供的 latest `golangci-lint`。如果本地二进制由低于 `go.mod` 目标版本的 Go 构建，请先重新安装再扫描。当前 lint job 用于提示历史 lint backlog，`go test ./...` 仍是必须通过的 CI 检查。
+独立模块、竞态和静态检查：
 
-## 🔧 快速开始
-
-### 环境要求
-- Go 1.26+
-
-### 使用 Go Modules
 ```bash
-go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v0.8.0
+cd mss-boot
+GOWORK=off go test -race -shuffle=on -count=1 ./...
+GOWORK=off go vet ./...
+GOWORK=off go mod tidy
+git diff --exit-code -- go.mod go.sum
 ```
 
-### 本地检查
-```bash
-make tidy
-make test
-make coverage
-make lint
-```
+依赖可选数据库、对象存储、Kubernetes 集群或云凭证的测试，在未配置时必须主动跳过。
+在 CI 真正执行覆盖率阈值前，README 不声明未经证明的覆盖率数字。
 
-## 请我喝杯咖啡
-<a href="https://www.buymeacoffee.com/lwnmengjing" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+## 兼容与发布
 
+框架仍处于 v1 之前。任何改变可观察行为的变更都必须包含测试、文档、安全影响，以及迁移或
+回滚说明。子模块发布标签应采用 `mss-boot/vX.Y.Z`。
 
-## JetBrains 开源证书支持
+更多信息见 [CHANGELOG.md](./CHANGELOG.md)、[CONTRIBUTING.md](./CONTRIBUTING.md)
+和 [SECURITY.md](./SECURITY.md)。
 
-`mss-boot-io` 项目一直以来都是在 JetBrains 公司旗下的 GoLand 集成开发环境中进行开发，基于 **free JetBrains Open Source license(s)** 正版免费授权，在此表达我的谢意。
+## License
 
-<a href="https://www.jetbrains.com/?from=kubeadm-ha" target="_blank"><img src="https://raw.githubusercontent.com/panjf2000/illustrations/master/jetbrains/jetbrains-variant-4.png" width="250" align="middle"/></a>
-
-## 🔑 License
-
-[MIT](https://raw.githubusercontent.com/mss-boot-io/mss-boot/main/LICENSE)
-
-Copyright (c) 2022 mss-boot-io
+[MIT](./LICENSE)
