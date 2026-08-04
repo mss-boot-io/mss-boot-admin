@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - 'web/antd/**'
-      - 'modules/**/module.yaml'
+      - 'admin/modules/**/module.yaml'
       - 'templates/module/frontend/**'
       - '.github/workflows/frontend-ci.yml'
   pull_request:
@@ -14,7 +14,7 @@ on:
       - main
     paths:
       - 'web/antd/**'
-      - 'modules/**/module.yaml'
+      - 'admin/modules/**/module.yaml'
       - 'templates/module/frontend/**'
       - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:
