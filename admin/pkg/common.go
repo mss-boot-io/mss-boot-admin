@@ -1,11 +1,11 @@
 package pkg
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -14,18 +14,20 @@ import (
 	"strings"
 )
 
-// GetInstallPath Different systems get different installation paths
+var (
+	latestReleaseURL = "https://api.github.com/repos/mss-boot-io/micro-service-gen-tool/releases/latest"
+	httpClient       = http.DefaultClient
+)
+
+// GetInstallPath returns the historical platform-specific installation path.
 func GetInstallPath() string {
-	var path string
 	if IsWindows() {
-		path = `C:\Program Files\nps`
-	} else {
-		path = "/etc/nps"
+		return `C:\Program Files\nps`
 	}
-	return path
+	return "/etc/nps"
 }
 
-// GetAppPath Get the absolute path to the running directory
+// GetAppPath returns the absolute path to the running directory.
 func GetAppPath() string {
 	if path, err := filepath.Abs(filepath.Dir(os.Args[0])); err == nil {
 		return path
@@ -33,43 +35,57 @@ func GetAppPath() string {
 	return os.Args[0]
 }
 
-// IsWindows Determine whether the current system is a Windows system?
 func IsWindows() bool {
-	if runtime.GOOS == "windows" {
-		return true
-	}
-	return false
+	return runtime.GOOS == "windows"
 }
 
-// GetTmpPath interface pid file path
 func GetTmpPath() string {
-	var path string
 	if IsWindows() {
-		path = GetAppPath()
-	} else {
-		path = "/tmp"
+		return GetAppPath()
 	}
-	return path
+	return "/tmp"
 }
 
 type release struct {
 	TagName string `json:"tag_name"`
 }
 
-// GetLatestVersion get generate-tool version
+// GetLatestVersion preserves the historical no-error API without terminating
+// the embedding process. New code should call GetLatestVersionContext.
 func GetLatestVersion() string {
-	// get version
-	data, err := http.Get("https://api.github.com/repos/mss-boot-io/micro-service-gen-tool/releases/latest")
+	version, err := GetLatestVersionContext(context.Background())
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Printf("get latest generator version: %v", err)
+		return ""
 	}
-	b, err := ioutil.ReadAll(data.Body)
+	return version
+}
+
+func GetLatestVersionContext(ctx context.Context) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, latestReleaseURL, nil)
 	if err != nil {
-		log.Fatal(err)
+		return "", fmt.Errorf("create latest-release request: %w", err)
 	}
-	rl := new(release)
-	_ = json.Unmarshal(b, &rl)
-	return rl.TagName
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return "", fmt.Errorf("request latest release: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		_, _ = io.Copy(io.Discard, response.Body)
+		return "", fmt.Errorf("latest release returned HTTP %d", response.StatusCode)
+	}
+	var result release
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode latest release: %w", err)
+	}
+	if strings.TrimSpace(result.TagName) == "" {
+		return "", errors.New("latest release response has no tag_name")
+	}
+	return result.TagName, nil
 }
 
 func copyStaticFile(srcPath, bin string) string {
@@ -78,97 +94,87 @@ func copyStaticFile(srcPath, bin string) string {
 	if !IsWindows() {
 		if _, err := copyFile(filepath.Join(srcPath, bin), "/usr/bin/"+bin); err != nil {
 			if _, err := copyFile(filepath.Join(srcPath, bin), "/usr/local/bin/"+bin); err != nil {
-				log.Fatalln(err)
-			} else {
-				_, _ = copyFile(filepath.Join(srcPath, bin), "/usr/local/bin/"+bin+"-update")
-				chMod("/usr/local/bin/"+bin+"-update", 0755)
-				binPath = "/usr/local/bin/" + bin
+				log.Printf("copy %s: %v", bin, err)
+				return binPath
 			}
+			_, _ = copyFile(filepath.Join(srcPath, bin), "/usr/local/bin/"+bin+"-update")
+			chMod("/usr/local/bin/"+bin+"-update", 0o755)
+			binPath = "/usr/local/bin/" + bin
 		} else {
 			_, _ = copyFile(filepath.Join(srcPath, bin), "/usr/bin/"+bin+"-update")
-			chMod("/usr/bin/"+bin+"-update", 0755)
+			chMod("/usr/bin/"+bin+"-update", 0o755)
 			binPath = "/usr/bin/" + bin
 		}
 	} else {
 		_, _ = copyFile(filepath.Join(srcPath, bin+".exe"), filepath.Join(GetAppPath(), bin+"-update.exe"))
 		_, _ = copyFile(filepath.Join(srcPath, bin+".exe"), filepath.Join(GetAppPath(), bin+".exe"))
 	}
-	chMod(binPath, 0755)
+	chMod(binPath, 0o755)
 	return binPath
 }
 
-func CopyDir(srcPath string, destPath string) error {
-	//检测目录正确性
-	if srcInfo, err := os.Stat(srcPath); err != nil {
-		fmt.Println(err.Error())
+func CopyDir(srcPath, destPath string) error {
+	sourceInfo, err := os.Stat(srcPath)
+	if err != nil {
 		return err
-	} else {
-		if !srcInfo.IsDir() {
-			e := errors.New("SrcPath is not the right directory!")
-			return e
-		}
 	}
-	if destInfo, err := os.Stat(destPath); err != nil {
+	if !sourceInfo.IsDir() {
+		return errors.New("source path is not a directory")
+	}
+	if err := os.MkdirAll(destPath, sourceInfo.Mode().Perm()); err != nil {
+		return fmt.Errorf("create destination directory: %w", err)
+	}
+	destinationInfo, err := os.Stat(destPath)
+	if err != nil {
 		return err
-	} else {
-		if !destInfo.IsDir() {
-			e := errors.New("DestInfo is not the right directory!")
-			return e
-		}
 	}
-	err := filepath.Walk(srcPath, func(path string, f os.FileInfo, err error) error {
-		if f == nil {
+	if !destinationInfo.IsDir() {
+		return errors.New("destination path is not a directory")
+	}
+
+	return filepath.Walk(srcPath, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relative, err := filepath.Rel(srcPath, path)
+		if err != nil {
 			return err
 		}
-		if !f.IsDir() {
-			destNewPath := strings.Replace(path, srcPath, destPath, -1)
-			log.Println("copy file ::" + path + " to " + destNewPath)
-			copyFile(path, destNewPath)
-			if !IsWindows() {
-				chMod(destNewPath, 0766)
-			}
+		target := filepath.Join(destPath, relative)
+		if info.IsDir() {
+			return os.MkdirAll(target, info.Mode().Perm())
 		}
-		return nil
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		if _, err := copyFile(path, target); err != nil {
+			return fmt.Errorf("copy %s: %w", relative, err)
+		}
+		return os.Chmod(target, info.Mode().Perm())
 	})
-	return err
 }
 
-// 生成目录并拷贝文件
-func copyFile(src, dest string) (w int64, err error) {
-	srcFile, err := os.Open(src)
+func copyFile(src, dest string) (int64, error) {
+	source, err := os.Open(src)
 	if err != nil {
-		return
+		return 0, err
 	}
-	defer srcFile.Close()
-	//分割path目录
-	destSplitPathDirs := strings.Split(dest, string(filepath.Separator))
-
-	//检测时候存在目录
-	destSplitPath := ""
-	for index, dir := range destSplitPathDirs {
-		if index < len(destSplitPathDirs)-1 {
-			destSplitPath = destSplitPath + dir + string(filepath.Separator)
-			b, _ := pathExists(destSplitPath)
-			if b == false {
-				log.Println("mkdir:" + destSplitPath)
-				//创建目录
-				err := os.Mkdir(destSplitPath, os.ModePerm)
-				if err != nil {
-					log.Fatalln(err)
-				}
-			}
-		}
+	defer source.Close()
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return 0, err
 	}
-	dstFile, err := os.Create(dest)
+	destination, err := os.Create(dest)
 	if err != nil {
-		return
+		return 0, err
 	}
-	defer dstFile.Close()
-
-	return io.Copy(dstFile, srcFile)
+	written, copyErr := io.Copy(destination, source)
+	closeErr := destination.Close()
+	if copyErr != nil {
+		return written, copyErr
+	}
+	return written, closeErr
 }
 
-// 检测文件夹路径时候存在
 func pathExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {
@@ -186,12 +192,11 @@ func chMod(name string, mode os.FileMode) {
 	}
 }
 
-// InArray 判断字符串是否在数组中
 func InArray(vals []string, array []string, replace string, n int) bool {
-	for j := range vals {
-		for i := range array {
-			fmt.Println(strings.Replace(array[i], replace, "", n))
-			if strings.ToLower(strings.Replace(array[i], replace, "", n)) == strings.ToLower(vals[j]) {
+	for _, value := range vals {
+		for _, candidate := range array {
+			candidate = strings.Replace(candidate, replace, "", n)
+			if strings.EqualFold(candidate, value) {
 				return true
 			}
 		}
@@ -200,29 +205,33 @@ func InArray(vals []string, array []string, replace string, n int) bool {
 }
 
 func Pluralize(word string) string {
-	lastLetter := word[len(word)-1:]
-	beforeLastLetter := word[len(word)-2 : len(word)-1]
+	if word == "" {
+		return ""
+	}
+	lower := strings.ToLower(word)
+	lastLetter := lower[len(lower)-1:]
+	beforeLastLetter := ""
+	if len(lower) > 1 {
+		beforeLastLetter = lower[len(lower)-2 : len(lower)-1]
+	}
 	switch lastLetter {
 	case "y":
-		if beforeLastLetter == "a" || beforeLastLetter == "e" || beforeLastLetter == "i" || beforeLastLetter == "o" || beforeLastLetter == "u" {
+		if strings.Contains("aeiou", beforeLastLetter) {
 			return word + "s"
-		} else {
-			return word[:len(word)-1] + "ies"
 		}
+		return word[:len(word)-1] + "ies"
 	case "x", "s", "z", "o":
 		return word + "es"
 	case "h":
 		if beforeLastLetter == "s" || beforeLastLetter == "c" {
 			return word + "es"
-		} else {
-			return word + "s"
 		}
+		return word + "s"
 	case "f":
-		if beforeLastLetter == "f" {
+		if beforeLastLetter == "f" && len(word) > 1 {
 			return word[:len(word)-2] + "ves"
-		} else {
-			return word[:len(word)-1] + "ves"
 		}
+		return word[:len(word)-1] + "ves"
 	default:
 		return word + "s"
 	}
