@@ -134,6 +134,24 @@ func TestServerReturnsShutdownTimeout(t *testing.T) {
 	}
 }
 
+func TestServerTreatsPreCancelledContextAsCleanShutdown(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		manager := New(WithoutSignalHandling())
+		manager.Add(&testRunnable{
+			name: "service",
+			start: func(ctx context.Context) error {
+				<-ctx.Done()
+				return nil
+			},
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		if err := manager.Start(ctx); err != nil {
+			t.Fatalf("iteration %d: expected clean shutdown, got %v", i, err)
+		}
+	}
+}
+
 func TestServerCanOnlyStartOnce(t *testing.T) {
 	manager := New(WithoutSignalHandling())
 	started := make(chan struct{})

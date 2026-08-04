@@ -87,9 +87,6 @@ func (e *Server) Start(ctx context.Context) error {
 			return ctx
 		},
 	}
-	if e.options.endHook != nil {
-		e.srv.RegisterOnShutdown(e.options.endHook)
-	}
 	e.started = true
 	srv := e.srv
 	e.mux.Unlock()
@@ -105,6 +102,9 @@ func (e *Server) Start(ctx context.Context) error {
 
 	if e.options.startedHook != nil {
 		e.options.startedHook()
+	}
+	if e.options.endHook != nil {
+		defer e.options.endHook()
 	}
 	server.PrintRunningInfo(listener.Addr().String(), "http")
 

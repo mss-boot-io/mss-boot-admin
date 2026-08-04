@@ -118,6 +118,11 @@ func (e *Server) Start(ctx context.Context) error {
 	case <-runCtx.Done():
 		// Caller cancellation and process signals are normal shutdown paths.
 	case result := <-results:
+		if runCtx.Err() != nil {
+			// A runnable may observe cancellation and return at the same instant as
+			// this select. External cancellation remains a normal shutdown path.
+			break
+		}
 		if result.err != nil {
 			runErr = fmt.Errorf("runnable %q failed: %w", result.name, result.err)
 		} else {
