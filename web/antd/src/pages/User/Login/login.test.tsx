@@ -1,26 +1,28 @@
-﻿import { render, fireEvent, act } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import { TestBrowser } from '@@/testBrowser';
 import { persistLoginState } from './index';
 import { resolveSafeRedirect } from './redirect';
 
-// @ts-ignore
-import { startMock } from '@@/requestRecordMock';
+jest.mock('@/services/admin/appConfig', () => ({
+  getAppConfigsProfile: jest.fn().mockResolvedValue({}),
+}));
 
-let server: {
-  close: () => void;
-};
+jest.mock('@/services/admin/user', () => ({
+  getUserRefreshToken: jest.fn(),
+  getUserUserInfo: jest.fn(),
+  postUserFakeCaptcha: jest.fn(),
+  postUserLogin: jest.fn(),
+}));
 
 describe('Login Page', () => {
-  beforeAll(async () => {
-    server = await startMock({
-      port: 8000,
-      scene: 'login',
-    });
+  beforeEach(() => {
+    localStorage.clear();
+    jest.clearAllMocks();
   });
 
-  afterAll(() => {
-    server?.close();
+  afterEach(() => {
+    jest.clearAllTimers();
   });
 
   it('should show login form', async () => {
