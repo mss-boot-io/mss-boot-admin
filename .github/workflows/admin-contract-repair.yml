@@ -1,6 +1,9 @@
 name: One-shot admin contract repair
 
 on:
+  push:
+    branches:
+      - refactor/split-admin-module-and-coverage-r1
   pull_request:
     branches:
       - main
