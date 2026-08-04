@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -107,7 +108,7 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 		}
 		gormdb.InstallDefault(previousDefault)
 		if closeErr := newHandle.Close(); closeErr != nil {
-			err = errorsJoin(err, fmt.Errorf("close failed database handle: %w", closeErr))
+			err = errors.Join(err, fmt.Errorf("close failed database handle: %w", closeErr))
 		}
 	}()
 
@@ -240,7 +241,7 @@ func bindPolicyWatcher(adapter storage.AdapterQueue, enforcer casbin.IEnforcer) 
 func (e *Config) OnChange() {
 	e.Logger.Init()
 	if err := e.reloadDatabase(context.Background()); err != nil {
-		slog.Error("configuration changed but database reload failed; keeping previous handle", "err", err)
+		slog.Error("configuration database reload did not complete cleanly", "err", err)
 		return
 	}
 	slog.Info("configuration changed and database handle reloaded")
@@ -273,14 +274,4 @@ func (e *Config) reloadDatabase(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-func errorsJoin(left, right error) error {
-	if left == nil {
-		return right
-	}
-	if right == nil {
-		return left
-	}
-	return fmt.Errorf("%w; %v", left, right)
 }
