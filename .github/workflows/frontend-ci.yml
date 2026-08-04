@@ -79,12 +79,57 @@ jobs:
         if: steps.guard.outputs.done != 'true'
         working-directory: web/antd
         run: |
-          set -euxo pipefail
+          set -uo pipefail
+          diagnostics="${RUNNER_TEMP}/web-dependency-remediation"
+          mkdir -p "${diagnostics}"
           rm -rf node_modules workers-site/node_modules .umi .umi-test
-          pnpm install --lockfile-only --ignore-scripts --strict-peer-dependencies
-          pnpm dedupe
+
+          pnpm install \
+            --lockfile-only \
+            --ignore-scripts \
+            --strict-peer-dependencies \
+            --reporter=ndjson \
+            > "${diagnostics}/strict-lock.ndjson" 2>&1
+          status=$?
+          echo "${status}" > "${diagnostics}/strict-lock.exit"
+          if [[ ${status} -ne 0 ]]; then
+            echo 'Strict dependency resolution failed. Last diagnostic records:' >&2
+            tail -n 200 "${diagnostics}/strict-lock.ndjson" >&2
+            exit "${status}"
+          fi
+
+          pnpm dedupe --reporter=append-only \
+            > "${diagnostics}/dedupe.log" 2>&1
+          status=$?
+          echo "${status}" > "${diagnostics}/dedupe.exit"
+          if [[ ${status} -ne 0 ]]; then
+            cat "${diagnostics}/dedupe.log" >&2
+            exit "${status}"
+          fi
+
           rm -rf node_modules workers-site/node_modules
-          pnpm install --frozen-lockfile --ignore-scripts --strict-peer-dependencies --prefer-offline
+          pnpm install \
+            --frozen-lockfile \
+            --ignore-scripts \
+            --strict-peer-dependencies \
+            --prefer-offline \
+            --reporter=append-only \
+            > "${diagnostics}/frozen-install.log" 2>&1
+          status=$?
+          echo "${status}" > "${diagnostics}/frozen-install.exit"
+          if [[ ${status} -ne 0 ]]; then
+            cat "${diagnostics}/frozen-install.log" >&2
+            exit "${status}"
+          fi
+
+      - name: Upload dependency resolution diagnostics
+        if: failure() && steps.guard.outputs.done != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-dependency-remediation-diagnostics
+          path: ${{ runner.temp }}/web-dependency-remediation
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Validate dependency health and frontend behavior
         if: steps.guard.outputs.done != 'true'
