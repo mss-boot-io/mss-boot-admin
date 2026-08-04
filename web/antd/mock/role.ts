@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { MockRequest as Request, MockResponse as Response } from './types';
 
 const waitTime = (time: number = 100) => {
   return new Promise((resolve) => {
