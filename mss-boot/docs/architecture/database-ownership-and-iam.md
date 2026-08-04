@@ -64,6 +64,29 @@ read them directly. Applications should migrate constructors, repositories,
 workers, and request actions to explicit `*gormdb.Handle` or `*gorm.DB`
 dependencies before v1.
 
+## Root admin composition
+
+The root admin configuration now owns its active Handle:
+
+- `Config.InitContext` loads configuration and opens the replacement database
+  before publishing it;
+- dependent cache and policy-watcher setup can fail without leaking the new
+  pool, and the previous compatibility default is restored on rollback;
+- configuration reload opens and validates a replacement first, binds the new
+  policy watcher, publishes the replacement, and closes the previously owned
+  pool;
+- `Config.Close` closes the owned pool and only clears compatibility globals
+  when that same Handle is still installed;
+- server startup and migration commands propagate database initialization
+  errors instead of continuing with a nil global;
+- migration execution, task storage, scheduled task refresh, and session
+  cleanup receive the owned `*gorm.DB` explicitly.
+
+The long-running HTTP process still has queue and configuration watchers whose
+shutdown is not yet represented as managed `Runnable` resources. Server-level
+`Config.Close` must be attached after those lifecycles become cancellable so the
+database is not closed while a background watcher is still using it.
+
 ## RDS IAM connection contract
 
 RDS IAM authentication is connection-scoped, not process-startup-scoped.
@@ -126,7 +149,7 @@ database, and TLS mode cannot be overridden through `params`.
 3. Inject `handle.DB` and `handle.Enforcer` into repositories and services.
 4. On configuration reload, open the replacement first, atomically publish or
    inject it, and only then close the previous owned Handle.
-5. Call `Close()` during application shutdown.
+5. Call `Close()` after every background consumer and watcher has stopped.
 
 ## Rollback
 
@@ -137,10 +160,11 @@ wiring while reverting only the framework Handle implementation.
 
 ## Remaining work
 
-- Move the root admin composition to an owned Handle and close it on shutdown.
-- Replace direct reads of `gormdb.DB` and `gormdb.Enforcer` with injected
-  dependencies.
+- Represent queue and configuration watchers as managed lifecycle resources,
+  then close the root admin Handle during server shutdown.
+- Replace remaining direct reads of `gormdb.DB` and `gormdb.Enforcer` with
+  injected dependencies.
 - Add ownership for every dbresolver source and replica pool.
 - Remove the compatibility globals before v1.
-- Make cache, queue watcher, migration, and task construction consume explicit
-  database dependencies.
+- Make cache plugins, request actions, repositories, and service constructors
+  consume explicit database dependencies.
