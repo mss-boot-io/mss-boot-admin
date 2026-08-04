@@ -66,8 +66,8 @@ jobs:
       - name: Run frontend tests
         run: pnpm test -- --runInBand
 
-  build:
-    name: build
+  compile:
+    name: frontend-build
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     defaults:
@@ -95,21 +95,22 @@ jobs:
       - name: Build frontend
         run: pnpm build:local
 
-  required:
-    name: frontend
+  build:
+    # Preserve the historical required check: Frontend CI / build.
+    name: build
     if: ${{ always() }}
     needs:
       - quality
-      - build
+      - compile
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require every frontend check to pass
         env:
           QUALITY_RESULT: ${{ needs.quality.result }}
-          BUILD_RESULT: ${{ needs.build.result }}
+          COMPILE_RESULT: ${{ needs.compile.result }}
         run: |
           echo "quality=${QUALITY_RESULT}"
-          echo "build=${BUILD_RESULT}"
+          echo "compile=${COMPILE_RESULT}"
           test "${QUALITY_RESULT}" = "success"
-          test "${BUILD_RESULT}" = "success"
+          test "${COMPILE_RESULT}" = "success"
