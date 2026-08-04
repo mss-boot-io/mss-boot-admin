@@ -73,7 +73,9 @@ jobs:
 
       - name: Rewrite dependency and test contracts
         if: steps.guard.outputs.done != 'true'
-        run: python3 scripts/remediate_web_deps.py
+        run: |
+          python3 scripts/remediate_web_deps.py
+          python3 scripts/patch_web_pnpm_rules.py
 
       - name: Generate strict shared lockfile
         if: steps.guard.outputs.done != 'true'
