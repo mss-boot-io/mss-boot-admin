@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   root:
-    name: Root application
+    name: Agent/Foundation module
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -32,21 +32,25 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.sum
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
-      - name: Scan root application
+      - name: Scan Agent/Foundation module
+        env:
+          GOWORK: 'off'
         run: govulncheck ./...
 
   nested-modules:
     name: ${{ matrix.module }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
         module:
+          - admin
           - mss-boot
           - cmd/tools/pr
           - compose/consul
@@ -58,7 +62,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version-file: ${{ matrix.module }}/go.mod
           cache: true
           cache-dependency-path: ${{ matrix.module }}/go.sum
 
@@ -68,12 +72,11 @@ jobs:
       - name: Scan nested module
         working-directory: ${{ matrix.module }}
         env:
-          GOWORK: "off"
+          GOWORK: 'off'
         run: govulncheck ./...
 
   required-status:
     # Keep this exact job name for the existing main-branch required check.
-    # It aggregates every module scan, so the compatibility context is not a bypass.
     name: govulncheck
     needs:
       - root
