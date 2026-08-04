@@ -97,6 +97,7 @@
       "braces": "3.0.3",
       "cross-spawn": "7.0.6",
       "diff@4.0.2": "4.0.4",
+      "dva-immer>immer": "9.0.6",
       "es5-ext@0.10.62": "0.10.64",
       "fast-uri": "3.1.5",
       "flatted": "3.4.2",
