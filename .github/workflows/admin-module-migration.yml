@@ -1,0 +1,247 @@
+name: One-shot admin module migration
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-admin-module-migration
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v7
+        with:
+          ref: refactor/split-admin-module-and-coverage-r1
+          fetch-depth: 0
+
+      - name: Stop after the migration has been committed
+        id: guard
+        run: |
+          if [[ -f admin/go.mod ]]; then
+            echo 'done=true' >> "${GITHUB_OUTPUT}"
+          else
+            echo 'done=false' >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Setup Go
+        if: steps.guard.outputs.done != 'true'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            go.work.sum
+            mss-boot/go.sum
+
+      - name: Move the Admin application and rewrite module imports
+        if: steps.guard.outputs.done != 'true'
+        run: |
+          set -euxo pipefail
+
+          mkdir admin
+          cp go.mod admin/go.mod
+          cp go.sum admin/go.sum
+
+          git mv main.go generate.go admin/
+          for directory in apis center config dto middleware models modules notice pkg router service; do
+            git mv "${directory}" admin/
+          done
+          mkdir -p admin/cmd
+          git mv cmd/cobra.go cmd/migrate cmd/server admin/cmd/
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          old = 'github.com/mss-boot-io/mss-boot-admin'
+          replacements = [
+              (old + '/cmd/migrate', old + '/admin/cmd/migrate'),
+              (old + '/cmd/server', old + '/admin/cmd/server'),
+              (old + '/apis', old + '/admin/apis'),
+              (old + '/center', old + '/admin/center'),
+              (old + '/config', old + '/admin/config'),
+              (old + '/dto', old + '/admin/dto'),
+              (old + '/middleware', old + '/admin/middleware'),
+              (old + '/models', old + '/admin/models'),
+              (old + '/modules', old + '/admin/modules'),
+              (old + '/notice', old + '/admin/notice'),
+              (old + '/pkg', old + '/admin/pkg'),
+              (old + '/router', old + '/admin/router'),
+              (old + '/service', old + '/admin/service'),
+              ('"' + old + '/cmd"', '"' + old + '/admin/cmd"'),
+          ]
+          skip = {'.git', 'vendor', 'node_modules', 'dist', 'playwright-report', 'test-results'}
+          for path in sorted(Path('.').rglob('*')):
+              if not path.is_file() or any(part in skip for part in path.parts):
+                  continue
+              try:
+                  text = path.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  continue
+              updated = text
+              for source, target in replacements:
+                  updated = updated.replace(source, target)
+              if updated != text:
+                  path.write_text(updated, encoding='utf-8')
+
+          generator = Path('internal/mss/generator/generator.go')
+          text = generator.read_text(encoding='utf-8')
+          text = text.replace('filepath.Join("modules", module.Metadata.Name)', 'filepath.Join("admin", "modules", module.Metadata.Name)')
+          text = text.replace('"modules/all/generated.go"', '"admin/modules/all/generated.go"')
+          text = text.replace('filepath.Join(root, "modules", "*", "module.yaml")', 'filepath.Join(root, "admin", "modules", "*", "module.yaml")')
+          text = text.replace('"modules/*/module.yaml"', '"admin/modules/*/module.yaml"')
+          generator.write_text(text, encoding='utf-8')
+
+          for path in [Path('internal/mss/generator/generator_test.go'), Path('internal/mss/blueprint/plan_test.go'), Path('internal/mss/blueprint/upgrade_test.go'), Path('internal/mss/blueprint/workspace_test.go')]:
+              if not path.exists():
+                  continue
+              text = path.read_text(encoding='utf-8')
+              text = text.replace('modules/all', 'admin/modules/all')
+              text = text.replace('modules/runtime', 'admin/modules/runtime')
+              text = text.replace('modules/supplier', 'admin/modules/supplier')
+              text = text.replace('"main.go"', '"admin/main.go"')
+              path.write_text(text, encoding='utf-8')
+          PY
+
+          go mod edit -modfile=admin/go.mod -module=github.com/mss-boot-io/mss-boot-admin/admin
+          (
+            cd admin
+            GOWORK=off go mod edit -replace=github.com/mss-boot-io/mss-boot-admin/mss-boot=../mss-boot
+          )
+
+          cat > go.work <<'EOF'
+          go 1.26.5
+
+          use (
+            .
+            ./admin
+            ./mss-boot
+          )
+
+          replace github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0 => ./mss-boot
+          EOF
+
+      - name: Update repository contracts
+        if: steps.guard.outputs.done != 'true'
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          project = Path('.mss/project.yaml')
+          text = project.read_text(encoding='utf-8')
+          text = text.replace('    backend: .\n', '    backend: admin\n')
+          text = text.replace('    module: github.com/mss-boot-io/mss-boot-admin\n', '    module: github.com/mss-boot-io/mss-boot-admin/admin\n')
+          text = text.replace('    admin: go run .\n', '    admin: cd admin && go run .\n')
+          project.write_text(text, encoding='utf-8')
+
+          dev = Path('.mss/dev.yaml')
+          text = dev.read_text(encoding='utf-8')
+          text = text.replace('      directory: .\n      command:\n        - go\n        - run\n        - .\n        - server\n', '      directory: admin\n      command:\n        - go\n        - run\n        - .\n        - server\n', 1)
+          dev.write_text(text, encoding='utf-8')
+
+          capabilities = Path('.mss/capabilities.yaml')
+          lines = capabilities.read_text(encoding='utf-8').splitlines()
+          in_backend = False
+          output = []
+          for line in lines:
+              stripped = line.strip()
+              indent = len(line) - len(line.lstrip())
+              if stripped == 'backendPaths:':
+                  in_backend = True
+                  output.append(line)
+                  continue
+              if in_backend and indent <= 6 and not stripped.startswith('- '):
+                  in_backend = False
+              if in_backend and stripped.startswith('- '):
+                  value = stripped[2:]
+                  if not value.startswith('admin/'):
+                      line = line[:indent] + '- admin/' + value
+              output.append(line)
+          capabilities.write_text('\n'.join(output) + '\n', encoding='utf-8')
+
+          blueprint = Path('.mss/blueprints/management-system.yaml')
+          text = blueprint.read_text(encoding='utf-8')
+          text = text.replace('    - main.go\n', '    - admin/go.mod\n    - admin/main.go\n')
+          blueprint.write_text(text, encoding='utf-8')
+
+          agents = Path('AGENTS.md')
+          text = agents.read_text(encoding='utf-8')
+          text = text.replace('| `/` | Go admin backend and current reference application |', '| `/` | Agent/Foundation Go tooling, workspace orchestration, and repository contracts |')
+          text = text.replace('| `mss-boot/` | Reusable Go framework module; keep domain-neutral |', '| `admin/` | Deployable reference Admin application and legacy business implementation |\n| `mss-boot/` | Reusable Go framework module; keep domain-neutral |')
+          text = text.replace('- The root application may depend on `mss-boot`; the framework must not depend on the root application.', '- The `admin/` module may depend on `mss-boot`; the framework and root Agent module must not depend on Admin business packages.')
+          agents.write_text(text, encoding='utf-8')
+          PY
+
+          cat > admin/AGENTS.md <<'EOF'
+          # Admin application contract
+
+          This directory is the deployable reference Admin application and an independent Go module.
+
+          - Module: `github.com/mss-boot-io/mss-boot-admin/admin`
+          - Framework dependency: sibling `mss-boot/` module
+          - Run development commands from `admin/` so runtime `config/` paths remain stable.
+          - Do not place Agent/Foundation tooling in this module.
+          - Admin changes require independent tests with `GOWORK=off`, a workspace compatibility test against the current local framework, coverage verification, vet, tidy, and binary smoke tests.
+          - Public HTTP routes and database schema compatibility must be preserved unless a migration and explicit release note are included.
+          EOF
+
+          cat > admin/README.md <<'EOF'
+          # mss-boot Admin application
+
+          This directory contains the deployable reference Admin application as an independent Go module.
+
+          ```bash
+          cd admin
+          go run . server
+          go test ./...
+          ```
+
+          The repository workspace resolves the sibling `mss-boot/` framework. The committed relative replace keeps independent module validation deterministic inside the monorepo until a stable nested framework release is published.
+          EOF
+
+      - name: Reconcile module metadata and validate the migration
+        if: steps.guard.outputs.done != 'true'
+        run: |
+          set -euxo pipefail
+          GOWORK=off go mod tidy
+          (
+            cd admin
+            GOWORK=off go mod tidy
+            GOWORK=off go test -shuffle=on -count=1 ./...
+            GOWORK=off go vet ./...
+            CGO_ENABLED=0 GOWORK=off go build -trimpath -o "${RUNNER_TEMP}/mss-boot-admin" .
+            "${RUNNER_TEMP}/mss-boot-admin" --help >/dev/null
+          )
+          (
+            cd mss-boot
+            GOWORK=off go mod tidy
+            GOWORK=off go test -shuffle=on -count=1 ./...
+          )
+          go work sync
+          go test ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/...
+          go test ./admin/...
+
+      - name: Commit the module migration
+        if: steps.guard.outputs.done != 'true'
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --stat
+          git commit -m 'refactor(admin): move reference application into its own module'
+          git push origin HEAD:refactor/split-admin-module-and-coverage-r1
