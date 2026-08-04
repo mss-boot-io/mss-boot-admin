@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/blueprint"
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
 func newUpgradeCommand(rootOverride *string) *cobra.Command {
@@ -132,18 +133,29 @@ func runFoundationUpgrade(
 		FoundationRoot:  foundation,
 		ManifestPath:    manifestPath,
 		Blueprint:       blueprintName,
-		Application: blueprint.Application{
-			Name:        projectContext.Project.Metadata.Name,
-			DisplayName: projectContext.Project.Metadata.DisplayName,
-			Module:      projectContext.Project.Spec.Backend.Module,
-			Repository:  projectContext.Project.Metadata.Repository,
-		},
-		Write: write,
+		Application:     upgradeApplication(projectContext),
+		Write:           write,
 	})
 	if outputErr := writeUpgradePlan(command.OutOrStdout(), plan, format); outputErr != nil {
 		return outputErr
 	}
 	return upgradeErr
+}
+
+// upgradeApplication intentionally leaves Module empty. The Blueprint manifest
+// owns the root application identity used for a three-way upgrade, while
+// project.yaml's backend.module may identify a nested deployable module such as
+// <application>/admin. Upgrade fills the root module from the signed-in baseline
+// before validating identity and rendering the next desired state.
+func upgradeApplication(projectContext *project.Context) blueprint.Application {
+	if projectContext == nil {
+		return blueprint.Application{}
+	}
+	return blueprint.Application{
+		Name:        projectContext.Project.Metadata.Name,
+		DisplayName: projectContext.Project.Metadata.DisplayName,
+		Repository:  projectContext.Project.Metadata.Repository,
+	}
 }
 
 func writeUpgradePlan(writer io.Writer, plan blueprint.UpgradePlan, format string) error {
