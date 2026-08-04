@@ -111,6 +111,7 @@ exports[`Login Page should show login form 1`] = `
                     </div>
                     <div
                       class="ant-tabs-ink-bar ant-tabs-ink-bar-animated"
+                      style="left: 0px; transform: translateX(-50%); width: 0px;"
                     />
                   </div>
                 </div>
@@ -297,7 +298,6 @@ exports[`Login Page should show login form 1`] = `
                           id="password"
                           placeholder="Password"
                           type="password"
-                          value=""
                         />
                         <span
                           class="ant-input-suffix"

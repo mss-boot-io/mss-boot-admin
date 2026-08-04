@@ -1,76 +1,76 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-
 version: 2
 updates:
-  - package-ecosystem: "gomod"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    labels:
-      - "area/backend"
-      - "type/security"
-  - package-ecosystem: "gomod"
-    directory: "/mss-boot"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    labels:
-      - "area/backend"
-      - "type/security"
+  - package-ecosystem: gomod
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    groups:
+      root-go-non-major:
+        patterns: ['*']
+        update-types: [minor, patch]
+    labels: [area/backend, type/security]
+  - package-ecosystem: gomod
+    directory: /mss-boot
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    groups:
+      framework-go-non-major:
+        patterns: ['*']
+        update-types: [minor, patch]
+    labels: [area/backend, type/security]
     ignore:
-      - dependency-name: "github.com/casbin/gorm-adapter/v3"
-        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
-  - package-ecosystem: "gomod"
-    directory: "/cmd/tools/pr"
-    schedule:
-      interval: "weekly"
+      - dependency-name: github.com/casbin/gorm-adapter/v3
+        update-types: [version-update:semver-minor, version-update:semver-patch]
+  - package-ecosystem: gomod
+    directory: /cmd/tools/pr
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 2
+    groups:
+      pr-tool-go-non-major:
+        patterns: ['*']
+        update-types: [minor, patch]
+    labels: [area/devops, type/security]
+  - package-ecosystem: gomod
+    directory: /compose/consul
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 2
+    groups:
+      consul-go-non-major:
+        patterns: ['*']
+        update-types: [minor, patch]
+    labels: [area/devops, type/security]
+  - package-ecosystem: gomod
+    directory: /compose/kafka
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 2
+    groups:
+      kafka-go-non-major:
+        patterns: ['*']
+        update-types: [minor, patch]
+    labels: [area/devops, type/security]
+  - package-ecosystem: npm
+    directory: /web/antd
+    schedule: { interval: weekly }
     open-pull-requests-limit: 3
-    labels:
-      - "area/devops"
-      - "type/security"
-  - package-ecosystem: "gomod"
-    directory: "/compose/consul"
-    schedule:
-      interval: "weekly"
+    groups:
+      frontend-non-major:
+        patterns: ['*']
+        update-types: [minor, patch]
+    labels: [area/frontend, type/security]
+  - package-ecosystem: npm
+    directory: /docs
+    schedule: { interval: weekly }
     open-pull-requests-limit: 3
-    labels:
-      - "area/devops"
-      - "type/security"
-  - package-ecosystem: "gomod"
-    directory: "/compose/kafka"
-    schedule:
-      interval: "weekly"
+    groups:
+      docs-non-major:
+        patterns: ['*']
+        update-types: [minor, patch]
+    labels: [area/docs, type/security]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
     open-pull-requests-limit: 3
-    labels:
-      - "area/devops"
-      - "type/security"
-  - package-ecosystem: "npm"
-    directory: "/web/antd"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    labels:
-      - "type/security"
-  - package-ecosystem: "npm"
-    directory: "/docs"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    labels:
-      - "type/security"
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
     groups:
       github-actions:
-        patterns:
-          - "*"
-    labels:
-      - "area/devops"
-      - "type/security"
+        patterns: ['*']
+    labels: [area/devops, type/security]
