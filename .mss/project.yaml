@@ -14,7 +14,7 @@ spec:
     framework: mss-boot
     frontend: web/antd
     documentation: docs
-    modules: modules
+    modules: admin/modules
     specifications: .mss
     skills: .agents/skills
     templates: templates
