@@ -9,27 +9,32 @@ and the project uses semantic versioning for nested-module releases.
 ### Added
 
 - Blocking lifecycle regression tests for cancellation, peer-error propagation,
-  unexpected exits, graceful-shutdown deadlines, duplicate starts, and signal
-  ownership.
+  unexpected exits, graceful-shutdown deadlines, duplicate starts, shutdown
+  error collection, and signal ownership.
 - HTTP and gRPC lifecycle tests for listener errors, TLS configuration,
   operational hooks, metrics registration, and bounded shutdown.
-- Race-oriented tests for task storage, validation translator initialization,
-  request binding plans, provider authentication, and search reflection.
+- Race-oriented tests for task storage and shutdown, validation translator
+  initialization, request binding plans, provider authentication, and search
+  reflection.
 - A compiled basic HTTP example and an architecture contract document.
 
 ### Changed
 
 - `Runnable.Start(context.Context) error` now has an explicit blocking lifecycle
   contract. The manager concurrently runs registered components, cancels peers
-  on the first unexpected exit, and waits for bounded graceful shutdown.
+  on the first unexpected exit, joins component shutdown errors, and waits for
+  bounded graceful shutdown.
+- The manager's default outer shutdown deadline is 30 seconds so built-in
+  adapters can complete their shorter deadlines and return specific errors.
 - HTTP servers now configure read-header, read, write, idle, and shutdown
   timeouts and return listen/serve errors to the manager.
 - gRPC servers no longer terminate the process during TLS initialization,
   mutate global tracing state, or panic on duplicate default metrics
   registration. Reflection, metrics registry, connection timeout, and shutdown
   timeout are configurable.
-- Task servers block until cancellation and wait for in-flight cron jobs. The
-  default task storage is concurrency-safe and returns deterministic key order.
+- Task servers block until cancellation and wait for in-flight cron jobs up to a
+  configurable shutdown timeout. The default task storage is concurrency-safe
+  and returns deterministic key order.
 - Request binding uses a deterministic cached plan: URI and query/form values
   are applied before one media-type-matched body, followed by one final
   validation pass.
@@ -42,9 +47,12 @@ and the project uses semantic versioning for nested-module releases.
 ### Fixed
 
 - Fixed the manager deadlock/error-loss lifecycle in which long-running
-  components could not be cancelled or background serve errors could be lost.
+  components could not be cancelled, background serve errors could be lost, or
+  real flush/close errors returned during cancellation could be discarded.
 - Fixed `grpc.WithTimeout` writing the keepalive field instead of the connection
   timeout field.
+- Fixed task shutdown waiting forever for a blocked cron job; it now returns a
+  deadline error when its configured shutdown period expires.
 - Fixed GORM Search silently skipping request conditions and pagination when no
   custom scope was configured.
 - Fixed `GET`, `HEAD`, and `OPTIONS` binding from attempting to consume JSON,
@@ -55,6 +63,8 @@ and the project uses semantic versioning for nested-module releases.
   handled safely.
 - Replaced library-level process exit on nil response context with a recoverable
   programming-error panic.
+- Removed unused synchronization-bearing table-test fields that caused `go vet`
+  `copylocks` failures.
 
 ### Security
 
@@ -70,6 +80,8 @@ and the project uses semantic versioning for nested-module releases.
   returned immediately must now block until their work stops. Returning early
   is treated as an unexpected component exit.
 - HTTP and gRPC `Start` methods now block and report runtime errors.
+- Task `Start` can now return `context.DeadlineExceeded` when a running job
+  exceeds its shutdown timeout.
 - GORM and MGM route naming retains the historical `mgm.CollName` behavior;
   Kubernetes controllers without a database model use their resource type.
 - Correctness changes make previously ignored pagination, filters, and
