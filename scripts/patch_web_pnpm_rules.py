@@ -68,7 +68,7 @@ def main() -> None:
         "    react-dom: 18.2.0",
         "  ignoreMissing:",
     ]
-    lines.extend(f"    - {dependency}" for dependency in OPTIONAL_PEERS)
+    lines.extend(f'    - "{dependency}"' for dependency in OPTIONAL_PEERS)
     (ROOT / "pnpm-workspace.yaml").write_text(
         "\n".join(lines) + "\n",
         encoding="utf-8",
