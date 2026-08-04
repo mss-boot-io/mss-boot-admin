@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Validate Go coverprofiles against component and package floors.
 
-The parser intentionally works directly on Go's coverprofile format so the same
-policy can be used by independent modules without installing an extra tool.
+The parser works directly on Go's coverprofile format. Repeated source blocks
+produced by `go test -coverpkg=./... ./...` are merged by location and count as
+covered when any test package executes the block.
 """
 
 from __future__ import annotations
@@ -33,9 +34,14 @@ class Coverage:
         )
 
 
+@dataclass(frozen=True)
+class Block:
+    filename: str
+    statements: int
+    covered: bool
+
+
 def parse_profile(path: pathlib.Path) -> tuple[Coverage, dict[str, Coverage]]:
-    total = Coverage()
-    packages: dict[str, Coverage] = {}
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as error:
@@ -44,6 +50,7 @@ def parse_profile(path: pathlib.Path) -> tuple[Coverage, dict[str, Coverage]]:
     if not lines or not lines[0].startswith("mode:"):
         raise ValueError(f"{path} is not a Go coverprofile")
 
+    blocks: dict[str, Block] = {}
     for line_number, raw in enumerate(lines[1:], start=2):
         line = raw.strip()
         if not line:
@@ -61,14 +68,34 @@ def parse_profile(path: pathlib.Path) -> tuple[Coverage, dict[str, Coverage]]:
             raise ValueError(
                 f"negative coverprofile value {path}:{line_number}: {raw!r}"
             )
-        coverage = Coverage(
+
+        previous = blocks.get(location)
+        if previous is not None and previous.statements != statements:
+            raise ValueError(
+                f"inconsistent statement count for {location!r}: "
+                f"{previous.statements} and {statements}"
+            )
+        blocks[location] = Block(
+            filename=filename,
             statements=statements,
-            covered=statements if executions > 0 else 0,
+            covered=(previous.covered if previous is not None else False)
+            or executions > 0,
+        )
+
+    total = Coverage()
+    packages: dict[str, Coverage] = {}
+    for block in blocks.values():
+        coverage = Coverage(
+            statements=block.statements,
+            covered=block.statements if block.covered else 0,
         )
         total = total.plus(coverage)
-        package = filename.rsplit("/", 1)[0] if "/" in filename else "."
+        package = (
+            block.filename.rsplit("/", 1)[0]
+            if "/" in block.filename
+            else "."
+        )
         packages[package] = packages.get(package, Coverage()).plus(coverage)
-
     return total, packages
 
 
