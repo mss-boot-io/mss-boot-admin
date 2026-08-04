@@ -57,7 +57,7 @@ jobs:
           cp go.sum admin/go.sum
 
           git mv main.go generate.go admin/
-          for directory in apis center config dto middleware models modules notice pkg router service; do
+          for directory in apis center config dto example middleware models modules notice pkg router service testdata; do
             git mv "${directory}" admin/
           done
           mkdir -p admin/cmd
