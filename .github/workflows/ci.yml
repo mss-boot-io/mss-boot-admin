@@ -9,12 +9,34 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'web/antd/**'
+      - '.mss/**'
+      - '.agents/**'
+      - '.codex/**'
+      - '.cursor/**'
+      - '**/*.md'
+      - '.github/workflows/agent-native-ci.yml'
+      - '.github/workflows/container.yml'
+      - '.github/workflows/docs.yml'
+      - '.github/workflows/frontend-ci.yml'
+      - '.github/workflows/mss-boot-ci.yml'
+      - '.github/workflows/swagger.yml'
   pull_request:
     branches:
       - main
     paths-ignore:
       - 'docs/**'
       - 'web/antd/**'
+      - '.mss/**'
+      - '.agents/**'
+      - '.codex/**'
+      - '.cursor/**'
+      - '**/*.md'
+      - '.github/workflows/agent-native-ci.yml'
+      - '.github/workflows/container.yml'
+      - '.github/workflows/docs.yml'
+      - '.github/workflows/frontend-ci.yml'
+      - '.github/workflows/mss-boot-ci.yml'
+      - '.github/workflows/swagger.yml'
   workflow_dispatch:
 
 permissions:
