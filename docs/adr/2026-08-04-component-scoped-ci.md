@@ -25,7 +25,7 @@ Validation is split into component-owned workflows:
 | --- | --- | --- |
 | Admin backend | `.github/workflows/ci.yml` | Root tests and root build run in parallel; the historical `CI / build` aggregate check remains available for branch protection. |
 | Framework | `.github/workflows/mss-boot-ci.yml` | Independent `GOWORK=off` tests, race tests, vet, and module-tidiness checks. |
-| Frontend | `.github/workflows/frontend-ci.yml` | ESLint, TypeScript, Jest, and production-equivalent local build, isolated from Go jobs. |
+| Frontend | `.github/workflows/frontend-ci.yml` | ESLint, TypeScript, Jest, and production-equivalent local build run in two parallel jobs; the historical `Frontend CI / build` check aggregates both. |
 | Documentation | `.github/workflows/docs.yml` | Dumi build on documentation changes and Cloudflare deployment only after a successful `main` build. |
 | Container image | `.github/workflows/container.yml` | Image publishing is independent from validation and uses the GitHub Actions build cache. |
 
@@ -35,14 +35,14 @@ Additional rules:
 - Superseded pull-request runs are cancelled through workflow concurrency groups.
 - Redis-backed Go jobs use a native `redis:7-alpine` service instead of building a third-party Docker action.
 - Agent infrastructure CI no longer installs Node or builds docs. It still validates Agent contracts that happen to live under `docs/`.
-- The inactive nested workflow at `mss-boot/.github/workflows/ci.yml` is removed because GitHub only loads workflows from the repository-root `.github/workflows/` directory.
+- Inactive workflows under `mss-boot/.github/workflows/` are removed because GitHub only loads workflows from the repository-root `.github/workflows/` directory. Root workflows now own framework CI, CodeQL, Scorecard, and nested-module release behavior.
 - The legacy Swagger deployment is path-scoped and version-pins the generator.
 
 ## Compatibility
 
 The workflow file `.github/workflows/ci.yml` keeps the workflow name `CI` and exposes a final job named `build`. Existing branch rules that require `CI / build` therefore continue to represent both root tests and root compilation.
 
-New component checks can be made required after one successful pull-request run establishes their exact check names.
+The frontend workflow similarly keeps `Frontend CI / build` as an aggregate over quality and compilation. New framework checks can be made required after one successful pull-request run establishes their exact check names.
 
 ## Expected effect
 
@@ -60,7 +60,7 @@ A workflow change is complete when a pull request demonstrates:
 
 - `CI / build` succeeds;
 - `mss-boot CI / mss-boot` succeeds;
-- `Frontend CI / frontend` succeeds when frontend paths change;
+- `Frontend CI / build` succeeds when frontend paths change;
 - `Docs / build` succeeds when docs paths change;
 - Agent, security, PR guard, and docs-drift workflows remain green;
 - no workflow is triggered twice for the same feature-branch commit solely because both `push` and `pull_request` matched.
