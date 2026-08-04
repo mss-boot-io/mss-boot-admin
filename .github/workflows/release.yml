@@ -11,6 +11,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  GOTOOLCHAIN: local
 
 jobs:
   foundation-compatibility:
@@ -18,7 +19,17 @@ jobs:
 
   test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -28,8 +39,13 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
           cache: true
+          cache-dependency-path: |
+            go.sum
+            go.work.sum
+            admin/go.sum
+            mss-boot/go.sum
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6.0.9
@@ -41,21 +57,21 @@ jobs:
         with:
           node-version: 22
 
-      - name: Start Redis
-        uses: supercharge/redis-github-action@1.8.1
-        with:
-          redis-version: 7
-
-      - name: Install dependencies
+      - name: Install Go dependencies
         run: make deps-all
 
-      - name: Unit tests
-        run: make test-all
+      - name: Verify independent Admin module
+        run: make verify-admin
 
-      - name: Validate Agent contracts and Skills
+      - name: Verify independent framework module
+        run: make verify-framework
+
+      - name: Verify Agent module and contracts
         run: |
           set -euo pipefail
-          go test ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/... ./modules/runtime/...
+          make test-agent
+          go run ./cmd/mss doctor --strict --component agent --format json
+          go run ./cmd/mss doctor --strict --component backend --format json
           go run ./cmd/mss skills validate --format json
           go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json
           go run ./cmd/mss spec validate .mss/features/example-supplier-onboarding.yaml --format json
@@ -79,10 +95,15 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version-file: admin/go.mod
           cache: true
+          cache-dependency-path: |
+            go.sum
+            go.work.sum
+            admin/go.sum
+            mss-boot/go.sum
 
-      - name: Build runtime and Agent tools
+      - name: Build Admin runtime and Agent tools
         env:
           CGO_ENABLED: 0
           GOOS: ${{ matrix.os }}
@@ -96,12 +117,13 @@ jobs:
           fi
 
           mkdir -p "${package}/config" "${package}/foundation"
-          go build -trimpath -o "${package}/admin${suffix}" .
-          go build -trimpath -o "${package}/mss${suffix}" ./cmd/mss
-          go build -trimpath -o "${package}/mss-mcp${suffix}" ./cmd/mss-mcp
+          go build -trimpath -o "${package}/admin${suffix}" ./admin
+          GOWORK=off go build -trimpath -o "${package}/mss${suffix}" ./cmd/mss
+          GOWORK=off go build -trimpath -o "${package}/mss-mcp${suffix}" ./cmd/mss-mcp
 
-          cp -a config/*.yml "${package}/config/"
+          cp -a admin/config/*.yml "${package}/config/"
           cp AGENTS.md CLAUDE.md README.md README.zh-CN.md "${package}/"
+          cp admin/README.md "${package}/ADMIN.md"
           cp -a .mss/schemas .mss/blueprints "${package}/foundation/"
           cp -a .agents/skills "${package}/foundation/skills"
           cp .codex/README.md "${package}/foundation/CODEX.md"
@@ -199,8 +221,8 @@ jobs:
             docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
             ```
 
-            ## Agent-native tools
+            ## Runtime and Agent-native tools
 
-            Every platform archive contains `admin`, `mss`, and `mss-mcp` binaries plus the published contracts, Skills, Blueprints, and Agent documentation.
+            Every platform archive contains the independent Admin runtime (`admin`), Agent tools (`mss` and `mss-mcp`), runtime configuration, and the published contracts, Skills, Blueprints, and Agent documentation.
 
-            `mss new app` must run from a checked-out Foundation source tree because the Blueprint intentionally renders Git-tracked source files. `mss upgrade` runs from a trusted target Foundation checkout against a downstream repository and is gated by the release compatibility workflow.
+            `mss new app` must run from a checked-out Foundation source tree because the Blueprint renders Git-tracked source files. `mss upgrade` runs from a trusted target Foundation checkout against a downstream repository and is gated by the release compatibility workflow.
