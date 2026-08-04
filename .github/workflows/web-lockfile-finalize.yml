@@ -1,0 +1,180 @@
+name: One-shot web lockfile finalization
+
+on:
+  push:
+    branches:
+      - refactor/split-admin-module-and-coverage-r1
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-web-lockfile-finalization
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  HUSKY: '0'
+  NODE_OPTIONS: '--max-old-space-size=4096'
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout dependency branch
+        uses: actions/checkout@v7
+        with:
+          ref: refactor/split-admin-module-and-coverage-r1
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6.0.9
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            web/antd/pnpm-lock.yaml
+            web/antd/workers-site/pnpm-lock.yaml
+
+      - name: Finish local mock type migration
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          old = "import { Request, Response } from 'express';"
+          new = "import type { MockRequest as Request, MockResponse as Response } from './types';"
+          for name in ('user.ts', 'notices.ts'):
+              path = Path('web/antd/mock') / name
+              text = path.read_text(encoding='utf-8')
+              if old not in text and new not in text:
+                  raise SystemExit(f'unexpected mock type import in {path}')
+              path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+
+      - name: Reject removed dependency usage
+        run: |
+          set -euo pipefail
+          if grep -R --line-number \
+            --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' \
+            -E "braft-editor|from ['\"]immutable['\"]|from ['\"]express['\"]|umi-presets-pro" \
+            web/antd/src web/antd/config web/antd/mock \
+            --exclude-dir=node_modules --exclude-dir=dist; then
+            echo 'Removed dependency usage remains in frontend source' >&2
+            exit 1
+          fi
+
+      - name: Generate and deduplicate frontend lockfile
+        working-directory: web/antd
+        run: |
+          set -euxo pipefail
+          rm -rf node_modules .umi
+          pnpm install --lockfile-only --strict-peer-dependencies=false
+          pnpm dedupe --config.ignore-scripts=true --config.strict-peer-dependencies=false
+          pnpm dlx update-browserslist-db@latest
+          pnpm install --lockfile-only --strict-peer-dependencies=false
+          pnpm dedupe --config.ignore-scripts=true --config.strict-peer-dependencies=false
+          pnpm install --lockfile-only --strict-peer-dependencies=false
+
+      - name: Generate Workers Site lockfile
+        working-directory: web/antd/workers-site
+        run: |
+          set -euxo pipefail
+          rm -rf node_modules
+          pnpm install --lockfile-only --strict-peer-dependencies=false
+
+      - name: Verify strict frozen installs are side-effect free
+        run: |
+          set -euxo pipefail
+          before="$(git status --porcelain=v1)"
+          rm -rf web/antd/node_modules web/antd/.umi web/antd/workers-site/node_modules
+          pnpm --dir web/antd install \
+            --frozen-lockfile \
+            --ignore-scripts \
+            --strict-peer-dependencies \
+            --prefer-offline
+          pnpm --dir web/antd/workers-site install \
+            --frozen-lockfile \
+            --ignore-scripts \
+            --strict-peer-dependencies \
+            --prefer-offline
+          after="$(git status --porcelain=v1)"
+          test "${before}" = "${after}"
+
+      - name: Verify lockfile dedupe is idempotent
+        working-directory: web/antd
+        run: |
+          set -euxo pipefail
+          cp pnpm-lock.yaml "${RUNNER_TEMP}/pnpm-lock.before-dedupe.yaml"
+          pnpm dedupe \
+            --config.ignore-scripts=true \
+            --config.strict-peer-dependencies=false
+          cmp "${RUNNER_TEMP}/pnpm-lock.before-dedupe.yaml" pnpm-lock.yaml
+
+      - name: Generate Umi files explicitly
+        working-directory: web/antd
+        run: pnpm run setup
+
+      - name: Format migrated dependency surfaces
+        working-directory: web/antd
+        run: pnpm prettier
+
+      - name: Enforce dependency security policy
+        working-directory: web/antd
+        run: |
+          set -euxo pipefail
+          pnpm list --depth Infinity >/dev/null
+          pnpm audit --prod --audit-level high
+          pnpm audit --audit-level critical
+          pnpm --dir workers-site audit --prod --audit-level high
+
+      - name: Validate frontend quality, tests, and build
+        working-directory: web/antd
+        run: |
+          set -euxo pipefail
+          pnpm lint:js
+          pnpm lint:prettier
+          pnpm tsc
+          timeout 300s pnpm test:ci
+          pnpm build:local
+
+      - name: Validate changed files
+        run: |
+          set -euxo pipefail
+          git diff --check
+          test ! -d web/antd/node_modules/.git
+
+      - name: Commit finalized frontend dependency graph
+        run: |
+          set -euxo pipefail
+          rm -rf web/antd/node_modules web/antd/.umi web/antd/dist web/antd/workers-site/node_modules
+          rm .github/workflows/web-lockfile-finalize.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            web/antd/package.json \
+            web/antd/pnpm-lock.yaml \
+            web/antd/.npmrc \
+            web/antd/config/config.ts \
+            web/antd/src/components/MssBoot/Editor.tsx \
+            web/antd/src/pages/Virtual/index.tsx \
+            web/antd/mock/types.ts \
+            web/antd/mock/role.ts \
+            web/antd/mock/user.ts \
+            web/antd/mock/notices.ts \
+            web/antd/workers-site/package.json \
+            web/antd/workers-site/pnpm-lock.yaml \
+            .github/workflows/web-lockfile-finalize.yml
+          git diff --cached --stat
+          git commit -m 'build(frontend): finalize deterministic dependency graph'
+          git push origin HEAD:refactor/split-admin-module-and-coverage-r1
