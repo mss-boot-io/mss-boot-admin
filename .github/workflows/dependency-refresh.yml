@@ -1,9 +1,6 @@
 name: One-shot dependency refresh
 
 on:
-  push:
-    branches:
-      - chore/consolidate-dependency-upgrades-r1
   pull_request:
     branches:
       - main
@@ -140,26 +137,8 @@ jobs:
           pnpm --dir docs install --lockfile-only --no-frozen-lockfile
           pnpm --dir web/antd install --lockfile-only --no-frozen-lockfile
 
-      - name: Upgrade Actions and group Dependabot updates
+      - name: Group future Dependabot updates
         run: |
-          set -euxo pipefail
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
-
-          replacements = {
-              'actions/setup-go@v6': 'actions/setup-go@v7',
-              'actions/setup-node@v6': 'actions/setup-node@v7',
-              'pnpm/action-setup@v6': 'pnpm/action-setup@v6.0.9',
-              'ossf/scorecard-action@v2.4.3': 'ossf/scorecard-action@v2.4.4',
-          }
-          for path in sorted(Path('.github/workflows').glob('*.y*ml')):
-              text = path.read_text(encoding='utf-8')
-              for old, new in replacements.items():
-                  text = text.replace(old, new)
-              text = re.sub(r'github/codeql-action@v4(?:\.\d+\.\d+)?', 'github/codeql-action@v4.37.4', text)
-              path.write_text(text, encoding='utf-8')
-          PY
           cat > .github/dependabot.yml <<'YAML'
           version: 2
           updates:
@@ -239,13 +218,18 @@ jobs:
               labels: [area/devops, type/security]
           YAML
 
-      - name: Commit generated dependency update
+      - name: Commit generated dependency manifests
         run: |
           set -euxo pipefail
-          rm .github/workflows/dependency-refresh.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add \
+            .github/dependabot.yml \
+            go.mod go.sum \
+            mss-boot/go.mod mss-boot/go.sum \
+            compose/consul/go.mod compose/consul/go.sum \
+            docs/package.json docs/pnpm-lock.yaml \
+            web/antd/package.json web/antd/pnpm-lock.yaml
           git diff --cached --stat
           git commit -m 'build(deps): consolidate repository dependency upgrades'
           git push origin HEAD:chore/consolidate-dependency-upgrades-r1
