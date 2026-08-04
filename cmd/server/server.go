@@ -9,17 +9,17 @@ import (
 
 	"github.com/common-nighthawk/go-figure"
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/listener"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/task"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
-	// "github.com/mss-boot-io/mss-boot-admin/mss-boot/virtual/action" // disabled: virtual model feature
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
+	"gorm.io/gorm"
+
+	frameworkserver "github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/listener"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/task"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/config"
@@ -29,13 +29,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/router"
 	"github.com/mss-boot-io/mss-boot-admin/service"
 )
-
-/*
- * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2023/8/10 00:33:48
- * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2023/8/10 00:33:48
- */
 
 var (
 	apiCheck       bool
@@ -48,10 +41,10 @@ var (
 		Short:   "start server",
 		Long:    "start mss-boot-admin server",
 		Example: "mss-boot-admin server",
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return setup()
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			return setup(cmd.Context())
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return run()
 		},
 	}
@@ -80,9 +73,15 @@ func init() {
 	center.SetVerify(&models.User{})
 }
 
-func setup() error {
-	// setup 00 set params
-	// env overwrite args
+func setup(ctx context.Context) (err error) {
+	defer func() {
+		if err != nil {
+			if closeErr := config.Cfg.Close(); closeErr != nil {
+				slog.Error("close database after setup failure", "err", closeErr)
+			}
+		}
+	}()
+
 	if os.Getenv("DB_DRIVER") != "" {
 		driver = os.Getenv("DB_DRIVER")
 	} else {
@@ -93,9 +92,8 @@ func setup() error {
 	} else {
 		_ = os.Setenv("DB_DSN", dsn)
 	}
-	// setup 01 config init
+
 	opts := []source.Option{
-		// use local config file
 		source.WithDir("config"),
 		source.WithProvider(source.Local),
 		source.WithWatch(true),
@@ -137,98 +135,77 @@ func setup() error {
 		}
 	case source.Local, "":
 	default:
-		slog.Error("config provider not support", "provider", configProvider)
-		os.Exit(-1)
+		return fmt.Errorf("config provider %q is not supported", configProvider)
 	}
 	if customConfig := center.GetCustomConfig(); customConfig != nil {
 		opts = append(opts, source.WithPostfixHook(customConfig))
 	}
-	center.SetConfig(config.Cfg).GetConfig().Init(opts...)
-	if center.GetCustomConfig() != nil {
-		center.GetCustomConfig().Init()
+	center.SetConfig(config.Cfg)
+	if err := config.Cfg.InitContext(ctx, opts...); err != nil {
+		return err
+	}
+	if customConfig := center.GetCustomConfig(); customConfig != nil {
+		customConfig.Init()
 	}
 
-	// app config
 	center.SetAppConfig(&models.AppConfig{})
-	// user config
 	center.SetUserConfig(&models.UserConfig{})
-	// statistics config
 	center.SetStatistics(&models.Statistics{})
 	center.SetGRPCClient(&config.Cfg.GRPC)
 
-	// setup 02 middleware init
 	middleware.Verifier = center.GetUser()
-	// Session cache reuses the upstream Redis client wired by Cache.Init
-	// (via center.SetCache). When Redis is not configured Cache falls
-	// back to an in-memory throttle for last_seen updates.
 	service.Session.SetCache(sessioncache.New(redisClientFromCenter()))
 	middleware.Init()
 
-	// setup 03 router init
-	r := gin.Default()
-	r.Use(middleware.AuditLogMiddleware("/admin/api/user", "/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
+	routerEngine := gin.Default()
+	routerEngine.Use(middleware.AuditLogMiddleware("/admin/api/user", "/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
 	center.SetMakeRouter(router.DefaultMakeRouter)
-	center.SetRouter(r)
-	center.Default.MakeRouter(r.Group(group))
+	center.SetRouter(routerEngine)
+	center.Default.MakeRouter(routerEngine.Group(group))
 	config.Cfg.Application.Init(center.GetRouter())
 
-	// setup 04 api check
 	if apiCheck {
-		err := models.SaveAPI(r.Routes())
-		if err != nil {
+		if err := models.SaveAPI(routerEngine.Routes()); err != nil {
 			slog.Error("save api error", "err", err)
 		}
 		os.Exit(0)
 	}
 
-	// setup 05 server init
-	runnable := []server.Runnable{
+	runnable := []frameworkserver.Runnable{
 		config.Cfg.Server.Init(
 			listener.WithStartedHook(tips),
 			listener.WithName("admin"),
-			listener.WithHandler(r)),
+			listener.WithHandler(routerEngine)),
 	}
 
-	// setup 06 task init
+	databaseHandle := config.Cfg.DatabaseHandle()
+	if databaseHandle == nil || databaseHandle.DB == nil {
+		return fmt.Errorf("application database handle is not initialized")
+	}
 	if config.Cfg.Task.Enable {
 		runnable = append(runnable,
 			task.New(
-				task.WithStorage(&models.TaskStorage{DB: gormdb.DB}),
-				task.WithSchedule("task", config.Cfg.Task.Spec, &taskE{}),
-				task.WithSchedule("session-cleanup", "0 30 3 * * *", taskSessionCleanup{}),
+				task.WithStorage(&models.TaskStorage{DB: databaseHandle.DB}),
+				task.WithSchedule("task", config.Cfg.Task.Spec, &taskE{DB: databaseHandle.DB}),
+				task.WithSchedule("session-cleanup", "0 30 3 * * *", taskSessionCleanup{DB: databaseHandle.DB}),
 			),
 		)
 	}
 
-	// setup 07 init virtual models (disabled: virtual model feature causes route conflicts)
-	// todo every tenant has different models
-	// ms, err := center.SetVirtualModel(&models.Model{}).GetModels(nil)
-	// if err != nil {
-	// 	return err
-	// }
-	// for i := range ms {
-	// 	action.SetModel(ms[i].GetKey(), ms[i].Make())
-	// }
-
-	// ui server init for dev
 	if config.Cfg.Application.Mode == config.ModeDev &&
 		config.Cfg.Application.UI.Enabled {
 		runnable = append(runnable, config.Cfg.Application.UI.Init())
 	}
 
-	// setup 08 add runnable to manager
 	center.Default.Add(runnable...)
-
 	return nil
 }
 
 func run() error {
 	ctx := context.Background()
-
 	if center.GetQueue() != nil {
 		go center.GetQueue().Run(ctx)
 	}
-
 	return center.Default.Start(ctx)
 }
 
@@ -238,12 +215,17 @@ func tips() {
 }
 
 type taskE struct {
+	DB *gorm.DB
 }
 
 func (t *taskE) Run() {
+	if t == nil || t.DB == nil {
+		slog.Error("task scheduler database is not initialized")
+		return
+	}
 	tasks := make([]*models.Task, 0)
-	err := gormdb.DB.
-		Where("checked_at < ? or checked_at is null", time.Now().Add(-1*time.Minute)).
+	err := t.DB.
+		Where("checked_at < ? or checked_at is null", time.Now().Add(-time.Minute)).
 		Where("status = ?", enum.Enabled).Find(&tasks).Error
 	if err != nil {
 		slog.Error("task run get tasks error", slog.Any("err", err))
@@ -254,37 +236,38 @@ func (t *taskE) Run() {
 			continue
 		}
 		slog.Info("task", "id", tasks[i].ID, "checked_at", tasks[i].CheckedAt)
-		err = task.UpdateJob(tasks[i].ID, tasks[i].Spec, tasks[i])
-		if err != nil {
+		if err = task.UpdateJob(tasks[i].ID, tasks[i].Spec, tasks[i]); err != nil {
 			slog.Error("task run update job error", slog.Any("err", err))
-			continue
 		}
 	}
-	//check
-	err = gormdb.DB.Not("provider = ?", models.TaskProviderK8S).Where("status = ?", enum.Enabled).Find(&tasks).Error
-	if err != nil {
+
+	if err = t.DB.Not("provider = ?", models.TaskProviderK8S).Where("status = ?", enum.Enabled).Find(&tasks).Error; err != nil {
 		slog.Error("task run get tasks error", slog.Any("err", err))
 		return
 	}
 	for i := range tasks {
 		if entry := task.Entry(cron.EntryID(tasks[i].EntryID)); entry.ID > 0 {
-			err = gormdb.DB.Model(&models.Task{}).
+			if err = t.DB.Model(&models.Task{}).
 				Where("id = ?", tasks[i].ID).
-				Update("checked_at", time.Now()).Error
-			if err != nil {
+				Update("checked_at", time.Now()).Error; err != nil {
 				slog.Error("task run update task error", slog.Any("err", err))
-				continue
 			}
 		}
 	}
 }
 
-type taskSessionCleanup struct{}
+type taskSessionCleanup struct {
+	DB *gorm.DB
+}
 
-func (taskSessionCleanup) Run() {
+func (t taskSessionCleanup) Run() {
+	if t.DB == nil {
+		slog.Error("session cleanup database is not initialized")
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	n, err := service.Session.CleanupOlderThan(ctx, gormdb.DB, 30*24*time.Hour)
+	n, err := service.Session.CleanupOlderThan(ctx, t.DB, 30*24*time.Hour)
 	if err != nil {
 		slog.Error("session cleanup failed", "err", err)
 		return
@@ -292,13 +275,10 @@ func (taskSessionCleanup) Run() {
 	slog.Info("session cleanup done", "deleted", n)
 }
 
-// redisClientFromCenter returns the Redis client wired by the upstream
-// mss-boot Cache.Init (via center.SetCache). Returns nil when Redis is not
-// configured; callers should degrade gracefully.
 func redisClientFromCenter() redis.UniversalClient {
-	cc := center.GetCache()
-	if cc == nil {
+	cacheClient := center.GetCache()
+	if cacheClient == nil {
 		return nil
 	}
-	return cc
+	return cacheClient
 }

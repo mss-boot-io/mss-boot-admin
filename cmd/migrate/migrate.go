@@ -1,16 +1,20 @@
 package migrate
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 
+	"github.com/spf13/cobra"
+	"gorm.io/gorm"
+
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
 	common "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
-	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin/center"
 	_ "github.com/mss-boot-io/mss-boot-admin/cmd/migrate/migration/custom"
@@ -20,13 +24,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/models"
 	moduleruntime "github.com/mss-boot-io/mss-boot-admin/modules/runtime"
 )
-
-/*
- * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2023/8/10 00:12:29
- * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2023/8/10 00:12:29
- */
 
 var (
 	generate       bool
@@ -41,10 +38,10 @@ var (
 		Use:     "migrate",
 		Short:   "Initialize the database",
 		Example: "mss-boot-admin migrate",
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return setup()
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			return setup(cmd.Context())
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return Run()
 		},
 	}
@@ -74,18 +71,23 @@ func init() {
 	center.SetVerify(&models.User{})
 }
 
-func setup() error {
-	// setup 00 set params
-	// env overwrite args
+func setup(ctx context.Context) (err error) {
+	defer func() {
+		if err != nil {
+			if closeErr := config.Cfg.Close(); closeErr != nil {
+				slog.Error("close database after migration setup failure", "err", closeErr)
+			}
+		}
+	}()
+
 	if os.Getenv("DB_DRIVER") != "" {
 		driver = os.Getenv("DB_DRIVER")
 	}
 	if os.Getenv("DB_DSN") != "" {
 		dsn = os.Getenv("DB_DSN")
 	}
-	// setup 01 config init
+
 	opts := []source.Option{
-		// use local config file
 		source.WithDir("config"),
 		source.WithProvider(source.Local),
 		source.WithWatch(true),
@@ -123,43 +125,47 @@ func setup() error {
 		}
 	case source.Local, "":
 	default:
-		slog.Error("config provider not support", "provider", configProvider)
-		os.Exit(-1)
+		return fmt.Errorf("config provider %q is not supported", configProvider)
 	}
-	center.SetConfig(config.Cfg).GetConfig().Init(opts...)
+	center.SetConfig(config.Cfg)
+	if err := config.Cfg.InitContext(ctx, opts...); err != nil {
+		return err
+	}
 
-	// app config
 	center.SetAppConfig(&models.AppConfig{})
-	// user config
 	center.SetUserConfig(&models.UserConfig{})
-	// statistics config
 	center.SetStatistics(&models.Statistics{})
 	center.SetGRPCClient(&config.Cfg.GRPC)
 
-	// setup 02 middleware init
 	middleware.Verifier = center.GetUser()
 	middleware.Init()
-
 	return nil
 }
 
-func Run() error {
-	if !generate {
-		slog.Info("start init")
-		//config.Cfg.Init(driver, dsn, &models.SystemConfig{})
-		config.Cfg.Database.Init()
-		return migrate()
+func Run() (err error) {
+	defer func() {
+		err = errors.Join(err, config.Cfg.Close())
+	}()
+
+	if generate {
+		slog.Info("generate migration file")
+		return migration.GenFile(system, filepath.Join("cmd", "migrate", "migration"))
 	}
-	slog.Info(`generate migration file`)
-	return migration.GenFile(system, filepath.Join("cmd", "migrate", "migration"))
+	slog.Info("start database migration")
+	handle := config.Cfg.DatabaseHandle()
+	if handle == nil || handle.DB == nil {
+		return fmt.Errorf("migration database handle is not initialized")
+	}
+	return migrate(handle.DB)
 }
 
-func migrate() error {
+func migrate(db *gorm.DB) error {
+	if db == nil {
+		return fmt.Errorf("migration database is nil")
+	}
 	systemMigrate.Username = username
 	systemMigrate.Password = password
-	db := gormdb.DB
-	err := db.AutoMigrate(&common.Migration{})
-	if err != nil {
+	if err := db.AutoMigrate(&common.Migration{}); err != nil {
 		slog.Error("auto migrate error", "err", err)
 		return err
 	}
