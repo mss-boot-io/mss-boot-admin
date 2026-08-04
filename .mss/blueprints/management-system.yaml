@@ -15,7 +15,8 @@ spec:
     - AGENTS.md
     - go.mod
     - go.work
-    - main.go
+    - admin/go.mod
+    - admin/main.go
     - Makefile
     - .mss/project.yaml
     - .mss/capabilities.yaml
