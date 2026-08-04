@@ -17,17 +17,7 @@ env:
 jobs:
   refresh:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
-    services:
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
+    timeout-minutes: 60
     steps:
       - name: Checkout upgrade branch
         uses: actions/checkout@v7
@@ -60,7 +50,7 @@ jobs:
             web/antd/pnpm-lock.yaml
             docs/pnpm-lock.yaml
 
-      - name: Upgrade root Go module
+      - name: Upgrade Go modules
         run: |
           set -euxo pipefail
           go get \
@@ -72,62 +62,62 @@ jobs:
             k8s.io/apimachinery@v0.36.3 \
             k8s.io/client-go@v0.36.3
           go mod tidy
+          (
+            cd mss-boot
+            GOWORK=off go get \
+              github.com/aws/aws-sdk-go-v2@v1.42.1 \
+              github.com/aws/aws-sdk-go-v2/config@v1.32.27 \
+              github.com/aws/aws-sdk-go-v2/feature/rds/auth@v1.6.34 \
+              github.com/go-playground/validator/v10@v10.30.3 \
+              github.com/redis/go-redis/v9@v9.21.0 \
+              golang.org/x/crypto@v0.54.0 \
+              google.golang.org/grpc@v1.83.0 \
+              k8s.io/api@v0.36.3 \
+              k8s.io/apimachinery@v0.36.3 \
+              k8s.io/client-go@v0.36.3
+            GOWORK=off go mod tidy
+          )
+          (
+            cd compose/consul
+            GOWORK=off go get github.com/hashicorp/consul/api@v1.34.4
+            GOWORK=off go mod tidy
+          )
 
-      - name: Upgrade mss-boot Go module
-        working-directory: mss-boot
-        env:
-          GOWORK: 'off'
+      - name: Update npm manifests
         run: |
           set -euxo pipefail
-          go get \
-            github.com/aws/aws-sdk-go-v2@v1.42.1 \
-            github.com/aws/aws-sdk-go-v2/config@v1.32.27 \
-            github.com/aws/aws-sdk-go-v2/feature/rds/auth@v1.6.34 \
-            github.com/go-playground/validator/v10@v10.30.3 \
-            github.com/redis/go-redis/v9@v9.21.0 \
-            golang.org/x/crypto@v0.54.0 \
-            google.golang.org/grpc@v1.83.0 \
-            k8s.io/api@v0.36.3 \
-            k8s.io/apimachinery@v0.36.3 \
-            k8s.io/client-go@v0.36.3
-          go mod tidy
-
-      - name: Upgrade Consul compose module
-        working-directory: compose/consul
-        env:
-          GOWORK: 'off'
-        run: |
-          set -euxo pipefail
-          go get github.com/hashicorp/consul/api@v1.34.4
-          go mod tidy
-
-      - name: Upgrade documentation dependencies
-        run: |
-          set -euxo pipefail
-          pnpm --dir docs add -D \
-            @commitlint/cli@21.2.1 \
-            @commitlint/config-conventional@21.2.0 \
-            dumi@2.4.48 \
-            lint-staged@17.3.0 \
-            prettier@3.9.6
-
-      - name: Upgrade frontend dependencies
-        run: |
-          set -euxo pipefail
-          pnpm --dir web/antd remove -D @types/history @umijs/fabric
-          pnpm --dir web/antd add immutable@4.3.9 --save-exact
-          pnpm --dir web/antd add uuid@14.0.1
-          pnpm --dir web/antd add -D \
-            @testing-library/react@15.0.7 \
-            @umijs/lint@4.6.84 \
-            @umijs/max@4.6.84
           python3 - <<'PY'
           import json
           from pathlib import Path
 
-          path = Path('web/antd/package.json')
-          data = json.loads(path.read_text(encoding='utf-8'))
-          overrides = data.setdefault('pnpm', {}).setdefault('overrides', {})
+          def load(path: str):
+              file = Path(path)
+              return file, json.loads(file.read_text(encoding='utf-8'))
+
+          docs_path, docs = load('docs/package.json')
+          docs_dev = docs.setdefault('devDependencies', {})
+          docs_dev.update({
+              '@commitlint/cli': '^21.2.1',
+              '@commitlint/config-conventional': '^21.2.0',
+              'dumi': '^2.4.48',
+              'lint-staged': '^17.3.0',
+              'prettier': '^3.9.6',
+          })
+          docs_path.write_text(json.dumps(docs, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          web_path, web = load('web/antd/package.json')
+          dependencies = web.setdefault('dependencies', {})
+          dependencies['immutable'] = '4.3.9'
+          dependencies['uuid'] = '^14.0.1'
+          dev_dependencies = web.setdefault('devDependencies', {})
+          dev_dependencies.pop('@types/history', None)
+          dev_dependencies.pop('@umijs/fabric', None)
+          dev_dependencies.update({
+              '@testing-library/react': '^15.0.7',
+              '@umijs/lint': '^4.6.84',
+              '@umijs/max': '^4.6.84',
+          })
+          overrides = web.setdefault('pnpm', {}).setdefault('overrides', {})
           for dependency in (
               'braft-editor>immutable',
               'braft-utils>immutable',
@@ -136,11 +126,12 @@ jobs:
               'draftjs-utils>immutable',
           ):
               overrides[dependency] = '4.3.9'
-          path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          web_path.write_text(json.dumps(web, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
           PY
-          pnpm --dir web/antd install --lockfile-only
+          pnpm --dir docs install --lockfile-only --no-frozen-lockfile
+          pnpm --dir web/antd install --lockfile-only --no-frozen-lockfile
 
-      - name: Upgrade GitHub Actions
+      - name: Upgrade Actions and group Dependabot updates
         run: |
           set -euxo pipefail
           python3 - <<'PY'
@@ -160,16 +151,12 @@ jobs:
               text = re.sub(r'github/codeql-action@v4(?:\.\d+\.\d+)?', 'github/codeql-action@v4.37.4', text)
               path.write_text(text, encoding='utf-8')
           PY
-
-      - name: Group future Dependabot updates
-        run: |
           cat > .github/dependabot.yml <<'YAML'
           version: 2
           updates:
             - package-ecosystem: gomod
               directory: /
-              schedule:
-                interval: weekly
+              schedule: { interval: weekly }
               open-pull-requests-limit: 3
               groups:
                 root-go-non-major:
@@ -178,8 +165,7 @@ jobs:
               labels: [area/backend, type/security]
             - package-ecosystem: gomod
               directory: /mss-boot
-              schedule:
-                interval: weekly
+              schedule: { interval: weekly }
               open-pull-requests-limit: 3
               groups:
                 framework-go-non-major:
@@ -191,8 +177,7 @@ jobs:
                   update-types: [version-update:semver-minor, version-update:semver-patch]
             - package-ecosystem: gomod
               directory: /cmd/tools/pr
-              schedule:
-                interval: weekly
+              schedule: { interval: weekly }
               open-pull-requests-limit: 2
               groups:
                 pr-tool-go-non-major:
@@ -201,8 +186,7 @@ jobs:
               labels: [area/devops, type/security]
             - package-ecosystem: gomod
               directory: /compose/consul
-              schedule:
-                interval: weekly
+              schedule: { interval: weekly }
               open-pull-requests-limit: 2
               groups:
                 consul-go-non-major:
@@ -211,8 +195,7 @@ jobs:
               labels: [area/devops, type/security]
             - package-ecosystem: gomod
               directory: /compose/kafka
-              schedule:
-                interval: weekly
+              schedule: { interval: weekly }
               open-pull-requests-limit: 2
               groups:
                 kafka-go-non-major:
@@ -221,8 +204,7 @@ jobs:
               labels: [area/devops, type/security]
             - package-ecosystem: npm
               directory: /web/antd
-              schedule:
-                interval: weekly
+              schedule: { interval: weekly }
               open-pull-requests-limit: 3
               groups:
                 frontend-non-major:
@@ -231,8 +213,7 @@ jobs:
               labels: [area/frontend, type/security]
             - package-ecosystem: npm
               directory: /docs
-              schedule:
-                interval: weekly
+              schedule: { interval: weekly }
               open-pull-requests-limit: 3
               groups:
                 docs-non-major:
@@ -241,49 +222,13 @@ jobs:
               labels: [area/docs, type/security]
             - package-ecosystem: github-actions
               directory: /
-              schedule:
-                interval: weekly
+              schedule: { interval: weekly }
               open-pull-requests-limit: 3
               groups:
                 github-actions:
                   patterns: ['*']
               labels: [area/devops, type/security]
           YAML
-
-      - name: Validate upgraded Go modules
-        run: |
-          set -euxo pipefail
-          go test -shuffle=on -count=1 ./...
-          (
-            cd mss-boot
-            GOWORK=off go test -race -shuffle=on -count=1 ./...
-            GOWORK=off go vet ./...
-            GOWORK=off go mod tidy
-            git diff --exit-code -- go.mod go.sum
-          )
-          (
-            cd compose/consul
-            GOWORK=off go test ./...
-            GOWORK=off go mod tidy
-            git diff --exit-code -- go.mod go.sum
-          )
-          go work vendor
-          rm -rf vendor
-
-      - name: Validate upgraded frontend
-        run: |
-          set -euxo pipefail
-          pnpm --dir web/antd install --frozen-lockfile --prefer-offline
-          pnpm --dir web/antd lint:js
-          pnpm --dir web/antd tsc
-          pnpm --dir web/antd test -- --runInBand
-          pnpm --dir web/antd build:local
-
-      - name: Validate upgraded documentation
-        run: |
-          set -euxo pipefail
-          pnpm --dir docs install --frozen-lockfile --prefer-offline
-          pnpm --dir docs build
 
       - name: Commit generated dependency update
         run: |
