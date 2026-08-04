@@ -1,16 +1,23 @@
 name: Swagger
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'admin/**/*.go'
+      - 'admin/go.mod'
+      - 'admin/go.sum'
+      - 'mss-boot/**/*.go'
+      - '.github/workflows/swagger.yml'
   push:
     branches:
       - main
     paths:
-      - '**/*.go'
-      - '!mss-boot/**'
-      - 'go.mod'
-      - 'go.sum'
-      - 'go.work'
-      - 'go.work.sum'
+      - 'admin/**/*.go'
+      - 'admin/go.mod'
+      - 'admin/go.sum'
+      - 'mss-boot/**/*.go'
       - '.github/workflows/swagger.yml'
   workflow_dispatch:
 
@@ -20,13 +27,16 @@ permissions:
   id-token: write
 
 concurrency:
-  group: swagger-pages
+  group: swagger-pages-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
 
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -34,32 +44,38 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version-file: admin/go.mod
           cache: true
           cache-dependency-path: |
-            go.sum
-            go.work.sum
+            admin/go.sum
             mss-boot/go.sum
 
       - name: Install pinned Swagger generator
         run: go install github.com/swaggo/swag/cmd/swag@v1.16.6
 
+      - name: Generate Admin API documentation
+        working-directory: admin
+        env:
+          GOWORK: 'off'
+        run: |
+          go generate ./...
+          test -s docs/swagger.json
+          test -s docs/swagger.yaml
+          rm -f docs/docs.go
+
       - name: Setup Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v6
 
-      - name: Generate API documentation
-        run: go generate ./...
-
-      - name: Remove generated Go source from site artifact
-        run: rm -f docs/docs.go
-
       - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
-          path: ./docs
+          path: ./admin/docs
 
   deploy:
     name: deploy
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
