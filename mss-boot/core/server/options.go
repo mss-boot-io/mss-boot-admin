@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const defaultGracefulShutdownTimeout = 30 * time.Second
+
 // Option configures a Server manager.
 type Option func(*Options)
 
@@ -17,14 +19,18 @@ type Options struct {
 
 func setDefaultOptions() Options {
 	return Options{
-		gracefulShutdownTimeout: 5 * time.Second,
+		// The manager is the outer lifecycle deadline. Keep its default longer
+		// than the built-in HTTP, gRPC, and task shutdown deadlines so adapters
+		// can report their own timeout errors before the manager gives up.
+		gracefulShutdownTimeout: defaultGracefulShutdownTimeout,
 		signals:                 []os.Signal{os.Interrupt, syscall.SIGTERM},
 	}
 }
 
 // WithGracefulShutdownTimeout sets the maximum time the manager waits for all
 // runnables to return after cancellation. A non-positive duration waits without
-// a timeout.
+// a timeout. This outer deadline should exceed each component's own shutdown
+// timeout so component-specific errors can be collected.
 func WithGracefulShutdownTimeout(timeout time.Duration) Option {
 	return func(options *Options) {
 		options.gracefulShutdownTimeout = timeout
