@@ -41,124 +41,142 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: web/antd/pnpm-lock.yaml
+          cache-dependency-path: |
+            web/antd/pnpm-lock.yaml
+            web/antd/workers-site/pnpm-lock.yaml
 
-      - name: Record dependency environment
+      - name: Install root graph without lifecycle scripts
         working-directory: web/antd
-        run: |
-          set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/web-deps-audit"
-          {
-            echo "node=$(node --version)"
-            echo "npm=$(npm --version)"
-            echo "pnpm=$(pnpm --version)"
-            echo "autoInstallPeers=$(pnpm config get auto-install-peers)"
-            echo "strictPeerDependencies=$(pnpm config get strict-peer-dependencies)"
-            echo "registry=$(pnpm config get registry)"
-          } | tee "${RUNNER_TEMP}/web-deps-audit/environment.txt"
-          find . -maxdepth 2 -type f \
-            \( -name 'package.json' -o -name 'pnpm-lock.yaml' -o -name '.npmrc' \
-               -o -name 'jest.config.*' -o -name 'tsconfig*.json' -o -name '.eslintrc*' \
-               -o -name '.prettierrc*' -o -name 'playwright.config.*' \) \
-            -print | sort > "${RUNNER_TEMP}/web-deps-audit/config-files.txt"
+        run: pnpm install --frozen-lockfile --ignore-scripts --strict-peer-dependencies --prefer-offline
 
-      - name: Probe strict peer dependency installation
-        working-directory: web/antd
-        run: |
-          set -uo pipefail
-          rm -rf node_modules
-          pnpm install \
-            --frozen-lockfile \
-            --ignore-scripts \
-            --strict-peer-dependencies \
-            --reporter=append-only \
-            2>&1 | tee "${RUNNER_TEMP}/web-deps-audit/strict-install.log"
-          status=${PIPESTATUS[0]}
-          echo "${status}" > "${RUNNER_TEMP}/web-deps-audit/strict-install.exit"
-          exit 0
-
-      - name: Capture graph, dedupe, outdated, and audit reports
+      - name: Audit direct dependency usage
         working-directory: web/antd
         run: |
           set +e
-          pnpm list --depth 0 --json > "${RUNNER_TEMP}/web-deps-audit/top-level.json" 2> "${RUNNER_TEMP}/web-deps-audit/top-level.err"
-          echo $? > "${RUNNER_TEMP}/web-deps-audit/top-level.exit"
+          mkdir -p "${RUNNER_TEMP}/web-deps-usage"
+          pnpm dlx depcheck@1.4.7 --json \
+            > "${RUNNER_TEMP}/web-deps-usage/depcheck.json" \
+            2> "${RUNNER_TEMP}/web-deps-usage/depcheck.err"
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/depcheck.exit"
 
-          pnpm list --depth Infinity --json > "${RUNNER_TEMP}/web-deps-audit/full-tree.json" 2> "${RUNNER_TEMP}/web-deps-audit/full-tree.err"
-          echo $? > "${RUNNER_TEMP}/web-deps-audit/full-tree.exit"
+          python3 - <<'PY' > "${RUNNER_TEMP}/web-deps-usage/direct-usage.json"
+          import json
+          from pathlib import Path
 
-          pnpm outdated --format json > "${RUNNER_TEMP}/web-deps-audit/outdated.json" 2> "${RUNNER_TEMP}/web-deps-audit/outdated.err"
-          echo $? > "${RUNNER_TEMP}/web-deps-audit/outdated.exit"
+          root = Path('.')
+          package = json.loads((root / 'package.json').read_text(encoding='utf-8'))
+          dependencies = {
+              **package.get('dependencies', {}),
+              **package.get('devDependencies', {}),
+          }
+          allowed_suffixes = {
+              '.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.json', '.less',
+              '.css', '.md', '.html', '.ejs', '.yaml', '.yml', '.toml', '.sh',
+          }
+          excluded = {'node_modules', 'dist', '.git', '.umi', '.umi-test', 'playwright-report', 'test-results'}
+          files = []
+          for path in root.rglob('*'):
+              if not path.is_file() or path.name == 'pnpm-lock.yaml':
+                  continue
+              if any(part in excluded for part in path.parts):
+                  continue
+              if path.suffix.lower() not in allowed_suffixes and path.name not in {'Dockerfile'}:
+                  continue
+              try:
+                  files.append((path, path.read_text(encoding='utf-8')))
+              except UnicodeDecodeError:
+                  pass
 
-          pnpm audit --prod --json > "${RUNNER_TEMP}/web-deps-audit/audit-prod.json" 2> "${RUNNER_TEMP}/web-deps-audit/audit-prod.err"
-          echo $? > "${RUNNER_TEMP}/web-deps-audit/audit-prod.exit"
-
-          pnpm audit --json > "${RUNNER_TEMP}/web-deps-audit/audit-all.json" 2> "${RUNNER_TEMP}/web-deps-audit/audit-all.err"
-          echo $? > "${RUNNER_TEMP}/web-deps-audit/audit-all.exit"
-
-          pnpm dedupe --check --reporter=append-only > "${RUNNER_TEMP}/web-deps-audit/dedupe.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-audit/dedupe.exit"
-
-          for dependency in \
-            @umijs/max @umijs/lint umi umi-presets-pro \
-            vite @vitejs/plugin-react webpack typescript eslint jest \
-            react-router react-router-dom immutable axios ajv caniuse-lite; do
-            safe="$(printf '%s' "${dependency}" | tr '/@' '__')"
-            pnpm why "${dependency}" --json \
-              > "${RUNNER_TEMP}/web-deps-audit/why-${safe}.json" \
-              2> "${RUNNER_TEMP}/web-deps-audit/why-${safe}.err"
-          done
+          usage = {}
+          for name in sorted(dependencies):
+              matches = []
+              for path, text in files:
+                  if name in text:
+                      matches.append(path.as_posix())
+              usage[name] = matches
+          print(json.dumps(usage, indent=2, ensure_ascii=False))
+          PY
           exit 0
 
-      - name: Run clean scripted install and detect generated drift
-        working-directory: web/antd
-        run: |
-          set -uo pipefail
-          rm -rf node_modules .umi
-          before="$(git status --porcelain=v1)"
-          pnpm install --frozen-lockfile --prefer-offline --reporter=append-only \
-            2>&1 | tee "${RUNNER_TEMP}/web-deps-audit/scripted-install.log"
-          status=${PIPESTATUS[0]}
-          echo "${status}" > "${RUNNER_TEMP}/web-deps-audit/scripted-install.exit"
-          {
-            echo '--- before ---'
-            printf '%s\n' "${before}"
-            echo '--- after ---'
-            git status --porcelain=v1
-          } > "${RUNNER_TEMP}/web-deps-audit/install-git-status.txt"
-          exit 0
-
-      - name: Diagnose frontend quality and open handles
-        working-directory: web/antd
+      - name: Audit Workers Site dependency graph
+        working-directory: web/antd/workers-site
         run: |
           set +e
-          pnpm lint:js > "${RUNNER_TEMP}/web-deps-audit/lint.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-audit/lint.exit"
-          pnpm tsc > "${RUNNER_TEMP}/web-deps-audit/tsc.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-audit/tsc.exit"
-          timeout 180s pnpm test -- --runInBand --detectOpenHandles \
-            > "${RUNNER_TEMP}/web-deps-audit/jest-open-handles.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-audit/jest-open-handles.exit"
-          pnpm build:local > "${RUNNER_TEMP}/web-deps-audit/build.log" 2>&1
-          echo $? > "${RUNNER_TEMP}/web-deps-audit/build.exit"
+          pnpm install --frozen-lockfile --ignore-scripts --strict-peer-dependencies \
+            > "${RUNNER_TEMP}/web-deps-usage/workers-install.log" 2>&1
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/workers-install.exit"
+          pnpm outdated --format json \
+            > "${RUNNER_TEMP}/web-deps-usage/workers-outdated.json" \
+            2> "${RUNNER_TEMP}/web-deps-usage/workers-outdated.err"
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/workers-outdated.exit"
+          pnpm audit --prod --json \
+            > "${RUNNER_TEMP}/web-deps-usage/workers-audit.json" \
+            2> "${RUNNER_TEMP}/web-deps-usage/workers-audit.err"
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/workers-audit.exit"
           exit 0
 
-      - name: Summarize audit exit codes
+      - name: Probe removal of legacy Umi preset
         run: |
           set -euo pipefail
-          echo '### Web dependency audit' >> "${GITHUB_STEP_SUMMARY}"
-          for file in "${RUNNER_TEMP}"/web-deps-audit/*.exit; do
-            name="$(basename "${file}" .exit)"
-            value="$(cat "${file}")"
-            echo "- ${name}: ${value}" >> "${GITHUB_STEP_SUMMARY}"
-          done
-          echo '' >> "${GITHUB_STEP_SUMMARY}"
-          echo 'The audit is diagnostic; findings are fixed in follow-up commits before this workflow is removed.' >> "${GITHUB_STEP_SUMMARY}"
+          probe="${RUNNER_TEMP}/web-no-legacy-preset"
+          mkdir -p "${probe}"
+          rsync -a \
+            --exclude node_modules \
+            --exclude dist \
+            --exclude .umi \
+            --exclude .umi-test \
+            --exclude playwright-report \
+            --exclude test-results \
+            web/antd/ "${probe}/"
 
-      - name: Upload dependency audit evidence
+          PROBE="${probe}" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ['PROBE'])
+          path = root / 'package.json'
+          package = json.loads(path.read_text(encoding='utf-8'))
+          package.get('devDependencies', {}).pop('umi-presets-pro', None)
+          package.get('scripts', {}).pop('record', None)
+          path.write_text(json.dumps(package, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+
+          config = root / 'config/config.ts'
+          text = config.read_text(encoding='utf-8')
+          text = text.replace("  presets: ['umi-presets-pro'],\n", '')
+          text = text.replace('  requestRecord: {},\n', '')
+          config.write_text(text, encoding='utf-8')
+          PY
+
+          cd "${probe}"
+          pnpm install --lockfile-only --ignore-scripts --strict-peer-dependencies \
+            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lock.log" 2>&1
+          pnpm install --frozen-lockfile --ignore-scripts --strict-peer-dependencies --prefer-offline \
+            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-install.log" 2>&1
+          pnpm exec max setup \
+            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-setup.log" 2>&1
+          pnpm lint:js > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lint.log" 2>&1
+          pnpm tsc > "${RUNNER_TEMP}/web-deps-usage/no-legacy-tsc.log" 2>&1
+          MOCK=none timeout 180s pnpm test -- --runInBand \
+            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-test.log" 2>&1
+          pnpm build:local > "${RUNNER_TEMP}/web-deps-usage/no-legacy-build.log" 2>&1
+
+          set +e
+          pnpm audit --prod --json \
+            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-audit-prod.json" \
+            2> "${RUNNER_TEMP}/web-deps-usage/no-legacy-audit-prod.err"
+          echo $? > "${RUNNER_TEMP}/web-deps-usage/no-legacy-audit-prod.exit"
+          pnpm list --depth 0 --json \
+            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-top-level.json" \
+            2> "${RUNNER_TEMP}/web-deps-usage/no-legacy-top-level.err"
+          grep -c '^  [^ ].*:$' pnpm-lock.yaml \
+            > "${RUNNER_TEMP}/web-deps-usage/no-legacy-lock-entry-count.txt"
+          exit 0
+
+      - name: Upload usage and migration probe
         uses: actions/upload-artifact@v7
         with:
-          name: web-deps-audit
-          path: ${{ runner.temp }}/web-deps-audit
+          name: web-deps-usage
+          path: ${{ runner.temp }}/web-deps-usage
           if-no-files-found: error
           retention-days: 7
