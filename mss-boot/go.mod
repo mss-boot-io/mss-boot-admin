@@ -6,14 +6,14 @@ require (
 	github.com/IBM/sarama v1.50.2
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.4
-	github.com/aws/aws-sdk-go-v2 v1.41.12
+	github.com/aws/aws-sdk-go-v2 v1.43.3
 	github.com/aws/aws-sdk-go-v2/config v1.32.23
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.22
-	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.28
+	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.34
 	github.com/aws/aws-sdk-go-v2/service/appconfigdata v1.24.1
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.58.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.2
-	github.com/aws/smithy-go v1.27.2
+	github.com/aws/smithy-go v1.27.6
 	github.com/bsm/redislock v0.9.4
 	github.com/casbin/casbin/v2 v2.135.0
 	github.com/casbin/gorm-adapter/v3 v3.38.0
