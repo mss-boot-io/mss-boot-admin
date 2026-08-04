@@ -14,15 +14,22 @@ on:
       - 'README.md'
       - 'README.zh-CN.md'
       - 'mss'
+      - 'go.mod'
+      - 'go.sum'
+      - 'go.work'
+      - 'go.work.sum'
       - 'cmd/mss/**'
       - 'cmd/mss-mcp/**'
       - 'internal/mss/**'
-      - 'modules/**'
+      - 'admin/AGENTS.md'
+      - 'admin/go.mod'
+      - 'admin/go.sum'
+      - 'admin/main.go'
+      - 'admin/cmd/migrate/**'
+      - 'admin/modules/**'
       - 'templates/module/**'
       - 'docs/docs/agent/**'
       - 'docs/docs/architecture/agent-native-foundation.zh-CN.md'
-      - 'main.go'
-      - 'cmd/migrate/migrate.go'
       - 'web/antd/config/routes.custom.ts'
       - 'web/antd/config/routes.generated.ts'
       - 'web/antd/src/locales/generated.*.ts'
@@ -43,15 +50,22 @@ on:
       - 'README.md'
       - 'README.zh-CN.md'
       - 'mss'
+      - 'go.mod'
+      - 'go.sum'
+      - 'go.work'
+      - 'go.work.sum'
       - 'cmd/mss/**'
       - 'cmd/mss-mcp/**'
       - 'internal/mss/**'
-      - 'modules/**'
+      - 'admin/AGENTS.md'
+      - 'admin/go.mod'
+      - 'admin/go.sum'
+      - 'admin/main.go'
+      - 'admin/cmd/migrate/**'
+      - 'admin/modules/**'
       - 'templates/module/**'
       - 'docs/docs/agent/**'
       - 'docs/docs/architecture/agent-native-foundation.zh-CN.md'
-      - 'main.go'
-      - 'cmd/migrate/migrate.go'
       - 'web/antd/config/routes.custom.ts'
       - 'web/antd/config/routes.generated.ts'
       - 'web/antd/src/locales/generated.*.ts'
@@ -89,6 +103,7 @@ jobs:
           cache-dependency-path: |
             go.sum
             go.work.sum
+            admin/go.sum
             mss-boot/go.sum
 
       - name: Reject disabled assistant integration
@@ -108,6 +123,7 @@ jobs:
               Path('.cursor'),
               Path('.mss'),
               Path('.github'),
+              Path('admin/AGENTS.md'),
               Path('docs/AGENTS.md'),
               Path('docs/docs/agent'),
               Path('docs/docs/architecture/agent-native-foundation.zh-CN.md'),
@@ -147,10 +163,10 @@ jobs:
             cmd/mss \
             cmd/mss-mcp \
             internal/mss \
-            modules/runtime \
-            modules/all \
-            main.go \
-            cmd/migrate/migrate.go)"
+            admin/modules/runtime \
+            admin/modules/all \
+            admin/main.go \
+            admin/cmd/migrate/migrate.go)"
           if [[ -n "${unformatted}" ]]; then
             echo "The following files require gofmt:" >&2
             echo "${unformatted}" >&2
@@ -158,9 +174,13 @@ jobs:
           fi
 
       - name: Test Agent infrastructure
-        run: go test ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/... ./modules/runtime/...
+        env:
+          GOWORK: 'off'
+        run: go test -shuffle=on -count=1 ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/...
 
       - name: Build Agent executables
+        env:
+          GOWORK: 'off'
         run: go build ./cmd/mss ./cmd/mss-mcp
 
       - name: Load project context
@@ -168,6 +188,9 @@ jobs:
 
       - name: Run strict Agent environment doctor
         run: go run ./cmd/mss doctor --strict --component agent --format json > "${RUNNER_TEMP}/mss-doctor.json"
+
+      - name: Run strict Admin module doctor
+        run: go run ./cmd/mss doctor --strict --component backend --format json > "${RUNNER_TEMP}/mss-admin-doctor.json"
 
       - name: Validate Agent Skills
         run: go run ./cmd/mss skills validate --format json > "${RUNNER_TEMP}/mss-skills.json"
@@ -188,7 +211,7 @@ jobs:
             --format json \
             > "${RUNNER_TEMP}/mss-feature-plan.json"
 
-      - name: Write, test, and drift-check a generated module in an isolated worktree
+      - name: Write, test, and drift-check a generated Admin module in an isolated worktree
         run: |
           set -euo pipefail
           worktree="${RUNNER_TEMP}/mss-generator-worktree"
@@ -202,7 +225,7 @@ jobs:
               --write \
               --format json \
               > "${RUNNER_TEMP}/mss-generation-write.json"
-            go test ./modules/supplier/...
+            go test ./admin/modules/supplier/...
             go run ./cmd/mss module generate \
               .mss/modules/example-supplier.yaml \
               --check \
@@ -224,6 +247,7 @@ jobs:
           path: |
             ${{ runner.temp }}/mss-context.json
             ${{ runner.temp }}/mss-doctor.json
+            ${{ runner.temp }}/mss-admin-doctor.json
             ${{ runner.temp }}/mss-skills.json
             ${{ runner.temp }}/mss-module-spec.json
             ${{ runner.temp }}/mss-feature-spec.json
@@ -258,11 +282,16 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.sum
 
       - name: Test portable Agent packages
+        env:
+          GOWORK: 'off'
         run: go test ./internal/mss/dev ./internal/mss/project ./internal/mss/spec ./internal/mss/blueprint ./internal/mss/mcp
 
       - name: Build portable Agent executables
+        env:
+          GOWORK: 'off'
         run: go build ./cmd/mss ./cmd/mss-mcp
 
   foundation-compatibility:
