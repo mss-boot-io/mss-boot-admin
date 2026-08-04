@@ -21,7 +21,7 @@ def main() -> None:
     package["dependencies"].update(
         {
             "@ant-design/charts": "2.6.7",
-            "@ant-design/pro-components": "2.9.20",
+            "@ant-design/pro-components": "2.8.10",
             "ahooks": "3.9.7",
         }
     )
