@@ -31,17 +31,24 @@ func TestGeneratedWorkspaceUsesLocalNestedModuleBridge(t *testing.T) {
 	writeFixtureFile(t, root, "go.mod", `module github.com/mss-boot-io/mss-boot-admin
 
 go 1.26.0
-
-require github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0
 `)
 	writeFixtureFile(t, root, "go.work", `go 1.26.0
 
 use (
 	.
+	./admin
 	./mss-boot
 )
 
 replace github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0 => ./mss-boot
+`)
+	writeFixtureFile(t, root, "admin/go.mod", `module github.com/mss-boot-io/mss-boot-admin/admin
+
+go 1.26.0
+
+require github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0
+
+replace github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0 => ../mss-boot
 `)
 	writeFixtureFile(t, root, "admin/main.go", `package main
 
@@ -94,11 +101,11 @@ const Value = "local"
 	)
 	assertContains(
 		t,
-		filepath.Join(destination, "go.mod"),
+		filepath.Join(destination, "admin", "go.mod"),
 		"require github.com/acme/workspace-admin/mss-boot v0.8.0",
 	)
 
-	command := exec.Command("go", "list", "./...")
+	command := exec.Command("go", "list", "./...", "./admin/...", "./mss-boot/...")
 	command.Dir = destination
 	command.Env = workspaceTestEnvironment(os.Environ())
 	output, err := command.CombinedOutput()

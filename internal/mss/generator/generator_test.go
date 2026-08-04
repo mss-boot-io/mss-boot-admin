@@ -16,7 +16,7 @@ func TestGenerateDryRunWriteCheckAndDrift(t *testing.T) {
 	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
 
 	module := generatorTestModule()
-	module.SourcePath = ".mss/admin/modules/supplier.yaml"
+	module.SourcePath = ".mss/modules/supplier.yaml"
 
 	dryRun, err := Generate(module, Options{Root: root})
 	if err != nil {

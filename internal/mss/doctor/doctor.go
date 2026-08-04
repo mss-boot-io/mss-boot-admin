@@ -138,7 +138,8 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 	}
 	if selected(ComponentBackend) {
 		report.Checks = append(report.Checks,
-			fileCheck(projectContext.Root, "go.mod", true),
+			fileCheck(projectContext.Root, "admin/go.mod", true),
+			fileCheck(projectContext.Root, "admin/go.sum", true),
 			fileCheck(projectContext.Root, "go.work", true),
 		)
 	}

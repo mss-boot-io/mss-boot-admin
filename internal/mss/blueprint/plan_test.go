@@ -47,7 +47,8 @@ func TestGenerateWritesCompleteIdempotentApplication(t *testing.T) {
 	}
 
 	assertContains(t, filepath.Join(destination, "go.mod"), "module github.com/acme/customer-admin")
-	assertContains(t, filepath.Join(destination, "admin/main.go"), `"github.com/acme/customer-admin/internal/example"`)
+	assertContains(t, filepath.Join(destination, "admin", "go.mod"), "module github.com/acme/customer-admin/admin")
+	assertContains(t, filepath.Join(destination, "admin/main.go"), `"github.com/acme/customer-admin/admin/internal/example"`)
 	assertContains(t, filepath.Join(destination, "admin/main.go"), `"github.com/acme/customer-admin/mss-boot/pkg/config"`)
 	assertContains(t, filepath.Join(destination, "mss-boot", "go.mod"), "module github.com/acme/customer-admin/mss-boot")
 	assertContains(t, filepath.Join(destination, ".mss", "project.yaml"), "repository: acme/customer-admin")
@@ -189,7 +190,8 @@ spec:
     - AGENTS.md
     - go.mod
     - go.work
-    - main.go
+    - admin/go.mod
+    - admin/main.go
     - Makefile
     - .mss/project.yaml
     - .mss/capabilities.yaml
@@ -203,11 +205,12 @@ spec:
   textExtensions: [.go, .json, .md, .mod, .sum, .yaml, .yml]
   textNames: [Makefile]
 `),
-		"AGENTS.md": []byte("# mss-boot-admin Agent Contract\n"),
-		"go.mod":    []byte("module github.com/mss-boot-io/mss-boot-admin\n\ngo 1.26.0\n"),
-		"go.work":   []byte("go 1.26.0\n\nuse (\n\t.\n\t./mss-boot\n)\n"),
-		"admin/main.go":   []byte("package main\n\nimport (\n\t_ \"github.com/mss-boot-io/mss-boot-admin/internal/example\"\n\t_ \"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config\"\n)\n\nfunc main() {}\n"),
-		"Makefile":  []byte("PROJECT:=mss-boot-admin\n"),
+		"AGENTS.md":     []byte("# mss-boot-admin Agent Contract\n"),
+		"go.mod":        []byte("module github.com/mss-boot-io/mss-boot-admin\n\ngo 1.26.0\n"),
+		"go.work":       []byte("go 1.26.0\n\nuse (\n\t.\n\t./admin\n\t./mss-boot\n)\n"),
+		"admin/go.mod":  []byte("module github.com/mss-boot-io/mss-boot-admin/admin\n\ngo 1.26.0\n\nrequire github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0\n\nreplace github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0 => ../mss-boot\n"),
+		"admin/main.go": []byte("package main\n\nimport (\n\t_ \"github.com/mss-boot-io/mss-boot-admin/admin/internal/example\"\n\t_ \"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config\"\n)\n\nfunc main() {}\n"),
+		"Makefile":      []byte("PROJECT:=mss-boot-admin\n"),
 		".mss/project.yaml": []byte(`apiVersion: mss.io/v1alpha1
 kind: Project
 metadata:
@@ -216,13 +219,13 @@ metadata:
   repository: mss-boot-io/mss-boot-admin
 spec:
   repositoryLayout:
-    backend: .
+    backend: admin
     framework: mss-boot
     frontend: web/antd
     documentation: docs
     specifications: .mss
   backend:
-    module: github.com/mss-boot-io/mss-boot-admin
+    module: github.com/mss-boot-io/mss-boot-admin/admin
     frameworkModule: github.com/mss-boot-io/mss-boot-admin/mss-boot
 `),
 		".mss/capabilities.yaml":      []byte("apiVersion: mss.io/v1alpha1\nkind: CapabilityCatalog\nmetadata:\n  project: mss-boot-admin\nspec:\n  capabilities: []\n"),
