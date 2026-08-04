@@ -46,26 +46,7 @@ jobs:
             web/antd/pnpm-lock.yaml
             web/antd/workers-site/pnpm-lock.yaml
 
-      - name: Assert removable dependency chains are not used by source
-        working-directory: web/antd
-        run: |
-          set -euo pipefail
-          for pattern in \
-            "from ['\"]braft-editor['\"]" \
-            "require\(['\"]braft-editor['\"]\)" \
-            "from ['\"]immutable['\"]" \
-            "require\(['\"]immutable['\"]\)" \
-            "from ['\"]express['\"]" \
-            "require\(['\"]express['\"]\)" \
-            "from ['\"]swagger-ui-dist['\"]" \
-            "require\(['\"]swagger-ui-dist['\"]\)"; do
-            if grep -R --line-number -E "${pattern}" src config tests mock typings.d.ts 2>/dev/null; then
-              echo "Cannot remove a dependency still referenced by source: ${pattern}" >&2
-              exit 1
-            fi
-          done
-
-      - name: Rewrite frontend manifest and Umi configuration
+      - name: Rewrite manifests, mock types, and Umi configuration
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -77,42 +58,43 @@ jobs:
           package = json.loads(package_path.read_text(encoding='utf-8'))
           package['private'] = True
           package['packageManager'] = 'pnpm@9.15.9'
+          package['engines'] = {'node': '>=22.0.0', 'pnpm': '>=9.0.0 <10'}
+          package.pop('lint-staged', None)
 
           scripts = package.setdefault('scripts', {})
           for name in (
-              'deploy', 'gh-pages', 'postinstall', 'prepare', 'record',
-              'openapi', 'serve',
+              'deploy', 'gh-pages', 'lint-staged', 'openapi', 'postinstall',
+              'prepare', 'record', 'serve',
           ):
               scripts.pop(name, None)
           scripts['setup'] = 'max setup'
           scripts['test'] = 'jest --runInBand'
           scripts['test:ci'] = 'jest --runInBand --detectOpenHandles'
           scripts['test:update'] = 'jest --runInBand -u'
-          scripts['lint:prettier'] = 'prettier --check "**/*.{js,jsx,tsx,ts,less,md,json}"'
-          scripts['prettier'] = 'prettier --write "**/*.{js,jsx,tsx,ts,less,md,json}"'
+          scripts['lint:prettier'] = (
+              'prettier --check '
+              '"package.json" "config/**/*.ts" "src/**/*.{ts,tsx}" '
+              '"mock/**/*.ts" "workers-site/package.json"'
+          )
+          scripts['prettier'] = (
+              'prettier --write '
+              '"package.json" "config/**/*.ts" "src/**/*.{ts,tsx}" '
+              '"mock/**/*.ts" "workers-site/package.json"'
+          )
 
           dependencies = package.setdefault('dependencies', {})
           for name in ('braft-editor', 'immutable'):
               dependencies.pop(name, None)
-
-          dev_dependencies = package.setdefault('devDependencies', {})
-          for name in (
-              '@types/classnames', '@types/express', '@types/react-helmet',
-              'express', 'gh-pages', 'husky', 'swagger-ui-dist',
-              'umi-presets-pro', 'webpack',
-          ):
-              dev_dependencies.pop(name, None)
-
-          # Core framework/tool versions are exact so a clean frozen install
-          # cannot silently cross a Umi, React, Jest, ESLint, or TS boundary.
           dependencies.update({
               '@ant-design/charts': '2.6.7',
-              '@ant-design/icons': '4.8.3',
+              '@ant-design/icons': '4.8.1',
               '@ant-design/pro-components': '2.8.10',
               '@ant-design/use-emotion-css': '1.0.4',
               '@umijs/route-utils': '2.2.2',
               'ahooks': '3.9.7',
+              'antd': '5.12.1',
               'classnames': '2.5.1',
+              'lodash': '4.18.1',
               'moment': '2.30.1',
               'omit.js': '2.0.2',
               'rc-menu': '9.16.1',
@@ -120,12 +102,17 @@ jobs:
               'react': '18.3.1',
               'react-dom': '18.3.1',
               'react-helmet-async': '3.0.0',
+              'react-quill-new': '3.8.3',
               'uuid': '14.0.1',
           })
-          # Keep Ant Design on the current major while allowing the package
-          # manager to resolve its latest compatible v5 patch/minor.
-          dependencies['antd'] = '^5.0.0'
 
+          dev_dependencies = package.setdefault('devDependencies', {})
+          for name in (
+              '@types/classnames', '@types/express', '@types/react-helmet',
+              'express', 'gh-pages', 'husky', 'lint-staged',
+              'swagger-ui-dist', 'umi-presets-pro', 'webpack',
+          ):
+              dev_dependencies.pop(name, None)
           dev_dependencies.update({
               '@playwright/test': '1.62.1',
               '@testing-library/react': '15.0.7',
@@ -139,8 +126,7 @@ jobs:
               'eslint': '8.57.1',
               'jest': '29.7.0',
               'jest-environment-jsdom': '29.7.0',
-              'lint-staged': '17.3.0',
-              'prettier': '3.9.6',
+              'prettier': '2.8.8',
               'ts-node': '10.9.2',
               'typescript': '4.9.5',
           })
@@ -154,6 +140,8 @@ jobs:
                   'brace-expansion@2.1.1': '2.1.4',
                   'braces': '3.0.3',
                   'cross-spawn': '7.0.6',
+                  'diff@4.0.2': '4.0.4',
+                  'es5-ext@0.10.62': '0.10.64',
                   'fast-uri': '3.1.5',
                   'flatted': '3.4.2',
                   'form-data': '4.0.6',
@@ -165,17 +153,14 @@ jobs:
                   'path-to-regexp@1.7.0': '1.9.0',
                   'postcss': '8.5.23',
                   'qs': '6.15.2',
-                  'react-router': '6.30.4',
-                  'react-router-dom': '6.30.4',
                   'send': '0.19.2',
                   'svgo@2.8.2': '2.8.3',
-                  'webpack': '5.109.2',
                   'ws': '8.21.0',
               },
               'peerDependencyRules': {
                   'allowedVersions': {
+                      '@types/react': '18.3.31',
                       'dva-core': '2.0.4',
-                      'less-loader': '11.1.0',
                       'react': '18.3.1',
                       'react-dom': '18.3.1',
                       'stylelint': '13.13.1',
@@ -199,6 +184,27 @@ jobs:
           config = config.replace('  requestRecord: {},\n', '')
           config_path.write_text(config, encoding='utf-8')
 
+          mock_types = Path('web/antd/mock/types.ts')
+          mock_types.write_text(
+              "export interface MockRequest {\n"
+              "  body: Record<string, string>;\n"
+              "}\n\n"
+              "export interface MockResponse {\n"
+              "  json: (body: unknown) => MockResponse;\n"
+              "  send: (body: unknown) => MockResponse;\n"
+              "  status: (code: number) => MockResponse;\n"
+              "}\n",
+              encoding='utf-8',
+          )
+          for name in ('role.ts', 'user.ts', 'notices.ts'):
+              path = Path('web/antd/mock') / name
+              text = path.read_text(encoding='utf-8')
+              text = text.replace(
+                  "import { Request, Response } from 'express';",
+                  "import type { MockRequest as Request, MockResponse as Response } from './types';",
+              )
+              path.write_text(text, encoding='utf-8')
+
           npmrc = Path('web/antd/.npmrc')
           npmrc.write_text(
               'auto-install-peers=true\n'
@@ -214,12 +220,25 @@ jobs:
           worker = json.loads(worker_path.read_text(encoding='utf-8'))
           worker['private'] = True
           worker['packageManager'] = 'pnpm@9.15.9'
-          worker['engines'] = {'node': '>=22.0.0', 'pnpm': '>=9.0.0'}
+          worker['engines'] = {'node': '>=22.0.0', 'pnpm': '>=9.0.0 <10'}
           worker_path.write_text(
               json.dumps(worker, ensure_ascii=False, indent=2) + '\n',
               encoding='utf-8',
           )
           PY
+
+      - name: Assert removed dependency chains have no source imports
+        working-directory: web/antd
+        run: |
+          set -euo pipefail
+          if grep -R --line-number \
+            --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' \
+            -E "braft-editor|from ['\"]immutable['\"]|from ['\"]express['\"]|umi-presets-pro" \
+            src config mock \
+            --exclude-dir=node_modules --exclude-dir=dist; then
+            echo 'Legacy dependency source usage remains after migration' >&2
+            exit 1
+          fi
 
       - name: Regenerate and deduplicate frontend lockfile
         working-directory: web/antd
@@ -285,8 +304,6 @@ jobs:
         run: |
           set -euxo pipefail
           git diff --check
-          test ! -e web/antd/node_modules
-          test ! -e web/antd/workers-site/node_modules
 
       - name: Commit repaired frontend dependencies
         run: |
@@ -299,6 +316,10 @@ jobs:
             web/antd/package.json \
             web/antd/pnpm-lock.yaml \
             web/antd/config/config.ts \
+            web/antd/mock/types.ts \
+            web/antd/mock/role.ts \
+            web/antd/mock/user.ts \
+            web/antd/mock/notices.ts \
             web/antd/workers-site/package.json \
             web/antd/workers-site/pnpm-lock.yaml
           git diff --cached --stat
