@@ -44,7 +44,7 @@ func TestGenerateDryRunWriteCheckAndDrift(t *testing.T) {
 	if written.DryRun {
 		t.Fatal("write plan was marked dry-run")
 	}
-	modelPath := filepath.Join(root, "modules", "supplier", "model_generated.go")
+	modelPath := filepath.Join(root, filepath.FromSlash("modules/supplier/model_generated.go"))
 	modelData, err := os.ReadFile(modelPath)
 	if err != nil {
 		t.Fatalf("read generated model: %v", err)
