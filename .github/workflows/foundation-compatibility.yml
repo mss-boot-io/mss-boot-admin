@@ -24,7 +24,7 @@ jobs:
           echo "CONFLICT_FOUNDATION=${RUNNER_TEMP}/mss-foundation-conflict" >> "${GITHUB_ENV}"
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: '1.26'
           cache: true
