@@ -14,9 +14,13 @@ import (
 	"strings"
 )
 
+type httpDoer interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
 var (
 	latestReleaseURL = "https://api.github.com/repos/mss-boot-io/micro-service-gen-tool/releases/latest"
-	httpClient       = http.DefaultClient
+	httpClient       httpDoer = http.DefaultClient
 )
 
 // GetInstallPath returns the historical platform-specific installation path.
