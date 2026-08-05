@@ -10,6 +10,9 @@ export default async () => {
   console.log();
   return {
     ...config,
+    // WSL may inherit TEMP/TMP from Windows. Keeping Jest's cache inside the
+    // Linux workspace avoids very slow 9P filesystem access during transforms.
+    cacheDirectory: '<rootDir>/node_modules/.cache/jest',
     testEnvironmentOptions: {
       ...(config?.testEnvironmentOptions || {}),
       url: 'http://localhost:8000',
