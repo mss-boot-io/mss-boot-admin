@@ -40,16 +40,16 @@ exports[`Login Page should show login form 1`] = `
       style="flex: 1; padding: 32px 0px;"
     >
       <div
-        class="ant-pro-form-login-container "
+        class="ant-pro-form-login-container css-dev-only-do-not-override-px0i4r css-dev-only-do-not-override-px0i4r"
       >
         <div
-          class="ant-pro-form-login-top"
+          class="ant-pro-form-login-top css-dev-only-do-not-override-px0i4r css-dev-only-do-not-override-px0i4r"
         >
           <div
-            class="ant-pro-form-login-header "
+            class="ant-pro-form-login-header css-dev-only-do-not-override-px0i4r"
           >
             <span
-              class="ant-pro-form-login-logo "
+              class="ant-pro-form-login-logo css-dev-only-do-not-override-px0i4r"
             >
               <img
                 alt="logo"
@@ -57,24 +57,24 @@ exports[`Login Page should show login form 1`] = `
               />
             </span>
             <span
-              class="ant-pro-form-login-title "
+              class="ant-pro-form-login-title css-dev-only-do-not-override-px0i4r"
             >
               mss-boot-io
             </span>
           </div>
           <div
-            class="ant-pro-form-login-desc "
+            class="ant-pro-form-login-desc css-dev-only-do-not-override-px0i4r"
           >
             A framework for quickly developing http/grpc services to help you quickly build monolithic services or microservice systems
           </div>
         </div>
         <div
-          class="ant-pro-form-login-main "
+          class="ant-pro-form-login-main css-dev-only-do-not-override-px0i4r"
           style="width: 328px; min-width: 280px; max-width: 75vw;"
         >
           <form
             autocomplete="off"
-            class="ant-form ant-form-vertical ant-pro-form"
+            class="ant-form ant-form-vertical ant-pro-form css-dev-only-do-not-override-px0i4r"
           >
             <input
               style="display: none;"
@@ -373,30 +373,30 @@ exports[`Login Page should show login form 1`] = `
             </button>
           </form>
           <div
-            class="ant-pro-form-login-main-other "
+            class="ant-pro-form-login-main-other css-dev-only-do-not-override-px0i4r"
           />
         </div>
       </div>
     </div>
     <footer
-      class="ant-layout-footer css-dev-only-do-not-override-6j9yrn"
+      class="ant-layout-footer css-dev-only-do-not-override-px0i4r"
       style="padding: 0px; background: none;"
     >
       <div
-        class="ant-pro-global-footer"
+        class="ant-pro-global-footer css-dev-only-do-not-override-px0i4r"
       >
         <div
-          class="ant-pro-global-footer-list"
+          class="ant-pro-global-footer-list css-dev-only-do-not-override-px0i4r"
         >
           <a
-            class="ant-pro-global-footer-list-link"
+            class="ant-pro-global-footer-list-link css-dev-only-do-not-override-px0i4r"
             href="http://beian.miit.gov.cn"
             rel="noreferrer"
             target="_blank"
             title="beian"
           />
           <a
-            class="ant-pro-global-footer-list-link"
+            class="ant-pro-global-footer-list-link css-dev-only-do-not-override-px0i4r"
             href="https://github.com/mss-boot-io/mss-boot"
             rel="noreferrer"
             target="_blank"
@@ -423,7 +423,7 @@ exports[`Login Page should show login form 1`] = `
             </span>
           </a>
           <a
-            class="ant-pro-global-footer-list-link"
+            class="ant-pro-global-footer-list-link css-dev-only-do-not-override-px0i4r"
             href="https://github.com/mss-boot-io/mss-boot-admin"
             rel="noreferrer"
             target="_blank"
@@ -433,7 +433,7 @@ exports[`Login Page should show login form 1`] = `
           </a>
         </div>
         <div
-          class="ant-pro-global-footer-copyright"
+          class="ant-pro-global-footer-copyright css-dev-only-do-not-override-px0i4r"
         >
           <span
             aria-label="copyright"
