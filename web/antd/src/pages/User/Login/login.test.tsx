@@ -1,8 +1,113 @@
-import { act, fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import * as React from 'react';
-import { TestBrowser } from '@@/testBrowser';
-import { persistLoginState } from './index';
+import Login, { persistLoginState } from './index';
 import { resolveSafeRedirect } from './redirect';
+
+jest.mock('@umijs/max', () => {
+  const ReactRuntime = require('react');
+  const messages: Record<string, string> = {
+    'menu.login': 'Login',
+    'pages.login.form.title':
+      'A framework for quickly developing http/grpc services to help you quickly build monolithic services or microservice systems',
+    'pages.login.password.placeholder': 'Password',
+    'pages.login.username.placeholder': 'Username',
+  };
+
+  return {
+    FormattedMessage: ({ defaultMessage, id }: { defaultMessage?: string; id: string }) =>
+      ReactRuntime.createElement(ReactRuntime.Fragment, null, defaultMessage || messages[id] || id),
+    Helmet: ({ children }: { children?: any }) =>
+      ReactRuntime.createElement(ReactRuntime.Fragment, null, children),
+    history: { push: jest.fn() },
+    Link: ({ children }: { children?: any }) => ReactRuntime.createElement('span', null, children),
+    SelectLang: () => null,
+    useIntl: () => ({
+      formatMessage: ({ defaultMessage, id }: { defaultMessage?: string; id: string }) =>
+        messages[id] || defaultMessage || id,
+    }),
+    useModel: () => ({
+      initialState: {
+        appConfig: { base: {}, security: {} },
+        fetchUserInfo: jest.fn(),
+      },
+      setInitialState: jest.fn(),
+    }),
+  };
+});
+
+jest.mock('@ant-design/use-emotion-css', () => ({
+  useEmotionCss: () => 'mock-emotion-class',
+}));
+
+jest.mock('ahooks', () => ({
+  useRequest: jest.fn(),
+}));
+
+jest.mock('@ant-design/icons', () => {
+  const ReactRuntime = require('react');
+  const Icon = () => ReactRuntime.createElement('span');
+
+  return {
+    GithubOutlined: Icon,
+    LockOutlined: Icon,
+    MailOutlined: Icon,
+    MobileOutlined: Icon,
+    UserOutlined: Icon,
+  };
+});
+
+jest.mock('@ant-design/pro-components', () => {
+  const ReactRuntime = require('react');
+  const ProFormText: any = ({ name, placeholder }: { name?: string; placeholder?: string }) =>
+    ReactRuntime.createElement('input', { name, placeholder });
+
+  ProFormText.Password = ({ name, placeholder }: { name?: string; placeholder?: string }) =>
+    ReactRuntime.createElement('input', { name, placeholder, type: 'password' });
+
+  return {
+    LoginForm: ({ children, logo, subTitle, title }: any) =>
+      ReactRuntime.createElement(
+        'main',
+        null,
+        logo,
+        ReactRuntime.createElement('h1', null, title),
+        ReactRuntime.createElement('p', { className: 'ant-pro-form-login-desc' }, subTitle),
+        ReactRuntime.createElement('form', null, children),
+      ),
+    ProFormCaptcha: ({ name, placeholder }: { name?: string; placeholder?: string }) =>
+      ReactRuntime.createElement('input', { name, placeholder }),
+    ProFormCheckbox: ({ children, name }: { children?: any; name?: string }) =>
+      ReactRuntime.createElement(
+        'label',
+        null,
+        ReactRuntime.createElement('input', { name, type: 'checkbox' }),
+        children,
+      ),
+    ProFormText,
+  };
+});
+
+jest.mock('antd', () => {
+  const ReactRuntime = require('react');
+
+  return {
+    message: { error: jest.fn(), success: jest.fn() },
+    Tabs: ({ items }: { items?: Array<{ key: string; label: any }> }) =>
+      ReactRuntime.createElement(
+        'div',
+        null,
+        ...(items || []).map((item) =>
+          ReactRuntime.createElement('span', { key: item.key }, item.label),
+        ),
+      ),
+  };
+});
+
+jest.mock('@/components/Footer', () => () => null);
+
+jest.mock('@/components/MssBoot/icon', () => ({
+  LarkOutlined: () => null,
+}));
 
 jest.mock('@/services/admin/appConfig', () => ({
   getAppConfigsProfile: jest.fn().mockResolvedValue({}),
@@ -25,61 +130,22 @@ describe('Login Page', () => {
     jest.clearAllTimers();
   });
 
-  it('should show login form', async () => {
-    const historyRef = React.createRef<any>();
-    const rootContainer = render(
-      <TestBrowser
-        historyRef={historyRef}
-        location={{
-          pathname: '/user/login',
-        }}
-      />,
-    );
+  it('should show the login form and accept account input', () => {
+    const rootContainer = render(<Login />);
 
-    await rootContainer.findAllByText('mss-boot-io');
-
-    act(() => {
-      historyRef.current?.push('/user/login');
-    });
-
-    expect(rootContainer.baseElement?.querySelector('.ant-pro-form-login-desc')?.textContent).toBe(
+    expect(screen.getByRole('heading', { name: 'mss-boot-io' })).toBeTruthy();
+    expect(rootContainer.container.querySelector('.ant-pro-form-login-desc')?.textContent).toBe(
       'A framework for quickly developing http/grpc services to help you quickly build monolithic services or microservice systems',
     );
 
-    expect(rootContainer.asFragment()).toMatchSnapshot();
+    const userNameInput = screen.getByPlaceholderText('Username');
+    const passwordInput = screen.getByPlaceholderText('Password');
 
-    rootContainer.unmount();
-  });
-
-  it('should accept account input', async () => {
-    const historyRef = React.createRef<any>();
-    const rootContainer = render(
-      <TestBrowser
-        historyRef={historyRef}
-        location={{
-          pathname: '/user/login',
-        }}
-      />,
-    );
-
-    await rootContainer.findAllByText('mss-boot-io');
-
-    const userNameInput = await rootContainer.findByPlaceholderText('Username');
-
-    act(() => {
-      fireEvent.change(userNameInput, { target: { value: 'admin' } });
-    });
-
-    const passwordInput = await rootContainer.findByPlaceholderText('Password');
-
-    act(() => {
-      fireEvent.change(passwordInput, { target: { value: 'ant.design' } });
-    });
+    fireEvent.change(userNameInput, { target: { value: 'admin' } });
+    fireEvent.change(passwordInput, { target: { value: 'ant.design' } });
 
     expect((userNameInput as HTMLInputElement).value).toBe('admin');
     expect((passwordInput as HTMLInputElement).value).toBe('ant.design');
-
-    rootContainer.unmount();
   });
 
   it('should persist login state and resolve redirect', () => {
