@@ -1182,17 +1182,23 @@ The Type method returns either this or "Bearer", the default. */
     username?: string;
   };
 
-  type UserAuthToken = {
+  type UserAuthTokenSummary = {
     /** CreatedAt create time */
     createdAt?: string;
     expiredAt?: string;
+    /** Safe, non-secret token fingerprint for identification. */
+    fingerprint?: string;
     /** ID primary key */
-    id?: string;
+    id: string;
     revoked?: boolean;
-    token?: string;
     /** UpdatedAt update time */
     updatedAt?: string;
     userID?: string;
+  };
+
+  type UserAuthTokenSecretResponse = UserAuthTokenSummary & {
+    /** Raw bearer token returned only by create or rotate. */
+    token: string;
   };
 
   type UserConfigControlRequest = {
