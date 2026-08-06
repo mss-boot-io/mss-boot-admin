@@ -9,10 +9,10 @@ jest.mock('@/services/admin/appConfig', () => ({
 }));
 
 jest.mock('@/services/admin/user', () => ({
-  getUserRefreshToken: jest.fn(),
   getUserUserInfo: jest.fn(),
   postUserFakeCaptcha: jest.fn(),
   postUserLogin: jest.fn(),
+  postUserRefreshToken: jest.fn(),
 }));
 
 describe('Login Page', () => {

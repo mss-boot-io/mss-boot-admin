@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -45,6 +46,55 @@ func TestInitRouterRegistersOperationalRoutesByMode(t *testing.T) {
 				t.Fatalf("expected controller routes, got %#v", routes)
 			}
 		})
+	}
+}
+
+func TestInitRouterUsesExactCredentialedCORSOrigins(t *testing.T) {
+	previousCORS := config.Cfg.CORS
+	previousGinMode := gin.Mode()
+	t.Cleanup(func() {
+		config.Cfg.CORS = previousCORS
+		gin.SetMode(previousGinMode)
+	})
+	config.Cfg.CORS = config.CORS{
+		AllowOrigins: []string{
+			"*",
+			"https://admin.mss-boot-io.top/",
+			"https://admin.mss-boot-io.top",
+		},
+	}
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	InitRouter(engine.Group("/admin"))
+
+	request := func(origin string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodOptions, "/admin/api/user/oauth2/authorize", nil)
+		req.Header.Set("Origin", origin)
+		req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+		req.Header.Set("Access-Control-Request-Headers", "authorization,content-type")
+		engine.ServeHTTP(recorder, req)
+		return recorder
+	}
+
+	trusted := request("https://admin.mss-boot-io.top")
+	if trusted.Code != http.StatusNoContent {
+		t.Fatalf("trusted preflight status = %d", trusted.Code)
+	}
+	if got := trusted.Header().Get("Access-Control-Allow-Origin"); got != "https://admin.mss-boot-io.top" {
+		t.Fatalf("trusted allow origin = %q", got)
+	}
+	if got := trusted.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Fatalf("trusted allow credentials = %q", got)
+	}
+
+	untrusted := request("https://attacker.example")
+	if got := untrusted.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("untrusted allow origin = %q", got)
+	}
+	if origins := trustedCORSOrigins([]string{"*", "file:///tmp", "https://ADMIN.example/"}); len(origins) != 1 || origins[0] != "https://admin.example" {
+		t.Fatalf("trusted origins = %#v", origins)
 	}
 }
 

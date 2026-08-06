@@ -30,14 +30,14 @@ export async function putUserAuthTokenIdRevoke(
   });
 }
 
-/** 生成用户令牌 GET /admin/api/user-auth-token/generate */
-export async function getUserAuthTokenGenerate(
+/** 生成用户令牌 POST /admin/api/user-auth-tokens */
+export async function postUserAuthTokenGenerate(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.getUserAuthTokenGenerateParams,
+  params: API.postUserAuthTokenGenerateParams,
   options?: { [key: string]: any },
 ) {
-  return request<API.UserAuthToken>('/admin/api/user-auth-token/generate', {
-    method: 'GET',
+  return request<API.UserAuthToken>('/admin/api/user-auth-tokens', {
+    method: 'POST',
     params: {
       ...params,
     },

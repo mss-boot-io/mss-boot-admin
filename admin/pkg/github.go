@@ -3,11 +3,30 @@ package pkg
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
-	"log/slog"
+	"net/http"
+	"net/url"
+	"strings"
+	"unicode"
 
 	"golang.org/x/oauth2"
 )
+
+const (
+	githubAPIBaseURL      = "https://api.github.com"
+	githubResponseMaxSize = 1 << 20
+)
+
+type githubAPIBaseURLKey struct{}
+
+// WithGithubAPIBaseURL overrides the GitHub REST API origin for deterministic
+// tests and trusted integration environments. Production callers use GitHub's
+// public API origin by default.
+func WithGithubAPIBaseURL(ctx context.Context, baseURL string) context.Context {
+	return context.WithValue(ctx, githubAPIBaseURLKey{}, strings.TrimRight(baseURL, "/"))
+}
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
@@ -79,46 +98,105 @@ type GithubOrganization struct {
 }
 
 func GetUserFromGithub(ctx context.Context, conf *oauth2.Config, accessToken string) (*GithubUser, error) {
-	client := conf.Client(ctx, &oauth2.Token{AccessToken: accessToken})
-	resp, err := client.Get("https://api.github.com/user")
-	if err != nil {
-		slog.Error("get user from github error", slog.Any("error", err))
-		return nil, err
-	}
-	defer resp.Body.Close()
 	var user GithubUser
-	// unmarshal body contents as a type Candidate
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		slog.Error("decode user from github error", slog.Any("error", err))
+	if err := getGithubResource(ctx, conf, accessToken, "/user", &user); err != nil {
 		return nil, err
 	}
+	if !validGithubIdentity(&user) {
+		return nil, errors.New("github user response has no valid identity")
+	}
+	user.Login = strings.TrimSpace(user.Login)
 	return &user, nil
 }
 
 func GetOrganizationsFromGithub(ctx context.Context,
 	conf *oauth2.Config,
 	accessToken string) ([]string, error) {
-	client := conf.Client(ctx, &oauth2.Token{AccessToken: accessToken})
-	resp, err := client.Get("https://api.github.com/user/orgs")
-	if err != nil {
-		slog.Error("get organizations from github error", slog.Any("error", err))
-		return nil, err
-	}
-	defer resp.Body.Close()
-	rb, err := io.ReadAll(resp.Body)
-	if err != nil {
-		slog.Error("read organizations from github error", slog.Any("error", err))
-		return nil, err
-	}
 	list := make([]*GithubOrganization, 0)
-	err = json.Unmarshal(rb, &list)
-	if err != nil {
-		slog.Error("decode organizations from github error", slog.Any("error", err))
+	if err := getGithubResource(ctx, conf, accessToken, "/user/orgs", &list); err != nil {
 		return nil, err
 	}
-	org := make([]string, len(list))
+	org := make([]string, 0, len(list))
 	for i := range list {
-		org[i] = list[i].Login
+		if login := strings.TrimSpace(list[i].Login); login != "" {
+			org = append(org, login)
+		}
 	}
 	return org, nil
+}
+
+func getGithubResource(
+	ctx context.Context,
+	conf *oauth2.Config,
+	accessToken string,
+	path string,
+	target any,
+) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if conf == nil {
+		return errors.New("github oauth configuration is missing")
+	}
+	if strings.TrimSpace(accessToken) == "" {
+		return errors.New("github access token is missing")
+	}
+	endpoint, err := githubAPIURL(ctx, path)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("create github API request: %w", err)
+	}
+	resp, err := conf.Client(ctx, &oauth2.Token{AccessToken: accessToken}).Do(req)
+	if err != nil {
+		return fmt.Errorf("github API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("github API request failed with status %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, githubResponseMaxSize+1))
+	if err != nil {
+		return errors.New("read github API response")
+	}
+	if len(body) > githubResponseMaxSize {
+		return errors.New("github API response exceeds size limit")
+	}
+	if err := json.Unmarshal(body, target); err != nil {
+		return errors.New("decode github API response")
+	}
+	return nil
+}
+
+func githubAPIURL(ctx context.Context, path string) (string, error) {
+	baseURL := githubAPIBaseURL
+	if configured, ok := ctx.Value(githubAPIBaseURLKey{}).(string); ok && configured != "" {
+		baseURL = configured
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", errors.New("github API base URL is invalid")
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/" + strings.TrimLeft(path, "/")
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String(), nil
+}
+
+func validGithubIdentity(user *GithubUser) bool {
+	if user == nil || user.ID <= 0 {
+		return false
+	}
+	login := strings.TrimSpace(user.Login)
+	if login == "" || len(login) > 100 {
+		return false
+	}
+	for _, r := range login {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
 }

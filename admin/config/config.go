@@ -35,14 +35,15 @@ type queryCacheAdapter interface {
 }
 
 type Config struct {
-	Auth        Auth                     `yaml:"auth" json:"auth"`
-	GRPC        frameworkconfig.GRPC     `yaml:"grpc" json:"grpc"`
-	Logger      frameworkconfig.Logger   `yaml:"logger" json:"logger"`
-	Server      frameworkconfig.Listen   `yaml:"server" json:"server"`
-	Listen      *frameworkconfig.Listen  `yaml:"listen" json:"listen"`
-	Database    gormdb.Database          `yaml:"database" json:"database"`
-	Application Application              `yaml:"application" json:"application"`
-	Task        Task                     `yaml:"task" json:"task"`
+	Auth         Auth                     `yaml:"auth" json:"auth"`
+	CORS         CORS                     `yaml:"cors" json:"cors"`
+	GRPC         frameworkconfig.GRPC     `yaml:"grpc" json:"grpc"`
+	Logger       frameworkconfig.Logger   `yaml:"logger" json:"logger"`
+	Server       frameworkconfig.Listen   `yaml:"server" json:"server"`
+	Listen       *frameworkconfig.Listen  `yaml:"listen" json:"listen"`
+	Database     gormdb.Database          `yaml:"database" json:"database"`
+	Application  Application              `yaml:"application" json:"application"`
+	Task         Task                     `yaml:"task" json:"task"`
 	Pyroscope    Pyroscope                `yaml:"pyroscope" json:"pyroscope"`
 	Cache        *frameworkconfig.Cache   `yaml:"cache" json:"cache"`
 	Queue        *frameworkconfig.Queue   `yaml:"queue" json:"queue"`

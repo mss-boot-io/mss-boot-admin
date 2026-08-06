@@ -5,10 +5,10 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
-	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 )
 
 func init() {
@@ -28,8 +28,8 @@ type AuditLogAPI struct {
 }
 
 func (e *AuditLogAPI) Other(r *gin.RouterGroup) {
-	r.GET("/audit-logs/login", e.LoginLogs)
-	r.GET("/audit-logs/operation", e.OperationLogs)
+	r.GET("/audit-logs/login", response.AuthHandler, e.LoginLogs)
+	r.GET("/audit-logs/operation", response.AuthHandler, e.OperationLogs)
 }
 
 func (e *AuditLogAPI) LoginLogs(ctx *gin.Context) {

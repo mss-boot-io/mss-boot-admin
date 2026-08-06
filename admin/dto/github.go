@@ -22,6 +22,16 @@ type OauthCallbackReq struct {
 	State    string            `query:"state" form:"state" binding:"required"`
 }
 
+type OAuthAuthorizeRequest struct {
+	Provider pkg.LoginProvider `json:"provider" binding:"required"`
+	Intent   string            `json:"intent" binding:"required,oneof=login binding integration"`
+}
+
+type OAuthAuthorizeResponse struct {
+	AuthorizeURL string    `json:"authorizeURL"`
+	ExpiresAt    time.Time `json:"expiresAt"`
+}
+
 type GithubControlReq struct {
 	//github密码或者token
 	Password string `json:"password" binding:"required"`
@@ -40,7 +50,10 @@ type GithubGetResp struct {
 
 type OauthToken struct {
 	// Provider is the name of the OAuth2 provider[GitHub, Lark].
-	Provider string `uri:"provider" binding:"required"`
+	Provider string `json:"provider"`
+	// Intent is the server-validated flow purpose. Clients must not infer the
+	// purpose from a caller-controlled state prefix.
+	Intent string `json:"intent"`
 	// AccessToken is the token that authorizes and authenticates
 	// the requests.
 	AccessToken string `json:"accessToken"`

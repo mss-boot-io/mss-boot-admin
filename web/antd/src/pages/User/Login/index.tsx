@@ -1,5 +1,5 @@
 import Footer from '@/components/Footer';
-import { getUserRefreshToken, postUserFakeCaptcha, postUserLogin } from '@/services/admin/user';
+import { postUserFakeCaptcha, postUserLogin, postUserRefreshToken } from '@/services/admin/user';
 import {
   GithubOutlined,
   LockOutlined,
@@ -24,20 +24,10 @@ import { useRequest } from 'ahooks';
 import { LarkOutlined } from '@/components/MssBoot/icon';
 import { resolveSafeRedirect } from './redirect';
 import { getAppConfigsProfile } from '@/services/admin/appConfig';
-
-function randToken(): string {
-  let result = '';
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const charactersLength = characters.length;
-  for (let i = 0; i < 28; i++) {
-    // 可以根据需要调整长度
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
-  }
-  return result;
-}
+import { openOAuthAuthorization } from '@/utils/oauth';
 
 export type ActionIconsFormProps = {
-  fetchUserInfo: () => void;
+  fetchUserInfo: () => Promise<unknown>;
 };
 
 export function persistLoginState(
@@ -57,8 +47,62 @@ export function persistLoginState(
 }
 
 const ActionIcons: React.FC<ActionIconsFormProps> = (props) => {
+  const intl = useIntl();
   const { initialState } = useModel('@@initialState');
-  const scopes = initialState?.appConfig?.security?.githubScope?.replace(/,/g, '+') || '';
+  const loginPollRef = useRef<ReturnType<typeof setInterval>>();
+
+  const stopLoginPolling = () => {
+    if (loginPollRef.current) {
+      clearInterval(loginPollRef.current);
+      loginPollRef.current = undefined;
+    }
+  };
+
+  useEffect(
+    () => () => {
+      if (loginPollRef.current) {
+        clearInterval(loginPollRef.current);
+      }
+    },
+    [],
+  );
+
+  const startOAuthLogin = async (provider: API.LoginProvider) => {
+    stopLoginPolling();
+    localStorage.removeItem('login.type');
+    localStorage.removeItem(`${provider}.token`);
+    localStorage.removeItem('token');
+    localStorage.removeItem('token.expire');
+    try {
+      await openOAuthAuthorization(provider, 'login');
+    } catch {
+      message.error(intl.formatMessage({ id: 'pages.login.failure' }));
+      return;
+    }
+
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+    loginPollRef.current = setInterval(() => {
+      if (Date.now() >= expiresAt) {
+        stopLoginPolling();
+        return;
+      }
+      const loginType = localStorage.getItem('login.type');
+      const token = localStorage.getItem('token');
+      if (!token || loginType !== provider) {
+        return;
+      }
+
+      stopLoginPolling();
+      void props
+        .fetchUserInfo()
+        .then(() => {
+          history.push(resolveSafeRedirect());
+        })
+        .catch(() => {
+          message.error(intl.formatMessage({ id: 'pages.login.failure' }));
+        });
+    }, 500);
+  };
 
   const langClassName = useEmotionCss(({ token }) => {
     return {
@@ -80,54 +124,13 @@ const ActionIcons: React.FC<ActionIconsFormProps> = (props) => {
         <GithubOutlined
           key="GithubOutlined"
           className={langClassName}
-          onClick={async () => {
-            localStorage.removeItem('login.type');
-            localStorage.removeItem('github.token');
-            localStorage.removeItem('token');
-            localStorage.removeItem('github.state');
-            const state = 'ghs_' + randToken();
-            localStorage.setItem('github.state', state);
-            const loginURL = `https://github.com/login/oauth/authorize?client_id=${initialState?.appConfig?.security?.githubClientId}&response_type=code&scope=${scopes}&state=${state}`;
-            const w = window.open('about:blank');
-            // @ts-ignore
-            w.location.href = loginURL;
-            const intervalId = setInterval(() => {
-              const loginType = localStorage.getItem('login.type');
-              const token = localStorage.getItem('token');
-              if (token && loginType === 'github') {
-                clearInterval(intervalId);
-                try {
-                  props.fetchUserInfo();
-                } catch (e) {
-                  message.error('登录失败，请重试！');
-                  return;
-                } finally {
-                  //登录成功跳转
-                  const redirect = resolveSafeRedirect();
-                  setTimeout(() => {
-                    history.push(redirect);
-                  }, 1000);
-                }
-              }
-            }, 1000);
-          }}
+          onClick={() => void startOAuthLogin('github')}
         />
       )}
       {initialState?.appConfig?.security?.larkEnabled && (
         <LarkOutlined
           key="LarkOutlined"
-          onClick={async () => {
-            localStorage.removeItem('login.type');
-            localStorage.removeItem('lark.token');
-            localStorage.removeItem('token');
-            localStorage.removeItem('lark.state');
-            const state = 'lark' + randToken();
-            localStorage.setItem('lark.state', state);
-            const loginURL = `https://open.larksuite.com/open-apis/authen/v1/index?redirect_uri=${initialState?.appConfig?.security?.larkRedirectURI}&app_id=${initialState?.appConfig?.security?.larkAppId}&state=${state}`;
-            const w = window.open('about:blank');
-            // @ts-ignore
-            w.location.href = loginURL;
-          }}
+          onClick={() => void startOAuthLogin('lark')}
         />
       )}
     </>
@@ -205,6 +208,7 @@ const Login: React.FC = () => {
         }));
       });
     }
+    return userInfo;
   };
 
   const loginSuccessed = async (data: API.LoginResponse, autoLogin?: boolean, popup?: boolean) => {
@@ -217,6 +221,7 @@ const Login: React.FC = () => {
         message.success(defaultLoginSuccessMessage);
       }
       const redirect = persistLoginState(data, autoLogin);
+      await fetchUserInfo();
       if (redirect) {
         history.push(redirect);
       }
@@ -230,7 +235,7 @@ const Login: React.FC = () => {
       localStorage.getItem('token') &&
       localStorage.getItem('token.expire')
     ) {
-      const res = await getUserRefreshToken();
+      const res = await postUserRefreshToken();
       await loginSuccessed(res, true);
     }
   });

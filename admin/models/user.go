@@ -236,10 +236,14 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		}
 		if userOAuth2.ID == "" {
 			// register
+			username := userOAuth2.Email
+			if username == "" {
+				username = userOAuth2.PreferredUsername
+			}
 			userOAuth2.User = &User{
 				UserLogin: UserLogin{
 					RoleID:   defaultRole.ID,
-					Username: userOAuth2.Email,
+					Username: username,
 					Email:    userOAuth2.Email,
 					Password: e.Password,
 					Provider: pkg.GithubLoginProvider,
@@ -310,19 +314,10 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		}
 		return true, user, nil
 	case pkg.EmailRegisterProvider:
-		if val, ok := center.GetAppConfig().GetAppConfig(c, "security.emailRegister"); ok {
+		if val, ok := center.GetAppConfig().GetAppConfig(c, "security:registerEnabled"); ok {
 			if !cast.ToBool(val) {
 				return false, nil, fmt.Errorf("email register not support")
 			}
-		}
-		if e.RoleID != "" && e.Username != "" {
-			// refresh token
-			var user User
-			err := center.GetDB(c, &User{}).Where("username = ?", e.Username).First(&user).Error
-			if err != nil {
-				return false, nil, err
-			}
-			return true, &user, nil
 		}
 		// verify captcha
 		if e.Captcha == "" {
@@ -441,38 +436,49 @@ func (e *UserLogin) GetUserLarkOAuth2(c *gin.Context) (*UserOAuth2, error) {
 }
 
 func (e *UserLogin) GetUserGithubOAuth2(c *gin.Context) (*UserOAuth2, error) {
-	clientID, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientId")
-	clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security.githubClientSecret")
-	redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security.githubRedirectUrl")
-	scope, _ := center.GetAppConfig().GetAppConfig(c, "security.githubScope")
-	scopes := strings.Split(scope, ",")
-	allowGroup, _ := center.GetAppConfig().GetAppConfig(c, "security.githubAllowGroup")
-	allowGroups := strings.Split(allowGroup, ",")
-	if len(allowGroup) == 0 {
-		allowGroups = nil
+	githubEnabled, ok := userAppConfig(c, "security:githubEnabled")
+	if !ok || !cast.ToBool(githubEnabled) {
+		return nil, errors.New("github login is disabled")
+	}
+	clientID, _ := userAppConfig(c, "security:githubClientId")
+	clientSecret, _ := userAppConfig(c, "security:githubClientSecret")
+	redirectURL, _ := userAppConfig(c,
+		"security:githubRedirectURI",
+		"security:githubRedirectUrl",
+		"security:githubRedirectURL",
+	)
+	scope, _ := userAppConfig(c, "security:githubScope")
+	allowGroup, allowGroupConfigured := userAppConfig(c, "security:githubAllowGroup")
+	allowGroups := splitGithubCSV(allowGroup)
+	if allowGroupConfigured && strings.TrimSpace(allowGroup) != "" && len(allowGroups) == 0 {
+		return nil, errors.New("github allow group configuration is invalid")
 	}
 	conf := &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		Scopes:       scopes,
+		Scopes:       splitGithubCSV(scope),
 		RedirectURL:  redirectURL,
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  "https://github.com/login/oauth/authorize",
 			TokenURL: "https://github.com/login/oauth/access_token",
 		},
 	}
-	githubUser, err := pkg.GetUserFromGithub(c, conf, e.Password)
+	requestContext := context.Context(c)
+	if c.Request != nil {
+		requestContext = c.Request.Context()
+	}
+	githubUser, err := pkg.GetUserFromGithub(requestContext, conf, e.Password)
 	if err != nil {
 		slog.Error("get user from github error", slog.Any("error", err))
 		return nil, err
 	}
 	if len(allowGroups) > 0 {
-		org, err := pkg.GetOrganizationsFromGithub(c, conf, e.Password)
+		org, err := pkg.GetOrganizationsFromGithub(requestContext, conf, e.Password)
 		if err != nil {
 			slog.Error("get organizations from github error", slog.Any("error", err))
 			return nil, err
 		}
-		if !pkg.InArray(allowGroups, org, "", 0) {
+		if !githubOrganizationAllowed(allowGroups, org) {
 			err = errors.New("user not in allow group")
 			slog.Error(err.Error())
 			return nil, err
@@ -496,21 +502,57 @@ func (e *UserLogin) GetUserGithubOAuth2(c *gin.Context) (*UserOAuth2, error) {
 		}
 		err = nil
 		userOAuth2 = &UserOAuth2{
-			UserID:        e.GetUserID(),
-			OpenID:        fmt.Sprintf("%d", githubUser.ID),
-			Sub:           "github",
-			Name:          githubUser.Login,
-			Email:         githubUser.Email,
-			Profile:       githubUser.Blog,
-			Picture:       githubUser.AvatarURL,
-			NickName:      githubUser.Login,
-			Website:       githubUser.HTMLURL,
-			EmailVerified: true,
-			Locale:        githubUser.Location,
-			Provider:      pkg.GithubLoginProvider,
+			UserID:            e.GetUserID(),
+			OpenID:            fmt.Sprintf("%d", githubUser.ID),
+			Sub:               "github",
+			Name:              githubUser.Login,
+			Email:             githubUser.Email,
+			Profile:           githubUser.Blog,
+			Picture:           githubUser.AvatarURL,
+			NickName:          githubUser.Login,
+			Website:           githubUser.HTMLURL,
+			EmailVerified:     true,
+			Locale:            githubUser.Location,
+			Provider:          pkg.GithubLoginProvider,
+			PreferredUsername: githubUser.Login,
 		}
 	}
 	return userOAuth2, nil
+}
+
+func userAppConfig(c *gin.Context, keys ...string) (string, bool) {
+	store := center.GetAppConfig()
+	if store == nil {
+		return "", false
+	}
+	for _, key := range keys {
+		if value, ok := store.GetAppConfig(c, key); ok {
+			return value, true
+		}
+	}
+	return "", false
+}
+
+func splitGithubCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
+}
+
+func githubOrganizationAllowed(allowed, memberships []string) bool {
+	for _, expected := range allowed {
+		for _, membership := range memberships {
+			if strings.EqualFold(strings.TrimSpace(expected), strings.TrimSpace(membership)) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (e *UserLogin) GetDepartmentUserID(tx *gorm.DB) []string {

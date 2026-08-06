@@ -431,7 +431,7 @@ declare namespace API {
     pageSize?: number;
   };
 
-  type getTaskOperateIdParams = {
+  type postTaskOperateIdParams = {
     /** 任务ID */
     id: string;
     /** 操作类型 */
@@ -485,7 +485,7 @@ declare namespace API {
     accessToken?: string;
   };
 
-  type getUserAuthTokenGenerateParams = {
+  type postUserAuthTokenGenerateParams = {
     /** 有效期 */
     validityPeriod: string;
   };
@@ -723,6 +723,8 @@ If zero, TokenSource implementations will reuse the same
 token forever and RefreshToken or equivalent
 mechanisms for that TokenSource will not be used. */
     expiry?: string;
+    /** Server-validated flow purpose. */
+    intent: OAuthIntent;
     /** Provider is the name of the OAuth2 provider[GitHub, Lark]. */
     provider: string;
     refreshExpiry?: string;
@@ -733,6 +735,18 @@ if it expires. */
     /** TokenType is the type of token.
 The Type method returns either this or "Bearer", the default. */
     tokenType?: string;
+  };
+
+  type OAuthIntent = 'login' | 'binding' | 'integration';
+
+  type OAuthAuthorizeRequest = {
+    intent: OAuthIntent;
+    provider: LoginProvider;
+  };
+
+  type OAuthAuthorizeResponse = {
+    authorizeURL: string;
+    expiresAt: string;
   };
 
   type Option = {

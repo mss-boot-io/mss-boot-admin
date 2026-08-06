@@ -49,5 +49,6 @@ export default {
   'pages.generator.email': 'Commit Email',
   'pages.generator.email.tooltip': 'Commit email for code repository',
   'pages.generator.githubAuth': 'Get GitHub Access',
+  'pages.generator.githubAuth.failed': 'Unable to start GitHub authorization. Please try again.',
   'pages.generator.success': 'Code generated successfully, branch: {branch}',
 };

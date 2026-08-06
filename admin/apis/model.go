@@ -49,7 +49,7 @@ type Model struct {
 }
 
 func (e *Model) Other(r *gin.RouterGroup) {
-	r.PUT("/model/generate-data", e.GenerateData)
+	r.PUT("/model/generate-data", response.AuthHandler, e.GenerateData)
 }
 
 // GenerateData 生成数据

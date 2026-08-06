@@ -17,6 +17,26 @@ application:
     app: mss-boot-admin
     namespace: local
     cluster: local
+cors:
+  # Credentialed browser requests require exact origins. Deployments should
+  # narrow this list to the frontend origin for that environment.
+  allowOrigins:
+    - 'http://localhost:8000'
+    - 'http://127.0.0.1:8000'
+    - 'https://admin-alpha.mss-boot-io.top'
+    - 'https://admin-beta.mss-boot-io.top'
+    - 'https://admin.mss-boot-io.top'
+  allowMethods:
+    - GET
+    - POST
+    - PUT
+    - PATCH
+    - DELETE
+    - OPTIONS
+  allowHeaders:
+    - Authorization
+    - Content-Type
+  maxAge: 12h
 logger:
   path: logs
   stdout: file

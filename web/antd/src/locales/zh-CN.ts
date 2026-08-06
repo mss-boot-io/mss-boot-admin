@@ -49,5 +49,6 @@ export default {
   'pages.generator.email': '提交邮箱',
   'pages.generator.email.tooltip': '代码仓库提交邮箱',
   'pages.generator.githubAuth': '获取GitHub权限',
+  'pages.generator.githubAuth.failed': '无法启动 GitHub 授权，请重试',
   'pages.generator.success': '代码生成成功, 分支为: {branch}',
 };

@@ -42,8 +42,9 @@ type Task struct {
 }
 
 func (e *Task) Other(r *gin.RouterGroup) {
-	r.GET("/task/:operate/:id", e.Operate)
-	r.GET("/task/func-list", e.FuncList)
+	r.POST("/tasks/:id/actions/:operate", response.AuthHandler, e.Operate)
+	r.GET("/task/:operate/:id", methodNotAllowed)
+	r.GET("/task/func-list", response.AuthHandler, e.FuncList)
 }
 
 // FuncList 任务函数列表
@@ -74,7 +75,7 @@ func (e *Task) FuncList(c *gin.Context) {
 // @Param id path string true "任务ID"
 // @Param operate path string true "操作类型"
 // @Success 200
-// @Router /admin/api/task/{operate}/{id} [get]
+// @Router /admin/api/tasks/{id}/actions/{operate} [post]
 // @Security Bearer
 func (e *Task) Operate(c *gin.Context) {
 	api := response.Make(c)

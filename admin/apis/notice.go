@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
@@ -46,7 +47,7 @@ const unreadNoticeLimit = 100
 //}
 
 func (e *Notice) Other(r *gin.RouterGroup) {
-	r.GET("/notice/unread", e.Unread)
+	r.GET("/notice/unread", middleware.OptionalAuth(), e.Unread)
 	r.PUT("/notice/read/:id", response.AuthHandler, e.MarkRead)
 	r.GET("/notice/read/:id", response.AuthHandler, e.Read)
 }
