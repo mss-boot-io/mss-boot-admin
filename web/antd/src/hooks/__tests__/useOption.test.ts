@@ -31,4 +31,12 @@ describe('useOption', () => {
     expect(result.current.loading).toBe(false);
     expect(result.current.valueEnum).toEqual({});
   });
+
+  it('should not fetch while the consuming view is disabled', () => {
+    const { result } = renderHook(() => useOption('system', 'status', { enabled: false }));
+
+    expect(optionService.getOptions).not.toHaveBeenCalled();
+    expect(result.current.loading).toBe(false);
+    expect(result.current.valueEnum).toEqual({});
+  });
 });

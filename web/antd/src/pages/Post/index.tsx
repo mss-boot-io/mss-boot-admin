@@ -22,9 +22,12 @@ const TableList: React.FC = () => {
   const [list, setList] = useState<[]>([]);
   const { id } = useParams();
 
-  const { valueEnum: statusValueEnum } = useOption('system', 'status');
-  const { valueEnum: dataScopeValueEnum } = useOption('permission', 'dataScope');
   const { isMobile } = useResponsive();
+  const shouldLoadDesktopDependencies = !isMobile || !!id;
+  const { valueEnum: statusValueEnum } = useOption('system', 'status', {
+    enabled: shouldLoadDesktopDependencies,
+  });
+  const { valueEnum: dataScopeValueEnum } = useOption('permission', 'dataScope');
 
   const intl = useIntl();
 
@@ -133,14 +136,14 @@ const TableList: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/posts/edit">
+        <Access key="/posts/edit" permission="/posts/edit">
           <Link to={`/posts/${record.id}`} key="edit">
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/posts/delete">
+        <Access key="/posts/delete" permission="/posts/delete">
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -248,7 +251,7 @@ const TableList: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/posts/create">
+          <Access key="/posts/create" permission="/posts/create">
             <Button type="primary" key="create">
               <Link type="primary" to="/posts/create" key="/posts/create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

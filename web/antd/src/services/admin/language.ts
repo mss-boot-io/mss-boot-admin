@@ -1,6 +1,11 @@
 // @ts-ignore
 /* eslint-disable */
 import { request } from '@umijs/max';
+import {
+  cacheLanguages,
+  getCachedLanguages as getCachedLanguageData,
+  invalidateLanguageCache,
+} from './languageCache';
 
 /** 获取语言配置 获取语言配置 GET /admin/api/language/profile */
 export async function getLanguageProfile(options?: { [key: string]: any }) {
@@ -24,9 +29,32 @@ export async function getLanguages(
   });
 }
 
+/**
+ * Returns the public language bundle from a short-lived browser cache when it
+ * is fresh. The public endpoint remains the source of truth after expiry.
+ */
+export async function getCachedLanguages(): Promise<API.Page & { data?: API.Language[] }> {
+  const cachedLanguages = getCachedLanguageData();
+  if (cachedLanguages !== undefined) {
+    return { data: cachedLanguages };
+  }
+
+  const response = await getLanguages({ pageSize: 999 });
+  // The public endpoint intentionally returns a raw array, while some
+  // deployments wrap it in `{ data }`. Normalize both shapes at this
+  // boundary so startup registration and the browser cache stay reliable.
+  const languages = Array.isArray(response) ? response : response?.data;
+  if (Array.isArray(languages)) {
+    cacheLanguages(languages);
+    return { data: languages };
+  }
+
+  return response;
+}
+
 /** 创建Language 创建Language POST /admin/api/languages */
 export async function postLanguages(body: API.Language, options?: { [key: string]: any }) {
-  return request<API.Language>('/admin/api/languages', {
+  const response = await request<API.Language>('/admin/api/languages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -34,6 +62,8 @@ export async function postLanguages(body: API.Language, options?: { [key: string
     data: body,
     ...(options || {}),
   });
+  invalidateLanguageCache();
+  return response;
 }
 
 /** 获取Language 获取Language GET /admin/api/languages/${param0} */
@@ -58,7 +88,7 @@ export async function putLanguagesId(
   options?: { [key: string]: any },
 ) {
   const { id: param0, ...queryParams } = params;
-  return request<API.Language>(`/admin/api/languages/${param0}`, {
+  const response = await request<API.Language>(`/admin/api/languages/${param0}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -67,6 +97,8 @@ export async function putLanguagesId(
     data: body,
     ...(options || {}),
   });
+  invalidateLanguageCache();
+  return response;
 }
 
 /** 删除Language 删除Language DELETE /admin/api/languages/${param0} */
@@ -76,9 +108,11 @@ export async function deleteLanguagesId(
   options?: { [key: string]: any },
 ) {
   const { id: param0, ...queryParams } = params;
-  return request<any>(`/admin/api/languages/${param0}`, {
+  const response = await request<any>(`/admin/api/languages/${param0}`, {
     method: 'DELETE',
     params: { ...queryParams },
     ...(options || {}),
   });
+  invalidateLanguageCache();
+  return response;
 }

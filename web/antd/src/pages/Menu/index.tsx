@@ -22,6 +22,7 @@ import { DataNode } from 'antd/es/tree';
 import React, { useEffect, useRef, useState } from 'react';
 import { fieldIntl } from '@/util/fieldIntl';
 import MobileMenuList from './Mobile/MenuList';
+import { getMenuLocaleId } from './menuLocale';
 
 const TableList: React.FC = () => {
   const [showDetail, setShowDetail] = useState<boolean>(false);
@@ -117,8 +118,8 @@ const TableList: React.FC = () => {
       },
       render: (dom) => {
         const menuName = String(dom ?? '');
-        const menuId = menuName.startsWith('menu.') ? menuName : `menu.${menuName}`;
-        return intl.formatMessage({ id: menuId });
+        const menuId = getMenuLocaleId(menuName);
+        return menuId ? intl.formatMessage({ id: menuId, defaultMessage: menuName }) : menuName;
       },
     },
 
@@ -183,14 +184,14 @@ const TableList: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/menu/edit">
+        <Access key="/menu/edit" permission="/menu/edit">
           <Link to={`/menu/${record.id}`} key="edit">
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/menu/bind-api">
+        <Access key="/menu/bind-api" permission="/menu/bind-api">
           <Button
             disabled={record.type === 'DIRECTORY'}
             key="bind-api"
@@ -202,7 +203,7 @@ const TableList: React.FC = () => {
             <FormattedMessage id="pages.user.binding.api" defaultMessage="Bingding API" />
           </Button>
         </Access>,
-        <Access key="/menu/delete">
+        <Access key="/menu/delete" permission="/menu/delete">
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -273,9 +274,9 @@ const TableList: React.FC = () => {
   const transferTree = (data: API.Menu[]): DataNode[] => {
     // @ts-ignore
     return data.map((item) => {
-      const menuId = item.name?.startsWith('menu.') ? item.name : `menu.${item.name}`;
+      const menuId = getMenuLocaleId(item.name);
       return {
-        title: intl.formatMessage({ id: menuId }),
+        title: menuId ? intl.formatMessage({ id: menuId, defaultMessage: item.name }) : item.name,
         value: item.id,
         // @ts-ignore
         children: item.children ? transferTree(item.children) : null,
@@ -346,7 +347,7 @@ const TableList: React.FC = () => {
         //   console.log(params);
         // }}
         toolBarRender={() => [
-          <Access key="/menu/create">
+          <Access key="/menu/create" permission="/menu/create">
             <Link to="/menu/create" key="create">
               <Button type="primary" key="create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

@@ -89,14 +89,14 @@ const SystemConfig: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/system-config/edit">
+        <Access key="/system-config/edit" permission="/system-config/edit">
           <Link to={`/system-config/${record.id}`}>
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/system-config/delete">
+        <Access key="/system-config/delete" permission="/system-config/delete">
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -169,7 +169,7 @@ const SystemConfig: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/system-config/create">
+          <Access key="/system-config/create" permission="/system-config/create">
             <Button type="primary" key="create">
               <Link type="primary" key="primary" to="/system-config/create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

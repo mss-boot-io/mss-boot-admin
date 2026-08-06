@@ -92,21 +92,21 @@ const Model: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/model/edit">
+        <Access key="/model/edit" permission="/model/edit">
           <Link to={`/model/${record.id}`}>
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/model/field">
+        <Access key="/model/field" permission="/model/field">
           <Link to={`/field/${record.id}`}>
             <Button key="field">
               <FormattedMessage id="pages.model.field.title" defaultMessage="Field" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/model/generate-data">
+        <Access key="/model/generate-data" permission="/model/generate-data">
           <Button
             onClick={async () => {
               setCurrentRow(record);
@@ -117,7 +117,7 @@ const Model: React.FC = () => {
             <FormattedMessage id="pages.model.generate.data.title" defaultMessage="Generate Data" />
           </Button>
         </Access>,
-        <Access key="/model/delete">
+        <Access key="/model/delete" permission="/model/delete">
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -197,7 +197,7 @@ const Model: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/model/create">
+          <Access key="/model/create" permission="/model/create">
             <Button type="primary" key="create">
               <Link type="primary" key="primary" to="/model/create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

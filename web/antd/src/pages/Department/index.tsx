@@ -30,8 +30,11 @@ const TableList: React.FC = () => {
   const [list, setList] = useState<[]>([]);
   const { id } = useParams();
 
-  const { valueEnum: statusValueEnum } = useOption('system', 'status');
   const { isMobile } = useResponsive();
+  const shouldLoadDesktopDependencies = !isMobile || !!id;
+  const { valueEnum: statusValueEnum } = useOption('system', 'status', {
+    enabled: shouldLoadDesktopDependencies,
+  });
 
   const intl = useIntl();
 
@@ -176,14 +179,14 @@ const TableList: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/departments/edit">
+        <Access key="/departments/edit" permission="/departments/edit">
           <Link to={`/departments/${record.id}`} key="edit">
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/departments/delete">
+        <Access key="/departments/delete" permission="/departments/delete">
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -266,6 +269,10 @@ const TableList: React.FC = () => {
 
   useEffect(() => {
     // 获取用户列表用于选择负责人
+    if (!shouldLoadDesktopDependencies) {
+      return;
+    }
+
     getUsers({ pageSize: 1000 }).then((res) => {
       if (res.data) {
         setUserOptions(
@@ -276,7 +283,7 @@ const TableList: React.FC = () => {
         );
       }
     });
-  }, []);
+  }, [shouldLoadDesktopDependencies]);
 
   return (
     <PageContainer title={indexTitle(id)}>
@@ -305,7 +312,7 @@ const TableList: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/departments/create">
+          <Access key="/departments/create" permission="/departments/create">
             <Link to="/departments/create" key="create">
               <Button type="primary" key="create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

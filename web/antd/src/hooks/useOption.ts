@@ -19,11 +19,17 @@ export interface UseOptionResult {
   refresh: () => void;
 }
 
+export interface UseOptionOptions {
+  /** Set false when the current view does not render controls that need this option. */
+  enabled?: boolean;
+}
+
 /**
  * useOption Hook - Fetches a single option by category and name
  *
  * @param category - The option category
  * @param name - The option name
+ * @param options - Controls whether the request is active for the current view
  * @returns UseOptionResult with option data, valueEnum, loading, error, and refresh
  *
  * @example
@@ -41,7 +47,11 @@ export interface UseOptionResult {
  *   }
  * ];
  */
-export function useOption(category: string, name: string): UseOptionResult {
+export function useOption(
+  category: string,
+  name: string,
+  { enabled = true }: UseOptionOptions = {},
+): UseOptionResult {
   const {
     data: option,
     loading,
@@ -57,8 +67,8 @@ export function useOption(category: string, name: string): UseOptionResult {
     },
     {
       cacheKey: `option-${category}:${name}`,
-      refreshDeps: [category, name],
-      ready: !!category && !!name,
+      refreshDeps: [category, name, enabled],
+      ready: !!category && !!name && enabled,
     },
   );
 

@@ -7,7 +7,7 @@ import { FormattedMessage } from '@umijs/max';
 const { Title } = Typography;
 
 const Monitor: React.FC = () => {
-  const { monitorData, historyData, loading, error } = useMonitorData();
+  const { monitorData, historyData, loading, error } = useMonitorData({ pollInterval: 30000 });
 
   const cpuConfig = {
     data: historyData,

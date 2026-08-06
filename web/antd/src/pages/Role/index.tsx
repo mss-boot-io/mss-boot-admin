@@ -37,8 +37,11 @@ const TableList: React.FC = () => {
 
   const { id } = useParams();
 
-  const { valueEnum: statusValueEnum } = useOption('system', 'status');
   const { isMobile } = useResponsive();
+  const shouldLoadDesktopDependencies = !isMobile || !!id;
+  const { valueEnum: statusValueEnum } = useOption('system', 'status', {
+    enabled: shouldLoadDesktopDependencies,
+  });
 
   const intl = useIntl();
 
@@ -97,14 +100,14 @@ const TableList: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/role/edit">
+        <Access key="/role/edit" permission="/role/edit">
           <Link to={`/role/${record.id}`}>
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/role/auth">
+        <Access key="/role/auth" permission="/role/auth">
           <Button
             key="auth"
             disabled={record.root}
@@ -116,7 +119,7 @@ const TableList: React.FC = () => {
             <FormattedMessage id="pages.role.auth.title" defaultMessage="Auth" />
           </Button>
         </Access>,
-        <Access key="/role/delete">
+        <Access key="/role/delete" permission="/role/delete">
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -240,7 +243,7 @@ const TableList: React.FC = () => {
           type={id ? 'form' : 'table'}
           onSubmit={id ? onSubmit : undefined}
           toolBarRender={() => [
-            <Access key="/role/create">
+            <Access key="/role/create" permission="/role/create">
               <Button type="primary" key="create">
                 <Link type="primary" key="primary" to="/role/create">
                   <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

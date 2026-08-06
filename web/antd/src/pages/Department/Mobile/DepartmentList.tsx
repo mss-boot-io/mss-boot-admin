@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Button, Card, Empty, List, Space, Tag, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { Access } from '@/components/MssBoot/Access';
+import { useMobileListPagination } from '@/hooks/useMobileListPagination';
+import { useIntl } from '@umijs/max';
 import styles from '@/styles/mobile.less';
 
 interface MobileDepartmentListProps {
@@ -19,26 +21,29 @@ const MobileDepartmentList: React.FC<MobileDepartmentListProps> = ({
   onDelete,
   parentList,
 }) => {
-  const [loading, setLoading] = useState(false);
-  const [dataSource, setDataSource] = useState<API.Department[]>([]);
+  const intl = useIntl();
+  const { dataSource, error, hasMore, loading, loadingMore, loadMore, reload } =
+    useMobileListPagination<API.Department>(request);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const response = await request({ pageSize: 100 });
-      setDataSource(response?.data || []);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const parentNameById = useMemo(() => {
+    const names = new Map<string, string>();
+    const collect = (items: any[]) => {
+      items.forEach((item) => {
+        if (item.value) {
+          names.set(String(item.value), String(item.title || ''));
+        }
+        if (item.children) {
+          collect(item.children);
+        }
+      });
+    };
+    collect(parentList);
+    return names;
+  }, [parentList]);
 
   const handleDelete = async (record: API.Department) => {
     await onDelete(record);
-    fetchData();
+    await reload();
   };
 
   const getStatusTag = (status: string) => {
@@ -51,23 +56,24 @@ const MobileDepartmentList: React.FC<MobileDepartmentListProps> = ({
   };
 
   const getParentName = (parentId: string) => {
-    const findParent = (items: any[], id: string): string => {
-      for (const item of items) {
-        if (item.value === id) return item.title;
-        if (item.children) {
-          const found = findParent(item.children, id);
-          if (found) return found;
-        }
-      }
-      return '-';
-    };
-    return findParent(parentList, parentId);
+    return parentNameById.get(parentId) || '-';
   };
+
+  const loadMoreControl =
+    error || hasMore ? (
+      <div style={{ padding: '12px 0', textAlign: 'center' }}>
+        <Button onClick={error ? reload : loadMore} loading={loadingMore}>
+          {error
+            ? intl.formatMessage({ id: 'pages.mobile.retry', defaultMessage: 'Retry' })
+            : intl.formatMessage({ id: 'pages.mobile.loadMore', defaultMessage: 'Load more' })}
+        </Button>
+      </div>
+    ) : null;
 
   return (
     <div className={styles.mobileContainer}>
       <div className={styles.toolbar}>
-        <Access key="/departments/create">
+        <Access key="/departments/create" permission="/departments/create">
           <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
             新建部门
           </Button>
@@ -77,6 +83,7 @@ const MobileDepartmentList: React.FC<MobileDepartmentListProps> = ({
       <List
         loading={loading}
         dataSource={dataSource}
+        loadMore={loadMoreControl}
         renderItem={(item) => (
           <List.Item className={styles.listItem}>
             <Card className={styles.card} size="small">
@@ -98,12 +105,12 @@ const MobileDepartmentList: React.FC<MobileDepartmentListProps> = ({
 
               <div className={styles.cardActions}>
                 <Space>
-                  <Access key="/departments/edit">
+                  <Access key="/departments/edit" permission="/departments/edit">
                     <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
                       编辑
                     </Button>
                   </Access>
-                  <Access key="/departments/delete">
+                  <Access key="/departments/delete" permission="/departments/delete">
                     <Popconfirm
                       title="确定要删除吗？"
                       onConfirm={() => handleDelete(item)}

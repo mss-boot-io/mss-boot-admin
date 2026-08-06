@@ -142,7 +142,7 @@ const Virtual: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/model/create">
+          <Access key="/model/create" permission="/model/create">
             <Button type="primary" key="create">
               <Link type="primary" key="primary" to={`${pathname}/create`}>
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

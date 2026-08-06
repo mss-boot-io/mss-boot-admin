@@ -1,7 +1,7 @@
 import { message, Tag } from 'antd';
 import { groupBy } from 'lodash';
 import moment from 'moment';
-import { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './index.less';
 import NoticeIcon from './NoticeIcon';
 import { getNoticeUnread, putNoticeReadId } from '@/services/admin/notice';
@@ -53,9 +53,13 @@ const getNoticeData = (notices: API.Notice[]): Record<string, API.Notice[]> => {
   return groupBy(newNotices, 'type');
 };
 
+const NOTICE_REFRESH_INTERVAL = 50000;
+
 const NoticeIconView: React.FC = () => {
   const [notices, setNotices] = useState<API.Notice[]>([]);
   const [noticeData, setNoticeData] = useState<Record<string, API.Notice[]>>({});
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const isMountedRef = useRef(true);
   // const { data, loading } = useRequest(getNoticeUnread);
 
   /**
@@ -64,18 +68,51 @@ const NoticeIconView: React.FC = () => {
    * */
   const intl = useIntl();
 
+  const refreshNotices = useCallback((): Promise<void> => {
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
+    }
+
+    const refreshPromise = getNoticeUnread()
+      .then((data) => {
+        if (!isMountedRef.current) {
+          return;
+        }
+
+        const nextNotices = data || [];
+        setNotices(nextNotices);
+        setNoticeData(getNoticeData(nextNotices));
+      })
+      .finally(() => {
+        refreshInFlightRef.current = null;
+      });
+
+    refreshInFlightRef.current = refreshPromise;
+    return refreshPromise;
+  }, []);
+
+  const refreshAfterMutation = useCallback(async () => {
+    const inFlightRefresh = refreshInFlightRef.current;
+
+    if (inFlightRefresh) {
+      try {
+        await inFlightRefresh;
+      } catch {
+        // The mutation still needs a fresh read after a failed background refresh.
+      }
+    }
+
+    await refreshNotices();
+  }, [refreshNotices]);
+
   const changeReadState = async (e: API.Notice) => {
     await putNoticeReadId({ id: e.id! });
-    const data = await getNoticeUnread();
-    setNotices(data || []);
-    setNoticeData(getNoticeData(data || []));
+    await refreshAfterMutation();
   };
 
   const clearReadState = async (title: string, key: string) => {
     await putNoticeReadId({ id: key });
-    const data = await getNoticeUnread();
-    setNotices(data || []);
-    setNoticeData(getNoticeData(data || []));
+    await refreshAfterMutation();
     message.success(
       `${intl.formatMessage({
         id: 'component.noticeIcon.cleared',
@@ -84,25 +121,56 @@ const NoticeIconView: React.FC = () => {
     );
   };
   useEffect(() => {
+    isMountedRef.current = true;
+
     if (!localStorage.getItem('token')) {
-      return;
+      return () => {
+        isMountedRef.current = false;
+      };
     }
-    getNoticeUnread().then((data) => {
-      setNotices(data || []);
-      setNoticeData(getNoticeData(data || []));
-    });
-    const intervalId = setInterval(async () => {
-      const data = await getNoticeUnread();
-      if (data) {
-        setNotices(data || []);
-        setNoticeData(getNoticeData(data || []));
+
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+    const refreshInBackground = () => {
+      void refreshNotices().catch(() => undefined);
+    };
+    const stopPolling = () => {
+      if (intervalId !== undefined) {
+        clearInterval(intervalId);
+        intervalId = undefined;
       }
-    }, 50000);
+    };
+    const startPolling = () => {
+      stopPolling();
+
+      if (document.hidden) {
+        return;
+      }
+
+      intervalId = setInterval(refreshInBackground, NOTICE_REFRESH_INTERVAL);
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+        return;
+      }
+
+      refreshInBackground();
+      startPolling();
+    };
+
+    if (!document.hidden) {
+      refreshInBackground();
+      startPolling();
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      clearInterval(intervalId);
+      isMountedRef.current = false;
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [refreshNotices]);
   return (
     <NoticeIcon
       className={styles.action}

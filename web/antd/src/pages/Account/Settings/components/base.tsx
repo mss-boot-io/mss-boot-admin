@@ -9,7 +9,7 @@ import { message, Upload } from 'antd';
 import React, { useRef, useState } from 'react';
 import { LoadingOutlined, PlusOutlined } from '@ant-design/icons';
 import { getUserUserInfo, putUserUserInfo } from '@/services/admin/user';
-import { request, useIntl } from '@umijs/max';
+import { request, useIntl, useModel } from '@umijs/max';
 import { useRequest } from 'ahooks';
 import { city } from '../geographic/city';
 import { province } from '../geographic/province';
@@ -21,9 +21,11 @@ const BaseView: React.FC = () => {
    * @zh-CN 国际化配置
    * */
   const intl = useIntl();
+  const { initialState, loading: initialStateLoading, setInitialState } =
+    useModel('@@initialState');
 
   const formRef = useRef<ProFormInstance>();
-  const [avatar, setAvatar] = useState<string>('');
+  const [uploadedAvatar, setUploadedAvatar] = useState<string>();
 
   const getProvince = () => {
     return province.map((item) => {
@@ -44,17 +46,15 @@ const BaseView: React.FC = () => {
     });
   };
 
-  const { data: currentUser, loading } = useRequest(async () => {
-    const res = await getUserUserInfo();
-    if (res) {
-      const img = res.avatar;
-      if (img) {
-        setAvatar(img);
-      }
-      return res;
-    }
-    return {};
+  const initialUser = initialState?.currentUser;
+  const { data: fetchedUser, loading: userInfoLoading } = useRequest(getUserUserInfo, {
+    // Wait for Umi's initial state before falling back so a slow initial-state
+    // load cannot race and duplicate the current-user request.
+    ready: !initialStateLoading && !initialUser,
   });
+  const currentUser = initialUser ?? fetchedUser;
+  const loading = initialStateLoading || userInfoLoading;
+  const avatar = uploadedAvatar ?? currentUser?.avatar ?? '';
 
   const columns: ProColumns<any>[] = [
     {
@@ -85,7 +85,7 @@ const BaseView: React.FC = () => {
                 method: 'POST',
                 data: formData,
               });
-              setAvatar(res.avatar);
+              setUploadedAvatar(res.avatar);
             }}
           >
             {avatar ? (
@@ -297,9 +297,18 @@ const BaseView: React.FC = () => {
   ];
 
   const handleFinish = async () => {
-    const data = formRef.current?.getFieldsValue();
-    data.avatar = avatar;
+    const data = {
+      ...formRef.current?.getFieldsValue(),
+      avatar,
+    } as API.UpdateUserInfoRequest;
     await putUserUserInfo(data);
+    setInitialState((state) => ({
+      ...state,
+      currentUser: {
+        ...currentUser,
+        ...data,
+      },
+    }));
     message.success(
       intl.formatMessage({
         id: 'pages.message.edit.success',

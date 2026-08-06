@@ -1,6 +1,6 @@
 import Footer from '@/components/Footer';
 import { Question, SelectLang } from '@/components/RightContent';
-import { LinkOutlined } from '@ant-design/icons';
+import { LinkOutlined, UserOutlined } from '@ant-design/icons';
 import type { Settings as LayoutSettings } from '@ant-design/pro-components';
 import { SettingDrawer } from '@ant-design/pro-components';
 import { RunTimeLayoutConfig } from '@umijs/max';
@@ -9,11 +9,12 @@ import defaultSettings from '../config/defaultSettings';
 import { errorConfig } from './requestErrorConfig';
 import React from 'react';
 import { AvatarDropdown, AvatarName } from './components/RightContent/AvatarDropdown';
+import { getUserDisplayName } from './components/RightContent/userDisplayName';
 import { getUserUserInfo } from './services/admin/user';
 import { getMenuAuthorize } from './services/admin/menu';
 import fixMenuItemIcon from './util/fixMenuItemIcon';
 import { MenuDataItem } from '@ant-design/pro-components';
-import { getLanguages } from './services/admin/language';
+import { getCachedLanguages } from './services/admin/language';
 import NoticeIconView from './components/NoticeIcon';
 import HeaderSearch from './components/HeaderSearch';
 import { getAppConfigsProfile } from '@/services/admin/appConfig';
@@ -95,11 +96,14 @@ export async function getInitialState(): Promise<{
     };
   }
 
-  // load language after auth is known so public first paint is not blocked by API calls
-  let languageData;
-  try {
-    languageData = await withTimeout(() => getLanguages({ pageSize: 999 }), 2500);
-  } catch (e) {}
+  // These resources are independent once authentication succeeds. Loading them
+  // serially turns a slow network into a compounded first-page delay.
+  const [languageData, appConfig, userConfig] = await Promise.all([
+    withTimeout(() => getCachedLanguages(), 2500),
+    withTimeout(() => getAppConfigsProfile({ skipErrorHandler: true }), 2500),
+    withTimeout(() => getUserConfigsProfile({ skipErrorHandler: true }), 2500),
+  ]);
+
   if (languageData?.data) {
     languageData.data.forEach((item) => {
       const obj = {};
@@ -120,13 +124,6 @@ export async function getInitialState(): Promise<{
     });
   }
 
-  let appConfig, userConfig;
-  try {
-    appConfig = await withTimeout(() => getAppConfigsProfile({ skipErrorHandler: true }), 2500);
-  } catch (e) {}
-  try {
-    userConfig = await withTimeout(() => getUserConfigsProfile({ skipErrorHandler: true }), 2500);
-  } catch (e) {}
   //set title
   defaultSettings.title = appConfig?.base?.websiteName || 'mss-boot-admin';
   defaultSettings.logo = appConfig?.base?.websiteLogo || 'https://docs.mss-boot-io.top/favicon.ico';
@@ -201,6 +198,8 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
       <SelectLang key="SelectLang" />,
     ],
     avatarProps: {
+      shape: 'circle',
+      icon: <UserOutlined />,
       src: initialState?.currentUser?.avatar || undefined,
       title: <AvatarName />,
       render: (_, avatarChildren) => {
@@ -208,7 +207,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
       },
     },
     waterMarkProps: {
-      content: initialState?.currentUser?.name,
+      content: getUserDisplayName(initialState?.currentUser),
     },
     footerRender: () => <Footer />,
     onPageChange: () => {

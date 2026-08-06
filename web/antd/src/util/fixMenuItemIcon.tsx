@@ -1,8 +1,66 @@
+import {
+  ApartmentOutlined,
+  AuditOutlined,
+  ClusterOutlined,
+  DashboardOutlined,
+  DesktopOutlined,
+  ExperimentOutlined,
+  FormOutlined,
+  IdcardOutlined,
+  InboxOutlined,
+  MenuOutlined,
+  MessageOutlined,
+  SafetyCertificateOutlined,
+  SettingOutlined,
+  SmileOutlined,
+  TeamOutlined,
+  ToolOutlined,
+  TranslationOutlined,
+  UnorderedListOutlined,
+  UserOutlined,
+  UserSwitchOutlined,
+  WalletOutlined,
+} from '@ant-design/icons';
+import type { MenuDataItem } from '@ant-design/pro-components';
 import React from 'react';
-import * as allIcons from '@ant-design/icons';
-import { MenuDataItem } from '@ant-design/pro-components';
 
-// FIX从接口获取菜单时icon为string类型
+const menuIconMap: Record<string, typeof DashboardOutlined> = {
+  ApartmentOutlined,
+  AuditOutlined,
+  ClusterOutlined,
+  DashboardOutlined,
+  DesktopOutlined,
+  ExperimentOutlined,
+  FormOutlined,
+  IdcardOutlined,
+  InboxOutlined,
+  MenuOutlined,
+  MessageOutlined,
+  SafetyCertificateOutlined,
+  SettingOutlined,
+  SmileOutlined,
+  TeamOutlined,
+  ToolOutlined,
+  TranslationOutlined,
+  UnorderedListOutlined,
+  UserOutlined,
+  UserSwitchOutlined,
+  WalletOutlined,
+};
+
+const getMenuIcon = (icon: string, iconType: string) => {
+  const normalizedIcon = icon.trim();
+  if (!normalizedIcon) {
+    return undefined;
+  }
+
+  const iconName =
+    normalizedIcon.slice(0, 1).toLocaleUpperCase() + normalizedIcon.slice(1) + iconType;
+  return menuIconMap[iconName] || menuIconMap[normalizedIcon];
+};
+
+// Menu icons are strings from the API. Keep this registry intentionally small so that
+// dynamically looking up a name cannot pull the whole @ant-design/icons catalog into the entry chunk.
 const fixMenuItemIcon = (menus: MenuDataItem[], iconType = 'Outlined'): MenuDataItem[] => {
   menus.forEach((item) => {
     const { icon, children } = item;
@@ -10,16 +68,15 @@ const fixMenuItemIcon = (menus: MenuDataItem[], iconType = 'Outlined'): MenuData
       item.target = '_blank';
     }
     if (typeof icon === 'string') {
-      const fixIconName = icon.slice(0, 1).toLocaleUpperCase() + icon.slice(1) + iconType;
-      // @ts-ignore
-      if (allIcons[fixIconName] || allIcons[icon]) {
-        // @ts-ignore
-        item.icon = React.createElement(allIcons[fixIconName] || allIcons[icon]);
+      const Icon = getMenuIcon(icon, iconType);
+      if (Icon) {
+        item.icon = React.createElement(Icon);
+      } else {
+        item.icon = undefined;
       }
     }
-    // @ts-ignore
     if (children && children.length > 0) {
-      item.children = fixMenuItemIcon(children);
+      item.children = fixMenuItemIcon(children, iconType);
     }
   });
   return menus;

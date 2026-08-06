@@ -80,7 +80,7 @@ const RuntimeLogTab: React.FC = () => {
         <Button key="refresh" icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>
           <FormattedMessage id="pages.log.refresh" defaultMessage="刷新" />
         </Button>,
-        <Access key="export" accessible={false}>
+        <Access key="export" permission="export" accessible={false}>
           <Button
             type="primary"
             icon={<DownloadOutlined />}

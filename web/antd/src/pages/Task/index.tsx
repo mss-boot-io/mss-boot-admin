@@ -341,7 +341,7 @@ const TaskList: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/task/operate">
+        <Access key="/task/operate" permission="/task/operate">
           <Button
             key="operate"
             onClick={async () => {
@@ -376,14 +376,14 @@ const TaskList: React.FC = () => {
               : intl.formatMessage({ id: 'pages.task.start.title' })}
           </Button>
         </Access>,
-        <Access key="/task/edit">
+        <Access key="/task/edit" permission="/task/edit">
           <Link to={`/task/${record.id}`}>
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/task/delete">
+        <Access key="/task/delete" permission="/task/delete">
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -489,7 +489,7 @@ const TaskList: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/task/create">
+          <Access key="/task/create" permission="/task/create">
             <Button type="primary" key="create">
               <Link type="primary" key="primary" to="/task/create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />
