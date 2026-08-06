@@ -5,7 +5,7 @@ import { getAuditLogs } from '@/services/admin/auditLog';
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { FormattedMessage, useIntl } from '@umijs/max';
+import { FormattedMessage, useIntl, useModel } from '@umijs/max';
 import { Button, Tabs, Tag, message } from 'antd';
 import React, { useRef } from 'react';
 import { fieldIntl } from '@/util/fieldIntl';
@@ -23,6 +23,16 @@ const statusColors: Record<string, string> = {
   disabled: 'red',
   failed: 'red',
 };
+
+type LogAccessUser = {
+  role?: { root?: boolean };
+  permissions?: Record<string, unknown>;
+};
+
+export const canReadRuntimeLogs = (currentUser?: LogAccessUser) =>
+  currentUser?.role?.root === true ||
+  (!!currentUser?.permissions &&
+    Object.prototype.hasOwnProperty.call(currentUser.permissions, '/log/runtime'));
 
 const RuntimeLogTab: React.FC = () => {
   const actionRef = useRef<ActionType>();
@@ -80,7 +90,7 @@ const RuntimeLogTab: React.FC = () => {
         <Button key="refresh" icon={<ReloadOutlined />} onClick={() => actionRef.current?.reload()}>
           <FormattedMessage id="pages.log.refresh" defaultMessage="刷新" />
         </Button>,
-        <Access key="export" permission="export" accessible={false}>
+        <Access key="export" permission="/log/export" accessible={false}>
           <Button
             type="primary"
             icon={<DownloadOutlined />}
@@ -346,6 +356,8 @@ const AuditLogTab: React.FC = () => {
 
 const Log: React.FC = () => {
   const intl = useIntl();
+  const { initialState } = useModel('@@initialState');
+  const runtimeAccessible = canReadRuntimeLogs(initialState?.currentUser);
 
   const items = [
     {
@@ -365,9 +377,11 @@ const Log: React.FC = () => {
     },
   ];
 
+  const visibleItems = items.filter((item) => item.key !== 'runtime' || runtimeAccessible);
+
   return (
     <PageContainer>
-      <Tabs items={items} />
+      <Tabs items={visibleItems} />
     </PageContainer>
   );
 };

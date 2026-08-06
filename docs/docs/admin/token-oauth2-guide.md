@@ -29,61 +29,60 @@ Personal Access Token 是一种用于 API 程序化访问的凭证，类似于 G
 - 令牌用于替代用户名密码调用 API
 - 支持细粒度权限控制（可扩展）
 
-### 数据模型
+### 当前数据模型
 
 ```
-PersonalAccessToken
+UserAuthToken
+├── ID          → PAT 记录 ID
 ├── UserID      → 所属用户
-├── Name        → 令牌名称/用途说明
-├── Token       → 令牌值 (加密存储)
-├── ExpiresAt   → 过期时间
-├── LastUsedAt  → 最后使用时间
-├── Status      → 启用状态
-├── CreatedAt
+├── Token       → 完整 JWT 文本（当前兼容实现）
+├── ExpiredAt   → 过期时间
+├── Revoked     → 是否已撤销
+└── CreatedAt / UpdatedAt / DeletedAt
 ```
 
 ### API 入口
 
-| 路径                                           | 方法   | 功能     |
-| ---------------------------------------------- | ------ | -------- |
-| `/admin/api/personal-access-token`             | GET    | 令牌列表 |
-| `/admin/api/personal-access-token`             | POST   | 创建令牌 |
-| `/admin/api/personal-access-token/:id`         | DELETE | 撤销令牌 |
-| `/admin/api/personal-access-token/refresh/:id` | POST   | 刷新令牌 |
+| 路径                                     | 方法 | 功能                                      |
+| ---------------------------------------- | ---- | ----------------------------------------- |
+| `/admin/api/user-auth-tokens`            | GET  | 当前用户的未撤销令牌列表                  |
+| `/admin/api/user-auth-tokens`            | POST | 创建令牌                                  |
+| `/admin/api/user-auth-token/:id/revoke`  | PUT  | 按 owner 撤销令牌                         |
+| `/admin/api/user-auth-token/:id/refresh` | PUT  | 按 owner 刷新令牌                         |
+| `/admin/api/user-auth-token/generate`    | GET  | 历史入口，仅返回 `405 Method Not Allowed` |
+
+JWT 刷新使用 `POST /admin/api/user/refresh-token`。历史 `GET` 入口仅返回
+`405 Method Not Allowed`，不会签发或刷新 token。
 
 ### 使用方式
 
 **创建令牌**
 
 ```bash
-POST /admin/api/personal-access-token
-{
-  "name": "CI Pipeline Token",
-  "expiresAt": "2025-12-31T23:59:59Z"
-}
+POST /admin/api/user-auth-tokens?validityPeriod=24h
+Authorization: Bearer <interactive-session-jwt>
 
 Response:
 {
-  "id": 1,
-  "name": "CI Pipeline Token",
-  "token": "pat_xxxxxxxxxxxxx",  // 仅创建时返回一次
-  "expiresAt": "2025-12-31T23:59:59Z"
+  "id": "<token-record-id>",
+  "token": "<jwt-text>",
+  "expiredAt": "<timestamp>"
 }
 ```
 
 **使用令牌调用 API**
 
 ```bash
-curl -H "Authorization: Bearer pat_xxxxxxxxxxxxx" \
+curl -H "Authorization: Bearer <jwt-text>" \
      https://admin.example.com/api/user/info
 ```
 
 ### 安全建议
 
-- 令牌创建后仅显示一次，需妥善保存
-- 定期轮换令牌
-- 为不同用途创建独立令牌
-- 不再使用的令牌及时撤销
+- PAT 不能创建、列出、刷新或撤销 PAT，也不能执行密码重置、账户恢复标识修改或 OAuth2 绑定/解绑；这些交互式操作统一返回 `403 Forbidden`
+- 当前实现仍持久化并在列表返回完整 JWT 文本，尚未达到“一次展示、不可逆存储、scope 与使用追踪”的生产级生命周期要求
+- 在完成令牌不可逆存储和升级迁移前，不要把当前 PAT 用作生产自动化的长期凭证
+- 定期轮换令牌，并及时撤销不再使用的令牌
 
 ## 2. OAuth2 第三方登录
 
@@ -127,26 +126,15 @@ OAuth2User (OAuth2 绑定信息)
 
 ### API 入口
 
-| 路由                       | 功能             |
-| -------------------------- | ---------------- |
-| `/auth/:provider`          | 发起 OAuth2 授权 |
-| `/auth/:provider/callback` | OAuth2 回调处理  |
+| 路由                                 | 方法 | 功能                                      |
+| ------------------------------------ | ---- | ----------------------------------------- |
+| `/admin/api/user/oauth2/authorize`   | POST | 发起登录、绑定或集成授权                  |
+| `/admin/api/user/:provider/callback` | GET  | OAuth2 回调处理                           |
+| `/admin/api/github/get-login-url`    | GET  | 历史入口，仅返回 `405 Method Not Allowed` |
 
 ### 扩展新提供商
 
-1. 在 `config/application.yml` 中配置提供商参数：
-
-```yaml
-oauth2:
-  github:
-    client_id: 'your-client-id'
-    client_secret: 'your-client-secret'
-    redirect_url: 'https://your-domain/auth/github/callback'
-  lark:
-    client_id: 'your-app-id'
-    client_secret: 'your-app-secret'
-    redirect_url: 'https://your-domain/auth/lark/callback'
-```
+1. 在应用配置的 `security` 分组中配置 provider 的 client ID、client secret、redirect URI 和 scope；secret 仅允许服务端读取，不会进入公开 profile 或浏览器缓存
 
 2. 实现对应提供商的用户信息获取逻辑
 
@@ -155,8 +143,12 @@ oauth2:
 ### 安全配置
 
 - 所有 OAuth2 通信必须使用 HTTPS
-- 配置 `state` 参数防止 CSRF 攻击
-- Token 存储应考虑加密
+- 前端只提交 provider 和 `login` / `binding` / `integration` 意图；授权 URL 与高熵 state 由服务端生成
+- state 仅保存哈希，默认 5 分钟有效，并绑定 provider、意图、浏览器 nonce；绑定流程还绑定当前用户和交互式会话
+- callback 在交换 code 或写数据库前原子消费 state，过期、重放或任一绑定不匹配均失败
+- 单进程开发可使用内存 state store；生产多副本必须配置共享 Redis，不能降级为跨副本绕过校验
+- 跨 Origin 部署必须让浏览器携带 credentials，并在 `cors.allowOrigins` 中配置精确的 HTTP(S) Origin；禁止 `*`、userinfo、路径、查询和 fragment
+- provider access/refresh token 的浏览器持久化和服务端加密仍需单独完成安全升级
 
 ## 3. API 联调指南
 
@@ -192,7 +184,7 @@ oauth2:
 #### CORS 错误
 
 - 前端域名未在 CORS 白名单
-- 需配置 `server.cors` 参数
+- 需配置精确的 `cors.allowOrigins`，并确认响应包含匹配请求 Origin 的 `Access-Control-Allow-Origin` 与 `Access-Control-Allow-Credentials: true`
 
 ### 联调检查清单
 
@@ -215,14 +207,14 @@ oauth2:
 
 ### 当前实现状态
 
-| 能力                | 状态        | 位置                            |
-| ------------------- | ----------- | ------------------------------- |
-| JWT Token 签发/验证 | ✅ 已实现   | `middleware/auth.go`            |
-| PAT 管理            | ✅ 已实现   | `apis/personal_access_token.go` |
-| OAuth2 登录         | ✅ 已实现   | `apis/oauth2.go`                |
-| 登录日志            | ⚠️ 部分实现 | 需检查审计模块                  |
-| 操作日志            | ⚠️ 部分实现 | 需检查审计模块                  |
-| 审计日志查询界面    | 📋 待完善   | 后续迭代                        |
+| 能力                | 状态        | 位置                      |
+| ------------------- | ----------- | ------------------------- |
+| JWT Token 签发/验证 | ✅ 已实现   | `middleware/auth.go`      |
+| PAT 管理            | ⚠️ 兼容实现 | `apis/user_auth_token.go` |
+| OAuth2 登录         | ✅ 已实现   | `apis/oauth.go`           |
+| 登录日志            | ⚠️ 部分实现 | 需检查审计模块            |
+| 操作日志            | ⚠️ 部分实现 | 需检查审计模块            |
+| 审计日志查询界面    | 📋 待完善   | 后续迭代                  |
 
 ### 建议补强方向
 
@@ -246,13 +238,13 @@ oauth2:
 ### Token 安全
 
 - JWT 签名密钥定期轮换
-- PAT 设置合理过期时间
+- PAT 设置合理过期时间；完成不可逆存储升级前不要作为生产长期凭证
 - 敏感操作需要二次验证
 
 ### OAuth2 安全
 
 - 使用 HTTPS
-- 配置 `state` 参数
+- 使用服务端签发且一次性消费的 `state`
 - 验证回调 URL
 - 及时刷新过期 Token
 

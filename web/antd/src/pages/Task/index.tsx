@@ -1,9 +1,9 @@
 import { Access } from '@/components/MssBoot/Access';
 import {
   deleteTasksId,
-  getTaskOperateId,
   getTasks,
   getTasksId,
+  postTaskOperateId,
   postTasks,
   putTasksId,
 } from '@/services/admin/task';
@@ -346,7 +346,7 @@ const TaskList: React.FC = () => {
             key="operate"
             onClick={async () => {
               if (record.status === 'enabled') {
-                await getTaskOperateId({ id: record.id!, operate: 'stop' });
+                await postTaskOperateId({ id: record.id!, operate: 'stop' });
                 message
                   .success(
                     intl.formatMessage({
@@ -358,7 +358,7 @@ const TaskList: React.FC = () => {
               }
               // @ts-ignore
               if (!record.status || record.status === '' || record.status === 'disabled') {
-                await getTaskOperateId({ id: record.id!, operate: 'start' });
+                await postTaskOperateId({ id: record.id!, operate: 'start' });
                 message
                   .success(
                     intl.formatMessage({

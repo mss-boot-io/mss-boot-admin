@@ -4,17 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	lark "github.com/larksuite/oapi-sdk-go/v3"
-	larkauthen "github.com/larksuite/oapi-sdk-go/v3/service/authen/v1"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
-	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
@@ -51,23 +47,28 @@ func init() {
 
 type User struct {
 	*controller.Simple
+	oauthStates       oauthStateStore
+	oauthURLBuilder   oauthAuthorizeURLBuilder
+	oauthCodeExchange oauthCodeExchange
 }
 
 // Other handler
 func (e *User) Other(r *gin.RouterGroup) {
 	r.POST("/user/login", middleware.Auth.LoginHandler)
-	r.POST("/user/reset-password", e.ResetPassword)
+	r.POST("/user/reset-password", middleware.OptionalAuth(), e.ResetPassword)
 	r.POST("/user/fakeCaptcha", e.FakeCaptcha)
 	r.POST("/user/login/github", middleware.Auth.LoginHandler)
-	r.GET("/user/refresh-token", middleware.Auth.RefreshHandler)
+	r.POST("/user/refresh-token", middleware.Auth.RefreshHandler)
+	r.GET("/user/refresh-token", methodNotAllowed)
 	r.GET("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UserInfo)
-	r.PUT("/user/:userID/password-reset", e.PasswordReset)
+	r.PUT("/user/:userID/password-reset", response.AuthHandler, e.PasswordReset)
 	r.PUT("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UpdateUserInfo)
 	r.POST("/user/avatar", middleware.Auth.MiddlewareFunc(), e.UpdateAvatar)
 	r.GET("/user/oauth2", response.AuthHandler, e.GetOauth2)
+	r.POST("/user/oauth2/authorize", middleware.OptionalAuth(), e.OAuthAuthorize)
 	r.POST("/user/binding", response.AuthHandler, e.Binding)
 	r.DELETE("/user/unbinding", response.AuthHandler, e.Unbinding)
-	r.GET("/user/:provider/callback", e.Callback)
+	r.GET("/user/:provider/callback", middleware.OptionalAuth(), e.Callback)
 }
 
 // Unbinding 解绑第三方登录
@@ -84,6 +85,10 @@ func (e *User) Unbinding(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := response.VerifyHandler(ctx)
 	if verify == nil {
+		api.Err(http.StatusForbidden)
+		return
+	}
+	if middleware.IsPersonalAccessTokenVerifier(verify) {
 		api.Err(http.StatusForbidden)
 		return
 	}
@@ -118,6 +123,10 @@ func (e *User) Binding(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := response.VerifyHandler(ctx)
 	if verify == nil {
+		api.Err(http.StatusForbidden)
+		return
+	}
+	if middleware.IsPersonalAccessTokenVerifier(verify) {
 		api.Err(http.StatusForbidden)
 		return
 	}
@@ -204,6 +213,13 @@ func (e *User) GetOauth2(ctx *gin.Context) {
 func (e *User) ResetPassword(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := response.VerifyHandler(ctx)
+	// A personal access token is an automation credential, not proof of an
+	// interactive account-recovery session. Keep this defensive check in the
+	// handler as well as the auth Authorizator so route wiring cannot bypass it.
+	if middleware.IsPersonalAccessTokenVerifier(verify) {
+		api.Err(http.StatusForbidden)
+		return
+	}
 	req := &dto.ResetPasswordRequest{}
 	if api.Bind(req).Error != nil {
 		api.Err(http.StatusUnprocessableEntity)
@@ -281,6 +297,10 @@ func (e *User) UpdateAvatar(ctx *gin.Context) {
 func (e *User) UpdateUserInfo(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
+	if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) {
+		api.Err(http.StatusForbidden)
+		return
+	}
 
 	var reqMap map[string]any
 	if err := ctx.ShouldBindJSON(&reqMap); err != nil {
@@ -369,7 +389,7 @@ func (e *User) Login(_ *gin.Context) {}
 // @Accept  application/json
 // @Product application/json
 // @Success 200 {object} dto.LoginResponse "{"code": 200, "expire": "2023-12-10T12:31:30+08:00", "token":
-// @Router /admin/api/user/refresh-token [get]
+// @Router /admin/api/user/refresh-token [post]
 // @Security Bearer
 func (e *User) RefreshToken(_ *gin.Context) {
 
@@ -561,6 +581,7 @@ func (e *User) PasswordReset(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
+	req.UserID = ctx.Param("userID")
 	err := models.PasswordReset(ctx, req.UserID, req.Password)
 	if err != nil {
 		api.AddError(err).Log.Error("PasswordReset error")
@@ -640,86 +661,10 @@ func (e *User) Delete(*gin.Context) {}
 // @Param code query string true "code"
 // @Param state query string true "state"
 // @Success 200 {object} dto.OauthToken
+// @Failure 401 {object} response.Response
 // @Failure 422 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Failure 503 {object} response.Response
 // @Router /admin/api/user/{provider}/callback [get]
 func (e *User) Callback(c *gin.Context) {
-	api := response.Make(c)
-	req := &dto.OauthCallbackReq{}
-	if api.Bind(req).Error != nil {
-		api.Err(http.StatusUnprocessableEntity)
-		return
-	}
-
-	switch req.Provider {
-	case pkg.GithubLoginProvider:
-		clientID, _ := center.GetAppConfig().GetAppConfig(c, "security:githubClientId")
-		clientSecret, _ := center.GetAppConfig().GetAppConfig(c, "security:githubClientSecret")
-		redirectURL, _ := center.GetAppConfig().GetAppConfig(c, "security:githubRedirectUrl")
-		scopes, _ := center.GetAppConfig().GetAppConfig(c, "security:githubScope")
-		conf := &oauth2.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Scopes:       strings.Split(scopes, ","),
-			RedirectURL:  redirectURL,
-			Endpoint: oauth2.Endpoint{
-				AuthURL:  "https://github.com/login/oauth/authorize",
-				TokenURL: "https://github.com/login/oauth/access_token",
-			},
-		}
-
-		token, err := conf.Exchange(c, req.Code)
-		if err != nil {
-			api.AddError(err).Log.Error("exchange token error")
-			api.Err(http.StatusInternalServerError)
-			return
-		}
-		result := &dto.OauthToken{
-			AccessToken:  token.AccessToken,
-			TokenType:    token.TokenType,
-			RefreshToken: token.RefreshToken,
-		}
-		if !token.Expiry.IsZero() {
-			result.Expiry = &token.Expiry
-		}
-		api.OK(result)
-		return
-	case pkg.LarkLoginProvider:
-		appID, _ := center.GetAppConfig().GetAppConfig(c, "security:larkAppId")
-		appSecret, _ := center.GetAppConfig().GetAppConfig(c, "security:larkAppSecret")
-		client := lark.NewClient(appID, appSecret)
-		r := larkauthen.NewCreateAccessTokenReqBuilder().
-			Body(larkauthen.NewCreateAccessTokenReqBodyBuilder().
-				GrantType(`authorization_code`).
-				Code(req.Code).
-				Build()).Build()
-
-		// 发起请求
-		resp, err := client.Authen.AccessToken.Create(c, r)
-		if err != nil {
-			api.AddError(err).Err(http.StatusUnauthorized)
-			return
-		}
-
-		// 服务端错误处理
-		if !resp.Success() {
-			api.Err(http.StatusUnauthorized)
-			return
-		}
-		expiry := time.Now().Add(time.Duration(*resp.Data.ExpiresIn) * time.Second)
-		refreshExpiry := time.Now().Add(time.Duration(*resp.Data.RefreshExpiresIn) * time.Second)
-
-		result := &dto.OauthToken{
-			AccessToken:   *resp.Data.AccessToken,
-			TokenType:     *resp.Data.TokenType,
-			RefreshToken:  *resp.Data.RefreshToken,
-			Expiry:        &expiry,
-			RefreshExpiry: &refreshExpiry,
-		}
-		api.OK(result)
-		return
-	default:
-		api.Err(http.StatusNotImplemented)
-		return
-	}
+	e.oauthCallback(c)
 }

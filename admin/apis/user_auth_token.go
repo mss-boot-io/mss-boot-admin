@@ -41,7 +41,8 @@ func (e *UserAuthToken) GetAction(_ string) response.Action {
 }
 
 func (e *UserAuthToken) Other(r *gin.RouterGroup) {
-	r.GET("/user-auth-token/generate", response.AuthHandler, e.Generate)
+	r.POST("/user-auth-tokens", response.AuthHandler, e.Generate)
+	r.GET("/user-auth-token/generate", methodNotAllowed)
 	r.GET("/user-auth-tokens", response.AuthHandler, e.List)
 	r.PUT("/user-auth-token/:id/revoke", response.AuthHandler, e.Revoked)
 	r.PUT("/user-auth-token/:id/refresh", response.AuthHandler, e.Refresh)
@@ -59,6 +60,10 @@ func (e *UserAuthToken) Other(r *gin.RouterGroup) {
 func (e *UserAuthToken) Refresh(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
+	if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) {
+		api.Err(http.StatusForbidden)
+		return
+	}
 	id := ctx.Param("id")
 	userAuthToken := &models.UserAuthToken{}
 	err := center.GetDB(ctx, userAuthToken).
@@ -101,6 +106,10 @@ func (e *UserAuthToken) Refresh(ctx *gin.Context) {
 func (e *UserAuthToken) Revoked(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
+	if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) {
+		api.Err(http.StatusForbidden)
+		return
+	}
 	id := ctx.Param("id")
 	err := center.GetDB(ctx, &models.UserAuthToken{}).
 		Where("id = ?", id).
@@ -123,11 +132,15 @@ func (e *UserAuthToken) Revoked(ctx *gin.Context) {
 // @Produce application/json
 // @Param validityPeriod query string true "有效期"
 // @Success 200 {object} models.UserAuthToken
-// @Router /admin/api/user-auth-token/generate [get]
+// @Router /admin/api/user-auth-tokens [post]
 // @Security Bearer
 func (e *UserAuthToken) Generate(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
+	if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) {
+		api.Err(http.StatusForbidden)
+		return
+	}
 	req := &dto.UserAuthTokenGenerateRequest{}
 	if api.Bind(req).Error != nil {
 		api.Err(http.StatusUnprocessableEntity)
@@ -153,6 +166,10 @@ func (e *UserAuthToken) Generate(ctx *gin.Context) {
 func (e *UserAuthToken) List(ctx *gin.Context) {
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
+	if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) {
+		api.Err(http.StatusForbidden)
+		return
+	}
 	list := make([]*models.UserAuthToken, 0)
 	err := center.GetDB(ctx, &models.UserAuthToken{}).
 		Where("user_id = ?", verify.GetUserID()).

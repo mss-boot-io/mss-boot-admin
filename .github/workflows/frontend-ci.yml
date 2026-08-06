@@ -133,7 +133,7 @@ jobs:
           --prefer-offline
 
       - name: Generate Umi type surfaces
-        run: pnpm setup
+        run: pnpm run setup
 
       - name: Lint JavaScript and TypeScript
         run: pnpm lint:js
@@ -180,7 +180,7 @@ jobs:
           --prefer-offline
 
       - name: Generate Umi build surfaces
-        run: pnpm setup
+        run: pnpm run setup
 
       - name: Build frontend
         run: pnpm build:local

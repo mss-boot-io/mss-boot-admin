@@ -38,7 +38,7 @@ func (e *UserConfig) GetAction(string) response.Action {
 func (e *UserConfig) Other(r *gin.RouterGroup) {
 	r.GET("/user-configs/:group", response.AuthHandler, e.Group)
 	r.PUT("/user-configs/:group", response.AuthHandler, e.Control)
-	r.GET("/user-configs/profile", e.Profile)
+	r.GET("/user-configs/profile", middleware.OptionalAuth(), e.Profile)
 }
 
 // Profile 用户配置

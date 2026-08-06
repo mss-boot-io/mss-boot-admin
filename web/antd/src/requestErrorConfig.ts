@@ -2,6 +2,7 @@
 import type { RequestConfig } from '@umijs/max';
 import { history } from '@umijs/max';
 import { message, notification } from 'antd';
+import { prepareAPIRequest } from './util/apiRequest';
 import { getResponseErrorMessage } from './util/requestError';
 
 // 错误处理方案： 错误类型
@@ -96,21 +97,7 @@ export const errorConfig: RequestConfig = {
   // 请求拦截器
   requestInterceptors: [
     (url: string, options: RequestOptions) => {
-      //从localStorage中获取token
-      const token = localStorage.getItem('token');
-      if (token) {
-        const headers = {
-          Authorization: `Bearer ${token}`,
-        };
-        return {
-          url: `${API_URL}${url}`,
-          options: { ...options, headers },
-        };
-      }
-      return {
-        url: `${API_URL}${url}`,
-        options,
-      };
+      return prepareAPIRequest(url, options);
     },
   ],
 

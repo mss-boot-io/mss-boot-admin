@@ -509,7 +509,6 @@ server:
 ```yaml
 cors:
   allowOrigins:
-    - 'https://your-domain.com'
     - 'https://admin.your-domain.com'
   allowMethods:
     - 'GET'
@@ -520,6 +519,8 @@ cors:
     - 'Authorization'
     - 'Content-Type'
 ```
+
+OAuth 浏览器绑定使用 HttpOnly Cookie，因此前后端跨 Origin 时必须启用凭据请求，且 `allowOrigins` 必须是精确 Origin，不能配置 `*`。生产、Beta、Alpha 应分别只允许各自的前端域名。
 
 ---
 

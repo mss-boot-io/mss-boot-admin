@@ -183,11 +183,15 @@ TaskRun
 
 | 路径 | 方法 | 功能 |
 |------|------|------|
-| `/admin/api/task` | GET | 任务列表 |
-| `/admin/api/task` | POST | 创建任务 |
-| `/admin/api/task/:id` | GET/PUT/DELETE | 任务 CRUD |
-| `/admin/api/task/:operate/:id` | POST | 任务操作 (start/stop/run) |
+| `/admin/api/tasks` | GET | 任务列表 |
+| `/admin/api/tasks` | POST | 创建任务 |
+| `/admin/api/tasks/:id` | GET/PUT/DELETE | 任务 CRUD |
+| `/admin/api/tasks/:id/actions/:operate` | POST | 任务操作 (start/stop/run) |
 | `/admin/api/task/func-list` | GET | 可用函数列表 |
+
+兼容说明：任务操作已从有副作用的 `GET /admin/api/task/:operate/:id` 迁移到
+`POST /admin/api/tasks/:id/actions/:operate`。旧 GET 仅保留为迁移提示入口，固定返回
+`405 Method Not Allowed`，不会启动、停止或执行任务；调用方必须改用新的 POST 路径。
 
 ### 执行提供者
 

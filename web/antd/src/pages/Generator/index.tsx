@@ -9,7 +9,6 @@ import {
 } from '@ant-design/pro-components';
 import { message } from 'antd';
 import {
-  getGithubGetLoginUrl,
   getTemplateGetBranches,
   getTemplateGetParams,
   getTemplateGetPath,
@@ -17,13 +16,7 @@ import {
 } from '@/services/admin/generator';
 import { GithubOutlined } from '@ant-design/icons';
 import { useIntl } from '@umijs/max';
-
-function randToken(): string {
-  const buffer = new Uint8Array(32);
-  window.crypto.getRandomValues(buffer);
-  // @ts-ignore
-  return btoa(String.fromCharCode.apply(null, buffer));
-}
+import { openOAuthAuthorization } from '@/utils/oauth';
 
 const Generate: React.FC = () => {
   const intl = useIntl();
@@ -130,13 +123,13 @@ const Generate: React.FC = () => {
             ) : (
               <ProCard
                 onClick={async () => {
-                  // console.log(location);
-                  const state = randToken();
-                  localStorage.setItem('github.state', state);
-                  const loginURL = await getGithubGetLoginUrl({ state: state });
-                  const w = window.open('about:blank');
-                  // @ts-ignore
-                  w.location.href = loginURL;
+                  try {
+                    await openOAuthAuthorization('github', 'integration');
+                  } catch {
+                    message.error(
+                      intl.formatMessage({ id: 'pages.generator.githubAuth.failed' }),
+                    );
+                  }
                 }}
               >
                 {intl.formatMessage({ id: 'pages.generator.githubAuth' })}{' '}

@@ -3,8 +3,8 @@ import { message, Card, Empty } from 'antd';
 import { useRequest } from 'ahooks';
 import { useIntl } from '@umijs/max';
 import {
-  getUserAuthTokenGenerate,
   getUserAuthTokens,
+  postUserAuthTokenGenerate,
   putUserAuthTokenIdRevoke,
 } from '@/services/admin/userAuthToken';
 import { CopyOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -149,8 +149,8 @@ const AccessTokenView: React.FC = () => {
           defaultMessage: '添加令牌',
         })}
         open={addToken}
-        onFinish={async (item: API.getUserAuthTokenGenerateParams) => {
-          await getUserAuthTokenGenerate(item);
+        onFinish={async (item: API.postUserAuthTokenGenerateParams) => {
+          await postUserAuthTokenGenerate(item);
           message.success(
             intl.formatMessage({
               id: 'pages.accessToken.settings.createSuccess',

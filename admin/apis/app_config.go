@@ -8,6 +8,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 )
 
@@ -37,7 +38,7 @@ func (e *AppConfig) GetAction(string) response.Action {
 func (e *AppConfig) Other(r *gin.RouterGroup) {
 	r.GET("/app-configs/:group", response.AuthHandler, e.Group)
 	r.PUT("/app-configs/:group", response.AuthHandler, e.Control)
-	r.GET("/app-configs/profile", e.Profile)
+	r.GET("/app-configs/profile", middleware.OptionalAuth(), e.Profile)
 }
 
 // Profile 获取应用配置
@@ -51,8 +52,10 @@ func (e *AppConfig) Other(r *gin.RouterGroup) {
 // @Security Bearer
 func (e *AppConfig) Profile(ctx *gin.Context) {
 	api := response.Make(ctx)
-	verify := response.VerifyHandler(ctx)
-	profile, err := e.service.Profile(ctx, verify != nil)
+	// The profile endpoint bootstraps the login page as well as authenticated
+	// pages. Authentication must not broaden this response: privileged callers
+	// use the authorized group endpoint when they need the complete settings.
+	profile, err := e.service.Profile(ctx, false)
 	if err != nil {
 		api.AddError(err).Log.Error("get app config profile error")
 		api.Err(http.StatusInternalServerError)

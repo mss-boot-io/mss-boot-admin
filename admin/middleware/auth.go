@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,11 +18,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	bootpkg "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
-	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	"github.com/spf13/cast"
 	"gorm.io/gorm"
 
@@ -40,6 +42,8 @@ var (
 	Auth     *jwt.GinJWTMiddleware
 	Verifier security.Verifier
 )
+
+const authenticationFailureKey = "mss.authentication.failure"
 
 func Init() {
 	Auth = &jwt.GinJWTMiddleware{
@@ -86,12 +90,14 @@ func Init() {
 				verifier.SetPersonAccessToken(personAccessToken.(string))
 				err := verifier.CheckToken(c, personAccessToken.(string))
 				if err != nil {
+					markAuthenticationFailure(c)
 					return nil
 				}
 				return verifier
 			}
 			err := json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
 			if err != nil {
+				markAuthenticationFailure(c)
 				return nil
 			}
 			if verifier.GetRefreshTokenDisable() {
@@ -99,12 +105,14 @@ func Init() {
 				token := jwt.GetToken(c)
 				err = verifier.CheckToken(c, token)
 				if err != nil {
+					markAuthenticationFailure(c)
 					return nil
 				}
 				return verifier
 			}
 			if config.Cfg.Auth.SessionEnabled {
 				if !validateSessionFromClaims(c, claims) {
+					markAuthenticationFailure(c)
 					return nil
 				}
 			}
@@ -157,49 +165,7 @@ func Init() {
 			}
 			return nil, jwt.ErrFailedAuthentication
 		},
-		Authorizator: func(data any, c *gin.Context) bool {
-			switch c.Request.URL.Path {
-			case "/admin/api/user/userInfo",
-				"/admin/api/menu/authorize",
-				"/admin/api/system-configs",
-				"/admin/api/notice/unread",
-				"/admin/api/user-configs/profile",
-				"user-auth-tokens",
-				"/admin/api/user/oauth2",
-				"/admin/api/user-configs/notification",
-				"/admin/api/app-configs/theme",
-				"/admin/api/user-auth-tokens",
-				"/admin/api/languages":
-				if c.Request.Method == http.MethodGet {
-					return true
-				}
-			}
-			passPath := []string{
-				"/admin/api/notice/.*",
-				"/admin/api/user-configs/.*",
-				"/admin/api/departments/.*",
-				"/admin/api/posts/.*",
-			}
-			for i := range passPath {
-				// 使用正则匹配
-				if ok, _ := regexp.MatchString(passPath[i], c.Request.URL.Path); ok {
-					return true
-				}
-			}
-			api := response.Make(c)
-			if v, ok := data.(security.Verifier); ok {
-				if v.Root() {
-					return true
-				}
-				enable, err := gormdb.Enforcer.Enforce(v.GetRoleID(), pkg.APIAccessType.String(), c.Request.URL.Path, c.Request.Method)
-				if err != nil {
-					api.AddError(err).Log.Error("Enforcer.Enforce error")
-					return false
-				}
-				return enable
-			}
-			return false
-		},
+		Authorizator: authorizeRequest,
 		RefreshResponse: func(c *gin.Context, code int, token string, expire time.Time) {
 			jwtToken, err := Auth.ParseTokenString(token)
 			if err != nil {
@@ -211,18 +177,17 @@ func Init() {
 				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
 			}
-			verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
-			if verifier.GetRefreshTokenDisable() {
+			if cast.ToBool(claims["refreshTokenDisabled"]) {
 				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token disabled")
 				return
 			}
+			verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
 			err = json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
 			if err != nil {
 				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
 			}
-			ok, _, err := verifier.Verify(c)
-			if err != nil || !ok {
+			if err := validateRefreshVerifier(c, verifier); err != nil {
 				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
 			}
@@ -247,6 +212,9 @@ func Init() {
 			})
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
+			if code == http.StatusForbidden && c.GetBool(authenticationFailureKey) {
+				code = http.StatusUnauthorized
+			}
 			writeAuthErrorResponse(c, code, code, message)
 		},
 		// TokenLookup is a string in the form of "<source>:<name>" that is used
@@ -279,35 +247,223 @@ func Init() {
 }
 
 // GetVerify 获取当前登录用户
+// validateRefreshVerifier reloads the signed principal from the authoritative
+// database. Refresh must never reuse UserLogin.Verify: that method accepts
+// public login input, while this path may trust identity fields only after the
+// refresh token has been cryptographically validated by gin-jwt.
+func validateRefreshVerifier(c *gin.Context, verifier security.Verifier) error {
+	if c == nil || verifier == nil {
+		return errors.New("refresh identity is missing")
+	}
+	userID := strings.TrimSpace(verifier.GetUserID())
+	if userID == "" {
+		return errors.New("refresh identity is missing")
+	}
+	var user models.User
+	if err := center.GetDB(c, &models.User{}).Preload("Role").First(&user, "id = ?", userID).Error; err != nil {
+		return errors.New("refresh identity is invalid")
+	}
+	if user.Status != enum.Enabled || user.Role == nil || user.Role.Status != enum.Enabled {
+		return errors.New("refresh identity is disabled")
+	}
+	if user.RoleID == "" || user.RoleID != verifier.GetRoleID() {
+		return errors.New("refresh identity role changed")
+	}
+	return nil
+}
+
 func GetVerify(ctx *gin.Context) security.Verifier {
-	api := response.Make(ctx)
-	token, err := Auth.ParseToken(ctx)
-	if err != nil {
-		api.AddError(err).Log.WarnContext(ctx, "parseToken failed")
+	if ctx == nil {
 		return nil
 	}
-	claims := jwt.ExtractClaimsFromToken(token)
-	if len(claims) == 0 {
-		slog.Debug("GetVerify claims is empty")
+	identity, ok := ctx.Get(config.Cfg.Auth.IdentityKey)
+	if !ok {
 		return nil
 	}
-	if personAccessToken, ok := claims["personAccessToken"]; ok && personAccessToken != "" {
-		verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
-		verifier.SetPersonAccessToken(personAccessToken.(string))
-		verifier.SetRefreshTokenDisable(true)
-		err = verifier.CheckToken(ctx, personAccessToken.(string))
-		if err != nil {
-			return nil
-		}
-		return verifier
-	}
-	verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
-	err = json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
-	if err != nil {
-		slog.Debug("GetVerify", "err", err)
+	verifier, ok := identity.(security.Verifier)
+	if !ok {
 		return nil
 	}
 	return verifier
+}
+
+// OptionalAuth preserves anonymous access while validating any credential the
+// client chooses to send. Invalid, expired, or revoked credentials fail closed
+// instead of silently degrading to an anonymous request.
+func OptionalAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !requestHasCredential(c) {
+			c.Next()
+			return
+		}
+		if Auth == nil {
+			writeAuthErrorResponse(c, http.StatusInternalServerError, http.StatusInternalServerError, "authentication middleware is not initialized")
+			return
+		}
+		Auth.MiddlewareFunc()(c)
+	}
+}
+
+func requestHasCredential(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	if strings.TrimSpace(c.GetHeader("Authorization")) != "" || strings.TrimSpace(c.Query("token")) != "" {
+		return true
+	}
+	cookie, err := c.Cookie("jwt")
+	return err == nil && strings.TrimSpace(cookie) != ""
+}
+
+func markAuthenticationFailure(c *gin.Context) {
+	if c != nil {
+		c.Set(authenticationFailureKey, true)
+	}
+}
+
+func authorizationObject(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if route := c.FullPath(); route != "" {
+		return route
+	}
+	if c.Request == nil || c.Request.URL == nil {
+		return ""
+	}
+	return c.Request.URL.Path
+}
+
+func isSelfServiceRequest(method, path string) bool {
+	_, ok := selfServiceRequests[method+" "+path]
+	return ok
+}
+
+// IsPersonalAccessTokenVerifier reports whether the authenticated identity was
+// established from a non-refreshable personal access token. Personal access
+// tokens are suitable for API automation, but must not be accepted as proof of
+// an interactive user session for sensitive account recovery operations.
+func IsPersonalAccessTokenVerifier(verifier security.Verifier) bool {
+	return verifier != nil &&
+		(verifier.GetPersonAccessToken() != "" || verifier.GetRefreshTokenDisable())
+}
+
+func isInteractiveSensitiveRequest(method, path string) bool {
+	switch method + " " + path {
+	case http.MethodPost + " /admin/api/user/reset-password",
+		http.MethodPut + " /admin/api/user/userInfo",
+		http.MethodPost + " /admin/api/user/oauth2/authorize",
+		http.MethodPost + " /admin/api/user/binding",
+		http.MethodDelete + " /admin/api/user/unbinding",
+		http.MethodGet + " /admin/api/user-auth-tokens",
+		http.MethodPost + " /admin/api/user-auth-tokens",
+		http.MethodPut + " /admin/api/user-auth-token/:id/revoke",
+		http.MethodPut + " /admin/api/user-auth-token/:id/refresh":
+		return true
+	default:
+		return false
+	}
+}
+
+var selfServiceRequests = map[string]struct{}{
+	http.MethodGet + " /admin/api/menu/authorize":              {},
+	http.MethodGet + " /admin/api/notice/unread":               {},
+	http.MethodGet + " /admin/api/notice/read/:id":             {},
+	http.MethodPut + " /admin/api/notice/read/:id":             {},
+	http.MethodGet + " /admin/api/user-configs/:group":         {},
+	http.MethodPut + " /admin/api/user-configs/:group":         {},
+	http.MethodGet + " /admin/api/user-configs/profile":        {},
+	http.MethodGet + " /admin/api/app-configs/profile":         {},
+	http.MethodGet + " /admin/api/app-configs/theme":           {},
+	http.MethodGet + " /admin/api/user-auth-tokens":            {},
+	http.MethodPost + " /admin/api/user-auth-tokens":           {},
+	http.MethodPut + " /admin/api/user-auth-token/:id/revoke":  {},
+	http.MethodPut + " /admin/api/user-auth-token/:id/refresh": {},
+	http.MethodPost + " /admin/api/user/reset-password":        {},
+	http.MethodGet + " /admin/api/user/userInfo":               {},
+	http.MethodPut + " /admin/api/user/userInfo":               {},
+	http.MethodPost + " /admin/api/user/avatar":                {},
+	http.MethodGet + " /admin/api/user/oauth2":                 {},
+	http.MethodPost + " /admin/api/user/oauth2/authorize":      {},
+	http.MethodGet + " /admin/api/user/:provider/callback":     {},
+	http.MethodPost + " /admin/api/user/binding":               {},
+	http.MethodDelete + " /admin/api/user/unbinding":           {},
+	http.MethodPost + " /admin/api/online-sessions/logout":     {},
+	http.MethodGet + " /admin/api/ws/connect":                  {},
+	http.MethodPost + " /admin/api/storage/upload":             {},
+}
+
+func authorizeRequest(data any, c *gin.Context) bool {
+	verifier, ok := data.(security.Verifier)
+	if !ok || verifier == nil || c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	object := authorizationObject(c)
+	if IsPersonalAccessTokenVerifier(verifier) &&
+		(isInteractiveSensitiveRequest(c.Request.Method, object) ||
+			isInteractiveSensitiveRequest(c.Request.Method, c.Request.URL.Path)) {
+		return false
+	}
+	if verifier.Root() {
+		return true
+	}
+	if isSelfServiceRequest(c.Request.Method, object) ||
+		isSelfServiceRequest(c.Request.Method, c.Request.URL.Path) {
+		return true
+	}
+	if gormdb.Enforcer == nil || object == "" {
+		return false
+	}
+	enabled, err := gormdb.Enforcer.Enforce(verifier.GetRoleID(), pkg.APIAccessType.String(), object, c.Request.Method)
+	if err != nil {
+		response.Make(c).AddError(err).Log.Error("Enforcer.Enforce error")
+		return false
+	}
+	if !enabled {
+		return false
+	}
+
+	// The shipped Casbin model uses keyMatch. A legacy policy such as
+	// /user/*/password-reset therefore also matches every suffix after /user/.
+	// Require a second, segment-exact match against the loaded policy so a path
+	// parameter consumes one segment only while policy reloads still take effect.
+	policies, err := gormdb.Enforcer.GetFilteredPolicy(0, verifier.GetRoleID(), pkg.APIAccessType.String())
+	if err != nil {
+		response.Make(c).AddError(err).Log.Error("Enforcer.GetFilteredPolicy error")
+		return false
+	}
+	for _, policy := range policies {
+		if len(policy) < 4 || !routePolicyMatches(object, policy[2]) {
+			continue
+		}
+		methodPattern, compileErr := regexp.Compile("^(?:" + policy[3] + ")$")
+		if compileErr != nil {
+			response.Make(c).AddError(compileErr).Log.Error("invalid Casbin method policy")
+			continue
+		}
+		if methodPattern.MatchString(c.Request.Method) {
+			return true
+		}
+	}
+	return false
+}
+
+func routePolicyMatches(route, policy string) bool {
+	routeSegments := strings.Split(strings.Trim(route, "/"), "/")
+	policySegments := strings.Split(strings.Trim(policy, "/"), "/")
+	if len(routeSegments) != len(policySegments) {
+		return false
+	}
+	for index := range policySegments {
+		policySegment := policySegments[index]
+		if policySegment == "*" || strings.HasPrefix(policySegment, ":") || strings.HasPrefix(policySegment, "*") {
+			continue
+		}
+		if routeSegments[index] != policySegment {
+			return false
+		}
+	}
+	return true
 }
 
 func extractLoginUsername(loginVals any) string {

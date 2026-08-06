@@ -2,15 +2,15 @@
 /* eslint-disable */
 import { request } from '@umijs/max';
 
-/** 操作任务 操作任务 GET /admin/api/task/${param1}/${param0} */
-export async function getTaskOperateId(
+/** 操作任务 操作任务 POST /admin/api/tasks/${param0}/actions/${param1} */
+export async function postTaskOperateId(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.getTaskOperateIdParams,
+  params: API.postTaskOperateIdParams,
   options?: { [key: string]: any },
 ) {
   const { id: param0, operate: param1, ...queryParams } = params;
-  return request<any>(`/admin/api/task/${param1}/${param0}`, {
-    method: 'GET',
+  return request<any>(`/admin/api/tasks/${param0}/actions/${param1}`, {
+    method: 'POST',
     params: { ...queryParams },
     ...(options || {}),
   });

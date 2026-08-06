@@ -36,6 +36,9 @@ export default {
   'pages.login.callback.success.title': 'Callback success',
   'pages.login.callback.success.description':
     'Login information has been obtained, waiting for the page to close.',
+  'pages.login.callback.parameters': 'The OAuth callback is missing required parameters.',
+  'pages.login.callback.failure': 'OAuth callback validation failed. Start the flow again.',
+  'pages.login.callback.retry': 'Close this window and restart authorization from the Admin page.',
   'pages.validate.required': 'This field is required',
   'pages.validate.password.min8': 'Password must be at least 8 characters',
   'pages.validate.password.max20': 'Password must be at most 20 characters',
@@ -133,6 +136,7 @@ export default {
   'pages.settings.unbinding.success': 'Unbound successfully',
   'pages.settings.unbinding': 'Unbinding',
   'pages.settings.binding': 'Binding',
+  'pages.settings.binding.failed': 'Unable to start account binding. Please try again.',
   'pages.app.config.title': 'Application Config',
   'pages.account.settings.title': 'Personal Settings',
   'pages.base.settings.title': 'Basic Settings',
