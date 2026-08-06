@@ -217,7 +217,10 @@ func (e *User) oauthCallback(c *gin.Context) {
 	}
 
 	result := &dto.OAuthCallbackResponse{
-		Code:      http.StatusCreated,
+		// The callback uses HTTP 201 because it consumes a one-time attempt,
+		// while the response body keeps the established API success code used
+		// by the login persistence path.
+		Code:      http.StatusOK,
 		Provider:  req.Provider,
 		Intent:    string(record.Intent),
 		AttemptID: oauthstate.Digest(req.State),

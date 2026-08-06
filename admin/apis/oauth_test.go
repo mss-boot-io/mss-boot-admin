@@ -41,6 +41,9 @@ func TestOAuthCallbackValidatesStateBeforeCodeExchange(t *testing.T) {
 		if err := json.Unmarshal(first.Body.Bytes(), &token); err != nil {
 			t.Fatalf("decode callback response: %v", err)
 		}
+		if token.Code != http.StatusOK {
+			t.Fatalf("callback business code = %d, want %d", token.Code, http.StatusOK)
+		}
 		if token.Intent != string(oauthstate.IntentLogin) || token.Provider != pkg.GithubLoginProvider ||
 			token.Token != "admin-session-token" || token.Expire == nil {
 			t.Fatalf("server callback metadata = %#v", token)
@@ -84,6 +87,9 @@ func TestOAuthCallbackValidatesStateBeforeCodeExchange(t *testing.T) {
 		var token dto.OAuthCallbackResponse
 		if err := json.Unmarshal(callback.Body.Bytes(), &token); err != nil {
 			t.Fatalf("decode callback response: %v", err)
+		}
+		if token.Code != http.StatusOK {
+			t.Fatalf("callback business code = %d, want %d", token.Code, http.StatusOK)
 		}
 		if token.Intent != string(oauthstate.IntentBinding) || token.Provider != pkg.LarkLoginProvider ||
 			token.Token != "" || token.Credential != "" {
@@ -221,6 +227,9 @@ func TestOAuthIntegrationCallbackReturnsOnlyOpaqueCredential(t *testing.T) {
 	var result dto.OAuthCallbackResponse
 	if err := json.Unmarshal(callback.Body.Bytes(), &result); err != nil {
 		t.Fatalf("decode integration callback: %v", err)
+	}
+	if result.Code != http.StatusOK {
+		t.Fatalf("integration callback business code = %d, want %d", result.Code, http.StatusOK)
 	}
 	if result.Credential != store.handle || result.CredentialExpiresAt == nil ||
 		result.Token != "" || result.AttemptID != oauthstate.Digest(state) {
