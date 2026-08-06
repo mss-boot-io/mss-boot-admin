@@ -25,7 +25,7 @@ P4 覆盖四类扩展能力：
 | 国际化 (i18n) | 多语言资源管理 | ✅ 已实现 |
 | 对象存储/上传 | 文件上传与存储 | ✅ 已实现 |
 | WebSocket 事件 | 实时通信与推送 | ✅ 已实现 |
-| API-first 扩展 | 动态模型与控制器 | ✅ 已实现 |
+| API-first 扩展 | 显式 Go 模型与标准控制器 | ✅ 已实现 |
 
 ---
 
@@ -345,7 +345,6 @@ websocket.GetHub().Broadcast(&websocket.WResponse{
 | 机制 | 说明 |
 |------|------|
 | Controller.Simple | 标准 CRUD 控制器 |
-| Virtual API | 动态模型生成 API |
 | Hook 机制 | Before/After 扩展点 |
 | 自动路由 | 通过 `AppendController` 注册 |
 
@@ -355,13 +354,10 @@ mss-boot/
 ├── pkg/response/controller/
 │   ├── simple.go        # Simple 控制器
 │   └── controller.go    # 扩展点
-├── virtual/
-│   ├── model/           # 虚拟模型
-│   └── action/          # 虚拟动作
 
 mss-boot-admin/
-├── apis/virtual.go      # 虚拟 API 实现
-└── models/model.go      # 模型定义
+├── apis/                # 显式 API 控制器
+└── models/              # 受版本控制的 Go 模型
 ```
 
 ### 4.2 扩展边界
@@ -412,11 +408,9 @@ func (e *MyResource) Other(r *gin.RouterGroup) {
 }
 ```
 
-**创建虚拟模型 API：**
-
-1. 通过数据库创建 Model 记录
-2. 定义 Field 字段配置
-3. 系统自动生成 `/api/{key}` 路由
+Admin 运行时虚拟模型和动态 API 已移除。标准化模块可以先通过
+`mss module generate` 在开发期从受版本控制的规格离线生成，再将生成结果作为
+普通源码审查、测试和部署；该命令不会在生产运行时动态挂载路由。
 
 **Hook 扩展点：**
 ```go
@@ -436,9 +430,8 @@ func afterCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
 ### 4.5 当前限制
 
 1. **Swagger 注解缺失**：需手动补充 API 文档
-2. **运行时模型更新**：虚拟模型修改需重启服务
-3. **Hook 机制有限**：缺少更细粒度的扩展点
-4. **权限粒度**：认证控制较粗，缺少字段级别权限
+2. **Hook 机制有限**：缺少更细粒度的扩展点
+3. **权限粒度**：认证控制较粗，缺少字段级别权限
 
 ---
 

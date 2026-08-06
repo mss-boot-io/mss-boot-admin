@@ -32,13 +32,12 @@ var (
 type Intent string
 
 const (
-	IntentLogin       Intent = "login"
-	IntentBinding     Intent = "binding"
-	IntentIntegration Intent = "integration"
+	IntentLogin   Intent = "login"
+	IntentBinding Intent = "binding"
 )
 
 func (i Intent) Valid() bool {
-	return i == IntentLogin || i == IntentBinding || i == IntentIntegration
+	return i == IntentLogin || i == IntentBinding
 }
 
 // Record is stored only on the server. CredentialFingerprint and BrowserHash

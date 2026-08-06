@@ -24,31 +24,32 @@ type Option func(*Options)
 
 // Options options
 type Options struct {
-	actions        []response.Action
-	search         response.Searcher
-	model          actions.Model
-	auth           bool
-	noAuthAction   []string
-	depth          int
-	treeField      string
-	modelProvider  fmt.Stringer
-	scope          func(ctx *gin.Context, table schema.Tabler) func(db *gorm.DB) *gorm.DB
-	beforeCreate   func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
-	beforeUpdate   func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
-	afterCreate    func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
-	afterUpdate    func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
-	beforeGet      func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
-	afterGet       func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
-	beforeDelete   func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
-	afterDelete    func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
-	beforeSearch   func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
-	afterSearch    func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
-	handlers       gin.HandlersChain
-	createHandlers gin.HandlersChain
-	updateHandlers gin.HandlersChain
-	getHandlers    gin.HandlersChain
-	deleteHandlers gin.HandlersChain
-	searchHandlers gin.HandlersChain
+	actions           []response.Action
+	search            response.Searcher
+	model             actions.Model
+	auth              bool
+	noAuthAction      []string
+	depth             int
+	treeField         string
+	modelProvider     fmt.Stringer
+	scope             func(ctx *gin.Context, table schema.Tabler) func(db *gorm.DB) *gorm.DB
+	beforeCreate      func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
+	beforeUpdate      func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
+	afterCreate       func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
+	afterCommitCreate func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
+	afterUpdate       func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
+	beforeGet         func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
+	afterGet          func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
+	beforeDelete      func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
+	afterDelete       func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
+	beforeSearch      func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
+	afterSearch       func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
+	handlers          gin.HandlersChain
+	createHandlers    gin.HandlersChain
+	updateHandlers    gin.HandlersChain
+	getHandlers       gin.HandlersChain
+	deleteHandlers    gin.HandlersChain
+	searchHandlers    gin.HandlersChain
 	// k8s action option
 	resourceType         k8s.ResourceType
 	resourceModel        any
@@ -169,6 +170,15 @@ func WithBeforeCreate(beforeCreate func(ctx *gin.Context, db *gorm.DB, m schema.
 func WithAfterCreate(afterCreate func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error) Option {
 	return func(o *Options) {
 		o.afterCreate = afterCreate
+	}
+}
+
+// WithAfterCommitCreate registers a GORM create hook that runs after the
+// transaction commits. It is intended for cache invalidation and external
+// side effects that must not race an uncommitted row.
+func WithAfterCommitCreate(afterCommitCreate func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error) Option {
+	return func(o *Options) {
+		o.afterCommitCreate = afterCommitCreate
 	}
 }
 

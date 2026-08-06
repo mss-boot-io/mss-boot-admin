@@ -1,7 +1,6 @@
 package apis
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
@@ -31,14 +31,8 @@ func init() {
 			controller.WithSearch(new(dto.LanguageSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
 			controller.WithAfterDelete(LanguageDeleteCache),
-			controller.WithAfterUpdate(func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error {
-				err := LanguageDeleteCache(ctx, db, m)
-				if err != nil {
-					return err
-				}
-				return LanguageAddCache(ctx, db, m)
-			}),
-			controller.WithAfterCreate(LanguageAddCache),
+			controller.WithAfterUpdate(LanguageAddCache),
+			controller.WithAfterCommitCreate(LanguageAddCache),
 		),
 	}
 	response.AppendController(e)
@@ -84,27 +78,22 @@ func (e *Language) Profile(ctx *gin.Context) {
 	api := response.Make(ctx)
 	items := make([]*models.Language, 0)
 	resp := make(map[string]map[string]string)
-	var err error
+	var cacheGeneration int64
+	cacheReady := false
 	if center.GetCache() != nil {
-		keys := make([]string, 0)
-		err = center.GetCache().SMembers(ctx, "language").ScanSlice(&keys)
-		if err == nil {
-			for i := range keys {
-				var v map[string]string
-				v, err = center.GetCache().HGetAll(ctx, fmt.Sprintf("language:%s", keys[i])).Result()
-				if err != nil {
-					break
-				}
-				resp[keys[i]] = v
-			}
-			if err == nil && len(keys) > 0 {
-				api.OK(resp)
+		cached, generation, hit, err := pkg.LoadLanguageProfileCache(ctx, center.GetCache())
+		if err != nil {
+			slog.Error("load language profile cache error", "error", err)
+		} else {
+			cacheGeneration = generation
+			cacheReady = true
+			if hit {
+				api.OK(map[string]map[string]string(cached))
 				return
 			}
 		}
-
 	}
-	err = center.GetDB(ctx, &models.Language{}).Find(&items).Error
+	err := center.GetDB(ctx, &models.Language{}).Find(&items).Error
 	if err != nil {
 		api.AddError(err).Log.Error("get languages error")
 		api.Err(http.StatusInternalServerError)
@@ -124,20 +113,14 @@ func (e *Language) Profile(ctx *gin.Context) {
 	}
 	api.OK(resp)
 
-	if len(resp) > 0 {
-		if center.GetCache() != nil {
-			for k, v := range resp {
-				err := center.GetCache().HSet(ctx, fmt.Sprintf("language:%s", k), v).Err()
-				if err != nil {
-					slog.Error("set language cache error", "error", err)
-					continue
-				}
-				err = center.GetCache().SAdd(ctx, "language", k).Err()
-				if err != nil {
-					slog.Error("set language cache error", "error", err)
-					continue
-				}
-			}
+	if len(resp) > 0 && cacheReady {
+		if _, err := pkg.StoreLanguageProfileCache(
+			ctx,
+			center.GetCache(),
+			cacheGeneration,
+			pkg.LanguageProfile(resp),
+		); err != nil {
+			slog.Error("set language profile cache error", "error", err)
 		}
 	}
 }
@@ -209,12 +192,7 @@ func LanguageDeleteCache(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error {
 	if db == nil {
 		return nil
 	}
-	name := m.(*models.Language).Name
-	if name == "" {
-		return nil
-	}
-	slog.Debug(fmt.Sprintf("language:%s", name))
-	err := center.GetCache().Del(ctx, fmt.Sprintf("language:%s", name), "name").Err()
+	err := pkg.InvalidateLanguageCache(ctx, center.GetCache())
 	if err != nil {
 		slog.Error("delete language cache error", "error", err)
 	}
@@ -228,24 +206,9 @@ func LanguageAddCache(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error {
 	if db == nil {
 		return nil
 	}
-	l := m.(*models.Language)
-	if l.Defines == nil || len(*l.Defines) == 0 {
-		return nil
-	}
-	data := make(map[string]string)
-	for i := range *l.Defines {
-		data[(*l.Defines)[i].Group+"."+(*l.Defines)[i].Key] = (*l.Defines)[i].Value
-	}
-	err := center.GetCache().HSet(ctx, fmt.Sprintf("language:%s", l.Name), data).Err()
+	err := pkg.InvalidateLanguageCache(ctx, center.GetCache())
 	if err != nil {
 		slog.Error("add language cache error", "error", err)
-		return err
-	}
-	err = center.GetCache().SAdd(ctx, "language", l.Name).Err()
-	if err != nil {
-		slog.Error("add language cache error", "error", err)
-		return err
 	}
 	return nil
-
 }

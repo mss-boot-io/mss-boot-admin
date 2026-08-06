@@ -28,7 +28,6 @@ type DefaultCenter struct {
 	NoticeImp
 	TenantImp
 	UserImp
-	VirtualModelImp
 	ConfigImp
 	CustomConfigImp
 	server.Manager
@@ -64,10 +63,6 @@ func (d *DefaultCenter) SetConfig(e ConfigImp) {
 
 func (d *DefaultCenter) SetCustomConfig(e CustomConfigImp) {
 	d.CustomConfigImp = e
-}
-
-func (d *DefaultCenter) SetVirtualModel(v VirtualModelImp) {
-	d.VirtualModelImp = v
 }
 
 func (d *DefaultCenter) SetServerManager(m server.Manager) {
@@ -136,10 +131,6 @@ func (d *DefaultCenter) GetConfig() ConfigImp {
 
 func (d *DefaultCenter) GetCustomConfig() CustomConfigImp {
 	return d.CustomConfigImp
-}
-
-func (d *DefaultCenter) GetVirtualModel() VirtualModelImp {
-	return d.VirtualModelImp
 }
 
 func (d *DefaultCenter) GetServerManager() server.Manager {
@@ -230,11 +221,6 @@ func SetCustomConfig(e CustomConfigImp) *DefaultCenter {
 	return Default
 }
 
-func SetVirtualModel(v VirtualModelImp) *DefaultCenter {
-	Default.SetVirtualModel(v)
-	return Default
-}
-
 func SetServerManager(m server.Manager) *DefaultCenter {
 	Default.SetServerManager(m)
 	return Default
@@ -313,10 +299,6 @@ func GetConfig() ConfigImp {
 
 func GetCustomConfig() CustomConfigImp {
 	return Default.GetCustomConfig()
-}
-
-func GetVirtualModel() VirtualModelImp {
-	return Default.GetVirtualModel()
 }
 
 func GetServerManager() server.Manager {

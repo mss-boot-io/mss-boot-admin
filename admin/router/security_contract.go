@@ -46,7 +46,6 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodGet, Path: "/admin/api/posts", Class: RouteAuthorized, Permission: "post:read"},
 
 	// Public authentication and locale discovery.
-	{Method: http.MethodGet, Path: "/admin/api/github/get-login-url", Class: RoutePublic, LegacyDenyOnly: true},
 	{Method: http.MethodGet, Path: "/admin/api/language/profile", Class: RoutePublic},
 	{Method: http.MethodGet, Path: "/admin/api/languages/public", Class: RoutePublic},
 
@@ -65,9 +64,6 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodGet, Path: "/admin/api/menus", Class: RouteAuthorized, Permission: "menu:read"},
 	{Method: http.MethodPost, Path: "/admin/api/role/authorize/:roleID", Class: RouteAuthorized, Permission: "role:authorize", Mutation: true},
 	{Method: http.MethodGet, Path: "/admin/api/role/authorize/:roleID", Class: RouteAuthorized, Permission: "role:authorize"},
-
-	// Legacy runtime model generation.
-	{Method: http.MethodPut, Path: "/admin/api/model/generate-data", Class: RouteAuthorized, Permission: "model:generate", Mutation: true},
 
 	// Current-user notices and preferences.
 	{Method: http.MethodGet, Path: "/admin/api/notice/unread", Class: RouteOptionalAuthenticated},
@@ -94,13 +90,6 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodPost, Path: "/admin/api/tasks/:id/actions/:operate", Class: RouteAuthorized, Permission: "task:operate", Mutation: true},
 	{Method: http.MethodGet, Path: "/admin/api/task/:operate/:id", Class: RoutePublic, LegacyDenyOnly: true},
 	{Method: http.MethodGet, Path: "/admin/api/task/func-list", Class: RouteAuthorized, Permission: "task:read"},
-
-	// Template inspection and generation. The controller authenticates its
-	// complete route group; each operation still has an explicit permission.
-	{Method: http.MethodGet, Path: "/admin/api/template/get-branches", Class: RouteAuthorized, Permission: "template:read"},
-	{Method: http.MethodGet, Path: "/admin/api/template/get-path", Class: RouteAuthorized, Permission: "template:read"},
-	{Method: http.MethodGet, Path: "/admin/api/template/get-params", Class: RouteAuthorized, Permission: "template:read"},
-	{Method: http.MethodPost, Path: "/admin/api/template/generate", Class: RouteAuthorized, Permission: "template:generate", Mutation: true},
 
 	// Authentication, account recovery, and current-user profile.
 	{Method: http.MethodPost, Path: "/admin/api/user/login", Class: RoutePublic, Mutation: true},

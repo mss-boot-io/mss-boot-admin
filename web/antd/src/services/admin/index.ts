@@ -5,15 +5,11 @@
 import * as api from './api';
 import * as appConfig from './appConfig';
 import * as department from './department';
-import * as virtual from './virtual';
-import * as field from './field';
-import * as generator from './generator';
 import * as language from './language';
 import * as log from './log';
 import * as loginLog from './loginLog';
 import * as auditLog from './auditLog';
 import * as menu from './menu';
-import * as model from './model';
 import * as monitor from './monitor';
 import * as notice from './notice';
 import * as option from './option';
@@ -29,15 +25,11 @@ export default {
   api,
   appConfig,
   department,
-  virtual,
-  field,
-  generator,
   language,
   log,
   loginLog,
   auditLog,
   menu,
-  model,
   monitor,
   notice,
   option,

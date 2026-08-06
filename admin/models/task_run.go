@@ -1,10 +1,9 @@
 package models
 
 import (
+	"errors"
 	"strings"
 	"time"
-
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 
 	"github.com/google/uuid"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
@@ -24,6 +23,7 @@ type TaskRun struct {
 	CreatedAt time.Time   `json:"createdAt"`
 	TaskID    string      `json:"taskID" gorm:"index;foreignKey:TaskID;references:ID"`
 	Status    enum.Status `json:"status" gorm:"size:10"`
+	database  *gorm.DB
 }
 
 func (*TaskRun) TableName() string {
@@ -36,11 +36,14 @@ func (t *TaskRun) BeforeCreate(_ *gorm.DB) (err error) {
 }
 
 func (t *TaskRun) Write(p []byte) (int, error) {
+	if t.database == nil {
+		return 0, errors.New("task run database is not initialized")
+	}
 	log := &TaskRunLog{
 		TaskRunID: t.ID,
 		Content:   string(p),
 	}
-	err := gormdb.DB.Create(log).Error
+	err := t.database.Create(log).Error
 	if err != nil {
 		return 0, err
 	}

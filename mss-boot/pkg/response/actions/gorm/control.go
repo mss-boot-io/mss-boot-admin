@@ -82,7 +82,8 @@ func (e *Control) create(c *gin.Context) {
 			return
 		}
 	}
-	query := gormdb.DB.WithContext(c)
+	requestContext := c.Request.Context()
+	query := gormdb.DB.WithContext(requestContext)
 	if e.opts.Scope != nil {
 		query = query.Clauses(dbresolver.Use(m.TableName())).Scopes(e.opts.Scope(c, e.opts.Model))
 	}
@@ -121,9 +122,15 @@ func (e *Control) create(c *gin.Context) {
 		api.AddError(err).Log.ErrorContext(c, "Create error", "error", err)
 		return
 	}
-
 	if CleanCacheFromTag != nil {
-		_ = CleanCacheFromTag(c, m.TableName())
+		_ = CleanCacheFromTag(requestContext, m.TableName())
+	}
+	if e.opts.AfterCommitCreate != nil {
+		if err := e.opts.AfterCommitCreate(c, query, m); err != nil {
+			api.AddError(err).Log.Error("AfterCommitCreate error", "error", err)
+			api.Err(http.StatusInternalServerError)
+			return
+		}
 	}
 	api.OK(m)
 }
@@ -137,7 +144,8 @@ func (e *Control) update(c *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	query := gormdb.DB.WithContext(context.WithValue(c, "gorm:cache:tag", m.TableName())).Where(e.opts.Key, id)
+	requestContext := c.Request.Context()
+	query := gormdb.DB.WithContext(context.WithValue(requestContext, "gorm:cache:tag", m.TableName())).Where(e.opts.Key, id)
 	if e.opts.Scope != nil {
 		query = query.Clauses(dbresolver.Use(m.TableName())).Scopes(e.opts.Scope(c, m))
 	}
@@ -166,7 +174,7 @@ func (e *Control) update(c *gin.Context) {
 			return
 		}
 	}
-	query = gormdb.DB.WithContext(c)
+	query = gormdb.DB.WithContext(requestContext)
 	if e.opts.Scope != nil {
 		query = query.Scopes(e.opts.Scope(c, m))
 	}
@@ -177,7 +185,7 @@ func (e *Control) update(c *gin.Context) {
 		return
 	}
 	if CleanCacheFromTag != nil {
-		_ = CleanCacheFromTag(c, m.TableName())
+		_ = CleanCacheFromTag(requestContext, m.TableName())
 	}
 	if e.opts.AfterUpdate != nil {
 		err = e.opts.AfterUpdate(c, query, m)

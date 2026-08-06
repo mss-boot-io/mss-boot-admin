@@ -1,260 +1,95 @@
 ---
-title: 历史能力降级说明
+title: 运行时开发工具移除与升级说明
 order: 24
 nav:
   order: 1
   title: admin
-description: mss-boot-admin 历史能力分级、定位与后续演进说明
-keywords: [admin legacy capability deprecation virtual model code generation]
+description: Admin 运行时动态模型、虚拟 CRUD 与浏览器代码生成的移除范围、数据保留和迁移路径
+keywords: [admin removed capability virtual model code generation migration]
 ---
 
-## 概述
+## 适用范围
 
-本文档明确 `mss-boot-admin` 中历史能力的定位、分级和后续演进方向，确保产品主线清晰，避免旧叙事影响新方向。
+本文适用于包含 2026-08-06 运行时开发工具移除变更及之后的版本。它描述的是
+Admin 产品和生产运行时，不改变仓库级 `cmd/mss` 开发工具的支持状态。
 
-## 背景
+## 当前状态
 
-根据产品方向调整，`mss-boot-admin` 已从"快速生成、低代码"方向转向"治理型 + 运营型 + AI 注解协同型 admin 平台"。
+以下能力已经从 Admin 产品中移除，当前状态为 **已删除**：
 
-部分历史能力虽然仍存在，但不再作为产品主线继续强化。本文档明确这些能力的定位。
+| 已移除能力 | 不再提供的入口 |
+| --- | --- |
+| 动态模型与字段管理 | Go model/field 实现、管理 API、前端页面、菜单和权限 |
+| 虚拟 CRUD | `mss-boot/virtual` 运行时框架、动态路由和前端虚拟模型页面 |
+| 浏览器模板/代码生成 | Admin 模板 API、Git 模板处理、生成页面、菜单和权限 |
 
----
+新安装不会创建这些运行时入口或对应的初始化菜单。任何新模块都不得依赖这些
+已移除接口。
 
-## 历史能力分级定义
+## 升级和数据保留
 
-| 级别 | 名称 | 含义 | 后续投资 |
-|------|------|------|----------|
-| L1 | 保留 | 继续作为核心能力维护和演进 | 正常投入 |
-| L2 | 冻结 | 保留功能，但不再新增特性 | 仅修复严重问题 |
-| L3 | 弱化 | 标记为非主线，限制使用场景 | 最小维护 |
-| L4 | 弃用 | 计划移除，提供迁移指南 | 仅安全修复 |
-| L5 | 删除 | 已从代码库移除 | 无 |
+升级迁移会以事务方式清理已移除功能的菜单、API 元数据和对应 Casbin 策略，
+包括历史动态菜单的后代节点。迁移是幂等的，不应影响无关菜单或权限。
 
----
+若下游把无关菜单直接挂在 `/develop` 下，迁移会把该菜单提升到 `/develop` 的父级。
+相对路由会改写为原先实际生效的 `/develop/...` 绝对路由，并复制精确匹配的
+Casbin 策略；旧策略不会被删除，已存在的目标策略也不会被覆盖或重复创建。
+数据库语言包中能由幸存菜单名称可靠识别的 `menu.develop.<child>` 定义，会在目标键
+不存在时复制为 `menu.<child>`。旧定义仍会保留。
 
-## 历史能力分级表
+为避免不可逆的数据丢失，升级过程不会自动删除：
 
-### 动态模型 (Virtual Model)
+- 历史动态模型和字段元数据表；
+- 由历史虚拟模型创建的业务表及其中的数据。
+- 无法通过幸存菜单可靠归属的历史语言定义。
 
-| 属性 | 说明 |
-|------|------|
-| **分级** | L3 弱化 |
-| **实现状态** | 功能完整，可与治理体系集成 |
-| **保留原因** | 部分用户可能依赖此能力进行快速原型开发 |
-| **限制说明** | 不再作为主线推荐，文档中明确为"高级/实验性功能" |
-| **后续投资** | 最小维护，仅修复严重 Bug |
+这些表和语言定义的保留只是数据保护措施，不表示运行时能力仍然可用。历史语言定义
+没有可靠的功能来源标记，因此自动迁移不猜测、不批量删除。确认完成数据导出、业务迁移
+和备份之前，不要手工删除它们。
 
-**实现文件：**
-```
-mss-boot-admin/
-├── apis/model.go        # 模型管理 API
-├── apis/virtual.go      # 虚拟 API 文档
-├── apis/field.go        # 字段管理 API
-├── models/model.go      # 模型定义
-└── models/field.go      # 字段定义
+## 推荐迁移路径
 
-mss-boot/virtual/        # 核心虚拟模型实现
-├── model/               # 模型抽象
-└── action/              # 动作抽象
-```
+1. 盘点历史模型元数据、字段定义、业务表、角色和调用方。
+2. 为仍需使用的数据定义显式 Go model、DTO、service、handler 和权限规则。
+3. 添加 forward-compatible migration，把历史数据迁入受版本控制的表结构。
+4. 补齐 OpenAPI、前端类型、菜单、正反向权限测试和升级路径测试。
+5. 在备份和业务验收完成后，由运维人员通过单独、可回滚的变更清理遗留表。
 
-**功能范围：**
-- ✅ 动态定义数据模型（表名、字段、类型）
-- ✅ 自动生成 REST API（CRUD）
-- ✅ 自动创建菜单和权限
-- ✅ 自动生成国际化资源
-| ⚠️ 多租户已移除 | 单租户架构 |
-- ⚠️ 需重启服务才能生效
+标准管理模块可以用结构化 `AdminModuleSpec` 描述，并在开发工作树中执行：
 
-**限制：**
-1. 不适合复杂业务逻辑场景
-2. 性能可能不如手写代码
-3. 调试和排障成本较高
-4. 无测试覆盖
-
-### 模板/代码生成 (Template/Code Generation)
-
-| 属性 | 说明 |
-|------|------|
-| **分级** | L3 弱化 |
-| **实现状态** | 功能完整，通用模板引擎 |
-| **保留原因** | 可作为扩展机制，支持自定义模板 |
-| **限制说明** | 不提供内置模板，用户需自行准备 |
-| **后续投资** | 最小维护，仅修复严重 Bug |
-
-**实现文件：**
-```
-mss-boot-admin/
-├── apis/template.go     # 模板 API
-├── dto/template.go      # 模板 DTO
-├── pkg/generator.go     # 生成器核心
-├── pkg/parse.go         # 模板解析
-└── pkg/git.go           # Git 操作
-
-mss-boot-admin-antd/
-└── src/pages/Generator/ # 前端生成器界面
+```shell
+go run ./cmd/mss module generate .mss/modules/<module>.yaml --format json
+go run ./cmd/mss module generate .mss/modules/<module>.yaml --write --format json
+go run ./cmd/mss verify --changed
 ```
 
-**功能范围：**
-- ✅ 从 GitHub 仓库获取模板
-- ✅ 支持 Go template 语法
-- ✅ 自动提取模板参数
-- ✅ 生成后推送到目标仓库
-- ⚠️ 需要用户提供 GitHub Token
+生成结果必须像普通源码一样经过审查、编译、迁移和权限验证后再部署。
 
-**限制：**
-1. 无内置模板库
-2. 需要用户理解 Go template 语法
-3. 需要 GitHub OAuth 认证
-4. 文档不完整
+## `cmd/mss` 为什么继续保留
 
----
+`cmd/mss` 是仓库级、开发期、离线的确定性工具。它与已移除的 Admin 浏览器
+生成器有不同的信任边界：
 
-## 主线 vs 非主线能力对照
+| `cmd/mss` 离线生成器 | 已移除的 Admin 浏览器生成器 |
+| --- | --- |
+| 读取受版本控制的结构化规格 | 在运行时页面接受模板和仓库参数 |
+| 默认 dry-run，限制写入仓库根目录 | 由 Admin API 执行模板/Git 操作 |
+| 输出可编译、可测试、可审查的源码 | 生产 Admin 中提供生成入口 |
+| 通过幂等、golden 和路径约束测试 | 已从当前产品删除 |
 
-### 主线能力（L1 保留）
+因此，“移除代码生成”专指 Admin 产品中的浏览器/运行时代码生成，不包括
+`mss module generate`、应用 Blueprint 或升级工具。
 
-| 能力 | 说明 | 文档位置 |
-|------|------|----------|
-| 用户管理 | 认证、授权、自服务 | 治理文档 |
-| 角色管理 | RBAC 权限绑定 | 治理文档 |
-| 部门管理 | 组织架构 | 治理文档 |
-| 岗位管理 | 数据权限 | 治理文档 |
-| 菜单管理 | 功能入口 | 治理文档 |
-| API 管理 | 接口权限 | 治理文档 |
-| 系统配置 | 运维配置 | 运营文档 |
-| 通知公告 | 消息推送 | 运营文档 |
-| 定时任务 | 作业调度 | 运营文档 |
-| 监控统计 | 运行状态 | 运营文档 |
-| 审计日志 | 操作追溯 | 治理文档 |
-| 国际化 | 多语言 | 扩展护栏文档 |
-| 对象存储 | 文件上传 | 扩展护栏文档 |
-| WebSocket | 实时通信 | 扩展护栏文档 |
+## 回滚边界
 
-### 非主线能力（L3 弱化）
-
-| 能力 | 说明 | 定位 |
-|------|------|------|
-| 动态模型 | 运行时定义模型 | 高级/实验性功能 |
-| 代码生成 | 模板引擎 | 高级/扩展机制 |
-
----
-
-## 文档表述规范
-
-### 主线能力表述
-
-```
-✅ 正确：
-"mss-boot-admin 是一个治理型 + 运营型 admin 平台，提供完善的权限治理、
-运营能力和 AI 注解协同支持。"
-
-❌ 错误：
-"mss-boot-admin 是一个低代码平台，支持快速生成 CRUD 代码。"
-```
-
-### 历史能力表述
-
-```
-✅ 正确：
-"动态模型能力仍保留在代码库中，适合快速原型开发场景，但不作为主线推荐。
-生产环境建议使用标准 Controller 模式开发。"
-
-❌ 错误：
-"动态模型是 mss-boot-admin 的核心能力之一。"
-```
-
-### README/首页表述
-
-```
-✅ 正确：
-"mss-boot-admin 提供完整的后台治理与运营能力：
-- 治理核心：用户、角色、部门、岗位、权限
-- 运营能力：配置、通知、任务、监控、统计
-- 扩展能力：国际化、存储、WebSocket、API-first
-
-注：仓库中仍包含动态模型和代码生成能力，但这些不再作为产品主线。"
-
-❌ 错误：
-"mss-boot-admin 支持动态模型和代码生成，快速搭建后台系统。"
-```
-
----
-
-## 迁移指南
-
-### 从动态模型迁移到标准 Controller
-
-**迁移步骤：**
-
-1. 创建 Go 模型文件：
-```go
-// models/my_entity.go
-package models
-
-type MyEntity struct {
-    actions.ModelGorm
-    Name        string `json:"name" gorm:"size:255;not null"`
-    Description string `json:"description" gorm:"type:text"`
-    Status      string `json:"status" gorm:"size:20;default:'active'"`
-}
-```
-
-2. 创建 API 控制器：
-```go
-// apis/my_entity.go
-package apis
-
-func init() {
-    e := &MyEntity{
-        Simple: controller.NewSimple(
-            controller.WithAuth(true),
-            controller.WithModel(&models.MyEntity{}),
-            controller.WithModelProvider(actions.ModelProviderGorm),
-        ),
-    }
-    response.AppendController(e)
-}
-```
-
-3. 导出数据并迁移
-
-### 从代码生成迁移
-
-**替代方案：**
-
-1. 使用标准 Go 项目模板（如 `template-admin`）
-2. 参考 mss-boot 框架文档，手动实现
-3. 使用 IDE 代码生成功能
-
----
-
-## 后续演进
-
-### 短期（1-3 月）
-
-1. 更新所有文档，明确主线与非主线关系
-2. 在 UI 中添加历史能力的"实验性"标识
-3. 补充迁移指南文档
-
-### 中期（3-6 月）
-
-1. 收集用户反馈，评估历史能力使用情况
-2. 根据反馈决定是否进一步降级（L4 弃用）
-3. 完善 Controller 模式的开发文档
-
-### 长期（6-12 月）
-
-1. 评估是否移除历史能力代码
-2. 如移除，提供完整的迁移工具和文档
-3. 确保主线能力足够替代历史能力
-
----
+应用版本回滚不会自动恢复已经清理的菜单和 Casbin 策略。若必须回滚到旧版本，
+应从升级前备份恢复数据库，或按旧版本的受审计迁移重新创建必要元数据；不要仅
+依赖保留下来的历史业务表恢复运行时路由。
 
 ## 推荐阅读
 
 - [产品方向调整](/admin/product-direction)
-- [三期路线图](/admin/phase-3-roadmap)
+- [当前功能总览](/admin/current-capabilities)
 - [权限与组织治理说明](/admin/governance-guide)
-- [运营能力说明](/admin/operations-guide)
 - [集成与扩展护栏](/admin/extension-guardrails)
+- [Agent 原生基础设施](/architecture/agent-native-foundation)

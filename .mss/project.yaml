@@ -55,7 +55,6 @@ spec:
   conventions:
     newBusinessModuleLayout: vertical
     legacyBusinessModuleLayout: horizontal
-    runtimeDynamicModelForNewModules: false
     specificationFirst: true
     deterministicGeneration: true
     generatedFilesMustBeIdempotent: true

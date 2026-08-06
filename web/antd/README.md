@@ -6,7 +6,7 @@ English | [简体中文](./README.zh-CN.md)
 
 ## Introduction
 
-> `mss-boot-admin-antd` is the frontend of the mss-boot admin platform. The product is being repositioned around governance, operations, access control, configuration, and AI-annotation-assisted engineering collaboration, rather than dynamic-model or generator-led workflows.
+> `mss-boot-admin-antd` is the frontend of the mss-boot admin platform. It focuses on governance, operations, access control, configuration, and AI-annotation-assisted engineering collaboration. Runtime dynamic-model, virtual CRUD, and browser code-generation screens have been removed; deterministic generation remains a development-time CLI workflow outside the Admin UI.
 
 ## Recent Updates
 

@@ -27,13 +27,11 @@ describe('openOAuthAuthorization', () => {
       expiresAt: '2026-08-06T12:05:00Z',
     });
 
-    await openOAuthAuthorization('github', 'integration');
+    await openOAuthAuthorization('github', 'binding');
 
-    expect(mockedAuthorize).toHaveBeenCalledWith({ provider: 'github', intent: 'integration' });
+    expect(mockedAuthorize).toHaveBeenCalledWith({ provider: 'github', intent: 'binding' });
     expect(popup.opener).toBeNull();
-    expect(popup.location.href).toBe(
-      'https://github.example/authorize?state=server-state',
-    );
+    expect(popup.location.href).toBe('https://github.example/authorize?state=server-state');
   });
 
   it('closes the placeholder popup when issuance fails', async () => {
@@ -54,7 +52,7 @@ describe('requireServerOAuthIntent', () => {
   it('uses only the server-returned callback intent', () => {
     expect(requireServerOAuthIntent({ intent: 'login' })).toBe('login');
     expect(requireServerOAuthIntent({ intent: 'binding' })).toBe('binding');
-    expect(requireServerOAuthIntent({ intent: 'integration' })).toBe('integration');
+    expect(() => requireServerOAuthIntent({ intent: 'integration' as API.OAuthIntent })).toThrow();
     expect(() => requireServerOAuthIntent({ intent: 'invalid' as API.OAuthIntent })).toThrow();
   });
 });

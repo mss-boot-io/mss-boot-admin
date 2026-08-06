@@ -128,9 +128,8 @@ OAuth2User (OAuth2 绑定信息)
 
 | 路由                                 | 方法 | 功能                                      |
 | ------------------------------------ | ---- | ----------------------------------------- |
-| `/admin/api/user/oauth2/authorize`   | POST | 发起登录、绑定或集成授权                  |
+| `/admin/api/user/oauth2/authorize`   | POST | 发起登录或绑定授权                      |
 | `/admin/api/user/:provider/callback` | GET  | OAuth2 回调处理                           |
-| `/admin/api/github/get-login-url`    | GET  | 历史入口，仅返回 `405 Method Not Allowed` |
 
 ### 扩展新提供商
 
@@ -143,12 +142,21 @@ OAuth2User (OAuth2 绑定信息)
 ### 安全配置
 
 - 所有 OAuth2 通信必须使用 HTTPS
-- 前端只提交 provider 和 `login` / `binding` / `integration` 意图；授权 URL 与高熵 state 由服务端生成
+- 前端只提交 provider 和 `login` / `binding` 意图；授权 URL 与高熵 state 由服务端生成
 - state 仅保存哈希，默认 5 分钟有效，并绑定 provider、意图、浏览器 nonce；绑定流程还绑定当前用户和交互式会话
 - callback 在交换 code 或写数据库前原子消费 state，过期、重放或任一绑定不匹配均失败
 - 单进程开发可使用内存 state store；生产多副本必须配置共享 Redis，不能降级为跨副本绕过校验
 - 跨 Origin 部署必须让浏览器携带 credentials，并在 `cors.allowOrigins` 中配置精确的 HTTP(S) Origin；禁止 `*`、userinfo、路径、查询和 fragment
 - provider access/refresh token 的浏览器持久化和服务端加密仍需单独完成安全升级
+
+### 历史内置凭据升级
+
+旧版本曾把一组 GitHub OAuth 凭据写入内置 application YAML。当前前向迁移仅通过该历史 client ID 与 secret
+组合的 SHA-256 指纹识别旧内置记录：匹配时清空凭据，并把 scope 收窄为 `read:user`、`user:email`；已经轮换、
+自定义或非内置的配置不会被覆盖，迁移代码和日志也不会再次包含明文。
+
+该迁移只能清理数据库，不能让 Git 历史中的值失效。升级到生产前必须在 GitHub 侧 rotate/revoke，并同时用
+仓库 secret scanner 与 provider 审计确认旧值已不可用；在完成这一步之前不得把版本标记为生产就绪。
 
 ## 3. API 联调指南
 

@@ -4,9 +4,9 @@ import (
 	"runtime"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
-	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 	"gorm.io/gorm"
 )
 
@@ -220,40 +220,6 @@ func _1772445829126Migrate(db *gorm.DB, version string) error {
 				Permission: "/app-config",
 				Status:     enum.Enabled,
 				Sort:       58,
-			},
-			{
-				Name:       "menu.develop",
-				Path:       "/develop",
-				Method:     "GET",
-				Icon:       "tool",
-				Type:       pkg.DirectoryAccessType,
-				Permission: "/develop",
-				Status:     enum.Enabled,
-				Sort:       50,
-			},
-			{
-				Name:       "menu.develop.model",
-				Path:       "/model",
-				Method:     "GET",
-				Component:  "./Model",
-				Icon:       "desktop",
-				ParentPath: "/develop",
-				Type:       pkg.MenuAccessType,
-				Permission: "/model",
-				Status:     enum.Enabled,
-				Sort:       49,
-			},
-			{
-				Name:       "menu.develop.generator",
-				Path:       "/generator",
-				Method:     "GET",
-				Component:  "./Generator",
-				Icon:       "form",
-				ParentPath: "/develop",
-				Type:       pkg.MenuAccessType,
-				Permission: "/generator",
-				Status:     enum.Enabled,
-				Sort:       48,
 			},
 		}
 

@@ -68,12 +68,6 @@ var adminRouteComponentSeeds = []adminRouteComponentSeed{
 		ParentPath: "/task",
 	},
 	{
-		Name:       "menu.develop.model.generate-data",
-		Path:       "/model/generate-data",
-		Permission: "model:generate",
-		ParentPath: "/model",
-	},
-	{
 		Name:       "menu.system.log.runtime",
 		Path:       "/log/runtime",
 		Permission: "log:read",
@@ -121,6 +115,15 @@ var adminRouteComponentSeeds = []adminRouteComponentSeed{
 		Permission: "post:delete",
 		ParentPath: "/posts",
 	},
+}
+
+var monitorReadPermissionSeed = adminRoutePermissionSeed{
+	Name:       "api.monitor.read",
+	Path:       "/admin/api/monitor",
+	Method:     "GET",
+	Permission: "monitor:read",
+	ParentPath: "/welcome",
+	ParentType: pkg.MenuAccessType,
 }
 
 var adminRoutePermissionSeeds = []adminRoutePermissionSeed{
@@ -187,14 +190,6 @@ var adminRoutePermissionSeeds = []adminRoutePermissionSeed{
 		Permission: "task:read",
 		ParentPath: "/task",
 		ParentType: pkg.MenuAccessType,
-	},
-	{
-		Name:       "api.model.generateData",
-		Path:       "/admin/api/model/generate-data",
-		Method:     "PUT",
-		Permission: "model:generate",
-		ParentPath: "/model/generate-data",
-		ParentType: pkg.ComponentAccessType,
 	},
 	{
 		Name:       "api.systemConfig.read",

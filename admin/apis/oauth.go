@@ -92,7 +92,7 @@ func (e *User) OAuthAuthorize(c *gin.Context) {
 			api.Err(http.StatusConflict)
 			return
 		}
-	case oauthstate.IntentBinding, oauthstate.IntentIntegration:
+	case oauthstate.IntentBinding:
 		if verify == nil || credentialFingerprint == "" {
 			api.Err(http.StatusUnauthorized)
 			return
@@ -165,7 +165,7 @@ func (e *User) oauthCallback(c *gin.Context) {
 			api.Err(http.StatusUnauthorized)
 			return
 		}
-	case oauthstate.IntentBinding, oauthstate.IntentIntegration:
+	case oauthstate.IntentBinding:
 		if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) ||
 			record.UserID == "" || record.UserID != verify.GetUserID() ||
 			credentialFingerprint == "" ||

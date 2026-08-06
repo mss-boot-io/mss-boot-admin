@@ -23,7 +23,7 @@ const Index: React.FC = () => {
       return;
     }
 
-    // OAuth state failures are local to this popup. In binding/integration
+    // OAuth state failures are local to this popup. In binding
     // flows a 401 must not trigger the global handler and clear the still-valid
     // primary Admin session from shared localStorage.
     getUserProviderCallback({ provider, code, state }, { skipErrorHandler: true })

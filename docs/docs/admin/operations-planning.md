@@ -22,6 +22,9 @@ keywords: [admin operations planning roadmap enhancement]
 > 评估时间：2026-04-02
 > 评估范围：`mss-boot-admin` 运营相关模块
 
+> 状态更新（2026-08-06）：监控可视化和后台有界历史已经完成；监控采样与
+> 会话清理统一进入独立内置系统作业通道，不受用户任务开关或 CRUD 影响。
+
 ### 能力矩阵
 
 | 能力维度 | 当前状态 | 成熟度 | 说明 |
@@ -29,7 +32,7 @@ keywords: [admin operations planning roadmap enhancement]
 | 系统配置 | ✅ 已实现 | 高 | 支持多格式配置存储 |
 | 通知公告 | ✅ 已实现 | 中 | 支持 WebSocket 实时推送 |
 | 定时任务 | ✅ 已实现 | 高 | 支持三种 Provider |
-| 系统监控 | ✅ 已实现 | 中 | 已扩展多维度监控 |
+| 系统监控 | ✅ 已实现 | 中 | 5 秒后台采样、约 10 分钟实例内历史、亮色/暗黑趋势图 |
 | 统计查询 | ✅ 已实现 | 中 | 支持接口实现扩展 |
 
 ### 已完成补强（三期 P1-P2）
@@ -78,7 +81,7 @@ keywords: [admin operations planning roadmap enhancement]
 | 任务 | 优先级 | 预期收益 |
 |------|--------|----------|
 | 运行时日志查看 | 高 | 运维排障能力提升 |
-| 监控数据可视化 | 中 | 运营仪表盘体验提升 |
+| 监控数据可视化 | 中（已完成） | 服务端历史与主题感知趋势图已落地 |
 | 告警规则配置 | 中 | 主动发现问题能力 |
 
 ### Phase 2：能力深化
@@ -130,31 +133,33 @@ keywords: [admin operations planning roadmap enhancement]
 - [ ] 可按关键词搜索
 - [ ] 可按时间范围筛选
 
-### 2. 监控数据可视化
+### 2. 监控数据可视化（已完成）
 
 **背景**
 
-当前监控数据仅 API 返回 JSON，无前端图表展示。
+旧实现只在请求时采集并在浏览器内临时累积点，首次进入没有历史，暗黑主题下
+图表对比度不足。当前实现已经完成后台历史和主题适配。
 
 **方案**
 
-1. 前端引入图表库（如 ECharts 或 Ant Design Charts）
-2. 实现监控仪表盘页面
-3. 支持 CPU/内存/磁盘/网络趋势图
-4. 支持实时刷新
+1. task server 始终调度不可变 `monitor-sampler` 系统作业，默认每 5 秒采样。
+2. 后端环形缓冲区最多保存 120 个实例内 CPU/内存点，API 返回服务端时间戳、陈旧状态和实例标识。
+3. Welcome 与 Monitor 复用主题感知图表，在亮色和暗黑模式中显示最近窗口。
+4. 浏览器可见时轮询缓存快照，隐藏时暂停，不伪造或重复数据点。
 
 **影响范围**
 
-- 前端：`src/pages/Dashboard/Monitor.tsx`（新增或修改）
-- 依赖：图表库引入
+- 后端：`admin/service/monitor*.go`、`admin/cmd/server/server.go`
+- 调度：`mss-boot/core/server/task`
+- 前端：`src/components/MonitorTrend/`、`src/pages/Welcome.tsx`、`src/pages/Monitor/index.tsx`
 
 **验收标准**
 
-- [ ] CPU 使用率趋势图
-- [ ] 内存使用趋势图
-- [ ] 磁盘使用情况图表
-- [ ] 网络流量图表
-- [ ] 自动刷新间隔可配置
+- [x] CPU 使用率趋势图
+- [x] 内存使用趋势图
+- [x] 最近服务端历史在首次打开时可见
+- [x] 暗黑与亮色主题均可读
+- [x] 用户任务关闭时监控采样仍运行，且不写 Task/TaskRun
 
 ### 3. 告警规则配置
 
@@ -189,9 +194,9 @@ keywords: [admin operations planning roadmap enhancement]
    - 运维基础能力
    - 对排障效率影响大
 
-2. **监控数据可视化**
-   - 用户体验提升明显
-   - 前端改动为主，风险较低
+2. **监控数据可视化（已完成）**
+   - 后端有界历史解决首次进入无趋势的问题
+   - 主题 token 解决暗黑模式不可读问题
 
 ### 中优先级（建议四期）
 
@@ -226,13 +231,12 @@ keywords: [admin operations planning roadmap enhancement]
 - ✅ 已完成：扩展监控维度
 - ✅ 已完成：统计查询
 - 📋 待补强：运行时日志查看
-- 📋 待补强：监控可视化
+- ✅ 已完成：后台有界采样 + 监控可视化
 - 📋 待补强：告警能力
 
 ### 建议纳入四期
 
 - 运行时日志查看
-- 监控数据可视化
 - 告警规则配置
 - 配置变更历史
 

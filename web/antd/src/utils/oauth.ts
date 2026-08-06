@@ -5,10 +5,7 @@ import { postUserOauth2Authorize } from '@/services/admin/user';
  * only to the provider URL issued by the server. State and browser binding are
  * owned by the backend; callers never generate or persist OAuth state.
  */
-export async function openOAuthAuthorization(
-  provider: API.LoginProvider,
-  intent: API.OAuthIntent,
-) {
+export async function openOAuthAuthorization(provider: API.LoginProvider, intent: API.OAuthIntent) {
   const popup = window.open('about:blank', '_blank');
   if (!popup) {
     throw new Error('OAuth popup was blocked');
@@ -28,7 +25,7 @@ export async function openOAuthAuthorization(
 }
 
 export function requireServerOAuthIntent(token: Pick<API.OauthToken, 'intent'>): API.OAuthIntent {
-  if (token.intent === 'login' || token.intent === 'binding' || token.intent === 'integration') {
+  if (token.intent === 'login' || token.intent === 'binding') {
     return token.intent;
   }
   throw new Error('OAuth callback response has no valid server intent');

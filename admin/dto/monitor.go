@@ -51,6 +51,25 @@ type MonitorResponse struct {
 	StartTime int64 `json:"startTime"`
 	// Uptime 运行时长(秒)
 	Uptime int64 `json:"uptime"`
+	// CollectedAt is the UTC Unix timestamp in milliseconds of the latest sample.
+	CollectedAt int64 `json:"collectedAt"`
+	// SampleIntervalMS is the configured background sampling interval in milliseconds.
+	SampleIntervalMS int64 `json:"sampleIntervalMs"`
+	// Stale reports that the latest sampling attempt failed and this response is last-good data.
+	Stale bool `json:"stale"`
+	// InstanceID identifies the Admin process/host instance that produced the samples.
+	InstanceID string `json:"instanceId"`
+	// History contains bounded CPU and memory samples in chronological order.
+	History []MonitorHistoryPoint `json:"history"`
+}
+
+type MonitorHistoryPoint struct {
+	// Timestamp is the sample's UTC Unix timestamp in milliseconds.
+	Timestamp int64 `json:"timestamp"`
+	// CPUUsage is the aggregate CPU usage percentage in the range 0..100.
+	CPUUsage float64 `json:"cpuUsage"`
+	// MemoryUsagePercent is the host memory usage percentage in the range 0..100.
+	MemoryUsagePercent float64 `json:"memoryUsagePercent"`
 }
 
 type MonitorCPUInfo struct {
