@@ -85,15 +85,8 @@ func Init() {
 		IdentityHandler: func(c *gin.Context) any {
 			claims := jwt.ExtractClaims(c)
 			verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
-			if personAccessToken, ok := claims["personAccessToken"]; ok && personAccessToken != "" {
-				verifier.SetRefreshTokenDisable(true)
-				verifier.SetPersonAccessToken(personAccessToken.(string))
-				err := verifier.CheckToken(c, personAccessToken.(string))
-				if err != nil {
-					markAuthenticationFailure(c)
-					return nil
-				}
-				return verifier
+			if personAccessToken, ok := claims["personAccessToken"]; ok && cast.ToString(personAccessToken) != "" {
+				return authenticatePersonalAccessToken(c, verifier, cast.ToString(personAccessToken))
 			}
 			err := json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
 			if err != nil {
@@ -119,51 +112,11 @@ func Init() {
 			return verifier
 		},
 		Authenticator: func(c *gin.Context) (any, error) {
-			api := response.Make(c)
 			loginVals := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
 			if err := c.ShouldBind(&loginVals); err != nil {
 				return "", jwt.ErrMissingLoginValues
 			}
-			ok, user, err := loginVals.Verify(c)
-			ip := c.ClientIP()
-			userAgent := c.GetHeader("User-Agent")
-			db := center.Default.GetDB(c, nil)
-
-			if err != nil {
-				if logErr := service.Audit.LogLogin(db, "", extractLoginUsername(loginVals), ip, userAgent, err.Error(), false); logErr != nil {
-					api.AddError(logErr).Log.Warn("write login log failed")
-				}
-				return nil, err
-			}
-			if ok {
-				if config.Cfg.Auth.SessionEnabled {
-					sid, sErr := service.Session.Create(c, center.Default.GetDB(c, &models.UserSession{}), service.CreateSessionInput{
-						UserID:    user.GetUserID(),
-						Username:  user.GetUsername(),
-						RoleID:    user.GetRoleID(),
-						IP:        ip,
-						UserAgent: userAgent,
-						TTL:       config.Cfg.Auth.Timeout,
-					})
-					if sErr != nil {
-						api.AddError(sErr).Log.Error("session create failed")
-						if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent,
-							"session create failed: "+sErr.Error(), false); logErr != nil {
-							api.AddError(logErr).Log.Warn("write login log failed")
-						}
-						return nil, jwt.ErrFailedAuthentication
-					}
-					loginContext.Store(sid)
-				}
-				if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent, "login success", true); logErr != nil {
-					api.AddError(logErr).Log.Warn("write login log failed")
-				}
-				return user, nil
-			}
-			if logErr := service.Audit.LogLogin(db, "", extractLoginUsername(loginVals), ip, userAgent, "authentication failed", false); logErr != nil {
-				api.AddError(logErr).Log.Warn("write login log failed")
-			}
-			return nil, jwt.ErrFailedAuthentication
+			return AuthenticateVerifier(c, loginVals)
 		},
 		Authorizator: authorizeRequest,
 		RefreshResponse: func(c *gin.Context, code int, token string, expire time.Time) {
@@ -244,6 +197,94 @@ func Init() {
 	response.AuthHandler = Auth.MiddlewareFunc()
 	response.VerifyHandler = GetVerify
 	Middlewares.Store("auth", Auth.MiddlewareFunc())
+}
+
+// AuthenticateVerifier executes the canonical credential verification,
+// session creation, and login-audit path for a caller-supplied login verifier.
+// Callers that enable sessions must generate the JWT in the same goroutine so
+// PayloadFunc can consume the newly-created session identifier.
+func AuthenticateVerifier(c *gin.Context, loginVals security.Verifier) (security.Verifier, error) {
+	if c == nil || loginVals == nil {
+		return nil, jwt.ErrMissingLoginValues
+	}
+	loginContext.Clear()
+	api := response.Make(c)
+	ok, user, err := loginVals.Verify(c)
+	ip := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	db := center.Default.GetDB(c, nil)
+
+	if err != nil {
+		// Authentication providers may include credentials or upstream response
+		// details in errors. Keep the durable audit outcome diagnosable without
+		// persisting those details.
+		if logErr := service.Audit.LogLogin(db, "", extractLoginUsername(loginVals), ip, userAgent, "authentication failed", false); logErr != nil {
+			api.AddError(logErr).Log.Warn("write login log failed")
+		}
+		return nil, err
+	}
+	if !ok || user == nil {
+		if logErr := service.Audit.LogLogin(db, "", extractLoginUsername(loginVals), ip, userAgent, "authentication failed", false); logErr != nil {
+			api.AddError(logErr).Log.Warn("write login log failed")
+		}
+		return nil, jwt.ErrFailedAuthentication
+	}
+	if config.Cfg.Auth.SessionEnabled {
+		sid, sessionErr := service.Session.Create(c, center.Default.GetDB(c, &models.UserSession{}), service.CreateSessionInput{
+			UserID:    user.GetUserID(),
+			Username:  user.GetUsername(),
+			RoleID:    user.GetRoleID(),
+			IP:        ip,
+			UserAgent: userAgent,
+			TTL:       config.Cfg.Auth.Timeout,
+		})
+		if sessionErr != nil {
+			api.AddError(sessionErr).Log.Error("session create failed")
+			if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent,
+				"session creation failed", false); logErr != nil {
+				api.AddError(logErr).Log.Warn("write login log failed")
+			}
+			return nil, jwt.ErrFailedAuthentication
+		}
+		loginContext.Store(sid)
+	}
+	if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent, "login success", true); logErr != nil {
+		api.AddError(logErr).Log.Warn("write login log failed")
+	}
+	return user, nil
+}
+
+// AuthenticateAndGenerateToken completes the canonical login path and returns
+// the Admin JWT without invoking LoginResponse. It is used by server-completed
+// OAuth callbacks, which have their own explicit response DTO.
+func AuthenticateAndGenerateToken(
+	c *gin.Context,
+	loginVals security.Verifier,
+) (string, time.Time, error) {
+	if Auth == nil {
+		return "", time.Time{}, errors.New("authentication middleware is not initialized")
+	}
+	principal, err := AuthenticateVerifier(c, loginVals)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	token, expiresAt, err := Auth.TokenGenerator(principal)
+	if err != nil {
+		loginContext.Clear()
+		return "", time.Time{}, err
+	}
+	Auth.SetCookie(c, token)
+	return token, expiresAt, nil
+}
+
+func authenticatePersonalAccessToken(c *gin.Context, verifier security.Verifier, tokenID string) security.Verifier {
+	verifier.SetRefreshTokenDisable(true)
+	verifier.SetPersonAccessToken(tokenID)
+	if err := verifier.CheckToken(c, jwt.GetToken(c)); err != nil {
+		markAuthenticationFailure(c)
+		return nil
+	}
+	return verifier
 }
 
 // GetVerify 获取当前登录用户
@@ -353,6 +394,7 @@ func isInteractiveSensitiveRequest(method, path string) bool {
 	case http.MethodPost + " /admin/api/user/reset-password",
 		http.MethodPut + " /admin/api/user/userInfo",
 		http.MethodPost + " /admin/api/user/oauth2/authorize",
+		http.MethodPost + " /admin/api/user/:provider/callback",
 		http.MethodPost + " /admin/api/user/binding",
 		http.MethodDelete + " /admin/api/user/unbinding",
 		http.MethodGet + " /admin/api/user-auth-tokens",
@@ -385,7 +427,7 @@ var selfServiceRequests = map[string]struct{}{
 	http.MethodPost + " /admin/api/user/avatar":                {},
 	http.MethodGet + " /admin/api/user/oauth2":                 {},
 	http.MethodPost + " /admin/api/user/oauth2/authorize":      {},
-	http.MethodGet + " /admin/api/user/:provider/callback":     {},
+	http.MethodPost + " /admin/api/user/:provider/callback":    {},
 	http.MethodPost + " /admin/api/user/binding":               {},
 	http.MethodDelete + " /admin/api/user/unbinding":           {},
 	http.MethodPost + " /admin/api/online-sessions/logout":     {},

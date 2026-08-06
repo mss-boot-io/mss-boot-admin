@@ -118,11 +118,12 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodPost, Path: "/admin/api/user/binding", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodDelete, Path: "/admin/api/user/unbinding", Class: RouteAuthenticatedSelf, Mutation: true},
 	{
-		Method:               http.MethodGet,
-		Path:                 "/admin/api/user/:provider/callback",
-		Class:                RouteOptionalAuthenticated,
-		ConstrainedPublicGET: true,
+		Method:   http.MethodPost,
+		Path:     "/admin/api/user/:provider/callback",
+		Class:    RouteOptionalAuthenticated,
+		Mutation: true,
 	},
+	{Method: http.MethodGet, Path: "/admin/api/user/:provider/callback", Class: RoutePublic, LegacyDenyOnly: true},
 
 	// Personal access tokens. The two legacy action routes remain only as 405
 	// responses until clients have moved to the safe mutation methods.

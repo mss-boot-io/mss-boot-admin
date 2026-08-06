@@ -188,10 +188,13 @@ func (e *UserLogin) SetPersonAccessToken(token string) {
 }
 
 func (e *User) CheckToken(ctx context.Context, token string) error {
+	tokenID := e.GetPersonAccessToken()
+	if tokenID == "" || token == "" {
+		return errors.New("token invalid")
+	}
 	userAuthToken := &UserAuthToken{}
-	err := gormdb.DB.Model(&UserAuthToken{}).
-		//Where("revoked = ?", false).
-		Where("id = ?", token).
+	err := gormdb.DB.WithContext(ctx).Model(&UserAuthToken{}).
+		Where("id = ?", tokenID).
 		First(userAuthToken).Error
 	if err != nil {
 		return err
@@ -202,7 +205,10 @@ func (e *User) CheckToken(ctx context.Context, token string) error {
 	if userAuthToken.Revoked {
 		return errors.New("token revoked")
 	}
-	err = gormdb.DB.Model(&User{}).
+	if !VerifyUserAuthToken(token, userAuthToken.TokenHash) {
+		return errors.New("token invalid")
+	}
+	err = gormdb.DB.WithContext(ctx).Model(&User{}).
 		Preload("Role").
 		Where("id = ?", userAuthToken.UserID).
 		First(e).Error
