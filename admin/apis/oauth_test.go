@@ -520,6 +520,14 @@ func (*oauthCallbackCredentialStore) Lookup(
 	return oauthcredential.Record{}, oauthcredential.ErrNotFound
 }
 
+func (*oauthCallbackCredentialStore) Consume(
+	context.Context,
+	redis.UniversalClient,
+	string,
+) (oauthcredential.Record, error) {
+	return oauthcredential.Record{}, oauthcredential.ErrNotFound
+}
+
 func (*oauthCallbackCredentialStore) Delete(
 	context.Context,
 	redis.UniversalClient,

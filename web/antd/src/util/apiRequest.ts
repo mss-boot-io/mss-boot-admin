@@ -6,19 +6,22 @@ export function prepareAPIRequest(
   apiURL = API_URL,
   token = localStorage.getItem('token'),
 ) {
+  const { skipAuthToken, ...requestOptions } = options as RequestOptions & {
+    skipAuthToken?: boolean;
+  };
   return {
     url: `${apiURL}${url}`,
     options: {
-      ...options,
+      ...requestOptions,
       // The deployed UI and API use different origins. OAuth browser-binding
       // cookies are HttpOnly, so every API request must opt into credentials.
       withCredentials: true,
-      headers: token
+      headers: token && !skipAuthToken
         ? {
-            ...options.headers,
+            ...requestOptions.headers,
             Authorization: `Bearer ${token}`,
           }
-        : options.headers,
+        : requestOptions.headers,
     },
   };
 }

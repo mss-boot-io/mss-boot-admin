@@ -16,11 +16,39 @@ import (
 )
 
 const (
-	patMigrationMySQLDSNEnv     = "MSS_PAT_TEST_MYSQL_DSN"
-	patMigrationPostgresDSNEnv  = "MSS_PAT_TEST_POSTGRES_DSN"
-	patMigrationTestDatabaseTag = "mss_pat_test"
-	patMigrationIntegrationVer  = "2026080617999"
+	patMigrationMySQLDSNEnv      = "MSS_PAT_TEST_MYSQL_DSN"
+	patMigrationPostgresDSNEnv   = "MSS_PAT_TEST_POSTGRES_DSN"
+	patMigrationTestDatabaseName = "mss_pat_test"
+	patMigrationIntegrationVer   = "2026080617999"
 )
+
+func TestIsPATMigrationTestDatabaseName(t *testing.T) {
+	tests := []struct {
+		name         string
+		databaseName string
+		want         bool
+	}{
+		{name: "exact allowlisted name", databaseName: "mss_pat_test", want: true},
+		{name: "production prefix", databaseName: "prod_mss_pat_test", want: false},
+		{name: "archive suffix", databaseName: "mss_pat_test_archive", want: false},
+		{name: "embedded marker", databaseName: "prod_mss_pat_test_archive", want: false},
+		{name: "case variant", databaseName: "MSS_PAT_TEST", want: false},
+		{name: "surrounding whitespace", databaseName: " mss_pat_test ", want: false},
+		{name: "empty", databaseName: "", want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := isPATMigrationTestDatabaseName(test.databaseName); got != test.want {
+				t.Fatalf("isPATMigrationTestDatabaseName(%q) = %t, want %t", test.databaseName, got, test.want)
+			}
+		})
+	}
+}
+
+func isPATMigrationTestDatabaseName(databaseName string) bool {
+	return databaseName == patMigrationTestDatabaseName
+}
 
 func TestUserAuthTokenHashMigrationMySQLIntegration(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv(patMigrationMySQLDSNEnv))
@@ -131,10 +159,10 @@ func openPATMigrationIntegrationDB(t *testing.T, dialect, dsn string) *gorm.DB {
 		_ = sqlDB.Close()
 		t.Fatalf("verify %s PAT migration integration database failed", dialect)
 	}
-	if !strings.Contains(strings.ToLower(strings.TrimSpace(databaseName)), patMigrationTestDatabaseTag) {
+	if !isPATMigrationTestDatabaseName(databaseName) {
 		cancel()
 		_ = sqlDB.Close()
-		t.Fatalf("refusing destructive %s PAT migration test outside a marked test database", dialect)
+		t.Fatalf("refusing destructive %s PAT migration test outside the allowlisted database %q", dialect, patMigrationTestDatabaseName)
 	}
 
 	t.Cleanup(func() {

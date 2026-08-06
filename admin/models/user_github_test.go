@@ -1,10 +1,14 @@
 package models
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +16,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -99,6 +104,7 @@ func TestGithubVerifyRejectsUntrustedProviderIdentityBeforeRegistration(t *testi
 }
 
 func TestGithubVerifyPreservesValidLoginWithExactCaseInsensitiveOrganization(t *testing.T) {
+	const providerToken = "github-provider-token-must-not-become-local-password"
 	config := githubTestAppConfig{
 		"security:githubEnabled":    "true",
 		"security:githubAllowGroup": " allowed-org ",
@@ -116,14 +122,66 @@ func TestGithubVerifyPreservesValidLoginWithExactCaseInsensitiveOrganization(t *
 	}))
 	defer server.Close()
 
-	login := &UserLogin{Provider: pkg.GithubLoginProvider, Password: "provider-token"}
+	login := &UserLogin{Provider: pkg.GithubLoginProvider, Password: providerToken}
 	ok, verifier, err := login.Verify(newGithubVerifyContext(server.URL))
 	require.NoError(t, err)
 	require.True(t, ok)
 	user, ok := verifier.(*User)
 	require.True(t, ok)
 	require.Equal(t, "octocat", user.Username, "login is the safe fallback when GitHub email is private")
+	require.True(t, user.LocalPasswordDisabled)
+	require.NotEqual(t, providerToken, user.Password)
 	requireGithubRegistrationCount(t, database, 1, 1)
+
+	var persisted User
+	require.NoError(t, database.First(&persisted, "username = ?", "octocat").Error)
+	require.True(t, persisted.LocalPasswordDisabled)
+	providerDerivedHash, err := security.SetPassword(providerToken, persisted.Salt)
+	require.NoError(t, err)
+	require.NotEqual(t, providerDerivedHash, persisted.PasswordHash,
+		"provider token must never become a durable local credential")
+
+	for _, localPassword := range []string{"", providerToken} {
+		localLogin := &UserLogin{Username: "octocat", Password: localPassword}
+		localOK, _, localErr := localLogin.Verify(newGithubVerifyContext(server.URL))
+		require.NoError(t, localErr)
+		require.False(t, localOK, "OAuth-only user accepted local password %q", localPassword)
+	}
+}
+
+func TestGithubVerifyDoesNotLogUntrustedHookErrorDetail(t *testing.T) {
+	const providerToken = "github-provider-token-log-sentinel"
+	const hookDetail = "hook-secret-detail"
+	setupGithubVerifyTest(t, githubTestAppConfig{
+		"security:githubEnabled": "true",
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"id":42,"login":"octocat"}`))
+	}))
+	defer server.Close()
+
+	BeforeGithubVerify = func(context.Context, *pkg.GithubUser, string) error {
+		return errors.New(hookDetail + ": " + providerToken)
+	}
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	login := &UserLogin{Provider: pkg.GithubLoginProvider, Password: providerToken}
+	ok, verifier, err := login.Verify(newGithubVerifyContext(server.URL))
+	if err == nil || !strings.Contains(err.Error(), hookDetail) {
+		t.Fatalf("Verify() error = %v, want unmodified hook error", err)
+	}
+	if ok || verifier != nil {
+		t.Fatalf("Verify() = (%v, %#v), want rejected hook", ok, verifier)
+	}
+	if strings.Contains(logs.String(), providerToken) || strings.Contains(logs.String(), hookDetail) {
+		t.Fatalf("OAuth verification log leaked untrusted detail: %s", logs.String())
+	}
+	if !strings.Contains(logs.String(), "github identity verification failed") {
+		t.Fatalf("OAuth verification log did not contain generic diagnostic: %s", logs.String())
+	}
 }
 
 func TestEmailRegistrationUsesPublicRegistrationSwitch(t *testing.T) {

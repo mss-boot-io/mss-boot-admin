@@ -4,12 +4,14 @@ import AccessTokenView from './AccessToken';
 import {
   getUserAuthTokens,
   postUserAuthTokenGenerate,
+  putUserAuthTokenIdRefresh,
   putUserAuthTokenIdRevoke,
 } from '@/services/admin/userAuthToken';
 
 jest.mock('@/services/admin/userAuthToken', () => ({
   getUserAuthTokens: jest.fn(),
   postUserAuthTokenGenerate: jest.fn(),
+  putUserAuthTokenIdRefresh: jest.fn(),
   putUserAuthTokenIdRevoke: jest.fn(),
 }));
 
@@ -22,6 +24,7 @@ jest.mock('@umijs/max', () => ({
 
 const mockedGetTokens = getUserAuthTokens as jest.Mock;
 const mockedCreateToken = postUserAuthTokenGenerate as jest.Mock;
+const mockedRotateToken = putUserAuthTokenIdRefresh as jest.Mock;
 const mockedRevokeToken = putUserAuthTokenIdRevoke as jest.Mock;
 
 const summary: API.UserAuthTokenSummary = {
@@ -51,11 +54,17 @@ describe('AccessTokenView', () => {
     jest.clearAllMocks();
     mockedGetTokens.mockReset();
     mockedCreateToken.mockReset();
+    mockedRotateToken.mockReset();
     mockedRevokeToken.mockReset();
     mockedGetTokens.mockResolvedValue(page([]));
     mockedCreateToken.mockResolvedValue({
       ...summary,
       token: 'pat-secret-once',
+    });
+    mockedRotateToken.mockResolvedValue({
+      ...summary,
+      fingerprint: 'sha256:rotated',
+      token: 'pat-rotated-secret-once',
     });
     mockedRevokeToken.mockResolvedValue({} as any);
     writeText = jest.fn().mockResolvedValue(undefined);
@@ -164,6 +173,91 @@ describe('AccessTokenView', () => {
     ).toBeTruthy();
     expect(screen.getByRole('dialog', { name: 'Add access token' })).toBeTruthy();
     expect(screen.queryByLabelText('One-time personal access token')).toBeNull();
+  });
+
+  it('confirms rotation, disables token actions, shows the replacement once, and refreshes metadata', async () => {
+    let resolveRotate: ((value: any) => void) | undefined;
+    mockedGetTokens
+      .mockResolvedValueOnce(
+        page([{ ...summary, token: 'old-token-must-not-render' } as API.UserAuthTokenSummary]),
+      )
+      .mockResolvedValueOnce(page([{ ...summary, fingerprint: 'sha256:rotated' }]));
+    mockedRotateToken.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRotate = resolve;
+      }) as any,
+    );
+    render(<AccessTokenView />);
+
+    const rotateButton = await screen.findByRole('button', { name: 'Rotate pat-1' });
+    const revokeButton = screen.getByRole('button', { name: 'Revoke pat-1' });
+    fireEvent.click(rotateButton);
+    expect(await screen.findByText('Rotate this access token?')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm rotate' }));
+
+    await waitFor(() => {
+      expect(mockedRotateToken).toHaveBeenCalledWith(
+        { id: 'pat-1' },
+        { skipErrorHandler: true },
+      );
+    });
+    expect((rotateButton as HTMLButtonElement).disabled).toBe(true);
+    expect((revokeButton as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Add access token' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(screen.getByText('Rotating')).toBeTruthy();
+
+    await act(async () => {
+      resolveRotate?.({
+        ...summary,
+        fingerprint: 'sha256:rotated',
+        token: 'pat-rotated-secret-once',
+      });
+    });
+
+    const secretInput = await screen.findByLabelText('One-time personal access token');
+    expect((secretInput as HTMLTextAreaElement).value).toBe('pat-rotated-secret-once');
+    expect(writeText).not.toHaveBeenCalled();
+    expect(screen.queryByText('old-token-must-not-render')).toBeNull();
+    expect(screen.queryByDisplayValue('old-token-must-not-render')).toBeNull();
+    expect(await screen.findByText(/sha256:rotated/)).toBeTruthy();
+    expect(mockedGetTokens).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'I have saved the token' }));
+    await waitFor(() => {
+      expect(screen.queryByDisplayValue('pat-rotated-secret-once')).toBeNull();
+    });
+  });
+
+  it('keeps metadata visible and does not open the secret dialog when rotation fails', async () => {
+    mockedGetTokens.mockResolvedValue(page([summary]));
+    mockedRotateToken.mockRejectedValue(new Error('conflict'));
+    render(<AccessTokenView />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Rotate pat-1' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm rotate' }));
+
+    expect(
+      await screen.findByText('Unable to rotate the access token. Please try again.'),
+    ).toBeTruthy();
+    expect(screen.getByText(/pat-1/)).toBeTruthy();
+    expect(screen.queryByLabelText('One-time personal access token')).toBeNull();
+  });
+
+  it('treats a rotation response without a one-time token as a failure', async () => {
+    mockedGetTokens.mockResolvedValue(page([summary]));
+    mockedRotateToken.mockResolvedValue({ ...summary, fingerprint: 'sha256:rotated' });
+    render(<AccessTokenView />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Rotate pat-1' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm rotate' }));
+
+    expect(
+      await screen.findByText('Unable to rotate the access token. Please try again.'),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText('One-time personal access token')).toBeNull();
+    expect(mockedGetTokens).toHaveBeenCalledTimes(1);
   });
 
   it('requires confirmation, shows revoke progress, and refreshes the list', async () => {

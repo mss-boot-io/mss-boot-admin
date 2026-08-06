@@ -57,10 +57,11 @@ type User struct {
 
 // Other handler
 func (e *User) Other(r *gin.RouterGroup) {
-	r.POST("/user/login", middleware.Auth.LoginHandler)
+	r.POST("/user/login", middleware.PublicLoginHandler)
+	r.POST("/user/auth-cookie/clear", e.ClearAuthCookie)
 	r.POST("/user/reset-password", middleware.OptionalAuth(), e.ResetPassword)
 	r.POST("/user/fakeCaptcha", e.FakeCaptcha)
-	r.POST("/user/login/github", middleware.Auth.LoginHandler)
+	r.POST("/user/login/github", methodNotAllowed)
 	r.POST("/user/refresh-token", middleware.Auth.RefreshHandler)
 	r.GET("/user/refresh-token", methodNotAllowed)
 	r.GET("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UserInfo)
@@ -73,6 +74,14 @@ func (e *User) Other(r *gin.RouterGroup) {
 	r.DELETE("/user/unbinding", response.AuthHandler, e.Unbinding)
 	r.POST("/user/:provider/callback", middleware.OptionalAuth(), e.Callback)
 	r.GET("/user/:provider/callback", methodNotAllowed)
+}
+
+// ClearAuthCookie expires the browser's HttpOnly Admin JWT cookie before a
+// deliberate login/account-switch flow. It does not revoke a live session;
+// authenticated users should use the session logout endpoint for that.
+func (*User) ClearAuthCookie(c *gin.Context) {
+	middleware.ClearAuthCookie(c)
+	c.Status(http.StatusNoContent)
 }
 
 // Unbinding 解绑第三方登录

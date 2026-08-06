@@ -36,6 +36,7 @@ cors:
   allowHeaders:
     - Authorization
     - Content-Type
+    - X-MSS-OAuth-Credential
   maxAge: 12h
 logger:
   path: logs

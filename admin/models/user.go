@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/spf13/cast"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
@@ -94,11 +96,14 @@ func PasswordReset(ctx context.Context, userID string, password string) error {
 	if err != nil {
 		return err
 	}
-	err = gormdb.DB.Model(user).Updates(User{
-		UserLogin: UserLogin{
-			PasswordHash: hash,
-			Salt:         user.Salt,
-		},
+	db := gormdb.DB.WithContext(ctx)
+	if db.Logger != nil {
+		db = db.Session(&gorm.Session{Logger: db.Logger.LogMode(logger.Silent)})
+	}
+	err = db.Model(user).Updates(map[string]any{
+		"password_hash":           hash,
+		"salt":                    user.Salt,
+		"local_password_disabled": false,
 	}).Error
 	if err != nil {
 		return err
@@ -127,24 +132,25 @@ func GetUserByEmail(ctx *gin.Context, email string) (*User, error) {
 }
 
 type UserLogin struct {
-	RoleID              string            `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Role                *Role             `json:"role" gorm:"foreignKey:RoleID;references:ID"`
-	PostID              string            `json:"postID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Post                *Post             `json:"post" gorm:"foreignKey:PostID;references:ID"`
-	DepartmentID        string            `json:"departmentID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
-	Department          *Department       `json:"department" gorm:"foreignKey:DepartmentID;references:ID"`
-	Username            string            `json:"username" gorm:"type:varchar(20);index"`
-	Email               string            `json:"email" gorm:"type:varchar(100);index"`
-	Password            string            `json:"password,omitempty" gorm:"-"`
-	PasswordHash        string            `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
-	PasswordStrength    string            `json:"passwordStrength" gorm:"size:20;comment:密码强度"`
-	Salt                string            `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
-	Status              enum.Status       `json:"status" gorm:"size:10"`
-	OAuth2              []*UserOAuth2     `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
-	Provider            pkg.LoginProvider `json:"type" gorm:"-"`
-	RefreshTokenDisable bool              `json:"-" gorm:"-"`
-	PersonAccessToken   string            `json:"-" gorm:"-"`
-	Captcha             string            `json:"captcha" gorm:"-"`
+	RoleID                string            `json:"roleID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Role                  *Role             `json:"role" gorm:"foreignKey:RoleID;references:ID"`
+	PostID                string            `json:"postID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Post                  *Post             `json:"post" gorm:"foreignKey:PostID;references:ID"`
+	DepartmentID          string            `json:"departmentID" gorm:"index;type:varchar(64)" swaggerignore:"true"`
+	Department            *Department       `json:"department" gorm:"foreignKey:DepartmentID;references:ID"`
+	Username              string            `json:"username" gorm:"type:varchar(20);index"`
+	Email                 string            `json:"email" gorm:"type:varchar(100);index"`
+	Password              string            `json:"password,omitempty" gorm:"-"`
+	LocalPasswordDisabled bool              `json:"-" gorm:"not null;default:false;comment:disable local password login" swaggerignore:"true"`
+	PasswordHash          string            `json:"-" gorm:"size:255;comment:密码hash" swaggerignore:"true"`
+	PasswordStrength      string            `json:"passwordStrength" gorm:"size:20;comment:密码强度"`
+	Salt                  string            `json:"-" gorm:"size:255;comment:加盐" swaggerignore:"true"`
+	Status                enum.Status       `json:"status" gorm:"size:10"`
+	OAuth2                []*UserOAuth2     `json:"oauth2" gorm:"foreignKey:UserID;references:ID"`
+	Provider              pkg.LoginProvider `json:"type" gorm:"-"`
+	RefreshTokenDisable   bool              `json:"-" gorm:"-"`
+	PersonAccessToken     string            `json:"-" gorm:"-"`
+	Captcha               string            `json:"captcha,omitempty" gorm:"-"`
 }
 
 func (e *UserLogin) TableName() string {
@@ -227,6 +233,12 @@ func (e *UserLogin) Root() bool {
 
 var BeforeGithubVerify func(ctx context.Context, user *pkg.GithubUser, token string) error
 
+const (
+	larkUserInfoURL          = "https://open.larksuite.com/open-apis/authen/v1/user_info"
+	oauthUserInfoTimeout     = 10 * time.Second
+	oauthUserInfoMaxBodySize = 1 << 20
+)
+
 // Verify verify password
 func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error) {
 	c := ctx.(*gin.Context)
@@ -237,7 +249,10 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		// get user from db
 		userOAuth2, err := e.GetUserGithubOAuth2(c)
 		if err != nil {
-			slog.Error("get user from github error", slog.Any("error", err))
+			// Provider and extension-hook errors are untrusted and may contain
+			// bearer credentials. Preserve the error for the caller, but never
+			// attach its detail to application logs.
+			slog.Error("github identity verification failed")
 			return false, nil, err
 		}
 		if userOAuth2.ID == "" {
@@ -248,12 +263,13 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			}
 			userOAuth2.User = &User{
 				UserLogin: UserLogin{
-					RoleID:   defaultRole.ID,
-					Username: username,
-					Email:    userOAuth2.Email,
-					Password: e.Password,
-					Provider: pkg.GithubLoginProvider,
-					Status:   enum.Enabled,
+					RoleID:                defaultRole.ID,
+					Username:              username,
+					Email:                 userOAuth2.Email,
+					Password:              security.GenerateRandomKey20(),
+					LocalPasswordDisabled: true,
+					Provider:              pkg.GithubLoginProvider,
+					Status:                enum.Enabled,
 				},
 				Name:    userOAuth2.Name,
 				Avatar:  userOAuth2.Picture,
@@ -264,7 +280,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			}
 			err = center.GetDB(c, &UserOAuth2{}).Create(userOAuth2).Error
 			if err != nil {
-				slog.Error("create user error", slog.Any("error", err))
+				slog.Error("github identity registration failed")
 				return false, nil, err
 			}
 			userOAuth2.User.Role = defaultRole
@@ -273,19 +289,20 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 	case pkg.LarkLoginProvider:
 		userOAuth2, err := e.GetUserLarkOAuth2(c)
 		if err != nil {
-			slog.Error("get user from lark error", slog.Any("error", err))
+			slog.Error("lark identity verification failed")
 			return false, nil, err
 		}
 		if userOAuth2.ID == "" {
 			// register
 			userOAuth2.User = &User{
 				UserLogin: UserLogin{
-					RoleID:   defaultRole.ID,
-					Username: userOAuth2.PreferredUsername,
-					Email:    userOAuth2.Email,
-					Password: e.Password,
-					Provider: pkg.LarkLoginProvider,
-					Status:   enum.Enabled,
+					RoleID:                defaultRole.ID,
+					Username:              userOAuth2.PreferredUsername,
+					Email:                 userOAuth2.Email,
+					Password:              security.GenerateRandomKey20(),
+					LocalPasswordDisabled: true,
+					Provider:              pkg.LarkLoginProvider,
+					Status:                enum.Enabled,
 				},
 				Name:   userOAuth2.Name,
 				Avatar: userOAuth2.Picture,
@@ -295,7 +312,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			}
 			err = center.GetDB(c, &UserOAuth2{}).Create(userOAuth2).Error
 			if err != nil {
-				slog.Error("create user error", slog.Any("error", err))
+				slog.Error("lark identity registration failed")
 				return false, nil, err
 			}
 			userOAuth2.User.Role = defaultRole
@@ -359,6 +376,9 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 	if err != nil {
 		return false, nil, err
 	}
+	if user.LocalPasswordDisabled {
+		return false, nil, nil
+	}
 	verify, err := security.SetPassword(e.Password, user.Salt)
 	if err != nil {
 		return false, nil, err
@@ -367,16 +387,29 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 }
 
 func (e *UserLogin) GetUserLarkOAuth2(c *gin.Context) (*UserOAuth2, error) {
-	client := http.Client{}
-	req, err := http.NewRequest(http.MethodGet, "https://open.larksuite.com/open-apis/authen/v1/user_info", nil)
+	return e.getUserLarkOAuth2(c, &http.Client{Timeout: oauthUserInfoTimeout}, larkUserInfoURL)
+}
+
+func (e *UserLogin) getUserLarkOAuth2(
+	c *gin.Context,
+	client *http.Client,
+	endpoint string,
+) (*UserOAuth2, error) {
+	if c == nil || c.Request == nil {
+		return nil, errors.New("lark user request context is required")
+	}
+	if client == nil || client.Timeout <= 0 {
+		return nil, errors.New("lark user client timeout is required")
+	}
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, endpoint, nil)
 	if err != nil {
-		slog.Error("new request error", slog.Any("error", err))
+		slog.Error("lark identity request creation failed")
 		return nil, err
 	}
 	req.Header.Add("Authorization", "Bearer "+e.Password)
 	resp, err := client.Do(req)
 	if err != nil {
-		slog.Error("do request error", slog.Any("error", err))
+		slog.Error("lark identity request failed")
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -386,59 +419,68 @@ func (e *UserLogin) GetUserLarkOAuth2(c *gin.Context) (*UserOAuth2, error) {
 		return nil, err
 	}
 	result := &larkauthen.GetUserInfoResp{}
-	err = json.NewDecoder(resp.Body).Decode(result)
+	err = json.NewDecoder(io.LimitReader(resp.Body, oauthUserInfoMaxBodySize)).Decode(result)
 	if err != nil {
-		slog.Error("decode response error", slog.Any("error", err))
+		slog.Error("lark identity response decode failed")
+		return nil, err
+	}
+	if result.Code != 0 || result.Data == nil || strings.TrimSpace(stringValue(result.Data.UnionId)) == "" {
+		return nil, errors.New("get user from lark error")
+	}
+	data := result.Data
+	identityKey, err := UserOAuthIdentityKey(
+		pkg.LarkLoginProvider,
+		stringValue(data.OpenId),
+		stringValue(data.UnionId),
+	)
+	if err != nil {
 		return nil, err
 	}
 	userOAuth2 := &UserOAuth2{}
 	err = center.GetDB(c, &UserOAuth2{}).
 		Preload("User.Role").
-		First(userOAuth2, "union_id = ?", result.Data.UnionId).Error
+		First(userOAuth2, "identity_key = ?", identityKey).Error
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			slog.Error("get user from db error", slog.Any("error", err))
+			slog.Error("lark identity database lookup failed")
 			return nil, err
 		}
 		err = nil
-		email := ""
-		if result.Data.EnterpriseEmail != nil {
-			email = *result.Data.EnterpriseEmail
+		email := stringValue(data.EnterpriseEmail)
+		if email == "" {
+			email = stringValue(data.Email)
 		}
-		if email == "" && result.Data.Email != nil {
-			email = *result.Data.Email
+		preferredUsername := stringValue(data.UserId)
+		if preferredUsername == "" {
+			preferredUsername = stringValue(data.EnName)
 		}
-		preferredUsername := ""
-		if result.Data.UserId != nil {
-			preferredUsername = *result.Data.UserId
-		}
-		if preferredUsername == "" && result.Data.EnName != nil {
-			preferredUsername = *result.Data.EnName
-		}
-		if preferredUsername == "" && result.Data.Name != nil {
-			preferredUsername = *result.Data.Name
+		if preferredUsername == "" {
+			preferredUsername = stringValue(data.Name)
 		}
 
 		userOAuth2 = &UserOAuth2{
-			UnionID:           *result.Data.UnionId,
-			OpenID:            *result.Data.OpenId,
-			Sub:               *result.Data.TenantKey,
-			Name:              *result.Data.Name,
+			UnionID:           stringValue(data.UnionId),
+			OpenID:            stringValue(data.OpenId),
+			Sub:               stringValue(data.TenantKey),
+			Name:              stringValue(data.Name),
 			Email:             email,
-			Picture:           *result.Data.AvatarUrl,
-			NickName:          *result.Data.Name,
+			Picture:           stringValue(data.AvatarUrl),
+			NickName:          stringValue(data.Name),
 			EmailVerified:     email != "",
 			Provider:          pkg.LarkLoginProvider,
 			PreferredUsername: preferredUsername,
 		}
-		if result.Data.Mobile != nil {
-			userOAuth2.PhoneNumber = *result.Data.Mobile
-		}
-		if result.Data.EmployeeNo != nil {
-			userOAuth2.EmployeeNO = *result.Data.EmployeeNo
-		}
+		userOAuth2.PhoneNumber = stringValue(data.Mobile)
+		userOAuth2.EmployeeNO = stringValue(data.EmployeeNo)
 	}
 	return userOAuth2, nil
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func (e *UserLogin) GetUserGithubOAuth2(c *gin.Context) (*UserOAuth2, error) {
@@ -475,13 +517,13 @@ func (e *UserLogin) GetUserGithubOAuth2(c *gin.Context) (*UserOAuth2, error) {
 	}
 	githubUser, err := pkg.GetUserFromGithub(requestContext, conf, e.Password)
 	if err != nil {
-		slog.Error("get user from github error", slog.Any("error", err))
+		slog.Error("github identity request failed")
 		return nil, err
 	}
 	if len(allowGroups) > 0 {
 		org, err := pkg.GetOrganizationsFromGithub(requestContext, conf, e.Password)
 		if err != nil {
-			slog.Error("get organizations from github error", slog.Any("error", err))
+			slog.Error("github organization request failed")
 			return nil, err
 		}
 		if !githubOrganizationAllowed(allowGroups, org) {
@@ -499,17 +541,22 @@ func (e *UserLogin) GetUserGithubOAuth2(c *gin.Context) (*UserOAuth2, error) {
 		}
 	}
 	// get user from db
+	openID := fmt.Sprintf("%d", githubUser.ID)
+	identityKey, err := UserOAuthIdentityKey(pkg.GithubLoginProvider, openID, "")
+	if err != nil {
+		return nil, err
+	}
 	userOAuth2 := &UserOAuth2{}
-	err = center.GetDB(c, &UserOAuth2{}).Preload("User.Role").First(userOAuth2, "open_id = ?", fmt.Sprintf("%d", githubUser.ID)).Error
+	err = center.GetDB(c, &UserOAuth2{}).Preload("User.Role").First(userOAuth2, "identity_key = ?", identityKey).Error
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			slog.Error("get user from db error", slog.Any("error", err))
+			slog.Error("github identity database lookup failed")
 			return nil, err
 		}
 		err = nil
 		userOAuth2 = &UserOAuth2{
 			UserID:            e.GetUserID(),
-			OpenID:            fmt.Sprintf("%d", githubUser.ID),
+			OpenID:            openID,
 			Sub:               "github",
 			Name:              githubUser.Login,
 			Email:             githubUser.Email,

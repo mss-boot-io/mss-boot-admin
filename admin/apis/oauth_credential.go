@@ -21,6 +21,7 @@ const oauthCredentialHeader = "X-MSS-OAuth-Credential"
 type oauthCredentialStore interface {
 	Issue(context.Context, redis.UniversalClient, oauthcredential.Record, time.Duration) (string, oauthcredential.Record, error)
 	Lookup(context.Context, redis.UniversalClient, string) (oauthcredential.Record, error)
+	Consume(context.Context, redis.UniversalClient, string) (oauthcredential.Record, error)
 	Delete(context.Context, redis.UniversalClient, string) error
 }
 
@@ -58,15 +59,15 @@ func (e Template) lookupOAuthIntegrationCredential(c *gin.Context) (string, stri
 	return lookupOAuthIntegrationCredential(c, store)
 }
 
-func (e Template) deleteOAuthIntegrationCredential(c *gin.Context, handle string) int {
-	if handle == "" {
-		return 0
+func (e Template) consumeOAuthIntegrationCredential(c *gin.Context) (string, string, int) {
+	if c == nil || strings.TrimSpace(c.GetHeader(oauthCredentialHeader)) == "" {
+		return consumeOAuthIntegrationCredential(c, nil)
 	}
 	store, err := e.credentialStore()
 	if err != nil {
-		return http.StatusServiceUnavailable
+		return "", "", http.StatusServiceUnavailable
 	}
-	return deleteOAuthIntegrationCredential(c, store, handle)
+	return consumeOAuthIntegrationCredential(c, store)
 }
 
 func lookupOAuthIntegrationCredential(
@@ -99,6 +100,43 @@ func lookupOAuthIntegrationCredential(
 	}
 
 	record, err := store.Lookup(c, center.GetCache(), handle)
+	return validateOAuthIntegrationCredentialRecord(c, handle, record, err)
+}
+
+func consumeOAuthIntegrationCredential(
+	c *gin.Context,
+	store oauthCredentialStore,
+) (accessToken string, handle string, status int) {
+	if c == nil {
+		return "", "", http.StatusUnauthorized
+	}
+	handle = strings.TrimSpace(c.GetHeader(oauthCredentialHeader))
+	if handle == "" {
+		// Generate always pushes a branch to GitHub. Requiring the short-lived
+		// handle here avoids doing clone/generation work that cannot succeed and
+		// keeps the state-changing operation fail-closed.
+		return "", "", http.StatusUnauthorized
+	}
+	verifier := currentVerifier(c)
+	if verifier == nil {
+		return "", "", http.StatusUnauthorized
+	}
+	if middleware.IsPersonalAccessTokenVerifier(verifier) {
+		return "", "", http.StatusForbidden
+	}
+	if store == nil {
+		return "", "", http.StatusServiceUnavailable
+	}
+	record, err := store.Consume(c, center.GetCache(), handle)
+	return validateOAuthIntegrationCredentialRecord(c, handle, record, err)
+}
+
+func validateOAuthIntegrationCredentialRecord(
+	c *gin.Context,
+	handle string,
+	record oauthcredential.Record,
+	err error,
+) (accessToken string, returnedHandle string, status int) {
 	if err != nil {
 		if errors.Is(err, oauthcredential.ErrNotFound) ||
 			errors.Is(err, oauthcredential.ErrExpired) ||
@@ -107,6 +145,18 @@ func lookupOAuthIntegrationCredential(
 		}
 		return "", "", http.StatusServiceUnavailable
 	}
+	verifier := currentVerifier(c)
+	if verifier == nil {
+		return "", "", http.StatusUnauthorized
+	}
+	if middleware.IsPersonalAccessTokenVerifier(verifier) {
+		return "", "", http.StatusForbidden
+	}
+	credentialFingerprint := requestCredentialFingerprint(c)
+	userID := strings.TrimSpace(verifier.GetUserID())
+	if credentialFingerprint == "" || userID == "" {
+		return "", "", http.StatusUnauthorized
+	}
 	if !constantTimeEqual(record.Provider, "github") ||
 		!constantTimeEqual(string(record.Intent), string(oauthcredential.IntentIntegration)) ||
 		!constantTimeEqual(record.UserID, userID) ||
@@ -114,23 +164,6 @@ func lookupOAuthIntegrationCredential(
 		return "", "", http.StatusUnauthorized
 	}
 	return record.AccessToken, handle, 0
-}
-
-func deleteOAuthIntegrationCredential(
-	c *gin.Context,
-	store oauthCredentialStore,
-	handle string,
-) int {
-	if handle == "" {
-		return 0
-	}
-	if c == nil || store == nil {
-		return http.StatusServiceUnavailable
-	}
-	if err := store.Delete(c, center.GetCache(), handle); err != nil {
-		return http.StatusServiceUnavailable
-	}
-	return 0
 }
 
 func legacyTemplateAccessToken(c *gin.Context, boundValue string) bool {

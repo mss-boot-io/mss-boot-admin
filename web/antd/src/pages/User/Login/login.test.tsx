@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import * as React from 'react';
-import Login, { persistLoginState } from './index';
+import Login, { hasAutoLoginSession, persistLoginState } from './index';
 import { resolveSafeRedirect } from './redirect';
 
 jest.mock('@umijs/max', () => {
@@ -163,6 +163,19 @@ describe('Login Page', () => {
     expect(localStorage.setItem).toHaveBeenCalledWith('token.expire', '3600');
     expect(localStorage.setItem).toHaveBeenCalledWith('autoLogin', 'true');
     expect(redirect).toBe('/workplace');
+  });
+
+  it('refreshes only when auto login is explicitly enabled', () => {
+    const values: Record<string, string> = {
+      autoLogin: 'false',
+      token: 'admin-token',
+      'token.expire': '3600',
+    };
+    const storage = { getItem: jest.fn((key: string) => values[key] || null) };
+
+    expect(hasAutoLoginSession(storage)).toBe(false);
+    values.autoLogin = 'true';
+    expect(hasAutoLoginSession(storage)).toBe(true);
   });
 
   it('should reject unsafe login redirects', () => {

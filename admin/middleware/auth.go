@@ -43,7 +43,10 @@ var (
 	Verifier security.Verifier
 )
 
-const authenticationFailureKey = "mss.authentication.failure"
+const (
+	authenticationFailureKey    = "mss.authentication.failure"
+	publicLoginDisallowOAuthKey = "mss.authentication.public-login-disallow-oauth"
+)
 
 func Init() {
 	Auth = &jwt.GinJWTMiddleware{
@@ -55,13 +58,17 @@ func Init() {
 		PayloadFunc: func(data any) jwt.MapClaims {
 
 			if v, ok := data.(security.Verifier); ok {
+				clearVerifierSecrets(v)
 				if v.GetRefreshTokenDisable() {
 					return jwt.MapClaims{
 						"refreshTokenDisabled": v.GetRefreshTokenDisable(),
 						"personAccessToken":    v.GetPersonAccessToken(),
 					}
 				}
-				rb, _ := json.Marshal(v)
+				rb, err := marshalVerifier(v)
+				if err != nil {
+					return jwt.MapClaims{}
+				}
 				claims := jwt.MapClaims{
 					"verifier":             string(rb),
 					"refreshTokenDisabled": false,
@@ -111,14 +118,8 @@ func Init() {
 			}
 			return verifier
 		},
-		Authenticator: func(c *gin.Context) (any, error) {
-			loginVals := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
-			if err := c.ShouldBind(&loginVals); err != nil {
-				return "", jwt.ErrMissingLoginValues
-			}
-			return AuthenticateVerifier(c, loginVals)
-		},
-		Authorizator: authorizeRequest,
+		Authenticator: authenticateLoginRequest,
+		Authorizator:  authorizeRequest,
 		RefreshResponse: func(c *gin.Context, code int, token string, expire time.Time) {
 			jwtToken, err := Auth.ParseTokenString(token)
 			if err != nil {
@@ -199,6 +200,53 @@ func Init() {
 	Middlewares.Store("auth", Auth.MiddlewareFunc())
 }
 
+func authenticateLoginRequest(c *gin.Context) (any, error) {
+	loginVals := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
+	if err := c.ShouldBind(&loginVals); err != nil {
+		return "", jwt.ErrMissingLoginValues
+	}
+	if c.GetBool(publicLoginDisallowOAuthKey) && isDisallowedPublicOAuthVerifier(loginVals) {
+		return "", jwt.ErrFailedAuthentication
+	}
+	return AuthenticateVerifier(c, loginVals)
+}
+
+// PublicLoginHandler keeps username/password, email, and phone login on the
+// canonical endpoint while rejecting legacy requests that submit a raw OAuth
+// provider token. Server-completed OAuth callbacks call
+// AuthenticateAndGenerateToken directly and do not set this marker.
+func PublicLoginHandler(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	if Auth == nil {
+		writeAuthErrorResponse(c, http.StatusInternalServerError, http.StatusInternalServerError, "authentication middleware is not initialized")
+		return
+	}
+	c.Set(publicLoginDisallowOAuthKey, true)
+	Auth.LoginHandler(c)
+}
+
+// ClearAuthCookie expires the HttpOnly JWT cookie without writing a response.
+// Session-aware logout handlers use it after revoking the server-side session.
+func ClearAuthCookie(c *gin.Context) {
+	if c == nil || Auth == nil || !Auth.SendCookie {
+		return
+	}
+	if Auth.CookieSameSite != 0 {
+		c.SetSameSite(Auth.CookieSameSite)
+	}
+	c.SetCookie(
+		Auth.CookieName,
+		"",
+		-1,
+		"/",
+		Auth.CookieDomain,
+		Auth.SecureCookie,
+		Auth.CookieHTTPOnly,
+	)
+}
+
 // AuthenticateVerifier executes the canonical credential verification,
 // session creation, and login-audit path for a caller-supplied login verifier.
 // Callers that enable sessions must generate the JWT in the same goroutine so
@@ -229,6 +277,7 @@ func AuthenticateVerifier(c *gin.Context, loginVals security.Verifier) (security
 		}
 		return nil, jwt.ErrFailedAuthentication
 	}
+	clearVerifierSecrets(user)
 	if config.Cfg.Auth.SessionEnabled {
 		sid, sessionErr := service.Session.Create(c, center.Default.GetDB(c, &models.UserSession{}), service.CreateSessionInput{
 			UserID:    user.GetUserID(),
@@ -252,6 +301,24 @@ func AuthenticateVerifier(c *gin.Context, loginVals security.Verifier) (security
 		api.AddError(logErr).Log.Warn("write login log failed")
 	}
 	return user, nil
+}
+
+func clearVerifierSecrets(verifier security.Verifier) {
+	if user, ok := verifier.(*models.User); ok && user != nil {
+		user.Password = ""
+		user.Captcha = ""
+	}
+}
+
+func marshalVerifier(verifier security.Verifier) ([]byte, error) {
+	clearVerifierSecrets(verifier)
+	return json.Marshal(verifier)
+}
+
+func isDisallowedPublicOAuthVerifier(verifier security.Verifier) bool {
+	user, ok := verifier.(*models.User)
+	return ok && user != nil &&
+		(user.Provider == pkg.GithubLoginProvider || user.Provider == pkg.LarkLoginProvider)
 }
 
 // AuthenticateAndGenerateToken completes the canonical login path and returns

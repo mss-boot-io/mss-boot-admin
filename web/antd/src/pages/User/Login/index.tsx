@@ -24,7 +24,7 @@ import { useRequest } from 'ahooks';
 import { LarkOutlined } from '@/components/MssBoot/icon';
 import { resolveSafeRedirect } from './redirect';
 import { getAppConfigsProfile } from '@/services/admin/appConfig';
-import { openOAuthAuthorization } from '@/utils/oauth';
+import { OAuthAuthorizationError, openOAuthAuthorization } from '@/utils/oauth';
 
 export type ActionIconsFormProps = {
   fetchUserInfo: () => Promise<unknown>;
@@ -46,62 +46,51 @@ export function persistLoginState(
   return resolveSafeRedirect(currentHref);
 }
 
+export function hasAutoLoginSession(
+  storage: Pick<Storage, 'getItem'> = window.localStorage,
+) {
+  return (
+    storage.getItem('autoLogin') === 'true' &&
+    Boolean(storage.getItem('token')) &&
+    Boolean(storage.getItem('token.expire'))
+  );
+}
+
 const ActionIcons: React.FC<ActionIconsFormProps> = (props) => {
   const intl = useIntl();
   const { initialState } = useModel('@@initialState');
-  const loginPollRef = useRef<ReturnType<typeof setInterval>>();
+  const [oauthProvider, setOAuthProvider] = useState<API.OAuthProvider>();
 
-  const stopLoginPolling = () => {
-    if (loginPollRef.current) {
-      clearInterval(loginPollRef.current);
-      loginPollRef.current = undefined;
-    }
-  };
-
-  useEffect(
-    () => () => {
-      if (loginPollRef.current) {
-        clearInterval(loginPollRef.current);
-      }
-    },
-    [],
-  );
-
-  const startOAuthLogin = async (provider: API.LoginProvider) => {
-    stopLoginPolling();
-    localStorage.removeItem('login.type');
-    localStorage.removeItem(`${provider}.token`);
-    localStorage.removeItem('token');
-    localStorage.removeItem('token.expire');
-    try {
-      await openOAuthAuthorization(provider, 'login');
-    } catch {
-      message.error(intl.formatMessage({ id: 'pages.login.failure' }));
+  const startOAuthLogin = async (provider: API.OAuthProvider) => {
+    if (oauthProvider) {
       return;
     }
-
-    const expiresAt = Date.now() + 5 * 60 * 1000;
-    loginPollRef.current = setInterval(() => {
-      if (Date.now() >= expiresAt) {
-        stopLoginPolling();
-        return;
+    setOAuthProvider(provider);
+    try {
+      const result = await openOAuthAuthorization(provider, 'login');
+      if (result.intent !== 'login') {
+        throw new Error('OAuth login returned the wrong intent');
       }
-      const loginType = localStorage.getItem('login.type');
-      const token = localStorage.getItem('token');
-      if (!token || loginType !== provider) {
-        return;
+      const redirect = persistLoginState(
+        { code: 200, token: result.token, expire: result.expire },
+        false,
+      );
+      const userInfo = await props.fetchUserInfo();
+      if (!userInfo || !redirect) {
+        throw new Error('OAuth login could not load the Admin session');
       }
-
-      stopLoginPolling();
-      void props
-        .fetchUserInfo()
-        .then(() => {
-          history.push(resolveSafeRedirect());
-        })
-        .catch(() => {
-          message.error(intl.formatMessage({ id: 'pages.login.failure' }));
-        });
-    }, 500);
+      message.success(intl.formatMessage({ id: 'pages.login.success' }));
+      history.push(redirect);
+    } catch (error) {
+      const messageID =
+        error instanceof OAuthAuthorizationError &&
+        (error.code === 'timeout' || error.code === 'closed')
+          ? `pages.login.oauth2.${error.code}`
+          : 'pages.login.failure';
+      message.error(intl.formatMessage({ id: messageID }));
+    } finally {
+      setOAuthProvider(undefined);
+    }
   };
 
   const langClassName = useEmotionCss(({ token }) => {
@@ -124,12 +113,16 @@ const ActionIcons: React.FC<ActionIconsFormProps> = (props) => {
         <GithubOutlined
           key="GithubOutlined"
           className={langClassName}
+          aria-busy={oauthProvider === 'github'}
+          aria-disabled={Boolean(oauthProvider)}
           onClick={() => void startOAuthLogin('github')}
         />
       )}
       {initialState?.appConfig?.security?.larkEnabled && (
         <LarkOutlined
           key="LarkOutlined"
+          aria-busy={oauthProvider === 'lark'}
+          aria-disabled={Boolean(oauthProvider)}
           onClick={() => void startOAuthLogin('lark')}
         />
       )}
@@ -230,11 +223,7 @@ const Login: React.FC = () => {
   };
 
   useRequest(async () => {
-    if (
-      localStorage.getItem('autoLogin') &&
-      localStorage.getItem('token') &&
-      localStorage.getItem('token.expire')
-    ) {
+    if (hasAutoLoginSession()) {
       const res = await postUserRefreshToken();
       await loginSuccessed(res, true);
     }
@@ -290,37 +279,6 @@ const Login: React.FC = () => {
 
     return items;
   };
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        const loginType = localStorage.getItem('login.type');
-        const token = localStorage.getItem('token');
-        if (token && (loginType === 'github' || loginType === 'lark')) {
-          try {
-            fetchUserInfo();
-          } catch (e) {
-            message.error('登录失败，请重试！');
-            return;
-          } finally {
-            //登录成功跳转
-            const redirect = resolveSafeRedirect();
-            setTimeout(() => {
-              history.push(redirect);
-            }, 1000);
-          }
-        }
-      }
-    };
-
-    // 添加事件监听器
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // 清理事件监听器
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
 
   return (
     <div className={containerClassName}>

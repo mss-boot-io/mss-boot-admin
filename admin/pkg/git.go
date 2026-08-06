@@ -60,11 +60,12 @@ func GitRemote(url, directory string) error {
 
 // GitClone clone git repo
 func GitClone(url, branch, directory string, noCheckout bool, accessToken string) (*git.Repository, error) {
-	auth := &http.BasicAuth{}
+	var auth *http.BasicAuth
 	if accessToken != "" {
-		//fixme username not valid
-		auth.Username = "lwnmengjing"
-		auth.Password = accessToken
+		auth = &http.BasicAuth{
+			Username: "x-access-token",
+			Password: accessToken,
+		}
 	}
 	if PathExist(directory) {
 		r, err := git.PlainOpen(directory)
@@ -78,18 +79,9 @@ func GitClone(url, branch, directory string, noCheckout bool, accessToken string
 			return nil, err
 		}
 		if branch != "" {
-			err = w.Pull(&git.PullOptions{
-				RemoteName:    "origin",
-				Auth:          auth,
-				ReferenceName: plumbing.NewBranchReferenceName(branch),
-				Force:         true,
-			})
+			err = w.Pull(gitPullOptions(branch, auth))
 		} else {
-			err = w.Pull(&git.PullOptions{
-				RemoteName: "origin",
-				Auth:       auth,
-				Force:      true,
-			})
+			err = w.Pull(gitPullOptions("", auth))
 		}
 
 		if errors.Is(err, git.NoErrAlreadyUpToDate) {
@@ -98,21 +90,37 @@ func GitClone(url, branch, directory string, noCheckout bool, accessToken string
 		log.Println(err)
 		return r, err
 	}
-	if branch != "" {
-		return git.PlainClone(directory, false, &git.CloneOptions{
-			URL:               url,
-			NoCheckout:        noCheckout,
-			RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
-			Auth:              auth,
-			ReferenceName:     plumbing.NewBranchReferenceName(branch),
-		})
-	}
-	return git.PlainClone(directory, false, &git.CloneOptions{
+	return git.PlainClone(directory, false, gitCloneOptions(url, branch, noCheckout, auth))
+}
+
+func gitCloneOptions(url, branch string, noCheckout bool, auth *http.BasicAuth) *git.CloneOptions {
+	options := &git.CloneOptions{
 		URL:               url,
 		NoCheckout:        noCheckout,
-		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
-		Auth:              auth,
-	})
+		RecurseSubmodules: git.NoRecurseSubmodules,
+	}
+	if auth != nil {
+		options.Auth = auth
+	}
+	if branch != "" {
+		options.ReferenceName = plumbing.NewBranchReferenceName(branch)
+	}
+	return options
+}
+
+func gitPullOptions(branch string, auth *http.BasicAuth) *git.PullOptions {
+	options := &git.PullOptions{
+		RemoteName:        "origin",
+		Force:             true,
+		RecurseSubmodules: git.NoRecurseSubmodules,
+	}
+	if auth != nil {
+		options.Auth = auth
+	}
+	if branch != "" {
+		options.ReferenceName = plumbing.NewBranchReferenceName(branch)
+	}
+	return options
 }
 
 // GitCloneSSH clone git repo from ssh

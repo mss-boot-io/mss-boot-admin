@@ -19,6 +19,8 @@ import NoticeIconView from './components/NoticeIcon';
 import HeaderSearch from './components/HeaderSearch';
 import { getAppConfigsProfile } from '@/services/admin/appConfig';
 import { getUserConfigsProfile } from '@/services/admin/userConfig';
+import { purgeLegacyOAuthStorage } from '@/utils/oauth';
+import { clearAuthStorage, clearNonPersistentAuthStorage } from '@/utils/authStorage';
 
 const isDev = process.env.NODE_ENV === 'development';
 const loginPath = '/user/login';
@@ -36,12 +38,6 @@ const getAuthRedirect = (location: { pathname: string; search: string; hash: str
       ? '/workplace'
       : `${location.pathname}${location.search}${location.hash}`;
   return `${loginPath}?redirect=${encodeURIComponent(redirect)}`;
-};
-
-const clearAuthState = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('token.expire');
-  localStorage.removeItem('autoLogin');
 };
 
 const withTimeout = async <T,>(request: () => Promise<T>, timeoutMs = 4000) => {
@@ -64,6 +60,8 @@ export async function getInitialState(): Promise<{
   loading?: boolean;
   fetchUserInfo?: () => Promise<API.User | undefined>;
 }> {
+  purgeLegacyOAuthStorage();
+
   const fetchUserInfo = async () => {
     return withTimeout(() =>
       getUserUserInfo({
@@ -73,8 +71,12 @@ export async function getInitialState(): Promise<{
   };
 
   const { location } = history;
+  const isLoginRoute = location.pathname === loginPath;
+  const isLoginPage = isLoginRoute || excludePath.includes(location.pathname);
+  if (isLoginRoute) {
+    clearNonPersistentAuthStorage();
+  }
   const token = localStorage.getItem('token');
-  const isLoginPage = location.pathname === loginPath || excludePath.includes(location.pathname);
 
   if (!token || isLoginPage) {
     if (!isLoginPage) {
@@ -88,7 +90,7 @@ export async function getInitialState(): Promise<{
 
   const currentUser = await fetchUserInfo();
   if (!currentUser) {
-    clearAuthState();
+    clearAuthStorage();
     history.replace(getAuthRedirect(location));
     return {
       fetchUserInfo,
@@ -159,7 +161,7 @@ export async function getInitialState(): Promise<{
         settings: defaultSettings as Partial<LayoutSettings>,
       };
     } catch (error) {
-      clearAuthState();
+      clearAuthStorage();
       if (location.pathname !== loginPath) {
         history.replace(getAuthRedirect(location));
       }

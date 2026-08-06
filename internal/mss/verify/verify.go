@@ -418,7 +418,7 @@ func toolingTest(root string) command.Spec {
 		ID:          "agent-tooling-test",
 		Description: "test mss CLI, contracts, generator, verifier, and module runtime",
 		Directory:   root,
-		Args:        []string{"go", "test", "./internal/mss/...", "./cmd/mss/...", "./modules/runtime/..."},
+		Args:        []string{"go", "test", "./internal/mss/...", "./cmd/mss/...", "./admin/modules/runtime/..."},
 		Timeout:     10 * time.Minute,
 	}
 }

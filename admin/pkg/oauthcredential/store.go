@@ -199,6 +199,42 @@ func (s *Store) Lookup(
 	return record, nil
 }
 
+// Consume atomically claims and removes a credential before a state-changing
+// generator operation starts. This prevents two concurrent requests from
+// replaying one handle and both reaching remote side effects.
+func (s *Store) Consume(
+	ctx context.Context,
+	client redis.UniversalClient,
+	handle string,
+) (Record, error) {
+	if s == nil || s.aead == nil || handle == "" {
+		return Record{}, ErrNotFound
+	}
+	key := credentialKey(handle)
+	payload, err := s.take(ctx, client, key)
+	if err != nil {
+		return Record{}, err
+	}
+	if len(payload) == 0 {
+		return Record{}, ErrNotFound
+	}
+	plaintext, err := s.open(key, payload)
+	if err != nil {
+		return Record{}, err
+	}
+	var record Record
+	if err = json.Unmarshal(plaintext, &record); err != nil {
+		return Record{}, ErrInvalid
+	}
+	if err = validateRecord(record, true); err != nil {
+		return Record{}, ErrInvalid
+	}
+	if !s.now().UTC().Before(record.ExpiresAt.UTC()) {
+		return Record{}, ErrExpired
+	}
+	return record, nil
+}
+
 // Delete revokes a handle. Deletion is idempotent for handles that have
 // already expired or were previously deleted.
 func (s *Store) Delete(
@@ -304,6 +340,39 @@ func (s *Store) get(
 	if !s.now().Before(entry.expiresAt) {
 		delete(s.local, key)
 	}
+	return append([]byte(nil), entry.payload...), nil
+}
+
+func (s *Store) take(
+	ctx context.Context,
+	client redis.UniversalClient,
+	key string,
+) ([]byte, error) {
+	if client != nil {
+		const script = `local value = redis.call("GET", KEYS[1]); if value then redis.call("DEL", KEYS[1]); end; return value`
+		value, err := client.Eval(ctx, script, []string{key}).Result()
+		if errors.Is(err, redis.Nil) || value == nil {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("consume oauth credential: %w", err)
+		}
+		switch typed := value.(type) {
+		case string:
+			return []byte(typed), nil
+		case []byte:
+			return append([]byte(nil), typed...), nil
+		default:
+			return nil, fmt.Errorf("consume oauth credential: unexpected cache value %T", value)
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, exists := s.local[key]
+	if !exists {
+		return nil, nil
+	}
+	delete(s.local, key)
 	return append([]byte(nil), entry.payload...), nil
 }
 

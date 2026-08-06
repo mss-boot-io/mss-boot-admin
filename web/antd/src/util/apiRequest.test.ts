@@ -42,4 +42,26 @@ describe('API request credentials contract', () => {
       },
     });
   });
+
+  it('omits a stale Admin bearer token from login-intent OAuth authorization', () => {
+    expect(
+      prepareAPIRequest(
+        '/admin/api/user/oauth2/authorize',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          skipAuthToken: true,
+        } as any,
+        'https://admin-api.mss-boot-io.top',
+        'stale-admin-token',
+      ),
+    ).toEqual({
+      url: 'https://admin-api.mss-boot-io.top/admin/api/user/oauth2/authorize',
+      options: {
+        method: 'POST',
+        withCredentials: true,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    });
+  });
 });

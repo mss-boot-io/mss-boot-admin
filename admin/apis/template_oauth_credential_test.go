@@ -7,7 +7,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,14 +33,20 @@ const (
 )
 
 type templateTestCredentialStore struct {
-	record       oauthcredential.Record
-	lookupErr    error
-	deleteErr    error
-	lookupCount  int
-	deleteCount  int
-	lookupHandle string
-	deleteHandle string
-	onDelete     func()
+	mu            sync.Mutex
+	record        oauthcredential.Record
+	lookupErr     error
+	consumeErr    error
+	deleteErr     error
+	lookupCount   int
+	consumeCount  int
+	deleteCount   int
+	lookupHandle  string
+	consumeHandle string
+	deleteHandle  string
+	consumed      bool
+	onConsume     func()
+	onDelete      func()
 }
 
 func (s *templateTestCredentialStore) Issue(
@@ -54,9 +63,33 @@ func (s *templateTestCredentialStore) Lookup(
 	_ redis.UniversalClient,
 	handle string,
 ) (oauthcredential.Record, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.lookupCount++
 	s.lookupHandle = handle
 	return s.record, s.lookupErr
+}
+
+func (s *templateTestCredentialStore) Consume(
+	_ context.Context,
+	_ redis.UniversalClient,
+	handle string,
+) (oauthcredential.Record, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.consumeCount++
+	s.consumeHandle = handle
+	if s.consumeErr != nil {
+		return oauthcredential.Record{}, s.consumeErr
+	}
+	if s.consumed {
+		return oauthcredential.Record{}, oauthcredential.ErrNotFound
+	}
+	s.consumed = true
+	if s.onConsume != nil {
+		s.onConsume()
+	}
+	return s.record, nil
 }
 
 func (s *templateTestCredentialStore) Delete(
@@ -64,6 +97,8 @@ func (s *templateTestCredentialStore) Delete(
 	_ redis.UniversalClient,
 	handle string,
 ) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.deleteCount++
 	s.deleteHandle = handle
 	if s.onDelete != nil {
@@ -229,7 +264,7 @@ func TestTemplateRejectsLegacyAccessTokenInputs(t *testing.T) {
 	}
 }
 
-func TestTemplateGenerateDeletesCredentialAfterSuccess(t *testing.T) {
+func TestTemplateGenerateConsumesCredentialBeforeSideEffects(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	installTemplateTestVerifier(t)
 	events := make([]string, 0, 5)
@@ -242,15 +277,18 @@ func TestTemplateGenerateDeletesCredentialAfterSuccess(t *testing.T) {
 			AccessToken:           templateTestAccessToken,
 			ExpiresAt:             time.Now().Add(time.Minute),
 		},
-		onDelete: func() { events = append(events, "delete") },
+		onConsume: func() { events = append(events, "consume") },
 	}
 	cloneCalls := 0
 	template := Template{
 		oauthCredentials: store,
-		gitClone: func(_ string, _ string, _ string, _ bool, accessToken string) (*git.Repository, error) {
+		gitClone: func(_ string, _ string, directory string, _ bool, accessToken string) (*git.Repository, error) {
 			cloneCalls++
 			if accessToken != templateTestAccessToken {
 				t.Fatalf("GitClone access token = %q, want resolved provider token", accessToken)
+			}
+			if err := os.MkdirAll(directory, 0o700); err != nil {
+				t.Fatalf("create fake clone directory: %v", err)
 			}
 			events = append(events, "clone")
 			return nil, nil
@@ -266,7 +304,8 @@ func TestTemplateGenerateDeletesCredentialAfterSuccess(t *testing.T) {
 			events = append(events, "push")
 			return nil
 		},
-		cleanup: func(...string) {},
+		newWorkspace: func() (string, error) { return t.TempDir(), nil },
+		cleanup:      func(...string) {},
 	}
 
 	body := validTemplateGenerateBody(t, "")
@@ -278,18 +317,119 @@ func TestTemplateGenerateDeletesCredentialAfterSuccess(t *testing.T) {
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201; body=%s", recorder.Code, recorder.Body.String())
 	}
-	if cloneCalls != 2 || store.lookupCount != 1 || store.deleteCount != 1 {
-		t.Fatalf("calls: clone=%d lookup=%d delete=%d, want 2/1/1", cloneCalls, store.lookupCount, store.deleteCount)
+	if cloneCalls != 2 || store.consumeCount != 1 || store.lookupCount != 0 || store.deleteCount != 0 {
+		t.Fatalf("calls: clone=%d consume=%d lookup=%d delete=%d, want 2/1/0/0",
+			cloneCalls, store.consumeCount, store.lookupCount, store.deleteCount)
 	}
-	if store.deleteHandle != templateTestHandle {
-		t.Fatalf("Delete handle = %q, want supplied handle", store.deleteHandle)
+	if store.consumeHandle != templateTestHandle {
+		t.Fatalf("Consume handle = %q, want supplied handle", store.consumeHandle)
 	}
-	if len(events) != 5 || events[4] != "delete" {
-		t.Fatalf("event order = %#v, want credential deletion after successful push", events)
+	if len(events) != 5 || events[0] != "consume" || events[4] != "push" {
+		t.Fatalf("event order = %#v, want credential consumption before side effects", events)
 	}
 	if strings.Contains(recorder.Body.String(), templateTestAccessToken) ||
 		strings.Contains(recorder.Body.String(), templateTestHandle) {
 		t.Fatalf("response leaked integration credential: %s", recorder.Body.String())
+	}
+}
+
+func TestTemplateGenerateRequiresCredentialBeforeSideEffects(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	installTemplateTestVerifier(t)
+	store := &templateTestCredentialStore{}
+	template := Template{
+		oauthCredentials: store,
+		gitClone: func(string, string, string, bool, string) (*git.Repository, error) {
+			t.Fatal("missing credential reached GitClone")
+			return nil, nil
+		},
+		generate: func(*pkg.TemplateConfig) error {
+			t.Fatal("missing credential reached generator")
+			return nil
+		},
+		commitAndPush: func(string, string, string, string, *gitHttp.BasicAuth) error {
+			t.Fatal("missing credential reached push")
+			return nil
+		},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/template/generate", bytes.NewReader(validTemplateGenerateBody(t, "")))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+templateTestCredential)
+	recorder := executeTemplateHandler(request, templateTestUser("user-1", false), template.Generate)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401; body=%s", recorder.Code, recorder.Body.String())
+	}
+	if store.consumeCount != 0 || store.lookupCount != 0 {
+		t.Fatalf("store calls: consume=%d lookup=%d, want zero", store.consumeCount, store.lookupCount)
+	}
+}
+
+func TestTemplateGenerateConcurrentReplayReachesSideEffectsOnce(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	installTemplateTestVerifier(t)
+	store := &templateTestCredentialStore{record: oauthcredential.Record{
+		Provider:              "github",
+		Intent:                oauthcredential.IntentIntegration,
+		UserID:                "user-1",
+		CredentialFingerprint: oauthstate.Digest(templateTestCredential),
+		AccessToken:           templateTestAccessToken,
+		ExpiresAt:             time.Now().Add(time.Minute),
+	}}
+	workspaceRoot := t.TempDir()
+	var cloneCalls atomic.Int32
+	var generateCalls atomic.Int32
+	var pushCalls atomic.Int32
+	template := Template{
+		oauthCredentials: store,
+		gitClone: func(_ string, _ string, directory string, _ bool, _ string) (*git.Repository, error) {
+			cloneCalls.Add(1)
+			if err := os.MkdirAll(directory, 0o700); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+		generate: func(*pkg.TemplateConfig) error {
+			generateCalls.Add(1)
+			return nil
+		},
+		commitAndPush: func(string, string, string, string, *gitHttp.BasicAuth) error {
+			pushCalls.Add(1)
+			return nil
+		},
+		newWorkspace: func() (string, error) { return os.MkdirTemp(workspaceRoot, "request-") },
+		cleanup:      func(...string) {},
+	}
+
+	const contenders = 2
+	start := make(chan struct{})
+	statuses := make(chan int, contenders)
+	var wait sync.WaitGroup
+	wait.Add(contenders)
+	for range contenders {
+		go func() {
+			defer wait.Done()
+			<-start
+			request := httptest.NewRequest(http.MethodPost, "/template/generate", bytes.NewReader(validTemplateGenerateBody(t, "")))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Authorization", "Bearer "+templateTestCredential)
+			request.Header.Set(oauthCredentialHeader, templateTestHandle)
+			statuses <- executeTemplateHandler(request, templateTestUser("user-1", false), template.Generate).Code
+		}()
+	}
+	close(start)
+	wait.Wait()
+	close(statuses)
+
+	counts := map[int]int{}
+	for status := range statuses {
+		counts[status]++
+	}
+	if counts[http.StatusCreated] != 1 || counts[http.StatusUnauthorized] != 1 {
+		t.Fatalf("statuses = %#v, want one 201 and one 401", counts)
+	}
+	if cloneCalls.Load() != 2 || generateCalls.Load() != 1 || pushCalls.Load() != 1 {
+		t.Fatalf("side effects: clone=%d generate=%d push=%d, want 2/1/1",
+			cloneCalls.Load(), generateCalls.Load(), pushCalls.Load())
 	}
 }
 

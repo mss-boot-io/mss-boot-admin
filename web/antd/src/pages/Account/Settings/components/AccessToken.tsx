@@ -18,9 +18,16 @@ import { useIntl } from '@umijs/max';
 import {
   getUserAuthTokens,
   postUserAuthTokenGenerate,
+  putUserAuthTokenIdRefresh,
   putUserAuthTokenIdRevoke,
 } from '@/services/admin/userAuthToken';
-import { CopyOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import {
+  CopyOutlined,
+  DeleteOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  SyncOutlined,
+} from '@ant-design/icons';
 
 const formatDateTime = (dateString?: string) => {
   if (!dateString) {
@@ -66,6 +73,7 @@ const AccessTokenView: React.FC = () => {
   const [oneTimeSecret, setOneTimeSecret] = useState<string>();
   const [copyStatus, setCopyStatus] = useState<'success' | 'error'>();
   const [copying, setCopying] = useState(false);
+  const [rotatingID, setRotatingID] = useState<string>();
   const [revokingID, setRevokingID] = useState<string>();
   const [operationNotice, setOperationNotice] = useState<OperationNotice>();
 
@@ -87,6 +95,9 @@ const AccessTokenView: React.FC = () => {
   );
 
   const openCreateDialog = () => {
+    if (creating || rotatingID || revokingID || oneTimeSecret) {
+      return;
+    }
     createForm.resetFields();
     setCreateError(undefined);
     setCreateOpen(true);
@@ -102,6 +113,9 @@ const AccessTokenView: React.FC = () => {
   };
 
   const createToken = async (values: API.postUserAuthTokenGenerateParams) => {
+    if (rotatingID || revokingID || oneTimeSecret) {
+      return;
+    }
     setCreating(true);
     setCreateError(undefined);
     setOperationNotice(undefined);
@@ -151,7 +165,47 @@ const AccessTokenView: React.FC = () => {
     }
   };
 
+  const rotateToken = async (id: string) => {
+    if (creating || createOpen || rotatingID || revokingID || oneTimeSecret) {
+      return;
+    }
+    setRotatingID(id);
+    setOperationNotice(undefined);
+    try {
+      const response = await putUserAuthTokenIdRefresh(
+        { id },
+        { skipErrorHandler: true },
+      );
+      if (!response?.token) {
+        throw new Error('PAT rotate response did not contain a token');
+      }
+      setCopyStatus(undefined);
+      setOneTimeSecret(response.token);
+      setOperationNotice({
+        type: 'success',
+        message: intl.formatMessage({
+          id: 'pages.accessToken.settings.rotateSuccess',
+          defaultMessage: 'Access token rotated. Save the new token now.',
+        }),
+      });
+      void refreshTokens().catch(() => undefined);
+    } catch {
+      setOperationNotice({
+        type: 'error',
+        message: intl.formatMessage({
+          id: 'pages.accessToken.settings.rotateFailed',
+          defaultMessage: 'Unable to rotate the access token. Please try again.',
+        }),
+      });
+    } finally {
+      setRotatingID(undefined);
+    }
+  };
+
   const revokeToken = async (id: string) => {
+    if (creating || createOpen || rotatingID || revokingID || oneTimeSecret) {
+      return;
+    }
     setRevokingID(id);
     setOperationNotice(undefined);
     try {
@@ -226,47 +280,94 @@ const AccessTokenView: React.FC = () => {
               defaultMessage: 'ID',
             })}: ${item.id}`}
             extra={
-              <Popconfirm
-                title={intl.formatMessage({
-                  id: 'pages.accessToken.settings.revokeConfirmTitle',
-                  defaultMessage: 'Revoke this access token?',
-                })}
-                description={intl.formatMessage({
-                  id: 'pages.accessToken.settings.revokeConfirmDescription',
-                  defaultMessage: 'Applications using this token will lose access immediately.',
-                })}
-                okText={intl.formatMessage({
-                  id: 'pages.accessToken.settings.revokeConfirmAction',
-                  defaultMessage: 'Confirm revoke',
-                })}
-                cancelText={intl.formatMessage({
-                  id: 'pages.title.cancel',
-                  defaultMessage: 'Cancel',
-                })}
-                okButtonProps={{ danger: true, loading: revokingID === item.id }}
-                cancelButtonProps={{ disabled: revokingID === item.id }}
-                onConfirm={() => revokeToken(item.id)}
-              >
-                <Button
-                  type="text"
-                  danger
-                  icon={<DeleteOutlined />}
-                  loading={revokingID === item.id}
-                  disabled={Boolean(revokingID)}
-                  aria-label={`${intl.formatMessage({
-                    id: 'pages.accessToken.settings.revoke',
-                    defaultMessage: 'Revoke',
-                  })} ${item.id}`}
-                >
-                  {intl.formatMessage({
-                    id:
-                      revokingID === item.id
-                        ? 'pages.accessToken.settings.revoking'
-                        : 'pages.accessToken.settings.revoke',
-                    defaultMessage: revokingID === item.id ? 'Revoking' : 'Revoke',
+              <Space>
+                <Popconfirm
+                  title={intl.formatMessage({
+                    id: 'pages.accessToken.settings.rotateConfirmTitle',
+                    defaultMessage: 'Rotate this access token?',
                   })}
-                </Button>
-              </Popconfirm>
+                  description={intl.formatMessage({
+                    id: 'pages.accessToken.settings.rotateConfirmDescription',
+                    defaultMessage:
+                      'The current token stops working immediately. The replacement is shown once.',
+                  })}
+                  okText={intl.formatMessage({
+                    id: 'pages.accessToken.settings.rotateConfirmAction',
+                    defaultMessage: 'Confirm rotate',
+                  })}
+                  cancelText={intl.formatMessage({
+                    id: 'pages.title.cancel',
+                    defaultMessage: 'Cancel',
+                  })}
+                  okButtonProps={{ loading: rotatingID === item.id }}
+                  cancelButtonProps={{ disabled: rotatingID === item.id }}
+                  onConfirm={() => rotateToken(item.id)}
+                >
+                  <Button
+                    type="text"
+                    icon={<SyncOutlined />}
+                    loading={rotatingID === item.id}
+                    disabled={Boolean(
+                      creating || createOpen || rotatingID || revokingID || oneTimeSecret,
+                    )}
+                    aria-label={`${intl.formatMessage({
+                      id: 'pages.accessToken.settings.rotate',
+                      defaultMessage: 'Rotate',
+                    })} ${item.id}`}
+                  >
+                    {intl.formatMessage({
+                      id:
+                        rotatingID === item.id
+                          ? 'pages.accessToken.settings.rotating'
+                          : 'pages.accessToken.settings.rotate',
+                      defaultMessage: rotatingID === item.id ? 'Rotating' : 'Rotate',
+                    })}
+                  </Button>
+                </Popconfirm>
+                <Popconfirm
+                  title={intl.formatMessage({
+                    id: 'pages.accessToken.settings.revokeConfirmTitle',
+                    defaultMessage: 'Revoke this access token?',
+                  })}
+                  description={intl.formatMessage({
+                    id: 'pages.accessToken.settings.revokeConfirmDescription',
+                    defaultMessage: 'Applications using this token will lose access immediately.',
+                  })}
+                  okText={intl.formatMessage({
+                    id: 'pages.accessToken.settings.revokeConfirmAction',
+                    defaultMessage: 'Confirm revoke',
+                  })}
+                  cancelText={intl.formatMessage({
+                    id: 'pages.title.cancel',
+                    defaultMessage: 'Cancel',
+                  })}
+                  okButtonProps={{ danger: true, loading: revokingID === item.id }}
+                  cancelButtonProps={{ disabled: revokingID === item.id }}
+                  onConfirm={() => revokeToken(item.id)}
+                >
+                  <Button
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    loading={revokingID === item.id}
+                    disabled={Boolean(
+                      creating || createOpen || rotatingID || revokingID || oneTimeSecret,
+                    )}
+                    aria-label={`${intl.formatMessage({
+                      id: 'pages.accessToken.settings.revoke',
+                      defaultMessage: 'Revoke',
+                    })} ${item.id}`}
+                  >
+                    {intl.formatMessage({
+                      id:
+                        revokingID === item.id
+                          ? 'pages.accessToken.settings.revoking'
+                          : 'pages.accessToken.settings.revoke',
+                      defaultMessage: revokingID === item.id ? 'Revoking' : 'Revoke',
+                    })}
+                  </Button>
+                </Popconfirm>
+              </Space>
             }
           >
             {item.fingerprint && (
@@ -308,6 +409,9 @@ const AccessTokenView: React.FC = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
+            disabled={Boolean(
+              creating || createOpen || rotatingID || revokingID || oneTimeSecret,
+            )}
             onClick={openCreateDialog}
             aria-label={intl.formatMessage({
               id: 'pages.accessToken.settings.addToken',

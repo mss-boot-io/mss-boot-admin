@@ -24,6 +24,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/oauth2"
+	"gorm.io/gorm"
 )
 
 const oauthBrowserCookiePrefix = "mss_oauth_"
@@ -321,6 +322,13 @@ func completeOAuthBinding(
 	if identity == nil {
 		return errors.New("oauth identity is missing")
 	}
+	return persistOAuthBinding(c, userID, identity)
+}
+
+func persistOAuthBinding(c *gin.Context, userID string, identity *models.UserOAuth2) error {
+	if identity == nil {
+		return errors.New("oauth identity is missing")
+	}
 	if identity.ID != "" {
 		if identity.UserID == userID {
 			return nil
@@ -329,10 +337,61 @@ func completeOAuthBinding(
 	}
 	identity.User = nil
 	identity.UserID = userID
-	if err := center.GetDB(c, identity).Create(identity).Error; err != nil {
-		return err
+	db := center.GetDB(c, identity)
+	if err := db.Create(identity).Error; err != nil {
+		return normalizeOAuthIdentityCreateError(db, userID, identity, err)
 	}
 	return nil
+}
+
+// normalizeOAuthIdentityCreateError resolves the provider-scoped identity
+// after a failed insert. This makes concurrent uniqueness conflicts stable
+// even when GORM TranslateError is disabled (the repository default).
+func normalizeOAuthIdentityCreateError(
+	db *gorm.DB,
+	userID string,
+	identity *models.UserOAuth2,
+	createErr error,
+) error {
+	if db != nil && identity != nil && identity.IdentityKey != nil {
+		existing := &models.UserOAuth2{}
+		lookupErr := db.Unscoped().
+			Where("identity_key = ?", *identity.IdentityKey).
+			Take(existing).Error
+		if lookupErr == nil {
+			if !existing.DeletedAt.Valid && existing.UserID == userID {
+				return nil
+			}
+			return errOAuthIdentityAlreadyBound
+		}
+	}
+	if isOAuthIdentityUniqueViolation(createErr) {
+		return errOAuthIdentityAlreadyBound
+	}
+	return createErr
+}
+
+type sqlStateError interface {
+	SQLState() string
+}
+
+func isOAuthIdentityUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	var stateErr sqlStateError
+	if errors.As(err, &stateErr) && stateErr.SQLState() == "23505" {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	identityConstraint := strings.Contains(message, "identity_key") ||
+		strings.Contains(message, "ux_user_oauth2_identity_key")
+	return identityConstraint && (strings.Contains(message, "duplicate entry") ||
+		strings.Contains(message, "unique constraint") ||
+		strings.Contains(message, "violates unique"))
 }
 
 func setOAuthNoStoreHeaders(c *gin.Context) {

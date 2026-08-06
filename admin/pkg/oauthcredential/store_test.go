@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -204,6 +206,77 @@ func TestRedisUsesDigestKeyAndEncryptedReusablePayload(t *testing.T) {
 	}
 }
 
+func TestConsumeIsExactlyOnceAcrossConcurrentRequests(t *testing.T) {
+	tests := []struct {
+		name   string
+		client func(*testing.T) redis.UniversalClient
+	}{
+		{name: "local", client: func(*testing.T) redis.UniversalClient { return nil }},
+		{name: "redis", client: func(t *testing.T) redis.UniversalClient {
+			server := miniredis.RunT(t)
+			client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+			t.Cleanup(func() { _ = client.Close() })
+			return client
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := newTestStore(t)
+			client := test.client(t)
+			handle, issued, err := store.Issue(context.Background(), client, integrationRecord(), DefaultTTL)
+			if err != nil {
+				t.Fatalf("Issue() error = %v", err)
+			}
+
+			const contenders = 32
+			var successes atomic.Int32
+			var notFound atomic.Int32
+			var wait sync.WaitGroup
+			wait.Add(contenders)
+			for range contenders {
+				go func() {
+					defer wait.Done()
+					record, consumeErr := store.Consume(context.Background(), client, handle)
+					switch {
+					case consumeErr == nil:
+						if record != issued {
+							t.Errorf("Consume() record = %#v, want %#v", record, issued)
+						}
+						successes.Add(1)
+					case errors.Is(consumeErr, ErrNotFound):
+						notFound.Add(1)
+					default:
+						t.Errorf("Consume() error = %v, want nil or ErrNotFound", consumeErr)
+					}
+				}()
+			}
+			wait.Wait()
+			if successes.Load() != 1 || notFound.Load() != contenders-1 {
+				t.Fatalf("consume outcomes: success=%d not-found=%d, want 1/%d",
+					successes.Load(), notFound.Load(), contenders-1)
+			}
+		})
+	}
+}
+
+func TestConsumeBurnsExpiredCredential(t *testing.T) {
+	store := newTestStore(t)
+	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	store.now = func() time.Time { return now }
+	handle, _, err := store.Issue(context.Background(), nil, integrationRecord(), time.Minute)
+	if err != nil {
+		t.Fatalf("Issue() error = %v", err)
+	}
+	now = now.Add(time.Minute)
+	if _, err = store.Consume(context.Background(), nil, handle); !errors.Is(err, ErrExpired) {
+		t.Fatalf("expired Consume() error = %v, want ErrExpired", err)
+	}
+	if _, err = store.Consume(context.Background(), nil, handle); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("second expired Consume() error = %v, want ErrNotFound", err)
+	}
+}
+
 func TestWrongEncryptionKeyAndTamperingFailClosedWithoutLeaks(t *testing.T) {
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
@@ -257,6 +330,9 @@ func TestLookupRejectsEmptyHandle(t *testing.T) {
 	}
 	if err := store.Delete(context.Background(), nil, ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Delete(empty) error = %v, want ErrNotFound", err)
+	}
+	if _, err := store.Consume(context.Background(), nil, ""); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Consume(empty) error = %v, want ErrNotFound", err)
 	}
 }
 

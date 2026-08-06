@@ -1,4 +1,4 @@
-name: PAT Migration Integration
+name: Credential Migration Integration
 
 on:
   push:
@@ -6,7 +6,11 @@ on:
       - main
     paths:
       - 'admin/cmd/migrate/migration/system/*user_auth_token_hash*'
+      - 'admin/cmd/migrate/migration/system/*oauth_local_password_disable*'
+      - 'admin/cmd/migrate/migration/system/*oauth_identity_key*'
       - 'admin/models/user_auth_token.go'
+      - 'admin/models/user.go'
+      - 'admin/models/user_oauth2.go'
       - 'admin/go.mod'
       - 'admin/go.sum'
       - 'mss-boot/pkg/config/gormdb/**'
@@ -16,7 +20,11 @@ on:
       - main
     paths:
       - 'admin/cmd/migrate/migration/system/*user_auth_token_hash*'
+      - 'admin/cmd/migrate/migration/system/*oauth_local_password_disable*'
+      - 'admin/cmd/migrate/migration/system/*oauth_identity_key*'
       - 'admin/models/user_auth_token.go'
+      - 'admin/models/user.go'
+      - 'admin/models/user_oauth2.go'
       - 'admin/go.mod'
       - 'admin/go.sum'
       - 'mss-boot/pkg/config/gormdb/**'
@@ -27,7 +35,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: pat-migration-integration-${{ github.event.pull_request.number || github.ref }}
+  group: credential-migration-integration-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -79,7 +87,7 @@ jobs:
             admin/go.sum
             mss-boot/go.sum
 
-      - name: Verify PAT migration against MySQL and PostgreSQL
+      - name: Verify credential migrations against MySQL and PostgreSQL
         working-directory: admin
         env:
           GOWORK: 'off'
@@ -87,5 +95,5 @@ jobs:
           MSS_PAT_TEST_POSTGRES_DSN: 'postgres://mss_pat:mss_pat_ci@127.0.0.1:5432/mss_pat_test?sslmode=disable&TimeZone=UTC'
         run: >-
           go test -count=1 -timeout=12m
-          -run '^TestUserAuthTokenHashMigration(MySQL|Postgres)Integration$'
+          -run '^(TestUserAuthTokenHashMigration(MySQL|Postgres)Integration|TestOAuthLocalPasswordDisableMigration(MySQL|Postgres)Integration|TestOAuthIdentityKeyMigration(MySQL|Postgres)Integration)$'
           ./cmd/migrate/migration/system

@@ -104,6 +104,7 @@ var customRouteContracts = []CustomRouteContract{
 
 	// Authentication, account recovery, and current-user profile.
 	{Method: http.MethodPost, Path: "/admin/api/user/login", Class: RoutePublic, Mutation: true},
+	{Method: http.MethodPost, Path: "/admin/api/user/auth-cookie/clear", Class: RoutePublic, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/reset-password", Class: RouteOptionalAuthenticated, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/fakeCaptcha", Class: RoutePublic, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/login/github", Class: RoutePublic, Mutation: true},

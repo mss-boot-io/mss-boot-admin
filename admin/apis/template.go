@@ -9,11 +9,9 @@ package apis
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
-	"os"
 	"path/filepath"
-	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	git "github.com/go-git/go-git/v5"
@@ -38,6 +36,7 @@ type Template struct {
 	gitClone         func(string, string, string, bool, string) (*git.Repository, error)
 	generate         func(*pkg.TemplateConfig) error
 	commitAndPush    func(string, string, string, string, *gitHttp.BasicAuth) error
+	newWorkspace     func() (string, error)
 	cleanup          func(...string)
 }
 
@@ -62,17 +61,23 @@ func (e Template) push(directory, branch, path, accessToken string, auth *gitHtt
 	return pkg.CommitAndPushGithubRepo(directory, branch, path, accessToken, auth)
 }
 
+func (e Template) workspace() (string, error) {
+	if e.newWorkspace != nil {
+		return e.newWorkspace()
+	}
+	return newTemplateWorkspace()
+}
+
 func (e Template) scheduleCleanup(paths ...string) {
 	if e.cleanup != nil {
 		e.cleanup(paths...)
 		return
 	}
-	go func() {
-		time.Sleep(10 * time.Minute)
-		for _, path := range paths {
-			_ = os.RemoveAll(path)
+	for _, workspace := range paths {
+		if err := removeTemplateWorkspace(workspace); err != nil {
+			slog.Error("clean template workspace failed", slog.Any("err", err))
 		}
-	}()
+	}
 }
 
 func (Template) Path() string {
@@ -109,13 +114,17 @@ func (e Template) GetBranches(c *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
+	repository, err := parseGitHubRepositoryURL(req.Source)
+	if err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 	accessToken, _, status := e.lookupOAuthIntegrationCredential(c)
 	if status != 0 {
 		api.Err(status)
 		return
 	}
-	s := strings.Split(req.Source, "/")
-	branches, err := pkg.GetGithubRepoAllBranches(c, s[len(s)-2], s[len(s)-1], accessToken)
+	branches, err := pkg.GetGithubRepoAllBranches(c, repository.Owner, repository.Name, accessToken)
 	if err != nil {
 		api.AddError(err).Log.Error("get github branches error")
 		api.Err(http.StatusInternalServerError)
@@ -153,6 +162,11 @@ func (e Template) GetPath(c *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
+	repository, err := parseGitHubRepositoryURL(req.Source)
+	if err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 	accessToken, _, status := e.lookupOAuthIntegrationCredential(c)
 	if status != 0 {
 		api.Err(status)
@@ -162,20 +176,25 @@ func (e Template) GetPath(c *gin.Context) {
 		req.Branch = "main"
 	}
 	//获取模版, 存放位置: templates/provider/owner/repo
-	dir := fmt.Sprintf("temp/%s/%s", strings.ReplaceAll(
-		strings.ReplaceAll(req.Source, "https://", ""),
-		"http://",
-		"",
-	), req.Branch)
+	workspace, err := e.workspace()
+	if err != nil {
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	defer e.scheduleCleanup(workspace)
+	dir := filepath.Join(workspace, "template")
 	//获取最新代码
-	_, err := e.clone(req.Source, req.Branch, dir, false, accessToken)
+	_, err = e.clone(repository.CloneURL, req.Branch, dir, false, accessToken)
 	//更新
 	if err != nil {
 		api.AddError(err).Log.Error("git clone error")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	defer e.scheduleCleanup(dir)
+	if err = pkg.ValidateGeneratorRepositoryTree(dir); err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 	resp := &dto.TemplateGetPathResp{}
 	resp.Path, err = pkg.GetSubPath(dir)
 	for i := range resp.Path {
@@ -216,6 +235,16 @@ func (e Template) GetParams(c *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
+	repository, err := parseGitHubRepositoryURL(req.Source)
+	if err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	templatePath, err := safeTemplateRelativePath(req.Path, ".")
+	if err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 	accessToken, _, status := e.lookupOAuthIntegrationCredential(c)
 	if status != 0 {
 		api.Err(status)
@@ -225,22 +254,27 @@ func (e Template) GetParams(c *gin.Context) {
 		req.Branch = "main"
 	}
 	//获取模版, 存放位置: templates/provider/owner/repo
-	dir := fmt.Sprintf("temp/%s/%s", strings.ReplaceAll(
-		strings.ReplaceAll(req.Source, "https://", ""),
-		"http://",
-		"",
-	), req.Branch)
+	workspace, err := e.workspace()
+	if err != nil {
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	defer e.scheduleCleanup(workspace)
+	dir := filepath.Join(workspace, "template")
 	//获取最新代码
-	_, err := e.clone(req.Source, req.Branch, dir, false, accessToken)
+	_, err = e.clone(repository.CloneURL, req.Branch, dir, false, accessToken)
 	//更新
 	if err != nil {
 		api.AddError(err).Log.Error("git clone error")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	defer e.scheduleCleanup(dir)
+	if err = pkg.ValidateGeneratorRepositoryTree(dir); err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 	var keys map[string]string
-	keys, err = pkg.GetParseFromTemplate(dir, req.Path)
+	keys, err = pkg.GetParseFromTemplate(dir, templatePath)
 	if err != nil {
 		api.AddError(err).Log.Error("get parse from template error")
 		api.Err(http.StatusFailedDependency)
@@ -267,7 +301,7 @@ func (e Template) GetParams(c *gin.Context) {
 // @Accept  application/json
 // @Product application/json
 // @Param data body dto.TemplateGenerateReq true "data"
-// @Param X-MSS-OAuth-Credential header string false "short-lived OAuth credential handle"
+// @Param X-MSS-OAuth-Credential header string true "single-attempt OAuth credential handle"
 // @Success 200 {object} dto.TemplateGenerateResp
 // @Router /admin/api/template/generate [post]
 // @Security Bearer
@@ -282,7 +316,27 @@ func (e Template) Generate(c *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	accessToken, credentialHandle, status := e.lookupOAuthIntegrationCredential(c)
+	templateRepository, err := parseGitHubRepositoryURL(req.Template.Source)
+	if err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	destinationRepository, err := parseGitHubRepositoryURL(req.Generate.Repo)
+	if err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	templatePath, err := safeTemplateRelativePath(req.Template.Path, ".")
+	if err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	destinationService, err := safeTemplateRelativePath(req.Generate.Service, "")
+	if err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	accessToken, _, status := e.consumeOAuthIntegrationCredential(c)
 	if status != 0 {
 		api.Err(status)
 		return
@@ -292,14 +346,16 @@ func (e Template) Generate(c *gin.Context) {
 		req.Template.Branch = "main"
 	}
 	//获取模版, 存放位置: temp/provider/owner/repo
-	dir := fmt.Sprintf("temp/%s/%s", strings.ReplaceAll(
-		strings.ReplaceAll(req.Template.Source, "https://", ""),
-		"http://",
-		"",
-	), req.Template.Branch)
+	workspace, err := e.workspace()
+	if err != nil {
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	defer e.scheduleCleanup(workspace)
+	dir := filepath.Join(workspace, "template")
 	//获取新代码
-	_, err := e.clone(
-		req.Template.Source,
+	_, err = e.clone(
+		templateRepository.CloneURL,
 		req.Template.Branch, dir, false,
 		accessToken)
 	if err != nil {
@@ -307,28 +363,31 @@ func (e Template) Generate(c *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
+	if err = pkg.ValidateGeneratorRepositoryTree(dir); err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 
 	//获取目的提交项目，存放路径: temp/provider/owner/repo/branch
 	branch := fmt.Sprintf("generate/%s", uuid.New().String())
-	codeDir := fmt.Sprintf("temp/%s/%s", strings.ReplaceAll(
-		strings.ReplaceAll(req.Generate.Repo, "https://", ""),
-		"http://",
-		"",
-	), branch)
+	codeDir := filepath.Join(workspace, "destination")
 
-	_, err = e.clone(req.Generate.Repo, "", codeDir, false, accessToken)
+	_, err = e.clone(destinationRepository.CloneURL, "", codeDir, false, accessToken)
 	if err != nil {
 		api.AddError(err).Log.Error("git clone error")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	defer e.scheduleCleanup(dir, codeDir)
+	if err = pkg.ValidateGeneratorRepositoryTree(codeDir); err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 	destination := codeDir
-	if req.Generate.Service != "" {
-		destination = filepath.Join(destination, req.Generate.Service)
+	if destinationService != "" {
+		destination = filepath.Join(destination, destinationService)
 	}
 	err = e.generateCode(&pkg.TemplateConfig{
-		Service:       req.Template.Path,
+		Service:       templatePath,
 		TemplateLocal: dir,
 		//TemplateLocalSubPath: req.Template.Branch,
 		Destination: destination,
@@ -339,7 +398,7 @@ func (e Template) Generate(c *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	err = e.push(codeDir, branch, req.Generate.Service, accessToken,
+	err = e.push(codeDir, branch, destinationService, accessToken,
 		&gitHttp.BasicAuth{
 			Username: req.Email,
 			Password: accessToken,
@@ -349,12 +408,8 @@ func (e Template) Generate(c *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	if status = e.deleteOAuthIntegrationCredential(c, credentialHandle); status != 0 {
-		api.Err(status)
-		return
-	}
 	resp := &dto.TemplateGenerateResp{
-		Repo:   req.Generate.Repo,
+		Repo:   destinationRepository.WebURL,
 		Branch: branch,
 	}
 	api.OK(resp)
