@@ -120,7 +120,7 @@ const Index: React.FC = () => {
         record.read ? (
           ''
         ) : (
-          <Access key="/notice/read">
+          <Access key="/notice/read" permission="/notice/read">
             <Button
               onClick={async () => {
                 await putNoticeReadId({ id: record.id! });
@@ -165,7 +165,7 @@ const Index: React.FC = () => {
           labelWidth: 120,
         }}
         toolBarRender={() => [
-          <Access key="/notice/create">
+          <Access key="/notice/create" permission="/notice/create">
             <Link to="/notice/create" key="create">
               <Button type="primary" key="create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Button, Card, Empty, List, Space, Tag, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { Access } from '@/components/MssBoot/Access';
+import { useMobileListPagination } from '@/hooks/useMobileListPagination';
+import { useIntl } from '@umijs/max';
 import styles from '@/styles/mobile.less';
 
 interface MobilePostListProps {
@@ -19,26 +21,13 @@ const MobilePostList: React.FC<MobilePostListProps> = ({
   onDelete,
   dataScopeValueEnum,
 }) => {
-  const [loading, setLoading] = useState(false);
-  const [dataSource, setDataSource] = useState<API.Post[]>([]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const response = await request({ pageSize: 100 });
-      setDataSource(response?.data || []);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const intl = useIntl();
+  const { dataSource, error, hasMore, loading, loadingMore, loadMore, reload } =
+    useMobileListPagination<API.Post>(request);
 
   const handleDelete = async (record: API.Post) => {
     await onDelete(record);
-    fetchData();
+    await reload();
   };
 
   const getStatusTag = (status: string) => {
@@ -57,10 +46,21 @@ const MobilePostList: React.FC<MobilePostListProps> = ({
     return dataScope || '-';
   };
 
+  const loadMoreControl =
+    error || hasMore ? (
+      <div style={{ padding: '12px 0', textAlign: 'center' }}>
+        <Button onClick={error ? reload : loadMore} loading={loadingMore}>
+          {error
+            ? intl.formatMessage({ id: 'pages.mobile.retry', defaultMessage: 'Retry' })
+            : intl.formatMessage({ id: 'pages.mobile.loadMore', defaultMessage: 'Load more' })}
+        </Button>
+      </div>
+    ) : null;
+
   return (
     <div className={styles.mobileContainer}>
       <div className={styles.toolbar}>
-        <Access key="/posts/create">
+        <Access key="/posts/create" permission="/posts/create">
           <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
             新建岗位
           </Button>
@@ -70,6 +70,7 @@ const MobilePostList: React.FC<MobilePostListProps> = ({
       <List
         loading={loading}
         dataSource={dataSource}
+        loadMore={loadMoreControl}
         renderItem={(item) => (
           <List.Item className={styles.listItem}>
             <Card className={styles.card} size="small">
@@ -95,12 +96,12 @@ const MobilePostList: React.FC<MobilePostListProps> = ({
 
               <div className={styles.cardActions}>
                 <Space>
-                  <Access key="/posts/edit">
+                  <Access key="/posts/edit" permission="/posts/edit">
                     <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
                       编辑
                     </Button>
                   </Access>
-                  <Access key="/posts/delete">
+                  <Access key="/posts/delete" permission="/posts/delete">
                     <Popconfirm
                       title="确定要删除吗？"
                       onConfirm={() => handleDelete(item)}

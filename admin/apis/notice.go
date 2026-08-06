@@ -11,6 +11,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
+	"gorm.io/gorm"
 )
 
 /*
@@ -35,6 +36,10 @@ func init() {
 type Notice struct {
 	*controller.Simple
 }
+
+// unreadNoticeLimit bounds the global-header payload while leaving the full
+// paginated notice management endpoint available for older notices.
+const unreadNoticeLimit = 100
 
 //func (e *Notice) GetAction(key string) response.Action {
 //	return nil
@@ -125,16 +130,24 @@ func (e *Notice) Unread(ctx *gin.Context) {
 		api.OK(nil)
 		return
 	}
-	list := make([]*models.Notice, 0)
-	err := center.Default.GetDB(ctx, &models.Notice{}).Model(&models.Notice{}).
-		Where(&models.Notice{Read: false, UserID: verify.GetUserID()}).
-		Find(&list).Error
+	list, err := listUnreadNotices(center.Default.GetDB(ctx, &models.Notice{}), verify.GetUserID())
 	if err != nil {
 		api.AddError(err).Log.Error("get notice list error")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
 	api.OK(list)
+}
+
+func listUnreadNotices(db *gorm.DB, userID string) ([]*models.Notice, error) {
+	list := make([]*models.Notice, 0)
+	err := db.Model(&models.Notice{}).
+		Where(map[string]any{"user_id": userID, "read": false}).
+		Order("created_at DESC").
+		Order("id DESC").
+		Limit(unreadNoticeLimit).
+		Find(&list).Error
+	return list, err
 }
 
 // Get 获取通知

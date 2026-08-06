@@ -25,8 +25,11 @@ const UserList: React.FC = () => {
   const { id } = useParams();
   const [deptOptions, setDeptOptions] = useState<[]>([]);
   const [postOptions, setPostOptions] = useState<[]>([]);
-  const { valueEnum: statusValueEnum } = useOption('system', 'status');
   const { isMobile } = useResponsive();
+  const shouldLoadDesktopDependencies = !isMobile || !!id;
+  const { valueEnum: statusValueEnum } = useOption('system', 'status', {
+    enabled: shouldLoadDesktopDependencies,
+  });
 
   const intl = useIntl();
 
@@ -56,11 +59,16 @@ const UserList: React.FC = () => {
     return label;
   };
 
-  const { data: roleOptions, loading } = useRequest(() => {
-    return getRoles({ pageSize: 1000 });
+  const { data: roleOptions, loading } = useRequest(() => getRoles({ pageSize: 1000 }), {
+    ready: shouldLoadDesktopDependencies,
+    refreshDeps: [shouldLoadDesktopDependencies],
   });
 
   useEffect(() => {
+    if (!shouldLoadDesktopDependencies) {
+      return;
+    }
+
     getPosts({ pageSize: 1000, parentID: '' }).then((res) => {
       // @ts-ignore
       setPostOptions(transferTree(res.data!, id));
@@ -69,11 +77,11 @@ const UserList: React.FC = () => {
       // @ts-ignore
       setDeptOptions(transferTree(res.data!, id));
     });
-  }, []);
+  }, [id, shouldLoadDesktopDependencies]);
 
-  if (isMobile) {
+  if (isMobile && !id) {
     return (
-      <PageContainer>
+      <PageContainer title={indexTitle(id)}>
         <MobileUserList />
       </PageContainer>
     );
@@ -83,6 +91,7 @@ const UserList: React.FC = () => {
     {
       title: fieldIntl(intl, 'id'),
       dataIndex: 'id',
+      width: 220,
       hideInForm: true,
       render: (dom, entity) => {
         return idRender(dom, entity, setCurrentRow, setShowDetail);
@@ -91,6 +100,7 @@ const UserList: React.FC = () => {
     {
       title: fieldIntl(intl, 'roleID'),
       dataIndex: 'roleID',
+      width: 120,
       search: false,
       valueType: 'select',
       valueEnum: toOptions(roleOptions),
@@ -98,6 +108,7 @@ const UserList: React.FC = () => {
     {
       title: fieldIntl(intl, 'department'),
       dataIndex: 'departmentID',
+      width: 150,
       valueType: 'select',
       renderText: (val) => getLabel(deptOptions, val),
       renderFormItem: () => {
@@ -118,6 +129,7 @@ const UserList: React.FC = () => {
     {
       title: fieldIntl(intl, 'post'),
       dataIndex: 'postID',
+      width: 150,
       renderText: (val) => getLabel(postOptions, val),
       renderFormItem: () => {
         return (
@@ -137,6 +149,7 @@ const UserList: React.FC = () => {
     {
       title: fieldIntl(intl, 'avatar'),
       dataIndex: 'avatar',
+      width: 72,
       search: false,
       valueType: 'avatar',
       hideInForm: true,
@@ -144,6 +157,7 @@ const UserList: React.FC = () => {
     {
       title: fieldIntl(intl, 'username'),
       dataIndex: 'username',
+      width: 140,
       formItemProps: {
         rules: [
           { required: true },
@@ -162,10 +176,12 @@ const UserList: React.FC = () => {
     {
       title: fieldIntl(intl, 'name'),
       dataIndex: 'name',
+      width: 140,
     },
     {
       title: fieldIntl(intl, 'email'),
       dataIndex: 'email',
+      width: 220,
       formItemProps: {
         rules: [{ required: true }, { type: 'email' }],
       },
@@ -228,6 +244,7 @@ const UserList: React.FC = () => {
     {
       title: fieldIntl(intl, 'status'),
       dataIndex: 'status',
+      width: 100,
       valueEnum: statusValueEnum,
     },
     // {
@@ -248,6 +265,7 @@ const UserList: React.FC = () => {
       title: fieldIntl(intl, 'updatedAt'),
       sorter: true,
       dataIndex: 'updatedAt',
+      width: 180,
       search: false,
       valueType: 'dateTime',
       hideInForm: true,
@@ -256,24 +274,26 @@ const UserList: React.FC = () => {
       title: <FormattedMessage id="pages.title.option" />,
       dataIndex: 'option',
       valueType: 'option',
+      width: 236,
+      fixed: 'right',
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/users/edit">
+        <Access key="/users/edit" permission="/users/edit">
           <Link to={`/users/control/${record.id}`}>
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/users/password-reset">
+        <Access key="/users/password-reset" permission="/users/password-reset">
           <Link to={`/users/password-reset/${record.id}/`}>
             <Button key="passwordReset">
               <FormattedMessage id="pages.title.password.reset" defaultMessage="ResetPassword" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/users/delete">
+        <Access key="/users/delete" permission="/users/delete">
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -343,13 +363,15 @@ const UserList: React.FC = () => {
         })}
         actionRef={actionRef}
         rowKey="id"
+        size="small"
+        scroll={{ x: 1728 }}
         search={{
           labelWidth: 120,
         }}
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/users/create">
+          <Access key="/users/create" permission="/users/create">
             <Button type="primary" key="create">
               <Link type="primary" key="primary" to="/users/control/create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

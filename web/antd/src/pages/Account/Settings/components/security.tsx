@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { List, message } from 'antd';
 import { ModalForm, ProForm, ProFormText } from '@ant-design/pro-components';
-import { useIntl } from '@@/exports';
+import { useIntl, useModel } from '@umijs/max';
 import { fieldIntl } from '@/util/fieldIntl';
 import { getUserUserInfo, postUserResetPassword } from '@/services/admin/user';
 import { useRequest } from 'ahooks';
@@ -16,17 +16,19 @@ type Unpacked<T> = T extends (infer U)[] ? U : T;
 
 const SecurityView: React.FC = () => {
   const intl = useIntl();
+  const { initialState, loading: initialStateLoading } = useModel('@@initialState');
 
   // const [changePassword, setChangePassword] = useState<boolean>(false);
   const [openChangePassword, setOpenChangePassword] = useState<boolean>(false);
 
-  const { data: currentUser, loading } = useRequest(async () => {
-    const res = await getUserUserInfo();
-    if (res) {
-      return res;
-    }
-    return {};
+  const initialUser = initialState?.currentUser;
+  const { data: fetchedUser, loading: userInfoLoading } = useRequest(getUserUserInfo, {
+    // Let the app-wide user request finish first; only unauthenticated/partial
+    // initial state needs this component-level fallback.
+    ready: !initialStateLoading && !initialUser,
   });
+  const currentUser = initialUser ?? fetchedUser;
+  const loading = initialStateLoading || userInfoLoading;
 
   const getData = () => [
     {

@@ -1,11 +1,11 @@
 import { Access } from '@/components/MssBoot/Access';
 import {
   deleteLanguagesId,
-  getLanguages,
   getLanguagesId,
   postLanguages,
   putLanguagesId,
 } from '@/services/admin/language';
+import { getManagedLanguages } from '@/services/admin/languageManagement';
 import { idRender } from '@/util/columnOptions';
 import { indexTitle } from '@/util/indexTitle';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -209,14 +209,14 @@ const Language: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/language/edit">
+        <Access key="/language/edit" permission="/language/edit">
           <Link to={`/language/${record.id}`}>
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/language/delete">
+        <Access key="/language/delete" permission="/language/delete">
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -279,7 +279,7 @@ const Language: React.FC = () => {
     <PageContainer title={indexTitle(id)}>
       {isMobile && !id ? (
         <MobileLanguageList
-          request={getLanguages}
+          request={getManagedLanguages}
           onEdit={(record) => history.push(`/language/${record.id}`)}
           onCreate={() => history.push('/language/create')}
           onDelete={async (record) => {
@@ -300,7 +300,7 @@ const Language: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/language/create">
+          <Access key="/language/create" permission="/language/create">
             <Button type="primary" key="create">
               <Link type="primary" key="primary" to="/language/create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />
@@ -318,7 +318,7 @@ const Language: React.FC = () => {
               }
             : undefined
         }
-        request={getLanguages}
+        request={getManagedLanguages}
         columns={columns}
         />
       )}

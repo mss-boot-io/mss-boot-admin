@@ -1,22 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Avatar, Spin, Tag, message, Row, Col, Space, Typography } from 'antd';
 import { UserOutlined, TeamOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { getUserUserInfo } from '@/services/admin/user';
-import { getDepartmentsId } from '@/services/admin/department';
-import { getPostsId } from '@/services/admin/post';
-import { useIntl } from '@umijs/max';
+import { useIntl, useModel } from '@umijs/max';
 import { PageContainer, ProCard, ProDescriptions } from '@ant-design/pro-components';
 import { province } from '../Settings/geographic/province';
 import { city } from '../Settings/geographic/city';
 import { useResponsive } from '@/hooks/useResponsive';
 import MobileCenter from './Mobile';
+import { getAccountCenterDetails, getAccountCenterUser } from './details';
 
 const { Title, Paragraph } = Typography;
 
 const Center: React.FC = () => {
   const intl = useIntl();
   const { isMobile } = useResponsive();
-  const [userInfo, setUserInfo] = useState<API.User>();
+  const { initialState } = useModel('@@initialState');
+  const currentUser = initialState?.currentUser;
+  const [userInfo, setUserInfo] = useState<API.User | undefined>(currentUser);
   const [departmentInfo, setDepartmentInfo] = useState<API.Department>();
   const [postInfo, setPostInfo] = useState<API.Post>();
   const [loading, setLoading] = useState(false);
@@ -25,32 +25,62 @@ const Center: React.FC = () => {
     duration: 3,
     maxCount: 3,
   });
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const userRes = await getUserUserInfo();
-      setUserInfo(userRes);
-
-      if (userRes.department?.id) {
-        const deptRes = await getDepartmentsId({ id: userRes.department.id });
-        setDepartmentInfo(deptRes);
-      }
-
-      if (userRes.post?.id) {
-        const postRes = await getPostsId({ id: userRes.post.id });
-        setPostInfo(postRes);
-      }
-    } catch (error) {
-      messageApi.error(intl.formatMessage({ id: 'pages.account.center.fetchDataError' }));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const messageApiRef = useRef(messageApi);
+  const intlRef = useRef(intl);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    messageApiRef.current = messageApi;
+    intlRef.current = intl;
+  }, [intl, messageApi]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const fetchData = async () => {
+      setLoading(true);
+      setDepartmentInfo(undefined);
+      setPostInfo(undefined);
+
+      try {
+        // The initial state is populated at sign-in and is shared by the header,
+        // access checks, and this page. Only fall back to the API if it is absent.
+        const user = await getAccountCenterUser(currentUser, controller.signal);
+        if (!isMounted) {
+          return;
+        }
+
+        setUserInfo(user);
+        const { departmentInfo: department, postInfo: post } = await getAccountCenterDetails(
+          user,
+          controller.signal,
+        );
+        if (!isMounted) {
+          return;
+        }
+
+        setDepartmentInfo(department);
+        setPostInfo(post);
+      } catch (error) {
+        if (isMounted && !controller.signal.aborted) {
+          messageApiRef.current.error(
+            intlRef.current.formatMessage({ id: 'pages.account.center.fetchDataError' }),
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void fetchData();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [currentUser]);
 
   if (isMobile) {
     return (

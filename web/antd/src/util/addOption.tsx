@@ -21,14 +21,14 @@ export const addOption = (
     hideInDescriptions: true,
     hideInForm: true,
     render: (_, record) => [
-      <Access key={`/${key}/edit`}>
+      <Access key={`/${key}/edit`} permission={`/${key}/edit`}>
         <Link to={`${pathname}/${record.id}`}>
           <Button key="edit">
             <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
           </Button>
         </Link>
       </Access>,
-      <Access key={`${key}/delete`}>
+      <Access key={`${key}/delete`} permission={`${key}/delete`}>
         <Popconfirm
           key="delete"
           title={intl.formatMessage({ id: 'pages.title.delete', defaultMessage: 'Delete' })}

@@ -1,22 +1,22 @@
 import { useModel } from '@umijs/max';
-import { PropsWithChildren } from 'react';
+import React, { PropsWithChildren } from 'react';
 
 export interface AccessProps {
   accessible?: boolean;
   fallback?: React.ReactNode;
-  key?: string;
+  permission?: string;
 }
 
 export const Access: React.FC<PropsWithChildren<AccessProps>> = (props) => {
   const { initialState } = useModel('@@initialState');
-  let accessible: boolean =
-    (props.accessible ?? false) || (initialState?.currentUser?.role?.root ?? false);
+  const currentUser = initialState?.currentUser;
+  const permissions = currentUser?.permissions;
+  const hasPermission =
+    !!props.permission &&
+    !!permissions &&
+    Object.prototype.hasOwnProperty.call(permissions, props.permission);
 
-  if (!accessible && props.key) {
-    accessible =
-      initialState?.currentUser?.role?.root ??
-      !!initialState?.currentUser?.permissions?.hasOwnProperty(props.key);
-  }
+  const accessible = props.accessible === true || currentUser?.role?.root === true || hasPermission;
 
   return <>{accessible ? props.children : props.fallback}</>;
 };

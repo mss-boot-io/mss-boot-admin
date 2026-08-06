@@ -492,14 +492,14 @@ const Field: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/field/edit">
+        <Access key="/field/edit" permission="/field/edit">
           <Link to={`/field/${modelID}/${record.id}`}>
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/field/delete">
+        <Access key="/field/delete" permission="/field/delete">
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -582,7 +582,7 @@ const Field: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/field/create">
+          <Access key="/field/create" permission="/field/create">
             <Button type="primary" key="create">
               <Link type="primary" key="primary" to={`/field/${modelID}/create`}>
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

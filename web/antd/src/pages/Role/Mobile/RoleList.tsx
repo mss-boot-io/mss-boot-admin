@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Button, Card, Empty, List, Space, Tag, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SafetyOutlined } from '@ant-design/icons';
 import { Access } from '@/components/MssBoot/Access';
+import { useMobileListPagination } from '@/hooks/useMobileListPagination';
+import { useIntl } from '@umijs/max';
 import styles from '@/styles/mobile.less';
 
 interface MobileRoleListProps {
@@ -19,26 +21,13 @@ const MobileRoleList: React.FC<MobileRoleListProps> = ({
   onAuth,
   onDelete,
 }) => {
-  const [loading, setLoading] = useState(false);
-  const [dataSource, setDataSource] = useState<API.Role[]>([]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const response = await request({ pageSize: 100 });
-      setDataSource(response?.data || []);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const intl = useIntl();
+  const { dataSource, error, hasMore, loading, loadingMore, loadMore, reload } =
+    useMobileListPagination<API.Role>(request);
 
   const handleDelete = async (record: API.Role) => {
     await onDelete(record);
-    fetchData();
+    await reload();
   };
 
   const getStatusTag = (status: string) => {
@@ -50,10 +39,21 @@ const MobileRoleList: React.FC<MobileRoleListProps> = ({
     return <Tag color={item.color}>{item.text}</Tag>;
   };
 
+  const loadMoreControl =
+    error || hasMore ? (
+      <div style={{ padding: '12px 0', textAlign: 'center' }}>
+        <Button onClick={error ? reload : loadMore} loading={loadingMore}>
+          {error
+            ? intl.formatMessage({ id: 'pages.mobile.retry', defaultMessage: 'Retry' })
+            : intl.formatMessage({ id: 'pages.mobile.loadMore', defaultMessage: 'Load more' })}
+        </Button>
+      </div>
+    ) : null;
+
   return (
     <div className={styles.mobileContainer}>
       <div className={styles.toolbar}>
-        <Access key="/role/create">
+        <Access key="/role/create" permission="/role/create">
           <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
             新建角色
           </Button>
@@ -63,6 +63,7 @@ const MobileRoleList: React.FC<MobileRoleListProps> = ({
       <List
         loading={loading}
         dataSource={dataSource}
+        loadMore={loadMoreControl}
         renderItem={(item) => (
           <List.Item className={styles.listItem}>
             <Card className={styles.card} size="small">
@@ -96,17 +97,17 @@ const MobileRoleList: React.FC<MobileRoleListProps> = ({
 
               <div className={styles.cardActions}>
                 <Space>
-                  <Access key="/role/edit">
+                  <Access key="/role/edit" permission="/role/edit">
                     <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
                       编辑
                     </Button>
                   </Access>
-                  <Access key="/role/auth">
+                  <Access key="/role/auth" permission="/role/auth">
                     <Button size="small" icon={<SafetyOutlined />} disabled={item.root} onClick={() => onAuth(item)}>
                       授权
                     </Button>
                   </Access>
-                  <Access key="/role/delete">
+                  <Access key="/role/delete" permission="/role/delete">
                     <Popconfirm title="确定要删除吗？" onConfirm={() => handleDelete(item)} okText="确定" cancelText="取消" disabled={item.root}>
                       <Button size="small" danger icon={<DeleteOutlined />} disabled={item.root}>
                         删除

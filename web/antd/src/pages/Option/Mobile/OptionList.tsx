@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Button, Card, Empty, List, Space, Tag, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useIntl } from '@umijs/max';
 import { Access } from '@/components/MssBoot/Access';
+import { useMobileListPagination } from '@/hooks/useMobileListPagination';
 import styles from '@/styles/mobile.less';
 
 interface MobileOptionListProps {
@@ -17,32 +19,50 @@ const MobileOptionList: React.FC<MobileOptionListProps> = ({
   onCreate,
   onDelete,
 }) => {
-  const [loading, setLoading] = useState(false);
-  const [dataSource, setDataSource] = useState<API.Option[]>([]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const response = await request({ pageSize: 100 });
-      setDataSource(response?.data || []);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const intl = useIntl();
+  const {
+    dataSource,
+    error,
+    hasMore,
+    loading,
+    loadingMore,
+    loadMore,
+    reload,
+  } = useMobileListPagination<API.Option>(request);
 
   const handleDelete = async (record: API.Option) => {
     await onDelete(record);
-    fetchData();
+    await reload();
   };
+
+  const loadMoreControl =
+    error || hasMore ? (
+      <div style={{ margin: '16px 0', textAlign: 'center' }} role="status" aria-live="polite">
+        {error ? (
+          <Button
+            type="link"
+            onClick={reload}
+            aria-label={intl.formatMessage({ id: 'pages.mobile.retry', defaultMessage: 'Retry' })}
+          >
+            {intl.formatMessage({ id: 'pages.mobile.retry', defaultMessage: 'Retry' })}
+          </Button>
+        ) : (
+          <Button
+            type="link"
+            loading={loadingMore}
+            onClick={loadMore}
+            aria-label={intl.formatMessage({ id: 'pages.mobile.loadMore', defaultMessage: 'Load more' })}
+          >
+            {intl.formatMessage({ id: 'pages.mobile.loadMore', defaultMessage: 'Load more' })}
+          </Button>
+        )}
+      </div>
+    ) : null;
 
   return (
     <div className={styles.mobileContainer}>
       <div className={styles.toolbar}>
-        <Access key="/option/create">
+        <Access key="/option/create" permission="/option/create">
           <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
             新建选项
           </Button>
@@ -52,6 +72,7 @@ const MobileOptionList: React.FC<MobileOptionListProps> = ({
       <List
         loading={loading}
         dataSource={dataSource}
+        loadMore={loadMoreControl}
         renderItem={(item) => (
           <List.Item className={styles.listItem}>
             <Card className={styles.card} size="small">
@@ -77,12 +98,12 @@ const MobileOptionList: React.FC<MobileOptionListProps> = ({
 
               <div className={styles.cardActions}>
                 <Space>
-                  <Access key="/option/edit">
+                  <Access key="/option/edit" permission="/option/edit">
                     <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
                       编辑
                     </Button>
                   </Access>
-                  <Access key="/option/delete">
+                  <Access key="/option/delete" permission="/option/delete">
                     <Popconfirm
                       title="确定要删除吗？"
                       onConfirm={() => handleDelete(item)}

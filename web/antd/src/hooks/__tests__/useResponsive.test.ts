@@ -35,4 +35,36 @@ describe('useResponsive', () => {
 
     expect(typeof result.current.isDesktop).toBe('boolean');
   });
+
+  it('uses the current media query result on the first render', () => {
+    const originalMatchMedia = window.matchMedia;
+    const addEventListener = jest.fn();
+    const removeEventListener = jest.fn();
+
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: jest.fn((query: string) =>
+        ({
+          matches: query.includes('max-width: 767px'),
+          media: query,
+          addEventListener,
+          removeEventListener,
+          addListener: jest.fn(),
+          removeListener: jest.fn(),
+          dispatchEvent: jest.fn(),
+        }) as unknown as MediaQueryList,
+      ),
+    });
+
+    const { result, unmount } = renderHook(() => useResponsive());
+
+    expect(result.current.isMobile).toBe(true);
+    expect(result.current.isDesktop).toBe(false);
+
+    unmount();
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: originalMatchMedia,
+    });
+  });
 });

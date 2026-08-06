@@ -249,14 +249,14 @@ const Option: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/option/edit">
+        <Access key="/option/edit" permission="/option/edit">
           <Link to={`/option/${record.id}`}>
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/option/delete">
+        <Access key="/option/delete" permission="/option/delete">
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -340,7 +340,7 @@ const Option: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/option/create">
+          <Access key="/option/create" permission="/option/create">
             <Button type="primary" key="create">
               <Link type="primary" key="primary" to="/option/create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Button, Card, Empty, List, Space, Tag, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useIntl } from '@umijs/max';
 import { Access } from '@/components/MssBoot/Access';
+import { useMobileListPagination } from '@/hooks/useMobileListPagination';
 import styles from '@/styles/mobile.less';
 
 interface MobileTaskListProps {
@@ -17,27 +19,45 @@ const MobileTaskList: React.FC<MobileTaskListProps> = ({
   onCreate,
   onDelete,
 }) => {
-  const [loading, setLoading] = useState(false);
-  const [dataSource, setDataSource] = useState<any[]>([]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const response = await request({ pageSize: 100 });
-      setDataSource(response?.data || []);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const intl = useIntl();
+  const {
+    dataSource,
+    error,
+    hasMore,
+    loading,
+    loadingMore,
+    loadMore,
+    reload,
+  } = useMobileListPagination<API.Task>(request);
 
   const handleDelete = async (record: any) => {
     await onDelete(record);
-    fetchData();
+    await reload();
   };
+
+  const loadMoreControl =
+    error || hasMore ? (
+      <div style={{ margin: '16px 0', textAlign: 'center' }} role="status" aria-live="polite">
+        {error ? (
+          <Button
+            type="link"
+            onClick={reload}
+            aria-label={intl.formatMessage({ id: 'pages.mobile.retry', defaultMessage: 'Retry' })}
+          >
+            {intl.formatMessage({ id: 'pages.mobile.retry', defaultMessage: 'Retry' })}
+          </Button>
+        ) : (
+          <Button
+            type="link"
+            loading={loadingMore}
+            onClick={loadMore}
+            aria-label={intl.formatMessage({ id: 'pages.mobile.loadMore', defaultMessage: 'Load more' })}
+          >
+            {intl.formatMessage({ id: 'pages.mobile.loadMore', defaultMessage: 'Load more' })}
+          </Button>
+        )}
+      </div>
+    ) : null;
 
   const getStatusTag = (status: string) => {
     const statusMap: Record<string, { color: string; text: string }> = {
@@ -53,7 +73,7 @@ const MobileTaskList: React.FC<MobileTaskListProps> = ({
   return (
     <div className={styles.mobileContainer}>
       <div className={styles.toolbar}>
-        <Access key="/task/create">
+        <Access key="/task/create" permission="/task/create">
           <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
             新建任务
           </Button>
@@ -63,6 +83,7 @@ const MobileTaskList: React.FC<MobileTaskListProps> = ({
       <List
         loading={loading}
         dataSource={dataSource}
+        loadMore={loadMoreControl}
         renderItem={(item) => (
           <List.Item className={styles.listItem}>
             <Card className={styles.card} size="small">
@@ -73,17 +94,17 @@ const MobileTaskList: React.FC<MobileTaskListProps> = ({
               
               <div className={styles.cardBody}>
                 <div className={styles.field}>
-                  <span className={styles.label}>任务类型:</span>
-                  <span className={styles.value}>{item.type || '-'}</span>
+                  <span className={styles.label}>提供者:</span>
+                  <span className={styles.value}>{item.provider || '-'}</span>
                 </div>
                 <div className={styles.field}>
-                  <span className={styles.label}>执行次数:</span>
-                  <span className={styles.value}>{item.runCount || 0}</span>
+                  <span className={styles.label}>命名空间:</span>
+                  <span className={styles.value}>{item.namespace || '-'}</span>
                 </div>
                 <div className={styles.field}>
-                  <span className={styles.label}>最后执行:</span>
+                  <span className={styles.label}>最近检查:</span>
                   <span className={styles.value}>
-                    {item.lastRunAt ? new Date(item.lastRunAt).toLocaleString('zh-CN', {
+                    {item.checkedAt ? new Date(item.checkedAt).toLocaleString('zh-CN', {
                       month: '2-digit',
                       day: '2-digit',
                       hour: '2-digit',
@@ -95,12 +116,12 @@ const MobileTaskList: React.FC<MobileTaskListProps> = ({
 
               <div className={styles.cardActions}>
                 <Space>
-                  <Access key="/task/edit">
+                  <Access key="/task/edit" permission="/task/edit">
                     <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
                       编辑
                     </Button>
                   </Access>
-                  <Access key="/task/delete">
+                  <Access key="/task/delete" permission="/task/delete">
                     <Popconfirm
                       title="确定要删除吗？"
                       onConfirm={() => handleDelete(item)}

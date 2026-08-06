@@ -1,8 +1,8 @@
 import { PageContainer } from '@ant-design/pro-components';
-import { Area } from '@ant-design/charts';
-import { FormattedMessage, useModel, history } from '@umijs/max';
-import { Avatar, Card, Col, Row, Statistic, Typography, Space, theme, Alert } from 'antd';
-import React from 'react';
+import type { AreaConfig } from '@ant-design/charts';
+import { FormattedMessage, Link, useModel } from '@umijs/max';
+import { Alert, Avatar, Card, Col, Row, Skeleton, Space, Statistic, theme, Typography } from 'antd';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMonitorData } from '@/hooks/useMonitorData';
 import {
   UserOutlined,
@@ -22,8 +22,8 @@ const QuickEntry: React.FC<{ icon: React.ReactNode; title: React.ReactNode; href
 }) => {
   const { token } = theme.useToken();
   return (
-    <div
-      onClick={() => history.push(href)}
+    <Link
+      to={href}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -34,7 +34,10 @@ const QuickEntry: React.FC<{ icon: React.ReactNode; title: React.ReactNode; href
         boxShadow: token.boxShadowSecondary,
         cursor: 'pointer',
         transition: 'all 0.3s',
-        minWidth: 180,
+        width: '100%',
+        minWidth: 0,
+        border: '1px solid transparent',
+        textDecoration: 'none',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-2px)';
@@ -44,10 +47,55 @@ const QuickEntry: React.FC<{ icon: React.ReactNode; title: React.ReactNode; href
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = 'translateY(0)';
         e.currentTarget.style.boxShadow = token.boxShadowSecondary;
+        e.currentTarget.style.borderColor = 'transparent';
       }}
     >
       <div style={{ fontSize: 24, color: token.colorPrimary }}>{icon}</div>
       <Text style={{ color: token.colorText }}>{title}</Text>
+    </Link>
+  );
+};
+
+const LazyArea = React.lazy(async () => {
+  const { Area } = await import('@ant-design/charts');
+  return { default: Area };
+});
+
+const DeferredAreaChart: React.FC<{ config: AreaConfig }> = ({ config }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return undefined;
+    }
+
+    if (!('IntersectionObserver' in window)) {
+      setIsVisible(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        setIsVisible(true);
+        observer.disconnect();
+      }
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={containerRef} style={{ minHeight: 200 }}>
+      {isVisible ? (
+        <React.Suspense fallback={<Skeleton active paragraph={{ rows: 5 }} />}>
+          <LazyArea {...config} height={200} />
+        </React.Suspense>
+      ) : (
+        <Skeleton active paragraph={{ rows: 5 }} />
+      )}
     </div>
   );
 };
@@ -55,7 +103,7 @@ const QuickEntry: React.FC<{ icon: React.ReactNode; title: React.ReactNode; href
 const Welcome: React.FC = () => {
   const { token } = theme.useToken();
   const { initialState } = useModel('@@initialState');
-  const { monitorData, historyData, loading, error } = useMonitorData();
+  const { monitorData, historyData, loading, error } = useMonitorData({ pollInterval: 120000 });
 
   const currentUser = initialState?.currentUser;
   const hour = new Date().getHours();
@@ -68,7 +116,7 @@ const Welcome: React.FC = () => {
       ? 'pages.welcome.greeting.afternoon'
       : 'pages.welcome.greeting.evening';
 
-  const cpuConfig = {
+  const cpuConfig = useMemo<AreaConfig>(() => ({
     data: historyData,
     xField: 'time',
     yField: 'cpu',
@@ -76,9 +124,9 @@ const Welcome: React.FC = () => {
     animation: false,
     areaStyle: { fillOpacity: 0.6 },
     meta: { cpu: { alias: 'CPU %', max: 100 } },
-  };
+  }), [historyData]);
 
-  const memoryConfig = {
+  const memoryConfig = useMemo<AreaConfig>(() => ({
     data: historyData,
     xField: 'time',
     yField: 'memory',
@@ -86,7 +134,7 @@ const Welcome: React.FC = () => {
     animation: false,
     areaStyle: { fillOpacity: 0.6 },
     meta: { memory: { alias: 'Memory %', max: 100 } },
-  };
+  }), [historyData]);
 
   const memoryPercent = monitorData?.memoryUsagePercent?.toFixed(2) || '0.00';
   const diskPercent = monitorData?.diskUsagePercent?.toFixed(2) || '0.00';
@@ -154,7 +202,7 @@ const Welcome: React.FC = () => {
                 style={{ backgroundColor: token.colorPrimary }}
               />
               <div>
-                <Title level={4} style={{ margin: 0, marginBottom: 8 }}>
+                <Title level={1} style={{ fontSize: 20, margin: 0, marginBottom: 8 }}>
                   <FormattedMessage id={greetingKey} defaultMessage="你好" />，
                   {currentUser?.name || '用户'}
                 </Title>
@@ -176,7 +224,7 @@ const Welcome: React.FC = () => {
                   title="CPU"
                   value={monitorData?.cpuUsage || 0}
                   suffix="%"
-                  valueStyle={{ fontSize: 20 }}
+                  valueStyle={{ fontSize: 20, whiteSpace: 'nowrap' }}
                 />
               </Col>
               <Col span={8}>
@@ -184,7 +232,7 @@ const Welcome: React.FC = () => {
                   title={<FormattedMessage id="pages.monitor.memory" defaultMessage="内存" />}
                   value={memoryPercent}
                   suffix="%"
-                  valueStyle={{ fontSize: 20 }}
+                  valueStyle={{ fontSize: 20, whiteSpace: 'nowrap' }}
                 />
               </Col>
               <Col span={8}>
@@ -192,7 +240,7 @@ const Welcome: React.FC = () => {
                   title={<FormattedMessage id="pages.monitor.disk" defaultMessage="磁盘" />}
                   value={diskPercent}
                   suffix="%"
-                  valueStyle={{ fontSize: 20 }}
+                  valueStyle={{ fontSize: 20, whiteSpace: 'nowrap' }}
                 />
               </Col>
             </Row>
@@ -204,11 +252,13 @@ const Welcome: React.FC = () => {
         title={<FormattedMessage id="pages.welcome.quickEntry" defaultMessage="快捷入口" />}
         style={{ borderRadius: 8, marginTop: 16 }}
       >
-        <Space size={16} wrap>
-          {quickEntries.map((entry, index) => (
-            <QuickEntry key={index} {...entry} />
+        <Row gutter={[16, 16]}>
+          {quickEntries.map((entry) => (
+            <Col key={entry.href} xs={24} sm={12} lg={8}>
+              <QuickEntry {...entry} />
+            </Col>
           ))}
-        </Space>
+        </Row>
       </Card>
 
       <Card loading={loading} style={{ borderRadius: 8, marginTop: 16 }}>
@@ -282,7 +332,7 @@ const Welcome: React.FC = () => {
                 <FormattedMessage id="pages.monitor.cpu.trend" defaultMessage="CPU 使用率趋势" />
               }
             >
-              <Area {...cpuConfig} height={200} />
+              <DeferredAreaChart config={cpuConfig} />
             </Card>
           </Col>
           <Col xs={24} lg={12}>
@@ -291,7 +341,7 @@ const Welcome: React.FC = () => {
                 <FormattedMessage id="pages.monitor.memory.trend" defaultMessage="内存使用率趋势" />
               }
             >
-              <Area {...memoryConfig} height={200} />
+              <DeferredAreaChart config={memoryConfig} />
             </Card>
           </Col>
         </Row>
@@ -302,14 +352,14 @@ const Welcome: React.FC = () => {
               title={<FormattedMessage id="pages.monitor.runtime" defaultMessage="运行时信息" />}
             >
               <Row gutter={16}>
-                <Col span={6}>
+                <Col xs={12} sm={6}>
                   <Statistic
                     title={<FormattedMessage id="pages.monitor.heap" defaultMessage="堆内存" />}
                     value={((monitorData?.runtime?.heapAlloc || 0) / 1024 / 1024).toFixed(2)}
                     suffix="MB"
                   />
                 </Col>
-                <Col span={6}>
+                <Col xs={12} sm={6}>
                   <Statistic
                     title={
                       <FormattedMessage id="pages.monitor.gc.count" defaultMessage="GC 次数" />
@@ -317,10 +367,10 @@ const Welcome: React.FC = () => {
                     value={monitorData?.runtime?.numGC || 0}
                   />
                 </Col>
-                <Col span={6}>
+                <Col xs={12} sm={6}>
                   <Statistic title="Goroutines" value={monitorData?.runtime?.goroutines || 0} />
                 </Col>
-                <Col span={6}>
+                <Col xs={12} sm={6}>
                   <Statistic
                     title={<FormattedMessage id="pages.monitor.uptime" defaultMessage="运行时间" />}
                     value={Math.floor((monitorData?.uptime || 0) / 3600)}

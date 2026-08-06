@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Button, Card, Empty, List, Space, Tag, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useIntl } from '@umijs/max';
 import { Access } from '@/components/MssBoot/Access';
+import { useMobileListPagination } from '@/hooks/useMobileListPagination';
 import styles from '@/styles/mobile.less';
+import { getMenuLocaleId } from '../menuLocale';
 
 interface MobileMenuListProps {
   request: (params: any) => Promise<any>;
@@ -17,27 +20,45 @@ const MobileMenuList: React.FC<MobileMenuListProps> = ({
   onCreate,
   onDelete,
 }) => {
-  const [loading, setLoading] = useState(false);
-  const [dataSource, setDataSource] = useState<API.Menu[]>([]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const response = await request({ pageSize: 100 });
-      setDataSource(response?.data || []);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const intl = useIntl();
+  const {
+    dataSource,
+    error,
+    hasMore,
+    loading,
+    loadingMore,
+    loadMore,
+    reload,
+  } = useMobileListPagination<API.Menu>(request);
 
   const handleDelete = async (record: API.Menu) => {
     await onDelete(record);
-    fetchData();
+    await reload();
   };
+
+  const loadMoreControl =
+    error || hasMore ? (
+      <div style={{ margin: '16px 0', textAlign: 'center' }} role="status" aria-live="polite">
+        {error ? (
+          <Button
+            type="link"
+            onClick={reload}
+            aria-label={intl.formatMessage({ id: 'pages.mobile.retry', defaultMessage: 'Retry' })}
+          >
+            {intl.formatMessage({ id: 'pages.mobile.retry', defaultMessage: 'Retry' })}
+          </Button>
+        ) : (
+          <Button
+            type="link"
+            loading={loadingMore}
+            onClick={loadMore}
+            aria-label={intl.formatMessage({ id: 'pages.mobile.loadMore', defaultMessage: 'Load more' })}
+          >
+            {intl.formatMessage({ id: 'pages.mobile.loadMore', defaultMessage: 'Load more' })}
+          </Button>
+        )}
+      </div>
+    ) : null;
 
   const getTypeTag = (type: string) => {
     const typeMap: Record<string, { color: string; text: string }> = {
@@ -59,9 +80,18 @@ const MobileMenuList: React.FC<MobileMenuListProps> = ({
     return <Tag color={item.color}>{item.text}</Tag>;
   };
 
+  const localizeMenuName = (name?: string) => {
+    if (!name) {
+      return '';
+    }
+
+    const menuId = getMenuLocaleId(name);
+    return intl.formatMessage({ id: menuId, defaultMessage: name });
+  };
+
   const renderMenuName = (item: API.Menu, level: number = 0) => {
     const indent = '　'.repeat(level);
-    return `${indent}${item.name}`;
+    return `${indent}${localizeMenuName(item.name)}`;
   };
 
   const flattenMenu = (menus: API.Menu[], level: number = 0): any[] => {
@@ -81,7 +111,7 @@ const MobileMenuList: React.FC<MobileMenuListProps> = ({
   return (
     <div className={styles.mobileContainer}>
       <div className={styles.toolbar}>
-        <Access key="/menu/create">
+        <Access key="/menu/create" permission="/menu/create">
           <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
             新建菜单
           </Button>
@@ -91,6 +121,7 @@ const MobileMenuList: React.FC<MobileMenuListProps> = ({
       <List
         loading={loading}
         dataSource={flatDataSource}
+        loadMore={loadMoreControl}
         renderItem={(item: any) => (
           <List.Item className={styles.listItem}>
             <Card className={styles.card} size="small">
@@ -117,12 +148,12 @@ const MobileMenuList: React.FC<MobileMenuListProps> = ({
 
               <div className={styles.cardActions}>
                 <Space>
-                  <Access key="/menu/edit">
+                  <Access key="/menu/edit" permission="/menu/edit">
                     <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
                       编辑
                     </Button>
                   </Access>
-                  <Access key="/menu/delete">
+                  <Access key="/menu/delete" permission="/menu/delete">
                     <Popconfirm
                       title="确定要删除吗？"
                       onConfirm={() => handleDelete(item)}
