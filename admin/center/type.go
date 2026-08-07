@@ -8,7 +8,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/virtual/model"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
@@ -25,7 +24,6 @@ type Center interface {
 	NoticeImp
 	TenantImp
 	UserImp
-	VirtualModelImp
 	ConfigImp
 	CustomConfigImp
 	server.Manager
@@ -66,12 +64,6 @@ type TenantImp interface {
 	GetDB(ctx *gin.Context, table schema.Tabler) *gorm.DB
 	GetID() any
 	GetDefault() bool
-}
-
-type VirtualModelImp interface {
-	GetModels(ctx *gin.Context) ([]VirtualModelImp, error)
-	Make() *model.Model
-	GetKey() string
 }
 
 type UserImp interface {

@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"errors"
+	"strings"
+	"time"
+)
 
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
@@ -16,4 +20,20 @@ type Auth struct {
 	Timeout        time.Duration `yaml:"timeout" json:"timeout"`
 	MaxRefresh     time.Duration `yaml:"maxRefresh" json:"maxRefresh"`
 	SessionEnabled bool          `yaml:"sessionEnabled" json:"sessionEnabled"`
+}
+
+const insecureDefaultAuthKey = "mss-boot-admin-secret"
+
+func validateProductionAuthKey(mode Mode, key string) error {
+	if mode != ModeProd {
+		return nil
+	}
+	normalized := strings.TrimSpace(key)
+	if normalized == "" || normalized == insecureDefaultAuthKey {
+		return errors.New("production auth.key must override the insecure development default")
+	}
+	if len(normalized) < 32 {
+		return errors.New("production auth.key must contain at least 32 bytes of entropy-bearing material")
+	}
+	return nil
 }

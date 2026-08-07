@@ -36,7 +36,7 @@ keywords: [admin polish governance stability ui ux refactor]
 
 - 不追求新增大型业务模块
 - 不继续扩大功能清单
-- 不回到代码生成/低代码主线
+- 不重新引入 Admin 浏览器代码生成/低代码主线；开发期 `cmd/mss` 离线确定性生成仍属于工程基础设施
 - 不重新引入多租户主线
 - 不为了“看起来高级”而进行大规模无边界重构
 

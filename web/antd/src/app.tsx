@@ -11,7 +11,7 @@ import React from 'react';
 import { AvatarDropdown, AvatarName } from './components/RightContent/AvatarDropdown';
 import { getUserDisplayName } from './components/RightContent/userDisplayName';
 import { getUserUserInfo } from './services/admin/user';
-import { getMenuAuthorize } from './services/admin/menu';
+import { requestAuthorizedMenu } from './utils/requestAuthorizedMenu';
 import fixMenuItemIcon from './util/fixMenuItemIcon';
 import { MenuDataItem } from '@ant-design/pro-components';
 import { getCachedLanguages } from './services/admin/language';
@@ -19,6 +19,8 @@ import NoticeIconView from './components/NoticeIcon';
 import HeaderSearch from './components/HeaderSearch';
 import { getAppConfigsProfile } from '@/services/admin/appConfig';
 import { getUserConfigsProfile } from '@/services/admin/userConfig';
+import { purgeLegacyOAuthStorage } from '@/utils/oauth';
+import { clearAuthStorage, clearNonPersistentAuthStorage, getAuthToken } from '@/utils/authStorage';
 
 const isDev = process.env.NODE_ENV === 'development';
 const loginPath = '/user/login';
@@ -36,12 +38,6 @@ const getAuthRedirect = (location: { pathname: string; search: string; hash: str
       ? '/workplace'
       : `${location.pathname}${location.search}${location.hash}`;
   return `${loginPath}?redirect=${encodeURIComponent(redirect)}`;
-};
-
-const clearAuthState = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('token.expire');
-  localStorage.removeItem('autoLogin');
 };
 
 const withTimeout = async <T,>(request: () => Promise<T>, timeoutMs = 4000) => {
@@ -64,6 +60,8 @@ export async function getInitialState(): Promise<{
   loading?: boolean;
   fetchUserInfo?: () => Promise<API.User | undefined>;
 }> {
+  purgeLegacyOAuthStorage();
+
   const fetchUserInfo = async () => {
     return withTimeout(() =>
       getUserUserInfo({
@@ -73,8 +71,12 @@ export async function getInitialState(): Promise<{
   };
 
   const { location } = history;
-  const token = localStorage.getItem('token');
-  const isLoginPage = location.pathname === loginPath || excludePath.includes(location.pathname);
+  const isLoginRoute = location.pathname === loginPath;
+  const isLoginPage = isLoginRoute || excludePath.includes(location.pathname);
+  if (isLoginRoute) {
+    clearNonPersistentAuthStorage();
+  }
+  const token = getAuthToken();
 
   if (!token || isLoginPage) {
     if (!isLoginPage) {
@@ -88,7 +90,7 @@ export async function getInitialState(): Promise<{
 
   const currentUser = await fetchUserInfo();
   if (!currentUser) {
-    clearAuthState();
+    clearAuthStorage();
     history.replace(getAuthRedirect(location));
     return {
       fetchUserInfo,
@@ -159,7 +161,7 @@ export async function getInitialState(): Promise<{
         settings: defaultSettings as Partial<LayoutSettings>,
       };
     } catch (error) {
-      clearAuthState();
+      clearAuthStorage();
       if (location.pathname !== loginPath) {
         history.replace(getAuthRedirect(location));
       }
@@ -186,10 +188,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
     title: initialState?.appConfig?.base?.websiteName || 'mss-boot-admin',
     menu: {
       locale: true,
-      request: async () => {
-        const menuData = await getMenuAuthorize();
-        return menuData;
-      },
+      request: requestAuthorizedMenu,
     },
     actionsRender: () => [
       <HeaderSearch key="search" placeholder="component.search.placeholder" options={undefined} />,
@@ -212,7 +211,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
     footerRender: () => <Footer />,
     onPageChange: () => {
       const { location } = history;
-      const token = localStorage.getItem('token');
+      const token = getAuthToken();
       if (!initialState?.currentUser && !token && location.pathname !== loginPath) {
         history.replace(getAuthRedirect(location));
       }

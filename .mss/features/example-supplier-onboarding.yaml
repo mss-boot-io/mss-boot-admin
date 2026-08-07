@@ -93,7 +93,7 @@ spec:
       statement: Repeating module generation with the same specification produces no additional diff and does not overwrite custom business logic.
     - id: no-runtime-dynamic-model
       type: dependency
-      statement: The feature must not extend the legacy runtime dynamic-model or virtual CRUD implementation.
+      statement: The feature must use compiled module code and must not reintroduce the removed Admin runtime dynamic-model or virtual CRUD capability.
   acceptance:
     - id: module-spec-valid
       requirement: supplier-create

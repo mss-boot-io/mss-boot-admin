@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,14 +33,18 @@ func TestOAuthCallbackValidatesStateBeforeCodeExchange(t *testing.T) {
 		state, cookie := issueOAuthState(t, user, pkg.GithubLoginProvider, oauthstate.IntentLogin, "", nil)
 
 		first := executeOAuthCallback(user, pkg.GithubLoginProvider, state, "", nil, cookie)
-		if first.Code != http.StatusOK {
+		if first.Code != http.StatusCreated {
 			t.Fatalf("first callback status = %d, body=%s", first.Code, first.Body.String())
 		}
-		var token dto.OauthToken
+		var token dto.OAuthCallbackResponse
 		if err := json.Unmarshal(first.Body.Bytes(), &token); err != nil {
 			t.Fatalf("decode callback response: %v", err)
 		}
-		if token.Intent != string(oauthstate.IntentLogin) || token.Provider != string(pkg.GithubLoginProvider) {
+		if token.Code != http.StatusOK {
+			t.Fatalf("callback business code = %d, want %d", token.Code, http.StatusOK)
+		}
+		if token.Intent != string(oauthstate.IntentLogin) || token.Provider != pkg.GithubLoginProvider ||
+			token.Token != "admin-session-token" || token.Expire == nil {
 			t.Fatalf("server callback metadata = %#v", token)
 		}
 		var payload map[string]any
@@ -48,6 +53,16 @@ func TestOAuthCallbackValidatesStateBeforeCodeExchange(t *testing.T) {
 		}
 		if payload["provider"] != string(pkg.GithubLoginProvider) {
 			t.Fatalf("provider JSON field = %#v", payload["provider"])
+		}
+		if _, exists := payload["accessToken"]; exists {
+			t.Fatalf("callback exposed provider access token: %s", first.Body.String())
+		}
+		if _, exists := payload["refreshToken"]; exists {
+			t.Fatalf("callback exposed provider refresh token: %s", first.Body.String())
+		}
+		if first.Header().Get("Cache-Control") != "no-store" ||
+			first.Header().Get("Referrer-Policy") != "no-referrer" {
+			t.Fatalf("callback cache headers = %#v", first.Header())
 		}
 		if exchanges != 1 {
 			t.Fatalf("exchange calls = %d, want 1", exchanges)
@@ -65,15 +80,36 @@ func TestOAuthCallbackValidatesStateBeforeCodeExchange(t *testing.T) {
 		verifier := oauthTestUser("user-1", false)
 		state, cookie := issueOAuthState(t, user, pkg.LarkLoginProvider, oauthstate.IntentBinding, testOAuthCredential, verifier)
 		callback := executeOAuthCallback(user, pkg.LarkLoginProvider, state, testOAuthCredential, verifier, cookie)
-		if callback.Code != http.StatusOK || exchanges != 1 {
+		if callback.Code != http.StatusCreated || exchanges != 1 {
 			t.Fatalf("binding callback status=%d exchanges=%d body=%s", callback.Code, exchanges, callback.Body.String())
 		}
-		var token dto.OauthToken
+		var token dto.OAuthCallbackResponse
 		if err := json.Unmarshal(callback.Body.Bytes(), &token); err != nil {
 			t.Fatalf("decode callback response: %v", err)
 		}
-		if token.Intent != string(oauthstate.IntentBinding) || token.Provider != string(pkg.LarkLoginProvider) {
+		if token.Code != http.StatusOK {
+			t.Fatalf("callback business code = %d, want %d", token.Code, http.StatusOK)
+		}
+		if token.Intent != string(oauthstate.IntentBinding) || token.Provider != pkg.LarkLoginProvider ||
+			token.Token != "" || token.Expire != nil {
 			t.Fatalf("binding callback metadata = %#v", token)
+		}
+	})
+
+	t.Run("binding rejects an identity owned by another user", func(t *testing.T) {
+		exchanges := 0
+		user := newOAuthTestUser(&exchanges)
+		user.oauthBindingComplete = func(*gin.Context, string, pkg.LoginProvider, string) error {
+			return errOAuthIdentityAlreadyBound
+		}
+		verifier := oauthTestUser("user-1", false)
+		state, cookie := issueOAuthState(t, user, pkg.GithubLoginProvider, oauthstate.IntentBinding, testOAuthCredential, verifier)
+		callback := executeOAuthCallback(user, pkg.GithubLoginProvider, state, testOAuthCredential, verifier, cookie)
+		if callback.Code != http.StatusConflict || exchanges != 1 {
+			t.Fatalf("binding conflict status=%d exchanges=%d body=%s", callback.Code, exchanges, callback.Body.String())
+		}
+		if bytes.Contains(callback.Body.Bytes(), []byte("provider-token")) {
+			t.Fatalf("binding conflict leaked provider credential: %s", callback.Body.String())
 		}
 	})
 
@@ -107,6 +143,48 @@ func TestOAuthCallbackValidatesStateBeforeCodeExchange(t *testing.T) {
 		callback := executeOAuthCallback(user, pkg.GithubLoginProvider, "expired", "", nil, nil)
 		if callback.Code != http.StatusUnauthorized || exchanges != 0 {
 			t.Fatalf("expired callback status=%d exchanges=%d", callback.Code, exchanges)
+		}
+	})
+
+	t.Run("provider failure is generic and state remains one time", func(t *testing.T) {
+		exchanges := 0
+		user := newOAuthTestUser(&exchanges)
+		state, cookie := issueOAuthState(t, user, pkg.GithubLoginProvider, oauthstate.IntentLogin, "", nil)
+		user.oauthCodeExchange = func(*gin.Context, pkg.LoginProvider, string) (*dto.OauthToken, error) {
+			exchanges++
+			return nil, errors.New("provider response contained provider-secret-error")
+		}
+		callback := executeOAuthCallback(user, pkg.GithubLoginProvider, state, "", nil, cookie)
+		if callback.Code != http.StatusUnauthorized || exchanges != 1 {
+			t.Fatalf("provider failure status=%d exchanges=%d body=%s", callback.Code, exchanges, callback.Body.String())
+		}
+		if bytes.Contains(callback.Body.Bytes(), []byte("provider-secret-error")) {
+			t.Fatalf("provider failure leaked upstream detail: %s", callback.Body.String())
+		}
+		replay := executeOAuthCallback(user, pkg.GithubLoginProvider, state, "", nil, cookie)
+		if replay.Code != http.StatusUnauthorized || exchanges != 1 {
+			t.Fatalf("provider failure replay status=%d exchanges=%d", replay.Code, exchanges)
+		}
+	})
+
+	t.Run("callback code and state are accepted only from POST JSON", func(t *testing.T) {
+		exchanges := 0
+		user := newOAuthTestUser(&exchanges)
+		state, cookie := issueOAuthState(t, user, pkg.GithubLoginProvider, oauthstate.IntentLogin, "", nil)
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/callback/github?code=query-code&state="+url.QueryEscape(state),
+			bytes.NewReader([]byte(`{}`)),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		request.AddCookie(cookie)
+		queryOnly := executeOAuthRequest(request, nil, user.Callback)
+		if queryOnly.Code != http.StatusUnprocessableEntity || exchanges != 0 {
+			t.Fatalf("query callback status=%d exchanges=%d body=%s", queryOnly.Code, exchanges, queryOnly.Body.String())
+		}
+		proper := executeOAuthCallback(user, pkg.GithubLoginProvider, state, "", nil, cookie)
+		if proper.Code != http.StatusCreated || exchanges != 1 {
+			t.Fatalf("body callback status=%d exchanges=%d body=%s", proper.Code, exchanges, proper.Body.String())
 		}
 	})
 }
@@ -199,6 +277,7 @@ func TestOAuthAuthorizeEnforcesIntentAuthenticationBoundary(t *testing.T) {
 		{name: "anonymous binding", intent: oauthstate.IntentBinding, wantStatus: http.StatusUnauthorized},
 		{name: "personal access token binding", intent: oauthstate.IntentBinding, credential: "pat", verifier: oauthTestUser("user-1", true), wantStatus: http.StatusForbidden},
 		{name: "residual authenticated login", intent: oauthstate.IntentLogin, credential: "session", verifier: oauthTestUser("user-1", false), wantStatus: http.StatusConflict},
+		{name: "retired integration", intent: oauthstate.Intent("integration"), credential: "session", verifier: oauthTestUser("user-1", false), wantStatus: http.StatusUnprocessableEntity},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -220,7 +299,18 @@ func newOAuthTestUser(exchanges *int) *User {
 		},
 		oauthCodeExchange: func(_ *gin.Context, _ pkg.LoginProvider, code string) (*dto.OauthToken, error) {
 			*exchanges++
-			return &dto.OauthToken{AccessToken: "provider-token-" + code}, nil
+			expiry := time.Now().Add(5 * time.Minute).UTC()
+			return &dto.OauthToken{
+				AccessToken:  "provider-token-" + code,
+				RefreshToken: "provider-refresh-token",
+				Expiry:       &expiry,
+			}, nil
+		},
+		oauthLoginComplete: func(_ *gin.Context, _ pkg.LoginProvider, _ string) (string, time.Time, error) {
+			return "admin-session-token", time.Now().Add(time.Hour).UTC(), nil
+		},
+		oauthBindingComplete: func(_ *gin.Context, _ string, _ pkg.LoginProvider, _ string) error {
+			return nil
 		},
 	}
 }
@@ -249,6 +339,12 @@ func issueOAuthState(
 	state := authorizeURL.Query().Get("state")
 	if state == "" {
 		t.Fatal("authorize URL did not contain server state")
+	}
+	if result.AttemptID != oauthstate.Digest(state) {
+		t.Fatalf("authorize attempt ID = %q, want digest of server state", result.AttemptID)
+	}
+	if recorder.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("authorize Cache-Control = %q, want no-store", recorder.Header().Get("Cache-Control"))
 	}
 	cookies := recorder.Result().Cookies()
 	if len(cookies) != 1 || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteLaxMode {
@@ -281,11 +377,10 @@ func executeOAuthCallback(
 	verifier security.Verifier,
 	cookie *http.Cookie,
 ) *httptest.ResponseRecorder {
-	requestURL := "/callback/" + string(provider) + "?code=provider-code"
-	if state != "" {
-		requestURL += "&state=" + url.QueryEscape(state)
-	}
-	request := httptest.NewRequest(http.MethodGet, requestURL, nil)
+	body, _ := json.Marshal(dto.OauthCallbackReq{Code: "provider-code", State: state})
+	requestURL := "/callback/" + string(provider)
+	request := httptest.NewRequest(http.MethodPost, requestURL, bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
 	if credential != "" {
 		request.Header.Set("Authorization", "Bearer "+credential)
 	}
@@ -304,10 +399,10 @@ func executeOAuthRequest(request *http.Request, verifier security.Verifier, hand
 		}
 		c.Next()
 	})
-	if request.Method == http.MethodPost {
+	if request.URL.Path == "/authorize" {
 		router.POST("/authorize", handler)
 	} else {
-		router.GET("/callback/:provider", handler)
+		router.POST("/callback/:provider", handler)
 	}
 	router.ServeHTTP(recorder, request)
 	return recorder

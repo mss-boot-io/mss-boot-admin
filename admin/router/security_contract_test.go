@@ -86,6 +86,25 @@ func TestCustomRouteContractsAreValid(t *testing.T) {
 	}
 }
 
+func TestRetiredDeveloperToolRoutesAreNotContracted(t *testing.T) {
+	t.Parallel()
+
+	retired := map[customRouteKey]bool{
+		{method: http.MethodGet, path: "/admin/api/github/get-login-url"}:  true,
+		{method: http.MethodPut, path: "/admin/api/model/generate-data"}:   true,
+		{method: http.MethodGet, path: "/admin/api/template/get-branches"}: true,
+		{method: http.MethodGet, path: "/admin/api/template/get-path"}:     true,
+		{method: http.MethodGet, path: "/admin/api/template/get-params"}:   true,
+		{method: http.MethodPost, path: "/admin/api/template/generate"}:    true,
+	}
+	for _, contract := range customRouteContracts {
+		key := customRouteKey{method: contract.Method, path: contract.Path}
+		if retired[key] {
+			t.Errorf("retired developer-tool route remains contracted: %s %s", key.method, key.path)
+		}
+	}
+}
+
 func TestCustomRouteContractsCoverOtherRegistrations(t *testing.T) {
 	t.Parallel()
 

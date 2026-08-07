@@ -7,7 +7,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
-	"github.com/mss-boot-io/mss-boot-admin/admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/task"
@@ -75,10 +74,15 @@ func (e *Task) FuncList(c *gin.Context) {
 // @Param id path string true "任务ID"
 // @Param operate path string true "操作类型"
 // @Success 200
+// @Failure 503 {object} response.Response
 // @Router /admin/api/tasks/{id}/actions/{operate} [post]
 // @Security Bearer
 func (e *Task) Operate(c *gin.Context) {
 	api := response.Make(c)
+	if !task.UserSchedulesEnabled() {
+		api.Err(http.StatusServiceUnavailable, "task scheduler is disabled")
+		return
+	}
 	req := &dto.TaskOperateRequest{}
 	if api.Bind(req).Error != nil {
 		api.Err(http.StatusUnprocessableEntity)
@@ -122,7 +126,7 @@ func (e *Task) Operate(c *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	if status == enum.Enabled && config.Cfg.Task.Enable {
+	if status == enum.Enabled {
 		go func() {
 			err = models.TaskOnce(req.ID)
 			if err != nil {

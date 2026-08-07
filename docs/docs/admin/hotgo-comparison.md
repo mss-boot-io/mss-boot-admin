@@ -101,15 +101,14 @@ keywords: [admin hotgo comparison competitive analysis roadmap]
 | 支付集成 | ❌ 无 | ✅ 支付宝/微信/QQ | **HotGo 商业场景优势** |
 | API 文档 | ✅ Swagger | ✅ OpenAPI | 能力相当 |
 
-### 代码生成能力
+### 生成能力边界
 
 | 功能 | mss-boot-admin | HotGo | 差距分析 |
 |------|----------------|-------|----------|
-| 模型生成 | ⚠️ L3 弱化 | ✅ 可视化配置 | **HotGo 显著优势** |
-| DTO 生成 | ⚠️ 弱化 | ✅ 自动生成 | HotGo 生成更完整 |
-| 前端生成 | ⚠️ 弱化 | ✅ Vue 组件 | HotGo 前后端一体生成 |
+| Admin 可视化模型生成 | ❌ 已移除 | ✅ 可视化配置 | 产品边界不同 |
+| Admin DTO/前端生成 | ❌ 已移除 | ✅ 自动生成 Vue 组件 | 产品边界不同 |
 | 插件模板 | ❌ 无 | ✅ 一键生成 | **HotGo 核心优势** |
-| 模板定制 | ⚠️ 有限 | ✅ 完全可定制 | HotGo 更灵活 |
+| 开发期确定性模块生成 | ✅ `cmd/mss` + 结构化规格 | ❓ 未按同一契约评估 | mss-boot 强调 dry-run、幂等和可审查源码 |
 
 ### 部署运维
 
@@ -170,7 +169,7 @@ keywords: [admin hotgo comparison competitive analysis roadmap]
    - CURD/树表/联表/队列/任务模板
    - 20+ 表单组件
    - 前后端一体生成
-   - **mss-boot L3 弱化方向**
+   - **mss-boot-admin 已移除对应浏览器入口；`cmd/mss` 仅保留开发期离线确定性生成**
 
 3. **多租户 SaaS 架构**
    - 四层级级隔离（公司→租户→商户→用户）
@@ -216,7 +215,7 @@ keywords: [admin hotgo comparison competitive analysis roadmap]
 | 能力 | 原因 |
 |------|------|
 | 多租户 SaaS | 已明确移除，单租户定位清晰 |
-| 可视化代码生成 | L3 弱化方向，非主线 |
+| 可视化代码生成 | Admin 运行时入口已移除；不作为追赶方向 |
 | 插件化架构 | 架构差异，非当前阶段目标 |
 | 支付集成 | 商业场景，与治理定位不符 |
 | TCP 服务 | IoT 场景，非后台治理重点 |

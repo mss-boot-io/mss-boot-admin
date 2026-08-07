@@ -163,13 +163,19 @@ Agent 基础设施实现。禁止业务模块反向依赖 CLI/MCP 层。
 
 FeatureSpec 中的 command evidence 是验收说明，不是自动信任的远程代码执行入口。
 
-## Legacy 边界
+## 已移除的运行时边界
 
-以下能力保留兼容但不是新主线：
+以下 Admin 运行时能力已经移除，不得由新模块或基础设施重新引入：
 
 - runtime dynamic model；
 - virtual CRUD；
-- runtime code generation；
+- browser-facing template/code generation。
+
+升级数据库可以保留历史动态模型元数据表和已创建的业务表，以避免数据丢失；
+这只是数据保留策略，不代表 API、菜单或运行时框架仍受支持。
+
+以下历史仓库内容仍只作为兼容或证据保留：
+
 - 各导入子目录中的旧 `.github/workflows`；
 - 一次性 Prompt 作为流程控制方式。
 
@@ -181,6 +187,9 @@ runtime dynamic generation
 → deterministic generated vertical modules
 → compiled and tested code
 ```
+
+其中 deterministic generation 由 `cmd/mss` 在开发期离线执行，与已移除的
+Admin 浏览器代码生成器没有运行时或产品入口上的关系。
 
 ## 兼容性规则
 

@@ -59,9 +59,10 @@ direction:
 
 - RBAC, configuration, API registry, operations, release policy, and AI-assisted
   maintenance are current public signals.
-- Virtual model, generator-first, and low-code-first language should not be
-  presented as the main direction while those features are degraded or being
-  retired.
+- Runtime virtual models, virtual CRUD, and browser-facing code generation have
+  been removed and must not be presented as current capabilities. The separate
+  development-time `cmd/mss` generator remains a supported, deterministic
+  repository workflow.
 - Homepage links should point to the docs site unless a repository has a more
   specific stable entry point.
 

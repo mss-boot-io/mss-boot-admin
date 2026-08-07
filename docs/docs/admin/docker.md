@@ -200,13 +200,16 @@ curl -I http://127.0.0.1:8000
 - 前端代理是否转发 `/public/`
 - Nginx 是否代理 `/public/`
 
-### 2. 任务调度未生效
+### 2. 用户任务调度未生效
 
 优先检查：
 
 - `task.enable` 是否为 `true`
 - `task.spec` 是否为 6 段 cron 表达式
 - 数据库中的任务 `status` 是否为 `enabled`
+
+`task.enable` 不控制内置系统作业。即使它为 `false`，监控采样和会话清理也应
+随服务运行；这两项应通过监控响应时间戳和服务日志排查，而不是查询 TaskRun。
 
 ### 3. WebSocket 集群未启用
 

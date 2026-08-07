@@ -62,6 +62,7 @@ func TestInitRouterUsesExactCredentialedCORSOrigins(t *testing.T) {
 			"https://admin.mss-boot-io.top/",
 			"https://admin.mss-boot-io.top",
 		},
+		AllowHeaders: []string{"Authorization", "Content-Type"},
 	}
 
 	gin.SetMode(gin.TestMode)
@@ -88,7 +89,6 @@ func TestInitRouterUsesExactCredentialedCORSOrigins(t *testing.T) {
 	if got := trusted.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
 		t.Fatalf("trusted allow credentials = %q", got)
 	}
-
 	untrusted := request("https://attacker.example")
 	if got := untrusted.Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("untrusted allow origin = %q", got)

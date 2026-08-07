@@ -14,6 +14,7 @@ import (
 	//"github.com/mss-boot-io/mss-boot-admin/mss-boot/proto"
 	"golang.org/x/net/websocket"
 	"google.golang.org/grpc/metadata"
+	"gorm.io/gorm"
 )
 
 /*
@@ -25,7 +26,30 @@ import (
 
 type TaskFunc func(ctx context.Context, args ...string) error
 
+type taskDatabaseContextKey struct{}
+
+// WithTaskDatabase binds the database handle leased for one task execution.
+// Built-in TaskFunc implementations must use TaskDatabase(ctx), rather than
+// the legacy process-wide gormdb.DB pointer, so a configuration reload cannot
+// split one execution across database handles.
+func WithTaskDatabase(ctx context.Context, db *gorm.DB) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, taskDatabaseContextKey{}, db)
+}
+
+// TaskDatabase returns the database handle leased for the current task.
+func TaskDatabase(ctx context.Context) (*gorm.DB, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	db, ok := ctx.Value(taskDatabaseContextKey{}).(*gorm.DB)
+	return db, ok && db != nil
+}
+
 type Task struct {
+	Context  context.Context
 	ID       string
 	Name     string
 	Endpoint string
@@ -41,7 +65,11 @@ type Task struct {
 }
 
 func (t *Task) Run() error {
-	ctx := metadata.AppendToOutgoingContext(context.TODO(), "taskID", t.ID)
+	ctx := t.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx = metadata.AppendToOutgoingContext(ctx, "taskID", t.ID)
 	for k, v := range t.Metadata {
 		ctx = metadata.AppendToOutgoingContext(ctx, k, v)
 	}

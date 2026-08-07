@@ -10,7 +10,7 @@
 
 > `mss-boot-admin` 是一套 Agent 原生的管理系统开发基础设施。它把可生产使用的 Gin + React + Ant Design 参考应用，与机器可读项目契约、Feature/Acceptance/AdminModule 规格、确定性全栈生成、仓库级 Skills、项目 MCP、可重复环境、变更感知验证、Agent Evals、应用 Blueprint 和三方 Foundation 升级能力整合在同一个仓库中。
 
-> 运行时管理平台继续提供身份、RBAC、组织、配置、审计、通知、任务、国际化、存储、WebSocket 和可观测性。历史动态模型与运行时代码生成仅保留兼容；新业务模块使用开发期规格和可编译的垂直模块。
+> 运行时管理平台继续提供身份、RBAC、组织、配置、审计、通知、任务、国际化、存储、WebSocket 和可观测性。Admin 运行时动态模型、虚拟 CRUD 与浏览器代码生成已经移除；开发者仍可通过 `cmd/mss` 使用开发期规格和离线确定性生成器创建可编译的垂直模块。
 
 ## Agent 原生开发闭环
 

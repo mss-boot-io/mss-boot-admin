@@ -47,12 +47,10 @@ grep -R "menu.super-permission.appConfig" src/locales
 
 ### 现象
 
-例如 `Generate` 页面：
+例如任一仍受支持的业务页面出现未翻译 key：
 
-- `pages.generator.steps.params.tooltip`
-- `pages.generator.repo`
-- `pages.generator.service`
-- `pages.generator.email`
+- `pages.user.form.name`
+- `pages.role.form.code`
 
 ### 修复建议
 
@@ -63,7 +61,18 @@ grep -R "menu.super-permission.appConfig" src/locales
 
 并保持中英文 key 对齐，避免仅修复单语种后另一个语种继续告警。
 
-## 四、验证方式
+## 四、数据库语言包缓存
+
+`GET /admin/api/language/profile` 把所有数据库语言定义作为一个完整快照缓存，而不是按语言分别写入。
+快照 key 带有 Redis generation；增删改或迁移只需原子递增 generation，旧快照会立即失效并在 5 分钟后
+自然过期。Profile 在读库前后校验 generation，因此并发的旧请求不能把已经失效的内容重新发布为当前快照。
+
+Redis 是优化层：读取失败时 Profile 回退数据库；语言 CRUD 已提交后若缓存失效暂时失败，服务记录错误但仍返回
+数据库写入成功，避免客户端因错误的 500 响应重试并产生重复数据。每组语言缓存操作使用 500ms 上限，避免 Redis
+黑洞网络长时间阻塞页面或写请求。失效失败属于最终一致场景：旧快照最多保留 5 分钟；恢复 Redis 后，也可由运维
+递增 `language:profile:generation` 立即切换到新快照。
+
+## 五、验证方式
 
 1. 前端执行类型检查：
 
@@ -74,7 +83,7 @@ pnpm -s tsc --noEmit
 2. 刷新页面后确认控制台无新增 Missing message
 3. 切换语言（`zh-CN` / `en-US`）分别验证关键页面
 
-## 五、实践建议
+## 六、实践建议
 
 - 新页面开发时，先定义完整 key 清单再编码
 - PR 中附带“新增/变更 i18n key 列表”

@@ -236,13 +236,13 @@ func TestAdminRoutePermissionMigrationDoesNotReviveSoftDeletedLogMenu(t *testing
 
 func TestAdminRoutePermissionMigrationMissingParentRollsBackWithoutVersion(t *testing.T) {
 	db, _ := setupAdminRoutePermissionMigrationTest(t)
-	if err := db.Session(&gorm.Session{SkipHooks: true}).Where("path = ?", "/model").Delete(&models.Menu{}).Error; err != nil {
-		t.Fatalf("remove /model parent: %v", err)
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Where("path = ?", "/task").Delete(&models.Menu{}).Error; err != nil {
+		t.Fatalf("remove /task parent: %v", err)
 	}
 
 	err := _20260806130000AdminRoutePermissions(db, adminRoutePermissionsTestVersion)
-	if err == nil || !strings.Contains(err.Error(), `missing MENU parent "/model"`) {
-		t.Fatalf("migration error = %v, want missing /model MENU diagnostic", err)
+	if err == nil || !strings.Contains(err.Error(), `missing MENU parent "/task"`) {
+		t.Fatalf("migration error = %v, want missing /task MENU diagnostic", err)
 	}
 	assertMigrationVersionCount(t, db, 0)
 	assertSeededAccessNodeCount(t, db, 0, 0)
@@ -399,6 +399,7 @@ func setupAdminRoutePermissionMigrationTest(t *testing.T) (*gorm.DB, map[string]
 		menuType  pkg.AccessType
 		component string
 	}{
+		{id: "menu-welcome", path: "/welcome", menuType: pkg.MenuAccessType, component: "./Welcome"},
 		{id: "directory-origination", path: "/origination", menuType: pkg.DirectoryAccessType},
 		{id: "menu-users", path: "/users", parent: "/origination", menuType: pkg.MenuAccessType, component: "./User"},
 		{id: "menu-departments", path: "/departments", parent: "/origination", menuType: pkg.MenuAccessType, component: "./Department"},
@@ -408,8 +409,6 @@ func setupAdminRoutePermissionMigrationTest(t *testing.T) (*gorm.DB, map[string]
 		{id: "menu-language", path: "/language", parent: "/system", menuType: pkg.MenuAccessType, component: "./Language"},
 		{id: "directory-super-permission", path: "/super-permission", menuType: pkg.DirectoryAccessType},
 		{id: "menu-system-config", path: "/system-config", parent: "/super-permission", menuType: pkg.MenuAccessType, component: "./SystemConfig"},
-		{id: "directory-develop", path: "/develop", menuType: pkg.DirectoryAccessType},
-		{id: "menu-model", path: "/model", parent: "/develop", menuType: pkg.MenuAccessType, component: "./Model"},
 	}
 	for _, fixture := range fixtures {
 		parentIDs[fixture.path] = fixture.id
@@ -679,7 +678,7 @@ func assertNoAdminRoutePolicies(t *testing.T, db *gorm.DB) {
 // APIs belong beneath separately selectable COMPONENT nodes.
 func assertPageSelectionsHaveNoMutationAPIChildren(t *testing.T, db *gorm.DB) {
 	t.Helper()
-	for _, path := range []string{"/users", "/task", "/model", "/system-config", "/departments", "/posts", "/log"} {
+	for _, path := range []string{"/users", "/task", "/system-config", "/departments", "/posts", "/log"} {
 		page := accessNodeByPath(t, db, path, pkg.MenuAccessType)
 		var children []models.Menu
 		if err := db.Where("parent_id = ? AND type = ?", page.ID, pkg.APIAccessType).Find(&children).Error; err != nil {

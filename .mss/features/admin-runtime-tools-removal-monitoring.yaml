@@ -1,0 +1,256 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-runtime-tools-removal-monitoring
+  displayName: Remove runtime developer tools and make monitoring trends reliable
+  description: >-
+    Removes the Admin product's runtime virtual-model and template code-generation surface, while replacing
+    request-time monitoring with bounded sampling on the task server's built-in system-job lane and
+    theme-safe recent-history charts.
+  owner: admin-platform
+  labels:
+    domain: admin-foundation
+    compatibility: breaking
+spec:
+  problem: >-
+    Before this change, the Admin product exposed a legacy Development Tools group containing runtime model/field
+    management, virtual CRUD, and repository template code generation even though these capabilities were no longer
+    part of the product direction. Monitoring trends were also assembled only in browser memory: a first visit had
+    one point, navigation lost all history, and every API request blocked while measuring CPU. The chart defaults
+    had insufficient contrast in the real-dark theme, making both CPU and memory trends effectively invisible.
+  goals:
+    - Remove the complete runtime Development Tools product surface from backend, frontend, permissions, menus, active contracts, and active documentation.
+    - Remove the reusable runtime virtual-model implementation so new code cannot accidentally depend on it.
+    - Keep the repository-level deterministic mss module generator available as offline Agent infrastructure.
+    - Sample CPU and memory in the backend every five seconds and retain a bounded ten-minute in-memory history.
+    - Run monitoring and session cleanup as immutable built-in system jobs that are independent of user-managed tasks.
+    - Render recent monitoring points with accessible contrast in both light and dark themes.
+  nonGoals:
+    - Remove the specification-driven mss module generator, application blueprint generator, or upgrade tooling.
+    - Aggregate monitoring data across replicas or replace external observability systems.
+    - Persist monitoring samples in the application database.
+    - Expose built-in system jobs through Task CRUD or persist them as Task or TaskRun records.
+    - Automatically drop legacy model metadata tables or user-created virtual data tables during upgrade.
+  actors:
+    - id: administrator
+      displayName: Administrator
+      description: Uses the Admin product and expects retired tools to be absent from navigation and direct routes.
+    - id: operator
+      displayName: Operator
+      description: Uses recent process and host samples to diagnose the running Admin instance.
+  modules:
+    - name: admin-runtime-tools
+      operation: remove
+      description: Runtime virtual models, model fields, virtual CRUD, and browser-facing template code generation.
+    - name: operations-monitoring
+      operation: extend
+      description: Application-local background sampling, bounded history, and theme-aware trend presentation.
+  requirements:
+    - id: remove-product-surface
+      title: Development Tools is absent from the Admin product
+      description: No active backend route, frontend route, menu, permission node, built-in locale entry, API type, or active product document exposes runtime virtual models or template code generation.
+      priority: must
+      actor: administrator
+      module: admin-runtime-tools
+      rules:
+        - Direct requests to retired Admin APIs resolve as not found and cannot mutate data.
+        - Direct navigation to retired frontend routes resolves through the normal not-found page.
+        - Historical prompts may remain as archived evidence but cannot be linked as current product guidance.
+    - id: remove-runtime-implementation
+      title: Runtime virtual-model implementation is deleted
+      description: The Admin and reusable framework modules compile without virtual model interfaces, models, actions, APIs, or runtime schema generation code.
+      priority: must
+      actor: administrator
+      module: admin-runtime-tools
+      rules:
+        - Fresh installations do not create or seed runtime model and field metadata.
+        - Existing installations retain inert legacy data tables for explicit operator-led export or cleanup.
+        - Offline deterministic module generation remains available and is clearly distinguished from the removed product feature.
+    - id: remove-upgrade-metadata
+      title: Existing installations lose retired navigation and grants
+      description: A forward migration removes the Development Tools tree, generated virtual menu descendants, retired API metadata, and matching Casbin policies without deleting unrelated menus or grants.
+      priority: must
+      actor: administrator
+      module: admin-runtime-tools
+      rules:
+        - The migration uses dialect-neutral GORM operations and must pass the supported-database release matrix before release.
+        - Dynamic virtual descendants are selected through their menu ancestry before deletion.
+        - The migration never guesses arbitrary business API paths from a broad prefix.
+        - Unrelated direct children of /develop are reparented; relative routes, exact Casbin grants, and safely attributable database locale definitions retain their effective behavior.
+        - A separate forward migration clears the exact historical built-in OAuth credential by fingerprint and narrows its scopes without overwriting rotated or customized credentials.
+    - id: sample-in-background
+      title: Monitoring history exists before the page opens
+      description: An immutable built-in system job records lightweight CPU and memory samples independently of browser requests and exposes the latest bounded history through the authorized monitor API.
+      priority: must
+      actor: operator
+      module: operations-monitoring
+      permission: monitor:read
+      rules:
+        - The mss-boot task server is the managed Runnable; it always starts with the service and schedules the monitor collector as a process-local cron job every five seconds.
+        - The ring buffer retains at most 120 chronological samples, representing approximately ten minutes.
+        - Sampling uses a bounded timeout, preserves the last good history on transient failure, and marks stale data explicitly.
+        - Monitor requests do not perform a one-second CPU measurement or start duplicate sampling goroutines.
+    - id: isolate-built-in-jobs
+      title: Built-in system jobs are independent from user-managed tasks
+      description: Monitoring and session cleanup share the task server lifecycle but use an immutable process-local schedule store that is separate from optional persistent user-task storage.
+      priority: must
+      actor: operator
+      module: operations-monitoring
+      rules:
+        - The task server starts and both built-in jobs are registered when the service starts, including when task.enable is false.
+        - User Task CRUD cannot update, remove, or shadow monitor-sampler or session-cleanup; a persistent key collision fails explicitly.
+        - Built-in jobs never create mss_boot_tasks or TaskRun records.
+    - id: render-recent-trends
+      title: CPU and memory trends remain visible and current
+      description: The welcome and monitor trend views consume server timestamps, show the recent backend window immediately, and use Ant Design theme tokens for axes, labels, lines, fills, and tooltip surfaces.
+      priority: must
+      actor: operator
+      module: operations-monitoring
+      rules:
+        - Dark and light themes provide visible chart geometry and readable labels without hard-coded light backgrounds.
+        - The browser polls the cheap cached endpoint while visible and does not fabricate points or retain duplicate timestamps.
+        - Loading, empty-history, stale, and request-error states are distinguishable.
+  constraints:
+    - id: explicit-breaking-change
+      type: compatibility
+      statement: Removed routes and runtime framework packages are an intentional breaking change and require an upgrade note and forward cleanup migration.
+    - id: preserve-legacy-data
+      type: data
+      statement: Automatic upgrade cleanup removes discoverability and authorization metadata but preserves legacy metadata, generated data tables, and language definitions without reliable feature provenance for rollback or export.
+    - id: bounded-monitor-memory
+      type: performance
+      statement: Monitoring history is bounded to 120 samples and the API returns no more than the configured capacity.
+    - id: sampler-lifecycle
+      type: operations
+      statement: The task server is the sole managed Runnable for scheduled work; monitoring and session cleanup use its immutable in-memory system-job lane, inherit deterministic cancellation, and remain independent of user-task configuration and persistence.
+    - id: theme-token-contract
+      type: ux
+      statement: Chart contrast is derived from the active Ant Design theme and is regression-tested for real-dark and light modes.
+    - id: instance-local-scope
+      type: operations
+      statement: Samples describe only the current Admin process and host instance; clustered aggregation remains the responsibility of external observability.
+  acceptance:
+    - id: retired-code-absent
+      requirement: remove-runtime-implementation
+      statement: Compiling source and active contracts contain no runtime virtual-model or Admin template-generator implementation paths.
+      level: contract
+      required: true
+      evidence:
+        - type: test
+          value: internal/mss/verify/removed_admin_runtime_tools_test.go
+    - id: retired-routes-absent
+      requirement: remove-product-surface
+      statement: Backend route inventory and frontend route tests prove every retired endpoint and page is absent while unrelated dynamic menus still work.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/router/removed_runtime_tools_test.go
+        - type: test
+          value: web/antd/config/routes.test.ts
+    - id: cleanup-migration-safe
+      requirement: remove-upgrade-metadata
+      statement: SQLite fixture tests cover upgrade, repeat, rollback, unrelated-menu reparenting, relative-path policy compatibility, and locale-copy behavior; MySQL and PostgreSQL execution remain explicit release gates rather than evidence claimed by this fixture.
+      level: migration
+      required: true
+      evidence:
+        - type: test
+          value: admin/cmd/migrate/migration/system/20260806200000_remove_runtime_developer_tools_test.go
+        - type: test
+          value: admin/cmd/migrate/migration/system/20260806220000_sanitize_builtin_oauth_test.go
+    - id: sampler-ring-tested
+      requirement: sample-in-background
+      statement: Deterministic fake-clock and fake-collector tests cover readiness, chronological eviction, timeouts, overlap suppression, transient failure, stale recovery, snapshot isolation, and rate-limited failure reporting.
+      level: unit
+      required: true
+      evidence:
+        - type: test
+          value: admin/service/monitor_sampler_test.go
+    - id: system-jobs-isolated
+      requirement: isolate-built-in-jobs
+      statement: Tests prove built-in monitor and session-cleanup schedules are registered independently of task.enable, cannot collide with user-managed keys, and never write persistent Task storage.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: mss-boot/core/server/task/server_test.go
+        - type: test
+          value: admin/cmd/server/server_test.go
+    - id: monitor-api-fast
+      requirement: sample-in-background
+      statement: The monitor service reads an existing snapshot and history without invoking a blocking CPU interval measurement.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/service/monitor_test.go
+    - id: trend-theme-visible
+      requirement: render-recent-trends
+      statement: Frontend tests verify server-history mapping, timestamp deduplication, empty and stale states, and token-derived light/dark chart configuration.
+      level: unit
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/src/components/MonitorTrend/MonitorTrend.test.tsx
+        - type: test
+          value: web/antd/src/hooks/useMonitorData.test.ts
+    - id: browser-theme-acceptance
+      requirement: render-recent-trends
+      statement: The in-app browser shows multiple recent CPU and memory points with readable geometry in both real-dark and light themes and no Development Tools menu.
+      level: manual
+      required: true
+      evidence:
+        - type: manual
+          value: Test /welcome in real-dark and light themes after at least three backend sample intervals.
+    - id: changed-verification
+      statement: Change-aware repository verification completes without failed required checks.
+      level: integration
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss verify --changed
+  risks:
+    - id: downstream-runtime-dependency
+      description: A downstream application may still import mss-boot/virtual or call retired Admin endpoints.
+      severity: high
+      mitigation: Publish the breaking-change inventory, preserve inert data for export, and require downstream compile and route checks before upgrade.
+    - id: overbroad-menu-cleanup
+      description: A cleanup query based only on path prefixes could delete unrelated custom menus or Casbin grants.
+      severity: critical
+      mitigation: Resolve exact retired roots and their stored descendants transactionally, then delete policies only for the collected typed path and method tuples.
+    - id: sampler-leak
+      description: Duplicate or uncancelled sampler goroutines could increase CPU use and produce inconsistent histories.
+      severity: high
+      mitigation: Register exactly one immutable monitor system schedule on the task server and cover duplicate keys, repeated task-server start, and cancellation with deterministic tests and the race detector.
+    - id: misleading-instance-data
+      description: Operators may interpret instance-local samples as cluster-wide monitoring.
+      severity: medium
+      mitigation: Return an instance identifier and document that external observability is required for aggregation and persistence.
+    - id: historical-oauth-credential
+      description: The removed plaintext OAuth credential remains reachable in Git history and may remain valid at the provider even after database sanitation.
+      severity: critical
+      mitigation: Sanitize only matching built-in database profiles, rotate or revoke the credential at the provider, and require repository scanning plus provider audit before release.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - cd admin && GOWORK=off go test -race ./service ./apis ./router ./cmd/migrate/migration/system
+      - cd mss-boot && GOWORK=off go test ./...
+      - corepack pnpm@9.15.9 --dir web/antd lint:js
+      - corepack pnpm@9.15.9 --dir web/antd tsc
+      - corepack pnpm@9.15.9 --dir web/antd test -- --runInBand
+      - corepack pnpm@9.15.9 --dir web/antd build:prod
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: direct
+    migration: >-
+      Back up the database, apply the forward migration, verify the retired menu and policy report, restart every Admin
+      instance so the task server registers its built-in system jobs, and confirm that recent samples and instance identity appear before
+      declaring the rollout healthy. Run the migration validation on each supported production database dialect before
+      release. Legacy metadata, generated data tables, and unattributed language definitions remain inert and are not dropped.
+      Provider-side rotation or revocation of the historical OAuth credential and a secret-scanner audit are mandatory
+      release gates; the database migration cannot revoke a credential or remove it from reachable Git history.
+    rollback: >-
+      Revert the application to the preceding release and restore retired menu and policy metadata from the database
+      backup if the legacy runtime tools must be temporarily recovered. Monitoring history is process-local and is
+      intentionally lost on restart; no database rollback is needed for samples.

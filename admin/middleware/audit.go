@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -10,9 +11,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
-	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 )
 
 func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
@@ -28,7 +29,7 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 		if c.Request.Body != nil && c.Request.Method != http.MethodGet {
 			bodyBytes, _ := io.ReadAll(c.Request.Body)
 			if len(bodyBytes) > 0 && len(bodyBytes) < 2000 {
-				requestBody = string(bodyBytes)
+				requestBody = sanitizeAuditRequest(bodyBytes)
 			}
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		}
@@ -102,4 +103,64 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 			response.Make(c).AddError(err).Log.Error("write audit log failed")
 		}
 	}
+}
+
+const auditRedactedValue = "[REDACTED]"
+
+// sanitizeAuditRequest keeps useful structured audit metadata without copying
+// credentials into the audit table. Unknown or malformed body formats fail
+// closed: retaining no body is safer than persisting an opaque secret.
+func sanitizeAuditRequest(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	var value any
+	if err := json.Unmarshal(body, &value); err != nil {
+		return ""
+	}
+	redactAuditValue(value)
+	result, err := json.Marshal(value)
+	if err != nil || len(result) >= 2000 {
+		return ""
+	}
+	return string(result)
+}
+
+func redactAuditValue(value any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			if isSensitiveAuditKey(key) {
+				typed[key] = auditRedactedValue
+				continue
+			}
+			redactAuditValue(child)
+		}
+	case []any:
+		for _, child := range typed {
+			redactAuditValue(child)
+		}
+	}
+}
+
+func isSensitiveAuditKey(key string) bool {
+	normalized := strings.ToLower(key)
+	normalized = strings.NewReplacer("_", "", "-", "", ".", "").Replace(normalized)
+	if normalized == "code" || normalized == "state" || normalized == "captcha" {
+		return true
+	}
+	for _, marker := range []string{
+		"password",
+		"token",
+		"secret",
+		"credential",
+		"authorization",
+		"apikey",
+		"privatekey",
+	} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
 }

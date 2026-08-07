@@ -146,7 +146,14 @@ Notice
 
 ## 3. 定时任务与作业调度
 
-### 数据模型
+调度器明确区分两条通道：
+
+| 通道 | 生命周期与配置 | 存储与管理 |
+|------|----------------|------------|
+| 用户任务 | 由 `task.enable` 控制，可通过 Task API 管理 | 使用 `mss_boot_tasks` 和 TaskRun |
+| 内置系统作业 | 始终随服务启动，由 task server 统一调度和关闭 | 进程内不可变注册，不写 Task/TaskRun，用户 CRUD 不可修改 |
+
+### 用户任务数据模型
 
 **Task** (`models/task.go`)
 
@@ -177,9 +184,10 @@ TaskRun
 ├── EndTime
 ```
 
-**存储位置**: `mss_boot_tasks` + `mss_boot_task_runs` 表
+**存储位置**: `mss_boot_tasks` + `mss_boot_task_runs` 表。这里只存用户管理的任务，
+不包含内置系统作业。
 
-### API 入口
+### 用户任务 API 入口
 
 | 路径 | 方法 | 功能 |
 |------|------|------|
@@ -212,6 +220,9 @@ TaskRun
 - 通过 `TaskFuncMap` 注册自定义函数
 - 任务执行时直接调用 Go 函数
 - 适合轻量级内部逻辑
+- 需要访问数据库的内置或自定义函数必须从任务上下文调用 `pkg.TaskDatabase(ctx)`，不得直接读取全局
+  `gormdb.DB`。配置热加载会把新租约切到新连接，并等待旧句柄上的在途任务结束后再关闭旧连接；任务函数也不得
+  在返回后保存该 `*gorm.DB` 指针
 
 ### 使用场景
 
@@ -223,24 +234,43 @@ TaskRun
 ### 配置参数
 
 ```yaml
-# config/task.go
-Task:
-  Enable: true        # 全局任务开关
-  DefaultSpec: "0 * * * *"  # 默认调度表达式
+task:
+  enable: true            # 仅控制持久化用户任务
+  spec: "0 */1 * * * *"  # 用户任务协调器的六段 cron 表达式
 ```
+
+`task.enable` 与 `task.spec` 在进程启动时形成调度快照；热加载配置不会重建 cron，修改后必须重启 Admin。
+
+### 内置系统作业
+
+| key | 默认调度 | 作用 | 持久化 |
+|-----|----------|------|--------|
+| `monitor-sampler` | 每 5 秒 | 采集当前实例 CPU/内存等快照并维护有界历史 | 仅进程内历史，不写 Task/TaskRun |
+| `session-cleanup` | 每日 03:30 | 清理超过保留期的会话 | 不创建 Task/TaskRun |
+
+内置作业使用 `mss-boot/core/server/task.WithSystemSchedule` 注册到独立的进程内存储。
+task server 始终随服务启动，因此即使 `task.enable: false`，上述作业仍会运行。
+其 key 是保留 key：用户任务不能覆盖，Task CRUD 不能更新或删除。
+当 `task.enable: true` 时，服务会额外注册内部 `task` reconciliation 作业，用于
+同步持久化用户任务；它不是第三个始终运行的维护作业。
+
+内置作业按 Admin 副本运行：每个副本必须采集自己的监控数据；`session-cleanup` 也会在每个副本的
+03:30 执行同一幂等清理。大规模多副本部署应评估同时清理带来的数据库压力，并在需要时通过外部
+领导者选举或分布式租约统一执行。当前 default/func 用户任务同样没有跨副本单次执行保证；需要
+严格单次执行时应使用 Kubernetes Provider 或外部任务协调器。
 
 ### 运行机制
 
-1. 系统启动时加载所有启用的 Task
-2. 根据 Provider 类型注册调度器
-3. 到达触发时间时执行任务并记录 TaskRun
-4. `/operate` 接口支持手动启停和立即执行
+1. 服务启动时先注册不可变内置系统作业，再按 `task.enable` 决定是否加载用户 Task 存储。
+2. task server 合并两个通道并拒绝重复或冲突 key。
+3. 用户 Task 根据 Provider 执行并记录 TaskRun；内置系统作业只记录业务日志或内存状态。
+4. 用户任务操作 API 支持手动启停和立即执行，但不能作用于内置系统作业。
 
 ## 4. 系统监控
 
 ### 监控指标
 
-通过 `gopsutil` 库和 Go 运行时实时采集系统指标：
+通过 `gopsutil` 库和 Go 运行时在后台系统作业中周期采集指标：
 
 | 指标类别 | 采集项 |
 |----------|--------|
@@ -263,6 +293,7 @@ Task:
 {
   "cpuPhysicalCore": 4,
   "cpuLogicalCore": 8,
+  "cpuUsage": 12.34,
   "cpuInfo": [...],
   "memoryTotal": 16384,
   "memoryUsage": 5120,
@@ -289,7 +320,18 @@ Task:
   },
   "goVersion": "go1.22.0",
   "startTime": 1704067200,
-  "uptime": 86400
+  "uptime": 86400,
+  "collectedAt": 1786000000000,
+  "sampleIntervalMs": 5000,
+  "stale": false,
+  "instanceId": "admin-instance-id",
+  "history": [
+    {
+      "timestamp": 1786000000000,
+      "cpuUsage": 12.34,
+      "memoryUsagePercent": 31.25
+    }
+  ]
 }
 ```
 
@@ -302,7 +344,12 @@ Task:
 
 ### 运行机制
 
-每次请求时实时采集，不持久化存储。适合即时监控场景，不适合历史趋势分析。
+`monitor-sampler` 作为内置系统作业默认每 5 秒采样，最多保留 120 个按时间排序的
+实例内点（约 10 分钟）。API 只复制最近一次成功快照和请求的历史窗口，不在请求
+内执行一秒 CPU 测量。瞬时采集失败会保留 last-good 数据并设置 `stale: true`。
+
+历史不写数据库，进程重启后重置，多副本之间也不聚合；长期趋势和集群视图仍应
+由外部可观测性系统承担。`task.enable` 只影响用户 Task，不能关闭监控采样。
 
 ## 5. 统计查询
 
@@ -358,8 +405,8 @@ type StatisticsObject interface {
 |----------|----------------|-------|
 | 系统配置 | 数据库存储多格式配置 | 配置中心 + 系统参数 |
 | 通知系统 | Notice 表 + WebSocket 实时推送 | WebSocket 实时推送 |
-| 定时任务 | Default/K8s/Func 三种 Provider | CronJob + 插件任务 |
-| 系统监控 | CPU/Memory/Disk 实时采集 + 图表展示 | 服务监控 + 日志系统 |
+| 定时任务 | 用户 Task 三种 Provider + 独立内置系统作业通道 | CronJob + 插件任务 |
+| 系统监控 | 5 秒后台采样、约 10 分钟实例内历史 + 主题感知图表 | 服务监控 + 日志系统 |
 | 统计查询 | Statistics 表 + 接口实现 | 统计报表 + 可视化 |
 | 日志管理 | 登录日志 + 审计日志 + 运行时日志 | 服务日志系统 |
 | 告警通知 | 规则配置 + 多渠道推送 | 告警系统 |

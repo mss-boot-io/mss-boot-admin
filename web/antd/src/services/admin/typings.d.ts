@@ -36,32 +36,6 @@ declare namespace API {
     data: Record<string, any>;
   };
 
-  type BaseRule = {
-    id?: string;
-    len?: number;
-    max?: number;
-    message?: string;
-    min?: number;
-    pattern?: string;
-    required?: boolean;
-    type?: RuleType;
-    validateTrigger?: string;
-    warningOnly?: boolean;
-    whitespace?: boolean;
-  };
-
-  type ColumnType = {
-    dataIndex?: string;
-    hideInDescriptions?: boolean;
-    hideInForm?: boolean;
-    hideInTable?: boolean;
-    pk?: boolean;
-    title?: string;
-    validateRules?: BaseRule[];
-    valueEnum?: Record<string, any>;
-    valueType?: string;
-  };
-
   type DataScope =
     | 'all'
     | 'currentDept'
@@ -81,22 +55,12 @@ declare namespace API {
     id: string;
   };
 
-  type deleteFieldsIdParams = {
-    /** id */
-    id: string;
-  };
-
   type deleteLanguagesIdParams = {
     /** id */
     id: string;
   };
 
   type deleteMenusIdParams = {
-    /** id */
-    id: string;
-  };
-
-  type deleteModelsIdParams = {
     /** id */
     id: string;
   };
@@ -171,44 +135,6 @@ declare namespace API {
     status?: string;
   };
 
-  type Field = {
-    associationsID?: string;
-    comment?: string;
-    /** CreatedAt create time */
-    createdAt?: string;
-    default?: string;
-    formComponent?: string;
-    hideInDescriptions?: boolean;
-    hideInForm?: boolean;
-    hideInTable?: boolean;
-    /** ID primary key */
-    id?: string;
-    index?: string;
-    jsonTag?: string;
-    label?: string;
-    modelID?: string;
-    name?: string;
-    notNull?: boolean;
-    primaryKey?: string;
-    rules?: BaseRule[];
-    search?: string;
-    size?: number;
-    sort?: number;
-    tableComponent?: string;
-    type?: string;
-    unique?: string;
-    /** UpdatedAt update time */
-    updatedAt?: string;
-    valueEnumName?: string;
-    width?: string;
-  };
-
-  type GenerateParams = {
-    params?: Record<string, any>;
-    repo: string;
-    service?: string;
-  };
-
   type getApisIdParams = {
     /** id */
     id: string;
@@ -254,25 +180,6 @@ declare namespace API {
     key: string;
   };
 
-  type getFieldsIdParams = {
-    /** id */
-    id: string;
-  };
-
-  type getFieldsParams = {
-    /** current */
-    current?: number;
-    /** pageSize */
-    pageSize?: number;
-    /** modelID */
-    modelID?: string;
-  };
-
-  type getGithubGetLoginUrlParams = {
-    /** state */
-    state: string;
-  };
-
   type getLanguagesIdParams = {
     /** id */
     id: string;
@@ -316,20 +223,6 @@ declare namespace API {
     current?: number;
     /** pageSize */
     pageSize?: number;
-  };
-
-  type getModelsIdParams = {
-    /** id */
-    id: string;
-  };
-
-  type getModelsParams = {
-    /** current */
-    current?: number;
-    /** pageSize */
-    pageSize?: number;
-    /** preloads */
-    preloads?: string[];
   };
 
   type getNoticeReadIdParams = {
@@ -458,33 +351,6 @@ declare namespace API {
     remark?: string;
   };
 
-  type getTemplateGetBranchesParams = {
-    /** template source */
-    source: string;
-    /** access token */
-    accessToken?: string;
-  };
-
-  type getTemplateGetParamsParams = {
-    /** template source */
-    source: string;
-    /** branch default:HEAD */
-    branch?: string;
-    /** path default:. */
-    path?: string;
-    /** access token */
-    accessToken?: string;
-  };
-
-  type getTemplateGetPathParams = {
-    /** template source */
-    source: string;
-    /** branch default:HEAD */
-    branch?: string;
-    /** access token */
-    accessToken?: string;
-  };
-
   type postUserAuthTokenGenerateParams = {
     /** 有效期 */
     validityPeriod: string;
@@ -495,13 +361,9 @@ declare namespace API {
     group: string;
   };
 
-  type getUserProviderCallbackParams = {
+  type postUserProviderCallbackParams = {
     /** provider */
-    provider: string;
-    /** code */
-    code: string;
-    /** state */
-    state: string;
+    provider: OAuthProvider;
   };
 
   type getUsersIdParams = {
@@ -620,29 +482,6 @@ declare namespace API {
     paths: string[];
   };
 
-  type Model = {
-    auth?: boolean;
-    /** CreatedAt create time */
-    createdAt?: string;
-    description?: string;
-    fields?: Field[];
-    generatedData?: boolean;
-    hardDeleted?: boolean;
-    /** ID primary key */
-    id?: string;
-    multiTenant?: boolean;
-    name?: string;
-    path?: string;
-    table?: string;
-    /** UpdatedAt update time */
-    updatedAt?: string;
-  };
-
-  type ModelGenerateDataRequest = {
-    id: string;
-    menuParentID?: string;
-  };
-
   type MonitorCPUInfo = {
     cacheSize?: number;
     coreId?: string;
@@ -661,7 +500,52 @@ declare namespace API {
     vendorId?: string;
   };
 
+  type MonitorConnectionCount = {
+    closeWait?: number;
+    established?: number;
+    listen?: number;
+    timeWait?: number;
+    total?: number;
+  };
+
+  type MonitorHistoryPoint = {
+    cpuUsage?: number;
+    memoryUsagePercent?: number;
+    timestamp?: number;
+  };
+
+  type MonitorNetwork = {
+    bytesRecv?: number;
+    bytesSent?: number;
+    connectionCount?: MonitorConnectionCount;
+    connections?: Record<string, unknown>[];
+    dropin?: number;
+    dropout?: number;
+    errin?: number;
+    errout?: number;
+    packetsRecv?: number;
+    packetsSent?: number;
+  };
+
+  type MonitorRuntime = {
+    gcPauseTotalNs?: number;
+    goroutines?: number;
+    heapAlloc?: number;
+    heapIdle?: number;
+    heapInuse?: number;
+    heapObjects?: number;
+    heapSys?: number;
+    lastGCTime?: number;
+    mCacheInuse?: number;
+    mSpanInuse?: number;
+    numGC?: number;
+    stackInuse?: number;
+    stackSys?: number;
+  };
+
   type MonitorResponse = {
+    /** Latest background sample time in UTC Unix milliseconds. */
+    collectedAt?: number;
     /** CPUInfo CPU信息 */
     cpuInfo?: MonitorCPUInfo[];
     /** CPULogicalCore CPU逻辑核心数 */
@@ -680,6 +564,11 @@ declare namespace API {
     diskUsage?: number;
     /** DiskUsagePercent 磁盘使用率(保留2位小数) */
     diskUsagePercent?: number;
+    goVersion?: string;
+    /** Bounded background samples in chronological order. */
+    history?: MonitorHistoryPoint[];
+    /** Current Admin process/host sampling instance. */
+    instanceId?: string;
     /** MemoryAvailable 内存可用量 */
     memoryAvailable?: number;
     /** MemoryFree 内存空闲量 */
@@ -690,6 +579,14 @@ declare namespace API {
     memoryUsage?: number;
     /** MemoryUsagePercent 内存使用率(保留2位小数) */
     memoryUsagePercent?: number;
+    network?: MonitorNetwork;
+    runtime?: MonitorRuntime;
+    /** Configured background sampling interval in milliseconds. */
+    sampleIntervalMs?: number;
+    /** True when the response contains last-good data after a collection failure. */
+    stale?: boolean;
+    startTime?: number;
+    uptime?: number;
   };
 
   type Notice = {
@@ -713,40 +610,32 @@ declare namespace API {
 
   type NoticeType = 'notification' | 'message' | 'event' | 'mail';
 
-  type OauthToken = {
-    /** AccessToken is the token that authorizes and authenticates
-the requests. */
-    accessToken?: string;
-    /** Expiry is the optional expiration time of the access token.
-
-If zero, TokenSource implementations will reuse the same
-token forever and RefreshToken or equivalent
-mechanisms for that TokenSource will not be used. */
-    expiry?: string;
-    /** Server-validated flow purpose. */
-    intent: OAuthIntent;
-    /** Provider is the name of the OAuth2 provider[GitHub, Lark]. */
-    provider: string;
-    refreshExpiry?: string;
-    /** RefreshToken is a token that's used by the application
-(as opposed to the user) to refresh the access token
-if it expires. */
-    refreshToken?: string;
-    /** TokenType is the type of token.
-The Type method returns either this or "Bearer", the default. */
-    tokenType?: string;
-  };
-
-  type OAuthIntent = 'login' | 'binding' | 'integration';
+  type OAuthProvider = 'github' | 'lark';
+  type OAuthIntent = 'login' | 'binding';
 
   type OAuthAuthorizeRequest = {
     intent: OAuthIntent;
-    provider: LoginProvider;
+    provider: OAuthProvider;
   };
 
   type OAuthAuthorizeResponse = {
+    attemptID: string;
     authorizeURL: string;
     expiresAt: string;
+  };
+
+  type OAuthCallbackRequest = {
+    code: string;
+    state: string;
+  };
+
+  type OAuthCallbackResponse = {
+    attemptID: string;
+    code: number;
+    expire?: string;
+    intent: OAuthIntent;
+    provider: OAuthProvider;
+    token?: string;
   };
 
   type Option = {
@@ -873,11 +762,6 @@ The Type method returns either this or "Bearer", the default. */
     id: string;
   };
 
-  type putFieldsIdParams = {
-    /** id */
-    id: string;
-  };
-
   type putLanguagesIdParams = {
     /** id */
     id: string;
@@ -889,11 +773,6 @@ The Type method returns either this or "Bearer", the default. */
   };
 
   type putMenusIdParams = {
-    /** id */
-    id: string;
-  };
-
-  type putModelsIdParams = {
     /** id */
     id: string;
   };
@@ -989,21 +868,6 @@ The Type method returns either this or "Bearer", the default. */
     updatedAt?: string;
   };
 
-  type RuleType =
-    | 'string'
-    | 'number'
-    | 'boolean'
-    | 'method'
-    | 'regexp'
-    | 'integer'
-    | 'float'
-    | 'object'
-    | 'enum'
-    | 'date'
-    | 'url'
-    | 'hex'
-    | 'email';
-
   type Scheme = 'yaml' | 'yml' | 'json';
 
   type SetAuthorizeRequest = {
@@ -1080,41 +944,6 @@ The Type method returns either this or "Bearer", the default. */
 
   type TaskProvider = 'default' | 'k8s' | 'func';
 
-  type TemplateGenerateReq = {
-    accessToken?: string;
-    email?: string;
-    generate?: GenerateParams;
-    template?: TemplateParams;
-  };
-
-  type TemplateGenerateResp = {
-    branch?: string;
-    repo?: string;
-  };
-
-  type TemplateGetBranchesResp = {
-    branches?: string[];
-  };
-
-  type TemplateGetParamsResp = {
-    params?: TemplateParam[];
-  };
-
-  type TemplateGetPathResp = {
-    path?: string[];
-  };
-
-  type TemplateParam = {
-    name?: string;
-    tip?: string;
-  };
-
-  type TemplateParams = {
-    branch?: string;
-    path?: string;
-    source: string;
-  };
-
   type UpdateAuthorizeRequest = {
     keys: string[];
     roleID: string;
@@ -1182,17 +1011,23 @@ The Type method returns either this or "Bearer", the default. */
     username?: string;
   };
 
-  type UserAuthToken = {
+  type UserAuthTokenSummary = {
     /** CreatedAt create time */
     createdAt?: string;
     expiredAt?: string;
+    /** Safe, non-secret token fingerprint for identification. */
+    fingerprint?: string;
     /** ID primary key */
-    id?: string;
+    id: string;
     revoked?: boolean;
-    token?: string;
     /** UpdatedAt update time */
     updatedAt?: string;
     userID?: string;
+  };
+
+  type UserAuthTokenSecretResponse = UserAuthTokenSummary & {
+    /** Raw bearer token returned only by create or rotate. */
+    token: string;
   };
 
   type UserConfigControlRequest = {
@@ -1251,11 +1086,6 @@ The Type method returns either this or "Bearer", the default. */
     disabled?: boolean;
     status?: string;
     text?: string;
-  };
-
-  type VirtualModelObject = {
-    columns?: ColumnType[];
-    name?: string;
   };
 
   type LogEntry = {

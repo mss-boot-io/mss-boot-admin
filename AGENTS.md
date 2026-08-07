@@ -97,9 +97,11 @@ If `cmd/mss` is not yet available on an older branch, fall back to the Make targ
 - Do not perform a broad mechanical migration of legacy modules unless a dedicated migration spec exists.
 - A complete module change includes backend behavior, migration, permission, menu/route, frontend, tests, and documentation as applicable.
 
-### Dynamic model legacy boundary
+### Removed runtime developer tools boundary
 
-The existing runtime dynamic-model or virtual-model capability is legacy. Do not use it as the default implementation for new production business modules. Development-time deterministic generation is the preferred path.
+- The Admin runtime dynamic-model, virtual CRUD, and browser-facing template/code-generation features have been removed and must not be reintroduced.
+- Historical dynamic-model metadata and business tables may remain in upgraded databases for data preservation; their presence does not make the removed runtime feature available.
+- Development-time deterministic generation through `cmd/mss` is a separate, supported repository workflow and is the preferred path for repetitive module scaffolding.
 
 ### Contracts before generated code
 

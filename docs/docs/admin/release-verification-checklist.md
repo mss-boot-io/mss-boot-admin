@@ -43,10 +43,11 @@ keywords: [admin release checklist smoke regression]
 | 现象 | 优先排查 |
 |------|----------|
 | 前端空白页 | 前端构建、代理、接口鉴权 |
-| 监控图表无数据 | `/admin/api/monitor` 返回结构、登录态 |
+| 监控图表无数据 | `/admin/api/monitor` 的 `collectedAt`/`stale`/`instanceId`、内置系统作业日志、登录态 |
 | 头像无法显示 | `/public/` 代理、返回 URL、静态目录 |
 | 告警不发送 | 通知配置、规则状态、日志输出 |
-| 任务未执行 | `task.enable`、cron 表达式、任务状态 |
+| 用户任务未执行 | `task.enable`、cron 表达式、任务状态、TaskRun |
+| 内置监控/会话清理未执行 | task server 启动日志和系统作业错误；不要以 Task/TaskRun 无记录判定失败 |
 
 ## 四、回滚前确认
 

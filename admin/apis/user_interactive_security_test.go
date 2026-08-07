@@ -21,6 +21,22 @@ type interactiveTokenState struct {
 	Revoked bool
 }
 
+func TestClearAuthCookieIsPublicAndReturnsNoContent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/admin/api/user/auth-cookie/clear", (&User{}).ClearAuthCookie)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/user/auth-cookie/clear", nil)
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, body = %q, want 204", recorder.Code, recorder.Body.String())
+	}
+	if recorder.Body.Len() != 0 {
+		t.Fatalf("body = %q, want empty", recorder.Body.String())
+	}
+}
+
 func TestUpdateUserInfoRejectsPersonalAccessTokensWithoutChangingRecoveryFields(t *testing.T) {
 	db := prepareInteractiveSecurityTestDB(t)
 	beforeEmail, beforePhone := loadRecoveryFields(t, db)

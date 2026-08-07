@@ -1,149 +1,282 @@
 package service
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"math"
-	"runtime"
+	"sync"
+	"sync/atomic"
 	"time"
-
-	"github.com/gin-gonic/gin"
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/disk"
-	"github.com/shirou/gopsutil/v3/mem"
-	"github.com/shirou/gopsutil/v3/net"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
 )
 
-var startTime = time.Now()
+const (
+	DefaultMonitorSampleInterval = 5 * time.Second
+	DefaultMonitorSampleTimeout  = 3 * time.Second
+	DefaultMonitorHistorySize    = 120
+	MaxMonitorHistorySize        = 120
+	monitorFailureLogInterval    = time.Minute
+)
 
-type Monitor struct{}
+var (
+	ErrMonitorNotReady            = errors.New("monitor data is not ready")
+	ErrMonitorAlreadyStarted      = errors.New("monitor sampler has already been started")
+	ErrMonitorSampleInProgress    = errors.New("monitor sample is already in progress")
+	ErrInvalidMonitorHistoryLimit = errors.New("monitor history limit must be between 0 and 120")
+)
 
-func (e *Monitor) Monitor(ctx *gin.Context) (*dto.MonitorResponse, error) {
-	resp := &dto.MonitorResponse{
-		CPUInfo:   make([]dto.MonitorCPUInfo, 0),
-		GoVersion: runtime.Version(),
-		StartTime: startTime.Unix(),
-		Uptime:    int64(time.Since(startTime).Seconds()),
-		Network:   &dto.MonitorNetwork{},
-		Runtime:   &dto.MonitorRuntime{},
+type MonitorOptions struct {
+	SampleInterval time.Duration
+	SampleTimeout  time.Duration
+	HistorySize    int
+}
+
+type monitorSampler interface {
+	Sample(context.Context, time.Time) (*dto.MonitorResponse, error)
+}
+
+// Monitor owns the process-local sampler lifecycle and its bounded last-good
+// snapshot. HTTP handlers only call Snapshot; they never sample the host.
+type Monitor struct {
+	mu         sync.RWMutex
+	options    MonitorOptions
+	history    monitorHistoryRing
+	latest     *dto.MonitorResponse
+	stale      bool
+	started    bool
+	sampler    monitorSampler
+	now        func() time.Time
+	instanceID string
+	collecting atomic.Bool
+
+	lastFailureLog       time.Time
+	suppressedFailureLog uint64
+}
+
+var DefaultMonitor = mustNewMonitor(MonitorOptions{})
+
+func NewMonitor(options MonitorOptions) (*Monitor, error) {
+	return newMonitor(options, newSystemMonitorSampler(), time.Now)
+}
+
+func mustNewMonitor(options MonitorOptions) *Monitor {
+	monitor, err := NewMonitor(options)
+	if err != nil {
+		panic(err)
 	}
-	var err error
+	return monitor
+}
 
-	resp.CPULogicalCore, err = cpu.CountsWithContext(ctx, true)
+func newMonitor(
+	options MonitorOptions,
+	sampler monitorSampler,
+	now func() time.Time,
+) (*Monitor, error) {
+	normalized, err := normalizeMonitorOptions(options)
 	if err != nil {
 		return nil, err
 	}
-	resp.CPUPhysicalCore, err = cpu.CountsWithContext(ctx, false)
-	if err != nil {
-		return nil, err
+	if sampler == nil {
+		return nil, errors.New("monitor sampler is required")
 	}
-	cpuInfo, err := cpu.InfoWithContext(ctx)
-	physicalCPU := make([]cpu.InfoStat, 0)
-	for i := range cpuInfo {
-		var exist bool
-		for j := range physicalCPU {
-			if cpuInfo[i].PhysicalID == physicalCPU[j].PhysicalID {
-				exist = true
-				break
-			}
+	if now == nil {
+		return nil, errors.New("monitor clock is required")
+	}
+	return &Monitor{
+		options:    normalized,
+		history:    newMonitorHistoryRing(normalized.HistorySize),
+		sampler:    sampler,
+		now:        now,
+		instanceID: monitorInstanceID(),
+	}, nil
+}
+
+func normalizeMonitorOptions(options MonitorOptions) (MonitorOptions, error) {
+	if options.SampleInterval == 0 {
+		options.SampleInterval = DefaultMonitorSampleInterval
+	}
+	if options.SampleInterval < time.Second {
+		return MonitorOptions{}, errors.New("monitor sample interval must be at least one second")
+	}
+	if options.SampleInterval%time.Second != 0 {
+		return MonitorOptions{}, errors.New("monitor sample interval must be a whole number of seconds")
+	}
+	if options.SampleTimeout == 0 {
+		options.SampleTimeout = DefaultMonitorSampleTimeout
+	}
+	if options.SampleTimeout < 0 {
+		return MonitorOptions{}, errors.New("monitor sample timeout must be positive")
+	}
+	if options.SampleTimeout >= options.SampleInterval {
+		return MonitorOptions{}, fmt.Errorf(
+			"monitor sample timeout %s must be shorter than interval %s",
+			options.SampleTimeout,
+			options.SampleInterval,
+		)
+	}
+	if options.HistorySize == 0 {
+		options.HistorySize = DefaultMonitorHistorySize
+	}
+	if options.HistorySize < 0 || options.HistorySize > MaxMonitorHistorySize {
+		return MonitorOptions{}, fmt.Errorf(
+			"monitor history size must be between 1 and %d",
+			MaxMonitorHistorySize,
+		)
+	}
+	return options, nil
+}
+
+// Configure applies startup configuration before the system cron job is run.
+// A started Monitor is deliberately immutable so configuration reloads cannot
+// create a second sampler or replace a live ring buffer.
+func (e *Monitor) Configure(options MonitorOptions) error {
+	normalized, err := normalizeMonitorOptions(options)
+	if err != nil {
+		return err
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.started {
+		return ErrMonitorAlreadyStarted
+	}
+	e.options = normalized
+	e.history = newMonitorHistoryRing(normalized.HistorySize)
+	e.latest = nil
+	e.stale = false
+	return nil
+}
+
+func (e *Monitor) String() string {
+	return "monitor-sampler"
+}
+
+func (e *Monitor) SampleInterval() time.Duration {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.options.SampleInterval
+}
+
+// ScheduleSpec returns the robfig/cron descriptor used by the process-local
+// system task scheduler.
+func (e *Monitor) ScheduleSpec() string {
+	return "@every " + e.SampleInterval().String()
+}
+
+// Snapshot returns an isolated copy of the last successful sample and at most
+// historyLimit chronological points. It performs no host I/O.
+func (e *Monitor) Snapshot(historyLimit int) (*dto.MonitorResponse, error) {
+	if historyLimit < 0 || historyLimit > MaxMonitorHistorySize {
+		return nil, ErrInvalidMonitorHistoryLimit
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.latest == nil {
+		return nil, ErrMonitorNotReady
+	}
+	result := cloneMonitorResponse(e.latest)
+	result.Stale = e.stale
+	result.History = e.history.latest(historyLimit)
+	return result, nil
+}
+
+func (e *Monitor) storeSample(sample *dto.MonitorResponse, collectedAt time.Time) {
+	owned := cloneMonitorResponse(sample)
+	owned.CollectedAt = collectedAt.UTC().UnixMilli()
+	owned.InstanceID = e.instanceID
+	owned.History = nil
+
+	e.mu.Lock()
+	owned.SampleIntervalMS = e.options.SampleInterval.Milliseconds()
+	owned.Stale = false
+	e.history.append(dto.MonitorHistoryPoint{
+		Timestamp:          owned.CollectedAt,
+		CPUUsage:           owned.CPUUsage,
+		MemoryUsagePercent: owned.MemoryUsagePercent,
+	})
+	e.latest = owned
+	e.stale = false
+	e.mu.Unlock()
+}
+
+func (e *Monitor) markStale() {
+	e.mu.Lock()
+	e.stale = true
+	e.mu.Unlock()
+}
+
+func (e *Monitor) shouldLogSampleFailure(now time.Time) (bool, uint64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.lastFailureLog.IsZero() || now.Before(e.lastFailureLog) ||
+		now.Sub(e.lastFailureLog) >= monitorFailureLogInterval {
+		suppressed := e.suppressedFailureLog
+		e.lastFailureLog = now
+		e.suppressedFailureLog = 0
+		return true, suppressed
+	}
+	e.suppressedFailureLog++
+	return false, 0
+}
+
+func cloneMonitorResponse(source *dto.MonitorResponse) *dto.MonitorResponse {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	result.CPUInfo = append([]dto.MonitorCPUInfo(nil), source.CPUInfo...)
+	for i := range result.CPUInfo {
+		result.CPUInfo[i].Flags = append([]string(nil), source.CPUInfo[i].Flags...)
+	}
+	if source.Network != nil {
+		network := *source.Network
+		network.Connections = append(network.Connections[:0:0], source.Network.Connections...)
+		if source.Network.ConnectionCount != nil {
+			connectionCount := *source.Network.ConnectionCount
+			network.ConnectionCount = &connectionCount
 		}
-		if !exist {
-			physicalCPU = append(physicalCPU, cpuInfo[i])
-		}
+		result.Network = &network
 	}
-	percent, err := cpu.PercentWithContext(ctx, time.Second, false)
-	if err != nil {
-		return nil, err
+	if source.Runtime != nil {
+		runtimeInfo := *source.Runtime
+		result.Runtime = &runtimeInfo
 	}
-	if len(percent) > 0 {
-		resp.CPUUsage = math.Round(percent[0]*100) / 100
-	}
-	for i := range physicalCPU {
-		idx := i
-		if idx >= len(percent) {
-			idx = len(percent) - 1
-		}
-		resp.CPUInfo = append(resp.CPUInfo, dto.MonitorCPUInfo{
-			InfoStat:        physicalCPU[i],
-			CPUUsagePercent: percent[idx] / 100,
-		})
-	}
+	result.History = append([]dto.MonitorHistoryPoint(nil), source.History...)
+	return &result
+}
 
-	m, err := mem.VirtualMemoryWithContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	resp.MemoryTotal = m.Total
-	resp.MemoryUsage = m.Used
-	resp.MemoryUsagePercent = math.Round(m.UsedPercent*100) / 100
-	resp.MemoryAvailable = m.Available
-	resp.MemoryFree = m.Free
+type monitorHistoryRing struct {
+	items []dto.MonitorHistoryPoint
+	next  int
+	count int
+}
 
-	d, err := disk.Partitions(false)
-	if err != nil {
-		return nil, err
-	}
-	if len(d) == 0 {
-		return nil, fmt.Errorf("no disk partitions found")
-	}
-	diskUsageStat, err := disk.Usage(d[0].Mountpoint)
-	if err != nil {
-		return nil, err
-	}
-	resp.DiskTotal = diskUsageStat.Total
-	resp.DiskTotalGB = math.Round(float64(diskUsageStat.Total)/1024/1024/1024*100) / 100
-	resp.DiskUsage = diskUsageStat.Used
-	resp.DiskUsageGB = math.Round(float64(diskUsageStat.Used)/1024/1024/1024*100) / 100
-	resp.DiskUsagePercent = math.Round(diskUsageStat.UsedPercent*100) / 100
+func newMonitorHistoryRing(capacity int) monitorHistoryRing {
+	return monitorHistoryRing{items: make([]dto.MonitorHistoryPoint, capacity)}
+}
 
-	netIO, err := net.IOCountersWithContext(ctx, false)
-	if err == nil && len(netIO) > 0 {
-		resp.Network.BytesSent = netIO[0].BytesSent
-		resp.Network.BytesRecv = netIO[0].BytesRecv
-		resp.Network.PacketsSent = netIO[0].PacketsSent
-		resp.Network.PacketsRecv = netIO[0].PacketsRecv
-		resp.Network.Errin = netIO[0].Errin
-		resp.Network.Errout = netIO[0].Errout
-		resp.Network.Dropin = netIO[0].Dropin
-		resp.Network.Dropout = netIO[0].Dropout
+func (e *monitorHistoryRing) append(point dto.MonitorHistoryPoint) {
+	if len(e.items) == 0 {
+		return
 	}
-
-	conns, err := net.ConnectionsWithContext(ctx, "all")
-	if err == nil {
-		resp.Network.ConnectionCount = &dto.MonitorConnectionCount{}
-		for _, c := range conns {
-			resp.Network.ConnectionCount.Total++
-			switch c.Status {
-			case "ESTABLISHED":
-				resp.Network.ConnectionCount.Established++
-			case "LISTEN":
-				resp.Network.ConnectionCount.Listen++
-			case "TIME_WAIT":
-				resp.Network.ConnectionCount.TimeWait++
-			case "CLOSE_WAIT":
-				resp.Network.ConnectionCount.CloseWait++
-			}
-		}
+	e.items[e.next] = point
+	e.next = (e.next + 1) % len(e.items)
+	if e.count < len(e.items) {
+		e.count++
 	}
+}
 
-	var mStats runtime.MemStats
-	runtime.ReadMemStats(&mStats)
-	resp.Runtime.Goroutines = runtime.NumGoroutine()
-	resp.Runtime.HeapAlloc = mStats.HeapAlloc
-	resp.Runtime.HeapSys = mStats.HeapSys
-	resp.Runtime.HeapIdle = mStats.HeapIdle
-	resp.Runtime.HeapInuse = mStats.HeapInuse
-	resp.Runtime.HeapObjects = mStats.HeapObjects
-	resp.Runtime.StackInuse = mStats.StackInuse
-	resp.Runtime.StackSys = mStats.StackSys
-	resp.Runtime.MSpanInuse = mStats.MSpanInuse
-	resp.Runtime.MCacheInuse = mStats.MCacheInuse
-	resp.Runtime.NumGC = mStats.NumGC
-	resp.Runtime.GCPauseTotalNs = mStats.PauseTotalNs
-	if len(mStats.PauseEnd) > 0 {
-		resp.Runtime.LastGCTime = mStats.PauseEnd[(mStats.NumGC+255)%256]
+func (e *monitorHistoryRing) latest(limit int) []dto.MonitorHistoryPoint {
+	if limit == 0 || e.count == 0 {
+		return make([]dto.MonitorHistoryPoint, 0)
 	}
-
-	return resp, nil
+	if limit > e.count {
+		limit = e.count
+	}
+	start := (e.next - limit + len(e.items)) % len(e.items)
+	result := make([]dto.MonitorHistoryPoint, limit)
+	for i := range result {
+		result[i] = e.items[(start+i)%len(e.items)]
+	}
+	return result
 }

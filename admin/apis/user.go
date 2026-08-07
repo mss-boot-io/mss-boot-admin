@@ -47,17 +47,20 @@ func init() {
 
 type User struct {
 	*controller.Simple
-	oauthStates       oauthStateStore
-	oauthURLBuilder   oauthAuthorizeURLBuilder
-	oauthCodeExchange oauthCodeExchange
+	oauthStates          oauthStateStore
+	oauthURLBuilder      oauthAuthorizeURLBuilder
+	oauthCodeExchange    oauthCodeExchange
+	oauthLoginComplete   oauthLoginCompleter
+	oauthBindingComplete oauthBindingCompleter
 }
 
 // Other handler
 func (e *User) Other(r *gin.RouterGroup) {
-	r.POST("/user/login", middleware.Auth.LoginHandler)
+	r.POST("/user/login", middleware.PublicLoginHandler)
+	r.POST("/user/auth-cookie/clear", e.ClearAuthCookie)
 	r.POST("/user/reset-password", middleware.OptionalAuth(), e.ResetPassword)
 	r.POST("/user/fakeCaptcha", e.FakeCaptcha)
-	r.POST("/user/login/github", middleware.Auth.LoginHandler)
+	r.POST("/user/login/github", methodNotAllowed)
 	r.POST("/user/refresh-token", middleware.Auth.RefreshHandler)
 	r.GET("/user/refresh-token", methodNotAllowed)
 	r.GET("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UserInfo)
@@ -68,7 +71,16 @@ func (e *User) Other(r *gin.RouterGroup) {
 	r.POST("/user/oauth2/authorize", middleware.OptionalAuth(), e.OAuthAuthorize)
 	r.POST("/user/binding", response.AuthHandler, e.Binding)
 	r.DELETE("/user/unbinding", response.AuthHandler, e.Unbinding)
-	r.GET("/user/:provider/callback", middleware.OptionalAuth(), e.Callback)
+	r.POST("/user/:provider/callback", middleware.OptionalAuth(), e.Callback)
+	r.GET("/user/:provider/callback", methodNotAllowed)
+}
+
+// ClearAuthCookie expires the browser's HttpOnly Admin JWT cookie before a
+// deliberate login/account-switch flow. It does not revoke a live session;
+// authenticated users should use the session logout endpoint for that.
+func (*User) ClearAuthCookie(c *gin.Context) {
+	middleware.ClearAuthCookie(c)
+	c.Status(http.StatusNoContent)
 }
 
 // Unbinding 解绑第三方登录
@@ -112,60 +124,15 @@ func (e *User) Unbinding(ctx *gin.Context) {
 // Binding 绑定第三方登录
 // @Summary 绑定第三方登录
 // @Description 绑定第三方登录
-// @Tags user
-// @Accept  application/json
-// @Product application/json
-// @Param data body models.UserLogin true "data"
-// @Success 200
-// @Router /admin/api/user/binding [post]
-// @Security Bearer
+// Deprecated: browser-submitted provider tokens are rejected. Binding now
+// completes inside the state-bound OAuth callback.
 func (e *User) Binding(ctx *gin.Context) {
-	api := response.Make(ctx)
 	verify := response.VerifyHandler(ctx)
-	if verify == nil {
-		api.Err(http.StatusForbidden)
+	if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) {
+		response.Make(ctx).Err(http.StatusForbidden)
 		return
 	}
-	if middleware.IsPersonalAccessTokenVerifier(verify) {
-		api.Err(http.StatusForbidden)
-		return
-	}
-	req := &models.UserLogin{}
-	if api.Bind(req).Error != nil {
-		api.Err(http.StatusUnprocessableEntity)
-		return
-	}
-	var err error
-	user := verify.(*models.User)
-	user.Password = req.Password
-	userOAuth2 := &models.UserOAuth2{}
-	switch req.Provider {
-	case pkg.GithubLoginProvider:
-		userOAuth2, err = user.GetUserGithubOAuth2(ctx)
-	case pkg.LarkLoginProvider:
-		userOAuth2, err = user.GetUserLarkOAuth2(ctx)
-	default:
-		api.Err(http.StatusNotImplemented)
-		return
-	}
-	if err != nil {
-		api.AddError(err).Log.Error("GetUserGithubOAuth2 error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	if userOAuth2.ID != "" {
-		api.OK(struct{}{})
-		return
-	}
-	userOAuth2.User = nil
-	userOAuth2.UserID = verify.GetUserID()
-	err = center.GetDB(ctx, &models.UserOAuth2{}).Create(userOAuth2).Error
-	if err != nil {
-		api.AddError(err).Log.Error("CreateUserOAuth2 error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	api.OK(struct{}{})
+	methodNotAllowed(ctx)
 }
 
 // GetOauth2 获取用户第三方登录信息
@@ -658,13 +625,12 @@ func (e *User) Delete(*gin.Context) {}
 // @Accept  application/json
 // @Product application/json
 // @Param provider path string true "provider"
-// @Param code query string true "code"
-// @Param state query string true "state"
-// @Success 200 {object} dto.OauthToken
+// @Param data body dto.OauthCallbackReq true "OAuth callback code and state"
+// @Success 201 {object} dto.OAuthCallbackResponse
 // @Failure 401 {object} response.Response
 // @Failure 422 {object} response.Response
 // @Failure 503 {object} response.Response
-// @Router /admin/api/user/{provider}/callback [get]
+// @Router /admin/api/user/{provider}/callback [post]
 func (e *User) Callback(c *gin.Context) {
 	e.oauthCallback(c)
 }

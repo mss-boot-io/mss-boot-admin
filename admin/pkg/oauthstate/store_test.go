@@ -36,6 +36,19 @@ func TestMemoryStateIsHighEntropyBoundAndOneTime(t *testing.T) {
 	}
 }
 
+func TestIssueRejectsRetiredIntegrationIntent(t *testing.T) {
+	store := New()
+	_, _, _, err := store.Issue(
+		context.Background(),
+		nil,
+		Record{Provider: "github", Intent: Intent("integration")},
+		DefaultTTL,
+	)
+	if err == nil {
+		t.Fatal("Issue() accepted retired integration intent")
+	}
+}
+
 func TestExpiredMemoryStateIsConsumed(t *testing.T) {
 	store := New()
 	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
