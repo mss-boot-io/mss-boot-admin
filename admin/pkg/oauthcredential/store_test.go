@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -44,6 +45,54 @@ func TestNewRequiresApplicationSecret(t *testing.T) {
 	}
 	if _, err := New([]byte{}); err == nil {
 		t.Fatal("New(empty) error = nil, want validation error")
+	}
+}
+
+func TestEnvelopeCapacityRejectsIntegerOverflow(t *testing.T) {
+	tests := []struct {
+		name         string
+		plaintextLen int
+		nonceLen     int
+		overhead     int
+		want         int
+		wantErr      bool
+	}{
+		{name: "normal", plaintextLen: 32, nonceLen: 12, overhead: 16, want: 61},
+		{
+			name:         "exact maximum",
+			plaintextLen: math.MaxInt - 29,
+			nonceLen:     12,
+			overhead:     16,
+			want:         math.MaxInt,
+		},
+		{
+			name:         "overflow by one",
+			plaintextLen: math.MaxInt - 28,
+			nonceLen:     12,
+			overhead:     16,
+			wantErr:      true,
+		},
+		{name: "negative plaintext", plaintextLen: -1, nonceLen: 12, overhead: 16, wantErr: true},
+		{name: "negative nonce", plaintextLen: 32, nonceLen: -1, overhead: 16, wantErr: true},
+		{name: "negative overhead", plaintextLen: 32, nonceLen: 12, overhead: -1, wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := envelopeCapacity(test.plaintextLen, test.nonceLen, test.overhead)
+			if test.wantErr {
+				if !errors.Is(err, errPayloadTooLarge) {
+					t.Fatalf("envelopeCapacity() error = %v, want errPayloadTooLarge", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("envelopeCapacity() error = %v", err)
+			}
+			if got != test.want {
+				t.Fatalf("envelopeCapacity() = %d, want %d", got, test.want)
+			}
+		})
 	}
 }
 

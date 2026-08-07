@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sync"
 	"time"
 
@@ -32,9 +33,10 @@ const (
 )
 
 var (
-	ErrNotFound = errors.New("oauth credential not found")
-	ErrExpired  = errors.New("oauth credential expired")
-	ErrInvalid  = errors.New("oauth credential invalid")
+	ErrNotFound        = errors.New("oauth credential not found")
+	ErrExpired         = errors.New("oauth credential expired")
+	ErrInvalid         = errors.New("oauth credential invalid")
+	errPayloadTooLarge = errors.New("oauth credential payload is too large")
 )
 
 type Intent string
@@ -260,14 +262,30 @@ func validateRecord(record Record, requireExpiry bool) error {
 }
 
 func (s *Store) seal(key string, plaintext []byte) ([]byte, error) {
-	nonce := make([]byte, s.aead.NonceSize())
+	nonceSize := s.aead.NonceSize()
+	capacity, err := envelopeCapacity(len(plaintext), nonceSize, s.aead.Overhead())
+	if err != nil {
+		return nil, err
+	}
+	nonce := make([]byte, nonceSize)
 	if _, err := io.ReadFull(s.random, nonce); err != nil {
 		return nil, fmt.Errorf("encrypt oauth credential: %w", err)
 	}
-	payload := make([]byte, 1, 1+len(nonce)+len(plaintext)+s.aead.Overhead())
+	payload := make([]byte, 1, capacity)
 	payload[0] = envelopeVersion
 	payload = append(payload, nonce...)
 	return s.aead.Seal(payload, nonce, plaintext, envelopeAAD(key)), nil
+}
+
+func envelopeCapacity(plaintextLen, nonceLen, overhead int) (int, error) {
+	capacity := 1 // envelope version
+	for _, part := range []int{nonceLen, plaintextLen, overhead} {
+		if part < 0 || part > math.MaxInt-capacity {
+			return 0, errPayloadTooLarge
+		}
+		capacity += part
+	}
+	return capacity, nil
 }
 
 func (s *Store) open(key string, payload []byte) ([]byte, error) {
