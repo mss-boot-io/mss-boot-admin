@@ -25,6 +25,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/requestlog"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/sessioncache"
 	"github.com/mss-boot-io/mss-boot-admin/admin/router"
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
@@ -164,7 +165,8 @@ func setup(ctx context.Context) (err error) {
 	service.Session.SetCache(sessioncache.New(redisClientFromCenter()))
 	middleware.Init()
 
-	routerEngine := gin.Default()
+	routerEngine := gin.New()
+	routerEngine.Use(requestlog.Logger(), requestlog.Recovery())
 	routerEngine.Use(middleware.AuditLogMiddleware("/admin/api/user", "/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
 	center.SetMakeRouter(router.DefaultMakeRouter)
 	center.SetRouter(routerEngine)

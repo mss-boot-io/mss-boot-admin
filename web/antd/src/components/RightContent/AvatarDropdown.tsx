@@ -9,6 +9,8 @@ import React, { useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import HeaderDropdown from '../HeaderDropdown';
 import { getUserDisplayName } from './userDisplayName';
+import { purgeLegacyOAuthStorage } from '@/utils/oauth';
+import { clearAuthStorage } from '@/utils/authStorage';
 
 export type GlobalHeaderRightProps = {
   menu?: boolean;
@@ -34,13 +36,9 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({ menu, childre
     postOnlineSessionLogout({ skipErrorHandler: true }).catch(() => {
       // ignore
     });
-    // delete localStorage.token;
     localStorage.removeItem('login.type');
-    localStorage.removeItem('github.token');
-    localStorage.removeItem('token');
-    localStorage.removeItem('github.state');
-    localStorage.removeItem('lark.token');
-    localStorage.removeItem('lark.state');
+    purgeLegacyOAuthStorage();
+    clearAuthStorage();
     // await outLogin();
     const { search, pathname } = window.location;
     const urlParams = new URL(window.location.href).searchParams;

@@ -414,7 +414,13 @@ func diffCheck(root string) command.Spec {
 }
 
 func toolingTest(root string) command.Spec {
-	args := []string{"go", "test", "./internal/mss/...", "./cmd/mss/..."}
+	args := []string{
+		"go",
+		"test",
+		"./internal/mss/...",
+		"./cmd/mss/...",
+		"./admin/modules/runtime/...",
+	}
 	// The vertical module runtime is optional on branches that have not added
 	// that layer yet. Omit only a definitely absent path; malformed or
 	// unreadable paths stay in the command so verification fails visibly.
@@ -424,7 +430,7 @@ func toolingTest(root string) command.Spec {
 	}
 	return command.Spec{
 		ID:          "agent-tooling-test",
-		Description: "test mss CLI, contracts, generator, verifier, and available module runtime",
+		Description: "test mss CLI, contracts, generator, verifier, Admin module registry, and available vertical module runtime",
 		Directory:   root,
 		Args:        args,
 		Timeout:     10 * time.Minute,

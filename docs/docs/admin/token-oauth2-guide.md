@@ -25,7 +25,7 @@ keywords: [admin token oauth2 pat api security audit]
 
 Personal Access Token 是一种用于 API 程序化访问的凭证，类似于 GitHub 的 PAT：
 
-- 用户可自行创建、刷新、撤销令牌
+- 用户可自行创建、轮换、撤销令牌
 - 令牌用于替代用户名密码调用 API
 - 支持细粒度权限控制（可扩展）
 
@@ -33,11 +33,13 @@ Personal Access Token 是一种用于 API 程序化访问的凭证，类似于 G
 
 ```
 UserAuthToken
-├── ID          → PAT 记录 ID
-├── UserID      → 所属用户
-├── Token       → 完整 JWT 文本（当前兼容实现）
-├── ExpiredAt   → 过期时间
-├── Revoked     → 是否已撤销
+├── ID           → PAT 记录 ID，同时写入已签名的 personAccessToken claim
+├── UserID       → 所属用户
+├── LegacyToken  → 兼容列；迁移和新写入后始终为空
+├── TokenHash    → 带版本前缀的 SHA-256 摘要，不通过 JSON 暴露
+├── Fingerprint  → 可展示的短指纹，不用于认证
+├── ExpiredAt    → 过期时间
+├── Revoked      → 是否已撤销
 └── CreatedAt / UpdatedAt / DeletedAt
 ```
 
@@ -66,9 +68,14 @@ Response:
 {
   "id": "<token-record-id>",
   "token": "<jwt-text>",
+  "fingerprint": "<safe-short-fingerprint>",
   "expiredAt": "<timestamp>"
 }
 ```
+
+创建和轮换响应带 `Cache-Control: no-store`，完整 PAT 只在成功响应中出现一次。
+列表接口只返回 ID、指纹、有效期和撤销状态等元数据，不返回 PAT 或摘要。关闭
+一次性展示窗口后无法找回原值，只能重新轮换。
 
 **使用令牌调用 API**
 
@@ -80,8 +87,11 @@ curl -H "Authorization: Bearer <jwt-text>" \
 ### 安全建议
 
 - PAT 不能创建、列出、刷新或撤销 PAT，也不能执行密码重置、账户恢复标识修改或 OAuth2 绑定/解绑；这些交互式操作统一返回 `403 Forbidden`
-- 当前实现仍持久化并在列表返回完整 JWT 文本，尚未达到“一次展示、不可逆存储、scope 与使用追踪”的生产级生命周期要求
-- 在完成令牌不可逆存储和升级迁移前，不要把当前 PAT 用作生产自动化的长期凭证
+- 服务端仅保存不可逆摘要；认证时先验证 JWT 签名，再按已签名的 PAT ID 读取记录，并以常量时间比较完整 bearer 的摘要
+- 轮换使用 owner-scoped compare-and-swap；成功返回新值后旧 PAT 立即失效，并发轮换只允许一个成功结果
+- 为兼容另行治理的 WebSocket 流程，`query: token` 暂时保留；API 与内置 UI 的访问/恢复日志只记录脱敏副本，所有大小写形式的 `token` query 值固定显示为 `[REDACTED]`，认证和 handler 仍读取原始请求
+- 升级前必须备份数据库并排空旧实例；迁移会清空兼容明文列，且回滚不会恢复明文
+- 当前 PAT 尚未提供 scopes 与 last-used 追踪，自动化权限仍由关联用户和现有 RBAC 决定
 - 定期轮换令牌，并及时撤销不再使用的令牌
 
 ## 2. OAuth2 第三方登录
@@ -99,12 +109,14 @@ curl -H "Authorization: Bearer <jwt-text>" \
 OAuth2User (OAuth2 绑定信息)
 ├── UserID      → 系统用户 ID
 ├── Provider    → 提供商 (github/lark)
-├── ProviderID  → 提供商侧用户 ID
-├── AccessToken → OAuth2 Token
-├── RefreshToken
-├── ExpiresAt
-├── CreatedAt
+├── IdentityKey → provider + 精确 opaque ID；活动绑定唯一
+├── OpenID / UnionID / Sub → 提供商侧身份标识
+├── Name / Email / Picture → 同步的公开身份资料
+└── CreatedAt / UpdatedAt / DeletedAt
 ```
+
+`UserOAuth2` 不保存 provider access token 或 refresh token。短时集成凭据进入加密的
+服务端 credential store，不进入用户绑定模型。
 
 ### 登录流程
 
@@ -115,21 +127,24 @@ OAuth2User (OAuth2 绑定信息)
     ↓
 用户授权后回调到系统
     ↓
-系统获取 OAuth2 Token
+服务端交换并短时持有 OAuth2 Token
     ↓
 查询是否已绑定系统用户
     ├── 已绑定 → 直接登录，签发 JWT
     └── 未绑定 → 创建新用户并绑定，或关联已有账户
     ↓
-跳转到系统首页
+服务端签发 Admin JWT；浏览器从未收到 provider token
 ```
 
 ### API 入口
 
 | 路由                                 | 方法 | 功能                                      |
 | ------------------------------------ | ---- | ----------------------------------------- |
-| `/admin/api/user/oauth2/authorize`   | POST | 发起登录或绑定授权                      |
-| `/admin/api/user/:provider/callback` | GET  | OAuth2 回调处理                           |
+| `/admin/api/user/oauth2/authorize`   | POST | 发起登录或绑定授权                        |
+| `/admin/api/user/:provider/callback` | POST | 在 JSON body 中提交 code/state 并完成回调 |
+| `/admin/api/user/:provider/callback` | GET  | 历史入口，仅返回 `405 Method Not Allowed` |
+| `/admin/api/user/binding`            | POST | 历史浏览器 token 入口，仅返回 `405`       |
+| `/admin/api/user/auth-cookie/clear`  | POST | 登录前清除可能残留的 HttpOnly 认证 Cookie |
 
 ### 扩展新提供商
 
@@ -145,9 +160,30 @@ OAuth2User (OAuth2 绑定信息)
 - 前端只提交 provider 和 `login` / `binding` 意图；授权 URL 与高熵 state 由服务端生成
 - state 仅保存哈希，默认 5 分钟有效，并绑定 provider、意图、浏览器 nonce；绑定流程还绑定当前用户和交互式会话
 - callback 在交换 code 或写数据库前原子消费 state，过期、重放或任一绑定不匹配均失败
+- callback 页面立即从地址栏清除 code/state，再以 POST body 提交；服务端响应只包含 Admin 会话或绑定完成状态
+- provider access/refresh token 不会序列化到浏览器、`localStorage`、URL、Admin JWT、本地密码、provider 错误日志或审计请求 JSON
+- OAuth 登录签发的 Admin JWT 只保存在当前页面内存，不进入 `localStorage` 或 `sessionStorage`；刷新或关闭页面后需要重新登录。该临时会话不会接入现有的 query-token WebSocket，通知轮询仍通过 `Authorization` 请求头工作；实时 WebSocket 后续应改为一次性 ticket 或连接后认证
+- 活动 GitHub/Lark 绑定通过数据库唯一的 `identity_key` 保证只有一个 Admin owner；MySQL 使用二进制排序规则，与 PostgreSQL/SQLite 一样精确区分 opaque ID 大小写；历史重复绑定会阻止迁移，必须先人工确认并处理
 - 单进程开发可使用内存 state store；生产多副本必须配置共享 Redis，不能降级为跨副本绕过校验
 - 跨 Origin 部署必须让浏览器携带 credentials，并在 `cors.allowOrigins` 中配置精确的 HTTP(S) Origin；禁止 `*`、userinfo、路径、查询和 fragment
-- provider access/refresh token 的浏览器持久化和服务端加密仍需单独完成安全升级
+- 开始新的 OAuth 登录前，前端清除旧的非持久会话 bearer，并尽力调用 `/user/auth-cookie/clear` 过期 HttpOnly Cookie，避免旧会话成为回调 principal
+- 生产环境必须注入唯一随机、至少 32 字节且不等于公开开发默认值的 `auth.key`；配置不合规时进程拒绝启动，轮换该密钥会使现有 Admin JWT 失效
+
+### 已移除的运行时代码生成器
+
+Admin 中面向浏览器的模板 Generator、相关 `/admin/api/template/*` 路由、OAuth `integration`
+意图和短时 credential handle 已全部移除，不再属于受支持的运行时能力，也不得通过恢复旧路由或
+provider token 流转重新引入。需要生成模块时，使用开发期的确定性命令
+`go run ./cmd/mss module generate modules/<name>/module.yaml`，并把生成结果纳入代码评审。
+
+### 本地密码升级与验证
+
+- OAuth 新建账户默认设置 `local_password_disabled=true`，随机生成的内部密码不能作为本地登录凭据使用
+- 历史升级迁移对所有“曾经绑定过 OAuth”的账户采用 fail-closed 策略，包括先本地注册后绑定、后来解绑以及已软删除的历史账户；旧数据无法可靠判断密码是否曾来自 provider token
+- 从未有 OAuth 历史的本地账户保持不变；迁移后 OAuth 登录仍可使用
+- 用户完成密码重置后会写入新的 hash/salt，并清除 `local_password_disabled`，从而显式恢复本地密码登录
+- 上线前必须盘点受影响账户并验证密码重置或管理员辅助恢复路径；这是一项有意的兼容性收紧，不能通过恢复旧 hash 或 provider token 绕过
+- `.github/workflows/pat-migration-integration.yml` 在 MySQL 8.4 和 PostgreSQL 17 上运行凭据迁移集成契约，覆盖 PAT、OAuth 绑定/解绑历史、软删除、重复执行幂等、身份唯一性、迁移版本唯一性和密码重置恢复语义
 
 ### 历史内置凭据升级
 
@@ -218,7 +254,7 @@ OAuth2User (OAuth2 绑定信息)
 | 能力                | 状态        | 位置                      |
 | ------------------- | ----------- | ------------------------- |
 | JWT Token 签发/验证 | ✅ 已实现   | `middleware/auth.go`      |
-| PAT 管理            | ⚠️ 兼容实现 | `apis/user_auth_token.go` |
+| PAT 管理            | ✅ 不可逆存储与一次展示 | `apis/user_auth_token.go` |
 | OAuth2 登录         | ✅ 已实现   | `apis/oauth.go`           |
 | 登录日志            | ⚠️ 部分实现 | 需检查审计模块            |
 | 操作日志            | ⚠️ 部分实现 | 需检查审计模块            |
@@ -246,7 +282,7 @@ OAuth2User (OAuth2 绑定信息)
 ### Token 安全
 
 - JWT 签名密钥定期轮换
-- PAT 设置合理过期时间；完成不可逆存储升级前不要作为生产长期凭证
+- PAT 设置合理过期时间，创建后立即保存，并使用轮换而不是尝试找回旧值
 - 敏感操作需要二次验证
 
 ### OAuth2 安全
@@ -254,7 +290,7 @@ OAuth2User (OAuth2 绑定信息)
 - 使用 HTTPS
 - 使用服务端签发且一次性消费的 `state`
 - 验证回调 URL
-- 及时刷新过期 Token
+- 不向浏览器或长期任务保存 provider refresh token；需要后台授权时设计独立的服务端凭据生命周期
 
 ### API 安全
 

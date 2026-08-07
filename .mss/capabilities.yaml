@@ -20,7 +20,10 @@ spec:
       frontendPaths:
         - web/antd/src/pages/User/Login
         - web/antd/src/access.ts
-      guidance: Reuse existing JWT and OAuth2 flows; do not create a parallel login system.
+      guidance: >-
+        Reuse the existing JWT and OAuth2 flows; do not create a parallel login
+        system, and never serialize provider access or refresh tokens to browser
+        code or persist them in browser storage.
 
     - id: identity.personal-access-token
       displayName: Personal Access Token
@@ -31,7 +34,10 @@ spec:
         - admin/apis/user_auth_token.go
       frontendPaths:
         - web/antd/src/pages/Account/Settings/components/AccessToken.tsx
-      guidance: Preserve one-time display and revocation semantics.
+      guidance: >-
+        Return raw PAT values only from create or rotate, persist only a
+        versioned digest and safe fingerprint, and use owner-scoped atomic
+        rotation and revocation so old bearer values fail immediately.
 
     - id: authorization.rbac
       displayName: Casbin RBAC

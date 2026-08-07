@@ -269,6 +269,7 @@ func (e *OnlineSessionAPI) Logout(c *gin.Context) {
 		c.ClientIP(), c.GetHeader("User-Agent"), "self-logout"); err != nil {
 		slog.Warn("audit log logout failed", "sid", sid, "err", err)
 	}
+	middleware.ClearAuthCookie(c)
 	// Logout doesn't create a resource; mss-boot's OK on POST maps to 201
 	// with no body which is the contract used elsewhere for "operation
 	// accepted, nothing to return".

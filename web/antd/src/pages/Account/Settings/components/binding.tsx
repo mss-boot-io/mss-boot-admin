@@ -1,43 +1,54 @@
-import { deleteUserUnbinding, getUserOauth2, postUserBinding } from '@/services/admin/user';
-import { GithubOutlined } from '@ant-design/icons';
-import { FormattedMessage } from '@umijs/max';
-import { useRequest } from 'ahooks';
-import { List, message } from 'antd';
-import React, { Fragment, useEffect, useState } from 'react';
 import { LarkOutlined } from '@/components/MssBoot/icon';
-import { useIntl } from '@umijs/max';
+import { deleteUserUnbinding, getUserOauth2 } from '@/services/admin/user';
 import { openOAuthAuthorization } from '@/utils/oauth';
+import { GithubOutlined } from '@ant-design/icons';
+import { FormattedMessage, useIntl } from '@umijs/max';
+import { useRequest } from 'ahooks';
+import { Button, List, message } from 'antd';
+import React, { Fragment, useState } from 'react';
 
 const BindingView: React.FC = () => {
-  /**
-   * @en-US International configuration
-   * @zh-CN 国际化配置
-   * */
   const intl = useIntl();
-
   const [bindingGithub, setBindingGithub] = useState(false);
   const [bindingLark, setBindingLark] = useState(false);
+  const [pendingProvider, setPendingProvider] = useState<API.OAuthProvider>();
 
-  const {} = useRequest(
-    async () => {
-      const res = await getUserOauth2();
-      if (res.length > 0) {
-        res.forEach((item: any) => {
-          if (item.type === 'github') {
-            setBindingGithub(true);
-            return;
-          }
-          if (item.type === 'lark') {
-            setBindingLark(true);
-            return;
-          }
-        });
+  const { refreshAsync } = useRequest(async () => {
+    const bindings = (await getUserOauth2()) || [];
+    setBindingGithub(bindings.some((item) => item.type === 'github'));
+    setBindingLark(bindings.some((item) => item.type === 'lark'));
+    return bindings;
+  });
+
+  const bindProvider = async (provider: API.OAuthProvider) => {
+    if (pendingProvider) {
+      return;
+    }
+    setPendingProvider(provider);
+    try {
+      const result = await openOAuthAuthorization(provider, 'binding');
+      if (result.intent !== 'binding') {
+        throw new Error('OAuth binding returned the wrong intent');
       }
-    },
-    {
-      refreshDeps: [],
-    },
-  );
+      await refreshAsync();
+      message.success(intl.formatMessage({ id: 'pages.settings.binding.success' }));
+    } catch {
+      message.error(intl.formatMessage({ id: 'pages.settings.binding.failed' }));
+    } finally {
+      setPendingProvider(undefined);
+    }
+  };
+
+  const unbindProvider = async (provider: API.OAuthProvider) => {
+    setPendingProvider(provider);
+    try {
+      await deleteUserUnbinding({ type: provider });
+      await refreshAsync();
+      message.success(intl.formatMessage({ id: 'pages.settings.unbinding.success' }));
+    } finally {
+      setPendingProvider(undefined);
+    }
+  };
 
   const getData = () => [
     {
@@ -46,36 +57,19 @@ const BindingView: React.FC = () => {
         ? intl.formatMessage({ id: 'pages.settings.binding.github' })
         : intl.formatMessage({ id: 'pages.settings.unbinding.github' }),
       actions: [
-        bindingGithub ? (
-          <a
-            key="Bind"
-            onClick={() => {
-              deleteUserUnbinding({ type: 'github' }).then(() => {
-                message.success(intl.formatMessage({ id: 'pages.settings.unbinding.success' }));
-                setBindingGithub(false);
-              });
-            }}
-            // href={githubURL}
-            rel="noopener noreferrer"
-          >
-            <FormattedMessage id="pages.settings.unbinding" />
-          </a>
-        ) : (
-          <a
-            key="Bind"
-            onClick={async () => {
-              try {
-                await openOAuthAuthorization('github', 'binding');
-              } catch {
-                message.error(intl.formatMessage({ id: 'pages.settings.binding.failed' }));
-              }
-            }}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <FormattedMessage id="pages.settings.binding" />
-          </a>
-        ),
+        <Button
+          key="github-binding"
+          type="link"
+          loading={pendingProvider === 'github'}
+          disabled={Boolean(pendingProvider && pendingProvider !== 'github')}
+          onClick={() =>
+            void (bindingGithub ? unbindProvider('github') : bindProvider('github'))
+          }
+        >
+          <FormattedMessage
+            id={bindingGithub ? 'pages.settings.unbinding' : 'pages.settings.binding'}
+          />
+        </Button>,
       ],
       avatar: <GithubOutlined className="github" />,
     },
@@ -85,76 +79,21 @@ const BindingView: React.FC = () => {
         ? intl.formatMessage({ id: 'pages.settings.binding.lark' })
         : intl.formatMessage({ id: 'pages.settings.unbinding.lark' }),
       actions: [
-        bindingLark ? (
-          <a
-            key="Bind"
-            onClick={() => {
-              deleteUserUnbinding({ type: 'lark' }).then(() => {
-                message.success(intl.formatMessage({ id: 'pages.settings.unbinding.success' }));
-                setBindingLark(false);
-              });
-            }}
-            rel="noopener noreferrer"
-          >
-            <FormattedMessage id="pages.settings.unbinding" />
-          </a>
-        ) : (
-          <a
-            key="Bind"
-            onClick={async () => {
-              try {
-                await openOAuthAuthorization('lark', 'binding');
-              } catch {
-                message.error(intl.formatMessage({ id: 'pages.settings.binding.failed' }));
-              }
-            }}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <FormattedMessage id="pages.settings.binding" />
-          </a>
-        ),
+        <Button
+          key="lark-binding"
+          type="link"
+          loading={pendingProvider === 'lark'}
+          disabled={Boolean(pendingProvider && pendingProvider !== 'lark')}
+          onClick={() => void (bindingLark ? unbindProvider('lark') : bindProvider('lark'))}
+        >
+          <FormattedMessage
+            id={bindingLark ? 'pages.settings.unbinding' : 'pages.settings.binding'}
+          />
+        </Button>,
       ],
       avatar: <LarkOutlined className="lark" />,
     },
   ];
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        const bindingType = localStorage.getItem('bindingType');
-        let token: string | null = null;
-        let setHandler = setBindingGithub;
-        switch (bindingType) {
-          case 'github':
-            token = localStorage.getItem('github.token');
-            setHandler = setBindingGithub;
-            break;
-          case 'lark':
-            token = localStorage.getItem('lark.token');
-            setHandler = setBindingLark;
-            break;
-        }
-        if (!bindingType) {
-          return;
-        }
-        postUserBinding({ type: bindingType as API.LoginProvider, password: token as string }).then(
-          () => {
-            setHandler(true);
-          },
-        );
-        localStorage.removeItem('bindingType');
-      }
-    };
-
-    // 添加事件监听器
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // 清理事件监听器
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [setBindingGithub]);
 
   return (
     <Fragment>

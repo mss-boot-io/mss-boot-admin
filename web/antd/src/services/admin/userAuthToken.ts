@@ -9,7 +9,7 @@ export async function putUserAuthTokenIdRefresh(
   options?: { [key: string]: any },
 ) {
   const { id: param0, ...queryParams } = params;
-  return request<API.UserAuthToken>(`/admin/api/user-auth-token/${param0}/refresh`, {
+  return request<API.UserAuthTokenSecretResponse>(`/admin/api/user-auth-token/${param0}/refresh`, {
     method: 'PUT',
     params: { ...queryParams },
     ...(options || {}),
@@ -36,7 +36,7 @@ export async function postUserAuthTokenGenerate(
   params: API.postUserAuthTokenGenerateParams,
   options?: { [key: string]: any },
 ) {
-  return request<API.UserAuthToken>('/admin/api/user-auth-tokens', {
+  return request<API.UserAuthTokenSecretResponse>('/admin/api/user-auth-tokens', {
     method: 'POST',
     params: {
       ...params,
@@ -47,7 +47,7 @@ export async function postUserAuthTokenGenerate(
 
 /** 列表 GET /admin/api/user-auth-tokens */
 export async function getUserAuthTokens(options?: { [key: string]: any }) {
-  return request<API.Page & { data?: API.UserAuthToken[] }>('/admin/api/user-auth-tokens', {
+  return request<API.Page & { data?: API.UserAuthTokenSummary[] }>('/admin/api/user-auth-tokens', {
     method: 'GET',
     ...(options || {}),
   });

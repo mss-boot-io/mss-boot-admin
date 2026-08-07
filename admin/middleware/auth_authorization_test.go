@@ -87,6 +87,8 @@ func TestIsSelfServiceRequestUsesExactMethodAndRoute(t *testing.T) {
 		{name: "user info update", method: http.MethodPut, path: "/admin/api/user/userInfo", want: true},
 		{name: "user avatar", method: http.MethodPost, path: "/admin/api/user/avatar", want: true},
 		{name: "user oauth bindings", method: http.MethodGet, path: "/admin/api/user/oauth2", want: true},
+		{name: "user oauth callback", method: http.MethodPost, path: "/admin/api/user/:provider/callback", want: true},
+		{name: "legacy user oauth callback get", method: http.MethodGet, path: "/admin/api/user/:provider/callback", want: false},
 		{name: "user bind", method: http.MethodPost, path: "/admin/api/user/binding", want: true},
 		{name: "user unbind", method: http.MethodDelete, path: "/admin/api/user/unbinding", want: true},
 		{name: "user info wrong method", method: http.MethodDelete, path: "/admin/api/user/userInfo", want: false},
@@ -156,6 +158,7 @@ func TestAuthorizeRequestRejectsPersonalAccessTokensForInteractiveSensitiveRoute
 	}{
 		{name: "password reset", method: http.MethodPost, path: "/admin/api/user/reset-password"},
 		{name: "profile update", method: http.MethodPut, path: "/admin/api/user/userInfo"},
+		{name: "OAuth callback", method: http.MethodPost, path: "/admin/api/user/:provider/callback"},
 		{name: "OAuth binding", method: http.MethodPost, path: "/admin/api/user/binding"},
 		{name: "OAuth unbinding", method: http.MethodDelete, path: "/admin/api/user/unbinding"},
 		{name: "personal token list", method: http.MethodGet, path: "/admin/api/user-auth-tokens"},

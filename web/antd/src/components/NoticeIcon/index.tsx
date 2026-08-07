@@ -6,6 +6,7 @@ import styles from './index.less';
 import NoticeIcon from './NoticeIcon';
 import { getNoticeUnread, putNoticeReadId } from '@/services/admin/notice';
 import { history, useIntl } from '@umijs/max';
+import { getAuthToken } from '@/utils/authStorage';
 
 export type GlobalHeaderRightProps = {
   fetchingNotices?: boolean;
@@ -123,7 +124,7 @@ const NoticeIconView: React.FC = () => {
   useEffect(() => {
     isMountedRef.current = true;
 
-    if (!localStorage.getItem('token')) {
+    if (!getAuthToken()) {
       return () => {
         isMountedRef.current = false;
       };

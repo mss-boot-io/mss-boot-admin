@@ -8,12 +8,13 @@ package config
  */
 
 import (
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/listener"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/requestlog"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/listener"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config"
 )
 
 type Mode string
@@ -81,7 +82,8 @@ func (u *UIServer) Init() server.Runnable {
 		return nil
 	}
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(requestlog.Logger(), requestlog.Recovery())
 	r.Static("/", u.Path)
 	r.LoadHTMLFiles(filepath.Join(u.Path, "index.html"))
 	r.NoRoute(func(c *gin.Context) {

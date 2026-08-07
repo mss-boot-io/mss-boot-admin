@@ -1,11 +1,12 @@
 import { request } from '@umijs/max';
 import { postTaskOperateId } from './task';
 import {
-  getUserProviderCallback,
+  postUserClearAuthCookie,
   postUserOauth2Authorize,
+  postUserProviderCallback,
   postUserRefreshToken,
 } from './user';
-import { postUserAuthTokenGenerate } from './userAuthToken';
+import { postUserAuthTokenGenerate, putUserAuthTokenIdRefresh } from './userAuthToken';
 
 jest.mock('@umijs/max', () => ({
   request: jest.fn(),
@@ -37,6 +38,15 @@ describe('security-sensitive mutation clients', () => {
     });
   });
 
+  it('rotates personal access tokens with PUT', async () => {
+    await putUserAuthTokenIdRefresh({ id: 'pat-1' });
+
+    expect(mockRequest).toHaveBeenCalledWith('/admin/api/user-auth-token/pat-1/refresh', {
+      method: 'PUT',
+      params: {},
+    });
+  });
+
   it('refreshes the login token with POST', async () => {
     await postUserRefreshToken();
 
@@ -55,15 +65,27 @@ describe('security-sensitive mutation clients', () => {
     });
   });
 
+  it('clears a stale HttpOnly login cookie with POST', async () => {
+    await postUserClearAuthCookie({ skipAuthToken: true });
+
+    expect(mockRequest).toHaveBeenCalledWith('/admin/api/user/auth-cookie/clear', {
+      method: 'POST',
+      skipAuthToken: true,
+    });
+  });
+
   it('keeps OAuth callback failures out of global session cleanup', async () => {
-    await getUserProviderCallback(
-      { provider: 'github', code: 'code', state: 'state' },
+    await postUserProviderCallback(
+      { provider: 'github' },
+      { code: 'code', state: 'state' },
       { skipErrorHandler: true },
     );
 
     expect(mockRequest).toHaveBeenCalledWith('/admin/api/user/github/callback', {
-      method: 'GET',
-      params: { code: 'code', state: 'state' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      params: {},
+      data: { code: 'code', state: 'state' },
       skipErrorHandler: true,
     });
   });

@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import * as React from 'react';
-import Login, { persistLoginState } from './index';
+import Login, { activateOAuthLoginSession, hasAutoLoginSession, persistLoginState } from './index';
 import { resolveSafeRedirect } from './redirect';
+import { clearTransientAuthToken, getAuthToken, setTransientAuthToken } from '@/utils/authStorage';
 
 jest.mock('@umijs/max', () => {
   const ReactRuntime = require('react');
@@ -122,6 +123,7 @@ jest.mock('@/services/admin/user', () => ({
 
 describe('Login Page', () => {
   beforeEach(() => {
+    clearTransientAuthToken();
     localStorage.clear();
     jest.clearAllMocks();
   });
@@ -148,7 +150,17 @@ describe('Login Page', () => {
     expect((passwordInput as HTMLInputElement).value).toBe('ant.design');
   });
 
+  it('clears a document-scoped OAuth session when browser history remounts login', () => {
+    setTransientAuthToken('stale-oauth-token');
+
+    render(<Login />);
+
+    expect(getAuthToken({ getItem: jest.fn(() => null) })).toBeNull();
+  });
+
   it('should persist login state and resolve redirect', () => {
+    setTransientAuthToken('stale-oauth-token');
+
     const redirect = persistLoginState(
       {
         code: 200,
@@ -162,7 +174,32 @@ describe('Login Page', () => {
     expect(localStorage.setItem).toHaveBeenCalledWith('token', 'test-token');
     expect(localStorage.setItem).toHaveBeenCalledWith('token.expire', '3600');
     expect(localStorage.setItem).toHaveBeenCalledWith('autoLogin', 'true');
+    expect(getAuthToken({ getItem: jest.fn(() => 'test-token') })).toBe('test-token');
     expect(redirect).toBe('/workplace');
+  });
+
+  it('keeps an OAuth login token in document memory only', () => {
+    const redirect = activateOAuthLoginSession(
+      'oauth-admin-token',
+      'https://admin-beta.mss-boot-io.top/user/login?redirect=/workplace',
+    );
+
+    expect(getAuthToken()).toBe('oauth-admin-token');
+    expect(localStorage.setItem).not.toHaveBeenCalled();
+    expect(redirect).toBe('/workplace');
+  });
+
+  it('refreshes only when auto login is explicitly enabled', () => {
+    const values: Record<string, string> = {
+      autoLogin: 'false',
+      token: 'admin-token',
+      'token.expire': '3600',
+    };
+    const storage = { getItem: jest.fn((key: string) => values[key] || null) };
+
+    expect(hasAutoLoginSession(storage)).toBe(false);
+    values.autoLogin = 'true';
+    expect(hasAutoLoginSession(storage)).toBe(true);
   });
 
   it('should reject unsafe login redirects', () => {

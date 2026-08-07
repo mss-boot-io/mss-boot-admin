@@ -361,13 +361,9 @@ declare namespace API {
     group: string;
   };
 
-  type getUserProviderCallbackParams = {
+  type postUserProviderCallbackParams = {
     /** provider */
-    provider: string;
-    /** code */
-    code: string;
-    /** state */
-    state: string;
+    provider: OAuthProvider;
   };
 
   type getUsersIdParams = {
@@ -614,40 +610,32 @@ declare namespace API {
 
   type NoticeType = 'notification' | 'message' | 'event' | 'mail';
 
-  type OauthToken = {
-    /** AccessToken is the token that authorizes and authenticates
-the requests. */
-    accessToken?: string;
-    /** Expiry is the optional expiration time of the access token.
-
-If zero, TokenSource implementations will reuse the same
-token forever and RefreshToken or equivalent
-mechanisms for that TokenSource will not be used. */
-    expiry?: string;
-    /** Server-validated flow purpose. */
-    intent: OAuthIntent;
-    /** Provider is the name of the OAuth2 provider[GitHub, Lark]. */
-    provider: string;
-    refreshExpiry?: string;
-    /** RefreshToken is a token that's used by the application
-(as opposed to the user) to refresh the access token
-if it expires. */
-    refreshToken?: string;
-    /** TokenType is the type of token.
-The Type method returns either this or "Bearer", the default. */
-    tokenType?: string;
-  };
-
+  type OAuthProvider = 'github' | 'lark';
   type OAuthIntent = 'login' | 'binding';
 
   type OAuthAuthorizeRequest = {
     intent: OAuthIntent;
-    provider: LoginProvider;
+    provider: OAuthProvider;
   };
 
   type OAuthAuthorizeResponse = {
+    attemptID: string;
     authorizeURL: string;
     expiresAt: string;
+  };
+
+  type OAuthCallbackRequest = {
+    code: string;
+    state: string;
+  };
+
+  type OAuthCallbackResponse = {
+    attemptID: string;
+    code: number;
+    expire?: string;
+    intent: OAuthIntent;
+    provider: OAuthProvider;
+    token?: string;
   };
 
   type Option = {
@@ -1023,17 +1011,23 @@ The Type method returns either this or "Bearer", the default. */
     username?: string;
   };
 
-  type UserAuthToken = {
+  type UserAuthTokenSummary = {
     /** CreatedAt create time */
     createdAt?: string;
     expiredAt?: string;
+    /** Safe, non-secret token fingerprint for identification. */
+    fingerprint?: string;
     /** ID primary key */
-    id?: string;
+    id: string;
     revoked?: boolean;
-    token?: string;
     /** UpdatedAt update time */
     updatedAt?: string;
     userID?: string;
+  };
+
+  type UserAuthTokenSecretResponse = UserAuthTokenSummary & {
+    /** Raw bearer token returned only by create or rotate. */
+    token: string;
   };
 
   type UserConfigControlRequest = {

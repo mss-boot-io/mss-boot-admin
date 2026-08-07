@@ -1,12 +1,14 @@
 package apis
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
+	"gorm.io/gorm"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
@@ -54,7 +56,7 @@ func (e *UserAuthToken) Other(r *gin.RouterGroup) {
 // @Accept application/json
 // @Produce application/json
 // @Param id path string true "id"
-// @Success 200 {object} models.UserAuthToken
+// @Success 200 {object} dto.UserAuthTokenSecretResponse
 // @Router /admin/api/user-auth-token/{id}/refresh [put]
 // @Security Bearer
 func (e *UserAuthToken) Refresh(ctx *gin.Context) {
@@ -65,33 +67,24 @@ func (e *UserAuthToken) Refresh(ctx *gin.Context) {
 		return
 	}
 	id := ctx.Param("id")
-	userAuthToken := &models.UserAuthToken{}
-	err := center.GetDB(ctx, userAuthToken).
-		Where("id = ?", id).
-		Where("user_id = ?", verify.GetUserID()).
-		First(userAuthToken).Error
+	userAuthToken, token, err := models.RotateUserAuthToken(ctx, middleware.Auth, verify, id)
 	if err != nil {
-		api.AddError(err).Log.Error("refresh user auth token failed")
-		api.Err(http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			api.Err(http.StatusNotFound)
+		case errors.Is(err, models.ErrUserAuthTokenRevoked),
+			errors.Is(err, models.ErrUserAuthTokenInvalidDigest):
+			api.Err(http.StatusForbidden)
+		case errors.Is(err, models.ErrUserAuthTokenRotationConflict):
+			api.Err(http.StatusConflict)
+		default:
+			api.AddError(err).Log.Error("refresh user auth token failed")
+			api.Err(http.StatusInternalServerError)
+		}
 		return
 	}
-	if userAuthToken.Revoked {
-		api.Err(http.StatusForbidden)
-		return
-	}
-	userAuthToken.Token, userAuthToken.ExpiredAt, err = middleware.Auth.TokenGenerator(verify)
-	if err != nil {
-		api.AddError(err).Log.Error("refresh user auth token failed")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	err = center.GetDB(ctx, userAuthToken).Save(userAuthToken).Error
-	if err != nil {
-		api.AddError(err).Log.Error("refresh user auth token failed")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	api.OK(userAuthToken)
+	setSecretResponseHeaders(ctx)
+	api.OK(userAuthTokenSecretResponse(userAuthToken, token))
 }
 
 // Revoked 撤销用户令牌
@@ -112,10 +105,13 @@ func (e *UserAuthToken) Revoked(ctx *gin.Context) {
 	}
 	id := ctx.Param("id")
 	err := center.GetDB(ctx, &models.UserAuthToken{}).
+		Model(&models.UserAuthToken{}).
 		Where("id = ?", id).
 		Where("user_id = ?", verify.GetUserID()).
-		Updates(&models.UserAuthToken{
-			Revoked: true,
+		Where("revoked = ?", false).
+		Updates(map[string]any{
+			"revoked": true,
+			"token":   "",
 		}).Error
 	if err != nil {
 		api.AddError(err).Log.Error("revoke user auth token failed")
@@ -131,7 +127,7 @@ func (e *UserAuthToken) Revoked(ctx *gin.Context) {
 // @Accept application/json
 // @Produce application/json
 // @Param validityPeriod query string true "有效期"
-// @Success 200 {object} models.UserAuthToken
+// @Success 201 {object} dto.UserAuthTokenSecretResponse
 // @Router /admin/api/user-auth-tokens [post]
 // @Security Bearer
 func (e *UserAuthToken) Generate(ctx *gin.Context) {
@@ -146,13 +142,14 @@ func (e *UserAuthToken) Generate(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	userAuthToken, err := models.GenerateUserAuthToken(ctx, middleware.Auth, verify, req.ValidityPeriod)
+	userAuthToken, token, err := models.GenerateUserAuthToken(ctx, middleware.Auth, verify, req.ValidityPeriod)
 	if err != nil {
 		api.AddError(err).Log.Error("generate user auth token failed")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(userAuthToken)
+	setSecretResponseHeaders(ctx)
+	api.OK(userAuthTokenSecretResponse(userAuthToken, token))
 }
 
 // List 列表
@@ -160,7 +157,7 @@ func (e *UserAuthToken) Generate(ctx *gin.Context) {
 // @Tags UserAuthToken
 // @Accept application/json
 // @Produce application/json
-// @Success 200 {object} response.Page{data=[]models.UserAuthToken}
+// @Success 200 {object} response.Page{data=[]dto.UserAuthTokenSummary}
 // @Router /admin/api/user-auth-tokens [get]
 // @Security Bearer
 func (e *UserAuthToken) List(ctx *gin.Context) {
@@ -170,8 +167,10 @@ func (e *UserAuthToken) List(ctx *gin.Context) {
 		api.Err(http.StatusForbidden)
 		return
 	}
-	list := make([]*models.UserAuthToken, 0)
+	list := make([]dto.UserAuthTokenSummary, 0)
 	err := center.GetDB(ctx, &models.UserAuthToken{}).
+		Model(&models.UserAuthToken{}).
+		Select("id", "user_id", "fingerprint", "expired_at", "revoked", "created_at", "updated_at").
 		Where("user_id = ?", verify.GetUserID()).
 		Where("revoked = ?", false).
 		Order("created_at desc").Find(&list).Error
@@ -180,4 +179,28 @@ func (e *UserAuthToken) List(ctx *gin.Context) {
 		return
 	}
 	api.PageOK(list, int64(len(list)), 0, 999)
+}
+
+func userAuthTokenSummary(userAuthToken *models.UserAuthToken) dto.UserAuthTokenSummary {
+	return dto.UserAuthTokenSummary{
+		ID:          userAuthToken.ID,
+		UserID:      userAuthToken.UserID,
+		Fingerprint: userAuthToken.Fingerprint,
+		ExpiredAt:   userAuthToken.ExpiredAt,
+		Revoked:     userAuthToken.Revoked,
+		CreatedAt:   userAuthToken.CreatedAt,
+		UpdatedAt:   userAuthToken.UpdatedAt,
+	}
+}
+
+func userAuthTokenSecretResponse(userAuthToken *models.UserAuthToken, token string) dto.UserAuthTokenSecretResponse {
+	return dto.UserAuthTokenSecretResponse{
+		UserAuthTokenSummary: userAuthTokenSummary(userAuthToken),
+		Token:                token,
+	}
+}
+
+func setSecretResponseHeaders(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
+	ctx.Header("Pragma", "no-cache")
 }

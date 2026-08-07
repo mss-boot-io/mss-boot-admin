@@ -16,8 +16,9 @@ import (
 )
 
 type passwordState struct {
-	PasswordHash string
-	Salt         string
+	PasswordHash          string
+	Salt                  string
+	LocalPasswordDisabled bool
 }
 
 func TestResetPasswordRejectsPersonalAccessTokensWithoutChangingPassword(t *testing.T) {
@@ -76,6 +77,9 @@ func TestResetPasswordKeepsSessionAndAnonymousRecoveryBehavior(t *testing.T) {
 	}
 	if afterSession.PasswordHash != wantHash {
 		t.Fatalf("ordinary session password hash = %q, want %q", afterSession.PasswordHash, wantHash)
+	}
+	if afterSession.LocalPasswordDisabled {
+		t.Fatal("password reset did not re-enable the local credential")
 	}
 
 	// Anonymous recovery still reaches the existing request-body validation and
@@ -163,6 +167,7 @@ func preparePasswordResetTestDB(t *testing.T) *gorm.DB {
 		id TEXT PRIMARY KEY,
 		password_hash TEXT NOT NULL,
 		salt TEXT NOT NULL,
+		local_password_disabled BOOLEAN NOT NULL DEFAULT TRUE,
 		created_at DATETIME,
 		updated_at DATETIME,
 		deleted_at DATETIME
@@ -255,7 +260,10 @@ func executeUserOAuthMutation(
 func loadPasswordState(t *testing.T, db *gorm.DB, userID string) passwordState {
 	t.Helper()
 	var state passwordState
-	if err := db.Table("mss_boot_users").Select("password_hash", "salt").Where("id = ?", userID).Take(&state).Error; err != nil {
+	if err := db.Table("mss_boot_users").
+		Select("password_hash", "salt", "local_password_disabled").
+		Where("id = ?", userID).
+		Take(&state).Error; err != nil {
 		t.Fatalf("load password state: %v", err)
 	}
 	return state
