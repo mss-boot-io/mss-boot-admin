@@ -4,6 +4,7 @@ import { history } from '@umijs/max';
 import { message, notification } from 'antd';
 import { prepareAPIRequest } from './util/apiRequest';
 import { getResponseErrorMessage } from './util/requestError';
+import { clearAuthStorage } from './utils/authStorage';
 
 // 错误处理方案： 错误类型
 enum ErrorShowType {
@@ -76,12 +77,11 @@ export const errorConfig: RequestConfig = {
         const errorMessage = getResponseErrorMessage(error.response);
         // Axios 的错误
         // 请求成功发出且服务器也响应了状态码，但状态代码超出了 2xx 的范围
-        message.error(errorMessage).then(() => {
-          if (error.response.status === 401) {
-            localStorage.removeItem('token');
-            history.push('/user/login');
-          }
-        });
+        message.error(errorMessage);
+        if (error.response.status === 401) {
+          clearAuthStorage();
+          history.push('/user/login');
+        }
       } else if (error.request) {
         // 请求已经成功发起，但没有收到响应
         // \`error.request\` 在浏览器中是 XMLHttpRequest 的实例，

@@ -91,6 +91,9 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 	if err := frameworkconfig.Init(e, opts...); err != nil {
 		return fmt.Errorf("initialize configuration source: %w", err)
 	}
+	if err := validateProductionAuthKey(e.Application.Mode, e.Auth.Key); err != nil {
+		return err
+	}
 
 	if e.Pyroscope.Enabled && len(e.Application.Labels) > 0 {
 		e.Pyroscope.MergeTags(e.Application.Labels)

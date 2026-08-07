@@ -2,6 +2,23 @@
 /* eslint-disable */
 import { request } from '@umijs/max';
 
+export const OAUTH_CREDENTIAL_HEADER = 'X-MSS-OAuth-Credential';
+
+type RequestOptions = { [key: string]: any };
+
+function withOAuthCredential(credential?: string, options?: RequestOptions): RequestOptions {
+  if (!credential) {
+    return options || {};
+  }
+  return {
+    ...(options || {}),
+    headers: {
+      ...(options?.headers || {}),
+      [OAUTH_CREDENTIAL_HEADER]: credential,
+    },
+  };
+}
+
 /** 获取github登录地址 获取github登录地址 GET /admin/api/github/get-login-url */
 export async function getGithubGetLoginUrl(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -20,15 +37,18 @@ export async function getGithubGetLoginUrl(
 /** 从模版生成代码 从模版生成代码 POST /admin/api/template/generate */
 export async function postTemplateGenerate(
   body: API.TemplateGenerateReq,
-  options?: { [key: string]: any },
+  credential: string,
+  options?: RequestOptions,
 ) {
   return request<API.TemplateGenerateResp>('/admin/api/template/generate', {
     method: 'POST',
+    ...withOAuthCredential(credential, options),
     headers: {
       'Content-Type': 'application/json',
+      ...(options?.headers || {}),
+      ...(credential ? { [OAUTH_CREDENTIAL_HEADER]: credential } : {}),
     },
     data: body,
-    ...(options || {}),
   });
 }
 
@@ -36,14 +56,15 @@ export async function postTemplateGenerate(
 export async function getTemplateGetBranches(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getTemplateGetBranchesParams,
-  options?: { [key: string]: any },
+  credential?: string,
+  options?: RequestOptions,
 ) {
   return request<API.TemplateGetBranchesResp>('/admin/api/template/get-branches', {
     method: 'GET',
     params: {
       ...params,
     },
-    ...(options || {}),
+    ...withOAuthCredential(credential, options),
   });
 }
 
@@ -51,14 +72,15 @@ export async function getTemplateGetBranches(
 export async function getTemplateGetParams(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getTemplateGetParamsParams,
-  options?: { [key: string]: any },
+  credential?: string,
+  options?: RequestOptions,
 ) {
   return request<API.TemplateGetParamsResp>('/admin/api/template/get-params', {
     method: 'GET',
     params: {
       ...params,
     },
-    ...(options || {}),
+    ...withOAuthCredential(credential, options),
   });
 }
 
@@ -66,13 +88,14 @@ export async function getTemplateGetParams(
 export async function getTemplateGetPath(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getTemplateGetPathParams,
-  options?: { [key: string]: any },
+  credential?: string,
+  options?: RequestOptions,
 ) {
   return request<API.TemplateGetPathResp>('/admin/api/template/get-path', {
     method: 'GET',
     params: {
       ...params,
     },
-    ...(options || {}),
+    ...withOAuthCredential(credential, options),
   });
 }

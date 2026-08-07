@@ -2,7 +2,7 @@ package dto
 
 type TemplateGetBranchesReq struct {
 	Source      string `query:"source" form:"source" binding:"required"`
-	AccessToken string `query:"accessToken" form:"accessToken"`
+	AccessToken string `query:"accessToken" form:"accessToken" json:"accessToken,omitempty" swaggerignore:"true"`
 }
 
 type TemplateGetBranchesResp struct {
@@ -12,7 +12,7 @@ type TemplateGetBranchesResp struct {
 type TemplateGetPathReq struct {
 	Source      string `query:"source" form:"source" binding:"required"`
 	Branch      string `query:"branch" form:"branch"`
-	AccessToken string `query:"accessToken" form:"accessToken"`
+	AccessToken string `query:"accessToken" form:"accessToken" json:"accessToken,omitempty" swaggerignore:"true"`
 }
 
 type TemplateGetPathResp struct {
@@ -23,7 +23,7 @@ type TemplateGetParamsReq struct {
 	Source      string `query:"source" form:"source" binding:"required"`
 	Branch      string `query:"branch" form:"branch"`
 	Path        string `query:"path" form:"path"`
-	AccessToken string `query:"accessToken" form:"accessToken"`
+	AccessToken string `query:"accessToken" form:"accessToken" json:"accessToken,omitempty" swaggerignore:"true"`
 }
 
 type TemplateGetParamsResp struct {
@@ -38,7 +38,7 @@ type TemplateParam struct {
 type TemplateGenerateReq struct {
 	Template    TemplateParams `json:"template"`
 	Generate    GenerateParams `json:"generate"`
-	AccessToken string         `query:"accessToken" form:"accessToken"`
+	AccessToken string         `query:"accessToken" form:"accessToken" json:"accessToken,omitempty" swaggerignore:"true"`
 	Email       string         `query:"email" form:"email"`
 }
 

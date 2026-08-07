@@ -50,5 +50,12 @@ export default {
   'pages.generator.email.tooltip': '代码仓库提交邮箱',
   'pages.generator.githubAuth': '获取GitHub权限',
   'pages.generator.githubAuth.failed': '无法启动 GitHub 授权，请重试',
+  'pages.generator.githubAuth.success': 'GitHub 授权已就绪，仅用于本次生成',
+  'pages.generator.githubAuth.ready': 'GitHub 授权已就绪（重新授权）',
+  'pages.generator.githubAuth.expired': 'GitHub 授权已过期，如有需要请重新授权',
+  'pages.generator.githubAuth.required':
+    '生成前必须完成 GitHub 授权，请返回模板步骤并点击“获取 GitHub 权限”',
+  'pages.generator.githubAuth.consumedFailure':
+    '生成失败，GitHub 授权凭据已失效；重试前请重新授权',
   'pages.generator.success': '代码生成成功, 分支为: {branch}',
 };

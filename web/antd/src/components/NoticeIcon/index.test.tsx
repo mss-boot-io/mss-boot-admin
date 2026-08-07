@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import NoticeIconView from './index';
 import { getNoticeUnread, putNoticeReadId } from '@/services/admin/notice';
+import { clearTransientAuthToken, setTransientAuthToken } from '@/utils/authStorage';
 
 const ReactRuntime = require('react');
 
@@ -72,10 +73,11 @@ describe('NoticeIconView refresh behavior', () => {
     jest.useFakeTimers();
     jest.clearAllMocks();
     Reflect.deleteProperty(document, 'hidden');
-    (localStorage.getItem as jest.Mock).mockReturnValue('token');
+    setTransientAuthToken('oauth-admin-token');
   });
 
   afterEach(() => {
+    clearTransientAuthToken();
     Reflect.deleteProperty(document, 'hidden');
     jest.useRealTimers();
   });

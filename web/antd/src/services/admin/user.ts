@@ -2,18 +2,28 @@
 /* eslint-disable */
 import { request } from '@umijs/max';
 
-/** oauth2回调 oauth2回调 GET /admin/api/user/${param0}/callback */
-export async function getUserProviderCallback(
-  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.getUserProviderCallbackParams,
+/** Expire a stale HttpOnly Admin JWT cookie POST /admin/api/user/auth-cookie/clear */
+export async function postUserClearAuthCookie(options?: { [key: string]: any }) {
+  return request<void>('/admin/api/user/auth-cookie/clear', {
+    method: 'POST',
+    ...(options || {}),
+  });
+}
+
+/** Complete a server-owned OAuth2 callback POST /admin/api/user/${param0}/callback */
+export async function postUserProviderCallback(
+  params: API.postUserProviderCallbackParams,
+  body: API.OAuthCallbackRequest,
   options?: { [key: string]: any },
 ) {
   const { provider: param0, ...queryParams } = params;
-  return request<API.OauthToken>(`/admin/api/user/${param0}/callback`, {
-    method: 'GET',
-    params: {
-      ...queryParams,
+  return request<API.OAuthCallbackResponse>(`/admin/api/user/${param0}/callback`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
     },
+    params: { ...queryParams },
+    data: body,
     ...(options || {}),
   });
 }
@@ -47,18 +57,6 @@ export async function putUserUserIdPasswordReset(
       'Content-Type': 'application/json',
     },
     params: { ...queryParams },
-    data: body,
-    ...(options || {}),
-  });
-}
-
-/** 绑定第三方登录 绑定第三方登录 POST /admin/api/user/binding */
-export async function postUserBinding(body: API.UserLogin, options?: { [key: string]: any }) {
-  return request<any>('/admin/api/user/binding', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
     ...(options || {}),
   });

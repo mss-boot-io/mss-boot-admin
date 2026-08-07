@@ -50,5 +50,12 @@ export default {
   'pages.generator.email.tooltip': 'Commit email for code repository',
   'pages.generator.githubAuth': 'Get GitHub Access',
   'pages.generator.githubAuth.failed': 'Unable to start GitHub authorization. Please try again.',
+  'pages.generator.githubAuth.success': 'GitHub authorization is ready for this generation.',
+  'pages.generator.githubAuth.ready': 'GitHub access ready (authorize again)',
+  'pages.generator.githubAuth.expired': 'GitHub authorization expired. Authorize again if needed.',
+  'pages.generator.githubAuth.required':
+    'Authorize GitHub before generating. Return to the template step and select Get GitHub Access.',
+  'pages.generator.githubAuth.consumedFailure':
+    'Generation failed after GitHub authorization was consumed. Authorize again before retrying.',
   'pages.generator.success': 'Code generated successfully, branch: {branch}',
 };

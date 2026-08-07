@@ -1,6 +1,8 @@
 package pkg
 
 import (
+	"errors"
+	"fmt"
 	"io/fs"
 	"io/ioutil"
 	"log"
@@ -90,6 +92,21 @@ func parseTraverse(dir, subPath string, keys map[string]string, ignoreDirs, igno
 		keys = make(map[string]string)
 	}
 	return func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d == nil {
+			return errors.New("template entry is missing")
+		}
+		if d.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("template symlink is not allowed: %s", filepath.Base(path))
+		}
+		if d.IsDir() && strings.EqualFold(d.Name(), ".git") {
+			return filepath.SkipDir
+		}
+		if !d.IsDir() && !d.Type().IsRegular() {
+			return fmt.Errorf("template entry is not a regular file: %s", filepath.Base(path))
+		}
 		if d.IsDir() {
 			for i := range ignoreDirs {
 				if strings.Index(path, filepath.Join(dir, ignoreDirs[i])) == 0 ||
