@@ -1,7 +1,10 @@
 import { act, renderHook } from '@testing-library/react';
 import { history } from '@umijs/max';
 import { getMonitor } from '@/services/admin/monitor';
+import { clearTransientAuthToken, getAuthToken, setTransientAuthToken } from '@/utils/authStorage';
 import {
+  MONITOR_MAX_RETRY_INTERVAL_MS,
+  MONITOR_MAX_SAMPLE_INTERVAL_MS,
   MONITOR_POLL_INTERVAL_MS,
   normalizeMonitorHistory,
   useMonitorData,
@@ -56,6 +59,7 @@ describe('useMonitorData', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
+    clearTransientAuthToken();
     setDocumentVisibility('visible');
   });
 
@@ -214,6 +218,55 @@ describe('useMonitorData', () => {
     expect(mockGetMonitor).toHaveBeenCalledTimes(2);
   });
 
+  it('does not poll faster than the server sampling interval', async () => {
+    mockGetMonitor.mockResolvedValue({
+      sampleIntervalMs: 30_000,
+      history: [],
+    });
+
+    renderHook(() => useMonitorData());
+    await act(async () => {
+      await flushMicrotasks();
+    });
+    expect(mockGetMonitor).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      jest.advanceTimersByTime(29_999);
+      await flushMicrotasks();
+    });
+    expect(mockGetMonitor).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      jest.advanceTimersByTime(1);
+      await flushMicrotasks();
+    });
+    expect(mockGetMonitor).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores an out-of-range server sampling interval', async () => {
+    mockGetMonitor.mockResolvedValue({
+      sampleIntervalMs: MONITOR_MAX_SAMPLE_INTERVAL_MS + 1,
+      history: [],
+    });
+
+    renderHook(() => useMonitorData());
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(MONITOR_POLL_INTERVAL_MS - 1);
+      await flushMicrotasks();
+    });
+    expect(mockGetMonitor).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      jest.advanceTimersByTime(1);
+      await flushMicrotasks();
+    });
+    expect(mockGetMonitor).toHaveBeenCalledTimes(2);
+  });
+
   it('reports the initial 503 response as a not-ready state', async () => {
     mockGetMonitor.mockRejectedValue(
       Object.assign(new Error('service unavailable'), { response: { status: 503 } }),
@@ -228,6 +281,66 @@ describe('useMonitorData', () => {
     expect(result.current.notReady).toBe(true);
     expect(result.current.monitorData).toBeNull();
     expect(result.current.historyData).toEqual([]);
+  });
+
+  it('uses Retry-After while the sampler is not ready', async () => {
+    mockGetMonitor
+      .mockRejectedValueOnce(
+        Object.assign(new Error('service unavailable'), {
+          response: {
+            status: 503,
+            headers: { get: (name: string) => (name === 'Retry-After' ? '30' : null) },
+          },
+        }),
+      )
+      .mockResolvedValue({ history: [] });
+
+    renderHook(() => useMonitorData());
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(29_999);
+      await flushMicrotasks();
+    });
+    expect(mockGetMonitor).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      jest.advanceTimersByTime(1);
+      await flushMicrotasks();
+    });
+    expect(mockGetMonitor).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['zero', '0', MONITOR_POLL_INTERVAL_MS],
+    ['excessive', '999999', MONITOR_MAX_RETRY_INTERVAL_MS],
+  ] as const)('bounds a %s Retry-After value', async (_label, retryAfter, expectedDelay) => {
+    mockGetMonitor
+      .mockRejectedValueOnce(
+        Object.assign(new Error('service unavailable'), {
+          response: { status: 503, headers: { 'retry-after': retryAfter } },
+        }),
+      )
+      .mockResolvedValue({ history: [] });
+
+    renderHook(() => useMonitorData());
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(expectedDelay - 1);
+      await flushMicrotasks();
+    });
+    expect(mockGetMonitor).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      jest.advanceTimersByTime(1);
+      await flushMicrotasks();
+    });
+    expect(mockGetMonitor).toHaveBeenCalledTimes(2);
   });
 
   it('returns to the base polling interval when a network error is followed by 503', async () => {
@@ -320,6 +433,7 @@ describe('useMonitorData', () => {
     localStorage.setItem('token', 'expired');
     localStorage.setItem('token.expire', '1');
     localStorage.setItem('autoLogin', 'true');
+    setTransientAuthToken('expired-memory-token');
     mockGetMonitor.mockRejectedValue(
       Object.assign(new Error('unauthorized'), { response: { status: 401 } }),
     );
@@ -332,6 +446,7 @@ describe('useMonitorData', () => {
     expect(localStorage.removeItem).toHaveBeenCalledWith('token');
     expect(localStorage.removeItem).toHaveBeenCalledWith('token.expire');
     expect(localStorage.removeItem).toHaveBeenCalledWith('autoLogin');
+    expect(getAuthToken({ getItem: jest.fn(() => null) })).toBeNull();
     expect(mockHistoryPush).toHaveBeenCalledWith('/user/login');
     act(() => {
       jest.advanceTimersByTime(MONITOR_POLL_INTERVAL_MS * 20);
@@ -342,6 +457,7 @@ describe('useMonitorData', () => {
   it('does not clear the session, redirect, or report an error when a request settles after unmount', async () => {
     let rejectRequest: ((reason: unknown) => void) | undefined;
     const onError = jest.fn();
+    setTransientAuthToken('active-memory-token');
     mockGetMonitor.mockImplementationOnce(
       () =>
         new Promise((_resolve, reject) => {
@@ -359,6 +475,7 @@ describe('useMonitorData', () => {
     });
 
     expect(localStorage.removeItem).not.toHaveBeenCalled();
+    expect(getAuthToken({ getItem: jest.fn(() => null) })).toBe('active-memory-token');
     expect(mockHistoryPush).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
   });

@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -98,7 +99,7 @@ func TestRuntimeDeveloperToolsRemovalPreservesDataAndUnrelatedMetadata(t *testin
 	assertRemovalMenuMissing(t, db, "model")
 	assertRemovalMenuMissing(t, db, "model-component")
 	assertRemovalMenuMissing(t, db, "model-api")
-	assertRemovalMenuMissing(t, db, "orphan-model-api")
+	assertRemovalMenuState(t, db, "orphan-model-api", "", "/admin/api/models/*", "/admin/api/models/*")
 	assertRemovalMenuMissing(t, db, "generator")
 	assertRemovalMenuMissing(t, db, "virtual")
 	assertRemovalMenuMissing(t, db, "virtual-api")
@@ -201,6 +202,85 @@ func TestRuntimeDeveloperToolsRemovalReparentsUnrelatedDevelopChildren(t *testin
 	}
 	assertRemovalPolicyPresent(t, db, "role-relative", pkg.MenuAccessType.String(), "/develop/reports", "GET")
 	assertRemovalLanguageDefine(t, db, "en-US", "menu", "foundation.reports.control", "Manage reports", 1)
+}
+
+func TestRuntimeDeveloperToolsRemovalPreservesSamePathsOutsideDevelopTree(t *testing.T) {
+	db := setupRuntimeDeveloperToolsRemovalTest(t)
+	createRemovalMenu(t, db, "develop", "/develop", "", pkg.DirectoryAccessType, "GET", false)
+	createRemovalMenu(t, db, "built-in-model", "/model", "develop", pkg.MenuAccessType, "GET", false)
+	createRemovalMenu(t, db, "custom-root", "/custom", "", pkg.DirectoryAccessType, "GET", false)
+	createRemovalMenu(t, db, "custom-model", "/model", "custom-root", pkg.MenuAccessType, "GET", false)
+	createRemovalMenu(t, db, "custom-field", "/field", "custom-model", pkg.MenuAccessType, "GET", false)
+	createRemovalMenu(t, db, "custom-virtual", "/virtual", "custom-field", pkg.MenuAccessType, "GET", false)
+	createRemovalMenu(t, db, "custom-generator", "/generator", "custom-virtual", pkg.MenuAccessType, "GET", false)
+	createRemovalMenu(t, db, "custom-leaf", "/custom/leaf", "custom-generator", pkg.ComponentAccessType, "GET", false)
+
+	createRemovalPolicy(t, db, "role-develop", pkg.DirectoryAccessType.String(), "/develop", "GET")
+	createRemovalPolicy(t, db, "role-custom-model", pkg.MenuAccessType.String(), "/model", "GET")
+	createRemovalPolicy(t, db, "role-custom-field", pkg.MenuAccessType.String(), "/field", "GET")
+	createRemovalPolicy(t, db, "role-custom-virtual", pkg.MenuAccessType.String(), "/virtual", "GET")
+	createRemovalPolicy(t, db, "role-custom-generator", pkg.MenuAccessType.String(), "/generator", "GET")
+	createRemovalPolicy(t, db, "role-custom-leaf", pkg.ComponentAccessType.String(), "/custom/leaf", "GET")
+
+	report, err := removeRuntimeDeveloperToolsWithReport(db, runtimeDeveloperToolsRemovalTestVersion)
+	if err != nil {
+		t.Fatalf("remove runtime developer tools: %v", err)
+	}
+	if report.RemovedMenus != 2 {
+		t.Fatalf("removed menus = %d, want 2", report.RemovedMenus)
+	}
+
+	assertRemovalMenuMissing(t, db, "develop")
+	assertRemovalMenuMissing(t, db, "built-in-model")
+	assertRemovalMenuState(t, db, "custom-root", "", "/custom", "/custom")
+	assertRemovalMenuState(t, db, "custom-model", "custom-root", "/model", "/model")
+	assertRemovalMenuState(t, db, "custom-field", "custom-model", "/field", "/field")
+	assertRemovalMenuState(t, db, "custom-virtual", "custom-field", "/virtual", "/virtual")
+	assertRemovalMenuState(t, db, "custom-generator", "custom-virtual", "/generator", "/generator")
+	assertRemovalMenuState(t, db, "custom-leaf", "custom-generator", "/custom/leaf", "/custom/leaf")
+	assertRemovalPolicyMissing(t, db, "role-develop", pkg.DirectoryAccessType.String(), "/develop", "GET")
+	assertRemovalPolicyPresent(t, db, "role-custom-model", pkg.MenuAccessType.String(), "/model", "GET")
+	assertRemovalPolicyPresent(t, db, "role-custom-field", pkg.MenuAccessType.String(), "/field", "GET")
+	assertRemovalPolicyPresent(t, db, "role-custom-virtual", pkg.MenuAccessType.String(), "/virtual", "GET")
+	assertRemovalPolicyPresent(t, db, "role-custom-generator", pkg.MenuAccessType.String(), "/generator", "GET")
+	assertRemovalPolicyPresent(t, db, "role-custom-leaf", pkg.ComponentAccessType.String(), "/custom/leaf", "GET")
+}
+
+func TestRuntimeDeveloperToolsRemovalPreservesRetiredLookingSubtreeOfCustomDevelopChild(t *testing.T) {
+	db := setupRuntimeDeveloperToolsRemovalTest(t)
+	createRemovalMenu(t, db, "develop", "/develop", "", pkg.DirectoryAccessType, "GET", false)
+	createRemovalMenu(t, db, "built-in-generator", "/generator", "develop", pkg.MenuAccessType, "GET", false)
+	createRemovalMenu(t, db, "custom-tool", "/custom-tool", "develop", pkg.MenuAccessType, "GET", false)
+	createRemovalMenu(t, db, "custom-model", "/model", "custom-tool", pkg.MenuAccessType, "GET", false)
+	createRemovalMenu(t, db, "custom-child", "/custom/model-child", "custom-model", pkg.ComponentAccessType, "GET", false)
+
+	createRemovalPolicy(t, db, "role-develop", pkg.DirectoryAccessType.String(), "/develop", "GET")
+	createRemovalPolicy(t, db, "role-generator", pkg.MenuAccessType.String(), "/generator", "GET")
+	createRemovalPolicy(t, db, "role-custom-tool", pkg.MenuAccessType.String(), "/custom-tool", "GET")
+	createRemovalPolicy(t, db, "role-custom-model", pkg.MenuAccessType.String(), "/model", "GET")
+	createRemovalPolicy(t, db, "role-custom-child", pkg.ComponentAccessType.String(), "/custom/model-child", "GET")
+
+	report, err := removeRuntimeDeveloperToolsWithReport(db, runtimeDeveloperToolsRemovalTestVersion)
+	if err != nil {
+		t.Fatalf("remove runtime developer tools: %v", err)
+	}
+	if report.RemovedMenus != 2 {
+		t.Fatalf("removed menus = %d, want 2", report.RemovedMenus)
+	}
+	if report.ReparentedMenus != 1 {
+		t.Fatalf("reparented menus = %d, want 1", report.ReparentedMenus)
+	}
+
+	assertRemovalMenuMissing(t, db, "develop")
+	assertRemovalMenuMissing(t, db, "built-in-generator")
+	assertRemovalMenuState(t, db, "custom-tool", "", "/custom-tool", "/custom-tool")
+	assertRemovalMenuState(t, db, "custom-model", "custom-tool", "/model", "/model")
+	assertRemovalMenuState(t, db, "custom-child", "custom-model", "/custom/model-child", "/custom/model-child")
+	assertRemovalPolicyMissing(t, db, "role-develop", pkg.DirectoryAccessType.String(), "/develop", "GET")
+	assertRemovalPolicyMissing(t, db, "role-generator", pkg.MenuAccessType.String(), "/generator", "GET")
+	assertRemovalPolicyPresent(t, db, "role-custom-tool", pkg.MenuAccessType.String(), "/custom-tool", "GET")
+	assertRemovalPolicyPresent(t, db, "role-custom-model", pkg.MenuAccessType.String(), "/model", "GET")
+	assertRemovalPolicyPresent(t, db, "role-custom-child", pkg.ComponentAccessType.String(), "/custom/model-child", "GET")
 }
 
 func TestRuntimeDeveloperToolsRemovalCopiesRootDevelopChildLocale(t *testing.T) {
@@ -307,6 +387,55 @@ func TestRuntimeDeveloperToolsRemovalInvalidatesCachedLanguageSnapshot(t *testin
 		t.Fatalf("load invalidated language profile = (%v, %d, %v, %v)", loaded, generation, hit, err)
 	}
 	assertRemovalLanguageDefine(t, db, "en-US", "menu", "reports", "Reports", 1)
+}
+
+func TestRuntimeDeveloperToolsRemovalFailsOpenWhenLanguageCacheInvalidationFails(t *testing.T) {
+	db := setupRuntimeDeveloperToolsRemovalTest(t)
+	createRemovalMenu(t, db, "develop", "/develop", "", pkg.DirectoryAccessType, "GET", false)
+	createRemovalMenu(t, db, "model", "/model", "develop", pkg.MenuAccessType, "GET", false)
+	createRemovalMenu(t, db, "relative-tool", "reports", "develop", pkg.MenuAccessType, "GET", false)
+	if err := db.Model(&models.Menu{}).Where("id = ?", "relative-tool").
+		Update("name", "menu.develop.reports").Error; err != nil {
+		t.Fatalf("set relative menu name: %v", err)
+	}
+	createRemovalPolicy(t, db, "role-retired", pkg.MenuAccessType.String(), "/model", "GET")
+	createRemovalLanguage(t, db, "language-en", "en-US",
+		&models.LanguageDefine{ID: "old-base", Group: "menu", Key: "develop.reports", Value: "Reports"},
+	)
+
+	actualInvalidator := invalidateRuntimeToolsLanguageCache
+	invalidationCalls := 0
+	invalidateRuntimeToolsLanguageCache = func(context.Context, ...string) error {
+		invalidationCalls++
+		return errors.New("injected language cache invalidation failure")
+	}
+	t.Cleanup(func() { invalidateRuntimeToolsLanguageCache = actualInvalidator })
+
+	report, err := removeRuntimeDeveloperToolsWithReport(db, runtimeDeveloperToolsRemovalTestVersion)
+	if err != nil {
+		t.Fatalf("remove runtime developer tools with unavailable language cache: %v", err)
+	}
+	if report.RemovedMenus != 2 || report.ReparentedMenus != 1 || report.CopiedLocaleDefinitions != 1 {
+		t.Fatalf("unexpected removal report: %+v", report)
+	}
+	assertRemovalMenuMissing(t, db, "develop")
+	assertRemovalMenuMissing(t, db, "model")
+	assertRemovalMenuState(t, db, "relative-tool", "", "/develop/reports", "/develop/reports")
+	assertRemovalPolicyMissing(t, db, "role-retired", pkg.MenuAccessType.String(), "/model", "GET")
+	assertRemovalLanguageDefine(t, db, "en-US", "menu", "reports", "Reports", 1)
+	assertRuntimeToolsRemovalVersionCount(t, db, 1)
+
+	secondReport, err := removeRuntimeDeveloperToolsWithReport(db, runtimeDeveloperToolsRemovalTestVersion)
+	if err != nil {
+		t.Fatalf("rerun runtime developer tools removal with unavailable language cache: %v", err)
+	}
+	if secondReport != (runtimeDeveloperToolsRemovalReport{}) {
+		t.Fatalf("second removal report = %+v, want no changes", secondReport)
+	}
+	if invalidationCalls != 2 {
+		t.Fatalf("language cache invalidation calls = %d, want 2", invalidationCalls)
+	}
+	assertRuntimeToolsRemovalVersionCount(t, db, 1)
 }
 
 func TestRuntimeDeveloperToolsRemovalRollsBackOnInventoryFailure(t *testing.T) {

@@ -253,24 +253,10 @@ func (e *systemMonitorSampler) refreshSlow(ctx context.Context, now time.Time) {
 		e.slow.network.Dropout = counters[0].Dropout
 	}
 
-	connections, err := psnet.ConnectionsWithContext(ctx, "all")
+	connectionCount, err := sampleMonitorConnectionCount(ctx)
 	if err != nil {
 		slog.Warn("monitor connection sample failed", "err", err)
 		return
-	}
-	connectionCount := &dto.MonitorConnectionCount{}
-	for _, connection := range connections {
-		connectionCount.Total++
-		switch connection.Status {
-		case "ESTABLISHED":
-			connectionCount.Established++
-		case "LISTEN":
-			connectionCount.Listen++
-		case "TIME_WAIT":
-			connectionCount.TimeWait++
-		case "CLOSE_WAIT":
-			connectionCount.CloseWait++
-		}
 	}
 	e.slow.network.ConnectionCount = connectionCount
 }

@@ -83,7 +83,12 @@ func (e *Control) create(c *gin.Context) {
 		}
 	}
 	requestContext := c.Request.Context()
-	query := gormdb.DB.WithContext(requestContext)
+	// Keep a stable Gin context on the GORM statement. Existing model hooks use
+	// its request-scoped identity and statistics data, while the copied context
+	// is detached from Gin's pool and cannot be reset by a later request while
+	// database/sql is still observing it.
+	gormContext := c.Copy()
+	query := gormdb.DB.WithContext(gormContext)
 	if e.opts.Scope != nil {
 		query = query.Clauses(dbresolver.Use(m.TableName())).Scopes(e.opts.Scope(c, e.opts.Model))
 	}
@@ -145,7 +150,8 @@ func (e *Control) update(c *gin.Context) {
 		return
 	}
 	requestContext := c.Request.Context()
-	query := gormdb.DB.WithContext(context.WithValue(requestContext, "gorm:cache:tag", m.TableName())).Where(e.opts.Key, id)
+	gormContext := c.Copy()
+	query := gormdb.DB.WithContext(context.WithValue(gormContext, "gorm:cache:tag", m.TableName())).Where(e.opts.Key, id)
 	if e.opts.Scope != nil {
 		query = query.Clauses(dbresolver.Use(m.TableName())).Scopes(e.opts.Scope(c, m))
 	}
@@ -174,7 +180,7 @@ func (e *Control) update(c *gin.Context) {
 			return
 		}
 	}
-	query = gormdb.DB.WithContext(requestContext)
+	query = gormdb.DB.WithContext(gormContext)
 	if e.opts.Scope != nil {
 		query = query.Scopes(e.opts.Scope(c, m))
 	}

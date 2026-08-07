@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { history } from '@umijs/max';
 import { getMonitor } from '@/services/admin/monitor';
+import { clearAuthStorage } from '@/utils/authStorage';
 
 export const MONITOR_POLL_INTERVAL_MS = 5000;
 export const MONITOR_HISTORY_LIMIT = 120;
 export const MONITOR_MAX_RETRY_INTERVAL_MS = 60_000;
+export const MONITOR_MAX_SAMPLE_INTERVAL_MS = 5 * 60_000;
+
+const MONITOR_MIN_SERVER_DELAY_MS = 1000;
 
 export interface MonitorRuntimeInfo {
   goroutines?: number;
@@ -47,6 +51,57 @@ const finiteNumber = (value: unknown): number | undefined => {
 
 const boundedHistoryLimit = (value: number): number =>
   Math.min(MONITOR_HISTORY_LIMIT, Math.max(0, Math.trunc(value)));
+
+const validSampleInterval = (value: unknown): number | undefined => {
+  const interval = finiteNumber(value);
+  if (
+    interval === undefined ||
+    !Number.isSafeInteger(interval) ||
+    interval < MONITOR_MIN_SERVER_DELAY_MS ||
+    interval > MONITOR_MAX_SAMPLE_INTERVAL_MS
+  ) {
+    return undefined;
+  }
+  return interval;
+};
+
+const retryAfterHeader = (error: unknown): unknown => {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+  const candidate = error as { response?: { headers?: unknown }; headers?: unknown };
+  const headers = candidate.response?.headers ?? candidate.headers;
+  if (!headers || typeof headers !== 'object') {
+    return undefined;
+  }
+  const getHeader = (headers as { get?: (name: string) => unknown }).get;
+  if (typeof getHeader === 'function') {
+    return getHeader.call(headers, 'Retry-After');
+  }
+  const entry = Object.entries(headers).find(([name]) => name.toLowerCase() === 'retry-after');
+  return entry?.[1];
+};
+
+const retryAfterDelay = (error: unknown): number | undefined => {
+  const value = retryAfterHeader(error);
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  const raw = String(value).trim();
+  if (!raw) {
+    return undefined;
+  }
+
+  const seconds = Number(raw);
+  const unboundedDelay = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(raw) - Date.now();
+  if (!Number.isFinite(unboundedDelay) || unboundedDelay <= 0) {
+    return undefined;
+  }
+  return Math.min(
+    MONITOR_MAX_RETRY_INTERVAL_MS,
+    Math.max(MONITOR_MIN_SERVER_DELAY_MS, Math.ceil(unboundedDelay)),
+  );
+};
 
 /**
  * Converts the server-owned history into chart data. The response is authoritative:
@@ -126,6 +181,7 @@ export const useMonitorData = (options: UseMonitorDataOptions = {}) => {
   const mountedRef = useRef(true);
   const onErrorRef = useRef(onError);
   const terminalErrorRef = useRef(false);
+  const basePollDelayRef = useRef(pollInterval);
   const nextPollDelayRef = useRef(pollInterval);
 
   useEffect(() => {
@@ -133,6 +189,7 @@ export const useMonitorData = (options: UseMonitorDataOptions = {}) => {
   }, [onError]);
 
   useEffect(() => {
+    basePollDelayRef.current = pollInterval;
     nextPollDelayRef.current = pollInterval;
   }, [pollInterval]);
 
@@ -180,7 +237,9 @@ export const useMonitorData = (options: UseMonitorDataOptions = {}) => {
       setPermissionDenied(false);
       setError(null);
       terminalErrorRef.current = false;
-      nextPollDelayRef.current = pollInterval;
+      const sampleInterval = validSampleInterval(response.sampleIntervalMs);
+      basePollDelayRef.current = Math.max(pollInterval, sampleInterval ?? pollInterval);
+      nextPollDelayRef.current = basePollDelayRef.current;
     } catch (caughtError) {
       const nextError = toError(caughtError);
       const status = monitorErrorStatus(caughtError);
@@ -194,9 +253,7 @@ export const useMonitorData = (options: UseMonitorDataOptions = {}) => {
       const terminalError = status === 401 || status === 403;
       terminalErrorRef.current = terminalError;
       if (status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('token.expire');
-        localStorage.removeItem('autoLogin');
+        clearAuthStorage();
         history.push('/user/login');
       }
       setError(nextError);
@@ -209,13 +266,20 @@ export const useMonitorData = (options: UseMonitorDataOptions = {}) => {
         setServerStale(false);
       }
       if (status === 503) {
-        // Reaching the backend means connectivity recovered. A not-ready
-        // sampler should be checked again at the normal sampling cadence.
-        nextPollDelayRef.current = pollInterval;
+        // Reaching the backend means connectivity recovered. Respect its
+        // readiness hint without allowing malformed values to create a zero
+        // delay or an unbounded timer.
+        nextPollDelayRef.current = Math.max(
+          basePollDelayRef.current,
+          retryAfterDelay(caughtError) ?? pollInterval,
+        );
       } else if (!terminalError && pollInterval > 0) {
-        nextPollDelayRef.current = Math.min(
-          MONITOR_MAX_RETRY_INTERVAL_MS,
-          Math.max(pollInterval, nextPollDelayRef.current * 2),
+        nextPollDelayRef.current = Math.max(
+          basePollDelayRef.current,
+          Math.min(
+            MONITOR_MAX_RETRY_INTERVAL_MS,
+            Math.max(pollInterval, nextPollDelayRef.current * 2),
+          ),
         );
       }
       onErrorRef.current?.(nextError);
@@ -280,9 +344,9 @@ export const useMonitorData = (options: UseMonitorDataOptions = {}) => {
 
   const refresh = useCallback(() => {
     terminalErrorRef.current = false;
-    nextPollDelayRef.current = pollInterval;
+    nextPollDelayRef.current = basePollDelayRef.current;
     setPollGeneration((generation) => generation + 1);
-  }, [pollInterval]);
+  }, []);
 
   return {
     monitorData,

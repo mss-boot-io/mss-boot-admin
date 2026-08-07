@@ -21,6 +21,73 @@ type createCacheRecord struct {
 	Name string `json:"name"`
 }
 
+type requestContextRecord struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+func (*requestContextRecord) TableName() string {
+	return "request_context_records"
+}
+
+func (e *requestContextRecord) BeforeSave(tx *gorm.DB) error {
+	if e.Name != "requires-gin-context" {
+		return nil
+	}
+	if _, ok := tx.Statement.Context.(*gin.Context); !ok {
+		return fmt.Errorf("GORM statement context is %T, want *gin.Context", tx.Statement.Context)
+	}
+	return nil
+}
+
+func TestControlKeepsGinContextForModelHooks(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite db: %v", err)
+	}
+	if err := db.AutoMigrate(&requestContextRecord{}); err != nil {
+		t.Fatalf("auto migrate: %v", err)
+	}
+
+	previousDB := gormdb.DB
+	gormdb.DB = db
+	t.Cleanup(func() { gormdb.DB = previousDB })
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	control := NewControl(WithModel(&requestContextRecord{}), WithKey("id"))
+	router.POST("/records", control.Handler()...)
+	router.PUT("/records/:id", control.Handler()...)
+
+	createRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/records",
+		bytes.NewBufferString(`{"name":"requires-gin-context"}`),
+	)
+	createRequest.Header.Set("Content-Type", "application/json")
+	createResponse := httptest.NewRecorder()
+	router.ServeHTTP(createResponse, createRequest)
+	if createResponse.Code < http.StatusOK || createResponse.Code >= http.StatusMultipleChoices {
+		t.Fatalf("create response = %d: %s", createResponse.Code, createResponse.Body.String())
+	}
+
+	var created requestContextRecord
+	if err := db.First(&created).Error; err != nil {
+		t.Fatalf("load created record: %v", err)
+	}
+	updateRequest := httptest.NewRequest(
+		http.MethodPut,
+		fmt.Sprintf("/records/%d", created.ID),
+		bytes.NewBufferString(`{"name":"requires-gin-context"}`),
+	)
+	updateRequest.Header.Set("Content-Type", "application/json")
+	updateResponse := httptest.NewRecorder()
+	router.ServeHTTP(updateResponse, updateRequest)
+	if updateResponse.Code < http.StatusOK || updateResponse.Code >= http.StatusMultipleChoices {
+		t.Fatalf("update response = %d: %s", updateResponse.Code, updateResponse.Body.String())
+	}
+}
+
 func TestControlCreateRunsAfterCommitHookAfterTransaction(t *testing.T) {
 	dsn := filepath.Join(t.TempDir(), "after-commit.db")
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})

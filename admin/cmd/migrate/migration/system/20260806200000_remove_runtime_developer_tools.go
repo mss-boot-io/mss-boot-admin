@@ -162,6 +162,7 @@ func removeRuntimeDeveloperToolsWithReport(db *gorm.DB, version string) (runtime
 		for _, route := range retiredRuntimeRoutes {
 			addRetiredAPIPolicyTuples(policyTuples, route)
 		}
+		removePreservedMenuPolicyTuples(policyTuples, menus, retiredIDs)
 		for tuple := range policyTuples {
 			result := tx.Where(
 				"ptype = ? AND v1 = ? AND v2 = ? AND v3 = ?",
@@ -221,8 +222,11 @@ func removeRuntimeDeveloperToolsWithReport(db *gorm.DB, version string) (runtime
 	// concurrent Profile request can refill the old snapshot from the database
 	// between cache deletion and commit, leaving stale locale data indefinitely.
 	if err := invalidateRuntimeToolsLanguageCache(context.Background(), changedLanguages...); err != nil {
-		return report, markRuntimeToolsRemovalRetryable(db, version,
-			fmt.Errorf("remove runtime developer tools: invalidate language cache: %w", err))
+		slog.Warn("failed to invalidate language cache after removing retired Admin runtime developer tools",
+			"version", version,
+			"languages", changedLanguages,
+			"error", err,
+		)
 	}
 
 	if gormdb.Enforcer != nil {
@@ -244,9 +248,14 @@ func markRuntimeToolsRemovalRetryable(db *gorm.DB, version string, cause error) 
 
 func collectRetiredRuntimeMenuIDs(menus []models.Menu) map[string]bool {
 	retired := make(map[string]bool)
+	menusByID := make(map[string]models.Menu, len(menus))
+	for i := range menus {
+		menusByID[menus[i].ID] = menus[i]
+	}
 	for i := range menus {
 		menu := menus[i]
-		if isRetiredRuntimeProductPath(menu.Path) || isRetiredRuntimeRoute(menu.Path, menu.Method) {
+		parent, hasParent := menusByID[menu.ParentID]
+		if isRetiredRuntimeProductPath(menu.Path) && hasParent && parent.Path == "/develop" {
 			retired[menu.ID] = true
 		}
 	}
@@ -270,17 +279,6 @@ func isRetiredRuntimeProductPath(path string) bool {
 		strings.HasPrefix(path, "/field/") || path == "/virtual" || strings.HasPrefix(path, "/virtual/")
 }
 
-func isRetiredRuntimeRoute(path, method string) bool {
-	method = normalizedMethod(method)
-	for _, route := range retiredRuntimeRoutes {
-		if (path == route.Path || normalizeRouteInventoryPath(path) == normalizeRouteInventoryPath(route.Path)) &&
-			method == normalizedMethod(route.Method) {
-			return true
-		}
-	}
-	return false
-}
-
 func collectRetiredRuntimePolicyTuples(menus []models.Menu, retiredIDs map[string]bool) map[retiredPolicyTuple]struct{} {
 	tuples := make(map[retiredPolicyTuple]struct{})
 	for i := range menus {
@@ -292,6 +290,30 @@ func collectRetiredRuntimePolicyTuples(menus []models.Menu, retiredIDs map[strin
 		}
 	}
 	return tuples
+}
+
+func removePreservedMenuPolicyTuples(
+	tuples map[retiredPolicyTuple]struct{},
+	menus []models.Menu,
+	retiredIDs map[string]bool,
+) {
+	for i := range menus {
+		if retiredIDs[menus[i].ID] {
+			continue
+		}
+		delete(tuples, menuPolicyTuple(menus[i]))
+		if menus[i].Type != pkg.APIAccessType {
+			continue
+		}
+		preservedAPITuples := make(map[retiredPolicyTuple]struct{})
+		addRetiredAPIPolicyTuples(preservedAPITuples, retiredRuntimeRoute{
+			Path:   menus[i].Path,
+			Method: menus[i].Method,
+		})
+		for tuple := range preservedAPITuples {
+			delete(tuples, tuple)
+		}
+	}
 }
 
 func menuPolicyTuple(menu models.Menu) retiredPolicyTuple {

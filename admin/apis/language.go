@@ -113,7 +113,10 @@ func (e *Language) Profile(ctx *gin.Context) {
 	}
 	api.OK(resp)
 
-	if len(resp) > 0 && cacheReady {
+	// An empty profile is still a complete snapshot. Caching it prevents an
+	// empty or freshly initialized deployment from querying the language table
+	// on every request until the first definition is created.
+	if cacheReady {
 		if _, err := pkg.StoreLanguageProfileCache(
 			ctx,
 			center.GetCache(),

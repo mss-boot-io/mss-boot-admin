@@ -15,6 +15,10 @@ func TestRemovedAdminRuntimeToolsStayAbsent(t *testing.T) {
 		"admin/apis/model.go",
 		"admin/apis/field.go",
 		"admin/apis/template.go",
+		"admin/apis/oauth_credential.go",
+		"admin/apis/template_oauth_credential_test.go",
+		"admin/apis/template_repository.go",
+		"admin/apis/template_repository_test.go",
 		"admin/apis/github.go",
 		"admin/dto/model.go",
 		"admin/dto/field.go",
@@ -28,6 +32,9 @@ func TestRemovedAdminRuntimeToolsStayAbsent(t *testing.T) {
 		"admin/pkg/git.go",
 		"admin/pkg/gist.go",
 		"admin/pkg/github_client.go",
+		"admin/pkg/generator_security_test.go",
+		"admin/pkg/git_security_test.go",
+		"admin/pkg/oauthcredential",
 		"admin/pkg/file.go",
 		"admin/pkg/base_rule.go",
 		"admin/pkg/pack",
@@ -37,10 +44,13 @@ func TestRemovedAdminRuntimeToolsStayAbsent(t *testing.T) {
 		"web/antd/src/pages/Field",
 		"web/antd/src/pages/Virtual",
 		"web/antd/src/pages/Generator",
+		"web/antd/src/pages/Generator/credentialLifecycle.ts",
+		"web/antd/src/pages/Generator/credentialLifecycle.test.ts",
 		"web/antd/src/services/admin/model.ts",
 		"web/antd/src/services/admin/field.ts",
 		"web/antd/src/services/admin/virtual.ts",
 		"web/antd/src/services/admin/generator.ts",
+		"web/antd/src/services/admin/generatorCredential.test.ts",
 		"web/antd/src/util/addOption.tsx",
 		"docs/docs/vm",
 	}
@@ -90,6 +100,24 @@ func TestRemovedAdminRuntimeToolsStayOutOfActiveContracts(t *testing.T) {
 			prohibited: []string{"legacy.dynamic-schema", "admin/models/model.go", "mss-boot/virtual"},
 		},
 		{
+			path: "admin/apis/oauth.go",
+			prohibited: []string{
+				"oauthcredential", "IntentIntegration",
+			},
+		},
+		{
+			path: "admin/dto/github.go",
+			prohibited: []string{
+				"oneof=login binding integration",
+				`json:"credential,omitempty"`,
+				`json:"credentialExpiresAt,omitempty"`,
+			},
+		},
+		{
+			path:       "admin/pkg/oauthstate/store.go",
+			prohibited: []string{"IntentIntegration"},
+		},
+		{
 			path: "admin/router/security_contract.go",
 			prohibited: []string{
 				"/admin/api/:key", "/admin/api/models", "/admin/api/fields",
@@ -105,6 +133,48 @@ func TestRemovedAdminRuntimeToolsStayOutOfActiveContracts(t *testing.T) {
 		{
 			path:       "web/antd/src/locales/zh-CN/menu.ts",
 			prohibited: []string{"menu.develop", "menu.model", "menu.field", "menu.generator"},
+		},
+		{
+			path: "web/antd/src/pages/User/Callback/$provider.tsx",
+			prohibited: []string{
+				"intent === 'integration'", "result.intent === 'integration'",
+			},
+		},
+		{
+			path: "web/antd/src/services/admin/typings.d.ts",
+			prohibited: []string{
+				"'login' | 'binding' | 'integration'",
+				"credentialExpiresAt?: string",
+				"type TemplateGenerateReq",
+				"type TemplateGetBranchesResp",
+			},
+		},
+		{
+			path: "web/antd/src/utils/oauth.ts",
+			prohibited: []string{
+				"intent: 'integration'",
+				"response.intent === 'integration'",
+				"intent === 'integration'",
+			},
+		},
+		{
+			path: ".mss/features/admin-secret-lifecycle.yaml",
+			prohibited: []string{
+				"template-generator",
+				"generator-credential-handle",
+				"admin/pkg/oauthcredential",
+				"pages/Generator/credentialLifecycle",
+				"generatorCredential.test.ts",
+			},
+		},
+		{
+			path: "docs/docs/admin/token-oauth2-guide.md",
+			prohibited: []string{
+				"发起登录、绑定或集成授权",
+				"Generator 的公开仓库",
+				"真正执行 Generate 必须",
+				"credential store 使用",
+			},
 		},
 	}
 	for _, check := range checks {

@@ -69,6 +69,59 @@ func TestLanguageDeleteCacheInvalidatesSnapshotWithoutLoadedName(t *testing.T) {
 	}
 }
 
+func TestLanguageProfileCachesEmptySnapshot(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open SQLite database: %v", err)
+	}
+	if err := db.AutoMigrate(&models.Language{}); err != nil {
+		t.Fatalf("migrate language table: %v", err)
+	}
+	previousDB := gormdb.DB
+	gormdb.DB = db
+	t.Cleanup(func() { gormdb.DB = previousDB })
+
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	cache, err := cacheconfig.NewRedis(client, nil)
+	if err != nil {
+		t.Fatalf("create Redis cache: %v", err)
+	}
+	previousCache := center.GetCache()
+	center.SetCache(cache)
+	t.Cleanup(func() {
+		center.SetCache(previousCache)
+		_ = cache.Close()
+	})
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/admin/api/language/profile", nil)
+	(&Language{}).Profile(ctx)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("profile response = %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	loaded, generation, hit, err := pkg.LoadLanguageProfileCache(context.Background(), cache)
+	if err != nil || !hit || generation != 0 || len(loaded) != 0 {
+		t.Fatalf("load empty language profile = (%v, %d, %v, %v), want cached empty generation 0", loaded, generation, hit, err)
+	}
+
+	// Remove the source table so a second successful response can only come
+	// from the cached empty snapshot rather than another database query.
+	if err := db.Migrator().DropTable(&models.Language{}); err != nil {
+		t.Fatalf("drop language table: %v", err)
+	}
+	secondRecorder := httptest.NewRecorder()
+	secondContext, _ := gin.CreateTestContext(secondRecorder)
+	secondContext.Request = httptest.NewRequest(http.MethodGet, "/admin/api/language/profile", nil)
+	(&Language{}).Profile(secondContext)
+	if secondRecorder.Code != http.StatusOK {
+		t.Fatalf("cached profile response = %d: %s", secondRecorder.Code, secondRecorder.Body.String())
+	}
+}
+
 type languageCacheMutationRecord struct {
 	ID   uint   `json:"id" gorm:"primaryKey"`
 	Name string `json:"name"`
