@@ -15,6 +15,7 @@ import { fieldIntl } from '@/util/fieldIntl';
 import { flushSync } from 'react-dom';
 import AuthShell from '@/components/AuthShell';
 import { resolveSafeRedirect } from './redirect';
+import { clearTransientAuthToken } from '@/utils/authStorage';
 
 const Register: React.FC = () => {
   const intl = useIntl();
@@ -43,6 +44,7 @@ const Register: React.FC = () => {
         message.success(defaultLoginSuccessMessage);
       }
       //set token to localstorage
+      clearTransientAuthToken();
       localStorage.setItem('token', data.token);
       localStorage.setItem('token.expire', data.expire?.toString() || '');
       localStorage.setItem('autoLogin', autoLogin?.toString() || 'false');

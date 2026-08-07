@@ -25,6 +25,11 @@ import { LarkOutlined } from '@/components/MssBoot/icon';
 import { resolveSafeRedirect } from './redirect';
 import { getAppConfigsProfile } from '@/services/admin/appConfig';
 import { OAuthAuthorizationError, openOAuthAuthorization } from '@/utils/oauth';
+import {
+  clearNonPersistentAuthStorage,
+  clearTransientAuthToken,
+  setTransientAuthToken,
+} from '@/utils/authStorage';
 
 export type ActionIconsFormProps = {
   fetchUserInfo: () => Promise<unknown>;
@@ -39,6 +44,7 @@ export function persistLoginState(
     return undefined;
   }
 
+  clearTransientAuthToken();
   localStorage.setItem('token', data.token);
   localStorage.setItem('token.expire', data.expire?.toString() || '');
   localStorage.setItem('autoLogin', autoLogin?.toString() || 'false');
@@ -46,9 +52,12 @@ export function persistLoginState(
   return resolveSafeRedirect(currentHref);
 }
 
-export function hasAutoLoginSession(
-  storage: Pick<Storage, 'getItem'> = window.localStorage,
-) {
+export function activateOAuthLoginSession(credential: string, currentHref = window.location.href) {
+  setTransientAuthToken(credential);
+  return resolveSafeRedirect(currentHref);
+}
+
+export function hasAutoLoginSession(storage: Pick<Storage, 'getItem'> = window.localStorage) {
   return (
     storage.getItem('autoLogin') === 'true' &&
     Boolean(storage.getItem('token')) &&
@@ -71,17 +80,15 @@ const ActionIcons: React.FC<ActionIconsFormProps> = (props) => {
       if (result.intent !== 'login') {
         throw new Error('OAuth login returned the wrong intent');
       }
-      const redirect = persistLoginState(
-        { code: 200, token: result.token, expire: result.expire },
-        false,
-      );
+      const redirect = activateOAuthLoginSession(result.token);
       const userInfo = await props.fetchUserInfo();
-      if (!userInfo || !redirect) {
+      if (!userInfo) {
         throw new Error('OAuth login could not load the Admin session');
       }
       message.success(intl.formatMessage({ id: 'pages.login.success' }));
       history.push(redirect);
     } catch (error) {
+      clearTransientAuthToken();
       const messageID =
         error instanceof OAuthAuthorizationError &&
         (error.code === 'timeout' || error.code === 'closed')
@@ -169,6 +176,12 @@ const Login: React.FC = () => {
       backgroundSize: '100% 100%',
     };
   });
+
+  useEffect(() => {
+    // getInitialState only runs at bootstrap. Clear a document-scoped OAuth
+    // session again when browser history remounts the login route in this SPA.
+    clearNonPersistentAuthStorage();
+  }, []);
 
   useEffect(() => {
     if (initialState?.appConfig) {

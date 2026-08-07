@@ -178,9 +178,16 @@ or handlers.
   integration handles, which is a safe failure mode.
 - Users must save a newly created or rotated PAT before closing the dialog. A
   lost value must be rotated; support staff cannot recover it.
-- The primary Admin session JWT remains in `localStorage` for this atomic change.
-  Moving it to an HttpOnly cookie requires a separate CSRF, CORS, WebSocket, and
+- Existing password, email, mobile, registration, and refresh sessions retain
+  their `localStorage` compatibility behavior in this atomic change. An Admin
+  JWT returned by OAuth login is held only in current-document memory; reload
+  or tab closure therefore requires authentication again. Moving every session
+  flow to an HttpOnly cookie requires a separate CSRF, CORS, WebSocket, and
   end-to-end test migration.
+- The document-scoped OAuth session is intentionally not passed to the legacy
+  WebSocket `token` query parameter. HTTP notification polling remains
+  available; OAuth WebSocket support requires a separate one-time-ticket or
+  post-connect authentication design.
 - WebSocket URL authentication and repeatable display of application client
   secrets remain separately tracked P1 work; neither is silently treated as
   solved by this decision.

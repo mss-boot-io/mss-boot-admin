@@ -20,7 +20,7 @@ import HeaderSearch from './components/HeaderSearch';
 import { getAppConfigsProfile } from '@/services/admin/appConfig';
 import { getUserConfigsProfile } from '@/services/admin/userConfig';
 import { purgeLegacyOAuthStorage } from '@/utils/oauth';
-import { clearAuthStorage, clearNonPersistentAuthStorage } from '@/utils/authStorage';
+import { clearAuthStorage, clearNonPersistentAuthStorage, getAuthToken } from '@/utils/authStorage';
 
 const isDev = process.env.NODE_ENV === 'development';
 const loginPath = '/user/login';
@@ -76,7 +76,7 @@ export async function getInitialState(): Promise<{
   if (isLoginRoute) {
     clearNonPersistentAuthStorage();
   }
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
 
   if (!token || isLoginPage) {
     if (!isLoginPage) {
@@ -214,7 +214,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
     footerRender: () => <Footer />,
     onPageChange: () => {
       const { location } = history;
-      const token = localStorage.getItem('token');
+      const token = getAuthToken();
       if (!initialState?.currentUser && !token && location.pathname !== loginPath) {
         history.replace(getAuthRedirect(location));
       }

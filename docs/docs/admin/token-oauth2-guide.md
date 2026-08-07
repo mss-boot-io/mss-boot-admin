@@ -163,6 +163,7 @@ OAuth2User (OAuth2 绑定信息)
 - callback 在交换 code 或写数据库前原子消费 state，过期、重放或任一绑定不匹配均失败
 - callback 页面立即从地址栏清除 code/state，再以 POST body 提交；服务端响应只包含 Admin 会话、完成状态或 opaque credential handle
 - provider access/refresh token 不会序列化到浏览器、`localStorage`、URL、生成器 body、Admin JWT、本地密码、provider 错误日志或审计请求 JSON
+- OAuth 登录签发的 Admin JWT 只保存在当前页面内存，不进入 `localStorage` 或 `sessionStorage`；刷新或关闭页面后需要重新登录。该临时会话不会接入现有的 query-token WebSocket，通知轮询仍通过 `Authorization` 请求头工作；实时 WebSocket 后续应改为一次性 ticket 或连接后认证
 - 活动 GitHub/Lark 绑定通过数据库唯一的 `identity_key` 保证只有一个 Admin owner；MySQL 使用二进制排序规则，与 PostgreSQL/SQLite 一样精确区分 opaque ID 大小写；历史重复绑定会阻止迁移，必须先人工确认并处理
 - Generator 的公开仓库分支、目录和参数只读查询可不带 handle；只要提供了 handle，校验失败就会 fail closed
 - 真正执行 Generate 必须通过 `X-MSS-OAuth-Credential` 提交仅保存在 React 内存中的短时 handle；纯输入校验通过后，服务端在 clone/render/push 之前原子消费，此后的成功或失败都必须重新授权；前端对任何已发出的 Generate 请求都采用更保守的本地清除策略

@@ -8,6 +8,7 @@ import {
   purgeLegacyOAuthStorage,
   requireServerOAuthIntent,
 } from './oauth';
+import { getAuthToken, setTransientAuthToken } from './authStorage';
 
 jest.mock('@/services/admin/user', () => ({
   postUserClearAuthCookie: jest.fn(),
@@ -128,9 +129,11 @@ describe('openOAuthAuthorization', () => {
     localStorage.setItem('token', 'stale-admin-token');
     localStorage.setItem('token.expire', 'expired');
     localStorage.setItem('autoLogin', 'false');
+    setTransientAuthToken('stale-oauth-admin-token');
     jest.clearAllMocks();
 
     const pending = openOAuthAuthorization('github', 'login');
+    expect(getAuthToken({ getItem: jest.fn(() => null) })).toBeNull();
     expect(window.open).toHaveBeenCalledWith('about:blank', '_blank');
     expect(events).toEqual(['open']);
     await flushAuthorization();
@@ -170,9 +173,7 @@ describe('openOAuthAuthorization', () => {
       mockedAuthorize.mock.invocationCallOrder[0],
     );
     expect(popup.opener).toBeNull();
-    expect(popup.location.href).toBe(
-      'https://github.example/authorize?state=server-state',
-    );
+    expect(popup.location.href).toBe('https://github.example/authorize?state=server-state');
     expect(localStorage.setItem).not.toHaveBeenCalled();
     expect(localStorage.removeItem).toHaveBeenCalledWith('token');
     expect(localStorage.removeItem).toHaveBeenCalledWith('token.expire');
@@ -296,9 +297,7 @@ describe('OAuth guards', () => {
     expect(requireServerOAuthIntent({ intent: 'login' })).toBe('login');
     expect(requireServerOAuthIntent({ intent: 'binding' })).toBe('binding');
     expect(requireServerOAuthIntent({ intent: 'integration' })).toBe('integration');
-    expect(() =>
-      requireServerOAuthIntent({ intent: 'invalid' as API.OAuthIntent }),
-    ).toThrow();
+    expect(() => requireServerOAuthIntent({ intent: 'invalid' as API.OAuthIntent })).toThrow();
   });
 
   it('binds the channel name to the server attempt ID', () => {
