@@ -140,11 +140,10 @@ OAuth2User (OAuth2 绑定信息)
 
 | 路由                                 | 方法 | 功能                                      |
 | ------------------------------------ | ---- | ----------------------------------------- |
-| `/admin/api/user/oauth2/authorize`   | POST | 发起登录、绑定或集成授权                  |
+| `/admin/api/user/oauth2/authorize`   | POST | 发起登录或绑定授权                        |
 | `/admin/api/user/:provider/callback` | POST | 在 JSON body 中提交 code/state 并完成回调 |
 | `/admin/api/user/:provider/callback` | GET  | 历史入口，仅返回 `405 Method Not Allowed` |
 | `/admin/api/user/binding`            | POST | 历史浏览器 token 入口，仅返回 `405`       |
-| `/admin/api/github/get-login-url`    | GET  | 历史入口，仅返回 `405 Method Not Allowed` |
 | `/admin/api/user/auth-cookie/clear`  | POST | 登录前清除可能残留的 HttpOnly 认证 Cookie |
 
 ### 扩展新提供商
@@ -158,21 +157,24 @@ OAuth2User (OAuth2 绑定信息)
 ### 安全配置
 
 - 所有 OAuth2 通信必须使用 HTTPS
-- 前端只提交 provider 和 `login` / `binding` / `integration` 意图；授权 URL 与高熵 state 由服务端生成
+- 前端只提交 provider 和 `login` / `binding` 意图；授权 URL 与高熵 state 由服务端生成
 - state 仅保存哈希，默认 5 分钟有效，并绑定 provider、意图、浏览器 nonce；绑定流程还绑定当前用户和交互式会话
 - callback 在交换 code 或写数据库前原子消费 state，过期、重放或任一绑定不匹配均失败
-- callback 页面立即从地址栏清除 code/state，再以 POST body 提交；服务端响应只包含 Admin 会话、完成状态或 opaque credential handle
-- provider access/refresh token 不会序列化到浏览器、`localStorage`、URL、生成器 body、Admin JWT、本地密码、provider 错误日志或审计请求 JSON
+- callback 页面立即从地址栏清除 code/state，再以 POST body 提交；服务端响应只包含 Admin 会话或绑定完成状态
+- provider access/refresh token 不会序列化到浏览器、`localStorage`、URL、Admin JWT、本地密码、provider 错误日志或审计请求 JSON
 - OAuth 登录签发的 Admin JWT 只保存在当前页面内存，不进入 `localStorage` 或 `sessionStorage`；刷新或关闭页面后需要重新登录。该临时会话不会接入现有的 query-token WebSocket，通知轮询仍通过 `Authorization` 请求头工作；实时 WebSocket 后续应改为一次性 ticket 或连接后认证
 - 活动 GitHub/Lark 绑定通过数据库唯一的 `identity_key` 保证只有一个 Admin owner；MySQL 使用二进制排序规则，与 PostgreSQL/SQLite 一样精确区分 opaque ID 大小写；历史重复绑定会阻止迁移，必须先人工确认并处理
-- Generator 的公开仓库分支、目录和参数只读查询可不带 handle；只要提供了 handle，校验失败就会 fail closed
-- 真正执行 Generate 必须通过 `X-MSS-OAuth-Credential` 提交仅保存在 React 内存中的短时 handle；纯输入校验通过后，服务端在 clone/render/push 之前原子消费，此后的成功或失败都必须重新授权；前端对任何已发出的 Generate 请求都采用更保守的本地清除策略
-- 源和目标仓库只接受规范的 `https://github.com/<owner>/<repo>`；拒绝 userinfo、端口、query、fragment、额外或编码路径、递归 submodule、symlink、特殊文件、渲染路径穿越和 workspace 越界
-- 单进程开发可使用内存 state/credential store；生产多副本必须配置共享 Redis，不能降级为跨副本绕过校验
-- credential store 使用由 Admin 认证密钥域隔离派生的 AES-256-GCM 密钥加密 provider token，默认最长 15 分钟且受 provider 到期时间约束
+- 单进程开发可使用内存 state store；生产多副本必须配置共享 Redis，不能降级为跨副本绕过校验
 - 跨 Origin 部署必须让浏览器携带 credentials，并在 `cors.allowOrigins` 中配置精确的 HTTP(S) Origin；禁止 `*`、userinfo、路径、查询和 fragment
 - 开始新的 OAuth 登录前，前端清除旧的非持久会话 bearer，并尽力调用 `/user/auth-cookie/clear` 过期 HttpOnly Cookie，避免旧会话成为回调 principal
-- 生产环境必须注入唯一随机、至少 32 字节且不等于公开开发默认值的 `auth.key`；配置不合规时进程拒绝启动，轮换该密钥会使现有 Admin JWT 和短时集成 handle 失效
+- 生产环境必须注入唯一随机、至少 32 字节且不等于公开开发默认值的 `auth.key`；配置不合规时进程拒绝启动，轮换该密钥会使现有 Admin JWT 失效
+
+### 已移除的运行时代码生成器
+
+Admin 中面向浏览器的模板 Generator、相关 `/admin/api/template/*` 路由、OAuth `integration`
+意图和短时 credential handle 已全部移除，不再属于受支持的运行时能力，也不得通过恢复旧路由或
+provider token 流转重新引入。需要生成模块时，使用开发期的确定性命令
+`go run ./cmd/mss module generate modules/<name>/module.yaml`，并把生成结果纳入代码评审。
 
 ### 本地密码升级与验证
 
@@ -182,6 +184,15 @@ OAuth2User (OAuth2 绑定信息)
 - 用户完成密码重置后会写入新的 hash/salt，并清除 `local_password_disabled`，从而显式恢复本地密码登录
 - 上线前必须盘点受影响账户并验证密码重置或管理员辅助恢复路径；这是一项有意的兼容性收紧，不能通过恢复旧 hash 或 provider token 绕过
 - `.github/workflows/pat-migration-integration.yml` 在 MySQL 8.4 和 PostgreSQL 17 上运行凭据迁移集成契约，覆盖 PAT、OAuth 绑定/解绑历史、软删除、重复执行幂等、身份唯一性、迁移版本唯一性和密码重置恢复语义
+
+### 历史内置凭据升级
+
+旧版本曾把一组 GitHub OAuth 凭据写入内置 application YAML。当前前向迁移仅通过该历史 client ID 与 secret
+组合的 SHA-256 指纹识别旧内置记录：匹配时清空凭据，并把 scope 收窄为 `read:user`、`user:email`；已经轮换、
+自定义或非内置的配置不会被覆盖，迁移代码和日志也不会再次包含明文。
+
+该迁移只能清理数据库，不能让 Git 历史中的值失效。升级到生产前必须在 GitHub 侧 rotate/revoke，并同时用
+仓库 secret scanner 与 provider 审计确认旧值已不可用；在完成这一步之前不得把版本标记为生产就绪。
 
 ## 3. API 联调指南
 

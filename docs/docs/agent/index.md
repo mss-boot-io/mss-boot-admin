@@ -85,7 +85,10 @@ Agent 不能仅以“代码已写完”声明完成。它必须给出：
 | Agent Evals | `mss eval` | Beta |
 | 新应用 Blueprint | `mss new app` | Beta |
 | 三方 Foundation 升级 | `mss upgrade` | Beta |
-| 运行时动态模型 | 历史实现 | Legacy |
+| Admin 运行时动态模型/浏览器代码生成 | 已移除 | Removed |
+
+这里的“确定性模块生成”是开发期仓库命令：它读取受版本控制的规格并写入当前
+工作树，不是 Admin 页面或生产服务中的运行时代码生成。
 
 ## 快速入口
 

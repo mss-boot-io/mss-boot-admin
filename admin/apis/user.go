@@ -52,7 +52,6 @@ type User struct {
 	oauthCodeExchange    oauthCodeExchange
 	oauthLoginComplete   oauthLoginCompleter
 	oauthBindingComplete oauthBindingCompleter
-	oauthCredentials     oauthCredentialStore
 }
 
 // Other handler

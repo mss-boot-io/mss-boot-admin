@@ -13,10 +13,6 @@ import (
  * @Last Modified time: 2022/10/19 16:43:12
  */
 
-type OauthGetLoginURLReq struct {
-	State string `query:"state" form:"state" binding:"required"`
-}
-
 type OauthCallbackReq struct {
 	Provider pkg.LoginProvider `uri:"provider" json:"-" binding:"required"`
 	Code     string            `json:"code" binding:"required"`
@@ -25,7 +21,7 @@ type OauthCallbackReq struct {
 
 type OAuthAuthorizeRequest struct {
 	Provider pkg.LoginProvider `json:"provider" binding:"required"`
-	Intent   string            `json:"intent" binding:"required,oneof=login binding integration"`
+	Intent   string            `json:"intent" binding:"required,oneof=login binding"`
 }
 
 type OAuthAuthorizeResponse struct {
@@ -34,33 +30,15 @@ type OAuthAuthorizeResponse struct {
 	ExpiresAt    time.Time `json:"expiresAt"`
 }
 
-// OAuthCallbackResponse contains only Admin-owned or opaque values. Provider
-// access and refresh tokens are intentionally absent from this public contract.
+// OAuthCallbackResponse contains only Admin-owned values. Provider access and
+// refresh tokens are intentionally absent from this public contract.
 type OAuthCallbackResponse struct {
-	Code                int               `json:"code"`
-	Provider            pkg.LoginProvider `json:"provider"`
-	Intent              string            `json:"intent"`
-	AttemptID           string            `json:"attemptID"`
-	Token               string            `json:"token,omitempty"`
-	Expire              *time.Time        `json:"expire,omitempty"`
-	Credential          string            `json:"credential,omitempty"`
-	CredentialExpiresAt *time.Time        `json:"credentialExpiresAt,omitempty"`
-}
-
-type GithubControlReq struct {
-	//github密码或者token
-	Password string `json:"password" binding:"required"`
-}
-
-type GithubGetResp struct {
-	//github邮箱
-	Email string `json:"email" bson:"email"`
-	//已配置
-	Configured bool `json:"configured" bson:"configured"`
-	//创建时间
-	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
-	//更新时间
-	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
+	Code      int               `json:"code"`
+	Provider  pkg.LoginProvider `json:"provider"`
+	Intent    string            `json:"intent"`
+	AttemptID string            `json:"attemptID"`
+	Token     string            `json:"token,omitempty"`
+	Expire    *time.Time        `json:"expire,omitempty"`
 }
 
 type OauthToken struct {

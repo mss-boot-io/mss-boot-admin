@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 	"gorm.io/gorm"
 )
 
@@ -39,7 +39,11 @@ func init() {
 
 		slog.Info("log_cleaner task starting", "retention_db", retentionDaysDB, "retention_files", retentionDaysFiles, "log_dir", logDir)
 
-		if err := LogCleaner.CleanOldLogs(gormdb.DB, retentionDaysDB); err != nil {
+		db, ok := pkg.TaskDatabase(ctx)
+		if !ok {
+			return fmt.Errorf("log_cleaner task database is not available")
+		}
+		if err := LogCleaner.CleanOldLogs(db, retentionDaysDB); err != nil {
 			slog.Error("log_cleaner failed to clean database logs", "error", err)
 			return err
 		}

@@ -181,48 +181,27 @@ describe('openOAuthAuthorization', () => {
     expect(FakeBroadcastChannel.instances.every((channel) => channel.closed)).toBe(true);
   });
 
-  it('returns only the opaque integration credential handle', async () => {
-    const popup = createPopup();
-    window.open = jest.fn(() => popup);
-    mockedAuthorize.mockResolvedValue({
-      attemptID: 'attempt-integration',
-      authorizeURL: 'https://github.example/authorize',
-      expiresAt: new Date(Date.now() + 60_000).toISOString(),
-    });
-
-    const pending = openOAuthAuthorization('github', 'integration');
-    await flushAuthorization();
-    publishOAuthCallbackResult({
-      attemptID: 'attempt-integration',
-      code: 200,
-      provider: 'github',
-      intent: 'integration',
-      credential: 'opaque-handle',
-      credentialExpiresAt: '2026-08-06T12:05:00Z',
-    });
-
-    await expect(pending).resolves.toEqual({
-      attemptID: 'attempt-integration',
-      code: 200,
-      provider: 'github',
-      intent: 'integration',
-      credential: 'opaque-handle',
-      credentialExpiresAt: '2026-08-06T12:05:00Z',
-    });
-    expect(JSON.stringify(FakeBroadcastChannel.instances[1].postMessage.mock.calls)).not.toContain(
-      'accessToken',
-    );
-  });
-
   it('rejects a callback that contains provider credential fields before broadcasting', () => {
     expect(() =>
       publishOAuthCallbackResult({
         attemptID: 'attempt-leak',
         code: 200,
         provider: 'github',
-        intent: 'integration',
-        credential: 'opaque-handle',
+        intent: 'binding',
         accessToken: 'provider-secret',
+      } as API.OAuthCallbackResponse),
+    ).toThrow(OAuthAuthorizationError);
+    expect(FakeBroadcastChannel.instances).toHaveLength(0);
+  });
+
+  it('rejects callback credential handles from the removed integration flow', () => {
+    expect(() =>
+      publishOAuthCallbackResult({
+        attemptID: 'attempt-removed-integration',
+        code: 200,
+        provider: 'github',
+        intent: 'binding',
+        credential: 'obsolete-credential-handle',
       } as API.OAuthCallbackResponse),
     ).toThrow(OAuthAuthorizationError);
     expect(FakeBroadcastChannel.instances).toHaveLength(0);
@@ -296,7 +275,7 @@ describe('OAuth guards', () => {
   it('uses only the server-returned callback intent', () => {
     expect(requireServerOAuthIntent({ intent: 'login' })).toBe('login');
     expect(requireServerOAuthIntent({ intent: 'binding' })).toBe('binding');
-    expect(requireServerOAuthIntent({ intent: 'integration' })).toBe('integration');
+    expect(() => requireServerOAuthIntent({ intent: 'integration' as API.OAuthIntent })).toThrow();
     expect(() => requireServerOAuthIntent({ intent: 'invalid' as API.OAuthIntent })).toThrow();
   });
 

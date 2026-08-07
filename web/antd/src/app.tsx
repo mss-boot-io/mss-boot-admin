@@ -11,7 +11,7 @@ import React from 'react';
 import { AvatarDropdown, AvatarName } from './components/RightContent/AvatarDropdown';
 import { getUserDisplayName } from './components/RightContent/userDisplayName';
 import { getUserUserInfo } from './services/admin/user';
-import { getMenuAuthorize } from './services/admin/menu';
+import { requestAuthorizedMenu } from './utils/requestAuthorizedMenu';
 import fixMenuItemIcon from './util/fixMenuItemIcon';
 import { MenuDataItem } from '@ant-design/pro-components';
 import { getCachedLanguages } from './services/admin/language';
@@ -188,10 +188,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
     title: initialState?.appConfig?.base?.websiteName || 'mss-boot-admin',
     menu: {
       locale: true,
-      request: async () => {
-        const menuData = await getMenuAuthorize();
-        return menuData;
-      },
+      request: requestAuthorizedMenu,
     },
     actionsRender: () => [
       <HeaderSearch key="search" placeholder="component.search.placeholder" options={undefined} />,

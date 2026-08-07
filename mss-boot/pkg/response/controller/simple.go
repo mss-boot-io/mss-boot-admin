@@ -105,6 +105,7 @@ func (e *Simple) getActionGorm(key string) response.Action {
 		gorm.WithAfterGet(e.options.afterGet),
 		gorm.WithBeforeCreate(e.options.beforeCreate),
 		gorm.WithAfterCreate(e.options.afterCreate),
+		gorm.WithAfterCommitCreate(e.options.afterCommitCreate),
 		gorm.WithBeforeUpdate(e.options.beforeUpdate),
 		gorm.WithAfterUpdate(e.options.afterUpdate),
 		gorm.WithBeforeDelete(e.options.beforeDelete),

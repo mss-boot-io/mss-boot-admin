@@ -43,6 +43,7 @@ type Config struct {
 	Listen       *frameworkconfig.Listen  `yaml:"listen" json:"listen"`
 	Database     gormdb.Database          `yaml:"database" json:"database"`
 	Application  Application              `yaml:"application" json:"application"`
+	Monitor      Monitor                  `yaml:"monitor" json:"monitor"`
 	Task         Task                     `yaml:"task" json:"task"`
 	Pyroscope    Pyroscope                `yaml:"pyroscope" json:"pyroscope"`
 	Cache        *frameworkconfig.Cache   `yaml:"cache" json:"cache"`
@@ -53,8 +54,10 @@ type Config struct {
 	Clusters     Clusters                 `yaml:"clusters" json:"clusters"`
 	Notification Notification             `yaml:"notification" json:"notification"`
 
-	databaseMu     sync.Mutex
+	databaseMu     sync.RWMutex
 	databaseHandle *gormdb.Handle
+	databaseLeases map[*gormdb.Handle]*sync.WaitGroup
+	databaseReload sync.Mutex
 }
 
 type SecretConfig struct {
@@ -83,8 +86,8 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	e.databaseMu.Lock()
-	defer e.databaseMu.Unlock()
+	e.databaseReload.Lock()
+	defer e.databaseReload.Unlock()
 
 	secretConfig := &SecretConfig{}
 	opts = append(opts, source.WithPrefixHook(secretConfig))
@@ -158,11 +161,10 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 		e.Clusters.Init()
 	}
 
-	oldHandle := e.databaseHandle
-	e.databaseHandle = newHandle
+	oldHandle, oldLeases := e.swapDatabaseHandle(newHandle)
 	committed = true
 	if oldHandle != nil && oldHandle != newHandle {
-		if closeErr := oldHandle.Close(); closeErr != nil {
+		if closeErr := e.retireDatabaseHandle(oldHandle, oldLeases); closeErr != nil {
 			return fmt.Errorf("close previous application database: %w", closeErr)
 		}
 	}
@@ -171,25 +173,84 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 
 // DatabaseHandle returns the database Handle owned by this Config.
 func (e *Config) DatabaseHandle() *gormdb.Handle {
-	e.databaseMu.Lock()
-	defer e.databaseMu.Unlock()
+	e.databaseMu.RLock()
+	defer e.databaseMu.RUnlock()
 	return e.databaseHandle
+}
+
+// WithDatabase leases the currently published GORM handle for one bounded
+// operation. Configuration reload publishes the replacement for new leases,
+// then waits for operations using the previous handle before closing its pool.
+// Callers must not retain the leased *gorm.DB after operation returns.
+func (e *Config) WithDatabase(operation func(*gorm.DB) error) error {
+	if operation == nil {
+		return errors.New("database operation is required")
+	}
+	e.databaseMu.Lock()
+	handle := e.databaseHandle
+	if handle == nil || handle.DB == nil {
+		e.databaseMu.Unlock()
+		return errors.New("application database handle is not initialized")
+	}
+	if e.databaseLeases == nil {
+		e.databaseLeases = make(map[*gormdb.Handle]*sync.WaitGroup)
+	}
+	leases := e.databaseLeases[handle]
+	if leases == nil {
+		leases = &sync.WaitGroup{}
+		e.databaseLeases[handle] = leases
+	}
+	leases.Add(1)
+	e.databaseMu.Unlock()
+	defer leases.Done()
+	return operation(handle.DB)
 }
 
 // Close releases the database Handle owned by this Config. It only clears the
 // legacy globals when the same Handle is still installed.
 func (e *Config) Close() error {
-	e.databaseMu.Lock()
-	handle := e.databaseHandle
-	e.databaseHandle = nil
+	e.databaseReload.Lock()
+	defer e.databaseReload.Unlock()
+	handle, leases := e.swapDatabaseHandle(nil)
 	if handle != nil {
 		gormdb.ClearDefault(handle)
 	}
-	e.databaseMu.Unlock()
 	if handle == nil {
 		return nil
 	}
-	return handle.Close()
+	return e.retireDatabaseHandle(handle, leases)
+}
+
+func (e *Config) swapDatabaseHandle(next *gormdb.Handle) (*gormdb.Handle, *sync.WaitGroup) {
+	e.databaseMu.Lock()
+	defer e.databaseMu.Unlock()
+	previous := e.databaseHandle
+	e.databaseHandle = next
+	if next != nil {
+		if e.databaseLeases == nil {
+			e.databaseLeases = make(map[*gormdb.Handle]*sync.WaitGroup)
+		}
+		if e.databaseLeases[next] == nil {
+			e.databaseLeases[next] = &sync.WaitGroup{}
+		}
+	}
+	return previous, e.databaseLeases[previous]
+}
+
+func (e *Config) retireDatabaseHandle(handle *gormdb.Handle, leases *sync.WaitGroup) error {
+	if handle == nil {
+		return nil
+	}
+	if leases != nil {
+		leases.Wait()
+	}
+	err := handle.Close()
+	e.databaseMu.Lock()
+	if e.databaseHandle != handle {
+		delete(e.databaseLeases, handle)
+	}
+	e.databaseMu.Unlock()
+	return err
 }
 
 func warnQueryCacheDuration(cacheConfig *frameworkconfig.Cache) {
@@ -255,8 +316,8 @@ func (e *Config) reloadDatabase(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	e.databaseMu.Lock()
-	defer e.databaseMu.Unlock()
+	e.databaseReload.Lock()
+	defer e.databaseReload.Unlock()
 
 	newHandle, err := e.Database.Open(ctx)
 	if err != nil {
@@ -269,11 +330,10 @@ func (e *Config) reloadDatabase(ctx context.Context) error {
 		}
 	}
 
-	oldHandle := e.databaseHandle
 	gormdb.InstallDefault(newHandle)
-	e.databaseHandle = newHandle
+	oldHandle, oldLeases := e.swapDatabaseHandle(newHandle)
 	if oldHandle != nil && oldHandle != newHandle {
-		if err := oldHandle.Close(); err != nil {
+		if err := e.retireDatabaseHandle(oldHandle, oldLeases); err != nil {
 			return fmt.Errorf("close replaced database handle: %w", err)
 		}
 	}

@@ -62,9 +62,9 @@ describe('OAuth callback page', () => {
       attemptID: 'attempt-callback',
       code: 200,
       provider: 'github',
-      intent: 'integration',
-      credential: 'opaque-handle',
-      credentialExpiresAt: '2026-08-06T12:05:00Z',
+      intent: 'login',
+      token: 'admin-session-token',
+      expire: '2026-08-06T12:05:00Z',
     };
     mockedCallback.mockResolvedValue(response);
 

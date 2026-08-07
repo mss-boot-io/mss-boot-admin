@@ -253,7 +253,9 @@ curl http://localhost:8080/admin/api/audit-logs/operation \
 
 ### 任务调度
 
-- [ ] `task.enable=true` 时任务调度器启动
+- [ ] task server 始终随服务启动，`task.enable=true` 时额外加载持久化用户任务
+- [ ] `task.enable=false` 时监控采样与会话清理仍运行
+- [ ] 内置系统作业不出现在 `mss_boot_tasks`/TaskRun，且不能被用户任务 CRUD 修改
 - [ ] 日志清理任务 `checked_at` 持续更新
 - [ ] `log_cleaner` 任务可执行
 

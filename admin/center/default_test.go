@@ -20,7 +20,6 @@ func TestDefaultCenterSettersAndGetters(t *testing.T) {
 	center.SetVerify(nil)
 	center.SetConfig(nil)
 	center.SetCustomConfig(nil)
-	center.SetVirtualModel(nil)
 	center.SetServerManager(manager)
 	center.SetRouter(router)
 	center.SetAppConfig(nil)
@@ -37,7 +36,7 @@ func TestDefaultCenterSettersAndGetters(t *testing.T) {
 	if center.GetNotice() != nil || center.GetTenant() != nil || center.GetVerify() != nil {
 		t.Fatal("nil composition dependencies were not preserved")
 	}
-	if center.GetConfig() != nil || center.GetCustomConfig() != nil || center.GetVirtualModel() != nil {
+	if center.GetConfig() != nil || center.GetCustomConfig() != nil {
 		t.Fatal("nil configuration dependencies were not preserved")
 	}
 	if center.GetServerManager() != manager || center.GetRouter() != router {
@@ -71,7 +70,6 @@ func TestGlobalCenterAccessorsUseCurrentDefault(t *testing.T) {
 	}
 	SetConfig(nil)
 	SetCustomConfig(nil)
-	SetVirtualModel(nil)
 	SetServerManager(manager)
 	SetRouter(router)
 	SetAppConfig(nil)
@@ -88,7 +86,7 @@ func TestGlobalCenterAccessorsUseCurrentDefault(t *testing.T) {
 	if GetNotice() != nil || GetTenant() != nil || GetUser() != nil {
 		t.Fatal("unexpected global identity dependencies")
 	}
-	if GetConfig() != nil || GetCustomConfig() != nil || GetVirtualModel() != nil {
+	if GetConfig() != nil || GetCustomConfig() != nil {
 		t.Fatal("unexpected global configuration dependencies")
 	}
 	if GetServerManager() != manager || GetRouter() != router || GetProfiler() != profiler {

@@ -10,7 +10,7 @@ English | [简体中文](./README.zh-CN.md)
 
 > `mss-boot-admin` is an Agent-native management-system development foundation. It combines a production-oriented Gin + React + Ant Design reference application with machine-readable project contracts, Feature and AdminModule specifications, deterministic full-stack generation, repository Skills, a project MCP server, reproducible setup, change-aware verification, Agent Evals, versioned application Blueprints, and conflict-aware downstream upgrades.
 
-> The runtime admin platform still provides identity, RBAC, organization, configuration, audit, notification, task, internationalization, storage, WebSocket, and observability capabilities. Historical runtime dynamic-model and virtual code-generation paths remain compatibility-only; new business modules use development-time specifications and compiled vertical modules.
+> The runtime admin platform still provides identity, RBAC, organization, configuration, audit, notification, task, internationalization, storage, WebSocket, and observability capabilities. Runtime dynamic models, virtual CRUD, and browser-facing code generation have been removed; new business modules use development-time specifications, the offline deterministic `cmd/mss` generator, and compiled vertical modules.
 
 ## Agent-native workflow
 

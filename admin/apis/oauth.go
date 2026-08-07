@@ -18,7 +18,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
-	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/oauthcredential"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/oauthstate"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
@@ -78,13 +77,6 @@ func (e *User) bindingCompleter() oauthBindingCompleter {
 	return completeOAuthBinding
 }
 
-func (e *User) credentialStore() (oauthCredentialStore, error) {
-	if e.oauthCredentials != nil {
-		return e.oauthCredentials, nil
-	}
-	return defaultOAuthCredentials()
-}
-
 // OAuthAuthorize issues a server-owned, browser-bound authorization attempt.
 // @Summary Start an OAuth2 authorization attempt
 // @Tags user
@@ -121,7 +113,7 @@ func (e *User) OAuthAuthorize(c *gin.Context) {
 			api.Err(http.StatusConflict)
 			return
 		}
-	case oauthstate.IntentBinding, oauthstate.IntentIntegration:
+	case oauthstate.IntentBinding:
 		if verify == nil || credentialFingerprint == "" {
 			api.Err(http.StatusUnauthorized)
 			return
@@ -199,7 +191,7 @@ func (e *User) oauthCallback(c *gin.Context) {
 			api.Err(http.StatusUnauthorized)
 			return
 		}
-	case oauthstate.IntentBinding, oauthstate.IntentIntegration:
+	case oauthstate.IntentBinding:
 		if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) ||
 			record.UserID == "" || record.UserID != verify.GetUserID() ||
 			credentialFingerprint == "" ||
@@ -246,31 +238,6 @@ func (e *User) oauthCallback(c *gin.Context) {
 			api.Err(http.StatusInternalServerError)
 			return
 		}
-	case oauthstate.IntentIntegration:
-		store, storeErr := e.credentialStore()
-		if storeErr != nil {
-			api.Log.Error("oauth credential store initialization failed")
-			api.Err(http.StatusServiceUnavailable)
-			return
-		}
-		credentialRecord := oauthcredential.Record{
-			Provider:              string(req.Provider),
-			Intent:                oauthcredential.IntentIntegration,
-			UserID:                record.UserID,
-			CredentialFingerprint: record.CredentialFingerprint,
-			AccessToken:           providerToken.AccessToken,
-		}
-		if providerToken.Expiry != nil {
-			credentialRecord.ExpiresAt = providerToken.Expiry.UTC()
-		}
-		handle, issued, issueErr := store.Issue(c, center.GetCache(), credentialRecord, oauthcredential.DefaultTTL)
-		if issueErr != nil {
-			api.Log.Error("oauth credential issue failed")
-			api.Err(http.StatusServiceUnavailable)
-			return
-		}
-		result.Credential = handle
-		result.CredentialExpiresAt = &issued.ExpiresAt
 	default:
 		api.Err(http.StatusUnprocessableEntity)
 		return

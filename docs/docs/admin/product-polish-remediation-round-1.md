@@ -22,6 +22,10 @@ keywords: [admin remediation checklist stability cleanup ui consistency]
 > **评估时间**：2026-04-03
 > **评估范围**：`mss-boot-admin`、`mss-boot-admin-antd`、`mss-boot-docs`
 
+> **状态更新（2026-08-06）**：本文保留首轮评估的历史证据。下文所有文件清单与问题状态
+> 均以 2026-04-03 的评估快照为准；Admin Generator、运行时动态模型、虚拟 CRUD 及其
+> 模板/Git 接口已经删除，相关路径只用于解释历史问题，不是当前文件、能力或待办入口。
+
 ## 优先级定义
 
 - **P0**：必须优先处理。涉及稳定性、鉴权、安全、关键流程正确性。
@@ -57,7 +61,8 @@ keywords: [admin remediation checklist stability cleanup ui consistency]
 
 - **文件**：
   - `mss-boot-admin-antd/src/components/NoticeIcon/index.tsx`
-  - `mss-boot-admin-antd/src/pages/Generator/index.tsx`
+- **历史项**：原 `src/pages/Generator/index.tsx` 已随 Admin 浏览器代码生成器移除，
+  该页面的轮询问题不再适用。
 - **问题**：`setInterval` 建立后无 cleanup。
 - **影响**：页面切换后可能残留轮询，带来性能和行为问题。
 - **建议**：补齐 `useEffect` 清理函数，统一轮询封装。
@@ -222,7 +227,7 @@ keywords: [admin remediation checklist stability cleanup ui consistency]
 - **文件示例**：
   - `mss-boot-admin/apis/user.go`
   - `mss-boot-admin/apis/menu.go`
-  - `mss-boot-admin/apis/model.go`
+  - 原 `mss-boot-admin/apis/model.go`（已随运行时动态模型移除）
   - `mss-boot-admin/models/task.go`
   - `mss-boot-admin/models/user.go`
 - **问题**：控制器与模型承载较多业务编排、外部 I/O、副作用。

@@ -4,8 +4,6 @@ import (
 	"errors"
 	"runtime"
 
-	adminPKG "github.com/mss-boot-io/mss-boot-admin/admin/pkg"
-
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 
@@ -76,12 +74,12 @@ task:
   enable: false
   spec: '0/30 * * * * ?'
 oauth2:
-  #mss-boot-io组织用于测试的github oauth2配置
-  clientID: 6f4b8f6b0eb0941896ee
-  clientSecret: 1542df33bbfa7dca64760f9469c7276bebdf23e4
+  # Configure GitHub OAuth credentials through a protected environment-specific override.
+  clientID: ''
+  clientSecret: ''
   scopes:
-    - user
-    - repo
+    - read:user
+    - user:email
   redirectURL: "http://localhost:8000/user/github-callback"
   endpoint:
     authURL: "https://github.com/login/oauth/authorize"
@@ -95,63 +93,6 @@ oauth2:
 		err = tx.Table(systemConfig.TableName()).Where("id = ?", systemConfig.ID).Updates(map[string]interface{}{
 			"built_in": true,
 		}).Error
-		if err != nil {
-			return err
-		}
-
-		m := &models.Model{
-			Name:        "demo",
-			Description: "demo",
-			Table:       "mss_boot_demo",
-			Path:        "demo",
-			Auth:        true,
-			MultiTenant: false,
-		}
-		err = tx.Create(m).Error
-		if err != nil {
-			return err
-		}
-
-		cs := []models.Field{
-			{
-				ModelID:    m.ID,
-				Name:       "id",
-				Label:      "ID",
-				Type:       "string",
-				Size:       64,
-				Sort:       100,
-				PrimaryKey: "true",
-				FieldFrontend: &models.FieldFrontend{
-					HideInForm: true,
-				},
-			},
-			{
-				ModelID:     m.ID,
-				Name:        "name",
-				Label:       "名称",
-				Type:        "string",
-				Size:        255,
-				Sort:        99,
-				UniqueIndex: "name",
-				FieldFrontend: &models.FieldFrontend{
-					Rules: []adminPKG.BaseRule{
-						{
-							Required: true,
-						},
-					},
-				},
-			},
-			//{
-			//	ModelID:       m.ID,
-			//	Name:          "status",
-			//	Label:         "状态",
-			//	Type:          "string",
-			//	Size:          10,
-			//	Sort:          98,
-			//	ValueEnumName: "<optionID>",
-			//},
-		}
-		err = tx.Create(&cs).Error
 		if err != nil {
 			return err
 		}

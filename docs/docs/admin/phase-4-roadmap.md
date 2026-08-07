@@ -71,11 +71,11 @@ keywords: [admin roadmap phase4 planning enhancement]
 
 ### 背景
 
-当前监控数据仅 API 返回 JSON，无前端图表展示。
+历史版本只返回单次 API 数据；当前版本已提供后台有界历史和前端趋势图。
 
 ### 目标
 
-提供可视化监控仪表盘，实时展示系统状态。
+提供可视化监控仪表盘，展示当前实例的最近状态变化。
 
 ### 功能范围
 
@@ -85,13 +85,15 @@ keywords: [admin roadmap phase4 planning enhancement]
 | 内存使用率趋势 | 使用量历史曲线 | ✅ 已完成 |
 | 磁盘使用展示 | 各分区使用率 | ✅ 已完成 |
 | 运行时信息 | Goroutine、GC、堆内存 | ✅ 已完成 |
-| 实时刷新 | 可配置刷新间隔 | ✅ 已完成 |
+| 后台采样与刷新 | 默认 5 秒采样，浏览器可见时轮询缓存快照 | ✅ 已完成 |
 
 ### 实现说明
 
 已实现：
 - 后端监控接口：`apis/monitor.go` 返回 CPU/内存/磁盘/网络/运行时信息
-- 前端监控图表：`pages/Welcome.tsx` 使用 Ant Design Charts 展示趋势图
+- 后端历史：`monitor-sampler` 通过 task server 的内置系统作业通道维护最多 120 个实例内点
+- 调度边界：内置监控与会话清理始终随服务启动，不受 `task.enable`/Task CRUD 影响，也不写 Task/TaskRun
+- 前端监控图表：`MonitorTrend` 在 Welcome/Monitor 中使用 Ant Design Charts 和主题 token 展示趋势图
 - 数据精度：CPU/内存/磁盘使用率保留2位小数
 - 单位转换：磁盘容量显示为 GB
 

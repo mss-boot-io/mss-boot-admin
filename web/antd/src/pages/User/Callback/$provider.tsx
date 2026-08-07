@@ -69,6 +69,8 @@ const Index: React.FC = () => {
       return undefined;
     }
 
+    // Callback failures stay local to this popup so a binding failure cannot
+    // clear the still-valid Admin session in the opener.
     completeOAuthCallback(provider, code, state)
       .then(() => {
         if (disposed) {

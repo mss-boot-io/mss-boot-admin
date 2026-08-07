@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/task"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
@@ -31,6 +30,10 @@ import (
  */
 
 var TaskFuncMap = make(map[string]pkg.TaskFunc)
+
+var withTaskDatabase = func(operation func(*gorm.DB) error) error {
+	return config.Cfg.WithDatabase(operation)
+}
 
 type TaskProvider string
 
@@ -236,60 +239,76 @@ func (t *Task) AfterFind(_ *gorm.DB) (err error) {
 }
 
 func (t *Task) BeforeDelete(_ *gorm.DB) (err error) {
-	return task.RemoveJob(t.ID)
+	err = task.RemoveJob(t.ID)
+	if errors.Is(err, task.ErrUserSchedulesDisabled) {
+		return nil
+	}
+	return err
 }
 
 // Run task
 func (t *Task) Run() {
-	t.CheckedAt = sql.NullTime{
-		Time:  time.Now(),
-		Valid: true,
+	if err := withTaskDatabase(func(db *gorm.DB) error {
+		t.runWithDatabase(db)
+		return nil
+	}); err != nil {
+		slog.Error("task run acquire database lease error", slog.Any("err", err))
 	}
-	err := gormdb.DB.Model(&Task{}).
+}
+
+func (t *Task) runWithDatabase(db *gorm.DB) {
+	checkedAt := time.Now()
+	err := db.Model(&Task{}).
 		Where("id = ?", t.ID).
 		Where("provider in ?", []TaskProvider{TaskProviderDefault, TaskProviderFunc}).
-		Update("checked_at", t.CheckedAt.Time).Error
+		Update("checked_at", checkedAt).Error
 	if err != nil {
 		slog.Error("task run update task error", slog.Any("err", err))
 		return
 	}
 
-	gormdb.DB.Where("id = ?", t.ID).First(t)
-	if t.Status != enum.Enabled {
+	runTask := &Task{}
+	if err := db.Where("id = ?", t.ID).First(runTask).Error; err != nil {
+		slog.Error("task run load task error", slog.Any("err", err))
+		return
+	}
+	if runTask.Status != enum.Enabled {
 		return
 	}
 
 	taskRun := &TaskRun{
-		TaskID: t.ID,
-		Status: enum.Locked,
+		TaskID:   runTask.ID,
+		Status:   enum.Locked,
+		database: db,
 	}
 	var command string
-	if t.GetCommand() != nil && len(t.GetCommand()) > 0 {
-		command = t.GetCommand()[0]
+	if runTask.GetCommand() != nil && len(runTask.GetCommand()) > 0 {
+		command = runTask.GetCommand()[0]
 	}
 	taskO := &pkg.Task{
-		ID:       t.ID,
-		Name:     t.Name,
-		Endpoint: fmt.Sprintf("%s://%s", t.Protocol, t.Endpoint),
-		Method:   t.Method,
+		Context:  pkg.WithTaskDatabase(context.Background(), db),
+		ID:       runTask.ID,
+		Name:     runTask.Name,
+		Endpoint: fmt.Sprintf("%s://%s", runTask.Protocol, runTask.Endpoint),
+		Method:   runTask.Method,
 		Command:  command,
-		Body:     bytes.NewBuffer([]byte(t.Body)),
-		Args:     t.GetArgs(),
-		Python:   t.Python,
+		Body:     bytes.NewBuffer([]byte(runTask.Body)),
+		Args:     runTask.GetArgs(),
+		Python:   runTask.Python,
 		Writer:   taskRun,
 		Metadata: make(map[string]string),
-		Timeout:  time.Duration(t.Timeout) * time.Second,
+		Timeout:  time.Duration(runTask.Timeout) * time.Second,
 	}
-	if t.Provider == TaskProviderFunc {
-		taskO.Func, _ = TaskFuncMap[t.Method]
+	if runTask.Provider == TaskProviderFunc {
+		taskO.Func, _ = TaskFuncMap[runTask.Method]
 	}
-	if t.Metadata != "" {
-		err := json.Unmarshal([]byte(t.Metadata), &taskO.Metadata)
+	if runTask.Metadata != "" {
+		err := json.Unmarshal([]byte(runTask.Metadata), &taskO.Metadata)
 		if err != nil {
 			slog.Error("task metadata unmarshal error", slog.Any("err", err))
 		}
 	}
-	err = gormdb.DB.Create(taskRun).Error
+	err = db.Create(taskRun).Error
 	if err != nil {
 		slog.Error("task run create task run error", slog.Any("err", err))
 		return
@@ -300,116 +319,114 @@ func (t *Task) Run() {
 		slog.Error("task run error", slog.Any("err", err))
 		taskRun.Status = enum.Disabled
 	}
-	err = gormdb.DB.Updates(taskRun).Error
+	err = db.Updates(taskRun).Error
 	if err != nil {
 		slog.Error("task run update task run error", slog.Any("err", err))
 	}
 }
 
 func TaskOnce(id string) error {
-	t := &Task{}
-	err := gormdb.DB.Model(&Task{}).Where("id = ?", id).First(t).Error
-	if err != nil {
-		return err
-	}
-	t.Run()
-	return nil
+	return withTaskDatabase(func(db *gorm.DB) error {
+		t := &Task{}
+		if err := db.Model(&Task{}).Where("id = ?", id).First(t).Error; err != nil {
+			return err
+		}
+		t.runWithDatabase(db)
+		return nil
+	})
 }
 
 type TaskStorage struct {
-	DB      *gorm.DB
-	Spec    string
-	job     cron.Job
-	entryID cron.EntryID
+	// DB remains available for compatibility with callers that own a stable
+	// handle. The Admin server uses UseDatabase so configuration reloads cannot
+	// leave the scheduler bound to a closed pool.
+	DB          *gorm.DB
+	UseDatabase func(func(*gorm.DB) error) error
 }
 
 func (t *TaskStorage) Get(key string) (entryID cron.EntryID, spec string, job cron.Job, exist bool, err error) {
-	if key == "task" {
-		return t.entryID, t.Spec, t.job, true, nil
-	}
-	if t.DB == nil {
-		err = fmt.Errorf("db is nil")
-		return
-	}
-	tk := &Task{}
-	if err = t.DB.Where("id = ?", key).Not("provider = ?", TaskProviderK8S).First(tk).Error; err != nil {
-		return
-	}
-	return cron.EntryID(tk.EntryID), tk.Spec, tk, true, nil
+	err = t.withDatabase(func(db *gorm.DB) error {
+		tk := &Task{}
+		if queryErr := db.Where("id = ?", key).Not("provider = ?", TaskProviderK8S).First(tk).Error; queryErr != nil {
+			if errors.Is(queryErr, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return queryErr
+		}
+		entryID = cron.EntryID(tk.EntryID)
+		spec = tk.Spec
+		job = tk
+		exist = true
+		return nil
+	})
+	return
 }
 
 func (t *TaskStorage) Set(key string, entryID cron.EntryID, spec string, job cron.Job) error {
-	if key == "task" {
-		t.Spec = spec
-		t.job = job
-		return nil
-	}
-	if t.DB == nil {
-		return fmt.Errorf("db is nil")
-	}
-	tk := &Task{}
-	err := t.DB.Where("id = ?", key).Where("provider = ?", TaskProviderDefault).First(tk).Error
-	if err != nil {
-		return err
-	}
-	tk.EntryID = int(entryID)
-	tk.Spec = spec
-	return t.DB.Updates(tk).Error
+	return t.withDatabase(func(db *gorm.DB) error {
+		tk := &Task{}
+		if err := db.Where("id = ?", key).Where("provider = ?", TaskProviderDefault).First(tk).Error; err != nil {
+			return err
+		}
+		tk.EntryID = int(entryID)
+		tk.Spec = spec
+		return db.Updates(tk).Error
+	})
 }
 
 func (t *TaskStorage) Update(key string, entryID cron.EntryID) error {
-	if key == "task" {
-		t.entryID = entryID
-		return nil
-	}
-	if t.DB == nil {
-		return fmt.Errorf("db is nil")
-	}
-	tk := &Task{}
-	err := t.DB.Where("id = ?", key).Not("provider = ?", TaskProviderK8S).First(tk).Error
-	if err != nil {
-		return err
-	}
-	tk.EntryID = int(entryID)
-	return t.DB.Model(tk).Update("entry_id", entryID).Error
+	return t.withDatabase(func(db *gorm.DB) error {
+		tk := &Task{}
+		if err := db.Where("id = ?", key).Not("provider = ?", TaskProviderK8S).First(tk).Error; err != nil {
+			return err
+		}
+		tk.EntryID = int(entryID)
+		return db.Model(tk).Update("entry_id", entryID).Error
+	})
 }
 
 func (t *TaskStorage) Remove(key string) error {
-	if key == "task" {
-		return fmt.Errorf("task can not remove")
-	}
-	if t.DB == nil {
-		return fmt.Errorf("db is nil")
-	}
-	tk := &Task{}
-	err := t.DB.Where("id = ?", key).First(tk).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
+	return t.withDatabase(func(db *gorm.DB) error {
+		tk := &Task{}
+		err := db.Where("id = ?", key).First(tk).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
 		}
-		return err
-	}
-	tk.EntryID = 0
-	tk.CheckedAt = sql.NullTime{}
-	return t.DB.Model(tk).UpdateColumns(map[string]interface{}{
-		"entry_id":   0,
-		"checked_at": nil,
-	}).Error
+		tk.EntryID = 0
+		tk.CheckedAt = sql.NullTime{}
+		return db.Model(tk).UpdateColumns(map[string]interface{}{
+			"entry_id":   0,
+			"checked_at": nil,
+		}).Error
+	})
 }
 
 func (t *TaskStorage) ListKeys() ([]string, error) {
-	if t.DB == nil {
-		return nil, fmt.Errorf("db is nil")
-	}
 	var tasks []*Task
-	err := t.DB.Where("status = ?", enum.Enabled).Not("provider = ?", TaskProviderK8S).Find(&tasks).Error
-	if err != nil {
+	if err := t.withDatabase(func(db *gorm.DB) error {
+		return db.Where("status = ?", enum.Enabled).Not("provider = ?", TaskProviderK8S).Find(&tasks).Error
+	}); err != nil {
 		return nil, err
 	}
 	keys := make([]string, len(tasks))
 	for i := range tasks {
 		keys[i] = tasks[i].ID
 	}
-	keys = append(keys, "task")
 	return keys, nil
+}
+
+func (t *TaskStorage) withDatabase(operation func(*gorm.DB) error) error {
+	if t == nil {
+		return errors.New("task storage is nil")
+	}
+	if t.UseDatabase != nil {
+		return t.UseDatabase(operation)
+	}
+	if t.DB == nil {
+		return errors.New("task database is nil")
+	}
+	return operation(t.DB)
 }

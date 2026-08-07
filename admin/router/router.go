@@ -22,8 +22,6 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-const oauthCredentialCORSHeader = "X-MSS-OAuth-Credential"
-
 func InitRouter(r *gin.RouterGroup) {
 	v1 := r.Group("/api")
 	if config.Cfg.Application.Mode == config.ModeDev {
@@ -46,10 +44,6 @@ func InitRouter(r *gin.RouterGroup) {
 	} else {
 		configCors.AddAllowHeaders("Authorization")
 	}
-	// Generator OAuth credentials are sent via an opaque, short-lived handle.
-	// Always allow its header even when deployments replace the default CORS
-	// header list with an explicit one.
-	configCors.AddAllowHeaders(oauthCredentialCORSHeader)
 	if len(config.Cfg.CORS.ExposeHeaders) > 0 {
 		configCors.ExposeHeaders = append([]string(nil), config.Cfg.CORS.ExposeHeaders...)
 	}

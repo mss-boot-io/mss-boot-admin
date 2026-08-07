@@ -4,6 +4,10 @@ server:
   healthz: true
   readyz: true
   pprof: true
+monitor:
+  sampleInterval: 5s
+  sampleTimeout: 3s
+  historySize: 120
 application:
   mode: dev
   origin: http://127.0.0.1:8080
@@ -36,7 +40,6 @@ cors:
   allowHeaders:
     - Authorization
     - Content-Type
-    - X-MSS-OAuth-Credential
   maxAge: 12h
 logger:
   path: logs

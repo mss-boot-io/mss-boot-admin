@@ -5,6 +5,14 @@
 - Baseline: `main` at `60aff0feeea7706efc3cdc7c4b309559f4026f2c`
 - Specification: `.mss/features/admin-secret-lifecycle.yaml`
 - Scope: Admin PAT persistence and rotation, OAuth callback completion, and short-lived generator credentials
+- Superseded in part by: `2026-08-06-remove-runtime-developer-tools-and-sample-monitoring.md`
+
+> Supersession note: the PAT, OAuth login/binding, provider-identity,
+> local-password, logging, and Admin-session decisions below remain active. The
+> integration-credential-handle and browser Generator sections, their
+> consequences, and their rollout steps are retained only as historical context;
+> the later runtime-tools-removal decision deleted that product surface and
+> prohibits restoring its routes or OAuth `integration` intent.
 
 ## Context
 

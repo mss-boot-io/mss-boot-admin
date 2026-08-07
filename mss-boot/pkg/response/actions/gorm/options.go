@@ -24,27 +24,28 @@ type ActionHook func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
 type Option func(*Options)
 
 type Options struct {
-	Model           schema.Tabler
-	Scope           func(ctx *gin.Context, table schema.Tabler) func(db *gorm.DB) *gorm.DB
-	TreeField       string
-	Depth           int
-	Key             string
-	Search          response.Searcher
-	BeforeCreate    ActionHook
-	AfterCreate     ActionHook
-	BeforeUpdate    ActionHook
-	AfterUpdate     ActionHook
-	BeforeGet       ActionHook
-	AfterGet        ActionHook
-	BeforeDelete    ActionHook
-	AfterDelete     ActionHook
-	BeforeSearch    ActionHook
-	AfterSearch     ActionHook
-	handlers        gin.HandlersChain
-	controlHandlers gin.HandlersChain
-	getHandlers     gin.HandlersChain
-	deleteHandlers  gin.HandlersChain
-	searchHandlers  gin.HandlersChain
+	Model             schema.Tabler
+	Scope             func(ctx *gin.Context, table schema.Tabler) func(db *gorm.DB) *gorm.DB
+	TreeField         string
+	Depth             int
+	Key               string
+	Search            response.Searcher
+	BeforeCreate      ActionHook
+	AfterCreate       ActionHook
+	AfterCommitCreate ActionHook
+	BeforeUpdate      ActionHook
+	AfterUpdate       ActionHook
+	BeforeGet         ActionHook
+	AfterGet          ActionHook
+	BeforeDelete      ActionHook
+	AfterDelete       ActionHook
+	BeforeSearch      ActionHook
+	AfterSearch       ActionHook
+	handlers          gin.HandlersChain
+	controlHandlers   gin.HandlersChain
+	getHandlers       gin.HandlersChain
+	deleteHandlers    gin.HandlersChain
+	searchHandlers    gin.HandlersChain
 }
 
 func WithModel(m schema.Tabler) Option {
@@ -102,6 +103,15 @@ func WithBeforeCreate(hook ActionHook) Option {
 func WithAfterCreate(hook ActionHook) Option {
 	return func(o *Options) {
 		o.AfterCreate = hook
+	}
+}
+
+// WithAfterCommitCreate registers a hook that runs only after the create
+// transaction commits successfully. Use it for cache invalidation or other
+// side effects that must never become visible before the row is committed.
+func WithAfterCommitCreate(hook ActionHook) Option {
+	return func(o *Options) {
+		o.AfterCommitCreate = hook
 	}
 }
 

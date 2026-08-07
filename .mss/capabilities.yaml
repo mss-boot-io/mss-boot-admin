@@ -122,9 +122,14 @@ spec:
         - admin/models/task.go
         - admin/models/task_run.go
         - admin/apis/task.go
+        - admin/cmd/server/server.go
       frameworkPaths:
         - mss-boot/core/server/task
-      guidance: Keep management maintenance tasks here; new domain workflows should use explicit services.
+      guidance: >-
+        Keep user-managed Task CRUD and persistence separate from immutable process-local system jobs.
+        Always-on monitor and session-cleanup jobs are registered with the task server, ignore task.enable,
+        and never write Task or TaskRun rows; the user-task reconciler is added only when task.enable is true.
+        task.enable and task.spec are startup snapshots, so configuration changes require an Admin restart.
 
     - id: operations.notification
       displayName: Notices and Notification Channels
@@ -143,10 +148,19 @@ spec:
       owners: [backend, frontend]
       backendPaths:
         - admin/service/monitor.go
+        - admin/service/monitor_sampler.go
         - admin/apis/monitor.go
+        - admin/cmd/server/server.go
+      frameworkPaths:
+        - mss-boot/core/server/task
       frontendPaths:
+        - web/antd/src/hooks/useMonitorData.ts
+        - web/antd/src/components/MonitorTrend
         - web/antd/src/pages/Monitor
-      guidance: This is application-local monitoring, not a replacement for external observability.
+        - web/antd/src/pages/Welcome.tsx
+      guidance: >-
+        Sample through the task server's immutable built-in system-job lane and serve bounded instance-local history;
+        monitoring is not a user Task and is not a replacement for external observability.
 
     - id: integration.websocket
       displayName: WebSocket Events
@@ -181,22 +195,6 @@ spec:
         - web/antd/src/locales
         - web/antd/src/pages/Language
       guidance: Keep zh-CN and en-US user-facing keys synchronized.
-
-    - id: legacy.dynamic-schema
-      displayName: Runtime Dynamic Schema and Virtual Model
-      status: legacy
-      owners: [backend, frontend]
-      backendPaths:
-        - admin/models/model.go
-        - admin/models/field.go
-        - admin/apis/model.go
-        - admin/apis/field.go
-        - admin/mss-boot/virtual
-      frontendPaths:
-        - web/antd/src/pages/Model
-        - web/antd/src/pages/Field
-        - web/antd/src/pages/Virtual
-      guidance: Do not use for new production modules; prefer specification-driven development-time generation.
 
     - id: agent.project-contract
       displayName: Machine-Readable Project Contract

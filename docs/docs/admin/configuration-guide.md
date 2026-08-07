@@ -201,8 +201,12 @@ security:
   githubClientId: "your-github-client-id"
   githubClientSecret: "your-github-client-secret"
   githubRedirectURL: "https://your-domain.com/user/github/callback"
-  githubScope: "user:email,repo"
+  githubScope: "read:user,user:email"
 ```
+
+`repo` is not required for login and should not be granted. Add `read:org` only when
+`githubAllowGroup` must validate private organization membership; public organization
+membership does not require repository access.
 
 **创建 GitHub OAuth App**：
 1. 访问 https://github.com/settings/developers

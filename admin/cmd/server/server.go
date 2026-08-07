@@ -148,6 +148,13 @@ func setup(ctx context.Context) (err error) {
 	if customConfig := center.GetCustomConfig(); customConfig != nil {
 		customConfig.Init()
 	}
+	if err := service.DefaultMonitor.Configure(service.MonitorOptions{
+		SampleInterval: config.Cfg.Monitor.SampleInterval,
+		SampleTimeout:  config.Cfg.Monitor.SampleTimeout,
+		HistorySize:    config.Cfg.Monitor.HistorySize,
+	}); err != nil {
+		return fmt.Errorf("configure monitor sampler: %w", err)
+	}
 
 	center.SetAppConfig(&models.AppConfig{})
 	center.SetUserConfig(&models.UserConfig{})
@@ -184,23 +191,56 @@ func setup(ctx context.Context) (err error) {
 	if databaseHandle == nil || databaseHandle.DB == nil {
 		return fmt.Errorf("application database handle is not initialized")
 	}
-	if config.Cfg.Task.Enable {
-		runnable = append(runnable,
-			task.New(
-				task.WithStorage(&models.TaskStorage{DB: databaseHandle.DB}),
-				task.WithSchedule("task", config.Cfg.Task.Spec, &taskE{DB: databaseHandle.DB}),
-				task.WithSchedule("session-cleanup", "0 30 3 * * *", taskSessionCleanup{DB: databaseHandle.DB}),
-			),
-		)
+	userTasksEnabled := config.Cfg.Task.Enable
+	userTaskSpec := config.Cfg.Task.Spec
+	taskOptions := []task.Option{task.WithUserSchedulesEnabled(userTasksEnabled)}
+	if userTasksEnabled {
+		taskOptions = append(taskOptions, task.WithStorage(&models.TaskStorage{UseDatabase: config.Cfg.WithDatabase}))
 	}
+	for _, schedule := range systemTaskSchedules(
+		userTasksEnabled,
+		userTaskSpec,
+		service.DefaultMonitor,
+		config.Cfg.WithDatabase,
+	) {
+		taskOptions = append(taskOptions, task.WithSystemSchedule(schedule.key, schedule.spec, schedule.job))
+	}
+	runnable = append(runnable, task.New(taskOptions...))
 
 	if config.Cfg.Application.Mode == config.ModeDev &&
 		config.Cfg.Application.UI.Enabled {
 		runnable = append(runnable, config.Cfg.Application.UI.Init())
 	}
 
+	service.DefaultMonitor.Prime(ctx)
 	center.Default.Add(runnable...)
 	return nil
+}
+
+type systemTaskSchedule struct {
+	key  string
+	spec string
+	job  cron.Job
+}
+
+type databaseAccess func(func(*gorm.DB) error) error
+
+func systemTaskSchedules(
+	userTasksEnabled bool,
+	userTaskSpec string,
+	monitor *service.Monitor,
+	useDatabase databaseAccess,
+) []systemTaskSchedule {
+	schedules := []systemTaskSchedule{
+		{key: "monitor-sampler", spec: monitor.ScheduleSpec(), job: monitor},
+		{key: "session-cleanup", spec: "0 30 3 * * *", job: taskSessionCleanup{UseDatabase: useDatabase}},
+	}
+	if !userTasksEnabled {
+		return schedules
+	}
+	return append(schedules, systemTaskSchedule{
+		key: "task", spec: userTaskSpec, job: &taskE{UseDatabase: useDatabase},
+	})
 }
 
 func run() error {
@@ -217,18 +257,21 @@ func tips() {
 }
 
 type taskE struct {
-	DB *gorm.DB
+	UseDatabase databaseAccess
 }
 
 func (t *taskE) Run() {
-	if t == nil || t.DB == nil {
+	if t == nil || t.UseDatabase == nil {
 		slog.Error("task scheduler database is not initialized")
 		return
 	}
 	tasks := make([]*models.Task, 0)
-	err := t.DB.
-		Where("checked_at < ? or checked_at is null", time.Now().Add(-time.Minute)).
-		Where("status = ?", enum.Enabled).Find(&tasks).Error
+	err := t.UseDatabase(func(db *gorm.DB) error {
+		return db.
+			Where("checked_at < ? or checked_at is null", time.Now().Add(-time.Minute)).
+			Where("status = ?", enum.Enabled).
+			Find(&tasks).Error
+	})
 	if err != nil {
 		slog.Error("task run get tasks error", slog.Any("err", err))
 		return
@@ -243,15 +286,22 @@ func (t *taskE) Run() {
 		}
 	}
 
-	if err = t.DB.Not("provider = ?", models.TaskProviderK8S).Where("status = ?", enum.Enabled).Find(&tasks).Error; err != nil {
+	tasks = tasks[:0]
+	if err = t.UseDatabase(func(db *gorm.DB) error {
+		return db.Not("provider = ?", models.TaskProviderK8S).
+			Where("status = ?", enum.Enabled).
+			Find(&tasks).Error
+	}); err != nil {
 		slog.Error("task run get tasks error", slog.Any("err", err))
 		return
 	}
 	for i := range tasks {
 		if entry := task.Entry(cron.EntryID(tasks[i].EntryID)); entry.ID > 0 {
-			if err = t.DB.Model(&models.Task{}).
-				Where("id = ?", tasks[i].ID).
-				Update("checked_at", time.Now()).Error; err != nil {
+			if err = t.UseDatabase(func(db *gorm.DB) error {
+				return db.Model(&models.Task{}).
+					Where("id = ?", tasks[i].ID).
+					Update("checked_at", time.Now()).Error
+			}); err != nil {
 				slog.Error("task run update task error", slog.Any("err", err))
 			}
 		}
@@ -259,17 +309,22 @@ func (t *taskE) Run() {
 }
 
 type taskSessionCleanup struct {
-	DB *gorm.DB
+	UseDatabase databaseAccess
 }
 
 func (t taskSessionCleanup) Run() {
-	if t.DB == nil {
+	if t.UseDatabase == nil {
 		slog.Error("session cleanup database is not initialized")
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	n, err := service.Session.CleanupOlderThan(ctx, t.DB, 30*24*time.Hour)
+	var n int64
+	err := t.UseDatabase(func(db *gorm.DB) error {
+		var cleanupErr error
+		n, cleanupErr = service.Session.CleanupOlderThan(ctx, db, 30*24*time.Hour)
+		return cleanupErr
+	})
 	if err != nil {
 		slog.Error("session cleanup failed", "err", err)
 		return

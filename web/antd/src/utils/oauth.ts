@@ -44,11 +44,6 @@ export type OAuthAuthorizationResult =
     })
   | (OAuthResultBase & {
       intent: 'binding';
-    })
-  | (OAuthResultBase & {
-      intent: 'integration';
-      credential: string;
-      credentialExpiresAt?: string;
     });
 
 export function getOAuthChannelName(attemptID: string) {
@@ -68,11 +63,7 @@ export function purgeLegacyOAuthStorage(
 export function requireServerOAuthIntent(
   response: Pick<API.OAuthCallbackResponse, 'intent'>,
 ): API.OAuthIntent {
-  if (
-    response.intent === 'login' ||
-    response.intent === 'binding' ||
-    response.intent === 'integration'
-  ) {
+  if (response.intent === 'login' || response.intent === 'binding') {
     return response.intent;
   }
   throw new OAuthAuthorizationError(
@@ -81,10 +72,16 @@ export function requireServerOAuthIntent(
   );
 }
 
-function hasProviderCredentialFields(value: Record<string, unknown>) {
-  return ['accessToken', 'refreshToken', 'tokenType', 'expiry', 'refreshExpiry'].some(
-    (key) => key in value,
-  );
+function hasDisallowedCredentialFields(value: Record<string, unknown>) {
+  return [
+    'accessToken',
+    'refreshToken',
+    'tokenType',
+    'expiry',
+    'refreshExpiry',
+    'credential',
+    'credentialExpiresAt',
+  ].some((key) => key in value);
 }
 
 function toSafeOAuthResult(
@@ -99,7 +96,7 @@ function toSafeOAuthResult(
     throw new OAuthAuthorizationError('invalid-response', 'OAuth callback response is invalid');
   }
   const response = value as Record<string, unknown>;
-  if (hasProviderCredentialFields(response)) {
+  if (hasDisallowedCredentialFields(response)) {
     throw new OAuthAuthorizationError(
       'invalid-response',
       'OAuth callback exposed a provider credential',
@@ -134,19 +131,6 @@ function toSafeOAuthResult(
       intent,
       token: response.token,
       ...(typeof response.expire === 'string' ? { expire: response.expire } : {}),
-    };
-  }
-  if (intent === 'integration') {
-    if (typeof response.credential !== 'string' || !response.credential) {
-      throw new OAuthAuthorizationError('invalid-response', 'OAuth credential handle is missing');
-    }
-    return {
-      ...base,
-      intent,
-      credential: response.credential,
-      ...(typeof response.credentialExpiresAt === 'string'
-        ? { credentialExpiresAt: response.credentialExpiresAt }
-        : {}),
     };
   }
   return { ...base, intent };

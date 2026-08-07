@@ -15,7 +15,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
-	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/oauthcredential"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/oauthstate"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
@@ -92,7 +91,7 @@ func TestOAuthCallbackValidatesStateBeforeCodeExchange(t *testing.T) {
 			t.Fatalf("callback business code = %d, want %d", token.Code, http.StatusOK)
 		}
 		if token.Intent != string(oauthstate.IntentBinding) || token.Provider != pkg.LarkLoginProvider ||
-			token.Token != "" || token.Credential != "" {
+			token.Token != "" || token.Expire != nil {
 			t.Fatalf("binding callback metadata = %#v", token)
 		}
 	})
@@ -190,65 +189,6 @@ func TestOAuthCallbackValidatesStateBeforeCodeExchange(t *testing.T) {
 	})
 }
 
-func TestOAuthIntegrationCallbackReturnsOnlyOpaqueCredential(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	installOAuthTestVerifier(t)
-	exchanges := 0
-	user := newOAuthTestUser(&exchanges)
-	store := &oauthCallbackCredentialStore{handle: "opaque-handle"}
-	user.oauthCredentials = store
-	verifier := oauthTestUser("user-1", false)
-	state, cookie := issueOAuthState(
-		t,
-		user,
-		pkg.GithubLoginProvider,
-		oauthstate.IntentIntegration,
-		testOAuthCredential,
-		verifier,
-	)
-
-	callback := executeOAuthCallback(
-		user,
-		pkg.GithubLoginProvider,
-		state,
-		testOAuthCredential,
-		verifier,
-		cookie,
-	)
-	if callback.Code != http.StatusCreated || exchanges != 1 || store.issueCalls != 1 {
-		t.Fatalf(
-			"integration callback status=%d exchanges=%d issues=%d body=%s",
-			callback.Code,
-			exchanges,
-			store.issueCalls,
-			callback.Body.String(),
-		)
-	}
-	var result dto.OAuthCallbackResponse
-	if err := json.Unmarshal(callback.Body.Bytes(), &result); err != nil {
-		t.Fatalf("decode integration callback: %v", err)
-	}
-	if result.Code != http.StatusOK {
-		t.Fatalf("integration callback business code = %d, want %d", result.Code, http.StatusOK)
-	}
-	if result.Credential != store.handle || result.CredentialExpiresAt == nil ||
-		result.Token != "" || result.AttemptID != oauthstate.Digest(state) {
-		t.Fatalf("integration callback response = %#v", result)
-	}
-	if store.record.Provider != string(pkg.GithubLoginProvider) ||
-		store.record.Intent != oauthcredential.IntentIntegration ||
-		store.record.UserID != "user-1" ||
-		store.record.CredentialFingerprint != oauthstate.Digest(testOAuthCredential) ||
-		store.record.AccessToken != "provider-token-provider-code" {
-		t.Fatalf("stored integration record = %#v", store.record)
-	}
-	if bytes.Contains(callback.Body.Bytes(), []byte("provider-token")) ||
-		bytes.Contains(callback.Body.Bytes(), []byte("accessToken")) ||
-		bytes.Contains(callback.Body.Bytes(), []byte("refreshToken")) {
-		t.Fatalf("integration callback leaked provider credential: %s", callback.Body.String())
-	}
-}
-
 func TestOAuthCallbackBurnsStateOnProviderBrowserOrSessionMismatch(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	installOAuthTestVerifier(t)
@@ -337,6 +277,7 @@ func TestOAuthAuthorizeEnforcesIntentAuthenticationBoundary(t *testing.T) {
 		{name: "anonymous binding", intent: oauthstate.IntentBinding, wantStatus: http.StatusUnauthorized},
 		{name: "personal access token binding", intent: oauthstate.IntentBinding, credential: "pat", verifier: oauthTestUser("user-1", true), wantStatus: http.StatusForbidden},
 		{name: "residual authenticated login", intent: oauthstate.IntentLogin, credential: "session", verifier: oauthTestUser("user-1", false), wantStatus: http.StatusConflict},
+		{name: "retired integration", intent: oauthstate.Intent("integration"), credential: "session", verifier: oauthTestUser("user-1", false), wantStatus: http.StatusUnprocessableEntity},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -489,51 +430,6 @@ func oauthTestUser(userID string, personalAccessToken bool) *models.User {
 		user.PersonAccessToken = "pat"
 	}
 	return user
-}
-
-type oauthCallbackCredentialStore struct {
-	handle     string
-	record     oauthcredential.Record
-	issueCalls int
-}
-
-func (s *oauthCallbackCredentialStore) Issue(
-	_ context.Context,
-	_ redis.UniversalClient,
-	record oauthcredential.Record,
-	_ time.Duration,
-) (string, oauthcredential.Record, error) {
-	s.issueCalls++
-	s.record = record
-	if record.ExpiresAt.IsZero() {
-		record.ExpiresAt = time.Now().Add(oauthcredential.DefaultTTL).UTC()
-	}
-	s.record.ExpiresAt = record.ExpiresAt
-	return s.handle, record, nil
-}
-
-func (*oauthCallbackCredentialStore) Lookup(
-	context.Context,
-	redis.UniversalClient,
-	string,
-) (oauthcredential.Record, error) {
-	return oauthcredential.Record{}, oauthcredential.ErrNotFound
-}
-
-func (*oauthCallbackCredentialStore) Consume(
-	context.Context,
-	redis.UniversalClient,
-	string,
-) (oauthcredential.Record, error) {
-	return oauthcredential.Record{}, oauthcredential.ErrNotFound
-}
-
-func (*oauthCallbackCredentialStore) Delete(
-	context.Context,
-	redis.UniversalClient,
-	string,
-) error {
-	return nil
 }
 
 type expiredOAuthStateStore struct{}

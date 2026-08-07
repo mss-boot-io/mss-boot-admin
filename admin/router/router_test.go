@@ -3,7 +3,6 @@ package router
 import (
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -63,8 +62,6 @@ func TestInitRouterUsesExactCredentialedCORSOrigins(t *testing.T) {
 			"https://admin.mss-boot-io.top/",
 			"https://admin.mss-boot-io.top",
 		},
-		// An explicit deployment list must not accidentally remove the
-		// generator's required credential-handle header.
 		AllowHeaders: []string{"Authorization", "Content-Type"},
 	}
 
@@ -77,7 +74,7 @@ func TestInitRouterUsesExactCredentialedCORSOrigins(t *testing.T) {
 		req := httptest.NewRequest(http.MethodOptions, "/admin/api/user/oauth2/authorize", nil)
 		req.Header.Set("Origin", origin)
 		req.Header.Set("Access-Control-Request-Method", http.MethodPost)
-		req.Header.Set("Access-Control-Request-Headers", "authorization,content-type,x-mss-oauth-credential")
+		req.Header.Set("Access-Control-Request-Headers", "authorization,content-type")
 		engine.ServeHTTP(recorder, req)
 		return recorder
 	}
@@ -92,10 +89,6 @@ func TestInitRouterUsesExactCredentialedCORSOrigins(t *testing.T) {
 	if got := trusted.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
 		t.Fatalf("trusted allow credentials = %q", got)
 	}
-	if got := trusted.Header().Get("Access-Control-Allow-Headers"); !headerListContains(got, oauthCredentialCORSHeader) {
-		t.Fatalf("trusted allow headers = %q, want %q", got, oauthCredentialCORSHeader)
-	}
-
 	untrusted := request("https://attacker.example")
 	if got := untrusted.Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("untrusted allow origin = %q", got)
@@ -103,15 +96,6 @@ func TestInitRouterUsesExactCredentialedCORSOrigins(t *testing.T) {
 	if origins := trustedCORSOrigins([]string{"*", "file:///tmp", "https://ADMIN.example/"}); len(origins) != 1 || origins[0] != "https://admin.example" {
 		t.Fatalf("trusted origins = %#v", origins)
 	}
-}
-
-func headerListContains(value, want string) bool {
-	for _, item := range strings.Split(value, ",") {
-		if strings.EqualFold(strings.TrimSpace(item), want) {
-			return true
-		}
-	}
-	return false
 }
 
 func TestMakeRouterRunsRegisteredFunctionsInOrder(t *testing.T) {

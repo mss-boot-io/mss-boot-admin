@@ -84,6 +84,15 @@ describe('public language bundle cache', () => {
     expect(mockRequest).toHaveBeenCalledTimes(1);
   });
 
+  it('caches an empty public language list', async () => {
+    mockRequest.mockResolvedValue([]);
+
+    expect((await getCachedLanguages()).data).toEqual([]);
+    expect((await getCachedLanguages()).data).toEqual([]);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(storage.get(LANGUAGE_CACHE_KEY)!)).toMatchObject({ data: [] });
+  });
+
   it('invalidates the cache after every successful language mutation', async () => {
     mockRequest.mockResolvedValue({});
 
