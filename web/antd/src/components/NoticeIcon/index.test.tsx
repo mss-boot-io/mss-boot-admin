@@ -25,11 +25,27 @@ jest.mock('antd', () => {
 
 jest.mock('./NoticeIcon', () => {
   const ReactRuntime = require('react');
-  const MockNoticeIcon: any = ({ count, onClear, onItemClick, children }: any) =>
+  const MockNoticeIcon: any = ({
+    count,
+    onClear,
+    onItemClick,
+    onRetry,
+    loading,
+    loadingText,
+    errorText,
+    children,
+  }: any) =>
     ReactRuntime.createElement(
       'div',
       null,
       ReactRuntime.createElement('span', { 'data-testid': 'notice-count' }, count),
+      ReactRuntime.createElement(
+        'span',
+        { 'data-testid': 'notice-loading' },
+        loading ? loadingText : '',
+      ),
+      ReactRuntime.createElement('span', { 'data-testid': 'notice-error' }, errorText || ''),
+      ReactRuntime.createElement('button', { type: 'button', onClick: onRetry }, 'retry notices'),
       ReactRuntime.createElement(
         'button',
         { type: 'button', onClick: () => onItemClick?.({ id: 'notice-1' }) },
@@ -40,10 +56,11 @@ jest.mock('./NoticeIcon', () => {
         { type: 'button', onClick: () => onClear?.('Notifications', 'notification') },
         'clear',
       ),
-      children,
+      loading || errorText ? null : children,
     );
 
-  MockNoticeIcon.Tab = () => null;
+  MockNoticeIcon.Tab = ({ count, tabKey }: { count?: number; tabKey: string }) =>
+    ReactRuntime.createElement('span', { 'data-testid': `notice-tab-${tabKey}` }, count ?? 0);
 
   return { __esModule: true, default: MockNoticeIcon };
 });
@@ -149,5 +166,68 @@ describe('NoticeIconView refresh behavior', () => {
     });
 
     expect(mockGetNoticeUnread).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not burst extra requests during rapid visibility changes', async () => {
+    mockGetNoticeUnread.mockResolvedValue([]);
+
+    render(ReactRuntime.createElement(NoticeIconView));
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    for (let index = 0; index < 5; index += 1) {
+      act(() => {
+        setDocumentHidden(true);
+        setDocumentHidden(false);
+      });
+    }
+
+    expect(mockGetNoticeUnread).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders mail notices in a matching tab so the badge count stays explainable', async () => {
+    mockGetNoticeUnread.mockResolvedValue([{ id: 'mail-1', type: 'mail' }]);
+
+    render(ReactRuntime.createElement(NoticeIconView));
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    expect(screen.getByTestId('notice-count').textContent).toBe('1');
+    expect(screen.getByTestId('notice-tab-mail').textContent).toBe('1');
+  });
+
+  it('keeps empty tabs hidden while loading and exposes a retry after the initial request fails', async () => {
+    let rejectInitialRequest: ((reason?: unknown) => void) | undefined;
+    mockGetNoticeUnread
+      .mockImplementationOnce(
+        () =>
+          new Promise<API.Notice[]>((_resolve, reject) => {
+            rejectInitialRequest = reject;
+          }),
+      )
+      .mockResolvedValueOnce([]);
+
+    render(ReactRuntime.createElement(NoticeIconView));
+
+    expect(screen.getByTestId('notice-loading').textContent).toBe('Loading notifications…');
+    expect(screen.queryByTestId('notice-tab-notification')).toBeNull();
+
+    await act(async () => {
+      rejectInitialRequest?.(new Error('offline'));
+      await flushMicrotasks();
+    });
+
+    expect(screen.getByTestId('notice-error').textContent).toBe('Unable to load notifications');
+    expect(screen.queryByTestId('notice-tab-notification')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'retry notices' }));
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    expect(mockGetNoticeUnread).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('notice-tab-notification')).toBeTruthy();
   });
 });

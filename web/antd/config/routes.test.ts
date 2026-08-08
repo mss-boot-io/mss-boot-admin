@@ -1,6 +1,9 @@
 import routes from './routes';
 import { getMenuAuthorize } from '@/services/admin/menu';
-import { requestAuthorizedMenu } from '@/utils/requestAuthorizedMenu';
+import {
+  clearAuthorizedMenuRequestCache,
+  requestAuthorizedMenu,
+} from '@/utils/requestAuthorizedMenu';
 
 jest.mock('@/services/admin/menu', () => ({
   getMenuAuthorize: jest.fn(),
@@ -11,6 +14,7 @@ const mockGetMenuAuthorize = getMenuAuthorize as jest.Mock;
 type RouteNode = {
   path?: string;
   component?: string;
+  redirect?: string;
   access?: string;
   permission?: string;
   rootOnly?: boolean;
@@ -20,6 +24,11 @@ type RouteNode = {
 function flattenRoutes(nodes: RouteNode[]): RouteNode[] {
   return nodes.flatMap((node) => [node, ...flattenRoutes(node.routes ?? [])]);
 }
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  clearAuthorizedMenuRequestCache();
+});
 
 describe('static route inventory', () => {
   it('does not expose retired runtime developer tools', () => {
@@ -50,14 +59,31 @@ describe('static route inventory', () => {
   it('keeps normal product routes and the not-found fallback', () => {
     const paths = flattenRoutes(routes as RouteNode[]).map(({ path }) => path);
 
-    expect(paths).toEqual(expect.arrayContaining(['/welcome', '/users', '/security', '*']));
+    expect(paths).toEqual(
+      expect.arrayContaining(['/welcome', '/analysis', '/workplace', '/users', '/security', '*']),
+    );
+  });
+
+  it('uses workplace as the canonical dashboard route', () => {
+    const inventory = flattenRoutes(routes as RouteNode[]);
+    const route = (path: string) => inventory.find((node) => node.path === path);
+
+    expect(route('/workplace')).toMatchObject({
+      component: './Welcome',
+      access: 'canAccessRoute',
+      permission: '/welcome',
+    });
+    expect(route('/welcome')).toMatchObject({ redirect: '/workplace' });
+    expect(route('/analysis')).toMatchObject({ redirect: '/workplace' });
+    expect(route('/welcome')?.component).toBeUndefined();
+    expect(route('/analysis')?.component).toBeUndefined();
   });
 
   it('protects direct static routes with menu and component permission markers', () => {
     const inventory = flattenRoutes(routes as RouteNode[]);
     const route = (path: string) => inventory.find((node) => node.path === path);
 
-    expect(route('/welcome')).toMatchObject({
+    expect(route('/workplace')).toMatchObject({
       access: 'canAccessRoute',
       permission: '/welcome',
     });
@@ -132,7 +158,7 @@ describe('static route inventory', () => {
 describe('runtime authorized menu', () => {
   it('returns the backend menu tree unchanged so unrelated dynamic menus remain available', async () => {
     const menuTree = [
-      { path: '/welcome' },
+      { path: '/workplace' },
       { path: '/custom', children: [{ path: '/custom/report' }] },
     ];
     mockGetMenuAuthorize.mockResolvedValueOnce(menuTree);
@@ -183,7 +209,7 @@ describe('runtime authorized menu', () => {
         },
       }),
     ).resolves.toEqual([
-      { path: '/welcome', type: 'MENU' },
+      { path: '/workplace', type: 'MENU' },
       {
         path: '/custom',
         type: 'DIRECTORY',
@@ -191,5 +217,25 @@ describe('runtime authorized menu', () => {
       },
     ]);
     expect(menuTree[3].children).toHaveLength(1);
+  });
+
+  it('projects legacy dashboard menu aliases without mutating other metadata', async () => {
+    const menuTree = [
+      { path: '/welcome/?source=legacy', name: 'welcome', type: 'MENU', sort: 1 },
+      { path: '/analysis#overview', name: 'analysis', type: 'MENU', sort: 2 },
+      { path: '/custom/report', name: 'custom.report', type: 'MENU', sort: 3 },
+    ];
+    mockGetMenuAuthorize.mockResolvedValueOnce(menuTree);
+
+    await expect(requestAuthorizedMenu({ role: { root: true } }, 4)).resolves.toEqual([
+      { path: '/workplace', name: 'welcome', type: 'MENU', sort: 1 },
+      { path: '/workplace', name: 'analysis', type: 'MENU', sort: 2 },
+      { path: '/custom/report', name: 'custom.report', type: 'MENU', sort: 3 },
+    ]);
+    expect(menuTree.map((item) => item.path)).toEqual([
+      '/welcome/?source=legacy',
+      '/analysis#overview',
+      '/custom/report',
+    ]);
   });
 });

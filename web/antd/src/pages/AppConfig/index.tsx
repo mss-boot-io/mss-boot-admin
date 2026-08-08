@@ -1,12 +1,19 @@
 import Storage from '@/pages/AppConfig/components/storage';
+import { useResponsive } from '@/hooks/useResponsive';
 import { PageContainer } from '@ant-design/pro-components';
 import { useIntl, useSearchParams } from '@umijs/max';
-import { Tabs } from 'antd';
+import { Tabs, type TabsProps } from 'antd';
 import React from 'react';
 import Base from './components/base';
 import Security from './components/security';
 import Theme from '../../components/MssBoot/theme';
 import Email from '@/pages/AppConfig/components/email';
+
+const APP_CONFIG_TAB_KEYS = ['base', 'security', 'storage', 'email', 'theme'] as const;
+type AppConfigTabKey = (typeof APP_CONFIG_TAB_KEYS)[number];
+
+const resolveAppConfigTabKey = (key: string | null): AppConfigTabKey =>
+  APP_CONFIG_TAB_KEYS.includes(key as AppConfigTabKey) ? (key as AppConfigTabKey) : 'base';
 
 const Settings: React.FC = () => {
   /**
@@ -14,9 +21,10 @@ const Settings: React.FC = () => {
    * @zh-CN 国际化配置
    * */
   const intl = useIntl();
+  const { isMobile } = useResponsive();
   const [searchParams, setSearchParams] = useSearchParams();
-  const key = searchParams.get('key') || 'base';
-  const menuMap: any[] = [
+  const key = resolveAppConfigTabKey(searchParams.get('key'));
+  const menuMap: TabsProps['items'] = [
     {
       label: intl.formatMessage({
         id: 'pages.base.settings.title',
@@ -63,15 +71,16 @@ const Settings: React.FC = () => {
     <PageContainer
       title={intl.formatMessage({
         id: 'pages.application.settings.title',
-        defaultMessage: 'Personal Settings',
+        defaultMessage: 'Application Settings',
       })}
     >
       <Tabs
         type="card"
         activeKey={key}
-        tabPosition="left"
+        tabPosition={isMobile ? 'top' : 'left'}
         items={menuMap}
-        onTabClick={(key: string) => setSearchParams({ key })}
+        onTabClick={(nextKey: string) => setSearchParams({ key: nextKey })}
+        style={{ width: '100%' }}
       />
     </PageContainer>
   );

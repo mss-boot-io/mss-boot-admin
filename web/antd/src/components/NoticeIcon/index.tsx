@@ -1,4 +1,4 @@
-import { message, Tag } from 'antd';
+import { Tag } from 'antd';
 import { groupBy } from 'lodash';
 import moment from 'moment';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -59,7 +59,12 @@ const NOTICE_REFRESH_INTERVAL = 50000;
 const NoticeIconView: React.FC = () => {
   const [notices, setNotices] = useState<API.Notice[]>([]);
   const [noticeData, setNoticeData] = useState<Record<string, API.Notice[]>>({});
+  const [fetchState, setFetchState] = useState<'loading' | 'ready' | 'error'>(() =>
+    getAuthToken() ? 'loading' : 'ready',
+  );
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const lastSuccessfulRefreshRef = useRef(0);
+  const hasSuccessfulRefreshRef = useRef(false);
   const isMountedRef = useRef(true);
   // const { data, loading } = useRequest(getNoticeUnread);
 
@@ -74,6 +79,10 @@ const NoticeIconView: React.FC = () => {
       return refreshInFlightRef.current;
     }
 
+    if (!hasSuccessfulRefreshRef.current && isMountedRef.current) {
+      setFetchState('loading');
+    }
+
     const refreshPromise = getNoticeUnread()
       .then((data) => {
         if (!isMountedRef.current) {
@@ -81,8 +90,17 @@ const NoticeIconView: React.FC = () => {
         }
 
         const nextNotices = data || [];
+        lastSuccessfulRefreshRef.current = Date.now();
+        hasSuccessfulRefreshRef.current = true;
+        setFetchState('ready');
         setNotices(nextNotices);
         setNoticeData(getNoticeData(nextNotices));
+      })
+      .catch((requestError) => {
+        if (isMountedRef.current && !hasSuccessfulRefreshRef.current) {
+          setFetchState('error');
+        }
+        throw requestError;
       })
       .finally(() => {
         refreshInFlightRef.current = null;
@@ -111,16 +129,6 @@ const NoticeIconView: React.FC = () => {
     await refreshAfterMutation();
   };
 
-  const clearReadState = async (title: string, key: string) => {
-    await putNoticeReadId({ id: key });
-    await refreshAfterMutation();
-    message.success(
-      `${intl.formatMessage({
-        id: 'component.noticeIcon.cleared',
-        defaultMessage: '清空了',
-      })} ${title}`,
-    );
-  };
   useEffect(() => {
     isMountedRef.current = true;
 
@@ -132,6 +140,12 @@ const NoticeIconView: React.FC = () => {
 
     let intervalId: ReturnType<typeof setInterval> | undefined;
     const refreshInBackground = () => {
+      if (
+        lastSuccessfulRefreshRef.current > 0 &&
+        Date.now() - lastSuccessfulRefreshRef.current < NOTICE_REFRESH_INTERVAL
+      ) {
+        return;
+      }
       void refreshNotices().catch(() => undefined);
     };
     const stopPolling = () => {
@@ -177,9 +191,28 @@ const NoticeIconView: React.FC = () => {
       className={styles.action}
       count={notices.length}
       onItemClick={changeReadState}
-      onClear={clearReadState}
-      loading={false}
-      clearText={intl.formatMessage({ id: 'component.noticeIcon.clear', defaultMessage: '清空' })}
+      loading={fetchState === 'loading'}
+      loadingText={intl.formatMessage({
+        id: 'component.noticeIcon.loading',
+        defaultMessage: 'Loading notifications…',
+      })}
+      errorText={
+        fetchState === 'error'
+          ? intl.formatMessage({
+              id: 'component.noticeIcon.loadFailed',
+              defaultMessage: 'Unable to load notifications',
+            })
+          : undefined
+      }
+      retryText={intl.formatMessage({
+        id: 'component.noticeIcon.retry',
+        defaultMessage: 'Retry',
+      })}
+      onRetry={() => void refreshNotices().catch(() => undefined)}
+      ariaLabel={intl.formatMessage({
+        id: 'component.globalHeader.notification',
+        defaultMessage: '通知',
+      })}
       viewMoreText={intl.formatMessage({
         id: 'component.noticeIcon.view-more',
         defaultMessage: '查看更多',
@@ -188,7 +221,6 @@ const NoticeIconView: React.FC = () => {
         // console.log(e);
         history.push(`/notice?type=${e.tabKey}`);
       }}
-      clearClose
     >
       <NoticeIcon.Tab
         tabKey="notification"
@@ -203,6 +235,7 @@ const NoticeIconView: React.FC = () => {
           defaultMessage: '你已查看所有通知',
         })}
         showViewMore
+        showClear={false}
       />
       <NoticeIcon.Tab
         tabKey="message"
@@ -214,6 +247,7 @@ const NoticeIconView: React.FC = () => {
           defaultMessage: '您已读完所有消息',
         })}
         showViewMore
+        showClear={false}
       />
       <NoticeIcon.Tab
         tabKey="event"
@@ -225,6 +259,22 @@ const NoticeIconView: React.FC = () => {
         count={noticeData.event?.length}
         list={noticeData.event}
         showViewMore
+        showClear={false}
+      />
+      <NoticeIcon.Tab
+        tabKey="mail"
+        title={intl.formatMessage({
+          id: 'component.noticeIcon.mail',
+          defaultMessage: 'Mail',
+        })}
+        emptyText={intl.formatMessage({
+          id: 'component.noticeIcon.mail.empty',
+          defaultMessage: 'You have read all mail notifications',
+        })}
+        count={noticeData.mail?.length}
+        list={noticeData.mail}
+        showViewMore
+        showClear={false}
       />
     </NoticeIcon>
   );

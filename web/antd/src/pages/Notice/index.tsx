@@ -1,9 +1,7 @@
 import { Access } from '@/components/MssBoot/Access';
 import { getNotices, getNoticesId, putNoticeReadId } from '@/services/admin/notice';
 import { idRender } from '@/util/columnOptions';
-import { indexTitle } from '@/util/indexTitle';
 import { useResponsive } from '@/hooks/useResponsive';
-import { PlusOutlined } from '@ant-design/icons';
 import {
   ActionType,
   PageContainer,
@@ -12,22 +10,63 @@ import {
   ProDescriptionsItemProps,
   ProTable,
 } from '@ant-design/pro-components';
-import { FormattedMessage, Link, useIntl, useParams, useSearchParams, history } from '@umijs/max';
+import { FormattedMessage, useIntl, useSearchParams } from '@umijs/max';
 import { Button, Drawer, message } from 'antd';
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { fieldIntl } from '@/util/fieldIntl';
 import MobileNoticeList from './Mobile/NoticeList';
+
+type NoticeListParams = API.getNoticesParams & { type?: API.NoticeType };
+
+const noticeTypes: readonly API.NoticeType[] = ['notification', 'message', 'event', 'mail'];
+const isNoticeType = (value: string | null): value is API.NoticeType =>
+  value !== null && noticeTypes.some((type) => type === value);
 
 const Index: React.FC = () => {
   const [showDetail, setShowDetail] = useState<boolean>(false);
 
   const actionRef = useRef<ActionType>();
   const [currentRow, setCurrentRow] = useState<API.Notice>();
-  const { id } = useParams();
+  const markingReadIDRef = useRef<string>();
+  const [markingReadID, setMarkingReadID] = useState<string>();
   const [searchParams] = useSearchParams();
   const { isMobile } = useResponsive();
 
   const intl = useIntl();
+  const typeParam = searchParams.get('type');
+  const selectedType = isNoticeType(typeParam) ? typeParam : undefined;
+  const requestMobileNotices = useCallback((params: { current: number; pageSize: number }) => {
+    const noticeParams: NoticeListParams = { ...params, type: selectedType };
+    return getNotices(noticeParams);
+  }, [selectedType]);
+
+  const requestMarkAsRead = async (record: API.Notice) => {
+    if (!record.id) {
+      return;
+    }
+    await putNoticeReadId({ id: record.id });
+  };
+
+  const markAsRead = async (record: API.Notice) => {
+    if (!record.id || markingReadIDRef.current) {
+      return;
+    }
+
+    markingReadIDRef.current = record.id;
+    setMarkingReadID(record.id);
+    try {
+      await requestMarkAsRead(record);
+      message.success(
+        intl.formatMessage({
+          id: 'pages.title.notice.read',
+          defaultMessage: 'Mark as read',
+        }),
+      );
+    } finally {
+      markingReadIDRef.current = undefined;
+      setMarkingReadID(undefined);
+    }
+  };
 
   const columns: ProColumns<API.Notice>[] = [
     {
@@ -63,6 +102,11 @@ const Index: React.FC = () => {
           text: fieldIntl(intl, 'options.event'),
           color: 'gold',
           status: 'event',
+        },
+        mail: {
+          text: fieldIntl(intl, 'options.email'),
+          color: 'cyan',
+          status: 'mail',
         },
       },
     },
@@ -118,20 +162,15 @@ const Index: React.FC = () => {
       hideInForm: true,
       render: (_, record) => [
         record.read ? (
-          ''
+          null
         ) : (
           <Access key="/notice/read" permission="/notice/read">
             <Button
+              loading={markingReadID === record.id}
+              disabled={Boolean(markingReadID && markingReadID !== record.id)}
               onClick={async () => {
-                await putNoticeReadId({ id: record.id! });
-                message
-                  .success(
-                    intl.formatMessage({
-                      id: 'pages.title.notice.read',
-                      defaultMessage: 'Mark as read',
-                    }),
-                  )
-                  .then(() => actionRef.current?.reload());
+                await markAsRead(record);
+                actionRef.current?.reload();
               }}
             >
               <FormattedMessage id="pages.title.notice.read" defaultMessage="Mark as read" />
@@ -143,51 +182,46 @@ const Index: React.FC = () => {
   ];
 
   return (
-    <PageContainer title={indexTitle(id)}>
-      {isMobile && !id ? (
+    <PageContainer
+      title={intl.formatMessage({
+        id: 'pages.notice.list.title',
+        defaultMessage: 'Notice List',
+      })}
+    >
+      {isMobile ? (
         <MobileNoticeList
-          request={getNotices}
-          onEdit={(record) => history.push(`/notice/${record.id}`)}
-          onCreate={() => history.push('/notice/create')}
-          onDelete={async () => {
-            message.success(intl.formatMessage({ id: 'pages.message.delete.success' }));
+          request={requestMobileNotices}
+          onView={(record) => {
+            setCurrentRow(record);
+            setShowDetail(true);
           }}
+          onMarkRead={requestMarkAsRead}
         />
       ) : (
-        <ProTable<API.Notice, API.getNoticesParams>
-        headerTitle={intl.formatMessage({
-          id: 'pages.notice.list.title',
-          defaultMessage: 'Notice List',
-        })}
-        actionRef={actionRef}
-        rowKey="id"
-        search={{
-          labelWidth: 120,
-        }}
-        toolBarRender={() => [
-          <Access key="/notice/create" permission="/notice/create">
-            <Link to="/notice/create" key="create">
-              <Button type="primary" key="create">
-                <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />
-              </Button>
-            </Link>
-          </Access>,
-        ]}
-        // @ts-ignore
-        params={{ type: searchParams.get('type') }}
-        request={getNotices}
-        columns={columns}
-      />
+        <ProTable<API.Notice, NoticeListParams>
+          headerTitle={intl.formatMessage({
+            id: 'pages.notice.list.title',
+            defaultMessage: 'Notice List',
+          })}
+          actionRef={actionRef}
+          rowKey="id"
+          search={{
+            labelWidth: 120,
+          }}
+          params={{ type: selectedType }}
+          request={getNotices}
+          columns={columns}
+        />
       )}
 
       <Drawer
-        width={600}
+        width={isMobile ? '100%' : 600}
         open={showDetail}
         onClose={() => {
           setCurrentRow(undefined);
           setShowDetail(false);
         }}
-        closable={false}
+        closable
       >
         {currentRow?.title && (
           <ProDescriptions<API.Notice>

@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import MonitorTrend, { createMonitorTrendConfig, isDarkMonitorBackground } from './index';
+import MonitorTrend, { createMonitorTrendModel, isDarkMonitorBackground } from './index';
 
 const React = require('react');
 
@@ -7,59 +7,70 @@ jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ isMobile: false, isTablet: false, isDesktop: true, screens: {} }),
 }));
 
-const data = [{ timestamp: 1000, cpu: 25, memory: 50 }];
+jest.mock('@umijs/max', () => ({
+  useIntl: () => ({
+    formatMessage: (
+      _descriptor: unknown,
+      values: { metric: string; count: number; value: string; time: string },
+    ) => `${values.metric}: ${values.count} samples, latest ${values.value}% at ${values.time}`,
+  }),
+}));
 
-describe('MonitorTrend config', () => {
-  it('uses the classic theme and light tokens in light mode', () => {
-    const config = createMonitorTrendConfig({
+const data = [
+  { timestamp: 1000, cpu: 25, memory: 50 },
+  { timestamp: 2000, cpu: 75, memory: 60 },
+];
+
+describe('MonitorTrend model', () => {
+  it('creates bounded SVG paths and responsive ticks without a chart runtime', () => {
+    const model = createMonitorTrendModel({
       data,
       metric: 'cpu',
-      metricLabel: 'CPU Usage',
       dark: false,
       mobile: false,
-      palette: {
-        colorPrimary: '#1677ff',
-        colorTextSecondary: '#666666',
-        colorBorderSecondary: '#eeeeee',
-        colorBgContainer: '#ffffff',
-      },
-    }) as any;
+    });
 
-    expect(config.xField).toBe('timestamp');
-    expect(config.yField).toBe('cpu');
-    expect(config.theme).toEqual({ type: 'classic' });
-    expect(config.axis.x.labelFill).toBe('#666666');
-    expect(config.axis.y.gridStroke).toBe('#eeeeee');
-    expect(config.style.fill).toBe('#1677ff');
-    expect(config.line.style.stroke).toBe('#1677ff');
-    expect(config.viewStyle).toEqual({ viewFill: 'transparent', plotFill: 'transparent' });
-    expect(config.tooltip).toBeDefined();
+    expect(model.points).toHaveLength(2);
+    expect(model.points.map((point) => point.value)).toEqual([25, 75]);
+    expect(model.linePath).toMatch(/^M /);
+    expect(model.areaPath).toMatch(/ Z$/);
+    expect(model.yTicks.map((tick) => tick.label)).toEqual(['0%', '25%', '50%', '75%', '100%']);
+    expect(model.fillOpacity).toBe(0.2);
+    expect(model.height).toBe(200);
   });
 
-  it('uses classicDark and dark tokens without introducing a light chart background', () => {
-    const config = createMonitorTrendConfig({
-      data,
-      metric: 'memory',
-      metricLabel: 'Memory Usage',
+  it('clamps invalid percentages and adapts height for dark mobile charts', () => {
+    const model = createMonitorTrendModel({
+      data: [
+        { timestamp: 1000, cpu: -20, memory: 50 },
+        { timestamp: 2000, cpu: 120, memory: 60 },
+      ],
+      metric: 'cpu',
       dark: true,
       mobile: true,
-      palette: {
-        colorPrimary: '#1668dc',
-        colorTextSecondary: '#8c8c8c',
-        colorBorderSecondary: '#303030',
-        colorBgContainer: '#141414',
-      },
-    }) as any;
+    });
 
-    expect(config.theme).toEqual({ type: 'classicDark' });
-    expect(config.axis.x.labelFill).toBe('#8c8c8c');
-    expect(config.axis.y.gridStroke).toBe('#303030');
-    expect(config.style.fill).toBe('#1668dc');
-    expect(config.line.style.stroke).toBe('#1668dc');
-    expect(config.viewStyle.viewFill).toBe('transparent');
-    expect(config.viewStyle.plotFill).toBe('transparent');
-    expect(config.height).toBe(180);
-    expect(config.tooltip).toBeDefined();
+    expect(model.points.map((point) => point.value)).toEqual([0, 100]);
+    expect(model.height).toBe(180);
+    expect(model.fillOpacity).toBe(0.28);
+  });
+
+  it('preserves irregular sampling gaps on the time axis', () => {
+    const model = createMonitorTrendModel({
+      data: [
+        { timestamp: 4000, cpu: 30, memory: 30 },
+        { timestamp: 1000, cpu: 10, memory: 10 },
+        { timestamp: 2000, cpu: 20, memory: 20 },
+      ],
+      metric: 'cpu',
+      dark: false,
+      mobile: false,
+    });
+
+    expect(model.points.map((point) => point.timestamp)).toEqual([1000, 2000, 4000]);
+    const firstGap = model.points[1].x - model.points[0].x;
+    const secondGap = model.points[2].x - model.points[1].x;
+    expect(secondGap).toBeCloseTo(firstGap * 2);
   });
 
   it('detects the effective Ant Design container theme', () => {
@@ -81,5 +92,14 @@ describe('MonitorTrend states', () => {
 
     expect(screen.getByText('Waiting for samples')).toBeTruthy();
     expect(screen.getByTestId('monitor-trend-cpu-empty')).toBeTruthy();
+  });
+
+  it('renders an accessible lightweight chart when samples exist', () => {
+    render(
+      <MonitorTrend data={data} metric="cpu" metricLabel="CPU Usage" emptyDescription="Empty" />,
+    );
+
+    expect(screen.getByRole('img', { name: /CPU Usage: 2 samples, latest 75.00%/ })).toBeTruthy();
+    expect(screen.getByTestId('monitor-trend-chart').querySelectorAll('path')).toHaveLength(2);
   });
 });

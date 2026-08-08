@@ -14,6 +14,15 @@ export default defineConfig({
    */
   hash: true,
 
+  // Keep browser zoom available for low-vision users. Supplying an explicit
+  // viewport also replaces Umi's legacy user-scalable=no default.
+  metas: [
+    {
+      name: 'viewport',
+      content: 'width=device-width, initial-scale=1.0, viewport-fit=cover',
+    },
+  ],
+
   /**
    * @name 兼容性设置
    * @description 设置 ie11 不一定完美兼容，需要检查自己使用的所有依赖

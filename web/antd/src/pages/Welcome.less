@@ -1,0 +1,28 @@
+.quickEntry {
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+
+  &:hover {
+    border-color: var(--quick-entry-accent) !important;
+    box-shadow: var(--quick-entry-shadow) !important;
+    transform: translateY(-2px);
+  }
+
+  &:focus-visible {
+    border-color: var(--quick-entry-accent) !important;
+    outline: 2px solid var(--quick-entry-accent);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quickEntry {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
+  }
+}

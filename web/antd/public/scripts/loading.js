@@ -3,8 +3,27 @@
  * 解决首次加载时白屏的问题
  */
  (function () {
-  const _root = document.querySelector('#root');
-  if (_root && _root.innerHTML === '') {
+  const renderLoading = function () {
+    const _root = document.querySelector('#root');
+    if (!_root) {
+      return false;
+    }
+    if (_root.innerHTML !== '') {
+      return true;
+    }
+    let storedLocale = '';
+    try {
+      storedLocale = localStorage.getItem('umi_locale') || '';
+    } catch (_error) {
+      // Storage may be unavailable in privacy-restricted contexts.
+    }
+    const isChinese = (storedLocale || document.documentElement.lang || navigator.language || '')
+      .toLowerCase()
+      .startsWith('zh');
+    const loadingTitle = isChinese ? '正在加载资源' : 'Loading application';
+    const loadingDescription = isChinese
+      ? '首次加载可能需要一些时间，请耐心等待'
+      : 'The first load may take a moment. Please wait.';
     _root.innerHTML = `
       <style>
         html,
@@ -170,9 +189,16 @@
             transform: rotate(405deg);
           }
         }
+
+        @media (prefers-reduced-motion: reduce) {
+          .ant-spin-dot-item,
+          .ant-spin-dot-spin {
+            animation: none !important;
+          }
+        }
       </style>
 
-      <div style="
+      <div role="status" aria-live="polite" aria-busy="true" style="
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -181,7 +207,7 @@
         min-height: 362px;
       ">
         <div class="page-loading-warp">
-          <div class="ant-spin ant-spin-lg ant-spin-spinning">
+          <div class="ant-spin ant-spin-lg ant-spin-spinning" aria-hidden="true">
             <span class="ant-spin-dot ant-spin-dot-spin">
               <i class="ant-spin-dot-item"></i>
               <i class="ant-spin-dot-item"></i>
@@ -191,12 +217,30 @@
           </div>
         </div>
         <div class="loading-title">
-          正在加载资源
+          ${loadingTitle}
         </div>
         <div class="loading-sub-title">
-          初次加载资源可能需要较多时间 请耐心等待
+          ${loadingDescription}
         </div>
       </div>
     `;
+    return true;
+  };
+
+  if (!renderLoading() && document.readyState === 'loading') {
+    const observer = new MutationObserver(function () {
+      if (renderLoading()) {
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    document.addEventListener(
+      'DOMContentLoaded',
+      function () {
+        observer.disconnect();
+        renderLoading();
+      },
+      { once: true },
+    );
   }
 })();

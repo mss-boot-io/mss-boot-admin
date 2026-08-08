@@ -4,12 +4,22 @@ import {
   type AuthorizationIdentity,
 } from '@/utils/authorization';
 
-type AuthorizedMenuNode = API.Menu & { children?: AuthorizedMenuNode[] };
+export type AuthorizedMenuNode = API.Menu & { children?: AuthorizedMenuNode[] };
+
+type AuthorizedMenuRequestCacheEntry = {
+  permissionRefreshVersion: number;
+  request: Promise<AuthorizedMenuNode[]>;
+};
+
+const authorizedMenuRequestCache = new WeakMap<object, AuthorizedMenuRequestCacheEntry>();
+let anonymousAuthorizedMenuRequestCache: AuthorizedMenuRequestCacheEntry | undefined;
 
 export const ROOT_ONLY_MENU_PATHS = [
   '/system-config',
   '/security/online-sessions',
 ] as const;
+
+export const LEGACY_WORKPLACE_MENU_PATHS = ['/welcome', '/analysis'] as const;
 
 const normalizeMenuPath = (path?: string) => {
   if (!path) return '';
@@ -22,6 +32,35 @@ const isRootOnlyMenuPath = (path?: string) => {
   return ROOT_ONLY_MENU_PATHS.some(
     (rootPath) => pathname === rootPath || pathname.startsWith(`${rootPath}/`),
   );
+};
+
+const canonicalizeWorkplaceMenuPath = (path?: string) => {
+  const pathname = normalizeMenuPath(path);
+  return LEGACY_WORKPLACE_MENU_PATHS.some((legacyPath) => pathname === legacyPath)
+    ? '/workplace'
+    : path;
+};
+
+export const projectLegacyWorkplaceMenuPaths = (
+  nodes: AuthorizedMenuNode[],
+): AuthorizedMenuNode[] => {
+  let changed = false;
+  const projected = nodes.map((node) => {
+    const path = canonicalizeWorkplaceMenuPath(node.path);
+    const children = node.children ? projectLegacyWorkplaceMenuPaths(node.children) : undefined;
+    if (path === node.path && children === node.children) {
+      return node;
+    }
+
+    changed = true;
+    return {
+      ...node,
+      path,
+      ...(node.children ? { children } : {}),
+    };
+  });
+
+  return changed ? projected : nodes;
 };
 
 const filterRootOnlyNodes = (nodes: AuthorizedMenuNode[]): AuthorizedMenuNode[] => {
@@ -57,14 +96,84 @@ const filterRootOnlyNodes = (nodes: AuthorizedMenuNode[]): AuthorizedMenuNode[] 
 export const filterAuthorizedMenuByIdentity = (
   menu: AuthorizedMenuNode[],
   identity?: AuthorizationIdentity,
-) => (isRootIdentity(identity) ? menu : filterRootOnlyNodes(menu));
+) =>
+  projectLegacyWorkplaceMenuPaths(
+    isRootIdentity(identity) ? menu : filterRootOnlyNodes(menu),
+  );
+
+const normalizePermissionRefreshVersion = (permissionRefreshVersion?: number) =>
+  Number.isFinite(permissionRefreshVersion) ? Number(permissionRefreshVersion) : 0;
+
+const getCachedRequest = (
+  identity: AuthorizationIdentity | undefined,
+  permissionRefreshVersion: number,
+) => {
+  const entry = identity
+    ? authorizedMenuRequestCache.get(identity)
+    : anonymousAuthorizedMenuRequestCache;
+  return entry?.permissionRefreshVersion === permissionRefreshVersion ? entry.request : undefined;
+};
+
+const setCachedRequest = (
+  identity: AuthorizationIdentity | undefined,
+  entry: AuthorizedMenuRequestCacheEntry,
+) => {
+  if (identity) {
+    authorizedMenuRequestCache.set(identity, entry);
+  } else {
+    anonymousAuthorizedMenuRequestCache = entry;
+  }
+};
+
+const deleteCachedRequest = (
+  identity: AuthorizationIdentity | undefined,
+  request: Promise<AuthorizedMenuNode[]>,
+) => {
+  const entry = identity
+    ? authorizedMenuRequestCache.get(identity)
+    : anonymousAuthorizedMenuRequestCache;
+  if (entry?.request !== request) return;
+
+  if (identity) {
+    authorizedMenuRequestCache.delete(identity);
+  } else {
+    anonymousAuthorizedMenuRequestCache = undefined;
+  }
+};
+
+export const clearAuthorizedMenuRequestCache = (identity?: AuthorizationIdentity) => {
+  if (identity) {
+    authorizedMenuRequestCache.delete(identity);
+    return;
+  }
+  anonymousAuthorizedMenuRequestCache = undefined;
+};
 
 /**
  * Keeps ProLayout's runtime menu source explicit and independently testable.
  * The backend response remains authoritative except for the temporary root-only
  * hardening boundary, which also protects deployments with legacy Casbin rows.
  */
-export const requestAuthorizedMenu = async (identity?: AuthorizationIdentity) =>
-  filterAuthorizedMenuByIdentity(await getMenuAuthorize(), identity);
+export const requestAuthorizedMenu = (
+  identity?: AuthorizationIdentity,
+  permissionRefreshVersion?: number,
+) => {
+  const normalizedVersion = normalizePermissionRefreshVersion(permissionRefreshVersion);
+  const cached = getCachedRequest(identity, normalizedVersion);
+  if (cached) return cached;
+
+  let request: Promise<AuthorizedMenuNode[]>;
+  request = getMenuAuthorize()
+    .then((menu) => filterAuthorizedMenuByIdentity(menu, identity))
+    .catch((error) => {
+      deleteCachedRequest(identity, request);
+      throw error;
+    });
+  setCachedRequest(identity, {
+    permissionRefreshVersion: normalizedVersion,
+    request,
+  });
+  return request;
+};
 
 export default requestAuthorizedMenu;
