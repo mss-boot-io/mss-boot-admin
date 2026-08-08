@@ -6,8 +6,13 @@ on:
       - 'web/antd/v*.*.*'
 
 permissions:
+  actions: read
   contents: write
   packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -19,95 +24,270 @@ defaults:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
       - name: Resolve version
         id: version
         run: |
+          set -euo pipefail
+
+          validate_release_version() {
+            local value="$1"
+            local unprefixed
+            local core
+            local prerelease
+            local identifier
+            local identifiers
+
+            [[ "${value}" == v* ]] || return 1
+            unprefixed="${value#v}"
+            core="${unprefixed%%-*}"
+            [[ "${core}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || return 1
+            if [[ "${unprefixed}" != *-* ]]; then
+              return 0
+            fi
+            prerelease="${unprefixed#*-}"
+            [[ -n "${prerelease}" ]] || return 1
+            [[ "${prerelease}" != .* && "${prerelease}" != *. && "${prerelease}" != *..* ]] || return 1
+            IFS='.' read -r -a identifiers <<< "${prerelease}"
+            for identifier in "${identifiers[@]}"; do
+              [[ "${identifier}" =~ ^[0-9A-Za-z-]+$ ]] || return 1
+              if [[ "${identifier}" =~ ^[0-9]+$ && "${identifier}" =~ ^0[0-9]+$ ]]; then
+                return 1
+              fi
+            done
+          }
+
           version="${GITHUB_REF_NAME#web/antd/}"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          if ! validate_release_version "${version}"; then
+            echo "invalid frontend release tag: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          resolved_commit="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
+          if [[ "${resolved_commit}" != "${GITHUB_SHA}" ]]; then
+            echo "frontend tag resolves to ${resolved_commit}, not ${GITHUB_SHA}" >&2
+            exit 1
+          fi
+          prerelease=false
+          if [[ "${version}" == *-* ]]; then
+            prerelease=true
+          fi
+          {
+            echo "version=${version}"
+            echo "prerelease=${prerelease}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Require exact-commit release readiness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          successes="$(gh api \
+            --method GET \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GITHUB_REPOSITORY}/actions/workflows/release-readiness.yml/runs" \
+            -f head_sha="${GITHUB_SHA}" \
+            -f status=completed \
+            -f per_page=20 \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')"
+          if [[ "${successes}" -lt 1 ]]; then
+            echo "no successful release-readiness.yml run exists for ${GITHUB_SHA}" >&2
+            exit 1
+          fi
+
+      - name: Refuse mutation of an existing public component release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if release_json="$(gh release view "${GITHUB_REF_NAME}" --json isDraft 2>/dev/null)"; then
+            if [[ "$(jq -r '.isDraft' <<< "${release_json}")" != "true" ]]; then
+              echo "release ${GITHUB_REF_NAME} is already public; refusing to mutate it" >&2
+              exit 1
+            fi
+          fi
+
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6.0.10
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 9.15.9
+
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: web/antd/pnpm-lock.yaml
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build for local runtime
-        run: pnpm build:local
-      - name: Pack local runtime dist
-        run: tar -czvf dist-local.tar.gz dist
-      - name: Build production dist
+
+      - name: Enforce release dependency policy
+        run: pnpm audit:release
+
+      - name: Build same-origin release frontend
+        run: pnpm build:release
+
+      - name: Embed and verify artifact identity
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          rm -rf dist
-          rm -rf config/config.prod.*
-          pnpm build
-          pnpm bundle:check
-      - name: Pack production dist
-        run: tar -czvf dist.tar.gz dist
+          jq -n \
+            --arg version "${RELEASE_VERSION}" \
+            --arg commit "${GITHUB_SHA}" \
+            '{version: $version, commit: $commit}' > dist/release.json
+          jq -e \
+            --arg version "${RELEASE_VERSION}" \
+            --arg commit "${GITHUB_SHA}" \
+            '.version == $version and .commit == $commit' \
+            dist/release.json >/dev/null
+          {
+            echo "version=${RELEASE_VERSION}"
+            echo "commit=${GITHUB_SHA}"
+          } > FRONTEND-BUILD-INFO
+          tar --create --gzip --file dist.tar.gz dist
+          sha256sum dist.tar.gz FRONTEND-BUILD-INFO > SHA256SUMS.frontend
+
       - name: Smoke-test production delivery
         run: pnpm delivery:smoke
+
       - name: Upload build artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: frontend-dist-release
-          path: web/antd/dist
-      - name: Upsert GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
-          title="mss-boot-admin-antd ${VERSION}"
-          body="$(mktemp)"
-          cat > "${body}" <<EOF
-          ## Pull image
-          \`\`\`shell
-          docker pull ghcr.io/${IMAGE_NAME}:${VERSION}
-          \`\`\`
-          EOF
+          path: |
+            web/antd/dist
+            web/antd/dist.tar.gz
+            web/antd/FRONTEND-BUILD-INFO
+            web/antd/SHA256SUMS.frontend
+          if-no-files-found: error
 
-          if gh release view "${tag}" >/dev/null 2>&1; then
-            gh release edit "${tag}" --title "${title}" --notes-file "${body}" --draft=false --prerelease=false
-          else
-            gh release create "${tag}" --verify-tag --title "${title}" --notes-file "${body}"
-          fi
-
-          gh release upload "${tag}" dist.tar.gz dist-local.tar.gz --clobber
       - name: Log into registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ steps.version.outputs.version }}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ steps.version.outputs.prerelease == 'false' }}
             type=sha,prefix=,format=long
+
       - name: Build and push Docker image
-        uses: docker/build-push-action@v7
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: web/antd
           file: web/antd/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
+          provenance: mode=max
+          sbom: true
+
+      - name: Verify published image digest
+        id: image
+        run: |
+          set -euo pipefail
+          digest="${{ steps.build.outputs.digest }}"
+          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "frontend image did not return a valid digest" >&2
+            exit 1
+          fi
+          image="${REGISTRY}/${IMAGE_NAME}@${digest}"
+          docker pull "${image}" >/dev/null
+          image_version="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "${image}")"
+          image_commit="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${image}")"
+          if [[ "${image_version}" != "${{ steps.version.outputs.version }}" || "${image_commit}" != "${GITHUB_SHA}" ]]; then
+            echo "frontend image OCI identity did not match the release" >&2
+            exit 1
+          fi
+          release_json="$(docker run --rm --entrypoint cat "${image}" /usr/share/nginx/html/release.json)"
+          jq -e \
+            --arg version "${{ steps.version.outputs.version }}" \
+            --arg commit "${GITHUB_SHA}" \
+            '.version == $version and .commit == $commit' \
+            <<< "${release_json}" >/dev/null
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upsert GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          title="mss-boot-admin-antd ${VERSION}"
+          body="$(mktemp)"
+          trap 'rm -f "${body}"' EXIT
+          {
+            echo '## Pull image'
+            echo
+            echo '```shell'
+            echo "docker pull ${REGISTRY}/${IMAGE_NAME}:${VERSION}"
+            echo "docker pull ${REGISTRY}/${IMAGE_NAME}@${IMAGE_DIGEST}"
+            echo '```'
+            echo
+            echo "Image digest: \`${IMAGE_DIGEST}\`"
+            echo
+            echo "Source commit: \`${GITHUB_SHA}\`"
+          } > "${body}"
+
+          if release_json="$(gh release view "${tag}" --json isDraft,assets 2>/dev/null)"; then
+            if [[ "$(jq -r '.isDraft' <<< "${release_json}")" != "true" ]]; then
+              echo "release ${tag} is already public; refusing to mutate it" >&2
+              exit 1
+            fi
+          else
+            release_flags=()
+            if [[ "${PRERELEASE}" == "true" ]]; then
+              release_flags+=(--prerelease)
+            fi
+            gh release create "${tag}" --verify-tag --draft --title "${title}" --notes-file "${body}" "${release_flags[@]}"
+          fi
+
+          assets=(dist.tar.gz FRONTEND-BUILD-INFO SHA256SUMS.frontend)
+          sha256sum --check SHA256SUMS.frontend
+          gh release upload "${tag}" "${assets[@]}" --clobber
+          release_json="$(gh release view "${tag}" --json isDraft,assets)"
+          expected_names="$(printf '%s\n' "${assets[@]}" | jq -R . | jq -cs 'sort')"
+          actual_names="$(jq -c '[.assets[].name] | sort' <<< "${release_json}")"
+          if [[ "${actual_names}" != "${expected_names}" ]]; then
+            echo "frontend release draft assets do not match the expected set" >&2
+            exit 1
+          fi
+          for asset in "${assets[@]}"; do
+            local_size="$(stat --format='%s' "${asset}")"
+            remote_size="$(jq -r --arg name "${asset}" '.assets[] | select(.name == $name) | .size' <<< "${release_json}")"
+            if [[ -z "${remote_size}" || "${remote_size}" != "${local_size}" || "${remote_size}" -le 0 ]]; then
+              echo "frontend release asset ${asset} failed size verification" >&2
+              exit 1
+            fi
+          done
+          gh release edit "${tag}" --title "${title}" --notes-file "${body}" --draft=false --prerelease="${PRERELEASE}" --latest=false

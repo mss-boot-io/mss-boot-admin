@@ -2,14 +2,15 @@ W:=${W}
 V:=${V}
 NAME=micro
 IMAGE_NAME=micro/$(NAME)
-GIT_COMMIT=$(shell git rev-parse --short HEAD)
-GIT_TAG=$(shell git describe --abbrev=0 --tags --always --match "v*")
-GIT_IMPORT=github.com/mss-boot-io/mss-boot
+GIT_COMMIT=$(shell git rev-parse HEAD)
+GIT_TAG=$(shell git describe --abbrev=0 --tags --always --match "mss-boot/v[0-9]*")
+GIT_VERSION=$(patsubst mss-boot/%,%,$(GIT_TAG))
+GIT_IMPORT=github.com/mss-boot-io/mss-boot-admin/mss-boot
 VERSION_IMPORT=$(GIT_IMPORT)/pkg/version
 CGO_ENABLED=0
 BUILD_DATE=$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
-LDFLAGS=-X $(VERSION_IMPORT).buildDate=$(BUILD_DATE) -X $(VERSION_IMPORT).gitCommit=$(GIT_COMMIT) -X $(VERSION_IMPORT).gitVersion=$(GIT_TAG)
-IMAGE_TAG=$(GIT_TAG)-$(GIT_COMMIT)
+LDFLAGS=-X $(VERSION_IMPORT).buildDate=$(BUILD_DATE) -X $(VERSION_IMPORT).gitCommit=$(GIT_COMMIT) -X $(VERSION_IMPORT).gitVersion=$(GIT_VERSION)
+IMAGE_TAG=$(GIT_VERSION)-$(GIT_COMMIT)
 PROTO_FLAGS=--go_opt=paths=source_relative
 PROTO_PATH=$(GOPATH)/src:.
 SRC_DIR=$(GOPATH)/src

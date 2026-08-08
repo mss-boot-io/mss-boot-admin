@@ -11,7 +11,7 @@ keywords: [quickstart, installation, setup]
 
 ## 必要环境
 
-### 1. 安装 Go 1.21+
+### 1. 安装 Go 1.26.5
 
 访问 [Go 官网](https://go.dev/dl/) 下载并安装。
 
@@ -19,33 +19,19 @@ keywords: [quickstart, installation, setup]
 
 ```bash
 go version
-# 输出: go version go1.21.x linux/amd64
+# 输出应包含: go1.26.5
 ```
 
-### 2. 安装 MySQL 8.0+
+### 2. 准备数据库（默认 SQLite）
 
-使用 Docker 快速启动：
+本地开发默认使用 SQLite，无需先安装或启动数据库服务。运行迁移时会按当前
+配置初始化本地数据库。
 
-```bash
-# 启动 MySQL 容器
-docker run -d \
-  --name mysql \
-  -p 3306:3306 \
-  -e MYSQL_ROOT_PASSWORD=123456 \
-  mysql:8
+MySQL 8.0+ 和 PostgreSQL 是可选集成目标。切换数据库时应通过本地环境或
+部署平台的 Secret 机制注入 DSN；不要把生产用户名、密码或完整 DSN 写入
+文档、命令历史或仓库配置。
 
-# 创建数据库
-docker exec -it mysql mysql -uroot -p123456 \
-  -e "CREATE DATABASE mss_boot_admin DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-```
-
-或使用本地 MySQL：
-
-```sql
-CREATE DATABASE mss_boot_admin DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-### 3. 安装 Node.js 18.16.0+（前端）
+### 3. 安装 Node.js >= 22 且 < 25（前端）
 
 访问 [Node.js 官网](https://nodejs.org/) 下载并安装。
 
@@ -53,58 +39,47 @@ CREATE DATABASE mss_boot_admin DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_c
 
 ```bash
 node -v
-# 输出: v18.x.x 或更高
-npm -v
-# 输出: 9.x.x 或更高
+# 输出应在 22.x、23.x 或 24.x 范围内
 ```
 
-推荐使用 pnpm：
+通过 Corepack 使用仓库固定的 pnpm 9.15.9：
 
 ```bash
-npm install -g pnpm
-pnpm -v
+corepack enable
+corepack pnpm --version
+# 输出: 9.15.9
 ```
+
+以上版本和目录约定以仓库根目录的 `.mss/project.yaml` 为准。
 
 # 获取项目
 
 ## 下载代码
 
 ```bash
-# 下载后端项目
+# 下载单一仓库；后端和前端已合并在同一仓库
 git clone https://github.com/mss-boot-io/mss-boot-admin.git
-
-# 下载前端项目
-git clone https://github.com/mss-boot-io/mss-boot-admin-antd.git
+cd mss-boot-admin
 ```
 
 # 启动后端
 
-## 1. 配置数据库连接
+## 1. 确认数据库配置
 
 进入后端项目目录：
 
 ```bash
-cd mss-boot-admin
+cd admin
 ```
 
-设置数据库连接（环境变量方式）：
-
-```bash
-export DB_DSN="root:123456@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local"
-```
-
-或修改 `config/application-local.yml`：
-
-```yaml
-database:
-  dsn: "root:123456@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local"
-```
+默认 SQLite 可直接继续下一步。如需使用 MySQL/PostgreSQL，请先创建目标数据库，
+再通过安全的本地环境配置注入 `DB_DSN`；不要在终端输出或提交完整连接串。
 
 ## 2. 执行数据库迁移
 
 ```bash
 # 创建数据库表结构和初始数据
-go run main.go migrate
+go run . migrate
 ```
 
 输出示例：
@@ -117,7 +92,7 @@ go run main.go migrate
 
 ```bash
 # 启动后端服务（端口 8080）
-go run main.go server
+go run . server
 ```
 
 输出示例：
@@ -130,7 +105,7 @@ go run main.go server
 验证服务：
 
 ```bash
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8080/healthz
 # 输出: {"status":"ok"}
 ```
 
@@ -141,19 +116,19 @@ curl http://localhost:8080/api/v1/health
 进入前端项目目录：
 
 ```bash
-cd mss-boot-admin-antd
+cd ../web/antd
 ```
 
-使用 pnpm 安装依赖：
+按仓库 lockfile 安装依赖：
 
 ```bash
-pnpm install
+corepack pnpm install --frozen-lockfile
 ```
 
 ## 2. 启动开发服务器
 
 ```bash
-pnpm dev
+corepack pnpm dev
 ```
 
 输出示例：
@@ -169,9 +144,8 @@ pnpm dev
 
 浏览器访问：http://localhost:8000
 
-默认登录账号：
-- 用户名：`admin`
-- 密码：`123456`
+使用初始化流程或部署者提供的本地开发凭据登录。生产环境必须使用独立的
+Secret 管理，不要在文档、工单或仓库中记录密码。
 
 # 开发模式启动
 
@@ -183,7 +157,7 @@ pnpm dev
 # 安装 air
 go install github.com/cosmtrek/air@latest
 
-# 在 mss-boot-admin 目录下运行
+# 在 admin/ 目录下运行
 air
 ```
 
@@ -219,10 +193,10 @@ cd my-service
 
 # 修改项目名称和配置
 # 运行迁移
-go run main.go migrate
+go run . migrate
 
 # 启动服务
-go run main.go server
+go run . server
 ```
 
 ## GRPC 服务模板
@@ -240,10 +214,10 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 protoc --go_out=. --go-grpc_out=. proto/*.proto
 
 # 运行迁移
-go run main.go migrate
+go run . migrate
 
 # 启动服务
-go run main.go server
+go run . server
 ```
 
 # 常见问题
@@ -269,25 +243,23 @@ PORT=9000
 
 检查：
 
-1. MySQL 服务是否启动：`docker ps | grep mysql`
-2. 数据库是否创建：`mysql -uroot -p123456 -e "show databases;"`
-3. DSN 配置是否正确
-4. 防火墙是否允许 3306 端口
+1. 默认 SQLite 文件所在目录是否可写
+2. 如果已切换 MySQL/PostgreSQL，对应服务是否启动且目标数据库是否存在
+3. `DB_DSN` 是否通过安全环境正确注入（不要输出完整值）
+4. 外部数据库的网络和账号权限是否满足迁移要求
 
 ## 前端依赖安装失败
 
 尝试：
 
 ```bash
-# 清理缓存
-pnpm store prune
-
-# 删除 node_modules 和 lockfile
-rm -rf node_modules pnpm-lock.yaml
-
-# 重新安装
-pnpm install
+# 在 web/antd/ 中清理依赖缓存，再按 lockfile 重试
+corepack pnpm store prune
+corepack pnpm install --frozen-lockfile
 ```
+
+不要删除 `pnpm-lock.yaml`，也不要改用其他包管理器绕过冻结安装。若仍失败，
+检查 Node.js 版本、网络和 lockfile 是否与当前提交一致，并保留完整错误日志。
 
 # 下一步
 

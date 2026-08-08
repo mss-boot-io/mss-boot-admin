@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "acceptances": [
+    {
+      "advisory": "GHSA-w3rx-r6r6-pgpr",
+      "package": "image-size",
+      "severity": "high",
+      "patchedVersions": "<0.0.0",
+      "scopes": ["docs", "web/antd"],
+      "expiresOn": "2026-11-08",
+      "reason": "No patched release exists. The package is confined to the build graph; the release audit separately requires zero high or critical production advisories."
+    },
+    {
+      "advisory": "GHSA-5p2g-fcmc-qvqq",
+      "package": "image-size",
+      "severity": "high",
+      "patchedVersions": "<0.0.0",
+      "scopes": ["docs", "web/antd"],
+      "expiresOn": "2026-11-08",
+      "reason": "No patched release exists. The package is confined to the build graph; the release audit separately requires zero high or critical production advisories."
+    }
+  ]
+}

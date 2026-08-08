@@ -2,13 +2,12 @@ name: Release Draft
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*.*.*"
 
 permissions:
   contents: read
 
 jobs:
   release-draft:
-    uses: mss-boot-io/.github/.github/workflows/release-draft.yml@main
+    # Keep manual release-note preparation separate from the atomic tag release
+    # and pin the shared workflow to an immutable reviewed revision.
+    uses: mss-boot-io/.github/.github/workflows/release-draft.yml@e5d5cda9721b58cd761591ab01219ba8e010950a # reviewed 2026-08-08

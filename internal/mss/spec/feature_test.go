@@ -1,11 +1,32 @@
 package spec
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+func TestFeatureJSONSchemaIsValidJSON(t *testing.T) {
+	_, sourceFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve feature test source path")
+	}
+	schemaPath := filepath.Clean(filepath.Join(
+		filepath.Dir(sourceFile),
+		"..", "..", "..", ".mss", "schemas", "feature.schema.json",
+	))
+	data, err := os.ReadFile(schemaPath)
+	if err != nil {
+		t.Fatalf("read FeatureSpec JSON schema: %v", err)
+	}
+	var schema any
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatalf("FeatureSpec JSON schema is invalid JSON: %v", err)
+	}
+}
 
 func TestLoadFeatureValidatesCompleteContract(t *testing.T) {
 	path := writeFeatureFixture(t, validFeatureYAML)

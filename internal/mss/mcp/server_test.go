@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo"
 )
 
 func TestServeSupportsLegacyInitializeAndStatelessTools(t *testing.T) {
@@ -33,6 +35,13 @@ func TestServeSupportsLegacyInitializeAndStatelessTools(t *testing.T) {
 	result := objectResult(t, initialize)
 	if result["protocolVersion"] != "2025-11-25" {
 		t.Fatalf("protocolVersion = %#v", result["protocolVersion"])
+	}
+	serverInfo, ok := result["serverInfo"].(map[string]any)
+	if !ok {
+		t.Fatalf("serverInfo = %#v", result["serverInfo"])
+	}
+	if serverInfo["version"] != buildinfo.VersionString() {
+		t.Fatalf("serverInfo.version = %#v, want %q", serverInfo["version"], buildinfo.VersionString())
 	}
 
 	list := objectResult(t, responses[1])

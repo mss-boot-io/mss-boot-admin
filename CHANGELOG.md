@@ -1,318 +1,161 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable, verifiable changes to the consolidated `mss-boot-admin` foundation
+are documented here. The project uses semantic versioning and component-scoped
+tag namespaces.
 
-## [v1.0.0] - 2026-04-06
+## [Unreleased] - v0.8.0 candidate
 
-### Added - Phase 4 Runtime & Operations
+Status: **preview / release preparation**. This section does not represent a
+published stable release. It becomes `v0.8.0` only after the required framework
+tag is externally resolvable, all release gates pass on the exact root release
+commit, and the root tag and artifacts are published.
 
-#### Runtime Logs
-- Login logs with IP, location, user agent tracking
-- Audit logs with HTTP request/response capture and operation duration
-- Runtime log viewer with level filtering and keyword search
-- Log cleaner service for automatic old log cleanup
+Release, upgrade, rollback, and compatibility contracts are maintained under
+[`docs/docs/releases/`](docs/docs/releases/).
 
-#### Monitoring & Visualization
-- Real-time CPU, memory, disk usage monitoring
-- Trend charts with 2 decimal precision
-- Network I/O statistics
-- Runtime information (goroutines, heap, GC count)
+### Added
 
-#### Storage Security
-- File size validation on upload
-- File type whitelist validation
-- MIME type verification
-
-#### Alert System
-- Configurable alert rules (CPU, memory, disk metrics)
-- Multi-channel notifications (Email, DingTalk, WeChat)
-- Alert history tracking
-- Threshold-based triggering with duration
-
-#### WebSocket Cluster
-- Redis Pub/Sub for distributed WebSocket
-- Production-ready cluster support
-- Online user tracking
-
-#### API Documentation
-- Swagger annotations for all public APIs
-- Interactive API documentation UI
-
-#### i18n Improvements
-- Accept-Language header handling
-- ISO 639-1 language code validation
-- Public language list API
-
-### Added - Phase 5 Production Readiness
-
-#### Deployment Standardization
-- Docker deployment guide
-- Nginx reverse proxy configuration
-- Production configuration checklist
-- Environment variable best practices
-
-#### Testing & Verification
-- Comprehensive test case documentation (70+ scenarios)
-- Test execution report
-- Test data initialization script
-- Regression testing verification
-
-#### Observability
-- Pyroscope integration for continuous profiling
-- PProf endpoints for runtime profiling
-- Logging best practices guide
-
-#### Security Baseline
-- Authentication and authorization security
-- Input validation requirements
-- HTTPS enforcement
-- Secret management guidelines
-
-### Fixed - Product Polish Round 1
-
-#### Backend Stability
-- Menu API binding nil dereference risk
-- Monitor disk partition out of bounds risk
-- Alert checker duplicate close panic risk
-- Sensitive endpoint authentication coverage
-
-#### Frontend Correctness
-- Login page undefined status variable
-- Department/Post navigation redirect paths
-- Password reset success branch logic
-- Frontend polling cleanup in NoticeIcon and Generator
-
-### Fixed - Product Polish Round 2
-
-#### TypeScript Quality
-- Removed invalid `skipErrorHandler` parameter
-- Fixed NotificationContext import paths and API calls
-- Removed duplicate keys in locales
-- Fixed undefined index access in Log pages
-- Fixed Access component property usage
-
-#### Page Structure
-- Removed double PageContainer in AppConfig
-- Unified page skeleton consistency
-
-### Fixed - Product Polish Round 3
-
-#### Backend Consistency
-- Unified authentication error response format
-- Consolidated login/audit logging through service layer
-- Removed package cycle in user_auth_token
-
-#### Frontend Reusability
-- Extracted AuthShell component for login/register/forget pages
-- Reduced duplicate auth page layout code by 44 lines
+- Consolidated the Admin application, nested `mss-boot` framework module,
+  React/Ant Design frontend, documentation, machine-readable `.mss` contracts,
+  deterministic generators, Skills, MCP adapter, and evaluations into one
+  foundation repository.
+- Added the Agent-facing `mss` CLI for context, environment setup, verification,
+  specification validation, deterministic module/application generation, and
+  three-way downstream upgrade planning.
+- Added backend-owned CPU and memory sampling with bounded recent history. The
+  Admin task server runs monitoring and session cleanup as immutable system
+  jobs, separate from user-managed Task records.
+- Added database-backed configuration revisions, strong ETags, conditional
+  writes, revision-bound public profile caches, and owner-isolated personal
+  configuration snapshots.
+- Added layered theme settings with the precedence `code defaults < application
+  settings < personal settings`. This capability remains **preview** until its
+  external MySQL/PostgreSQL and browser acceptance gates are complete.
+- Added positive and negative authorization coverage for Admin routes, static
+  frontend routes, dynamic menus, application secrets, uploads, and role
+  authorization.
 
 ### Changed
 
-#### API Response Format
-- Unified all mutating endpoints to return `{}` instead of `null`
-- Consistent response envelope: `code`, `msg`, `data`
+- Split the former root Admin Go module into:
+  - `github.com/mss-boot-io/mss-boot-admin/admin` for the deployable reference
+    application;
+  - `github.com/mss-boot-io/mss-boot-admin/mss-boot` for the reusable framework;
+  - `github.com/mss-boot-io/mss-boot-admin` for Agent/foundation tooling.
+- The Admin module requires `github.com/mss-boot-io/mss-boot-admin/mss-boot
+  v0.8.0`. The nested module must therefore be published and externally
+  resolved before the root `v0.8.0` tag is created.
+- Authentication now resolves the current user, role, enabled state, and root
+  state from authoritative storage. Role/root snapshots embedded in older JWTs
+  are not trusted.
+- The historical root behavior remains: an enabled root identity bypasses
+  ordinary Casbin policy checks. Root/default roles and root users are protected
+  from destructive generic CRUD operations.
+- Role authorization is a versioned whole-resource update. Reads return a
+  revision and strong ETag; bundled clients send `If-Match`; stale writes return
+  `412 Precondition Failed` without partial persistence.
+- Personal access tokens are owner-scoped, stored only as versioned digests,
+  shown in raw form once, and atomically rotated or revoked. PATs cannot invoke
+  interactive account-security operations.
+- OAuth authorization and callback state are server generated, single use, and
+  bound to provider, intent, browser, and—when applicable—user/session identity.
+  Provider access and refresh tokens are not serialized to browser storage or
+  persisted in the user binding model.
+- OAuth-created or historically OAuth-bound accounts are fail-closed for local
+  password login until an explicit password reset restores local credentials.
+- Application and personal configuration reads use the database as authority.
+  Cache keys include all query dimensions and database revisions; Redis failure
+  degrades to authoritative database reads rather than stale acceptance.
+- System configuration remains an opaque, root-only resource. Application
+  credential fields require separate `app-config:secret-read` and
+  `app-config:secret-write` capabilities for non-root users.
+- Generic storage upload now requires explicit `storage:upload` authorization
+  for non-root users and PATs.
+- Dynamic menus remain supported and are refreshed with current identity and
+  permission state; frontend visibility continues to be advisory to backend
+  authorization.
 
-#### Data Precision
-- Monitoring data now uses 2 decimal places
-- Disk/memory units standardized to GB
+### Breaking API and behavior changes
 
-#### Code Structure
-- Created reusable `useMonitorData` hook
-- Abstracted monitor data fetching and error handling
-- Standardized error response and logging patterns
-
-### Security
-
-#### Authentication & Authorization
-- Enhanced middleware authentication coverage
-- Added AuthHandler to sensitive operational endpoints
-- Improved Casbin rule management with AfterCreate hooks
-
-#### File Upload
-- File size limit enforcement
-- File type whitelist validation
-- MIME type verification
-
-#### Audit Trail
-- Complete HTTP request/response logging
-- Operation duration tracking
-- Centralized audit logging through service layer
-
-### Documentation
-
-#### New Documentation
-- Product polish and governance plan
-- Remediation checklist with priorities
-- HotGo competitive analysis
-- Full test case documentation
-- Test execution report
-- Pre-release checklist
-
-#### Updated Documentation
-- Phase 4 roadmap (all items completed)
-- Phase 5 roadmap (all items completed)
-- Integration test guide
-- Release verification checklist
+- `GET /admin/api/user-auth-token/generate` no longer creates a token and
+  returns `405 Method Not Allowed`. Use `POST /admin/api/user-auth-tokens`.
+- JWT refresh is state-changing and uses `POST
+  /admin/api/user/refresh-token`; legacy GET refresh is not supported.
+- OAuth callback completion uses `POST /admin/api/user/:provider/callback`
+  with `code` and `state` in the JSON body. The legacy GET callback and browser
+  token binding endpoint return `405`.
+- Retired `/admin/api/template/*`, runtime model/field, and virtual CRUD routes
+  are no longer registered.
+- Older PATs without the minimum signed identity and persisted digest contract
+  may stop authenticating and must be reissued.
+- Public registration and first-time OAuth account creation are disabled unless
+  `security:registerEnabled` is explicitly enabled and exactly one enabled,
+  non-root default role exists.
+- The least-privilege default-role migration intentionally stops on ambiguous
+  historical root/default-role data instead of silently retaining a privilege
+  escalation path.
 
 ### Removed
 
-- Multi-tenant architecture (explicitly removed from product direction)
-- Code generation as primary workflow (L3 deprecated)
+- Removed Admin runtime dynamic models, model fields, virtual CRUD, browser
+  template/code generation, their routes, menu entries, policies, and reusable
+  runtime framework packages.
+- Preserved inert historical metadata and user-created data tables during
+  automatic upgrade. Their removal or export is an explicit operator action,
+  not part of the release migration.
+- Removed OAuth `integration` intent and the short-lived provider credential
+  handle formerly used by the browser generator flow.
 
-## Version History
+### Security
 
-| Version | Date | Description |
-|---------|------|-------------|
-| v1.0.0 | 2026-04-06 | Product polish, full testing, production readiness |
-| - | - | Phase 4: Runtime, monitoring, alerts, i18n |
-| - | - | Phase 5: Deployment, testing, security, docs |
-| - | - | Three rounds of product polish |
-| - | - | Full test coverage and documentation |
+- Production startup rejects the public development authentication secret and
+  requires a unique random `auth.key` of at least 32 bytes.
+- User/role disablement and role changes are re-evaluated from authoritative
+  storage instead of trusting stale claims. Session termination and password
+  changes revoke active server-side sessions, while PAT revocation and rotation
+  invalidate their bearer immediately. Production deployments must enable
+  `auth.sessionEnabled`; without it, an already-issued browser JWT can remain
+  valid until expiry after a password change.
+- Historical built-in OAuth credentials are sanitized only when their exact
+  fingerprint matches. Provider-side rotation/revocation and repository secret
+  scanning remain mandatory release gates.
+- Audit logging redacts passwords, PATs, OAuth credentials, theme values,
+  multipart file contents, and case-insensitive token query parameters.
+- Audit and alert-history resources are read-only; generic mutation routes are
+  not exposed.
 
----
+### Migration
 
-## Migration Guide
+- A database backup, restore rehearsal, configuration backup, active-writer
+  drain, and the preflight checks in the
+  [v0.8.0 upgrade guide](docs/docs/releases/v0-8-0-upgrade.md) are required.
+- Run the Admin migration command before starting v0.8.0 application writers.
+  The release adds or advances session/menu metadata, PAT digests, OAuth local
+  password state and identity keys, permission metadata, retired-tool cleanup,
+  configuration revisions, and least-privilege role data.
+- Migrations are forward and idempotent, but not all effects are reversible.
+  In particular, cleared PAT plaintext and sanitized credentials are not
+  reconstructed by a code rollback.
+- Use forward-fix by default. Restore the complete pre-upgrade database and
+  configuration snapshot only when a proven compatible previous runtime is
+  required; never partially edit migration version rows.
 
-### From Previous Versions
+### Compatibility and release order
 
-#### Configuration Changes
+1. Publish `mss-boot/v0.8.0` from the reviewed release commit.
+2. From outside this repository with `GOWORK=off`, resolve and test
+   `github.com/mss-boot-io/mss-boot-admin/mss-boot@v0.8.0`.
+3. Re-run the root release gates on the exact commit.
+4. Publish root `v0.8.0`; publish a standalone `web/antd/v0.8.0` only after its
+   independent production/local artifact contract passes.
 
-1. **Auth Secret Key**
-   ```yaml
-   # Old (development default)
-   auth:
-     key: 'mss-boot-admin-secret'
-   
-   # New (production required)
-   auth:
-     key: '${AUTH_KEY}'  # Use environment variable
-   ```
+`planned`, `preview`, a release branch, or an `Unreleased` changelog entry must
+never be presented as a stable tag.
 
-2. **Redis Password**
-   ```yaml
-   # Old (development default)
-   cache:
-     redis:
-       password: 123456
-   
-   # New (production required)
-   cache:
-     redis:
-       password: '${REDIS_PASSWORD}'
-   ```
+## [v0.7.0] - 2026-06-05
 
-#### Database Migration
-
-No schema changes that require special migration. Standard `go run . migrate` is sufficient.
-
-#### API Changes
-
-All existing APIs remain compatible. New standardized response format:
-
-```json
-// Old (some endpoints)
-{
-  "code": 200,
-  "msg": "success",
-  "data": null
-}
-
-// New (all endpoints)
-{
-  "code": 200,
-  "msg": "success",
-  "data": {}
-}
-```
-
----
-
-## Upgrade Instructions
-
-### Backend
-
-```bash
-# 1. Pull latest code
-git pull origin main
-
-# 2. Update dependencies
-go mod tidy
-
-# 3. Run migrations (if any)
-go run . migrate
-
-# 4. Build
-go build
-
-# 5. Deploy
-# Follow deployment guide
-```
-
-### Frontend
-
-```bash
-# 1. Pull latest code
-git pull origin main
-
-# 2. Update dependencies
-pnpm install
-
-# 3. Build
-pnpm build
-
-# 4. Deploy static files
-# Copy dist/ to production server
-```
-
----
-
-## Known Issues
-
-### Current Limitations
-
-1. **File Storage**
-   - Only local storage supported
-   - OSS/COS/MinIO support planned for Phase 6
-
-2. **Multi-tenant**
-   - Explicitly removed from product direction
-   - Single-tenant architecture only
-
-3. **Code Generation**
-   - L3 features deprecated
-   - Not recommended for new projects
-
-### Workarounds
-
-No critical workarounds needed. All known issues have been addressed in current release.
-
----
-
-## Future Roadmap
-
-### Phase 6 (Planned)
-
-- Multi-storage backend support (OSS, COS, MinIO)
-- Kubernetes deployment manifests
-- AI annotation collaboration standardization
-- Audit log visualization
-- Extended message queue support
-
-### Long-term
-
-- Performance benchmarking suite
-- Security penetration testing
-- Automated E2E testing
-- Advanced monitoring dashboards
-
----
-
-## Contributors
-
-Thanks to all contributors who made this release possible.
-
----
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+`v0.7.0` is the preceding root release baseline. Historical details and
+artifacts remain available from the GitHub Releases page. Older untagged
+development snapshots formerly described as `v1.0.0` were not consolidated
+repository releases and are not part of the semantic version sequence above.
