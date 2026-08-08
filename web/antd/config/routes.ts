@@ -1,4 +1,5 @@
-﻿import routesCustom from './routes.custom';
+import routesCustom from './routes.custom';
+import { PUBLIC_ROUTE_PATHS } from '../src/utils/routeAccess';
 
 /**
  * @name umi 的路由配置
@@ -18,19 +19,19 @@ export default [
     layout: false,
     routes: [
       {
-        path: '/user/login',
+        path: PUBLIC_ROUTE_PATHS.login,
         component: './User/Login',
       },
       {
-        path: '/user/callback/:provider',
+        path: PUBLIC_ROUTE_PATHS.callback,
         component: './User/Callback/$provider.tsx',
       },
       {
-        path: '/user/forget',
+        path: PUBLIC_ROUTE_PATHS.forget,
         component: './User/Login/forget.tsx',
       },
       {
-        path: '/user/register',
+        path: PUBLIC_ROUTE_PATHS.register,
         component: './User/Login/register.tsx',
       },
     ],
@@ -39,14 +40,20 @@ export default [
     path: '/welcome',
     icon: 'smile',
     component: './Welcome',
+    access: 'canAccessRoute',
+    permission: '/welcome',
   },
   {
     path: '/analysis',
     component: './Welcome',
+    access: 'canAccessRoute',
+    permission: '/welcome',
   },
   {
     path: '/workplace',
     component: './Welcome',
+    access: 'canAccessRoute',
+    permission: '/welcome',
   },
   {
     path: '/account',
@@ -67,149 +74,263 @@ export default [
   {
     icon: 'table',
     path: '/users',
+    access: 'canAccessRoute',
+    permission: '/users',
     routes: [
       {
         path: '/users',
         hideInMenu: true,
         component: './User',
+        access: 'canAccessRoute',
+        permission: '/users',
+      },
+      {
+        path: '/users/control/create',
+        hideInMenu: true,
+        component: './User',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
       {
         path: '/users/control/:id',
         hideInMenu: true,
         component: './User',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
       {
         path: '/users/password-reset/:id',
         hideInMenu: true,
         component: './User/Reset/$id.tsx',
+        access: 'canAccessRoute',
+        permission: '/users/password-reset',
       },
     ],
   },
   {
     icon: 'table',
     path: '/role',
+    access: 'canAccessRoute',
+    permission: '/role',
     routes: [
       {
         path: '/role',
         hideInMenu: true,
         component: './Role',
+        access: 'canAccessRoute',
+        permission: '/role',
+      },
+      {
+        path: '/role/create',
+        hideInMenu: true,
+        component: './Role',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
       {
         path: '/role/:id',
         hideInMenu: true,
         component: './Role',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
     ],
   },
   {
     icon: 'table',
     path: '/departments',
+    access: 'canAccessRoute',
+    permission: '/departments',
     routes: [
       {
         path: '/departments',
         hideInMenu: true,
         component: './Department',
+        access: 'canAccessRoute',
+        permission: '/departments',
+      },
+      {
+        path: '/departments/create',
+        hideInMenu: true,
+        component: './Department',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
       {
         path: '/departments/:id',
         hideInMenu: true,
         component: './Department',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
     ],
   },
   {
     icon: 'table',
     path: '/posts',
+    access: 'canAccessRoute',
+    permission: '/posts',
     routes: [
       {
         path: '/posts',
         hideInMenu: true,
         component: './Post',
+        access: 'canAccessRoute',
+        permission: '/posts',
+      },
+      {
+        path: '/posts/create',
+        hideInMenu: true,
+        component: './Post',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
       {
         path: '/posts/:id',
         hideInMenu: true,
         component: './Post',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
     ],
   },
   {
     icon: 'table',
     path: '/task',
+    access: 'canAccessRoute',
+    permission: '/task',
     routes: [
       {
         path: '/task',
         hideInMenu: true,
         component: './Task',
+        access: 'canAccessRoute',
+        permission: '/task',
+      },
+      {
+        path: '/task/create',
+        hideInMenu: true,
+        component: './Task',
+        access: 'canAccessRoute',
+        permission: '/task/create',
       },
       {
         path: '/task/:id',
         hideInMenu: true,
         component: './Task',
+        access: 'canAccessRoute',
+        permission: '/task/edit',
       },
     ],
   },
   {
     path: '/language',
     icon: 'translation',
+    access: 'canAccessRoute',
+    permission: '/language',
     routes: [
       {
         path: '/language',
         hideInMenu: true,
         component: './Language',
+        access: 'canAccessRoute',
+        permission: '/language',
+      },
+      {
+        path: '/language/create',
+        hideInMenu: true,
+        component: './Language',
+        access: 'canAccessRoute',
+        permission: '/language/create',
       },
       {
         path: '/language/:id',
         component: './Language',
+        access: 'canAccessRoute',
+        permission: '/language/edit',
       },
     ],
   },
   {
     path: '/menu',
     icon: 'menu',
+    access: 'canAccessRoute',
+    permission: '/menu',
     routes: [
       {
         path: '/menu',
         hideInMenu: true,
         component: './Menu/index.tsx',
+        access: 'canAccessRoute',
+        permission: '/menu',
+      },
+      {
+        path: '/menu/create',
+        hideInMenu: true,
+        component: './Menu/index.tsx',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
       {
         path: '/menu/:id',
         component: './Menu/index.tsx',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
     ],
   },
   {
     path: '/app-config',
+    access: 'canAccessRoute',
+    permission: '/app-config',
     routes: [
       {
         path: '/app-config',
         hideInMenu: true,
         component: './AppConfig',
+        access: 'canAccessRoute',
+        permission: '/app-config',
       },
     ],
   },
   {
     path: '/system-config',
+    access: 'canAccessRoute',
+    rootOnly: true,
     routes: [
       {
         path: '/system-config',
         hideInMenu: true,
         component: './SystemConfig',
+        access: 'canAccessRoute',
+        rootOnly: true,
+      },
+      {
+        path: '/system-config/create',
+        hideInMenu: true,
+        component: './SystemConfig',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
       {
         path: '/system-config/:id',
         component: './SystemConfig',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
     ],
   },
   {
     path: '/notice',
+    access: 'canAccessRoute',
+    permission: '/notice',
     routes: [
       {
         path: '/notice',
         hideInMenu: true,
         component: './Notice',
+        access: 'canAccessRoute',
+        permission: '/notice',
       },
       // {
       //   path: '/notice/:id',
@@ -219,15 +340,28 @@ export default [
   },
   {
     path: '/option',
+    access: 'canAccessRoute',
+    permission: '/option',
     routes: [
       {
         path: '/option',
         hideInMenu: true,
         component: './Option',
+        access: 'canAccessRoute',
+        permission: '/option',
+      },
+      {
+        path: '/option/create',
+        hideInMenu: true,
+        component: './Option',
+        access: 'canAccessRoute',
+        permission: '/option/create',
       },
       {
         path: '/option/:id',
         component: './Option',
+        access: 'canAccessRoute',
+        permission: '/option/edit',
       },
     ],
   },
@@ -245,6 +379,8 @@ export default [
         name: 'online-sessions',
         icon: 'desktop',
         component: './OnlineSession',
+        access: 'canAccessRoute',
+        rootOnly: true,
       },
     ],
   },
@@ -252,11 +388,15 @@ export default [
     path: '/log',
     name: 'system.log',
     icon: 'fileText',
+    access: 'canAccessRoute',
+    permission: '/log',
     routes: [
       {
         path: '/log',
         hideInMenu: true,
         component: './Log',
+        access: 'canAccessRoute',
+        permission: '/log',
       },
     ],
   },

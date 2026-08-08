@@ -13,6 +13,7 @@ import {
 import { idRender } from '@/util/columnOptions';
 import { indexTitle } from '@/util/indexTitle';
 import { useResponsive } from '@/hooks/useResponsive';
+import { resolveCrudRouteID } from '@/utils/routeAccess';
 import { PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns, ProDescriptionsItemProps } from '@ant-design/pro-components';
 import { DrawerForm, PageContainer, ProDescriptions, ProTable } from '@ant-design/pro-components';
@@ -38,7 +39,8 @@ const TableList: React.FC = () => {
 
   const [list, setList] = useState<[]>([]);
 
-  const { id } = useParams();
+  const { id: routeID } = useParams();
+  const id = resolveCrudRouteID(routeID, history.location.pathname, '/menu/create');
 
   /**
    * @en-US International configuration
@@ -184,14 +186,14 @@ const TableList: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/menu/edit" permission="/menu/edit">
+        <Access key="/menu/edit" rootOnly>
           <Link to={`/menu/${record.id}`} key="edit">
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/menu/bind-api" permission="/menu/bind-api">
+        <Access key="/menu/bind-api" rootOnly>
           <Button
             disabled={record.type === 'DIRECTORY'}
             key="bind-api"
@@ -203,7 +205,7 @@ const TableList: React.FC = () => {
             <FormattedMessage id="pages.user.binding.api" defaultMessage="Bingding API" />
           </Button>
         </Access>,
-        <Access key="/menu/delete" permission="/menu/delete">
+        <Access key="/menu/delete" rootOnly>
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -347,7 +349,7 @@ const TableList: React.FC = () => {
         //   console.log(params);
         // }}
         toolBarRender={() => [
-          <Access key="/menu/create" permission="/menu/create">
+          <Access key="/menu/create" rootOnly>
             <Link to="/menu/create" key="create">
               <Button type="primary" key="create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

@@ -3,6 +3,7 @@ import { idRender } from '@/util/columnOptions';
 import { indexTitle } from '@/util/indexTitle';
 import { useOption } from '@/hooks/useOption';
 import { useResponsive } from '@/hooks/useResponsive';
+import { resolveCrudRouteID } from '@/utils/routeAccess';
 import { PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns, ProDescriptionsItemProps } from '@ant-design/pro-components';
 import { PageContainer, ProDescriptions, ProTable } from '@ant-design/pro-components';
@@ -20,7 +21,8 @@ const TableList: React.FC = () => {
   const actionRef = useRef<ActionType>();
   const [currentRow, setCurrentRow] = useState<API.Role>();
   const [list, setList] = useState<[]>([]);
-  const { id } = useParams();
+  const { id: routeID } = useParams();
+  const id = resolveCrudRouteID(routeID, history.location.pathname, '/posts/create');
 
   const { isMobile } = useResponsive();
   const shouldLoadDesktopDependencies = !isMobile || !!id;
@@ -136,14 +138,14 @@ const TableList: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/posts/edit" permission="/posts/edit">
+        <Access key="/posts/edit" rootOnly>
           <Link to={`/posts/${record.id}`} key="edit">
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/posts/delete" permission="/posts/delete">
+        <Access key="/posts/delete" rootOnly>
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -251,7 +253,7 @@ const TableList: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/posts/create" permission="/posts/create">
+          <Access key="/posts/create" rootOnly>
             <Button type="primary" key="create">
               <Link type="primary" to="/posts/create" key="/posts/create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

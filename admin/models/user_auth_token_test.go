@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	standardjwt "github.com/golang-jwt/jwt/v4"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -162,7 +163,12 @@ func TestGenerateUserAuthTokenForcesSecurityClaims(t *testing.T) {
 
 func TestUserCheckTokenBindsRawBearerDigest(t *testing.T) {
 	db := prepareUserAuthTokenModelTestDB(t)
-	user := &User{}
+	role := &Role{Name: "member", Status: enum.Enabled}
+	role.ID = "role-1"
+	if err := db.Create(role).Error; err != nil {
+		t.Fatalf("create role: %v", err)
+	}
+	user := &User{UserLogin: UserLogin{RoleID: role.ID, Status: enum.Enabled}}
 	user.ID = "user-1"
 	user.Username = "owner"
 	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(user).Error; err != nil {
@@ -188,6 +194,24 @@ func TestUserCheckTokenBindsRawBearerDigest(t *testing.T) {
 	}
 	if err := principal().CheckToken(context.Background(), raw); err != nil {
 		t.Fatalf("valid bearer rejected: %v", err)
+	}
+	if err := db.Model(&User{}).Where("id = ?", user.ID).Update("status", enum.Disabled).Error; err != nil {
+		t.Fatalf("disable PAT owner: %v", err)
+	}
+	if err := principal().CheckToken(context.Background(), raw); err == nil {
+		t.Fatal("disabled PAT owner was authenticated")
+	}
+	if err := db.Model(&User{}).Where("id = ?", user.ID).Update("status", enum.Enabled).Error; err != nil {
+		t.Fatalf("restore PAT owner: %v", err)
+	}
+	if err := db.Model(&Role{}).Where("id = ?", role.ID).Update("status", enum.Disabled).Error; err != nil {
+		t.Fatalf("disable PAT role: %v", err)
+	}
+	if err := principal().CheckToken(context.Background(), raw); err == nil {
+		t.Fatal("PAT owner with a disabled role was authenticated")
+	}
+	if err := db.Model(&Role{}).Where("id = ?", role.ID).Update("status", enum.Enabled).Error; err != nil {
+		t.Fatalf("restore PAT role: %v", err)
 	}
 	if err := principal().CheckToken(context.Background(), raw+"-wrong"); err == nil {
 		t.Fatal("wrong bearer accepted for a valid signed selector")

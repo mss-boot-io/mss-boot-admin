@@ -2,6 +2,7 @@ import { history } from '@umijs/max';
 import { message } from 'antd';
 import { errorConfig } from './requestErrorConfig';
 import { getAuthToken, setTransientAuthToken } from './utils/authStorage';
+import { requestPermissionRefresh } from './utils/permissionFreshness';
 import { THEME_AUTH_SESSION_KEY, USER_THEME_SNAPSHOT_PREFIX } from './utils/themeSession';
 
 jest.mock('@umijs/max', () => ({
@@ -11,6 +12,11 @@ jest.mock('@umijs/max', () => ({
 jest.mock('antd', () => ({
   message: { error: jest.fn() },
   notification: { open: jest.fn() },
+}));
+
+jest.mock('./utils/permissionFreshness', () => ({
+  ...jest.requireActual('./utils/permissionFreshness'),
+  requestPermissionRefresh: jest.fn(),
 }));
 
 describe('request authentication failures', () => {
@@ -76,5 +82,32 @@ describe('request authentication failures', () => {
     expect(localStorage.removeItem).toHaveBeenCalledWith(THEME_AUTH_SESSION_KEY);
     expect(getAuthToken({ getItem: jest.fn(() => null) })).toBeNull();
     expect(history.push).toHaveBeenCalledWith('/user/login');
+  });
+
+  it('throttles permission refresh requests after repeated 403 responses', () => {
+    const errorHandler = errorConfig.errorConfig?.errorHandler as (
+      error: unknown,
+      options: unknown,
+    ) => void;
+    const now = jest.spyOn(Date, 'now');
+    const forbidden = {
+      response: {
+        status: 403,
+        statusText: 'Forbidden',
+        data: { msg: 'permission changed' },
+      },
+    };
+
+    now.mockReturnValue(1_000);
+    errorHandler(forbidden, {});
+    now.mockReturnValue(30_999);
+    errorHandler(forbidden, {});
+    expect(requestPermissionRefresh).toHaveBeenCalledTimes(1);
+
+    now.mockReturnValue(31_000);
+    errorHandler(forbidden, {});
+    expect(requestPermissionRefresh).toHaveBeenCalledTimes(2);
+
+    now.mockRestore();
   });
 });

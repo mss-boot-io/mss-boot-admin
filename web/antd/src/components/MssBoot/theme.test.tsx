@@ -157,7 +157,7 @@ describe('shared theme editor', () => {
   it('allows a non-root user with the application control component permission to edit', async () => {
     mockRuntimeState.currentUser = {
       role: { root: false },
-      permissions: { '/app-config/control': 'component' },
+      permissions: { '/app-config/control': true },
     };
     const adapter = {
       scope: 'application' as const,

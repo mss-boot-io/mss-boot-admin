@@ -18,15 +18,25 @@ import (
  */
 
 func init() {
-	e := &SystemConfig{
+	response.AppendController(newSystemConfigController())
+}
+
+func newSystemConfigController() *SystemConfig {
+	return &SystemConfig{
 		Simple: controller.NewSimple(
 			controller.WithAuth(true),
 			controller.WithModel(new(models.SystemConfig)),
 			controller.WithSearch(new(dto.SystemConfigSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			// SystemConfig.Content is an opaque legacy payload and may contain
+			// credentials. Until it is split into typed, independently
+			// authorized resources, every read and mutation stays root-only.
+			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithGetHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithSearchHandlers(gin.HandlersChain{requireRootManagement}),
 		),
 	}
-	response.AppendController(e)
 }
 
 type SystemConfig struct {

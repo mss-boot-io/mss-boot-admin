@@ -3,26 +3,35 @@ import Auth from '@/components/MssBoot/Auth';
 import { getMenuTree } from '@/services/admin/menu';
 import {
   deleteRolesId,
-  getRoleAuthorizeRoleId,
   getRoles,
   getRolesId,
-  postRoleAuthorizeRoleId,
   postRoles,
   putRolesId,
 } from '@/services/admin/role';
+import {
+  createRoleAuthorizationAdapter,
+  isRoleAuthorizationRevisionConflictError,
+  normalizeRoleAuthorizationPaths,
+  type RoleAuthorizationResource,
+} from '@/services/admin/roleAuthorization';
 import { idRender } from '@/util/columnOptions';
 import { fieldIntl } from '@/util/fieldIntl';
 import { indexTitle } from '@/util/indexTitle';
 import { useOption } from '@/hooks/useOption';
 import { useResponsive } from '@/hooks/useResponsive';
+import { requestPermissionRefresh } from '@/utils/permissionFreshness';
+import { resolveCrudRouteID } from '@/utils/routeAccess';
 import { PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns, ProDescriptionsItemProps } from '@ant-design/pro-components';
 import { DrawerForm, PageContainer, ProDescriptions, ProTable } from '@ant-design/pro-components';
 import { FormattedMessage, history, Link, useIntl, useParams } from '@umijs/max';
-import { Button, Drawer, message, Popconfirm } from 'antd';
+import { Alert, Button, Drawer, message, Modal, Popconfirm } from 'antd';
 import { DataNode } from 'antd/es/tree';
 import React, { useRef, useState } from 'react';
 import MobileRoleList from './Mobile/RoleList';
+import { getRoleActionDisabledState } from './roleActions';
+
+const roleAuthorizationAdapter = createRoleAuthorizationAdapter();
 
 const TableList: React.FC = () => {
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
@@ -34,8 +43,15 @@ const TableList: React.FC = () => {
   const [treeData, setTreeData] = useState<DataNode[]>([]);
 
   const [checkedKeys, setCheckedKeys] = useState<React.Key[]>([]);
+  const [authorizationResource, setAuthorizationResource] =
+    useState<RoleAuthorizationResource>();
+  const [authorizationConflict, setAuthorizationConflict] = useState<{
+    current?: RoleAuthorizationResource;
+  }>();
+  const [modalApi, modalContextHolder] = Modal.useModal();
 
-  const { id } = useParams();
+  const { id: routeID } = useParams();
+  const id = resolveCrudRouteID(routeID, history.location.pathname, '/role/create');
 
   const { isMobile } = useResponsive();
   const shouldLoadDesktopDependencies = !isMobile || !!id;
@@ -100,26 +116,32 @@ const TableList: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/role/edit" permission="/role/edit">
-          <Link to={`/role/${record.id}`}>
-            <Button key="edit">
+        <Access key="/role/edit" rootOnly>
+          {getRoleActionDisabledState(record).edit ? (
+            <Button key="edit" disabled>
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
-          </Link>
+          ) : (
+            <Link to={`/role/${record.id}`}>
+              <Button key="edit">
+                <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
+              </Button>
+            </Link>
+          )}
         </Access>,
-        <Access key="/role/auth" permission="/role/auth">
+        <Access key="/role/auth" rootOnly>
           <Button
             key="auth"
-            disabled={record.root}
+            disabled={getRoleActionDisabledState(record).authorize}
             onClick={() => {
-              setAuthModalOpen(true);
               setCurrentRow(record);
+              setAuthModalOpen(true);
             }}
           >
             <FormattedMessage id="pages.role.auth.title" defaultMessage="Auth" />
           </Button>
         </Access>,
-        <Access key="/role/delete" permission="/role/delete">
+        <Access key="/role/delete" rootOnly>
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -130,7 +152,7 @@ const TableList: React.FC = () => {
               id: 'pages.description.delete.confirm',
               defaultMessage: 'Are you sure to delete this record?',
             })}
-            disabled={record.root}
+            disabled={getRoleActionDisabledState(record).delete}
             onConfirm={async () => {
               await deleteRolesId({ id: record.id! });
               message
@@ -145,7 +167,7 @@ const TableList: React.FC = () => {
             okText={intl.formatMessage({ id: 'pages.title.ok', defaultMessage: 'OK' })}
             cancelText={intl.formatMessage({ id: 'pages.title.cancel', defaultMessage: 'Cancel' })}
           >
-            <Button disabled={record.root} key="delete.button">
+            <Button disabled={getRoleActionDisabledState(record).delete} key="delete.button">
               <FormattedMessage id="pages.title.delete" defaultMessage="Delete" />
             </Button>
           </Popconfirm>
@@ -169,23 +191,48 @@ const TableList: React.FC = () => {
 
   const onOpenChange = async (e: boolean) => {
     if (e) {
-      const data = await getMenuTree();
-      setTreeData(transfer(data));
-      //get checkedKeys
-      const checkedRes = await getRoleAuthorizeRoleId({
-        roleID: currentRow?.id ?? '',
-      });
-      if (checkedRes) {
-        const checkedKeys: React.Key[] = [];
-        checkedRes.paths?.forEach((value) => {
-          checkedKeys.push(value);
-        });
-        setCheckedKeys(checkedKeys);
+      const roleID = currentRow?.id;
+      if (!roleID) {
+        setAuthModalOpen(false);
+        return;
+      }
+      try {
+        const [data, resource] = await Promise.all([
+          getMenuTree(),
+          roleAuthorizationAdapter.load(roleID),
+        ]);
+        setTreeData(transfer(data));
+        setAuthorizationResource(resource);
+        setCheckedKeys(resource.paths);
+        setAuthorizationConflict(undefined);
+      } catch {
+        message.error(intl.formatMessage({ id: 'pages.role.auth.failed' }));
+        setAuthModalOpen(false);
       }
       return;
     }
     setTreeData([]);
+    setCheckedKeys([]);
+    setAuthorizationResource(undefined);
+    setAuthorizationConflict(undefined);
     setAuthModalOpen(e);
+  };
+
+  const reloadLatestAuthorization = async () => {
+    const roleID = authorizationResource?.roleID ?? currentRow?.id;
+    if (!roleID) return;
+    try {
+      const latest =
+        authorizationConflict?.current?.roleID === roleID
+          ? authorizationConflict.current
+          : await roleAuthorizationAdapter.load(roleID);
+      setAuthorizationResource(latest);
+      setCheckedKeys(latest.paths);
+      setAuthorizationConflict(undefined);
+      message.success(intl.formatMessage({ id: 'pages.role.auth.conflict.reloaded' }));
+    } catch {
+      message.error(intl.formatMessage({ id: 'pages.role.auth.failed' }));
+    }
   };
 
   const onSubmit = async (params: any) => {
@@ -215,6 +262,7 @@ const TableList: React.FC = () => {
 
   return (
     <PageContainer title={indexTitle(id)}>
+      {modalContextHolder}
       {isMobile && !id ? (
         <MobileRoleList
           request={getRoles}
@@ -243,7 +291,7 @@ const TableList: React.FC = () => {
           type={id ? 'form' : 'table'}
           onSubmit={id ? onSubmit : undefined}
           toolBarRender={() => [
-            <Access key="/role/create" permission="/role/create">
+            <Access key="/role/create" rootOnly>
               <Button type="primary" key="create">
                 <Link type="primary" key="primary" to="/role/create">
                   <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />
@@ -297,23 +345,69 @@ const TableList: React.FC = () => {
         onOpenChange={onOpenChange}
         title={intl.formatMessage({ id: 'pages.role.auth.title' })}
         open={authModalOpen}
+        submitter={{
+          submitButtonProps: {
+            disabled: Boolean(authorizationConflict),
+          },
+        }}
         onFinish={async () => {
-          const paths: string[] = [];
-          checkedKeys.forEach((value) => {
-            paths.push(value.toString());
-          });
-
-          await postRoleAuthorizeRoleId(
-            {
-              roleID: currentRow?.id ?? '',
-            },
-            {
-              paths,
-            },
+          if (!authorizationResource) return false;
+          const paths = normalizeRoleAuthorizationPaths(
+            checkedKeys.map((value) => value.toString()),
           );
-          message.success(intl.formatMessage({ id: 'pages.role.auth.success' }));
+          if (paths.length === 0) {
+            const confirmed = await modalApi.confirm({
+              title: intl.formatMessage({ id: 'pages.role.auth.clear.title' }),
+              content: intl.formatMessage({ id: 'pages.role.auth.clear.description' }),
+              okButtonProps: { danger: true },
+              okText: intl.formatMessage({ id: 'pages.title.ok' }),
+              cancelText: intl.formatMessage({ id: 'pages.title.cancel' }),
+            });
+            if (!confirmed) return false;
+          }
+
+          try {
+            const next = await roleAuthorizationAdapter.save(paths, authorizationResource);
+            setAuthorizationResource(next);
+            setCheckedKeys(next.paths);
+            setAuthorizationConflict(undefined);
+            requestPermissionRefresh();
+            message.success(intl.formatMessage({ id: 'pages.role.auth.success' }));
+            return true;
+          } catch (error) {
+            if (isRoleAuthorizationRevisionConflictError(error)) {
+              let latest = error.current;
+              if (!latest) {
+                try {
+                  latest = await roleAuthorizationAdapter.load(authorizationResource.roleID);
+                } catch {
+                  // The conflict state remains visible and the explicit reload
+                  // action retries if the latest resource cannot be fetched yet.
+                }
+              }
+              setAuthorizationConflict({ current: latest });
+              message.warning(intl.formatMessage({ id: 'pages.role.auth.conflict.title' }));
+              return false;
+            }
+            message.error(intl.formatMessage({ id: 'pages.role.auth.failed' }));
+            return false;
+          }
         }}
       >
+        {authorizationConflict && (
+          <Alert
+            showIcon
+            type="warning"
+            message={intl.formatMessage({ id: 'pages.role.auth.conflict.title' })}
+            description={intl.formatMessage({ id: 'pages.role.auth.conflict.description' })}
+            action={
+              <Button size="small" onClick={() => void reloadLatestAuthorization()}>
+                {intl.formatMessage({ id: 'pages.role.auth.conflict.reload' })}
+              </Button>
+            }
+            style={{ marginBottom: 16 }}
+          />
+        )}
         <Auth values={treeData} setCheckedKeys={setCheckedKeys} checkedKeys={checkedKeys} />
       </DrawerForm>
     </PageContainer>

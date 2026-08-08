@@ -183,9 +183,24 @@ declare namespace API {
     group: string;
   };
 
+  type AuthorizeRevisionConflictResponse = {
+    code: number;
+    data: AuthorizeRevisionConflictResponseData;
+    errorCode: string;
+    errorMessage: string;
+    status: string;
+    success: boolean;
+    traceId: string;
+  };
+
+  type AuthorizeRevisionConflictResponseData = {
+    current: GetAuthorizeResponse;
+  };
+
   type GetAuthorizeResponse = {
-    paths?: string[];
-    roleID?: string;
+    paths: string[];
+    revision: string;
+    roleID: string;
   };
 
   type getDepartmentsIdParams = {
@@ -902,7 +917,7 @@ declare namespace API {
   type Scheme = 'yaml' | 'yml' | 'json';
 
   type SetAuthorizeRequest = {
-    paths?: string[];
+    paths: string[];
   };
 
   type StatisticsGetResponse = {

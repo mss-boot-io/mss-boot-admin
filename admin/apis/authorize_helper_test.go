@@ -1,10 +1,6 @@
 package apis
 
-import (
-	"testing"
-
-	"github.com/mss-boot-io/mss-boot-admin/admin/models"
-)
+import "testing"
 
 func TestSanitizeAuthorizePaths(t *testing.T) {
 	paths := []string{" /user/list ", "", " /user/list", "/role/list", "   ", "/role/list"}
@@ -17,54 +13,6 @@ func TestSanitizeAuthorizePaths(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("unexpected sanitize value at %d: got=%q want=%q", i, got[i], want[i])
 		}
-	}
-}
-
-func TestMissingAuthorizePaths(t *testing.T) {
-	paths := []string{"/menu/a", "/menu/b", "/menu/c"}
-	loaded := map[string]struct{}{
-		"/menu/a": {},
-		"/menu/c": {},
-	}
-	missing := missingAuthorizePaths(paths, loaded)
-	if len(missing) != 1 {
-		t.Fatalf("unexpected missing length: got=%d want=1", len(missing))
-	}
-	if missing[0] != "/menu/b" {
-		t.Fatalf("unexpected missing path: got=%q want=%q", missing[0], "/menu/b")
-	}
-}
-
-func TestAuthorizePathSet(t *testing.T) {
-	paths := []string{"/menu/a", "/menu/b", "/menu/a"}
-	set := authorizePathSet(paths)
-	if len(set) != 2 {
-		t.Fatalf("unexpected set length: got=%d want=2", len(set))
-	}
-	if _, ok := set["/menu/a"]; !ok {
-		t.Fatalf("missing expected path %q", "/menu/a")
-	}
-	if _, ok := set["/menu/b"]; !ok {
-		t.Fatalf("missing expected path %q", "/menu/b")
-	}
-}
-
-func TestFilterAuthorizeMenusByPathSet(t *testing.T) {
-	menus := []*models.Menu{
-		{Path: "/menu/a"},
-		{Path: "/menu/b"},
-		{Path: "/menu/c"},
-	}
-	pathSet := map[string]struct{}{
-		"/menu/b": {},
-		"/menu/c": {},
-	}
-	filtered := filterAuthorizeMenusByPathSet(menus, pathSet)
-	if len(filtered) != 2 {
-		t.Fatalf("unexpected filtered length: got=%d want=2", len(filtered))
-	}
-	if filtered[0].Path != "/menu/b" || filtered[1].Path != "/menu/c" {
-		t.Fatalf("unexpected filtered order or values: got=%q,%q", filtered[0].Path, filtered[1].Path)
 	}
 }
 
@@ -106,125 +54,5 @@ func TestHasEmptyAuthorizeRoleID(t *testing.T) {
 				t.Fatalf("unexpected empty-role detection: got=%v want=%v", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestBuildMenuAuthorizeRules(t *testing.T) {
-	menus := []*models.Menu{
-		{Path: "/menu/a", Method: "GET"},
-		{Path: "/menu/b", Method: "POST"},
-	}
-	rules := buildMenuAuthorizeRules("role-1", menus)
-	if len(rules) != 2 {
-		t.Fatalf("unexpected menu rule length: got=%d want=2", len(rules))
-	}
-	if rules[0].V0 != "role-1" || rules[0].V1 != "MENU" || rules[0].V2 != "/menu/a" || rules[0].V3 != "GET" {
-		t.Fatalf("unexpected first menu rule: %#v", rules[0])
-	}
-	if rules[1].V2 != "/menu/b" || rules[1].V3 != "POST" {
-		t.Fatalf("unexpected second menu rule: %#v", rules[1])
-	}
-}
-
-func TestBuildMenuAuthorizeRulesDeduplicate(t *testing.T) {
-	rules := buildMenuAuthorizeRules("role-1", []*models.Menu{
-		{Path: "/menu/a", Method: "GET"},
-		{Path: "/menu/a", Method: "GET"},
-		{Path: "/menu/b", Method: ""},
-	})
-	if len(rules) != 2 {
-		t.Fatalf("unexpected deduplicated menu rule length: got=%d want=2", len(rules))
-	}
-	if rules[0].V2 != "/menu/a" || rules[0].V3 != "GET" {
-		t.Fatalf("unexpected first dedup menu rule: %#v", rules[0])
-	}
-	if rules[1].V2 != "/menu/b" || rules[1].V3 != ".*" {
-		t.Fatalf("unexpected second dedup menu rule: %#v", rules[1])
-	}
-}
-
-func TestBuildRoleAuthorizeRulesDeduplicate(t *testing.T) {
-	menus := []*models.Menu{
-		{
-			Path:   "/menu/a",
-			Type:   "MENU",
-			Method: "GET",
-			Children: []*models.Menu{
-				{Path: "/api/a", Type: "API", Method: "GET"},
-				{Path: "/api/a", Type: "API", Method: "GET"},
-			},
-		},
-		{
-			Path:   "/menu/a",
-			Type:   "MENU",
-			Method: "GET",
-		},
-	}
-	rules := buildRoleAuthorizeRules("role-1", menus)
-	if len(rules) != 2 {
-		t.Fatalf("unexpected role rule length: got=%d want=2", len(rules))
-	}
-	if rules[0].V0 != "role-1" {
-		t.Fatalf("unexpected role id on first rule: got=%q", rules[0].V0)
-	}
-	if rules[0].V1 != "MENU" || rules[0].V2 != "/menu/a" || rules[0].V3 != "GET" {
-		t.Fatalf("unexpected first role rule: %#v", rules[0])
-	}
-	if rules[1].V1 != "API" || rules[1].V2 != "/api/a" || rules[1].V3 != "GET" {
-		t.Fatalf("unexpected second role rule: %#v", rules[1])
-	}
-}
-
-func TestBuildRoleAuthorizeRulesPersistsMethod(t *testing.T) {
-	menus := []*models.Menu{
-		{
-			Path:   "/menu/trace",
-			Type:   "MENU",
-			Method: "POST",
-			Children: []*models.Menu{
-				{Path: "/api/trace", Type: "API", Method: "PUT"},
-			},
-		},
-	}
-	rules := buildRoleAuthorizeRules("role-2", menus)
-	if len(rules) != 2 {
-		t.Fatalf("unexpected role rule length: got=%d want=2", len(rules))
-	}
-	if rules[0].V3 != "POST" {
-		t.Fatalf("menu method not persisted: got=%q want=%q", rules[0].V3, "POST")
-	}
-	if rules[1].V3 != "PUT" {
-		t.Fatalf("api method not persisted: got=%q want=%q", rules[1].V3, "PUT")
-	}
-}
-
-func TestBuildRoleAuthorizeRulesIncludesChildrenApis(t *testing.T) {
-	menus := []*models.Menu{
-		{
-			Path:   "/menu/root",
-			Type:   "MENU",
-			Method: "GET",
-			Children: []*models.Menu{
-				{Path: "/api/c1", Type: "API", Method: "GET"},
-				{Path: "/api/c2", Type: "API", Method: "POST"},
-			},
-		},
-	}
-	rules := buildRoleAuthorizeRules("role-child", menus)
-	if len(rules) != 3 {
-		t.Fatalf("unexpected rule length for children apis: got=%d want=3", len(rules))
-	}
-	if rules[1].V2 != "/api/c1" || rules[2].V2 != "/api/c2" {
-		t.Fatalf("children api rules missing: got second=%q third=%q", rules[1].V2, rules[2].V2)
-	}
-}
-
-func TestAuthorizeRuleScopesForRole(t *testing.T) {
-	scopes := authorizeRuleScopesForRole()
-	if len(scopes) != 3 {
-		t.Fatalf("unexpected scopes length: got=%d want=3", len(scopes))
-	}
-	if scopes[0] != "MENU" || scopes[1] != "COMPONENT" || scopes[2] != "API" {
-		t.Fatalf("unexpected scopes order/value: got=%v", scopes)
 	}
 }

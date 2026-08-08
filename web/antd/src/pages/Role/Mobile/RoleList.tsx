@@ -5,6 +5,7 @@ import { Access } from '@/components/MssBoot/Access';
 import { useMobileListPagination } from '@/hooks/useMobileListPagination';
 import { useIntl } from '@umijs/max';
 import styles from '@/styles/mobile.less';
+import { getRoleActionDisabledState } from '../roleActions';
 
 interface MobileRoleListProps {
   request: (params: any) => Promise<API.Page & { data?: API.Role[] }>;
@@ -53,7 +54,7 @@ const MobileRoleList: React.FC<MobileRoleListProps> = ({
   return (
     <div className={styles.mobileContainer}>
       <div className={styles.toolbar}>
-        <Access key="/role/create" permission="/role/create">
+        <Access key="/role/create" rootOnly>
           <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
             新建角色
           </Button>
@@ -97,19 +98,40 @@ const MobileRoleList: React.FC<MobileRoleListProps> = ({
 
               <div className={styles.cardActions}>
                 <Space>
-                  <Access key="/role/edit" permission="/role/edit">
-                    <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
+                  <Access key="/role/edit" rootOnly>
+                    <Button
+                      size="small"
+                      icon={<EditOutlined />}
+                      disabled={getRoleActionDisabledState(item).edit}
+                      onClick={() => onEdit(item)}
+                    >
                       编辑
                     </Button>
                   </Access>
-                  <Access key="/role/auth" permission="/role/auth">
-                    <Button size="small" icon={<SafetyOutlined />} disabled={item.root} onClick={() => onAuth(item)}>
+                  <Access key="/role/auth" rootOnly>
+                    <Button
+                      size="small"
+                      icon={<SafetyOutlined />}
+                      disabled={getRoleActionDisabledState(item).authorize}
+                      onClick={() => onAuth(item)}
+                    >
                       授权
                     </Button>
                   </Access>
-                  <Access key="/role/delete" permission="/role/delete">
-                    <Popconfirm title="确定要删除吗？" onConfirm={() => handleDelete(item)} okText="确定" cancelText="取消" disabled={item.root}>
-                      <Button size="small" danger icon={<DeleteOutlined />} disabled={item.root}>
+                  <Access key="/role/delete" rootOnly>
+                    <Popconfirm
+                      title="确定要删除吗？"
+                      onConfirm={() => handleDelete(item)}
+                      okText="确定"
+                      cancelText="取消"
+                      disabled={getRoleActionDisabledState(item).delete}
+                    >
+                      <Button
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        disabled={getRoleActionDisabledState(item).delete}
+                      >
                         删除
                       </Button>
                     </Popconfirm>

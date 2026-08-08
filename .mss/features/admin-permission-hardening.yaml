@@ -1,0 +1,327 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-permission-hardening
+  displayName: Admin authorization hardening
+  description: >-
+    Makes Admin authentication principals authoritative, separates user provisioning from root
+    administration, versions role-policy replacement, and projects one fail-closed permission
+    model into backend enforcement, routes, actions, and runtime refresh.
+  owner: admin-platform
+  labels:
+    domain: security
+    scope: authorization
+    phase: implementation
+spec:
+  problem: >-
+    The current Admin authorization path trusts role and root snapshots embedded in long-lived
+    JWTs, provisions new accounts into the root default role on a fresh database, permits
+    delegated role administrators to grant authority they do not own, and exposes frontend
+    routes independently from the backend permission model. Full-set role updates also cannot
+    clear the last permission and silently lose concurrent edits.
+  goals:
+    - Resolve every authenticated request against an enabled current user and enabled current role instead of trusting JWT role snapshots.
+    - Separate the protected root administrator role from the enabled non-root account-provisioning role.
+    - Restrict policy administration to root while a safe delegated-grant model is not available.
+    - Make role-policy replacement atomic, empty-set capable, revisioned, conflict-safe, and convergent across processes.
+    - Use one fail-closed frontend helper for route, action, shortcut, and application-settings write projection.
+    - Separate application credential reads and writes from ordinary application-settings access, and keep opaque system configuration root-only.
+    - Preserve dynamic menus and existing exact backend API enforcement while tightening unsafe compatibility behavior explicitly.
+  nonGoals:
+    - Introduce attribute-based authorization or arbitrary policy expressions.
+    - Complete organization data-scope enforcement for every legacy model in this delivery.
+    - Add a delegated grant-subset workflow before its actor and protected-role rules are specified.
+    - Replace Casbin, the existing role/menu tables, or the existing role authorization route.
+    - Treat hidden frontend controls as a security boundary.
+  actors:
+    - id: root-administrator
+      displayName: Root administrator
+      description: Maintains roles, permission metadata, and complete role-policy sets.
+    - id: delegated-administrator
+      displayName: Delegated administrator
+      description: Uses explicitly granted business permissions but cannot grant or redefine authority.
+    - id: account-user
+      displayName: Account user
+      description: Uses authenticated-self capabilities and explicitly granted application capabilities.
+    - id: anonymous-visitor
+      displayName: Anonymous visitor
+      description: Uses only the closed public-route and registration surface.
+  modules:
+    - name: principal-validation
+      operation: extend
+      description: Authoritative login, PAT, refresh, and per-request user and role validation.
+    - name: account-provisioning
+      operation: extend
+      description: Non-root default role, fail-closed registration, and upgrade preflight.
+    - name: policy-resource
+      operation: extend
+      description: Versioned atomic role-policy replacement and process convergence.
+    - name: permission-projection
+      operation: extend
+      description: Shared frontend route, action, shortcut, and write-capability projection.
+    - name: security-evidence
+      operation: extend
+      description: Append-only audit and alert history controller surfaces.
+    - name: storage-permission
+      operation: extend
+      description: Explicit permission metadata for general-purpose authenticated uploads.
+    - name: configuration-secret-boundary
+      operation: extend
+      description: Field-level application-secret permissions and a root-only boundary for opaque system configuration.
+  requirements:
+    - id: validate-current-principal
+      title: Validate the current principal on every request
+      description: Signed identity selects a user but never supplies current role, root, or enabled state.
+      priority: must
+      actor: account-user
+      module: principal-validation
+      rules:
+        - Password, email, OAuth, refresh, browser JWT, and personal access token authentication reject a disabled or missing user and a disabled, missing, or changed role.
+        - Authorization uses the current database role and root value, never the serialized Role object in a JWT.
+        - A session identifier must belong to the signed user and role and must be active and unexpired.
+        - Authentication failures return 401; an authenticated current principal lacking permission returns 403.
+        - Principal lookup is one indexed user-role query per authenticated request and never stores password or provider credentials in request-visible state.
+    - id: separate-provisioning-role
+      title: Separate provisioning from root administration
+      description: New accounts can only enter one enabled non-root default role.
+      priority: must
+      actor: anonymous-visitor
+      module: account-provisioning
+      rules:
+        - Exactly one enabled non-root role may be marked default for account provisioning.
+        - The protected root administrator role is never a provisioning default.
+        - Email registration and first-time OAuth provisioning require an explicit enabled registration setting and fail closed when configuration or the provisioning role is missing or ambiguous.
+        - Upgrade migration refuses an ambiguous root-default installation instead of silently reassigning existing users.
+        - A fresh installation retains one protected root account and creates a separate least-privilege provisioning role.
+        - Creating permission metadata never grants a new menu or API implicitly to the provisioning role; its minimal welcome capability is seeded explicitly.
+    - id: restrict-policy-administration
+      title: Restrict authority mutation
+      description: Policy and permission-metadata mutation remains root-only until safe delegation exists.
+      priority: must
+      actor: root-administrator
+      module: policy-resource
+      permission: role:authorize
+      rules:
+        - Role full-policy replacement, menu-only policy replacement, and API-to-menu binding require a current root principal in the handler in addition to route authentication.
+        - Generic user creation, user authority assignment, user deletion, and API registry mutation require a current root principal until a grant hierarchy is defined.
+        - Department-tree and post data-scope mutations require root until subtree and grant-subset delegation are authoritative.
+        - A delegated password-reset operator cannot reset a user whose current role is root.
+        - Session inventory, detail, and forced-revoke operations remain root-only until a target hierarchy and row-scope contract exists; current-session logout remains self-service.
+        - A non-root principal cannot authorize itself, another role, or a protected role even when legacy policy data contains role:authorize.
+        - Read-only role and menu inspection may remain separately grantable.
+    - id: replace-role-policy-safely
+      title: Replace a role policy safely
+      description: The existing role authorization route represents one canonical full-set resource.
+      priority: must
+      actor: root-administrator
+      module: policy-resource
+      permission: role:authorize
+      rules:
+        - GET returns a sorted canonical path set, decimal revision, and strong ETag.
+        - A present empty paths array atomically removes every MENU, COMPONENT, and API rule for the target role; a missing paths member is invalid.
+        - New clients send If-Match and stale revisions return 412 with the current resource without changing policy.
+        - Role-policy rows and role/global authorization revisions change in one database transaction.
+        - Local reload is checked, concurrent enforcement is race-safe, configured watchers are notified, and every process reconciles from the durable global revision even if an event is missed.
+    - id: project-permissions-consistently
+      title: Project permissions consistently in the frontend
+      description: One helper defines root, true, false, missing, route, and action semantics.
+      priority: must
+      actor: account-user
+      module: permission-projection
+      rules:
+        - Only an explicit true permission or a current root principal grants a protected frontend capability.
+        - Dynamic menu visibility, static direct routes, page actions, and welcome shortcuts use the same helper.
+        - A denied direct route renders a localized 403 before its page mounts or requests protected data.
+        - Application settings read and write capabilities are distinct; read-only users cannot submit or upload configuration assets.
+        - Public authentication routes are declared once so forgot-password cannot drift from the anonymous bootstrap guard.
+        - Focus, authorization failure, and policy revision changes refresh current user permissions and dynamic menus without a full reload.
+        - Permission and dynamic-menu projection endpoints reconcile the durable authorization revision before reading Casbin state.
+    - id: preserve-security-evidence
+      title: Preserve security evidence
+      description: Durable audit and alert history cannot be rewritten through management CRUD APIs.
+      priority: must
+      actor: root-administrator
+      module: security-evidence
+      permission: audit:read
+      rules:
+        - Audit log and alert history controller surfaces expose only list and detail reads.
+        - Evidence creation remains owned by backend services and no role, including root, can create, update, or delete evidence through generic CRUD routes.
+        - Authenticated user-security mutations and log exports produce audit evidence, while credentials and multipart file bytes are never buffered or persisted by audit capture.
+    - id: authorize-general-upload
+      title: Authorize general-purpose uploads explicitly
+      description: General storage writes are an assignable capability rather than an authenticated-self bypass.
+      priority: must
+      actor: delegated-administrator
+      module: storage-permission
+      permission: storage:upload
+      rules:
+        - POST /admin/api/storage/upload requires the storage:upload API policy for non-root principals, including personal access tokens.
+        - Account avatar upload remains a separate current-user endpoint and does not grant access to general-purpose storage.
+        - The migration adds COMPONENT and API metadata but never grants the capability implicitly to an existing role.
+    - id: protect-configuration-secrets
+      title: Protect configuration credentials independently
+      description: Ordinary application-settings access never implies credential disclosure or mutation.
+      priority: must
+      actor: root-administrator
+      module: configuration-secret-boundary
+      permission: app-config:secret-read
+      rules:
+        - Application email password, GitHub client secret, Lark app secret, and S3 secret access key use an explicit fixed-key contract that cannot be bypassed by casing aliases.
+        - A non-root read omits sensitive fields unless the role has /app-config/secrets/read; a sensitive or mixed write is rejected atomically unless the role has /app-config/secrets/write.
+        - Root may read and write sensitive application fields; Casbin lookup failure returns an error without disclosure or partial mutation.
+        - Permission metadata is additive and never grants secret read or write implicitly to an existing role.
+        - Legacy SystemConfig.Content remains opaque and all of its list, detail, create, update, and delete operations are root-only until it is split into typed resources.
+  constraints:
+    - id: backend-authority
+      type: security
+      statement: Backend enforcement remains authoritative and no frontend visibility decision can grant API access.
+    - id: root-authority
+      type: compatibility
+      statement: A current enabled root principal continues to bypass ordinary Casbin and frontend permission rows; only explicit root/default lifecycle invariants protect the final administrative entry points from generic CRUD.
+    - id: default-deny
+      type: security
+      statement: Missing user, role, status, permission, request field, revision state, or policy reload fails closed.
+    - id: compatible-route
+      type: compatibility
+      statement: The existing /admin/api/role/authorize/:roleID route remains available as the canonical full replacement resource.
+    - id: durable-revision
+      type: data
+      statement: Authorization convergence depends on the existing database revision table and not on an optional cache or in-memory queue.
+    - id: dynamic-menu-preservation
+      type: compatibility
+      statement: Backend-provided dynamic menus and downstream custom routes remain supported and are not replaced by a hard-coded menu tree.
+    - id: bounded-query-cost
+      type: performance
+      statement: Principal freshness uses an indexed current-user and role lookup and policy reload occurs only when the durable global revision differs.
+  acceptance:
+    - id: principal-negative-matrix
+      requirement: validate-current-principal
+      statement: Tests reject disabled users, disabled roles, changed roles, stale root claims, mismatched sessions, and disabled PAT owners while allowing one enabled current principal.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/middleware/auth_authorization_test.go
+        - type: test
+          value: admin/middleware/auth_session_test.go
+        - type: test
+          value: admin/apis/user_info_permission_test.go
+    - id: provisioning-upgrade-matrix
+      requirement: separate-provisioning-role
+      statement: Fresh and upgrade tests prove root/default separation, fail-closed registration, least-privilege provisioning, idempotency, and ambiguous-upgrade failure.
+      level: migration
+      required: true
+      evidence:
+        - type: test
+          value: admin/cmd/migrate/migration/system/20260808100000_least_privilege_default_role_test.go
+    - id: delegation-negative-matrix
+      requirement: restrict-policy-administration
+      statement: Handler tests prove current root allow and non-root deny for every authority mutation even when Casbin contains a legacy grant.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/apis/root_guard_test.go
+        - type: test
+          value: admin/apis/role_authorization_test.go
+        - type: test
+          value: admin/apis/online_session_permission_test.go
+    - id: policy-concurrency-matrix
+      requirement: replace-role-policy-safely
+      statement: Tests cover missing and empty paths, matching and stale If-Match, same-revision concurrent writers, reload failure, and cross-process durable revision reconciliation.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/apis/role_authorization_test.go
+        - type: test
+          value: admin/service/authorization_test.go
+    - id: frontend-permission-matrix
+      requirement: project-permissions-consistently
+      statement: Jest proves root, true, false, missing, direct-route denial before mount, public routes, application read-only mode, empty policy save, conflict handling, and permission refresh.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/src/utils/authorization.test.ts
+        - type: test
+          value: web/antd/config/routes.test.ts
+        - type: test
+          value: web/antd/src/components/MssBoot/PermissionFreshnessBridge.test.tsx
+    - id: immutable-evidence-contract
+      requirement: preserve-security-evidence
+      statement: Controller tests prove audit and alert history expose read actions and no generic mutation action.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/apis/immutable_history_test.go
+    - id: storage-permission-contract
+      requirement: authorize-general-upload
+      statement: Migration and authorization tests prove metadata is idempotent, no role is implicitly granted, and an authenticated principal without policy is denied.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/cmd/migrate/migration/system/20260808120000_storage_upload_permission_test.go
+        - type: test
+          value: admin/middleware/auth_authorization_test.go
+    - id: configuration-secret-contract
+      requirement: protect-configuration-secrets
+      statement: Handler, service, migration, route, and form tests prove secret omission, independent blind write, atomic denial, no implicit grants, and the root-only opaque-system-config boundary.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/apis/app_config_secret_test.go
+        - type: test
+          value: admin/service/app_config_secret_test.go
+        - type: test
+          value: admin/cmd/migrate/migration/system/20260808130000_app_config_secret_permissions_test.go
+        - type: test
+          value: admin/apis/system_config_security_test.go
+        - type: test
+          value: web/antd/src/pages/AppConfig/useAppConfigAccess.test.ts
+  risks:
+    - id: upgrade-default-role-ambiguity
+      description: Existing installations may have legitimate administrators and registered users sharing the historical root default role.
+      severity: critical
+      mitigation: Fail migration with a diagnostic preflight and require an operator to classify users before rerunning; never silently downgrade or retain root provisioning.
+    - id: stricter-client-concurrency
+      description: Older role editors do not send If-Match and cannot explain a 412 conflict.
+      severity: medium
+      mitigation: Keep a documented compatibility window for missing If-Match while the bundled frontend always sends it, then make 428 mandatory in a later release.
+    - id: frontend-custom-route-gap
+      description: Downstream routes.custom entries may not yet declare a static permission requirement.
+      severity: medium
+      mitigation: Preserve dynamic menus, default unknown custom routes to authenticated access, and add a manifest drift check before requiring explicit permission metadata downstream.
+    - id: session-disabled-password-rotation
+      description: A deployment that leaves server-side sessions disabled cannot revoke an already-issued ordinary browser JWT immediately after a password change.
+      severity: high
+      mitigation: Require auth.sessionEnabled=true in production rollout, prepare the session migration/cache/cleanup path, and announce the one-time re-login of legacy browser sessions.
+    - id: legacy-data-scope-gap
+      description: Several legacy business controllers do not yet apply an authoritative row-level data-scope resolver.
+      severity: high
+      mitigation: Keep this delivery scoped to identity and capability authorization, document the gap explicitly, and complete fail-closed row-scope wiring as a dedicated follow-up before delegating data-scoped administration broadly.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - cd admin && GOWORK=off go test ./middleware ./apis ./service ./cmd/migrate/migration/system
+      - cd mss-boot && GOWORK=off go test ./pkg/config/gormdb
+      - cd web/antd && corepack pnpm@9.15.9 tsc
+      - cd web/antd && corepack pnpm@9.15.9 lint:js
+      - cd web/antd && corepack pnpm@9.15.9 test -- --runInBand
+  rollout:
+    strategy: phased
+    migration: >-
+      First deploy the provisioning-role preflight and additive policy revisions. Installations with
+      an ambiguous root default role stop before mutation and must classify existing users. After
+      migration, deploy the authoritative principal and versioned policy handlers with the bundled
+      frontend guard and runtime refresh.
+      Production rollout also enables auth.sessionEnabled after session storage and cleanup are ready,
+      invalidating browser tokens that do not carry a server-side session identifier.
+    rollback: >-
+      Roll back application code while retaining additive revision rows and the non-root provisioning
+      role. Do not restore root as the provisioning default. Role policies remain in the existing
+      Casbin table and can be read by the preceding release.

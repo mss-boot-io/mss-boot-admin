@@ -73,7 +73,7 @@ const MobileDepartmentList: React.FC<MobileDepartmentListProps> = ({
   return (
     <div className={styles.mobileContainer}>
       <div className={styles.toolbar}>
-        <Access key="/departments/create" permission="/departments/create">
+        <Access key="/departments/create" rootOnly>
           <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
             新建部门
           </Button>
@@ -105,12 +105,12 @@ const MobileDepartmentList: React.FC<MobileDepartmentListProps> = ({
 
               <div className={styles.cardActions}>
                 <Space>
-                  <Access key="/departments/edit" permission="/departments/edit">
+                  <Access key="/departments/edit" rootOnly>
                     <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
                       编辑
                     </Button>
                   </Access>
-                  <Access key="/departments/delete" permission="/departments/delete">
+                  <Access key="/departments/delete" rootOnly>
                     <Popconfirm
                       title="确定要删除吗？"
                       onConfirm={() => handleDelete(item)}

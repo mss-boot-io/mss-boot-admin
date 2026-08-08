@@ -167,7 +167,7 @@ func setup(ctx context.Context) (err error) {
 
 	routerEngine := gin.New()
 	routerEngine.Use(requestlog.Logger(), requestlog.Recovery())
-	routerEngine.Use(middleware.AuditLogMiddleware("/admin/api/user", "/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
+	routerEngine.Use(middleware.AuditLogMiddleware("/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
 	center.SetMakeRouter(router.DefaultMakeRouter)
 	center.SetRouter(routerEngine)
 	center.Default.MakeRouter(routerEngine.Group(group))

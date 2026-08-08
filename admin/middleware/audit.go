@@ -25,6 +25,7 @@ const themeAuditMetadataContextKey = "mss.theme.audit.metadata"
 const (
 	applicationThemeMutationPath = "/admin/api/app-configs/theme"
 	userThemeMutationPath        = "/admin/api/user-configs/theme"
+	auditRequestBodyLimit        = int64(2000)
 )
 
 // ThemeAuditMetadata is deliberately value-free. It records enough structure
@@ -52,9 +53,9 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 		start := time.Now()
 
 		var requestBody string
-		if c.Request.Body != nil && c.Request.Method != http.MethodGet {
+		if shouldCaptureAuditRequestBody(c.Request) {
 			bodyBytes, _ := io.ReadAll(c.Request.Body)
-			if len(bodyBytes) > 0 && len(bodyBytes) < 2000 {
+			if len(bodyBytes) > 0 && int64(len(bodyBytes)) < auditRequestBodyLimit {
 				requestBody = sanitizeAuditRequest(bodyBytes)
 			}
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
@@ -62,7 +63,8 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 
 		c.Next()
 
-		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodOptions {
+		if (c.Request.Method == http.MethodGet && !isAuditedRead(c.Request.URL.Path)) ||
+			c.Request.Method == http.MethodOptions {
 			return
 		}
 
@@ -88,6 +90,8 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 			logType = "update"
 		case http.MethodDelete:
 			logType = "delete"
+		case http.MethodGet:
+			logType = string(models.AuditLogTypeExport)
 		default:
 			return
 		}
@@ -151,6 +155,26 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 			response.Make(c).AddError(err).Log.Error("write audit log failed")
 		}
 	}
+}
+
+func shouldCaptureAuditRequestBody(request *http.Request) bool {
+	if request == nil || request.Body == nil || request.Method == http.MethodGet || request.Method == http.MethodOptions {
+		return false
+	}
+	// Never buffer multipart uploads in the audit middleware. Upload handlers
+	// already enforce file size and MIME policy, while audit evidence records
+	// actor, route, status, and duration without copying file bytes into memory.
+	mediaType := strings.ToLower(strings.TrimSpace(strings.SplitN(request.Header.Get("Content-Type"), ";", 2)[0]))
+	if mediaType != "application/json" {
+		return false
+	}
+	// Unknown/chunked or large bodies are intentionally not captured. Reading
+	// them merely to decide not to persist them would amplify request memory.
+	return request.ContentLength >= 0 && request.ContentLength < auditRequestBodyLimit
+}
+
+func isAuditedRead(path string) bool {
+	return path == "/admin/api/logs/export"
 }
 
 func themeAuditMetadataFromContext(ctx *gin.Context) (ThemeAuditMetadata, bool) {

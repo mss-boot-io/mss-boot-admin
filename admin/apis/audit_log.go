@@ -27,6 +27,19 @@ type AuditLogAPI struct {
 	*controller.Simple
 }
 
+// GetAction keeps durable audit evidence append-only through the public
+// controller surface. Audit rows are created only by the audit service; an
+// administrator may inspect them but can never create, replace, or delete
+// evidence through the generic CRUD routes.
+func (e *AuditLogAPI) GetAction(key string) response.Action {
+	switch key {
+	case response.Get, response.Search:
+		return e.Simple.GetAction(key)
+	default:
+		return nil
+	}
+}
+
 func (e *AuditLogAPI) Other(r *gin.RouterGroup) {
 	r.GET("/audit-logs/login", response.AuthHandler, e.LoginLogs)
 	r.GET("/audit-logs/operation", response.AuthHandler, e.OperationLogs)

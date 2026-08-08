@@ -5,6 +5,7 @@ import { message, Upload } from 'antd';
 import React, { useRef, useState } from 'react';
 import { request } from '@@/exports';
 import { PlusOutlined } from '@ant-design/icons';
+import { useAppConfigAccess } from '../useAppConfigAccess';
 
 const Base: React.FC = () => {
   /**
@@ -12,6 +13,7 @@ const Base: React.FC = () => {
    * @zh-CN 国际化配置
    * */
   const intl = useIntl();
+  const { canUpload, canWrite } = useAppConfigAccess();
 
   const formRef = useRef<ProFormInstance>();
   const [logo, setLogo] = useState<string>('');
@@ -41,12 +43,18 @@ const Base: React.FC = () => {
       dataIndex: 'websiteLogo',
       valueType: 'avatar',
       renderFormItem: () => {
+        if (!canUpload) {
+          return logo ? (
+            <img src={logo} alt="logo" style={{ borderRadius: '50%', height: 80, width: 80 }} />
+          ) : null;
+        }
         return (
           <Upload
             listType="picture-circle"
             className="avatar-uploader"
             showUploadList={false}
             customRequest={async ({ file }) => {
+              if (!canUpload) return;
               const formData = new FormData();
 
               formData.append('file', file);
@@ -74,6 +82,7 @@ const Base: React.FC = () => {
   ];
 
   const onSubmit = async (params: Record<string, any>) => {
+    if (!canWrite) return;
     params.websiteLogo = logo;
     await putAppConfigsGroup({ group: 'base' }, { data: params });
     message.success(
@@ -86,8 +95,10 @@ const Base: React.FC = () => {
       type="form"
       formRef={formRef}
       columns={columns}
-      onSubmit={onSubmit}
+      onSubmit={canWrite ? onSubmit : undefined}
       form={{
+        readonly: !canWrite,
+        submitter: canWrite ? undefined : false,
         request: async () => {
           const res = await getAppConfigsGroup({ group: 'base' });
           setLogo(res?.websiteLogo || 'https://docs.mss-boot-io.top/favicon.ico');

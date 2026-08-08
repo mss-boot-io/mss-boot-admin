@@ -86,6 +86,25 @@ type appConfigPublicKey struct {
 	Name  string
 }
 
+// sensitiveAppConfigKeys is the complete field-level secret contract for the
+// application settings API. The persisted Auth flag is intentionally not an
+// authorization source: historical rows may contain incorrect classifications
+// and new private settings are not automatically credentials.
+var sensitiveAppConfigKeys = []appConfigPublicKey{
+	{Group: "email", Name: "password"},
+	{Group: "security", Name: "githubClientSecret"},
+	{Group: "security", Name: "larkAppSecret"},
+	{Group: "storage", Name: "s3SecretAccessKey"},
+}
+
+var sensitiveAppConfigKeySet = func() map[appConfigPublicKey]struct{} {
+	result := make(map[appConfigPublicKey]struct{}, len(sensitiveAppConfigKeys))
+	for _, key := range sensitiveAppConfigKeys {
+		result[key] = struct{}{}
+	}
+	return result
+}()
+
 // publicAppConfigKeys is the browser bootstrap contract. Additions require a
 // review of the frontend consumer and the client-configuration security
 // contract; every key not listed here is private by default.
@@ -350,7 +369,18 @@ func transferValue(value string) any {
 	}
 }
 
+// Group returns the least-privileged group projection. Callers must opt in to
+// sensitive values through GroupWithSensitiveValues after enforcing the
+// dedicated field-level permission.
 func (e *AppConfig) Group(ctx *gin.Context, group string) (map[string]any, error) {
+	return e.GroupWithSensitiveValues(ctx, group, false)
+}
+
+func (e *AppConfig) GroupWithSensitiveValues(
+	ctx *gin.Context,
+	group string,
+	includeSensitive bool,
+) (map[string]any, error) {
 	if err := validateAppConfigGroupCasing(group); err != nil {
 		return nil, err
 	}
@@ -367,9 +397,39 @@ func (e *AppConfig) Group(ctx *gin.Context, group string) (map[string]any, error
 	}
 	result := make(map[string]any)
 	for i := range list {
+		// Use the canonical request group and reject historical casing aliases
+		// as secrets too. Case-insensitive database collations can otherwise
+		// return a legacy `Security/githubClientSecret` row for `security`.
+		if !includeSensitive && isSensitiveAppConfigKeyAlias(group, list[i].Name) {
+			continue
+		}
 		result[list[i].Name] = list[i].Value
 	}
 	return result, nil
+}
+
+// AppConfigGroupContainsSensitiveValues reports whether a canonical group can
+// contain one of the fixed credential fields. It is used to avoid consulting
+// the field-level policy engine for groups that cannot expose credentials.
+func AppConfigGroupContainsSensitiveValues(group string) bool {
+	for _, key := range sensitiveAppConfigKeys {
+		if group == key.Group {
+			return true
+		}
+	}
+	return false
+}
+
+// AppConfigMutationContainsSensitiveValues reports whether a request changes
+// at least one fixed credential field. Mixed requests are authorized as one
+// unit before the transaction starts.
+func AppConfigMutationContainsSensitiveValues(group string, data map[string]any) bool {
+	for name := range data {
+		if isSensitiveAppConfigKey(group, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *AppConfig) LegacyThemeGroup(
@@ -601,6 +661,21 @@ func isPublicAppConfigKey(group, name string) bool {
 	return ok
 }
 
+func isSensitiveAppConfigKey(group, name string) bool {
+	_, ok := sensitiveAppConfigKeySet[appConfigPublicKey{Group: group, Name: name}]
+	return ok
+}
+
+func isSensitiveAppConfigKeyAlias(group, name string) bool {
+	for _, key := range sensitiveAppConfigKeys {
+		if canonicalConfigIdentifierFold(group) == canonicalConfigIdentifierFold(key.Group) &&
+			canonicalConfigIdentifierFold(name) == canonicalConfigIdentifierFold(key.Name) {
+			return true
+		}
+	}
+	return false
+}
+
 func validateAppConfigGroupCasing(group string) error {
 	if err := rejectNonCanonicalThemeGroup(group); err != nil {
 		return err
@@ -612,11 +687,30 @@ func validateAppConfigGroupCasing(group string) error {
 			}
 		}
 	}
+	for _, key := range sensitiveAppConfigKeys {
+		if group != key.Group && canonicalConfigIdentifierFold(group) == canonicalConfigIdentifierFold(key.Group) {
+			return &AppConfigKeyCaseMismatchError{
+				Group: group, CanonicalGroup: key.Group,
+			}
+		}
+	}
 	return nil
 }
 
 func validatePublicAppConfigKeyCasing(group, name string) error {
 	for _, key := range publicAppConfigKeys {
+		if canonicalConfigIdentifierFold(group) == canonicalConfigIdentifierFold(key.Group) &&
+			canonicalConfigIdentifierFold(name) == canonicalConfigIdentifierFold(key.Name) &&
+			(group != key.Group || name != key.Name) {
+			return &AppConfigKeyCaseMismatchError{
+				Group:          group,
+				Name:           name,
+				CanonicalGroup: key.Group,
+				CanonicalName:  key.Name,
+			}
+		}
+	}
+	for _, key := range sensitiveAppConfigKeys {
 		if canonicalConfigIdentifierFold(group) == canonicalConfigIdentifierFold(key.Group) &&
 			canonicalConfigIdentifierFold(name) == canonicalConfigIdentifierFold(key.Name) &&
 			(group != key.Group || name != key.Name) {

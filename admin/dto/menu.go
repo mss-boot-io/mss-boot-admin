@@ -34,10 +34,10 @@ type GetAuthorizeRequest struct {
 
 type UpdateAuthorizeRequest struct {
 	GetAuthorizeRequest
-	Keys []string `json:"keys" binding:"required"`
+	Keys *[]string `json:"keys" binding:"required"`
 }
 
 type MenuBindAPIRequest struct {
-	MenuID string   `json:"menuID" binding:"required"`
-	Paths  []string `json:"paths" binding:"required"`
+	MenuID string    `json:"menuID" binding:"required"`
+	Paths  *[]string `json:"paths" binding:"required"`
 }

@@ -486,3 +486,138 @@ func TestSensitiveAuditKeyDoesNotRedactOrdinaryStateWords(t *testing.T) {
 		}
 	}
 }
+
+func TestShouldCaptureAuditRequestBodyRejectsUploadsAndUnboundedBodies(t *testing.T) {
+	tests := []struct {
+		name          string
+		method        string
+		contentType   string
+		body          string
+		contentLength *int64
+		want          bool
+	}{
+		{name: "small json", method: http.MethodPost, contentType: "application/json; charset=utf-8", body: `{"name":"safe"}`, want: true},
+		{name: "opaque form", method: http.MethodPatch, contentType: "application/x-www-form-urlencoded", body: "name=safe", want: false},
+		{name: "multipart upload", method: http.MethodPost, contentType: "multipart/form-data; boundary=audit-test", body: "--audit-test", want: false},
+		{name: "binary upload", method: http.MethodPost, contentType: "application/octet-stream", body: "binary", want: false},
+		{name: "read request", method: http.MethodGet, contentType: "application/json", body: `{}`, want: false},
+		{name: "unknown length", method: http.MethodPost, contentType: "application/json", body: `{}`, contentLength: int64Pointer(-1), want: false},
+		{name: "at limit", method: http.MethodPost, contentType: "application/json", body: `{}`, contentLength: int64Pointer(auditRequestBodyLimit), want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(test.method, "/admin/api/test", strings.NewReader(test.body))
+			request.Header.Set("Content-Type", test.contentType)
+			if test.contentLength != nil {
+				request.ContentLength = *test.contentLength
+			}
+			if got := shouldCaptureAuditRequestBody(request); got != test.want {
+				t.Fatalf("shouldCaptureAuditRequestBody() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
+
+func TestAuditMiddlewareRecordsUserSecurityMutationWithoutSecrets(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open audit database: %v", err)
+	}
+	if err = db.AutoMigrate(&models.AuditLog{}); err != nil {
+		t.Fatalf("migrate audit log: %v", err)
+	}
+	previousDB := gormdb.DB
+	previousIdentityKey := config.Cfg.Auth.IdentityKey
+	gormdb.DB = db
+	config.Cfg.Auth.IdentityKey = "audit-user-security-identity"
+	t.Cleanup(func() {
+		gormdb.DB = previousDB
+		config.Cfg.Auth.IdentityKey = previousIdentityKey
+	})
+
+	principal := &models.User{}
+	principal.ID = "security-actor"
+	principal.Username = "security-actor"
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(config.Cfg.Auth.IdentityKey, principal)
+		c.Next()
+	})
+	router.Use(AuditLogMiddleware("/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
+	router.PUT("/admin/api/user/security", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	request := httptest.NewRequest(
+		http.MethodPut,
+		"/admin/api/user/security",
+		strings.NewReader(`{"operation":"rotate","password":"never-store-me"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("response = %d, want %d", response.Code, http.StatusNoContent)
+	}
+
+	var audit models.AuditLog
+	if err = db.First(&audit).Error; err != nil {
+		t.Fatalf("load security audit: %v", err)
+	}
+	if audit.Path != "/admin/api/user/security" || audit.Type != models.AuditLogTypeUpdate {
+		t.Fatalf("unexpected security audit: %#v", audit)
+	}
+	if !strings.Contains(audit.Request, `"operation":"rotate"`) || strings.Contains(audit.Request, "never-store-me") {
+		t.Fatalf("security audit request was not safely redacted: %s", audit.Request)
+	}
+	if !strings.Contains(audit.Request, auditRedactedValue) {
+		t.Fatalf("security audit request omitted the redaction marker: %s", audit.Request)
+	}
+}
+
+func TestAuditMiddlewareRecordsLogExportRead(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open audit database: %v", err)
+	}
+	if err = db.AutoMigrate(&models.AuditLog{}); err != nil {
+		t.Fatalf("migrate audit log: %v", err)
+	}
+	previousDB := gormdb.DB
+	previousIdentityKey := config.Cfg.Auth.IdentityKey
+	gormdb.DB = db
+	config.Cfg.Auth.IdentityKey = "audit-export-identity"
+	t.Cleanup(func() {
+		gormdb.DB = previousDB
+		config.Cfg.Auth.IdentityKey = previousIdentityKey
+	})
+
+	principal := &models.User{}
+	principal.ID = "export-actor"
+	principal.Username = "export-actor"
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(config.Cfg.Auth.IdentityKey, principal)
+		c.Next()
+	})
+	router.Use(AuditLogMiddleware())
+	router.GET("/admin/api/logs/export", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/logs/export?format=csv", nil)
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("response = %d, want %d", response.Code, http.StatusOK)
+	}
+
+	var audit models.AuditLog
+	if err = db.First(&audit).Error; err != nil {
+		t.Fatalf("load export audit: %v", err)
+	}
+	if audit.Path != "/admin/api/logs/export" || audit.Type != models.AuditLogTypeExport || audit.Request != "" {
+		t.Fatalf("unexpected export audit: %#v", audit)
+	}
+}
+
+func int64Pointer(value int64) *int64 {
+	return &value
+}

@@ -1,4 +1,5 @@
 import { deleteOnlineSession, getOnlineSessions } from '@/services/admin/onlineSession';
+import { Access } from '@/components/MssBoot/Access';
 import {
   PageContainer,
   ProTable,
@@ -13,7 +14,7 @@ import RevokeUserModal from './components/RevokeUserModal';
 import SessionDetailDrawer from './components/SessionDetailDrawer';
 import { getSessionStatus, STATUS_COLOR, STATUS_INTL_ID, type SessionStatus } from './utils';
 
-const OnlineSessionPage: React.FC = () => {
+const OnlineSessionContent: React.FC = () => {
   const intl = useIntl();
   const actionRef = useRef<ActionType>();
   const [detailId, setDetailId] = useState<string | undefined>();
@@ -187,5 +188,11 @@ const OnlineSessionPage: React.FC = () => {
     </PageContainer>
   );
 };
+
+export const OnlineSessionPage: React.FC = () => (
+  <Access rootOnly>
+    <OnlineSessionContent />
+  </Access>
+);
 
 export default OnlineSessionPage;

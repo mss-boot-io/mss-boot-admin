@@ -86,29 +86,54 @@ func (e *User) GetUserID() string {
 
 // PasswordReset reset password
 func PasswordReset(ctx context.Context, userID string, password string) error {
-	user := &User{}
-	err := gormdb.DB.WithContext(ctx).First(user, "id = ?", userID).Error
-	if err != nil {
-		return err
-	}
-	user.Salt = security.GenerateRandomKey6()
-	hash, err := security.SetPassword(password, user.Salt)
-	if err != nil {
-		return err
-	}
 	db := gormdb.DB.WithContext(ctx)
 	if db.Logger != nil {
 		db = db.Session(&gorm.Session{Logger: db.Logger.LogMode(logger.Silent)})
 	}
-	err = db.Model(user).Updates(map[string]any{
-		"password_hash":           hash,
-		"salt":                    user.Salt,
-		"local_password_disabled": false,
-	}).Error
-	if err != nil {
-		return err
-	}
-	return nil
+	return db.Transaction(func(tx *gorm.DB) error {
+		user := &User{}
+		if err := tx.First(user, "id = ?", userID).Error; err != nil {
+			return err
+		}
+		user.Salt = security.GenerateRandomKey6()
+		hash, err := security.SetPassword(password, user.Salt)
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(user).Updates(map[string]any{
+			"password_hash":           hash,
+			"salt":                    user.Salt,
+			"local_password_disabled": false,
+		}).Error; err != nil {
+			return err
+		}
+
+		// Password rotation is a credential revocation boundary. Keep session
+		// and PAT revocation in the same database transaction so no committed
+		// password can coexist with an old durable credential. Lookup re-probes
+		// session rows on cache hits, so stale cache entries still fail closed.
+		now := time.Now()
+		if tx.Migrator().HasTable(&UserSession{}) {
+			if err := tx.Model(&UserSession{}).
+				Where("user_id = ? AND revoked = ?", userID, false).
+				Updates(map[string]any{
+					"revoked":       true,
+					"revoked_at":    now,
+					"revoked_by":    userID,
+					"revoke_reason": SessionRevokeForceByUser,
+				}).Error; err != nil {
+				return err
+			}
+		}
+		if tx.Migrator().HasTable(&UserAuthToken{}) {
+			if err := tx.Model(&UserAuthToken{}).
+				Where("user_id = ? AND revoked = ?", userID, false).
+				Update("revoked", true).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // GetUserByUsername get user by username
@@ -129,6 +154,63 @@ func GetUserByEmail(ctx *gin.Context, email string) (*User, error) {
 		return nil, err
 	}
 	return &user, nil
+}
+
+// LoadCurrentUserPrincipal returns the minimal authorization identity from one
+// indexed user-to-role query. JWT and session data are only snapshots: status,
+// role membership, and root authority always come from this database result.
+// Password hashes and profile fields are deliberately excluded from the
+// projection so they cannot accidentally enter request context or a token.
+func LoadCurrentUserPrincipal(ctx context.Context, db *gorm.DB, userID string) (*User, error) {
+	userID = strings.TrimSpace(userID)
+	if db == nil || userID == "" {
+		return nil, errors.New("current user principal is unavailable")
+	}
+	type principalRow struct {
+		UserID     string      `gorm:"column:user_id"`
+		Username   string      `gorm:"column:username"`
+		RoleID     string      `gorm:"column:role_id"`
+		UserStatus enum.Status `gorm:"column:user_status"`
+		RoleName   string      `gorm:"column:role_name"`
+		RoleStatus enum.Status `gorm:"column:role_status"`
+		RoleRoot   bool        `gorm:"column:role_root"`
+	}
+
+	var row principalRow
+	err := db.WithContext(ctx).
+		Table("mss_boot_users AS auth_user").
+		Select(
+			"auth_user.id AS user_id, auth_user.username, auth_user.role_id, auth_user.status AS user_status, "+
+				"auth_role.name AS role_name, auth_role.status AS role_status, auth_role.root AS role_root",
+		).
+		Joins("JOIN mss_boot_roles AS auth_role ON auth_role.id = auth_user.role_id").
+		Where(
+			"auth_user.id = ? AND auth_user.deleted_at IS NULL AND auth_role.deleted_at IS NULL",
+			userID,
+		).
+		Take(&row).Error
+	if err != nil {
+		return nil, fmt.Errorf("load current user principal: %w", err)
+	}
+	if row.UserID == "" || row.RoleID == "" ||
+		row.UserStatus != enum.Enabled || row.RoleStatus != enum.Enabled {
+		return nil, errors.New("current user principal is disabled")
+	}
+
+	role := &Role{
+		Name:   row.RoleName,
+		Root:   row.RoleRoot,
+		Status: row.RoleStatus,
+	}
+	role.ID = row.RoleID
+	user := &User{UserLogin: UserLogin{
+		RoleID:   row.RoleID,
+		Role:     role,
+		Username: row.Username,
+		Status:   row.UserStatus,
+	}}
+	user.ID = row.UserID
+	return user, nil
 }
 
 type UserLogin struct {
@@ -214,13 +296,13 @@ func (e *User) CheckToken(ctx context.Context, token string) error {
 	if !VerifyUserAuthToken(token, userAuthToken.TokenHash) {
 		return errors.New("token invalid")
 	}
-	err = gormdb.DB.WithContext(ctx).Model(&User{}).
-		Preload("Role").
-		Where("id = ?", userAuthToken.UserID).
-		First(e).Error
+	principal, err := LoadCurrentUserPrincipal(ctx, gormdb.DB, userAuthToken.UserID)
 	if err != nil {
 		return err
 	}
+	*e = *principal
+	e.SetRefreshTokenDisable(true)
+	e.SetPersonAccessToken(tokenID)
 	return nil
 }
 
@@ -239,11 +321,40 @@ const (
 	oauthUserInfoMaxBodySize = 1 << 20
 )
 
+func requirePublicRegistration(c *gin.Context) error {
+	value, ok := userAppConfig(c, "security:registerEnabled")
+	if !ok || !cast.ToBool(value) {
+		return errors.New("public registration is disabled")
+	}
+	return nil
+}
+
+// provisioningRole fails closed unless one and only one active default role
+// exists and that role is explicitly enabled and non-root. Existing OAuth
+// identities never call this helper, so disabling registration does not break
+// sign-in for already provisioned accounts.
+func provisioningRole(c *gin.Context) (*Role, error) {
+	var roles []Role
+	err := center.GetDB(c, &Role{}).
+		Where(map[string]any{"default": true}).
+		Limit(2).
+		Find(&roles).Error
+	if err != nil {
+		return nil, fmt.Errorf("resolve provisioning role: %w", err)
+	}
+	if len(roles) != 1 {
+		return nil, fmt.Errorf("provisioning role is ambiguous: found %d default roles", len(roles))
+	}
+	role := &roles[0]
+	if role.ID == "" || role.Status != enum.Enabled || role.Root {
+		return nil, errors.New("provisioning role must be enabled and non-root")
+	}
+	return role, nil
+}
+
 // Verify verify password
 func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error) {
 	c := ctx.(*gin.Context)
-	defaultRole := &Role{Default: true}
-	_ = center.GetDB(ctx.(*gin.Context), &Role{}).Where(*defaultRole).First(defaultRole).Error
 	switch e.Provider {
 	case pkg.GithubLoginProvider:
 		// get user from db
@@ -257,6 +368,13 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		}
 		if userOAuth2.ID == "" {
 			// register
+			if err := requirePublicRegistration(c); err != nil {
+				return false, nil, err
+			}
+			defaultRole, err := provisioningRole(c)
+			if err != nil {
+				return false, nil, err
+			}
 			username := userOAuth2.Email
 			if username == "" {
 				username = userOAuth2.PreferredUsername
@@ -294,6 +412,13 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		}
 		if userOAuth2.ID == "" {
 			// register
+			if err := requirePublicRegistration(c); err != nil {
+				return false, nil, err
+			}
+			defaultRole, err := provisioningRole(c)
+			if err != nil {
+				return false, nil, err
+			}
 			userOAuth2.User = &User{
 				UserLogin: UserLogin{
 					RoleID:                defaultRole.ID,
@@ -337,10 +462,12 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		}
 		return true, user, nil
 	case pkg.EmailRegisterProvider:
-		if val, ok := center.GetAppConfig().GetAppConfig(c, "security:registerEnabled"); ok {
-			if !cast.ToBool(val) {
-				return false, nil, fmt.Errorf("email register not support")
-			}
+		if err := requirePublicRegistration(c); err != nil {
+			return false, nil, err
+		}
+		defaultRole, err := provisioningRole(c)
+		if err != nil {
+			return false, nil, err
 		}
 		// verify captcha
 		if e.Captcha == "" {

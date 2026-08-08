@@ -3,14 +3,14 @@ package models
 import (
 	"testing"
 
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-func TestMenuAfterCreateUsesQuotedDefaultRoleColumn(t *testing.T) {
+func TestMenuCreateDoesNotGrantDefaultRole(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&Role{}, &Menu{}, &CasbinRule{}))
@@ -39,5 +39,5 @@ func TestMenuAfterCreateUsesQuotedDefaultRoleColumn(t *testing.T) {
 		V2:    "/test",
 		V3:    "GET",
 	}).Count(&count).Error)
-	require.Equal(t, int64(1), count)
+	require.Zero(t, count)
 }

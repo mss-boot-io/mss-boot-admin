@@ -16,9 +16,12 @@ import { getCachedLanguages } from './services/admin/language';
 import NoticeIconView from './components/NoticeIcon';
 import HeaderSearch from './components/HeaderSearch';
 import ThemeRuntimeBridge from './components/MssBoot/ThemeRuntimeBridge';
+import PermissionFreshnessBridge from './components/MssBoot/PermissionFreshnessBridge';
+import ForbiddenPage from './pages/403';
 import { getAppConfigsProfile } from '@/services/admin/appConfig';
 import { getUserConfigsProfile } from '@/services/admin/userConfig';
 import { purgeLegacyOAuthStorage } from '@/utils/oauth';
+import { isPublicRoute, PUBLIC_ROUTE_PATHS } from '@/utils/routeAccess';
 import { clearAuthStorage, clearNonPersistentAuthStorage, getAuthToken } from '@/utils/authStorage';
 import {
   applyThemeProfiles,
@@ -39,14 +42,7 @@ import {
 } from '@/utils/themeSession';
 
 const isDev = process.env.NODE_ENV === 'development';
-const loginPath = '/user/login';
-const excludePath = [
-  '/user/github-callback',
-  '/user/lark-callback',
-  '/user/register',
-  '/user/callback/github',
-  '/user/callback/lark',
-];
+const loginPath = PUBLIC_ROUTE_PATHS.login;
 const AUTH_BOOTSTRAP_MAX_ATTEMPTS = 3;
 
 type AdminInitialState = ThemeRuntimeState & {
@@ -54,6 +50,7 @@ type AdminInitialState = ThemeRuntimeState & {
   userConfig?: Record<string, Record<string, any>>;
   themeRuntime?: ThemeRuntimeCoordinatorState;
   currentUser?: API.User;
+  permissionRefreshVersion?: number;
   loading?: boolean;
   fetchUserInfo?: () => Promise<API.User | undefined>;
 };
@@ -111,14 +108,14 @@ export async function getInitialState(identityAttempt = 0): Promise<AdminInitial
 
   const { location } = history;
   const isLoginRoute = location.pathname === loginPath;
-  const isLoginPage = isLoginRoute || excludePath.includes(location.pathname);
+  const isPublicPage = isPublicRoute(location.pathname);
   if (isLoginRoute) {
     clearNonPersistentAuthStorage();
   }
   const token = getAuthToken();
 
-  if (!token || isLoginPage) {
-    if (!isLoginPage) {
+  if (!token || isPublicPage) {
+    if (!isPublicPage) {
       history.replace(getAuthRedirect(location));
     }
     // The public application profile is the anonymous theme authority. Resolve
@@ -259,7 +256,7 @@ export async function getInitialState(identityAttempt = 0): Promise<AdminInitial
     return retryAfterIdentityRace();
   }
 
-  if (token && !isLoginPage) {
+  if (token && !isPublicPage) {
     try {
       return {
         ...themedState,
@@ -290,7 +287,10 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
     title: initialState?.appConfig?.base?.websiteName || 'mss-boot-admin',
     menu: {
       locale: true,
-      request: requestAuthorizedMenu,
+      request: () => requestAuthorizedMenu(initialState?.currentUser),
+      params: {
+        permissionRefreshVersion: initialState?.permissionRefreshVersion || 0,
+      },
     },
     actionsRender: () => [
       <HeaderSearch key="search" placeholder="component.search.placeholder" options={undefined} />,
@@ -311,10 +311,11 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
       content: getUserDisplayName(initialState?.currentUser),
     },
     footerRender: () => <Footer />,
+    unAccessible: <ForbiddenPage />,
     onPageChange: () => {
       const { location } = history;
       const token = getAuthToken();
-      if (!initialState?.currentUser && !token && location.pathname !== loginPath) {
+      if (!initialState?.currentUser && !token && !isPublicRoute(location.pathname)) {
         history.replace(getAuthRedirect(location));
       }
     },
@@ -353,6 +354,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
       return (
         <>
           {children}
+          <PermissionFreshnessBridge />
           <ThemeRuntimeBridge />
           {isDev && (
             <SettingDrawer

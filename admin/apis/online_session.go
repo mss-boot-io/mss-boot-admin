@@ -37,15 +37,20 @@ type OnlineSessionAPI struct {
 	actorResolver  func(*gin.Context) (string, string)
 	sidExtractor   func(*gin.Context) string
 	verifyResolver func(*gin.Context) (userID, username string, ok bool)
+	targetGuard    func(*gin.Context, string) bool
 }
 
 func (e *OnlineSessionAPI) GetAction(_ string) response.Action { return nil }
 
 func (e *OnlineSessionAPI) Other(r *gin.RouterGroup) {
-	r.GET("/online-sessions", response.AuthHandler, e.List)
-	r.GET("/online-sessions/:id", response.AuthHandler, e.Get)
-	r.DELETE("/online-sessions/:id", response.AuthHandler, e.RevokeBySID)
-	r.DELETE("/online-sessions/user/:userID", response.AuthHandler, e.RevokeByUserID)
+	// Session inventory contains IP/user-agent evidence and the revoke actions
+	// affect other principals. Until a target hierarchy and row-scope contract
+	// exists, the complete administrative surface remains root-only even if a
+	// legacy Casbin API row grants one of these routes.
+	r.GET("/online-sessions", response.AuthHandler, requireRootManagement, e.List)
+	r.GET("/online-sessions/:id", response.AuthHandler, requireRootManagement, e.Get)
+	r.DELETE("/online-sessions/:id", response.AuthHandler, requireRootManagement, e.RevokeBySID)
+	r.DELETE("/online-sessions/user/:userID", response.AuthHandler, requireRootManagement, e.RevokeByUserID)
 	r.POST("/online-sessions/logout", response.AuthHandler, e.Logout)
 }
 
@@ -188,6 +193,18 @@ func (e *OnlineSessionAPI) RevokeBySID(c *gin.Context) {
 	api := response.Make(c)
 	sid := c.Param("id")
 	actorID, actorName := e.actor(c)
+	var targetSession models.UserSession
+	if err := e.getDB(c).Select("user_id").First(&targetSession, "id = ?", sid).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			api.Err(http.StatusNotFound)
+			return
+		}
+		api.AddError(err).Err(http.StatusInternalServerError)
+		return
+	}
+	if !e.protectSessionTarget(c, targetSession.UserID) {
+		return
+	}
 
 	_, err := service.Session.RevokeBySID(c, e.getDB(c), sid, actorID, models.SessionRevokeForceBySession)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -219,6 +236,9 @@ func (e *OnlineSessionAPI) RevokeByUserID(c *gin.Context) {
 	api := response.Make(c)
 	uid := c.Param("userID")
 	actorID, actorName := e.actor(c)
+	if !e.protectSessionTarget(c, uid) {
+		return
+	}
 
 	n, err := service.Session.RevokeByUserID(c, e.getDB(c), uid, actorID, models.SessionRevokeForceByUser)
 	if err != nil {
@@ -234,6 +254,40 @@ func (e *OnlineSessionAPI) RevokeByUserID(c *gin.Context) {
 	// emit 200 explicitly instead of going through api.OK which would map
 	// DELETE to 204 and silently drop the body.
 	c.AbortWithStatusJSON(http.StatusOK, gin.H{"affected": n, "userID": uid})
+}
+
+// protectSessionTarget keeps delegated session operators from disconnecting a
+// protected root identity. The exact session-management API policy still
+// controls access to the operation; this is the target hierarchy boundary.
+func (e *OnlineSessionAPI) protectSessionTarget(c *gin.Context, userID string) bool {
+	if e.targetGuard != nil {
+		return e.targetGuard(c, userID)
+	}
+	api := response.Make(c)
+	verify := middleware.GetVerify(c)
+	if verify == nil {
+		api.Err(http.StatusUnauthorized)
+		return false
+	}
+	if verify.Root() {
+		return true
+	}
+
+	var target models.User
+	err := e.getDB(c).Preload("Role").First(&target, "id = ?", userID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		api.Err(http.StatusNotFound)
+		return false
+	}
+	if err != nil {
+		api.AddError(err).Err(http.StatusInternalServerError)
+		return false
+	}
+	if target.Role == nil || target.Role.Root {
+		api.Err(http.StatusForbidden)
+		return false
+	}
+	return true
 }
 
 // Logout 当前用户自登出

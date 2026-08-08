@@ -3,9 +3,15 @@ import { ProColumns, ProFormInstance, ProTable } from '@ant-design/pro-component
 import { useIntl } from '@umijs/max';
 import { message } from 'antd';
 import React, { useRef } from 'react';
+import {
+  omitAppConfigSecrets,
+  prepareAppConfigSecretPayload,
+  useAppConfigAccess,
+} from '../useAppConfigAccess';
 
 const Storage: React.FC = () => {
   const intl = useIntl();
+  const { canReadSecrets, canWrite, canWriteSecrets } = useAppConfigAccess();
 
   const fromRef = useRef<ProFormInstance>();
   const [s3, setS3] = React.useState(false);
@@ -123,6 +129,9 @@ const Storage: React.FC = () => {
       dataIndex: 's3SecretAccessKey',
       hideInForm: !s3,
       valueType: 'password',
+      fieldProps: {
+        disabled: !canWriteSecrets,
+      },
     },
     {
       title: 's3SigningMethod',
@@ -132,8 +141,13 @@ const Storage: React.FC = () => {
   ];
 
   const onSubmit = async (params: Record<string, any>) => {
-    params.type = s3 ? 's3' : 'local';
-    await putAppConfigsGroup({ group: 'storage' }, { data: params });
+    if (!canWrite) return;
+    const values = { ...params, type: s3 ? 's3' : 'local' };
+    const data = prepareAppConfigSecretPayload('storage', values, {
+      canReadSecrets,
+      canWriteSecrets,
+    });
+    await putAppConfigsGroup({ group: 'storage' }, { data });
     message.success(
       intl.formatMessage({ id: 'pages.message.edit.success', defaultMessage: 'Update Success!' }),
     );
@@ -144,8 +158,10 @@ const Storage: React.FC = () => {
       type="form"
       formRef={fromRef}
       columns={columns}
-      onSubmit={onSubmit}
+      onSubmit={canWrite ? onSubmit : undefined}
       form={{
+        readonly: !canWrite,
+        submitter: canWrite ? undefined : false,
         request: async () => {
           const res = await getAppConfigsGroup({ group: 'storage' });
           // setLocal(res.type?.value === 'local');
@@ -155,7 +171,7 @@ const Storage: React.FC = () => {
             res.type = 'local';
           }
           // setMinio(res.s3Provider?.value === 'minio');
-          return res;
+          return canReadSecrets ? res : omitAppConfigSecrets('storage', res);
         },
         onValuesChange: (values) => {
           if (values.type) {

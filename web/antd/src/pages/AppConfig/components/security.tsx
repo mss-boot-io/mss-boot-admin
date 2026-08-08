@@ -4,12 +4,18 @@ import { useIntl } from '@umijs/max';
 import { message } from 'antd';
 import { getAppConfigsGroup, putAppConfigsGroup } from '@/services/admin/appConfig';
 import { fieldIntl } from '@/util/fieldIntl';
+import {
+  omitAppConfigSecrets,
+  prepareAppConfigSecretPayload,
+  useAppConfigAccess,
+} from '../useAppConfigAccess';
 const Security: React.FC = () => {
   /**
    * @en-US International configuration
    * @zh-CN 国际化配置
    * */
   const intl = useIntl();
+  const { canReadSecrets, canWrite, canWriteSecrets } = useAppConfigAccess();
 
   const formRef = useRef<ProFormInstance>();
 
@@ -48,10 +54,13 @@ const Security: React.FC = () => {
       title: fieldIntl(intl, 'githubClientSecret'),
       dataIndex: 'githubClientSecret',
       valueType: 'password',
+      fieldProps: {
+        disabled: !canWriteSecrets,
+      },
       formItemProps: () => {
         return github
           ? {
-              rules: [{ required: true }],
+              rules: [{ required: canReadSecrets && canWriteSecrets }],
             }
           : {};
       },
@@ -106,6 +115,9 @@ const Security: React.FC = () => {
       dataIndex: 'larkAppSecret',
       hideInForm: !lark,
       valueType: 'password',
+      fieldProps: {
+        disabled: !canWriteSecrets,
+      },
     },
     {
       title: fieldIntl(intl, 'larkRedirectURI'),
@@ -121,9 +133,13 @@ const Security: React.FC = () => {
   ];
 
   const onSubmit = async (params: Record<string, any>) => {
-    params.githubEnabled = github;
-    params.larkEnabled = lark;
-    await putAppConfigsGroup({ group: 'security' }, { data: params });
+    if (!canWrite) return;
+    const values = { ...params, githubEnabled: github, larkEnabled: lark };
+    const data = prepareAppConfigSecretPayload('security', values, {
+      canReadSecrets,
+      canWriteSecrets,
+    });
+    await putAppConfigsGroup({ group: 'security' }, { data });
     message.success(
       intl.formatMessage({ id: 'pages.message.edit.success', defaultMessage: 'Update Success!' }),
     );
@@ -134,13 +150,15 @@ const Security: React.FC = () => {
       type="form"
       formRef={formRef}
       columns={columns}
-      onSubmit={onSubmit}
+      onSubmit={canWrite ? onSubmit : undefined}
       form={{
+        readonly: !canWrite,
+        submitter: canWrite ? undefined : false,
         request: async () => {
           const res = await getAppConfigsGroup({ group: 'security' });
           setGithub(res.githubEnabled);
           setLark(res.larkEnabled);
-          return res;
+          return canReadSecrets ? res : omitAppConfigSecrets('security', res);
         },
         onValuesChange: (values) => {
           if (values.larkEnabled !== undefined) {

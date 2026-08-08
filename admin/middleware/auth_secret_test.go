@@ -21,17 +21,17 @@ func TestAdminJWTVerifierDoesNotContainProviderCredential(t *testing.T) {
 	const providerToken = "provider-access-token-must-not-enter-admin-jwt"
 	user := &models.User{UserLogin: models.UserLogin{
 		Username: "oauth-user",
+		RoleID:   "root-role",
+		Role:     &models.Role{Name: "root", Root: true},
 		Password: providerToken,
 		Captcha:  "captcha-secret",
 		Provider: pkg.GithubLoginProvider,
 	}}
 	user.ID = "user-1"
-	verifierJSON, err := marshalVerifier(user)
-	if err != nil {
-		t.Fatalf("marshalVerifier() error = %v", err)
-	}
+	claims := principalClaims(user)
 	token, err := signedjwt.NewWithClaims(signedjwt.SigningMethodHS256, signedjwt.MapClaims{
-		"verifier": string(verifierJSON),
+		"uid": claims["uid"],
+		"rid": claims["rid"],
 	}).SignedString([]byte("test-only-signing-key"))
 	if err != nil {
 		t.Fatalf("sign Admin JWT: %v", err)
@@ -47,27 +47,22 @@ func TestAdminJWTVerifierDoesNotContainProviderCredential(t *testing.T) {
 	if strings.Contains(string(payload), providerToken) ||
 		strings.Contains(string(payload), "captcha-secret") ||
 		strings.Contains(string(payload), `\"password\"`) ||
-		strings.Contains(string(payload), `\"captcha\"`) {
+		strings.Contains(string(payload), `\"captcha\"`) ||
+		strings.Contains(string(payload), `\"role\"`) ||
+		strings.Contains(string(payload), `\"root\"`) ||
+		strings.Contains(string(payload), `\"username\"`) {
 		t.Fatalf("JWT payload leaked transient login secrets: %s", payload)
 	}
 
-	var claims map[string]any
-	if err = json.Unmarshal(payload, &claims); err != nil {
+	var decodedClaims map[string]any
+	if err = json.Unmarshal(payload, &decodedClaims); err != nil {
 		t.Fatalf("decode JWT claims: %v", err)
 	}
-	serializedVerifier, ok := claims["verifier"].(string)
-	if !ok || serializedVerifier == "" {
-		t.Fatalf("JWT verifier claim = %#v, want serialized principal", claims["verifier"])
+	if decodedClaims["uid"] != "user-1" || decodedClaims["rid"] != "root-role" {
+		t.Fatalf("JWT identity claims = %#v, want uid/rid only", decodedClaims)
 	}
-	var verifier map[string]any
-	if err = json.Unmarshal([]byte(serializedVerifier), &verifier); err != nil {
-		t.Fatalf("decode verifier claim: %v", err)
-	}
-	if _, exists := verifier["password"]; exists {
-		t.Fatalf("verifier claim contains password: %#v", verifier)
-	}
-	if _, exists := verifier["captcha"]; exists {
-		t.Fatalf("verifier claim contains captcha: %#v", verifier)
+	if _, exists := decodedClaims["verifier"]; exists {
+		t.Fatalf("JWT retained the legacy verifier claim: %#v", decodedClaims)
 	}
 	if user.Password != "" || user.Captcha != "" {
 		t.Fatal("JWT marshalling did not clear transient secrets from the in-memory principal")

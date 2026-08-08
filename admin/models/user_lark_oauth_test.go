@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 )
 
 const larkTestProviderToken = "lark-provider-token-must-stay-secret"
@@ -131,6 +133,35 @@ func TestGetUserLarkOAuth2DoesNotLogTransportErrorDetail(t *testing.T) {
 	if !strings.Contains(logs.String(), "lark identity request failed") {
 		t.Fatalf("Lark identity log did not contain generic diagnostic: %s", logs.String())
 	}
+}
+
+func TestLarkFirstProvisioningRequiresExplicitRegistration(t *testing.T) {
+	database := setupGithubVerifyTest(t, githubTestAppConfig{
+		"security:registerEnabled": "false",
+	})
+	previousTransport := http.DefaultTransport
+	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body: io.NopCloser(strings.NewReader(
+				`{"code":0,"msg":"ok","data":{"open_id":"ou_new","union_id":"on_new","user_id":"lark-new","name":"Lark New"}}`,
+			)),
+		}, nil
+	})
+	t.Cleanup(func() { http.DefaultTransport = previousTransport })
+
+	ok, verifier, err := (&UserLogin{
+		Provider: pkg.LarkLoginProvider,
+		Password: larkTestProviderToken,
+	}).Verify(larkOAuthTestContext(context.Background()))
+	if err == nil || !strings.Contains(err.Error(), "public registration is disabled") {
+		t.Fatalf("Lark provisioning error = %v", err)
+	}
+	if ok || verifier != nil {
+		t.Fatalf("Lark provisioning = (%v, %#v), want rejected", ok, verifier)
+	}
+	requireGithubRegistrationCount(t, database, 0, 0)
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

@@ -111,7 +111,7 @@ const MobileMenuList: React.FC<MobileMenuListProps> = ({
   return (
     <div className={styles.mobileContainer}>
       <div className={styles.toolbar}>
-        <Access key="/menu/create" permission="/menu/create">
+        <Access key="/menu/create" rootOnly>
           <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
             新建菜单
           </Button>
@@ -148,12 +148,12 @@ const MobileMenuList: React.FC<MobileMenuListProps> = ({
 
               <div className={styles.cardActions}>
                 <Space>
-                  <Access key="/menu/edit" permission="/menu/edit">
+                  <Access key="/menu/edit" rootOnly>
                     <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
                       编辑
                     </Button>
                   </Access>
-                  <Access key="/menu/delete" permission="/menu/delete">
+                  <Access key="/menu/delete" rootOnly>
                     <Popconfirm
                       title="确定要删除吗？"
                       onConfirm={() => handleDelete(item)}

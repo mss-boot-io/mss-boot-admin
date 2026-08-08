@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 )
@@ -105,30 +104,6 @@ func (e *Menu) BeforeCreate(tx *gorm.DB) error {
 		}
 	}
 	return nil
-}
-
-func (e *Menu) AfterCreate(tx *gorm.DB) error {
-	if e.Type != pkg.MenuAccessType {
-		return nil
-	}
-	var defaultRole Role
-	if err := tx.Model(&Role{}).
-		Where(clause.Eq{Column: clause.Column{Name: "default"}, Value: true}).
-		First(&defaultRole).Error; err != nil {
-		return nil
-	}
-	method := e.Method
-	if method == "" {
-		method = "GET"
-	}
-	rule := &CasbinRule{
-		PType: "p",
-		V0:    defaultRole.ID,
-		V1:    pkg.MenuAccessType.String(),
-		V2:    e.Path,
-		V3:    method,
-	}
-	return tx.Create(rule).Error
 }
 
 func (e *Menu) BeforeSave(_ *gorm.DB) error {

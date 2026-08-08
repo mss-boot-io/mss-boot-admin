@@ -1,11 +1,28 @@
-﻿import type { RequestOptions } from '@@/plugin-request/request';
+import type { RequestOptions } from '@@/plugin-request/request';
 import type { RequestConfig } from '@umijs/max';
 import { history } from '@umijs/max';
 import { message, notification } from 'antd';
 import { prepareAPIRequest } from './util/apiRequest';
 import { getResponseErrorMessage } from './util/requestError';
 import { clearAuthStorage } from './utils/authStorage';
+import {
+  requestPermissionRefresh,
+  shouldRefreshPermissions,
+} from './utils/permissionFreshness';
 import { clearThemeIdentitySession } from './utils/themeSession';
+
+let lastForbiddenPermissionRefreshAt: number | undefined;
+
+const refreshPermissionsAfterForbidden = () => {
+  const now = Date.now();
+  if (
+    lastForbiddenPermissionRefreshAt === undefined ||
+    shouldRefreshPermissions(lastForbiddenPermissionRefreshAt, now)
+  ) {
+    lastForbiddenPermissionRefreshAt = now;
+    requestPermissionRefresh();
+  }
+};
 
 // 错误处理方案： 错误类型
 enum ErrorShowType {
@@ -53,6 +70,9 @@ export const errorConfig: RequestConfig = {
         clearThemeIdentitySession();
         clearAuthStorage();
         history.push('/user/login');
+      }
+      if (error.response?.status === 403) {
+        refreshPermissionsAfterForbidden();
       }
       if (opts?.skipErrorHandler) throw error;
       // 我们的 errorThrower 抛出的错误。

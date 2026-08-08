@@ -64,13 +64,20 @@ func newTestGinCtx() *gin.Context {
 	return c
 }
 
+func authSessionPrincipal(userID, roleID string) *models.User {
+	principal := &models.User{}
+	principal.ID = userID
+	principal.RoleID = roleID
+	return principal
+}
+
 // TestValidateSessionFromClaims_MissingSid covers the "legacy JWT (issued
 // before sid was introduced) must be rejected" branch of PR #376 review #5.
 func TestValidateSessionFromClaims_MissingSid(t *testing.T) {
 	setupAuthSessionTest(t)
 	c := newTestGinCtx()
 
-	ok := validateSessionFromClaims(c, jwt.MapClaims{"verifier": "{}"})
+	ok := validateSessionFromClaims(c, jwt.MapClaims{"verifier": "{}"}, authSessionPrincipal("u1", "r1"))
 	assert.False(t, ok, "missing sid claim must be rejected")
 }
 
@@ -87,7 +94,7 @@ func TestValidateSessionFromClaims_ActiveSession(t *testing.T) {
 	assert.NoError(t, db.First(&before, "id = ?", sid).Error)
 
 	c := newTestGinCtx()
-	assert.True(t, validateSessionFromClaims(c, jwt.MapClaims{"sid": sid}),
+	assert.True(t, validateSessionFromClaims(c, jwt.MapClaims{"sid": sid}, authSessionPrincipal("u1", "r1")),
 		"active session must be accepted")
 	waitForSessionTouch(t, db, sid, before.LastSeenAt)
 }
@@ -125,7 +132,7 @@ func TestValidateSessionFromClaims_RevokedRejected(t *testing.T) {
 	assert.NoError(t, err)
 
 	c := newTestGinCtx()
-	assert.False(t, validateSessionFromClaims(c, jwt.MapClaims{"sid": sid}),
+	assert.False(t, validateSessionFromClaims(c, jwt.MapClaims{"sid": sid}, authSessionPrincipal("u1", "r1")),
 		"revoked session must be rejected")
 }
 
@@ -146,7 +153,7 @@ func TestValidateSessionFromClaims_RevokedInDBOnlyRejected(t *testing.T) {
 		Updates(map[string]any{"revoked": true, "revoked_at": time.Now(), "revoked_by": "ops"}).Error)
 
 	c := newTestGinCtx()
-	assert.False(t, validateSessionFromClaims(c, jwt.MapClaims{"sid": sid}),
+	assert.False(t, validateSessionFromClaims(c, jwt.MapClaims{"sid": sid}, authSessionPrincipal("u1", "r1")),
 		"DB-revoked session must be rejected even when cache says active")
 }
 
@@ -165,7 +172,7 @@ func TestValidateSessionFromClaims_ExpiredRejected(t *testing.T) {
 	mr.FlushAll()
 
 	c := newTestGinCtx()
-	assert.False(t, validateSessionFromClaims(c, jwt.MapClaims{"sid": sid}),
+	assert.False(t, validateSessionFromClaims(c, jwt.MapClaims{"sid": sid}, authSessionPrincipal("u1", "r1")),
 		"expired session must be rejected")
 }
 
@@ -175,6 +182,22 @@ func TestValidateSessionFromClaims_ExpiredRejected(t *testing.T) {
 func TestValidateSessionFromClaims_MissingRowRejected(t *testing.T) {
 	setupAuthSessionTest(t)
 	c := newTestGinCtx()
-	assert.False(t, validateSessionFromClaims(c, jwt.MapClaims{"sid": "ghost"}),
+	assert.False(t, validateSessionFromClaims(c, jwt.MapClaims{"sid": "ghost"}, authSessionPrincipal("u1", "r1")),
 		"unknown sid must be rejected")
+}
+
+func TestValidateSessionFromClaims_IdentityMismatchRejected(t *testing.T) {
+	db, _ := setupAuthSessionTest(t)
+	sid, err := service.Session.Create(context.Background(), db, service.CreateSessionInput{
+		UserID: "u1", Username: "alice", RoleID: "r1", TTL: time.Hour,
+	})
+	assert.NoError(t, err)
+
+	for _, principal := range []*models.User{
+		authSessionPrincipal("other-user", "r1"),
+		authSessionPrincipal("u1", "other-role"),
+	} {
+		assert.False(t, validateSessionFromClaims(newTestGinCtx(), jwt.MapClaims{"sid": sid}, principal))
+	}
+	assert.False(t, validateSessionFromClaims(newTestGinCtx(), jwt.MapClaims{"sid": sid}, nil))
 }

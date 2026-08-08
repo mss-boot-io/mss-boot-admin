@@ -9,6 +9,7 @@ import {
 import { idRender } from '@/util/columnOptions';
 import { indexTitle } from '@/util/indexTitle';
 import { useResponsive } from '@/hooks/useResponsive';
+import { resolveCrudRouteID } from '@/utils/routeAccess';
 import { PlusOutlined } from '@ant-design/icons';
 import type {
   ActionType,
@@ -31,7 +32,8 @@ import MobileOptionList from './Mobile/OptionList';
 
 const Option: React.FC = () => {
   const actionRef = useRef<ActionType>();
-  const { id } = useParams();
+  const { id: routeID } = useParams();
+  const id = resolveCrudRouteID(routeID, history.location.pathname, '/option/create');
   const [showDetail, setShowDetail] = useState<boolean>(false);
   const [currentRow, setCurrentRow] = useState<API.Option>();
   const formRef = useRef<ProFormInstance>();

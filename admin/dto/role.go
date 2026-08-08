@@ -25,11 +25,30 @@ type RoleSearch struct {
 }
 
 type SetAuthorizeRequest struct {
-	RoleID string   `uri:"roleID" swaggerignore:"true" binding:"required"`
-	Paths  []string `json:"paths" binding:"required"`
+	RoleID string    `uri:"roleID" swaggerignore:"true" binding:"required"`
+	Paths  *[]string `json:"paths" binding:"required"`
 }
 
 type GetAuthorizeResponse struct {
-	RoleID string   `json:"roleID"`
-	Paths  []string `json:"paths,omitempty"`
+	RoleID string   `json:"roleID" binding:"required"`
+	Paths  []string `json:"paths" binding:"required"`
+	// Revision is a decimal string so JavaScript clients never lose bigint
+	// precision while deriving the strong role-authorization ETag.
+	Revision string `json:"revision" binding:"required"`
+}
+
+// AuthorizeRevisionConflictResponse documents the canonical 412 payload. A
+// client can replace its stale draft base with Current and retry explicitly.
+type AuthorizeRevisionConflictResponse struct {
+	Success      bool                                  `json:"success" binding:"required"`
+	Status       string                                `json:"status" binding:"required"`
+	Code         int                                   `json:"code" binding:"required"`
+	ErrorCode    string                                `json:"errorCode" binding:"required"`
+	ErrorMessage string                                `json:"errorMessage" binding:"required"`
+	TraceID      string                                `json:"traceId" binding:"required"`
+	Data         AuthorizeRevisionConflictResponseData `json:"data" binding:"required"`
+}
+
+type AuthorizeRevisionConflictResponseData struct {
+	Current *GetAuthorizeResponse `json:"current" binding:"required"`
 }

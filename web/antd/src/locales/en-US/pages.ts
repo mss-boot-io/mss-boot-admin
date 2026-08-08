@@ -90,6 +90,8 @@ export default {
   'pages.searchTable.batchApproval': 'batch approval',
   'pages.404.description': 'Sorry, the page you visited does not exist',
   'pages.goback.home': 'Back Home',
+  'pages.403.description': 'You do not have permission to access this page.',
+  'pages.403.action.account': 'Go to personal settings',
   'pages.table.new': 'New',
   'pages.title.option': 'Option',
   'pages.title.list': 'List',
@@ -158,6 +160,14 @@ export default {
   'pages.role.auth.title': 'Authorization',
   'pages.role.auth.success': 'Authorization successful',
   'pages.role.auth.failed': 'Authorization failed',
+  'pages.role.auth.clear.title': 'Clear all role permissions?',
+  'pages.role.auth.clear.description':
+    'This role will lose every assigned menu and action permission. This change takes effect after saving.',
+  'pages.role.auth.conflict.title': 'Authorization changed elsewhere',
+  'pages.role.auth.conflict.description':
+    'Your unsaved selections are preserved. Load the latest authorization before applying your changes again.',
+  'pages.role.auth.conflict.reload': 'Load latest authorization',
+  'pages.role.auth.conflict.reloaded': 'Latest authorization loaded',
   'pages.role.root.true': 'Yes',
   'pages.role.root.false': 'No',
   'pages.system.config.list.title': 'System Config List',
