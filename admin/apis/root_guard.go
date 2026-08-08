@@ -61,8 +61,9 @@ func protectRootUserLifecycle(c *gin.Context) {
 			response.Make(c).Err(http.StatusNotFound)
 			return
 		}
-		response.Make(c).AddError(err).Log.Error("load protected user lifecycle target")
-		response.Make(c).Err(http.StatusInternalServerError)
+		api := response.Make(c)
+		api.AddError(err).Log.Error("load protected user lifecycle target")
+		api.Err(http.StatusInternalServerError)
 		return
 	}
 	if target.Role != nil && target.Role.Root {
