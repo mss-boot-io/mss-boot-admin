@@ -1,72 +1,97 @@
 # Changelog
 
-All notable changes to the mss-boot-admin frontend will be documented in this file.
+All notable, verifiable frontend changes are documented here. Standalone
+frontend releases use the `web/antd/vX.Y.Z` tag namespace; the root foundation
+release may also embed a separately validated frontend artifact.
 
-## [v1.0.0] - 2026-04-06
+## [Unreleased] - web/antd/v0.8.0 candidate
 
-### Fixed
-
-- Removed undefined status variable usage in Login page
-- Fixed Department/Post navigation redirect paths (`/departments`, `/posts`)
-- Fixed password reset success branch logic
-- Added cleanup for polling intervals in NoticeIcon and Generator
-- Removed invalid `skipErrorHandler` parameter from API calls
-- Fixed NotificationContext import paths and API method names
-- Removed duplicate keys in locale files
-- Fixed undefined index access in Log pages
-- Fixed Access component property usage
-
-### Changed
-
-- Removed double PageContainer wrapper in AppConfig page
-- Unified page skeleton consistency across key pages
-- Created reusable AuthShell component for auth pages
-- Extracted useMonitorData hook for monitor data fetching
+Status: **preview / release preparation**. Neither the branch nor this entry is
+a stable standalone frontend release. The candidate must pass the production
+and local build contracts, bundle budget, delivery smoke test, and browser
+acceptance before a tag is published.
 
 ### Added
 
-- Loading/error states for monitor data
-- Visible error feedback on monitor fetch failures
-- Better error handling with retry capability
-- **Comprehensive Testing Infrastructure**:
-  - Unit tests with Jest (≥80% coverage requirement)
-  - Integration tests with React Testing Library + MSW
-  - E2E tests with Playwright including mobile viewport testing
-  - Detailed TESTING.md documentation
-- **Mobile H5 Adaptation**:
-  - Responsive detection using Ant Design breakpoints
-  - Dedicated mobile components in `/src/pages/*/Mobile/` directories
-  - Mobile-specific navigation with bottom tab bar
-  - Comprehensive mobile E2E tests for iPhone 12 Pro viewport
-  - Mobile-optimized styling and touch targets
+- Added layered application and personal theme editors backed by one
+  scope-aware component. Runtime precedence is `code defaults < application
+  settings < personal settings`; sparse overrides preserve inheritance.
+- Added revision-aware theme resources, conflict presentation for stale
+  `If-Match` writes, cross-tab synchronization, identity-isolated browser
+  snapshots, and explicit reset/inherit actions. This capability remains
+  preview until the release matrix in the compatibility contract passes.
+- Added permission-denied boundaries for static routes, dynamic menu routes,
+  page actions, application secrets, uploads, and root-only system
+  configuration.
+- Added reusable monitor trend components that consume backend timestamps and
+  bounded recent history, with loading, empty, stale, and error states.
+- Added searchable authorized navigation and a permission-aware workplace with
+  meaningful empty states instead of fabricated business data.
+
+### Changed
+
+- Dynamic menus remain the navigation source of truth and are refreshed when
+  the current identity or permission revision changes. Frontend checks improve
+  experience but do not replace backend authorization.
+- Authentication bootstrap, avatar loading, locale resources, option data, and
+  navigation use bounded caches and request deduplication while preserving
+  owner/identity isolation.
+- Account avatars use a circular presentation and terminate loading when the
+  image or profile request fails.
+- Desktop and mobile list pages use consistent loading, empty, error,
+  permission-denied, and destructive-action confirmation behavior.
+- CPU and memory charts derive axes, labels, lines, fills, and tooltip surfaces
+  from Ant Design theme tokens so light and real-dark themes remain readable.
+- Application configuration credential fields are omitted or read-only unless
+  the current principal has the dedicated secret capability; SystemConfig is
+  root-only.
+- PAT creation and rotation show the raw token once and never repopulate it from
+  list responses or browser persistence.
+- OAuth callback data is removed from the URL and submitted to the backend in a
+  POST body; provider tokens never enter frontend storage.
+
+### Breaking integration changes
+
+- The bundled frontend expects the v0.8 Admin authorization and current-user
+  contracts. Deploy backend migrations and the v0.8 backend before enabling
+  versioned theme writes.
+- OAuth callback completion uses `POST
+  /admin/api/user/:provider/callback`; legacy GET callbacks are not supported.
+- PAT creation uses `POST /admin/api/user-auth-tokens`; the historical GET
+  generator endpoint is not supported.
+- Role authorization and versioned theme writes use ETag/`If-Match`; stale
+  drafts return `412` and require explicit user reconciliation.
+- Direct navigation to removed runtime development-tool routes resolves through
+  the normal not-found boundary.
 
 ### Removed
 
-- Duplicate layout code in login/register/forget pages (44 lines reduced)
+- Removed runtime model/field administration, virtual CRUD, browser template
+  generation, related routes, menu entries, locale keys, service clients, and
+  generated API types.
+- Removed placeholder rows, fake trend points, and optimistic success states
+  that could disguise a permission or backend failure.
 
-## Version History
+### Toolchain and delivery
 
-| Version    | Date       | Description                  |
-| ---------- | ---------- | ---------------------------- |
-| v1.0.0 | 2026-04-06 | Product polish, testing infrastructure, and mobile H5 adaptation |
+- Node.js `>=22 <25` and pnpm `9.15.9` are the supported build toolchain.
+- `build:local` intentionally targets a backend on the developer workstation
+  and must not be mislabeled as a portable production artifact.
+- A stable generic artifact must use its reviewed production or runtime
+  configuration, contain no development/alpha/beta API endpoint, pass the
+  bundle budget, and pass the Nginx delivery smoke test.
+- Frontend-only rollback restores the preceding static artifact and cache
+  headers. It does not roll back backend migrations or configuration writes.
 
----
+### Upgrade
 
-## Upgrade Instructions
+Use the consolidated [v0.8.0 upgrade guide](../../docs/docs/releases/v0-8-0-upgrade.md)
+and [compatibility matrix](../../docs/docs/releases/v0-8-0-compatibility.md).
+Do not deploy the new frontend ahead of the required backend migration and API
+contract, and do not call a preview build stable.
 
-```bash
-# 1. Pull latest code
-git pull origin main
+## Historical development snapshot - 2026-04-06
 
-# 2. Update dependencies
-pnpm install
-
-# 3. Build
-pnpm build
-```
-
----
-
-## License
-
-MIT
+The former changelog labeled this snapshot `v1.0.0`, but no corresponding
+consolidated-repository frontend tag established that version. It remains
+historical implementation context rather than a semantic release boundary.

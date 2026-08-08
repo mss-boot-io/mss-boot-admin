@@ -11,7 +11,8 @@ keywords: [faq, troubleshooting, help, support]
 
 ## Q: Go 版本要求是什么？
 
-**A:** 需要 Go 1.21 或更高版本。
+**A:** 当前仓库要求 Go 1.26.5。版本和目录约定以仓库根目录的
+`.mss/project.yaml` 为准。
 
 检查当前版本：
 
@@ -23,48 +24,49 @@ go version
 
 ## Q: MySQL 版本要求是什么？
 
-**A:** 推荐 MySQL 8.0 或更高版本。
+**A:** 本地启动默认使用 SQLite，不要求安装 MySQL。需要验证 MySQL 兼容性时，
+推荐使用 MySQL 8.0 或更高版本；PostgreSQL 也是受支持的可选数据库。
 
 MySQL 8.0 提供更好的 utf8mb4 支持和性能优化。
 
 ## Q: Node.js 版本要求是什么？
 
-**A:** 需要 Node.js 18.16.0 或更高版本。
+**A:** 需要 Node.js >= 22 且 < 25，并通过 Corepack 使用仓库固定的
+pnpm 9.15.9。
 
 检查版本：
 
 ```bash
 node -v
-npm -v
+corepack pnpm --version
 ```
 
 ## Q: 前端依赖安装失败怎么办？
 
-**A:** 尝试以下步骤：
+**A:** 先确认位于单一 monorepo 的 `web/antd/` 目录，并按以下步骤处理：
 
-1. 清理缓存：
-
-```bash
-pnpm store prune
-```
-
-2. 删除现有依赖：
+1. 启用 Corepack 并核对固定版本：
 
 ```bash
-rm -rf node_modules pnpm-lock.yaml
+corepack enable
+corepack pnpm --version
 ```
 
-3. 重新安装：
+2. 按 lockfile 冻结安装：
 
 ```bash
-pnpm install
+corepack pnpm install --frozen-lockfile
 ```
 
-4. 如果仍有问题，尝试使用 npm：
+3. 如果下载缓存损坏，清理依赖缓存后重试冻结安装：
 
 ```bash
-npm install
+corepack pnpm store prune
+corepack pnpm install --frozen-lockfile
 ```
+
+不要删除 `pnpm-lock.yaml`，也不要改用其他包管理器绕过依赖锁；如果仍失败，
+保留完整错误并检查 Node 版本、网络和 lockfile 是否与当前提交一致。
 
 ---
 
@@ -72,7 +74,10 @@ npm install
 
 ## Q: 后端启动失败，提示数据库连接错误？
 
-**A:** 检查以下几点：
+**A:** 默认 SQLite 无需额外数据库服务。先从仓库根目录进入 `admin/`，重新执行
+`go run . migrate` 并检查 SQLite 文件目录的读写权限和后端日志。
+
+如果明确切换到了可选的 MySQL/PostgreSQL，再检查以下几点：
 
 1. **MySQL 服务是否启动**：
 
@@ -98,17 +103,19 @@ CREATE DATABASE mss_boot_admin DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_c
 
 3. **DSN 配置是否正确**：
 
-检查环境变量或配置文件中的 `DB_DSN`：
+检查环境变量或配置文件中的 `DB_DSN` 是否已设置，不要把完整 DSN 输出到日志：
 
 ```bash
-echo $DB_DSN
+test -n "${DB_DSN:-}" && echo "DB_DSN is set"
 ```
 
 格式应为：
 
 ```
-root:password@tcp(host:port)/database?charset=utf8mb4&parseTime=True&loc=Local
+<user>:<password>@tcp(<host>:<port>)/<database>?charset=utf8mb4&parseTime=True&loc=Local
 ```
+
+生产凭据应由部署平台的 Secret 机制注入，不能写入文档、工单或仓库配置。
 
 4. **防火墙是否允许连接**：
 
@@ -144,7 +151,7 @@ PORT=9000
 或启动时指定：
 
 ```bash
-pnpm dev --port 9000
+corepack pnpm dev --port 9000
 ```
 
 ## Q: 数据库迁移失败怎么办？
@@ -164,7 +171,8 @@ mysql -uroot -p -h 127.0.0.1 -e "select 1;"
 3. **查看详细错误**：
 
 ```bash
-go run main.go migrate -v
+cd admin
+go run . migrate
 ```
 
 4. **手动执行迁移**：
@@ -184,7 +192,8 @@ forward-compatible migration；标准管理模块也可以先用 `mss module gen
 3. 执行迁移：
 
 ```bash
-go run main.go migrate
+cd admin
+go run . migrate
 ```
 
 4. 启动服务并验证 API、菜单、角色权限和前端页面是否符合预期。
@@ -457,7 +466,7 @@ database:
 
 **A:** 首次登录后立即修改：
 
-1. 登录系统（admin / 123456）
+1. 使用部署者提供的账号和一次性密码登录，不要在文档或工单中记录生产密码
 2. 进入个人中心
 3. 修改密码
 
@@ -594,7 +603,8 @@ git pull origin main
 如果有数据库变更：
 
 ```bash
-go run main.go migrate
+cd admin
+go run . migrate
 ```
 
 5. **重启服务**：

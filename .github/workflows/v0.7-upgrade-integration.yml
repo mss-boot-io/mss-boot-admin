@@ -1,0 +1,131 @@
+name: v0.7 Upgrade Integration
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'admin/cmd/migrate/**'
+      - 'admin/models/**'
+      - 'admin/go.mod'
+      - 'admin/go.sum'
+      - 'mss-boot/pkg/migration/**'
+      - 'tools/release/**'
+      - '.github/workflows/v0.7-upgrade-integration.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'admin/cmd/migrate/**'
+      - 'admin/models/**'
+      - 'admin/go.mod'
+      - 'admin/go.sum'
+      - 'mss-boot/pkg/migration/**'
+      - 'tools/release/**'
+      - '.github/workflows/v0.7-upgrade-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v0-7-upgrade-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  upgrade:
+    name: sqlite-mysql-8.4-and-postgres-17
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: mysql-root-ci-only
+          MYSQL_DATABASE: mss_release_upgrade_test
+          MYSQL_USER: mss_release
+          MYSQL_PASSWORD: mss_release_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping --host=127.0.0.1 --user=mss_release --password=mss_release_ci --silent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: mss_release_upgrade_test
+          POSTGRES_USER: mss_release
+          POSTGRES_PASSWORD: mss_release_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username=mss_release --dbname=mss_release_upgrade_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout complete release history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: admin/go.mod
+          cache: true
+          cache-dependency-path: |
+            admin/go.sum
+            mss-boot/go.sum
+
+      - name: Capture database runtime identities
+        id: database_identity
+        env:
+          MYSQL_CONTAINER_ID: ${{ job.services.mysql.id }}
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          mysql_version="$(docker exec "${MYSQL_CONTAINER_ID}" mysql --version | tr '\n' ' ')"
+          postgres_version="$(docker exec "${POSTGRES_CONTAINER_ID}" postgres --version | tr '\n' ' ')"
+          mysql_image_ref="$(docker inspect --format '{{.Config.Image}}' "${MYSQL_CONTAINER_ID}")"
+          mysql_image_id="$(docker inspect --format '{{.Image}}' "${MYSQL_CONTAINER_ID}")"
+          postgres_image_ref="$(docker inspect --format '{{.Config.Image}}' "${POSTGRES_CONTAINER_ID}")"
+          postgres_image_id="$(docker inspect --format '{{.Image}}' "${POSTGRES_CONTAINER_ID}")"
+          {
+            printf 'mysql_version=%s\n' "${mysql_version}"
+            printf 'mysql_image_ref=%s\n' "${mysql_image_ref}"
+            printf 'mysql_image_id=%s\n' "${mysql_image_id}"
+            printf 'postgres_version=%s\n' "${postgres_version}"
+            printf 'postgres_image_ref=%s\n' "${postgres_image_ref}"
+            printf 'postgres_image_id=%s\n' "${postgres_image_id}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Upgrade real v0.7 schema to the candidate twice
+        env:
+          MSS_RELEASE_BASELINE_REF: v0.7.0
+          MSS_RELEASE_MYSQL_DSN: 'mss_release:mss_release_ci@tcp(127.0.0.1:3306)/mss_release_upgrade_test?charset=utf8mb4&parseTime=true&loc=UTC&multiStatements=false'
+          MSS_RELEASE_POSTGRES_DSN: 'postgres://mss_release:mss_release_ci@127.0.0.1:5432/mss_release_upgrade_test?sslmode=disable&TimeZone=UTC'
+          MSS_RELEASE_ADMIN_PASSWORD: release-upgrade-ci-only
+          MSS_RELEASE_ALLOW_DISPOSABLE_DATABASE: '1'
+          MSS_RELEASE_EVIDENCE_MODE: '1'
+          MSS_RELEASE_MYSQL_VERSION: ${{ steps.database_identity.outputs.mysql_version }}
+          MSS_RELEASE_MYSQL_IMAGE_REF: ${{ steps.database_identity.outputs.mysql_image_ref }}
+          MSS_RELEASE_MYSQL_IMAGE_ID: ${{ steps.database_identity.outputs.mysql_image_id }}
+          MSS_RELEASE_POSTGRES_VERSION: ${{ steps.database_identity.outputs.postgres_version }}
+          MSS_RELEASE_POSTGRES_IMAGE_REF: ${{ steps.database_identity.outputs.postgres_image_ref }}
+          MSS_RELEASE_POSTGRES_IMAGE_ID: ${{ steps.database_identity.outputs.postgres_image_id }}
+        run: tools/release/verify-v0.7-upgrade.sh
+
+      - name: Upload upgrade evidence
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: v0.7-upgrade-${{ github.sha }}
+          path: .mss/reports/release-upgrade.json
+          if-no-files-found: error
+          retention-days: 30

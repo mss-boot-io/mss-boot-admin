@@ -7,13 +7,19 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/mcp"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
 func main() {
 	root := flag.String("root", "", "repository root; defaults to discovery from the current directory")
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+	if *showVersion {
+		_, _ = fmt.Fprintf(os.Stdout, "mss-mcp %s\n", buildinfo.String())
+		return
+	}
 
 	resolvedRoot := *root
 	if resolvedRoot == "" {

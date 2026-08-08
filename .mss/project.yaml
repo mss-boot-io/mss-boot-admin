@@ -31,7 +31,7 @@ spec:
     contract: openapi
   frontend:
     language: typescript
-    nodeVersion: ">=22"
+    nodeVersion: ">=22 <25"
     packageManager: pnpm
     packageManagerVersion: "9.15.9"
     framework: react

@@ -4,6 +4,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo"
 )
 
 // ExecuteAgent runs the complete agent-native command tree.
@@ -20,7 +22,7 @@ func NewAgentRootCommand() *cobra.Command {
 		Short:         "Agent-native management-system foundation CLI",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Version:       version,
+		Version:       buildinfo.String(),
 	}
 	root.PersistentFlags().StringVar(&rootOverride, "root", "", "repository root override")
 	root.SetOut(os.Stdout)
