@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -101,7 +102,7 @@ func TestIsSelfServiceRequestUsesExactMethodAndRoute(t *testing.T) {
 		{name: "current user websocket", method: http.MethodGet, path: "/admin/api/ws/connect", want: true},
 		{name: "current user websocket wrong method", method: http.MethodPost, path: "/admin/api/ws/connect", want: false},
 		{name: "current user websocket lookalike", method: http.MethodGet, path: "/admin/api/ws/connect/online", want: false},
-		{name: "authenticated storage upload", method: http.MethodPost, path: "/admin/api/storage/upload", want: true},
+		{name: "storage upload requires policy", method: http.MethodPost, path: "/admin/api/storage/upload", want: false},
 		{name: "storage upload wrong method", method: http.MethodGet, path: "/admin/api/storage/upload", want: false},
 		{name: "storage upload lookalike", method: http.MethodPost, path: "/admin/api/storage/upload/archive", want: false},
 
@@ -119,6 +120,130 @@ func TestIsSelfServiceRequestUsesExactMethodAndRoute(t *testing.T) {
 				t.Fatalf("isSelfServiceRequest(%q, %q) = %t, want %t", test.method, test.path, got, test.want)
 			}
 		})
+	}
+}
+
+func TestStorageUploadRequiresExplicitAPIPolicy(t *testing.T) {
+	policyModel, err := casbinmodel.NewModelFromString(`[request_definition]
+r = sub, tp, obj, act
+
+[policy_definition]
+p = sub, tp, obj, act
+
+[policy_effect]
+e = some(where (p.eft == allow))
+
+[matchers]
+m = r.sub == p.sub && r.tp == p.tp && keyMatch(r.obj, p.obj) && regexMatch(r.act, p.act)
+`)
+	if err != nil {
+		t.Fatalf("create policy model: %v", err)
+	}
+	enforcer, err := casbin.NewEnforcer(policyModel)
+	if err != nil {
+		t.Fatalf("create policy enforcer: %v", err)
+	}
+	previousEnforcer := gormdb.Enforcer
+	gormdb.Enforcer = enforcer
+	t.Cleanup(func() { gormdb.Enforcer = previousEnforcer })
+
+	principal := &models.User{UserLogin: models.UserLogin{
+		RoleID: "storage-role",
+		Role:   &models.Role{},
+	}}
+	requestContext := func() *gin.Context {
+		return newAuthorizationTestContext(http.MethodPost, "/admin/api/storage/upload")
+	}
+	if authorizeRequest(principal, requestContext()) {
+		t.Fatal("storage upload without a Casbin policy was authorized")
+	}
+	if _, err = enforcer.AddPolicy(
+		"storage-role",
+		"API",
+		"/admin/api/storage/upload",
+		http.MethodPost,
+	); err != nil {
+		t.Fatalf("add storage upload policy: %v", err)
+	}
+	if !authorizeRequest(principal, requestContext()) {
+		t.Fatal("storage upload with its exact API policy was denied")
+	}
+}
+
+func TestAuthorizeCurrentPolicyRequestReconcilesOnlyCasbinRequests(t *testing.T) {
+	policyModel, err := casbinmodel.NewModelFromString(`[request_definition]
+r = sub, tp, obj, act
+
+[policy_definition]
+p = sub, tp, obj, act
+
+[policy_effect]
+e = some(where (p.eft == allow))
+
+[matchers]
+m = r.sub == p.sub && r.tp == p.tp && r.obj == p.obj && r.act == p.act
+`)
+	if err != nil {
+		t.Fatalf("create policy model: %v", err)
+	}
+	enforcer, err := casbin.NewEnforcer(policyModel)
+	if err != nil {
+		t.Fatalf("create policy enforcer: %v", err)
+	}
+	if _, err = enforcer.AddPolicy("operator", "API", "/admin/api/audit-logs/login", http.MethodGet); err != nil {
+		t.Fatalf("add policy: %v", err)
+	}
+
+	previousEnforcer := gormdb.Enforcer
+	previousEnsure := ensureAuthorizationPolicyCurrent
+	gormdb.Enforcer = enforcer
+	t.Cleanup(func() {
+		gormdb.Enforcer = previousEnforcer
+		ensureAuthorizationPolicyCurrent = previousEnsure
+	})
+
+	ensureCalls := 0
+	ensureAuthorizationPolicyCurrent = func(*gin.Context) error {
+		ensureCalls++
+		return nil
+	}
+	operator := &models.User{UserLogin: models.UserLogin{RoleID: "operator", Role: &models.Role{}}}
+	if !authorizeCurrentPolicyRequest(
+		operator,
+		newAuthorizationTestContext(http.MethodGet, "/admin/api/audit-logs/login"),
+	) {
+		t.Fatal("policy-backed request was denied after successful reconciliation")
+	}
+	if ensureCalls != 1 {
+		t.Fatalf("policy reconciliation calls = %d, want 1", ensureCalls)
+	}
+
+	root := &models.User{UserLogin: models.UserLogin{RoleID: "root", Role: &models.Role{Root: true}}}
+	if !authorizeCurrentPolicyRequest(
+		root,
+		newAuthorizationTestContext(http.MethodGet, "/admin/api/audit-logs/login"),
+	) {
+		t.Fatal("root request was denied")
+	}
+	if !authorizeCurrentPolicyRequest(
+		operator,
+		newAuthorizationTestContext(http.MethodGet, "/admin/api/user/userInfo"),
+	) {
+		t.Fatal("exact self-service request was denied")
+	}
+	if ensureCalls != 1 {
+		t.Fatalf("root/self-service must not reconcile Casbin, calls = %d", ensureCalls)
+	}
+
+	ensureAuthorizationPolicyCurrent = func(*gin.Context) error {
+		return errors.New("policy database unavailable")
+	}
+	failedContext := newAuthorizationTestContext(http.MethodGet, "/admin/api/audit-logs/login")
+	if authorizeCurrentPolicyRequest(operator, failedContext) {
+		t.Fatal("request was authorized while durable policy reconciliation failed")
+	}
+	if !failedContext.GetBool(authorizationPolicyFailureKey) {
+		t.Fatal("policy reconciliation failure was not classified for a 503 response")
 	}
 }
 

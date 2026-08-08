@@ -9,6 +9,7 @@ import { getManagedLanguages } from '@/services/admin/languageManagement';
 import { idRender } from '@/util/columnOptions';
 import { indexTitle } from '@/util/indexTitle';
 import { useResponsive } from '@/hooks/useResponsive';
+import { resolveCrudRouteID } from '@/utils/routeAccess';
 import { PlusOutlined } from '@ant-design/icons';
 import type {
   ActionType,
@@ -31,7 +32,8 @@ import MobileLanguageList from './Mobile/LanguageList';
 
 const Language: React.FC = () => {
   const actionRef = useRef<ActionType>();
-  const { id } = useParams();
+  const { id: routeID } = useParams();
+  const id = resolveCrudRouteID(routeID, history.location.pathname, '/language/create');
   const [showDetail, setShowDetail] = useState<boolean>(false);
   const [currentRow, setCurrentRow] = useState<API.Language>();
   const { isMobile } = useResponsive();

@@ -8,6 +8,7 @@ import {
 } from '@/services/admin/systemConfig';
 import { idRender } from '@/util/columnOptions';
 import { indexTitle } from '@/util/indexTitle';
+import { resolveCrudRouteID } from '@/utils/routeAccess';
 import { PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns, ProDescriptionsItemProps } from '@ant-design/pro-components';
 import { PageContainer, ProDescriptions, ProTable } from '@ant-design/pro-components';
@@ -19,7 +20,8 @@ import { fieldIntl } from '@/util/fieldIntl';
 
 const SystemConfig: React.FC = () => {
   const actionRef = useRef<ActionType>();
-  const { id } = useParams();
+  const { id: routeID } = useParams();
+  const id = resolveCrudRouteID(routeID, history.location.pathname, '/system-config/create');
   const [showDetail, setShowDetail] = useState<boolean>(false);
   const [currentRow, setCurrentRow] = useState<API.SystemConfig>();
   const intl = useIntl();
@@ -89,14 +91,14 @@ const SystemConfig: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/system-config/edit" permission="/system-config/edit">
+        <Access key="/system-config/edit" rootOnly>
           <Link to={`/system-config/${record.id}`}>
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/system-config/delete" permission="/system-config/delete">
+        <Access key="/system-config/delete" rootOnly>
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -169,7 +171,7 @@ const SystemConfig: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/system-config/create" permission="/system-config/create">
+          <Access key="/system-config/create" rootOnly>
             <Button type="primary" key="create">
               <Link type="primary" key="primary" to="/system-config/create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

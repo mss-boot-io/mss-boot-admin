@@ -6,6 +6,7 @@ import { indexTitle } from '@/util/indexTitle';
 import { toOptions } from '@/util/toOptions';
 import { useOption } from '@/hooks/useOption';
 import { useResponsive } from '@/hooks/useResponsive';
+import { resolveCrudRouteID } from '@/utils/routeAccess';
 import { PlusOutlined } from '@ant-design/icons';
 import MobileUserList from './Mobile/UserList';
 import type { ActionType, ProColumns, ProDescriptionsItemProps } from '@ant-design/pro-components';
@@ -22,7 +23,8 @@ const UserList: React.FC = () => {
   const actionRef = useRef<ActionType>();
   const [showDetail, setShowDetail] = useState<boolean>(false);
   const [currentRow, setCurrentRow] = useState<API.Role>();
-  const { id } = useParams();
+  const { id: routeID } = useParams();
+  const id = resolveCrudRouteID(routeID, history.location.pathname, '/users/control/create');
   const [deptOptions, setDeptOptions] = useState<[]>([]);
   const [postOptions, setPostOptions] = useState<[]>([]);
   const { isMobile } = useResponsive();
@@ -279,21 +281,25 @@ const UserList: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/users/edit" permission="/users/edit">
+        <Access key="/users/edit" rootOnly>
           <Link to={`/users/control/${record.id}`}>
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/users/password-reset" permission="/users/password-reset">
+        <Access
+          key="/users/password-reset"
+          permission="/users/password-reset"
+          rootOnly={record.role?.root === true}
+        >
           <Link to={`/users/password-reset/${record.id}/`}>
             <Button key="passwordReset">
               <FormattedMessage id="pages.title.password.reset" defaultMessage="ResetPassword" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/users/delete" permission="/users/delete">
+        <Access key="/users/delete" rootOnly>
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -371,7 +377,7 @@ const UserList: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/users/create" permission="/users/create">
+          <Access key="/users/create" rootOnly>
             <Button type="primary" key="create">
               <Link type="primary" key="primary" to="/users/control/create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />

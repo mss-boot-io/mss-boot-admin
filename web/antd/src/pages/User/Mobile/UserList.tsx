@@ -93,7 +93,7 @@ const MobileUserList: React.FC = () => {
             })}
             style={{ flex: '1 1 auto', minWidth: 0 }}
           />
-          <Access key="/users/create" permission="/users/create">
+          <Access key="/users/create" rootOnly>
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
               {intl.formatMessage({ id: 'pages.user.mobile.create', defaultMessage: 'New User' })}
             </Button>
@@ -139,7 +139,7 @@ const MobileUserList: React.FC = () => {
 
               <div className={styles.cardActions}>
                 <Space>
-                  <Access key="/users/edit" permission="/users/edit">
+                  <Access key="/users/edit" rootOnly>
                     <Button
                       type="text"
                       icon={<EditOutlined />}
@@ -150,7 +150,7 @@ const MobileUserList: React.FC = () => {
                       {intl.formatMessage({ id: 'pages.title.edit', defaultMessage: 'Edit' })}
                     </Button>
                   </Access>
-                  <Access key="/users/delete" permission="/users/delete">
+                  <Access key="/users/delete" rootOnly>
                     <Popconfirm
                       title={intl.formatMessage({
                         id: 'pages.title.delete.confirm',

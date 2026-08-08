@@ -24,7 +24,7 @@ export async function postRoleAuthorizeRoleId(
   options?: { [key: string]: any },
 ) {
   const { roleID: param0, ...queryParams } = params;
-  return request<any>(`/admin/api/role/authorize/${param0}`, {
+  return request<API.GetAuthorizeResponse>(`/admin/api/role/authorize/${param0}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

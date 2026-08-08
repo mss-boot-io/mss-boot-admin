@@ -65,4 +65,27 @@ describe('Access', () => {
     expect(screen.getByText('denied')).toBeTruthy();
     expect(permissions.hasOwnProperty).not.toHaveBeenCalled();
   });
+
+  it('does not authorize a false or non-boolean permission value', () => {
+    mockUseModel.mockReturnValue({
+      initialState: {
+        currentUser: { permissions: { '/users/edit': false, '/users/delete': 'component' } },
+      },
+    });
+
+    renderAccess('/users/edit');
+    expect(screen.getByText('denied')).toBeTruthy();
+  });
+
+  it('keeps root-only controls exclusive to root identities', () => {
+    mockUseModel.mockReturnValue({
+      initialState: { currentUser: { permissions: { '/users/create': true } } },
+    });
+    render(
+      <Access rootOnly permission="/users/create" fallback={<span>denied</span>}>
+        <span>allowed</span>
+      </Access>,
+    );
+    expect(screen.getByText('denied')).toBeTruthy();
+  });
 });

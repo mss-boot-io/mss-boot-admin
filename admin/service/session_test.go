@@ -60,6 +60,32 @@ func TestSessionLookupCacheHit(t *testing.T) {
 	assert.Equal(t, "u1", res.Entry.UserID)
 }
 
+func TestSessionLookupCacheHitReturnsAuthoritativeIdentity(t *testing.T) {
+	svc, db, _ := setupSessionEnv(t)
+	ctx := context.Background()
+	sid, _ := svc.Create(ctx, db, CreateSessionInput{
+		UserID: "u1", Username: "a", RoleID: "r1", TTL: time.Hour,
+	})
+
+	// Simulate an administrative repair/out-of-band row update while Redis
+	// still contains the identity originally cached at login.
+	if err := db.Model(&models.UserSession{}).Where("id = ?", sid).
+		Updates(map[string]any{"user_id": "u2", "role_id": "r2"}).Error; err != nil {
+		t.Fatalf("change authoritative session identity: %v", err)
+	}
+	res, err := svc.Lookup(ctx, db, sid)
+	assert.NoError(t, err)
+	assert.Equal(t, LookupActive, res.Status)
+	assert.Equal(t, "u2", res.Entry.UserID)
+	assert.Equal(t, "r2", res.Entry.RoleID)
+
+	repaired, ok, err := svc.cache.Get(ctx, sid)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, "u2", repaired.UserID)
+	assert.Equal(t, "r2", repaired.RoleID)
+}
+
 func TestSessionLookupCacheMissDBHit(t *testing.T) {
 	svc, db, mr := setupSessionEnv(t)
 	ctx := context.Background()

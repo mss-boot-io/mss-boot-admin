@@ -244,7 +244,7 @@ func TestAppConfigCreateOrUpdateClassifiesByKeyAndInvalidatesPublicCache(t *test
 	require.NotContains(t, profile["security"], "api_token")
 
 	// The authorized group path remains the explicit privileged projection.
-	group, err := svc.Group(env.ctx, "security")
+	group, err := svc.GroupWithSensitiveValues(env.ctx, "security", true)
 	require.NoError(t, err)
 	require.Equal(t, "ordinary-looking-public-id", group["githubClientId"])
 	require.Equal(t, "ordinary-looking-value", group["githubClientSecret"])

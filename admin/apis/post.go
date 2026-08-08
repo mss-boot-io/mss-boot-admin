@@ -17,7 +17,11 @@ import (
 )
 
 func init() {
-	e := &Post{
+	response.AppendController(newPostController())
+}
+
+func newPostController() *Post {
+	return &Post{
 		Simple: controller.NewSimple(
 			controller.WithAuth(true),
 			controller.WithModel(&models.Post{}),
@@ -25,11 +29,14 @@ func init() {
 			controller.WithModelProvider(actions.ModelProviderGorm),
 			controller.WithTreeField("Children"),
 			controller.WithDepth(5),
+			// Post.DataScope defines downstream row authority. Until delegated
+			// grant-subset validation exists, changing that scope is root-only.
+			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement}),
 			controller.WithBeforeCreate(beforeCreate),
 			controller.WithBeforeUpdate(beforeUpdate),
 		),
 	}
-	response.AppendController(e)
 }
 
 func beforeCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {

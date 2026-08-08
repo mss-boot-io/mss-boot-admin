@@ -108,6 +108,7 @@ func TestGithubVerifyPreservesValidLoginWithExactCaseInsensitiveOrganization(t *
 	config := githubTestAppConfig{
 		"security:githubEnabled":    "true",
 		"security:githubAllowGroup": " allowed-org ",
+		"security:registerEnabled":  "true",
 	}
 	database := setupGithubVerifyTest(t, config)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -147,6 +148,119 @@ func TestGithubVerifyPreservesValidLoginWithExactCaseInsensitiveOrganization(t *
 		require.NoError(t, localErr)
 		require.False(t, localOK, "OAuth-only user accepted local password %q", localPassword)
 	}
+}
+
+func TestGithubFirstProvisioningRequiresRegistrationAndSafeDefaultRole(t *testing.T) {
+	tests := []struct {
+		name       string
+		config     githubTestAppConfig
+		mutateRole func(*testing.T, *gorm.DB)
+		wantError  string
+	}{
+		{
+			name: "registration disabled",
+			config: githubTestAppConfig{
+				"security:githubEnabled":   "true",
+				"security:registerEnabled": "false",
+			},
+			wantError: "public registration is disabled",
+		},
+		{
+			name: "registration switch missing",
+			config: githubTestAppConfig{
+				"security:githubEnabled": "true",
+			},
+			wantError: "public registration is disabled",
+		},
+		{
+			name: "root default",
+			config: githubTestAppConfig{
+				"security:githubEnabled":   "true",
+				"security:registerEnabled": "true",
+			},
+			mutateRole: func(t *testing.T, db *gorm.DB) {
+				t.Helper()
+				if err := db.Exec(`UPDATE mss_boot_roles SET root = ? WHERE "default" = ?`, true, true).Error; err != nil {
+					t.Fatalf("mark default role root: %v", err)
+				}
+			},
+			wantError: "enabled and non-root",
+		},
+		{
+			name: "disabled default",
+			config: githubTestAppConfig{
+				"security:githubEnabled":   "true",
+				"security:registerEnabled": "true",
+			},
+			mutateRole: func(t *testing.T, db *gorm.DB) {
+				t.Helper()
+				if err := db.Model(&Role{}).Where(map[string]any{"default": true}).
+					Update("status", enum.Disabled).Error; err != nil {
+					t.Fatalf("disable default role: %v", err)
+				}
+			},
+			wantError: "enabled and non-root",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			database := setupGithubVerifyTest(t, test.config)
+			if test.mutateRole != nil {
+				test.mutateRole(t, database)
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(`{"id":42,"login":"new-user"}`))
+			}))
+			t.Cleanup(server.Close)
+
+			ok, verifier, err := (&UserLogin{
+				Provider: pkg.GithubLoginProvider,
+				Password: "provider-token",
+			}).Verify(newGithubVerifyContext(server.URL))
+			require.ErrorContains(t, err, test.wantError)
+			require.False(t, ok)
+			require.Nil(t, verifier)
+			requireGithubRegistrationCount(t, database, 0, 0)
+		})
+	}
+}
+
+func TestGithubExistingIdentityLoginIgnoresClosedRegistration(t *testing.T) {
+	database := setupGithubVerifyTest(t, githubTestAppConfig{
+		"security:githubEnabled":   "true",
+		"security:registerEnabled": "false",
+	})
+	var role Role
+	require.NoError(t, database.Where(map[string]any{"default": true}).First(&role).Error)
+	user := &User{UserLogin: UserLogin{
+		RoleID:   role.ID,
+		Username: "existing-oauth-user",
+		Password: "unusable-local-password",
+		Status:   enum.Enabled,
+	}}
+	require.NoError(t, database.Create(user).Error)
+	identity := &UserOAuth2{
+		UserID:   user.ID,
+		OpenID:   "42",
+		Provider: pkg.GithubLoginProvider,
+	}
+	require.NoError(t, database.Create(identity).Error)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"id":42,"login":"existing-oauth-user"}`))
+	}))
+	t.Cleanup(server.Close)
+	ok, verifier, err := (&UserLogin{
+		Provider: pkg.GithubLoginProvider,
+		Password: "provider-token",
+	}).Verify(newGithubVerifyContext(server.URL))
+	require.NoError(t, err)
+	require.True(t, ok)
+	current, typeOK := verifier.(*User)
+	require.True(t, typeOK)
+	require.Equal(t, user.ID, current.ID)
+	requireGithubRegistrationCount(t, database, 1, 1)
 }
 
 func TestGithubVerifyDoesNotLogUntrustedHookErrorDetail(t *testing.T) {
@@ -195,7 +309,21 @@ func TestEmailRegistrationUsesPublicRegistrationSwitch(t *testing.T) {
 		Captcha:  "unused",
 	}
 	ok, verifier, err := login.Verify(newGithubVerifyContext("http://127.0.0.1"))
-	require.ErrorContains(t, err, "email register not support")
+	require.ErrorContains(t, err, "public registration is disabled")
+	require.False(t, ok)
+	require.Nil(t, verifier)
+	requireGithubRegistrationCount(t, database, 0, 0)
+}
+
+func TestEmailRegistrationRequiresExplicitRegistrationSetting(t *testing.T) {
+	database := setupGithubVerifyTest(t, githubTestAppConfig{})
+	login := &UserLogin{
+		Provider: pkg.EmailRegisterProvider,
+		Email:    "missing-registration-setting@example.com",
+		Captcha:  "unused",
+	}
+	ok, verifier, err := login.Verify(newGithubVerifyContext("http://127.0.0.1"))
+	require.ErrorContains(t, err, "public registration is disabled")
 	require.False(t, ok)
 	require.Nil(t, verifier)
 	requireGithubRegistrationCount(t, database, 0, 0)
@@ -248,6 +376,11 @@ func setupGithubVerifyTest(t *testing.T, config githubTestAppConfig) *gorm.DB {
 
 	role := &Role{Name: "default", Default: true, Status: enum.Enabled}
 	require.NoError(t, database.Create(role).Error)
+	require.NoError(t, database.Exec(
+		`UPDATE mss_boot_roles SET "default" = ? WHERE id = ?`,
+		true,
+		role.ID,
+	).Error)
 	return database
 }
 

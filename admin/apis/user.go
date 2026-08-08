@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
@@ -40,6 +41,8 @@ func init() {
 			controller.WithModel(new(models.User)),
 			controller.WithSearch(new(dto.UserSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement, protectRootUserLifecycle}),
+			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement, protectRootUserLifecycle}),
 		),
 	}
 	response.AppendController(e)
@@ -492,32 +495,69 @@ func (e *User) UserInfo(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	permissions, err := gormdb.Enforcer.GetFilteredPolicy(0, verify.GetRoleID(), pkg.MenuAccessType.String())
-	if err != nil {
-		api.AddError(err).Log.Error("get filtered policy error", "err", err)
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	enforcers, err := gormdb.Enforcer.GetFilteredPolicy(0, verify.GetRoleID(), pkg.ComponentAccessType.String())
-	if err != nil {
-		api.AddError(err).Log.Error("get filtered policy error", "err", err)
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	permissions = append(permissions, enforcers...)
 	user.Permissions = make(map[string]bool)
 	if verify.Root() {
 		user.Permissions["canAdmin"] = true
-	}
-	for i := range permissions {
-		if len(permissions[i]) < 4 {
-			continue
+	} else {
+		// userInfo is a self-service route, so the outer auth middleware does
+		// not consult Casbin. Reconcile the durable authorization revision here
+		// before projecting permissions into the frontend; otherwise an instance
+		// that missed a watcher event could revive already-revoked controls.
+		if err := ensureCurrentAuthorizationPolicies(
+			ctx,
+			center.Default.GetDB(ctx, &models.ConfigRevision{}),
+		); err != nil {
+			api.AddError(err).Log.Error("reconcile user permission projection", "err", err)
+			api.Err(http.StatusServiceUnavailable)
+			return
 		}
-		if permissions[i][0] == verify.GetRoleID() &&
-			(permissions[i][1] == pkg.MenuAccessType.String() ||
-				permissions[i][1] == pkg.ComponentAccessType.String()) {
-			user.Permissions[permissions[i][2]] = true
+		if gormdb.Enforcer == nil {
+			api.AddError(errors.New("authorization policy enforcer is unavailable")).
+				Log.Error("get user permission projection")
+			api.Err(http.StatusServiceUnavailable)
+			return
 		}
+		permissions, err := gormdb.Enforcer.GetFilteredPolicy(0, verify.GetRoleID(), pkg.MenuAccessType.String())
+		if err != nil {
+			api.AddError(err).Log.Error("get filtered policy error", "err", err)
+			api.Err(http.StatusServiceUnavailable)
+			return
+		}
+		enforcers, err := gormdb.Enforcer.GetFilteredPolicy(0, verify.GetRoleID(), pkg.ComponentAccessType.String())
+		if err != nil {
+			api.AddError(err).Log.Error("get filtered policy error", "err", err)
+			api.Err(http.StatusServiceUnavailable)
+			return
+		}
+		permissions = append(permissions, enforcers...)
+		permissionPaths := make([]string, 0, len(permissions))
+		for i := range permissions {
+			if len(permissions[i]) >= 3 {
+				permissionPaths = append(permissionPaths, permissions[i][2])
+			}
+		}
+		activePermissionMetadata := make(map[string]struct{}, len(permissionPaths))
+		if len(permissionPaths) > 0 {
+			var activeMenus []models.Menu
+			if err := center.Default.GetDB(ctx, &models.Menu{}).
+				Select("type", "path").
+				Where("type IN ?", []pkg.AccessType{pkg.MenuAccessType, pkg.ComponentAccessType}).
+				Where("status = ?", enum.Enabled).
+				Where("path IN ?", permissionPaths).
+				Find(&activeMenus).Error; err != nil {
+				api.AddError(err).Log.Error("load active permission metadata", "err", err)
+				api.Err(http.StatusServiceUnavailable)
+				return
+			}
+			for i := range activeMenus {
+				activePermissionMetadata[activeMenus[i].Type.String()+"\x00"+activeMenus[i].Path] = struct{}{}
+			}
+		}
+		user.Permissions = projectActiveUserPermissions(
+			verify.GetRoleID(),
+			permissions,
+			activePermissionMetadata,
+		)
 	}
 	if user.DepartmentID != "" && user.Department == nil {
 		user.Department = &models.Department{}
@@ -528,6 +568,27 @@ func (e *User) UserInfo(ctx *gin.Context) {
 		user.Post.ID = user.PostID
 	}
 	api.OK(user)
+}
+
+func projectActiveUserPermissions(
+	roleID string,
+	policies [][]string,
+	activeMetadata map[string]struct{},
+) map[string]bool {
+	result := make(map[string]bool)
+	for i := range policies {
+		if len(policies[i]) < 4 || policies[i][0] != roleID {
+			continue
+		}
+		accessType := policies[i][1]
+		if accessType != pkg.MenuAccessType.String() && accessType != pkg.ComponentAccessType.String() {
+			continue
+		}
+		if _, active := activeMetadata[accessType+"\x00"+policies[i][2]]; active {
+			result[policies[i][2]] = true
+		}
+	}
+	return result
 }
 
 // PasswordReset 重置密码
@@ -543,12 +604,33 @@ func (e *User) UserInfo(ctx *gin.Context) {
 // @Security Bearer
 func (e *User) PasswordReset(ctx *gin.Context) {
 	api := response.Make(ctx)
+	verify := middleware.GetVerify(ctx)
+	if verify == nil {
+		api.Err(http.StatusUnauthorized)
+		return
+	}
 	req := &dto.PasswordResetRequest{}
 	if api.Bind(req).Error != nil {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
 	req.UserID = ctx.Param("userID")
+	var target models.User
+	if err := center.Default.GetDB(ctx, &models.User{}).
+		Preload("Role").
+		First(&target, "id = ?", req.UserID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			api.Err(http.StatusNotFound)
+			return
+		}
+		api.AddError(err).Log.Error("get password reset target error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	if target.Role != nil && target.Role.Root && !verify.Root() {
+		api.Err(http.StatusForbidden)
+		return
+	}
 	err := models.PasswordReset(ctx, req.UserID, req.Password)
 	if err != nil {
 		api.AddError(err).Log.Error("PasswordReset error")

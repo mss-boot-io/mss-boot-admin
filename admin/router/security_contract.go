@@ -15,8 +15,10 @@ const (
 )
 
 // CustomRouteContract is the machine-readable inventory for an Admin custom
-// route. Permission is required only for RouteAuthorized. Mutation describes
-// application state, rather than the HTTP method alone.
+// route. Permission is required only for RouteAuthorized. RootOnly records an
+// additional handler-adjacent authority/target boundary that a legacy Casbin
+// row cannot bypass. Mutation describes application state, rather than the
+// HTTP method alone.
 //
 // LegacyDenyOnly marks a retired GET route whose only valid behavior is a 405
 // response. ConstrainedPublicGET is reserved for protocol callbacks that must
@@ -26,6 +28,7 @@ type CustomRouteContract struct {
 	Path                 string
 	Class                CustomRouteClass
 	Permission           string
+	RootOnly             bool
 	Mutation             bool
 	LegacyDenyOnly       bool
 	ConstrainedPublicGET bool
@@ -59,11 +62,11 @@ var customRouteContracts = []CustomRouteContract{
 	// Menu and role administration.
 	{Method: http.MethodGet, Path: "/admin/api/menu/tree", Class: RouteAuthorized, Permission: "menu:read"},
 	{Method: http.MethodGet, Path: "/admin/api/menu/authorize", Class: RouteAuthenticatedSelf},
-	{Method: http.MethodPut, Path: "/admin/api/menu/authorize/:roleID", Class: RouteAuthorized, Permission: "menu:authorize", Mutation: true},
+	{Method: http.MethodPut, Path: "/admin/api/menu/authorize/:roleID", Class: RouteAuthorized, Permission: "menu:authorize", RootOnly: true, Mutation: true},
 	{Method: http.MethodGet, Path: "/admin/api/menu/api/:id", Class: RouteAuthorized, Permission: "menu:read"},
-	{Method: http.MethodPost, Path: "/admin/api/menu/bind-api", Class: RouteAuthorized, Permission: "menu:bind-api", Mutation: true},
+	{Method: http.MethodPost, Path: "/admin/api/menu/bind-api", Class: RouteAuthorized, Permission: "menu:bind-api", RootOnly: true, Mutation: true},
 	{Method: http.MethodGet, Path: "/admin/api/menus", Class: RouteAuthorized, Permission: "menu:read"},
-	{Method: http.MethodPost, Path: "/admin/api/role/authorize/:roleID", Class: RouteAuthorized, Permission: "role:authorize", Mutation: true},
+	{Method: http.MethodPost, Path: "/admin/api/role/authorize/:roleID", Class: RouteAuthorized, Permission: "role:authorize", RootOnly: true, Mutation: true},
 	{Method: http.MethodGet, Path: "/admin/api/role/authorize/:roleID", Class: RouteAuthorized, Permission: "role:authorize"},
 
 	// Current-user notices and preferences.
@@ -76,17 +79,17 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodGet, Path: "/admin/api/user-configs/profile", Class: RouteOptionalAuthenticated},
 
 	// Session and websocket operations.
-	{Method: http.MethodGet, Path: "/admin/api/online-sessions", Class: RouteAuthorized, Permission: "session:read"},
-	{Method: http.MethodGet, Path: "/admin/api/online-sessions/:id", Class: RouteAuthorized, Permission: "session:read"},
-	{Method: http.MethodDelete, Path: "/admin/api/online-sessions/:id", Class: RouteAuthorized, Permission: "session:revoke", Mutation: true},
-	{Method: http.MethodDelete, Path: "/admin/api/online-sessions/user/:userID", Class: RouteAuthorized, Permission: "session:revoke", Mutation: true},
+	{Method: http.MethodGet, Path: "/admin/api/online-sessions", Class: RouteAuthorized, Permission: "session:read", RootOnly: true},
+	{Method: http.MethodGet, Path: "/admin/api/online-sessions/:id", Class: RouteAuthorized, Permission: "session:read", RootOnly: true},
+	{Method: http.MethodDelete, Path: "/admin/api/online-sessions/:id", Class: RouteAuthorized, Permission: "session:revoke", RootOnly: true, Mutation: true},
+	{Method: http.MethodDelete, Path: "/admin/api/online-sessions/user/:userID", Class: RouteAuthorized, Permission: "session:revoke", RootOnly: true, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/online-sessions/logout", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodGet, Path: "/admin/api/ws/connect", Class: RouteAuthenticatedSelf},
-	{Method: http.MethodGet, Path: "/admin/api/ws/online", Class: RouteAuthorized, Permission: "session:read"},
+	{Method: http.MethodGet, Path: "/admin/api/ws/online", Class: RouteAuthorized, Permission: "session:read", RootOnly: true},
 
 	// Statistics and storage.
 	{Method: http.MethodGet, Path: "/admin/api/statistics/:name", Class: RouteAuthorized, Permission: "statistics:read"},
-	{Method: http.MethodPost, Path: "/admin/api/storage/upload", Class: RouteAuthenticatedSelf, Mutation: true},
+	{Method: http.MethodPost, Path: "/admin/api/storage/upload", Class: RouteAuthorized, Permission: "storage:upload", Mutation: true},
 
 	// Task administration. The legacy GET remains only as an explicit 405.
 	{Method: http.MethodPost, Path: "/admin/api/tasks/:id/actions/:operate", Class: RouteAuthorized, Permission: "task:operate", Mutation: true},

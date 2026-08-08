@@ -9,6 +9,7 @@ import { FormattedMessage, useIntl, useModel } from '@umijs/max';
 import { Button, Tabs, Tag, message } from 'antd';
 import React, { useRef } from 'react';
 import { fieldIntl } from '@/util/fieldIntl';
+import { hasPermission, type AuthorizationIdentity } from '@/utils/authorization';
 
 const levelColors: Record<string, string> = {
   info: 'blue',
@@ -24,15 +25,8 @@ const statusColors: Record<string, string> = {
   failed: 'red',
 };
 
-type LogAccessUser = {
-  role?: { root?: boolean };
-  permissions?: Record<string, unknown>;
-};
-
-export const canReadRuntimeLogs = (currentUser?: LogAccessUser) =>
-  currentUser?.role?.root === true ||
-  (!!currentUser?.permissions &&
-    Object.prototype.hasOwnProperty.call(currentUser.permissions, '/log/runtime'));
+export const canReadRuntimeLogs = (currentUser?: AuthorizationIdentity) =>
+  hasPermission(currentUser, '/log/runtime');
 
 const RuntimeLogTab: React.FC = () => {
   const actionRef = useRef<ActionType>();

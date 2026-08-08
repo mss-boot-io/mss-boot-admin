@@ -66,6 +66,9 @@ func TestCustomRouteContractsAreValid(t *testing.T) {
 		} else if contract.Permission != "" {
 			t.Errorf("%s %s has permission %q outside the Authorized class", key.method, key.path, contract.Permission)
 		}
+		if contract.RootOnly && contract.Class != RouteAuthorized {
+			t.Errorf("%s %s is root-only outside the Authorized class", key.method, key.path)
+		}
 		if contract.Mutation && contract.Method == http.MethodGet {
 			t.Errorf("state-changing route %s %s must not use GET", key.method, key.path)
 		}
@@ -182,6 +185,16 @@ func TestCustomRouteContractsMatchRuntimeAuthentication(t *testing.T) {
 			// Public, deny-only legacy, and constrained protocol GET routes do
 			// not require authentication. A controller may still apply a group
 			// middleware for a narrower deployment policy.
+		}
+		if contract.RootOnly && !containsMiddleware(route.directMiddleware, "requireRootManagement") {
+			t.Errorf(
+				"%s %s is contracted root-only, but its registration at %s:%d does not directly include requireRootManagement; direct middleware: %s",
+				key.method,
+				key.path,
+				route.file,
+				route.line,
+				formatMiddleware(route.directMiddleware),
+			)
 		}
 	}
 }

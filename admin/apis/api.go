@@ -4,9 +4,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 /*
@@ -23,6 +26,10 @@ func init() {
 			controller.WithModel(new(models.API)),
 			controller.WithSearch(new(dto.APISearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithBeforeUpdate(validateAPIMetadataUpdate),
+			controller.WithBeforeDelete(validateAPIMetadataDelete),
 		),
 	}
 	response.AppendController(e)
@@ -30,6 +37,18 @@ func init() {
 
 type API struct {
 	*controller.Simple
+}
+
+func validateAPIMetadataUpdate(ctx *gin.Context, db *gorm.DB, table schema.Tabler) error {
+	api, ok := table.(*models.API)
+	if !ok {
+		return gorm.ErrInvalidData
+	}
+	return service.ValidateAPIMetadataUpdate(ctx, db, api)
+}
+
+func validateAPIMetadataDelete(ctx *gin.Context, db *gorm.DB, _ schema.Tabler) error {
+	return service.ValidateAPIMetadataDelete(ctx, db, ctx.Param("id"))
 }
 
 // Create 创建API

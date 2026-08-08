@@ -8,16 +8,17 @@ package apis
  */
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
-	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
 	"gorm.io/gorm"
@@ -27,6 +28,11 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 )
 
+const (
+	roleDeletePoliciesConflictCode = "ROLE_DELETE_HAS_POLICIES"
+	roleDeleteUsersConflictCode    = "ROLE_DELETE_HAS_USERS"
+)
+
 func init() {
 	e := &Role{
 		Simple: controller.NewSimple(
@@ -34,6 +40,10 @@ func init() {
 			controller.WithModel(new(models.Role)),
 			controller.WithSearch(new(dto.RoleSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			// The GORM controller uses one control-handler chain for POST and
+			// PUT, so this chain protects both create and update.
+			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement, protectManagedRoleLifecycle}),
+			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement, protectManagedRoleLifecycle}),
 		),
 	}
 	response.AppendController(e)
@@ -43,8 +53,77 @@ type Role struct {
 	*controller.Simple
 }
 
+// protectManagedRoleLifecycle keeps the immutable root and provisioning-role
+// classifications outside generic CRUD. Their status or existence may only be
+// changed by a dedicated invariant-aware workflow, never by an ordinary role
+// update/delete request.
+func protectManagedRoleLifecycle(ctx *gin.Context) {
+	if ctx.Request == nil || (ctx.Request.Method != http.MethodPut && ctx.Request.Method != http.MethodDelete) {
+		ctx.Next()
+		return
+	}
+	roleID := strings.TrimSpace(ctx.Param("id"))
+	if roleID == "" {
+		ctx.Abort()
+		response.Make(ctx).Err(http.StatusUnprocessableEntity)
+		return
+	}
+	if ctx.Request.Method == http.MethodDelete {
+		err := service.AuthorizationPolicies.DeleteRole(
+			ctx,
+			center.Default.GetDB(ctx, &models.Role{}),
+			roleID,
+		)
+		ctx.Abort()
+		switch {
+		case err == nil:
+			response.Make(ctx).OK(nil)
+		case errors.Is(err, service.ErrAuthorizationRoleNotFound):
+			response.Make(ctx).Err(http.StatusNotFound)
+		case errors.Is(err, service.ErrAuthorizationManagedRole):
+			response.Make(ctx).Err(http.StatusForbidden)
+		case errors.Is(err, service.ErrAuthorizationRolePolicies):
+			response.Make(ctx).AddError(response.NewError(
+				roleDeletePoliciesConflictCode,
+				"clear the canonical role authorization resource before deleting the role",
+			)).Err(http.StatusConflict)
+		case errors.Is(err, service.ErrAuthorizationRoleUsers):
+			response.Make(ctx).AddError(response.NewError(
+				roleDeleteUsersConflictCode,
+				"move all users to another role before deleting the role",
+			)).Err(http.StatusConflict)
+		default:
+			response.Make(ctx).AddError(err).Log.Error("delete ordinary role", "err", err)
+			response.Make(ctx).Err(http.StatusInternalServerError)
+		}
+		return
+	}
+	var role models.Role
+	err := center.Default.GetDB(ctx, &models.Role{}).
+		Select("id", "root", "default").
+		Where("id = ?", roleID).
+		Take(&role).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		ctx.Abort()
+		response.Make(ctx).Err(http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		ctx.Abort()
+		response.Make(ctx).AddError(err).Log.Error("load managed role lifecycle flags", "err", err)
+		response.Make(ctx).Err(http.StatusInternalServerError)
+		return
+	}
+	if role.Root || role.Default {
+		ctx.Abort()
+		response.Make(ctx).Err(http.StatusForbidden)
+		return
+	}
+	ctx.Next()
+}
+
 func (e *Role) Other(r *gin.RouterGroup) {
-	r.POST("/role/authorize/:roleID", middleware.Auth.MiddlewareFunc(), e.SetAuthorize)
+	r.POST("/role/authorize/:roleID", middleware.Auth.MiddlewareFunc(), requireRootManagement, e.SetAuthorize)
 	r.GET("/role/authorize/:roleID", middleware.Auth.MiddlewareFunc(), e.GetAuthorize)
 }
 
@@ -53,9 +132,11 @@ func (e *Role) Other(r *gin.RouterGroup) {
 // @Description 获取角色授权
 // @Tags role
 // @Accept  application/json
-// @Product application/json
+// @Produce application/json
 // @param roleID path string true "roleID"
 // @Success 200 {object} dto.GetAuthorizeResponse
+// @Header 200 {string} ETag "Strong role-authorization ETag"
+// @Failure 404 {object} response.Error "Role not found"
 // @Router /admin/api/role/authorize/{roleID} [get]
 // @Security Bearer
 func (e *Role) GetAuthorize(ctx *gin.Context) {
@@ -65,48 +146,53 @@ func (e *Role) GetAuthorize(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	resp := &dto.GetAuthorizeResponse{
-		RoleID: req.RoleID,
-		Paths:  make([]string, 0),
-	}
-	// get permissions
-	permissions, err := gormdb.Enforcer.GetFilteredPolicy(0, req.RoleID, pkg.MenuAccessType.String())
+	resource, err := service.AuthorizationPolicies.ReadRole(
+		ctx,
+		center.Default.GetDB(ctx, &models.CasbinRule{}),
+		req.RoleID,
+	)
 	if err != nil {
-		api.AddError(err).Log.Error("get filtered policy error", "err", err)
+		if errors.Is(err, service.ErrAuthorizationRoleNotFound) {
+			api.Err(http.StatusNotFound)
+			return
+		}
+		api.AddError(err).Log.Error("read role authorization resource error", "err", err)
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	enforcers, err := gormdb.Enforcer.GetFilteredPolicy(0, req.RoleID, pkg.ComponentAccessType.String())
-	if err != nil {
-		api.AddError(err).Log.Error("get filtered policy error", "err", err)
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	permissions = append(permissions, enforcers...)
-	for i := range permissions {
-		if len(permissions[i]) < 4 {
-			continue
-		}
-		if permissions[i][0] == req.RoleID &&
-			(permissions[i][1] == pkg.MenuAccessType.String() ||
-				permissions[i][1] == pkg.ComponentAccessType.String()) {
-			resp.Paths = append(resp.Paths, permissions[i][2])
-		}
-	}
-	api.OK(resp)
+	setRoleAuthorizationETag(ctx, resource)
+	api.OK(resource)
 }
 
 // SetAuthorize 角色授权
 // @Summary 角色授权
 // @Description 给角色授权
 // @Tags role
+// @Accept application/json
+// @Produce application/json
 // @param roleID path string true "roleID"
+// @Param If-Match header string false "Strong role-authorization ETag; optional only during the rolling compatibility window"
 // @Param data body dto.SetAuthorizeRequest true "data"
-// @Success 200
+// @Success 200 {object} dto.GetAuthorizeResponse
+// @Header 200 {string} ETag "Strong role-authorization ETag"
+// @Header 200 {string} Warning "Compatibility warning when If-Match is omitted"
+// @Header 200 {string} X-MSS-Authorization-Precondition "missing when the compatibility path accepted a request without If-Match"
+// @Failure 400 {object} response.Error "Malformed If-Match"
+// @Failure 401 {object} response.Error "Current principal missing"
+// @Failure 403 {object} response.Error "Current principal is not root"
+// @Failure 404 {object} response.Error "Role not found"
+// @Failure 409 {object} response.Error "Role is inactive"
+// @Failure 412 {object} dto.AuthorizeRevisionConflictResponse "Role authorization revision conflict"
+// @Header 412 {string} ETag "Current strong role-authorization ETag"
+// @Failure 422 {object} response.Error "Missing paths or inactive/unknown path"
+// @Failure 503 {object} response.Error "Policy committed but local reload or watcher publication failed"
 // @Router /admin/api/role/authorize/{roleID} [post]
 // @Security Bearer
 func (e *Role) SetAuthorize(ctx *gin.Context) {
 	api := response.Make(ctx)
+	if !requireCurrentRoot(ctx) {
+		return
+	}
 	req := &dto.SetAuthorizeRequest{}
 	if api.Bind(req).Error != nil {
 		api.Err(http.StatusUnprocessableEntity)
@@ -118,81 +204,59 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 		return
 	}
 
-	exists, err := checkAuthorizeRoleExists(ctx, req.RoleID)
+	paths := sanitizeAuthorizePaths(*req.Paths)
+	if len(*req.Paths) > 0 && len(paths) == 0 {
+		respondInvalidAuthorizeRequest(api, "set role authorize request contains no valid paths", req.RoleID, nil)
+		return
+	}
+	expectedRevision, err := parseRoleAuthorizationIfMatch(ctx, req.RoleID)
 	if err != nil {
-		api.AddError(err).Log.Error("check role error", "err", err)
-		api.Err(http.StatusInternalServerError)
+		api.AddError(response.NewError(roleAuthorizationIfMatchInvalidCode, err.Error())).Err(http.StatusBadRequest)
 		return
 	}
-	if !exists {
-		api.Err(http.StatusNotFound)
-		return
-	}
-
-	paths := sanitizeAuthorizePaths(req.Paths)
-	if len(paths) == 0 {
-		respondInvalidAuthorizeRequest(api, "set role authorize request has no valid paths", req.RoleID, nil)
-		return
-	}
-
-	//// add permissions
-	//for i := range req.Paths {
-	//	_, err = gormdb.Enforcer.AddPermissionForUser(req.RoleID, models.MenuAccessType.String(), req.Paths[i], )
-	//	if err != nil {
-	//		api.AddError(err).Log.Error("add permission for user error", "err", err)
-	//		api.Err(http.StatusInternalServerError)
-	//		return
-	//	}
-	//}
-	menus, menuSet, err := loadAuthorizeMenusByPathsWithChildren(ctx, paths, pkg.MenuAccessType, pkg.ComponentAccessType)
+	resource, err := service.AuthorizationPolicies.ReplaceRole(
+		ctx,
+		center.Default.GetDB(ctx, &models.CasbinRule{}),
+		req.RoleID,
+		paths,
+		expectedRevision,
+	)
 	if err != nil {
-		api.AddError(err).Log.Error("query authorize menu error", "err", err)
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	if missing := missingAuthorizePaths(paths, menuSet); len(missing) > 0 {
-		respondInvalidAuthorizeRequest(api, "set role authorize request contains invalid paths", req.RoleID, missing)
-		return
-	}
-	pathSet := authorizePathSet(paths)
-	menus = filterAuthorizeMenusByPathSet(menus, pathSet)
-	rules := buildRoleAuthorizeRules(req.RoleID, menus)
-	if len(rules) == 0 {
-		respondInvalidAuthorizeRequest(api, "set role authorize request resolves no permission rules", req.RoleID, paths)
-		return
-	}
-
-	err = center.Default.GetDB(ctx, &models.CasbinRule{}).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("ptype = ?", "p").
-			Where("v0 = ?", req.RoleID).
-			Where("v1 in ?", authorizeRuleScopesForRole()).
-			Delete(&models.CasbinRule{}).Error; err != nil {
-			return err
+		if errors.Is(err, service.ErrAuthorizationRoleNotFound) {
+			api.Err(http.StatusNotFound)
+			return
 		}
-		if err := tx.Create(&rules).Error; err != nil {
-			return err
+		if errors.Is(err, service.ErrAuthorizationRoleInactive) {
+			api.AddError(response.NewError(
+				roleAuthorizationInactiveCode,
+				"authorization cannot be changed while the role is inactive",
+			)).Err(http.StatusConflict)
+			return
 		}
-		return nil
-	})
-	if err != nil {
+		var invalid *service.InvalidAuthorizationPathsError
+		if errors.As(err, &invalid) {
+			respondInvalidAuthorizeRequest(api, "set role authorize request contains invalid paths", req.RoleID, invalid.Paths)
+			return
+		}
+		if writeRoleAuthorizationRevisionConflict(ctx, err) {
+			return
+		}
+		var propagation *service.AuthorizationPropagationError
+		if errors.As(err, &propagation) {
+			setRoleAuthorizationETag(ctx, propagation.Current)
+			api.AddError(err).Log.Error("propagate role authorization policy error", "err", err, slog.String("roleID", req.RoleID))
+			api.Err(http.StatusServiceUnavailable)
+			return
+		}
 		api.AddError(err).Log.Error("update role authorize policy error", "err", err, slog.String("roleID", req.RoleID))
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	_ = gormdb.Enforcer.LoadPolicy()
-
-	api.OK(struct{}{})
-}
-
-func filterAuthorizeMenusByPathSet(menus []*models.Menu, pathSet map[string]struct{}) []*models.Menu {
-	filtered := make([]*models.Menu, 0, len(menus))
-	for i := range menus {
-		if _, ok := pathSet[menus[i].Path]; !ok {
-			continue
-		}
-		filtered = append(filtered, menus[i])
+	setRoleAuthorizationETag(ctx, resource)
+	if expectedRevision == nil {
+		setMissingRoleAuthorizationPreconditionWarning(ctx)
 	}
-	return filtered
+	api.OK(resource)
 }
 
 // Create 创建角色
@@ -200,7 +264,7 @@ func filterAuthorizeMenusByPathSet(menus []*models.Menu, pathSet map[string]stru
 // @Description 创建角色
 // @Tags role
 // @Accept  application/json
-// @Product application/json
+// @Produce application/json
 // @Param data body models.Role true "data"
 // @Success 201 {object} models.Role
 // @Router /admin/api/roles [post]
@@ -213,6 +277,10 @@ func (e *Role) Create(*gin.Context) {}
 // @Tags role
 // @Param id path string true "id"
 // @Success 204
+// @Failure 401 {object} response.Error "Current principal missing"
+// @Failure 403 {object} response.Error "Current principal is not root or target is a managed role"
+// @Failure 404 {object} response.Error "Role not found"
+// @Failure 409 {object} response.Error "Role still has Casbin policies or user assignments"
 // @Router /admin/api/roles/{id} [delete]
 // @Security Bearer
 func (e *Role) Delete(*gin.Context) {}
@@ -222,7 +290,7 @@ func (e *Role) Delete(*gin.Context) {}
 // @Description 更新角色
 // @Tags role
 // @Accept  application/json
-// @Product application/json
+// @Produce application/json
 // @Param id path string true "id"
 // @Param data body models.Role true "data"
 // @Success 200 {object} models.Role
@@ -245,7 +313,7 @@ func (e *Role) Get(*gin.Context) {}
 // @Description 角色列表
 // @Tags role
 // @Accept  application/json
-// @Product application/json
+// @Produce application/json
 // @Param current query int false "current"
 // @Param pageSize query int false "pageSize"
 // @Param id query string false "id"

@@ -56,4 +56,32 @@ func TestValidateRefreshVerifierDoesNotDependOnRegistrationSwitch(t *testing.T) 
 	claimsPrincipal.ID = user.ID
 	claimsPrincipal.RoleID = role.ID
 	require.NoError(t, validateRefreshVerifier(newTestGinCtx(), claimsPrincipal))
+
+	require.NoError(t, database.Model(&models.User{}).
+		Where("id = ?", user.ID).
+		Update("status", enum.Disabled).Error)
+	require.Error(t, validateRefreshVerifier(newTestGinCtx(), claimsPrincipal))
+	require.NoError(t, database.Model(&models.User{}).
+		Where("id = ?", user.ID).
+		Update("status", enum.Enabled).Error)
+
+	require.NoError(t, database.Model(&models.Role{}).
+		Where("id = ?", role.ID).
+		Update("status", enum.Disabled).Error)
+	require.Error(t, validateRefreshVerifier(newTestGinCtx(), claimsPrincipal))
+	require.NoError(t, database.Model(&models.Role{}).
+		Where("id = ?", role.ID).
+		Update("status", enum.Enabled).Error)
+
+	newRole := &models.Role{Name: "changed-member", Status: enum.Enabled}
+	require.NoError(t, database.Create(newRole).Error)
+	require.NoError(t, database.Model(&models.User{}).
+		Where("id = ?", user.ID).
+		Update("role_id", newRole.ID).Error)
+	require.Error(t, validateRefreshVerifier(newTestGinCtx(), claimsPrincipal))
+
+	missing := &models.User{}
+	missing.ID = "missing-user"
+	missing.RoleID = role.ID
+	require.Error(t, validateRefreshVerifier(newTestGinCtx(), missing))
 }

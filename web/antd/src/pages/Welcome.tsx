@@ -4,6 +4,7 @@ import { Alert, Avatar, Button, Card, Col, Row, Space, Statistic, theme, Typogra
 import React from 'react';
 import MonitorTrend from '@/components/MonitorTrend';
 import { useMonitorData } from '@/hooks/useMonitorData';
+import { hasPermission } from '@/utils/authorization';
 import {
   UserOutlined,
   SettingOutlined,
@@ -99,33 +100,39 @@ const Welcome: React.FC = () => {
       icon: <UserOutlined />,
       title: <FormattedMessage id="menu.origination.user" defaultMessage="用户管理" />,
       href: '/users',
+      permission: '/users',
     },
     {
       icon: <TeamOutlined />,
       title: <FormattedMessage id="menu.origination.department" defaultMessage="部门管理" />,
       href: '/departments',
+      permission: '/departments',
     },
     {
       icon: <SafetyOutlined />,
       title: <FormattedMessage id="menu.authority.role" defaultMessage="角色管理" />,
       href: '/role',
+      permission: '/role',
     },
     {
       icon: <MenuOutlined />,
       title: <FormattedMessage id="menu.authority.menu" defaultMessage="菜单管理" />,
       href: '/menu',
+      permission: '/menu',
     },
     {
       icon: <SettingOutlined />,
       title: <FormattedMessage id="menu.system" defaultMessage="系统设置" />,
       href: '/app-config',
+      permission: '/app-config',
     },
     {
       icon: <FileTextOutlined />,
       title: <FormattedMessage id="menu.system.log" defaultMessage="日志管理" />,
       href: '/log',
+      permission: '/log',
     },
-  ];
+  ].filter((entry) => hasPermission(currentUser, entry.permission));
 
   return (
     <PageContainer>
@@ -191,9 +198,9 @@ const Welcome: React.FC = () => {
         style={{ borderRadius: 8, marginTop: 16 }}
       >
         <Row gutter={[16, 16]}>
-          {quickEntries.map((entry) => (
-            <Col key={entry.href} xs={24} sm={12} lg={8}>
-              <QuickEntry {...entry} />
+          {quickEntries.map(({ href, icon, title }) => (
+            <Col key={href} xs={24} sm={12} lg={8}>
+              <QuickEntry href={href} icon={icon} title={title} />
             </Col>
           ))}
         </Row>

@@ -100,11 +100,13 @@ func (s *SessionService) Lookup(ctx context.Context, db *gorm.DB, sid string) (L
 		// Re-read the minimal columns from DB and trust them. The lookup is by
 		// primary key so the cost is one indexed point query per request.
 		var probe struct {
+			UserID    string
+			RoleID    string
 			Revoked   bool
 			ExpiredAt time.Time
 		}
 		err := db.WithContext(ctx).Model(&models.UserSession{}).
-			Select("revoked", "expired_at").
+			Select("user_id", "role_id", "revoked", "expired_at").
 			Where("id = ?", sid).
 			First(&probe).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -117,12 +119,17 @@ func (s *SessionService) Lookup(ctx context.Context, db *gorm.DB, sid string) (L
 		if err != nil {
 			return LookupResult{}, err
 		}
+		freshEntry := sessioncache.Entry{
+			UserID:  probe.UserID,
+			RoleID:  probe.RoleID,
+			ExpUnix: probe.ExpiredAt.Unix(),
+		}
 		if probe.Revoked {
 			ttl := time.Until(probe.ExpiredAt)
 			if ttl <= 0 {
 				ttl = time.Minute
 			}
-			if rErr := s.cache.SetRevoked(ctx, sid, entry, ttl); rErr != nil {
+			if rErr := s.cache.SetRevoked(ctx, sid, freshEntry, ttl); rErr != nil {
 				slog.Warn("session cache repair after stale active hit failed", "sid", sid, "err", rErr)
 			}
 			return LookupResult{Status: LookupRevoked}, nil
@@ -130,7 +137,12 @@ func (s *SessionService) Lookup(ctx context.Context, db *gorm.DB, sid string) (L
 		if probe.ExpiredAt.Before(time.Now()) {
 			return LookupResult{Status: LookupExpired}, nil
 		}
-		return LookupResult{Status: LookupActive, Entry: entry}, nil
+		if entry.UserID != freshEntry.UserID || entry.RoleID != freshEntry.RoleID || entry.ExpUnix != freshEntry.ExpUnix {
+			if rErr := s.cache.Set(ctx, sid, freshEntry, time.Until(probe.ExpiredAt)); rErr != nil {
+				slog.Warn("session cache repair after identity drift failed", "sid", sid, "err", rErr)
+			}
+		}
+		return LookupResult{Status: LookupActive, Entry: freshEntry}, nil
 	}
 	var row models.UserSession
 	if err = db.WithContext(ctx).Where("id = ?", sid).First(&row).Error; errors.Is(err, gorm.ErrRecordNotFound) {

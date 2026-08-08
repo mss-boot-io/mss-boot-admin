@@ -22,6 +22,7 @@ import {
 } from '@/utils/themeSettings';
 import { getThemeAuthSessionId } from '@/utils/themeSession';
 import { publishThemeScopeResource } from '@/utils/themeSync';
+import { ADMIN_PERMISSIONS, hasPermission } from '@/utils/authorization';
 import { fieldIntl } from '@/util/fieldIntl';
 import { useIntl, useModel } from '@umijs/max';
 import {
@@ -45,7 +46,6 @@ export type ThemeProps = {
   onApplied?: (settings: ThemeSettings, overrides: ThemeOverrides) => void;
 };
 
-const APPLICATION_CONFIG_WRITE_PERMISSION = '/app-config/control';
 const THEME_LOAD_MAX_ATTEMPTS = 3;
 
 const getErrorStatus = (value: unknown): number | undefined => {
@@ -93,17 +93,11 @@ const Theme: React.FC<ThemeProps> = ({ scope, adapter, onApplied }) => {
   );
   const identityMismatch =
     Boolean(initialState?.currentUser) && (!verifiedAuthSessionId || identityChanged);
-  const permissions = initialState?.currentUser?.permissions;
   const hasMutationPermission =
     scope === 'user'
       ? Boolean(initialState?.currentUser && verifiedAuthSessionId)
       : Boolean(initialState?.currentUser && verifiedAuthSessionId) &&
-        (initialState?.currentUser?.role?.root === true ||
-          (!!permissions &&
-            Object.prototype.hasOwnProperty.call(
-              permissions,
-              APPLICATION_CONFIG_WRITE_PERMISSION,
-            )));
+        hasPermission(initialState?.currentUser, ADMIN_PERMISSIONS.appConfigControl);
   const canMutate = hasMutationPermission && hasLoadedCanonicalResource && !identityChanged;
 
   const applicationOverrides = useMemo(

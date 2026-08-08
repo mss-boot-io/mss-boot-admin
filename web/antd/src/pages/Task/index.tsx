@@ -10,6 +10,7 @@ import {
 import { idRender } from '@/util/columnOptions';
 import { indexTitle } from '@/util/indexTitle';
 import { useResponsive } from '@/hooks/useResponsive';
+import { resolveCrudRouteID } from '@/utils/routeAccess';
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns, ProDescriptionsItemProps } from '@ant-design/pro-components';
 import {
@@ -32,7 +33,8 @@ const TaskList: React.FC = () => {
   const [mustBody, setMustBody] = useState<boolean>(false);
   const [showDetail, setShowDetail] = useState<boolean>(false);
   const [currentRow, setCurrentRow] = useState<API.Role>();
-  const { id } = useParams();
+  const { id: routeID } = useParams();
+  const id = resolveCrudRouteID(routeID, history.location.pathname, '/task/create');
   const { isMobile } = useResponsive();
   const intl = useIntl();
 

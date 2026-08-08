@@ -7,6 +7,8 @@ describe('runtime log access', () => {
 
   it('shows the runtime tab only for the exact component permission', () => {
     expect(canReadRuntimeLogs({ permissions: { '/log/runtime': true } })).toBe(true);
+    expect(canReadRuntimeLogs({ permissions: { '/log/runtime': false } })).toBe(false);
+    expect(canReadRuntimeLogs({ permissions: { '/log/runtime': 'component' } })).toBe(false);
     expect(canReadRuntimeLogs({ permissions: { '/log': true } })).toBe(false);
     expect(canReadRuntimeLogs({ permissions: { '/log/runtime/export': true } })).toBe(false);
   });

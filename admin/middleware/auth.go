@@ -21,7 +21,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	bootpkg "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 	"github.com/spf13/cast"
@@ -44,9 +43,17 @@ var (
 )
 
 const (
-	authenticationFailureKey    = "mss.authentication.failure"
-	publicLoginDisallowOAuthKey = "mss.authentication.public-login-disallow-oauth"
+	authenticationFailureKey      = "mss.authentication.failure"
+	authorizationPolicyFailureKey = "mss.authorization.policy.failure"
+	publicLoginDisallowOAuthKey   = "mss.authentication.public-login-disallow-oauth"
 )
+
+var ensureAuthorizationPolicyCurrent = func(c *gin.Context) error {
+	return service.AuthorizationPolicies.EnsureCurrent(
+		c,
+		center.Default.GetDB(c, &models.ConfigRevision{}),
+	)
+}
 
 func Init() {
 	Auth = &jwt.GinJWTMiddleware{
@@ -56,23 +63,10 @@ func Init() {
 		MaxRefresh:  config.Cfg.Auth.MaxRefresh,
 		IdentityKey: config.Cfg.Auth.IdentityKey,
 		PayloadFunc: func(data any) jwt.MapClaims {
-
 			if v, ok := data.(security.Verifier); ok {
-				clearVerifierSecrets(v)
+				claims := principalClaims(v)
 				if v.GetRefreshTokenDisable() {
-					return jwt.MapClaims{
-						"refreshTokenDisabled": v.GetRefreshTokenDisable(),
-						"personAccessToken":    v.GetPersonAccessToken(),
-					}
-				}
-				rb, err := marshalVerifier(v)
-				if err != nil {
-					return jwt.MapClaims{}
-				}
-				claims := jwt.MapClaims{
-					"verifier":             string(rb),
-					"refreshTokenDisabled": false,
-					"personAccessToken":    "",
+					return claims
 				}
 				if config.Cfg.Auth.SessionEnabled {
 					bag := loginContext.Load()
@@ -91,35 +85,36 @@ func Init() {
 		},
 		IdentityHandler: func(c *gin.Context) any {
 			claims := jwt.ExtractClaims(c)
-			verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
 			if personAccessToken, ok := claims["personAccessToken"]; ok && cast.ToString(personAccessToken) != "" {
-				return authenticatePersonalAccessToken(c, verifier, cast.ToString(personAccessToken))
-			}
-			err := json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
-			if err != nil {
-				markAuthenticationFailure(c)
-				return nil
-			}
-			if verifier.GetRefreshTokenDisable() {
-				// check token revoked
-				token := jwt.GetToken(c)
-				err = verifier.CheckToken(c, token)
+				userID, roleID, err := principalSnapshotFromClaims(claims)
 				if err != nil {
 					markAuthenticationFailure(c)
 					return nil
 				}
-				return verifier
+				verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
+				return authenticatePersonalAccessToken(
+					c,
+					verifier,
+					cast.ToString(personAccessToken),
+					userID,
+					roleID,
+				)
+			}
+			principal, err := currentPrincipalFromClaims(c, claims)
+			if err != nil {
+				markAuthenticationFailure(c)
+				return nil
 			}
 			if config.Cfg.Auth.SessionEnabled {
-				if !validateSessionFromClaims(c, claims) {
+				if !validateSessionFromClaims(c, claims, principal) {
 					markAuthenticationFailure(c)
 					return nil
 				}
 			}
-			return verifier
+			return principal
 		},
 		Authenticator: authenticateLoginRequest,
-		Authorizator:  authorizeRequest,
+		Authorizator:  authorizeCurrentPolicyRequest,
 		RefreshResponse: func(c *gin.Context, code int, token string, expire time.Time) {
 			jwtToken, err := Auth.ParseTokenString(token)
 			if err != nil {
@@ -135,25 +130,13 @@ func Init() {
 				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token disabled")
 				return
 			}
-			verifier := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
-			err = json.Unmarshal([]byte(cast.ToString(claims["verifier"])), verifier)
+			principal, err := currentPrincipalFromClaims(c, claims)
 			if err != nil {
 				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
 				return
 			}
-			if err := validateRefreshVerifier(c, verifier); err != nil {
-				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
-				return
-			}
 			if config.Cfg.Auth.SessionEnabled {
-				sid := cast.ToString(claims["sid"])
-				if sid == "" {
-					writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "session missing")
-					return
-				}
-				db := center.Default.GetDB(c, &models.UserSession{})
-				res, lerr := service.Session.Lookup(c, db, sid)
-				if lerr != nil || res.Status != service.LookupActive {
+				if !validateSessionFromClaims(c, claims, principal) {
 					writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "session revoked")
 					return
 				}
@@ -166,6 +149,15 @@ func Init() {
 			})
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
+			if c.GetBool(authorizationPolicyFailureKey) {
+				writeAuthErrorResponse(
+					c,
+					http.StatusServiceUnavailable,
+					http.StatusServiceUnavailable,
+					"authorization policy is temporarily unavailable",
+				)
+				return
+			}
 			if code == http.StatusForbidden && c.GetBool(authenticationFailureKey) {
 				code = http.StatusUnauthorized
 			}
@@ -277,7 +269,22 @@ func AuthenticateVerifier(c *gin.Context, loginVals security.Verifier) (security
 		}
 		return nil, jwt.ErrFailedAuthentication
 	}
-	clearVerifierSecrets(user)
+	currentUser, principalErr := loadCurrentPrincipal(c, user.GetUserID(), user.GetRoleID())
+	if principalErr != nil {
+		if logErr := service.Audit.LogLogin(
+			db,
+			user.GetUserID(),
+			user.GetUsername(),
+			ip,
+			userAgent,
+			"authentication identity unavailable",
+			false,
+		); logErr != nil {
+			api.AddError(logErr).Log.Warn("write login log failed")
+		}
+		return nil, jwt.ErrFailedAuthentication
+	}
+	user = currentUser
 	if config.Cfg.Auth.SessionEnabled {
 		sid, sessionErr := service.Session.Create(c, center.Default.GetDB(c, &models.UserSession{}), service.CreateSessionInput{
 			UserID:    user.GetUserID(),
@@ -310,9 +317,76 @@ func clearVerifierSecrets(verifier security.Verifier) {
 	}
 }
 
-func marshalVerifier(verifier security.Verifier) ([]byte, error) {
+func principalClaims(verifier security.Verifier) jwt.MapClaims {
+	if verifier == nil {
+		return jwt.MapClaims{}
+	}
 	clearVerifierSecrets(verifier)
-	return json.Marshal(verifier)
+	return jwt.MapClaims{
+		"uid":                  verifier.GetUserID(),
+		"rid":                  verifier.GetRoleID(),
+		"refreshTokenDisabled": verifier.GetRefreshTokenDisable(),
+		"personAccessToken":    verifier.GetPersonAccessToken(),
+	}
+}
+
+func principalSnapshotFromClaims(claims jwt.MapClaims) (string, string, error) {
+	userID := strings.TrimSpace(cast.ToString(claims["uid"]))
+	roleID := strings.TrimSpace(cast.ToString(claims["rid"]))
+	if userID != "" || roleID != "" {
+		if userID == "" || roleID == "" {
+			return "", "", errors.New("identity snapshot is incomplete")
+		}
+		return userID, roleID, nil
+	}
+
+	// Compatibility for interactive JWTs issued before uid/rid became the
+	// minimal claim contract. The embedded Role/Root values are ignored; only
+	// the signed identifiers are used to reload current database authority.
+	legacy := strings.TrimSpace(cast.ToString(claims["verifier"]))
+	if legacy == "" || Verifier == nil {
+		return "", "", errors.New("identity snapshot is missing")
+	}
+	verifierType := reflect.TypeOf(Verifier)
+	if verifierType.Kind() != reflect.Pointer {
+		return "", "", errors.New("identity verifier type is invalid")
+	}
+	verifier := reflect.New(verifierType.Elem()).Interface().(security.Verifier)
+	if err := json.Unmarshal([]byte(legacy), verifier); err != nil {
+		return "", "", errors.New("identity snapshot is invalid")
+	}
+	userID = strings.TrimSpace(verifier.GetUserID())
+	roleID = strings.TrimSpace(verifier.GetRoleID())
+	if userID == "" || roleID == "" {
+		return "", "", errors.New("identity snapshot is incomplete")
+	}
+	return userID, roleID, nil
+}
+
+func loadCurrentPrincipal(c *gin.Context, userID, expectedRoleID string) (security.Verifier, error) {
+	if c == nil {
+		return nil, errors.New("request context is missing")
+	}
+	user, err := models.LoadCurrentUserPrincipal(
+		c,
+		center.Default.GetDB(c, &models.User{}),
+		userID,
+	)
+	if err != nil {
+		return nil, errors.New("current identity is unavailable")
+	}
+	if expectedRoleID == "" || user.GetRoleID() != expectedRoleID {
+		return nil, errors.New("current identity role changed")
+	}
+	return user, nil
+}
+
+func currentPrincipalFromClaims(c *gin.Context, claims jwt.MapClaims) (security.Verifier, error) {
+	userID, roleID, err := principalSnapshotFromClaims(claims)
+	if err != nil {
+		return nil, err
+	}
+	return loadCurrentPrincipal(c, userID, roleID)
 }
 
 func isDisallowedPublicOAuthVerifier(verifier security.Verifier) bool {
@@ -344,10 +418,20 @@ func AuthenticateAndGenerateToken(
 	return token, expiresAt, nil
 }
 
-func authenticatePersonalAccessToken(c *gin.Context, verifier security.Verifier, tokenID string) security.Verifier {
+func authenticatePersonalAccessToken(
+	c *gin.Context,
+	verifier security.Verifier,
+	tokenID string,
+	expectedUserID string,
+	expectedRoleID string,
+) security.Verifier {
 	verifier.SetRefreshTokenDisable(true)
 	verifier.SetPersonAccessToken(tokenID)
 	if err := verifier.CheckToken(c, jwt.GetToken(c)); err != nil {
+		markAuthenticationFailure(c)
+		return nil
+	}
+	if verifier.GetUserID() != expectedUserID || verifier.GetRoleID() != expectedRoleID {
 		markAuthenticationFailure(c)
 		return nil
 	}
@@ -367,17 +451,8 @@ func validateRefreshVerifier(c *gin.Context, verifier security.Verifier) error {
 	if userID == "" {
 		return errors.New("refresh identity is missing")
 	}
-	var user models.User
-	if err := center.GetDB(c, &models.User{}).Preload("Role").First(&user, "id = ?", userID).Error; err != nil {
-		return errors.New("refresh identity is invalid")
-	}
-	if user.Status != enum.Enabled || user.Role == nil || user.Role.Status != enum.Enabled {
-		return errors.New("refresh identity is disabled")
-	}
-	if user.RoleID == "" || user.RoleID != verifier.GetRoleID() {
-		return errors.New("refresh identity role changed")
-	}
-	return nil
+	_, err := loadCurrentPrincipal(c, userID, verifier.GetRoleID())
+	return err
 }
 
 func GetVerify(ctx *gin.Context) security.Verifier {
@@ -499,7 +574,6 @@ var selfServiceRequests = map[string]struct{}{
 	http.MethodDelete + " /admin/api/user/unbinding":           {},
 	http.MethodPost + " /admin/api/online-sessions/logout":     {},
 	http.MethodGet + " /admin/api/ws/connect":                  {},
-	http.MethodPost + " /admin/api/storage/upload":             {},
 }
 
 func authorizeRequest(data any, c *gin.Context) bool {
@@ -557,6 +631,40 @@ func authorizeRequest(data any, c *gin.Context) bool {
 	return false
 }
 
+// authorizeCurrentPolicyRequest reconciles the durable policy revision before
+// a request is evaluated by Casbin. Root and exact self-service capabilities
+// do not consult Casbin, so they remain available without performing a
+// redundant policy reload. A reconciliation failure is a service outage, not
+// a user permission denial, and is surfaced as 503 by Unauthorized.
+func authorizeCurrentPolicyRequest(data any, c *gin.Context) bool {
+	if requestRequiresCasbinPolicy(data, c) {
+		if err := ensureAuthorizationPolicyCurrent(c); err != nil {
+			c.Set(authorizationPolicyFailureKey, true)
+			response.Make(c).AddError(err).Log.Error("reconcile authorization policy")
+			return false
+		}
+	}
+	return authorizeRequest(data, c)
+}
+
+func requestRequiresCasbinPolicy(data any, c *gin.Context) bool {
+	verifier, ok := data.(security.Verifier)
+	if !ok || verifier == nil || c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	object := authorizationObject(c)
+	if IsPersonalAccessTokenVerifier(verifier) &&
+		(isInteractiveSensitiveRequest(c.Request.Method, object) ||
+			isInteractiveSensitiveRequest(c.Request.Method, c.Request.URL.Path)) {
+		return false
+	}
+	if verifier.Root() {
+		return false
+	}
+	return !isSelfServiceRequest(c.Request.Method, object) &&
+		!isSelfServiceRequest(c.Request.Method, c.Request.URL.Path)
+}
+
 func routePolicyMatches(route, policy string) bool {
 	routeSegments := strings.Split(strings.Trim(route, "/"), "/")
 	policySegments := strings.Split(strings.Trim(policy, "/"), "/")
@@ -608,14 +716,22 @@ func writeAuthErrorResponse(c *gin.Context, httpStatus, businessCode int, messag
 }
 
 // validateSessionFromClaims checks that the JWT `sid` claim points to an
-// active server-side session. Returns false when the auth layer must reject
-// the request (missing sid, missing/revoked/expired session, or unrecoverable
-// DB error). On success it kicks off a throttled async last_seen update.
+// active server-side session owned by the same current user and role. Returns
+// false when the auth layer must reject the request (missing sid,
+// missing/revoked/expired session, identity mismatch, or unrecoverable DB
+// error). On success it kicks off a throttled async last_seen update.
 //
 // Extracted from middleware.Init so integration tests can exercise the four
 // branches the reviewer flagged (PR #376 review #5): sid present + active,
 // missing-sid legacy JWT, DB-revoked session, and DB-expired session.
-func validateSessionFromClaims(c *gin.Context, claims jwt.MapClaims) bool {
+func validateSessionFromClaims(
+	c *gin.Context,
+	claims jwt.MapClaims,
+	principal security.Verifier,
+) bool {
+	if principal == nil {
+		return false
+	}
 	sid := cast.ToString(claims["sid"])
 	if sid == "" {
 		return false
@@ -623,6 +739,9 @@ func validateSessionFromClaims(c *gin.Context, claims jwt.MapClaims) bool {
 	db := center.Default.GetDB(c, &models.UserSession{})
 	res, err := service.Session.Lookup(c, db, sid)
 	if err != nil || res.Status != service.LookupActive {
+		return false
+	}
+	if res.Entry.UserID != principal.GetUserID() || res.Entry.RoleID != principal.GetRoleID() {
 		return false
 	}
 	if shouldTouch, terr := service.Session.MarkLastSeen(c, sid); terr == nil && shouldTouch {

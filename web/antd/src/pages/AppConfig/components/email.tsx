@@ -4,6 +4,11 @@ import { ProColumns, ProFormInstance, ProTable } from '@ant-design/pro-component
 import { fieldIntl } from '@/util/fieldIntl';
 import { getAppConfigsGroup, putAppConfigsGroup } from '@/services/admin/appConfig';
 import { message } from 'antd';
+import {
+  omitAppConfigSecrets,
+  prepareAppConfigSecretPayload,
+  useAppConfigAccess,
+} from '../useAppConfigAccess';
 
 const Email: React.FC = () => {
   /**
@@ -11,6 +16,7 @@ const Email: React.FC = () => {
    * @zh-CN 国际化配置
    * */
   const intl = useIntl();
+  const { canReadSecrets, canWrite, canWriteSecrets } = useAppConfigAccess();
 
   const formRef = useRef<ProFormInstance>();
 
@@ -46,16 +52,24 @@ const Email: React.FC = () => {
       title: fieldIntl(intl, 'password'),
       dataIndex: 'password',
       valueType: 'password',
+      fieldProps: {
+        disabled: !canWriteSecrets,
+      },
       formItemProps: () => {
         return {
-          rules: [{ required: true }],
+          rules: [{ required: canReadSecrets && canWriteSecrets }],
         };
       },
     },
   ];
 
   const onSubmit = async (params: Record<string, any>) => {
-    await putAppConfigsGroup({ group: 'email' }, { data: params });
+    if (!canWrite) return;
+    const data = prepareAppConfigSecretPayload('email', params, {
+      canReadSecrets,
+      canWriteSecrets,
+    });
+    await putAppConfigsGroup({ group: 'email' }, { data });
     message.success(
       intl.formatMessage({ id: 'pages.message.edit.success', defaultMessage: 'Update Success!' }),
     );
@@ -66,9 +80,14 @@ const Email: React.FC = () => {
       type="form"
       formRef={formRef}
       columns={columns}
-      onSubmit={onSubmit}
+      onSubmit={canWrite ? onSubmit : undefined}
       form={{
-        request: async () => await getAppConfigsGroup({ group: 'email' }),
+        readonly: !canWrite,
+        submitter: canWrite ? undefined : false,
+        request: async () => {
+          const config = await getAppConfigsGroup({ group: 'email' });
+          return canReadSecrets ? config : omitAppConfigSecrets('email', config);
+        },
       }}
     />
   );

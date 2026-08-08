@@ -60,7 +60,7 @@ const MobilePostList: React.FC<MobilePostListProps> = ({
   return (
     <div className={styles.mobileContainer}>
       <div className={styles.toolbar}>
-        <Access key="/posts/create" permission="/posts/create">
+        <Access key="/posts/create" rootOnly>
           <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
             新建岗位
           </Button>
@@ -96,12 +96,12 @@ const MobilePostList: React.FC<MobilePostListProps> = ({
 
               <div className={styles.cardActions}>
                 <Space>
-                  <Access key="/posts/edit" permission="/posts/edit">
+                  <Access key="/posts/edit" rootOnly>
                     <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
                       编辑
                     </Button>
                   </Access>
-                  <Access key="/posts/delete" permission="/posts/delete">
+                  <Access key="/posts/delete" rootOnly>
                     <Popconfirm
                       title="确定要删除吗？"
                       onConfirm={() => handleDelete(item)}

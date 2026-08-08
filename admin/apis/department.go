@@ -23,7 +23,11 @@ import (
  */
 
 func init() {
-	e := &Department{
+	response.AppendController(newDepartmentController())
+}
+
+func newDepartmentController() *Department {
+	return &Department{
 		Simple: controller.NewSimple(
 			controller.WithAuth(true),
 			controller.WithModel(&models.Department{}),
@@ -31,9 +35,12 @@ func init() {
 			controller.WithModelProvider(actions.ModelProviderGorm),
 			controller.WithTreeField("Children"),
 			controller.WithDepth(5),
+			// Department topology is an authorization input for data scopes.
+			// Keep mutations root-only until subtree delegation is explicit.
+			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement}),
 		),
 	}
-	response.AppendController(e)
 }
 
 type Department struct {

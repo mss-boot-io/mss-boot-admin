@@ -46,6 +46,7 @@ func setupOnlineSessionTest(t *testing.T) (*gin.Engine, *gorm.DB, string) {
 		actorResolver:  func(c *gin.Context) (string, string) { return "admin", "admin" },
 		sidExtractor:   func(c *gin.Context) string { return sid },
 		verifyResolver: func(c *gin.Context) (string, string, bool) { return "u1", "alice", true },
+		targetGuard:    func(*gin.Context, string) bool { return true },
 	}
 	// 测试用裸 group，不引入项目的 AuthHandler。先短路 response.AuthHandler。
 	g := r.Group("/admin/api")
@@ -260,6 +261,7 @@ func TestOnlineSessionRevokeBySID_CacheDown(t *testing.T) {
 	api := &OnlineSessionAPI{
 		db:            db,
 		actorResolver: func(c *gin.Context) (string, string) { return "admin", "admin" },
+		targetGuard:   func(*gin.Context, string) bool { return true },
 	}
 	g := r.Group("/admin/api")
 	g.DELETE("/online-sessions/:id", api.RevokeBySID)

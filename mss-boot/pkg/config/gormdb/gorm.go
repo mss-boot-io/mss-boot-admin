@@ -296,7 +296,7 @@ func newEnforcer(db *gorm.DB, casbinModel string) (casbin.IEnforcer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse Casbin model: %w", err)
 	}
-	enforcer, err := casbin.NewEnforcer(m, adapter)
+	enforcer, err := newSynchronizedEnforcer(m, adapter)
 	if err != nil {
 		return nil, fmt.Errorf("create Casbin enforcer: %w", err)
 	}

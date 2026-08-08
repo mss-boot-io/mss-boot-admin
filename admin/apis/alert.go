@@ -46,3 +46,14 @@ type AlertHistory struct {
 func (*AlertHistory) Path() string {
 	return "alert-history"
 }
+
+// GetAction exposes alert history as immutable evidence. Alert evaluators own
+// creation; API consumers may only list or inspect recorded events.
+func (e *AlertHistory) GetAction(key string) response.Action {
+	switch key {
+	case response.Get, response.Search:
+		return e.Simple.GetAction(key)
+	default:
+		return nil
+	}
+}

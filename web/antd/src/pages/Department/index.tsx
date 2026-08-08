@@ -3,6 +3,7 @@ import { idRender } from '@/util/columnOptions';
 import { indexTitle } from '@/util/indexTitle';
 import { useOption } from '@/hooks/useOption';
 import { useResponsive } from '@/hooks/useResponsive';
+import { resolveCrudRouteID } from '@/utils/routeAccess';
 import { PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns, ProDescriptionsItemProps } from '@ant-design/pro-components';
 import { PageContainer, ProDescriptions, ProTable } from '@ant-design/pro-components';
@@ -28,7 +29,8 @@ const TableList: React.FC = () => {
   const actionRef = useRef<ActionType>();
   const [currentRow, setCurrentRow] = useState<API.Role>();
   const [list, setList] = useState<[]>([]);
-  const { id } = useParams();
+  const { id: routeID } = useParams();
+  const id = resolveCrudRouteID(routeID, history.location.pathname, '/departments/create');
 
   const { isMobile } = useResponsive();
   const shouldLoadDesktopDependencies = !isMobile || !!id;
@@ -179,14 +181,14 @@ const TableList: React.FC = () => {
       hideInDescriptions: true,
       hideInForm: true,
       render: (_, record) => [
-        <Access key="/departments/edit" permission="/departments/edit">
+        <Access key="/departments/edit" rootOnly>
           <Link to={`/departments/${record.id}`} key="edit">
             <Button key="edit">
               <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
             </Button>
           </Link>
         </Access>,
-        <Access key="/departments/delete" permission="/departments/delete">
+        <Access key="/departments/delete" rootOnly>
           <Popconfirm
             key="delete"
             title={intl.formatMessage({
@@ -312,7 +314,7 @@ const TableList: React.FC = () => {
         type={id ? 'form' : 'table'}
         onSubmit={id ? onSubmit : undefined}
         toolBarRender={() => [
-          <Access key="/departments/create" permission="/departments/create">
+          <Access key="/departments/create" rootOnly>
             <Link to="/departments/create" key="create">
               <Button type="primary" key="create">
                 <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />
