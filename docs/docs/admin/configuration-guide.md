@@ -231,22 +231,28 @@ security:
 
 ## 缓存配置
 
+Redis 是可选的派生缓存，不是配置事实源。生产环境不要使用 `queryCacheKeys: ['*']`；
+应保持通用查询缓存关闭，或只在完成数据敏感度、失效和故障降级验证后配置明确表白名单。
+应用配置、个人配置与系统配置的边界详见[配置缓存一致性](/admin/config-cache-consistency)。
+
 ### 内存缓存（开发环境）
 
 ```yaml
 cache:
-  queryCache: true
+  # Keep disabled unless an explicit, non-sensitive table allowlist has been verified.
+  queryCache: false
   queryCacheDuration: 1h
-  queryCacheKeys:
-    - '*'
+  queryCacheKeys: []
 ```
 
 ### Redis 缓存（生产环境）
 
 ```yaml
 cache:
-  queryCache: true
+  # Redis remains available to revisioned domain caches when generic query caching is disabled.
+  queryCache: false
   queryCacheDuration: 1h
+  queryCacheKeys: []
   redis:
     addr: '${REDIS_ADDR}'
     password: '${REDIS_PASSWORD}'
@@ -682,10 +688,9 @@ pyroscope:
   serverAddress: 'http://pyroscope:4040'
 
 cache:
-  queryCache: true
+  queryCache: false
   queryCacheDuration: 1h
-  queryCacheKeys:
-    - '*'
+  queryCacheKeys: []
   redis:
     addr: '${REDIS_ADDR}'
     password: '${REDIS_PASSWORD}'

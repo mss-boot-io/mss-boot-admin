@@ -1,12 +1,33 @@
 .popover {
   position: relative;
-  width: 336px;
+  width: min(336px, calc(100vw - 16px));
+}
+
+@media (max-width: 575px) {
+  .popover {
+    position: fixed !important;
+    right: 8px !important;
+    left: 8px !important;
+    width: auto;
+  }
 }
 
 .noticeButton {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: inherit;
   cursor: pointer;
-  transition: all 0.3s;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  transition: background-color 160ms ease;
+
+  &:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
 }
 .icon {
   padding: 4px;
@@ -15,6 +36,14 @@
 
 .badge {
   font-size: 16px;
+}
+
+.state {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .tabs {

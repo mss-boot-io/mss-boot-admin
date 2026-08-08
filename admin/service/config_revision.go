@@ -11,11 +11,15 @@ import (
 )
 
 const (
-	configRevisionResourceTheme         = "theme"
-	configRevisionResourcePublicProfile = "public-profile"
+	configRevisionResourceTheme         = models.ConfigRevisionResourceTheme
+	configRevisionResourcePublicProfile = models.ConfigRevisionResourcePublicProfile
+	configRevisionResourceUserProfile   = models.ConfigRevisionResourceUserProfile
 )
 
-var errConfigRevisionChanged = errors.New("configuration revision changed concurrently")
+var (
+	errConfigRevisionChanged     = errors.New("configuration revision changed concurrently")
+	errConfigRevisionKeyMismatch = errors.New("configuration revision key does not exactly match stored database key")
+)
 
 type configRevisionKey struct {
 	scope    string
@@ -36,6 +40,9 @@ func readConfigRevision(db *gorm.DB, key configRevisionKey) (int64, error) {
 	}
 	if result.RowsAffected == 0 {
 		return 0, nil
+	}
+	if err := requireExactConfigRevisionKey(row, key); err != nil {
+		return 0, err
 	}
 	if row.Revision < 0 {
 		return 0, fmt.Errorf("configuration revision is negative for %s/%s", key.scope, key.resource)
@@ -77,6 +84,9 @@ func lockConfigRevision(tx *gorm.DB, key configRevisionKey) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	if err := requireExactConfigRevisionKey(*row, key); err != nil {
+		return 0, err
+	}
 	if row.Revision < 0 {
 		return 0, fmt.Errorf("configuration revision is negative for %s/%s", key.scope, key.resource)
 	}
@@ -107,4 +117,19 @@ func advanceConfigRevision(tx *gorm.DB, key configRevisionKey, current int64) (i
 		return 0, errConfigRevisionChanged
 	}
 	return next, nil
+}
+
+func requireExactConfigRevisionKey(row models.ConfigRevision, key configRevisionKey) error {
+	if row.Scope == key.scope && row.OwnerID == key.ownerID && row.Resource == key.resource {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: requested scope=%q resource=%q, stored scope=%q resource=%q, ownerMatch=%t",
+		errConfigRevisionKeyMismatch,
+		key.scope,
+		key.resource,
+		row.Scope,
+		row.Resource,
+		row.OwnerID == key.ownerID,
+	)
 }

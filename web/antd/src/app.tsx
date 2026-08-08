@@ -14,7 +14,7 @@ import fixMenuItemIcon from './util/fixMenuItemIcon';
 import { MenuDataItem } from '@ant-design/pro-components';
 import { getCachedLanguages } from './services/admin/language';
 import NoticeIconView from './components/NoticeIcon';
-import HeaderSearch from './components/HeaderSearch';
+import AuthorizedMenuSearch from './components/AuthorizedMenuSearch';
 import ThemeRuntimeBridge from './components/MssBoot/ThemeRuntimeBridge';
 import PermissionFreshnessBridge from './components/MssBoot/PermissionFreshnessBridge';
 import ForbiddenPage from './pages/403';
@@ -287,13 +287,21 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
     title: initialState?.appConfig?.base?.websiteName || 'mss-boot-admin',
     menu: {
       locale: true,
-      request: () => requestAuthorizedMenu(initialState?.currentUser),
+      request: () =>
+        requestAuthorizedMenu(
+          initialState?.currentUser,
+          initialState?.permissionRefreshVersion || 0,
+        ),
       params: {
         permissionRefreshVersion: initialState?.permissionRefreshVersion || 0,
       },
     },
     actionsRender: () => [
-      <HeaderSearch key="search" placeholder="component.search.placeholder" options={undefined} />,
+      <AuthorizedMenuSearch
+        key="search"
+        identity={initialState?.currentUser}
+        permissionRefreshVersion={initialState?.permissionRefreshVersion || 0}
+      />,
       <NoticeIconView key="notice" />,
       <Question key="doc" />,
       <SelectLang key="SelectLang" />,
@@ -309,6 +317,13 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
     },
     waterMarkProps: {
       content: getUserDisplayName(initialState?.currentUser),
+      gapX: 220,
+      gapY: 180,
+      fontSize: 14,
+      fontColor:
+        initialState?.settings?.navTheme === 'realDark'
+          ? 'rgba(255, 255, 255, 0.06)'
+          : 'rgba(0, 0, 0, 0.055)',
     },
     footerRender: () => <Footer />,
     unAccessible: <ForbiddenPage />,
@@ -319,26 +334,6 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
         history.replace(getAuthRedirect(location));
       }
     },
-    layoutBgImgList: [
-      {
-        src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/D2LWSqNny4sAAAAAAAAAAAAAFl94AQBr',
-        left: 85,
-        bottom: 100,
-        height: '303px',
-      },
-      {
-        src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/C2TWRpJpiC0AAAAAAAAAAAAAFl94AQBr',
-        bottom: -68,
-        right: -45,
-        height: '303px',
-      },
-      {
-        src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/F6vSTbj8KpYAAAAAAAAAAAAAFl94AQBr',
-        bottom: 0,
-        left: 0,
-        width: '331px',
-      },
-    ],
     links: isDev
       ? [
           <Link key="openapi" to="/umi/plugin/openapi" target="_blank">

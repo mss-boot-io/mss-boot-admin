@@ -23,7 +23,9 @@ import { FormattedMessage, history, useIntl, Link, useParams } from '@umijs/max'
 import { Button, Drawer, Form, Input, message, Popconfirm, Row, Col, Tag } from 'antd';
 import React, { useRef, useState } from 'react';
 import { fieldIntl } from '@/util/fieldIntl';
-import MobileTaskList from './Mobile/TaskList';
+import MobileTaskList, { resolveTaskOperation } from './Mobile/TaskList';
+import type { TaskOperation } from './Mobile/TaskList';
+import { useTaskOperationGuard } from './useTaskOperationGuard';
 
 const TaskList: React.FC = () => {
   const actionRef = useRef<ActionType>();
@@ -37,6 +39,26 @@ const TaskList: React.FC = () => {
   const id = resolveCrudRouteID(routeID, history.location.pathname, '/task/create');
   const { isMobile } = useResponsive();
   const intl = useIntl();
+  const { pendingTaskID, runTaskOperation } = useTaskOperationGuard();
+
+  const handleTaskOperation = async (record: API.Task, operation: TaskOperation) => {
+    try {
+      await runTaskOperation(record.id, async () => {
+        await postTaskOperateId({ id: record.id!, operate: operation });
+        message.success(
+          intl.formatMessage({
+            id:
+              operation === 'start' ? 'pages.task.start.success' : 'pages.task.stop.success',
+            defaultMessage:
+              operation === 'start' ? 'Start successfully!' : 'Stop successfully!',
+          }),
+        );
+        await actionRef.current?.reload();
+      });
+    } catch {
+      // Request errors are presented by the shared request error handler.
+    }
+  };
 
   const columns: ProColumns<API.Task>[] = [
     {
@@ -342,80 +364,69 @@ const TaskList: React.FC = () => {
       valueType: 'option',
       hideInDescriptions: true,
       hideInForm: true,
-      render: (_, record) => [
-        <Access key="/task/operate" permission="/task/operate">
-          <Button
-            key="operate"
-            onClick={async () => {
-              if (record.status === 'enabled') {
-                await postTaskOperateId({ id: record.id!, operate: 'stop' });
+      render: (_, record) => {
+        const operation = resolveTaskOperation(record.status);
+        return [
+          operation ? (
+            <Access key="/task/operate" permission="/task/operate">
+              <Button
+                key="operate"
+                loading={pendingTaskID === record.id}
+                disabled={Boolean(pendingTaskID && pendingTaskID !== record.id)}
+                onClick={() => handleTaskOperation(record, operation)}
+              >
+                {intl.formatMessage({
+                  id:
+                    operation === 'start'
+                      ? 'pages.task.start.title'
+                      : 'pages.task.stop.title',
+                  defaultMessage: operation === 'start' ? 'Start' : 'Stop',
+                })}
+              </Button>
+            </Access>
+          ) : null,
+          <Access key="/task/edit" permission="/task/edit">
+            <Link to={`/task/${record.id}`}>
+              <Button key="edit">
+                <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
+              </Button>
+            </Link>
+          </Access>,
+          <Access key="/task/delete" permission="/task/delete">
+            <Popconfirm
+              key="delete"
+              title={intl.formatMessage({
+                id: 'pages.title.delete.confirm',
+                defaultMessage: 'Confirm Delete',
+              })}
+              description={intl.formatMessage({
+                id: 'pages.description.delete.confirm',
+                defaultMessage: 'Are you sure to delete this record?',
+              })}
+              onConfirm={async () => {
+                await deleteTasksId({ id: record.id! });
                 message
                   .success(
                     intl.formatMessage({
-                      id: 'pages.message.stop.success',
-                      defaultMessage: 'Stop successfully!',
+                      id: 'pages.message.delete.success',
+                      defaultMessage: 'Delete successfully!',
                     }),
                   )
                   .then(() => actionRef.current?.reload());
-              }
-              // @ts-ignore
-              if (!record.status || record.status === '' || record.status === 'disabled') {
-                await postTaskOperateId({ id: record.id!, operate: 'start' });
-                message
-                  .success(
-                    intl.formatMessage({
-                      id: 'pages.message.start.success',
-                      defaultMessage: 'Start successfully!',
-                    }),
-                  )
-                  .then(() => actionRef.current?.reload());
-                return;
-              }
-            }}
-          >
-            {record.status === 'enabled'
-              ? intl.formatMessage({ id: 'pages.task.stop.title' })
-              : intl.formatMessage({ id: 'pages.task.start.title' })}
-          </Button>
-        </Access>,
-        <Access key="/task/edit" permission="/task/edit">
-          <Link to={`/task/${record.id}`}>
-            <Button key="edit">
-              <FormattedMessage id="pages.title.edit" defaultMessage="Edit" />
-            </Button>
-          </Link>
-        </Access>,
-        <Access key="/task/delete" permission="/task/delete">
-          <Popconfirm
-            key="delete"
-            title={intl.formatMessage({
-              id: 'pages.title.delete.confirm',
-              defaultMessage: 'Confirm Delete',
-            })}
-            description={intl.formatMessage({
-              id: 'pages.description.delete.confirm',
-              defaultMessage: 'Are you sure to delete this record?',
-            })}
-            onConfirm={async () => {
-              await deleteTasksId({ id: record.id! });
-              message
-                .success(
-                  intl.formatMessage({
-                    id: 'pages.message.delete.success',
-                    defaultMessage: 'Delete successfully!',
-                  }),
-                )
-                .then(() => actionRef.current?.reload());
-            }}
-            okText={intl.formatMessage({ id: 'pages.title.ok', defaultMessage: 'OK' })}
-            cancelText={intl.formatMessage({ id: 'pages.title.cancel', defaultMessage: 'Cancel' })}
-          >
-            <Button key="delete.button">
-              <FormattedMessage id="pages.title.delete" defaultMessage="Delete" />
-            </Button>
-          </Popconfirm>
-        </Access>,
-      ],
+              }}
+              okText={intl.formatMessage({ id: 'pages.title.ok', defaultMessage: 'OK' })}
+              cancelText={intl.formatMessage({
+                id: 'pages.title.cancel',
+                defaultMessage: 'Cancel',
+              })}
+            >
+              <Button key="delete.button">
+                <FormattedMessage id="pages.title.delete" defaultMessage="Delete" />
+              </Button>
+            </Popconfirm>
+          </Access>,
+        ];
+      },
     },
   ];
 
@@ -476,53 +487,59 @@ const TaskList: React.FC = () => {
             await deleteTasksId({ id: record.id! });
             message.success(intl.formatMessage({ id: 'pages.message.delete.success' }));
           }}
+          onOperate={async (record, operation) => {
+            if (!record.id) {
+              return;
+            }
+            await postTaskOperateId({ id: record.id, operate: operation });
+          }}
         />
       ) : (
         <ProTable<API.Task, API.Page>
-        headerTitle={intl.formatMessage({
-          id: 'pages.task.list.title',
-          defaultMessage: 'Options List',
-        })}
-        actionRef={actionRef}
-        rowKey="id"
-        search={{
-          labelWidth: 120,
-        }}
-        type={id ? 'form' : 'table'}
-        onSubmit={id ? onSubmit : undefined}
-        toolBarRender={() => [
-          <Access key="/task/create" permission="/task/create">
-            <Button type="primary" key="create">
-              <Link type="primary" key="primary" to="/task/create">
-                <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />
-              </Link>
-            </Button>
-          </Access>,
-        ]}
-        form={
-          id && id !== 'create'
-            ? {
-                request: async () => {
-                  const res = await getTasksId({ id });
-                  setProvider(res.provider!);
-                  setNeedBody(res.method !== 'GET');
-                  if (res.args) {
-                    res.args = JSON.parse(res.args);
-                  }
-                  if (res.command) {
-                    res.command = JSON.parse(res.command);
-                  }
-                  return res;
-                },
-                onValuesChange,
-                initialValues: { provider: 'default', status: 'enabled', namespace: 'default' },
-              }
-            : {
-                onValuesChange,
-              }
-        }
-        request={getTasks}
-        columns={columns}
+          headerTitle={intl.formatMessage({
+            id: 'pages.task.list.title',
+            defaultMessage: 'Options List',
+          })}
+          actionRef={actionRef}
+          rowKey="id"
+          search={{
+            labelWidth: 120,
+          }}
+          type={id ? 'form' : 'table'}
+          onSubmit={id ? onSubmit : undefined}
+          toolBarRender={() => [
+            <Access key="/task/create" permission="/task/create">
+              <Button type="primary" key="create">
+                <Link type="primary" key="primary" to="/task/create">
+                  <PlusOutlined /> <FormattedMessage id="pages.table.new" defaultMessage="New" />
+                </Link>
+              </Button>
+            </Access>,
+          ]}
+          form={
+            id && id !== 'create'
+              ? {
+                  request: async () => {
+                    const res = await getTasksId({ id });
+                    setProvider(res.provider!);
+                    setNeedBody(res.method !== 'GET');
+                    if (res.args) {
+                      res.args = JSON.parse(res.args);
+                    }
+                    if (res.command) {
+                      res.command = JSON.parse(res.command);
+                    }
+                    return res;
+                  },
+                  onValuesChange,
+                  initialValues: { provider: 'default', status: 'enabled', namespace: 'default' },
+                }
+              : {
+                  onValuesChange,
+                }
+          }
+          request={getTasks}
+          columns={columns}
         />
       )}
 

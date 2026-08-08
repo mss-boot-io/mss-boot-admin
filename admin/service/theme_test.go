@@ -215,6 +215,18 @@ func TestThemePutRejectsAmbiguousCaseVariantCollisionAndRollsBack(t *testing.T) 
 	require.Zero(t, revisionCount, "collision must roll back revision rows and data changes")
 }
 
+func TestThemeKeyCollisionErrorDoesNotExposeRawOwner(t *testing.T) {
+	const ownerID = "personally-identifying-user"
+	collision := &ThemeKeyCollisionError{
+		Scope: ThemeScopeUser, OwnerID: ownerID, Key: "navTheme", Candidates: 2,
+	}
+
+	require.ErrorIs(t, collision, ErrThemeKeyCollision)
+	require.Equal(t, ownerID, collision.OwnerID, "structured owner remains available to trusted callers")
+	require.NotContains(t, collision.Error(), ownerID)
+	require.Contains(t, collision.Error(), "ownerPresent=true")
+}
+
 func TestUserThemePutKeepsSQLiteCaseVariantOwnerIsolated(t *testing.T) {
 	env := setupAppConfigTestEnv(t)
 	legacy := &models.UserConfig{

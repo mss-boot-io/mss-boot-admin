@@ -1,42 +1,51 @@
-import React from 'react';
-import { Button, Card, Empty, List, Space, Tag, Popconfirm } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import { useIntl } from '@umijs/max';
 import { Access } from '@/components/MssBoot/Access';
 import { useMobileListPagination } from '@/hooks/useMobileListPagination';
 import styles from '@/styles/mobile.less';
+import { fieldIntl } from '@/util/fieldIntl';
+import { Button, Card, Empty, List, message, Result, Space, Tag } from 'antd';
+import React, { useRef, useState } from 'react';
+import { useIntl } from '@umijs/max';
 
 interface MobileNoticeListProps {
-  request: (params: any) => Promise<any>;
-  onEdit: (record: any) => void;
-  onCreate: () => void;
-  onDelete: (record: any) => Promise<void>;
+  request: (params: { current: number; pageSize: number }) => Promise<unknown>;
+  onView: (record: API.Notice) => void;
+  onMarkRead: (record: API.Notice) => Promise<void>;
 }
 
-const MobileNoticeList: React.FC<MobileNoticeListProps> = ({
-  request,
-  onEdit,
-  onCreate,
-  onDelete,
-}) => {
+const MobileNoticeList: React.FC<MobileNoticeListProps> = ({ request, onView, onMarkRead }) => {
   const intl = useIntl();
-  const {
-    dataSource,
-    error,
-    hasMore,
-    loading,
-    loadingMore,
-    loadMore,
-    reload,
-  } = useMobileListPagination<API.Notice>(request);
+  const markingReadIDRef = useRef<string>();
+  const [markingReadID, setMarkingReadID] = useState<string>();
+  const { dataSource, error, hasMore, loading, loadingMore, loadMore, reload } =
+    useMobileListPagination<API.Notice>(request);
 
-  const handleDelete = async (record: any) => {
-    await onDelete(record);
-    await reload();
+  const handleMarkRead = async (record: API.Notice) => {
+    if (!record.id || markingReadIDRef.current) {
+      return;
+    }
+
+    markingReadIDRef.current = record.id;
+    setMarkingReadID(record.id);
+    try {
+      await onMarkRead(record);
+      message.success(
+        intl.formatMessage({
+          id: 'pages.title.notice.read',
+          defaultMessage: 'Mark as read',
+        }),
+      );
+      await reload();
+    } catch {
+      // Request errors are presented by the shared request error handler.
+    } finally {
+      markingReadIDRef.current = undefined;
+      setMarkingReadID(undefined);
+    }
   };
 
+  const initialLoadError = Boolean(error && dataSource.length === 0);
   const loadMoreControl =
-    error || hasMore ? (
+    !initialLoadError && (error || hasMore) ? (
       <div style={{ margin: '16px 0', textAlign: 'center' }} role="status" aria-live="polite">
         {error ? (
           <Button
@@ -51,7 +60,10 @@ const MobileNoticeList: React.FC<MobileNoticeListProps> = ({
             type="link"
             loading={loadingMore}
             onClick={loadMore}
-            aria-label={intl.formatMessage({ id: 'pages.mobile.loadMore', defaultMessage: 'Load more' })}
+            aria-label={intl.formatMessage({
+              id: 'pages.mobile.loadMore',
+              defaultMessage: 'Load more',
+            })}
           >
             {intl.formatMessage({ id: 'pages.mobile.loadMore', defaultMessage: 'Load more' })}
           </Button>
@@ -59,82 +71,120 @@ const MobileNoticeList: React.FC<MobileNoticeListProps> = ({
       </div>
     ) : null;
 
-  const getTypeTag = (type: string) => {
-    const typeMap: Record<string, { color: string; text: string }> = {
-      announcement: { color: 'blue', text: '公告' },
-      notice: { color: 'green', text: '通知' },
-      warning: { color: 'orange', text: '警告' },
+  const getTypeTag = (type?: API.NoticeType) => {
+    const typeMap: Record<API.NoticeType, { color: string; text: string }> = {
+      notification: { color: 'red', text: fieldIntl(intl, 'options.notification') },
+      message: { color: 'blue', text: fieldIntl(intl, 'options.message') },
+      event: { color: 'gold', text: fieldIntl(intl, 'options.event') },
+      mail: { color: 'cyan', text: fieldIntl(intl, 'options.email') },
     };
-    const item = typeMap[type] || { color: 'default', text: type };
-    return <Tag color={item.color}>{item.text}</Tag>;
+    const item = type ? typeMap[type] : undefined;
+    return <Tag color={item?.color || 'default'}>{item?.text || '-'}</Tag>;
   };
+
+  const getStatusTag = (status?: string) => {
+    const statusMap: Record<string, { color: string; text: string }> = {
+      urgent: { color: 'red', text: fieldIntl(intl, 'options.urgent') },
+      doing: { color: 'green', text: fieldIntl(intl, 'options.doing') },
+      processing: { color: 'blue', text: fieldIntl(intl, 'options.processing') },
+      todo: { color: 'gold', text: fieldIntl(intl, 'options.todo') },
+    };
+    const item = status ? statusMap[status] : undefined;
+    return <Tag color={item?.color || 'default'}>{item?.text || status || '-'}</Tag>;
+  };
+
+  const formatDateTime = (value?: string) =>
+    value
+      ? intl.formatDate(value, {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '-';
 
   return (
     <div className={styles.mobileContainer}>
-      <div className={styles.toolbar}>
-        <Access key="/notice/create" permission="/notice/create">
-          <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
-            新建通知
-          </Button>
-        </Access>
-      </div>
+      {initialLoadError ? (
+        <Result
+          status="error"
+          title={intl.formatMessage({
+            id: 'pages.mobile.loadFailed',
+            defaultMessage: 'Unable to load data',
+          })}
+          extra={
+            <Button type="primary" onClick={reload}>
+              {intl.formatMessage({ id: 'pages.mobile.retry', defaultMessage: 'Retry' })}
+            </Button>
+          }
+        />
+      ) : (
+        <List
+          loading={loading}
+          dataSource={dataSource}
+          loadMore={loadMoreControl}
+          renderItem={(item) => {
+            const description = item.description || '-';
+            const summarizedDescription =
+              description.length > 50 ? `${description.substring(0, 50)}...` : description;
 
-      <List
-        loading={loading}
-        dataSource={dataSource}
-        loadMore={loadMoreControl}
-        renderItem={(item) => (
-          <List.Item className={styles.listItem}>
-            <Card className={styles.card} size="small">
-              <div className={styles.cardHeader}>
-                <span className={styles.name}>{item.title}</span>
-                {getTypeTag(item.type || 'notice')}
-              </div>
-              
-              <div className={styles.cardBody}>
-                <div className={styles.field}>
-                  <span className={styles.label}>内容:</span>
-                  <span className={styles.value}>{(item.description || '-').substring(0, 50)}...</span>
-                </div>
-                <div className={styles.field}>
-                  <span className={styles.label}>创建时间:</span>
-                  <span className={styles.value}>
-                    {item.createdAt ? new Date(item.createdAt).toLocaleString('zh-CN', {
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    }) : '-'}
-                  </span>
-                </div>
-              </div>
-
-              <div className={styles.cardActions}>
-                <Space>
-                  <Access key="/notice/edit" permission="/notice/edit">
-                    <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(item)}>
-                      编辑
+            return (
+              <List.Item className={styles.listItem}>
+                <Card className={styles.card} size="small">
+                  <div className={styles.cardHeader}>
+                    <Button type="link" size="small" onClick={() => onView(item)}>
+                      {item.title || '-'}
                     </Button>
-                  </Access>
-                  <Access key="/notice/delete" permission="/notice/delete">
-                    <Popconfirm
-                      title="确定要删除吗？"
-                      onConfirm={() => handleDelete(item)}
-                      okText="确定"
-                      cancelText="取消"
-                    >
-                      <Button size="small" danger icon={<DeleteOutlined />}>
-                        删除
-                      </Button>
-                    </Popconfirm>
-                  </Access>
-                </Space>
-              </div>
-            </Card>
-          </List.Item>
-        )}
-        locale={{ emptyText: <Empty description="暂无通知数据" /> }}
-      />
+                    <Space size={4} wrap>
+                      {getTypeTag(item.type)}
+                      {getStatusTag(item.status)}
+                    </Space>
+                  </div>
+
+                  <div className={styles.cardBody}>
+                    <div className={styles.field}>
+                      <span className={styles.label}>{fieldIntl(intl, 'description')}:</span>
+                      <span className={styles.value}>{summarizedDescription}</span>
+                    </div>
+                    <div className={styles.field}>
+                      <span className={styles.label}>{fieldIntl(intl, 'createdAt')}:</span>
+                      <span className={styles.value}>{formatDateTime(item.createdAt)}</span>
+                    </div>
+                  </div>
+
+                  {!item.read && item.id ? (
+                    <div className={styles.cardActions}>
+                      <Access key="/notice/read" permission="/notice/read">
+                        <Button
+                          size="small"
+                          loading={markingReadID === item.id}
+                          disabled={Boolean(markingReadID && markingReadID !== item.id)}
+                          onClick={() => handleMarkRead(item)}
+                        >
+                          {intl.formatMessage({
+                            id: 'pages.title.notice.read',
+                            defaultMessage: 'Mark as read',
+                          })}
+                        </Button>
+                      </Access>
+                    </div>
+                  ) : null}
+                </Card>
+              </List.Item>
+            );
+          }}
+          locale={{
+            emptyText: (
+              <Empty
+                description={intl.formatMessage({
+                  id: 'component.noticeIcon.empty',
+                  defaultMessage: 'No notifications',
+                })}
+              />
+            ),
+          }}
+        />
+      )}
     </div>
   );
 };

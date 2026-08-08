@@ -1,9 +1,15 @@
 import { Access } from '@/components/MssBoot/Access';
 import { useMobileListPagination } from '@/hooks/useMobileListPagination';
 import { deleteUsersId, getUsers } from '@/services/admin/user';
-import { DeleteOutlined, EditOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  KeyOutlined,
+  PlusOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import { history, useIntl } from '@umijs/max';
-import { Avatar, Button, Card, Empty, Input, List, Popconfirm, Space, Tag } from 'antd';
+import { Avatar, Button, Card, Empty, Input, List, Popconfirm, Result, Space, Tag } from 'antd';
 import React, { useCallback, useState } from 'react';
 import styles from '@/styles/mobile.less';
 
@@ -16,8 +22,15 @@ const MobileUserList: React.FC = () => {
       getUsers({ current, pageSize, ...(name ? { name } : {}) }),
     [name],
   );
-  const { dataSource: userList, error, hasMore, loading, loadingMore, loadMore, reload } =
-    useMobileListPagination<API.User>(requestUsers);
+  const {
+    dataSource: userList,
+    error,
+    hasMore,
+    loading,
+    loadingMore,
+    loadMore,
+    reload,
+  } = useMobileListPagination<API.User>(requestUsers);
 
   const handleEdit = (id?: string) => {
     if (id) {
@@ -27,6 +40,12 @@ const MobileUserList: React.FC = () => {
 
   const handleCreate = () => {
     history.push('/users/control/create');
+  };
+
+  const handleResetPassword = (id?: string) => {
+    if (id) {
+      history.push(`/users/password-reset/${id}/`);
+    }
   };
 
   const handleDelete = async (id?: string) => {
@@ -50,7 +69,10 @@ const MobileUserList: React.FC = () => {
       },
       disabled: {
         color: 'red',
-        text: intl.formatMessage({ id: 'pages.fields.options.disabled', defaultMessage: 'Disabled' }),
+        text: intl.formatMessage({
+          id: 'pages.fields.options.disabled',
+          defaultMessage: 'Disabled',
+        }),
       },
       locked: {
         color: 'orange',
@@ -61,8 +83,9 @@ const MobileUserList: React.FC = () => {
     return <Tag color={config.color}>{config.text}</Tag>;
   };
 
+  const initialLoadError = Boolean(error && userList.length === 0);
   const loadMoreControl =
-    error || hasMore ? (
+    !initialLoadError && (error || hasMore) ? (
       <div style={{ padding: '12px 0', textAlign: 'center' }}>
         <Button onClick={error ? reload : loadMore} loading={loadingMore}>
           {error
@@ -101,91 +124,140 @@ const MobileUserList: React.FC = () => {
         </div>
       </div>
 
-      <List
-        loading={loading}
-        dataSource={userList}
-        loadMore={loadMoreControl}
-        renderItem={(item: API.User) => (
-          <List.Item className={styles.listItem}>
-            <Card className={styles.card} size="small">
-              <div className={styles.cardHeader}>
-                <Space>
-                  <Avatar icon={<UserOutlined />} src={item.avatar} />
-                  <span className={styles.name}>{item.name || item.username}</span>
-                </Space>
-                {getStatusTag(item.status || 'enabled')}
-              </div>
+      {initialLoadError ? (
+        <Result
+          status="error"
+          title={intl.formatMessage({
+            id: 'pages.mobile.loadFailed',
+            defaultMessage: 'Unable to load data',
+          })}
+          extra={
+            <Button type="primary" onClick={reload}>
+              {intl.formatMessage({ id: 'pages.mobile.retry', defaultMessage: 'Retry' })}
+            </Button>
+          }
+        />
+      ) : (
+        <List
+          loading={loading}
+          dataSource={userList}
+          loadMore={loadMoreControl}
+          renderItem={(item: API.User) => (
+            <List.Item className={styles.listItem}>
+              <Card className={styles.card} size="small">
+                <div className={styles.cardHeader}>
+                  <Space>
+                    <Avatar icon={<UserOutlined />} src={item.avatar} />
+                    <span className={styles.name}>{item.name || item.username}</span>
+                  </Space>
+                  {getStatusTag(item.status || 'enabled')}
+                </div>
 
-              <div className={styles.cardBody}>
-                <div className={styles.field}>
-                  <span className={styles.label}>
-                    {intl.formatMessage({ id: 'pages.fields.email', defaultMessage: 'Email' })}:
-                  </span>
-                  <span className={styles.value}>{item.email || '-'}</span>
+                <div className={styles.cardBody}>
+                  <div className={styles.field}>
+                    <span className={styles.label}>
+                      {intl.formatMessage({ id: 'pages.fields.email', defaultMessage: 'Email' })}:
+                    </span>
+                    <span className={styles.value}>{item.email || '-'}</span>
+                  </div>
+                  <div className={styles.field}>
+                    <span className={styles.label}>
+                      {intl.formatMessage({ id: 'pages.fields.phone', defaultMessage: 'Phone' })}:
+                    </span>
+                    <span className={styles.value}>{item.phone || '-'}</span>
+                  </div>
+                  <div className={styles.field}>
+                    <span className={styles.label}>
+                      {intl.formatMessage({
+                        id: 'pages.fields.department',
+                        defaultMessage: 'Department',
+                      })}
+                      :
+                    </span>
+                    <span className={styles.value}>{item.department?.name || '-'}</span>
+                  </div>
                 </div>
-                <div className={styles.field}>
-                  <span className={styles.label}>
-                    {intl.formatMessage({ id: 'pages.fields.phone', defaultMessage: 'Phone' })}:
-                  </span>
-                  <span className={styles.value}>{item.phone || '-'}</span>
-                </div>
-                <div className={styles.field}>
-                  <span className={styles.label}>
-                    {intl.formatMessage({ id: 'pages.fields.department', defaultMessage: 'Department' })}:
-                  </span>
-                  <span className={styles.value}>{item.department?.name || '-'}</span>
-                </div>
-              </div>
 
-              <div className={styles.cardActions}>
-                <Space>
-                  <Access key="/users/edit" rootOnly>
-                    <Button
-                      type="text"
-                      icon={<EditOutlined />}
-                      onClick={() => handleEdit(item.id)}
-                      size="small"
-                      disabled={!item.id}
-                    >
-                      {intl.formatMessage({ id: 'pages.title.edit', defaultMessage: 'Edit' })}
-                    </Button>
-                  </Access>
-                  <Access key="/users/delete" rootOnly>
-                    <Popconfirm
-                      title={intl.formatMessage({
-                        id: 'pages.title.delete.confirm',
-                        defaultMessage: 'Confirm Delete',
-                      })}
-                      description={intl.formatMessage({
-                        id: 'pages.description.delete.confirm',
-                        defaultMessage: 'Are you sure to delete this record?',
-                      })}
-                      onConfirm={() => handleDelete(item.id)}
-                      okText={intl.formatMessage({ id: 'pages.title.ok', defaultMessage: 'OK' })}
-                      cancelText={intl.formatMessage({ id: 'pages.title.cancel', defaultMessage: 'Cancel' })}
-                      disabled={!item.id}
-                    >
-                      <Button type="text" danger icon={<DeleteOutlined />} size="small" disabled={!item.id}>
-                        {intl.formatMessage({ id: 'pages.title.delete', defaultMessage: 'Delete' })}
+                <div className={styles.cardActions}>
+                  <Space>
+                    <Access key="/users/edit" rootOnly>
+                      <Button
+                        type="text"
+                        icon={<EditOutlined />}
+                        onClick={() => handleEdit(item.id)}
+                        size="small"
+                        disabled={!item.id}
+                      >
+                        {intl.formatMessage({ id: 'pages.title.edit', defaultMessage: 'Edit' })}
                       </Button>
-                    </Popconfirm>
-                  </Access>
-                </Space>
-              </div>
-            </Card>
-          </List.Item>
-        )}
-        locale={{
-          emptyText: (
-            <Empty
-              description={intl.formatMessage({
-                id: 'pages.user.mobile.empty',
-                defaultMessage: 'No users found',
-              })}
-            />
-          ),
-        }}
-      />
+                    </Access>
+                    <Access
+                      key="/users/password-reset"
+                      permission="/users/password-reset"
+                      rootOnly={item.role?.root === true}
+                    >
+                      <Button
+                        type="text"
+                        icon={<KeyOutlined />}
+                        onClick={() => handleResetPassword(item.id)}
+                        size="small"
+                        disabled={!item.id}
+                      >
+                        {intl.formatMessage({
+                          id: 'pages.title.password.reset',
+                          defaultMessage: 'Reset password',
+                        })}
+                      </Button>
+                    </Access>
+                    <Access key="/users/delete" rootOnly>
+                      <Popconfirm
+                        title={intl.formatMessage({
+                          id: 'pages.title.delete.confirm',
+                          defaultMessage: 'Confirm Delete',
+                        })}
+                        description={intl.formatMessage({
+                          id: 'pages.description.delete.confirm',
+                          defaultMessage: 'Are you sure to delete this record?',
+                        })}
+                        onConfirm={() => handleDelete(item.id)}
+                        okText={intl.formatMessage({ id: 'pages.title.ok', defaultMessage: 'OK' })}
+                        cancelText={intl.formatMessage({
+                          id: 'pages.title.cancel',
+                          defaultMessage: 'Cancel',
+                        })}
+                        disabled={!item.id}
+                      >
+                        <Button
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          size="small"
+                          disabled={!item.id}
+                        >
+                          {intl.formatMessage({
+                            id: 'pages.title.delete',
+                            defaultMessage: 'Delete',
+                          })}
+                        </Button>
+                      </Popconfirm>
+                    </Access>
+                  </Space>
+                </div>
+              </Card>
+            </List.Item>
+          )}
+          locale={{
+            emptyText: (
+              <Empty
+                description={intl.formatMessage({
+                  id: 'pages.user.mobile.empty',
+                  defaultMessage: 'No users found',
+                })}
+              />
+            ),
+          }}
+        />
+      )}
     </div>
   );
 };

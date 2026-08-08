@@ -185,6 +185,12 @@ jobs:
       - name: Build frontend
         run: pnpm build:local
 
+      - name: Enforce bundle budgets
+        run: pnpm bundle:check
+
+      - name: Smoke-test production delivery
+        run: pnpm delivery:smoke
+
   build:
     # Preserve the historical required check: Frontend CI / build.
     name: build

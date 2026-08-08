@@ -10,7 +10,9 @@
     "build:alpha": "cross-env REACT_APP_ENV=alpha UMI_ENV=alpha max build",
     "build:beta": "cross-env REACT_APP_ENV=beta UMI_ENV=beta max build",
     "build:local": "cross-env REACT_APP_ENV=local UMI_ENV=local max build",
-    "build:prod": "cross-env REACT_APP_ENV=prod UMI_ENV=prod max build",
+    "build:prod": "cross-env REACT_APP_ENV=prod UMI_ENV=prod max build && node scripts/check-bundle-budget.mjs",
+    "bundle:check": "node scripts/check-bundle-budget.mjs",
+    "delivery:smoke": "bash scripts/smoke-nginx-delivery.sh",
     "dev": "pnpm start:dev",
     "jest": "jest",
     "lint": "pnpm lint:js && pnpm lint:prettier && pnpm tsc",
@@ -44,7 +46,6 @@
     "not ie <= 10"
   ],
   "dependencies": {
-    "@ant-design/charts": "2.6.7",
     "@ant-design/icons": "5.6.1",
     "@ant-design/pro-components": "2.8.10",
     "@ant-design/use-emotion-css": "1.0.4",

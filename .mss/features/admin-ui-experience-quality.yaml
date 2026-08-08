@@ -1,0 +1,270 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-ui-experience-quality
+  displayName: Admin UI experience and frontend quality
+  description: >-
+    Defines a responsive, truthful, localized, accessible, and production-safe Admin
+    experience across the workplace, settings, account, notification, user, and task flows.
+  owner: admin-platform
+  labels:
+    domain: frontend
+    scope: admin-ui
+    phase: implementation
+spec:
+  problem: >-
+    The current Admin UI exposes several controls that do not complete an action, flashes
+    false empty states while data is loading, compresses application settings on mobile,
+    emits avoidable runtime warnings, and duplicates or obscures high-value information.
+    These defects become more visible on slower production networks and narrow screens.
+  goals:
+    - Make every visible action complete a supported workflow or remove it from the UI.
+    - Give settings, account forms, lists, and operational actions equivalent desktop and mobile behavior.
+    - Eliminate known React, Ant Design, and localization warnings from the audited flows.
+    - Keep loading, empty, error, and permission states distinct and understandable.
+    - Improve workplace information density, focus visibility, theme readability, and navigation consistency.
+    - Reduce avoidable duplicate requests and keep optional heavy UI code out of unrelated routes.
+  nonGoals:
+    - Redesign every legacy CRUD module or replace Ant Design Pro.
+    - Add a new notification delivery backend, bulk-read API, or verified phone/email binding protocol.
+    - Remove authorization checks or make frontend visibility the source of authorization truth.
+    - Change the layered theme persistence contract.
+  actors:
+    - id: account-user
+      displayName: Authenticated account user
+    - id: administrator
+      displayName: Admin operator
+    - id: mobile-operator
+      displayName: Operator using a narrow viewport
+  modules:
+    - name: responsive-settings
+      operation: extend
+    - name: account-profile
+      operation: extend
+    - name: workplace
+      operation: extend
+    - name: notification-center
+      operation: extend
+    - name: responsive-actions
+      operation: extend
+    - name: frontend-runtime
+      operation: extend
+  requirements:
+    - id: responsive-settings-layout
+      title: Preserve usable settings width on narrow screens
+      description: Application settings use the full content width instead of a fixed left tab rail on mobile.
+      priority: must
+      actor: mobile-operator
+      module: responsive-settings
+      rules:
+        - Application settings switch to horizontally scrollable top tabs below the desktop breakpoint.
+        - The active setting is retained in the key query parameter on desktop and mobile.
+        - Forms, text areas, theme controls, and submit actions have no document-level horizontal overflow at 375 CSS pixels.
+    - id: correct-profile-form-contract
+      title: Keep profile controls and payloads type-correct
+      description: Profile data displayed by Ant Design controls matches the value sent to the generated API client.
+      priority: must
+      actor: account-user
+      module: account-profile
+      rules:
+        - Province and city are string identifiers, changing province clears city, and city options use the current province.
+        - Avatar upload does not receive an invalid value prop and the committed avatar URL remains part of the profile payload.
+        - Chinese and English locale catalogs contain every visible profile field label and validation message.
+        - Phone and email controls do not claim an unimplemented verified-binding workflow.
+    - id: truthful-notification-center
+      title: Expose only supported notification actions
+      description: The notification page is an inbox, not a partially implemented generic CRUD editor.
+      priority: must
+      actor: account-user
+      module: notification-center
+      rules:
+        - Create, edit, and delete controls that have no complete product workflow are not rendered.
+        - Desktop and mobile both expose detail and mark-unread-item-as-read behavior.
+        - Notification type and status labels use the API enum and localized catalog values.
+        - A successful message is shown only after the corresponding API request succeeds.
+    - id: responsive-action-parity
+      title: Keep important list actions available on mobile
+      description: Narrow layouts preserve supported, authorized operational actions.
+      priority: must
+      actor: mobile-operator
+      module: responsive-actions
+      rules:
+        - User cards expose the same supported password-reset action as the desktop table.
+        - Task cards map enabled and disabled status correctly and expose authorized start or stop actions.
+        - Mobile actions use the same permission keys and backend endpoints as desktop actions.
+    - id: honest-loading-states
+      title: Do not present loading data as empty
+      description: Slow dependencies and list requests render a loading surface until completion.
+      priority: must
+      actor: administrator
+      module: frontend-runtime
+      rules:
+        - User dependency loading renders a skeleton or spinner instead of a blank fragment.
+        - Initial list requests do not briefly render the confirmed-empty illustration.
+        - Request failures retain retry affordances and do not silently become empty results.
+    - id: stable-runtime-feedback
+      title: Keep browser lifecycle feedback valid outside React renders
+      description: Service-worker events use the imperative locale API and never call React hooks.
+      priority: must
+      actor: account-user
+      module: frontend-runtime
+      rules:
+        - Offline and update events format messages without useIntl or another React hook.
+        - The update action waits for skip-waiting, preserves the newly activated Workbox precache, and reloads only after success.
+    - id: useful-header-and-navigation
+      title: Avoid dead global navigation controls
+      description: Header search and workplace aliases must lead to a real authorized destination.
+      priority: should
+      actor: administrator
+      module: workplace
+      rules:
+        - A header search control is rendered only when it can search the current authorized menu.
+        - Search results contain navigable menu nodes only and route through the client router.
+        - Welcome and analysis aliases resolve to one canonical workplace route.
+        - Legacy authorized-menu workplace paths are normalized without changing backend authorization.
+    - id: readable-efficient-workplace
+      title: Prioritize operational information on the workplace
+      description: The workplace remains scannable in light and realDark themes without excessive repetition.
+      priority: should
+      actor: administrator
+      module: workplace
+      rules:
+        - Mobile quick entries use a compact grid and do not repeat the full monitoring summary.
+        - Watermarks remain present but use spacing and contrast that do not obscure labels and charts.
+        - Interactive cards have a visible keyboard focus state in both supported themes.
+        - Monitoring charts stay readable in light and realDark themes.
+    - id: production-static-delivery
+      title: Deliver the frontend efficiently and safely
+      description: Production builds enforce transfer budgets and serve SPA assets with cache-safe compression.
+      priority: must
+      actor: administrator
+      module: frontend-runtime
+      rules:
+        - CI and release builds fail when the entry or an asynchronous JavaScript chunk exceeds its gzip budget.
+        - Invalid or non-positive budget configuration fails closed instead of disabling the check.
+        - Hashed assets are compressed and immutable, while HTML and service-worker responses are never long-term cached.
+        - Missing hashed assets return a non-cacheable 404 and SPA navigation still falls back to the application shell.
+  constraints:
+    - id: backend-authority
+      type: security
+      statement: UI changes preserve backend authorization and reuse existing permission keys and endpoints.
+    - id: generated-client-boundary
+      type: compatibility
+      statement: Generated service regions are not hand-edited for behavior that belongs in page adapters.
+    - id: locale-parity
+      type: ux
+      statement: New user-facing text is added to both zh-CN and en-US catalogs.
+    - id: built-in-browser-evidence
+      type: ux
+      statement: Visual acceptance is performed in the Codex in-app browser, not an external browser or Playwright UI run.
+  acceptance:
+    - id: settings-responsive-tests
+      requirement: responsive-settings-layout
+      statement: Component tests cover desktop and mobile tab placement and query-key retention.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/src/pages/AppConfig/index.test.tsx
+    - id: profile-contract-tests
+      requirement: correct-profile-form-contract
+      statement: Tests cover province changes, city option resolution, string payloads, and upload prop shape.
+      level: unit
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/src/pages/Account/Settings/components/base.test.tsx
+    - id: notification-tests
+      requirement: truthful-notification-center
+      statement: Tests prove fake CRUD controls are absent and mark-as-read performs the API request before feedback.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/src/pages/Notice/Mobile/NoticeList.test.tsx
+    - id: responsive-action-tests
+      requirement: responsive-action-parity
+      statement: Tests cover mobile user password reset and task start or stop behavior.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/src/pages/User/Mobile/UserList.test.tsx
+        - type: test
+          value: web/antd/src/pages/Task/Mobile/TaskList.test.tsx
+    - id: runtime-feedback-tests
+      requirement: stable-runtime-feedback
+      statement: Service-worker tests cover imperative localization, activation ordering, precache preservation, and the failure path that must not reload.
+      level: unit
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/src/global.test.tsx
+    - id: loading-state-tests
+      requirement: honest-loading-states
+      statement: User dependencies have a unified loading surface and a retryable error state; mobile list tests retain a distinct initial-loading state.
+      level: integration
+      required: true
+      evidence:
+        - type: path
+          value: web/antd/src/pages/User/index.tsx
+        - type: test
+          value: web/antd/src/pages/User/Mobile/UserList.test.tsx
+    - id: authorized-navigation-tests
+      requirement: useful-header-and-navigation
+      statement: Tests cover authorized menu filtering, shared request caching, keyboard search behavior, navigation, and canonical workplace redirects.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/src/components/AuthorizedMenuSearch/index.test.tsx
+        - type: test
+          value: web/antd/src/components/HeaderSearch/index.test.tsx
+        - type: test
+          value: web/antd/src/utils/requestAuthorizedMenu.test.ts
+        - type: test
+          value: web/antd/config/routes.test.ts
+    - id: production-delivery-gates
+      requirement: production-static-delivery
+      statement: Production build budgets run in local, CI, and release paths, and the Nginx image is verified for compression, cache headers, 404 behavior, and SPA fallback.
+      level: integration
+      required: true
+      evidence:
+        - type: command
+          value: cd web/antd && pnpm delivery:smoke
+        - type: path
+          value: web/antd/scripts/check-bundle-budget.mjs
+        - type: path
+          value: web/antd/scripts/smoke-nginx-delivery.sh
+        - type: path
+          value: web/antd/nginx.conf
+        - type: path
+          value: .github/workflows/frontend-ci.yml
+        - type: path
+          value: .github/workflows/frontend-release.yml
+    - id: browser-matrix
+      requirement: readable-efficient-workplace
+      statement: The in-app browser verifies workplace, app settings, account settings, users, notices, and tasks at desktop and 375-pixel widths in light and realDark themes.
+      level: e2e
+      required: true
+      evidence:
+        - type: command
+          value: in-app-browser manual acceptance matrix
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/admin-ui-experience-quality.yaml --format json
+      - corepack pnpm@9.15.9 --dir web/antd lint:js
+      - corepack pnpm@9.15.9 --dir web/antd tsc
+      - corepack pnpm@9.15.9 --dir web/antd test -- --runInBand
+      - corepack pnpm@9.15.9 --dir web/antd build:prod
+      - corepack pnpm@9.15.9 --dir web/antd delivery:smoke
+  rollout:
+    strategy: phased
+    migration: >-
+      Deploy the frontend image after the production build, bundle budget, and Nginx delivery smoke test pass.
+      No database migration is required. Existing authorized menu data and API contracts remain authoritative.
+    rollback: >-
+      Redeploy the preceding frontend image. No persistent data rollback is required because this feature changes
+      presentation, browser runtime behavior, static delivery configuration, and frontend-only request coordination.

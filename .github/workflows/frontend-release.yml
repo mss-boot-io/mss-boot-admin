@@ -49,8 +49,11 @@ jobs:
           rm -rf dist
           rm -rf config/config.prod.*
           pnpm build
+          pnpm bundle:check
       - name: Pack production dist
         run: tar -czvf dist.tar.gz dist
+      - name: Smoke-test production delivery
+        run: pnpm delivery:smoke
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:

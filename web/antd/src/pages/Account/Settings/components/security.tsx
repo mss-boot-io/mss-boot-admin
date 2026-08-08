@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
-import { List, message } from 'antd';
+import { Button, List, message, Skeleton } from 'antd';
 import { ModalForm, ProForm, ProFormText } from '@ant-design/pro-components';
 import { useIntl, useModel } from '@umijs/max';
 import { fieldIntl } from '@/util/fieldIntl';
 import { getUserUserInfo, postUserResetPassword } from '@/services/admin/user';
 import { useRequest } from 'ahooks';
 
-type Unpacked<T> = T extends (infer U)[] ? U : T;
+type SecurityItem = {
+  actions?: React.ReactNode[];
+  description: React.ReactNode;
+  title: React.ReactNode;
+};
 
 // const passwordStrength = {
 //   strong: <span className="strong">强</span>,
@@ -30,7 +34,7 @@ const SecurityView: React.FC = () => {
   const currentUser = initialUser ?? fetchedUser;
   const loading = initialStateLoading || userInfoLoading;
 
-  const getData = () => [
+  const getData = (): SecurityItem[] => [
     {
       title: intl.formatMessage({
         id: 'pages.security.settings.accountPassword',
@@ -41,12 +45,12 @@ const SecurityView: React.FC = () => {
         defaultMessage: '密码存储方式为非对称加密，请妥善保管',
       }),
       actions: [
-        <a key="Modify" onClick={() => setOpenChangePassword(true)}>
+        <Button key="Modify" type="link" onClick={() => setOpenChangePassword(true)}>
           {intl.formatMessage({
             id: 'pages.security.settings.modify',
             defaultMessage: '修改',
           })}
-        </a>,
+        </Button>,
       ],
     },
     {
@@ -54,71 +58,51 @@ const SecurityView: React.FC = () => {
         id: 'pages.security.settings.phone',
         defaultMessage: '手机号',
       }),
-      description:
-        loading || !currentUser?.phone
-          ? intl.formatMessage({
-              id: 'pages.security.settings.phoneUnbound',
-              defaultMessage: '未绑定手机',
-            })
-          : intl.formatMessage(
-              {
-                id: 'pages.security.settings.phoneBound',
-                defaultMessage: '已绑定手机：{phone}',
-              },
-              { phone: currentUser?.phone },
-            ),
-      actions: [
-        <a key="Modify">
-          {currentUser?.phone
-            ? intl.formatMessage({
-                id: 'pages.security.settings.modify',
-                defaultMessage: '修改',
-              })
-            : intl.formatMessage({
-                id: 'pages.security.settings.bind',
-                defaultMessage: '绑定',
-              })}
-        </a>,
-      ],
+      description: loading ? (
+        <Skeleton.Input active size="small" />
+      ) : !currentUser?.phone ? (
+        intl.formatMessage({
+          id: 'pages.security.settings.phoneUnbound',
+          defaultMessage: '未绑定手机',
+        })
+      ) : (
+        intl.formatMessage(
+          {
+            id: 'pages.security.settings.phoneBound',
+            defaultMessage: '已绑定手机：{phone}',
+          },
+          { phone: currentUser?.phone },
+        )
+      ),
     },
     {
       title: intl.formatMessage({
         id: 'pages.security.settings.email',
         defaultMessage: '邮箱',
       }),
-      description:
-        loading || !currentUser?.email
-          ? intl.formatMessage({
-              id: 'pages.security.settings.emailUnbound',
-              defaultMessage: '未绑定邮箱',
-            })
-          : intl.formatMessage(
-              {
-                id: 'pages.security.settings.emailBound',
-                defaultMessage: '已绑定邮箱：{email}',
-              },
-              { email: currentUser?.email },
-            ),
-      actions: [
-        <a key="Modify">
-          {currentUser?.email
-            ? intl.formatMessage({
-                id: 'pages.security.settings.modify',
-                defaultMessage: '修改',
-              })
-            : intl.formatMessage({
-                id: 'pages.security.settings.bind',
-                defaultMessage: '绑定',
-              })}
-        </a>,
-      ],
+      description: loading ? (
+        <Skeleton.Input active size="small" />
+      ) : !currentUser?.email ? (
+        intl.formatMessage({
+          id: 'pages.security.settings.emailUnbound',
+          defaultMessage: '未绑定邮箱',
+        })
+      ) : (
+        intl.formatMessage(
+          {
+            id: 'pages.security.settings.emailBound',
+            defaultMessage: '已绑定邮箱：{email}',
+          },
+          { email: currentUser?.email },
+        )
+      ),
     },
   ];
 
   const data = getData();
   return (
     <>
-      <List<Unpacked<typeof data>>
+      <List<SecurityItem>
         itemLayout="horizontal"
         dataSource={data}
         renderItem={(item) => (

@@ -11,13 +11,33 @@ import { PlusOutlined } from '@ant-design/icons';
 import MobileUserList from './Mobile/UserList';
 import type { ActionType, ProColumns, ProDescriptionsItemProps } from '@ant-design/pro-components';
 import { PageContainer, ProDescriptions, ProTable } from '@ant-design/pro-components';
-import { FormattedMessage, history, Link, useIntl, useParams, useRequest } from '@umijs/max';
-import { Button, Drawer, message, Popconfirm, TreeSelect } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import {
+  FormattedMessage,
+  history,
+  Link,
+  useIntl,
+  useModel,
+  useParams,
+  useRequest,
+} from '@umijs/max';
+import { Button, Card, Drawer, message, Popconfirm, Result, Skeleton, TreeSelect } from 'antd';
+import React, { useRef, useState } from 'react';
 import { fieldIntl } from '@/util/fieldIntl';
 import { getDepartments } from '@/services/admin/department';
 import { getPosts } from '@/services/admin/post';
-import { DataNode } from 'antd/es/tree';
+import {
+  buildTreeOptions,
+  findTreeOptionLabel,
+  type TreeOptionNode,
+  type TreeOptionRecord,
+} from './treeOptions';
+import { loadUserDependencies, resolveUserDependencyAccess } from './dependencies';
+
+type UserFormDependencies = {
+  roleOptions: API.Role[];
+  postOptions: TreeOptionNode[];
+  deptOptions: TreeOptionNode[];
+};
 
 const UserList: React.FC = () => {
   const actionRef = useRef<ActionType>();
@@ -25,65 +45,84 @@ const UserList: React.FC = () => {
   const [currentRow, setCurrentRow] = useState<API.Role>();
   const { id: routeID } = useParams();
   const id = resolveCrudRouteID(routeID, history.location.pathname, '/users/control/create');
-  const [deptOptions, setDeptOptions] = useState<[]>([]);
-  const [postOptions, setPostOptions] = useState<[]>([]);
+  const [tableLoading, setTableLoading] = useState(true);
   const { isMobile } = useResponsive();
+  const { initialState } = useModel('@@initialState');
+  const isForm = Boolean(id);
+  const dependencyAccess = resolveUserDependencyAccess(initialState?.currentUser, {
+    isForm,
+    isMobile,
+  });
+  const shouldLoadDependencies = Object.values(dependencyAccess).some(Boolean);
   const shouldLoadDesktopDependencies = !isMobile || !!id;
-  const { valueEnum: statusValueEnum } = useOption('system', 'status', {
+  const {
+    valueEnum: statusValueEnum,
+    loading: statusOptionLoading,
+    error: statusOptionError,
+    refresh: refreshStatusOption,
+  } = useOption('system', 'status', {
     enabled: shouldLoadDesktopDependencies,
   });
 
   const intl = useIntl();
 
-  const transferTree = (data: API.Post[] | API.Department, self: string): DataNode[] => {
-    // @ts-ignore
-    return data.map((item) => {
+  const {
+    data: dependencies,
+    error: dependencyError,
+    loading,
+    refresh: refreshDependencies,
+  } = useRequest(
+    async () => {
+      const { values } = await loadUserDependencies(
+        dependencyAccess,
+        {
+          roles: () => getRoles({ pageSize: 1000 }),
+          posts: () => getPosts({ pageSize: 1000, parentID: '' }),
+          departments: () => getDepartments({ pageSize: 1000, parentID: '' }),
+        },
+        isForm,
+      );
+      const roles = values.roles as Awaited<ReturnType<typeof getRoles>> | undefined;
+      const posts = values.posts as Awaited<ReturnType<typeof getPosts>> | undefined;
+      const departments = values.departments as
+        | Awaited<ReturnType<typeof getDepartments>>
+        | undefined;
       return {
-        title: item.name,
-        value: item.id,
-        disabled: item.id === self,
-        // @ts-ignore
-        children: item.children ? transferTree(item.children) : null,
-      };
-    });
+        roleOptions: roles?.data || [],
+        postOptions: buildTreeOptions((posts?.data || []) as TreeOptionRecord[], id),
+        deptOptions: buildTreeOptions((departments?.data || []) as TreeOptionRecord[], id),
+      } satisfies UserFormDependencies;
+    },
+    {
+      ready: shouldLoadDependencies,
+      refreshDeps: [
+        id,
+        isMobile,
+        dependencyAccess.roles,
+        dependencyAccess.posts,
+        dependencyAccess.departments,
+      ],
+    },
+  );
+  const typedDependencies = dependencies as UserFormDependencies | undefined;
+  const roleOptions = typedDependencies?.roleOptions || [];
+  const postOptions = typedDependencies?.postOptions || [];
+  const deptOptions = typedDependencies?.deptOptions || [];
+  const dependenciesLoading = isForm && (loading || statusOptionLoading);
+  const dependenciesError = isForm && (dependencyError || statusOptionError);
+  const retryDependencies = () => {
+    refreshDependencies();
+    refreshStatusOption();
   };
-
-  const getLabel = (data: DataNode[], key: string): string => {
-    let label = '';
-    data.forEach((item) => {
-      // @ts-ignore
-      if (item.value === key) {
-        label = item.title as string;
-      } else if (item.children) {
-        label = getLabel(item.children, key);
-      }
-    });
-    return label;
-  };
-
-  const { data: roleOptions, loading } = useRequest(() => getRoles({ pageSize: 1000 }), {
-    ready: shouldLoadDesktopDependencies,
-    refreshDeps: [shouldLoadDesktopDependencies],
-  });
-
-  useEffect(() => {
-    if (!shouldLoadDesktopDependencies) {
-      return;
-    }
-
-    getPosts({ pageSize: 1000, parentID: '' }).then((res) => {
-      // @ts-ignore
-      setPostOptions(transferTree(res.data!, id));
-    });
-    getDepartments({ pageSize: 1000, parentID: '' }).then((res) => {
-      // @ts-ignore
-      setDeptOptions(transferTree(res.data!, id));
-    });
-  }, [id, shouldLoadDesktopDependencies]);
 
   if (isMobile && !id) {
     return (
-      <PageContainer title={indexTitle(id)}>
+      <PageContainer
+        title={intl.formatMessage({
+          id: 'pages.user.list.title',
+          defaultMessage: 'User List',
+        })}
+      >
         <MobileUserList />
       </PageContainer>
     );
@@ -106,13 +145,15 @@ const UserList: React.FC = () => {
       search: false,
       valueType: 'select',
       valueEnum: toOptions(roleOptions),
+      renderText: (val) =>
+        roleOptions.find((option) => option.id === val)?.name || String(val ?? ''),
     },
     {
       title: fieldIntl(intl, 'department'),
       dataIndex: 'departmentID',
       width: 150,
       valueType: 'select',
-      renderText: (val) => getLabel(deptOptions, val),
+      renderText: (val) => findTreeOptionLabel(deptOptions, val) || String(val ?? ''),
       renderFormItem: () => {
         return (
           <TreeSelect
@@ -132,7 +173,7 @@ const UserList: React.FC = () => {
       title: fieldIntl(intl, 'post'),
       dataIndex: 'postID',
       width: 150,
-      renderText: (val) => getLabel(postOptions, val),
+      renderText: (val) => findTreeOptionLabel(postOptions, val) || String(val ?? ''),
       renderFormItem: () => {
         return (
           <TreeSelect
@@ -358,19 +399,58 @@ const UserList: React.FC = () => {
     history.push('/users');
   };
 
-  return loading ? (
-    <></>
-  ) : (
+  return dependenciesLoading ? (
     <PageContainer title={indexTitle(id)}>
+      <Card>
+        <Skeleton active paragraph={{ rows: 8 }} />
+      </Card>
+    </PageContainer>
+  ) : dependenciesError ? (
+    <PageContainer title={indexTitle(id)}>
+      <Card>
+        <Result
+          status="error"
+          title={intl.formatMessage({
+            id: 'pages.user.dependencies.error.title',
+            defaultMessage: 'Unable to load user form options',
+          })}
+          subTitle={intl.formatMessage({
+            id: 'pages.user.dependencies.error.description',
+            defaultMessage: 'Roles, departments, or posts could not be loaded. Please try again.',
+          })}
+          extra={
+            <Button type="primary" onClick={retryDependencies}>
+              {intl.formatMessage({
+                id: 'pages.user.dependencies.error.retry',
+                defaultMessage: 'Retry',
+              })}
+            </Button>
+          }
+        />
+      </Card>
+    </PageContainer>
+  ) : (
+    <PageContainer
+      title={
+        id
+          ? indexTitle(id)
+          : intl.formatMessage({
+              id: 'pages.user.list.title',
+              defaultMessage: 'User List',
+            })
+      }
+    >
       <ProTable<API.User, API.Page>
         headerTitle={intl.formatMessage({
           id: 'pages.user.list.title',
           defaultMessage: 'User List',
         })}
         actionRef={actionRef}
+        loading={tableLoading}
+        onLoadingChange={(nextLoading) => setTableLoading(Boolean(nextLoading))}
         rowKey="id"
         size="small"
-        scroll={{ x: 1728 }}
+        scroll={{ x: 'max-content' }}
         search={{
           labelWidth: 120,
         }}

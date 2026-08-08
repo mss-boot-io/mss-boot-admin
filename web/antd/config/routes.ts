@@ -38,19 +38,15 @@ export default [
   },
   {
     path: '/welcome',
-    icon: 'smile',
-    component: './Welcome',
-    access: 'canAccessRoute',
-    permission: '/welcome',
+    redirect: '/workplace',
   },
   {
     path: '/analysis',
-    component: './Welcome',
-    access: 'canAccessRoute',
-    permission: '/welcome',
+    redirect: '/workplace',
   },
   {
     path: '/workplace',
+    icon: 'smile',
     component: './Welcome',
     access: 'canAccessRoute',
     permission: '/welcome',

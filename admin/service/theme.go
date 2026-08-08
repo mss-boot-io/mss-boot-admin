@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/text/unicode/norm"
 	"gorm.io/gorm"
+	"gorm.io/plugin/dbresolver"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
@@ -22,8 +23,8 @@ import (
 
 const (
 	ThemeConfigGroup      = "theme"
-	ThemeScopeApplication = "application"
-	ThemeScopeUser        = "user"
+	ThemeScopeApplication = models.ConfigRevisionScopeApplication
+	ThemeScopeUser        = models.ConfigRevisionScopeUser
 	themeResourceVersion  = 1
 	themeReadMaxAttempts  = 3
 )
@@ -67,10 +68,9 @@ func (e *ThemeKeyCollisionError) Error() string {
 		return fmt.Sprintf("%s: scope=%s key=%s candidates=%d", ErrThemeKeyCollision, e.Scope, e.Key, e.Candidates)
 	}
 	return fmt.Sprintf(
-		"%s: scope=%s owner=%s key=%s candidates=%d",
+		"%s: scope=%s ownerPresent=true key=%s candidates=%d",
 		ErrThemeKeyCollision,
 		e.Scope,
-		e.OwnerID,
 		e.Key,
 		e.Candidates,
 	)
@@ -157,15 +157,15 @@ func (e *Theme) ApplicationResource(ctx *gin.Context) (*dto.ThemeResource, error
 	db := center.GetDB(ctx, &models.AppConfig{})
 	key := applicationThemeRevisionKey()
 	for attempt := 0; attempt < themeReadMaxAttempts; attempt++ {
-		before, err := readConfigRevision(db, key)
+		before, err := readConfigRevision(db.Clauses(dbresolver.Write), key)
 		if err != nil {
 			return nil, err
 		}
-		overrides, err := loadApplicationTheme(db)
+		overrides, err := loadApplicationTheme(db.Clauses(dbresolver.Write))
 		if err != nil {
 			return nil, err
 		}
-		after, err := readConfigRevision(db, key)
+		after, err := readConfigRevision(db.Clauses(dbresolver.Write), key)
 		if err != nil {
 			return nil, err
 		}
@@ -186,15 +186,15 @@ func (e *Theme) LegacyApplicationSnapshot(
 	db := center.GetDB(ctx, &models.AppConfig{})
 	key := applicationThemeRevisionKey()
 	for attempt := 0; attempt < themeReadMaxAttempts; attempt++ {
-		before, err := readConfigRevision(db, key)
+		before, err := readConfigRevision(db.Clauses(dbresolver.Write), key)
 		if err != nil {
 			return nil, nil, err
 		}
-		overrides, pwa, err := loadLegacyApplicationTheme(db)
+		overrides, pwa, err := loadLegacyApplicationTheme(db.Clauses(dbresolver.Write))
 		if err != nil {
 			return nil, nil, err
 		}
-		after, err := readConfigRevision(db, key)
+		after, err := readConfigRevision(db.Clauses(dbresolver.Write), key)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -278,23 +278,43 @@ func (e *Theme) UserResource(ctx *gin.Context, userID string) (*dto.ThemeResourc
 	if strings.TrimSpace(userID) == "" {
 		return nil, ErrThemeUserRequired
 	}
+	// Strong resource metadata and values must be read from the same source.
+	// Ordinary GORM queries may be routed to different replicas, so pin this
+	// authoritative current-user read to the writer before comparing revisions.
 	db := center.GetDB(ctx, &models.UserConfig{})
 	key := userThemeRevisionKey(userID)
 	for attempt := 0; attempt < themeReadMaxAttempts; attempt++ {
-		before, err := readConfigRevision(db, key)
+		before, err := readConfigRevision(db.Clauses(dbresolver.Write), key)
 		if err != nil {
 			return nil, err
 		}
-		overrides, err := loadUserTheme(db, userID)
+		cached, hit, cacheReady := getCachedUserTheme(ctx, userID, before)
+		if hit {
+			after, err := readConfigRevision(db.Clauses(dbresolver.Write), key)
+			if err != nil {
+				return nil, err
+			}
+			if before == after {
+				return cached, nil
+			}
+			continue
+		}
+		overrides, err := loadUserTheme(db.Clauses(dbresolver.Write), userID)
 		if err != nil {
 			return nil, err
 		}
-		after, err := readConfigRevision(db, key)
+		after, err := readConfigRevision(db.Clauses(dbresolver.Write), key)
 		if err != nil {
 			return nil, err
 		}
 		if before == after {
-			return newThemeResource(ThemeScopeUser, after, overrides), nil
+			resource := newThemeResource(ThemeScopeUser, after, overrides)
+			if cacheReady {
+				if err = cacheUserTheme(ctx, userID, after, resource); err != nil {
+					slog.Warn("set user theme cache", "revision", after, "err", err)
+				}
+			}
+			return resource, nil
 		}
 	}
 	return nil, errors.New("user theme changed during read")
@@ -452,9 +472,15 @@ func (e *Theme) PatchUserResource(
 	if err != nil {
 		return nil, err
 	}
-	db := center.GetDB(ctx, &models.UserConfig{})
+	db := center.GetDB(ctx, &models.UserConfig{}).Clauses(dbresolver.Write)
 	var resource *dto.ThemeResource
+	var staleProfileRevision int64
+	var staleThemeRevision int64
 	err = db.Transaction(func(tx *gorm.DB) error {
+		profileRevision, err := lockConfigRevision(tx, userConfigProfileRevisionKey(userID))
+		if err != nil {
+			return err
+		}
 		themeRevision, err := lockConfigRevision(tx, userThemeRevisionKey(userID))
 		if err != nil {
 			return err
@@ -485,16 +511,26 @@ func (e *Theme) PatchUserResource(
 		if err != nil {
 			return err
 		}
+		if _, err = advanceConfigRevision(tx, userConfigProfileRevisionKey(userID), profileRevision); err != nil {
+			return err
+		}
 		overrides, err := loadUserTheme(tx, userID)
 		if err != nil {
 			return err
 		}
 		resource = newThemeResource(ThemeScopeUser, nextRevision, overrides)
+		staleProfileRevision = profileRevision
+		staleThemeRevision = themeRevision
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
+	if cacheErr := cacheUserTheme(ctx, userID, staleThemeRevision+1, resource); cacheErr != nil {
+		slog.Warn("set user theme cache after mutation", "revision", staleThemeRevision+1, "err", cacheErr)
+	}
+	cleanupUserThemeCache(ctx, userID, staleThemeRevision)
+	cleanupUserConfigProfileCache(ctx, userID, staleProfileRevision)
 	return resource, nil
 }
 
@@ -594,9 +630,15 @@ func (e *Theme) ResetUserResource(
 	if strings.TrimSpace(userID) == "" {
 		return nil, ErrThemeUserRequired
 	}
-	db := center.GetDB(ctx, &models.UserConfig{})
+	db := center.GetDB(ctx, &models.UserConfig{}).Clauses(dbresolver.Write)
 	var resource *dto.ThemeResource
+	var staleProfileRevision int64
+	var staleThemeRevision int64
 	err := db.Transaction(func(tx *gorm.DB) error {
+		profileRevision, err := lockConfigRevision(tx, userConfigProfileRevisionKey(userID))
+		if err != nil {
+			return err
+		}
 		themeRevision, err := lockConfigRevision(tx, userThemeRevisionKey(userID))
 		if err != nil {
 			return err
@@ -619,12 +661,22 @@ func (e *Theme) ResetUserResource(
 		if err != nil {
 			return err
 		}
+		if _, err = advanceConfigRevision(tx, userConfigProfileRevisionKey(userID), profileRevision); err != nil {
+			return err
+		}
 		resource = newThemeResource(ThemeScopeUser, nextRevision, &dto.ThemeOverrides{})
+		staleProfileRevision = profileRevision
+		staleThemeRevision = themeRevision
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
+	if cacheErr := cacheUserTheme(ctx, userID, staleThemeRevision+1, resource); cacheErr != nil {
+		slog.Warn("set user theme cache after reset", "revision", staleThemeRevision+1, "err", cacheErr)
+	}
+	cleanupUserThemeCache(ctx, userID, staleThemeRevision)
+	cleanupUserConfigProfileCache(ctx, userID, staleProfileRevision)
 	return resource, nil
 }
 

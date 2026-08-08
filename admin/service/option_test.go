@@ -2,13 +2,20 @@ package service
 
 import (
 	"encoding/json"
+	"net/http/httptest"
+	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/plugin/dbresolver"
 )
 
 func setupOptionTestDB(t *testing.T) *gorm.DB {
@@ -182,4 +189,191 @@ func TestOptionItems_Value_Scan(t *testing.T) {
 	err = scannedItems.Scan(value)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(scannedItems))
+}
+
+func TestUpdateOptionCacheFailureDoesNotFailCommittedMutation(t *testing.T) {
+	env := setupAppConfigTestEnv(t)
+	require.NoError(t, env.db.AutoMigrate(&models.Option{}, &models.OptionVersion{}))
+	option := &models.Option{
+		Category: "system",
+		Name:     "status",
+		Status:   enum.Enabled,
+		Version:  1,
+		Items:    &models.OptionItems{{Key: "old", Label: "Old", Value: "old"}},
+	}
+	require.NoError(t, env.db.Create(option).Error)
+
+	// Keep the configured cache adapter but make Redis unavailable. The
+	// mutation must still report the authoritative database result.
+	env.redis.Close()
+	updated := &models.OptionItems{{Key: "new", Label: "New", Value: "new"}}
+	require.NoError(t, NewOption().UpdateOption(env.ctx, option.ID, updated, "tester", "cache fault"))
+
+	var persisted models.Option
+	require.NoError(t, env.db.First(&persisted, "id = ?", option.ID).Error)
+	require.Equal(t, 2, persisted.Version)
+	require.Equal(t, "new", (*persisted.Items)[0].Value)
+}
+
+func TestUpdateOptionSnapshotFailureRollsBackMutation(t *testing.T) {
+	env := setupAppConfigTestEnv(t)
+	require.NoError(t, env.db.AutoMigrate(&models.Option{}, &models.OptionVersion{}))
+	option := &models.Option{
+		Category: "system",
+		Name:     "status",
+		Status:   enum.Enabled,
+		Version:  1,
+		Items:    &models.OptionItems{{Key: "old", Label: "Old", Value: "old"}},
+	}
+	require.NoError(t, env.db.Create(option).Error)
+	require.NoError(t, env.client.Set(env.ctx, "options:system:status", "cached-before-failure", optionCacheTTL).Err())
+	require.NoError(t, env.db.Exec(`
+		CREATE TRIGGER fail_option_version_insert
+		BEFORE INSERT ON mss_boot_option_versions
+		BEGIN
+			SELECT RAISE(ABORT, 'forced option snapshot failure');
+		END;
+	`).Error)
+
+	updated := &models.OptionItems{{Key: "new", Label: "New", Value: "new"}}
+	err := NewOption().UpdateOption(env.ctx, option.ID, updated, "tester", "must roll back")
+	require.Error(t, err)
+
+	var persisted models.Option
+	require.NoError(t, env.db.First(&persisted, "id = ?", option.ID).Error)
+	require.Equal(t, 1, persisted.Version)
+	require.Equal(t, "old", (*persisted.Items)[0].Value)
+	var snapshotCount int64
+	require.NoError(t, env.db.Model(&models.OptionVersion{}).Count(&snapshotCount).Error)
+	require.Zero(t, snapshotCount)
+	cached, err := env.redis.Get("options:system:status")
+	require.NoError(t, err)
+	require.Equal(t, "cached-before-failure", cached)
+}
+
+func TestUpdateOptionConcurrentWritersDoNotLoseVersions(t *testing.T) {
+	env := setupAppConfigTestEnv(t)
+	require.NoError(t, env.db.AutoMigrate(&models.Option{}, &models.OptionVersion{}))
+	option := &models.Option{
+		Category: "system",
+		Name:     "status",
+		Status:   enum.Enabled,
+		Version:  1,
+		Items:    &models.OptionItems{{Key: "old", Label: "Old", Value: "old"}},
+	}
+	require.NoError(t, env.db.Create(option).Error)
+
+	start := make(chan struct{})
+	errorsCh := make(chan error, 2)
+	for _, value := range []string{"alpha", "beta"} {
+		value := value
+		go func() {
+			<-start
+			items := &models.OptionItems{{Key: value, Label: value, Value: value}}
+			errorsCh <- NewOption().UpdateOption(env.ctx.Copy(), option.ID, items, value, "concurrent")
+		}()
+	}
+	close(start)
+	for range 2 {
+		require.NoError(t, <-errorsCh)
+	}
+
+	var persisted models.Option
+	require.NoError(t, env.db.First(&persisted, "id = ?", option.ID).Error)
+	require.Equal(t, 3, persisted.Version)
+	require.NotNil(t, persisted.Items)
+	require.Len(t, *persisted.Items, 1)
+
+	var snapshots []models.OptionVersion
+	require.NoError(t, env.db.Where("option_id = ?", option.ID).Order("version").Find(&snapshots).Error)
+	require.Len(t, snapshots, 2)
+	require.Equal(t, []int{1, 2}, []int{snapshots[0].Version, snapshots[1].Version})
+	require.Equal(t, "old", (*snapshots[0].Items)[0].Value)
+	require.ElementsMatch(
+		t,
+		[]string{"alpha", "beta"},
+		[]string{(*snapshots[1].Items)[0].Value, (*persisted.Items)[0].Value},
+	)
+}
+
+func TestOptionCacheOperationsHaveBoundedLatency(t *testing.T) {
+	env := setupAppConfigTestEnv(t)
+	require.NoError(t, env.db.AutoMigrate(&models.Option{}, &models.OptionVersion{}))
+	option := &models.Option{
+		Category: "system",
+		Name:     "status",
+		Status:   enum.Enabled,
+		Version:  1,
+		Items:    &models.OptionItems{{Key: "old", Label: "Old", Value: "old"}},
+	}
+	require.NoError(t, env.db.Create(option).Error)
+	env.client.AddHook(appConfigCacheDeadlineHook{})
+
+	started := time.Now()
+	loaded, err := NewOption().GetOption(env.ctx, option.Category, option.Name)
+	require.NoError(t, err)
+	require.Equal(t, option.ID, loaded.ID)
+	require.Less(t, time.Since(started), 750*time.Millisecond, "GET and SET cache failures must be bounded")
+
+	started = time.Now()
+	updated := &models.OptionItems{{Key: "new", Label: "New", Value: "new"}}
+	require.NoError(t, NewOption().UpdateOption(env.ctx, option.ID, updated, "tester", "cache timeout"))
+	require.Less(t, time.Since(started), 500*time.Millisecond, "DEL timeout must not dominate committed response")
+	var persisted models.Option
+	require.NoError(t, env.db.First(&persisted, "id = ?", option.ID).Error)
+	require.Equal(t, 2, persisted.Version)
+	require.Equal(t, "new", (*persisted.Items)[0].Value)
+}
+
+func TestOptionCacheMissRefillsFromWriterInsteadOfLaggingReplica(t *testing.T) {
+	dir := t.TempDir()
+	writerPath := filepath.Join(dir, "option-writer.db")
+	replicaPath := filepath.Join(dir, "option-replica.db")
+	writer, err := gorm.Open(sqlite.Open(writerPath), &gorm.Config{})
+	require.NoError(t, err)
+	replica, err := gorm.Open(sqlite.Open(replicaPath), &gorm.Config{})
+	require.NoError(t, err)
+	for _, db := range []*gorm.DB{writer, replica} {
+		require.NoError(t, db.AutoMigrate(&models.Option{}))
+	}
+
+	writerOption := &models.Option{
+		Category: "system", Name: "status", Status: enum.Enabled, Version: 2,
+		Items: &models.OptionItems{{Key: "new", Label: "New", Value: "new"}},
+	}
+	require.NoError(t, writer.Create(writerOption).Error)
+	replicaOption := &models.Option{
+		Category: "system", Name: "status", Status: enum.Enabled, Version: 1,
+		Items: &models.OptionItems{{Key: "old", Label: "Old", Value: "old"}},
+	}
+	replicaOption.ID = writerOption.ID
+	require.NoError(t, replica.Create(replicaOption).Error)
+	require.NoError(t, writer.Use(dbresolver.Register(dbresolver.Config{
+		Replicas: []gorm.Dialector{sqlite.Open(replicaPath)},
+	})))
+
+	var replicaRead models.Option
+	require.NoError(t, writer.Where("id = ?", writerOption.ID).First(&replicaRead).Error)
+	require.Equal(t, 1, replicaRead.Version, "test setup must route an ordinary read to the replica")
+
+	previousTenant := center.GetTenant()
+	previousCache := center.GetCache()
+	center.SetTenant(&appConfigTestTenant{db: writer})
+	center.SetCache(nil)
+	t.Cleanup(func() {
+		center.SetTenant(previousTenant)
+		center.SetCache(previousCache)
+		if sqlDB, dbErr := writer.DB(); dbErr == nil {
+			_ = sqlDB.Close()
+		}
+		if sqlDB, dbErr := replica.DB(); dbErr == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	loaded, err := NewOption().GetOption(ctx, "system", "status")
+	require.NoError(t, err)
+	require.Equal(t, 2, loaded.Version)
+	require.Equal(t, "new", (*loaded.Items)[0].Value)
 }

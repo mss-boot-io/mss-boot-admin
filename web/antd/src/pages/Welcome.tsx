@@ -1,6 +1,6 @@
 import { PageContainer } from '@ant-design/pro-components';
 import { FormattedMessage, Link, useIntl, useModel } from '@umijs/max';
-import { Alert, Avatar, Button, Card, Col, Row, Space, Statistic, theme, Typography } from 'antd';
+import { Alert, Avatar, Button, Card, Col, Empty, Row, Space, Statistic, theme, Typography } from 'antd';
 import React from 'react';
 import MonitorTrend from '@/components/MonitorTrend';
 import { useMonitorData } from '@/hooks/useMonitorData';
@@ -13,6 +13,7 @@ import {
   SafetyOutlined,
   MenuOutlined,
 } from '@ant-design/icons';
+import styles from './Welcome.less';
 
 const { Title, Text } = Typography;
 
@@ -25,6 +26,7 @@ const QuickEntry: React.FC<{ icon: React.ReactNode; title: React.ReactNode; href
   return (
     <Link
       to={href}
+      className={styles.quickEntry}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -34,22 +36,13 @@ const QuickEntry: React.FC<{ icon: React.ReactNode; title: React.ReactNode; href
         backgroundColor: token.colorBgContainer,
         boxShadow: token.boxShadowSecondary,
         cursor: 'pointer',
-        transition: 'all 0.3s',
         width: '100%',
         minWidth: 0,
         border: '1px solid transparent',
         textDecoration: 'none',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = token.boxShadow;
-        e.currentTarget.style.borderColor = token.colorPrimary;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = token.boxShadowSecondary;
-        e.currentTarget.style.borderColor = 'transparent';
-      }}
+        '--quick-entry-accent': token.colorPrimary,
+        '--quick-entry-shadow': token.boxShadow,
+      } as React.CSSProperties}
     >
       <div style={{ fontSize: 24, color: token.colorPrimary }}>{icon}</div>
       <Text style={{ color: token.colorText }}>{title}</Text>
@@ -137,7 +130,7 @@ const Welcome: React.FC = () => {
   return (
     <PageContainer>
       <Row gutter={[16, 16]}>
-        <Col xs={24} lg={16}>
+        <Col span={24}>
           <Card style={{ borderRadius: 8 }}>
             <Space align="start" size={16}>
               <Avatar
@@ -161,49 +154,29 @@ const Welcome: React.FC = () => {
             </Space>
           </Card>
         </Col>
-        <Col xs={24} lg={8}>
-          <Card style={{ borderRadius: 8, height: '100%' }}>
-            <Row gutter={16}>
-              <Col span={8}>
-                <Statistic
-                  title="CPU"
-                  value={monitorData?.cpuUsage?.toFixed(2) ?? '--'}
-                  suffix="%"
-                  valueStyle={{ fontSize: 20, whiteSpace: 'nowrap' }}
-                />
-              </Col>
-              <Col span={8}>
-                <Statistic
-                  title={<FormattedMessage id="pages.monitor.memory" defaultMessage="内存" />}
-                  value={memoryPercent?.toFixed(2) ?? '--'}
-                  suffix="%"
-                  valueStyle={{ fontSize: 20, whiteSpace: 'nowrap' }}
-                />
-              </Col>
-              <Col span={8}>
-                <Statistic
-                  title={<FormattedMessage id="pages.monitor.disk" defaultMessage="磁盘" />}
-                  value={diskPercent?.toFixed(2) ?? '--'}
-                  suffix="%"
-                  valueStyle={{ fontSize: 20, whiteSpace: 'nowrap' }}
-                />
-              </Col>
-            </Row>
-          </Card>
-        </Col>
       </Row>
 
       <Card
         title={<FormattedMessage id="pages.welcome.quickEntry" defaultMessage="快捷入口" />}
         style={{ borderRadius: 8, marginTop: 16 }}
       >
-        <Row gutter={[16, 16]}>
-          {quickEntries.map(({ href, icon, title }) => (
-            <Col key={href} xs={24} sm={12} lg={8}>
-              <QuickEntry href={href} icon={icon} title={title} />
-            </Col>
-          ))}
-        </Row>
+        {quickEntries.length > 0 ? (
+          <Row gutter={[12, 12]}>
+            {quickEntries.map(({ href, icon, title }) => (
+              <Col key={href} xs={12} sm={12} lg={8}>
+                <QuickEntry href={href} icon={icon} title={title} />
+              </Col>
+            ))}
+          </Row>
+        ) : (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={intl.formatMessage({
+              id: 'pages.welcome.quickEntry.empty',
+              defaultMessage: 'No available shortcuts',
+            })}
+          />
+        )}
       </Card>
 
       <Card loading={loading && !monitorData} style={{ borderRadius: 8, marginTop: 16 }}>

@@ -8,7 +8,7 @@ package config
  */
 
 import (
-	"log"
+	"log/slog"
 	"time"
 
 	"gorm.io/gorm"
@@ -37,11 +37,13 @@ func (e Cache) Init(set func(storage.AdapterCache), queryCache func(tx *gorm.DB,
 	if e.Redis != nil {
 		options, err := e.Redis.GetRedisOptions()
 		if err != nil {
-			log.Fatalf("cache redis init error: %s", err.Error())
+			slog.Error("cache redis configuration is invalid; cache initialization skipped", "err", err)
+			return
 		}
 		r, err := cache.NewRedis(storage.GetRedisClient(), options, opts...)
 		if err != nil {
-			log.Fatalf("cache redis init error: %s", err.Error())
+			slog.Error("cache redis is unavailable; cache initialization skipped", "err", err)
+			return
 		}
 		if storage.GetRedisClient() == nil {
 			storage.SetRedisClient(r.GetClient())
