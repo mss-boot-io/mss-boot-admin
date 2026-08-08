@@ -8,12 +8,38 @@ import json
 from pathlib import Path
 
 
+def without_redis_cache(lines: list[str]) -> list[str]:
+    """Remove the optional Redis subtree from a database-only rehearsal config."""
+
+    rendered: list[str] = []
+    in_cache = False
+    skipping_redis = False
+
+    for line in lines:
+        if line and not line.startswith((" ", "\t")):
+            in_cache = line.strip().removesuffix(":") == "cache"
+            skipping_redis = False
+
+        if in_cache and line.startswith("  redis:"):
+            skipping_redis = True
+            continue
+        if skipping_redis:
+            if line.startswith(("    ", "\t\t")) or not line.strip():
+                continue
+            skipping_redis = False
+
+        rendered.append(line)
+
+    return rendered
+
+
 def replace_database_fields(text: str, driver: str, dsn: str, name: str) -> str:
-    lines = text.splitlines()
+    lines = without_redis_cache(text.splitlines())
     section = ""
     replaced: set[str] = set()
     logger_stdout_replaced = False
     logger_level_replaced = False
+    query_cache_disabled = False
 
     for index, line in enumerate(lines):
         if line and not line.startswith((" ", "\t")):
@@ -37,6 +63,10 @@ def replace_database_fields(text: str, driver: str, dsn: str, name: str) -> str:
         elif section == "logger" and stripped.startswith("level:"):
             lines[index] = '  level: "error"'
             logger_level_replaced = True
+        elif section == "cache" and stripped.startswith("queryCache:"):
+            # Migration evidence exercises the authoritative database only.
+            lines[index] = "  queryCache: false"
+            query_cache_disabled = True
 
     missing = {"driver", "source", "name"} - replaced
     if missing:
@@ -45,6 +75,8 @@ def replace_database_fields(text: str, driver: str, dsn: str, name: str) -> str:
         raise ValueError("logger config is missing stdout")
     if not logger_level_replaced:
         raise ValueError("logger config is missing level")
+    if not query_cache_disabled:
+        raise ValueError("cache config is missing queryCache")
     return "\n".join(lines) + "\n"
 
 

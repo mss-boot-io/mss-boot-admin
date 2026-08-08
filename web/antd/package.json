@@ -41,7 +41,7 @@
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:ui": "playwright test --ui",
     "test:update": "jest --runInBand -u",
-    "tsc": "tsc --noEmit"
+    "tsc": "max setup && tsc --noEmit"
   },
   "browserslist": [
     "> 1%",
