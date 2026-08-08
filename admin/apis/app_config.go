@@ -1,6 +1,7 @@
 package apis
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -38,6 +39,7 @@ func (e *AppConfig) GetAction(string) response.Action {
 func (e *AppConfig) Other(r *gin.RouterGroup) {
 	r.GET("/app-configs/:group", response.AuthHandler, e.Group)
 	r.PUT("/app-configs/:group", response.AuthHandler, e.Control)
+	r.DELETE("/app-configs/theme", response.AuthHandler, e.Reset)
 	r.GET("/app-configs/profile", middleware.OptionalAuth(), e.Profile)
 }
 
@@ -46,11 +48,12 @@ func (e *AppConfig) Other(r *gin.RouterGroup) {
 // @Description 获取应用配置
 // @Tags app-config
 // @Accept application/json
-// @Product application/json
+// @Produce application/json
 // @Success 200 {object} map[string]map[string]string
 // @Router /admin/api/app-configs/profile [get]
 // @Security Bearer
 func (e *AppConfig) Profile(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
 	api := response.Make(ctx)
 	// The profile endpoint bootstraps the login page as well as authenticated
 	// pages. Authentication must not broaden this response: privileged callers
@@ -69,9 +72,11 @@ func (e *AppConfig) Profile(ctx *gin.Context) {
 // @Description 应用配置分组
 // @Tags app-config
 // @Accept application/json
-// @Product application/json
+// @Produce application/json,application/vnd.mss.theme.v1+json
 // @Param group path string true "group"
-// @Success 200 {object} map[string]models.AppConfig
+// @Param Accept header string false "Use application/vnd.mss.theme.v1+json for the canonical versioned theme resource; omitted keeps the legacy application-theme response"
+// @Success 200 {object} map[string]interface{} "Theme may return the negotiated canonical resource; other groups and legacy theme clients receive key/value objects"
+// @Header 200 {string} ETag "Strong theme resource ETag when group=theme"
 // @Router /admin/api/app-configs/{group} [get]
 // @Security Bearer
 func (e *AppConfig) Group(ctx *gin.Context) {
@@ -81,8 +86,34 @@ func (e *AppConfig) Group(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
+	if req.Group == service.ThemeConfigGroup {
+		if wantsCanonicalThemeContract(ctx) {
+			result, err := e.service.ThemeResource(ctx)
+			if err != nil {
+				api.AddError(err).Log.Error("get application theme resource error")
+				api.Err(http.StatusInternalServerError)
+				return
+			}
+			writeThemeResource(ctx, result)
+			return
+		}
+		resource, result, err := e.service.LegacyThemeResource(ctx)
+		if err != nil {
+			api.AddError(err).Log.Error("get legacy application theme resource error")
+			api.Err(http.StatusInternalServerError)
+			return
+		}
+		setThemeETag(ctx, resource)
+		api.OK(result)
+		return
+	}
 	result, err := e.service.Group(ctx, req.Group)
 	if err != nil {
+		if errors.Is(err, service.ErrThemeGroupCaseMismatch) ||
+			errors.Is(err, service.ErrAppConfigKeyCaseMismatch) {
+			api.AddError(err).Err(http.StatusUnprocessableEntity)
+			return
+		}
 		api.AddError(err).Log.Error("get app config group error")
 		api.Err(http.StatusInternalServerError)
 		return
@@ -95,10 +126,15 @@ func (e *AppConfig) Group(ctx *gin.Context) {
 // @Description 应用配置控制
 // @Tags app-config
 // @Accept application/json
-// @Product application/json
+// @Produce application/json,application/vnd.mss.theme.v1+json
 // @Param group path string true "group"
+// @Param Accept header string false "Use application/vnd.mss.theme.v1+json for the canonical seven-field theme contract; omitted keeps legacy application pwa compatibility"
+// @Param If-Match header string false "Strong application theme ETag used for optimistic concurrency"
 // @Param data body dto.AppConfigControlRequest true "data"
-// @Success 200
+// @Success 200 {object} map[string]interface{} "Theme may return the negotiated canonical resource; other groups return an empty object"
+// @Header 200 {string} ETag "Strong theme resource ETag when group=theme"
+// @Failure 412 {object} dto.ThemeRevisionConflictResponse "Theme revision conflict"
+// @Header 412 {string} ETag "Current strong application theme ETag"
 // @Router /admin/api/app-configs/{group} [put]
 // @Security Bearer
 func (e *AppConfig) Control(ctx *gin.Context) {
@@ -107,14 +143,148 @@ func (e *AppConfig) Control(ctx *gin.Context) {
 		Data: make(map[string]any),
 	}
 	if err := api.Bind(req).Error; err != nil {
+		if req.Group == service.ThemeConfigGroup {
+			middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
+				Scope: service.ThemeScopeApplication, ChangedKeys: submittedThemeKeys(req.Data), Outcome: "binding_error",
+			})
+		}
 		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	if req.Group == service.ThemeConfigGroup {
+		canonicalContract := wantsCanonicalThemeContract(ctx)
+		keys := submittedThemeKeys(req.Data)
+		expectedRevision, err := parseThemeIfMatch(ctx, service.ThemeScopeApplication)
+		if err != nil {
+			middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
+				Scope: service.ThemeScopeApplication, ChangedKeys: keys, Outcome: "bad_precondition",
+			})
+			api.AddError(response.NewError(themeIfMatchInvalidCode, err.Error())).Err(http.StatusBadRequest)
+			return
+		}
+		var result *dto.ThemeResource
+		var legacyProjection map[string]any
+		if canonicalContract {
+			result, err = e.service.UpdateTheme(ctx, req.Data, expectedRevision)
+		} else {
+			result, legacyProjection, err = e.service.UpdateLegacyThemeSnapshot(ctx, req.Data, expectedRevision)
+		}
+		if err != nil {
+			if errors.Is(err, service.ErrInvalidThemePatch) {
+				middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
+					Scope: service.ThemeScopeApplication, ChangedKeys: keys, Outcome: "validation_failed",
+				})
+				api.AddError(err).Err(http.StatusUnprocessableEntity)
+				return
+			}
+			var conflict *service.ThemeRevisionConflictError
+			if errors.As(err, &conflict) {
+				middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
+					Scope: service.ThemeScopeApplication, ChangedKeys: keys, Outcome: "conflict",
+					Revision: conflict.Current.Meta.Revision,
+				})
+				writeThemeRevisionConflict(ctx, err, canonicalContract)
+				return
+			}
+			middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
+				Scope: service.ThemeScopeApplication, ChangedKeys: keys, Outcome: "database_error",
+			})
+			api.AddError(err).Log.Error("update application theme error")
+			api.Err(http.StatusInternalServerError)
+			return
+		}
+		middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
+			Scope: service.ThemeScopeApplication, ChangedKeys: keys, Outcome: "success",
+			Revision: result.Meta.Revision,
+		})
+		if !canonicalContract {
+			setThemeETag(ctx, result)
+			api.OK(legacyProjection)
+			return
+		}
+		writeThemeResource(ctx, result)
 		return
 	}
 	err := e.service.CreateOrUpdate(ctx, req.Group, req.Data)
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidThemePatch) ||
+			errors.Is(err, service.ErrAppConfigKeyCaseMismatch) ||
+			errors.Is(err, service.ErrThemeGroupCaseMismatch) {
+			if errors.Is(err, service.ErrThemeGroupCaseMismatch) {
+				middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
+					Scope: service.ThemeScopeApplication, ChangedKeys: submittedThemeKeys(req.Data), Outcome: "validation_failed",
+				})
+			}
+			api.AddError(err).Err(http.StatusUnprocessableEntity)
+			return
+		}
 		api.AddError(err).Log.Error("update app config error")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
 	api.OK(struct{}{})
+}
+
+// Reset removes every explicit override in an application configuration group.
+// Theme is the only group with reset semantics; removing an override restores
+// the code-level default.
+// @Summary Reset application theme overrides
+// @Tags app-config
+// @Produce application/json,application/vnd.mss.theme.v1+json
+// @Param Accept header string false "Use application/vnd.mss.theme.v1+json for the canonical versioned theme resource; omitted keeps the legacy application-theme response"
+// @Param If-Match header string false "Strong application theme ETag used for optimistic concurrency"
+// @Success 200 {object} map[string]interface{} "Returns the negotiated canonical resource or the legacy theme projection"
+// @Header 200 {string} ETag "Strong application theme resource ETag"
+// @Failure 412 {object} dto.ThemeRevisionConflictResponse "Theme revision conflict"
+// @Header 412 {string} ETag "Current strong application theme ETag"
+// @Router /admin/api/app-configs/theme [delete]
+// @Security Bearer
+func (e *AppConfig) Reset(ctx *gin.Context) {
+	api := response.Make(ctx)
+	canonicalContract := wantsCanonicalThemeContract(ctx)
+	keys := service.ThemeFieldNames()
+	expectedRevision, err := parseThemeIfMatch(ctx, service.ThemeScopeApplication)
+	if err != nil {
+		middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
+			Scope: service.ThemeScopeApplication, ChangedKeys: keys, Outcome: "bad_precondition",
+		})
+		api.AddError(response.NewError(themeIfMatchInvalidCode, err.Error())).Err(http.StatusBadRequest)
+		return
+	}
+	var result *dto.ThemeResource
+	var legacyProjection map[string]any
+	if canonicalContract {
+		result, err = e.service.ResetTheme(ctx, expectedRevision)
+	} else {
+		result, legacyProjection, err = e.service.ResetLegacyThemeSnapshot(ctx, expectedRevision)
+	}
+	if err != nil {
+		var conflict *service.ThemeRevisionConflictError
+		if errors.As(err, &conflict) {
+			middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
+				Scope: service.ThemeScopeApplication, ChangedKeys: keys, Outcome: "conflict",
+				Revision: conflict.Current.Meta.Revision,
+			})
+			writeThemeRevisionConflict(ctx, err, canonicalContract)
+			return
+		}
+		middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
+			Scope: service.ThemeScopeApplication, ChangedKeys: keys, Outcome: "database_error",
+		})
+		api.AddError(err).Log.Error("reset app config error")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
+		Scope: service.ThemeScopeApplication, ChangedKeys: keys, Outcome: "success",
+		Revision: result.Meta.Revision,
+	})
+	if !canonicalContract {
+		setThemeETag(ctx, result)
+		// DELETE responses must remain 200 when returning the negotiated legacy
+		// projection; the generic responder converts DELETE success to 204.
+		ctx.AbortWithStatusJSON(http.StatusOK, legacyProjection)
+		return
+	}
+	writeThemeResource(ctx, result)
 }

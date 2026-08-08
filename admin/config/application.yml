@@ -40,6 +40,9 @@ cors:
   allowHeaders:
     - Authorization
     - Content-Type
+    - If-Match
+  exposeHeaders:
+    - ETag
   maxAge: 12h
 logger:
   path: logs

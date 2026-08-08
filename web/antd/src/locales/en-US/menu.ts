@@ -110,6 +110,7 @@ export default {
   'menu.authority.menu.delete': 'Delete Menu',
   'menu.authority.menu.bind-api': 'Bind API',
   'menu.super-permission.appConfig': 'App Configuration',
+  'menu.super-permission.appConfig.control': 'Manage Application Configuration',
   'menu.system.appConfig': 'App Configuration',
   'menu.center': 'Personal Center',
   'menu.super-permission.system-config.delete': 'Delete Configuration',

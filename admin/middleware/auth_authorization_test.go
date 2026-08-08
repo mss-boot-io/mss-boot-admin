@@ -73,7 +73,11 @@ func TestIsSelfServiceRequestUsesExactMethodAndRoute(t *testing.T) {
 		{name: "user config profile", method: http.MethodGet, path: "/admin/api/user-configs/profile", want: true},
 		{name: "user config group read", method: http.MethodGet, path: "/admin/api/user-configs/:group", want: true},
 		{name: "user config group write", method: http.MethodPut, path: "/admin/api/user-configs/:group", want: true},
-		{name: "user config group delete", method: http.MethodDelete, path: "/admin/api/user-configs/:group", want: false},
+		{name: "user theme reset", method: http.MethodDelete, path: "/admin/api/user-configs/theme", want: true},
+		{name: "user config arbitrary group delete", method: http.MethodDelete, path: "/admin/api/user-configs/:group", want: false},
+		{name: "application theme read requires policy", method: http.MethodGet, path: "/admin/api/app-configs/theme", want: false},
+		{name: "application theme write requires policy", method: http.MethodPut, path: "/admin/api/app-configs/theme", want: false},
+		{name: "application theme reset requires policy", method: http.MethodDelete, path: "/admin/api/app-configs/theme", want: false},
 
 		{name: "personal token generate", method: http.MethodPost, path: "/admin/api/user-auth-tokens", want: true},
 		{name: "personal token list", method: http.MethodGet, path: "/admin/api/user-auth-tokens", want: true},

@@ -110,6 +110,7 @@ export default {
   'menu.authority.menu.delete': '删除菜单',
   'menu.authority.menu.bind-api': '绑定API',
   'menu.super-permission.appConfig': '应用配置',
+  'menu.super-permission.appConfig.control': '管理应用配置',
   'menu.system.appConfig': '应用配置',
   'menu.center': '个人中心',
   'menu.super-permission.system-config.delete': '删除配置',

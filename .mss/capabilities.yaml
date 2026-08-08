@@ -93,6 +93,46 @@ spec:
         - web/antd/src/pages/SystemConfig
       guidance: Prefer typed configuration and secret references over raw unvalidated values.
 
+    - id: platform.theme-settings
+      displayName: Layered Application and Personal Theme Settings
+      status: planned
+      owners: [backend, frontend]
+      paths:
+        - .mss/features/admin-theme-settings-precedence.yaml
+        - docs/adr/2026-08-07-layered-theme-settings-precedence.md
+        - docs/docs/admin/theme-settings-precedence.md
+      backendPaths:
+        - admin/apis/app_config.go
+        - admin/apis/theme_http.go
+        - admin/apis/user_config.go
+        - admin/dto/theme.go
+        - admin/models/config_revision.go
+        - admin/service/app_config.go
+        - admin/service/config_revision.go
+        - admin/service/theme.go
+        - admin/service/user_config.go
+        - admin/cmd/migrate/migration/system/20260807130000_app_config_theme_permissions.go
+        - admin/cmd/migrate/migration/system/20260807150000_config_revisions.go
+      frontendPaths:
+        - web/antd/config/defaultSettings.ts
+        - web/antd/src/app.tsx
+        - web/antd/src/components/MssBoot/ThemeRuntimeBridge.tsx
+        - web/antd/src/components/MssBoot/theme.tsx
+        - web/antd/src/pages/AppConfig
+        - web/antd/src/pages/Account/Settings
+        - web/antd/src/services/admin/themeSettings.ts
+        - web/antd/src/utils/themeSession.ts
+        - web/antd/src/utils/themeSettings.ts
+        - web/antd/src/utils/themeSync.ts
+      guidance: >-
+        Resolve immutable code defaults with sparse application and then sparse current-user overrides.
+        Reuse one scope-aware editor; omission means no mutation, null restores inheritance, and false is explicit.
+        Application reads and writes require config:read and config:write, while personal routes are authenticated-self.
+        A save is atomic, revisioned through a composite-key database resource, conditionally written with a strong
+        ETag, and returned as the canonical flat sparse resource plus _meta. Database-revisioned public-profile caches,
+        identity-bound snapshots, and schema-versioned cross-tab events are derived state only. This capability remains
+        planned until the external MySQL/PostgreSQL upgrade matrix and the complete browser E2E acceptance suite pass.
+
     - id: platform.cache-lock-queue
       displayName: Cache, Distributed Lock, and Queue Adapters
       status: stable

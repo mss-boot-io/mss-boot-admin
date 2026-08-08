@@ -55,7 +55,7 @@ const Settings: React.FC = () => {
         defaultMessage: 'Theme Settings',
       }),
       key: 'theme',
-      children: <Theme />,
+      children: <Theme scope="application" />,
     },
   ];
 
