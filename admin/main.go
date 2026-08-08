@@ -13,7 +13,7 @@ import (
  */
 
 // @title admin API
-// @version 0.8.0
+// @version 1.0.0
 // @description admin接口文档
 // @securityDefinitions.apikey Bearer
 // @in header

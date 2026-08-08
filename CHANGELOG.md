@@ -4,12 +4,17 @@ All notable, verifiable changes to the consolidated `mss-boot-admin` foundation
 are documented here. The project uses semantic versioning and component-scoped
 tag namespaces.
 
-## [Unreleased] - v0.8.0 candidate
+## [Unreleased] - v1.0.0 candidate
 
 Status: **preview / release preparation**. This section does not represent a
-published stable release. It becomes `v0.8.0` only after the required framework
+published stable release. It becomes `v1.0.0` only after the required framework
 tag is externally resolvable, all release gates pass on the exact root release
 commit, and the root tag and artifacts are published.
+
+This is the consolidated foundation's first stable 1.0 boundary. It supersedes
+the unpublished v0.8.0 release candidate; no v0.8.0 archive, checksum, image
+digest, workflow run, or smoke result is release evidence for v1.0.0. Every
+required artifact and proof must be regenerated from the exact v1.0.0 commit.
 
 Release, upgrade, rollback, and compatibility contracts are maintained under
 [`docs/docs/releases/`](docs/docs/releases/).
@@ -44,8 +49,8 @@ Release, upgrade, rollback, and compatibility contracts are maintained under
   - `github.com/mss-boot-io/mss-boot-admin/mss-boot` for the reusable framework;
   - `github.com/mss-boot-io/mss-boot-admin` for Agent/foundation tooling.
 - The Admin module requires `github.com/mss-boot-io/mss-boot-admin/mss-boot
-  v0.8.0`. The nested module must therefore be published and externally
-  resolved before the root `v0.8.0` tag is created.
+  v1.0.0`. The nested module must therefore be published and externally
+  resolved before the root `v1.0.0` tag is created.
 - Authentication now resolves the current user, role, enabled state, and root
   state from authoritative storage. Role/root snapshots embedded in older JWTs
   are not trusted.
@@ -129,8 +134,8 @@ Release, upgrade, rollback, and compatibility contracts are maintained under
 
 - A database backup, restore rehearsal, configuration backup, active-writer
   drain, and the preflight checks in the
-  [v0.8.0 upgrade guide](docs/docs/releases/v0-8-0-upgrade.md) are required.
-- Run the Admin migration command before starting v0.8.0 application writers.
+  [v1.0.0 upgrade guide](docs/docs/releases/v1-0-0-upgrade.md) are required.
+- Run the Admin migration command before starting v1.0.0 application writers.
   The release adds or advances session/menu metadata, PAT digests, OAuth local
   password state and identity keys, permission metadata, retired-tool cleanup,
   configuration revisions, and least-privilege role data.
@@ -143,11 +148,11 @@ Release, upgrade, rollback, and compatibility contracts are maintained under
 
 ### Compatibility and release order
 
-1. Publish `mss-boot/v0.8.0` from the reviewed release commit.
+1. Publish `mss-boot/v1.0.0` from the reviewed release commit.
 2. From outside this repository with `GOWORK=off`, resolve and test
-   `github.com/mss-boot-io/mss-boot-admin/mss-boot@v0.8.0`.
+   `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.0.0`.
 3. Re-run the root release gates on the exact commit.
-4. Publish root `v0.8.0`; publish a standalone `web/antd/v0.8.0` only after its
+4. Publish root `v1.0.0`; publish a standalone `web/antd/v1.0.0` only after its
    independent production/local artifact contract passes.
 
 `planned`, `preview`, a release branch, or an `Unreleased` changelog entry must
@@ -158,4 +163,5 @@ never be presented as a stable tag.
 `v0.7.0` is the preceding root release baseline. Historical details and
 artifacts remain available from the GitHub Releases page. Older untagged
 development snapshots formerly described as `v1.0.0` were not consolidated
-repository releases and are not part of the semantic version sequence above.
+repository releases and provide no tag, artifact, or validation evidence for
+the stable v1.0.0 release documented above.

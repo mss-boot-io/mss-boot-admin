@@ -9,7 +9,7 @@ on:
       version:
         description: Release version used for artifact metadata
         required: true
-        default: v0.8.0
+        default: v1.0.0
         type: string
       publish:
         description: Publish the GitHub Release after all artifacts and the matching image are ready

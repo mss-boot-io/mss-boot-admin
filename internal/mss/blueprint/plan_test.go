@@ -208,7 +208,7 @@ spec:
 		"AGENTS.md":     []byte("# mss-boot-admin Agent Contract\n"),
 		"go.mod":        []byte("module github.com/mss-boot-io/mss-boot-admin\n\ngo 1.26.0\n"),
 		"go.work":       []byte("go 1.26.0\n\nuse (\n\t.\n\t./admin\n\t./mss-boot\n)\n"),
-		"admin/go.mod":  []byte("module github.com/mss-boot-io/mss-boot-admin/admin\n\ngo 1.26.0\n\nrequire github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0\n\nreplace github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0 => ../mss-boot\n"),
+		"admin/go.mod":  []byte("module github.com/mss-boot-io/mss-boot-admin/admin\n\ngo 1.26.0\n\nrequire github.com/mss-boot-io/mss-boot-admin/mss-boot v1.0.0\n\nreplace github.com/mss-boot-io/mss-boot-admin/mss-boot v1.0.0 => ../mss-boot\n"),
 		"admin/main.go": []byte("package main\n\nimport (\n\t_ \"github.com/mss-boot-io/mss-boot-admin/admin/internal/example\"\n\t_ \"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config\"\n)\n\nfunc main() {}\n"),
 		"Makefile":      []byte("PROJECT:=mss-boot-admin\n"),
 		".mss/project.yaml": []byte(`apiVersion: mss.io/v1alpha1

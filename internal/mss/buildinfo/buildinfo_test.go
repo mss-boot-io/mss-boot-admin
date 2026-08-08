@@ -8,11 +8,11 @@ func TestString(t *testing.T) {
 		Version, Commit = originalVersion, originalCommit
 	})
 
-	Version, Commit = "v0.8.0-rc.1", "f401308"
-	if got, want := VersionString(), "v0.8.0-rc.1"; got != want {
+	Version, Commit = "v1.0.0-rc.1", "f401308"
+	if got, want := VersionString(), "v1.0.0-rc.1"; got != want {
 		t.Fatalf("VersionString() = %q, want %q", got, want)
 	}
-	if got, want := String(), "v0.8.0-rc.1 (commit f401308)"; got != want {
+	if got, want := String(), "v1.0.0-rc.1 (commit f401308)"; got != want {
 		t.Fatalf("String() = %q, want %q", got, want)
 	}
 
