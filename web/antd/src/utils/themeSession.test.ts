@@ -243,6 +243,27 @@ describe('theme browser snapshots and identity binding', () => {
     expect(readThemeSnapshot('user', firstSession)).toBeUndefined();
   });
 
+  it('uses a cryptographically secure UUID when randomUUID is not exposed', () => {
+    const randomUUIDDescriptor = Object.getOwnPropertyDescriptor(crypto, 'randomUUID');
+    Object.defineProperty(crypto, 'randomUUID', {
+      configurable: true,
+      value: undefined,
+    });
+
+    try {
+      const session = rotateThemeAuthSession({ persistent: true });
+      expect(session).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+    } finally {
+      if (randomUUIDDescriptor) {
+        Object.defineProperty(crypto, 'randomUUID', randomUUIDDescriptor);
+      } else {
+        Reflect.deleteProperty(crypto, 'randomUUID');
+      }
+    }
+  });
+
   it('rejects a delayed login response after another tab rotates the identity session', async () => {
     const sessionA = rotateThemeAuthSession({ persistent: true });
     const state = {

@@ -8,6 +8,7 @@ import {
   type ThemeScopeResource,
   type ThemeSettingsScope,
 } from './themeSettings';
+import { v4 as uuidv4 } from 'uuid';
 
 export const THEME_SYNC_CHANNEL = 'mss.theme.v1';
 export const THEME_SYNC_STORAGE_KEY = 'mss.theme.event.v1';
@@ -36,21 +37,10 @@ export type ThemeIdentityClearedEvent = ThemeSyncEventBase & {
 export type ThemeSyncEvent = ThemeScopeUpdatedEvent | ThemeIdentityClearedEvent;
 export type ThemeSyncListener = (event: ThemeSyncEvent) => void;
 
-function createID() {
-  try {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID();
-    }
-  } catch {
-    // Fall through to the non-cryptographic, non-security identifier.
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
 const listeners = new Set<ThemeSyncListener>();
 const seenEventIDs = new Set<string>();
 const seenEventQueue: string[] = [];
-const tabID = createID();
+const tabID = uuidv4();
 let sequence = 0;
 let channel: BroadcastChannel | undefined;
 let transportStarted = false;

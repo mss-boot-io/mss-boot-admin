@@ -1,5 +1,6 @@
 import { getAppConfigsProfile } from '@/services/admin/appConfig';
 import { getUserConfigsProfile } from '@/services/admin/userConfig';
+import { v4 as uuidv4 } from 'uuid';
 import {
   areThemeOverridesEqual,
   buildLayoutSettings,
@@ -46,16 +47,7 @@ const THEME_SNAPSHOT_LOCK_PREFIX = 'mss.theme.snapshot.lock.v1:';
 
 let transientThemeAuthSessionId: string | undefined;
 
-const createSessionID = () => {
-  try {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID();
-    }
-  } catch {
-    // Fall through to a non-security identifier; it never authenticates a user.
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-};
+const createSessionID = () => uuidv4();
 
 function browserStorage(): Storage | undefined {
   try {
