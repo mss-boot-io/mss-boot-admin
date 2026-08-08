@@ -20,8 +20,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/verify"
 )
 
-const version = "0.1.0-dev"
-
 // Execute runs the complete agent-facing mss CLI.
 func Execute() error {
 	return ExecuteAgent()

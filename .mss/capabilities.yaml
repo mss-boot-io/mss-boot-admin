@@ -113,6 +113,7 @@ spec:
       owners: [backend, frontend]
       paths:
         - .mss/features/admin-theme-settings-precedence.yaml
+        - .github/workflows/theme-settings-integration.yml
         - docs/adr/2026-08-07-layered-theme-settings-precedence.md
         - docs/docs/admin/theme-settings-precedence.md
       backendPaths:
@@ -314,3 +315,44 @@ spec:
         - internal/mss/upgrader
         - tools/codemods
       guidance: Preserve downstream customizations and emit an explicit conflict and migration report.
+
+    - id: foundation.versioned-release
+      displayName: Versioned Foundation Release Governance
+      status: planned
+      owners: [release-engineering, agent-infrastructure]
+      paths:
+        - .mss/features/foundation-v0-8-release.yaml
+        - CHANGELOG.md
+        - mss-boot/CHANGELOG.md
+        - web/antd/CHANGELOG.md
+        - docs/docs/releases
+        - Dockerfile
+        - admin/cmd/cobra.go
+        - admin/cmd/migrate/migration/system/v0_7_upgrade_state_integration_test.go
+        - admin/pkg/version
+        - admin/pkg/version.go
+        - cmd/mss-mcp/main.go
+        - internal/mss/buildinfo
+        - internal/mss/verify
+        - mss-boot/Makefile
+        - tools/release
+        - tools/security
+        - web/antd/Dockerfile
+        - web/antd/config/config.prod.release.ts
+        - web/antd/scripts/check-release-api.mjs
+        - .github/workflows/container.yml
+        - .github/workflows/docs.yml
+        - .github/workflows/release.yml
+        - .github/workflows/release-draft.yml
+        - .github/workflows/release-readiness.yml
+        - .github/workflows/framework-release.yml
+        - .github/workflows/frontend-release.yml
+        - .github/workflows/theme-settings-integration.yml
+        - .github/workflows/v0.7-upgrade-integration.yml
+      guidance: >-
+        Treat Unreleased, planned, preview, branches, and local workspace replacements as non-stable.
+        Publish a required nested framework tag first, prove external GOWORK=off resolution, then publish
+        the root tag from the same reviewed commit. Finalize a stable release only after migrations,
+        security checks, versioned artifacts, containers, documentation, installation smoke tests, and
+        recovery evidence pass. Keep .mss/lock.yaml on its real development/generated baseline until a
+        supported deterministic process can record the exact published foundation version and commit.

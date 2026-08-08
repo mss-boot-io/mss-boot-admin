@@ -4,7 +4,15 @@ All notable, verifiable changes to the `mss-boot` framework are documented in
 this file. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses semantic versioning for nested-module releases.
 
-## Unreleased
+## [Unreleased] - mss-boot/v0.8.0 candidate
+
+Status: **preview / release preparation**. The framework is not published from
+the consolidated repository until the `mss-boot/v0.8.0` nested-module tag exists
+and resolves from an external module with `GOWORK=off`. A branch, local
+`go.work` replacement, or this changelog entry is not stable release evidence.
+
+The compatibility and rollout requirements are part of the consolidated
+[v0.8.0 release contract](../docs/docs/releases/v0-8-0.md).
 
 ### Added
 
@@ -24,6 +32,10 @@ and the project uses semantic versioning for nested-module releases.
 
 ### Changed
 
+- The public module path moves from the predecessor standalone module
+  `github.com/mss-boot-io/mss-boot` to the consolidated nested module
+  `github.com/mss-boot-io/mss-boot-admin/mss-boot`. Downstream `require`,
+  `replace`, and import paths must be updated together.
 - `Runnable.Start(context.Context) error` now has an explicit blocking lifecycle
   contract. The manager concurrently runs registered components, cancels peers
   on the first unexpected exit, joins component shutdown errors, and waits for
@@ -94,6 +106,11 @@ and the project uses semantic versioning for nested-module releases.
 
 ### Compatibility
 
+- Publish `mss-boot/v0.8.0` before any root Admin release that requires
+  `github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0`. Verify resolution from
+  a clean external temporary module without the repository `go.work` file.
+- A source checkout using `go.work` proves workspace compatibility only; it
+  does not prove that the nested module tag is available to downstream users.
 - Custom `Runnable` implementations that previously launched a goroutine and
   returned immediately must now block until their work stops. Returning early
   is treated as an unexpected component exit.
@@ -123,7 +140,10 @@ and the project uses semantic versioning for nested-module releases.
 - Added database Handle ownership, RDS IAM TLS, migration, and rollback
   guidance.
 
-## v0.7.3 - 2026-06-07
+## v0.7.3 - 2026-06-07 (pre-consolidation history)
+
+This entry records predecessor framework history. It is not evidence that a
+`mss-boot/v0.7.3` tag exists in the consolidated repository.
 
 ### Added
 

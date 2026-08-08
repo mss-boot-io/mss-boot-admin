@@ -101,7 +101,7 @@
       "properties": {
         "name": {"$ref": "#/$defs/identifier"},
         "operation": {"type": "string", "enum": ["create", "extend", "deprecate", "remove"]},
-        "specPath": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\.\.(?:/|$)).+$"},
+        "specPath": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
         "description": {"type": "string", "maxLength": 500}
       }
     },

@@ -165,6 +165,9 @@ func Run(parent context.Context, ctx *project.Context, options Options) (Report,
 	if err != nil {
 		return Report{}, err
 	}
+	if err := os.MkdirAll(filepath.Join(ctx.Root, ".mss", "reports"), 0o755); err != nil {
+		return Report{}, fmt.Errorf("create verification report directory: %w", err)
+	}
 	report := Report{
 		Project:     ctx.Project.Metadata.Name,
 		Root:        ctx.Root,
@@ -294,7 +297,7 @@ func validateContracts(root string) command.Result {
 	started := time.Now()
 	result := command.Result{
 		ID:          "contract-validation",
-		Description: "validate project and module contracts",
+		Description: "validate module and feature contracts",
 		Directory:   root,
 		StartedAt:   started.UTC(),
 		ExitCode:    0,
@@ -324,6 +327,24 @@ func validateContracts(root string) command.Result {
 			break
 		}
 		fmt.Fprintf(&output, "validated %s (%s)\n", filepath.ToSlash(path), module.Metadata.Name)
+	}
+	if result.ExitCode == 0 {
+		featurePaths, err := filepath.Glob(filepath.Join(root, ".mss", "features", "*.yaml"))
+		if err != nil {
+			result.ExitCode = 1
+			result.Error = err.Error()
+		} else {
+			sort.Strings(featurePaths)
+			for _, path := range featurePaths {
+				feature, loadErr := spec.LoadFeature(path)
+				if loadErr != nil {
+					result.ExitCode = 1
+					result.Error = loadErr.Error()
+					break
+				}
+				fmt.Fprintf(&output, "validated %s (%s)\n", filepath.ToSlash(path), feature.Metadata.Name)
+			}
+		}
 	}
 	result.Stdout = output.String()
 	result.Duration = time.Since(started)
@@ -451,9 +472,14 @@ func frameworkTest(root string) command.Spec {
 func backendTest(root string) command.Spec {
 	return command.Spec{
 		ID:          "backend-test",
-		Description: "run root backend tests",
-		Directory:   root,
-		Args:        []string{"go", "test", "-coverprofile=coverage.out", "./..."},
+		Description: "run the Admin application tests independently",
+		Directory:   filepath.Join(root, "admin"),
+		Args: []string{
+			"go", "test",
+			"-coverprofile=" + filepath.Join(root, ".mss", "reports", "admin-coverage.out"),
+			"./...",
+		},
+		Environment: map[string]string{"GOWORK": "off"},
 		Timeout:     20 * time.Minute,
 	}
 }
@@ -462,9 +488,9 @@ func backendBuild(root string) command.Spec {
 	return command.Spec{
 		ID:          "backend-build",
 		Description: "build the admin backend",
-		Directory:   root,
-		Args:        []string{"go", "build", "-o", filepath.Join(".mss", "reports", "admin"), "."},
-		Environment: map[string]string{"CGO_ENABLED": "0"},
+		Directory:   filepath.Join(root, "admin"),
+		Args:        []string{"go", "build", "./..."},
+		Environment: map[string]string{"CGO_ENABLED": "0", "GOWORK": "off"},
 		Timeout:     10 * time.Minute,
 	}
 }
@@ -474,7 +500,7 @@ func frontendLint(root string) command.Spec {
 		ID:          "frontend-lint",
 		Description: "run frontend lint and TypeScript checks",
 		Directory:   filepath.Join(root, "web", "antd"),
-		Args:        []string{"pnpm", "lint"},
+		Args:        []string{"corepack", "pnpm", "lint"},
 		Environment: map[string]string{"CI": "true"},
 		Timeout:     15 * time.Minute,
 	}
@@ -485,7 +511,7 @@ func frontendTest(root string) command.Spec {
 		ID:          "frontend-test",
 		Description: "run frontend unit tests",
 		Directory:   filepath.Join(root, "web", "antd"),
-		Args:        []string{"pnpm", "test", "--", "--runInBand"},
+		Args:        []string{"corepack", "pnpm", "test", "--", "--runInBand"},
 		Environment: map[string]string{"CI": "true"},
 		Timeout:     20 * time.Minute,
 	}
@@ -494,9 +520,9 @@ func frontendTest(root string) command.Spec {
 func frontendBuild(root string) command.Spec {
 	return command.Spec{
 		ID:          "frontend-build",
-		Description: "build the local frontend profile",
+		Description: "build the portable release frontend profile",
 		Directory:   filepath.Join(root, "web", "antd"),
-		Args:        []string{"pnpm", "build:local"},
+		Args:        []string{"corepack", "pnpm", "build:release"},
 		Environment: map[string]string{"CI": "true"},
 		Timeout:     20 * time.Minute,
 	}
@@ -507,7 +533,7 @@ func docsBuild(root string) command.Spec {
 		ID:          "docs-build",
 		Description: "build the documentation site",
 		Directory:   filepath.Join(root, "docs"),
-		Args:        []string{"pnpm", "build"},
+		Args:        []string{"corepack", "pnpm", "build"},
 		Environment: map[string]string{"CI": "true"},
 		Timeout:     20 * time.Minute,
 	}

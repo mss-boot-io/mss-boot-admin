@@ -21,23 +21,29 @@ keywords: [admin integration test e2e playwright]
 
 ### 开发环境
 
-- Go 1.26+
-- Node.js 18+ 和 pnpm
-- SQLite（用于本地数据库）
+- Go 1.26.5
+- Node.js >= 22 且 < 25
+- 通过 Corepack 使用 pnpm 9.15.9
+- SQLite（默认本地数据库；MySQL/PostgreSQL 为可选集成目标）
+
+版本和目录约定以仓库根目录的 `.mss/project.yaml` 为准。本仓库已同时包含
+`admin/` 后端和 `web/antd/` 前端。
 
 ### 服务端口
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
 | 后端 API | 8080 | `go run . server` |
-| 前端 Dev | 8000 | `pnpm dev` |
+| 前端 Dev | 8000 | `corepack pnpm dev` |
 
 ## 快速开始
+
+以下目录切换均从仓库根目录执行；后端和前端应分别在独立终端中启动。
 
 ### 1. 启动后端
 
 ```bash
-cd mss-boot-admin
+cd admin
 go run . migrate  # 首次运行迁移
 go run . server   # 启动服务
 ```
@@ -52,9 +58,9 @@ curl http://localhost:8080/healthz
 ### 2. 启动前端
 
 ```bash
-cd mss-boot-admin-antd
-pnpm install
-pnpm dev
+cd web/antd
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev
 ```
 
 验证：
@@ -67,8 +73,8 @@ curl http://localhost:8000
 ### 3. 运行 E2E 测试
 
 ```bash
-cd mss-boot-admin-antd
-npx playwright test --reporter=list
+cd web/antd
+corepack pnpm exec playwright test --reporter=list
 ```
 
 ## Playwright E2E 测试
@@ -76,7 +82,7 @@ npx playwright test --reporter=list
 ### 测试文件结构
 
 ```
-mss-boot-admin-antd/e2e/
+web/antd/e2e/
 ├── login.spec.ts           # 登录测试
 ├── monitor.spec.ts         # 监控测试
 ├── websocket.spec.ts       # WebSocket 测试
@@ -101,26 +107,29 @@ mss-boot-admin-antd/e2e/
 
 ```bash
 # 运行所有测试
-npx playwright test
+corepack pnpm exec playwright test
 
 # 运行特定测试文件
-npx playwright test e2e/login.spec.ts
+corepack pnpm exec playwright test e2e/login.spec.ts
 
 # 带界面运行（调试用）
-npx playwright test --ui
+corepack pnpm exec playwright test --ui
 
 # 生成报告
-npx playwright show-report
+corepack pnpm exec playwright show-report
 ```
 
 ## API 验证
 
 ### 登录获取 Token
 
+以下占位值只用于隔离的本地/测试环境。不要将生产密码写入文档、命令历史或
+测试代码。
+
 ```bash
 curl -X POST http://localhost:8080/admin/api/user/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"123456"}'
+  -d '{"username":"admin","password":"<local-development-password>"}'
 
 # 响应
 {
@@ -316,10 +325,12 @@ export default {
 
 ```bash
 # 1. 后端构建
-cd mss-boot-admin && go build ./...
+cd admin
+go build ./...
 
 # 2. 前端类型检查
-cd ../mss-boot-admin-antd && pnpm -s tsc --noEmit
+cd ../web/antd
+corepack pnpm tsc
 
 # 3. 后端健康检查
 curl -I http://127.0.0.1:8080/healthz
@@ -354,15 +365,15 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
+          go-version: '1.26.5'
       - name: Run backend tests
         run: |
-          cd mss-boot-admin
+          cd admin
           go test ./... -v -race -coverprofile=coverage.out
       - name: Upload coverage
         uses: codecov/codecov-action@v3
         with:
-          files: ./mss-boot-admin/coverage.out
+          files: ./admin/coverage.out
 
   e2e-test:
     runs-on: ubuntu-latest
@@ -372,28 +383,30 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
-      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-go@v6
         with:
-          version: 8
+          go-version: '1.26.5'
       - name: Install dependencies
         run: |
-          cd mss-boot-admin-antd
-          pnpm install
-          npx playwright install --with-deps
+          corepack enable
+          cd web/antd
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm exec playwright install --with-deps chromium
       - name: Start backend
         run: |
-          cd mss-boot-admin
+          cd admin
+          go run . migrate
           go run . server &
           sleep 5
       - name: Start frontend
         run: |
-          cd mss-boot-admin-antd
-          pnpm dev &
+          cd web/antd
+          corepack pnpm dev &
           sleep 10
       - name: Run E2E tests
         run: |
-          cd mss-boot-admin-antd
-          npx playwright test
+          cd web/antd
+          corepack pnpm exec playwright test
 ```
 
 ## 推荐阅读

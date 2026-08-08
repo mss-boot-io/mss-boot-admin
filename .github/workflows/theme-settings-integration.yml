@@ -1,0 +1,115 @@
+name: Theme Settings Database Integration
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'admin/apis/**theme*'
+      - 'admin/service/app_config*'
+      - 'admin/service/theme*'
+      - 'admin/service/user_config*'
+      - 'admin/models/app_config*'
+      - 'admin/models/config_revision*'
+      - 'admin/models/user_config*'
+      - 'admin/cmd/migrate/migration/system/*config_revision*'
+      - 'admin/cmd/migrate/migration/system/*theme*'
+      - 'admin/go.mod'
+      - 'admin/go.sum'
+      - 'mss-boot/pkg/config/gormdb/**'
+      - '.github/workflows/theme-settings-integration.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'admin/apis/**theme*'
+      - 'admin/service/app_config*'
+      - 'admin/service/theme*'
+      - 'admin/service/user_config*'
+      - 'admin/models/app_config*'
+      - 'admin/models/config_revision*'
+      - 'admin/models/user_config*'
+      - 'admin/cmd/migrate/migration/system/*config_revision*'
+      - 'admin/cmd/migrate/migration/system/*theme*'
+      - 'admin/go.mod'
+      - 'admin/go.sum'
+      - 'mss-boot/pkg/config/gormdb/**'
+      - '.github/workflows/theme-settings-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: theme-settings-integration-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  database-contract:
+    name: mysql-8.4-and-postgres-17
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      mysql:
+        image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb # 8.4.11
+        env:
+          MYSQL_ROOT_PASSWORD: mysql-root-ci-only
+          MYSQL_DATABASE: mss_theme_settings_test
+          MYSQL_USER: mss_theme
+          MYSQL_PASSWORD: mss_theme_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping --host=127.0.0.1 --user=mss_theme --password=mss_theme_ci --silent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      postgres:
+        image: postgres:17@sha256:7958605b474b3d264a969cb3a123d6aa00ad1e1fe9da8a69984dabb704d93317 # 17.10
+        env:
+          POSTGRES_DB: mss_theme_settings_test
+          POSTGRES_USER: mss_theme
+          POSTGRES_PASSWORD: mss_theme_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username=mss_theme --dbname=mss_theme_settings_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: admin/go.mod
+          cache: true
+          cache-dependency-path: |
+            admin/go.sum
+            mss-boot/go.sum
+
+      - name: Verify fresh and upgraded theme settings schemas
+        working-directory: admin
+        env:
+          GOWORK: 'off'
+          MSS_THEME_SETTINGS_TEST_MYSQL_DSN: 'mss_theme:mss_theme_ci@tcp(127.0.0.1:3306)/mss_theme_settings_test?charset=utf8mb4&parseTime=true&loc=UTC&multiStatements=false'
+          MSS_THEME_SETTINGS_TEST_POSTGRES_DSN: 'postgres://mss_theme:mss_theme_ci@127.0.0.1:5432/mss_theme_settings_test?sslmode=disable&TimeZone=UTC'
+        run: >-
+          go test -count=1 -timeout=15m
+          -run '^(TestThemeSettingsMigration(MySQL|Postgres)Integration)$'
+          ./cmd/migrate/migration/system
+
+      - name: Verify MySQL accent-insensitive reserved keys
+        working-directory: admin
+        env:
+          GOWORK: 'off'
+          MSS_THEME_TEST_MYSQL_DSN: 'mss_theme:mss_theme_ci@tcp(127.0.0.1:3306)/mss_theme_settings_test?charset=utf8mb4&parseTime=true&loc=UTC&multiStatements=false'
+        run: >-
+          go test -count=1 -timeout=10m
+          -run '^TestThemeMySQLAccentInsensitiveUpgradePath$'
+          ./service

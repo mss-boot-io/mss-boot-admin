@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/generator"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/skills"
@@ -23,7 +24,6 @@ import (
 const (
 	protocolLatest = "2026-07-28"
 	serverName     = "mss-agent-foundation"
-	serverVersion  = "0.1.0"
 )
 
 const serverInstructions = "Use these tools as the repository source of truth. Inspect project context and existing capabilities before planning changes. Module generation and validation execution default to dry-run; set write or execute only after reviewing the returned plan. Never pass production credentials or paths outside the repository root."
@@ -213,7 +213,7 @@ func (s *Server) initialize(raw json.RawMessage) map[string]any {
 		"serverInfo": map[string]any{
 			"name":        serverName,
 			"title":       "mss Agent-Native Foundation",
-			"version":     serverVersion,
+			"version":     buildinfo.VersionString(),
 			"description": "Repository context, generation, and validation tools for mss-boot-admin.",
 		},
 		"instructions": serverInstructions,

@@ -19,6 +19,8 @@ coverage*
 # Dependency directories are generated on demand.
 vendor/
 **/node_modules/
+__pycache__/
+*.py[cod]
 
 # IDE
 .vscode/
