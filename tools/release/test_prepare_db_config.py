@@ -29,6 +29,7 @@ cache:
   queryCacheDuration: 1h
   queryCacheKeys:
     - '*'
+#  memory: ''
   redis:
     addr: '127.0.0.1:6379'
     password: legacy-password
@@ -48,8 +49,10 @@ cache:
   queryCache: true
   queryCacheDuration: 1h
   queryCacheKeys: []
+#  memory: ''
   redis:
     addr: '127.0.0.1:6379'
+    # The release rehearsal must not retain cache-only credentials.
     password: current-password
 queue:
   memory:

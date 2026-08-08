@@ -16,7 +16,15 @@ def without_redis_cache(lines: list[str]) -> list[str]:
     skipping_redis = False
 
     for line in lines:
-        if line and not line.startswith((" ", "\t")):
+        # YAML comments do not change the current mapping scope.  The v0.7
+        # config has a column-zero comment between the cache options and its
+        # Redis child, so treating comments as top-level keys would leave the
+        # Redis connection enabled in the database-only rehearsal.
+        if (
+            line
+            and not line.startswith((" ", "\t"))
+            and not line.lstrip().startswith("#")
+        ):
             in_cache = line.strip().removesuffix(":") == "cache"
             skipping_redis = False
 
@@ -24,7 +32,11 @@ def without_redis_cache(lines: list[str]) -> list[str]:
             skipping_redis = True
             continue
         if skipping_redis:
-            if line.startswith(("    ", "\t\t")) or not line.strip():
+            if (
+                line.startswith(("    ", "\t\t"))
+                or not line.strip()
+                or line.lstrip().startswith("#")
+            ):
                 continue
             skipping_redis = False
 
