@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -46,6 +47,19 @@ type appConfigTestEnv struct {
 	ctx    *gin.Context
 }
 
+func requireThemeProfileMeta(t *testing.T, raw any) map[string]any {
+	t.Helper()
+	switch value := raw.(type) {
+	case gin.H:
+		return map[string]any(value)
+	case map[string]any:
+		return value
+	default:
+		t.Fatalf("theme profile metadata has unexpected type %T", raw)
+		return nil
+	}
+}
+
 func setupAppConfigTestEnv(t *testing.T) appConfigTestEnv {
 	t.Helper()
 
@@ -54,9 +68,12 @@ func setupAppConfigTestEnv(t *testing.T) appConfigTestEnv {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&models.AppConfig{}))
+	require.NoError(t, db.AutoMigrate(&models.AppConfig{}, &models.UserConfig{}, &models.ConfigRevision{}))
 	require.NoError(t, db.Exec(
 		`CREATE UNIQUE INDEX idx_app_config_test ON mss_boot_app_configs(name, "group")`,
+	).Error)
+	require.NoError(t, db.Exec(
+		`CREATE UNIQUE INDEX idx_user_config_test ON mss_boot_user_configs(user_id, name, "group")`,
 	).Error)
 
 	mr := miniredis.RunT(t)
@@ -116,7 +133,7 @@ func TestAppConfigProfileNeverBroadensForAuthenticatedCallers(t *testing.T) {
 			require.NotContains(t, profile["base"], "harmlessUnknown")
 		}
 
-		cached, err := env.redis.Get(appConfigPublicProfileCacheKey)
+		cached, err := env.redis.Get(publicProfileCacheKey(0))
 		require.NoError(t, err)
 		require.NotContains(t, cached, "staff only")
 		require.NotContains(t, cached, "leaked-before-fix")
@@ -125,8 +142,10 @@ func TestAppConfigProfileNeverBroadensForAuthenticatedCallers(t *testing.T) {
 
 func TestAppConfigProfileFiltersSensitiveKeysFromPoisonedPublicCache(t *testing.T) {
 	env := setupAppConfigTestEnv(t)
-	env.redis.Set(appConfigPublicProfileCacheKey, `{
-		"generation":0,
+	env.redis.Set(publicProfileCacheKey(0), `{
+		"v":2,
+		"profileRevision":0,
+		"themeRevision":0,
 		"profile":{
 			"base":{"websiteName":"MSS","unknown":"poisoned-unknown"},
 			"security":{"githubEnabled":true,"githubClientId":"client-id","githubClientSecret":"poisoned"},
@@ -144,6 +163,35 @@ func TestAppConfigProfileFiltersSensitiveKeysFromPoisonedPublicCache(t *testing.
 	require.NotContains(t, profile, "storage")
 }
 
+func TestAppConfigProfileCachesVersionedEnvelopeWithTTLAndThemeMetadata(t *testing.T) {
+	env := setupAppConfigTestEnv(t)
+	require.NoError(t, env.db.Create([]*models.AppConfig{
+		{Group: ThemeConfigGroup, Name: "fixedHeader", Value: "false", Auth: false},
+		{Group: ThemeConfigGroup, Name: "pwa", Value: "true", Auth: false},
+	}).Error)
+
+	profile, err := (&AppConfig{}).Profile(env.ctx, false)
+	require.NoError(t, err)
+	require.Equal(t, false, profile[ThemeConfigGroup]["fixedHeader"])
+	require.Equal(t, true, profile[ThemeConfigGroup]["pwa"])
+	require.Equal(t, map[string]any{
+		"v": themeResourceVersion, "scope": ThemeScopeApplication, "revision": "0",
+	}, requireThemeProfileMeta(t, profile[ThemeConfigGroup]["_meta"]))
+	require.Equal(t, appConfigPublicProfileCacheTTL, env.redis.TTL(publicProfileCacheKey(0)))
+
+	// Metadata is intentionally projected out of the stored profile and then
+	// reconstructed from the authoritative envelope revision on a cache hit.
+	cached, err := env.redis.Get(publicProfileCacheKey(0))
+	require.NoError(t, err)
+	require.NotContains(t, cached, `"_meta"`)
+	require.Contains(t, cached, `"pwa":true`)
+	profile, err = (&AppConfig{}).Profile(env.ctx, false)
+	require.NoError(t, err)
+	meta := requireThemeProfileMeta(t, profile[ThemeConfigGroup]["_meta"])
+	require.Equal(t, "0", meta["revision"])
+	require.Equal(t, true, profile[ThemeConfigGroup]["pwa"], "cache hit must match the database miss projection")
+}
+
 func TestAppConfigCreateOrUpdateClassifiesByKeyAndInvalidatesPublicCache(t *testing.T) {
 	env := setupAppConfigTestEnv(t)
 	require.NoError(t, env.db.Create([]*models.AppConfig{
@@ -152,7 +200,8 @@ func TestAppConfigCreateOrUpdateClassifiesByKeyAndInvalidatesPublicCache(t *test
 		{Group: "security", Name: "githubEnabled", Value: "false", Auth: true},
 		{Group: "security", Name: "githubClientSecret", Value: "old-ordinary-value", Auth: false},
 	}).Error)
-	env.redis.Set(appConfigPublicProfileCacheKey, `{"generation":0,"profile":{"base":{"websiteName":"old"}}}`)
+	env.redis.Set(publicProfileCacheKey(0), `{"v":2,"profileRevision":0,"themeRevision":0,"profile":{"base":{"websiteName":"old"}}}`)
+	env.redis.HSet(legacyAppConfigCacheHash, "base:websiteName", "stale-legacy-value")
 
 	svc := &AppConfig{}
 	err := svc.CreateOrUpdate(env.ctx, "base", map[string]any{
@@ -166,7 +215,13 @@ func TestAppConfigCreateOrUpdateClassifiesByKeyAndInvalidatesPublicCache(t *test
 		"api_token":          "ordinary-looking-value",
 	})
 	require.NoError(t, err)
-	require.False(t, env.redis.Exists(appConfigPublicProfileCacheKey))
+	require.False(t, env.redis.Exists(publicProfileCacheKey(0)))
+	legacyExists, err := env.client.HExists(env.ctx, legacyAppConfigCacheHash, "base:websiteName").Result()
+	require.NoError(t, err)
+	require.False(t, legacyExists, "committed generic writes must invalidate the legacy field")
+	legacyValue, ok := center.GetAppConfig().GetAppConfig(env.ctx, "base:websiteName")
+	require.True(t, ok)
+	require.Equal(t, "value-with-token-and-secret-words", legacyValue)
 
 	var records []models.AppConfig
 	require.NoError(t, env.db.Find(&records).Error)
@@ -193,6 +248,93 @@ func TestAppConfigCreateOrUpdateClassifiesByKeyAndInvalidatesPublicCache(t *test
 	require.NoError(t, err)
 	require.Equal(t, "ordinary-looking-public-id", group["githubClientId"])
 	require.Equal(t, "ordinary-looking-value", group["githubClientSecret"])
+}
+
+type blockingFirstLegacyInvalidationHook struct {
+	field   string
+	blocked chan struct{}
+	release chan struct{}
+	calls   atomic.Int32
+}
+
+func (h *blockingFirstLegacyInvalidationHook) DialHook(next redis.DialHook) redis.DialHook {
+	return next
+}
+
+func (h *blockingFirstLegacyInvalidationHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		args := cmd.Args()
+		matches := cmd.Name() == "hdel" && len(args) > 2 && args[1] == legacyAppConfigCacheHash
+		if matches {
+			matches = false
+			for _, arg := range args[2:] {
+				if arg == h.field {
+					matches = true
+					break
+				}
+			}
+		}
+		if matches && h.calls.Add(1) == 1 {
+			close(h.blocked)
+			<-h.release
+		}
+		return next(ctx, cmd)
+	}
+}
+
+func (h *blockingFirstLegacyInvalidationHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return next
+}
+
+func TestLegacyAppConfigInvalidationCannotRegressWhenPostCommitEffectsReorder(t *testing.T) {
+	env := setupAppConfigTestEnv(t)
+	require.NoError(t, env.db.Create(&models.AppConfig{
+		Group: "base", Name: "websiteName", Value: "old", Auth: false,
+	}).Error)
+	env.redis.HSet(legacyAppConfigCacheHash, "base:websiteName", "old")
+
+	hook := &blockingFirstLegacyInvalidationHook{
+		field:   "base:websiteName",
+		blocked: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	env.client.AddHook(hook)
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(hook.release) }) }
+	defer release()
+
+	firstResult := make(chan error, 1)
+	firstCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	go func() {
+		firstResult <- (&AppConfig{}).CreateOrUpdate(firstCtx, "base", map[string]any{
+			"websiteName": "first",
+		})
+	}()
+
+	select {
+	case <-hook.blocked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first committed write did not reach legacy invalidation")
+	}
+
+	secondCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	require.NoError(t, (&AppConfig{}).CreateOrUpdate(secondCtx, "base", map[string]any{
+		"websiteName": "second",
+	}))
+	release()
+	select {
+	case err := <-firstResult:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("first write did not finish after releasing invalidation")
+	}
+
+	legacyExists, err := env.client.HExists(env.ctx, legacyAppConfigCacheHash, "base:websiteName").Result()
+	require.NoError(t, err)
+	require.False(t, legacyExists, "reordered post-commit invalidations must converge to an empty field")
+	value, ok := center.GetAppConfig().GetAppConfig(env.ctx, "base:websiteName")
+	require.True(t, ok)
+	require.Equal(t, "second", value)
 }
 
 func TestPublicAppConfigKeyAllowlistIsExact(t *testing.T) {
@@ -230,8 +372,8 @@ func (h *blockingPublicProfileCacheHook) DialHook(next redis.DialHook) redis.Dia
 func (h *blockingPublicProfileCacheHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 	return func(ctx context.Context, cmd redis.Cmder) error {
 		args := cmd.Args()
-		if cmd.Name() == "eval" && len(args) > 1 {
-			if script, ok := args[1].(string); ok && script == cachePublicProfileIfCurrentScript {
+		if cmd.Name() == "set" && len(args) > 1 {
+			if key, ok := args[1].(string); ok && key == publicProfileCacheKey(0) {
 				h.blockOnce.Do(func() {
 					close(h.blocked)
 					<-h.release
@@ -246,7 +388,7 @@ func (h *blockingPublicProfileCacheHook) ProcessPipelineHook(next redis.ProcessP
 	return next
 }
 
-func TestAppConfigProfileDoesNotRepopulateStaleCacheAfterConcurrentUpdate(t *testing.T) {
+func TestAppConfigProfileVersionedCacheCannotPoisonNewRevisionAfterConcurrentUpdate(t *testing.T) {
 	env := setupAppConfigTestEnv(t)
 	require.NoError(t, env.db.Create(&models.AppConfig{
 		Group: "base", Name: "websiteName", Value: "old", Auth: false,
@@ -287,16 +429,49 @@ func TestAppConfigProfileDoesNotRepopulateStaleCacheAfterConcurrentUpdate(t *tes
 	select {
 	case got := <-result:
 		require.NoError(t, got.err)
-		require.Equal(t, "new", got.profile["base"]["websiteName"])
+		// This request linearized before the update and may return the old
+		// snapshot, but it can only populate the now-obsolete revision-0 key.
+		require.Equal(t, "old", got.profile["base"]["websiteName"])
 	case <-time.After(2 * time.Second):
-		t.Fatal("profile read did not retry after the generation changed")
+		t.Fatal("profile read did not complete after the revision changed")
 	}
 
 	profile, err := (&AppConfig{}).Profile(env.ctx, false)
 	require.NoError(t, err)
 	require.Equal(t, "new", profile["base"]["websiteName"])
-	cached, err := env.redis.Get(appConfigPublicProfileCacheKey)
+	cached, err := env.redis.Get(publicProfileCacheKey(1))
 	require.NoError(t, err)
 	require.Contains(t, cached, `"websiteName":"new"`)
 	require.NotContains(t, cached, `"websiteName":"old"`)
+}
+
+func TestPublicConfigWritesCommitWhenRedisIsUnavailable(t *testing.T) {
+	env := setupAppConfigTestEnv(t)
+	env.redis.Close()
+
+	theme, err := (&Theme{}).PatchApplicationResource(env.ctx, map[string]any{
+		"navTheme": "realDark",
+	}, nil)
+	require.NoError(t, err, "cache cleanup is best effort after the database commit")
+	require.Equal(t, "1", theme.Meta.Revision)
+
+	require.NoError(t, (&AppConfig{}).CreateOrUpdate(env.ctx, "base", map[string]any{
+		"websiteName": "Redis-independent",
+	}))
+
+	profile, err := (&AppConfig{}).Profile(env.ctx, false)
+	require.NoError(t, err, "a cache read failure must fall back to authoritative database state")
+	require.Equal(t, "Redis-independent", profile["base"]["websiteName"])
+	require.Equal(t, "realDark", profile[ThemeConfigGroup]["navTheme"])
+	require.Equal(t, "1", requireThemeProfileMeta(t, profile[ThemeConfigGroup]["_meta"])["revision"])
+
+	var rows []models.ConfigRevision
+	require.NoError(t, env.db.Order("resource").Find(&rows).Error)
+	require.Len(t, rows, 2)
+	revisions := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		revisions[row.Resource] = row.Revision
+	}
+	require.Equal(t, int64(1), revisions[configRevisionResourceTheme])
+	require.Equal(t, int64(2), revisions[configRevisionResourcePublicProfile])
 }

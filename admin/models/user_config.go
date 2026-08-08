@@ -78,9 +78,9 @@ func getUserConfig(ctx *gin.Context, userID, key string) (*UserConfig, error) {
 		key = strings.Join(keys[1:], ".")
 	}
 	err := center.GetDB(ctx, c).
-		Where("group = ?", group).
 		Where("user_id = ?", userID).
 		Where("name = ?", key).
+		Where(clause.Eq{Column: clause.Column{Name: "group"}, Value: group}).
 		First(c).Error
 	if err != nil {
 		return nil, err

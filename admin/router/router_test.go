@@ -3,6 +3,7 @@ package router
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -62,7 +63,8 @@ func TestInitRouterUsesExactCredentialedCORSOrigins(t *testing.T) {
 			"https://admin.mss-boot-io.top/",
 			"https://admin.mss-boot-io.top",
 		},
-		AllowHeaders: []string{"Authorization", "Content-Type"},
+		AllowHeaders:  []string{"Authorization", "Content-Type", "If-Match"},
+		ExposeHeaders: []string{"ETag"},
 	}
 
 	gin.SetMode(gin.TestMode)
@@ -74,7 +76,7 @@ func TestInitRouterUsesExactCredentialedCORSOrigins(t *testing.T) {
 		req := httptest.NewRequest(http.MethodOptions, "/admin/api/user/oauth2/authorize", nil)
 		req.Header.Set("Origin", origin)
 		req.Header.Set("Access-Control-Request-Method", http.MethodPost)
-		req.Header.Set("Access-Control-Request-Headers", "authorization,content-type")
+		req.Header.Set("Access-Control-Request-Headers", "authorization,content-type,if-match")
 		engine.ServeHTTP(recorder, req)
 		return recorder
 	}
@@ -88,6 +90,9 @@ func TestInitRouterUsesExactCredentialedCORSOrigins(t *testing.T) {
 	}
 	if got := trusted.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
 		t.Fatalf("trusted allow credentials = %q", got)
+	}
+	if got := strings.ToLower(trusted.Header().Get("Access-Control-Allow-Headers")); !strings.Contains(got, "if-match") {
+		t.Fatalf("trusted allow headers = %q, want If-Match", got)
 	}
 	untrusted := request("https://attacker.example")
 	if got := untrusted.Header().Get("Access-Control-Allow-Origin"); got != "" {

@@ -1,8 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import * as React from 'react';
 import Login, { activateOAuthLoginSession, hasAutoLoginSession, persistLoginState } from './index';
 import { resolveSafeRedirect } from './redirect';
 import { clearTransientAuthToken, getAuthToken, setTransientAuthToken } from '@/utils/authStorage';
+
+let mockInitialState: any;
+const mockSetInitialState = jest.fn((updater) => {
+  mockInitialState = typeof updater === 'function' ? updater(mockInitialState) : updater;
+});
 
 jest.mock('@umijs/max', () => {
   const ReactRuntime = require('react');
@@ -26,13 +31,7 @@ jest.mock('@umijs/max', () => {
       formatMessage: ({ defaultMessage, id }: { defaultMessage?: string; id: string }) =>
         messages[id] || defaultMessage || id,
     }),
-    useModel: () => ({
-      initialState: {
-        appConfig: { base: {}, security: {} },
-        fetchUserInfo: jest.fn(),
-      },
-      setInitialState: jest.fn(),
-    }),
+    useModel: () => ({ initialState: mockInitialState, setInitialState: mockSetInitialState }),
   };
 });
 
@@ -123,6 +122,10 @@ jest.mock('@/services/admin/user', () => ({
 
 describe('Login Page', () => {
   beforeEach(() => {
+    mockInitialState = {
+      appConfig: { base: {}, security: {} },
+      fetchUserInfo: jest.fn(),
+    };
     clearTransientAuthToken();
     localStorage.clear();
     jest.clearAllMocks();
@@ -158,10 +161,28 @@ describe('Login Page', () => {
     expect(getAuthToken({ getItem: jest.fn(() => null) })).toBeNull();
   });
 
+  it('clears a previous user and restores the application theme when login mounts', async () => {
+    mockInitialState = {
+      currentUser: { id: 9 },
+      appConfig: { base: {}, security: {}, theme: { navTheme: 'light', fixedHeader: 'false' } },
+      userConfig: { theme: { navTheme: 'realDark', fixedHeader: 'true' } },
+      settings: { navTheme: 'realDark', fixedHeader: true },
+      fetchUserInfo: jest.fn(),
+    };
+
+    render(<Login />);
+
+    await waitFor(() => expect(mockInitialState.currentUser).toBeUndefined());
+    expect(mockInitialState.userConfig).toBeUndefined();
+    expect(mockInitialState.settings).toEqual(
+      expect.objectContaining({ navTheme: 'light', fixedHeader: false }),
+    );
+  });
+
   it('should persist login state and resolve redirect', () => {
     setTransientAuthToken('stale-oauth-token');
 
-    const redirect = persistLoginState(
+    const session = persistLoginState(
       {
         code: 200,
         token: 'test-token',
@@ -175,18 +196,20 @@ describe('Login Page', () => {
     expect(localStorage.setItem).toHaveBeenCalledWith('token.expire', '3600');
     expect(localStorage.setItem).toHaveBeenCalledWith('autoLogin', 'true');
     expect(getAuthToken({ getItem: jest.fn(() => 'test-token') })).toBe('test-token');
-    expect(redirect).toBe('/workplace');
+    expect(session?.redirect).toBe('/workplace');
+    expect(session?.authSessionId).toBeTruthy();
   });
 
   it('keeps an OAuth login token in document memory only', () => {
-    const redirect = activateOAuthLoginSession(
+    const session = activateOAuthLoginSession(
       'oauth-admin-token',
       'https://admin-beta.mss-boot-io.top/user/login?redirect=/workplace',
     );
 
     expect(getAuthToken()).toBe('oauth-admin-token');
     expect(localStorage.setItem).not.toHaveBeenCalled();
-    expect(redirect).toBe('/workplace');
+    expect(session.redirect).toBe('/workplace');
+    expect(session.authSessionId).toBeTruthy();
   });
 
   it('refreshes only when auto login is explicitly enabled', () => {

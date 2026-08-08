@@ -24,13 +24,23 @@ export async function putUserConfigsGroup(
   options?: { [key: string]: any },
 ) {
   const { group: param0, ...queryParams } = params;
-  return request<any>(`/admin/api/user-configs/${param0}`, {
+  const { headers: optionHeaders, ...requestOptions } = options || {};
+  return request<Record<string, any>>(`/admin/api/user-configs/${param0}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
+      ...(optionHeaders || {}),
     },
     params: { ...queryParams },
     data: body,
+    ...requestOptions,
+  });
+}
+
+/** Reset current user theme overrides DELETE /admin/api/user-configs/theme */
+export async function deleteUserConfigsTheme(options?: { [key: string]: any }) {
+  return request<Record<string, any>>('/admin/api/user-configs/theme', {
+    method: 'DELETE',
     ...(options || {}),
   });
 }

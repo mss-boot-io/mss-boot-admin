@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const useBundledChromium = process.env.PLAYWRIGHT_BROWSER_CHANNEL === 'chromium';
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -17,7 +19,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        channel: 'chrome',
+        ...(useBundledChromium ? {} : { channel: 'chrome' }),
       },
     },
   ],

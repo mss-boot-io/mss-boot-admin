@@ -1,0 +1,374 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-theme-settings-precedence
+  displayName: Layered application and personal theme settings
+  description: >-
+    Defines deterministic field-level theme precedence, sparse application and user overrides,
+    atomic update and reset semantics, scoped authorization, runtime synchronization, and
+    executable acceptance evidence for the shared Admin theme editor.
+  owner: admin-platform
+  labels:
+    domain: configuration
+    scope: theme
+    phase: p3-implementation
+spec:
+  problem: >-
+    The baseline Admin implementation merged code, application, and user theme values without
+    one typed concurrency contract, and the shared editor was bound to the wrong persistence
+    scope. P1 and P2 corrected field-level precedence, scope ownership, reset, permissions, and
+    identity transitions. P3 must now make committed state authoritative across concurrent
+    writers, caches, tabs, warm startup, and rolling upgrades without breaking older clients.
+  goals:
+    - Resolve every supported theme field through immutable code defaults, sparse application overrides, and sparse current-user overrides in that order.
+    - Preserve false as an explicit value, treat an omitted field as no mutation, and treat null as deletion of that scope's override.
+    - Reuse one shared theme editor with explicit application and user scopes backed by the corresponding existing group APIs.
+    - Make multi-field set and unset operations atomic and support both per-field and whole-scope reset.
+    - Enforce application config permissions and current-user ownership on the backend, with auditable successful and failed mutations.
+    - Keep existing theme rows upgrade-compatible while normalizing supported legacy string values and safely ignoring invalid overrides.
+    - Complete runtime, multi-tab, first-paint, mobile, locale, and accessibility acceptance evidence before declaring the capability production-ready.
+  nonGoals:
+    - Introduce a new theme API namespace or replace the existing application and user configuration tables.
+    - Add tenant-specific theme layers, role-specific theme layers, or arbitrary additional precedence levels.
+    - Treat PWA or service-worker lifecycle as a runtime theme preference.
+    - Reintroduce runtime developer tools, dynamic models, virtual CRUD, or browser-facing code generation.
+    - Redesign the complete application configuration subsystem outside the theme group.
+  actors:
+    - id: account-user
+      displayName: Authenticated account user
+      description: Manages only the sparse personal theme overrides owned by the current identity.
+    - id: application-admin
+      displayName: Application configuration administrator
+      description: Reads and changes the shared application theme under explicit configuration permissions.
+    - id: deployment-operator
+      displayName: Deployment operator
+      description: Verifies compatibility, rollout, observability, and rollback across supported databases and production builds.
+  modules:
+    - name: theme-contract
+      operation: create
+      description: Typed fields, normalization, precedence, provenance, mutation, and reset semantics.
+    - name: theme-editor
+      operation: extend
+      description: One reusable application or user scoped editor with loading, error, permission, inherited-value, and reset states.
+    - name: theme-persistence
+      operation: extend
+      description: Existing app-config and user-config theme group APIs, validation, transactions, permissions, audit, and cache invalidation.
+    - name: theme-runtime
+      operation: extend
+      description: Immutable defaults, effective-theme resolution, identity transitions, immediate application, first paint, and cross-tab synchronization.
+  requirements:
+    - id: resolve-theme-precedence
+      title: Resolve one deterministic effective theme
+      description: Each supported field resolves independently from a complete immutable code default and two sparse override maps.
+      priority: must
+      actor: account-user
+      module: theme-contract
+      rules:
+        - Effective theme equals immutable code defaults overlaid by valid application overrides and then valid current-user overrides.
+        - A field source is user when a valid user override exists, application when only a valid application override exists, and code otherwise.
+        - Resolution tests field presence and validity rather than JavaScript truthiness; false is always a valid explicit boolean value.
+        - Unknown fields, empty strings, malformed colors, and unsupported enum values are ignored with diagnostics and fall back to the next valid layer.
+        - Code defaults remain immutable and must never be changed in place during bootstrap, login, logout, preview, save, or reset.
+    - id: define-theme-fields
+      title: Use one typed runtime theme field set
+      description: The layered runtime contract covers only settings that can be applied consistently by the current Admin layout.
+      priority: must
+      actor: application-admin
+      module: theme-contract
+      rules:
+        - navTheme accepts light or realDark and defaults to realDark.
+        - "colorPrimary accepts a normalized six-digit hexadecimal color and defaults to #1890ff."
+        - layout accepts side, top, or mix and defaults to mix.
+        - contentWidth accepts Fluid or Fixed and defaults to Fluid.
+        - fixedHeader, fixSiderbar, and colorWeak are booleans with defaults false, true, and false respectively.
+        - The legacy fixSiderbar spelling remains the persistence and layout compatibility key during this delivery.
+        - pwa and splitMenus are outside the canonical runtime theme contract and cannot be written through either new scoped theme editor.
+        - During the rolling-compatibility window only, an application request that does not negotiate the canonical media type may retain the preceding frontend's legacy pwa read/write behavior; user scope never accepts pwa.
+    - id: preserve-tristate-mutations
+      title: Preserve sparse tri-state update semantics
+      description: Theme writes distinguish a missing field, an explicit value, and deletion of an existing override.
+      priority: must
+      actor: account-user
+      module: theme-persistence
+      rules:
+        - The API routes in this contract are relative to the existing /admin/api group.
+        - PUT /app-configs/theme and PUT /user-configs/theme are sparse patches over the existing group resources.
+        - An omitted field makes no database change, null deletes that field's override, and false persists as false rather than inherit.
+        - A canonical client sends Accept application/vnd.mss.theme.v1+json with a positive quality value on GET, PUT, and DELETE; q=0 does not select that representation, and a selected canonical response uses the same vendor Content-Type while returning normalized sparse overrides for its own scope rather than a flattened effective theme.
+        - Canonical resources return exactly the seven sparse fields at the top level plus _meta containing schema version, scope, and a decimal-string revision.
+        - A request without the canonical Accept media type receives the temporary legacy projection without _meta; application legacy responses retain pwa so the preceding frontend remains operable, while user responses never expose or accept pwa.
+        - Canonical GET, PUT, and DELETE responses expose the matching strong ETag "theme-{scope}-{revision}", send Vary Accept, and all authoritative profile/theme GET responses use Cache-Control no-store.
+        - DELETE /app-configs/theme and DELETE /user-configs/theme remove every override in that scope and return the canonical empty sparse resource with its new revision.
+        - Empty strings are invalid input and never act as deletion.
+    - id: reuse-scoped-editor
+      title: Reuse one editor with explicit scope
+      description: Application Settings and Personal Settings render the same theme editor while injecting different data and authorization adapters.
+      priority: must
+      actor: account-user
+      module: theme-editor
+      rules:
+        - The shared editor accepts scope=application or scope=user and never infers scope from the current route.
+        - Application scope reads and mutates only app-config theme overrides; user scope reads and mutates only current-user theme overrides.
+        - Inherited effective values are displayed separately from explicit sparse overrides and are not materialized as overrides on save.
+        - Every field exposes its effective value and source and supports an explicit restore-inheritance action.
+        - The whole form supports reset of the current scope with confirmation and clear post-reset provenance.
+        - The drawer, desktop settings page, and mobile settings page cannot introduce an undocumented fourth precedence layer.
+    - id: authorize-theme-scopes
+      title: Enforce scope authorization on the backend
+      description: Application theme access follows configuration RBAC while personal theme access is authenticated current-user self-service.
+      priority: must
+      actor: application-admin
+      module: theme-persistence
+      permission: config:write
+      rules:
+        - GET /app-configs/theme requires config:read and PUT or DELETE /app-configs/theme requires config:write.
+        - GET, PUT, and DELETE /user-configs/theme require authentication and derive the owner from the verified current identity.
+        - Personal theme requests cannot select or mutate another user through a body, query, path, cached identity, or client-provided user ID.
+        - The public bootstrap continues to read only allowlisted fields from /app-configs/profile and never exposes private application configuration; pwa remains a temporary public legacy extension that the canonical seven-field resolver ignores.
+        - Frontend visibility and permission-denied states supplement but never replace backend authorization.
+    - id: commit-theme-atomically
+      title: Save a theme mutation atomically
+      description: One request may set and delete multiple overrides, and its database result is all-or-nothing.
+      priority: must
+      actor: deployment-operator
+      module: theme-persistence
+      rules:
+        - Validation completes before writes begin and rejects the complete request when any supplied field is invalid.
+        - Every set and delete in one request executes in one explicit database transaction with deterministic target keys.
+        - A failed transaction leaves all persisted overrides unchanged and does not emit a successful change event.
+        - Application and current-user theme resources use independent database-backed monotonic revisions stored outside the seven theme value rows.
+        - Revisions are stored in the additive mss_boot_config_revisions table with the composite primary key (scope, owner_id, resource); application uses an empty owner_id and user scope uses the authenticated user ID.
+        - A new client sends the strong ETag from the resource in If-Match; a stale precondition returns 412 with the current canonical resource and performs no write, while a missing precondition remains temporarily accepted for rolling compatibility.
+        - A successful application mutation advances both its theme revision and the public-profile cache revision in the same database transaction before stale data can be accepted.
+        - Public-profile cache keys are derived from the database revision, have a bounded TTL, and are treated as disposable; a Redis read, write, or cleanup failure cannot turn a committed database mutation into an HTTP failure.
+        - PUT and DELETE return the canonical normalized sparse scope and revision used by the runtime resolver rather than a client-predicted result.
+        - Application and personal saves and resets create redacted audit evidence with actor, scope, changed keys, outcome, and revision.
+    - id: synchronize-theme-runtime
+      title: Apply the resolved theme across runtime transitions
+      description: Bootstrap, save, reset, login, logout, account switching, and cross-tab updates all recompute from the same resolver.
+      priority: must
+      actor: account-user
+      module: theme-runtime
+      rules:
+        - Anonymous and login routes apply the allowlisted application theme over code defaults without requesting user configuration.
+        - Authentication loads the verified user's sparse overrides and applies the resulting effective theme without requiring a full reload.
+        - Logout removes the user layer from memory and browser caches before returning to the application theme.
+        - Save and reset update the current tab immediately from the canonical response; same-origin tabs reject older revisions and converge through BroadcastChannel with a storage-event fallback.
+        - Cross-tab events are schema-versioned, time-bounded, deduplicated, scoped, and bind personal updates to a random authentication-session identifier rather than trusting a client-selected user ID.
+        - A dirty editor preserves touched draft fields when a newer canonical resource arrives, exposes a conflict state, and never silently overwrites or retries a stale draft.
+        - Read failure at one layer falls back to lower valid layers without persisting that fallback as an override.
+        - A versioned, non-sensitive last-known theme snapshot may support first paint, but it contains only supported theme values, expires within 24 hours, is identity-bound for personal scope, and is reconciled with authoritative revisions.
+    - id: preserve-theme-compatibility
+      title: Preserve existing theme data during upgrade
+      description: Existing supported rows remain usable without a destructive schema rewrite, while invalid historical values fail safely.
+      priority: must
+      actor: deployment-operator
+      module: theme-persistence
+      rules:
+        - Existing app-config and user-config theme rows remain the storage source; the first implementation requires no table replacement.
+        - The revision-table migration is forward-only, additive, idempotent, and preserves the existing application and user configuration schemas and rows.
+        - Legacy string true and false values normalize to booleans before resolution and form display.
+        - Existing valid enum and color values retain behavior and unknown rows are preserved but excluded from the runtime theme contract.
+        - Configuration identifiers that collide with reserved theme or public keys under case-, accent-, Unicode-normalization-, or trailing-space-insensitive database collations are rejected or canonicalized without changing unrelated custom identifiers.
+        - Reset implementation accounts for soft-delete and unique-index behavior so a deleted override can be set again.
+        - The canonical Accept media type is CORS-safelisted and ignored by the preceding backend, so a newly loaded frontend can still read a legacy response without requiring a new preflight allow-header entry.
+        - Fresh and upgraded SQLite, MySQL, and PostgreSQL databases produce the same normalized sparse and effective themes.
+    - id: verify-theme-experience
+      title: Verify desktop, mobile, and accessible themes
+      description: The scoped editor and effective theme remain understandable and readable in supported layouts and production builds.
+      priority: must
+      actor: deployment-operator
+      module: theme-editor
+      rules:
+        - Chinese and English labels cover scope, source, inherit, reset, validation, conflict, degraded fallback, and success states.
+        - Desktop and mobile editors expose equivalent fields and actions without horizontal overflow.
+        - Light and realDark themes keep navigation, forms, feedback, focus indicators, and monitoring charts readable.
+        - Production and local builds resolve and apply the same theme values.
+        - Automated tests assert behavior and contrast; logging a warning without failing is not acceptance evidence.
+  constraints:
+    - id: existing-api-boundary
+      type: compatibility
+      statement: Reuse the existing app-configs and user-configs theme group routes and generated clients; do not introduce a parallel theme persistence service.
+    - id: sparse-storage
+      type: data
+      statement: Application and user tables store only explicit overrides, and inherited effective values are never copied into a higher-precedence scope implicitly.
+    - id: self-service-isolation
+      type: security
+      statement: A user-theme mutation is owner scoped from the verified server identity and application-theme mutation permissions are enforced before data access.
+    - id: transaction-boundary
+      type: data
+      statement: Multi-field set and delete operations are one logical transaction and cannot expose a partially updated theme.
+    - id: public-profile-boundary
+      type: privacy
+      statement: Anonymous bootstrap receives only the exact allowlisted public application theme projection and no personal or private application configuration.
+    - id: immutable-code-layer
+      type: compatibility
+      statement: The imported code-default object is treated as immutable so one request, preview, user, or logout cannot contaminate a later resolution.
+    - id: bounded-first-paint-cache
+      type: performance
+      statement: Any browser theme snapshot is versioned, contains only the seven theme values and revision metadata, expires within 24 hours, binds personal data to a random authentication session, and cannot override a newer authoritative revision.
+    - id: responsive-accessible-ui
+      type: ux
+      statement: The same scoped editor provides loading, error, permission, inherited, dirty, saving, reset, and success states on desktop and mobile with keyboard-visible focus.
+  acceptance:
+    - id: precedence-unit-matrix
+      requirement: resolve-theme-precedence
+      statement: Unit tests cover no overrides, partial application overrides, partial user overrides, per-field provenance, and application changes beneath retained user overrides.
+      level: unit
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/src/utils/themeSettings.test.ts
+    - id: field-contract-tests
+      requirement: define-theme-fields
+      statement: Contract tests prove every supported field, default, enum, boolean, color normalization rule, and excluded runtime field.
+      level: contract
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/src/utils/themeSettings.test.ts
+        - type: test
+          value: admin/service/theme_test.go
+    - id: tristate-contract-tests
+      requirement: preserve-tristate-mutations
+      statement: API tests prove omission makes no change, null removes one override, false remains explicit, empty string is rejected, negotiated GET returns a canonical sparse resource, legacy application requests retain pwa, user requests reject pwa, and DELETE clears one complete scope.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/apis/theme_config_test.go
+    - id: scoped-editor-tests
+      requirement: reuse-scoped-editor
+      statement: One component test suite proves application scope calls only app-config APIs and user scope calls only current-user APIs on desktop, mobile, and drawer variants.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/src/components/MssBoot/theme.test.tsx
+    - id: authorization-negative-tests
+      requirement: authorize-theme-scopes
+      statement: Positive and negative tests prove config read and write separation, authenticated-self personal access, anonymous denial, and inability to target another user's rows.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/middleware/auth_authorization_test.go
+        - type: test
+          value: admin/router/security_contract_test.go
+        - type: test
+          value: admin/apis/theme_config_test.go
+        - type: test
+          value: admin/cmd/migrate/migration/system/20260807130000_app_config_theme_permissions_test.go
+    - id: atomic-write-tests
+      requirement: commit-theme-atomically
+      statement: Injected validation, database, cache, and concurrent-write failures prove no partial persisted scope, no false success event, canonical revision responses, and auditable outcomes.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/service/theme_test.go
+        - type: test
+          value: admin/service/app_config_test.go
+        - type: test
+          value: admin/middleware/audit_test.go
+    - id: runtime-transition-tests
+      requirement: synchronize-theme-runtime
+      statement: Tests cover anonymous bootstrap, password and OAuth login, logout, A-to-B account switching, immediate save and reset, read failures, and stale revision rejection without a full reload.
+      level: e2e
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/e2e/theme-settings.spec.ts
+        - type: test
+          value: web/antd/src/utils/themeSettings.test.ts
+        - type: test
+          value: web/antd/src/utils/themeSync.test.ts
+        - type: test
+          value: web/antd/src/utils/themeSession.test.ts
+        - type: test
+          value: web/antd/src/pages/User/Login/login.test.tsx
+        - type: test
+          value: web/antd/src/components/RightContent/AvatarDropdown.test.tsx
+    - id: upgrade-compatibility-tests
+      requirement: preserve-theme-compatibility
+      statement: Fresh and upgrade fixtures normalize legacy string booleans, retain valid overrides and unknown rows, ignore invalid values, and support reset followed by set on every supported database.
+      level: migration
+      required: true
+      evidence:
+        - type: test
+          value: admin/cmd/migrate/migration/system/theme_settings_integration_test.go
+        - type: test
+          value: admin/cmd/migrate/migration/system/20260807150000_config_revisions_test.go
+    - id: browser-experience-matrix
+      requirement: verify-theme-experience
+      statement: Browser tests assert both scopes, per-field and whole reset, localized source labels, mobile layout, keyboard focus, contrast, production-build behavior, and warm-load first-paint stability.
+      level: e2e
+      required: true
+      evidence:
+        - type: test
+          value: web/antd/e2e/theme-settings.spec.ts
+        - type: manual
+          value: Verify application and personal theme settings in light and realDark modes at desktop and mobile widths.
+    - id: changed-verification
+      statement: Change-aware repository verification and the documentation build complete without failed required checks.
+      level: integration
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss verify --changed
+        - type: command
+          value: corepack pnpm@9.15.9 --dir docs build
+  risks:
+    - id: global-change-from-personal-ui
+      description: A shared component without an explicit scope can send a personal edit to the application endpoint and change every user's theme.
+      severity: critical
+      mitigation: Require a scope prop, inject a scope-specific adapter, assert called endpoints, and verify root personal edits affect only root's user rows.
+    - id: false-loses-precedence
+      description: Truthiness-based merging or raw string booleans can make false inherit incorrectly or behave as true.
+      severity: high
+      mitigation: Normalize typed values, resolve by valid key presence, and include app false over code true plus user false over app true in unit tests.
+    - id: partial-theme-write
+      description: Iterative map writes can persist only a random subset of a multi-field save when a later operation fails.
+      severity: high
+      mitigation: Validate first, use one transaction for sorted set and delete operations, and inject failures before release.
+    - id: stale-theme-cache
+      description: A stale server or browser cache can override a committed application theme or reapply a prior user's personal theme.
+      severity: high
+      mitigation: Use monotonic revisions, invalidate application profile cache, clear identity-bound browser state on logout, and reject older cross-tab events.
+    - id: reset-cannot-recreate
+      description: Soft deleting a uniquely indexed override without restoring deleted_at can prevent that field from being set again.
+      severity: high
+      mitigation: Test reset followed by set on every database and implement exact hard deletion or conflict restoration with explicit audit evidence.
+    - id: unreadable-custom-theme
+      description: A custom primary color or incomplete dark styling can reduce text, focus, or chart contrast.
+      severity: medium
+      mitigation: Validate colors, use Ant Design tokens, add automated contrast checks, and run desktop plus mobile light and dark browser acceptance.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/admin-theme-settings-precedence.yaml --format json
+      - cd admin && GOWORK=off go test ./service ./apis ./middleware ./router ./cmd/migrate/migration/system
+      - corepack pnpm@9.15.9 --dir web/antd lint:js
+      - corepack pnpm@9.15.9 --dir web/antd tsc
+      - corepack pnpm@9.15.9 --dir web/antd test -- --runInBand
+      - corepack pnpm@9.15.9 --dir web/antd build:prod
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      Back up the database and inventory only theme rows, then apply the additive idempotent ConfigRevision migration.
+      Deploy revision-aware backend instances and drain old backend writers before relying on revision ordering because
+      old instances do not advance the new resource revisions. Deploy the revision-aware frontend next; it requests
+      Accept application/vnd.mss.theme.v1+json, while the backend temporarily accepts a missing If-Match and preserves
+      the preceding application's legacy pwa projection when that media type is absent. The new frontend rereads
+      canonical state after legacy empty responses. Remove the legacy projection and missing-precondition allowance
+      only in a separately reviewed compatibility release after preceding frontend assets have been drained.
+      Monitor migration failures, 412 responses, missing preconditions, Redis warnings, and audit outcomes. Keep the
+      capability planned until SQLite, external MySQL/PostgreSQL, and the complete browser acceptance matrix pass.
+    rollback: >-
+      Stop theme writes, deploy the preceding frontend and backend together, and leave compatible theme rows plus the
+      unused additive revision table in place until a separately reviewed cleanup release. Rows removed through an
+      intentional null or whole-scope reset remain inherited; restore only explicitly requested overrides from the
+      pre-rollout backup or redacted audit record. Delete revision-keyed public-profile cache entries and clear browser
+      snapshots, synchronization events, and authentication-session keys when reverting synchronization behavior.

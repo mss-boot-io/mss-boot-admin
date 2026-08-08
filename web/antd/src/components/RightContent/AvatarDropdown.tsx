@@ -11,6 +11,8 @@ import HeaderDropdown from '../HeaderDropdown';
 import { getUserDisplayName } from './userDisplayName';
 import { purgeLegacyOAuthStorage } from '@/utils/oauth';
 import { clearAuthStorage } from '@/utils/authStorage';
+import { clearUserThemeProfile } from '@/utils/themeSettings';
+import { clearThemeIdentitySession } from '@/utils/themeSession';
 
 export type GlobalHeaderRightProps = {
   menu?: boolean;
@@ -75,8 +77,15 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({ menu, childre
     (event: MenuInfo) => {
       const { key } = event;
       if (key === 'logout') {
+        clearThemeIdentitySession();
         flushSync(() => {
-          setInitialState((s) => ({ ...s, currentUser: undefined }));
+          setInitialState(
+            (state) =>
+              ({
+                ...clearUserThemeProfile(state || {}),
+                currentUser: undefined,
+              } as typeof state),
+          );
         });
         loginOut();
         return;

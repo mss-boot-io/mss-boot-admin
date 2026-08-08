@@ -5,6 +5,7 @@ import { message, notification } from 'antd';
 import { prepareAPIRequest } from './util/apiRequest';
 import { getResponseErrorMessage } from './util/requestError';
 import { clearAuthStorage } from './utils/authStorage';
+import { clearThemeIdentitySession } from './utils/themeSession';
 
 // 错误处理方案： 错误类型
 enum ErrorShowType {
@@ -44,6 +45,15 @@ export const errorConfig: RequestConfig = {
     },
     // 错误接收及处理
     errorHandler: (error: any, opts: any) => {
+      // `skipErrorHandler` suppresses presentation only. Authentication state
+      // must still fail closed for silent/background requests (for example,
+      // theme refreshes) or a stale personal theme can survive an expired
+      // session until the next full navigation.
+      if (error.response?.status === 401) {
+        clearThemeIdentitySession();
+        clearAuthStorage();
+        history.push('/user/login');
+      }
       if (opts?.skipErrorHandler) throw error;
       // 我们的 errorThrower 抛出的错误。
       if (error.name === 'BizError') {
@@ -78,10 +88,6 @@ export const errorConfig: RequestConfig = {
         // Axios 的错误
         // 请求成功发出且服务器也响应了状态码，但状态代码超出了 2xx 的范围
         message.error(errorMessage);
-        if (error.response.status === 401) {
-          clearAuthStorage();
-          history.push('/user/login');
-        }
       } else if (error.request) {
         // 请求已经成功发起，但没有收到响应
         // \`error.request\` 在浏览器中是 XMLHttpRequest 的实例，

@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
+	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
@@ -14,7 +17,30 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
+	"golang.org/x/text/unicode/norm"
 )
+
+const themeAuditMetadataContextKey = "mss.theme.audit.metadata"
+
+const (
+	applicationThemeMutationPath = "/admin/api/app-configs/theme"
+	userThemeMutationPath        = "/admin/api/user-configs/theme"
+)
+
+// ThemeAuditMetadata is deliberately value-free. It records enough structure
+// to investigate a theme mutation without duplicating configuration values in
+// the audit log.
+type ThemeAuditMetadata struct {
+	Scope       string   `json:"scope"`
+	ChangedKeys []string `json:"changedKeys"`
+	Outcome     string   `json:"outcome"`
+	Revision    string   `json:"revision,omitempty"`
+}
+
+func SetThemeAuditMetadata(ctx *gin.Context, metadata ThemeAuditMetadata) {
+	metadata.ChangedKeys = append([]string(nil), metadata.ChangedKeys...)
+	ctx.Set(themeAuditMetadataContextKey, metadata)
+}
 
 func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 	skipMap := make(map[string]bool)
@@ -42,7 +68,7 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 
 		path := c.Request.URL.Path
 		for skipPath := range skipMap {
-			if strings.HasPrefix(path, skipPath) {
+			if matchesAuditSkipPath(path, skipPath) {
 				return
 			}
 		}
@@ -53,11 +79,6 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 
 		duration := time.Since(start).Milliseconds()
 		status := c.Writer.Status()
-
-		verify := GetVerify(c)
-		if verify == nil {
-			return
-		}
 
 		var logType string
 		switch c.Request.Method {
@@ -82,11 +103,38 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 			resource = strings.Join(parts[:4], "/")
 		}
 
+		metadata, hasThemeMetadata := themeAuditMetadataFromContext(c)
+		if !hasThemeMetadata {
+			metadata, hasThemeMetadata = fallbackThemeAuditMetadata(
+				c.Request.Method,
+				path,
+				status,
+				requestBody,
+			)
+		}
+
+		message := ""
+		if hasThemeMetadata {
+			if encoded, err := json.Marshal(metadata); err == nil {
+				message = string(encoded)
+				// Theme values must never be persisted, including when an auth
+				// middleware rejects the request before the controller runs.
+				requestBody = ""
+			}
+		}
+
+		verify := GetVerify(c)
+		if verify == nil {
+			return
+		}
+		userID := verify.GetUserID()
+		username := verify.GetUsername()
+
 		db := center.Default.GetDB(c, nil)
 		err := service.Audit.Log(db, &models.AuditLog{
 			Type:      models.AuditLogType(logType),
-			UserID:    verify.GetUserID(),
-			Username:  verify.GetUsername(),
+			UserID:    userID,
+			Username:  username,
 			Action:    action,
 			Resource:  resource,
 			Method:    c.Request.Method,
@@ -94,7 +142,7 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 			IP:        c.ClientIP(),
 			UserAgent: c.GetHeader("User-Agent"),
 			Status:    auditStatus,
-			Message:   "",
+			Message:   message,
 			Request:   requestBody,
 			Duration:  duration,
 			CreatedAt: time.Now(),
@@ -103,6 +151,131 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 			response.Make(c).AddError(err).Log.Error("write audit log failed")
 		}
 	}
+}
+
+func themeAuditMetadataFromContext(ctx *gin.Context) (ThemeAuditMetadata, bool) {
+	value, ok := ctx.Get(themeAuditMetadataContextKey)
+	if !ok {
+		return ThemeAuditMetadata{}, false
+	}
+	metadata, ok := value.(ThemeAuditMetadata)
+	return metadata, ok
+}
+
+func fallbackThemeAuditMetadata(
+	method string,
+	path string,
+	status int,
+	requestBody string,
+) (ThemeAuditMetadata, bool) {
+	if method != http.MethodPut && method != http.MethodDelete {
+		return ThemeAuditMetadata{}, false
+	}
+
+	scope, isThemeMutation := themeAuditScopeFromPath(path)
+	if !isThemeMutation {
+		return ThemeAuditMetadata{}, false
+	}
+
+	changedKeys := make([]string, 0)
+	if method == http.MethodDelete {
+		changedKeys = service.ThemeFieldNames()
+	} else if requestBody != "" {
+		var payload struct {
+			Data map[string]json.RawMessage `json:"data"`
+		}
+		if json.Unmarshal([]byte(requestBody), &payload) == nil {
+			for key := range payload.Data {
+				changedKeys = append(changedKeys, key)
+			}
+		}
+	}
+	sort.Strings(changedKeys)
+
+	return ThemeAuditMetadata{
+		Scope:       scope,
+		ChangedKeys: changedKeys,
+		Outcome:     themeAuditOutcome(status),
+	}, true
+}
+
+func themeAuditScopeFromPath(path string) (string, bool) {
+	// URL.Path is normally already decoded, but this helper also accepts an
+	// escaped path so auth failures are value-free regardless of where the
+	// fallback is invoked from.
+	if strings.Contains(path, "%") {
+		decoded, err := url.PathUnescape(path)
+		if err != nil {
+			return "", false
+		}
+		path = decoded
+	}
+
+	for _, candidate := range []struct {
+		prefix string
+		scope  string
+	}{
+		{prefix: strings.TrimSuffix(applicationThemeMutationPath, service.ThemeConfigGroup), scope: service.ThemeScopeApplication},
+		{prefix: strings.TrimSuffix(userThemeMutationPath, service.ThemeConfigGroup), scope: service.ThemeScopeUser},
+	} {
+		if !strings.HasPrefix(path, candidate.prefix) {
+			continue
+		}
+		group := strings.TrimPrefix(path, candidate.prefix)
+		if group == "" || strings.Contains(group, "/") {
+			return "", false
+		}
+		if canonicalThemeAuditIdentifierFold(group) == service.ThemeConfigGroup {
+			return candidate.scope, true
+		}
+		return "", false
+	}
+	return "", false
+}
+
+func canonicalThemeAuditIdentifierFold(value string) string {
+	value = strings.TrimRightFunc(value, unicode.IsSpace)
+	decomposed := norm.NFKD.String(value)
+	builder := strings.Builder{}
+	builder.Grow(len(decomposed))
+	for _, current := range decomposed {
+		if unicode.Is(unicode.Mn, current) {
+			continue
+		}
+		builder.WriteRune(unicode.ToLower(current))
+	}
+	return builder.String()
+}
+
+func themeAuditOutcome(status int) string {
+	switch status {
+	case http.StatusUnauthorized:
+		return "authentication_failed"
+	case http.StatusForbidden:
+		return "authorization_failed"
+	case http.StatusPreconditionFailed:
+		return "conflict"
+	case http.StatusUnprocessableEntity:
+		return "validation_failed"
+	case http.StatusBadRequest:
+		return "bad_request"
+	}
+	if status >= http.StatusOK && status < http.StatusBadRequest {
+		return "success"
+	}
+	if status >= http.StatusInternalServerError {
+		return "server_error"
+	}
+	return "rejected"
+}
+
+func matchesAuditSkipPath(path, skipPath string) bool {
+	if path == skipPath {
+		return true
+	}
+	return len(path) > len(skipPath) &&
+		strings.HasPrefix(path, skipPath) &&
+		path[len(skipPath)] == '/'
 }
 
 const auditRedactedValue = "[REDACTED]"

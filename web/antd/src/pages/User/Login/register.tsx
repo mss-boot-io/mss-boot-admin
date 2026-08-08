@@ -16,22 +16,53 @@ import { flushSync } from 'react-dom';
 import AuthShell from '@/components/AuthShell';
 import { resolveSafeRedirect } from './redirect';
 import { clearTransientAuthToken } from '@/utils/authStorage';
+import {
+  applyAuthenticatedThemeProfiles,
+  isThemeAuthSessionActive,
+  loadAuthenticatedThemeProfiles,
+  rotateThemeAuthSession,
+  writeAuthenticatedThemeSnapshots,
+} from '@/utils/themeSession';
+import type {
+  ThemeRuntimeCoordinatorState,
+  ThemeRuntimeState,
+} from '@/utils/themeSettings';
+import ThemeRuntimeBridge from '@/components/MssBoot/ThemeRuntimeBridge';
 
 const Register: React.FC = () => {
   const intl = useIntl();
   const { initialState, setInitialState } = useModel('@@initialState');
   const formRef = useRef<ProFormInstance>();
 
-  const fetchUserInfo = async () => {
-    const userInfo = await initialState?.fetchUserInfo?.();
-    if (userInfo) {
+  const fetchUserInfo = async (authSessionId: string) => {
+    const [userInfo, profiles] = await Promise.all([
+      initialState?.fetchUserInfo?.(),
+      loadAuthenticatedThemeProfiles(),
+    ]);
+    if (userInfo && isThemeAuthSessionActive(authSessionId)) {
+      let reconciledState: ThemeRuntimeState | undefined;
+      let authoritativePrevious: ThemeRuntimeCoordinatorState['layers'] | undefined;
       flushSync(() => {
-        setInitialState((s) => ({
-          ...s,
-          currentUser: userInfo,
-        }));
+        setInitialState((state) => {
+          authoritativePrevious = state?.themeRuntime?.layers;
+          const next = applyAuthenticatedThemeProfiles(
+            state || {},
+            userInfo,
+            profiles,
+            authSessionId,
+          );
+          reconciledState = next;
+          return next as typeof state;
+        });
       });
+      if (reconciledState) {
+        await writeAuthenticatedThemeSnapshots(reconciledState, authSessionId, {
+          authoritativePrevious,
+        });
+      }
+      return isThemeAuthSessionActive(authSessionId) ? userInfo : undefined;
     }
+    return undefined;
   };
 
   const loginSuccessed = async (data: API.LoginResponse, autoLogin?: boolean, popup?: boolean) => {
@@ -45,28 +76,35 @@ const Register: React.FC = () => {
       }
       //set token to localstorage
       clearTransientAuthToken();
+      const authSessionId = rotateThemeAuthSession({ persistent: true });
       localStorage.setItem('token', data.token);
       localStorage.setItem('token.expire', data.expire?.toString() || '');
       localStorage.setItem('autoLogin', autoLogin?.toString() || 'false');
-      await fetchUserInfo();
+      const userInfo = await fetchUserInfo(authSessionId);
+      if (!userInfo || !isThemeAuthSessionActive(authSessionId)) {
+        return false;
+      }
       const redirect = resolveSafeRedirect();
       if (redirect === '/user/login') {
         history.push('/');
-        return;
+        return true;
       }
       history.push(redirect);
-      return;
+      return true;
     }
+    return false;
   };
 
   return (
     <AuthShell titleDefaultMessage="注册">
+      <ThemeRuntimeBridge />
       <ProCard>
         <StepsForm<API.UserLogin>
           formRef={formRef}
           onFinish={async (values) => {
             const msg = await postUserLogin({ ...values, type: 'email_register' });
-            await loginSuccessed(msg, true, true);
+            const loggedIn = await loginSuccessed(msg, true, true);
+            if (!loggedIn) return false;
             message
               .success(
                 intl.formatMessage({

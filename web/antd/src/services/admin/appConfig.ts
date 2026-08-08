@@ -24,13 +24,23 @@ export async function putAppConfigsGroup(
   options?: { [key: string]: any },
 ) {
   const { group: param0, ...queryParams } = params;
-  return request<any>(`/admin/api/app-configs/${param0}`, {
+  const { headers: optionHeaders, ...requestOptions } = options || {};
+  return request<Record<string, any>>(`/admin/api/app-configs/${param0}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
+      ...(optionHeaders || {}),
     },
     params: { ...queryParams },
     data: body,
+    ...requestOptions,
+  });
+}
+
+/** Reset application theme overrides DELETE /admin/api/app-configs/theme */
+export async function deleteAppConfigsTheme(options?: { [key: string]: any }) {
+  return request<Record<string, any>>('/admin/api/app-configs/theme', {
+    method: 'DELETE',
     ...(options || {}),
   });
 }

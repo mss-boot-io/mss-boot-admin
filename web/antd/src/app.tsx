@@ -1,11 +1,9 @@
 import Footer from '@/components/Footer';
 import { Question, SelectLang } from '@/components/RightContent';
 import { LinkOutlined, UserOutlined } from '@ant-design/icons';
-import type { Settings as LayoutSettings } from '@ant-design/pro-components';
 import { SettingDrawer } from '@ant-design/pro-components';
 import { RunTimeLayoutConfig } from '@umijs/max';
 import { addLocale, FormattedMessage, history, Link } from '@umijs/max';
-import defaultSettings from '../config/defaultSettings';
 import { errorConfig } from './requestErrorConfig';
 import React from 'react';
 import { AvatarDropdown, AvatarName } from './components/RightContent/AvatarDropdown';
@@ -17,10 +15,28 @@ import { MenuDataItem } from '@ant-design/pro-components';
 import { getCachedLanguages } from './services/admin/language';
 import NoticeIconView from './components/NoticeIcon';
 import HeaderSearch from './components/HeaderSearch';
+import ThemeRuntimeBridge from './components/MssBoot/ThemeRuntimeBridge';
 import { getAppConfigsProfile } from '@/services/admin/appConfig';
 import { getUserConfigsProfile } from '@/services/admin/userConfig';
 import { purgeLegacyOAuthStorage } from '@/utils/oauth';
 import { clearAuthStorage, clearNonPersistentAuthStorage, getAuthToken } from '@/utils/authStorage';
+import {
+  applyThemeProfiles,
+  buildLayoutSettings,
+  getThemeScopeResource,
+  markThemeScopeDegraded,
+  normalizeThemeOverrides,
+  type ThemeRuntimeCoordinatorState,
+  type ThemeRuntimeState,
+} from '@/utils/themeSettings';
+import {
+  applyThemeFirstPaintHint,
+  clearThemeIdentitySession,
+  ensureThemeAuthSession,
+  isThemeBootstrapIdentityActive,
+  readThemeBootstrapProfiles,
+  writeThemeSnapshot,
+} from '@/utils/themeSession';
 
 const isDev = process.env.NODE_ENV === 'development';
 const loginPath = '/user/login';
@@ -31,6 +47,16 @@ const excludePath = [
   '/user/callback/github',
   '/user/callback/lark',
 ];
+const AUTH_BOOTSTRAP_MAX_ATTEMPTS = 3;
+
+type AdminInitialState = ThemeRuntimeState & {
+  appConfig?: Record<string, Record<string, any>>;
+  userConfig?: Record<string, Record<string, any>>;
+  themeRuntime?: ThemeRuntimeCoordinatorState;
+  currentUser?: API.User;
+  loading?: boolean;
+  fetchUserInfo?: () => Promise<API.User | undefined>;
+};
 
 const getAuthRedirect = (location: { pathname: string; search: string; hash: string }) => {
   const redirect =
@@ -52,15 +78,28 @@ const withTimeout = async <T,>(request: () => Promise<T>, timeoutMs = 4000) => {
 /**
  * @see  https://umijs.org/zh-CN/plugins/plugin-initial-state
  * */
-export async function getInitialState(): Promise<{
-  settings?: Partial<LayoutSettings>;
-  appConfig?: Record<string, Record<string, string>>;
-  userConfig?: Record<string, Record<string, string>>;
-  currentUser?: API.User;
-  loading?: boolean;
-  fetchUserInfo?: () => Promise<API.User | undefined>;
-}> {
-  purgeLegacyOAuthStorage();
+const createIdentityRaceFallback = (
+  fetchUserInfo: () => Promise<API.User | undefined>,
+): AdminInitialState => {
+  const cachedTheme = readThemeBootstrapProfiles();
+  let state = applyThemeProfiles<AdminInitialState>(
+    { fetchUserInfo },
+    cachedTheme.appConfig,
+    undefined,
+  );
+  state = markThemeScopeDegraded(state, 'application');
+  state = markThemeScopeDegraded(state, 'user');
+  return state;
+};
+
+export async function getInitialState(identityAttempt = 0): Promise<AdminInitialState> {
+  // Apply only the seven-field, versioned browser snapshot before React mounts.
+  // Authoritative profile requests below always reconcile it before persistence.
+  if (identityAttempt === 0) {
+    applyThemeFirstPaintHint();
+    purgeLegacyOAuthStorage();
+  }
+  const cachedTheme = readThemeBootstrapProfiles();
 
   const fetchUserInfo = async () => {
     return withTimeout(() =>
@@ -82,29 +121,80 @@ export async function getInitialState(): Promise<{
     if (!isLoginPage) {
       history.replace(getAuthRedirect(location));
     }
+    // The public application profile is the anonymous theme authority. Resolve
+    // it before the login/register shell renders so dark deployments do not
+    // flash the code default and then repaint after the page mounts.
+    const authoritativeAppConfig = await withTimeout(
+      () => getAppConfigsProfile({ skipErrorHandler: true }),
+      2500,
+    );
+    const appConfig = authoritativeAppConfig || cachedTheme.appConfig;
+    let state = applyThemeProfiles<AdminInitialState>(
+      {
+        fetchUserInfo,
+      },
+      appConfig,
+      undefined,
+    );
+    if (authoritativeAppConfig) {
+      await writeThemeSnapshot(
+        getThemeScopeResource(authoritativeAppConfig, 'application'),
+        undefined,
+        undefined,
+        { authoritativePrevious: cachedTheme.application },
+      );
+    } else {
+      state = markThemeScopeDegraded(state, 'application');
+    }
     return {
+      ...state,
       fetchUserInfo,
-      settings: defaultSettings as Partial<LayoutSettings>,
     };
   }
 
+  const expectedToken = token;
+  const authSessionId = ensureThemeAuthSession({
+    persistent: window.localStorage.getItem('token') === expectedToken,
+  });
+  const authenticatedCachedTheme = readThemeBootstrapProfiles();
+  const identityIsActive = () =>
+    isThemeBootstrapIdentityActive(expectedToken, authSessionId, getAuthToken());
+  const retryAfterIdentityRace = () =>
+    identityAttempt + 1 < AUTH_BOOTSTRAP_MAX_ATTEMPTS
+      ? getInitialState(identityAttempt + 1)
+      : createIdentityRaceFallback(fetchUserInfo);
+
+  if (!identityIsActive()) {
+    return retryAfterIdentityRace();
+  }
   const currentUser = await fetchUserInfo();
+  if (!identityIsActive()) {
+    return retryAfterIdentityRace();
+  }
   if (!currentUser) {
     clearAuthStorage();
+    clearThemeIdentitySession();
     history.replace(getAuthRedirect(location));
     return {
       fetchUserInfo,
-      settings: defaultSettings as Partial<LayoutSettings>,
+      settings: buildLayoutSettings(),
     };
   }
 
   // These resources are independent once authentication succeeds. Loading them
   // serially turns a slow network into a compounded first-page delay.
-  const [languageData, appConfig, userConfig] = await Promise.all([
+  const [languageData, authoritativeAppConfig, authoritativeUserConfig] = await Promise.all([
     withTimeout(() => getCachedLanguages(), 2500),
     withTimeout(() => getAppConfigsProfile({ skipErrorHandler: true }), 2500),
     withTimeout(() => getUserConfigsProfile({ skipErrorHandler: true }), 2500),
   ]);
+
+  if (!identityIsActive()) {
+    return retryAfterIdentityRace();
+  }
+
+  const appConfig = authoritativeAppConfig || authenticatedCachedTheme.appConfig;
+  const userConfig = authoritativeUserConfig || authenticatedCachedTheme.userConfig;
 
   if (languageData?.data) {
     languageData.data.forEach((item) => {
@@ -126,39 +216,55 @@ export async function getInitialState(): Promise<{
     });
   }
 
-  //set title
-  defaultSettings.title = appConfig?.base?.websiteName || 'mss-boot-admin';
-  defaultSettings.logo = appConfig?.base?.websiteLogo || 'https://docs.mss-boot-io.top/favicon.ico';
-  // set theme
-  defaultSettings.navTheme =
-    userConfig?.theme?.navTheme || appConfig?.theme?.navTheme || defaultSettings.navTheme;
-  defaultSettings.layout =
-    userConfig?.theme?.layout || appConfig?.theme?.layout || defaultSettings.layout;
-  defaultSettings.contentWidth =
-    userConfig?.theme?.contentWidth ||
-    appConfig?.theme?.contentWidth ||
-    defaultSettings.contentWidth;
-  defaultSettings.fixedHeader =
-    userConfig?.theme?.fixedHeader || appConfig?.theme?.fixedHeader || defaultSettings.fixedHeader;
-  defaultSettings.fixSiderbar =
-    userConfig?.theme?.fixSiderbar || appConfig?.theme?.fixSiderbar || defaultSettings.fixSiderbar;
-  defaultSettings.colorWeak =
-    userConfig?.theme?.colorWeak || appConfig?.theme?.colorWeak || defaultSettings.colorWeak;
-  defaultSettings.pwa = userConfig?.theme?.pwa || appConfig?.theme?.pwa || defaultSettings.pwa;
-  defaultSettings.colorPrimary =
-    userConfig?.theme?.colorPrimary ||
-    appConfig?.theme?.colorPrimary ||
-    defaultSettings.colorPrimary;
-  // defaultSettings.splitMenus = userConfig?.theme?.splitMenus || appConfig?.theme?.splitMenus || defaultSettings.splitMenus;
+  let themedState = applyThemeProfiles<AdminInitialState>(
+    {
+      appConfig,
+      userConfig,
+      settings: buildLayoutSettings(appConfig, userConfig),
+    } as AdminInitialState,
+    appConfig,
+    userConfig,
+  );
+  themedState = {
+    ...themedState,
+    themeRuntime: {
+      schemaVersion: 1,
+      layers: themedState.themeRuntime?.layers || {},
+      ...themedState.themeRuntime,
+      authSessionId,
+    },
+  };
+  if (authoritativeAppConfig) {
+    await writeThemeSnapshot(
+      getThemeScopeResource(authoritativeAppConfig, 'application'),
+      undefined,
+      undefined,
+      { authoritativePrevious: authenticatedCachedTheme.application },
+    );
+  } else {
+    themedState = markThemeScopeDegraded(themedState, 'application');
+  }
+  if (authoritativeUserConfig && authSessionId) {
+    await writeThemeSnapshot(
+      getThemeScopeResource(authoritativeUserConfig, 'user'),
+      authSessionId,
+      undefined,
+      { authoritativePrevious: authenticatedCachedTheme.user },
+    );
+  } else {
+    themedState = markThemeScopeDegraded(themedState, 'user');
+  }
+
+  if (!identityIsActive()) {
+    return retryAfterIdentityRace();
+  }
 
   if (token && !isLoginPage) {
     try {
       return {
-        appConfig,
-        userConfig,
+        ...themedState,
         fetchUserInfo,
         currentUser,
-        settings: defaultSettings as Partial<LayoutSettings>,
       };
     } catch (error) {
       clearAuthStorage();
@@ -166,19 +272,15 @@ export async function getInitialState(): Promise<{
         history.replace(getAuthRedirect(location));
       }
       return {
-        appConfig,
-        userConfig,
+        ...themedState,
         fetchUserInfo,
-        settings: defaultSettings as Partial<LayoutSettings>,
       };
     }
   }
 
   return {
-    appConfig,
-    userConfig,
+    ...themedState,
     fetchUserInfo,
-    settings: defaultSettings as Partial<LayoutSettings>,
   };
 }
 
@@ -251,17 +353,31 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
       return (
         <>
           {children}
-          <SettingDrawer
-            disableUrlParams
-            enableDarkTheme
-            settings={initialState?.settings}
-            onSettingChange={(settings) => {
-              setInitialState((preInitialState) => ({
-                ...preInitialState,
-                settings,
-              }));
-            }}
-          />
+          <ThemeRuntimeBridge />
+          {isDev && (
+            <SettingDrawer
+              disableUrlParams
+              drawerProps={{
+                title: (
+                  <FormattedMessage
+                    id="pages.theme.settings.preview"
+                    defaultMessage="Development-only temporary preview"
+                  />
+                ),
+              }}
+              enableDarkTheme
+              settings={initialState?.settings}
+              onSettingChange={(settings) => {
+                setInitialState((preInitialState) => ({
+                  ...preInitialState,
+                  settings: {
+                    ...buildLayoutSettings(preInitialState?.appConfig, preInitialState?.userConfig),
+                    ...normalizeThemeOverrides(settings),
+                  },
+                }));
+              }}
+            />
+          )}
         </>
       );
     },

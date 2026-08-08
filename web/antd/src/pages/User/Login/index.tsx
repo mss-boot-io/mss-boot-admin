@@ -30,9 +30,29 @@ import {
   clearTransientAuthToken,
   setTransientAuthToken,
 } from '@/utils/authStorage';
+import {
+  clearUserThemeProfile,
+  reconcileThemeProfile,
+  type ThemeRuntimeCoordinatorState,
+  type ThemeRuntimeState,
+} from '@/utils/themeSettings';
+import {
+  applyAuthenticatedThemeProfiles,
+  clearThemeIdentitySession,
+  isThemeAuthSessionActive,
+  loadAuthenticatedThemeProfiles,
+  rotateThemeAuthSession,
+  writeAuthenticatedThemeSnapshots,
+} from '@/utils/themeSession';
+import ThemeRuntimeBridge from '@/components/MssBoot/ThemeRuntimeBridge';
 
 export type ActionIconsFormProps = {
-  fetchUserInfo: () => Promise<unknown>;
+  fetchUserInfo: (authSessionId: string) => Promise<unknown>;
+};
+
+export type ActivatedLoginSession = {
+  authSessionId: string;
+  redirect: string;
 };
 
 export function persistLoginState(
@@ -45,16 +65,18 @@ export function persistLoginState(
   }
 
   clearTransientAuthToken();
+  const authSessionId = rotateThemeAuthSession({ persistent: true });
   localStorage.setItem('token', data.token);
   localStorage.setItem('token.expire', data.expire?.toString() || '');
   localStorage.setItem('autoLogin', autoLogin?.toString() || 'false');
 
-  return resolveSafeRedirect(currentHref);
+  return { authSessionId, redirect: resolveSafeRedirect(currentHref) };
 }
 
 export function activateOAuthLoginSession(credential: string, currentHref = window.location.href) {
+  const authSessionId = rotateThemeAuthSession({ persistent: false });
   setTransientAuthToken(credential);
-  return resolveSafeRedirect(currentHref);
+  return { authSessionId, redirect: resolveSafeRedirect(currentHref) };
 }
 
 export function hasAutoLoginSession(storage: Pick<Storage, 'getItem'> = window.localStorage) {
@@ -80,15 +102,16 @@ const ActionIcons: React.FC<ActionIconsFormProps> = (props) => {
       if (result.intent !== 'login') {
         throw new Error('OAuth login returned the wrong intent');
       }
-      const redirect = activateOAuthLoginSession(result.token);
-      const userInfo = await props.fetchUserInfo();
+      const session = activateOAuthLoginSession(result.token);
+      const userInfo = await props.fetchUserInfo(session.authSessionId);
       if (!userInfo) {
         throw new Error('OAuth login could not load the Admin session');
       }
       message.success(intl.formatMessage({ id: 'pages.login.success' }));
-      history.push(redirect);
+      history.push(session.redirect);
     } catch (error) {
       clearTransientAuthToken();
+      clearThemeIdentitySession();
       const messageID =
         error instanceof OAuthAuthorizationError &&
         (error.code === 'timeout' || error.code === 'closed')
@@ -179,9 +202,18 @@ const Login: React.FC = () => {
 
   useEffect(() => {
     // getInitialState only runs at bootstrap. Clear a document-scoped OAuth
-    // session again when browser history remounts the login route in this SPA.
+    // session and any previous user's identity/theme when history remounts the
+    // login route in this SPA (including forced 401 redirects).
     clearNonPersistentAuthStorage();
-  }, []);
+    clearThemeIdentitySession();
+    setInitialState(
+      (state) =>
+        ({
+          ...clearUserThemeProfile(state || {}),
+          currentUser: undefined,
+        } as typeof state),
+    );
+  }, [setInitialState]);
 
   useEffect(() => {
     if (initialState?.appConfig) {
@@ -193,10 +225,13 @@ const Login: React.FC = () => {
         if (disposed || !appConfig) {
           return;
         }
-        setInitialState((state) => ({
-          ...state,
-          appConfig,
-        }));
+        setInitialState(
+          (state) =>
+            reconcileThemeProfile(state || {}, appConfig, 'application', {
+              allowLegacyReplace: true,
+              authoritative: true,
+            }).state as typeof state,
+        );
       })
       .catch(() => {});
     return () => {
@@ -204,17 +239,35 @@ const Login: React.FC = () => {
     };
   }, [initialState?.appConfig, setInitialState]);
 
-  const fetchUserInfo = async () => {
-    const userInfo = await initialState?.fetchUserInfo?.();
-    if (userInfo) {
+  const fetchUserInfo = async (authSessionId: string) => {
+    const [userInfo, profiles] = await Promise.all([
+      initialState?.fetchUserInfo?.(),
+      loadAuthenticatedThemeProfiles(),
+    ]);
+    if (userInfo && isThemeAuthSessionActive(authSessionId)) {
+      let reconciledState: ThemeRuntimeState | undefined;
+      let authoritativePrevious: ThemeRuntimeCoordinatorState['layers'] | undefined;
       flushSync(() => {
-        setInitialState((s) => ({
-          ...s,
-          currentUser: userInfo,
-        }));
+        setInitialState((state) => {
+          authoritativePrevious = state?.themeRuntime?.layers;
+          const next = applyAuthenticatedThemeProfiles(
+            state || {},
+            userInfo,
+            profiles,
+            authSessionId,
+          );
+          reconciledState = next;
+          return next as typeof state;
+        });
       });
+      if (reconciledState) {
+        await writeAuthenticatedThemeSnapshots(reconciledState, authSessionId, {
+          authoritativePrevious,
+        });
+      }
+      return isThemeAuthSessionActive(authSessionId) ? userInfo : undefined;
     }
-    return userInfo;
+    return undefined;
   };
 
   const loginSuccessed = async (data: API.LoginResponse, autoLogin?: boolean, popup?: boolean) => {
@@ -226,10 +279,11 @@ const Login: React.FC = () => {
         });
         message.success(defaultLoginSuccessMessage);
       }
-      const redirect = persistLoginState(data, autoLogin);
-      await fetchUserInfo();
-      if (redirect) {
-        history.push(redirect);
+      const session = persistLoginState(data, autoLogin);
+      if (!session) return;
+      const userInfo = await fetchUserInfo(session.authSessionId);
+      if (userInfo && isThemeAuthSessionActive(session.authSessionId)) {
+        history.push(session.redirect);
       }
       return;
     }
@@ -295,6 +349,7 @@ const Login: React.FC = () => {
 
   return (
     <div className={containerClassName}>
+      <ThemeRuntimeBridge />
       <Helmet>
         <title>
           {intl.formatMessage({

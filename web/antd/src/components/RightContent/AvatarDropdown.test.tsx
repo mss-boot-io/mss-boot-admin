@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { useModel } from '@umijs/max';
 import { AvatarDropdown } from './AvatarDropdown';
 
@@ -18,7 +18,14 @@ jest.mock('@/services/admin/onlineSession', () => ({
 
 jest.mock('../HeaderDropdown', () => ({
   __esModule: true,
-  default: ({ children }: any) => <div>{children}</div>,
+  default: ({ children, menu }: any) => (
+    <div>
+      <button data-testid="logout" onClick={() => menu.onClick({ key: 'logout' })} type="button">
+        logout
+      </button>
+      {children}
+    </div>
+  ),
 }));
 
 const mockUseModel = useModel as jest.Mock;
@@ -58,5 +65,31 @@ describe('AvatarDropdown', () => {
 
     expect(container.querySelector('.ant-spin')).toBeTruthy();
     expect(screen.queryByTestId('fallback-avatar')).toBeNull();
+  });
+
+  it('removes the personal theme before redirecting on logout', () => {
+    let runtimeState: any = {
+      currentUser: { id: 'user-a' },
+      appConfig: { theme: { navTheme: 'light', fixedHeader: false } },
+      userConfig: { theme: { navTheme: 'realDark', fixedHeader: true } },
+      settings: { navTheme: 'realDark', fixedHeader: true },
+    };
+    const setInitialState = jest.fn((updater) => {
+      runtimeState = updater(runtimeState);
+    });
+    mockUseModel.mockReturnValue({ initialState: runtimeState, setInitialState });
+
+    render(
+      <AvatarDropdown>
+        <span data-testid="avatar" />
+      </AvatarDropdown>,
+    );
+    fireEvent.click(screen.getByTestId('logout'));
+
+    expect(runtimeState.currentUser).toBeUndefined();
+    expect(runtimeState.userConfig).toBeUndefined();
+    expect(runtimeState.settings).toEqual(
+      expect.objectContaining({ navTheme: 'light', fixedHeader: false }),
+    );
   });
 });

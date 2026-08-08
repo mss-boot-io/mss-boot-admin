@@ -35,6 +35,7 @@ var customRouteContracts = []CustomRouteContract{
 	// Application configuration.
 	{Method: http.MethodGet, Path: "/admin/api/app-configs/:group", Class: RouteAuthorized, Permission: "config:read"},
 	{Method: http.MethodPut, Path: "/admin/api/app-configs/:group", Class: RouteAuthorized, Permission: "config:write", Mutation: true},
+	{Method: http.MethodDelete, Path: "/admin/api/app-configs/theme", Class: RouteAuthorized, Permission: "config:write", Mutation: true},
 	{Method: http.MethodGet, Path: "/admin/api/app-configs/profile", Class: RouteOptionalAuthenticated},
 
 	// Audit evidence.
@@ -71,6 +72,7 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodGet, Path: "/admin/api/notice/read/:id", Class: RouteAuthenticatedSelf},
 	{Method: http.MethodGet, Path: "/admin/api/user-configs/:group", Class: RouteAuthenticatedSelf},
 	{Method: http.MethodPut, Path: "/admin/api/user-configs/:group", Class: RouteAuthenticatedSelf, Mutation: true},
+	{Method: http.MethodDelete, Path: "/admin/api/user-configs/theme", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodGet, Path: "/admin/api/user-configs/profile", Class: RouteOptionalAuthenticated},
 
 	// Session and websocket operations.

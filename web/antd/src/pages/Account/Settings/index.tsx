@@ -120,7 +120,7 @@ const Settings: React.FC = () => {
             defaultMessage: 'Theme Settings',
           })}
         >
-          <Theme />
+          <Theme scope="user" />
         </PageContainer>
       ),
     },

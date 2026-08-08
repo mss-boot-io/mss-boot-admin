@@ -36,6 +36,37 @@ declare namespace API {
     data: Record<string, any>;
   };
 
+  type ThemeResource = {
+    navTheme?: string;
+    colorPrimary?: string;
+    layout?: string;
+    contentWidth?: string;
+    fixedHeader?: boolean;
+    fixSiderbar?: boolean;
+    colorWeak?: boolean;
+    _meta?: ThemeResourceMeta;
+  };
+
+  type ThemeResourceMeta = {
+    v?: number;
+    scope?: string;
+    revision?: string;
+  };
+
+  type ThemeRevisionConflictData = {
+    current?: ThemeResource;
+  };
+
+  type ThemeRevisionConflictResponse = {
+    success?: boolean;
+    status?: string;
+    code?: number;
+    errorCode?: string;
+    errorMessage?: string;
+    traceId?: string;
+    data?: ThemeRevisionConflictData;
+  };
+
   type DataScope =
     | 'all'
     | 'currentDept'
