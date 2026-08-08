@@ -86,6 +86,7 @@ Admin 运行时动态模型、虚拟 CRUD 和浏览器代码生成已经移除�
 - [HotGo 对比分析](/admin/hotgo-comparison)
 - [产品打磨与工程治理方案](/admin/product-polish-governance-plan)
 - [首轮整改清单](/admin/product-polish-remediation-round-1)
+- [Admin UI 体验与静态交付基线](/admin/ui-experience-and-static-delivery)
 - [生产部署标准化](/admin/production-standardization)
 - [发布验证清单](/admin/release-verification-checklist)
 - [性能与可观测性指南](/admin/observability-guide)
