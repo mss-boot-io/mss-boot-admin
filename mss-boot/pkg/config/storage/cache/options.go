@@ -37,8 +37,11 @@ func (o *Options) HasKey(key string) bool {
 func DefaultOptions() Options {
 	return Options{
 		QueryCacheDuration: time.Hour,
-		QueryCacheKeys:     []string{},
-		QueryCachePrefix:   "gorm.cache:",
+		// Generic query caching is opt-in. An empty configuration must not
+		// silently become a wildcard because invalidation cannot be made
+		// authoritative while Redis is unavailable.
+		QueryCacheKeys:   nil,
+		QueryCachePrefix: "gorm.cache:",
 	}
 }
 
@@ -52,18 +55,13 @@ func WithQueryCacheDuration(d time.Duration) Option {
 // WithQueryCacheKeys 设置缓存key
 func WithQueryCacheKeys(keys ...string) Option {
 	return func(o *Options) {
-		var all bool
-		for i := range keys {
-			if keys[i] == "*" {
-				all = true
-				break
+		for _, key := range keys {
+			if key == "*" {
+				o.QueryCacheKeys = []string{}
+				return
 			}
 		}
-		if all {
-			keys = []string{}
-			return
-		}
-		o.QueryCacheKeys = keys
+		o.QueryCacheKeys = append([]string(nil), keys...)
 	}
 }
 

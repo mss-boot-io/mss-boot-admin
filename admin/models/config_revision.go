@@ -2,6 +2,14 @@ package models
 
 import "time"
 
+const (
+	ConfigRevisionScopeApplication      = "application"
+	ConfigRevisionScopeUser             = "user"
+	ConfigRevisionResourceTheme         = "theme"
+	ConfigRevisionResourcePublicProfile = "public-profile"
+	ConfigRevisionResourceUserProfile   = "user-profile"
+)
+
 // ConfigRevision serializes mutations to a scoped configuration resource.
 // The application scope uses an empty OwnerID; user-scoped resources use the
 // authenticated user ID. Revisions are authoritative database state and must

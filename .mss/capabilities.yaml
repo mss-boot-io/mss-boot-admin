@@ -84,14 +84,28 @@ spec:
       displayName: Application and System Configuration
       status: stable
       owners: [backend, frontend]
+      paths:
+        - .mss/features/admin-config-cache-consistency.yaml
+        - docs/docs/admin/config-cache-consistency.md
       backendPaths:
         - admin/config/config.go
         - admin/apis/app_config.go
         - admin/apis/system_config.go
+        - admin/models/app_config.go
+        - admin/service/app_config.go
+        - admin/service/config_revision.go
+        - admin/service/user_config.go
+      frameworkPaths:
+        - mss-boot/pkg/config/storage/cache
       frontendPaths:
         - web/antd/src/pages/AppConfig
         - web/antd/src/pages/SystemConfig
-      guidance: Prefer typed configuration and secret references over raw unvalidated values.
+      guidance: >-
+        Prefer typed configuration and secret references over raw unvalidated values. Keep the database
+        authoritative: cache keys bind every query parameter, application writes commit before best-effort
+        invalidation, and personal snapshots use owner-isolated database revisions. Never cache opaque
+        SystemConfig content or Auth=true application secrets. Revisioned configuration reads fall back to the
+        database when Redis fails; generic query caching is disabled by default and requires a stale-tolerant allowlist.
 
     - id: platform.theme-settings
       displayName: Layered Application and Personal Theme Settings

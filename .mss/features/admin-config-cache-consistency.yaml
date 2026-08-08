@@ -1,0 +1,222 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-config-cache-consistency
+  displayName: Database-authoritative configuration caches
+  description: >-
+    Defines bounded, revision-aware, identity-isolated caches for application and personal
+    configuration while keeping opaque system configuration and the database authoritative.
+  owner: admin-platform
+  labels:
+    domain: configuration
+    scope: backend-cache
+    phase: implementation
+spec:
+  problem: >-
+    Legacy configuration reads use cache keys that can collide across query parameters, write
+    application cache values before the database commits, and keep personal configuration without
+    an atomic revision boundary. Redis failures, replica lag, and concurrent writers can therefore
+    amplify stale or cross-record results in production.
+  goals:
+    - Make every generic query cache key depend on the SQL statement and its bound values without exposing those values.
+    - Keep application configuration writes database-first and treat cache reads, writes, and cleanup as disposable acceleration.
+    - Serve personal configuration and personal theme snapshots from owner-isolated, database-revisioned cache entries.
+    - Make multi-field personal configuration writes atomic and case-exact on every supported database.
+    - Preserve availability when Redis is unavailable without weakening authorization or ownership checks.
+    - Keep generic query caching fail-closed unless an operator supplies an explicit table allowlist.
+  nonGoals:
+    - Cache opaque SystemConfig content or broaden access to root-only configuration.
+    - Make Redis an authorization source, a revision source, or a durable configuration store.
+    - Add a process-local L1 cache, cache invalidation broadcast channel, or a second Redis client.
+    - Cache authenticated application secrets such as OAuth, SMTP, or object-storage credentials.
+  actors:
+    - id: account-user
+      displayName: Authenticated account user
+    - id: configuration-admin
+      displayName: Application configuration administrator
+    - id: deployment-operator
+      displayName: Deployment operator
+  modules:
+    - name: gorm-query-cache
+      operation: extend
+    - name: application-config-cache
+      operation: extend
+    - name: personal-config-cache
+      operation: extend
+    - name: cache-operations
+      operation: extend
+  requirements:
+    - id: isolate-query-cache-keys
+      title: Bind generic query cache entries to query values
+      description: A cached GORM result belongs to one complete parameterized query identity.
+      priority: must
+      actor: deployment-operator
+      module: gorm-query-cache
+      rules:
+        - The default cache key includes the generated SQL and every bound variable, including variable type and ordering.
+        - Query values are represented by a one-way fixed-length digest and never appear as plaintext Redis keys or logs.
+        - Equal queries generate equal keys, while different IDs, owners, groups, pagination values, or databases do not alias.
+        - Every data key includes the current per-tag random epoch; invalidation atomically replaces that epoch.
+        - A missing or evicted epoch key initializes a new non-reusable token and can never fall back to an old deterministic generation.
+        - Cache hits and database miss fills revalidate the generation so a concurrent mutation cannot republish or return an obsolete generation.
+        - Generic query caching defaults to an empty allowlist; wildcard caching requires an explicit operator choice.
+        - Explicit query-cache context keys remain compatible, and typed context helpers round-trip without breaking legacy literal keys.
+    - id: protect-system-config
+      title: Keep opaque system configuration out of derived caches
+      description: SystemConfig content can contain credentials and remains a direct root-only database resource.
+      priority: must
+      actor: configuration-admin
+      module: gorm-query-cache
+      rules:
+        - Root remains unconstrained by ordinary RBAC policy, but SystemConfig routes remain explicitly root-only.
+        - Generic query caching is bypassed for SystemConfig reads even when a wildcard query-cache allowlist is configured.
+        - SystemConfig content is never copied into the application or personal configuration cache namespace.
+    - id: make-application-cache-database-authoritative
+      title: Commit application configuration before cache mutation
+      description: The database result is authoritative and cache maintenance cannot change the API outcome.
+      priority: must
+      actor: configuration-admin
+      module: application-config-cache
+      rules:
+        - SetAppConfig commits the database upsert before attempting exact cache invalidation.
+        - Compatibility SetAppConfig writes validate exact database identity and advance public-profile plus theme revisions in the same transaction when applicable.
+        - A database failure leaves the prior cache entry untouched, while a cache cleanup failure cannot turn a committed write into an error.
+        - Cache entries use a versioned envelope with exact group and name validation plus a bounded logical expiry.
+        - Legacy raw hash values, malformed envelopes, mismatched identities, and expired entries are treated as misses.
+        - Empty public values and missing public keys can be cached without ambiguity, but Auth=true application values are never cached.
+    - id: version-personal-config-snapshots
+      title: Version and isolate personal configuration snapshots
+      description: Personal cache entries are derived from one owner and one database revision.
+      priority: must
+      actor: account-user
+      module: personal-config-cache
+      rules:
+        - Cache keys contain a one-way owner digest and never expose the raw authenticated user ID.
+        - Full profile, non-theme group, and canonical theme entries use versioned envelopes and a maximum TTL of 15 minutes.
+        - A hit is accepted only when envelope owner, resource, schema version, and database revision match the request.
+        - A profile miss reads configuration and theme data from one authoritative database view and retries when revisions change.
+        - Empty profiles and empty groups are valid cached results rather than repeated misses.
+    - id: commit-personal-config-atomically
+      title: Commit personal configuration with one revision
+      description: A multi-field request is all-or-nothing and publishes one new profile revision.
+      priority: must
+      actor: account-user
+      module: personal-config-cache
+      rules:
+        - Validation and case-exact key checks complete before database writes begin.
+        - Every field in one non-theme group request is upserted in one explicit transaction with deterministic key ordering.
+        - Successful non-theme writes advance one owner profile revision in the same transaction.
+        - Personal theme patch and reset advance both the theme and profile revisions in the same transaction.
+        - A failed write or revision advance rolls back every field and leaves the preceding revision visible.
+    - id: degrade-cache-failures
+      title: Degrade cache failures without serving unverified state
+      description: Redis is optional acceleration on configuration request paths.
+      priority: must
+      actor: deployment-operator
+      module: cache-operations
+      rules:
+        - Redis read, write, decode, timeout, or cleanup failures fall back to the authoritative database result.
+        - A stale writer cannot make an older revision visible after a newer database revision commits.
+        - Option history and value changes commit in one writer transaction, cache misses refill from the writer, and post-commit cleanup is best effort.
+        - Invalid Redis startup configuration or connectivity is diagnosed without terminating the application process.
+        - Cache cleanup uses exact known keys; request paths do not use KEYS or unbounded pattern deletion.
+        - Cache payloads, raw user IDs, bound SQL values, and secret configuration values are absent from logs and metrics.
+        - Generic query-cache invalidation outages can retain an existing entry until TTL, so this cache is disabled by default and may cover only explicitly stale-tolerant tables.
+  constraints:
+    - id: database-source-of-truth
+      type: data
+      statement: Configuration values and monotonic revisions are committed in the database; Redis contains only disposable derived state.
+    - id: owner-from-identity
+      type: security
+      statement: Personal cache ownership comes only from the verified server identity and never from a client-selected owner.
+    - id: secret-cache-boundary
+      type: security
+      statement: Opaque SystemConfig content and Auth=true application configuration values are not stored in derived Redis entries.
+    - id: framework-boundary
+      type: compatibility
+      statement: Shared query-cache changes remain domain-neutral in mss-boot, while Admin configuration semantics stay in admin.
+  acceptance:
+    - id: query-cache-key-tests
+      requirement: isolate-query-cache-keys
+      statement: Framework tests prove equal-query hits, parameter and database isolation, non-disclosure, generation-safe concurrent invalidation, and context helper compatibility.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: mss-boot/pkg/config/storage/cache/redis_test.go
+        - type: test
+          value: mss-boot/pkg/config/storage/cache/context_test.go
+        - type: test
+          value: mss-boot/pkg/config/storage/cache/options_test.go
+    - id: system-config-cache-boundary-tests
+      requirement: protect-system-config
+      statement: API tests prove root-only access and query-cache bypass for opaque system configuration.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/apis/system_config_security_test.go
+    - id: application-cache-tests
+      requirement: make-application-cache-database-authoritative
+      statement: Model and service tests cover database failure, Redis failure, expiry, malformed and legacy values, empty values, and Auth=true non-caching.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/models/app_config_cache_test.go
+        - type: test
+          value: admin/service/app_config_test.go
+    - id: personal-cache-tests
+      requirement: version-personal-config-snapshots
+      statement: Service tests cover owner isolation, empty snapshots, poisoned envelopes, stale revisions, authoritative reads, and cache failure fallback.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/service/user_config_cache_test.go
+        - type: test
+          value: admin/service/theme_test.go
+    - id: personal-transaction-tests
+      requirement: commit-personal-config-atomically
+      statement: Service tests prove rollback on a middle-field failure, case-exact identifiers, deterministic locking, and profile plus theme revision advancement.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/service/user_config_cache_test.go
+        - type: test
+          value: admin/service/theme_test.go
+    - id: cache-degradation-tests
+      requirement: degrade-cache-failures
+      statement: Fault-injection tests prove cache failures do not alter successful database reads or committed mutation responses.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/service/app_config_test.go
+        - type: test
+          value: admin/service/user_config_cache_test.go
+        - type: test
+          value: admin/service/option_test.go
+        - type: test
+          value: mss-boot/pkg/config/cache_test.go
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/admin-config-cache-consistency.yaml --format json
+      - cd mss-boot && GOWORK=off go test ./pkg/config/storage/cache -count=1
+      - cd mss-boot && GOWORK=off go test -race ./pkg/config/storage/cache -count=1
+      - cd mss-boot && GOWORK=off go test ./pkg/config -count=1
+      - cd admin && GOWORK=off go test ./models ./service ./apis -count=1
+      - cd admin && GOWORK=off go test -race ./models ./service ./apis -count=1
+      - cd admin && GOWORK=off go vet ./models ./service ./apis
+  rollout:
+    strategy: phased
+    migration: >-
+      No schema migration is required. The existing configuration revision table gains a new logical
+      user-profile resource row on first mutation. Legacy application hash values are ignored and
+      expire through exact invalidation as values are read or changed.
+    rollback: >-
+      Roll back the application and framework binaries together. Versioned cache envelopes and extra
+      revision rows are safe to leave in Redis and the database because older versions do not depend on them.

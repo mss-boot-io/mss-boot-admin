@@ -96,6 +96,7 @@ Admin 运行时动态模型、虚拟 CRUD 和浏览器代码生成已经移除�
 - [本地联调](/admin/local-debug)
 - [国际化排障](/admin/i18n-troubleshooting)
 - [配置操作](/admin/tutorials)
+- [配置缓存一致性](/admin/config-cache-consistency)
 - [Docker 部署](/admin/docker)
 
 ## 贡献者

@@ -85,8 +85,7 @@ pyroscope:
 cache:
   queryCache: false
   queryCacheDuration: 1h
-  queryCacheKeys:
-    - '*'
+  queryCacheKeys: []
 #  memory: ''
   redis:
     addr: '127.0.0.1:6379'

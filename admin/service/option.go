@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -11,20 +12,28 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/plugin/dbresolver"
 )
 
 const (
-	optionCacheKeyPrefix = "options"
-	optionCacheTTL       = 5 * time.Minute
+	optionCacheKeyPrefix      = "options"
+	optionCacheTTL            = 5 * time.Minute
+	optionCacheOperationLimit = 100 * time.Millisecond
 )
 
 type Option struct{}
+
+var errOptionVersionChanged = errors.New("option version changed concurrently")
 
 func (e *Option) GetOption(ctx context.Context, category, name string) (*models.Option, error) {
 	cacheKey := fmt.Sprintf("%s:%s:%s", optionCacheKeyPrefix, category, name)
 
 	if center.GetCache() != nil {
-		cachedData, err := center.GetCache().Get(ctx, cacheKey).Result()
+		cacheCtx, cancel := optionCacheContext(ctx)
+		cachedData, err := center.GetCache().Get(cacheCtx, cacheKey).Result()
+		cancel()
 		if err == nil && cachedData != "" {
 			var option models.Option
 			if err := json.Unmarshal([]byte(cachedData), &option); err == nil {
@@ -44,7 +53,9 @@ func (e *Option) GetOption(ctx context.Context, category, name string) (*models.
 		if err != nil {
 			slog.Error("marshal option error", "err", err)
 		} else {
-			err = center.GetCache().Set(ctx, cacheKey, string(data), optionCacheTTL).Err()
+			cacheCtx, cancel := optionCacheContext(ctx)
+			err = center.GetCache().Set(cacheCtx, cacheKey, string(data), optionCacheTTL).Err()
+			cancel()
 			if err != nil {
 				slog.Error("set option cache error", "key", cacheKey, "err", err)
 			}
@@ -61,7 +72,10 @@ func (e *Option) getOptionFromDB(ctx context.Context, category, name string) (*m
 	}
 
 	var option models.Option
+	// A cache miss must not republish a lagging replica value after a committed
+	// update invalidates Redis. Pin the authoritative refill to the writer.
 	err := center.GetDB(ginCtx, &models.Option{}).
+		Clauses(dbresolver.Write).
 		Where("category = ? AND name = ? AND status = ?", category, name, enum.Enabled).
 		First(&option).Error
 	if err != nil {
@@ -91,7 +105,9 @@ func (e *Option) InvalidateCache(ctx context.Context, category, name string) err
 		return nil
 	}
 	cacheKey := fmt.Sprintf("%s:%s:%s", optionCacheKeyPrefix, category, name)
-	return center.GetCache().Del(ctx, cacheKey).Err()
+	cacheCtx, cancel := optionCacheContext(ctx)
+	defer cancel()
+	return center.GetCache().Del(cacheCtx, cacheKey).Err()
 }
 
 func (e *Option) UpdateOption(ctx context.Context, id string, items *models.OptionItems, changedBy, changeNote string) error {
@@ -101,36 +117,61 @@ func (e *Option) UpdateOption(ctx context.Context, id string, items *models.Opti
 	}
 
 	var option models.Option
-	err := center.GetDB(ginCtx, &models.Option{}).Where("id = ?", id).First(&option).Error
+	db := center.GetDB(ginCtx, &models.Option{}).Clauses(dbresolver.Write)
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", id).
+			First(&option).Error; err != nil {
+			return err
+		}
+
+		versionSnapshot := &models.OptionVersion{
+			OptionID:   option.ID,
+			Version:    option.Version,
+			Items:      option.Items,
+			ChangedBy:  changedBy,
+			ChangeNote: changeNote,
+			Status:     enum.Enabled,
+		}
+		if err := tx.Create(versionSnapshot).Error; err != nil {
+			return err
+		}
+
+		nextVersion := option.Version + 1
+		result := tx.Model(&models.Option{}).
+			Where("id = ? AND version = ?", option.ID, option.Version).
+			Updates(map[string]any{"items": items, "version": nextVersion})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errOptionVersionChanged
+		}
+		option.Items = items
+		option.Version = nextVersion
+		return nil
+	})
 	if err != nil {
 		return err
 	}
 
-	versionSnapshot := &models.OptionVersion{
-		OptionID:   id,
-		Version:    option.Version,
-		Items:      option.Items,
-		ChangedBy:  changedBy,
-		ChangeNote: changeNote,
-		Status:     enum.Enabled,
+	// The database commit is authoritative. Redis invalidation is derived
+	// maintenance and must not turn a successful option update into an error
+	// that invites the client to repeat the mutation and advance the version
+	// again.
+	if err := e.InvalidateCache(ctx, option.Category, option.Name); err != nil {
+		slog.Warn("invalidate option cache after commit", "err", err)
 	}
-
-	err = center.GetDB(ginCtx, &models.OptionVersion{}).Create(versionSnapshot).Error
-	if err != nil {
-		slog.Error("create option version error", "err", err)
-	}
-
-	option.Items = items
-	option.Version = option.Version + 1
-
-	err = center.GetDB(ginCtx, &models.Option{}).Save(&option).Error
-	if err != nil {
-		return err
-	}
-
-	return e.InvalidateCache(ctx, option.Category, option.Name)
+	return nil
 }
 
 func NewOption() *Option {
 	return &Option{}
+}
+
+func optionCacheContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(ctx, optionCacheOperationLimit)
 }

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/spf13/cast"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/plugin/dbresolver"
 )
 
 /*
@@ -78,7 +80,9 @@ const (
 	appConfigPublicProfileMaxReadAttempts     = 3
 	appConfigPublicProfileCacheTTL            = 15 * time.Minute
 	appConfigPublicProfileCacheVersion        = 2
+	appConfigEntryCacheHash                   = "app-configs:{entry}:v1"
 	legacyAppConfigCacheHash                  = "appConfig"
+	appConfigCacheOperationLimit              = 100 * time.Millisecond
 )
 
 type appConfigPublicKey struct {
@@ -148,6 +152,8 @@ type publicAppConfigCacheEnvelope struct {
 // argument is retained for source compatibility, but caller identity must
 // never widen this endpoint to include authenticated-only or secret values.
 func (e *AppConfig) Profile(ctx *gin.Context, _ bool) (map[string]gin.H, error) {
+	// The revision/data/revision snapshot must come from the same authoritative
+	// writer pool; a lagging replica must never populate a current revision key.
 	db := center.GetDB(ctx, &models.AppConfig{})
 	for attempt := 0; attempt < appConfigPublicProfileMaxReadAttempts; attempt++ {
 		revisions, err := readPublicProfileRevisions(db)
@@ -155,10 +161,17 @@ func (e *AppConfig) Profile(ctx *gin.Context, _ bool) (map[string]gin.H, error) 
 			return nil, err
 		}
 		if cached, ok := getCachedPublicProfile(ctx, revisions.profile, revisions.theme); ok {
-			return cached, nil
+			afterCache, err := readPublicProfileRevisions(db)
+			if err != nil {
+				return nil, err
+			}
+			if revisions == afterCache {
+				return cached, nil
+			}
+			continue
 		}
 
-		result, err := loadPublicProfile(db, revisions.theme)
+		result, err := loadPublicProfile(db.Clauses(dbresolver.Write), revisions.theme)
 		if err != nil {
 			return nil, err
 		}
@@ -184,14 +197,19 @@ type publicProfileRevisions struct {
 }
 
 func readPublicProfileRevisions(db *gorm.DB) (publicProfileRevisions, error) {
-	keys := []configRevisionKey{applicationPublicProfileRevisionKey(), applicationThemeRevisionKey()}
-	values, err := readConfigRevisions(db, keys...)
+	profileKey := applicationPublicProfileRevisionKey()
+	profileRevision, err := readConfigRevision(db.Clauses(dbresolver.Write), profileKey)
+	if err != nil {
+		return publicProfileRevisions{}, err
+	}
+	themeKey := applicationThemeRevisionKey()
+	themeRevision, err := readConfigRevision(db.Clauses(dbresolver.Write), themeKey)
 	if err != nil {
 		return publicProfileRevisions{}, err
 	}
 	return publicProfileRevisions{
-		profile: values[keys[0]],
-		theme:   values[keys[1]],
+		profile: profileRevision,
+		theme:   themeRevision,
 	}, nil
 }
 
@@ -246,12 +264,21 @@ func publicProfileCacheKey(revision int64) string {
 	return appConfigPublicProfileCacheKeyPrefix + strconv.FormatInt(revision, 10)
 }
 
+func appConfigCacheContext(ctx *gin.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		return context.WithTimeout(context.Background(), appConfigCacheOperationLimit)
+	}
+	return context.WithTimeout(ctx, appConfigCacheOperationLimit)
+}
+
 func getCachedPublicProfile(ctx *gin.Context, profileRevision, themeRevision int64) (map[string]gin.H, bool) {
 	cache := center.GetCache()
 	if cache == nil {
 		return nil, false
 	}
-	payload, err := cache.Get(ctx, publicProfileCacheKey(profileRevision)).Bytes()
+	cacheCtx, cancel := appConfigCacheContext(ctx)
+	defer cancel()
+	payload, err := cache.Get(cacheCtx, publicProfileCacheKey(profileRevision)).Bytes()
 	if err != nil {
 		if !errors.Is(err, redis.Nil) {
 			slog.Warn("get public app config profile cache", "revision", profileRevision, "err", err)
@@ -293,8 +320,10 @@ func cachePublicProfile(
 	if err != nil {
 		return err
 	}
+	cacheCtx, cancel := appConfigCacheContext(ctx)
+	defer cancel()
 	return cache.Set(
-		ctx,
+		cacheCtx,
 		publicProfileCacheKey(profileRevision),
 		payload,
 		appConfigPublicProfileCacheTTL,
@@ -553,7 +582,7 @@ func (e *AppConfig) CreateOrUpdate(ctx *gin.Context, group string, data map[stri
 		return err
 	}
 
-	invalidateLegacyAppConfigCache(ctx, group, keys)
+	invalidateAppConfigEntryCaches(ctx, group, keys)
 	if publicMutation {
 		cleanupPublicProfileCache(ctx, staleProfileRevision)
 	}
@@ -624,7 +653,7 @@ func upsertCanonicalPublicAppConfigValue(tx *gorm.DB, group, name, value string)
 	return tx.Create(record).Error
 }
 
-func invalidateLegacyAppConfigCache(ctx *gin.Context, group string, keys []string) {
+func invalidateAppConfigEntryCaches(ctx *gin.Context, group string, keys []string) {
 	cache := center.GetCache()
 	if cache == nil {
 		return
@@ -636,8 +665,18 @@ func invalidateLegacyAppConfigCache(ctx *gin.Context, group string, keys []strin
 	if len(fields) == 0 {
 		return
 	}
-	if err := cache.HDel(ctx, legacyAppConfigCacheHash, fields...).Err(); err != nil {
-		slog.Warn("invalidate legacy app config cache after commit", "group", group, "err", err)
+	for _, hash := range []string{appConfigEntryCacheHash, legacyAppConfigCacheHash} {
+		cacheCtx, cancel := appConfigCacheContext(ctx)
+		err := cache.HDel(cacheCtx, hash, fields...).Err()
+		cancel()
+		if err != nil {
+			slog.Warn(
+				"invalidate app config cache after commit",
+				"group", group,
+				"hash", hash,
+				"err", err,
+			)
+		}
 	}
 }
 
@@ -646,8 +685,10 @@ func cleanupPublicProfileCache(ctx *gin.Context, staleRevision int64) {
 	if cache == nil {
 		return
 	}
+	cacheCtx, cancel := appConfigCacheContext(ctx)
+	defer cancel()
 	if err := cache.Del(
-		ctx,
+		cacheCtx,
 		publicProfileCacheKey(staleRevision),
 		appConfigPublicProfileLegacyCacheKey,
 		appConfigPublicProfileLegacyGenerationKey,

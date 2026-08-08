@@ -82,6 +82,7 @@ func (e *UserConfig) Profile(ctx *gin.Context) {
 // @Router /admin/api/user-configs/{group} [get]
 // @Security Bearer
 func (e *UserConfig) Group(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
 	req := &dto.UserConfigGroupRequest{}
@@ -142,6 +143,7 @@ func (e *UserConfig) Group(ctx *gin.Context) {
 // @Router /admin/api/user-configs/{group} [put]
 // @Security Bearer
 func (e *UserConfig) Control(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
 	api := response.Make(ctx)
 	verify := middleware.GetVerify(ctx)
 	req := &dto.UserConfigControlRequest{}
@@ -242,6 +244,7 @@ func (e *UserConfig) Control(ctx *gin.Context) {
 // @Router /admin/api/user-configs/theme [delete]
 // @Security Bearer
 func (e *UserConfig) Reset(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
 	api := response.Make(ctx)
 	canonicalContract := wantsCanonicalThemeContract(ctx)
 	verify := middleware.GetVerify(ctx)

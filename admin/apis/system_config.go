@@ -2,6 +2,7 @@ package apis
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
@@ -31,12 +32,26 @@ func newSystemConfigController() *SystemConfig {
 			// SystemConfig.Content is an opaque legacy payload and may contain
 			// credentials. Until it is split into typed, independently
 			// authorized resources, every read and mutation stays root-only.
-			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement}),
-			controller.WithGetHandlers(gin.HandlersChain{requireRootManagement}),
-			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement}),
-			controller.WithSearchHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement, protectSystemConfigResponse}),
+			controller.WithGetHandlers(gin.HandlersChain{requireRootManagement, protectSystemConfigResponse}),
+			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement, protectSystemConfigResponse}),
+			controller.WithSearchHandlers(gin.HandlersChain{requireRootManagement, protectSystemConfigResponse}),
 		),
 	}
+}
+
+// protectSystemConfigResponse prevents opaque configuration payloads from
+// entering either the shared query cache or an HTTP intermediary cache.
+func protectSystemConfigResponse(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	// Generic GORM actions use the Gin context directly. Set the legacy key on
+	// Gin as well as the typed value on Request.Context so bypass works even
+	// when Gin's ContextWithFallback option is disabled.
+	c.Set("gorm:cache:bypass", true)
+	if c.Request != nil {
+		c.Request = c.Request.WithContext(cache.NewBypass(c.Request.Context()))
+	}
+	c.Next()
 }
 
 type SystemConfig struct {

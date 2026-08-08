@@ -94,6 +94,7 @@ func (e *AppConfig) Profile(ctx *gin.Context) {
 // @Router /admin/api/app-configs/{group} [get]
 // @Security Bearer
 func (e *AppConfig) Group(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
 	api := response.Make(ctx)
 	req := &dto.AppConfigGroupRequest{}
 	if err := api.Bind(req).Error; err != nil {
@@ -164,6 +165,7 @@ func (e *AppConfig) Group(ctx *gin.Context) {
 // @Router /admin/api/app-configs/{group} [put]
 // @Security Bearer
 func (e *AppConfig) Control(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
 	api := response.Make(ctx)
 	req := &dto.AppConfigControlRequest{
 		Data: make(map[string]any),
@@ -282,6 +284,7 @@ func (e *AppConfig) Control(ctx *gin.Context) {
 // @Router /admin/api/app-configs/theme [delete]
 // @Security Bearer
 func (e *AppConfig) Reset(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
 	api := response.Make(ctx)
 	canonicalContract := wantsCanonicalThemeContract(ctx)
 	keys := service.ThemeFieldNames()
