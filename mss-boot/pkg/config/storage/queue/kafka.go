@@ -130,14 +130,22 @@ func (e *Kafka) Register(opts ...storage.Option) {
 
 func (e *Kafka) Run(ctx context.Context) {
 	for r, c := range e.consumers {
-		go func(r *ConsumerRegister, c sarama.ConsumerGroup) {
-			for {
-				err := c.Consume(ctx, []string{r.Topic}, r.Func)
-				if err != nil {
-					slog.Error("consume error", slog.Any("error", err))
-				}
-			}
-		}(r, c)
+		go e.runConsumer(ctx, r, c)
+	}
+}
+
+func (e *Kafka) runConsumer(ctx context.Context, r *ConsumerRegister, c sarama.ConsumerGroup) {
+	for ctx.Err() == nil {
+		err := c.Consume(ctx, []string{r.Topic}, r.Func)
+		if ctx.Err() != nil {
+			return
+		}
+		if errors.Is(err, sarama.ErrClosedConsumerGroup) {
+			return
+		}
+		if err != nil {
+			slog.Error("consume error", slog.Any("error", err))
+		}
 	}
 }
 
@@ -166,28 +174,49 @@ func (h *MessageHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.Co
 	if h.f == nil {
 		return errors.New("consumer func is nil")
 	}
-	var data map[string]any
-	for msg := range c.Messages() {
-		data = make(map[string]any)
-		slog.Debug(fmt.Sprintf("Message topic:%q partition:%d offset:%d\n", msg.Topic, msg.Partition, msg.Offset))
-		slog.Debug("Message content", slog.String("value", string(msg.Value)))
-		s.MarkMessage(msg, "")
-		message := &Message{}
-		message.SetID(string(msg.Key))
-		message.SetStream(msg.Topic)
-		err := json.Unmarshal(msg.Value, &data)
-		if err != nil {
-			slog.Error("unmarshal message error", slog.Any("error", err))
-			return err
+	for {
+		if s.Context().Err() != nil {
+			return nil
 		}
-		message.SetValues(data)
-		err = h.f(message)
-		if err != nil {
-			slog.Error("consumer func error", slog.Any("error", err))
-			return err
+		select {
+		case <-s.Context().Done():
+			return nil
+		case msg, ok := <-c.Messages():
+			if !ok {
+				return nil
+			}
+			if msg == nil {
+				return errors.New("consumer message is nil")
+			}
+			if s.Context().Err() != nil {
+				return nil
+			}
+
+			slog.Debug("kafka message received",
+				slog.String("topic", msg.Topic),
+				slog.Int("partition", int(msg.Partition)),
+				slog.Int64("offset", msg.Offset),
+			)
+			data := make(map[string]any)
+			if err := json.Unmarshal(msg.Value, &data); err != nil {
+				return fmt.Errorf("decode Kafka message: %w", err)
+			}
+			message := &Message{}
+			message.SetID(string(msg.Key))
+			message.SetStream(msg.Topic)
+			message.SetValues(data)
+			message.SetContext(s.Context())
+			if err := h.f(message); err != nil {
+				return fmt.Errorf("handle Kafka message: %w", err)
+			}
+			// A canceled session cannot safely publish a new offset. Leaving the
+			// message unmarked keeps it eligible for redelivery in a later session.
+			if s.Context().Err() != nil {
+				return nil
+			}
+			s.MarkMessage(msg, "")
 		}
 	}
-	return nil
 }
 
 func (h *MessageHandler) SetConsumerFunc(f storage.ConsumerFunc) {

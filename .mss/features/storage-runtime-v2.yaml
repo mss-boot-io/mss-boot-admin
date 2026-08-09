@@ -203,7 +203,7 @@ spec:
         - Casbin policy mutation and its monotonic revision commit in one database transaction; a crash between commit and publish is repaired by reconciliation.
         - Periodic revision reconciliation repairs missed, duplicate, or out-of-order events.
         - Memory and Redis EventBus providers use best-effort fan-out and explicit degraded health rather than work-queue acknowledgement semantics.
-        - Kafka, NSQ, and Redis durable work remain experimental until acknowledgement-after-success, retry, dead-letter, cancellation, rebalance, and idempotency conformance pass.
+        - Each Kafka, NSQ, and Redis durable-work provider retains its own evidence state until acknowledgement-after-success, retry, dead-letter, cancellation, rebalance, idempotency, real-provider, and lifecycle conformance pass. Kafka remains legacy/Blocked after the v1.0.1 local MarkMessage-order checkpoint.
     - id: strict-runtime-config
       title: Decode a strict discriminated configuration
       description: Runtime configuration must reject ambiguous provider shapes and resolve typed secret references before side effects.
@@ -438,8 +438,9 @@ spec:
       constraint. Land strict configuration and the resource owner first, then named Redis and scoped
       caches, ChallengeStore, EventBus plus reconciliation, ObjectStore plus Delivery, and finally
       provider-by-provider promotion. Migrate Admin scopes independently with failure injection and
-      observability at every boundary. Keep WorkQueue and distributed lock experimental unless their
-      own conformance passes. Before publishing v1.1.0, decide whether any public removal requires a
+      observability at every boundary. Keep WorkQueue and distributed lock at their provider-specific
+      non-production evidence states unless their own conformance passes. Before publishing v1.1.0,
+      decide whether any public removal requires a
       framework major-version release; do not hide a breaking API under a minor tag.
     rollback: >-
       Stop listeners and consumers, close the owned runtime in reverse order, and preserve authoritative

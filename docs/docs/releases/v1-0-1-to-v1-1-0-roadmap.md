@@ -36,7 +36,8 @@ Release 直接证明发布事实；验收工单
    这是 `v1.1.0` 的产品旗舰。
 3. **B 轴：Storage Runtime 风险轴**：从严格配置和资源所有权逐步进入 named Redis、
    ChallengeStore、ObjectStore、Cache 与 EventBus；每个 Provider 独立晋级，未通过的
-   Kafka/NSQ/WorkQueue/Lock 保持 legacy/experimental，不拖延 Generator 主线也不伪装 stable。
+   Kafka/NSQ/WorkQueue/Lock 保持各自证据支持的 Legacy/Blocked 或 Experimental，不拖延
+   Generator 主线也不伪装 stable。
 4. **共同发布轴**：同一版本只有在 A/B 当期 prepublication required gate 与当前发布阶段的
    authority evidence 交集通过后才进入下一阶段；postpublication reconciliation 负责关闭证据，
    非目标可选 Provider 以“不晋级”收口，而不是为了赶版本放宽门禁。
@@ -50,14 +51,14 @@ permissions、defaultRoles、menu 等字段尚未全部成为生成结果；在�
 
 | 版本 | 2026 目标窗口 | A：Generator / Blueprint 主线 | B：Storage Runtime 风险轴 | 发布出口 |
 | --- | --- | --- | --- | --- |
-| `v1.0.1` | 08-10 至 08-21 | 冻结新 scaffold 范围；建立 full-stack Feature 合同、真实 capability 拆分与 canonical path 决策 | Challenge 原子安全和 Admin purpose/anti-enumeration；Kafka ack-after-success；两个上传入口 pre-parse hard limit；object provider fail-closed | `acceptance.phase` 与 phase-aware release evidence runner；精确 required tests 非零命中；Framework 先发且外部可解析；发布后 truth reconciliation |
+| `v1.0.1` | 08-10 至 08-21 | 冻结新 scaffold 范围；建立 full-stack Feature 合同、真实 capability 拆分与 canonical path 决策 | Challenge 原子安全和 Admin purpose/anti-enumeration；Kafka Mark-after-success；两个上传入口 pre-parse hard limit；object provider fail-closed | `acceptance.phase` 与 phase-aware release evidence runner；精确 required tests 非零命中；Framework 先发且外部可解析；发布后 truth reconciliation |
 | `v1.0.2` | 08-24 至 09-04 | FeatureModule contract kind 与 cross-cutting infrastructure plan；Foundation release/Blueprint/generator/downstream snapshot 四种身份，lock+manifest 原子记录同一 snapshot；lock/sync/check；typed migration ID、duplicate fail-fast、error return；字段到 output-kind 矩阵与 supplier golden fixture | canonical email 合同、存量冲突预检与 SQLite/MySQL/PostgreSQL active/non-empty 唯一 forward migration；strict one-of config、SecretRef、doctor preflight | 两轴 focused/race 全绿；infra `feature plan` 成功且 AdminModule 缺 specPath 仍失败；两次生成零漂移；三库并发 identity 恰好一个成功；迁移不截断、吞错、退出进程或自动选择冲突账户 |
 | `v1.0.3` | 09-07 至 09-18 | canonical `admin/modules` 全合同对齐；Blueprint 0.1→0.2 ownership/upgrade fixture；supplier forward migration 骨架 | 移除 v1.0.1 changed paths 之外其余 Provider 的 Fatal/Exit/background/ghost clients；NSQ duration；Hermetic Redis/MinIO/broker fixtures；storage 配置升级、provider failure matrix、外部 `GOWORK=off` resource consumer | SQLite/MySQL/PostgreSQL fresh/upgrade/repeat/failure 与 provider matrix 全绿，无 required skip |
 | `v1.1.0-alpha.1` | 09-21 至 10-02 | supplier migration、model/DTO/service/API/operations/index/export/OpenAPI；不支持字段 pre-write 拒绝 | owned resource lifecycle、named Redis、required readiness、逆序 close、ChallengeStore target API | golden backend/check 两次零 diff；100 次 race 启停无泄漏；listener 不早于 required resources ready |
 | `v1.1.0-alpha.2` | 10-05 至 10-16 | permissions/defaultRoles/menu、ownership、commit-after-transaction events 与完整正反授权 | ObjectStore/Delivery、Admin metadata migration、owner/tenant permission、Local/MinIO create-only/no-clobber/checksum、S3 bootstrap 独立 | 权限矩阵全绿；Local/MinIO 共用 suite；并发同 ObjectRef 返回 conflict；错误 provider 零 fallback |
 | `v1.1.0-alpha.3` | 10-19 至 10-30 | typed client、list/form/detail/actions/export、locale、loading/empty/error/denied/conflict 与 frontend tests | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile；Lock/WorkQueue 晋级或延后决策 | frontend lint/tsc/Jest/build/E2E；Casbin crash-window 最终收敛；缓存不破坏事务/DB 权威；Queue/Lock 不搭便车 |
 | `v1.1.0-alpha.4` | 11-02 至 11-13 | Blueprint 0.1→0.2 三方升级保留业务定制；全字段投影、generated drift、external new-app identity | provider evidence schema/report、standalone/Sentinel/cluster/TLS 与 Local/MinIO conformance、外部 resource consumer | 第二次 upgrade 空；无 ignored spec field；Provider 报告逐项且 required test 零 skip |
-| `v1.1.0-alpha.5` | 11-16 至 11-27 | golden module 端到端修复、文档、示例和 Generator/Blueprint API freeze | Admin runtime E2E、故障注入、soak 预检；非目标 Provider 明确保持 legacy/experimental | 两轴所有 P0/P1 清零，schema/API freeze，全量 verify/eval 通过 |
+| `v1.1.0-alpha.5` | 11-16 至 11-27 | golden module 端到端修复、文档、示例和 Generator/Blueprint API freeze | Admin runtime E2E、故障注入、soak 预检；非目标 Provider 明确保持 Legacy/Blocked/Experimental，状态不自动晋级 | 两轴所有 P0/P1 清零，schema/API freeze，全量 verify/eval 通过 |
 | `v1.1.0-beta.1` | 11-30 至 12-04 | downstream rehearsal 与生成制品冻结 | provider maturity 冻结 | 新功能冻结；全量 DB/browser/provider/external matrix 无 required skip |
 | `v1.1.0-rc.1` | 12-07 至 12-11 | 精确提交 golden/upgrade 证据 | 精确提交 provider/恢复证据 | Framework/root 产物、容器、ZIP/checksum、备份恢复与 SemVer 决策齐全，进入至少 7 天 soak |
 | `v1.1.0` | 最早 12-18 | 发布已验收 full-stack golden module 与 Blueprint | 仅发布证据达标的 Provider；其余状态不变 | RC 同提交或仅含已复验阻断修复；Framework 先发布并外部解析，再发布根 Release |
@@ -69,10 +70,10 @@ permissions、defaultRoles、menu 等字段尚未全部成为生成结果；在�
 | 顺序 | 切片 | 代码边界 | 首个失败测试 | 完成信号 |
 | --- | --- | --- | --- | --- |
 | 1 | Challenge safety | `verify_code.go` 及 email login/register/password reset 调用链；只落 internal/provisional 安全状态机，公开 Storage Runtime v2 API 留到 alpha.1 | 100 并发 Verify 同一正确码成功不超过一次；错码不立即烧毁；发送失败和过期发送结果不改写较新的 challenge；crash/hung sender 的 pending lease 可回收且不延长旧 active；Redis outage fail closed | crypto/rand、purpose/subject HMAC、versioned Begin/Commit/Abort/Verify、pending lease、cooldown/quota/max-attempt 全过 race |
-| 2 | Kafka delivery | Kafka consumer 的 decode/handler/commit 顺序 | decode/handler failure 不 Mark；cancel 后不提交在途消息 | ack-after-success 与 cancel 语义通过；provider 仍为 experimental，不在补丁版承诺 retry/DLQ 完整平台 |
+| 2 | Kafka delivery | Kafka consumer 的 decode/handler/Mark 顺序 | decode/handler failure 不 Mark；cancel 后不 Mark 未完成消息 | Sarama session 的 Mark-after-success、context 传播与 cancel/closed-loop 语义通过；这不是 broker commit 证据，provider 仍为 Legacy/Blocked |
 | 3 | Upload admission | HTTP upload API 与 `admin/service/storage.go` | limit+1 在 multipart parse 前返回 413，临时目录/对象无残留 | body hard limit、stream max+1、local random key/no-clobber/path/symlink confinement；S3 create-only 留到 alpha.2 共用 Provider suite |
 | 4 | Provider fail-closed | AppConfig storage profile 与 `mss-boot/pkg/config/storage.go` | unknown/unreadable/partial credentials 不写 local、不返回 success URL | immutable profile；S3 client 复用；local 显式启用且实际可 delivery |
-| 5 | Evidence/release | Feature phase schema、phase-aware runner、`.mss`、docs、workflow、release issue | phase 只阻断当前状态转换，post evidence 不循环阻断首次发布；aggregate stable contract 被拒绝；required skip 阻断；release dispatch 不再默认 `v1.0.0` | 机器目录按 Provider 拆 identity/lifecycle status，ADR 记录详细 evidence maturity；开放并批准 exact-commit issue，发布后补证据再关闭；tag/Release/changelog/docs/capability 自动一致 |
+| 5 | Changed-path lifecycle / evidence / release | Kafka registration/config、object owner、Feature phase schema、phase-aware runner、`.mss`、docs、workflow、release issue | Kafka changed path 无 Exit/Fatal、consumer/producer owner 可关闭且错误可观测；phase 只阻断当前状态转换，post evidence 不循环阻断首次发布；aggregate stable contract 被拒绝；required skip 阻断；release dispatch 不再默认 `v1.0.0` | 最低 changed-path lifecycle 通过但 Kafka 仍保持 Legacy/Blocked；机器目录按 Provider 拆 identity/lifecycle status，ADR 记录详细 evidence maturity；开放并批准 exact-commit issue，发布后补证据再关闭；tag/Release/changelog/docs/capability 自动一致 |
 
 每个切片遵守：测试先描述失败、实现最小安全行为、focused race、affected module、
 `mss verify --changed`。前一切片不必等待大分支合并后才开始下一切片，但 release 分支只接收
@@ -199,10 +200,22 @@ Blueprint 与 generator 版本，因此本路线不把它们直接改成 `1.0.0`
 
 ## 下一条可执行工作
 
-在 Challenge safety 检查点独立评审并通过 focused race 后，创建 `v1.0.1` 的第二个实现 PR：
-只修改 Kafka decode/handler/ack/cancel 路径，先写 decode 或 handler 失败绝不 Mark、取消不提交
-在途消息的失败测试，再把 ack 移到 handler 成功之后；Kafka 仍保持 legacy/experimental，不在
-补丁版承诺完整 retry/DLQ 平台。这个 PR 不同时修改 Challenge、ObjectStore 或 Generator。
+Challenge safety 与 Kafka Mark-after-success 检查点已按独立边界实现。Kafka 检查点只修改
+decode/handler/Mark/cancel 路径：失败消息不调用 `MarkMessage`，同步 handler 继承 session
+context，取消或关闭的 consumer loop 退出。`MarkMessage` 只是记录本 session 的 next offset，
+不是 broker commit；配置/注册中的进程退出、producer ownership、manual commit、Errors channel、
+retry/backoff、DLQ、幂等与真实 broker/rebalance 仍未通过，因此 Kafka 继续是 Legacy/Blocked。
+
+下一条 `v1.0.1` 实现 PR 是 Upload admission：只收口两个上传入口的 pre-parse body hard limit、
+stream max+1、临时文件零残留，以及 Local 随机 key/no-clobber/path/symlink confinement；S3
+create-only 与完整 Delivery 授权仍留在 v1.1 alpha.2 的共用 Provider suite。这个 PR 不同时修改
+Challenge、Kafka、Generator 或完整 ObjectStore API。
+
+Upload 与 provider fail-closed 切片之后，`v1.0.1` 仍必须完成第五个 changed-path lifecycle /
+evidence 切片：消除 Kafka registration/config 的 Exit/Fatal，建立 consumer/producer owner 的
+可观测 close，并让 `TestV101ChangedProvidersDoNotExitOrDetach` 与 phase evidence 非零通过。
+这些是发布该补丁的最低门禁；真实 broker rebalance/outage、manual commit、retry/backoff、DLQ
+和幂等属于后续 Provider 晋级门禁，即使最低门禁通过也不会把 Kafka 升为 Experimental。
 
 另一条独立分支并行启动 `v1.0.2`：先为 Foundation release、Blueprint、generator、downstream
 snapshot 四身份以及 lock+manifest 原子双记录建立失败测试，再修 migration engine，并以 canonical

@@ -265,10 +265,13 @@ transaction. Event publication happens after commit and carries that revision. T
 a crash between commit and publish and prove the periodic reconciler still detects and
 loads the new revision.
 
-WorkQueue is a different interface. Kafka, NSQ, and Redis implementations remain
-experimental until each proves acknowledgement after handler success, bounded retry with
+WorkQueue is a different interface. Every Kafka, NSQ, and Redis implementation keeps its own
+evidence state until it proves acknowledgement after handler success, bounded retry with
 backoff, dead-letter handling, cancellation and rebalance, duplicate/idempotency behavior,
-and observability. v1.1.0 does not promise their stable promotion.
+real-provider operation, owned lifecycle, and observability. The v1.0.1 Kafka checkpoint only
+proves local `MarkMessage` ordering and session-cancellation behavior with hermetic fakes; it
+does not prove broker offset commit and leaves Kafka Blocked/legacy. v1.1.0 does not promise
+stable promotion for any WorkQueue provider.
 
 ### 9. Defer distributed-lock promotion
 
@@ -345,7 +348,7 @@ lives in this matrix. Provider state is never inferred from the framework versio
 | Memory EventBus | Existing memory queue is not a production broadcast contract | Do not market it as a durable queue | Stable single-process EventBus after shared suite |
 | Redis EventBus | Existing Redis queue lacks explicit fan-out/reconciliation contract | Keep separate and planned; ownership/reconciliation starts in v1.0.2+ | Stable fan-out plus revision reconciliation and outage behavior |
 | Redis WorkQueue | Experimental | Separate it from EventBus | Remain experimental unless retry/dead-letter suite passes |
-| Kafka WorkQueue | Blocked: message is marked before handler success | Fix acknowledgement and keep experimental | Experimental; not a v1.1 stable commitment |
+| Kafka WorkQueue | Blocked: message is marked before handler success | Land hermetic Mark-order/session-cancellation safety and retain Blocked/legacy while registration, configuration, producer ownership, manual-commit, error-observation, and real-broker gates remain open | Eligible for Experimental reassessment only after dedicated lifecycle and real-broker suites; not a v1.1 stable commitment |
 | NSQ WorkQueue | Blocked: duration, process-exit, and cancellation defects | Keep blocked/legacy in v1.0.1; fix in a v1.0.2+ dedicated slice or remove | Experimental or remove from default build |
 | Redis lock | Experimental: no Admin consumer and no focused coverage | Downgrade aggregate claim and defer | Experimental until a fenced consumer and conformance exist |
 | Local ObjectStore | Blocked: late size check, implicit fallback, collision/overwrite risk | Fail closed, hard-limit, randomize, no-clobber; remain beta | Stable after the common provider suite and delivery proof |

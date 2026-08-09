@@ -6,6 +6,14 @@ and the project uses semantic versioning for nested-module releases.
 
 ## [Unreleased]
 
+### Fixed
+
+- Moved the legacy Kafka consumer's Sarama session mark after successful decode
+  and handler completion, passed the session context to handlers, removed raw
+  payload logging, and stopped canceled or closed consumer loops. Kafka remains
+  Legacy/Blocked until configuration, ownership, retry/dead-letter, rebalance,
+  and real-broker conformance gates pass.
+
 ### Security
 
 - Added a provisional purpose-scoped Redis challenge implementation with

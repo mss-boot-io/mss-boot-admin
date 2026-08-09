@@ -17,14 +17,14 @@ spec:
   problem: >-
     The published v1.0.0 baseline groups cache, one-time verification state, queues, locks, Redis
     clients, and object storage behind overlapping configuration packages and optimistic capability
-    labels. Known failure paths can consume a verification code incorrectly, acknowledge a Kafka
+    labels. Known failure paths can consume a verification code incorrectly, mark a Kafka
     message before successful handling, parse an oversized multipart upload before enforcing the
     application limit, silently fall back to local storage, or terminate the process from an
     optional provider. These defects require a narrow safety release before broader runtime or
     generator work proceeds.
   goals:
     - Make one-time verification issuance and consumption cryptographically strong, atomic, purpose-scoped, bounded, and fail-closed.
-    - Make Kafka acknowledgement occur only after successful decode and handler completion, preserving retryable failure.
+    - Make Kafka's Sarama session offset mark occur only after successful decode and handler completion, leaving failure unmarked and eligible for later redelivery.
     - Reject oversized uploads before multipart parsing, make local or S3 provider selection strict, deterministic, and fail-closed, and make local writes randomized and no-clobber.
     - Remove process termination and detached background contexts from the Challenge, Kafka, and object-storage paths changed by v1.0.1.
     - Replace aggregate maturity claims with provider-specific, evidence-backed capability states.
@@ -39,7 +39,7 @@ spec:
     - Change database schemas or use AutoMigrate as evidence of an upgrade migration.
     - Claim database-enforced canonical email uniqueness; ambiguous identities fail closed in v1.0.1, while a preflighted three-database forward migration is a separately gated v1.0.2 security slice.
     - Manually rewrite .mss/lock.yaml or .mss/project.yaml to resemble the published release version.
-    - Let compatibility shims preserve an unsafe acknowledgement, fallback, secret, or lifecycle behavior.
+    - Let compatibility shims preserve an unsafe Kafka offset mark, fallback, secret, or lifecycle behavior.
   actors:
     - id: admin-operator
       displayName: Admin operator
@@ -65,21 +65,22 @@ spec:
       description: Provider construction, startup, health, cancellation, and shutdown behavior.
     - name: queue-safety
       operation: extend
-      description: Queue acknowledgement, retry, cancellation, and provider validation behavior.
+      description: Queue offset marking, retry, cancellation, and provider validation behavior.
     - name: upload-safety
       operation: extend
       description: Multipart admission, object identity, provider selection, and delivery behavior.
   requirements:
-    - id: acknowledge-kafka-after-success
-      title: Acknowledge only successful Kafka work
-      description: The Kafka consumer must not mark a message until decoding and the handler both succeed.
+    - id: mark-kafka-after-success
+      title: Mark only successful Kafka work
+      description: The Kafka consumer must not call Sarama MarkMessage until decoding and the handler both succeed.
       priority: must
       actor: framework-maintainer
       module: queue-safety
       rules:
-        - Decode failure and handler failure leave the Kafka message unmarked and retryable.
-        - Consumer cancellation and rebalance stop work without marking unfinished Kafka messages.
-        - Kafka remains experimental until bounded retry, dead-letter, idempotency, and real-broker conformance pass.
+        - Decode failure and handler failure leave the Kafka message unmarked and eligible for redelivery.
+        - Consumer cancellation and rebalance stop work without marking unfinished Kafka messages; a completed side effect can still be repeated when cancellation races the local mark.
+        - MarkMessage records the next offset in the current Sarama session; it is not an immediate broker commit and does not provide exactly-once delivery.
+        - Kafka remains Blocked and cataloged as legacy after this checkpoint. It can enter Experimental only after lifecycle, manual-commit policy, error-observation, bounded retry, dead-letter, idempotency, and real-broker conformance pass.
     - id: classify-provider-evidence
       title: Publish honest provider identity and status
       description: The capability catalog must give each provider its own supported lifecycle status while release notes and the ADR record the more detailed evidence classification.
@@ -121,6 +122,7 @@ spec:
       rules:
         - The changed Challenge, Kafka, and object-storage call graph does not call os.Exit, log.Fatal, or start long-lived work from context.Background.
         - Kafka cancellation leaves in-flight work unmarked and the object-storage owner closes its single client idempotently.
+        - The isolated Kafka Mark-order checkpoint changes only ConsumeClaim and runConsumer and does not satisfy this lifecycle requirement; v1.0.1 remains unpublished until Kafka registration, configuration, producer ownership, and error observation meet the changed-path gate.
         - General cache, NSQ, Redis queue, lock, and resource-graph lifecycle replacement remains a separately gated v1.0.2 and v1.1 scope.
     - id: reconcile-release-truth
       title: Reconcile public release truth automatically
@@ -341,9 +343,9 @@ spec:
         - type: report
           value: Required-test JSON report proving both exact profile tests ran with every negative-table case and zero construction side effects.
     - id: queue-delivery-evidence
-      requirement: acknowledge-kafka-after-success
-      statement: Failure-injection tests prove decode and handler errors are not acknowledged, successful work is acknowledged once, and cancellation leaves unfinished work uncommitted.
-      level: integration
+      requirement: mark-kafka-after-success
+      statement: Hermetic failure-injection tests prove decode and handler errors are not marked, successful work is marked once and only after the handler, and cancellation or a closed consumer stops local work without marking unfinished messages. This evidence does not prove a broker commit or production provider maturity.
+      level: unit
       required: true
       evidence:
         - type: test
@@ -354,10 +356,14 @@ spec:
           value: TestKafkaMarksOnceAfterHandlerSuccess
         - type: test
           value: TestKafkaCancellationLeavesUnfinishedUnmarked
+        - type: test
+          value: TestKafkaRunStopsAfterCancellation
+        - type: test
+          value: TestKafkaRunStopsAfterConsumerClose
         - type: command
-          value: cd mss-boot && GOWORK=off go test -json -race ./pkg/config/storage/queue/...
+          value: cd mss-boot && GOWORK=off go test -json -race ./pkg/config/storage/queue -run '^TestKafka(DoesNotMarkOnDecodeFailure|DoesNotMarkOnHandlerFailure|MarksOnceAfterHandlerSuccess|CancellationLeavesUnfinishedUnmarked|RunStopsAfterCancellation|RunStopsAfterConsumerClose)$' -count=20
         - type: report
-          value: Required-test JSON report proving the four exact Kafka tests ran and passed under race detection.
+          value: Required-test JSON report proving all six exact hermetic Kafka tests emitted Action=pass in every race-detected run; real-broker commit, rebalance, outage, retry, and lifecycle evidence remain required before provider promotion.
     - id: release-prepublication-authority
       requirement: reconcile-release-truth
       statement: Before the first publication, an approved open evidence issue identifies the frozen commit, explicit version, green implementation, security, documentation, artifact-build, and recovery gates, and the reviewed release commands.
@@ -480,7 +486,7 @@ spec:
     - id: message-loss
       description: Marking a message before successful decode and handling can permanently discard work while reporting normal consumer progress.
       severity: critical
-      mitigation: Move acknowledgement after success and require failure-injection evidence for each enabled provider.
+      mitigation: Move the Kafka session mark after success and require failure-injection evidence for each enabled provider.
     - id: silent-object-loss
       description: Implicit local fallback can return a successful URL for an object that production does not serve or preserve.
       severity: critical
@@ -499,6 +505,7 @@ spec:
     custom:
       - go run ./cmd/mss spec validate .mss/features/foundation-v1-0-1-storage-safety.yaml --format json
       - cd mss-boot && GOWORK=off go test -race ./pkg/config/...
+      - cd mss-boot && GOWORK=off go test -json -race ./pkg/config/storage/queue -run '^TestKafka(DoesNotMarkOnDecodeFailure|DoesNotMarkOnHandlerFailure|MarksOnceAfterHandlerSuccess|CancellationLeavesUnfinishedUnmarked|RunStopsAfterCancellation|RunStopsAfterConsumerClose)$' -count=20
       - cd mss-boot && GOWORK=off go vet ./...
       - cd admin && GOWORK=off go test -json -race ./apis -run '^(TestEmailChallenge.*|TestAppConfigProfile.*|TestUpdateUserInfoRejectsEmailChangeUntilCanonicalIdentityMigration)$' -count=20
       - cd admin && GOWORK=off go test -json -race ./middleware -run '^TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable$' -count=20
@@ -527,7 +534,7 @@ spec:
       published fact reconciles.
     rollback: >-
       Stop new writes and consumers before changing provider code. Prefer an idempotent forward fix for
-      any challenge, acknowledgement, or object-delivery defect. A code rollback is permitted only after
-      proving it does not restore weak challenge generation, early acknowledgement, implicit local
-      fallback, unbounded multipart parsing, or provider process termination. Preserve queue offsets,
-      dead-letter evidence, object metadata, configuration fingerprints, and logs without secrets.
+      any challenge, Kafka offset-mark, or object-delivery defect. A code rollback is permitted only after
+      proving it does not restore weak challenge generation, an early Kafka offset mark, implicit local
+      fallback, unbounded multipart parsing, or provider process termination. Preserve consumer-group
+      offset state, sanitized provider diagnostics, object metadata, configuration fingerprints, and logs without secrets.

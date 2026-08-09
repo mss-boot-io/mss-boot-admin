@@ -43,9 +43,12 @@ issue 完成终态记录或链接已验证的替代列车。
 
 ## 下一版本梯队
 
-`v1.0.1` 先收口验证码、Kafka、上传和对象存储 changed-path provider 生命周期的安全/数据完整性风险；
+`v1.0.1` 先分切片收口验证码、Kafka Mark 顺序、上传和对象存储的安全/数据完整性风险；
+发布前仍须完成 Kafka changed-path 的无 Exit/Fatal、owned close 与错误观测最低门禁。真实 broker、
+retry/DLQ 和完整 provider conformance 另设晋级门禁，不能从本地 Mark 顺序检查点推断生产成熟度。
 `v1.0.2-v1.0.3` 建立版本身份、严格配置与升级证据；`v1.1.0` prerelease 再交付
 Storage Runtime v2 和一条完整的 Generator 黄金业务竖切。
 
 - [v1.0.1 至 v1.1.0 完整路线](/releases/v1-0-1-to-v1-1-0-roadmap)
 - [v1.0.1 Challenge 安全切片](/releases/v1-0-1-challenge-safety)
+- [v1.0.1 Kafka Mark-after-success 安全切片](/releases/v1-0-1-kafka-ack-safety)

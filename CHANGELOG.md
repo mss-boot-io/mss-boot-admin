@@ -13,6 +13,14 @@ tag namespaces.
 - Reclassified the aggregate cache/lock/queue adapter capability from stable to
   legacy and added provider-specific evidence guidance.
 
+### Fixed
+
+- Moved the legacy Kafka adapter's Sarama offset mark after JSON decoding and
+  synchronous handler success, propagated the consumer-session context into the
+  message, and stopped canceled or closed consumer loops without marking unfinished
+  work. The adapter remains Legacy/Blocked: this hermetic checkpoint does not prove
+  broker commit, retry/dead-letter behavior, or complete provider lifecycle.
+
 ### Security
 
 - Added the provisional v1.0.1 Redis challenge state machine for email login,
@@ -40,6 +48,8 @@ tag namespaces.
   `v1.0.1` through `v1.1.0` release train.
 - Added the v1.0.1 Challenge operator note covering SecretRef setup, failure
   semantics, focused evidence, rollback, and the remaining real-Cluster gate.
+- Added the v1.0.1 Kafka Mark-after-success safety note and corrected the queue
+  tutorial so legacy Kafka/NSQ adapters are not presented as production-ready.
 
 ## [v1.0.0] - 2026-08-09
 

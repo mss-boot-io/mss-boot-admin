@@ -78,13 +78,12 @@ cache:
 ```
 
 ### 队列配置
-:::info
-利用队列模块(memory/kafka/redis/nsq)可以将一些耗时的任务放入队列中，然后异步执行，这样可以提高系统性能，同时系统的应用配置模块也支持队列配置，可以通过队列配置来提高系统性能和可靠性，自己在开发时，可以合理利用队列。
-:::
-> `mss-boot-admin`的队列配置支持`memory`、`kafka`、`nsq`和`redis`四种队列方式，`memory`为内存队列一般用于本地开发，`kafka`为kafka队列，一般用于生产环境，`nsq`为nsq队列，一般用于生产环境且对消息没有顺序要求的场景，`redis`为redis队列，一般用于负载极小的场景。
-> 
 :::warning
-`kafka`适用于对消息有顺序要求的场景，`nsq`适用于对消息没有顺序要求的场景，`redis`适用于负载极小的场景，请根据自己的业务场景选择合适的队列。
+这里保留 `memory`、`kafka`、`nsq` 和 `redis` 的历史配置示例，仅用于迁移、开发和评估，
+不构成生产支持声明。当前四个 WorkQueue adapter 都属于 legacy；Kafka 的 v1.0.1 检查点只证明
+decode 与同步 handler 成功后才调用 Sarama `MarkMessage`，并不证明 broker commit、重试、DLQ、
+rebalance、幂等或完整生命周期。Kafka/NSQ 在各自真实依赖与生命周期门禁通过前均不得作为
+生产默认值。新代码应优先采用 Storage Runtime v2 中分别定义的 EventBus 或 WorkQueue 合同。
 :::
 #### 配置memory队列
 ```yaml

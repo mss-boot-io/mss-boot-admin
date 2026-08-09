@@ -325,12 +325,24 @@ spec:
       displayName: Legacy Kafka Queue
       status: legacy
       owners: [framework]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/adr/2026-08-09-storage-runtime-v2.md
+        - docs/docs/releases/v1-0-1-kafka-ack-safety.md
+        - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
       frameworkPaths:
         - mss-boot/pkg/config/storage/queue/kafka.go
+        - mss-boot/pkg/config/storage/queue/kafka_test.go
       guidance: >-
-        Evidence state at v1.0.0 is blocked because a message may be marked before decode and handler
-        success. v1.0.1 fixes acknowledgement ordering, but Kafka remains experimental until retry,
-        dead-letter, rebalance, cancellation, idempotency, real-broker, and lifecycle suites pass.
+        Evidence state is Blocked. The v1.0.1 Mark-order checkpoint moves the Sarama session mark after
+        successful decode and synchronous handler completion, propagates session cancellation, and stops
+        canceled or closed consumer loops. It proves neither broker commit nor production maturity. Register
+        and configuration can still terminate the process, producer ownership is incomplete, manual-commit
+        and consumer-error policies are not supported, and retry, dead-letter, rebalance, idempotency,
+        real-broker, and lifecycle suites remain open. Keep this provider disabled from production use and
+        cataloged as legacy until those gates pass. This checkpoint does not satisfy the minimum changed-path
+        lifecycle gate that still blocks the v1.0.1 tag.
 
     - id: platform.work-queue-nsq
       displayName: Legacy NSQ Queue
