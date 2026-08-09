@@ -399,44 +399,41 @@ task:
 
 ## 存储配置
 
-### 本地存储
+### v1.0.1 未发布检查点
+
+当前工作树只完成 Upload admission 与 Local write boundary，不代表对象存储已经
+可用于生产。Local 与 S3-compatible 路径在能力目录中仍是 `Legacy`，证据状态
+仍为 `Blocked`。
+
+上传策略通过独立的 AppConfig 条目读取：
+
+| AppConfig key | 格式 | 默认值与边界 |
+| --- | --- | --- |
+| `storage:maxSize` | 正整数，单位是 **bytes** | 默认 10 MiB（`10485760` bytes）；硬上限 100 MiB（`104857600` bytes），越界或非法值拒绝上传 |
+| `storage:allowedTypes` | 逗号分隔的 MIME media types / wildcards | 示例：`image/jpeg,image/png,image/*,application/pdf`；不接受 `.jpg` 一类扩展名作为策略 |
+
+入口会在 multipart 解析前限制请求体，并对选中文件做 max-plus-one 流式检查。
+Local 写入使用 `public/uploads/<opaque-uuid>` 形式的随机物理 key、受限根目录与
+create-only 打开；失败或取消会清理未完成对象。用户 ID 和原始文件名都不参与
+物理 key，原始文件名只作为响应元数据返回。
+
+开发模式可继续用下面的静态映射做本地验证：
 
 ```yaml
 application:
+  mode: dev
   staticPath:
-    /public: public  # 静态文件映射
+    /public: public
 ```
 
-**目录结构**：
-```
-mss-boot-admin/
-└── public/
-    └── {userID}/
-        └── avatar.png
-```
+Local 返回的 `/public/uploads/<opaque-uuid>` 只是 Legacy 兼容 URL。`prod`
+模式不会注册 `application.staticPath`，因此配置 Nginx、挂载目录或拼接 endpoint
+都不能单独证明对象可交付。
 
-### 文件上传限制
-
-在系统配置中设置（前端访问 `/app-config?key=storage`）：
-
-```yaml
-storage:
-  maxSize: 10          # 最大文件大小（MB）
-  allowedTypes: ".jpg,.png,.pdf,.doc,.docx"  # 允许的文件类型
-```
-
-### 对象存储（OSS/COS/MinIO）- Phase 6 计划
-
-```yaml
-# 未来支持
-storage:
-  driver: oss  # oss, cos, minio
-  oss:
-    endpoint: "oss-cn-hangzhou.aliyuncs.com"
-    accessKeyId: '${OSS_ACCESS_KEY}'
-    accessKeySecret: '${OSS_ACCESS_SECRET}'
-    bucket: "mss-boot-admin"
-```
+下一 v1.0.1 切片将实现未知/非法 provider fail closed、一次性不可变 provider
+profile 与单一生命周期 owner。在该门禁完成前，生产环境不得启用 Local 或
+S3-compatible 上传。S3 conditional create-only 与 Local/S3-compatible 共用
+conformance suite 留在 `v1.1.0-alpha.2`。
 
 ---
 
@@ -642,8 +639,6 @@ server:
 application:
   mode: prod
   origin: https://your-domain.com
-  staticPath:
-    /public: /var/www/mss-boot-admin/public
 
 logger:
   path: /var/log/mss-boot-admin

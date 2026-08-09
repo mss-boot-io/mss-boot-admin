@@ -60,6 +60,35 @@ generation changes, variable/database separation, and an allowlist. It remains o
 beta because result metadata, pointer decoding, payload bounds, cross-instance data-source
 identity, lifecycle ownership, and stampede behavior still need a complete contract.
 
+### Unreleased v1.0.1 upload-admission checkpoint
+
+The current v1.0.1 working-tree checkpoint is deliberately narrower than the target
+ObjectStore architecture in this ADR. It proves only the shared HTTP upload-admission
+boundary and the confined Local write boundary:
+
+- `storage:maxSize` is an integer byte count. Its default is 10 MiB
+  (`10485760` bytes), and values above the hard ceiling of 100 MiB
+  (`104857600` bytes) are rejected.
+- `storage:allowedTypes` is a comma-separated allowlist of MIME media types and
+  type wildcards such as `image/png` and `image/*`. Filename extensions are not
+  policy inputs.
+- The request body is bounded before multipart parsing, the selected file stream is
+  checked with max-plus-one reads, and temporary multipart data is removed.
+- The service generates an opaque canonical UUID key below `uploads/`. A user ID or
+  original filename is never part of the physical key; the original filename is
+  response metadata only.
+- The Local path is confined with `os.Root`, opened create-only with `O_EXCL`, and
+  removes a partial object on size, copy, cancellation, sync, or close failure.
+
+This checkpoint does **not** promote either Local or S3-compatible storage. Both remain
+`legacy` in the machine catalog and **Blocked** for production: provider selection can
+still fall through to Local, provider settings are not one immutable validated profile,
+client ownership is not singular, and returned URL strings do not prove a delivery
+contract. The next v1.0.1 slice must make provider selection fail closed and establish
+one immutable profile with one application owner. S3 create-only conditional writes and
+the Local/S3-compatible common provider conformance suite remain a separately gated
+`v1.1.0-alpha.2` target.
+
 ## Decision
 
 ### 1. Split names by semantics
@@ -282,6 +311,10 @@ partition tests, and proof that a database concurrency mechanism is insufficient
 
 ### 10. Separate ObjectStore from Delivery
 
+This section is the target contract, not a claim about the v1.0.1 checkpoint. In
+particular, create-only S3 behavior, common provider conformance, and authenticated
+Delivery remain gated for `v1.1.0-alpha.2`.
+
 The object interface operates on an opaque `ObjectRef` and checksummed metadata through
 `Put`, `Open`, `Stat`, and `Delete` semantics. `Put` is create-only: publishing an existing
 `ObjectRef` returns a typed conflict/precondition result rather than overwriting bytes. The
@@ -351,9 +384,9 @@ lives in this matrix. Provider state is never inferred from the framework versio
 | Kafka WorkQueue | Blocked: message is marked before handler success | Land hermetic Mark-order/session-cancellation safety and retain Blocked/legacy while registration, configuration, producer ownership, manual-commit, error-observation, and real-broker gates remain open | Eligible for Experimental reassessment only after dedicated lifecycle and real-broker suites; not a v1.1 stable commitment |
 | NSQ WorkQueue | Blocked: duration, process-exit, and cancellation defects | Keep blocked/legacy in v1.0.1; fix in a v1.0.2+ dedicated slice or remove | Experimental or remove from default build |
 | Redis lock | Experimental: no Admin consumer and no focused coverage | Downgrade aggregate claim and defer | Experimental until a fenced consumer and conformance exist |
-| Local ObjectStore | Blocked: late size check, implicit fallback, collision/overwrite risk | Fail closed, hard-limit, randomize, no-clobber; remain beta | Stable after the common provider suite and delivery proof |
-| S3-compatible ObjectStore | Experimental: per-request client, ambiguous credentials, skipped external tests | Fail closed and retain experimental status | Stable only after pinned MinIO and supported real-provider matrix |
-| S3 configuration source | Experimental/beta bootstrap | Keep independent and non-stable; strict bootstrap work starts in v1.0.2+ | Beta with explicit independent ownership |
+| Local ObjectStore | Blocked: late size check, implicit fallback, collision/overwrite risk | Land upload admission plus confined opaque create-only Local writes, but retain legacy/Blocked; provider fail-closed, immutable profile, and single ownership are the next v1.0.1 slice | Eligible for reassessment only after the `v1.1.0-alpha.2` common provider and Delivery gates; no Stable commitment |
+| S3-compatible ObjectStore | Blocked: per-request client, ambiguous credentials, overwrite semantics, synthesized URL, and skipped external tests | Reuse only the admission and opaque-key boundary; retain legacy/Blocked until the next v1.0.1 provider fail-closed, immutable-profile, single-owner slice | S3 conditional create-only and the Local/S3-compatible common conformance suite are gated to `v1.1.0-alpha.2`; no Stable commitment |
+| S3 configuration source | Experimental/beta bootstrap | Keep independent and non-stable; the next Admin provider-profile slice must not reuse it as a hidden application client | Prove independent bootstrap profile, failure, health, and close ownership at the separately gated `v1.1.0-alpha.2` suite before any Beta reassessment |
 | WebSocket Redis pub/sub | Unwired at the baseline: no `SetRedisClient` call exists | Move into the resource inventory and report the single-instance boundary | Beta realtime bus after clustered conformance; never a durable-work claim |
 
 ## Consequences
@@ -407,8 +440,9 @@ This ADR is implemented only when:
    framework; and
 8. the release tag follows a truthful SemVer decision for any public API removal.
 
-The next executable step is the v1.0.1 internal/provisional challenge-state safety slice:
-write the concurrent issue/verify contract tests first, replace weak generation and
-non-atomic transitions, and run the focused race suite before changing unrelated provider
-packages. This closes the known account-takeover path without freezing the public Storage
-Runtime v2 `ChallengeStore` API before its v1.1 alpha.1 gate.
+The next executable step is the remaining v1.0.1 object-provider safety slice: make empty,
+unknown, unreadable, or partial provider configuration fail closed; normalize one
+immutable profile; construct one application-owned client; and remove the ghost startup
+client/per-request client split. Local and S3-compatible storage remain legacy/Blocked
+after that slice. S3 conditional create-only writes, independent bootstrap conformance,
+and authenticated Delivery remain gated for `v1.1.0-alpha.2`.

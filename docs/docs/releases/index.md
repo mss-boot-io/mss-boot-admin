@@ -52,3 +52,4 @@ Storage Runtime v2 和一条完整的 Generator 黄金业务竖切。
 - [v1.0.1 至 v1.1.0 完整路线](/releases/v1-0-1-to-v1-1-0-roadmap)
 - [v1.0.1 Challenge 安全切片](/releases/v1-0-1-challenge-safety)
 - [v1.0.1 Kafka Mark-after-success 安全切片](/releases/v1-0-1-kafka-ack-safety)
+- [v1.0.1 Upload admission 安全切片](/releases/v1-0-1-upload-admission-safety)

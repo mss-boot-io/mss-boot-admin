@@ -252,7 +252,9 @@ spec:
         - type: test
           value: TestCasbinRevisionReconcilesCommitPublishCrash
         - type: test
-          value: TestStorageUploadHardLimitBeforeMultipart and TestAvatarUploadHardLimitBeforeMultipart
+          value: TestStorageUploadHardLimitBeforeMultipart
+        - type: test
+          value: TestAvatarUploadHardLimitBeforeMultipart
         - type: test
           value: TestStorageProviderFailureNeverWritesLocal
         - type: report

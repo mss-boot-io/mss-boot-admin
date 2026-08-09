@@ -1,6 +1,7 @@
 package apis
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,12 +12,16 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 )
 
-/*
- * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2024/3/29 00:36:27
- * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2024/3/29 00:36:27
- */
+var (
+	uploadRequestTooLargeError = response.NewError(
+		"UPLOAD_REQUEST_TOO_LARGE",
+		"upload request exceeds the configured limit",
+	)
+	invalidUploadError = response.NewError(
+		"INVALID_UPLOAD",
+		"upload request is malformed or violates the file policy",
+	)
+)
 
 func init() {
 	e := &Storage{
@@ -42,29 +47,41 @@ func (e *Storage) Other(r *gin.RouterGroup) {
 	r.POST("/storage/upload", middleware.Auth.MiddlewareFunc(), e.Upload)
 }
 
-// Upload 上传文件
-// @Summary 上传文件
-// @Description 上传文件到存储服务
+// Upload stores one admitted file.
+// @Summary Upload a file
+// @Description Admit and store one multipart file using the configured storage provider.
 // @Tags storage
 // @Accept multipart/form-data
-// @Param file formData file true "文件"
-// @Success 200 {object} service.UploadResult
+// @Param file formData file true "File"
+// @Success 201 {object} service.UploadResult
+// @Failure 413 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
 // @Router /admin/api/storage/upload [post]
 // @Security Bearer
 func (e *Storage) Upload(ctx *gin.Context) {
 	api := response.Make(ctx)
-	verify := middleware.GetVerify(ctx)
-	file, err := ctx.FormFile("file")
+	result, err := e.service.Upload(ctx, "file")
 	if err != nil {
-		api.AddError(err).Log.Error("FormFile error")
-		api.Err(http.StatusInternalServerError)
+		writeUploadError(api, err)
 		return
 	}
-	u, err := e.service.Upload(ctx, file, verify.GetUserID())
-	if err != nil {
-		api.AddError(err).Log.Error("upload error")
-		api.Err(http.StatusInternalServerError)
+	api.OK(result)
+}
+
+func writeUploadError(api *response.API, err error) {
+	if errors.Is(err, service.ErrUploadTooLarge) {
+		api.Log.Warn("upload rejected: request too large")
+		api.AddError(uploadRequestTooLargeError)
+		api.Err(http.StatusRequestEntityTooLarge)
 		return
 	}
-	api.OK(u)
+	if errors.Is(err, service.ErrInvalidUpload) {
+		api.Log.Warn("upload rejected: invalid multipart input")
+		api.AddError(invalidUploadError)
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	api.Log.Error("upload failed", "error", err)
+	api.Err(http.StatusInternalServerError)
 }

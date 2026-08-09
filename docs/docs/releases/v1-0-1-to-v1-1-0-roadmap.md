@@ -200,18 +200,19 @@ Blueprint 与 generator 版本，因此本路线不把它们直接改成 `1.0.0`
 
 ## 下一条可执行工作
 
-Challenge safety 与 Kafka Mark-after-success 检查点已按独立边界实现。Kafka 检查点只修改
+Challenge safety、Kafka Mark-after-success 与 Upload admission 检查点已按独立边界实现。Kafka 检查点只修改
 decode/handler/Mark/cancel 路径：失败消息不调用 `MarkMessage`，同步 handler 继承 session
 context，取消或关闭的 consumer loop 退出。`MarkMessage` 只是记录本 session 的 next offset，
 不是 broker commit；配置/注册中的进程退出、producer ownership、manual commit、Errors channel、
 retry/backoff、DLQ、幂等与真实 broker/rebalance 仍未通过，因此 Kafka 继续是 Legacy/Blocked。
 
-下一条 `v1.0.1` 实现 PR 是 Upload admission：只收口两个上传入口的 pre-parse body hard limit、
-stream max+1、临时文件零残留，以及 Local 随机 key/no-clobber/path/symlink confinement；S3
-create-only 与完整 Delivery 授权仍留在 v1.1 alpha.2 的共用 Provider suite。这个 PR 不同时修改
-Challenge、Kafka、Generator 或完整 ObjectStore API。
+下一条 `v1.0.1` 实现 PR 是 Provider fail-closed：启动时构造一个严格、不可变的对象存储 profile，
+由单一 owner 持有长生命周期 client；unknown、空、冲突、部分凭据或不可用 Provider 必须返回明确
+unavailable，不能落入 Local 或返回成功 URL。显式 Local 只有在 Delivery 实际可读时才允许启用；否则
+生产模式直接禁用。S3 conditional create 与完整 Delivery 授权仍留在 v1.1 alpha.2 的共用 Provider suite。
+这个 PR 不同时修改 Challenge、Kafka、Generator 或完整 ObjectStore API。
 
-Upload 与 provider fail-closed 切片之后，`v1.0.1` 仍必须完成第五个 changed-path lifecycle /
+Provider fail-closed 切片之后，`v1.0.1` 仍必须完成第五个 changed-path lifecycle /
 evidence 切片：消除 Kafka registration/config 的 Exit/Fatal，建立 consumer/producer owner 的
 可观测 close，并让 `TestV101ChangedProvidersDoNotExitOrDetach` 与 phase evidence 非零通过。
 这些是发布该补丁的最低门禁；真实 broker rebalance/outage、manual commit、retry/backoff、DLQ

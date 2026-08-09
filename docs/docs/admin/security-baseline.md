@@ -33,17 +33,32 @@ keywords: [admin security baseline upload credentials]
 
 ## 三、上传安全建议
 
-当前系统已支持：
+v1.0.1 的当前未发布检查点只覆盖 Upload admission 与 Local write boundary：
 
-- 文件大小限制
-- 文件类型白名单
-- MIME 检测
+- `storage:maxSize` 是 bytes 整数；默认 10 MiB（`10485760` bytes），硬上限
+  100 MiB（`104857600` bytes），非法或越界配置拒绝上传。
+- `storage:allowedTypes` 是逗号分隔的 MIME types / `type/*` wildcards，例如
+  `image/png,image/*`；文件扩展名不是安全策略。
+- 请求体在 multipart 解析前受限，选中文件还会做 max-plus-one 流式检查。
+- Local 使用 `uploads/<opaque-uuid>`、`os.Root` confinement 与 `O_EXCL`
+  create-only 写入；错误或取消清理 partial。用户 ID 和原始文件名不进入 key。
 
-上线前建议明确：
+这不等于生产存储已经就绪。Local 与 S3-compatible 仍为 `Legacy / Blocked`：
+provider 仍未 fail closed，配置还不是一次性不可变 profile，client owner 尚未
+收敛，返回的 URL 也没有经过真实 Delivery 证明。`prod` 模式不会注册
+`application.staticPath`，Nginx 代理或目录挂载不能单独补齐这条边界。
 
-- [ ] `storage:maxSize` 已设置为业务可接受值
-- [ ] `storage:allowedTypes` 仅保留必要类型
-- [ ] `/public/` 访问路径已纳入代理控制
+上线前必须：
+
+- [ ] `storage:maxSize` 已按 bytes 设置为业务可接受值，且不超过 `104857600`
+- [ ] `storage:allowedTypes` 仅包含必要的 MIME types / wildcards
+- [ ] ingress 阻断 `/admin/api/storage/upload` 与 `/admin/api/user/avatar` 的生产流量，
+  同时不授予通用 `storage:upload` 权限作为纵深防御；头像入口没有独立 Casbin permission
+- [ ] 未将 `/public/`、endpoint 拼接 URL 或 opaque key 当成对象读取授权
+
+下一 v1.0.1 切片完成 provider fail-closed、immutable profile 与 single owner；
+S3 conditional create-only 和 Local/S3-compatible 共用 conformance suite 留在
+`v1.1.0-alpha.2`。
 
 ## 四、通知渠道安全建议
 
@@ -61,7 +76,8 @@ keywords: [admin security baseline upload credentials]
 
 - [ ] 默认密码已替换
 - [ ] 凭据通过环境变量注入
-- [ ] 上传限制已配置
+- [ ] 上传限制已按 bytes 与 MIME/wildcard 合同配置
+- [ ] Legacy / Blocked 上传 provider 在生产入口保持关闭
 - [ ] 告警通知渠道可用且未泄露凭据
 - [ ] 日志保留周期已配置
 

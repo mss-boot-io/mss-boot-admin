@@ -109,5 +109,7 @@ topic、partition 和已提交 offset；发现问题时先停止消费者，再�
 失败消息被跳过的数据丢失路径。
 
 如果必须暂时停用 Kafka，停止该 consumer group 并让未提交消息保留在 broker；不要未经恢复
-计划手工推进或重置 offset。下一条 v1.0.1 安全切片是上传 admission：在 multipart 解析前限制
-请求体，并证明超限请求没有临时文件或对象残留。
+计划手工推进或重置 offset。Upload admission 检查点已经落地，证据与未完成边界见
+[v1.0.1 Upload admission 安全切片](/releases/v1-0-1-upload-admission-safety)。下一条 v1.0.1
+安全切片是 Provider fail-closed：严格解析不可变 profile、建立单一 client owner，并证明错误 Provider
+不会静默写入 Local 或返回成功 URL。

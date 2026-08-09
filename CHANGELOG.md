@@ -23,6 +23,13 @@ tag namespaces.
 
 ### Security
 
+- Bounded both authenticated upload routes before multipart parsing with a
+  100 MiB configuration ceiling, a fixed 64 KiB multipart envelope budget,
+  max-plus-one stream validation, stable 413/422 responses, and deterministic
+  multipart spill cleanup. Local and S3 keys are now opaque UUIDs; Local writes
+  use an `os.Root`-confined create-only path and remove canceled or partial
+  files. Local and S3 remain Legacy/Blocked until the separate provider,
+  lifecycle, and delivery gates close.
 - Added the provisional v1.0.1 Redis challenge state machine for email login,
   registration, and password recovery. It uses cryptographic fixed-width codes,
   purpose/subject HMAC keys, versioned peppered verifiers, delivery
@@ -50,6 +57,9 @@ tag namespaces.
   semantics, focused evidence, rollback, and the remaining real-Cluster gate.
 - Added the v1.0.1 Kafka Mark-after-success safety note and corrected the queue
   tutorial so legacy Kafka/NSQ adapters are not presented as production-ready.
+- Added the v1.0.1 Upload admission safety note with byte-unit configuration,
+  handler-level admission plus route-registration evidence, rollback guidance,
+  and the remaining provider and delivery blockers.
 
 ## [v1.0.0] - 2026-08-09
 

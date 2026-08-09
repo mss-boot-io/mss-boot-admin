@@ -99,9 +99,12 @@ spec:
       actor: security-owner
       module: upload-safety
       rules:
-        - Request-body admission is bounded before FormFile or ParseMultipartForm can allocate memory or temporary files.
+        - storage:maxSize is a byte count with a 10 MiB default and 100 MiB hard ceiling; storage:allowedTypes contains normalized MIME types rather than filename extensions.
+        - Each request resolves one immutable upload policy. The raw multipart request is bounded before FormFile or ParseMultipartForm at maxObjectBytes plus a fixed 64 KiB envelope budget, while the opened file stream is independently counted to maxObjectBytes plus one.
+        - Known request cap-plus-one is rejected before a body read, unknown-length cap-plus-one is stopped by MaxBytesReader, exact request and object limits remain valid, and a pre-parsed MultipartForm fails closed.
         - Object identifiers are server-generated, opaque, collision-resistant, and never derived from a user identifier plus original filename.
-        - The original filename is metadata only and local writes are confined below a fixed root with no overwrite or symlink escape.
+        - The original filename is metadata only and local writes use create-only files below an os.Root-confined fixed root, with no overwrite, root/internal symlink escape, or partial residue after a returned rejection, failure, or cancellation; crash-atomic publication remains a v1.1 provider-conformance gate.
+        - Raw request overflow returns a fixed UPLOAD_REQUEST_TOO_LARGE 413 response; malformed multipart and rejected media types return a fixed INVALID_UPLOAD 422 response without internal thresholds, paths, or multipart contents.
     - id: fail-closed-provider-selection
       title: Reject invalid storage provider state
       description: Missing, unreadable, contradictory, or unknown object-storage configuration must fail explicitly instead of falling back to local storage.
@@ -439,7 +442,7 @@ spec:
         - type: command
           value: go test -json ./internal/mss/verify -run '^TestV101ChangedProvidersDoNotExitOrDetach$'
         - type: command
-          value: cd admin && go test -json -race ./config ./service -run '^TestObjectStorageSingleClientOwnedClose$'
+          value: cd admin && GOWORK=off go test -json -race ./config ./service -run '^TestObjectStorageSingleClientOwnedClose$'
         - type: report
           value: Required-test JSON report proving the repository-wide forbidden-call test and Admin single-owner lifecycle test both ran, with race detection on owned resource construction and close.
     - id: storage-selection-evidence
@@ -459,12 +462,12 @@ spec:
         - type: test
           value: TestStorageLocalSuccessURLIsActuallyServed
         - type: command
-          value: "cd admin && go test -json ./service -run '^TestStorage(UnknownProviderFailsClosed|UnavailableBackendDoesNotFallbackLocal|InvalidCredentialsFailBeforeWrite|LocalProductionRequiresExplicitDelivery|LocalSuccessURLIsActuallyServed)$'"
+          value: "cd admin && GOWORK=off go test -json ./service -run '^TestStorage(UnknownProviderFailsClosed|UnavailableBackendDoesNotFallbackLocal|InvalidCredentialsFailBeforeWrite|LocalProductionRequiresExplicitDelivery|LocalSuccessURLIsActuallyServed)$'"
         - type: report
           value: Required-test JSON report proving all five exact storage-selection tests ran, failure cases produced zero local or remote writes, and the explicit local success URL served identical bytes and checksum after restart.
     - id: upload-boundary-evidence
       requirement: enforce-upload-admission
-      statement: Exact route tests prove both generic storage upload and user avatar upload enforce the hard request limit before multipart parsing, bound temporary resources, and use randomized no-clobber local writes that reject traversal and symlink escape.
+      statement: Exact Gin handler tests mounted at both production upload paths prove generic storage upload and user avatar upload enforce known and unknown-length hard request limits before multipart parsing, distinguish max object bytes from the bounded multipart envelope, clean forced spills, and use randomized create-only local writes that reject collision, forged size, cancellation residue, traversal, and root or internal symlink escape; the existing route security contract separately proves both paths remain authenticated mutations.
       level: security
       required: true
       evidence:
@@ -474,10 +477,16 @@ spec:
           value: TestAvatarUploadHardLimitBeforeMultipart
         - type: test
           value: TestStorageLocalNoClobberAndConfinement
+        - type: test
+          value: TestStorageUploadPolicyBytesAndMIMEContract
+        - type: test
+          value: TestCustomRouteContractsCoverOtherRegistrations
+        - type: test
+          value: TestCustomRouteContractsMatchRuntimeAuthentication
         - type: report
-          value: Required-test JSON report proving all three exact upload tests ran twenty times under race detection, returned 413 for limit-plus-one, and left bounded memory, temporary disk, database, and object state.
+          value: Required-test JSON report proving all six exact tests ran twenty times under race detection; route contracts match both Other registrations and authenticated mutation middleware; known cap-plus-one read zero bytes, unknown-length cap-plus-one read exactly the cap and probe byte, exact limits and the bytes/MIME policy succeeded, forced multipart spills were removed, admission or MIME rejection did not enter provider selection, concurrent local conflicts preserved one complete object, and rejected or canceled writes left no new or partial residue beyond the preserved existing or winning complete object.
         - type: command
-          value: "cd admin && go test -json -race ./apis ./service -run '^Test(StorageUploadHardLimitBeforeMultipart|AvatarUploadHardLimitBeforeMultipart|StorageLocalNoClobberAndConfinement)$' -count=20"
+          value: "cd admin && GOWORK=off go test -json -race ./apis ./service ./router -run '^(TestStorageUploadHardLimitBeforeMultipart|TestAvatarUploadHardLimitBeforeMultipart|TestStorageLocalNoClobberAndConfinement|TestStorageUploadPolicyBytesAndMIMEContract|TestCustomRouteContractsCoverOtherRegistrations|TestCustomRouteContractsMatchRuntimeAuthentication)$' -count=20"
   risks:
     - id: challenge-account-takeover
       description: Reusable, guess-consumed, weak, or fail-open verification codes can enable account takeover or lock out legitimate users.
@@ -511,10 +520,10 @@ spec:
       - cd admin && GOWORK=off go test -json -race ./middleware -run '^TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable$' -count=20
       - cd admin && GOWORK=off go test -json -race ./models -run '^(TestEmailRegistrationRejectsExistingCanonicalIdentity|TestEmailRegistrationUsesBoundedOpaqueUsername|TestGetUserByEmailFailsClosedOnAmbiguousIdentity|TestEmailIdentityOperationsDoNotEmitSensitiveSQL|TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity)$' -count=20
       - cd admin && GOWORK=off go test -json -race ./notice/email -run '^TestVerificationEmail.*$' -count=20
-      - cd admin && go test -json -race ./apis ./service -run '^Test(StorageUploadHardLimitBeforeMultipart|AvatarUploadHardLimitBeforeMultipart|StorageLocalNoClobberAndConfinement)$' -count=20
+      - cd admin && GOWORK=off go test -json -race ./apis ./service ./router -run '^(TestStorageUploadHardLimitBeforeMultipart|TestAvatarUploadHardLimitBeforeMultipart|TestStorageLocalNoClobberAndConfinement|TestStorageUploadPolicyBytesAndMIMEContract|TestCustomRouteContractsCoverOtherRegistrations|TestCustomRouteContractsMatchRuntimeAuthentication)$' -count=20
       - go test -json ./internal/mss/project -run '^TestCapabilityCatalogProviderSpecificStorageStatuses$'
       - go test -json ./internal/mss/verify -run '^TestV101ChangedProvidersDoNotExitOrDetach$'
-      - cd admin && go test -json -race ./config ./service -run '^TestObjectStorageSingleClientOwnedClose$'
+      - cd admin && GOWORK=off go test -json -race ./config ./service -run '^TestObjectStorageSingleClientOwnedClose$'
       - go run ./cmd/mss release evidence check --phase pre-framework --version v1.0.1 --format json
       - go run ./cmd/mss release evidence check --phase pre-root --version v1.0.1 --format json
       - go run ./cmd/mss release evidence check --phase post-publication --version v1.0.1 --format json

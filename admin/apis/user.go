@@ -256,20 +256,23 @@ func (e *User) ResetPassword(ctx *gin.Context) {
 	api.OK(struct{}{})
 }
 
+// UpdateAvatar stores a new avatar for the authenticated user.
+// @Summary Upload the current user's avatar
+// @Tags user
+// @Accept multipart/form-data
+// @Param file formData file true "Avatar"
+// @Success 201 {object} dto.UpdateAvatarResponse
+// @Failure 413 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/api/user/avatar [post]
+// @Security Bearer
 func (e *User) UpdateAvatar(ctx *gin.Context) {
 	api := response.Make(ctx)
-	verify := middleware.GetVerify(ctx)
-	file, err := ctx.FormFile("file")
-	if err != nil {
-		api.AddError(err).Log.Error("FormFile error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
 	s := service.Storage{}
-	result, err := s.Upload(ctx, file, verify.GetUserID())
+	result, err := s.Upload(ctx, "file")
 	if err != nil {
-		api.AddError(err).Log.Error("upload error")
-		api.Err(http.StatusInternalServerError)
+		writeUploadError(api, err)
 		return
 	}
 	api.OK(dto.UpdateAvatarResponse{Avatar: result.URL})

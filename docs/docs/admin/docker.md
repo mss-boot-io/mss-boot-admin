@@ -15,14 +15,14 @@ keywords: [admin docker deploy nginx production]
 - 本地容器化验证
 - 基于 MySQL 的生产部署基线
 - Nginx 反向代理
-- 日志、上传与任务调度目录约定
+- 日志与任务调度目录约定；上传仅覆盖本地非生产验证
 
 ## 部署前检查
 
 - 已准备 Docker 与 Docker Compose 环境
 - 已确认后端使用的数据库（本地可用 SQLite，生产建议 MySQL）
 - 已确认对外端口：后端 `8080`，前端 `8000`
-- 已确认静态文件与上传目录需要持久化
+- 已确认生产环境不暴露上传入口；Local/S3-compatible 当前仍为 Legacy / Blocked
 - 若启用 WebSocket 集群或缓存，已准备 Redis
 
 ## 推荐目录约定
@@ -31,7 +31,7 @@ keywords: [admin docker deploy nginx production]
 /opt/mss-boot-admin/
 ├── config/          # 配置文件
 ├── logs/            # 后端运行日志
-├── public/          # 本地上传文件
+├── public/          # 仅本地开发/评估上传，不属于生产基线
 ├── data/            # SQLite 或备份文件
 └── compose/         # compose 编排文件
 ```
@@ -76,6 +76,8 @@ docker run -d \
   server
 ```
 
+`public` 挂载只用于本地兼容路径验证，不能作为生产持久化或 Delivery 方案。
+
 ### 4. 启动前端
 
 ```bash
@@ -94,7 +96,7 @@ docker run -d \
 
 - 数据库：MySQL
 - 缓存/集群：Redis
-- 上传：本地持久化目录或 S3
+- 上传：应用不会自动关闭；ingress 显式阻断两个上传路径，并且不授予通用 `storage:upload` 权限作为纵深防御。头像入口没有独立 Casbin permission，Local/S3-compatible 均为 Legacy / Blocked
 - 反向代理：Nginx
 - 日志：文件输出 + 定期清理
 
@@ -149,10 +151,6 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
   }
 
-  location /public/ {
-    proxy_pass http://127.0.0.1:8080;
-  }
-
   location /admin/api/ws/connect {
     proxy_pass http://127.0.0.1:8080;
     proxy_http_version 1.1;
@@ -176,7 +174,8 @@ curl -I http://127.0.0.1:8000
 
 - [ ] 后端 `8080` 可访问
 - [ ] 前端 `8000` 可访问
-- [ ] `/public/*` 上传访问正常
+- [ ] `/admin/api/storage/upload` 与 `/admin/api/user/avatar` 未向生产流量开放
+- [ ] Nginx 未把 `/public/` 当作生产对象 Delivery
 - [ ] WebSocket 握手正常
 - [ ] `logs/` 目录持续写入
 - [ ] 定时任务 `checked_at` 正常更新
@@ -188,17 +187,22 @@ curl -I http://127.0.0.1:8000
 - [ ] 监控页面数据可见
 - [ ] 日志页面有数据
 - [ ] 告警通知渠道可联通
-- [ ] 文件上传与头像访问正常
+- [ ] 上传与头像写入在 provider gate 完成前保持关闭
 
 ## 五、常见问题
 
-### 1. 上传后图片无法访问
+### 1. 为什么不能把 `/public/` 代理当作生产上传方案
 
-优先检查：
+v1.0.1 当前未发布检查点只证明 Upload admission 与 Local write boundary：
+`storage:maxSize` 以 bytes 为单位，默认 10 MiB（`10485760`），硬上限
+100 MiB（`104857600`）；`storage:allowedTypes` 使用 MIME types /
+wildcards；Local 使用 opaque UUID key、受限根、create-only 写入与 partial
+cleanup。
 
-- `application.yml` 中 `application.staticPath` 是否配置 `/public: public`
-- 前端代理是否转发 `/public/`
-- Nginx 是否代理 `/public/`
+`prod` 模式不会注册 `application.staticPath`，返回的 `/public/...` 或 S3
+endpoint 拼接 URL 也不是已鉴权 Delivery。下一 v1.0.1 切片必须先完成 provider
+fail-closed、immutable profile 与 single owner；S3 conditional create-only
+及 Local/S3-compatible 共用 conformance suite 留在 `v1.1.0-alpha.2`。
 
 ### 2. 用户任务调度未生效
 

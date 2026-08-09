@@ -23,7 +23,7 @@ P4 覆盖四类扩展能力：
 | 能力 | 说明 | 状态 |
 |------|------|------|
 | 国际化 (i18n) | 多语言资源管理 | ✅ 已实现 |
-| 对象存储/上传 | 文件上传与存储 | ✅ 已实现 |
+| 对象存储/上传 | 文件上传与存储 | ⚠️ Legacy / Blocked |
 | WebSocket 事件 | 实时通信与推送 | ✅ 已实现 |
 | API-first 扩展 | 显式 Go 模型与标准控制器 | ✅ 已实现 |
 
@@ -127,20 +127,15 @@ POST /admin/api/languages
 
 ## 2. 对象存储/上传
 
-### 2.1 当前实现
+### 2.1 当前证据边界
 
-**支持的后端：**
-| 类型 | 说明 |
-|------|------|
-| Local | 本地文件系统 (`public/{userID}/`) |
-| S3 | AWS S3 |
-| OSS | 阿里云对象存储 |
-| COS | 腾讯云对象存储 |
-| OBS | 华为云对象存储 |
-| MinIO | 私有化部署 S3 兼容存储 |
-| GCS | Google Cloud Storage |
-| KODO | 七牛云存储 |
-| BOS | 百度对象存储 |
+| 路径 | 当前成熟度 | 已证明与未证明 |
+|------|------------|----------------|
+| Local | Legacy / Blocked | v1.0.1 未发布检查点已证明 admission、opaque key、`os.Root` confinement、`O_EXCL` no-clobber 与 partial cleanup；provider fail-closed 和真实 Delivery 尚未证明 |
+| S3-compatible | Legacy / Blocked | 只复用 admission 与 opaque key；仍有 per-request client、非不可变配置、覆盖语义和拼接 URL 等缺口 |
+
+配置枚举中出现其他 provider 名称，不等于存在可部署实现或生产支持矩阵。本节
+不得据此宣称 OSS、COS、OBS、MinIO、GCS、KODO 或 BOS 已受支持。
 
 **实现文件：**
 ```
@@ -152,37 +147,33 @@ mss-boot/pkg/config/
 └── storage.go           # 存储配置
 ```
 
-**配置方式：**
-```yaml
-# 通过 app_config 表配置
-storage:
-  type: s3              # local 或 s3
-  endpoint: https://...
-  s3Region: us-east-1
-  s3Bucket: my-bucket
-  s3AccessKeyID: xxx
-  s3SecretAccessKey: xxx
-```
+上传 admission 的非密钥 AppConfig：
+
+| key | 合同 |
+| --- | --- |
+| `storage:maxSize` | bytes；默认 10 MiB（`10485760`）；硬上限 100 MiB（`104857600`） |
+| `storage:allowedTypes` | 逗号分隔 MIME types / `type/*` wildcards，例如 `image/png,image/*`；不是扩展名列表 |
 
 ### 2.2 扩展边界
 
 | 边界 | 规则 |
 |------|------|
-| 存储路径 | 必须使用 `{userID}/` 前缀隔离 |
-| 访问方式 | 通过 `/storage/upload` API，禁止直接文件系统访问 |
-| 配置来源 | 从 `app_config` 表读取，支持运行时切换 |
+| 物理 key | 服务端生成 `uploads/<opaque-uuid>`；用户 ID 与原始文件名不得进入 key，原始文件名仅作响应元数据 |
+| 写入边界 | multipart 前限制 body，流式 max-plus-one；Local 在受限根中 create-only 写入并清理 partial |
+| 配置来源 | 当前仍从 `app_config` 分项读取；运行时切换不是受支持的生产合同 |
 | 认证要求 | 必须通过当前有效身份认证；通用上传还需 `storage:upload` 权限 |
+| URL / Delivery | Local 的 `/public/uploads/<opaque-uuid>` 与 S3 endpoint 拼接结果都不是生产 Delivery 证明 |
 
 ### 2.3 治理集成
 
 | 要求 | 当前状态 | 建议 |
 |------|----------|------|
 | JWT 认证 | ✅ 已实现 | - |
-| 用户隔离 | ✅ 按用户ID存储 | - |
-| 细粒度权限 | ✅ 已实现 | 通用上传使用独立 Casbin 权限；头像使用本人专用接口 |
+| 对象所有权/用户隔离 | ❌ 未实现 | opaque key 不是授权；在 Delivery/metadata 边界补 owner 与反向授权测试 |
+| 上传入口权限 | ⚠️ 部分实现 | 通用上传使用 `storage:upload`；头像为已认证本人接口，但不等于对象读取授权 |
 | 租户隔离 | ❌ 已移除 | 单租户架构 |
-| 审计日志 | ✅ 已实现 | 记录操作者、路径与结果，不缓冲 multipart 内容 |
-| 文件校验 | ✅ 已实现 | 服务端校验 MIME 与 10MB 大小上限 |
+| 审计日志 | ❌ 未形成对象审计合同 | 后续记录操作者、opaque ref 与结果，不记录 multipart 内容 |
+| 文件校验 | ⚠️ v1.0.1 未发布检查点 | MIME/wildcard allowlist；默认 10 MiB、硬上限 100 MiB，单位均为 bytes |
 
 ### 2.4 接入规范
 
@@ -198,29 +189,23 @@ file: <binary>
 **响应：**
 ```json
 {
-  "url": "https://endpoint/userID/filename"
+  "url": "/public/uploads/<opaque-uuid>",
+  "filename": "<original-name>",
+  "size": 1234,
+  "mimeType": "image/png"
 }
 ```
 
-**安全要求（当前实现）：**
-
-```go
-// 文件类型白名单
-var allowedTypes = []string{
-    "image/jpeg", "image/png", "image/gif",
-    "application/pdf",
-    "text/plain",
-}
-
-// 文件大小限制
-const maxSize = 10 * 1024 * 1024 // 10MB
-```
+该响应仅说明当前 Legacy Local 路径的返回形状；`url` 在生产模式不可据此访问，
+也不能替代鉴权 Delivery。原始 `filename` 不是存储 key。
 
 ### 2.5 当前限制
 
-1. **无按用户配额和速率限制**：权限不能替代容量与滥用控制
-2. **单租户架构**：当前为单租户模式
-3. **无大文件支持**：缺少分片上传能力，单文件上限为 10MB
+1. **Local/S3-compatible 仍为 Legacy / Blocked**：不得作为生产可用 provider 宣传
+2. **provider 配置与 ownership 未收敛**：下一 v1.0.1 切片必须 fail closed，并建立 immutable profile / single owner
+3. **Delivery 与对象所有权未实现**：`prod` 模式不注册 `application.staticPath`，opaque key 本身也不是授权
+4. **S3 no-clobber 未证明**：conditional create-only 与共用 provider conformance 留在 `v1.1.0-alpha.2`
+5. **无配额、速率限制和大文件协议**：当前无分片上传，且配置硬上限为 100 MiB
 
 ---
 
@@ -440,7 +425,7 @@ func afterCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
 | 能力 | 实现完整度 | 治理集成度 | 扩展灵活性 | 安全性 |
 |------|-----------|-----------|-----------|--------|
 | 国际化 | 高 | 中 | 中 | 中 |
-| 对象存储 | 中 | 低 | 高 | 低 |
+| 对象存储 | Legacy / Blocked | 低 | 低 | 低 |
 | WebSocket | 高 | 中 | 低 | 中 |
 | API-first | 高 | 高 | 高 | 高 |
 
@@ -449,7 +434,7 @@ func afterCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
 | 要求 | i18n | Storage | WebSocket | API-first |
 |------|------|---------|-----------|-----------|
 | JWT 认证 | ✅ | ✅ | ✅ | ✅ |
-| Casbin 权限 | ✅ | ❌ | ❌ | ✅ |
+| Casbin 权限 | ✅ | ⚠️ 仅通用上传入口 | ❌ | ✅ |
 | 租户隔离 | ❌ | ❌ | ❌ | ❌ |
 | 审计日志 | ❌ | ❌ | ❌ | ⚠️ |
 | 数据权限 | N/A | ❌ | N/A | ✅ |
@@ -457,14 +442,15 @@ func afterCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
 ### 5.3 改进优先级
 
 **高优先级（安全相关）：**
-1. 存储文件类型/大小校验
-2. 存储权限控制
+1. 下一 v1.0.1 切片完成 provider fail-closed、immutable profile 与 single owner
+2. 在上述门禁通过前保持生产上传关闭
 
 **中优先级（治理完善）：**
-1. 存储审计日志
-2. WebSocket 事件审计
-3. 国际化审计日志
-4. WebSocket 集群支持
+1. `v1.1.0-alpha.2` 完成 S3 conditional create-only、共用 conformance 与 Delivery 授权
+2. 存储审计日志
+3. WebSocket 事件审计
+4. 国际化审计日志
+5. WebSocket 集群支持
 
 **低优先级（体验优化）：**
 1. 存储大文件分片上传
