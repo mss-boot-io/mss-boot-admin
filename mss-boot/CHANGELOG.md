@@ -4,17 +4,25 @@ All notable, verifiable changes to the `mss-boot` framework are documented in
 this file. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses semantic versioning for nested-module releases.
 
-## [Unreleased] - mss-boot/v1.0.0 candidate
+## [Unreleased]
 
-Status: **preview / release preparation**. The framework is not published from
-the consolidated repository until the `mss-boot/v1.0.0` nested-module tag exists
-and resolves from an external module with `GOWORK=off`. A branch, local
-`go.work` replacement, or this changelog entry is not stable release evidence.
+### Documentation
+
+- Reconciled the changelog with the published nested-module Release and added
+  the v1.0.1 storage-safety and Storage Runtime v2 planning contracts. No
+  framework runtime implementation changes are included yet.
+
+## [mss-boot/v1.0.0] - 2026-08-09
+
+Status: **published / stable**. The `mss-boot/v1.0.0` nested-module Release was
+published before root `v1.0.0`, resolves externally with `GOWORK=off`, and points
+to `ee800262c035c5f4242aca1841d077554481d2c4`. The exact-commit evidence is
+recorded in repository issue `#471`.
 
 This tag is the reusable framework's first stable 1.0 release from the
 consolidated repository. Any package, checksum, proxy lookup, or test result
-created for the unpublished v0.8.0 candidate must be regenerated from the exact
-v1.0.0 release commit.
+created for the unpublished v0.8.0 candidate was excluded; the accepted evidence
+was regenerated from the exact v1.0.0 release commit.
 
 The compatibility and rollout requirements are part of the consolidated
 [v1.0.0 release contract](../docs/docs/releases/v1-0-0.md).

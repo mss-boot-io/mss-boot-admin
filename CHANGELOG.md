@@ -4,17 +4,35 @@ All notable, verifiable changes to the consolidated `mss-boot-admin` foundation
 are documented here. The project uses semantic versioning and component-scoped
 tag namespaces.
 
-## [Unreleased] - v1.0.0 candidate
+## [Unreleased]
 
-Status: **preview / release preparation**. This section does not represent a
-published stable release. It becomes `v1.0.0` only after the required framework
-tag is externally resolvable, all release gates pass on the exact root release
-commit, and the root tag and artifacts are published.
+### Changed
 
-This is the consolidated foundation's first stable 1.0 boundary. It supersedes
+- Reconciled the root and nested-framework changelogs, release FeatureSpec, and
+  release documentation with the public `v1.0.0` evidence.
+- Reclassified the aggregate cache/lock/queue adapter capability from stable to
+  legacy and added provider-specific evidence guidance.
+
+### Documentation
+
+- Added three machine-validated declarative planning contracts for `v1.0.1` storage safety,
+  Storage Runtime v2, and the v1.1 Generator/Blueprint golden slice, plus the
+  owned-resource architecture decision, provider maturity matrix, and the
+  `v1.0.1` through `v1.1.0` release train.
+
+## [v1.0.0] - 2026-08-09
+
+Status: **published / stable**. Root `v1.0.0` and the prerequisite
+`mss-boot/v1.0.0` Release both resolve to
+`ee800262c035c5f4242aca1841d077554481d2c4`. The public artifacts and exact-main
+approval are recorded in GitHub issue `#471`. The optional standalone
+`web/antd/v1.0.0` tag was not published.
+
+This is the consolidated foundation's first stable 1.0 boundary. It superseded
 the unpublished v0.8.0 release candidate; no v0.8.0 archive, checksum, image
-digest, workflow run, or smoke result is release evidence for v1.0.0. Every
-required artifact and proof must be regenerated from the exact v1.0.0 commit.
+digest, workflow run, or smoke result was accepted as release evidence for
+v1.0.0. Every required artifact and proof was regenerated from the exact
+v1.0.0 commit.
 
 Release, upgrade, rollback, and compatibility contracts are maintained under
 [`docs/docs/releases/`](docs/docs/releases/).

@@ -1,0 +1,449 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: storage-runtime-v2
+  displayName: Build storage capabilities from explicit owned runtime resources
+  description: >-
+    Defines the clean target architecture, provider maturity gates, conformance evidence, and
+    rollout boundary for cache, challenge state, events, work queues, locks, Redis, and object storage.
+  owner: framework-platform
+  labels:
+    domain: storage-runtime
+    target-version: v1.1.0
+    release-status: planned
+    compatibility: target-design-unconstrained
+    evidence-enforcement: declarative-until-infrastructure-planner-and-runner
+spec:
+  problem: >-
+    The current mss-boot/pkg/config/storage directory is not an object-storage package: it combines
+    cache, Redis globals, one-time verification state, queues, and locks, while the sibling
+    mss-boot/pkg/config/storage.go owns S3 construction. Consumers receive broad adapters or raw
+    clients, resource ownership is implicit, optional providers can control the process, security
+    state shares failure semantics with disposable caches, and Admin uses a general queue mostly as
+    a Casbin broadcast channel. A coherent runtime must separate authority and delivery semantics,
+    make every resource named and owned, and graduate providers only from conformance evidence.
+  goals:
+    - Build a typed runtime resource graph with strict configuration, named dependencies, ordered startup, readiness, cancellation, and reverse-order close.
+    - Give derived caches, one-time challenges, event broadcast, durable work, distributed locks, and object storage separate contracts and failure semantics.
+    - Construct one Redis client per named resource and expose only scoped consumer interfaces with automatic namespaces.
+    - Replace verification-code cache helpers with an atomic cryptographic ChallengeStore.
+    - Replace the Admin Casbin queue use with a revisioned EventBus plus database reconciliation.
+    - Define an ObjectStore that owns opaque object identity and a separate Delivery boundary for proxy or signed access.
+    - Validate every provider through one provider-specific maturity matrix and reusable conformance suite.
+    - Keep S3 configuration bootstrap independent from application object-storage runtime ownership.
+  nonGoals:
+    - Preserve historical package names, exported interfaces, global clients, configuration shapes, or fallback behavior in the target design.
+    - Promise storage hot reload in v1.1.0; runtime configuration is an immutable startup snapshot.
+    - Deliver a general durable job platform or claim Kafka, NSQ, or Redis work queues stable without full retry and dead-letter evidence.
+    - Use a distributed lock as a substitute for database transactions, optimistic concurrency, or a documented fencing design.
+    - Add CDN orchestration, malware scanning, image transforms, resumable multipart upload, or cross-cloud replication.
+    - Make Redis authoritative for database configuration, authorization policy, or other reconstructable application records.
+    - Reintroduce removed runtime developer tools, dynamic models, virtual CRUD, or browser code generation.
+  actors:
+    - id: application-author
+      displayName: Application author
+      description: Selects scoped capabilities without depending on provider clients or process globals.
+    - id: platform-maintainer
+      displayName: Platform maintainer
+      description: Owns runtime composition, provider contracts, conformance fixtures, and package boundaries.
+    - id: runtime-operator
+      displayName: Runtime operator
+      description: Supplies secrets, observes health and degradation, and performs controlled rollout or recovery.
+    - id: release-reviewer
+      displayName: Release reviewer
+      description: Promotes only providers whose exact-commit evidence satisfies their maturity gate.
+  modules:
+    - name: bootstrap-source
+      operation: extend
+      description: Pre-runtime S3 configuration-source bootstrap with independent ownership.
+    - name: challenge-store
+      operation: create
+      description: Purpose-scoped atomic one-time challenge issuance and verification.
+    - name: derived-cache
+      operation: extend
+      description: Database-authoritative scoped caches and explicit opt-in query caching.
+    - name: distributed-lock
+      operation: extend
+      description: Explicitly deferred lock capability with no maturity inherited from Redis or the runtime.
+    - name: event-bus
+      operation: create
+      description: Best-effort revision notifications with deterministic reconciliation.
+    - name: object-store
+      operation: extend
+      description: Private opaque objects and separate delivery policies.
+    - name: provider-governance
+      operation: create
+      description: Provider maturity records, conformance suites, and exact evidence.
+    - name: redis-resource
+      operation: create
+      description: Named Redis clients with strict standalone, Sentinel, cluster, and TLS profiles.
+    - name: resource-runtime
+      operation: create
+      description: Typed resource graph, lifecycle ownership, readiness, and shutdown.
+    - name: runtime-config
+      operation: create
+      description: Strict discriminated configuration and immutable normalized profiles.
+    - name: work-queue
+      operation: extend
+      description: Durable at-least-once delivery isolated from event broadcast.
+  requirements:
+    - id: bind-resource-lifecycle
+      title: Bind resources to one application lifecycle
+      description: The composition root must start required resources before listeners and close every acquired resource in reverse dependency order.
+      priority: must
+      actor: platform-maintainer
+      module: resource-runtime
+      rules:
+        - Decode and validate complete before Build, and Build starts no goroutine or network loop.
+        - Start and required health checks complete synchronously before HTTP or gRPC listeners can serve.
+        - Long-running workers inherit the application context and one owner performs idempotent deadline-bound close.
+        - Partial startup failure closes acquired resources in reverse topological order and returns the original and cleanup errors.
+    - id: classify-providers-by-evidence
+      title: Classify each provider independently
+      description: A provider maturity state must be derived from named, reproducible evidence and cannot be inherited from a package or release version.
+      priority: must
+      actor: release-reviewer
+      module: provider-governance
+      rules:
+        - Blocked providers with a known security or data-loss path are not enabled in production defaults.
+        - Experimental, beta, and stable have explicit test, deployment, observability, soak, upgrade, and rollback requirements.
+        - A skipped required integration test fails promotion and every report identifies provider, version, commit, fixture, and result.
+        - The report conforms to a checked-in machine schema and the release verifier rejects a missing provider, missing test, or zero-test match.
+    - id: constrain-object-storage
+      title: Separate object authority from delivery
+      description: Object storage must use opaque server-owned identity, strict private providers, and an explicit proxy or signed-delivery layer.
+      priority: must
+      actor: application-author
+      module: object-store
+      rules:
+        - Put, Open, Stat, and Delete operate on opaque ObjectRef values and return checksummed metadata.
+        - Put is create-only and concurrent writes to the same ObjectRef return a typed conflict without replacing committed bytes.
+        - The original filename is metadata only; keys are random, no-clobber, and never include a user-controlled path.
+        - Local uses a fixed root, temporary write plus atomic publish, path and symlink confinement, and identical conformance semantics to S3-compatible providers.
+        - Provider outage returns unavailable and never falls back; public URLs are not built by concatenating an endpoint and object key.
+        - Admin persists authoritative owner, tenant, purpose, profile, checksum, size, detected type, state, revision, and original-name metadata through a forward migration.
+        - Open, signed delivery, and delete enforce backend permission plus cross-user and cross-tenant negative authorization; ObjectRef possession grants no access.
+    - id: own-named-resources
+      title: Own one client per named Redis resource
+      description: Redis consumers must resolve explicit resource references and receive only a namespace-scoped capability interface.
+      priority: must
+      actor: platform-maintainer
+      module: redis-resource
+      rules:
+        - Standalone, Sentinel, and cluster are strict mutually exclusive modes with validated TLS and SecretRef credentials.
+        - One resource name creates one client, one health state, one metrics identity, and exactly one close by its owner.
+        - Cache, query, session, OAuth state, challenge, event, and realtime scopes cannot read or delete outside their prefixes.
+        - Cluster mode rejects nonzero database selection and every mode rejects incomplete endpoints, credentials, or certificate pairs.
+    - id: defer-distributed-lock-promotion
+      title: Keep distributed locking deferred without a fenced consumer
+      description: A Redis lock adapter with no production consumer or fencing proof must remain disabled and cannot inherit Redis resource maturity.
+      priority: must
+      actor: release-reviewer
+      module: distributed-lock
+      rules:
+        - The current adapter remains legacy and disabled by default while Admin has no production consumer.
+        - A future promotion names the protected write, propagates a monotonically increasing fencing token, and proves renewal, lease loss, cancellation, partition, and stale-owner rejection.
+        - Database transactions or optimistic concurrency remain preferred unless evidence shows they cannot satisfy the concrete use case.
+    - id: redact-runtime-observability
+      title: Make diagnostics useful without exposing secrets
+      description: Health, metrics, logs, traces, doctor output, and evidence must identify resources and failure class without sensitive values.
+      priority: must
+      actor: runtime-operator
+      module: resource-runtime
+      rules:
+        - Diagnostics expose resource name, provider kind, state, latency, retries, and a sanitized endpoint identity.
+        - Raw credentials, secret values, challenge subjects or codes, signed URLs, message payloads, and multipart bodies are never emitted.
+        - SecretRef diagnostics show only source kind and a nonreversible fingerprint when needed for rotation checks.
+    - id: scope-derived-cache
+      title: Keep cache derived from an authoritative source
+      description: A cache must declare its authority, namespace, TTL, payload bound, failure mode, and reconstruction behavior.
+      priority: must
+      actor: application-author
+      module: derived-cache
+      rules:
+        - Database-authoritative cache failure bypasses to the database and cannot change the result of an already committed write.
+        - Session snapshots fall back to their session or database authority while OAuth and challenge state never use cache-style fallback.
+        - Generic query caching remains opt-in beta and preserves not-found, RowsAffected, preload, scan, datasource, and table-generation semantics.
+        - Active database transactions bypass shared QueryCache unless a snapshot-bound design later proves isolation, rollback, and read-your-writes semantics.
+        - Bounded payloads, singleflight, namespace isolation, generation races, and cross-instance datasource identity are tested explicitly.
+    - id: secure-one-time-challenges
+      title: Provide an atomic ChallengeStore
+      description: One-time authentication state must have security-specific issuance and verification operations rather than generic cache calls.
+      priority: must
+      actor: application-author
+      module: challenge-store
+      rules:
+        - crypto/rand generates the code and only a fixed-length HMAC or equivalent verifier is stored under normalized subject and purpose.
+        - The verifier uses a versioned high-entropy pepper SecretRef, constant-time comparison, and bounded dual-key rotation.
+        - BeginIssue atomically enforces resend eligibility, rolling quota, expiry, and one versioned pending reservation; Verify never accepts pending values.
+        - Successful delivery commits the matching pending version, replaces the prior active verifier, and starts cooldown; failed delivery aborts only that version, preserves the prior active verifier, and keeps the rolling-quota charge.
+        - Stale delivery completion cannot commit or abort a newer concurrent Issue.
+        - Pending state has a short lease independent from active expiry; BeginIssue atomically reclaims an expired lease after process crash or hung delivery without extending the prior active verifier.
+        - Verify atomically compares, increments attempts, locks at the bound, and consumes exactly once on success.
+        - Redis outage fails closed, typed outcomes avoid account enumeration, and code or subject never enters observability data.
+        - Redis Cluster uses a single atomic key or explicit same-slot hash tag and proves CROSSSLOT rejection plus failover behavior.
+    - id: separate-bootstrap-storage
+      title: Keep configuration bootstrap independent
+      description: An S3-backed configuration source must initialize before runtime configuration and cannot depend on or share hidden ownership with application ObjectStore.
+      priority: should
+      actor: runtime-operator
+      module: bootstrap-source
+      rules:
+        - Bootstrap uses a minimal strict profile and returns errors without Fatal or global mutation.
+        - Bootstrap credentials and client lifecycle are independent from named application object stores.
+        - Bootstrap diagnostics are sanitized and do not imply application object-storage readiness.
+    - id: split-events-from-work
+      title: Separate broadcast events from durable work
+      description: EventBus and WorkQueue must expose different delivery guarantees, failure behavior, reconciliation, and maturity.
+      priority: must
+      actor: platform-maintainer
+      module: event-bus
+      rules:
+        - Casbin uses a typed revision event whose subscriber reloads authoritative database policy; delivery scope is provider-specific and never treated as the authority.
+        - Casbin policy mutation and its monotonic revision commit in one database transaction; a crash between commit and publish is repaired by reconciliation.
+        - Periodic revision reconciliation repairs missed, duplicate, or out-of-order events.
+        - Memory and Redis EventBus providers use best-effort fan-out and explicit degraded health rather than work-queue acknowledgement semantics.
+        - Kafka, NSQ, and Redis durable work remain experimental until acknowledgement-after-success, retry, dead-letter, cancellation, rebalance, and idempotency conformance pass.
+    - id: strict-runtime-config
+      title: Decode a strict discriminated configuration
+      description: Runtime configuration must reject ambiguous provider shapes and resolve typed secret references before side effects.
+      priority: must
+      actor: runtime-operator
+      module: runtime-config
+      rules:
+        - Unknown fields, unknown providers, multiple provider branches, empty addresses, invalid durations, and incomplete TLS or credentials are errors.
+        - Configuration is normalized once into an immutable startup snapshot and Build never mutates decoded input.
+        - AppConfig may select a predeclared object-storage profile and non-secret policy but cannot store raw provider credentials.
+  constraints:
+    - id: clean-target-boundary
+      type: compatibility
+      statement: Historical APIs and configuration are not architecture inputs; any temporary release bridge is outside the target interfaces and cannot preserve unsafe semantics.
+    - id: explicit-authority
+      type: data
+      statement: Every stateful capability declares its authoritative source and whether failure means bypass, degrade, retry, or fail closed.
+    - id: no-hidden-global
+      type: dependency
+      statement: Runtime consumers receive named scoped dependencies and cannot create, replace, or close a process-global provider client.
+    - id: readiness-before-listen
+      type: operations
+      statement: Required resource health is established before network listeners accept requests; sibling concurrent Runnables are insufficient ordering.
+    - id: secret-reference-only
+      type: security
+      statement: Production provider credentials enter runtime profiles through typed SecretRef values and are never persisted as raw Admin application configuration.
+    - id: semver-release-check
+      type: compatibility
+      statement: If implementation removes or changes existing public Go APIs, release engineering must publish the framework under a compatible major-version decision rather than mislabel a breaking build as SemVer minor.
+    - id: required-test-execution
+      type: operations
+      statement: Required Go tests are parsed from go test -json and must show at least one exact test start and pass; no-tests warnings, package skips, and required fixture skips fail promotion.
+    - id: declarative-bootstrap-boundary
+      type: operations
+      statement: At the v1.0.0 baseline, spec validate proves only structure and references; feature plan cannot yet plan cross-cutting modules and verify does not execute acceptance or custom evidence, so this target is not reported as implemented until the infrastructure planner and evidence runner land.
+  acceptance:
+    - id: admin-integration-gate
+      statement: Admin integration proves readiness ordering, bounded shutdown, challenge outage failure, Casbin reconciliation, pre-parse upload limits, and no provider fallback.
+      level: e2e
+      required: true
+      evidence:
+        - type: test
+          value: TestApplicationResourcesReadyBeforeHTTP
+        - type: test
+          value: TestChallengeOutageFailsClosed
+        - type: test
+          value: TestCasbinRevisionReconcilesCommitPublishCrash
+        - type: test
+          value: TestStorageUploadHardLimitBeforeMultipart and TestAvatarUploadHardLimitBeforeMultipart
+        - type: test
+          value: TestStorageProviderFailureNeverWritesLocal
+        - type: report
+          value: Required-test JSON report proving every named Admin integration test ran and passed under race detection.
+    - id: challenge-conformance-gate
+      requirement: secure-one-time-challenges
+      statement: One hundred concurrent issue, delivery commit/abort, and verify attempts produce at most one active issue and one verification success, preserve the prior verifier on failed delivery, reclaim crash or hung-sender pending leases without extending active expiry, reject stale delivery completion, and prove cooldown, charged failure quota, attempts, expiry, Admin purpose isolation, anti-enumeration, pepper rotation, constant-time verification, CROSSSLOT/failover behavior, outage, and redaction.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: ChallengeStore security and concurrency conformance suite
+        - type: test
+          value: TestChallengePendingLeaseCrashRecovery
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race ./runtime/challenge/...
+    - id: configuration-negative-gate
+      requirement: strict-runtime-config
+      statement: The negative matrix rejects unknown fields and providers, ambiguous modes, invalid duration, empty endpoints, and partial TLS or credentials with zero side effects.
+      level: contract
+      required: true
+      evidence:
+        - type: test
+          value: Runtime strict configuration negative matrix
+        - type: command
+          value: cd mss-boot && GOWORK=off go test ./runtime/config/...
+    - id: derived-cache-gate
+      requirement: scope-derived-cache
+      statement: Failure injection and race tests preserve authoritative database semantics, namespace isolation, payload bounds, generation ordering, result metadata, transaction bypass, rollback, and read-your-writes isolation.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: Derived cache and QueryCache conformance suite
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race ./runtime/cache/...
+    - id: distributed-lock-defer-gate
+      requirement: defer-distributed-lock-promotion
+      statement: Machine contracts keep the Redis lock legacy and disabled, prove there is no Admin production consumer, and reject promotion without a fenced protected-write conformance suite.
+      level: contract
+      required: true
+      evidence:
+        - type: test
+          value: TestDistributedLockCapabilityDeferredWithoutConsumer
+        - type: command
+          value: go run ./cmd/mss context --format json
+    - id: event-delivery-gate
+      requirement: split-events-from-work
+      statement: Memory events reach every in-process subscriber, Redis events reach every currently connected replica, policy and revision commit atomically, and database revision reconciliation repairs duplicate, out-of-order, missed, panicking, disconnected, or commit-before-publish crash cases.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: EventBus fan-out and reconciliation conformance suite
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race ./runtime/eventbus/...
+    - id: workqueue-classification-gate
+      requirement: split-events-from-work
+      statement: Kafka, NSQ, and Redis WorkQueue each either pass acknowledgement-after-success, retry/backoff, dead-letter, cancellation/rebalance, idempotency, and real-provider tests or remain explicitly non-stable and disabled from production defaults.
+      level: contract
+      required: true
+      evidence:
+        - type: report
+          value: Provider maturity report with separate Kafka, NSQ, and Redis WorkQueue results and no inherited EventBus status.
+    - id: external-consumer-gate
+      statement: A temporary external module with GOWORK disabled resolves the exact framework tag, constructs the runtime, proves readiness, and closes without leaks.
+      level: integration
+      required: true
+      evidence:
+        - type: command
+          value: Run the versioned external framework consumer probe from an empty temporary module.
+    - id: lifecycle-conformance-gate
+      requirement: bind-resource-lifecycle
+      statement: One hundred race-enabled startup and shutdown cycles prove topological order, reverse rollback, cancellation, deadlines, repeated close, and no goroutine or file-descriptor growth.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: Resource runtime lifecycle and leak conformance suite
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race -count=100 ./runtime/resource/...
+    - id: object-conformance-gate
+      requirement: constrain-object-storage
+      statement: Local and MinIO pass the same create-only Put, Open, Stat, Delete, cancel, limit, checksum, no-clobber, conflict, cleanup, privacy, path, symlink, and concurrent-filename suite.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: ObjectStore provider conformance suite
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race ./runtime/objectstore/...
+    - id: object-authorization-gate
+      requirement: constrain-object-storage
+      statement: A forward migration creates authoritative object metadata and Admin tests deny cross-user and cross-tenant open, signed delivery, and delete while preserving owner permission checks.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: Admin ObjectRef metadata migration and authorization suite
+        - type: report
+          value: Required-test JSON report proving exact owner-positive and cross-user/cross-tenant negative tests ran and passed.
+    - id: provider-report-gate
+      requirement: classify-providers-by-evidence
+      statement: CI emits a provider-by-provider report with no skipped required check and only evidence-qualified promotions.
+      level: contract
+      required: true
+      evidence:
+        - type: path
+          value: .mss/schemas/provider-maturity.schema.json
+        - type: path
+          value: .mss/reports/provider-maturity.json
+        - type: command
+          value: go run ./cmd/mss provider evidence --required --format json
+        - type: report
+          value: Exact-commit storage provider maturity report
+        - type: path
+          value: docs/adr/2026-08-09-storage-runtime-v2.md
+    - id: redis-deployment-gate
+      requirement: own-named-resources
+      statement: Standalone, Sentinel, cluster, and TLS fixtures prove namespacing, one-client ownership, one close, health, cancellation, and invalid-mode rejection.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: Redis named-resource deployment conformance suite
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race ./runtime/redisresource/...
+    - id: runtime-redaction-gate
+      requirement: redact-runtime-observability
+      statement: Secret canaries in credentials, challenges, subjects, payloads, signed URLs, and multipart bodies are absent from logs, metrics, traces, doctor, and reports.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: TestRuntimeObservabilityRedactionCanary
+        - type: command
+          value: go run ./cmd/mss doctor --strict --format json
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -json -run '^TestRuntimeObservabilityRedactionCanary$' ./runtime/...
+    - id: s3-bootstrap-gate
+      requirement: separate-bootstrap-storage
+      statement: Configuration-source startup and application ObjectStore use independent profiles, clients, failures, health, and close ownership.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: S3 configuration bootstrap ownership suite
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race ./pkg/config/source/s3/...
+  risks:
+    - id: event-missed
+      description: Best-effort broadcast can miss an invalidation event and leave a replica temporarily stale.
+      severity: high
+      mitigation: Carry authoritative revisions, reload from the database, and run periodic reconciliation independent of event delivery.
+    - id: migration-half-owned
+      description: Mixing global and named clients during rollout can double-close a Redis client or leave an unowned goroutine running.
+      severity: critical
+      mitigation: Migrate one scope at a time behind one composition root and use lifecycle leak tests before removing each old path.
+    - id: provider-promotion-drift
+      description: Documentation or a version milestone can promote a provider while its required integration evidence remains skipped.
+      severity: high
+      mitigation: Generate the matrix from exact-commit conformance results and make required skips fail the promotion gate.
+    - id: queue-contract-confusion
+      description: Treating revision broadcast as durable work can either lose jobs or force unnecessary queue semantics into cache reconciliation.
+      severity: critical
+      mitigation: Keep EventBus and WorkQueue interfaces, configuration, metrics, failure policies, and capability states separate.
+    - id: semver-misclassification
+      description: A clean target design may require public Go API removal that cannot truthfully ship as a v1.1 minor release.
+      severity: high
+      mitigation: Keep the architecture clean, then add a non-authoritative bridge or select the next major module version before publishing artifacts.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/storage-runtime-v2.yaml --format json
+      - cd mss-boot && GOWORK=off go test -race ./runtime/...
+      - cd mss-boot && GOWORK=off go vet ./...
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      Treat the target model as authoritative without using historical compatibility as a design
+      constraint. Land strict configuration and the resource owner first, then named Redis and scoped
+      caches, ChallengeStore, EventBus plus reconciliation, ObjectStore plus Delivery, and finally
+      provider-by-provider promotion. Migrate Admin scopes independently with failure injection and
+      observability at every boundary. Keep WorkQueue and distributed lock experimental unless their
+      own conformance passes. Before publishing v1.1.0, decide whether any public removal requires a
+      framework major-version release; do not hide a breaking API under a minor tag.
+    rollback: >-
+      Stop listeners and consumers, close the owned runtime in reverse order, and preserve authoritative
+      database, challenge, queue, and object metadata. Roll back one migrated scope only after proving
+      the prior path will not restore unsafe fallback, early acknowledgement, weak challenges, or
+      process termination. Prefer an idempotent forward repair. Never switch object providers silently,
+      reset queue offsets without an explicit recovery plan, or reconstruct security state from caches.

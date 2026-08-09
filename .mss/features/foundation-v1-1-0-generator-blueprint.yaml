@@ -1,0 +1,348 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: foundation-v1-1-0-generator-blueprint
+  displayName: Deliver one upgradeable full-stack golden module for v1.1.0
+  description: >-
+    Defines the Blueprint identity, deterministic generation, forward migration, authorization,
+    OpenAPI, frontend, testing, documentation, and downstream-upgrade gates for the v1.1.0
+    Generator and Blueprint flagship milestone.
+  owner: agent-infrastructure
+  labels:
+    domain: generator-blueprint
+    target-version: v1.1.0
+    release-status: planned
+    compatibility: target-design-unconstrained
+    evidence-enforcement: declarative-until-infrastructure-planner-and-runner
+spec:
+  problem: >-
+    The v1.0.0 module generator is a deterministic scaffold, not a complete full-stack module
+    generator. The checked-in supplier specification declares operations, export, ownership,
+    events, tests, indexes, permissions, default roles, menu metadata, frontend behavior, and
+    documentation that are not all projected into generated output. No generated golden vertical
+    module is checked in, the human contract says modules/name while the machine contract and
+    implementation write admin/modules/name, and Foundation release, Blueprint, generator, and
+    downstream snapshot versions are conflated. Expanding features before one upgradeable vertical
+    slice passes end to end would multiply unverifiable contracts.
+  goals:
+    - Separate Foundation release, Blueprint revision, generator binary, and downstream snapshot identities with deterministic sync and drift checks; lock and manifest are atomic records of the same snapshot.
+    - Select one canonical vertical-module path and make AGENTS, project contract, generator, verifier, docs, tests, and upgrade ownership agree.
+    - Generate a real forward SQL migration and upgrade path rather than presenting AutoMigrate as a migration contract.
+    - Project every supported AdminModule field into backend, authorization, menu, OpenAPI, frontend, tests, events, export, indexes, and documentation.
+    - Reject every declared but unsupported field before writing any file.
+    - Check in one supplier golden module and prove two-run idempotency, path confinement, stable ordering, generated-drift detection, and no unrelated edits.
+    - Prove a three-way Blueprint upgrade preserves downstream business customizations and reports every conflict.
+    - Publish v1.1.0 only after the golden module passes database, authorization, API, frontend, E2E, docs, external-consumer, and upgrade evidence.
+  nonGoals:
+    - Generate multiple demonstration domains before the supplier golden module is complete.
+    - Reintroduce runtime dynamic models, virtual CRUD, browser-facing code generation, or browser mutation of repository files.
+    - Mechanically migrate every legacy horizontal Admin module without a dedicated migration specification.
+    - Use AutoMigrate, fresh-schema success, output file count, or compile-only evidence as proof of a complete module.
+    - Preserve conflicting historical module paths or generated output shapes as target-design constraints.
+    - Make Storage Runtime provider promotion part of Generator acceptance; the storage risk axis has independent safety and conformance contracts.
+  actors:
+    - id: downstream-maintainer
+      displayName: Downstream maintainer
+      description: Generates an application, customizes business code, and upgrades across Blueprint revisions.
+    - id: generator-maintainer
+      displayName: Generator maintainer
+      description: Owns schemas, projections, templates, deterministic output, and drift validation.
+    - id: module-author
+      displayName: Module author
+      description: Writes one AdminModule specification and reviews the complete generated vertical slice.
+    - id: security-reviewer
+      displayName: Security reviewer
+      description: Verifies permissions, default roles, ownership rules, migrations, audit events, and secret boundaries.
+  modules:
+    - name: authorization-generator
+      operation: extend
+      description: Permissions, default roles, backend enforcement, menu visibility, ownership, and negative tests.
+    - name: backend-generator
+      operation: extend
+      description: Models, DTOs, services, APIs, operations, indexes, events, export, and OpenAPI.
+    - name: blueprint-contract
+      operation: extend
+      description: File ownership, exclusions, merge policy, module path, and downstream upgrade behavior.
+    - name: frontend-generator
+      operation: extend
+      description: Typed client, list, form, detail, actions, states, locale, and frontend tests.
+    - name: golden-supplier
+      operation: extend
+      specPath: .mss/modules/example-supplier.yaml
+      description: Checked-in end-to-end golden vertical module and generated evidence.
+    - name: migration-generator
+      operation: extend
+      description: Forward SQL migrations, identifiers, duplicate detection, and database matrix.
+    - name: version-identity
+      operation: extend
+      description: Foundation release, Blueprint, generator, and downstream snapshot identity sources; lock and manifest are two records of one snapshot.
+  requirements:
+    - id: enforce-canonical-module-path
+      title: Use one canonical vertical-module path
+      description: Every machine and human contract must resolve the same generated backend module and registry paths.
+      priority: must
+      actor: generator-maintainer
+      module: blueprint-contract
+      rules:
+        - Use the currently implemented admin/modules/name path until a separately versioned Blueprint migration changes it.
+        - AGENTS, .mss/project.yaml, generator, verifier, documentation, feature evidence, templates, and tests contain no conflicting default path.
+        - A later move to root modules/name requires Blueprint ownership changes, a three-way upgrade, and a path-specific ADR.
+    - id: generate-authorization-contract
+      title: Generate enforceable authorization
+      description: Permissions, default roles, menu actions, and ownership declarations must become backend behavior and tested policy rather than descriptor-only metadata.
+      priority: must
+      actor: security-reviewer
+      module: authorization-generator
+      rules:
+        - Every generated API and business action maps to an explicit permission and backend enforcement point.
+        - Default roles receive only declared permissions and root bypass cannot delete protected system invariants.
+        - Ownership rules fail closed and have owner-positive, other-user-negative, other-tenant-negative, and missing-context tests.
+        - Menu and frontend visibility mirror backend permissions but never replace authorization.
+    - id: generate-forward-migration
+      title: Generate a real forward migration
+      description: Persistent fields, indexes, constraints, and relationships must ship through an ordered forward migration with upgrade evidence.
+      priority: must
+      actor: generator-maintainer
+      module: migration-generator
+      rules:
+        - Migration identifiers are typed or lossless strings, never truncated filename prefixes or silently parsed integers.
+        - Duplicate identifiers fail before any migration executes and library code returns errors without Fatal or os.Exit.
+        - Fresh, upgrade, repeat, and injected-failure behavior is proven on SQLite, MySQL, and PostgreSQL.
+        - AutoMigrate may support tests or development but is not the generated production migration contract.
+    - id: generate-fullstack-projection
+      title: Project every supported specification field
+      description: The golden module must consume operations, indexes, export, events, tests, frontend, permissions, roles, menu, and ownership into observable output.
+      priority: must
+      actor: module-author
+      module: backend-generator
+      rules:
+        - CRUD and declared custom operations generate DTO, service, API, OpenAPI, and typed frontend client contracts.
+        - Index groups, uniqueness, validation, filtering, sorting, relations, ownership, and export affect migration and runtime behavior.
+        - Created and updated events are typed and emitted only after the authoritative transaction commits.
+        - Every source field maps to an output kind, an explicit validation-only meaning, or a pre-write unsupported-field error.
+    - id: generate-frontend-experience
+      title: Generate a complete management experience
+      description: The golden module frontend must provide typed routes and pages with normal and failure states aligned to the API and permission contract.
+      priority: must
+      actor: module-author
+      module: frontend-generator
+      rules:
+        - List, create/edit form, detail, declared actions, filters, pagination, sorting, export, and permission boundaries are generated as applicable.
+        - Loading, empty, error, permission-denied, validation, conflict, and destructive-confirmation states are present.
+        - Chinese and English locale keys remain synchronized and no endpoint or type is hand-maintained outside the generated OpenAPI client boundary.
+    - id: keep-generation-deterministic
+      title: Keep generation deterministic and confined
+      description: The same normalized specification and generator version must produce stable output without touching unrelated or customized files.
+      priority: must
+      actor: generator-maintainer
+      module: golden-supplier
+      rules:
+        - Dry-run is the default and write reports every created, changed, unchanged, skipped, and conflicted path.
+        - Paths are repository-confined, output ordering is stable, generated regions identify source and generator version, and the second write is empty.
+        - Check mode fails on missing or stale generated output and required tests reject a zero-file or zero-test false positive.
+        - Unsupported fields and conflicts fail before the first write; user-owned files are never silently overwritten.
+    - id: record-version-identities
+      title: Record independent version identities
+      description: Foundation release, Blueprint, generator, and downstream snapshot data must be sourced independently and cross-validated; lock and manifest do not invent a fifth version.
+      priority: must
+      actor: downstream-maintainer
+      module: version-identity
+      rules:
+        - Foundation identity records the published version and full commit, Blueprint identity records its own semantic revision and digest, and generator identity comes from the actual binary build.
+        - The downstream snapshot records resolved inputs and the generated baseline; a deterministic lock or sync command updates its lock and manifest representations together only after all planned files succeed.
+        - Source-repository development lock state is not manually rewritten to resemble a public Release.
+        - Doctor and upgrade status detect missing, contradictory, stale, or manually forged identity fields.
+    - id: reject-unsupported-specification
+      title: Reject unimplemented declarations
+      description: A specification cannot validate or write successfully when it requests a behavior that the current generator cannot implement.
+      priority: must
+      actor: module-author
+      module: blueprint-contract
+      rules:
+        - Schema and Go semantic validation share the same supported field and enum contract.
+        - Infrastructure Feature planning supports cross-cutting modules without pretending they are AdminModule specifications.
+        - validation.custom and acceptance evidence are either executed by a release workflow or reported as declarative and not counted as passed.
+    - id: upgrade-preserving-customizations
+      title: Preserve downstream customizations through upgrade
+      description: A three-way Blueprint upgrade must update owned generated baselines while retaining business-owned changes and reporting conflicts.
+      priority: must
+      actor: downstream-maintainer
+      module: blueprint-contract
+      rules:
+        - The old generated baseline, downstream tree, and new Blueprint are distinct inputs with recorded digests.
+        - Owned, generated-region, user-owned, excluded, deleted, and conflicted paths have explicit merge behavior.
+        - The new lock and manifest commit last only after a conflict-free apply and complete validation.
+        - A 0.1-to-0.2 rehearsal modifies business code, upgrades the Blueprint, preserves customization, and proves a second upgrade is empty.
+  constraints:
+    - id: contracts-before-output
+      type: data
+      statement: Human or Agent-authored specifications are authoritative; generated output and evidence must be reproducible from committed contracts and version identities.
+    - id: generator-no-runtime-tools
+      type: security
+      statement: Generation remains a repository-time CLI operation with confined dry-run writes and never exposes browser or Admin runtime code-generation endpoints.
+    - id: golden-before-breadth
+      type: operations
+      statement: One complete checked-in supplier module must pass all gates before a second generated business domain or additional generator feature is accepted.
+    - id: no-compatibility-shaped-target
+      type: compatibility
+      statement: Conflicting historical paths and incomplete output shapes do not constrain the target; any transition bridge stays outside generated target contracts.
+    - id: no-zero-test-evidence
+      type: operations
+      statement: Required Go and frontend tests must prove exact test execution; no-tests warnings, empty matches, package skips, and required fixture skips fail acceptance.
+    - id: storage-independent-axis
+      type: dependency
+      statement: Storage Runtime safety is a parallel release axis; unpromoted optional providers remain legacy or planned without weakening or indefinitely blocking the Generator golden slice.
+    - id: planner-bootstrap-boundary
+      type: operations
+      statement: At the v1.0.0 baseline, spec validate proves only structure and references; feature plan still requires AdminModule specPath for cross-cutting modules and verify does not execute acceptance or custom evidence, so this target cannot be reported passed until contract-kind planning and evidence execution land.
+  acceptance:
+    - id: authorization-generation-gate
+      requirement: generate-authorization-contract
+      statement: Generated backend, policy, default-role, menu, ownership, and UI contracts pass owner-positive and cross-user, cross-tenant, missing-context, wrong-role, and unauthenticated negative tests.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: Golden supplier generated authorization conformance suite
+        - type: report
+          value: Required-test report proving every named positive and negative authorization case ran.
+    - id: canonical-path-gate
+      requirement: enforce-canonical-module-path
+      statement: A repository scan and generator plan find exactly one canonical admin/modules/name backend path and no conflicting root modules/name default.
+      level: contract
+      required: true
+      evidence:
+        - type: report
+          value: Canonical vertical-module path drift report
+        - type: path
+          value: .mss/project.yaml
+    - id: deterministic-generation-gate
+      requirement: keep-generation-deterministic
+      statement: Dry-run, first write, second write, check, golden diff, path attack, conflict, unsupported-field, and unrelated-file tests all pass without a zero-output false positive.
+      level: integration
+      required: true
+      evidence:
+        - type: command
+          value: go test -race ./internal/mss/generator/...
+        - type: command
+          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check
+        - type: report
+          value: Two-run golden generation and path-confinement report
+    - id: fullstack-backend-gate
+      requirement: generate-fullstack-projection
+      statement: Supplier migration, model, DTO, service, API, operations, indexes, export, events, OpenAPI, and typed client reflect every supported source declaration with no ignored field.
+      level: contract
+      required: true
+      evidence:
+        - type: path
+          value: admin/modules/supplier
+        - type: report
+          value: AdminModule field-to-output-kind projection report
+        - type: command
+          value: go test -race ./admin/modules/supplier/...
+    - id: fullstack-frontend-gate
+      requirement: generate-frontend-experience
+      statement: Generated supplier pages and typed client pass lint, TypeScript, focused tests, production build, permission denial, empty/error/conflict states, and browser E2E.
+      level: e2e
+      required: true
+      evidence:
+        - type: path
+          value: web/antd/src/modules/supplier
+        - type: report
+          value: Golden supplier frontend and browser acceptance report
+    - id: migration-matrix-gate
+      requirement: generate-forward-migration
+      statement: The generated supplier forward migration passes fresh, upgrade, repeat, duplicate-ID, and injected-failure tests on SQLite, MySQL, and PostgreSQL without process exit.
+      level: migration
+      required: true
+      evidence:
+        - type: test
+          value: Golden supplier three-database migration matrix
+        - type: report
+          value: Exact-commit fresh, upgrade, repeat, and failure migration report
+    - id: specification-support-gate
+      requirement: reject-unsupported-specification
+      statement: Schema, Go validation, infrastructure Feature planning, unsupported-field rejection, and acceptance-evidence reporting agree and fail before writes on every negative fixture.
+      level: contract
+      required: true
+      evidence:
+        - type: test
+          value: TestFeatureModuleContractKindValidation
+        - type: test
+          value: TestPlanInfrastructureFeatureWithoutAdminModuleSpec
+        - type: test
+          value: TestPlanAdminModuleMissingSpecPathFails
+        - type: test
+          value: TestAcceptanceEvidenceIsDeclarativeUntilExecuted
+        - type: command
+          value: go test -json ./internal/mss/spec -run '^TestFeatureModuleContractKindValidation$'
+        - type: command
+          value: "go test -json ./internal/mss/feature -run '^Test(PlanInfrastructureFeatureWithoutAdminModuleSpec|PlanAdminModuleMissingSpecPathFails|AcceptanceEvidenceIsDeclarativeUntilExecuted)$'"
+        - type: report
+          value: Required-test report proving contract-kind schema parity, infrastructure plan success, AdminModule missing-spec failure, and honest declarative evidence reporting.
+    - id: upgrade-rehearsal-gate
+      requirement: upgrade-preserving-customizations
+      statement: A generated Blueprint 0.1 application with business customizations upgrades to 0.2, reports conflicts deterministically, preserves owned changes, commits identity last, and has an empty second upgrade.
+      level: migration
+      required: true
+      evidence:
+        - type: test
+          value: Blueprint 0.1-to-0.2 three-way customization rehearsal
+        - type: report
+          value: Exact-commit downstream upgrade, conflict, apply, and idempotency report
+    - id: version-identity-gate
+      requirement: record-version-identities
+      statement: Release-built new app output and upgrade status agree on Foundation version and commit, Blueprint version and digest, and actual generator version without manual lock edits.
+      level: contract
+      required: true
+      evidence:
+        - type: test
+          value: Foundation release, Blueprint, generator, and downstream snapshot identity conformance suite with atomic lock and manifest representations
+        - type: report
+          value: External release-built new-application identity report
+  risks:
+    - id: generated-security-theater
+      description: Descriptor-only permissions or menus can look complete while backend routes remain unauthorized or overprivileged.
+      severity: critical
+      mitigation: Require backend enforcement and exact owner/role positive and negative tests before accepting generated UI or descriptors.
+    - id: identity-conflation
+      description: Reusing one version for Foundation, Blueprint, generator, and downstream snapshot can misroute upgrades and make generated provenance false.
+      severity: high
+      mitigation: Give all four identities independent sources and cross-check the snapshot's lock and manifest representations with binary, tag, digest, and commit in external output.
+    - id: migration-corruption
+      description: Truncated or duplicate migration IDs and process exits can partially upgrade downstream databases or hide a failed step.
+      severity: critical
+      mitigation: Use lossless identifiers, duplicate fail-fast, returned errors, transactions where supported, and three-database failure tests.
+    - id: path-split
+      description: Competing modules/name and admin/modules/name defaults can generate uncompiled, unverified, or unowned files.
+      severity: high
+      mitigation: Enforce one canonical path now and require a versioned Blueprint migration before changing it.
+    - id: scaffold-claimed-complete
+      description: File-count, compile, or fresh-schema checks can promote a scaffold while operations, permissions, migrations, frontend, and upgrade behavior are absent.
+      severity: high
+      mitigation: Generate one committed golden slice and require field projection, authorization, E2E, migration, and upgrade evidence.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/foundation-v1-1-0-generator-blueprint.yaml --format json
+      - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check
+      - go test -race ./internal/mss/blueprint/... ./internal/mss/generator/... ./internal/mss/spec/...
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      Keep Generator/Blueprint and Storage Runtime as parallel axes. First establish independent
+      version identities, canonical path, strict schema/projection checks, and a safe migration
+      engine. Then check in the supplier golden backend and forward migration, add authorization,
+      OpenAPI, client and frontend, and finally run the three-database, browser, external-app, and
+      Blueprint 0.1-to-0.2 upgrade matrices. Do not start a second generated domain until this
+      slice is complete. If target public APIs require a breaking change, make a truthful SemVer
+      decision without changing the target generated structure.
+    rollback: >-
+      Stop generation or upgrade at the first unsupported field, conflict, migration, permission,
+      or drift failure. Dry-run leaves the tree untouched; a failed write restores only files owned
+      by that operation from the recorded plan and never overwrites user-owned content. A failed
+      downstream upgrade retains the old lock and manifest, preserves the conflict report, and
+      uses an idempotent forward fix. Database recovery follows the same-point backup policy and
+      never edits migration identifiers or version rows manually.

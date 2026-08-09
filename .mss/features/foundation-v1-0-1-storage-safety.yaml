@@ -1,0 +1,454 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: foundation-v1-0-1-storage-safety
+  displayName: Close storage and runtime safety gaps for v1.0.1
+  description: >-
+    Defines the minimum security, delivery, lifecycle, configuration, evidence, and release gates
+    for the first patch after the consolidated v1.0.0 release.
+  owner: release-engineering
+  labels:
+    domain: storage-runtime
+    target-version: v1.0.1
+    release-status: planned
+    compatibility: target-design-unconstrained
+    evidence-enforcement: declarative-until-phase-runner
+spec:
+  problem: >-
+    The published v1.0.0 baseline groups cache, one-time verification state, queues, locks, Redis
+    clients, and object storage behind overlapping configuration packages and optimistic capability
+    labels. Known failure paths can consume a verification code incorrectly, acknowledge a Kafka
+    message before successful handling, parse an oversized multipart upload before enforcing the
+    application limit, silently fall back to local storage, or terminate the process from an
+    optional provider. These defects require a narrow safety release before broader runtime or
+    generator work proceeds.
+  goals:
+    - Make one-time verification issuance and consumption cryptographically strong, atomic, purpose-scoped, bounded, and fail-closed.
+    - Make Kafka acknowledgement occur only after successful decode and handler completion, preserving retryable failure.
+    - Reject oversized uploads before multipart parsing, make local or S3 provider selection strict, deterministic, and fail-closed, and make local writes randomized and no-clobber.
+    - Remove process termination and detached background contexts from the Challenge, Kafka, and object-storage paths changed by v1.0.1.
+    - Replace aggregate maturity claims with provider-specific, evidence-backed capability states.
+    - Publish v1.0.1 only from one exact commit after framework, Admin, security, documentation, and recovery evidence pass.
+  nonGoals:
+    - Complete the storage-runtime-v2 package split or remove every historical public adapter in v1.0.1.
+    - Complete the private ObjectStore/Delivery metadata and authorization boundary; that remains a separately gated v1.1 alpha.2 target.
+    - Guarantee S3 create-only conditional writes and typed object conflicts; Local and MinIO/S3 share that no-clobber contract only in the separately gated v1.1 alpha.2 provider suite.
+    - Freeze or promote the public Storage Runtime v2 ChallengeStore package and configuration API; v1.0.1 lands only the internal purpose-aware safety state machine required by existing Admin flows, while v1.1 alpha.1 owns the target API.
+    - Promise stable Kafka, NSQ, Redis work-queue, distributed-lock, or S3-compatible provider support.
+    - Add storage hot reload, resumable upload, image processing, virus scanning, CDN orchestration, or cross-cloud replication.
+    - Change database schemas or use AutoMigrate as evidence of an upgrade migration.
+    - Manually rewrite .mss/lock.yaml or .mss/project.yaml to resemble the published release version.
+    - Let compatibility shims preserve an unsafe acknowledgement, fallback, secret, or lifecycle behavior.
+  actors:
+    - id: admin-operator
+      displayName: Admin operator
+      description: Configures providers, observes readiness, uploads objects, and performs rollback or recovery.
+    - id: framework-maintainer
+      displayName: Framework maintainer
+      description: Owns provider contracts, lifecycle, cancellation, and conformance tests.
+    - id: release-manager
+      displayName: Release manager
+      description: Freezes the exact release commit and accepts only reproducible evidence for v1.0.1.
+    - id: security-owner
+      displayName: Security owner
+      description: Reviews verification challenges, upload boundaries, credentials, logs, and failure behavior.
+  modules:
+    - name: capability-evidence
+      operation: extend
+      description: Machine-readable provider identity and lifecycle status plus linked human evidence; detailed evidence maturity schema remains a later gate.
+    - name: challenge-safety
+      operation: extend
+      description: One-time login, registration, and password-reset challenge issuance and verification.
+    - name: provider-lifecycle
+      operation: extend
+      description: Provider construction, startup, health, cancellation, and shutdown behavior.
+    - name: queue-safety
+      operation: extend
+      description: Queue acknowledgement, retry, cancellation, and provider validation behavior.
+    - name: upload-safety
+      operation: extend
+      description: Multipart admission, object identity, provider selection, and delivery behavior.
+  requirements:
+    - id: acknowledge-kafka-after-success
+      title: Acknowledge only successful Kafka work
+      description: The Kafka consumer must not mark a message until decoding and the handler both succeed.
+      priority: must
+      actor: framework-maintainer
+      module: queue-safety
+      rules:
+        - Decode failure and handler failure leave the Kafka message unmarked and retryable.
+        - Consumer cancellation and rebalance stop work without marking unfinished Kafka messages.
+        - Kafka remains experimental until bounded retry, dead-letter, idempotency, and real-broker conformance pass.
+    - id: classify-provider-evidence
+      title: Publish honest provider identity and status
+      description: The capability catalog must give each provider its own supported lifecycle status while release notes and the ADR record the more detailed evidence classification.
+      priority: must
+      actor: release-manager
+      module: capability-evidence
+      rules:
+        - A known security or data-loss path is a provider-specific legacy capability in the current catalog, is classified Blocked in the ADR evidence matrix, and is disabled from production defaults.
+        - Skipped external integration tests cannot support a stable claim.
+        - Version publication never promotes a provider automatically.
+        - v1.0.1 does not claim the detailed Blocked, Experimental, Beta, and Stable evidence schema or generated provider report planned for v1.1 alpha.4.
+    - id: enforce-upload-admission
+      title: Enforce upload limits before parsing
+      description: The HTTP boundary must cap request bytes before multipart parsing and stream validation without trusting the client filename or media type.
+      priority: must
+      actor: security-owner
+      module: upload-safety
+      rules:
+        - Request-body admission is bounded before FormFile or ParseMultipartForm can allocate memory or temporary files.
+        - Object identifiers are server-generated, opaque, collision-resistant, and never derived from a user identifier plus original filename.
+        - The original filename is metadata only and local writes are confined below a fixed root with no overwrite or symlink escape.
+    - id: fail-closed-provider-selection
+      title: Reject invalid storage provider state
+      description: Missing, unreadable, contradictory, or unknown object-storage configuration must fail explicitly instead of falling back to local storage.
+      priority: must
+      actor: admin-operator
+      module: upload-safety
+      rules:
+        - Production never reports a local public URL unless the same deployment explicitly and safely serves that object root.
+        - S3 credentials, endpoint, region, bucket, TLS mode, and credential source are validated as one immutable profile.
+        - The S3 client is constructed once per owned profile rather than once per request.
+        - The unused Admin Config.Storage initializer is removed or becomes the sole injected upload profile; a ghost startup client and a per-request client cannot coexist.
+    - id: own-provider-lifecycle
+      title: Return changed-path failures to the application owner
+      description: Challenge, Kafka, and object-storage paths changed by v1.0.1 must return typed errors and participate in cancellation without terminating the process.
+      priority: must
+      actor: framework-maintainer
+      module: provider-lifecycle
+      rules:
+        - The changed Challenge, Kafka, and object-storage call graph does not call os.Exit, log.Fatal, or start long-lived work from context.Background.
+        - Kafka cancellation leaves in-flight work unmarked and the object-storage owner closes its single client idempotently.
+        - General cache, NSQ, Redis queue, lock, and resource-graph lifecycle replacement remains a separately gated v1.0.2 and v1.1 scope.
+    - id: reconcile-release-truth
+      title: Reconcile public release truth automatically
+      description: Release governance must verify that immutable tags, public Releases, changelogs, documentation, Feature labels, and capability state describe the same exact commit.
+      priority: must
+      actor: release-manager
+      module: capability-evidence
+      rules:
+        - Manual release dispatch requires an explicit target version and does not default to the already published v1.0.0.
+        - The framework tag publishes first and the root tag, framework tag, Admin dependency, artifacts, and evidence issue resolve to the declared versions and commit.
+        - A successful publication updates or verifies machine and human status as stable while an unpublished standalone component remains preview.
+        - Post-release drift is a failing check rather than a documentation follow-up left to memory.
+        - Before this contract becomes a release gate, the Feature model adds a structured acceptance phase enum for pre-framework, pre-root, and post-publication, and summaries, plans, reports, and workflows select only the current phase.
+        - A phase-aware release evidence command rejects out-of-order transitions and records published evidence-incomplete when post-publication reconciliation fails.
+        - Failure after framework publication but before root publication records component-partial evidence, leaves the issue open, blocks the root tag, and resumes only from the next higher synchronized framework and root patch without moving or reusing the published framework tag.
+    - id: secure-challenge-consumption
+      title: Issue and consume one-time challenges atomically
+      description: Login, registration, and password-reset verification must use cryptographic randomness and atomic versioned server-side transitions across issue delivery and verification.
+      priority: must
+      actor: security-owner
+      module: challenge-safety
+      rules:
+        - Challenge values come from crypto/rand and storage keys bind normalized subject and purpose without exposing either in logs.
+        - The stored verifier uses a versioned high-entropy pepper SecretRef and constant-time comparison; a plain hash of a six-digit value is insufficient.
+        - BeginIssue atomically applies resend eligibility, rolling quota, expiry, and one pending-version reservation; only a successful versioned commit replaces the prior active challenge and starts cooldown.
+        - Issuance uses a versioned pending state in which only one concurrent BeginIssue succeeds, Verify never accepts pending values, and a compare-and-swap commit activates the sent value and replaces the prior active verifier.
+        - Send failure compare-and-swap aborts only that pending version, leaves the prior active verifier unchanged, does not start resend cooldown, and still charges the rolling quota; a stale send result cannot activate or abort a newer issue.
+        - Pending state has a short lease independent from active expiry; BeginIssue atomically reclaims an expired lease after a crash or hung sender without extending the prior active verifier, and stale completion remains compare-and-swap rejected.
+        - Verify atomically compares, increments failed attempts, and consumes exactly once on success; a wrong guess does not immediately delete the challenge.
+        - Provider outage fails closed and public responses do not disclose whether an account exists.
+        - Login, registration, and password reset use distinct purpose values and cannot fall back to the legacy email-only VerifyCodeStore path.
+        - Redis Cluster uses one atomic key or one explicit hash slot and rejects CROSSSLOT operation.
+    - id: validate-provider-configuration
+      title: Validate the object-storage profile once
+      description: Object-storage configuration must be loaded consistently, normalized without mutation, and rejected before client construction or object writes.
+      priority: should
+      actor: framework-maintainer
+      module: provider-lifecycle
+      rules:
+        - Unknown providers, empty required endpoint, region, or bucket values, contradictory credential modes, and incomplete static credentials are errors.
+        - TLS configuration and credentials are independent axes; each required pair is complete and only credential modes are mutually exclusive.
+        - The profile is one immutable snapshot and neither startup nor upload mutates caller-owned configuration.
+  constraints:
+    - id: bounded-patch-scope
+      type: operations
+      statement: v1.0.1 fixes the known safety paths and evidence contract; the clean package split remains a separately gated v1.1 target.
+    - id: compatibility-not-design-input
+      type: compatibility
+      statement: The target safety semantics are designed without preserving historical API or configuration behavior; release implementation may bridge only when the bridge cannot recreate an unsafe behavior.
+    - id: no-secret-observability
+      type: privacy
+      statement: Challenge values, normalized subjects, raw credentials, bearer material, and multipart bodies must not enter logs, metrics, traces, errors, or evidence reports.
+    - id: no-silent-degradation
+      type: security
+      statement: Security state, durable work, and object storage must fail closed; only explicitly classified derived caches may bypass to their authoritative database.
+    - id: release-order
+      type: dependency
+      statement: Publish and externally resolve mss-boot/v1.0.1 before publishing root v1.0.1 from the same exact commit.
+    - id: release-evidence-phases
+      type: operations
+      statement: Required release evidence is scoped to pre-framework, pre-root, or post-publication phase; later-phase evidence cannot be a precondition for the first publish, while a phase-two or phase-three failure records partial or evidence-incomplete publication, leaves the issue open, and blocks the current root or next release until forward recovery.
+    - id: declarative-bootstrap-boundary
+      type: operations
+      statement: At the v1.0.0 baseline, spec validate proves only structure and references; feature plan cannot yet plan cross-cutting modules and verify does not execute acceptance, custom evidence, or phases, so no acceptance in this file is reported passed until the phase-aware runner lands.
+    - id: required-tests-must-run
+      type: operations
+      statement: Every required focused Go test is parsed from go test -json; zero matching tests, no-tests warnings, package skips, and required fixture skips fail the gate.
+  acceptance:
+    - id: challenge-atomic-evidence
+      requirement: secure-challenge-consumption
+      statement: Parallel issue and verify tests prove one pending issuer, versioned send commit/abort, pending-lease crash recovery without active-expiry extension, cooldown, charged failure quota, bounded attempts, purpose isolation, single success, cryptographic generation, versioned high-entropy pepper storage and rotation, constant-time comparison, code and subject redaction, expiry, Redis-outage failure, and Redis Cluster single-slot operation with explicit CROSSSLOT rejection.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: TestChallengeIssueSendCommitAbortCAS
+        - type: test
+          value: TestChallengeVerifyExactlyOnce
+        - type: test
+          value: TestChallengeRedisOutageFailsClosed
+        - type: test
+          value: TestChallengePendingLeaseCrashRecovery
+        - type: test
+          value: TestChallengeRedisClusterSingleSlot
+        - type: test
+          value: TestChallengeRedisClusterCrossSlotRejected
+        - type: test
+          value: TestChallengeVerifierPepperAndRotation
+        - type: test
+          value: TestChallengeVerifierUsesConstantTimeCompare
+        - type: test
+          value: TestChallengeObservabilityRedactsCodeAndSubject
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -json -race ./pkg/config/storage/... -count=20
+        - type: report
+          value: Required-test JSON report proving all nine exact internal challenge-state tests ran and passed under race detection twenty times, including Cluster slot safety, peppered verifier rotation, constant-time comparison, and observability redaction.
+    - id: challenge-admin-flow-evidence
+      requirement: secure-challenge-consumption
+      statement: Admin login, registration, and password-reset flows reject cross-purpose codes and invalid purposes, hide account existence, preserve the prior active verifier when versioned send abort succeeds, charge failure quota without starting cooldown, reject stale send completion under concurrent issue, and never call the legacy email-only verifier.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: TestEmailChallengePurposeIsolation
+        - type: test
+          value: TestEmailChallengeResponseDoesNotEnumerateAccount
+        - type: test
+          value: TestEmailChallengeSendFailureRotation
+        - type: test
+          value: TestEmailChallengeConcurrentSendFailureCAS
+        - type: report
+          value: Required-test JSON report proving the four exact Admin security tests ran and passed under race detection twenty times.
+        - type: command
+          value: "cd admin && go test -json -race ./apis -run '^TestEmailChallenge(PurposeIsolation|ResponseDoesNotEnumerateAccount|SendFailureRotation|ConcurrentSendFailureCAS)$' -count=20"
+    - id: provider-maturity-evidence
+      requirement: classify-provider-evidence
+      statement: The machine catalog exposes provider-specific identities and supported lifecycle statuses, the ADR records detailed evidence maturity, and no aggregate stable cache-lock-queue claim remains.
+      level: contract
+      required: true
+      evidence:
+        - type: path
+          value: .mss/capabilities.yaml
+        - type: path
+          value: docs/adr/2026-08-09-storage-runtime-v2.md
+        - type: test
+          value: TestCapabilityCatalogProviderSpecificStorageStatuses
+        - type: command
+          value: go test -json ./internal/mss/project -run '^TestCapabilityCatalogProviderSpecificStorageStatuses$'
+        - type: report
+          value: Required-test JSON report proving provider identities and lifecycle statuses are machine-readable, the aggregate is not stable, and detailed evidence links to the ADR matrix.
+    - id: provider-validation-evidence
+      requirement: validate-provider-configuration
+      statement: Table-driven object-profile tests reject every invalid provider, endpoint, bucket, TLS, and credential mode and prove the profile is unchanged by build and upload.
+      level: unit
+      required: true
+      evidence:
+        - type: test
+          value: TestObjectStorageProfileRejectsInvalidConfiguration
+        - type: test
+          value: TestObjectStorageProfileBuildIsImmutable
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -json ./pkg/config/...
+        - type: report
+          value: Required-test JSON report proving both exact profile tests ran with every negative-table case and zero construction side effects.
+    - id: queue-delivery-evidence
+      requirement: acknowledge-kafka-after-success
+      statement: Failure-injection tests prove decode and handler errors are not acknowledged, successful work is acknowledged once, and cancellation leaves unfinished work uncommitted.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: TestKafkaDoesNotMarkOnDecodeFailure
+        - type: test
+          value: TestKafkaDoesNotMarkOnHandlerFailure
+        - type: test
+          value: TestKafkaMarksOnceAfterHandlerSuccess
+        - type: test
+          value: TestKafkaCancellationLeavesUnfinishedUnmarked
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -json -race ./pkg/config/storage/queue/...
+        - type: report
+          value: Required-test JSON report proving the four exact Kafka tests ran and passed under race detection.
+    - id: release-prepublication-authority
+      requirement: reconcile-release-truth
+      statement: Before the first publication, an approved open evidence issue identifies the frozen commit, explicit version, green implementation, security, documentation, artifact-build, and recovery gates, and the reviewed release commands.
+      level: manual
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss verify --all
+        - type: command
+          value: go run ./cmd/mss release evidence check --phase pre-framework --version v1.0.1 --format json
+        - type: report
+          value: Phase-aware pre-framework report with nonzero required tests, frozen commit, explicit versions, artifact manifest, approval, and recovery plan.
+        - type: manual
+          value: Approve the still-open issue with the frozen commit, explicit versions, green gates, commands, artifact manifest, and recovery plan before publishing mss-boot.
+    - id: release-phase-runner-evidence
+      requirement: reconcile-release-truth
+      statement: The Feature schema, Go model, summaries, plans, reports, and release runner validate explicit phases, permit only the next transition, and record component-partial or published evidence-incomplete without mutating tags.
+      level: contract
+      required: true
+      evidence:
+        - type: test
+          value: TestFeatureAcceptancePhaseValidation
+        - type: test
+          value: TestReleaseEvidencePhaseTransitions
+        - type: test
+          value: TestReleaseEvidenceComponentPartialRecovery
+        - type: test
+          value: TestReleaseEvidencePostPublicationIncomplete
+        - type: command
+          value: go test -json ./internal/mss/spec -run '^TestFeatureAcceptancePhaseValidation$'
+        - type: command
+          value: "go test -json ./internal/mss/release -run '^TestReleaseEvidence(PhaseTransitions|ComponentPartialRecovery|PostPublicationIncomplete)$'"
+        - type: report
+          value: Required-test JSON report proving all four phase model and transition tests ran without parsing acceptance IDs or counting a later phase against an earlier transition.
+    - id: framework-publication-authority
+      requirement: reconcile-release-truth
+      statement: After framework publication and before root publication, mss-boot/v1.0.1, its public Release, checksum, Admin dependency, and external GOWORK=off resolution identify the frozen commit and are appended to the still-open issue.
+      level: manual
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss release evidence check --phase pre-root --version v1.0.1 --format json
+        - type: report
+          value: External GOWORK=off framework resolution and consumption report for the exact published commit.
+        - type: report
+          value: Phase-aware pre-root result that records component-partial evidence, blocks the root tag, and requires a next-higher synchronized patch when any check fails.
+        - type: manual
+          value: Record framework tag, public Release, checksum, external resolution, and root-publication approval while the evidence issue remains open.
+    - id: release-postpublication-reconciliation
+      requirement: reconcile-release-truth
+      statement: After root publication, root and framework Releases, checksums, smoke, recovery, changelog, documentation, Feature label, and capability state reconcile to the frozen commit before the evidence issue closes.
+      level: manual
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss release evidence check --phase post-publication --version v1.0.1 --format json
+        - type: report
+          value: Phase-aware post-publication report recording complete or published evidence-incomplete without rewriting immutable tags.
+        - type: manual
+          value: Append final root tag, Release, checksum, container, installation smoke, and drift results; close the issue only after every published fact reconciles.
+    - id: runtime-lifecycle-evidence
+      requirement: own-provider-lifecycle
+      statement: Focused tests prove Kafka cancellation, one object client and owner, idempotent close, and absence of process termination or detached work in every v1.0.1 changed path.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: TestV101ChangedProvidersDoNotExitOrDetach
+        - type: test
+          value: TestObjectStorageSingleClientOwnedClose
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -json -race ./pkg/config/...
+        - type: command
+          value: go test -json ./internal/mss/verify -run '^TestV101ChangedProvidersDoNotExitOrDetach$'
+        - type: command
+          value: cd admin && go test -json -race ./config ./service -run '^TestObjectStorageSingleClientOwnedClose$'
+        - type: report
+          value: Required-test JSON report proving the repository-wide forbidden-call test and Admin single-owner lifecycle test both ran, with race detection on owned resource construction and close.
+    - id: storage-selection-evidence
+      requirement: fail-closed-provider-selection
+      statement: Missing or invalid configuration and unavailable object backends return an explicit unavailable error without writing locally or returning a success URL; an explicitly enabled production local profile succeeds only when its registered delivery route serves the committed bytes and checksum across restart.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: TestStorageUnknownProviderFailsClosed
+        - type: test
+          value: TestStorageUnavailableBackendDoesNotFallbackLocal
+        - type: test
+          value: TestStorageInvalidCredentialsFailBeforeWrite
+        - type: test
+          value: TestStorageLocalProductionRequiresExplicitDelivery
+        - type: test
+          value: TestStorageLocalSuccessURLIsActuallyServed
+        - type: command
+          value: "cd admin && go test -json ./service -run '^TestStorage(UnknownProviderFailsClosed|UnavailableBackendDoesNotFallbackLocal|InvalidCredentialsFailBeforeWrite|LocalProductionRequiresExplicitDelivery|LocalSuccessURLIsActuallyServed)$'"
+        - type: report
+          value: Required-test JSON report proving all five exact storage-selection tests ran, failure cases produced zero local or remote writes, and the explicit local success URL served identical bytes and checksum after restart.
+    - id: upload-boundary-evidence
+      requirement: enforce-upload-admission
+      statement: Exact route tests prove both generic storage upload and user avatar upload enforce the hard request limit before multipart parsing, bound temporary resources, and use randomized no-clobber local writes that reject traversal and symlink escape.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: TestStorageUploadHardLimitBeforeMultipart
+        - type: test
+          value: TestAvatarUploadHardLimitBeforeMultipart
+        - type: test
+          value: TestStorageLocalNoClobberAndConfinement
+        - type: report
+          value: Required-test JSON report proving all three exact upload tests ran twenty times under race detection, returned 413 for limit-plus-one, and left bounded memory, temporary disk, database, and object state.
+        - type: command
+          value: "cd admin && go test -json -race ./apis ./service -run '^Test(StorageUploadHardLimitBeforeMultipart|AvatarUploadHardLimitBeforeMultipart|StorageLocalNoClobberAndConfinement)$' -count=20"
+  risks:
+    - id: challenge-account-takeover
+      description: Reusable, guess-consumed, weak, or fail-open verification codes can enable account takeover or lock out legitimate users.
+      severity: critical
+      mitigation: Ship the internal atomic cryptographic challenge-state behavior and adversarial concurrency tests before expanding email authentication; freeze the public target API only in its v1.1 gate.
+    - id: message-loss
+      description: Marking a message before successful decode and handling can permanently discard work while reporting normal consumer progress.
+      severity: critical
+      mitigation: Move acknowledgement after success and require failure-injection evidence for each enabled provider.
+    - id: silent-object-loss
+      description: Implicit local fallback can return a successful URL for an object that production does not serve or preserve.
+      severity: critical
+      mitigation: Reject unknown or unreadable provider state and test that no local write occurs on provider failure.
+    - id: multipart-resource-exhaustion
+      description: Enforcing size only after multipart parsing permits an unauthenticated or authorized request to exhaust memory or temporary disk first.
+      severity: critical
+      mitigation: Bound the raw body at the HTTP boundary and verify temporary storage remains bounded under oversized requests.
+    - id: patch-expands-into-rewrite
+      description: Mixing the full runtime redesign into an urgent patch increases review surface and delays known security and data-loss fixes.
+      severity: high
+      mitigation: Keep v1.0.1 acceptance focused on safety invariants and track clean package replacement in storage-runtime-v2.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/foundation-v1-0-1-storage-safety.yaml --format json
+      - cd mss-boot && GOWORK=off go test -race ./pkg/config/...
+      - cd mss-boot && GOWORK=off go vet ./...
+      - cd admin && go test -json -race ./apis -run '^TestEmailChallenge(PurposeIsolation|ResponseDoesNotEnumerateAccount|SendFailureRotation|ConcurrentSendFailureCAS)$' -count=20
+      - cd admin && go test -json -race ./apis ./service -run '^Test(StorageUploadHardLimitBeforeMultipart|AvatarUploadHardLimitBeforeMultipart|StorageLocalNoClobberAndConfinement)$' -count=20
+      - go test -json ./internal/mss/project -run '^TestCapabilityCatalogProviderSpecificStorageStatuses$'
+      - go test -json ./internal/mss/verify -run '^TestV101ChangedProvidersDoNotExitOrDetach$'
+      - cd admin && go test -json -race ./config ./service -run '^TestObjectStorageSingleClientOwnedClose$'
+      - go run ./cmd/mss release evidence check --phase pre-framework --version v1.0.1 --format json
+      - go run ./cmd/mss release evidence check --phase pre-root --version v1.0.1 --format json
+      - go run ./cmd/mss release evidence check --phase post-publication --version v1.0.1 --format json
+      - go test -json ./internal/mss/spec -run '^TestFeatureAcceptancePhaseValidation$'
+      - go test -json ./internal/mss/release -run '^TestReleaseEvidence(PhaseTransitions|ComponentPartialRecovery|PostPublicationIncomplete)$'
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      Land the safety changes as independently reviewable commits, starting with challenge and queue
+      correctness, then upload admission and object-provider failure behavior, then focused changed-path
+      lifecycle and capability evidence. General provider lifecycle moves to v1.0.2. No database
+      migration is planned. Freeze one commit, open and approve an exact-commit evidence issue,
+      publish mss-boot/v1.0.1 first, prove external GOWORK=off resolution, run the complete root
+      readiness matrix, and publish root v1.0.1 while that issue remains open. Append final tag,
+      Release, checksum, smoke, and post-release drift evidence, then close the issue only after every
+      published fact reconciles.
+    rollback: >-
+      Stop new writes and consumers before changing provider code. Prefer an idempotent forward fix for
+      any challenge, acknowledgement, or object-delivery defect. A code rollback is permitted only after
+      proving it does not restore weak challenge generation, early acknowledgement, implicit local
+      fallback, unbounded multipart parsing, or provider process termination. Preserve queue offsets,
+      dead-letter evidence, object metadata, configuration fingerprints, and logs without secrets.
