@@ -1,21 +1,21 @@
 apiVersion: mss.io/v1alpha1
 kind: Feature
 metadata:
-  name: foundation-v0-8-release
-  displayName: Publish the consolidated Foundation v0.8.0 safely
+  name: foundation-v1-0-0-release
+  displayName: Publish the consolidated Foundation v1.0.0 safely
   description: >-
     Defines the component order, status semantics, compatibility disclosures, migration evidence,
-    artifact identity, and recovery gates required before the first v0.8.0 release from the
-    consolidated repository can be called stable.
+    artifact identity, and recovery gates required before the consolidated foundation's first
+    stable 1.0 release can be called stable.
   owner: release-engineering
   labels:
     domain: foundation-release
-    target-version: v0.8.0
+    target-version: v1.0.0
     release-status: preview
     compatibility: breaking
 spec:
   problem: >-
-    The v0.8.0 candidate combines a nested framework module, a split Admin module, a consolidated
+    The v1.0.0 candidate combines a nested framework module, a split Admin module, a consolidated
     frontend and documentation tree, security-sensitive database migrations, breaking API changes,
     and removed runtime capabilities. A branch or locally passing workspace can hide an unpublished
     framework dependency, incomplete migration evidence, or artifacts that do not identify the tag.
@@ -23,13 +23,13 @@ spec:
     operators could attempt an unsafe direct rollback after irreversible credential cleanup.
   goals:
     - Keep planned, preview, release-candidate, and stable states unambiguous in every human and machine-readable contract.
-    - Publish and externally resolve mss-boot/v0.8.0 before creating the root v0.8.0 tag that requires it.
+    - Publish and externally resolve mss-boot/v1.0.0 before creating the root v1.0.0 tag that requires it.
     - Disclose every material Go module, API, authentication, authorization, configuration, migration, and removed-capability change from v0.7.x.
     - Require reproducible artifacts whose reported version and deployment endpoint contract match the published tag.
     - Require database backup, preflight, fresh/upgrade/idempotency evidence, post-upgrade verification, and an executable recovery decision.
     - Prefer forward-fix after migration while defining the narrow conditions for code rollback or full snapshot restoration.
   nonGoals:
-    - Create either v0.8.0 tag or publish any GitHub Release from this feature specification.
+    - Create either v1.0.0 tag or publish any GitHub Release from this feature specification.
     - Mark layered theme settings or other planned capabilities stable before their independent acceptance gates pass.
     - Reintroduce Admin runtime dynamic models, virtual CRUD, or browser-facing template code generation.
     - Invent a release commit, lock-file upgrade record, module proxy result, artifact digest, or test result before it exists.
@@ -63,7 +63,9 @@ spec:
       rules:
         - Unreleased, planned, preview, a release branch, or a local go.work replacement is never described as stable.
         - Stable requires a tag on the reviewed commit, a published release, resolvable component modules, and linked validation evidence.
-        - The v0.8.0 preparation commit does not rewrite .mss/lock.yaml to 0.8.0/stable or add an upgrade record before publication.
+        - v1.0.0 is the consolidated foundation's first stable 1.0 boundary; it is not a relabeling of the unpublished v0.8.0 release candidate.
+        - The v1.0.0 preparation commit does not rewrite .mss/lock.yaml to 1.0.0/stable or add an upgrade record before publication.
+        - Any v0.8.0 candidate archive, digest, workflow run, smoke result, or release note is historical preparation evidence only and must be regenerated for the exact v1.0.0 release commit.
         - After the root tag exists, a deterministic supported process records the real foundation version, commit, and channel; unsupported lock fields are not invented manually.
     - id: framework-before-root
       title: Framework is published and externally resolvable first
@@ -72,8 +74,8 @@ spec:
       actor: downstream-maintainer
       module: framework-release
       rules:
-        - Publish mss-boot/v0.8.0 from the reviewed release commit before root v0.8.0.
-        - Resolve github.com/mss-boot-io/mss-boot-admin/mss-boot@v0.8.0 from a clean external module with GOWORK=off.
+        - Publish mss-boot/v1.0.0 from the reviewed release commit before root v1.0.0.
+        - Resolve github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.0.0 from a clean external module with GOWORK=off.
         - Verify the resolved module version and commit, then compile and test an external consumer without a local replace.
         - Any proxy, checksum, module-path, or commit mismatch blocks the root tag.
     - id: complete-compatibility-contract
@@ -96,7 +98,7 @@ spec:
       rules:
         - Capture a consistent database, configuration, object-storage, artifact, and deployment snapshot and prove it can be restored before migration.
         - Preflight default-role ambiguity, duplicate OAuth identities, OAuth password recovery, PAT automation, custom retired-tool menus, and application credentials.
-        - Drain all v0.7 writers before applying migrations because old writers do not advance v0.8 authorization or configuration revisions.
+        - Drain all v0.7 writers before applying migrations because old writers do not advance v1.0.0 authorization or configuration revisions.
         - Verify SQLite, MySQL 8.4, and PostgreSQL 17 fresh, v0.7 upgrade, repeat, and transactional failure behavior.
         - Never edit migration version rows or claim PAT plaintext and sanitized credentials can be reconstructed by code rollback.
     - id: artifact-identity
@@ -129,20 +131,20 @@ spec:
       module: release-documentation
       rules:
         - Stop all writers and preserve the failed state before any repair or restoration.
-        - Prefer a new narrow idempotent forward migration or compatible code fix after a successful v0.8 migration.
+        - Prefer a new narrow idempotent forward migration or compatible code fix after a successful v1.0.0 migration.
         - Use a previous binary against the upgraded database only after an isolated compatibility rehearsal proves every required read and write boundary.
         - Full rollback restores database, configuration, storage metadata, and artifacts from one pre-upgrade point and accepts the documented RPO.
         - Never restore revoked provider credentials, revoked PATs, unsafe local-password provenance, or state-changing GET routes.
   constraints:
     - id: semantic-version-order
       type: dependency
-      statement: Root v0.8.0 cannot be published before mss-boot/v0.8.0 resolves externally at the expected commit.
+      statement: Root v1.0.0 cannot be published before mss-boot/v1.0.0 resolves externally at the expected commit.
     - id: no-false-lock-state
       type: compatibility
       statement: The development FoundationLock remains a real generated baseline until a supported deterministic process can record the published release.
     - id: no-mixed-writers
       type: data
-      statement: v0.7 and v0.8 writers cannot overlap during revisioned authorization and configuration migration.
+      statement: v0.7 and v1.0.0 writers cannot overlap during revisioned authorization and configuration migration.
     - id: credential-one-way-cleanup
       type: security
       statement: Cleared PAT plaintext, disabled untrusted OAuth-era local passwords, and revoked provider credentials are not reconstructed during rollback.
@@ -155,12 +157,12 @@ spec:
   acceptance:
     - id: feature-contract-valid
       requirement: honest-release-state
-      statement: The v0.8.0 release FeatureSpec passes schema and semantic validation.
+      statement: The v1.0.0 release FeatureSpec passes schema and semantic validation.
       level: contract
       required: true
       evidence:
         - type: command
-          value: go run ./cmd/mss spec validate .mss/features/foundation-v0-8-release.yaml --format json
+          value: go run ./cmd/mss spec validate .mss/features/foundation-v1-0-0-release.yaml --format json
     - id: release-docs-build
       requirement: complete-compatibility-contract
       statement: Release, upgrade, compatibility, and rollback documents are linked and compile in the documentation site.
@@ -171,7 +173,7 @@ spec:
           value: corepack pnpm@9.15.9 --dir docs build
     - id: external-module-probe
       requirement: framework-before-root
-      statement: A clean module outside the repository resolves and tests the exact nested mss-boot/v0.8.0 tag without workspace replacement.
+      statement: A clean module outside the repository resolves and tests the exact nested mss-boot/v1.0.0 tag without workspace replacement.
       level: integration
       required: true
       evidence:
@@ -218,7 +220,7 @@ spec:
       required: true
       evidence:
         - type: manual
-          value: Attach the dated, sanitized restore-rehearsal record; docs/docs/releases/v0-8-0-rollback.md is guidance and is not itself proof of execution.
+          value: Attach the dated, sanitized restore-rehearsal record; docs/docs/releases/v1-0-0-rollback.md is guidance and is not itself proof of execution.
     - id: oauth-provider-revocation
       requirement: security-release-gates
       statement: Historical built-in OAuth credentials are revoked at the provider and the exact release commit has no open secret-scanning alert.
@@ -233,7 +235,7 @@ spec:
       severity: critical
       mitigation: Publish framework first and require an external GOWORK=off resolution and test report before the root tag.
     - id: preview-marked-stable
-      description: Changelog headings, branch names, or generated documentation could be interpreted as proof that v0.8.0 is already stable.
+      description: Changelog headings, branch names, or generated documentation could be interpreted as proof that v1.0.0 is already stable.
       severity: high
       mitigation: Keep status preview until tag, artifacts, module resolution, and exact-commit validation evidence all exist.
     - id: unsafe-direct-rollback
@@ -256,7 +258,7 @@ spec:
     changed: go run ./cmd/mss verify --changed
     all: go run ./cmd/mss verify --all
     custom:
-      - go run ./cmd/mss spec validate .mss/features/foundation-v0-8-release.yaml --format json
+      - go run ./cmd/mss spec validate .mss/features/foundation-v1-0-0-release.yaml --format json
       - corepack pnpm@9.15.9 --dir docs build
       - cd mss-boot && GOWORK=off go test ./...
       - cd mss-boot && GOWORK=off go vet ./...
@@ -265,8 +267,8 @@ spec:
     migration: >-
       Freeze one reviewed commit and retain preview status. Back up and rehearse restore, run the
       database and security preflights, drain v0.7 writers, and complete the exact-commit validation
-      matrix. Publish mss-boot/v0.8.0 first. From outside the repository resolve and test the nested
-      module with GOWORK=off; stop on any mismatch. Re-run the root gates, publish root v0.8.0 only
+      matrix. Publish mss-boot/v1.0.0 first. From outside the repository resolve and test the nested
+      module with GOWORK=off; stop on any mismatch. Re-run the root gates, publish root v1.0.0 only
       after all advertised artifacts and the container succeed, then perform no-cache installation
       smoke tests. Publish the optional frontend tag only after its independent artifact contract passes.
     rollback: >-

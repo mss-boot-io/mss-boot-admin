@@ -4,12 +4,17 @@ All notable, verifiable frontend changes are documented here. Standalone
 frontend releases use the `web/antd/vX.Y.Z` tag namespace; the root foundation
 release may also embed a separately validated frontend artifact.
 
-## [Unreleased] - web/antd/v0.8.0 candidate
+## [Unreleased] - web/antd/v1.0.0 candidate
 
 Status: **preview / release preparation**. Neither the branch nor this entry is
 a stable standalone frontend release. The candidate must pass the production
 and local build contracts, bundle budget, delivery smoke test, and browser
 acceptance before a tag is published.
+
+This is the consolidated frontend's first stable 1.0 release boundary. The
+unpublished v0.8.0 candidate does not provide reusable bundle, checksum, image,
+endpoint-scan, or browser evidence; all release artifacts and results must be
+generated from the exact `web/antd/v1.0.0` commit.
 
 ### Added
 
@@ -52,8 +57,8 @@ acceptance before a tag is published.
 
 ### Breaking integration changes
 
-- The bundled frontend expects the v0.8 Admin authorization and current-user
-  contracts. Deploy backend migrations and the v0.8 backend before enabling
+- The bundled frontend expects the v1.0.0 Admin authorization and current-user
+  contracts. Deploy backend migrations and the v1.0.0 backend before enabling
   versioned theme writes.
 - OAuth callback completion uses `POST
   /admin/api/user/:provider/callback`; legacy GET callbacks are not supported.
@@ -85,8 +90,8 @@ acceptance before a tag is published.
 
 ### Upgrade
 
-Use the consolidated [v0.8.0 upgrade guide](../../docs/docs/releases/v0-8-0-upgrade.md)
-and [compatibility matrix](../../docs/docs/releases/v0-8-0-compatibility.md).
+Use the consolidated [v1.0.0 upgrade guide](../../docs/docs/releases/v1-0-0-upgrade.md)
+and [compatibility matrix](../../docs/docs/releases/v1-0-0-compatibility.md).
 Do not deploy the new frontend ahead of the required backend migration and API
 contract, and do not call a preview build stable.
 
@@ -94,4 +99,5 @@ contract, and do not call a preview build stable.
 
 The former changelog labeled this snapshot `v1.0.0`, but no corresponding
 consolidated-repository frontend tag established that version. It remains
-historical implementation context rather than a semantic release boundary.
+historical implementation context and is not evidence for the stable
+`web/antd/v1.0.0` release above.

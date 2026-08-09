@@ -1,24 +1,24 @@
 ---
-title: v0.8.0 升级指南
+title: v1.0.0 升级指南
 order: 3
 nav:
   title: 发布
   order: 3
-description: 从 v0.7.x 升级到计划中的 v0.8.0 的预检、迁移、部署和验证步骤
-keywords: [v0.8.0 upgrade migration backup preflight]
+description: 从 v0.7.x 升级到计划中的 v1.0.0 的预检、迁移、部署和验证步骤
+keywords: [v1.0.0 upgrade migration backup preflight]
 ---
 
-# 从 v0.7.x 升级到 v0.8.0
+# 从 v0.7.x 升级到 v1.0.0
 
-本文适用于现有 v0.7.x Admin 数据库和下游源码。v0.8.0 是包含 Go 模块路径、认证、授权、配置与运行时能力变化的迁移版本，不支持“替换二进制后直接启动”的无预检升级。
+本文适用于现有 v0.7.x Admin 数据库和下游源码。v1.0.0 是合并仓库后的首个稳定 1.0，也是包含 Go 模块路径、认证、授权、配置与运行时能力变化的迁移版本，不支持“替换二进制后直接启动”的无预检升级。未发布 v0.8.0 候选版上的预检、制品或冒烟结果不能替代精确 v1.0.0 发布提交上的重新执行。
 
 :::warning
-当前版本仍是 preview。必须先完成 [发布合同](/releases/v0-8-0) 的门禁并确认正式 tag 存在，再在生产环境执行本文。
+当前版本仍是 preview。必须先完成 [发布合同](/releases/v1-0-0) 的门禁并确认正式 tag 存在，再在生产环境执行本文。
 :::
 
 ## 环境基线
 
-| 依赖 | v0.8.0 合同 |
+| 依赖 | v1.0.0 合同 |
 | --- | --- |
 | Go | `1.26.5`；发布校验使用 `GOTOOLCHAIN=local` |
 | Node.js | `>=22 <25` |
@@ -48,7 +48,7 @@ keywords: [v0.8.0 upgrade migration backup preflight]
 ### 角色与权限
 
 - 必须能唯一识别历史 root/default `admin` 角色；root+default 角色被多个用户共享、存在多个非 root 默认角色或默认角色已禁用时，最小权限迁移会停止；
-- 盘点所有依赖隐式默认角色权限的公开注册与首次 OAuth 登录；v0.8 只允许一个已启用、非 root 的默认角色；
+- 盘点所有依赖隐式默认角色权限的公开注册与首次 OAuth 登录；v1.0.0 只允许一个已启用、非 root 的默认角色；
 - 盘点直接调用上传、系统配置、应用配置凭据和角色授权 API 的非 root 自动化；这些能力需要新增的显式权限或改由 root 运维流程执行；
 - 导出自定义菜单和 Casbin 策略，特别是 `/develop` 下的非内置子项，以便核对退役工具迁移只重挂无关菜单而不误删。
 
@@ -69,7 +69,7 @@ keywords: [v0.8.0 upgrade migration backup preflight]
 
 - 识别 `AppConfig` 中四个受保护的 provider credential 字段及其 owner，确认新的 secret-read/secret-write 权限；
 - 备份主题相关 application/user config 行和未知扩展行；revision 迁移不会替换原表；
-- 导出仍依赖动态模型、字段、虚拟 CRUD 或模板 API 的调用方清单。v0.8 不提供兼容路由；
+- 导出仍依赖动态模型、字段、虚拟 CRUD 或模板 API 的调用方清单。v1.0.0 不提供兼容路由；
 - 记录历史动态模型元数据和生成业务表的保留/导出责任人。自动迁移不会删除这些数据表。
 
 ## 3. 下游源码与模块路径
@@ -83,10 +83,10 @@ github.com/mss-boot-io/mss-boot
 
 同步更新 `go.mod` 的 `require`/`replace` 与所有 Go import。不要把本仓库 `go.work` 的本地替换复制到下游生产模块。
 
-发布负责人必须先发布 `mss-boot/v0.8.0`，再在仓库外以 `GOWORK=off` 解析该模块。下游随后执行：
+发布负责人必须先发布 `mss-boot/v1.0.0`，再在仓库外以 `GOWORK=off` 解析该模块。下游随后执行：
 
 ```shell
-GOWORK=off go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v0.8.0
+GOWORK=off go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.0.0
 GOWORK=off go mod tidy -diff
 GOWORK=off go test ./...
 ```
@@ -98,15 +98,15 @@ GOWORK=off go test ./...
 1. 宣布维护窗口并停止定时写入、后台 worker 和外部自动化；
 2. 从负载均衡移除全部 v0.7 Admin 实例；
 3. 等待在途写请求完成，记录最后一个成功事务和备份时间；
-4. 保持数据库与 Redis 可用，但不要同时运行 v0.7 writer 和依赖 revision 的 v0.8 writer；
+4. 保持数据库与 Redis 可用，但不要同时运行 v0.7 writer 和依赖 revision 的 v1.0.0 writer；
 5. 再取得最终一致数据库快照。
 
-旧实例不会推进配置或授权 revision。混跑 writer 会绕过 v0.8 的并发合同，因此不属于支持的滚动升级方式。
+旧实例不会推进配置或授权 revision。混跑 writer 会绕过 v1.0.0 的并发合同，因此不属于支持的滚动升级方式。
 
 ## 5. 执行迁移
 
 :::info MySQL v0.7 基线说明
-`v0.7.0` 的历史迁移 `1746193492486` 使用了 ANSI SQL 的 `"group"` 标识符，Options 迁移还使用了现代 MySQL 不支持的 `ADD COLUMN/CREATE INDEX IF NOT EXISTS`，默认角色查询则使用了 PostgreSQL 不支持的 MySQL 反引号。发布升级演练在一次性 v0.7 基线中启用会话级 `ANSI_QUOTES`，以当前仓库中同版本、同目标结构的跨数据库修正版替换 Options 迁移，并只把默认角色查询改写成等价的 GORM `clause.Eq`；每个替换都有特征校验，其他 v0.7 数据和迁移语义保持不变。随后当前候选仍以默认 SQL mode 完成升级和重复迁移。已经完成 v0.7 迁移的生产数据库不需要为 v0.8 开启该模式，也不要全局修改生产 SQL mode 或迁移版本行。
+`v0.7.0` 的历史迁移 `1746193492486` 使用了 ANSI SQL 的 `"group"` 标识符，Options 迁移还使用了现代 MySQL 不支持的 `ADD COLUMN/CREATE INDEX IF NOT EXISTS`，默认角色查询则使用了 PostgreSQL 不支持的 MySQL 反引号。发布升级演练在一次性 v0.7 基线中启用会话级 `ANSI_QUOTES`，以当前仓库中同版本、同目标结构的跨数据库修正版替换 Options 迁移，并只把默认角色查询改写成等价的 GORM `clause.Eq`；每个替换都有特征校验，其他 v0.7 数据和迁移语义保持不变。随后当前候选仍以默认 SQL mode 完成升级和重复迁移。已经完成 v0.7 迁移的生产数据库不需要为 v1.0.0 开启该模式，也不要全局修改生产 SQL mode 或迁移版本行。
 :::
 
 从正式 tag 的源码执行：
@@ -124,7 +124,7 @@ GOWORK=off go run . migrate
 
 不要手工插入、删除或改写 migration version 行。失败迁移应保留错误报告、修复预检数据后原样重跑。
 
-### v0.8 关键迁移效果
+### v1.0.0 关键迁移效果
 
 | 迁移领域 | 主要效果 | 可逆性 |
 | --- | --- | --- |
@@ -141,9 +141,9 @@ GOWORK=off go run . migrate
 
 ## 6. 部署顺序
 
-1. 先部署全部 v0.8 后端，但保持流量关闭；
+1. 先部署全部 v1.0.0 后端，但保持流量关闭；
 2. 运行健康、数据库、权限、缓存和 migration version 检查；
-3. 部署与 v0.8 API 配套的前端静态制品并清理旧 HTML/CDN 入口缓存；
+3. 部署与 v1.0.0 API 配套的前端静态制品并清理旧 HTML/CDN 入口缓存；
 4. 开放内部管理员流量，验证 root 与一个非 root 角色；
 5. 再开放普通用户和自动化流量；
 6. 生产环境必须显式启用 `auth.sessionEnabled: true`，否则改密后已签发浏览器 JWT 仍可能有效到过期。不含 `sid` 的旧浏览器 JWT 会要求重新登录，应提前通知用户；
@@ -175,4 +175,4 @@ go run ./cmd/mss eval run --all
 
 ## 8. 升级判定
 
-只有数据库、后端、前端、自动化和多实例行为全部通过，才结束维护窗口。任一安全迁移失败时不要绕过 version 检查启动新 writer；按照 [回滚与恢复](/releases/v0-8-0-rollback) 选择 forward-fix 或完整恢复。
+只有数据库、后端、前端、自动化和多实例行为全部通过，才结束维护窗口。任一安全迁移失败时不要绕过 version 检查启动新 writer；按照 [回滚与恢复](/releases/v1-0-0-rollback) 选择 forward-fix 或完整恢复。

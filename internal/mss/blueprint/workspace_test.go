@@ -40,15 +40,15 @@ use (
 	./mss-boot
 )
 
-replace github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0 => ./mss-boot
+replace github.com/mss-boot-io/mss-boot-admin/mss-boot v1.0.0 => ./mss-boot
 `)
 	writeFixtureFile(t, root, "admin/go.mod", `module github.com/mss-boot-io/mss-boot-admin/admin
 
 go 1.26.0
 
-require github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0
+require github.com/mss-boot-io/mss-boot-admin/mss-boot v1.0.0
 
-replace github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0 => ../mss-boot
+replace github.com/mss-boot-io/mss-boot-admin/mss-boot v1.0.0 => ../mss-boot
 `)
 	writeFixtureFile(t, root, "admin/main.go", `package main
 
@@ -92,7 +92,7 @@ const Value = "local"
 	assertContains(
 		t,
 		filepath.Join(destination, "go.work"),
-		"replace github.com/acme/workspace-admin/mss-boot v0.8.0 => ./mss-boot",
+		"replace github.com/acme/workspace-admin/mss-boot v1.0.0 => ./mss-boot",
 	)
 	assertContains(
 		t,
@@ -102,7 +102,7 @@ const Value = "local"
 	assertContains(
 		t,
 		filepath.Join(destination, "admin", "go.mod"),
-		"require github.com/acme/workspace-admin/mss-boot v0.8.0",
+		"require github.com/acme/workspace-admin/mss-boot v1.0.0",
 	)
 
 	command := exec.Command("go", "list", "./...", "./admin/...", "./mss-boot/...")

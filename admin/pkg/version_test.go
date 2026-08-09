@@ -9,7 +9,7 @@ func TestFormatBuildVersion(t *testing.T) {
 		commit  string
 		want    string
 	}{
-		{name: "release", version: "v0.8.0", commit: "f401308", want: "v0.8.0 (commit f401308)"},
+		{name: "release", version: "v1.0.0", commit: "f401308", want: "v1.0.0 (commit f401308)"},
 		{name: "development", version: "devel", commit: "unknown", want: "devel"},
 		{name: "empty values", want: "devel"},
 	}

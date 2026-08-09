@@ -4,15 +4,20 @@ All notable, verifiable changes to the `mss-boot` framework are documented in
 this file. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses semantic versioning for nested-module releases.
 
-## [Unreleased] - mss-boot/v0.8.0 candidate
+## [Unreleased] - mss-boot/v1.0.0 candidate
 
 Status: **preview / release preparation**. The framework is not published from
-the consolidated repository until the `mss-boot/v0.8.0` nested-module tag exists
+the consolidated repository until the `mss-boot/v1.0.0` nested-module tag exists
 and resolves from an external module with `GOWORK=off`. A branch, local
 `go.work` replacement, or this changelog entry is not stable release evidence.
 
+This tag is the reusable framework's first stable 1.0 release from the
+consolidated repository. Any package, checksum, proxy lookup, or test result
+created for the unpublished v0.8.0 candidate must be regenerated from the exact
+v1.0.0 release commit.
+
 The compatibility and rollout requirements are part of the consolidated
-[v0.8.0 release contract](../docs/docs/releases/v0-8-0.md).
+[v1.0.0 release contract](../docs/docs/releases/v1-0-0.md).
 
 ### Added
 
@@ -106,8 +111,8 @@ The compatibility and rollout requirements are part of the consolidated
 
 ### Compatibility
 
-- Publish `mss-boot/v0.8.0` before any root Admin release that requires
-  `github.com/mss-boot-io/mss-boot-admin/mss-boot v0.8.0`. Verify resolution from
+- Publish `mss-boot/v1.0.0` before any root Admin release that requires
+  `github.com/mss-boot-io/mss-boot-admin/mss-boot v1.0.0`. Verify resolution from
   a clean external temporary module without the repository `go.work` file.
 - A source checkout using `go.work` proves workspace compatibility only; it
   does not prove that the nested module tag is available to downstream users.
