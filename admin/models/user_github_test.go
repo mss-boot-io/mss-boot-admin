@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type githubTestAppConfig map[string]string
@@ -332,6 +333,7 @@ func TestEmailRegistrationRequiresExplicitRegistrationSetting(t *testing.T) {
 func TestEmailRegistrationRejectsClientSuppliedRefreshIdentity(t *testing.T) {
 	database := setupGithubVerifyTest(t, githubTestAppConfig{
 		"security:registerEnabled": "true",
+		"security:emailEnabled":    "true",
 	})
 	victim := &User{
 		UserLogin: UserLogin{
@@ -366,9 +368,12 @@ func setupGithubVerifyTest(t *testing.T, config githubTestAppConfig) *gorm.DB {
 		BeforeGithubVerify = oldBeforeVerify
 	})
 
-	dsn := fmt.Sprintf("file:github-verify-%s?mode=memory&cache=shared", t.Name())
-	database, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	dsn := filepath.Join(t.TempDir(), "github-verify.db") + "?_busy_timeout=5000&_journal_mode=WAL"
+	database, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, err)
+	sqlDB, err := database.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
 	require.NoError(t, database.AutoMigrate(&Role{}, &User{}, &UserOAuth2{}))
 	gormdb.DB = database
 	center.SetAppConfig(config)

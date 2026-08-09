@@ -6,11 +6,22 @@ and the project uses semantic versioning for nested-module releases.
 
 ## [Unreleased]
 
+### Security
+
+- Added a provisional purpose-scoped Redis challenge implementation with
+  cryptographic codes, versioned HMAC verifiers, same-slot Lua transitions,
+  delivery compensation, pending-lease recovery, subject/caller/global quotas,
+  attempt limits, pepper rotation, and exactly-once successful verification.
+- Restricted the v1.0.1 provider claim to standalone Redis: generated
+  per-subject keys are preflighted for one hash tag, while concrete Cluster and
+  Ring clients fail closed until real multi-node conformance exists.
+- Permanently disabled the unsafe legacy verification-code behavior while
+  retaining its construction symbols for an explicit migration failure.
+
 ### Documentation
 
 - Reconciled the changelog with the published nested-module Release and added
-  the v1.0.1 storage-safety and Storage Runtime v2 planning contracts. No
-  framework runtime implementation changes are included yet.
+  the v1.0.1 storage-safety and Storage Runtime v2 planning contracts.
 
 ## [mss-boot/v1.0.0] - 2026-08-09
 

@@ -1,12 +1,10 @@
 package center
 
 import (
-	"context"
-	"time"
-
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
@@ -34,7 +32,7 @@ type Center interface {
 	StatisticsImp
 	MakeRouterImp
 	GRPCClientImp
-	VerifyCodeStoreImp
+	ChallengeImp
 }
 
 type GRPCClientImp interface {
@@ -104,7 +102,4 @@ type StatisticsImp interface {
 	NowReduce(ctx *gin.Context, object StatisticsObject) error
 }
 
-type VerifyCodeStoreImp interface {
-	GenerateCode(ctx context.Context, key string, expire time.Duration) (string, error)
-	VerifyCode(ctx context.Context, key, code string) (bool, error)
-}
+type ChallengeImp = cache.ProvisionalChallenge

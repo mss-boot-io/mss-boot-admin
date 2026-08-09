@@ -9,6 +9,17 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
 )
 
+type canonicalBoolAppConfig map[string]string
+
+func (c canonicalBoolAppConfig) SetAppConfig(*gin.Context, string, bool, string) error {
+	return nil
+}
+
+func (c canonicalBoolAppConfig) GetAppConfig(_ *gin.Context, key string) (string, bool) {
+	value, exists := c[key]
+	return value, exists
+}
+
 func TestDefaultCenterSettersAndGetters(t *testing.T) {
 	manager := server.New(server.WithoutSignalHandling())
 	router := gin.New()
@@ -31,7 +42,7 @@ func TestDefaultCenterSettersAndGetters(t *testing.T) {
 	center.SetCache(nil)
 	center.SetQueue(nil)
 	center.SetLocker(nil)
-	center.SetVerifyCodeStore(nil)
+	center.SetChallenge(nil)
 
 	if center.GetNotice() != nil || center.GetTenant() != nil || center.GetVerify() != nil {
 		t.Fatal("nil composition dependencies were not preserved")
@@ -51,7 +62,7 @@ func TestDefaultCenterSettersAndGetters(t *testing.T) {
 	if center.GetStatistics() != nil || center.GetMakeRouter() != nil || center.GetGRPCClient() != nil {
 		t.Fatal("nil service dependencies were not preserved")
 	}
-	if center.GetCache() != nil || center.GetQueue() != nil || center.GetLocker() != nil || center.GetVerifyCodeStore() != nil {
+	if center.GetCache() != nil || center.GetQueue() != nil || center.GetLocker() != nil || center.GetChallenge() != nil {
 		t.Fatal("nil storage dependencies were not preserved")
 	}
 }
@@ -81,7 +92,7 @@ func TestGlobalCenterAccessorsUseCurrentDefault(t *testing.T) {
 	SetCache(nil)
 	SetQueue(nil)
 	SetLocker(nil)
-	SetVerifyCodeStore(nil)
+	SetChallenge(nil)
 
 	if GetNotice() != nil || GetTenant() != nil || GetUser() != nil {
 		t.Fatal("unexpected global identity dependencies")
@@ -95,7 +106,7 @@ func TestGlobalCenterAccessorsUseCurrentDefault(t *testing.T) {
 	if GetAppConfig() != nil || GetUserConfig() != nil || GetStatistics() != nil || GetMakeRouter() != nil || GetGRPCClient() != nil {
 		t.Fatal("unexpected global service dependencies")
 	}
-	if GetCache() != nil || GetQueue() != nil || GetLocker() != nil || GetVerifyCodeStore() != nil {
+	if GetCache() != nil || GetQueue() != nil || GetLocker() != nil || GetChallenge() != nil {
 		t.Fatal("unexpected global storage dependencies")
 	}
 }
@@ -127,6 +138,39 @@ func TestStageEnvironmentPrecedence(t *testing.T) {
 	t.Cleanup(func() { Default = previous })
 	if got := Stage(); got != "prod" {
 		t.Fatalf("global stage = %q", got)
+	}
+}
+
+func TestEmailChallengeCapabilityRequiresCanonicalBoolean(t *testing.T) {
+	previous := Default
+	t.Cleanup(func() { Default = previous })
+
+	tests := []struct {
+		name    string
+		value   string
+		present bool
+		want    bool
+	}{
+		{name: "canonical true", value: "true", present: true, want: true},
+		{name: "canonical false", value: "false", present: true},
+		{name: "uppercase", value: "TRUE", present: true},
+		{name: "numeric", value: "1", present: true},
+		{name: "short form", value: "t", present: true},
+		{name: "whitespace", value: " true ", present: true},
+		{name: "missing"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			values := canonicalBoolAppConfig{}
+			if test.present {
+				values["security:emailEnabled"] = test.value
+			}
+			Default = &DefaultCenter{AppConfigImp: values}
+			if got := EmailChallengeCapabilityEnabled(nil); got != test.want {
+				t.Fatalf("EmailChallengeCapabilityEnabled() = %v, want %v for %q", got, test.want, test.value)
+			}
+		})
 	}
 }
 

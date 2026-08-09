@@ -69,6 +69,29 @@ func TestUpdateUserInfoRejectsPersonalAccessTokensWithoutChangingRecoveryFields(
 	}
 }
 
+func TestUpdateUserInfoRejectsEmailChangeUntilCanonicalIdentityMigration(t *testing.T) {
+	db := prepareInteractiveSecurityTestDB(t)
+	beforeEmail, beforePhone := loadRecoveryFields(t, db)
+	principal := &models.User{}
+	principal.ID = "user-1"
+	recorder := executeHandlerWithIdentity(
+		t,
+		principal,
+		http.MethodPut,
+		"/admin/api/user/userInfo",
+		"/admin/api/user/userInfo",
+		(&User{}).UpdateUserInfo,
+		`{"email":"victim@example.test","name":"must-not-apply"}`,
+	)
+	if recorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, body = %s, want 422", recorder.Code, recorder.Body.String())
+	}
+	afterEmail, afterPhone := loadRecoveryFields(t, db)
+	if afterEmail != beforeEmail || afterPhone != beforePhone {
+		t.Fatalf("recovery fields changed: before=(%q,%q) after=(%q,%q)", beforeEmail, beforePhone, afterEmail, afterPhone)
+	}
+}
+
 func TestUserAuthTokenManagementRejectsPersonalAccessTokensWithoutDatabaseSideEffects(t *testing.T) {
 	db := prepareInteractiveSecurityTestDB(t)
 	routes := []struct {
@@ -223,6 +246,9 @@ func executeHandlerWithIdentity(
 	if identityKey == "" {
 		identityKey = "identity"
 	}
+	previousIdentityKey := config.Cfg.Auth.IdentityKey
+	config.Cfg.Auth.IdentityKey = identityKey
+	defer func() { config.Cfg.Auth.IdentityKey = previousIdentityKey }()
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

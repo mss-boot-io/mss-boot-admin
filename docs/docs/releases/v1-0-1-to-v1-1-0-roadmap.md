@@ -51,8 +51,8 @@ permissions、defaultRoles、menu 等字段尚未全部成为生成结果；在�
 | 版本 | 2026 目标窗口 | A：Generator / Blueprint 主线 | B：Storage Runtime 风险轴 | 发布出口 |
 | --- | --- | --- | --- | --- |
 | `v1.0.1` | 08-10 至 08-21 | 冻结新 scaffold 范围；建立 full-stack Feature 合同、真实 capability 拆分与 canonical path 决策 | Challenge 原子安全和 Admin purpose/anti-enumeration；Kafka ack-after-success；两个上传入口 pre-parse hard limit；object provider fail-closed | `acceptance.phase` 与 phase-aware release evidence runner；精确 required tests 非零命中；Framework 先发且外部可解析；发布后 truth reconciliation |
-| `v1.0.2` | 08-24 至 09-04 | FeatureModule contract kind 与 cross-cutting infrastructure plan；Foundation release/Blueprint/generator/downstream snapshot 四种身份，lock+manifest 原子记录同一 snapshot；lock/sync/check；typed migration ID、duplicate fail-fast、error return；字段到 output-kind 矩阵与 supplier golden fixture | strict one-of config、SecretRef、doctor preflight；移除 v1.0.1 changed paths 之外其余 Provider 的 Fatal/Exit/background/ghost clients；NSQ duration；Hermetic Redis/MinIO/broker fixtures | 两轴 focused/race 全绿；infra `feature plan` 成功且 AdminModule 缺 specPath 仍失败；两次生成零漂移；矛盾配置零副作用；migration 不再截断、吞错或退出进程 |
-| `v1.0.3` | 09-07 至 09-18 | canonical `admin/modules` 全合同对齐；Blueprint 0.1→0.2 ownership/upgrade fixture；supplier forward migration 骨架 | storage 配置升级、provider failure matrix、外部 `GOWORK=off` resource consumer | SQLite/MySQL/PostgreSQL fresh/upgrade/repeat/failure 与 provider matrix 全绿，无 required skip |
+| `v1.0.2` | 08-24 至 09-04 | FeatureModule contract kind 与 cross-cutting infrastructure plan；Foundation release/Blueprint/generator/downstream snapshot 四种身份，lock+manifest 原子记录同一 snapshot；lock/sync/check；typed migration ID、duplicate fail-fast、error return；字段到 output-kind 矩阵与 supplier golden fixture | canonical email 合同、存量冲突预检与 SQLite/MySQL/PostgreSQL active/non-empty 唯一 forward migration；strict one-of config、SecretRef、doctor preflight | 两轴 focused/race 全绿；infra `feature plan` 成功且 AdminModule 缺 specPath 仍失败；两次生成零漂移；三库并发 identity 恰好一个成功；迁移不截断、吞错、退出进程或自动选择冲突账户 |
+| `v1.0.3` | 09-07 至 09-18 | canonical `admin/modules` 全合同对齐；Blueprint 0.1→0.2 ownership/upgrade fixture；supplier forward migration 骨架 | 移除 v1.0.1 changed paths 之外其余 Provider 的 Fatal/Exit/background/ghost clients；NSQ duration；Hermetic Redis/MinIO/broker fixtures；storage 配置升级、provider failure matrix、外部 `GOWORK=off` resource consumer | SQLite/MySQL/PostgreSQL fresh/upgrade/repeat/failure 与 provider matrix 全绿，无 required skip |
 | `v1.1.0-alpha.1` | 09-21 至 10-02 | supplier migration、model/DTO/service/API/operations/index/export/OpenAPI；不支持字段 pre-write 拒绝 | owned resource lifecycle、named Redis、required readiness、逆序 close、ChallengeStore target API | golden backend/check 两次零 diff；100 次 race 启停无泄漏；listener 不早于 required resources ready |
 | `v1.1.0-alpha.2` | 10-05 至 10-16 | permissions/defaultRoles/menu、ownership、commit-after-transaction events 与完整正反授权 | ObjectStore/Delivery、Admin metadata migration、owner/tenant permission、Local/MinIO create-only/no-clobber/checksum、S3 bootstrap 独立 | 权限矩阵全绿；Local/MinIO 共用 suite；并发同 ObjectRef 返回 conflict；错误 provider 零 fallback |
 | `v1.1.0-alpha.3` | 10-19 至 10-30 | typed client、list/form/detail/actions/export、locale、loading/empty/error/denied/conflict 与 frontend tests | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile；Lock/WorkQueue 晋级或延后决策 | frontend lint/tsc/Jest/build/E2E；Casbin crash-window 最终收敛；缓存不破坏事务/DB 权威；Queue/Lock 不搭便车 |
@@ -199,10 +199,13 @@ Blueprint 与 generator 版本，因此本路线不把它们直接改成 `1.0.0`
 
 ## 下一条可执行工作
 
-创建 `v1.0.1` 的第一个实现 PR：只包含 internal/provisional challenge state 的失败测试与安全修复，
-不在补丁版冻结公开 Storage Runtime v2 API。完成条件是
-并发 Issue/Verify、cooldown、quota、max attempts、purpose isolation、expiry、Redis outage、
-anti-enumeration 和 redaction 全部通过 `-race -count=20`；该 PR 不同时修改 Queue、ObjectStore
-或 Generator。另一条独立分支可以并行启动 `v1.0.2` 的 Foundation release、Blueprint、
-generator、downstream snapshot 四身份失败测试，以及 lock+manifest 原子双记录在失败时保留旧
-snapshot 的测试和 field-to-output 投影测试；两条泳道分别评审、分别合并，不互相隐藏门禁。
+在 Challenge safety 检查点独立评审并通过 focused race 后，创建 `v1.0.1` 的第二个实现 PR：
+只修改 Kafka decode/handler/ack/cancel 路径，先写 decode 或 handler 失败绝不 Mark、取消不提交
+在途消息的失败测试，再把 ack 移到 handler 成功之后；Kafka 仍保持 legacy/experimental，不在
+补丁版承诺完整 retry/DLQ 平台。这个 PR 不同时修改 Challenge、ObjectStore 或 Generator。
+
+另一条独立分支并行启动 `v1.0.2`：先为 Foundation release、Blueprint、generator、downstream
+snapshot 四身份以及 lock+manifest 原子双记录建立失败测试，再修 migration engine，并以 canonical
+email 存量冲突预检和三数据库唯一 forward migration 作为第一条真实安全迁移。迁移落地前，
+邮件注册、首次 OAuth provision 与自助邮箱修改都不得被描述为 production-ready。两条泳道分别
+评审、分别合并，不互相隐藏门禁。

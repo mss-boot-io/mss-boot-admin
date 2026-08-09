@@ -47,7 +47,7 @@ export async function deleteAppConfigsTheme(options?: { [key: string]: any }) {
 
 /** 获取应用配置 获取应用配置 GET /admin/api/app-configs/profile */
 export async function getAppConfigsProfile(options?: { [key: string]: any }) {
-  return request<Record<string, any>>('/admin/api/app-configs/profile', {
+  return request<API.AppConfigProfile>('/admin/api/app-configs/profile', {
     method: 'GET',
     ...(options || {}),
   });

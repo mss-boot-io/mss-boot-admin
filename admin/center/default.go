@@ -42,7 +42,7 @@ type DefaultCenter struct {
 	storage.AdapterCache
 	storage.AdapterQueue
 	storage.AdapterLocker
-	VerifyCodeStoreImp
+	ChallengeImp
 }
 
 func (d *DefaultCenter) SetNotice(n NoticeImp) {
@@ -109,8 +109,8 @@ func (d *DefaultCenter) SetLocker(l storage.AdapterLocker) {
 	d.AdapterLocker = l
 }
 
-func (d *DefaultCenter) SetVerifyCodeStore(v VerifyCodeStoreImp) {
-	d.VerifyCodeStoreImp = v
+func (d *DefaultCenter) SetChallenge(v ChallengeImp) {
+	d.ChallengeImp = v
 }
 
 func (d *DefaultCenter) GetNotice() NoticeImp {
@@ -177,8 +177,23 @@ func (d *DefaultCenter) GetLocker() storage.AdapterLocker {
 	return d.AdapterLocker
 }
 
-func (d *DefaultCenter) GetVerifyCodeStore() VerifyCodeStoreImp {
-	return d.VerifyCodeStoreImp
+func (d *DefaultCenter) GetChallenge() ChallengeImp {
+	return d.ChallengeImp
+}
+
+// EmailChallengeCapabilityEnabled is the authoritative runtime switch shared
+// by challenge issuance and every challenge consumer. Missing, malformed, or
+// false configuration fails closed.
+func EmailChallengeCapabilityEnabled(ctx *gin.Context) bool {
+	appConfig := GetAppConfig()
+	if appConfig == nil {
+		return false
+	}
+	value, exists := appConfig.GetAppConfig(ctx, "security:emailEnabled")
+	if !exists {
+		return false
+	}
+	return value == "true"
 }
 
 func (d *DefaultCenter) Stage() string {
@@ -276,8 +291,8 @@ func SetLocker(l storage.AdapterLocker) *DefaultCenter {
 	return Default
 }
 
-func SetVerifyCodeStore(v VerifyCodeStoreImp) *DefaultCenter {
-	Default.SetVerifyCodeStore(v)
+func SetChallenge(v ChallengeImp) *DefaultCenter {
+	Default.SetChallenge(v)
 	return Default
 }
 
@@ -349,6 +364,6 @@ func GetLocker() storage.AdapterLocker {
 	return Default.GetLocker()
 }
 
-func GetVerifyCodeStore() VerifyCodeStoreImp {
-	return Default.GetVerifyCodeStore()
+func GetChallenge() ChallengeImp {
+	return Default.GetChallenge()
 }

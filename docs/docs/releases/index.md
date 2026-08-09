@@ -48,3 +48,4 @@ issue 完成终态记录或链接已验证的替代列车。
 Storage Runtime v2 和一条完整的 Generator 黄金业务竖切。
 
 - [v1.0.1 至 v1.1.0 完整路线](/releases/v1-0-1-to-v1-1-0-roadmap)
+- [v1.0.1 Challenge 安全切片](/releases/v1-0-1-challenge-safety)

@@ -166,6 +166,9 @@ func setup(ctx context.Context) (err error) {
 	middleware.Init()
 
 	routerEngine := gin.New()
+	if err := routerEngine.SetTrustedProxies(config.Cfg.Application.TrustedProxies); err != nil {
+		return fmt.Errorf("configure trusted reverse proxies: %w", err)
+	}
 	routerEngine.Use(requestlog.Logger(), requestlog.Recovery())
 	routerEngine.Use(middleware.AuditLogMiddleware("/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
 	center.SetMakeRouter(router.DefaultMakeRouter)

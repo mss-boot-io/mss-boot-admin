@@ -38,6 +38,13 @@ generated from the exact `web/antd/v1.0.0` commit.
 
 ### Changed
 
+- The root v1.0.1 integration refreshes email-Challenge readiness on every
+  authentication-route mount with a bounded request. Login, registration, and
+  password-reset forms fail closed after dependency errors or timeouts instead
+  of trusting stale bootstrap state.
+- Email authentication routes expose explicit loading and unavailable states in
+  both supported locales. Registration additionally requires the backend
+  `registerEnabled` capability before its form is rendered.
 - Dynamic menus remain the navigation source of truth and are refreshed when
   the current identity or permission revision changes. Frontend checks improve
   experience but do not replace backend authorization.
@@ -74,6 +81,8 @@ generated from the exact `web/antd/v1.0.0` commit.
 
 ### Removed
 
+- Removed the unsupported phone-login tab and phone-captcha client path from the
+  root v1.0.1 bundled authentication surface.
 - Removed runtime model/field administration, virtual CRUD, browser template
   generation, related routes, menu entries, locale keys, service clients, and
   generated API types.

@@ -26,6 +26,12 @@ export default {
   'pages.getCaptchaSecondText': 'sec(s)',
   'pages.login.rememberMe': 'Remember me',
   'pages.login.forgotPassword': 'Forgot Password ?',
+  'pages.login.emailChallengeChecking': 'Checking email verification service…',
+  'pages.login.emailChallengeUnavailable': 'Email verification is unavailable',
+  'pages.login.emailChallengeUnavailableDescription':
+    'Email verification is currently unavailable. Try again later or sign in with your username and password.',
+  'pages.login.registrationUnavailableDescription': 'User registration is currently disabled.',
+  'pages.login.backToLogin': 'Back to sign in',
   'pages.login.submit': 'Login',
   'pages.login.loginWith': 'Login with :',
   'pages.login.registerAccount': 'Register Account',

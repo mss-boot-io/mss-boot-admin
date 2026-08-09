@@ -26,12 +26,13 @@ const (
 )
 
 type Application struct {
-	Name       string            `yaml:"name" json:"name"`
-	Mode       Mode              `yaml:"mode" json:"mode"`
-	Origin     string            `yaml:"origin" json:"origin"`
-	StaticPath map[string]string `yaml:"staticPath" json:"staticPath"`
-	Labels     map[string]string `yaml:"labels" json:"labels"`
-	UI         UIServer          `yaml:"ui" json:"ui"`
+	Name           string            `yaml:"name" json:"name"`
+	Mode           Mode              `yaml:"mode" json:"mode"`
+	Origin         string            `yaml:"origin" json:"origin"`
+	TrustedProxies []string          `yaml:"trustedProxies" json:"trustedProxies"`
+	StaticPath     map[string]string `yaml:"staticPath" json:"staticPath"`
+	Labels         map[string]string `yaml:"labels" json:"labels"`
+	UI             UIServer          `yaml:"ui" json:"ui"`
 }
 
 func (e *Application) Init(r gin.IRouter) {

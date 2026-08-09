@@ -215,23 +215,72 @@ spec:
         of not-found, RowsAffected, preload, scan, rollback, read-your-writes, and generation
         semantics under failure injection.
 
-    - id: identity.verification-challenge
+    - id: identity.verification-challenge-redis-standalone
+      displayName: Provisional Standalone Redis Email Challenge
+      status: beta
+      owners: [framework, backend, security]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/docs/releases/v1-0-1-challenge-safety.md
+      backendPaths:
+        - admin/apis/user.go
+        - admin/config/challenge.go
+        - admin/models/user.go
+        - admin/notice/email/send.go
+      frameworkPaths:
+        - mss-boot/pkg/config/storage/cache/challenge.go
+      guidance: >-
+        v1.0.1 checkpoint: purpose-scoped cryptographic challenges use atomic Redis transitions,
+        bounded caller/global issuance, bounded context-aware delivery, fixed failure responses, and
+        a disabled legacy fallback. The inter-module Go surface is explicitly provisional rather than
+        the v1.1 Runtime v2 API. This Beta status applies only to a standalone Redis resource and does
+        not assert database-enforced canonical email uniqueness; ambiguous identities fail closed.
+
+    - id: identity.verification-challenge-redis-cluster
+      displayName: Redis Cluster/Ring Email Challenge
+      status: planned
+      owners: [framework, backend, security]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/docs/releases/v1-0-1-challenge-safety.md
+      frameworkPaths:
+        - mss-boot/pkg/config/storage/cache/challenge.go
+      guidance: >-
+        Concrete Redis Cluster and Ring clients are rejected fail closed in v1.0.1. Promotion requires
+        a real non-skippable multi-node fixture covering hash-slot execution, CROSSSLOT, failover,
+        NOSCRIPT, cancellation, retries, and exactly-once challenge consumption; string-level hash-tag
+        tests are not provider conformance evidence.
+
+    - id: identity.canonical-email
+      displayName: Canonical Email Identity Constraint
+      status: planned
+      owners: [backend, security, database]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - docs/docs/releases/v1-0-1-challenge-safety.md
+      backendPaths:
+        - admin/models/user.go
+        - admin/pkg/challenge.go
+      guidance: >-
+        v1.0.1 case-folds bounded ASCII email identifiers and rejects ambiguous lookups, but it does
+        not claim database uniqueness. v1.0.2 must preflight existing data and add dialect-aware active,
+        non-empty canonical uniqueness for SQLite, MySQL, and PostgreSQL before email registration,
+        first-time OAuth provisioning, or self-service email change can be production-ready.
+
+    - id: identity.verification-code-legacy
       displayName: Legacy Redis Verification Code Helper
       status: legacy
       owners: [framework, backend, security]
       paths:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
-        - .mss/features/storage-runtime-v2.yaml
-      backendPaths:
-        - admin/apis/user.go
-        - admin/models/user.go
       frameworkPaths:
         - mss-boot/pkg/config/storage/cache/verify_code.go
       guidance: >-
-        Evidence state at v1.0.0 is blocked: generation and GET/SET/DEL transitions do not meet
-        cryptographic, atomic, attempt-bound, purpose-isolation, or outage requirements. Do not add
-        new login factors on this helper. v1.0.1 must close the safety paths; v1.1 replaces it with
-        a typed ChallengeStore before this capability can be promoted.
+        Permanently disabled in the v1.0.1 checkpoint. The constructor symbol remains only to make
+        accidental callers fail explicitly; GenerateCode and VerifyCode never read or write state.
+        It is not an operational rollback path and must be removed when the v1.1 ChallengeStore API lands.
 
     - id: platform.event-bus
       displayName: Revision Event Bus

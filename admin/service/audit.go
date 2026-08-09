@@ -6,6 +6,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type AuditService struct{}
@@ -28,6 +29,9 @@ func (s *AuditService) LogLogin(db *gorm.DB, userID, username, ip, userAgent, me
 		LoginAt:   time.Now(),
 	}
 
+	if db.Logger != nil {
+		db = db.Session(&gorm.Session{Logger: db.Logger.LogMode(logger.Silent)})
+	}
 	return db.Create(log).Error
 }
 

@@ -11,6 +11,9 @@ monitor:
 application:
   mode: dev
   origin: http://127.0.0.1:8080
+  # Empty disables forwarded client IP headers. Production deployments behind
+  # a reverse proxy must list only the exact proxy IP/CIDR hops they control.
+  trustedProxies: []
 #  ui:
 #    enabled: true
 #    addr: 0.0.0.0:8000
@@ -78,6 +81,23 @@ auth:
   timeout: '12h'
   maxRefresh: '2160h'
   identityKey: 'mss-boot-admin-identity-key'
+challenge:
+  enabled: false
+  keySecretRef: env://MSS_CHALLENGE_KEY_SECRET
+  currentPepper:
+    version: v1
+    secretRef: env://MSS_CHALLENGE_PEPPER_V1
+  activeTTL: 5m
+  pendingLease: 30s
+  resendCooldown: 1m
+  issueWindow: 1h
+  issueLimit: 5
+  maxAttempts: 5
+  idempotencyLease: 2m
+  callerWindow: 10m
+  callerLimit: 10
+  globalWindow: 10m
+  globalLimit: 1000
 pyroscope:
   enabled: false
   applicationName: mss-boot-admin

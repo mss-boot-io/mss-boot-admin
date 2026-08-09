@@ -33,10 +33,11 @@ spec:
     - Complete the storage-runtime-v2 package split or remove every historical public adapter in v1.0.1.
     - Complete the private ObjectStore/Delivery metadata and authorization boundary; that remains a separately gated v1.1 alpha.2 target.
     - Guarantee S3 create-only conditional writes and typed object conflicts; Local and MinIO/S3 share that no-clobber contract only in the separately gated v1.1 alpha.2 provider suite.
-    - Freeze or promote the public Storage Runtime v2 ChallengeStore package and configuration API; v1.0.1 lands only the internal purpose-aware safety state machine required by existing Admin flows, while v1.1 alpha.1 owns the target API.
+    - Freeze or promote the public Storage Runtime v2 ChallengeStore package and configuration API; v1.0.1 exposes only an explicitly provisional inter-module bridge for the existing Admin flows, while v1.1 alpha.1 owns the supported target API.
     - Promise stable Kafka, NSQ, Redis work-queue, distributed-lock, or S3-compatible provider support.
     - Add storage hot reload, resumable upload, image processing, virus scanning, CDN orchestration, or cross-cloud replication.
     - Change database schemas or use AutoMigrate as evidence of an upgrade migration.
+    - Claim database-enforced canonical email uniqueness; ambiguous identities fail closed in v1.0.1, while a preflighted three-database forward migration is a separately gated v1.0.2 security slice.
     - Manually rewrite .mss/lock.yaml or .mss/project.yaml to resemble the published release version.
     - Let compatibility shims preserve an unsafe acknowledgement, fallback, secret, or lifecycle behavior.
   actors:
@@ -142,16 +143,19 @@ spec:
       actor: security-owner
       module: challenge-safety
       rules:
-        - Challenge values come from crypto/rand and storage keys bind normalized subject and purpose without exposing either in logs.
+        - Challenge values come from crypto/rand and storage keys bind canonical subject and purpose without exposing either as a raw Redis key or provider operational log field.
         - The stored verifier uses a versioned high-entropy pepper SecretRef and constant-time comparison; a plain hash of a six-digit value is insufficient.
         - BeginIssue atomically applies resend eligibility, rolling quota, expiry, and one pending-version reservation; only a successful versioned commit replaces the prior active challenge and starts cooldown.
         - Issuance uses a versioned pending state in which only one concurrent BeginIssue succeeds, Verify never accepts pending values, and a compare-and-swap commit activates the sent value and replaces the prior active verifier.
-        - Send failure compare-and-swap aborts only that pending version, leaves the prior active verifier unchanged, does not start resend cooldown, and still charges the rolling quota; a stale send result cannot activate or abort a newer issue.
+        - When the request context remains usable, send failure compare-and-swap aborts only that pending version, leaves the prior active verifier unchanged, does not start resend cooldown, and still charges the rolling quota; cancellation, process failure, or a hung sender is recovered by the short pending lease, and a stale send result cannot activate or abort a newer issue.
         - Pending state has a short lease independent from active expiry; BeginIssue atomically reclaims an expired lease after a crash or hung sender without extending the prior active verifier, and stale completion remains compare-and-swap rejected.
         - Verify atomically compares, increments failed attempts, and consumes exactly once on success; a wrong guess does not immediately delete the challenge.
         - Provider outage fails closed and public responses do not disclose whether an account exists.
         - Login, registration, and password reset use distinct purpose values and cannot fall back to the legacy email-only VerifyCodeStore path.
-        - Redis Cluster uses one atomic key or one explicit hash slot and rejects CROSSSLOT operation.
+        - Issuance is bounded by subject, HMAC-protected caller, and global quotas; SMTP work inherits request cancellation, has a deadline, and is concurrency bounded.
+        - Forwarded client identity is accepted only through an explicit trusted-proxy allowlist; direct and spoofed forwarding headers cannot bypass caller quota.
+        - Disabling the email capability rejects issuance and every active-code consumer before touching challenge state; public readiness requires both Redis health and complete SMTP configuration.
+        - v1.0.1 proves generated state keys share one hash tag and rejects cross-slot script input before I/O, but concrete Redis Cluster and Ring clients fail closed until a real non-skippable multi-node conformance fixture exists.
     - id: validate-provider-configuration
       title: Validate the object-storage profile once
       description: Object-storage configuration must be loaded consistently, normalized without mutation, and rejected before client construction or object writes.
@@ -171,7 +175,7 @@ spec:
       statement: The target safety semantics are designed without preserving historical API or configuration behavior; release implementation may bridge only when the bridge cannot recreate an unsafe behavior.
     - id: no-secret-observability
       type: privacy
-      statement: Challenge values, normalized subjects, raw credentials, bearer material, and multipart bodies must not enter logs, metrics, traces, errors, or evidence reports.
+      statement: Challenge values and verifiers, SecretRef material, raw SMTP errors or message bodies, raw Redis locator inputs, bearer material, and multipart bodies must not enter logs, metrics, traces, errors, or evidence reports; canonical account identifiers may appear only in the existing access-controlled identity audit contract.
     - id: no-silent-degradation
       type: security
       statement: Security state, durable work, and object storage must fail closed; only explicitly classified derived caches may bypass to their authoritative database.
@@ -190,12 +194,18 @@ spec:
   acceptance:
     - id: challenge-atomic-evidence
       requirement: secure-challenge-consumption
-      statement: Parallel issue and verify tests prove one pending issuer, versioned send commit/abort, pending-lease crash recovery without active-expiry extension, cooldown, charged failure quota, bounded attempts, purpose isolation, single success, cryptographic generation, versioned high-entropy pepper storage and rotation, constant-time comparison, code and subject redaction, expiry, Redis-outage failure, and Redis Cluster single-slot operation with explicit CROSSSLOT rejection.
+      statement: Parallel issue and verify tests prove one pending issuer, versioned send commit/abort, pending-lease crash recovery without active-expiry extension, cooldown, charged failure quota, caller/global bounds, bounded attempts, purpose isolation, single success, cryptographic generation, versioned independent pepper storage and rotation, constant-time comparison, provider-log redaction, expiry, Redis-outage failure, same-tag key generation, pre-I/O cross-slot rejection, and fail-closed rejection of unsupported Cluster and Ring clients.
       level: security
       required: true
       evidence:
         - type: test
           value: TestChallengeIssueSendCommitAbortCAS
+        - type: test
+          value: TestChallengeConcurrentIssueSinglePending
+        - type: test
+          value: TestChallengeCooldownActiveExpiryAndCanceledDelivery
+        - type: test
+          value: TestChallengeCallerAndGlobalIssueLimitsAcrossSubjects
         - type: test
           value: TestChallengeVerifyExactlyOnce
         - type: test
@@ -203,22 +213,32 @@ spec:
         - type: test
           value: TestChallengePendingLeaseCrashRecovery
         - type: test
-          value: TestChallengeRedisClusterSingleSlot
+          value: TestChallengeGeneratedKeysShareRedisHashTag
         - type: test
-          value: TestChallengeRedisClusterCrossSlotRejected
+          value: TestChallengeCrossSlotPreflightRejected
+        - type: test
+          value: TestChallengeRedisClusterFailsClosed
         - type: test
           value: TestChallengeVerifierPepperAndRotation
         - type: test
           value: TestChallengeVerifierUsesConstantTimeCompare
         - type: test
+          value: TestChallengeConfigurationRejectsWeakSecretsAndSubMillisecondDurations
+        - type: test
           value: TestChallengeObservabilityRedactsCodeAndSubject
+        - type: test
+          value: TestLegacyVerifyCodeStoreIsDisabled
+        - type: test
+          value: TestChallengeConfigRequiresTypedHighEntropySecretRefs
         - type: command
-          value: cd mss-boot && GOWORK=off go test -json -race ./pkg/config/storage/... -count=20
+          value: "cd mss-boot && GOWORK=off go test -json -race ./pkg/config/storage/cache -run '^(TestChallenge.*|TestLegacyVerifyCodeStoreIsDisabled)$' -count=20"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./config -run '^TestChallengeConfigRequiresTypedHighEntropySecretRefs$' -count=20"
         - type: report
-          value: Required-test JSON report proving all nine exact internal challenge-state tests ran and passed under race detection twenty times, including Cluster slot safety, peppered verifier rotation, constant-time comparison, and observability redaction.
+          value: Required-test JSON report proving all fifteen exact framework challenge tests and the Admin SecretRef configuration test ran and passed under race detection twenty times; the report states that real Redis Cluster execution remains deferred and unsupported clients are rejected.
     - id: challenge-admin-flow-evidence
       requirement: secure-challenge-consumption
-      statement: Admin login, registration, and password-reset flows reject cross-purpose codes and invalid purposes, hide account existence, preserve the prior active verifier when versioned send abort succeeds, charge failure quota without starting cooldown, reject stale send completion under concurrent issue, and never call the legacy email-only verifier.
+      statement: Admin login, registration, and password-reset flows reject cross-purpose codes and invalid purposes, hide account existence, canonicalize identity consistently, enforce capability toggles, trusted-proxy caller quotas and sender bounds, expose fresh Redis-plus-SMTP readiness, preserve the prior active verifier when versioned send abort succeeds, reject stale completion, fail closed on provider outage, reject ambiguous account identity, and never call the legacy verifier.
       level: security
       required: true
       evidence:
@@ -227,13 +247,69 @@ spec:
         - type: test
           value: TestEmailChallengeResponseDoesNotEnumerateAccount
         - type: test
+          value: TestEmailChallengeCanonicalEmailBinding
+        - type: test
+          value: TestEmailChallengeRotatedSubjectCallerLimit
+        - type: test
+          value: TestEmailChallengeCallerUsesExplicitTrustedProxyPolicy
+        - type: test
+          value: TestEmailChallengeRegistrationDisabledBeforeIssue
+        - type: test
+          value: TestEmailChallengeEmailCapabilityDisabledBeforeIssue
+        - type: test
+          value: TestEmailChallengeCapabilityDisableRejectsEveryActiveCodeConsumer
+        - type: test
+          value: TestEmailChallengeProviderOutageReturnsServiceUnavailable
+        - type: test
+          value: TestEmailChallengeHungSenderCancellationAndConcurrencyBound
+        - type: test
           value: TestEmailChallengeSendFailureRotation
         - type: test
           value: TestEmailChallengeConcurrentSendFailureCAS
+        - type: test
+          value: TestAppConfigProfileProjectsFreshEmailChallengeReadinessAfterCachedProfile
+        - type: test
+          value: TestAppConfigProfileChallengeReadinessUsesBoundedFailClosedCheck
+        - type: test
+          value: TestAppConfigProfileChallengeReadinessRequiresCompleteSMTPConfig
+        - type: test
+          value: TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable
+        - type: test
+          value: TestEmailRegistrationRejectsExistingCanonicalIdentity
+        - type: test
+          value: TestEmailRegistrationUsesBoundedOpaqueUsername
+        - type: test
+          value: TestGetUserByEmailFailsClosedOnAmbiguousIdentity
+        - type: test
+          value: TestEmailIdentityOperationsDoNotEmitSensitiveSQL
+        - type: test
+          value: TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity
+        - type: test
+          value: TestUpdateUserInfoRejectsEmailChangeUntilCanonicalIdentityMigration
+        - type: test
+          value: TestCanonicalEmailNormalizesBoundedASCIIIdentity
+        - type: test
+          value: TestEmailChallengeCapabilityRequiresCanonicalBoolean
+        - type: test
+          value: TestVerificationEmailSendersRenderAndSend
+        - type: test
+          value: TestVerificationEmailPropagatesTransportAndTemplateErrors
+        - type: test
+          value: TestVerificationEmailSenderHonorsCancellation
         - type: report
-          value: Required-test JSON report proving the four exact Admin security tests ran and passed under race detection twenty times.
+          value: Required-test JSON report proving every listed Admin API, readiness, middleware, and identity mitigation test ran and passed under race detection twenty times; the report must not describe fail-closed duplicate handling as database uniqueness evidence.
         - type: command
-          value: "cd admin && go test -json -race ./apis -run '^TestEmailChallenge(PurposeIsolation|ResponseDoesNotEnumerateAccount|SendFailureRotation|ConcurrentSendFailureCAS)$' -count=20"
+          value: "cd admin && GOWORK=off go test -json -race ./apis -run '^(TestEmailChallenge.*|TestAppConfigProfile.*|TestUpdateUserInfoRejectsEmailChangeUntilCanonicalIdentityMigration)$' -count=20"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./middleware -run '^TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable$' -count=20"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./models -run '^(TestEmailRegistrationRejectsExistingCanonicalIdentity|TestEmailRegistrationUsesBoundedOpaqueUsername|TestGetUserByEmailFailsClosedOnAmbiguousIdentity|TestEmailIdentityOperationsDoNotEmitSensitiveSQL|TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity)$' -count=20"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./notice/email -run '^TestVerificationEmail.*$' -count=20"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./pkg -run '^TestCanonicalEmailNormalizesBoundedASCIIIdentity$' -count=20"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./center -run '^TestEmailChallengeCapabilityRequiresCanonicalBoolean$' -count=20"
     - id: provider-maturity-evidence
       requirement: classify-provider-evidence
       statement: The machine catalog exposes provider-specific identities and supported lifecycle statuses, the ADR records detailed evidence maturity, and no aggregate stable cache-lock-queue claim remains.
@@ -424,7 +500,10 @@ spec:
       - go run ./cmd/mss spec validate .mss/features/foundation-v1-0-1-storage-safety.yaml --format json
       - cd mss-boot && GOWORK=off go test -race ./pkg/config/...
       - cd mss-boot && GOWORK=off go vet ./...
-      - cd admin && go test -json -race ./apis -run '^TestEmailChallenge(PurposeIsolation|ResponseDoesNotEnumerateAccount|SendFailureRotation|ConcurrentSendFailureCAS)$' -count=20
+      - cd admin && GOWORK=off go test -json -race ./apis -run '^(TestEmailChallenge.*|TestAppConfigProfile.*|TestUpdateUserInfoRejectsEmailChangeUntilCanonicalIdentityMigration)$' -count=20
+      - cd admin && GOWORK=off go test -json -race ./middleware -run '^TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable$' -count=20
+      - cd admin && GOWORK=off go test -json -race ./models -run '^(TestEmailRegistrationRejectsExistingCanonicalIdentity|TestEmailRegistrationUsesBoundedOpaqueUsername|TestGetUserByEmailFailsClosedOnAmbiguousIdentity|TestEmailIdentityOperationsDoNotEmitSensitiveSQL|TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity)$' -count=20
+      - cd admin && GOWORK=off go test -json -race ./notice/email -run '^TestVerificationEmail.*$' -count=20
       - cd admin && go test -json -race ./apis ./service -run '^Test(StorageUploadHardLimitBeforeMultipart|AvatarUploadHardLimitBeforeMultipart|StorageLocalNoClobberAndConfinement)$' -count=20
       - go test -json ./internal/mss/project -run '^TestCapabilityCatalogProviderSpecificStorageStatuses$'
       - go test -json ./internal/mss/verify -run '^TestV101ChangedProvidersDoNotExitOrDetach$'

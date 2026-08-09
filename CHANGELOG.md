@@ -13,12 +13,33 @@ tag namespaces.
 - Reclassified the aggregate cache/lock/queue adapter capability from stable to
   legacy and added provider-specific evidence guidance.
 
+### Security
+
+- Added the provisional v1.0.1 Redis challenge state machine for email login,
+  registration, and password recovery. It uses cryptographic fixed-width codes,
+  purpose/subject HMAC keys, versioned peppered verifiers, delivery
+  Begin/Commit/Abort CAS, pending leases, cooldown and rolling quotas, bounded
+  caller/global issuance, bounded context-aware SMTP delivery, bounded attempts,
+  and exactly-once successful consumption.
+- Removed the Admin application's fallback to the legacy email-only
+  verification-code adapter, made Redis/secret failure explicit, made issuance
+  responses account-independent, enforced email/register switches at issuance
+  and consumption, added fresh Redis-plus-SMTP readiness and an explicit
+  trusted-proxy policy, removed codes from email headers, and removed the
+  misleading phone-code login tab until the separately planned phone challenge
+  capability exists.
+- Canonicalized bounded ASCII email identities consistently, failed closed on
+  ambiguous lookup, and disabled self-service email mutation until the planned
+  v1.0.2 three-database canonical uniqueness migration is complete.
+
 ### Documentation
 
 - Added three machine-validated declarative planning contracts for `v1.0.1` storage safety,
   Storage Runtime v2, and the v1.1 Generator/Blueprint golden slice, plus the
   owned-resource architecture decision, provider maturity matrix, and the
   `v1.0.1` through `v1.1.0` release train.
+- Added the v1.0.1 Challenge operator note covering SecretRef setup, failure
+  semantics, focused evidence, rollback, and the remaining real-Cluster gate.
 
 ## [v1.0.0] - 2026-08-09
 

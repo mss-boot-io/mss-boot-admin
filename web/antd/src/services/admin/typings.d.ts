@@ -36,6 +36,19 @@ declare namespace API {
     data: Record<string, any>;
   };
 
+  type AppConfigSecurityProfile = {
+    emailChallengeReady?: boolean;
+    emailEnabled?: boolean;
+    githubEnabled?: boolean;
+    larkEnabled?: boolean;
+    phoneEnabled?: boolean;
+    registerEnabled?: boolean;
+  };
+
+  type AppConfigProfile = Record<string, Record<string, any> | undefined> & {
+    security?: AppConfigSecurityProfile;
+  };
+
   type ThemeResource = {
     navTheme?: string;
     colorPrimary?: string;
@@ -157,9 +170,8 @@ declare namespace API {
   };
 
   type FakeCaptchaRequest = {
-    email?: string;
-    phone?: string;
-    useBy?: string;
+    email: string;
+    useBy: 'register' | 'login' | 'resetPassword';
   };
 
   type FakeCaptchaResponse = {

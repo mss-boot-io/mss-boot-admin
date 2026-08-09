@@ -17,7 +17,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/queue"
 	responsegorm "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions/gorm"
 )
@@ -43,6 +42,7 @@ type Config struct {
 	Listen       *frameworkconfig.Listen  `yaml:"listen" json:"listen"`
 	Database     gormdb.Database          `yaml:"database" json:"database"`
 	Application  Application              `yaml:"application" json:"application"`
+	Challenge    Challenge                `yaml:"challenge" json:"challenge"`
 	Monitor      Monitor                  `yaml:"monitor" json:"monitor"`
 	Task         Task                     `yaml:"task" json:"task"`
 	Pyroscope    Pyroscope                `yaml:"pyroscope" json:"pyroscope"`
@@ -97,6 +97,9 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 	if err := validateProductionAuthKey(e.Application.Mode, e.Auth.Key); err != nil {
 		return err
 	}
+	if err := e.Challenge.Validate(); err != nil {
+		return err
+	}
 
 	if e.Pyroscope.Enabled && len(e.Application.Labels) > 0 {
 		e.Pyroscope.MergeTags(e.Application.Labels)
@@ -124,6 +127,9 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 	}
 	e.Pyroscope.Init()
 
+	var challengeErr error
+	var challengeBound bool
+	var challengeCandidate center.ChallengeImp
 	if e.Cache != nil {
 		warnQueryCacheDuration(e.Cache)
 		var cacheAdapter storage.AdapterCache
@@ -132,10 +138,28 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 		e.Cache.Init(func(c storage.AdapterCache) {
 			cacheAdapter = c
 			center.SetCache(c)
-			center.SetVerifyCodeStore(cache.NewVerifyCode(c))
+			if e.Challenge.Enabled {
+				var built center.ChallengeImp
+				built, challengeErr = e.Challenge.Build(c)
+				if challengeErr == nil {
+					challengeCandidate = built
+					challengeBound = true
+				}
+			}
 		}, func(tx *gorm.DB, duration time.Duration) {
 			bindQueryCache(cacheAdapter, tx, duration)
 		})
+	}
+	if e.Challenge.Enabled {
+		if challengeErr != nil {
+			if errors.Is(challengeErr, ErrChallengeConfigurationInvalid) {
+				return challengeErr
+			}
+			slog.Warn("email challenge dependency unavailable; related flows are disabled")
+		}
+		if !challengeBound && challengeErr == nil {
+			slog.Warn("email challenge Redis resource unavailable; related flows are disabled")
+		}
 	}
 	if e.Queue != nil {
 		var policyWatcherErr error
@@ -160,6 +184,10 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 	if len(e.Clusters) > 0 {
 		e.Clusters.Init()
 	}
+	// Publish exactly the snapshot described by this Config. If an optional
+	// dependency is unavailable, the new snapshot is explicitly nil so a stale
+	// pepper/TTL policy from an older Config cannot survive a successful reload.
+	center.SetChallenge(challengeCandidate)
 
 	oldHandle, oldLeases := e.swapDatabaseHandle(newHandle)
 	committed = true

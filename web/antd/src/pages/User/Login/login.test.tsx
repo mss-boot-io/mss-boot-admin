@@ -3,6 +3,7 @@ import * as React from 'react';
 import Login, { activateOAuthLoginSession, hasAutoLoginSession, persistLoginState } from './index';
 import { resolveSafeRedirect } from './redirect';
 import { clearTransientAuthToken, getAuthToken, setTransientAuthToken } from '@/utils/authStorage';
+import { getAppConfigsProfile } from '@/services/admin/appConfig';
 
 let mockInitialState: any;
 const mockSetInitialState = jest.fn((updater) => {
@@ -17,11 +18,16 @@ jest.mock('@umijs/max', () => {
       'A framework for quickly developing http/grpc services to help you quickly build monolithic services or microservice systems',
     'pages.login.password.placeholder': 'Password',
     'pages.login.username.placeholder': 'Username',
+    'pages.login.accountLogin.tab': 'Account login',
+    'pages.login.emailLogin.tab': 'Email login',
+    'pages.login.forgotPassword': 'Forgot password',
+    'pages.login.signup': 'Sign up',
+    'pages.login.emailChallengeUnavailableDescription': 'Email verification unavailable',
   };
 
   return {
     FormattedMessage: ({ defaultMessage, id }: { defaultMessage?: string; id: string }) =>
-      ReactRuntime.createElement(ReactRuntime.Fragment, null, defaultMessage || messages[id] || id),
+      ReactRuntime.createElement(ReactRuntime.Fragment, null, messages[id] || defaultMessage || id),
     Helmet: ({ children }: { children?: any }) =>
       ReactRuntime.createElement(ReactRuntime.Fragment, null, children),
     history: { push: jest.fn() },
@@ -65,7 +71,7 @@ jest.mock('@ant-design/pro-components', () => {
     ReactRuntime.createElement('input', { name, placeholder, type: 'password' });
 
   return {
-    LoginForm: ({ children, logo, subTitle, title }: any) =>
+    LoginForm: ({ actions, children, logo, subTitle, title }: any) =>
       ReactRuntime.createElement(
         'main',
         null,
@@ -73,6 +79,7 @@ jest.mock('@ant-design/pro-components', () => {
         ReactRuntime.createElement('h1', null, title),
         ReactRuntime.createElement('p', { className: 'ant-pro-form-login-desc' }, subTitle),
         ReactRuntime.createElement('form', null, children),
+        ReactRuntime.createElement('div', null, ReactRuntime.Children.toArray(actions)),
       ),
     ProFormCaptcha: ({ name, placeholder }: { name?: string; placeholder?: string }) =>
       ReactRuntime.createElement('input', { name, placeholder }),
@@ -91,6 +98,8 @@ jest.mock('antd', () => {
   const ReactRuntime = require('react');
 
   return {
+    Alert: ({ message: alertMessage }: { message?: any }) =>
+      ReactRuntime.createElement('div', { role: 'alert' }, alertMessage),
     message: { error: jest.fn(), success: jest.fn() },
     Tabs: ({ items }: { items?: Array<{ key: string; label: any }> }) =>
       ReactRuntime.createElement(
@@ -129,6 +138,7 @@ describe('Login Page', () => {
     clearTransientAuthToken();
     localStorage.clear();
     jest.clearAllMocks();
+    (getAppConfigsProfile as jest.Mock).mockResolvedValue({ security: {} });
   });
 
   afterEach(() => {
@@ -151,6 +161,57 @@ describe('Login Page', () => {
 
     expect((userNameInput as HTMLInputElement).value).toBe('admin');
     expect((passwordInput as HTMLInputElement).value).toBe('ant.design');
+  });
+
+  it('shows email login, recovery and registration only after a fresh ready profile', async () => {
+    (getAppConfigsProfile as jest.Mock).mockResolvedValue({
+      security: {
+        emailEnabled: true,
+        emailChallengeReady: true,
+        registerEnabled: true,
+      },
+    });
+
+    render(<Login />);
+
+    await waitFor(() => expect(screen.getByText('Email login')).toBeTruthy());
+    expect(screen.getByText('Forgot password')).toBeTruthy();
+    expect(screen.getByText('Sign up')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('hides every email Challenge entry and explains a runtime outage', async () => {
+    (getAppConfigsProfile as jest.Mock).mockResolvedValue({
+      security: {
+        emailEnabled: true,
+        emailChallengeReady: false,
+        registerEnabled: true,
+      },
+    });
+
+    render(<Login />);
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+    expect(screen.queryByText('Email login')).toBeNull();
+    expect(screen.queryByText('Forgot password')).toBeNull();
+    expect(screen.queryByText('Sign up')).toBeNull();
+    expect(screen.getByText('Email verification unavailable')).toBeTruthy();
+  });
+
+  it('keeps registration hidden when only email login and recovery are enabled', async () => {
+    (getAppConfigsProfile as jest.Mock).mockResolvedValue({
+      security: {
+        emailEnabled: true,
+        emailChallengeReady: true,
+        registerEnabled: false,
+      },
+    });
+
+    render(<Login />);
+
+    await waitFor(() => expect(screen.getByText('Email login')).toBeTruthy());
+    expect(screen.getByText('Forgot password')).toBeTruthy();
+    expect(screen.queryByText('Sign up')).toBeNull();
   });
 
   it('clears a document-scoped OAuth session when browser history remounts login', () => {
