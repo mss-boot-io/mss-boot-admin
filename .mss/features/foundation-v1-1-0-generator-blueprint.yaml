@@ -20,8 +20,9 @@ spec:
     generator. The checked-in supplier specification declares operations, export, ownership,
     events, tests, indexes, permissions, default roles, menu metadata, frontend behavior, and
     documentation that are not all projected into generated output. No generated golden vertical
-    module is checked in, the human contract says modules/name while the machine contract and
-    implementation write admin/modules/name, and Foundation release, Blueprint, generator, and
+    module is checked in, historical human and machine module-path drift showed that the
+    admin/modules/name target lacked an enforced single source of truth, and Foundation release,
+    Blueprint, generator, and
     downstream snapshot versions are conflated. Expanding features before one upgradeable vertical
     slice passes end to end would multiply unverifiable contracts.
   goals:
@@ -55,25 +56,32 @@ spec:
       description: Verifies permissions, default roles, ownership rules, migrations, audit events, and secret boundaries.
   modules:
     - name: authorization-generator
+      kind: infrastructure
       operation: extend
       description: Permissions, default roles, backend enforcement, menu visibility, ownership, and negative tests.
     - name: backend-generator
+      kind: infrastructure
       operation: extend
       description: Models, DTOs, services, APIs, operations, indexes, events, export, and OpenAPI.
     - name: blueprint-contract
+      kind: infrastructure
       operation: extend
       description: File ownership, exclusions, merge policy, module path, and downstream upgrade behavior.
     - name: frontend-generator
+      kind: infrastructure
       operation: extend
       description: Typed client, list, form, detail, actions, states, locale, and frontend tests.
-    - name: golden-supplier
+    - name: supplier
+      kind: admin-module
       operation: extend
       specPath: .mss/modules/example-supplier.yaml
       description: Checked-in end-to-end golden vertical module and generated evidence.
     - name: migration-generator
+      kind: infrastructure
       operation: extend
       description: Forward SQL migrations, identifiers, duplicate detection, and database matrix.
     - name: version-identity
+      kind: infrastructure
       operation: extend
       description: Foundation release, Blueprint, generator, and downstream snapshot identity sources; lock and manifest are two records of one snapshot.
   requirements:
@@ -86,7 +94,7 @@ spec:
       rules:
         - Use the currently implemented admin/modules/name path until a separately versioned Blueprint migration changes it.
         - AGENTS, .mss/project.yaml, generator, verifier, documentation, feature evidence, templates, and tests contain no conflicting default path.
-        - A later move to root modules/name requires Blueprint ownership changes, a three-way upgrade, and a path-specific ADR.
+        - A later move to a root-level module directory requires Blueprint ownership changes, a three-way upgrade, and a path-specific ADR.
     - id: generate-authorization-contract
       title: Generate enforceable authorization
       description: Permissions, default roles, menu actions, and ownership declarations must become backend behavior and tested policy rather than descriptor-only metadata.
@@ -135,7 +143,7 @@ spec:
       description: The same normalized specification and generator version must produce stable output without touching unrelated or customized files.
       priority: must
       actor: generator-maintainer
-      module: golden-supplier
+      module: supplier
       rules:
         - Dry-run is the default and write reports every created, changed, unchanged, skipped, and conflicted path.
         - Paths are repository-confined, output ordering is stable, generated regions identify source and generator version, and the second write is empty.
@@ -209,7 +217,7 @@ spec:
           value: Required-test report proving every named positive and negative authorization case ran.
     - id: canonical-path-gate
       requirement: enforce-canonical-module-path
-      statement: A repository scan and generator plan find exactly one canonical admin/modules/name backend path and no conflicting root modules/name default.
+      statement: A repository scan and generator plan find exactly one canonical admin/modules/name backend path and no conflicting root-level default.
       level: contract
       phase: checkpoint
       required: true
@@ -323,7 +331,7 @@ spec:
       severity: critical
       mitigation: Use lossless identifiers, duplicate fail-fast, returned errors, transactions where supported, and three-database failure tests.
     - id: path-split
-      description: Competing modules/name and admin/modules/name defaults can generate uncompiled, unverified, or unowned files.
+      description: Competing root-level and admin/modules/name defaults can generate uncompiled, unverified, or unowned files.
       severity: high
       mitigation: Enforce one canonical path now and require a versioned Blueprint migration before changing it.
     - id: scaffold-claimed-complete

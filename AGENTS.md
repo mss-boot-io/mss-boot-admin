@@ -26,7 +26,7 @@ A successful change must be understandable by humans, executable by coding agent
 | `.agents/skills/` | Reusable agent workflows; skills call the `mss` CLI instead of duplicating implementation logic |
 | `cmd/mss/` | Agent-facing deterministic CLI entrypoint |
 | `internal/mss/` | CLI implementation packages: project, doctor, generator, inspector, verifier, upgrader, eval |
-| `modules/` | New vertical business modules and generated module registry |
+| `admin/modules/` | New vertical business modules and generated module registry |
 | `templates/` | Deterministic application and module templates |
 | `tools/` | Codemods and contract tooling |
 | `compose/` | Local integration dependencies |
@@ -92,7 +92,7 @@ If `cmd/mss` is not yet available on an older branch, fall back to the Make targ
 
 ### New business modules
 
-- New business capabilities should use vertical modules under `modules/<name>/` once the module infrastructure is available.
+- New business capabilities should use vertical modules under `admin/modules/<name>/` once the module infrastructure is available.
 - Existing horizontal directories such as `apis/`, `dto/`, `models/`, and `service/` remain supported for compatibility.
 - Do not perform a broad mechanical migration of legacy modules unless a dedicated migration spec exists.
 - A complete module change includes backend behavior, migration, permission, menu/route, frontend, tests, and documentation as applicable.

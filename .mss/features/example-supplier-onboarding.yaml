@@ -32,6 +32,7 @@ spec:
       description: Reviews supplier identity and credit information without modifying records.
   modules:
     - name: supplier
+      kind: admin-module
       operation: create
       specPath: .mss/modules/example-supplier.yaml
       description: Vertical supplier management module generated from the checked-in AdminModule specification.
@@ -118,7 +119,7 @@ spec:
       required: true
       evidence:
         - type: test
-          value: modules/supplier/tests/authorization_test.go
+          value: admin/modules/supplier/tests/authorization_test.go
     - id: supplier-flow-e2e
       requirement: supplier-review
       statement: A browser user can list, search, create, edit, inspect, and delete a supplier according to assigned permissions.
@@ -142,7 +143,7 @@ spec:
       required: true
       evidence:
         - type: test
-          value: modules/supplier/tests/audit_test.go
+          value: admin/modules/supplier/tests/audit_test.go
     - id: changed-verification
       statement: The change-aware verifier completes without failed required checks.
       level: integration
@@ -168,7 +169,7 @@ spec:
     all: go run ./cmd/mss verify --all
     custom:
       - go run ./cmd/mss eval run supplier-module-contract --format json
-      - go test ./modules/supplier/...
+      - go test ./admin/modules/supplier/...
       - pnpm --dir web/antd test -- --runInBand supplier
   rollout:
     strategy: phased

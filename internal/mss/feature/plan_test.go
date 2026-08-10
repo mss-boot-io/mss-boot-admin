@@ -46,6 +46,116 @@ func TestBuildExampleSupplierFeature(t *testing.T) {
 	}
 }
 
+func TestBuildFoundationV110GeneratorBlueprintFeature(t *testing.T) {
+	root := repositoryRoot(t)
+	plan, err := Build(Options{
+		Root:        root,
+		FeaturePath: ".mss/features/foundation-v1-1-0-generator-blueprint.yaml",
+	})
+	if err != nil {
+		t.Fatalf("build v1.1.0 Generator/Blueprint Feature plan: %v", err)
+	}
+	if !plan.Success {
+		t.Fatalf("Generator/Blueprint Feature plan is not successful: %#v", plan.Issues)
+	}
+	if len(plan.Modules) != 7 {
+		t.Fatalf("Generator/Blueprint module plans = %d, want 7", len(plan.Modules))
+	}
+
+	adminModules := 0
+	for _, module := range plan.Modules {
+		if module.Kind == spec.FeatureModuleKindInfrastructure {
+			if module.SpecValid || module.GeneratedOutputs != 0 || module.Issue != "" {
+				t.Fatalf("infrastructure module attempted AdminModule generation: %#v", module)
+			}
+			continue
+		}
+		adminModules++
+		if module.Name != "supplier" || module.SpecName != "supplier" || module.SpecPath != ".mss/modules/example-supplier.yaml" {
+			t.Fatalf("unexpected flagship AdminModule plan: %#v", module)
+		}
+		if !module.SpecValid || !module.GenerationDryRun || module.GeneratedOutputs < 12 || module.Issue != "" {
+			t.Fatalf("flagship supplier module was not completely planned: %#v", module)
+		}
+	}
+	if adminModules != 1 {
+		t.Fatalf("flagship AdminModule plans = %d, want exactly one supplier", adminModules)
+	}
+
+	foundDeterministicRequirement := false
+	for _, requirement := range plan.Requirements {
+		if requirement.ID == "keep-generation-deterministic" && requirement.Module != "supplier" {
+			t.Fatalf("golden module requirement points to %q, want supplier", requirement.Module)
+		}
+		if requirement.ID == "keep-generation-deterministic" {
+			foundDeterministicRequirement = true
+		}
+	}
+	if !foundDeterministicRequirement {
+		t.Fatal("Generator/Blueprint Feature plan is missing keep-generation-deterministic")
+	}
+}
+
+func TestCanonicalVerticalModulePathContracts(t *testing.T) {
+	root := repositoryRoot(t)
+	paths := []string{
+		"AGENTS.md",
+		".mss/project.yaml",
+	}
+	featurePaths, err := filepath.Glob(filepath.Join(root, ".mss", "features", "*.yaml"))
+	if err != nil {
+		t.Fatalf("list Feature contracts: %v", err)
+	}
+	for _, path := range featurePaths {
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			t.Fatalf("make Feature path relative: %v", err)
+		}
+		paths = append(paths, filepath.ToSlash(relative))
+	}
+
+	for _, relative := range paths {
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
+		if err != nil {
+			t.Fatalf("read canonical-path contract %s: %v", relative, err)
+		}
+		for lineNumber, line := range strings.Split(string(data), "\n") {
+			searchFrom := 0
+			for {
+				offset := strings.Index(line[searchFrom:], "modules/")
+				if offset < 0 {
+					break
+				}
+				index := searchFrom + offset
+				if index == 0 || line[index-1] != '/' {
+					t.Fatalf("%s:%d contains non-canonical root module path: %s", relative, lineNumber+1, strings.TrimSpace(line))
+				}
+				searchFrom = index + len("modules/")
+			}
+		}
+	}
+
+	agentContract, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	if !strings.Contains(string(agentContract), "`admin/modules/<name>/`") {
+		t.Fatal("AGENTS.md does not declare admin/modules/<name>/ as the vertical-module path")
+	}
+	projectContract, err := os.ReadFile(filepath.Join(root, ".mss", "project.yaml"))
+	if err != nil {
+		t.Fatalf("read project contract: %v", err)
+	}
+	if !strings.Contains(string(projectContract), "modules: admin/modules") {
+		t.Fatal(".mss/project.yaml does not declare admin/modules as repositoryLayout.modules")
+	}
+	if _, err := os.Stat(filepath.Join(root, "modules")); err == nil {
+		t.Fatal("root modules directory conflicts with canonical admin/modules ownership")
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("inspect root modules directory: %v", err)
+	}
+}
+
 func TestPlanInfrastructureFeatureWithoutAdminModuleSpec(t *testing.T) {
 	root := repositoryRoot(t)
 	plan, err := Build(Options{

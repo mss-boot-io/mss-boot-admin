@@ -334,7 +334,7 @@ spec:
       required: true
       evidence:
         - type: test
-          value: modules/supplier/tests/create_test.go
+          value: admin/modules/supplier/tests/create_test.go
   risks:
     - id: permission-drift
       description: Backend and frontend permission identifiers may diverge.
