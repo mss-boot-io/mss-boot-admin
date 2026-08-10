@@ -71,6 +71,14 @@ func TestV100MigrationRowsDoNotRerun(t *testing.T) {
 			t.Fatalf("seed v1.0.0 migration row %s: %v", version, err)
 		}
 	}
+	// This test isolates the reviewed v1.0.0 aliases. Seed migrations added
+	// after v1.0.0 under their lossless IDs so they cannot turn this compatibility
+	// fixture into an unrelated schema-integration test.
+	if err := db.Create(&migrationmodels.Migration{
+		Version: canonicalEmailIdentityMigrationID.String(),
+	}).Error; err != nil {
+		t.Fatalf("seed post-v1.0 canonical email migration row: %v", err)
+	}
 
 	migration.Migrate.SetDb(db)
 	migration.Migrate.SetModel(&migrationmodels.Migration{})
@@ -81,7 +89,8 @@ func TestV100MigrationRowsDoNotRerun(t *testing.T) {
 	if err := db.Model(&migrationmodels.Migration{}).Count(&rows).Error; err != nil {
 		t.Fatalf("count migration rows: %v", err)
 	}
-	if rows != int64(len(v100Rows)) {
-		t.Fatalf("migration rows = %d, want unchanged %d", rows, len(v100Rows))
+	wantRows := int64(len(v100Rows) + 1)
+	if rows != wantRows {
+		t.Fatalf("migration rows = %d, want unchanged %d", rows, wantRows)
 	}
 }

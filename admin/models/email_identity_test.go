@@ -180,6 +180,7 @@ func TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity(t *testi
 		"security:registerEnabled": "true",
 		"security:emailEnabled":    "true",
 	})
+	installCanonicalEmailIdentitySQLiteIndex(t, database)
 	previousChallenge := center.GetChallenge()
 	center.SetChallenge(acceptingEmailChallenge{})
 	t.Cleanup(func() { center.SetChallenge(previousChallenge) })
@@ -188,6 +189,8 @@ func TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity(t *testi
 	start := make(chan struct{})
 	var wait sync.WaitGroup
 	var successes atomic.Int64
+	var invalidOutcomes atomic.Int64
+	winnerIDs := make(chan string, contenders)
 	for index := range contenders {
 		wait.Add(1)
 		go func(index int) {
@@ -199,19 +202,44 @@ func TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity(t *testi
 				Captcha:  "123456",
 				Password: fmt.Sprintf("password-%02d", index),
 			}
-			ok, principal, _ := login.Verify(newGithubVerifyContext("http://127.0.0.1"))
-			if ok && principal != nil {
-				successes.Add(1)
+			ok, principal, err := login.Verify(newGithubVerifyContext("http://127.0.0.1"))
+			if !ok {
+				if principal != nil {
+					invalidOutcomes.Add(1)
+				}
+				return
 			}
+			user, isUser := principal.(*User)
+			if err != nil || !isUser || user.ID == "" {
+				invalidOutcomes.Add(1)
+				return
+			}
+			successes.Add(1)
+			winnerIDs <- user.ID
 		}(index)
 	}
 	close(start)
 	wait.Wait()
+	close(winnerIDs)
+	if invalidOutcomes.Load() != 0 {
+		t.Fatalf("concurrent registration returned %d inconsistent outcomes", invalidOutcomes.Load())
+	}
+	if successes.Load() != 1 || len(winnerIDs) != 1 {
+		t.Fatalf("concurrent registration successes=%d principals=%d, want exactly one", successes.Load(), len(winnerIDs))
+	}
+	winnerID := <-winnerIDs
+	var owner User
+	if err := database.Where("email = ?", "concurrent@example.com").Take(&owner).Error; err != nil {
+		t.Fatalf("load canonical owner: %v", err)
+	}
+	if owner.ID != winnerID {
+		t.Fatalf("persisted owner ID %q does not match successful principal %q", owner.ID, winnerID)
+	}
 	var count int64
-	if err := database.Model(&User{}).Where("email = ?", "concurrent@example.com").Count(&count).Error; err != nil {
+	if err := database.Model(&User{}).Count(&count).Error; err != nil {
 		t.Fatalf("count concurrent identities: %v", err)
 	}
-	if count > 1 || successes.Load() > 1 {
-		t.Fatalf("concurrent registration count=%d successes=%d; want fail-closed outcomes with at most one", count, successes.Load())
+	if count != 1 {
+		t.Fatalf("concurrent registration persisted %d users, want exactly one without loser residue", count)
 	}
 }

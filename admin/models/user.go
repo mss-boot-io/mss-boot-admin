@@ -29,11 +29,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 )
 
-var (
-	ErrEmailIdentityAmbiguous = errors.New("email identity is ambiguous")
-	ErrEmailIdentityExists    = errors.New("email identity already exists")
-)
-
 /*
  * @Author: lwnmengjing<lwnmengjing@qq.com>
  * @Date: 2023/8/6 22:02:39
@@ -79,13 +74,11 @@ func (e *User) BeforeCreate(tx *gorm.DB) error {
 }
 
 func (e *User) BeforeSave(*gorm.DB) error {
-	if e.Email != "" {
-		canonicalEmail, ok := pkg.CanonicalEmail(e.Email)
-		if !ok {
-			return errors.New("user email identity is invalid")
-		}
-		e.Email = canonicalEmail
+	canonicalEmail, err := CanonicalizeOptionalEmail(e.Email)
+	if err != nil {
+		return err
 	}
+	e.Email = canonicalEmail
 	//todo 判断密码强度
 	return nil
 }
@@ -162,16 +155,16 @@ func GetUserByUsername(ctx *gin.Context, username string) (*User, error) {
 
 // GetUserByEmail get user by email
 func GetUserByEmail(ctx *gin.Context, email string) (*User, error) {
-	canonicalEmail, ok := pkg.CanonicalEmail(email)
-	if !ok {
-		return nil, gorm.ErrRecordNotFound
+	canonicalEmail, err := CanonicalEmailIdentity(email)
+	if err != nil {
+		return nil, err
 	}
 	var users []User
 	database := center.GetDB(ctx, &User{})
 	if database.Logger != nil {
 		database = database.Session(&gorm.Session{Logger: database.Logger.LogMode(logger.Silent)})
 	}
-	err := database.
+	err = database.
 		Preload("Role").
 		Where("email = ?", canonicalEmail).
 		Limit(2).
@@ -428,7 +421,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			if e.GetUserID() != "" {
 				userOAuth2.User = nil
 			}
-			err = center.GetDB(c, &UserOAuth2{}).Create(userOAuth2).Error
+			err = createOAuthIdentityWithoutEmailMerge(center.GetDB(c, &UserOAuth2{}), userOAuth2)
 			if err != nil {
 				slog.Error("github identity registration failed")
 				return false, nil, err
@@ -467,7 +460,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			if e.GetUserID() != "" {
 				userOAuth2.User = nil
 			}
-			err = center.GetDB(c, &UserOAuth2{}).Create(userOAuth2).Error
+			err = createOAuthIdentityWithoutEmailMerge(center.GetDB(c, &UserOAuth2{}), userOAuth2)
 			if err != nil {
 				slog.Error("lark identity registration failed")
 				return false, nil, err
@@ -476,8 +469,8 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		}
 		return true, userOAuth2.User, nil
 	case pkg.EmailLoginProvider:
-		canonicalEmail, validEmail := pkg.CanonicalEmail(e.Email)
-		if !validEmail {
+		canonicalEmail, canonicalErr := CanonicalEmailIdentity(e.Email)
+		if canonicalErr != nil {
 			return false, nil, nil
 		}
 		e.Email = canonicalEmail
@@ -509,8 +502,8 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		}
 		return true, user, nil
 	case pkg.EmailRegisterProvider:
-		canonicalEmail, validEmail := pkg.CanonicalEmail(e.Email)
-		if !validEmail {
+		canonicalEmail, canonicalErr := CanonicalEmailIdentity(e.Email)
+		if canonicalErr != nil {
 			return false, nil, nil
 		}
 		e.Email = canonicalEmail
@@ -559,15 +552,9 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			registrationDB = registrationDB.Session(&gorm.Session{Logger: registrationDB.Logger.LogMode(logger.Silent)})
 		}
 		err = registrationDB.Transaction(func(tx *gorm.DB) error {
-			var existing int64
-			if countErr := tx.Model(&User{}).Where("email = ?", e.Email).Count(&existing).Error; countErr != nil {
-				return countErr
-			}
-			if existing != 0 {
-				return ErrEmailIdentityExists
-			}
-			return tx.Create(user).Error
+			return createUserWithCanonicalEmail(tx, user)
 		}, &sql.TxOptions{Isolation: sql.LevelSerializable})
+		err = NormalizeEmailIdentityCreateError(registrationDB, user.Email, err)
 		if err != nil {
 			if errors.Is(err, ErrEmailIdentityExists) {
 				return false, nil, nil
@@ -677,6 +664,12 @@ func (e *UserLogin) getUserLarkOAuth2(
 			Provider:          pkg.LarkLoginProvider,
 			PreferredUsername: preferredUsername,
 		}
+		if userOAuth2.Email != "" {
+			userOAuth2.Email, err = CanonicalEmailIdentity(userOAuth2.Email)
+			if err != nil {
+				return nil, err
+			}
+		}
 		userOAuth2.PhoneNumber = stringValue(data.Mobile)
 		userOAuth2.EmployeeNO = stringValue(data.EmployeeNo)
 	}
@@ -775,6 +768,12 @@ func (e *UserLogin) GetUserGithubOAuth2(c *gin.Context) (*UserOAuth2, error) {
 			Locale:            githubUser.Location,
 			Provider:          pkg.GithubLoginProvider,
 			PreferredUsername: githubUser.Login,
+		}
+		if userOAuth2.Email != "" {
+			userOAuth2.Email, err = CanonicalEmailIdentity(userOAuth2.Email)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	return userOAuth2, nil
@@ -898,11 +897,7 @@ func (e *UserLogin) Scope(ctx *gin.Context, table schema.Tabler) func(db *gorm.D
 }
 
 func UserRegister(ctx *gin.Context, user *User) error {
-	err := center.GetDB(ctx, user).Create(user).Error
-	if err != nil {
-		return err
-	}
-	return nil
+	return createUserWithCanonicalEmail(center.GetDB(ctx, user), user)
 }
 
 // ********************* statistics *********************
