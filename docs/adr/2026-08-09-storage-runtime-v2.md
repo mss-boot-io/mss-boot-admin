@@ -81,14 +81,56 @@ boundary and the confined Local write boundary:
 - The Local path is confined with `os.Root`, opened create-only with `O_EXCL`, and
   removes a partial object on size, copy, cancellation, sync, or close failure.
 
-This checkpoint does **not** promote either Local or S3-compatible storage. Both remain
-`legacy` in the machine catalog and **Blocked** for production: provider selection can
-still fall through to Local, provider settings are not one immutable validated profile,
-client ownership is not singular, and returned URL strings do not prove a delivery
-contract. The next `D1-provider-owner` wave must make provider selection fail closed and establish
-one immutable profile with one application owner. S3 create-only conditional writes and
-the Local/S3-compatible common provider conformance suite remain a separately gated
-`D4-authorization-object` target before the v1.1.0 feature freeze.
+That D0 checkpoint did **not** promote either Local or S3-compatible storage. At its
+boundary, provider selection could still fall through to Local, provider settings were
+not one immutable validated profile, client ownership was not singular, and returned URL
+strings did not prove a delivery contract. D1 closes the profile and ownership paths
+described below; S3 create-only writes and the Local/S3-compatible common provider suite
+remain separately gated D4 work.
+
+### Internal D1 object provider/owner checkpoint
+
+The object-storage subset of `D1-provider-owner` is now implemented:
+
+- `mss-boot/pkg/config.Storage` is a strict Local-or-S3 discriminator. `Normalize`
+  validates and copies one immutable profile, resolves typed `env://` `SecretRef`
+  values without retaining them in printable fields, and rejects incomplete or
+  contradictory provider, credential, endpoint, TLS, region, bucket, or root state.
+- One normalized profile builds at most one `StorageHandle`. Both Local and S3 work is
+  leased through `Use`; `Close` rejects new leases, drains existing work, closes the
+  owned HTTP transport once, is idempotent, and can be retried after a deadline.
+- Admin's composition root installs the handle and pinned filesystem before registering
+  Application delivery, then closes both from the same owner. Concurrent close is
+  idempotent and the Config mutex is not held across a draining callback, so a callback
+  can re-enter the lease boundary without deadlock. The ghost
+  `Config.Storage.Init()` client and per-request S3 client
+  construction are gone. The S3 configuration source uses a separate profile, handle,
+  caller context, and close owner because bootstrap and application storage are different
+  ownership domains. Only a missing stage object is an optional overlay; transport/read
+  failure and malformed overlay data fail bootstrap closed. An HTTP bootstrap endpoint
+  requires the exact explicit `s3_tls_allow_insecure_http=true` opt-in, and invalid boolean
+  values are rejected.
+- Storage AppConfig is now exactly the non-secret upload-policy pair
+  `storage:maxSize` and `storage:allowedTypes`. Provider, endpoint, bucket, TLS,
+  credential mode, and credential material are startup configuration only. Historical
+  rows are not projected; attempts to write removed keys reject the whole request.
+- Storage remains optional to the Admin process. Missing, invalid, unresolved, or
+  unavailable profiles are not installed; the process continues, both upload routes
+  return a fixed `STORAGE_UNAVAILABLE` 503, and no Local or remote write occurs.
+- Local is installed only in development mode when `application.staticPath` maps one URL
+  prefix to the exact configured absolute root. The owner opens that root once as an
+  `os.Root`; writes and the pinned `StaticFS` route share the same directory handle, and
+  shutdown closes it. Production Local is unavailable. A returned development Local URL
+  is covered by a real static-route read after router reconstruction.
+- D1 may construct and own one S3 client, but Admin rejects S3 upload before `Put`.
+  Private object metadata, create-only S3 semantics, authorization, `Delivery`, and a
+  pinned RustFS-backed S3-compatible conformance fixture remain
+  `D4-authorization-object` work.
+
+Local and S3-compatible storage therefore remain `legacy` in the machine catalog and
+**Blocked** in the evidence matrix. This object subset also does not close the whole D1
+wave: Kafka registration, strict configuration, producer ownership, error observation,
+and bounded shutdown are still required before D2 starts.
 
 ## Decision
 
@@ -131,12 +173,12 @@ The validator rejects at least:
   are mutually exclusive;
 - partial static credentials that would otherwise fall through to a default credential
   chain;
-- local object storage without a confined root or a delivery policy that the deployment
-  does not actually serve.
+- local object storage without a confined absolute root; the Admin composition root then
+  refuses installation unless development `application.staticPath` serves that exact root.
 
-Secrets use typed `SecretRef` values. Admin `AppConfig` may choose a predeclared
-`profileRef` and non-secret upload policy, but it cannot persist raw Redis or object-store
-credentials.
+Secrets use typed `SecretRef` values. Admin object-storage `AppConfig` contains only the
+non-secret upload policy; it cannot choose a provider/profile, persist credentials, or
+switch the startup profile at runtime.
 
 An illustrative shape is:
 
@@ -312,9 +354,10 @@ partition tests, and proof that a database concurrency mechanism is insufficient
 
 ### 10. Separate ObjectStore from Delivery
 
-This section is the target contract, not a claim about the internal D0 checkpoint. In
-particular, create-only S3 behavior, common provider conformance, and authenticated
-Delivery remain gated for D4 before the v1.1.0 feature freeze.
+This section is the target contract, not a claim that the internal D0/D1 checkpoints
+already provide ObjectStore or Delivery. D1 supplies only strict profile and ownership;
+create-only S3 behavior, common provider conformance, and authenticated Delivery remain
+gated for D4 before the v1.1.0 feature freeze.
 
 The object interface operates on an opaque `ObjectRef` and checksummed metadata through
 `Put`, `Open`, `Stat`, and `Delete` semantics. `Put` is create-only: publishing an existing
@@ -385,9 +428,9 @@ lives in this matrix. Provider state is never inferred from the framework versio
 | Kafka WorkQueue | Blocked: message is marked before handler success | Land hermetic Mark-order/session-cancellation safety and retain Blocked/legacy while registration, configuration, producer ownership, manual-commit, error-observation, and real-broker gates remain open | Eligible for Experimental reassessment only after dedicated lifecycle and real-broker suites; not a v1.1 stable commitment |
 | NSQ WorkQueue | Blocked: duration, process-exit, and cancellation defects | Keep blocked/legacy; fix in a dedicated development wave or remove | Experimental or remove from default build |
 | Redis lock | Experimental: no Admin consumer and no focused coverage | Downgrade aggregate claim and defer | Experimental until a fenced consumer and conformance exist |
-| Local ObjectStore | Blocked: late size check, implicit fallback, collision/overwrite risk | D0 lands admission and confined opaque create-only writes; D1 adds provider fail-closed, immutable profile, and single ownership; retain legacy/Blocked | Eligible for reassessment only after the D4 common provider and Delivery gates; no Stable commitment |
-| S3-compatible ObjectStore | Blocked: per-request client, ambiguous credentials, overwrite semantics, synthesized URL, and skipped external tests | Reuse only the admission and opaque-key boundary; retain legacy/Blocked through the D1 profile/owner repair | S3 conditional create-only and the Local/S3-compatible common conformance suite are gated to D4; no Stable commitment |
-| S3 configuration source | Experimental/beta bootstrap | Keep independent and non-stable; D1 must not reuse it as a hidden application client | Prove independent bootstrap profile, failure, health, and close ownership in D4 before any Beta reassessment |
+| Local ObjectStore | Blocked at v1.0.0 by late size checks, implicit fallback, collision/overwrite risk, and unproven Delivery | D0 landed admission and confined opaque create-only writes; D1 now adds strict startup profile, one owner, fail-closed 503 behavior, and development-only exact static delivery. Retain legacy/Blocked | Eligible for reassessment only after the D4 common provider, authorization, metadata, and Delivery gates; no Stable commitment |
+| S3-compatible ObjectStore | Blocked at v1.0.0 by per-request clients, ambiguous credentials, overwrite semantics, synthesized URLs, and skipped external tests | D1 now validates an immutable profile and owns one client, but deliberately returns unavailable before Put. Retain legacy/Blocked | S3 conditional create-only, private metadata and Delivery, and the Local/S3-compatible suite with a pinned RustFS fixture are gated to D4; no Stable commitment |
+| S3 configuration source | Experimental/beta bootstrap | D1 gives bootstrap its own profile, handle, caller context, response-body cleanup, unsupported-Watch error, and close owner; it is not reused as an application client | Prove real-provider failure, health, lifecycle/leak, and independent-bootstrap conformance in D4 before any Beta reassessment |
 | WebSocket Redis pub/sub | Unwired at the baseline: no `SetRedisClient` call exists | Move into the resource inventory and report the single-instance boundary | Beta realtime bus after clustered conformance; never a durable-work claim |
 
 ## Consequences
@@ -414,8 +457,10 @@ Costs and constraints:
 ## Rollout and recovery
 
 Development waves close known security and data-integrity paths before they assemble the full
-package replacement. D1 establishes provider fail-closed behavior and ownership; D2 establishes
-strict schemas, version identity, migration preflight, and hermetic fixtures; D3-D5 land the
+package replacement. The D1 object-provider subset has established strict startup profiles,
+fail-closed upload behavior, and ownership; D1 still must close Kafka registration, configuration,
+producer ownership, error observation, and shutdown. D2 establishes strict schemas, version
+identity, migration preflight, and hermetic fixtures; D3-D5 land the
 resource graph, named Redis, ChallengeStore, EventBus, ObjectStore/Delivery, upgrade paths, and
 provider evidence in independently reversible commits. None of these waves creates a public tag.
 
@@ -446,9 +491,10 @@ This ADR is implemented only when:
    framework; and
 8. the release tag follows a truthful SemVer decision for any public API removal.
 
-The next executable step is `D1-provider-owner`: make empty,
-unknown, unreadable, or partial provider configuration fail closed; normalize one
-immutable profile; construct one application-owned client; and remove the ghost startup
-client/per-request client split. Local and S3-compatible storage remain legacy/Blocked
-after that slice. S3 conditional create-only writes, independent bootstrap conformance,
-and authenticated Delivery remain gated for D4 before feature freeze.
+The next executable step is the remaining Kafka half of `D1-provider-owner`: remove
+registration/configuration process-exit paths, make consumer and producer construction
+return errors to the application owner, observe provider errors, and provide cancellable,
+idempotent bounded shutdown without leaking a producer. Local and S3-compatible storage
+remain legacy/Blocked after the completed object slice. S3 Put, conditional create-only
+writes, authenticated Delivery, and pinned RustFS conformance remain gated for D4 before
+feature freeze.

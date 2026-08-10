@@ -50,6 +50,11 @@ const (
 	emailChallengeReadyLimit = 150 * time.Millisecond
 )
 
+var storageAppConfigKeyRemovedError = response.NewError(
+	"STORAGE_PROFILE_APP_CONFIG_FORBIDDEN",
+	"storage provider and credential settings must come from the startup profile",
+)
+
 func (e *AppConfig) GetAction(string) response.Action {
 	return nil
 }
@@ -214,6 +219,7 @@ func (e *AppConfig) Group(ctx *gin.Context) {
 // @Header 200 {string} ETag "Strong theme resource ETag when group=theme"
 // @Failure 412 {object} dto.ThemeRevisionConflictResponse "Theme revision conflict"
 // @Failure 403 {object} response.Response "Credential fields require app-config:secret-write"
+// @Failure 422 {object} response.Response "Storage provider and credential fields are not AppConfig settings"
 // @Failure 503 {object} response.Response "Credential authorization policy is unavailable"
 // @Header 412 {string} ETag "Current strong application theme ETag"
 // @Router /admin/api/app-configs/{group} [put]
@@ -305,6 +311,10 @@ func (e *AppConfig) Control(ctx *gin.Context) {
 	}
 	err := e.service.CreateOrUpdate(ctx, req.Group, req.Data)
 	if err != nil {
+		if errors.Is(err, service.ErrAppConfigKeyNotAllowed) {
+			api.AddError(storageAppConfigKeyRemovedError).Err(http.StatusUnprocessableEntity)
+			return
+		}
 		if errors.Is(err, service.ErrInvalidThemePatch) ||
 			errors.Is(err, service.ErrAppConfigKeyCaseMismatch) ||
 			errors.Is(err, service.ErrThemeGroupCaseMismatch) {

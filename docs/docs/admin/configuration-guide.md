@@ -399,11 +399,11 @@ task:
 
 ## 存储配置
 
-### D0-safety 内部检查点
+### D0-safety / D1-provider-owner 内部检查点
 
-当前工作树只完成 Upload admission 与 Local write boundary，不代表对象存储已经
-可用于生产。Local 与 S3-compatible 路径在能力目录中仍是 `Legacy`，证据状态
-仍为 `Blocked`。
+当前工作树已完成 Upload admission、Local write boundary，以及严格启动 profile、
+未知/非法 provider fail closed 和单一生命周期 owner。这仍不代表对象存储已经可用于
+生产；Local 与 S3-compatible 路径在能力目录中仍是 `Legacy`，证据状态仍为 `Blocked`。
 
 上传策略通过独立的 AppConfig 条目读取：
 
@@ -412,8 +412,14 @@ task:
 | `storage:maxSize` | 正整数，单位是 **bytes** | 默认 10 MiB（`10485760` bytes）；硬上限 100 MiB（`104857600` bytes），越界或非法值拒绝上传 |
 | `storage:allowedTypes` | 逗号分隔的 MIME media types / wildcards | 示例：`image/jpeg,image/png,image/*,application/pdf`；不接受 `.jpg` 一类扩展名作为策略 |
 
+Admin 的 Storage AppConfig 与设置页面只允许读取和写入这两个 admission 字段。
+provider、endpoint、region、bucket、TLS、credential source 与凭据材料都不属于
+AppConfig；Provider 与 SecretRef 的唯一合法来源保留为进程启动时的不可变 profile。
+历史数据库中的相关 AppConfig 行不会再投影到响应，提交已移除的 key 会得到稳定的
+`422 STORAGE_PROFILE_APP_CONFIG_FORBIDDEN`，且整批请求不会部分写入。
+
 入口会在 multipart 解析前限制请求体，并对选中文件做 max-plus-one 流式检查。
-Local 写入使用 `public/uploads/<opaque-uuid>` 形式的随机物理 key、受限根目录与
+Local 写入使用 `<configured-absolute-root>/uploads/<opaque-uuid>` 形式的随机物理 key、受限根目录与
 create-only 打开；失败或取消会清理未完成对象。用户 ID 和原始文件名都不参与
 物理 key，原始文件名只作为响应元数据返回。
 
@@ -423,17 +429,28 @@ create-only 打开；失败或取消会清理未完成对象。用户 ID 和原�
 application:
   mode: dev
   staticPath:
-    /public: public
+    /public: /absolute/path/to/admin/public
+storage:
+  local:
+    # 必须与上面 staticPath 的文件系统值是同一绝对路径
+    root: /absolute/path/to/admin/public
 ```
 
-Local 返回的 `/public/uploads/<opaque-uuid>` 只是 Legacy 兼容 URL。`prod`
-模式不会注册 `application.staticPath`，因此配置 Nginx、挂载目录或拼接 endpoint
-都不能单独证明对象可交付。
+只有 `dev` 模式且 `application.staticPath` 精确映射同一绝对 root 时，Local 才会
+安装并返回 `/public/uploads/<opaque-uuid>`。owner 只打开一次 `os.Root`，对象写入与
+pinned `StaticFS` 使用同一个 directory handle；测试会通过真实静态路由读取该 URL。
+两处值都必须直接写绝对路径；启动逻辑不会把相对路径隐式解析成工作目录下的路径。
+`prod` 模式不会注册 `application.staticPath`，因此配置 Nginx、挂载目录或拼接
+endpoint 都不能单独证明对象可交付。
 
-`D1-provider-owner` 将实现未知/非法 provider fail closed、一次性不可变 provider
-profile 与单一生命周期 owner。在该门禁完成前，生产环境不得启用 Local 或
-S3-compatible 上传。S3 conditional create-only 与 Local/S3-compatible 共用
-conformance suite 留在 `D4-authorization-object`。
+本检查点已完成 `D1-provider-owner`：启动时一次性解析 immutable profile 与
+SecretRef，未知/非法 provider 会拒绝安装对象存储资源，由单一 owner 管理 client
+生命周期；Admin 进程继续运行，两条上传路由固定返回 503，绝不 fallback 到 Local。
+S3 在 D1 只构造和持有 client，上传会在 `Put` 前返回 503；真实 S3 Delivery、
+RustFS fixture 与 Local/S3-compatible 共用 conformance suite 留在
+`D4-authorization-object`。Kafka lifecycle 仍是 D1 的未完成部分。
+精确配置、失败语义与测试命令见
+[D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)。
 
 ---
 

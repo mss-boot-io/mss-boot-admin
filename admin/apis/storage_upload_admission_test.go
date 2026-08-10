@@ -2,6 +2,7 @@ package apis
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,11 +13,14 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	bootresponse "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
+	adminconfig "github.com/mss-boot-io/mss-boot-admin/admin/config"
+	frameworkconfig "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config"
 )
 
 const (
@@ -47,6 +51,16 @@ func (f *uploadAdmissionAppConfig) GetAppConfig(_ *gin.Context, key string) (str
 	return value, ok
 }
 
+func (f *uploadAdmissionAppConfig) GetAppConfigSnapshot(_ *gin.Context, keys ...string) (map[string]string, error) {
+	values := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if value, ok := f.values[key]; ok {
+			values[key] = value
+		}
+	}
+	return values, nil
+}
+
 func TestStorageUploadHardLimitBeforeMultipart(t *testing.T) {
 	assertUploadHandlerAdmission(t, storageUploadRoute, func(context *gin.Context) {
 		(&Storage{}).Upload(context)
@@ -69,7 +83,7 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 		workingDirectory := enterUploadAdmissionWorkingDirectory(t)
 		temporaryDirectory := t.TempDir()
 		t.Setenv("TMPDIR", temporaryDirectory)
-		configuration := setUploadAdmissionConfig("1")
+		setUploadAdmissionConfig("1")
 		requestLimit := int64(1) + testMultipartEnvelopeAllowance
 		body := &countingReadCloser{reader: bytes.NewReader([]byte("must not be read"))}
 		request := httptest.NewRequest(http.MethodPost, route, nil)
@@ -85,9 +99,6 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 		if request.MultipartForm != nil {
 			t.Fatal("known oversized request parsed a multipart form")
 		}
-		if configuration.getCounts["storage:type"] != 0 {
-			t.Fatalf("oversized request queried provider %d times", configuration.getCounts["storage:type"])
-		}
 		assertUploadAdmissionNoFiles(t, temporaryDirectory)
 		assertUploadAdmissionNoFiles(t, workingDirectory)
 	})
@@ -96,7 +107,7 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 		workingDirectory := enterUploadAdmissionWorkingDirectory(t)
 		temporaryDirectory := t.TempDir()
 		t.Setenv("TMPDIR", temporaryDirectory)
-		configuration := setUploadAdmissionConfig("1")
+		setUploadAdmissionConfig("1")
 		requestLimit := int64(1) + testMultipartEnvelopeAllowance
 		// Keep the admitted file itself within the one-byte object limit and put
 		// the excess byte in multipart padding. Without MaxBytesReader this request
@@ -114,9 +125,6 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 		if body.readBytes != requestLimit+1 {
 			t.Fatalf("bounded reader consumed %d bytes, want %d", body.readBytes, requestLimit+1)
 		}
-		if configuration.getCounts["storage:type"] != 0 {
-			t.Fatalf("oversized request queried provider %d times", configuration.getCounts["storage:type"])
-		}
 		assertUploadAdmissionNoFiles(t, temporaryDirectory)
 		assertUploadAdmissionNoFiles(t, workingDirectory)
 	})
@@ -125,7 +133,7 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 		workingDirectory := enterUploadAdmissionWorkingDirectory(t)
 		temporaryDirectory := t.TempDir()
 		t.Setenv("TMPDIR", temporaryDirectory)
-		configuration := setUploadAdmissionConfig("1")
+		setUploadAdmissionConfig("1")
 		body := []byte("--mss-broken-boundary\r\n" +
 			"Content-Disposition: form-data; name=\"file\"; filename=\"broken.txt\"\r\n" +
 			"Content-Type: text/plain\r\n\r\nunterminated")
@@ -134,9 +142,6 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 
 		recorder := executeUploadRoute(request, route, handler, 1)
 		assertUploadErrorResponse(t, recorder, http.StatusUnprocessableEntity, "INVALID_UPLOAD")
-		if configuration.getCounts["storage:type"] != 0 {
-			t.Fatalf("malformed request queried provider %d times", configuration.getCounts["storage:type"])
-		}
 		assertUploadAdmissionNoFiles(t, temporaryDirectory)
 		assertUploadAdmissionNoFiles(t, workingDirectory)
 	})
@@ -145,7 +150,8 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 		workingDirectory := enterUploadAdmissionWorkingDirectory(t)
 		temporaryDirectory := t.TempDir()
 		t.Setenv("TMPDIR", temporaryDirectory)
-		configuration := setUploadAdmissionConfig("1")
+		setUploadAdmissionConfig("1")
+		installUploadAdmissionLocalStorage(t, filepath.Join(workingDirectory, "public"))
 		requestLimit := int64(1) + testMultipartEnvelopeAllowance
 		multipartBytes, contentType := uploadAdmissionMultipartBodyAtSize(t, int(requestLimit), []byte("x"))
 		body := &countingReadCloser{reader: bytes.NewReader(multipartBytes)}
@@ -161,9 +167,6 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 		if body.readBytes != requestLimit {
 			t.Fatalf("exact request read %d bytes, want %d", body.readBytes, requestLimit)
 		}
-		if configuration.getCounts["storage:type"] != 1 {
-			t.Fatalf("successful request queried provider %d times, want one", configuration.getCounts["storage:type"])
-		}
 		assertUploadAdmissionNoFiles(t, temporaryDirectory)
 		assertUploadAdmissionFileCount(t, filepath.Join(workingDirectory, "public", "uploads"), 1)
 	})
@@ -172,7 +175,8 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 		workingDirectory := enterUploadAdmissionWorkingDirectory(t)
 		temporaryDirectory := t.TempDir()
 		t.Setenv("TMPDIR", temporaryDirectory)
-		configuration := setUploadAdmissionConfig("4")
+		setUploadAdmissionConfig("4")
+		installUploadAdmissionLocalStorage(t, filepath.Join(workingDirectory, "public"))
 		multipartBytes, contentType := uploadAdmissionMultipartBody(t, []byte("text"), "application/octet-stream", 0)
 		request := httptest.NewRequest(http.MethodPost, route, bytes.NewReader(multipartBytes))
 		request.Header.Set("Content-Type", contentType)
@@ -194,9 +198,6 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 		if !os.IsNotExist(err) {
 			t.Fatalf("open cleaned spill error = %v, want not-exist", err)
 		}
-		if configuration.getCounts["storage:type"] != 0 {
-			t.Fatalf("policy-rejected request queried provider %d times", configuration.getCounts["storage:type"])
-		}
 		assertUploadAdmissionNoFiles(t, temporaryDirectory)
 		assertUploadAdmissionNoFiles(t, workingDirectory)
 	})
@@ -205,7 +206,7 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 		workingDirectory := enterUploadAdmissionWorkingDirectory(t)
 		temporaryDirectory := t.TempDir()
 		t.Setenv("TMPDIR", temporaryDirectory)
-		configuration := setUploadAdmissionConfig("4")
+		setUploadAdmissionConfig("4")
 		multipartBytes, contentType := uploadAdmissionMultipartBody(t, []byte("text"), "text/plain", 0)
 		request := httptest.NewRequest(http.MethodPost, route, bytes.NewReader(multipartBytes))
 		request.Header.Set("Content-Type", contentType)
@@ -218,9 +219,6 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 
 		recorder := executeUploadRoute(request, route, handler, 1)
 		assertUploadErrorResponse(t, recorder, http.StatusUnprocessableEntity, "INVALID_UPLOAD")
-		if configuration.getCounts["storage:type"] != 0 {
-			t.Fatalf("preparsed request queried provider %d times", configuration.getCounts["storage:type"])
-		}
 		assertUploadAdmissionNoFiles(t, temporaryDirectory)
 		assertUploadAdmissionNoFiles(t, workingDirectory)
 	})
@@ -229,7 +227,6 @@ func assertUploadHandlerAdmission(t *testing.T, route string, handler gin.Handle
 func setUploadAdmissionConfig(maxObjectBytes string) *uploadAdmissionAppConfig {
 	configuration := &uploadAdmissionAppConfig{
 		values: map[string]string{
-			"storage:type":         "local",
 			"storage:maxSize":      maxObjectBytes,
 			"storage:allowedTypes": "text/plain",
 		},
@@ -237,6 +234,38 @@ func setUploadAdmissionConfig(maxObjectBytes string) *uploadAdmissionAppConfig {
 	}
 	center.SetAppConfig(configuration)
 	return configuration
+}
+
+func installUploadAdmissionLocalStorage(t *testing.T, root string) {
+	t.Helper()
+	profile, err := (frameworkconfig.Storage{
+		Local: &frameworkconfig.LocalStorageConfig{Root: root},
+	}).Normalize(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("normalize local storage profile: %v", err)
+	}
+	handle, err := profile.Build(context.Background())
+	if err != nil {
+		t.Fatalf("build local storage profile: %v", err)
+	}
+	if err := os.MkdirAll(root, 0o750); err != nil {
+		t.Fatalf("create local storage root: %v", err)
+	}
+	localRoot, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatalf("open local storage root: %v", err)
+	}
+	if err := adminconfig.Cfg.InstallObjectStorage(handle, localRoot, "/public"); err != nil {
+		_ = localRoot.Close()
+		t.Fatalf("install local storage owner: %v", err)
+	}
+	t.Cleanup(func() {
+		closeContext, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := adminconfig.Cfg.CloseContext(closeContext); err != nil {
+			t.Errorf("close local storage owner: %v", err)
+		}
+	})
 }
 
 func executeUploadRoute(request *http.Request, route string, handler gin.HandlerFunc, maxMultipartMemory int64) *httptest.ResponseRecorder {
@@ -260,6 +289,7 @@ func assertUploadErrorResponse(t *testing.T, recorder *httptest.ResponseRecorder
 	wantMessage := map[string]string{
 		"UPLOAD_REQUEST_TOO_LARGE": "upload request exceeds the configured limit",
 		"INVALID_UPLOAD":           "upload request is malformed or violates the file policy",
+		"STORAGE_UNAVAILABLE":      "object storage is temporarily unavailable",
 	}[errorCode]
 	if body.Status != "error" || body.Code != status || body.ErrorCode != errorCode || body.ErrorMessage != wantMessage {
 		t.Fatalf("unexpected error response: %#v", body)

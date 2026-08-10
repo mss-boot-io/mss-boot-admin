@@ -110,7 +110,8 @@ topic、partition 和已提交 offset；发现问题时先停止消费者，再�
 失败消息被跳过的数据丢失路径。
 
 如果必须暂时停用 Kafka，停止该 consumer group 并让未提交消息保留在 broker；不要未经恢复
-计划手工推进或重置 offset。Upload admission 检查点已经落地，证据与未完成边界见
-[Upload admission 内部 checkpoint](/releases/v1-0-1-upload-admission-safety)。下一条 `D1-provider-owner`
-工作是 Provider fail-closed：严格解析不可变 profile、建立单一 client owner，并证明错误 Provider
-不会静默写入 Local 或返回成功 URL。
+计划手工推进或重置 offset。Upload admission 与对象 Provider/Owner 检查点已经落地，证据分别见
+[Upload admission 内部 checkpoint](/releases/v1-0-1-upload-admission-safety) 和
+[D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)。
+下一条工作是完成同一 D1 波次中仍未关闭的 Kafka registration/configuration、producer ownership、
+error observation 与 cancellable、idempotent bounded close。

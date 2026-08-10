@@ -44,9 +44,10 @@ issue 完成终态记录或链接已验证的替代列车。
 ## 下一公开版本：v1.1.0
 
 当前采用“开发优先、冻结后集中验证”策略：原 `v1.0.1-v1.0.3` 和 alpha 切片只作为
-内部开发波次，不创建 tag、GitHub Release 或版本化包。Challenge、Kafka Mark 和
-Upload admission 已形成安全 checkpoint，将继续作为永久回归哨兵；下一条实现是
-Provider fail-closed 与单一 client owner。
+内部开发波次，不创建 tag、GitHub Release 或版本化包。Challenge、Kafka Mark、
+Upload admission 与 D1 object provider/owner 已形成安全 checkpoint，将继续作为永久
+回归哨兵。D1 的对象子切片已经完成；下一条实现是 Kafka registration/configuration、
+producer ownership、error observation 与 bounded close。
 
 只有 Generator/Blueprint 与 Storage Runtime 目标全部完成、选定一个 `v1.1.0` 功能冻结 SHA
 后，才手工启动 `release-readiness`，集中执行三数据库、browser、Provider、upgrade、
@@ -62,3 +63,4 @@ external consumer、recovery、`verify --all` 与 `eval --all`。全部通过后
 - [Challenge 内部安全 checkpoint](/releases/v1-0-1-challenge-safety)
 - [Kafka Mark-after-success 内部 checkpoint](/releases/v1-0-1-kafka-ack-safety)
 - [Upload admission 内部 checkpoint](/releases/v1-0-1-upload-admission-safety)
+- [D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)

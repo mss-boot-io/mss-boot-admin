@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -58,6 +59,12 @@ type Config struct {
 	databaseHandle *gormdb.Handle
 	databaseLeases map[*gormdb.Handle]*sync.WaitGroup
 	databaseReload sync.Mutex
+
+	objectStorageMu             sync.Mutex
+	objectStorageCloseMu        sync.Mutex
+	objectStorageHandle         *frameworkconfig.StorageHandle
+	objectStorageLocalRoot      *os.Root
+	objectStorageLocalURLPrefix string
 }
 
 type SecretConfig struct {
@@ -91,7 +98,7 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 
 	secretConfig := &SecretConfig{}
 	opts = append(opts, source.WithPrefixHook(secretConfig))
-	if err := frameworkconfig.Init(e, opts...); err != nil {
+	if err := frameworkconfig.InitContext(ctx, e, opts...); err != nil {
 		return fmt.Errorf("initialize configuration source: %w", err)
 	}
 	if err := validateProductionAuthKey(e.Application.Mode, e.Auth.Key); err != nil {
@@ -178,9 +185,6 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 			center.SetLocker(l)
 		})
 	}
-	if e.Storage != nil {
-		e.Storage.Init()
-	}
 	if len(e.Clusters) > 0 {
 		e.Clusters.Init()
 	}
@@ -234,9 +238,23 @@ func (e *Config) WithDatabase(operation func(*gorm.DB) error) error {
 	return operation(handle.DB)
 }
 
-// Close releases the database Handle owned by this Config. It only clears the
-// legacy globals when the same Handle is still installed.
+// Close releases all runtime resources owned by this Config with a bounded
+// object-storage drain. It only clears the legacy database globals when the
+// same Handle is still installed.
 func (e *Config) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return e.CloseContext(ctx)
+}
+
+// CloseContext rejects new object-storage leases, drains active leases, then
+// releases the database Handle owned by this Config.
+func (e *Config) CloseContext(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	storageErr := e.closeObjectStorage(ctx)
+
 	e.databaseReload.Lock()
 	defer e.databaseReload.Unlock()
 	handle, leases := e.swapDatabaseHandle(nil)
@@ -244,9 +262,9 @@ func (e *Config) Close() error {
 		gormdb.ClearDefault(handle)
 	}
 	if handle == nil {
-		return nil
+		return storageErr
 	}
-	return e.retireDatabaseHandle(handle, leases)
+	return errors.Join(storageErr, e.retireDatabaseHandle(handle, leases))
 }
 
 func (e *Config) swapDatabaseHandle(next *gormdb.Handle) (*gormdb.Handle, *sync.WaitGroup) {

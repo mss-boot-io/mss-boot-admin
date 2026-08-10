@@ -8,6 +8,7 @@ package source
  */
 
 import (
+	"context"
 	"io/fs"
 	"strings"
 	"time"
@@ -63,6 +64,7 @@ type Options struct {
 	Bucket              string
 	ProjectName         string
 	Timeout             time.Duration
+	Context             context.Context
 	S3Client            *s3.Client
 	APPConfigDataClient *appconfigdata.Client
 	FS                  fs.ReadFileFS
@@ -198,6 +200,13 @@ func WithBucket(bucket string) Option {
 func WithTimeout(timeout time.Duration) Option {
 	return func(args *Options) {
 		args.Timeout = timeout
+	}
+}
+
+// WithContext binds synchronous provider work to the caller lifecycle.
+func WithContext(ctx context.Context) Option {
+	return func(args *Options) {
+		args.Context = ctx
 	}
 }
 

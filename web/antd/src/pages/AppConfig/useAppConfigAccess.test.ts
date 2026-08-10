@@ -107,9 +107,7 @@ describe('useAppConfigAccess', () => {
     expect(omitAppConfigSecrets('email', { username: 'admin', password: 'secret' })).toEqual({
       username: 'admin',
     });
-    expect(
-      omitAppConfigSecrets('storage', { s3Bucket: 'bucket', s3SecretAccessKey: 'secret' }),
-    ).toEqual({ s3Bucket: 'bucket' });
+    expect(Object.keys(APP_CONFIG_SECRET_FIELDS)).toEqual(['email', 'security']);
   });
 });
 
@@ -117,7 +115,6 @@ describe('prepareAppConfigSecretPayload', () => {
   const groups = [
     ['email', APP_CONFIG_SECRET_FIELDS.email],
     ['security', APP_CONFIG_SECRET_FIELDS.security],
-    ['storage', APP_CONFIG_SECRET_FIELDS.storage],
   ] as const;
 
   it.each(groups)('protects every %s secret field across the access matrix', (group, fields) => {

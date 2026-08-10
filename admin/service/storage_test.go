@@ -19,6 +19,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
+	adminconfig "github.com/mss-boot-io/mss-boot-admin/admin/config"
+	frameworkconfig "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config"
 )
 
 type fakeAppConfig struct {
@@ -38,11 +40,20 @@ func (f *fakeAppConfig) GetAppConfig(_ *gin.Context, key string) (string, bool) 
 	return value, ok
 }
 
+func (f *fakeAppConfig) GetAppConfigSnapshot(_ *gin.Context, keys ...string) (map[string]string, error) {
+	values := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if value, ok := f.values[key]; ok {
+			values[key] = value
+		}
+	}
+	return values, nil
+}
+
 func TestStorageLocalNoClobberAndConfinement(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previous := center.GetAppConfig()
 	center.SetAppConfig(&fakeAppConfig{values: map[string]string{
-		"storage:type":        "local",
 		maxSizeConfigKey:      "1024",
 		allowedTypesConfigKey: "text/plain",
 	}})
@@ -50,7 +61,7 @@ func TestStorageLocalNoClobberAndConfinement(t *testing.T) {
 
 	t.Run("opaque keys keep same-name uploads distinct", func(t *testing.T) {
 		workingDirectory := enterTemporaryWorkingDirectory(t)
-		storage := &Storage{}
+		storage := localStorageForRoot(t, filepath.Join(workingDirectory, "public"))
 
 		first := uploadText(t, storage, "../shared name.txt", []byte("first"))
 		second := uploadText(t, storage, "../shared name.txt", []byte("second"))
@@ -76,7 +87,8 @@ func TestStorageLocalNoClobberAndConfinement(t *testing.T) {
 	t.Run("create-only collision preserves the first object", func(t *testing.T) {
 		workingDirectory := enterTemporaryWorkingDirectory(t)
 		fixedID := "11111111-1111-4111-8111-111111111111"
-		storage := &Storage{generateObjectID: func() (string, error) { return fixedID, nil }}
+		storage := localStorageForRoot(t, filepath.Join(workingDirectory, "public"))
+		storage.generateObjectID = func() (string, error) { return fixedID, nil }
 		first := uploadText(t, storage, "first.txt", []byte("sentinel"))
 
 		context, _ := multipartRequestContext(t, "second.txt", "text/plain", []byte("replacement"))
@@ -90,7 +102,8 @@ func TestStorageLocalNoClobberAndConfinement(t *testing.T) {
 	t.Run("concurrent create-only collision publishes one complete object", func(t *testing.T) {
 		workingDirectory := enterTemporaryWorkingDirectory(t)
 		fixedID := "22222222-2222-4222-8222-222222222222"
-		storage := &Storage{generateObjectID: func() (string, error) { return fixedID, nil }}
+		storage := localStorageForRoot(t, filepath.Join(workingDirectory, "public"))
+		storage.generateObjectID = func() (string, error) { return fixedID, nil }
 		firstContext, _ := multipartRequestContext(t, "same.txt", "text/plain", []byte("first"))
 		secondContext, _ := multipartRequestContext(t, "same.txt", "text/plain", []byte("second"))
 		type outcome struct {
@@ -134,27 +147,14 @@ func TestStorageLocalNoClobberAndConfinement(t *testing.T) {
 
 	t.Run("invalid generated identifier cannot become a path", func(t *testing.T) {
 		workingDirectory := enterTemporaryWorkingDirectory(t)
-		storage := &Storage{generateObjectID: func() (string, error) { return "../../escape", nil }}
+		storage := localStorageForRoot(t, filepath.Join(workingDirectory, "public"))
+		storage.generateObjectID = func() (string, error) { return "../../escape", nil }
 		context, _ := multipartRequestContext(t, "safe.txt", "text/plain", []byte("safe"))
 		_, err := storage.Upload(context, "file")
 		if !errors.Is(err, ErrUnsafeObjectPath) {
 			t.Fatalf("invalid key error = %v, want ErrUnsafeObjectPath", err)
 		}
 		assertNoFiles(t, workingDirectory)
-	})
-
-	t.Run("external root symlink is rejected", func(t *testing.T) {
-		workingDirectory := enterTemporaryWorkingDirectory(t)
-		outside := t.TempDir()
-		if err := os.Symlink(outside, filepath.Join(workingDirectory, "public")); err != nil {
-			t.Fatalf("create external root symlink: %v", err)
-		}
-		context, _ := multipartRequestContext(t, "safe.txt", "text/plain", []byte("safe"))
-		_, err := (&Storage{}).Upload(context, "file")
-		if !errors.Is(err, ErrUnsafeObjectPath) {
-			t.Fatalf("symlink error = %v, want ErrUnsafeObjectPath", err)
-		}
-		assertNoFiles(t, outside)
 	})
 
 	t.Run("internal directory symlink escape is rejected", func(t *testing.T) {
@@ -167,7 +167,7 @@ func TestStorageLocalNoClobberAndConfinement(t *testing.T) {
 			t.Fatalf("create internal directory symlink: %v", err)
 		}
 		context, _ := multipartRequestContext(t, "safe.txt", "text/plain", []byte("safe"))
-		_, err := (&Storage{}).Upload(context, "file")
+		_, err := localStorageForRoot(t, filepath.Join(workingDirectory, "public")).Upload(context, "file")
 		if !errors.Is(err, ErrUnsafeObjectPath) {
 			t.Fatalf("internal symlink error = %v, want ErrUnsafeObjectPath", err)
 		}
@@ -184,7 +184,7 @@ func TestStorageLocalNoClobberAndConfinement(t *testing.T) {
 			form:   context.Request.MultipartForm,
 		}
 		defer upload.close()
-		_, err := (&Storage{}).store(context, upload)
+		_, err := localStorageForRoot(t, filepath.Join(workingDirectory, "public")).store(context, upload)
 		if !errors.Is(err, ErrUploadTooLarge) {
 			t.Fatalf("forged size error = %v, want ErrUploadTooLarge", err)
 		}
@@ -203,7 +203,7 @@ func TestStorageLocalNoClobberAndConfinement(t *testing.T) {
 			form:   context.Request.MultipartForm,
 		}
 		defer upload.close()
-		_, err := (&Storage{}).store(context, upload)
+		_, err := localStorageForRoot(t, filepath.Join(workingDirectory, "public")).store(context, upload)
 		if !errors.Is(err, stdcontext.Canceled) {
 			t.Fatalf("canceled write error = %v, want context.Canceled", err)
 		}
@@ -222,7 +222,14 @@ func TestStorageLocalNoClobberAndConfinement(t *testing.T) {
 			mimeType:  "text/plain",
 			objectKey: "uploads/33333333-3333-4333-8333-333333333333",
 		}
-		_, err := (&Storage{}).writeLocalObject(requestContext, reader, 1024, metadata)
+		_, err := (&Storage{}).writeLocalObject(
+			requestContext,
+			openLocalTestRoot(t, filepath.Join(workingDirectory, "public")),
+			"/public",
+			reader,
+			1024,
+			metadata,
+		)
 		if !errors.Is(err, stdcontext.Canceled) {
 			t.Fatalf("partial cancellation error = %v, want context.Canceled", err)
 		}
@@ -235,11 +242,10 @@ func TestStorageLocalNoClobberAndConfinement(t *testing.T) {
 	t.Run("exact object limit succeeds with restricted permissions", func(t *testing.T) {
 		workingDirectory := enterTemporaryWorkingDirectory(t)
 		center.SetAppConfig(&fakeAppConfig{values: map[string]string{
-			"storage:type":        "local",
 			maxSizeConfigKey:      "5",
 			allowedTypesConfigKey: "text/plain",
 		}})
-		result := uploadText(t, &Storage{}, "exact.txt", []byte("12345"))
+		result := uploadText(t, localStorageForRoot(t, filepath.Join(workingDirectory, "public")), "exact.txt", []byte("12345"))
 		filename := filepath.Join(workingDirectory, strings.TrimPrefix(result.URL, "/"))
 		info, err := os.Stat(filename)
 		if err != nil {
@@ -302,10 +308,10 @@ func TestStoragePolicyRejectsInvalidConfigurationAndContent(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			enterTemporaryWorkingDirectory(t)
+			workingDirectory := enterTemporaryWorkingDirectory(t)
 			center.SetAppConfig(&fakeAppConfig{values: test.values})
 			context, _ := multipartRequestContext(t, "fixture.bin", test.contentType, test.data)
-			_, err := (&Storage{}).Upload(context, "file")
+			_, err := localStorageForRoot(t, filepath.Join(workingDirectory, "public")).Upload(context, "file")
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("upload error = %v, want substring %q", err, test.want)
 			}
@@ -395,6 +401,43 @@ func uploadText(t *testing.T, storage *Storage, filename string, data []byte) *U
 		t.Fatalf("unexpected result: %#v", result)
 	}
 	return result
+}
+
+func localStorageForRoot(t *testing.T, root string) *Storage {
+	t.Helper()
+	profile, err := (frameworkconfig.Storage{
+		Local: &frameworkconfig.LocalStorageConfig{Root: root},
+	}).Normalize(stdcontext.Background(), nil)
+	if err != nil {
+		t.Fatalf("normalize local storage profile: %v", err)
+	}
+	localRoot := openLocalTestRoot(t, root)
+	return &Storage{
+		useObjectStorage: func(_ stdcontext.Context, operation func(adminconfig.ObjectStorageLease) error) error {
+			return operation(adminconfig.ObjectStorageLease{
+				Profile:        profile,
+				LocalRoot:      localRoot,
+				LocalURLPrefix: "/public",
+			})
+		},
+	}
+}
+
+func openLocalTestRoot(t *testing.T, name string) *os.Root {
+	t.Helper()
+	if err := os.MkdirAll(name, 0o750); err != nil {
+		t.Fatalf("create local test root: %v", err)
+	}
+	root, err := os.OpenRoot(name)
+	if err != nil {
+		t.Fatalf("open local test root: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := root.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+			t.Errorf("close local test root: %v", err)
+		}
+	})
+	return root
 }
 
 func multipartRequestContext(t *testing.T, filename, contentType string, data []byte) (*gin.Context, []byte) {

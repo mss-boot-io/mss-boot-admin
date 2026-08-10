@@ -22,7 +22,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/notice/email"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
-	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 )
 
 /*
@@ -264,13 +263,13 @@ func (e *User) ResetPassword(ctx *gin.Context) {
 // @Success 201 {object} dto.UpdateAvatarResponse
 // @Failure 413 {object} response.Response
 // @Failure 422 {object} response.Response
+// @Failure 503 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/api/user/avatar [post]
 // @Security Bearer
 func (e *User) UpdateAvatar(ctx *gin.Context) {
 	api := response.Make(ctx)
-	s := service.Storage{}
-	result, err := s.Upload(ctx, "file")
+	result, err := defaultUploadService.Upload(ctx, "file")
 	if err != nil {
 		writeUploadError(api, err)
 		return

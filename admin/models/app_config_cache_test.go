@@ -564,3 +564,28 @@ func TestAppConfigCacheOperationsHaveBoundedLatency(t *testing.T) {
 	require.Equal(t, "database-value", value)
 	require.Less(t, elapsed, time.Second, "optional cache operations must not inherit a long Redis timeout")
 }
+
+func TestAppConfigSnapshotPropagatesDatabaseFailure(t *testing.T) {
+	env := setupAppConfigCacheTestEnv(t)
+	require.NoError(t, env.db.Create([]*AppConfig{
+		{Group: "storage", Name: "maxSize", Value: "1024"},
+		{Group: "storage", Name: "allowedTypes", Value: "text/plain"},
+	}).Error)
+
+	values, err := (&AppConfig{}).GetAppConfigSnapshot(
+		env.ctx,
+		"storage:maxSize",
+		"storage:allowedTypes",
+	)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{
+		"storage:maxSize":      "1024",
+		"storage:allowedTypes": "text/plain",
+	}, values)
+
+	sqlDB, err := env.db.DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+	_, err = (&AppConfig{}).GetAppConfigSnapshot(env.ctx, "storage:maxSize", "storage:allowedTypes")
+	require.Error(t, err)
+}

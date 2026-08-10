@@ -19,6 +19,13 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   release documentation with the public `v1.0.0` evidence.
 - Reclassified the aggregate cache/lock/queue adapter capability from stable to
   legacy and added provider-specific evidence guidance.
+- Reduced the Admin Storage AppConfig and UI surface to the upload-admission
+  `storage:maxSize` and `storage:allowedTypes` fields. Provider selection and
+  SecretRef-backed credentials are reserved for the immutable startup profile.
+- Replaced the object-storage provider map with an exact Local-or-S3 startup
+  configuration, immutable normalized profiles, explicit credential modes, and
+  typed environment SecretRefs. This is an intentional breaking configuration
+  contract and does not promote either provider.
 
 ### Fixed
 
@@ -27,6 +34,13 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   message, and stopped canceled or closed consumer loops without marking unfinished
   work. The adapter remains Legacy/Blocked: this hermetic checkpoint does not prove
   broker commit, retry/dead-letter behavior, or complete provider lifecycle.
+- Removed the Admin ghost storage initializer and per-upload S3 constructor.
+  One composition-root owner now installs a leased framework Handle and pinned
+  filesystem before registering Application delivery, then closes them with bounded,
+  idempotent drain semantics. S3 config
+  bootstrap owns a separate client and closes response bodies on every read path. Only a
+  missing stage object is optional; read/malformed-overlay failures fail closed, and HTTP
+  requires the explicit `s3_tls_allow_insecure_http=true` opt-in.
 
 ### Security
 
@@ -35,8 +49,8 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   max-plus-one stream validation, stable 413/422 responses, and deterministic
   multipart spill cleanup. Local and S3 keys are now opaque UUIDs; Local writes
   use an `os.Root`-confined create-only path and remove canceled or partial
-  files. Local and S3 remain Legacy/Blocked until the separate provider,
-  lifecycle, and delivery gates close.
+  files. Local and S3 remain Legacy/Blocked until the D4 object metadata,
+  provider conformance, authorization, and Delivery gates close.
 - Added the provisional D0 Redis challenge state machine for email login,
   registration, and password recovery. It uses cryptographic fixed-width codes,
   purpose/subject HMAC keys, versioned peppered verifiers, delivery
@@ -53,6 +67,13 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 - Canonicalized bounded ASCII email identities consistently, failed closed on
   ambiguous lookup, and disabled self-service email mutation until the planned
   D2 three-database canonical uniqueness migration is complete.
+- Stopped projecting historical storage provider or credential AppConfig rows and
+  reject every removed storage key with a stable 422 before any mutation. Secret
+  read/write capabilities cannot restore this retired configuration surface.
+- Made absent, invalid, unresolved, closing, or unavailable object storage return
+  a fixed 503 from both upload routes with zero implicit Local write. Local is
+  installed only for an explicit development static mapping; S3 upload stops before
+  Put until the D4 ObjectStore and Delivery contracts pass.
 
 ### Documentation
 
@@ -66,6 +87,10 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 - Added the Upload admission checkpoint note with byte-unit configuration,
   handler-level admission plus route-registration evidence, rollback guidance,
   and the remaining provider and delivery blockers.
+- Added the D1 Object Provider/Owner checkpoint with exact profile, owner,
+  AppConfig, 503, development Local delivery, and shutdown evidence. S3 Put,
+  Delivery, and pinned RustFS conformance remain deferred to D4; Kafka lifecycle
+  remains the unfinished half of D1.
 
 ## [v1.0.0] - 2026-08-09
 

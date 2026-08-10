@@ -35,6 +35,7 @@ spec:
   nonGoals:
     - Complete the storage-runtime-v2 package split or remove every historical public adapter in the first safety wave.
     - Complete the private ObjectStore/Delivery metadata and authorization boundary; that remains the separately gated D4 target before feature freeze.
+    - Treat the D1 object-provider owner as S3 object-I/O evidence. S3 Put, Delivery, and a pinned RustFS-backed S3-compatible conformance fixture remain D4 work.
     - Guarantee S3 create-only conditional writes and typed object conflicts; Local and MinIO/S3 share that no-clobber contract only in the separately gated D4 provider suite.
     - Freeze or promote the public Storage Runtime v2 ChallengeStore package and configuration API; the first safety wave exposes only an explicitly provisional inter-module bridge while the v1.1.0 target API remains a later development wave.
     - Promise stable Kafka, NSQ, Redis work-queue, distributed-lock, or S3-compatible provider support.
@@ -43,6 +44,7 @@ spec:
     - Claim database-enforced canonical email uniqueness; ambiguous identities fail closed in the first wave, while a preflighted three-database forward migration is a later development wave.
     - Manually rewrite .mss/lock.yaml or .mss/project.yaml to resemble the published release version.
     - Let compatibility shims preserve an unsafe Kafka offset mark, fallback, secret, or lifecycle behavior.
+    - Treat the completed object-provider slice as completion of D1. Kafka registration, configuration, producer ownership, error observation, and bounded close remain in the same D1 wave.
   actors:
     - id: admin-operator
       displayName: Admin operator
@@ -115,10 +117,13 @@ spec:
       actor: admin-operator
       module: upload-safety
       rules:
-        - Production never reports a local public URL unless the same deployment explicitly and safely serves that object root.
+        - Local is installed only in development mode when application.staticPath maps one URL prefix to the exact configured absolute object root; writes and StaticFS share one owner-pinned os.Root, while production never installs or reports a Local delivery URL.
         - S3 credentials, endpoint, region, bucket, TLS mode, and credential source are validated as one immutable profile.
         - The S3 client is constructed once per owned profile rather than once per request.
         - The unused Admin Config.Storage initializer is removed or becomes the sole injected upload profile; a ghost startup client and a per-request client cannot coexist.
+        - Provider, endpoint, bucket, TLS, credential mode, and SecretRef values are startup configuration only. Storage AppConfig contains exactly storage:maxSize and storage:allowedTypes; historical provider or credential keys are not projected and are rejected before any mutation.
+        - A missing, unreadable, invalid, or unavailable optional storage profile is not installed. The Admin process continues, both upload routes return the fixed STORAGE_UNAVAILABLE 503 response, and no Local or remote write occurs.
+        - D1 may construct and own one S3 client, but Admin returns unavailable before S3 Put until the D4 ObjectStore and Delivery contracts pass.
     - id: own-provider-lifecycle
       title: Return changed-path failures to the application owner
       description: Challenge, Kafka, and object-storage paths changed by the safety waves must return typed errors and participate in cancellation without terminating the process.
@@ -129,6 +134,8 @@ spec:
         - The changed Challenge, Kafka, and object-storage call graph does not call os.Exit, log.Fatal, or start long-lived work from context.Background.
         - Kafka cancellation leaves in-flight work unmarked and the object-storage owner closes its single client idempotently.
         - The isolated Kafka Mark-order checkpoint changes only ConsumeClaim and runConsumer and does not satisfy this lifecycle requirement; v1.1.0 cannot freeze until Kafka registration, configuration, producer ownership, and error observation meet the changed-path gate.
+        - The object-storage subset is complete when one profile returns one leased Handle, the composition root installs its owner and pinned filesystem before registering Application delivery, shutdown drains and closes it idempotently, and configuration-source bootstrap owns a separate Handle. This does not close the remaining Kafka lifecycle gate.
+        - S3 configuration bootstrap treats only a missing stage object as an optional overlay. Transport, read, and malformed-overlay failures fail startup closed; HTTP endpoints require the exact explicit s3_tls_allow_insecure_http=true opt-in, and invalid boolean values are rejected.
         - General cache, NSQ, Redis queue, lock, and resource-graph lifecycle replacement remains a separately scoped development wave before feature freeze.
     - id: secure-challenge-consumption
       title: Issue and consume one-time challenges atomically
@@ -319,9 +326,9 @@ spec:
           value: Required-test JSON report proving provider identities and lifecycle statuses are machine-readable, the aggregate is not stable, and detailed evidence links to the ADR matrix.
     - id: provider-validation-evidence
       requirement: validate-provider-configuration
-      statement: Table-driven object-profile tests reject every invalid provider, endpoint, bucket, TLS, and credential mode and prove the profile is unchanged by build and upload.
+      statement: Table-driven object-profile tests reject the declared strict negative matrix for provider, endpoint, bucket, TLS, and credential mode, and prove normalization and build do not mutate caller-owned configuration.
       level: unit
-      phase: feature-freeze
+      phase: checkpoint
       required: true
       evidence:
         - type: test
@@ -329,9 +336,9 @@ spec:
         - type: test
           value: TestObjectStorageProfileBuildIsImmutable
         - type: command
-          value: cd mss-boot && GOWORK=off go test -json ./pkg/config/...
+          value: "cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestObjectStorageProfileRejectsInvalidConfiguration|TestObjectStorageProfileBuildIsImmutable)$' -count=1"
         - type: report
-          value: Required-test JSON report proving both exact profile tests ran with every negative-table case and zero construction side effects.
+          value: Required-test JSON report proving both exact profile tests ran, every case in the declared strict negative matrix failed before construction, caller configuration remained unchanged, secret formatting was redacted, and repeated Build returned one Handle.
     - id: queue-delivery-evidence
       requirement: mark-kafka-after-success
       statement: Hermetic failure-injection tests prove decode and handler errors are not marked, successful work is marked once and only after the handler, and cancellation or a closed consumer stops local work without marking unfinished messages. This evidence does not prove a broker commit or production provider maturity.
@@ -366,35 +373,95 @@ spec:
           value: TestV101ChangedProvidersDoNotExitOrDetach
         - type: test
           value: TestObjectStorageSingleClientOwnedClose
+        - type: test
+          value: TestObjectStorageConcurrentCloseIsIdempotent
+        - type: test
+          value: TestObjectStorageCloseDoesNotDeadlockReentrantLease
+        - type: test
+          value: TestObjectStorageProfileCanceledBuildCanRetry
+        - type: test
+          value: TestObjectStorageHandleUseCoversLocalAndS3
+        - type: test
+          value: TestObjectStorageHandleCloseDrainsAndIsIdempotent
+        - type: test
+          value: TestObjectStorageHandleCloseTimeoutCanRetry
+        - type: test
+          value: TestSourceClosesBodyOnReadSuccessAndFailure
+        - type: test
+          value: TestSourceRequiresCallerOwnedContextAndClient
+        - type: test
+          value: TestSourceWatchReturnsUnsupported
+        - type: test
+          value: TestSourceContinuesAcrossMissingExtensions
+        - type: test
+          value: TestS3BootstrapOwnedHandleClosesAndMissingOverlayIsOptional
+        - type: test
+          value: TestS3BootstrapOverlayFailureFailsClosed
+        - type: test
+          value: TestS3BootstrapGenericNotFoundFailsClosed
+        - type: test
+          value: TestS3BootstrapMalformedOverlayFailsClosed
+        - type: test
+          value: TestS3BootstrapRejectsInvalidInsecureHTTPFlag
         - type: command
-          value: cd mss-boot && GOWORK=off go test -json -race ./pkg/config/...
+          value: "cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestObjectStorageProfileCanceledBuildCanRetry|TestObjectStorageHandleUseCoversLocalAndS3|TestObjectStorageHandleCloseDrainsAndIsIdempotent|TestObjectStorageHandleCloseTimeoutCanRetry)$' -count=1"
+        - type: command
+          value: "cd mss-boot && GOWORK=off go test -json -race ./pkg/config/source/s3 -run '^(TestSourceClosesBodyOnReadSuccessAndFailure|TestSourceRequiresCallerOwnedContextAndClient|TestSourceWatchReturnsUnsupported|TestSourceContinuesAcrossMissingExtensions)$' -count=1"
+        - type: command
+          value: "cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestS3BootstrapOwnedHandleClosesAndMissingOverlayIsOptional|TestS3BootstrapOverlayFailureFailsClosed|TestS3BootstrapGenericNotFoundFailsClosed|TestS3BootstrapMalformedOverlayFailsClosed|TestS3BootstrapRejectsInvalidInsecureHTTPFlag)$' -count=1"
         - type: command
           value: go test -json ./internal/mss/verify -run '^TestV101ChangedProvidersDoNotExitOrDetach$'
         - type: command
-          value: cd admin && GOWORK=off go test -json -race ./config ./service -run '^TestObjectStorageSingleClientOwnedClose$'
+          value: "cd admin && GOWORK=off go test -json -race ./config -run '^(TestObjectStorageSingleClientOwnedClose|TestObjectStorageConcurrentCloseIsIdempotent|TestObjectStorageCloseDoesNotDeadlockReentrantLease)$' -count=1"
         - type: report
-          value: Required-test JSON report proving the repository-wide forbidden-call test and Admin single-owner lifecycle test both ran, with race detection on owned resource construction and close.
+          value: Required-test JSON report proving the repository-wide forbidden-call test, Admin single-owner/concurrent-close/reentrant-lease lifecycle tests, S3 source ownership/body-close tests, and S3 bootstrap overlay tests all ran with race detection; Admin close stayed idempotent without holding the Config mutex across a draining callback, only a missing stage object was optional, and transport/read/malformed-overlay failure or an invalid insecure-HTTP flag failed closed.
     - id: storage-selection-evidence
       requirement: fail-closed-provider-selection
-      statement: Missing or invalid configuration and unavailable object backends return an explicit unavailable error without writing locally or returning a success URL; an explicitly enabled production local profile succeeds only when its registered delivery route serves the committed bytes and checksum across restart.
+      statement: Missing or invalid configuration and unavailable object backends return an explicit unavailable error without writing locally or returning a success URL; Local installs only for an explicit development static mapping, remains unavailable in production, and every returned development URL serves the committed bytes and checksum across router restart. Provider and credential AppConfig keys are absent and rejected, while S3 returns unavailable before Put until D4.
       level: integration
-      phase: feature-freeze
+      phase: checkpoint
       required: true
       evidence:
         - type: test
-          value: TestStorageUnknownProviderFailsClosed
-        - type: test
-          value: TestStorageUnavailableBackendDoesNotFallbackLocal
-        - type: test
-          value: TestStorageInvalidCredentialsFailBeforeWrite
+          value: TestStorageValidS3RemainsUnavailableBeforePut
         - type: test
           value: TestStorageLocalProductionRequiresExplicitDelivery
         - type: test
           value: TestStorageLocalSuccessURLIsActuallyServed
+        - type: test
+          value: TestStoragePolicySnapshotFailureFailsClosed
+        - type: test
+          value: TestStoragePolicyWithoutSnapshotFailsClosed
+        - type: test
+          value: TestStorageInstalledBeforeApplicationDelivery
+        - type: test
+          value: TestStorageAPICheckClosesOwnedResources
+        - type: test
+          value: TestStoragePinnedRootSurvivesConfiguredPathReplacement
+        - type: test
+          value: TestStorageSymlinkRootRemainsUninstalled
+        - type: test
+          value: TestStorageProductionLocalRemainsUninstalled
+        - type: test
+          value: TestStorageInvalidProfileRemainsUninstalled
+        - type: test
+          value: TestStorageUploadUnboundReturnsFixed503
+        - type: test
+          value: TestAvatarUploadUnboundReturnsFixed503
+        - type: test
+          value: TestStorageInvalidPolicyReturnsFixed503
+        - type: test
+          value: TestStorageAppConfigSurfaceIsAdmissionPolicyOnly
+        - type: test
+          value: TestStorageAppConfigAllowsOnlyUploadAdmissionPolicy
         - type: command
-          value: "cd admin && GOWORK=off go test -json ./service -run '^TestStorage(UnknownProviderFailsClosed|UnavailableBackendDoesNotFallbackLocal|InvalidCredentialsFailBeforeWrite|LocalProductionRequiresExplicitDelivery|LocalSuccessURLIsActuallyServed)$'"
+          value: "cd admin && GOWORK=off go test -json -race ./service -run '^(TestStorageValidS3RemainsUnavailableBeforePut|TestStorageLocalProductionRequiresExplicitDelivery|TestStorageLocalSuccessURLIsActuallyServed|TestStoragePolicySnapshotFailureFailsClosed|TestStoragePolicyWithoutSnapshotFailsClosed|TestStorageAppConfigAllowsOnlyUploadAdmissionPolicy)$' -count=1"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./cmd/server -run '^(TestStorageInstalledBeforeApplicationDelivery|TestStorageAPICheckClosesOwnedResources|TestStoragePinnedRootSurvivesConfiguredPathReplacement|TestStorageSymlinkRootRemainsUninstalled|TestStorageProductionLocalRemainsUninstalled|TestStorageInvalidProfileRemainsUninstalled)$' -count=1"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./apis -run '^(TestStorageUploadUnboundReturnsFixed503|TestAvatarUploadUnboundReturnsFixed503|TestStorageInvalidPolicyReturnsFixed503|TestStorageAppConfigSurfaceIsAdmissionPolicyOnly)$' -count=1"
         - type: report
-          value: Required-test JSON report proving all five exact storage-selection tests ran, failure cases produced zero local or remote writes, and the explicit local success URL served identical bytes and checksum after restart.
+          value: Required-test JSON report proving every listed storage-selection, policy-snapshot, composition-delivery-order, API-check close, pinned-root, fixed-503, and AppConfig-surface test ran; invalid startup profiles left the application initialized with no owner or Local residue, legacy policy objects without a snapshot failed closed, a symlink root and production Local remained uninstalled, configured-path replacement could not redirect the pinned owner, S3 made no request before D4 Put, and the explicit development Local URL served identical bytes and checksum after restart.
     - id: upload-boundary-evidence
       requirement: enforce-upload-admission
       statement: Exact Gin handler tests mounted at both production upload paths prove generic storage upload and user avatar upload enforce known and unknown-length hard request limits before multipart parsing, distinguish max object bytes from the bounded multipart envelope, clean forced spills, and use randomized create-only local writes that reject collision, forged size, cancellation residue, traversal, and root or internal symlink escape; the existing route security contract separately proves both paths remain authenticated mutations.
@@ -449,15 +516,24 @@ spec:
       - cd mss-boot && GOWORK=off go test -json -race ./pkg/config/storage/queue -run '^TestKafka(DoesNotMarkOnDecodeFailure|DoesNotMarkOnHandlerFailure|MarksOnceAfterHandlerSuccess|CancellationLeavesUnfinishedUnmarked|RunStopsAfterCancellation|RunStopsAfterConsumerClose)$' -count=1
       - cd admin && GOWORK=off go test -json -race ./apis -run '^(TestEmailChallenge.*|TestAppConfigProfile.*|TestUpdateUserInfoRejectsEmailChangeUntilCanonicalIdentityMigration)$' -count=1
       - cd admin && GOWORK=off go test -json -race ./apis ./service ./router -run '^(TestStorageUploadHardLimitBeforeMultipart|TestAvatarUploadHardLimitBeforeMultipart|TestStorageLocalNoClobberAndConfinement|TestStorageUploadPolicyBytesAndMIMEContract|TestCustomRouteContractsCoverOtherRegistrations|TestCustomRouteContractsMatchRuntimeAuthentication)$' -count=1
+      - cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestObjectStorageProfileRejectsInvalidConfiguration|TestObjectStorageProfileBuildIsImmutable|TestObjectStorageProfileCanceledBuildCanRetry|TestObjectStorageHandleUseCoversLocalAndS3|TestObjectStorageHandleCloseDrainsAndIsIdempotent|TestObjectStorageHandleCloseTimeoutCanRetry)$' -count=1
+      - cd mss-boot && GOWORK=off go test -json -race ./pkg/config/source/s3 -run '^(TestSourceClosesBodyOnReadSuccessAndFailure|TestSourceRequiresCallerOwnedContextAndClient|TestSourceWatchReturnsUnsupported|TestSourceContinuesAcrossMissingExtensions)$' -count=1
+      - cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestS3BootstrapOwnedHandleClosesAndMissingOverlayIsOptional|TestS3BootstrapOverlayFailureFailsClosed|TestS3BootstrapGenericNotFoundFailsClosed|TestS3BootstrapMalformedOverlayFailsClosed|TestS3BootstrapRejectsInvalidInsecureHTTPFlag)$' -count=1
+      - cd admin && GOWORK=off go test -json -race ./config -run '^(TestObjectStorageSingleClientOwnedClose|TestObjectStorageConcurrentCloseIsIdempotent|TestObjectStorageCloseDoesNotDeadlockReentrantLease)$' -count=1
+      - cd admin && GOWORK=off go test -json -race ./service -run '^(TestStorageValidS3RemainsUnavailableBeforePut|TestStorageLocalProductionRequiresExplicitDelivery|TestStorageLocalSuccessURLIsActuallyServed|TestStoragePolicySnapshotFailureFailsClosed|TestStoragePolicyWithoutSnapshotFailsClosed|TestStorageAppConfigAllowsOnlyUploadAdmissionPolicy)$' -count=1
+      - cd admin && GOWORK=off go test -json -race ./cmd/server -run '^(TestStorageInstalledBeforeApplicationDelivery|TestStorageAPICheckClosesOwnedResources|TestStoragePinnedRootSurvivesConfiguredPathReplacement|TestStorageSymlinkRootRemainsUninstalled|TestStorageProductionLocalRemainsUninstalled|TestStorageInvalidProfileRemainsUninstalled)$' -count=1
+      - cd admin && GOWORK=off go test -json -race ./apis -run '^(TestStorageUploadUnboundReturnsFixed503|TestAvatarUploadUnboundReturnsFixed503|TestStorageInvalidPolicyReturnsFixed503|TestStorageAppConfigSurfaceIsAdmissionPolicyOnly)$' -count=1
       - go test -json ./internal/mss/project -run '^TestCapabilityCatalogProviderSpecificStorageStatuses$'
       - go test -json ./internal/mss/spec -run '^TestFeatureAcceptancePhaseValidation$'
   rollout:
     strategy: phased
     migration: >-
-      Land the safety changes as independently reviewable commits, starting with challenge and queue
-      correctness, then upload admission and object-provider failure behavior, then focused changed-path
-      lifecycle and capability evidence. General provider lifecycle continues in later development
-      waves. No database migration is planned for this checkpoint and no v1.0.x tag is created.
+      Land the safety changes as independently reviewable commits. Challenge, Kafka Mark ordering,
+      upload admission, and the D1 object-provider owner are complete internal checkpoints. The same
+      D1 wave still must close Kafka registration, configuration, producer ownership, error observation,
+      and bounded shutdown before D2 begins. S3 Put, Delivery, object metadata, and a pinned RustFS
+      conformance fixture remain D4 work. No database migration is planned for this checkpoint,
+      historical storage AppConfig rows remain inert, and no v1.0.x tag is created.
       After the v1.1.0 feature freeze and concentrated qualification, open and approve an exact-commit
       evidence issue, publish mss-boot/v1.1.0 first, prove external GOWORK=off resolution, run the
       pre-root exact-commit authority checks, and publish root v1.1.0 while that issue remains open. The

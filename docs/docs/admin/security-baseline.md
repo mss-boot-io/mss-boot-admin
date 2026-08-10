@@ -39,14 +39,22 @@ keywords: [admin security baseline upload credentials]
   100 MiB（`104857600` bytes），非法或越界配置拒绝上传。
 - `storage:allowedTypes` 是逗号分隔的 MIME types / `type/*` wildcards，例如
   `image/png,image/*`；文件扩展名不是安全策略。
+- 这两个字段是 Storage AppConfig 的完整 allowlist。provider、endpoint、bucket 与
+  凭据 key 的历史行不会返回；提交这些已移除的 key 会以稳定 422 整批拒绝。
+- Provider 与 SecretRef 只能来自进程启动时的不可变 profile，不允许通过 Admin
+  设置或 AppConfig API 注入、轮换或切换。
 - 请求体在 multipart 解析前受限，选中文件还会做 max-plus-one 流式检查。
 - Local 使用 `uploads/<opaque-uuid>`、`os.Root` confinement 与 `O_EXCL`
   create-only 写入；错误或取消清理 partial。用户 ID 和原始文件名不进入 key。
 
-这不等于生产存储已经就绪。Local 与 S3-compatible 仍为 `Legacy / Blocked`：
-provider 仍未 fail closed，配置还不是一次性不可变 profile，client owner 尚未
-收敛，返回的 URL 也没有经过真实 Delivery 证明。`prod` 模式不会注册
-`application.staticPath`，Nginx 代理或目录挂载不能单独补齐这条边界。
+D1 的对象子切片也已完成：Provider / SecretRef 在启动时从 immutable profile
+一次性解析，未知/非法 profile 拒绝安装对象资源，client 由单一 owner 管理。Admin
+进程继续运行，两条上传路由固定返回 503，零 Local fallback。Local 只在 dev 模式与
+`application.staticPath` 精确映射配置 root 时安装；`prod` Local 不安装。S3 在 D1
+只持有 client，并在 `Put` 前返回 503。
+
+这不等于生产存储已经就绪；Local 与 S3-compatible 仍为 `Legacy / Blocked`。
+Nginx 代理、目录挂载、endpoint 拼接或 opaque key 不能单独补齐 Delivery 与授权边界。
 
 上线前必须：
 
@@ -56,9 +64,10 @@ provider 仍未 fail closed，配置还不是一次性不可变 profile，client
   同时不授予通用 `storage:upload` 权限作为纵深防御；头像入口没有独立 Casbin permission
 - [ ] 未将 `/public/`、endpoint 拼接 URL 或 opaque key 当成对象读取授权
 
-`D1-provider-owner` 完成 provider fail-closed、immutable profile 与 single owner；
-S3 conditional create-only 和 Local/S3-compatible 共用 conformance suite 留在
-`D4-authorization-object`。
+D1 的对象子切片已完成，且不能把旧 AppConfig 行作为兼容回退；Kafka lifecycle 仍未
+完成。真实 S3 Put/Delivery、RustFS fixture 和 Local/S3-compatible 共用 conformance
+suite 留在 `D4-authorization-object`。精确边界见
+[D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)。
 
 ## 四、通知渠道安全建议
 

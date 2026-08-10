@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -45,8 +46,8 @@ var (
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			return setup(cmd.Context())
 		},
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return run()
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return run(cmd.Context())
 		},
 	}
 )
@@ -174,13 +175,15 @@ func setup(ctx context.Context) (err error) {
 	center.SetMakeRouter(router.DefaultMakeRouter)
 	center.SetRouter(routerEngine)
 	center.Default.MakeRouter(routerEngine.Group(group))
-	config.Cfg.Application.Init(center.GetRouter())
+	if err := initializeApplicationDelivery(ctx, config.Cfg, center.GetRouter()); err != nil {
+		return err
+	}
 
 	if apiCheck {
 		if err := models.SaveAPI(routerEngine.Routes()); err != nil {
-			slog.Error("save api error", "err", err)
+			return fmt.Errorf("save API routes: %w", err)
 		}
-		os.Exit(0)
+		return nil
 	}
 
 	runnable := []frameworkserver.Runnable{
@@ -246,8 +249,20 @@ func systemTaskSchedules(
 	})
 }
 
-func run() error {
-	ctx := context.Background()
+func run(ctx context.Context) (err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if closeErr := config.Cfg.CloseContext(closeCtx); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close application resources: %w", closeErr))
+		}
+	}()
+	if apiCheck {
+		return nil
+	}
 	if center.GetQueue() != nil {
 		go center.GetQueue().Run(ctx)
 	}

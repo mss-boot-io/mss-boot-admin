@@ -14,7 +14,8 @@ Provider 标为 `legacy`，ADR 的证据状态继续是 **Blocked**。
 
 本切片只关闭两条已确认的安全路径：上传请求在 `FormFile` 解析后才限流，以及
 Local 存储用用户 ID 和原文件名构造可覆盖、可穿越的目标路径。严格 Provider
-选择、生产 Delivery 和单一 S3 client owner 属于下一条独立 `D1-provider-owner` 波次。
+选择和单一 S3 client owner 当时留给 `D1-provider-owner`，现已由后续对象 checkpoint
+完成；生产 Delivery 仍属于 D4。
 
 ## 请求与对象上限
 
@@ -95,18 +96,21 @@ GOWORK=off go test -json -race ./apis ./service ./router \
 - policy 的 bytes/MIME/default/hard-ceiling 契约；admission/MIME 拒绝不查询或调用 Provider；
 - 已写入部分字节后的取消会删除目标；冲突只保留既有或胜出的完整对象，不留下新增 partial。
 
-## 功能冻结前仍须完成的边界
+## 后续 D1 状态与功能冻结边界
 
 本检查点可以独立提交，但不能据此进入 `FF-v1.1.0` 或启动完整 release-readiness：
 
-- 空、未知、矛盾或不可用 Provider 仍可能走旧 Local fallback；
-- 生产模式不提供已证明的 Local `/public` Delivery，成功 URL 尚不能作为生产证据；
-- S3 配置仍按请求读取并重建 client，启动 ghost client 与 `Fatal` 路径尚未收口；
-- Kafka changed-path lifecycle、phase-aware release evidence 和 exact external consumer gate 仍未通过。
+- 后续 D1 object checkpoint 已经让空、未知、矛盾或不可用 Provider fail closed，删除 ghost/
+  per-request client split，并由单一 owner 持有 immutable profile；
+- Local 只在 dev 模式与实际 `staticPath` 精确映射时安装，生产 Local 保持 unavailable；
+- Provider/SecretRef 已移出 AppConfig；S3 在 D1 只构造和持有 client，上传会在 `Put` 前返回 503；
+- S3 Put、Delivery、RustFS conformance 仍在 D4，Kafka changed-path lifecycle 与冻结后完整
+  release evidence 也仍未通过。
 
-下一条可执行切片是 Provider fail-closed：启动时构造一个不可变 profile 和单一 owner，
-拒绝未知/部分配置，删除 ghost client，证明错误 Provider 零 Local 写入，并为显式 Local
-模式提供实际可读的 Delivery 或直接禁用它。
+完整语义与精确测试见
+[D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)。
+下一条可执行切片是完成同一 D1 波次的 Kafka registration/configuration、producer ownership、
+error observation 与 bounded close。
 
 ## 升级、回滚与兼容影响
 

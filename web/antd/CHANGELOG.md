@@ -62,6 +62,10 @@ exact feature-frozen `web/antd/v1.1.0` commit.
 - Application configuration credential fields are omitted or read-only unless
   the current principal has the dedicated secret capability; SystemConfig is
   root-only.
+- The Storage settings panel now reads and writes only the byte-based upload
+  limit and MIME/wildcard allowlist. Provider endpoints, buckets, and credentials
+  are no longer browser-managed; Provider and SecretRef belong to the startup
+  profile boundary.
 - PAT creation and rotation show the raw token once and never repopulate it from
   list responses or browser persistence.
 - OAuth callback data is removed from the URL and submitted to the backend in a

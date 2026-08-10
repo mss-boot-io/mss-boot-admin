@@ -8,6 +8,7 @@ package config
  */
 
 import (
+	"net/http"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -33,6 +34,21 @@ type Application struct {
 	StaticPath     map[string]string `yaml:"staticPath" json:"staticPath"`
 	Labels         map[string]string `yaml:"labels" json:"labels"`
 	UI             UIServer          `yaml:"ui" json:"ui"`
+	pinnedStatic   map[string]http.FileSystem
+}
+
+// PinStatic installs an already-open filesystem for a configured static route.
+// It is used by the Local object-storage owner so writes and development
+// delivery share the same directory handle even if the configured path is
+// renamed or replaced after startup.
+func (e *Application) PinStatic(route string, filesystem http.FileSystem) {
+	if e == nil || route == "" || filesystem == nil {
+		return
+	}
+	if e.pinnedStatic == nil {
+		e.pinnedStatic = make(map[string]http.FileSystem)
+	}
+	e.pinnedStatic[route] = filesystem
 }
 
 func (e *Application) Init(r gin.IRouter) {
@@ -55,6 +71,10 @@ func (e *Application) Init(r gin.IRouter) {
 			//}
 			if filepath.Ext(k) != "" {
 				r.StaticFile(k, e.StaticPath[k])
+				continue
+			}
+			if filesystem := e.pinnedStatic[k]; filesystem != nil {
+				r.StaticFS(k, filesystem)
 				continue
 			}
 			r.Static(k, e.StaticPath[k])

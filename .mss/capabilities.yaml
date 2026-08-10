@@ -377,6 +377,7 @@ spec:
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
         - docs/docs/releases/v1-0-1-upload-admission-safety.md
+        - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
         - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
       guidance: >-
         Build strict named resources and separate Derived Cache, ChallengeStore, EventBus,
@@ -384,6 +385,10 @@ spec:
         become healthy before listeners start and one composition root owns reverse-order close.
         Promote each provider only from its own conformance evidence; a release version never
         promotes Kafka, NSQ, Redis work queue, distributed lock, or S3-compatible storage by itself.
+        The D1 object-provider subset now has strict startup profiles and one owner, but Kafka
+        lifecycle remains open and ObjectStore/Delivery remain D4 work. S3 configuration bootstrap
+        owns a separate Handle, treats only a missing stage object as optional, fails closed on other
+        overlay errors, and permits HTTP only with explicit s3_tls_allow_insecure_http=true.
 
     - id: platform.storage
       displayName: Legacy Object Storage Aggregate
@@ -394,7 +399,10 @@ spec:
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
         - docs/docs/releases/v1-0-1-upload-admission-safety.md
+        - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
       backendPaths:
+        - admin/cmd/server/object_storage.go
+        - admin/config/object_storage.go
         - admin/service/storage.go
         - admin/service/storage_test.go
       frameworkPaths:
@@ -402,10 +410,11 @@ spec:
       guidance: >-
         Inventory only; this aggregate confers no provider maturity. Reject request bytes before
         multipart parsing, use opaque random create-only keys, keep objects private, validate path
-        and symlink confinement, and treat credentials as SecretRef values. The upload-admission
-        checkpoint proves the HTTP and Local write boundary only; privacy, delivery, strict provider
-        selection, and ownership remain open. Unknown, unreadable, contradictory, or unavailable
-        providers must fail explicitly and never fall back to local.
+        and symlink confinement, and treat credentials as SecretRef values. D1 now normalizes one
+        strict startup profile, installs one application-owned Handle, removes the ghost/per-request
+        client split, and fails unavailable without a Local fallback. Storage AppConfig contains only
+        maxSize and allowedTypes. This remains Legacy/Blocked because S3 Put, private object metadata,
+        authorization, Delivery, and common provider conformance remain D4 work.
 
     - id: platform.object-storage-local
       displayName: Legacy Local Object Storage
@@ -416,19 +425,24 @@ spec:
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
         - docs/docs/releases/v1-0-1-upload-admission-safety.md
+        - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
       backendPaths:
         - admin/apis/storage.go
         - admin/apis/storage_upload_admission_test.go
         - admin/apis/user.go
+        - admin/cmd/server/object_storage.go
+        - admin/config/object_storage.go
         - admin/service/storage.go
         - admin/service/storage_test.go
       guidance: >-
         Evidence state at v1.0.0 is blocked by post-parse size enforcement, implicit fallback,
         user/filename-derived keys, collision/overwrite behavior, and an unproven production
-        delivery path. The internal upload-admission checkpoint bounds raw requests and actual streams,
-        generates opaque keys, confines Local writes, and uses create-only files with failure cleanup.
-        Local remains Legacy/Blocked until strict provider selection and delivery evidence land, and
-        stable still requires the common ObjectStore and Delivery conformance suite.
+        delivery path. D0 bounds raw requests and actual streams, generates opaque keys, confines
+        Local writes, and uses create-only files with failure cleanup. D1 adds a strict immutable
+        profile and one owner, and installs Local only in development when application.staticPath
+        maps the exact absolute root; writes and StaticFS share one pinned os.Root and production
+        Local remains unavailable. Local therefore remains
+        Legacy/Blocked until the D4 ObjectStore, authorization, Delivery, and common conformance gates.
 
     - id: platform.object-storage-s3
       displayName: Legacy S3-Compatible Object Storage
@@ -439,18 +453,21 @@ spec:
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
         - docs/docs/releases/v1-0-1-upload-admission-safety.md
+        - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
       backendPaths:
+        - admin/cmd/server/object_storage.go
+        - admin/config/object_storage.go
         - admin/service/storage.go
       frameworkPaths:
         - mss-boot/pkg/config/storage.go
       guidance: >-
-        Evidence state is Blocked by known fallback, credential, and ownership paths:
-        configuration is read piecemeal, a client is rebuilt per upload, partial credentials may
-        select an unintended chain, and external tests can skip. The upload-admission checkpoint only
-        replaces user/filename-derived S3 keys with opaque identifiers and does not promote the
-        provider. The next storage development wave must fail closed and own one immutable client; stable requires
-        pinned MinIO plus every advertised S3-compatible deployment, lifecycle, outage, create-only,
-        and delivery gate with no required skip.
+        D1 closes the known fallback, partial-credential, ghost-client, and per-request-client paths:
+        Local or S3 is selected exactly once, static credentials use complete SecretRefs or an explicit
+        default chain, and one application owner leases and closes one S3 client. Admin intentionally
+        returns unavailable before S3 Put because private object metadata, create-only semantics,
+        authorization, and Delivery are absent. The provider remains Legacy/Blocked; D4 must run a
+        pinned RustFS-backed S3-compatible fixture plus every advertised deployment through lifecycle,
+        outage, create-only, checksum, privacy, and Delivery gates with no required skip.
 
     - id: operations.task
       displayName: Scheduled and On-Demand Tasks

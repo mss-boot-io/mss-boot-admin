@@ -60,12 +60,15 @@ Lock 或 S3-compatible Provider 可以保持 Legacy/Blocked/Experimental，而�
 | 波次 | A：Generator / Blueprint | B：Storage Runtime | 退出信号 |
 | --- | --- | --- | --- |
 | `D0-safety`（已完成） | 建立 v1.1.0 Generator/Blueprint 合同 | Challenge 原子安全、Kafka Mark-after-success、Upload pre-parse admission 与 Local create-only confinement | 对应 focused/race 测试通过；Provider 状态仍诚实保持 |
-| `D1-provider-owner` | 冻结新增 scaffold 范围，统一 `admin/modules` 目标口径 | object provider 严格 fail-closed、不可变 profile、单一长生命周期 client；Kafka/object changed path 无 Exit/Fatal，owner 可观测关闭 | unknown/partial/unavailable provider 零 fallback；consumer/producer/object owner 可取消、可关闭 |
+| `D1-provider-owner`（object 子切片已完成） | 冻结新增 scaffold 范围，统一 `admin/modules` 目标口径 | object provider 已完成严格 startup profile、AppConfig 移除、单一 owner、dev-only Local Delivery 与 fail-closed 503；Kafka registration/configuration、producer ownership、error observation 与 bounded close 仍未完成 | object exact tests 已通过；D1 只有在 Kafka changed path 无 Exit/Fatal、consumer/producer owner 可取消且可关闭后才整体退出 |
 | `D2-contract-substrate` | FeatureModule contract kind；Foundation/Blueprint/generator/downstream snapshot 四身份；lock+manifest 原子双记录；typed migration ID 和 duplicate fail-fast | canonical email 存量冲突预检和三库唯一 forward migration；strict one-of config、SecretRef、doctor preflight | infrastructure Feature 可规划；两次 sync/generate 零漂移；三库升级与并发身份语义一致 |
 | `D3-backend-runtime` | supplier migration、model/DTO/service/API/operations/index/export/OpenAPI；所有支持字段有 output-kind | 顶层资源图、named Redis、readiness/reverse close、公开 ChallengeStore 目标 API | golden backend 两次生成零 diff；100 次 race 启停无泄漏；listener 不早于 required resource ready |
-| `D4-authorization-object` | permissions/defaultRoles/menu/ownership；事务提交后事件；完整正负授权 | ObjectStore/Delivery、Admin object metadata migration、Local/MinIO create-only/checksum/授权、独立 S3 bootstrap | 权限矩阵全绿；Local/MinIO 共用 suite；错误 Provider 零 fallback；同 ObjectRef 冲突不覆盖 |
+| `D4-authorization-object` | permissions/defaultRoles/menu/ownership；事务提交后事件；完整正负授权 | ObjectStore/Delivery、Admin object metadata migration、Local/S3-compatible create-only/checksum/授权、独立 S3 bootstrap | 权限矩阵全绿；固定 digest 的 RustFS fixture 与 Local 共用 suite 且 required integration 无 skip；错误 Provider 零 fallback；同 ObjectRef 冲突不覆盖 |
 | `D5-frontend-events-upgrade` | typed client、list/form/detail/actions/export、双语 locale、完整 UI 状态；Blueprint 0.1→0.2 三方升级 | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile、provider evidence report | 第二次 upgrade 为空；无 ignored spec field；前端 focused checks 通过；非目标 Queue/Lock 状态锁定 |
 | `FF-v1.1.0` | Generator/Blueprint schema、API、模板和 golden 输出冻结 | Runtime 配置、资源接口、Provider 选择与 maturity 候选冻结 | P0/P1 清零；不再接受新功能或公共合同变化；选择一个完整 SHA 进入集中验证 |
+
+对象子切片的运行与验证边界见
+[D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)。
 
 波次可以并行开发，但依赖不能倒置：migration engine 必须先于真实生成迁移和 object metadata；严格
 profile 必须先于 owned runtime；named Redis 必须先于 Cache/EventBus；完整 golden 输出必须先于
@@ -159,13 +162,14 @@ Blueprint/生成基线，不是公开 release target。本路线不手工改号�
 
 ## 下一条可执行工作
 
-立即继续 `D1-provider-owner`：启动时构造严格、不可变的 object storage profile，由单一 owner 持有
-长生命周期 client；empty、unknown、冲突、部分凭据或不可用 Provider 返回明确 unavailable，绝不落入
-Local 或返回成功 URL。显式 Local 只有在 Delivery 实际可读时启用，否则生产路径禁用。
+`D1-provider-owner` 的 object 子切片已经完成：启动时构造严格 immutable profile，由单一 owner
+持有 client；无效或不可用资源固定返回 503 且零 Local fallback；Local 只在 dev 模式与实际
+`staticPath` 精确映射时安装；Provider/SecretRef 已移出 AppConfig。S3 `Put`、Delivery 和 RustFS
+conformance 明确保留到 D4。
 
-随后进入同一波次的 changed-path lifecycle：清除 Kafka registration/config 与 object owner 的
-Exit/Fatal/background，补齐 consumer/producer/client 的可取消运行、错误观察和幂等关闭。完成后直接
-进入 `D2-contract-substrate`，不插入 v1.0.x 发布准备或全量 release-readiness。
+立即继续同一波次的 Kafka changed-path lifecycle：清除 registration/config 的 Exit/Fatal，补齐
+consumer/producer 的错误返回、可取消运行、错误观察与幂等 bounded close。完成后直接进入
+`D2-contract-substrate`，不插入 v1.0.x 发布准备、RustFS qualification 或全量 release-readiness。
 
 本策略调整完成的定义是：release policy 能拒绝 v1.0.x 和公开 prerelease tag；Feature acceptance 能按
 checkpoint、feature-freeze、pre-framework、pre-root、post-publication 聚合；普通 PR 不自动运行完整

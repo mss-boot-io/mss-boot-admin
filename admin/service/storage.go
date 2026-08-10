@@ -12,17 +12,15 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
+	adminconfig "github.com/mss-boot-io/mss-boot-admin/admin/config"
+	frameworkconfig "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config"
 )
 
 const (
@@ -31,7 +29,6 @@ const (
 	multipartEnvelopeAllowance       = 64 * 1024
 	maxSizeConfigKey                 = "storage:maxSize"
 	allowedTypesConfigKey            = "storage:allowedTypes"
-	defaultLocalObjectRoot           = "public"
 	objectKeyPrefix                  = "uploads"
 )
 
@@ -47,6 +44,9 @@ var (
 	// ErrUnsafeObjectPath reports an object root or generated key that cannot be
 	// proven to stay below the fixed local object root.
 	ErrUnsafeObjectPath = errors.New("unsafe object path")
+	// ErrStorageUnavailable reports that no provider/delivery snapshot can
+	// safely serve this request. It must map to a fixed 503 response.
+	ErrStorageUnavailable = errors.New("object storage is unavailable")
 )
 
 var defaultAllowedTypes = []string{
@@ -64,12 +64,16 @@ var defaultAllowedTypes = []string{
 
 type Storage struct {
 	generateObjectID func() (string, error)
-	localObjectRoot  string
+	useObjectStorage func(context.Context, func(adminconfig.ObjectStorageLease) error) error
 }
 
 type uploadPolicy struct {
 	maxBytes     int64
 	allowedTypes []string
+}
+
+type uploadPolicySnapshotReader interface {
+	GetAppConfigSnapshot(*gin.Context, ...string) (map[string]string, error)
 }
 
 type admittedUpload struct {
@@ -181,21 +185,33 @@ func (s *Storage) loadPolicy(c *gin.Context) (uploadPolicy, error) {
 		maxBytes:     defaultMaxSize,
 		allowedTypes: append([]string(nil), defaultAllowedTypes...),
 	}
-	if appConfig := center.GetAppConfig(); appConfig != nil {
-		if maxSizeText, _ := appConfig.GetAppConfig(c, maxSizeConfigKey); maxSizeText != "" {
-			parsed, err := strconv.ParseInt(strings.TrimSpace(maxSizeText), 10, 64)
-			if err != nil || parsed <= 0 || parsed > maxConfiguredObjectBytes {
-				return uploadPolicy{}, fmt.Errorf("invalid maximum file size %q", maxSizeText)
-			}
-			policy.maxBytes = parsed
+	appConfig := center.GetAppConfig()
+	snapshotReader, ok := appConfig.(uploadPolicySnapshotReader)
+	if !ok {
+		slog.Warn("upload policy snapshot reader unavailable; upload rejected")
+		return uploadPolicy{}, ErrStorageUnavailable
+	}
+	values, err := snapshotReader.GetAppConfigSnapshot(c, maxSizeConfigKey, allowedTypesConfigKey)
+	if err != nil {
+		slog.Warn("upload policy snapshot unavailable; upload rejected")
+		return uploadPolicy{}, ErrStorageUnavailable
+	}
+	if maxSizeText, configured := values[maxSizeConfigKey]; configured {
+		parsed, err := strconv.ParseInt(strings.TrimSpace(maxSizeText), 10, 64)
+		if err != nil || parsed <= 0 || parsed > maxConfiguredObjectBytes {
+			return uploadPolicy{}, errors.Join(ErrStorageUnavailable, errors.New("invalid maximum file size policy"))
 		}
-		if allowedTypesText, _ := appConfig.GetAppConfig(c, allowedTypesConfigKey); allowedTypesText != "" {
-			policy.allowedTypes = strings.Split(allowedTypesText, ",")
-			for i := range policy.allowedTypes {
-				policy.allowedTypes[i] = normalizeMediaType(policy.allowedTypes[i])
-				if !validAllowedMediaType(policy.allowedTypes[i]) {
-					return uploadPolicy{}, fmt.Errorf("invalid allowed media type %q", policy.allowedTypes[i])
-				}
+		policy.maxBytes = parsed
+	}
+	if allowedTypesText, configured := values[allowedTypesConfigKey]; configured {
+		if strings.TrimSpace(allowedTypesText) == "" {
+			return uploadPolicy{}, errors.Join(ErrStorageUnavailable, errors.New("invalid allowed media type policy"))
+		}
+		policy.allowedTypes = strings.Split(allowedTypesText, ",")
+		for i := range policy.allowedTypes {
+			policy.allowedTypes[i] = normalizeMediaType(policy.allowedTypes[i])
+			if !validAllowedMediaType(policy.allowedTypes[i]) {
+				return uploadPolicy{}, errors.Join(ErrStorageUnavailable, errors.New("invalid allowed media type policy"))
 			}
 		}
 	}
@@ -203,45 +219,73 @@ func (s *Storage) loadPolicy(c *gin.Context) (uploadPolicy, error) {
 }
 
 func (s *Storage) store(c *gin.Context, upload *admittedUpload) (*UploadResult, error) {
-	metadata, err := s.inspect(upload)
+	if c == nil || c.Request == nil {
+		return nil, ErrStorageUnavailable
+	}
+	ctx := c.Request.Context()
+	var result *UploadResult
+	err := s.withObjectStorage(ctx, func(lease adminconfig.ObjectStorageLease) error {
+		if lease.Profile == nil {
+			return ErrStorageUnavailable
+		}
+		if lease.Profile.Provider() != frameworkconfig.Local {
+			// D1 builds and owns the S3 client once, but private delivery and the
+			// ObjectStore contract intentionally remain unavailable until D4.
+			return ErrStorageUnavailable
+		}
+		if lease.LocalRoot == nil || lease.LocalURLPrefix == "" {
+			return ErrStorageUnavailable
+		}
+
+		metadata, inspectErr := s.inspect(upload)
+		if inspectErr != nil {
+			return inspectErr
+		}
+		closeSource := func(cause error) error {
+			return errors.Join(cause, metadata.source.Close())
+		}
+		metadata.objectKey, inspectErr = s.newObjectKey()
+		if inspectErr != nil {
+			return closeSource(inspectErr)
+		}
+		url, storeErr := s.uploadLocal(ctx, lease.LocalRoot, lease.LocalURLPrefix, upload, metadata)
+		if storeErr != nil {
+			return closeSource(storeErr)
+		}
+		if closeErr := metadata.source.Close(); closeErr != nil {
+			// Provider success is already externally visible. Preserve the success
+			// result and report cleanup failure without inviting a duplicate retry.
+			slog.Warn("close admitted upload source failed")
+		}
+		result = &UploadResult{
+			URL:      url,
+			Filename: upload.header.Filename,
+			Size:     metadata.size,
+			MimeType: metadata.mimeType,
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	closeSource := func(cause error) error {
-		return errors.Join(cause, metadata.source.Close())
-	}
-	metadata.objectKey, err = s.newObjectKey()
-	if err != nil {
-		return nil, closeSource(err)
-	}
+	return result, nil
+}
 
-	var storageType string
-	if appConfig := center.GetAppConfig(); appConfig != nil {
-		storageType, _ = appConfig.GetAppConfig(c, "storage:type")
+func (s *Storage) withObjectStorage(
+	ctx context.Context,
+	operation func(adminconfig.ObjectStorageLease) error,
+) error {
+	use := s.useObjectStorage
+	if use == nil {
+		use = adminconfig.Cfg.WithObjectStorage
 	}
-
-	var url string
-	switch storageType {
-	case "s3":
-		url, err = s.uploadS3(c, upload, metadata)
-	default:
-		url, err = s.uploadLocal(c.Request.Context(), upload, metadata)
+	if err := use(ctx, operation); err != nil {
+		if errors.Is(err, adminconfig.ErrObjectStorageUnavailable) {
+			return errors.Join(ErrStorageUnavailable, err)
+		}
+		return err
 	}
-	if err != nil {
-		return nil, closeSource(err)
-	}
-	if err := metadata.source.Close(); err != nil {
-		// Provider success is already externally visible. Preserve the success
-		// result and report cleanup failure without inviting a duplicate retry.
-		slog.Warn("close admitted upload source failed")
-	}
-
-	return &UploadResult{
-		URL:      url,
-		Filename: upload.header.Filename,
-		Size:     metadata.size,
-		MimeType: metadata.mimeType,
-	}, nil
+	return nil
 }
 
 func (s *Storage) inspect(upload *admittedUpload) (metadata inspectedUpload, err error) {
@@ -347,74 +391,30 @@ func (s *Storage) newObjectKey() (string, error) {
 	return path.Join(objectKeyPrefix, parsed.String()), nil
 }
 
-func (s *Storage) uploadS3(c *gin.Context, upload *admittedUpload, metadata inspectedUpload) (string, error) {
-	appConfig := center.GetAppConfig()
-	if appConfig == nil {
-		return "", fmt.Errorf("application storage configuration is not initialized")
-	}
-
-	storage := config.Storage{}
-	s3Type, _ := appConfig.GetAppConfig(c, "storage:type")
-	if s3Type == "" {
-		s3Type = string(config.S3)
-	}
-	storage.Type = config.ProviderType(s3Type)
-	storage.Region, _ = appConfig.GetAppConfig(c, "storage:s3Region")
-	storage.Endpoint, _ = appConfig.GetAppConfig(c, "storage:s3Endpoint")
-	storage.Bucket, _ = appConfig.GetAppConfig(c, "storage:s3Bucket")
-	storage.AccessKeyID, _ = appConfig.GetAppConfig(c, "storage:s3AccessKeyID")
-	storage.SecretAccessKey, _ = appConfig.GetAppConfig(c, "storage:s3SecretAccessKey")
-	storage.SigningMethod, _ = appConfig.GetAppConfig(c, "storage:s3SigningMethod")
-	storage.Init()
-
+func (s *Storage) uploadLocal(
+	ctx context.Context,
+	root *os.Root,
+	urlPrefix string,
+	upload *admittedUpload,
+	metadata inspectedUpload,
+) (string, error) {
 	if _, err := metadata.source.Seek(0, io.SeekStart); err != nil {
 		return "", err
 	}
-
-	_, err := storage.GetClient().PutObject(c, &s3.PutObjectInput{
-		Bucket:        &storage.Bucket,
-		Key:           aws.String(metadata.objectKey),
-		Body:          io.LimitReader(metadata.source, upload.policy.maxBytes+1),
-		ContentLength: aws.Int64(metadata.size),
-	})
-	if err != nil {
-		return "", err
-	}
-
-	endpoint, _ := appConfig.GetAppConfig(c, "storage:endpoint")
-	return fmt.Sprintf("%s/%s", strings.TrimRight(endpoint, "/"), metadata.objectKey), nil
+	return s.writeLocalObject(ctx, root, urlPrefix, metadata.source, upload.policy.maxBytes, metadata)
 }
 
-func (s *Storage) uploadLocal(ctx context.Context, upload *admittedUpload, metadata inspectedUpload) (string, error) {
-	if _, err := metadata.source.Seek(0, io.SeekStart); err != nil {
-		return "", err
+func (s *Storage) writeLocalObject(
+	ctx context.Context,
+	objectRoot *os.Root,
+	urlPrefix string,
+	source io.Reader,
+	maxBytes int64,
+	metadata inspectedUpload,
+) (string, error) {
+	if objectRoot == nil || urlPrefix == "" {
+		return "", fmt.Errorf("%w: local object root and delivery prefix must be explicit", ErrUnsafeObjectPath)
 	}
-	return s.writeLocalObject(ctx, metadata.source, upload.policy.maxBytes, metadata)
-}
-
-func (s *Storage) writeLocalObject(ctx context.Context, source io.Reader, maxBytes int64, metadata inspectedUpload) (string, error) {
-	rootName := s.localObjectRoot
-	if rootName == "" {
-		rootName = defaultLocalObjectRoot
-	}
-	rootName = filepath.Clean(rootName)
-	if filepath.IsAbs(rootName) || rootName == "." || rootName == ".." || strings.HasPrefix(rootName, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("%w: local object root must be a confined relative directory", ErrUnsafeObjectPath)
-	}
-
-	workspaceRoot, err := os.OpenRoot(".")
-	if err != nil {
-		return "", err
-	}
-	defer workspaceRoot.Close()
-	if err := workspaceRoot.MkdirAll(rootName, 0o750); err != nil {
-		return "", fmt.Errorf("%w: create local object root: %v", ErrUnsafeObjectPath, err)
-	}
-	objectRoot, err := workspaceRoot.OpenRoot(rootName)
-	if err != nil {
-		return "", fmt.Errorf("%w: open local object root: %v", ErrUnsafeObjectPath, err)
-	}
-	defer objectRoot.Close()
 
 	directory := path.Dir(metadata.objectKey)
 	if err := objectRoot.MkdirAll(directory, 0o750); err != nil {
@@ -452,7 +452,7 @@ func (s *Storage) writeLocalObject(ctx context.Context, source io.Reader, maxByt
 	if err := destination.Close(); err != nil {
 		return "", errors.Join(err, objectRoot.Remove(metadata.objectKey))
 	}
-	return "/public/" + metadata.objectKey, nil
+	return strings.TrimRight(urlPrefix, "/") + "/" + metadata.objectKey, nil
 }
 
 type contextReader struct {

@@ -15,8 +15,6 @@ func TestAppConfigGroupOmitsFixedSensitiveValuesByDefault(t *testing.T) {
 		{Group: "security", Name: "githubClientSecret", Value: "github-secret", Auth: false},
 		{Group: "security", Name: "larkAppSecret", Value: "lark-secret", Auth: true},
 		{Group: "security", Name: "githubClientId", Value: "client-id", Auth: true},
-		{Group: "storage", Name: "s3SecretAccessKey", Value: "storage-secret", Auth: false},
-		{Group: "storage", Name: "s3Bucket", Value: "bucket", Auth: true},
 	}).Error)
 
 	tests := []struct {
@@ -27,7 +25,6 @@ func TestAppConfigGroupOmitsFixedSensitiveValuesByDefault(t *testing.T) {
 		{group: "email", secretKey: "password", visible: "smtpHost"},
 		{group: "security", secretKey: "githubClientSecret", visible: "githubClientId"},
 		{group: "security", secretKey: "larkAppSecret", visible: "githubClientId"},
-		{group: "storage", secretKey: "s3SecretAccessKey", visible: "s3Bucket"},
 	}
 
 	svc := &AppConfig{}
@@ -44,7 +41,6 @@ func TestAppConfigGroupOmitsFixedSensitiveValuesByDefault(t *testing.T) {
 				"password":           "smtp-secret",
 				"githubClientSecret": "github-secret",
 				"larkAppSecret":      "lark-secret",
-				"s3SecretAccessKey":  "storage-secret",
 			}[test.secretKey], privileged[test.secretKey])
 		})
 	}
@@ -58,7 +54,6 @@ func TestAppConfigSensitiveKeyContractIsExactAndRejectsCaseBypass(t *testing.T) 
 		{group: "email", name: "password"},
 		{group: "security", name: "githubClientSecret"},
 		{group: "security", name: "larkAppSecret"},
-		{group: "storage", name: "s3SecretAccessKey"},
 	}
 	for _, test := range tests {
 		t.Run(test.group+"/"+test.name, func(t *testing.T) {
@@ -71,6 +66,11 @@ func TestAppConfigSensitiveKeyContractIsExactAndRejectsCaseBypass(t *testing.T) 
 	}
 
 	require.False(t, AppConfigGroupContainsSensitiveValues("base"))
+	require.False(t, AppConfigGroupContainsSensitiveValues("storage"))
+	require.False(t, AppConfigMutationContainsSensitiveValues(
+		"storage",
+		map[string]any{"s3SecretAccessKey": "removed-from-app-config"},
+	))
 	require.False(t, AppConfigMutationContainsSensitiveValues(
 		"security",
 		map[string]any{"githubClientId": "public-id"},
@@ -93,6 +93,69 @@ func TestAppConfigSensitiveKeyContractIsExactAndRejectsCaseBypass(t *testing.T) 
 	var count int64
 	require.NoError(t, env.db.Model(&models.AppConfig{}).Count(&count).Error)
 	require.Zero(t, count)
+}
+
+func TestStorageAppConfigAllowsOnlyUploadAdmissionPolicy(t *testing.T) {
+	env := setupAppConfigTestEnv(t)
+	require.NoError(t, env.db.Create([]*models.AppConfig{
+		{Group: "storage", Name: "maxSize", Value: "1024", Auth: true},
+		{Group: "storage", Name: "allowedTypes", Value: "image/png,image/*", Auth: true},
+		{Group: "storage", Name: "type", Value: "s3", Auth: true},
+		{Group: "storage", Name: "endpoint", Value: "https://legacy.invalid", Auth: true},
+		{Group: "storage", Name: "s3Bucket", Value: "legacy-bucket", Auth: true},
+		{Group: "storage", Name: "s3AccessKeyID", Value: "legacy-access", Auth: true},
+		{Group: "storage", Name: "s3SecretAccessKey", Value: "legacy-secret", Auth: false},
+	}).Error)
+
+	svc := &AppConfig{}
+	for _, includeSensitive := range []bool{false, true} {
+		projection, err := svc.GroupWithSensitiveValues(env.ctx, "storage", includeSensitive)
+		require.NoError(t, err)
+		require.Equal(t, map[string]any{
+			"allowedTypes": "image/png,image/*",
+			"maxSize":      "1024",
+		}, projection)
+	}
+
+	require.NoError(t, svc.CreateOrUpdate(env.ctx, "storage", map[string]any{
+		"allowedTypes": "image/png",
+		"maxSize":      "2048",
+	}))
+	projection, err := svc.Group(env.ctx, "storage")
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{
+		"allowedTypes": "image/png",
+		"maxSize":      "2048",
+	}, projection)
+
+	removedKeys := []string{
+		"type",
+		"endpoint",
+		"s3Provider",
+		"s3Endpoint",
+		"s3Region",
+		"s3Bucket",
+		"s3AccessKeyID",
+		"s3SecretAccessKey",
+		"s3SigningMethod",
+	}
+	for _, name := range removedKeys {
+		t.Run("rejects/"+name, func(t *testing.T) {
+			err := svc.CreateOrUpdate(env.ctx, "storage", map[string]any{
+				"maxSize": "4096",
+				name:      "removed-from-app-config",
+			})
+			require.ErrorIs(t, err, ErrAppConfigKeyNotAllowed)
+			var typed *AppConfigKeyNotAllowedError
+			require.ErrorAs(t, err, &typed)
+			require.Equal(t, "storage", typed.Group)
+			require.Equal(t, name, typed.Name)
+
+			current, readErr := svc.Group(env.ctx, "storage")
+			require.NoError(t, readErr)
+			require.Equal(t, "2048", current["maxSize"])
+		})
+	}
 }
 
 func TestAppConfigGroupOmitsHistoricalSensitiveKeyCasingAliases(t *testing.T) {

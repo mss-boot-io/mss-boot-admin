@@ -7,8 +7,19 @@ and the project uses semantic versioning for nested-module releases.
 ## [Unreleased]
 
 Target: **mss-boot/v1.1.0 development train**. Intermediate patch and public
-prerelease tags are disabled; current Challenge and Kafka work remains internal
-and does not promote provider maturity.
+prerelease tags are disabled; current Challenge, Kafka, and object-provider work
+remains internal and does not promote provider maturity.
+
+### Changed
+
+- Replaced legacy object-storage provider globals with an exact Local-or-S3
+  startup configuration, immutable `StorageProfile`, explicit default/static
+  credential modes, typed environment `SecretRef` resolution, and one reusable
+  `StorageHandle` per profile. This is an intentional breaking configuration/API
+  contract; Local and S3-compatible remain Legacy/Blocked.
+- Added leased Local/S3 use and bounded, retryable, idempotent close semantics so
+  one owner rejects new work during shutdown, drains in-flight operations, and
+  closes its private HTTP transport exactly once.
 
 ### Fixed
 
@@ -17,6 +28,12 @@ and does not promote provider maturity.
   payload logging, and stopped canceled or closed consumer loops. Kafka remains
   Legacy/Blocked until configuration, ownership, retry/dead-letter, rebalance,
   and real-broker conformance gates pass.
+- Made the S3 configuration source require a caller-owned context and client,
+  close object bodies on success and read failure, and return an explicit
+  unsupported error for Watch. Bootstrap now owns and closes a profile Handle
+  independently from the Admin application object-storage client. A missing stage
+  object is the only optional overlay; read/malformed-overlay failures fail closed,
+  and HTTP requires explicit `s3_tls_allow_insecure_http=true`.
 
 ### Security
 
@@ -34,6 +51,9 @@ and does not promote provider maturity.
 
 - Reconciled the changelog with the published nested-module Release and added
   the internal storage-safety and Storage Runtime v2 planning contracts.
+- Recorded the D1 object-provider checkpoint and its deferred S3 Put, Delivery,
+  and RustFS conformance boundary. The provider catalog remains unchanged at
+  Legacy/Blocked, and Kafka lifecycle still prevents completion of D1.
 
 ## [mss-boot/v1.0.0] - 2026-08-09
 

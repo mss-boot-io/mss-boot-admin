@@ -131,17 +131,20 @@ POST /admin/api/languages
 
 | 路径 | 当前成熟度 | 已证明与未证明 |
 |------|------------|----------------|
-| Local | Legacy / Blocked | `D0-safety` 内部检查点已证明 admission、opaque key、`os.Root` confinement、`O_EXCL` no-clobber 与 partial cleanup；provider fail-closed 和真实 Delivery 尚未证明 |
-| S3-compatible | Legacy / Blocked | 只复用 admission 与 opaque key；仍有 per-request client、非不可变配置、覆盖语义和拼接 URL 等缺口 |
+| Local | Legacy / Blocked | D0 已证明 admission、opaque key、`os.Root` confinement、`O_EXCL` no-clobber 与 partial cleanup；D1 已证明 strict profile、single owner、同一 pinned `os.Root` 的写入/StaticFS、零 fallback 与 dev-only exact static delivery；生产 Delivery、metadata/authorization 与 common conformance 未证明 |
+| S3-compatible | Legacy / Blocked | D1 已证明 immutable profile、完整 SecretRef credential mode、single client owner 与零 fallback；Admin 在 `Put` 前返回 503，create-only/checksum/Delivery/RustFS conformance 仍未实现 |
 
-配置枚举中出现其他 provider 名称，不等于存在可部署实现或生产支持矩阵。本节
-不得据此宣称 OSS、COS、OBS、MinIO、GCS、KODO 或 BOS 已受支持。
+严格配置只接受 Local 或 S3 分支。S3-compatible 产品只能通过显式 endpoint/path-style
+进入同一分支，这不等于 OSS、COS、OBS、MinIO、RustFS、GCS、KODO 或 BOS 已有生产支持矩阵。
 
 **实现文件：**
 ```
 mss-boot-admin/
-├── apis/storage.go      # 上传 API
-└── service/storage.go   # 存储逻辑
+└── admin/
+    ├── apis/storage.go               # 上传 API 与固定 503
+    ├── cmd/server/object_storage.go  # 启动安装与 dev Local Delivery
+    ├── config/object_storage.go      # 单一应用 owner
+    └── service/storage.go            # admission 与存储逻辑
 
 mss-boot/pkg/config/
 └── storage.go           # 存储配置
@@ -154,15 +157,27 @@ mss-boot/pkg/config/
 | `storage:maxSize` | bytes；默认 10 MiB（`10485760`）；硬上限 100 MiB（`104857600`） |
 | `storage:allowedTypes` | 逗号分隔 MIME types / `type/*` wildcards，例如 `image/png,image/*`；不是扩展名列表 |
 
+这是 Storage AppConfig 的完整 allowlist。provider、endpoint、region、bucket、TLS、
+credential source 和凭据材料既不会投影，也不能经此 API 写入；旧 key 的写入请求
+整批返回稳定 422。Provider 与 SecretRef 只允许来自进程启动时的不可变 profile，
+本检查点已完成其 fail-closed 解析和单一生命周期 owner 接线。
+
 ### 2.2 扩展边界
 
 | 边界 | 规则 |
 |------|------|
 | 物理 key | 服务端生成 `uploads/<opaque-uuid>`；用户 ID 与原始文件名不得进入 key，原始文件名仅作响应元数据 |
 | 写入边界 | multipart 前限制 body，流式 max-plus-one；Local 在受限根中 create-only 写入并清理 partial |
-| 配置来源 | 当前仍从 `app_config` 分项读取；运行时切换不是受支持的生产合同 |
+| 配置来源 | AppConfig 只读取 `maxSize` / `allowedTypes`；Provider / SecretRef 只来自一次性启动 profile；未知/非法 profile 拒绝安装对象资源、应用继续运行且上传固定 503，运行时切换不受支持 |
 | 认证要求 | 必须通过当前有效身份认证；通用上传还需 `storage:upload` 权限 |
-| URL / Delivery | Local 的 `/public/uploads/<opaque-uuid>` 与 S3 endpoint 拼接结果都不是生产 Delivery 证明 |
+| URL / Delivery | Local 只有在 dev `staticPath` 精确映射配置 root 时才返回实际可读 URL；生产 Local 不安装；S3 不拼接 URL，并在 `Put` 前返回 503 |
+
+严格启动 profile 与 single owner 只关闭 D1 的对象子切片。真实 S3 Delivery、
+RustFS fixture 和 Local/S3-compatible 共用 conformance suite 仍留在
+`D4-authorization-object`；Kafka lifecycle 仍是 D1 的未完成部分。在这些门禁关闭前，
+provider 能力仍是 `Legacy / Blocked`。
+精确失败语义与测试命令见
+[D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)。
 
 ### 2.3 治理集成
 
@@ -196,15 +211,16 @@ file: <binary>
 }
 ```
 
-该响应仅说明当前 Legacy Local 路径的返回形状；`url` 在生产模式不可据此访问，
-也不能替代鉴权 Delivery。原始 `filename` 不是存储 key。
+该响应仅说明显式 dev Local 路径的返回形状；只有启动配置把同一绝对 root 映射为
+`/public` 时才会返回并实际提供该 URL。生产模式返回 503，URL 也不能替代鉴权
+Delivery。原始 `filename` 不是存储 key。
 
 ### 2.5 当前限制
 
 1. **Local/S3-compatible 仍为 Legacy / Blocked**：不得作为生产可用 provider 宣传
-2. **provider 配置与 ownership 未收敛**：`D1-provider-owner` 必须 fail closed，并建立 immutable profile / single owner
-3. **Delivery 与对象所有权未实现**：`prod` 模式不注册 `application.staticPath`，opaque key 本身也不是授权
-4. **S3 no-clobber 未证明**：conditional create-only 与共用 provider conformance 留在 `D4-authorization-object`
+2. **D1 对象子切片已收敛**：strict profile、single owner、AppConfig 移除与 fail-closed 503 已完成；Kafka lifecycle 仍未完成
+3. **Delivery 与对象所有权未实现**：`prod` 模式不安装 Local，opaque key 本身也不是授权
+4. **S3 I/O 尚未开放**：Put、conditional create-only 与 RustFS 共用 provider conformance 留在 `D4-authorization-object`
 5. **无配额、速率限制和大文件协议**：当前无分片上传，且配置硬上限为 100 MiB
 
 ---
@@ -442,8 +458,8 @@ func afterCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
 ### 5.3 改进优先级
 
 **高优先级（安全相关）：**
-1. `D1-provider-owner` 完成 provider fail-closed、immutable profile 与 single owner
-2. 在上述门禁通过前保持生产上传关闭
+1. 保持已完成的 D1 object fail-closed、immutable profile 与 single owner 哨兵
+2. 完成 D1 Kafka lifecycle；在 D4 Provider/Delivery 门禁通过前保持生产上传关闭
 
 **中优先级（治理完善）：**
 1. `D4-authorization-object` 完成 S3 conditional create-only、共用 conformance 与 Delivery 授权
