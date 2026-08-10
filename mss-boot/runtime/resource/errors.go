@@ -62,10 +62,10 @@ func invalid(path, reason string) error {
 }
 
 // LifecycleError identifies the resource and operation that failed while
-// keeping the provider's diagnostic text out of Error(). Unwrap preserves
-// errors.Is/errors.As classification for programmatic handling. Callers must
-// not log recursively-unwrapped provider errors because providers may attach
-// sensitive implementation details.
+// keeping provider diagnostics out of the public error tree. Unwrap returns a
+// redacted classifier: errors.Is remains useful, but callers cannot recover a
+// provider error object or its potentially sensitive Error text with Unwrap or
+// errors.As.
 type LifecycleError struct {
 	resource  string
 	operation Operation
@@ -116,7 +116,37 @@ func lifecycleError(resourceName string, operation Operation, cause error) error
 	if cause == nil {
 		return nil
 	}
-	return &LifecycleError{resource: resourceName, operation: operation, cause: cause}
+	return &LifecycleError{
+		resource:  resourceName,
+		operation: operation,
+		cause:     redactCause(cause),
+	}
+}
+
+// redactedCause deliberately has no Unwrap or As method. Is delegates to the
+// private provider tree so callers can compare a sentinel they already own,
+// while recursive inspection stops at this fixed diagnostic surface.
+type redactedCause struct {
+	cause error
+}
+
+func (e *redactedCause) Error() string {
+	return "runtime resource provider operation failed"
+}
+
+func (e *redactedCause) Format(state fmt.State, _ rune) {
+	_, _ = fmt.Fprint(state, e.Error())
+}
+
+func (e *redactedCause) Is(target error) bool {
+	return e != nil && target != nil && errors.Is(e.cause, target)
+}
+
+func redactCause(cause error) error {
+	if cause == nil {
+		return nil
+	}
+	return &redactedCause{cause: cause}
 }
 
 func joinLifecycleContext(result error, operation Operation, contextErr error) error {
@@ -126,10 +156,10 @@ func joinLifecycleContext(result error, operation Operation, contextErr error) e
 	return errors.Join(result, lifecycleError("", operation, contextErr))
 }
 
-// filteredRunCause keeps every programmatically classifiable provider cause
+// filteredRunCause keeps errors.Is classification for provider causes
 // while preventing graph-owned peer cancellation from masquerading as caller
-// cancellation. Error and Format remain redacted; Is and As delegate only to
-// the retained provider tree.
+// cancellation. Error and Format remain redacted, and the provider object is
+// never exposed through Unwrap or errors.As.
 type filteredRunCause struct {
 	cause      error
 	contextErr error
@@ -148,10 +178,6 @@ func (e *filteredRunCause) Is(target error) bool {
 		return false
 	}
 	return errors.Is(e.cause, target)
-}
-
-func (e *filteredRunCause) As(target any) bool {
-	return errors.As(e.cause, target)
 }
 
 func nonContextRunCause(cause error, contextErr error) error {

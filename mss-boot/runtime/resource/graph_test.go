@@ -17,6 +17,12 @@ import (
 
 const diagnosticCanary = "runtime-resource-secret-canary-32fdbeef"
 
+type providerSecretError struct {
+	detail string
+}
+
+func (e *providerSecretError) Error() string { return e.detail }
+
 type eventLog struct {
 	mu     sync.Mutex
 	events []string
@@ -700,10 +706,10 @@ func TestGraphReadinessFailureRollsBackBeforeDependentStart(t *testing.T) {
 func TestGraphHealthAndReadyJoinRedactedDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	healthOne := errors.New("health one: " + diagnosticCanary)
-	healthTwo := errors.New("health two: " + diagnosticCanary)
-	readyOne := errors.New("ready one: " + diagnosticCanary)
-	readyTwo := errors.New("ready two: " + diagnosticCanary)
+	healthOne := &providerSecretError{detail: "health one: " + diagnosticCanary}
+	healthTwo := &providerSecretError{detail: "health two: " + diagnosticCanary}
+	readyOne := &providerSecretError{detail: "ready one: " + diagnosticCanary}
+	readyTwo := &providerSecretError{detail: "ready two: " + diagnosticCanary}
 	one := newProbe("one", nil)
 	two := newProbe("two", nil)
 	one.healthErr, two.healthErr = healthOne, healthTwo
@@ -728,6 +734,7 @@ func TestGraphHealthAndReadyJoinRedactedDiagnostics(t *testing.T) {
 	if strings.Contains(fmt.Sprint(healthErr), diagnosticCanary) || strings.Contains(fmt.Sprintf("%#v", healthErr), diagnosticCanary) {
 		t.Fatalf("Health() exposed provider diagnostics: %v", healthErr)
 	}
+	assertProviderErrorTreeIsRedacted(t, healthErr)
 
 	readyErr := graph.Ready(context.Background())
 	for _, target := range []error{readyOne, readyTwo} {
@@ -738,12 +745,43 @@ func TestGraphHealthAndReadyJoinRedactedDiagnostics(t *testing.T) {
 	if strings.Contains(fmt.Sprint(readyErr), diagnosticCanary) {
 		t.Fatalf("Ready() exposed provider diagnostics: %v", readyErr)
 	}
+	assertProviderErrorTreeIsRedacted(t, readyErr)
 	var lifecycleErr *resource.LifecycleError
 	if !errors.As(readyErr, &lifecycleErr) || lifecycleErr.ResourceName() != "one" || lifecycleErr.LifecycleOperation() != resource.OperationReady {
 		t.Fatalf("Ready() lifecycle error = %#v", lifecycleErr)
 	}
 	if err := graph.Close(context.Background()); err != nil {
 		t.Fatalf("Close() error = %v", err)
+	}
+}
+
+func assertProviderErrorTreeIsRedacted(t *testing.T, err error) {
+	t.Helper()
+	queue := []error{err}
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		for _, formatted := range []string{
+			fmt.Sprint(current),
+			fmt.Sprintf("%+v", current),
+			fmt.Sprintf("%#v", current),
+			fmt.Sprintf("%q", current),
+		} {
+			if strings.Contains(formatted, diagnosticCanary) {
+				t.Fatalf("public error tree exposed provider diagnostic: %s", formatted)
+			}
+		}
+		if children, ok := current.(interface{ Unwrap() []error }); ok {
+			queue = append(queue, children.Unwrap()...)
+			continue
+		}
+		if child, ok := current.(interface{ Unwrap() error }); ok && child.Unwrap() != nil {
+			queue = append(queue, child.Unwrap())
+		}
+	}
+	var providerError *providerSecretError
+	if errors.As(err, &providerError) {
+		t.Fatalf("public error tree exposed provider error object: %#v", providerError)
 	}
 }
 
