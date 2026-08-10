@@ -80,6 +80,10 @@ spec:
       kind: infrastructure
       operation: extend
       description: Forward SQL migrations, identifiers, duplicate detection, and database matrix.
+    - name: canonical-email-identity
+      kind: infrastructure
+      operation: extend
+      description: Dialect-aware active email ownership, non-disclosing migration, safe write boundaries, and schema readiness.
     - name: version-identity
       kind: infrastructure
       operation: extend
@@ -117,6 +121,19 @@ spec:
         - Duplicate identifiers fail before any migration executes and library code returns errors without Fatal or os.Exit.
         - Fresh, upgrade, repeat, and injected-failure behavior is proven on SQLite, MySQL, and PostgreSQL.
         - AutoMigrate may support tests or development but is not the generated production migration contract.
+    - id: enforce-canonical-email-identity
+      title: Enforce one active canonical email owner
+      description: Email registration, administrative writes, and first-time OAuth provisioning must share one database-enforced, non-disclosing identity contract on every supported dialect.
+      priority: must
+      actor: security-reviewer
+      module: canonical-email-identity
+      rules:
+        - A non-empty email identity is a bounded ASCII full address, trimmed and case-folded once at the model boundary; invalid values return a typed validation error.
+        - SQLite and PostgreSQL use an active, non-empty partial expression unique index, while MySQL uses an equivalent nullable stored VARBINARY generated key and named unique index.
+        - Migration preflight reports only aggregate invalid and conflict counts, performs no mutation on failure, uses compare-and-swap backfill, verifies installed metadata and data, and records its full migration identifier only after success.
+        - Registration and first-time OAuth provisioning create a new user atomically, never merge by provider email, use bounded opaque usernames, and normalize only the named canonical-email constraint; unrelated database errors remain redacted generic failures.
+        - Admin create and update map invalid identity to fixed 422 and unavailable identity to fixed 409 without exposing email, SQL, constraint, or driver details; self-service email mutation remains disabled.
+        - Migration completion and server startup share one redacted verifier; no business route is mounted until the dialect-specific canonical-email schema and data are ready, and missing, stale, contradictory, or unavailable state fails closed.
     - id: generate-fullstack-projection
       title: Project every supported specification field
       description: The golden module must consume operations, indexes, export, events, tests, frontend, permissions, roles, menu, and ownership into observable output.
@@ -346,6 +363,102 @@ spec:
           value: Golden supplier three-database migration matrix
         - type: report
           value: Exact-commit fresh, upgrade, repeat, and failure migration report
+    - id: canonical-email-checkpoint-evidence
+      requirement: enforce-canonical-email-identity
+      statement: SQLite migration, model persistence and provisioning, actual Admin Controller writes, schema verification, and migrate/server composition pass exact, uncached, race-detected tests without skip or sensitive-value disclosure.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
+            --run '^TestCanonicalEmailIdentity(MigrationSQLiteFreshAndRepeat|MigrationSQLiteUpgradeBackfillsAndScopesSoftDelete|MigrationPreflightFailsWithoutMutationOrDisclosure|BackfillCASRejectsConcurrentChangeWithoutDisclosure|MigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete|DataVerifierRejectsPostBackfillDriftWithoutDisclosure|DDLAndMetadataContractsAreAuditable)$'
+            --count 20 --race --go-work off
+            --require TestCanonicalEmailIdentityMigrationSQLiteFreshAndRepeat
+            --require TestCanonicalEmailIdentityMigrationSQLiteUpgradeBackfillsAndScopesSoftDelete
+            --require TestCanonicalEmailIdentityMigrationPreflightFailsWithoutMutationOrDisclosure
+            --require TestCanonicalEmailIdentityBackfillCASRejectsConcurrentChangeWithoutDisclosure
+            --require TestCanonicalEmailIdentityMigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete
+            --require TestCanonicalEmailIdentityDataVerifierRejectsPostBackfillDriftWithoutDisclosure
+            --require TestCanonicalEmailIdentityDDLAndMetadataContractsAreAuditable
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./models
+            --run '^Test(CanonicalEmailIdentityReturnsTypedValidationAndCanonicalValue|NormalizeEmailIdentityPersistenceErrorIsConstraintSpecific|CanonicalEmailCreateNormalizesConflictWithoutLeakingOtherUniqueErrors|OAuthProvisioningNeverMergesByEmail|UserBeforeSaveRejectsInvalidEmailWithTypedError|InvalidEmailLoginRemainsAClientAuthenticationFailure|EmailRegistrationRejectsExistingCanonicalIdentity|EmailRegistrationUsesBoundedOpaqueUsername|GetUserByEmailFailsClosedOnAmbiguousIdentity|EmailIdentityOperationsDoNotEmitSensitiveSQL|ConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity|OpaqueOAuthUsernameGenerationIsDeterministicAndBounded|OpaqueOAuthUsernameRetriesExistingCollision|GithubFirstProvisioningNeverMergesByCanonicalEmail|LarkFirstProvisioningUsesBoundedOpaqueUsername)$'
+            --count 20 --race --go-work off
+            --require TestCanonicalEmailIdentityReturnsTypedValidationAndCanonicalValue
+            --require TestNormalizeEmailIdentityPersistenceErrorIsConstraintSpecific
+            --require TestCanonicalEmailCreateNormalizesConflictWithoutLeakingOtherUniqueErrors
+            --require TestOAuthProvisioningNeverMergesByEmail
+            --require TestUserBeforeSaveRejectsInvalidEmailWithTypedError
+            --require TestInvalidEmailLoginRemainsAClientAuthenticationFailure
+            --require TestEmailRegistrationRejectsExistingCanonicalIdentity
+            --require TestEmailRegistrationUsesBoundedOpaqueUsername
+            --require TestGetUserByEmailFailsClosedOnAmbiguousIdentity
+            --require TestEmailIdentityOperationsDoNotEmitSensitiveSQL
+            --require TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity
+            --require TestOpaqueOAuthUsernameGenerationIsDeterministicAndBounded
+            --require TestOpaqueOAuthUsernameRetriesExistingCollision
+            --require TestGithubFirstProvisioningNeverMergesByCanonicalEmail
+            --require TestLarkFirstProvisioningUsesBoundedOpaqueUsername
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./apis
+            --run '^TestUser(ControllerMapsEmailIdentityWriteFailuresWithoutDisclosure|WriteErrorMapperFallsBackForUnrelatedDatabaseErrors)$'
+            --count 20 --race --go-work off
+            --require TestUserControllerMapsEmailIdentityWriteFailuresWithoutDisclosure
+            --require TestUserWriteErrorMapperFallsBackForUnrelatedDatabaseErrors
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./pkg/schemahealth
+            --run '^Test(VerifyCanonicalEmailIdentity(SQLiteRuntimeReady|RejectsMissingAndWrongSQLiteIndex|RequiresExactMigrationVersion|RejectsSensitiveDataWithoutDisclosure|DatabaseFailureIsFixedAndRedacted)|CanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes)$'
+            --count 20 --race --go-work off
+            --require TestVerifyCanonicalEmailIdentitySQLiteRuntimeReady
+            --require TestVerifyCanonicalEmailIdentityRejectsMissingAndWrongSQLiteIndex
+            --require TestVerifyCanonicalEmailIdentityRequiresExactMigrationVersion
+            --require TestVerifyCanonicalEmailIdentityRejectsSensitiveDataWithoutDisclosure
+            --require TestVerifyCanonicalEmailIdentityDatabaseFailureIsFixedAndRedacted
+            --require TestCanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate
+            --run '^TestMigrateContextUsesCanonicalEmailRuntimeVerifierAfterMigrations$'
+            --count 20 --race --go-work off
+            --require TestMigrateContextUsesCanonicalEmailRuntimeVerifierAfterMigrations
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+            --run '^TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness$'
+            --count 20 --race --go-work off
+            --require TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness
+        - type: report
+          value: Implementation checkpoints are commits 9ccb1d2, eb1277c, 3710aca, and 8b361ce; the listed exact commands define development acceptance, must rerun after later implementation changes, and are not reusable as feature-freeze evidence.
+    - id: canonical-email-real-database-gate
+      requirement: enforce-canonical-email-identity
+      statement: On the selected feature-freeze SHA, both allowlisted test DSNs run real MySQL and PostgreSQL upgrade, repeat, preflight-failure, soft-delete reuse, index-metadata, and concurrent-claim cases with zero required skip.
+      level: migration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
+            --run '^TestCanonicalEmailIdentityMigration(MySQL|Postgres)Integration$'
+            --count 1 --race --go-work off
+            --require TestCanonicalEmailIdentityMigrationMySQLIntegration
+            --require TestCanonicalEmailIdentityMigrationPostgresIntegration
+        - type: report
+          value: Exact-freeze-SHA report with non-empty MSS_EMAIL_IDENTITY_TEST_MYSQL_DSN and MSS_EMAIL_IDENTITY_TEST_POSTGRES_DSN, allowlisted database name mss_email_identity_test, run/pass for both required tests, and zero skip.
+    - id: canonical-email-schema-readiness-gate
+      requirement: enforce-canonical-email-identity
+      statement: Migration completion and server startup fail closed before any business route is mounted when the canonical-email migration, dialect-specific generated column, unique index, predicate, or data invariant is absent, stale, or unavailable.
+      level: security
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: report
+          value: Exact-freeze-SHA rerun of the six schemahealth tests plus migrate and server composition tests, with run/pass for every required test and zero skip; the development checkpoint is complete but has not been rerun on a selected freeze SHA.
     - id: specification-support-gate
       requirement: reject-unsupported-specification
       statement: Schema, Go validation, infrastructure Feature planning, unsupported-field rejection, and acceptance-evidence reporting agree and fail before writes on every negative fixture.
@@ -402,6 +515,10 @@ spec:
       description: Truncated or duplicate migration IDs and process exits can partially upgrade downstream databases or hide a failed step.
       severity: critical
       mitigation: Use lossless identifiers, duplicate fail-fast, returned errors, transactions where supported, and three-database failure tests.
+    - id: canonical-email-schema-drift
+      description: Enabling registration or OAuth provisioning against an unmigrated or manually altered database can bypass model intent or turn safe conflicts into ambiguous ownership.
+      severity: critical
+      mitigation: Verify canonical data and exact dialect metadata at migration time and server readiness, fail closed, and rerun both real database tests on the selected freeze SHA with zero skip.
     - id: path-split
       description: Competing root-level and admin/modules/name defaults can generate uncompiled, unverified, or unowned files.
       severity: high
@@ -436,6 +553,62 @@ spec:
         go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
         --run '^TestV100MigrationRowsDoNotRerun$'
         --count 20 --race --go-work off --require TestV100MigrationRowsDoNotRerun
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
+        --run '^TestCanonicalEmailIdentity(MigrationSQLiteFreshAndRepeat|MigrationSQLiteUpgradeBackfillsAndScopesSoftDelete|MigrationPreflightFailsWithoutMutationOrDisclosure|BackfillCASRejectsConcurrentChangeWithoutDisclosure|MigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete|DataVerifierRejectsPostBackfillDriftWithoutDisclosure|DDLAndMetadataContractsAreAuditable)$'
+        --count 20 --race --go-work off
+        --require TestCanonicalEmailIdentityMigrationSQLiteFreshAndRepeat
+        --require TestCanonicalEmailIdentityMigrationSQLiteUpgradeBackfillsAndScopesSoftDelete
+        --require TestCanonicalEmailIdentityMigrationPreflightFailsWithoutMutationOrDisclosure
+        --require TestCanonicalEmailIdentityBackfillCASRejectsConcurrentChangeWithoutDisclosure
+        --require TestCanonicalEmailIdentityMigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete
+        --require TestCanonicalEmailIdentityDataVerifierRejectsPostBackfillDriftWithoutDisclosure
+        --require TestCanonicalEmailIdentityDDLAndMetadataContractsAreAuditable
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./models
+        --run '^Test(CanonicalEmailIdentityReturnsTypedValidationAndCanonicalValue|NormalizeEmailIdentityPersistenceErrorIsConstraintSpecific|CanonicalEmailCreateNormalizesConflictWithoutLeakingOtherUniqueErrors|OAuthProvisioningNeverMergesByEmail|UserBeforeSaveRejectsInvalidEmailWithTypedError|InvalidEmailLoginRemainsAClientAuthenticationFailure|EmailRegistrationRejectsExistingCanonicalIdentity|EmailRegistrationUsesBoundedOpaqueUsername|GetUserByEmailFailsClosedOnAmbiguousIdentity|EmailIdentityOperationsDoNotEmitSensitiveSQL|ConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity|OpaqueOAuthUsernameGenerationIsDeterministicAndBounded|OpaqueOAuthUsernameRetriesExistingCollision|GithubFirstProvisioningNeverMergesByCanonicalEmail|LarkFirstProvisioningUsesBoundedOpaqueUsername)$'
+        --count 20 --race --go-work off
+        --require TestCanonicalEmailIdentityReturnsTypedValidationAndCanonicalValue
+        --require TestNormalizeEmailIdentityPersistenceErrorIsConstraintSpecific
+        --require TestCanonicalEmailCreateNormalizesConflictWithoutLeakingOtherUniqueErrors
+        --require TestOAuthProvisioningNeverMergesByEmail
+        --require TestUserBeforeSaveRejectsInvalidEmailWithTypedError
+        --require TestInvalidEmailLoginRemainsAClientAuthenticationFailure
+        --require TestEmailRegistrationRejectsExistingCanonicalIdentity
+        --require TestEmailRegistrationUsesBoundedOpaqueUsername
+        --require TestGetUserByEmailFailsClosedOnAmbiguousIdentity
+        --require TestEmailIdentityOperationsDoNotEmitSensitiveSQL
+        --require TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity
+        --require TestOpaqueOAuthUsernameGenerationIsDeterministicAndBounded
+        --require TestOpaqueOAuthUsernameRetriesExistingCollision
+        --require TestGithubFirstProvisioningNeverMergesByCanonicalEmail
+        --require TestLarkFirstProvisioningUsesBoundedOpaqueUsername
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./apis
+        --run '^TestUser(ControllerMapsEmailIdentityWriteFailuresWithoutDisclosure|WriteErrorMapperFallsBackForUnrelatedDatabaseErrors)$'
+        --count 20 --race --go-work off
+        --require TestUserControllerMapsEmailIdentityWriteFailuresWithoutDisclosure
+        --require TestUserWriteErrorMapperFallsBackForUnrelatedDatabaseErrors
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./pkg/schemahealth
+        --run '^Test(VerifyCanonicalEmailIdentity(SQLiteRuntimeReady|RejectsMissingAndWrongSQLiteIndex|RequiresExactMigrationVersion|RejectsSensitiveDataWithoutDisclosure|DatabaseFailureIsFixedAndRedacted)|CanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes)$'
+        --count 20 --race --go-work off
+        --require TestVerifyCanonicalEmailIdentitySQLiteRuntimeReady
+        --require TestVerifyCanonicalEmailIdentityRejectsMissingAndWrongSQLiteIndex
+        --require TestVerifyCanonicalEmailIdentityRequiresExactMigrationVersion
+        --require TestVerifyCanonicalEmailIdentityRejectsSensitiveDataWithoutDisclosure
+        --require TestVerifyCanonicalEmailIdentityDatabaseFailureIsFixedAndRedacted
+        --require TestCanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate
+        --run '^TestMigrateContextUsesCanonicalEmailRuntimeVerifierAfterMigrations$'
+        --count 20 --race --go-work off
+        --require TestMigrateContextUsesCanonicalEmailRuntimeVerifierAfterMigrations
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+        --run '^TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness$'
+        --count 20 --race --go-work off
+        --require TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness
       - corepack pnpm@9.15.9 --dir docs build
   rollout:
     strategy: phased
@@ -445,7 +618,9 @@ spec:
       engine. Then check in the supplier golden backend and forward migration, add authorization,
       OpenAPI, client and frontend in untagged development waves, then feature-freeze the public
       contracts and run the complete three-database, browser, external-app, and Blueprint 0.1-to-0.2
-      upgrade matrices on one candidate commit. Do not start a second generated domain until this
+      upgrade matrices on one candidate commit. The canonical-email checkpoint must retain its
+      fail-closed server schema readiness and rerun both real database integrations from that
+      exact commit with both DSNs and zero skip. Do not start a second generated domain until this
       slice is complete. If target public APIs require a breaking change, make a truthful SemVer
       decision without changing the target generated structure.
     rollback: >-

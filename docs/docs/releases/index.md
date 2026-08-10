@@ -48,7 +48,9 @@ issue 完成终态记录或链接已验证的替代列车。
 Upload admission 与 D1 object provider/owner 已形成安全 checkpoint，将继续作为永久
 回归哨兵。`D1-provider-owner` 已整体完成；Kafka 保持 `AdapterQueue` 兼容面并通过新增
 `ManagedAdapterQueue` 由 Admin 统一拥有、作为 `Runnable` 运行和有界关闭，但仍保持
-Legacy/Blocked。下一条实现是 `D2-contract-substrate`。
+Legacy/Blocked。`D2-contract-substrate` 正在推进：canonical email 的迁移、模型、Admin 写边界和
+server schema-readiness 已形成开发 checkpoint；冻结 SHA 上仍须重跑 readiness 正负套件以及
+MySQL/PostgreSQL 双 DSN zero-skip evidence，因此 capability 保持 Planned。
 
 只有 Generator/Blueprint 与 Storage Runtime 目标全部完成、选定一个 `v1.1.0` 功能冻结 SHA
 后，才手工启动 `release-readiness`，集中执行三数据库、browser、Provider、upgrade、
@@ -65,3 +67,4 @@ external consumer、recovery、`verify --all` 与 `eval --all`。全部通过后
 - [Kafka Mark-after-success 内部 checkpoint](/releases/v1-0-1-kafka-ack-safety)
 - [Upload admission 内部 checkpoint](/releases/v1-0-1-upload-admission-safety)
 - [D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)
+- [D2 Canonical Email Identity 内部 checkpoint](/releases/v1-1-0-d2-canonical-email-identity)

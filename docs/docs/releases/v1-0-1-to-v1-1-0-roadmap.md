@@ -61,7 +61,7 @@ Lock 或 S3-compatible Provider 可以保持 Legacy/Blocked/Experimental，而�
 | --- | --- | --- | --- |
 | `D0-safety`（已完成） | 建立 v1.1.0 Generator/Blueprint 合同 | Challenge 原子安全、Kafka Mark-after-success、Upload pre-parse admission 与 Local create-only confinement | 对应 focused/race 测试通过；Provider 状态仍诚实保持 |
 | `D1-provider-owner`（已完成） | 冻结新增 scaffold 范围，以 `admin/modules/<name>` 作为机器合同、生成器和文档的唯一新增模块目标 | object provider 完成严格 startup profile、AppConfig 移除、单一 owner、dev-only Local Delivery 与 fail-closed 503；Kafka 保留 `AdapterQueue` 兼容面并新增 `ManagedAdapterQueue`，完成 caller-context 配置/注册、单 producer 与唯一 consumer-group owner、`Errors()` 观察、可取消 `Start` 和幂等有界 `Close`；Admin 是唯一 owner 并把它注册为 `Runnable` | object 与 Kafka exact owner/config/Admin 测试非零命中并通过；changed path 无 Exit/Fatal 或 detached long-lived work；Kafka 仍保持 Legacy/Blocked，不把 D1 完成解释为 Provider 晋级 |
-| `D2-contract-substrate` | FeatureModule contract kind；Foundation/Blueprint/generator/downstream snapshot 四身份；lock+manifest 原子双记录；typed migration ID 和 duplicate fail-fast | canonical email 存量冲突预检和三库唯一 forward migration；strict one-of config、SecretRef、doctor preflight | infrastructure Feature 可规划；两次 sync/generate 零漂移；三库升级与并发身份语义一致 |
+| `D2-contract-substrate`（进行中） | FeatureModule contract kind；Foundation/Blueprint/generator/downstream snapshot 四身份；lock+manifest 原子双记录；typed migration ID 和 duplicate fail-fast | canonical email 存量冲突预检、三库唯一 forward migration 与启动 schema readiness；strict one-of config、SecretRef、doctor preflight | infrastructure Feature 可规划；两次 sync/generate 零漂移；SQLite/model/API/schemahealth/composition checkpoint 非零命中；缺失或漂移 schema 时业务路由 fail closed；真实双 DSN zero-skip 保留为 feature-freeze required gate |
 | `D3-backend-runtime` | supplier migration、model/DTO/service/API/operations/index/export/OpenAPI；所有支持字段有 output-kind | 顶层资源图、named Redis、readiness/reverse close、公开 ChallengeStore 目标 API | golden backend 两次生成零 diff；100 次 race 启停无泄漏；listener 不早于 required resource ready |
 | `D4-authorization-object` | permissions/defaultRoles/menu/ownership；事务提交后事件；完整正负授权 | ObjectStore/Delivery、Admin object metadata migration、Local/S3-compatible create-only/checksum/授权、独立 S3 bootstrap | 权限矩阵全绿；固定 digest 的 RustFS fixture 与 Local 共用 suite 且 required integration 无 skip；错误 Provider 零 fallback；同 ObjectRef 冲突不覆盖 |
 | `D5-frontend-events-upgrade` | typed client、list/form/detail/actions/export、双语 locale、完整 UI 状态；Blueprint 0.1→0.2 三方升级 | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile、provider evidence report | 第二次 upgrade 为空；无 ignored spec field；前端 focused checks 通过；非目标 Queue/Lock 状态锁定 |
@@ -70,6 +70,16 @@ Lock 或 S3-compatible Provider 可以保持 Legacy/Blocked/Experimental，而�
 D1 的运行与验证边界见
 [D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner) 和
 [Kafka Mark/lifecycle 内部 checkpoint](/releases/v1-0-1-kafka-ack-safety)。
+
+D2 的 canonical email 核心已形成开发 checkpoint：存量 active 用户先做不输出身份值的冲突预检，
+SQLite/PostgreSQL 使用 active、non-empty partial expression unique index，MySQL 使用等价的 nullable
+stored `VARBINARY` generated key；模型、邮件注册、首次 OAuth 建号和 Admin 写错误映射共用一个 typed
+contract，且 OAuth 不按 provider email 合并既有账户。精确 SQLite migration/model/API evidence 已非零命中；
+`8b361ce` 又完成了 schemahealth 六项正负验证，以及 migrate 后复验和 server 挂载业务路由前 fail-closed
+两个 composition checkpoint。这只证明当前开发切片，不是 feature-freeze 证据；全部 readiness tests 和
+MySQL/PostgreSQL 真实集成必须在最终冻结 SHA 上重跑，并同时提供两个 allowlisted DSN，由 evidence runner
+证明两条 required test 均 run/pass 且 zero-skip。边界和迁移说明见
+[D2 Canonical Email Identity 内部 checkpoint](/releases/v1-1-0-d2-canonical-email-identity)。
 
 波次可以并行开发，但依赖不能倒置：migration engine 必须先于真实生成迁移和 object metadata；严格
 profile 必须先于 owned runtime；named Redis 必须先于 Cache/EventBus；完整 golden 输出必须先于
@@ -172,10 +182,12 @@ producer 与唯一 topic/group consumer client 均有明确 owner，provider err
 作为 `Runnable` 运行。它仍是 Legacy/Blocked；manual commit、retry/backoff、DLQ、idempotency、
 rebalance、outage 与真实 broker conformance 尚未证明。
 
-`D2-contract-substrate` 已完成 canonical FeatureModule 路径和 typed、lossless migration ID/duplicate
-fail-fast。下一步引入 Foundation/Blueprint/generator/downstream snapshot 四身份与 lock+manifest
-原子双记录，然后完成 canonical email 三库 forward migration 和 strict runtime config/SecretRef
-preflight。D2 期间不插入 v1.0.x 发布准备、RustFS qualification 或全量
+`D2-contract-substrate` 已完成 canonical FeatureModule 路径、typed/lossless migration ID 与 duplicate
+fail-fast、strict runtime config/SecretRef、Foundation/Blueprint/generator/downstream snapshot 四身份与
+lock+manifest 原子双记录，以及 canonical email 的模型/迁移/API/schema-readiness 开发 checkpoint。
+继续推进后续功能波次；选择 feature-freeze SHA 后，必须从该提交重跑 canonical-email schemahealth/composition
+和 MySQL/PostgreSQL 两个真实 DSN 且 zero-skip，不能复用 `eb1277c` 或 `8b361ce` 的开发运行冒充冻结证据。
+D2 期间不插入 v1.0.x 发布准备、RustFS qualification 或全量
 release-readiness；S3 `Put`、Delivery 和 RustFS conformance 仍明确保留到 D4。
 
 本策略调整完成的定义是：release policy 能拒绝 v1.0.x 和公开 prerelease tag；Feature acceptance 能按

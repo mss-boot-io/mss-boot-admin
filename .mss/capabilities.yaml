@@ -259,15 +259,30 @@ spec:
       owners: [backend, security, database]
       paths:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/foundation-v1-1-0-generator-blueprint.yaml
         - docs/docs/releases/v1-0-1-challenge-safety.md
+        - docs/docs/releases/v1-1-0-d2-canonical-email-identity.md
       backendPaths:
+        - admin/apis/user.go
+        - admin/cmd/migrate/migrate.go
+        - admin/cmd/migrate/migration/system/20260810120000_canonical_email_identity.go
+        - admin/cmd/migrate/migration/system/canonical_email_identity_integration_test.go
+        - admin/cmd/server/server.go
+        - admin/models/email_identity.go
         - admin/models/user.go
         - admin/pkg/challenge.go
+        - admin/pkg/schemahealth
       guidance: >-
-        The first safety wave case-folds bounded ASCII email identifiers and rejects ambiguous lookups,
-        but it does not claim database uniqueness. A later development wave must preflight existing data and add dialect-aware active,
-        non-empty canonical uniqueness for SQLite, MySQL, and PostgreSQL before email registration,
-        first-time OAuth provisioning, or self-service email change can be production-ready.
+        The D2 development checkpoint now preflights existing rows without identity disclosure, installs
+        dialect-aware active/non-empty canonical uniqueness, canonicalizes model writes, never merges an
+        OAuth identity by provider email, uses bounded opaque registration/OAuth usernames, and maps Admin
+        write conflicts to fixed 422/409 responses. The server now verifies the exact migration, data,
+        generated-column, index, and predicate contract before mounting business routes; the development
+        schema-readiness checkpoint is complete. Keep this capability Planned: its positive and negative
+        readiness suite plus the MySQL and PostgreSQL integrations must run again from the selected
+        feature-freeze SHA with both allowlisted DSNs and zero required skip.
+        Do not enable production email registration or first-time OAuth provisioning from checkpoint evidence;
+        self-service email mutation remains disabled.
 
     - id: identity.verification-code-legacy
       displayName: Legacy Redis Verification Code Helper

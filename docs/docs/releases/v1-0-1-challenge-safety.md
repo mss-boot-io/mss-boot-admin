@@ -11,7 +11,8 @@ keywords: [v1.1.0 checkpoint challenge otp redis email security]
 `v1.1.0` 一起交付，也不代表
 Storage Runtime v2 的公共 `ChallengeStore` API 已经冻结。当前跨 Framework/Admin 的 Go
 接口是明确标注为 provisional 的过渡桥，不是兼容性承诺。公共资源 API、named Redis、
-数据库邮箱唯一约束和真实 Redis Cluster conformance 仍属于后续版本门禁。
+数据库邮箱唯一约束与 server schema-readiness 的冻结 SHA 重跑，以及真实 Redis Cluster conformance
+仍属于后续门禁。
 
 ## 已落地的安全边界
 
@@ -39,8 +40,10 @@ Storage Runtime v2 的公共 `ChallengeStore` API 已经冻结。当前跨 Frame
   路径；cooldown/quota 返回 `429`，非法邮箱或 purpose 返回 `422`。
 - 邮箱身份临时按不超过 100 字节的 ASCII 地址整体 case-fold；歧义查询固定失败，不任意
   选择账户。邮件注册使用独立的 18 字节 opaque username，不再把最长 100 字节的邮箱写入
-  legacy `varchar(20)` username。数据库唯一约束尚未建立，因此自助邮箱修改被禁用，邮件
-注册与首次 OAuth 建号在 `D2-contract-substrate` 三数据库唯一迁移完成前不应在生产启用。
+  legacy `varchar(20)` username。D2 已加入三 dialect active/non-empty 唯一迁移和安全写入边界，
+  server schema-readiness 开发 checkpoint 也会在业务路由挂载前 fail closed；但冻结 SHA 上尚未重跑
+  该正负套件和 MySQL/PostgreSQL 双 DSN zero-skip evidence；
+  因此自助邮箱修改继续禁用，邮件注册与首次 OAuth 建号仍不应在生产启用。
 - 公开 Profile 的 `emailChallengeReady` 每次请求重新检查 Redis 和 SMTP 配置，不进入
   静态缓存；前端还会同时检查 `emailEnabled`，注册额外检查 `registerEnabled`。这个字段
   只表示投递/状态机就绪，不表示数据库 identity 已通过唯一性门禁。
@@ -134,7 +137,9 @@ legacy `NewVerifyCode` 符号暂时保留，但调用会返回明确的 disabled
 需要停止邮件验证码时，将 `challenge.enabled` 设为 `false` 并重启；相关流程会安全地返回
 `503`。不要通过恢复旧 GET/SET/DEL 行为完成回滚。
 
-邮箱 identity 的完整修复属于 `D2-contract-substrate`：先对存量 active 用户做无敏感值输出的冲突预检，
-再分别为 SQLite、MySQL 和 PostgreSQL 落地 active/non-empty canonical 唯一约束，并覆盖
-root CRUD、自助修改、邮件注册和 OAuth provision。迁移完成前，歧义记录只能 fail closed，
-不得自动合并或选择“第一个”账户。
+邮箱 identity 的 D2 模型、迁移和 Admin 写入 checkpoint 已落地：先对存量 active 用户做无敏感值
+输出的冲突预检，再分别为 SQLite、MySQL 和 PostgreSQL 落地 active/non-empty canonical 唯一约束，
+并覆盖 Admin CRUD、邮件注册和 OAuth provision；歧义记录始终 fail closed，不得自动合并或选择
+“第一个”账户。生产启用还必须从 exact-freeze SHA 重跑 schema-readiness 与三数据库 evidence；详见
+[D2 Canonical Email Identity 内部 checkpoint](/releases/v1-1-0-d2-canonical-email-identity)。自助邮箱修改不在
+本 checkpoint 开放。

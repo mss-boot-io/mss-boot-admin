@@ -12,6 +12,15 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 
 ### Changed
 
+- Added the D2 canonical-email development checkpoint for the bundled Admin:
+  a full-ID forward migration preflights existing active identities without
+  disclosure, performs compare-and-swap canonical backfill, and installs an
+  active/non-empty unique identity using SQLite/PostgreSQL partial expression
+  indexes or a MySQL nullable stored `VARBINARY` key. Real MySQL/PostgreSQL
+  integration tests exist, but must be rerun with both DSNs and zero skip from
+  the selected feature-freeze SHA; current development runs are not release evidence.
+  Migration completion and Admin startup now share an exact redacted schema verifier,
+  and the server mounts business routes only after that readiness gate passes.
 - Added the D2 strict runtime-configuration checkpoint: exact-key YAML/JSON
   decoding, explicit Redis deployment modes, typed SecretRefs, immutable
   snapshots, and side-effect-free plans. Provider construction, health, and
@@ -86,8 +95,15 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   misleading phone-code login tab until the separately planned phone challenge
   capability exists.
 - Canonicalized bounded ASCII email identities consistently, failed closed on
-  ambiguous lookup, and disabled self-service email mutation until the planned
-  D2 three-database canonical uniqueness migration is complete.
+  ambiguous lookup, and made registration plus first-time GitHub/Lark OAuth
+  provisioning create new users atomically without provider-email account merge.
+  Bounded opaque usernames protect the legacy `varchar(20)` field, while only
+  the named email constraint becomes a fixed identity conflict. Admin create/update
+  now return redacted fixed 422/409 responses and unrelated database errors retain
+  the generic safe fallback. Self-service email mutation remains disabled. The
+  fail-closed schema-readiness development checkpoint is complete, but the
+  capability stays Planned until both readiness and real-database suites pass
+  again on the exact feature-freeze SHA.
 - Stopped projecting historical storage provider or credential AppConfig rows and
   reject every removed storage key with a stable 422 before any mutation. Secret
   read/write capabilities cannot restore this retired configuration surface.
@@ -115,6 +131,10 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   Casbin registration, Admin Runnable, error-observation, and bounded-close evidence.
   D1 is complete and the next development wave is D2 contract substrate; Kafka
   remains Legacy/Blocked pending its dedicated real-broker and delivery suites.
+- Added the D2 Canonical Email Identity checkpoint note with the dialect-specific
+  migration, privacy and API boundaries, exact SQLite/model/Controller evidence,
+  schemahealth/migrate/server composition evidence, forward-only recovery guidance,
+  and the still-open exact-freeze readiness plus MySQL/PostgreSQL zero-skip reruns.
 
 ## [v1.0.0] - 2026-08-09
 
