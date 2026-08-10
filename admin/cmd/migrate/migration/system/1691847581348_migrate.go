@@ -20,7 +20,7 @@ var (
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
-	migration.Migrate.SetVersion(migration.GetFilename(fileName), _1691847581348Migrate)
+	migration.Migrate.SetV100Version(fileName, _1691847581348Migrate)
 }
 
 func _1691847581348Migrate(db *gorm.DB, version string) error {

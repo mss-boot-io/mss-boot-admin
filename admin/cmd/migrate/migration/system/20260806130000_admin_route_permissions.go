@@ -20,7 +20,7 @@ import (
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
-	migration.Migrate.SetVersion(migration.GetFilename(fileName), _20260806130000AdminRoutePermissions)
+	migration.Migrate.SetV100Version(fileName, _20260806130000AdminRoutePermissions)
 }
 
 type adminRoutePermissionSeed struct {

@@ -263,6 +263,78 @@ spec:
           value: web/antd/src/modules/supplier
         - type: report
           value: Golden supplier frontend and browser acceptance report
+    - id: migration-engine-checkpoint-evidence
+      requirement: generate-forward-migration
+      statement: The shared migration engine preserves full decimal identifiers, rejects invalid or duplicate registrations before any database access, propagates context and execution failures without process termination, remains source-compatible for the published legacy surface, and recognizes every explicitly recorded v1.0.0 marker without rerunning historical migrations.
+      level: migration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestMigrationTypedIDOrdering
+        - type: test
+          value: TestMigrationDeprecatedRegistrationBridge
+        - type: test
+          value: TestMigrationRegistrationPreflightRequiresNoDatabase
+        - type: test
+          value: TestMigrationTemplateUsesLosslessID
+        - type: test
+          value: TestMigrationDuplicateIDFailsBeforeExecution
+        - type: test
+          value: TestMigrationErrorPropagatesWithoutExit
+        - type: test
+          value: TestMigrationDeprecatedBridgeReturnsAfterFailure
+        - type: test
+          value: TestMigrationContextCancellationPropagates
+        - type: test
+          value: TestMigrationRepeatIsNoop
+        - type: test
+          value: TestMigrationFailurePreservesAppliedState
+        - type: test
+          value: TestMigrationV100AliasesSkipHistoricalRows
+        - type: test
+          value: TestMigrationV100CollisionFreshDatabaseUsesCanonicalIDs
+        - type: test
+          value: TestMigrationV100RenamedAliasSkipsTagRow
+        - type: test
+          value: TestMigrationV100RenamedAliasSkipsPreRenameRow
+        - type: test
+          value: TestMigrateContextRejectsDuplicateRegistrationBeforeDatabaseAccess
+        - type: test
+          value: TestV100MigrationRowsDoNotRerun
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/migration
+            --run '^TestMigration(TypedIDOrdering|DeprecatedRegistrationBridge|RegistrationPreflightRequiresNoDatabase|TemplateUsesLosslessID|DuplicateIDFailsBeforeExecution|ErrorPropagatesWithoutExit|DeprecatedBridgeReturnsAfterFailure|ContextCancellationPropagates|RepeatIsNoop|FailurePreservesAppliedState|V100AliasesSkipHistoricalRows|V100CollisionFreshDatabaseUsesCanonicalIDs|V100RenamedAliasSkipsTagRow|V100RenamedAliasSkipsPreRenameRow)$'
+            --count 20 --race --go-work off
+            --require TestMigrationTypedIDOrdering
+            --require TestMigrationDeprecatedRegistrationBridge
+            --require TestMigrationRegistrationPreflightRequiresNoDatabase
+            --require TestMigrationTemplateUsesLosslessID
+            --require TestMigrationDuplicateIDFailsBeforeExecution
+            --require TestMigrationErrorPropagatesWithoutExit
+            --require TestMigrationDeprecatedBridgeReturnsAfterFailure
+            --require TestMigrationContextCancellationPropagates
+            --require TestMigrationRepeatIsNoop
+            --require TestMigrationFailurePreservesAppliedState
+            --require TestMigrationV100AliasesSkipHistoricalRows
+            --require TestMigrationV100CollisionFreshDatabaseUsesCanonicalIDs
+            --require TestMigrationV100RenamedAliasSkipsTagRow
+            --require TestMigrationV100RenamedAliasSkipsPreRenameRow
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate
+            --run '^TestMigrateContextRejectsDuplicateRegistrationBeforeDatabaseAccess$'
+            --count 20 --race --go-work off
+            --require TestMigrateContextRejectsDuplicateRegistrationBeforeDatabaseAccess
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
+            --run '^TestV100MigrationRowsDoNotRerun$'
+            --count 20 --race --go-work off
+            --require TestV100MigrationRowsDoNotRerun
+        - type: report
+          value: Exact single-package JSON evidence proving every required migration-engine and v1.0.0 registry compatibility test ran and passed twenty uncached race-detected times with no skip; the three-database supplier migration matrix remains a feature-freeze gate.
     - id: migration-matrix-gate
       requirement: generate-forward-migration
       statement: The generated supplier forward migration passes fresh, upgrade, repeat, duplicate-ID, and injected-failure tests on SQLite, MySQL, and PostgreSQL without process exit.
@@ -345,6 +417,25 @@ spec:
       - go run ./cmd/mss spec validate .mss/features/foundation-v1-1-0-generator-blueprint.yaml --format json
       - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check
       - go test -race ./internal/mss/blueprint/... ./internal/mss/generator/... ./internal/mss/spec/...
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/migration
+        --run '^TestMigration(TypedIDOrdering|DeprecatedRegistrationBridge|RegistrationPreflightRequiresNoDatabase|TemplateUsesLosslessID|DuplicateIDFailsBeforeExecution|ErrorPropagatesWithoutExit|DeprecatedBridgeReturnsAfterFailure|ContextCancellationPropagates|RepeatIsNoop|FailurePreservesAppliedState|V100AliasesSkipHistoricalRows|V100CollisionFreshDatabaseUsesCanonicalIDs|V100RenamedAliasSkipsTagRow|V100RenamedAliasSkipsPreRenameRow)$'
+        --count 20 --race --go-work off
+        --require TestMigrationTypedIDOrdering --require TestMigrationDeprecatedRegistrationBridge
+        --require TestMigrationRegistrationPreflightRequiresNoDatabase --require TestMigrationTemplateUsesLosslessID
+        --require TestMigrationDuplicateIDFailsBeforeExecution --require TestMigrationErrorPropagatesWithoutExit
+        --require TestMigrationDeprecatedBridgeReturnsAfterFailure --require TestMigrationContextCancellationPropagates
+        --require TestMigrationRepeatIsNoop --require TestMigrationFailurePreservesAppliedState
+        --require TestMigrationV100AliasesSkipHistoricalRows --require TestMigrationV100CollisionFreshDatabaseUsesCanonicalIDs
+        --require TestMigrationV100RenamedAliasSkipsTagRow --require TestMigrationV100RenamedAliasSkipsPreRenameRow
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate
+        --run '^TestMigrateContextRejectsDuplicateRegistrationBeforeDatabaseAccess$'
+        --count 20 --race --go-work off --require TestMigrateContextRejectsDuplicateRegistrationBeforeDatabaseAccess
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
+        --run '^TestV100MigrationRowsDoNotRerun$'
+        --count 20 --race --go-work off --require TestV100MigrationRowsDoNotRerun
       - corepack pnpm@9.15.9 --dir docs build
   rollout:
     strategy: phased

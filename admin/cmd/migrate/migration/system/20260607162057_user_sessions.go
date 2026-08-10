@@ -11,7 +11,7 @@ import (
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
-	migration.Migrate.SetVersion(migration.GetFilename(fileName), _20260607162057UserSessions)
+	migration.Migrate.SetV100Version(fileName, _20260607162057UserSessions)
 }
 
 func _20260607162057UserSessions(db *gorm.DB, version string) error {

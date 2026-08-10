@@ -41,8 +41,8 @@ var (
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			return setup(cmd.Context())
 		},
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return Run()
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return RunContext(cmd.Context())
 		},
 	}
 )
@@ -143,6 +143,10 @@ func setup(ctx context.Context) (err error) {
 }
 
 func Run() (err error) {
+	return RunContext(context.Background())
+}
+
+func RunContext(ctx context.Context) (err error) {
 	defer func() {
 		err = errors.Join(err, config.Cfg.Close())
 	}()
@@ -156,21 +160,47 @@ func Run() (err error) {
 	if handle == nil || handle.DB == nil {
 		return fmt.Errorf("migration database handle is not initialized")
 	}
-	return migrate(handle.DB)
+	return migrateContext(ctx, handle.DB)
 }
 
 func migrate(db *gorm.DB) error {
+	return migrateContext(context.Background(), db)
+}
+
+func migrateContext(ctx context.Context, db *gorm.DB) error {
+	return migrateContextWithRunner(ctx, db, migration.Migrate)
+}
+
+func migrateContextWithRunner(ctx context.Context, db *gorm.DB, runner *migration.Migration) error {
+	if ctx == nil {
+		return fmt.Errorf("migration context is nil")
+	}
 	if db == nil {
 		return fmt.Errorf("migration database is nil")
 	}
+	if runner == nil {
+		return fmt.Errorf("%w: migration runner is nil", migration.ErrMigrationNotReady)
+	}
+	// Registration validation is deliberately independent of the database and
+	// runs before WithContext or AutoMigrate. Invalid or duplicate IDs therefore
+	// cannot create or alter even the migration bookkeeping table.
+	if err := runner.ValidateRegistrations(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("migration canceled before database preflight: %w", err)
+	}
+	db = db.WithContext(ctx)
 	systemMigrate.Username = username
 	systemMigrate.Password = password
 	if err := db.AutoMigrate(&common.Migration{}); err != nil {
 		slog.Error("auto migrate error", "err", err)
 		return err
 	}
-	migration.Migrate.SetDb(db)
-	migration.Migrate.SetModel(&common.Migration{})
-	migration.Migrate.Migrate()
+	runner.SetDb(db)
+	runner.SetModel(&common.Migration{})
+	if err := runner.MigrateContext(ctx); err != nil {
+		return err
+	}
 	return moduleruntime.Migrate(db)
 }

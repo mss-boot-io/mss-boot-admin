@@ -24,7 +24,7 @@ const legacyBuiltinOAuthTupleFingerprint = "768de56f0790a647823a1b3e72a9d6a81928
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
-	migration.Migrate.SetVersion(migration.GetFilename(fileName), _20260806220000SanitizeBuiltinOAuth)
+	migration.Migrate.SetV100Version(fileName, _20260806220000SanitizeBuiltinOAuth)
 }
 
 func _20260806220000SanitizeBuiltinOAuth(db *gorm.DB, version string) error {
