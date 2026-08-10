@@ -120,6 +120,12 @@ spec:
       description: Run root backend and framework tests.
       category: backend
 
+    go-test-evidence:
+      command: "go run ./cmd/mss test evidence --directory <module-dir> --package ./<single-package> --run '^(TestOne|TestTwo)$' --count <n> --go-work off --require TestOne --require TestTwo"
+      description: Run one repository-local Go package and reject external or multi-package selection plus missing, skipped, failed, cached, or inexact JSON evidence.
+      outputFormats: [json]
+      category: verification
+
     backend-lint:
       command: make lint
       description: Run Go lint checks.
