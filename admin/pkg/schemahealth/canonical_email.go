@@ -11,6 +11,7 @@ import (
 	migrationmodels "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"gorm.io/plugin/dbresolver"
 )
 
 const (
@@ -89,10 +90,25 @@ func canonicalEmailFailure(failure CanonicalEmailFailure, causes ...error) error
 	return &CanonicalEmailError{failure: failure, causes: causes}
 }
 
+// CanonicalEmailWriter pins canonical-email migration and readiness work to
+// the DBResolver source. Schema and identity checks must never accept a
+// lagging replica as evidence that the writer is ready.
+func CanonicalEmailWriter(db *gorm.DB) *gorm.DB {
+	if db == nil {
+		return nil
+	}
+	// Clauses returns a chain instance. Turn it back into a reusable session so
+	// callers can safely perform more than one inspection without carrying SQL
+	// or clauses from the preceding GORM statement.
+	return db.Clauses(dbresolver.Write).Session(&gorm.Session{})
+}
+
 type canonicalEmailIndexMetadata struct {
 	definition           string
 	predicate            string
 	expression           string
+	collationName        string
+	collationSchema      string
 	dataType             string
 	maximumLength        int64
 	nullable             string
@@ -116,7 +132,8 @@ type canonicalEmailIndexColumn struct {
 
 // VerifyCanonicalEmailIdentity is the only structural/data verifier used by
 // canonical-email migrations and server startup. Every query runs with a
-// discarded logger and every database failure is converted to a fixed error.
+// discarded logger, is pinned to the DBResolver writer, and converts every
+// database failure to a fixed error.
 func VerifyCanonicalEmailIdentity(
 	ctx context.Context,
 	db *gorm.DB,
@@ -139,7 +156,9 @@ func VerifyCanonicalEmailIdentity(
 	if scope == CanonicalEmailMySQLGeneratedColumn && dialect != "mysql" {
 		return canonicalEmailFailure(FailureInvalidInput)
 	}
-	quiet := db.Session(&gorm.Session{Logger: logger.Discard}).WithContext(ctx)
+	quiet := CanonicalEmailWriter(
+		db.Session(&gorm.Session{Logger: logger.Discard}),
+	).WithContext(ctx)
 	if err := verifyCanonicalEmailUserStorage(quiet, dialect); err != nil {
 		return err
 	}
@@ -251,19 +270,23 @@ func inspectCanonicalEmailPartialIndex(
 		return metadata, true, nil
 	case "postgres":
 		var row struct {
-			Definition   string `gorm:"column:definition"`
-			Predicate    string `gorm:"column:predicate"`
-			Expression   string `gorm:"column:expression"`
-			Unique       bool   `gorm:"column:is_unique"`
-			Valid        bool   `gorm:"column:is_valid"`
-			Ready        bool   `gorm:"column:is_ready"`
-			KeyColumns   int    `gorm:"column:key_columns"`
-			TotalColumns int    `gorm:"column:total_columns"`
+			Definition      string `gorm:"column:definition"`
+			Predicate       string `gorm:"column:predicate"`
+			Expression      string `gorm:"column:expression"`
+			CollationName   string `gorm:"column:collation_name"`
+			CollationSchema string `gorm:"column:collation_schema"`
+			Unique          bool   `gorm:"column:is_unique"`
+			Valid           bool   `gorm:"column:is_valid"`
+			Ready           bool   `gorm:"column:is_ready"`
+			KeyColumns      int    `gorm:"column:key_columns"`
+			TotalColumns    int    `gorm:"column:total_columns"`
 		}
 		result := db.Raw(
 			`SELECT pg_get_indexdef(index_class.oid) AS definition,
 			        pg_get_expr(index_meta.indpred, index_meta.indrelid) AS predicate,
 			        pg_get_expr(index_meta.indexprs, index_meta.indrelid) AS expression,
+			        index_collation.collname AS collation_name,
+			        collation_namespace.nspname AS collation_schema,
 			        index_meta.indisunique AS is_unique,
 			        index_meta.indisvalid AS is_valid,
 			        index_meta.indisready AS is_ready,
@@ -273,6 +296,10 @@ func inspectCanonicalEmailPartialIndex(
 			 JOIN pg_namespace AS namespace ON namespace.oid = table_class.relnamespace
 			 JOIN pg_index AS index_meta ON index_meta.indrelid = table_class.oid
 			 JOIN pg_class AS index_class ON index_class.oid = index_meta.indexrelid
+			 LEFT JOIN pg_collation AS index_collation
+			   ON index_collation.oid = index_meta.indcollation[0]
+			 LEFT JOIN pg_namespace AS collation_namespace
+			   ON collation_namespace.oid = index_collation.collnamespace
 			 WHERE namespace.nspname = current_schema()
 			   AND table_class.relname = ? AND index_class.relname = ?`,
 			(&models.User{}).TableName(),
@@ -285,14 +312,16 @@ func inspectCanonicalEmailPartialIndex(
 			return canonicalEmailIndexMetadata{}, false, nil
 		}
 		return canonicalEmailIndexMetadata{
-			definition:   row.Definition,
-			predicate:    row.Predicate,
-			expression:   row.Expression,
-			unique:       row.Unique,
-			valid:        row.Valid,
-			ready:        row.Ready,
-			keyColumns:   row.KeyColumns,
-			totalColumns: row.TotalColumns,
+			definition:      row.Definition,
+			predicate:       row.Predicate,
+			expression:      row.Expression,
+			collationName:   row.CollationName,
+			collationSchema: row.CollationSchema,
+			unique:          row.Unique,
+			valid:           row.Valid,
+			ready:           row.Ready,
+			keyColumns:      row.KeyColumns,
+			totalColumns:    row.TotalColumns,
 		}, true, nil
 	default:
 		return canonicalEmailIndexMetadata{}, false, canonicalEmailFailure(FailureUnsupportedDatabase)
@@ -469,13 +498,15 @@ func canonicalEmailPartialIndexCompatible(
 		)
 		return actual == expected
 	case "postgres":
-		if !metadata.valid || !metadata.ready || metadata.totalColumns != 1 {
+		if !metadata.valid || !metadata.ready || metadata.totalColumns != 1 ||
+			metadata.collationName != "C" || metadata.collationSchema != "pg_catalog" {
 			return false
 		}
 		expression := compactCanonicalEmailExpression(metadata.expression)
 		predicate := compactCanonicalEmailExpression(metadata.predicate)
-		validExpression := expression == "lowertrimemail" ||
-			expression == "lowertrimbothfromemail" || expression == "lowerbtrimemail"
+		validExpression := expression == "lowertrimemailcollatec" ||
+			expression == "lowertrimbothfromemailcollatec" ||
+			expression == "lowerbtrimemailcollatec"
 		validPredicate := predicate == "deleted_atisnullandtrimemail<>''" ||
 			predicate == "deleted_atisnullandtrimbothfromemail<>''" ||
 			predicate == "deleted_atisnullandbtrimemail<>''"
@@ -492,8 +523,8 @@ func canonicalEmailMySQLColumnCompatible(metadata canonicalEmailIndexMetadata) b
 		return false
 	}
 	generation := compactCanonicalEmailExpression(metadata.generationExpression)
-	return generation == "casewhendeleted_atisnullandtrimemail<>''thencastlowertrimemailasbinary100elsenullend" ||
-		generation == "casewhendeleted_atisnullandtrimemail<>''thencastlowertrimemailaschar100charsetbinaryelsenullend"
+	return generation == "casewhendeleted_atisnullandtrimemail<>''thencastlowerconverttrimemailusingasciicollateascii_general_ciasbinary100elsenullend" ||
+		generation == "casewhendeleted_atisnullandtrimemail<>''thencastlowerconverttrimemailusingasciicollateascii_general_ciaschar100charsetbinaryelsenullend"
 }
 
 func canonicalEmailMySQLIndexCompatible(metadata canonicalEmailIndexMetadata) bool {

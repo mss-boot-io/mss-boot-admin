@@ -22,11 +22,17 @@ const canonicalEmailPartialIndexDDL = "CREATE UNIQUE INDEX IF NOT EXISTS " +
 	" ON mss_boot_users (LOWER(TRIM(email)))" +
 	" WHERE deleted_at IS NULL AND TRIM(email) <> ''"
 
+const canonicalEmailPostgresPartialIndexDDL = "CREATE UNIQUE INDEX IF NOT EXISTS " +
+	models.EmailIdentityUniqueIndex +
+	` ON mss_boot_users (LOWER(TRIM(email) COLLATE "C"))` +
+	" WHERE deleted_at IS NULL AND TRIM(email) <> ''"
+
 const canonicalEmailMySQLGeneratedColumnDDL = "ALTER TABLE `mss_boot_users` " +
 	"ADD COLUMN `" + schemahealth.CanonicalEmailIdentityGeneratedColumn +
 	"` VARBINARY(100) GENERATED ALWAYS AS (" +
 	"CASE WHEN `deleted_at` IS NULL AND TRIM(`email`) <> '' " +
-	"THEN CAST(LOWER(TRIM(`email`)) AS BINARY(100)) ELSE NULL END" +
+	"THEN CAST(LOWER(CONVERT(TRIM(`email`) USING ascii) COLLATE ascii_general_ci) " +
+	"AS BINARY(100)) ELSE NULL END" +
 	") STORED"
 
 const canonicalEmailMySQLUniqueIndexDDL = "CREATE UNIQUE INDEX `" +
@@ -81,7 +87,8 @@ func _20260810120000CanonicalEmailIdentity(db *gorm.DB, version string) error {
 
 // migrateCanonicalEmailIdentities establishes one active, non-empty canonical
 // email identity across all supported dialects. Existing data is read with a
-// discarded logger and completely preflighted before any backfill or DDL.
+// discarded logger, pinned to the DBResolver writer, and completely
+// preflighted before any backfill or DDL.
 func migrateCanonicalEmailIdentities(db *gorm.DB, version string) error {
 	if db == nil {
 		return errors.New("canonical email migration: database is nil")
@@ -93,7 +100,9 @@ func migrateCanonicalEmailIdentities(db *gorm.DB, version string) error {
 		return fmt.Errorf("canonical email migration: unsupported database dialect %q", dialect)
 	}
 
-	quiet := db.Session(&gorm.Session{Logger: logger.Discard})
+	quiet := schemahealth.CanonicalEmailWriter(
+		db.Session(&gorm.Session{Logger: logger.Discard}),
+	)
 	if !quiet.Migrator().HasTable(&models.User{}) {
 		return errors.New("canonical email migration: user table is missing")
 	}
@@ -106,6 +115,7 @@ func migrateCanonicalEmailIdentities(db *gorm.DB, version string) error {
 		return migrateCanonicalEmailMySQL(quiet, version)
 	}
 	return quiet.Transaction(func(tx *gorm.DB) error {
+		tx = schemahealth.CanonicalEmailWriter(tx)
 		if dialect == "postgres" {
 			if err := tx.Exec(
 				`LOCK TABLE "mss_boot_users" IN SHARE ROW EXCLUSIVE MODE`,
@@ -120,7 +130,11 @@ func migrateCanonicalEmailIdentities(db *gorm.DB, version string) error {
 		if err := applyCanonicalEmailBackfill(tx, backfills); err != nil {
 			return err
 		}
-		if err := tx.Exec(canonicalEmailPartialIndexDDL).Error; err != nil {
+		indexDDL := canonicalEmailPartialIndexDDL
+		if dialect == "postgres" {
+			indexDDL = canonicalEmailPostgresPartialIndexDDL
+		}
+		if err := tx.Exec(indexDDL).Error; err != nil {
 			return errors.New("canonical email migration: create unique index failed")
 		}
 		if err := schemahealth.VerifyCanonicalEmailIdentity(
@@ -135,12 +149,16 @@ func migrateCanonicalEmailIdentities(db *gorm.DB, version string) error {
 }
 
 func migrateCanonicalEmailMySQL(db *gorm.DB, version string) error {
+	db = schemahealth.CanonicalEmailWriter(db)
 	backfills, err := prepareCanonicalEmailBackfill(db)
 	if err != nil {
 		return err
 	}
 	if err := db.Transaction(func(tx *gorm.DB) error {
-		return applyCanonicalEmailBackfill(tx, backfills)
+		return applyCanonicalEmailBackfill(
+			schemahealth.CanonicalEmailWriter(tx),
+			backfills,
+		)
 	}); err != nil {
 		return err
 	}
@@ -183,6 +201,7 @@ func migrateCanonicalEmailMySQL(db *gorm.DB, version string) error {
 }
 
 func prepareCanonicalEmailBackfill(db *gorm.DB) ([]canonicalEmailBackfill, error) {
+	db = schemahealth.CanonicalEmailWriter(db)
 	rows := make([]canonicalEmailLegacyRow, 0)
 	if err := db.Table((&models.User{}).TableName()).
 		Select("id", "email").
@@ -229,6 +248,7 @@ func prepareCanonicalEmailBackfill(db *gorm.DB) ([]canonicalEmailBackfill, error
 }
 
 func applyCanonicalEmailBackfill(db *gorm.DB, backfills []canonicalEmailBackfill) error {
+	db = schemahealth.CanonicalEmailWriter(db)
 	for _, backfill := range backfills {
 		result := db.Table((&models.User{}).TableName()).
 			Where(
@@ -245,6 +265,7 @@ func applyCanonicalEmailBackfill(db *gorm.DB, backfills []canonicalEmailBackfill
 }
 
 func recordCanonicalEmailMigrationVersion(db *gorm.DB, version string) error {
+	db = schemahealth.CanonicalEmailWriter(db)
 	row := &migrationmodels.Migration{}
 	row.SetVersion(version)
 	if err := db.Clauses(clause.OnConflict{

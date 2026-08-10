@@ -108,6 +108,86 @@ func runCanonicalEmailIdentityIntegration(t *testing.T, dialect, environment str
 		}
 	})
 
+	if dialect == "postgres" {
+		t.Run("ASCII identity fold ignores Turkish ICU column collation", func(t *testing.T) {
+			collationDB := openCanonicalEmailIdentityIntegrationDB(t, dialect, dsn)
+			createCanonicalEmailIdentityPostgresTurkishLegacyTables(t, collationDB)
+
+			var localeFold string
+			if err := collationDB.Raw(`SELECT LOWER('I' COLLATE "tr-x-icu")`).Scan(&localeFold).Error; err != nil {
+				t.Fatal("inspect PostgreSQL Turkish ICU fold failed")
+			}
+			if localeFold == "i" {
+				t.Fatalf("Turkish ICU fixture is not locale-sensitive: LOWER(I) = %q", localeFold)
+			}
+			if err := migrateCanonicalEmailIdentities(collationDB, canonicalEmailIntegrationVer); err != nil {
+				t.Fatalf("migrate Turkish-collated canonical-email table failed: %v", err)
+			}
+			if err := collationDB.Exec(
+				`INSERT INTO mss_boot_users (id, email, deleted_at) VALUES (?, ?, NULL)`,
+				"ascii-lower-owner",
+				"i@example.com",
+			).Error; err != nil {
+				t.Fatal("insert canonical ASCII owner failed")
+			}
+			if err := schemahealth.VerifyCanonicalEmailIdentity(
+				t.Context(),
+				collationDB,
+				schemahealth.CanonicalEmailDataInvariant,
+			); err != nil {
+				t.Fatalf("C-collated PostgreSQL identity index was rejected: %v", err)
+			}
+			if err := collationDB.Exec(
+				`INSERT INTO mss_boot_users (id, email, deleted_at) VALUES (?, ?, NULL)`,
+				"ascii-upper-owner",
+				"I@example.com",
+			).Error; err == nil {
+				t.Fatal("C-collated identity index accepted ASCII I/i double ownership")
+			}
+		})
+	}
+
+	if dialect == "mysql" {
+		t.Run("ASCII identity fold remains deterministic under Turkish column collation", func(t *testing.T) {
+			collationDB := openCanonicalEmailIdentityIntegrationDB(t, dialect, dsn)
+			createCanonicalEmailIdentityMySQLTurkishLegacyTables(t, collationDB)
+
+			var localeFold string
+			if err := collationDB.Raw(
+				"SELECT LOWER(CONVERT('I' USING utf8mb4) COLLATE utf8mb4_tr_0900_ai_ci)",
+			).Scan(&localeFold).Error; err != nil {
+				t.Fatal("inspect MySQL Turkish fold failed")
+			}
+			if localeFold != "i" {
+				t.Fatalf("MySQL Turkish ASCII fold = %q, want deterministic i", localeFold)
+			}
+			if err := migrateCanonicalEmailIdentities(collationDB, canonicalEmailIntegrationVer); err != nil {
+				t.Fatalf("migrate Turkish-collated canonical-email table failed: %v", err)
+			}
+			if err := collationDB.Exec(
+				`INSERT INTO mss_boot_users (id, email, deleted_at) VALUES (?, ?, NULL)`,
+				"ascii-lower-owner",
+				"i@example.com",
+			).Error; err != nil {
+				t.Fatal("insert canonical ASCII owner failed")
+			}
+			if err := schemahealth.VerifyCanonicalEmailIdentity(
+				t.Context(),
+				collationDB,
+				schemahealth.CanonicalEmailDataInvariant,
+			); err != nil {
+				t.Fatalf("ASCII-collated MySQL identity key was rejected: %v", err)
+			}
+			if err := collationDB.Exec(
+				`INSERT INTO mss_boot_users (id, email, deleted_at) VALUES (?, ?, NULL)`,
+				"ascii-upper-owner",
+				"I@example.com",
+			).Error; err == nil {
+				t.Fatal("ASCII-collated identity key accepted ASCII I/i double ownership")
+			}
+		})
+	}
+
 	t.Run("preflight conflict leaves schema and data unchanged", func(t *testing.T) {
 		resetCanonicalEmailIdentityIntegrationTables(t, db)
 		createCanonicalEmailIdentityLegacyTables(t, db, dialect)
@@ -280,6 +360,53 @@ func createCanonicalEmailIdentityLegacyTables(t *testing.T, db *gorm.DB, dialect
 	)`, deletedAtType)
 	if err := db.Exec(statement).Error; err != nil {
 		t.Fatal("create canonical-email legacy user table failed")
+	}
+	if err := db.AutoMigrate(&migrationmodels.Migration{}); err != nil {
+		t.Fatal("create canonical-email migration table failed")
+	}
+}
+
+func createCanonicalEmailIdentityPostgresTurkishLegacyTables(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	var available int64
+	if err := db.Raw(
+		`SELECT COUNT(*) FROM pg_collation WHERE collname = 'tr-x-icu'`,
+	).Scan(&available).Error; err != nil {
+		t.Fatal("inspect PostgreSQL Turkish ICU collation failed")
+	}
+	if available == 0 {
+		t.Fatal("required PostgreSQL Turkish ICU collation tr-x-icu is unavailable")
+	}
+	if err := db.Exec(`CREATE TABLE mss_boot_users (
+		id VARCHAR(64) PRIMARY KEY,
+		email VARCHAR(100) COLLATE "tr-x-icu" NULL,
+		deleted_at TIMESTAMP NULL
+	)`).Error; err != nil {
+		t.Fatal("create Turkish-collated canonical-email legacy user table failed")
+	}
+	if err := db.AutoMigrate(&migrationmodels.Migration{}); err != nil {
+		t.Fatal("create canonical-email migration table failed")
+	}
+}
+
+func createCanonicalEmailIdentityMySQLTurkishLegacyTables(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	var available int64
+	if err := db.Raw(
+		`SELECT COUNT(*) FROM information_schema.COLLATIONS
+		 WHERE COLLATION_NAME = 'utf8mb4_tr_0900_ai_ci'`,
+	).Scan(&available).Error; err != nil {
+		t.Fatal("inspect MySQL Turkish collation failed")
+	}
+	if available == 0 {
+		t.Fatal("required MySQL Turkish collation utf8mb4_tr_0900_ai_ci is unavailable")
+	}
+	if err := db.Exec(`CREATE TABLE mss_boot_users (
+		id VARCHAR(64) PRIMARY KEY,
+		email VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_tr_0900_ai_ci NULL,
+		deleted_at DATETIME(3) NULL
+	)`).Error; err != nil {
+		t.Fatal("create Turkish-collated canonical-email legacy user table failed")
 	}
 	if err := db.AutoMigrate(&migrationmodels.Migration{}); err != nil {
 		t.Fatal("create canonical-email migration table failed")

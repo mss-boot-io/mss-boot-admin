@@ -13,6 +13,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"gorm.io/plugin/dbresolver"
 )
 
 func TestVerifyCanonicalEmailIdentitySQLiteRuntimeReady(t *testing.T) {
@@ -26,6 +27,70 @@ func TestVerifyCanonicalEmailIdentitySQLiteRuntimeReady(t *testing.T) {
 	); err != nil {
 		t.Fatalf("runtime readiness rejected compatible schema: %v", err)
 	}
+}
+
+func TestVerifyCanonicalEmailIdentityUsesDBResolverWriter(t *testing.T) {
+	t.Run("writer ready while replica data is stale", func(t *testing.T) {
+		writer, replica := openCanonicalEmailSchemaResolverTestDB(t)
+		createCanonicalEmailRuntimeSchema(t, writer)
+		createCanonicalEmailRuntimeSchema(t, replica)
+		const staleReplicaEmail = " Stale.Replica@EXAMPLE.COM "
+		if err := replica.Exec(
+			"INSERT INTO mss_boot_users (id, email) VALUES (?, ?)",
+			"stale-replica-row",
+			staleReplicaEmail,
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		registerCanonicalEmailSchemaReplica(t, writer, replica)
+
+		var ordinaryRead string
+		if err := writer.Raw(
+			"SELECT email FROM mss_boot_users WHERE id = ?",
+			"stale-replica-row",
+		).Scan(&ordinaryRead).Error; err != nil {
+			t.Fatal(err)
+		}
+		if ordinaryRead != staleReplicaEmail {
+			t.Fatalf("ordinary read = %q, want stale replica evidence", ordinaryRead)
+		}
+		if err := VerifyCanonicalEmailIdentity(
+			t.Context(),
+			writer,
+			CanonicalEmailRuntimeReadiness,
+		); err != nil {
+			t.Fatalf("writer-ready schema rejected because replica is stale: %v", err)
+		}
+	})
+
+	t.Run("writer marker missing while replica appears ready", func(t *testing.T) {
+		writer, replica := openCanonicalEmailSchemaResolverTestDB(t)
+		createCanonicalEmailRuntimeSchema(t, writer)
+		createCanonicalEmailRuntimeSchema(t, replica)
+		if err := writer.Where(
+			"version = ?",
+			CanonicalEmailIdentityMigrationVersion,
+		).Delete(&migrationmodels.Migration{}).Error; err != nil {
+			t.Fatal(err)
+		}
+		registerCanonicalEmailSchemaReplica(t, writer, replica)
+
+		var ordinaryCount int64
+		if err := writer.Model(&migrationmodels.Migration{}).
+			Where("version = ?", CanonicalEmailIdentityMigrationVersion).
+			Count(&ordinaryCount).Error; err != nil {
+			t.Fatal(err)
+		}
+		if ordinaryCount != 1 {
+			t.Fatalf("ordinary marker count = %d, want ready replica evidence", ordinaryCount)
+		}
+		err := VerifyCanonicalEmailIdentity(
+			t.Context(),
+			writer,
+			CanonicalEmailRuntimeReadiness,
+		)
+		assertCanonicalEmailFailure(t, err, FailureMigrationVersionMissing)
+	})
 }
 
 func TestVerifyCanonicalEmailIdentityRejectsMissingAndWrongSQLiteIndex(t *testing.T) {
@@ -182,13 +247,15 @@ func TestVerifyCanonicalEmailIdentityDatabaseFailureIsFixedAndRedacted(t *testin
 
 func TestCanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes(t *testing.T) {
 	postgres := canonicalEmailIndexMetadata{
-		predicate:    "((deleted_at IS NULL) AND (TRIM(BOTH FROM email) <> ''::text))",
-		expression:   "lower(TRIM(BOTH FROM email))",
-		unique:       true,
-		valid:        true,
-		ready:        true,
-		keyColumns:   1,
-		totalColumns: 1,
+		predicate:       "((deleted_at IS NULL) AND (TRIM(BOTH FROM email) <> ''::text))",
+		expression:      `lower((TRIM(BOTH FROM email) COLLATE "C"))`,
+		collationName:   "C",
+		collationSchema: "pg_catalog",
+		unique:          true,
+		valid:           true,
+		ready:           true,
+		keyColumns:      1,
+		totalColumns:    1,
 	}
 	if !canonicalEmailPartialIndexCompatible("postgres", postgres) {
 		t.Fatal("compatible PostgreSQL expression index metadata was rejected")
@@ -197,13 +264,19 @@ func TestCanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes(t
 	if canonicalEmailPartialIndexCompatible("postgres", postgres) {
 		t.Fatal("wrong PostgreSQL predicate was accepted")
 	}
+	postgres.predicate = "deleted_at IS NULL AND TRIM(email) <> ''"
+	postgres.collationName = "tr-x-icu"
+	postgres.collationSchema = "pg_catalog"
+	if canonicalEmailPartialIndexCompatible("postgres", postgres) {
+		t.Fatal("locale-sensitive PostgreSQL collation was accepted")
+	}
 
 	mysql := canonicalEmailIndexMetadata{
 		dataType:             "varbinary",
 		maximumLength:        100,
 		nullable:             "YES",
 		extra:                "STORED GENERATED",
-		generationExpression: "(case when ((`deleted_at` is null) and (trim(`email`) <> _latin1\\'\\')) then cast(lower(trim(`email`)) as char(100) charset binary) else NULL end)",
+		generationExpression: "(case when ((`deleted_at` is null) and (trim(`email`) <> _latin1\\'\\')) then cast(lower((convert(trim(`email`) using ascii) collate ascii_general_ci)) as char(100) charset binary) else NULL end)",
 		indexColumns: []canonicalEmailIndexColumn{{
 			name:     CanonicalEmailIdentityGeneratedColumn,
 			sequence: 1,
@@ -218,6 +291,11 @@ func TestCanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes(t
 		t.Fatal("wrong MySQL generated-column width was accepted")
 	}
 	mysql.maximumLength = 100
+	mysql.generationExpression = "case when deleted_at is null and trim(email) <> '' then cast(lower(trim(email)) as binary(100)) else null end"
+	if canonicalEmailMySQLColumnCompatible(mysql) {
+		t.Fatal("locale-sensitive MySQL generated expression was accepted")
+	}
+	mysql.generationExpression = "case when deleted_at is null and trim(email) <> '' then cast(lower(convert(trim(email) using ascii) collate ascii_general_ci) as binary(100)) else null end"
 	mysql.indexColumns[0].nonUnique = true
 	if canonicalEmailMySQLIndexCompatible(mysql) {
 		t.Fatal("non-unique MySQL identity index was accepted")
@@ -237,6 +315,38 @@ func openCanonicalEmailSchemaTestDB(t *testing.T, databaseLogger logger.Interfac
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
 	return db
+}
+
+func openCanonicalEmailSchemaResolverTestDB(t *testing.T) (*gorm.DB, *gorm.DB) {
+	t.Helper()
+	directory := t.TempDir()
+	open := func(name string) *gorm.DB {
+		dsn := filepath.Join(directory, name) + "?_busy_timeout=5000"
+		db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Discard})
+		if err != nil {
+			t.Fatal(err)
+		}
+		sqlDB, err := db.DB()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = sqlDB.Close() })
+		return db
+	}
+	return open("writer.db"), open("replica.db")
+}
+
+func registerCanonicalEmailSchemaReplica(t *testing.T, writer, replica *gorm.DB) {
+	t.Helper()
+	replicaSQL, err := replica.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Use(dbresolver.Register(dbresolver.Config{
+		Replicas: []gorm.Dialector{sqlite.Dialector{Conn: replicaSQL}},
+	})); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func createCanonicalEmailRuntimeSchema(t *testing.T, db *gorm.DB) {

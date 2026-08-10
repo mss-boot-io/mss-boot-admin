@@ -17,6 +17,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"gorm.io/plugin/dbresolver"
 )
 
 const canonicalEmailIdentityTestVersion = "20260810120000-test"
@@ -176,6 +177,119 @@ func TestCanonicalEmailIdentityMigrationPreflightFailsWithoutMutationOrDisclosur
 		t.Fatal("failed preflight created the unique index")
 	}
 	assertCanonicalEmailMigrationVersionCount(t, db, canonicalEmailIdentityTestVersion, 0)
+}
+
+func TestCanonicalEmailIdentityMigrationUsesDBResolverWriter(t *testing.T) {
+	t.Run("writer is clean while replica has conflicting identities", func(t *testing.T) {
+		writer, replica := openCanonicalEmailMigrationResolverSQLite(t)
+		createLegacyCanonicalEmailUserTable(t, writer)
+		createLegacyCanonicalEmailUserTable(t, replica)
+		if err := writer.Exec(
+			"INSERT INTO mss_boot_users (id, email) VALUES (?, ?)",
+			"writer-owner",
+			" Writer.Owner@EXAMPLE.COM ",
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := replica.Exec(
+			"INSERT INTO mss_boot_users (id, email) VALUES (?, ?), (?, ?)",
+			"replica-owner-a",
+			"replica@example.com",
+			"replica-owner-b",
+			"REPLICA@example.com",
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		registerCanonicalEmailMigrationReplica(t, writer, replica)
+
+		var ordinaryCount int64
+		if err := writer.Table((&models.User{}).TableName()).Count(&ordinaryCount).Error; err != nil {
+			t.Fatal(err)
+		}
+		if ordinaryCount != 2 {
+			t.Fatalf("ordinary row count = %d, want conflicting replica evidence", ordinaryCount)
+		}
+		if err := migrateCanonicalEmailIdentities(writer, canonicalEmailIdentityTestVersion); err != nil {
+			t.Fatalf("writer-clean migration was rejected because replica is stale: %v", err)
+		}
+
+		writerDB := schemahealth.CanonicalEmailWriter(writer)
+		var canonical string
+		if err := writerDB.Raw(
+			"SELECT email FROM mss_boot_users WHERE id = ?",
+			"writer-owner",
+		).Scan(&canonical).Error; err != nil {
+			t.Fatal(err)
+		}
+		if canonical != "writer.owner@example.com" {
+			t.Fatalf("writer email = %q, want canonical value", canonical)
+		}
+		if !canonicalEmailSQLiteIndexExists(t, writerDB) {
+			t.Fatal("writer-clean migration did not create writer unique index")
+		}
+		assertCanonicalEmailMigrationVersionCount(
+			t,
+			writerDB,
+			canonicalEmailIdentityTestVersion,
+			1,
+		)
+	})
+
+	t.Run("writer has conflicts while replica appears clean", func(t *testing.T) {
+		writer, replica := openCanonicalEmailMigrationResolverSQLite(t)
+		createLegacyCanonicalEmailUserTable(t, writer)
+		createLegacyCanonicalEmailUserTable(t, replica)
+		if err := writer.Exec(
+			"INSERT INTO mss_boot_users (id, email) VALUES (?, ?), (?, ?)",
+			"writer-owner-a",
+			" Writer.Conflict@EXAMPLE.COM ",
+			"writer-owner-b",
+			"writer.conflict@example.com",
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := replica.Exec(
+			"INSERT INTO mss_boot_users (id, email) VALUES (?, ?)",
+			"replica-clean-owner",
+			"replica.clean@example.com",
+		).Error; err != nil {
+			t.Fatal(err)
+		}
+		registerCanonicalEmailMigrationReplica(t, writer, replica)
+
+		var ordinaryCount int64
+		if err := writer.Table((&models.User{}).TableName()).Count(&ordinaryCount).Error; err != nil {
+			t.Fatal(err)
+		}
+		if ordinaryCount != 1 {
+			t.Fatalf("ordinary row count = %d, want clean replica evidence", ordinaryCount)
+		}
+		err := migrateCanonicalEmailIdentities(writer, canonicalEmailIdentityTestVersion)
+		if !errors.Is(err, models.ErrEmailIdentityAmbiguous) {
+			t.Fatalf("writer-conflict preflight error = %v, want ambiguous identity", err)
+		}
+
+		writerDB := schemahealth.CanonicalEmailWriter(writer)
+		var unchanged string
+		if err := writerDB.Raw(
+			"SELECT email FROM mss_boot_users WHERE id = ?",
+			"writer-owner-a",
+		).Scan(&unchanged).Error; err != nil {
+			t.Fatal(err)
+		}
+		if unchanged != " Writer.Conflict@EXAMPLE.COM " {
+			t.Fatalf("writer preflight changed email to %q", unchanged)
+		}
+		if canonicalEmailSQLiteIndexExists(t, writerDB) {
+			t.Fatal("writer-conflict preflight created writer unique index")
+		}
+		assertCanonicalEmailMigrationVersionCount(
+			t,
+			writerDB,
+			canonicalEmailIdentityTestVersion,
+			0,
+		)
+	})
 }
 
 func TestCanonicalEmailIdentityBackfillCASRejectsConcurrentChangeWithoutDisclosure(t *testing.T) {
@@ -348,10 +462,20 @@ func TestCanonicalEmailIdentityDDLAndMetadataContractsAreAuditable(t *testing.T)
 		}
 	}
 	for _, token := range []string{
+		"CREATE UNIQUE INDEX IF NOT EXISTS " + models.EmailIdentityUniqueIndex,
+		`LOWER(TRIM(email) COLLATE "C")`,
+		"deleted_at IS NULL",
+		"TRIM(email) <> ''",
+	} {
+		if !strings.Contains(canonicalEmailPostgresPartialIndexDDL, token) {
+			t.Fatalf("PostgreSQL partial-index DDL is missing %q: %s", token, canonicalEmailPostgresPartialIndexDDL)
+		}
+	}
+	for _, token := range []string{
 		"VARBINARY(100)",
 		"GENERATED ALWAYS AS",
 		"deleted_at",
-		"LOWER(TRIM(`email`))",
+		"LOWER(CONVERT(TRIM(`email`) USING ascii) COLLATE ascii_general_ci)",
 		"BINARY(100)",
 		"STORED",
 	} {
@@ -377,6 +501,39 @@ func openCanonicalEmailMigrationSQLite(t *testing.T) *gorm.DB {
 	sqlDB.SetMaxOpenConns(16)
 	t.Cleanup(func() { _ = sqlDB.Close() })
 	return db
+}
+
+func openCanonicalEmailMigrationResolverSQLite(t *testing.T) (*gorm.DB, *gorm.DB) {
+	t.Helper()
+	directory := t.TempDir()
+	open := func(name string) *gorm.DB {
+		dsn := filepath.Join(directory, name) + "?_busy_timeout=10000&_journal_mode=WAL"
+		db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Discard})
+		if err != nil {
+			t.Fatal(err)
+		}
+		sqlDB, err := db.DB()
+		if err != nil {
+			t.Fatal(err)
+		}
+		sqlDB.SetMaxOpenConns(8)
+		t.Cleanup(func() { _ = sqlDB.Close() })
+		return db
+	}
+	return open("writer.db"), open("replica.db")
+}
+
+func registerCanonicalEmailMigrationReplica(t *testing.T, writer, replica *gorm.DB) {
+	t.Helper()
+	replicaSQL, err := replica.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Use(dbresolver.Register(dbresolver.Config{
+		Replicas: []gorm.Dialector{sqlite.Dialector{Conn: replicaSQL}},
+	})); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func createLegacyCanonicalEmailUserTable(t *testing.T, db *gorm.DB) {
