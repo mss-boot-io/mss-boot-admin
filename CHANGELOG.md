@@ -24,8 +24,10 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   SecretRef-backed credentials are reserved for the immutable startup profile.
 - Replaced the object-storage provider map with an exact Local-or-S3 startup
   configuration, immutable normalized profiles, explicit credential modes, and
-  typed environment SecretRefs. This is an intentional breaking configuration
-  contract and does not promote either provider.
+  typed environment SecretRefs. Admin startup configuration must migrate to this
+  strict contract and neither provider is promoted. The nested framework retains
+  a deprecated v1.0 source bridge for the removed storage symbols, but it rejects
+  implicit credential fallback and is not the authoritative runtime path.
 - Kept the framework `AdapterQueue` surface source-compatible and added the
   additive `ManagedAdapterQueue` lifecycle contract. Kafka configuration and
   registration now use caller contexts and return errors; Admin owns the managed

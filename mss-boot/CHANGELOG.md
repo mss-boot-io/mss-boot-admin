@@ -15,8 +15,11 @@ remains internal and does not promote provider maturity.
 - Replaced legacy object-storage provider globals with an exact Local-or-S3
   startup configuration, immutable `StorageProfile`, explicit default/static
   credential modes, typed environment `SecretRef` resolution, and one reusable
-  `StorageHandle` per profile. This is an intentional breaking configuration/API
-  contract; Local and S3-compatible remain Legacy/Blocked.
+  `StorageHandle` per profile. The v1.0 provider constants, `Storage` fields,
+  `Init`, `GetClient`, URL template, and middleware helpers remain as deprecated
+  source-compatible bridges; that bridge is fail-closed and no longer performs
+  implicit default-chain fallback or process termination. Local and S3-compatible
+  remain Legacy/Blocked.
 - Added leased Local/S3 use and bounded, retryable, idempotent close semantics so
   one owner rejects new work during shutdown, drains in-flight operations, and
   closes its private HTTP transport exactly once.

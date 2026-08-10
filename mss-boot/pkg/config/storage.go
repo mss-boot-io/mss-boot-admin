@@ -45,6 +45,19 @@ var (
 type Storage struct {
 	Local *LocalStorageConfig `yaml:"local,omitempty" json:"local,omitempty"`
 	S3    *S3StorageConfig    `yaml:"s3,omitempty" json:"s3,omitempty"`
+
+	// Deprecated: the fields below preserve the v1.0 source surface only. New
+	// callers must configure exactly one strict Local or S3 branch. Normalize
+	// rejects mixed or legacy input, while Init provides a bounded, static-
+	// credential-only compatibility bridge without fallback or process exit.
+	Type            ProviderType `yaml:"type,omitempty" json:"type,omitempty"`
+	SigningMethod   string       `yaml:"signingMethod,omitempty" json:"signingMethod,omitempty"`
+	Region          string       `yaml:"region,omitempty" json:"region,omitempty"`
+	Bucket          string       `yaml:"bucket,omitempty" json:"bucket,omitempty"`
+	Endpoint        string       `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
+	AccessKeyID     string       `yaml:"accessKeyID,omitempty" json:"accessKeyID,omitempty"`
+	SecretAccessKey string       `yaml:"secretAccessKey,omitempty" json:"secretAccessKey,omitempty"`
+	client          *s3.Client
 }
 
 type LocalStorageConfig struct {
@@ -151,6 +164,9 @@ func (c Storage) Normalize(ctx context.Context, secrets SecretResolver) (*Storag
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if c.hasLegacyFields() {
+		return nil, storageConfigError("storage", "legacy fields are not accepted by strict normalization")
 	}
 	branches := 0
 	if c.Local != nil {
