@@ -29,6 +29,18 @@ type AdapterQueue interface {
 	Shutdown()
 }
 
+// ManagedAdapterQueue is the additive lifecycle contract for queue adapters
+// that can report startup and registration failures without terminating the
+// process. AdapterQueue remains embedded so existing integrations continue to
+// compile while owners migrate to the context-aware methods.
+type ManagedAdapterQueue interface {
+	AdapterQueue
+	RegisterContext(context.Context, ...Option) error
+	Start(context.Context) error
+	Errors() <-chan error
+	Close(context.Context) error
+}
+
 type Messager interface {
 	SetID(string)
 	SetStream(string)

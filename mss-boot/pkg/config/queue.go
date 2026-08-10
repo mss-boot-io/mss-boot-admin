@@ -11,8 +11,14 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"log"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net"
+	"reflect"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -61,92 +67,231 @@ type KafkaParams struct {
 	Provider  string        `yaml:"provider" json:"provider"`
 }
 
-func (k *Kafka) getConfig() *sarama.Config {
+const defaultKafkaDialTimeout = 10 * time.Second
+const legacyQueueInitTimeout = 30 * time.Second
+
+// buildConfig validates the complete startup profile and binds caller-owned
+// context to providers that may perform credential resolution later.
+func (k *Kafka) buildConfig(ctx context.Context) (*sarama.Config, error) {
+	if k == nil {
+		return nil, errors.New("Kafka configuration is required")
+	}
+	if ctx == nil {
+		return nil, errors.New("Kafka startup context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("Kafka startup context: %w", err)
+	}
+	if err := validateKafkaBrokerAddresses(k.Brokers); err != nil {
+		return nil, err
+	}
+	return k.buildSaramaConfig(ctx)
+}
+
+func (k *Kafka) buildSaramaConfig(ctx context.Context) (*sarama.Config, error) {
+	if k == nil {
+		return nil, errors.New("Kafka configuration is required")
+	}
+	if ctx == nil {
+		return nil, errors.New("Kafka startup context is required")
+	}
+	provider := strings.ToLower(strings.TrimSpace(k.Provider))
+	if provider != "" && provider != "kafka" && provider != "msk" {
+		return nil, fmt.Errorf("unsupported Kafka provider %q", k.Provider)
+	}
+	if k.Timeout < 0 {
+		return nil, errors.New("Kafka timeout must not be negative")
+	}
+
 	c := sarama.NewConfig()
-	switch strings.ToLower(k.Provider) {
-	case "msk":
-		c.Net.SASL.Enable = true
-		c.Net.SASL.Mechanism = sarama.SASLTypeOAuth
-		region := ""
-		if k.SASL != nil {
-			region = k.SASL.Region
-		}
-		c.Net.SASL.TokenProvider = &MSKAccessTokenProvider{
-			Region: region,
-			Ctx:    context.Background(),
-		}
+	if k.Timeout == 0 {
+		c.Net.DialTimeout = defaultKafkaDialTimeout
+	} else {
+		c.Net.DialTimeout = k.Timeout
+	}
+	c.Net.KeepAlive = k.KeepAlive
+	c.Net.TLS.Enable = true
+	c.Net.TLS.Config = &tls.Config{MinVersion: tls.VersionTLS12}
+	c.Producer.Return.Errors = true
+	c.Producer.Return.Successes = true
+	c.Consumer.Return.Errors = true
 
-		c.Net.TLS.Enable = true
-		c.Net.TLS.Config = &tls.Config{MinVersion: tls.VersionTLS12}
-	default:
-		if k.Timeout == 0 {
-			c.Net.DialTimeout = 10 * time.Second
+	if strings.TrimSpace(k.Version) != "" {
+		version, err := sarama.ParseKafkaVersion(strings.TrimSpace(k.Version))
+		if err != nil {
+			return nil, fmt.Errorf("parse Kafka version %q: %w", k.Version, err)
 		}
-		if k.KeepAlive != 0 {
-			c.Net.KeepAlive = k.KeepAlive
-		}
-		c.Net.TLS.Enable = true
-		tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+		c.Version = version
+	}
 
-		if k.CaFile != "" {
-			caCertPool := x509.NewCertPool()
-			if !caCertPool.AppendCertsFromPEM([]byte(k.CaFile)) {
-				log.Fatalf("queue kafka failed to append CA certificate")
-			}
-			tlsConfig.RootCAs = caCertPool
+	if provider == "msk" {
+		if err := k.configureMSK(ctx, c); err != nil {
+			return nil, err
 		}
-		if k.KeyFile != "" || k.CertFile != "" {
-			if k.KeyFile == "" || k.CertFile == "" {
-				log.Fatalf("queue kafka requires both client certificate and key")
-			}
-			clientCert, err := tls.X509KeyPair([]byte(k.CertFile), []byte(k.KeyFile))
-			if err != nil {
-				log.Fatalf("queue kafka load cert error: %s", err.Error())
-			}
-			tlsConfig.Certificates = []tls.Certificate{clientCert}
+	} else {
+		if err := k.configureTLS(c); err != nil {
+			return nil, err
 		}
-		c.Net.TLS.Config = tlsConfig
-
-		if k.SASL != nil {
-			c.Net.SASL.Enable = k.SASL.Enable
-			c.Net.SASL.User = k.SASL.User
-			c.Net.SASL.Password = k.SASL.Password
-			c.Net.SASL.Mechanism = k.SASL.Mechanism
-			switch c.Net.SASL.Mechanism {
-			case sarama.SASLTypeSCRAMSHA256:
-				c.Net.SASL.SCRAMClientGeneratorFunc = queue.SCRAMClientGeneratorFuncSHA256
-				c.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
-			case sarama.SASLTypeSCRAMSHA512:
-				c.Net.SASL.SCRAMClientGeneratorFunc = queue.SCRAMClientGeneratorFuncSHA512
-				c.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
-			}
-		}
-		if k.Version != "" {
-			v, err := sarama.ParseKafkaVersion(k.Version)
-			if err == nil {
-				c.Version = v
-			}
+		if err := k.configureSASL(c); err != nil {
+			return nil, err
 		}
 	}
-	c.Producer.Return.Successes = true
-	return c
+	if err := c.Validate(); err != nil {
+		return nil, fmt.Errorf("validate Kafka configuration: %w", err)
+	}
+	return c, nil
+}
+
+func validateKafkaBrokerAddresses(brokers []string) error {
+	if len(brokers) == 0 {
+		return errors.New("at least one Kafka broker is required")
+	}
+	for index, broker := range brokers {
+		broker = strings.TrimSpace(broker)
+		if broker == "" {
+			return fmt.Errorf("Kafka broker %d is empty", index)
+		}
+		host, portText, err := net.SplitHostPort(broker)
+		if err != nil || strings.TrimSpace(host) == "" {
+			return fmt.Errorf("Kafka broker %d must use host:port syntax", index)
+		}
+		port, err := strconv.Atoi(portText)
+		if err != nil || port < 1 || port > 65535 {
+			return fmt.Errorf("Kafka broker %d has invalid port %q", index, portText)
+		}
+	}
+	return nil
+}
+
+func (k *Kafka) configureTLS(c *sarama.Config) error {
+	tlsConfig := c.Net.TLS.Config
+	if k.CaFile != "" {
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM([]byte(k.CaFile)) {
+			return errors.New("Kafka CA certificate is not valid PEM")
+		}
+		tlsConfig.RootCAs = caCertPool
+	}
+	if k.KeyFile == "" && k.CertFile == "" {
+		return nil
+	}
+	if k.KeyFile == "" || k.CertFile == "" {
+		return errors.New("Kafka client certificate and key must be configured together")
+	}
+	clientCert, err := tls.X509KeyPair([]byte(k.CertFile), []byte(k.KeyFile))
+	if err != nil {
+		return fmt.Errorf("load Kafka client certificate: %w", err)
+	}
+	tlsConfig.Certificates = []tls.Certificate{clientCert}
+	return nil
+}
+
+func (k *Kafka) configureMSK(ctx context.Context, c *sarama.Config) error {
+	if k.CaFile != "" || k.CertFile != "" || k.KeyFile != "" {
+		return errors.New("MSK provider does not accept custom Kafka TLS material")
+	}
+	if k.SASL == nil || strings.TrimSpace(k.SASL.Region) == "" {
+		return errors.New("MSK provider requires a SASL region")
+	}
+	if k.SASL.User != "" || k.SASL.Password != "" || k.SASL.AuthIdentity != "" ||
+		k.SASL.SCRAMAuthzID != "" || k.SASL.Mechanism != "" || k.SASL.Version != 0 ||
+		!reflect.DeepEqual(k.SASL.GSSAPI, sarama.GSSAPIConfig{}) {
+		return errors.New("MSK provider does not accept static SASL credentials or mechanisms")
+	}
+	c.Net.SASL.Enable = true
+	c.Net.SASL.Mechanism = sarama.SASLTypeOAuth
+	c.Net.SASL.TokenProvider = &MSKAccessTokenProvider{
+		Region: strings.TrimSpace(k.SASL.Region),
+		Ctx:    ctx,
+	}
+	return nil
+}
+
+func (k *Kafka) configureSASL(c *sarama.Config) error {
+	if k.SASL == nil {
+		return nil
+	}
+	sasl := k.SASL
+	if strings.TrimSpace(sasl.Region) != "" {
+		return errors.New("Kafka SASL region is only valid for the MSK provider")
+	}
+	if !reflect.DeepEqual(sasl.GSSAPI, sarama.GSSAPIConfig{}) {
+		return errors.New("Kafka GSSAPI configuration is not supported by this queue profile")
+	}
+	if !sasl.Enable {
+		if sasl.User != "" || sasl.Password != "" || sasl.AuthIdentity != "" ||
+			sasl.SCRAMAuthzID != "" || sasl.Mechanism != "" || sasl.Version != 0 || sasl.Handshake {
+			return errors.New("Kafka SASL credentials require SASL to be enabled")
+		}
+		return nil
+	}
+	if strings.TrimSpace(sasl.User) == "" || sasl.Password == "" {
+		return errors.New("Kafka SASL requires both user and password")
+	}
+	if sasl.Version != sarama.SASLHandshakeV0 && sasl.Version != sarama.SASLHandshakeV1 {
+		return fmt.Errorf("unsupported Kafka SASL version %d", sasl.Version)
+	}
+
+	mechanism := sasl.Mechanism
+	if mechanism == "" {
+		mechanism = sarama.SASLTypePlaintext
+	}
+	switch mechanism {
+	case sarama.SASLTypePlaintext:
+	case sarama.SASLTypeSCRAMSHA256:
+		c.Net.SASL.SCRAMClientGeneratorFunc = queue.SCRAMClientGeneratorFuncSHA256
+	case sarama.SASLTypeSCRAMSHA512:
+		c.Net.SASL.SCRAMClientGeneratorFunc = queue.SCRAMClientGeneratorFuncSHA512
+	default:
+		return fmt.Errorf("unsupported Kafka SASL mechanism %q", mechanism)
+	}
+
+	c.Net.SASL.Enable = true
+	c.Net.SASL.User = strings.TrimSpace(sasl.User)
+	c.Net.SASL.Password = sasl.Password
+	c.Net.SASL.Mechanism = mechanism
+	c.Net.SASL.Version = sasl.Version
+	c.Net.SASL.AuthIdentity = sasl.AuthIdentity
+	c.Net.SASL.SCRAMAuthzID = sasl.SCRAMAuthzID
+	// Sarama defaults to a handshake. Keep that safe default because the
+	// historical bool field cannot distinguish omitted from explicit false.
+	if sasl.Handshake {
+		c.Net.SASL.Handshake = true
+	}
+	if sasl.Version == sarama.SASLHandshakeV0 {
+		c.ApiVersionsRequest = false
+	}
+	return nil
 }
 
 type MSKAccessTokenProvider struct {
 	Region      string
 	Ctx         context.Context
+	mu          sync.Mutex
 	accessToken *sarama.AccessToken
 	expired     time.Time
 }
 
 func (m *MSKAccessTokenProvider) Token() (*sarama.AccessToken, error) {
+	if m == nil {
+		return nil, errors.New("MSK token provider is required")
+	}
+	if m.Ctx == nil {
+		return nil, errors.New("MSK token provider context is required")
+	}
+	if err := m.Ctx.Err(); err != nil {
+		return nil, fmt.Errorf("MSK token provider context: %w", err)
+	}
+	region := strings.TrimSpace(m.Region)
+	if region == "" {
+		return nil, errors.New("MSK token provider region is required")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.accessToken != nil && time.Now().Before(m.expired) {
 		return m.accessToken, nil
 	}
-	if m.Ctx == nil {
-		m.Ctx = context.Background()
-	}
-	token, expirationTimeMs, err := signer.GenerateAuthToken(m.Ctx, m.Region)
+	token, expirationTimeMs, err := signer.GenerateAuthToken(m.Ctx, region)
 	if err != nil {
 		return nil, err
 	}
@@ -194,65 +339,138 @@ type SASL struct {
 	GSSAPI sarama.GSSAPIConfig `yaml:"gssapi" json:"gssapi"`
 }
 
-// Empty 空设置
+// Empty reports whether no queue adapter is configured.
 func (e *Queue) Empty() bool {
-	return e.Memory == nil && e.Redis == nil && e.NSQ == nil
+	return e == nil || (e.Memory == nil && e.Redis == nil && e.NSQ == nil && e.Kafka == nil)
 }
 
-// Init 启用顺序 Redis > NSQ > Memory
+// Init is the legacy compatibility bridge. It logs initialization failures;
+// new owners should use InitContext and handle the returned error.
 func (e *Queue) Init(set func(storage.AdapterQueue)) {
+	if e == nil || e.Empty() {
+		return
+	}
+	if set == nil {
+		slog.Error("queue initialization skipped: adapter installer is required")
+		return
+	}
+	if e != nil && e.Redis == nil && e.NSQ == nil && e.Kafka != nil &&
+		strings.EqualFold(strings.TrimSpace(e.Kafka.Provider), "msk") {
+		slog.Error("queue initialization failed: MSK requires InitContext with an owner context")
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), legacyQueueInitTimeout)
+	defer cancel()
+	err := e.InitContext(ctx, func(adapter storage.AdapterQueue) error {
+		set(adapter)
+		return nil
+	})
+	if err != nil {
+		slog.Error("queue initialization failed", "err", err)
+	}
+}
+
+// InitContext enables the first configured queue in compatibility order:
+// Redis > NSQ > Kafka > Memory.
+func (e *Queue) InitContext(
+	ctx context.Context,
+	set func(storage.AdapterQueue) error,
+) error {
+	if e == nil || e.Empty() {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("queue startup context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("queue startup context: %w", err)
+	}
+	if set == nil {
+		return errors.New("queue adapter installer is required")
+	}
+
 	if e.Redis != nil {
-		e.Redis.Consumer.ReclaimInterval = e.Redis.Consumer.ReclaimInterval * time.Second
-		e.Redis.Consumer.BlockingTimeout = e.Redis.Consumer.BlockingTimeout * time.Second
-		e.Redis.Consumer.VisibilityTimeout = e.Redis.Consumer.VisibilityTimeout * time.Second
+		producerOptions := &redisqueue.ProducerOptions{}
+		if e.Redis.Producer != nil {
+			copy := *e.Redis.Producer
+			producerOptions = &copy
+		}
+		consumerOptions := &redisqueue.ConsumerOptions{}
+		if e.Redis.Consumer != nil {
+			copy := *e.Redis.Consumer
+			consumerOptions = &copy
+		}
+		consumerOptions.ReclaimInterval *= time.Second
+		consumerOptions.BlockingTimeout *= time.Second
+		consumerOptions.VisibilityTimeout *= time.Second
+
 		client := storage.GetRedisClient()
+		ownsClient := false
 		if client == nil {
 			options, err := e.Redis.GetRedisOptions()
 			if err != nil {
-				log.Fatalf("queue redis init error: %s", err.Error())
+				return fmt.Errorf("build Redis queue options: %w", err)
 			}
 			client = redis.NewUniversalClient(options)
+			ownsClient = true
+		}
+		producerOptions.RedisClient = client
+		consumerOptions.RedisClient = client
+		q, err := queue.NewRedis(producerOptions, consumerOptions)
+		if err != nil {
+			if ownsClient {
+				_ = client.Close()
+			}
+			return fmt.Errorf("create Redis queue: %w", err)
+		}
+		if err := set(q); err != nil {
+			q.Shutdown()
+			if ownsClient {
+				_ = client.Close()
+			}
+			return fmt.Errorf("install Redis queue: %w", err)
+		}
+		if ownsClient {
 			storage.SetRedisClient(client)
 		}
-		e.Redis.Producer.RedisClient = client
-		e.Redis.Consumer.RedisClient = client
-		q, err := queue.NewRedis(e.Redis.Producer, e.Redis.Consumer)
-		if err != nil {
-			log.Fatalf("queue redis init error: %s", err.Error())
-		}
-		if set != nil {
-			set(q)
-		}
-		return
+		return nil
 	}
 	if e.NSQ != nil {
 		cfg, err := e.NSQ.GetNSQOptions()
 		if err != nil {
-			log.Fatalf("queue nsq init error: %s", err.Error())
+			return fmt.Errorf("build NSQ queue options: %w", err)
 		}
 		q, err := queue.NewNSQ(cfg, e.NSQ.LookupdAddr, e.NSQ.AdminAddr, e.NSQ.Addresses...)
 		if err != nil {
-			log.Fatalf("queue nsq init error: %s", err.Error())
+			return fmt.Errorf("create NSQ queue: %w", err)
 		}
-		if set != nil {
-			set(q)
+		if err := set(q); err != nil {
+			q.Shutdown()
+			return fmt.Errorf("install NSQ queue: %w", err)
 		}
-		return
+		return nil
 	}
 	if e.Kafka != nil {
-		q, err := queue.NewKafka(e.Kafka.Brokers, e.Kafka.getConfig(), &queue.MessageHandler{}, e.Kafka.Provider)
+		cfg, err := e.Kafka.buildConfig(ctx)
 		if err != nil {
-			log.Fatalf("queue kafka init error: %s", err.Error())
+			return fmt.Errorf("build Kafka queue configuration: %w", err)
 		}
-		if set != nil {
-			set(q)
+		provider := strings.ToLower(strings.TrimSpace(e.Kafka.Provider))
+		q, err := queue.NewKafka(e.Kafka.Brokers, cfg, &queue.MessageHandler{}, provider)
+		if err != nil {
+			return fmt.Errorf("create Kafka queue: %w", err)
 		}
-		return
+		if err := set(q); err != nil {
+			_ = q.Close(ctx)
+			return fmt.Errorf("install Kafka queue: %w", err)
+		}
+		return nil
 	}
 	if e.Memory != nil {
-		if set != nil {
-			set(queue.NewMemory(e.Memory.PoolSize))
+		if err := set(queue.NewMemory(e.Memory.PoolSize)); err != nil {
+			return fmt.Errorf("install memory queue: %w", err)
 		}
-		return
+		return nil
 	}
+	return nil
 }
