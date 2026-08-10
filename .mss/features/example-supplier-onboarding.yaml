@@ -88,7 +88,7 @@ spec:
       statement: Attachments use the existing storage capability and secret references, with file size and content-type validation.
     - id: migration-compatible
       type: compatibility
-      statement: The database migration is additive and reversible without rebuilding unrelated tables or deleting existing business data.
+      statement: The database migration is additive, forward-only, repeat-safe, and recoverable by disabling the feature plus an idempotent forward fix without rebuilding unrelated tables or deleting existing business data.
     - id: generator-idempotency
       type: operations
       statement: Repeating module generation with the same specification produces no additional diff and does not overwrite custom business logic.
@@ -100,6 +100,7 @@ spec:
       requirement: supplier-create
       statement: The supplier AdminModule specification passes semantic validation.
       level: contract
+      phase: checkpoint
       required: true
       evidence:
         - type: command
@@ -108,6 +109,7 @@ spec:
       requirement: supplier-create
       statement: Deterministic generation returns a conflict-free dry-run plan covering backend, migration, permissions, frontend, documentation, and tests.
       level: contract
+      phase: checkpoint
       required: true
       evidence:
         - type: command
@@ -116,6 +118,7 @@ spec:
       requirement: supplier-update
       statement: Procurement can create and update a supplier while a finance identity receives forbidden for the same mutation.
       level: security
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -124,14 +127,16 @@ spec:
       requirement: supplier-review
       statement: A browser user can list, search, create, edit, inspect, and delete a supplier according to assigned permissions.
       level: e2e
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
           value: web/antd/e2e/supplier.spec.ts
     - id: migration-roundtrip
       requirement: supplier-create
-      statement: The supplier migration applies on an empty development database and its rollback path is documented and verified.
+      statement: The supplier forward migration passes fresh, upgrade, repeat, and injected-failure checks without a destructive down migration or partial schema truth.
       level: migration
+      phase: feature-freeze
       required: true
       evidence:
         - type: report
@@ -140,6 +145,7 @@ spec:
       requirement: supplier-audit
       statement: Supplier mutations produce safe audit metadata without persisting credentials, tokens, attachment content, or sensitive request bodies.
       level: security
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -147,6 +153,7 @@ spec:
     - id: changed-verification
       statement: The change-aware verifier completes without failed required checks.
       level: integration
+      phase: checkpoint
       required: true
       evidence:
         - type: command
@@ -174,4 +181,4 @@ spec:
   rollout:
     strategy: phased
     migration: Apply the additive supplier table and permission seed migration in a non-production environment before enabling the menu.
-    rollback: Disable the supplier menu and permission grants, roll back the additive migration only when no supplier data must be retained, and revert the feature commit.
+    rollback: Disable the supplier menu and permission grants, preserve supplier data, and apply an idempotent forward repair; do not run a destructive down migration against adopted databases.

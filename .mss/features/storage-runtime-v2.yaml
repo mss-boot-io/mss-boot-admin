@@ -347,7 +347,7 @@ spec:
           value: cd mss-boot && GOWORK=off go test -race -count=100 ./runtime/resource/...
     - id: object-conformance-gate
       requirement: constrain-object-storage
-      statement: Local and MinIO pass the same create-only Put, Open, Stat, Delete, cancel, limit, checksum, no-clobber, conflict, cleanup, privacy, path, symlink, and concurrent-filename suite.
+      statement: Local and the pinned RustFS S3-compatible fixture pass the same create-only Put, Open, Stat, Delete, cancel, limit, checksum, no-clobber, conflict, cleanup, privacy, path, symlink, and concurrent-filename suite.
       level: integration
       phase: feature-freeze
       required: true
