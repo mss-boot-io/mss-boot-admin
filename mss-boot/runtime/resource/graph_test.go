@@ -179,20 +179,26 @@ func (c *controlledDeadlineContext) expire() {
 	c.once.Do(func() { close(c.done) })
 }
 
-// observedDoneContext reports when Close has begun waiting on an already
-// active close generation. Its underlying Background context never expires.
-type observedDoneContext struct {
+// closeGenerationJoinContext reports when Close has reached the wait on an
+// already active close generation. A completed Start leaves a closed
+// startDone channel, so Close evaluates Done once while observing that
+// lifecycle before evaluating it again in waitForCloseGeneration. The
+// underlying Background context never expires.
+type closeGenerationJoinContext struct {
 	context.Context
-	observed chan struct{}
-	once     sync.Once
+	observed  chan struct{}
+	doneCalls atomic.Int64
+	once      sync.Once
 }
 
-func newObservedDoneContext() *observedDoneContext {
-	return &observedDoneContext{Context: context.Background(), observed: make(chan struct{})}
+func newCloseGenerationJoinContext() *closeGenerationJoinContext {
+	return &closeGenerationJoinContext{Context: context.Background(), observed: make(chan struct{})}
 }
 
-func (c *observedDoneContext) Done() <-chan struct{} {
-	c.once.Do(func() { close(c.observed) })
+func (c *closeGenerationJoinContext) Done() <-chan struct{} {
+	if c.doneCalls.Add(1) == 2 {
+		c.once.Do(func() { close(c.observed) })
+	}
 	return c.Context.Done()
 }
 
@@ -609,7 +615,7 @@ func TestGraphConcurrentCloseSharesFailedGenerationBeforeRetry(t *testing.T) {
 			}
 
 			for range waiters {
-				waiterCtx := newObservedDoneContext()
+				waiterCtx := newCloseGenerationJoinContext()
 				go func() { results <- graph.Close(waiterCtx) }()
 				select {
 				case <-waiterCtx.observed:
