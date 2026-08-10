@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/schemahealth"
 	configgormdb "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	migrationmodels "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
 	"gorm.io/gorm"
@@ -59,7 +60,11 @@ func runCanonicalEmailIdentityIntegration(t *testing.T, dialect, environment str
 				t.Fatalf("%s canonical-email migration attempt %d failed: %v", dialect, attempt, err)
 			}
 		}
-		if err := verifyCanonicalEmailIndex(db, dialect); err != nil {
+		if err := schemahealth.VerifyCanonicalEmailIdentity(
+			t.Context(),
+			db,
+			schemahealth.CanonicalEmailDataInvariant,
+		); err != nil {
 			t.Fatalf("%s canonical-email index verification failed: %v", dialect, err)
 		}
 		var email string

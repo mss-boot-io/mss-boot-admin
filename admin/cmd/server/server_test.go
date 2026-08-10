@@ -3,15 +3,25 @@ package server
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
+	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/schemahealth"
+	"github.com/mss-boot-io/mss-boot-admin/admin/router"
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	frameworkserver "github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
+	migrationmodels "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
 )
 
 type serverManagedQueue struct {
@@ -166,6 +176,105 @@ func TestStartLegacyQueueRetainsNonManagedCompatibility(t *testing.T) {
 	case <-queue.runCalled:
 	case <-time.After(time.Second):
 		t.Fatal("legacy queue compatibility Run was not started")
+	}
+}
+
+func TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tests := []struct {
+		name          string
+		recordVersion bool
+		wantErr       bool
+		wantStatus    int
+	}{
+		{
+			name:       "missing migration record fails closed",
+			wantErr:    true,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:          "ready schema mounts route",
+			recordVersion: true,
+			wantStatus:    http.StatusNoContent,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			db := openServerSchemaReadinessSQLite(t)
+			createServerCanonicalEmailSchema(t, db, test.recordVersion)
+			engine := gin.New()
+			maker := &router.MakeRouter{}
+			maker.SetFunc(func(group *gin.RouterGroup) {
+				group.GET("/readiness-marker", func(ctx *gin.Context) {
+					ctx.Status(http.StatusNoContent)
+				})
+			})
+
+			err := mountBusinessRoutesAfterSchemaReadiness(
+				t.Context(),
+				db,
+				maker,
+				engine.Group("/admin"),
+			)
+			if test.wantErr {
+				if !errors.Is(err, schemahealth.ErrCanonicalEmailIdentityNotReady) {
+					t.Fatalf("route composition error = %v, want schema readiness failure", err)
+				}
+			} else if err != nil {
+				t.Fatalf("route composition failed: %v", err)
+			}
+
+			request := httptest.NewRequest(http.MethodGet, "/admin/readiness-marker", nil)
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, request)
+			if response.Code != test.wantStatus {
+				t.Fatalf("route status = %d, want %d", response.Code, test.wantStatus)
+			}
+		})
+	}
+}
+
+func openServerSchemaReadinessSQLite(t *testing.T) *gorm.DB {
+	t.Helper()
+	dsn := filepath.Join(t.TempDir(), "server-schema-readiness.db") + "?_busy_timeout=5000"
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Discard})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	return db
+}
+
+func createServerCanonicalEmailSchema(t *testing.T, db *gorm.DB, recordVersion bool) {
+	t.Helper()
+	if err := db.Exec(`CREATE TABLE mss_boot_users (
+		id TEXT PRIMARY KEY,
+		email TEXT NULL,
+		deleted_at DATETIME NULL
+	)`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(
+		"CREATE UNIQUE INDEX " + models.EmailIdentityUniqueIndex +
+			" ON mss_boot_users (LOWER(TRIM(email)))" +
+			" WHERE deleted_at IS NULL AND TRIM(email) <> ''",
+	).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&migrationmodels.Migration{}); err != nil {
+		t.Fatal(err)
+	}
+	if !recordVersion {
+		return
+	}
+	version := &migrationmodels.Migration{}
+	version.SetVersion(schemahealth.CanonicalEmailIdentityMigrationVersion)
+	if err := db.Create(version).Error; err != nil {
+		t.Fatal(err)
 	}
 }
 

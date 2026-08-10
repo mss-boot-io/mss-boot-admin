@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/schemahealth"
 	migrationmodels "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -29,7 +30,11 @@ func TestCanonicalEmailIdentityMigrationSQLiteFreshAndRepeat(t *testing.T) {
 			t.Fatalf("migration attempt %d: %v", attempt, err)
 		}
 	}
-	if err := verifyCanonicalEmailIndex(db, "sqlite"); err != nil {
+	if err := schemahealth.VerifyCanonicalEmailIdentity(
+		t.Context(),
+		db,
+		schemahealth.CanonicalEmailDataInvariant,
+	); err != nil {
 		t.Fatalf("verify SQLite canonical-email index: %v", err)
 	}
 	assertCanonicalEmailMigrationVersionCount(t, db, canonicalEmailIdentityTestVersion, 1)
@@ -316,9 +321,13 @@ func TestCanonicalEmailIdentityDataVerifierRejectsPostBackfillDriftWithoutDisclo
 	).Error; err != nil {
 		t.Fatal(err)
 	}
-	err := verifyCanonicalEmailData(db.Session(&gorm.Session{Logger: logger.Discard}))
+	err := schemahealth.VerifyCanonicalEmailIdentity(
+		t.Context(),
+		db.Session(&gorm.Session{Logger: logger.Discard}),
+		schemahealth.CanonicalEmailDataInvariant,
+	)
 	if !errors.Is(err, models.ErrEmailIdentityInvalid) ||
-		!strings.Contains(err.Error(), "noncanonical=1") {
+		err.Error() != "canonical email identity is not ready: canonical identity data is invalid" {
 		t.Fatalf("data verification error = %v", err)
 	}
 	if strings.Contains(err.Error(), sensitiveEmail) ||
@@ -351,37 +360,6 @@ func TestCanonicalEmailIdentityDDLAndMetadataContractsAreAuditable(t *testing.T)
 		}
 	}
 
-	partial := canonicalEmailIndexMetadata{definition: canonicalEmailPartialIndexDDL}
-	for _, dialect := range []string{"sqlite", "postgres"} {
-		if err := validateCanonicalEmailIndexMetadata(dialect, partial); err != nil {
-			t.Fatalf("%s metadata rejected: %v", dialect, err)
-		}
-	}
-	mysql := canonicalEmailIndexMetadata{
-		dataType:             "varbinary",
-		nullable:             "YES",
-		extra:                "STORED GENERATED",
-		generationExpression: "case when (`deleted_at` is null and trim(`email`) <> '') then cast(lower(trim(`email`)) as binary(100)) else NULL end",
-		indexColumns: []canonicalEmailIndexColumn{{
-			name:     canonicalEmailGeneratedColumn,
-			sequence: 1,
-		}},
-	}
-	if err := validateCanonicalEmailIndexMetadata("mysql", mysql); err != nil {
-		t.Fatalf("MySQL metadata rejected: %v", err)
-	}
-	mysql.indexColumns[0].nonUnique = true
-	if err := validateCanonicalEmailIndexMetadata("mysql", mysql); err == nil {
-		t.Fatal("MySQL verifier accepted a non-unique index")
-	}
-	partial.definition = strings.ReplaceAll(
-		partial.definition,
-		"deleted_at IS NULL",
-		"deleted_at IS NOT NULL",
-	)
-	if err := validateCanonicalEmailIndexMetadata("postgres", partial); err == nil {
-		t.Fatal("PostgreSQL verifier accepted the wrong active-row predicate")
-	}
 }
 
 func openCanonicalEmailMigrationSQLite(t *testing.T) *gorm.DB {

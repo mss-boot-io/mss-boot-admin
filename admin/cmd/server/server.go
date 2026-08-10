@@ -28,6 +28,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/requestlog"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/schemahealth"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/sessioncache"
 	"github.com/mss-boot-io/mss-boot-admin/admin/router"
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
@@ -157,6 +158,10 @@ func setup(ctx context.Context) (err error) {
 	}); err != nil {
 		return fmt.Errorf("configure monitor sampler: %w", err)
 	}
+	databaseHandle := config.Cfg.DatabaseHandle()
+	if databaseHandle == nil || databaseHandle.DB == nil {
+		return fmt.Errorf("application database handle is not initialized")
+	}
 
 	center.SetAppConfig(&models.AppConfig{})
 	center.SetUserConfig(&models.UserConfig{})
@@ -175,7 +180,14 @@ func setup(ctx context.Context) (err error) {
 	routerEngine.Use(middleware.AuditLogMiddleware("/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
 	center.SetMakeRouter(router.DefaultMakeRouter)
 	center.SetRouter(routerEngine)
-	center.Default.MakeRouter(routerEngine.Group(group))
+	if err := mountBusinessRoutesAfterSchemaReadiness(
+		ctx,
+		databaseHandle.DB,
+		center.GetMakeRouter(),
+		routerEngine.Group(group),
+	); err != nil {
+		return err
+	}
 	if err := initializeApplicationDelivery(ctx, config.Cfg, center.GetRouter()); err != nil {
 		return err
 	}
@@ -197,10 +209,6 @@ func setup(ctx context.Context) (err error) {
 		runnable = append(runnable, queueRunnable)
 	}
 
-	databaseHandle := config.Cfg.DatabaseHandle()
-	if databaseHandle == nil || databaseHandle.DB == nil {
-		return fmt.Errorf("application database handle is not initialized")
-	}
 	userTasksEnabled := config.Cfg.Task.Enable
 	userTaskSpec := config.Cfg.Task.Spec
 	taskOptions := []task.Option{task.WithUserSchedulesEnabled(userTasksEnabled)}
@@ -224,6 +232,26 @@ func setup(ctx context.Context) (err error) {
 
 	service.DefaultMonitor.Prime(ctx)
 	center.Default.Add(runnable...)
+	return nil
+}
+
+func mountBusinessRoutesAfterSchemaReadiness(
+	ctx context.Context,
+	db *gorm.DB,
+	maker center.MakeRouterImp,
+	group *gin.RouterGroup,
+) error {
+	if maker == nil || group == nil {
+		return errors.New("business route composition is not initialized")
+	}
+	if err := schemahealth.VerifyCanonicalEmailIdentity(
+		ctx,
+		db,
+		schemahealth.CanonicalEmailRuntimeReadiness,
+	); err != nil {
+		return fmt.Errorf("application schema readiness failed: %w", err)
+	}
+	maker.MakeRouter(group)
 	return nil
 }
 

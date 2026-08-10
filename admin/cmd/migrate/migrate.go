@@ -23,6 +23,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	moduleruntime "github.com/mss-boot-io/mss-boot-admin/admin/modules/runtime"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/schemahealth"
 )
 
 var (
@@ -202,5 +203,15 @@ func migrateContextWithRunner(ctx context.Context, db *gorm.DB, runner *migratio
 	if err := runner.MigrateContext(ctx); err != nil {
 		return err
 	}
-	return moduleruntime.Migrate(db)
+	if err := moduleruntime.Migrate(db); err != nil {
+		return err
+	}
+	if err := schemahealth.VerifyCanonicalEmailIdentity(
+		ctx,
+		db,
+		schemahealth.CanonicalEmailRuntimeReadiness,
+	); err != nil {
+		return fmt.Errorf("migration schema readiness failed: %w", err)
+	}
+	return nil
 }
