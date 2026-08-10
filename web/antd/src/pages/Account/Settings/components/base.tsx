@@ -51,7 +51,6 @@ export const buildProfileUpdateRequest = (
   avatar: values.avatar,
   city: values.city,
   country: values.country,
-  email: values.email,
   group: values.group,
   name: values.name,
   phone: values.phone,

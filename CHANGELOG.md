@@ -40,6 +40,8 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 
 ### Fixed
 
+- Stopped the Account Settings profile form from resubmitting the immutable
+  authentication email on every unrelated profile update.
 - Moved the legacy Kafka adapter's Sarama offset mark after JSON decoding and
   synchronous handler success, propagated the consumer-session context into the
   message, and stopped canceled or closed consumer loops without marking unfinished

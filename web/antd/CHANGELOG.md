@@ -55,6 +55,9 @@ exact feature-frozen `web/antd/v1.1.0` commit.
   owner/identity isolation.
 - Account avatars use a circular presentation and terminate loading when the
   image or profile request fails.
+- Account profile updates omit the authentication email identity; changing an
+  email requires a dedicated verified flow and is not coupled to ordinary
+  profile edits.
 - Desktop and mobile list pages use consistent loading, empty, error,
   permission-denied, and destructive-action confirmation behavior.
 - CPU and memory charts derive axes, labels, lines, fills, and tooltip surfaces
