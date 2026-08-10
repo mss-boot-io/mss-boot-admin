@@ -44,6 +44,7 @@ type Options struct {
 	afterDelete       func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
 	beforeSearch      func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
 	afterSearch       func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error
+	writeErrorMapper  actions.WriteErrorMapper
 	handlers          gin.HandlersChain
 	createHandlers    gin.HandlersChain
 	updateHandlers    gin.HandlersChain
@@ -227,6 +228,14 @@ func WithBeforeSearch(beforeSearch func(ctx *gin.Context, db *gorm.DB, m schema.
 func WithAfterSearch(afterSearch func(ctx *gin.Context, db *gorm.DB, m schema.Tabler) error) Option {
 	return func(o *Options) {
 		o.afterSearch = afterSearch
+	}
+}
+
+// WithWriteErrorMapper installs a fixed, value-safe mapper for GORM control
+// errors. It has no effect on non-GORM providers.
+func WithWriteErrorMapper(mapper actions.WriteErrorMapper) Option {
+	return func(o *Options) {
+		o.writeErrorMapper = mapper
 	}
 }
 
