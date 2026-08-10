@@ -80,10 +80,12 @@ cache:
 ### 队列配置
 :::warning
 这里保留 `memory`、`kafka`、`nsq` 和 `redis` 的历史配置示例，仅用于迁移、开发和评估，
-不构成生产支持声明。当前四个 WorkQueue adapter 都属于 legacy；Kafka 的 `D0-safety` 检查点只证明
-decode 与同步 handler 成功后才调用 Sarama `MarkMessage`，并不证明 broker commit、重试、DLQ、
-rebalance、幂等或完整生命周期。Kafka/NSQ 在各自真实依赖与生命周期门禁通过前均不得作为
-生产默认值。新代码应优先采用 Storage Runtime v2 中分别定义的 EventBus 或 WorkQueue 合同。
+不构成生产支持声明。当前四个 WorkQueue adapter 都属于 legacy；Kafka 的 `D0-safety` 检查点证明
+decode 与同步 handler 成功后才调用 Sarama `MarkMessage`，D1 又补齐 caller-context 配置/注册、
+单一 producer/consumer owner、错误观察、可取消 Start 与有界 Close。两者都只使用 hermetic evidence，
+仍不证明 broker commit、manual commit、重试/backoff、DLQ、rebalance、outage 或幂等。Kafka/NSQ 在
+各自真实依赖 conformance 通过前均不得作为生产默认值。新代码应优先采用 Storage Runtime v2 中
+分别定义的 EventBus 或 WorkQueue 合同。
 :::
 #### 配置memory队列
 ```yaml

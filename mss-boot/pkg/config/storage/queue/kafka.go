@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,12 +19,17 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
 )
 
-const kafkaLegacyShutdownTimeout = 10 * time.Second
+const (
+	kafkaLegacyRegistrationTimeout = 30 * time.Second
+	kafkaLegacyShutdownTimeout     = 10 * time.Second
+)
 
 var (
 	ErrKafkaClosed            = errors.New("Kafka queue is closed")
 	ErrKafkaAlreadyRunning    = errors.New("Kafka queue is already running")
 	ErrKafkaRegistrationAfter = errors.New("Kafka consumer registration is closed after Start")
+	ErrKafkaConsumerPending   = errors.New("Kafka consumer registration is already pending")
+	ErrKafkaRegistrationsOpen = errors.New("Kafka consumer registrations are still pending")
 	ErrKafkaDuplicateConsumer = errors.New("Kafka consumer registration already exists")
 )
 
@@ -60,16 +67,20 @@ func newKafka(
 ) (*Kafka, error) {
 	cleanBrokers, err := validateKafkaBrokers(brokers)
 	if err != nil {
-		return nil, err
+		return nil, invalidKafkaConfiguration(err)
 	}
 	if configuration == nil {
-		return nil, errors.New("Kafka configuration is required")
+		return nil, invalidKafkaConfiguration(errors.New("configuration is required"))
+	}
+	cleanProvider := strings.ToLower(strings.TrimSpace(provider))
+	if cleanProvider != "" && cleanProvider != "kafka" && cleanProvider != "msk" {
+		return nil, invalidKafkaConfiguration(fmt.Errorf("unsupported provider %q", provider))
 	}
 	if producerFactory == nil || consumerFactory == nil {
 		return nil, errors.New("Kafka factories are required")
 	}
 	if _, err := cloneConsumerGroupHandler(handler); err != nil {
-		return nil, err
+		return nil, invalidKafkaConfiguration(err)
 	}
 
 	ownedConfig := cloneKafkaConfig(configuration)
@@ -77,14 +88,14 @@ func newKafka(
 	ownedConfig.Producer.Return.Successes = true
 	ownedConfig.Consumer.Return.Errors = true
 	if !ownedConfig.Consumer.Offsets.AutoCommit.Enable {
-		return nil, errors.New("Kafka automatic offset commit is required for MarkMessage delivery")
+		return nil, invalidKafkaConfiguration(errors.New("automatic offset commit is required for MarkMessage delivery"))
 	}
 	if err := ownedConfig.Validate(); err != nil {
-		return nil, fmt.Errorf("validate Kafka configuration: %w", err)
+		return nil, invalidKafkaConfiguration(fmt.Errorf("validate configuration: %w", err))
 	}
 	producer, err := producerFactory(cleanBrokers, &ownedConfig)
 	if err != nil {
-		return nil, fmt.Errorf("create owned Kafka producer: %w", err)
+		return nil, classifyKafkaFactoryError("create owned producer", err)
 	}
 	if producer == nil {
 		return nil, errors.New("create owned Kafka producer: producer is nil")
@@ -95,11 +106,35 @@ func newKafka(
 		config:               ownedConfig,
 		producer:             producer,
 		consumerGroupHandler: handler,
-		provider:             strings.TrimSpace(provider),
+		provider:             cleanProvider,
 		consumers:            make(map[kafkaConsumerKey]*kafkaConsumer),
+		pendingConsumers:     make(map[kafkaConsumerKey]*kafkaPendingConsumer),
 		consumerFactory:      consumerFactory,
 		errorCh:              make(chan error, 32),
 	}, nil
+}
+
+func invalidKafkaConfiguration(err error) error {
+	return &storage.InvalidConfigurationError{Adapter: "Kafka", Err: err}
+}
+
+func classifyKafkaFactoryError(operation string, err error) error {
+	wrapped := fmt.Errorf("%s: %w", operation, err)
+	if kafkaDependencyIsUnavailable(err) {
+		return &storage.DependencyUnavailableError{Adapter: "Kafka", Err: wrapped}
+	}
+	return wrapped
+}
+
+func kafkaDependencyIsUnavailable(err error) bool {
+	if errors.Is(err, sarama.ErrOutOfBrokers) ||
+		errors.Is(err, sarama.ErrRequestTimedOut) ||
+		errors.Is(err, sarama.ErrBrokerNotAvailable) ||
+		errors.Is(err, sarama.ErrNetworkException) {
+		return true
+	}
+	var networkError net.Error
+	return errors.As(err, &networkError)
 }
 
 func validateKafkaBrokers(brokers []string) ([]string, error) {
@@ -112,6 +147,14 @@ func validateKafkaBrokers(brokers []string) ([]string, error) {
 		broker = strings.TrimSpace(broker)
 		if broker == "" {
 			return nil, fmt.Errorf("Kafka broker %d is empty", index)
+		}
+		host, portText, splitErr := net.SplitHostPort(broker)
+		if splitErr != nil || strings.TrimSpace(host) == "" {
+			return nil, fmt.Errorf("Kafka broker %d must use host:port syntax", index)
+		}
+		port, portErr := strconv.Atoi(portText)
+		if portErr != nil || port < 1 || port > 65535 {
+			return nil, fmt.Errorf("Kafka broker %d has invalid port %q", index, portText)
 		}
 		if _, exists := seen[broker]; exists {
 			continue
@@ -145,6 +188,17 @@ type ConsumerRegister struct {
 	Func      ConsumerGroupHandler
 }
 
+// KafkaRunReader is retained as a deprecated source-compatibility bridge for
+// integrations that referenced the v1.0 exported registration descriptor.
+// Use ManagedAdapterQueue.RegisterContext with storage options instead.
+//
+// Deprecated: use ManagedAdapterQueue.RegisterContext.
+type KafkaRunReader struct {
+	Topic   string
+	GroupID string
+	Func    storage.ConsumerFunc
+}
+
 type kafkaConsumerKey struct {
 	topic   string
 	groupID string
@@ -155,27 +209,39 @@ type kafkaConsumer struct {
 	group    sarama.ConsumerGroup
 }
 
+type kafkaPendingConsumer struct {
+	done                 chan struct{}
+	abandoned            error
+	completed            bool
+	resultErr            error
+	beforeAcceptComplete func()
+}
+
 type Kafka struct {
 	mu sync.Mutex
 
-	consumers            map[kafkaConsumerKey]*kafkaConsumer
-	brokers              []string
-	config               sarama.Config
-	producer             sarama.SyncProducer
-	consumerGroupHandler ConsumerGroupHandler
-	provider             string
-	consumerFactory      kafkaConsumerFactory
+	consumers             map[kafkaConsumerKey]*kafkaConsumer
+	pendingConsumers      map[kafkaConsumerKey]*kafkaPendingConsumer
+	brokers               []string
+	config                sarama.Config
+	producer              sarama.SyncProducer
+	consumerGroupHandler  ConsumerGroupHandler
+	provider              string
+	consumerFactory       kafkaConsumerFactory
+	legacyRegisterTimeout time.Duration
 
-	operations sync.WaitGroup
-	runners    sync.WaitGroup
-	runCancel  context.CancelFunc
-	running    bool
-	closing    bool
-	closeDone  chan struct{}
-	closeErr   error
-	lastErr    error
-	errorCh    chan error
-	errorsDone bool
+	operations           sync.WaitGroup
+	registrations        sync.WaitGroup
+	runners              sync.WaitGroup
+	runCancel            context.CancelFunc
+	running              bool
+	closing              bool
+	closeDone            chan struct{}
+	closeErr             error
+	registrationCloseErr error
+	lastErr              error
+	errorCh              chan error
+	errorsDone           bool
 }
 
 func (*Kafka) String() string {
@@ -248,9 +314,16 @@ func (e *Kafka) beginOperation() (sarama.SyncProducer, error) {
 }
 
 // Register preserves the legacy AdapterQueue surface without terminating the
-// process. New composition roots must call RegisterContext and handle errors.
+// process or waiting forever. New composition roots must call RegisterContext
+// and supply their own authoritative context.
 func (e *Kafka) Register(opts ...storage.Option) {
-	if err := e.register(nil, opts...); err != nil {
+	timeout := kafkaLegacyRegistrationTimeout
+	if e != nil && e.legacyRegisterTimeout > 0 {
+		timeout = e.legacyRegisterTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := e.RegisterContext(ctx, opts...); err != nil {
 		e.reportError(err)
 	}
 }
@@ -271,33 +344,20 @@ func (e *Kafka) register(ctx context.Context, opts ...storage.Option) error {
 	}
 	o := storage.SetOptions(opts...)
 	if o.F == nil {
-		return errors.New("Kafka consumer function is required")
+		return invalidKafkaConfiguration(errors.New("consumer function is required"))
 	}
 	topic := strings.TrimSpace(o.Topic)
 	if topic == "" {
-		return errors.New("Kafka consumer topic is required")
+		return invalidKafkaConfiguration(errors.New("consumer topic is required"))
 	}
 	groupID := strings.TrimSpace(o.GroupID)
 	if groupID == "" {
-		return errors.New("Kafka consumer group ID is required")
+		return invalidKafkaConfiguration(errors.New("consumer group ID is required"))
 	}
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-	}
-
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.closing {
-		return ErrKafkaClosed
-	}
-	key := kafkaConsumerKey{topic: topic, groupID: groupID}
-	if e.consumers[key] != nil {
-		return fmt.Errorf("%w: topic %q group %q", ErrKafkaDuplicateConsumer, topic, groupID)
-	}
-	if e.running {
-		return ErrKafkaRegistrationAfter
 	}
 
 	consumerConfig := cloneKafkaConfig(&e.config)
@@ -307,43 +367,183 @@ func (e *Kafka) register(ctx context.Context, opts ...storage.Option) error {
 	}
 	consumerConfig.Consumer.Return.Errors = true
 	if !consumerConfig.Consumer.Offsets.AutoCommit.Enable {
-		return errors.New("Kafka automatic offset commit is required for MarkMessage delivery")
+		return invalidKafkaConfiguration(errors.New("automatic offset commit is required for MarkMessage delivery"))
 	}
 	if o.PartitionAssignmentStrategy != nil {
 		consumerConfig.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{o.PartitionAssignmentStrategy}
 	}
 	if o.Partition >= 0 {
 		if o.Partition > 255 {
-			return errors.New("Kafka partition hint must be between 0 and 255")
+			return invalidKafkaConfiguration(errors.New("partition hint must be between 0 and 255"))
 		}
 		consumerConfig.Consumer.Group.Member.UserData = []byte{byte(o.Partition)}
 	}
 	if err := consumerConfig.Validate(); err != nil {
-		return fmt.Errorf("validate Kafka consumer configuration: %w", err)
+		return invalidKafkaConfiguration(fmt.Errorf("validate consumer configuration: %w", err))
 	}
 	handler, err := cloneConsumerGroupHandler(e.consumerGroupHandler)
 	if err != nil {
-		return err
+		return invalidKafkaConfiguration(err)
 	}
 	handler.SetConsumerFunc(o.F)
-	group, err := e.consumerFactory(e.brokers, groupID, &consumerConfig)
-	if err != nil {
-		return fmt.Errorf("create Kafka consumer group %q: %w", groupID, err)
+
+	key := kafkaConsumerKey{topic: topic, groupID: groupID}
+	e.mu.Lock()
+	if e.closing {
+		e.mu.Unlock()
+		return ErrKafkaClosed
 	}
-	if group == nil {
-		return fmt.Errorf("create Kafka consumer group %q: group is nil", groupID)
+	if e.running {
+		e.mu.Unlock()
+		return ErrKafkaRegistrationAfter
 	}
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			_ = group.Close()
+	if e.consumers[key] != nil {
+		e.mu.Unlock()
+		return fmt.Errorf("%w: topic %q group %q", ErrKafkaDuplicateConsumer, topic, groupID)
+	}
+	if _, pending := e.pendingConsumers[key]; pending {
+		e.mu.Unlock()
+		return fmt.Errorf("%w: topic %q group %q", ErrKafkaConsumerPending, topic, groupID)
+	}
+	if e.pendingConsumers == nil {
+		e.pendingConsumers = make(map[kafkaConsumerKey]*kafkaPendingConsumer)
+	}
+	pending := &kafkaPendingConsumer{done: make(chan struct{})}
+	e.pendingConsumers[key] = pending
+	e.registrations.Go(func() {
+		e.constructConsumerGroup(
+			key,
+			pending,
+			ConsumerRegister{Topic: topic, GroupID: groupID, Partition: o.Partition, Func: handler},
+			&consumerConfig,
+		)
+	})
+	e.mu.Unlock()
+
+	if ctx == nil {
+		<-pending.done
+		e.mu.Lock()
+		err := pending.resultErr
+		e.mu.Unlock()
+		return err
+	}
+	select {
+	case <-pending.done:
+		e.mu.Lock()
+		err := pending.resultErr
+		e.mu.Unlock()
+		return err
+	case <-ctx.Done():
+		e.mu.Lock()
+		if pending.completed {
+			err := pending.resultErr
+			e.mu.Unlock()
 			return err
 		}
+		if pending.abandoned == nil {
+			pending.abandoned = ctx.Err()
+		}
+		e.mu.Unlock()
+		return ctx.Err()
 	}
-	e.consumers[key] = &kafkaConsumer{
-		register: ConsumerRegister{Topic: topic, GroupID: groupID, Partition: o.Partition, Func: handler},
-		group:    group,
+}
+
+func (e *Kafka) constructConsumerGroup(
+	key kafkaConsumerKey,
+	pending *kafkaPendingConsumer,
+	register ConsumerRegister,
+	configuration *sarama.Config,
+) {
+	// Sarama construction may dial brokers. It must never run while mu is held:
+	// Close remains deadline-bounded, callers can abandon on their own context,
+	// and duplicate callers observe one tracked pending reservation.
+	group, factoryErr := e.consumerFactory(e.brokers, register.GroupID, configuration)
+	if factoryErr != nil {
+		e.completePendingRegistration(
+			key,
+			pending,
+			classifyKafkaFactoryError(fmt.Sprintf("create consumer group %q", register.GroupID), factoryErr),
+		)
+		return
 	}
-	return nil
+	if group == nil {
+		e.completePendingRegistration(
+			key,
+			pending,
+			fmt.Errorf("create Kafka consumer group %q: group is nil", register.GroupID),
+		)
+		return
+	}
+
+	var rejectErr error
+	e.mu.Lock()
+	delete(e.pendingConsumers, key)
+	if pending.abandoned != nil {
+		rejectErr = pending.abandoned
+	}
+	if rejectErr == nil && e.closing {
+		rejectErr = ErrKafkaClosed
+	}
+	if rejectErr == nil && e.running {
+		rejectErr = ErrKafkaRegistrationAfter
+	}
+	if rejectErr == nil {
+		e.consumers[key] = &kafkaConsumer{
+			register: register,
+			group:    group,
+		}
+		if pending.beforeAcceptComplete != nil {
+			pending.beforeAcceptComplete()
+		}
+		// Acceptance and completion are one linearization point. A caller
+		// whose context becomes ready after the group is accepted must observe
+		// the completed success rather than return cancellation while leaving
+		// an accepted consumer behind.
+		e.finishPendingResultLocked(pending, nil)
+	}
+	e.mu.Unlock()
+	if rejectErr == nil {
+		return
+	}
+
+	closeErr := group.Close()
+	if closeErr != nil {
+		closeErr = fmt.Errorf(
+			"close rejected Kafka consumer topic %q group %q: %w",
+			register.Topic,
+			register.GroupID,
+			closeErr,
+		)
+		e.mu.Lock()
+		e.registrationCloseErr = errors.Join(e.registrationCloseErr, closeErr)
+		e.mu.Unlock()
+	}
+	e.finishPendingResult(pending, errors.Join(rejectErr, closeErr))
+}
+
+func (e *Kafka) completePendingRegistration(
+	key kafkaConsumerKey,
+	pending *kafkaPendingConsumer,
+	err error,
+) {
+	e.mu.Lock()
+	delete(e.pendingConsumers, key)
+	pending.resultErr = err
+	pending.completed = true
+	close(pending.done)
+	e.mu.Unlock()
+}
+
+func (e *Kafka) finishPendingResult(pending *kafkaPendingConsumer, err error) {
+	e.mu.Lock()
+	e.finishPendingResultLocked(pending, err)
+	e.mu.Unlock()
+}
+
+func (e *Kafka) finishPendingResultLocked(pending *kafkaPendingConsumer, err error) {
+	pending.resultErr = err
+	pending.completed = true
+	close(pending.done)
 }
 
 func cloneConsumerGroupHandler(prototype ConsumerGroupHandler) (ConsumerGroupHandler, error) {
@@ -391,6 +591,10 @@ func (e *Kafka) Start(ctx context.Context) error {
 	if e.running {
 		e.mu.Unlock()
 		return ErrKafkaAlreadyRunning
+	}
+	if len(e.pendingConsumers) != 0 {
+		e.mu.Unlock()
+		return ErrKafkaRegistrationsOpen
 	}
 	e.running = true
 	runCtx, cancel := context.WithCancel(ctx)
@@ -520,6 +724,17 @@ func (e *Kafka) Close(ctx context.Context) error {
 	e.mu.Lock()
 	done := e.closeDone
 	e.mu.Unlock()
+	// A completed close is authoritative even when a retry arrives with an
+	// already-canceled context. Preserve terminal producer/consumer diagnostics
+	// instead of selecting the caller cancellation nondeterministically.
+	select {
+	case <-done:
+		e.mu.Lock()
+		err := e.closeErr
+		e.mu.Unlock()
+		return err
+	default:
+	}
 	select {
 	case <-done:
 		e.mu.Lock()
@@ -527,7 +742,35 @@ func (e *Kafka) Close(ctx context.Context) error {
 		e.mu.Unlock()
 		return err
 	case <-ctx.Done():
+		select {
+		case <-done:
+			e.mu.Lock()
+			err := e.closeErr
+			e.mu.Unlock()
+			return err
+		default:
+		}
 		return ctx.Err()
+	}
+}
+
+// CloseComplete reports whether all owned producer, consumer, runner,
+// operation, and in-flight registration cleanup has reached a terminal state.
+func (e *Kafka) CloseComplete() bool {
+	if e == nil {
+		return true
+	}
+	e.mu.Lock()
+	done := e.closeDone
+	e.mu.Unlock()
+	if done == nil {
+		return false
+	}
+	select {
+	case <-done:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -570,6 +813,10 @@ func (e *Kafka) finishClose(
 			))
 		}
 	}
+	// A registration reserved before closing may still be blocked in Sarama's
+	// factory. The caller's Close context remains authoritative while this owned
+	// close worker waits; a late group is rejected and closed before Done.
+	e.registrations.Wait()
 	e.runners.Wait()
 	e.operations.Wait()
 	if producer != nil {
@@ -579,6 +826,7 @@ func (e *Kafka) finishClose(
 	}
 
 	e.mu.Lock()
+	closeErr = errors.Join(closeErr, e.registrationCloseErr)
 	e.closeErr = closeErr
 	e.lastErr = errors.Join(e.lastErr, closeErr)
 	e.producer = nil

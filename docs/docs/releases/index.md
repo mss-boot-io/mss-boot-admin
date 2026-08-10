@@ -44,10 +44,11 @@ issue 完成终态记录或链接已验证的替代列车。
 ## 下一公开版本：v1.1.0
 
 当前采用“开发优先、冻结后集中验证”策略：原 `v1.0.1-v1.0.3` 和 alpha 切片只作为
-内部开发波次，不创建 tag、GitHub Release 或版本化包。Challenge、Kafka Mark、
+内部开发波次，不创建 tag、GitHub Release 或版本化包。Challenge、Kafka Mark/lifecycle、
 Upload admission 与 D1 object provider/owner 已形成安全 checkpoint，将继续作为永久
-回归哨兵。D1 的对象子切片已经完成；下一条实现是 Kafka registration/configuration、
-producer ownership、error observation 与 bounded close。
+回归哨兵。`D1-provider-owner` 已整体完成；Kafka 保持 `AdapterQueue` 兼容面并通过新增
+`ManagedAdapterQueue` 由 Admin 统一拥有、作为 `Runnable` 运行和有界关闭，但仍保持
+Legacy/Blocked。下一条实现是 `D2-contract-substrate`。
 
 只有 Generator/Blueprint 与 Storage Runtime 目标全部完成、选定一个 `v1.1.0` 功能冻结 SHA
 后，才手工启动 `release-readiness`，集中执行三数据库、browser、Provider、upgrade、

@@ -26,14 +26,27 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   configuration, immutable normalized profiles, explicit credential modes, and
   typed environment SecretRefs. This is an intentional breaking configuration
   contract and does not promote either provider.
+- Kept the framework `AdapterQueue` surface source-compatible and added the
+  additive `ManagedAdapterQueue` lifecycle contract. Kafka configuration and
+  registration now use caller contexts and return errors; Admin owns the managed
+  adapter and registers its blocking `Start` with the server `Runnable` manager.
+- Made migration registration lossless and fail-fast: full decimal identifiers are
+  ordered without integer truncation, duplicates fail before any schema access,
+  the Admin migrator propagates context/errors, and explicit v1.0.0 aliases prevent
+  historical 10/13-digit marker rows from rerunning. The generated migration
+  template now registers the complete filename identifier.
 
 ### Fixed
 
 - Moved the legacy Kafka adapter's Sarama offset mark after JSON decoding and
   synchronous handler success, propagated the consumer-session context into the
   message, and stopped canceled or closed consumer loops without marking unfinished
-  work. The adapter remains Legacy/Blocked: this hermetic checkpoint does not prove
-  broker commit, retry/dead-letter behavior, or complete provider lifecycle.
+  work. D1 additionally removes registration/configuration Exit/Fatal paths, owns
+  one producer and one consumer group per unique topic/group, observes consumer
+  errors, rejects new work during close, and provides cancellable start plus
+  idempotent, deadline-bounded, retryable close. The adapter remains
+  Legacy/Blocked: hermetic evidence does not prove broker commit, manual commit,
+  retry/backoff, dead-letter, rebalance, idempotency, outage, or real-broker behavior.
 - Removed the Admin ghost storage initializer and per-upload S3 constructor.
   One composition-root owner now installs a leased framework Handle and pinned
   filesystem before registering Application delivery, then closes them with bounded,
@@ -89,8 +102,11 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   and the remaining provider and delivery blockers.
 - Added the D1 Object Provider/Owner checkpoint with exact profile, owner,
   AppConfig, 503, development Local delivery, and shutdown evidence. S3 Put,
-  Delivery, and pinned RustFS conformance remain deferred to D4; Kafka lifecycle
-  remains the unfinished half of D1.
+  Delivery, and pinned RustFS conformance remain deferred to D4.
+- Extended the Kafka checkpoint with exact managed-interface, owner, configuration,
+  Casbin registration, Admin Runnable, error-observation, and bounded-close evidence.
+  D1 is complete and the next development wave is D2 contract substrate; Kafka
+  remains Legacy/Blocked pending its dedicated real-broker and delivery suites.
 
 ## [v1.0.0] - 2026-08-09
 

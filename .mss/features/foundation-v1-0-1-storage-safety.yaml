@@ -36,7 +36,7 @@ spec:
     - Complete the storage-runtime-v2 package split or remove every historical public adapter in the first safety wave.
     - Complete the private ObjectStore/Delivery metadata and authorization boundary; that remains the separately gated D4 target before feature freeze.
     - Treat the D1 object-provider owner as S3 object-I/O evidence. S3 Put, Delivery, and a pinned RustFS-backed S3-compatible conformance fixture remain D4 work.
-    - Guarantee S3 create-only conditional writes and typed object conflicts; Local and MinIO/S3 share that no-clobber contract only in the separately gated D4 provider suite.
+    - Guarantee S3 create-only conditional writes and typed object conflicts; Local and the pinned RustFS S3-compatible fixture share that no-clobber contract only in the separately gated D4 provider suite.
     - Freeze or promote the public Storage Runtime v2 ChallengeStore package and configuration API; the first safety wave exposes only an explicitly provisional inter-module bridge while the v1.1.0 target API remains a later development wave.
     - Promise stable Kafka, NSQ, Redis work-queue, distributed-lock, or S3-compatible provider support.
     - Add storage hot reload, resumable upload, image processing, virus scanning, CDN orchestration, or cross-cloud replication.
@@ -44,7 +44,7 @@ spec:
     - Claim database-enforced canonical email uniqueness; ambiguous identities fail closed in the first wave, while a preflighted three-database forward migration is a later development wave.
     - Manually rewrite .mss/lock.yaml or .mss/project.yaml to resemble the published release version.
     - Let compatibility shims preserve an unsafe Kafka offset mark, fallback, secret, or lifecycle behavior.
-    - Treat the completed object-provider slice as completion of D1. Kafka registration, configuration, producer ownership, error observation, and bounded close remain in the same D1 wave.
+    - Promote Kafka because its D1 lifecycle checkpoint is complete. Manual commit, retry/backoff, dead letter, idempotency, rebalance, outage, and real-broker conformance remain outside this checkpoint.
   actors:
     - id: admin-operator
       displayName: Admin operator
@@ -85,7 +85,7 @@ spec:
         - Decode failure and handler failure leave the Kafka message unmarked and eligible for redelivery.
         - Consumer cancellation and rebalance stop work without marking unfinished Kafka messages; a completed side effect can still be repeated when cancellation races the local mark.
         - MarkMessage records the next offset in the current Sarama session; it is not an immediate broker commit and does not provide exactly-once delivery.
-        - Kafka remains Blocked and cataloged as legacy after this checkpoint. It can enter Experimental only after lifecycle, manual-commit policy, error-observation, bounded retry, dead-letter, idempotency, and real-broker conformance pass.
+        - Kafka remains Blocked and cataloged as legacy after the D0 mark-order and D1 lifecycle checkpoints. It can enter Experimental only after an explicit manual-commit policy, bounded retry/backoff, dead-letter, idempotency, rebalance, outage, and real-broker conformance pass.
     - id: classify-provider-evidence
       title: Publish honest provider identity and status
       description: The capability catalog must give each provider its own supported lifecycle status while release notes and the ADR record the more detailed evidence classification.
@@ -133,8 +133,11 @@ spec:
       rules:
         - The changed Challenge, Kafka, and object-storage call graph does not call os.Exit, log.Fatal, or start long-lived work from context.Background.
         - Kafka cancellation leaves in-flight work unmarked and the object-storage owner closes its single client idempotently.
-        - The isolated Kafka Mark-order checkpoint changes only ConsumeClaim and runConsumer and does not satisfy this lifecycle requirement; v1.1.0 cannot freeze until Kafka registration, configuration, producer ownership, and error observation meet the changed-path gate.
-        - The object-storage subset is complete when one profile returns one leased Handle, the composition root installs its owner and pinned filesystem before registering Application delivery, shutdown drains and closes it idempotently, and configuration-source bootstrap owns a separate Handle. This does not close the remaining Kafka lifecycle gate.
+        - The legacy AdapterQueue surface remains source-compatible. The additive ManagedAdapterQueue returns registration/start/close failures, exposes observed provider errors, accepts caller-owned contexts, and supplies an idempotent deadline-bounded close path without making the compatibility wrappers authoritative.
+        - One Kafka adapter owns one immutable validated configuration and one producer, plus one consumer-group client for each accepted unique topic/group registration. Duplicate or post-start registration, per-append Kafka configuration, unsupported manual commit, and client-construction failure return errors without replacing an existing consumer or terminating the process.
+        - Kafka `Start` blocks under the application context and drains each consumer group's Errors channel into the adapter's observable error stream; a consume-loop failure cancels peer work, and close releases consumers and the producer exactly once. A timed-out Close can be retried while new work remains rejected.
+        - Admin is the single managed-queue owner; queue construction and Casbin registration use the caller context, the server Runnable consumes Errors and propagates runtime failure to the lifecycle manager, and Config closes the queue before the database owner. Legacy Register, Run, Shutdown, and Queue.Init remain non-terminating compatibility bridges only.
+        - The object-storage subset is complete when one profile returns one leased Handle, the composition root installs its owner and pinned filesystem before registering Application delivery, shutdown drains and closes it idempotently, and configuration-source bootstrap owns a separate Handle.
         - S3 configuration bootstrap treats only a missing stage object as an optional overlay. Transport, read, and malformed-overlay failures fail startup closed; HTTP endpoints require the exact explicit s3_tls_allow_insecure_http=true opt-in, and invalid boolean values are rejected.
         - General cache, NSQ, Redis queue, lock, and resource-graph lifecycle replacement remains a separately scoped development wave before feature freeze.
     - id: secure-challenge-consumption
@@ -359,12 +362,213 @@ spec:
         - type: test
           value: TestKafkaRunStopsAfterConsumerClose
         - type: command
-          value: cd mss-boot && GOWORK=off go test -json -race ./pkg/config/storage/queue -run '^TestKafka(DoesNotMarkOnDecodeFailure|DoesNotMarkOnHandlerFailure|MarksOnceAfterHandlerSuccess|CancellationLeavesUnfinishedUnmarked|RunStopsAfterCancellation|RunStopsAfterConsumerClose)$' -count=20
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/queue
+            --run '^TestKafka(DoesNotMarkOnDecodeFailure|DoesNotMarkOnHandlerFailure|MarksOnceAfterHandlerSuccess|CancellationLeavesUnfinishedUnmarked|RunStopsAfterCancellation|RunStopsAfterConsumerClose)$'
+            --count 20 --race --go-work off
+            --require TestKafkaDoesNotMarkOnDecodeFailure
+            --require TestKafkaDoesNotMarkOnHandlerFailure
+            --require TestKafkaMarksOnceAfterHandlerSuccess
+            --require TestKafkaCancellationLeavesUnfinishedUnmarked
+            --require TestKafkaRunStopsAfterCancellation
+            --require TestKafkaRunStopsAfterConsumerClose
         - type: report
-          value: Required-test JSON report proving all six exact hermetic Kafka tests emitted Action=pass in every race-detected run; real-broker commit, rebalance, outage, retry, and lifecycle evidence remain required before provider promotion.
+          value: Required-test JSON report proving all six exact hermetic Kafka tests emitted Action=pass in every race-detected run; real-broker commit, rebalance, outage, retry/backoff, dead-letter, and idempotency evidence remain required before provider promotion.
+    - id: queue-lifecycle-checkpoint-evidence
+      requirement: own-provider-lifecycle
+      statement: Exact hermetic tests prove the additive managed queue contract, strict caller-context Kafka configuration, one owned producer, unique owned consumer registrations, observed errors, owner-returned failures, cancellable blocking start, deadline-bounded asynchronous registration and close, terminal diagnostic cleanup, and a bounded source-compatible legacy surface.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestManagedAdapterQueueRemainsAnAdapterQueue
+        - type: test
+          value: TestAdapterErrorClassificationsPreserveCause
+        - type: test
+          value: TestKafkaRunReaderDeprecatedSourceCompatibility
+        - type: test
+          value: TestKafkaConstructionOwnsOneStrictProducer
+        - type: test
+          value: TestKafkaConstructionReturnsValidationAndProducerErrors
+        - type: test
+          value: TestKafkaRegisterReturnsValidationAndConstructionErrors
+        - type: test
+          value: TestKafkaLegacyRegisterReportsError
+        - type: test
+          value: TestKafkaLegacyRegisterIsBoundedAndClosesLateGroup
+        - type: test
+          value: TestKafkaUsesOneProducerForConcurrentAppend
+        - type: test
+          value: TestKafkaAppendRejectsInvalidOptions
+        - type: test
+          value: TestKafkaDuplicateRegistrationDoesNotConstructSecondGroup
+        - type: test
+          value: TestKafkaBlockingFactoryReservesOnceAndCloseHonorsDeadline
+        - type: test
+          value: TestKafkaCanceledRegistrationDoesNotCancelPeer
+        - type: test
+          value: TestKafkaAcceptedRegistrationWinsLaterCancellation
+        - type: test
+          value: TestKafkaRegistrationRejectedAfterStart
+        - type: test
+          value: TestKafkaConsumerErrorIsObservedWithoutSpin
+        - type: test
+          value: TestKafkaCloseTimeoutCanBeRetriedAndDrainsOperations
+        - type: test
+          value: TestKafkaCloseAggregatesAllConsumerAndProducerDiagnostics
+        - type: test
+          value: TestKafkaCompletedCloseDiagnosticsWinCanceledRetry
+        - type: test
+          value: TestSampleWatcherManagedRegistrationUsesCallerContext
+        - type: test
+          value: TestSampleWatcherReturnsManagedRegistrationError
+        - type: test
+          value: TestSampleWatcherRejectsCanceledRegistrationContext
+        - type: test
+          value: TestSampleWatcherManagedLegacyRegistrationRequiresContext
+        - type: test
+          value: TestSampleWatcherCasbinCallbackUpdateDoesNotRegisterDuplicateConsumer
+        - type: test
+          value: TestKafkaBuildConfigValidatesStartupProfile
+        - type: test
+          value: TestKafkaBuildConfigRejectsInvalidProfiles
+        - type: test
+          value: TestKafkaBuildConfigSupportsStrictSASLProfiles
+        - type: test
+          value: TestKafkaBuildConfigBindsMSKToCallerContext
+        - type: test
+          value: TestKafkaTLSConfigVerifiesCertificates
+        - type: test
+          value: TestQueueEmptyIncludesKafka
+        - type: test
+          value: TestQueueInitContextInstallsMemoryAndPropagatesInstallerError
+        - type: test
+          value: TestQueueInitContextRejectsInvalidOwnership
+        - type: test
+          value: TestQueueLegacyInitDoesNotTerminateOnKafkaConfigurationError
+        - type: test
+          value: TestQueueLegacyInitRequiresOwnerContextForMSK
+        - type: test
+          value: TestConfigInitialQueueOutageCommitsWithoutQueue
+        - type: test
+          value: TestConfigQueueCancellationPropagatesAndRollsBackDatabase
+        - type: test
+          value: TestConfigQueueConfigurationAndWatcherFailuresRollBackDatabase
+        - type: test
+          value: TestConfigOwnsAndClosesManagedQueueBeforeDatabase
+        - type: test
+          value: TestConfigCloseRetainsDatabaseUntilManagedQueueCanStop
+        - type: test
+          value: TestConfigCloseReleasesOwnerAndDatabaseAfterTerminalQueueDiagnostic
+        - type: test
+          value: TestConfigReplacementRetiresOldManagedQueueBeforeOldDatabase
+        - type: test
+          value: TestConfigReplacementCommitsNewOwnerAfterTerminalQueueDiagnostic
+        - type: test
+          value: TestConfigReplacementTimeoutDegradesQueueAndRetainsOldDatabaseForRetry
+        - type: test
+          value: TestReloadDatabaseDuplicateConsumerKeepsPreviousHandle
+        - type: test
+          value: TestBindPolicyWatcherRegistersManagedConsumerExactlyOnce
+        - type: test
+          value: TestManagedQueueRunnableParticipatesInManagerErrorPropagation
+        - type: test
+          value: TestManagedQueueErrorsChannelIsNotLost
+        - type: test
+          value: TestManagedQueueCompletedStartStillDrainsBufferedError
+        - type: test
+          value: TestStartLegacyQueueDoesNotDetachManagedQueue
+        - type: test
+          value: TestStartLegacyQueueRetainsNonManagedCompatibility
+        - type: test
+          value: TestV101ChangedProvidersDoNotExitOrDetach
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/queue
+            --run '^(TestKafkaRunReaderDeprecatedSourceCompatibility|TestKafkaConstructionOwnsOneStrictProducer|TestKafkaConstructionReturnsValidationAndProducerErrors|TestKafkaRegisterReturnsValidationAndConstructionErrors|TestKafkaLegacyRegisterReportsError|TestKafkaLegacyRegisterIsBoundedAndClosesLateGroup|TestKafkaUsesOneProducerForConcurrentAppend|TestKafkaAppendRejectsInvalidOptions|TestKafkaDuplicateRegistrationDoesNotConstructSecondGroup|TestKafkaBlockingFactoryReservesOnceAndCloseHonorsDeadline|TestKafkaCanceledRegistrationDoesNotCancelPeer|TestKafkaAcceptedRegistrationWinsLaterCancellation|TestKafkaRegistrationRejectedAfterStart|TestKafkaConsumerErrorIsObservedWithoutSpin|TestKafkaCloseTimeoutCanBeRetriedAndDrainsOperations|TestKafkaCloseAggregatesAllConsumerAndProducerDiagnostics|TestKafkaCompletedCloseDiagnosticsWinCanceledRetry|TestSampleWatcherManagedRegistrationUsesCallerContext|TestSampleWatcherReturnsManagedRegistrationError|TestSampleWatcherRejectsCanceledRegistrationContext|TestSampleWatcherManagedLegacyRegistrationRequiresContext|TestSampleWatcherCasbinCallbackUpdateDoesNotRegisterDuplicateConsumer)$'
+            --count 1 --race --go-work off
+            --require TestKafkaRunReaderDeprecatedSourceCompatibility
+            --require TestKafkaConstructionOwnsOneStrictProducer
+            --require TestKafkaConstructionReturnsValidationAndProducerErrors
+            --require TestKafkaRegisterReturnsValidationAndConstructionErrors
+            --require TestKafkaLegacyRegisterReportsError
+            --require TestKafkaLegacyRegisterIsBoundedAndClosesLateGroup
+            --require TestKafkaUsesOneProducerForConcurrentAppend
+            --require TestKafkaAppendRejectsInvalidOptions
+            --require TestKafkaDuplicateRegistrationDoesNotConstructSecondGroup
+            --require TestKafkaBlockingFactoryReservesOnceAndCloseHonorsDeadline
+            --require TestKafkaCanceledRegistrationDoesNotCancelPeer
+            --require TestKafkaAcceptedRegistrationWinsLaterCancellation
+            --require TestKafkaRegistrationRejectedAfterStart
+            --require TestKafkaConsumerErrorIsObservedWithoutSpin
+            --require TestKafkaCloseTimeoutCanBeRetriedAndDrainsOperations
+            --require TestKafkaCloseAggregatesAllConsumerAndProducerDiagnostics
+            --require TestKafkaCompletedCloseDiagnosticsWinCanceledRetry
+            --require TestSampleWatcherManagedRegistrationUsesCallerContext
+            --require TestSampleWatcherReturnsManagedRegistrationError
+            --require TestSampleWatcherRejectsCanceledRegistrationContext
+            --require TestSampleWatcherManagedLegacyRegistrationRequiresContext
+            --require TestSampleWatcherCasbinCallbackUpdateDoesNotRegisterDuplicateConsumer
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config
+            --run '^(TestKafkaBuildConfigValidatesStartupProfile|TestKafkaBuildConfigRejectsInvalidProfiles|TestKafkaBuildConfigSupportsStrictSASLProfiles|TestKafkaBuildConfigBindsMSKToCallerContext|TestKafkaTLSConfigVerifiesCertificates|TestQueueEmptyIncludesKafka|TestQueueInitContextInstallsMemoryAndPropagatesInstallerError|TestQueueInitContextRejectsInvalidOwnership|TestQueueLegacyInitDoesNotTerminateOnKafkaConfigurationError|TestQueueLegacyInitRequiresOwnerContextForMSK)$'
+            --count 1 --race --go-work off
+            --require TestKafkaBuildConfigValidatesStartupProfile
+            --require TestKafkaBuildConfigRejectsInvalidProfiles
+            --require TestKafkaBuildConfigSupportsStrictSASLProfiles
+            --require TestKafkaBuildConfigBindsMSKToCallerContext
+            --require TestKafkaTLSConfigVerifiesCertificates
+            --require TestQueueEmptyIncludesKafka
+            --require TestQueueInitContextInstallsMemoryAndPropagatesInstallerError
+            --require TestQueueInitContextRejectsInvalidOwnership
+            --require TestQueueLegacyInitDoesNotTerminateOnKafkaConfigurationError
+            --require TestQueueLegacyInitRequiresOwnerContextForMSK
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage
+            --run '^(TestManagedAdapterQueueRemainsAnAdapterQueue|TestAdapterErrorClassificationsPreserveCause)$'
+            --count 1 --race --go-work off
+            --require TestManagedAdapterQueueRemainsAnAdapterQueue
+            --require TestAdapterErrorClassificationsPreserveCause
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./config
+            --run '^(TestConfigInitialQueueOutageCommitsWithoutQueue|TestConfigQueueCancellationPropagatesAndRollsBackDatabase|TestConfigQueueConfigurationAndWatcherFailuresRollBackDatabase|TestConfigOwnsAndClosesManagedQueueBeforeDatabase|TestConfigCloseRetainsDatabaseUntilManagedQueueCanStop|TestConfigCloseReleasesOwnerAndDatabaseAfterTerminalQueueDiagnostic|TestConfigReplacementRetiresOldManagedQueueBeforeOldDatabase|TestConfigReplacementCommitsNewOwnerAfterTerminalQueueDiagnostic|TestConfigReplacementTimeoutDegradesQueueAndRetainsOldDatabaseForRetry|TestReloadDatabaseDuplicateConsumerKeepsPreviousHandle|TestBindPolicyWatcherRegistersManagedConsumerExactlyOnce)$'
+            --count 1 --race --go-work off
+            --require TestConfigInitialQueueOutageCommitsWithoutQueue
+            --require TestConfigQueueCancellationPropagatesAndRollsBackDatabase
+            --require TestConfigQueueConfigurationAndWatcherFailuresRollBackDatabase
+            --require TestConfigOwnsAndClosesManagedQueueBeforeDatabase
+            --require TestConfigCloseRetainsDatabaseUntilManagedQueueCanStop
+            --require TestConfigCloseReleasesOwnerAndDatabaseAfterTerminalQueueDiagnostic
+            --require TestConfigReplacementRetiresOldManagedQueueBeforeOldDatabase
+            --require TestConfigReplacementCommitsNewOwnerAfterTerminalQueueDiagnostic
+            --require TestConfigReplacementTimeoutDegradesQueueAndRetainsOldDatabaseForRetry
+            --require TestReloadDatabaseDuplicateConsumerKeepsPreviousHandle
+            --require TestBindPolicyWatcherRegistersManagedConsumerExactlyOnce
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+            --run '^(TestManagedQueueRunnableParticipatesInManagerErrorPropagation|TestManagedQueueErrorsChannelIsNotLost|TestManagedQueueCompletedStartStillDrainsBufferedError|TestStartLegacyQueueDoesNotDetachManagedQueue|TestStartLegacyQueueRetainsNonManagedCompatibility)$'
+            --count 1 --race --go-work off
+            --require TestManagedQueueRunnableParticipatesInManagerErrorPropagation
+            --require TestManagedQueueErrorsChannelIsNotLost
+            --require TestManagedQueueCompletedStartStillDrainsBufferedError
+            --require TestStartLegacyQueueDoesNotDetachManagedQueue
+            --require TestStartLegacyQueueRetainsNonManagedCompatibility
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/verify
+            --run '^TestV101ChangedProvidersDoNotExitOrDetach$'
+            --count 1 --go-work off
+            --require TestV101ChangedProvidersDoNotExitOrDetach
+        - type: report
+          value: Required-test JSON report proving every listed test emitted Action=run and Action=pass in its package; zero matches, [no tests to run], skip, and cached-only output fail this checkpoint. The report also records that no real broker was used and therefore does not promote Kafka.
     - id: runtime-lifecycle-evidence
       requirement: own-provider-lifecycle
-      statement: Focused tests prove Kafka cancellation, one object client and owner, idempotent close, and absence of process termination or detached work in every safety-wave changed path before feature freeze.
+      statement: The D1 queue and object lifecycle checkpoints remain permanent sentinels at feature freeze, and the frozen candidate additionally proves absence of process termination or detached work plus the selected real-provider and real-broker lifecycle, outage, rebalance, recovery, and leak boundaries.
       level: integration
       phase: feature-freeze
       required: true
@@ -410,11 +614,11 @@ spec:
         - type: command
           value: "cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestS3BootstrapOwnedHandleClosesAndMissingOverlayIsOptional|TestS3BootstrapOverlayFailureFailsClosed|TestS3BootstrapGenericNotFoundFailsClosed|TestS3BootstrapMalformedOverlayFailsClosed|TestS3BootstrapRejectsInvalidInsecureHTTPFlag)$' -count=1"
         - type: command
-          value: go test -json ./internal/mss/verify -run '^TestV101ChangedProvidersDoNotExitOrDetach$'
+          value: GOWORK=off go test -json ./internal/mss/verify -run '^TestV101ChangedProvidersDoNotExitOrDetach$' -count=1
         - type: command
           value: "cd admin && GOWORK=off go test -json -race ./config -run '^(TestObjectStorageSingleClientOwnedClose|TestObjectStorageConcurrentCloseIsIdempotent|TestObjectStorageCloseDoesNotDeadlockReentrantLease)$' -count=1"
         - type: report
-          value: Required-test JSON report proving the repository-wide forbidden-call test, Admin single-owner/concurrent-close/reentrant-lease lifecycle tests, S3 source ownership/body-close tests, and S3 bootstrap overlay tests all ran with race detection; Admin close stayed idempotent without holding the Config mutex across a draining callback, only a missing stage object was optional, and transport/read/malformed-overlay failure or an invalid insecure-HTTP flag failed closed.
+          value: Required-test JSON report proving the repository-wide forbidden-call test, all D1 queue and object owner tests, Admin single-owner/concurrent-close/reentrant-lease lifecycle tests, S3 source ownership/body-close tests, and S3 bootstrap overlay tests all emitted non-zero run/pass evidence with no skip or cached-only substitution. Feature-freeze provider evidence additionally covers the selected real Kafka broker's error, outage, cancellation, rebalance, recovery, and leak paths without claiming manual commit, retry/dead-letter, or exactly-once semantics; Admin close stayed idempotent without holding the Config mutex across a draining callback, only a missing stage object was optional, and transport/read/malformed-overlay failure or an invalid insecure-HTTP flag failed closed.
     - id: storage-selection-evidence
       requirement: fail-closed-provider-selection
       statement: Missing or invalid configuration and unavailable object backends return an explicit unavailable error without writing locally or returning a success URL; Local installs only for an explicit development static mapping, remains unavailable in production, and every returned development URL serves the committed bytes and checksum across router restart. Provider and credential AppConfig keys are absent and rejected, while S3 returns unavailable before Put until D4.
@@ -513,7 +717,64 @@ spec:
       - go run ./cmd/mss spec validate .mss/features/foundation-v1-0-1-storage-safety.yaml --format json
       - python3 -m unittest tools/release/test_check_release_policy.py
       - cd mss-boot && GOWORK=off go test -race ./pkg/config/storage/cache -run '^(TestChallenge.*|TestLegacyVerifyCodeStoreIsDisabled)$' -count=1
-      - cd mss-boot && GOWORK=off go test -json -race ./pkg/config/storage/queue -run '^TestKafka(DoesNotMarkOnDecodeFailure|DoesNotMarkOnHandlerFailure|MarksOnceAfterHandlerSuccess|CancellationLeavesUnfinishedUnmarked|RunStopsAfterCancellation|RunStopsAfterConsumerClose)$' -count=1
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/queue
+        --run '^TestKafka(DoesNotMarkOnDecodeFailure|DoesNotMarkOnHandlerFailure|MarksOnceAfterHandlerSuccess|CancellationLeavesUnfinishedUnmarked|RunStopsAfterCancellation|RunStopsAfterConsumerClose)$'
+        --count 20 --race --go-work off
+        --require TestKafkaDoesNotMarkOnDecodeFailure --require TestKafkaDoesNotMarkOnHandlerFailure
+        --require TestKafkaMarksOnceAfterHandlerSuccess --require TestKafkaCancellationLeavesUnfinishedUnmarked
+        --require TestKafkaRunStopsAfterCancellation --require TestKafkaRunStopsAfterConsumerClose
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/queue
+        --run '^(TestKafkaRunReaderDeprecatedSourceCompatibility|TestKafkaConstructionOwnsOneStrictProducer|TestKafkaConstructionReturnsValidationAndProducerErrors|TestKafkaRegisterReturnsValidationAndConstructionErrors|TestKafkaLegacyRegisterReportsError|TestKafkaLegacyRegisterIsBoundedAndClosesLateGroup|TestKafkaUsesOneProducerForConcurrentAppend|TestKafkaAppendRejectsInvalidOptions|TestKafkaDuplicateRegistrationDoesNotConstructSecondGroup|TestKafkaBlockingFactoryReservesOnceAndCloseHonorsDeadline|TestKafkaCanceledRegistrationDoesNotCancelPeer|TestKafkaAcceptedRegistrationWinsLaterCancellation|TestKafkaRegistrationRejectedAfterStart|TestKafkaConsumerErrorIsObservedWithoutSpin|TestKafkaCloseTimeoutCanBeRetriedAndDrainsOperations|TestKafkaCloseAggregatesAllConsumerAndProducerDiagnostics|TestKafkaCompletedCloseDiagnosticsWinCanceledRetry|TestSampleWatcherManagedRegistrationUsesCallerContext|TestSampleWatcherReturnsManagedRegistrationError|TestSampleWatcherRejectsCanceledRegistrationContext|TestSampleWatcherManagedLegacyRegistrationRequiresContext|TestSampleWatcherCasbinCallbackUpdateDoesNotRegisterDuplicateConsumer)$'
+        --count 1 --race --go-work off
+        --require TestKafkaRunReaderDeprecatedSourceCompatibility --require TestKafkaConstructionOwnsOneStrictProducer
+        --require TestKafkaConstructionReturnsValidationAndProducerErrors --require TestKafkaRegisterReturnsValidationAndConstructionErrors
+        --require TestKafkaLegacyRegisterReportsError --require TestKafkaLegacyRegisterIsBoundedAndClosesLateGroup
+        --require TestKafkaUsesOneProducerForConcurrentAppend --require TestKafkaAppendRejectsInvalidOptions
+        --require TestKafkaDuplicateRegistrationDoesNotConstructSecondGroup --require TestKafkaBlockingFactoryReservesOnceAndCloseHonorsDeadline
+        --require TestKafkaCanceledRegistrationDoesNotCancelPeer --require TestKafkaAcceptedRegistrationWinsLaterCancellation
+        --require TestKafkaRegistrationRejectedAfterStart
+        --require TestKafkaConsumerErrorIsObservedWithoutSpin --require TestKafkaCloseTimeoutCanBeRetriedAndDrainsOperations
+        --require TestKafkaCloseAggregatesAllConsumerAndProducerDiagnostics --require TestKafkaCompletedCloseDiagnosticsWinCanceledRetry
+        --require TestSampleWatcherManagedRegistrationUsesCallerContext
+        --require TestSampleWatcherReturnsManagedRegistrationError --require TestSampleWatcherRejectsCanceledRegistrationContext
+        --require TestSampleWatcherManagedLegacyRegistrationRequiresContext --require TestSampleWatcherCasbinCallbackUpdateDoesNotRegisterDuplicateConsumer
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config
+        --run '^(TestKafkaBuildConfigValidatesStartupProfile|TestKafkaBuildConfigRejectsInvalidProfiles|TestKafkaBuildConfigSupportsStrictSASLProfiles|TestKafkaBuildConfigBindsMSKToCallerContext|TestKafkaTLSConfigVerifiesCertificates|TestQueueEmptyIncludesKafka|TestQueueInitContextInstallsMemoryAndPropagatesInstallerError|TestQueueInitContextRejectsInvalidOwnership|TestQueueLegacyInitDoesNotTerminateOnKafkaConfigurationError|TestQueueLegacyInitRequiresOwnerContextForMSK)$'
+        --count 1 --race --go-work off
+        --require TestKafkaBuildConfigValidatesStartupProfile --require TestKafkaBuildConfigRejectsInvalidProfiles
+        --require TestKafkaBuildConfigSupportsStrictSASLProfiles --require TestKafkaBuildConfigBindsMSKToCallerContext
+        --require TestKafkaTLSConfigVerifiesCertificates --require TestQueueEmptyIncludesKafka
+        --require TestQueueInitContextInstallsMemoryAndPropagatesInstallerError --require TestQueueInitContextRejectsInvalidOwnership
+        --require TestQueueLegacyInitDoesNotTerminateOnKafkaConfigurationError --require TestQueueLegacyInitRequiresOwnerContextForMSK
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage
+        --run '^(TestManagedAdapterQueueRemainsAnAdapterQueue|TestAdapterErrorClassificationsPreserveCause)$'
+        --count 1 --race --go-work off
+        --require TestManagedAdapterQueueRemainsAnAdapterQueue --require TestAdapterErrorClassificationsPreserveCause
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./config
+        --run '^(TestConfigInitialQueueOutageCommitsWithoutQueue|TestConfigQueueCancellationPropagatesAndRollsBackDatabase|TestConfigQueueConfigurationAndWatcherFailuresRollBackDatabase|TestConfigOwnsAndClosesManagedQueueBeforeDatabase|TestConfigCloseRetainsDatabaseUntilManagedQueueCanStop|TestConfigCloseReleasesOwnerAndDatabaseAfterTerminalQueueDiagnostic|TestConfigReplacementRetiresOldManagedQueueBeforeOldDatabase|TestConfigReplacementCommitsNewOwnerAfterTerminalQueueDiagnostic|TestConfigReplacementTimeoutDegradesQueueAndRetainsOldDatabaseForRetry|TestReloadDatabaseDuplicateConsumerKeepsPreviousHandle|TestBindPolicyWatcherRegistersManagedConsumerExactlyOnce)$'
+        --count 1 --race --go-work off
+        --require TestConfigInitialQueueOutageCommitsWithoutQueue --require TestConfigQueueCancellationPropagatesAndRollsBackDatabase
+        --require TestConfigQueueConfigurationAndWatcherFailuresRollBackDatabase --require TestConfigOwnsAndClosesManagedQueueBeforeDatabase
+        --require TestConfigCloseRetainsDatabaseUntilManagedQueueCanStop --require TestConfigCloseReleasesOwnerAndDatabaseAfterTerminalQueueDiagnostic
+        --require TestConfigReplacementRetiresOldManagedQueueBeforeOldDatabase --require TestConfigReplacementCommitsNewOwnerAfterTerminalQueueDiagnostic
+        --require TestConfigReplacementTimeoutDegradesQueueAndRetainsOldDatabaseForRetry --require TestReloadDatabaseDuplicateConsumerKeepsPreviousHandle
+        --require TestBindPolicyWatcherRegistersManagedConsumerExactlyOnce
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+        --run '^(TestManagedQueueRunnableParticipatesInManagerErrorPropagation|TestManagedQueueErrorsChannelIsNotLost|TestManagedQueueCompletedStartStillDrainsBufferedError|TestStartLegacyQueueDoesNotDetachManagedQueue|TestStartLegacyQueueRetainsNonManagedCompatibility)$'
+        --count 1 --race --go-work off
+        --require TestManagedQueueRunnableParticipatesInManagerErrorPropagation --require TestManagedQueueErrorsChannelIsNotLost
+        --require TestManagedQueueCompletedStartStillDrainsBufferedError --require TestStartLegacyQueueDoesNotDetachManagedQueue
+        --require TestStartLegacyQueueRetainsNonManagedCompatibility
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/verify
+        --run '^TestV101ChangedProvidersDoNotExitOrDetach$' --count 1 --go-work off
+        --require TestV101ChangedProvidersDoNotExitOrDetach
       - cd admin && GOWORK=off go test -json -race ./apis -run '^(TestEmailChallenge.*|TestAppConfigProfile.*|TestUpdateUserInfoRejectsEmailChangeUntilCanonicalIdentityMigration)$' -count=1
       - cd admin && GOWORK=off go test -json -race ./apis ./service ./router -run '^(TestStorageUploadHardLimitBeforeMultipart|TestAvatarUploadHardLimitBeforeMultipart|TestStorageLocalNoClobberAndConfinement|TestStorageUploadPolicyBytesAndMIMEContract|TestCustomRouteContractsCoverOtherRegistrations|TestCustomRouteContractsMatchRuntimeAuthentication)$' -count=1
       - cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestObjectStorageProfileRejectsInvalidConfiguration|TestObjectStorageProfileBuildIsImmutable|TestObjectStorageProfileCanceledBuildCanRetry|TestObjectStorageHandleUseCoversLocalAndS3|TestObjectStorageHandleCloseDrainsAndIsIdempotent|TestObjectStorageHandleCloseTimeoutCanRetry)$' -count=1
@@ -529,9 +790,10 @@ spec:
     strategy: phased
     migration: >-
       Land the safety changes as independently reviewable commits. Challenge, Kafka Mark ordering,
-      upload admission, and the D1 object-provider owner are complete internal checkpoints. The same
-      D1 wave still must close Kafka registration, configuration, producer ownership, error observation,
-      and bounded shutdown before D2 begins. S3 Put, Delivery, object metadata, and a pinned RustFS
+      upload admission, and both D1 provider-owner subsets are complete internal checkpoints. D1 now
+      has strict Kafka configuration and registration, one producer and owned consumer groups, observed
+      errors, a cancellable Runnable, and retryable bounded close; development proceeds directly to D2.
+      S3 Put, Delivery, object metadata, and a pinned RustFS
       conformance fixture remain D4 work. No database migration is planned for this checkpoint,
       historical storage AppConfig rows remain inert, and no v1.0.x tag is created.
       After the v1.1.0 feature freeze and concentrated qualification, open and approve an exact-commit

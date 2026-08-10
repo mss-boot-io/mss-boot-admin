@@ -20,6 +20,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/task"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
@@ -192,6 +193,9 @@ func setup(ctx context.Context) (err error) {
 			listener.WithName("admin"),
 			listener.WithHandler(routerEngine)),
 	}
+	if queueRunnable := managedQueueRunnable(config.Cfg.ManagedQueue()); queueRunnable != nil {
+		runnable = append(runnable, queueRunnable)
+	}
 
 	databaseHandle := config.Cfg.DatabaseHandle()
 	if databaseHandle == nil || databaseHandle.DB == nil {
@@ -263,10 +267,103 @@ func run(ctx context.Context) (err error) {
 	if apiCheck {
 		return nil
 	}
-	if center.GetQueue() != nil {
-		go center.GetQueue().Run(ctx)
-	}
+	startLegacyQueue(ctx, center.GetQueue())
 	return center.Default.Start(ctx)
+}
+
+func managedQueueRunnable(adapter storage.AdapterQueue) frameworkserver.Runnable {
+	managed, _ := adapter.(storage.ManagedAdapterQueue)
+	if managed == nil {
+		return nil
+	}
+	return &managedQueueRuntime{queue: managed}
+}
+
+type managedQueueRuntime struct {
+	queue storage.ManagedAdapterQueue
+}
+
+func (r *managedQueueRuntime) String() string {
+	return r.queue.String()
+}
+
+func (r *managedQueueRuntime) Start(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("managed queue runtime context is required")
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	result := make(chan error, 1)
+	go func() { result <- r.queue.Start(runCtx) }()
+	errorsCh := r.queue.Errors()
+	for {
+		select {
+		case err := <-result:
+			return errors.Join(err, drainManagedQueueErrors(errorsCh))
+		case runtimeErr, ok := <-errorsCh:
+			if !ok {
+				errorsCh = nil
+				continue
+			}
+			if runtimeErr == nil {
+				continue
+			}
+			cancel()
+			return errors.Join(
+				fmt.Errorf("managed queue runtime error: %w", runtimeErr),
+				stopManagedQueueAfterRuntimeError(ctx, r.queue, result),
+			)
+		}
+	}
+}
+
+func drainManagedQueueErrors(errorsCh <-chan error) error {
+	var observed error
+	for errorsCh != nil {
+		select {
+		case runtimeErr, ok := <-errorsCh:
+			if !ok {
+				return observed
+			}
+			if runtimeErr != nil {
+				observed = errors.Join(observed, runtimeErr)
+			}
+		default:
+			return observed
+		}
+	}
+	return observed
+}
+
+func stopManagedQueueAfterRuntimeError(
+	parent context.Context,
+	queue storage.ManagedAdapterQueue,
+	result <-chan error,
+) error {
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
+	closeErr := queue.Close(closeCtx)
+	var startErr error
+	select {
+	case startErr = <-result:
+		if errors.Is(startErr, context.Canceled) {
+			startErr = nil
+		}
+	case <-closeCtx.Done():
+		startErr = fmt.Errorf("wait for managed queue runtime: %w", closeCtx.Err())
+	}
+	cancel()
+	return errors.Join(closeErr, startErr)
+}
+
+// startLegacyQueue confines the detached compatibility bridge to providers
+// that have not adopted ManagedAdapterQueue. Kafka implements the managed
+// contract and therefore can only be started by the server manager.
+func startLegacyQueue(ctx context.Context, adapter storage.AdapterQueue) {
+	if adapter == nil || managedQueueRunnable(adapter) != nil {
+		return
+	}
+	go adapter.Run(ctx)
 }
 
 func tips() {

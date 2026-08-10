@@ -8,9 +8,9 @@ keywords: [v1.1.0 checkpoint object storage provider owner SecretRef lifecycle]
 # D1 Object Provider/Owner 内部 checkpoint
 
 本文记录 `D1-provider-owner` 的对象存储子切片。它是未打 tag 的开发 checkpoint，
-将随 `v1.1.0` 一起交付；它不授权发布 `v1.0.x`，也不表示整个 D1 已完成。
-Kafka registration/configuration、producer ownership、error observation 与 bounded close
-仍是进入 D2 前的下一项工作。
+将随 `v1.1.0` 一起交付；它不授权发布 `v1.0.x`。相邻的 Kafka managed lifecycle
+切片也已完成，二者共同关闭 D1，开发现已进入 `D2-contract-substrate`。这不改变
+Local、S3-compatible 或 Kafka 的 Legacy/Blocked 成熟度。
 
 Local 与 S3-compatible 在机器目录中仍为 `legacy`，ADR 证据状态仍为 **Blocked**。
 本切片只关闭严格配置、隐式 fallback、重复 client 与不明确 close owner 路径。
@@ -157,5 +157,5 @@ D1 没有发出任何 S3 `Put`，也没有启动 RustFS 容器。以下内容统
 Provider 静默写 Local、每请求创建 S3 client、拼接伪 URL、恢复浏览器凭据管理或 Provider `Fatal`。
 保留不含 secret 的配置字段名、provider 状态、close 结果和对象 key/checksum 诊断。
 
-下一条可执行工作是完成同一 `D1-provider-owner` 波次的 Kafka 生命周期；随后直接进入
-`D2-contract-substrate`，不插入发布门禁或 RustFS qualification。
+相邻的 Kafka managed lifecycle 已完成，`D1-provider-owner` 因此整体关闭。下一条可执行工作是
+`D2-contract-substrate` 的安全迁移引擎与合同收敛；中间不插入发布门禁或 RustFS qualification。

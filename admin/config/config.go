@@ -59,6 +59,10 @@ type Config struct {
 	databaseHandle *gormdb.Handle
 	databaseLeases map[*gormdb.Handle]*sync.WaitGroup
 	databaseReload sync.Mutex
+	queueMu        sync.RWMutex
+	managedQueue   storage.ManagedAdapterQueue
+	retiringQueue  storage.ManagedAdapterQueue
+	queueInit      func(context.Context, func(storage.AdapterQueue) error) error
 
 	objectStorageMu             sync.Mutex
 	objectStorageCloseMu        sync.Mutex
@@ -168,18 +172,18 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 			slog.Warn("email challenge Redis resource unavailable; related flows are disabled")
 		}
 	}
-	if e.Queue != nil {
-		var policyWatcherErr error
-		e.Queue.Init(func(q storage.AdapterQueue) {
-			policyWatcherErr = bindPolicyWatcher(q, newHandle.Enforcer)
-			if policyWatcherErr == nil {
-				center.SetQueue(q)
-			}
-		})
-		if policyWatcherErr != nil {
-			return fmt.Errorf("initialize policy watcher: %w", policyWatcherErr)
-		}
+	queueCandidate, queueErr := e.buildOptionalQueue(ctx, newHandle.Enforcer)
+	if queueErr != nil {
+		return queueErr
 	}
+	defer func() {
+		if committed || queueCandidate == nil {
+			return
+		}
+		if closeErr := closeQueueAdapter(ctx, queueCandidate); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close uncommitted queue: %w", closeErr))
+		}
+	}()
 	if e.Locker != nil {
 		e.Locker.Init(func(l storage.AdapterLocker) {
 			center.SetLocker(l)
@@ -191,15 +195,109 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 	// Publish exactly the snapshot described by this Config. If an optional
 	// dependency is unavailable, the new snapshot is explicitly nil so a stale
 	// pepper/TTL policy from an older Config cannot survive a successful reload.
+	managedCandidate, _ := queueCandidate.(storage.ManagedAdapterQueue)
+	// Candidate initialization temporarily needs the legacy database globals,
+	// but a retiring queue still belongs to the previous snapshot. Restore that
+	// snapshot while it drains so a legacy callback cannot write through the
+	// uncommitted replacement handle.
+	gormdb.InstallDefault(previousDefault)
+	queueRetireErr, queueRetireComplete := e.retireManagedQueueForReplacement(ctx, managedCandidate)
+	if !queueRetireComplete {
+		return fmt.Errorf("retire previous managed queue: %w", queueRetireErr)
+	}
+	gormdb.InstallDefault(newHandle)
 	center.SetChallenge(challengeCandidate)
+	e.setManagedQueue(managedCandidate)
+	center.SetQueue(queueCandidate)
 
 	oldHandle, oldLeases := e.swapDatabaseHandle(newHandle)
 	committed = true
+	var commitErr error
+	if queueRetireErr != nil {
+		commitErr = fmt.Errorf("retire previous managed queue: %w", queueRetireErr)
+	}
 	if oldHandle != nil && oldHandle != newHandle {
 		if closeErr := e.retireDatabaseHandle(oldHandle, oldLeases); closeErr != nil {
-			return fmt.Errorf("close previous application database: %w", closeErr)
+			commitErr = errors.Join(commitErr, fmt.Errorf("close previous application database: %w", closeErr))
 		}
 	}
+	return commitErr
+}
+
+func (e *Config) buildOptionalQueue(
+	ctx context.Context,
+	enforcer casbin.IEnforcer,
+) (storage.AdapterQueue, error) {
+	initializer := e.queueInit
+	if initializer == nil {
+		if e.Queue == nil {
+			return nil, nil
+		}
+		initializer = e.Queue.InitContext
+	}
+
+	var candidate storage.AdapterQueue
+	err := initializer(ctx, func(adapter storage.AdapterQueue) error {
+		candidate = adapter
+		return bindPolicyWatcher(ctx, adapter, enforcer)
+	})
+	if err == nil {
+		return candidate, nil
+	}
+
+	var closeErr error
+	if candidate != nil {
+		closeErr = closeQueueAdapter(ctx, candidate)
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, errors.Join(
+			fmt.Errorf("initialize queue with canceled context: %w", ctxErr),
+			err,
+			closeErr,
+		)
+	}
+	if (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) &&
+		!errors.Is(err, storage.ErrDependencyUnavailable) {
+		return nil, errors.Join(fmt.Errorf("initialize queue: %w", err), closeErr)
+	}
+	if candidate != nil {
+		return nil, errors.Join(
+			fmt.Errorf("initialize queue policy watcher: %w", err),
+			closeErr,
+		)
+	}
+	if closeErr != nil {
+		return nil, errors.Join(
+			fmt.Errorf("initialize queue: %w", err),
+			fmt.Errorf("close failed queue candidate: %w", closeErr),
+		)
+	}
+	if errors.Is(err, storage.ErrInvalidConfiguration) {
+		return nil, fmt.Errorf("initialize queue: %w", err)
+	}
+	if errors.Is(err, storage.ErrDependencyUnavailable) {
+		// Queue-backed policy propagation is optional. Only an explicitly typed
+		// broker/dependency outage may degrade; invalid profiles and installer
+		// failures fail closed and roll back the candidate database.
+		slog.Warn("queue dependency unavailable; distributed policy propagation is disabled", "err", err)
+		return nil, nil
+	}
+	return nil, fmt.Errorf("initialize queue: %w", err)
+}
+
+func closeQueueAdapter(parent context.Context, adapter storage.AdapterQueue) error {
+	if adapter == nil {
+		return nil
+	}
+	if parent == nil {
+		return errors.New("queue cleanup context is required")
+	}
+	if managed, ok := adapter.(storage.ManagedAdapterQueue); ok {
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
+		defer cancel()
+		return managed.Close(closeCtx)
+	}
+	adapter.Shutdown()
 	return nil
 }
 
@@ -208,6 +306,76 @@ func (e *Config) DatabaseHandle() *gormdb.Handle {
 	e.databaseMu.RLock()
 	defer e.databaseMu.RUnlock()
 	return e.databaseHandle
+}
+
+// ManagedQueue returns the managed queue lifecycle owned by this Config. The
+// returned adapter is registered as a server Runnable; callers must not close
+// it directly.
+func (e *Config) ManagedQueue() storage.ManagedAdapterQueue {
+	e.queueMu.RLock()
+	defer e.queueMu.RUnlock()
+	return e.managedQueue
+}
+
+func (e *Config) setManagedQueue(queue storage.ManagedAdapterQueue) {
+	e.queueMu.Lock()
+	e.managedQueue = queue
+	e.queueMu.Unlock()
+}
+
+func (e *Config) hasManagedQueueOwner() bool {
+	e.queueMu.RLock()
+	defer e.queueMu.RUnlock()
+	return e.managedQueue != nil || e.retiringQueue != nil
+}
+
+func (e *Config) retireManagedQueueForReplacement(
+	ctx context.Context,
+	next storage.ManagedAdapterQueue,
+) (error, bool) {
+	e.queueMu.Lock()
+	active := e.managedQueue
+	if active != nil && active != next {
+		if e.retiringQueue != nil && e.retiringQueue != active {
+			e.queueMu.Unlock()
+			return errors.New("a different managed queue is already retiring"), false
+		}
+		e.managedQueue = nil
+		e.retiringQueue = active
+	}
+	retiring := e.retiringQueue
+	e.queueMu.Unlock()
+
+	if retiring != nil && center.GetQueue() == retiring {
+		center.SetQueue(nil)
+	}
+	if retiring == nil {
+		return nil, true
+	}
+	err := retiring.Close(ctx)
+	if !managedQueueCloseCompleted(retiring, err) {
+		return err, false
+	}
+	e.finishRetiringQueue(retiring)
+	return err, true
+}
+
+func (e *Config) finishRetiringQueue(queue storage.ManagedAdapterQueue) {
+	e.queueMu.Lock()
+	if e.retiringQueue == queue {
+		e.retiringQueue = nil
+	}
+	e.queueMu.Unlock()
+}
+
+func managedQueueCloseCompleted(queue storage.ManagedAdapterQueue, err error) bool {
+	complete := err == nil || (!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded))
+	if !complete {
+		if state, ok := queue.(storage.ManagedAdapterQueueCloseState); ok {
+			complete = state.CloseComplete()
+		}
+	}
+	return complete
 }
 
 // WithDatabase leases the currently published GORM handle for one bounded
@@ -247,24 +415,54 @@ func (e *Config) Close() error {
 	return e.CloseContext(ctx)
 }
 
-// CloseContext rejects new object-storage leases, drains active leases, then
-// releases the database Handle owned by this Config.
+// CloseContext stops the managed queue before rejecting object-storage leases
+// and releasing the database Handle owned by this Config. A queue that cannot
+// stop within the caller's deadline keeps the database alive for a safe retry.
 func (e *Config) CloseContext(ctx context.Context) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("configuration close context is required")
 	}
-	storageErr := e.closeObjectStorage(ctx)
-
 	e.databaseReload.Lock()
 	defer e.databaseReload.Unlock()
+
+	queueErr := e.closeManagedQueue(ctx)
+	if e.hasManagedQueueOwner() {
+		return queueErr
+	}
+	storageErr := e.closeObjectStorage(ctx)
 	handle, leases := e.swapDatabaseHandle(nil)
 	if handle != nil {
 		gormdb.ClearDefault(handle)
 	}
 	if handle == nil {
-		return storageErr
+		return errors.Join(queueErr, storageErr)
 	}
-	return errors.Join(storageErr, e.retireDatabaseHandle(handle, leases))
+	return errors.Join(queueErr, storageErr, e.retireDatabaseHandle(handle, leases))
+}
+
+func (e *Config) closeManagedQueue(ctx context.Context) error {
+	e.queueMu.Lock()
+	if e.retiringQueue == nil && e.managedQueue != nil {
+		e.retiringQueue = e.managedQueue
+		e.managedQueue = nil
+	}
+	queue := e.retiringQueue
+	e.queueMu.Unlock()
+	if queue == nil {
+		return nil
+	}
+	if center.GetQueue() == queue {
+		center.SetQueue(nil)
+	}
+	err := queue.Close(ctx)
+	if !managedQueueCloseCompleted(queue, err) {
+		return fmt.Errorf("close managed queue: %w", err)
+	}
+	e.finishRetiringQueue(queue)
+	if err != nil {
+		return fmt.Errorf("close managed queue: %w", err)
+	}
+	return nil
 }
 
 func (e *Config) swapDatabaseHandle(next *gormdb.Handle) (*gormdb.Handle, *sync.WaitGroup) {
@@ -330,12 +528,12 @@ func bindQueryCache(cache queryCacheAdapter, tx *gorm.DB, _ time.Duration) {
 	}
 }
 
-func bindPolicyWatcher(adapter storage.AdapterQueue, enforcer casbin.IEnforcer) error {
+func bindPolicyWatcher(ctx context.Context, adapter storage.AdapterQueue, enforcer casbin.IEnforcer) error {
 	if adapter == nil || enforcer == nil {
 		return nil
 	}
 	watcher := queue.NewSampleWatcher(adapter)
-	if err := watcher.SetUpdateCallback(func(string) {
+	if err := watcher.SetUpdateCallbackContext(ctx, func(string) {
 		if err := enforcer.LoadPolicy(); err != nil {
 			slog.Error("enforcer load policy failed", "err", err)
 		}
@@ -370,7 +568,7 @@ func (e *Config) reloadDatabase(ctx context.Context) error {
 		return fmt.Errorf("open replacement database: %w", err)
 	}
 	if adapter := center.GetQueue(); adapter != nil {
-		if err := bindPolicyWatcher(adapter, newHandle.Enforcer); err != nil {
+		if err := bindPolicyWatcher(ctx, adapter, newHandle.Enforcer); err != nil {
 			_ = newHandle.Close()
 			return fmt.Errorf("bind replacement policy watcher: %w", err)
 		}

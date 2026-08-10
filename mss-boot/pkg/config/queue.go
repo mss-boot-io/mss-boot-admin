@@ -74,7 +74,10 @@ const legacyQueueInitTimeout = 30 * time.Second
 // context to providers that may perform credential resolution later.
 func (k *Kafka) buildConfig(ctx context.Context) (*sarama.Config, error) {
 	if k == nil {
-		return nil, errors.New("Kafka configuration is required")
+		return nil, &storage.InvalidConfigurationError{
+			Adapter: "Kafka",
+			Err:     errors.New("configuration is required"),
+		}
 	}
 	if ctx == nil {
 		return nil, errors.New("Kafka startup context is required")
@@ -83,9 +86,16 @@ func (k *Kafka) buildConfig(ctx context.Context) (*sarama.Config, error) {
 		return nil, fmt.Errorf("Kafka startup context: %w", err)
 	}
 	if err := validateKafkaBrokerAddresses(k.Brokers); err != nil {
+		return nil, &storage.InvalidConfigurationError{Adapter: "Kafka", Err: err}
+	}
+	configuration, err := k.buildSaramaConfig(ctx)
+	if err == nil {
+		return configuration, nil
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return nil, err
 	}
-	return k.buildSaramaConfig(ctx)
+	return nil, &storage.InvalidConfigurationError{Adapter: "Kafka", Err: err}
 }
 
 func (k *Kafka) buildSaramaConfig(ctx context.Context) (*sarama.Config, error) {

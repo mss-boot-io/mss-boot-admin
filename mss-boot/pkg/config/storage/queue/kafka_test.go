@@ -100,6 +100,14 @@ func kafkaMessage(offset int64, value string) *sarama.ConsumerMessage {
 	}
 }
 
+func TestKafkaRunReaderDeprecatedSourceCompatibility(t *testing.T) {
+	consumer := func(storage.Messager) error { return nil }
+	reader := KafkaRunReader{Topic: "events", GroupID: "workers", Func: consumer}
+	if reader.Topic != "events" || reader.GroupID != "workers" || reader.Func == nil {
+		t.Fatalf("KafkaRunReader bridge = %#v", reader)
+	}
+}
+
 func TestKafkaDoesNotMarkOnDecodeFailure(t *testing.T) {
 	session := &kafkaTestSession{ctx: context.Background()}
 	var handled atomic.Int32
@@ -321,6 +329,7 @@ type kafkaTestConsumerGroup struct {
 	closed       chan struct{}
 	errors       <-chan error
 	consume      func(context.Context, int32) error
+	closeErr     error
 }
 
 func (g *kafkaTestConsumerGroup) Consume(ctx context.Context, _ []string, _ sarama.ConsumerGroupHandler) error {
@@ -348,7 +357,7 @@ func (g *kafkaTestConsumerGroup) Close() error {
 	if g.closed != nil {
 		g.closeOnce.Do(func() { close(g.closed) })
 	}
-	return nil
+	return g.closeErr
 }
 
 type kafkaTestProducer struct {
@@ -451,7 +460,7 @@ func newKafkaTestQueue(
 		[]string{"broker.test:9092"},
 		sarama.NewConfig(),
 		&MessageHandler{},
-		"test",
+		"kafka",
 		func([]string, *sarama.Config) (sarama.SyncProducer, error) {
 			return producer, nil
 		},
@@ -523,7 +532,7 @@ func TestKafkaConstructionOwnsOneStrictProducer(t *testing.T) {
 		[]string{" broker.test:9092 ", "broker.test:9092"},
 		configuration,
 		&MessageHandler{},
-		"test",
+		"kafka",
 		func(brokers []string, owned *sarama.Config) (sarama.SyncProducer, error) {
 			producerFactoryCalls.Add(1)
 			if len(brokers) != 1 || brokers[0] != "broker.test:9092" {
@@ -560,7 +569,7 @@ func TestKafkaConstructionOwnsOneStrictProducer(t *testing.T) {
 }
 
 func TestKafkaConstructionReturnsValidationAndProducerErrors(t *testing.T) {
-	producerErr := errors.New("producer unavailable")
+	producerErr := sarama.ErrOutOfBrokers
 	validProducerFactory := func([]string, *sarama.Config) (sarama.SyncProducer, error) {
 		return &kafkaTestProducer{}, nil
 	}
@@ -569,13 +578,25 @@ func TestKafkaConstructionReturnsValidationAndProducerErrors(t *testing.T) {
 	}
 
 	t.Run("brokers required", func(t *testing.T) {
-		_, err := newKafka(nil, sarama.NewConfig(), &MessageHandler{}, "test", validProducerFactory, consumerFactory)
-		if err == nil {
-			t.Fatal("newKafka() error = nil, want broker validation error")
+		_, err := newKafka(nil, sarama.NewConfig(), &MessageHandler{}, "kafka", validProducerFactory, consumerFactory)
+		if !errors.Is(err, storage.ErrInvalidConfiguration) {
+			t.Fatalf("newKafka() error = %v, want ErrInvalidConfiguration", err)
+		}
+	})
+	t.Run("broker syntax", func(t *testing.T) {
+		_, err := newKafka([]string{"broker-without-port"}, sarama.NewConfig(), &MessageHandler{}, "kafka", validProducerFactory, consumerFactory)
+		if !errors.Is(err, storage.ErrInvalidConfiguration) {
+			t.Fatalf("newKafka() error = %v, want ErrInvalidConfiguration", err)
+		}
+	})
+	t.Run("provider", func(t *testing.T) {
+		_, err := newKafka([]string{"broker.test:9092"}, sarama.NewConfig(), &MessageHandler{}, "unknown", validProducerFactory, consumerFactory)
+		if !errors.Is(err, storage.ErrInvalidConfiguration) {
+			t.Fatalf("newKafka() error = %v, want ErrInvalidConfiguration", err)
 		}
 	})
 	t.Run("configuration required", func(t *testing.T) {
-		_, err := newKafka([]string{"broker.test:9092"}, nil, &MessageHandler{}, "test", validProducerFactory, consumerFactory)
+		_, err := newKafka([]string{"broker.test:9092"}, nil, &MessageHandler{}, "kafka", validProducerFactory, consumerFactory)
 		if err == nil {
 			t.Fatal("newKafka() error = nil, want configuration validation error")
 		}
@@ -583,13 +604,13 @@ func TestKafkaConstructionReturnsValidationAndProducerErrors(t *testing.T) {
 	t.Run("automatic commit required", func(t *testing.T) {
 		configuration := sarama.NewConfig()
 		configuration.Consumer.Offsets.AutoCommit.Enable = false
-		_, err := newKafka([]string{"broker.test:9092"}, configuration, &MessageHandler{}, "test", validProducerFactory, consumerFactory)
+		_, err := newKafka([]string{"broker.test:9092"}, configuration, &MessageHandler{}, "kafka", validProducerFactory, consumerFactory)
 		if err == nil {
 			t.Fatal("newKafka() error = nil, want automatic-commit validation error")
 		}
 	})
 	t.Run("pointer handler required", func(t *testing.T) {
-		_, err := newKafka([]string{"broker.test:9092"}, sarama.NewConfig(), kafkaTestValueHandler{}, "test", validProducerFactory, consumerFactory)
+		_, err := newKafka([]string{"broker.test:9092"}, sarama.NewConfig(), kafkaTestValueHandler{}, "kafka", validProducerFactory, consumerFactory)
 		if err == nil {
 			t.Fatal("newKafka() error = nil, want handler prototype validation error")
 		}
@@ -599,12 +620,33 @@ func TestKafkaConstructionReturnsValidationAndProducerErrors(t *testing.T) {
 			[]string{"broker.test:9092"},
 			sarama.NewConfig(),
 			&MessageHandler{},
-			"test",
+			"kafka",
 			func([]string, *sarama.Config) (sarama.SyncProducer, error) { return nil, producerErr },
 			consumerFactory,
 		)
 		if !errors.Is(err, producerErr) {
 			t.Fatalf("newKafka() error = %v, want wrapped producer error", err)
+		}
+		if !errors.Is(err, storage.ErrDependencyUnavailable) {
+			t.Fatalf("newKafka() error = %v, want ErrDependencyUnavailable", err)
+		}
+	})
+	t.Run("authentication failure is not an outage", func(t *testing.T) {
+		_, err := newKafka(
+			[]string{"broker.test:9092"},
+			sarama.NewConfig(),
+			&MessageHandler{},
+			"kafka",
+			func([]string, *sarama.Config) (sarama.SyncProducer, error) {
+				return nil, sarama.ErrSASLAuthenticationFailed
+			},
+			consumerFactory,
+		)
+		if !errors.Is(err, sarama.ErrSASLAuthenticationFailed) {
+			t.Fatalf("newKafka() error = %v, want authentication failure", err)
+		}
+		if errors.Is(err, storage.ErrDependencyUnavailable) {
+			t.Fatalf("newKafka() authentication error = %v, must not be classified as an outage", err)
 		}
 	})
 	t.Run("nil producer rejected", func(t *testing.T) {
@@ -612,7 +654,7 @@ func TestKafkaConstructionReturnsValidationAndProducerErrors(t *testing.T) {
 			[]string{"broker.test:9092"},
 			sarama.NewConfig(),
 			&MessageHandler{},
-			"test",
+			"kafka",
 			func([]string, *sarama.Config) (sarama.SyncProducer, error) { return nil, nil },
 			consumerFactory,
 		)
@@ -623,7 +665,7 @@ func TestKafkaConstructionReturnsValidationAndProducerErrors(t *testing.T) {
 }
 
 func TestKafkaRegisterReturnsValidationAndConstructionErrors(t *testing.T) {
-	consumerErr := errors.New("consumer unavailable")
+	consumerErr := sarama.ErrOutOfBrokers
 	var consumerFactoryCalls atomic.Int32
 	queue := newKafkaTestQueue(t, nil, func(_ []string, group string, _ *sarama.Config) (sarama.ConsumerGroup, error) {
 		consumerFactoryCalls.Add(1)
@@ -667,6 +709,12 @@ func TestKafkaRegisterReturnsValidationAndConstructionErrors(t *testing.T) {
 			if test.wantIs != nil && !errors.Is(err, test.wantIs) {
 				t.Fatalf("RegisterContext() error = %v, want wrapped %v", err, test.wantIs)
 			}
+			if test.name == "automatic commit disabled" && !errors.Is(err, storage.ErrInvalidConfiguration) {
+				t.Fatalf("RegisterContext() error = %v, want ErrInvalidConfiguration", err)
+			}
+			if test.name == "consumer factory error" && !errors.Is(err, storage.ErrDependencyUnavailable) {
+				t.Fatalf("RegisterContext() error = %v, want ErrDependencyUnavailable", err)
+			}
 		})
 	}
 	if consumerFactoryCalls.Load() != 2 {
@@ -687,6 +735,50 @@ func TestKafkaLegacyRegisterReportsError(t *testing.T) {
 	}
 }
 
+func TestKafkaLegacyRegisterIsBoundedAndClosesLateGroup(t *testing.T) {
+	factoryStarted := make(chan struct{})
+	releaseFactory := make(chan struct{})
+	var releaseFactoryOnce sync.Once
+	release := func() { releaseFactoryOnce.Do(func() { close(releaseFactory) }) }
+	lateGroup := &kafkaTestConsumerGroup{closed: make(chan struct{})}
+	queue := newKafkaTestQueue(t, nil, func([]string, string, *sarama.Config) (sarama.ConsumerGroup, error) {
+		close(factoryStarted)
+		<-releaseFactory
+		return lateGroup, nil
+	})
+	t.Cleanup(release)
+	queue.legacyRegisterTimeout = 20 * time.Millisecond
+
+	registerDone := make(chan struct{})
+	go func() {
+		queue.Register(
+			storage.WithTopic("events"),
+			storage.WithGroupID("legacy-workers"),
+			storage.WithConsumerFunc(func(storage.Messager) error { return nil }),
+		)
+		close(registerDone)
+	}()
+	waitKafkaTestSignal(t, factoryStarted, "legacy Kafka consumer factory")
+	waitKafkaTestSignal(t, registerDone, "bounded legacy Kafka Register")
+	select {
+	case err := <-queue.Errors():
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("legacy Register error = %v, want context deadline", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("legacy Register deadline was not observable")
+	}
+
+	release()
+	waitKafkaTestSignal(t, lateGroup.closed, "late legacy consumer-group close")
+	if calls := lateGroup.closeCalls.Load(); calls != 1 {
+		t.Fatalf("late legacy consumer Close calls = %d, want 1", calls)
+	}
+	if err := queue.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
 func TestKafkaUsesOneProducerForConcurrentAppend(t *testing.T) {
 	producer := &kafkaTestProducer{}
 	var producerFactoryCalls atomic.Int32
@@ -694,7 +786,7 @@ func TestKafkaUsesOneProducerForConcurrentAppend(t *testing.T) {
 		[]string{"broker.test:9092"},
 		sarama.NewConfig(),
 		&MessageHandler{},
-		"test",
+		"kafka",
 		func([]string, *sarama.Config) (sarama.SyncProducer, error) {
 			producerFactoryCalls.Add(1)
 			return producer, nil
@@ -785,6 +877,210 @@ func TestKafkaDuplicateRegistrationDoesNotConstructSecondGroup(t *testing.T) {
 	}
 	if consumerFactoryCalls.Load() != 1 {
 		t.Fatalf("consumer factory calls = %d, want 1", consumerFactoryCalls.Load())
+	}
+}
+
+func TestKafkaBlockingFactoryReservesOnceAndCloseHonorsDeadline(t *testing.T) {
+	factoryStarted := make(chan struct{})
+	releaseFactory := make(chan struct{})
+	var releaseFactoryOnce sync.Once
+	release := func() { releaseFactoryOnce.Do(func() { close(releaseFactory) }) }
+	lateGroup := &kafkaTestConsumerGroup{closed: make(chan struct{})}
+	var factoryCalls atomic.Int32
+	queue := newKafkaTestQueue(t, nil, func([]string, string, *sarama.Config) (sarama.ConsumerGroup, error) {
+		factoryCalls.Add(1)
+		close(factoryStarted)
+		<-releaseFactory
+		return lateGroup, nil
+	})
+	t.Cleanup(release)
+
+	registrationCtx, cancelRegistration := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancelRegistration()
+	registerResult := make(chan error, 1)
+	go func() {
+		registerResult <- queue.RegisterContext(
+			registrationCtx,
+			storage.WithTopic("events"),
+			storage.WithGroupID("workers"),
+			storage.WithConsumerFunc(func(storage.Messager) error { return nil }),
+		)
+	}()
+	waitKafkaTestSignal(t, factoryStarted, "blocking Kafka consumer factory")
+
+	duplicateErr := queue.RegisterContext(
+		context.Background(),
+		storage.WithTopic("events"),
+		storage.WithGroupID("workers"),
+		storage.WithConsumerFunc(func(storage.Messager) error { return nil }),
+	)
+	if !errors.Is(duplicateErr, ErrKafkaConsumerPending) {
+		t.Fatalf("concurrent duplicate error = %v, want ErrKafkaConsumerPending", duplicateErr)
+	}
+	if calls := factoryCalls.Load(); calls != 1 {
+		t.Fatalf("consumer factory calls = %d, want one reserved construction", calls)
+	}
+	if err := waitKafkaTestError(t, registerResult, "canceled blocking Kafka registration"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("RegisterContext() error = %v, want its own context deadline", err)
+	}
+
+	closeCtx, cancelClose := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancelClose()
+	if err := queue.Close(closeCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Close() error = %v, want context deadline while factory is blocked", err)
+	}
+	if queue.CloseComplete() {
+		t.Fatal("CloseComplete() = true while the reserved factory is blocked")
+	}
+
+	release()
+	waitKafkaTestSignal(t, lateGroup.closed, "late consumer-group close")
+	if calls := lateGroup.closeCalls.Load(); calls != 1 {
+		t.Fatalf("late consumer Close calls = %d, want 1", calls)
+	}
+	if err := queue.Close(context.Background()); err != nil {
+		t.Fatalf("Close() retry error = %v", err)
+	}
+	if !queue.CloseComplete() {
+		t.Fatal("CloseComplete() = false after late group cleanup")
+	}
+}
+
+func TestKafkaAcceptedRegistrationWinsLaterCancellation(t *testing.T) {
+	factoryStarted := make(chan struct{})
+	releaseFactory := make(chan struct{})
+	accepted := make(chan struct{})
+	completeAcceptance := make(chan struct{})
+	var releaseFactoryOnce sync.Once
+	var completeAcceptanceOnce sync.Once
+	group := &kafkaTestConsumerGroup{closed: make(chan struct{})}
+	queue := newKafkaTestQueue(t, nil, func([]string, string, *sarama.Config) (sarama.ConsumerGroup, error) {
+		close(factoryStarted)
+		<-releaseFactory
+		return group, nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		cancel()
+		releaseFactoryOnce.Do(func() { close(releaseFactory) })
+		completeAcceptanceOnce.Do(func() { close(completeAcceptance) })
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second)
+		defer closeCancel()
+		_ = queue.Close(closeCtx)
+	})
+
+	registerResult := make(chan error, 1)
+	go func() {
+		registerResult <- queue.RegisterContext(
+			ctx,
+			storage.WithTopic("events"),
+			storage.WithGroupID("accepted-before-cancel"),
+			storage.WithConsumerFunc(func(storage.Messager) error { return nil }),
+		)
+	}()
+	waitKafkaTestSignal(t, factoryStarted, "Kafka consumer factory")
+
+	key := kafkaConsumerKey{topic: "events", groupID: "accepted-before-cancel"}
+	queue.mu.Lock()
+	pending := queue.pendingConsumers[key]
+	if pending == nil {
+		queue.mu.Unlock()
+		t.Fatal("pending Kafka registration was not reserved")
+	}
+	pending.beforeAcceptComplete = func() {
+		close(accepted)
+		<-completeAcceptance
+	}
+	queue.mu.Unlock()
+
+	releaseFactoryOnce.Do(func() { close(releaseFactory) })
+	waitKafkaTestSignal(t, accepted, "accepted Kafka registration before completion")
+	// The group is already accepted while the same mutex still protects the
+	// pending completion. Cancellation becoming ready now must not make the
+	// caller return an error for a consumer that remains installed.
+	cancel()
+	select {
+	case err := <-registerResult:
+		t.Fatalf("RegisterContext returned before accepted completion was published: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	completeAcceptanceOnce.Do(func() { close(completeAcceptance) })
+
+	if err := waitKafkaTestError(t, registerResult, "accepted Kafka registration"); err != nil {
+		t.Fatalf("RegisterContext() error = %v, want accepted success", err)
+	}
+	queue.mu.Lock()
+	consumer := queue.consumers[key]
+	_, stillPending := queue.pendingConsumers[key]
+	queue.mu.Unlock()
+	if consumer == nil || consumer.group != group || stillPending {
+		t.Fatalf("accepted registration state = consumer:%#v pending:%t", consumer, stillPending)
+	}
+	if calls := group.closeCalls.Load(); calls != 0 {
+		t.Fatalf("accepted consumer Close calls before owner close = %d, want 0", calls)
+	}
+	if err := queue.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	waitKafkaTestSignal(t, group.closed, "accepted consumer-group close")
+	if calls := group.closeCalls.Load(); calls != 1 {
+		t.Fatalf("accepted consumer Close calls = %d, want exactly 1", calls)
+	}
+}
+
+func TestKafkaCanceledRegistrationDoesNotCancelPeer(t *testing.T) {
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	var releaseFirstOnce sync.Once
+	release := func() { releaseFirstOnce.Do(func() { close(releaseFirst) }) }
+	firstGroup := &kafkaTestConsumerGroup{closed: make(chan struct{})}
+	peerGroup := &kafkaTestConsumerGroup{closed: make(chan struct{})}
+	queue := newKafkaTestQueue(t, nil, func(_ []string, group string, _ *sarama.Config) (sarama.ConsumerGroup, error) {
+		if group == "first" {
+			close(firstStarted)
+			<-releaseFirst
+			return firstGroup, nil
+		}
+		return peerGroup, nil
+	})
+	t.Cleanup(release)
+
+	firstCtx, cancelFirst := context.WithCancel(context.Background())
+	firstResult := make(chan error, 1)
+	go func() {
+		firstResult <- queue.RegisterContext(
+			firstCtx,
+			storage.WithTopic("events"),
+			storage.WithGroupID("first"),
+			storage.WithConsumerFunc(func(storage.Messager) error { return nil }),
+		)
+	}()
+	waitKafkaTestSignal(t, firstStarted, "first Kafka consumer factory")
+	cancelFirst()
+	if err := waitKafkaTestError(t, firstResult, "canceled Kafka registration"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("first RegisterContext() error = %v, want context.Canceled", err)
+	}
+
+	if err := queue.RegisterContext(
+		context.Background(),
+		storage.WithTopic("events"),
+		storage.WithGroupID("peer"),
+		storage.WithConsumerFunc(func(storage.Messager) error { return nil }),
+	); err != nil {
+		t.Fatalf("peer RegisterContext() error = %v", err)
+	}
+	if calls := peerGroup.closeCalls.Load(); calls != 0 {
+		t.Fatalf("peer Close calls before owner close = %d, want 0", calls)
+	}
+
+	release()
+	waitKafkaTestSignal(t, firstGroup.closed, "canceled registration group close")
+	if err := queue.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	waitKafkaTestSignal(t, peerGroup.closed, "peer consumer-group close")
+	if firstGroup.closeCalls.Load() != 1 || peerGroup.closeCalls.Load() != 1 {
+		t.Fatalf("consumer Close calls = first:%d peer:%d, want 1/1", firstGroup.closeCalls.Load(), peerGroup.closeCalls.Load())
 	}
 }
 
@@ -903,6 +1199,88 @@ func TestKafkaCloseTimeoutCanBeRetriedAndDrainsOperations(t *testing.T) {
 	}
 	if producer.closeCalls.Load() != 1 {
 		t.Fatalf("producer Close calls = %d, want 1", producer.closeCalls.Load())
+	}
+}
+
+func TestKafkaCloseAggregatesAllConsumerAndProducerDiagnostics(t *testing.T) {
+	firstCloseErr := errors.New("first consumer close failed")
+	secondCloseErr := errors.New("second consumer close failed")
+	producerCloseErr := errors.New("producer close failed")
+	firstGroup := &kafkaTestConsumerGroup{closeErr: firstCloseErr}
+	secondGroup := &kafkaTestConsumerGroup{closeErr: secondCloseErr}
+	producer := &kafkaTestProducer{closeErr: producerCloseErr}
+
+	queue, err := newKafka(
+		[]string{"broker.test:9092"},
+		sarama.NewConfig(),
+		&MessageHandler{},
+		"kafka",
+		func([]string, *sarama.Config) (sarama.SyncProducer, error) { return producer, nil },
+		func(_ []string, groupID string, _ *sarama.Config) (sarama.ConsumerGroup, error) {
+			if groupID == "first" {
+				return firstGroup, nil
+			}
+			return secondGroup, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("newKafka() error = %v", err)
+	}
+	registerKafkaTestConsumer(t, queue, "events", "first")
+	registerKafkaTestConsumer(t, queue, "events", "second")
+
+	closeErr := queue.Close(context.Background())
+	for _, want := range []error{firstCloseErr, secondCloseErr, producerCloseErr} {
+		if !errors.Is(closeErr, want) {
+			t.Errorf("Close() error = %v, want wrapped %v", closeErr, want)
+		}
+	}
+	if !queue.CloseComplete() {
+		t.Fatal("CloseComplete() = false after terminal close diagnostics")
+	}
+	if firstGroup.closeCalls.Load() != 1 || secondGroup.closeCalls.Load() != 1 || producer.closeCalls.Load() != 1 {
+		t.Fatalf(
+			"Close calls = first:%d second:%d producer:%d, want 1/1/1",
+			firstGroup.closeCalls.Load(),
+			secondGroup.closeCalls.Load(),
+			producer.closeCalls.Load(),
+		)
+	}
+	if retryErr := queue.Close(context.Background()); !errors.Is(retryErr, producerCloseErr) {
+		t.Fatalf("idempotent Close() error = %v, want preserved diagnostics", retryErr)
+	}
+	if firstGroup.closeCalls.Load() != 1 || secondGroup.closeCalls.Load() != 1 || producer.closeCalls.Load() != 1 {
+		t.Fatal("idempotent Close() retried a terminal client close")
+	}
+}
+
+func TestKafkaCompletedCloseDiagnosticsWinCanceledRetry(t *testing.T) {
+	producerCloseErr := errors.New("producer close failed")
+	producer := &kafkaTestProducer{closeErr: producerCloseErr}
+	queue, err := newKafka(
+		[]string{"broker.test:9092"},
+		sarama.NewConfig(),
+		&MessageHandler{},
+		"kafka",
+		func([]string, *sarama.Config) (sarama.SyncProducer, error) { return producer, nil },
+		func([]string, string, *sarama.Config) (sarama.ConsumerGroup, error) {
+			return &kafkaTestConsumerGroup{}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("newKafka() error = %v", err)
+	}
+
+	if closeErr := queue.Close(context.Background()); !errors.Is(closeErr, producerCloseErr) {
+		t.Fatalf("initial Close() error = %v, want producer diagnostic", closeErr)
+	}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if closeErr := queue.Close(canceled); !errors.Is(closeErr, producerCloseErr) || errors.Is(closeErr, context.Canceled) {
+		t.Fatalf("completed Close() retry error = %v, want preserved producer diagnostic", closeErr)
+	}
+	if calls := producer.closeCalls.Load(); calls != 1 {
+		t.Fatalf("producer Close calls = %d, want exactly 1", calls)
 	}
 }
 

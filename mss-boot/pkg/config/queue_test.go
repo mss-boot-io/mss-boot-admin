@@ -112,6 +112,11 @@ func TestKafkaBuildConfigRejectsInvalidProfiles(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
 				t.Fatalf("buildConfig() error = %v, want substring %q", err, test.wantErr)
 			}
+			if test.ctx != nil && !errors.Is(err, context.Canceled) &&
+				!errors.Is(err, context.DeadlineExceeded) &&
+				!errors.Is(err, storage.ErrInvalidConfiguration) {
+				t.Fatalf("buildConfig() error = %v, want ErrInvalidConfiguration", err)
+			}
 		})
 	}
 }

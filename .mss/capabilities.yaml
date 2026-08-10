@@ -332,17 +332,26 @@ spec:
         - docs/docs/releases/v1-0-1-kafka-ack-safety.md
         - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
       frameworkPaths:
+        - mss-boot/pkg/config/queue.go
+        - mss-boot/pkg/config/storage/type.go
+        - mss-boot/pkg/config/storage/queue/casbin_watcher.go
         - mss-boot/pkg/config/storage/queue/kafka.go
         - mss-boot/pkg/config/storage/queue/kafka_test.go
+      backendPaths:
+        - admin/config/config.go
+        - admin/cmd/server/server.go
       guidance: >-
-        Evidence state is Blocked. The internal Mark-order checkpoint moves the Sarama session mark after
-        successful decode and synchronous handler completion, propagates session cancellation, and stops
-        canceled or closed consumer loops. It proves neither broker commit nor production maturity. Register
-        and configuration can still terminate the process, producer ownership is incomplete, manual-commit
-        and consumer-error policies are not supported, and retry, dead-letter, rebalance, idempotency,
-        real-broker, and lifecycle suites remain open. Keep this provider disabled from production use and
-        cataloged as legacy until those gates pass. This checkpoint does not satisfy the minimum changed-path
-        lifecycle gate required before the v1.1.0 feature freeze.
+        Evidence state remains Blocked. D0 moves the Sarama session mark after successful decode and
+        synchronous handler completion. D1 preserves AdapterQueue for source compatibility and adds
+        ManagedAdapterQueue: strict caller-context construction and registration return errors, one adapter
+        owns one producer and one consumer-group client per accepted unique topic/group, Errors is observed,
+        Start blocks under cancellation, and Close is idempotent, deadline-bounded, and retryable. Admin owns
+        the managed adapter and registers it as a server Runnable that consumes Errors and propagates runtime
+        failure to the lifecycle manager; legacy wrappers no longer terminate the process. These hermetic
+        checkpoints prove neither broker commit nor production maturity. Manual commit
+        is unsupported and rejected; retry/backoff, dead letter, rebalance, outage, duplicate/idempotency, and
+        real-broker conformance remain open. Keep this provider disabled from production use and cataloged as
+        legacy until those gates pass; completing D1 does not promote it.
 
     - id: platform.work-queue-nsq
       displayName: Legacy NSQ Queue
@@ -385,8 +394,10 @@ spec:
         become healthy before listeners start and one composition root owns reverse-order close.
         Promote each provider only from its own conformance evidence; a release version never
         promotes Kafka, NSQ, Redis work queue, distributed lock, or S3-compatible storage by itself.
-        The D1 object-provider subset now has strict startup profiles and one owner, but Kafka
-        lifecycle remains open and ObjectStore/Delivery remain D4 work. S3 configuration bootstrap
+        D1 is complete: the object-provider subset has strict startup profiles and one owner, while the
+        additive managed Kafka lifecycle returns construction/registration errors, observes provider errors,
+        and is owned as a cancellable Runnable by Admin. Kafka remains Legacy/Blocked and
+        ObjectStore/Delivery remain D4 work. S3 configuration bootstrap
         owns a separate Handle, treats only a missing stage object as optional, fails closed on other
         overlay errors, and permits HTTP only with explicit s3_tls_allow_insecure_http=true.
 

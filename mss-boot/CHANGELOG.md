@@ -20,14 +20,29 @@ remains internal and does not promote provider maturity.
 - Added leased Local/S3 use and bounded, retryable, idempotent close semantics so
   one owner rejects new work during shutdown, drains in-flight operations, and
   closes its private HTTP transport exactly once.
+- Preserved `AdapterQueue` for source compatibility and added the additive
+  `ManagedAdapterQueue` contract with error-returning context-aware registration,
+  blocking start, observed errors, and context-bounded close. `Queue.InitContext`
+  is the authoritative construction path; the historical wrapper remains
+  non-terminating for compatibility.
+- Replaced truncated integer migration registration with lossless decimal
+  `MigrationID` values, deterministic numeric ordering, duplicate preflight before
+  database access, context-aware error propagation, and explicit aliases for all
+  published v1.0.0 marker forms. The historical no-return `Migrate` method remains
+  as a logging-only source-compatibility bridge; correctness-sensitive callers use
+  `MigrateContext`.
 
 ### Fixed
 
 - Moved the legacy Kafka consumer's Sarama session mark after successful decode
   and handler completion, passed the session context to handlers, removed raw
-  payload logging, and stopped canceled or closed consumer loops. Kafka remains
-  Legacy/Blocked until configuration, ownership, retry/dead-letter, rebalance,
-  and real-broker conformance gates pass.
+  payload logging, and stopped canceled or closed consumer loops. D1 also validates
+  the startup profile under the caller context, owns one producer and one consumer
+  group per unique topic/group, returns registration/factory errors, observes
+  consumer errors, rejects per-append configuration and unsupported manual commit,
+  and supplies cancellable start plus idempotent, deadline-bounded, retryable close.
+  Kafka remains Legacy/Blocked until retry/backoff, dead-letter, rebalance, outage,
+  idempotency, manual-commit policy, and real-broker conformance gates pass.
 - Made the S3 configuration source require a caller-owned context and client,
   close object bodies on success and read failure, and return an explicit
   unsupported error for Watch. Bootstrap now owns and closes a profile Handle
@@ -53,7 +68,10 @@ remains internal and does not promote provider maturity.
   the internal storage-safety and Storage Runtime v2 planning contracts.
 - Recorded the D1 object-provider checkpoint and its deferred S3 Put, Delivery,
   and RustFS conformance boundary. The provider catalog remains unchanged at
-  Legacy/Blocked, and Kafka lifecycle still prevents completion of D1.
+  Legacy/Blocked.
+- Recorded the additive managed Kafka lifecycle, exact owner/configuration evidence,
+  and Admin Runnable boundary. D1 is complete and development proceeds to D2;
+  lifecycle completion does not promote Kafka beyond Legacy/Blocked.
 
 ## [mss-boot/v1.0.0] - 2026-08-09
 

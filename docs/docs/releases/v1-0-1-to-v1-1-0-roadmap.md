@@ -35,7 +35,7 @@ attestation、受保护写入 job 和 tag ruleset 已经具备强制能力。所
 若出现不能等待 v1.1.0 的远程可利用漏洞或数据丢失风险，安全负责人可以发起紧急补丁；但必须先
 通过评审修改 release policy 的公开目标，不能用手工参数或 workflow bypass 绕过。
 
-这项决策显式接受一个风险：已在开发分支完成的 Challenge、Kafka 和 Upload 修复不会立刻交付给
+这项决策显式接受一个风险：已在开发分支完成的 Challenge、Kafka Mark/lifecycle 和 Upload 修复不会立刻交付给
 `v1.0.0` 用户。项目会持续评估其可利用性；一旦延迟不可接受，就启用上述紧急补丁例外。
 
 ## 两条开发主轴
@@ -60,15 +60,16 @@ Lock 或 S3-compatible Provider 可以保持 Legacy/Blocked/Experimental，而�
 | 波次 | A：Generator / Blueprint | B：Storage Runtime | 退出信号 |
 | --- | --- | --- | --- |
 | `D0-safety`（已完成） | 建立 v1.1.0 Generator/Blueprint 合同 | Challenge 原子安全、Kafka Mark-after-success、Upload pre-parse admission 与 Local create-only confinement | 对应 focused/race 测试通过；Provider 状态仍诚实保持 |
-| `D1-provider-owner`（object 子切片已完成） | 冻结新增 scaffold 范围，统一 `admin/modules` 目标口径 | object provider 已完成严格 startup profile、AppConfig 移除、单一 owner、dev-only Local Delivery 与 fail-closed 503；Kafka registration/configuration、producer ownership、error observation 与 bounded close 仍未完成 | object exact tests 已通过；D1 只有在 Kafka changed path 无 Exit/Fatal、consumer/producer owner 可取消且可关闭后才整体退出 |
+| `D1-provider-owner`（已完成） | 冻结新增 scaffold 范围，以 `admin/modules/<name>` 作为机器合同、生成器和文档的唯一新增模块目标 | object provider 完成严格 startup profile、AppConfig 移除、单一 owner、dev-only Local Delivery 与 fail-closed 503；Kafka 保留 `AdapterQueue` 兼容面并新增 `ManagedAdapterQueue`，完成 caller-context 配置/注册、单 producer 与唯一 consumer-group owner、`Errors()` 观察、可取消 `Start` 和幂等有界 `Close`；Admin 是唯一 owner 并把它注册为 `Runnable` | object 与 Kafka exact owner/config/Admin 测试非零命中并通过；changed path 无 Exit/Fatal 或 detached long-lived work；Kafka 仍保持 Legacy/Blocked，不把 D1 完成解释为 Provider 晋级 |
 | `D2-contract-substrate` | FeatureModule contract kind；Foundation/Blueprint/generator/downstream snapshot 四身份；lock+manifest 原子双记录；typed migration ID 和 duplicate fail-fast | canonical email 存量冲突预检和三库唯一 forward migration；strict one-of config、SecretRef、doctor preflight | infrastructure Feature 可规划；两次 sync/generate 零漂移；三库升级与并发身份语义一致 |
 | `D3-backend-runtime` | supplier migration、model/DTO/service/API/operations/index/export/OpenAPI；所有支持字段有 output-kind | 顶层资源图、named Redis、readiness/reverse close、公开 ChallengeStore 目标 API | golden backend 两次生成零 diff；100 次 race 启停无泄漏；listener 不早于 required resource ready |
 | `D4-authorization-object` | permissions/defaultRoles/menu/ownership；事务提交后事件；完整正负授权 | ObjectStore/Delivery、Admin object metadata migration、Local/S3-compatible create-only/checksum/授权、独立 S3 bootstrap | 权限矩阵全绿；固定 digest 的 RustFS fixture 与 Local 共用 suite 且 required integration 无 skip；错误 Provider 零 fallback；同 ObjectRef 冲突不覆盖 |
 | `D5-frontend-events-upgrade` | typed client、list/form/detail/actions/export、双语 locale、完整 UI 状态；Blueprint 0.1→0.2 三方升级 | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile、provider evidence report | 第二次 upgrade 为空；无 ignored spec field；前端 focused checks 通过；非目标 Queue/Lock 状态锁定 |
 | `FF-v1.1.0` | Generator/Blueprint schema、API、模板和 golden 输出冻结 | Runtime 配置、资源接口、Provider 选择与 maturity 候选冻结 | P0/P1 清零；不再接受新功能或公共合同变化；选择一个完整 SHA 进入集中验证 |
 
-对象子切片的运行与验证边界见
-[D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)。
+D1 的运行与验证边界见
+[D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner) 和
+[Kafka Mark/lifecycle 内部 checkpoint](/releases/v1-0-1-kafka-ack-safety)。
 
 波次可以并行开发，但依赖不能倒置：migration engine 必须先于真实生成迁移和 object metadata；严格
 profile 必须先于 owned runtime；named Redis 必须先于 Cache/EventBus；完整 golden 输出必须先于
@@ -112,7 +113,7 @@ changed-scope 合同和生成器快速反馈；完整矩阵由人工在功能冻
 - `doctor --strict`、`verify --all`、`eval run --all`；
 - Framework/Admin/Agent 全量测试、race、vet、frontend lint/tsc/Jest/build、docs build；
 - SQLite/MySQL/PostgreSQL fresh/upgrade/repeat/failure migration matrix；
-- Redis standalone/Sentinel/cluster/TLS、MinIO、选定真实 broker 与故障注入；
+- Redis standalone/Sentinel/cluster/TLS、固定 digest 的 RustFS S3-compatible fixture、选定真实 broker 与故障注入；
 - Browser E2E、权限正负矩阵、secret/subject/payload redaction canary；
 - Generator 两次生成、全字段投影、external new-app、Blueprint 0.1→0.2 升级和二次空升级；
 - 资源 100 次启停、泄漏、readiness、shutdown、恢复 rehearsal；
@@ -162,14 +163,20 @@ Blueprint/生成基线，不是公开 release target。本路线不手工改号�
 
 ## 下一条可执行工作
 
-`D1-provider-owner` 的 object 子切片已经完成：启动时构造严格 immutable profile，由单一 owner
+`D1-provider-owner` 已整体完成。对象路径在启动时构造严格 immutable profile，由单一 owner
 持有 client；无效或不可用资源固定返回 503 且零 Local fallback；Local 只在 dev 模式与实际
-`staticPath` 精确映射时安装；Provider/SecretRef 已移出 AppConfig。S3 `Put`、Delivery 和 RustFS
-conformance 明确保留到 D4。
+`staticPath` 精确映射时安装；Provider/SecretRef 已移出 AppConfig。Kafka 路径在保留旧
+`AdapterQueue` 编译兼容面的同时增加 `ManagedAdapterQueue`，由 caller context 构造/注册，单一
+producer 与唯一 topic/group consumer client 均有明确 owner，provider error 可观察，`Start` 可取消，
+`Close` 幂等、有界且超时后可重试；Admin Config 是唯一 owner，server lifecycle 把 managed queue
+作为 `Runnable` 运行。它仍是 Legacy/Blocked；manual commit、retry/backoff、DLQ、idempotency、
+rebalance、outage 与真实 broker conformance 尚未证明。
 
-立即继续同一波次的 Kafka changed-path lifecycle：清除 registration/config 的 Exit/Fatal，补齐
-consumer/producer 的错误返回、可取消运行、错误观察与幂等 bounded close。完成后直接进入
-`D2-contract-substrate`，不插入 v1.0.x 发布准备、RustFS qualification 或全量 release-readiness。
+`D2-contract-substrate` 已完成 canonical FeatureModule 路径和 typed、lossless migration ID/duplicate
+fail-fast。下一步引入 Foundation/Blueprint/generator/downstream snapshot 四身份与 lock+manifest
+原子双记录，然后完成 canonical email 三库 forward migration 和 strict runtime config/SecretRef
+preflight。D2 期间不插入 v1.0.x 发布准备、RustFS qualification 或全量
+release-readiness；S3 `Put`、Delivery 和 RustFS conformance 仍明确保留到 D4。
 
 本策略调整完成的定义是：release policy 能拒绝 v1.0.x 和公开 prerelease tag；Feature acceptance 能按
 checkpoint、feature-freeze、pre-framework、pre-root、post-publication 聚合；普通 PR 不自动运行完整

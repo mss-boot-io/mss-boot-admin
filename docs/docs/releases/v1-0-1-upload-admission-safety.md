@@ -71,7 +71,7 @@ public/uploads/<uuid>
 cleanup 失败只产生脱敏运维告警，不把成功翻转成 500，从而避免客户端重试生成第二对象。
 
 S3 新写入也使用 opaque key，但本切片没有提供 conditional create。S3 create-only、
-typed conflict、checksum、Local 的 crash-atomic temp/publish 和 Local/MinIO 共用 conformance
+typed conflict、checksum、Local 的 crash-atomic temp/publish 和 Local/固定 digest RustFS 共用 conformance
 仍属于功能冻结前的 `D4-authorization-object` 波次。
 
 ## 验收证据
@@ -104,13 +104,14 @@ GOWORK=off go test -json -race ./apis ./service ./router \
   per-request client split，并由单一 owner 持有 immutable profile；
 - Local 只在 dev 模式与实际 `staticPath` 精确映射时安装，生产 Local 保持 unavailable；
 - Provider/SecretRef 已移出 AppConfig；S3 在 D1 只构造和持有 client，上传会在 `Put` 前返回 503；
-- S3 Put、Delivery、RustFS conformance 仍在 D4，Kafka changed-path lifecycle 与冻结后完整
-  release evidence 也仍未通过。
+- S3 Put、Delivery、RustFS conformance 仍在 D4；Kafka changed-path lifecycle 已作为相邻
+  D1 checkpoint 关闭，但真实 broker conformance 与冻结后完整 release evidence 仍未通过。
 
 完整语义与精确测试见
 [D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)。
-下一条可执行切片是完成同一 D1 波次的 Kafka registration/configuration、producer ownership、
-error observation 与 bounded close。
+Kafka 的 managed registration/configuration、producer ownership、error observation 与 bounded close
+已完成并记录在 [Kafka Mark/lifecycle 内部 checkpoint](/releases/v1-0-1-kafka-ack-safety)。
+下一条可执行切片是 `D2-contract-substrate` 的安全迁移引擎与合同收敛。
 
 ## 升级、回滚与兼容影响
 

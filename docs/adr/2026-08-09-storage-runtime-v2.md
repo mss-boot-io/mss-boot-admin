@@ -128,9 +128,45 @@ The object-storage subset of `D1-provider-owner` is now implemented:
   `D4-authorization-object` work.
 
 Local and S3-compatible storage therefore remain `legacy` in the machine catalog and
-**Blocked** in the evidence matrix. This object subset also does not close the whole D1
-wave: Kafka registration, strict configuration, producer ownership, error observation,
-and bounded shutdown are still required before D2 starts.
+**Blocked** in the evidence matrix. The following Kafka lifecycle checkpoint closes the
+other D1 subset without promoting any WorkQueue provider.
+
+### Internal D1 Kafka lifecycle checkpoint
+
+The Kafka half of `D1-provider-owner` is now implemented as an additive ownership layer:
+
+- The historical `AdapterQueue` interface and its `Register`, `Run`, and `Shutdown`
+  methods remain available for source compatibility. New composition roots use
+  `ManagedAdapterQueue`, which adds error-returning `RegisterContext`, blocking
+  `Start`, observable `Errors`, and context-bounded `Close`.
+- `Queue.InitContext` builds configuration under the caller's context and returns
+  validation, authentication, TLS, and client-construction errors. The old `Queue.Init`
+  wrapper is non-authoritative and logs a bounded compatibility error instead of calling
+  `Exit` or `Fatal`. MSK token creation is bound to the owner context; TLS verifies
+  certificates by default.
+- A Kafka adapter validates and copies configuration once, owns exactly one synchronous
+  producer, and rejects per-append Kafka configuration. Each accepted unique
+  `{topic, group}` registration owns one consumer-group client; duplicate or post-start
+  registration fails without replacing the existing consumer. Because no explicit
+  manual-commit protocol exists, disabling Sarama auto-commit is rejected.
+- `Start` owns both consume and consumer-error observer goroutines, blocks until owner
+  cancellation or a consume-loop failure, drains each consumer group's `Errors()` into
+  the observable adapter error stream, and cancels peer work before close. `Close` rejects
+  new appends/registrations, closes every consumer and the producer exactly once, waits
+  for in-flight operations, honors the caller deadline, and may be retried after timeout.
+- The Casbin watcher registers with the caller context and returns managed registration
+  errors. Admin Config is the single queue owner, installs a candidate only after database
+  and watcher binding succeeds, exposes it to the server lifecycle as a `Runnable`, and
+  closes it before retiring the database handle. The Runnable also consumes `Errors()`,
+  cancels managed `Start` on a runtime error, drains buffered errors when `Start` completes,
+  and returns the joined diagnostic to the lifecycle manager. The legacy center handle is
+  only a compatibility reference and does not own or detach the queue.
+
+Together with the canonical `admin/modules/<name>` target established for new scaffold,
+these changes close `D1-provider-owner`; development proceeds to
+`D2-contract-substrate`. Kafka nevertheless remains `legacy` in the machine catalog and
+**Blocked** here: manual commit, retry/backoff, dead letter, rebalance, outage,
+duplicate/idempotency behavior, and a non-skipped real-broker suite are still unproved.
 
 ## Decision
 
@@ -219,7 +255,7 @@ runtime:
     uploads:
       provider:
         kind: s3
-      endpoint: https://minio.example
+      endpoint: https://rustfs.example
       bucket: uploads
       credentials:
         kind: static
@@ -340,10 +376,13 @@ loads the new revision.
 WorkQueue is a different interface. Every Kafka, NSQ, and Redis implementation keeps its own
 evidence state until it proves acknowledgement after handler success, bounded retry with
 backoff, dead-letter handling, cancellation and rebalance, duplicate/idempotency behavior,
-real-provider operation, owned lifecycle, and observability. The internal D0 Kafka checkpoint only
-proves local `MarkMessage` ordering and session-cancellation behavior with hermetic fakes; it
-does not prove broker offset commit and leaves Kafka Blocked/legacy. v1.1.0 does not promise
-stable promotion for any WorkQueue provider.
+real-provider operation, owned lifecycle, and observability. The internal D0 Kafka checkpoint
+proves local `MarkMessage` ordering and session-cancellation behavior; D1 adds strict
+caller-context construction, one producer plus owned consumer groups, error observation,
+cancellable blocking start, and bounded close. Both use hermetic fakes. They do not prove broker
+offset commit, manual-commit semantics, retry/dead-letter, rebalance, outage, or idempotency and
+therefore leave Kafka Blocked/legacy. v1.1.0 does not promise stable promotion for any WorkQueue
+provider.
 
 ### 9. Defer distributed-lock promotion
 
@@ -425,7 +464,7 @@ lives in this matrix. Provider state is never inferred from the framework versio
 | Memory EventBus | Existing memory queue is not a production broadcast contract | Do not market it as a durable queue | Stable single-process EventBus after shared suite |
 | Redis EventBus | Existing Redis queue lacks explicit fan-out/reconciliation contract | Keep separate and planned; ownership/reconciliation lands in D5 | Stable fan-out plus revision reconciliation and outage behavior |
 | Redis WorkQueue | Experimental | Separate it from EventBus | Remain experimental unless retry/dead-letter suite passes |
-| Kafka WorkQueue | Blocked: message is marked before handler success | Land hermetic Mark-order/session-cancellation safety and retain Blocked/legacy while registration, configuration, producer ownership, manual-commit, error-observation, and real-broker gates remain open | Eligible for Experimental reassessment only after dedicated lifecycle and real-broker suites; not a v1.1 stable commitment |
+| Kafka WorkQueue | Blocked: message is marked before handler success | D0 lands hermetic Mark-order/session-cancellation safety; D1 adds non-terminating strict configuration/registration, one producer and owned consumer groups, observed errors, cancellable Start, bounded Close, and Admin Runnable ownership. Retain Blocked/legacy | Eligible for Experimental reassessment only after explicit manual-commit policy, retry/backoff, dead-letter, rebalance, outage, duplicate/idempotency, and non-skipped real-broker conformance; not a v1.1 stable commitment |
 | NSQ WorkQueue | Blocked: duration, process-exit, and cancellation defects | Keep blocked/legacy; fix in a dedicated development wave or remove | Experimental or remove from default build |
 | Redis lock | Experimental: no Admin consumer and no focused coverage | Downgrade aggregate claim and defer | Experimental until a fenced consumer and conformance exist |
 | Local ObjectStore | Blocked at v1.0.0 by late size checks, implicit fallback, collision/overwrite risk, and unproven Delivery | D0 landed admission and confined opaque create-only writes; D1 now adds strict startup profile, one owner, fail-closed 503 behavior, and development-only exact static delivery. Retain legacy/Blocked | Eligible for reassessment only after the D4 common provider, authorization, metadata, and Delivery gates; no Stable commitment |
@@ -457,9 +496,9 @@ Costs and constraints:
 ## Rollout and recovery
 
 Development waves close known security and data-integrity paths before they assemble the full
-package replacement. The D1 object-provider subset has established strict startup profiles,
-fail-closed upload behavior, and ownership; D1 still must close Kafka registration, configuration,
-producer ownership, error observation, and shutdown. D2 establishes strict schemas, version
+package replacement. D1 has established strict object startup profiles, fail-closed upload behavior,
+owned object resources, and the additive managed Kafka lifecycle without changing Kafka's
+Legacy/Blocked maturity. D2 establishes strict schemas, version
 identity, migration preflight, and hermetic fixtures; D3-D5 land the
 resource graph, named Redis, ChallengeStore, EventBus, ObjectStore/Delivery, upgrade paths, and
 provider evidence in independently reversible commits. None of these waves creates a public tag.
@@ -484,17 +523,18 @@ This ADR is implemented only when:
 3. derived cache, ChallengeStore, EventBus, WorkQueue, lock, ObjectStore, Delivery, and S3
    bootstrap have separate contracts and failure semantics;
 4. the strict negative configuration matrix and lifecycle/leak suite pass;
-5. ChallengeStore security, EventBus reconciliation, ObjectStore Local/MinIO, and Admin
+5. ChallengeStore security, EventBus reconciliation, ObjectStore Local/RustFS S3-compatible, and Admin
    integration suites pass under race detection;
 6. a provider-by-provider report contains no skipped required evidence;
 7. an external `GOWORK=off` consumer constructs, readies, uses, and closes the released
    framework; and
 8. the release tag follows a truthful SemVer decision for any public API removal.
 
-The next executable step is the remaining Kafka half of `D1-provider-owner`: remove
-registration/configuration process-exit paths, make consumer and producer construction
-return errors to the application owner, observe provider errors, and provide cancellable,
-idempotent bounded shutdown without leaking a producer. Local and S3-compatible storage
-remain legacy/Blocked after the completed object slice. S3 Put, conditional create-only
-writes, authenticated Delivery, and pinned RustFS conformance remain gated for D4 before
-feature freeze.
+The next executable step is the remaining `D2-contract-substrate` work. FeatureModule now uses
+the canonical `admin/modules/<name>` identity, and the migration engine now preserves typed,
+lossless IDs with duplicate fail-fast. Next, separate Foundation/Blueprint/generator/downstream
+snapshot identities and atomically record lock plus manifest before the canonical-email
+three-database forward migration and strict runtime configuration preflight. Kafka, Local, and
+S3-compatible storage remain
+legacy/Blocked after D1. S3 Put, conditional create-only writes, authenticated Delivery, and
+pinned RustFS conformance remain gated for D4 before feature freeze.
