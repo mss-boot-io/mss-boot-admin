@@ -388,6 +388,8 @@ spec:
         - docs/docs/releases/v1-0-1-upload-admission-safety.md
         - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
         - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
+      frameworkPaths:
+        - mss-boot/runtime/config
       guidance: >-
         Build strict named resources and separate Derived Cache, ChallengeStore, EventBus,
         WorkQueue, Lock, ObjectStore, Delivery, and S3 bootstrap contracts. Required resources
@@ -400,6 +402,10 @@ spec:
         ObjectStore/Delivery remain D4 work. S3 configuration bootstrap
         owns a separate Handle, treats only a missing stage object as optional, fails closed on other
         overlay errors, and permits HTTP only with explicit s3_tls_allow_insecure_http=true.
+        The D2 strict-config checkpoint now provides exact-key YAML/JSON decoding, immutable
+        Redis plans for standalone, Sentinel, and cluster modes, typed SecretRef resolution, and
+        side-effect-free Build. It does not construct a Redis client or satisfy provider health,
+        lifecycle, or real-deployment conformance; the aggregate therefore remains Planned.
 
     - id: platform.storage
       displayName: Legacy Object Storage Aggregate

@@ -273,9 +273,44 @@ spec:
           value: TestChallengePendingLeaseCrashRecovery
         - type: command
           value: cd mss-boot && GOWORK=off go test -race ./runtime/challenge/...
+    - id: strict-runtime-config-checkpoint-evidence
+      requirement: strict-runtime-config
+      statement: Strict YAML and JSON decoding, discriminated Redis deployment modes, typed SecretRef resolution, redaction, immutable normalization, and side-effect-free Build are proven locally; this checkpoint does not construct or qualify a Redis provider client.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestStrictDecodeRejectsUnknownFieldsAndMalformedDocuments
+        - type: test
+          value: TestStrictDecodeRejectsCaseVariantFieldsBeforeSecretResolution
+        - type: test
+          value: TestRuntimeStrictConfigurationNegativeMatrix
+        - type: test
+          value: TestRedisDeploymentModesNormalize
+        - type: test
+          value: TestRuntimeConfigSecretResolutionAndRedaction
+        - type: test
+          value: TestRuntimeConfigNormalizeAndBuildAreImmutableAndSideEffectFree
+        - type: test
+          value: TestEnvSecretResolverHonorsContextAndRedactsMissingReference
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/config
+            --run '^(TestStrictDecodeRejectsUnknownFieldsAndMalformedDocuments|TestStrictDecodeRejectsCaseVariantFieldsBeforeSecretResolution|TestRuntimeStrictConfigurationNegativeMatrix|TestRedisDeploymentModesNormalize|TestRuntimeConfigSecretResolutionAndRedaction|TestRuntimeConfigNormalizeAndBuildAreImmutableAndSideEffectFree|TestEnvSecretResolverHonorsContextAndRedactsMissingReference)$'
+            --count 20 --race --go-work off
+            --require TestStrictDecodeRejectsUnknownFieldsAndMalformedDocuments
+            --require TestStrictDecodeRejectsCaseVariantFieldsBeforeSecretResolution
+            --require TestRuntimeStrictConfigurationNegativeMatrix
+            --require TestRedisDeploymentModesNormalize
+            --require TestRuntimeConfigSecretResolutionAndRedaction
+            --require TestRuntimeConfigNormalizeAndBuildAreImmutableAndSideEffectFree
+            --require TestEnvSecretResolverHonorsContextAndRedactsMissingReference
+        - type: report
+          value: Exact single-package JSON evidence proving all seven required tests ran and passed twenty uncached race-detected times with no skip, including rejection of case-variant shadow fields before any secret resolver call.
     - id: configuration-negative-gate
       requirement: strict-runtime-config
-      statement: The negative matrix rejects unknown fields and providers, ambiguous modes, invalid duration, empty endpoints, and partial TLS or credentials with zero side effects.
+      statement: The frozen candidate repeats the strict negative matrix and proves the normalized plans construct named Redis clients for standalone, Sentinel, cluster, and TLS fixtures without configuration fallback.
       level: contract
       phase: feature-freeze
       required: true
@@ -445,6 +480,17 @@ spec:
     all: go run ./cmd/mss verify --all
     custom:
       - go run ./cmd/mss spec validate .mss/features/storage-runtime-v2.yaml --format json
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/config
+        --run '^(TestStrictDecodeRejectsUnknownFieldsAndMalformedDocuments|TestStrictDecodeRejectsCaseVariantFieldsBeforeSecretResolution|TestRuntimeStrictConfigurationNegativeMatrix|TestRedisDeploymentModesNormalize|TestRuntimeConfigSecretResolutionAndRedaction|TestRuntimeConfigNormalizeAndBuildAreImmutableAndSideEffectFree|TestEnvSecretResolverHonorsContextAndRedactsMissingReference)$'
+        --count 20 --race --go-work off
+        --require TestStrictDecodeRejectsUnknownFieldsAndMalformedDocuments
+        --require TestStrictDecodeRejectsCaseVariantFieldsBeforeSecretResolution
+        --require TestRuntimeStrictConfigurationNegativeMatrix
+        --require TestRedisDeploymentModesNormalize
+        --require TestRuntimeConfigSecretResolutionAndRedaction
+        --require TestRuntimeConfigNormalizeAndBuildAreImmutableAndSideEffectFree
+        --require TestEnvSecretResolverHonorsContextAndRedactsMissingReference
       - cd mss-boot && GOWORK=off go test -race ./runtime/...
       - cd mss-boot && GOWORK=off go vet ./...
       - corepack pnpm@9.15.9 --dir docs build

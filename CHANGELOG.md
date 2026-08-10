@@ -12,6 +12,10 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 
 ### Changed
 
+- Added the D2 strict runtime-configuration checkpoint: exact-key YAML/JSON
+  decoding, explicit Redis deployment modes, typed SecretRefs, immutable
+  snapshots, and side-effect-free plans. Provider construction, health, and
+  real Redis deployment conformance remain feature-freeze work.
 - Switched the next train to development-first v1.1.0: internal waves remain
   untagged, publication is disabled by checked-in policy, acceptance evidence is
   phase-scoped, and complete release qualification starts only after feature freeze.

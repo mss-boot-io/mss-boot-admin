@@ -12,6 +12,10 @@ remains internal and does not promote provider maturity.
 
 ### Changed
 
+- Added the domain-neutral `runtime/config` checkpoint with exact-key strict
+  YAML/JSON decoding, explicit standalone/Sentinel/cluster Redis plans, typed
+  SecretRef resolution, redacted immutable snapshots, and a side-effect-free
+  Build boundary. It does not yet construct or qualify a Redis provider client.
 - Replaced legacy object-storage provider globals with an exact Local-or-S3
   startup configuration, immutable `StorageProfile`, explicit default/static
   credential modes, typed environment `SecretRef` resolution, and one reusable
