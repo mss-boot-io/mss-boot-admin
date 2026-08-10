@@ -2,7 +2,9 @@ package models
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +26,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
+	"gorm.io/plugin/dbresolver"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
@@ -344,7 +347,48 @@ const (
 	larkUserInfoURL          = "https://open.larksuite.com/open-apis/authen/v1/user_info"
 	oauthUserInfoTimeout     = 10 * time.Second
 	oauthUserInfoMaxBodySize = 1 << 20
+	oauthUsernameEntropySize = 10
+	oauthUsernameAttempts    = 4
 )
+
+// newOpaqueOAuthUsername derives a 20-character lowercase hexadecimal username
+// from 80 bits of cryptographic entropy. Provider usernames and email
+// addresses are deliberately excluded: both can exceed the legacy varchar(20)
+// column and neither is a safe account-linking key.
+func newOpaqueOAuthUsername(random io.Reader) (string, error) {
+	if random == nil {
+		return "", errors.New("OAuth username entropy source is unavailable")
+	}
+	entropy := make([]byte, oauthUsernameEntropySize)
+	if _, err := io.ReadFull(random, entropy); err != nil {
+		return "", errors.New("generate opaque OAuth username")
+	}
+	return hex.EncodeToString(entropy), nil
+}
+
+func newAvailableOpaqueOAuthUsername(db *gorm.DB, random io.Reader) (string, error) {
+	if db == nil {
+		return "", errors.New("OAuth username database is unavailable")
+	}
+	quietWriter := db.Session(&gorm.Session{Logger: logger.Discard}).Clauses(dbresolver.Write)
+	for range oauthUsernameAttempts {
+		username, err := newOpaqueOAuthUsername(random)
+		if err != nil {
+			return "", err
+		}
+		var existing int64
+		if err := quietWriter.Model(&User{}).
+			Where("username = ?", username).
+			Limit(1).
+			Count(&existing).Error; err != nil {
+			return "", errors.New("check opaque OAuth username availability")
+		}
+		if existing == 0 {
+			return username, nil
+		}
+	}
+	return "", errors.New("generate unused opaque OAuth username")
+}
 
 func requirePublicRegistration(c *gin.Context) error {
 	value, ok := userAppConfig(c, "security:registerEnabled")
@@ -400,9 +444,9 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			if err != nil {
 				return false, nil, err
 			}
-			username := userOAuth2.Email
-			if username == "" {
-				username = userOAuth2.PreferredUsername
+			username, err := newAvailableOpaqueOAuthUsername(center.GetDB(c, &User{}), rand.Reader)
+			if err != nil {
+				return false, nil, err
 			}
 			userOAuth2.User = &User{
 				UserLogin: UserLogin{
@@ -444,10 +488,14 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			if err != nil {
 				return false, nil, err
 			}
+			username, err := newAvailableOpaqueOAuthUsername(center.GetDB(c, &User{}), rand.Reader)
+			if err != nil {
+				return false, nil, err
+			}
 			userOAuth2.User = &User{
 				UserLogin: UserLogin{
 					RoleID:                defaultRole.ID,
-					Username:              userOAuth2.PreferredUsername,
+					Username:              username,
 					Email:                 userOAuth2.Email,
 					Password:              security.GenerateRandomKey20(),
 					LocalPasswordDisabled: true,

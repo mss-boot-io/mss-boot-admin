@@ -15,6 +15,8 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"gorm.io/gorm/schema"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
@@ -32,17 +34,55 @@ import (
  */
 
 func init() {
-	e := &User{
+	response.AppendController(newUserController())
+}
+
+func newUserController() *User {
+	return &User{
 		Simple: controller.NewSimple(
 			controller.WithAuth(true),
 			controller.WithModel(new(models.User)),
 			controller.WithSearch(new(dto.UserSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithScope(redactUserPersistenceDiagnostics),
+			controller.WithWriteErrorMapper(mapUserWriteError),
 			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement, protectRootUserLifecycle}),
 			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement, protectRootUserLifecycle}),
 		),
 	}
-	response.AppendController(e)
+}
+
+func mapUserWriteError(
+	_ *gin.Context,
+	_ actions.WriteOperation,
+	err error,
+) (actions.PublicWriteError, bool) {
+	err = models.NormalizeEmailIdentityPersistenceError(err)
+	switch {
+	case errors.Is(err, models.ErrEmailIdentityInvalid):
+		return actions.PublicWriteError{
+			Status: http.StatusUnprocessableEntity,
+			Error:  response.NewError("INVALID_EMAIL_IDENTITY", "email identity is invalid"),
+		}, true
+	case errors.Is(err, models.ErrEmailIdentityExists),
+		errors.Is(err, models.ErrEmailIdentityAmbiguous):
+		return actions.PublicWriteError{
+			Status: http.StatusConflict,
+			Error:  response.NewError("EMAIL_IDENTITY_UNAVAILABLE", "email identity is unavailable"),
+		}, true
+	default:
+		return actions.PublicWriteError{}, false
+	}
+}
+
+// redactUserPersistenceDiagnostics keeps the generic user controller's GORM
+// logger from interpolating request identities, password material, SQL, or
+// driver constraint text before the public write-error mapper can classify the
+// result. The mapper emits a fixed operation and error code for diagnostics.
+func redactUserPersistenceDiagnostics(_ *gin.Context, _ schema.Tabler) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Session(&gorm.Session{Logger: logger.Discard})
+	}
 }
 
 type User struct {

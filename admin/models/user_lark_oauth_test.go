@@ -164,6 +164,54 @@ func TestLarkFirstProvisioningRequiresExplicitRegistration(t *testing.T) {
 	requireGithubRegistrationCount(t, database, 0, 0)
 }
 
+func TestLarkFirstProvisioningUsesBoundedOpaqueUsername(t *testing.T) {
+	database := setupGithubVerifyTest(t, githubTestAppConfig{
+		"security:registerEnabled": "true",
+	})
+	const providerUsername = "lark-provider-username-that-exceeds-twenty"
+	const providerEmail = "LARK.IDENTITY@EXAMPLE.COM"
+	previousTransport := http.DefaultTransport
+	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body: io.NopCloser(strings.NewReader(
+				`{"code":0,"msg":"ok","data":{"open_id":"ou_opaque","union_id":"on_opaque","user_id":"` +
+					providerUsername + `","enterprise_email":"` + providerEmail + `","name":"Lark Opaque"}}`,
+			)),
+		}, nil
+	})
+	t.Cleanup(func() { http.DefaultTransport = previousTransport })
+
+	ok, verifier, err := (&UserLogin{
+		Provider: pkg.LarkLoginProvider,
+		Password: larkTestProviderToken,
+	}).Verify(larkOAuthTestContext(context.Background()))
+	if err != nil || !ok || verifier == nil {
+		t.Fatalf("Lark opaque provisioning = (%v, %#v, %v), want success", ok, verifier, err)
+	}
+	user, userOK := verifier.(*User)
+	if !userOK {
+		t.Fatalf("Lark verifier = %T, want *User", verifier)
+	}
+	if len(user.Username) != 20 || user.Username == providerUsername ||
+		user.Username == providerEmail || strings.Contains(user.Username, "@") {
+		t.Fatalf("Lark provisioned username = %q, want bounded opaque identity", user.Username)
+	}
+	if user.Email != "lark.identity@example.com" {
+		t.Fatalf("Lark canonical email = %q", user.Email)
+	}
+	requireGithubRegistrationCount(t, database, 1, 1)
+
+	var persisted User
+	if err := database.First(&persisted, "id = ?", user.ID).Error; err != nil {
+		t.Fatalf("load Lark provisioned user: %v", err)
+	}
+	if persisted.Username != user.Username || len(persisted.Username) > 20 {
+		t.Fatalf("persisted Lark username = %q", persisted.Username)
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
