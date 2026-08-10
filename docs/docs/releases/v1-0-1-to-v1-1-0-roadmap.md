@@ -1,225 +1,172 @@
 ---
-title: v1.0.1 至 v1.1.0 迭代路线
+title: v1.1.0 开发优先路线
 order: 6
-description: 基于 v1.0.0 真实基线，以安全、版本合同、Storage Runtime 与全栈生成器为主线的小步发布计划
-keywords: [v1.0.1 v1.1.0 roadmap storage runtime generator release]
+description: 从 v1.0.0 直接推进到 v1.1.0 功能冻结，再集中执行完整验证和发布门禁
+keywords: [v1.1.0 roadmap development first feature freeze validation release]
 ---
 
-# v1.0.1 至 v1.1.0 迭代路线
+# v1.1.0 开发优先路线
 
 基线是 2026-08-09 已发布的根版本 `v1.0.0` 与 Framework
 `mss-boot/v1.0.0`，二者均指向提交
-`ee800262c035c5f4242aca1841d077554481d2c4`。根 Release、Framework
-Release 直接证明发布事实；验收工单
+`ee800262c035c5f4242aca1841d077554481d2c4`。公开 Release 直接证明发布事实；验收工单
 [#471](https://github.com/mss-boot-io/mss-boot-admin/issues/471) 记录精确提交、workflow、
-制品、外部解析和发布后冒烟证据。
+制品、外部解析和发布后证据。
 
-本次交付的是**机器可解析、声明式**规划合同：当前 `mss spec validate` 只校验结构与引用；
-`mss feature plan` 仍把无 `specPath` 的 cross-cutting module 错当成 AdminModule，`mss verify`
-也不执行 `validation.custom`、acceptance evidence 或发布 phase。它们在对应 planner/runner 落地前
-不得被报告为已执行或已通过。`v1.0.1` 的 evidence 切片补 phase-aware release runner，
-`v1.0.2` 再补 FeatureModule contract kind 与 infrastructure planning。
+## 策略结论
 
-本路线采用“小步快跑、证据晋级”：日期是目标窗口，不是跳过门禁的承诺。发布前 must
-证据缺失时版本顺延；发布后 required evidence 只在 tag/Release 存在后验收，它不反向成为
-首次发布的前置条件，但在通过前版本处于 evidence-incomplete 状态，不能关闭 evidence issue、
-宣称证据完整或推进下一个版本。
+从现在开始，开发节奏调整为：
 
-## 排序结论
+1. **持续开发到 v1.1.0 目标完成**：原先称为 `v1.0.1`、`v1.0.2`、`v1.0.3`
+   和 `alpha.1-alpha.5` 的内容改为内部开发波次，只用分支、提交和 checkpoint ID 标识；
+2. **达到功能冻结后再集中验证**：Generator/Blueprint、Storage Runtime、数据库、浏览器、
+   Provider、升级、恢复和外部消费矩阵只在一个冻结候选提交上形成完整发布证据；
+3. **验证通过后才进入发布流程**：先做 pre-framework authority，再发布 Framework 并完成
+   外部解析，随后做 pre-root authority、根发布和 post-publication reconciliation；
+4. **下一个计划公开版本只有 `v1.1.0`**：不发布 `v1.0.x`，也不创建公开
+   `v1.1.0-alpha/beta/rc` tag。SemVer 预发布 tag 仍是公开版本，不能把它称为内部 checkpoint。
 
-后续不是“先做完 Storage、再做 Generator”的串行路线，而是一个安全前置加两条并行轴：
+机器策略位于 `.mss/release-policy.yaml`，聚合发布合同位于
+`.mss/features/foundation-v1-1-0-release.yaml`。所有 tag 驱动的发布 workflow 都必须先验证该策略。
+当前策略的 `publicationWorkflowsReady` 固定为 `false`：它允许开发期构建候选制品并运行 bootstrap qualification，
+但会拒绝 Framework、root、frontend 与镜像的实际发布。该字段不是阶段审批锁；它只表示完整阶段执行器、证据
+attestation、受保护写入 job 和 tag ruleset 已经具备强制能力。所有开发波次完成后，先补齐这些基础设施并评审
+设为 `true`，然后才选择该提交作为冻结 SHA、启动完整 readiness。后续发布授权仍来自绑定同一 SHA 的阶段证据。
+若出现不能等待 v1.1.0 的远程可利用漏洞或数据丢失风险，安全负责人可以发起紧急补丁；但必须先
+通过评审修改 release policy 的公开目标，不能用手工参数或 workflow bypass 绕过。
 
-1. **共同前置（v1.0.1）**：OTP、Kafka、上传和 provider fallback 的已知安全/数据完整性
-   路径先止血，并建立发布后 truth reconciliation；目标窗口放宽为两周，不用日期压缩证据。
-2. **A 轴：Generator / Blueprint 主线**：从 `v1.0.2` 的版本身份、migration engine、
-   canonical path 与字段投影开始，每个 prerelease 都交付可验证的 supplier golden slice，
-   这是 `v1.1.0` 的产品旗舰。
-3. **B 轴：Storage Runtime 风险轴**：从严格配置和资源所有权逐步进入 named Redis、
-   ChallengeStore、ObjectStore、Cache 与 EventBus；每个 Provider 独立晋级，未通过的
-   Kafka/NSQ/WorkQueue/Lock 保持各自证据支持的 Legacy/Blocked 或 Experimental，不拖延
-   Generator 主线也不伪装 stable。
-4. **共同发布轴**：同一版本只有在 A/B 当期 prepublication required gate 与当前发布阶段的
-   authority evidence 交集通过后才进入下一阶段；postpublication reconciliation 负责关闭证据，
-   非目标可选 Provider 以“不晋级”收口，而不是为了赶版本放宽门禁。
+这项决策显式接受一个风险：已在开发分支完成的 Challenge、Kafka 和 Upload 修复不会立刻交付给
+`v1.0.0` 用户。项目会持续评估其可利用性；一旦延迟不可接受，就启用上述紧急补丁例外。
 
-当前只有一份
-`example-supplier` 规格，且 operations、export、ownership、events、test flags、索引组、
-permissions、defaultRoles、menu 等字段尚未全部成为生成结果；在一条 golden module
-完整闭环前，不扩张更多业务能力。
+## 两条开发主轴
 
-## 版本梯队
+开发仍保持两条并行主轴，但不在每个小切片建立发布出口：
 
-| 版本 | 2026 目标窗口 | A：Generator / Blueprint 主线 | B：Storage Runtime 风险轴 | 发布出口 |
-| --- | --- | --- | --- | --- |
-| `v1.0.1` | 08-10 至 08-21 | 冻结新 scaffold 范围；建立 full-stack Feature 合同、真实 capability 拆分与 canonical path 决策 | Challenge 原子安全和 Admin purpose/anti-enumeration；Kafka Mark-after-success；两个上传入口 pre-parse hard limit；object provider fail-closed | `acceptance.phase` 与 phase-aware release evidence runner；精确 required tests 非零命中；Framework 先发且外部可解析；发布后 truth reconciliation |
-| `v1.0.2` | 08-24 至 09-04 | FeatureModule contract kind 与 cross-cutting infrastructure plan；Foundation release/Blueprint/generator/downstream snapshot 四种身份，lock+manifest 原子记录同一 snapshot；lock/sync/check；typed migration ID、duplicate fail-fast、error return；字段到 output-kind 矩阵与 supplier golden fixture | canonical email 合同、存量冲突预检与 SQLite/MySQL/PostgreSQL active/non-empty 唯一 forward migration；strict one-of config、SecretRef、doctor preflight | 两轴 focused/race 全绿；infra `feature plan` 成功且 AdminModule 缺 specPath 仍失败；两次生成零漂移；三库并发 identity 恰好一个成功；迁移不截断、吞错、退出进程或自动选择冲突账户 |
-| `v1.0.3` | 09-07 至 09-18 | canonical `admin/modules` 全合同对齐；Blueprint 0.1→0.2 ownership/upgrade fixture；supplier forward migration 骨架 | 移除 v1.0.1 changed paths 之外其余 Provider 的 Fatal/Exit/background/ghost clients；NSQ duration；Hermetic Redis/MinIO/broker fixtures；storage 配置升级、provider failure matrix、外部 `GOWORK=off` resource consumer | SQLite/MySQL/PostgreSQL fresh/upgrade/repeat/failure 与 provider matrix 全绿，无 required skip |
-| `v1.1.0-alpha.1` | 09-21 至 10-02 | supplier migration、model/DTO/service/API/operations/index/export/OpenAPI；不支持字段 pre-write 拒绝 | owned resource lifecycle、named Redis、required readiness、逆序 close、ChallengeStore target API | golden backend/check 两次零 diff；100 次 race 启停无泄漏；listener 不早于 required resources ready |
-| `v1.1.0-alpha.2` | 10-05 至 10-16 | permissions/defaultRoles/menu、ownership、commit-after-transaction events 与完整正反授权 | ObjectStore/Delivery、Admin metadata migration、owner/tenant permission、Local/MinIO create-only/no-clobber/checksum、S3 bootstrap 独立 | 权限矩阵全绿；Local/MinIO 共用 suite；并发同 ObjectRef 返回 conflict；错误 provider 零 fallback |
-| `v1.1.0-alpha.3` | 10-19 至 10-30 | typed client、list/form/detail/actions/export、locale、loading/empty/error/denied/conflict 与 frontend tests | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile；Lock/WorkQueue 晋级或延后决策 | frontend lint/tsc/Jest/build/E2E；Casbin crash-window 最终收敛；缓存不破坏事务/DB 权威；Queue/Lock 不搭便车 |
-| `v1.1.0-alpha.4` | 11-02 至 11-13 | Blueprint 0.1→0.2 三方升级保留业务定制；全字段投影、generated drift、external new-app identity | provider evidence schema/report、standalone/Sentinel/cluster/TLS 与 Local/MinIO conformance、外部 resource consumer | 第二次 upgrade 空；无 ignored spec field；Provider 报告逐项且 required test 零 skip |
-| `v1.1.0-alpha.5` | 11-16 至 11-27 | golden module 端到端修复、文档、示例和 Generator/Blueprint API freeze | Admin runtime E2E、故障注入、soak 预检；非目标 Provider 明确保持 Legacy/Blocked/Experimental，状态不自动晋级 | 两轴所有 P0/P1 清零，schema/API freeze，全量 verify/eval 通过 |
-| `v1.1.0-beta.1` | 11-30 至 12-04 | downstream rehearsal 与生成制品冻结 | provider maturity 冻结 | 新功能冻结；全量 DB/browser/provider/external matrix 无 required skip |
-| `v1.1.0-rc.1` | 12-07 至 12-11 | 精确提交 golden/upgrade 证据 | 精确提交 provider/恢复证据 | Framework/root 产物、容器、ZIP/checksum、备份恢复与 SemVer 决策齐全，进入至少 7 天 soak |
-| `v1.1.0` | 最早 12-18 | 发布已验收 full-stack golden module 与 Blueprint | 仅发布证据达标的 Provider；其余状态不变 | RC 同提交或仅含已复验阻断修复；Framework 先发布并外部解析，再发布根 Release |
+- **A 轴：Generator / Blueprint 旗舰轴**：版本身份、migration engine、FeatureModule contract kind、
+  supplier golden backend、权限/menu、OpenAPI/client、前端、三方升级与 generated drift；
+- **B 轴：Storage Runtime 风险轴**：Provider fail-closed、资源所有权、named Redis、ChallengeStore、
+  ObjectStore/Delivery、Cache、EventBus 与逐 Provider evidence；
+- **共同基座**：canonical identity、三数据库 forward migration、严格配置、SecretRef、Feature phase
+  和发布策略。
 
-## v1.0.1 可执行切片
+Generator 是 v1.1.0 的产品旗舰。Storage Runtime 是独立风险轴：未完成的 Kafka、NSQ、WorkQueue、
+Lock 或 S3-compatible Provider 可以保持 Legacy/Blocked/Experimental，而不是为了版本号被自动晋级；
+但已选择进入 v1.1.0 的 required Provider 必须在冻结后通过自己的完整证据。
 
-`v1.0.1` 不做整包重写，按可独立评审和回滚的顺序拆为五个切片：
+## 内部开发波次
 
-| 顺序 | 切片 | 代码边界 | 首个失败测试 | 完成信号 |
-| --- | --- | --- | --- | --- |
-| 1 | Challenge safety | `verify_code.go` 及 email login/register/password reset 调用链；只落 internal/provisional 安全状态机，公开 Storage Runtime v2 API 留到 alpha.1 | 100 并发 Verify 同一正确码成功不超过一次；错码不立即烧毁；发送失败和过期发送结果不改写较新的 challenge；crash/hung sender 的 pending lease 可回收且不延长旧 active；Redis outage fail closed | crypto/rand、purpose/subject HMAC、versioned Begin/Commit/Abort/Verify、pending lease、cooldown/quota/max-attempt 全过 race |
-| 2 | Kafka delivery | Kafka consumer 的 decode/handler/Mark 顺序 | decode/handler failure 不 Mark；cancel 后不 Mark 未完成消息 | Sarama session 的 Mark-after-success、context 传播与 cancel/closed-loop 语义通过；这不是 broker commit 证据，provider 仍为 Legacy/Blocked |
-| 3 | Upload admission | HTTP upload API 与 `admin/service/storage.go` | limit+1 在 multipart parse 前返回 413，临时目录/对象无残留 | body hard limit、stream max+1、local random key/no-clobber/path/symlink confinement；S3 create-only 留到 alpha.2 共用 Provider suite |
-| 4 | Provider fail-closed | AppConfig storage profile 与 `mss-boot/pkg/config/storage.go` | unknown/unreadable/partial credentials 不写 local、不返回 success URL | immutable profile；S3 client 复用；local 显式启用且实际可 delivery |
-| 5 | Changed-path lifecycle / evidence / release | Kafka registration/config、object owner、Feature phase schema、phase-aware runner、`.mss`、docs、workflow、release issue | Kafka changed path 无 Exit/Fatal、consumer/producer owner 可关闭且错误可观测；phase 只阻断当前状态转换，post evidence 不循环阻断首次发布；aggregate stable contract 被拒绝；required skip 阻断；release dispatch 不再默认 `v1.0.0` | 最低 changed-path lifecycle 通过但 Kafka 仍保持 Legacy/Blocked；机器目录按 Provider 拆 identity/lifecycle status，ADR 记录详细 evidence maturity；开放并批准 exact-commit issue，发布后补证据再关闭；tag/Release/changelog/docs/capability 自动一致 |
+下表中的 ID 不是版本号，不得创建 Git tag、GitHub Release 或版本化包。
 
-每个切片遵守：测试先描述失败、实现最小安全行为、focused race、affected module、
-`mss verify --changed`。前一切片不必等待大分支合并后才开始下一切片，但 release 分支只接收
-已独立审查且可复验的提交。
+| 波次 | A：Generator / Blueprint | B：Storage Runtime | 退出信号 |
+| --- | --- | --- | --- |
+| `D0-safety`（已完成） | 建立 v1.1.0 Generator/Blueprint 合同 | Challenge 原子安全、Kafka Mark-after-success、Upload pre-parse admission 与 Local create-only confinement | 对应 focused/race 测试通过；Provider 状态仍诚实保持 |
+| `D1-provider-owner` | 冻结新增 scaffold 范围，统一 `admin/modules` 目标口径 | object provider 严格 fail-closed、不可变 profile、单一长生命周期 client；Kafka/object changed path 无 Exit/Fatal，owner 可观测关闭 | unknown/partial/unavailable provider 零 fallback；consumer/producer/object owner 可取消、可关闭 |
+| `D2-contract-substrate` | FeatureModule contract kind；Foundation/Blueprint/generator/downstream snapshot 四身份；lock+manifest 原子双记录；typed migration ID 和 duplicate fail-fast | canonical email 存量冲突预检和三库唯一 forward migration；strict one-of config、SecretRef、doctor preflight | infrastructure Feature 可规划；两次 sync/generate 零漂移；三库升级与并发身份语义一致 |
+| `D3-backend-runtime` | supplier migration、model/DTO/service/API/operations/index/export/OpenAPI；所有支持字段有 output-kind | 顶层资源图、named Redis、readiness/reverse close、公开 ChallengeStore 目标 API | golden backend 两次生成零 diff；100 次 race 启停无泄漏；listener 不早于 required resource ready |
+| `D4-authorization-object` | permissions/defaultRoles/menu/ownership；事务提交后事件；完整正负授权 | ObjectStore/Delivery、Admin object metadata migration、Local/MinIO create-only/checksum/授权、独立 S3 bootstrap | 权限矩阵全绿；Local/MinIO 共用 suite；错误 Provider 零 fallback；同 ObjectRef 冲突不覆盖 |
+| `D5-frontend-events-upgrade` | typed client、list/form/detail/actions/export、双语 locale、完整 UI 状态；Blueprint 0.1→0.2 三方升级 | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile、provider evidence report | 第二次 upgrade 为空；无 ignored spec field；前端 focused checks 通过；非目标 Queue/Lock 状态锁定 |
+| `FF-v1.1.0` | Generator/Blueprint schema、API、模板和 golden 输出冻结 | Runtime 配置、资源接口、Provider 选择与 maturity 候选冻结 | P0/P1 清零；不再接受新功能或公共合同变化；选择一个完整 SHA 进入集中验证 |
 
-## Storage Runtime v2 的门禁
+波次可以并行开发，但依赖不能倒置：migration engine 必须先于真实生成迁移和 object metadata；严格
+profile 必须先于 owned runtime；named Redis 必须先于 Cache/EventBus；完整 golden 输出必须先于
+Blueprint 升级 rehearsal。一个提交必须同时包含行为、测试和合同更新，不能依赖后续提交恢复编译或
+安全不变量。
 
-目标架构见 [Storage Runtime v2 ADR](https://github.com/mss-boot-io/mss-boot-admin/blob/main/docs/adr/2026-08-09-storage-runtime-v2.md)，
-机器验收合同是 `.mss/features/storage-runtime-v2.yaml`。
+## 开发期间保留的最小检查
 
-Provider 使用独立证据状态，不因 `v1.1.0` 自动变 stable：
+“冻结后集中验证”不等于开发期间不测试。每个可合并波次只保留防止错误继续扩散的快速检查：
 
-- **Blocked**：已知安全/丢数据路径，默认不可启用；
-- **Experimental**：只有构造/校验证据，明确非生产；
-- **Beta**：统一 conformance、race、真实依赖、failure injection、lifecycle/leak、配置负例、metrics/docs 均通过；
-- **Stable**：再增加受支持部署矩阵、soak/SLO、upgrade/rollback、外部 consumer、零 required skip 和精确发布证据。
+- 受影响包可编译；Framework 使用 `GOWORK=off`；前端变更运行 `tsc` 和 focused Jest；
+- 相关 FeatureSpec 执行 `mss spec validate`；当前该命令只证明结构和引用，不代表 acceptance 已执行；
+- 精确 focused tests 必须真实出现 `run/pass`；并发、取消和资源所有权代码至少运行一次 `-race`；
+- Generator 始终保留 dry-run、路径限制、unsupported-before-write、稳定排序和已存在 golden 的 `--check`；
+- Challenge fail-closed/exactly-once、Kafka failure 不 Mark、Upload pre-parse/no-clobber、Provider 零
+  fallback、secret redaction、权限负例是永久安全哨兵；
+- `gofmt`、`git diff --check`、受影响 generated drift 和 `mss verify --changed --plan`。
 
-`v1.1.0` 的稳定目标只包括证据通过的 named Redis、scoped cache、ChallengeStore、
-Memory/Redis EventBus 和 Local/S3-compatible ObjectStore。QueryCache 可以继续 beta；Kafka、
-NSQ、Redis WorkQueue 和 Redis Lock 不属于必须晋级项。
+普通 PR 不再自动运行 `release-readiness` 或 `eval run --all`。常规 CI 继续承担编译、单元测试、
+changed-scope 合同和生成器快速反馈；完整矩阵由人工在功能冻结后启动。
 
-## Generator 黄金竖切
+## 功能冻结后的集中验证
 
-机器验收合同是 `.mss/features/foundation-v1-1-0-generator-blueprint.yaml`；它与
-Storage Runtime v2 的 FeatureSpec 独立演进，并在每个版本出口汇合 required gate。
+冻结候选必须是一个完整 SHA。任何实现、迁移、公共 API/配置/schema、生成模板或 required evidence
+变更都会产生新候选，并使受影响的旧证据失效。
 
-`v1.1.0` 的 Generator 目标不是“支持更多 YAML 字段”，而是一个可重复生成、可升级、可验证的
-业务模块：
+当前（2026-08-10）GitHub API 审计显示仓库尚无受保护的 `release` environment，repository ruleset 也为空；
+现有 `release-readiness` 因此明确标记为 `bootstrap-incomplete`，不构成 publication authority。进入正式冻结前必须先：
 
-```text
-AdminModule spec
-  -> forward SQL migration
-  -> backend model / dto / service / api
-  -> RBAC / defaultRoles / menu
-  -> OpenAPI contract and frontend client
-  -> list / form / detail / actions / locale
-  -> unit / integration / authorization / E2E
-  -> docs and generated-drift report
-```
+- 把三数据库、Browser E2E、真实 Provider/broker、100 次生命周期、恢复演练和 exact run/pass/no-skip 汇总为阶段执行器；
+- 让下游按指定 run ID 验证 version、SHA、phase、policy hash 与完整矩阵 attestation，而非只查询任意绿色 run；
+- 创建带独立 reviewer 的受保护 `release` environment，并把所有 write job 与 package push 移入该环境；
+- 建立限制 `v*`、`mss-boot/v*`、`web/antd/v*` 创建、更新、删除主体的 enforced ruleset；
+- 评审 `publicationWorkflowsReady: true`，再把这个新提交选为冻结候选。
 
-数据库迁移设计直接承接社区 RFC
-[#374](https://github.com/mss-boot-io/mss-boot-admin/issues/374)。在 forward migration、
-升级路径和回滚边界明确前，不能把 AutoMigrate 或只有 fresh schema 的生成结果称为完整模块。
-在 Generator alpha 之前，`v1.0.2` 先修复 migration engine：迁移 ID 不再依赖文件名前
-13 个字符的截断和静默整数转换，重复 ID 必须 fail-fast，库代码只返回 error 而不执行
-`os.Exit`/`Fatal`，并由 `v1.0.3` 的 SQLite/MySQL/PostgreSQL fresh、upgrade、repeat 与
-failure matrix 证明。
+### 阶段 1：Feature freeze qualification
 
-目标路径先以当前机器合同和实现使用的 `admin/modules/<name>` 为准，修正文档与工具之间的
-冲突；是否在 Blueprint 0.2.0 迁移到根 `modules/<name>`，必须另做一次路径 ADR 和确定性
-downstream upgrade，不能在生成器里同时支持两个“默认”位置。
+人工运行 `.github/workflows/release-readiness.yml`，显式输入 `v1.1.0`、完整 SHA 并确认 feature freeze。
+至少完成：
+
+- `doctor --strict`、`verify --all`、`eval run --all`；
+- Framework/Admin/Agent 全量测试、race、vet、frontend lint/tsc/Jest/build、docs build；
+- SQLite/MySQL/PostgreSQL fresh/upgrade/repeat/failure migration matrix；
+- Redis standalone/Sentinel/cluster/TLS、MinIO、选定真实 broker 与故障注入；
+- Browser E2E、权限正负矩阵、secret/subject/payload redaction canary；
+- Generator 两次生成、全字段投影、external new-app、Blueprint 0.1→0.2 升级和二次空升级；
+- 资源 100 次启停、泄漏、readiness、shutdown、恢复 rehearsal；
+- 所有 required exact tests 非零命中，且无 skip、cached-only 或 `[no tests to run]`。
+
+### 阶段 2：Pre-framework authority
+
+建立仍保持 open 的 evidence issue，记录版本、完整 SHA、release policy hash、SemVer 决策、完整验证
+报告、候选制品 manifest、恢复计划与审批。此阶段通过前不能创建任何公开组件 tag。
+仓库必须保持受保护的 `release` environment（独立 reviewer），并用 ruleset 限制 `v*`、`mss-boot/v*`、
+`web/antd/v*` 的创建、更新和删除；workflow guard 只能阻止 Release/package 写入，不能撤回一个已经公开的 Git tag。
+
+### 阶段 3：Pre-root authority
+
+从同一 SHA 发布 `mss-boot/v1.1.0`，随后在仓库外临时模块中以 `GOWORK=off` 解析并消费；确认
+Admin 精确依赖、checksum 和完整 SHA 后，才批准根 `v1.1.0`。若 Framework 已公开而本阶段失败，
+记录 `component-partial / evidence-incomplete`，根版本不发，任何 tag 不移动，并以前向版本修复。
+
+### 阶段 4：Post-publication reconciliation
+
+根 tag/Release 发布后验证 ZIP、checksum、容器 digest、禁缓存安装烟测、运行时、文档、changelog、
+Feature/capability 状态和恢复证据。全部一致后才能关闭 issue；失败时版本保持
+`published / evidence-incomplete`，停止后续发布并前向修复。
+
+## SemVer 与身份边界
+
+从公开 `v1.0.0` 直接到 `v1.1.0` 符合 SemVer，不需要先公开连续 patch。评估和目标设计不受旧 API、
+旧配置或旧 global 约束，但发布时必须诚实分类：若 `mss-boot` 删除或更改公共 Go API 且不能用
+非权威 bridge 隔离，Framework 需要 major 版本。当前同步列车要求根版本、`mss-boot/<version>`、
+Admin 依赖和提交一致；要发布 root 1.1 + Framework 2.0，必须先建立 component-version mapping，不能
+临时绕过 workflow。
+
+`.mss/project.yaml` 的 `foundationVersion` 和 `.mss/lock.yaml` 的 `0.1.0/development` 是当前
+Blueprint/生成基线，不是公开 release target。本路线不手工改号；`D2-contract-substrate` 先建立四身份
+与确定性 sync/check，再由工具原子写入 downstream snapshot 的 lock/manifest。
 
 ## 社区 issue 的纳入方式
 
-截至基线日，仍开放且有明确产品含义的 issue 数量不多，多数处于 `needs-rfc` 或
-`queue/discussion`：
-
-- [#53 手机号登录](https://github.com/mss-boot-io/mss-boot-admin/issues/53)：先复用
-  v1.0.1 internal challenge state 的 purpose、rate-limit、anti-enumeration 与 fail-closed
-  语义，并在 alpha.1 收敛到 ChallengeStore target API；不得在
-  `v1.0.1` 的 P0 修复之前再复制一套验证码逻辑。
-- [#111 通知多 Provider](https://github.com/mss-boot-io/mss-boot-admin/issues/111)：进入
-  `v1.1.0` 后续候选，但必须基于 typed provider profile 和独立 delivery contract；不能借
-  Queue 聚合接口扩张。
-- [#374 SQL migration scripts and rollback](https://github.com/mss-boot-io/mss-boot-admin/issues/374)：
-  从 `v1.0.2` 的 migration engine 合同开始，进入 Generator alpha.1 的真实 forward migration
-  与后续 Blueprint 0.1→0.2 upgrade must 范围。
-- 已关闭的 [#471 v1.0.0 exact-main evidence](https://github.com/mss-boot-io/mss-boot-admin/issues/471)：
-  作为 `v1.0.1+` 每次稳定发布的证据工单模板，而不是一次性历史附件。
-
-周报类 issue 只作为信号汇总，不直接进入版本承诺；新社区请求必须先映射到现有 capability、
-安全边界和维护 owner，再决定进入哪个版本。
-
-## 版本与兼容边界
-
-评估和目标设计不以旧 API、旧配置或旧 global 为约束。实施阶段仍必须诚实处理版本号：
-
-- `v1.0.x` 只承载安全修复、严格失败行为、合同和增量基础设施，不故意删除稳定公共 Go API；
-- `v1.1.0` 可以新增干净 package 并把旧入口标为 legacy，但如果必须删除/改签名而无法用
-  非权威 bridge 隔离，就应把 Framework 发布目标改为 `mss-boot/v2.0.0`；
-- 当前 release workflow 强制根版本、`mss-boot/<version>`、`admin/go.mod` 依赖版本与提交
-  全部相同，所以 `v1.0.1` 和非破坏性的 `v1.1.0` 仍采用同步版本列车；
-- 不允许为了守住路线表而把破坏性 Framework artifact 错标为 minor。若必须采用
-  `mss-boot/v2.0.0` 而根版本保持另一条版本线，必须先实现 component-version release
-  manifest、workflow 映射和对应 Admin 依赖校验，不能临时绕过现有门禁。
-
-这条约束只保证发布标签真实，不改变 Storage Runtime v2 的理想目标结构。
-
-## Release 门禁与节奏
-
-每个 stable 或 prerelease 都从一个冻结提交产生，`required` 按阶段解释，不能形成“先有
-Release 才能授权 Release”的循环：
-
-1. **Pre-framework authority**：相关 FeatureSpec、实现、安全、Admin、Docs、制品构建和
-   recovery 门禁在冻结提交上通过；开放的 evidence issue 记录明确版本、完整 SHA、命令并获批准；
-2. **Pre-root authority**：先发布 Framework tag/Release，在仓库外空模块完成 `GOWORK=off`
-   解析与消费，确认 Admin 依赖、checksum 与完整 SHA 后，仍在开放 issue 中批准根发布；
-3. **Post-publication reconciliation**：发布根 tag/Release 后验证 checksum、容器、安装冒烟、
-   changelog、docs、Feature/capability 状态与恢复证据，再补最终评论并关闭 issue。
-
-若第二阶段失败，已公开 Framework 标记为 **component-partial / evidence-incomplete**：根版本
-不得发布、issue 保持开放、任何标签不得移动或删除；在当前同步版本列车下跳过 root `v1.0.1`，
-从下一更高补丁（例如 Framework/root `v1.0.2`）在新冻结提交上 forward-repair 并重新走完整列车，
-同时把孤立 Framework 版本到“无对应 root”的映射写入原 evidence issue。若第三阶段失败，
-已公开根版本标记为 **published / evidence-incomplete**，同样停止下一版本并执行 forward repair
-或 recovery。两类失败都只能在同一 issue 完成终态记录或链接替代列车后关闭，不得伪造完整证据。
-
-`v1.0.1` 起，手工 release dispatch 必须显式输入目标版本，不能继续使用已发布且不可变的
-`v1.0.0` 默认值。到 `v1.1.0` 前，把仍以 `v0.7 Upgrade`、`Theme Settings` 等历史里程碑
-命名的硬编码 workflow 依赖改成 capability gate 清单，并新增 Storage Runtime、Blueprint 与
-Generator 的独立 required checks；保留有价值的回归测试，但不让历史名称定义未来发布范围。
-
-推荐发布频率是补丁每 1–2 周、alpha 每两周、beta/RC 按证据推进。若一个版本的唯一主题
-膨胀，应拆下一个版本，不把未验证范围藏在同一标签里。
-
-## 明确不手工改写的状态
-
-`.mss/project.yaml` 的 `foundationVersion` 与 `.mss/lock.yaml` 当前 `0.1.0/development`
-记录的是现有 Blueprint/生成基线，不是 GitHub Release 公告。当前实现还混用了 Foundation、
-Blueprint 与 generator 版本，因此本路线不把它们直接改成 `1.0.0` 或 `1.0.1`。
-
-`v1.0.2` 必须先建立确定性的 version/lock/sync/check 流程、字段语义和测试，再由工具写入真实
-状态。手工把数字改得“看起来一致”会制造新的 downstream upgrade 假证据。
+- [#374 SQL migration scripts and rollback](https://github.com/mss-boot-io/mss-boot-admin/issues/374)
+  进入 `D2` migration engine 与 `D3` 真实 supplier forward migration；
+- [#53 手机号登录](https://github.com/mss-boot-io/mss-boot-admin/issues/53) 必须复用新的
+  ChallengeStore purpose、rate limit、anti-enumeration 和 fail-closed 语义，不复制验证码状态机；
+- [#111 通知多 Provider](https://github.com/mss-boot-io/mss-boot-admin/issues/111) 只有在 typed
+  provider profile 和独立 delivery contract 之后再评估；
+- [#471 v1.0.0 exact-main evidence](https://github.com/mss-boot-io/mss-boot-admin/issues/471)
+  作为 v1.1.0 evidence issue 的历史模板，但历史结果不能复用为新版本证据。
 
 ## 下一条可执行工作
 
-Challenge safety、Kafka Mark-after-success 与 Upload admission 检查点已按独立边界实现。Kafka 检查点只修改
-decode/handler/Mark/cancel 路径：失败消息不调用 `MarkMessage`，同步 handler 继承 session
-context，取消或关闭的 consumer loop 退出。`MarkMessage` 只是记录本 session 的 next offset，
-不是 broker commit；配置/注册中的进程退出、producer ownership、manual commit、Errors channel、
-retry/backoff、DLQ、幂等与真实 broker/rebalance 仍未通过，因此 Kafka 继续是 Legacy/Blocked。
+立即继续 `D1-provider-owner`：启动时构造严格、不可变的 object storage profile，由单一 owner 持有
+长生命周期 client；empty、unknown、冲突、部分凭据或不可用 Provider 返回明确 unavailable，绝不落入
+Local 或返回成功 URL。显式 Local 只有在 Delivery 实际可读时启用，否则生产路径禁用。
 
-下一条 `v1.0.1` 实现 PR 是 Provider fail-closed：启动时构造一个严格、不可变的对象存储 profile，
-由单一 owner 持有长生命周期 client；unknown、空、冲突、部分凭据或不可用 Provider 必须返回明确
-unavailable，不能落入 Local 或返回成功 URL。显式 Local 只有在 Delivery 实际可读时才允许启用；否则
-生产模式直接禁用。S3 conditional create 与完整 Delivery 授权仍留在 v1.1 alpha.2 的共用 Provider suite。
-这个 PR 不同时修改 Challenge、Kafka、Generator 或完整 ObjectStore API。
+随后进入同一波次的 changed-path lifecycle：清除 Kafka registration/config 与 object owner 的
+Exit/Fatal/background，补齐 consumer/producer/client 的可取消运行、错误观察和幂等关闭。完成后直接
+进入 `D2-contract-substrate`，不插入 v1.0.x 发布准备或全量 release-readiness。
 
-Provider fail-closed 切片之后，`v1.0.1` 仍必须完成第五个 changed-path lifecycle /
-evidence 切片：消除 Kafka registration/config 的 Exit/Fatal，建立 consumer/producer owner 的
-可观测 close，并让 `TestV101ChangedProvidersDoNotExitOrDetach` 与 phase evidence 非零通过。
-这些是发布该补丁的最低门禁；真实 broker rebalance/outage、manual commit、retry/backoff、DLQ
-和幂等属于后续 Provider 晋级门禁，即使最低门禁通过也不会把 Kafka 升为 Experimental。
-
-另一条独立分支并行启动 `v1.0.2`：先为 Foundation release、Blueprint、generator、downstream
-snapshot 四身份以及 lock+manifest 原子双记录建立失败测试，再修 migration engine，并以 canonical
-email 存量冲突预检和三数据库唯一 forward migration 作为第一条真实安全迁移。迁移落地前，
-邮件注册、首次 OAuth provision 与自助邮箱修改都不得被描述为 production-ready。两条泳道分别
-评审、分别合并，不互相隐藏门禁。
+本策略调整完成的定义是：release policy 能拒绝 v1.0.x 和公开 prerelease tag；Feature acceptance 能按
+checkpoint、feature-freeze、pre-framework、pre-root、post-publication 聚合；普通 PR 不自动运行完整
+release readiness；路线、FeatureSpec、ADR、capability 和 checkpoint notes 都不再承诺中间版本发布。

@@ -157,15 +157,21 @@ spec:
 
     verify-changed:
       command: go run ./cmd/mss verify --changed
-      description: Compute and execute the minimum sufficient checks for the current Git diff.
+      description: Compute and execute the minimum development-checkpoint checks for the current Git diff; this never authorizes a release.
       outputFormats: [text, json]
       category: verification
 
     verify-all:
       command: go run ./cmd/mss verify --all
-      description: Execute the complete repository validation suite.
+      description: Execute the complete repository validation suite after feature freeze or when explicitly requested for diagnosis.
       outputFormats: [text, json]
       category: verification
+
+    release-policy-check:
+      command: python3 tools/release/check_release_policy.py --component <root|framework|frontend> --version <version> --tag <tag> --intent <qualify|publish>
+      description: Validate the reviewed target and namespace; qualify permits unpublished candidate work, while publish also requires publication workflow readiness and is not itself phase approval.
+      outputFormats: [text]
+      category: release
 
     direct-verify-all:
       command: make verify-all
@@ -192,7 +198,7 @@ spec:
 
     eval-run:
       command: go run ./cmd/mss eval run
-      description: Execute Agent evaluation cases and store structured reports.
+      description: Execute selected Agent evaluation cases; the complete --all matrix is a feature-freeze and release-readiness activity.
       outputFormats: [text, markdown, json]
       category: eval
 

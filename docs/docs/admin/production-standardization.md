@@ -60,16 +60,16 @@ backup/   # 数据库或配置备份
 
 ## Upload admission 的当前边界
 
-v1.0.1 未发布检查点已经把 `storage:maxSize` 定义为 bytes：默认 10 MiB
+`D0-safety` 内部检查点已经把 `storage:maxSize` 定义为 bytes：默认 10 MiB
 （`10485760`），硬上限 100 MiB（`104857600`）。`storage:allowedTypes`
 使用逗号分隔的 MIME types / wildcards（例如 `image/png,image/*`），不是文件
 扩展名。入口在 multipart 解析前限制 body，Local 使用随机 opaque key、受限根、
 create-only 写入与 partial cleanup。
 
 这些是 admission/local-write safety，不是 provider 或 Delivery 的生产晋级。
-Local 与 S3-compatible 仍是 `Legacy / Blocked`。下一 v1.0.1 切片完成未知
+Local 与 S3-compatible 仍是 `Legacy / Blocked`。`D1-provider-owner` 完成未知
 provider fail-closed、immutable profile 和 single owner；S3 conditional
-create-only 与共用 provider conformance 留在 `v1.1.0-alpha.2`。
+create-only 与共用 provider conformance 留在 `D4-authorization-object`。
 
 当前应用没有“生产模式自动关闭上传”的开关。部署必须在 ingress 阻断
 `/admin/api/storage/upload` 与 `/admin/api/user/avatar`，并确保权限策略不授予
@@ -93,7 +93,7 @@ permission，因此权限配置不能替代它的 ingress 门禁。
 - 不建议把通知密钥直接写死在仓库文件中
 - 不建议关闭日志输出
 - 不得仅凭 `/public/` 代理、持久化目录或 endpoint URL 上线头像/上传功能
-- 在下一 v1.0.1 provider gate 与后续 Delivery gate 通过前，不得启用 Local 或 S3-compatible 上传
+- 在 `D1-provider-owner` 与 `D4-object-delivery` 冻结门禁通过前，不得启用 Local 或 S3-compatible 上传
 
 ## 推荐阅读
 

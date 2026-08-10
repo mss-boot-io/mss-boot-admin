@@ -7,7 +7,8 @@
 - Feature contracts:
   - `.mss/features/foundation-v1-0-1-storage-safety.yaml`
   - `.mss/features/storage-runtime-v2.yaml`
-- Target train: `v1.0.1` through `v1.1.0`
+  - `.mss/features/foundation-v1-1-0-release.yaml`
+- Target release: `v1.1.0`; preceding milestones are untagged development waves
 
 ## Context
 
@@ -60,9 +61,9 @@ generation changes, variable/database separation, and an allowlist. It remains o
 beta because result metadata, pointer decoding, payload bounds, cross-instance data-source
 identity, lifecycle ownership, and stampede behavior still need a complete contract.
 
-### Unreleased v1.0.1 upload-admission checkpoint
+### Internal D0 upload-admission checkpoint
 
-The current v1.0.1 working-tree checkpoint is deliberately narrower than the target
+The current internal working-tree checkpoint is deliberately narrower than the target
 ObjectStore architecture in this ADR. It proves only the shared HTTP upload-admission
 boundary and the confined Local write boundary:
 
@@ -84,10 +85,10 @@ This checkpoint does **not** promote either Local or S3-compatible storage. Both
 `legacy` in the machine catalog and **Blocked** for production: provider selection can
 still fall through to Local, provider settings are not one immutable validated profile,
 client ownership is not singular, and returned URL strings do not prove a delivery
-contract. The next v1.0.1 slice must make provider selection fail closed and establish
+contract. The next `D1-provider-owner` wave must make provider selection fail closed and establish
 one immutable profile with one application owner. S3 create-only conditional writes and
 the Local/S3-compatible common provider conformance suite remain a separately gated
-`v1.1.0-alpha.2` target.
+`D4-authorization-object` target before the v1.1.0 feature freeze.
 
 ## Decision
 
@@ -297,7 +298,7 @@ loads the new revision.
 WorkQueue is a different interface. Every Kafka, NSQ, and Redis implementation keeps its own
 evidence state until it proves acknowledgement after handler success, bounded retry with
 backoff, dead-letter handling, cancellation and rebalance, duplicate/idempotency behavior,
-real-provider operation, owned lifecycle, and observability. The v1.0.1 Kafka checkpoint only
+real-provider operation, owned lifecycle, and observability. The internal D0 Kafka checkpoint only
 proves local `MarkMessage` ordering and session-cancellation behavior with hermetic fakes; it
 does not prove broker offset commit and leaves Kafka Blocked/legacy. v1.1.0 does not promise
 stable promotion for any WorkQueue provider.
@@ -311,9 +312,9 @@ partition tests, and proof that a database concurrency mechanism is insufficient
 
 ### 10. Separate ObjectStore from Delivery
 
-This section is the target contract, not a claim about the v1.0.1 checkpoint. In
+This section is the target contract, not a claim about the internal D0 checkpoint. In
 particular, create-only S3 behavior, common provider conformance, and authenticated
-Delivery remain gated for `v1.1.0-alpha.2`.
+Delivery remain gated for D4 before the v1.1.0 feature freeze.
 
 The object interface operates on an opaque `ObjectRef` and checksummed metadata through
 `Put`, `Open`, `Stat`, and `Delete` semantics. `Put` is create-only: publishing an existing
@@ -372,21 +373,21 @@ evidence-status field is added, existing unsafe compatibility paths are marked `
 clean unimplemented targets are `planned`, and detailed blocked/experimental evidence
 lives in this matrix. Provider state is never inferred from the framework version.
 
-| Provider or capability | Evidence at `ee800262` | v1.0.1 action | v1.1.0 target |
+| Provider or capability | Evidence at `ee800262` | Development-wave action | v1.1.0 freeze target |
 | --- | --- | --- | --- |
 | Aggregate cache/lock/queue | Declared stable; provider evidence does not support it | Retire the stable aggregate and point to provider evidence | Do not restore an aggregate maturity state |
-| Global Redis resource | Blocked: unsynchronized, first initializer wins, unclear close ownership | Mark legacy and inventory active scopes; move ownership repair to v1.0.2+ | Stable named resource after standalone/Sentinel/cluster/TLS conformance |
-| Redis derived cache | Beta: query generation tests exist, but API and lifecycle remain broad | Keep beta; add failure/result metadata evidence in v1.0.2+ | Stable scoped key/value cache; QueryCache remains separately beta |
+| Global Redis resource | Blocked: unsynchronized, first initializer wins, unclear close ownership | Mark legacy, inventory active scopes, and repair ownership in D2-D3 | Stable named resource after standalone/Sentinel/cluster/TLS conformance |
+| Redis derived cache | Beta: query generation tests exist, but API and lifecycle remain broad | Keep beta; add failure/result metadata evidence before freeze | Stable scoped key/value cache; QueryCache remains separately beta |
 | Redis verification state | Blocked security path | Ship atomic cryptographic safety fix; do not call it stable | Stable ChallengeStore after concurrency, limits, outage, and redaction suites |
 | Memory EventBus | Existing memory queue is not a production broadcast contract | Do not market it as a durable queue | Stable single-process EventBus after shared suite |
-| Redis EventBus | Existing Redis queue lacks explicit fan-out/reconciliation contract | Keep separate and planned; ownership/reconciliation starts in v1.0.2+ | Stable fan-out plus revision reconciliation and outage behavior |
+| Redis EventBus | Existing Redis queue lacks explicit fan-out/reconciliation contract | Keep separate and planned; ownership/reconciliation lands in D5 | Stable fan-out plus revision reconciliation and outage behavior |
 | Redis WorkQueue | Experimental | Separate it from EventBus | Remain experimental unless retry/dead-letter suite passes |
 | Kafka WorkQueue | Blocked: message is marked before handler success | Land hermetic Mark-order/session-cancellation safety and retain Blocked/legacy while registration, configuration, producer ownership, manual-commit, error-observation, and real-broker gates remain open | Eligible for Experimental reassessment only after dedicated lifecycle and real-broker suites; not a v1.1 stable commitment |
-| NSQ WorkQueue | Blocked: duration, process-exit, and cancellation defects | Keep blocked/legacy in v1.0.1; fix in a v1.0.2+ dedicated slice or remove | Experimental or remove from default build |
+| NSQ WorkQueue | Blocked: duration, process-exit, and cancellation defects | Keep blocked/legacy; fix in a dedicated development wave or remove | Experimental or remove from default build |
 | Redis lock | Experimental: no Admin consumer and no focused coverage | Downgrade aggregate claim and defer | Experimental until a fenced consumer and conformance exist |
-| Local ObjectStore | Blocked: late size check, implicit fallback, collision/overwrite risk | Land upload admission plus confined opaque create-only Local writes, but retain legacy/Blocked; provider fail-closed, immutable profile, and single ownership are the next v1.0.1 slice | Eligible for reassessment only after the `v1.1.0-alpha.2` common provider and Delivery gates; no Stable commitment |
-| S3-compatible ObjectStore | Blocked: per-request client, ambiguous credentials, overwrite semantics, synthesized URL, and skipped external tests | Reuse only the admission and opaque-key boundary; retain legacy/Blocked until the next v1.0.1 provider fail-closed, immutable-profile, single-owner slice | S3 conditional create-only and the Local/S3-compatible common conformance suite are gated to `v1.1.0-alpha.2`; no Stable commitment |
-| S3 configuration source | Experimental/beta bootstrap | Keep independent and non-stable; the next Admin provider-profile slice must not reuse it as a hidden application client | Prove independent bootstrap profile, failure, health, and close ownership at the separately gated `v1.1.0-alpha.2` suite before any Beta reassessment |
+| Local ObjectStore | Blocked: late size check, implicit fallback, collision/overwrite risk | D0 lands admission and confined opaque create-only writes; D1 adds provider fail-closed, immutable profile, and single ownership; retain legacy/Blocked | Eligible for reassessment only after the D4 common provider and Delivery gates; no Stable commitment |
+| S3-compatible ObjectStore | Blocked: per-request client, ambiguous credentials, overwrite semantics, synthesized URL, and skipped external tests | Reuse only the admission and opaque-key boundary; retain legacy/Blocked through the D1 profile/owner repair | S3 conditional create-only and the Local/S3-compatible common conformance suite are gated to D4; no Stable commitment |
+| S3 configuration source | Experimental/beta bootstrap | Keep independent and non-stable; D1 must not reuse it as a hidden application client | Prove independent bootstrap profile, failure, health, and close ownership in D4 before any Beta reassessment |
 | WebSocket Redis pub/sub | Unwired at the baseline: no `SetRedisClient` call exists | Move into the resource inventory and report the single-instance boundary | Beta realtime bus after clustered conformance; never a durable-work claim |
 
 ## Consequences
@@ -412,11 +413,16 @@ Costs and constraints:
 
 ## Rollout and recovery
 
-`v1.0.1` closes known security and data-integrity paths without attempting the full package
-replacement. `v1.0.2` establishes strict schemas, version identity, preflight, and hermetic
-fixtures. `v1.0.3` proves upgrade and failure-injection scenarios. The v1.1 prereleases then
-land the resource graph, named Redis, ChallengeStore, EventBus, ObjectStore/Delivery, and
-provider conformance in independently reversible slices.
+Development waves close known security and data-integrity paths before they assemble the full
+package replacement. D1 establishes provider fail-closed behavior and ownership; D2 establishes
+strict schemas, version identity, migration preflight, and hermetic fixtures; D3-D5 land the
+resource graph, named Redis, ChallengeStore, EventBus, ObjectStore/Delivery, upgrade paths, and
+provider evidence in independently reversible commits. None of these waves creates a public tag.
+
+After the architecture and selected provider scope reach `FF-v1.1.0`, one frozen commit enters
+concentrated conformance: complete database, browser, real-provider, failure-injection, lifecycle,
+upgrade, external-consumer, recovery, verify, and eval matrices. Publication authority is a later
+phase and does not determine whether the target architecture is feature-complete.
 
 During a failed rollout, stop listeners and consumers, preserve authoritative database,
 challenge, offset, object, and sanitized diagnostic evidence, then close the owned resource
@@ -440,9 +446,9 @@ This ADR is implemented only when:
    framework; and
 8. the release tag follows a truthful SemVer decision for any public API removal.
 
-The next executable step is the remaining v1.0.1 object-provider safety slice: make empty,
+The next executable step is `D1-provider-owner`: make empty,
 unknown, unreadable, or partial provider configuration fail closed; normalize one
 immutable profile; construct one application-owned client; and remove the ghost startup
 client/per-request client split. Local and S3-compatible storage remain legacy/Blocked
 after that slice. S3 conditional create-only writes, independent bootstrap conformance,
-and authenticated Delivery remain gated for `v1.1.0-alpha.2`.
+and authenticated Delivery remain gated for D4 before feature freeze.

@@ -161,6 +161,7 @@ spec:
       requirement: honest-release-state
       statement: The v1.0.0 release FeatureSpec passes schema and semantic validation.
       level: contract
+      phase: checkpoint
       required: true
       evidence:
         - type: command
@@ -169,6 +170,7 @@ spec:
       requirement: honest-release-state
       statement: The public root and framework Releases, exact commit, and closed evidence issue prove the stable v1.0.0 publication.
       level: manual
+      phase: post-publication
       required: true
       evidence:
         - type: manual
@@ -181,6 +183,7 @@ spec:
       requirement: complete-compatibility-contract
       statement: Release, upgrade, compatibility, and rollback documents are linked and compile in the documentation site.
       level: integration
+      phase: feature-freeze
       required: true
       evidence:
         - type: command
@@ -189,6 +192,7 @@ spec:
       requirement: framework-before-root
       statement: A clean module outside the repository resolves and tests the exact nested mss-boot/v1.0.0 tag without workspace replacement.
       level: integration
+      phase: pre-root
       required: true
       evidence:
         - type: manual
@@ -197,6 +201,7 @@ spec:
       requirement: migration-evidence
       statement: Current fresh/failure suites and v0.7 upgrade/repeat suites jointly cover SQLite, MySQL 8.4, and PostgreSQL 17 on the exact release commit.
       level: migration
+      phase: feature-freeze
       required: true
       evidence:
         - type: report
@@ -205,6 +210,7 @@ spec:
       requirement: security-release-gates
       statement: Credential, OAuth, default-role, root, permission, configuration-secret, upload, and audit positive/negative checks all pass.
       level: security
+      phase: feature-freeze
       required: true
       evidence:
         - type: command
@@ -215,6 +221,7 @@ spec:
       requirement: artifact-identity
       statement: Every formal binary, archive, static bundle, and image reports or records the exact tag/revision and passes its installation smoke test.
       level: e2e
+      phase: post-publication
       required: true
       evidence:
         - type: manual
@@ -223,6 +230,7 @@ spec:
       requirement: honest-release-state
       statement: Strict environment checks, complete verification, and all Agent evaluations pass on the exact release commit.
       level: integration
+      phase: feature-freeze
       required: true
       evidence:
         - type: command
@@ -231,6 +239,7 @@ spec:
       requirement: executable-recovery
       statement: An isolated restore proves the backup is usable and records the selected forward-fix and full-restore decision points.
       level: manual
+      phase: pre-framework
       required: true
       evidence:
         - type: manual
@@ -239,6 +248,7 @@ spec:
       requirement: security-release-gates
       statement: Historical built-in OAuth credentials are revoked at the provider and the exact release commit has no open secret-scanning alert.
       level: manual
+      phase: pre-framework
       required: true
       evidence:
         - type: manual

@@ -1,0 +1,243 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: foundation-v1-1-0-release
+  displayName: Develop first, then qualify and publish v1.1.0
+  description: >-
+    Governs the single public train from the published v1.0.0 baseline to v1.1.0. Internal
+    development waves remain untagged; concentrated conformance and publication evidence begin
+    only after feature freeze.
+  owner: release-engineering
+  labels:
+    domain: release-governance
+    current-stable: v1.0.0
+    target-version: v1.1.0
+    release-status: development
+    strategy: development-first
+spec:
+  problem: >-
+    The earlier roadmap treated v1.0.x and v1.1 prereleases as a sequence of public exits, forcing
+    full release evidence into every small implementation slice. That interrupts the Generator,
+    Blueprint, and Storage Runtime architecture work and also makes checkpoint acceptance,
+    feature-freeze qualification, and publication authority indistinguishable to automation.
+  goals:
+    - Accumulate small, reviewable implementation waves without publishing v1.0.x or public prerelease tags.
+    - Preserve fast changed-scope checks and known security invariants while development continues.
+    - Freeze one v1.1.0 candidate commit before starting complete database, browser, provider, upgrade, recovery, and release validation.
+    - Publish Framework and root v1.1.0 only after phase-scoped evidence for the same frozen commit passes.
+    - Keep unqualified optional providers at their existing evidence state instead of weakening the release standard.
+  nonGoals:
+    - Treat an internal checkpoint, branch, Actions artifact, alpha name, or changelog entry as a public release.
+    - Run every real-provider matrix, soak, external consumer, artifact, and recovery check on every development commit.
+    - Skip focused tests, compilation, contract validation, permission negatives, or known security regression checks while developing.
+    - Rewrite .mss/project.yaml or .mss/lock.yaml to resemble the public target version.
+    - Publish a breaking reusable Framework API as v1.1.0 merely to preserve the roadmap label.
+  actors:
+    - id: maintainer
+      displayName: Foundation maintainer
+      description: Lands coherent development waves and preserves changed-path correctness.
+    - id: release-manager
+      displayName: Release manager
+      description: Selects the feature-freeze commit and controls public component publication.
+    - id: security-owner
+      displayName: Security owner
+      description: Can require an emergency patch policy change when delaying a public fix is unacceptable.
+  modules:
+    - name: development-train
+      kind: infrastructure
+      operation: extend
+      description: Internal checkpoint sequencing and minimum merge checks.
+    - name: release-policy
+      kind: infrastructure
+      operation: create
+      description: Machine-readable public version and component tag policy.
+    - name: release-evidence
+      kind: infrastructure
+      operation: extend
+      description: Feature-freeze and publication evidence scoped by phase and exact commit.
+  requirements:
+    - id: keep-checkpoints-internal
+      title: Keep development waves untagged
+      description: Internal milestone names identify scope and dependency order but never create a Git tag, GitHub Release, or versioned package.
+      priority: must
+      actor: release-manager
+      module: release-policy
+      rules:
+        - Public v1.0.1 through v1.0.x versions and public v1.1.0 prerelease tags are rejected by the checked-in policy.
+        - The next reviewed public version is v1.1.0 for root, Framework, and any standalone frontend release that is explicitly requested.
+        - Publication workflows remain disabled in the checked-in policy throughout feature development; bootstrap readiness success is not release authority.
+        - Changing the public target for an emergency security patch requires a reviewed release-policy change and cannot be a workflow bypass.
+    - id: preserve-development-safety
+      title: Keep a small merge-safety floor
+      description: Deferring complete release qualification does not permit broken builds or known security and data-integrity regressions in changed code.
+      priority: must
+      actor: maintainer
+      module: development-train
+      rules:
+        - Each coherent change validates affected FeatureSpecs, compiles the affected component, and runs exact focused tests for the changed behavior.
+        - Framework checks use GOWORK=off; concurrent and lifecycle changes use focused race detection.
+        - Generator changes retain dry-run, path confinement, stable ordering, unsupported-before-write, and checked-in golden drift checks as soon as the golden fixture exists.
+        - Security fixes for Challenge, Kafka marking, upload admission, provider fallback, secret redaction, permissions, and ownership remain permanent regression sentinels.
+    - id: freeze-before-qualification
+      title: Freeze before complete qualification
+      description: Complete release qualification starts only after the v1.1.0 implementation and public contract surface are frozen on one exact commit.
+      priority: must
+      actor: release-manager
+      module: release-evidence
+      rules:
+        - Feature freeze stops new features and public API, configuration, schema, and generated-contract churn.
+        - The manual readiness workflow requires v1.1.0, the checked-out full commit SHA, and an explicit feature-freeze confirmation.
+        - Phase evidence execution, artifact attestation, protected write jobs, and tag rules are completed before selecting the frozen candidate and changing publicationWorkflowsReady to true.
+        - publicationWorkflowsReady means the machinery can enforce authority; it is not itself approval to tag or publish.
+        - Any implementation change after freeze creates a new candidate commit and invalidates candidate evidence affected by that change.
+    - id: qualify-frozen-candidate
+      title: Run concentrated validation on the frozen candidate
+      description: The frozen commit must pass complete Generator, Blueprint, Storage Runtime, database, browser, provider, upgrade, security, and recovery qualification.
+      priority: must
+      actor: release-manager
+      module: release-evidence
+      rules:
+        - Required exact tests must have nonzero run and pass evidence and no skip, cached-only, or no-tests-to-run result.
+        - doctor strict, verify all, eval all, complete affected module suites, three-database migration paths, browser E2E, real-provider matrices, candidate-artifact external new-app probes, failure injection, and recovery rehearsals run after freeze.
+        - Exact-tag external GOWORK=off Framework resolution belongs only to pre-root authority and is not counted as feature-freeze evidence.
+        - A provider without its own required evidence remains legacy, planned, blocked, experimental, or beta as supported; it does not block unrelated v1.1.0 scope and does not auto-promote.
+    - id: publish-exact-v110
+      title: Publish the exact qualified v1.1.0 commit
+      description: Public component tags, artifacts, Releases, and post-publication truth must identify the same reviewed commit and version.
+      priority: must
+      actor: release-manager
+      module: release-evidence
+      rules:
+        - Framework v1.1.0 publishes first and is resolved from an external GOWORK=off consumer before root publication.
+        - The root tag, Framework tag, Admin dependency, archives, checksums, images, documentation, and evidence issue identify one commit.
+        - Post-publication reconciliation closes the issue only after installation, runtime, recovery, changelog, capability, and release-state facts agree.
+  constraints:
+    - id: no-public-development-tags
+      type: operations
+      statement: Internal waves use branch and commit identities only; alpha, beta, and rc tags are public SemVer prereleases and remain disabled by policy.
+    - id: emergency-patch-exception
+      type: security
+      statement: If delaying a remotely exploitable or data-loss fix is unacceptable, release engineering changes and reviews the target policy for an emergency patch before creating any tag.
+    - id: semver-truth
+      type: compatibility
+      statement: Public reusable Go API removals or incompatible signature changes require a truthful major-version decision or an explicitly non-authoritative bridge.
+    - id: development-lock-truth
+      type: data
+      statement: Project and lock files keep their real Blueprint and generated-development identity until deterministic identity sync writes an exact downstream snapshot.
+  acceptance:
+    - id: checkpoint-public-version-policy
+      requirement: keep-checkpoints-internal
+      statement: Policy-negative tests reject every public v1.0.x checkpoint and v1.1.0 prerelease tag while permitting only the reviewed v1.1.0 qualification target.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: python3 -m unittest tools/release/test_check_release_policy.py
+        - type: report
+          value: Policy-negative report covering root, Framework, frontend, and container tag entrypoints
+    - id: checkpoint-policy-and-fast-feedback
+      requirement: preserve-development-safety
+      statement: A development wave passes policy validation, FeatureSpec validation, affected compilation, focused exact tests, and changed-scope verification without running complete release qualification.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: python3 -m unittest tools/release/test_check_release_policy.py
+        - type: command
+          value: go run ./cmd/mss verify --changed --plan --format json
+        - type: report
+          value: Changed-scope CI and exact focused test reports for the implementation wave
+    - id: feature-freeze-candidate-authority
+      requirement: freeze-before-qualification
+      statement: Manual readiness records v1.1.0, the checked-out full commit SHA, and explicit feature-freeze confirmation before complete qualification starts.
+      level: manual
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: path
+          value: .github/workflows/release-readiness.yml
+        - type: report
+          value: .mss/reports/release-readiness-metadata.json
+        - type: manual
+          value: Confirm the exact v1.1.0 target, full candidate SHA, and feature-freeze state in the manual readiness invocation
+    - id: feature-freeze-qualification
+      requirement: qualify-frozen-candidate
+      statement: One explicit v1.1.0 commit passes the complete no-skip database, browser, provider, security, upgrade, candidate-artifact external-consumer, recovery, doctor, verify, and eval matrix after feature freeze.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: path
+          value: .github/workflows/release-readiness.yml
+        - type: report
+          value: .mss/reports/release-readiness-metadata.json
+        - type: command
+          value: go run ./cmd/mss verify --all --format json
+        - type: command
+          value: go run ./cmd/mss eval run --all --format json
+    - id: pre-framework-authority
+      requirement: publish-exact-v110
+      statement: The open evidence issue approves the frozen v1.1.0 commit, SemVer decision, candidate artifacts, recovery plan, complete qualification, and protected write paths before any public component tag is created.
+      level: manual
+      phase: pre-framework
+      required: true
+      evidence:
+        - type: manual
+          value: Approved open exact-commit evidence issue with policy hash and feature-freeze reports
+        - type: path
+          value: .mss/release-policy.yaml
+    - id: pre-root-authority
+      requirement: publish-exact-v110
+      statement: The public mss-boot/v1.1.0 release, Admin dependency, checksum, and external GOWORK=off resolution match the frozen commit before root v1.1.0 publication.
+      level: integration
+      phase: pre-root
+      required: true
+      evidence:
+        - type: path
+          value: .github/workflows/framework-release.yml
+        - type: report
+          value: External framework resolution and consumer report attached to the open evidence issue
+    - id: post-publication-truth
+      requirement: publish-exact-v110
+      statement: Root and Framework Releases, archives, checksums, images, installation smoke, recovery, docs, changelog, and capability state reconcile to the frozen commit before the evidence issue closes.
+      level: integration
+      phase: post-publication
+      required: true
+      evidence:
+        - type: path
+          value: .github/workflows/release.yml
+        - type: manual
+          value: Final post-publication reconciliation comment and closed evidence issue
+  risks:
+    - id: delayed-public-security-fixes
+      description: Development-first scheduling delays already implemented security fixes from reaching v1.0.0 users.
+      severity: high
+      mitigation: Keep fixes enabled and tested on the development branch, assess exploitability continuously, and change the reviewed public target for an emergency patch when delay is unacceptable.
+    - id: late-integration-discovery
+      description: Deferring complete matrices can reveal cross-provider, cross-database, or browser defects late in the train.
+      severity: high
+      mitigation: Preserve focused integration tests and optional nightly signals during development, freeze with schedule margin, and restart affected candidate evidence after fixes.
+    - id: accidental-public-checkpoint
+      description: A v1.0.x or prerelease tag could publish a component or image before qualification.
+      severity: critical
+      mitigation: Keep publicationWorkflowsReady false during development, enforce the checked-in policy in every publishing workflow, require a protected release environment for write jobs, and restrict tag creation with repository rulesets.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - python3 -m unittest tools/release/test_check_release_policy.py
+      - go test ./internal/mss/spec ./internal/mss/feature
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      Keep completed Challenge, Kafka Mark-order, and Upload admission work as internal checkpoint
+      commits. Continue Generator/Blueprint and Storage Runtime waves to the v1.1.0 feature-freeze
+      definition without creating version tags. Run release-readiness manually on the selected commit,
+      then execute pre-framework, pre-root, and post-publication authority in order.
+    rollback: >-
+      Before publication, abandon a candidate by recording the failed evidence and selecting a new
+      commit; no tag needs mutation. After any component publication, never move or reuse a tag:
+      keep the evidence issue open and forward-repair with the next valid synchronized version.

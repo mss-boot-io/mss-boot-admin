@@ -1,89 +1,27 @@
-name: Release Readiness
+name: Release Readiness (Bootstrap)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - '.agents/**'
-      - '.mss/**'
-      - 'admin/**'
-      - 'cmd/mss/**'
-      - 'cmd/mss-mcp/**'
-      - 'docs/**'
-      - 'internal/mss/**'
-      - 'mss-boot/**'
-      - 'modules/**'
-      - 'templates/**'
-      - 'scripts/**'
-      - '.codex/**'
-      - 'tools/release/**'
-      - 'tools/security/**'
-      - 'web/antd/**'
-      - '.dockerignore'
-      - '.gitattributes'
-      - 'AGENTS.md'
-      - 'CHANGELOG.md'
-      - 'CLAUDE.md'
-      - 'Dockerfile'
-      - 'Makefile'
-      - 'README.md'
-      - 'README.zh-CN.md'
-      - 'go.mod'
-      - 'go.sum'
-      - 'go.work'
-      - 'go.work.sum'
-      - '.github/workflows/*release*.yml'
-      - '.github/workflows/container.yml'
-      - '.github/workflows/docs.yml'
-      - '.github/workflows/foundation-compatibility.yml'
-      - '.github/workflows/theme-settings-integration.yml'
-      - '.github/workflows/v0.7-upgrade-integration.yml'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - '.agents/**'
-      - '.mss/**'
-      - 'admin/**'
-      - 'cmd/mss/**'
-      - 'cmd/mss-mcp/**'
-      - 'docs/**'
-      - 'internal/mss/**'
-      - 'mss-boot/**'
-      - 'modules/**'
-      - 'templates/**'
-      - 'scripts/**'
-      - '.codex/**'
-      - 'tools/release/**'
-      - 'tools/security/**'
-      - 'web/antd/**'
-      - '.dockerignore'
-      - '.gitattributes'
-      - 'AGENTS.md'
-      - 'CHANGELOG.md'
-      - 'CLAUDE.md'
-      - 'Dockerfile'
-      - 'Makefile'
-      - 'README.md'
-      - 'README.zh-CN.md'
-      - 'go.mod'
-      - 'go.sum'
-      - 'go.work'
-      - 'go.work.sum'
-      - '.github/workflows/*release*.yml'
-      - '.github/workflows/container.yml'
-      - '.github/workflows/docs.yml'
-      - '.github/workflows/foundation-compatibility.yml'
-      - '.github/workflows/theme-settings-integration.yml'
-      - '.github/workflows/v0.7-upgrade-integration.yml'
   workflow_dispatch:
+    inputs:
+      version:
+        description: Feature-frozen public release target
+        required: true
+        type: string
+      frozen_commit:
+        description: Full commit SHA selected for concentrated validation
+        required: true
+        type: string
+      feature_freeze_confirmed:
+        description: Confirm feature and public contract changes are frozen
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-readiness-${{ github.event.pull_request.number || github.ref }}
+  group: release-readiness-${{ inputs.version }}-${{ inputs.frozen_commit }}
   cancel-in-progress: true
 
 env:
@@ -97,6 +35,38 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Bind readiness to the reviewed target and frozen commit
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+          FEATURE_FREEZE_CONFIRMED: ${{ inputs.feature_freeze_confirmed }}
+        run: |
+          set -euo pipefail
+          if [[ "${FEATURE_FREEZE_CONFIRMED}" != "true" ]]; then
+            echo "release readiness is disabled until feature freeze is confirmed" >&2
+            exit 1
+          fi
+          if [[ ! "${FROZEN_COMMIT}" =~ ^[0-9a-f]{40}$ || "${FROZEN_COMMIT}" != "${GITHUB_SHA}" ]]; then
+            echo "frozen_commit must equal the checked-out full commit ${GITHUB_SHA}" >&2
+            exit 1
+          fi
+          python3 tools/release/check_release_policy.py \
+            --component root \
+            --version "${RELEASE_VERSION}" \
+            --tag "${RELEASE_VERSION}" \
+            --intent qualify
+          mkdir -p .mss/reports
+          policy_sha256="$(sha256sum .mss/release-policy.yaml | awk '{print $1}')"
+          jq -n \
+            --arg version "${RELEASE_VERSION}" \
+            --arg commit "${FROZEN_COMMIT}" \
+            --arg policySha256 "${policy_sha256}" \
+            '{version: $version, commit: $commit, phase: "checkpoint", profile: "bootstrap-incomplete", publicationAuthority: false, policySha256: $policySha256}' \
+            > .mss/reports/release-readiness-metadata.json
+
+          echo "This bootstrap workflow is not publication authority." >> "${GITHUB_STEP_SUMMARY}"
+          echo "It must gain the complete v1.1.0 matrix and phase attestation before publicationWorkflowsReady can become true." >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7

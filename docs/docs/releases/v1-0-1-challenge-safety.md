@@ -1,13 +1,14 @@
 ---
-title: v1.0.1 Challenge 安全切片
+title: Challenge 内部安全 checkpoint
 order: 7
-description: 一次性邮件验证码的原子状态、SecretRef 配置、失败语义与验收边界
-keywords: [v1.0.1 challenge otp redis email security]
+description: 累积进 v1.1.0 的一次性邮件验证码原子状态、SecretRef 配置与开发检查边界
+keywords: [v1.1.0 checkpoint challenge otp redis email security]
 ---
 
-# v1.0.1 Challenge 安全切片
+# Challenge 内部安全 checkpoint
 
-本文记录 `v1.0.1` 第一个实现检查点，不代表 `v1.0.1` 已经发布，也不代表
+本文记录 `D0-safety` 的第一个内部实现检查点。项目不再计划发布 `v1.0.1`；本变更将随
+`v1.1.0` 一起交付，也不代表
 Storage Runtime v2 的公共 `ChallengeStore` API 已经冻结。当前跨 Framework/Admin 的 Go
 接口是明确标注为 provisional 的过渡桥，不是兼容性承诺。公共资源 API、named Redis、
 数据库邮箱唯一约束和真实 Redis Cluster conformance 仍属于后续版本门禁。
@@ -39,7 +40,7 @@ Storage Runtime v2 的公共 `ChallengeStore` API 已经冻结。当前跨 Frame
 - 邮箱身份临时按不超过 100 字节的 ASCII 地址整体 case-fold；歧义查询固定失败，不任意
   选择账户。邮件注册使用独立的 18 字节 opaque username，不再把最长 100 字节的邮箱写入
   legacy `varchar(20)` username。数据库唯一约束尚未建立，因此自助邮箱修改被禁用，邮件
-  注册与首次 OAuth 建号在 v1.0.2 三数据库唯一迁移完成前不应在生产启用。
+注册与首次 OAuth 建号在 `D2-contract-substrate` 三数据库唯一迁移完成前不应在生产启用。
 - 公开 Profile 的 `emailChallengeReady` 每次请求重新检查 Redis 和 SMTP 配置，不进入
   静态缓存；前端还会同时检查 `emailEnabled`，注册额外检查 `registerEnabled`。这个字段
   只表示投递/状态机就绪，不表示数据库 identity 已通过唯一性门禁。
@@ -123,7 +124,7 @@ Redis 故障。当前测试只证明每个 subject 的状态/quota/幂等 key �
 conformance。
 
 上述命令是开发检查；当前 `mss spec validate` 只验证合同结构，尚未执行 acceptance 或证明
-测试非零命中。发布前仍须由 phase-aware evidence runner 解析 `go test -json` 并拒绝
+测试非零命中。功能冻结后的集中验证仍须由 phase-aware evidence runner 解析 `go test -json` 并拒绝
 `[no tests to run]`、skip 和零命中，不能把裸命令退出码当成发布证据。
 
 ## 升级与回滚
@@ -133,7 +134,7 @@ legacy `NewVerifyCode` 符号暂时保留，但调用会返回明确的 disabled
 需要停止邮件验证码时，将 `challenge.enabled` 设为 `false` 并重启；相关流程会安全地返回
 `503`。不要通过恢复旧 GET/SET/DEL 行为完成回滚。
 
-邮箱 identity 的完整修复属于 v1.0.2：先对存量 active 用户做无敏感值输出的冲突预检，
+邮箱 identity 的完整修复属于 `D2-contract-substrate`：先对存量 active 用户做无敏感值输出的冲突预检，
 再分别为 SQLite、MySQL 和 PostgreSQL 落地 active/non-empty canonical 唯一约束，并覆盖
 root CRUD、自助修改、邮件注册和 OAuth provision。迁移完成前，歧义记录只能 fail closed，
 不得自动合并或选择“第一个”账户。

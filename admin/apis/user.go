@@ -302,8 +302,8 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 		return
 	}
 	if _, attemptsEmailChange := reqMap["email"]; attemptsEmailChange {
-		// Email is an authentication and recovery identity. Until the v1.0.2
-		// canonical unique migration lands, self-service mutation could create
+		// Email is an authentication and recovery identity. Until the v1.1.0 D2
+		// canonical-identity wave lands, self-service mutation could create
 		// an ambiguous identity and deny login/reset to another account.
 		api.Err(http.StatusUnprocessableEntity)
 		return

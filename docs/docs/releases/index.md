@@ -41,15 +41,24 @@ forward-repair；根版本公开后的 reconciliation 失败则记录为
 `published / evidence-incomplete`。两种情况都不得移动或删除标签，并停止后续发布直到 evidence
 issue 完成终态记录或链接已验证的替代列车。
 
-## 下一版本梯队
+## 下一公开版本：v1.1.0
 
-`v1.0.1` 先分切片收口验证码、Kafka Mark 顺序、上传和对象存储的安全/数据完整性风险；
-发布前仍须完成 Kafka changed-path 的无 Exit/Fatal、owned close 与错误观测最低门禁。真实 broker、
-retry/DLQ 和完整 provider conformance 另设晋级门禁，不能从本地 Mark 顺序检查点推断生产成熟度。
-`v1.0.2-v1.0.3` 建立版本身份、严格配置与升级证据；`v1.1.0` prerelease 再交付
-Storage Runtime v2 和一条完整的 Generator 黄金业务竖切。
+当前采用“开发优先、冻结后集中验证”策略：原 `v1.0.1-v1.0.3` 和 alpha 切片只作为
+内部开发波次，不创建 tag、GitHub Release 或版本化包。Challenge、Kafka Mark 和
+Upload admission 已形成安全 checkpoint，将继续作为永久回归哨兵；下一条实现是
+Provider fail-closed 与单一 client owner。
 
-- [v1.0.1 至 v1.1.0 完整路线](/releases/v1-0-1-to-v1-1-0-roadmap)
-- [v1.0.1 Challenge 安全切片](/releases/v1-0-1-challenge-safety)
-- [v1.0.1 Kafka Mark-after-success 安全切片](/releases/v1-0-1-kafka-ack-safety)
-- [v1.0.1 Upload admission 安全切片](/releases/v1-0-1-upload-admission-safety)
+只有 Generator/Blueprint 与 Storage Runtime 目标全部完成、选定一个 `v1.1.0` 功能冻结 SHA
+后，才手工启动 `release-readiness`，集中执行三数据库、browser、Provider、upgrade、
+external consumer、recovery、`verify --all` 与 `eval --all`。全部通过后才进入 Framework →
+外部解析 → root → post-publication reconciliation。
+
+开发期 `.mss/release-policy.yaml` 保持 `publicationWorkflowsReady: false`；因此 bootstrap readiness 绿色只表示
+开发候选结果，不授予 tag、Release 或 package 发布权。受保护 `release` environment、tag ruleset 和完整阶段证据
+执行器完成后，先评审开启 workflow 能力，再选择该提交为冻结 SHA 并执行正式 qualification；pre-framework authority
+仍需单独批准实际发布。
+
+- [v1.1.0 开发优先完整路线](/releases/v1-0-1-to-v1-1-0-roadmap)
+- [Challenge 内部安全 checkpoint](/releases/v1-0-1-challenge-safety)
+- [Kafka Mark-after-success 内部 checkpoint](/releases/v1-0-1-kafka-ack-safety)
+- [Upload admission 内部 checkpoint](/releases/v1-0-1-upload-admission-safety)

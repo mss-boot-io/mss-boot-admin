@@ -6,8 +6,15 @@ tag namespaces.
 
 ## [Unreleased]
 
+Target: **v1.1.0 development train**. The former v1.0.x and prerelease slices are
+internal, untagged checkpoints. Complete qualification starts only after feature
+freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
+
 ### Changed
 
+- Switched the next train to development-first v1.1.0: internal waves remain
+  untagged, publication is disabled by checked-in policy, acceptance evidence is
+  phase-scoped, and complete release qualification starts only after feature freeze.
 - Reconciled the root and nested-framework changelogs, release FeatureSpec, and
   release documentation with the public `v1.0.0` evidence.
 - Reclassified the aggregate cache/lock/queue adapter capability from stable to
@@ -30,7 +37,7 @@ tag namespaces.
   use an `os.Root`-confined create-only path and remove canceled or partial
   files. Local and S3 remain Legacy/Blocked until the separate provider,
   lifecycle, and delivery gates close.
-- Added the provisional v1.0.1 Redis challenge state machine for email login,
+- Added the provisional D0 Redis challenge state machine for email login,
   registration, and password recovery. It uses cryptographic fixed-width codes,
   purpose/subject HMAC keys, versioned peppered verifiers, delivery
   Begin/Commit/Abort CAS, pending leases, cooldown and rolling quotas, bounded
@@ -45,19 +52,18 @@ tag namespaces.
   capability exists.
 - Canonicalized bounded ASCII email identities consistently, failed closed on
   ambiguous lookup, and disabled self-service email mutation until the planned
-  v1.0.2 three-database canonical uniqueness migration is complete.
+  D2 three-database canonical uniqueness migration is complete.
 
 ### Documentation
 
-- Added three machine-validated declarative planning contracts for `v1.0.1` storage safety,
-  Storage Runtime v2, and the v1.1 Generator/Blueprint golden slice, plus the
-  owned-resource architecture decision, provider maturity matrix, and the
-  `v1.0.1` through `v1.1.0` release train.
-- Added the v1.0.1 Challenge operator note covering SecretRef setup, failure
+- Added machine-validated contracts for the internal safety wave, Storage Runtime v2,
+  the v1.1 Generator/Blueprint golden slice, and the development-first v1.1.0 release
+  train, plus the owned-resource architecture decision and provider maturity matrix.
+- Added the Challenge checkpoint operator note covering SecretRef setup, failure
   semantics, focused evidence, rollback, and the remaining real-Cluster gate.
-- Added the v1.0.1 Kafka Mark-after-success safety note and corrected the queue
+- Added the Kafka Mark-after-success checkpoint note and corrected the queue
   tutorial so legacy Kafka/NSQ adapters are not presented as production-ready.
-- Added the v1.0.1 Upload admission safety note with byte-unit configuration,
+- Added the Upload admission checkpoint note with byte-unit configuration,
   handler-level admission plus route-registration evidence, rollback guidance,
   and the remaining provider and delivery blockers.
 

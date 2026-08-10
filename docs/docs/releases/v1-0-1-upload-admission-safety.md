@@ -1,19 +1,20 @@
 ---
-title: v1.0.1 Upload admission 安全切片
+title: Upload admission 内部安全 checkpoint
 order: 9
-description: 两条上传入口的解析前限流、Local create-only 写入、证据边界与后续 Provider 门禁
-keywords: [v1.0.1 upload multipart local storage security]
+description: 累积进 v1.1.0 的解析前限流、Local create-only 写入与开发检查边界
+keywords: [v1.1.0 checkpoint upload multipart local storage security]
 ---
 
-# v1.0.1 Upload admission 安全切片
+# Upload admission 内部安全 checkpoint
 
-本文记录 `v1.0.1` 的第三个实现检查点。它不表示 `v1.0.1` 已发布，也不表示
+本文记录 `D0-safety` 的第三个内部实现检查点。项目不再计划发布 `v1.0.1`；本变更将随
+`v1.1.0` 一起交付，也不表示
 Local 或 S3-compatible ObjectStore 已达到 Beta 或生产可用。机器目录继续把两个
 Provider 标为 `legacy`，ADR 的证据状态继续是 **Blocked**。
 
 本切片只关闭两条已确认的安全路径：上传请求在 `FormFile` 解析后才限流，以及
 Local 存储用用户 ID 和原文件名构造可覆盖、可穿越的目标路径。严格 Provider
-选择、生产 Delivery 和单一 S3 client owner 属于下一条独立 `v1.0.1` 切片。
+选择、生产 Delivery 和单一 S3 client owner 属于下一条独立 `D1-provider-owner` 波次。
 
 ## 请求与对象上限
 
@@ -70,7 +71,7 @@ cleanup 失败只产生脱敏运维告警，不把成功翻转成 500，从而�
 
 S3 新写入也使用 opaque key，但本切片没有提供 conditional create。S3 create-only、
 typed conflict、checksum、Local 的 crash-atomic temp/publish 和 Local/MinIO 共用 conformance
-仍属于 `v1.1.0-alpha.2`。
+仍属于功能冻结前的 `D4-authorization-object` 波次。
 
 ## 验收证据
 
@@ -83,7 +84,7 @@ GOWORK=off go test -json -race ./apis ./service ./router \
   -count=20
 ```
 
-发布证据不能只看命令退出码。报告必须解析 JSON，确认六个精确顶层测试各出现 20 次
+功能冻结后的发布证据不能只看命令退出码。报告必须解析 JSON，确认六个精确顶层测试各出现 20 次
 `Action=pass`，且没有 `skip`、`fail`、缓存结果或 `[no tests to run]`。这些测试覆盖：
 
 - known cap+1 零 body read；unknown-length cap+1 恰好读取 cap 和探测字节；
@@ -94,9 +95,9 @@ GOWORK=off go test -json -race ./apis ./service ./router \
 - policy 的 bytes/MIME/default/hard-ceiling 契约；admission/MIME 拒绝不查询或调用 Provider；
 - 已写入部分字节后的取消会删除目标；冲突只保留既有或胜出的完整对象，不留下新增 partial。
 
-## 未完成的 v1.0.1 发布门禁
+## 功能冻结前仍须完成的边界
 
-本检查点可以独立提交，但不能据此发布 `v1.0.1`：
+本检查点可以独立提交，但不能据此进入 `FF-v1.1.0` 或启动完整 release-readiness：
 
 - 空、未知、矛盾或不可用 Provider 仍可能走旧 Local fallback；
 - 生产模式不提供已证明的 Local `/public` Delivery，成功 URL 尚不能作为生产证据；

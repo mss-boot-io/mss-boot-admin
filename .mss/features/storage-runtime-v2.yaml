@@ -203,7 +203,7 @@ spec:
         - Casbin policy mutation and its monotonic revision commit in one database transaction; a crash between commit and publish is repaired by reconciliation.
         - Periodic revision reconciliation repairs missed, duplicate, or out-of-order events.
         - Memory and Redis EventBus providers use best-effort fan-out and explicit degraded health rather than work-queue acknowledgement semantics.
-        - Each Kafka, NSQ, and Redis durable-work provider retains its own evidence state until acknowledgement-after-success, retry, dead-letter, cancellation, rebalance, idempotency, real-provider, and lifecycle conformance pass. Kafka remains legacy/Blocked after the v1.0.1 local MarkMessage-order checkpoint.
+        - Each Kafka, NSQ, and Redis durable-work provider retains its own evidence state until acknowledgement-after-success, retry, dead-letter, cancellation, rebalance, idempotency, real-provider, and lifecycle conformance pass. Kafka remains legacy/Blocked after the internal D0 MarkMessage-order checkpoint.
     - id: strict-runtime-config
       title: Decode a strict discriminated configuration
       description: Runtime configuration must reject ambiguous provider shapes and resolve typed secret references before side effects.
@@ -243,6 +243,7 @@ spec:
     - id: admin-integration-gate
       statement: Admin integration proves readiness ordering, bounded shutdown, challenge outage failure, Casbin reconciliation, pre-parse upload limits, and no provider fallback.
       level: e2e
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -263,6 +264,7 @@ spec:
       requirement: secure-one-time-challenges
       statement: One hundred concurrent issue, delivery commit/abort, and verify attempts produce at most one active issue and one verification success, preserve the prior verifier on failed delivery, reclaim crash or hung-sender pending leases without extending active expiry, reject stale delivery completion, and prove cooldown, charged failure quota, attempts, expiry, Admin purpose isolation, anti-enumeration, pepper rotation, constant-time verification, CROSSSLOT/failover behavior, outage, and redaction.
       level: security
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -275,6 +277,7 @@ spec:
       requirement: strict-runtime-config
       statement: The negative matrix rejects unknown fields and providers, ambiguous modes, invalid duration, empty endpoints, and partial TLS or credentials with zero side effects.
       level: contract
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -285,6 +288,7 @@ spec:
       requirement: scope-derived-cache
       statement: Failure injection and race tests preserve authoritative database semantics, namespace isolation, payload bounds, generation ordering, result metadata, transaction bypass, rollback, and read-your-writes isolation.
       level: integration
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -295,6 +299,7 @@ spec:
       requirement: defer-distributed-lock-promotion
       statement: Machine contracts keep the Redis lock legacy and disabled, prove there is no Admin production consumer, and reject promotion without a fenced protected-write conformance suite.
       level: contract
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -305,6 +310,7 @@ spec:
       requirement: split-events-from-work
       statement: Memory events reach every in-process subscriber, Redis events reach every currently connected replica, policy and revision commit atomically, and database revision reconciliation repairs duplicate, out-of-order, missed, panicking, disconnected, or commit-before-publish crash cases.
       level: integration
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -315,6 +321,7 @@ spec:
       requirement: split-events-from-work
       statement: Kafka, NSQ, and Redis WorkQueue each either pass acknowledgement-after-success, retry/backoff, dead-letter, cancellation/rebalance, idempotency, and real-provider tests or remain explicitly non-stable and disabled from production defaults.
       level: contract
+      phase: feature-freeze
       required: true
       evidence:
         - type: report
@@ -322,6 +329,7 @@ spec:
     - id: external-consumer-gate
       statement: A temporary external module with GOWORK disabled resolves the exact framework tag, constructs the runtime, proves readiness, and closes without leaks.
       level: integration
+      phase: pre-root
       required: true
       evidence:
         - type: command
@@ -330,6 +338,7 @@ spec:
       requirement: bind-resource-lifecycle
       statement: One hundred race-enabled startup and shutdown cycles prove topological order, reverse rollback, cancellation, deadlines, repeated close, and no goroutine or file-descriptor growth.
       level: integration
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -340,6 +349,7 @@ spec:
       requirement: constrain-object-storage
       statement: Local and MinIO pass the same create-only Put, Open, Stat, Delete, cancel, limit, checksum, no-clobber, conflict, cleanup, privacy, path, symlink, and concurrent-filename suite.
       level: integration
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -350,6 +360,7 @@ spec:
       requirement: constrain-object-storage
       statement: A forward migration creates authoritative object metadata and Admin tests deny cross-user and cross-tenant open, signed delivery, and delete while preserving owner permission checks.
       level: security
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -360,6 +371,7 @@ spec:
       requirement: classify-providers-by-evidence
       statement: CI emits a provider-by-provider report with no skipped required check and only evidence-qualified promotions.
       level: contract
+      phase: feature-freeze
       required: true
       evidence:
         - type: path
@@ -376,6 +388,7 @@ spec:
       requirement: own-named-resources
       statement: Standalone, Sentinel, cluster, and TLS fixtures prove namespacing, one-client ownership, one close, health, cancellation, and invalid-mode rejection.
       level: integration
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -386,6 +399,7 @@ spec:
       requirement: redact-runtime-observability
       statement: Secret canaries in credentials, challenges, subjects, payloads, signed URLs, and multipart bodies are absent from logs, metrics, traces, doctor, and reports.
       level: security
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -398,6 +412,7 @@ spec:
       requirement: separate-bootstrap-storage
       statement: Configuration-source startup and application ObjectStore use independent profiles, clients, failures, health, and close ownership.
       level: integration
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -439,9 +454,11 @@ spec:
       Treat the target model as authoritative without using historical compatibility as a design
       constraint. Land strict configuration and the resource owner first, then named Redis and scoped
       caches, ChallengeStore, EventBus plus reconciliation, ObjectStore plus Delivery, and finally
-      provider-by-provider promotion. Migrate Admin scopes independently with failure injection and
-      observability at every boundary. Keep WorkQueue and distributed lock at their provider-specific
-      non-production evidence states unless their own conformance passes. Before publishing v1.1.0,
+      provider-by-provider promotion in untagged development waves. Migrate Admin scopes independently
+      with focused failure checks at every boundary, then run the complete conformance, leak,
+      real-provider, and failure-injection matrix on the feature-freeze commit. Keep WorkQueue and
+      distributed lock at their provider-specific non-production evidence states unless their own
+      conformance passes. Before publishing v1.1.0,
       decide whether any public removal requires a
       framework major-version release; do not hide a breaking API under a minor tag.
     rollback: >-

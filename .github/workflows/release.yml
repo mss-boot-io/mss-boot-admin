@@ -9,8 +9,12 @@ on:
       version:
         description: Release version used for artifact metadata
         required: true
-        default: v1.0.0
         type: string
+      feature_freeze_confirmed:
+        description: Confirm the target version is feature-frozen and concentrated validation may start
+        required: true
+        default: false
+        type: boolean
       publish:
         description: Publish the GitHub Release after all artifacts and the matching image are ready
         required: true
@@ -49,11 +53,19 @@ jobs:
       publish: ${{ steps.release.outputs.publish }}
       evidence_url: ${{ steps.release.outputs.evidence_url }}
     steps:
+      - name: Checkout release policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          sparse-checkout: |
+            .mss/release-policy.yaml
+            tools/release/check_release_policy.py
+
       - name: Resolve and validate release metadata
         id: release
         env:
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_PUBLISH: ${{ inputs.publish }}
+          INPUT_FEATURE_FREEZE_CONFIRMED: ${{ inputs.feature_freeze_confirmed }}
           INPUT_MANUAL_EVIDENCE_COMPLETE: ${{ inputs.manual_evidence_complete }}
           INPUT_EVIDENCE_URL: ${{ inputs.evidence_url }}
         run: |
@@ -93,6 +105,10 @@ jobs:
             version="${INPUT_VERSION}"
             publish="${INPUT_PUBLISH}"
             evidence_url="${INPUT_EVIDENCE_URL}"
+            if [[ "${INPUT_FEATURE_FREEZE_CONFIRMED}" != "true" ]]; then
+              echo "manual release work starts only after feature freeze is confirmed" >&2
+              exit 1
+            fi
           fi
           if ! validate_release_version "${version}"; then
             echo "invalid release version: ${version}" >&2
@@ -102,6 +118,15 @@ jobs:
             echo "publish must be true or false" >&2
             exit 1
           fi
+          policy_intent=qualify
+          if [[ "${GITHUB_REF_TYPE}" == "tag" || "${publish}" == "true" ]]; then
+            policy_intent=publish
+          fi
+          python3 tools/release/check_release_policy.py \
+            --component root \
+            --version "${version}" \
+            --tag "${version}" \
+            --intent "${policy_intent}"
           if [[ "${publish}" == "true" ]]; then
             if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${version}" ]]; then
               echo "publishing requires workflow_dispatch from the exact ${version} tag" >&2
@@ -498,6 +523,7 @@ jobs:
       - backend-build
       - frontend-build
     runs-on: ubuntu-24.04
+    environment: release
     permissions:
       contents: write
       packages: read

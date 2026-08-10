@@ -18,9 +18,9 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// This is the deliberately provisional v1.0.1 challenge implementation. It
-// closes the unsafe verification-code path without freezing the Storage Runtime
-// v2 public API planned for v1.1.
+// This is the deliberately provisional D0 challenge implementation carried by
+// the v1.1.0 development train. It closes the unsafe verification-code path
+// without freezing the Storage Runtime v2 public API.
 
 var (
 	ErrChallengeUnavailable = errors.New("challenge store unavailable")
@@ -125,7 +125,7 @@ func NewRedisChallengeStore(client redis.UniversalClient, options ChallengeOptio
 			return nil, errors.New("challenge Redis client is required")
 		}
 	}
-	// The v1.0.1 provisional adapter has no non-skippable multi-node Cluster
+	// The D0 provisional adapter has no non-skippable multi-node Cluster
 	// evidence yet. Reject concrete Cluster/Ring clients instead of turning a
 	// same-slot design review into an unsupported production claim.
 	switch client.(type) {

@@ -27,7 +27,7 @@ type ChallengePepperRef struct {
 	SecretRef SecretRef `yaml:"secretRef" json:"secretRef"`
 }
 
-// Challenge is the v1.0.1 provisional Admin composition config. Only typed
+// Challenge is the D0 internal provisional Admin composition config. Only typed
 // references are decoded from YAML; raw challenge key material is never stored
 // in Config or exposed through application configuration.
 type Challenge struct {

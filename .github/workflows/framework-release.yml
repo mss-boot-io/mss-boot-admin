@@ -7,7 +7,7 @@ on:
 
 permissions:
   actions: read
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,6 +20,10 @@ jobs:
   release:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    environment: release
+    permissions:
+      actions: read
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -83,6 +87,15 @@ jobs:
             echo "version=${version}"
             echo "prerelease=${prerelease}"
           } >> "${GITHUB_OUTPUT}"
+
+      - name: Enforce reviewed public release target
+        env:
+          FRAMEWORK_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 tools/release/check_release_policy.py \
+            --component framework \
+            --version "${FRAMEWORK_VERSION}" \
+            --tag "${GITHUB_REF_NAME}"
 
       - name: Require exact-commit release readiness
         env:

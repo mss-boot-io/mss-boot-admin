@@ -399,7 +399,7 @@ task:
 
 ## 存储配置
 
-### v1.0.1 未发布检查点
+### D0-safety 内部检查点
 
 当前工作树只完成 Upload admission 与 Local write boundary，不代表对象存储已经
 可用于生产。Local 与 S3-compatible 路径在能力目录中仍是 `Legacy`，证据状态
@@ -430,10 +430,10 @@ Local 返回的 `/public/uploads/<opaque-uuid>` 只是 Legacy 兼容 URL。`prod
 模式不会注册 `application.staticPath`，因此配置 Nginx、挂载目录或拼接 endpoint
 都不能单独证明对象可交付。
 
-下一 v1.0.1 切片将实现未知/非法 provider fail closed、一次性不可变 provider
+`D1-provider-owner` 将实现未知/非法 provider fail closed、一次性不可变 provider
 profile 与单一生命周期 owner。在该门禁完成前，生产环境不得启用 Local 或
 S3-compatible 上传。S3 conditional create-only 与 Local/S3-compatible 共用
-conformance suite 留在 `v1.1.0-alpha.2`。
+conformance suite 留在 `D4-authorization-object`。
 
 ---
 

@@ -193,16 +193,16 @@ curl -I http://127.0.0.1:8000
 
 ### 1. 为什么不能把 `/public/` 代理当作生产上传方案
 
-v1.0.1 当前未发布检查点只证明 Upload admission 与 Local write boundary：
+`D0-safety` 内部检查点只证明 Upload admission 与 Local write boundary：
 `storage:maxSize` 以 bytes 为单位，默认 10 MiB（`10485760`），硬上限
 100 MiB（`104857600`）；`storage:allowedTypes` 使用 MIME types /
 wildcards；Local 使用 opaque UUID key、受限根、create-only 写入与 partial
 cleanup。
 
 `prod` 模式不会注册 `application.staticPath`，返回的 `/public/...` 或 S3
-endpoint 拼接 URL 也不是已鉴权 Delivery。下一 v1.0.1 切片必须先完成 provider
+endpoint 拼接 URL 也不是已鉴权 Delivery。`D1-provider-owner` 必须先完成 provider
 fail-closed、immutable profile 与 single owner；S3 conditional create-only
-及 Local/S3-compatible 共用 conformance suite 留在 `v1.1.0-alpha.2`。
+及 Local/S3-compatible 共用 conformance suite 留在 `D4-authorization-object`。
 
 ### 2. 用户任务调度未生效
 

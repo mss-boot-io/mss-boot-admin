@@ -1,0 +1,14 @@
+apiVersion: mss.io/v1alpha1
+kind: ReleasePolicy
+metadata:
+  name: foundation-v1-1-0-development-first
+spec:
+  mode: development-first
+  currentStableVersion: v1.0.0
+  currentStableCommit: ee800262c035c5f4242aca1841d077554481d2c4
+  nextPublicVersion: v1.1.0
+  publicationWorkflowsReady: false
+  publicPrereleases: false
+  rootTagTemplate: "{version}"
+  frameworkTagTemplate: "mss-boot/{version}"
+  frontendTagTemplate: "web/antd/{version}"

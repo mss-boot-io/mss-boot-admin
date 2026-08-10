@@ -131,7 +131,7 @@ POST /admin/api/languages
 
 | 路径 | 当前成熟度 | 已证明与未证明 |
 |------|------------|----------------|
-| Local | Legacy / Blocked | v1.0.1 未发布检查点已证明 admission、opaque key、`os.Root` confinement、`O_EXCL` no-clobber 与 partial cleanup；provider fail-closed 和真实 Delivery 尚未证明 |
+| Local | Legacy / Blocked | `D0-safety` 内部检查点已证明 admission、opaque key、`os.Root` confinement、`O_EXCL` no-clobber 与 partial cleanup；provider fail-closed 和真实 Delivery 尚未证明 |
 | S3-compatible | Legacy / Blocked | 只复用 admission 与 opaque key；仍有 per-request client、非不可变配置、覆盖语义和拼接 URL 等缺口 |
 
 配置枚举中出现其他 provider 名称，不等于存在可部署实现或生产支持矩阵。本节
@@ -173,7 +173,7 @@ mss-boot/pkg/config/
 | 上传入口权限 | ⚠️ 部分实现 | 通用上传使用 `storage:upload`；头像为已认证本人接口，但不等于对象读取授权 |
 | 租户隔离 | ❌ 已移除 | 单租户架构 |
 | 审计日志 | ❌ 未形成对象审计合同 | 后续记录操作者、opaque ref 与结果，不记录 multipart 内容 |
-| 文件校验 | ⚠️ v1.0.1 未发布检查点 | MIME/wildcard allowlist；默认 10 MiB、硬上限 100 MiB，单位均为 bytes |
+| 文件校验 | ⚠️ `D0-safety` 内部检查点 | MIME/wildcard allowlist；默认 10 MiB、硬上限 100 MiB，单位均为 bytes |
 
 ### 2.4 接入规范
 
@@ -202,9 +202,9 @@ file: <binary>
 ### 2.5 当前限制
 
 1. **Local/S3-compatible 仍为 Legacy / Blocked**：不得作为生产可用 provider 宣传
-2. **provider 配置与 ownership 未收敛**：下一 v1.0.1 切片必须 fail closed，并建立 immutable profile / single owner
+2. **provider 配置与 ownership 未收敛**：`D1-provider-owner` 必须 fail closed，并建立 immutable profile / single owner
 3. **Delivery 与对象所有权未实现**：`prod` 模式不注册 `application.staticPath`，opaque key 本身也不是授权
-4. **S3 no-clobber 未证明**：conditional create-only 与共用 provider conformance 留在 `v1.1.0-alpha.2`
+4. **S3 no-clobber 未证明**：conditional create-only 与共用 provider conformance 留在 `D4-authorization-object`
 5. **无配额、速率限制和大文件协议**：当前无分片上传，且配置硬上限为 100 MiB
 
 ---
@@ -442,11 +442,11 @@ func afterCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
 ### 5.3 改进优先级
 
 **高优先级（安全相关）：**
-1. 下一 v1.0.1 切片完成 provider fail-closed、immutable profile 与 single owner
+1. `D1-provider-owner` 完成 provider fail-closed、immutable profile 与 single owner
 2. 在上述门禁通过前保持生产上传关闭
 
 **中优先级（治理完善）：**
-1. `v1.1.0-alpha.2` 完成 S3 conditional create-only、共用 conformance 与 Delivery 授权
+1. `D4-authorization-object` 完成 S3 conditional create-only、共用 conformance 与 Delivery 授权
 2. 存储审计日志
 3. WebSocket 事件审计
 4. 国际化审计日志

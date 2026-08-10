@@ -231,7 +231,7 @@ spec:
       frameworkPaths:
         - mss-boot/pkg/config/storage/cache/challenge.go
       guidance: >-
-        v1.0.1 checkpoint: purpose-scoped cryptographic challenges use atomic Redis transitions,
+        First safety checkpoint: purpose-scoped cryptographic challenges use atomic Redis transitions,
         bounded caller/global issuance, bounded context-aware delivery, fixed failure responses, and
         a disabled legacy fallback. The inter-module Go surface is explicitly provisional rather than
         the v1.1 Runtime v2 API. This Beta status applies only to a standalone Redis resource and does
@@ -248,7 +248,7 @@ spec:
       frameworkPaths:
         - mss-boot/pkg/config/storage/cache/challenge.go
       guidance: >-
-        Concrete Redis Cluster and Ring clients are rejected fail closed in v1.0.1. Promotion requires
+        Concrete Redis Cluster and Ring clients are rejected fail closed during development. Promotion requires
         a real non-skippable multi-node fixture covering hash-slot execution, CROSSSLOT, failover,
         NOSCRIPT, cancellation, retries, and exactly-once challenge consumption; string-level hash-tag
         tests are not provider conformance evidence.
@@ -264,8 +264,8 @@ spec:
         - admin/models/user.go
         - admin/pkg/challenge.go
       guidance: >-
-        v1.0.1 case-folds bounded ASCII email identifiers and rejects ambiguous lookups, but it does
-        not claim database uniqueness. v1.0.2 must preflight existing data and add dialect-aware active,
+        The first safety wave case-folds bounded ASCII email identifiers and rejects ambiguous lookups,
+        but it does not claim database uniqueness. A later development wave must preflight existing data and add dialect-aware active,
         non-empty canonical uniqueness for SQLite, MySQL, and PostgreSQL before email registration,
         first-time OAuth provisioning, or self-service email change can be production-ready.
 
@@ -278,7 +278,7 @@ spec:
       frameworkPaths:
         - mss-boot/pkg/config/storage/cache/verify_code.go
       guidance: >-
-        Permanently disabled in the v1.0.1 checkpoint. The constructor symbol remains only to make
+        Permanently disabled in the first safety checkpoint. The constructor symbol remains only to make
         accidental callers fail explicitly; GenerateCode and VerifyCode never read or write state.
         It is not an operational rollback path and must be removed when the v1.1 ChallengeStore API lands.
 
@@ -335,14 +335,14 @@ spec:
         - mss-boot/pkg/config/storage/queue/kafka.go
         - mss-boot/pkg/config/storage/queue/kafka_test.go
       guidance: >-
-        Evidence state is Blocked. The v1.0.1 Mark-order checkpoint moves the Sarama session mark after
+        Evidence state is Blocked. The internal Mark-order checkpoint moves the Sarama session mark after
         successful decode and synchronous handler completion, propagates session cancellation, and stops
         canceled or closed consumer loops. It proves neither broker commit nor production maturity. Register
         and configuration can still terminate the process, producer ownership is incomplete, manual-commit
         and consumer-error policies are not supported, and retry, dead-letter, rebalance, idempotency,
         real-broker, and lifecycle suites remain open. Keep this provider disabled from production use and
         cataloged as legacy until those gates pass. This checkpoint does not satisfy the minimum changed-path
-        lifecycle gate that still blocks the v1.0.1 tag.
+        lifecycle gate required before the v1.1.0 feature freeze.
 
     - id: platform.work-queue-nsq
       displayName: Legacy NSQ Queue
@@ -353,7 +353,7 @@ spec:
         - mss-boot/pkg/config/storage/queue/nsq.go
       guidance: >-
         Evidence state at v1.0.0 is blocked by duration interpretation, process-exit, and cancellation
-        defects. v1.0.2 or a later dedicated slice must close those paths; the provider remains
+        defects. A later dedicated development wave must close those paths; the provider remains
         experimental or is removed from the default build unless full work-queue conformance is funded.
 
     - id: platform.distributed-lock-redis
@@ -425,7 +425,7 @@ spec:
       guidance: >-
         Evidence state at v1.0.0 is blocked by post-parse size enforcement, implicit fallback,
         user/filename-derived keys, collision/overwrite behavior, and an unproven production
-        delivery path. The v1.0.1 upload-admission checkpoint bounds raw requests and actual streams,
+        delivery path. The internal upload-admission checkpoint bounds raw requests and actual streams,
         generates opaque keys, confines Local writes, and uses create-only files with failure cleanup.
         Local remains Legacy/Blocked until strict provider selection and delivery evidence land, and
         stable still requires the common ObjectStore and Delivery conformance suite.
@@ -448,7 +448,7 @@ spec:
         configuration is read piecemeal, a client is rebuilt per upload, partial credentials may
         select an unintended chain, and external tests can skip. The upload-admission checkpoint only
         replaces user/filename-derived S3 keys with opaque identifiers and does not promote the
-        provider. The next v1.0.1 slice must fail closed and own one immutable client; stable requires
+        provider. The next storage development wave must fail closed and own one immutable client; stable requires
         pinned MinIO plus every advertised S3-compatible deployment, lifecycle, outage, create-only,
         and delivery gate with no required skip.
 
@@ -640,6 +640,8 @@ spec:
       paths:
         - .mss/features/foundation-v1-0-0-release.yaml
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/foundation-v1-1-0-release.yaml
+        - .mss/release-policy.yaml
         - CHANGELOG.md
         - mss-boot/CHANGELOG.md
         - web/antd/CHANGELOG.md
@@ -674,6 +676,10 @@ spec:
         GitHub issue 471. The standalone web/antd/v1.0.0 tag was not published. Regenerate
         exact-commit artifacts and evidence for every later release; historical candidate or
         previous-version evidence is not reusable.
+        The reviewed development-first policy advances directly to v1.1.0: v1.0.x and public
+        alpha, beta, or RC tags are forbidden while internal waves accumulate on branches and
+        commits. Complete release readiness begins only after one v1.1.0 feature-freeze commit is
+        selected. An emergency patch requires a reviewed policy target change rather than a bypass.
         Publish a required nested framework tag first, prove external GOWORK=off resolution, then publish
         the root tag from the same reviewed commit. Finalize a stable release only after migrations,
         security checks, versioned artifacts, containers, documentation, installation smoke tests, and

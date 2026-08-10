@@ -52,10 +52,38 @@ type FeatureActor struct {
 
 // FeatureModule identifies a vertical module created, extended, deprecated, or removed.
 type FeatureModule struct {
-	Name        string `yaml:"name" json:"name"`
-	Operation   string `yaml:"operation" json:"operation"`
-	SpecPath    string `yaml:"specPath,omitempty" json:"specPath,omitempty"`
-	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	Name        string            `yaml:"name" json:"name"`
+	Kind        FeatureModuleKind `yaml:"kind,omitempty" json:"kind"`
+	Operation   string            `yaml:"operation" json:"operation"`
+	SpecPath    string            `yaml:"specPath,omitempty" json:"specPath,omitempty"`
+	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
+}
+
+// FeatureModuleKind distinguishes generated AdminModule contracts from
+// cross-cutting infrastructure work that has no AdminModule specification.
+type FeatureModuleKind string
+
+const (
+	FeatureModuleKindAdminModule    FeatureModuleKind = "admin-module"
+	FeatureModuleKindInfrastructure FeatureModuleKind = "infrastructure"
+)
+
+// EffectiveKind preserves historical Feature contracts: a module with a
+// specPath is an AdminModule, while one without a specPath is infrastructure.
+func (m FeatureModule) EffectiveKind() FeatureModuleKind {
+	kind := FeatureModuleKind(strings.TrimSpace(string(m.Kind)))
+	if kind != "" {
+		return kind
+	}
+	if strings.TrimSpace(m.SpecPath) != "" {
+		return FeatureModuleKindAdminModule
+	}
+	return FeatureModuleKindInfrastructure
+}
+
+// Valid reports whether kind is one of the supported Feature module contracts.
+func (k FeatureModuleKind) Valid() bool {
+	return k == FeatureModuleKindAdminModule || k == FeatureModuleKindInfrastructure
 }
 
 // FeatureRequirement is one actor- and module-scoped requirement.
@@ -83,8 +111,67 @@ type AcceptanceCriterion struct {
 	Requirement string               `yaml:"requirement,omitempty" json:"requirement,omitempty"`
 	Statement   string               `yaml:"statement" json:"statement"`
 	Level       string               `yaml:"level" json:"level"`
+	Phase       AcceptancePhase      `yaml:"phase" json:"phase"`
 	Required    bool                 `yaml:"required" json:"required"`
 	Evidence    []AcceptanceEvidence `yaml:"evidence" json:"evidence"`
+}
+
+// AcceptancePhase scopes evidence to one delivery or publication transition.
+// A later phase is never an implicit prerequisite for an earlier transition.
+type AcceptancePhase string
+
+const (
+	AcceptancePhaseCheckpoint      AcceptancePhase = "checkpoint"
+	AcceptancePhaseFeatureFreeze   AcceptancePhase = "feature-freeze"
+	AcceptancePhasePreFramework    AcceptancePhase = "pre-framework"
+	AcceptancePhasePreRoot         AcceptancePhase = "pre-root"
+	AcceptancePhasePostPublication AcceptancePhase = "post-publication"
+)
+
+var orderedAcceptancePhases = []AcceptancePhase{
+	AcceptancePhaseCheckpoint,
+	AcceptancePhaseFeatureFreeze,
+	AcceptancePhasePreFramework,
+	AcceptancePhasePreRoot,
+	AcceptancePhasePostPublication,
+}
+
+// AcceptancePhases returns the supported phases in lifecycle order.
+func AcceptancePhases() []AcceptancePhase {
+	return append([]AcceptancePhase(nil), orderedAcceptancePhases...)
+}
+
+// Valid reports whether phase is one of the machine-supported transitions.
+func (p AcceptancePhase) Valid() bool {
+	switch p {
+	case AcceptancePhaseCheckpoint,
+		AcceptancePhaseFeatureFreeze,
+		AcceptancePhasePreFramework,
+		AcceptancePhasePreRoot,
+		AcceptancePhasePostPublication:
+		return true
+	default:
+		return false
+	}
+}
+
+// EffectivePhase returns checkpoint for a legacy omitted or blank phase.
+// New contracts and generated templates still serialize phase explicitly.
+func (a AcceptanceCriterion) EffectivePhase() AcceptancePhase {
+	phase := AcceptancePhase(strings.TrimSpace(string(a.Phase)))
+	if phase == "" {
+		return AcceptancePhaseCheckpoint
+	}
+	return phase
+}
+
+// AcceptancePhaseSummary is a phase-local acceptance count. Required evidence
+// from another phase is deliberately excluded.
+type AcceptancePhaseSummary struct {
+	Phase      AcceptancePhase `json:"phase"`
+	Acceptance int             `json:"acceptance"`
+	Required   int             `json:"required"`
+	Levels     map[string]int  `json:"levels,omitempty"`
 }
 
 // AcceptanceEvidence points to a command, test, path, report, or manual proof.
@@ -165,6 +252,7 @@ func (f *FeatureSpec) Normalize() {
 		if module.SpecPath == "." {
 			module.SpecPath = ""
 		}
+		module.Kind = module.EffectiveKind()
 		module.Description = strings.TrimSpace(module.Description)
 	}
 	for index := range f.Spec.Requirements {
@@ -190,6 +278,7 @@ func (f *FeatureSpec) Normalize() {
 		acceptance.Requirement = normalizeIdentifier(acceptance.Requirement)
 		acceptance.Statement = strings.TrimSpace(acceptance.Statement)
 		acceptance.Level = strings.TrimSpace(acceptance.Level)
+		acceptance.Phase = acceptance.EffectivePhase()
 		for evidenceIndex := range acceptance.Evidence {
 			evidence := &acceptance.Evidence[evidenceIndex]
 			evidence.Type = strings.TrimSpace(evidence.Type)
@@ -287,6 +376,10 @@ func (f *FeatureSpec) Validate() error {
 	allowedModuleOperations := map[string]bool{"create": true, "extend": true, "deprecate": true, "remove": true}
 	for index, module := range f.Spec.Modules {
 		registerID(fmt.Sprintf("modules[%d]", index), module.Name)
+		kind := module.EffectiveKind()
+		if !kind.Valid() {
+			problems = append(problems, fmt.Sprintf("modules[%d].kind %q is unsupported", index, kind))
+		}
 		if !allowedModuleOperations[module.Operation] {
 			problems = append(problems, fmt.Sprintf("modules[%d].operation %q is unsupported", index, module.Operation))
 		}
@@ -358,6 +451,10 @@ func (f *FeatureSpec) Validate() error {
 		}
 		if !allowedLevels[acceptance.Level] {
 			problems = append(problems, fmt.Sprintf("acceptance[%d].level %q is unsupported", index, acceptance.Level))
+		}
+		phase := acceptance.EffectivePhase()
+		if !phase.Valid() {
+			problems = append(problems, fmt.Sprintf("acceptance[%d].phase %q is unsupported", index, phase))
 		}
 		if len(acceptance.Evidence) == 0 {
 			problems = append(problems, fmt.Sprintf("acceptance[%d].evidence must not be empty", index))
@@ -435,8 +532,50 @@ func (f *FeatureSpec) Summary() map[string]any {
 		"acceptance":            len(f.Spec.Acceptance),
 		"requiredAcceptance":    required,
 		"acceptanceLevels":      levels,
+		"acceptancePhases":      f.AcceptancePhaseSummaries(),
 		"risks":                 len(f.Spec.Risks),
 		"riskSeverities":        severities,
 		"rolloutStrategy":       f.Spec.Rollout.Strategy,
 	}
+}
+
+// AcceptancePhaseSummaries returns deterministic, phase-local counts for CLI,
+// plan, report, and release consumers. Empty phases remain explicit so callers
+// never infer a default or accidentally include a later transition.
+func (f *FeatureSpec) AcceptancePhaseSummaries() []AcceptancePhaseSummary {
+	summaries := make([]AcceptancePhaseSummary, 0, len(orderedAcceptancePhases))
+	byPhase := make(map[AcceptancePhase]*AcceptancePhaseSummary, len(orderedAcceptancePhases))
+	for _, phase := range orderedAcceptancePhases {
+		summary := AcceptancePhaseSummary{
+			Phase:  phase,
+			Levels: make(map[string]int),
+		}
+		summaries = append(summaries, summary)
+		byPhase[phase] = &summaries[len(summaries)-1]
+	}
+	for _, acceptance := range f.Spec.Acceptance {
+		summary := byPhase[acceptance.EffectivePhase()]
+		if summary == nil {
+			continue
+		}
+		summary.Acceptance++
+		summary.Levels[acceptance.Level]++
+		if acceptance.Required {
+			summary.Required++
+		}
+	}
+	return summaries
+}
+
+// AcceptanceForPhase returns only criteria assigned to phase. It does not
+// include earlier or later phases; transition orchestration composes phases
+// explicitly instead of relying on hidden cumulative behavior.
+func (f *FeatureSpec) AcceptanceForPhase(phase AcceptancePhase) []AcceptanceCriterion {
+	criteria := make([]AcceptanceCriterion, 0)
+	for _, acceptance := range f.Spec.Acceptance {
+		if acceptance.EffectivePhase() == phase {
+			criteria = append(criteria, acceptance)
+		}
+	}
+	return criteria
 }

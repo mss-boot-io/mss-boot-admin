@@ -33,7 +33,7 @@ keywords: [admin security baseline upload credentials]
 
 ## 三、上传安全建议
 
-v1.0.1 的当前未发布检查点只覆盖 Upload admission 与 Local write boundary：
+`D0-safety` 内部检查点只覆盖 Upload admission 与 Local write boundary：
 
 - `storage:maxSize` 是 bytes 整数；默认 10 MiB（`10485760` bytes），硬上限
   100 MiB（`104857600` bytes），非法或越界配置拒绝上传。
@@ -56,9 +56,9 @@ provider 仍未 fail closed，配置还不是一次性不可变 profile，client
   同时不授予通用 `storage:upload` 权限作为纵深防御；头像入口没有独立 Casbin permission
 - [ ] 未将 `/public/`、endpoint 拼接 URL 或 opaque key 当成对象读取授权
 
-下一 v1.0.1 切片完成 provider fail-closed、immutable profile 与 single owner；
+`D1-provider-owner` 完成 provider fail-closed、immutable profile 与 single owner；
 S3 conditional create-only 和 Local/S3-compatible 共用 conformance suite 留在
-`v1.1.0-alpha.2`。
+`D4-authorization-object`。
 
 ## 四、通知渠道安全建议
 

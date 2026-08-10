@@ -200,6 +200,7 @@ spec:
       requirement: generate-authorization-contract
       statement: Generated backend, policy, default-role, menu, ownership, and UI contracts pass owner-positive and cross-user, cross-tenant, missing-context, wrong-role, and unauthenticated negative tests.
       level: security
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -210,6 +211,7 @@ spec:
       requirement: enforce-canonical-module-path
       statement: A repository scan and generator plan find exactly one canonical admin/modules/name backend path and no conflicting root modules/name default.
       level: contract
+      phase: checkpoint
       required: true
       evidence:
         - type: report
@@ -220,6 +222,7 @@ spec:
       requirement: keep-generation-deterministic
       statement: Dry-run, first write, second write, check, golden diff, path attack, conflict, unsupported-field, and unrelated-file tests all pass without a zero-output false positive.
       level: integration
+      phase: feature-freeze
       required: true
       evidence:
         - type: command
@@ -232,6 +235,7 @@ spec:
       requirement: generate-fullstack-projection
       statement: Supplier migration, model, DTO, service, API, operations, indexes, export, events, OpenAPI, and typed client reflect every supported source declaration with no ignored field.
       level: contract
+      phase: feature-freeze
       required: true
       evidence:
         - type: path
@@ -244,6 +248,7 @@ spec:
       requirement: generate-frontend-experience
       statement: Generated supplier pages and typed client pass lint, TypeScript, focused tests, production build, permission denial, empty/error/conflict states, and browser E2E.
       level: e2e
+      phase: feature-freeze
       required: true
       evidence:
         - type: path
@@ -254,6 +259,7 @@ spec:
       requirement: generate-forward-migration
       statement: The generated supplier forward migration passes fresh, upgrade, repeat, duplicate-ID, and injected-failure tests on SQLite, MySQL, and PostgreSQL without process exit.
       level: migration
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -264,6 +270,7 @@ spec:
       requirement: reject-unsupported-specification
       statement: Schema, Go validation, infrastructure Feature planning, unsupported-field rejection, and acceptance-evidence reporting agree and fail before writes on every negative fixture.
       level: contract
+      phase: checkpoint
       required: true
       evidence:
         - type: test
@@ -284,6 +291,7 @@ spec:
       requirement: upgrade-preserving-customizations
       statement: A generated Blueprint 0.1 application with business customizations upgrades to 0.2, reports conflicts deterministically, preserves owned changes, commits identity last, and has an empty second upgrade.
       level: migration
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
@@ -294,6 +302,7 @@ spec:
       requirement: record-version-identities
       statement: Release-built new app output and upgrade status agree on Foundation version and commit, Blueprint version and digest, and actual generator version without manual lock edits.
       level: contract
+      phase: pre-root
       required: true
       evidence:
         - type: test
@@ -335,8 +344,9 @@ spec:
       Keep Generator/Blueprint and Storage Runtime as parallel axes. First establish independent
       version identities, canonical path, strict schema/projection checks, and a safe migration
       engine. Then check in the supplier golden backend and forward migration, add authorization,
-      OpenAPI, client and frontend, and finally run the three-database, browser, external-app, and
-      Blueprint 0.1-to-0.2 upgrade matrices. Do not start a second generated domain until this
+      OpenAPI, client and frontend in untagged development waves, then feature-freeze the public
+      contracts and run the complete three-database, browser, external-app, and Blueprint 0.1-to-0.2
+      upgrade matrices on one candidate commit. Do not start a second generated domain until this
       slice is complete. If target public APIs require a breaking change, make a truthful SemVer
       decision without changing the target generated structure.
     rollback: >-

@@ -1,13 +1,14 @@
 ---
-title: v1.0.1 Kafka Mark-after-success 安全切片
+title: Kafka Mark-after-success 内部 checkpoint
 order: 8
-description: Kafka 消费端本地 offset 标记顺序、取消语义、证据边界与后续门禁
-keywords: [v1.0.1 kafka sarama offset mark workqueue safety]
+description: 累积进 v1.1.0 的 Kafka 本地 offset 标记顺序、取消语义与开发检查边界
+keywords: [v1.1.0 checkpoint kafka sarama offset mark workqueue safety]
 ---
 
-# v1.0.1 Kafka Mark-after-success 安全切片
+# Kafka Mark-after-success 内部 checkpoint
 
-本文记录 `v1.0.1` 的第二个实现检查点，不代表 `v1.0.1` 已发布，也不代表 Kafka
+本文记录 `D0-safety` 的第二个内部实现检查点。项目不再计划发布 `v1.0.1`；本变更将随
+`v1.1.0` 一起交付，也不代表 Kafka
 WorkQueue 已达到 Experimental 或生产可用。机器目录继续将该 adapter 标为 `legacy`，ADR
 中的证据状态继续是 **Blocked**。本检查点关闭的是已确认的数据丢失路径：v1.0.0 会在 JSON
 解码和业务 handler 运行之前调用 Sarama `MarkMessage`，失败消息可能因此被后续提交并跳过。
@@ -74,10 +75,10 @@ GOWORK=off go test -json -race ./pkg/config/storage/queue \
 标记。
 
 这些是 unit evidence，不是 Kafka broker integration。当前 `mss spec validate` 只校验合同
-结构；发布前 phase-aware evidence runner 还必须解析 `go test -json`，确认每个精确测试在每轮
+结构；功能冻结后的集中验证还必须解析 `go test -json`，确认每个精确测试在每轮
 都产生 `Action=pass`，并拒绝零命中、skip 或缓存结果。
 
-## 仍然阻断 v1.0.1 发布的最低生命周期门禁
+## 仍然阻断 v1.1.0 功能冻结的最低生命周期门禁
 
 - `Register` 和 Kafka 配置构造仍有 `os.Exit`/`Fatal` 路径，未把失败交还给 application owner。
 - `Shutdown` 尚未形成统一、幂等的 consumer/producer 所有权与 deadline close；producer client
@@ -86,8 +87,8 @@ GOWORK=off go test -json -race ./pkg/config/storage/queue \
   readiness/diagnostic 证据。
 
 这些是 FeatureSpec 中 `own-provider-lifecycle` 的 required gate。本地 Mark 顺序检查点没有满足
-它们；在 `TestV101ChangedProvidersDoNotExitOrDetach` 和 phase evidence 通过前，不能发布
-`mss-boot/v1.0.1` 或根 `v1.0.1`。
+它们；在 `TestV101ChangedProvidersDoNotExitOrDetach` 和对应 checkpoint evidence 通过前，
+不能进入 `FF-v1.1.0`。测试名保留历史编号，但不再表示待发布 patch。
 
 ## 仍然阻断 Provider 晋级的完整 conformance
 
@@ -110,6 +111,6 @@ topic、partition 和已提交 offset；发现问题时先停止消费者，再�
 
 如果必须暂时停用 Kafka，停止该 consumer group 并让未提交消息保留在 broker；不要未经恢复
 计划手工推进或重置 offset。Upload admission 检查点已经落地，证据与未完成边界见
-[v1.0.1 Upload admission 安全切片](/releases/v1-0-1-upload-admission-safety)。下一条 v1.0.1
-安全切片是 Provider fail-closed：严格解析不可变 profile、建立单一 client owner，并证明错误 Provider
+[Upload admission 内部 checkpoint](/releases/v1-0-1-upload-admission-safety)。下一条 `D1-provider-owner`
+工作是 Provider fail-closed：严格解析不可变 profile、建立单一 client owner，并证明错误 Provider
 不会静默写入 Local 或返回成功 URL。

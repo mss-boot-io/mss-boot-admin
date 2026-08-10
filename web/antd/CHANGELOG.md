@@ -4,20 +4,22 @@ All notable, verifiable frontend changes are documented here. Standalone
 frontend releases use the `web/antd/vX.Y.Z` tag namespace; the root foundation
 release may also embed a separately validated frontend artifact.
 
-## [Unreleased] - web/antd/v1.0.0 candidate
+## [Unreleased] - web/antd/v1.1.0 development
 
-Status: **preview / release preparation**. Neither the branch nor this entry is
-a stable standalone frontend release. The candidate must pass the production
-and local build contracts, bundle budget, delivery smoke test, and browser
-acceptance before a tag is published. Root `v1.0.0` was published on 2026-08-09
-with its validated frontend artifact, but no standalone `web/antd/v1.0.0` tag or
-Release exists; the two release identities must not be conflated.
+Status: **development / unpublished**. Neither the branch nor this entry is a
+stable standalone frontend release. Internal waves remain untagged; production
+and local builds, bundle budget, delivery smoke, and browser acceptance run as
+part of the frozen `v1.1.0` qualification before any standalone tag is created.
+Root `v1.0.0` was published on 2026-08-09 with its validated frontend artifact,
+but no standalone `web/antd/v1.0.0` tag or Release exists. That abandoned
+standalone candidate is rolled into `web/antd/v1.1.0`; the root artifact and
+standalone release identities must not be conflated.
 
-This candidate targets the consolidated frontend's first standalone stable 1.0
-release boundary. The
-unpublished v0.8.0 candidate does not provide reusable bundle, checksum, image,
-endpoint-scan, or browser evidence; all release artifacts and results must be
-generated from the exact `web/antd/v1.0.0` commit.
+This development train targets the consolidated frontend's first separately
+qualified standalone release at `v1.1.0`. The unpublished v0.8.0 and v1.0.0
+candidates do not provide reusable bundle, checksum, image, endpoint-scan, or
+browser evidence; all release artifacts and results must be generated from the
+exact feature-frozen `web/antd/v1.1.0` commit.
 
 ### Added
 
@@ -38,7 +40,7 @@ generated from the exact `web/antd/v1.0.0` commit.
 
 ### Changed
 
-- The root v1.0.1 integration refreshes email-Challenge readiness on every
+- The root v1.1.0 development integration refreshes email-Challenge readiness on every
   authentication-route mount with a bounded request. Login, registration, and
   password-reset forms fail closed after dependency errors or timeouts instead
   of trusting stale bootstrap state.
@@ -82,7 +84,7 @@ generated from the exact `web/antd/v1.0.0` commit.
 ### Removed
 
 - Removed the unsupported phone-login tab and phone-captcha client path from the
-  root v1.0.1 bundled authentication surface.
+  root v1.1.0 bundled authentication surface after release qualification.
 - Removed runtime model/field administration, virtual CRUD, browser template
   generation, related routes, menu entries, locale keys, service clients, and
   generated API types.
@@ -111,5 +113,6 @@ contract, and do not call a preview build stable.
 
 The former changelog labeled this snapshot `v1.0.0`, but no corresponding
 consolidated-repository frontend tag established that version. It remains
-historical implementation context and is not evidence for the stable
-`web/antd/v1.0.0` release above.
+historical implementation context and is not standalone-release evidence. Only
+the separately validated frontend artifact embedded by root `v1.0.0` was
+published; `web/antd/v1.0.0` was not.
