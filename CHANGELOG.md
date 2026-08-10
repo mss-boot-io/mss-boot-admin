@@ -21,10 +21,30 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   the selected feature-freeze SHA; current development runs are not release evidence.
   Migration completion and Admin startup now share an exact redacted schema verifier,
   and the server mounts business routes only after that readiness gate passes.
+- Added the D2 downstream-snapshot identity consumer checkpoint at `151a91c`:
+  CLI upgrade status, MCP, and doctor now read one strict SnapshotStatus carrying the
+  independent Foundation, Blueprint, generator, and downstream identities plus atomic
+  lock/manifest digests. The source checkout is recognized only by its exact legacy
+  development sentinel; malformed, orphaned, or source-to-generated transitional state
+  cannot fall back to a false source classification, and upgrade planning no longer
+  treats the nested Admin module or project generation baseline as a runtime identity.
+  The checked-in compatibility workflow has a static contract test, but no real GitHub
+  Actions run was performed for this development checkpoint. Feature freeze still
+  requires an exact-SHA run that proves all four identities and digests, a real Blueprint
+  0.1-to-0.2 customized upgrade, and an empty second upgrade.
 - Added the D2 strict runtime-configuration checkpoint: exact-key YAML/JSON
   decoding, explicit Redis deployment modes, typed SecretRefs, immutable
   snapshots, and side-effect-free plans. Provider construction, health, and
   real Redis deployment conformance remain feature-freeze work.
+- Added the D3 domain-neutral Runtime v2 resource graph at `d90b4c7`, with its
+  deterministic close-generation evidence repaired at `c830b5f`, and
+  deterministic side-effect-free graph preflight, topological startup, required
+  readiness before dependent start, reverse rollback/close, graph-owned Run
+  cancellation, concurrent idempotent close with retry after a bounded failure,
+  and redacted lifecycle errors that preserve typed causes. Hermetic checkpoint
+  evidence covers the state machine and owned handles; real provider health,
+  Admin readiness-before-listen composition, and goroutine/file-descriptor leak
+  bounds remain feature-freeze gates.
 - Switched the next train to development-first v1.1.0: internal waves remain
   untagged, publication is disabled by checked-in policy, acceptance evidence is
   phase-scoped, and complete release qualification starts only after feature freeze.
@@ -135,6 +155,13 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   migration, privacy and API boundaries, exact SQLite/model/Controller evidence,
   schemahealth/migrate/server composition evidence, forward-only recovery guidance,
   and the still-open exact-freeze readiness plus MySQL/PostgreSQL zero-skip reruns.
+- Added the D2 Downstream Snapshot Identity checkpoint note with the shared
+  SnapshotStatus consumer contract, strict source/generated classification, fully
+  anchored local evidence commands, and the still-open exact-SHA GitHub Actions,
+  Blueprint 0.1-to-0.2, second-empty-upgrade, and release-built external artifact gates.
+- Added the D3 Resource Lifecycle checkpoint note and a fully anchored evidence
+  command requiring every top-level `runtime/resource` test for twenty uncached
+  race-detected runs, without promoting the aggregate Storage Runtime capability.
 
 ## [v1.0.0] - 2026-08-09
 

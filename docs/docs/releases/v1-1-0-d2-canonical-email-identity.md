@@ -8,7 +8,7 @@ keywords: [v1.1.0 D2 email identity migration mysql postgresql sqlite security]
 # D2 Canonical Email Identity 内部 checkpoint
 
 本文记录累积进 `v1.1.0` 的 `D2-contract-substrate` 邮箱身份开发检查点。实现分别落在
-`9ccb1d2`、`eb1277c`、`3710aca` 和 `8b361ce`；这些提交和开发环境数据库运行都不是 feature-freeze SHA、
+`9ccb1d2`、`eb1277c`、`3710aca`、`8b361ce` 和 `1171df6`；这些提交和开发环境数据库运行都不是 feature-freeze SHA、
 Git tag、GitHub Release 或发布授权。当前 capability 仍是 Planned。
 
 ## 已落地的身份合同
@@ -17,20 +17,25 @@ Git tag、GitHub Release 或发布授权。当前 capability 仍是 Planned。
   case-fold；非法值返回 typed validation error。空邮箱继续表示没有邮箱身份。
 - 唯一所有权只约束 `deleted_at IS NULL` 且非空的 identity。soft-deleted 历史行不占用 identity，
   后续 active 用户可安全复用。
-- SQLite 和 PostgreSQL 使用命名的 partial expression unique index；MySQL 使用只为 active/non-empty
-  行生成值的 nullable stored `VARBINARY(100)` key，再建立同名 unique index。迁移会核对实际 metadata，
-  不能用“索引名称存在”代替表达式、predicate、列类型、顺序和唯一性检查。
-- 迁移在任何 backfill 或 DDL 前读取全部存量 active identity，汇总 invalid/conflict 数量；错误和日志
+- SQLite 使用命名的 partial expression unique index；PostgreSQL 的同类索引在 `LOWER` 前显式使用
+  `COLLATE "C"`；MySQL 的 nullable stored `VARBINARY(100)` key 在 `LOWER` 前显式转换为
+  `ascii_general_ci`。因此即使 email 列使用 Turkish ICU 等 locale-sensitive collation，ASCII `I/i`
+  仍遵循 model 的确定性 case-fold。迁移会核对实际 metadata，不能用“索引名称存在”代替表达式、
+  collation、predicate、列类型、顺序和唯一性检查。
+- 迁移在任何 backfill 或 DDL 前从 DBResolver writer 读取全部存量 active identity，汇总 invalid/conflict 数量；错误和日志
   不输出邮箱、用户 ID、SQL 或 driver detail。预检失败不修改数据、不创建索引、不记录 migration version。
 - backfill 使用原始邮箱值参与 compare-and-swap；并发变化会固定失败，不覆盖新值。完整迁移成功后才记录
   full migration identifier，重复运行保持幂等。
 - 邮件注册和首次 OAuth provisioning 都在事务内建立新 user；provider email 永远不会把新 OAuth identity
-  合并到既有本地账户。legacy `varchar(20)` username 使用有碰撞重试的 bounded opaque 值，不再复制邮箱。
+  合并到既有本地账户。邮件注册使用 18 字符的 bounded 随机 username；OAuth 使用 80-bit、20 字符十六进制
+  opaque username，并在创建前最多执行 4 次可用性检查。两条路径都不再复制邮箱；本 checkpoint 不把注册路径
+  描述为具有数据库碰撞重试。
 - 只有命名的 canonical-email constraint 可归类为 identity conflict。Admin create/update 对非法 identity
   固定返回 `422 INVALID_EMAIL_IDENTITY`，对已占用或歧义 identity 固定返回
   `409 EMAIL_IDENTITY_UNAVAILABLE`；其他数据库错误走通用 redacted fallback。自助邮箱修改仍关闭。
 - migration 结束后与 Admin server 启动时共用一个 fixed/redacted schema verifier；只有 migration marker、
-  canonical data、dialect-specific generated column/index/predicate 全部精确匹配，server 才挂载业务路由。
+  verifier 的 metadata、data 和 marker 查询全部固定读取 DBResolver writer；canonical data、
+  dialect-specific generated column/index/predicate/collation 全部精确匹配，server 才挂载业务路由。
   缺失、漂移、数据库失败或敏感冲突固定 fail closed，不把原始错误复制到日志或 readiness 响应。
 
 ## 开发 checkpoint evidence
@@ -44,8 +49,8 @@ Git tag、GitHub Release 或发布授权。当前 capability 仍是 Planned。
 2. model canonicalization、constraint-specific normalization、邮件注册、GitHub/Lark OAuth、bounded opaque
    username、no-email-merge、歧义 fail-closed 和敏感 SQL 抑制；
 3. 实际 Admin User Controller 的 422/409、root guard、无关 unique error redacted fallback。
-4. schemahealth 的 ready、缺失/错误 SQLite index、精确 migration version、敏感数据漂移、数据库失败，
-   以及错误 PostgreSQL/MySQL metadata shape 六项正负验证；
+4. schemahealth 的 ready、缺失/错误 SQLite index、精确 migration version、敏感数据漂移、数据库失败、
+   DBResolver writer 固定，以及错误 PostgreSQL/MySQL metadata shape 七项正负验证；
 5. migrate 完成所有 migrations 后调用同一个 runtime schema verifier；
 6. server 只在 canonical-email schema readiness 成功后挂载业务路由。
 
@@ -57,8 +62,8 @@ Git tag、GitHub Release 或发布授权。当前 capability 仍是 Planned。
 以下任一项未完成时，不能把邮件注册或首次 OAuth provisioning 宣称为生产 ready，也不能完成 D2 或
 选择 `v1.1.0` feature-freeze SHA：
 
-1. server startup/readiness 的六项 schemahealth 正负测试和 migrate/server 两项 composition 测试已在
-   `8b361ce` 开发 checkpoint 完成；选择最终 feature-freeze SHA 后必须从该提交全部重跑并保持
+1. server startup/readiness 的七项 schemahealth 正负测试和 migrate/server 两项 composition 测试已在
+   `8b361ce` 与 `1171df6` 开发 checkpoint 完成；选择最终 feature-freeze SHA 后必须从最新实现全部重跑并保持
    required `run/pass`、zero-skip，不能复用当前结果。
 2. 冻结提交必须同时提供 `MSS_EMAIL_IDENTITY_TEST_MYSQL_DSN` 和
    `MSS_EMAIL_IDENTITY_TEST_POSTGRES_DSN`。两个 DSN 都只能指向 allowlisted

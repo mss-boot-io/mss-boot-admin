@@ -8,6 +8,10 @@ description: mss-boot-admin 版本状态、升级、兼容性与回滚合同
 keywords: [release upgrade rollback compatibility mss-boot-admin]
 ---
 
+> 最新开发 checkpoint：[`d90b4c7` + `c830b5f` D3 Resource Lifecycle](/releases/v1-1-0-d3-resource-lifecycle)
+> 已固化 Runtime v2 资源图的状态机与 owned-handle 证据；Storage Runtime aggregate
+> 仍为 Planned，真实 leak、provider health 与 Admin listener composition 保留到冻结门禁。
+
 # 发布与升级
 
 这里保存长期有效的版本合同。Git tag、GitHub Release、嵌套 Go 模块的外部解析结果和对应提交上的验证报告共同构成发布证据；分支名、`Unreleased`、`planned`、`preview` 或本地 `go.work` 替换都不代表稳定版本。
@@ -50,7 +54,12 @@ Upload admission 与 D1 object provider/owner 已形成安全 checkpoint，将�
 `ManagedAdapterQueue` 由 Admin 统一拥有、作为 `Runnable` 运行和有界关闭，但仍保持
 Legacy/Blocked。`D2-contract-substrate` 正在推进：canonical email 的迁移、模型、Admin 写边界和
 server schema-readiness 已形成开发 checkpoint；冻结 SHA 上仍须重跑 readiness 正负套件以及
-MySQL/PostgreSQL 双 DSN zero-skip evidence，因此 capability 保持 Planned。
+MySQL/PostgreSQL 双 DSN zero-skip evidence，因此 capability 保持 Planned。`151a91c` 还完成了
+downstream snapshot identity consumer checkpoint：CLI/MCP/doctor 共用严格 SnapshotStatus，区分
+精确 source sentinel、有效 generated pair 与 malformed/orphaned state，并阻止 nested Admin module
+冒充 root module。该 checkpoint 只有 fully anchored 本地测试和 workflow 静态合同；真实 GitHub Actions
+尚未运行。冻结 SHA 仍须真实执行 `foundation-compatibility.yml`，证明四身份/digests、Blueprint
+0.1→0.2 定制保留和第二次空升级；pre-root 仍须 release-built external artifact。
 
 只有 Generator/Blueprint 与 Storage Runtime 目标全部完成、选定一个 `v1.1.0` 功能冻结 SHA
 后，才手工启动 `release-readiness`，集中执行三数据库、browser、Provider、upgrade、
@@ -68,3 +77,4 @@ external consumer、recovery、`verify --all` 与 `eval --all`。全部通过后
 - [Upload admission 内部 checkpoint](/releases/v1-0-1-upload-admission-safety)
 - [D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)
 - [D2 Canonical Email Identity 内部 checkpoint](/releases/v1-1-0-d2-canonical-email-identity)
+- [D2 Downstream Snapshot Identity 内部 checkpoint](/releases/v1-1-0-d2-snapshot-identity)

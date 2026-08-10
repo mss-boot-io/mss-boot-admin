@@ -319,6 +319,62 @@ spec:
           value: Runtime strict configuration negative matrix
         - type: command
           value: cd mss-boot && GOWORK=off go test ./runtime/config/...
+    - id: resource-graph-lifecycle-checkpoint-evidence
+      requirement: bind-resource-lifecycle
+      statement: >-
+        The domain-neutral resource graph proves deterministic preflight and topological startup,
+        required readiness before dependent start, reverse rollback and close, graph-owned Run
+        cancellation, concurrent idempotent caller-bounded close with retry after failure, and redacted lifecycle
+        diagnostics while preserving typed causes. This checkpoint exercises state-machine and
+        owned-handle behavior with hermetic resources; it does not prove real goroutine or
+        file-descriptor leak bounds, provider health, or Admin listener composition.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestGraphStartsTopologicallyAndClosesInReverse
+        - type: test
+          value: TestGraphPreflightRejectsInvalidMissingAndCyclicDefinitionsWithoutSideEffects
+        - type: test
+          value: TestGraphStartupFailureRollsBackInReverseAndJoinsErrors
+        - type: test
+          value: TestGraphCancellationAndCloseDeadlineReleaseOwnership
+        - type: test
+          value: TestGraphConcurrentRepeatedCloseIsIdempotentAndRejectsStart
+        - type: test
+          value: TestGraphConcurrentCloseSharesFailedGenerationBeforeRetry
+        - type: test
+          value: TestGraphReadinessFailureRollsBackBeforeDependentStart
+        - type: test
+          value: TestGraphHealthAndReadyJoinRedactedDiagnostics
+        - type: test
+          value: TestGraphRunCancelsPeersAndJoinsSanitizedDiagnostics
+        - type: test
+          value: TestGraphCloseCancelsRunBeforeReverseResourceClose
+        - type: test
+          value: TestGraphProviderErrorsPreserveExpiredCallerDeadline
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/resource
+            --run '^(TestGraphStartsTopologicallyAndClosesInReverse|TestGraphPreflightRejectsInvalidMissingAndCyclicDefinitionsWithoutSideEffects|TestGraphStartupFailureRollsBackInReverseAndJoinsErrors|TestGraphCancellationAndCloseDeadlineReleaseOwnership|TestGraphConcurrentRepeatedCloseIsIdempotentAndRejectsStart|TestGraphConcurrentCloseSharesFailedGenerationBeforeRetry|TestGraphReadinessFailureRollsBackBeforeDependentStart|TestGraphHealthAndReadyJoinRedactedDiagnostics|TestGraphRunCancelsPeersAndJoinsSanitizedDiagnostics|TestGraphCloseCancelsRunBeforeReverseResourceClose|TestGraphProviderErrorsPreserveExpiredCallerDeadline)$'
+            --count 20 --race --go-work off
+            --require TestGraphStartsTopologicallyAndClosesInReverse
+            --require TestGraphPreflightRejectsInvalidMissingAndCyclicDefinitionsWithoutSideEffects
+            --require TestGraphStartupFailureRollsBackInReverseAndJoinsErrors
+            --require TestGraphCancellationAndCloseDeadlineReleaseOwnership
+            --require TestGraphConcurrentRepeatedCloseIsIdempotentAndRejectsStart
+            --require TestGraphConcurrentCloseSharesFailedGenerationBeforeRetry
+            --require TestGraphReadinessFailureRollsBackBeforeDependentStart
+            --require TestGraphHealthAndReadyJoinRedactedDiagnostics
+            --require TestGraphRunCancelsPeersAndJoinsSanitizedDiagnostics
+            --require TestGraphCloseCancelsRunBeforeReverseResourceClose
+            --require TestGraphProviderErrorsPreserveExpiredCallerDeadline
+        - type: report
+          value: >-
+            Implementation commit d90b4c7 plus terminal evidence repair c830b5f have exact
+            single-package JSON evidence proving all eleven required top-level tests ran and
+            passed twenty uncached race-detected times with no skip.
     - id: derived-cache-gate
       requirement: scope-derived-cache
       statement: Failure injection and race tests preserve authoritative database semantics, namespace isolation, payload bounds, generation ordering, result metadata, transaction bypass, rollback, and read-your-writes isolation.
@@ -491,6 +547,21 @@ spec:
         --require TestRuntimeConfigSecretResolutionAndRedaction
         --require TestRuntimeConfigNormalizeAndBuildAreImmutableAndSideEffectFree
         --require TestEnvSecretResolverHonorsContextAndRedactsMissingReference
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/resource
+        --run '^(TestGraphStartsTopologicallyAndClosesInReverse|TestGraphPreflightRejectsInvalidMissingAndCyclicDefinitionsWithoutSideEffects|TestGraphStartupFailureRollsBackInReverseAndJoinsErrors|TestGraphCancellationAndCloseDeadlineReleaseOwnership|TestGraphConcurrentRepeatedCloseIsIdempotentAndRejectsStart|TestGraphConcurrentCloseSharesFailedGenerationBeforeRetry|TestGraphReadinessFailureRollsBackBeforeDependentStart|TestGraphHealthAndReadyJoinRedactedDiagnostics|TestGraphRunCancelsPeersAndJoinsSanitizedDiagnostics|TestGraphCloseCancelsRunBeforeReverseResourceClose|TestGraphProviderErrorsPreserveExpiredCallerDeadline)$'
+        --count 20 --race --go-work off
+        --require TestGraphStartsTopologicallyAndClosesInReverse
+        --require TestGraphPreflightRejectsInvalidMissingAndCyclicDefinitionsWithoutSideEffects
+        --require TestGraphStartupFailureRollsBackInReverseAndJoinsErrors
+        --require TestGraphCancellationAndCloseDeadlineReleaseOwnership
+        --require TestGraphConcurrentRepeatedCloseIsIdempotentAndRejectsStart
+        --require TestGraphConcurrentCloseSharesFailedGenerationBeforeRetry
+        --require TestGraphReadinessFailureRollsBackBeforeDependentStart
+        --require TestGraphHealthAndReadyJoinRedactedDiagnostics
+        --require TestGraphRunCancelsPeersAndJoinsSanitizedDiagnostics
+        --require TestGraphCloseCancelsRunBeforeReverseResourceClose
+        --require TestGraphProviderErrorsPreserveExpiredCallerDeadline
       - cd mss-boot && GOWORK=off go test -race ./runtime/...
       - cd mss-boot && GOWORK=off go vet ./...
       - corepack pnpm@9.15.9 --dir docs build

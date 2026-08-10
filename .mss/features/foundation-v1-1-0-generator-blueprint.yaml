@@ -176,7 +176,10 @@ spec:
         - Foundation identity records the published version and full commit, Blueprint identity records its own semantic revision and digest, and generator identity comes from the actual binary build.
         - The downstream snapshot records resolved inputs and the generated baseline; a deterministic lock or sync command updates its lock and manifest representations together only after all planned files succeed.
         - Source-repository development lock state is not manually rewritten to resemble a public Release.
-        - Doctor and upgrade status detect missing, contradictory, stale, or manually forged identity fields.
+        - CLI upgrade status, MCP status, and doctor expose one strict SnapshotStatus with the same four identities and record digests; legacy flat status fields remain compatibility projections rather than independent sources.
+        - A Foundation source checkout is recognized only by the exact committed legacy development sentinel; a generated downstream requires the current lock and manifest pair, and malformed, orphaned, or transitional state never falls back to source classification.
+        - Upgrade application identity recovers the root module from the installed snapshot and never treats spec.backend.module or spec.foundationVersion as a Foundation, Blueprint, generator, or root-module identity.
+        - Doctor and upgrade status detect missing, contradictory, stale, transitional, or manually forged identity fields under the same snapshot locking protocol used by writers.
     - id: reject-unsupported-specification
       title: Reject unimplemented declarations
       description: A specification cannot validate or write successfully when it requests a behavior that the current generator cannot implement.
@@ -373,7 +376,7 @@ spec:
         - type: command
           value: >-
             go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
-            --run '^TestCanonicalEmailIdentity(MigrationSQLiteFreshAndRepeat|MigrationSQLiteUpgradeBackfillsAndScopesSoftDelete|MigrationPreflightFailsWithoutMutationOrDisclosure|BackfillCASRejectsConcurrentChangeWithoutDisclosure|MigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete|DataVerifierRejectsPostBackfillDriftWithoutDisclosure|DDLAndMetadataContractsAreAuditable)$'
+            --run '^TestCanonicalEmailIdentity(MigrationSQLiteFreshAndRepeat|MigrationSQLiteUpgradeBackfillsAndScopesSoftDelete|MigrationPreflightFailsWithoutMutationOrDisclosure|BackfillCASRejectsConcurrentChangeWithoutDisclosure|MigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete|DataVerifierRejectsPostBackfillDriftWithoutDisclosure|DDLAndMetadataContractsAreAuditable|MigrationUsesDBResolverWriter)$'
             --count 20 --race --go-work off
             --require TestCanonicalEmailIdentityMigrationSQLiteFreshAndRepeat
             --require TestCanonicalEmailIdentityMigrationSQLiteUpgradeBackfillsAndScopesSoftDelete
@@ -382,6 +385,7 @@ spec:
             --require TestCanonicalEmailIdentityMigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete
             --require TestCanonicalEmailIdentityDataVerifierRejectsPostBackfillDriftWithoutDisclosure
             --require TestCanonicalEmailIdentityDDLAndMetadataContractsAreAuditable
+            --require TestCanonicalEmailIdentityMigrationUsesDBResolverWriter
         - type: command
           value: >-
             go run ./cmd/mss test evidence --directory admin --package ./models
@@ -412,13 +416,14 @@ spec:
         - type: command
           value: >-
             go run ./cmd/mss test evidence --directory admin --package ./pkg/schemahealth
-            --run '^Test(VerifyCanonicalEmailIdentity(SQLiteRuntimeReady|RejectsMissingAndWrongSQLiteIndex|RequiresExactMigrationVersion|RejectsSensitiveDataWithoutDisclosure|DatabaseFailureIsFixedAndRedacted)|CanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes)$'
+            --run '^Test(VerifyCanonicalEmailIdentity(SQLiteRuntimeReady|RejectsMissingAndWrongSQLiteIndex|RequiresExactMigrationVersion|RejectsSensitiveDataWithoutDisclosure|DatabaseFailureIsFixedAndRedacted|UsesDBResolverWriter)|CanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes)$'
             --count 20 --race --go-work off
             --require TestVerifyCanonicalEmailIdentitySQLiteRuntimeReady
             --require TestVerifyCanonicalEmailIdentityRejectsMissingAndWrongSQLiteIndex
             --require TestVerifyCanonicalEmailIdentityRequiresExactMigrationVersion
             --require TestVerifyCanonicalEmailIdentityRejectsSensitiveDataWithoutDisclosure
             --require TestVerifyCanonicalEmailIdentityDatabaseFailureIsFixedAndRedacted
+            --require TestVerifyCanonicalEmailIdentityUsesDBResolverWriter
             --require TestCanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes
         - type: command
           value: >-
@@ -433,10 +438,10 @@ spec:
             --count 20 --race --go-work off
             --require TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness
         - type: report
-          value: Implementation checkpoints are commits 9ccb1d2, eb1277c, 3710aca, and 8b361ce; the listed exact commands define development acceptance, must rerun after later implementation changes, and are not reusable as feature-freeze evidence.
+          value: Implementation checkpoints are commits 9ccb1d2, eb1277c, 3710aca, 8b361ce, and 1171df6; the listed exact commands define development acceptance, must rerun after later implementation changes, and are not reusable as feature-freeze evidence.
     - id: canonical-email-real-database-gate
       requirement: enforce-canonical-email-identity
-      statement: On the selected feature-freeze SHA, both allowlisted test DSNs run real MySQL and PostgreSQL upgrade, repeat, preflight-failure, soft-delete reuse, index-metadata, and concurrent-claim cases with zero required skip.
+      statement: On the selected feature-freeze SHA, both allowlisted test DSNs run real MySQL and PostgreSQL upgrade, repeat, preflight-failure, soft-delete reuse, index-metadata, Turkish/non-default-collation canonical ownership, and concurrent-claim cases with zero required skip.
       level: migration
       phase: feature-freeze
       required: true
@@ -449,7 +454,7 @@ spec:
             --require TestCanonicalEmailIdentityMigrationMySQLIntegration
             --require TestCanonicalEmailIdentityMigrationPostgresIntegration
         - type: report
-          value: Exact-freeze-SHA report with non-empty MSS_EMAIL_IDENTITY_TEST_MYSQL_DSN and MSS_EMAIL_IDENTITY_TEST_POSTGRES_DSN, allowlisted database name mss_email_identity_test, run/pass for both required tests, and zero skip.
+          value: Exact-freeze-SHA report with non-empty MSS_EMAIL_IDENTITY_TEST_MYSQL_DSN and MSS_EMAIL_IDENTITY_TEST_POSTGRES_DSN, allowlisted database name mss_email_identity_test, explicit Turkish/non-default-collation cases, run/pass for both required tests, and zero skip.
     - id: canonical-email-schema-readiness-gate
       requirement: enforce-canonical-email-identity
       statement: Migration completion and server startup fail closed before any business route is mounted when the canonical-email migration, dialect-specific generated column, unique index, predicate, or data invariant is absent, stale, or unavailable.
@@ -458,7 +463,7 @@ spec:
       required: true
       evidence:
         - type: report
-          value: Exact-freeze-SHA rerun of the six schemahealth tests plus migrate and server composition tests, with run/pass for every required test and zero skip; the development checkpoint is complete but has not been rerun on a selected freeze SHA.
+          value: Exact-freeze-SHA rerun of the seven schemahealth tests plus migrate and server composition tests, with run/pass for every required test and zero skip; the development checkpoint is complete but has not been rerun on a selected freeze SHA.
     - id: specification-support-gate
       requirement: reject-unsupported-specification
       statement: Schema, Go validation, infrastructure Feature planning, unsupported-field rejection, and acceptance-evidence reporting agree and fail before writes on every negative fixture.
@@ -480,6 +485,46 @@ spec:
           value: "go test -json ./internal/mss/feature -run '^Test(PlanInfrastructureFeatureWithoutAdminModuleSpec|PlanAdminModuleMissingSpecPathFails|AcceptanceEvidenceIsDeclarativeUntilExecuted)$'"
         - type: report
           value: Required-test report proving contract-kind schema parity, infrastructure plan success, AdminModule missing-spec failure, and honest declarative evidence reporting.
+    - id: version-identity-checkpoint-evidence
+      requirement: record-version-identities
+      statement: The shared snapshot reader, CLI status, MCP upgrade adapter, doctor strict classification, and checked-in compatibility-workflow contract pass fully anchored single-package evidence without source/generated transition races or nested-module identity conflation.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/blueprint
+            --run '^(TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords|TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel|TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack|TestInspectSnapshotWaitsForSourceToGeneratedTransition|TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence)$'
+            --count 20 --race --go-work off
+            --require TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords
+            --require TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel
+            --require TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack
+            --require TestInspectSnapshotWaitsForSourceToGeneratedTransition
+            --require TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/app
+            --run '^(TestUpgradeApplicationDefersRootModuleIdentityToManifest|TestWriteUpgradeStatusPreservesFlatJSONAndReportsFourIdentities)$'
+            --count 20 --race --go-work off
+            --require TestUpgradeApplicationDefersRootModuleIdentityToManifest
+            --require TestWriteUpgradeStatusPreservesFlatJSONAndReportsFourIdentities
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/mcp
+            --run '^TestFoundationUpgradeApplicationDefersRootModuleToSnapshot$'
+            --count 20 --race --go-work off
+            --require TestFoundationUpgradeApplicationDefersRootModuleToSnapshot
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/doctor
+            --run '^(TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains|TestRunAgentScopeRequiresValidGeneratedSnapshot|TestRunAgentScopeFailsMalformedCurrentSnapshotWithoutSourceFallback)$'
+            --count 20 --race --go-work off
+            --require TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains
+            --require TestRunAgentScopeRequiresValidGeneratedSnapshot
+            --require TestRunAgentScopeFailsMalformedCurrentSnapshotWithoutSourceFallback
+        - type: report
+          value: Commit 151a91c is the development checkpoint for these consumers; exact local test evidence and the static workflow-contract test do not assert that foundation-compatibility.yml has run in GitHub Actions.
     - id: upgrade-rehearsal-gate
       requirement: upgrade-preserving-customizations
       statement: A generated Blueprint 0.1 application with business customizations upgrades to 0.2, reports conflicts deterministically, preserves owned changes, commits identity last, and has an empty second upgrade.
@@ -491,9 +536,24 @@ spec:
           value: Blueprint 0.1-to-0.2 three-way customization rehearsal
         - type: report
           value: Exact-commit downstream upgrade, conflict, apply, and idempotency report
+    - id: version-identity-foundation-compatibility-gate
+      requirement: record-version-identities
+      statement: After feature freeze, a real foundation-compatibility.yml run checks out the selected full SHA and proves CLI, MCP, and doctor agreement on all four identities and record digests through a Blueprint 0.1-to-0.2 customization-preserving upgrade whose second application is empty.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: path
+          value: .github/workflows/foundation-compatibility.yml
+        - type: report
+          value: >-
+            GitHub Actions run URL and artifact manifest bound to the exact feature-freeze SHA, with Foundation version/full commit,
+            Blueprint 0.1 and 0.2 versions/digests, generator build version/full commit, downstream root module/snapshot digest,
+            lock digest, identical CLI/MCP/doctor status, preserved customization, deterministic conflict output, and a second
+            upgrade reporting zero changes. A local or static workflow-contract test is not accepted as this evidence.
     - id: version-identity-gate
       requirement: record-version-identities
-      statement: Release-built new app output and upgrade status agree on Foundation version and commit, Blueprint version and digest, and actual generator version without manual lock edits.
+      statement: A release-built external artifact from the prerequisite published Framework and the same reviewed root commit creates a new application outside the source checkout with GOWORK=off, and its generation output, lock, manifest, doctor, CLI status, and MCP status agree without manual identity edits.
       level: contract
       phase: pre-root
       required: true
@@ -501,7 +561,7 @@ spec:
         - type: test
           value: Foundation release, Blueprint, generator, and downstream snapshot identity conformance suite with atomic lock and manifest representations
         - type: report
-          value: External release-built new-application identity report
+          value: External release-built new-application identity report with artifact checksums, exact root and Framework commits, four identities, record digests, disabled workspace replacement, and installation command output
   risks:
     - id: generated-security-theater
       description: Descriptor-only permissions or menus can look complete while backend routes remain unauthorized or overprivileged.
@@ -555,7 +615,7 @@ spec:
         --count 20 --race --go-work off --require TestV100MigrationRowsDoNotRerun
       - >-
         go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
-        --run '^TestCanonicalEmailIdentity(MigrationSQLiteFreshAndRepeat|MigrationSQLiteUpgradeBackfillsAndScopesSoftDelete|MigrationPreflightFailsWithoutMutationOrDisclosure|BackfillCASRejectsConcurrentChangeWithoutDisclosure|MigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete|DataVerifierRejectsPostBackfillDriftWithoutDisclosure|DDLAndMetadataContractsAreAuditable)$'
+        --run '^TestCanonicalEmailIdentity(MigrationSQLiteFreshAndRepeat|MigrationSQLiteUpgradeBackfillsAndScopesSoftDelete|MigrationPreflightFailsWithoutMutationOrDisclosure|BackfillCASRejectsConcurrentChangeWithoutDisclosure|MigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete|DataVerifierRejectsPostBackfillDriftWithoutDisclosure|DDLAndMetadataContractsAreAuditable|MigrationUsesDBResolverWriter)$'
         --count 20 --race --go-work off
         --require TestCanonicalEmailIdentityMigrationSQLiteFreshAndRepeat
         --require TestCanonicalEmailIdentityMigrationSQLiteUpgradeBackfillsAndScopesSoftDelete
@@ -564,6 +624,7 @@ spec:
         --require TestCanonicalEmailIdentityMigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete
         --require TestCanonicalEmailIdentityDataVerifierRejectsPostBackfillDriftWithoutDisclosure
         --require TestCanonicalEmailIdentityDDLAndMetadataContractsAreAuditable
+        --require TestCanonicalEmailIdentityMigrationUsesDBResolverWriter
       - >-
         go run ./cmd/mss test evidence --directory admin --package ./models
         --run '^Test(CanonicalEmailIdentityReturnsTypedValidationAndCanonicalValue|NormalizeEmailIdentityPersistenceErrorIsConstraintSpecific|CanonicalEmailCreateNormalizesConflictWithoutLeakingOtherUniqueErrors|OAuthProvisioningNeverMergesByEmail|UserBeforeSaveRejectsInvalidEmailWithTypedError|InvalidEmailLoginRemainsAClientAuthenticationFailure|EmailRegistrationRejectsExistingCanonicalIdentity|EmailRegistrationUsesBoundedOpaqueUsername|GetUserByEmailFailsClosedOnAmbiguousIdentity|EmailIdentityOperationsDoNotEmitSensitiveSQL|ConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity|OpaqueOAuthUsernameGenerationIsDeterministicAndBounded|OpaqueOAuthUsernameRetriesExistingCollision|GithubFirstProvisioningNeverMergesByCanonicalEmail|LarkFirstProvisioningUsesBoundedOpaqueUsername)$'
@@ -591,13 +652,14 @@ spec:
         --require TestUserWriteErrorMapperFallsBackForUnrelatedDatabaseErrors
       - >-
         go run ./cmd/mss test evidence --directory admin --package ./pkg/schemahealth
-        --run '^Test(VerifyCanonicalEmailIdentity(SQLiteRuntimeReady|RejectsMissingAndWrongSQLiteIndex|RequiresExactMigrationVersion|RejectsSensitiveDataWithoutDisclosure|DatabaseFailureIsFixedAndRedacted)|CanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes)$'
+        --run '^Test(VerifyCanonicalEmailIdentity(SQLiteRuntimeReady|RejectsMissingAndWrongSQLiteIndex|RequiresExactMigrationVersion|RejectsSensitiveDataWithoutDisclosure|DatabaseFailureIsFixedAndRedacted|UsesDBResolverWriter)|CanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes)$'
         --count 20 --race --go-work off
         --require TestVerifyCanonicalEmailIdentitySQLiteRuntimeReady
         --require TestVerifyCanonicalEmailIdentityRejectsMissingAndWrongSQLiteIndex
         --require TestVerifyCanonicalEmailIdentityRequiresExactMigrationVersion
         --require TestVerifyCanonicalEmailIdentityRejectsSensitiveDataWithoutDisclosure
         --require TestVerifyCanonicalEmailIdentityDatabaseFailureIsFixedAndRedacted
+        --require TestVerifyCanonicalEmailIdentityUsesDBResolverWriter
         --require TestCanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes
       - >-
         go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate
@@ -609,6 +671,33 @@ spec:
         --run '^TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness$'
         --count 20 --race --go-work off
         --require TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/blueprint
+        --run '^(TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords|TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel|TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack|TestInspectSnapshotWaitsForSourceToGeneratedTransition|TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence)$'
+        --count 20 --race --go-work off
+        --require TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords
+        --require TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel
+        --require TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack
+        --require TestInspectSnapshotWaitsForSourceToGeneratedTransition
+        --require TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/app
+        --run '^(TestUpgradeApplicationDefersRootModuleIdentityToManifest|TestWriteUpgradeStatusPreservesFlatJSONAndReportsFourIdentities)$'
+        --count 20 --race --go-work off
+        --require TestUpgradeApplicationDefersRootModuleIdentityToManifest
+        --require TestWriteUpgradeStatusPreservesFlatJSONAndReportsFourIdentities
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/mcp
+        --run '^TestFoundationUpgradeApplicationDefersRootModuleToSnapshot$'
+        --count 20 --race --go-work off
+        --require TestFoundationUpgradeApplicationDefersRootModuleToSnapshot
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/doctor
+        --run '^(TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains|TestRunAgentScopeRequiresValidGeneratedSnapshot|TestRunAgentScopeFailsMalformedCurrentSnapshotWithoutSourceFallback)$'
+        --count 20 --race --go-work off
+        --require TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains
+        --require TestRunAgentScopeRequiresValidGeneratedSnapshot
+        --require TestRunAgentScopeFailsMalformedCurrentSnapshotWithoutSourceFallback
       - corepack pnpm@9.15.9 --dir docs build
   rollout:
     strategy: phased
@@ -620,7 +709,10 @@ spec:
       contracts and run the complete three-database, browser, external-app, and Blueprint 0.1-to-0.2
       upgrade matrices on one candidate commit. The canonical-email checkpoint must retain its
       fail-closed server schema readiness and rerun both real database integrations from that
-      exact commit with both DSNs and zero skip. Do not start a second generated domain until this
+      exact commit with both DSNs and zero skip. The same exact commit must complete a real
+      foundation-compatibility.yml run that records all four identities and digests, upgrades a
+      customized Blueprint 0.1 downstream to 0.2, and proves the second upgrade is empty; the
+      checkpoint's static workflow test is not release evidence. Do not start a second generated domain until this
       slice is complete. If target public APIs require a breaking change, make a truthful SemVer
       decision without changing the target generated structure.
     rollback: >-

@@ -168,6 +168,36 @@ these changes close `D1-provider-owner`; development proceeds to
 **Blocked** here: manual commit, retry/backoff, dead letter, rebalance, outage,
 duplicate/idempotency behavior, and a non-skipped real-broker suite are still unproved.
 
+### Internal D3 resource lifecycle graph checkpoint
+
+Commit `d90b4c7`, with deterministic close-generation evidence repaired by `c830b5f`,
+establishes the domain-neutral `mss-boot/runtime/resource` boundary as the first
+`D3-backend-runtime` checkpoint:
+
+- `Build` validates canonical unique names, dependencies, missing references, cycles,
+  required-readiness support, and duplicate pointer ownership. It copies the declaration,
+  returns a deterministic topological order, and invokes no resource method or asynchronous
+  work.
+- `Start` is a one-way operation. It acquires in topological order, completes a required
+  resource's `Ready` check before starting a dependent, marks partial acquisition before
+  invoking provider code, and joins the original failure with reverse-order rollback errors
+  under an independent bounded context.
+- `Run` owns optional long-running workers, cancels peers after a failure or unexpected clean
+  exit, and waits for every participating `Run` call. `Close` rejects new lifecycle work,
+  cancels an active start or run, waits for bounded inspections, and releases acquired handles
+  in reverse order. Concurrent callers share one close generation; a deadline or resource
+  failure can be retried without closing an already released handle twice.
+- `Health`, `Ready`, and lifecycle errors expose only validated resource names and fixed
+  operations. Provider text stays off the printable surface while `errors.Is`/`errors.As`
+  classification remains available to code.
+
+The checked-in checkpoint evidence requires every one of the eleven top-level resource-graph
+tests to run and pass twenty uncached times under the race detector. These are hermetic state
+machine and owned-handle tests. They do **not** prove a real provider's health behavior, actual
+goroutine or file-descriptor leak bounds, or that Admin establishes required readiness before
+opening listeners. Those claims remain in the existing feature-freeze lifecycle and Admin
+integration gates, including the one-hundred-cycle leak suite.
+
 ## Decision
 
 ### 1. Split names by semantics
@@ -457,6 +487,7 @@ lives in this matrix. Provider state is never inferred from the framework versio
 
 | Provider or capability | Evidence at `ee800262` | Development-wave action | v1.1.0 freeze target |
 | --- | --- | --- | --- |
+| Runtime resource graph | Not present at the baseline | D3 adds deterministic Build/Start/Run/Close ownership and exact hermetic race evidence without a provider | Compose named Redis and Admin readiness first; then pass the 100-cycle real leak and listener-order gates on the frozen SHA |
 | Aggregate cache/lock/queue | Declared stable; provider evidence does not support it | Retire the stable aggregate and point to provider evidence | Do not restore an aggregate maturity state |
 | Global Redis resource | Blocked: unsynchronized, first initializer wins, unclear close ownership | Mark legacy, inventory active scopes, and repair ownership in D2-D3 | Stable named resource after standalone/Sentinel/cluster/TLS conformance |
 | Redis derived cache | Beta: query generation tests exist, but API and lifecycle remain broad | Keep beta; add failure/result metadata evidence before freeze | Stable scoped key/value cache; QueryCache remains separately beta |
@@ -499,8 +530,9 @@ Development waves close known security and data-integrity paths before they asse
 package replacement. D1 has established strict object startup profiles, fail-closed upload behavior,
 owned object resources, and the additive managed Kafka lifecycle without changing Kafka's
 Legacy/Blocked maturity. D2 establishes strict schemas, version
-identity, migration preflight, and hermetic fixtures; D3-D5 land the
-resource graph, named Redis, ChallengeStore, EventBus, ObjectStore/Delivery, upgrade paths, and
+identity, migration preflight, and hermetic fixtures. D3 now has the resource graph's hermetic
+state-machine checkpoint; D3-D5 still land named Redis, ChallengeStore, EventBus,
+ObjectStore/Delivery, Admin composition, upgrade paths, and
 provider evidence in independently reversible commits. None of these waves creates a public tag.
 
 After the architecture and selected provider scope reach `FF-v1.1.0`, one frozen commit enters
@@ -530,11 +562,9 @@ This ADR is implemented only when:
    framework; and
 8. the release tag follows a truthful SemVer decision for any public API removal.
 
-The next executable step is the remaining `D2-contract-substrate` work. FeatureModule now uses
-the canonical `admin/modules/<name>` identity, and the migration engine now preserves typed,
-lossless IDs with duplicate fail-fast. Next, separate Foundation/Blueprint/generator/downstream
-snapshot identities and atomically record lock plus manifest before the canonical-email
-three-database forward migration and strict runtime configuration preflight. Kafka, Local, and
-S3-compatible storage remain
-legacy/Blocked after D1. S3 Put, conditional create-only writes, authenticated Delivery, and
-pinned RustFS conformance remain gated for D4 before feature freeze.
+The next executable D3 step is a named Redis resource constructed from the strict Runtime v2
+profile and owned by this graph, followed by the Admin composition that proves readiness before
+listeners and singular reverse close. In parallel, the Generator/Blueprint track can implement
+the supplier backend against the canonical `admin/modules/<name>` contract. Kafka, Local, and
+S3-compatible storage remain Legacy/Blocked; S3 Put, conditional create-only writes,
+authenticated Delivery, and pinned RustFS conformance remain gated for D4 before feature freeze.

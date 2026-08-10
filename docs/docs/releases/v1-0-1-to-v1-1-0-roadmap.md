@@ -5,6 +5,16 @@ description: 从 v1.0.0 直接推进到 v1.1.0 功能冻结，再集中执行完
 keywords: [v1.1.0 roadmap development first feature freeze validation release]
 ---
 
+> D3 进度（2026-08-10）：`d90b4c7` 已完成 Runtime v2 资源图的 hermetic
+> 状态机与 owned-handle checkpoint，并用全部 11 个顶级测试锁定 20 次 race evidence。
+> `c830b5f` 修复了 close-generation 并发证据的测试线性化屏障，并以 targeted race×1000
+> 和完整 exact runner×20 重新证明该边界。
+> 它尚未证明真实 goroutine/FD 泄漏、provider health 或 Admin listener composition，
+> 所以 `platform.storage-runtime-v2` 仍为 Planned。下一步是 named Redis resource、
+> Admin readiness/close composition 与 Generator/Blueprint 轨的 supplier backend；完整
+> 100 次 leak/provider 门禁仍只在选定 feature-freeze SHA 后执行。详见
+> [D3 Resource Lifecycle 内部 checkpoint](/releases/v1-1-0-d3-resource-lifecycle)。
+
 # v1.1.0 开发优先路线
 
 基线是 2026-08-09 已发布的根版本 `v1.0.0` 与 Framework
@@ -61,7 +71,7 @@ Lock 或 S3-compatible Provider 可以保持 Legacy/Blocked/Experimental，而�
 | --- | --- | --- | --- |
 | `D0-safety`（已完成） | 建立 v1.1.0 Generator/Blueprint 合同 | Challenge 原子安全、Kafka Mark-after-success、Upload pre-parse admission 与 Local create-only confinement | 对应 focused/race 测试通过；Provider 状态仍诚实保持 |
 | `D1-provider-owner`（已完成） | 冻结新增 scaffold 范围，以 `admin/modules/<name>` 作为机器合同、生成器和文档的唯一新增模块目标 | object provider 完成严格 startup profile、AppConfig 移除、单一 owner、dev-only Local Delivery 与 fail-closed 503；Kafka 保留 `AdapterQueue` 兼容面并新增 `ManagedAdapterQueue`，完成 caller-context 配置/注册、单 producer 与唯一 consumer-group owner、`Errors()` 观察、可取消 `Start` 和幂等有界 `Close`；Admin 是唯一 owner 并把它注册为 `Runnable` | object 与 Kafka exact owner/config/Admin 测试非零命中并通过；changed path 无 Exit/Fatal 或 detached long-lived work；Kafka 仍保持 Legacy/Blocked，不把 D1 完成解释为 Provider 晋级 |
-| `D2-contract-substrate`（进行中） | FeatureModule contract kind；Foundation/Blueprint/generator/downstream snapshot 四身份；lock+manifest 原子双记录；typed migration ID 和 duplicate fail-fast | canonical email 存量冲突预检、三库唯一 forward migration 与启动 schema readiness；strict one-of config、SecretRef、doctor preflight | infrastructure Feature 可规划；两次 sync/generate 零漂移；SQLite/model/API/schemahealth/composition checkpoint 非零命中；缺失或漂移 schema 时业务路由 fail closed；真实双 DSN zero-skip 保留为 feature-freeze required gate |
+| `D2-contract-substrate`（进行中） | FeatureModule contract kind；Foundation/Blueprint/generator/downstream snapshot 四身份；lock+manifest 原子双记录；CLI/MCP/doctor 共用严格 SnapshotStatus；typed migration ID 和 duplicate fail-fast | canonical email 存量冲突预检、三库唯一 forward migration 与启动 schema readiness；strict one-of config、SecretRef、doctor preflight | infrastructure Feature 可规划；source/generated/malformed 三态 fail closed；source→generated 竞态受同一锁协议保护；SQLite/model/API/schemahealth/composition checkpoint 非零命中；真实双 DSN 与真实 compatibility workflow 都保留为 feature-freeze required gate |
 | `D3-backend-runtime` | supplier migration、model/DTO/service/API/operations/index/export/OpenAPI；所有支持字段有 output-kind | 顶层资源图、named Redis、readiness/reverse close、公开 ChallengeStore 目标 API | golden backend 两次生成零 diff；100 次 race 启停无泄漏；listener 不早于 required resource ready |
 | `D4-authorization-object` | permissions/defaultRoles/menu/ownership；事务提交后事件；完整正负授权 | ObjectStore/Delivery、Admin object metadata migration、Local/S3-compatible create-only/checksum/授权、独立 S3 bootstrap | 权限矩阵全绿；固定 digest 的 RustFS fixture 与 Local 共用 suite 且 required integration 无 skip；错误 Provider 零 fallback；同 ObjectRef 冲突不覆盖 |
 | `D5-frontend-events-upgrade` | typed client、list/form/detail/actions/export、双语 locale、完整 UI 状态；Blueprint 0.1→0.2 三方升级 | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile、provider evidence report | 第二次 upgrade 为空；无 ignored spec field；前端 focused checks 通过；非目标 Queue/Lock 状态锁定 |
@@ -75,11 +85,25 @@ D2 的 canonical email 核心已形成开发 checkpoint：存量 active 用户�
 SQLite/PostgreSQL 使用 active、non-empty partial expression unique index，MySQL 使用等价的 nullable
 stored `VARBINARY` generated key；模型、邮件注册、首次 OAuth 建号和 Admin 写错误映射共用一个 typed
 contract，且 OAuth 不按 provider email 合并既有账户。精确 SQLite migration/model/API evidence 已非零命中；
-`8b361ce` 又完成了 schemahealth 六项正负验证，以及 migrate 后复验和 server 挂载业务路由前 fail-closed
-两个 composition checkpoint。这只证明当前开发切片，不是 feature-freeze 证据；全部 readiness tests 和
+`8b361ce` 完成了首轮 schemahealth 正负验证，以及 migrate 后复验和 server 挂载业务路由前 fail-closed
+两个 composition checkpoint；`1171df6` 进一步把验证与迁移全链固定到 DBResolver writer，并为 PostgreSQL
+强制 deterministic `C` collation、为 MySQL 强制显式 ASCII canonical key，形成当前七项 schemahealth evidence。
+这只证明当前开发切片，不是 feature-freeze 证据；全部 readiness tests 和
 MySQL/PostgreSQL 真实集成必须在最终冻结 SHA 上重跑，并同时提供两个 allowlisted DSN，由 evidence runner
 证明两条 required test 均 run/pass 且 zero-skip。边界和迁移说明见
 [D2 Canonical Email Identity 内部 checkpoint](/releases/v1-1-0-d2-canonical-email-identity)。
+
+`151a91c` 完成了 D2 下游快照身份 consumer checkpoint：CLI `upgrade status`、MCP status 与
+doctor 的 `snapshot:foundation` 都读取同一个严格 SnapshotStatus，并同时输出 Foundation release、
+Blueprint、实际 generator build 和 downstream snapshot 四身份以及 lock/manifest digest。根 module
+从已安装 snapshot 恢复，不能误用 `spec.backend.module`；`spec.foundationVersion` 仍只是项目生成基线。
+Foundation source 只接受精确的 legacy development sentinel；当前 generated pair 缺失、损坏、孤儿化或
+正处于 source→generated 写入时，不会被误判为 source。fully anchored 的单包 `mss test evidence`
+命令覆盖了 SnapshotStatus、竞态、CLI/MCP module deferral、doctor 三态和 workflow 静态合同。
+这仍只是开发 checkpoint：没有真实运行 GitHub Actions。冻结阶段必须把真实
+`.github/workflows/foundation-compatibility.yml` run 绑定到完整 SHA，并补齐真实 Blueprint 0.1→0.2、
+业务定制保留、四身份/digest 一致和第二次空升级。边界见
+[D2 Downstream Snapshot Identity 内部 checkpoint](/releases/v1-1-0-d2-snapshot-identity)。
 
 波次可以并行开发，但依赖不能倒置：migration engine 必须先于真实生成迁移和 object metadata；严格
 profile 必须先于 owned runtime；named Redis 必须先于 Cache/EventBus；完整 golden 输出必须先于
@@ -126,6 +150,8 @@ changed-scope 合同和生成器快速反馈；完整矩阵由人工在功能冻
 - Redis standalone/Sentinel/cluster/TLS、固定 digest 的 RustFS S3-compatible fixture、选定真实 broker 与故障注入；
 - Browser E2E、权限正负矩阵、secret/subject/payload redaction canary；
 - Generator 两次生成、全字段投影、external new-app、Blueprint 0.1→0.2 升级和二次空升级；
+- `foundation-compatibility.yml` 从冻结 SHA 真实运行，CLI/MCP/doctor 四身份与 digests 一致，
+  并把 0.1→0.2、定制保留、确定性冲突和第二次空升级写入 evidence artifact；
 - 资源 100 次启停、泄漏、readiness、shutdown、恢复 rehearsal；
 - 所有 required exact tests 非零命中，且无 skip、cached-only 或 `[no tests to run]`。
 
@@ -156,9 +182,11 @@ Feature/capability 状态和恢复证据。全部一致后才能关闭 issue；�
 Admin 依赖和提交一致；要发布 root 1.1 + Framework 2.0，必须先建立 component-version mapping，不能
 临时绕过 workflow。
 
-`.mss/project.yaml` 的 `foundationVersion` 和 `.mss/lock.yaml` 的 `0.1.0/development` 是当前
-Blueprint/生成基线，不是公开 release target。本路线不手工改号；`D2-contract-substrate` 先建立四身份
-与确定性 sync/check，再由工具原子写入 downstream snapshot 的 lock/manifest。
+`.mss/project.yaml` 的 `foundationVersion` 和源码仓库 `.mss/lock.yaml` 的 `0.1.0/development` 是当前
+项目生成基线与精确 source sentinel，不是公开 release target。本路线不手工改号。`151a91c` 已让工具
+从 release policy、Blueprint digest、实际 binary build 与 downstream 输入分别建立四身份，原子写入
+snapshot 的 lock/manifest，并由 CLI/MCP/doctor 共用严格读取；稳定晋级仍取决于冻结 SHA 上的真实
+compatibility workflow 与 pre-root release-built external artifact。
 
 ## 社区 issue 的纳入方式
 
@@ -185,8 +213,12 @@ rebalance、outage 与真实 broker conformance 尚未证明。
 `D2-contract-substrate` 已完成 canonical FeatureModule 路径、typed/lossless migration ID 与 duplicate
 fail-fast、strict runtime config/SecretRef、Foundation/Blueprint/generator/downstream snapshot 四身份与
 lock+manifest 原子双记录，以及 canonical email 的模型/迁移/API/schema-readiness 开发 checkpoint。
-继续推进后续功能波次；选择 feature-freeze SHA 后，必须从该提交重跑 canonical-email schemahealth/composition
-和 MySQL/PostgreSQL 两个真实 DSN 且 zero-skip，不能复用 `eb1277c` 或 `8b361ce` 的开发运行冒充冻结证据。
+其中 `151a91c` 已收口四身份在 CLI/MCP/doctor 的 consumer，并为 source/generated/malformed 三态和
+source→generated 竞态提供精确测试；真实 GitHub Actions 尚未运行。继续推进后续功能波次；选择
+feature-freeze SHA 后，必须从该提交重跑 canonical-email schemahealth/composition
+和 MySQL/PostgreSQL 两个真实 DSN 且 zero-skip，不能复用 `eb1277c`、`8b361ce` 或 `1171df6` 的开发运行冒充冻结证据。
+同一 SHA 还必须真实运行 `foundation-compatibility.yml`，证明四身份/digest、Blueprint 0.1→0.2 与第二次
+空升级；静态 workflow contract test 不能冒充这项证据。
 D2 期间不插入 v1.0.x 发布准备、RustFS qualification 或全量
 release-readiness；S3 `Put`、Delivery 和 RustFS conformance 仍明确保留到 D4。
 

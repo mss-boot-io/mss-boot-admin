@@ -402,9 +402,11 @@ spec:
         - docs/adr/2026-08-09-storage-runtime-v2.md
         - docs/docs/releases/v1-0-1-upload-admission-safety.md
         - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
+        - docs/docs/releases/v1-1-0-d3-resource-lifecycle.md
         - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
       frameworkPaths:
         - mss-boot/runtime/config
+        - mss-boot/runtime/resource
       guidance: >-
         Build strict named resources and separate Derived Cache, ChallengeStore, EventBus,
         WorkQueue, Lock, ObjectStore, Delivery, and S3 bootstrap contracts. Required resources
@@ -420,7 +422,14 @@ spec:
         The D2 strict-config checkpoint now provides exact-key YAML/JSON decoding, immutable
         Redis plans for standalone, Sentinel, and cluster modes, typed SecretRef resolution, and
         side-effect-free Build. It does not construct a Redis client or satisfy provider health,
-        lifecycle, or real-deployment conformance; the aggregate therefore remains Planned.
+        lifecycle, or real-deployment conformance. The D3 resource-graph checkpoint now provides
+        deterministic preflight and topology, required readiness before dependents, reverse rollback
+        and close, graph-owned Run cancellation, concurrent idempotent caller-bounded close with
+        retry after failure, and
+        redacted typed diagnostics. Its hermetic evidence proves the state machine and owned handles,
+        not real goroutine/file-descriptor leak bounds, provider health, or Admin listener composition.
+        The aggregate therefore remains Planned; next compose a named Redis resource and the Admin
+        owner before adding the supplier backend.
 
     - id: platform.storage
       displayName: Legacy Object Storage Aggregate
@@ -673,14 +682,23 @@ spec:
       paths:
         - .mss/lock.yaml
         - .mss/features/foundation-v1-1-0-generator-blueprint.yaml
+        - .github/workflows/foundation-compatibility.yml
+        - docs/docs/releases/v1-1-0-d2-snapshot-identity.md
+        - internal/mss/app
         - internal/mss/blueprint
+        - internal/mss/doctor
+        - internal/mss/mcp
         - .mss/blueprints
       guidance: >-
-        The current three-way planner/apply path is beta. Before stable, separate Foundation release,
-        Blueprint, generator, and downstream snapshot identities; write the snapshot's lock and
-        manifest representations atomically and last; prove a real
-        0.1-to-0.2 customization-preserving upgrade; and emit explicit ownership, conflict,
-        migration, and validation reports.
+        The current three-way planner/apply path remains beta. Checkpoint 151a91c gives CLI, MCP,
+        and doctor one strict SnapshotStatus over independently sourced Foundation, Blueprint,
+        generator, and downstream identities plus the atomic lock/manifest record digests. It
+        distinguishes the exact Foundation source sentinel from a strict generated pair, fails
+        malformed or orphaned state without source fallback, and recovers the downstream root
+        module from the snapshot rather than the nested Admin module. Before stable, bind a real
+        foundation-compatibility.yml run to the selected feature-freeze SHA, prove an actual
+        Blueprint 0.1-to-0.2 customization-preserving upgrade and an empty second application,
+        and emit explicit ownership, conflict, migration, identity, digest, and validation reports.
 
     - id: foundation.versioned-release
       displayName: Versioned Foundation Release Governance

@@ -16,6 +16,16 @@ remains internal and does not promote provider maturity.
   YAML/JSON decoding, explicit standalone/Sentinel/cluster Redis plans, typed
   SecretRef resolution, redacted immutable snapshots, and a side-effect-free
   Build boundary. It does not yet construct or qualify a Redis provider client.
+- Added the domain-neutral `runtime/resource` lifecycle graph. `Build` validates
+  and deterministically sorts named dependencies without invoking resources;
+  `Start` establishes required readiness before dependents; `Run` owns peer
+  cancellation; and `Close` performs concurrent-safe reverse release with
+  caller-deadline enforcement and retry after failure. Lifecycle diagnostics
+  redact provider text while retaining `errors.Is`/`errors.As` classification.
+  The implementation checkpoint is `d90b4c7` and its deterministic concurrent
+  close evidence repair is `c830b5f`.
+  This checkpoint does not qualify provider health, real leak bounds, or an
+  Admin listener composition.
 - Replaced legacy object-storage provider globals with an exact Local-or-S3
   startup configuration, immutable `StorageProfile`, explicit default/static
   credential modes, typed environment `SecretRef` resolution, and one reusable
@@ -79,6 +89,9 @@ remains internal and does not promote provider maturity.
 - Recorded the additive managed Kafka lifecycle, exact owner/configuration evidence,
   and Admin Runnable boundary. D1 is complete and development proceeds to D2;
   lifecycle completion does not promote Kafka beyond Legacy/Blocked.
+- Recorded the D3 resource-graph checkpoint with all eleven top-level tests
+  required for twenty uncached race-detected runs. The aggregate Storage Runtime
+  remains Planned pending named Redis, Admin composition, and freeze conformance.
 
 ## [mss-boot/v1.0.0] - 2026-08-09
 
