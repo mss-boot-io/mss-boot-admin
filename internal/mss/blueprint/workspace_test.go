@@ -114,6 +114,43 @@ const Value = "local"
 	}
 }
 
+func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testing.T) {
+	path := filepath.Join("..", "..", "..", ".github", "workflows", "foundation-compatibility.yml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read Foundation compatibility workflow: %v", err)
+	}
+	workflow := string(data)
+	for _, required := range []string{
+		"NEXT_BLUEPRINT_VERSION",
+		"NEXT_PROJECT_BASELINE_VERSION",
+		"CURRENT_FOUNDATION_COMMIT",
+		"NEXT_FOUNDATION_COMMIT",
+		"internal/mss/buildinfo.Version=${generator_version}",
+		"internal/mss/buildinfo.Commit=${foundation_commit}",
+		"internal/mss/buildinfo.Commit=${next_commit}",
+		"mss_get_blueprint_status",
+		"mss_plan_foundation_upgrade",
+		"snapshot:foundation",
+		"status != mcp_status or status != doctor_status",
+		"identities != applied.get(\"toIdentities\")",
+		"project.foundationVersion was conflated with an independent runtime identity",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Errorf("Foundation compatibility workflow is missing identity contract %q", required)
+		}
+	}
+	for _, forbidden := range []string{
+		`text.replace("version: 0.1.0", "version: 0.1.1-ci"`,
+		`go run ./cmd/mss new app compatibility-admin`,
+		`foundationVersion: 0.1.1-ci`,
+	} {
+		if strings.Contains(workflow, forbidden) {
+			t.Errorf("Foundation compatibility workflow retains coupled or untraceable fixture %q", forbidden)
+		}
+	}
+}
+
 func writeFixtureFile(t *testing.T, root, relative, content string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(relative))

@@ -81,11 +81,21 @@ func (s *Server) blueprintStatus(arguments map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	manifest, err := blueprint.ReadManifest(s.Root, manifestPath)
+	projectContext, err := project.Load(s.Root)
 	if err != nil {
 		return nil, err
 	}
-	return manifest.Metadata, nil
+	status, err := blueprint.ReadSnapshotStatus(s.Root, manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := status.ValidateProjectIdentity(
+		projectContext.Project.Metadata.Name,
+		projectContext.Project.Metadata.Repository,
+	); err != nil {
+		return nil, err
+	}
+	return status, nil
 }
 
 func (s *Server) foundationUpgrade(ctx context.Context, arguments map[string]any, write bool) (any, error) {
@@ -110,13 +120,8 @@ func (s *Server) foundationUpgrade(ctx context.Context, arguments map[string]any
 		FoundationRoot:  foundationRoot,
 		ManifestPath:    manifestPath,
 		Blueprint:       blueprintName,
-		Application: blueprint.Application{
-			Name:        projectContext.Project.Metadata.Name,
-			DisplayName: projectContext.Project.Metadata.DisplayName,
-			Module:      projectContext.Project.Spec.Backend.Module,
-			Repository:  projectContext.Project.Metadata.Repository,
-		},
-		Write: write,
+		Application:     foundationUpgradeApplication(projectContext),
+		Write:           write,
 	})
 	if err != nil {
 		return plan, err
@@ -125,6 +130,20 @@ func (s *Server) foundationUpgrade(ctx context.Context, arguments map[string]any
 		return plan, fmt.Errorf("foundation upgrade did not enter write mode")
 	}
 	return plan, nil
+}
+
+// foundationUpgradeApplication leaves Module empty because the signed-in
+// downstream snapshot owns the root module identity. project.yaml's
+// spec.backend.module may instead name a nested deployable Admin module.
+func foundationUpgradeApplication(projectContext *project.Context) blueprint.Application {
+	if projectContext == nil {
+		return blueprint.Application{}
+	}
+	return blueprint.Application{
+		Name:        projectContext.Project.Metadata.Name,
+		DisplayName: projectContext.Project.Metadata.DisplayName,
+		Repository:  projectContext.Project.Metadata.Repository,
+	}
 }
 
 func blueprintToolDefinitions() []Tool {
@@ -148,7 +167,7 @@ func blueprintToolDefinitions() []Tool {
 		{
 			Name:        "mss_get_blueprint_status",
 			Title:       "Get downstream foundation baseline",
-			Description: "Read the downstream blueprint manifest metadata used for three-way upgrades.",
+			Description: "Read and cross-validate the downstream lock and manifest, returning compatibility metadata plus the four independent identities.",
 			InputSchema: objectSchema(map[string]any{
 				"manifestPath": map[string]any{"type": "string", "default": ".mss/blueprint-manifest.json"},
 			}, nil),

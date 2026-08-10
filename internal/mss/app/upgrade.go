@@ -73,38 +73,57 @@ func newUpgradeStatusCommand(rootOverride *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			manifest, err := blueprint.ReadManifest(projectContext.Root, manifestPath)
+			status, err := blueprint.ReadSnapshotStatus(projectContext.Root, manifestPath)
 			if err != nil {
 				return err
 			}
-			switch format {
-			case "json":
-				data, err := json.MarshalIndent(manifest.Metadata, "", "  ")
-				if err != nil {
-					return err
-				}
-				return writeLine(cmd.OutOrStdout(), data)
-			case "text":
-				_, err := fmt.Fprintf(
-					cmd.OutOrStdout(),
-					"project: %s\nmodule: %s\nrepository: %s\nblueprint: %s@%s\nfoundation: %s@%s\n",
-					manifest.Metadata.Project,
-					manifest.Metadata.Module,
-					manifest.Metadata.Repository,
-					manifest.Metadata.Blueprint,
-					manifest.Metadata.BlueprintVersion,
-					manifest.Metadata.FoundationRepository,
-					manifest.Metadata.FoundationCommit,
-				)
+			if err := status.ValidateProjectIdentity(
+				projectContext.Project.Metadata.Name,
+				projectContext.Project.Metadata.Repository,
+			); err != nil {
 				return err
-			default:
-				return fmt.Errorf("unsupported output format %q", format)
 			}
+			return writeUpgradeStatus(cmd.OutOrStdout(), status, format)
 		},
 	}
 	command.Flags().StringVar(&manifestPath, "manifest", ".mss/blueprint-manifest.json", "repository-relative blueprint manifest path")
 	command.Flags().StringVar(&format, "format", "text", "output format: text or json")
 	return command
+}
+
+func writeUpgradeStatus(writer io.Writer, status blueprint.SnapshotStatus, format string) error {
+	switch format {
+	case "json":
+		data, err := json.MarshalIndent(status, "", "  ")
+		if err != nil {
+			return err
+		}
+		return writeLine(writer, data)
+	case "text":
+		_, err := fmt.Fprintf(
+			writer,
+			"project: %s\nmodule: %s\nrepository: %s\nblueprint: %s@%s sha256 %s\nfoundation: %s@%s commit %s\ngenerator: %s@%s commit %s\nsnapshot: %s\nlock: %s sha256 %s\nmanifest: %s\n",
+			status.Project,
+			status.Module,
+			status.Repository,
+			status.Identities.Blueprint.Name,
+			status.Identities.Blueprint.Version,
+			status.Identities.Blueprint.SHA256,
+			status.Identities.Foundation.Repository,
+			status.Identities.Foundation.Version,
+			status.Identities.Foundation.Commit,
+			status.Identities.Generator.Tool,
+			status.Identities.Generator.Version,
+			status.Identities.Generator.Commit,
+			status.Identities.Snapshot.SHA256,
+			status.Records.LockPath,
+			status.Records.LockSHA256,
+			status.Records.ManifestPath,
+		)
+		return err
+	default:
+		return fmt.Errorf("unsupported output format %q", format)
+	}
 }
 
 func addUpgradeFlags(command *cobra.Command, foundation, blueprintName, manifestPath, format *string) {

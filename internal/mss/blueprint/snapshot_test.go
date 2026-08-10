@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -150,6 +151,205 @@ func TestReadSnapshotAcceptsLegacyManifestForUpgradeOnly(t *testing.T) {
 	}
 	if !accepted || legacy.APIVersion != legacyAPIVersion {
 		t.Fatalf("legacy upgrade input was not accepted: accepted=%t manifest=%#v", accepted, legacy)
+	}
+}
+
+func TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords(t *testing.T) {
+	root, manifest := generatedSnapshotFixture(t)
+	status, err := ReadSnapshotStatus(root, "")
+	if err != nil {
+		t.Fatalf("ReadSnapshotStatus() error = %v", err)
+	}
+	if status.Project != manifest.Metadata.Project || status.BlueprintVersion != manifest.Metadata.BlueprintVersion {
+		t.Fatalf("flat compatibility metadata = %#v, want %#v", status.ManifestMetadata, manifest.Metadata)
+	}
+	if !equalIdentitySets(status.Identities, manifest.Identities) || status.Records != manifest.Records {
+		t.Fatalf("status omitted strict snapshot data: %#v", status)
+	}
+
+	data, err := json.Marshal(status)
+	if err != nil {
+		t.Fatalf("marshal status: %v", err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatalf("decode status JSON: %v", err)
+	}
+	for _, flat := range []string{"project", "module", "repository", "blueprint", "blueprintVersion", "foundationRepository", "foundationCommit", "generatorVersion"} {
+		if _, ok := document[flat]; !ok {
+			t.Errorf("flat compatibility field %q is missing: %s", flat, data)
+		}
+	}
+	for _, strict := range []string{"identities", "records"} {
+		if _, ok := document[strict]; !ok {
+			t.Errorf("strict status field %q is missing: %s", strict, data)
+		}
+	}
+	if err := status.ValidateProjectIdentity("snapshot-admin", "acme/snapshot-admin"); err != nil {
+		t.Fatalf("ValidateProjectIdentity() error = %v", err)
+	}
+	if err := status.ValidateProjectIdentity("other-admin", "acme/snapshot-admin"); err == nil || !strings.Contains(err.Error(), "metadata.name") {
+		t.Fatalf("name contradiction error = %v", err)
+	}
+	if err := status.ValidateProjectIdentity("snapshot-admin", "acme/other-admin"); err == nil || !strings.Contains(err.Error(), "metadata.repository") {
+		t.Fatalf("repository contradiction error = %v", err)
+	}
+}
+
+func TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel(t *testing.T) {
+	root := t.TempDir()
+	lock := `apiVersion: mss.io/v1alpha1
+kind: FoundationLock
+metadata:
+  project: mss-boot-admin
+spec:
+  foundation:
+    repository: mss-boot-io/mss-boot-admin
+    version: 0.1.0
+    channel: development
+  blueprint:
+    name: management-system
+    version: 0.1.0
+  contracts:
+    project: v1alpha1
+  generatedBy:
+    tool: mss
+    version: 0.1.0-dev
+  modules: {}
+  upgrades: []
+`
+	path := filepath.Join(root, ".mss", "lock.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create source lock parent: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(lock), 0o644); err != nil {
+		t.Fatalf("write source lock: %v", err)
+	}
+
+	inspection, err := InspectSnapshot(root, "", "mss-boot-admin", "mss-boot-io/mss-boot-admin")
+	if err != nil {
+		t.Fatalf("InspectSnapshot() error = %v", err)
+	}
+	if inspection.Role != SnapshotRoleFoundationSource || inspection.Source == nil || inspection.Status != nil {
+		t.Fatalf("source inspection = %#v", inspection)
+	}
+	if inspection.Source.FoundationVersion != "0.1.0" || inspection.Source.GeneratorVersion != "0.1.0-dev" {
+		t.Fatalf("source identity = %#v", inspection.Source)
+	}
+}
+
+func TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack(t *testing.T) {
+	root, _ := generatedSnapshotFixture(t)
+	inspection, err := InspectSnapshot(root, "", "snapshot-admin", "acme/snapshot-admin")
+	if err != nil {
+		t.Fatalf("InspectSnapshot() valid generated error = %v", err)
+	}
+	if inspection.Role != SnapshotRoleGenerated || inspection.Status == nil || inspection.Source != nil {
+		t.Fatalf("generated inspection = %#v", inspection)
+	}
+
+	manifestPath := filepath.Join(root, ".mss", "blueprint-manifest.json")
+	if err := os.WriteFile(manifestPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatalf("corrupt current manifest: %v", err)
+	}
+	if _, err := InspectSnapshot(root, "", "snapshot-admin", "acme/snapshot-admin"); err == nil || !strings.Contains(err.Error(), "unsupported blueprint manifest identity") {
+		t.Fatalf("malformed current inspection error = %v", err)
+	}
+
+	if err := os.Remove(manifestPath); err != nil {
+		t.Fatalf("remove current manifest: %v", err)
+	}
+	if _, err := InspectSnapshot(root, "", "snapshot-admin", "acme/snapshot-admin"); err == nil || !strings.Contains(err.Error(), "orphan or malformed snapshot lock") {
+		t.Fatalf("orphan current lock inspection error = %v", err)
+	}
+}
+
+func TestInspectSnapshotWaitsForSourceToGeneratedTransition(t *testing.T) {
+	generatedRoot, manifest := generatedSnapshotFixture(t)
+	currentLock, err := os.ReadFile(filepath.Join(generatedRoot, filepath.FromSlash(manifest.Records.LockPath)))
+	if err != nil {
+		t.Fatalf("read current lock: %v", err)
+	}
+	currentManifest, err := os.ReadFile(filepath.Join(generatedRoot, filepath.FromSlash(manifest.Records.ManifestPath)))
+	if err != nil {
+		t.Fatalf("read current manifest: %v", err)
+	}
+
+	root := t.TempDir()
+	lockPath := filepath.Join(root, ".mss", "lock.yaml")
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
+		t.Fatalf("create transition root: %v", err)
+	}
+	if err := os.WriteFile(lockPath, []byte(`apiVersion: mss.io/v1alpha1
+kind: FoundationLock
+metadata:
+  project: snapshot-admin
+spec:
+  foundation:
+    repository: acme/snapshot-admin
+    version: 0.1.0
+    channel: development
+  blueprint:
+    name: management-system
+    version: 0.1.0
+  contracts:
+    project: v1alpha1
+  generatedBy:
+    tool: mss
+    version: 0.1.0-dev
+  modules: {}
+  upgrades: []
+`), 0o644); err != nil {
+		t.Fatalf("write source sentinel: %v", err)
+	}
+
+	writerRoot, err := openManagedRoot(root, false)
+	if err != nil {
+		t.Fatalf("open transition root: %v", err)
+	}
+	defer writerRoot.Close()
+	releaseWriter, err := acquireSnapshotWriter(context.Background(), writerRoot)
+	if err != nil {
+		t.Fatalf("acquire transition writer: %v", err)
+	}
+	writerReleased := false
+	defer func() {
+		if !writerReleased {
+			releaseWriter()
+		}
+	}()
+	if err := writerRoot.writeAtomic(manifest.Records.LockPath, currentLock, 0o644); err != nil {
+		t.Fatalf("commit transition lock: %v", err)
+	}
+
+	type inspectionResult struct {
+		inspection SnapshotInspection
+		err        error
+	}
+	started := make(chan struct{})
+	result := make(chan inspectionResult, 1)
+	go func() {
+		close(started)
+		inspection, err := InspectSnapshot(root, "", "snapshot-admin", "acme/snapshot-admin")
+		result <- inspectionResult{inspection: inspection, err: err}
+	}()
+	<-started
+	if err := writerRoot.writeAtomic(manifest.Records.ManifestPath, currentManifest, 0o644); err != nil {
+		t.Fatalf("commit transition manifest: %v", err)
+	}
+	releaseWriter()
+	writerReleased = true
+
+	select {
+	case got := <-result:
+		if got.err != nil {
+			t.Fatalf("InspectSnapshot() transition error = %v", got.err)
+		}
+		if got.inspection.Role != SnapshotRoleGenerated || got.inspection.Status == nil {
+			t.Fatalf("transition inspection = %#v", got.inspection)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("InspectSnapshot() did not resume after the atomic pair commit")
 	}
 }
 

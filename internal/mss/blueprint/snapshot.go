@@ -141,7 +141,10 @@ func readSnapshotUnlocked(root *managedRoot, manifestRelative string) (Snapshot,
 }
 
 // ReadManifest returns only a verified current manifest while retaining the
-// original API for existing status consumers.
+// original API as a source-compatibility bridge.
+//
+// Deprecated: new consumers must use ReadSnapshot or ReadSnapshotStatus so
+// both cross-digested representations and all four identities remain visible.
 func ReadManifest(root, relative string) (Manifest, error) {
 	snapshot, err := ReadSnapshot(root, relative)
 	if err != nil {

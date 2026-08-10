@@ -34,6 +34,37 @@ jobs:
             admin/go.sum
             mss-boot/go.sum
 
+      - name: Build traceable Foundation tools
+        run: |
+          set -euo pipefail
+          foundation_commit="$(git rev-parse HEAD^{commit})"
+          generator_version="$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          policy = Path('.mss/release-policy.yaml').read_text(encoding='utf-8')
+          match = re.search(r'^\s*nextPublicVersion:\s*v?([^\s]+)\s*$', policy, re.MULTILINE)
+          if not match:
+              raise SystemExit('nextPublicVersion is missing from the release policy')
+          print(match.group(1))
+          PY
+          )"
+          if [[ ! "${foundation_commit}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Foundation commit is not a full SHA: ${foundation_commit}" >&2
+            exit 1
+          fi
+          if [[ -z "${generator_version}" ]]; then
+            echo "Generator version is empty." >&2
+            exit 1
+          fi
+          ldflags="-X github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo.Version=${generator_version} -X github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo.Commit=${foundation_commit}"
+          go build -trimpath -ldflags "${ldflags}" -o "${RUNNER_TEMP}/mss-current" ./cmd/mss
+          go build -trimpath -ldflags "${ldflags}" -o "${RUNNER_TEMP}/mss-mcp-current" ./cmd/mss-mcp
+          "${RUNNER_TEMP}/mss-current" --version
+          "${RUNNER_TEMP}/mss-mcp-current" -version
+          echo "CURRENT_FOUNDATION_COMMIT=${foundation_commit}" >> "${GITHUB_ENV}"
+          echo "GENERATOR_VERSION=${generator_version}" >> "${GITHUB_ENV}"
+
       - name: Configure Git identity
         run: |
           git config --global user.name "mss-foundation-ci"
@@ -56,7 +87,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf "${DOWNSTREAM}"
-          go run ./cmd/mss new app compatibility-admin \
+          "${RUNNER_TEMP}/mss-current" new app compatibility-admin \
             --display-name "Compatibility Administration" \
             --module github.com/example/compatibility-admin \
             --repository example/compatibility-admin \
@@ -72,16 +103,67 @@ jobs:
       - name: Validate generated downstream modules and tooling
         run: |
           set -euo pipefail
+          "${RUNNER_TEMP}/mss-current" --root "${DOWNSTREAM}" context --format json > "${RUNNER_TEMP}/downstream-context.json"
+          "${RUNNER_TEMP}/mss-current" --root "${DOWNSTREAM}" doctor --strict --component agent --format json > "${RUNNER_TEMP}/downstream-agent-doctor.json"
+          "${RUNNER_TEMP}/mss-current" --root "${DOWNSTREAM}" doctor --strict --component backend --format json > "${RUNNER_TEMP}/downstream-admin-doctor.json"
+          "${RUNNER_TEMP}/mss-current" --root "${DOWNSTREAM}" upgrade status --format json > "${RUNNER_TEMP}/downstream-status.json"
+          printf '%s\n' '{"jsonrpc":"2.0","id":"status","method":"tools/call","params":{"name":"mss_get_blueprint_status","arguments":{}}}' \
+            | "${RUNNER_TEMP}/mss-mcp-current" -root "${DOWNSTREAM}" \
+            > "${RUNNER_TEMP}/downstream-mcp-status.json"
           (
             cd "${DOWNSTREAM}"
-            go run ./cmd/mss context --format json > "${RUNNER_TEMP}/downstream-context.json"
-            go run ./cmd/mss doctor --strict --component agent --format json > "${RUNNER_TEMP}/downstream-agent-doctor.json"
-            go run ./cmd/mss doctor --strict --component backend --format json > "${RUNNER_TEMP}/downstream-admin-doctor.json"
             go run ./cmd/mss skills validate --format json > "${RUNNER_TEMP}/downstream-skills.json"
             go test ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/...
             go test ./admin/...
             go test ./mss-boot/...
           )
+
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          temp = Path(os.environ['RUNNER_TEMP'])
+          generated = json.loads((temp / 'new-app.json').read_text())
+          status = json.loads((temp / 'downstream-status.json').read_text())
+          doctor = json.loads((temp / 'downstream-agent-doctor.json').read_text())
+          context = json.loads((temp / 'downstream-context.json').read_text())
+          rpc = json.loads((temp / 'downstream-mcp-status.json').read_text())
+          if rpc['result'].get('isError'):
+              raise SystemExit(f"MCP status failed: {rpc['result']}")
+          mcp_status = rpc['result']['structuredContent']
+          snapshot_checks = [check for check in doctor['checks'] if check['id'] == 'snapshot:foundation']
+          if len(snapshot_checks) != 1:
+              raise SystemExit(f'doctor snapshot check is missing or duplicated: {doctor}')
+          doctor_status = snapshot_checks[0].get('snapshot')
+          if snapshot_checks[0].get('status') != 'pass' or not snapshot_checks[0].get('required') or not doctor_status:
+              raise SystemExit(f'doctor did not require the generated snapshot: {snapshot_checks[0]}')
+          if generated['identities'] != status['identities']:
+              raise SystemExit('generation plan and installed status identities differ')
+          if status != mcp_status or status != doctor_status:
+              raise SystemExit('CLI, MCP, and doctor snapshot status differ')
+          identities = status['identities']
+          records = status['records']
+          foundation = identities['foundation']
+          blueprint = identities['blueprint']
+          generator = identities['generator']
+          if foundation.get('version') != os.environ['GENERATOR_VERSION'] or foundation.get('commit') != os.environ['CURRENT_FOUNDATION_COMMIT']:
+              raise SystemExit(f'Foundation identity did not come from release policy and exact source: {foundation}')
+          if blueprint.get('version') != '0.2.0':
+              raise SystemExit(f'initial Blueprint identity is not the committed 0.2.0 revision: {blueprint}')
+          if generator.get('version') != os.environ['GENERATOR_VERSION'] or generator.get('commit') != os.environ['CURRENT_FOUNDATION_COMMIT']:
+              raise SystemExit(f'generator build identity was not injected: {generator}')
+          project_baseline = context['project']['spec']['foundationVersion']
+          if project_baseline in {foundation['version'], blueprint['version'], generator['version']}:
+              raise SystemExit('project.foundationVersion was conflated with an independent initial identity')
+          for label, value in {
+              'Blueprint digest': blueprint.get('sha256', ''),
+              'snapshot digest': identities.get('snapshot', {}).get('sha256', ''),
+              'lock digest': records.get('lockSha256', ''),
+          }.items():
+              if len(value) != 64 or any(character not in '0123456789abcdef' for character in value):
+                  raise SystemExit(f'{label} is not an exact SHA-256 digest: {value}')
+          PY
 
       - name: Create a deterministic next foundation revision
         run: |
@@ -94,20 +176,31 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import os
+          import re
 
           root = Path(os.environ["NEXT_FOUNDATION"])
 
           blueprint = root / ".mss/blueprints/management-system.yaml"
           text = blueprint.read_text(encoding="utf-8")
-          if "version: 0.1.0" not in text:
-              raise SystemExit("unexpected Blueprint version")
-          blueprint.write_text(text.replace("version: 0.1.0", "version: 0.1.1-ci", 1), encoding="utf-8")
+          match = re.search(r'(?m)^(  version: )(0\.2\.([0-9]+))\s*$', text)
+          if not match:
+              raise SystemExit("expected a 0.2.x Blueprint version")
+          next_blueprint = f"0.2.{int(match.group(3)) + 1}-ci"
+          text = text[:match.start(2)] + next_blueprint + text[match.end(2):]
+          blueprint.write_text(text, encoding="utf-8")
 
           project = root / ".mss/project.yaml"
           text = project.read_text(encoding="utf-8")
-          if "foundationVersion: 0.1.0" not in text:
-              raise SystemExit("unexpected foundationVersion")
-          project.write_text(text.replace("foundationVersion: 0.1.0", "foundationVersion: 0.1.1-ci", 1), encoding="utf-8")
+          match = re.search(r'(?m)^(  foundationVersion: )(([0-9]+)\.([0-9]+)\.([0-9]+)(?:-[^\s]+)?)\s*$', text)
+          if not match:
+              raise SystemExit("project foundationVersion is not a semantic baseline")
+          next_project_baseline = f"{match.group(3)}.{match.group(4)}.{int(match.group(5)) + 1}-project-ci"
+          text = text[:match.start(2)] + next_project_baseline + text[match.end(2):]
+          project.write_text(text, encoding="utf-8")
+
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as env:
+              env.write(f"NEXT_BLUEPRINT_VERSION={next_blueprint}\n")
+              env.write(f"NEXT_PROJECT_BASELINE_VERSION={next_project_baseline}\n")
 
           probe = root / "docs/docs/agent/foundation-compatibility-probe.md"
           probe.write_text("# Foundation compatibility probe\n\nGenerated by the compatibility pipeline fixture.\n", encoding="utf-8")
@@ -120,6 +213,24 @@ jobs:
 
           git -C "${NEXT_FOUNDATION}" add -A
           git -C "${NEXT_FOUNDATION}" commit -m "test: create next foundation fixture"
+
+      - name: Build traceable next-Foundation tools
+        run: |
+          set -euo pipefail
+          next_commit="$(git -C "${NEXT_FOUNDATION}" rev-parse HEAD^{commit})"
+          if [[ ! "${next_commit}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Next Foundation commit is not a full SHA: ${next_commit}" >&2
+            exit 1
+          fi
+          ldflags="-X github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo.Version=${GENERATOR_VERSION} -X github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo.Commit=${next_commit}"
+          (
+            cd "${NEXT_FOUNDATION}"
+            go build -trimpath -ldflags "${ldflags}" -o "${RUNNER_TEMP}/mss-next" ./cmd/mss
+            go build -trimpath -ldflags "${ldflags}" -o "${RUNNER_TEMP}/mss-mcp-next" ./cmd/mss-mcp
+          )
+          "${RUNNER_TEMP}/mss-next" --version
+          "${RUNNER_TEMP}/mss-mcp-next" -version
+          echo "NEXT_FOUNDATION_COMMIT=${next_commit}" >> "${GITHUB_ENV}"
 
       - name: Add downstream-only Admin customizations
         run: |
@@ -137,15 +248,15 @@ jobs:
       - name: Plan the next foundation upgrade
         run: |
           set -euo pipefail
-          (
-            cd "${NEXT_FOUNDATION}"
-            go run ./cmd/mss \
-              --root "${DOWNSTREAM}" \
-              upgrade plan \
-              --foundation "${NEXT_FOUNDATION}" \
-              --format json \
-              > "${RUNNER_TEMP}/upgrade-plan.json"
-          )
+          "${RUNNER_TEMP}/mss-next" \
+            --root "${DOWNSTREAM}" \
+            upgrade plan \
+            --foundation "${NEXT_FOUNDATION}" \
+            --format json \
+            > "${RUNNER_TEMP}/upgrade-plan.json"
+          printf '%s\n' "{\"jsonrpc\":\"2.0\",\"id\":\"upgrade-plan\",\"method\":\"tools/call\",\"params\":{\"name\":\"mss_plan_foundation_upgrade\",\"arguments\":{\"foundationRoot\":\"${NEXT_FOUNDATION}\"}}}" \
+            | "${RUNNER_TEMP}/mss-mcp-next" -root "${DOWNSTREAM}" \
+            > "${RUNNER_TEMP}/mcp-upgrade-plan.json"
 
           python3 - <<'PY'
           import json
@@ -153,8 +264,16 @@ jobs:
           from pathlib import Path
 
           plan = json.loads((Path(os.environ["RUNNER_TEMP"]) / "upgrade-plan.json").read_text())
+          rpc = json.loads((Path(os.environ["RUNNER_TEMP"]) / "mcp-upgrade-plan.json").read_text())
           if not plan.get("success") or not plan.get("dryRun"):
               raise SystemExit(f"upgrade plan is not a successful dry-run: {plan}")
+          if rpc["result"].get("isError"):
+              raise SystemExit(f"MCP upgrade plan failed: {rpc['result']}")
+          mcp_plan = rpc["result"]["structuredContent"]
+          if plan["application"]["module"] != "github.com/example/compatibility-admin":
+              raise SystemExit(f"CLI upgrade did not recover the root module from the snapshot: {plan['application']}")
+          if mcp_plan["application"] != plan["application"] or mcp_plan["toIdentities"] != plan["toIdentities"]:
+              raise SystemExit("CLI and MCP upgrade plans disagree on application or target identities")
           actions = {change["action"] for change in plan["changes"]}
           required = {"create", "update", "delete", "preserve"}
           missing = required - actions
@@ -165,26 +284,27 @@ jobs:
       - name: Apply and verify the next foundation upgrade
         run: |
           set -euo pipefail
-          (
-            cd "${NEXT_FOUNDATION}"
-            go run ./cmd/mss \
-              --root "${DOWNSTREAM}" \
-              upgrade apply \
-              --foundation "${NEXT_FOUNDATION}" \
-              --yes \
-              --format json \
-              > "${RUNNER_TEMP}/upgrade-apply.json"
-          )
+          "${RUNNER_TEMP}/mss-next" \
+            --root "${DOWNSTREAM}" \
+            upgrade apply \
+            --foundation "${NEXT_FOUNDATION}" \
+            --yes \
+            --format json \
+            > "${RUNNER_TEMP}/upgrade-apply.json"
 
           grep -q "# Downstream custom policy" "${DOWNSTREAM}/AGENTS.md"
           test -f "${DOWNSTREAM}/admin/modules/customer-extension/custom.go"
-          grep -q "foundationVersion: 0.1.1-ci" "${DOWNSTREAM}/.mss/project.yaml"
+          grep -q "foundationVersion: ${NEXT_PROJECT_BASELINE_VERSION}" "${DOWNSTREAM}/.mss/project.yaml"
           test -f "${DOWNSTREAM}/docs/docs/agent/foundation-compatibility-probe.md"
           test ! -e "${DOWNSTREAM}/docs/docs/agent/architecture.md"
 
+          "${RUNNER_TEMP}/mss-next" --root "${DOWNSTREAM}" upgrade status --format json > "${RUNNER_TEMP}/upgrade-status.json"
+          "${RUNNER_TEMP}/mss-next" --root "${DOWNSTREAM}" doctor --strict --component agent --format json > "${RUNNER_TEMP}/upgraded-agent-doctor.json"
+          printf '%s\n' '{"jsonrpc":"2.0","id":"status","method":"tools/call","params":{"name":"mss_get_blueprint_status","arguments":{}}}' \
+            | "${RUNNER_TEMP}/mss-mcp-next" -root "${DOWNSTREAM}" \
+            > "${RUNNER_TEMP}/upgraded-mcp-status.json"
           (
             cd "${DOWNSTREAM}"
-            go run ./cmd/mss upgrade status --format json > "${RUNNER_TEMP}/upgrade-status.json"
             go run ./cmd/mss context --format json > "${RUNNER_TEMP}/upgraded-context.json"
             go run ./cmd/mss skills validate --format json > "${RUNNER_TEMP}/upgraded-skills.json"
             go test ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/...
@@ -197,11 +317,50 @@ jobs:
           import os
           from pathlib import Path
 
-          status = json.loads((Path(os.environ["RUNNER_TEMP"]) / "upgrade-status.json").read_text())
-          if status.get("blueprintVersion") != "0.1.1-ci":
+          temp = Path(os.environ["RUNNER_TEMP"])
+          status = json.loads((temp / "upgrade-status.json").read_text())
+          applied = json.loads((temp / "upgrade-apply.json").read_text())
+          doctor = json.loads((temp / "upgraded-agent-doctor.json").read_text())
+          rpc = json.loads((temp / "upgraded-mcp-status.json").read_text())
+          if rpc["result"].get("isError"):
+              raise SystemExit(f"MCP upgraded status failed: {rpc['result']}")
+          mcp_status = rpc["result"]["structuredContent"]
+          snapshot_checks = [check for check in doctor["checks"] if check["id"] == "snapshot:foundation"]
+          if len(snapshot_checks) != 1 or snapshot_checks[0].get("status") != "pass" or not snapshot_checks[0].get("required"):
+              raise SystemExit(f"doctor did not require the upgraded snapshot: {snapshot_checks}")
+          doctor_status = snapshot_checks[0].get("snapshot")
+          if status != mcp_status or status != doctor_status:
+              raise SystemExit("upgraded CLI, MCP, and doctor snapshot status differ")
+          if status.get("blueprintVersion") != os.environ["NEXT_BLUEPRINT_VERSION"]:
               raise SystemExit(f"unexpected installed Blueprint version: {status}")
-          if not status.get("foundationCommit"):
-              raise SystemExit(f"foundation commit is missing: {status}")
+          identities = status.get("identities", {})
+          records = status.get("records", {})
+          if identities != applied.get("toIdentities"):
+              raise SystemExit("applied target identities differ from installed status")
+          if identities.get("foundation", {}).get("commit") != os.environ["NEXT_FOUNDATION_COMMIT"]:
+              raise SystemExit(f"Foundation commit is not exact: {identities}")
+          if identities.get("foundation", {}).get("version") != os.environ["GENERATOR_VERSION"]:
+              raise SystemExit(f"Foundation release identity did not come from release policy: {identities}")
+          if identities.get("blueprint", {}).get("version") != os.environ["NEXT_BLUEPRINT_VERSION"]:
+              raise SystemExit(f"Blueprint identity is not independently versioned: {identities}")
+          generator = identities.get("generator", {})
+          if generator.get("version") != os.environ["GENERATOR_VERSION"] or generator.get("commit") != os.environ["NEXT_FOUNDATION_COMMIT"]:
+              raise SystemExit(f"generator build identity is not exact: {generator}")
+          if os.environ["NEXT_PROJECT_BASELINE_VERSION"] in {
+              identities["foundation"]["version"],
+              identities["blueprint"]["version"],
+              generator["version"],
+          }:
+              raise SystemExit("project.foundationVersion was conflated with an independent runtime identity")
+          if status.get("foundationCommit") != identities["foundation"]["commit"] or status.get("generatorCommit") != generator["commit"]:
+              raise SystemExit(f"flat compatibility metadata contradicts identities: {status}")
+          for label, value in {
+              "Blueprint digest": identities.get("blueprint", {}).get("sha256", ""),
+              "snapshot digest": identities.get("snapshot", {}).get("sha256", ""),
+              "lock digest": records.get("lockSha256", ""),
+          }.items():
+              if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+                  raise SystemExit(f"{label} is not an exact SHA-256 digest: {value}")
           PY
 
           git -C "${DOWNSTREAM}" add -A
@@ -223,15 +382,12 @@ jobs:
           cp "${DOWNSTREAM}/admin/main.go" "${RUNNER_TEMP}/downstream-admin-main-before-conflict.go"
 
           set +e
-          (
-            cd "${CONFLICT_FOUNDATION}"
-            go run ./cmd/mss \
-              --root "${DOWNSTREAM}" \
-              upgrade plan \
-              --foundation "${CONFLICT_FOUNDATION}" \
-              --format json \
-              > "${RUNNER_TEMP}/upgrade-conflict.json"
-          )
+          "${RUNNER_TEMP}/mss-next" \
+            --root "${DOWNSTREAM}" \
+            upgrade plan \
+            --foundation "${CONFLICT_FOUNDATION}" \
+            --format json \
+            > "${RUNNER_TEMP}/upgrade-conflict.json"
           plan_exit=$?
           set -e
           if [[ ${plan_exit} -ne 0 ]]; then
@@ -252,16 +408,13 @@ jobs:
               raise SystemExit(f"admin/main.go conflict is missing: {conflicts}")
           PY
 
-          if (
-            cd "${CONFLICT_FOUNDATION}" &&
-            go run ./cmd/mss \
+          if "${RUNNER_TEMP}/mss-next" \
               --root "${DOWNSTREAM}" \
               upgrade apply \
               --foundation "${CONFLICT_FOUNDATION}" \
               --yes \
               --format json \
-              > "${RUNNER_TEMP}/unexpected-conflict-apply.json"
-          ); then
+              > "${RUNNER_TEMP}/unexpected-conflict-apply.json"; then
             echo "Conflict apply unexpectedly succeeded." >&2
             exit 1
           fi
@@ -278,10 +431,15 @@ jobs:
             ${{ runner.temp }}/downstream-context.json
             ${{ runner.temp }}/downstream-agent-doctor.json
             ${{ runner.temp }}/downstream-admin-doctor.json
+            ${{ runner.temp }}/downstream-status.json
+            ${{ runner.temp }}/downstream-mcp-status.json
             ${{ runner.temp }}/downstream-skills.json
             ${{ runner.temp }}/upgrade-plan.json
+            ${{ runner.temp }}/mcp-upgrade-plan.json
             ${{ runner.temp }}/upgrade-apply.json
             ${{ runner.temp }}/upgrade-status.json
+            ${{ runner.temp }}/upgraded-agent-doctor.json
+            ${{ runner.temp }}/upgraded-mcp-status.json
             ${{ runner.temp }}/upgraded-context.json
             ${{ runner.temp }}/upgraded-skills.json
             ${{ runner.temp }}/upgrade-conflict.json

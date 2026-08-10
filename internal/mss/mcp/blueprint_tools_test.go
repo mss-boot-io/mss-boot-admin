@@ -3,6 +3,8 @@ package mcp
 import (
 	"context"
 	"testing"
+
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
 func TestBlueprintToolDefinitionsAreComplete(t *testing.T) {
@@ -63,5 +65,34 @@ func TestAllToolDefinitionsIncludeBlueprintTools(t *testing.T) {
 		if !seen[expected] {
 			t.Fatalf("tools() does not include %s", expected)
 		}
+	}
+}
+
+func TestFoundationUpgradeApplicationDefersRootModuleToSnapshot(t *testing.T) {
+	projectContext := &project.Context{
+		Project: project.ProjectDocument{
+			Metadata: project.Metadata{
+				Name:        "customer-admin",
+				DisplayName: "Customer Administration",
+				Repository:  "acme/customer-admin",
+			},
+			Spec: project.ProjectSpec{
+				FoundationVersion: "0.1.99-unrelated",
+				Backend: project.BackendSpec{
+					Module: "github.com/acme/customer-admin/admin",
+				},
+			},
+		},
+	}
+
+	application := foundationUpgradeApplication(projectContext)
+	if application.Name != "customer-admin" || application.Repository != "acme/customer-admin" {
+		t.Fatalf("upgrade application = %#v", application)
+	}
+	if application.Module != "" {
+		t.Fatalf("nested backend module escaped into root snapshot identity: %q", application.Module)
+	}
+	if nilApplication := foundationUpgradeApplication(nil); nilApplication.Name != "" || nilApplication.Module != "" {
+		t.Fatalf("nil project context produced %#v", nilApplication)
 	}
 }

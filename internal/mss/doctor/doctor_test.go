@@ -2,12 +2,19 @@ package doctor
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/blueprint"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
+	"gopkg.in/yaml.v3"
 )
 
 func TestParseComponentsReturnsStableDeduplicatedOrder(t *testing.T) {
@@ -53,11 +60,12 @@ func TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains(t *testing.T) {
 			t.Fatalf("write %s: %v", relative, err)
 		}
 	}
+	writeDoctorSourceSentinel(t, root)
 
 	projectContext := &project.Context{
 		Root: root,
 		Project: project.ProjectDocument{
-			Metadata: project.Metadata{Name: "doctor-test"},
+			Metadata: project.Metadata{Name: "doctor-test", Repository: "acme/doctor-test"},
 		},
 	}
 	report := Run(context.Background(), projectContext, WithComponents(ComponentAgent))
@@ -75,6 +83,7 @@ func TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains(t *testing.T) {
 		"file:.mss/commands.yaml",
 		"tool:git",
 		"tool:go",
+		"snapshot:foundation",
 	} {
 		if _, ok := checks[required]; !ok {
 			t.Errorf("required Agent check %q is missing", required)
@@ -91,4 +100,252 @@ func TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains(t *testing.T) {
 			t.Errorf("unrelated check %q must not be part of Agent scope", excluded)
 		}
 	}
+	snapshot := checks["snapshot:foundation"]
+	if snapshot.Status != StatusInfo || snapshot.Required || snapshot.Snapshot != nil {
+		t.Fatalf("Foundation source snapshot check = %#v", snapshot)
+	}
+}
+
+func TestRunAgentScopeRequiresValidGeneratedSnapshot(t *testing.T) {
+	root := t.TempDir()
+	writeDoctorAgentContracts(t, root)
+	writeDoctorGeneratedSnapshot(t, root)
+	projectContext := doctorProjectContext(root)
+
+	report := Run(context.Background(), projectContext, WithComponents(ComponentAgent))
+	checks := checksByID(report.Checks)
+	snapshot := checks["snapshot:foundation"]
+	if snapshot.Status != StatusPass || !snapshot.Required || snapshot.Snapshot == nil {
+		t.Fatalf("generated snapshot check = %#v", snapshot)
+	}
+	if snapshot.Snapshot.Identities.Foundation.Version != "1.1.0" ||
+		snapshot.Snapshot.Identities.Blueprint.Version != "0.2.1-ci" ||
+		snapshot.Snapshot.Identities.Generator.Commit != strings.Repeat("b", 40) {
+		t.Fatalf("doctor omitted independent identities: %#v", snapshot.Snapshot.Identities)
+	}
+}
+
+func TestRunAgentScopeFailsMalformedCurrentSnapshotWithoutSourceFallback(t *testing.T) {
+	root := t.TempDir()
+	writeDoctorAgentContracts(t, root)
+	writeDoctorSourceSentinel(t, root)
+	manifestPath := filepath.Join(root, ".mss", "blueprint-manifest.json")
+	if err := os.WriteFile(manifestPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatalf("write malformed current manifest: %v", err)
+	}
+
+	report := Run(context.Background(), doctorProjectContext(root), WithComponents(ComponentAgent))
+	snapshot := checksByID(report.Checks)["snapshot:foundation"]
+	if report.Ready || snapshot.Status != StatusFail || !snapshot.Required {
+		t.Fatalf("malformed snapshot readiness = ready:%t check:%#v", report.Ready, snapshot)
+	}
+}
+
+func writeDoctorAgentContracts(t *testing.T, root string) {
+	t.Helper()
+	for _, relative := range []string{".mss/project.yaml", ".mss/capabilities.yaml", ".mss/commands.yaml"} {
+		path := filepath.Join(root, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("create parent for %s: %v", relative, err)
+		}
+		if err := os.WriteFile(path, []byte("test\n"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", relative, err)
+		}
+	}
+}
+
+func doctorProjectContext(root string) *project.Context {
+	return &project.Context{
+		Root: root,
+		Project: project.ProjectDocument{
+			Metadata: project.Metadata{
+				Name:       "doctor-test",
+				Repository: "acme/doctor-test",
+			},
+			Spec: project.ProjectSpec{
+				// These deliberately differ from the snapshot root module and
+				// Foundation identity; doctor must not compare either field.
+				FoundationVersion: "0.1.99-unrelated",
+				Backend: project.BackendSpec{
+					Module: "github.com/acme/doctor-test/admin",
+				},
+			},
+		},
+	}
+}
+
+func checksByID(checks []Check) map[string]Check {
+	result := make(map[string]Check, len(checks))
+	for _, check := range checks {
+		result[check.ID] = check
+	}
+	return result
+}
+
+func writeDoctorSourceSentinel(t *testing.T, root string) {
+	t.Helper()
+	path := filepath.Join(root, ".mss", "lock.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create source lock parent: %v", err)
+	}
+	data := `apiVersion: mss.io/v1alpha1
+kind: FoundationLock
+metadata:
+  project: doctor-test
+spec:
+  foundation:
+    repository: acme/doctor-test
+    version: 0.1.0
+    channel: development
+  blueprint:
+    name: management-system
+    version: 0.1.0
+  contracts:
+    project: v1alpha1
+  generatedBy:
+    tool: mss
+    version: 0.1.0-dev
+  modules: {}
+  upgrades: []
+`
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatalf("write source lock: %v", err)
+	}
+}
+
+func writeDoctorGeneratedSnapshot(t *testing.T, root string) {
+	t.Helper()
+	files := map[string]blueprint.ManifestFile{
+		"AGENTS.md": {SHA256: strings.Repeat("f", 64), Mode: 0o644, Size: 7},
+	}
+	identities := blueprint.IdentitySet{
+		Foundation: blueprint.FoundationIdentity{
+			Repository: "mss-boot-io/mss-boot-admin",
+			Version:    "1.1.0",
+			Commit:     strings.Repeat("a", 40),
+			Timestamp:  "2026-08-10T12:00:00Z",
+			Channel:    "candidate",
+			Source:     ".mss/release-policy.yaml",
+		},
+		Blueprint: blueprint.BlueprintIdentity{
+			Name:    "management-system",
+			Version: "0.2.1-ci",
+			SHA256:  strings.Repeat("c", 64),
+		},
+		Generator: blueprint.GeneratorIdentity{
+			Tool:    "mss",
+			Version: "1.1.0",
+			Commit:  strings.Repeat("b", 40),
+		},
+		Snapshot: blueprint.DownstreamSnapshotIdentity{
+			Project:    "doctor-test",
+			Module:     "github.com/acme/doctor-test",
+			Repository: "acme/doctor-test",
+		},
+	}
+	identities.Snapshot.SHA256 = doctorSnapshotDigest(t, identities, files)
+	records := blueprint.SnapshotRecordPaths{
+		LockPath:     ".mss/lock.yaml",
+		ManifestPath: ".mss/blueprint-manifest.json",
+	}
+	lock := blueprint.FoundationLock{
+		APIVersion: "mss.io/v1alpha2",
+		Kind:       "FoundationLock",
+		Metadata:   blueprint.FoundationLockMetadata{Project: "doctor-test"},
+		Spec: blueprint.FoundationLockSpec{
+			Identities: identities,
+			Records:    records,
+			Contracts:  map[string]string{"project": "v1alpha1"},
+			Modules:    map[string]any{},
+			Upgrades:   []any{},
+		},
+	}
+	lockData, err := yaml.Marshal(lock)
+	if err != nil {
+		t.Fatalf("marshal generated lock: %v", err)
+	}
+	lockSum := sha256.Sum256(lockData)
+	manifest := blueprint.Manifest{
+		APIVersion: "mss.io/v1alpha2",
+		Kind:       "BlueprintManifest",
+		Metadata: blueprint.ManifestMetadata{
+			Project:              identities.Snapshot.Project,
+			Module:               identities.Snapshot.Module,
+			Repository:           identities.Snapshot.Repository,
+			Blueprint:            identities.Blueprint.Name,
+			BlueprintVersion:     identities.Blueprint.Version,
+			FoundationRepository: identities.Foundation.Repository,
+			FoundationCommit:     identities.Foundation.Commit,
+			FoundationTimestamp:  identities.Foundation.Timestamp,
+			GeneratorVersion:     identities.Generator.Version,
+			GeneratorCommit:      identities.Generator.Commit,
+		},
+		Identities: identities,
+		Records: blueprint.ManifestRecords{
+			SnapshotRecordPaths: records,
+			LockSHA256:          hex.EncodeToString(lockSum[:]),
+		},
+		Files: files,
+	}
+	manifestData, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal generated manifest: %v", err)
+	}
+	manifestData = append(manifestData, '\n')
+	for relative, data := range map[string][]byte{
+		records.LockPath:     lockData,
+		records.ManifestPath: manifestData,
+	} {
+		path := filepath.Join(root, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("create snapshot parent: %v", err)
+		}
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			t.Fatalf("write snapshot record %s: %v", relative, err)
+		}
+	}
+}
+
+func doctorSnapshotDigest(t *testing.T, identities blueprint.IdentitySet, files map[string]blueprint.ManifestFile) string {
+	t.Helper()
+	type application struct {
+		Project    string `json:"project"`
+		Module     string `json:"module"`
+		Repository string `json:"repository"`
+	}
+	type file struct {
+		Path   string `json:"path"`
+		SHA256 string `json:"sha256"`
+		Mode   uint32 `json:"mode"`
+		Size   int64  `json:"size"`
+	}
+	type input struct {
+		Application application                  `json:"application"`
+		Foundation  blueprint.FoundationIdentity `json:"foundation"`
+		Blueprint   blueprint.BlueprintIdentity  `json:"blueprint"`
+		Generator   blueprint.GeneratorIdentity  `json:"generator"`
+		Files       []file                       `json:"files"`
+	}
+	value := input{
+		Application: application{
+			Project:    identities.Snapshot.Project,
+			Module:     identities.Snapshot.Module,
+			Repository: identities.Snapshot.Repository,
+		},
+		Foundation: identities.Foundation,
+		Blueprint:  identities.Blueprint,
+		Generator:  identities.Generator,
+		Files: []file{{
+			Path:   "AGENTS.md",
+			SHA256: files["AGENTS.md"].SHA256,
+			Mode:   uint32(fs.FileMode(files["AGENTS.md"].Mode).Perm()),
+			Size:   files["AGENTS.md"].Size,
+		}},
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal snapshot digest input: %v", err)
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
