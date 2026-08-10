@@ -18,11 +18,22 @@ func VersionString() string {
 	return version
 }
 
+// CommitString returns the exact build commit when one was injected. Unknown
+// development provenance is represented as an empty value rather than a
+// synthetic commit identity.
+func CommitString() string {
+	commit := strings.TrimSpace(Commit)
+	if commit == "" || commit == "unknown" {
+		return ""
+	}
+	return commit
+}
+
 // String returns a traceable version string for human-facing CLI surfaces.
 func String() string {
 	version := VersionString()
-	commit := strings.TrimSpace(Commit)
-	if commit == "" || commit == "unknown" {
+	commit := CommitString()
+	if commit == "" {
 		return version
 	}
 	return version + " (commit " + commit + ")"

@@ -3,7 +3,7 @@ kind: ApplicationBlueprint
 metadata:
   name: management-system
   displayName: Agent-Native Management System
-  version: 0.1.0
+  version: 0.2.0
 spec:
   sourceMode: git-tracked
   sourceModule: github.com/mss-boot-io/mss-boot-admin
@@ -19,6 +19,7 @@ spec:
     - admin/main.go
     - Makefile
     - .mss/project.yaml
+    - .mss/release-policy.yaml
     - .mss/capabilities.yaml
     - .mss/commands.yaml
     - .mss/modules/example-supplier.yaml
@@ -30,6 +31,9 @@ spec:
   excludePaths:
     - MONOREPO_IMPORTS.md
     - internal/mss/blueprint/plan_test.go
+    - internal/mss/blueprint/identity_test.go
+    - internal/mss/blueprint/snapshot_test.go
+    - internal/mss/blueprint/transaction_test.go
     - internal/mss/blueprint/upgrade_test.go
     - internal/mss/blueprint/workspace_test.go
     - internal/mss/dev/config_test.go

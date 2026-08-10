@@ -15,9 +15,15 @@ func TestString(t *testing.T) {
 	if got, want := String(), "v1.0.0-rc.1 (commit f401308)"; got != want {
 		t.Fatalf("String() = %q, want %q", got, want)
 	}
+	if got, want := CommitString(), "f401308"; got != want {
+		t.Fatalf("CommitString() = %q, want %q", got, want)
+	}
 
 	Version, Commit = "", ""
 	if got, want := String(), "devel"; got != want {
 		t.Fatalf("String() = %q, want %q", got, want)
+	}
+	if got := CommitString(); got != "" {
+		t.Fatalf("CommitString() = %q, want empty unknown provenance", got)
 	}
 }

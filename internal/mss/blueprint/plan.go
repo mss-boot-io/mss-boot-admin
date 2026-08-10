@@ -5,17 +5,16 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo"
 )
 
 // Action describes one downstream file operation.
@@ -52,6 +51,7 @@ type Plan struct {
 	Blueprint        string       `json:"blueprint"`
 	BlueprintVersion string       `json:"blueprintVersion"`
 	FoundationCommit string       `json:"foundationCommit"`
+	Identities       IdentitySet  `json:"identities"`
 	Application      Application  `json:"application"`
 	Destination      string       `json:"destination"`
 	DryRun           bool         `json:"dryRun"`
@@ -66,6 +66,8 @@ type Manifest struct {
 	APIVersion string                  `json:"apiVersion"`
 	Kind       string                  `json:"kind"`
 	Metadata   ManifestMetadata        `json:"metadata"`
+	Identities IdentitySet             `json:"identities,omitempty"`
+	Records    ManifestRecords         `json:"records,omitempty"`
 	Files      map[string]ManifestFile `json:"files"`
 }
 
@@ -80,6 +82,20 @@ type ManifestMetadata struct {
 	FoundationCommit     string `json:"foundationCommit"`
 	FoundationTimestamp  string `json:"foundationTimestamp"`
 	GeneratorVersion     string `json:"generatorVersion"`
+	GeneratorCommit      string `json:"generatorCommit,omitempty"`
+}
+
+// SnapshotRecordPaths identifies the two representations of one downstream
+// snapshot. Path changes require an explicit migration recipe.
+type SnapshotRecordPaths struct {
+	LockPath     string `json:"lockPath" yaml:"lockPath"`
+	ManifestPath string `json:"manifestPath" yaml:"manifestPath"`
+}
+
+// ManifestRecords binds the manifest to the exact lock bytes.
+type ManifestRecords struct {
+	SnapshotRecordPaths
+	LockSHA256 string `json:"lockSha256"`
 }
 
 // ManifestFile records the deterministic content and permission baseline.
@@ -117,12 +133,6 @@ func Generate(ctx context.Context, options Options) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	manifestData, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return Plan{}, err
-	}
-	manifestData = append(manifestData, '\n')
-	files[blueprint.Spec.ManifestPath] = desiredFile{Data: manifestData, Mode: 0o644}
 
 	plan, err := planDestination(destination, blueprint, options.Application, manifest, files, !options.Write)
 	if err != nil {
@@ -134,13 +144,8 @@ func Generate(ctx context.Context, options Options) (Plan, error) {
 	if !plan.Success {
 		return plan, errors.New("destination contains conflicting files; no files were written")
 	}
-	if err := writeFiles(destination, files); err != nil {
+	if err := writeGeneratedSnapshot(ctx, destination, blueprint, plan, files, options.InitializeGit); err != nil {
 		return plan, err
-	}
-	if options.InitializeGit {
-		if err := initializeGit(ctx, destination); err != nil {
-			return plan, err
-		}
 	}
 	plan.DryRun = false
 	return plan, nil
@@ -148,111 +153,172 @@ func Generate(ctx context.Context, options Options) (Plan, error) {
 
 // BuildDesired renders all tracked foundation files in memory without touching the destination.
 func BuildDesired(ctx context.Context, root string, blueprint *Document, application Application) (map[string]desiredFile, Manifest, error) {
-	tracked, err := trackedFiles(ctx, root)
+	application = normalizeApplication(application)
+	if err := ValidateApplication(application); err != nil {
+		return nil, Manifest{}, err
+	}
+	source, err := loadCommittedFoundation(ctx, root, blueprint)
 	if err != nil {
 		return nil, Manifest{}, err
 	}
-	commit, timestamp, err := foundationRevision(ctx, root)
-	if err != nil {
-		return nil, Manifest{}, err
-	}
-	files := make(map[string]desiredFile, len(tracked))
-	for _, relative := range tracked {
-		if blueprint.Excluded(relative) || relative == blueprint.Spec.ManifestPath {
+	blueprint = source.Blueprint
+	files := make(map[string]desiredFile, len(source.Entries)+2)
+	selected := make([]committedFile, 0, len(source.Entries))
+	for _, entry := range source.Entries {
+		relative := entry.Path
+		if blueprint.Excluded(relative) ||
+			normalizedPath(relative) == normalizedPath(blueprint.Spec.ManifestPath) ||
+			normalizedPath(relative) == normalizedPath(blueprint.Spec.LockPath) {
 			continue
 		}
-		path := filepath.Join(root, filepath.FromSlash(relative))
-		info, err := os.Lstat(path)
-		if err != nil {
-			return nil, Manifest{}, fmt.Errorf("stat tracked file %s: %w", relative, err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
+		if entry.GitMode == "120000" {
 			return nil, Manifest{}, fmt.Errorf("tracked symlinks are not supported by application blueprints: %s", relative)
 		}
-		if !info.Mode().IsRegular() {
+		if entry.Type != "blob" {
 			continue
 		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, Manifest{}, fmt.Errorf("read tracked file %s: %w", relative, err)
-		}
+		selected = append(selected, entry)
+	}
+	blobs, err := readCommittedBlobs(ctx, root, selected)
+	if err != nil {
+		return nil, Manifest{}, err
+	}
+	for _, entry := range selected {
+		relative := entry.Path
+		data := blobs[relative]
 		if blueprint.Text(relative, data) {
 			data = transformText(data, blueprint, application)
 		}
-		mode := info.Mode().Perm()
+		mode := entry.Mode.Perm()
 		if mode == 0 {
 			mode = 0o644
 		}
 		files[relative] = desiredFile{Data: data, Mode: mode}
 	}
-
-	lockData, err := renderFoundationLock(blueprint, application, commit)
-	if err != nil {
-		return nil, Manifest{}, err
-	}
-	files[blueprint.Spec.LockPath] = desiredFile{Data: lockData, Mode: 0o644}
-
 	for _, required := range blueprint.Spec.RequiredFiles {
 		if _, exists := files[required]; !exists {
 			return nil, Manifest{}, fmt.Errorf("required blueprint output %s was excluded or missing", required)
 		}
 	}
+	baseline := make(map[string]ManifestFile, len(files))
+	for relative, file := range files {
+		baseline[relative] = ManifestFile{
+			SHA256: digest(file.Data),
+			Mode:   file.Mode.Perm(),
+			Size:   int64(len(file.Data)),
+		}
+	}
+	identities := IdentitySet{
+		Foundation: source.Identity,
+		Blueprint: BlueprintIdentity{
+			Name:    blueprint.Metadata.Name,
+			Version: blueprint.Metadata.Version,
+			SHA256:  source.BlueprintSHA,
+		},
+		Generator: GeneratorIdentity{
+			Tool:    "mss",
+			Version: buildinfo.VersionString(),
+			Commit:  strings.ToLower(buildinfo.CommitString()),
+		},
+		Snapshot: DownstreamSnapshotIdentity{
+			Project:    application.Name,
+			Module:     application.Module,
+			Repository: application.Repository,
+		},
+	}
+	identities.Snapshot.SHA256, err = computeSnapshotDigest(identities, baseline)
+	if err != nil {
+		return nil, Manifest{}, err
+	}
+	records := SnapshotRecordPaths{
+		LockPath:     normalizedPath(blueprint.Spec.LockPath),
+		ManifestPath: normalizedPath(blueprint.Spec.ManifestPath),
+	}
+	if err := validateIdentitySet(identities, baseline, records.LockPath, records.ManifestPath, true); err != nil {
+		return nil, Manifest{}, fmt.Errorf("resolve downstream snapshot identities: %w", err)
+	}
+	lockData, err := renderFoundationLock(identities, records)
+	if err != nil {
+		return nil, Manifest{}, err
+	}
 	manifest := Manifest{
-		APIVersion: "mss.io/v1alpha1",
-		Kind:       "BlueprintManifest",
+		APIVersion: snapshotAPIVersion,
+		Kind:       manifestKind,
 		Metadata: ManifestMetadata{
 			Project:              application.Name,
 			Module:               application.Module,
 			Repository:           application.Repository,
 			Blueprint:            blueprint.Metadata.Name,
 			BlueprintVersion:     blueprint.Metadata.Version,
-			FoundationRepository: foundationRepository(blueprint),
-			FoundationCommit:     commit,
-			FoundationTimestamp:  timestamp,
-			GeneratorVersion:     "0.1.0",
+			FoundationRepository: identities.Foundation.Repository,
+			FoundationCommit:     identities.Foundation.Commit,
+			FoundationTimestamp:  identities.Foundation.Timestamp,
+			GeneratorVersion:     identities.Generator.Version,
+			GeneratorCommit:      identities.Generator.Commit,
 		},
-		Files: make(map[string]ManifestFile, len(files)),
+		Identities: identities,
+		Records: ManifestRecords{
+			SnapshotRecordPaths: records,
+			LockSHA256:          digest(lockData),
+		},
+		Files: baseline,
 	}
-	for relative, file := range files {
-		manifest.Files[relative] = ManifestFile{
-			SHA256: digest(file.Data),
-			Mode:   file.Mode,
-			Size:   int64(len(file.Data)),
-		}
+	manifestData, err := renderManifest(manifest)
+	if err != nil {
+		return nil, Manifest{}, err
 	}
+	if _, _, err := decodeManifest(manifestData, false); err != nil {
+		return nil, Manifest{}, fmt.Errorf("self-validate rendered manifest: %w", err)
+	}
+	files[records.LockPath] = desiredFile{Data: lockData, Mode: 0o644}
+	files[records.ManifestPath] = desiredFile{Data: manifestData, Mode: 0o644}
 	return files, manifest, nil
 }
 
-// ReadManifest loads a downstream blueprint baseline.
-func ReadManifest(root, relative string) (Manifest, error) {
-	if relative == "" {
-		relative = ".mss/blueprint-manifest.json"
-	}
-	if !safeRelativePath(relative) {
-		return Manifest{}, errors.New("manifest path must be repository-relative")
-	}
-	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
-	if err != nil {
-		return Manifest{}, err
-	}
-	manifest := Manifest{}
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		return Manifest{}, fmt.Errorf("parse blueprint manifest: %w", err)
-	}
-	if manifest.APIVersion != "mss.io/v1alpha1" || manifest.Kind != "BlueprintManifest" {
-		return Manifest{}, errors.New("unsupported blueprint manifest identity")
-	}
-	if manifest.Metadata.Project == "" || manifest.Metadata.Module == "" || manifest.Metadata.Blueprint == "" {
-		return Manifest{}, errors.New("blueprint manifest metadata is incomplete")
-	}
-	return manifest, nil
+func planDestination(destination string, blueprint *Document, application Application, manifest Manifest, files map[string]desiredFile, dryRun bool) (Plan, error) {
+	return buildDestinationPlan(
+		destination,
+		blueprint,
+		application,
+		manifest,
+		files,
+		dryRun,
+		func(relative string) ([]byte, bool, error) { return readManagedFile(destination, relative) },
+		func() ([]string, error) { return unknownDestinationFiles(destination, files) },
+	)
 }
 
-func planDestination(destination string, blueprint *Document, application Application, manifest Manifest, files map[string]desiredFile, dryRun bool) (Plan, error) {
+func planDestinationManaged(root *managedRoot, blueprint *Document, application Application, manifest Manifest, files map[string]desiredFile, dryRun bool) (Plan, error) {
+	return buildDestinationPlan(
+		root.path,
+		blueprint,
+		application,
+		manifest,
+		files,
+		dryRun,
+		func(relative string) ([]byte, bool, error) {
+			data, exists, _, err := root.readFile(relative)
+			return data, exists, err
+		},
+		func() ([]string, error) { return root.unknownFiles(files) },
+	)
+}
+
+func buildDestinationPlan(
+	destination string,
+	blueprint *Document,
+	application Application,
+	manifest Manifest,
+	files map[string]desiredFile,
+	dryRun bool,
+	readFile func(string) ([]byte, bool, error),
+	unknownFiles func() ([]string, error),
+) (Plan, error) {
 	plan := Plan{
 		Blueprint:        blueprint.Metadata.Name,
 		BlueprintVersion: blueprint.Metadata.Version,
 		FoundationCommit: manifest.Metadata.FoundationCommit,
+		Identities:       manifest.Identities,
 		Application:      application,
 		Destination:      destination,
 		DryRun:           dryRun,
@@ -275,23 +341,23 @@ func planDestination(destination string, blueprint *Document, application Applic
 			Size:   int64(len(file.Data)),
 			SHA256: digest(file.Data),
 		}
-		existing, err := os.ReadFile(filepath.Join(destination, filepath.FromSlash(relative)))
+		existing, exists, err := readFile(relative)
 		switch {
-		case errors.Is(err, os.ErrNotExist):
 		case err != nil:
 			change.Action = ActionConflict
 			change.Detail = err.Error()
 			plan.Success = false
+		case !exists:
 		case bytes.Equal(existing, file.Data):
 			change.Action = ActionUnchanged
-		case err == nil:
+		default:
 			change.Action = ActionConflict
 			change.Detail = "destination file differs from the blueprint"
 			plan.Success = false
 		}
 		plan.Changes = append(plan.Changes, change)
 	}
-	unknown, err := unknownDestinationFiles(destination, files)
+	unknown, err := unknownFiles()
 	if err != nil {
 		return plan, err
 	}
@@ -305,28 +371,6 @@ func planDestination(destination string, blueprint *Document, application Applic
 	}
 	sort.SliceStable(plan.Changes, func(i, j int) bool { return plan.Changes[i].Path < plan.Changes[j].Path })
 	return plan, nil
-}
-
-func writeFiles(destination string, files map[string]desiredFile) error {
-	if err := os.MkdirAll(destination, 0o755); err != nil {
-		return fmt.Errorf("create application destination: %w", err)
-	}
-	paths := make([]string, 0, len(files))
-	for relative := range files {
-		paths = append(paths, relative)
-	}
-	sort.Strings(paths)
-	for _, relative := range paths {
-		file := files[relative]
-		target := filepath.Join(destination, filepath.FromSlash(relative))
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return fmt.Errorf("create parent for %s: %w", relative, err)
-		}
-		if err := writeAtomic(target, file.Data, file.Mode); err != nil {
-			return fmt.Errorf("write %s: %w", relative, err)
-		}
-	}
-	return nil
 }
 
 func transformText(data []byte, blueprint *Document, application Application) []byte {
@@ -348,90 +392,6 @@ func transformText(data []byte, blueprint *Document, application Application) []
 		text = strings.ReplaceAll(text, repositorySentinel, application.Repository)
 	}
 	return []byte(text)
-}
-
-func renderFoundationLock(blueprint *Document, application Application, commit string) ([]byte, error) {
-	lock := map[string]any{
-		"apiVersion": "mss.io/v1alpha1",
-		"kind":       "FoundationLock",
-		"metadata": map[string]any{
-			"project": application.Name,
-		},
-		"spec": map[string]any{
-			"foundation": map[string]any{
-				"repository": foundationRepository(blueprint),
-				"version":    blueprint.Metadata.Version,
-				"commit":     commit,
-				"channel":    "stable",
-			},
-			"blueprint": map[string]any{
-				"name":    blueprint.Metadata.Name,
-				"version": blueprint.Metadata.Version,
-			},
-			"contracts": map[string]any{
-				"project":           "v1alpha1",
-				"capabilityCatalog": "v1alpha1",
-				"commandCatalog":    "v1alpha1",
-				"adminModule":       "v1alpha1",
-				"feature":           "v1alpha1",
-				"evaluation":        "v1alpha1",
-			},
-			"generatedBy": map[string]any{
-				"tool":    "mss",
-				"version": "0.1.0",
-			},
-			"modules":  map[string]any{},
-			"upgrades": []any{},
-		},
-	}
-	data, err := yaml.Marshal(lock)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
-}
-
-func trackedFiles(ctx context.Context, root string) ([]string, error) {
-	command := exec.CommandContext(ctx, "git", "-C", root, "ls-files", "-z", "--cached")
-	output, err := command.Output()
-	if err != nil {
-		return nil, fmt.Errorf("list tracked foundation files: %w", err)
-	}
-	parts := bytes.Split(output, []byte{0})
-	files := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if len(part) == 0 {
-			continue
-		}
-		relative := filepath.ToSlash(filepath.Clean(filepath.FromSlash(string(part))))
-		if !safeRelativePath(relative) {
-			return nil, fmt.Errorf("git returned unsafe tracked path %q", relative)
-		}
-		files = append(files, relative)
-	}
-	sort.Strings(files)
-	return files, nil
-}
-
-func foundationRevision(ctx context.Context, root string) (string, string, error) {
-	commitCommand := exec.CommandContext(ctx, "git", "-C", root, "rev-parse", "HEAD")
-	commitOutput, err := commitCommand.Output()
-	if err != nil {
-		return "", "", fmt.Errorf("resolve foundation commit: %w", err)
-	}
-	commit := strings.TrimSpace(string(commitOutput))
-	timeCommand := exec.CommandContext(ctx, "git", "-C", root, "show", "-s", "--format=%cI", "HEAD")
-	timeOutput, err := timeCommand.Output()
-	if err != nil {
-		return "", "", fmt.Errorf("resolve foundation timestamp: %w", err)
-	}
-	timestamp := strings.TrimSpace(string(timeOutput))
-	if timestamp == "" {
-		return "", "", errors.New("foundation timestamp is empty")
-	}
-	// The value is emitted by Git itself and is audit metadata only. Do not
-	// reject valid ISO-8601 offset variants due to Go runtime parser changes.
-	return commit, timestamp, nil
 }
 
 func resolveDestination(root string, blueprint *Document, name, requested string) (string, error) {
@@ -488,6 +448,12 @@ func unknownDestinationFiles(destination string, desired map[string]desiredFile)
 			}
 			return nil
 		}
+		if relative == strings.TrimSuffix(snapshotRuntimePrefix, "/") || strings.HasPrefix(relative, snapshotRuntimePrefix) {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if entry.IsDir() {
 			return nil
 		}
@@ -503,14 +469,55 @@ func unknownDestinationFiles(destination string, desired map[string]desiredFile)
 	return unknown, nil
 }
 
-func initializeGit(ctx context.Context, destination string) error {
-	if _, err := os.Stat(filepath.Join(destination, ".git")); err == nil {
-		return nil
+func initializeGit(ctx context.Context, root *managedRoot) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("initialize downstream Git repository: %w", err)
 	}
-	command := exec.CommandContext(ctx, "git", "init", "--initial-branch=main", destination)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("initialize downstream Git repository: %w: %s", err, strings.TrimSpace(string(output)))
+	if info, err := root.root.Lstat(".git"); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return errors.New("downstream .git path must not be a symlink")
+		}
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect downstream Git repository: %w", err)
+	}
+
+	// A minimal non-bare repository avoids passing the destination path to an
+	// external process after it has been validated. Every entry is created via
+	// the pinned os.Root, so a concurrent parent rename or symlink swap cannot
+	// redirect `--git-init` outside the selected repository.
+	for _, directory := range []string{
+		".git",
+		".git/objects",
+		".git/refs",
+		".git/refs/heads",
+		".git/refs/tags",
+	} {
+		if err := root.ensureDirectory(directory, 0o755); err != nil {
+			return fmt.Errorf("initialize downstream Git directory %s: %w", directory, err)
+		}
+	}
+	fileMode := "true"
+	if runtime.GOOS == "windows" {
+		fileMode = "false"
+	}
+	config := "[core]\n" +
+		"\trepositoryformatversion = 0\n" +
+		"\tfilemode = " + fileMode + "\n" +
+		"\tbare = false\n" +
+		"\tlogallrefupdates = true\n"
+	gitFiles := []struct {
+		path string
+		data []byte
+	}{
+		{path: ".git/HEAD", data: []byte("ref: refs/heads/main\n")},
+		{path: ".git/config", data: []byte(config)},
+		{path: ".git/description", data: []byte("Unnamed repository; edit this file 'description' to name the repository.\n")},
+	}
+	for _, file := range gitFiles {
+		if err := root.writeAtomic(file.path, file.data, 0o644); err != nil {
+			return fmt.Errorf("initialize downstream Git file %s: %w", file.path, err)
+		}
 	}
 	return nil
 }
@@ -559,22 +566,6 @@ func foundationRepository(blueprint *Document) string {
 		}
 	}
 	return blueprint.Spec.SourceProjectName
-}
-
-func writeAtomic(path string, data []byte, mode fs.FileMode) error {
-	temporary := path + ".mss-tmp"
-	if err := os.WriteFile(temporary, data, mode); err != nil {
-		return err
-	}
-	if err := os.Chmod(temporary, mode); err != nil {
-		_ = os.Remove(temporary)
-		return err
-	}
-	if err := os.Rename(temporary, path); err != nil {
-		_ = os.Remove(temporary)
-		return err
-	}
-	return nil
 }
 
 func digest(data []byte) string {

@@ -185,6 +185,53 @@ func TestUpgradeDetectsCustomizedFileRemovedByFoundation(t *testing.T) {
 	assertUpgradeAction(t, plan, "web/antd/public/fixture.bin", ActionConflict)
 }
 
+func TestUpgradeAcceptsLegacyManifestOnlyAsMigrationInput(t *testing.T) {
+	oldFoundation := writeBlueprintFixture(t)
+	newFoundation := writeBlueprintFixture(t)
+	prepareNewFoundation(t, newFoundation)
+	applicationRoot := filepath.Join(t.TempDir(), "legacy-admin")
+	application := Application{
+		Name:        "legacy-admin",
+		DisplayName: "Legacy Administration",
+		Module:      "github.com/acme/legacy-admin",
+		Repository:  "acme/legacy-admin",
+	}
+	if _, err := Generate(context.Background(), Options{
+		FoundationRoot: oldFoundation,
+		Destination:    applicationRoot,
+		Application:    application,
+		Write:          true,
+	}); err != nil {
+		t.Fatalf("generate old application: %v", err)
+	}
+	manifest, err := ReadManifest(applicationRoot, "")
+	if err != nil {
+		t.Fatalf("read current manifest: %v", err)
+	}
+	manifest.APIVersion = legacyAPIVersion
+	manifest.Identities = IdentitySet{}
+	manifest.Records = ManifestRecords{}
+	writeManifestAtPath(t, applicationRoot, ".mss/blueprint-manifest.json", manifest)
+	if _, err := ReadManifest(applicationRoot, ""); err == nil {
+		t.Fatal("legacy manifest was accepted by the current status reader")
+	}
+	if _, err := Upgrade(context.Background(), UpgradeOptions{
+		ApplicationRoot: applicationRoot,
+		FoundationRoot:  newFoundation,
+		Application:     application,
+		Write:           true,
+	}); err != nil {
+		t.Fatalf("upgrade legacy manifest input: %v", err)
+	}
+	snapshot, err := ReadSnapshot(applicationRoot, "")
+	if err != nil {
+		t.Fatalf("read migrated current snapshot: %v", err)
+	}
+	if snapshot.Manifest.APIVersion != snapshotAPIVersion {
+		t.Fatalf("migrated manifest apiVersion = %q, want %q", snapshot.Manifest.APIVersion, snapshotAPIVersion)
+	}
+}
+
 func prepareNewFoundation(t *testing.T, root string) {
 	t.Helper()
 	blueprintPath := filepath.Join(root, ".mss", "blueprints", "management-system.yaml")
