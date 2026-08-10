@@ -329,7 +329,7 @@ spec:
           value: Required-test JSON report proving provider identities and lifecycle statuses are machine-readable, the aggregate is not stable, and detailed evidence links to the ADR matrix.
     - id: provider-validation-evidence
       requirement: validate-provider-configuration
-      statement: Table-driven object-profile tests reject the declared strict negative matrix for provider, endpoint, bucket, TLS, and credential mode, and prove normalization and build do not mutate caller-owned configuration.
+      statement: Table-driven object-profile tests reject the declared strict negative matrix for provider, endpoint, bucket, TLS, and credential mode, prove normalization and build do not mutate caller-owned configuration, and retain the v1.0 storage source surface through a deprecated fail-closed bridge.
       level: unit
       phase: checkpoint
       required: true
@@ -338,10 +338,21 @@ spec:
           value: TestObjectStorageProfileRejectsInvalidConfiguration
         - type: test
           value: TestObjectStorageProfileBuildIsImmutable
+        - type: test
+          value: TestStorageV100DeprecatedSourceCompatibility
+        - type: test
+          value: TestStorageV100DeprecatedInitFailsClosed
         - type: command
-          value: "cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestObjectStorageProfileRejectsInvalidConfiguration|TestObjectStorageProfileBuildIsImmutable)$' -count=1"
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config
+            --run '^(TestObjectStorageProfileRejectsInvalidConfiguration|TestObjectStorageProfileBuildIsImmutable|TestStorageV100DeprecatedSourceCompatibility|TestStorageV100DeprecatedInitFailsClosed)$'
+            --count 1 --race --go-work off
+            --require TestObjectStorageProfileRejectsInvalidConfiguration
+            --require TestObjectStorageProfileBuildIsImmutable
+            --require TestStorageV100DeprecatedSourceCompatibility
+            --require TestStorageV100DeprecatedInitFailsClosed
         - type: report
-          value: Required-test JSON report proving both exact profile tests ran, every case in the declared strict negative matrix failed before construction, caller configuration remained unchanged, secret formatting was redacted, and repeated Build returned one Handle.
+          value: Required-test JSON report proving all exact profile and compatibility tests ran, every case in the declared strict negative matrix failed before construction, caller configuration remained unchanged, secret formatting was redacted, repeated Build returned one Handle, and the deprecated v1.0 bridge preserved source symbols without fallback or process termination.
     - id: queue-delivery-evidence
       requirement: mark-kafka-after-success
       statement: Hermetic failure-injection tests prove decode and handler errors are not marked, successful work is marked once and only after the handler, and cancellation or a closed consumer stops local work without marking unfinished messages. This evidence does not prove a broker commit or production provider maturity.
@@ -777,7 +788,14 @@ spec:
         --require TestV101ChangedProvidersDoNotExitOrDetach
       - cd admin && GOWORK=off go test -json -race ./apis -run '^(TestEmailChallenge.*|TestAppConfigProfile.*|TestUpdateUserInfoRejectsEmailChangeUntilCanonicalIdentityMigration)$' -count=1
       - cd admin && GOWORK=off go test -json -race ./apis ./service ./router -run '^(TestStorageUploadHardLimitBeforeMultipart|TestAvatarUploadHardLimitBeforeMultipart|TestStorageLocalNoClobberAndConfinement|TestStorageUploadPolicyBytesAndMIMEContract|TestCustomRouteContractsCoverOtherRegistrations|TestCustomRouteContractsMatchRuntimeAuthentication)$' -count=1
-      - cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestObjectStorageProfileRejectsInvalidConfiguration|TestObjectStorageProfileBuildIsImmutable|TestObjectStorageProfileCanceledBuildCanRetry|TestObjectStorageHandleUseCoversLocalAndS3|TestObjectStorageHandleCloseDrainsAndIsIdempotent|TestObjectStorageHandleCloseTimeoutCanRetry)$' -count=1
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config
+        --run '^(TestObjectStorageProfileRejectsInvalidConfiguration|TestObjectStorageProfileBuildIsImmutable|TestStorageV100DeprecatedSourceCompatibility|TestStorageV100DeprecatedInitFailsClosed|TestObjectStorageProfileCanceledBuildCanRetry|TestObjectStorageHandleUseCoversLocalAndS3|TestObjectStorageHandleCloseDrainsAndIsIdempotent|TestObjectStorageHandleCloseTimeoutCanRetry)$'
+        --count 1 --race --go-work off
+        --require TestObjectStorageProfileRejectsInvalidConfiguration --require TestObjectStorageProfileBuildIsImmutable
+        --require TestStorageV100DeprecatedSourceCompatibility --require TestStorageV100DeprecatedInitFailsClosed
+        --require TestObjectStorageProfileCanceledBuildCanRetry --require TestObjectStorageHandleUseCoversLocalAndS3
+        --require TestObjectStorageHandleCloseDrainsAndIsIdempotent --require TestObjectStorageHandleCloseTimeoutCanRetry
       - cd mss-boot && GOWORK=off go test -json -race ./pkg/config/source/s3 -run '^(TestSourceClosesBodyOnReadSuccessAndFailure|TestSourceRequiresCallerOwnedContextAndClient|TestSourceWatchReturnsUnsupported|TestSourceContinuesAcrossMissingExtensions)$' -count=1
       - cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestS3BootstrapOwnedHandleClosesAndMissingOverlayIsOptional|TestS3BootstrapOverlayFailureFailsClosed|TestS3BootstrapGenericNotFoundFailsClosed|TestS3BootstrapMalformedOverlayFailsClosed|TestS3BootstrapRejectsInvalidInsecureHTTPFlag)$' -count=1
       - cd admin && GOWORK=off go test -json -race ./config -run '^(TestObjectStorageSingleClientOwnedClose|TestObjectStorageConcurrentCloseIsIdempotent|TestObjectStorageCloseDoesNotDeadlockReentrantLease)$' -count=1
