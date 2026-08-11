@@ -375,6 +375,97 @@ spec:
             Implementation commit d90b4c7 plus terminal evidence repair c830b5f have exact
             single-package JSON evidence proving all eleven required top-level tests ran and
             passed twenty uncached race-detected times with no skip.
+    - id: named-redis-resource-checkpoint-evidence
+      requirement: own-named-resources
+      statement: >-
+        One additive named Redis resource consumes the strict Runtime v2 profile and resource
+        graph, constructs exactly one owned client for standalone, Sentinel, or cluster topology,
+        lends stable resource-and-scope-prefixed capabilities without exposing the client or
+        Close, propagates caller deadlines through lifecycle and command operations, rejects
+        detached lease work, closes one tracked generation exactly once, and exposes only
+        redacted provider-neutral errors. Hermetic construction matrices, a real stalled socket,
+        and standalone miniredis prove this development boundary; they do not prove real Sentinel,
+        cluster, TLS, Admin composition, or goroutine/file-descriptor conformance.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestBuildIsPureAndStartConstructsOneOwnedClient
+        - type: test
+          value: TestBuildTopologyCredentialAndTLSMatrix
+        - type: test
+          value: TestDefaultFactoryConstructsTopologySpecificGoRedisClients
+        - type: test
+          value: TestDefaultFactoryEnablesContextTimeoutsForEveryTopology
+        - type: test
+          value: TestBuildRejectsNonRedisAndScopeRejectsUnsafeNames
+        - type: test
+          value: TestErrorsAndFormattingRedactProfileAndProviderData
+        - type: test
+          value: TestRealStalledPipeHonorsCallerDeadlines
+        - type: test
+          value: TestOneNamedResourceSharesOneClientAcrossIsolatedScopes
+        - type: test
+          value: TestDifferentNamedResourcesCannotSharePhysicalScopePrefix
+        - type: test
+          value: TestClusterPortableMultiKeyCommandsArePartitionedBySlot
+        - type: test
+          value: TestScopeUseContextBoundsBackgroundCommand
+        - type: test
+          value: TestScopeUseCancelsAndRejectsDetachedCommandAtCallbackReturn
+        - type: test
+          value: TestLeaseCommandsUseCallerContextAndRedactProviderErrors
+        - type: test
+          value: TestStandaloneDefaultClientAgainstMiniredis
+        - type: test
+          value: TestGetMissingReturnsProviderNeutralNotFound
+        - type: test
+          value: TestStartFailureCleansUpExactlyOnce
+        - type: test
+          value: TestReadyHealthAndCallerCancellation
+        - type: test
+          value: TestCloseDeadlineDrainsLeaseAndPermanentlyRejectsUse
+        - type: test
+          value: TestCloseDeadlineBoundsProviderCloseAndRetryJoinsGeneration
+        - type: test
+          value: TestResourceRejectsScopeCreationAfterCloseBegins
+        - type: test
+          value: TestConcurrentCloseAndUseNeverCommandsAfterClientClose
+        - type: test
+          value: TestResourceGraphIntegration
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/redisresource
+            --run '^(TestBuildIsPureAndStartConstructsOneOwnedClient|TestBuildTopologyCredentialAndTLSMatrix|TestDefaultFactoryConstructsTopologySpecificGoRedisClients|TestDefaultFactoryEnablesContextTimeoutsForEveryTopology|TestBuildRejectsNonRedisAndScopeRejectsUnsafeNames|TestErrorsAndFormattingRedactProfileAndProviderData|TestRealStalledPipeHonorsCallerDeadlines|TestOneNamedResourceSharesOneClientAcrossIsolatedScopes|TestDifferentNamedResourcesCannotSharePhysicalScopePrefix|TestClusterPortableMultiKeyCommandsArePartitionedBySlot|TestScopeUseContextBoundsBackgroundCommand|TestScopeUseCancelsAndRejectsDetachedCommandAtCallbackReturn|TestLeaseCommandsUseCallerContextAndRedactProviderErrors|TestStandaloneDefaultClientAgainstMiniredis|TestGetMissingReturnsProviderNeutralNotFound|TestStartFailureCleansUpExactlyOnce|TestReadyHealthAndCallerCancellation|TestCloseDeadlineDrainsLeaseAndPermanentlyRejectsUse|TestCloseDeadlineBoundsProviderCloseAndRetryJoinsGeneration|TestResourceRejectsScopeCreationAfterCloseBegins|TestConcurrentCloseAndUseNeverCommandsAfterClientClose|TestResourceGraphIntegration)$'
+            --count 20 --race --go-work off
+            --require TestBuildIsPureAndStartConstructsOneOwnedClient
+            --require TestBuildTopologyCredentialAndTLSMatrix
+            --require TestDefaultFactoryConstructsTopologySpecificGoRedisClients
+            --require TestDefaultFactoryEnablesContextTimeoutsForEveryTopology
+            --require TestBuildRejectsNonRedisAndScopeRejectsUnsafeNames
+            --require TestErrorsAndFormattingRedactProfileAndProviderData
+            --require TestRealStalledPipeHonorsCallerDeadlines
+            --require TestOneNamedResourceSharesOneClientAcrossIsolatedScopes
+            --require TestDifferentNamedResourcesCannotSharePhysicalScopePrefix
+            --require TestClusterPortableMultiKeyCommandsArePartitionedBySlot
+            --require TestScopeUseContextBoundsBackgroundCommand
+            --require TestScopeUseCancelsAndRejectsDetachedCommandAtCallbackReturn
+            --require TestLeaseCommandsUseCallerContextAndRedactProviderErrors
+            --require TestStandaloneDefaultClientAgainstMiniredis
+            --require TestGetMissingReturnsProviderNeutralNotFound
+            --require TestStartFailureCleansUpExactlyOnce
+            --require TestReadyHealthAndCallerCancellation
+            --require TestCloseDeadlineDrainsLeaseAndPermanentlyRejectsUse
+            --require TestCloseDeadlineBoundsProviderCloseAndRetryJoinsGeneration
+            --require TestResourceRejectsScopeCreationAfterCloseBegins
+            --require TestConcurrentCloseAndUseNeverCommandsAfterClientClose
+            --require TestResourceGraphIntegration
+        - type: report
+          value: >-
+            Implementation commit 86c0e8a, together with resource error-chain repair
+            c57ffc8, has exact single-package JSON evidence proving all twenty-two required
+            top-level tests ran and passed twenty uncached race-detected times with no skip.
     - id: derived-cache-gate
       requirement: scope-derived-cache
       statement: Failure injection and race tests preserve authoritative database semantics, namespace isolation, payload bounds, generation ordering, result metadata, transaction bypass, rollback, and read-your-writes isolation.
@@ -562,6 +653,32 @@ spec:
         --require TestGraphRunCancelsPeersAndJoinsSanitizedDiagnostics
         --require TestGraphCloseCancelsRunBeforeReverseResourceClose
         --require TestGraphProviderErrorsPreserveExpiredCallerDeadline
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/redisresource
+        --run '^(TestBuildIsPureAndStartConstructsOneOwnedClient|TestBuildTopologyCredentialAndTLSMatrix|TestDefaultFactoryConstructsTopologySpecificGoRedisClients|TestDefaultFactoryEnablesContextTimeoutsForEveryTopology|TestBuildRejectsNonRedisAndScopeRejectsUnsafeNames|TestErrorsAndFormattingRedactProfileAndProviderData|TestRealStalledPipeHonorsCallerDeadlines|TestOneNamedResourceSharesOneClientAcrossIsolatedScopes|TestDifferentNamedResourcesCannotSharePhysicalScopePrefix|TestClusterPortableMultiKeyCommandsArePartitionedBySlot|TestScopeUseContextBoundsBackgroundCommand|TestScopeUseCancelsAndRejectsDetachedCommandAtCallbackReturn|TestLeaseCommandsUseCallerContextAndRedactProviderErrors|TestStandaloneDefaultClientAgainstMiniredis|TestGetMissingReturnsProviderNeutralNotFound|TestStartFailureCleansUpExactlyOnce|TestReadyHealthAndCallerCancellation|TestCloseDeadlineDrainsLeaseAndPermanentlyRejectsUse|TestCloseDeadlineBoundsProviderCloseAndRetryJoinsGeneration|TestResourceRejectsScopeCreationAfterCloseBegins|TestConcurrentCloseAndUseNeverCommandsAfterClientClose|TestResourceGraphIntegration)$'
+        --count 20 --race --go-work off
+        --require TestBuildIsPureAndStartConstructsOneOwnedClient
+        --require TestBuildTopologyCredentialAndTLSMatrix
+        --require TestDefaultFactoryConstructsTopologySpecificGoRedisClients
+        --require TestDefaultFactoryEnablesContextTimeoutsForEveryTopology
+        --require TestBuildRejectsNonRedisAndScopeRejectsUnsafeNames
+        --require TestErrorsAndFormattingRedactProfileAndProviderData
+        --require TestRealStalledPipeHonorsCallerDeadlines
+        --require TestOneNamedResourceSharesOneClientAcrossIsolatedScopes
+        --require TestDifferentNamedResourcesCannotSharePhysicalScopePrefix
+        --require TestClusterPortableMultiKeyCommandsArePartitionedBySlot
+        --require TestScopeUseContextBoundsBackgroundCommand
+        --require TestScopeUseCancelsAndRejectsDetachedCommandAtCallbackReturn
+        --require TestLeaseCommandsUseCallerContextAndRedactProviderErrors
+        --require TestStandaloneDefaultClientAgainstMiniredis
+        --require TestGetMissingReturnsProviderNeutralNotFound
+        --require TestStartFailureCleansUpExactlyOnce
+        --require TestReadyHealthAndCallerCancellation
+        --require TestCloseDeadlineDrainsLeaseAndPermanentlyRejectsUse
+        --require TestCloseDeadlineBoundsProviderCloseAndRetryJoinsGeneration
+        --require TestResourceRejectsScopeCreationAfterCloseBegins
+        --require TestConcurrentCloseAndUseNeverCommandsAfterClientClose
+        --require TestResourceGraphIntegration
       - cd mss-boot && GOWORK=off go test -race ./runtime/...
       - cd mss-boot && GOWORK=off go vet ./...
       - corepack pnpm@9.15.9 --dir docs build
@@ -569,8 +686,9 @@ spec:
     strategy: phased
     migration: >-
       Treat the target model as authoritative without using historical compatibility as a design
-      constraint. Land strict configuration and the resource owner first, then named Redis and scoped
-      caches, ChallengeStore, EventBus plus reconciliation, ObjectStore plus Delivery, and finally
+      constraint. Strict configuration, the resource owner, and the additive named Redis resource
+      are development checkpoints; next land scoped caches, the atomic ChallengeStore bridge,
+      EventBus plus reconciliation, ObjectStore plus Delivery, and finally
       provider-by-provider promotion in untagged development waves. Migrate Admin scopes independently
       with focused failure checks at every boundary, then run the complete conformance, leak,
       real-provider, and failure-injection matrix on the feature-freeze commit. Keep WorkQueue and

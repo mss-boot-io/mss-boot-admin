@@ -21,11 +21,22 @@ remains internal and does not promote provider maturity.
   `Start` establishes required readiness before dependents; `Run` owns peer
   cancellation; and `Close` performs concurrent-safe reverse release with
   caller-deadline enforcement and retry after failure. Lifecycle diagnostics
-  redact provider text while retaining `errors.Is`/`errors.As` classification.
+  redact provider text and provider objects while retaining fixed lifecycle metadata
+  and `errors.Is` classification without provider `errors.As` exposure.
   The implementation checkpoint is `d90b4c7` and its deterministic concurrent
-  close evidence repair is `c830b5f`.
+  close evidence repair is `c830b5f`; the public error-tree repair is `c57ffc8`.
   This checkpoint does not qualify provider health, real leak bounds, or an
   Admin listener composition.
+- Added `runtime/redisresource` at `86c0e8a` as an additive named owner over the
+  strict Runtime v2 Redis profile and resource graph. Build is side-effect free;
+  Start constructs one standalone, Sentinel, or cluster go-redis client; reusable
+  Scope capabilities isolate resource-and-scope-prefixed keys and lend structured
+  leases without exposing the client or `Close`. Lifecycle PINGs and commands honor
+  caller deadlines, detached lease work is rejected, missing keys are provider-neutral,
+  and one tracked close generation closes the provider exactly once. Construction
+  matrices, standalone miniredis, stalled sockets, and twenty-two fully anchored
+  top-level tests passing race×20 are development evidence, not real Sentinel,
+  cluster, TLS, Admin-composition, or leak conformance.
 - Replaced legacy object-storage provider globals with an exact Local-or-S3
   startup configuration, immutable `StorageProfile`, explicit default/static
   credential modes, typed environment `SecretRef` resolution, and one reusable
@@ -90,8 +101,12 @@ remains internal and does not promote provider maturity.
   and Admin Runnable boundary. D1 is complete and development proceeds to D2;
   lifecycle completion does not promote Kafka beyond Legacy/Blocked.
 - Recorded the D3 resource-graph checkpoint with all eleven top-level tests
-  required for twenty uncached race-detected runs. The aggregate Storage Runtime
-  remains Planned pending named Redis, Admin composition, and freeze conformance.
+  required for twenty uncached race-detected runs and synchronized its `c57ffc8`
+  provider error-tree repair.
+- Recorded the D3 named Redis checkpoint with all twenty-two top-level tests required
+  for twenty uncached race-detected runs. The aggregate Storage Runtime remains Planned
+  pending Sentinel control ACL, atomic Challenge bridging, real Provider, Admin
+  composition, and frozen-SHA leak conformance.
 
 ## [mss-boot/v1.0.0] - 2026-08-09
 

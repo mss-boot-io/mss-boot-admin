@@ -403,10 +403,12 @@ spec:
         - docs/docs/releases/v1-0-1-upload-admission-safety.md
         - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
         - docs/docs/releases/v1-1-0-d3-resource-lifecycle.md
+        - docs/docs/releases/v1-1-0-d3-named-redis-resource.md
         - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
       frameworkPaths:
         - mss-boot/runtime/config
         - mss-boot/runtime/resource
+        - mss-boot/runtime/redisresource
       guidance: >-
         Build strict named resources and separate Derived Cache, ChallengeStore, EventBus,
         WorkQueue, Lock, ObjectStore, Delivery, and S3 bootstrap contracts. Required resources
@@ -428,8 +430,16 @@ spec:
         retry after failure, and
         redacted typed diagnostics. Its hermetic evidence proves the state machine and owned handles,
         not real goroutine/file-descriptor leak bounds, provider health, or Admin listener composition.
-        The aggregate therefore remains Planned; next compose a named Redis resource and the Admin
-        owner before adding the supplier backend.
+        The D3 named-Redis checkpoint at 86c0e8a now adds one owned go-redis client per named
+        Resource, stable isolated Scope capabilities, caller-bounded PING and commands, tracked
+        exactly-once close, provider-neutral misses, and recursively redacted public errors; c57ffc8
+        applies the corresponding provider-object redaction boundary to the underlying resource graph.
+        Its Sentinel, cluster, and TLS evidence is construction-focused, while only standalone
+        miniredis and stalled-socket deadlines exercise I/O. Sentinel control-plane ACL remains
+        anonymous, cluster multi-key Delete/Exists is non-atomic with a partial count, and the atomic
+        ChallengeStore bridge is still absent. The aggregate therefore remains Planned pending Admin
+        readiness/close composition, real Sentinel/cluster/TLS conformance, Challenge integration,
+        and the frozen-SHA goroutine/file-descriptor gates.
 
     - id: platform.storage
       displayName: Legacy Object Storage Aggregate

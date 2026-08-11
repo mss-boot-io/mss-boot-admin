@@ -5,15 +5,17 @@ description: 从 v1.0.0 直接推进到 v1.1.0 功能冻结，再集中执行完
 keywords: [v1.1.0 roadmap development first feature freeze validation release]
 ---
 
-> D3 进度（2026-08-10）：`d90b4c7` 已完成 Runtime v2 资源图的 hermetic
-> 状态机与 owned-handle checkpoint，并用全部 11 个顶级测试锁定 20 次 race evidence。
-> `c830b5f` 修复了 close-generation 并发证据的测试线性化屏障，并以 targeted race×1000
-> 和完整 exact runner×20 重新证明该边界。
-> 它尚未证明真实 goroutine/FD 泄漏、provider health 或 Admin listener composition，
-> 所以 `platform.storage-runtime-v2` 仍为 Planned。下一步是 named Redis resource、
-> Admin readiness/close composition 与 Generator/Blueprint 轨的 supplier backend；完整
-> 100 次 leak/provider 门禁仍只在选定 feature-freeze SHA 后执行。详见
-> [D3 Resource Lifecycle 内部 checkpoint](/releases/v1-1-0-d3-resource-lifecycle)。
+> D3 进度（2026-08-11）：`d90b4c7` + `c830b5f` 已完成 Runtime v2 资源图，
+> `c57ffc8` 阻止 provider 对象或文本从公共 error tree 泄漏；`86c0e8a` 进一步加入
+> additive named Redis Resource，并以全部 22 个顶级测试、完全锚定的单包
+> `mss test evidence`、20 次 uncached race run 固化 one-client、isolated Scope、caller
+> deadline 与 exactly-once close。该证据只有 standalone miniredis、stalled socket 和
+> Sentinel/cluster/TLS construction matrix，不是完整 Provider conformance；因此
+> `platform.storage-runtime-v2` 仍为 Planned。下一步是 Admin readiness/close composition、
+> server-owned Challenge atomic bridge 与 Generator/Blueprint 轨的 supplier backend；真实
+> Provider 和 100 次 leak 门禁仍只在选定 feature-freeze SHA 后执行。详见
+> [D3 Resource Lifecycle](/releases/v1-1-0-d3-resource-lifecycle) 与
+> [D3 Named Redis Resource](/releases/v1-1-0-d3-named-redis-resource) 内部 checkpoint。
 
 # v1.1.0 开发优先路线
 
@@ -72,7 +74,7 @@ Lock 或 S3-compatible Provider 可以保持 Legacy/Blocked/Experimental，而�
 | `D0-safety`（已完成） | 建立 v1.1.0 Generator/Blueprint 合同 | Challenge 原子安全、Kafka Mark-after-success、Upload pre-parse admission 与 Local create-only confinement | 对应 focused/race 测试通过；Provider 状态仍诚实保持 |
 | `D1-provider-owner`（已完成） | 冻结新增 scaffold 范围，以 `admin/modules/<name>` 作为机器合同、生成器和文档的唯一新增模块目标 | object provider 完成严格 startup profile、AppConfig 移除、单一 owner、dev-only Local Delivery 与 fail-closed 503；Kafka 保留 `AdapterQueue` 兼容面并新增 `ManagedAdapterQueue`，完成 caller-context 配置/注册、单 producer 与唯一 consumer-group owner、`Errors()` 观察、可取消 `Start` 和幂等有界 `Close`；Admin 是唯一 owner 并把它注册为 `Runnable` | object 与 Kafka exact owner/config/Admin 测试非零命中并通过；changed path 无 Exit/Fatal 或 detached long-lived work；Kafka 仍保持 Legacy/Blocked，不把 D1 完成解释为 Provider 晋级 |
 | `D2-contract-substrate`（进行中） | FeatureModule contract kind；Foundation/Blueprint/generator/downstream snapshot 四身份；lock+manifest 原子双记录；CLI/MCP/doctor 共用严格 SnapshotStatus；typed migration ID 和 duplicate fail-fast | canonical email 存量冲突预检、三库唯一 forward migration 与启动 schema readiness；strict one-of config、SecretRef、doctor preflight | infrastructure Feature 可规划；source/generated/malformed 三态 fail closed；source→generated 竞态受同一锁协议保护；SQLite/model/API/schemahealth/composition checkpoint 非零命中；真实双 DSN 与真实 compatibility workflow 都保留为 feature-freeze required gate |
-| `D3-backend-runtime` | supplier migration、model/DTO/service/API/operations/index/export/OpenAPI；所有支持字段有 output-kind | 顶层资源图、named Redis、readiness/reverse close、公开 ChallengeStore 目标 API | golden backend 两次生成零 diff；100 次 race 启停无泄漏；listener 不早于 required resource ready |
+| `D3-backend-runtime` | supplier migration、model/DTO/service/API/operations/index/export/OpenAPI；所有支持字段有 output-kind | 顶层资源图与 additive named Redis checkpoint 已落地；继续 Admin readiness/reverse close 与公开 ChallengeStore 目标 API | golden backend 两次生成零 diff；100 次 race 启停无泄漏；listener 不早于 required resource ready |
 | `D4-authorization-object` | permissions/defaultRoles/menu/ownership；事务提交后事件；完整正负授权 | ObjectStore/Delivery、Admin object metadata migration、Local/S3-compatible create-only/checksum/授权、独立 S3 bootstrap | 权限矩阵全绿；固定 digest 的 RustFS fixture 与 Local 共用 suite 且 required integration 无 skip；错误 Provider 零 fallback；同 ObjectRef 冲突不覆盖 |
 | `D5-frontend-events-upgrade` | typed client、list/form/detail/actions/export、双语 locale、完整 UI 状态；Blueprint 0.1→0.2 三方升级 | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile、provider evidence report | 第二次 upgrade 为空；无 ignored spec field；前端 focused checks 通过；非目标 Queue/Lock 状态锁定 |
 | `FF-v1.1.0` | Generator/Blueprint schema、API、模板和 golden 输出冻结 | Runtime 配置、资源接口、Provider 选择与 maturity 候选冻结 | P0/P1 清零；不再接受新功能或公共合同变化；选择一个完整 SHA 进入集中验证 |
@@ -104,6 +106,15 @@ Foundation source 只接受精确的 legacy development sentinel；当前 genera
 `.github/workflows/foundation-compatibility.yml` run 绑定到完整 SHA，并补齐真实 Blueprint 0.1→0.2、
 业务定制保留、四身份/digest 一致和第二次空升级。边界见
 [D2 Downstream Snapshot Identity 内部 checkpoint](/releases/v1-1-0-d2-snapshot-identity)。
+
+`86c0e8a` 完成了 D3 named Redis development checkpoint：一个 resource name 只构造并拥有
+一个 client，多个稳定 Scope 自动绑定 resource+scope 物理前缀，structured lease 继承 caller
+context 并拒绝 retained/detached work，Close caller 可以超时但 provider Close 只执行一个 tracked
+generation。`c57ffc8` 同时收紧底层资源图的 provider error tree。22 项 fully anchored 单包
+race×20 evidence 包含 standalone miniredis 与 stalled socket，但 Sentinel/cluster/TLS 只做构造矩阵；
+Sentinel control ACL 匿名、cluster multi-key 非原子 partial、Admin composition、真实 Provider、FD/
+goroutine 和 Challenge same-slot atomic bridge 仍未完成。边界见
+[D3 Named Redis Resource 内部 checkpoint](/releases/v1-1-0-d3-named-redis-resource)。
 
 波次可以并行开发，但依赖不能倒置：migration engine 必须先于真实生成迁移和 object metadata；严格
 profile 必须先于 owned runtime；named Redis 必须先于 Cache/EventBus；完整 golden 输出必须先于
@@ -219,8 +230,11 @@ feature-freeze SHA 后，必须从该提交重跑 canonical-email schemahealth/c
 和 MySQL/PostgreSQL 两个真实 DSN 且 zero-skip，不能复用 `eb1277c`、`8b361ce` 或 `1171df6` 的开发运行冒充冻结证据。
 同一 SHA 还必须真实运行 `foundation-compatibility.yml`，证明四身份/digest、Blueprint 0.1→0.2 与第二次
 空升级；静态 workflow contract test 不能冒充这项证据。
-D2 期间不插入 v1.0.x 发布准备、RustFS qualification 或全量
-release-readiness；S3 `Put`、Delivery 和 RustFS conformance 仍明确保留到 D4。
+D2/D3 期间不插入 v1.0.x 发布准备、RustFS qualification 或全量
+release-readiness；S3 `Put`、Delivery 和 RustFS conformance 仍明确保留到 D4。D3 的下一条
+可执行工作是把 named Redis 作为唯一 Definition 接入 Admin composition root，证明 readiness
+早于 listener 且只有一个 reverse-close owner，再增加 server-owned same-slot atomic capability
+并桥接 ChallengeStore；真实 Sentinel/cluster/TLS 与 leak evidence 留给冻结 SHA。
 
 本策略调整完成的定义是：release policy 能拒绝 v1.0.x 和公开 prerelease tag；Feature acceptance 能按
 checkpoint、feature-freeze、pre-framework、pre-root、post-publication 聚合；普通 PR 不自动运行完整

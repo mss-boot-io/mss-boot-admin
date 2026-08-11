@@ -37,14 +37,27 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   snapshots, and side-effect-free plans. Provider construction, health, and
   real Redis deployment conformance remain feature-freeze work.
 - Added the D3 domain-neutral Runtime v2 resource graph at `d90b4c7`, with its
-  deterministic close-generation evidence repaired at `c830b5f`, and
+  deterministic close-generation evidence repaired at `c830b5f` and its public
+  provider error tree repaired at `c57ffc8`, and
   deterministic side-effect-free graph preflight, topological startup, required
   readiness before dependent start, reverse rollback/close, graph-owned Run
   cancellation, concurrent idempotent close with retry after a bounded failure,
-  and redacted lifecycle errors that preserve typed causes. Hermetic checkpoint
+  and redacted lifecycle errors that preserve `errors.Is` classification without
+  exposing provider objects or text through recursive unwrap/`errors.As`. Hermetic checkpoint
   evidence covers the state machine and owned handles; real provider health,
   Admin readiness-before-listen composition, and goroutine/file-descriptor leak
   bounds remain feature-freeze gates.
+- Added the D3 additive named Redis resource at `86c0e8a`. One normalized Redis
+  profile owns exactly one delayed standalone, Sentinel, or cluster go-redis client;
+  stable resource-and-scope-prefixed capabilities lend structured caller-bounded
+  leases without exposing the client or `Close`. Start/Ready/Health and commands
+  honor caller deadlines, missing keys use a provider-neutral sentinel, and one
+  tracked close generation invokes the context-free provider close exactly once.
+  Twenty-two fully anchored top-level tests pass twenty uncached race-detected runs,
+  including standalone miniredis and stalled-socket deadlines. The aggregate remains
+  Planned: Sentinel control-plane ACL is anonymous, cluster multi-key operations are
+  non-atomic with partial counts, and real Sentinel/cluster/TLS, Admin composition,
+  Challenge atomic bridging, and leak conformance remain open.
 - Switched the next train to development-first v1.1.0: internal waves remain
   untagged, publication is disabled by checked-in policy, acceptance evidence is
   phase-scoped, and complete release qualification starts only after feature freeze.
@@ -162,6 +175,9 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 - Added the D3 Resource Lifecycle checkpoint note and a fully anchored evidence
   command requiring every top-level `runtime/resource` test for twenty uncached
   race-detected runs, without promoting the aggregate Storage Runtime capability.
+- Added the D3 Named Redis Resource checkpoint note and a fully anchored evidence
+  command requiring all twenty-two `runtime/redisresource` top-level tests, while
+  keeping the capability Planned and listing every deferred Provider/composition gate.
 
 ## [v1.0.0] - 2026-08-09
 

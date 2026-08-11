@@ -8,8 +8,9 @@ keywords: [v1.1.0 D3 runtime resource lifecycle readiness shutdown race]
 # D3 Resource Lifecycle 内部 checkpoint
 
 本文记录累计进 `v1.1.0` 的 `D3-backend-runtime` 资源生命周期开发检查点。
-实现提交为 `d90b4c7`，确定性 close-generation evidence 修复为 `c830b5f`；它们是未打 tag 的开发 checkpoint，不是 feature-freeze SHA、
-Framework Release 或发布授权。`platform.storage-runtime-v2` 仍为 Planned。
+实现提交为 `d90b4c7`，确定性 close-generation evidence 修复为 `c830b5f`，
+provider error-tree 脱敏修复为 `c57ffc8`；它们是未打 tag 的开发 checkpoint，
+不是 feature-freeze SHA、Framework Release 或发布授权。`platform.storage-runtime-v2` 仍为 Planned。
 
 ## 已落地的边界
 
@@ -29,7 +30,8 @@ Framework Release 或发布授权。`platform.storage-runtime-v2` 仍为 Planned
   等待检查结束，再按反向拓扑释放已获取 handle。并发调用共享同一个 close
   generation；超时或资源失败后可以重试，已经成功释放的 handle 不会重复关闭。
 - 可打印错误只包含经过验证的资源名与固定 operation，不包含 provider 错误文本；
-  程序仍可通过 `errors.Is`/`errors.As` 判断底层 typed cause。
+  递归 `Unwrap` 与 `errors.As` 也不能取回 provider error 对象。程序仍可读取固定
+  lifecycle metadata，并通过 `errors.Is` 使用自己已持有的 classifier。
 
 该包不创建 Redis、对象存储或其他真实 provider，也尚未接入 Admin composition root。
 
@@ -63,6 +65,10 @@ go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/resource
 - Admin 在 HTTP/gRPC listener 接受请求前完成 required readiness；
 - provider outage、真实网络取消、部署矩阵或长期 soak。
 
+`c57ffc8` 没有增加第 12 个顶级测试；它把 provider-error 对象和 canary 的递归
+error-tree 断言加入现有 `TestGraphHealthAndReadyJoinRedactedDiagnostics`，因此上面的
+11 项 exact evidence 同时覆盖该修复。
+
 ## 冻结前仍未通过的 required gates
 
 feature freeze 仍保留并必须从最终完整 SHA 执行：
@@ -72,7 +78,8 @@ feature freeze 仍保留并必须从最终完整 SHA 执行：
 2. `admin-integration-gate` 的 required-resources-before-listeners、bounded shutdown、
    provider fail-closed 和其他 Admin composition 断言；
 3. named Redis standalone/Sentinel/cluster/TLS 的真实 fixture、health、namespace、
-   one-client/one-close 与 outage conformance；
+   one-client/one-close 与 outage conformance；当前 additive named-resource checkpoint
+   只完成构造、生命周期、standalone miniredis 与 stalled-socket 开发证据；
 4. exact feature-freeze SHA 上的 Framework 全量 `GOWORK=off`、external consumer、
    provider report、`verify --all` 与 `eval run --all`。
 
@@ -85,11 +92,15 @@ Lock 或 ObjectStore provider 的成熟度。
 Admin 配置。旧的 process-global storage client 仍是 Legacy inventory，不能被包装成
 新图的隐式 fallback 或第二 owner。
 
-调用方不得递归打印已 unwrap 的 provider cause，因为 cause 可能包含敏感实现细节。
+`c57ffc8` 后公共 error tree 不再暴露可递归 unwrap/As 的 provider 对象或文本；调用方
+仍应只记录固定 lifecycle metadata 和受控 classifier，不应另行旁路记录 provider secret。
 启动失败时保留原始错误并执行反向 cleanup；shutdown 超时时保持 graph closing，修复
 未完成资源后用新 deadline 重试 `Close`，不要重新 `Start`、替换 client 或跳过已声明
 依赖。已经发布的 tag 不移动、不重写，只做前向修复。
 
-下一步是从严格 Runtime v2 配置构造 named Redis resource，将它交给该图唯一拥有，
-然后接入 Admin composition root，证明 required readiness 早于 listener 且 shutdown
-只有一个反向 owner。Generator/Blueprint 轨同时继续 supplier backend。
+后续 `86c0e8a` 已从严格 Runtime v2 配置构造 additive named Redis resource；其窄边界与
+22 项 exact evidence 见
+[D3 Named Redis Resource 内部 checkpoint](/releases/v1-1-0-d3-named-redis-resource)。
+下一步是接入 Admin composition root，证明 required readiness 早于 listener 且 shutdown
+只有一个反向 owner，再补 server-owned same-slot 原子 capability 并桥接 ChallengeStore。
+Generator/Blueprint 轨同时继续 supplier backend。
