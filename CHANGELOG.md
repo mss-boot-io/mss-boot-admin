@@ -12,6 +12,9 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 
 ### Changed
 
+- Enabled the protected v1.1.0 publication path after the scoped readiness runner, exact-run
+  attestation, required-reviewer `release` environment, and immutable release-tag rulesets were
+  installed and verified. Publication still requires exact-SHA pre-framework and pre-root authority.
 - Added the D2 canonical-email development checkpoint for the bundled Admin:
   a full-ID forward migration preflights existing active identities without
   disclosure, performs compare-and-swap canonical backfill, and installs an

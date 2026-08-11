@@ -12,11 +12,11 @@ keywords: [v1.1.0 release readiness attestation workflow run id publication auth
 并下载该 run 自己的严格证明制品”。这是未打 tag 的 v1.1.0 开发 checkpoint；它只说明仓库内的
 绑定机制已经落地，不是 feature-freeze 证据，也不授权发布。
 
-当前 `.mss/release-policy.yaml` 仍保持 `publicationWorkflowsReady: false`。因此当前策略只允许
-`phase=checkpoint` 且 `publicationAuthority=false` 的 qualification 证明；`feature-freeze`、
-`pre-framework`、`pre-root` 或任何 publish intent 都会被拒绝。受保护的 `release` environment、
-tag ruleset 与仓库变量的最终配置尚未作为本 checkpoint 的外部 GitHub 状态完成，仍是发版前由维护者
-确认的决策；本 checkpoint 也没有把真实 GitHub Actions run 记为已执行。
+当前 `.mss/release-policy.yaml` 已在阶段执行器与受保护写入路径落地后切换为
+`publicationWorkflowsReady: true`。GitHub 已配置带 required reviewer 的 `release` environment，
+并用独立 ruleset 控制版本 tag 创建、禁止更新/删除/非快进。策略现在允许运行
+`feature-freeze`、`pre-framework` 与 `pre-root`；真正发布仍必须由同一完整 SHA 的指定 authority run
+授权。真实 feature-freeze Actions run 与仓库变量选择尚未执行，不能由策略开关本身代替。
 
 ## 严格证明合同
 

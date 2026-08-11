@@ -50,10 +50,10 @@ keywords: [v1.1.0 roadmap development first feature freeze validation release]
 
 机器策略位于 `.mss/release-policy.yaml`，聚合发布合同位于
 `.mss/features/foundation-v1-1-0-release.yaml`。所有 tag 驱动的发布 workflow 都必须先验证该策略。
-当前策略的 `publicationWorkflowsReady` 固定为 `false`：它允许开发期构建候选制品并运行 bootstrap qualification，
-但会拒绝 Framework、root、frontend 与镜像的实际发布。该字段不是阶段审批锁；它只表示完整阶段执行器、证据
-attestation、受保护写入 job 和 tag ruleset 已经具备强制能力。所有开发波次完成后，先补齐这些基础设施并评审
-设为 `true`，然后才选择该提交作为冻结 SHA、启动完整 readiness。后续发布授权仍来自绑定同一 SHA 的阶段证据。
+当前策略的 `publicationWorkflowsReady` 已在完整阶段执行器、证据 attestation、受保护写入 job、
+`release` environment 与不可变 tag ruleset 落地并回读后设为 `true`。该字段不是阶段审批锁；它只表示
+发布基础设施具备强制能力。真正的 Framework、root、frontend 与镜像发布仍必须由绑定同一完整 SHA 的
+`pre-framework` 或 `pre-root` authority run 授权。
 若出现不能等待 v1.1.0 的远程可利用漏洞或数据丢失风险，安全负责人可以发起紧急补丁；但必须先
 通过评审修改 release policy 的公开目标，不能用手工参数或 workflow bypass 绕过。
 

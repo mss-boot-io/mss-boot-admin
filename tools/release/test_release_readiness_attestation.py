@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -33,16 +34,20 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
             publication_authority=False,
         )
 
-    def ready_policy(self, directory: str) -> Path:
+    def policy_with_readiness(self, directory: str, ready: bool) -> Path:
         path = Path(directory) / "release-policy.yaml"
         path.write_text(
-            POLICY_PATH.read_text(encoding="utf-8").replace(
-                "publicationWorkflowsReady: false",
-                "publicationWorkflowsReady: true",
+            re.sub(
+                r"publicationWorkflowsReady: (?:true|false)",
+                f"publicationWorkflowsReady: {str(ready).lower()}",
+                POLICY_PATH.read_text(encoding="utf-8"),
             ),
             encoding="utf-8",
         )
         return path
+
+    def ready_policy(self, directory: str) -> Path:
+        return self.policy_with_readiness(directory, True)
 
     def test_checkpoint_attestation_binds_exact_v110_metadata(self):
         attestation = self.checkpoint()
@@ -70,43 +75,54 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
         )
 
     def test_disabled_publication_policy_rejects_authoritative_or_later_phase(self):
-        with self.assertRaisesRegex(
-            ATTESTATION.AttestationError, "permits only checkpoint"
-        ):
-            ATTESTATION.build_attestation(
-                policy_path=POLICY_PATH,
-                target_version="v1.1.0",
-                commit=COMMIT,
-                phase="pre-framework",
-                workflow_run_id=RUN_ID,
-                workflow_run_url=RUN_URL,
-                publication_authority=True,
-            )
-        with self.assertRaisesRegex(
-            ATTESTATION.AttestationError, "cannot grant publication authority"
-        ):
-            ATTESTATION.build_attestation(
-                policy_path=POLICY_PATH,
+        with tempfile.TemporaryDirectory() as directory:
+            policy = self.policy_with_readiness(directory, False)
+            with self.assertRaisesRegex(
+                ATTESTATION.AttestationError, "permits only checkpoint"
+            ):
+                ATTESTATION.build_attestation(
+                    policy_path=policy,
+                    target_version="v1.1.0",
+                    commit=COMMIT,
+                    phase="pre-framework",
+                    workflow_run_id=RUN_ID,
+                    workflow_run_url=RUN_URL,
+                    publication_authority=True,
+                )
+            with self.assertRaisesRegex(
+                ATTESTATION.AttestationError, "cannot grant publication authority"
+            ):
+                ATTESTATION.build_attestation(
+                    policy_path=policy,
+                    target_version="v1.1.0",
+                    commit=COMMIT,
+                    phase="checkpoint",
+                    workflow_run_id=RUN_ID,
+                    workflow_run_url=RUN_URL,
+                    publication_authority=True,
+                )
+            checkpoint = ATTESTATION.build_attestation(
+                policy_path=policy,
                 target_version="v1.1.0",
                 commit=COMMIT,
                 phase="checkpoint",
                 workflow_run_id=RUN_ID,
                 workflow_run_url=RUN_URL,
-                publication_authority=True,
+                publication_authority=False,
             )
-        with self.assertRaisesRegex(
-            ATTESTATION.AttestationError, "cannot authorize publication"
-        ):
-            ATTESTATION.validate_attestation(
-                self.checkpoint(),
-                policy_path=POLICY_PATH,
-                target_version="v1.1.0",
-                commit=COMMIT,
-                phase="checkpoint",
-                workflow_run_id=RUN_ID,
-                workflow_run_url=RUN_URL,
-                intent="publish",
-            )
+            with self.assertRaisesRegex(
+                ATTESTATION.AttestationError, "cannot authorize publication"
+            ):
+                ATTESTATION.validate_attestation(
+                    checkpoint,
+                    policy_path=policy,
+                    target_version="v1.1.0",
+                    commit=COMMIT,
+                    phase="checkpoint",
+                    workflow_run_id=RUN_ID,
+                    workflow_run_url=RUN_URL,
+                    intent="publish",
+                )
 
     def test_ready_policy_can_issue_exact_publication_phase_authority(self):
         with tempfile.TemporaryDirectory() as directory:

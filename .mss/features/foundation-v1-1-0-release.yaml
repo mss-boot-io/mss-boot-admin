@@ -381,7 +381,7 @@ spec:
     - id: accidental-public-checkpoint
       description: A v1.0.x or prerelease tag could publish a component or image before qualification.
       severity: critical
-      mitigation: Keep publicationWorkflowsReady false during development, enforce the checked-in policy and one exact run-named attestation in every publishing workflow, require a protected release environment for write jobs, and restrict tag creation with repository rulesets.
+      mitigation: Enable publicationWorkflowsReady only after the checked-in phase runner, exact run-named attestation, protected release environment, and immutable release-tag rulesets are active; every publishing workflow still requires a separately approved authority run for the exact SHA.
   validation:
     changed: go run ./cmd/mss verify --changed
     all: python3 tools/release/release_phase_evidence.py run --target-version v1.1.0 --commit <full-sha> --phase feature-freeze --output .mss/reports/release-phase-command-evidence.json

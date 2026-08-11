@@ -94,10 +94,10 @@ external consumer、recovery、`verify --all` 与 `eval --all`。全部通过后
 外部解析 → root → post-publication reconciliation。可选 ObjectStore/RustFS 矩阵不在该 required
 集合中；缺失时保持 Provider 原成熟度即可。
 
-开发期 `.mss/release-policy.yaml` 保持 `publicationWorkflowsReady: false`；因此 bootstrap readiness 绿色只表示
-开发候选结果，不授予 tag、Release 或 package 发布权。受保护 `release` environment、tag ruleset 和完整阶段证据
-执行器完成后，先评审开启 workflow 能力，再选择该提交为冻结 SHA 并执行正式 qualification；pre-framework authority
-仍需单独批准实际发布。
+`.mss/release-policy.yaml` 已在受保护 `release` environment、不可变 tag ruleset 与范围化阶段执行器
+落地后切换为 `publicationWorkflowsReady: true`。该开关只表示发布设施可用，不授予 tag、Release 或 package
+发布权；仍需先在完整冻结 SHA 上完成内置浏览器与范围化 feature-freeze evidence，再由独立的
+`pre-framework` 和 `pre-root` authority run 批准实际发布。
 
 - [v1.1.0 开发优先完整路线](/releases/v1-0-1-to-v1-1-0-roadmap)
 - [Challenge 内部安全 checkpoint](/releases/v1-0-1-challenge-safety)

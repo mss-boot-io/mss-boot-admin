@@ -31,10 +31,9 @@ class ReleasePolicyTest(unittest.TestCase):
                     self.policy, component, "v1.1.0", tag, intent="qualify"
                 )
 
-    def test_publication_stays_disabled_until_workflows_are_ready(self):
-        self.assertIs(self.policy["publicationWorkflowsReady"], False)
-        with self.assertRaisesRegex(POLICY.PolicyError, "remain disabled"):
-            POLICY.check_public_ref(self.policy, "root", "v1.1.0", "v1.1.0")
+    def test_publication_is_enabled_after_protected_workflows_are_ready(self):
+        self.assertIs(self.policy["publicationWorkflowsReady"], True)
+        POLICY.check_public_ref(self.policy, "root", "v1.1.0", "v1.1.0")
 
     def test_policy_rejects_v101_through_v10x_tags(self):
         for version in ("v1.0.1", "v1.0.2", "v1.0.99"):
