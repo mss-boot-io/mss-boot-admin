@@ -75,7 +75,7 @@ class ReleasePolicyTest(unittest.TestCase):
                     with self.assertRaises(POLICY.PolicyError):
                         POLICY.load_policy(candidate)
 
-    def test_publication_workflows_share_the_policy_guard(self):
+    def test_publication_workflows_share_policy_and_exact_attestation_guards(self):
         workflows = (
             "release.yml",
             "framework-release.yml",
@@ -88,7 +88,25 @@ class ReleasePolicyTest(unittest.TestCase):
                     REPOSITORY_ROOT / ".github" / "workflows" / workflow
                 ).read_text(encoding="utf-8")
                 self.assertIn("check_release_policy.py", content)
-                self.assertIn("release-readiness.yml", content)
+                self.assertIn("verify_readiness_run.sh", content)
+                self.assertIn("RELEASE_READINESS_RUN_ID", content)
+                self.assertNotIn(
+                    "/actions/workflows/release-readiness.yml/runs", content
+                )
+
+    def test_publication_workflows_require_the_phase_they_publish_from(self):
+        expected_phases = {
+            "framework-release.yml": "--phase pre-framework",
+            "frontend-release.yml": "--phase pre-framework",
+            "container.yml": "--phase pre-root",
+            "release.yml": "--phase pre-root",
+        }
+        for workflow, expected_phase in expected_phases.items():
+            with self.subTest(workflow=workflow):
+                content = (
+                    REPOSITORY_ROOT / ".github" / "workflows" / workflow
+                ).read_text(encoding="utf-8")
+                self.assertIn(expected_phase, content)
 
     def test_readiness_is_manual_and_release_bound(self):
         content = (
@@ -100,7 +118,11 @@ class ReleasePolicyTest(unittest.TestCase):
             "workflow_dispatch:",
             "frozen_commit:",
             "feature_freeze_confirmed:",
+            "phase:",
+            "publication_authority:",
             "release-readiness-metadata.json",
+            "release-readiness-attestation-${{ github.run_id }}",
+            "release_readiness_attestation.py",
             "check_release_policy.py",
         ):
             self.assertIn(required, content)
@@ -113,7 +135,25 @@ class ReleasePolicyTest(unittest.TestCase):
             '[[ "${GITHUB_EVENT_NAME}" == "push" ]]',
             content,
         )
-        self.assertIn('-f head_sha="${GITHUB_SHA}"', content)
+        self.assertIn("verify_readiness_run.sh", content)
+        self.assertNotIn(
+            "/actions/workflows/release-readiness.yml/runs", content
+        )
+
+    def test_selected_run_helper_verifies_run_and_artifact_identity(self):
+        content = (
+            REPOSITORY_ROOT / "tools" / "release" / "verify_readiness_run.sh"
+        ).read_text(encoding="utf-8")
+        for required in (
+            "/actions/runs/${run_id}",
+            '.head_sha == $commit',
+            '.conclusion == "success"',
+            '.path == $workflow_path',
+            '.html_url == $workflow_run_url',
+            "release-readiness-attestation-${run_id}",
+            "--intent publish",
+        ):
+            self.assertIn(required, content)
 
     def test_root_release_has_no_published_version_default(self):
         content = (

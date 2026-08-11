@@ -43,6 +43,10 @@ on:
         required: true
         default: false
         type: boolean
+      readiness_run_id:
+        description: Exact release-readiness workflow run ID required for publication
+        required: false
+        type: string
 
 permissions:
   actions: read
@@ -88,6 +92,8 @@ jobs:
           GH_REPO: ${{ github.repository }}
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_PUBLISH: ${{ inputs.publish }}
+          INPUT_READINESS_RUN_ID: ${{ inputs.readiness_run_id }}
+          RELEASE_READINESS_RUN_ID: ${{ vars.RELEASE_READINESS_RUN_ID }}
         run: |
           set -euo pipefail
 
@@ -161,18 +167,14 @@ jobs:
             fi
           fi
           if [[ "${publish}" == "true" && "${version}" == v* ]]; then
-            successes="$(gh api \
-              --method GET \
-              -H 'Accept: application/vnd.github+json' \
-              "/repos/${GITHUB_REPOSITORY}/actions/workflows/release-readiness.yml/runs" \
-              -f head_sha="${GITHUB_SHA}" \
-              -f status=completed \
-              -f per_page=20 \
-              --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')"
-            if [[ "${successes}" -lt 1 ]]; then
-              echo "no successful release-readiness.yml run exists for ${GITHUB_SHA}" >&2
-              exit 1
-            fi
+            readiness_run_id="${INPUT_READINESS_RUN_ID:-${RELEASE_READINESS_RUN_ID}}"
+            bash tools/release/verify_readiness_run.sh \
+              --repository "${GITHUB_REPOSITORY}" \
+              --run-id "${readiness_run_id}" \
+              --target-version "${version}" \
+              --commit "${GITHUB_SHA}" \
+              --phase pre-root \
+              --policy .mss/release-policy.yaml
             if release_json="$(gh release view "${version}" --json isDraft 2>/dev/null)"; then
               if [[ "$(jq -r '.isDraft' <<< "${release_json}")" != "true" ]]; then
                 echo "release ${version} is already public; refusing to mutate its image tag" >&2

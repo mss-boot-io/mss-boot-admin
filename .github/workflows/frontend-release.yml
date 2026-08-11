@@ -97,23 +97,20 @@ jobs:
             --version "${FRONTEND_VERSION}" \
             --tag "${GITHUB_REF_NAME}"
 
-      - name: Require exact-commit release readiness
+      - name: Require selected pre-framework readiness attestation
         env:
           GH_TOKEN: ${{ github.token }}
+          FRONTEND_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_READINESS_RUN_ID: ${{ vars.RELEASE_READINESS_RUN_ID }}
         run: |
           set -euo pipefail
-          successes="$(gh api \
-            --method GET \
-            -H 'Accept: application/vnd.github+json' \
-            "/repos/${GITHUB_REPOSITORY}/actions/workflows/release-readiness.yml/runs" \
-            -f head_sha="${GITHUB_SHA}" \
-            -f status=completed \
-            -f per_page=20 \
-            --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')"
-          if [[ "${successes}" -lt 1 ]]; then
-            echo "no successful release-readiness.yml run exists for ${GITHUB_SHA}" >&2
-            exit 1
-          fi
+          bash ../../tools/release/verify_readiness_run.sh \
+            --repository "${GITHUB_REPOSITORY}" \
+            --run-id "${RELEASE_READINESS_RUN_ID}" \
+            --target-version "${FRONTEND_VERSION}" \
+            --commit "${GITHUB_SHA}" \
+            --phase pre-framework \
+            --policy ../../.mss/release-policy.yaml
 
       - name: Refuse mutation of an existing public component release
         env:

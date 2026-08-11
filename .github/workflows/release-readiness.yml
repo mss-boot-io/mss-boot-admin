@@ -16,12 +16,27 @@ on:
         required: true
         default: false
         type: boolean
+      phase:
+        description: Exact readiness phase represented by this run
+        required: true
+        default: checkpoint
+        type: choice
+        options:
+          - checkpoint
+          - feature-freeze
+          - pre-framework
+          - pre-root
+      publication_authority:
+        description: Confirm this exact pre-framework or pre-root run may authorize publication
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-readiness-${{ inputs.version }}-${{ inputs.frozen_commit }}
+  group: release-readiness-${{ inputs.version }}-${{ inputs.frozen_commit }}-${{ inputs.phase }}
   cancel-in-progress: true
 
 env:
@@ -41,6 +56,8 @@ jobs:
           RELEASE_VERSION: ${{ inputs.version }}
           FROZEN_COMMIT: ${{ inputs.frozen_commit }}
           FEATURE_FREEZE_CONFIRMED: ${{ inputs.feature_freeze_confirmed }}
+          READINESS_PHASE: ${{ inputs.phase }}
+          PUBLICATION_AUTHORITY: ${{ inputs.publication_authority }}
         run: |
           set -euo pipefail
           if [[ "${FEATURE_FREEZE_CONFIRMED}" != "true" ]]; then
@@ -56,17 +73,22 @@ jobs:
             --version "${RELEASE_VERSION}" \
             --tag "${RELEASE_VERSION}" \
             --intent qualify
-          mkdir -p .mss/reports
-          policy_sha256="$(sha256sum .mss/release-policy.yaml | awk '{print $1}')"
-          jq -n \
-            --arg version "${RELEASE_VERSION}" \
-            --arg commit "${FROZEN_COMMIT}" \
-            --arg policySha256 "${policy_sha256}" \
-            '{version: $version, commit: $commit, phase: "checkpoint", profile: "bootstrap-incomplete", publicationAuthority: false, policySha256: $policySha256}' \
-            > .mss/reports/release-readiness-metadata.json
+          workflow_run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          python3 tools/release/release_readiness_attestation.py create \
+            --output "${RUNNER_TEMP}/release-readiness-metadata.json" \
+            --policy .mss/release-policy.yaml \
+            --target-version "${RELEASE_VERSION}" \
+            --commit "${FROZEN_COMMIT}" \
+            --phase "${READINESS_PHASE}" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --workflow-run-url "${workflow_run_url}" \
+            --publication-authority "${PUBLICATION_AUTHORITY}"
 
-          echo "This bootstrap workflow is not publication authority." >> "${GITHUB_STEP_SUMMARY}"
-          echo "It must gain the complete v1.1.0 matrix and phase attestation before publicationWorkflowsReady can become true." >> "${GITHUB_STEP_SUMMARY}"
+          publication_authority="$(jq -r '.publicationAuthority' "${RUNNER_TEMP}/release-readiness-metadata.json")"
+          echo "Readiness phase: ${READINESS_PHASE}. Publication authority: ${publication_authority}." >> "${GITHUB_STEP_SUMMARY}"
+          if [[ "${publication_authority}" != "true" ]]; then
+            echo "This qualification run cannot authorize publication." >> "${GITHUB_STEP_SUMMARY}"
+          fi
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
@@ -130,6 +152,39 @@ jobs:
           mkdir -p .mss/reports
           go run ./cmd/mss eval run --all --format json > .mss/reports/release-eval.json
 
+      - name: Finalize exact readiness attestation
+        if: ${{ success() }}
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+          READINESS_PHASE: ${{ inputs.phase }}
+        run: |
+          set -euo pipefail
+          workflow_run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          python3 tools/release/release_readiness_attestation.py verify \
+            --attestation "${RUNNER_TEMP}/release-readiness-metadata.json" \
+            --policy .mss/release-policy.yaml \
+            --target-version "${RELEASE_VERSION}" \
+            --commit "${FROZEN_COMMIT}" \
+            --phase "${READINESS_PHASE}" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --workflow-run-url "${workflow_run_url}" \
+            --intent qualify
+          mkdir -p .mss/reports
+          install -m 0644 \
+            "${RUNNER_TEMP}/release-readiness-metadata.json" \
+            .mss/reports/release-readiness-metadata.json
+
+      - name: Upload exact readiness attestation
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-readiness-attestation-${{ github.run_id }}
+          path: .mss/reports/release-readiness-metadata.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
+
       - name: Upload release evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -137,4 +192,5 @@ jobs:
           name: release-readiness-${{ github.sha }}
           path: .mss/reports
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30

@@ -29,6 +29,10 @@ on:
         description: Repository issue URL containing the sanitized manual release evidence
         required: false
         type: string
+      readiness_run_id:
+        description: Exact pre-root release-readiness workflow run ID required for publication
+        required: false
+        type: string
 
 permissions:
   actions: read
@@ -174,7 +178,26 @@ jobs:
           go-version: 1.26.5
           cache: false
 
-      - name: Require successful exact-commit release workflows
+      - name: Require selected pre-root readiness attestation
+        if: needs.metadata.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+          INPUT_READINESS_RUN_ID: ${{ inputs.readiness_run_id }}
+          RELEASE_READINESS_RUN_ID: ${{ vars.RELEASE_READINESS_RUN_ID }}
+        run: |
+          set -euo pipefail
+          readiness_run_id="${INPUT_READINESS_RUN_ID:-${RELEASE_READINESS_RUN_ID}}"
+          bash tools/release/verify_readiness_run.sh \
+            --repository "${GITHUB_REPOSITORY}" \
+            --run-id "${readiness_run_id}" \
+            --target-version "${RELEASE_VERSION}" \
+            --commit "${RELEASE_COMMIT}" \
+            --phase pre-root \
+            --policy .mss/release-policy.yaml
+
+      - name: Require successful exact-commit release evidence
         if: needs.metadata.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -262,7 +285,6 @@ jobs:
 
           for workflow in \
             framework-release.yml \
-            release-readiness.yml \
             v0.7-upgrade-integration.yml \
             theme-settings-integration.yml \
             docs.yml; do
