@@ -44,22 +44,22 @@ const SELECT_LABELS: Record<string, string> = {
 };
 
 {{- if .HasUniqueFields }}
-const UNIQUE_FIELD = {{ printf "%q" .UniqueField.JSONName }};
+const UNIQUE_FIELD: string = {{ printf "%q" .UniqueField.JSONName }};
 {{- else }}
-const UNIQUE_FIELD = '';
+const UNIQUE_FIELD: string = '';
 {{- end }}
 {{- if .HasUniqueFields }}
-const ROW_FIELD = {{ printf "%q" .UniqueField.JSONName }};
+const ROW_FIELD: string = {{ printf "%q" .UniqueField.JSONName }};
 {{- else if .HasSearchField }}
-const ROW_FIELD = {{ printf "%q" .SearchField.JSONName }};
+const ROW_FIELD: string = {{ printf "%q" .SearchField.JSONName }};
 {{- else }}
-const ROW_FIELD = Object.keys(CREATE_VALUES)[0];
+const ROW_FIELD: string = Object.keys(CREATE_VALUES)[0];
 {{- end }}
 {{- if and .HasUpdate .UIForm .HasE2EUpdateField }}
-const UPDATE_FIELD = {{ printf "%q" .E2EUpdateField.JSONName }};
+const UPDATE_FIELD: string = {{ printf "%q" .E2EUpdateField.JSONName }};
 const UPDATE_VALUE: FixtureValue | undefined = {{ .E2EUpdateField.AlternateFixtureGo }};
 {{- else }}
-const UPDATE_FIELD = '';
+const UPDATE_FIELD: string = '';
 const UPDATE_VALUE: FixtureValue | undefined = undefined;
 {{- end }}
 

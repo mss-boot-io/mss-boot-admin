@@ -625,6 +625,30 @@ func TestGenerateAlignsAuthorizedMenuNamesWithLocaleKeys(t *testing.T) {
 	}
 }
 
+func TestGenerateWidensComparableE2EFieldNames(t *testing.T) {
+	repositoryRoot := findRepositoryRoot(t)
+	root := t.TempDir()
+	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
+
+	if _, err := Generate(generatorTestModule(), Options{Root: root, Write: true}); err != nil {
+		t.Fatalf("Generate(comparable E2E fields) error = %v", err)
+	}
+	path := filepath.Join(root, "web", "antd", "e2e", "generated", "supplier.spec.ts")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read generated E2E: %v", err)
+	}
+	for _, fragment := range []string{
+		`const UNIQUE_FIELD: string = `,
+		`const ROW_FIELD: string = `,
+		`const UPDATE_FIELD: string = `,
+	} {
+		if !strings.Contains(string(content), fragment) {
+			t.Fatalf("generated E2E omitted widened field name %q", fragment)
+		}
+	}
+}
+
 func TestGenerateRejectsUserOwnedManagedPathBeforeAnyWrite(t *testing.T) {
 	repositoryRoot := findRepositoryRoot(t)
 	root := t.TempDir()
