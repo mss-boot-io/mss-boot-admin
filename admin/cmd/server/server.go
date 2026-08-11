@@ -180,11 +180,19 @@ func setup(ctx context.Context) (err error) {
 	routerEngine.Use(middleware.AuditLogMiddleware("/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
 	center.SetMakeRouter(router.DefaultMakeRouter)
 	center.SetRouter(routerEngine)
+	businessRoutes := routerEngine.Group(group)
 	if err := mountBusinessRoutesAfterSchemaReadiness(
 		ctx,
 		databaseHandle.DB,
 		center.GetMakeRouter(),
-		routerEngine.Group(group),
+		businessRoutes,
+	); err != nil {
+		return err
+	}
+	if err := mountSupplierRoutesAfterMigrationReadiness(
+		ctx,
+		databaseHandle.DB,
+		businessRoutes,
 	); err != nil {
 		return err
 	}
