@@ -58,7 +58,11 @@ issue 完成终态记录或链接已验证的替代列车。
 Upload admission 与 D1 object provider/owner 已形成安全 checkpoint，将继续作为永久
 回归哨兵。`D1-provider-owner` 已整体完成；Kafka 保持 `AdapterQueue` 兼容面并通过新增
 `ManagedAdapterQueue` 由 Admin 统一拥有、作为 `Runnable` 运行和有界关闭，但仍保持
-Legacy/Blocked。`D2-contract-substrate` 正在推进：canonical email 的迁移、模型、Admin 写边界和
+Legacy/Blocked。对象 Provider 采用维护者明确的 v1.1.0 窄范围：不启动 RustFS，不要求全面
+Local/S3-compatible、authorization 或 Delivery 矩阵；若对象代码有改动，只做受影响编译、既有
+focused owner/config 测试与一次基础 smoke。这是 scope 决策，不是新增测试通过声明。Local/S3
+继续 Legacy/Blocked，production Local 与 S3 `Put`/未完成 Delivery 入口继续 unavailable；缺少可选
+对象证据不阻断 Foundation 发布，也不会触发晋级。`D2-contract-substrate` 正在推进：canonical email 的迁移、模型、Admin 写边界和
 server schema-readiness 已形成开发 checkpoint；冻结 SHA 上仍须重跑 readiness 正负套件以及
 MySQL/PostgreSQL 双 DSN zero-skip evidence，因此 capability 保持 Planned。`151a91c` 还完成了
 downstream snapshot identity consumer checkpoint：CLI/MCP/doctor 共用严格 SnapshotStatus，区分
@@ -85,10 +89,11 @@ Admin 尚未注入公共 API，也未运行真实 Cluster/failover，因此 capa
 冻结 SHA 仍须重跑。defaultRoles/policy/menu、typed client、UI/E2E、模块文档与 upgrade rehearsal
 尚未生成，因此 full-stack capability 保持 Planned，generation plan 保持 `complete=false`。
 
-只有 Generator/Blueprint 与 Storage Runtime 目标全部完成、选定一个 `v1.1.0` 功能冻结 SHA
-后，才手工启动 `release-readiness`，集中执行三数据库、browser、Provider、upgrade、
+只有 Generator/Blueprint 与 Storage Runtime 的 v1.1.0 选定范围完成、选定一个功能冻结 SHA
+后，才手工启动 `release-readiness`，集中执行三数据库、browser、required Provider、upgrade、
 external consumer、recovery、`verify --all` 与 `eval --all`。全部通过后才进入 Framework →
-外部解析 → root → post-publication reconciliation。
+外部解析 → root → post-publication reconciliation。可选 ObjectStore/RustFS 矩阵不在该 required
+集合中；缺失时保持 Provider 原成熟度即可。
 
 开发期 `.mss/release-policy.yaml` 保持 `publicationWorkflowsReady: false`；因此 bootstrap readiness 绿色只表示
 开发候选结果，不授予 tag、Release 或 package 发布权。受保护 `release` environment、tag ruleset 和完整阶段证据

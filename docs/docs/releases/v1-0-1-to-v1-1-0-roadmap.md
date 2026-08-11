@@ -65,13 +65,19 @@ attestation、受保护写入 job 和 tag ruleset 已经具备强制能力。所
   supplier golden backend 与 OpenAPI 已形成 checkpoint；继续权限/menu、typed client、前端、
   三方升级与 generated drift；
 - **B 轴：Storage Runtime 风险轴**：Provider fail-closed、资源所有权、named Redis、ChallengeStore、
-  ObjectStore/Delivery、Cache、EventBus 与逐 Provider evidence；
+  Cache、EventBus 与 v1.1.0 选定 Provider evidence；ObjectStore/Delivery 成熟度移到可选后续波次；
 - **共同基座**：canonical identity、三数据库 forward migration、严格配置、SecretRef、Feature phase
   和发布策略。
 
 Generator 是 v1.1.0 的产品旗舰。Storage Runtime 是独立风险轴：未完成的 Kafka、NSQ、WorkQueue、
 Lock 或 S3-compatible Provider 可以保持 Legacy/Blocked/Experimental，而不是为了版本号被自动晋级；
 但已选择进入 v1.1.0 的 required Provider 必须在冻结后通过自己的完整证据。
+
+对象存储采用维护者明确的窄范围决策：现有实现视为可信边界，v1.1.0 不启动 RustFS，也不要求
+Local/S3-compatible、application provider authorization 或 Delivery 的全面矩阵。若候选提交改动了对象
+存储实现，只做受影响编译、既有 focused owner/config 测试与一次基础 fail-closed 或 dev-Local smoke；
+未改动时没有对象存储专属冻结门禁。Local/S3 继续保持 Legacy/Blocked，生产 Local 与未完成的 S3
+Delivery 入口继续 unavailable。缺少可选对象 Provider 证据不阻断 Foundation v1.1.0 发布，也不产生晋级。
 
 ## 内部开发波次
 
@@ -83,7 +89,7 @@ Lock 或 S3-compatible Provider 可以保持 Legacy/Blocked/Experimental，而�
 | `D1-provider-owner`（已完成） | 冻结新增 scaffold 范围，以 `admin/modules/<name>` 作为机器合同、生成器和文档的唯一新增模块目标 | object provider 完成严格 startup profile、AppConfig 移除、单一 owner、dev-only Local Delivery 与 fail-closed 503；Kafka 保留 `AdapterQueue` 兼容面并新增 `ManagedAdapterQueue`，完成 caller-context 配置/注册、单 producer 与唯一 consumer-group owner、`Errors()` 观察、可取消 `Start` 和幂等有界 `Close`；Admin 是唯一 owner 并把它注册为 `Runnable` | object 与 Kafka exact owner/config/Admin 测试非零命中并通过；changed path 无 Exit/Fatal 或 detached long-lived work；Kafka 仍保持 Legacy/Blocked，不把 D1 完成解释为 Provider 晋级 |
 | `D2-contract-substrate`（已完成开发 checkpoint） | FeatureModule contract kind；Foundation/Blueprint/generator/downstream snapshot 四身份；lock+manifest 原子双记录；CLI/MCP/doctor 共用严格 SnapshotStatus；typed migration ID 和 duplicate fail-fast | canonical email 存量冲突预检、三库唯一 forward migration 与启动 schema readiness；strict one-of config、SecretRef、doctor preflight | infrastructure Feature 可规划；source/generated/malformed 三态 fail closed；source→generated 竞态受同一锁协议保护；SQLite/model/API/schemahealth/composition checkpoint 非零命中；真实双 DSN 与真实 compatibility workflow 都保留为 feature-freeze required gate |
 | `D3-backend-runtime`（进行中） | `5a60ad6` 已完成 supplier spec projection、显式 migration、model/DTO/service/API/operations/index/export/OpenAPI、typed events 与 fail-closed authorizer；计划保持 `complete=false` | 顶层资源图、additive named Redis、公共 Challenge API 与 internal opaque fixed-script bridge 已落地；继续 Admin readiness/reverse close 与 Challenge 注入 | backend golden 两次生成零 diff且 exact evidence 非零；Challenge 的 22 项本次新增测试 count1/race/GOWORK=off 非零；100 次 race 启停、Admin composition 与真实 Cluster/failover 留到冻结 SHA；listener 不早于 required resource ready |
-| `D4-authorization-object` | permissions/defaultRoles/menu/ownership；成功与拒绝审计；完整正负授权，并复用 D3 已生成的 post-commit typed events | ObjectStore/Delivery、Admin object metadata migration、Local/S3-compatible create-only/checksum/授权、独立 S3 bootstrap | 权限矩阵全绿；固定 digest 的 RustFS fixture 与 Local 共用 suite 且 required integration 无 skip；错误 Provider 零 fallback；同 ObjectRef 冲突不覆盖 |
+| `D4-authorization-object` | permissions/defaultRoles/menu/ownership；成功与拒绝审计；完整正负授权，并复用 D3 已生成的 post-commit typed events | v1.1.0 只保持既有 object owner/config 与 fail-closed 边界；ObjectStore/Delivery、metadata、Local/S3 全面矩阵移到可选 post-v1.1 波次 | Supplier 权限矩阵全绿；对象代码若有改动则完成受影响编译、既有 focused owner/config tests 与一次基础 smoke；不启动 RustFS、不晋级 Local/S3，缺少可选证据不阻断 FF |
 | `D5-frontend-events-upgrade` | typed client、list/form/detail/actions/export、双语 locale、完整 UI 状态；Blueprint 0.1→0.2 三方升级 | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile、provider evidence report | 第二次 upgrade 为空；无 ignored spec field；前端 focused checks 通过；非目标 Queue/Lock 状态锁定 |
 | `FF-v1.1.0` | Generator/Blueprint schema、API、模板和 golden 输出冻结 | Runtime 配置、资源接口、Provider 选择与 maturity 候选冻结 | P0/P1 清零；不再接受新功能或公共合同变化；选择一个完整 SHA 进入集中验证 |
 
@@ -184,7 +190,7 @@ changed-scope 合同和生成器快速反馈；完整矩阵由人工在功能冻
 - `doctor --strict`、`verify --all`、`eval run --all`；
 - Framework/Admin/Agent 全量测试、race、vet、frontend lint/tsc/Jest/build、docs build；
 - SQLite/MySQL/PostgreSQL fresh/upgrade/repeat/failure migration matrix；
-- Redis standalone/Sentinel/cluster/TLS、固定 digest 的 RustFS S3-compatible fixture、选定真实 broker 与故障注入；
+- Redis standalone/Sentinel/cluster/TLS、选定的 required 真实 broker 与故障注入；application ObjectStore/RustFS 明确不在 v1.1.0 required 矩阵；
 - Browser E2E、权限正负矩阵、secret/subject/payload redaction canary；
 - Generator 两次生成、全字段投影、external new-app、Blueprint 0.1→0.2 升级和二次空升级；
 - `foundation-compatibility.yml` 从冻结 SHA 真实运行，CLI/MCP/doctor 四身份与 digests 一致，
@@ -257,7 +263,8 @@ feature-freeze SHA 后，必须从该提交重跑 canonical-email schemahealth/c
 同一 SHA 还必须真实运行 `foundation-compatibility.yml`，证明四身份/digest、Blueprint 0.1→0.2 与第二次
 空升级；静态 workflow contract test 不能冒充这项证据。
 D2/D3 期间不插入 v1.0.x 发布准备、RustFS qualification 或全量
-release-readiness；S3 `Put`、Delivery 和 RustFS conformance 仍明确保留到 D4。D3 的下一条
+release-readiness。S3 `Put`、Delivery 与完整 Local/S3 conformance 已移到可选 post-v1.1 波次，
+不再是 D4 或 feature-freeze 前置。D3 的下一条
 可执行工作是把 named Redis 作为唯一 Definition 与公共 Challenge API 一起接入 Admin composition
 root，证明 readiness 早于 listener、只有一个 reverse-close owner，并迁移投递与 Verify consumer；
 A 轴随后进入 D4，为已生成的 Supplier permission code 增加 default-role/

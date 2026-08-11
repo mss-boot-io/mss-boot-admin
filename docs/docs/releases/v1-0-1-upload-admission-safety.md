@@ -72,7 +72,7 @@ cleanup 失败只产生脱敏运维告警，不把成功翻转成 500，从而�
 
 S3 新写入也使用 opaque key，但本切片没有提供 conditional create。S3 create-only、
 typed conflict、checksum、Local 的 crash-atomic temp/publish 和 Local/固定 digest RustFS 共用 conformance
-仍属于功能冻结前的 `D4-authorization-object` 波次。
+已按维护者范围决策移到可选 post-v1.1 Provider 成熟度波次，不再是 feature-freeze 前置。
 
 ## 验收证据
 
@@ -85,8 +85,9 @@ GOWORK=off go test -json -race ./apis ./service ./router \
   -count=20
 ```
 
-功能冻结后的发布证据不能只看命令退出码。报告必须解析 JSON，确认六个精确顶层测试各出现 20 次
-`Action=pass`，且没有 `skip`、`fail`、缓存结果或 `[no tests to run]`。这些测试覆盖：
+上述命令记录历史开发 checkpoint，不表示本次范围调整重新执行了测试。若 v1.1.0 候选实际改动
+对象存储路径，只选择受影响的既有 focused tests，配合受影响编译和一次基础 fail-closed 或
+dev-Local smoke；不启动 RustFS，也不要求这组 20 次运行作为发布前置。这些既有测试覆盖：
 
 - known cap+1 零 body read；unknown-length cap+1 恰好读取 cap 和探测字节；
 - exact request cap 与 exact object limit 成功；
@@ -98,13 +99,14 @@ GOWORK=off go test -json -race ./apis ./service ./router \
 
 ## 后续 D1 状态与功能冻结边界
 
-本检查点可以独立提交，但不能据此进入 `FF-v1.1.0` 或启动完整 release-readiness：
+本检查点可以独立提交，但不会据此晋级对象 Provider。缺少后续全面对象证据本身不阻断
+`FF-v1.1.0` 或 Foundation release-readiness：
 
 - 后续 D1 object checkpoint 已经让空、未知、矛盾或不可用 Provider fail closed，删除 ghost/
   per-request client split，并由单一 owner 持有 immutable profile；
 - Local 只在 dev 模式与实际 `staticPath` 精确映射时安装，生产 Local 保持 unavailable；
 - Provider/SecretRef 已移出 AppConfig；S3 在 D1 只构造和持有 client，上传会在 `Put` 前返回 503；
-- S3 Put、Delivery、RustFS conformance 仍在 D4；Kafka changed-path lifecycle 已作为相邻
+- S3 Put、Delivery、RustFS conformance 已移到可选 post-v1.1 波次；Kafka changed-path lifecycle 已作为相邻
   D1 checkpoint 关闭，但真实 broker conformance 与冻结后完整 release evidence 仍未通过。
 
 完整语义与精确测试见

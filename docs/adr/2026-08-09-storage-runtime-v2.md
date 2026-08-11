@@ -85,8 +85,8 @@ That D0 checkpoint did **not** promote either Local or S3-compatible storage. At
 boundary, provider selection could still fall through to Local, provider settings were
 not one immutable validated profile, client ownership was not singular, and returned URL
 strings did not prove a delivery contract. D1 closes the profile and ownership paths
-described below; S3 create-only writes and the Local/S3-compatible common provider suite
-remain separately gated D4 work.
+described below. S3 create-only writes and the Local/S3-compatible common provider suite
+remain longer-term provider-maturity work outside the v1.1.0 release gate.
 
 ### Internal D1 object provider/owner checkpoint
 
@@ -124,12 +124,27 @@ The object-storage subset of `D1-provider-owner` is now implemented:
   is covered by a real static-route read after router reconstruction.
 - D1 may construct and own one S3 client, but Admin rejects S3 upload before `Put`.
   Private object metadata, create-only S3 semantics, authorization, `Delivery`, and a
-  pinned RustFS-backed S3-compatible conformance fixture remain
-  `D4-authorization-object` work.
+  complete S3-compatible conformance fixture remain future optional work.
 
 Local and S3-compatible storage therefore remain `legacy` in the machine catalog and
 **Blocked** in the evidence matrix. The following Kafka lifecycle checkpoint closes the
 other D1 subset without promoting any WorkQueue provider.
+
+### v1.1.0 object-provider scope decision
+
+On 2026-08-11 the maintainer explicitly excluded application ObjectStore promotion from the
+v1.1.0 release prerequisite set. The implementation is treated as a trusted existing boundary;
+this decision does not claim new validation or change provider maturity. v1.1.0 does not start a
+RustFS container and does not require the complete Local/S3-compatible, object authorization,
+Delivery, or application-provider matrix. If the frozen candidate changes object-storage code,
+the release scope is limited to affected compilation, already existing focused owner/configuration
+tests, and one basic fail-closed or development-Local smoke. If those paths are unchanged, there is
+no object-specific freeze gate.
+
+Local and S3-compatible remain Legacy/Blocked. Production Local stays unavailable, and Admin still
+returns unavailable before S3 `Put`; incomplete Delivery is not enabled merely to complete v1.1.0.
+The Foundation release may proceed with that honest non-promoted state. Full provider and
+authorization conformance may be scheduled as an optional post-v1.1 wave.
 
 ### Internal D1 Kafka lifecycle checkpoint
 
@@ -491,7 +506,7 @@ partition tests, and proof that a database concurrency mechanism is insufficient
 This section is the target contract, not a claim that the internal D0/D1 checkpoints
 already provide ObjectStore or Delivery. D1 supplies only strict profile and ownership;
 create-only S3 behavior, common provider conformance, and authenticated Delivery remain
-gated for D4 before the v1.1.0 feature freeze.
+optional post-v1.1 maturity work rather than v1.1.0 feature-freeze prerequisites.
 
 The object interface operates on an opaque `ObjectRef` and checksummed metadata through
 `Put`, `Open`, `Stat`, and `Delete` semantics. `Put` is create-only: publishing an existing
@@ -550,7 +565,7 @@ evidence-status field is added, existing unsafe compatibility paths are marked `
 clean unimplemented targets are `planned`, and detailed blocked/experimental evidence
 lives in this matrix. Provider state is never inferred from the framework version.
 
-| Provider or capability | Evidence at `ee800262` | Development-wave action | v1.1.0 freeze target |
+| Provider or capability | Evidence at `ee800262` | Development-wave action | v1.1.0 freeze treatment |
 | --- | --- | --- | --- |
 | Runtime resource graph | Not present at the baseline | D3 adds deterministic Build/Start/Run/Close ownership, a redacted public error tree, and exact hermetic race evidence | Compose Admin readiness and singular close ownership; then pass the 100-cycle real leak and listener-order gates on the frozen SHA |
 | Aggregate cache/lock/queue | Declared stable; provider evidence does not support it | Retire the stable aggregate and point to provider evidence | Do not restore an aggregate maturity state |
@@ -563,9 +578,9 @@ lives in this matrix. Provider state is never inferred from the framework versio
 | Kafka WorkQueue | Blocked: message is marked before handler success | D0 lands hermetic Mark-order/session-cancellation safety; D1 adds non-terminating strict configuration/registration, one producer and owned consumer groups, observed errors, cancellable Start, bounded Close, and Admin Runnable ownership. Retain Blocked/legacy | Eligible for Experimental reassessment only after explicit manual-commit policy, retry/backoff, dead-letter, rebalance, outage, duplicate/idempotency, and non-skipped real-broker conformance; not a v1.1 stable commitment |
 | NSQ WorkQueue | Blocked: duration, process-exit, and cancellation defects | Keep blocked/legacy; fix in a dedicated development wave or remove | Experimental or remove from default build |
 | Redis lock | Experimental: no Admin consumer and no focused coverage | Downgrade aggregate claim and defer | Experimental until a fenced consumer and conformance exist |
-| Local ObjectStore | Blocked at v1.0.0 by late size checks, implicit fallback, collision/overwrite risk, and unproven Delivery | D0 landed admission and confined opaque create-only writes; D1 now adds strict startup profile, one owner, fail-closed 503 behavior, and development-only exact static delivery. Retain legacy/Blocked | Eligible for reassessment only after the D4 common provider, authorization, metadata, and Delivery gates; no Stable commitment |
-| S3-compatible ObjectStore | Blocked at v1.0.0 by per-request clients, ambiguous credentials, overwrite semantics, synthesized URLs, and skipped external tests | D1 now validates an immutable profile and owns one client, but deliberately returns unavailable before Put. Retain legacy/Blocked | S3 conditional create-only, private metadata and Delivery, and the Local/S3-compatible suite with a pinned RustFS fixture are gated to D4; no Stable commitment |
-| S3 configuration source | Experimental/beta bootstrap | D1 gives bootstrap its own profile, handle, caller context, response-body cleanup, unsupported-Watch error, and close owner; it is not reused as an application client | Prove real-provider failure, health, lifecycle/leak, and independent-bootstrap conformance in D4 before any Beta reassessment |
+| Local ObjectStore | Blocked at v1.0.0 by late size checks, implicit fallback, collision/overwrite risk, and unproven Delivery | D0 landed admission and confined opaque create-only writes; D1 now adds strict startup profile, one owner, fail-closed 503 behavior, and development-only exact static delivery. Retain legacy/Blocked | Not a release blocker and not promoted. Only if changed: affected compile, existing focused owner/config tests, and one basic smoke. Full authorization/metadata/Delivery conformance is optional post-v1.1 work |
+| S3-compatible ObjectStore | Blocked at v1.0.0 by per-request clients, ambiguous credentials, overwrite semantics, synthesized URLs, and skipped external tests | D1 now validates an immutable profile and owns one client, but deliberately returns unavailable before Put. Retain legacy/Blocked | Not a release blocker and not promoted. Admin stays unavailable before Put; no RustFS is started. Conditional create, metadata, Delivery, and complete provider conformance are optional post-v1.1 work |
+| S3 configuration source | Experimental/beta bootstrap | D1 gives bootstrap its own profile, handle, caller context, response-body cleanup, unsupported-Watch error, and close owner; it is not reused as an application client | Its in-scope bootstrap checks remain independent from application ObjectStore promotion; missing optional application-provider/RustFS evidence cannot promote or block the Foundation release |
 | WebSocket Redis pub/sub | Unwired at the baseline: no `SetRedisClient` call exists | Move into the resource inventory and report the single-instance boundary | Beta realtime bus after clustered conformance; never a durable-work claim |
 
 ## Consequences
@@ -597,13 +612,15 @@ owned object resources, and the additive managed Kafka lifecycle without changin
 Legacy/Blocked maturity. D2 establishes strict schemas, version
 identity, migration preflight, and hermetic fixtures. D3 now has the resource graph and named
 Redis construction/lifecycle checkpoints plus the public Challenge runtime and internal atomic bridge;
-D3-D5 still land Admin composition, EventBus, ObjectStore/Delivery, upgrade paths, and
-provider evidence in independently reversible commits. None of these waves creates a public tag.
+D3-D5 still land Admin composition, EventBus, upgrade paths, and selected provider evidence in
+independently reversible commits. ObjectStore/Delivery maturity moves to an optional post-v1.1 wave.
+None of these waves creates a public tag.
 
 After the architecture and selected provider scope reach `FF-v1.1.0`, one frozen commit enters
-concentrated conformance: complete database, browser, real-provider, failure-injection, lifecycle,
+concentrated conformance: complete database, browser, selected in-scope provider, failure-injection, lifecycle,
 upgrade, external-consumer, recovery, verify, and eval matrices. Publication authority is a later
-phase and does not determine whether the target architecture is feature-complete.
+phase and does not determine whether the target architecture is feature-complete. Missing optional
+ObjectStore/RustFS evidence leaves those providers Legacy/Blocked and does not block publication.
 
 During a failed rollout, stop listeners and consumers, preserve authoritative database,
 challenge, offset, object, and sanitized diagnostic evidence, then close the owned resource
@@ -613,15 +630,17 @@ state from a cache, or restoring early acknowledgement and process termination.
 
 ## Completion definition
 
-This ADR is implemented only when:
+The following list describes the ADR's full long-term target, not the narrower v1.1.0 release
+definition. By the scope decision above, the ObjectStore/Delivery and RustFS portions may remain
+incomplete after v1.1.0 without blocking the Foundation release:
 
 1. the composition root proves required resources ready before listeners start;
 2. no runtime consumer creates, replaces, exposes, or closes a hidden global provider client;
 3. derived cache, ChallengeStore, EventBus, WorkQueue, lock, ObjectStore, Delivery, and S3
    bootstrap have separate contracts and failure semantics;
 4. the strict negative configuration matrix and lifecycle/leak suite pass;
-5. ChallengeStore security, EventBus reconciliation, ObjectStore Local/RustFS S3-compatible, and Admin
-   integration suites pass under race detection;
+5. ChallengeStore security and EventBus reconciliation pass for the selected release scope; the
+   ObjectStore Local/S3-compatible suite is completed only in an optional later maturity wave;
 6. a provider-by-provider report contains no skipped required evidence;
 7. an external `GOWORK=off` consumer constructs, readies, uses, and closes the released
    framework; and
@@ -634,4 +653,5 @@ Sentinel/cluster/TLS/failover fixtures and goroutine/file-descriptor evidence re
 freeze gates, not checkpoint claims. In parallel, the Generator/Blueprint track can implement
 the supplier backend against the canonical `admin/modules/<name>` contract. Kafka, Local, and
 S3-compatible storage remain Legacy/Blocked; S3 Put, conditional create-only writes,
-authenticated Delivery, and pinned RustFS conformance remain gated for D4 before feature freeze.
+authenticated Delivery, and any RustFS conformance remain optional post-v1.1 work rather than
+feature-freeze gates.

@@ -431,8 +431,12 @@ spec:
         promotes Kafka, NSQ, Redis work queue, distributed lock, or S3-compatible storage by itself.
         D1 is complete: the object-provider subset has strict startup profiles and one owner, while the
         additive managed Kafka lifecycle returns construction/registration errors, observes provider errors,
-        and is owned as a cancellable Runnable by Admin. Kafka remains Legacy/Blocked and
-        ObjectStore/Delivery remain D4 work. S3 configuration bootstrap
+        and is owned as a cancellable Runnable by Admin. Kafka remains Legacy/Blocked.
+        By explicit maintainer scope decision, ObjectStore/Delivery provider maturity moves to an
+        optional post-v1.1 wave: v1.1.0 does not require or start RustFS and does not require the
+        complete Local/S3-compatible or application-provider authorization matrix. If object-storage
+        implementation changes, use affected compilation, existing focused owner/configuration tests,
+        and one basic smoke only. S3 configuration bootstrap
         owns a separate Handle, treats only a missing stage object as optional, fails closed on other
         overlay errors, and permits HTTP only with explicit s3_tls_allow_insecure_http=true.
         The D2 strict-config checkpoint now provides exact-key YAML/JSON decoding, immutable
@@ -481,7 +485,9 @@ spec:
         strict startup profile, installs one application-owned Handle, removes the ghost/per-request
         client split, and fails unavailable without a Local fallback. Storage AppConfig contains only
         maxSize and allowedTypes. This remains Legacy/Blocked because S3 Put, private object metadata,
-        authorization, Delivery, and common provider conformance remain D4 work.
+        authorization, Delivery, and common provider conformance are incomplete. They are optional
+        post-v1.1 maturity work, not v1.1.0 release prerequisites; incomplete production Delivery
+        remains explicitly unavailable, and the Foundation release does not promote this aggregate.
 
     - id: platform.object-storage-local
       displayName: Legacy Local Object Storage
@@ -508,8 +514,11 @@ spec:
         Local writes, and uses create-only files with failure cleanup. D1 adds a strict immutable
         profile and one owner, and installs Local only in development when application.staticPath
         maps the exact absolute root; writes and StaticFS share one pinned os.Root and production
-        Local remains unavailable. Local therefore remains
-        Legacy/Blocked until the D4 ObjectStore, authorization, Delivery, and common conformance gates.
+        Local remains unavailable. Local therefore remains Legacy/Blocked after v1.1.0. Complete
+        ObjectStore authorization, Delivery, and common provider conformance move to an optional
+        post-v1.1 wave; absence of that evidence does not block the Foundation release, and production
+        Local remains unavailable. Changed object paths receive only affected compilation, existing
+        focused owner/configuration tests, and one basic smoke in the v1.1.0 scope.
 
     - id: platform.object-storage-s3
       displayName: Legacy S3-Compatible Object Storage
@@ -532,9 +541,11 @@ spec:
         Local or S3 is selected exactly once, static credentials use complete SecretRefs or an explicit
         default chain, and one application owner leases and closes one S3 client. Admin intentionally
         returns unavailable before S3 Put because private object metadata, create-only semantics,
-        authorization, and Delivery are absent. The provider remains Legacy/Blocked; D4 must run a
-        pinned RustFS-backed S3-compatible fixture plus every advertised deployment through lifecycle,
-        outage, create-only, checksum, privacy, and Delivery gates with no required skip.
+        authorization, and Delivery are absent. The provider remains Legacy/Blocked after v1.1.0,
+        and Admin continues returning unavailable before S3 Put. A RustFS fixture and the full
+        lifecycle, outage, create-only, checksum, privacy, authorization, and Delivery matrix are
+        optional post-v1.1 maturity work rather than Foundation release prerequisites. v1.1.0 does
+        not start RustFS or infer provider promotion from a basic smoke.
 
     - id: operations.task
       displayName: Scheduled and On-Demand Tasks

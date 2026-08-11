@@ -39,6 +39,7 @@ spec:
     - Add CDN orchestration, malware scanning, image transforms, resumable multipart upload, or cross-cloud replication.
     - Make Redis authoritative for database configuration, authorization policy, or other reconstructable application records.
     - Reintroduce removed runtime developer tools, dynamic models, virtual CRUD, or browser code generation.
+    - Require application ObjectStore promotion, a RustFS container, or the complete Local/S3-compatible provider matrix before publishing v1.1.0; those remain optional post-v1.1 maturity work by explicit maintainer scope decision.
   actors:
     - id: application-author
       displayName: Application author
@@ -123,6 +124,7 @@ spec:
         - Provider outage returns unavailable and never falls back; public URLs are not built by concatenating an endpoint and object key.
         - Admin persists authoritative owner, tenant, purpose, profile, checksum, size, detected type, state, revision, and original-name metadata through a forward migration.
         - Open, signed delivery, and delete enforce backend permission plus cross-user and cross-tenant negative authorization; ObjectRef possession grants no access.
+        - For v1.1.0 this is a post-release provider-maturity target rather than a foundation release prerequisite; Local and S3-compatible remain Legacy/Blocked and incomplete production Delivery stays unavailable.
     - id: own-named-resources
       title: Own one client per named Redis resource
       description: Redis consumers must resolve explicit resource references and receive only a namespace-scoped capability interface.
@@ -236,12 +238,15 @@ spec:
     - id: required-test-execution
       type: operations
       statement: Required Go tests are parsed from go test -json and must show at least one exact test start and pass; no-tests warnings, package skips, and required fixture skips fail promotion.
+    - id: v110-object-provider-scope
+      type: operations
+      statement: By explicit maintainer scope decision, v1.1.0 does not start RustFS or require complete application ObjectStore provider or authorization conformance; when object-storage implementation changes, validation is limited to affected compilation, existing focused owner/configuration tests, and one basic fail-closed or Local smoke, while absent optional evidence cannot block the Foundation release.
     - id: declarative-bootstrap-boundary
       type: operations
       statement: At the v1.0.0 baseline, spec validate proves only structure and references; feature plan cannot yet plan cross-cutting modules and verify does not execute acceptance or custom evidence, so this target is not reported as implemented until the infrastructure planner and evidence runner land.
   acceptance:
     - id: admin-integration-gate
-      statement: Admin integration proves readiness ordering, bounded shutdown, challenge outage failure, Casbin reconciliation, pre-parse upload limits, and no provider fallback.
+      statement: Admin integration proves readiness ordering, bounded shutdown, challenge outage failure, and Casbin reconciliation for the v1.1.0 in-scope runtime.
       level: e2e
       phase: feature-freeze
       required: true
@@ -252,14 +257,23 @@ spec:
           value: TestChallengeOutageFailsClosed
         - type: test
           value: TestCasbinRevisionReconcilesCommitPublishCrash
-        - type: test
-          value: TestStorageUploadHardLimitBeforeMultipart
-        - type: test
-          value: TestAvatarUploadHardLimitBeforeMultipart
-        - type: test
-          value: TestStorageProviderFailureNeverWritesLocal
         - type: report
           value: Required-test JSON report proving every named Admin integration test ran and passed under race detection.
+    - id: object-v110-change-scope-check
+      requirement: constrain-object-storage
+      statement: >-
+        This optional check applies only when the v1.1.0 candidate changes object-storage
+        implementation paths. Compile the affected packages, select the already existing focused
+        owner and configuration tests, and perform one basic fail-closed or Local smoke. Do not
+        start RustFS and do not interpret this check as provider promotion.
+      level: integration
+      phase: feature-freeze
+      required: false
+      evidence:
+        - type: command
+          value: Compile affected object-storage packages and run the existing focused owner/configuration tests selected by the candidate diff.
+        - type: manual
+          value: Record one basic fail-closed or development-Local smoke only when object-storage implementation changed.
     - id: challenge-conformance-gate
       requirement: secure-one-time-challenges
       statement: One hundred concurrent issue, delivery commit/abort, and verify attempts produce at most one active issue and one verification success, preserve the prior verifier on failed delivery, reclaim crash or hung-sender pending leases without extending active expiry, reject stale delivery completion, and prove cooldown, charged failure quota, attempts, expiry, Admin purpose isolation, anti-enumeration, pepper rotation, constant-time verification, CROSSSLOT/failover behavior, outage, and redaction.
@@ -606,10 +620,10 @@ spec:
           value: cd mss-boot && GOWORK=off go test -race -count=100 ./runtime/resource/...
     - id: object-conformance-gate
       requirement: constrain-object-storage
-      statement: Local and the pinned RustFS S3-compatible fixture pass the same create-only Put, Open, Stat, Delete, cancel, limit, checksum, no-clobber, conflict, cleanup, privacy, path, symlink, and concurrent-filename suite.
+      statement: In an optional post-v1.1 provider-maturity wave, Local and an explicitly selected S3-compatible fixture may run the same create-only Put, Open, Stat, Delete, cancel, limit, checksum, no-clobber, conflict, cleanup, privacy, path, symlink, and concurrent-filename suite; v1.1.0 does not require or start RustFS.
       level: integration
-      phase: feature-freeze
-      required: true
+      phase: post-publication
+      required: false
       evidence:
         - type: test
           value: ObjectStore provider conformance suite
@@ -617,10 +631,10 @@ spec:
           value: cd mss-boot && GOWORK=off go test -race ./runtime/objectstore/...
     - id: object-authorization-gate
       requirement: constrain-object-storage
-      statement: A forward migration creates authoritative object metadata and Admin tests deny cross-user and cross-tenant open, signed delivery, and delete while preserving owner permission checks.
+      statement: In an optional post-v1.1 provider-maturity wave, a forward migration may create authoritative object metadata and Admin tests deny cross-user and cross-tenant open, signed delivery, and delete while preserving owner permission checks.
       level: security
-      phase: feature-freeze
-      required: true
+      phase: post-publication
+      required: false
       evidence:
         - type: test
           value: Admin ObjectRef metadata migration and authorization suite
@@ -628,7 +642,7 @@ spec:
           value: Required-test JSON report proving exact owner-positive and cross-user/cross-tenant negative tests ran and passed.
     - id: provider-report-gate
       requirement: classify-providers-by-evidence
-      statement: CI emits a provider-by-provider report with no skipped required check and only evidence-qualified promotions.
+      statement: CI emits a provider-by-provider report for the selected v1.1.0 scope with no skipped required check and only evidence-qualified promotions; absent optional ObjectStore/RustFS evidence leaves Local and S3-compatible Legacy/Blocked and does not fail the Foundation release.
       level: contract
       phase: feature-freeze
       required: true
@@ -803,7 +817,8 @@ spec:
       Treat the target model as authoritative without using historical compatibility as a design
       constraint. Strict configuration, the resource owner, the additive named Redis resource,
       and the public Challenge runtime are development checkpoints; next compose Challenge into
-      Admin, then land scoped caches, EventBus plus reconciliation, ObjectStore plus Delivery, and finally
+      Admin, then land scoped caches and EventBus plus reconciliation. ObjectStore plus Delivery
+      maturity work moves to an optional post-v1.1 wave, followed by
       provider-by-provider promotion in untagged development waves. Migrate Admin scopes independently
       with focused failure checks at every boundary, then run the complete conformance, leak,
       real-provider, and failure-injection matrix on the feature-freeze commit. Keep WorkQueue and

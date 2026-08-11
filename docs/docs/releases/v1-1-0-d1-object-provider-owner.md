@@ -131,21 +131,26 @@ GOWORK=off go test -json -race ./apis \
   -count=1
 ```
 
-这些是开发 checkpoint 命令。功能冻结后的 required evidence 仍必须解析 `go test -json`，证明
-每个精确测试非零命中、通过且无 skip、`[no tests to run]` 或仅缓存结果。
+这些命令记录既有 D1 开发 checkpoint，不表示本次范围调整重新执行了测试。若 v1.1.0 冻结候选
+实际修改对象存储实现，只从这些既有 focused tests 中选择受影响的 owner/config 路径，配合受影响
+编译和一次基础 fail-closed 或 dev-Local smoke；对象路径未改动时不建立专属冻结门禁。
 
-## D4 延后项与 RustFS
+## v1.1.0 范围决策与后续可选项
 
-D1 没有发出任何 S3 `Put`，也没有启动 RustFS 容器。以下内容统一留在
-`D4-authorization-object`：
+2026-08-11，维护者明确把对象 Provider 全面成熟度排除在 v1.1.0 发布前置之外。现有对象存储
+实现按可信边界处理；这是 scope 决策，不是新增测试通过声明。v1.1.0 不启动 RustFS，以下内容
+统一移到可选 post-v1.1 波次：
 
 - private `ObjectStore` 的 Put/Open/Stat/Delete、create-only conflict 与 checksum；
 - Admin object metadata migration、tenant/owner/purpose authorization 与 reconciliation；
 - 独立 `Delivery` 的 authenticated proxy、signed URL 或显式 public policy；
 - Local 与 S3-compatible 共用的 cancel、limit、no-clobber、outage、privacy、lifecycle/leak suite；
-- 固定镜像 digest 的 RustFS fixture，以及 required integration 无 skip 的证据。
+- 任意 RustFS 或其他 S3-compatible fixture，以及全面 integration evidence。
 
-在这些门禁关闭前，S3 endpoint 拼接、opaque key 或已构造 client 都不是成功 Delivery 的证据。
+这些可选项缺失不会阻断 Foundation v1.1.0，也不会把 Local/S3 自动晋级。Local 与 S3-compatible
+继续保持 Legacy/Blocked；production Local 不安装，S3 仍在 `Put` 前返回固定 unavailable，未完成的
+Delivery 入口不会为了发版而开启。S3 endpoint 拼接、opaque key 或已构造 client 仍不是成功
+Delivery 的证据。
 
 ## 迁移、兼容性与恢复
 
@@ -158,4 +163,4 @@ Provider 静默写 Local、每请求创建 S3 client、拼接伪 URL、恢复浏
 保留不含 secret 的配置字段名、provider 状态、close 结果和对象 key/checksum 诊断。
 
 相邻的 Kafka managed lifecycle 已完成，`D1-provider-owner` 因此整体关闭。下一条可执行工作是
-`D2-contract-substrate` 的安全迁移引擎与合同收敛；中间不插入发布门禁或 RustFS qualification。
+`D2-contract-substrate` 的安全迁移引擎与合同收敛；对象 Provider 全面矩阵留给 post-v1.1 可选波次。
