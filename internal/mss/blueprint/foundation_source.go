@@ -41,6 +41,8 @@ type foundationReleasePolicy struct {
 	} `yaml:"metadata"`
 	Spec struct {
 		Mode                      string `yaml:"mode"`
+		ReleaseBranch             string `yaml:"releaseBranch"`
+		RequireMergedPRSource     *bool  `yaml:"requireMergedPullRequestSource"`
 		CurrentStableVersion      string `yaml:"currentStableVersion"`
 		CurrentStableCommit       string `yaml:"currentStableCommit"`
 		NextPublicVersion         string `yaml:"nextPublicVersion"`

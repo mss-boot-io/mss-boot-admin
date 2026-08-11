@@ -91,6 +91,8 @@ metadata:
   name: fixture
 spec:
   mode: development-first
+  releaseBranch: main
+  requireMergedPullRequestSource: true
   currentStableVersion: v1.0.0
   currentStableCommit: 0000000000000000000000000000000000000000
   nextPublicVersion: v1.1.0
@@ -100,6 +102,13 @@ spec:
   frameworkTagTemplate: "mss-boot/{version}"
   frontendTagTemplate: "web/antd/{version}"
 `
+	policy, err := decodeFoundationReleasePolicy([]byte(valid))
+	if err != nil {
+		t.Fatalf("decodeFoundationReleasePolicy(valid) error = %v", err)
+	}
+	if policy.Spec.ReleaseBranch != "main" || policy.Spec.RequireMergedPRSource == nil || !*policy.Spec.RequireMergedPRSource {
+		t.Fatalf("release source governance = branch %q required %#v, want main/true", policy.Spec.ReleaseBranch, policy.Spec.RequireMergedPRSource)
+	}
 	tests := []struct {
 		name string
 		data string
