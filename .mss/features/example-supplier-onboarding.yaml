@@ -10,7 +10,7 @@ metadata:
     sensitivity: internal
     target-version: v1.1.0
     release-status: planned
-    implementation-checkpoint: backend-authorization
+    implementation-checkpoint: generated-module-checkpoint
 spec:
   problem: >-
     Procurement teams need one governed place to register suppliers, maintain contact and credit information,
@@ -108,24 +108,32 @@ spec:
       evidence:
         - type: command
           value: go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json
-    - id: module-plan-backend-checkpoint
+    - id: module-plan-generated-checkpoint
       requirement: supplier-create
       statement: >-
-        Deterministic generation returns a conflict-free backend-checkpoint plan whose implemented,
-        validation-only, and deferred projections cover every source declaration. Authorization policy,
-        default roles, and menu metadata are generated; until frontend, documentation, and E2E are
-        generated, complete remains false.
+        Deterministic generation returns a conflict-free generated-module-checkpoint plan whose implemented
+        and validation-only projections cover every source declaration. The plan reports complete true,
+        30 managed outputs, and zero deferred projections; this generator completeness signal does not replace
+        feature-freeze browser evidence or release qualification.
       level: contract
       phase: checkpoint
       required: true
       evidence:
         - type: command
           value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --format json
+        - type: test
+          value: TestGenerateReportsCompleteDocsAndBrowserE2EOutputs
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator
+            --run '^TestGenerateReportsCompleteDocsAndBrowserE2EOutputs$'
+            --count 1 --race --go-work off
+            --require TestGenerateReportsCompleteDocsAndBrowserE2EOutputs
         - type: report
           value: >-
-            At implementation commit d92458c the dry-run reports phase backend-checkpoint,
-            template revision 1.1.0-backend.3, complete false, 19 unchanged managed files,
-            and 19 explicitly deferred frontend, documentation, and E2E projections.
+            At implementation commit 2771588 the dry-run reports phase generated-module-checkpoint,
+            template revision 1.1.0-fullstack.2, complete true, 30 unchanged managed files,
+            and zero deferred projections.
     - id: supplier-backend-checkpoint
       requirement: supplier-create
       statement: >-
@@ -142,6 +150,8 @@ spec:
           value: TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
         - type: test
           value: TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
+        - type: test
+          value: TestSupplierProductionComposition
         - type: test
           value: TestSupplierForwardMigrationFreshRepeatAndConstraints
         - type: test
@@ -177,6 +187,38 @@ spec:
             --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
             --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
             --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+            --run '^TestSupplierProductionComposition$'
+            --count 1 --race
+            --require TestSupplierProductionComposition
+    - id: supplier-generated-fullstack-checkpoint
+      requirement: supplier-review
+      statement: >-
+        The generated Supplier projection includes the typed client, route, synchronized locales,
+        list/form/detail/export UI states, focused frontend contracts, deterministic module documentation,
+        and one collectable Playwright create/detail/edit/export/delete flow.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestGenerateReportsCompleteDocsAndBrowserE2EOutputs
+        - type: command
+          value: pnpm --dir web/antd jest --runInBand src/modules/supplier/contracts.test.ts
+        - type: command
+          value: pnpm --dir web/antd lint:js
+        - type: command
+          value: pnpm --dir web/antd tsc
+        - type: command
+          value: pnpm --dir web/antd build
+        - type: command
+          value: pnpm --dir web/antd exec playwright test e2e/generated/supplier.spec.ts --project=chromium --list
+        - type: report
+          value: >-
+            The generated Playwright file is collectable as one test. Collection proves the executable
+            contract is discoverable; it is not claimed as an executed browser result.
     - id: supplier-authorization-checkpoint
       requirement: supplier-update
       statement: >-
@@ -234,8 +276,10 @@ spec:
       evidence:
         - type: report
           value: >-
-            D5 must generate and execute the Supplier browser E2E suite with required-test
-            accounting; no browser test artifact is claimed by the backend checkpoint.
+            During D5 development the Codex in-app browser completed create, detail, edit, export,
+            and delete against the locally migrated Admin composition, then removed the fixture.
+            This development result is not evidence for a future feature-freeze SHA; the same visible
+            flow must be rerun in the in-app browser from the single selected frozen commit.
     - id: migration-roundtrip
       requirement: supplier-create
       statement: The supplier forward migration passes fresh, upgrade, repeat, and injected-failure checks without a destructive down migration or partial schema truth.
@@ -271,10 +315,22 @@ spec:
       phase: feature-freeze
       required: true
       evidence:
+        - type: test
+          value: TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+            --run '^TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets$'
+            --count 10 --race
+            --require TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets
+        - type: command
+          value: cd admin && go vet ./cmd/server
         - type: report
           value: >-
-            D4 must add an exact audit conformance test for accepted and rejected mutations.
-            Typed domain events in 5a60ad6 do not by themselves satisfy the audit requirement.
+            Commits f585ecf and 4477c08 add exact accepted/rejected mutation audit evidence,
+            including multipart attachment-body exclusion, at the new Supplier production
+            composition boundary. Focused execution, race count 10, and package vet pass; this
+            evidence does not reopen or re-review pre-existing audit paths.
     - id: changed-verification
       statement: The change-aware verifier completes without failed required checks.
       level: integration
@@ -304,10 +360,10 @@ spec:
       - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check --format json
       - >-
         go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator
-        --run '^(TestGenerateRejectsMigrationIDCollisionsBeforeWriting|TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs)$'
+        --run '^(TestGenerateRejectsMigrationIDCollisionsBeforeWriting|TestGenerateReportsCompleteDocsAndBrowserE2EOutputs)$'
         --count 1 --race --go-work off
         --require TestGenerateRejectsMigrationIDCollisionsBeforeWriting
-        --require TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs
+        --require TestGenerateReportsCompleteDocsAndBrowserE2EOutputs
       - >-
         go run ./cmd/mss test evidence --directory . --package ./internal/mss/spec
         --run '^(TestLoadExampleSupplierModule|TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID)$'
@@ -347,11 +403,22 @@ spec:
         --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
         --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
         --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
-      - pnpm --dir web/antd test -- --runInBand supplier
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+        --run '^(TestSupplierProductionComposition|TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets)$'
+        --count 1 --race
+        --require TestSupplierProductionComposition
+        --require TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets
+      - pnpm --dir web/antd jest --runInBand src/modules/supplier/contracts.test.ts
+      - pnpm --dir web/antd lint:js
+      - pnpm --dir web/antd tsc
+      - pnpm --dir web/antd build
+      - pnpm --dir web/antd exec playwright test e2e/generated/supplier.spec.ts --project=chromium --list
   rollout:
     strategy: phased
     migration: >-
       Apply the additive supplier table migration followed by authorization migration
       20260811120000 in a non-production environment. Compose routes only with the explicit
-      AdminAuthorizer; frontend routes and browser acceptance remain a later checkpoint.
+      AdminAuthorizer. The generated frontend route is present; feature-freeze browser acceptance
+      remains a release-time gate.
     rollback: Disable the supplier menu and permission grants, preserve supplier data, and apply an idempotent forward repair; do not run a destructive down migration against adopted databases.
