@@ -87,6 +87,7 @@ func writeEvaluationFixture(t *testing.T) string {
 kind: Project
 metadata:
   name: fixture
+  repository: example/fixture
 spec:
   repositoryLayout:
     backend: .
@@ -96,6 +97,26 @@ spec:
     specifications: .mss
   backend:
     module: example.com/fixture
+`,
+		".mss/lock.yaml": `apiVersion: mss.io/v1alpha1
+kind: FoundationLock
+metadata:
+  project: fixture
+spec:
+  foundation:
+    repository: example/fixture
+    version: 0.1.0
+    channel: development
+  blueprint:
+    name: management-system
+    version: 0.1.0
+  contracts:
+    project: v1alpha1
+  generatedBy:
+    tool: mss
+    version: 0.1.0-dev
+  modules: {}
+  upgrades: []
 `,
 		".mss/capabilities.yaml": `apiVersion: mss.io/v1alpha1
 kind: CapabilityCatalog
