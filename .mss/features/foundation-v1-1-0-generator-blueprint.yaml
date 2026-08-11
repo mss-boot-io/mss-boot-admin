@@ -735,6 +735,39 @@ spec:
             --require TestRunAgentScopeFailsMalformedCurrentSnapshotWithoutSourceFallback
         - type: report
           value: Commit 151a91c is the development checkpoint for these consumers; exact local test evidence and the static workflow-contract test do not assert that foundation-compatibility.yml has run in GitHub Actions.
+    - id: blueprint-upgrade-rehearsal-checkpoint-evidence
+      requirement: upgrade-preserving-customizations
+      statement: The external development rehearsal upgrades a Blueprint 0.1.0 downstream from Foundation commit 35e41d3e to the Blueprint 0.2.0 candidate at commit 160e2df, preserves downstream-owned code, proves a zero-change second application, and atomically retains the prior snapshot in an independent injected apply failure without claiming feature-freeze evidence.
+      level: migration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: path
+          value: docs/docs/releases/v1-1-0-d5-blueprint-upgrade-rehearsal.md
+        - type: report
+          value: >-
+            From source 35e41d3e38c2aaab8131db70db54bce3a108625b to target
+            160e2df196dc804f2fb1717f28404553a9538036, the first plan and apply reported 822 updates,
+            412 creates, 60 deletes, 66 unchanged files, and zero conflicts; the second apply reported
+            1,300 unchanged files and zero non-unchanged actions. The downstream-owned
+            admin/modules/rehearsalcustom/service.go SHA-256 remained
+            3eca5b0f15d1b4ee5d2fc6c63cb08aa242d4c4ae7270fc50503d8994e2c9fc6f.
+        - type: report
+          value: >-
+            The installed lock, manifest, and upgrade status agreed on target commit
+            160e2df196dc804f2fb1717f28404553a9538036 and Blueprint 0.2.0; strict agent doctor passed
+            6 of 6 checks, skills validation passed 10 of 10 skills, and the downstream-owned module
+            compiled with GOWORK=off. The manifest-recorded and actual lock SHA-256 was
+            1393bf8d1e8113fb1a77cc10e773987dbdf863b9eb7e51440c41c93b40141ad3.
+        - type: report
+          value: >-
+            A late-create write failure exited 1 while preserving the pre-apply lock and manifest
+            SHA-256 values 5d8442eda61d962dc1551db37fe4d2c32c725a4c4aedf792c3f683dbc62e0b0e
+            and 390718804b4e686f87a4823f67b00368eab3eee375643387e137dd3260feb072,
+            producing zero Git changes and zero transaction journals, and allowing the same conflict-free
+            plan to be produced again. The failure JSON success=true field describes the plan only, not
+            execution success; whether to add an execution-specific field remains an explicit user decision
+            before publication.
     - id: upgrade-rehearsal-gate
       requirement: upgrade-preserving-customizations
       statement: A generated Blueprint 0.1 application with business customizations upgrades to 0.2, reports conflicts deterministically, preserves owned changes, commits identity last, and has an empty second upgrade.
