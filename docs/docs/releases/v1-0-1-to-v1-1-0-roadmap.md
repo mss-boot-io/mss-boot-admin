@@ -16,8 +16,11 @@ keywords: [v1.1.0 roadmap development first feature freeze validation release]
 > typed post-commit events 与 fail-closed authorizer 已生成并通过开发证据，但机器计划诚实保持
 > `complete=false`，26 项 policy/menu/frontend/docs/E2E 投影继续延后。`1faa9ef` 又新增公共
 > `runtime/challenge` 与内部 opaque same-slot fixed-script bridge，并验证 rate replay 与所有语法
-> 有效 Verify 路径的固定 I/O；legacy D0 surface 保持源码兼容。下一步是 Admin
-> readiness/close composition 与公开 Challenge 注入，以及 D4 Supplier policy/menu；
+> 有效 Verify 路径的固定 I/O；legacy D0 surface 保持源码兼容。`3e9ca94` 已将 named Redis
+> `main` / Scope `challenge.email` 接入 Admin：Start/Ready 后才发布，Config 唯一持有并有界关闭，
+> optional invalid/outage 固定 503 且不回退 legacy global Redis，required failure 阻断 setup；
+> FakeCaptcha 使用 Begin→send→Commit/Abort，登录/注册/重置消费 VerifyOutcome。配置仍是启动快照，
+> 变更需要重启。下一步继续 D4 Supplier policy/menu 与其余 D3/D5 功能；
 > 真实 Provider 和 100 次 leak 门禁仍只在选定 feature-freeze SHA 后执行。详见
 > [D3 Resource Lifecycle](/releases/v1-1-0-d3-resource-lifecycle) 与
 > [D3 Named Redis Resource](/releases/v1-1-0-d3-named-redis-resource)、
@@ -88,7 +91,7 @@ Delivery 入口继续 unavailable。缺少可选对象 Provider 证据不阻断 
 | `D0-safety`（已完成） | 建立 v1.1.0 Generator/Blueprint 合同 | Challenge 原子安全、Kafka Mark-after-success、Upload pre-parse admission 与 Local create-only confinement | 对应 focused/race 测试通过；Provider 状态仍诚实保持 |
 | `D1-provider-owner`（已完成） | 冻结新增 scaffold 范围，以 `admin/modules/<name>` 作为机器合同、生成器和文档的唯一新增模块目标 | object provider 完成严格 startup profile、AppConfig 移除、单一 owner、dev-only Local Delivery 与 fail-closed 503；Kafka 保留 `AdapterQueue` 兼容面并新增 `ManagedAdapterQueue`，完成 caller-context 配置/注册、单 producer 与唯一 consumer-group owner、`Errors()` 观察、可取消 `Start` 和幂等有界 `Close`；Admin 是唯一 owner 并把它注册为 `Runnable` | object 与 Kafka exact owner/config/Admin 测试非零命中并通过；changed path 无 Exit/Fatal 或 detached long-lived work；Kafka 仍保持 Legacy/Blocked，不把 D1 完成解释为 Provider 晋级 |
 | `D2-contract-substrate`（已完成开发 checkpoint） | FeatureModule contract kind；Foundation/Blueprint/generator/downstream snapshot 四身份；lock+manifest 原子双记录；CLI/MCP/doctor 共用严格 SnapshotStatus；typed migration ID 和 duplicate fail-fast | canonical email 存量冲突预检、三库唯一 forward migration 与启动 schema readiness；strict one-of config、SecretRef、doctor preflight | infrastructure Feature 可规划；source/generated/malformed 三态 fail closed；source→generated 竞态受同一锁协议保护；SQLite/model/API/schemahealth/composition checkpoint 非零命中；真实双 DSN 与真实 compatibility workflow 都保留为 feature-freeze required gate |
-| `D3-backend-runtime`（进行中） | `5a60ad6` 已完成 supplier spec projection、显式 migration、model/DTO/service/API/operations/index/export/OpenAPI、typed events 与 fail-closed authorizer；计划保持 `complete=false` | 顶层资源图、additive named Redis、公共 Challenge API 与 internal opaque fixed-script bridge 已落地；继续 Admin readiness/reverse close 与 Challenge 注入 | backend golden 两次生成零 diff且 exact evidence 非零；Challenge 的 22 项本次新增测试 count1/race/GOWORK=off 非零；100 次 race 启停、Admin composition 与真实 Cluster/failover 留到冻结 SHA；listener 不早于 required resource ready |
+| `D3-backend-runtime`（进行中） | `5a60ad6` 已完成 supplier spec projection、显式 migration、model/DTO/service/API/operations/index/export/OpenAPI、typed events 与 fail-closed authorizer；计划保持 `complete=false` | 顶层资源图、additive named Redis、公共 Challenge API 与 internal opaque fixed-script bridge 已落地；`3e9ca94` 完成 Admin readiness/publication、Config bounded close 与 Challenge consumer 注入 | backend golden 两次生成零 diff且 exact evidence 非零；Framework Challenge 22 项与 Admin composition 13 项本次顶级测试均 count1/race/GOWORK=off 非零；100 次 race 启停、browser listener 复核与真实 Cluster/failover 留到冻结 SHA；listener 不早于 required resource ready |
 | `D4-authorization-object` | permissions/defaultRoles/menu/ownership；成功与拒绝审计；完整正负授权，并复用 D3 已生成的 post-commit typed events | v1.1.0 只保持既有 object owner/config 与 fail-closed 边界；ObjectStore/Delivery、metadata、Local/S3 全面矩阵移到可选 post-v1.1 波次 | Supplier 权限矩阵全绿；对象代码若有改动则完成受影响编译、既有 focused owner/config tests 与一次基础 smoke；不启动 RustFS、不晋级 Local/S3，缺少可选证据不阻断 FF |
 | `D5-frontend-events-upgrade` | typed client、list/form/detail/actions/export、双语 locale、完整 UI 状态；Blueprint 0.1→0.2 三方升级 | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile、provider evidence report | 第二次 upgrade 为空；无 ignored spec field；前端 focused checks 通过；非目标 Queue/Lock 状态锁定 |
 | `FF-v1.1.0` | Generator/Blueprint schema、API、模板和 golden 输出冻结 | Runtime 配置、资源接口、Provider 选择与 maturity 候选冻结 | P0/P1 清零；不再接受新功能或公共合同变化；选择一个完整 SHA 进入集中验证 |
@@ -135,7 +138,13 @@ Redis Scope，不导出 provider client、物理 key、任意 Eval 或 `Close`�
 opaque same-slot group/key 运行固定 scripts。rate operation 在 limit 边界可安全 replay，所有语法有效
 Verify 路径固定为一次 read、一次 completion 与 comparison work。D0 exported surface 保持源码兼容并
 Deprecated。五条 fully anchored 单包命令只要求本次新增的 22 个顶级测试，各以 count1、race、
-GOWORK=off uncached 通过。Admin 仍未组合公共 API，也未运行真实 Cluster/failover；能力未自动晋级。
+GOWORK=off uncached 通过。`3e9ca94` 随后把 named Redis `main` 与 Scope `challenge.email` 接入
+Admin：graph Start/Ready 完成后才发布，Config 在 rollback 与正常 shutdown 中以有界 context 唯一关闭；
+optional invalid/outage 让业务固定返回 503 而不使用 legacy global Redis，required failure 阻断 setup。
+FakeCaptcha 采用 BeginIssue→SMTP→Commit/Abort，登录、注册、重置采用 VerifyOutcome；四条 fully
+anchored Admin 单包命令选中本次新增或改动的 13 个顶级测试，全部 count1/race/GOWORK=off uncached
+通过且无 skip。配置热变更仍需重启；browser reload、冻结 SHA lifecycle 与真实 Cluster/failover
+尚未执行，能力未自动晋级。
 边界见 [D3 Challenge Runtime 内部 checkpoint](/releases/v1-1-0-d3-challenge-runtime)。
 
 `5a60ad6` 完成了 A 轴 D3 Supplier backend checkpoint。AdminModule 的每个 source field 现在都有
@@ -264,10 +273,9 @@ feature-freeze SHA 后，必须从该提交重跑 canonical-email schemahealth/c
 空升级；静态 workflow contract test 不能冒充这项证据。
 D2/D3 期间不插入 v1.0.x 发布准备、RustFS qualification 或全量
 release-readiness。S3 `Put`、Delivery 与完整 Local/S3 conformance 已移到可选 post-v1.1 波次，
-不再是 D4 或 feature-freeze 前置。D3 的下一条
-可执行工作是把 named Redis 作为唯一 Definition 与公共 Challenge API 一起接入 Admin composition
-root，证明 readiness 早于 listener、只有一个 reverse-close owner，并迁移投递与 Verify consumer；
-A 轴随后进入 D4，为已生成的 Supplier permission code 增加 default-role/
+不再是 D4 或 feature-freeze 前置。D3 Admin Challenge composition 已在 `3e9ca94` 完成；运行时配置
+仍是 immutable startup snapshot，修改资源、scope 或 SecretRef 后必须重启。下一条可执行工作是继续
+剩余 D3/D5 Runtime 范围；A 轴随后进入 D4，为已生成的 Supplier permission code 增加 default-role/
 policy/menu persistence 和完整正负授权。真实 Sentinel/cluster/TLS 与 leak evidence、Supplier 三方言
 重跑都留给冻结 SHA，开发期证据不能复用为发布证据。
 

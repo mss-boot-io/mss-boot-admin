@@ -13,9 +13,10 @@ keywords: [release upgrade rollback compatibility mss-boot-admin]
 > fail-closed authorizer，并通过 exact development evidence。机器计划仍是
 > `phase=backend-checkpoint`、`complete=false`，26 项 default-role/policy/menu/frontend/docs/E2E
 > projection 延后。B 轴最新是
-> [`1faa9ef` D3 Challenge Runtime](/releases/v1-1-0-d3-challenge-runtime)：公共
-> Scope-based API、internal opaque fixed-script bridge、rate replay 与固定 valid-Verify I/O 已落地，
-> Admin composition 和真实 Cluster/failover 仍 pending；A/B 两项 capability
+> [`3e9ca94` D3 Challenge Runtime Admin composition](/releases/v1-1-0-d3-challenge-runtime)：
+> named Redis `main` / Scope `challenge.email` 在 Start/Ready 后发布，Config 唯一有界关闭，
+> optional invalid/outage 固定 503 且不回退 legacy global Redis；FakeCaptcha 与三个 Verify consumer
+> 已切到公开 API。配置变更仍需重启，browser 与真实 Cluster/failover 仍 pending；A/B 两项 capability
 > 均未因开发 checkpoint 自动晋级。
 
 # 发布与升级

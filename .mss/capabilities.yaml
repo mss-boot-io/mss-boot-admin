@@ -226,7 +226,11 @@ spec:
         - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
       backendPaths:
         - admin/apis/user.go
+        - admin/center/default.go
         - admin/config/challenge.go
+        - admin/config/config.go
+        - admin/config/runtime_challenge.go
+        - admin/middleware/auth.go
         - admin/models/user.go
         - admin/notice/email/send.go
       frameworkPaths:
@@ -238,10 +242,15 @@ spec:
         The D0 Admin path keeps purpose-scoped cryptographic transitions and a source-compatible,
         deprecated fail-closed bridge. D3 adds the public runtime/challenge API over one named Redis
         Scope plus an internal opaque same-slot fixed-script bridge, replay-safe rate operations,
-        and equal fixed-script I/O for every syntactically valid Verify path. Admin still uses the D0
-        bridge until composition is implemented. This capability remains Beta rather than Stable and
-        does not assert Admin readiness/ownership, real Cluster/failover behavior, or completion of
-        the database-enforced canonical-email release gates.
+        and equal fixed-script I/O for every syntactically valid Verify path. Commit 3e9ca94 composes
+        Admin with resource main and Scope challenge.email: Start and Ready precede publication,
+        Config owns bounded shutdown, FakeCaptcha uses Begin/send/Commit-or-Abort, and login,
+        registration, and password reset consume VerifyOutcome. Optional invalid or unavailable
+        configuration keeps Admin running but all Challenge flows return fixed 503 without legacy
+        global Redis fallback; required failure blocks setup. Configuration is an immutable startup
+        snapshot and changes require restart. This capability remains Beta rather than Stable until
+        browser and frozen-SHA lifecycle evidence, real Cluster/failover behavior, and the
+        database-enforced canonical-email release gates are complete.
 
     - id: identity.verification-challenge-redis-cluster
       displayName: Redis Cluster/Ring Email Challenge

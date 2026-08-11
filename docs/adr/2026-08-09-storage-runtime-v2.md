@@ -246,8 +246,8 @@ miniredis. It is **not** real Sentinel, cluster, or TLS provider conformance. Ru
 no separate Sentinel control-plane credential references, so Sentinel control-plane ACL is
 anonymous here. At this checkpoint the package did not yet provide the server-owned same-slot
 atomic group needed to bridge ChallengeStore; the following `1faa9ef` checkpoint adds that bridge
-without changing this provider-evidence boundary. Admin readiness-before-listen composition and real
-goroutine/file-descriptor bounds remain feature-freeze gates. Consequently
+without changing this provider-evidence boundary, and `3e9ca94` later composes it into Admin. Real
+goroutine/file-descriptor bounds and frozen-SHA listener ordering remain feature-freeze gates. Consequently
 `platform.storage-runtime-v2` remains Planned.
 
 ### Internal D3 Challenge runtime checkpoint
@@ -273,10 +273,30 @@ Commit `1faa9ef` adds the public additive `mss-boot/runtime/challenge` API over 
 
 Five fully anchored single-package evidence commands cover all twenty-two newly introduced top-level
 tests with `--count 1`, `--race`, and `--go-work off`; each required test ran and passed uncached with
-no skip. This is a Framework development checkpoint only. Admin still consumes the D0 bridge, and no
-real multi-node Redis Cluster was started, so listener ordering, singular Admin close ownership,
-`CROSSSLOT`, failover, `NOSCRIPT`, and connection recovery remain pending. Standalone stays Beta,
-Cluster stays Planned, and the aggregate Storage Runtime stays Planned rather than becoming Stable.
+no skip. This was a Framework-only checkpoint; the following Admin composition checkpoint does not
+change its provider-evidence boundary.
+
+### Internal D3 Admin Challenge composition checkpoint
+
+Commit `3e9ca94` composes the public API without restoring the legacy global Redis path:
+
+- Admin constructs the named Redis resource `main` and Scope `challenge.email`, completes graph
+  `Start` and required `Ready` before capability publication, then continues to business-route and
+  listener assembly. Config is the sole runtime owner and withdraws the published capability before
+  bounded close during setup rollback and normal shutdown.
+- Optional invalid or unavailable Challenge configuration degrades to a fixed unavailable capability:
+  the application may continue, but issuance, login, registration, and password reset return fixed
+  503 rather than using a legacy process-global Redis client. Required failure blocks setup.
+- `FakeCaptcha` performs `BeginIssue`, bounded SMTP delivery, then `Commit` on success or `Abort` on
+  failure. Login, registration, and password reset use the collapsed `VerifyOutcome` result.
+- The v1.0 exported compatibility surface remains available to external callers but is not an Admin
+  fallback. Runtime configuration is still an immutable startup snapshot; changes require restart.
+
+Four fully anchored Admin package commands select thirteen top-level tests changed or introduced by
+this composition. Each ran and passed exactly once, uncached and without skip, under race detection
+and `GOWORK=off`. Browser reload, the frozen-SHA listener/lifecycle suite, and real Cluster/failover
+remain later gates. Standalone stays Beta, Cluster stays Planned, and aggregate Storage Runtime stays
+Planned rather than becoming Stable.
 
 ## Decision
 
@@ -567,11 +587,11 @@ lives in this matrix. Provider state is never inferred from the framework versio
 
 | Provider or capability | Evidence at `ee800262` | Development-wave action | v1.1.0 freeze treatment |
 | --- | --- | --- | --- |
-| Runtime resource graph | Not present at the baseline | D3 adds deterministic Build/Start/Run/Close ownership, a redacted public error tree, and exact hermetic race evidence | Compose Admin readiness and singular close ownership; then pass the 100-cycle real leak and listener-order gates on the frozen SHA |
+| Runtime resource graph | Not present at the baseline | D3 adds deterministic Build/Start/Run/Close ownership, a redacted public error tree, exact hermetic race evidence, and Admin Challenge readiness/singular close composition | Pass the 100-cycle real leak and listener-order gates on the frozen SHA |
 | Aggregate cache/lock/queue | Declared stable; provider evidence does not support it | Retire the stable aggregate and point to provider evidence | Do not restore an aggregate maturity state |
-| Global Redis resource | Blocked: unsynchronized, first initializer wins, unclear close ownership | Keep the global path legacy; D3 adds an independent one-client named resource with isolated scopes and construction/lifecycle evidence | Real standalone/Sentinel/cluster/TLS conformance, Admin composition, Sentinel control-plane ACL support, and the required frozen-SHA lifecycle gates before any provider promotion |
+| Global Redis resource | Blocked: unsynchronized, first initializer wins, unclear close ownership | Keep the global path legacy; D3 adds an independent one-client named resource with isolated scopes, construction/lifecycle evidence, and Admin Challenge composition without fallback | Real standalone/Sentinel/cluster/TLS conformance, Sentinel control-plane ACL support, and the required frozen-SHA lifecycle gates before any provider promotion |
 | Redis derived cache | Beta: query generation tests exist, but API and lifecycle remain broad | Keep beta; add failure/result metadata evidence before freeze | Stable scoped key/value cache; QueryCache remains separately beta |
-| Redis verification state | Blocked security path | D0 ships the Admin safety bridge; D3 adds the public Scope-based Challenge API, opaque fixed-script bridge, replay-safe rate limit, equal valid-Verify I/O, and exact new-test evidence without calling it stable | Compose the public API into Admin and separately decide promotion only after the required real Cluster/failover and frozen-SHA evidence |
+| Redis verification state | Blocked security path | D0 ships the Admin safety bridge; D3 adds the public Scope-based Challenge API, opaque fixed-script bridge, replay-safe rate limit, equal valid-Verify I/O, and Admin Begin/Commit/Abort/VerifyOutcome composition without calling it stable | Decide promotion only after the required real Cluster/failover, browser, and frozen-SHA evidence |
 | Memory EventBus | Existing memory queue is not a production broadcast contract | Do not market it as a durable queue | Stable single-process EventBus after shared suite |
 | Redis EventBus | Existing Redis queue lacks explicit fan-out/reconciliation contract | Keep separate and planned; ownership/reconciliation lands in D5 | Stable fan-out plus revision reconciliation and outage behavior |
 | Redis WorkQueue | Experimental | Separate it from EventBus | Remain experimental unless retry/dead-letter suite passes |
@@ -611,8 +631,8 @@ package replacement. D1 has established strict object startup profiles, fail-clo
 owned object resources, and the additive managed Kafka lifecycle without changing Kafka's
 Legacy/Blocked maturity. D2 establishes strict schemas, version
 identity, migration preflight, and hermetic fixtures. D3 now has the resource graph and named
-Redis construction/lifecycle checkpoints plus the public Challenge runtime and internal atomic bridge;
-D3-D5 still land Admin composition, EventBus, upgrade paths, and selected provider evidence in
+Redis construction/lifecycle checkpoints plus the public Challenge runtime, internal atomic bridge,
+and Admin composition; D3-D5 still land EventBus, upgrade paths, and selected provider evidence in
 independently reversible commits. ObjectStore/Delivery maturity moves to an optional post-v1.1 wave.
 None of these waves creates a public tag.
 
@@ -646,12 +666,12 @@ incomplete after v1.1.0 without blocking the Foundation release:
    framework; and
 8. the release tag follows a truthful SemVer decision for any public API removal.
 
-The next executable D3 step is to compose the named Redis definition and public Challenge API into
-Admin so required readiness completes before listeners, one reverse owner closes the resource,
-delivery uses Begin/Commit/Abort, and consumers use the collapsed Verify result. Real
-Sentinel/cluster/TLS/failover fixtures and goroutine/file-descriptor evidence remain
-freeze gates, not checkpoint claims. In parallel, the Generator/Blueprint track can implement
-the supplier backend against the canonical `admin/modules/<name>` contract. Kafka, Local, and
+The Admin Challenge composition step is complete at `3e9ca94`; runtime configuration remains an
+immutable startup snapshot and changes require restart. The next Runtime steps are the remaining
+scoped cache and EventBus/reconciliation work. Real Sentinel/cluster/TLS/failover fixtures,
+browser reload, and goroutine/file-descriptor evidence remain freeze gates, not checkpoint claims.
+In parallel, the Generator/Blueprint track continues the supplier capability against the canonical
+`admin/modules/<name>` contract. Kafka, Local, and
 S3-compatible storage remain Legacy/Blocked; S3 Put, conditional create-only writes,
 authenticated Delivery, and any RustFS conformance remain optional post-v1.1 work rather than
 feature-freeze gates.

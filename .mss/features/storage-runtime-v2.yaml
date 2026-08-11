@@ -557,6 +557,79 @@ spec:
             Commit 1faa9ef has exact single-package JSON evidence for twenty-two newly
             introduced top-level tests: every required test ran and passed once without
             cache or skip under race detection and GOWORK=off.
+    - id: challenge-admin-composition-checkpoint-evidence
+      requirement: secure-one-time-challenges
+      statement: >-
+        Commit 3e9ca94 composes the public Challenge API into Admin over the named Redis
+        resource main and Scope challenge.email. Admin starts and readies the candidate
+        graph before publishing it and before later business-route/listener assembly;
+        Config is the sole runtime owner and withdraws the capability before a bounded
+        close. Optional invalid or unavailable configuration leaves the application up
+        but every Challenge flow returns the fixed unavailable response with no legacy
+        global Redis fallback, while required configuration failure blocks setup.
+        FakeCaptcha now performs BeginIssue, SMTP delivery, then Commit or Abort, and the
+        login, registration, and password-reset consumers use VerifyOutcome. Runtime
+        configuration remains an immutable startup snapshot, so changes require restart.
+        This development checkpoint does not replace browser, frozen-SHA lifecycle, or
+        real Redis Cluster/failover gates and does not promote a capability to Stable.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestChallengeRuntimeStartsAndReadiesBeforePublicationThenCloses
+        - type: test
+          value: TestOptionalChallengeRuntimeInvalidOrUnavailableDegradesWithoutLegacyFallback
+        - type: test
+          value: TestRuntimeChallengeAccessIsSafeDuringConcurrentPublication
+        - type: test
+          value: TestEmailChallengeCanonicalEmailBinding
+        - type: test
+          value: TestEmailChallengeSendFailureRotation
+        - type: test
+          value: TestEmailChallengePurposeIsolation
+        - type: test
+          value: TestEmailChallengeProviderOutageReturnsServiceUnavailable
+        - type: test
+          value: TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./config
+            --run '^(TestChallengeRuntimeStartsAndReadiesBeforePublicationThenCloses|TestOptionalChallengeRuntimeInvalidOrUnavailableDegradesWithoutLegacyFallback)$'
+            --count 1 --race --go-work off
+            --require TestChallengeRuntimeStartsAndReadiesBeforePublicationThenCloses
+            --require TestOptionalChallengeRuntimeInvalidOrUnavailableDegradesWithoutLegacyFallback
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./center
+            --run '^(TestDefaultCenterSettersAndGetters|TestGlobalCenterAccessorsUseCurrentDefault|TestRuntimeChallengeAccessIsSafeDuringConcurrentPublication)$'
+            --count 1 --race --go-work off
+            --require TestDefaultCenterSettersAndGetters
+            --require TestGlobalCenterAccessorsUseCurrentDefault
+            --require TestRuntimeChallengeAccessIsSafeDuringConcurrentPublication
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./apis
+            --run '^(TestAppConfigProfileProjectsFreshEmailChallengeReadinessAfterCachedProfile|TestAppConfigProfileChallengeReadinessUsesBoundedFailClosedCheck|TestAppConfigProfileChallengeReadinessRequiresCompleteSMTPConfig|TestEmailChallengePurposeIsolation|TestEmailChallengeCanonicalEmailBinding|TestEmailChallengeProviderOutageReturnsServiceUnavailable|TestEmailChallengeSendFailureRotation)$'
+            --count 1 --race --go-work off
+            --require TestAppConfigProfileProjectsFreshEmailChallengeReadinessAfterCachedProfile
+            --require TestAppConfigProfileChallengeReadinessUsesBoundedFailClosedCheck
+            --require TestAppConfigProfileChallengeReadinessRequiresCompleteSMTPConfig
+            --require TestEmailChallengePurposeIsolation
+            --require TestEmailChallengeCanonicalEmailBinding
+            --require TestEmailChallengeProviderOutageReturnsServiceUnavailable
+            --require TestEmailChallengeSendFailureRotation
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./middleware
+            --run '^TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable$'
+            --count 1 --race --go-work off
+            --require TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable
+        - type: report
+          value: >-
+            Commit 3e9ca94 has exact single-package JSON evidence for thirteen selected
+            top-level Admin tests changed or introduced by this composition: every required
+            test ran and passed once without cache or skip under race detection and GOWORK=off.
     - id: derived-cache-gate
       requirement: scope-derived-cache
       statement: Failure injection and race tests preserve authoritative database semantics, namespace isolation, payload bounds, generation ordering, result metadata, transaction bypass, rollback, and read-your-writes isolation.
@@ -816,8 +889,9 @@ spec:
     migration: >-
       Treat the target model as authoritative without using historical compatibility as a design
       constraint. Strict configuration, the resource owner, the additive named Redis resource,
-      and the public Challenge runtime are development checkpoints; next compose Challenge into
-      Admin, then land scoped caches and EventBus plus reconciliation. ObjectStore plus Delivery
+      the public Challenge runtime, and its Admin composition are development checkpoints; next
+      land scoped caches and EventBus plus reconciliation. Runtime configuration remains an immutable
+      startup snapshot and changes require restart. ObjectStore plus Delivery
       maturity work moves to an optional post-v1.1 wave, followed by
       provider-by-provider promotion in untagged development waves. Migrate Admin scopes independently
       with focused failure checks at every boundary, then run the complete conformance, leak,

@@ -68,6 +68,17 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   Twenty-two newly introduced top-level tests passed fully anchored, uncached `count=1`
   race evidence with `GOWORK=off`. Admin composition and real Redis Cluster/failover
   remain pending, so no capability is promoted to Stable.
+- Composed the D3 Challenge runtime into Admin at `3e9ca94`. Startup now builds the
+  named Redis resource `main` and Scope `challenge.email`, completes Start/Ready before
+  publication and later route/listener assembly, and gives Config sole bounded-close
+  ownership. Optional invalid or unavailable configuration keeps the application up but
+  makes Challenge issuance and consumption return fixed 503 without falling back to the
+  legacy global Redis path; required failure blocks setup. FakeCaptcha uses
+  BeginIssue, SMTP delivery, and Commit/Abort, while login, registration, and password
+  reset consume VerifyOutcome. Thirteen selected Admin top-level tests passed fully
+  anchored, uncached `count=1` race evidence with `GOWORK=off`. Runtime configuration
+  remains a startup snapshot, so changes require restart; browser and frozen-SHA
+  provider/lifecycle gates remain pending and no capability is promoted to Stable.
 - Added the D3 Supplier backend generator checkpoint at `5a60ad6`. The canonical
   AdminModule specification now deterministically projects an explicit lossless-ID
   SQLite/MySQL/PostgreSQL forward migration, model, validated DTOs, CRUD/query/export
