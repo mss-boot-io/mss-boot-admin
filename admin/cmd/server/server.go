@@ -213,6 +213,14 @@ func setup(ctx context.Context) (err error) {
 			listener.WithName("admin"),
 			listener.WithHandler(routerEngine)),
 	}
+	authorizationRuntime, err := buildAuthorizationEventRuntime(config.Cfg.WithDatabase)
+	if err != nil {
+		return err
+	}
+	if err := authorizationRuntime.Open(ctx); err != nil {
+		return fmt.Errorf("open authorization revision event runtime: %w", err)
+	}
+	runnable = append(runnable, authorizationRuntime)
 	if queueRunnable := managedQueueRunnable(config.Cfg.ManagedQueue()); queueRunnable != nil {
 		runnable = append(runnable, queueRunnable)
 	}
@@ -270,6 +278,33 @@ type systemTaskSchedule struct {
 }
 
 type databaseAccess func(func(*gorm.DB) error) error
+
+func buildAuthorizationEventRuntime(
+	useDatabase databaseAccess,
+) (*service.AuthorizationEventRuntime, error) {
+	if useDatabase == nil {
+		return nil, errors.New("authorization database lease is required")
+	}
+	runtime, err := service.BuildMemoryAuthorizationEventRuntime(
+		service.AuthorizationPolicies,
+		func(ctx context.Context, operation func(*gorm.DB) error) error {
+			if ctx == nil {
+				return errors.New("authorization database context is required")
+			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			return useDatabase(func(db *gorm.DB) error {
+				return operation(db.WithContext(ctx))
+			})
+		},
+		0,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("build authorization revision event runtime: %w", err)
+	}
+	return runtime, nil
+}
 
 func systemTaskSchedules(
 	userTasksEnabled bool,

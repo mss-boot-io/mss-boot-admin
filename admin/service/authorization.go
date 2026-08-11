@@ -18,6 +18,7 @@ import (
 	adminpkg "github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	bootenum "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
+	runtimeeventbus "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/eventbus"
 )
 
 const (
@@ -88,6 +89,9 @@ type AuthorizationPolicyService struct {
 
 	reloadPolicy  func() error
 	notifyWatcher func() error
+
+	eventMu  sync.RWMutex
+	eventBus runtimeeventbus.EventBus[AuthorizationRevisionEvent]
 }
 
 func NewAuthorizationPolicyService() *AuthorizationPolicyService {
@@ -202,7 +206,23 @@ func (e *AuthorizationPolicyService) EnsureCurrent(ctx context.Context, db *gorm
 	return fmt.Errorf("authorization policy changed during %d reload attempts", authorizationStableReadMaxAttempts)
 }
 
-func (e *AuthorizationPolicyService) reconcileCommitted(ctx context.Context, db *gorm.DB) error {
+func (e *AuthorizationPolicyService) reconcileCommitted(ctx context.Context, db *gorm.DB, revision int64) error {
+	e.eventMu.RLock()
+	bus := e.eventBus
+	e.eventMu.RUnlock()
+	if bus != nil {
+		if revision <= 0 {
+			return fmt.Errorf("authorization committed revision is invalid")
+		}
+		return bus.Publish(ctx, runtimeeventbus.Event[AuthorizationRevisionEvent]{
+			Revision: runtimeeventbus.Revision(revision),
+			Payload:  AuthorizationRevisionEvent{},
+		})
+	}
+
+	// Compatibility fallback for callers that have not installed the D5
+	// EventBus runtime yet. Production composition binds eventBus and therefore
+	// does not use WorkQueue watcher acknowledgement semantics.
 	if err := e.EnsureCurrent(ctx, db); err != nil {
 		return err
 	}
@@ -392,6 +412,7 @@ func (e *AuthorizationPolicyService) BindMenuAPIs(
 	}
 	references = canonicalAuthorizationAPIReferences(references)
 	db = db.WithContext(ctx)
+	var committedGlobalRevision int64
 	err := db.Transaction(func(tx *gorm.DB) error {
 		globalRevision, err := lockConfigRevision(tx, globalAuthorizationRevisionKey())
 		if err != nil {
@@ -484,13 +505,13 @@ func (e *AuthorizationPolicyService) BindMenuAPIs(
 				return err
 			}
 		}
-		_, err = advanceConfigRevision(tx, globalAuthorizationRevisionKey(), globalRevision)
+		committedGlobalRevision, err = advanceConfigRevision(tx, globalAuthorizationRevisionKey(), globalRevision)
 		return err
 	})
 	if err != nil {
 		return err
 	}
-	if err := e.reconcileCommitted(ctx, db); err != nil {
+	if err := e.reconcileCommitted(ctx, db, committedGlobalRevision); err != nil {
 		return &AuthorizationPropagationError{Err: err}
 	}
 	return nil
@@ -875,6 +896,7 @@ func (e *AuthorizationPolicyService) replaceRolePolicy(
 	db = db.WithContext(ctx)
 
 	var resource *dto.GetAuthorizeResponse
+	var committedGlobalRevision int64
 	err := db.Transaction(func(tx *gorm.DB) error {
 		role, err := loadAuthorizationRole(tx, roleID, "UPDATE")
 		if err != nil {
@@ -932,7 +954,8 @@ func (e *AuthorizationPolicyService) replaceRolePolicy(
 		if err != nil {
 			return err
 		}
-		if _, err := advanceConfigRevision(tx, globalAuthorizationRevisionKey(), globalRevision); err != nil {
+		committedGlobalRevision, err = advanceConfigRevision(tx, globalAuthorizationRevisionKey(), globalRevision)
+		if err != nil {
 			return err
 		}
 		resource, err = loadRoleAuthorizationResource(tx, roleID, nextRoleRevision)
@@ -941,7 +964,7 @@ func (e *AuthorizationPolicyService) replaceRolePolicy(
 	if err != nil {
 		return nil, err
 	}
-	if err := e.reconcileCommitted(ctx, db); err != nil {
+	if err := e.reconcileCommitted(ctx, db, committedGlobalRevision); err != nil {
 		return resource, &AuthorizationPropagationError{Current: resource, Err: err}
 	}
 	return resource, nil
