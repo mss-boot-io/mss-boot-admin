@@ -17,6 +17,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/modules/supplier"
 	adminpkg "github.com/mss-boot-io/mss-boot-admin/admin/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
 	migrationmodels "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
 )
@@ -26,6 +27,105 @@ const supplierCompositionIdentityKey = "supplier.composition.identity"
 func TestSupplierProductionComposition(t *testing.T) {
 	t.Run("mounts declared routes with Admin authorizer", testSupplierCompositionRoutes)
 	t.Run("requires both applied migrations", testSupplierCompositionMigrationReadiness)
+}
+
+func TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := openSupplierCompositionSQLite(t)
+	applySupplierCompositionMigrations(t, db)
+	if err := db.AutoMigrate(new(models.AuditLog)); err != nil {
+		t.Fatalf("create Supplier audit table: %v", err)
+	}
+
+	var procurementRole models.Role
+	if err := db.Where("name = ?", "procurement").Take(&procurementRole).Error; err != nil {
+		t.Fatalf("load migrated procurement role: %v", err)
+	}
+	allowed := &models.User{UserLogin: models.UserLogin{RoleID: procurementRole.ID}}
+	allowed.ID = "supplier-audit-allowed"
+	allowed.Username = "supplier-audit-allowed"
+	denied := &models.User{UserLogin: models.UserLogin{RoleID: "role-without-policy"}}
+	denied.ID = "supplier-audit-denied"
+	denied.Username = "supplier-audit-denied"
+
+	previousDB := gormdb.DB
+	previousIdentityKey := config.Cfg.Auth.IdentityKey
+	gormdb.DB = db
+	config.Cfg.Auth.IdentityKey = supplierCompositionIdentityKey
+	t.Cleanup(func() {
+		gormdb.DB = previousDB
+		config.Cfg.Auth.IdentityKey = previousIdentityKey
+	})
+
+	authentication := func(ctx *gin.Context) {
+		switch ctx.GetHeader("X-Test-Principal") {
+		case "allowed":
+			ctx.Set(supplierCompositionIdentityKey, allowed)
+		case "denied":
+			ctx.Set(supplierCompositionIdentityKey, denied)
+		}
+		ctx.Next()
+	}
+	engine := gin.New()
+	engine.Use(middleware.AuditLogMiddleware("/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
+	if err := mountSupplierRoutesWithDependencies(
+		t.Context(),
+		db,
+		engine.Group("/admin"),
+		supplierRouteDependencies{
+			authentication: authentication,
+			principal:      middleware.GetVerify,
+			events:         supplierDomainEventLogger{},
+		},
+	); err != nil {
+		t.Fatalf("mount Supplier production composition: %v", err)
+	}
+
+	acceptedBody := `{"code":"AUDIT_OK","name":"Audit Supplier","contactName":"Owner","creditLevel":"normal"}`
+	acceptedRequest := httptest.NewRequest(http.MethodPost, "/admin/api/suppliers", strings.NewReader(acceptedBody))
+	acceptedRequest.Header.Set("Content-Type", "application/json")
+	acceptedRequest.Header.Set("X-Test-Principal", "allowed")
+	acceptedResponse := httptest.NewRecorder()
+	engine.ServeHTTP(acceptedResponse, acceptedRequest)
+	if acceptedResponse.Code != http.StatusCreated {
+		t.Fatalf("accepted Supplier mutation = %d, want %d; body=%s", acceptedResponse.Code, http.StatusCreated, acceptedResponse.Body.String())
+	}
+
+	deniedBody := `{"code":"AUDIT_DENIED","name":"Denied Supplier","contactName":"Owner","creditLevel":"normal","password":"never-store-password","accessToken":"never-store-token"}`
+	deniedRequest := httptest.NewRequest(http.MethodPost, "/admin/api/suppliers", strings.NewReader(deniedBody))
+	deniedRequest.Header.Set("Content-Type", "application/json")
+	deniedRequest.Header.Set("X-Test-Principal", "denied")
+	deniedResponse := httptest.NewRecorder()
+	engine.ServeHTTP(deniedResponse, deniedRequest)
+	if deniedResponse.Code != http.StatusForbidden {
+		t.Fatalf("rejected Supplier mutation = %d, want %d; body=%s", deniedResponse.Code, http.StatusForbidden, deniedResponse.Body.String())
+	}
+
+	var audits []models.AuditLog
+	if err := db.Order("created_at ASC").Find(&audits).Error; err != nil {
+		t.Fatalf("load Supplier audits: %v", err)
+	}
+	if len(audits) != 2 {
+		t.Fatalf("Supplier audit records = %d, want 2", len(audits))
+	}
+	for index, audit := range audits {
+		if audit.Method != http.MethodPost || audit.Path != "/admin/api/suppliers" ||
+			audit.Resource != "/admin/api/suppliers" || audit.Action != "POST /admin/api/suppliers" {
+			t.Fatalf("Supplier audit %d metadata = %#v", index, audit)
+		}
+		if audit.Duration < 0 {
+			t.Fatalf("Supplier audit %d duration = %d, want non-negative", index, audit.Duration)
+		}
+		if strings.Contains(audit.Request, "never-store-password") || strings.Contains(audit.Request, "never-store-token") {
+			t.Fatalf("Supplier audit %d retained a secret: %s", index, audit.Request)
+		}
+	}
+	if audits[0].UserID != allowed.ID || audits[0].Status != "enabled" {
+		t.Fatalf("accepted Supplier audit = %#v", audits[0])
+	}
+	if audits[1].UserID != denied.ID || audits[1].Status != "disabled" || !strings.Contains(audits[1].Request, "[REDACTED]") {
+		t.Fatalf("rejected Supplier audit = %#v", audits[1])
+	}
 }
 
 func testSupplierCompositionRoutes(t *testing.T) {
