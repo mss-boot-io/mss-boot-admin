@@ -65,7 +65,7 @@ spec:
       rules:
         - Public v1.0.1 through v1.0.x versions and public v1.1.0 prerelease tags are rejected by the checked-in policy.
         - The next reviewed public version is v1.1.0 for root, Framework, and any standalone frontend release that is explicitly requested.
-        - Publication workflows remain disabled in the checked-in policy throughout feature development; bootstrap readiness success is not release authority.
+        - Publication workflows remain disabled in the checked-in policy throughout feature development; a successful bootstrap readiness run emits only a run-bound checkpoint attestation and is not release authority.
         - Changing the public target for an emergency security patch requires a reviewed release-policy change and cannot be a workflow bypass.
     - id: preserve-development-safety
       title: Keep a small merge-safety floor
@@ -86,7 +86,8 @@ spec:
       module: release-evidence
       rules:
         - Feature freeze stops new features and public API, configuration, schema, and generated-contract churn.
-        - The manual readiness workflow requires v1.1.0, the checked-out full commit SHA, and an explicit feature-freeze confirmation.
+        - The manual readiness workflow requires v1.1.0, the checked-out full commit SHA, an explicit feature-freeze confirmation, one declared phase, and an explicit publication-authority decision.
+        - A successful run uploads one strict attestation named by its workflow run ID and bound to the schema, target version, full commit, phase, current policy SHA-256, run ID, canonical run URL, and publication-authority boolean.
         - Phase evidence execution, artifact attestation, protected write jobs, and tag rules are completed before selecting the frozen candidate and changing publicationWorkflowsReady to true.
         - publicationWorkflowsReady means the machinery can enforce authority; it is not itself approval to tag or publish.
         - Any implementation change after freeze creates a new candidate commit and invalidates candidate evidence affected by that change.
@@ -109,6 +110,7 @@ spec:
       module: release-evidence
       rules:
         - Framework v1.1.0 publishes first and is resolved from an external GOWORK=off consumer before root publication.
+        - Each publishing workflow verifies one specifically selected release-readiness run ID and its run-named artifact; another successful run for the same commit cannot substitute for the selected pre-framework or pre-root authority.
         - The root tag, Framework tag, Admin dependency, archives, checksums, images, documentation, and evidence issue identify one commit.
         - Post-publication reconciliation closes the issue only after installation, runtime, recovery, changelog, capability, and release-state facts agree.
   constraints:
@@ -149,9 +151,22 @@ spec:
           value: go run ./cmd/mss verify --changed --plan --format json
         - type: report
           value: Changed-scope CI and exact focused test reports for the implementation wave
+    - id: checkpoint-exact-run-attestation-contract
+      requirement: freeze-before-qualification
+      statement: The strict readiness helper binds checkpoint metadata to one exact run and rejects a changed schema, target, commit, phase, policy digest, run ID, run URL, or authority; the disabled publication policy rejects every publication intent.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: path
+          value: tools/release/release_readiness_attestation.py
+        - type: path
+          value: tools/release/verify_readiness_run.sh
+        - type: command
+          value: python3 -m unittest discover -s tools/release -p 'test_*.py'
     - id: feature-freeze-candidate-authority
       requirement: freeze-before-qualification
-      statement: Manual readiness records v1.1.0, the checked-out full commit SHA, and explicit feature-freeze confirmation before complete qualification starts.
+      statement: Manual readiness records v1.1.0, the checked-out full commit SHA, feature-freeze confirmation, the feature-freeze phase, and a non-authoritative exact-run attestation before complete qualification starts.
       level: manual
       phase: feature-freeze
       required: true
@@ -160,8 +175,10 @@ spec:
           value: .github/workflows/release-readiness.yml
         - type: report
           value: .mss/reports/release-readiness-metadata.json
+        - type: report
+          value: release-readiness-attestation-<run-id> artifact retained from the selected successful workflow run
         - type: manual
-          value: Confirm the exact v1.1.0 target, full candidate SHA, and feature-freeze state in the manual readiness invocation
+          value: Confirm the exact v1.1.0 target, full candidate SHA, feature-freeze state, feature-freeze phase, and publicationAuthority=false in the manual readiness invocation
     - id: feature-freeze-qualification
       requirement: qualify-frozen-candidate
       statement: One explicit v1.1.0 commit passes the complete no-skip database, browser, provider, security, upgrade, candidate-artifact external-consumer, recovery, doctor, verify, and eval matrix after feature freeze.
@@ -179,7 +196,7 @@ spec:
           value: go run ./cmd/mss eval run --all --format json
     - id: pre-framework-authority
       requirement: publish-exact-v110
-      statement: The open evidence issue approves the frozen v1.1.0 commit, SemVer decision, candidate artifacts, recovery plan, complete qualification, and protected write paths before any public component tag is created.
+      statement: The open evidence issue approves the frozen v1.1.0 commit, SemVer decision, candidate artifacts, recovery plan, complete qualification, and protected write paths, and the selected pre-framework run grants exact publication authority before any public component tag is created.
       level: manual
       phase: pre-framework
       required: true
@@ -188,9 +205,13 @@ spec:
           value: Approved open exact-commit evidence issue with policy hash and feature-freeze reports
         - type: path
           value: .mss/release-policy.yaml
+        - type: report
+          value: release-readiness-attestation-<run-id> artifact whose exact pre-framework run ID is selected by RELEASE_READINESS_RUN_ID
+        - type: command
+          value: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.1.0 --commit <full-sha> --phase pre-framework --policy .mss/release-policy.yaml
     - id: pre-root-authority
       requirement: publish-exact-v110
-      statement: The public mss-boot/v1.1.0 release, Admin dependency, checksum, and external GOWORK=off resolution match the frozen commit before root v1.1.0 publication.
+      statement: The public mss-boot/v1.1.0 release, Admin dependency, checksum, and external GOWORK=off resolution match the frozen commit, and a separately selected pre-root run grants exact publication authority before root v1.1.0 publication.
       level: integration
       phase: pre-root
       required: true
@@ -199,6 +220,10 @@ spec:
           value: .github/workflows/framework-release.yml
         - type: report
           value: External framework resolution and consumer report attached to the open evidence issue
+        - type: report
+          value: release-readiness-attestation-<run-id> artifact whose exact pre-root run ID is selected by RELEASE_READINESS_RUN_ID or the manual readiness_run_id input
+        - type: command
+          value: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.1.0 --commit <full-sha> --phase pre-root --policy .mss/release-policy.yaml
     - id: post-publication-truth
       requirement: publish-exact-v110
       statement: Root and Framework Releases, archives, checksums, images, installation smoke, recovery, docs, changelog, and capability state reconcile to the frozen commit before the evidence issue closes.
@@ -222,12 +247,12 @@ spec:
     - id: accidental-public-checkpoint
       description: A v1.0.x or prerelease tag could publish a component or image before qualification.
       severity: critical
-      mitigation: Keep publicationWorkflowsReady false during development, enforce the checked-in policy in every publishing workflow, require a protected release environment for write jobs, and restrict tag creation with repository rulesets.
+      mitigation: Keep publicationWorkflowsReady false during development, enforce the checked-in policy and one exact run-named attestation in every publishing workflow, require a protected release environment for write jobs, and restrict tag creation with repository rulesets.
   validation:
     changed: go run ./cmd/mss verify --changed
     all: go run ./cmd/mss verify --all
     custom:
-      - python3 -m unittest tools/release/test_check_release_policy.py
+      - python3 -m unittest discover -s tools/release -p 'test_*.py'
       - go test ./internal/mss/spec ./internal/mss/feature
       - corepack pnpm@9.15.9 --dir docs build
   rollout:
@@ -236,7 +261,8 @@ spec:
       Keep completed Challenge, Kafka Mark-order, and Upload admission work as internal checkpoint
       commits. Continue Generator/Blueprint and Storage Runtime waves to the v1.1.0 feature-freeze
       definition without creating version tags. Run release-readiness manually on the selected commit,
-      then execute pre-framework, pre-root, and post-publication authority in order.
+      retain its exact run-named artifact, then select and verify distinct pre-framework and pre-root
+      authority run IDs before post-publication reconciliation.
     rollback: >-
       Before publication, abandon a candidate by recording the failed evidence and selecting a new
       commit; no tag needs mutation. After any component publication, never move or reuse a tag:

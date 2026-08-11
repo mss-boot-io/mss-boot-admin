@@ -179,6 +179,26 @@ spec:
       outputFormats: [text]
       category: release
 
+    release-readiness-attestation-create:
+      command: python3 tools/release/release_readiness_attestation.py create --output <attestation.json> --policy .mss/release-policy.yaml --target-version v1.1.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --publication-authority <true|false>
+      description: Create the strict readiness metadata for one exact workflow run; the checked-in development policy permits checkpoint qualification only and cannot grant publication authority.
+      outputFormats: [text]
+      category: release
+
+    release-readiness-attestation-verify:
+      command: python3 tools/release/release_readiness_attestation.py verify --attestation <attestation.json> --policy .mss/release-policy.yaml --target-version v1.1.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --intent <qualify|publish>
+      description: Reject an attestation unless its exact schema, version, commit, phase, policy digest, selected run identity, URL, and authority match the requested intent.
+      outputFormats: [text]
+      category: release
+      idempotent: true
+
+    release-readiness-run-verify:
+      command: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.1.0 --commit <full-sha> --phase <pre-framework|pre-root> --policy .mss/release-policy.yaml
+      description: Read the specifically selected successful release-readiness workflow run and its run-named artifact, then require an exact publication attestation before a publishing workflow writes externally.
+      outputFormats: [text]
+      category: release
+      idempotent: true
+
     direct-verify-all:
       command: make verify-all
       description: Compatibility fallback before the mss verifier is available.
