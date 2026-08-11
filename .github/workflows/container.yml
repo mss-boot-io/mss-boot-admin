@@ -51,7 +51,6 @@ on:
 permissions:
   actions: read
   contents: read
-  packages: write
 
 concurrency:
   group: ${{ startsWith(github.ref, 'refs/tags/') && format('foundation-release-{0}', github.ref) || format('container-{0}', github.event.pull_request.number || github.ref) }}
@@ -67,6 +66,9 @@ jobs:
     name: build
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    outputs:
+      version: ${{ steps.build-info.outputs.version }}
+      publish: ${{ steps.build-info.outputs.publish }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -88,12 +90,8 @@ jobs:
       - name: Resolve build metadata
         id: build-info
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_PUBLISH: ${{ inputs.publish }}
-          INPUT_READINESS_RUN_ID: ${{ inputs.readiness_run_id }}
-          RELEASE_READINESS_RUN_ID: ${{ vars.RELEASE_READINESS_RUN_ID }}
         run: |
           set -euo pipefail
 
@@ -146,15 +144,11 @@ jobs:
             exit 1
           fi
           if [[ "${version}" == v* ]]; then
-            policy_intent=qualify
-            if [[ "${GITHUB_REF_TYPE}" == "tag" || "${publish}" == "true" ]]; then
-              policy_intent=publish
-            fi
             python3 tools/release/check_release_policy.py \
               --component root \
               --version "${version}" \
               --tag "${version}" \
-              --intent "${policy_intent}"
+              --intent qualify
           fi
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${publish}" == "true" ]]; then
             if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${version}" ]]; then
@@ -166,30 +160,150 @@ jobs:
               exit 1
             fi
           fi
-          if [[ "${publish}" == "true" && "${version}" == v* ]]; then
-            readiness_run_id="${INPUT_READINESS_RUN_ID:-${RELEASE_READINESS_RUN_ID}}"
-            bash tools/release/verify_readiness_run.sh \
-              --repository "${GITHUB_REPOSITORY}" \
-              --run-id "${readiness_run_id}" \
-              --target-version "${version}" \
-              --commit "${GITHUB_SHA}" \
-              --phase pre-root \
-              --policy .mss/release-policy.yaml
-            if release_json="$(gh release view "${version}" --json isDraft 2>/dev/null)"; then
-              if [[ "$(jq -r '.isDraft' <<< "${release_json}")" != "true" ]]; then
-                echo "release ${version} is already public; refusing to mutate its image tag" >&2
-                exit 1
-              fi
-            fi
-          fi
           {
             echo "version=${version}"
             echo "publish=${publish}"
             echo "local-tag=${REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}"
           } >> "${GITHUB_OUTPUT}"
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=auto
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=ref,event=tag
+            type=raw,value=${{ steps.build-info.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+            type=sha,prefix=,format=long,enable=true,priority=100
+
+      - name: Build candidate image
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.version=${{ steps.build-info.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            VERSION=${{ steps.build-info.outputs.version }}
+            COMMIT=${{ github.sha }}
+          provenance: false
+          sbom: false
+          platforms: linux/amd64
+          cache-from: type=gha,scope=admin-image
+          cache-to: type=gha,mode=max,scope=admin-image
+
+      - name: Smoke-test candidate image
+        env:
+          IMAGE: ${{ steps.build-info.outputs.local-tag }}
+          EXPECTED_VERSION: ${{ steps.build-info.outputs.version }}
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          output="$(docker run --rm "${IMAGE}" --version)"
+          [[ "${output}" == *"${EXPECTED_VERSION}"* ]]
+          [[ "${output}" == *"${EXPECTED_COMMIT}"* ]]
+
+  publish:
+    name: publish
+    needs: build
+    if: >-
+      ${{
+        needs.build.outputs.publish == 'true' &&
+        github.ref_type == 'tag' &&
+        github.ref_name == needs.build.outputs.version &&
+        (
+          github.event_name == 'push' ||
+          (github.event_name == 'workflow_dispatch' && inputs.publish == true)
+        )
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: release
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: admin/go.mod
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            go.work.sum
+            admin/go.sum
+            mss-boot/go.sum
+
+      - name: Vendor workspace for Docker context
+        run: go work vendor
+
+      - name: Require exact release publication authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          INPUT_READINESS_RUN_ID: ${{ inputs.readiness_run_id }}
+          RELEASE_READINESS_RUN_ID: ${{ vars.RELEASE_READINESS_RUN_ID }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${RELEASE_VERSION}" ]]; then
+            echo "publication requires the exact ${RELEASE_VERSION} tag" >&2
+            exit 1
+          fi
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${INPUT_PUBLISH}" != "true" ]]; then
+            echo "manual publication requires publish=true" >&2
+            exit 1
+          fi
+          if [[ "${GITHUB_EVENT_NAME}" != "push" && "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ]]; then
+            echo "unsupported publication event: ${GITHUB_EVENT_NAME}" >&2
+            exit 1
+          fi
+
+          python3 tools/release/check_release_policy.py \
+            --component root \
+            --version "${RELEASE_VERSION}" \
+            --tag "${GITHUB_REF_NAME}" \
+            --intent publish
+
+          readiness_run_id="${INPUT_READINESS_RUN_ID:-${RELEASE_READINESS_RUN_ID}}"
+          bash tools/release/verify_readiness_run.sh \
+            --repository "${GITHUB_REPOSITORY}" \
+            --run-id "${readiness_run_id}" \
+            --target-version "${RELEASE_VERSION}" \
+            --commit "${GITHUB_SHA}" \
+            --phase pre-root \
+            --policy .mss/release-policy.yaml
+
+          if release_json="$(gh release view "${RELEASE_VERSION}" --json isDraft 2>/dev/null)"; then
+            if [[ "$(jq -r '.isDraft' <<< "${release_json}")" != "true" ]]; then
+              echo "release ${RELEASE_VERSION} is already public; refusing to mutate its image tag" >&2
+              exit 1
+            fi
+          fi
+
       - name: Log into registry
-        if: steps.build-info.outputs.publish == 'true'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -213,55 +327,41 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=ref,event=tag
-            type=raw,value=${{ steps.build-info.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+            type=raw,value=${{ needs.build.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
             type=sha,prefix=,format=long,enable=true,priority=100
 
-      - name: Build image and publish outside pull requests
-        id: build
+      - name: Build and publish image
+        id: publish
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           file: Dockerfile
-          push: ${{ steps.build-info.outputs.publish == 'true' }}
-          load: ${{ steps.build-info.outputs.publish != 'true' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
             ${{ steps.meta.outputs.labels }}
-            org.opencontainers.image.version=${{ steps.build-info.outputs.version }}
+            org.opencontainers.image.version=${{ needs.build.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
-            VERSION=${{ steps.build-info.outputs.version }}
+            VERSION=${{ needs.build.outputs.version }}
             COMMIT=${{ github.sha }}
-          provenance: ${{ steps.build-info.outputs.publish == 'true' }}
-          sbom: ${{ steps.build-info.outputs.publish == 'true' }}
-          platforms: ${{ steps.build-info.outputs.publish == 'true' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          provenance: true
+          sbom: true
+          platforms: linux/amd64,linux/arm64
           cache-from: type=gha,scope=admin-image
           cache-to: type=gha,mode=max,scope=admin-image
 
-      - name: Smoke-test an unpublished image
-        if: steps.build-info.outputs.publish != 'true'
-        env:
-          IMAGE: ${{ steps.build-info.outputs.local-tag }}
-          EXPECTED_VERSION: ${{ steps.build-info.outputs.version }}
-          EXPECTED_COMMIT: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          output="$(docker run --rm "${IMAGE}" --version)"
-          [[ "${output}" == *"${EXPECTED_VERSION}"* ]]
-          [[ "${output}" == *"${EXPECTED_COMMIT}"* ]]
-
       - name: Record published image digest
-        if: steps.build-info.outputs.publish == 'true'
         run: |
           set -euo pipefail
-          digest="${{ steps.build.outputs.digest }}"
+          digest="${{ steps.publish.outputs.digest }}"
           if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "published image did not return a valid digest" >&2
             exit 1
           fi
           image="${REGISTRY}/${IMAGE_NAME}@${digest}"
           output="$(docker run --rm "${image}" --version)"
-          [[ "${output}" == *"${{ steps.build-info.outputs.version }}"* ]]
+          [[ "${output}" == *"${{ needs.build.outputs.version }}"* ]]
           [[ "${output}" == *"${GITHUB_SHA}"* ]]
           {
             echo "### Runtime image"
