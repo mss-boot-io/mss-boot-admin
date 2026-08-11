@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mss-boot.io/schemas/provider-maturity.schema.json",
+  "title": "MSS provider maturity evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "providers"],
+  "properties": {
+    "apiVersion": {
+      "const": "mss.io/v1alpha1"
+    },
+    "kind": {
+      "const": "ProviderMaturityReport"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "commit"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/providerEvidence"
+      }
+    }
+  },
+  "$defs": {
+    "identity": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*$"
+    },
+    "providerEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "capability",
+        "maturity",
+        "required",
+        "fixture",
+        "result"
+      ],
+      "properties": {
+        "provider": {
+          "$ref": "#/$defs/identity"
+        },
+        "capability": {
+          "$ref": "#/$defs/identity"
+        },
+        "maturity": {
+          "enum": ["blocked", "experimental", "beta", "stable"]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "fixture": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version"],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/identity"
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^\\S+$"
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["run", "pass", "skip", "fail", "cachedOnly"],
+          "properties": {
+            "run": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "pass": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skip": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fail": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cachedOnly": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  }
+}

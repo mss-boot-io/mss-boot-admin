@@ -126,6 +126,12 @@ spec:
       outputFormats: [json]
       category: verification
 
+    provider-evidence:
+      command: go run ./cmd/mss provider evidence --required --format json
+      description: Validate provider-specific exact-commit fixture evidence and reject empty, zero-hit, skipped, failed, partial, or cached-only required results.
+      outputFormats: [text, json]
+      category: verification
+
     backend-lint:
       command: make lint
       description: Run Go lint checks.

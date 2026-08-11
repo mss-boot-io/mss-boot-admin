@@ -40,6 +40,7 @@ func NewAgentRootCommand() *cobra.Command {
 	root.AddCommand(newSkillsCommand(&rootOverride))
 	root.AddCommand(newEvalCommand(&rootOverride))
 	root.AddCommand(newTestCommand(&rootOverride))
+	root.AddCommand(newProviderCommand(&rootOverride))
 	root.AddCommand(newVerifyCommand(&rootOverride))
 	return root
 }
