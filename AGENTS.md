@@ -58,6 +58,16 @@ Historical prompt files are evidence, not active requirements, unless a current 
 
 Do not rewrite pushed history to hide intermediate fixes. Follow-up repair commits are preferred over force-push, rebase, or destructive reset.
 
+## Pull request and release governance
+
+- Every repository change intended for a release, including source code, tests, migrations, generated output, machine-readable contracts, documentation, dependencies, and workflows, must be submitted through a pull request targeting `main` and merged into `main` before release qualification or publication.
+- Direct pushes to `main` and releases from topic branches, pull-request head commits, detached commits, local-only worktrees, or any commit not contained in the current remote `main` history are prohibited.
+- Pre-merge CI, local validation, browser evidence, and release rehearsals may support review, but they are preliminary evidence only and must never authorize a public tag, artifact, package, image, or GitHub Release.
+- A release candidate must be frozen from the exact commit that is already merged into `main`. After fetching the remote, release tooling must fail closed unless the frozen commit is contained in `origin/main`, the checkout matches that commit, and the tracked worktree is clean.
+- If any defect or release-gate failure requires a change after freeze, make a follow-up pull request, merge it into `main`, select the new merged `main` commit, and rerun every affected qualification phase. Do not bypass a failed gate with a manual release exception or publish artifacts built from an unmerged repair.
+- Release tags are created only after the merged-`main` checks pass. Never move or reuse an immutable tag to incorporate a later fix.
+- Repository rulesets and release workflows must enforce this PR-to-`main` boundary. If their enforcement is absent or fails, stop publication and repair the governance path through another pull request before continuing.
+
 ## Canonical commands
 
 Use the repository wrappers instead of inventing workstation-specific command sequences:
