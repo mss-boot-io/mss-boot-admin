@@ -179,6 +179,19 @@ spec:
       outputFormats: [text]
       category: release
 
+    release-phase-evidence-plan:
+      command: python3 tools/release/release_phase_evidence.py plan --target-version v1.1.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root|post-publication> --output .mss/reports/release-phase-plan.json
+      description: Resolve the explicitly selected v1.1.0 Feature contracts into a shell-free, phase-scoped command plan while retaining manual, report, and non-exact evidence as release-manager review items.
+      outputFormats: [json]
+      category: release
+      idempotent: true
+
+    release-phase-evidence-run:
+      command: python3 tools/release/release_phase_evidence.py run --target-version v1.1.0 --commit <full-sha> --phase feature-freeze --output .mss/reports/release-phase-command-evidence.json
+      description: On one clean frozen commit, execute required Feature command evidence without a shell, retain per-command digests and logs, and fail when a command fails, times out, or still uses non-exact named Go test evidence.
+      outputFormats: [json]
+      category: release
+
     release-readiness-attestation-create:
       command: python3 tools/release/release_readiness_attestation.py create --output <attestation.json> --policy .mss/release-policy.yaml --target-version v1.1.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --publication-authority <true|false>
       description: Create the strict readiness metadata for one exact workflow run; the checked-in development policy permits checkpoint qualification only and cannot grant publication authority.

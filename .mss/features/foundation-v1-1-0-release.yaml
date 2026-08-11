@@ -164,6 +164,19 @@ spec:
           value: tools/release/verify_readiness_run.sh
         - type: command
           value: python3 -m unittest discover -s tools/release -p 'test_*.py'
+    - id: checkpoint-phase-command-runner-contract
+      requirement: freeze-before-qualification
+      statement: The qualification scope explicitly selects or excludes every Feature, and the phase runner plans checked-in command evidence without a shell while retaining manual, report, and non-exact evidence as visible release-manager review items.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: path
+          value: .mss/release-qualification.json
+        - type: path
+          value: tools/release/release_phase_evidence.py
+        - type: command
+          value: python3 -m unittest tools/release/test_release_phase_evidence.py
     - id: feature-freeze-candidate-authority
       requirement: freeze-before-qualification
       statement: Manual readiness records v1.1.0, the checked-out full commit SHA, feature-freeze confirmation, the feature-freeze phase, and a non-authoritative exact-run attestation before complete qualification starts.

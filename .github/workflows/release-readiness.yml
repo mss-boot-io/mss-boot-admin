@@ -46,7 +46,7 @@ jobs:
   full-verification:
     name: doctor-verify-eval
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 360
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -151,6 +151,31 @@ jobs:
         run: |
           mkdir -p .mss/reports
           go run ./cmd/mss eval run --all --format json > .mss/reports/release-eval.json
+
+      - name: Execute phase-scoped Feature command evidence
+        if: ${{ success() && inputs.phase == 'feature-freeze' }}
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+        run: |
+          python3 tools/release/release_phase_evidence.py run \
+            --target-version "${RELEASE_VERSION}" \
+            --commit "${FROZEN_COMMIT}" \
+            --phase feature-freeze \
+            --output .mss/reports/release-phase-command-evidence.json
+
+      - name: Plan phase-scoped Feature command evidence
+        if: ${{ success() && inputs.phase != 'feature-freeze' }}
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+          READINESS_PHASE: ${{ inputs.phase }}
+        run: |
+          python3 tools/release/release_phase_evidence.py plan \
+            --target-version "${RELEASE_VERSION}" \
+            --commit "${FROZEN_COMMIT}" \
+            --phase "${READINESS_PHASE}" \
+            --output .mss/reports/release-phase-command-plan.json
 
       - name: Finalize exact readiness attestation
         if: ${{ success() }}
