@@ -12,6 +12,31 @@ CURRENT_MODULE = "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
 MIGRATION = Path("cmd/migrate/migration/system/20260403225953_enhance_options.go")
 ROLE_MIGRATION = Path("cmd/migrate/migration/system/1691847581348_migrate.go")
 MENU_MODEL = Path("models/menu.go")
+CURRENT_REGISTRATION = (
+    "migration.Migrate.SetV100Version(fileName, _20260403225953EnhanceOptions)"
+)
+V07_REGISTRATION = (
+    "migration.Migrate.SetVersion(migration.GetFilename(fileName), "
+    "_20260403225953EnhanceOptions)"
+)
+
+
+def prepare_options_migration(historical: str, repaired: str) -> str:
+    if "ADD COLUMN IF NOT EXISTS" not in historical:
+        raise ValueError("v0.7 fixture no longer contains the expected historical options migration")
+    if OLD_MODULE not in historical:
+        raise ValueError("v0.7 fixture uses an unexpected framework module path")
+    if historical.count(V07_REGISTRATION) != 1:
+        raise ValueError("v0.7 fixture uses an unexpected migration registration API")
+    if "ensureOptionsIndex" not in repaired or CURRENT_MODULE not in repaired:
+        raise ValueError("candidate options migration is not the expected portable repair")
+    if repaired.count(CURRENT_REGISTRATION) != 1:
+        raise ValueError("candidate options migration uses an unexpected registration API")
+
+    return repaired.replace(CURRENT_MODULE, OLD_MODULE).replace(
+        CURRENT_REGISTRATION,
+        V07_REGISTRATION,
+    )
 
 
 def main() -> None:
@@ -25,15 +50,8 @@ def main() -> None:
     historical = baseline_path.read_text(encoding="utf-8")
     repaired = candidate_path.read_text(encoding="utf-8")
 
-    if "ADD COLUMN IF NOT EXISTS" not in historical:
-        raise ValueError("v0.7 fixture no longer contains the expected historical options migration")
-    if OLD_MODULE not in historical:
-        raise ValueError("v0.7 fixture uses an unexpected framework module path")
-    if "ensureOptionsIndex" not in repaired or CURRENT_MODULE not in repaired:
-        raise ValueError("candidate options migration is not the expected portable repair")
-
     baseline_path.write_text(
-        repaired.replace(CURRENT_MODULE, OLD_MODULE),
+        prepare_options_migration(historical, repaired),
         encoding="utf-8",
     )
 
