@@ -621,7 +621,27 @@
     "generation": {
       "type": "object",
       "additionalProperties": false,
+	  "allOf": [
+		{
+		  "if": {
+			"not": {
+			  "properties": {
+				"backend": { "const": false }
+			  },
+			  "required": ["backend"]
+			}
+		  },
+		  "then": {
+			"required": ["migrationID"]
+		  }
+		}
+	  ],
       "properties": {
+        "migrationID": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Complete lossless decimal identifier for the generated forward migration."
+        },
         "backend": {
           "type": "boolean",
           "default": true

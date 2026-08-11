@@ -63,7 +63,7 @@ func TestAllReturnsStableCopies(t *testing.T) {
 	}
 }
 
-func TestMigrateAppliesRegisteredModels(t *testing.T) {
+func TestMigrateDoesNotInferDDLFromRegisteredModels(t *testing.T) {
 	ResetForTest()
 	t.Cleanup(ResetForTest)
 
@@ -79,8 +79,8 @@ func TestMigrateAppliesRegisteredModels(t *testing.T) {
 	if err := Migrate(db); err != nil {
 		t.Fatalf("Migrate() error = %v", err)
 	}
-	if !db.Migrator().HasTable(&testModuleRecord{}) {
-		t.Fatal("Migrate() did not create registered model table")
+	if db.Migrator().HasTable(&testModuleRecord{}) {
+		t.Fatal("Migrate() inferred production DDL from descriptor model")
 	}
 }
 
