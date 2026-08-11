@@ -8,19 +8,12 @@ description: mss-boot-admin 版本状态、升级、兼容性与回滚合同
 keywords: [release upgrade rollback compatibility mss-boot-admin]
 ---
 
-> 最新 A 轴开发 checkpoint：[`d92458c` D3 Supplier Backend 与 Authorization](/releases/v1-1-0-d3-supplier-backend)
-> 在 `5a60ad6` 后端基础上增加独立授权 migration、default-role Casbin policy、MENU/COMPONENT/API
-> metadata、role/global revision 与精确 Admin 授权矩阵。机器计划仍是
-> `phase=backend-checkpoint`、`complete=false`，19 项 frontend/docs/E2E projection 延后。B 轴最新是
-> [`88f40c3` D5 Scoped Runtime Cache](/releases/v1-1-0-d5-scoped-runtime-cache)：显式 database-authoritative
-> policy、singleflight、generation invalidation、payload bound、not-found/RowsAffected 与活动事务 bypass
-> 已落地。它是 opt-in loader adapter，不是透明 GORM plugin；payload codec 与 stable QueryIdentity 由 caller
-> 负责，跨进程恢复仍依赖 EventBus/database revision reconciliation。八项精确开发测试均 count1/race/
-> GOWORK=off 非零通过。后续 [`04e8e0c` + `160e2df` D5 Revision EventBus 与 Admin
-> reconciliation](/releases/v1-1-0-d5-revision-eventbus) 已补齐 typed Memory/Redis revision signal、
-> Casbin commit-first publication 与数据库权威周期修复；Framework 7 项、Admin 8 项新增顶级测试均有
-> 精确 count1/race 证据。EventBus 仅到 Beta，Runtime v2 仍为 Planned；这些 checkpoint 都必须在冻结
-> SHA 上集中重跑。
+> 最新 D5 开发 checkpoint 已覆盖三条并行路径：[`2771588` Supplier 完整生成投影](/releases/v1-1-0-d5-supplier-generated-module)、
+> [Blueprint 0.1→0.2 外部升级演练](/releases/v1-1-0-d5-blueprint-upgrade-rehearsal)，以及
+> [`668dfe3` Provider evidence validator](/releases/v1-1-0-d5-provider-evidence-validator)。Provider CLI
+> 只严格校验输入报告，不启动任何真实 provider，也不生成或推断 provider 成熟度。ObjectStore/RustFS
+> 继续是 v1.1.0 之后的可选成熟度工作；Runtime v2 保持 Planned。以上开发证据都必须在选定冻结 SHA
+> 后按发布阶段集中重跑或生成，不能直接授权 tag/Release。
 
 # 发布与升级
 
@@ -119,4 +112,7 @@ external consumer、recovery、`verify --all` 与 `eval --all`。全部通过后
 - [D3 Supplier Backend 与 Authorization 内部 checkpoint](/releases/v1-1-0-d3-supplier-backend)
 - [D5 Scoped Runtime Cache 内部 checkpoint](/releases/v1-1-0-d5-scoped-runtime-cache)
 - [D5 Revision EventBus 与 Admin reconciliation 内部 checkpoint](/releases/v1-1-0-d5-revision-eventbus)
+- [D5 Blueprint 0.1→0.2 外部升级演练](/releases/v1-1-0-d5-blueprint-upgrade-rehearsal)
+- [D5 Supplier 完整生成模块内部 checkpoint](/releases/v1-1-0-d5-supplier-generated-module)
+- [D5 Provider evidence validator 内部 checkpoint](/releases/v1-1-0-d5-provider-evidence-validator)
 - [v1.1.0 exact readiness attestation 合同](/releases/v1-1-0-exact-readiness-attestation)

@@ -751,6 +751,56 @@ spec:
             evidence in the current workspace for six Admin service and two server-composition
             tests; independent Admin GOWORK=off resolution waits for the v1.1.0 Framework tag and
             dependency update.
+    - id: provider-evidence-validator-checkpoint
+      requirement: classify-providers-by-evidence
+      statement: >-
+        Commit 668dfe3 adds the strict provider-maturity source schema, a repository-confined
+        deterministic validator, and the mss provider evidence CLI. Required evidence rejects an
+        empty selection, zero-run, skip, failure, partial pass, and cached-only result; optional rows
+        remain visible without blocking a required gate. The validator only reads a supplied report
+        and never constructs or contacts a provider. This checkpoint does not create a real provider
+        report and does not promote any provider.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestLoadProviderEvidenceAcceptsStrictPinnedReport
+        - type: test
+          value: TestLoadProviderEvidenceRejectsInvalidIdentityAndUnknownFields
+        - type: test
+          value: TestEvaluateRequiredProviderEvidenceAcceptsFreshQualifiedFixtures
+        - type: test
+          value: TestEvaluateRequiredProviderEvidenceRejectsZeroHitSkipAndCachedOnly
+        - type: test
+          value: TestEvaluateOptionalProviderEvidenceDoesNotBlockRequiredGate
+        - type: test
+          value: TestProviderEvidenceReportJSONIsDeterministic
+        - type: test
+          value: TestRootRegistersProviderEvidenceHelp
+        - type: test
+          value: TestProviderEvidenceCommandPassesRequiredAndWritesJSON
+        - type: test
+          value: TestProviderEvidenceCommandWritesNegativeReportBeforeReturningError
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/provider
+            -run '^(TestLoadProviderEvidenceAcceptsStrictPinnedReport|TestLoadProviderEvidenceRejectsInvalidIdentityAndUnknownFields|TestEvaluateRequiredProviderEvidenceAcceptsFreshQualifiedFixtures|TestEvaluateRequiredProviderEvidenceRejectsZeroHitSkipAndCachedOnly|TestEvaluateOptionalProviderEvidenceDoesNotBlockRequiredGate|TestProviderEvidenceReportJSONIsDeterministic)$'
+            --count 1 --race --go-work off
+            --require TestLoadProviderEvidenceAcceptsStrictPinnedReport
+            --require TestLoadProviderEvidenceRejectsInvalidIdentityAndUnknownFields
+            --require TestEvaluateRequiredProviderEvidenceAcceptsFreshQualifiedFixtures
+            --require TestEvaluateRequiredProviderEvidenceRejectsZeroHitSkipAndCachedOnly
+            --require TestEvaluateOptionalProviderEvidenceDoesNotBlockRequiredGate
+            --require TestProviderEvidenceReportJSONIsDeterministic
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/app
+            -run '^(TestRootRegistersProviderEvidenceHelp|TestProviderEvidenceCommandPassesRequiredAndWritesJSON|TestProviderEvidenceCommandWritesNegativeReportBeforeReturningError)$'
+            --count 1 --race --go-work off
+            --require TestRootRegistersProviderEvidenceHelp
+            --require TestProviderEvidenceCommandPassesRequiredAndWritesJSON
+            --require TestProviderEvidenceCommandWritesNegativeReportBeforeReturningError
     - id: event-delivery-gate
       requirement: split-events-from-work
       statement: Memory events reach every in-process subscriber, Redis events reach every currently connected replica, policy and revision commit atomically, and database revision reconciliation repairs duplicate, out-of-order, missed, panicking, disconnected, or commit-before-publish crash cases.

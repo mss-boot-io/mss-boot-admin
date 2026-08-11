@@ -105,6 +105,13 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   v1.1.0 Framework dependency can be tagged and updated. EventBus is Beta and the
   aggregate Runtime v2 capability remains Planned pending the frozen-SHA rerun, real
   Redis multi-replica/failover evidence, and remaining runtime gates.
+- Added the D5 provider-evidence validation checkpoint at `668dfe3`. The root CLI now
+  strictly loads a repository-confined `ProviderMaturityReport`, validates pinned
+  version/commit/fixture identities and internally consistent result counts, emits a
+  deterministic normalized report, and makes required zero-run, skip, failure, partial,
+  cached-only, or empty selections fail. Optional rows remain visible and non-blocking.
+  The command only validates a supplied artifact: it starts no provider, creates no real
+  provider report, and does not promote ObjectStore, RustFS, or any other provider.
 - Added the cumulative D3 Supplier generator checkpoint. Commit `5a60ad6` projects the
   canonical AdminModule into an explicit lossless-ID SQLite/MySQL/PostgreSQL forward
   migration, model, validated DTOs, CRUD/query/export service, typed post-commit events,
@@ -243,6 +250,9 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 - Added the D3 Challenge Runtime checkpoint note with fully anchored `count=1` race
   evidence for only the newly introduced public API, opaque bridge, Redis Scope adapter,
   replay-safe rate script, equal valid-Verify I/O, and legacy compatibility tests.
+- Added the D5 Provider Evidence Validator checkpoint note and machine acceptance for
+  exactly the six new validator tests and three new CLI tests introduced at `668dfe3`.
+  The feature-freeze provider report remains a separate, not-yet-generated artifact.
 - Added the D5 Scoped Runtime Cache checkpoint note with its explicit policy and
   caller-owned codec/QueryIdentity boundary, all eight fully anchored development
   tests, transaction isolation, and the still-open EventBus/revision plus frozen-SHA gates.

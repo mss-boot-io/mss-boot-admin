@@ -445,6 +445,10 @@ spec:
         - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
         - docs/docs/releases/v1-1-0-d5-scoped-runtime-cache.md
         - docs/docs/releases/v1-1-0-d5-revision-eventbus.md
+        - docs/docs/releases/v1-1-0-d5-provider-evidence-validator.md
+        - .mss/schemas/provider-maturity.schema.json
+        - internal/mss/provider
+        - internal/mss/app/provider.go
         - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
       frameworkPaths:
         - mss-boot/runtime/config
@@ -493,6 +497,9 @@ spec:
         a transparent GORM plugin or a cache-specific cross-process revision consumer. Commit 04e8e0c
         adds the separate Memory/Redis typed revision EventBus, and 160e2df composes its Memory provider
         with Admin Casbin through commit-first publication and authoritative periodic reconciliation.
+        Commit 668dfe3 adds a strict, repository-confined provider evidence validator and CLI that
+        deterministically reports required and optional rows without starting a provider. It validates
+        evidence artifacts; it does not generate real-provider results or confer maturity by itself.
         EventBus is Beta while this aggregate remains Planned: real Redis multi-replica/failover,
         Sentinel/cluster/TLS, cache-specific revision composition, and the frozen-SHA lifecycle,
         goroutine, and file-descriptor gates are still pending.

@@ -93,7 +93,7 @@ Delivery 入口继续 unavailable。缺少可选对象 Provider 证据不阻断 
 | `D2-contract-substrate`（已完成开发 checkpoint） | FeatureModule contract kind；Foundation/Blueprint/generator/downstream snapshot 四身份；lock+manifest 原子双记录；CLI/MCP/doctor 共用严格 SnapshotStatus；typed migration ID 和 duplicate fail-fast | canonical email 存量冲突预检、三库唯一 forward migration 与启动 schema readiness；strict one-of config、SecretRef、doctor preflight | infrastructure Feature 可规划；source/generated/malformed 三态 fail closed；source→generated 竞态受同一锁协议保护；SQLite/model/API/schemahealth/composition checkpoint 非零命中；真实双 DSN 与真实 compatibility workflow 都保留为 feature-freeze required gate |
 | `D3-backend-runtime`（进行中） | `5a60ad6` 已完成 supplier spec projection、显式 migration、model/DTO/service/API/operations/index/export/OpenAPI、typed events 与 fail-closed authorizer；计划保持 `complete=false` | 顶层资源图、additive named Redis、公共 Challenge API 与 internal opaque fixed-script bridge 已落地；`3e9ca94` 完成 Admin readiness/publication、Config bounded close 与 Challenge consumer 注入 | backend golden 两次生成零 diff且 exact evidence 非零；Framework Challenge 22 项与 Admin composition 13 项本次顶级测试均 count1/race/GOWORK=off 非零；100 次 race 启停、browser listener 复核与真实 Cluster/failover 留到冻结 SHA；listener 不早于 required resource ready |
 | `D4-authorization-object` | permissions/defaultRoles/menu/ownership；成功与拒绝审计；完整正负授权，并复用 D3 已生成的 post-commit typed events | v1.1.0 只保持既有 object owner/config 与 fail-closed 边界；ObjectStore/Delivery、metadata、Local/S3 全面矩阵移到可选 post-v1.1 波次 | Supplier 权限矩阵全绿；对象代码若有改动则完成受影响编译、既有 focused owner/config tests 与一次基础 smoke；不启动 RustFS、不晋级 Local/S3，缺少可选证据不阻断 FF |
-| `D5-frontend-events-upgrade` | typed client、list/form/detail/actions/export、双语 locale、完整 UI 状态；Blueprint 0.1→0.2 三方升级 | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile、provider evidence report | 第二次 upgrade 为空；无 ignored spec field；前端 focused checks 通过；非目标 Queue/Lock 状态锁定 |
+| `D5-frontend-events-upgrade`（已完成开发 checkpoint） | Supplier typed client、list/form/detail/actions/export、双语 locale、完整 UI 状态；Blueprint 0.1→0.2 外部三方升级 | scoped cache、transaction-bypass QueryCache、Memory/Redis EventBus、same-tx revision/reconcile、严格 provider evidence validator | 第二次 upgrade 为空；生成计划 `complete=true` 且零 deferred；新增前端 focused checks 与内置浏览器流程通过；validator 精确 6+3 测试通过；非目标 Queue/Lock 与 ObjectStore/RustFS 状态锁定；真实 provider report 留到冻结 SHA |
 | `FF-v1.1.0` | Generator/Blueprint schema、API、模板和 golden 输出冻结 | Runtime 配置、资源接口、Provider 选择与 maturity 候选冻结 | P0/P1 清零；不再接受新功能或公共合同变化；选择一个完整 SHA 进入集中验证 |
 
 D1 的运行与验证边界见
@@ -147,15 +147,25 @@ anchored Admin 单包命令选中本次新增或改动的 13 个顶级测试，�
 尚未执行，能力未自动晋级。
 边界见 [D3 Challenge Runtime 内部 checkpoint](/releases/v1-1-0-d3-challenge-runtime)。
 
-`5a60ad6` 完成了 A 轴 D3 Supplier backend checkpoint。AdminModule 的每个 source field 现在都有
-implemented、validation-only 或 deferred output-kind；显式 migration ID `20260810160000` 生成并验证
-SQLite/MySQL/PostgreSQL DDL，DTO/service/API/OpenAPI/export 与 typed post-commit events 已落地，
-route composition 在没有 injected authorizer 时 fail closed。生成器还会删除带 marker 的旧 auto-mounted
-输出，并在任何写入前拒绝 user-owned 冲突。SQLite hermetic suite 与临时 MySQL 8.4/PostgreSQL 17
-开发运行均通过；它们不是冻结证据。计划仍是 `phase=backend-checkpoint`、`complete=false`、15 个
-managed output unchanged、26 项 deferred；defaultRoles/policy/menu、typed client、UI/E2E、模块文档和
-upgrade rehearsal 分别留给 D4/D5。边界见
-[D3 Supplier Backend 内部 checkpoint](/releases/v1-1-0-d3-supplier-backend)。
+`5a60ad6`、`d92458c`、`4be539e`、`c8e686a` 与 `2771588` 已把 A 轴 Supplier 从 D3 backend
+checkpoint 推进到 D5 完整生成投影。AdminModule 的 migration/model/DTO/service/API/OpenAPI/export、
+typed events、default-role policy、MENU/COMPONENT/API metadata、typed frontend、双语 locale、模块文档与
+generated browser E2E 均已有确定性输出；计划现为 `phase=generated-module-checkpoint`、`complete=true`、
+30 个 managed outputs unchanged、零 deferred。生产路由只在两项 migration readiness 与显式 backend
+authorizer 同时满足时挂载，内置浏览器已完成新增 create/detail/edit/export/delete 流程。同期 Blueprint
+0.1→0.2 外部演练证明定制文件保留、第二次 1,300 项全 unchanged，以及失败注入后 lock/manifest/Git tree
+不变。这些都是开发 checkpoint，冻结 SHA 仍须重跑。边界见
+[D3 Supplier Backend 内部 checkpoint](/releases/v1-1-0-d3-supplier-backend)、
+[D5 Supplier generated-module checkpoint](/releases/v1-1-0-d5-supplier-generated-module) 与
+[D5 Blueprint upgrade rehearsal](/releases/v1-1-0-d5-blueprint-upgrade-rehearsal)。
+
+`668dfe3` 完成了 D5 Provider evidence validator checkpoint。根 CLI 只读取 repository-confined
+`ProviderMaturityReport`，严格校验 schema、完整 SHA、版本、provider/capability/fixture 身份与计数，
+并确定性输出 required/optional 判定。required 的空选择、zero-run、skip、fail、partial pass 与
+cached-only 都会失败；optional 行仍可见但不阻断。该 checkpoint 的 exact evidence 只覆盖新增的 6 个
+`internal/mss/provider` 测试和 3 个 `internal/mss/app` CLI 测试。它不启动真实 provider、不生成
+feature-freeze 报告，也不提升 ObjectStore/RustFS 或其他 provider 成熟度。边界见
+[D5 Provider evidence validator checkpoint](/releases/v1-1-0-d5-provider-evidence-validator)。
 
 波次可以并行开发，但依赖不能倒置：migration engine 必须先于真实生成迁移和 object metadata；严格
 profile 必须先于 owned runtime；named Redis 必须先于 Challenge/Cache/EventBus；完整 golden 输出必须先于

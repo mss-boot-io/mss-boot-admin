@@ -150,6 +150,10 @@ remains internal and does not promote provider maturity.
   tests, the post-commit publish and authoritative reconciliation boundary, and the
   separate Admin composition evidence at `160e2df`; no frozen-candidate or Stable
   claim is implied.
+- Recorded that provider maturity evidence is now validated by the repository-level
+  `mss provider evidence` command at `668dfe3`. This release-tooling checkpoint starts
+  no provider, creates no provider result, and does not change any framework provider
+  maturity; ObjectStore/RustFS remains optional post-v1.1 work.
 
 ## [mss-boot/v1.0.0] - 2026-08-09
 
