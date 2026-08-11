@@ -168,6 +168,8 @@ spec:
         - Generic query caching remains opt-in beta and preserves not-found, RowsAffected, preload, scan, datasource, and table-generation semantics.
         - Active database transactions bypass shared QueryCache unless a snapshot-bound design later proves isolation, rollback, and read-your-writes semantics.
         - Bounded payloads, singleflight, namespace isolation, generation races, and cross-instance datasource identity are tested explicitly.
+        - The Runtime v2 checkpoint is an explicit loader adapter rather than a transparent GORM plugin; callers own the bounded payload codec and a stable non-sensitive QueryIdentity covering query inputs, preload graph, and scan/result shape.
+        - Cross-process recovery after an invalidation outage depends on EventBus delivery plus database-revision reconciliation; a process-local pending generation is repair state, never authority.
     - id: secure-one-time-challenges
       title: Provide an atomic ChallengeStore
       description: One-time authentication state must have security-specific issuance and verification operations rather than generic cache calls.
@@ -632,7 +634,7 @@ spec:
             test ran and passed once without cache or skip under race detection and GOWORK=off.
     - id: derived-cache-gate
       requirement: scope-derived-cache
-      statement: Failure injection and race tests preserve authoritative database semantics, namespace isolation, payload bounds, generation ordering, result metadata, transaction bypass, rollback, and read-your-writes isolation.
+      statement: Commit 88f40c3 anchors the eight new cache tests as development evidence; the selected feature-freeze SHA must rerun the same exact suite to preserve authoritative database semantics, namespace isolation, payload bounds, generation ordering, result metadata, transaction bypass, rollback, and read-your-writes isolation.
       level: integration
       phase: feature-freeze
       required: true
@@ -640,7 +642,24 @@ spec:
         - type: test
           value: Derived cache and QueryCache conformance suite
         - type: command
-          value: cd mss-boot && GOWORK=off go test -race ./runtime/cache/...
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/cache
+            --run '^(TestDatabaseAuthoritativeFallbackAndCommittedWriteOutcome|TestMissSingleflightAcrossConcurrentReaders|TestGenerationInvalidationWinsLoaderRace|TestNamespaceScopeAndCrossInstanceDatasourceIdentity|TestPayloadBoundBypassesSharedCache|TestNotFoundAndRowsAffectedMetadataRoundTrip|TestActiveTransactionBypassesCacheReadYourWritesAndRollback|TestCloseAndContextBoundFlightsWithoutClosingScope)$'
+            --count 1 --race --go-work off
+            --require TestDatabaseAuthoritativeFallbackAndCommittedWriteOutcome
+            --require TestMissSingleflightAcrossConcurrentReaders
+            --require TestGenerationInvalidationWinsLoaderRace
+            --require TestNamespaceScopeAndCrossInstanceDatasourceIdentity
+            --require TestPayloadBoundBypassesSharedCache
+            --require TestNotFoundAndRowsAffectedMetadataRoundTrip
+            --require TestActiveTransactionBypassesCacheReadYourWritesAndRollback
+            --require TestCloseAndContextBoundFlightsWithoutClosingScope
+        - type: report
+          value: >-
+            Commit 88f40c3 has exact single-package JSON evidence for all eight new
+            runtime/cache top-level tests: every required test ran and passed once
+            without cache or skip under race detection and GOWORK=off. This is a
+            development checkpoint and must be regenerated from the feature-freeze SHA.
     - id: distributed-lock-defer-gate
       requirement: defer-distributed-lock-promotion
       statement: Machine contracts keep the Redis lock legacy and disabled, prove there is no Admin production consumer, and reject promotion without a fenced protected-write conformance suite.
@@ -881,6 +900,18 @@ spec:
         --run '^TestLegacyChallenge.*$' --count 1 --race --go-work off
         --require TestLegacyChallengeFormattingRedactsCompatibilitySecrets
         --require TestLegacyChallengeConstructorRejectsTypedNilClients
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/cache
+        --run '^(TestDatabaseAuthoritativeFallbackAndCommittedWriteOutcome|TestMissSingleflightAcrossConcurrentReaders|TestGenerationInvalidationWinsLoaderRace|TestNamespaceScopeAndCrossInstanceDatasourceIdentity|TestPayloadBoundBypassesSharedCache|TestNotFoundAndRowsAffectedMetadataRoundTrip|TestActiveTransactionBypassesCacheReadYourWritesAndRollback|TestCloseAndContextBoundFlightsWithoutClosingScope)$'
+        --count 1 --race --go-work off
+        --require TestDatabaseAuthoritativeFallbackAndCommittedWriteOutcome
+        --require TestMissSingleflightAcrossConcurrentReaders
+        --require TestGenerationInvalidationWinsLoaderRace
+        --require TestNamespaceScopeAndCrossInstanceDatasourceIdentity
+        --require TestPayloadBoundBypassesSharedCache
+        --require TestNotFoundAndRowsAffectedMetadataRoundTrip
+        --require TestActiveTransactionBypassesCacheReadYourWritesAndRollback
+        --require TestCloseAndContextBoundFlightsWithoutClosingScope
       - cd mss-boot && GOWORK=off go test -race ./runtime/...
       - cd mss-boot && GOWORK=off go vet ./...
       - corepack pnpm@9.15.9 --dir docs build
@@ -889,8 +920,8 @@ spec:
     migration: >-
       Treat the target model as authoritative without using historical compatibility as a design
       constraint. Strict configuration, the resource owner, the additive named Redis resource,
-      the public Challenge runtime, and its Admin composition are development checkpoints; next
-      land scoped caches and EventBus plus reconciliation. Runtime configuration remains an immutable
+      the public Challenge runtime, its Admin composition, and the scoped-cache commit 88f40c3 are
+      development checkpoints; next land EventBus plus database-revision reconciliation. Runtime configuration remains an immutable
       startup snapshot and changes require restart. ObjectStore plus Delivery
       maturity work moves to an optional post-v1.1 wave, followed by
       provider-by-provider promotion in untagged development waves. Migrate Admin scopes independently

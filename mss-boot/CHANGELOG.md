@@ -47,6 +47,16 @@ remains internal and does not promote provider maturity.
   source-compatible and Deprecated. Fully anchored uncached `count=1` race evidence
   with `GOWORK=off` covers all twenty-two newly introduced top-level tests; Admin
   composition and real Cluster/failover remain pending, with no Stable promotion.
+- Added additive `runtime/cache` at `88f40c3` over one named Redis Scope. Its explicit
+  policy fixes database authority, namespace, TTL, maximum payload, provider bypass,
+  and loader reconstruction; local singleflight and generation switching prevent a
+  concurrent old load from becoming reachable after invalidation. The opt-in
+  QueryCache adapter preserves not-found and RowsAffected and bypasses shared state for
+  active GORM transactions. It is not a transparent GORM plugin: callers own payload
+  codecs and stable non-sensitive QueryIdentity values, and cross-process recovery still
+  depends on EventBus/database-revision reconciliation. Eight exact new tests passed
+  uncached `count=1` race evidence with `GOWORK=off`; Beta status and the feature-freeze
+  rerun remain unchanged.
 - Replaced legacy object-storage provider globals with an exact Local-or-S3
   startup configuration, immutable `StorageProfile`, explicit default/static
   credential modes, typed environment `SecretRef` resolution, and one reusable
@@ -120,6 +130,9 @@ remains internal and does not promote provider maturity.
 - Recorded the D3 Challenge Runtime checkpoint with five fully anchored single-package
   `count=1`, race, `GOWORK=off` evidence commands covering only the new public Challenge,
   opaque bridge, Redis adapter, rate-replay, equal valid-Verify I/O, and legacy contract tests.
+- Recorded the D5 Scoped Runtime Cache checkpoint with all eight exact new tests,
+  explicit caller-owned codec/QueryIdentity boundaries, transaction bypass, and the
+  still-open EventBus/revision reconciliation plus feature-freeze rerun.
 
 ## [mss-boot/v1.0.0] - 2026-08-09
 

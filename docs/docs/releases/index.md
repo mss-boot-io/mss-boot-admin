@@ -12,11 +12,11 @@ keywords: [release upgrade rollback compatibility mss-boot-admin]
 > 在 `5a60ad6` 后端基础上增加独立授权 migration、default-role Casbin policy、MENU/COMPONENT/API
 > metadata、role/global revision 与精确 Admin 授权矩阵。机器计划仍是
 > `phase=backend-checkpoint`、`complete=false`，19 项 frontend/docs/E2E projection 延后。B 轴最新是
-> [`3e9ca94` D3 Challenge Runtime Admin composition](/releases/v1-1-0-d3-challenge-runtime)：
-> named Redis `main` / Scope `challenge.email` 在 Start/Ready 后发布，Config 唯一有界关闭，
-> optional invalid/outage 固定 503 且不回退 legacy global Redis；FakeCaptcha 与三个 Verify consumer
-> 已切到公开 API。配置变更仍需重启，browser 与真实 Cluster/failover 仍 pending；A/B 两项 capability
-> 均未因开发 checkpoint 自动晋级。
+> [`88f40c3` D5 Scoped Runtime Cache](/releases/v1-1-0-d5-scoped-runtime-cache)：显式 database-authoritative
+> policy、singleflight、generation invalidation、payload bound、not-found/RowsAffected 与活动事务 bypass
+> 已落地。它是 opt-in loader adapter，不是透明 GORM plugin；payload codec 与 stable QueryIdentity 由 caller
+> 负责，跨进程恢复仍依赖 EventBus/database revision reconciliation。八项精确开发测试均 count1/race/
+> GOWORK=off 非零通过；Planned/Beta 状态未因 checkpoint 自动晋级，冻结 SHA 仍须集中重跑。
 
 # 发布与升级
 

@@ -79,6 +79,16 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   anchored, uncached `count=1` race evidence with `GOWORK=off`. Runtime configuration
   remains a startup snapshot, so changes require restart; browser and frozen-SHA
   provider/lifecycle gates remain pending and no capability is promoted to Stable.
+- Added the D5 scoped runtime-cache checkpoint at `88f40c3`. The additive
+  `mss-boot/runtime/cache` package declares database authority, Scope namespace,
+  TTL, payload bound, provider-bypass, and loader reconstruction; provides
+  singleflight plus generation invalidation; preserves not-found and RowsAffected;
+  and bypasses shared state for active GORM transactions. QueryCache is an explicit
+  opt-in loader adapter rather than a transparent plugin: callers own payload codecs
+  and stable non-sensitive query identities, while cross-process outage recovery
+  remains coupled to EventBus/database-revision reconciliation. Eight exact new tests
+  passed uncached `count=1` race evidence with `GOWORK=off`; Planned/Beta status and
+  the feature-freeze rerun remain unchanged.
 - Added the cumulative D3 Supplier generator checkpoint. Commit `5a60ad6` projects the
   canonical AdminModule into an explicit lossless-ID SQLite/MySQL/PostgreSQL forward
   migration, model, validated DTOs, CRUD/query/export service, typed post-commit events,
@@ -217,6 +227,9 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 - Added the D3 Challenge Runtime checkpoint note with fully anchored `count=1` race
   evidence for only the newly introduced public API, opaque bridge, Redis Scope adapter,
   replay-safe rate script, equal valid-Verify I/O, and legacy compatibility tests.
+- Added the D5 Scoped Runtime Cache checkpoint note with its explicit policy and
+  caller-owned codec/QueryIdentity boundary, all eight fully anchored development
+  tests, transaction isolation, and the still-open EventBus/revision plus frozen-SHA gates.
 - Added the D3 Supplier Backend checkpoint note with its exact generated surface,
   machine-readable `complete=false` boundary, anchored generator/spec/Admin evidence,
   three-dialect development matrix, forward-only recovery, and explicit D4/D5 deferrals.

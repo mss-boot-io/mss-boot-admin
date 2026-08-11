@@ -191,14 +191,18 @@ spec:
       paths:
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
+        - docs/docs/releases/v1-1-0-d5-scoped-runtime-cache.md
       frameworkPaths:
+        - mss-boot/runtime/cache
         - mss-boot/pkg/config/storage/cache/context.go
         - mss-boot/pkg/config/storage/cache/options.go
         - mss-boot/pkg/config/storage/cache/redis.go
       guidance: >-
-        Database-authoritative scoped key/value caching is the stable target. Promotion requires
-        narrow interfaces, bounded payloads, namespace isolation, singleflight, failure injection,
-        and one named Redis resource owner; this status does not promote QueryCache or security state.
+        Commit 88f40c3 adds the database-authoritative Runtime v2 target over one named Redis Scope:
+        explicit policy, bounded payloads, namespace isolation, singleflight, generation invalidation,
+        provider bypass, and local close without provider ownership. The exact eight-test development
+        evidence does not promote this Beta capability, QueryCache, or security state. Cross-process
+        outage recovery still requires EventBus delivery and database-revision reconciliation.
 
     - id: platform.query-cache
       displayName: GORM Query Cache
@@ -207,13 +211,17 @@ spec:
       paths:
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
+        - docs/docs/releases/v1-1-0-d5-scoped-runtime-cache.md
       frameworkPaths:
+        - mss-boot/runtime/cache
         - mss-boot/pkg/config/storage/cache/query.go
       guidance: >-
-        Opt-in and stale-tolerant tables only. Promotion requires bounded payloads,
-        cross-instance datasource identity, singleflight, transaction bypass, and preservation
-        of not-found, RowsAffected, preload, scan, rollback, read-your-writes, and generation
-        semantics under failure injection.
+        Commit 88f40c3 is an explicit opt-in loader adapter, not a transparent GORM plugin.
+        It preserves not-found and RowsAffected metadata, uses cross-instance logical datasource
+        identity, and bypasses shared state for active transactions so read-your-writes and rollback
+        results do not enter Redis. Callers own the payload codec and a stable non-sensitive
+        QueryIdentity covering query inputs, preload, and scan shape. Status remains Beta until the
+        exact suite is regenerated on the feature-freeze SHA with EventBus/revision reconciliation.
 
     - id: identity.verification-challenge-redis-standalone
       displayName: Provisional Standalone Redis Email Challenge
@@ -425,12 +433,14 @@ spec:
         - docs/docs/releases/v1-1-0-d3-resource-lifecycle.md
         - docs/docs/releases/v1-1-0-d3-named-redis-resource.md
         - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
+        - docs/docs/releases/v1-1-0-d5-scoped-runtime-cache.md
         - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
       frameworkPaths:
         - mss-boot/runtime/config
         - mss-boot/runtime/resource
         - mss-boot/runtime/redisresource
         - mss-boot/runtime/challenge
+        - mss-boot/runtime/cache
         - mss-boot/runtime/internal/redisbridge
       guidance: >-
         Build strict named resources and separate Derived Cache, ChallengeStore, EventBus,
@@ -466,9 +476,11 @@ spec:
         anonymous and cluster multi-key Delete/Exists is non-atomic with a partial count. The D3
         Challenge checkpoint at 1faa9ef now adds a public Scope-based API, an internal opaque same-slot
         fixed-script bridge, replay-safe rate operations, equal fixed-script I/O for valid Verify paths,
-        and a source-compatible deprecated D0 bridge. The aggregate remains Planned: Admin
-        readiness/close composition and Challenge injection, real Sentinel/cluster/TLS/failover
-        conformance, and the frozen-SHA goroutine/file-descriptor gates are still pending.
+        and a source-compatible deprecated D0 bridge. Commit 88f40c3 adds the explicit scoped
+        Derived/QueryCache target with eight fully anchored development tests, but does not provide
+        a transparent GORM plugin or cross-process EventBus/revision reconciliation. The aggregate
+        remains Planned: real Sentinel/cluster/TLS/failover conformance and the frozen-SHA
+        cache/lifecycle/goroutine/file-descriptor gates are still pending.
 
     - id: platform.storage
       displayName: Legacy Object Storage Aggregate
