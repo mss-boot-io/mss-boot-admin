@@ -14,6 +14,8 @@ VERSION_RE = re.compile(
 )
 REQUIRED_KEYS = {
     "mode",
+    "releaseBranch",
+    "requireMergedPullRequestSource",
     "currentStableVersion",
     "currentStableCommit",
     "nextPublicVersion",
@@ -81,6 +83,12 @@ def load_policy(path: Path) -> dict[str, str | bool]:
         raise PolicyError(f"release policy contains unknown keys: {', '.join(extra)}")
     if policy["mode"] != "development-first":
         raise PolicyError("release policy mode must be development-first")
+    if policy["releaseBranch"] != "main":
+        raise PolicyError("release policy releaseBranch must be main")
+    if policy["requireMergedPullRequestSource"] is not True:
+        raise PolicyError(
+            "release policy requireMergedPullRequestSource must be true"
+        )
     for key in (
         "publicationWorkflowsReady",
         "publicPrereleases",

@@ -164,12 +164,26 @@ jobs:
     permissions:
       actions: read
       contents: read
+      pull-requests: read
     steps:
       - name: Checkout release source
         if: needs.metadata.outputs.publish == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+
+      - name: Verify merged-main release source
+        if: needs.metadata.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          python3 tools/release/verify_release_source.py \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${RELEASE_COMMIT}" \
+            --tag "${RELEASE_VERSION}" \
+            --policy .mss/release-policy.yaml
 
       - name: Setup Go for the external framework probe
         if: needs.metadata.outputs.publish == 'true'

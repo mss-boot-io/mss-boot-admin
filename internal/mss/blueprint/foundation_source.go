@@ -253,13 +253,13 @@ func readCommittedBlobs(ctx context.Context, root string, entries []committedFil
 			_ = command.Wait()
 			return nil, fmt.Errorf("git returned contradictory committed blob metadata for %s", entry.Path)
 		}
-		size, err := strconv.ParseInt(fields[2], 10, 64)
-		if err != nil || size < 0 || uint64(size) > uint64(^uint(0)>>1) {
+		size, ok := parseCommittedBlobSize(fields[2])
+		if !ok {
 			_ = command.Process.Kill()
 			_ = command.Wait()
 			return nil, fmt.Errorf("git returned invalid committed blob size for %s", entry.Path)
 		}
-		data := make([]byte, int(size))
+		data := make([]byte, size)
 		if _, err := io.ReadFull(reader, data); err != nil {
 			_ = command.Process.Kill()
 			_ = command.Wait()
@@ -277,6 +277,14 @@ func readCommittedBlobs(ctx context.Context, root string, entries []committedFil
 		return nil, fmt.Errorf("read committed foundation blobs: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	return result, nil
+}
+
+func parseCommittedBlobSize(value string) (int, bool) {
+	size, err := strconv.ParseInt(value, 10, strconv.IntSize)
+	if err != nil || size < 0 {
+		return 0, false
+	}
+	return int(size), true
 }
 
 func foundationCommit(ctx context.Context, root string) (string, error) {

@@ -185,6 +185,13 @@ spec:
       outputFormats: [text]
       category: release
 
+    release-source-verify:
+      command: python3 tools/release/verify_release_source.py --repository <owner/repository> --commit <full-sha> [--tag <tag>]
+      description: Fail closed unless the clean exact checkout is contained in fresh origin/main, is the final merge or squash commit produced by a merged PR targeting main, and any supplied remote tag peels exactly to that commit.
+      outputFormats: [text]
+      category: release
+      idempotent: true
+
     release-phase-evidence-plan:
       command: python3 tools/release/release_phase_evidence.py plan --target-version v1.1.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root|post-publication> --output .mss/reports/release-phase-plan.json
       description: Resolve the explicitly selected v1.1.0 Feature contracts into a shell-free, phase-scoped command plan while retaining manual, report, and non-exact evidence as release-manager review items.

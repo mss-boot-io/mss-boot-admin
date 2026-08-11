@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -679,6 +680,53 @@ func TestEnvSecretResolverHonorsContextAndRedactsMissingReference(t *testing.T) 
 	}
 	if strings.Contains(fmt.Sprint(err), "RUNTIME_CONFIG_ENV_RESOLVER_MISSING") {
 		t.Fatalf("Resolve(missing) error exposed reference locator: %v", err)
+	}
+}
+
+func TestSecretRefFingerprintIsStableOpaqueAndDistinct(t *testing.T) {
+	const (
+		reference      = "env://RUNTIME_CONFIG_FINGERPRINT_LOCATOR_CANARY"
+		otherReference = "env://RUNTIME_CONFIG_FINGERPRINT_OTHER_CANARY"
+		locatorCanary  = "RUNTIME_CONFIG_FINGERPRINT_LOCATOR_CANARY"
+		prefix         = "pbkdf2-sha256:"
+	)
+
+	ref := mustSecretRef(t, reference)
+	repeated := mustSecretRef(t, reference)
+	other := mustSecretRef(t, otherReference)
+	if ref.Fingerprint() != repeated.Fingerprint() {
+		t.Fatalf("fingerprint changed for the same reference: %q != %q", ref.Fingerprint(), repeated.Fingerprint())
+	}
+	if ref.Fingerprint() == other.Fingerprint() {
+		t.Fatalf("fingerprints for distinct references are equal: %q", ref.Fingerprint())
+	}
+	encoded := strings.TrimPrefix(ref.Fingerprint(), prefix)
+	if encoded == ref.Fingerprint() || len(encoded) != 24 {
+		t.Fatalf("Fingerprint() = %q, want %s followed by 12 encoded bytes", ref.Fingerprint(), prefix)
+	}
+	if _, err := hex.DecodeString(encoded); err != nil {
+		t.Fatalf("Fingerprint() payload is not hexadecimal: %v", err)
+	}
+
+	jsonValue, err := json.Marshal(ref)
+	if err != nil {
+		t.Fatalf("MarshalJSON() error = %v", err)
+	}
+	yamlValue, err := yaml.Marshal(ref)
+	if err != nil {
+		t.Fatalf("MarshalYAML() error = %v", err)
+	}
+	outputs := []string{
+		fmt.Sprint(ref),
+		fmt.Sprintf("%+v", ref),
+		fmt.Sprintf("%#v", ref),
+		string(jsonValue),
+		string(yamlValue),
+	}
+	for _, output := range outputs {
+		if strings.Contains(output, locatorCanary) || strings.Contains(output, reference) || strings.Contains(output, passwordCanary) {
+			t.Fatalf("SecretRef diagnostic exposed locator or secret material: %q", output)
+		}
 	}
 }
 

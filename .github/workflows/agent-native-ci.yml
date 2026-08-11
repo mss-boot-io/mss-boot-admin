@@ -35,13 +35,7 @@ on:
       - 'web/antd/config/routes.generated.ts'
       - 'web/antd/src/locales/generated.*.ts'
       - 'web/antd/src/locales/*/custom.ts'
-      - '.github/workflows/agent-native-ci.yml'
-      - '.github/workflows/foundation-compatibility.yml'
-      - '.github/workflows/container.yml'
-      - '.github/workflows/framework-release.yml'
-      - '.github/workflows/frontend-release.yml'
-      - '.github/workflows/release-readiness.yml'
-      - '.github/workflows/release.yml'
+      - '.github/workflows/**'
   pull_request:
     branches:
       - main
@@ -76,13 +70,7 @@ on:
       - 'web/antd/config/routes.generated.ts'
       - 'web/antd/src/locales/generated.*.ts'
       - 'web/antd/src/locales/*/custom.ts'
-      - '.github/workflows/agent-native-ci.yml'
-      - '.github/workflows/foundation-compatibility.yml'
-      - '.github/workflows/container.yml'
-      - '.github/workflows/framework-release.yml'
-      - '.github/workflows/frontend-release.yml'
-      - '.github/workflows/release-readiness.yml'
-      - '.github/workflows/release.yml'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
@@ -246,8 +234,12 @@ jobs:
       - name: Plan changed-file verification
         run: go run ./cmd/mss verify --changed --plan --format json > "${RUNNER_TEMP}/mss-verification-plan.json"
 
-      - name: Verify development-first release policy
-        run: python3 -m unittest tools/release/test_check_release_policy.py
+      - name: Verify release and workflow governance
+        run: |
+          python3 -m unittest \
+            tools/release/test_check_release_policy.py \
+            tools/release/test_verify_release_source.py \
+            tools/release/test_workflow_governance.py
 
       - name: Upload Agent reports
         if: always()
@@ -294,6 +286,7 @@ jobs:
       - name: Test portable Agent packages
         env:
           GOWORK: 'off'
+          TMPDIR: ${{ runner.temp }}
         run: go test ./internal/mss/dev ./internal/mss/project ./internal/mss/spec ./internal/mss/blueprint ./internal/mss/mcp
 
       - name: Build portable Agent executables

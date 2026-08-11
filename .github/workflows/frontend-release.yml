@@ -30,6 +30,7 @@ jobs:
       actions: read
       contents: write
       packages: write
+      pull-requests: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -86,6 +87,16 @@ jobs:
             echo "version=${version}"
             echo "prerelease=${prerelease}"
           } >> "${GITHUB_OUTPUT}"
+
+      - name: Verify merged-main release source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ../../tools/release/verify_release_source.py \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${GITHUB_SHA}" \
+            --tag "${GITHUB_REF_NAME}" \
+            --policy ../../.mss/release-policy.yaml
 
       - name: Enforce reviewed public release target
         env:

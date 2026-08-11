@@ -823,7 +823,6 @@ spec:
         - .github/workflows/container.yml
         - .github/workflows/docs.yml
         - .github/workflows/release.yml
-        - .github/workflows/release-draft.yml
         - .github/workflows/release-readiness.yml
         - .github/workflows/framework-release.yml
         - .github/workflows/frontend-release.yml

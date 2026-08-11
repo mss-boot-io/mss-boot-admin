@@ -50,6 +50,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: release-readiness-${{ inputs.version }}-${{ inputs.frozen_commit }}-${{ inputs.phase }}
@@ -94,6 +95,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Verify merged-main release source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+        run: |
+          python3 tools/release/verify_release_source.py \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${FROZEN_COMMIT}" \
+            --policy .mss/release-policy.yaml
 
       - name: Bind readiness to the reviewed target and frozen commit
         env:

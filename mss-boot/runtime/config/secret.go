@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"crypto/pbkdf2"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -11,6 +12,12 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+)
+
+const (
+	secretFingerprintIterations = 16_384
+	secretFingerprintSize       = 12
+	secretFingerprintSalt       = "mss-boot/runtime/config/secret-ref-fingerprint/v1"
 )
 
 // SecretSource identifies a supported secret source without exposing its
@@ -40,13 +47,24 @@ func ParseSecretRef(value string) (SecretRef, error) {
 	if !validEnvironmentName(name) {
 		return SecretRef{}, invalid("secretRef", "contains an invalid environment reference")
 	}
-	fingerprintInput := string(SecretSourceEnv) + "\x00" + name
-	digest := sha256.Sum256([]byte(fingerprintInput))
+	fingerprint, err := secretReferenceFingerprint(SecretSourceEnv, name)
+	if err != nil {
+		return SecretRef{}, invalid("secretRef", "fingerprint derivation failed")
+	}
 	return SecretRef{
 		source:      SecretSourceEnv,
 		locator:     name,
-		fingerprint: "sha256:" + hex.EncodeToString(digest[:12]),
+		fingerprint: fingerprint,
 	}, nil
+}
+
+func secretReferenceFingerprint(source SecretSource, locator string) (string, error) {
+	input := string(source) + "\x00" + locator
+	digest, err := pbkdf2.Key(sha256.New, input, []byte(secretFingerprintSalt), secretFingerprintIterations, secretFingerprintSize)
+	if err != nil {
+		return "", err
+	}
+	return "pbkdf2-sha256:" + hex.EncodeToString(digest), nil
 }
 
 func validEnvironmentName(name string) bool {
