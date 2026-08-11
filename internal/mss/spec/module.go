@@ -167,13 +167,15 @@ type OwnershipSpec struct {
 
 // MenuSpec defines the generated menu and route.
 type MenuSpec struct {
-	Path          string `yaml:"path" json:"path"`
-	DisplayName   string `yaml:"displayName" json:"displayName"`
-	DisplayNameEn string `yaml:"displayNameEn,omitempty" json:"displayNameEn,omitempty"`
-	Icon          string `yaml:"icon,omitempty" json:"icon,omitempty"`
-	Parent        string `yaml:"parent,omitempty" json:"parent,omitempty"`
-	Order         int    `yaml:"order,omitempty" json:"order,omitempty"`
-	Hidden        bool   `yaml:"hidden,omitempty" json:"hidden,omitempty"`
+	Path                string `yaml:"path" json:"path"`
+	DisplayName         string `yaml:"displayName" json:"displayName"`
+	DisplayNameEn       string `yaml:"displayNameEn,omitempty" json:"displayNameEn,omitempty"`
+	Icon                string `yaml:"icon,omitempty" json:"icon,omitempty"`
+	Parent              string `yaml:"parent,omitempty" json:"parent,omitempty"`
+	ParentDisplayName   string `yaml:"parentDisplayName,omitempty" json:"parentDisplayName,omitempty"`
+	ParentDisplayNameEn string `yaml:"parentDisplayNameEn,omitempty" json:"parentDisplayNameEn,omitempty"`
+	Order               int    `yaml:"order,omitempty" json:"order,omitempty"`
+	Hidden              bool   `yaml:"hidden,omitempty" json:"hidden,omitempty"`
 }
 
 // UISpec defines which standard pages and operations are generated.

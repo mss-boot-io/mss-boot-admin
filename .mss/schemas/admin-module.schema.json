@@ -483,6 +483,12 @@
         "parent": {
           "type": "string"
         },
+        "parentDisplayName": {
+          "type": "string"
+        },
+        "parentDisplayNameEn": {
+          "type": "string"
+        },
         "order": {
           "type": "integer"
         },

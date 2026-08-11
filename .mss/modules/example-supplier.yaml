@@ -161,6 +161,8 @@ spec:
     displayNameEn: Suppliers
     icon: shop
     parent: /procurement
+    parentDisplayName: 采购管理
+    parentDisplayNameEn: Procurement
     order: 20
     hidden: false
 

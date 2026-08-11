@@ -179,7 +179,7 @@ func applySupplierAuthorizationMigration(
 			parentID = parent.ID
 		}
 		menu, err := upsertSupplierAuthorizationMenu(tx, supplierAuthorizationMenuSeed{
-			name:       "供应商管理",
+			name:       "supplier",
 			path:       "/suppliers",
 			method:     "GET",
 			parentID:   parentID,
@@ -352,7 +352,7 @@ func ensureSupplierAuthorizationParent(tx *gorm.DB, path string) (*models.Menu, 
 		return parent, nil
 	}
 	parent := &models.Menu{
-		Name:   "menu." + strings.ReplaceAll(strings.Trim(path, "/"), "/", "."),
+		Name:   "procurement",
 		Path:   path,
 		Method: "GET",
 		Type:   adminpkg.DirectoryAccessType,

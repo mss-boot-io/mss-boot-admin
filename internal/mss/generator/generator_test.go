@@ -585,6 +585,46 @@ func TestGenerateReportsCompleteDocsAndBrowserE2EOutputs(t *testing.T) {
 	}
 }
 
+func TestGenerateAlignsAuthorizedMenuNamesWithLocaleKeys(t *testing.T) {
+	repositoryRoot := findRepositoryRoot(t)
+	root := t.TempDir()
+	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
+	module := generatorTestModule()
+	module.Spec.Menu.Parent = "/procurement"
+	module.Spec.Menu.ParentDisplayName = "采购管理"
+	module.Spec.Menu.ParentDisplayNameEn = "Procurement"
+
+	if _, err := Generate(module, Options{Root: root, Write: true}); err != nil {
+		t.Fatalf("Generate(menu locale alignment) error = %v", err)
+	}
+	for path, fragments := range map[string][]string{
+		"admin/modules/supplier/authorization_migration_generated.go": {
+			"name:       \"supplier\"",
+			"Name:   \"procurement\"",
+		},
+		"web/antd/src/locales/generated.zh-CN.ts": {
+			"\"menu.procurement\": \"采购管理\"",
+			"\"menu.procurement.supplier\": \"供应商管理\"",
+			"\"menu.supplier\": \"供应商管理\"",
+		},
+		"web/antd/src/locales/generated.en-US.ts": {
+			"\"menu.procurement\": \"Procurement\"",
+			"\"menu.procurement.supplier\": \"Suppliers\"",
+			"\"menu.supplier\": \"Suppliers\"",
+		},
+	} {
+		content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		for _, fragment := range fragments {
+			if !strings.Contains(string(content), fragment) {
+				t.Fatalf("%s omitted aligned menu fragment %q", path, fragment)
+			}
+		}
+	}
+}
+
 func TestGenerateRejectsUserOwnedManagedPathBeforeAnyWrite(t *testing.T) {
 	repositoryRoot := findRepositoryRoot(t)
 	root := t.TempDir()

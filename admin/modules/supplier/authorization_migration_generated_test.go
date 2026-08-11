@@ -53,7 +53,8 @@ func TestSupplierAuthorizationMigrationProjectsExactPolicy(t *testing.T) {
 	if err := db.Where("type = ? AND path = ?", adminpkg.MenuAccessType, "/suppliers").Take(&menu).Error; err != nil {
 		t.Fatalf("load module menu: %v", err)
 	}
-	if menu.Permission != "supplier:list" ||
+	if menu.Name != "supplier" ||
+		menu.Permission != "supplier:list" ||
 		menu.Icon != "shop" ||
 		menu.Sort != 20 ||
 		menu.HideInMenu != false {
@@ -63,8 +64,8 @@ func TestSupplierAuthorizationMigrationProjectsExactPolicy(t *testing.T) {
 	if err := db.Where("id = ?", menu.ParentID).Take(&parent).Error; err != nil {
 		t.Fatalf("load menu parent: %v", err)
 	}
-	if parent.Path != "/procurement" {
-		t.Fatalf("menu parent path = %q, want %q", parent.Path, "/procurement")
+	if parent.Name != "procurement" || parent.Path != "/procurement" {
+		t.Fatalf("menu parent metadata = %#v", parent)
 	}
 	var componentCreate models.Menu
 	if err := db.Where(

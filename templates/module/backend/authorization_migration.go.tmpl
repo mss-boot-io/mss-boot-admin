@@ -113,7 +113,7 @@ func apply{{ .ModelName }}AuthorizationMigration(
 			parentID = parent.ID
 		}
 		menu, err := upsert{{ .ModelName }}AuthorizationMenu(tx, {{ .ModuleName }}AuthorizationMenuSeed{
-			name: "{{ .Menu.DisplayName }}",
+			name: "{{ .Menu.Name }}",
 			path: "{{ .Menu.Path }}",
 			method: "GET",
 			parentID: parentID,
@@ -273,7 +273,7 @@ func ensure{{ .ModelName }}AuthorizationParent(tx *gorm.DB, path string) (*model
 		return parent, nil
 	}
 	parent := &models.Menu{
-		Name: "menu." + strings.ReplaceAll(strings.Trim(path, "/"), "/", "."),
+		Name: "{{ .Menu.ParentName }}",
 		Path: path,
 		Method: "GET",
 		Type: adminpkg.DirectoryAccessType,

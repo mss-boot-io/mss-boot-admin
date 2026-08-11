@@ -46,6 +46,12 @@ func TestLoadExampleSupplierModule(t *testing.T) {
 	if got, want := module.Spec.Generation.AuthorizationMigrationID, "20260811120000"; got != want {
 		t.Fatalf("authorization migration ID = %q, want %q", got, want)
 	}
+	if got, want := module.Spec.Menu.ParentDisplayName, "采购管理"; got != want {
+		t.Fatalf("parent display name = %q, want %q", got, want)
+	}
+	if got, want := module.Spec.Menu.ParentDisplayNameEn, "Procurement"; got != want {
+		t.Fatalf("English parent display name = %q, want %q", got, want)
+	}
 	if issues := module.Validate(); len(issues) != 0 {
 		t.Fatalf("Validate() issues = %#v", issues)
 	}
