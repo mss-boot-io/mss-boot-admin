@@ -37,6 +37,16 @@ remains internal and does not promote provider maturity.
   matrices, standalone miniredis, stalled sockets, and twenty-two fully anchored
   top-level tests passing race×20 are development evidence, not real Sentinel,
   cluster, TLS, Admin-composition, or leak conformance.
+- Added public additive `runtime/challenge` at `1faa9ef`. It consumes one named
+  `redisresource.Scope`, owns no client or `Close`, and exposes explicit issue
+  reservation, delivery Commit/Abort, and collapsed Verify outcomes. An internal
+  opaque same-slot bridge derives physical placement server-side and permits only
+  fixed Challenge scripts inside structured leases. Rate-operation replay remains
+  idempotent at the limit boundary, and syntactically valid Verify paths use one
+  fixed read and one fixed completion script. The D0 exported API stays
+  source-compatible and Deprecated. Fully anchored uncached `count=1` race evidence
+  with `GOWORK=off` covers all twenty-two newly introduced top-level tests; Admin
+  composition and real Cluster/failover remain pending, with no Stable promotion.
 - Replaced legacy object-storage provider globals with an exact Local-or-S3
   startup configuration, immutable `StorageProfile`, explicit default/static
   credential modes, typed environment `SecretRef` resolution, and one reusable
@@ -105,8 +115,11 @@ remains internal and does not promote provider maturity.
   provider error-tree repair.
 - Recorded the D3 named Redis checkpoint with all twenty-two top-level tests required
   for twenty uncached race-detected runs. The aggregate Storage Runtime remains Planned
-  pending Sentinel control ACL, atomic Challenge bridging, real Provider, Admin
+  pending Sentinel control ACL, real Provider and Challenge Cluster/failover, Admin
   composition, and frozen-SHA leak conformance.
+- Recorded the D3 Challenge Runtime checkpoint with five fully anchored single-package
+  `count=1`, race, `GOWORK=off` evidence commands covering only the new public Challenge,
+  opaque bridge, Redis adapter, rate-replay, equal valid-Verify I/O, and legacy contract tests.
 
 ## [mss-boot/v1.0.0] - 2026-08-09
 

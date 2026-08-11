@@ -12,8 +12,10 @@ keywords: [release upgrade rollback compatibility mss-boot-admin]
 > 已生成显式三方言 migration、DTO/service/API/OpenAPI/export、typed post-commit events 与
 > fail-closed authorizer，并通过 exact development evidence。机器计划仍是
 > `phase=backend-checkpoint`、`complete=false`，26 项 default-role/policy/menu/frontend/docs/E2E
-> projection 延后。B 轴最新仍是
-> [`86c0e8a` D3 Named Redis Resource](/releases/v1-1-0-d3-named-redis-resource)；两项 capability
+> projection 延后。B 轴最新是
+> [`1faa9ef` D3 Challenge Runtime](/releases/v1-1-0-d3-challenge-runtime)：公共
+> Scope-based API、internal opaque fixed-script bridge、rate replay 与固定 valid-Verify I/O 已落地，
+> Admin composition 和真实 Cluster/failover 仍 pending；A/B 两项 capability
 > 均未因开发 checkpoint 自动晋级。
 
 # 发布与升级
@@ -65,11 +67,17 @@ downstream snapshot identity consumer checkpoint：CLI/MCP/doctor 共用严格 S
 尚未运行。冻结 SHA 仍须真实执行 `foundation-compatibility.yml`，证明四身份/digests、Blueprint
 0.1→0.2 定制保留和第二次空升级；pre-root 仍须 release-built external artifact。
 
-`D3-backend-runtime` 已形成两个 Framework checkpoint：资源图在 `d90b4c7` + `c830b5f`
+`D3-backend-runtime` 已形成三个 Framework checkpoint：资源图在 `d90b4c7` + `c830b5f`
 建立确定性生命周期，`c57ffc8` 阻止 provider 对象从公共 error tree 泄漏；`86c0e8a`
 新增 additive named Redis Resource。22 项完全锚定的单包 race×20 evidence 证明构造、
 Scope 隔离、caller deadline、lease drain 与 one-close，并使用 standalone miniredis 和
 stalled socket；Sentinel/cluster/TLS 仍只有 construction matrix，不能据此晋级 capability。
+
+`1faa9ef` 随后新增公共 `runtime/challenge` 与 internal opaque same-slot bridge。Challenge
+不拥有 raw client 或 `Close`，rate replay 在 limit 边界保持幂等，所有语法有效 Verify 路径固定
+执行一次 read 与一次 completion script；D0 exported surface 保持源码兼容并 Deprecated。
+本次新增的 22 个顶级测试通过五条 fully anchored、uncached count1/race/GOWORK=off evidence。
+Admin 尚未注入公共 API，也未运行真实 Cluster/failover，因此 capability 不自动晋级。
 
 同一波次的 Generator/Blueprint 轴在 `5a60ad6` 形成 Supplier backend checkpoint：source spec
 现在投影为显式 forward migration、model/DTO/service/API/OpenAPI/export、typed events 与 exact tests，
@@ -96,4 +104,5 @@ external consumer、recovery、`verify --all` 与 `eval --all`。全部通过后
 - [D2 Downstream Snapshot Identity 内部 checkpoint](/releases/v1-1-0-d2-snapshot-identity)
 - [D3 Resource Lifecycle 内部 checkpoint](/releases/v1-1-0-d3-resource-lifecycle)
 - [D3 Named Redis Resource 内部 checkpoint](/releases/v1-1-0-d3-named-redis-resource)
+- [D3 Challenge Runtime 内部 checkpoint](/releases/v1-1-0-d3-challenge-runtime)
 - [D3 Supplier Backend 内部 checkpoint](/releases/v1-1-0-d3-supplier-backend)

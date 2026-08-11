@@ -466,6 +466,83 @@ spec:
             Implementation commit 86c0e8a, together with resource error-chain repair
             c57ffc8, has exact single-package JSON evidence proving all twenty-two required
             top-level tests ran and passed twenty uncached race-detected times with no skip.
+    - id: challenge-runtime-checkpoint-evidence
+      requirement: secure-one-time-challenges
+      statement: >-
+        Commit 1faa9ef adds the public runtime/challenge API over one named Redis Scope and
+        an internal opaque same-slot Redis bridge with sealed scripts. Begin, delivery
+        Commit/Abort, and Verify keep provider clients, physical keys, arbitrary evaluation,
+        and Close outside the consumer surface. Operation replay at the caller/global rate
+        boundary is idempotent, every syntactically valid Verify path performs the same fixed
+        read/completion script count plus comparison work, and the D0 exported surface remains
+        source-compatible and deprecated. This checkpoint does not prove Admin composition or
+        real Redis Cluster/failover behavior and does not promote a capability to Stable.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestIssueCommitVerifyAndReservationRedaction
+        - type: test
+          value: TestRateScriptReplayAtLimitIsIdempotent
+        - type: test
+          value: TestValidVerifyPathsUseEqualFixedScriptCount
+        - type: test
+          value: TestOpaqueAtomicGroupUsesOneServerDerivedSlot
+        - type: test
+          value: TestRedisBridgeRejectsCrossGroupBeforeProviderIO
+        - type: test
+          value: TestLegacyRateScriptReplayAtLimitAndPartialState
+        - type: test
+          value: TestLegacyChallengeFormattingRedactsCompatibilitySecrets
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/challenge
+            --run '^Test.*$' --count 1 --race --go-work off
+            --require TestIssueCommitVerifyAndReservationRedaction
+            --require TestPublicFormattingAndErrorChainsRedactAllMaterial
+            --require TestPendingAbortStaleRecoveryCooldownAndQuota
+            --require TestPendingAbortAndReclaimPreserveActiveVerifier
+            --require TestSameSubjectPurposesAreIsolated
+            --require TestCallerAndGlobalLimitsAreAtomicAcrossSubjects
+            --require TestRateScriptReplayAtLimitIsIdempotent
+            --require TestVerifyExactlyOnceAndBoundedAttempts
+            --require TestParallelRateLimitAndCodeExpiry
+            --require TestPepperRotationAndAntiEnumeration
+            --require TestValidVerifyPathsUseEqualFixedScriptCount
+            --require TestConstructorIsPureClusterPortableAndOwnsNoClose
+            --require TestConstructorCopiesSecrets
+            --require TestOutageContextRandomAndConfigurationFailClosed
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/internal/redisbridge
+            --run '^Test.*$' --count 1 --race --go-work off
+            --require TestOpaqueAtomicGroupUsesOneServerDerivedSlot
+            --require TestCrossGroupAndInvalidScriptRejectBeforeDriver
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/redisresource
+            --run '^TestRedisBridge.*$' --count 1 --race --go-work off
+            --require TestRedisBridgeRejectsCrossGroupBeforeProviderIO
+            --require TestRedisBridgeLeaseCancelsAndDrainsDetachedCommand
+            --require TestRedisBridgeContextAndProviderErrorsAreRedacted
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/cache
+            --run '^TestLegacyRateScriptReplayAtLimitAndPartialState$'
+            --count 1 --race --go-work off
+            --require TestLegacyRateScriptReplayAtLimitAndPartialState
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/cache
+            --run '^TestLegacyChallenge.*$' --count 1 --race --go-work off
+            --require TestLegacyChallengeFormattingRedactsCompatibilitySecrets
+            --require TestLegacyChallengeConstructorRejectsTypedNilClients
+        - type: report
+          value: >-
+            Commit 1faa9ef has exact single-package JSON evidence for twenty-two newly
+            introduced top-level tests: every required test ran and passed once without
+            cache or skip under race detection and GOWORK=off.
     - id: derived-cache-gate
       requirement: scope-derived-cache
       statement: Failure injection and race tests preserve authoritative database semantics, namespace isolation, payload bounds, generation ordering, result metadata, transaction bypass, rollback, and read-your-writes isolation.
@@ -679,6 +756,44 @@ spec:
         --require TestResourceRejectsScopeCreationAfterCloseBegins
         --require TestConcurrentCloseAndUseNeverCommandsAfterClientClose
         --require TestResourceGraphIntegration
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/challenge
+        --run '^Test.*$' --count 1 --race --go-work off
+        --require TestIssueCommitVerifyAndReservationRedaction
+        --require TestPublicFormattingAndErrorChainsRedactAllMaterial
+        --require TestPendingAbortStaleRecoveryCooldownAndQuota
+        --require TestPendingAbortAndReclaimPreserveActiveVerifier
+        --require TestSameSubjectPurposesAreIsolated
+        --require TestCallerAndGlobalLimitsAreAtomicAcrossSubjects
+        --require TestRateScriptReplayAtLimitIsIdempotent
+        --require TestVerifyExactlyOnceAndBoundedAttempts
+        --require TestParallelRateLimitAndCodeExpiry
+        --require TestPepperRotationAndAntiEnumeration
+        --require TestValidVerifyPathsUseEqualFixedScriptCount
+        --require TestConstructorIsPureClusterPortableAndOwnsNoClose
+        --require TestConstructorCopiesSecrets
+        --require TestOutageContextRandomAndConfigurationFailClosed
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/internal/redisbridge
+        --run '^Test.*$' --count 1 --race --go-work off
+        --require TestOpaqueAtomicGroupUsesOneServerDerivedSlot
+        --require TestCrossGroupAndInvalidScriptRejectBeforeDriver
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/redisresource
+        --run '^TestRedisBridge.*$' --count 1 --race --go-work off
+        --require TestRedisBridgeRejectsCrossGroupBeforeProviderIO
+        --require TestRedisBridgeLeaseCancelsAndDrainsDetachedCommand
+        --require TestRedisBridgeContextAndProviderErrorsAreRedacted
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/cache
+        --run '^TestLegacyRateScriptReplayAtLimitAndPartialState$'
+        --count 1 --race --go-work off
+        --require TestLegacyRateScriptReplayAtLimitAndPartialState
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/cache
+        --run '^TestLegacyChallenge.*$' --count 1 --race --go-work off
+        --require TestLegacyChallengeFormattingRedactsCompatibilitySecrets
+        --require TestLegacyChallengeConstructorRejectsTypedNilClients
       - cd mss-boot && GOWORK=off go test -race ./runtime/...
       - cd mss-boot && GOWORK=off go vet ./...
       - corepack pnpm@9.15.9 --dir docs build
@@ -686,9 +801,9 @@ spec:
     strategy: phased
     migration: >-
       Treat the target model as authoritative without using historical compatibility as a design
-      constraint. Strict configuration, the resource owner, and the additive named Redis resource
-      are development checkpoints; next land scoped caches, the atomic ChallengeStore bridge,
-      EventBus plus reconciliation, ObjectStore plus Delivery, and finally
+      constraint. Strict configuration, the resource owner, the additive named Redis resource,
+      and the public Challenge runtime are development checkpoints; next compose Challenge into
+      Admin, then land scoped caches, EventBus plus reconciliation, ObjectStore plus Delivery, and finally
       provider-by-provider promotion in untagged development waves. Migrate Admin scopes independently
       with focused failure checks at every boundary, then run the complete conformance, leak,
       real-provider, and failure-injection matrix on the feature-freeze commit. Keep WorkQueue and

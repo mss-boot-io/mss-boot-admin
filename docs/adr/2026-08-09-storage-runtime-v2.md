@@ -229,10 +229,39 @@ twenty uncached race-detected times. The matrix includes factory-injected topolo
 construction, namespace and close races, a real stalled `net.Pipe` deadline, and standalone
 miniredis. It is **not** real Sentinel, cluster, or TLS provider conformance. Runtime v2 also has
 no separate Sentinel control-plane credential references, so Sentinel control-plane ACL is
-anonymous here. The package deliberately does not yet provide the server-owned same-slot atomic
-group needed to bridge ChallengeStore. Admin readiness-before-listen composition and real
+anonymous here. At this checkpoint the package did not yet provide the server-owned same-slot
+atomic group needed to bridge ChallengeStore; the following `1faa9ef` checkpoint adds that bridge
+without changing this provider-evidence boundary. Admin readiness-before-listen composition and real
 goroutine/file-descriptor bounds remain feature-freeze gates. Consequently
 `platform.storage-runtime-v2` remains Planned.
+
+### Internal D3 Challenge runtime checkpoint
+
+Commit `1faa9ef` adds the public additive `mss-boot/runtime/challenge` API over one named
+`redisresource.Scope` and keeps the provider boundary internal:
+
+- `NewRedis` copies and validates secrets without I/O and owns neither the shared client nor
+  `Close`. Consumers receive `BeginIssue`, opaque reservation `Commit`/`Abort`, and a collapsed
+  `Verify` result; raw clients, physical keys, hash tags, and arbitrary script execution remain absent.
+- `runtime/internal/redisbridge` derives opaque same-slot groups and keys on the server side and
+  permits only fixed repository Challenge scripts inside a structured lease. Cross-group input,
+  an invalid script, detached work, and provider errors are rejected or sanitized at the adapter.
+- Caller/global rate scripts recognize an existing operation before applying the cardinality limit,
+  so a committed operation replayed after a lost provider response remains idempotent at the limit;
+  partial operation state is rejected.
+- Every syntactically valid Verify request performs one fixed read and one fixed completion script.
+  Missing or damaged state also performs dummy HMAC work, while public outcomes collapse missing,
+  malformed state, expiry, lock, stale state, and an incorrect code to `Rejected`.
+- The D0 `pkg/config/storage/cache` exported Challenge types, constructor, and methods remain
+  source-compatible and Deprecated. That compatibility bridge receives only the matching replay,
+  redaction, and typed-nil repairs and is not a fallback for the public Runtime v2 API.
+
+Five fully anchored single-package evidence commands cover all twenty-two newly introduced top-level
+tests with `--count 1`, `--race`, and `--go-work off`; each required test ran and passed uncached with
+no skip. This is a Framework development checkpoint only. Admin still consumes the D0 bridge, and no
+real multi-node Redis Cluster was started, so listener ordering, singular Admin close ownership,
+`CROSSSLOT`, failover, `NOSCRIPT`, and connection recovery remain pending. Standalone stays Beta,
+Cluster stays Planned, and the aggregate Storage Runtime stays Planned rather than becoming Stable.
 
 ## Decision
 
@@ -527,7 +556,7 @@ lives in this matrix. Provider state is never inferred from the framework versio
 | Aggregate cache/lock/queue | Declared stable; provider evidence does not support it | Retire the stable aggregate and point to provider evidence | Do not restore an aggregate maturity state |
 | Global Redis resource | Blocked: unsynchronized, first initializer wins, unclear close ownership | Keep the global path legacy; D3 adds an independent one-client named resource with isolated scopes and construction/lifecycle evidence | Real standalone/Sentinel/cluster/TLS conformance, Admin composition, Sentinel control-plane ACL support, and the required frozen-SHA lifecycle gates before any provider promotion |
 | Redis derived cache | Beta: query generation tests exist, but API and lifecycle remain broad | Keep beta; add failure/result metadata evidence before freeze | Stable scoped key/value cache; QueryCache remains separately beta |
-| Redis verification state | Blocked security path | Ship atomic cryptographic safety fix; do not call it stable | Stable ChallengeStore after concurrency, limits, outage, and redaction suites |
+| Redis verification state | Blocked security path | D0 ships the Admin safety bridge; D3 adds the public Scope-based Challenge API, opaque fixed-script bridge, replay-safe rate limit, equal valid-Verify I/O, and exact new-test evidence without calling it stable | Compose the public API into Admin and separately decide promotion only after the required real Cluster/failover and frozen-SHA evidence |
 | Memory EventBus | Existing memory queue is not a production broadcast contract | Do not market it as a durable queue | Stable single-process EventBus after shared suite |
 | Redis EventBus | Existing Redis queue lacks explicit fan-out/reconciliation contract | Keep separate and planned; ownership/reconciliation lands in D5 | Stable fan-out plus revision reconciliation and outage behavior |
 | Redis WorkQueue | Experimental | Separate it from EventBus | Remain experimental unless retry/dead-letter suite passes |
@@ -567,8 +596,8 @@ package replacement. D1 has established strict object startup profiles, fail-clo
 owned object resources, and the additive managed Kafka lifecycle without changing Kafka's
 Legacy/Blocked maturity. D2 establishes strict schemas, version
 identity, migration preflight, and hermetic fixtures. D3 now has the resource graph and named
-Redis construction/lifecycle checkpoints; D3-D5 still land the atomic ChallengeStore bridge,
-Admin composition, EventBus, ObjectStore/Delivery, upgrade paths, and
+Redis construction/lifecycle checkpoints plus the public Challenge runtime and internal atomic bridge;
+D3-D5 still land Admin composition, EventBus, ObjectStore/Delivery, upgrade paths, and
 provider evidence in independently reversible commits. None of these waves creates a public tag.
 
 After the architecture and selected provider scope reach `FF-v1.1.0`, one frozen commit enters
@@ -598,10 +627,10 @@ This ADR is implemented only when:
    framework; and
 8. the release tag follows a truthful SemVer decision for any public API removal.
 
-The next executable D3 step is to compose the named Redis definition into Admin so required
-readiness completes before listeners and one reverse owner closes it, then add a server-owned
-same-slot atomic capability and bridge ChallengeStore without exposing raw hash tags or the
-provider client. Real Sentinel/cluster/TLS fixtures and goroutine/file-descriptor evidence remain
+The next executable D3 step is to compose the named Redis definition and public Challenge API into
+Admin so required readiness completes before listeners, one reverse owner closes the resource,
+delivery uses Begin/Commit/Abort, and consumers use the collapsed Verify result. Real
+Sentinel/cluster/TLS/failover fixtures and goroutine/file-descriptor evidence remain
 freeze gates, not checkpoint claims. In parallel, the Generator/Blueprint track can implement
 the supplier backend against the canonical `admin/modules/<name>` contract. Kafka, Local, and
 S3-compatible storage remain Legacy/Blocked; S3 Put, conditional create-only writes,

@@ -223,6 +223,7 @@ spec:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/storage-runtime-v2.yaml
         - docs/docs/releases/v1-0-1-challenge-safety.md
+        - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
       backendPaths:
         - admin/apis/user.go
         - admin/config/challenge.go
@@ -230,12 +231,17 @@ spec:
         - admin/notice/email/send.go
       frameworkPaths:
         - mss-boot/pkg/config/storage/cache/challenge.go
+        - mss-boot/runtime/challenge
+        - mss-boot/runtime/internal/redisbridge
+        - mss-boot/runtime/redisresource
       guidance: >-
-        First safety checkpoint: purpose-scoped cryptographic challenges use atomic Redis transitions,
-        bounded caller/global issuance, bounded context-aware delivery, fixed failure responses, and
-        a disabled legacy fallback. The inter-module Go surface is explicitly provisional rather than
-        the v1.1 Runtime v2 API. This Beta status applies only to a standalone Redis resource and does
-        not assert database-enforced canonical email uniqueness; ambiguous identities fail closed.
+        The D0 Admin path keeps purpose-scoped cryptographic transitions and a source-compatible,
+        deprecated fail-closed bridge. D3 adds the public runtime/challenge API over one named Redis
+        Scope plus an internal opaque same-slot fixed-script bridge, replay-safe rate operations,
+        and equal fixed-script I/O for every syntactically valid Verify path. Admin still uses the D0
+        bridge until composition is implemented. This capability remains Beta rather than Stable and
+        does not assert Admin readiness/ownership, real Cluster/failover behavior, or completion of
+        the database-enforced canonical-email release gates.
 
     - id: identity.verification-challenge-redis-cluster
       displayName: Redis Cluster/Ring Email Challenge
@@ -245,13 +251,18 @@ spec:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/storage-runtime-v2.yaml
         - docs/docs/releases/v1-0-1-challenge-safety.md
+        - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
       frameworkPaths:
         - mss-boot/pkg/config/storage/cache/challenge.go
+        - mss-boot/runtime/challenge
+        - mss-boot/runtime/internal/redisbridge
+        - mss-boot/runtime/redisresource
       guidance: >-
-        Concrete Redis Cluster and Ring clients are rejected fail closed during development. Promotion requires
+        The D3 public API derives an opaque same-slot atomic group and prevents cross-group execution
+        before provider I/O, but this is construction and hermetic script evidence only. The legacy
+        D0 constructor continues to reject concrete Cluster and Ring clients. Promotion still requires
         a real non-skippable multi-node fixture covering hash-slot execution, CROSSSLOT, failover,
-        NOSCRIPT, cancellation, retries, and exactly-once challenge consumption; string-level hash-tag
-        tests are not provider conformance evidence.
+        NOSCRIPT, cancellation, retries, and exactly-once consumption. Status remains Planned.
 
     - id: identity.canonical-email
       displayName: Canonical Email Identity Constraint
@@ -404,11 +415,14 @@ spec:
         - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
         - docs/docs/releases/v1-1-0-d3-resource-lifecycle.md
         - docs/docs/releases/v1-1-0-d3-named-redis-resource.md
+        - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
         - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
       frameworkPaths:
         - mss-boot/runtime/config
         - mss-boot/runtime/resource
         - mss-boot/runtime/redisresource
+        - mss-boot/runtime/challenge
+        - mss-boot/runtime/internal/redisbridge
       guidance: >-
         Build strict named resources and separate Derived Cache, ChallengeStore, EventBus,
         WorkQueue, Lock, ObjectStore, Delivery, and S3 bootstrap contracts. Required resources
@@ -436,10 +450,12 @@ spec:
         applies the corresponding provider-object redaction boundary to the underlying resource graph.
         Its Sentinel, cluster, and TLS evidence is construction-focused, while only standalone
         miniredis and stalled-socket deadlines exercise I/O. Sentinel control-plane ACL remains
-        anonymous, cluster multi-key Delete/Exists is non-atomic with a partial count, and the atomic
-        ChallengeStore bridge is still absent. The aggregate therefore remains Planned pending Admin
-        readiness/close composition, real Sentinel/cluster/TLS conformance, Challenge integration,
-        and the frozen-SHA goroutine/file-descriptor gates.
+        anonymous and cluster multi-key Delete/Exists is non-atomic with a partial count. The D3
+        Challenge checkpoint at 1faa9ef now adds a public Scope-based API, an internal opaque same-slot
+        fixed-script bridge, replay-safe rate operations, equal fixed-script I/O for valid Verify paths,
+        and a source-compatible deprecated D0 bridge. The aggregate remains Planned: Admin
+        readiness/close composition and Challenge injection, real Sentinel/cluster/TLS/failover
+        conformance, and the frozen-SHA goroutine/file-descriptor gates are still pending.
 
     - id: platform.storage
       displayName: Legacy Object Storage Aggregate

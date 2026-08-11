@@ -57,7 +57,17 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   including standalone miniredis and stalled-socket deadlines. The aggregate remains
   Planned: Sentinel control-plane ACL is anonymous, cluster multi-key operations are
   non-atomic with partial counts, and real Sentinel/cluster/TLS, Admin composition,
-  Challenge atomic bridging, and leak conformance remain open.
+  Challenge injection, and leak conformance remain open.
+- Added the D3 Framework Challenge checkpoint at `1faa9ef`. The public additive
+  `runtime/challenge` package accepts one named Redis Scope, exposes explicit
+  Begin/Commit/Abort/Verify outcomes without a raw client or `Close`, and uses an
+  internal opaque same-slot bridge limited to fixed repository scripts. Rate-operation
+  replay is idempotent at the limit boundary, and every syntactically valid Verify path
+  performs one fixed read plus one fixed completion script. The deprecated D0 exported
+  surface remains source-compatible and receives the same replay and redaction repairs.
+  Twenty-two newly introduced top-level tests passed fully anchored, uncached `count=1`
+  race evidence with `GOWORK=off`. Admin composition and real Redis Cluster/failover
+  remain pending, so no capability is promoted to Stable.
 - Added the D3 Supplier backend generator checkpoint at `5a60ad6`. The canonical
   AdminModule specification now deterministically projects an explicit lossless-ID
   SQLite/MySQL/PostgreSQL forward migration, model, validated DTOs, CRUD/query/export
@@ -192,6 +202,9 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 - Added the D3 Named Redis Resource checkpoint note and a fully anchored evidence
   command requiring all twenty-two `runtime/redisresource` top-level tests, while
   keeping the capability Planned and listing every deferred Provider/composition gate.
+- Added the D3 Challenge Runtime checkpoint note with fully anchored `count=1` race
+  evidence for only the newly introduced public API, opaque bridge, Redis Scope adapter,
+  replay-safe rate script, equal valid-Verify I/O, and legacy compatibility tests.
 - Added the D3 Supplier Backend checkpoint note with its exact generated surface,
   machine-readable `complete=false` boundary, anchored generator/spec/Admin evidence,
   three-dialect development matrix, forward-only recovery, and explicit D4/D5 deferrals.
