@@ -164,22 +164,25 @@ func buildProjectionReport(module *spec.Module) ([]Projection, error) {
 
 	for index, permission := range module.Spec.Permissions {
 		permissionPath := fmt.Sprintf("spec.permissions[%d]", index)
-		add(permissionPath+".action", ProjectionImplemented, "the derived permission code is enforced by the required injected backend authorizer", "api", "tests")
-		add(permissionPath+".displayName", ProjectionDeferred, "permission display metadata belongs to authorization policy persistence and frontend presentation", "authorization-policy", "frontend")
+		add(permissionPath+".action", ProjectionImplemented, "the derived permission code is enforced by the required injected Admin backend authorizer", "api", "authorization-policy", "tests")
+		add(permissionPath+".displayName", ProjectionImplemented, "permission display metadata is emitted to the runtime descriptor and persisted as auditable Admin authorization metadata", "authorization-policy", "backend-descriptor", "migration")
+		add(permissionPath+".displayName", ProjectionDeferred, "permission display presentation remains owned by the frontend checkpoint", "frontend")
 		if permission.Description != "" {
-			add(permissionPath+".description", ProjectionDeferred, "permission description persistence belongs to the authorization checkpoint", "authorization-policy")
+			add(permissionPath+".description", ProjectionImplemented, "permission descriptions are emitted to the backend runtime descriptor", "backend-descriptor")
+			add(permissionPath+".description", ProjectionDeferred, "permission description presentation remains owned by the frontend checkpoint", "frontend")
 		}
 		if len(permission.DefaultRoles) > 0 {
-			add(permissionPath+".defaultRoles", ProjectionDeferred, "default-role persistence and policy seeding are owned by the authorization checkpoint", "authorization-policy", "migration")
+			add(permissionPath+".defaultRoles", ProjectionImplemented, "default roles are resolved or provisioned and receive exact COMPONENT/API policies in one additive transaction", "authorization-policy", "authorization-tests", "migration")
 		}
 	}
 	if module.Spec.Ownership.Mode != "none" {
 		add("spec.ownership", ProjectionUnsupported, "non-trivial ownership requires the authorization checkpoint and must fail closed", "authorization-policy", "service", "tests")
 	} else {
-		add("spec.ownership", ProjectionValidationOnly, "none declares that this module has no row-ownership filter", "service")
-		add("spec.ownership.adminBypass", ProjectionValidationOnly, "adminBypass has no effect when ownership mode is none", "service")
+		add("spec.ownership", ProjectionImplemented, "none is enforced as role-only authorization with no row-ownership fallback or filter", "authorization-policy", "service", "tests")
+		add("spec.ownership.adminBypass", ProjectionImplemented, "Admin root bypass is explicit while non-root roles remain bound to exact persisted policies", "authorization-policy", "tests")
 	}
-	add("spec.menu", ProjectionDeferred, "menu persistence and visibility are owned by the authorization/frontend checkpoint", "frontend", "menu-migration")
+	add("spec.menu", ProjectionImplemented, "menu path, parent, icon, order, visibility, permission metadata, and default-role policies are persisted transactionally", "authorization-policy", "menu-migration", "tests")
+	add("spec.menu", ProjectionDeferred, "frontend route composition, locale rendering, and UI visibility remain owned by the frontend checkpoint", "frontend")
 	add("spec.ui", ProjectionDeferred, "management pages and UI states are owned by the frontend checkpoint", "frontend")
 	if module.Spec.Workflow != nil {
 		add("spec.workflow", ProjectionUnsupported, "workflow generation is outside this backend checkpoint", "api", "migration", "service", "tests")
@@ -197,7 +200,7 @@ func buildProjectionReport(module *spec.Module) ([]Projection, error) {
 		add("spec.tests.e2e", ProjectionDeferred, "browser evidence belongs to the frontend checkpoint", "frontend-tests")
 	}
 	if module.Spec.Tests.PermissionMatrix {
-		add("spec.tests.permissionMatrix", ProjectionDeferred, "full role and negative authorization matrix belongs to the authorization checkpoint", "authorization-tests")
+		add("spec.tests.permissionMatrix", ProjectionImplemented, "generated tests cover every declared default-role allow and deny plus missing identity", "authorization-tests")
 	}
 	if module.Spec.Tests.OwnershipIsolation {
 		add("spec.tests.ownershipIsolation", ProjectionUnsupported, "ownership isolation was requested without a supported ownership implementation", "authorization-tests")
@@ -210,6 +213,11 @@ func buildProjectionReport(module *spec.Module) ([]Projection, error) {
 		add("spec.generation.migrationID", ProjectionUnsupported, "backend generation requires an explicit complete migration ID", "migration")
 	} else {
 		add("spec.generation.migrationID", ProjectionImplemented, "complete decimal ID is registered without truncation", "migration", "tests")
+	}
+	if module.Spec.Generation.AuthorizationMigrationID == "" {
+		add("spec.generation.authorizationMigrationID", ProjectionUnsupported, "backend authorization generation requires an explicit additive migration ID", "migration")
+	} else {
+		add("spec.generation.authorizationMigrationID", ProjectionImplemented, "the additive authorization seed is registered under its own complete decimal ID", "authorization-policy", "migration", "tests")
 	}
 	if module.Spec.Generation.Backend == nil || !*module.Spec.Generation.Backend {
 		add("spec.generation.backend", ProjectionUnsupported, "this command is producing the backend checkpoint and backend generation must be enabled", "backend")

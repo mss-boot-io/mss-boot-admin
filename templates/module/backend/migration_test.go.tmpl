@@ -283,6 +283,7 @@ func openUnmigrated{{ .ModelName }}Database(t *testing.T) *gorm.DB {
 	if err := db.Exec("CREATE TABLE mss_boot_migration (version TEXT PRIMARY KEY, apply_time DATETIME NOT NULL)").Error; err != nil {
 		t.Fatalf("create migration table: %v", err)
 	}
+	prepare{{ .ModelName }}AuthorizationTestSchema(t, db)
 	return db
 }
 

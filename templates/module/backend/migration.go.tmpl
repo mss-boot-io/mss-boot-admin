@@ -81,7 +81,10 @@ func RegisterMigration(runner *migration.Migration) error {
 	if runner == nil {
 		return errors.New("{{ .ModuleName }} migration runner is required")
 	}
-	return runner.Register({{ .ModelName }}MigrationID, migrate{{ .ModelName }})
+	if err := runner.Register({{ .ModelName }}MigrationID, migrate{{ .ModelName }}); err != nil {
+		return err
+	}
+	return runner.Register({{ .ModelName }}AuthorizationMigrationID, migrate{{ .ModelName }}Authorization)
 }
 
 func migrate{{ .ModelName }}(db *gorm.DB, version string) error {

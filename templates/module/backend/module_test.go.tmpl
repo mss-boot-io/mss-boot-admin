@@ -20,6 +20,12 @@ func Test{{ .ModelName }}MigrationIdentityIsComplete(t *testing.T) {
 	}
 }
 
+func Test{{ .ModelName }}AuthorizationMigrationIdentityIsComplete(t *testing.T) {
+	if got, want := {{ .ModelName }}AuthorizationMigrationID.String(), "{{ .AuthorizationMigrationID }}"; got != want {
+		t.Fatalf("authorization migration ID = %q, want %q", got, want)
+	}
+}
+
 func Test{{ .ModelName }}PermissionCodesAreUnique(t *testing.T) {
 	codes := []string{
 {{- range .Permissions }}
@@ -57,7 +63,7 @@ func Test{{ .ModelName }}OperationContractMatchesSpecification(t *testing.T) {
 	}
 }
 
-func Test{{ .ModelName }}DescriptorNeverInfersMigrationOrRoutes(t *testing.T) {
+func Test{{ .ModelName }}DescriptorProjectsAuthorizationMetadataWithoutInferringComposition(t *testing.T) {
 	descriptor, ok := moduleruntime.Get("{{ .ModuleName }}")
 	if !ok {
 		t.Fatal("generated descriptor was not registered")
@@ -65,7 +71,10 @@ func Test{{ .ModelName }}DescriptorNeverInfersMigrationOrRoutes(t *testing.T) {
 	if descriptor.Migrate != nil {
 		t.Fatal("generated descriptor must not expose AutoMigrate or another inferred migration hook")
 	}
-	if len(descriptor.Permissions) != 0 || descriptor.Menu.Path != "" {
-		t.Fatal("deferred authorization/menu persistence was presented as complete runtime metadata")
+	if got, want := len(descriptor.Permissions), {{ len .Permissions }}; got != want {
+		t.Fatalf("descriptor permissions = %d, want %d", got, want)
+	}
+	if got, want := descriptor.Menu.Path, "{{ .Menu.Path }}"; got != want {
+		t.Fatalf("descriptor menu path = %q, want %q", got, want)
 	}
 }

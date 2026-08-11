@@ -632,7 +632,7 @@
 			}
 		  },
 		  "then": {
-			"required": ["migrationID"]
+		  "required": ["migrationID", "authorizationMigrationID"]
 		  }
 		}
 	  ],
@@ -641,6 +641,11 @@
           "type": "string",
           "pattern": "^(?:0|[1-9][0-9]*)$",
           "description": "Complete lossless decimal identifier for the generated forward migration."
+        },
+        "authorizationMigrationID": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Complete lossless decimal identifier for the additive authorization metadata and policy migration."
         },
         "backend": {
           "type": "boolean",

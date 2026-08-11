@@ -12,9 +12,10 @@ import (
 
 // Permission declares one backend-enforced module action.
 type Permission struct {
-	Code        string
-	DisplayName string
-	Description string
+	Code         string
+	DisplayName  string
+	Description  string
+	DefaultRoles []string
 }
 
 // Menu declares the default navigation entry for a module.
@@ -129,6 +130,10 @@ func ResetForTest() {
 
 func cloneDescriptor(descriptor Descriptor) Descriptor {
 	clone := descriptor
-	clone.Permissions = append([]Permission(nil), descriptor.Permissions...)
+	clone.Permissions = make([]Permission, len(descriptor.Permissions))
+	for index := range descriptor.Permissions {
+		clone.Permissions[index] = descriptor.Permissions[index]
+		clone.Permissions[index].DefaultRoles = append([]string(nil), descriptor.Permissions[index].DefaultRoles...)
+	}
 	return clone
 }

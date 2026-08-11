@@ -21,7 +21,7 @@ type recording{{ .ModelName }}Authorizer struct {
 	permissions []string
 }
 
-func (authorizer *recording{{ .ModelName }}Authorizer) Authorize(_ *http.Request, permission string) error {
+func (authorizer *recording{{ .ModelName }}Authorizer) Authorize(_ *gin.Context, permission string) error {
 	authorizer.mu.Lock()
 	defer authorizer.mu.Unlock()
 	authorizer.permissions = append(authorizer.permissions, permission)
@@ -47,6 +47,47 @@ func Test{{ .ModelName }}RegisterRoutesFailsClosedWithoutAuthorizer(t *testing.T
 	}
 	if routes := router.Routes(); len(routes) != 0 {
 		t.Fatalf("routes mounted before authorization was available: %#v", routes)
+	}
+}
+
+func Test{{ .ModelName }}EveryDeclaredOperationIsBackendAuthorized(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service, err := NewService(open{{ .ModelName }}TestDatabase(t), discardEventCollector{})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	authorizer := &recording{{ .ModelName }}Authorizer{denied: true}
+	router := gin.New()
+	if err := RegisterRoutes(router.Group("/admin/api"), service, authorizer); err != nil {
+		t.Fatalf("RegisterRoutes() error = %v", err)
+	}
+	cases := []struct {
+		operation  string
+		method     string
+		path       string
+		permission string
+	}{
+{{- range .Operations }}
+		{operation: "{{ .Name }}", method: "{{ .Method }}", path: "{{ .PolicyPath }}", permission: Permission{{ .PermissionIdentifier }}},
+{{- end }}
+	}
+	for _, test := range cases {
+		requestPath := strings.ReplaceAll(test.path, ":id", "record-id")
+		response := perform{{ .ModelName }}Request(router, test.method, requestPath, nil)
+		if response.Code != http.StatusForbidden {
+			t.Fatalf("%s authorization response = %d, want %d", test.operation, response.Code, http.StatusForbidden)
+		}
+	}
+	authorizer.mu.Lock()
+	got := append([]string(nil), authorizer.permissions...)
+	authorizer.mu.Unlock()
+	if len(got) != len(cases) {
+		t.Fatalf("authorization calls = %v, want %d", got, len(cases))
+	}
+	for index, test := range cases {
+		if got[index] != test.permission {
+			t.Fatalf("authorization call %d = %q, want %q", index, got[index], test.permission)
+		}
 	}
 }
 

@@ -43,6 +43,9 @@ func TestLoadExampleSupplierModule(t *testing.T) {
 	if got, want := module.Spec.Generation.MigrationID, "20260810160000"; got != want {
 		t.Fatalf("migration ID = %q, want %q", got, want)
 	}
+	if got, want := module.Spec.Generation.AuthorizationMigrationID, "20260811120000"; got != want {
+		t.Fatalf("authorization migration ID = %q, want %q", got, want)
+	}
 	if issues := module.Validate(); len(issues) != 0 {
 		t.Fatalf("Validate() issues = %#v", issues)
 	}
@@ -232,6 +235,29 @@ func TestModuleValidationRejectsMalformedMigrationID(t *testing.T) {
 	t.Fatalf("Validate() issues = %#v, want invalid-migration-id", issues)
 }
 
+func TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		id   string
+		code string
+	}{
+		{name: "missing", id: "", code: "required"},
+		{name: "malformed", id: "020260811120000", code: "invalid-migration-id"},
+		{name: "duplicates entity", id: "20260810160002", code: "duplicate-migration-id"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			module := validModule()
+			module.Spec.Generation.AuthorizationMigrationID = test.id
+			for _, issue := range module.Validate() {
+				if issue.Path == "spec.generation.authorizationMigrationID" && issue.Code == test.code {
+					return
+				}
+			}
+			t.Fatalf("Validate() issues = %#v, want %s", module.Validate(), test.code)
+		})
+	}
+}
+
 func TestModuleValidationRequiresMigrationIDForBackendGeneration(t *testing.T) {
 	module := validModule()
 	module.Spec.Generation.MigrationID = ""
@@ -315,7 +341,10 @@ func validModule() *Module {
 				E2E:              true,
 				PermissionMatrix: true,
 			},
-			Generation: GenerationSpec{MigrationID: "20260810160002"},
+			Generation: GenerationSpec{
+				MigrationID:              "20260810160002",
+				AuthorizationMigrationID: "20260810160003",
+			},
 		},
 	}
 	module.Normalize()

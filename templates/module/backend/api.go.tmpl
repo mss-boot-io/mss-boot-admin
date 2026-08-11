@@ -22,7 +22,7 @@ const (
 
 // Authorizer is required at route composition and enforces backend policy.
 type Authorizer interface {
-	Authorize(*http.Request, string) error
+	Authorize(*gin.Context, string) error
 }
 
 // OperationContract is the generated HTTP/OpenAPI/permission projection.
@@ -86,8 +86,18 @@ type HTTPController struct {
 
 func (controller *HTTPController) authorize(permission string, next gin.HandlerFunc) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		if err := controller.authorizer.Authorize(ctx.Request, permission); err != nil {
-			ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		if err := controller.authorizer.Authorize(ctx, permission); err != nil {
+			status := http.StatusForbidden
+			message := "forbidden"
+			switch {
+			case errors.Is(err, Err{{ .ModelName }}AuthenticationRequired):
+				status = http.StatusUnauthorized
+				message = "unauthorized"
+			case errors.Is(err, Err{{ .ModelName }}AuthorizationUnavailable):
+				status = http.StatusServiceUnavailable
+				message = "authorization unavailable"
+			}
+			ctx.AbortWithStatusJSON(status, gin.H{"error": message})
 			return
 		}
 		next(ctx)

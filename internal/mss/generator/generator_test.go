@@ -356,8 +356,14 @@ func generatorTestModule() *spec.Module {
 				E2E:              true,
 				PermissionMatrix: true,
 			},
-			Generation: spec.GenerationSpec{MigrationID: "20260810160001"},
+			Generation: spec.GenerationSpec{
+				MigrationID:              "20260810160001",
+				AuthorizationMigrationID: "20260810160002",
+			},
 		},
+	}
+	for index := range module.Spec.Permissions {
+		module.Spec.Permissions[index].DefaultRoles = []string{"admin"}
 	}
 	module.Normalize()
 	return module
@@ -398,6 +404,30 @@ func TestGenerateRejectsMigrationIDCollisionsBeforeWriting(t *testing.T) {
 				other.Spec.API.BasePath = "/customers"
 				other.Spec.Menu.Path = "/customers"
 				other.Spec.Generation.MigrationID = current.Spec.Generation.MigrationID
+				data, err := other.YAML()
+				if err != nil {
+					t.Fatalf("YAML(other) error = %v", err)
+				}
+				path := filepath.Join(root, ".mss", "modules", "customer.yaml")
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatalf("MkdirAll(module specs) error = %v", err)
+				}
+				if err := os.WriteFile(path, data, 0o644); err != nil {
+					t.Fatalf("WriteFile(other module) error = %v", err)
+				}
+			},
+		},
+		{
+			name: "another module authorization migration",
+			setup: func(t *testing.T, root string, current *spec.Module) {
+				other := generatorTestModule()
+				other.Metadata.Name = "customer"
+				other.Spec.Entity.GoName = "Customer"
+				other.Spec.Entity.Table = "biz_customers"
+				other.Spec.API.BasePath = "/customers"
+				other.Spec.Menu.Path = "/customers"
+				other.Spec.Generation.MigrationID = "20260810160003"
+				other.Spec.Generation.AuthorizationMigrationID = current.Spec.Generation.AuthorizationMigrationID
 				data, err := other.YAML()
 				if err != nil {
 					t.Fatalf("YAML(other) error = %v", err)
@@ -464,6 +494,30 @@ func TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs(t *testing.
 	plan, err := Generate(generatorTestModule(), Options{Root: root})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
+	}
+	hasProjection := func(path string, status ProjectionStatus) bool {
+		for _, projection := range plan.Projections {
+			if projection.Path == path && projection.Status == status {
+				return true
+			}
+		}
+		return false
+	}
+	for _, expected := range []struct {
+		path   string
+		status ProjectionStatus
+	}{
+		{path: "spec.permissions[0].action", status: ProjectionImplemented},
+		{path: "spec.permissions[0].defaultRoles", status: ProjectionImplemented},
+		{path: "spec.ownership", status: ProjectionImplemented},
+		{path: "spec.ownership.adminBypass", status: ProjectionImplemented},
+		{path: "spec.menu", status: ProjectionImplemented},
+		{path: "spec.menu", status: ProjectionDeferred},
+		{path: "spec.generation.authorizationMigrationID", status: ProjectionImplemented},
+	} {
+		if !hasProjection(expected.path, expected.status) {
+			t.Fatalf("projection %s/%s is missing from %#v", expected.path, expected.status, plan.Projections)
+		}
 	}
 	deferred := false
 	for _, projection := range plan.Projections {

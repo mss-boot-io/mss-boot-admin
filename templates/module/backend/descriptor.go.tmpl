@@ -13,5 +13,24 @@ func init() {
 		Description: "{{ .Description }}",
 		Version:     "v1alpha1",
 		Model:       new({{ .ModelName }}),
+		Permissions: []moduleruntime.Permission{
+{{- range .Permissions }}
+			{
+				Code: "{{ .Code }}",
+				DisplayName: "{{ .DisplayName }}",
+				Description: "{{ .Description }}",
+				DefaultRoles: []string{ {{- range $index, $role := .DefaultRoles }}{{ if $index }}, {{ end }}"{{ $role }}"{{ end }} },
+			},
+{{- end }}
+		},
+		Menu: moduleruntime.Menu{
+			Path: "{{ .Menu.Path }}",
+			DisplayName: "{{ .Menu.DisplayName }}",
+			DisplayNameEn: "{{ .Menu.DisplayNameEn }}",
+			Icon: "{{ .Menu.Icon }}",
+			Parent: "{{ .Menu.Parent }}",
+			Order: {{ .Menu.Order }},
+			Hidden: {{ .Menu.Hidden }},
+		},
 	})
 }

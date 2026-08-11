@@ -221,11 +221,12 @@ type TestSpec struct {
 
 // GenerationSpec controls generated surfaces.
 type GenerationSpec struct {
-	MigrationID string `yaml:"migrationID,omitempty" json:"migrationID,omitempty"`
-	Backend     *bool  `yaml:"backend,omitempty" json:"backend,omitempty"`
-	Frontend    *bool  `yaml:"frontend,omitempty" json:"frontend,omitempty"`
-	Docs        *bool  `yaml:"docs,omitempty" json:"docs,omitempty"`
-	Tests       *bool  `yaml:"tests,omitempty" json:"tests,omitempty"`
+	MigrationID              string `yaml:"migrationID,omitempty" json:"migrationID,omitempty"`
+	AuthorizationMigrationID string `yaml:"authorizationMigrationID,omitempty" json:"authorizationMigrationID,omitempty"`
+	Backend                  *bool  `yaml:"backend,omitempty" json:"backend,omitempty"`
+	Frontend                 *bool  `yaml:"frontend,omitempty" json:"frontend,omitempty"`
+	Docs                     *bool  `yaml:"docs,omitempty" json:"docs,omitempty"`
+	Tests                    *bool  `yaml:"tests,omitempty" json:"tests,omitempty"`
 }
 
 // Issue is a stable validation diagnostic.
@@ -502,6 +503,17 @@ func (m *Module) Validate() []Issue {
 		if permission.DisplayName == "" {
 			add(path+".displayName", "required", "display name is required")
 		}
+		roleSeen := make(map[string]bool, len(permission.DefaultRoles))
+		for roleIndex, role := range permission.DefaultRoles {
+			rolePath := path + ".defaultRoles[" + strconv.Itoa(roleIndex) + "]"
+			if !moduleNamePattern.MatchString(role) {
+				add(rolePath, "invalid-default-role", "must be lower-case kebab-case")
+			}
+			if roleSeen[role] {
+				add(rolePath, "duplicate-default-role", "default role must be unique within one permission")
+			}
+			roleSeen[role] = true
+		}
 	}
 	for _, operation := range m.Spec.API.Operations {
 		requiredPermission := operationPermission(operation)
@@ -538,6 +550,15 @@ func (m *Module) Validate() []Issue {
 		add("spec.generation.migrationID", "required", "backend generation requires an explicit complete migration ID")
 	} else if m.Spec.Generation.MigrationID != "" && !migrationIDPattern.MatchString(m.Spec.Generation.MigrationID) {
 		add("spec.generation.migrationID", "invalid-migration-id", "must be a complete decimal identifier without leading zeroes")
+	}
+	if m.Spec.Generation.Backend == nil || *m.Spec.Generation.Backend {
+		if m.Spec.Generation.AuthorizationMigrationID == "" {
+			add("spec.generation.authorizationMigrationID", "required", "backend authorization generation requires an explicit complete migration ID")
+		} else if !migrationIDPattern.MatchString(m.Spec.Generation.AuthorizationMigrationID) {
+			add("spec.generation.authorizationMigrationID", "invalid-migration-id", "must be a complete decimal identifier without leading zeroes")
+		} else if m.Spec.Generation.AuthorizationMigrationID == m.Spec.Generation.MigrationID {
+			add("spec.generation.authorizationMigrationID", "duplicate-migration-id", "authorization migration ID must differ from the entity migration ID")
+		}
 	}
 
 	eventSeen := map[string]bool{}
@@ -580,6 +601,16 @@ func (m *Module) YAML() ([]byte, error) {
 // PermissionCode returns the stable fully-qualified permission code.
 func (m *Module) PermissionCode(action string) string {
 	return m.Metadata.Name + ":" + action
+}
+
+// Permission returns one declared action contract.
+func (m *Module) Permission(action string) (Permission, bool) {
+	for _, permission := range m.Spec.Permissions {
+		if permission.Action == action {
+			return permission, true
+		}
+	}
+	return Permission{}, false
 }
 
 // Field returns one field by its lower-camel name.

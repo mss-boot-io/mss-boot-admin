@@ -189,6 +189,7 @@ spec:
 
   generation:
     migrationID: "20260810160000"
+    authorizationMigrationID: "20260811120000"
     backend: true
     frontend: true
     docs: true

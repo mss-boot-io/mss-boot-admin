@@ -310,11 +310,17 @@ func open{{ .ModelName }}ProviderDatabase(t *testing.T, dialect, dsn string) *go
 
 func reset{{ .ModelName }}ProviderTables(t *testing.T, db *gorm.DB) {
 	t.Helper()
-	if err := db.Exec("DROP TABLE IF EXISTS {{ .Table }}").Error; err != nil {
-		t.Fatalf("drop {{ .Table }}: %v", err)
-	}
-	if err := db.Exec("DROP TABLE IF EXISTS mss_boot_migration").Error; err != nil {
-		t.Fatalf("drop migration table: %v", err)
+	for _, table := range []string{
+		"{{ .Table }}",
+		"mss_boot_casbin_rule",
+		"mss_boot_config_revisions",
+		"mss_boot_menus",
+		"mss_boot_roles",
+		"mss_boot_migration",
+	} {
+		if err := db.Exec("DROP TABLE IF EXISTS " + table).Error; err != nil {
+			t.Fatalf("drop %s: %v", table, err)
+		}
 	}
 }
 
@@ -327,4 +333,5 @@ func create{{ .ModelName }}ProviderMigrationTable(t *testing.T, db *gorm.DB, dia
 	if err := db.Exec(ddl).Error; err != nil {
 		t.Fatalf("create %s migration table: %v", dialect, err)
 	}
+	prepare{{ .ModelName }}AuthorizationTestSchema(t, db)
 }
