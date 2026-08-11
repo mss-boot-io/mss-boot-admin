@@ -45,6 +45,8 @@ type DefaultCenter struct {
 	storage.AdapterLocker
 	challengeMu sync.RWMutex
 	ChallengeImp
+	runtimeChallengeMu sync.RWMutex
+	runtimeChallenge   RuntimeChallengeImp
 }
 
 func (d *DefaultCenter) SetNotice(n NoticeImp) {
@@ -117,6 +119,14 @@ func (d *DefaultCenter) SetChallenge(v ChallengeImp) {
 	d.ChallengeImp = v
 }
 
+// SetRuntimeChallenge publishes a non-owning Runtime v2 capability. Config is
+// the sole owner of the resource graph and clears this reference before close.
+func (d *DefaultCenter) SetRuntimeChallenge(v RuntimeChallengeImp) {
+	d.runtimeChallengeMu.Lock()
+	defer d.runtimeChallengeMu.Unlock()
+	d.runtimeChallenge = v
+}
+
 func (d *DefaultCenter) GetNotice() NoticeImp {
 	return d.NoticeImp
 }
@@ -185,6 +195,12 @@ func (d *DefaultCenter) GetChallenge() ChallengeImp {
 	d.challengeMu.RLock()
 	defer d.challengeMu.RUnlock()
 	return d.ChallengeImp
+}
+
+func (d *DefaultCenter) GetRuntimeChallenge() RuntimeChallengeImp {
+	d.runtimeChallengeMu.RLock()
+	defer d.runtimeChallengeMu.RUnlock()
+	return d.runtimeChallenge
 }
 
 // EmailChallengeCapabilityEnabled is the authoritative runtime switch shared
@@ -302,6 +318,11 @@ func SetChallenge(v ChallengeImp) *DefaultCenter {
 	return Default
 }
 
+func SetRuntimeChallenge(v RuntimeChallengeImp) *DefaultCenter {
+	Default.SetRuntimeChallenge(v)
+	return Default
+}
+
 func GetNotice() NoticeImp {
 	return Default.GetNotice()
 }
@@ -372,4 +393,8 @@ func GetLocker() storage.AdapterLocker {
 
 func GetChallenge() ChallengeImp {
 	return Default.GetChallenge()
+}
+
+func GetRuntimeChallenge() RuntimeChallengeImp {
+	return Default.GetRuntimeChallenge()
 }

@@ -1,11 +1,14 @@
 package center
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
@@ -103,3 +106,14 @@ type StatisticsImp interface {
 }
 
 type ChallengeImp = cache.ProvisionalChallenge
+
+// RuntimeChallengeImp is the Runtime v2 challenge capability used by the
+// Admin application. It deliberately excludes lifecycle ownership: Config
+// owns and closes the named Redis resource graph that backs this capability.
+type RuntimeChallengeImp interface {
+	Ready(context.Context) error
+	BeginIssue(context.Context, runtimechallenge.BeginRequest) (runtimechallenge.BeginOutcome, error)
+	Commit(context.Context, *runtimechallenge.Reservation) error
+	Abort(context.Context, *runtimechallenge.Reservation) error
+	Verify(context.Context, runtimechallenge.VerifyRequest) (runtimechallenge.VerifyOutcome, error)
+}

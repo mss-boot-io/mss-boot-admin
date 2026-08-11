@@ -20,6 +20,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/queue"
 	responsegorm "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions/gorm"
+	runtimeconfig "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/config"
 )
 
 //go:embed *.yml
@@ -43,6 +44,7 @@ type Config struct {
 	Listen       *frameworkconfig.Listen  `yaml:"listen" json:"listen"`
 	Database     gormdb.Database          `yaml:"database" json:"database"`
 	Application  Application              `yaml:"application" json:"application"`
+	Runtime      runtimeconfig.Config     `yaml:"runtime" json:"runtime"`
 	Challenge    Challenge                `yaml:"challenge" json:"challenge"`
 	Monitor      Monitor                  `yaml:"monitor" json:"monitor"`
 	Task         Task                     `yaml:"task" json:"task"`
@@ -63,6 +65,8 @@ type Config struct {
 	managedQueue   storage.ManagedAdapterQueue
 	retiringQueue  storage.ManagedAdapterQueue
 	queueInit      func(context.Context, func(storage.AdapterQueue) error) error
+	runtimeMu      sync.Mutex
+	runtimeOwner   *challengeRuntimeOwner
 
 	objectStorageMu             sync.Mutex
 	objectStorageCloseMu        sync.Mutex
@@ -108,10 +112,6 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 	if err := validateProductionAuthKey(e.Application.Mode, e.Auth.Key); err != nil {
 		return err
 	}
-	if err := e.Challenge.Validate(); err != nil {
-		return err
-	}
-
 	if e.Pyroscope.Enabled && len(e.Application.Labels) > 0 {
 		e.Pyroscope.MergeTags(e.Application.Labels)
 	}
@@ -138,9 +138,6 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 	}
 	e.Pyroscope.Init()
 
-	var challengeErr error
-	var challengeBound bool
-	var challengeCandidate center.ChallengeImp
 	if e.Cache != nil {
 		warnQueryCacheDuration(e.Cache)
 		var cacheAdapter storage.AdapterCache
@@ -149,29 +146,28 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 		e.Cache.Init(func(c storage.AdapterCache) {
 			cacheAdapter = c
 			center.SetCache(c)
-			if e.Challenge.Enabled {
-				var built center.ChallengeImp
-				built, challengeErr = e.Challenge.Build(c)
-				if challengeErr == nil {
-					challengeCandidate = built
-					challengeBound = true
-				}
-			}
 		}, func(tx *gorm.DB, duration time.Duration) {
 			bindQueryCache(cacheAdapter, tx, duration)
 		})
 	}
-	if e.Challenge.Enabled {
-		if challengeErr != nil {
-			if errors.Is(challengeErr, ErrChallengeConfigurationInvalid) {
-				return challengeErr
-			}
-			slog.Warn("email challenge dependency unavailable; related flows are disabled")
-		}
-		if !challengeBound && challengeErr == nil {
-			slog.Warn("email challenge Redis resource unavailable; related flows are disabled")
-		}
+	runtimeCandidate, runtimeDegraded, runtimeErr := e.prepareChallengeRuntime(ctx)
+	if runtimeErr != nil {
+		return runtimeErr
 	}
+	if runtimeDegraded {
+		slog.Warn("email challenge runtime unavailable; related flows are disabled")
+	}
+	runtimePublished := false
+	defer func() {
+		if runtimePublished || runtimeCandidate == nil {
+			return
+		}
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtimeCloseLimit)
+		defer cancel()
+		if closeErr := runtimeCandidate.Close(closeCtx); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close uncommitted challenge runtime: %w", closeErr))
+		}
+	}()
 	queueCandidate, queueErr := e.buildOptionalQueue(ctx, newHandle.Enforcer)
 	if queueErr != nil {
 		return queueErr
@@ -205,8 +201,11 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 	if !queueRetireComplete {
 		return fmt.Errorf("retire previous managed queue: %w", queueRetireErr)
 	}
+	if err := e.replaceChallengeRuntime(ctx, runtimeCandidate); err != nil {
+		return err
+	}
+	runtimePublished = true
 	gormdb.InstallDefault(newHandle)
-	center.SetChallenge(challengeCandidate)
 	e.setManagedQueue(managedCandidate)
 	center.SetQueue(queueCandidate)
 
@@ -415,9 +414,9 @@ func (e *Config) Close() error {
 	return e.CloseContext(ctx)
 }
 
-// CloseContext stops the managed queue before rejecting object-storage leases
-// and releasing the database Handle owned by this Config. A queue that cannot
-// stop within the caller's deadline keeps the database alive for a safe retry.
+// CloseContext withdraws and closes the Runtime v2 challenge graph before the
+// queue, object storage, and database. A resource that cannot close within the
+// caller's deadline keeps later dependencies alive for a safe retry.
 func (e *Config) CloseContext(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("configuration close context is required")
@@ -425,9 +424,13 @@ func (e *Config) CloseContext(ctx context.Context) error {
 	e.databaseReload.Lock()
 	defer e.databaseReload.Unlock()
 
+	runtimeErr := e.closeChallengeRuntime(ctx)
+	if e.hasChallengeRuntimeOwner() {
+		return runtimeErr
+	}
 	queueErr := e.closeManagedQueue(ctx)
 	if e.hasManagedQueueOwner() {
-		return queueErr
+		return errors.Join(runtimeErr, queueErr)
 	}
 	storageErr := e.closeObjectStorage(ctx)
 	handle, leases := e.swapDatabaseHandle(nil)
@@ -435,9 +438,9 @@ func (e *Config) CloseContext(ctx context.Context) error {
 		gormdb.ClearDefault(handle)
 	}
 	if handle == nil {
-		return errors.Join(queueErr, storageErr)
+		return errors.Join(runtimeErr, queueErr, storageErr)
 	}
-	return errors.Join(queueErr, storageErr, e.retireDatabaseHandle(handle, leases))
+	return errors.Join(runtimeErr, queueErr, storageErr, e.retireDatabaseHandle(handle, leases))
 }
 
 func (e *Config) closeManagedQueue(ctx context.Context) error {

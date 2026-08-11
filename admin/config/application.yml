@@ -81,8 +81,23 @@ auth:
   timeout: '12h'
   maxRefresh: '2160h'
   identityKey: 'mss-boot-admin-identity-key'
+runtime:
+  resources:
+    main:
+      provider:
+        kind: redis
+        redis:
+          mode: standalone
+          standalone:
+            endpoint: '127.0.0.1:6379'
+          credentials:
+            kind: password
+            password:
+              passwordRef: env://MSS_RUNTIME_REDIS_PASSWORD
 challenge:
   enabled: false
+  required: false
+  resourceRef: main
   keySecretRef: env://MSS_CHALLENGE_KEY_SECRET
   currentPepper:
     version: v1

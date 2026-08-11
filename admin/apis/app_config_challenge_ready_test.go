@@ -18,6 +18,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	cacheconfig "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 )
 
 type appConfigReadinessChallenge struct {
@@ -65,23 +66,26 @@ func (c *appConfigReadinessChallenge) Ready(ctx context.Context) error {
 	return nil
 }
 
-func (*appConfigReadinessChallenge) Issue(
+func (*appConfigReadinessChallenge) BeginIssue(
 	context.Context,
-	string,
-	string,
-	cacheconfig.ChallengePurpose,
-	func(context.Context, string) error,
-) error {
+	runtimechallenge.BeginRequest,
+) (runtimechallenge.BeginOutcome, error) {
+	return runtimechallenge.BeginOutcome{}, errors.New("not implemented")
+}
+
+func (*appConfigReadinessChallenge) Commit(context.Context, *runtimechallenge.Reservation) error {
 	return errors.New("not implemented")
 }
 
-func (*appConfigReadinessChallenge) VerifyChallenge(
+func (*appConfigReadinessChallenge) Abort(context.Context, *runtimechallenge.Reservation) error {
+	return errors.New("not implemented")
+}
+
+func (*appConfigReadinessChallenge) Verify(
 	context.Context,
-	string,
-	cacheconfig.ChallengePurpose,
-	string,
-) (bool, error) {
-	return false, errors.New("not implemented")
+	runtimechallenge.VerifyRequest,
+) (runtimechallenge.VerifyOutcome, error) {
+	return runtimechallenge.VerifyRejected, errors.New("not implemented")
 }
 
 func appConfigProfileForReadinessTest(t *testing.T) map[string]map[string]any {
@@ -119,13 +123,13 @@ func TestAppConfigProfileProjectsFreshEmailChallengeReadinessAfterCachedProfile(
 	profileCache, err := cacheconfig.NewRedis(client, nil)
 	require.NoError(t, err)
 	previousCache := center.GetCache()
-	previousChallenge := center.GetChallenge()
+	previousChallenge := center.GetRuntimeChallenge()
 	center.SetCache(profileCache)
 	challenge := &appConfigReadinessChallenge{}
 	challenge.ready.Store(true)
-	center.SetChallenge(challenge)
+	center.SetRuntimeChallenge(challenge)
 	t.Cleanup(func() {
-		center.SetChallenge(previousChallenge)
+		center.SetRuntimeChallenge(previousChallenge)
 		center.SetCache(previousCache)
 		_ = profileCache.Close()
 	})
@@ -141,7 +145,7 @@ func TestAppConfigProfileProjectsFreshEmailChallengeReadinessAfterCachedProfile(
 	require.Equal(t, false, second["security"]["emailChallengeReady"])
 	require.EqualValues(t, 2, challenge.calls.Load())
 
-	center.SetChallenge(nil)
+	center.SetRuntimeChallenge(nil)
 	third := appConfigProfileForReadinessTest(t)
 	require.Equal(t, false, third["security"]["emailChallengeReady"])
 	require.EqualValues(t, 2, challenge.calls.Load())
@@ -162,13 +166,13 @@ func TestAppConfigProfileChallengeReadinessUsesBoundedFailClosedCheck(t *testing
 		"email:password": "test-password",
 	})
 	gin.SetMode(gin.TestMode)
-	previousChallenge := center.GetChallenge()
+	previousChallenge := center.GetRuntimeChallenge()
 	challenge := &appConfigReadinessChallenge{
 		block:  true,
 		budget: make(chan time.Duration, 1),
 	}
-	center.SetChallenge(challenge)
-	t.Cleanup(func() { center.SetChallenge(previousChallenge) })
+	center.SetRuntimeChallenge(challenge)
+	t.Cleanup(func() { center.SetRuntimeChallenge(previousChallenge) })
 
 	started := time.Now()
 	profile := appConfigProfileForReadinessTest(t)
@@ -196,11 +200,11 @@ func TestAppConfigProfileChallengeReadinessRequiresCompleteSMTPConfig(t *testing
 		"email:username": "mailer@example.test",
 		// password deliberately missing
 	})
-	previousChallenge := center.GetChallenge()
+	previousChallenge := center.GetRuntimeChallenge()
 	challenge := &appConfigReadinessChallenge{}
 	challenge.ready.Store(true)
-	center.SetChallenge(challenge)
-	t.Cleanup(func() { center.SetChallenge(previousChallenge) })
+	center.SetRuntimeChallenge(challenge)
+	t.Cleanup(func() { center.SetRuntimeChallenge(previousChallenge) })
 
 	profile := appConfigProfileForReadinessTest(t)
 	require.Equal(t, false, profile["security"]["emailChallengeReady"])

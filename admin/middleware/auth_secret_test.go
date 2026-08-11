@@ -165,18 +165,18 @@ func TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable(t *testing.T
 	previousDB := gormdb.DB
 	previousAuth := Auth
 	previousVerifier := Verifier
-	previousChallenge := center.GetChallenge()
+	previousChallenge := center.GetRuntimeChallenge()
 	previousAppConfig := center.GetAppConfig()
 	gormdb.DB = database
 	Verifier = &models.User{}
-	center.SetChallenge(nil)
+	center.SetRuntimeChallenge(nil)
 	center.SetAppConfig(challengeAuthAppConfig{"security:emailEnabled": "true"})
 	t.Cleanup(func() {
 		_ = sqlDB.Close()
 		gormdb.DB = previousDB
 		Auth = previousAuth
 		Verifier = previousVerifier
-		center.SetChallenge(previousChallenge)
+		center.SetRuntimeChallenge(previousChallenge)
 		center.SetAppConfig(previousAppConfig)
 	})
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
@@ -14,6 +15,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
@@ -261,18 +263,22 @@ func (e *User) ResetPassword(ctx *gin.Context) {
 		api.Err(http.StatusForbidden)
 		return
 	}
-	challenge := center.GetChallenge()
+	challenge := center.GetRuntimeChallenge()
 	if challenge == nil {
 		api.Err(http.StatusServiceUnavailable)
 		return
 	}
-	ok, err := challenge.VerifyChallenge(ctx.Request.Context(), req.Email, pkg.PasswordResetChallengePurpose, req.Captcha)
+	outcome, err := challenge.Verify(ctx.Request.Context(), runtimechallenge.VerifyRequest{
+		Subject: req.Email,
+		Purpose: runtimechallenge.Purpose(pkg.PasswordResetChallengePurpose),
+		Code:    req.Captcha,
+	})
 	if err != nil {
-		api.AddError(storagecache.ErrChallengeUnavailable).Log.Warn("password recovery challenge unavailable")
+		api.AddError(runtimechallenge.ErrUnavailable).Log.Warn("password recovery challenge unavailable")
 		api.Err(http.StatusServiceUnavailable)
 		return
 	}
-	if !ok {
+	if outcome != runtimechallenge.VerifyVerified {
 		api.Err(http.StatusForbidden)
 		return
 	}
@@ -480,7 +486,7 @@ func (e *User) FakeCaptcha(ctx *gin.Context) {
 			return
 		}
 	}
-	challenge := center.GetChallenge()
+	challenge := center.GetRuntimeChallenge()
 	requestCtx := ctx.Request.Context()
 	if challenge == nil || challenge.Ready(requestCtx) != nil {
 		api.Err(http.StatusServiceUnavailable)
@@ -521,21 +527,49 @@ func (e *User) FakeCaptcha(ctx *gin.Context) {
 		return
 	}
 	recipientName := strings.SplitN(req.Email, "@", 2)[0]
-	err := challenge.Issue(requestCtx, emailChallengeCaller(ctx), req.Email, purpose, func(deliveryCtx context.Context, code string) error {
-		return sender(deliveryCtx, smtpHost, smtpPort, username, password, recipientName, req.Email, code, organization)
+	outcome, err := challenge.BeginIssue(requestCtx, runtimechallenge.BeginRequest{
+		Caller:  emailChallengeCaller(ctx),
+		Subject: req.Email,
+		Purpose: runtimechallenge.Purpose(purpose),
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, storagecache.ErrChallengePending),
-			errors.Is(err, storagecache.ErrChallengeCooldown),
-			errors.Is(err, storagecache.ErrChallengeQuota):
-			api.Err(http.StatusTooManyRequests)
-		case errors.Is(err, storagecache.ErrChallengeInvalid):
+		if errors.Is(err, runtimechallenge.ErrInvalid) {
 			api.Err(http.StatusUnprocessableEntity)
-		default:
+		} else {
 			api.Log.Warn("email challenge delivery unavailable")
 			api.Err(http.StatusServiceUnavailable)
 		}
+		return
+	}
+	if outcome.State() != runtimechallenge.BeginReserved {
+		switch outcome.State() {
+		case runtimechallenge.BeginPending, runtimechallenge.BeginCooldown, runtimechallenge.BeginQuota:
+			api.Err(http.StatusTooManyRequests)
+		default:
+			api.Err(http.StatusServiceUnavailable)
+		}
+		return
+	}
+	reservation, reserved := outcome.Reservation()
+	if !reserved {
+		api.Err(http.StatusServiceUnavailable)
+		return
+	}
+	if err := sender(requestCtx, smtpHost, smtpPort, username, password, recipientName, req.Email, reservation.Code(), organization); err != nil {
+		abortCtx, cancel := context.WithTimeout(context.WithoutCancel(requestCtx), 2*time.Second)
+		abortErr := challenge.Abort(abortCtx, reservation)
+		cancel()
+		if abortErr != nil {
+			api.Log.Warn("email challenge delivery rollback unavailable")
+		} else {
+			api.Log.Warn("email challenge delivery unavailable")
+		}
+		api.Err(http.StatusServiceUnavailable)
+		return
+	}
+	if err := challenge.Commit(requestCtx, reservation); err != nil {
+		api.Log.Warn("email challenge activation unavailable")
+		api.Err(http.StatusServiceUnavailable)
 		return
 	}
 	ctx.AbortWithStatusJSON(http.StatusAccepted, &dto.FakeCaptchaResponse{Status: "accepted"})

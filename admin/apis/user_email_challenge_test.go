@@ -22,6 +22,10 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	storagecache "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
+	runtimeconfig "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/config"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/redisresource"
+	runtimeresource "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/resource"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -81,8 +85,8 @@ func TestEmailChallengePurposeIsolation(t *testing.T) {
 	// Prove the three existing consumers request the same fixed purposes used by
 	// issuance; no email-only fallback remains in models or password recovery.
 	recorder := &recordingAdminChallenge{}
-	center.SetChallenge(recorder)
-	t.Cleanup(func() { center.SetChallenge(store) })
+	center.SetRuntimeChallenge(recorder)
+	t.Cleanup(func() { center.SetRuntimeChallenge(store) })
 	prepareEmailRegistrationRole(t)
 	gin.SetMode(gin.TestMode)
 	loginContext, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -232,7 +236,7 @@ func TestEmailChallengeCallerUsesExplicitTrustedProxyPolicy(t *testing.T) {
 
 func TestEmailChallengeRegistrationDisabledBeforeIssue(t *testing.T) {
 	_, server, _ := installAdminChallenge(t, storagecache.ChallengeOptions{})
-	center.SetChallenge(nil)
+	center.SetRuntimeChallenge(nil)
 	center.SetAppConfig(emailChallengeAppConfig{
 		"security:registerEnabled": "false",
 		"security:emailEnabled":    "true",
@@ -257,7 +261,7 @@ func TestEmailChallengeRegistrationDisabledBeforeIssue(t *testing.T) {
 
 func TestEmailChallengeEmailCapabilityDisabledBeforeIssue(t *testing.T) {
 	_, server, _ := installAdminChallenge(t, storagecache.ChallengeOptions{})
-	center.SetChallenge(nil)
+	center.SetRuntimeChallenge(nil)
 	center.SetAppConfig(emailChallengeAppConfig{
 		"security:emailEnabled":    "false",
 		"security:registerEnabled": "true",
@@ -337,7 +341,7 @@ func TestEmailChallengeCapabilityDisableRejectsEveryActiveCodeConsumer(t *testin
 
 func TestEmailChallengeProviderOutageReturnsServiceUnavailable(t *testing.T) {
 	_, _, _ = installAdminChallenge(t, storagecache.ChallengeOptions{})
-	center.SetChallenge(nil)
+	center.SetRuntimeChallenge(nil)
 	handler := &User{challengeSender: func(context.Context, string, string, string, string, string, string, string, string) error {
 		return nil
 	}}
@@ -524,26 +528,29 @@ type recordingAdminChallenge struct {
 
 func (*recordingAdminChallenge) Ready(context.Context) error { return nil }
 
-func (*recordingAdminChallenge) Issue(
+func (*recordingAdminChallenge) BeginIssue(
 	context.Context,
-	string,
-	string,
-	storagecache.ChallengePurpose,
-	func(context.Context, string) error,
-) error {
-	return errors.New("unexpected Issue call")
+	runtimechallenge.BeginRequest,
+) (runtimechallenge.BeginOutcome, error) {
+	return runtimechallenge.BeginOutcome{}, errors.New("unexpected BeginIssue call")
 }
 
-func (r *recordingAdminChallenge) VerifyChallenge(
+func (*recordingAdminChallenge) Commit(context.Context, *runtimechallenge.Reservation) error {
+	return errors.New("unexpected Commit call")
+}
+
+func (*recordingAdminChallenge) Abort(context.Context, *runtimechallenge.Reservation) error {
+	return errors.New("unexpected Abort call")
+}
+
+func (r *recordingAdminChallenge) Verify(
 	_ context.Context,
-	_ string,
-	purpose storagecache.ChallengePurpose,
-	_ string,
-) (bool, error) {
+	request runtimechallenge.VerifyRequest,
+) (runtimechallenge.VerifyOutcome, error) {
 	r.mu.Lock()
-	r.purposes = append(r.purposes, purpose)
+	r.purposes = append(r.purposes, storagecache.ChallengePurpose(request.Purpose))
 	r.mu.Unlock()
-	return false, nil
+	return runtimechallenge.VerifyRejected, nil
 }
 
 func (r *recordingAdminChallenge) snapshot() []storagecache.ChallengePurpose {
@@ -562,16 +569,15 @@ func (c emailChallengeAppConfig) GetAppConfig(_ *gin.Context, key string) (strin
 func installAdminChallenge(
 	t *testing.T,
 	overrides storagecache.ChallengeOptions,
-) (*storagecache.RedisChallengeStore, *miniredis.Miniredis, redis.UniversalClient) {
+) (*adminChallengeTestStore, *miniredis.Miniredis, redis.UniversalClient) {
 	t.Helper()
 	server := miniredis.RunT(t)
 	server.SetTime(time.Unix(1_800_000_000, 0).UTC())
 	client := redis.NewUniversalClient(&redis.UniversalOptions{Addrs: []string{server.Addr()}, MaxRetries: -1})
 	t.Cleanup(func() { _ = client.Close() })
-	options := storagecache.ChallengeOptions{
-		Namespace:      "test:admin-challenge",
+	options := runtimechallenge.Options{
 		SubjectKey:     adminChallengeSubjectKey,
-		Peppers:        []storagecache.ChallengePepper{{Version: "v1", Secret: adminChallengePepper}},
+		Peppers:        []runtimechallenge.Pepper{{Version: "v1", Secret: adminChallengePepper}},
 		CodeTTL:        5 * time.Minute,
 		PendingTTL:     30 * time.Second,
 		Cooldown:       time.Minute,
@@ -602,13 +608,63 @@ func installAdminChallenge(
 	if overrides.GlobalLimit != 0 {
 		options.GlobalLimit = overrides.GlobalLimit
 	}
-	store, err := storagecache.NewRedisChallengeStore(client, options)
+	runtimeDefinition := runtimeconfig.Config{Resources: map[string]runtimeconfig.ResourceConfig{
+		"main": {
+			Provider: runtimeconfig.ProviderConfig{
+				Kind: runtimeconfig.ProviderRedis,
+				Redis: &runtimeconfig.RedisConfig{
+					Mode:       runtimeconfig.RedisStandalone,
+					Standalone: &runtimeconfig.RedisStandaloneConfig{Endpoint: server.Addr()},
+					Credentials: runtimeconfig.RedisCredentialsConfig{
+						Kind:      runtimeconfig.RedisCredentialsAnonymous,
+						Anonymous: &runtimeconfig.RedisAnonymousCredentialsConfig{},
+					},
+				},
+			},
+		},
+	}}
+	snapshot, err := runtimeDefinition.Normalize(t.Context(), runtimeconfig.EnvSecretResolver{})
 	if err != nil {
-		t.Fatalf("NewRedisChallengeStore: %v", err)
+		t.Fatalf("normalize challenge runtime: %v", err)
 	}
+	plan, err := snapshot.Build(t.Context())
+	if err != nil {
+		t.Fatalf("build challenge runtime plan: %v", err)
+	}
+	profile, ok := plan.Resource("main")
+	if !ok {
+		t.Fatal("challenge runtime profile is missing")
+	}
+	redisResource, err := redisresource.Build(profile)
+	if err != nil {
+		t.Fatalf("build challenge Redis resource: %v", err)
+	}
+	scope, err := redisResource.Scope("challenge.email")
+	if err != nil {
+		t.Fatalf("build challenge Redis scope: %v", err)
+	}
+	runtimeStore, err := runtimechallenge.NewRedis(scope, options)
+	if err != nil {
+		t.Fatalf("build runtime challenge: %v", err)
+	}
+	graph, err := runtimeresource.Build(redisResource.Definition(true))
+	if err != nil {
+		t.Fatalf("build challenge graph: %v", err)
+	}
+	if err = graph.Start(t.Context()); err != nil {
+		t.Fatalf("start challenge graph: %v", err)
+	}
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = graph.Close(closeCtx)
+	})
+	store := &adminChallengeTestStore{RuntimeChallengeImp: runtimeStore}
 	previousChallenge := center.GetChallenge()
+	previousRuntimeChallenge := center.GetRuntimeChallenge()
 	previousAppConfig := center.GetAppConfig()
 	center.SetChallenge(store)
+	center.SetRuntimeChallenge(store)
 	center.SetAppConfig(emailChallengeAppConfig{
 		"email:smtpHost":           "smtp.example.test",
 		"email:smtpPort":           "587",
@@ -620,9 +676,62 @@ func installAdminChallenge(
 	})
 	t.Cleanup(func() {
 		center.SetChallenge(previousChallenge)
+		center.SetRuntimeChallenge(previousRuntimeChallenge)
 		center.SetAppConfig(previousAppConfig)
 	})
 	return store, server, client
+}
+
+type adminChallengeTestStore struct {
+	center.RuntimeChallengeImp
+}
+
+func (s *adminChallengeTestStore) Issue(
+	ctx context.Context,
+	caller string,
+	subject string,
+	purpose storagecache.ChallengePurpose,
+	deliver func(context.Context, string) error,
+) error {
+	outcome, err := s.BeginIssue(ctx, runtimechallenge.BeginRequest{
+		Caller: caller, Subject: subject, Purpose: runtimechallenge.Purpose(purpose),
+	})
+	if err != nil {
+		return err
+	}
+	if outcome.State() != runtimechallenge.BeginReserved {
+		switch outcome.State() {
+		case runtimechallenge.BeginPending:
+			return storagecache.ErrChallengePending
+		case runtimechallenge.BeginCooldown:
+			return storagecache.ErrChallengeCooldown
+		case runtimechallenge.BeginQuota:
+			return storagecache.ErrChallengeQuota
+		default:
+			return storagecache.ErrChallengeUnavailable
+		}
+	}
+	reservation, ok := outcome.Reservation()
+	if !ok {
+		return storagecache.ErrChallengeUnavailable
+	}
+	if err := deliver(ctx, reservation.Code()); err != nil {
+		_ = s.Abort(ctx, reservation)
+		return err
+	}
+	return s.Commit(ctx, reservation)
+}
+
+func (s *adminChallengeTestStore) VerifyChallenge(
+	ctx context.Context,
+	subject string,
+	purpose storagecache.ChallengePurpose,
+	code string,
+) (bool, error) {
+	outcome, err := s.Verify(ctx, runtimechallenge.VerifyRequest{
+		Subject: subject, Purpose: runtimechallenge.Purpose(purpose), Code: code,
+	})
+	return outcome == runtimechallenge.VerifyVerified, err
 }
 
 func prepareEmailRegistrationRole(t *testing.T) {

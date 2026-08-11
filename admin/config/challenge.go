@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/redisresource"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -32,6 +34,8 @@ type ChallengePepperRef struct {
 // in Config or exposed through application configuration.
 type Challenge struct {
 	Enabled          bool                `yaml:"enabled" json:"enabled"`
+	Required         bool                `yaml:"required" json:"required"`
+	ResourceRef      string              `yaml:"resourceRef" json:"resourceRef"`
 	KeySecretRef     SecretRef           `yaml:"keySecretRef" json:"keySecretRef"`
 	CurrentPepper    ChallengePepperRef  `yaml:"currentPepper" json:"currentPepper"`
 	PreviousPepper   *ChallengePepperRef `yaml:"previousPepper" json:"previousPepper"`
@@ -130,6 +134,67 @@ func (c Challenge) Build(client redis.UniversalClient) (cache.ProvisionalChallen
 	})
 	if err != nil {
 		if errors.Is(err, cache.ErrChallengeUnavailable) {
+			return nil, ErrChallengeDependencyUnavailable
+		}
+		return nil, ErrChallengeConfigurationInvalid
+	}
+	return store, nil
+}
+
+// BuildRuntime constructs the Runtime v2 capability on an already-declared
+// named Redis scope. It neither starts nor owns the scope's parent resource.
+func (c Challenge) BuildRuntime(scope *redisresource.Scope) (*runtimechallenge.Redis, error) {
+	if !c.Enabled {
+		return nil, nil
+	}
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	if scope == nil {
+		return nil, ErrChallengeDependencyUnavailable
+	}
+	keySecret, err := c.KeySecretRef.resolve()
+	if err != nil {
+		return nil, ErrChallengeDependencyUnavailable
+	}
+	defer zeroBytes(keySecret)
+	currentSecret, err := c.CurrentPepper.SecretRef.resolve()
+	if err != nil {
+		return nil, ErrChallengeDependencyUnavailable
+	}
+	defer zeroBytes(currentSecret)
+	peppers := []runtimechallenge.Pepper{{
+		Version: c.CurrentPepper.Version,
+		Secret:  currentSecret,
+	}}
+	if c.PreviousPepper != nil {
+		previousSecret, resolveErr := c.PreviousPepper.SecretRef.resolve()
+		if resolveErr != nil {
+			return nil, ErrChallengeDependencyUnavailable
+		}
+		defer zeroBytes(previousSecret)
+		peppers = append(peppers, runtimechallenge.Pepper{
+			Version: c.PreviousPepper.Version,
+			Secret:  previousSecret,
+		})
+	}
+	store, err := runtimechallenge.NewRedis(scope, runtimechallenge.Options{
+		SubjectKey:     keySecret,
+		Peppers:        peppers,
+		CodeTTL:        c.ActiveTTL,
+		PendingTTL:     c.PendingLease,
+		Cooldown:       c.ResendCooldown,
+		QuotaWindow:    c.IssueWindow,
+		MaxIssues:      c.IssueLimit,
+		MaxAttempts:    c.MaxAttempts,
+		IdempotencyTTL: c.IdempotencyLease,
+		CallerWindow:   c.CallerWindow,
+		CallerLimit:    c.CallerLimit,
+		GlobalWindow:   c.GlobalWindow,
+		GlobalLimit:    c.GlobalLimit,
+	})
+	if err != nil {
+		if errors.Is(err, runtimechallenge.ErrUnavailable) {
 			return nil, ErrChallengeDependencyUnavailable
 		}
 		return nil, ErrChallengeConfigurationInvalid

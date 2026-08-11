@@ -18,9 +18,9 @@ import (
 	larkauthen "github.com/larksuite/oapi-sdk-go/v3/service/authen/v1"
 	corePKG "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
-	storagecache "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 	"github.com/spf13/cast"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
@@ -529,15 +529,19 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		if e.Captcha == "" {
 			return false, nil, nil
 		}
-		challenge := center.GetChallenge()
+		challenge := center.GetRuntimeChallenge()
 		if challenge == nil {
-			return false, nil, storagecache.ErrChallengeUnavailable
+			return false, nil, runtimechallenge.ErrUnavailable
 		}
-		ok, err := challenge.VerifyChallenge(c.Request.Context(), e.Email, pkg.EmailLoginChallengePurpose, e.Captcha)
+		outcome, err := challenge.Verify(c.Request.Context(), runtimechallenge.VerifyRequest{
+			Subject: e.Email,
+			Purpose: runtimechallenge.Purpose(pkg.EmailLoginChallengePurpose),
+			Code:    e.Captcha,
+		})
 		if err != nil {
 			return false, nil, err
 		}
-		if !ok {
+		if outcome != runtimechallenge.VerifyVerified {
 			return false, nil, nil
 		}
 		// get user from db
@@ -546,7 +550,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return false, nil, nil
 			}
-			return false, nil, errors.Join(storagecache.ErrChallengeUnavailable, err)
+			return false, nil, errors.Join(runtimechallenge.ErrUnavailable, err)
 		}
 		return true, user, nil
 	case pkg.EmailRegisterProvider:
@@ -569,15 +573,19 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		if e.Captcha == "" {
 			return false, nil, nil
 		}
-		challenge := center.GetChallenge()
+		challenge := center.GetRuntimeChallenge()
 		if challenge == nil {
-			return false, nil, storagecache.ErrChallengeUnavailable
+			return false, nil, runtimechallenge.ErrUnavailable
 		}
-		ok, err := challenge.VerifyChallenge(c.Request.Context(), e.Email, pkg.EmailRegisterChallengePurpose, e.Captcha)
+		outcome, err := challenge.Verify(c.Request.Context(), runtimechallenge.VerifyRequest{
+			Subject: e.Email,
+			Purpose: runtimechallenge.Purpose(pkg.EmailRegisterChallengePurpose),
+			Code:    e.Captcha,
+		})
 		if err != nil {
 			return false, nil, err
 		}
-		if !ok {
+		if outcome != runtimechallenge.VerifyVerified {
 			return false, nil, nil
 		}
 		// fixme: 头像生成需要自己实现
@@ -608,7 +616,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 				return false, nil, nil
 			}
 			slog.Error("email registration transaction unavailable")
-			return false, nil, errors.Join(storagecache.ErrChallengeUnavailable, err)
+			return false, nil, errors.Join(runtimechallenge.ErrUnavailable, err)
 		}
 		user.Role = defaultRole
 		return true, user, nil

@@ -12,6 +12,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
@@ -112,7 +113,7 @@ func emailChallengeReady(ctx *gin.Context) bool {
 		portErr != nil || port < 1 || port > 65535 {
 		return false
 	}
-	challenge := center.GetChallenge()
+	challenge := center.GetRuntimeChallenge()
 	if challenge == nil {
 		return false
 	}
@@ -124,6 +125,8 @@ func emailChallengeReady(ctx *gin.Context) bool {
 	defer cancel()
 	return challenge.Ready(readyCtx) == nil
 }
+
+var _ center.RuntimeChallengeImp = (*runtimechallenge.Redis)(nil)
 
 func projectEmailChallengeReadiness(profile map[string]gin.H, ready bool) map[string]gin.H {
 	result := make(map[string]gin.H, len(profile)+1)

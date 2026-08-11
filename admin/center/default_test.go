@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/pyroscope-go"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 )
 
 type concurrentChallenge struct{}
@@ -33,6 +34,24 @@ func (*concurrentChallenge) VerifyChallenge(
 	string,
 ) (bool, error) {
 	return false, nil
+}
+
+func (*concurrentChallenge) BeginIssue(
+	context.Context,
+	runtimechallenge.BeginRequest,
+) (runtimechallenge.BeginOutcome, error) {
+	return runtimechallenge.BeginOutcome{}, nil
+}
+
+func (*concurrentChallenge) Commit(context.Context, *runtimechallenge.Reservation) error { return nil }
+
+func (*concurrentChallenge) Abort(context.Context, *runtimechallenge.Reservation) error { return nil }
+
+func (*concurrentChallenge) Verify(
+	context.Context,
+	runtimechallenge.VerifyRequest,
+) (runtimechallenge.VerifyOutcome, error) {
+	return runtimechallenge.VerifyRejected, nil
 }
 
 type canonicalBoolAppConfig map[string]string
@@ -69,6 +88,7 @@ func TestDefaultCenterSettersAndGetters(t *testing.T) {
 	center.SetQueue(nil)
 	center.SetLocker(nil)
 	center.SetChallenge(nil)
+	center.SetRuntimeChallenge(nil)
 
 	if center.GetNotice() != nil || center.GetTenant() != nil || center.GetVerify() != nil {
 		t.Fatal("nil composition dependencies were not preserved")
@@ -88,7 +108,7 @@ func TestDefaultCenterSettersAndGetters(t *testing.T) {
 	if center.GetStatistics() != nil || center.GetMakeRouter() != nil || center.GetGRPCClient() != nil {
 		t.Fatal("nil service dependencies were not preserved")
 	}
-	if center.GetCache() != nil || center.GetQueue() != nil || center.GetLocker() != nil || center.GetChallenge() != nil {
+	if center.GetCache() != nil || center.GetQueue() != nil || center.GetLocker() != nil || center.GetChallenge() != nil || center.GetRuntimeChallenge() != nil {
 		t.Fatal("nil storage dependencies were not preserved")
 	}
 }
@@ -119,6 +139,7 @@ func TestGlobalCenterAccessorsUseCurrentDefault(t *testing.T) {
 	SetQueue(nil)
 	SetLocker(nil)
 	SetChallenge(nil)
+	SetRuntimeChallenge(nil)
 
 	if GetNotice() != nil || GetTenant() != nil || GetUser() != nil {
 		t.Fatal("unexpected global identity dependencies")
@@ -132,7 +153,7 @@ func TestGlobalCenterAccessorsUseCurrentDefault(t *testing.T) {
 	if GetAppConfig() != nil || GetUserConfig() != nil || GetStatistics() != nil || GetMakeRouter() != nil || GetGRPCClient() != nil {
 		t.Fatal("unexpected global service dependencies")
 	}
-	if GetCache() != nil || GetQueue() != nil || GetLocker() != nil || GetChallenge() != nil {
+	if GetCache() != nil || GetQueue() != nil || GetLocker() != nil || GetChallenge() != nil || GetRuntimeChallenge() != nil {
 		t.Fatal("unexpected global storage dependencies")
 	}
 }
@@ -228,6 +249,37 @@ func TestChallengeAccessIsSafeDuringConcurrentPublication(t *testing.T) {
 	center.SetChallenge(first)
 	if got := center.GetChallenge(); got != first {
 		t.Fatalf("GetChallenge() = %T, want first published challenge", got)
+	}
+}
+
+func TestRuntimeChallengeAccessIsSafeDuringConcurrentPublication(t *testing.T) {
+	center := &DefaultCenter{}
+	first := &concurrentChallenge{}
+	second := &concurrentChallenge{}
+
+	var workers sync.WaitGroup
+	workers.Add(2)
+	go func() {
+		defer workers.Done()
+		for index := 0; index < 1000; index++ {
+			if index%2 == 0 {
+				center.SetRuntimeChallenge(first)
+				continue
+			}
+			center.SetRuntimeChallenge(second)
+		}
+	}()
+	go func() {
+		defer workers.Done()
+		for range 1000 {
+			_ = center.GetRuntimeChallenge()
+		}
+	}()
+	workers.Wait()
+
+	center.SetRuntimeChallenge(first)
+	if got := center.GetRuntimeChallenge(); got != first {
+		t.Fatalf("GetRuntimeChallenge() = %T, want first published challenge", got)
 	}
 }
 

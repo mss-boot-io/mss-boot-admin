@@ -14,8 +14,8 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
-	storagecache "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -24,23 +24,26 @@ type acceptingEmailChallenge struct{}
 
 func (acceptingEmailChallenge) Ready(context.Context) error { return nil }
 
-func (acceptingEmailChallenge) Issue(
+func (acceptingEmailChallenge) BeginIssue(
 	context.Context,
-	string,
-	string,
-	storagecache.ChallengePurpose,
-	func(context.Context, string) error,
-) error {
-	return errors.New("unexpected Issue call")
+	runtimechallenge.BeginRequest,
+) (runtimechallenge.BeginOutcome, error) {
+	return runtimechallenge.BeginOutcome{}, errors.New("unexpected BeginIssue call")
 }
 
-func (acceptingEmailChallenge) VerifyChallenge(
+func (acceptingEmailChallenge) Commit(context.Context, *runtimechallenge.Reservation) error {
+	return errors.New("unexpected Commit call")
+}
+
+func (acceptingEmailChallenge) Abort(context.Context, *runtimechallenge.Reservation) error {
+	return errors.New("unexpected Abort call")
+}
+
+func (acceptingEmailChallenge) Verify(
 	context.Context,
-	string,
-	storagecache.ChallengePurpose,
-	string,
-) (bool, error) {
-	return true, nil
+	runtimechallenge.VerifyRequest,
+) (runtimechallenge.VerifyOutcome, error) {
+	return runtimechallenge.VerifyVerified, nil
 }
 
 func TestEmailRegistrationRejectsExistingCanonicalIdentity(t *testing.T) {
@@ -48,9 +51,9 @@ func TestEmailRegistrationRejectsExistingCanonicalIdentity(t *testing.T) {
 		"security:registerEnabled": "true",
 		"security:emailEnabled":    "true",
 	})
-	previousChallenge := center.GetChallenge()
-	center.SetChallenge(acceptingEmailChallenge{})
-	t.Cleanup(func() { center.SetChallenge(previousChallenge) })
+	previousChallenge := center.GetRuntimeChallenge()
+	center.SetRuntimeChallenge(acceptingEmailChallenge{})
+	t.Cleanup(func() { center.SetRuntimeChallenge(previousChallenge) })
 
 	existing := &User{UserLogin: UserLogin{
 		Email:    "Person@example.com",
@@ -82,9 +85,9 @@ func TestEmailRegistrationUsesBoundedOpaqueUsername(t *testing.T) {
 		"security:registerEnabled": "true",
 		"security:emailEnabled":    "true",
 	})
-	previousChallenge := center.GetChallenge()
-	center.SetChallenge(acceptingEmailChallenge{})
-	t.Cleanup(func() { center.SetChallenge(previousChallenge) })
+	previousChallenge := center.GetRuntimeChallenge()
+	center.SetRuntimeChallenge(acceptingEmailChallenge{})
+	t.Cleanup(func() { center.SetRuntimeChallenge(previousChallenge) })
 
 	const address = "very.long.email.identity+registration@example.test"
 	login := &UserLogin{
@@ -133,9 +136,9 @@ func TestEmailIdentityOperationsDoNotEmitSensitiveSQL(t *testing.T) {
 		"security:registerEnabled": "true",
 		"security:emailEnabled":    "true",
 	})
-	previousChallenge := center.GetChallenge()
-	center.SetChallenge(acceptingEmailChallenge{})
-	t.Cleanup(func() { center.SetChallenge(previousChallenge) })
+	previousChallenge := center.GetRuntimeChallenge()
+	center.SetRuntimeChallenge(acceptingEmailChallenge{})
+	t.Cleanup(func() { center.SetRuntimeChallenge(previousChallenge) })
 	existing := &User{UserLogin: UserLogin{
 		Email:    "audit-existing@example.com",
 		Username: "audit-existing",
@@ -181,9 +184,9 @@ func TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity(t *testi
 		"security:emailEnabled":    "true",
 	})
 	installCanonicalEmailIdentitySQLiteIndex(t, database)
-	previousChallenge := center.GetChallenge()
-	center.SetChallenge(acceptingEmailChallenge{})
-	t.Cleanup(func() { center.SetChallenge(previousChallenge) })
+	previousChallenge := center.GetRuntimeChallenge()
+	center.SetRuntimeChallenge(acceptingEmailChallenge{})
+	t.Cleanup(func() { center.SetRuntimeChallenge(previousChallenge) })
 
 	const contenders = 20
 	start := make(chan struct{})

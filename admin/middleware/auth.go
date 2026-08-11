@@ -24,6 +24,7 @@ import (
 	storagecache "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 	"github.com/spf13/cast"
 	"gorm.io/gorm"
 
@@ -268,7 +269,7 @@ func AuthenticateVerifier(c *gin.Context, loginVals security.Verifier) (security
 	db := center.Default.GetDB(c, nil)
 
 	if err != nil {
-		if errors.Is(err, storagecache.ErrChallengeUnavailable) {
+		if errors.Is(err, storagecache.ErrChallengeUnavailable) || errors.Is(err, runtimechallenge.ErrUnavailable) {
 			c.Set(challengeUnavailableKey, true)
 		}
 		// Authentication providers may include credentials or upstream response
