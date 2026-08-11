@@ -197,7 +197,11 @@ func buildProjectionReport(module *spec.Module) ([]Projection, error) {
 	add("spec.tests.unit", ProjectionImplemented, "generated unit and service contracts are emitted", "tests")
 	add("spec.tests.api", ProjectionImplemented, "generated API and OpenAPI contracts are emitted", "tests")
 	if module.Spec.Tests.E2E {
-		add("spec.tests.e2e", ProjectionDeferred, "the generated page is browser-ready, but declared end-to-end acceptance evidence remains a separate release checkpoint", "browser-evidence")
+		if module.Spec.Generation.Frontend == nil || !*module.Spec.Generation.Frontend || !module.Spec.UI.List {
+			add("spec.tests.e2e", ProjectionUnsupported, "browser E2E generation requires the generated frontend list page", "browser-e2e")
+		} else {
+			add("spec.tests.e2e", ProjectionImplemented, "an executable Playwright flow is generated for the declared list, create, detail, edit, export, and delete UI surfaces; actual browser-run evidence remains separately reportable", "browser-e2e")
+		}
 	}
 	if module.Spec.Tests.PermissionMatrix {
 		add("spec.tests.permissionMatrix", ProjectionImplemented, "generated tests cover every declared default-role allow and deny plus missing identity", "authorization-tests")
@@ -228,7 +232,7 @@ func buildProjectionReport(module *spec.Module) ([]Projection, error) {
 		add("spec.generation.frontend", ProjectionImplemented, "typed client, permission contracts, React page, route registry, locale registries, and focused tests are generated", "frontend", "frontend-locales", "frontend-route", "frontend-tests")
 	}
 	if module.Spec.Generation.Docs != nil && *module.Spec.Generation.Docs {
-		add("spec.generation.docs", ProjectionDeferred, "module documentation remains declared but is not claimed by this checkpoint", "docs")
+		add("spec.generation.docs", ProjectionImplemented, "source-linked module contracts, migrations, permissions, generated outputs, and executable validation commands are emitted as deterministic documentation", "docs")
 	}
 	if module.Spec.Generation.Tests != nil && *module.Spec.Generation.Tests {
 		add("spec.generation.tests", ProjectionImplemented, "backend contract tests are generated", "tests")

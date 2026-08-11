@@ -31,8 +31,8 @@ func TestGenerateDryRunWriteCheckAndDrift(t *testing.T) {
 	if !dryRun.DryRun {
 		t.Fatal("dry-run plan was not marked as dry-run")
 	}
-	if dryRun.Complete {
-		t.Fatal("backend checkpoint plan falsely claimed the deferred full module was complete")
+	if !dryRun.Complete {
+		t.Fatal("generated module plan did not mark all declared output projections complete")
 	}
 	if len(dryRun.Projections) == 0 {
 		t.Fatal("dry-run plan omitted the field-to-output-kind projection report")
@@ -487,7 +487,7 @@ func TestGenerateRejectsMigrationIDCollisionsBeforeWriting(t *testing.T) {
 	}
 }
 
-func TestGenerateReportsFrontendCheckpointAndDefersE2EAndDocs(t *testing.T) {
+func TestGenerateReportsCompleteDocsAndBrowserE2EOutputs(t *testing.T) {
 	repositoryRoot := findRepositoryRoot(t)
 	root := t.TempDir()
 	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
@@ -514,7 +514,8 @@ func TestGenerateReportsFrontendCheckpointAndDefersE2EAndDocs(t *testing.T) {
 		{path: "spec.menu", status: ProjectionImplemented},
 		{path: "spec.ui", status: ProjectionImplemented},
 		{path: "spec.generation.frontend", status: ProjectionImplemented},
-		{path: "spec.tests.e2e", status: ProjectionDeferred},
+		{path: "spec.tests.e2e", status: ProjectionImplemented},
+		{path: "spec.generation.docs", status: ProjectionImplemented},
 		{path: "spec.generation.authorizationMigrationID", status: ProjectionImplemented},
 	} {
 		if !hasProjection(expected.path, expected.status) {
@@ -527,11 +528,13 @@ func TestGenerateReportsFrontendCheckpointAndDefersE2EAndDocs(t *testing.T) {
 			deferred = true
 		}
 	}
-	if !deferred || plan.Complete {
+	if deferred || !plan.Complete {
 		t.Fatalf("projection truth = deferred:%t complete:%t", deferred, plan.Complete)
 	}
-	frontendOutputs := map[string]bool{
+	generatedOutputs := map[string]bool{
+		"docs/docs/modules/supplier.md":                   false,
 		"web/antd/config/routes.generated.ts":             false,
+		"web/antd/e2e/generated/supplier.spec.ts":         false,
 		"web/antd/src/locales/generated.en-US.ts":         false,
 		"web/antd/src/locales/generated.zh-CN.ts":         false,
 		"web/antd/src/modules/supplier/contracts.ts":      false,
@@ -542,16 +545,42 @@ func TestGenerateReportsFrontendCheckpointAndDefersE2EAndDocs(t *testing.T) {
 		"web/antd/src/pages/generated/Supplier/index.tsx": false,
 	}
 	for _, change := range plan.Changes {
-		if strings.HasPrefix(change.Path, "docs/") {
-			t.Fatalf("frontend checkpoint planned deferred docs output %s", change.Path)
-		}
-		if _, expected := frontendOutputs[change.Path]; expected {
-			frontendOutputs[change.Path] = true
+		if _, expected := generatedOutputs[change.Path]; expected {
+			generatedOutputs[change.Path] = true
 		}
 	}
-	for path, found := range frontendOutputs {
+	for path, found := range generatedOutputs {
 		if !found {
-			t.Fatalf("frontend checkpoint omitted %s", path)
+			t.Fatalf("generated module checkpoint omitted %s", path)
+		}
+	}
+	written, err := Generate(generatorTestModule(), Options{Root: root, Write: true})
+	if err != nil {
+		t.Fatalf("Generate(write docs and E2E) error = %v", err)
+	}
+	if !written.Complete {
+		t.Fatal("written generated-module plan was not complete")
+	}
+	for path, fragments := range map[string][]string{
+		"docs/docs/modules/supplier.md": {
+			generatedMarker,
+			"20260810160001",
+			"e2e/generated/supplier.spec.ts",
+		},
+		"web/antd/e2e/generated/supplier.spec.ts": {
+			generatedMarker,
+			"MSS_E2E_API_URL",
+			"create, detail, edit, export, and delete",
+		},
+	} {
+		content, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		if readErr != nil {
+			t.Fatalf("read %s: %v", path, readErr)
+		}
+		for _, fragment := range fragments {
+			if !strings.Contains(string(content), fragment) {
+				t.Fatalf("%s omitted %q", path, fragment)
+			}
 		}
 	}
 }
