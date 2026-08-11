@@ -58,12 +58,41 @@ func TestBuildFoundationV110GeneratorBlueprintFeature(t *testing.T) {
 	if !plan.Success {
 		t.Fatalf("Generator/Blueprint Feature plan is not successful: %#v", plan.Issues)
 	}
-	if len(plan.Modules) != 7 {
-		t.Fatalf("Generator/Blueprint module plans = %d, want 7", len(plan.Modules))
+	expectedModules := []struct {
+		name string
+		kind spec.FeatureModuleKind
+	}{
+		{name: "authorization-generator", kind: spec.FeatureModuleKindInfrastructure},
+		{name: "backend-generator", kind: spec.FeatureModuleKindInfrastructure},
+		{name: "blueprint-contract", kind: spec.FeatureModuleKindInfrastructure},
+		{name: "frontend-generator", kind: spec.FeatureModuleKindInfrastructure},
+		{name: "supplier", kind: spec.FeatureModuleKindAdminModule},
+		{name: "migration-generator", kind: spec.FeatureModuleKindInfrastructure},
+		{name: "canonical-email-identity", kind: spec.FeatureModuleKindInfrastructure},
+		{name: "version-identity", kind: spec.FeatureModuleKindInfrastructure},
+	}
+	if len(plan.Modules) != len(expectedModules) {
+		t.Fatalf("Generator/Blueprint module plans = %d, want %d", len(plan.Modules), len(expectedModules))
+	}
+	expectedByName := make(map[string]spec.FeatureModuleKind, len(expectedModules))
+	for _, expected := range expectedModules {
+		expectedByName[expected.name] = expected.kind
 	}
 
 	adminModules := 0
+	seen := make(map[string]struct{}, len(plan.Modules))
 	for _, module := range plan.Modules {
+		expectedKind, ok := expectedByName[module.Name]
+		if !ok {
+			t.Fatalf("unexpected Generator/Blueprint module plan: %#v", module)
+		}
+		if _, duplicate := seen[module.Name]; duplicate {
+			t.Fatalf("duplicate Generator/Blueprint module plan %q", module.Name)
+		}
+		seen[module.Name] = struct{}{}
+		if module.Kind != expectedKind {
+			t.Fatalf("Generator/Blueprint module %q kind = %q, want %q", module.Name, module.Kind, expectedKind)
+		}
 		if module.Kind == spec.FeatureModuleKindInfrastructure {
 			if module.SpecValid || module.GeneratedOutputs != 0 || module.Issue != "" {
 				t.Fatalf("infrastructure module attempted AdminModule generation: %#v", module)
@@ -76,6 +105,11 @@ func TestBuildFoundationV110GeneratorBlueprintFeature(t *testing.T) {
 		}
 		if !module.SpecValid || !module.GenerationDryRun || module.GeneratedOutputs < 12 || module.Issue != "" {
 			t.Fatalf("flagship supplier module was not completely planned: %#v", module)
+		}
+	}
+	for _, expected := range expectedModules {
+		if _, ok := seen[expected.name]; !ok {
+			t.Fatalf("Generator/Blueprint module plan is missing %q", expected.name)
 		}
 	}
 	if adminModules != 1 {

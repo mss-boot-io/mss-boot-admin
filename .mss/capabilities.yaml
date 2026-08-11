@@ -636,13 +636,17 @@ spec:
       paths:
         - .mss/schemas/admin-module.schema.json
         - .mss/features/foundation-v1-1-0-generator-blueprint.yaml
+        - docs/docs/releases/v1-1-0-d3-supplier-backend.md
         - internal/mss/generator
         - templates/module
       guidance: >-
-        Current maturity covers deterministic scaffold planning, dry-run, path confinement, stable
-        ordering, and basic idempotency only. It does not imply real forward migration, permission
-        persistence/enforcement, default roles, menu registration, OpenAPI/client, full frontend,
-        events, export, or downstream upgrade completeness.
+        D3 now covers deterministic backend specification projection, dry-run/check, path confinement,
+        stable ordering, obsolete generated-file cleanup, explicit SQLite/MySQL/PostgreSQL forward DDL,
+        validated DTO/service/API/OpenAPI/export, typed post-commit events, and fail-closed injected
+        backend authorization. The Supplier plan intentionally remains phase backend-checkpoint and
+        complete false with 26 deferred projections. Beta does not imply default-role or policy
+        persistence, menu registration, typed frontend client, UI/E2E, generated module docs, or
+        downstream upgrade completeness.
 
     - id: agent.fullstack-module-generator
       displayName: Full-Stack Upgradeable Module Generator
@@ -652,13 +656,19 @@ spec:
         - .mss/features/foundation-v1-1-0-generator-blueprint.yaml
         - .mss/features/example-supplier-onboarding.yaml
         - .mss/modules/example-supplier.yaml
+        - admin/modules/supplier
+        - docs/docs/releases/v1-1-0-d3-supplier-backend.md
         - internal/mss/blueprint
         - internal/mss/generator
         - templates/module
       guidance: >-
-        Deliver one checked-in supplier golden slice with forward migration, backend, RBAC,
-        default roles, menu, OpenAPI/client, frontend states, events, export, exact tests, docs, and
-        a customization-preserving three-way upgrade before expanding to a second domain.
+        Commit 5a60ad6 delivers the checked-in Supplier backend slice with explicit forward migration,
+        DTO/service/API/OpenAPI/export, typed post-commit events, fail-closed authorizer injection,
+        deterministic drift checks, and SQLite/MySQL/PostgreSQL development evidence. The capability
+        stays Planned and the machine plan stays complete false until D4/D5 add RBAC policy and
+        default-role persistence, menu, typed client, frontend states, exact authorization/UI/E2E,
+        generated docs, and the customization-preserving three-way upgrade. Do not expand to a
+        second domain first.
 
     - id: agent.skills
       displayName: Repository Agent Skills

@@ -8,11 +8,13 @@ description: mss-boot-admin 版本状态、升级、兼容性与回滚合同
 keywords: [release upgrade rollback compatibility mss-boot-admin]
 ---
 
-> 最新开发 checkpoint：[`86c0e8a` D3 Named Redis Resource](/releases/v1-1-0-d3-named-redis-resource)
-> 已在 `c57ffc8` 脱敏资源 error-tree 上固化 one-client、isolated Scope、caller deadline、
-> tracked exactly-once close 与 22 项 exact race evidence。Storage Runtime aggregate 仍为
-> Planned；Sentinel control ACL、cluster 原子 multi-key、真实 Sentinel/cluster/TLS、Admin
-> composition 和 leak evidence 仍未完成。
+> 最新 A 轴开发 checkpoint：[`5a60ad6` D3 Supplier Backend](/releases/v1-1-0-d3-supplier-backend)
+> 已生成显式三方言 migration、DTO/service/API/OpenAPI/export、typed post-commit events 与
+> fail-closed authorizer，并通过 exact development evidence。机器计划仍是
+> `phase=backend-checkpoint`、`complete=false`，26 项 default-role/policy/menu/frontend/docs/E2E
+> projection 延后。B 轴最新仍是
+> [`86c0e8a` D3 Named Redis Resource](/releases/v1-1-0-d3-named-redis-resource)；两项 capability
+> 均未因开发 checkpoint 自动晋级。
 
 # 发布与升级
 
@@ -69,6 +71,12 @@ downstream snapshot identity consumer checkpoint：CLI/MCP/doctor 共用严格 S
 Scope 隔离、caller deadline、lease drain 与 one-close，并使用 standalone miniredis 和
 stalled socket；Sentinel/cluster/TLS 仍只有 construction matrix，不能据此晋级 capability。
 
+同一波次的 Generator/Blueprint 轴在 `5a60ad6` 形成 Supplier backend checkpoint：source spec
+现在投影为显式 forward migration、model/DTO/service/API/OpenAPI/export、typed events 与 exact tests，
+且没有 injected authorizer 时拒绝挂载路由。SQLite 以及临时 MySQL 8.4/PostgreSQL 17 开发运行已通过；
+冻结 SHA 仍须重跑。defaultRoles/policy/menu、typed client、UI/E2E、模块文档与 upgrade rehearsal
+尚未生成，因此 full-stack capability 保持 Planned，generation plan 保持 `complete=false`。
+
 只有 Generator/Blueprint 与 Storage Runtime 目标全部完成、选定一个 `v1.1.0` 功能冻结 SHA
 后，才手工启动 `release-readiness`，集中执行三数据库、browser、Provider、upgrade、
 external consumer、recovery、`verify --all` 与 `eval --all`。全部通过后才进入 Framework →
@@ -88,3 +96,4 @@ external consumer、recovery、`verify --all` 与 `eval --all`。全部通过后
 - [D2 Downstream Snapshot Identity 内部 checkpoint](/releases/v1-1-0-d2-snapshot-identity)
 - [D3 Resource Lifecycle 内部 checkpoint](/releases/v1-1-0-d3-resource-lifecycle)
 - [D3 Named Redis Resource 内部 checkpoint](/releases/v1-1-0-d3-named-redis-resource)
+- [D3 Supplier Backend 内部 checkpoint](/releases/v1-1-0-d3-supplier-backend)

@@ -19,8 +19,10 @@ spec:
     The v1.0.0 module generator is a deterministic scaffold, not a complete full-stack module
     generator. The checked-in supplier specification declares operations, export, ownership,
     events, tests, indexes, permissions, default roles, menu metadata, frontend behavior, and
-    documentation that are not all projected into generated output. No generated golden vertical
-    module is checked in, historical human and machine module-path drift showed that the
+    documentation that are not all projected into generated output. Commit 5a60ad6 checks in the
+    first generated supplier backend checkpoint, but its machine plan intentionally remains
+    phase backend-checkpoint and complete false while 26 authorization, menu, frontend, E2E, and
+    documentation projections are deferred. Historical human and machine module-path drift showed that the
     admin/modules/name target lacked an enforced single source of truth, and Foundation release,
     Blueprint, generator, and
     downstream snapshot versions are conflated. Expanding features before one upgradeable vertical
@@ -259,9 +261,115 @@ spec:
           value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check
         - type: report
           value: Two-run golden generation and path-confinement report
+    - id: supplier-backend-checkpoint-evidence
+      requirement: generate-fullstack-projection
+      statement: >-
+        Commit 5a60ad6 generates and checks in the Supplier backend specification projection,
+        explicit forward migration, model, DTO, service, authorized API and OpenAPI annotations,
+        export, typed post-commit events, and backend tests. The generation plan must continue to
+        report phase backend-checkpoint and complete false until every deferred surface is implemented.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestGenerateDryRunWriteCheckAndDrift
+        - type: test
+          value: TestGenerateRejectsUnsupportedBackendProjectionBeforeWriting
+        - type: test
+          value: TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs
+        - type: test
+          value: TestGenerateRejectsUserOwnedObsoletePathBeforeAnyWrite
+        - type: test
+          value: TestGeneratedUpgradeRemovesLegacyAutoMountedController
+        - type: test
+          value: TestGenerateEventShapesCompileOrRejectBeforeWrite
+        - type: test
+          value: TestLoadExampleSupplierModule
+        - type: test
+          value: TestSupplierSourceSpecMatchesFeatureAccessContract
+        - type: test
+          value: TestModuleValidationRejectsUnsafeOrAmbiguousEvents
+        - type: test
+          value: TestSupplierServiceCRUDQueryExportAndPostCommitEvents
+        - type: test
+          value: TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
+        - type: test
+          value: TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
+        - type: test
+          value: TestSupplierForwardMigrationFreshRepeatAndConstraints
+        - type: test
+          value: TestSupplierForwardMigrationPreservesUpgradeData
+        - type: test
+          value: TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth
+        - type: test
+          value: TestSupplierMigrationMySQLIntegration
+        - type: test
+          value: TestSupplierMigrationPostgresIntegration
+        - type: test
+          value: TestSupplierMigrationMySQLRejectsCheckAndIndexDrift
+        - type: test
+          value: TestSupplierMigrationPostgresRejectsCheckAndIndexDrift
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json
+        - type: command
+          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --format json
+        - type: command
+          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check --format json
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator
+            --run '^(TestGenerateDryRunWriteCheckAndDrift|TestGenerateRejectsUnsupportedBackendProjectionBeforeWriting|TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs|TestGenerateRejectsUserOwnedObsoletePathBeforeAnyWrite|TestGeneratedUpgradeRemovesLegacyAutoMountedController|TestGenerateEventShapesCompileOrRejectBeforeWrite)$'
+            --count 1 --race --go-work off
+            --require TestGenerateDryRunWriteCheckAndDrift
+            --require TestGenerateRejectsUnsupportedBackendProjectionBeforeWriting
+            --require TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs
+            --require TestGenerateRejectsUserOwnedObsoletePathBeforeAnyWrite
+            --require TestGeneratedUpgradeRemovesLegacyAutoMountedController
+            --require TestGenerateEventShapesCompileOrRejectBeforeWrite
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/spec
+            --run '^(TestLoadExampleSupplierModule|TestSupplierSourceSpecMatchesFeatureAccessContract|TestModuleValidationRejectsUnsafeOrAmbiguousEvents)$'
+            --count 1 --race --go-work off
+            --require TestLoadExampleSupplierModule
+            --require TestSupplierSourceSpecMatchesFeatureAccessContract
+            --require TestModuleValidationRejectsUnsafeOrAmbiguousEvents
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+            --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierForwardMigrationFreshRepeatAndConstraints|TestSupplierForwardMigrationPreservesUpgradeData|TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth|TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth|TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth|TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth|TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase|TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth|TestSupplierTableName|TestSupplierMigrationIdentityIsComplete|TestSupplierPermissionCodesAreUnique|TestSupplierOperationContractMatchesSpecification|TestSupplierDescriptorNeverInfersMigrationOrRoutes|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations)$'
+            --count 1 --race --go-work off
+            --require TestSupplierServiceCRUDQueryExportAndPostCommitEvents
+            --require TestSupplierForwardMigrationFreshRepeatAndConstraints
+            --require TestSupplierForwardMigrationPreservesUpgradeData
+            --require TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth
+            --require TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth
+            --require TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth
+            --require TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth
+            --require TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase
+            --require TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth
+            --require TestSupplierTableName --require TestSupplierMigrationIdentityIsComplete
+            --require TestSupplierPermissionCodesAreUnique --require TestSupplierOperationContractMatchesSpecification
+            --require TestSupplierDescriptorNeverInfersMigrationOrRoutes
+            --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
+            --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
+        - type: report
+          value: >-
+            The dry-run plan reports template revision 1.1.0-backend.2, 15 unchanged managed files,
+            phase backend-checkpoint, complete false, and 26 explicitly deferred projections.
+        - type: report
+          value: >-
+            Development provider evidence at 5a60ad6 ran the four named Supplier migration tests
+            against MySQL 8.4 and PostgreSQL 17 with zero skip. This is development evidence only;
+            the same exact tests must rerun from the selected feature-freeze SHA.
     - id: fullstack-backend-gate
       requirement: generate-fullstack-projection
-      statement: Supplier migration, model, DTO, service, API, operations, indexes, export, events, OpenAPI, and typed client reflect every supported source declaration with no ignored field.
+      statement: >-
+        Supplier migration, model, DTO, service, API, operations, indexes, export, events, and
+        OpenAPI reflect every backend-supported source declaration, while the field-to-output plan
+        classifies every remaining declaration as validation-only or deferred. Typed client evidence
+        belongs to the separate frontend gate.
       level: contract
       phase: feature-freeze
       required: true
@@ -271,7 +379,14 @@ spec:
         - type: report
           value: AdminModule field-to-output-kind projection report
         - type: command
-          value: go test -race ./admin/modules/supplier/...
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+            --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations|TestSupplierOperationContractMatchesSpecification)$'
+            --count 1 --race --go-work off
+            --require TestSupplierServiceCRUDQueryExportAndPostCommitEvents
+            --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
+            --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
+            --require TestSupplierOperationContractMatchesSpecification
     - id: fullstack-frontend-gate
       requirement: generate-frontend-experience
       statement: Generated supplier pages and typed client pass lint, TypeScript, focused tests, production build, permission denial, empty/error/conflict states, and browser E2E.
@@ -363,9 +478,28 @@ spec:
       required: true
       evidence:
         - type: test
-          value: Golden supplier three-database migration matrix
+          value: TestSupplierMigrationMySQLIntegration
+        - type: test
+          value: TestSupplierMigrationPostgresIntegration
+        - type: test
+          value: TestSupplierMigrationMySQLRejectsCheckAndIndexDrift
+        - type: test
+          value: TestSupplierMigrationPostgresRejectsCheckAndIndexDrift
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+            --run '^TestSupplierMigration(MySQLIntegration|PostgresIntegration|MySQLRejectsCheckAndIndexDrift|PostgresRejectsCheckAndIndexDrift)$'
+            --count 1 --race --go-work off
+            --require TestSupplierMigrationMySQLIntegration
+            --require TestSupplierMigrationPostgresIntegration
+            --require TestSupplierMigrationMySQLRejectsCheckAndIndexDrift
+            --require TestSupplierMigrationPostgresRejectsCheckAndIndexDrift
         - type: report
-          value: Exact-commit fresh, upgrade, repeat, and failure migration report
+          value: >-
+            Exact-freeze-SHA fresh, upgrade, repeat, interruption, runtime-conflict, escaped-search,
+            same-name wrong-index, and permissive-check rejection report with non-empty allowlisted
+            MSS_SUPPLIER_TEST_MYSQL_DSN and MSS_SUPPLIER_TEST_POSTGRES_DSN and zero skip. The
+            MySQL 8.4/PostgreSQL 17 development run at 5a60ad6 is not reusable release evidence.
     - id: canonical-email-checkpoint-evidence
       requirement: enforce-canonical-email-identity
       statement: SQLite migration, model persistence and provisioning, actual Admin Controller writes, schema verification, and migrate/server composition pass exact, uncached, race-detected tests without skip or sensitive-value disclosure.
@@ -478,13 +612,26 @@ spec:
         - type: test
           value: TestPlanAdminModuleMissingSpecPathFails
         - type: test
-          value: TestAcceptanceEvidenceIsDeclarativeUntilExecuted
+          value: TestPlanGroupsAcceptanceByPhase
+        - type: test
+          value: TestBuildFoundationV110GeneratorBlueprintFeature
         - type: command
-          value: go test -json ./internal/mss/spec -run '^TestFeatureModuleContractKindValidation$'
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/spec
+            --run '^TestFeatureModuleContractKindValidation$'
+            --count 1 --race --go-work off
+            --require TestFeatureModuleContractKindValidation
         - type: command
-          value: "go test -json ./internal/mss/feature -run '^Test(PlanInfrastructureFeatureWithoutAdminModuleSpec|PlanAdminModuleMissingSpecPathFails|AcceptanceEvidenceIsDeclarativeUntilExecuted)$'"
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/feature
+            --run '^Test(PlanInfrastructureFeatureWithoutAdminModuleSpec|PlanAdminModuleMissingSpecPathFails|PlanGroupsAcceptanceByPhase|BuildFoundationV110GeneratorBlueprintFeature)$'
+            --count 1 --race --go-work off
+            --require TestPlanInfrastructureFeatureWithoutAdminModuleSpec
+            --require TestPlanAdminModuleMissingSpecPathFails
+            --require TestPlanGroupsAcceptanceByPhase
+            --require TestBuildFoundationV110GeneratorBlueprintFeature
         - type: report
-          value: Required-test report proving contract-kind schema parity, infrastructure plan success, AdminModule missing-spec failure, and honest declarative evidence reporting.
+          value: Required-test report proving contract-kind schema parity, infrastructure plan success, AdminModule missing-spec failure, and phase-scoped declarative evidence grouping without counting commands as executed.
     - id: version-identity-checkpoint-evidence
       requirement: record-version-identities
       statement: The shared snapshot reader, CLI status, MCP upgrade adapter, doctor strict classification, and checked-in compatibility-workflow contract pass fully anchored single-package evidence without source/generated transition races or nested-module identity conflation.
@@ -592,8 +739,36 @@ spec:
     all: go run ./cmd/mss verify --all
     custom:
       - go run ./cmd/mss spec validate .mss/features/foundation-v1-1-0-generator-blueprint.yaml --format json
-      - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check
-      - go test -race ./internal/mss/blueprint/... ./internal/mss/generator/... ./internal/mss/spec/...
+      - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check --format json
+      - go test -race ./internal/mss/blueprint/...
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator
+        --run '^(TestGenerateDryRunWriteCheckAndDrift|TestGenerateRejectsUnsupportedBackendProjectionBeforeWriting|TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs|TestGenerateRejectsUserOwnedObsoletePathBeforeAnyWrite|TestGeneratedUpgradeRemovesLegacyAutoMountedController|TestGenerateEventShapesCompileOrRejectBeforeWrite)$'
+        --count 1 --race --go-work off
+        --require TestGenerateDryRunWriteCheckAndDrift
+        --require TestGenerateRejectsUnsupportedBackendProjectionBeforeWriting
+        --require TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs
+        --require TestGenerateRejectsUserOwnedObsoletePathBeforeAnyWrite
+        --require TestGeneratedUpgradeRemovesLegacyAutoMountedController
+        --require TestGenerateEventShapesCompileOrRejectBeforeWrite
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+        --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierForwardMigrationFreshRepeatAndConstraints|TestSupplierForwardMigrationPreservesUpgradeData|TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth|TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth|TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth|TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth|TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase|TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth|TestSupplierTableName|TestSupplierMigrationIdentityIsComplete|TestSupplierPermissionCodesAreUnique|TestSupplierOperationContractMatchesSpecification|TestSupplierDescriptorNeverInfersMigrationOrRoutes|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations)$'
+        --count 1 --race --go-work off
+        --require TestSupplierServiceCRUDQueryExportAndPostCommitEvents
+        --require TestSupplierForwardMigrationFreshRepeatAndConstraints
+        --require TestSupplierForwardMigrationPreservesUpgradeData
+        --require TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth
+        --require TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth
+        --require TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth
+        --require TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth
+        --require TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase
+        --require TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth
+        --require TestSupplierTableName --require TestSupplierMigrationIdentityIsComplete
+        --require TestSupplierPermissionCodesAreUnique --require TestSupplierOperationContractMatchesSpecification
+        --require TestSupplierDescriptorNeverInfersMigrationOrRoutes
+        --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
+        --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
       - >-
         go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/migration
         --run '^TestMigration(TypedIDOrdering|DeprecatedRegistrationBridge|RegistrationPreflightRequiresNoDatabase|TemplateUsesLosslessID|DuplicateIDFailsBeforeExecution|ErrorPropagatesWithoutExit|DeprecatedBridgeReturnsAfterFailure|ContextCancellationPropagates|RepeatIsNoop|FailurePreservesAppliedState|V100AliasesSkipHistoricalRows|V100CollisionFreshDatabaseUsesCanonicalIDs|V100RenamedAliasSkipsTagRow|V100RenamedAliasSkipsPreRenameRow)$'
@@ -704,8 +879,9 @@ spec:
     migration: >-
       Keep Generator/Blueprint and Storage Runtime as parallel axes. First establish independent
       version identities, canonical path, strict schema/projection checks, and a safe migration
-      engine. Then check in the supplier golden backend and forward migration, add authorization,
-      OpenAPI, client and frontend in untagged development waves, then feature-freeze the public
+      engine. The supplier golden backend, explicit forward migration, authorized API, OpenAPI,
+      and typed post-commit events are checked in at 5a60ad6 with complete false. Next add
+      default-role/policy/menu persistence plus the typed client and frontend in untagged development waves, then feature-freeze the public
       contracts and run the complete three-database, browser, external-app, and Blueprint 0.1-to-0.2
       upgrade matrices on one candidate commit. The canonical-email checkpoint must retain its
       fail-closed server schema readiness and rerun both real database integrations from that

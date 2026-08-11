@@ -58,6 +58,20 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   Planned: Sentinel control-plane ACL is anonymous, cluster multi-key operations are
   non-atomic with partial counts, and real Sentinel/cluster/TLS, Admin composition,
   Challenge atomic bridging, and leak conformance remain open.
+- Added the D3 Supplier backend generator checkpoint at `5a60ad6`. The canonical
+  AdminModule specification now deterministically projects an explicit lossless-ID
+  SQLite/MySQL/PostgreSQL forward migration, model, validated DTOs, CRUD/query/export
+  service, typed post-commit events, authorized HTTP operations, OpenAPI annotations,
+  and exact generated tests into `admin/modules/supplier`. Route composition fails
+  closed without an injected authorizer, provider-native unique violations remain
+  fixed and redacted with GORM translation disabled, and migration readiness verifies
+  exact index and check shapes before recording schema truth. Generator planning also
+  removes obsolete managed auto-mount outputs while refusing user-owned conflicts before
+  the first write. The dry-run honestly reports `phase=backend-checkpoint`,
+  `complete=false`, 15 unchanged managed files, and 26 deferred projections. Real
+  MySQL 8.4 and PostgreSQL 17 development tests passed with zero skip, but must rerun
+  on the selected feature-freeze SHA. Default-role/policy persistence, menu, typed
+  client, frontend/UI/E2E, generated module docs, and upgrade rehearsal remain D4/D5 work.
 - Switched the next train to development-first v1.1.0: internal waves remain
   untagged, publication is disabled by checked-in policy, acceptance evidence is
   phase-scoped, and complete release qualification starts only after feature freeze.
@@ -178,6 +192,9 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 - Added the D3 Named Redis Resource checkpoint note and a fully anchored evidence
   command requiring all twenty-two `runtime/redisresource` top-level tests, while
   keeping the capability Planned and listing every deferred Provider/composition gate.
+- Added the D3 Supplier Backend checkpoint note with its exact generated surface,
+  machine-readable `complete=false` boundary, anchored generator/spec/Admin evidence,
+  three-dialect development matrix, forward-only recovery, and explicit D4/D5 deferrals.
 
 ## [v1.0.0] - 2026-08-09
 
