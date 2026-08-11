@@ -2,22 +2,52 @@
   "schema": "mss.io/release-qualification/v1",
   "targetVersion": "v1.1.0",
   "features": [
-    ".mss/features/admin-config-cache-consistency.yaml",
-    ".mss/features/admin-permission-hardening.yaml",
-    ".mss/features/admin-runtime-tools-removal-monitoring.yaml",
-    ".mss/features/admin-secret-lifecycle.yaml",
-    ".mss/features/admin-theme-settings-precedence.yaml",
-    ".mss/features/admin-ui-experience-quality.yaml",
-    ".mss/features/example-supplier-onboarding.yaml",
-    ".mss/features/foundation-v1-0-1-storage-safety.yaml",
-    ".mss/features/foundation-v1-1-0-generator-blueprint.yaml",
-    ".mss/features/foundation-v1-1-0-release.yaml",
-    ".mss/features/storage-runtime-v2.yaml"
+    ".mss/features/foundation-v1-1-0-release.yaml"
   ],
   "excludedFeatures": [
     {
+      "path": ".mss/features/admin-config-cache-consistency.yaml",
+      "reason": "carry-forward: accepted checkpoint evidence remains authoritative and no previously stable cache-consistency behavior is replayed by the frozen-SHA command gate."
+    },
+    {
+      "path": ".mss/features/admin-permission-hardening.yaml",
+      "reason": "carry-forward: accepted checkpoint evidence remains authoritative and no previously stable permission-hardening behavior is replayed by the frozen-SHA command gate."
+    },
+    {
+      "path": ".mss/features/admin-runtime-tools-removal-monitoring.yaml",
+      "reason": "carry-forward: accepted checkpoint evidence remains authoritative and the removed runtime-tool boundary is not adversarially re-reviewed."
+    },
+    {
+      "path": ".mss/features/admin-secret-lifecycle.yaml",
+      "reason": "carry-forward: accepted checkpoint evidence remains authoritative and no previously stable secret-lifecycle behavior is replayed by the frozen-SHA command gate."
+    },
+    {
+      "path": ".mss/features/admin-theme-settings-precedence.yaml",
+      "reason": "carry-forward: accepted checkpoint evidence remains authoritative and no previously stable theme behavior is replayed by the frozen-SHA command gate."
+    },
+    {
+      "path": ".mss/features/admin-ui-experience-quality.yaml",
+      "reason": "carry-forward: accepted checkpoint evidence remains authoritative and no previously stable UI behavior is replayed by the frozen-SHA command gate."
+    },
+    {
+      "path": ".mss/features/example-supplier-onboarding.yaml",
+      "reason": "carry-forward: stable Supplier checkpoints are not replayed wholesale; only the new exact Supplier commands and SHA-bound Codex in-app-browser evidence copied into the release Feature qualify v1.1.0."
+    },
+    {
       "path": ".mss/features/foundation-v1-0-0-release.yaml",
-      "reason": "Published v1.0.0 historical evidence is retained for audit and is not rerun as v1.1.0 phase truth."
+      "reason": "carry-forward: published v1.0.0 historical evidence is retained for audit and is not rerun as v1.1.0 phase truth."
+    },
+    {
+      "path": ".mss/features/foundation-v1-0-1-storage-safety.yaml",
+      "reason": "carry-forward: accepted historical storage-safety checkpoints are not replayed; ObjectStore and RustFS conformance are optional and non-blocking for v1.1.0."
+    },
+    {
+      "path": ".mss/features/foundation-v1-1-0-generator-blueprint.yaml",
+      "reason": "carry-forward: stable Generator and Blueprint checkpoints are not replayed wholesale; only the new exact generator commands and SHA-bound external upgrade rehearsal copied into the release Feature qualify v1.1.0."
+    },
+    {
+      "path": ".mss/features/storage-runtime-v2.yaml",
+      "reason": "carry-forward: accepted runtime, cache, event, lifecycle, and storage checkpoints are not replayed; only the new provider-evidence validator commands copied into the release Feature run, while ObjectStore and RustFS remain optional and non-blocking."
     }
   ]
 }

@@ -194,9 +194,16 @@ spec:
 
     release-phase-evidence-run:
       command: python3 tools/release/release_phase_evidence.py run --target-version v1.1.0 --commit <full-sha> --phase feature-freeze --output .mss/reports/release-phase-command-evidence.json
-      description: On one clean frozen commit, execute required Feature command evidence without a shell, retain per-command digests and logs, and fail when a command fails, times out, or still uses non-exact named Go test evidence.
+      description: On one clean frozen commit, execute the scoped release Feature commands without a shell, retain per-command digests and logs, and fail when a selected command fails, times out, or still uses non-exact named Go test evidence.
       outputFormats: [json]
       category: release
+
+    release-qualification-decision:
+      command: python3 tools/release/release_qualification_decision.py --target-version v1.1.0 --commit <full-sha> --phase feature-freeze --browser-evidence-commit <full-sha> --browser-evidence-ref <reference> --blueprint-evidence-commit <full-sha> --blueprint-evidence-ref <reference> --output .mss/reports/release-qualification-decision.json
+      description: Bind the Codex in-app Browser and external Blueprint rehearsal evidence to the exact frozen SHA while recording carry-forward and optional ObjectStore/RustFS decisions.
+      outputFormats: [json]
+      category: release
+      idempotent: true
 
     release-readiness-attestation-create:
       command: python3 tools/release/release_readiness_attestation.py create --output <attestation.json> --policy .mss/release-policy.yaml --target-version v1.1.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --publication-authority <true|false>
