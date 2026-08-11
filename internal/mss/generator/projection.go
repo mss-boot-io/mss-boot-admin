@@ -117,10 +117,10 @@ func buildProjectionReport(module *spec.Module) ([]Projection, error) {
 		add(path, ProjectionImplemented, "field shape, constraints, query behavior, export value, and DDL are generated", "api", "dto", "export", "migration", "model", "service", "tests")
 		if field.Type == "enum" {
 			add(path+".enumValues[*].value", ProjectionImplemented, "enum values are enforced by DTO validation and database check constraints", "dto", "migration", "tests")
-			add(path+".enumValues[*].presentation", ProjectionDeferred, "enum labels and colors are preserved for the frontend checkpoint", "frontend")
+			add(path+".enumValues[*].presentation", ProjectionImplemented, "enum labels and colors are projected into synchronized locale entries, filters, forms, and table tags", "frontend", "frontend-locales", "frontend-tests")
 		}
 		if field.UI.Component != "" || field.UI.Width != nil || field.UI.Placeholder != "" || field.UI.Help != "" || field.UI.Hidden {
-			add(path+".ui", ProjectionDeferred, "field presentation is preserved for the frontend checkpoint", "frontend")
+			add(path+".ui", ProjectionImplemented, "field presentation drives generated columns, validation-aware controls, responsive widths, and localized help", "frontend", "frontend-locales")
 		}
 	}
 
@@ -166,10 +166,10 @@ func buildProjectionReport(module *spec.Module) ([]Projection, error) {
 		permissionPath := fmt.Sprintf("spec.permissions[%d]", index)
 		add(permissionPath+".action", ProjectionImplemented, "the derived permission code is enforced by the required injected Admin backend authorizer", "api", "authorization-policy", "tests")
 		add(permissionPath+".displayName", ProjectionImplemented, "permission display metadata is emitted to the runtime descriptor and persisted as auditable Admin authorization metadata", "authorization-policy", "backend-descriptor", "migration")
-		add(permissionPath+".displayName", ProjectionDeferred, "permission display presentation remains owned by the frontend checkpoint", "frontend")
+		add(permissionPath+".displayName", ProjectionImplemented, "permission presentation is emitted to synchronized locale metadata while exact component paths drive action visibility", "frontend", "frontend-locales", "frontend-tests")
 		if permission.Description != "" {
 			add(permissionPath+".description", ProjectionImplemented, "permission descriptions are emitted to the backend runtime descriptor", "backend-descriptor")
-			add(permissionPath+".description", ProjectionDeferred, "permission description presentation remains owned by the frontend checkpoint", "frontend")
+			add(permissionPath+".description", ProjectionImplemented, "permission descriptions remain synchronized with generated frontend permission metadata", "frontend")
 		}
 		if len(permission.DefaultRoles) > 0 {
 			add(permissionPath+".defaultRoles", ProjectionImplemented, "default roles are resolved or provisioned and receive exact COMPONENT/API policies in one additive transaction", "authorization-policy", "authorization-tests", "migration")
@@ -182,8 +182,8 @@ func buildProjectionReport(module *spec.Module) ([]Projection, error) {
 		add("spec.ownership.adminBypass", ProjectionImplemented, "Admin root bypass is explicit while non-root roles remain bound to exact persisted policies", "authorization-policy", "tests")
 	}
 	add("spec.menu", ProjectionImplemented, "menu path, parent, icon, order, visibility, permission metadata, and default-role policies are persisted transactionally", "authorization-policy", "menu-migration", "tests")
-	add("spec.menu", ProjectionDeferred, "frontend route composition, locale rendering, and UI visibility remain owned by the frontend checkpoint", "frontend")
-	add("spec.ui", ProjectionDeferred, "management pages and UI states are owned by the frontend checkpoint", "frontend")
+	add("spec.menu", ProjectionImplemented, "the generated Umi route and synchronized locales bind the persisted menu path to the typed module page", "frontend-route", "frontend-locales", "frontend-tests")
+	add("spec.ui", ProjectionImplemented, "list, create/edit form, detail, responsive layout, export, loading, empty, error, forbidden, conflict, and destructive confirmation states are generated as declared", "frontend", "frontend-tests")
 	if module.Spec.Workflow != nil {
 		add("spec.workflow", ProjectionUnsupported, "workflow generation is outside this backend checkpoint", "api", "migration", "service", "tests")
 	}
@@ -197,7 +197,7 @@ func buildProjectionReport(module *spec.Module) ([]Projection, error) {
 	add("spec.tests.unit", ProjectionImplemented, "generated unit and service contracts are emitted", "tests")
 	add("spec.tests.api", ProjectionImplemented, "generated API and OpenAPI contracts are emitted", "tests")
 	if module.Spec.Tests.E2E {
-		add("spec.tests.e2e", ProjectionDeferred, "browser evidence belongs to the frontend checkpoint", "frontend-tests")
+		add("spec.tests.e2e", ProjectionDeferred, "the generated page is browser-ready, but declared end-to-end acceptance evidence remains a separate release checkpoint", "browser-evidence")
 	}
 	if module.Spec.Tests.PermissionMatrix {
 		add("spec.tests.permissionMatrix", ProjectionImplemented, "generated tests cover every declared default-role allow and deny plus missing identity", "authorization-tests")
@@ -225,7 +225,7 @@ func buildProjectionReport(module *spec.Module) ([]Projection, error) {
 		add("spec.generation.backend", ProjectionImplemented, "backend generation is enabled", "backend")
 	}
 	if module.Spec.Generation.Frontend != nil && *module.Spec.Generation.Frontend {
-		add("spec.generation.frontend", ProjectionDeferred, "frontend generation remains declared but is not claimed by this checkpoint", "frontend")
+		add("spec.generation.frontend", ProjectionImplemented, "typed client, permission contracts, React page, route registry, locale registries, and focused tests are generated", "frontend", "frontend-locales", "frontend-route", "frontend-tests")
 	}
 	if module.Spec.Generation.Docs != nil && *module.Spec.Generation.Docs {
 		add("spec.generation.docs", ProjectionDeferred, "module documentation remains declared but is not claimed by this checkpoint", "docs")

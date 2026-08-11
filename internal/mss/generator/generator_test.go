@@ -487,7 +487,7 @@ func TestGenerateRejectsMigrationIDCollisionsBeforeWriting(t *testing.T) {
 	}
 }
 
-func TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs(t *testing.T) {
+func TestGenerateReportsFrontendCheckpointAndDefersE2EAndDocs(t *testing.T) {
 	repositoryRoot := findRepositoryRoot(t)
 	root := t.TempDir()
 	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
@@ -512,7 +512,9 @@ func TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs(t *testing.
 		{path: "spec.ownership", status: ProjectionImplemented},
 		{path: "spec.ownership.adminBypass", status: ProjectionImplemented},
 		{path: "spec.menu", status: ProjectionImplemented},
-		{path: "spec.menu", status: ProjectionDeferred},
+		{path: "spec.ui", status: ProjectionImplemented},
+		{path: "spec.generation.frontend", status: ProjectionImplemented},
+		{path: "spec.tests.e2e", status: ProjectionDeferred},
 		{path: "spec.generation.authorizationMigrationID", status: ProjectionImplemented},
 	} {
 		if !hasProjection(expected.path, expected.status) {
@@ -528,9 +530,28 @@ func TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs(t *testing.
 	if !deferred || plan.Complete {
 		t.Fatalf("projection truth = deferred:%t complete:%t", deferred, plan.Complete)
 	}
+	frontendOutputs := map[string]bool{
+		"web/antd/config/routes.generated.ts":             false,
+		"web/antd/src/locales/generated.en-US.ts":         false,
+		"web/antd/src/locales/generated.zh-CN.ts":         false,
+		"web/antd/src/modules/supplier/contracts.ts":      false,
+		"web/antd/src/modules/supplier/contracts.test.ts": false,
+		"web/antd/src/modules/supplier/index.tsx":         false,
+		"web/antd/src/modules/supplier/service.ts":        false,
+		"web/antd/src/modules/supplier/types.ts":          false,
+		"web/antd/src/pages/generated/Supplier/index.tsx": false,
+	}
 	for _, change := range plan.Changes {
-		if strings.HasPrefix(change.Path, "web/") || strings.HasPrefix(change.Path, "docs/") {
-			t.Fatalf("backend checkpoint planned deferred output %s", change.Path)
+		if strings.HasPrefix(change.Path, "docs/") {
+			t.Fatalf("frontend checkpoint planned deferred docs output %s", change.Path)
+		}
+		if _, expected := frontendOutputs[change.Path]; expected {
+			frontendOutputs[change.Path] = true
+		}
+	}
+	for path, found := range frontendOutputs {
+		if !found {
+			t.Fatalf("frontend checkpoint omitted %s", path)
 		}
 	}
 }
@@ -563,7 +584,6 @@ func TestGeneratePlansObsoleteManagedOutputsBeforeWriting(t *testing.T) {
 	obsolete := []string{
 		"admin/modules/supplier/controller_generated.go",
 		"admin/modules/supplier/search_generated.go",
-		"web/antd/src/modules/supplier/types.ts",
 	}
 	for _, relative := range obsolete {
 		path := filepath.Join(root, filepath.FromSlash(relative))
