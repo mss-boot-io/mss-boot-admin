@@ -57,6 +57,19 @@ remains internal and does not promote provider maturity.
   depends on EventBus/database-revision reconciliation. Eight exact new tests passed
   uncached `count=1` race evidence with `GOWORK=off`; Beta status and the feature-freeze
   rerun remain unchanged.
+- Added additive typed `runtime/eventbus` at `04e8e0c`. Memory synchronously fans a
+  revision notification to every subscriber present when publication is accepted;
+  Redis uses a shared `redisresource.Scope` to publish and poll only the latest
+  revision for currently connected replicas. Duplicate and out-of-order revisions
+  cannot move subscribers backward, panics are isolated and redacted, accepted work
+  participates in caller-bounded Close, and a domain-neutral Reconciler reloads an
+  authoritative revision after missed delivery, disconnect, or commit-before-publish
+  failure. Build performs no provider I/O or goroutine start, and neither provider
+  exposes WorkQueue acknowledgement, retry, or dead-letter semantics. All seven new
+  top-level tests passed exact uncached `count=1` race evidence with `GOWORK=off`.
+  This checkpoint promotes only the EventBus capability to Beta; real Redis
+  multi-replica/failover evidence, the frozen-SHA rerun, and published-tag external
+  resolution remain pending, so Runtime v2 stays Planned.
 - Replaced legacy object-storage provider globals with an exact Local-or-S3
   startup configuration, immutable `StorageProfile`, explicit default/static
   credential modes, typed environment `SecretRef` resolution, and one reusable
@@ -133,6 +146,10 @@ remains internal and does not promote provider maturity.
 - Recorded the D5 Scoped Runtime Cache checkpoint with all eight exact new tests,
   explicit caller-owned codec/QueryIdentity boundaries, transaction bypass, and the
   still-open EventBus/revision reconciliation plus feature-freeze rerun.
+- Recorded the D5 Revision EventBus checkpoint with all seven exact new Framework
+  tests, the post-commit publish and authoritative reconciliation boundary, and the
+  separate Admin composition evidence at `160e2df`; no frozen-candidate or Stable
+  claim is implied.
 
 ## [mss-boot/v1.0.0] - 2026-08-09
 

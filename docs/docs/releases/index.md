@@ -16,7 +16,11 @@ keywords: [release upgrade rollback compatibility mss-boot-admin]
 > policy、singleflight、generation invalidation、payload bound、not-found/RowsAffected 与活动事务 bypass
 > 已落地。它是 opt-in loader adapter，不是透明 GORM plugin；payload codec 与 stable QueryIdentity 由 caller
 > 负责，跨进程恢复仍依赖 EventBus/database revision reconciliation。八项精确开发测试均 count1/race/
-> GOWORK=off 非零通过；Planned/Beta 状态未因 checkpoint 自动晋级，冻结 SHA 仍须集中重跑。
+> GOWORK=off 非零通过。后续 [`04e8e0c` + `160e2df` D5 Revision EventBus 与 Admin
+> reconciliation](/releases/v1-1-0-d5-revision-eventbus) 已补齐 typed Memory/Redis revision signal、
+> Casbin commit-first publication 与数据库权威周期修复；Framework 7 项、Admin 8 项新增顶级测试均有
+> 精确 count1/race 证据。EventBus 仅到 Beta，Runtime v2 仍为 Planned；这些 checkpoint 都必须在冻结
+> SHA 上集中重跑。
 
 # 发布与升级
 
@@ -113,4 +117,6 @@ external consumer、recovery、`verify --all` 与 `eval --all`。全部通过后
 - [D3 Named Redis Resource 内部 checkpoint](/releases/v1-1-0-d3-named-redis-resource)
 - [D3 Challenge Runtime 内部 checkpoint](/releases/v1-1-0-d3-challenge-runtime)
 - [D3 Supplier Backend 与 Authorization 内部 checkpoint](/releases/v1-1-0-d3-supplier-backend)
+- [D5 Scoped Runtime Cache 内部 checkpoint](/releases/v1-1-0-d5-scoped-runtime-cache)
+- [D5 Revision EventBus 与 Admin reconciliation 内部 checkpoint](/releases/v1-1-0-d5-revision-eventbus)
 - [v1.1.0 exact readiness attestation 合同](/releases/v1-1-0-exact-readiness-attestation)

@@ -89,6 +89,22 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   remains coupled to EventBus/database-revision reconciliation. Eight exact new tests
   passed uncached `count=1` race evidence with `GOWORK=off`; Planned/Beta status and
   the feature-freeze rerun remain unchanged.
+- Added the D5 revision EventBus and Admin authorization-reconciliation checkpoint.
+  Commit `04e8e0c` introduces an additive typed `mss-boot/runtime/eventbus` with
+  process-local current-subscriber Memory fan-out, Redis Scope polling of the latest
+  revision, panic isolation, degraded health, caller-bounded lifecycle, and a
+  domain-neutral authoritative reconciler. Commit `160e2df` makes canonical Casbin
+  mutation and its global `ConfigRevision` one transaction, publishes only after the
+  commit, reloads authoritative policy in the subscriber, and registers a Memory
+  runtime plus periodic reconciliation with the Admin server manager. Publication
+  failure never rolls back an already committed policy, while missed, duplicate,
+  out-of-order, panicking, disconnected, and commit-before-publish cases remain
+  repairable without WorkQueue acknowledgement semantics. Exact uncached `count=1`
+  race evidence covers seven Framework and eight Admin top-level tests; Framework
+  runs with `GOWORK=off`, while Admin uses the current workspace until the unpublished
+  v1.1.0 Framework dependency can be tagged and updated. EventBus is Beta and the
+  aggregate Runtime v2 capability remains Planned pending the frozen-SHA rerun, real
+  Redis multi-replica/failover evidence, and remaining runtime gates.
 - Added the cumulative D3 Supplier generator checkpoint. Commit `5a60ad6` projects the
   canonical AdminModule into an explicit lossless-ID SQLite/MySQL/PostgreSQL forward
   migration, model, validated DTOs, CRUD/query/export service, typed post-commit events,

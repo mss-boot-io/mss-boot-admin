@@ -671,6 +671,86 @@ spec:
           value: TestDistributedLockCapabilityDeferredWithoutConsumer
         - type: command
           value: go run ./cmd/mss context --format json
+    - id: eventbus-reconciliation-checkpoint-evidence
+      requirement: split-events-from-work
+      statement: >-
+        Commits 04e8e0c and 160e2df implement the additive typed revision EventBus and its
+        Admin Casbin Memory composition. Policy plus the monotonic global ConfigRevision commit
+        atomically before best-effort publication; authoritative subscriber reload and periodic
+        reconciliation repair missed, duplicate, out-of-order, panicking, disconnected, and
+        commit-before-publish paths without WorkQueue acknowledgement semantics. This is exact
+        development-checkpoint evidence, not feature-freeze or publication evidence.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestMemoryFansOutToCurrentSubscribersAndRejectsOldRevisions
+        - type: test
+          value: TestMemoryPanicIsolationAndAuthoritativeReconciliation
+        - type: test
+          value: TestMemoryCloseWaitsForAcceptedDeliveryAndHonorsDeadline
+        - type: test
+          value: TestReconcilerRedactsSourceFailureAndPanic
+        - type: test
+          value: TestRedisBuildIsPureAndPollingFansOutLatestRevision
+        - type: test
+          value: TestRedisDisconnectDegradesWhileAuthorityRepairsCommitBeforePublish
+        - type: test
+          value: TestRedisRunOwnsPollingAndCloseLeavesSharedResourceOpen
+        - type: test
+          value: TestCasbinRevisionReconcilesCommitPublishCrash
+        - type: test
+          value: TestAuthorizationMutationPublishesCommittedRevisionWithoutWorkQueueWatcher
+        - type: test
+          value: TestAuthorizationSubscriberPanicIsolatedAndReconciled
+        - type: test
+          value: TestAuthorizationEventBusOutagePreservesCommittedPolicy
+        - type: test
+          value: TestAuthorizationEventRuntimeRejectsSecondOwner
+        - type: test
+          value: TestAuthorizationEventRuntimeHealthRecordsAndRecoversReconcileFailure
+        - type: test
+          value: TestBuildAuthorizationEventRuntimeUsesManagedDatabaseLease
+        - type: test
+          value: TestBuildAuthorizationEventRuntimeRejectsMissingDatabaseLease
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/eventbus
+            --run '^(TestMemoryFansOutToCurrentSubscribersAndRejectsOldRevisions|TestMemoryPanicIsolationAndAuthoritativeReconciliation|TestMemoryCloseWaitsForAcceptedDeliveryAndHonorsDeadline|TestReconcilerRedactsSourceFailureAndPanic|TestRedisBuildIsPureAndPollingFansOutLatestRevision|TestRedisDisconnectDegradesWhileAuthorityRepairsCommitBeforePublish|TestRedisRunOwnsPollingAndCloseLeavesSharedResourceOpen)$'
+            --count 1 --race --go-work off
+            --require TestMemoryFansOutToCurrentSubscribersAndRejectsOldRevisions
+            --require TestMemoryPanicIsolationAndAuthoritativeReconciliation
+            --require TestMemoryCloseWaitsForAcceptedDeliveryAndHonorsDeadline
+            --require TestReconcilerRedactsSourceFailureAndPanic
+            --require TestRedisBuildIsPureAndPollingFansOutLatestRevision
+            --require TestRedisDisconnectDegradesWhileAuthorityRepairsCommitBeforePublish
+            --require TestRedisRunOwnsPollingAndCloseLeavesSharedResourceOpen
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./service
+            --run '^(TestCasbinRevisionReconcilesCommitPublishCrash|TestAuthorizationMutationPublishesCommittedRevisionWithoutWorkQueueWatcher|TestAuthorizationSubscriberPanicIsolatedAndReconciled|TestAuthorizationEventBusOutagePreservesCommittedPolicy|TestAuthorizationEventRuntimeRejectsSecondOwner|TestAuthorizationEventRuntimeHealthRecordsAndRecoversReconcileFailure)$'
+            --count 1 --race
+            --require TestCasbinRevisionReconcilesCommitPublishCrash
+            --require TestAuthorizationMutationPublishesCommittedRevisionWithoutWorkQueueWatcher
+            --require TestAuthorizationSubscriberPanicIsolatedAndReconciled
+            --require TestAuthorizationEventBusOutagePreservesCommittedPolicy
+            --require TestAuthorizationEventRuntimeRejectsSecondOwner
+            --require TestAuthorizationEventRuntimeHealthRecordsAndRecoversReconcileFailure
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+            --run '^(TestBuildAuthorizationEventRuntimeUsesManagedDatabaseLease|TestBuildAuthorizationEventRuntimeRejectsMissingDatabaseLease)$'
+            --count 1 --race
+            --require TestBuildAuthorizationEventRuntimeUsesManagedDatabaseLease
+            --require TestBuildAuthorizationEventRuntimeRejectsMissingDatabaseLease
+        - type: report
+          value: >-
+            Commit 04e8e0c has exact uncached run/pass=1, skip=0 race evidence with GOWORK=off
+            for all seven Framework top-level tests. Commit 160e2df has the same count-one race
+            evidence in the current workspace for six Admin service and two server-composition
+            tests; independent Admin GOWORK=off resolution waits for the v1.1.0 Framework tag and
+            dependency update.
     - id: event-delivery-gate
       requirement: split-events-from-work
       statement: Memory events reach every in-process subscriber, Redis events reach every currently connected replica, policy and revision commit atomically, and database revision reconciliation repairs duplicate, out-of-order, missed, panicking, disconnected, or commit-before-publish crash cases.
@@ -912,6 +992,33 @@ spec:
         --require TestNotFoundAndRowsAffectedMetadataRoundTrip
         --require TestActiveTransactionBypassesCacheReadYourWritesAndRollback
         --require TestCloseAndContextBoundFlightsWithoutClosingScope
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/eventbus
+        --run '^(TestMemoryFansOutToCurrentSubscribersAndRejectsOldRevisions|TestMemoryPanicIsolationAndAuthoritativeReconciliation|TestMemoryCloseWaitsForAcceptedDeliveryAndHonorsDeadline|TestReconcilerRedactsSourceFailureAndPanic|TestRedisBuildIsPureAndPollingFansOutLatestRevision|TestRedisDisconnectDegradesWhileAuthorityRepairsCommitBeforePublish|TestRedisRunOwnsPollingAndCloseLeavesSharedResourceOpen)$'
+        --count 1 --race --go-work off
+        --require TestMemoryFansOutToCurrentSubscribersAndRejectsOldRevisions
+        --require TestMemoryPanicIsolationAndAuthoritativeReconciliation
+        --require TestMemoryCloseWaitsForAcceptedDeliveryAndHonorsDeadline
+        --require TestReconcilerRedactsSourceFailureAndPanic
+        --require TestRedisBuildIsPureAndPollingFansOutLatestRevision
+        --require TestRedisDisconnectDegradesWhileAuthorityRepairsCommitBeforePublish
+        --require TestRedisRunOwnsPollingAndCloseLeavesSharedResourceOpen
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./service
+        --run '^(TestCasbinRevisionReconcilesCommitPublishCrash|TestAuthorizationMutationPublishesCommittedRevisionWithoutWorkQueueWatcher|TestAuthorizationSubscriberPanicIsolatedAndReconciled|TestAuthorizationEventBusOutagePreservesCommittedPolicy|TestAuthorizationEventRuntimeRejectsSecondOwner|TestAuthorizationEventRuntimeHealthRecordsAndRecoversReconcileFailure)$'
+        --count 1 --race
+        --require TestCasbinRevisionReconcilesCommitPublishCrash
+        --require TestAuthorizationMutationPublishesCommittedRevisionWithoutWorkQueueWatcher
+        --require TestAuthorizationSubscriberPanicIsolatedAndReconciled
+        --require TestAuthorizationEventBusOutagePreservesCommittedPolicy
+        --require TestAuthorizationEventRuntimeRejectsSecondOwner
+        --require TestAuthorizationEventRuntimeHealthRecordsAndRecoversReconcileFailure
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+        --run '^(TestBuildAuthorizationEventRuntimeUsesManagedDatabaseLease|TestBuildAuthorizationEventRuntimeRejectsMissingDatabaseLease)$'
+        --count 1 --race
+        --require TestBuildAuthorizationEventRuntimeUsesManagedDatabaseLease
+        --require TestBuildAuthorizationEventRuntimeRejectsMissingDatabaseLease
       - cd mss-boot && GOWORK=off go test -race ./runtime/...
       - cd mss-boot && GOWORK=off go vet ./...
       - corepack pnpm@9.15.9 --dir docs build
@@ -921,8 +1028,9 @@ spec:
       Treat the target model as authoritative without using historical compatibility as a design
       constraint. Strict configuration, the resource owner, the additive named Redis resource,
       the public Challenge runtime, its Admin composition, and the scoped-cache commit 88f40c3 are
-      development checkpoints; next land EventBus plus database-revision reconciliation. Runtime configuration remains an immutable
-      startup snapshot and changes require restart. ObjectStore plus Delivery
+      development checkpoints. Commits 04e8e0c and 160e2df now add the typed Memory/Redis EventBus
+      and Admin Casbin commit-first publication plus authoritative reconciliation checkpoint. Runtime
+      configuration remains an immutable startup snapshot and changes require restart. ObjectStore plus Delivery
       maturity work moves to an optional post-v1.1 wave, followed by
       provider-by-provider promotion in untagged development waves. Migrate Admin scopes independently
       with focused failure checks at every boundary, then run the complete conformance, leak,

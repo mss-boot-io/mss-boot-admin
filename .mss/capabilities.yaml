@@ -201,8 +201,9 @@ spec:
         Commit 88f40c3 adds the database-authoritative Runtime v2 target over one named Redis Scope:
         explicit policy, bounded payloads, namespace isolation, singleflight, generation invalidation,
         provider bypass, and local close without provider ownership. The exact eight-test development
-        evidence does not promote this Beta capability, QueryCache, or security state. Cross-process
-        outage recovery still requires EventBus delivery and database-revision reconciliation.
+        evidence does not promote this Beta capability, QueryCache, or security state. The separate
+        EventBus foundation now exists, but cache consumers have not yet been composed with their own
+        authoritative database revisions, so cross-process outage recovery remains pending.
 
     - id: platform.query-cache
       displayName: GORM Query Cache
@@ -221,7 +222,8 @@ spec:
         identity, and bypasses shared state for active transactions so read-your-writes and rollback
         results do not enter Redis. Callers own the payload codec and a stable non-sensitive
         QueryIdentity covering query inputs, preload, and scan shape. Status remains Beta until the
-        exact suite is regenerated on the feature-freeze SHA with EventBus/revision reconciliation.
+        exact suite is regenerated on the feature-freeze SHA and a cache-specific authoritative
+        revision consumer is composed with EventBus reconciliation.
 
     - id: identity.verification-challenge-redis-standalone
       displayName: Provisional Standalone Redis Email Challenge
@@ -327,20 +329,28 @@ spec:
 
     - id: platform.event-bus
       displayName: Revision Event Bus
-      status: planned
+      status: beta
       owners: [framework, backend]
       paths:
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
+        - docs/docs/releases/v1-1-0-d5-revision-eventbus.md
       frameworkPaths:
-        - mss-boot/pkg/config/storage/queue/casbin_watcher.go
-        - mss-boot/pkg/config/storage/queue/memory.go
-        - mss-boot/pkg/config/storage/queue/redis.go
+        - mss-boot/runtime/eventbus
+      backendPaths:
+        - admin/service/authorization.go
+        - admin/service/authorization_eventbus.go
+        - admin/cmd/server/server.go
       guidance: >-
-        The clean Memory/Redis EventBus contract is not implemented yet. Memory reaches every
-        in-process subscriber and Redis reaches every currently connected replica; authoritative
-        database reload plus periodic revision reconciliation repairs missed or disconnected delivery.
-        It is not a durable WorkQueue and cannot inherit queue maturity.
+        Commit 04e8e0c adds the typed, additive Memory/Redis revision EventBus, and commit 160e2df
+        composes the Memory provider into Admin Casbin. Canonical policy mutation and its global
+        ConfigRevision commit in one database transaction; publication occurs only after commit, and
+        the subscriber plus periodic loop reload authoritative database policy. Missed, duplicate,
+        out-of-order, panicking, disconnected, and commit-before-publish paths are repairable without
+        WorkQueue acknowledgement, retry, or dead-letter semantics. Seven Framework and eight Admin
+        top-level tests have exact uncached count-one race evidence for this development checkpoint.
+        Status is Beta, not Stable: the feature-freeze rerun, published Framework resolution, real
+        Redis multi-replica/failover evidence, and cache-specific revision composition remain pending.
 
     - id: platform.work-queue-memory
       displayName: Legacy Memory Queue
@@ -350,8 +360,8 @@ spec:
         - mss-boot/pkg/config/storage/queue/memory.go
       guidance: >-
         Evidence state is experimental. It is process-local and lacks the complete cancellation,
-        close, backpressure, and delivery conformance required for durable work. Use the planned
-        Memory EventBus for single-process broadcast after its own suite passes.
+        close, backpressure, and delivery conformance required for durable work. Use the Beta
+        Memory EventBus for revision broadcast; it remains best effort and is not durable work.
 
     - id: platform.work-queue-redis
       displayName: Legacy Redis Queue
@@ -434,6 +444,7 @@ spec:
         - docs/docs/releases/v1-1-0-d3-named-redis-resource.md
         - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
         - docs/docs/releases/v1-1-0-d5-scoped-runtime-cache.md
+        - docs/docs/releases/v1-1-0-d5-revision-eventbus.md
         - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
       frameworkPaths:
         - mss-boot/runtime/config
@@ -441,6 +452,7 @@ spec:
         - mss-boot/runtime/redisresource
         - mss-boot/runtime/challenge
         - mss-boot/runtime/cache
+        - mss-boot/runtime/eventbus
         - mss-boot/runtime/internal/redisbridge
       guidance: >-
         Build strict named resources and separate Derived Cache, ChallengeStore, EventBus,
@@ -478,9 +490,12 @@ spec:
         fixed-script bridge, replay-safe rate operations, equal fixed-script I/O for valid Verify paths,
         and a source-compatible deprecated D0 bridge. Commit 88f40c3 adds the explicit scoped
         Derived/QueryCache target with eight fully anchored development tests, but does not provide
-        a transparent GORM plugin or cross-process EventBus/revision reconciliation. The aggregate
-        remains Planned: real Sentinel/cluster/TLS/failover conformance and the frozen-SHA
-        cache/lifecycle/goroutine/file-descriptor gates are still pending.
+        a transparent GORM plugin or a cache-specific cross-process revision consumer. Commit 04e8e0c
+        adds the separate Memory/Redis typed revision EventBus, and 160e2df composes its Memory provider
+        with Admin Casbin through commit-first publication and authoritative periodic reconciliation.
+        EventBus is Beta while this aggregate remains Planned: real Redis multi-replica/failover,
+        Sentinel/cluster/TLS, cache-specific revision composition, and the frozen-SHA lifecycle,
+        goroutine, and file-descriptor gates are still pending.
 
     - id: platform.storage
       displayName: Legacy Object Storage Aggregate
