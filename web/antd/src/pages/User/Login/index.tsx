@@ -4,7 +4,6 @@ import {
   GithubOutlined,
   LockOutlined,
   MailOutlined,
-  MobileOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import {
@@ -16,14 +15,13 @@ import {
 } from '@ant-design/pro-components';
 import { useEmotionCss } from '@ant-design/use-emotion-css';
 import { FormattedMessage, Helmet, history, Link, SelectLang, useIntl, useModel } from '@umijs/max';
-import { message, Tabs } from 'antd';
+import { Alert, message, Tabs } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import Settings from '../../../../config/defaultSettings';
 import { useRequest } from 'ahooks';
 import { LarkOutlined } from '@/components/MssBoot/icon';
 import { resolveSafeRedirect } from './redirect';
-import { getAppConfigsProfile } from '@/services/admin/appConfig';
 import { OAuthAuthorizationError, openOAuthAuthorization } from '@/utils/oauth';
 import {
   clearNonPersistentAuthStorage,
@@ -32,7 +30,6 @@ import {
 } from '@/utils/authStorage';
 import {
   clearUserThemeProfile,
-  reconcileThemeProfile,
   type ThemeRuntimeCoordinatorState,
   type ThemeRuntimeState,
 } from '@/utils/themeSettings';
@@ -45,6 +42,10 @@ import {
   writeAuthenticatedThemeSnapshots,
 } from '@/utils/themeSession';
 import ThemeRuntimeBridge from '@/components/MssBoot/ThemeRuntimeBridge';
+import {
+  isEmailChallengeFlowAvailable,
+  useEmailChallengeAvailability,
+} from './emailChallengeAccess';
 
 export type ActionIconsFormProps = {
   fetchUserInfo: (authSessionId: string) => Promise<unknown>;
@@ -187,6 +188,12 @@ const Login: React.FC = () => {
   const intl = useIntl();
   const [type, setType] = useState<string>('account');
   const { initialState, setInitialState } = useModel('@@initialState');
+  const emailChallenge = useEmailChallengeAvailability('login');
+  const refreshedProfile = { security: emailChallenge.security } as API.AppConfigProfile;
+  const emailLoginAvailable = emailChallenge.available;
+  const registrationAvailable =
+    !emailChallenge.checking && isEmailChallengeFlowAvailable(refreshedProfile, 'register');
+  const activeLoginType = type === 'email' && emailLoginAvailable ? 'email' : 'account';
   const formRef = useRef<ProFormInstance>();
   const containerClassName = useEmotionCss(() => {
     return {
@@ -214,30 +221,6 @@ const Login: React.FC = () => {
         } as typeof state),
     );
   }, [setInitialState]);
-
-  useEffect(() => {
-    if (initialState?.appConfig) {
-      return;
-    }
-    let disposed = false;
-    getAppConfigsProfile({ skipErrorHandler: true })
-      .then((appConfig) => {
-        if (disposed || !appConfig) {
-          return;
-        }
-        setInitialState(
-          (state) =>
-            reconcileThemeProfile(state || {}, appConfig, 'application', {
-              allowLegacyReplace: true,
-              authoritative: true,
-            }).state as typeof state,
-        );
-      })
-      .catch(() => {});
-    return () => {
-      disposed = true;
-    };
-  }, [initialState?.appConfig, setInitialState]);
 
   const fetchUserInfo = async (authSessionId: string) => {
     const [userInfo, profiles] = await Promise.all([
@@ -300,7 +283,7 @@ const Login: React.FC = () => {
     try {
       // 登录
       // @ts-ignore
-      const msg = await postUserLogin({ ...values, type });
+      const msg = await postUserLogin({ ...values, type: activeLoginType });
       await loginSuccessed(msg, autoLogin, true);
       // 如果失败去设置用户错误信息
       // setUserLoginState(msg);
@@ -323,19 +306,8 @@ const Login: React.FC = () => {
         }),
       },
     ];
-    const phoneEnabled = initialState?.appConfig?.security?.phoneEnabled;
-    const emailEnabled = initialState?.appConfig?.security?.emailEnabled;
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    phoneEnabled &&
-      items.push({
-        key: 'mobile',
-        label: intl.formatMessage({
-          id: 'pages.login.phoneLogin.tab',
-          defaultMessage: '手机号登录',
-        }),
-      });
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    emailEnabled &&
+    emailLoginAvailable &&
       items.push({
         key: 'email',
         label: intl.formatMessage({
@@ -401,7 +373,7 @@ const Login: React.FC = () => {
               ''
             ),
             <ActionIcons fetchUserInfo={fetchUserInfo} key="icons" />,
-            initialState?.appConfig?.security?.registerEnabled ? (
+            registrationAvailable ? (
               <p>
                 还没有账号? &nbsp;
                 <span
@@ -426,9 +398,24 @@ const Login: React.FC = () => {
             await handleSubmit(values as API.UserLogin, values.autoLogin);
           }}
         >
-          <Tabs activeKey={type} onChange={setType} items={loginItem()} />
+          <Tabs activeKey={activeLoginType} onChange={setType} items={loginItem()} />
 
-          {type === 'account' && (
+          {!emailChallenge.checking &&
+            emailChallenge.security.emailEnabled === true &&
+            !emailLoginAvailable && (
+              <Alert
+                showIcon
+                type="warning"
+                message={intl.formatMessage({
+                  id: 'pages.login.emailChallengeUnavailableDescription',
+                  defaultMessage:
+                    '邮箱验证服务当前不可用，请稍后重试或使用账号密码登录。',
+                })}
+                style={{ marginBottom: 16 }}
+              />
+            )}
+
+          {activeLoginType === 'account' && (
             <>
               <ProFormText
                 name="username"
@@ -475,88 +462,7 @@ const Login: React.FC = () => {
             </>
           )}
 
-          {type === 'mobile' && (
-            <>
-              <ProFormText
-                fieldProps={{
-                  size: 'large',
-                  prefix: <MobileOutlined />,
-                }}
-                name="mobile"
-                placeholder={intl.formatMessage({
-                  id: 'pages.login.phoneNumber.placeholder',
-                  defaultMessage: '手机号',
-                })}
-                rules={[
-                  {
-                    required: true,
-                    message: (
-                      <FormattedMessage
-                        id="pages.login.phoneNumber.required"
-                        defaultMessage="请输入手机号！"
-                      />
-                    ),
-                  },
-                  {
-                    pattern: /^1\d{10}$/,
-                    message: (
-                      <FormattedMessage
-                        id="pages.login.phoneNumber.invalid"
-                        defaultMessage="手机号格式错误！"
-                      />
-                    ),
-                  },
-                ]}
-              />
-              <ProFormCaptcha
-                fieldProps={{
-                  size: 'large',
-                  prefix: <LockOutlined />,
-                }}
-                captchaProps={{
-                  size: 'large',
-                }}
-                placeholder={intl.formatMessage({
-                  id: 'pages.login.captcha.placeholder',
-                  defaultMessage: '请输入验证码',
-                })}
-                captchaTextRender={(timing, count) => {
-                  if (timing) {
-                    return `${count} ${intl.formatMessage({
-                      id: 'pages.getCaptchaSecondText',
-                      defaultMessage: '获取验证码',
-                    })}`;
-                  }
-                  return intl.formatMessage({
-                    id: 'pages.login.phoneLogin.getVerificationCode',
-                    defaultMessage: '获取验证码',
-                  });
-                }}
-                name="captcha"
-                rules={[
-                  {
-                    required: true,
-                    message: (
-                      <FormattedMessage
-                        id="pages.login.captcha.required"
-                        defaultMessage="请输入验证码！"
-                      />
-                    ),
-                  },
-                ]}
-                onGetCaptcha={async (phone) => {
-                  const result = await postUserFakeCaptcha({
-                    phone,
-                  });
-                  if (!result) {
-                    return;
-                  }
-                  message.success('获取验证码成功！验证码为：1234');
-                }}
-              />
-            </>
-          )}
-          {type === 'email' && (
+          {activeLoginType === 'email' && emailLoginAvailable && (
             <>
               <ProFormText
                 fieldProps={{
@@ -650,14 +556,16 @@ const Login: React.FC = () => {
               <FormattedMessage id="pages.login.rememberMe" defaultMessage="自动登录" />
             </ProFormCheckbox>
 
-            <Link
-              to="/user/forget"
-              style={{
-                float: 'right',
-              }}
-            >
-              <FormattedMessage id="pages.login.forgotPassword" defaultMessage="忘记密码" />
-            </Link>
+            {emailLoginAvailable && (
+              <Link
+                to="/user/forget"
+                style={{
+                  float: 'right',
+                }}
+              >
+                <FormattedMessage id="pages.login.forgotPassword" defaultMessage="忘记密码" />
+              </Link>
+            )}
           </div>
         </LoginForm>
       </div>

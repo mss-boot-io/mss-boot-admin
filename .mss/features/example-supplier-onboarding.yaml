@@ -8,6 +8,9 @@ metadata:
   labels:
     domain: procurement
     sensitivity: internal
+    target-version: v1.1.0
+    release-status: planned
+    implementation-checkpoint: generated-module-checkpoint
 spec:
   problem: >-
     Procurement teams need one governed place to register suppliers, maintain contact and credit information,
@@ -32,6 +35,7 @@ spec:
       description: Reviews supplier identity and credit information without modifying records.
   modules:
     - name: supplier
+      kind: admin-module
       operation: create
       specPath: .mss/modules/example-supplier.yaml
       description: Vertical supplier management module generated from the checked-in AdminModule specification.
@@ -87,7 +91,7 @@ spec:
       statement: Attachments use the existing storage capability and secret references, with file size and content-type validation.
     - id: migration-compatible
       type: compatibility
-      statement: The database migration is additive and reversible without rebuilding unrelated tables or deleting existing business data.
+      statement: The database migration is additive, forward-only, repeat-safe, and recoverable by disabling the feature plus an idempotent forward fix without rebuilding unrelated tables or deleting existing business data.
     - id: generator-idempotency
       type: operations
       statement: Repeating module generation with the same specification produces no additional diff and does not overwrite custom business logic.
@@ -99,53 +103,238 @@ spec:
       requirement: supplier-create
       statement: The supplier AdminModule specification passes semantic validation.
       level: contract
+      phase: checkpoint
       required: true
       evidence:
         - type: command
           value: go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json
-    - id: module-plan-complete
+    - id: module-plan-generated-checkpoint
       requirement: supplier-create
-      statement: Deterministic generation returns a conflict-free dry-run plan covering backend, migration, permissions, frontend, documentation, and tests.
+      statement: >-
+        Deterministic generation returns a conflict-free generated-module-checkpoint plan whose implemented
+        and validation-only projections cover every source declaration. The plan reports complete true,
+        30 managed outputs, and zero deferred projections; this generator completeness signal does not replace
+        feature-freeze browser evidence or release qualification.
       level: contract
+      phase: checkpoint
       required: true
       evidence:
         - type: command
           value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --format json
+        - type: test
+          value: TestGenerateReportsCompleteDocsAndBrowserE2EOutputs
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator
+            --run '^TestGenerateReportsCompleteDocsAndBrowserE2EOutputs$'
+            --count 1 --race --go-work off
+            --require TestGenerateReportsCompleteDocsAndBrowserE2EOutputs
+        - type: report
+          value: >-
+            At implementation commit 2771588 the dry-run reports phase generated-module-checkpoint,
+            template revision 1.1.0-fullstack.2, complete true, 30 unchanged managed files,
+            and zero deferred projections.
+    - id: supplier-backend-checkpoint
+      requirement: supplier-create
+      statement: >-
+        The generated Supplier backend includes the explicit lossless-ID forward migration,
+        model, validated DTOs, CRUD/query/export service, typed post-commit events, authorized
+        HTTP operations, OpenAPI annotations, and SQLite development migration evidence.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestSupplierServiceCRUDQueryExportAndPostCommitEvents
+        - type: test
+          value: TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
+        - type: test
+          value: TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
+        - type: test
+          value: TestSupplierProductionComposition
+        - type: test
+          value: TestSupplierForwardMigrationFreshRepeatAndConstraints
+        - type: test
+          value: TestSupplierForwardMigrationPreservesUpgradeData
+        - type: test
+          value: TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth
+        - type: test
+          value: TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth
+        - type: test
+          value: TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth
+        - type: test
+          value: TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth
+        - type: test
+          value: TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth
+        - type: test
+          value: TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+            --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierForwardMigrationFreshRepeatAndConstraints|TestSupplierForwardMigrationPreservesUpgradeData|TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth|TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth|TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth|TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth|TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase|TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth|TestSupplierTableName|TestSupplierMigrationIdentityIsComplete|TestSupplierPermissionCodesAreUnique|TestSupplierOperationContractMatchesSpecification|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations)$'
+            --count 1 --race --go-work off
+            --require TestSupplierServiceCRUDQueryExportAndPostCommitEvents
+            --require TestSupplierForwardMigrationFreshRepeatAndConstraints
+            --require TestSupplierForwardMigrationPreservesUpgradeData
+            --require TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth
+            --require TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth
+            --require TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth
+            --require TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth
+            --require TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase
+            --require TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth
+            --require TestSupplierTableName --require TestSupplierMigrationIdentityIsComplete
+            --require TestSupplierPermissionCodesAreUnique --require TestSupplierOperationContractMatchesSpecification
+            --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
+            --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
+            --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+            --run '^TestSupplierProductionComposition$'
+            --count 1 --race
+            --require TestSupplierProductionComposition
+    - id: supplier-generated-fullstack-checkpoint
+      requirement: supplier-review
+      statement: >-
+        The generated Supplier projection includes the typed client, route, synchronized locales,
+        list/form/detail/export UI states, focused frontend contracts, deterministic module documentation,
+        and one collectable Playwright create/detail/edit/export/delete flow.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestGenerateReportsCompleteDocsAndBrowserE2EOutputs
+        - type: command
+          value: pnpm --dir web/antd jest --runInBand src/modules/supplier/contracts.test.ts
+        - type: command
+          value: pnpm --dir web/antd lint:js
+        - type: command
+          value: pnpm --dir web/antd tsc
+        - type: command
+          value: pnpm --dir web/antd build
+        - type: command
+          value: pnpm --dir web/antd exec playwright test e2e/generated/supplier.spec.ts --project=chromium --list
+        - type: report
+          value: >-
+            The generated Playwright file is collectable as one test. Collection proves the executable
+            contract is discoverable; it is not claimed as an executed browser result.
+    - id: supplier-authorization-checkpoint
+      requirement: supplier-update
+      statement: >-
+        Commit d92458c projects the separate authorization migration, role/menu/COMPONENT/API
+        metadata, exact Casbin grants, role/global revisions, and the AdminAuthorizer from the
+        source specification without inferring route composition.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestSupplierEveryDeclaredOperationIsBackendAuthorized
+        - type: test
+          value: TestSupplierAdminAuthorizerPermissionMatrix
+        - type: test
+          value: TestSupplierAdminAuthorizerRequiresExplicitComposition
+        - type: test
+          value: TestSupplierAuthorizationMigrationProjectsExactPolicy
+        - type: test
+          value: TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth
+        - type: test
+          value: TestSupplierAuthorizationMigrationIdentityIsComplete
+        - type: test
+          value: TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+            --run '^(TestSupplierEveryDeclaredOperationIsBackendAuthorized|TestSupplierAdminAuthorizerPermissionMatrix|TestSupplierAdminAuthorizerRequiresExplicitComposition|TestSupplierAuthorizationMigrationProjectsExactPolicy|TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth|TestSupplierAuthorizationMigrationIdentityIsComplete|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition)$'
+            --count 1 --race --go-work off
+            --require TestSupplierEveryDeclaredOperationIsBackendAuthorized
+            --require TestSupplierAdminAuthorizerPermissionMatrix
+            --require TestSupplierAdminAuthorizerRequiresExplicitComposition
+            --require TestSupplierAuthorizationMigrationProjectsExactPolicy
+            --require TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth
+            --require TestSupplierAuthorizationMigrationIdentityIsComplete
+            --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
     - id: procurement-mutation-authorized
       requirement: supplier-update
       statement: Procurement can create and update a supplier while a finance identity receives forbidden for the same mutation.
       level: security
+      phase: feature-freeze
       required: true
       evidence:
-        - type: test
-          value: modules/supplier/tests/authorization_test.go
+        - type: report
+          value: >-
+            Commit d92458c adds the exact administrator, procurement, finance, missing-context,
+            unauthenticated, and declared root-bypass development matrix. The same required tests
+            must rerun from the selected feature-freeze SHA; this checkpoint is not release evidence.
     - id: supplier-flow-e2e
       requirement: supplier-review
       statement: A browser user can list, search, create, edit, inspect, and delete a supplier according to assigned permissions.
       level: e2e
-      required: true
-      evidence:
-        - type: test
-          value: web/antd/e2e/supplier.spec.ts
-    - id: migration-roundtrip
-      requirement: supplier-create
-      statement: The supplier migration applies on an empty development database and its rollback path is documented and verified.
-      level: migration
+      phase: feature-freeze
       required: true
       evidence:
         - type: report
-          value: .mss/reports/verify.json
+          value: >-
+            During D5 development the Codex in-app browser completed create, detail, edit, export,
+            and delete against the locally migrated Admin composition, then removed the fixture.
+            This development result is not evidence for a future feature-freeze SHA; the same visible
+            flow must be rerun in the in-app browser from the single selected frozen commit.
+    - id: migration-roundtrip
+      requirement: supplier-create
+      statement: The supplier forward migration passes fresh, upgrade, repeat, and injected-failure checks without a destructive down migration or partial schema truth.
+      level: migration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: TestSupplierMigrationMySQLIntegration
+        - type: test
+          value: TestSupplierMigrationPostgresIntegration
+        - type: test
+          value: TestSupplierMigrationMySQLRejectsCheckAndIndexDrift
+        - type: test
+          value: TestSupplierMigrationPostgresRejectsCheckAndIndexDrift
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+            --run '^TestSupplierMigration(MySQLIntegration|PostgresIntegration|MySQLRejectsCheckAndIndexDrift|PostgresRejectsCheckAndIndexDrift)$'
+            --count 1 --race --go-work off
+            --require TestSupplierMigrationMySQLIntegration
+            --require TestSupplierMigrationPostgresIntegration
+            --require TestSupplierMigrationMySQLRejectsCheckAndIndexDrift
+            --require TestSupplierMigrationPostgresRejectsCheckAndIndexDrift
+        - type: report
+          value: >-
+            MySQL 8.4 and PostgreSQL 17 development runs passed with zero skip for 5a60ad6;
+            feature freeze must rerun both allowlisted DSNs from the exact frozen SHA.
     - id: supplier-audit-safe
       requirement: supplier-audit
       statement: Supplier mutations produce safe audit metadata without persisting credentials, tokens, attachment content, or sensitive request bodies.
       level: security
+      phase: feature-freeze
       required: true
       evidence:
         - type: test
-          value: modules/supplier/tests/audit_test.go
+          value: TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+            --run '^TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets$'
+            --count 10 --race
+            --require TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets
+        - type: command
+          value: cd admin && go vet ./cmd/server
+        - type: report
+          value: >-
+            Commits f585ecf and 4477c08 add exact accepted/rejected mutation audit evidence,
+            including multipart attachment-body exclusion, at the new Supplier production
+            composition boundary. Focused execution, race count 10, and package vet pass; this
+            evidence does not reopen or re-review pre-existing audit paths.
     - id: changed-verification
       statement: The change-aware verifier completes without failed required checks.
       level: integration
+      phase: checkpoint
       required: true
       evidence:
         - type: command
@@ -168,9 +357,68 @@ spec:
     all: go run ./cmd/mss verify --all
     custom:
       - go run ./cmd/mss eval run supplier-module-contract --format json
-      - go test ./modules/supplier/...
-      - pnpm --dir web/antd test -- --runInBand supplier
+      - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check --format json
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator
+        --run '^(TestGenerateRejectsMigrationIDCollisionsBeforeWriting|TestGenerateReportsCompleteDocsAndBrowserE2EOutputs)$'
+        --count 1 --race --go-work off
+        --require TestGenerateRejectsMigrationIDCollisionsBeforeWriting
+        --require TestGenerateReportsCompleteDocsAndBrowserE2EOutputs
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/spec
+        --run '^(TestLoadExampleSupplierModule|TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID)$'
+        --count 1 --race --go-work off
+        --require TestLoadExampleSupplierModule
+        --require TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./modules/runtime
+        --run '^TestAllReturnsStableCopies$' --count 1 --race --go-work off
+        --require TestAllReturnsStableCopies
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+        --run '^(TestSupplierEveryDeclaredOperationIsBackendAuthorized|TestSupplierAdminAuthorizerPermissionMatrix|TestSupplierAdminAuthorizerRequiresExplicitComposition|TestSupplierAuthorizationMigrationProjectsExactPolicy|TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth|TestSupplierAuthorizationMigrationIdentityIsComplete|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition)$'
+        --count 1 --race --go-work off
+        --require TestSupplierEveryDeclaredOperationIsBackendAuthorized
+        --require TestSupplierAdminAuthorizerPermissionMatrix
+        --require TestSupplierAdminAuthorizerRequiresExplicitComposition
+        --require TestSupplierAuthorizationMigrationProjectsExactPolicy
+        --require TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth
+        --require TestSupplierAuthorizationMigrationIdentityIsComplete
+        --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+        --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierForwardMigrationFreshRepeatAndConstraints|TestSupplierForwardMigrationPreservesUpgradeData|TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth|TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth|TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth|TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth|TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase|TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth|TestSupplierTableName|TestSupplierMigrationIdentityIsComplete|TestSupplierPermissionCodesAreUnique|TestSupplierOperationContractMatchesSpecification|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations)$'
+        --count 1 --race --go-work off
+        --require TestSupplierServiceCRUDQueryExportAndPostCommitEvents
+        --require TestSupplierForwardMigrationFreshRepeatAndConstraints
+        --require TestSupplierForwardMigrationPreservesUpgradeData
+        --require TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth
+        --require TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth
+        --require TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth
+        --require TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth
+        --require TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase
+        --require TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth
+        --require TestSupplierTableName --require TestSupplierMigrationIdentityIsComplete
+        --require TestSupplierPermissionCodesAreUnique --require TestSupplierOperationContractMatchesSpecification
+        --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
+        --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
+        --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+        --run '^(TestSupplierProductionComposition|TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets)$'
+        --count 1 --race
+        --require TestSupplierProductionComposition
+        --require TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets
+      - pnpm --dir web/antd jest --runInBand src/modules/supplier/contracts.test.ts
+      - pnpm --dir web/antd lint:js
+      - pnpm --dir web/antd tsc
+      - pnpm --dir web/antd build
+      - pnpm --dir web/antd exec playwright test e2e/generated/supplier.spec.ts --project=chromium --list
   rollout:
     strategy: phased
-    migration: Apply the additive supplier table and permission seed migration in a non-production environment before enabling the menu.
-    rollback: Disable the supplier menu and permission grants, roll back the additive migration only when no supplier data must be retained, and revert the feature commit.
+    migration: >-
+      Apply the additive supplier table migration followed by authorization migration
+      20260811120000 in a non-production environment. Compose routes only with the explicit
+      AdminAuthorizer. The generated frontend route is present; feature-freeze browser acceptance
+      remains a release-time gate.
+    rollback: Disable the supplier menu and permission grants, preserve supplier data, and apply an idempotent forward repair; do not run a destructive down migration against adopted databases.

@@ -38,7 +38,7 @@ func RenderFeatureTemplate(name, displayName, owner string) ([]byte, error) {
 				{ID: "administrator", DisplayName: "Administrator", Description: "Administers this feature according to backend permissions."},
 			},
 			Modules: []FeatureModule{
-				{Name: name, Operation: "create", SpecPath: ".mss/modules/" + name + ".yaml", Description: "Primary vertical management module for the feature."},
+				{Name: name, Kind: FeatureModuleKindAdminModule, Operation: "create", SpecPath: ".mss/modules/" + name + ".yaml", Description: "Primary vertical management module for the feature."},
 			},
 			Requirements: []FeatureRequirement{
 				{
@@ -62,6 +62,7 @@ func RenderFeatureTemplate(name, displayName, owner string) ([]byte, error) {
 					Requirement: name + "-manage",
 					Statement:   "The feature contract, generated module, authorization behavior, and changed-file verification pass.",
 					Level:       "integration",
+					Phase:       AcceptancePhaseCheckpoint,
 					Required:    true,
 					Evidence: []AcceptanceEvidence{
 						{Type: "command", Value: "go run ./cmd/mss verify --changed"},

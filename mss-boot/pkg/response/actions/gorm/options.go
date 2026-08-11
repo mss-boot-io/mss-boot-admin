@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm/schema"
 
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 )
 
 /*
@@ -41,11 +42,18 @@ type Options struct {
 	AfterDelete       ActionHook
 	BeforeSearch      ActionHook
 	AfterSearch       ActionHook
+	WriteErrorMapper  actions.WriteErrorMapper
 	handlers          gin.HandlersChain
 	controlHandlers   gin.HandlersChain
 	getHandlers       gin.HandlersChain
 	deleteHandlers    gin.HandlersChain
 	searchHandlers    gin.HandlersChain
+}
+
+func WithWriteErrorMapper(mapper actions.WriteErrorMapper) Option {
+	return func(o *Options) {
+		o.WriteErrorMapper = mapper
+	}
 }
 
 func WithModel(m schema.Tabler) Option {

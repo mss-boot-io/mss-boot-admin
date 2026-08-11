@@ -33,6 +33,7 @@ type AppConfig struct{}
 
 var ErrAppConfigKeyCaseMismatch = errors.New("application config key casing does not match canonical public contract")
 var ErrAppConfigKeyCollision = errors.New("application config canonical key collision")
+var ErrAppConfigKeyNotAllowed = errors.New("application config key is not allowed")
 var ErrLegacyThemeSnapshotMismatch = errors.New("legacy application theme snapshot does not match resource")
 
 type AppConfigKeyCaseMismatchError struct {
@@ -73,6 +74,17 @@ func (e *AppConfigKeyCollisionError) Error() string {
 
 func (e *AppConfigKeyCollisionError) Unwrap() error { return ErrAppConfigKeyCollision }
 
+type AppConfigKeyNotAllowedError struct {
+	Group string
+	Name  string
+}
+
+func (e *AppConfigKeyNotAllowedError) Error() string {
+	return fmt.Sprintf("%s: %s/%s", ErrAppConfigKeyNotAllowed, e.Group, e.Name)
+}
+
+func (e *AppConfigKeyNotAllowedError) Unwrap() error { return ErrAppConfigKeyNotAllowed }
+
 const (
 	appConfigPublicProfileCacheKeyPrefix      = "app-configs:{profile:public}:v2:"
 	appConfigPublicProfileLegacyCacheKey      = "app-configs:{profile:public}:payload"
@@ -98,7 +110,13 @@ var sensitiveAppConfigKeys = []appConfigPublicKey{
 	{Group: "email", Name: "password"},
 	{Group: "security", Name: "githubClientSecret"},
 	{Group: "security", Name: "larkAppSecret"},
-	{Group: "storage", Name: "s3SecretAccessKey"},
+}
+
+const storageAppConfigGroup = "storage"
+
+var storageAdmissionAppConfigKeys = map[string]struct{}{
+	"allowedTypes": {},
+	"maxSize":      {},
 }
 
 var sensitiveAppConfigKeySet = func() map[appConfigPublicKey]struct{} {
@@ -426,6 +444,9 @@ func (e *AppConfig) GroupWithSensitiveValues(
 	}
 	result := make(map[string]any)
 	for i := range list {
+		if !isAllowedAppConfigProjection(group, list[i]) {
+			continue
+		}
 		// Use the canonical request group and reject historical casing aliases
 		// as secrets too. Case-insensitive database collations can otherwise
 		// return a legacy `Security/githubClientSecret` row for `security`.
@@ -529,6 +550,9 @@ func (e *AppConfig) CreateOrUpdate(ctx *gin.Context, group string, data map[stri
 	}
 	for name := range data {
 		if err := validatePublicAppConfigKeyCasing(group, name); err != nil {
+			return err
+		}
+		if err := validateAllowedAppConfigKey(group, name); err != nil {
 			return err
 		}
 	}
@@ -717,6 +741,27 @@ func isSensitiveAppConfigKeyAlias(group, name string) bool {
 	return false
 }
 
+func isAllowedAppConfigProjection(group string, config *models.AppConfig) bool {
+	if group != storageAppConfigGroup {
+		return true
+	}
+	if config == nil || config.Group != storageAppConfigGroup {
+		return false
+	}
+	_, ok := storageAdmissionAppConfigKeys[config.Name]
+	return ok
+}
+
+func validateAllowedAppConfigKey(group, name string) error {
+	if group != storageAppConfigGroup {
+		return nil
+	}
+	if _, ok := storageAdmissionAppConfigKeys[name]; ok {
+		return nil
+	}
+	return &AppConfigKeyNotAllowedError{Group: group, Name: name}
+}
+
 func validateAppConfigGroupCasing(group string) error {
 	if err := rejectNonCanonicalThemeGroup(group); err != nil {
 		return err
@@ -733,6 +778,11 @@ func validateAppConfigGroupCasing(group string) error {
 			return &AppConfigKeyCaseMismatchError{
 				Group: group, CanonicalGroup: key.Group,
 			}
+		}
+	}
+	if group != storageAppConfigGroup && canonicalConfigIdentifierFold(group) == storageAppConfigGroup {
+		return &AppConfigKeyCaseMismatchError{
+			Group: group, CanonicalGroup: storageAppConfigGroup,
 		}
 	}
 	return nil

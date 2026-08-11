@@ -17,6 +17,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"gorm.io/gorm"
 	"gorm.io/plugin/dbresolver"
 )
@@ -25,6 +26,16 @@ import (
 type Control struct {
 	opts *Options
 }
+
+type controlOperationError struct {
+	operation actions.WriteOperation
+	err       error
+}
+
+func (e *controlOperationError) Error() string { return e.err.Error() }
+func (e *controlOperationError) Unwrap() error { return e.err }
+
+var errVerifyHandlerMissing = errors.New("verify handler is nil")
 
 // String action name
 func (*Control) String() string {
@@ -67,6 +78,30 @@ func (e *Control) Handler() gin.HandlersChain {
 	return chain
 }
 
+func (e *Control) writeError(c *gin.Context, api *response.API, operation actions.WriteOperation, err error) {
+	if e.opts.WriteErrorMapper == nil {
+		if operation == actions.WriteOperationCreator && errors.Is(err, errVerifyHandlerMissing) {
+			api.Log.ErrorContext(c, "Control creator identity is unavailable")
+			api.Err(http.StatusUnauthorized)
+			return
+		}
+		api.AddError(err).Log.ErrorContext(c, "Control write error", "operation", operation, "error", err)
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+
+	publicError, matched := e.opts.WriteErrorMapper(c, operation, err)
+	if !matched || publicError.Status < http.StatusBadRequest || publicError.Status > 599 || publicError.Error == nil {
+		publicError = actions.PublicWriteError{
+			Status: http.StatusInternalServerError,
+			Error:  response.NewError("WRITE_FAILED", "request could not be completed"),
+		}
+	}
+	api.Error = publicError.Error
+	api.Log.ErrorContext(c, "Control write failed", "operation", operation, "error_code", publicError.Error.ErrorCode())
+	api.Err(publicError.Status)
+}
+
 func (e *Control) create(c *gin.Context) {
 	m := pkg.TablerDeepCopy(e.opts.Model)
 	api := response.Make(c).Bind(m)
@@ -77,8 +112,7 @@ func (e *Control) create(c *gin.Context) {
 	if e.opts.BeforeCreate != nil {
 		err := e.opts.BeforeCreate(c, gormdb.DB, m)
 		if err != nil {
-			api.AddError(err).Log.Error("BeforeCreate error", "error", err)
-			api.Err(http.StatusInternalServerError)
+			e.writeError(c, api, actions.WriteOperationBeforeCreate, err)
 			return
 		}
 	}
@@ -95,36 +129,36 @@ func (e *Control) create(c *gin.Context) {
 	err := query.Transaction(func(tx *gorm.DB) error {
 		err := tx.Create(m).Error
 		if err != nil {
-			api.AddError(err).Log.ErrorContext(c, "Create error", "error", err)
-			api.Err(http.StatusInternalServerError)
-			return err
+			return &controlOperationError{operation: actions.WriteOperationCreate, err: err}
 		}
 		if pkg.SupportCreator(m) {
 			verify := response.VerifyHandler(c)
 			if verify == nil {
-				api.Err(http.StatusUnauthorized)
-				return errors.New("verify handler is nil")
+				return &controlOperationError{operation: actions.WriteOperationCreator, err: errVerifyHandlerMissing}
 			}
 			err = tx.Model(m).Update(pkg.GetCreatorField(), verify.GetUserID()).Error
 			if err != nil {
-				api.AddError(err).Log.ErrorContext(c, "Create error", "error", err)
-				api.Err(http.StatusInternalServerError)
-				return err
+				return &controlOperationError{operation: actions.WriteOperationCreator, err: err}
 			}
 		}
 		if e.opts.AfterCreate != nil {
 			err = e.opts.AfterCreate(c, tx, m)
 			if err != nil {
-				api.AddError(err).Log.Error("AfterCreate error", "error", err)
-				api.Err(http.StatusInternalServerError)
-				return err
+				return &controlOperationError{operation: actions.WriteOperationAfterCreate, err: err}
 			}
 		}
 		return nil
 	})
 
 	if err != nil {
-		api.AddError(err).Log.ErrorContext(c, "Create error", "error", err)
+		operation := actions.WriteOperationCreate
+		cause := err
+		var operationError *controlOperationError
+		if errors.As(err, &operationError) {
+			operation = operationError.operation
+			cause = operationError.err
+		}
+		e.writeError(c, api, operation, cause)
 		return
 	}
 	if CleanCacheFromTag != nil {
@@ -132,8 +166,7 @@ func (e *Control) create(c *gin.Context) {
 	}
 	if e.opts.AfterCommitCreate != nil {
 		if err := e.opts.AfterCommitCreate(c, query, m); err != nil {
-			api.AddError(err).Log.Error("AfterCommitCreate error", "error", err)
-			api.Err(http.StatusInternalServerError)
+			e.writeError(c, api, actions.WriteOperationAfterCommit, err)
 			return
 		}
 	}
@@ -163,8 +196,7 @@ func (e *Control) update(c *gin.Context) {
 			api.Err(http.StatusNotFound)
 			return
 		}
-		api.AddError(err).Log.ErrorContext(c, "Update error", "error", err.Error())
-		api.Err(http.StatusInternalServerError)
+		e.writeError(c, api, actions.WriteOperationLoad, err)
 		return
 	}
 
@@ -176,7 +208,7 @@ func (e *Control) update(c *gin.Context) {
 	if e.opts.BeforeUpdate != nil {
 		err = e.opts.BeforeUpdate(c, gormdb.DB, m)
 		if err != nil {
-			api.AddError(err).Err(http.StatusInternalServerError)
+			e.writeError(c, api, actions.WriteOperationBeforeUpdate, err)
 			return
 		}
 	}
@@ -186,8 +218,7 @@ func (e *Control) update(c *gin.Context) {
 	}
 	err = query.Save(m).Error
 	if err != nil {
-		api.AddError(err).Log.ErrorContext(c, "Update error", "error", err.Error())
-		api.Err(http.StatusInternalServerError)
+		e.writeError(c, api, actions.WriteOperationUpdate, err)
 		return
 	}
 	if CleanCacheFromTag != nil {
@@ -196,7 +227,7 @@ func (e *Control) update(c *gin.Context) {
 	if e.opts.AfterUpdate != nil {
 		err = e.opts.AfterUpdate(c, query, m)
 		if err != nil {
-			api.AddError(err).Err(http.StatusInternalServerError)
+			e.writeError(c, api, actions.WriteOperationAfterUpdate, err)
 			return
 		}
 	}

@@ -24,8 +24,8 @@ const (
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
-	migration.Migrate.SetVersion(
-		migration.GetFilename(fileName),
+	migration.Migrate.SetV100Version(
+		fileName,
 		_20260808100000LeastPrivilegeDefaultRole,
 	)
 }

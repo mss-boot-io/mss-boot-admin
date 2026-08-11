@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -155,6 +156,38 @@ type Context struct {
 	Project      ProjectDocument   `json:"project"`
 	Capabilities CapabilityCatalog `json:"capabilities"`
 	Commands     CommandCatalog    `json:"commands"`
+}
+
+// DecodeProjectDocument parses one Project contract without consulting any
+// sibling files. Blueprint provenance uses this on the committed Git object so
+// a worktree cannot supply a repository identity that differs from the commit.
+func DecodeProjectDocument(data []byte) (ProjectDocument, error) {
+	if err := validateStrictYAMLDocument(data); err != nil {
+		return ProjectDocument{}, fmt.Errorf("parse project contract: %w", err)
+	}
+	document := ProjectDocument{}
+	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&document); err != nil {
+		return ProjectDocument{}, fmt.Errorf("parse project contract: %w", err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return ProjectDocument{}, errors.New("parse project contract: multiple YAML documents are not supported")
+		}
+		return ProjectDocument{}, fmt.Errorf("parse project contract: %w", err)
+	}
+	if document.APIVersion != "mss.io/v1alpha1" || document.Kind != "Project" {
+		return ProjectDocument{}, errors.New("project contract must be mss.io/v1alpha1 Project")
+	}
+	if strings.TrimSpace(document.Metadata.Name) == "" || strings.TrimSpace(document.Metadata.Repository) == "" {
+		return ProjectDocument{}, errors.New("project contract identity is incomplete")
+	}
+	if strings.TrimSpace(document.Spec.FoundationVersion) == "" {
+		return ProjectDocument{}, errors.New("project spec.foundationVersion is required")
+	}
+	return document, nil
 }
 
 // FindRoot searches upward for the project contract.

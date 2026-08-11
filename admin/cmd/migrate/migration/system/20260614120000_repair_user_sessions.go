@@ -11,7 +11,7 @@ import (
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
-	migration.Migrate.SetVersion(migration.GetFilename(fileName), _20260614120000RepairUserSessions)
+	migration.Migrate.SetV100Version(fileName, _20260614120000RepairUserSessions)
 }
 
 // _20260614120000RepairUserSessions backfills mss_boot_user_sessions on

@@ -149,25 +149,446 @@ spec:
         planned until the external MySQL/PostgreSQL upgrade matrix and the complete browser E2E acceptance suite pass.
 
     - id: platform.cache-lock-queue
-      displayName: Cache, Distributed Lock, and Queue Adapters
-      status: stable
+      displayName: Legacy Cache, Distributed Lock, and Queue Adapters
+      status: legacy
       owners: [framework]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/adr/2026-08-09-storage-runtime-v2.md
       frameworkPaths:
         - mss-boot/pkg/config/cache.go
         - mss-boot/pkg/config/locker.go
         - mss-boot/pkg/config/queue.go
         - mss-boot/pkg/config/storage
-      guidance: Keep adapters domain-neutral and test fallback behavior.
+      guidance: >-
+        This aggregate exists only to inventory the v1.0.0 compatibility surface and is not
+        recommended for new modules. It does not confer stable status on Redis, Kafka, NSQ,
+        memory queue, query cache, verification state, or distributed lock providers. New work
+        follows the storage-runtime-v2 provider-by-provider evidence model; security state and
+        durable work fail closed, while only explicitly derived caches may bypass to authority.
+
+    - id: platform.redis-resource-global
+      displayName: Legacy Process-Global Redis Resource
+      status: legacy
+      owners: [framework]
+      frameworkPaths:
+        - mss-boot/pkg/config/cache.go
+        - mss-boot/pkg/config/locker.go
+        - mss-boot/pkg/config/queue.go
+        - mss-boot/pkg/config/storage/option_redis.go
+        - mss-boot/pkg/config/storage/type.go
+      guidance: >-
+        Evidence state at v1.0.0 is blocked for new production use: initialization is not
+        synchronized, the first consumer configuration wins, and replace/close ownership is
+        ambiguous across cache, queue, lock, and verification consumers. Inventory only; replace
+        with one-client/one-owner named resources before promotion.
+
+    - id: platform.scoped-derived-cache
+      displayName: Redis Scoped Derived Cache
+      status: beta
+      owners: [framework, backend]
+      paths:
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/adr/2026-08-09-storage-runtime-v2.md
+        - docs/docs/releases/v1-1-0-d5-scoped-runtime-cache.md
+      frameworkPaths:
+        - mss-boot/runtime/cache
+        - mss-boot/pkg/config/storage/cache/context.go
+        - mss-boot/pkg/config/storage/cache/options.go
+        - mss-boot/pkg/config/storage/cache/redis.go
+      guidance: >-
+        Commit 88f40c3 adds the database-authoritative Runtime v2 target over one named Redis Scope:
+        explicit policy, bounded payloads, namespace isolation, singleflight, generation invalidation,
+        provider bypass, and local close without provider ownership. The exact eight-test development
+        evidence does not promote this Beta capability, QueryCache, or security state. The separate
+        EventBus foundation now exists, but cache consumers have not yet been composed with their own
+        authoritative database revisions, so cross-process outage recovery remains pending.
+
+    - id: platform.query-cache
+      displayName: GORM Query Cache
+      status: beta
+      owners: [framework]
+      paths:
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/adr/2026-08-09-storage-runtime-v2.md
+        - docs/docs/releases/v1-1-0-d5-scoped-runtime-cache.md
+      frameworkPaths:
+        - mss-boot/runtime/cache
+        - mss-boot/pkg/config/storage/cache/query.go
+      guidance: >-
+        Commit 88f40c3 is an explicit opt-in loader adapter, not a transparent GORM plugin.
+        It preserves not-found and RowsAffected metadata, uses cross-instance logical datasource
+        identity, and bypasses shared state for active transactions so read-your-writes and rollback
+        results do not enter Redis. Callers own the payload codec and a stable non-sensitive
+        QueryIdentity covering query inputs, preload, and scan shape. Status remains Beta until the
+        exact suite is regenerated on the feature-freeze SHA and a cache-specific authoritative
+        revision consumer is composed with EventBus reconciliation.
+
+    - id: identity.verification-challenge-redis-standalone
+      displayName: Provisional Standalone Redis Email Challenge
+      status: beta
+      owners: [framework, backend, security]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/docs/releases/v1-0-1-challenge-safety.md
+        - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
+      backendPaths:
+        - admin/apis/user.go
+        - admin/center/default.go
+        - admin/config/challenge.go
+        - admin/config/config.go
+        - admin/config/runtime_challenge.go
+        - admin/middleware/auth.go
+        - admin/models/user.go
+        - admin/notice/email/send.go
+      frameworkPaths:
+        - mss-boot/pkg/config/storage/cache/challenge.go
+        - mss-boot/runtime/challenge
+        - mss-boot/runtime/internal/redisbridge
+        - mss-boot/runtime/redisresource
+      guidance: >-
+        The D0 Admin path keeps purpose-scoped cryptographic transitions and a source-compatible,
+        deprecated fail-closed bridge. D3 adds the public runtime/challenge API over one named Redis
+        Scope plus an internal opaque same-slot fixed-script bridge, replay-safe rate operations,
+        and equal fixed-script I/O for every syntactically valid Verify path. Commit 3e9ca94 composes
+        Admin with resource main and Scope challenge.email: Start and Ready precede publication,
+        Config owns bounded shutdown, FakeCaptcha uses Begin/send/Commit-or-Abort, and login,
+        registration, and password reset consume VerifyOutcome. Optional invalid or unavailable
+        configuration keeps Admin running but all Challenge flows return fixed 503 without legacy
+        global Redis fallback; required failure blocks setup. Configuration is an immutable startup
+        snapshot and changes require restart. This capability remains Beta rather than Stable until
+        browser and frozen-SHA lifecycle evidence, real Cluster/failover behavior, and the
+        database-enforced canonical-email release gates are complete.
+
+    - id: identity.verification-challenge-redis-cluster
+      displayName: Redis Cluster/Ring Email Challenge
+      status: planned
+      owners: [framework, backend, security]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/docs/releases/v1-0-1-challenge-safety.md
+        - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
+      frameworkPaths:
+        - mss-boot/pkg/config/storage/cache/challenge.go
+        - mss-boot/runtime/challenge
+        - mss-boot/runtime/internal/redisbridge
+        - mss-boot/runtime/redisresource
+      guidance: >-
+        The D3 public API derives an opaque same-slot atomic group and prevents cross-group execution
+        before provider I/O, but this is construction and hermetic script evidence only. The legacy
+        D0 constructor continues to reject concrete Cluster and Ring clients. Promotion still requires
+        a real non-skippable multi-node fixture covering hash-slot execution, CROSSSLOT, failover,
+        NOSCRIPT, cancellation, retries, and exactly-once consumption. Status remains Planned.
+
+    - id: identity.canonical-email
+      displayName: Canonical Email Identity Constraint
+      status: planned
+      owners: [backend, security, database]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/foundation-v1-1-0-generator-blueprint.yaml
+        - docs/docs/releases/v1-0-1-challenge-safety.md
+        - docs/docs/releases/v1-1-0-d2-canonical-email-identity.md
+      backendPaths:
+        - admin/apis/user.go
+        - admin/cmd/migrate/migrate.go
+        - admin/cmd/migrate/migration/system/20260810120000_canonical_email_identity.go
+        - admin/cmd/migrate/migration/system/canonical_email_identity_integration_test.go
+        - admin/cmd/server/server.go
+        - admin/models/email_identity.go
+        - admin/models/user.go
+        - admin/pkg/challenge.go
+        - admin/pkg/schemahealth
+      guidance: >-
+        The D2 development checkpoint now preflights existing rows without identity disclosure, installs
+        dialect-aware active/non-empty canonical uniqueness, canonicalizes model writes, never merges an
+        OAuth identity by provider email, uses bounded opaque registration/OAuth usernames, and maps Admin
+        write conflicts to fixed 422/409 responses. The server now verifies the exact migration, data,
+        generated-column, index, and predicate contract before mounting business routes; the development
+        schema-readiness checkpoint is complete. Keep this capability Planned: its positive and negative
+        readiness suite plus the MySQL and PostgreSQL integrations must run again from the selected
+        feature-freeze SHA with both allowlisted DSNs and zero required skip.
+        Do not enable production email registration or first-time OAuth provisioning from checkpoint evidence;
+        self-service email mutation remains disabled.
+
+    - id: identity.verification-code-legacy
+      displayName: Legacy Redis Verification Code Helper
+      status: legacy
+      owners: [framework, backend, security]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+      frameworkPaths:
+        - mss-boot/pkg/config/storage/cache/verify_code.go
+      guidance: >-
+        Permanently disabled in the first safety checkpoint. The constructor symbol remains only to make
+        accidental callers fail explicitly; GenerateCode and VerifyCode never read or write state.
+        It is not an operational rollback path and must be removed when the v1.1 ChallengeStore API lands.
+
+    - id: platform.event-bus
+      displayName: Revision Event Bus
+      status: beta
+      owners: [framework, backend]
+      paths:
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/adr/2026-08-09-storage-runtime-v2.md
+        - docs/docs/releases/v1-1-0-d5-revision-eventbus.md
+      frameworkPaths:
+        - mss-boot/runtime/eventbus
+      backendPaths:
+        - admin/service/authorization.go
+        - admin/service/authorization_eventbus.go
+        - admin/cmd/server/server.go
+      guidance: >-
+        Commit 04e8e0c adds the typed, additive Memory/Redis revision EventBus, and commit 160e2df
+        composes the Memory provider into Admin Casbin. Canonical policy mutation and its global
+        ConfigRevision commit in one database transaction; publication occurs only after commit, and
+        the subscriber plus periodic loop reload authoritative database policy. Missed, duplicate,
+        out-of-order, panicking, disconnected, and commit-before-publish paths are repairable without
+        WorkQueue acknowledgement, retry, or dead-letter semantics. Seven Framework and eight Admin
+        top-level tests have exact uncached count-one race evidence for this development checkpoint.
+        Status is Beta, not Stable: the feature-freeze rerun, published Framework resolution, real
+        Redis multi-replica/failover evidence, and cache-specific revision composition remain pending.
+
+    - id: platform.work-queue-memory
+      displayName: Legacy Memory Queue
+      status: legacy
+      owners: [framework]
+      frameworkPaths:
+        - mss-boot/pkg/config/storage/queue/memory.go
+      guidance: >-
+        Evidence state is experimental. It is process-local and lacks the complete cancellation,
+        close, backpressure, and delivery conformance required for durable work. Use the Beta
+        Memory EventBus for revision broadcast; it remains best effort and is not durable work.
+
+    - id: platform.work-queue-redis
+      displayName: Legacy Redis Queue
+      status: legacy
+      owners: [framework]
+      frameworkPaths:
+        - mss-boot/pkg/config/storage/queue/redis.go
+      guidance: >-
+        Evidence state is experimental. Keep it separate from Redis EventBus; no production
+        promotion occurs without ack/nack, bounded retry/backoff, dead letter, cancellation,
+        idempotency, outage, and lifecycle evidence.
+
+    - id: platform.work-queue-kafka
+      displayName: Legacy Kafka Queue
+      status: legacy
+      owners: [framework]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/adr/2026-08-09-storage-runtime-v2.md
+        - docs/docs/releases/v1-0-1-kafka-ack-safety.md
+        - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
+      frameworkPaths:
+        - mss-boot/pkg/config/queue.go
+        - mss-boot/pkg/config/storage/type.go
+        - mss-boot/pkg/config/storage/queue/casbin_watcher.go
+        - mss-boot/pkg/config/storage/queue/kafka.go
+        - mss-boot/pkg/config/storage/queue/kafka_test.go
+      backendPaths:
+        - admin/config/config.go
+        - admin/cmd/server/server.go
+      guidance: >-
+        Evidence state remains Blocked. D0 moves the Sarama session mark after successful decode and
+        synchronous handler completion. D1 preserves AdapterQueue for source compatibility and adds
+        ManagedAdapterQueue: strict caller-context construction and registration return errors, one adapter
+        owns one producer and one consumer-group client per accepted unique topic/group, Errors is observed,
+        Start blocks under cancellation, and Close is idempotent, deadline-bounded, and retryable. Admin owns
+        the managed adapter and registers it as a server Runnable that consumes Errors and propagates runtime
+        failure to the lifecycle manager; legacy wrappers no longer terminate the process. These hermetic
+        checkpoints prove neither broker commit nor production maturity. Manual commit
+        is unsupported and rejected; retry/backoff, dead letter, rebalance, outage, duplicate/idempotency, and
+        real-broker conformance remain open. Keep this provider disabled from production use and cataloged as
+        legacy until those gates pass; completing D1 does not promote it.
+
+    - id: platform.work-queue-nsq
+      displayName: Legacy NSQ Queue
+      status: legacy
+      owners: [framework]
+      frameworkPaths:
+        - mss-boot/pkg/config/storage/option_nsq.go
+        - mss-boot/pkg/config/storage/queue/nsq.go
+      guidance: >-
+        Evidence state at v1.0.0 is blocked by duration interpretation, process-exit, and cancellation
+        defects. A later dedicated development wave must close those paths; the provider remains
+        experimental or is removed from the default build unless full work-queue conformance is funded.
+
+    - id: platform.distributed-lock-redis
+      displayName: Legacy Redis Distributed Lock
+      status: legacy
+      owners: [framework]
+      frameworkPaths:
+        - mss-boot/pkg/config/locker.go
+        - mss-boot/pkg/config/storage/locker/redis.go
+      guidance: >-
+        Evidence state is experimental and no Admin production consumer is recorded. Do not use it
+        as a database concurrency substitute. Promotion requires a real use case plus renewal, loss,
+        fencing, partition, race, and lifecycle evidence.
+
+    - id: platform.storage-runtime-v2
+      displayName: Owned Storage Runtime Resources
+      status: planned
+      owners: [framework, backend]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/adr/2026-08-09-storage-runtime-v2.md
+        - docs/docs/releases/v1-0-1-upload-admission-safety.md
+        - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
+        - docs/docs/releases/v1-1-0-d3-resource-lifecycle.md
+        - docs/docs/releases/v1-1-0-d3-named-redis-resource.md
+        - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
+        - docs/docs/releases/v1-1-0-d5-scoped-runtime-cache.md
+        - docs/docs/releases/v1-1-0-d5-revision-eventbus.md
+        - docs/docs/releases/v1-1-0-d5-provider-evidence-validator.md
+        - .mss/schemas/provider-maturity.schema.json
+        - internal/mss/provider
+        - internal/mss/app/provider.go
+        - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
+      frameworkPaths:
+        - mss-boot/runtime/config
+        - mss-boot/runtime/resource
+        - mss-boot/runtime/redisresource
+        - mss-boot/runtime/challenge
+        - mss-boot/runtime/cache
+        - mss-boot/runtime/eventbus
+        - mss-boot/runtime/internal/redisbridge
+      guidance: >-
+        Build strict named resources and separate Derived Cache, ChallengeStore, EventBus,
+        WorkQueue, Lock, ObjectStore, Delivery, and S3 bootstrap contracts. Required resources
+        become healthy before listeners start and one composition root owns reverse-order close.
+        Promote each provider only from its own conformance evidence; a release version never
+        promotes Kafka, NSQ, Redis work queue, distributed lock, or S3-compatible storage by itself.
+        D1 is complete: the object-provider subset has strict startup profiles and one owner, while the
+        additive managed Kafka lifecycle returns construction/registration errors, observes provider errors,
+        and is owned as a cancellable Runnable by Admin. Kafka remains Legacy/Blocked.
+        By explicit maintainer scope decision, ObjectStore/Delivery provider maturity moves to an
+        optional post-v1.1 wave: v1.1.0 does not require or start RustFS and does not require the
+        complete Local/S3-compatible or application-provider authorization matrix. If object-storage
+        implementation changes, use affected compilation, existing focused owner/configuration tests,
+        and one basic smoke only. S3 configuration bootstrap
+        owns a separate Handle, treats only a missing stage object as optional, fails closed on other
+        overlay errors, and permits HTTP only with explicit s3_tls_allow_insecure_http=true.
+        The D2 strict-config checkpoint now provides exact-key YAML/JSON decoding, immutable
+        Redis plans for standalone, Sentinel, and cluster modes, typed SecretRef resolution, and
+        side-effect-free Build. It does not construct a Redis client or satisfy provider health,
+        lifecycle, or real-deployment conformance. The D3 resource-graph checkpoint now provides
+        deterministic preflight and topology, required readiness before dependents, reverse rollback
+        and close, graph-owned Run cancellation, concurrent idempotent caller-bounded close with
+        retry after failure, and
+        redacted typed diagnostics. Its hermetic evidence proves the state machine and owned handles,
+        not real goroutine/file-descriptor leak bounds, provider health, or Admin listener composition.
+        The D3 named-Redis checkpoint at 86c0e8a now adds one owned go-redis client per named
+        Resource, stable isolated Scope capabilities, caller-bounded PING and commands, tracked
+        exactly-once close, provider-neutral misses, and recursively redacted public errors; c57ffc8
+        applies the corresponding provider-object redaction boundary to the underlying resource graph.
+        Its Sentinel, cluster, and TLS evidence is construction-focused, while only standalone
+        miniredis and stalled-socket deadlines exercise I/O. Sentinel control-plane ACL remains
+        anonymous and cluster multi-key Delete/Exists is non-atomic with a partial count. The D3
+        Challenge checkpoint at 1faa9ef now adds a public Scope-based API, an internal opaque same-slot
+        fixed-script bridge, replay-safe rate operations, equal fixed-script I/O for valid Verify paths,
+        and a source-compatible deprecated D0 bridge. Commit 88f40c3 adds the explicit scoped
+        Derived/QueryCache target with eight fully anchored development tests, but does not provide
+        a transparent GORM plugin or a cache-specific cross-process revision consumer. Commit 04e8e0c
+        adds the separate Memory/Redis typed revision EventBus, and 160e2df composes its Memory provider
+        with Admin Casbin through commit-first publication and authoritative periodic reconciliation.
+        Commit 668dfe3 adds a strict, repository-confined provider evidence validator and CLI that
+        deterministically reports required and optional rows without starting a provider. It validates
+        evidence artifacts; it does not generate real-provider results or confer maturity by itself.
+        EventBus is Beta while this aggregate remains Planned: real Redis multi-replica/failover,
+        Sentinel/cluster/TLS, cache-specific revision composition, and the frozen-SHA lifecycle,
+        goroutine, and file-descriptor gates are still pending.
 
     - id: platform.storage
-      displayName: Local and S3-Compatible Object Storage
-      status: beta
+      displayName: Legacy Object Storage Aggregate
+      status: legacy
       owners: [backend, framework]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/adr/2026-08-09-storage-runtime-v2.md
+        - docs/docs/releases/v1-0-1-upload-admission-safety.md
+        - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
       backendPaths:
+        - admin/cmd/server/object_storage.go
+        - admin/config/object_storage.go
+        - admin/service/storage.go
+        - admin/service/storage_test.go
+      frameworkPaths:
+        - mss-boot/pkg/config/storage.go
+      guidance: >-
+        Inventory only; this aggregate confers no provider maturity. Reject request bytes before
+        multipart parsing, use opaque random create-only keys, keep objects private, validate path
+        and symlink confinement, and treat credentials as SecretRef values. D1 now normalizes one
+        strict startup profile, installs one application-owned Handle, removes the ghost/per-request
+        client split, and fails unavailable without a Local fallback. Storage AppConfig contains only
+        maxSize and allowedTypes. This remains Legacy/Blocked because S3 Put, private object metadata,
+        authorization, Delivery, and common provider conformance are incomplete. They are optional
+        post-v1.1 maturity work, not v1.1.0 release prerequisites; incomplete production Delivery
+        remains explicitly unavailable, and the Foundation release does not promote this aggregate.
+
+    - id: platform.object-storage-local
+      displayName: Legacy Local Object Storage
+      status: legacy
+      owners: [backend]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/adr/2026-08-09-storage-runtime-v2.md
+        - docs/docs/releases/v1-0-1-upload-admission-safety.md
+        - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
+      backendPaths:
+        - admin/apis/storage.go
+        - admin/apis/storage_upload_admission_test.go
+        - admin/apis/user.go
+        - admin/cmd/server/object_storage.go
+        - admin/config/object_storage.go
+        - admin/service/storage.go
+        - admin/service/storage_test.go
+      guidance: >-
+        Evidence state at v1.0.0 is blocked by post-parse size enforcement, implicit fallback,
+        user/filename-derived keys, collision/overwrite behavior, and an unproven production
+        delivery path. D0 bounds raw requests and actual streams, generates opaque keys, confines
+        Local writes, and uses create-only files with failure cleanup. D1 adds a strict immutable
+        profile and one owner, and installs Local only in development when application.staticPath
+        maps the exact absolute root; writes and StaticFS share one pinned os.Root and production
+        Local remains unavailable. Local therefore remains Legacy/Blocked after v1.1.0. Complete
+        ObjectStore authorization, Delivery, and common provider conformance move to an optional
+        post-v1.1 wave; absence of that evidence does not block the Foundation release, and production
+        Local remains unavailable. Changed object paths receive only affected compilation, existing
+        focused owner/configuration tests, and one basic smoke in the v1.1.0 scope.
+
+    - id: platform.object-storage-s3
+      displayName: Legacy S3-Compatible Object Storage
+      status: legacy
+      owners: [backend, framework]
+      paths:
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/storage-runtime-v2.yaml
+        - docs/adr/2026-08-09-storage-runtime-v2.md
+        - docs/docs/releases/v1-0-1-upload-admission-safety.md
+        - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
+      backendPaths:
+        - admin/cmd/server/object_storage.go
+        - admin/config/object_storage.go
         - admin/service/storage.go
       frameworkPaths:
         - mss-boot/pkg/config/storage.go
-      guidance: Validate size, content type, path confinement, and credential handling.
+      guidance: >-
+        D1 closes the known fallback, partial-credential, ghost-client, and per-request-client paths:
+        Local or S3 is selected exactly once, static credentials use complete SecretRefs or an explicit
+        default chain, and one application owner leases and closes one S3 client. Admin intentionally
+        returns unavailable before S3 Put because private object metadata, create-only semantics,
+        authorization, and Delivery are absent. The provider remains Legacy/Blocked after v1.1.0,
+        and Admin continues returning unavailable before S3 Put. A RustFS fixture and the full
+        lifecycle, outage, create-only, checksum, privacy, authorization, and Delivery matrix are
+        optional post-v1.1 maturity work rather than Foundation release prerequisites. v1.1.0 does
+        not start RustFS or infer provider promotion from a basic smoke.
 
     - id: operations.task
       displayName: Scheduled and On-Demand Tasks
@@ -226,7 +647,11 @@ spec:
         - admin/center/websocket
       frontendPaths:
         - web/antd/src/hooks/useWebSocket.ts
-      guidance: Reuse the current event path and validate clustered Redis behavior when enabled.
+      guidance: >-
+        The single-instance event path is beta. At v1.0.0 no SetRedisClient call wires the
+        clustered Redis pub/sub path, so do not claim multi-replica delivery. Migrate it to an
+        explicit named realtime scope and pass clustered fan-out, outage, cancellation, and close
+        tests before promoting that deployment mode; it is never a durable WorkQueue.
 
     - id: integration.kubernetes
       displayName: Kubernetes Client and Resource Actions
@@ -264,22 +689,59 @@ spec:
 
     - id: agent.cli
       displayName: Unified mss CLI
-      status: planned
+      status: beta
       owners: [agent-infrastructure]
       paths:
         - cmd/mss
         - internal/mss
-      guidance: CLI is the source of truth for deterministic operations used by Skills, CI, and MCP.
+      guidance: >-
+        The released CLI is usable with explicit command-level evidence, but capability maturity is
+        not uniform. It is the implementation source for Skills, CI, and MCP; planned commands and
+        declarative acceptance evidence must not be reported as executed.
 
     - id: agent.module-generator
-      displayName: Deterministic Admin Module Generator
-      status: planned
+      displayName: Deterministic Admin Module Scaffold Generator
+      status: beta
       owners: [agent-infrastructure]
       paths:
         - .mss/schemas/admin-module.schema.json
+        - .mss/features/foundation-v1-1-0-generator-blueprint.yaml
+        - docs/docs/releases/v1-1-0-d3-supplier-backend.md
         - internal/mss/generator
         - templates/module
-      guidance: Require dry-run, path confinement, stable ordering, golden tests, and two-run idempotency.
+      guidance: >-
+        D3 now covers deterministic backend specification projection, dry-run/check, path confinement,
+        stable ordering, obsolete generated-file cleanup, explicit SQLite/MySQL/PostgreSQL forward DDL,
+        validated DTO/service/API/OpenAPI/export, typed post-commit events, and fail-closed injected
+        backend authorization. Commit d92458c adds a separate lossless-ID authorization migration,
+        exact default-role Casbin policies, MENU/COMPONENT/API metadata, role/global revisions, and
+        the AdminAuthorizer permission matrix. The Supplier plan intentionally remains phase
+        backend-checkpoint and complete false with 19 deferred frontend, documentation, and E2E
+        projections. Beta does not imply typed frontend client, UI/browser acceptance, generated
+        module docs, downstream upgrade completeness, or frozen-SHA release evidence.
+
+    - id: agent.fullstack-module-generator
+      displayName: Full-Stack Upgradeable Module Generator
+      status: planned
+      owners: [agent-infrastructure, backend, frontend]
+      paths:
+        - .mss/features/foundation-v1-1-0-generator-blueprint.yaml
+        - .mss/features/example-supplier-onboarding.yaml
+        - .mss/modules/example-supplier.yaml
+        - admin/modules/supplier
+        - docs/docs/releases/v1-1-0-d3-supplier-backend.md
+        - internal/mss/blueprint
+        - internal/mss/generator
+        - templates/module
+      guidance: >-
+        Commit 5a60ad6 delivers the checked-in Supplier backend slice with explicit forward migration,
+        DTO/service/API/OpenAPI/export, typed post-commit events, fail-closed authorizer injection,
+        deterministic drift checks, and SQLite/MySQL/PostgreSQL development evidence. Commit d92458c
+        projects the separate authorization migration, exact admin/procurement/finance policies,
+        persisted menu metadata, and positive/negative Admin authorization matrix. The capability
+        stays Planned and the machine plan stays complete false until D5 adds the typed client,
+        frontend states, UI/browser E2E, generated docs, and the customization-preserving three-way
+        upgrade, followed by exact frozen-SHA reruns. Do not expand to a second domain first.
 
     - id: agent.skills
       displayName: Repository Agent Skills
@@ -308,20 +770,38 @@ spec:
 
     - id: foundation.upgrade
       displayName: Blueprint and Downstream Upgrade System
-      status: planned
+      status: beta
       owners: [agent-infrastructure]
       paths:
         - .mss/lock.yaml
-        - internal/mss/upgrader
-        - tools/codemods
-      guidance: Preserve downstream customizations and emit an explicit conflict and migration report.
+        - .mss/features/foundation-v1-1-0-generator-blueprint.yaml
+        - .github/workflows/foundation-compatibility.yml
+        - docs/docs/releases/v1-1-0-d2-snapshot-identity.md
+        - internal/mss/app
+        - internal/mss/blueprint
+        - internal/mss/doctor
+        - internal/mss/mcp
+        - .mss/blueprints
+      guidance: >-
+        The current three-way planner/apply path remains beta. Checkpoint 151a91c gives CLI, MCP,
+        and doctor one strict SnapshotStatus over independently sourced Foundation, Blueprint,
+        generator, and downstream identities plus the atomic lock/manifest record digests. It
+        distinguishes the exact Foundation source sentinel from a strict generated pair, fails
+        malformed or orphaned state without source fallback, and recovers the downstream root
+        module from the snapshot rather than the nested Admin module. Before stable, bind a real
+        foundation-compatibility.yml run to the selected feature-freeze SHA, prove an actual
+        Blueprint 0.1-to-0.2 customization-preserving upgrade and an empty second application,
+        and emit explicit ownership, conflict, migration, identity, digest, and validation reports.
 
     - id: foundation.versioned-release
       displayName: Versioned Foundation Release Governance
-      status: planned
+      status: beta
       owners: [release-engineering, agent-infrastructure]
       paths:
         - .mss/features/foundation-v1-0-0-release.yaml
+        - .mss/features/foundation-v1-0-1-storage-safety.yaml
+        - .mss/features/foundation-v1-1-0-release.yaml
+        - .mss/release-policy.yaml
         - CHANGELOG.md
         - mss-boot/CHANGELOG.md
         - web/antd/CHANGELOG.md
@@ -343,7 +823,6 @@ spec:
         - .github/workflows/container.yml
         - .github/workflows/docs.yml
         - .github/workflows/release.yml
-        - .github/workflows/release-draft.yml
         - .github/workflows/release-readiness.yml
         - .github/workflows/framework-release.yml
         - .github/workflows/frontend-release.yml
@@ -351,10 +830,20 @@ spec:
         - .github/workflows/v0.7-upgrade-integration.yml
       guidance: >-
         Treat Unreleased, planned, preview, branches, and local workspace replacements as non-stable.
-        v1.0.0 is the consolidated foundation's first stable 1.0 release; regenerate exact-commit
-        artifacts and evidence because unpublished v0.8.0 candidate evidence is not reusable.
+        Root v1.0.0 and mss-boot/v1.0.0 were published from
+        ee800262c035c5f4242aca1841d077554481d2c4 on 2026-08-09, with exact-commit evidence in
+        GitHub issue 471. The standalone web/antd/v1.0.0 tag was not published. Regenerate
+        exact-commit artifacts and evidence for every later release; historical candidate or
+        previous-version evidence is not reusable.
+        The reviewed development-first policy advances directly to v1.1.0: v1.0.x and public
+        alpha, beta, or RC tags are forbidden while internal waves accumulate on branches and
+        commits. Complete release readiness begins only after one v1.1.0 feature-freeze commit is
+        selected. An emergency patch requires a reviewed policy target change rather than a bypass.
         Publish a required nested framework tag first, prove external GOWORK=off resolution, then publish
         the root tag from the same reviewed commit. Finalize a stable release only after migrations,
         security checks, versioned artifacts, containers, documentation, installation smoke tests, and
-        recovery evidence pass. Keep .mss/lock.yaml on its real development/generated baseline until a
-        supported deterministic process can record the exact published foundation version and commit.
+        recovery evidence pass. This governance remains beta until post-release truth reconciliation,
+        deterministic Foundation release/Blueprint/generator/downstream-snapshot identity with atomic
+        lock and manifest records, and drift checks are enforced. Keep
+        .mss/lock.yaml on its real development/generated baseline until that process records the exact
+        published foundation version and commit.

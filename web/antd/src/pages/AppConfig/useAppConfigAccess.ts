@@ -4,7 +4,6 @@ import { ADMIN_PERMISSIONS, hasEveryPermission, hasPermission } from '@/utils/au
 export const APP_CONFIG_SECRET_FIELDS = {
   email: ['password'],
   security: ['githubClientSecret', 'larkAppSecret'],
-  storage: ['s3SecretAccessKey'],
 } as const;
 
 export type AppConfigSecretGroup = keyof typeof APP_CONFIG_SECRET_FIELDS;

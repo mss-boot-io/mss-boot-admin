@@ -12,9 +12,10 @@ import (
 
 // Permission declares one backend-enforced module action.
 type Permission struct {
-	Code        string
-	DisplayName string
-	Description string
+	Code         string
+	DisplayName  string
+	Description  string
+	DefaultRoles []string
 }
 
 // Menu declares the default navigation entry for a module.
@@ -58,7 +59,7 @@ func Register(descriptor Descriptor) error {
 		return fmt.Errorf("module %s display name is required", descriptor.Name)
 	}
 	if descriptor.Model == nil && descriptor.Migrate == nil {
-		return fmt.Errorf("module %s must define a model or migration function", descriptor.Name)
+		return fmt.Errorf("module %s must define a model or explicit compatibility migration", descriptor.Name)
 	}
 
 	registry.Lock()
@@ -102,7 +103,10 @@ func All() []Descriptor {
 	return result
 }
 
-// Migrate applies all registered module migrations in deterministic order.
+// Migrate invokes only explicitly registered compatibility hooks. A model is
+// metadata, never authorization to infer production DDL with AutoMigrate.
+// New generated modules register typed forward migrations with the Admin
+// migration runner and leave Descriptor.Migrate nil.
 func Migrate(db *gorm.DB) error {
 	if db == nil {
 		return errors.New("module migration database is nil")
@@ -111,12 +115,6 @@ func Migrate(db *gorm.DB) error {
 		if descriptor.Migrate != nil {
 			if err := descriptor.Migrate(db); err != nil {
 				return fmt.Errorf("migrate module %s: %w", descriptor.Name, err)
-			}
-			continue
-		}
-		if descriptor.Model != nil {
-			if err := db.AutoMigrate(descriptor.Model); err != nil {
-				return fmt.Errorf("auto-migrate module %s: %w", descriptor.Name, err)
 			}
 		}
 	}
@@ -132,6 +130,10 @@ func ResetForTest() {
 
 func cloneDescriptor(descriptor Descriptor) Descriptor {
 	clone := descriptor
-	clone.Permissions = append([]Permission(nil), descriptor.Permissions...)
+	clone.Permissions = make([]Permission, len(descriptor.Permissions))
+	for index := range descriptor.Permissions {
+		clone.Permissions[index] = descriptor.Permissions[index]
+		clone.Permissions[index].DefaultRoles = append([]string(nil), descriptor.Permissions[index].DefaultRoles...)
+	}
 	return clone
 }

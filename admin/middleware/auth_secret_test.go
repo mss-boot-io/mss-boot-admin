@@ -13,9 +13,22 @@ import (
 	ginjwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	signedjwt "github.com/golang-jwt/jwt/v4"
+	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
+
+type challengeAuthAppConfig map[string]string
+
+func (c challengeAuthAppConfig) SetAppConfig(*gin.Context, string, bool, string) error { return nil }
+
+func (c challengeAuthAppConfig) GetAppConfig(_ *gin.Context, key string) (string, bool) {
+	value, ok := c[key]
+	return value, ok
+}
 
 func TestAdminJWTVerifierDoesNotContainProviderCredential(t *testing.T) {
 	const providerToken = "provider-access-token-must-not-enter-admin-jwt"
@@ -134,6 +147,74 @@ func TestPublicLoginEndpointRejectsRawProviderTokens(t *testing.T) {
 		if strings.Contains(recorder.Body.String(), "raw-provider-token") {
 			t.Fatalf("provider %q response leaked raw token: %s", provider, recorder.Body.String())
 		}
+	}
+}
+
+func TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable(t *testing.T) {
+	database, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open login audit database: %v", err)
+	}
+	if err = database.AutoMigrate(&models.LoginLog{}); err != nil {
+		t.Fatalf("migrate login audit database: %v", err)
+	}
+	sqlDB, err := database.DB()
+	if err != nil {
+		t.Fatalf("open login audit SQL handle: %v", err)
+	}
+	previousDB := gormdb.DB
+	previousAuth := Auth
+	previousVerifier := Verifier
+	previousChallenge := center.GetRuntimeChallenge()
+	previousAppConfig := center.GetAppConfig()
+	gormdb.DB = database
+	Verifier = &models.User{}
+	center.SetRuntimeChallenge(nil)
+	center.SetAppConfig(challengeAuthAppConfig{"security:emailEnabled": "true"})
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+		gormdb.DB = previousDB
+		Auth = previousAuth
+		Verifier = previousVerifier
+		center.SetRuntimeChallenge(previousChallenge)
+		center.SetAppConfig(previousAppConfig)
+	})
+
+	Auth = &ginjwt.GinJWTMiddleware{
+		Realm:         "test",
+		Key:           []byte("test-only-signing-key-with-sufficient-length"),
+		Timeout:       time.Hour,
+		MaxRefresh:    time.Hour,
+		IdentityKey:   "identity",
+		Authenticator: authenticateLoginRequest,
+		Unauthorized:  writeUnauthorizedAuthResponse,
+		TokenLookup:   "header: Authorization",
+		TokenHeadName: "Bearer",
+		TimeFunc:      time.Now,
+	}
+	if err = Auth.MiddlewareInit(); err != nil {
+		t.Fatalf("MiddlewareInit() error = %v", err)
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	if err = router.SetTrustedProxies(nil); err != nil {
+		t.Fatalf("disable trusted proxies: %v", err)
+	}
+	router.POST("/user/login", PublicLoginHandler)
+	body := `{"type":"email","email":"person@example.com","captcha":"123456"}`
+	request := httptest.NewRequest(http.MethodPost, "/user/login", bytes.NewBufferString(body))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("email challenge outage status = %d, body=%s, want 503", recorder.Code, recorder.Body.String())
+	}
+	if strings.Contains(recorder.Body.String(), "person@example.com") || strings.Contains(recorder.Body.String(), "123456") {
+		t.Fatalf("email challenge outage response leaked credentials: %s", recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "authentication challenge is temporarily unavailable") {
+		t.Fatalf("email challenge outage response is not the fixed contract: %s", recorder.Body.String())
 	}
 }
 

@@ -4,7 +4,7 @@ order: 5
 nav:
   title: 发布
   order: 3
-description: 计划中的 v1.0.0 部署失败后的 forward-fix、代码回退与完整数据恢复合同
+description: 已发布 v1.0.0 部署失败后的 forward-fix、代码回退与完整数据恢复合同
 keywords: [v1.0.0 rollback restore forward-fix recovery]
 ---
 

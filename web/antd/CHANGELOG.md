@@ -4,17 +4,22 @@ All notable, verifiable frontend changes are documented here. Standalone
 frontend releases use the `web/antd/vX.Y.Z` tag namespace; the root foundation
 release may also embed a separately validated frontend artifact.
 
-## [Unreleased] - web/antd/v1.0.0 candidate
+## [Unreleased] - web/antd/v1.1.0 development
 
-Status: **preview / release preparation**. Neither the branch nor this entry is
-a stable standalone frontend release. The candidate must pass the production
-and local build contracts, bundle budget, delivery smoke test, and browser
-acceptance before a tag is published.
+Status: **development / unpublished**. Neither the branch nor this entry is a
+stable standalone frontend release. Internal waves remain untagged; production
+and local builds, bundle budget, delivery smoke, and browser acceptance run as
+part of the frozen `v1.1.0` qualification before any standalone tag is created.
+Root `v1.0.0` was published on 2026-08-09 with its validated frontend artifact,
+but no standalone `web/antd/v1.0.0` tag or Release exists. That abandoned
+standalone candidate is rolled into `web/antd/v1.1.0`; the root artifact and
+standalone release identities must not be conflated.
 
-This is the consolidated frontend's first stable 1.0 release boundary. The
-unpublished v0.8.0 candidate does not provide reusable bundle, checksum, image,
-endpoint-scan, or browser evidence; all release artifacts and results must be
-generated from the exact `web/antd/v1.0.0` commit.
+This development train targets the consolidated frontend's first separately
+qualified standalone release at `v1.1.0`. The unpublished v0.8.0 and v1.0.0
+candidates do not provide reusable bundle, checksum, image, endpoint-scan, or
+browser evidence; all release artifacts and results must be generated from the
+exact feature-frozen `web/antd/v1.1.0` commit.
 
 ### Added
 
@@ -35,6 +40,13 @@ generated from the exact `web/antd/v1.0.0` commit.
 
 ### Changed
 
+- The root v1.1.0 development integration refreshes email-Challenge readiness on every
+  authentication-route mount with a bounded request. Login, registration, and
+  password-reset forms fail closed after dependency errors or timeouts instead
+  of trusting stale bootstrap state.
+- Email authentication routes expose explicit loading and unavailable states in
+  both supported locales. Registration additionally requires the backend
+  `registerEnabled` capability before its form is rendered.
 - Dynamic menus remain the navigation source of truth and are refreshed when
   the current identity or permission revision changes. Frontend checks improve
   experience but do not replace backend authorization.
@@ -43,6 +55,9 @@ generated from the exact `web/antd/v1.0.0` commit.
   owner/identity isolation.
 - Account avatars use a circular presentation and terminate loading when the
   image or profile request fails.
+- Account profile updates omit the authentication email identity; changing an
+  email requires a dedicated verified flow and is not coupled to ordinary
+  profile edits.
 - Desktop and mobile list pages use consistent loading, empty, error,
   permission-denied, and destructive-action confirmation behavior.
 - CPU and memory charts derive axes, labels, lines, fills, and tooltip surfaces
@@ -50,6 +65,10 @@ generated from the exact `web/antd/v1.0.0` commit.
 - Application configuration credential fields are omitted or read-only unless
   the current principal has the dedicated secret capability; SystemConfig is
   root-only.
+- The Storage settings panel now reads and writes only the byte-based upload
+  limit and MIME/wildcard allowlist. Provider endpoints, buckets, and credentials
+  are no longer browser-managed; Provider and SecretRef belong to the startup
+  profile boundary.
 - PAT creation and rotation show the raw token once and never repopulate it from
   list responses or browser persistence.
 - OAuth callback data is removed from the URL and submitted to the backend in a
@@ -71,6 +90,8 @@ generated from the exact `web/antd/v1.0.0` commit.
 
 ### Removed
 
+- Removed the unsupported phone-login tab and phone-captcha client path from the
+  root v1.1.0 bundled authentication surface after release qualification.
 - Removed runtime model/field administration, virtual CRUD, browser template
   generation, related routes, menu entries, locale keys, service clients, and
   generated API types.
@@ -99,5 +120,6 @@ contract, and do not call a preview build stable.
 
 The former changelog labeled this snapshot `v1.0.0`, but no corresponding
 consolidated-repository frontend tag established that version. It remains
-historical implementation context and is not evidence for the stable
-`web/antd/v1.0.0` release above.
+historical implementation context and is not standalone-release evidence. Only
+the separately validated frontend artifact embedded by root `v1.0.0` was
+published; `web/antd/v1.0.0` was not.

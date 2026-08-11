@@ -1,13 +1,69 @@
 package center
 
 import (
+	"context"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/grafana/pyroscope-go"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 )
+
+type concurrentChallenge struct{}
+
+func (*concurrentChallenge) Ready(context.Context) error { return nil }
+
+func (*concurrentChallenge) Issue(
+	context.Context,
+	string,
+	string,
+	cache.ChallengePurpose,
+	func(context.Context, string) error,
+) error {
+	return nil
+}
+
+func (*concurrentChallenge) VerifyChallenge(
+	context.Context,
+	string,
+	cache.ChallengePurpose,
+	string,
+) (bool, error) {
+	return false, nil
+}
+
+func (*concurrentChallenge) BeginIssue(
+	context.Context,
+	runtimechallenge.BeginRequest,
+) (runtimechallenge.BeginOutcome, error) {
+	return runtimechallenge.BeginOutcome{}, nil
+}
+
+func (*concurrentChallenge) Commit(context.Context, *runtimechallenge.Reservation) error { return nil }
+
+func (*concurrentChallenge) Abort(context.Context, *runtimechallenge.Reservation) error { return nil }
+
+func (*concurrentChallenge) Verify(
+	context.Context,
+	runtimechallenge.VerifyRequest,
+) (runtimechallenge.VerifyOutcome, error) {
+	return runtimechallenge.VerifyRejected, nil
+}
+
+type canonicalBoolAppConfig map[string]string
+
+func (c canonicalBoolAppConfig) SetAppConfig(*gin.Context, string, bool, string) error {
+	return nil
+}
+
+func (c canonicalBoolAppConfig) GetAppConfig(_ *gin.Context, key string) (string, bool) {
+	value, exists := c[key]
+	return value, exists
+}
 
 func TestDefaultCenterSettersAndGetters(t *testing.T) {
 	manager := server.New(server.WithoutSignalHandling())
@@ -31,7 +87,8 @@ func TestDefaultCenterSettersAndGetters(t *testing.T) {
 	center.SetCache(nil)
 	center.SetQueue(nil)
 	center.SetLocker(nil)
-	center.SetVerifyCodeStore(nil)
+	center.SetChallenge(nil)
+	center.SetRuntimeChallenge(nil)
 
 	if center.GetNotice() != nil || center.GetTenant() != nil || center.GetVerify() != nil {
 		t.Fatal("nil composition dependencies were not preserved")
@@ -51,7 +108,7 @@ func TestDefaultCenterSettersAndGetters(t *testing.T) {
 	if center.GetStatistics() != nil || center.GetMakeRouter() != nil || center.GetGRPCClient() != nil {
 		t.Fatal("nil service dependencies were not preserved")
 	}
-	if center.GetCache() != nil || center.GetQueue() != nil || center.GetLocker() != nil || center.GetVerifyCodeStore() != nil {
+	if center.GetCache() != nil || center.GetQueue() != nil || center.GetLocker() != nil || center.GetChallenge() != nil || center.GetRuntimeChallenge() != nil {
 		t.Fatal("nil storage dependencies were not preserved")
 	}
 }
@@ -81,7 +138,8 @@ func TestGlobalCenterAccessorsUseCurrentDefault(t *testing.T) {
 	SetCache(nil)
 	SetQueue(nil)
 	SetLocker(nil)
-	SetVerifyCodeStore(nil)
+	SetChallenge(nil)
+	SetRuntimeChallenge(nil)
 
 	if GetNotice() != nil || GetTenant() != nil || GetUser() != nil {
 		t.Fatal("unexpected global identity dependencies")
@@ -95,7 +153,7 @@ func TestGlobalCenterAccessorsUseCurrentDefault(t *testing.T) {
 	if GetAppConfig() != nil || GetUserConfig() != nil || GetStatistics() != nil || GetMakeRouter() != nil || GetGRPCClient() != nil {
 		t.Fatal("unexpected global service dependencies")
 	}
-	if GetCache() != nil || GetQueue() != nil || GetLocker() != nil || GetVerifyCodeStore() != nil {
+	if GetCache() != nil || GetQueue() != nil || GetLocker() != nil || GetChallenge() != nil || GetRuntimeChallenge() != nil {
 		t.Fatal("unexpected global storage dependencies")
 	}
 }
@@ -127,6 +185,101 @@ func TestStageEnvironmentPrecedence(t *testing.T) {
 	t.Cleanup(func() { Default = previous })
 	if got := Stage(); got != "prod" {
 		t.Fatalf("global stage = %q", got)
+	}
+}
+
+func TestEmailChallengeCapabilityRequiresCanonicalBoolean(t *testing.T) {
+	previous := Default
+	t.Cleanup(func() { Default = previous })
+
+	tests := []struct {
+		name    string
+		value   string
+		present bool
+		want    bool
+	}{
+		{name: "canonical true", value: "true", present: true, want: true},
+		{name: "canonical false", value: "false", present: true},
+		{name: "uppercase", value: "TRUE", present: true},
+		{name: "numeric", value: "1", present: true},
+		{name: "short form", value: "t", present: true},
+		{name: "whitespace", value: " true ", present: true},
+		{name: "missing"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			values := canonicalBoolAppConfig{}
+			if test.present {
+				values["security:emailEnabled"] = test.value
+			}
+			Default = &DefaultCenter{AppConfigImp: values}
+			if got := EmailChallengeCapabilityEnabled(nil); got != test.want {
+				t.Fatalf("EmailChallengeCapabilityEnabled() = %v, want %v for %q", got, test.want, test.value)
+			}
+		})
+	}
+}
+
+func TestChallengeAccessIsSafeDuringConcurrentPublication(t *testing.T) {
+	center := &DefaultCenter{}
+	first := &concurrentChallenge{}
+	second := &concurrentChallenge{}
+
+	var workers sync.WaitGroup
+	workers.Add(2)
+	go func() {
+		defer workers.Done()
+		for index := 0; index < 1000; index++ {
+			if index%2 == 0 {
+				center.SetChallenge(first)
+				continue
+			}
+			center.SetChallenge(second)
+		}
+	}()
+	go func() {
+		defer workers.Done()
+		for range 1000 {
+			_ = center.GetChallenge()
+		}
+	}()
+	workers.Wait()
+
+	center.SetChallenge(first)
+	if got := center.GetChallenge(); got != first {
+		t.Fatalf("GetChallenge() = %T, want first published challenge", got)
+	}
+}
+
+func TestRuntimeChallengeAccessIsSafeDuringConcurrentPublication(t *testing.T) {
+	center := &DefaultCenter{}
+	first := &concurrentChallenge{}
+	second := &concurrentChallenge{}
+
+	var workers sync.WaitGroup
+	workers.Add(2)
+	go func() {
+		defer workers.Done()
+		for index := 0; index < 1000; index++ {
+			if index%2 == 0 {
+				center.SetRuntimeChallenge(first)
+				continue
+			}
+			center.SetRuntimeChallenge(second)
+		}
+	}()
+	go func() {
+		defer workers.Done()
+		for range 1000 {
+			_ = center.GetRuntimeChallenge()
+		}
+	}()
+	workers.Wait()
+
+	center.SetRuntimeChallenge(first)
+	if got := center.GetRuntimeChallenge(); got != first {
+		t.Fatalf("GetRuntimeChallenge() = %T, want first published challenge", got)
 	}
 }
 

@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type githubTestAppConfig map[string]string
@@ -105,6 +106,7 @@ func TestGithubVerifyRejectsUntrustedProviderIdentityBeforeRegistration(t *testi
 
 func TestGithubVerifyPreservesValidLoginWithExactCaseInsensitiveOrganization(t *testing.T) {
 	const providerToken = "github-provider-token-must-not-become-local-password"
+	const providerUsername = "octocat-provider-name-too-long"
 	config := githubTestAppConfig{
 		"security:githubEnabled":    "true",
 		"security:githubAllowGroup": " allowed-org ",
@@ -114,7 +116,7 @@ func TestGithubVerifyPreservesValidLoginWithExactCaseInsensitiveOrganization(t *
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/user":
-			_, _ = w.Write([]byte(`{"id":42,"login":"octocat","name":"Octo Cat"}`))
+			_, _ = w.Write([]byte(`{"id":42,"login":"` + providerUsername + `","name":"Octo Cat"}`))
 		case "/user/orgs":
 			_, _ = w.Write([]byte(`[{"login":"Allowed-Org"}]`))
 		default:
@@ -129,13 +131,17 @@ func TestGithubVerifyPreservesValidLoginWithExactCaseInsensitiveOrganization(t *
 	require.True(t, ok)
 	user, ok := verifier.(*User)
 	require.True(t, ok)
-	require.Equal(t, "octocat", user.Username, "login is the safe fallback when GitHub email is private")
+	require.Len(t, user.Username, 20)
+	require.Regexp(t, `^[a-f0-9]{20}$`, user.Username)
+	require.NotEqual(t, providerUsername, user.Username)
+	require.NotContains(t, user.Username, "@")
 	require.True(t, user.LocalPasswordDisabled)
 	require.NotEqual(t, providerToken, user.Password)
 	requireGithubRegistrationCount(t, database, 1, 1)
 
 	var persisted User
-	require.NoError(t, database.First(&persisted, "username = ?", "octocat").Error)
+	require.NoError(t, database.First(&persisted, "id = ?", user.ID).Error)
+	require.Equal(t, user.Username, persisted.Username)
 	require.True(t, persisted.LocalPasswordDisabled)
 	providerDerivedHash, err := security.SetPassword(providerToken, persisted.Salt)
 	require.NoError(t, err)
@@ -143,11 +149,85 @@ func TestGithubVerifyPreservesValidLoginWithExactCaseInsensitiveOrganization(t *
 		"provider token must never become a durable local credential")
 
 	for _, localPassword := range []string{"", providerToken} {
-		localLogin := &UserLogin{Username: "octocat", Password: localPassword}
+		localLogin := &UserLogin{Username: user.Username, Password: localPassword}
 		localOK, _, localErr := localLogin.Verify(newGithubVerifyContext(server.URL))
 		require.NoError(t, localErr)
 		require.False(t, localOK, "OAuth-only user accepted local password %q", localPassword)
 	}
+}
+
+func TestOpaqueOAuthUsernameGenerationIsDeterministicAndBounded(t *testing.T) {
+	username, err := newOpaqueOAuthUsername(bytes.NewReader([]byte{
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
+	}))
+	require.NoError(t, err)
+	require.Equal(t, "00010203040506070809", username)
+	require.LessOrEqual(t, len(username), 20)
+	require.NotContains(t, username, "@")
+
+	const entropyFailureDetail = "entropy-source-secret-detail"
+	_, err = newOpaqueOAuthUsername(oauthEntropyReaderFunc(func([]byte) (int, error) {
+		return 0, errors.New(entropyFailureDetail)
+	}))
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), entropyFailureDetail)
+}
+
+type oauthEntropyReaderFunc func([]byte) (int, error)
+
+func (f oauthEntropyReaderFunc) Read(buffer []byte) (int, error) {
+	return f(buffer)
+}
+
+func TestOpaqueOAuthUsernameRetriesExistingCollision(t *testing.T) {
+	database := setupGithubVerifyTest(t, githubTestAppConfig{})
+	const collision = "00000000000000000000"
+	existing := &User{UserLogin: UserLogin{
+		Username: collision,
+		Password: "local-password",
+		Status:   enum.Enabled,
+	}}
+	require.NoError(t, database.Create(existing).Error)
+
+	entropy := append(make([]byte, oauthUsernameEntropySize), bytes.Repeat([]byte{0x01}, oauthUsernameEntropySize)...)
+	username, err := newAvailableOpaqueOAuthUsername(database, bytes.NewReader(entropy))
+	require.NoError(t, err)
+	require.Equal(t, "01010101010101010101", username)
+	require.NotEqual(t, collision, username)
+}
+
+func TestGithubFirstProvisioningNeverMergesByCanonicalEmail(t *testing.T) {
+	database := setupGithubVerifyTest(t, githubTestAppConfig{
+		"security:githubEnabled":   "true",
+		"security:registerEnabled": "true",
+	})
+	installCanonicalEmailIdentitySQLiteIndex(t, database)
+	owner := &User{UserLogin: UserLogin{
+		Username: "local-email-owner",
+		Email:    "owner@example.com",
+		Password: "local-password",
+		Status:   enum.Enabled,
+	}}
+	require.NoError(t, database.Create(owner).Error)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"id":4242,"login":"provider-identity","email":"OWNER@EXAMPLE.COM"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	ok, verifier, err := (&UserLogin{
+		Provider: pkg.GithubLoginProvider,
+		Password: "provider-token",
+	}).Verify(newGithubVerifyContext(server.URL))
+	require.ErrorIs(t, err, ErrEmailIdentityExists)
+	require.False(t, ok)
+	require.Nil(t, verifier)
+	requireGithubRegistrationCount(t, database, 1, 0)
+
+	var unchanged User
+	require.NoError(t, database.First(&unchanged, "id = ?", owner.ID).Error)
+	require.Equal(t, owner.Username, unchanged.Username)
+	require.Equal(t, owner.Email, unchanged.Email)
 }
 
 func TestGithubFirstProvisioningRequiresRegistrationAndSafeDefaultRole(t *testing.T) {
@@ -332,6 +412,7 @@ func TestEmailRegistrationRequiresExplicitRegistrationSetting(t *testing.T) {
 func TestEmailRegistrationRejectsClientSuppliedRefreshIdentity(t *testing.T) {
 	database := setupGithubVerifyTest(t, githubTestAppConfig{
 		"security:registerEnabled": "true",
+		"security:emailEnabled":    "true",
 	})
 	victim := &User{
 		UserLogin: UserLogin{
@@ -366,9 +447,12 @@ func setupGithubVerifyTest(t *testing.T, config githubTestAppConfig) *gorm.DB {
 		BeforeGithubVerify = oldBeforeVerify
 	})
 
-	dsn := fmt.Sprintf("file:github-verify-%s?mode=memory&cache=shared", t.Name())
-	database, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	dsn := filepath.Join(t.TempDir(), "github-verify.db") + "?_busy_timeout=5000&_journal_mode=WAL"
+	database, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, err)
+	sqlDB, err := database.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
 	require.NoError(t, database.AutoMigrate(&Role{}, &User{}, &UserOAuth2{}))
 	gormdb.DB = database
 	center.SetAppConfig(config)

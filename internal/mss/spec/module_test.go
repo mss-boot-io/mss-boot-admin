@@ -25,8 +25,81 @@ func TestLoadExampleSupplierModule(t *testing.T) {
 	if field, ok := module.Field("creditLevel"); !ok || field.Column != "credit_level" {
 		t.Fatalf("creditLevel field = %#v, exists=%t", field, ok)
 	}
+	if field, ok := module.Field("contactName"); !ok || !field.Required || field.Nullable {
+		t.Fatalf("contactName required contract = %#v, exists=%t", field, ok)
+	}
+	financeCanList := false
+	for _, permission := range module.Spec.Permissions {
+		if permission.Action != "list" {
+			continue
+		}
+		for _, role := range permission.DefaultRoles {
+			financeCanList = financeCanList || role == "finance"
+		}
+	}
+	if !financeCanList {
+		t.Fatal("supplier list permission omitted the finance role")
+	}
+	if got, want := module.Spec.Generation.MigrationID, "20260810160000"; got != want {
+		t.Fatalf("migration ID = %q, want %q", got, want)
+	}
+	if got, want := module.Spec.Generation.AuthorizationMigrationID, "20260811120000"; got != want {
+		t.Fatalf("authorization migration ID = %q, want %q", got, want)
+	}
+	if got, want := module.Spec.Menu.ParentDisplayName, "采购管理"; got != want {
+		t.Fatalf("parent display name = %q, want %q", got, want)
+	}
+	if got, want := module.Spec.Menu.ParentDisplayNameEn, "Procurement"; got != want {
+		t.Fatalf("English parent display name = %q, want %q", got, want)
+	}
 	if issues := module.Validate(); len(issues) != 0 {
 		t.Fatalf("Validate() issues = %#v", issues)
+	}
+}
+
+func TestSupplierSourceSpecMatchesFeatureAccessContract(t *testing.T) {
+	root := findRepositoryRoot(t)
+	module, err := LoadModule(filepath.Join(root, ".mss", "modules", "example-supplier.yaml"))
+	if err != nil {
+		t.Fatalf("LoadModule() error = %v", err)
+	}
+	contact, ok := module.Field("contactName")
+	if !ok || !contact.Required || contact.Nullable {
+		t.Fatalf("primary contact contract = %#v, exists=%t", contact, ok)
+	}
+	for _, permission := range module.Spec.Permissions {
+		if permission.Action != "list" {
+			continue
+		}
+		for _, role := range permission.DefaultRoles {
+			if role == "finance" {
+				return
+			}
+		}
+	}
+	t.Fatal("finance role cannot list/search suppliers")
+}
+
+func TestModuleValidationRejectsUnsafeOrAmbiguousEvents(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		events []EventSpec
+		code   string
+	}{
+		{name: "invalid name", events: []EventSpec{{Name: "supplier\"created", When: "created"}}, code: "invalid-event-name"},
+		{name: "duplicate trigger", events: []EventSpec{{Name: "supplier.created", When: "created"}, {Name: "supplier.created-again", When: "created"}}, code: "duplicate-event-trigger"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			module := validModule()
+			module.Spec.Events = test.events
+			found := false
+			for _, issue := range module.Validate() {
+				found = found || issue.Code == test.code
+			}
+			if !found {
+				t.Fatalf("Validate() omitted issue %q", test.code)
+			}
+		})
 	}
 }
 
@@ -105,6 +178,104 @@ func TestLoadModuleReportsInvalidRegex(t *testing.T) {
 	}
 }
 
+func TestLoadModuleRejectsUnknownFields(t *testing.T) {
+	module := validModule()
+	data, err := module.YAML()
+	if err != nil {
+		t.Fatalf("YAML() error = %v", err)
+	}
+	data = append(data, []byte("unknownContract: true\n")...)
+	path := filepath.Join(t.TempDir(), "module.yaml")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	_, err = LoadModule(path)
+	if err == nil || !strings.Contains(err.Error(), "field unknownContract not found") {
+		t.Fatalf("LoadModule() error = %v, want strict unknown-field failure", err)
+	}
+}
+
+func TestLoadModuleRejectsDuplicateMappingKeys(t *testing.T) {
+	module := validModule()
+	data, err := module.YAML()
+	if err != nil {
+		t.Fatalf("YAML() error = %v", err)
+	}
+	data = append(data, []byte("apiVersion: mss.io/v1alpha1\n")...)
+	path := filepath.Join(t.TempDir(), "module.yaml")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	_, err = LoadModule(path)
+	if err == nil || !strings.Contains(err.Error(), "mapping key \"apiVersion\" already defined") {
+		t.Fatalf("LoadModule() error = %v, want duplicate-key failure", err)
+	}
+}
+
+func TestLoadModuleRejectsMultipleYAMLDocuments(t *testing.T) {
+	module := validModule()
+	data, err := module.YAML()
+	if err != nil {
+		t.Fatalf("YAML() error = %v", err)
+	}
+	data = append(data, []byte("---\napiVersion: mss.io/v1alpha1\nkind: AdminModule\n")...)
+	path := filepath.Join(t.TempDir(), "module.yaml")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	_, err = LoadModule(path)
+	if err == nil || !strings.Contains(err.Error(), "multiple YAML documents are not allowed") {
+		t.Fatalf("LoadModule() error = %v, want multi-document failure", err)
+	}
+}
+
+func TestModuleValidationRejectsMalformedMigrationID(t *testing.T) {
+	module := validModule()
+	module.Spec.Generation.MigrationID = "020260810160000"
+	issues := module.Validate()
+	for _, issue := range issues {
+		if issue.Code == "invalid-migration-id" {
+			return
+		}
+	}
+	t.Fatalf("Validate() issues = %#v, want invalid-migration-id", issues)
+}
+
+func TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		id   string
+		code string
+	}{
+		{name: "missing", id: "", code: "required"},
+		{name: "malformed", id: "020260811120000", code: "invalid-migration-id"},
+		{name: "duplicates entity", id: "20260810160002", code: "duplicate-migration-id"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			module := validModule()
+			module.Spec.Generation.AuthorizationMigrationID = test.id
+			for _, issue := range module.Validate() {
+				if issue.Path == "spec.generation.authorizationMigrationID" && issue.Code == test.code {
+					return
+				}
+			}
+			t.Fatalf("Validate() issues = %#v, want %s", module.Validate(), test.code)
+		})
+	}
+}
+
+func TestModuleValidationRequiresMigrationIDForBackendGeneration(t *testing.T) {
+	module := validModule()
+	module.Spec.Generation.MigrationID = ""
+	issues := module.Validate()
+	for _, issue := range issues {
+		if issue.Path == "spec.generation.migrationID" && issue.Code == "required" {
+			return
+		}
+	}
+	t.Fatalf("Validate() issues = %#v, want required migration ID", issues)
+}
+
 func TestIdentifierConversions(t *testing.T) {
 	tests := []struct {
 		input  string
@@ -175,6 +346,10 @@ func validModule() *Module {
 				API:              true,
 				E2E:              true,
 				PermissionMatrix: true,
+			},
+			Generation: GenerationSpec{
+				MigrationID:              "20260810160002",
+				AuthorizationMigrationID: "20260810160003",
 			},
 		},
 	}

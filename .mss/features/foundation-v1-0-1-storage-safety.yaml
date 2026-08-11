@@ -1,0 +1,828 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: foundation-v1-0-1-storage-safety
+  displayName: Close the first storage and runtime safety wave for v1.1.0
+  description: >-
+    Defines the minimum security, delivery, lifecycle, configuration, and evidence boundaries for
+    the first internal development wave after v1.0.0. The work accumulates into v1.1.0 and does not
+    authorize a v1.0.x publication.
+  owner: release-engineering
+  labels:
+    domain: storage-runtime
+    target-version: v1.1.0
+    release-status: development
+    checkpoint-id: safety-wave-1
+    checkpoint-publication: none
+    compatibility: target-design-unconstrained
+    evidence-enforcement: declarative-until-phase-runner
+spec:
+  problem: >-
+    The published v1.0.0 baseline groups cache, one-time verification state, queues, locks, Redis
+    clients, and object storage behind overlapping configuration packages and optimistic capability
+    labels. Known failure paths can consume a verification code incorrectly, mark a Kafka
+    message before successful handling, parse an oversized multipart upload before enforcing the
+    application limit, silently fall back to local storage, or terminate the process from an
+    optional provider. These defects form permanent development safety sentinels while broader
+    runtime and generator work proceeds toward the single v1.1.0 feature freeze.
+  goals:
+    - Make one-time verification issuance and consumption cryptographically strong, atomic, purpose-scoped, bounded, and fail-closed.
+    - Make Kafka's Sarama session offset mark occur only after successful decode and handler completion, leaving failure unmarked and eligible for later redelivery.
+    - Reject oversized uploads before multipart parsing, make local or S3 provider selection strict, deterministic, and fail-closed, and make local writes randomized and no-clobber.
+    - Remove process termination and detached background contexts from the Challenge, Kafka, and object-storage paths changed by this development wave.
+    - Replace aggregate maturity claims with provider-specific, evidence-backed capability states.
+    - Carry the completed safety work into v1.1.0 and defer complete release qualification until the target feature freeze.
+  nonGoals:
+    - Complete the storage-runtime-v2 package split or remove every historical public adapter in the first safety wave.
+    - Complete the private ObjectStore/Delivery metadata and authorization boundary; that remains the separately gated D4 target before feature freeze.
+    - Treat the D1 object-provider owner as S3 object-I/O evidence. S3 Put, Delivery, and a pinned RustFS-backed S3-compatible conformance fixture remain D4 work.
+    - Guarantee S3 create-only conditional writes and typed object conflicts; Local and the pinned RustFS S3-compatible fixture share that no-clobber contract only in the separately gated D4 provider suite.
+    - Freeze or promote the public Storage Runtime v2 ChallengeStore package and configuration API; the first safety wave exposes only an explicitly provisional inter-module bridge while the v1.1.0 target API remains a later development wave.
+    - Promise stable Kafka, NSQ, Redis work-queue, distributed-lock, or S3-compatible provider support.
+    - Add storage hot reload, resumable upload, image processing, virus scanning, CDN orchestration, or cross-cloud replication.
+    - Change database schemas or use AutoMigrate as evidence of an upgrade migration.
+    - Claim database-enforced canonical email uniqueness; ambiguous identities fail closed in the first wave, while a preflighted three-database forward migration is a later development wave.
+    - Manually rewrite .mss/lock.yaml or .mss/project.yaml to resemble the published release version.
+    - Let compatibility shims preserve an unsafe Kafka offset mark, fallback, secret, or lifecycle behavior.
+    - Promote Kafka because its D1 lifecycle checkpoint is complete. Manual commit, retry/backoff, dead letter, idempotency, rebalance, outage, and real-broker conformance remain outside this checkpoint.
+  actors:
+    - id: admin-operator
+      displayName: Admin operator
+      description: Configures providers, observes readiness, uploads objects, and performs rollback or recovery.
+    - id: framework-maintainer
+      displayName: Framework maintainer
+      description: Owns provider contracts, lifecycle, cancellation, and conformance tests.
+    - id: release-manager
+      displayName: Release manager
+      description: Freezes the exact v1.1.0 candidate and accepts only reproducible phase-scoped evidence.
+    - id: security-owner
+      displayName: Security owner
+      description: Reviews verification challenges, upload boundaries, credentials, logs, and failure behavior.
+  modules:
+    - name: capability-evidence
+      operation: extend
+      description: Machine-readable provider identity and lifecycle status plus linked human evidence; detailed evidence maturity schema remains a later gate.
+    - name: challenge-safety
+      operation: extend
+      description: One-time login, registration, and password-reset challenge issuance and verification.
+    - name: provider-lifecycle
+      operation: extend
+      description: Provider construction, startup, health, cancellation, and shutdown behavior.
+    - name: queue-safety
+      operation: extend
+      description: Queue offset marking, retry, cancellation, and provider validation behavior.
+    - name: upload-safety
+      operation: extend
+      description: Multipart admission, object identity, provider selection, and delivery behavior.
+  requirements:
+    - id: mark-kafka-after-success
+      title: Mark only successful Kafka work
+      description: The Kafka consumer must not call Sarama MarkMessage until decoding and the handler both succeed.
+      priority: must
+      actor: framework-maintainer
+      module: queue-safety
+      rules:
+        - Decode failure and handler failure leave the Kafka message unmarked and eligible for redelivery.
+        - Consumer cancellation and rebalance stop work without marking unfinished Kafka messages; a completed side effect can still be repeated when cancellation races the local mark.
+        - MarkMessage records the next offset in the current Sarama session; it is not an immediate broker commit and does not provide exactly-once delivery.
+        - Kafka remains Blocked and cataloged as legacy after the D0 mark-order and D1 lifecycle checkpoints. It can enter Experimental only after an explicit manual-commit policy, bounded retry/backoff, dead-letter, idempotency, rebalance, outage, and real-broker conformance pass.
+    - id: classify-provider-evidence
+      title: Publish honest provider identity and status
+      description: The capability catalog must give each provider its own supported lifecycle status while release notes and the ADR record the more detailed evidence classification.
+      priority: must
+      actor: release-manager
+      module: capability-evidence
+      rules:
+        - A known security or data-loss path is a provider-specific legacy capability in the current catalog, is classified Blocked in the ADR evidence matrix, and is disabled from production defaults.
+        - Skipped external integration tests cannot support a stable claim.
+        - Version publication never promotes a provider automatically.
+        - The first safety wave does not claim the detailed Blocked, Experimental, Beta, and Stable evidence schema or generated provider report required at feature freeze.
+    - id: enforce-upload-admission
+      title: Enforce upload limits before parsing
+      description: The HTTP boundary must cap request bytes before multipart parsing and stream validation without trusting the client filename or media type.
+      priority: must
+      actor: security-owner
+      module: upload-safety
+      rules:
+        - storage:maxSize is a byte count with a 10 MiB default and 100 MiB hard ceiling; storage:allowedTypes contains normalized MIME types rather than filename extensions.
+        - Each request resolves one immutable upload policy. The raw multipart request is bounded before FormFile or ParseMultipartForm at maxObjectBytes plus a fixed 64 KiB envelope budget, while the opened file stream is independently counted to maxObjectBytes plus one.
+        - Known request cap-plus-one is rejected before a body read, unknown-length cap-plus-one is stopped by MaxBytesReader, exact request and object limits remain valid, and a pre-parsed MultipartForm fails closed.
+        - Object identifiers are server-generated, opaque, collision-resistant, and never derived from a user identifier plus original filename.
+        - The original filename is metadata only and local writes use create-only files below an os.Root-confined fixed root, with no overwrite, root/internal symlink escape, or partial residue after a returned rejection, failure, or cancellation; crash-atomic publication remains a v1.1 provider-conformance gate.
+        - Raw request overflow returns a fixed UPLOAD_REQUEST_TOO_LARGE 413 response; malformed multipart and rejected media types return a fixed INVALID_UPLOAD 422 response without internal thresholds, paths, or multipart contents.
+    - id: fail-closed-provider-selection
+      title: Reject invalid storage provider state
+      description: Missing, unreadable, contradictory, or unknown object-storage configuration must fail explicitly instead of falling back to local storage.
+      priority: must
+      actor: admin-operator
+      module: upload-safety
+      rules:
+        - Local is installed only in development mode when application.staticPath maps one URL prefix to the exact configured absolute object root; writes and StaticFS share one owner-pinned os.Root, while production never installs or reports a Local delivery URL.
+        - S3 credentials, endpoint, region, bucket, TLS mode, and credential source are validated as one immutable profile.
+        - The S3 client is constructed once per owned profile rather than once per request.
+        - The unused Admin Config.Storage initializer is removed or becomes the sole injected upload profile; a ghost startup client and a per-request client cannot coexist.
+        - Provider, endpoint, bucket, TLS, credential mode, and SecretRef values are startup configuration only. Storage AppConfig contains exactly storage:maxSize and storage:allowedTypes; historical provider or credential keys are not projected and are rejected before any mutation.
+        - A missing, unreadable, invalid, or unavailable optional storage profile is not installed. The Admin process continues, both upload routes return the fixed STORAGE_UNAVAILABLE 503 response, and no Local or remote write occurs.
+        - D1 may construct and own one S3 client, but Admin returns unavailable before S3 Put until the D4 ObjectStore and Delivery contracts pass.
+    - id: own-provider-lifecycle
+      title: Return changed-path failures to the application owner
+      description: Challenge, Kafka, and object-storage paths changed by the safety waves must return typed errors and participate in cancellation without terminating the process.
+      priority: must
+      actor: framework-maintainer
+      module: provider-lifecycle
+      rules:
+        - The changed Challenge, Kafka, and object-storage call graph does not call os.Exit, log.Fatal, or start long-lived work from context.Background.
+        - Kafka cancellation leaves in-flight work unmarked and the object-storage owner closes its single client idempotently.
+        - The legacy AdapterQueue surface remains source-compatible. The additive ManagedAdapterQueue returns registration/start/close failures, exposes observed provider errors, accepts caller-owned contexts, and supplies an idempotent deadline-bounded close path without making the compatibility wrappers authoritative.
+        - One Kafka adapter owns one immutable validated configuration and one producer, plus one consumer-group client for each accepted unique topic/group registration. Duplicate or post-start registration, per-append Kafka configuration, unsupported manual commit, and client-construction failure return errors without replacing an existing consumer or terminating the process.
+        - Kafka `Start` blocks under the application context and drains each consumer group's Errors channel into the adapter's observable error stream; a consume-loop failure cancels peer work, and close releases consumers and the producer exactly once. A timed-out Close can be retried while new work remains rejected.
+        - Admin is the single managed-queue owner; queue construction and Casbin registration use the caller context, the server Runnable consumes Errors and propagates runtime failure to the lifecycle manager, and Config closes the queue before the database owner. Legacy Register, Run, Shutdown, and Queue.Init remain non-terminating compatibility bridges only.
+        - The object-storage subset is complete when one profile returns one leased Handle, the composition root installs its owner and pinned filesystem before registering Application delivery, shutdown drains and closes it idempotently, and configuration-source bootstrap owns a separate Handle.
+        - S3 configuration bootstrap treats only a missing stage object as an optional overlay. Transport, read, and malformed-overlay failures fail startup closed; HTTP endpoints require the exact explicit s3_tls_allow_insecure_http=true opt-in, and invalid boolean values are rejected.
+        - General cache, NSQ, Redis queue, lock, and resource-graph lifecycle replacement remains a separately scoped development wave before feature freeze.
+    - id: secure-challenge-consumption
+      title: Issue and consume one-time challenges atomically
+      description: Login, registration, and password-reset verification must use cryptographic randomness and atomic versioned server-side transitions across issue delivery and verification.
+      priority: must
+      actor: security-owner
+      module: challenge-safety
+      rules:
+        - Challenge values come from crypto/rand and storage keys bind canonical subject and purpose without exposing either as a raw Redis key or provider operational log field.
+        - The stored verifier uses a versioned high-entropy pepper SecretRef and constant-time comparison; a plain hash of a six-digit value is insufficient.
+        - BeginIssue atomically applies resend eligibility, rolling quota, expiry, and one pending-version reservation; only a successful versioned commit replaces the prior active challenge and starts cooldown.
+        - Issuance uses a versioned pending state in which only one concurrent BeginIssue succeeds, Verify never accepts pending values, and a compare-and-swap commit activates the sent value and replaces the prior active verifier.
+        - When the request context remains usable, send failure compare-and-swap aborts only that pending version, leaves the prior active verifier unchanged, does not start resend cooldown, and still charges the rolling quota; cancellation, process failure, or a hung sender is recovered by the short pending lease, and a stale send result cannot activate or abort a newer issue.
+        - Pending state has a short lease independent from active expiry; BeginIssue atomically reclaims an expired lease after a crash or hung sender without extending the prior active verifier, and stale completion remains compare-and-swap rejected.
+        - Verify atomically compares, increments failed attempts, and consumes exactly once on success; a wrong guess does not immediately delete the challenge.
+        - Provider outage fails closed and public responses do not disclose whether an account exists.
+        - Login, registration, and password reset use distinct purpose values and cannot fall back to the legacy email-only VerifyCodeStore path.
+        - Issuance is bounded by subject, HMAC-protected caller, and global quotas; SMTP work inherits request cancellation, has a deadline, and is concurrency bounded.
+        - Forwarded client identity is accepted only through an explicit trusted-proxy allowlist; direct and spoofed forwarding headers cannot bypass caller quota.
+        - Disabling the email capability rejects issuance and every active-code consumer before touching challenge state; public readiness requires both Redis health and complete SMTP configuration.
+        - The safety checkpoint proves generated state keys share one hash tag and rejects cross-slot script input before I/O, but concrete Redis Cluster and Ring clients fail closed until a real non-skippable multi-node conformance fixture exists.
+    - id: validate-provider-configuration
+      title: Validate the object-storage profile once
+      description: Object-storage configuration must be loaded consistently, normalized without mutation, and rejected before client construction or object writes.
+      priority: should
+      actor: framework-maintainer
+      module: provider-lifecycle
+      rules:
+        - Unknown providers, empty required endpoint, region, or bucket values, contradictory credential modes, and incomplete static credentials are errors.
+        - TLS configuration and credentials are independent axes; each required pair is complete and only credential modes are mutually exclusive.
+        - The profile is one immutable snapshot and neither startup nor upload mutates caller-owned configuration.
+  constraints:
+    - id: bounded-patch-scope
+      type: operations
+      statement: The first internal wave fixes the known safety paths; the clean package split remains part of the v1.1.0 development target.
+    - id: compatibility-not-design-input
+      type: compatibility
+      statement: The target safety semantics are designed without preserving historical API or configuration behavior; release implementation may bridge only when the bridge cannot recreate an unsafe behavior.
+    - id: no-secret-observability
+      type: privacy
+      statement: Challenge values and verifiers, SecretRef material, raw SMTP errors or message bodies, raw Redis locator inputs, bearer material, and multipart bodies must not enter logs, metrics, traces, errors, or evidence reports; canonical account identifiers may appear only in the existing access-controlled identity audit contract.
+    - id: no-silent-degradation
+      type: security
+      statement: Security state, durable work, and object storage must fail closed; only explicitly classified derived caches may bypass to their authoritative database.
+    - id: declarative-bootstrap-boundary
+      type: operations
+      statement: At the v1.0.0 baseline, spec validate proves only structure and references; feature plan cannot yet plan cross-cutting modules and verify does not execute acceptance, custom evidence, or phases, so no acceptance in this file is reported passed until the phase-aware runner lands.
+    - id: required-tests-must-run
+      type: operations
+      statement: Every required focused Go test is parsed from go test -json; zero matching tests, no-tests warnings, package skips, and required fixture skips fail the gate.
+  acceptance:
+    - id: challenge-atomic-evidence
+      requirement: secure-challenge-consumption
+      statement: Parallel issue and verify tests prove one pending issuer, versioned send commit/abort, pending-lease crash recovery without active-expiry extension, cooldown, charged failure quota, caller/global bounds, bounded attempts, purpose isolation, single success, cryptographic generation, versioned independent pepper storage and rotation, constant-time comparison, provider-log redaction, expiry, Redis-outage failure, same-tag key generation, pre-I/O cross-slot rejection, and fail-closed rejection of unsupported Cluster and Ring clients.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestChallengeIssueSendCommitAbortCAS
+        - type: test
+          value: TestChallengeConcurrentIssueSinglePending
+        - type: test
+          value: TestChallengeCooldownActiveExpiryAndCanceledDelivery
+        - type: test
+          value: TestChallengeCallerAndGlobalIssueLimitsAcrossSubjects
+        - type: test
+          value: TestChallengeVerifyExactlyOnce
+        - type: test
+          value: TestChallengeRedisOutageFailsClosed
+        - type: test
+          value: TestChallengePendingLeaseCrashRecovery
+        - type: test
+          value: TestChallengeGeneratedKeysShareRedisHashTag
+        - type: test
+          value: TestChallengeCrossSlotPreflightRejected
+        - type: test
+          value: TestChallengeRedisClusterFailsClosed
+        - type: test
+          value: TestChallengeVerifierPepperAndRotation
+        - type: test
+          value: TestChallengeVerifierUsesConstantTimeCompare
+        - type: test
+          value: TestChallengeConfigurationRejectsWeakSecretsAndSubMillisecondDurations
+        - type: test
+          value: TestChallengeObservabilityRedactsCodeAndSubject
+        - type: test
+          value: TestLegacyVerifyCodeStoreIsDisabled
+        - type: test
+          value: TestChallengeConfigRequiresTypedHighEntropySecretRefs
+        - type: command
+          value: "cd mss-boot && GOWORK=off go test -json -race ./pkg/config/storage/cache -run '^(TestChallenge.*|TestLegacyVerifyCodeStoreIsDisabled)$' -count=20"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./config -run '^TestChallengeConfigRequiresTypedHighEntropySecretRefs$' -count=20"
+        - type: report
+          value: Required-test JSON report proving all fifteen exact framework challenge tests and the Admin SecretRef configuration test ran and passed under race detection twenty times; the report states that real Redis Cluster execution remains deferred and unsupported clients are rejected.
+    - id: challenge-admin-flow-evidence
+      requirement: secure-challenge-consumption
+      statement: Admin login, registration, and password-reset flows reject cross-purpose codes and invalid purposes, hide account existence, canonicalize identity consistently, enforce capability toggles, trusted-proxy caller quotas and sender bounds, expose fresh Redis-plus-SMTP readiness, preserve the prior active verifier when versioned send abort succeeds, reject stale completion, fail closed on provider outage, reject ambiguous account identity, and never call the legacy verifier.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestEmailChallengePurposeIsolation
+        - type: test
+          value: TestEmailChallengeResponseDoesNotEnumerateAccount
+        - type: test
+          value: TestEmailChallengeCanonicalEmailBinding
+        - type: test
+          value: TestEmailChallengeRotatedSubjectCallerLimit
+        - type: test
+          value: TestEmailChallengeCallerUsesExplicitTrustedProxyPolicy
+        - type: test
+          value: TestEmailChallengeRegistrationDisabledBeforeIssue
+        - type: test
+          value: TestEmailChallengeEmailCapabilityDisabledBeforeIssue
+        - type: test
+          value: TestEmailChallengeCapabilityDisableRejectsEveryActiveCodeConsumer
+        - type: test
+          value: TestEmailChallengeProviderOutageReturnsServiceUnavailable
+        - type: test
+          value: TestEmailChallengeHungSenderCancellationAndConcurrencyBound
+        - type: test
+          value: TestEmailChallengeSendFailureRotation
+        - type: test
+          value: TestEmailChallengeConcurrentSendFailureCAS
+        - type: test
+          value: TestAppConfigProfileProjectsFreshEmailChallengeReadinessAfterCachedProfile
+        - type: test
+          value: TestAppConfigProfileChallengeReadinessUsesBoundedFailClosedCheck
+        - type: test
+          value: TestAppConfigProfileChallengeReadinessRequiresCompleteSMTPConfig
+        - type: test
+          value: TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable
+        - type: test
+          value: TestEmailRegistrationRejectsExistingCanonicalIdentity
+        - type: test
+          value: TestEmailRegistrationUsesBoundedOpaqueUsername
+        - type: test
+          value: TestGetUserByEmailFailsClosedOnAmbiguousIdentity
+        - type: test
+          value: TestEmailIdentityOperationsDoNotEmitSensitiveSQL
+        - type: test
+          value: TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity
+        - type: test
+          value: TestUpdateUserInfoRejectsEmailChangeUntilCanonicalIdentityMigration
+        - type: test
+          value: TestCanonicalEmailNormalizesBoundedASCIIIdentity
+        - type: test
+          value: TestEmailChallengeCapabilityRequiresCanonicalBoolean
+        - type: test
+          value: TestVerificationEmailSendersRenderAndSend
+        - type: test
+          value: TestVerificationEmailPropagatesTransportAndTemplateErrors
+        - type: test
+          value: TestVerificationEmailSenderHonorsCancellation
+        - type: report
+          value: Required-test JSON report proving every listed Admin API, readiness, middleware, and identity mitigation test ran and passed under race detection twenty times; the report must not describe fail-closed duplicate handling as database uniqueness evidence.
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./apis -run '^(TestEmailChallenge.*|TestAppConfigProfile.*|TestUpdateUserInfoRejectsEmailChangeUntilCanonicalIdentityMigration)$' -count=20"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./middleware -run '^TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable$' -count=20"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./models -run '^(TestEmailRegistrationRejectsExistingCanonicalIdentity|TestEmailRegistrationUsesBoundedOpaqueUsername|TestGetUserByEmailFailsClosedOnAmbiguousIdentity|TestEmailIdentityOperationsDoNotEmitSensitiveSQL|TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity)$' -count=20"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./notice/email -run '^TestVerificationEmail.*$' -count=20"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./pkg -run '^TestCanonicalEmailNormalizesBoundedASCIIIdentity$' -count=20"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./center -run '^TestEmailChallengeCapabilityRequiresCanonicalBoolean$' -count=20"
+    - id: provider-maturity-evidence
+      requirement: classify-provider-evidence
+      statement: The machine catalog exposes provider-specific identities and supported lifecycle statuses, the ADR records detailed evidence maturity, and no aggregate stable cache-lock-queue claim remains.
+      level: contract
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: path
+          value: .mss/capabilities.yaml
+        - type: path
+          value: docs/adr/2026-08-09-storage-runtime-v2.md
+        - type: test
+          value: TestCapabilityCatalogProviderSpecificStorageStatuses
+        - type: command
+          value: go test -json ./internal/mss/project -run '^TestCapabilityCatalogProviderSpecificStorageStatuses$'
+        - type: report
+          value: Required-test JSON report proving provider identities and lifecycle statuses are machine-readable, the aggregate is not stable, and detailed evidence links to the ADR matrix.
+    - id: provider-validation-evidence
+      requirement: validate-provider-configuration
+      statement: Table-driven object-profile tests reject the declared strict negative matrix for provider, endpoint, bucket, TLS, and credential mode, prove normalization and build do not mutate caller-owned configuration, and retain the v1.0 storage source surface through a deprecated fail-closed bridge.
+      level: unit
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestObjectStorageProfileRejectsInvalidConfiguration
+        - type: test
+          value: TestObjectStorageProfileBuildIsImmutable
+        - type: test
+          value: TestStorageV100DeprecatedSourceCompatibility
+        - type: test
+          value: TestStorageV100DeprecatedInitFailsClosed
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config
+            --run '^(TestObjectStorageProfileRejectsInvalidConfiguration|TestObjectStorageProfileBuildIsImmutable|TestStorageV100DeprecatedSourceCompatibility|TestStorageV100DeprecatedInitFailsClosed)$'
+            --count 1 --race --go-work off
+            --require TestObjectStorageProfileRejectsInvalidConfiguration
+            --require TestObjectStorageProfileBuildIsImmutable
+            --require TestStorageV100DeprecatedSourceCompatibility
+            --require TestStorageV100DeprecatedInitFailsClosed
+        - type: report
+          value: Required-test JSON report proving all exact profile and compatibility tests ran, every case in the declared strict negative matrix failed before construction, caller configuration remained unchanged, secret formatting was redacted, repeated Build returned one Handle, and the deprecated v1.0 bridge preserved source symbols without fallback or process termination.
+    - id: queue-delivery-evidence
+      requirement: mark-kafka-after-success
+      statement: Hermetic failure-injection tests prove decode and handler errors are not marked, successful work is marked once and only after the handler, and cancellation or a closed consumer stops local work without marking unfinished messages. This evidence does not prove a broker commit or production provider maturity.
+      level: unit
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestKafkaDoesNotMarkOnDecodeFailure
+        - type: test
+          value: TestKafkaDoesNotMarkOnHandlerFailure
+        - type: test
+          value: TestKafkaMarksOnceAfterHandlerSuccess
+        - type: test
+          value: TestKafkaCancellationLeavesUnfinishedUnmarked
+        - type: test
+          value: TestKafkaRunStopsAfterCancellation
+        - type: test
+          value: TestKafkaRunStopsAfterConsumerClose
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/queue
+            --run '^TestKafka(DoesNotMarkOnDecodeFailure|DoesNotMarkOnHandlerFailure|MarksOnceAfterHandlerSuccess|CancellationLeavesUnfinishedUnmarked|RunStopsAfterCancellation|RunStopsAfterConsumerClose)$'
+            --count 20 --race --go-work off
+            --require TestKafkaDoesNotMarkOnDecodeFailure
+            --require TestKafkaDoesNotMarkOnHandlerFailure
+            --require TestKafkaMarksOnceAfterHandlerSuccess
+            --require TestKafkaCancellationLeavesUnfinishedUnmarked
+            --require TestKafkaRunStopsAfterCancellation
+            --require TestKafkaRunStopsAfterConsumerClose
+        - type: report
+          value: Required-test JSON report proving all six exact hermetic Kafka tests emitted Action=pass in every race-detected run; real-broker commit, rebalance, outage, retry/backoff, dead-letter, and idempotency evidence remain required before provider promotion.
+    - id: queue-lifecycle-checkpoint-evidence
+      requirement: own-provider-lifecycle
+      statement: Exact hermetic tests prove the additive managed queue contract, strict caller-context Kafka configuration, one owned producer, unique owned consumer registrations, observed errors, owner-returned failures, cancellable blocking start, deadline-bounded asynchronous registration and close, terminal diagnostic cleanup, and a bounded source-compatible legacy surface.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestManagedAdapterQueueRemainsAnAdapterQueue
+        - type: test
+          value: TestAdapterErrorClassificationsPreserveCause
+        - type: test
+          value: TestKafkaRunReaderDeprecatedSourceCompatibility
+        - type: test
+          value: TestKafkaConstructionOwnsOneStrictProducer
+        - type: test
+          value: TestKafkaConstructionReturnsValidationAndProducerErrors
+        - type: test
+          value: TestKafkaRegisterReturnsValidationAndConstructionErrors
+        - type: test
+          value: TestKafkaLegacyRegisterReportsError
+        - type: test
+          value: TestKafkaLegacyRegisterIsBoundedAndClosesLateGroup
+        - type: test
+          value: TestKafkaUsesOneProducerForConcurrentAppend
+        - type: test
+          value: TestKafkaAppendRejectsInvalidOptions
+        - type: test
+          value: TestKafkaDuplicateRegistrationDoesNotConstructSecondGroup
+        - type: test
+          value: TestKafkaBlockingFactoryReservesOnceAndCloseHonorsDeadline
+        - type: test
+          value: TestKafkaCanceledRegistrationDoesNotCancelPeer
+        - type: test
+          value: TestKafkaAcceptedRegistrationWinsLaterCancellation
+        - type: test
+          value: TestKafkaRegistrationRejectedAfterStart
+        - type: test
+          value: TestKafkaConsumerErrorIsObservedWithoutSpin
+        - type: test
+          value: TestKafkaCloseTimeoutCanBeRetriedAndDrainsOperations
+        - type: test
+          value: TestKafkaCloseAggregatesAllConsumerAndProducerDiagnostics
+        - type: test
+          value: TestKafkaCompletedCloseDiagnosticsWinCanceledRetry
+        - type: test
+          value: TestSampleWatcherManagedRegistrationUsesCallerContext
+        - type: test
+          value: TestSampleWatcherReturnsManagedRegistrationError
+        - type: test
+          value: TestSampleWatcherRejectsCanceledRegistrationContext
+        - type: test
+          value: TestSampleWatcherManagedLegacyRegistrationRequiresContext
+        - type: test
+          value: TestSampleWatcherCasbinCallbackUpdateDoesNotRegisterDuplicateConsumer
+        - type: test
+          value: TestKafkaBuildConfigValidatesStartupProfile
+        - type: test
+          value: TestKafkaBuildConfigRejectsInvalidProfiles
+        - type: test
+          value: TestKafkaBuildConfigSupportsStrictSASLProfiles
+        - type: test
+          value: TestKafkaBuildConfigBindsMSKToCallerContext
+        - type: test
+          value: TestKafkaTLSConfigVerifiesCertificates
+        - type: test
+          value: TestQueueEmptyIncludesKafka
+        - type: test
+          value: TestQueueInitContextInstallsMemoryAndPropagatesInstallerError
+        - type: test
+          value: TestQueueInitContextRejectsInvalidOwnership
+        - type: test
+          value: TestQueueLegacyInitDoesNotTerminateOnKafkaConfigurationError
+        - type: test
+          value: TestQueueLegacyInitRequiresOwnerContextForMSK
+        - type: test
+          value: TestConfigInitialQueueOutageCommitsWithoutQueue
+        - type: test
+          value: TestConfigQueueCancellationPropagatesAndRollsBackDatabase
+        - type: test
+          value: TestConfigQueueConfigurationAndWatcherFailuresRollBackDatabase
+        - type: test
+          value: TestConfigOwnsAndClosesManagedQueueBeforeDatabase
+        - type: test
+          value: TestConfigCloseRetainsDatabaseUntilManagedQueueCanStop
+        - type: test
+          value: TestConfigCloseReleasesOwnerAndDatabaseAfterTerminalQueueDiagnostic
+        - type: test
+          value: TestConfigReplacementRetiresOldManagedQueueBeforeOldDatabase
+        - type: test
+          value: TestConfigReplacementCommitsNewOwnerAfterTerminalQueueDiagnostic
+        - type: test
+          value: TestConfigReplacementTimeoutDegradesQueueAndRetainsOldDatabaseForRetry
+        - type: test
+          value: TestReloadDatabaseDuplicateConsumerKeepsPreviousHandle
+        - type: test
+          value: TestBindPolicyWatcherRegistersManagedConsumerExactlyOnce
+        - type: test
+          value: TestManagedQueueRunnableParticipatesInManagerErrorPropagation
+        - type: test
+          value: TestManagedQueueErrorsChannelIsNotLost
+        - type: test
+          value: TestManagedQueueCompletedStartStillDrainsBufferedError
+        - type: test
+          value: TestStartLegacyQueueDoesNotDetachManagedQueue
+        - type: test
+          value: TestStartLegacyQueueRetainsNonManagedCompatibility
+        - type: test
+          value: TestV101ChangedProvidersDoNotExitOrDetach
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/queue
+            --run '^(TestKafkaRunReaderDeprecatedSourceCompatibility|TestKafkaConstructionOwnsOneStrictProducer|TestKafkaConstructionReturnsValidationAndProducerErrors|TestKafkaRegisterReturnsValidationAndConstructionErrors|TestKafkaLegacyRegisterReportsError|TestKafkaLegacyRegisterIsBoundedAndClosesLateGroup|TestKafkaUsesOneProducerForConcurrentAppend|TestKafkaAppendRejectsInvalidOptions|TestKafkaDuplicateRegistrationDoesNotConstructSecondGroup|TestKafkaBlockingFactoryReservesOnceAndCloseHonorsDeadline|TestKafkaCanceledRegistrationDoesNotCancelPeer|TestKafkaAcceptedRegistrationWinsLaterCancellation|TestKafkaRegistrationRejectedAfterStart|TestKafkaConsumerErrorIsObservedWithoutSpin|TestKafkaCloseTimeoutCanBeRetriedAndDrainsOperations|TestKafkaCloseAggregatesAllConsumerAndProducerDiagnostics|TestKafkaCompletedCloseDiagnosticsWinCanceledRetry|TestSampleWatcherManagedRegistrationUsesCallerContext|TestSampleWatcherReturnsManagedRegistrationError|TestSampleWatcherRejectsCanceledRegistrationContext|TestSampleWatcherManagedLegacyRegistrationRequiresContext|TestSampleWatcherCasbinCallbackUpdateDoesNotRegisterDuplicateConsumer)$'
+            --count 1 --race --go-work off
+            --require TestKafkaRunReaderDeprecatedSourceCompatibility
+            --require TestKafkaConstructionOwnsOneStrictProducer
+            --require TestKafkaConstructionReturnsValidationAndProducerErrors
+            --require TestKafkaRegisterReturnsValidationAndConstructionErrors
+            --require TestKafkaLegacyRegisterReportsError
+            --require TestKafkaLegacyRegisterIsBoundedAndClosesLateGroup
+            --require TestKafkaUsesOneProducerForConcurrentAppend
+            --require TestKafkaAppendRejectsInvalidOptions
+            --require TestKafkaDuplicateRegistrationDoesNotConstructSecondGroup
+            --require TestKafkaBlockingFactoryReservesOnceAndCloseHonorsDeadline
+            --require TestKafkaCanceledRegistrationDoesNotCancelPeer
+            --require TestKafkaAcceptedRegistrationWinsLaterCancellation
+            --require TestKafkaRegistrationRejectedAfterStart
+            --require TestKafkaConsumerErrorIsObservedWithoutSpin
+            --require TestKafkaCloseTimeoutCanBeRetriedAndDrainsOperations
+            --require TestKafkaCloseAggregatesAllConsumerAndProducerDiagnostics
+            --require TestKafkaCompletedCloseDiagnosticsWinCanceledRetry
+            --require TestSampleWatcherManagedRegistrationUsesCallerContext
+            --require TestSampleWatcherReturnsManagedRegistrationError
+            --require TestSampleWatcherRejectsCanceledRegistrationContext
+            --require TestSampleWatcherManagedLegacyRegistrationRequiresContext
+            --require TestSampleWatcherCasbinCallbackUpdateDoesNotRegisterDuplicateConsumer
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config
+            --run '^(TestKafkaBuildConfigValidatesStartupProfile|TestKafkaBuildConfigRejectsInvalidProfiles|TestKafkaBuildConfigSupportsStrictSASLProfiles|TestKafkaBuildConfigBindsMSKToCallerContext|TestKafkaTLSConfigVerifiesCertificates|TestQueueEmptyIncludesKafka|TestQueueInitContextInstallsMemoryAndPropagatesInstallerError|TestQueueInitContextRejectsInvalidOwnership|TestQueueLegacyInitDoesNotTerminateOnKafkaConfigurationError|TestQueueLegacyInitRequiresOwnerContextForMSK)$'
+            --count 1 --race --go-work off
+            --require TestKafkaBuildConfigValidatesStartupProfile
+            --require TestKafkaBuildConfigRejectsInvalidProfiles
+            --require TestKafkaBuildConfigSupportsStrictSASLProfiles
+            --require TestKafkaBuildConfigBindsMSKToCallerContext
+            --require TestKafkaTLSConfigVerifiesCertificates
+            --require TestQueueEmptyIncludesKafka
+            --require TestQueueInitContextInstallsMemoryAndPropagatesInstallerError
+            --require TestQueueInitContextRejectsInvalidOwnership
+            --require TestQueueLegacyInitDoesNotTerminateOnKafkaConfigurationError
+            --require TestQueueLegacyInitRequiresOwnerContextForMSK
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage
+            --run '^(TestManagedAdapterQueueRemainsAnAdapterQueue|TestAdapterErrorClassificationsPreserveCause)$'
+            --count 1 --race --go-work off
+            --require TestManagedAdapterQueueRemainsAnAdapterQueue
+            --require TestAdapterErrorClassificationsPreserveCause
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./config
+            --run '^(TestConfigInitialQueueOutageCommitsWithoutQueue|TestConfigQueueCancellationPropagatesAndRollsBackDatabase|TestConfigQueueConfigurationAndWatcherFailuresRollBackDatabase|TestConfigOwnsAndClosesManagedQueueBeforeDatabase|TestConfigCloseRetainsDatabaseUntilManagedQueueCanStop|TestConfigCloseReleasesOwnerAndDatabaseAfterTerminalQueueDiagnostic|TestConfigReplacementRetiresOldManagedQueueBeforeOldDatabase|TestConfigReplacementCommitsNewOwnerAfterTerminalQueueDiagnostic|TestConfigReplacementTimeoutDegradesQueueAndRetainsOldDatabaseForRetry|TestReloadDatabaseDuplicateConsumerKeepsPreviousHandle|TestBindPolicyWatcherRegistersManagedConsumerExactlyOnce)$'
+            --count 1 --race --go-work off
+            --require TestConfigInitialQueueOutageCommitsWithoutQueue
+            --require TestConfigQueueCancellationPropagatesAndRollsBackDatabase
+            --require TestConfigQueueConfigurationAndWatcherFailuresRollBackDatabase
+            --require TestConfigOwnsAndClosesManagedQueueBeforeDatabase
+            --require TestConfigCloseRetainsDatabaseUntilManagedQueueCanStop
+            --require TestConfigCloseReleasesOwnerAndDatabaseAfterTerminalQueueDiagnostic
+            --require TestConfigReplacementRetiresOldManagedQueueBeforeOldDatabase
+            --require TestConfigReplacementCommitsNewOwnerAfterTerminalQueueDiagnostic
+            --require TestConfigReplacementTimeoutDegradesQueueAndRetainsOldDatabaseForRetry
+            --require TestReloadDatabaseDuplicateConsumerKeepsPreviousHandle
+            --require TestBindPolicyWatcherRegistersManagedConsumerExactlyOnce
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+            --run '^(TestManagedQueueRunnableParticipatesInManagerErrorPropagation|TestManagedQueueErrorsChannelIsNotLost|TestManagedQueueCompletedStartStillDrainsBufferedError|TestStartLegacyQueueDoesNotDetachManagedQueue|TestStartLegacyQueueRetainsNonManagedCompatibility)$'
+            --count 1 --race --go-work off
+            --require TestManagedQueueRunnableParticipatesInManagerErrorPropagation
+            --require TestManagedQueueErrorsChannelIsNotLost
+            --require TestManagedQueueCompletedStartStillDrainsBufferedError
+            --require TestStartLegacyQueueDoesNotDetachManagedQueue
+            --require TestStartLegacyQueueRetainsNonManagedCompatibility
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/verify
+            --run '^TestV101ChangedProvidersDoNotExitOrDetach$'
+            --count 1 --go-work off
+            --require TestV101ChangedProvidersDoNotExitOrDetach
+        - type: report
+          value: Required-test JSON report proving every listed test emitted Action=run and Action=pass in its package; zero matches, [no tests to run], skip, and cached-only output fail this checkpoint. The report also records that no real broker was used and therefore does not promote Kafka.
+    - id: runtime-lifecycle-evidence
+      requirement: own-provider-lifecycle
+      statement: The D1 queue and object lifecycle checkpoints remain permanent sentinels at feature freeze, and the frozen candidate additionally proves absence of process termination or detached work plus the selected real-provider and real-broker lifecycle, outage, rebalance, recovery, and leak boundaries.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: TestV101ChangedProvidersDoNotExitOrDetach
+        - type: test
+          value: TestObjectStorageSingleClientOwnedClose
+        - type: test
+          value: TestObjectStorageConcurrentCloseIsIdempotent
+        - type: test
+          value: TestObjectStorageCloseDoesNotDeadlockReentrantLease
+        - type: test
+          value: TestObjectStorageProfileCanceledBuildCanRetry
+        - type: test
+          value: TestObjectStorageHandleUseCoversLocalAndS3
+        - type: test
+          value: TestObjectStorageHandleCloseDrainsAndIsIdempotent
+        - type: test
+          value: TestObjectStorageHandleCloseTimeoutCanRetry
+        - type: test
+          value: TestSourceClosesBodyOnReadSuccessAndFailure
+        - type: test
+          value: TestSourceRequiresCallerOwnedContextAndClient
+        - type: test
+          value: TestSourceWatchReturnsUnsupported
+        - type: test
+          value: TestSourceContinuesAcrossMissingExtensions
+        - type: test
+          value: TestS3BootstrapOwnedHandleClosesAndMissingOverlayIsOptional
+        - type: test
+          value: TestS3BootstrapOverlayFailureFailsClosed
+        - type: test
+          value: TestS3BootstrapGenericNotFoundFailsClosed
+        - type: test
+          value: TestS3BootstrapMalformedOverlayFailsClosed
+        - type: test
+          value: TestS3BootstrapRejectsInvalidInsecureHTTPFlag
+        - type: command
+          value: "cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestObjectStorageProfileCanceledBuildCanRetry|TestObjectStorageHandleUseCoversLocalAndS3|TestObjectStorageHandleCloseDrainsAndIsIdempotent|TestObjectStorageHandleCloseTimeoutCanRetry)$' -count=1"
+        - type: command
+          value: "cd mss-boot && GOWORK=off go test -json -race ./pkg/config/source/s3 -run '^(TestSourceClosesBodyOnReadSuccessAndFailure|TestSourceRequiresCallerOwnedContextAndClient|TestSourceWatchReturnsUnsupported|TestSourceContinuesAcrossMissingExtensions)$' -count=1"
+        - type: command
+          value: "cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestS3BootstrapOwnedHandleClosesAndMissingOverlayIsOptional|TestS3BootstrapOverlayFailureFailsClosed|TestS3BootstrapGenericNotFoundFailsClosed|TestS3BootstrapMalformedOverlayFailsClosed|TestS3BootstrapRejectsInvalidInsecureHTTPFlag)$' -count=1"
+        - type: command
+          value: GOWORK=off go test -json ./internal/mss/verify -run '^TestV101ChangedProvidersDoNotExitOrDetach$' -count=1
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./config -run '^(TestObjectStorageSingleClientOwnedClose|TestObjectStorageConcurrentCloseIsIdempotent|TestObjectStorageCloseDoesNotDeadlockReentrantLease)$' -count=1"
+        - type: report
+          value: Required-test JSON report proving the repository-wide forbidden-call test, all D1 queue and object owner tests, Admin single-owner/concurrent-close/reentrant-lease lifecycle tests, S3 source ownership/body-close tests, and S3 bootstrap overlay tests all emitted non-zero run/pass evidence with no skip or cached-only substitution. Feature-freeze provider evidence additionally covers the selected real Kafka broker's error, outage, cancellation, rebalance, recovery, and leak paths without claiming manual commit, retry/dead-letter, or exactly-once semantics; Admin close stayed idempotent without holding the Config mutex across a draining callback, only a missing stage object was optional, and transport/read/malformed-overlay failure or an invalid insecure-HTTP flag failed closed.
+    - id: storage-selection-evidence
+      requirement: fail-closed-provider-selection
+      statement: Missing or invalid configuration and unavailable object backends return an explicit unavailable error without writing locally or returning a success URL; Local installs only for an explicit development static mapping, remains unavailable in production, and every returned development URL serves the committed bytes and checksum across router restart. Provider and credential AppConfig keys are absent and rejected, while S3 returns unavailable before Put until D4.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestStorageValidS3RemainsUnavailableBeforePut
+        - type: test
+          value: TestStorageLocalProductionRequiresExplicitDelivery
+        - type: test
+          value: TestStorageLocalSuccessURLIsActuallyServed
+        - type: test
+          value: TestStoragePolicySnapshotFailureFailsClosed
+        - type: test
+          value: TestStoragePolicyWithoutSnapshotFailsClosed
+        - type: test
+          value: TestStorageInstalledBeforeApplicationDelivery
+        - type: test
+          value: TestStorageAPICheckClosesOwnedResources
+        - type: test
+          value: TestStoragePinnedRootSurvivesConfiguredPathReplacement
+        - type: test
+          value: TestStorageSymlinkRootRemainsUninstalled
+        - type: test
+          value: TestStorageProductionLocalRemainsUninstalled
+        - type: test
+          value: TestStorageInvalidProfileRemainsUninstalled
+        - type: test
+          value: TestStorageUploadUnboundReturnsFixed503
+        - type: test
+          value: TestAvatarUploadUnboundReturnsFixed503
+        - type: test
+          value: TestStorageInvalidPolicyReturnsFixed503
+        - type: test
+          value: TestStorageAppConfigSurfaceIsAdmissionPolicyOnly
+        - type: test
+          value: TestStorageAppConfigAllowsOnlyUploadAdmissionPolicy
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./service -run '^(TestStorageValidS3RemainsUnavailableBeforePut|TestStorageLocalProductionRequiresExplicitDelivery|TestStorageLocalSuccessURLIsActuallyServed|TestStoragePolicySnapshotFailureFailsClosed|TestStoragePolicyWithoutSnapshotFailsClosed|TestStorageAppConfigAllowsOnlyUploadAdmissionPolicy)$' -count=1"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./cmd/server -run '^(TestStorageInstalledBeforeApplicationDelivery|TestStorageAPICheckClosesOwnedResources|TestStoragePinnedRootSurvivesConfiguredPathReplacement|TestStorageSymlinkRootRemainsUninstalled|TestStorageProductionLocalRemainsUninstalled|TestStorageInvalidProfileRemainsUninstalled)$' -count=1"
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./apis -run '^(TestStorageUploadUnboundReturnsFixed503|TestAvatarUploadUnboundReturnsFixed503|TestStorageInvalidPolicyReturnsFixed503|TestStorageAppConfigSurfaceIsAdmissionPolicyOnly)$' -count=1"
+        - type: report
+          value: Required-test JSON report proving every listed storage-selection, policy-snapshot, composition-delivery-order, API-check close, pinned-root, fixed-503, and AppConfig-surface test ran; invalid startup profiles left the application initialized with no owner or Local residue, legacy policy objects without a snapshot failed closed, a symlink root and production Local remained uninstalled, configured-path replacement could not redirect the pinned owner, S3 made no request before D4 Put, and the explicit development Local URL served identical bytes and checksum after restart.
+    - id: upload-boundary-evidence
+      requirement: enforce-upload-admission
+      statement: Exact Gin handler tests mounted at both production upload paths prove generic storage upload and user avatar upload enforce known and unknown-length hard request limits before multipart parsing, distinguish max object bytes from the bounded multipart envelope, clean forced spills, and use randomized create-only local writes that reject collision, forged size, cancellation residue, traversal, and root or internal symlink escape; the existing route security contract separately proves both paths remain authenticated mutations.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestStorageUploadHardLimitBeforeMultipart
+        - type: test
+          value: TestAvatarUploadHardLimitBeforeMultipart
+        - type: test
+          value: TestStorageLocalNoClobberAndConfinement
+        - type: test
+          value: TestStorageUploadPolicyBytesAndMIMEContract
+        - type: test
+          value: TestCustomRouteContractsCoverOtherRegistrations
+        - type: test
+          value: TestCustomRouteContractsMatchRuntimeAuthentication
+        - type: report
+          value: Required-test JSON report proving all six exact tests ran twenty times under race detection; route contracts match both Other registrations and authenticated mutation middleware; known cap-plus-one read zero bytes, unknown-length cap-plus-one read exactly the cap and probe byte, exact limits and the bytes/MIME policy succeeded, forced multipart spills were removed, admission or MIME rejection did not enter provider selection, concurrent local conflicts preserved one complete object, and rejected or canceled writes left no new or partial residue beyond the preserved existing or winning complete object.
+        - type: command
+          value: "cd admin && GOWORK=off go test -json -race ./apis ./service ./router -run '^(TestStorageUploadHardLimitBeforeMultipart|TestAvatarUploadHardLimitBeforeMultipart|TestStorageLocalNoClobberAndConfinement|TestStorageUploadPolicyBytesAndMIMEContract|TestCustomRouteContractsCoverOtherRegistrations|TestCustomRouteContractsMatchRuntimeAuthentication)$' -count=20"
+  risks:
+    - id: challenge-account-takeover
+      description: Reusable, guess-consumed, weak, or fail-open verification codes can enable account takeover or lock out legitimate users.
+      severity: critical
+      mitigation: Ship the internal atomic cryptographic challenge-state behavior and adversarial concurrency tests before expanding email authentication; freeze the public target API only in its v1.1 gate.
+    - id: message-loss
+      description: Marking a message before successful decode and handling can permanently discard work while reporting normal consumer progress.
+      severity: critical
+      mitigation: Move the Kafka session mark after success and require failure-injection evidence for each enabled provider.
+    - id: silent-object-loss
+      description: Implicit local fallback can return a successful URL for an object that production does not serve or preserve.
+      severity: critical
+      mitigation: Reject unknown or unreadable provider state and test that no local write occurs on provider failure.
+    - id: multipart-resource-exhaustion
+      description: Enforcing size only after multipart parsing permits an unauthenticated or authorized request to exhaust memory or temporary disk first.
+      severity: critical
+      mitigation: Bound the raw body at the HTTP boundary and verify temporary storage remains bounded under oversized requests.
+    - id: patch-expands-into-rewrite
+      description: Mixing the full runtime redesign into an urgent patch increases review surface and delays known security and data-loss fixes.
+      severity: high
+      mitigation: Keep checkpoint acceptance focused on safety invariants and track clean package replacement in storage-runtime-v2.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/foundation-v1-0-1-storage-safety.yaml --format json
+      - python3 -m unittest tools/release/test_check_release_policy.py
+      - cd mss-boot && GOWORK=off go test -race ./pkg/config/storage/cache -run '^(TestChallenge.*|TestLegacyVerifyCodeStoreIsDisabled)$' -count=1
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/queue
+        --run '^TestKafka(DoesNotMarkOnDecodeFailure|DoesNotMarkOnHandlerFailure|MarksOnceAfterHandlerSuccess|CancellationLeavesUnfinishedUnmarked|RunStopsAfterCancellation|RunStopsAfterConsumerClose)$'
+        --count 20 --race --go-work off
+        --require TestKafkaDoesNotMarkOnDecodeFailure --require TestKafkaDoesNotMarkOnHandlerFailure
+        --require TestKafkaMarksOnceAfterHandlerSuccess --require TestKafkaCancellationLeavesUnfinishedUnmarked
+        --require TestKafkaRunStopsAfterCancellation --require TestKafkaRunStopsAfterConsumerClose
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/queue
+        --run '^(TestKafkaRunReaderDeprecatedSourceCompatibility|TestKafkaConstructionOwnsOneStrictProducer|TestKafkaConstructionReturnsValidationAndProducerErrors|TestKafkaRegisterReturnsValidationAndConstructionErrors|TestKafkaLegacyRegisterReportsError|TestKafkaLegacyRegisterIsBoundedAndClosesLateGroup|TestKafkaUsesOneProducerForConcurrentAppend|TestKafkaAppendRejectsInvalidOptions|TestKafkaDuplicateRegistrationDoesNotConstructSecondGroup|TestKafkaBlockingFactoryReservesOnceAndCloseHonorsDeadline|TestKafkaCanceledRegistrationDoesNotCancelPeer|TestKafkaAcceptedRegistrationWinsLaterCancellation|TestKafkaRegistrationRejectedAfterStart|TestKafkaConsumerErrorIsObservedWithoutSpin|TestKafkaCloseTimeoutCanBeRetriedAndDrainsOperations|TestKafkaCloseAggregatesAllConsumerAndProducerDiagnostics|TestKafkaCompletedCloseDiagnosticsWinCanceledRetry|TestSampleWatcherManagedRegistrationUsesCallerContext|TestSampleWatcherReturnsManagedRegistrationError|TestSampleWatcherRejectsCanceledRegistrationContext|TestSampleWatcherManagedLegacyRegistrationRequiresContext|TestSampleWatcherCasbinCallbackUpdateDoesNotRegisterDuplicateConsumer)$'
+        --count 1 --race --go-work off
+        --require TestKafkaRunReaderDeprecatedSourceCompatibility --require TestKafkaConstructionOwnsOneStrictProducer
+        --require TestKafkaConstructionReturnsValidationAndProducerErrors --require TestKafkaRegisterReturnsValidationAndConstructionErrors
+        --require TestKafkaLegacyRegisterReportsError --require TestKafkaLegacyRegisterIsBoundedAndClosesLateGroup
+        --require TestKafkaUsesOneProducerForConcurrentAppend --require TestKafkaAppendRejectsInvalidOptions
+        --require TestKafkaDuplicateRegistrationDoesNotConstructSecondGroup --require TestKafkaBlockingFactoryReservesOnceAndCloseHonorsDeadline
+        --require TestKafkaCanceledRegistrationDoesNotCancelPeer --require TestKafkaAcceptedRegistrationWinsLaterCancellation
+        --require TestKafkaRegistrationRejectedAfterStart
+        --require TestKafkaConsumerErrorIsObservedWithoutSpin --require TestKafkaCloseTimeoutCanBeRetriedAndDrainsOperations
+        --require TestKafkaCloseAggregatesAllConsumerAndProducerDiagnostics --require TestKafkaCompletedCloseDiagnosticsWinCanceledRetry
+        --require TestSampleWatcherManagedRegistrationUsesCallerContext
+        --require TestSampleWatcherReturnsManagedRegistrationError --require TestSampleWatcherRejectsCanceledRegistrationContext
+        --require TestSampleWatcherManagedLegacyRegistrationRequiresContext --require TestSampleWatcherCasbinCallbackUpdateDoesNotRegisterDuplicateConsumer
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config
+        --run '^(TestKafkaBuildConfigValidatesStartupProfile|TestKafkaBuildConfigRejectsInvalidProfiles|TestKafkaBuildConfigSupportsStrictSASLProfiles|TestKafkaBuildConfigBindsMSKToCallerContext|TestKafkaTLSConfigVerifiesCertificates|TestQueueEmptyIncludesKafka|TestQueueInitContextInstallsMemoryAndPropagatesInstallerError|TestQueueInitContextRejectsInvalidOwnership|TestQueueLegacyInitDoesNotTerminateOnKafkaConfigurationError|TestQueueLegacyInitRequiresOwnerContextForMSK)$'
+        --count 1 --race --go-work off
+        --require TestKafkaBuildConfigValidatesStartupProfile --require TestKafkaBuildConfigRejectsInvalidProfiles
+        --require TestKafkaBuildConfigSupportsStrictSASLProfiles --require TestKafkaBuildConfigBindsMSKToCallerContext
+        --require TestKafkaTLSConfigVerifiesCertificates --require TestQueueEmptyIncludesKafka
+        --require TestQueueInitContextInstallsMemoryAndPropagatesInstallerError --require TestQueueInitContextRejectsInvalidOwnership
+        --require TestQueueLegacyInitDoesNotTerminateOnKafkaConfigurationError --require TestQueueLegacyInitRequiresOwnerContextForMSK
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage
+        --run '^(TestManagedAdapterQueueRemainsAnAdapterQueue|TestAdapterErrorClassificationsPreserveCause)$'
+        --count 1 --race --go-work off
+        --require TestManagedAdapterQueueRemainsAnAdapterQueue --require TestAdapterErrorClassificationsPreserveCause
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./config
+        --run '^(TestConfigInitialQueueOutageCommitsWithoutQueue|TestConfigQueueCancellationPropagatesAndRollsBackDatabase|TestConfigQueueConfigurationAndWatcherFailuresRollBackDatabase|TestConfigOwnsAndClosesManagedQueueBeforeDatabase|TestConfigCloseRetainsDatabaseUntilManagedQueueCanStop|TestConfigCloseReleasesOwnerAndDatabaseAfterTerminalQueueDiagnostic|TestConfigReplacementRetiresOldManagedQueueBeforeOldDatabase|TestConfigReplacementCommitsNewOwnerAfterTerminalQueueDiagnostic|TestConfigReplacementTimeoutDegradesQueueAndRetainsOldDatabaseForRetry|TestReloadDatabaseDuplicateConsumerKeepsPreviousHandle|TestBindPolicyWatcherRegistersManagedConsumerExactlyOnce)$'
+        --count 1 --race --go-work off
+        --require TestConfigInitialQueueOutageCommitsWithoutQueue --require TestConfigQueueCancellationPropagatesAndRollsBackDatabase
+        --require TestConfigQueueConfigurationAndWatcherFailuresRollBackDatabase --require TestConfigOwnsAndClosesManagedQueueBeforeDatabase
+        --require TestConfigCloseRetainsDatabaseUntilManagedQueueCanStop --require TestConfigCloseReleasesOwnerAndDatabaseAfterTerminalQueueDiagnostic
+        --require TestConfigReplacementRetiresOldManagedQueueBeforeOldDatabase --require TestConfigReplacementCommitsNewOwnerAfterTerminalQueueDiagnostic
+        --require TestConfigReplacementTimeoutDegradesQueueAndRetainsOldDatabaseForRetry --require TestReloadDatabaseDuplicateConsumerKeepsPreviousHandle
+        --require TestBindPolicyWatcherRegistersManagedConsumerExactlyOnce
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+        --run '^(TestManagedQueueRunnableParticipatesInManagerErrorPropagation|TestManagedQueueErrorsChannelIsNotLost|TestManagedQueueCompletedStartStillDrainsBufferedError|TestStartLegacyQueueDoesNotDetachManagedQueue|TestStartLegacyQueueRetainsNonManagedCompatibility)$'
+        --count 1 --race --go-work off
+        --require TestManagedQueueRunnableParticipatesInManagerErrorPropagation --require TestManagedQueueErrorsChannelIsNotLost
+        --require TestManagedQueueCompletedStartStillDrainsBufferedError --require TestStartLegacyQueueDoesNotDetachManagedQueue
+        --require TestStartLegacyQueueRetainsNonManagedCompatibility
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/verify
+        --run '^TestV101ChangedProvidersDoNotExitOrDetach$' --count 1 --go-work off
+        --require TestV101ChangedProvidersDoNotExitOrDetach
+      - cd admin && GOWORK=off go test -json -race ./apis -run '^(TestEmailChallenge.*|TestAppConfigProfile.*|TestUpdateUserInfoRejectsEmailChangeUntilCanonicalIdentityMigration)$' -count=1
+      - cd admin && GOWORK=off go test -json -race ./apis ./service ./router -run '^(TestStorageUploadHardLimitBeforeMultipart|TestAvatarUploadHardLimitBeforeMultipart|TestStorageLocalNoClobberAndConfinement|TestStorageUploadPolicyBytesAndMIMEContract|TestCustomRouteContractsCoverOtherRegistrations|TestCustomRouteContractsMatchRuntimeAuthentication)$' -count=1
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config
+        --run '^(TestObjectStorageProfileRejectsInvalidConfiguration|TestObjectStorageProfileBuildIsImmutable|TestStorageV100DeprecatedSourceCompatibility|TestStorageV100DeprecatedInitFailsClosed|TestObjectStorageProfileCanceledBuildCanRetry|TestObjectStorageHandleUseCoversLocalAndS3|TestObjectStorageHandleCloseDrainsAndIsIdempotent|TestObjectStorageHandleCloseTimeoutCanRetry)$'
+        --count 1 --race --go-work off
+        --require TestObjectStorageProfileRejectsInvalidConfiguration --require TestObjectStorageProfileBuildIsImmutable
+        --require TestStorageV100DeprecatedSourceCompatibility --require TestStorageV100DeprecatedInitFailsClosed
+        --require TestObjectStorageProfileCanceledBuildCanRetry --require TestObjectStorageHandleUseCoversLocalAndS3
+        --require TestObjectStorageHandleCloseDrainsAndIsIdempotent --require TestObjectStorageHandleCloseTimeoutCanRetry
+      - cd mss-boot && GOWORK=off go test -json -race ./pkg/config/source/s3 -run '^(TestSourceClosesBodyOnReadSuccessAndFailure|TestSourceRequiresCallerOwnedContextAndClient|TestSourceWatchReturnsUnsupported|TestSourceContinuesAcrossMissingExtensions)$' -count=1
+      - cd mss-boot && GOWORK=off go test -json -race ./pkg/config -run '^(TestS3BootstrapOwnedHandleClosesAndMissingOverlayIsOptional|TestS3BootstrapOverlayFailureFailsClosed|TestS3BootstrapGenericNotFoundFailsClosed|TestS3BootstrapMalformedOverlayFailsClosed|TestS3BootstrapRejectsInvalidInsecureHTTPFlag)$' -count=1
+      - cd admin && GOWORK=off go test -json -race ./config -run '^(TestObjectStorageSingleClientOwnedClose|TestObjectStorageConcurrentCloseIsIdempotent|TestObjectStorageCloseDoesNotDeadlockReentrantLease)$' -count=1
+      - cd admin && GOWORK=off go test -json -race ./service -run '^(TestStorageValidS3RemainsUnavailableBeforePut|TestStorageLocalProductionRequiresExplicitDelivery|TestStorageLocalSuccessURLIsActuallyServed|TestStoragePolicySnapshotFailureFailsClosed|TestStoragePolicyWithoutSnapshotFailsClosed|TestStorageAppConfigAllowsOnlyUploadAdmissionPolicy)$' -count=1
+      - cd admin && GOWORK=off go test -json -race ./cmd/server -run '^(TestStorageInstalledBeforeApplicationDelivery|TestStorageAPICheckClosesOwnedResources|TestStoragePinnedRootSurvivesConfiguredPathReplacement|TestStorageSymlinkRootRemainsUninstalled|TestStorageProductionLocalRemainsUninstalled|TestStorageInvalidProfileRemainsUninstalled)$' -count=1
+      - cd admin && GOWORK=off go test -json -race ./apis -run '^(TestStorageUploadUnboundReturnsFixed503|TestAvatarUploadUnboundReturnsFixed503|TestStorageInvalidPolicyReturnsFixed503|TestStorageAppConfigSurfaceIsAdmissionPolicyOnly)$' -count=1
+      - go test -json ./internal/mss/project -run '^TestCapabilityCatalogProviderSpecificStorageStatuses$'
+      - go test -json ./internal/mss/spec -run '^TestFeatureAcceptancePhaseValidation$'
+  rollout:
+    strategy: phased
+    migration: >-
+      Land the safety changes as independently reviewable commits. Challenge, Kafka Mark ordering,
+      upload admission, and both D1 provider-owner subsets are complete internal checkpoints. D1 now
+      has strict Kafka configuration and registration, one producer and owned consumer groups, observed
+      errors, a cancellable Runnable, and retryable bounded close; development proceeds directly to D2.
+      S3 Put, Delivery, object metadata, and a pinned RustFS
+      conformance fixture remain D4 work. No database migration is planned for this checkpoint,
+      historical storage AppConfig rows remain inert, and no v1.0.x tag is created.
+      After the v1.1.0 feature freeze and concentrated qualification, open and approve an exact-commit
+      evidence issue, publish mss-boot/v1.1.0 first, prove external GOWORK=off resolution, run the
+      pre-root exact-commit authority checks, and publish root v1.1.0 while that issue remains open. The
+      complete matrix has already passed before pre-framework authority. Append final tag,
+      Release, checksum, smoke, and post-release drift evidence, then close the issue only after every
+      published fact reconciles.
+    rollback: >-
+      Stop new writes and consumers before changing provider code. Prefer an idempotent forward fix for
+      any challenge, Kafka offset-mark, or object-delivery defect. A code rollback is permitted only after
+      proving it does not restore weak challenge generation, an early Kafka offset mark, implicit local
+      fallback, unbounded multipart parsing, or provider process termination. Preserve consumer-group
+      offset state, sanitized provider diagnostics, object metadata, configuration fingerprints, and logs without secrets.

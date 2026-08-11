@@ -13,7 +13,9 @@ func TestLoadProjectContext(t *testing.T) {
 kind: Project
 metadata:
   name: test-admin
+  repository: acme/test-admin
 spec:
+  foundationVersion: 1.0.0
   repositoryLayout:
     backend: .
     framework: mss-boot
@@ -81,7 +83,9 @@ func TestLoadRejectsEscapingRepositoryPath(t *testing.T) {
 kind: Project
 metadata:
   name: unsafe
+  repository: acme/unsafe
 spec:
+  foundationVersion: 1.0.0
   repositoryLayout:
     backend: .
     framework: ../outside
@@ -115,6 +119,47 @@ func TestFindRootFailsOutsideProject(t *testing.T) {
 	_, err := FindRoot(t.TempDir())
 	if err == nil || !strings.Contains(err.Error(), "project root not found") {
 		t.Fatalf("FindRoot() error = %v", err)
+	}
+}
+
+func TestDecodeProjectDocumentRequiresGenerationBaseline(t *testing.T) {
+	document, err := DecodeProjectDocument([]byte(`apiVersion: mss.io/v1alpha1
+kind: Project
+metadata:
+  name: fixture
+  repository: acme/foundation
+spec:
+  foundationVersion: 1.2.3
+`))
+	if err != nil {
+		t.Fatalf("DecodeProjectDocument() error = %v", err)
+	}
+	if document.Metadata.Repository != "acme/foundation" || document.Spec.FoundationVersion != "1.2.3" {
+		t.Fatalf("unexpected project identity: %#v", document)
+	}
+	_, err = DecodeProjectDocument([]byte(`apiVersion: mss.io/v1alpha1
+kind: Project
+metadata:
+  name: fixture
+  repository: acme/foundation
+spec: {}
+`))
+	if err == nil || !strings.Contains(err.Error(), "foundationVersion") {
+		t.Fatalf("DecodeProjectDocument() error = %v, want missing foundation version", err)
+	}
+}
+
+func TestDecodeProjectDocumentRejectsYAMLGraphFeatures(t *testing.T) {
+	_, err := DecodeProjectDocument([]byte(`apiVersion: mss.io/v1alpha1
+kind: Project
+metadata: &metadata
+  name: fixture
+  repository: acme/foundation
+spec:
+  foundationVersion: 1.2.3
+`))
+	if err == nil || !strings.Contains(err.Error(), "anchors and aliases") {
+		t.Fatalf("DecodeProjectDocument() error = %v, want YAML graph rejection", err)
 	}
 }
 

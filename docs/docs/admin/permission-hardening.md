@@ -93,14 +93,18 @@ Casbin 使用并发安全的同步执行器，避免策略重载与请求鉴权�
 
 ## 配置凭据边界
 
-应用设置的普通读取和写入权限不再隐含凭据权限。以下四个固定字段单独受保护：
+应用设置的普通读取和写入权限不再隐含凭据权限。以下三个固定字段单独受保护：
 
 - `email/password`
 - `security/githubClientSecret`
 - `security/larkAppSecret`
-- `storage/s3SecretAccessKey`
 
 非 root 角色只有获得 `app-config:secret-read` 后，应用配置 GET 才返回这些字段；没有读取权限时响应正常，但敏感键被省略。`app-config:secret-write` 允许盲轮换凭据，仍需原有应用配置写权限；包含敏感字段的混合请求会整笔授权、整笔提交，拒绝时不会先写入普通字段。大小写别名、Casbin 故障和策略读取错误都默认拒绝且不返回敏感值。新增组件权限不会继承 `/app-config` 的既有授权，也不会自动授给任何角色。
+
+对象存储凭据已完全移出 AppConfig 凭据面。Storage AppConfig 只允许
+`storage/maxSize` 与 `storage/allowedTypes`；历史 provider/credential 行不会投影，
+已移除 key 的读写不因 `app-config:secret-read` 或 `app-config:secret-write` 而恢复。
+Provider 与 SecretRef 的唯一合法来源是进程启动时的不可变 profile。
 
 历史 `SystemConfig.Content` 是不透明载荷，无法可靠判断其中是否包含密码、令牌或私有端点。因此在拆分为类型化配置资源前，其列表、详情、创建、修改和删除统一只允许当前 root 身份；前端直达路由和操作按钮采用同一边界，后端处理器仍是最终授权点。
 

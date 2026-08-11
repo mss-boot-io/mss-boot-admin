@@ -424,3 +424,55 @@ func (e *AppConfig) GetAppConfig(ctx *gin.Context, key string) (string, bool) {
 	}
 	return c.Value, true
 }
+
+// GetAppConfigSnapshot reads a bounded set of keys in one database statement.
+// It bypasses the per-key cache so a security policy cannot combine values from
+// different revisions or mistake a cache/database failure for a missing key.
+func (e *AppConfig) GetAppConfigSnapshot(ctx *gin.Context, keys ...string) (map[string]string, error) {
+	if ctx == nil || len(keys) == 0 {
+		return nil, errors.New("application config snapshot context and keys are required")
+	}
+	group := ""
+	names := make([]string, 0, len(keys))
+	wanted := make(map[string]string, len(keys))
+	for _, key := range keys {
+		keyGroup, name := splitAppConfigKey(key)
+		if keyGroup == "" || name == "" {
+			return nil, fmt.Errorf("invalid application config snapshot key %q", key)
+		}
+		if group == "" {
+			group = keyGroup
+		}
+		if keyGroup != group {
+			return nil, errors.New("application config snapshot keys must share one group")
+		}
+		if _, exists := wanted[name]; exists {
+			return nil, fmt.Errorf("duplicate application config snapshot key %q", key)
+		}
+		wanted[name] = key
+		names = append(names, name)
+	}
+
+	var rows []AppConfig
+	err := center.GetDB(ctx, e).
+		Clauses(dbresolver.Write).
+		Model(&AppConfig{}).
+		Where(clause.Eq{Column: clause.Column{Name: "group"}, Value: group}).
+		Where("name IN ?", names).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]string, len(rows))
+	for i := range rows {
+		key, expected := wanted[rows[i].Name]
+		if !expected || rows[i].Group != group {
+			return nil, ErrAppConfigIdentityMismatch
+		}
+		if _, duplicate := result[key]; duplicate {
+			return nil, ErrAppConfigIdentityMismatch
+		}
+		result[key] = rows[i].Value
+	}
+	return result, nil
+}

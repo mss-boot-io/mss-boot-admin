@@ -120,6 +120,18 @@ spec:
       description: Run root backend and framework tests.
       category: backend
 
+    go-test-evidence:
+      command: "go run ./cmd/mss test evidence --directory <module-dir> --package ./<single-package> --run '^(TestOne|TestTwo)$' --count <n> --go-work off --require TestOne --require TestTwo"
+      description: Run one repository-local Go package and reject external or multi-package selection plus missing, skipped, failed, cached, or inexact JSON evidence.
+      outputFormats: [json]
+      category: verification
+
+    provider-evidence:
+      command: go run ./cmd/mss provider evidence --required --format json
+      description: Validate provider-specific exact-commit fixture evidence and reject empty, zero-hit, skipped, failed, partial, or cached-only required results.
+      outputFormats: [text, json]
+      category: verification
+
     backend-lint:
       command: make lint
       description: Run Go lint checks.
@@ -157,15 +169,68 @@ spec:
 
     verify-changed:
       command: go run ./cmd/mss verify --changed
-      description: Compute and execute the minimum sufficient checks for the current Git diff.
+      description: Compute and execute the minimum development-checkpoint checks for the current Git diff; this never authorizes a release.
       outputFormats: [text, json]
       category: verification
 
     verify-all:
       command: go run ./cmd/mss verify --all
-      description: Execute the complete repository validation suite.
+      description: Execute the complete repository validation suite after feature freeze or when explicitly requested for diagnosis.
       outputFormats: [text, json]
       category: verification
+
+    release-policy-check:
+      command: python3 tools/release/check_release_policy.py --component <root|framework|frontend> --version <version> --tag <tag> --intent <qualify|publish>
+      description: Validate the reviewed target and namespace; qualify permits unpublished candidate work, while publish also requires publication workflow readiness and is not itself phase approval.
+      outputFormats: [text]
+      category: release
+
+    release-source-verify:
+      command: python3 tools/release/verify_release_source.py --repository <owner/repository> --commit <full-sha> [--tag <tag>]
+      description: Fail closed unless the clean exact checkout is contained in fresh origin/main, is the final merge or squash commit produced by a merged PR targeting main, and any supplied remote tag peels exactly to that commit.
+      outputFormats: [text]
+      category: release
+      idempotent: true
+
+    release-phase-evidence-plan:
+      command: python3 tools/release/release_phase_evidence.py plan --target-version v1.1.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root|post-publication> --output .mss/reports/release-phase-plan.json
+      description: Resolve the explicitly selected v1.1.0 Feature contracts into a shell-free, phase-scoped command plan while retaining manual, report, and non-exact evidence as release-manager review items.
+      outputFormats: [json]
+      category: release
+      idempotent: true
+
+    release-phase-evidence-run:
+      command: python3 tools/release/release_phase_evidence.py run --target-version v1.1.0 --commit <full-sha> --phase feature-freeze --output .mss/reports/release-phase-command-evidence.json
+      description: On one clean frozen commit, execute the scoped release Feature commands without a shell, retain per-command digests and logs, and fail when a selected command fails, times out, or still uses non-exact named Go test evidence.
+      outputFormats: [json]
+      category: release
+
+    release-qualification-decision:
+      command: python3 tools/release/release_qualification_decision.py --target-version v1.1.0 --commit <full-sha> --phase feature-freeze --browser-evidence-commit <full-sha> --browser-evidence-ref <reference> --blueprint-evidence-commit <full-sha> --blueprint-evidence-ref <reference> --output .mss/reports/release-qualification-decision.json
+      description: Bind the Codex in-app Browser and external Blueprint rehearsal evidence to the exact frozen SHA while recording carry-forward and optional ObjectStore/RustFS decisions.
+      outputFormats: [json]
+      category: release
+      idempotent: true
+
+    release-readiness-attestation-create:
+      command: python3 tools/release/release_readiness_attestation.py create --output <attestation.json> --policy .mss/release-policy.yaml --target-version v1.1.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --publication-authority <true|false>
+      description: Create the strict readiness metadata for one exact workflow run; the checked-in development policy permits checkpoint qualification only and cannot grant publication authority.
+      outputFormats: [text]
+      category: release
+
+    release-readiness-attestation-verify:
+      command: python3 tools/release/release_readiness_attestation.py verify --attestation <attestation.json> --policy .mss/release-policy.yaml --target-version v1.1.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --intent <qualify|publish>
+      description: Reject an attestation unless its exact schema, version, commit, phase, policy digest, selected run identity, URL, and authority match the requested intent.
+      outputFormats: [text]
+      category: release
+      idempotent: true
+
+    release-readiness-run-verify:
+      command: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.1.0 --commit <full-sha> --phase <pre-framework|pre-root> --policy .mss/release-policy.yaml
+      description: Read the specifically selected successful release-readiness workflow run and its run-named artifact, then require an exact publication attestation before a publishing workflow writes externally.
+      outputFormats: [text]
+      category: release
+      idempotent: true
 
     direct-verify-all:
       command: make verify-all
@@ -192,7 +257,7 @@ spec:
 
     eval-run:
       command: go run ./cmd/mss eval run
-      description: Execute Agent evaluation cases and store structured reports.
+      description: Execute selected Agent evaluation cases; the complete --all matrix is a feature-freeze and release-readiness activity.
       outputFormats: [text, markdown, json]
       category: eval
 

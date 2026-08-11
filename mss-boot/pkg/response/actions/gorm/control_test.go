@@ -3,16 +3,21 @@ package gorm
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 )
 
@@ -24,6 +29,22 @@ type createCacheRecord struct {
 type requestContextRecord struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
+}
+
+type mappedWriteRecord struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+func (*mappedWriteRecord) TableName() string { return "mapped_write_records" }
+
+var errSensitiveMappedWrite = errors.New("driver unique person@example.com secret")
+
+func (e *mappedWriteRecord) BeforeSave(*gorm.DB) error {
+	if e.Name == "blocked" {
+		return errSensitiveMappedWrite
+	}
+	return nil
 }
 
 func (*requestContextRecord) TableName() string {
@@ -193,5 +214,101 @@ func TestControlCreateCleansQueryCacheTag(t *testing.T) {
 	}
 	if cleanedTag != "create_cache_records" {
 		t.Fatalf("expected create to clean table cache tag, got %q", cleanedTag)
+	}
+}
+
+func TestControlWriteErrorMapperRedactsCreateAndUpdateFailures(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		t.Fatalf("open sqlite db: %v", err)
+	}
+	if err := db.AutoMigrate(&mappedWriteRecord{}); err != nil {
+		t.Fatalf("auto migrate: %v", err)
+	}
+	seed := &mappedWriteRecord{Name: "seed"}
+	if err := db.Create(seed).Error; err != nil {
+		t.Fatalf("seed record: %v", err)
+	}
+
+	previousDB := gormdb.DB
+	gormdb.DB = db
+	t.Cleanup(func() { gormdb.DB = previousDB })
+
+	seen := make([]actions.WriteOperation, 0, 2)
+	mapper := func(_ *gin.Context, operation actions.WriteOperation, cause error) (actions.PublicWriteError, bool) {
+		if !errors.Is(cause, errSensitiveMappedWrite) {
+			return actions.PublicWriteError{}, false
+		}
+		seen = append(seen, operation)
+		return actions.PublicWriteError{
+			Status: http.StatusConflict,
+			Error:  response.NewError("IDENTITY_UNAVAILABLE", "identity is unavailable"),
+		}, true
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	control := NewControl(WithModel(&mappedWriteRecord{}), WithKey("id"), WithWriteErrorMapper(mapper))
+	router.POST("/records", control.Handler()...)
+	router.PUT("/records/:id", control.Handler()...)
+
+	requests := []*http.Request{
+		httptest.NewRequest(http.MethodPost, "/records", bytes.NewBufferString(`{"name":"blocked"}`)),
+		httptest.NewRequest(http.MethodPut, fmt.Sprintf("/records/%d", seed.ID), bytes.NewBufferString(`{"name":"blocked"}`)),
+	}
+	for _, request := range requests {
+		request.Header.Set("Content-Type", "application/json")
+		result := httptest.NewRecorder()
+		router.ServeHTTP(result, request)
+		if result.Code != http.StatusConflict {
+			t.Fatalf("%s response = %d: %s", request.Method, result.Code, result.Body.String())
+		}
+		body := result.Body.String()
+		if !strings.Contains(body, "IDENTITY_UNAVAILABLE") || !strings.Contains(body, "identity is unavailable") {
+			t.Fatalf("%s response did not contain fixed public error: %s", request.Method, body)
+		}
+		for _, forbidden := range []string{"person@example.com", "driver", "secret", "unique"} {
+			if strings.Contains(body, forbidden) {
+				t.Fatalf("%s response leaked %q: %s", request.Method, forbidden, body)
+			}
+		}
+	}
+	if len(seen) != 2 || seen[0] != actions.WriteOperationCreate || seen[1] != actions.WriteOperationUpdate {
+		t.Fatalf("mapped operations = %v, want [create update]", seen)
+	}
+
+	var count int64
+	if err := db.Model(&mappedWriteRecord{}).Where("name = ?", "blocked").Count(&count).Error; err != nil {
+		t.Fatalf("count blocked records: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("blocked record count = %d, want 0", count)
+	}
+}
+
+func TestControlWriteErrorMapperUsesRedactedFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	control := NewControl(
+		WithModel(&mappedWriteRecord{}),
+		WithBeforeCreate(func(*gin.Context, *gorm.DB, schema.Tabler) error {
+			return errSensitiveMappedWrite
+		}),
+		WithWriteErrorMapper(func(*gin.Context, actions.WriteOperation, error) (actions.PublicWriteError, bool) {
+			return actions.PublicWriteError{}, false
+		}),
+	)
+	router.POST("/records", control.Handler()...)
+
+	request := httptest.NewRequest(http.MethodPost, "/records", bytes.NewBufferString(`{"name":"blocked"}`))
+	request.Header.Set("Content-Type", "application/json")
+	result := httptest.NewRecorder()
+	router.ServeHTTP(result, request)
+	if result.Code != http.StatusInternalServerError {
+		t.Fatalf("response = %d: %s", result.Code, result.Body.String())
+	}
+	body := result.Body.String()
+	if !strings.Contains(body, "WRITE_FAILED") || strings.Contains(body, "person@example.com") {
+		t.Fatalf("fallback response is not redacted: %s", body)
 	}
 }

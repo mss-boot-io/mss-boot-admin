@@ -1,15 +1,20 @@
 package apis
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 
+	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
@@ -43,6 +48,12 @@ type appConfigSecretEnforcer interface {
 const (
 	appConfigSecretReadPath  = "/app-config/secrets/read"
 	appConfigSecretWritePath = "/app-config/secrets/write"
+	emailChallengeReadyLimit = 150 * time.Millisecond
+)
+
+var storageAppConfigKeyRemovedError = response.NewError(
+	"STORAGE_PROFILE_APP_CONFIG_FORBIDDEN",
+	"storage provider and credential settings must come from the startup profile",
 )
 
 func (e *AppConfig) GetAction(string) response.Action {
@@ -62,7 +73,7 @@ func (e *AppConfig) Other(r *gin.RouterGroup) {
 // @Tags app-config
 // @Accept application/json
 // @Produce application/json
-// @Success 200 {object} map[string]map[string]string
+// @Success 200 {object} dto.AppConfigPublicProfile
 // @Router /admin/api/app-configs/profile [get]
 // @Security Bearer
 func (e *AppConfig) Profile(ctx *gin.Context) {
@@ -77,7 +88,58 @@ func (e *AppConfig) Profile(ctx *gin.Context) {
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	api.OK(profile)
+	api.OK(projectEmailChallengeReadiness(profile, emailChallengeReady(ctx)))
+}
+
+// emailChallengeReady is evaluated for every public profile response. The
+// rest of the profile may come from the versioned Redis cache, but runtime
+// dependency health must never be persisted in that cache or reused after a
+// failed check.
+func emailChallengeReady(ctx *gin.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	appConfig := center.GetAppConfig()
+	if appConfig == nil {
+		return false
+	}
+	host, hostOK := appConfig.GetAppConfig(ctx, "email:smtpHost")
+	portValue, portOK := appConfig.GetAppConfig(ctx, "email:smtpPort")
+	username, usernameOK := appConfig.GetAppConfig(ctx, "email:username")
+	password, passwordOK := appConfig.GetAppConfig(ctx, "email:password")
+	port, portErr := strconv.Atoi(strings.TrimSpace(portValue))
+	if !hostOK || !portOK || !usernameOK || !passwordOK ||
+		strings.TrimSpace(host) == "" || strings.TrimSpace(username) == "" || password == "" ||
+		portErr != nil || port < 1 || port > 65535 {
+		return false
+	}
+	challenge := center.GetRuntimeChallenge()
+	if challenge == nil {
+		return false
+	}
+	requestCtx := context.Background()
+	if ctx.Request != nil {
+		requestCtx = ctx.Request.Context()
+	}
+	readyCtx, cancel := context.WithTimeout(requestCtx, emailChallengeReadyLimit)
+	defer cancel()
+	return challenge.Ready(readyCtx) == nil
+}
+
+var _ center.RuntimeChallengeImp = (*runtimechallenge.Redis)(nil)
+
+func projectEmailChallengeReadiness(profile map[string]gin.H, ready bool) map[string]gin.H {
+	result := make(map[string]gin.H, len(profile)+1)
+	for group, values := range profile {
+		result[group] = values
+	}
+	security := make(gin.H, len(profile["security"])+1)
+	for name, value := range profile["security"] {
+		security[name] = value
+	}
+	security["emailChallengeReady"] = ready
+	result["security"] = security
+	return result
 }
 
 // Group 应用配置分组
@@ -160,6 +222,7 @@ func (e *AppConfig) Group(ctx *gin.Context) {
 // @Header 200 {string} ETag "Strong theme resource ETag when group=theme"
 // @Failure 412 {object} dto.ThemeRevisionConflictResponse "Theme revision conflict"
 // @Failure 403 {object} response.Response "Credential fields require app-config:secret-write"
+// @Failure 422 {object} response.Response "Storage provider and credential fields are not AppConfig settings"
 // @Failure 503 {object} response.Response "Credential authorization policy is unavailable"
 // @Header 412 {string} ETag "Current strong application theme ETag"
 // @Router /admin/api/app-configs/{group} [put]
@@ -251,6 +314,10 @@ func (e *AppConfig) Control(ctx *gin.Context) {
 	}
 	err := e.service.CreateOrUpdate(ctx, req.Group, req.Data)
 	if err != nil {
+		if errors.Is(err, service.ErrAppConfigKeyNotAllowed) {
+			api.AddError(storageAppConfigKeyRemovedError).Err(http.StatusUnprocessableEntity)
+			return
+		}
 		if errors.Is(err, service.ErrInvalidThemePatch) ||
 			errors.Is(err, service.ErrAppConfigKeyCaseMismatch) ||
 			errors.Is(err, service.ErrThemeGroupCaseMismatch) {

@@ -29,10 +29,12 @@ export default [
       {
         path: PUBLIC_ROUTE_PATHS.forget,
         component: './User/Login/forget.tsx',
+        wrappers: ['@/wrappers/emailChallenge'],
       },
       {
         path: PUBLIC_ROUTE_PATHS.register,
         component: './User/Login/register.tsx',
+        wrappers: ['@/wrappers/emailChallenge'],
       },
     ],
   },

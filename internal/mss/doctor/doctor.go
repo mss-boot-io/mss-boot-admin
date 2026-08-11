@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/blueprint"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
@@ -89,12 +90,13 @@ func ParseComponents(values []string) ([]Component, error) {
 
 // Check records one deterministic doctor result.
 type Check struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Status      Status `json:"status"`
-	Required    bool   `json:"required"`
-	Detail      string `json:"detail,omitempty"`
-	Remediation string `json:"remediation,omitempty"`
+	ID          string                    `json:"id"`
+	Name        string                    `json:"name"`
+	Status      Status                    `json:"status"`
+	Required    bool                      `json:"required"`
+	Detail      string                    `json:"detail,omitempty"`
+	Remediation string                    `json:"remediation,omitempty"`
+	Snapshot    *blueprint.SnapshotStatus `json:"snapshot,omitempty"`
 }
 
 // Report is emitted in text or JSON form for humans and agents.
@@ -134,6 +136,7 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 			fileCheck(projectContext.Root, ".mss/project.yaml", true),
 			fileCheck(projectContext.Root, ".mss/capabilities.yaml", true),
 			fileCheck(projectContext.Root, ".mss/commands.yaml", true),
+			foundationSnapshotCheck(projectContext),
 		)
 	}
 	if selected(ComponentBackend) {
@@ -195,6 +198,69 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 		return report.Checks[i].ID < report.Checks[j].ID
 	})
 	return report
+}
+
+func foundationSnapshotCheck(projectContext *project.Context) Check {
+	check := Check{
+		ID:       "snapshot:foundation",
+		Name:     "Foundation snapshot",
+		Required: true,
+	}
+	inspection, err := blueprint.InspectSnapshot(
+		projectContext.Root,
+		".mss/blueprint-manifest.json",
+		projectContext.Project.Metadata.Name,
+		projectContext.Project.Metadata.Repository,
+	)
+	if err != nil {
+		check.Status = StatusFail
+		check.Detail = err.Error()
+		check.Remediation = "restore both generated snapshot records or the strict Foundation source development lock"
+		return check
+	}
+
+	switch inspection.Role {
+	case blueprint.SnapshotRoleFoundationSource:
+		if inspection.Source == nil {
+			check.Status = StatusFail
+			check.Detail = "Foundation source inspection omitted its identity"
+			return check
+		}
+		check.Status = StatusInfo
+		check.Required = false
+		check.Detail = fmt.Sprintf(
+			"Foundation source sentinel: %s@%s, Blueprint %s@%s, generator mss@%s",
+			inspection.Source.FoundationRepository,
+			inspection.Source.FoundationVersion,
+			inspection.Source.Blueprint,
+			inspection.Source.BlueprintVersion,
+			inspection.Source.GeneratorVersion,
+		)
+	case blueprint.SnapshotRoleGenerated:
+		if inspection.Status == nil {
+			check.Status = StatusFail
+			check.Detail = "generated snapshot inspection omitted its verified status"
+			return check
+		}
+		check.Status = StatusPass
+		check.Required = true
+		check.Snapshot = inspection.Status
+		check.Detail = fmt.Sprintf(
+			"Foundation %s@%s, Blueprint %s@%s, generator %s@%s, snapshot %s",
+			inspection.Status.Identities.Foundation.Repository,
+			inspection.Status.Identities.Foundation.Version,
+			inspection.Status.Identities.Blueprint.Name,
+			inspection.Status.Identities.Blueprint.Version,
+			inspection.Status.Identities.Generator.Tool,
+			inspection.Status.Identities.Generator.Version,
+			inspection.Status.Identities.Snapshot.SHA256,
+		)
+	default:
+		check.Status = StatusFail
+		check.Detail = "snapshot inspection returned an unsupported repository role"
+		check.Remediation = "restore a supported Foundation source or generated downstream snapshot"
+	}
+	return check
 }
 
 // JSON returns stable indented JSON.

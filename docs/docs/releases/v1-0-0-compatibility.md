@@ -4,7 +4,7 @@ order: 4
 nav:
   title: 发布
   order: 3
-description: 计划中的 v1.0.0 Go 模块、数据库、API、配置、前后端和能力状态兼容边界
+description: 已发布 v1.0.0 的 Go 模块、数据库、API、配置、前后端和能力状态兼容边界
 keywords: [v1.0.0 compatibility api module database frontend]
 ---
 
@@ -85,10 +85,10 @@ HTTP 401 表示身份无效或失效，403 表示当前身份缺权限，405 表
 
 ## 能力状态
 
-| 能力 | v1.0.0 候选状态 | 说明 |
+| 能力 | v1.0.0 发布后状态 | 说明 |
 | --- | --- | --- |
-| Authentication / PAT / RBAC | stable implementation, release-gated | 必须通过安全迁移和正反授权矩阵 |
-| Configuration cache consistency | stable implementation, release-gated | 数据库 revision 权威，Redis 可降级 |
+| Authentication / PAT / RBAC | stable | 已通过 v1.0.0 安全迁移和正反授权门禁 |
+| Configuration cache consistency | stable | 数据库 revision 权威，Redis 可降级 |
 | Layered theme settings | planned / preview | 外部 DB 并发/升级与完整浏览器矩阵未全部封板 |
 | Monitoring history | beta | 单实例、有界、进程内历史，不替代集群可观测性 |
 | User-managed tasks | beta | 与 always-on system jobs 分离 |

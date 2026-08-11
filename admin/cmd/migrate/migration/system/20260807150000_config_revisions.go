@@ -13,7 +13,7 @@ import (
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
-	migration.Migrate.SetVersion(migration.GetFilename(fileName), _20260807150000ConfigRevisions)
+	migration.Migrate.SetV100Version(fileName, _20260807150000ConfigRevisions)
 }
 
 func _20260807150000ConfigRevisions(db *gorm.DB, version string) error {

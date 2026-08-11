@@ -1,0 +1,1024 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: foundation-v1-1-0-generator-blueprint
+  displayName: Deliver one upgradeable full-stack golden module for v1.1.0
+  description: >-
+    Defines the Blueprint identity, deterministic generation, forward migration, authorization,
+    OpenAPI, frontend, testing, documentation, and downstream-upgrade gates for the v1.1.0
+    Generator and Blueprint flagship milestone.
+  owner: agent-infrastructure
+  labels:
+    domain: generator-blueprint
+    target-version: v1.1.0
+    release-status: planned
+    compatibility: target-design-unconstrained
+    evidence-enforcement: declarative-until-infrastructure-planner-and-runner
+spec:
+  problem: >-
+    The v1.0.0 module generator is a deterministic scaffold, not a complete full-stack module
+    generator. The checked-in supplier specification declares operations, export, ownership,
+    events, tests, indexes, permissions, default roles, menu metadata, frontend behavior, and
+    documentation that are not all projected into generated output. Commit 5a60ad6 checks in the
+    first generated supplier backend checkpoint, and commit d92458c adds the separate authorization
+    migration, default-role policy, menu metadata, and exact Admin authorization matrix. Its machine
+    plan intentionally remains phase backend-checkpoint and complete false while 19 frontend,
+    documentation, and E2E projections are deferred. Historical human and machine module-path drift showed that the
+    admin/modules/name target lacked an enforced single source of truth, and Foundation release,
+    Blueprint, generator, and
+    downstream snapshot versions are conflated. Expanding features before one upgradeable vertical
+    slice passes end to end would multiply unverifiable contracts.
+  goals:
+    - Separate Foundation release, Blueprint revision, generator binary, and downstream snapshot identities with deterministic sync and drift checks; lock and manifest are atomic records of the same snapshot.
+    - Select one canonical vertical-module path and make AGENTS, project contract, generator, verifier, docs, tests, and upgrade ownership agree.
+    - Generate a real forward SQL migration and upgrade path rather than presenting AutoMigrate as a migration contract.
+    - Project every supported AdminModule field into backend, authorization, menu, OpenAPI, frontend, tests, events, export, indexes, and documentation.
+    - Reject every declared but unsupported field before writing any file.
+    - Check in one supplier golden module and prove two-run idempotency, path confinement, stable ordering, generated-drift detection, and no unrelated edits.
+    - Prove a three-way Blueprint upgrade preserves downstream business customizations and reports every conflict.
+    - Publish v1.1.0 only after the golden module passes database, authorization, API, frontend, E2E, docs, external-consumer, and upgrade evidence.
+  nonGoals:
+    - Generate multiple demonstration domains before the supplier golden module is complete.
+    - Reintroduce runtime dynamic models, virtual CRUD, browser-facing code generation, or browser mutation of repository files.
+    - Mechanically migrate every legacy horizontal Admin module without a dedicated migration specification.
+    - Use AutoMigrate, fresh-schema success, output file count, or compile-only evidence as proof of a complete module.
+    - Preserve conflicting historical module paths or generated output shapes as target-design constraints.
+    - Make Storage Runtime provider promotion part of Generator acceptance; the storage risk axis has independent safety and conformance contracts.
+  actors:
+    - id: downstream-maintainer
+      displayName: Downstream maintainer
+      description: Generates an application, customizes business code, and upgrades across Blueprint revisions.
+    - id: generator-maintainer
+      displayName: Generator maintainer
+      description: Owns schemas, projections, templates, deterministic output, and drift validation.
+    - id: module-author
+      displayName: Module author
+      description: Writes one AdminModule specification and reviews the complete generated vertical slice.
+    - id: security-reviewer
+      displayName: Security reviewer
+      description: Verifies permissions, default roles, ownership rules, migrations, audit events, and secret boundaries.
+  modules:
+    - name: authorization-generator
+      kind: infrastructure
+      operation: extend
+      description: Permissions, default roles, backend enforcement, menu visibility, ownership, and negative tests.
+    - name: backend-generator
+      kind: infrastructure
+      operation: extend
+      description: Models, DTOs, services, APIs, operations, indexes, events, export, and OpenAPI.
+    - name: blueprint-contract
+      kind: infrastructure
+      operation: extend
+      description: File ownership, exclusions, merge policy, module path, and downstream upgrade behavior.
+    - name: frontend-generator
+      kind: infrastructure
+      operation: extend
+      description: Typed client, list, form, detail, actions, states, locale, and frontend tests.
+    - name: supplier
+      kind: admin-module
+      operation: extend
+      specPath: .mss/modules/example-supplier.yaml
+      description: Checked-in end-to-end golden vertical module and generated evidence.
+    - name: migration-generator
+      kind: infrastructure
+      operation: extend
+      description: Forward SQL migrations, identifiers, duplicate detection, and database matrix.
+    - name: canonical-email-identity
+      kind: infrastructure
+      operation: extend
+      description: Dialect-aware active email ownership, non-disclosing migration, safe write boundaries, and schema readiness.
+    - name: version-identity
+      kind: infrastructure
+      operation: extend
+      description: Foundation release, Blueprint, generator, and downstream snapshot identity sources; lock and manifest are two records of one snapshot.
+  requirements:
+    - id: enforce-canonical-module-path
+      title: Use one canonical vertical-module path
+      description: Every machine and human contract must resolve the same generated backend module and registry paths.
+      priority: must
+      actor: generator-maintainer
+      module: blueprint-contract
+      rules:
+        - Use the currently implemented admin/modules/name path until a separately versioned Blueprint migration changes it.
+        - AGENTS, .mss/project.yaml, generator, verifier, documentation, feature evidence, templates, and tests contain no conflicting default path.
+        - A later move to a root-level module directory requires Blueprint ownership changes, a three-way upgrade, and a path-specific ADR.
+    - id: generate-authorization-contract
+      title: Generate enforceable authorization
+      description: Permissions, default roles, menu actions, and ownership declarations must become backend behavior and tested policy rather than descriptor-only metadata.
+      priority: must
+      actor: security-reviewer
+      module: authorization-generator
+      rules:
+        - Every generated API and business action maps to an explicit permission and backend enforcement point.
+        - Default roles receive only declared permissions and root bypass cannot delete protected system invariants.
+        - Ownership rules fail closed and have owner-positive, other-user-negative, other-tenant-negative, and missing-context tests.
+        - Menu and frontend visibility mirror backend permissions but never replace authorization.
+    - id: generate-forward-migration
+      title: Generate a real forward migration
+      description: Persistent fields, indexes, constraints, and relationships must ship through an ordered forward migration with upgrade evidence.
+      priority: must
+      actor: generator-maintainer
+      module: migration-generator
+      rules:
+        - Migration identifiers are typed or lossless strings, never truncated filename prefixes or silently parsed integers.
+        - Duplicate identifiers fail before any migration executes and library code returns errors without Fatal or os.Exit.
+        - Fresh, upgrade, repeat, and injected-failure behavior is proven on SQLite, MySQL, and PostgreSQL.
+        - AutoMigrate may support tests or development but is not the generated production migration contract.
+    - id: enforce-canonical-email-identity
+      title: Enforce one active canonical email owner
+      description: Email registration, administrative writes, and first-time OAuth provisioning must share one database-enforced, non-disclosing identity contract on every supported dialect.
+      priority: must
+      actor: security-reviewer
+      module: canonical-email-identity
+      rules:
+        - A non-empty email identity is a bounded ASCII full address, trimmed and case-folded once at the model boundary; invalid values return a typed validation error.
+        - SQLite and PostgreSQL use an active, non-empty partial expression unique index, while MySQL uses an equivalent nullable stored VARBINARY generated key and named unique index.
+        - Migration preflight reports only aggregate invalid and conflict counts, performs no mutation on failure, uses compare-and-swap backfill, verifies installed metadata and data, and records its full migration identifier only after success.
+        - Registration and first-time OAuth provisioning create a new user atomically, never merge by provider email, use bounded opaque usernames, and normalize only the named canonical-email constraint; unrelated database errors remain redacted generic failures.
+        - Admin create and update map invalid identity to fixed 422 and unavailable identity to fixed 409 without exposing email, SQL, constraint, or driver details; self-service email mutation remains disabled.
+        - Migration completion and server startup share one redacted verifier; no business route is mounted until the dialect-specific canonical-email schema and data are ready, and missing, stale, contradictory, or unavailable state fails closed.
+    - id: generate-fullstack-projection
+      title: Project every supported specification field
+      description: The golden module must consume operations, indexes, export, events, tests, frontend, permissions, roles, menu, and ownership into observable output.
+      priority: must
+      actor: module-author
+      module: backend-generator
+      rules:
+        - CRUD and declared custom operations generate DTO, service, API, OpenAPI, and typed frontend client contracts.
+        - Index groups, uniqueness, validation, filtering, sorting, relations, ownership, and export affect migration and runtime behavior.
+        - Created and updated events are typed and emitted only after the authoritative transaction commits.
+        - Every source field maps to an output kind, an explicit validation-only meaning, or a pre-write unsupported-field error.
+    - id: generate-frontend-experience
+      title: Generate a complete management experience
+      description: The golden module frontend must provide typed routes and pages with normal and failure states aligned to the API and permission contract.
+      priority: must
+      actor: module-author
+      module: frontend-generator
+      rules:
+        - List, create/edit form, detail, declared actions, filters, pagination, sorting, export, and permission boundaries are generated as applicable.
+        - Loading, empty, error, permission-denied, validation, conflict, and destructive-confirmation states are present.
+        - Chinese and English locale keys remain synchronized and no endpoint or type is hand-maintained outside the generated OpenAPI client boundary.
+    - id: keep-generation-deterministic
+      title: Keep generation deterministic and confined
+      description: The same normalized specification and generator version must produce stable output without touching unrelated or customized files.
+      priority: must
+      actor: generator-maintainer
+      module: supplier
+      rules:
+        - Dry-run is the default and write reports every created, changed, unchanged, skipped, and conflicted path.
+        - Paths are repository-confined, output ordering is stable, generated regions identify source and generator version, and the second write is empty.
+        - Check mode fails on missing or stale generated output and required tests reject a zero-file or zero-test false positive.
+        - Unsupported fields and conflicts fail before the first write; user-owned files are never silently overwritten.
+    - id: record-version-identities
+      title: Record independent version identities
+      description: Foundation release, Blueprint, generator, and downstream snapshot data must be sourced independently and cross-validated; lock and manifest do not invent a fifth version.
+      priority: must
+      actor: downstream-maintainer
+      module: version-identity
+      rules:
+        - Foundation identity records the published version and full commit, Blueprint identity records its own semantic revision and digest, and generator identity comes from the actual binary build.
+        - The downstream snapshot records resolved inputs and the generated baseline; a deterministic lock or sync command updates its lock and manifest representations together only after all planned files succeed.
+        - Source-repository development lock state is not manually rewritten to resemble a public Release.
+        - CLI upgrade status, MCP status, and doctor expose one strict SnapshotStatus with the same four identities and record digests; legacy flat status fields remain compatibility projections rather than independent sources.
+        - A Foundation source checkout is recognized only by the exact committed legacy development sentinel; a generated downstream requires the current lock and manifest pair, and malformed, orphaned, or transitional state never falls back to source classification.
+        - Upgrade application identity recovers the root module from the installed snapshot and never treats spec.backend.module or spec.foundationVersion as a Foundation, Blueprint, generator, or root-module identity.
+        - Doctor and upgrade status detect missing, contradictory, stale, transitional, or manually forged identity fields under the same snapshot locking protocol used by writers.
+    - id: reject-unsupported-specification
+      title: Reject unimplemented declarations
+      description: A specification cannot validate or write successfully when it requests a behavior that the current generator cannot implement.
+      priority: must
+      actor: module-author
+      module: blueprint-contract
+      rules:
+        - Schema and Go semantic validation share the same supported field and enum contract.
+        - Infrastructure Feature planning supports cross-cutting modules without pretending they are AdminModule specifications.
+        - validation.custom and acceptance evidence are either executed by a release workflow or reported as declarative and not counted as passed.
+    - id: upgrade-preserving-customizations
+      title: Preserve downstream customizations through upgrade
+      description: A three-way Blueprint upgrade must update owned generated baselines while retaining business-owned changes and reporting conflicts.
+      priority: must
+      actor: downstream-maintainer
+      module: blueprint-contract
+      rules:
+        - The old generated baseline, downstream tree, and new Blueprint are distinct inputs with recorded digests.
+        - Owned, generated-region, user-owned, excluded, deleted, and conflicted paths have explicit merge behavior.
+        - The new lock and manifest commit last only after a conflict-free apply and complete validation.
+        - A 0.1-to-0.2 rehearsal modifies business code, upgrades the Blueprint, preserves customization, and proves a second upgrade is empty.
+  constraints:
+    - id: contracts-before-output
+      type: data
+      statement: Human or Agent-authored specifications are authoritative; generated output and evidence must be reproducible from committed contracts and version identities.
+    - id: generator-no-runtime-tools
+      type: security
+      statement: Generation remains a repository-time CLI operation with confined dry-run writes and never exposes browser or Admin runtime code-generation endpoints.
+    - id: golden-before-breadth
+      type: operations
+      statement: One complete checked-in supplier module must pass all gates before a second generated business domain or additional generator feature is accepted.
+    - id: no-compatibility-shaped-target
+      type: compatibility
+      statement: Conflicting historical paths and incomplete output shapes do not constrain the target; any transition bridge stays outside generated target contracts.
+    - id: no-zero-test-evidence
+      type: operations
+      statement: Required Go and frontend tests must prove exact test execution; no-tests warnings, empty matches, package skips, and required fixture skips fail acceptance.
+    - id: storage-independent-axis
+      type: dependency
+      statement: Storage Runtime safety is a parallel release axis; unpromoted optional providers remain legacy or planned without weakening or indefinitely blocking the Generator golden slice.
+    - id: planner-bootstrap-boundary
+      type: operations
+      statement: At the v1.0.0 baseline, spec validate proves only structure and references; feature plan still requires AdminModule specPath for cross-cutting modules and verify does not execute acceptance or custom evidence, so this target cannot be reported passed until contract-kind planning and evidence execution land.
+  acceptance:
+    - id: authorization-generation-gate
+      requirement: generate-authorization-contract
+      statement: Generated backend, policy, default-role, menu, ownership, and UI contracts pass owner-positive and cross-user, cross-tenant, missing-context, wrong-role, and unauthenticated negative tests.
+      level: security
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: Golden supplier generated authorization conformance suite
+        - type: report
+          value: Required-test report proving every named positive and negative authorization case ran.
+    - id: canonical-path-gate
+      requirement: enforce-canonical-module-path
+      statement: A repository scan and generator plan find exactly one canonical admin/modules/name backend path and no conflicting root-level default.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: report
+          value: Canonical vertical-module path drift report
+        - type: path
+          value: .mss/project.yaml
+    - id: deterministic-generation-gate
+      requirement: keep-generation-deterministic
+      statement: Dry-run, first write, second write, check, golden diff, path attack, conflict, unsupported-field, and unrelated-file tests all pass without a zero-output false positive.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: go test -race ./internal/mss/generator/...
+        - type: command
+          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check
+        - type: report
+          value: Two-run golden generation and path-confinement report
+    - id: supplier-backend-checkpoint-evidence
+      requirement: generate-fullstack-projection
+      statement: >-
+        Commit 5a60ad6 generates and checks in the Supplier backend specification projection,
+        explicit forward migration, model, DTO, service, authorized API and OpenAPI annotations,
+        export, typed post-commit events, and backend tests. Commit d92458c extends the cumulative
+        checkpoint with generated Admin authorization while the generation plan continues to report
+        phase backend-checkpoint and complete false until every deferred surface is implemented.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestGenerateDryRunWriteCheckAndDrift
+        - type: test
+          value: TestGenerateRejectsUnsupportedBackendProjectionBeforeWriting
+        - type: test
+          value: TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs
+        - type: test
+          value: TestGenerateRejectsUserOwnedObsoletePathBeforeAnyWrite
+        - type: test
+          value: TestGeneratedUpgradeRemovesLegacyAutoMountedController
+        - type: test
+          value: TestGenerateEventShapesCompileOrRejectBeforeWrite
+        - type: test
+          value: TestLoadExampleSupplierModule
+        - type: test
+          value: TestSupplierSourceSpecMatchesFeatureAccessContract
+        - type: test
+          value: TestModuleValidationRejectsUnsafeOrAmbiguousEvents
+        - type: test
+          value: TestSupplierServiceCRUDQueryExportAndPostCommitEvents
+        - type: test
+          value: TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
+        - type: test
+          value: TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
+        - type: test
+          value: TestSupplierForwardMigrationFreshRepeatAndConstraints
+        - type: test
+          value: TestSupplierForwardMigrationPreservesUpgradeData
+        - type: test
+          value: TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth
+        - type: test
+          value: TestSupplierMigrationMySQLIntegration
+        - type: test
+          value: TestSupplierMigrationPostgresIntegration
+        - type: test
+          value: TestSupplierMigrationMySQLRejectsCheckAndIndexDrift
+        - type: test
+          value: TestSupplierMigrationPostgresRejectsCheckAndIndexDrift
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json
+        - type: command
+          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --format json
+        - type: command
+          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check --format json
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator
+            --run '^(TestGenerateDryRunWriteCheckAndDrift|TestGenerateRejectsUnsupportedBackendProjectionBeforeWriting|TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs|TestGenerateRejectsUserOwnedObsoletePathBeforeAnyWrite|TestGeneratedUpgradeRemovesLegacyAutoMountedController|TestGenerateEventShapesCompileOrRejectBeforeWrite)$'
+            --count 1 --race --go-work off
+            --require TestGenerateDryRunWriteCheckAndDrift
+            --require TestGenerateRejectsUnsupportedBackendProjectionBeforeWriting
+            --require TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs
+            --require TestGenerateRejectsUserOwnedObsoletePathBeforeAnyWrite
+            --require TestGeneratedUpgradeRemovesLegacyAutoMountedController
+            --require TestGenerateEventShapesCompileOrRejectBeforeWrite
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/spec
+            --run '^(TestLoadExampleSupplierModule|TestSupplierSourceSpecMatchesFeatureAccessContract|TestModuleValidationRejectsUnsafeOrAmbiguousEvents)$'
+            --count 1 --race --go-work off
+            --require TestLoadExampleSupplierModule
+            --require TestSupplierSourceSpecMatchesFeatureAccessContract
+            --require TestModuleValidationRejectsUnsafeOrAmbiguousEvents
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+            --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierForwardMigrationFreshRepeatAndConstraints|TestSupplierForwardMigrationPreservesUpgradeData|TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth|TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth|TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth|TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth|TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase|TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth|TestSupplierTableName|TestSupplierMigrationIdentityIsComplete|TestSupplierPermissionCodesAreUnique|TestSupplierOperationContractMatchesSpecification|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations)$'
+            --count 1 --race --go-work off
+            --require TestSupplierServiceCRUDQueryExportAndPostCommitEvents
+            --require TestSupplierForwardMigrationFreshRepeatAndConstraints
+            --require TestSupplierForwardMigrationPreservesUpgradeData
+            --require TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth
+            --require TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth
+            --require TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth
+            --require TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth
+            --require TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase
+            --require TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth
+            --require TestSupplierTableName --require TestSupplierMigrationIdentityIsComplete
+            --require TestSupplierPermissionCodesAreUnique --require TestSupplierOperationContractMatchesSpecification
+            --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
+            --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
+            --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
+        - type: report
+          value: >-
+            At d92458c the dry-run plan reports template revision 1.1.0-backend.3,
+            19 unchanged managed files, phase backend-checkpoint, complete false, and
+            19 explicitly deferred frontend, documentation, and E2E projections.
+        - type: report
+          value: >-
+            Development provider evidence at 5a60ad6 ran the four named Supplier migration tests
+            against MySQL 8.4 and PostgreSQL 17 with zero skip. This is development evidence only;
+            the same exact tests must rerun from the selected feature-freeze SHA.
+    - id: supplier-authorization-checkpoint-evidence
+      requirement: generate-authorization-contract
+      statement: >-
+        Commit d92458c projects the Supplier authorizationMigrationID, default roles, parent/menu,
+        hidden permission COMPONENT metadata, API metadata, Casbin policies, and role/global
+        authorization revisions in one additive transaction. AdminAuthorizer binds every permission
+        to its declared HTTP method and full Gin path, requires canonical request identity, follows
+        the declared root bypass, and has no row-owner fallback because ownership mode is none.
+        This is development-checkpoint evidence, not feature-freeze or publication evidence.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID
+        - type: test
+          value: TestSupplierEveryDeclaredOperationIsBackendAuthorized
+        - type: test
+          value: TestSupplierAdminAuthorizerPermissionMatrix
+        - type: test
+          value: TestSupplierAdminAuthorizerRequiresExplicitComposition
+        - type: test
+          value: TestSupplierAuthorizationMigrationProjectsExactPolicy
+        - type: test
+          value: TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth
+        - type: test
+          value: TestSupplierAuthorizationMigrationIdentityIsComplete
+        - type: test
+          value: TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator
+            --run '^(TestGenerateRejectsMigrationIDCollisionsBeforeWriting|TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs)$'
+            --count 1 --race --go-work off
+            --require TestGenerateRejectsMigrationIDCollisionsBeforeWriting
+            --require TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/spec
+            --run '^(TestLoadExampleSupplierModule|TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID)$'
+            --count 1 --race --go-work off
+            --require TestLoadExampleSupplierModule
+            --require TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/runtime
+            --run '^TestAllReturnsStableCopies$' --count 1 --race --go-work off
+            --require TestAllReturnsStableCopies
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+            --run '^(TestSupplierEveryDeclaredOperationIsBackendAuthorized|TestSupplierAdminAuthorizerPermissionMatrix|TestSupplierAdminAuthorizerRequiresExplicitComposition|TestSupplierAuthorizationMigrationProjectsExactPolicy|TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth|TestSupplierAuthorizationMigrationIdentityIsComplete|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition)$'
+            --count 1 --race --go-work off
+            --require TestSupplierEveryDeclaredOperationIsBackendAuthorized
+            --require TestSupplierAdminAuthorizerPermissionMatrix
+            --require TestSupplierAdminAuthorizerRequiresExplicitComposition
+            --require TestSupplierAuthorizationMigrationProjectsExactPolicy
+            --require TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth
+            --require TestSupplierAuthorizationMigrationIdentityIsComplete
+            --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
+    - id: fullstack-backend-gate
+      requirement: generate-fullstack-projection
+      statement: >-
+        Supplier migration, model, DTO, service, API, operations, indexes, export, events, and
+        OpenAPI reflect every backend-supported source declaration, while the field-to-output plan
+        classifies every remaining declaration as validation-only or deferred. Typed client evidence
+        belongs to the separate frontend gate.
+      level: contract
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: path
+          value: admin/modules/supplier
+        - type: report
+          value: AdminModule field-to-output-kind projection report
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+            --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations|TestSupplierOperationContractMatchesSpecification)$'
+            --count 1 --race --go-work off
+            --require TestSupplierServiceCRUDQueryExportAndPostCommitEvents
+            --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
+            --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
+            --require TestSupplierOperationContractMatchesSpecification
+    - id: fullstack-frontend-gate
+      requirement: generate-frontend-experience
+      statement: Generated supplier pages and typed client pass lint, TypeScript, focused tests, production build, permission denial, empty/error/conflict states, and browser E2E.
+      level: e2e
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: path
+          value: web/antd/src/modules/supplier
+        - type: report
+          value: Golden supplier frontend and browser acceptance report
+    - id: migration-engine-checkpoint-evidence
+      requirement: generate-forward-migration
+      statement: The shared migration engine preserves full decimal identifiers, rejects invalid or duplicate registrations before any database access, propagates context and execution failures without process termination, remains source-compatible for the published legacy surface, and recognizes every explicitly recorded v1.0.0 marker without rerunning historical migrations.
+      level: migration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestMigrationTypedIDOrdering
+        - type: test
+          value: TestMigrationDeprecatedRegistrationBridge
+        - type: test
+          value: TestMigrationRegistrationPreflightRequiresNoDatabase
+        - type: test
+          value: TestMigrationTemplateUsesLosslessID
+        - type: test
+          value: TestMigrationDuplicateIDFailsBeforeExecution
+        - type: test
+          value: TestMigrationErrorPropagatesWithoutExit
+        - type: test
+          value: TestMigrationDeprecatedBridgeReturnsAfterFailure
+        - type: test
+          value: TestMigrationContextCancellationPropagates
+        - type: test
+          value: TestMigrationRepeatIsNoop
+        - type: test
+          value: TestMigrationFailurePreservesAppliedState
+        - type: test
+          value: TestMigrationV100AliasesSkipHistoricalRows
+        - type: test
+          value: TestMigrationV100CollisionFreshDatabaseUsesCanonicalIDs
+        - type: test
+          value: TestMigrationV100RenamedAliasSkipsTagRow
+        - type: test
+          value: TestMigrationV100RenamedAliasSkipsPreRenameRow
+        - type: test
+          value: TestMigrateContextRejectsDuplicateRegistrationBeforeDatabaseAccess
+        - type: test
+          value: TestV100MigrationRowsDoNotRerun
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/migration
+            --run '^TestMigration(TypedIDOrdering|DeprecatedRegistrationBridge|RegistrationPreflightRequiresNoDatabase|TemplateUsesLosslessID|DuplicateIDFailsBeforeExecution|ErrorPropagatesWithoutExit|DeprecatedBridgeReturnsAfterFailure|ContextCancellationPropagates|RepeatIsNoop|FailurePreservesAppliedState|V100AliasesSkipHistoricalRows|V100CollisionFreshDatabaseUsesCanonicalIDs|V100RenamedAliasSkipsTagRow|V100RenamedAliasSkipsPreRenameRow)$'
+            --count 20 --race --go-work off
+            --require TestMigrationTypedIDOrdering
+            --require TestMigrationDeprecatedRegistrationBridge
+            --require TestMigrationRegistrationPreflightRequiresNoDatabase
+            --require TestMigrationTemplateUsesLosslessID
+            --require TestMigrationDuplicateIDFailsBeforeExecution
+            --require TestMigrationErrorPropagatesWithoutExit
+            --require TestMigrationDeprecatedBridgeReturnsAfterFailure
+            --require TestMigrationContextCancellationPropagates
+            --require TestMigrationRepeatIsNoop
+            --require TestMigrationFailurePreservesAppliedState
+            --require TestMigrationV100AliasesSkipHistoricalRows
+            --require TestMigrationV100CollisionFreshDatabaseUsesCanonicalIDs
+            --require TestMigrationV100RenamedAliasSkipsTagRow
+            --require TestMigrationV100RenamedAliasSkipsPreRenameRow
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate
+            --run '^TestMigrateContextRejectsDuplicateRegistrationBeforeDatabaseAccess$'
+            --count 20 --race --go-work off
+            --require TestMigrateContextRejectsDuplicateRegistrationBeforeDatabaseAccess
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
+            --run '^TestV100MigrationRowsDoNotRerun$'
+            --count 20 --race --go-work off
+            --require TestV100MigrationRowsDoNotRerun
+        - type: report
+          value: Exact single-package JSON evidence proving every required migration-engine and v1.0.0 registry compatibility test ran and passed twenty uncached race-detected times with no skip; the three-database supplier migration matrix remains a feature-freeze gate.
+    - id: migration-matrix-gate
+      requirement: generate-forward-migration
+      statement: The generated supplier forward migration passes fresh, upgrade, repeat, duplicate-ID, and injected-failure tests on SQLite, MySQL, and PostgreSQL without process exit.
+      level: migration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: TestSupplierMigrationMySQLIntegration
+        - type: test
+          value: TestSupplierMigrationPostgresIntegration
+        - type: test
+          value: TestSupplierMigrationMySQLRejectsCheckAndIndexDrift
+        - type: test
+          value: TestSupplierMigrationPostgresRejectsCheckAndIndexDrift
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+            --run '^TestSupplierMigration(MySQLIntegration|PostgresIntegration|MySQLRejectsCheckAndIndexDrift|PostgresRejectsCheckAndIndexDrift)$'
+            --count 1 --race --go-work off
+            --require TestSupplierMigrationMySQLIntegration
+            --require TestSupplierMigrationPostgresIntegration
+            --require TestSupplierMigrationMySQLRejectsCheckAndIndexDrift
+            --require TestSupplierMigrationPostgresRejectsCheckAndIndexDrift
+        - type: report
+          value: >-
+            Exact-freeze-SHA fresh, upgrade, repeat, interruption, runtime-conflict, escaped-search,
+            same-name wrong-index, and permissive-check rejection report with non-empty allowlisted
+            MSS_SUPPLIER_TEST_MYSQL_DSN and MSS_SUPPLIER_TEST_POSTGRES_DSN and zero skip. The
+            MySQL 8.4/PostgreSQL 17 development run at 5a60ad6 is not reusable release evidence.
+    - id: canonical-email-checkpoint-evidence
+      requirement: enforce-canonical-email-identity
+      statement: SQLite migration, model persistence and provisioning, actual Admin Controller writes, schema verification, and migrate/server composition pass exact, uncached, race-detected tests without skip or sensitive-value disclosure.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
+            --run '^TestCanonicalEmailIdentity(MigrationSQLiteFreshAndRepeat|MigrationSQLiteUpgradeBackfillsAndScopesSoftDelete|MigrationPreflightFailsWithoutMutationOrDisclosure|BackfillCASRejectsConcurrentChangeWithoutDisclosure|MigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete|DataVerifierRejectsPostBackfillDriftWithoutDisclosure|DDLAndMetadataContractsAreAuditable|MigrationUsesDBResolverWriter)$'
+            --count 20 --race --go-work off
+            --require TestCanonicalEmailIdentityMigrationSQLiteFreshAndRepeat
+            --require TestCanonicalEmailIdentityMigrationSQLiteUpgradeBackfillsAndScopesSoftDelete
+            --require TestCanonicalEmailIdentityMigrationPreflightFailsWithoutMutationOrDisclosure
+            --require TestCanonicalEmailIdentityBackfillCASRejectsConcurrentChangeWithoutDisclosure
+            --require TestCanonicalEmailIdentityMigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete
+            --require TestCanonicalEmailIdentityDataVerifierRejectsPostBackfillDriftWithoutDisclosure
+            --require TestCanonicalEmailIdentityDDLAndMetadataContractsAreAuditable
+            --require TestCanonicalEmailIdentityMigrationUsesDBResolverWriter
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./models
+            --run '^Test(CanonicalEmailIdentityReturnsTypedValidationAndCanonicalValue|NormalizeEmailIdentityPersistenceErrorIsConstraintSpecific|CanonicalEmailCreateNormalizesConflictWithoutLeakingOtherUniqueErrors|OAuthProvisioningNeverMergesByEmail|UserBeforeSaveRejectsInvalidEmailWithTypedError|InvalidEmailLoginRemainsAClientAuthenticationFailure|EmailRegistrationRejectsExistingCanonicalIdentity|EmailRegistrationUsesBoundedOpaqueUsername|GetUserByEmailFailsClosedOnAmbiguousIdentity|EmailIdentityOperationsDoNotEmitSensitiveSQL|ConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity|OpaqueOAuthUsernameGenerationIsDeterministicAndBounded|OpaqueOAuthUsernameRetriesExistingCollision|GithubFirstProvisioningNeverMergesByCanonicalEmail|LarkFirstProvisioningUsesBoundedOpaqueUsername)$'
+            --count 20 --race --go-work off
+            --require TestCanonicalEmailIdentityReturnsTypedValidationAndCanonicalValue
+            --require TestNormalizeEmailIdentityPersistenceErrorIsConstraintSpecific
+            --require TestCanonicalEmailCreateNormalizesConflictWithoutLeakingOtherUniqueErrors
+            --require TestOAuthProvisioningNeverMergesByEmail
+            --require TestUserBeforeSaveRejectsInvalidEmailWithTypedError
+            --require TestInvalidEmailLoginRemainsAClientAuthenticationFailure
+            --require TestEmailRegistrationRejectsExistingCanonicalIdentity
+            --require TestEmailRegistrationUsesBoundedOpaqueUsername
+            --require TestGetUserByEmailFailsClosedOnAmbiguousIdentity
+            --require TestEmailIdentityOperationsDoNotEmitSensitiveSQL
+            --require TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity
+            --require TestOpaqueOAuthUsernameGenerationIsDeterministicAndBounded
+            --require TestOpaqueOAuthUsernameRetriesExistingCollision
+            --require TestGithubFirstProvisioningNeverMergesByCanonicalEmail
+            --require TestLarkFirstProvisioningUsesBoundedOpaqueUsername
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./apis
+            --run '^TestUser(ControllerMapsEmailIdentityWriteFailuresWithoutDisclosure|WriteErrorMapperFallsBackForUnrelatedDatabaseErrors)$'
+            --count 20 --race --go-work off
+            --require TestUserControllerMapsEmailIdentityWriteFailuresWithoutDisclosure
+            --require TestUserWriteErrorMapperFallsBackForUnrelatedDatabaseErrors
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./pkg/schemahealth
+            --run '^Test(VerifyCanonicalEmailIdentity(SQLiteRuntimeReady|RejectsMissingAndWrongSQLiteIndex|RequiresExactMigrationVersion|RejectsSensitiveDataWithoutDisclosure|DatabaseFailureIsFixedAndRedacted|UsesDBResolverWriter)|CanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes)$'
+            --count 20 --race --go-work off
+            --require TestVerifyCanonicalEmailIdentitySQLiteRuntimeReady
+            --require TestVerifyCanonicalEmailIdentityRejectsMissingAndWrongSQLiteIndex
+            --require TestVerifyCanonicalEmailIdentityRequiresExactMigrationVersion
+            --require TestVerifyCanonicalEmailIdentityRejectsSensitiveDataWithoutDisclosure
+            --require TestVerifyCanonicalEmailIdentityDatabaseFailureIsFixedAndRedacted
+            --require TestVerifyCanonicalEmailIdentityUsesDBResolverWriter
+            --require TestCanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate
+            --run '^TestMigrateContextUsesCanonicalEmailRuntimeVerifierAfterMigrations$'
+            --count 20 --race --go-work off
+            --require TestMigrateContextUsesCanonicalEmailRuntimeVerifierAfterMigrations
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+            --run '^TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness$'
+            --count 20 --race --go-work off
+            --require TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness
+        - type: report
+          value: Implementation checkpoints are commits 9ccb1d2, eb1277c, 3710aca, 8b361ce, and 1171df6; the listed exact commands define development acceptance, must rerun after later implementation changes, and are not reusable as feature-freeze evidence.
+    - id: canonical-email-real-database-gate
+      requirement: enforce-canonical-email-identity
+      statement: On the selected feature-freeze SHA, both allowlisted test DSNs run real MySQL and PostgreSQL upgrade, repeat, preflight-failure, soft-delete reuse, index-metadata, Turkish/non-default-collation canonical ownership, and concurrent-claim cases with zero required skip.
+      level: migration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
+            --run '^TestCanonicalEmailIdentityMigration(MySQL|Postgres)Integration$'
+            --count 1 --race --go-work off
+            --require TestCanonicalEmailIdentityMigrationMySQLIntegration
+            --require TestCanonicalEmailIdentityMigrationPostgresIntegration
+        - type: report
+          value: Exact-freeze-SHA report with non-empty MSS_EMAIL_IDENTITY_TEST_MYSQL_DSN and MSS_EMAIL_IDENTITY_TEST_POSTGRES_DSN, allowlisted database name mss_email_identity_test, explicit Turkish/non-default-collation cases, run/pass for both required tests, and zero skip.
+    - id: canonical-email-schema-readiness-gate
+      requirement: enforce-canonical-email-identity
+      statement: Migration completion and server startup fail closed before any business route is mounted when the canonical-email migration, dialect-specific generated column, unique index, predicate, or data invariant is absent, stale, or unavailable.
+      level: security
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: report
+          value: Exact-freeze-SHA rerun of the seven schemahealth tests plus migrate and server composition tests, with run/pass for every required test and zero skip; the development checkpoint is complete but has not been rerun on a selected freeze SHA.
+    - id: specification-support-gate
+      requirement: reject-unsupported-specification
+      statement: Schema, Go validation, infrastructure Feature planning, unsupported-field rejection, and acceptance-evidence reporting agree and fail before writes on every negative fixture.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestFeatureModuleContractKindValidation
+        - type: test
+          value: TestPlanInfrastructureFeatureWithoutAdminModuleSpec
+        - type: test
+          value: TestPlanAdminModuleMissingSpecPathFails
+        - type: test
+          value: TestPlanGroupsAcceptanceByPhase
+        - type: test
+          value: TestBuildFoundationV110GeneratorBlueprintFeature
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/spec
+            --run '^TestFeatureModuleContractKindValidation$'
+            --count 1 --race --go-work off
+            --require TestFeatureModuleContractKindValidation
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/feature
+            --run '^Test(PlanInfrastructureFeatureWithoutAdminModuleSpec|PlanAdminModuleMissingSpecPathFails|PlanGroupsAcceptanceByPhase|BuildFoundationV110GeneratorBlueprintFeature)$'
+            --count 1 --race --go-work off
+            --require TestPlanInfrastructureFeatureWithoutAdminModuleSpec
+            --require TestPlanAdminModuleMissingSpecPathFails
+            --require TestPlanGroupsAcceptanceByPhase
+            --require TestBuildFoundationV110GeneratorBlueprintFeature
+        - type: report
+          value: Required-test report proving contract-kind schema parity, infrastructure plan success, AdminModule missing-spec failure, and phase-scoped declarative evidence grouping without counting commands as executed.
+    - id: version-identity-checkpoint-evidence
+      requirement: record-version-identities
+      statement: The shared snapshot reader, CLI status, MCP upgrade adapter, doctor strict classification, and checked-in compatibility-workflow contract pass fully anchored single-package evidence without source/generated transition races or nested-module identity conflation.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/blueprint
+            --run '^(TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords|TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel|TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack|TestInspectSnapshotWaitsForSourceToGeneratedTransition|TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence)$'
+            --count 20 --race --go-work off
+            --require TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords
+            --require TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel
+            --require TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack
+            --require TestInspectSnapshotWaitsForSourceToGeneratedTransition
+            --require TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/app
+            --run '^(TestUpgradeApplicationDefersRootModuleIdentityToManifest|TestWriteUpgradeStatusPreservesFlatJSONAndReportsFourIdentities)$'
+            --count 20 --race --go-work off
+            --require TestUpgradeApplicationDefersRootModuleIdentityToManifest
+            --require TestWriteUpgradeStatusPreservesFlatJSONAndReportsFourIdentities
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/mcp
+            --run '^TestFoundationUpgradeApplicationDefersRootModuleToSnapshot$'
+            --count 20 --race --go-work off
+            --require TestFoundationUpgradeApplicationDefersRootModuleToSnapshot
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/doctor
+            --run '^(TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains|TestRunAgentScopeRequiresValidGeneratedSnapshot|TestRunAgentScopeFailsMalformedCurrentSnapshotWithoutSourceFallback)$'
+            --count 20 --race --go-work off
+            --require TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains
+            --require TestRunAgentScopeRequiresValidGeneratedSnapshot
+            --require TestRunAgentScopeFailsMalformedCurrentSnapshotWithoutSourceFallback
+        - type: report
+          value: Commit 151a91c is the development checkpoint for these consumers; exact local test evidence and the static workflow-contract test do not assert that foundation-compatibility.yml has run in GitHub Actions.
+    - id: blueprint-upgrade-rehearsal-checkpoint-evidence
+      requirement: upgrade-preserving-customizations
+      statement: The external development rehearsal upgrades a Blueprint 0.1.0 downstream from Foundation commit 35e41d3e to the Blueprint 0.2.0 candidate at commit 160e2df, preserves downstream-owned code, proves a zero-change second application, and atomically retains the prior snapshot in an independent injected apply failure without claiming feature-freeze evidence.
+      level: migration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: path
+          value: docs/docs/releases/v1-1-0-d5-blueprint-upgrade-rehearsal.md
+        - type: report
+          value: >-
+            From source 35e41d3e38c2aaab8131db70db54bce3a108625b to target
+            160e2df196dc804f2fb1717f28404553a9538036, the first plan and apply reported 822 updates,
+            412 creates, 60 deletes, 66 unchanged files, and zero conflicts; the second apply reported
+            1,300 unchanged files and zero non-unchanged actions. The downstream-owned
+            admin/modules/rehearsalcustom/service.go SHA-256 remained
+            3eca5b0f15d1b4ee5d2fc6c63cb08aa242d4c4ae7270fc50503d8994e2c9fc6f.
+        - type: report
+          value: >-
+            The installed lock, manifest, and upgrade status agreed on target commit
+            160e2df196dc804f2fb1717f28404553a9538036 and Blueprint 0.2.0; strict agent doctor passed
+            6 of 6 checks, skills validation passed 10 of 10 skills, and the downstream-owned module
+            compiled with GOWORK=off. The manifest-recorded and actual lock SHA-256 was
+            1393bf8d1e8113fb1a77cc10e773987dbdf863b9eb7e51440c41c93b40141ad3.
+        - type: report
+          value: >-
+            A late-create write failure exited 1 while preserving the pre-apply lock and manifest
+            SHA-256 values 5d8442eda61d962dc1551db37fe4d2c32c725a4c4aedf792c3f683dbc62e0b0e
+            and 390718804b4e686f87a4823f67b00368eab3eee375643387e137dd3260feb072,
+            producing zero Git changes and zero transaction journals, and allowing the same conflict-free
+            plan to be produced again. The failure JSON success=true field describes the plan only, not
+            execution success; whether to add an execution-specific field remains an explicit user decision
+            before publication.
+    - id: upgrade-rehearsal-gate
+      requirement: upgrade-preserving-customizations
+      statement: A generated Blueprint 0.1 application with business customizations upgrades to 0.2, reports conflicts deterministically, preserves owned changes, commits identity last, and has an empty second upgrade.
+      level: migration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: Blueprint 0.1-to-0.2 three-way customization rehearsal
+        - type: report
+          value: Exact-commit downstream upgrade, conflict, apply, and idempotency report
+    - id: version-identity-foundation-compatibility-gate
+      requirement: record-version-identities
+      statement: After feature freeze, a real foundation-compatibility.yml run checks out the selected full SHA and proves CLI, MCP, and doctor agreement on all four identities and record digests through a Blueprint 0.1-to-0.2 customization-preserving upgrade whose second application is empty.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: path
+          value: .github/workflows/foundation-compatibility.yml
+        - type: report
+          value: >-
+            GitHub Actions run URL and artifact manifest bound to the exact feature-freeze SHA, with Foundation version/full commit,
+            Blueprint 0.1 and 0.2 versions/digests, generator build version/full commit, downstream root module/snapshot digest,
+            lock digest, identical CLI/MCP/doctor status, preserved customization, deterministic conflict output, and a second
+            upgrade reporting zero changes. A local or static workflow-contract test is not accepted as this evidence.
+    - id: version-identity-gate
+      requirement: record-version-identities
+      statement: A release-built external artifact from the prerequisite published Framework and the same reviewed root commit creates a new application outside the source checkout with GOWORK=off, and its generation output, lock, manifest, doctor, CLI status, and MCP status agree without manual identity edits.
+      level: contract
+      phase: pre-root
+      required: true
+      evidence:
+        - type: test
+          value: Foundation release, Blueprint, generator, and downstream snapshot identity conformance suite with atomic lock and manifest representations
+        - type: report
+          value: External release-built new-application identity report with artifact checksums, exact root and Framework commits, four identities, record digests, disabled workspace replacement, and installation command output
+  risks:
+    - id: generated-security-theater
+      description: Descriptor-only permissions or menus can look complete while backend routes remain unauthorized or overprivileged.
+      severity: critical
+      mitigation: Require backend enforcement and exact owner/role positive and negative tests before accepting generated UI or descriptors.
+    - id: identity-conflation
+      description: Reusing one version for Foundation, Blueprint, generator, and downstream snapshot can misroute upgrades and make generated provenance false.
+      severity: high
+      mitigation: Give all four identities independent sources and cross-check the snapshot's lock and manifest representations with binary, tag, digest, and commit in external output.
+    - id: migration-corruption
+      description: Truncated or duplicate migration IDs and process exits can partially upgrade downstream databases or hide a failed step.
+      severity: critical
+      mitigation: Use lossless identifiers, duplicate fail-fast, returned errors, transactions where supported, and three-database failure tests.
+    - id: canonical-email-schema-drift
+      description: Enabling registration or OAuth provisioning against an unmigrated or manually altered database can bypass model intent or turn safe conflicts into ambiguous ownership.
+      severity: critical
+      mitigation: Verify canonical data and exact dialect metadata at migration time and server readiness, fail closed, and rerun both real database tests on the selected freeze SHA with zero skip.
+    - id: path-split
+      description: Competing root-level and admin/modules/name defaults can generate uncompiled, unverified, or unowned files.
+      severity: high
+      mitigation: Enforce one canonical path now and require a versioned Blueprint migration before changing it.
+    - id: scaffold-claimed-complete
+      description: File-count, compile, or fresh-schema checks can promote a scaffold while operations, permissions, migrations, frontend, and upgrade behavior are absent.
+      severity: high
+      mitigation: Generate one committed golden slice and require field projection, authorization, E2E, migration, and upgrade evidence.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/foundation-v1-1-0-generator-blueprint.yaml --format json
+      - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --check --format json
+      - go test -race ./internal/mss/blueprint/...
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator
+        --run '^(TestGenerateDryRunWriteCheckAndDrift|TestGenerateRejectsUnsupportedBackendProjectionBeforeWriting|TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs|TestGenerateRejectsUserOwnedObsoletePathBeforeAnyWrite|TestGeneratedUpgradeRemovesLegacyAutoMountedController|TestGenerateEventShapesCompileOrRejectBeforeWrite)$'
+        --count 1 --race --go-work off
+        --require TestGenerateDryRunWriteCheckAndDrift
+        --require TestGenerateRejectsUnsupportedBackendProjectionBeforeWriting
+        --require TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs
+        --require TestGenerateRejectsUserOwnedObsoletePathBeforeAnyWrite
+        --require TestGeneratedUpgradeRemovesLegacyAutoMountedController
+        --require TestGenerateEventShapesCompileOrRejectBeforeWrite
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator
+        --run '^(TestGenerateRejectsMigrationIDCollisionsBeforeWriting|TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs)$'
+        --count 1 --race --go-work off
+        --require TestGenerateRejectsMigrationIDCollisionsBeforeWriting
+        --require TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/spec
+        --run '^(TestLoadExampleSupplierModule|TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID)$'
+        --count 1 --race --go-work off
+        --require TestLoadExampleSupplierModule
+        --require TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./modules/runtime
+        --run '^TestAllReturnsStableCopies$' --count 1 --race --go-work off
+        --require TestAllReturnsStableCopies
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+        --run '^(TestSupplierEveryDeclaredOperationIsBackendAuthorized|TestSupplierAdminAuthorizerPermissionMatrix|TestSupplierAdminAuthorizerRequiresExplicitComposition|TestSupplierAuthorizationMigrationProjectsExactPolicy|TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth|TestSupplierAuthorizationMigrationIdentityIsComplete|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition)$'
+        --count 1 --race --go-work off
+        --require TestSupplierEveryDeclaredOperationIsBackendAuthorized
+        --require TestSupplierAdminAuthorizerPermissionMatrix
+        --require TestSupplierAdminAuthorizerRequiresExplicitComposition
+        --require TestSupplierAuthorizationMigrationProjectsExactPolicy
+        --require TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth
+        --require TestSupplierAuthorizationMigrationIdentityIsComplete
+        --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+        --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierForwardMigrationFreshRepeatAndConstraints|TestSupplierForwardMigrationPreservesUpgradeData|TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth|TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth|TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth|TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth|TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase|TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth|TestSupplierTableName|TestSupplierMigrationIdentityIsComplete|TestSupplierPermissionCodesAreUnique|TestSupplierOperationContractMatchesSpecification|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations)$'
+        --count 1 --race --go-work off
+        --require TestSupplierServiceCRUDQueryExportAndPostCommitEvents
+        --require TestSupplierForwardMigrationFreshRepeatAndConstraints
+        --require TestSupplierForwardMigrationPreservesUpgradeData
+        --require TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth
+        --require TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth
+        --require TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth
+        --require TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth
+        --require TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase
+        --require TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth
+        --require TestSupplierTableName --require TestSupplierMigrationIdentityIsComplete
+        --require TestSupplierPermissionCodesAreUnique --require TestSupplierOperationContractMatchesSpecification
+        --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
+        --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
+        --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/migration
+        --run '^TestMigration(TypedIDOrdering|DeprecatedRegistrationBridge|RegistrationPreflightRequiresNoDatabase|TemplateUsesLosslessID|DuplicateIDFailsBeforeExecution|ErrorPropagatesWithoutExit|DeprecatedBridgeReturnsAfterFailure|ContextCancellationPropagates|RepeatIsNoop|FailurePreservesAppliedState|V100AliasesSkipHistoricalRows|V100CollisionFreshDatabaseUsesCanonicalIDs|V100RenamedAliasSkipsTagRow|V100RenamedAliasSkipsPreRenameRow)$'
+        --count 20 --race --go-work off
+        --require TestMigrationTypedIDOrdering --require TestMigrationDeprecatedRegistrationBridge
+        --require TestMigrationRegistrationPreflightRequiresNoDatabase --require TestMigrationTemplateUsesLosslessID
+        --require TestMigrationDuplicateIDFailsBeforeExecution --require TestMigrationErrorPropagatesWithoutExit
+        --require TestMigrationDeprecatedBridgeReturnsAfterFailure --require TestMigrationContextCancellationPropagates
+        --require TestMigrationRepeatIsNoop --require TestMigrationFailurePreservesAppliedState
+        --require TestMigrationV100AliasesSkipHistoricalRows --require TestMigrationV100CollisionFreshDatabaseUsesCanonicalIDs
+        --require TestMigrationV100RenamedAliasSkipsTagRow --require TestMigrationV100RenamedAliasSkipsPreRenameRow
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate
+        --run '^TestMigrateContextRejectsDuplicateRegistrationBeforeDatabaseAccess$'
+        --count 20 --race --go-work off --require TestMigrateContextRejectsDuplicateRegistrationBeforeDatabaseAccess
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
+        --run '^TestV100MigrationRowsDoNotRerun$'
+        --count 20 --race --go-work off --require TestV100MigrationRowsDoNotRerun
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate/migration/system
+        --run '^TestCanonicalEmailIdentity(MigrationSQLiteFreshAndRepeat|MigrationSQLiteUpgradeBackfillsAndScopesSoftDelete|MigrationPreflightFailsWithoutMutationOrDisclosure|BackfillCASRejectsConcurrentChangeWithoutDisclosure|MigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete|DataVerifierRejectsPostBackfillDriftWithoutDisclosure|DDLAndMetadataContractsAreAuditable|MigrationUsesDBResolverWriter)$'
+        --count 20 --race --go-work off
+        --require TestCanonicalEmailIdentityMigrationSQLiteFreshAndRepeat
+        --require TestCanonicalEmailIdentityMigrationSQLiteUpgradeBackfillsAndScopesSoftDelete
+        --require TestCanonicalEmailIdentityMigrationPreflightFailsWithoutMutationOrDisclosure
+        --require TestCanonicalEmailIdentityBackfillCASRejectsConcurrentChangeWithoutDisclosure
+        --require TestCanonicalEmailIdentityMigrationSQLiteConcurrentClaimsAndReuseAfterSoftDelete
+        --require TestCanonicalEmailIdentityDataVerifierRejectsPostBackfillDriftWithoutDisclosure
+        --require TestCanonicalEmailIdentityDDLAndMetadataContractsAreAuditable
+        --require TestCanonicalEmailIdentityMigrationUsesDBResolverWriter
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./models
+        --run '^Test(CanonicalEmailIdentityReturnsTypedValidationAndCanonicalValue|NormalizeEmailIdentityPersistenceErrorIsConstraintSpecific|CanonicalEmailCreateNormalizesConflictWithoutLeakingOtherUniqueErrors|OAuthProvisioningNeverMergesByEmail|UserBeforeSaveRejectsInvalidEmailWithTypedError|InvalidEmailLoginRemainsAClientAuthenticationFailure|EmailRegistrationRejectsExistingCanonicalIdentity|EmailRegistrationUsesBoundedOpaqueUsername|GetUserByEmailFailsClosedOnAmbiguousIdentity|EmailIdentityOperationsDoNotEmitSensitiveSQL|ConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity|OpaqueOAuthUsernameGenerationIsDeterministicAndBounded|OpaqueOAuthUsernameRetriesExistingCollision|GithubFirstProvisioningNeverMergesByCanonicalEmail|LarkFirstProvisioningUsesBoundedOpaqueUsername)$'
+        --count 20 --race --go-work off
+        --require TestCanonicalEmailIdentityReturnsTypedValidationAndCanonicalValue
+        --require TestNormalizeEmailIdentityPersistenceErrorIsConstraintSpecific
+        --require TestCanonicalEmailCreateNormalizesConflictWithoutLeakingOtherUniqueErrors
+        --require TestOAuthProvisioningNeverMergesByEmail
+        --require TestUserBeforeSaveRejectsInvalidEmailWithTypedError
+        --require TestInvalidEmailLoginRemainsAClientAuthenticationFailure
+        --require TestEmailRegistrationRejectsExistingCanonicalIdentity
+        --require TestEmailRegistrationUsesBoundedOpaqueUsername
+        --require TestGetUserByEmailFailsClosedOnAmbiguousIdentity
+        --require TestEmailIdentityOperationsDoNotEmitSensitiveSQL
+        --require TestConcurrentEmailRegistrationFailsClosedWithoutAmbiguousIdentity
+        --require TestOpaqueOAuthUsernameGenerationIsDeterministicAndBounded
+        --require TestOpaqueOAuthUsernameRetriesExistingCollision
+        --require TestGithubFirstProvisioningNeverMergesByCanonicalEmail
+        --require TestLarkFirstProvisioningUsesBoundedOpaqueUsername
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./apis
+        --run '^TestUser(ControllerMapsEmailIdentityWriteFailuresWithoutDisclosure|WriteErrorMapperFallsBackForUnrelatedDatabaseErrors)$'
+        --count 20 --race --go-work off
+        --require TestUserControllerMapsEmailIdentityWriteFailuresWithoutDisclosure
+        --require TestUserWriteErrorMapperFallsBackForUnrelatedDatabaseErrors
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./pkg/schemahealth
+        --run '^Test(VerifyCanonicalEmailIdentity(SQLiteRuntimeReady|RejectsMissingAndWrongSQLiteIndex|RequiresExactMigrationVersion|RejectsSensitiveDataWithoutDisclosure|DatabaseFailureIsFixedAndRedacted|UsesDBResolverWriter)|CanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes)$'
+        --count 20 --race --go-work off
+        --require TestVerifyCanonicalEmailIdentitySQLiteRuntimeReady
+        --require TestVerifyCanonicalEmailIdentityRejectsMissingAndWrongSQLiteIndex
+        --require TestVerifyCanonicalEmailIdentityRequiresExactMigrationVersion
+        --require TestVerifyCanonicalEmailIdentityRejectsSensitiveDataWithoutDisclosure
+        --require TestVerifyCanonicalEmailIdentityDatabaseFailureIsFixedAndRedacted
+        --require TestVerifyCanonicalEmailIdentityUsesDBResolverWriter
+        --require TestCanonicalEmailMetadataCompatibilityRejectsWrongPostgresAndMySQLShapes
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/migrate
+        --run '^TestMigrateContextUsesCanonicalEmailRuntimeVerifierAfterMigrations$'
+        --count 20 --race --go-work off
+        --require TestMigrateContextUsesCanonicalEmailRuntimeVerifierAfterMigrations
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+        --run '^TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness$'
+        --count 20 --race --go-work off
+        --require TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/blueprint
+        --run '^(TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords|TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel|TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack|TestInspectSnapshotWaitsForSourceToGeneratedTransition|TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence)$'
+        --count 20 --race --go-work off
+        --require TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords
+        --require TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel
+        --require TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack
+        --require TestInspectSnapshotWaitsForSourceToGeneratedTransition
+        --require TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/app
+        --run '^(TestUpgradeApplicationDefersRootModuleIdentityToManifest|TestWriteUpgradeStatusPreservesFlatJSONAndReportsFourIdentities)$'
+        --count 20 --race --go-work off
+        --require TestUpgradeApplicationDefersRootModuleIdentityToManifest
+        --require TestWriteUpgradeStatusPreservesFlatJSONAndReportsFourIdentities
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/mcp
+        --run '^TestFoundationUpgradeApplicationDefersRootModuleToSnapshot$'
+        --count 20 --race --go-work off
+        --require TestFoundationUpgradeApplicationDefersRootModuleToSnapshot
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/doctor
+        --run '^(TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains|TestRunAgentScopeRequiresValidGeneratedSnapshot|TestRunAgentScopeFailsMalformedCurrentSnapshotWithoutSourceFallback)$'
+        --count 20 --race --go-work off
+        --require TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains
+        --require TestRunAgentScopeRequiresValidGeneratedSnapshot
+        --require TestRunAgentScopeFailsMalformedCurrentSnapshotWithoutSourceFallback
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      Keep Generator/Blueprint and Storage Runtime as parallel axes. First establish independent
+      version identities, canonical path, strict schema/projection checks, and a safe migration
+      engine. The supplier golden backend, explicit forward migration, authorized API, OpenAPI,
+      and typed post-commit events are checked in at 5a60ad6; d92458c adds the separate
+      authorization migration, default-role policies, menu metadata, and exact role matrix while
+      retaining complete false. Next add the typed client and frontend in untagged development waves, then feature-freeze the public
+      contracts and run the complete three-database, browser, external-app, and Blueprint 0.1-to-0.2
+      upgrade matrices on one candidate commit. The canonical-email checkpoint must retain its
+      fail-closed server schema readiness and rerun both real database integrations from that
+      exact commit with both DSNs and zero skip. The same exact commit must complete a real
+      foundation-compatibility.yml run that records all four identities and digests, upgrades a
+      customized Blueprint 0.1 downstream to 0.2, and proves the second upgrade is empty; the
+      checkpoint's static workflow test is not release evidence. Do not start a second generated domain until this
+      slice is complete. If target public APIs require a breaking change, make a truthful SemVer
+      decision without changing the target generated structure.
+    rollback: >-
+      Stop generation or upgrade at the first unsupported field, conflict, migration, permission,
+      or drift failure. Dry-run leaves the tree untouched; a failed write restores only files owned
+      by that operation from the recorded plan and never overwrites user-owned content. A failed
+      downstream upgrade retains the old lock and manifest, preserves the conflict report, and
+      uses an idempotent forward fix. Database recovery follows the same-point backup policy and
+      never edits migration identifiers or version rows manually.

@@ -247,8 +247,8 @@ func TestAppConfigSecretWriteRequiresExplicitComponentPermission(t *testing.T) {
 				t,
 				&AppConfig{enforcer: &appConfigSecretTestEnforcer{err: errors.New("policy backend unavailable")}},
 				http.MethodPut,
-				"storage",
-				`{"data":{"s3SecretAccessKey":"storage-secret"}}`,
+				"security",
+				`{"data":{"githubClientSecret":"provider-secret"}}`,
 				appConfigSecretPrincipal("config-editor", false),
 			)
 			require.Equal(t, http.StatusServiceUnavailable, response.Code, response.Body.String())
@@ -256,5 +256,63 @@ func TestAppConfigSecretWriteRequiresExplicitComponentPermission(t *testing.T) {
 			require.NoError(t, db.Model(&models.AppConfig{}).Count(&count).Error)
 			require.Zero(t, count)
 		})
+	})
+}
+
+func TestStorageAppConfigSurfaceIsAdmissionPolicyOnly(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("historical provider and credential rows are never projected", func(t *testing.T) {
+		db := setupThemeConfigAPITest(t)
+		configureAppConfigSecretIdentityKey(t)
+		require.NoError(t, db.Create([]*models.AppConfig{
+			{Group: "storage", Name: "maxSize", Value: "10485760", Auth: true},
+			{Group: "storage", Name: "allowedTypes", Value: "image/png,image/*", Auth: true},
+			{Group: "storage", Name: "type", Value: "s3", Auth: true},
+			{Group: "storage", Name: "s3Endpoint", Value: "https://legacy.invalid", Auth: true},
+			{Group: "storage", Name: "s3AccessKeyID", Value: "legacy-access", Auth: true},
+			{Group: "storage", Name: "s3SecretAccessKey", Value: "legacy-secret", Auth: false},
+		}).Error)
+		enforcer := &appConfigSecretTestEnforcer{allowed: true}
+		response := appConfigSecretHandlerResponse(
+			t,
+			&AppConfig{enforcer: enforcer},
+			http.MethodGet,
+			"storage",
+			"",
+			appConfigSecretPrincipal("config-editor", false),
+		)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		require.Equal(t, map[string]any{
+			"allowedTypes": "image/png,image/*",
+			"maxSize":      "10485760",
+		}, decodeAppConfigGroup(t, response))
+		require.Empty(t, enforcer.calls)
+	})
+
+	t.Run("provider and credential writes return a stable 422 without partial policy writes", func(t *testing.T) {
+		db := setupThemeConfigAPITest(t)
+		configureAppConfigSecretIdentityKey(t)
+		enforcer := &appConfigSecretTestEnforcer{allowed: true}
+		response := appConfigSecretHandlerResponse(
+			t,
+			&AppConfig{enforcer: enforcer},
+			http.MethodPut,
+			"storage",
+			`{"data":{"maxSize":"10485760","s3SecretAccessKey":"removed"}}`,
+			appConfigSecretPrincipal("config-editor", false),
+		)
+		require.Equal(t, http.StatusUnprocessableEntity, response.Code, response.Body.String())
+		body := decodeAppConfigGroup(t, response)
+		require.Equal(t, "STORAGE_PROFILE_APP_CONFIG_FORBIDDEN", body["errorCode"])
+		require.Equal(
+			t,
+			"storage provider and credential settings must come from the startup profile",
+			body["errorMessage"],
+		)
+		require.Empty(t, enforcer.calls)
+		var count int64
+		require.NoError(t, db.Model(&models.AppConfig{}).Count(&count).Error)
+		require.Zero(t, count)
 	})
 }

@@ -2,6 +2,7 @@ package center
 
 import (
 	"os"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/grafana/pyroscope-go"
@@ -42,7 +43,10 @@ type DefaultCenter struct {
 	storage.AdapterCache
 	storage.AdapterQueue
 	storage.AdapterLocker
-	VerifyCodeStoreImp
+	challengeMu sync.RWMutex
+	ChallengeImp
+	runtimeChallengeMu sync.RWMutex
+	runtimeChallenge   RuntimeChallengeImp
 }
 
 func (d *DefaultCenter) SetNotice(n NoticeImp) {
@@ -109,8 +113,18 @@ func (d *DefaultCenter) SetLocker(l storage.AdapterLocker) {
 	d.AdapterLocker = l
 }
 
-func (d *DefaultCenter) SetVerifyCodeStore(v VerifyCodeStoreImp) {
-	d.VerifyCodeStoreImp = v
+func (d *DefaultCenter) SetChallenge(v ChallengeImp) {
+	d.challengeMu.Lock()
+	defer d.challengeMu.Unlock()
+	d.ChallengeImp = v
+}
+
+// SetRuntimeChallenge publishes a non-owning Runtime v2 capability. Config is
+// the sole owner of the resource graph and clears this reference before close.
+func (d *DefaultCenter) SetRuntimeChallenge(v RuntimeChallengeImp) {
+	d.runtimeChallengeMu.Lock()
+	defer d.runtimeChallengeMu.Unlock()
+	d.runtimeChallenge = v
 }
 
 func (d *DefaultCenter) GetNotice() NoticeImp {
@@ -177,8 +191,31 @@ func (d *DefaultCenter) GetLocker() storage.AdapterLocker {
 	return d.AdapterLocker
 }
 
-func (d *DefaultCenter) GetVerifyCodeStore() VerifyCodeStoreImp {
-	return d.VerifyCodeStoreImp
+func (d *DefaultCenter) GetChallenge() ChallengeImp {
+	d.challengeMu.RLock()
+	defer d.challengeMu.RUnlock()
+	return d.ChallengeImp
+}
+
+func (d *DefaultCenter) GetRuntimeChallenge() RuntimeChallengeImp {
+	d.runtimeChallengeMu.RLock()
+	defer d.runtimeChallengeMu.RUnlock()
+	return d.runtimeChallenge
+}
+
+// EmailChallengeCapabilityEnabled is the authoritative runtime switch shared
+// by challenge issuance and every challenge consumer. Missing, malformed, or
+// false configuration fails closed.
+func EmailChallengeCapabilityEnabled(ctx *gin.Context) bool {
+	appConfig := GetAppConfig()
+	if appConfig == nil {
+		return false
+	}
+	value, exists := appConfig.GetAppConfig(ctx, "security:emailEnabled")
+	if !exists {
+		return false
+	}
+	return value == "true"
 }
 
 func (d *DefaultCenter) Stage() string {
@@ -276,8 +313,13 @@ func SetLocker(l storage.AdapterLocker) *DefaultCenter {
 	return Default
 }
 
-func SetVerifyCodeStore(v VerifyCodeStoreImp) *DefaultCenter {
-	Default.SetVerifyCodeStore(v)
+func SetChallenge(v ChallengeImp) *DefaultCenter {
+	Default.SetChallenge(v)
+	return Default
+}
+
+func SetRuntimeChallenge(v RuntimeChallengeImp) *DefaultCenter {
+	Default.SetRuntimeChallenge(v)
 	return Default
 }
 
@@ -349,6 +391,10 @@ func GetLocker() storage.AdapterLocker {
 	return Default.GetLocker()
 }
 
-func GetVerifyCodeStore() VerifyCodeStoreImp {
-	return Default.GetVerifyCodeStore()
+func GetChallenge() ChallengeImp {
+	return Default.GetChallenge()
+}
+
+func GetRuntimeChallenge() RuntimeChallengeImp {
+	return Default.GetRuntimeChallenge()
 }

@@ -3,7 +3,9 @@ package blueprint
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -82,14 +84,28 @@ func Load(root, name string) (*Document, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read blueprint %s: %w", relative, err)
 	}
-	document := &Document{SourcePath: relative}
+	return decodeDocument(absoluteRoot, relative, data)
+}
+
+func decodeDocument(root, relative string, data []byte) (*Document, error) {
+	if err := validateStrictYAMLDocument(data); err != nil {
+		return nil, fmt.Errorf("parse blueprint %s: %w", relative, err)
+	}
+	document := &Document{SourcePath: normalizedPath(relative)}
 	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(document); err != nil {
 		return nil, fmt.Errorf("parse blueprint %s: %w", relative, err)
 	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return nil, fmt.Errorf("parse blueprint %s: multiple YAML documents are not supported", relative)
+		}
+		return nil, fmt.Errorf("parse blueprint %s: %w", relative, err)
+	}
 	document.Normalize()
-	if err := document.Validate(absoluteRoot); err != nil {
+	if err := document.Validate(root); err != nil {
 		return nil, err
 	}
 	return document, nil
@@ -112,6 +128,9 @@ func (d *Document) Normalize() {
 	if d.Spec.LockPath == "" {
 		d.Spec.LockPath = ".mss/lock.yaml"
 	}
+	d.Spec.DefaultOutputDirectory = normalizedPath(d.Spec.DefaultOutputDirectory)
+	d.Spec.ManifestPath = normalizedPath(d.Spec.ManifestPath)
+	d.Spec.LockPath = normalizedPath(d.Spec.LockPath)
 
 	d.Spec.RequiredFiles = normalizePaths(d.Spec.RequiredFiles, false)
 	d.Spec.ExcludePaths = normalizePaths(d.Spec.ExcludePaths, false)
@@ -142,8 +161,8 @@ func (d *Document) Validate(root string) error {
 	if d.Metadata.DisplayName == "" {
 		problems = append(problems, "metadata.displayName is required")
 	}
-	if d.Metadata.Version == "" {
-		problems = append(problems, "metadata.version is required")
+	if !validSemanticVersion(d.Metadata.Version) {
+		problems = append(problems, "metadata.version must be a semantic revision")
 	}
 	if d.Spec.SourceMode != "git-tracked" {
 		problems = append(problems, "spec.sourceMode must equal git-tracked")
@@ -162,6 +181,10 @@ func (d *Document) Validate(root string) error {
 		if !safeRelativePath(path) {
 			problems = append(problems, label+" must be a repository-relative confined path")
 		}
+	}
+	if safeRelativePath(d.Spec.ManifestPath) && safeRelativePath(d.Spec.LockPath) &&
+		normalizedPath(d.Spec.ManifestPath) == normalizedPath(d.Spec.LockPath) {
+		problems = append(problems, "spec.manifestPath and spec.lockPath must be distinct")
 	}
 	if len(d.Spec.RequiredFiles) == 0 {
 		problems = append(problems, "spec.requiredFiles must not be empty")
@@ -219,7 +242,7 @@ func ValidateApplication(application Application) error {
 
 // Excluded reports whether a tracked path is omitted from downstream output.
 func (d *Document) Excluded(relative string) bool {
-	relative = filepath.ToSlash(filepath.Clean(filepath.FromSlash(relative)))
+	relative = normalizedPath(relative)
 	for _, excluded := range d.Spec.ExcludePaths {
 		if relative == excluded {
 			return true
@@ -259,17 +282,22 @@ func validModule(value string) bool {
 }
 
 func safeRelativePath(value string) bool {
-	if strings.TrimSpace(value) == "" || filepath.IsAbs(value) {
+	value = strings.TrimSpace(value)
+	// Snapshot and blueprint paths use one portable slash-separated grammar.
+	// In particular, a Windows drive/UNC path must remain unsafe when parsed on
+	// Unix, rather than becoming dangerous only after the snapshot is moved.
+	if value == "" || strings.HasPrefix(value, "/") ||
+		strings.ContainsAny(value, "\\:\x00") {
 		return false
 	}
-	clean := filepath.Clean(filepath.FromSlash(value))
-	return clean != "." && clean != ".." && !strings.HasPrefix(clean, ".."+string(filepath.Separator))
+	clean := pathpkg.Clean(value)
+	return clean != "." && clean != ".." && !strings.HasPrefix(clean, "../")
 }
 
 func normalizePaths(values []string, prefix bool) []string {
 	result := make([]string, 0, len(values))
 	for _, value := range values {
-		value = filepath.ToSlash(filepath.Clean(filepath.FromSlash(strings.TrimSpace(value))))
+		value = normalizedPath(value)
 		if value == "." || value == "" {
 			continue
 		}

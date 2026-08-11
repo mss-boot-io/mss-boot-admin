@@ -243,9 +243,10 @@ curl http://localhost:8080/admin/api/audit-logs/operation \
 
 ### 存储安全
 
-- [ ] 超过最大文件大小时上传被拒绝
-- [ ] 非白名单 MIME 类型上传被拒绝
-- [ ] 合法图片上传成功并可通过 `/public/` 访问
+- [ ] 已知长度的原始请求 cap+1 在读取 body 前返回 413，未知长度 cap+1 最多读取探测字节
+- [ ] 超限请求清理 multipart 临时文件且不创建对象，`errorCode=UPLOAD_REQUEST_TOO_LARGE`
+- [ ] 非白名单 MIME 类型返回 422，`errorCode=INVALID_UPLOAD`，且不进入 Provider
+- [ ] 仅在显式 Local 开发模式和同部署 `/public` Delivery 下，合法对象以 `/public/uploads/{uuid}` 返回并可读；这不是生产 Provider 成熟度证据
 
 ### 告警与通知
 
@@ -344,7 +345,7 @@ curl -I http://127.0.0.1:8000
 - [ ] 登录成功且首次登录后页面状态正常
 - [ ] Welcome 监控卡片与趋势图正常
 - [ ] 日志页面三类日志可见
-- [ ] 头像上传成功并可访问
+- [ ] 在已证明的开发 Delivery 环境中，头像上传成功并可访问；生产环境保持显式关闭直到 Provider/Delivery 门禁完成
 - [ ] WebSocket 在线状态正常
 - [ ] 关键配置页可保存
 - [ ] 至少一条定时任务处于启用状态

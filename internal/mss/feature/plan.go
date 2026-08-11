@@ -21,20 +21,21 @@ type Options struct {
 
 // Plan combines Feature intent, validated modules, generation impact, and acceptance evidence.
 type Plan struct {
-	Feature      FeatureSummary           `json:"feature"`
-	Root         string                   `json:"root"`
-	FeaturePath  string                   `json:"featurePath"`
-	Success      bool                     `json:"success"`
-	Goals        []string                 `json:"goals"`
-	NonGoals     []string                 `json:"nonGoals"`
-	Modules      []ModulePlan             `json:"modules"`
-	Requirements []RequirementPlan        `json:"requirements"`
-	Constraints  []spec.FeatureConstraint `json:"constraints"`
-	Acceptance   []AcceptancePlan         `json:"acceptance"`
-	Risks        []spec.FeatureRisk       `json:"risks,omitempty"`
-	Validation   spec.FeatureValidation   `json:"validation"`
-	Rollout      spec.FeatureRollout      `json:"rollout"`
-	Issues       []string                 `json:"issues,omitempty"`
+	Feature          FeatureSummary           `json:"feature"`
+	Root             string                   `json:"root"`
+	FeaturePath      string                   `json:"featurePath"`
+	Success          bool                     `json:"success"`
+	Goals            []string                 `json:"goals"`
+	NonGoals         []string                 `json:"nonGoals"`
+	Modules          []ModulePlan             `json:"modules"`
+	Requirements     []RequirementPlan        `json:"requirements"`
+	Constraints      []spec.FeatureConstraint `json:"constraints"`
+	Acceptance       []AcceptancePlan         `json:"acceptance"`
+	AcceptancePhases []AcceptancePhasePlan    `json:"acceptancePhases"`
+	Risks            []spec.FeatureRisk       `json:"risks,omitempty"`
+	Validation       spec.FeatureValidation   `json:"validation"`
+	Rollout          spec.FeatureRollout      `json:"rollout"`
+	Issues           []string                 `json:"issues,omitempty"`
 }
 
 // FeatureSummary is the stable identity used by Agent handoffs.
@@ -48,16 +49,17 @@ type FeatureSummary struct {
 
 // ModulePlan is one validated vertical-module impact.
 type ModulePlan struct {
-	Name              string         `json:"name"`
-	Operation         string         `json:"operation"`
-	Description       string         `json:"description,omitempty"`
-	SpecPath          string         `json:"specPath,omitempty"`
-	SpecValid         bool           `json:"specValid"`
-	SpecName          string         `json:"specName,omitempty"`
-	GenerationDryRun  bool           `json:"generationDryRun,omitempty"`
-	GeneratedOutputs  int            `json:"generatedOutputs,omitempty"`
-	GenerationActions map[string]int `json:"generationActions,omitempty"`
-	Issue             string         `json:"issue,omitempty"`
+	Name              string                 `json:"name"`
+	Kind              spec.FeatureModuleKind `json:"kind"`
+	Operation         string                 `json:"operation"`
+	Description       string                 `json:"description,omitempty"`
+	SpecPath          string                 `json:"specPath,omitempty"`
+	SpecValid         bool                   `json:"specValid,omitempty"`
+	SpecName          string                 `json:"specName,omitempty"`
+	GenerationDryRun  bool                   `json:"generationDryRun,omitempty"`
+	GeneratedOutputs  int                    `json:"generatedOutputs,omitempty"`
+	GenerationActions map[string]int         `json:"generationActions,omitempty"`
+	Issue             string                 `json:"issue,omitempty"`
 }
 
 // RequirementPlan keeps actor/module/permission/rule context together.
@@ -79,8 +81,19 @@ type AcceptancePlan struct {
 	Requirement string                    `json:"requirement,omitempty"`
 	Statement   string                    `json:"statement"`
 	Level       string                    `json:"level"`
+	Phase       spec.AcceptancePhase      `json:"phase"`
 	Required    bool                      `json:"required"`
 	Evidence    []spec.AcceptanceEvidence `json:"evidence"`
+}
+
+// AcceptancePhasePlan keeps phase-local evidence and counts together. A
+// release consumer selects one phase explicitly instead of treating all
+// required evidence as one publication precondition.
+type AcceptancePhasePlan struct {
+	Phase      spec.AcceptancePhase `json:"phase"`
+	Acceptance int                  `json:"acceptance"`
+	Required   int                  `json:"required"`
+	Criteria   []AcceptancePlan     `json:"criteria"`
 }
 
 // Build creates a read-only implementation plan and never executes Feature evidence commands.
@@ -136,6 +149,7 @@ func Build(options Options) (Plan, error) {
 			Requirement: criterion.Requirement,
 			Statement:   criterion.Statement,
 			Level:       criterion.Level,
+			Phase:       criterion.EffectivePhase(),
 			Required:    criterion.Required,
 			Evidence:    append([]spec.AcceptanceEvidence(nil), criterion.Evidence...),
 		})
@@ -163,6 +177,7 @@ func Build(options Options) (Plan, error) {
 	sort.SliceStable(plan.Modules, func(i, j int) bool { return plan.Modules[i].Name < plan.Modules[j].Name })
 	sort.SliceStable(plan.Requirements, func(i, j int) bool { return plan.Requirements[i].ID < plan.Requirements[j].ID })
 	sort.SliceStable(plan.Acceptance, func(i, j int) bool { return plan.Acceptance[i].ID < plan.Acceptance[j].ID })
+	plan.AcceptancePhases = groupAcceptanceByPhase(plan.Acceptance)
 	if !plan.Success {
 		return plan, errors.New("Feature implementation plan contains invalid or missing module contracts")
 	}
@@ -172,13 +187,17 @@ func Build(options Options) (Plan, error) {
 func buildModulePlan(root string, module spec.FeatureModule) ModulePlan {
 	plan := ModulePlan{
 		Name:        module.Name,
+		Kind:        module.EffectiveKind(),
 		Operation:   module.Operation,
 		Description: module.Description,
 		SpecPath:    module.SpecPath,
 	}
+	if plan.Kind == spec.FeatureModuleKindInfrastructure {
+		return plan
+	}
 	if module.SpecPath == "" {
 		if module.Operation == "create" || module.Operation == "extend" {
-			plan.Issue = "create/extend operations require specPath"
+			plan.Issue = "admin-module create/extend operations require specPath"
 		}
 		return plan
 	}
@@ -241,9 +260,12 @@ func (p Plan) Text() string {
 	fmt.Fprintf(&builder, "modules: %d\n", len(p.Modules))
 	fmt.Fprintf(&builder, "requirements: %d\n", len(p.Requirements))
 	fmt.Fprintf(&builder, "acceptance: %d\n", len(p.Acceptance))
+	for _, phase := range p.AcceptancePhases {
+		fmt.Fprintf(&builder, "acceptance.%s: %d (required=%d)\n", phase.Phase, phase.Acceptance, phase.Required)
+	}
 	fmt.Fprintf(&builder, "rollout: %s\n\n", p.Rollout.Strategy)
 	for _, module := range p.Modules {
-		fmt.Fprintf(&builder, "- module %s [%s] spec=%s outputs=%d", module.Name, module.Operation, module.SpecPath, module.GeneratedOutputs)
+		fmt.Fprintf(&builder, "- module %s [%s/%s] spec=%s outputs=%d", module.Name, module.Kind, module.Operation, module.SpecPath, module.GeneratedOutputs)
 		if module.Issue != "" {
 			fmt.Fprintf(&builder, " issue=%s", module.Issue)
 		}
@@ -260,6 +282,31 @@ func (p Plan) Text() string {
 		fmt.Fprintf(&builder, "- issue: %s\n", issue)
 	}
 	return builder.String()
+}
+
+func groupAcceptanceByPhase(criteria []AcceptancePlan) []AcceptancePhasePlan {
+	groups := make([]AcceptancePhasePlan, 0, len(spec.AcceptancePhases()))
+	byPhase := make(map[spec.AcceptancePhase]*AcceptancePhasePlan)
+	for _, phase := range spec.AcceptancePhases() {
+		group := AcceptancePhasePlan{
+			Phase:    phase,
+			Criteria: make([]AcceptancePlan, 0),
+		}
+		groups = append(groups, group)
+		byPhase[phase] = &groups[len(groups)-1]
+	}
+	for _, criterion := range criteria {
+		group := byPhase[criterion.Phase]
+		if group == nil {
+			continue
+		}
+		group.Criteria = append(group.Criteria, criterion)
+		group.Acceptance++
+		if criterion.Required {
+			group.Required++
+		}
+	}
+	return groups
 }
 
 func resolveFile(root, input string) (string, string, error) {

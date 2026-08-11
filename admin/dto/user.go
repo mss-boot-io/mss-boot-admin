@@ -34,9 +34,8 @@ type LoginResponse struct {
 }
 
 type FakeCaptchaRequest struct {
-	Phone string `json:"phone"`
-	Email string `json:"email"`
-	UseBy string `json:"useBy"`
+	Email string `json:"email" binding:"required,email"`
+	UseBy string `json:"useBy" binding:"required,oneof=register login resetPassword"`
 }
 
 type FakeCaptchaResponse struct {

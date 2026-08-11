@@ -1,12 +1,16 @@
 package config
 
 import (
+	"context"
 	"crypto/tls"
 	"testing"
 )
 
 func TestKafkaTLSConfigVerifiesCertificates(t *testing.T) {
-	cfg := (&Kafka{}).getConfig()
+	cfg, err := (&Kafka{KafkaParams: KafkaParams{Brokers: []string{"localhost:9092"}}}).buildConfig(context.Background())
+	if err != nil {
+		t.Fatalf("buildConfig() error = %v", err)
+	}
 	if !cfg.Net.TLS.Enable {
 		t.Fatal("Kafka TLS is disabled")
 	}
@@ -22,7 +26,16 @@ func TestKafkaTLSConfigVerifiesCertificates(t *testing.T) {
 }
 
 func TestMSKTLSConfigVerifiesCertificates(t *testing.T) {
-	cfg := (&Kafka{KafkaParams: KafkaParams{Provider: "msk"}, SASL: &SASL{Region: "us-east-1"}}).getConfig()
+	cfg, err := (&Kafka{
+		KafkaParams: KafkaParams{
+			Brokers:  []string{"broker.example.com:9098"},
+			Provider: "msk",
+		},
+		SASL: &SASL{Region: "us-east-1"},
+	}).buildConfig(context.Background())
+	if err != nil {
+		t.Fatalf("buildConfig() error = %v", err)
+	}
 	if !cfg.Net.TLS.Enable {
 		t.Fatal("MSK TLS is disabled")
 	}

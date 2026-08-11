@@ -1,0 +1,1097 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: storage-runtime-v2
+  displayName: Build storage capabilities from explicit owned runtime resources
+  description: >-
+    Defines the clean target architecture, provider maturity gates, conformance evidence, and
+    rollout boundary for cache, challenge state, events, work queues, locks, Redis, and object storage.
+  owner: framework-platform
+  labels:
+    domain: storage-runtime
+    target-version: v1.1.0
+    release-status: planned
+    compatibility: target-design-unconstrained
+    evidence-enforcement: declarative-until-infrastructure-planner-and-runner
+spec:
+  problem: >-
+    The current mss-boot/pkg/config/storage directory is not an object-storage package: it combines
+    cache, Redis globals, one-time verification state, queues, and locks, while the sibling
+    mss-boot/pkg/config/storage.go owns S3 construction. Consumers receive broad adapters or raw
+    clients, resource ownership is implicit, optional providers can control the process, security
+    state shares failure semantics with disposable caches, and Admin uses a general queue mostly as
+    a Casbin broadcast channel. A coherent runtime must separate authority and delivery semantics,
+    make every resource named and owned, and graduate providers only from conformance evidence.
+  goals:
+    - Build a typed runtime resource graph with strict configuration, named dependencies, ordered startup, readiness, cancellation, and reverse-order close.
+    - Give derived caches, one-time challenges, event broadcast, durable work, distributed locks, and object storage separate contracts and failure semantics.
+    - Construct one Redis client per named resource and expose only scoped consumer interfaces with automatic namespaces.
+    - Replace verification-code cache helpers with an atomic cryptographic ChallengeStore.
+    - Replace the Admin Casbin queue use with a revisioned EventBus plus database reconciliation.
+    - Define an ObjectStore that owns opaque object identity and a separate Delivery boundary for proxy or signed access.
+    - Validate every provider through one provider-specific maturity matrix and reusable conformance suite.
+    - Keep S3 configuration bootstrap independent from application object-storage runtime ownership.
+  nonGoals:
+    - Preserve historical package names, exported interfaces, global clients, configuration shapes, or fallback behavior in the target design.
+    - Promise storage hot reload in v1.1.0; runtime configuration is an immutable startup snapshot.
+    - Deliver a general durable job platform or claim Kafka, NSQ, or Redis work queues stable without full retry and dead-letter evidence.
+    - Use a distributed lock as a substitute for database transactions, optimistic concurrency, or a documented fencing design.
+    - Add CDN orchestration, malware scanning, image transforms, resumable multipart upload, or cross-cloud replication.
+    - Make Redis authoritative for database configuration, authorization policy, or other reconstructable application records.
+    - Reintroduce removed runtime developer tools, dynamic models, virtual CRUD, or browser code generation.
+    - Require application ObjectStore promotion, a RustFS container, or the complete Local/S3-compatible provider matrix before publishing v1.1.0; those remain optional post-v1.1 maturity work by explicit maintainer scope decision.
+  actors:
+    - id: application-author
+      displayName: Application author
+      description: Selects scoped capabilities without depending on provider clients or process globals.
+    - id: platform-maintainer
+      displayName: Platform maintainer
+      description: Owns runtime composition, provider contracts, conformance fixtures, and package boundaries.
+    - id: runtime-operator
+      displayName: Runtime operator
+      description: Supplies secrets, observes health and degradation, and performs controlled rollout or recovery.
+    - id: release-reviewer
+      displayName: Release reviewer
+      description: Promotes only providers whose exact-commit evidence satisfies their maturity gate.
+  modules:
+    - name: bootstrap-source
+      operation: extend
+      description: Pre-runtime S3 configuration-source bootstrap with independent ownership.
+    - name: challenge-store
+      operation: create
+      description: Purpose-scoped atomic one-time challenge issuance and verification.
+    - name: derived-cache
+      operation: extend
+      description: Database-authoritative scoped caches and explicit opt-in query caching.
+    - name: distributed-lock
+      operation: extend
+      description: Explicitly deferred lock capability with no maturity inherited from Redis or the runtime.
+    - name: event-bus
+      operation: create
+      description: Best-effort revision notifications with deterministic reconciliation.
+    - name: object-store
+      operation: extend
+      description: Private opaque objects and separate delivery policies.
+    - name: provider-governance
+      operation: create
+      description: Provider maturity records, conformance suites, and exact evidence.
+    - name: redis-resource
+      operation: create
+      description: Named Redis clients with strict standalone, Sentinel, cluster, and TLS profiles.
+    - name: resource-runtime
+      operation: create
+      description: Typed resource graph, lifecycle ownership, readiness, and shutdown.
+    - name: runtime-config
+      operation: create
+      description: Strict discriminated configuration and immutable normalized profiles.
+    - name: work-queue
+      operation: extend
+      description: Durable at-least-once delivery isolated from event broadcast.
+  requirements:
+    - id: bind-resource-lifecycle
+      title: Bind resources to one application lifecycle
+      description: The composition root must start required resources before listeners and close every acquired resource in reverse dependency order.
+      priority: must
+      actor: platform-maintainer
+      module: resource-runtime
+      rules:
+        - Decode and validate complete before Build, and Build starts no goroutine or network loop.
+        - Start and required health checks complete synchronously before HTTP or gRPC listeners can serve.
+        - Long-running workers inherit the application context and one owner performs idempotent deadline-bound close.
+        - Partial startup failure closes acquired resources in reverse topological order and returns the original and cleanup errors.
+    - id: classify-providers-by-evidence
+      title: Classify each provider independently
+      description: A provider maturity state must be derived from named, reproducible evidence and cannot be inherited from a package or release version.
+      priority: must
+      actor: release-reviewer
+      module: provider-governance
+      rules:
+        - Blocked providers with a known security or data-loss path are not enabled in production defaults.
+        - Experimental, beta, and stable have explicit test, deployment, observability, soak, upgrade, and rollback requirements.
+        - A skipped required integration test fails promotion and every report identifies provider, version, commit, fixture, and result.
+        - The report conforms to a checked-in machine schema and the release verifier rejects a missing provider, missing test, or zero-test match.
+    - id: constrain-object-storage
+      title: Separate object authority from delivery
+      description: Object storage must use opaque server-owned identity, strict private providers, and an explicit proxy or signed-delivery layer.
+      priority: must
+      actor: application-author
+      module: object-store
+      rules:
+        - Put, Open, Stat, and Delete operate on opaque ObjectRef values and return checksummed metadata.
+        - Put is create-only and concurrent writes to the same ObjectRef return a typed conflict without replacing committed bytes.
+        - The original filename is metadata only; keys are random, no-clobber, and never include a user-controlled path.
+        - Local uses a fixed root, temporary write plus atomic publish, path and symlink confinement, and identical conformance semantics to S3-compatible providers.
+        - Provider outage returns unavailable and never falls back; public URLs are not built by concatenating an endpoint and object key.
+        - Admin persists authoritative owner, tenant, purpose, profile, checksum, size, detected type, state, revision, and original-name metadata through a forward migration.
+        - Open, signed delivery, and delete enforce backend permission plus cross-user and cross-tenant negative authorization; ObjectRef possession grants no access.
+        - For v1.1.0 this is a post-release provider-maturity target rather than a foundation release prerequisite; Local and S3-compatible remain Legacy/Blocked and incomplete production Delivery stays unavailable.
+    - id: own-named-resources
+      title: Own one client per named Redis resource
+      description: Redis consumers must resolve explicit resource references and receive only a namespace-scoped capability interface.
+      priority: must
+      actor: platform-maintainer
+      module: redis-resource
+      rules:
+        - Standalone, Sentinel, and cluster are strict mutually exclusive modes with validated TLS and SecretRef credentials.
+        - One resource name creates one client, one health state, one metrics identity, and exactly one close by its owner.
+        - Cache, query, session, OAuth state, challenge, event, and realtime scopes cannot read or delete outside their prefixes.
+        - Cluster mode rejects nonzero database selection and every mode rejects incomplete endpoints, credentials, or certificate pairs.
+    - id: defer-distributed-lock-promotion
+      title: Keep distributed locking deferred without a fenced consumer
+      description: A Redis lock adapter with no production consumer or fencing proof must remain disabled and cannot inherit Redis resource maturity.
+      priority: must
+      actor: release-reviewer
+      module: distributed-lock
+      rules:
+        - The current adapter remains legacy and disabled by default while Admin has no production consumer.
+        - A future promotion names the protected write, propagates a monotonically increasing fencing token, and proves renewal, lease loss, cancellation, partition, and stale-owner rejection.
+        - Database transactions or optimistic concurrency remain preferred unless evidence shows they cannot satisfy the concrete use case.
+    - id: redact-runtime-observability
+      title: Make diagnostics useful without exposing secrets
+      description: Health, metrics, logs, traces, doctor output, and evidence must identify resources and failure class without sensitive values.
+      priority: must
+      actor: runtime-operator
+      module: resource-runtime
+      rules:
+        - Diagnostics expose resource name, provider kind, state, latency, retries, and a sanitized endpoint identity.
+        - Raw credentials, secret values, challenge subjects or codes, signed URLs, message payloads, and multipart bodies are never emitted.
+        - SecretRef diagnostics show only source kind and a nonreversible fingerprint when needed for rotation checks.
+    - id: scope-derived-cache
+      title: Keep cache derived from an authoritative source
+      description: A cache must declare its authority, namespace, TTL, payload bound, failure mode, and reconstruction behavior.
+      priority: must
+      actor: application-author
+      module: derived-cache
+      rules:
+        - Database-authoritative cache failure bypasses to the database and cannot change the result of an already committed write.
+        - Session snapshots fall back to their session or database authority while OAuth and challenge state never use cache-style fallback.
+        - Generic query caching remains opt-in beta and preserves not-found, RowsAffected, preload, scan, datasource, and table-generation semantics.
+        - Active database transactions bypass shared QueryCache unless a snapshot-bound design later proves isolation, rollback, and read-your-writes semantics.
+        - Bounded payloads, singleflight, namespace isolation, generation races, and cross-instance datasource identity are tested explicitly.
+        - The Runtime v2 checkpoint is an explicit loader adapter rather than a transparent GORM plugin; callers own the bounded payload codec and a stable non-sensitive QueryIdentity covering query inputs, preload graph, and scan/result shape.
+        - Cross-process recovery after an invalidation outage depends on EventBus delivery plus database-revision reconciliation; a process-local pending generation is repair state, never authority.
+    - id: secure-one-time-challenges
+      title: Provide an atomic ChallengeStore
+      description: One-time authentication state must have security-specific issuance and verification operations rather than generic cache calls.
+      priority: must
+      actor: application-author
+      module: challenge-store
+      rules:
+        - crypto/rand generates the code and only a fixed-length HMAC or equivalent verifier is stored under normalized subject and purpose.
+        - The verifier uses a versioned high-entropy pepper SecretRef, constant-time comparison, and bounded dual-key rotation.
+        - BeginIssue atomically enforces resend eligibility, rolling quota, expiry, and one versioned pending reservation; Verify never accepts pending values.
+        - Successful delivery commits the matching pending version, replaces the prior active verifier, and starts cooldown; failed delivery aborts only that version, preserves the prior active verifier, and keeps the rolling-quota charge.
+        - Stale delivery completion cannot commit or abort a newer concurrent Issue.
+        - Pending state has a short lease independent from active expiry; BeginIssue atomically reclaims an expired lease after process crash or hung delivery without extending the prior active verifier.
+        - Verify atomically compares, increments attempts, locks at the bound, and consumes exactly once on success.
+        - Redis outage fails closed, typed outcomes avoid account enumeration, and code or subject never enters observability data.
+        - Redis Cluster uses a single atomic key or explicit same-slot hash tag and proves CROSSSLOT rejection plus failover behavior.
+    - id: separate-bootstrap-storage
+      title: Keep configuration bootstrap independent
+      description: An S3-backed configuration source must initialize before runtime configuration and cannot depend on or share hidden ownership with application ObjectStore.
+      priority: should
+      actor: runtime-operator
+      module: bootstrap-source
+      rules:
+        - Bootstrap uses a minimal strict profile and returns errors without Fatal or global mutation.
+        - Bootstrap credentials and client lifecycle are independent from named application object stores.
+        - Bootstrap diagnostics are sanitized and do not imply application object-storage readiness.
+    - id: split-events-from-work
+      title: Separate broadcast events from durable work
+      description: EventBus and WorkQueue must expose different delivery guarantees, failure behavior, reconciliation, and maturity.
+      priority: must
+      actor: platform-maintainer
+      module: event-bus
+      rules:
+        - Casbin uses a typed revision event whose subscriber reloads authoritative database policy; delivery scope is provider-specific and never treated as the authority.
+        - Casbin policy mutation and its monotonic revision commit in one database transaction; a crash between commit and publish is repaired by reconciliation.
+        - Periodic revision reconciliation repairs missed, duplicate, or out-of-order events.
+        - Memory and Redis EventBus providers use best-effort fan-out and explicit degraded health rather than work-queue acknowledgement semantics.
+        - Each Kafka, NSQ, and Redis durable-work provider retains its own evidence state until acknowledgement-after-success, retry, dead-letter, cancellation, rebalance, idempotency, real-provider, and lifecycle conformance pass. Kafka remains legacy/Blocked after the internal D0 MarkMessage-order checkpoint.
+    - id: strict-runtime-config
+      title: Decode a strict discriminated configuration
+      description: Runtime configuration must reject ambiguous provider shapes and resolve typed secret references before side effects.
+      priority: must
+      actor: runtime-operator
+      module: runtime-config
+      rules:
+        - Unknown fields, unknown providers, multiple provider branches, empty addresses, invalid durations, and incomplete TLS or credentials are errors.
+        - Configuration is normalized once into an immutable startup snapshot and Build never mutates decoded input.
+        - AppConfig may select a predeclared object-storage profile and non-secret policy but cannot store raw provider credentials.
+  constraints:
+    - id: clean-target-boundary
+      type: compatibility
+      statement: Historical APIs and configuration are not architecture inputs; any temporary release bridge is outside the target interfaces and cannot preserve unsafe semantics.
+    - id: explicit-authority
+      type: data
+      statement: Every stateful capability declares its authoritative source and whether failure means bypass, degrade, retry, or fail closed.
+    - id: no-hidden-global
+      type: dependency
+      statement: Runtime consumers receive named scoped dependencies and cannot create, replace, or close a process-global provider client.
+    - id: readiness-before-listen
+      type: operations
+      statement: Required resource health is established before network listeners accept requests; sibling concurrent Runnables are insufficient ordering.
+    - id: secret-reference-only
+      type: security
+      statement: Production provider credentials enter runtime profiles through typed SecretRef values and are never persisted as raw Admin application configuration.
+    - id: semver-release-check
+      type: compatibility
+      statement: If implementation removes or changes existing public Go APIs, release engineering must publish the framework under a compatible major-version decision rather than mislabel a breaking build as SemVer minor.
+    - id: required-test-execution
+      type: operations
+      statement: Required Go tests are parsed from go test -json and must show at least one exact test start and pass; no-tests warnings, package skips, and required fixture skips fail promotion.
+    - id: v110-object-provider-scope
+      type: operations
+      statement: By explicit maintainer scope decision, v1.1.0 does not start RustFS or require complete application ObjectStore provider or authorization conformance; when object-storage implementation changes, validation is limited to affected compilation, existing focused owner/configuration tests, and one basic fail-closed or Local smoke, while absent optional evidence cannot block the Foundation release.
+    - id: declarative-bootstrap-boundary
+      type: operations
+      statement: At the v1.0.0 baseline, spec validate proves only structure and references; feature plan cannot yet plan cross-cutting modules and verify does not execute acceptance or custom evidence, so this target is not reported as implemented until the infrastructure planner and evidence runner land.
+  acceptance:
+    - id: admin-integration-gate
+      statement: Admin integration proves readiness ordering, bounded shutdown, challenge outage failure, and Casbin reconciliation for the v1.1.0 in-scope runtime.
+      level: e2e
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: TestApplicationResourcesReadyBeforeHTTP
+        - type: test
+          value: TestChallengeOutageFailsClosed
+        - type: test
+          value: TestCasbinRevisionReconcilesCommitPublishCrash
+        - type: report
+          value: Required-test JSON report proving every named Admin integration test ran and passed under race detection.
+    - id: object-v110-change-scope-check
+      requirement: constrain-object-storage
+      statement: >-
+        This optional check applies only when the v1.1.0 candidate changes object-storage
+        implementation paths. Compile the affected packages, select the already existing focused
+        owner and configuration tests, and perform one basic fail-closed or Local smoke. Do not
+        start RustFS and do not interpret this check as provider promotion.
+      level: integration
+      phase: feature-freeze
+      required: false
+      evidence:
+        - type: command
+          value: Compile affected object-storage packages and run the existing focused owner/configuration tests selected by the candidate diff.
+        - type: manual
+          value: Record one basic fail-closed or development-Local smoke only when object-storage implementation changed.
+    - id: challenge-conformance-gate
+      requirement: secure-one-time-challenges
+      statement: One hundred concurrent issue, delivery commit/abort, and verify attempts produce at most one active issue and one verification success, preserve the prior verifier on failed delivery, reclaim crash or hung-sender pending leases without extending active expiry, reject stale delivery completion, and prove cooldown, charged failure quota, attempts, expiry, Admin purpose isolation, anti-enumeration, pepper rotation, constant-time verification, CROSSSLOT/failover behavior, outage, and redaction.
+      level: security
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: ChallengeStore security and concurrency conformance suite
+        - type: test
+          value: TestChallengePendingLeaseCrashRecovery
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race ./runtime/challenge/...
+    - id: strict-runtime-config-checkpoint-evidence
+      requirement: strict-runtime-config
+      statement: Strict YAML and JSON decoding, discriminated Redis deployment modes, typed SecretRef resolution, redaction, immutable normalization, and side-effect-free Build are proven locally; this checkpoint does not construct or qualify a Redis provider client.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestStrictDecodeRejectsUnknownFieldsAndMalformedDocuments
+        - type: test
+          value: TestStrictDecodeRejectsCaseVariantFieldsBeforeSecretResolution
+        - type: test
+          value: TestRuntimeStrictConfigurationNegativeMatrix
+        - type: test
+          value: TestRedisDeploymentModesNormalize
+        - type: test
+          value: TestRuntimeConfigSecretResolutionAndRedaction
+        - type: test
+          value: TestRuntimeConfigNormalizeAndBuildAreImmutableAndSideEffectFree
+        - type: test
+          value: TestEnvSecretResolverHonorsContextAndRedactsMissingReference
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/config
+            --run '^(TestStrictDecodeRejectsUnknownFieldsAndMalformedDocuments|TestStrictDecodeRejectsCaseVariantFieldsBeforeSecretResolution|TestRuntimeStrictConfigurationNegativeMatrix|TestRedisDeploymentModesNormalize|TestRuntimeConfigSecretResolutionAndRedaction|TestRuntimeConfigNormalizeAndBuildAreImmutableAndSideEffectFree|TestEnvSecretResolverHonorsContextAndRedactsMissingReference)$'
+            --count 20 --race --go-work off
+            --require TestStrictDecodeRejectsUnknownFieldsAndMalformedDocuments
+            --require TestStrictDecodeRejectsCaseVariantFieldsBeforeSecretResolution
+            --require TestRuntimeStrictConfigurationNegativeMatrix
+            --require TestRedisDeploymentModesNormalize
+            --require TestRuntimeConfigSecretResolutionAndRedaction
+            --require TestRuntimeConfigNormalizeAndBuildAreImmutableAndSideEffectFree
+            --require TestEnvSecretResolverHonorsContextAndRedactsMissingReference
+        - type: report
+          value: Exact single-package JSON evidence proving all seven required tests ran and passed twenty uncached race-detected times with no skip, including rejection of case-variant shadow fields before any secret resolver call.
+    - id: configuration-negative-gate
+      requirement: strict-runtime-config
+      statement: The frozen candidate repeats the strict negative matrix and proves the normalized plans construct named Redis clients for standalone, Sentinel, cluster, and TLS fixtures without configuration fallback.
+      level: contract
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: Runtime strict configuration negative matrix
+        - type: command
+          value: cd mss-boot && GOWORK=off go test ./runtime/config/...
+    - id: resource-graph-lifecycle-checkpoint-evidence
+      requirement: bind-resource-lifecycle
+      statement: >-
+        The domain-neutral resource graph proves deterministic preflight and topological startup,
+        required readiness before dependent start, reverse rollback and close, graph-owned Run
+        cancellation, concurrent idempotent caller-bounded close with retry after failure, and redacted lifecycle
+        diagnostics while preserving typed causes. This checkpoint exercises state-machine and
+        owned-handle behavior with hermetic resources; it does not prove real goroutine or
+        file-descriptor leak bounds, provider health, or Admin listener composition.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestGraphStartsTopologicallyAndClosesInReverse
+        - type: test
+          value: TestGraphPreflightRejectsInvalidMissingAndCyclicDefinitionsWithoutSideEffects
+        - type: test
+          value: TestGraphStartupFailureRollsBackInReverseAndJoinsErrors
+        - type: test
+          value: TestGraphCancellationAndCloseDeadlineReleaseOwnership
+        - type: test
+          value: TestGraphConcurrentRepeatedCloseIsIdempotentAndRejectsStart
+        - type: test
+          value: TestGraphConcurrentCloseSharesFailedGenerationBeforeRetry
+        - type: test
+          value: TestGraphReadinessFailureRollsBackBeforeDependentStart
+        - type: test
+          value: TestGraphHealthAndReadyJoinRedactedDiagnostics
+        - type: test
+          value: TestGraphRunCancelsPeersAndJoinsSanitizedDiagnostics
+        - type: test
+          value: TestGraphCloseCancelsRunBeforeReverseResourceClose
+        - type: test
+          value: TestGraphProviderErrorsPreserveExpiredCallerDeadline
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/resource
+            --run '^(TestGraphStartsTopologicallyAndClosesInReverse|TestGraphPreflightRejectsInvalidMissingAndCyclicDefinitionsWithoutSideEffects|TestGraphStartupFailureRollsBackInReverseAndJoinsErrors|TestGraphCancellationAndCloseDeadlineReleaseOwnership|TestGraphConcurrentRepeatedCloseIsIdempotentAndRejectsStart|TestGraphConcurrentCloseSharesFailedGenerationBeforeRetry|TestGraphReadinessFailureRollsBackBeforeDependentStart|TestGraphHealthAndReadyJoinRedactedDiagnostics|TestGraphRunCancelsPeersAndJoinsSanitizedDiagnostics|TestGraphCloseCancelsRunBeforeReverseResourceClose|TestGraphProviderErrorsPreserveExpiredCallerDeadline)$'
+            --count 20 --race --go-work off
+            --require TestGraphStartsTopologicallyAndClosesInReverse
+            --require TestGraphPreflightRejectsInvalidMissingAndCyclicDefinitionsWithoutSideEffects
+            --require TestGraphStartupFailureRollsBackInReverseAndJoinsErrors
+            --require TestGraphCancellationAndCloseDeadlineReleaseOwnership
+            --require TestGraphConcurrentRepeatedCloseIsIdempotentAndRejectsStart
+            --require TestGraphConcurrentCloseSharesFailedGenerationBeforeRetry
+            --require TestGraphReadinessFailureRollsBackBeforeDependentStart
+            --require TestGraphHealthAndReadyJoinRedactedDiagnostics
+            --require TestGraphRunCancelsPeersAndJoinsSanitizedDiagnostics
+            --require TestGraphCloseCancelsRunBeforeReverseResourceClose
+            --require TestGraphProviderErrorsPreserveExpiredCallerDeadline
+        - type: report
+          value: >-
+            Implementation commit d90b4c7 plus terminal evidence repair c830b5f have exact
+            single-package JSON evidence proving all eleven required top-level tests ran and
+            passed twenty uncached race-detected times with no skip.
+    - id: named-redis-resource-checkpoint-evidence
+      requirement: own-named-resources
+      statement: >-
+        One additive named Redis resource consumes the strict Runtime v2 profile and resource
+        graph, constructs exactly one owned client for standalone, Sentinel, or cluster topology,
+        lends stable resource-and-scope-prefixed capabilities without exposing the client or
+        Close, propagates caller deadlines through lifecycle and command operations, rejects
+        detached lease work, closes one tracked generation exactly once, and exposes only
+        redacted provider-neutral errors. Hermetic construction matrices, a real stalled socket,
+        and standalone miniredis prove this development boundary; they do not prove real Sentinel,
+        cluster, TLS, Admin composition, or goroutine/file-descriptor conformance.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestBuildIsPureAndStartConstructsOneOwnedClient
+        - type: test
+          value: TestBuildTopologyCredentialAndTLSMatrix
+        - type: test
+          value: TestDefaultFactoryConstructsTopologySpecificGoRedisClients
+        - type: test
+          value: TestDefaultFactoryEnablesContextTimeoutsForEveryTopology
+        - type: test
+          value: TestBuildRejectsNonRedisAndScopeRejectsUnsafeNames
+        - type: test
+          value: TestErrorsAndFormattingRedactProfileAndProviderData
+        - type: test
+          value: TestRealStalledPipeHonorsCallerDeadlines
+        - type: test
+          value: TestOneNamedResourceSharesOneClientAcrossIsolatedScopes
+        - type: test
+          value: TestDifferentNamedResourcesCannotSharePhysicalScopePrefix
+        - type: test
+          value: TestClusterPortableMultiKeyCommandsArePartitionedBySlot
+        - type: test
+          value: TestScopeUseContextBoundsBackgroundCommand
+        - type: test
+          value: TestScopeUseCancelsAndRejectsDetachedCommandAtCallbackReturn
+        - type: test
+          value: TestLeaseCommandsUseCallerContextAndRedactProviderErrors
+        - type: test
+          value: TestStandaloneDefaultClientAgainstMiniredis
+        - type: test
+          value: TestGetMissingReturnsProviderNeutralNotFound
+        - type: test
+          value: TestStartFailureCleansUpExactlyOnce
+        - type: test
+          value: TestReadyHealthAndCallerCancellation
+        - type: test
+          value: TestCloseDeadlineDrainsLeaseAndPermanentlyRejectsUse
+        - type: test
+          value: TestCloseDeadlineBoundsProviderCloseAndRetryJoinsGeneration
+        - type: test
+          value: TestResourceRejectsScopeCreationAfterCloseBegins
+        - type: test
+          value: TestConcurrentCloseAndUseNeverCommandsAfterClientClose
+        - type: test
+          value: TestResourceGraphIntegration
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/redisresource
+            --run '^(TestBuildIsPureAndStartConstructsOneOwnedClient|TestBuildTopologyCredentialAndTLSMatrix|TestDefaultFactoryConstructsTopologySpecificGoRedisClients|TestDefaultFactoryEnablesContextTimeoutsForEveryTopology|TestBuildRejectsNonRedisAndScopeRejectsUnsafeNames|TestErrorsAndFormattingRedactProfileAndProviderData|TestRealStalledPipeHonorsCallerDeadlines|TestOneNamedResourceSharesOneClientAcrossIsolatedScopes|TestDifferentNamedResourcesCannotSharePhysicalScopePrefix|TestClusterPortableMultiKeyCommandsArePartitionedBySlot|TestScopeUseContextBoundsBackgroundCommand|TestScopeUseCancelsAndRejectsDetachedCommandAtCallbackReturn|TestLeaseCommandsUseCallerContextAndRedactProviderErrors|TestStandaloneDefaultClientAgainstMiniredis|TestGetMissingReturnsProviderNeutralNotFound|TestStartFailureCleansUpExactlyOnce|TestReadyHealthAndCallerCancellation|TestCloseDeadlineDrainsLeaseAndPermanentlyRejectsUse|TestCloseDeadlineBoundsProviderCloseAndRetryJoinsGeneration|TestResourceRejectsScopeCreationAfterCloseBegins|TestConcurrentCloseAndUseNeverCommandsAfterClientClose|TestResourceGraphIntegration)$'
+            --count 20 --race --go-work off
+            --require TestBuildIsPureAndStartConstructsOneOwnedClient
+            --require TestBuildTopologyCredentialAndTLSMatrix
+            --require TestDefaultFactoryConstructsTopologySpecificGoRedisClients
+            --require TestDefaultFactoryEnablesContextTimeoutsForEveryTopology
+            --require TestBuildRejectsNonRedisAndScopeRejectsUnsafeNames
+            --require TestErrorsAndFormattingRedactProfileAndProviderData
+            --require TestRealStalledPipeHonorsCallerDeadlines
+            --require TestOneNamedResourceSharesOneClientAcrossIsolatedScopes
+            --require TestDifferentNamedResourcesCannotSharePhysicalScopePrefix
+            --require TestClusterPortableMultiKeyCommandsArePartitionedBySlot
+            --require TestScopeUseContextBoundsBackgroundCommand
+            --require TestScopeUseCancelsAndRejectsDetachedCommandAtCallbackReturn
+            --require TestLeaseCommandsUseCallerContextAndRedactProviderErrors
+            --require TestStandaloneDefaultClientAgainstMiniredis
+            --require TestGetMissingReturnsProviderNeutralNotFound
+            --require TestStartFailureCleansUpExactlyOnce
+            --require TestReadyHealthAndCallerCancellation
+            --require TestCloseDeadlineDrainsLeaseAndPermanentlyRejectsUse
+            --require TestCloseDeadlineBoundsProviderCloseAndRetryJoinsGeneration
+            --require TestResourceRejectsScopeCreationAfterCloseBegins
+            --require TestConcurrentCloseAndUseNeverCommandsAfterClientClose
+            --require TestResourceGraphIntegration
+        - type: report
+          value: >-
+            Implementation commit 86c0e8a, together with resource error-chain repair
+            c57ffc8, has exact single-package JSON evidence proving all twenty-two required
+            top-level tests ran and passed twenty uncached race-detected times with no skip.
+    - id: challenge-runtime-checkpoint-evidence
+      requirement: secure-one-time-challenges
+      statement: >-
+        Commit 1faa9ef adds the public runtime/challenge API over one named Redis Scope and
+        an internal opaque same-slot Redis bridge with sealed scripts. Begin, delivery
+        Commit/Abort, and Verify keep provider clients, physical keys, arbitrary evaluation,
+        and Close outside the consumer surface. Operation replay at the caller/global rate
+        boundary is idempotent, every syntactically valid Verify path performs the same fixed
+        read/completion script count plus comparison work, and the D0 exported surface remains
+        source-compatible and deprecated. This checkpoint does not prove Admin composition or
+        real Redis Cluster/failover behavior and does not promote a capability to Stable.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestIssueCommitVerifyAndReservationRedaction
+        - type: test
+          value: TestRateScriptReplayAtLimitIsIdempotent
+        - type: test
+          value: TestValidVerifyPathsUseEqualFixedScriptCount
+        - type: test
+          value: TestOpaqueAtomicGroupUsesOneServerDerivedSlot
+        - type: test
+          value: TestRedisBridgeRejectsCrossGroupBeforeProviderIO
+        - type: test
+          value: TestLegacyRateScriptReplayAtLimitAndPartialState
+        - type: test
+          value: TestLegacyChallengeFormattingRedactsCompatibilitySecrets
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/challenge
+            --run '^Test.*$' --count 1 --race --go-work off
+            --require TestIssueCommitVerifyAndReservationRedaction
+            --require TestPublicFormattingAndErrorChainsRedactAllMaterial
+            --require TestPendingAbortStaleRecoveryCooldownAndQuota
+            --require TestPendingAbortAndReclaimPreserveActiveVerifier
+            --require TestSameSubjectPurposesAreIsolated
+            --require TestCallerAndGlobalLimitsAreAtomicAcrossSubjects
+            --require TestRateScriptReplayAtLimitIsIdempotent
+            --require TestVerifyExactlyOnceAndBoundedAttempts
+            --require TestParallelRateLimitAndCodeExpiry
+            --require TestPepperRotationAndAntiEnumeration
+            --require TestValidVerifyPathsUseEqualFixedScriptCount
+            --require TestConstructorIsPureClusterPortableAndOwnsNoClose
+            --require TestConstructorCopiesSecrets
+            --require TestOutageContextRandomAndConfigurationFailClosed
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/internal/redisbridge
+            --run '^Test.*$' --count 1 --race --go-work off
+            --require TestOpaqueAtomicGroupUsesOneServerDerivedSlot
+            --require TestCrossGroupAndInvalidScriptRejectBeforeDriver
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/redisresource
+            --run '^TestRedisBridge.*$' --count 1 --race --go-work off
+            --require TestRedisBridgeRejectsCrossGroupBeforeProviderIO
+            --require TestRedisBridgeLeaseCancelsAndDrainsDetachedCommand
+            --require TestRedisBridgeContextAndProviderErrorsAreRedacted
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/cache
+            --run '^TestLegacyRateScriptReplayAtLimitAndPartialState$'
+            --count 1 --race --go-work off
+            --require TestLegacyRateScriptReplayAtLimitAndPartialState
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/cache
+            --run '^TestLegacyChallenge.*$' --count 1 --race --go-work off
+            --require TestLegacyChallengeFormattingRedactsCompatibilitySecrets
+            --require TestLegacyChallengeConstructorRejectsTypedNilClients
+        - type: report
+          value: >-
+            Commit 1faa9ef has exact single-package JSON evidence for twenty-two newly
+            introduced top-level tests: every required test ran and passed once without
+            cache or skip under race detection and GOWORK=off.
+    - id: challenge-admin-composition-checkpoint-evidence
+      requirement: secure-one-time-challenges
+      statement: >-
+        Commit 3e9ca94 composes the public Challenge API into Admin over the named Redis
+        resource main and Scope challenge.email. Admin starts and readies the candidate
+        graph before publishing it and before later business-route/listener assembly;
+        Config is the sole runtime owner and withdraws the capability before a bounded
+        close. Optional invalid or unavailable configuration leaves the application up
+        but every Challenge flow returns the fixed unavailable response with no legacy
+        global Redis fallback, while required configuration failure blocks setup.
+        FakeCaptcha now performs BeginIssue, SMTP delivery, then Commit or Abort, and the
+        login, registration, and password-reset consumers use VerifyOutcome. Runtime
+        configuration remains an immutable startup snapshot, so changes require restart.
+        This development checkpoint does not replace browser, frozen-SHA lifecycle, or
+        real Redis Cluster/failover gates and does not promote a capability to Stable.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestChallengeRuntimeStartsAndReadiesBeforePublicationThenCloses
+        - type: test
+          value: TestOptionalChallengeRuntimeInvalidOrUnavailableDegradesWithoutLegacyFallback
+        - type: test
+          value: TestRuntimeChallengeAccessIsSafeDuringConcurrentPublication
+        - type: test
+          value: TestEmailChallengeCanonicalEmailBinding
+        - type: test
+          value: TestEmailChallengeSendFailureRotation
+        - type: test
+          value: TestEmailChallengePurposeIsolation
+        - type: test
+          value: TestEmailChallengeProviderOutageReturnsServiceUnavailable
+        - type: test
+          value: TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./config
+            --run '^(TestChallengeRuntimeStartsAndReadiesBeforePublicationThenCloses|TestOptionalChallengeRuntimeInvalidOrUnavailableDegradesWithoutLegacyFallback)$'
+            --count 1 --race --go-work off
+            --require TestChallengeRuntimeStartsAndReadiesBeforePublicationThenCloses
+            --require TestOptionalChallengeRuntimeInvalidOrUnavailableDegradesWithoutLegacyFallback
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./center
+            --run '^(TestDefaultCenterSettersAndGetters|TestGlobalCenterAccessorsUseCurrentDefault|TestRuntimeChallengeAccessIsSafeDuringConcurrentPublication)$'
+            --count 1 --race --go-work off
+            --require TestDefaultCenterSettersAndGetters
+            --require TestGlobalCenterAccessorsUseCurrentDefault
+            --require TestRuntimeChallengeAccessIsSafeDuringConcurrentPublication
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./apis
+            --run '^(TestAppConfigProfileProjectsFreshEmailChallengeReadinessAfterCachedProfile|TestAppConfigProfileChallengeReadinessUsesBoundedFailClosedCheck|TestAppConfigProfileChallengeReadinessRequiresCompleteSMTPConfig|TestEmailChallengePurposeIsolation|TestEmailChallengeCanonicalEmailBinding|TestEmailChallengeProviderOutageReturnsServiceUnavailable|TestEmailChallengeSendFailureRotation)$'
+            --count 1 --race --go-work off
+            --require TestAppConfigProfileProjectsFreshEmailChallengeReadinessAfterCachedProfile
+            --require TestAppConfigProfileChallengeReadinessUsesBoundedFailClosedCheck
+            --require TestAppConfigProfileChallengeReadinessRequiresCompleteSMTPConfig
+            --require TestEmailChallengePurposeIsolation
+            --require TestEmailChallengeCanonicalEmailBinding
+            --require TestEmailChallengeProviderOutageReturnsServiceUnavailable
+            --require TestEmailChallengeSendFailureRotation
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./middleware
+            --run '^TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable$'
+            --count 1 --race --go-work off
+            --require TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable
+        - type: report
+          value: >-
+            Commit 3e9ca94 has exact single-package JSON evidence for thirteen selected
+            top-level Admin tests changed or introduced by this composition: every required
+            test ran and passed once without cache or skip under race detection and GOWORK=off.
+    - id: derived-cache-gate
+      requirement: scope-derived-cache
+      statement: Commit 88f40c3 anchors the eight new cache tests as development evidence; the selected feature-freeze SHA must rerun the same exact suite to preserve authoritative database semantics, namespace isolation, payload bounds, generation ordering, result metadata, transaction bypass, rollback, and read-your-writes isolation.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: Derived cache and QueryCache conformance suite
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/cache
+            --run '^(TestDatabaseAuthoritativeFallbackAndCommittedWriteOutcome|TestMissSingleflightAcrossConcurrentReaders|TestGenerationInvalidationWinsLoaderRace|TestNamespaceScopeAndCrossInstanceDatasourceIdentity|TestPayloadBoundBypassesSharedCache|TestNotFoundAndRowsAffectedMetadataRoundTrip|TestActiveTransactionBypassesCacheReadYourWritesAndRollback|TestCloseAndContextBoundFlightsWithoutClosingScope)$'
+            --count 1 --race --go-work off
+            --require TestDatabaseAuthoritativeFallbackAndCommittedWriteOutcome
+            --require TestMissSingleflightAcrossConcurrentReaders
+            --require TestGenerationInvalidationWinsLoaderRace
+            --require TestNamespaceScopeAndCrossInstanceDatasourceIdentity
+            --require TestPayloadBoundBypassesSharedCache
+            --require TestNotFoundAndRowsAffectedMetadataRoundTrip
+            --require TestActiveTransactionBypassesCacheReadYourWritesAndRollback
+            --require TestCloseAndContextBoundFlightsWithoutClosingScope
+        - type: report
+          value: >-
+            Commit 88f40c3 has exact single-package JSON evidence for all eight new
+            runtime/cache top-level tests: every required test ran and passed once
+            without cache or skip under race detection and GOWORK=off. This is a
+            development checkpoint and must be regenerated from the feature-freeze SHA.
+    - id: distributed-lock-defer-gate
+      requirement: defer-distributed-lock-promotion
+      statement: Machine contracts keep the Redis lock legacy and disabled, prove there is no Admin production consumer, and reject promotion without a fenced protected-write conformance suite.
+      level: contract
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: TestDistributedLockCapabilityDeferredWithoutConsumer
+        - type: command
+          value: go run ./cmd/mss context --format json
+    - id: eventbus-reconciliation-checkpoint-evidence
+      requirement: split-events-from-work
+      statement: >-
+        Commits 04e8e0c and 160e2df implement the additive typed revision EventBus and its
+        Admin Casbin Memory composition. Policy plus the monotonic global ConfigRevision commit
+        atomically before best-effort publication; authoritative subscriber reload and periodic
+        reconciliation repair missed, duplicate, out-of-order, panicking, disconnected, and
+        commit-before-publish paths without WorkQueue acknowledgement semantics. This is exact
+        development-checkpoint evidence, not feature-freeze or publication evidence.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestMemoryFansOutToCurrentSubscribersAndRejectsOldRevisions
+        - type: test
+          value: TestMemoryPanicIsolationAndAuthoritativeReconciliation
+        - type: test
+          value: TestMemoryCloseWaitsForAcceptedDeliveryAndHonorsDeadline
+        - type: test
+          value: TestReconcilerRedactsSourceFailureAndPanic
+        - type: test
+          value: TestRedisBuildIsPureAndPollingFansOutLatestRevision
+        - type: test
+          value: TestRedisDisconnectDegradesWhileAuthorityRepairsCommitBeforePublish
+        - type: test
+          value: TestRedisRunOwnsPollingAndCloseLeavesSharedResourceOpen
+        - type: test
+          value: TestCasbinRevisionReconcilesCommitPublishCrash
+        - type: test
+          value: TestAuthorizationMutationPublishesCommittedRevisionWithoutWorkQueueWatcher
+        - type: test
+          value: TestAuthorizationSubscriberPanicIsolatedAndReconciled
+        - type: test
+          value: TestAuthorizationEventBusOutagePreservesCommittedPolicy
+        - type: test
+          value: TestAuthorizationEventRuntimeRejectsSecondOwner
+        - type: test
+          value: TestAuthorizationEventRuntimeHealthRecordsAndRecoversReconcileFailure
+        - type: test
+          value: TestBuildAuthorizationEventRuntimeUsesManagedDatabaseLease
+        - type: test
+          value: TestBuildAuthorizationEventRuntimeRejectsMissingDatabaseLease
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/eventbus
+            --run '^(TestMemoryFansOutToCurrentSubscribersAndRejectsOldRevisions|TestMemoryPanicIsolationAndAuthoritativeReconciliation|TestMemoryCloseWaitsForAcceptedDeliveryAndHonorsDeadline|TestReconcilerRedactsSourceFailureAndPanic|TestRedisBuildIsPureAndPollingFansOutLatestRevision|TestRedisDisconnectDegradesWhileAuthorityRepairsCommitBeforePublish|TestRedisRunOwnsPollingAndCloseLeavesSharedResourceOpen)$'
+            --count 1 --race --go-work off
+            --require TestMemoryFansOutToCurrentSubscribersAndRejectsOldRevisions
+            --require TestMemoryPanicIsolationAndAuthoritativeReconciliation
+            --require TestMemoryCloseWaitsForAcceptedDeliveryAndHonorsDeadline
+            --require TestReconcilerRedactsSourceFailureAndPanic
+            --require TestRedisBuildIsPureAndPollingFansOutLatestRevision
+            --require TestRedisDisconnectDegradesWhileAuthorityRepairsCommitBeforePublish
+            --require TestRedisRunOwnsPollingAndCloseLeavesSharedResourceOpen
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./service
+            --run '^(TestCasbinRevisionReconcilesCommitPublishCrash|TestAuthorizationMutationPublishesCommittedRevisionWithoutWorkQueueWatcher|TestAuthorizationSubscriberPanicIsolatedAndReconciled|TestAuthorizationEventBusOutagePreservesCommittedPolicy|TestAuthorizationEventRuntimeRejectsSecondOwner|TestAuthorizationEventRuntimeHealthRecordsAndRecoversReconcileFailure)$'
+            --count 1 --race
+            --require TestCasbinRevisionReconcilesCommitPublishCrash
+            --require TestAuthorizationMutationPublishesCommittedRevisionWithoutWorkQueueWatcher
+            --require TestAuthorizationSubscriberPanicIsolatedAndReconciled
+            --require TestAuthorizationEventBusOutagePreservesCommittedPolicy
+            --require TestAuthorizationEventRuntimeRejectsSecondOwner
+            --require TestAuthorizationEventRuntimeHealthRecordsAndRecoversReconcileFailure
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+            --run '^(TestBuildAuthorizationEventRuntimeUsesManagedDatabaseLease|TestBuildAuthorizationEventRuntimeRejectsMissingDatabaseLease)$'
+            --count 1 --race
+            --require TestBuildAuthorizationEventRuntimeUsesManagedDatabaseLease
+            --require TestBuildAuthorizationEventRuntimeRejectsMissingDatabaseLease
+        - type: report
+          value: >-
+            Commit 04e8e0c has exact uncached run/pass=1, skip=0 race evidence with GOWORK=off
+            for all seven Framework top-level tests. Commit 160e2df has the same count-one race
+            evidence in the current workspace for six Admin service and two server-composition
+            tests; independent Admin GOWORK=off resolution waits for the v1.1.0 Framework tag and
+            dependency update.
+    - id: provider-evidence-validator-checkpoint
+      requirement: classify-providers-by-evidence
+      statement: >-
+        Commit 668dfe3 adds the strict provider-maturity source schema, a repository-confined
+        deterministic validator, and the mss provider evidence CLI. Required evidence rejects an
+        empty selection, zero-run, skip, failure, partial pass, and cached-only result; optional rows
+        remain visible without blocking a required gate. The validator only reads a supplied report
+        and never constructs or contacts a provider. This checkpoint does not create a real provider
+        report and does not promote any provider.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestLoadProviderEvidenceAcceptsStrictPinnedReport
+        - type: test
+          value: TestLoadProviderEvidenceRejectsInvalidIdentityAndUnknownFields
+        - type: test
+          value: TestEvaluateRequiredProviderEvidenceAcceptsFreshQualifiedFixtures
+        - type: test
+          value: TestEvaluateRequiredProviderEvidenceRejectsZeroHitSkipAndCachedOnly
+        - type: test
+          value: TestEvaluateOptionalProviderEvidenceDoesNotBlockRequiredGate
+        - type: test
+          value: TestProviderEvidenceReportJSONIsDeterministic
+        - type: test
+          value: TestRootRegistersProviderEvidenceHelp
+        - type: test
+          value: TestProviderEvidenceCommandPassesRequiredAndWritesJSON
+        - type: test
+          value: TestProviderEvidenceCommandWritesNegativeReportBeforeReturningError
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/provider
+            -run '^(TestLoadProviderEvidenceAcceptsStrictPinnedReport|TestLoadProviderEvidenceRejectsInvalidIdentityAndUnknownFields|TestEvaluateRequiredProviderEvidenceAcceptsFreshQualifiedFixtures|TestEvaluateRequiredProviderEvidenceRejectsZeroHitSkipAndCachedOnly|TestEvaluateOptionalProviderEvidenceDoesNotBlockRequiredGate|TestProviderEvidenceReportJSONIsDeterministic)$'
+            --count 1 --race --go-work off
+            --require TestLoadProviderEvidenceAcceptsStrictPinnedReport
+            --require TestLoadProviderEvidenceRejectsInvalidIdentityAndUnknownFields
+            --require TestEvaluateRequiredProviderEvidenceAcceptsFreshQualifiedFixtures
+            --require TestEvaluateRequiredProviderEvidenceRejectsZeroHitSkipAndCachedOnly
+            --require TestEvaluateOptionalProviderEvidenceDoesNotBlockRequiredGate
+            --require TestProviderEvidenceReportJSONIsDeterministic
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/app
+            -run '^(TestRootRegistersProviderEvidenceHelp|TestProviderEvidenceCommandPassesRequiredAndWritesJSON|TestProviderEvidenceCommandWritesNegativeReportBeforeReturningError)$'
+            --count 1 --race --go-work off
+            --require TestRootRegistersProviderEvidenceHelp
+            --require TestProviderEvidenceCommandPassesRequiredAndWritesJSON
+            --require TestProviderEvidenceCommandWritesNegativeReportBeforeReturningError
+    - id: event-delivery-gate
+      requirement: split-events-from-work
+      statement: Memory events reach every in-process subscriber, Redis events reach every currently connected replica, policy and revision commit atomically, and database revision reconciliation repairs duplicate, out-of-order, missed, panicking, disconnected, or commit-before-publish crash cases.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: EventBus fan-out and reconciliation conformance suite
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race ./runtime/eventbus/...
+    - id: workqueue-classification-gate
+      requirement: split-events-from-work
+      statement: Kafka, NSQ, and Redis WorkQueue each either pass acknowledgement-after-success, retry/backoff, dead-letter, cancellation/rebalance, idempotency, and real-provider tests or remain explicitly non-stable and disabled from production defaults.
+      level: contract
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: report
+          value: Provider maturity report with separate Kafka, NSQ, and Redis WorkQueue results and no inherited EventBus status.
+    - id: external-consumer-gate
+      statement: A temporary external module with GOWORK disabled resolves the exact framework tag, constructs the runtime, proves readiness, and closes without leaks.
+      level: integration
+      phase: pre-root
+      required: true
+      evidence:
+        - type: command
+          value: Run the versioned external framework consumer probe from an empty temporary module.
+    - id: lifecycle-conformance-gate
+      requirement: bind-resource-lifecycle
+      statement: One hundred race-enabled startup and shutdown cycles prove topological order, reverse rollback, cancellation, deadlines, repeated close, and no goroutine or file-descriptor growth.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: Resource runtime lifecycle and leak conformance suite
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race -count=100 ./runtime/resource/...
+    - id: object-conformance-gate
+      requirement: constrain-object-storage
+      statement: In an optional post-v1.1 provider-maturity wave, Local and an explicitly selected S3-compatible fixture may run the same create-only Put, Open, Stat, Delete, cancel, limit, checksum, no-clobber, conflict, cleanup, privacy, path, symlink, and concurrent-filename suite; v1.1.0 does not require or start RustFS.
+      level: integration
+      phase: post-publication
+      required: false
+      evidence:
+        - type: test
+          value: ObjectStore provider conformance suite
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race ./runtime/objectstore/...
+    - id: object-authorization-gate
+      requirement: constrain-object-storage
+      statement: In an optional post-v1.1 provider-maturity wave, a forward migration may create authoritative object metadata and Admin tests deny cross-user and cross-tenant open, signed delivery, and delete while preserving owner permission checks.
+      level: security
+      phase: post-publication
+      required: false
+      evidence:
+        - type: test
+          value: Admin ObjectRef metadata migration and authorization suite
+        - type: report
+          value: Required-test JSON report proving exact owner-positive and cross-user/cross-tenant negative tests ran and passed.
+    - id: provider-report-gate
+      requirement: classify-providers-by-evidence
+      statement: CI emits a provider-by-provider report for the selected v1.1.0 scope with no skipped required check and only evidence-qualified promotions; absent optional ObjectStore/RustFS evidence leaves Local and S3-compatible Legacy/Blocked and does not fail the Foundation release.
+      level: contract
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: path
+          value: .mss/schemas/provider-maturity.schema.json
+        - type: path
+          value: .mss/reports/provider-maturity.json
+        - type: command
+          value: go run ./cmd/mss provider evidence --required --format json
+        - type: report
+          value: Exact-commit storage provider maturity report
+        - type: path
+          value: docs/adr/2026-08-09-storage-runtime-v2.md
+    - id: redis-deployment-gate
+      requirement: own-named-resources
+      statement: Standalone, Sentinel, cluster, and TLS fixtures prove namespacing, one-client ownership, one close, health, cancellation, and invalid-mode rejection.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: Redis named-resource deployment conformance suite
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race ./runtime/redisresource/...
+    - id: runtime-redaction-gate
+      requirement: redact-runtime-observability
+      statement: Secret canaries in credentials, challenges, subjects, payloads, signed URLs, and multipart bodies are absent from logs, metrics, traces, doctor, and reports.
+      level: security
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: TestRuntimeObservabilityRedactionCanary
+        - type: command
+          value: go run ./cmd/mss doctor --strict --format json
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -json -run '^TestRuntimeObservabilityRedactionCanary$' ./runtime/...
+    - id: s3-bootstrap-gate
+      requirement: separate-bootstrap-storage
+      statement: Configuration-source startup and application ObjectStore use independent profiles, clients, failures, health, and close ownership.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: S3 configuration bootstrap ownership suite
+        - type: command
+          value: cd mss-boot && GOWORK=off go test -race ./pkg/config/source/s3/...
+  risks:
+    - id: event-missed
+      description: Best-effort broadcast can miss an invalidation event and leave a replica temporarily stale.
+      severity: high
+      mitigation: Carry authoritative revisions, reload from the database, and run periodic reconciliation independent of event delivery.
+    - id: migration-half-owned
+      description: Mixing global and named clients during rollout can double-close a Redis client or leave an unowned goroutine running.
+      severity: critical
+      mitigation: Migrate one scope at a time behind one composition root and use lifecycle leak tests before removing each old path.
+    - id: provider-promotion-drift
+      description: Documentation or a version milestone can promote a provider while its required integration evidence remains skipped.
+      severity: high
+      mitigation: Generate the matrix from exact-commit conformance results and make required skips fail the promotion gate.
+    - id: queue-contract-confusion
+      description: Treating revision broadcast as durable work can either lose jobs or force unnecessary queue semantics into cache reconciliation.
+      severity: critical
+      mitigation: Keep EventBus and WorkQueue interfaces, configuration, metrics, failure policies, and capability states separate.
+    - id: semver-misclassification
+      description: A clean target design may require public Go API removal that cannot truthfully ship as a v1.1 minor release.
+      severity: high
+      mitigation: Keep the architecture clean, then add a non-authoritative bridge or select the next major module version before publishing artifacts.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/storage-runtime-v2.yaml --format json
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/config
+        --run '^(TestStrictDecodeRejectsUnknownFieldsAndMalformedDocuments|TestStrictDecodeRejectsCaseVariantFieldsBeforeSecretResolution|TestRuntimeStrictConfigurationNegativeMatrix|TestRedisDeploymentModesNormalize|TestRuntimeConfigSecretResolutionAndRedaction|TestRuntimeConfigNormalizeAndBuildAreImmutableAndSideEffectFree|TestEnvSecretResolverHonorsContextAndRedactsMissingReference)$'
+        --count 20 --race --go-work off
+        --require TestStrictDecodeRejectsUnknownFieldsAndMalformedDocuments
+        --require TestStrictDecodeRejectsCaseVariantFieldsBeforeSecretResolution
+        --require TestRuntimeStrictConfigurationNegativeMatrix
+        --require TestRedisDeploymentModesNormalize
+        --require TestRuntimeConfigSecretResolutionAndRedaction
+        --require TestRuntimeConfigNormalizeAndBuildAreImmutableAndSideEffectFree
+        --require TestEnvSecretResolverHonorsContextAndRedactsMissingReference
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/resource
+        --run '^(TestGraphStartsTopologicallyAndClosesInReverse|TestGraphPreflightRejectsInvalidMissingAndCyclicDefinitionsWithoutSideEffects|TestGraphStartupFailureRollsBackInReverseAndJoinsErrors|TestGraphCancellationAndCloseDeadlineReleaseOwnership|TestGraphConcurrentRepeatedCloseIsIdempotentAndRejectsStart|TestGraphConcurrentCloseSharesFailedGenerationBeforeRetry|TestGraphReadinessFailureRollsBackBeforeDependentStart|TestGraphHealthAndReadyJoinRedactedDiagnostics|TestGraphRunCancelsPeersAndJoinsSanitizedDiagnostics|TestGraphCloseCancelsRunBeforeReverseResourceClose|TestGraphProviderErrorsPreserveExpiredCallerDeadline)$'
+        --count 20 --race --go-work off
+        --require TestGraphStartsTopologicallyAndClosesInReverse
+        --require TestGraphPreflightRejectsInvalidMissingAndCyclicDefinitionsWithoutSideEffects
+        --require TestGraphStartupFailureRollsBackInReverseAndJoinsErrors
+        --require TestGraphCancellationAndCloseDeadlineReleaseOwnership
+        --require TestGraphConcurrentRepeatedCloseIsIdempotentAndRejectsStart
+        --require TestGraphConcurrentCloseSharesFailedGenerationBeforeRetry
+        --require TestGraphReadinessFailureRollsBackBeforeDependentStart
+        --require TestGraphHealthAndReadyJoinRedactedDiagnostics
+        --require TestGraphRunCancelsPeersAndJoinsSanitizedDiagnostics
+        --require TestGraphCloseCancelsRunBeforeReverseResourceClose
+        --require TestGraphProviderErrorsPreserveExpiredCallerDeadline
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/redisresource
+        --run '^(TestBuildIsPureAndStartConstructsOneOwnedClient|TestBuildTopologyCredentialAndTLSMatrix|TestDefaultFactoryConstructsTopologySpecificGoRedisClients|TestDefaultFactoryEnablesContextTimeoutsForEveryTopology|TestBuildRejectsNonRedisAndScopeRejectsUnsafeNames|TestErrorsAndFormattingRedactProfileAndProviderData|TestRealStalledPipeHonorsCallerDeadlines|TestOneNamedResourceSharesOneClientAcrossIsolatedScopes|TestDifferentNamedResourcesCannotSharePhysicalScopePrefix|TestClusterPortableMultiKeyCommandsArePartitionedBySlot|TestScopeUseContextBoundsBackgroundCommand|TestScopeUseCancelsAndRejectsDetachedCommandAtCallbackReturn|TestLeaseCommandsUseCallerContextAndRedactProviderErrors|TestStandaloneDefaultClientAgainstMiniredis|TestGetMissingReturnsProviderNeutralNotFound|TestStartFailureCleansUpExactlyOnce|TestReadyHealthAndCallerCancellation|TestCloseDeadlineDrainsLeaseAndPermanentlyRejectsUse|TestCloseDeadlineBoundsProviderCloseAndRetryJoinsGeneration|TestResourceRejectsScopeCreationAfterCloseBegins|TestConcurrentCloseAndUseNeverCommandsAfterClientClose|TestResourceGraphIntegration)$'
+        --count 20 --race --go-work off
+        --require TestBuildIsPureAndStartConstructsOneOwnedClient
+        --require TestBuildTopologyCredentialAndTLSMatrix
+        --require TestDefaultFactoryConstructsTopologySpecificGoRedisClients
+        --require TestDefaultFactoryEnablesContextTimeoutsForEveryTopology
+        --require TestBuildRejectsNonRedisAndScopeRejectsUnsafeNames
+        --require TestErrorsAndFormattingRedactProfileAndProviderData
+        --require TestRealStalledPipeHonorsCallerDeadlines
+        --require TestOneNamedResourceSharesOneClientAcrossIsolatedScopes
+        --require TestDifferentNamedResourcesCannotSharePhysicalScopePrefix
+        --require TestClusterPortableMultiKeyCommandsArePartitionedBySlot
+        --require TestScopeUseContextBoundsBackgroundCommand
+        --require TestScopeUseCancelsAndRejectsDetachedCommandAtCallbackReturn
+        --require TestLeaseCommandsUseCallerContextAndRedactProviderErrors
+        --require TestStandaloneDefaultClientAgainstMiniredis
+        --require TestGetMissingReturnsProviderNeutralNotFound
+        --require TestStartFailureCleansUpExactlyOnce
+        --require TestReadyHealthAndCallerCancellation
+        --require TestCloseDeadlineDrainsLeaseAndPermanentlyRejectsUse
+        --require TestCloseDeadlineBoundsProviderCloseAndRetryJoinsGeneration
+        --require TestResourceRejectsScopeCreationAfterCloseBegins
+        --require TestConcurrentCloseAndUseNeverCommandsAfterClientClose
+        --require TestResourceGraphIntegration
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/challenge
+        --run '^Test.*$' --count 1 --race --go-work off
+        --require TestIssueCommitVerifyAndReservationRedaction
+        --require TestPublicFormattingAndErrorChainsRedactAllMaterial
+        --require TestPendingAbortStaleRecoveryCooldownAndQuota
+        --require TestPendingAbortAndReclaimPreserveActiveVerifier
+        --require TestSameSubjectPurposesAreIsolated
+        --require TestCallerAndGlobalLimitsAreAtomicAcrossSubjects
+        --require TestRateScriptReplayAtLimitIsIdempotent
+        --require TestVerifyExactlyOnceAndBoundedAttempts
+        --require TestParallelRateLimitAndCodeExpiry
+        --require TestPepperRotationAndAntiEnumeration
+        --require TestValidVerifyPathsUseEqualFixedScriptCount
+        --require TestConstructorIsPureClusterPortableAndOwnsNoClose
+        --require TestConstructorCopiesSecrets
+        --require TestOutageContextRandomAndConfigurationFailClosed
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/internal/redisbridge
+        --run '^Test.*$' --count 1 --race --go-work off
+        --require TestOpaqueAtomicGroupUsesOneServerDerivedSlot
+        --require TestCrossGroupAndInvalidScriptRejectBeforeDriver
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/redisresource
+        --run '^TestRedisBridge.*$' --count 1 --race --go-work off
+        --require TestRedisBridgeRejectsCrossGroupBeforeProviderIO
+        --require TestRedisBridgeLeaseCancelsAndDrainsDetachedCommand
+        --require TestRedisBridgeContextAndProviderErrorsAreRedacted
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/cache
+        --run '^TestLegacyRateScriptReplayAtLimitAndPartialState$'
+        --count 1 --race --go-work off
+        --require TestLegacyRateScriptReplayAtLimitAndPartialState
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./pkg/config/storage/cache
+        --run '^TestLegacyChallenge.*$' --count 1 --race --go-work off
+        --require TestLegacyChallengeFormattingRedactsCompatibilitySecrets
+        --require TestLegacyChallengeConstructorRejectsTypedNilClients
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/cache
+        --run '^(TestDatabaseAuthoritativeFallbackAndCommittedWriteOutcome|TestMissSingleflightAcrossConcurrentReaders|TestGenerationInvalidationWinsLoaderRace|TestNamespaceScopeAndCrossInstanceDatasourceIdentity|TestPayloadBoundBypassesSharedCache|TestNotFoundAndRowsAffectedMetadataRoundTrip|TestActiveTransactionBypassesCacheReadYourWritesAndRollback|TestCloseAndContextBoundFlightsWithoutClosingScope)$'
+        --count 1 --race --go-work off
+        --require TestDatabaseAuthoritativeFallbackAndCommittedWriteOutcome
+        --require TestMissSingleflightAcrossConcurrentReaders
+        --require TestGenerationInvalidationWinsLoaderRace
+        --require TestNamespaceScopeAndCrossInstanceDatasourceIdentity
+        --require TestPayloadBoundBypassesSharedCache
+        --require TestNotFoundAndRowsAffectedMetadataRoundTrip
+        --require TestActiveTransactionBypassesCacheReadYourWritesAndRollback
+        --require TestCloseAndContextBoundFlightsWithoutClosingScope
+      - >-
+        go run ./cmd/mss test evidence --directory mss-boot --package ./runtime/eventbus
+        --run '^(TestMemoryFansOutToCurrentSubscribersAndRejectsOldRevisions|TestMemoryPanicIsolationAndAuthoritativeReconciliation|TestMemoryCloseWaitsForAcceptedDeliveryAndHonorsDeadline|TestReconcilerRedactsSourceFailureAndPanic|TestRedisBuildIsPureAndPollingFansOutLatestRevision|TestRedisDisconnectDegradesWhileAuthorityRepairsCommitBeforePublish|TestRedisRunOwnsPollingAndCloseLeavesSharedResourceOpen)$'
+        --count 1 --race --go-work off
+        --require TestMemoryFansOutToCurrentSubscribersAndRejectsOldRevisions
+        --require TestMemoryPanicIsolationAndAuthoritativeReconciliation
+        --require TestMemoryCloseWaitsForAcceptedDeliveryAndHonorsDeadline
+        --require TestReconcilerRedactsSourceFailureAndPanic
+        --require TestRedisBuildIsPureAndPollingFansOutLatestRevision
+        --require TestRedisDisconnectDegradesWhileAuthorityRepairsCommitBeforePublish
+        --require TestRedisRunOwnsPollingAndCloseLeavesSharedResourceOpen
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./service
+        --run '^(TestCasbinRevisionReconcilesCommitPublishCrash|TestAuthorizationMutationPublishesCommittedRevisionWithoutWorkQueueWatcher|TestAuthorizationSubscriberPanicIsolatedAndReconciled|TestAuthorizationEventBusOutagePreservesCommittedPolicy|TestAuthorizationEventRuntimeRejectsSecondOwner|TestAuthorizationEventRuntimeHealthRecordsAndRecoversReconcileFailure)$'
+        --count 1 --race
+        --require TestCasbinRevisionReconcilesCommitPublishCrash
+        --require TestAuthorizationMutationPublishesCommittedRevisionWithoutWorkQueueWatcher
+        --require TestAuthorizationSubscriberPanicIsolatedAndReconciled
+        --require TestAuthorizationEventBusOutagePreservesCommittedPolicy
+        --require TestAuthorizationEventRuntimeRejectsSecondOwner
+        --require TestAuthorizationEventRuntimeHealthRecordsAndRecoversReconcileFailure
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./cmd/server
+        --run '^(TestBuildAuthorizationEventRuntimeUsesManagedDatabaseLease|TestBuildAuthorizationEventRuntimeRejectsMissingDatabaseLease)$'
+        --count 1 --race
+        --require TestBuildAuthorizationEventRuntimeUsesManagedDatabaseLease
+        --require TestBuildAuthorizationEventRuntimeRejectsMissingDatabaseLease
+      - cd mss-boot && GOWORK=off go test -race ./runtime/...
+      - cd mss-boot && GOWORK=off go vet ./...
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      Treat the target model as authoritative without using historical compatibility as a design
+      constraint. Strict configuration, the resource owner, the additive named Redis resource,
+      the public Challenge runtime, its Admin composition, and the scoped-cache commit 88f40c3 are
+      development checkpoints. Commits 04e8e0c and 160e2df now add the typed Memory/Redis EventBus
+      and Admin Casbin commit-first publication plus authoritative reconciliation checkpoint. Runtime
+      configuration remains an immutable startup snapshot and changes require restart. ObjectStore plus Delivery
+      maturity work moves to an optional post-v1.1 wave, followed by
+      provider-by-provider promotion in untagged development waves. Migrate Admin scopes independently
+      with focused failure checks at every boundary, then run the complete conformance, leak,
+      real-provider, and failure-injection matrix on the feature-freeze commit. Keep WorkQueue and
+      distributed lock at their provider-specific non-production evidence states unless their own
+      conformance passes. Before publishing v1.1.0,
+      decide whether any public removal requires a
+      framework major-version release; do not hide a breaking API under a minor tag.
+    rollback: >-
+      Stop listeners and consumers, close the owned runtime in reverse order, and preserve authoritative
+      database, challenge, queue, and object metadata. Roll back one migrated scope only after proving
+      the prior path will not restore unsafe fallback, early acknowledgement, weak challenges, or
+      process termination. Prefer an idempotent forward repair. Never switch object providers silently,
+      reset queue offsets without an explicit recovery plan, or reconstruct security state from caches.

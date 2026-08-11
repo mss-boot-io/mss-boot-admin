@@ -21,6 +21,7 @@ on:
       - 'cmd/mss/**'
       - 'cmd/mss-mcp/**'
       - 'internal/mss/**'
+      - 'tools/release/**'
       - 'admin/AGENTS.md'
       - 'admin/go.mod'
       - 'admin/go.sum'
@@ -34,9 +35,7 @@ on:
       - 'web/antd/config/routes.generated.ts'
       - 'web/antd/src/locales/generated.*.ts'
       - 'web/antd/src/locales/*/custom.ts'
-      - '.github/workflows/agent-native-ci.yml'
-      - '.github/workflows/foundation-compatibility.yml'
-      - '.github/workflows/release.yml'
+      - '.github/workflows/**'
   pull_request:
     branches:
       - main
@@ -57,6 +56,7 @@ on:
       - 'cmd/mss/**'
       - 'cmd/mss-mcp/**'
       - 'internal/mss/**'
+      - 'tools/release/**'
       - 'admin/AGENTS.md'
       - 'admin/go.mod'
       - 'admin/go.sum'
@@ -70,9 +70,7 @@ on:
       - 'web/antd/config/routes.generated.ts'
       - 'web/antd/src/locales/generated.*.ts'
       - 'web/antd/src/locales/*/custom.ts'
-      - '.github/workflows/agent-native-ci.yml'
-      - '.github/workflows/foundation-compatibility.yml'
-      - '.github/workflows/release.yml'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
@@ -236,8 +234,12 @@ jobs:
       - name: Plan changed-file verification
         run: go run ./cmd/mss verify --changed --plan --format json > "${RUNNER_TEMP}/mss-verification-plan.json"
 
-      - name: Run deterministic Agent evaluations
-        run: go run ./cmd/mss eval run --all --format json > "${RUNNER_TEMP}/mss-evals.json"
+      - name: Verify release and workflow governance
+        run: |
+          python3 -m unittest \
+            tools/release/test_check_release_policy.py \
+            tools/release/test_verify_release_source.py \
+            tools/release/test_workflow_governance.py
 
       - name: Upload Agent reports
         if: always()
@@ -255,11 +257,8 @@ jobs:
             ${{ runner.temp }}/mss-generation-write.json
             ${{ runner.temp }}/mss-generation-check.json
             ${{ runner.temp }}/mss-verification-plan.json
-            ${{ runner.temp }}/mss-evals.json
             .mss/reports/verify.json
             .mss/reports/verify.md
-            .mss/reports/evals/latest.json
-            .mss/reports/evals/latest.md
           if-no-files-found: warn
           retention-days: 14
 
@@ -287,6 +286,7 @@ jobs:
       - name: Test portable Agent packages
         env:
           GOWORK: 'off'
+          TMPDIR: ${{ runner.temp }}
         run: go test ./internal/mss/dev ./internal/mss/project ./internal/mss/spec ./internal/mss/blueprint ./internal/mss/mcp
 
       - name: Build portable Agent executables

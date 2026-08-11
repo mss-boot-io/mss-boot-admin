@@ -9,7 +9,7 @@ import (
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
-	migration.Migrate.SetVersion(migration.GetFilename(fileName), _{{.GenerateTime}}Migrate)
+	migration.Migrate.Register(migration.FilenameMigrationID(fileName), _{{.GenerateTime}}Migrate)
 }
 
 func _{{.GenerateTime}}Migrate(db *gorm.DB, version string) error {

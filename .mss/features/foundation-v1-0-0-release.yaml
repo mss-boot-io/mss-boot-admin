@@ -11,16 +11,18 @@ metadata:
   labels:
     domain: foundation-release
     target-version: v1.0.0
-    release-status: preview
+    release-status: stable
+    published-date: 2026-08-09
     compatibility: breaking
 spec:
   problem: >-
-    The v1.0.0 candidate combines a nested framework module, a split Admin module, a consolidated
+    The v1.0.0 release combined a nested framework module, a split Admin module, a consolidated
     frontend and documentation tree, security-sensitive database migrations, breaking API changes,
     and removed runtime capabilities. A branch or locally passing workspace can hide an unpublished
     framework dependency, incomplete migration evidence, or artifacts that do not identify the tag.
-    Without one executable release contract, preview work could be mistaken for a stable release and
-    operators could attempt an unsafe direct rollback after irreversible credential cleanup.
+    This machine-validated declarative contract, together with exact-commit workflows and evidence,
+    prevented preview work from being mistaken for the stable release and
+    remains the historical acceptance boundary for commit ee800262c035c5f4242aca1841d077554481d2c4.
   goals:
     - Keep planned, preview, release-candidate, and stable states unambiguous in every human and machine-readable contract.
     - Publish and externally resolve mss-boot/v1.0.0 before creating the root v1.0.0 tag that requires it.
@@ -159,14 +161,29 @@ spec:
       requirement: honest-release-state
       statement: The v1.0.0 release FeatureSpec passes schema and semantic validation.
       level: contract
+      phase: checkpoint
       required: true
       evidence:
         - type: command
           value: go run ./cmd/mss spec validate .mss/features/foundation-v1-0-0-release.yaml --format json
+    - id: published-release-proof
+      requirement: honest-release-state
+      statement: The public root and framework Releases, exact commit, and closed evidence issue prove the stable v1.0.0 publication.
+      level: manual
+      phase: post-publication
+      required: true
+      evidence:
+        - type: manual
+          value: Root Release https://github.com/mss-boot-io/mss-boot-admin/releases/tag/v1.0.0 published 2026-08-09 from ee800262c035c5f4242aca1841d077554481d2c4.
+        - type: manual
+          value: Framework Release https://github.com/mss-boot-io/mss-boot-admin/releases/tag/mss-boot/v1.0.0 published first from the same commit.
+        - type: report
+          value: Exact-commit evidence issue https://github.com/mss-boot-io/mss-boot-admin/issues/471 is closed.
     - id: release-docs-build
       requirement: complete-compatibility-contract
       statement: Release, upgrade, compatibility, and rollback documents are linked and compile in the documentation site.
       level: integration
+      phase: feature-freeze
       required: true
       evidence:
         - type: command
@@ -175,6 +192,7 @@ spec:
       requirement: framework-before-root
       statement: A clean module outside the repository resolves and tests the exact nested mss-boot/v1.0.0 tag without workspace replacement.
       level: integration
+      phase: pre-root
       required: true
       evidence:
         - type: manual
@@ -183,6 +201,7 @@ spec:
       requirement: migration-evidence
       statement: Current fresh/failure suites and v0.7 upgrade/repeat suites jointly cover SQLite, MySQL 8.4, and PostgreSQL 17 on the exact release commit.
       level: migration
+      phase: feature-freeze
       required: true
       evidence:
         - type: report
@@ -191,6 +210,7 @@ spec:
       requirement: security-release-gates
       statement: Credential, OAuth, default-role, root, permission, configuration-secret, upload, and audit positive/negative checks all pass.
       level: security
+      phase: feature-freeze
       required: true
       evidence:
         - type: command
@@ -201,6 +221,7 @@ spec:
       requirement: artifact-identity
       statement: Every formal binary, archive, static bundle, and image reports or records the exact tag/revision and passes its installation smoke test.
       level: e2e
+      phase: post-publication
       required: true
       evidence:
         - type: manual
@@ -209,6 +230,7 @@ spec:
       requirement: honest-release-state
       statement: Strict environment checks, complete verification, and all Agent evaluations pass on the exact release commit.
       level: integration
+      phase: feature-freeze
       required: true
       evidence:
         - type: command
@@ -217,6 +239,7 @@ spec:
       requirement: executable-recovery
       statement: An isolated restore proves the backup is usable and records the selected forward-fix and full-restore decision points.
       level: manual
+      phase: pre-framework
       required: true
       evidence:
         - type: manual
@@ -225,6 +248,7 @@ spec:
       requirement: security-release-gates
       statement: Historical built-in OAuth credentials are revoked at the provider and the exact release commit has no open secret-scanning alert.
       level: manual
+      phase: pre-framework
       required: true
       evidence:
         - type: manual
@@ -237,7 +261,7 @@ spec:
     - id: preview-marked-stable
       description: Changelog headings, branch names, or generated documentation could be interpreted as proof that v1.0.0 is already stable.
       severity: high
-      mitigation: Keep status preview until tag, artifacts, module resolution, and exact-commit validation evidence all exist.
+      mitigation: Keep candidates preview; after publication reconcile every contract to the public tag, exact commit, artifacts, module resolution, and evidence issue.
     - id: unsafe-direct-rollback
       description: Replacing only the binary after PAT, OAuth, permission, or default-role migration can mix incompatible code and persisted security state.
       severity: critical

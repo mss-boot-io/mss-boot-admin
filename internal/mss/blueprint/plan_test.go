@@ -33,6 +33,9 @@ func TestGenerateWritesCompleteIdempotentApplication(t *testing.T) {
 	if !dryRun.DryRun || !dryRun.Success || dryRun.TotalFiles < 12 {
 		t.Fatalf("unexpected dry-run plan: %#v", dryRun)
 	}
+	if dryRun.Identities.Foundation.Version != "1.1.0" || dryRun.Identities.Foundation.Channel != "candidate" || !sha256Pattern.MatchString(dryRun.Identities.Snapshot.SHA256) {
+		t.Fatalf("dry-run omitted independent snapshot identities: %#v", dryRun.Identities)
+	}
 	if _, err := os.Stat(destination); !os.IsNotExist(err) {
 		t.Fatalf("dry-run created destination: %v", err)
 	}
@@ -78,6 +81,14 @@ func TestGenerateWritesCompleteIdempotentApplication(t *testing.T) {
 	if _, exists := manifest.Files["go.mod"]; !exists {
 		t.Fatal("manifest does not record go.mod")
 	}
+	lockBefore, err := os.Stat(filepath.Join(destination, filepath.FromSlash(manifest.Records.LockPath)))
+	if err != nil {
+		t.Fatalf("stat lock before repeat generation: %v", err)
+	}
+	manifestBefore, err := os.Stat(filepath.Join(destination, filepath.FromSlash(manifest.Records.ManifestPath)))
+	if err != nil {
+		t.Fatalf("stat manifest before repeat generation: %v", err)
+	}
 
 	second, err := Generate(context.Background(), options)
 	if err != nil {
@@ -87,6 +98,42 @@ func TestGenerateWritesCompleteIdempotentApplication(t *testing.T) {
 		if change.Action != ActionUnchanged {
 			t.Fatalf("repeat generation is not idempotent: %#v", change)
 		}
+	}
+	lockAfter, err := os.Stat(filepath.Join(destination, filepath.FromSlash(manifest.Records.LockPath)))
+	if err != nil {
+		t.Fatalf("stat lock after repeat generation: %v", err)
+	}
+	manifestAfter, err := os.Stat(filepath.Join(destination, filepath.FromSlash(manifest.Records.ManifestPath)))
+	if err != nil {
+		t.Fatalf("stat manifest after repeat generation: %v", err)
+	}
+	if !os.SameFile(lockBefore, lockAfter) || !os.SameFile(manifestBefore, manifestAfter) {
+		t.Fatal("repeat generation rewrote unchanged snapshot records")
+	}
+}
+
+func TestGenerateInitializesPinnedMinimalGitRepository(t *testing.T) {
+	root := writeBlueprintFixture(t)
+	destination := filepath.Join(t.TempDir(), "git-admin")
+	_, err := Generate(context.Background(), Options{
+		FoundationRoot: root,
+		Destination:    destination,
+		Application: Application{
+			Name:        "git-admin",
+			DisplayName: "Git Administration",
+			Module:      "github.com/acme/git-admin",
+			Repository:  "acme/git-admin",
+		},
+		Write:         true,
+		InitializeGit: true,
+	})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	command := exec.Command("git", "-C", destination, "symbolic-ref", "--short", "HEAD")
+	output, err := command.CombinedOutput()
+	if err != nil || strings.TrimSpace(string(output)) != "main" {
+		t.Fatalf("generated Git repository HEAD: output=%q err=%v", output, err)
 	}
 }
 
@@ -194,6 +241,7 @@ spec:
     - admin/main.go
     - Makefile
     - .mss/project.yaml
+    - .mss/release-policy.yaml
     - .mss/capabilities.yaml
     - .mss/commands.yaml
     - web/antd/package.json
@@ -218,6 +266,7 @@ metadata:
   displayName: mss-boot Agent-Native Management Foundation
   repository: mss-boot-io/mss-boot-admin
 spec:
+  foundationVersion: 1.0.0
   repositoryLayout:
     backend: admin
     framework: mss-boot
@@ -228,8 +277,23 @@ spec:
     module: github.com/mss-boot-io/mss-boot-admin/admin
     frameworkModule: github.com/mss-boot-io/mss-boot-admin/mss-boot
 `),
-		".mss/capabilities.yaml":      []byte("apiVersion: mss.io/v1alpha1\nkind: CapabilityCatalog\nmetadata:\n  project: mss-boot-admin\nspec:\n  capabilities: []\n"),
-		".mss/commands.yaml":          []byte("apiVersion: mss.io/v1alpha1\nkind: CommandCatalog\nmetadata:\n  project: mss-boot-admin\nspec:\n  commands:\n    context:\n      command: go run ./cmd/mss context\n      description: Context\n      category: agent\n"),
+		".mss/capabilities.yaml": []byte("apiVersion: mss.io/v1alpha1\nkind: CapabilityCatalog\nmetadata:\n  project: mss-boot-admin\nspec:\n  capabilities: []\n"),
+		".mss/commands.yaml":     []byte("apiVersion: mss.io/v1alpha1\nkind: CommandCatalog\nmetadata:\n  project: mss-boot-admin\nspec:\n  commands:\n    context:\n      command: go run ./cmd/mss context\n      description: Context\n      category: agent\n"),
+		".mss/release-policy.yaml": []byte(`apiVersion: mss.io/v1alpha1
+kind: ReleasePolicy
+metadata:
+  name: fixture
+spec:
+  mode: development-first
+  currentStableVersion: v1.0.0
+  currentStableCommit: 0000000000000000000000000000000000000000
+  nextPublicVersion: v1.1.0
+  publicationWorkflowsReady: false
+  publicPrereleases: false
+  rootTagTemplate: "{version}"
+  frameworkTagTemplate: "mss-boot/{version}"
+  frontendTagTemplate: "web/antd/{version}"
+`),
 		".mss/lock.yaml":              []byte("apiVersion: mss.io/v1alpha1\nkind: FoundationLock\nmetadata:\n  project: mss-boot-admin\n"),
 		"web/antd/package.json":       []byte(`{"name":"mss-boot-admin"}`),
 		"docs/package.json":           []byte(`{"name":"mss-boot-docs"}`),

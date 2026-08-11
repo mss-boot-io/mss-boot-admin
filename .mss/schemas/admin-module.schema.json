@@ -483,6 +483,12 @@
         "parent": {
           "type": "string"
         },
+        "parentDisplayName": {
+          "type": "string"
+        },
+        "parentDisplayNameEn": {
+          "type": "string"
+        },
         "order": {
           "type": "integer"
         },
@@ -621,7 +627,32 @@
     "generation": {
       "type": "object",
       "additionalProperties": false,
+	  "allOf": [
+		{
+		  "if": {
+			"not": {
+			  "properties": {
+				"backend": { "const": false }
+			  },
+			  "required": ["backend"]
+			}
+		  },
+		  "then": {
+		  "required": ["migrationID", "authorizationMigrationID"]
+		  }
+		}
+	  ],
       "properties": {
+        "migrationID": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Complete lossless decimal identifier for the generated forward migration."
+        },
+        "authorizationMigrationID": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Complete lossless decimal identifier for the additive authorization metadata and policy migration."
+        },
         "backend": {
           "type": "boolean",
           "default": true

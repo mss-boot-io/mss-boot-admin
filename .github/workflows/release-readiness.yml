@@ -1,89 +1,59 @@
 name: Release Readiness
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - '.agents/**'
-      - '.mss/**'
-      - 'admin/**'
-      - 'cmd/mss/**'
-      - 'cmd/mss-mcp/**'
-      - 'docs/**'
-      - 'internal/mss/**'
-      - 'mss-boot/**'
-      - 'modules/**'
-      - 'templates/**'
-      - 'scripts/**'
-      - '.codex/**'
-      - 'tools/release/**'
-      - 'tools/security/**'
-      - 'web/antd/**'
-      - '.dockerignore'
-      - '.gitattributes'
-      - 'AGENTS.md'
-      - 'CHANGELOG.md'
-      - 'CLAUDE.md'
-      - 'Dockerfile'
-      - 'Makefile'
-      - 'README.md'
-      - 'README.zh-CN.md'
-      - 'go.mod'
-      - 'go.sum'
-      - 'go.work'
-      - 'go.work.sum'
-      - '.github/workflows/*release*.yml'
-      - '.github/workflows/container.yml'
-      - '.github/workflows/docs.yml'
-      - '.github/workflows/foundation-compatibility.yml'
-      - '.github/workflows/theme-settings-integration.yml'
-      - '.github/workflows/v0.7-upgrade-integration.yml'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - '.agents/**'
-      - '.mss/**'
-      - 'admin/**'
-      - 'cmd/mss/**'
-      - 'cmd/mss-mcp/**'
-      - 'docs/**'
-      - 'internal/mss/**'
-      - 'mss-boot/**'
-      - 'modules/**'
-      - 'templates/**'
-      - 'scripts/**'
-      - '.codex/**'
-      - 'tools/release/**'
-      - 'tools/security/**'
-      - 'web/antd/**'
-      - '.dockerignore'
-      - '.gitattributes'
-      - 'AGENTS.md'
-      - 'CHANGELOG.md'
-      - 'CLAUDE.md'
-      - 'Dockerfile'
-      - 'Makefile'
-      - 'README.md'
-      - 'README.zh-CN.md'
-      - 'go.mod'
-      - 'go.sum'
-      - 'go.work'
-      - 'go.work.sum'
-      - '.github/workflows/*release*.yml'
-      - '.github/workflows/container.yml'
-      - '.github/workflows/docs.yml'
-      - '.github/workflows/foundation-compatibility.yml'
-      - '.github/workflows/theme-settings-integration.yml'
-      - '.github/workflows/v0.7-upgrade-integration.yml'
   workflow_dispatch:
+    inputs:
+      version:
+        description: Feature-frozen public release target
+        required: true
+        type: string
+      frozen_commit:
+        description: Full commit SHA selected for concentrated validation
+        required: true
+        type: string
+      feature_freeze_confirmed:
+        description: Confirm feature and public contract changes are frozen
+        required: true
+        default: false
+        type: boolean
+      phase:
+        description: Exact readiness phase represented by this run
+        required: true
+        default: checkpoint
+        type: choice
+        options:
+          - checkpoint
+          - feature-freeze
+          - pre-framework
+          - pre-root
+      publication_authority:
+        description: Confirm this exact pre-framework or pre-root run may authorize publication
+        required: true
+        default: false
+        type: boolean
+      in_app_browser_evidence_commit:
+        description: Full frozen SHA verified in the Codex in-app Browser (required for feature-freeze)
+        required: false
+        type: string
+      in_app_browser_evidence_ref:
+        description: Concrete Codex in-app Browser evidence reference (required for feature-freeze)
+        required: false
+        type: string
+      blueprint_rehearsal_evidence_commit:
+        description: Full frozen SHA used by the external Blueprint rehearsal (required for feature-freeze)
+        required: false
+        type: string
+      blueprint_rehearsal_evidence_ref:
+        description: Concrete external Blueprint rehearsal evidence reference (required for feature-freeze)
+        required: false
+        type: string
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
-  group: release-readiness-${{ github.event.pull_request.number || github.ref }}
+  group: release-readiness-${{ inputs.version }}-${{ inputs.frozen_commit }}-${{ inputs.phase }}
   cancel-in-progress: true
 
 env:
@@ -91,12 +61,109 @@ env:
 
 jobs:
   full-verification:
-    name: doctor-verify-eval
+    name: scoped-frozen-evidence
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 360
+    services:
+      mysql:
+        image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb # 8.4.11
+        env:
+          MYSQL_ROOT_PASSWORD: mysql-root-ci-only
+          MYSQL_DATABASE: mss_supplier_test
+          MYSQL_USER: mss_supplier
+          MYSQL_PASSWORD: mss_supplier_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping --host=127.0.0.1 --user=mss_supplier --password=mss_supplier_ci --silent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      postgres:
+        image: postgres:17@sha256:7958605b474b3d264a969cb3a123d6aa00ad1e1fe9da8a69984dabb704d93317 # 17.10
+        env:
+          POSTGRES_DB: mss_supplier_test
+          POSTGRES_USER: mss_supplier
+          POSTGRES_PASSWORD: mss_supplier_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username=mss_supplier --dbname=mss_supplier_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Verify merged-main release source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+        run: |
+          python3 tools/release/verify_release_source.py \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${FROZEN_COMMIT}" \
+            --policy .mss/release-policy.yaml
+
+      - name: Bind readiness to the reviewed target and frozen commit
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+          FEATURE_FREEZE_CONFIRMED: ${{ inputs.feature_freeze_confirmed }}
+          READINESS_PHASE: ${{ inputs.phase }}
+          PUBLICATION_AUTHORITY: ${{ inputs.publication_authority }}
+        run: |
+          set -euo pipefail
+          if [[ "${FEATURE_FREEZE_CONFIRMED}" != "true" ]]; then
+            echo "release readiness is disabled until feature freeze is confirmed" >&2
+            exit 1
+          fi
+          if [[ ! "${FROZEN_COMMIT}" =~ ^[0-9a-f]{40}$ || "${FROZEN_COMMIT}" != "${GITHUB_SHA}" ]]; then
+            echo "frozen_commit must equal the checked-out full commit ${GITHUB_SHA}" >&2
+            exit 1
+          fi
+          python3 tools/release/check_release_policy.py \
+            --component root \
+            --version "${RELEASE_VERSION}" \
+            --tag "${RELEASE_VERSION}" \
+            --intent qualify
+          workflow_run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          python3 tools/release/release_readiness_attestation.py create \
+            --output "${RUNNER_TEMP}/release-readiness-metadata.json" \
+            --policy .mss/release-policy.yaml \
+            --target-version "${RELEASE_VERSION}" \
+            --commit "${FROZEN_COMMIT}" \
+            --phase "${READINESS_PHASE}" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --workflow-run-url "${workflow_run_url}" \
+            --publication-authority "${PUBLICATION_AUTHORITY}"
+
+          publication_authority="$(jq -r '.publicationAuthority' "${RUNNER_TEMP}/release-readiness-metadata.json")"
+          echo "Readiness phase: ${READINESS_PHASE}. Publication authority: ${publication_authority}." >> "${GITHUB_STEP_SUMMARY}"
+          if [[ "${publication_authority}" != "true" ]]; then
+            echo "This qualification run cannot authorize publication." >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Bind manual feature-freeze evidence to the frozen commit
+        if: ${{ inputs.phase == 'feature-freeze' }}
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+          BROWSER_EVIDENCE_COMMIT: ${{ inputs.in_app_browser_evidence_commit }}
+          BROWSER_EVIDENCE_REF: ${{ inputs.in_app_browser_evidence_ref }}
+          BLUEPRINT_EVIDENCE_COMMIT: ${{ inputs.blueprint_rehearsal_evidence_commit }}
+          BLUEPRINT_EVIDENCE_REF: ${{ inputs.blueprint_rehearsal_evidence_ref }}
+        run: |
+          python3 tools/release/release_qualification_decision.py \
+            --target-version "${RELEASE_VERSION}" \
+            --commit "${FROZEN_COMMIT}" \
+            --phase feature-freeze \
+            --browser-evidence-commit "${BROWSER_EVIDENCE_COMMIT}" \
+            --browser-evidence-ref "${BROWSER_EVIDENCE_REF}" \
+            --blueprint-evidence-commit "${BLUEPRINT_EVIDENCE_COMMIT}" \
+            --blueprint-evidence-ref "${BLUEPRINT_EVIDENCE_REF}" \
+            --output .mss/reports/release-qualification-decision.json
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
@@ -109,11 +176,13 @@ jobs:
             mss-boot/go.sum
 
       - name: Setup pnpm
+        if: ${{ inputs.phase == 'feature-freeze' }}
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 9.15.9
 
       - name: Setup Node
+        if: ${{ inputs.phase == 'feature-freeze' }}
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
@@ -123,42 +192,82 @@ jobs:
             web/antd/pnpm-lock.yaml
 
       - name: Install frontend dependencies
+        if: ${{ inputs.phase == 'feature-freeze' }}
         run: pnpm --dir web/antd install --frozen-lockfile
 
       - name: Install documentation dependencies
+        if: ${{ inputs.phase == 'feature-freeze' }}
         run: pnpm --dir docs install --frozen-lockfile
 
-      - name: Test release dependency policy helper
-        run: node --test tools/security/check-pnpm-audit.test.mjs
-
-      - name: Verify frontend release dependency policy
-        run: pnpm --dir web/antd audit:release
-
-      - name: Verify documentation release dependency policy
-        run: pnpm --dir docs audit:release
-
-      - name: Build same-origin release frontend
-        run: pnpm --dir web/antd build:release
-
-      - name: Smoke-test release frontend delivery
-        run: pnpm --dir web/antd delivery:smoke
-
-      - name: Test release safety helpers
-        run: python3 -m unittest discover -s tools/release -p 'test_*.py'
-
-      - name: Run strict environment checks
+      - name: Execute phase-scoped Feature command evidence
+        if: ${{ success() && inputs.phase == 'feature-freeze' }}
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+          MSS_SUPPLIER_TEST_MYSQL_DSN: 'mss_supplier:mss_supplier_ci@tcp(127.0.0.1:3306)/mss_supplier_test?charset=utf8mb4&parseTime=true&loc=UTC&multiStatements=false'
+          MSS_SUPPLIER_TEST_POSTGRES_DSN: 'postgres://mss_supplier:mss_supplier_ci@127.0.0.1:5432/mss_supplier_test?sslmode=disable&TimeZone=UTC'
         run: |
-          mkdir -p .mss/reports
-          go run ./cmd/mss doctor --strict --format json > .mss/reports/release-doctor.json
+          python3 tools/release/release_phase_evidence.py run \
+            --target-version "${RELEASE_VERSION}" \
+            --commit "${FROZEN_COMMIT}" \
+            --phase feature-freeze \
+            --output .mss/reports/release-phase-command-evidence.json
 
-      - name: Run full repository verification
-        run: go run ./cmd/mss verify --all --format json
-
-      - name: Run all agent evaluations
-        if: ${{ always() }}
+      - name: Plan phase-scoped Feature command evidence
+        if: ${{ success() && inputs.phase != 'feature-freeze' }}
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+          READINESS_PHASE: ${{ inputs.phase }}
         run: |
+          python3 tools/release/release_phase_evidence.py plan \
+            --target-version "${RELEASE_VERSION}" \
+            --commit "${FROZEN_COMMIT}" \
+            --phase "${READINESS_PHASE}" \
+            --output .mss/reports/release-phase-command-plan.json
+
+      - name: Finalize exact readiness attestation
+        if: ${{ success() }}
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+          READINESS_PHASE: ${{ inputs.phase }}
+        run: |
+          set -euo pipefail
+          workflow_run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          python3 tools/release/release_readiness_attestation.py verify \
+            --attestation "${RUNNER_TEMP}/release-readiness-metadata.json" \
+            --policy .mss/release-policy.yaml \
+            --target-version "${RELEASE_VERSION}" \
+            --commit "${FROZEN_COMMIT}" \
+            --phase "${READINESS_PHASE}" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --workflow-run-url "${workflow_run_url}" \
+            --intent qualify
           mkdir -p .mss/reports
-          go run ./cmd/mss eval run --all --format json > .mss/reports/release-eval.json
+          install -m 0644 \
+            "${RUNNER_TEMP}/release-readiness-metadata.json" \
+            .mss/reports/release-readiness-metadata.json
+
+      - name: Upload exact readiness attestation
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-readiness-attestation-${{ github.run_id }}
+          path: .mss/reports/release-readiness-metadata.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
+
+      - name: Upload exact feature-freeze decision
+        if: ${{ success() && inputs.phase == 'feature-freeze' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-qualification-decision-${{ github.run_id }}
+          path: .mss/reports/release-qualification-decision.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
 
       - name: Upload release evidence
         if: ${{ always() }}
@@ -167,4 +276,5 @@ jobs:
           name: release-readiness-${{ github.sha }}
           path: .mss/reports
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30

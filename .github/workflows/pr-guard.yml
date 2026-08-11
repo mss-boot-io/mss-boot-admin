@@ -14,3 +14,32 @@ jobs:
     uses: mss-boot-io/.github/.github/workflows/pr-guard.yml@main
     with:
       max_changed_files: 140
+
+  docs-contract:
+    name: docs-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require documentation for contract and workflow changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api \
+            --paginate \
+            "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+            --jq '.[].filename' \
+            > pr-files.txt
+          node <<'NODE'
+          const fs = require('fs');
+          const paths = fs.readFileSync('pr-files.txt', 'utf8').split(/\r?\n/).filter(Boolean);
+          const docsChanged = paths.some((path) => /(^docs\/|^aigc\/|README|CHANGELOG|\.md$)/i.test(path));
+          const governedChange = paths.some((path) => /(api|apis|router|routes|swagger|openapi|config|deploy|compose|k8s|\.env|migration|sql|^\.github\/workflows\/)/i.test(path));
+          if (governedChange && !docsChanged) {
+            console.error('API, configuration, migration, deployment, or workflow changes require documentation or changelog updates.');
+            process.exit(1);
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Documentation contract passed for ${paths.length} changed files.\n`);
+          NODE

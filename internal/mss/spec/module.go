@@ -1,8 +1,10 @@
 package spec
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"sort"
@@ -19,11 +21,13 @@ const (
 )
 
 var (
-	moduleNamePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
-	camelNamePattern  = regexp.MustCompile(`^[a-z][A-Za-z0-9]*$`)
-	goNamePattern     = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
-	tableNamePattern  = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
-	pathPattern       = regexp.MustCompile(`^/[a-z0-9][a-z0-9/-]*$`)
+	moduleNamePattern  = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
+	camelNamePattern   = regexp.MustCompile(`^[a-z][A-Za-z0-9]*$`)
+	goNamePattern      = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
+	tableNamePattern   = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+	pathPattern        = regexp.MustCompile(`^/[a-z0-9][a-z0-9/-]*$`)
+	migrationIDPattern = regexp.MustCompile(`^(?:0|[1-9][0-9]*)$`)
+	eventNamePattern   = regexp.MustCompile(`^[a-z][a-z0-9.-]*$`)
 )
 
 // Module is the deterministic management-module specification.
@@ -163,13 +167,15 @@ type OwnershipSpec struct {
 
 // MenuSpec defines the generated menu and route.
 type MenuSpec struct {
-	Path          string `yaml:"path" json:"path"`
-	DisplayName   string `yaml:"displayName" json:"displayName"`
-	DisplayNameEn string `yaml:"displayNameEn,omitempty" json:"displayNameEn,omitempty"`
-	Icon          string `yaml:"icon,omitempty" json:"icon,omitempty"`
-	Parent        string `yaml:"parent,omitempty" json:"parent,omitempty"`
-	Order         int    `yaml:"order,omitempty" json:"order,omitempty"`
-	Hidden        bool   `yaml:"hidden,omitempty" json:"hidden,omitempty"`
+	Path                string `yaml:"path" json:"path"`
+	DisplayName         string `yaml:"displayName" json:"displayName"`
+	DisplayNameEn       string `yaml:"displayNameEn,omitempty" json:"displayNameEn,omitempty"`
+	Icon                string `yaml:"icon,omitempty" json:"icon,omitempty"`
+	Parent              string `yaml:"parent,omitempty" json:"parent,omitempty"`
+	ParentDisplayName   string `yaml:"parentDisplayName,omitempty" json:"parentDisplayName,omitempty"`
+	ParentDisplayNameEn string `yaml:"parentDisplayNameEn,omitempty" json:"parentDisplayNameEn,omitempty"`
+	Order               int    `yaml:"order,omitempty" json:"order,omitempty"`
+	Hidden              bool   `yaml:"hidden,omitempty" json:"hidden,omitempty"`
 }
 
 // UISpec defines which standard pages and operations are generated.
@@ -217,10 +223,12 @@ type TestSpec struct {
 
 // GenerationSpec controls generated surfaces.
 type GenerationSpec struct {
-	Backend  *bool `yaml:"backend,omitempty" json:"backend,omitempty"`
-	Frontend *bool `yaml:"frontend,omitempty" json:"frontend,omitempty"`
-	Docs     *bool `yaml:"docs,omitempty" json:"docs,omitempty"`
-	Tests    *bool `yaml:"tests,omitempty" json:"tests,omitempty"`
+	MigrationID              string `yaml:"migrationID,omitempty" json:"migrationID,omitempty"`
+	AuthorizationMigrationID string `yaml:"authorizationMigrationID,omitempty" json:"authorizationMigrationID,omitempty"`
+	Backend                  *bool  `yaml:"backend,omitempty" json:"backend,omitempty"`
+	Frontend                 *bool  `yaml:"frontend,omitempty" json:"frontend,omitempty"`
+	Docs                     *bool  `yaml:"docs,omitempty" json:"docs,omitempty"`
+	Tests                    *bool  `yaml:"tests,omitempty" json:"tests,omitempty"`
 }
 
 // Issue is a stable validation diagnostic.
@@ -249,9 +257,24 @@ func LoadModule(path string) (*Module, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read module spec %s: %w", path, err)
 	}
-	module := &Module{SourcePath: path}
-	if err := yaml.Unmarshal(data, module); err != nil {
-		return nil, fmt.Errorf("parse module spec %s: %w", path, err)
+	return ParseModule(data, path)
+}
+
+// ParseModule strictly decodes, normalizes, and validates one AdminModule
+// document. Unknown fields, duplicate mapping keys, and additional YAML
+// documents are rejected so generation never proceeds from ambiguous input.
+func ParseModule(data []byte, sourcePath string) (*Module, error) {
+	module := &Module{SourcePath: sourcePath}
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(module); err != nil {
+		return nil, fmt.Errorf("parse module spec %s: %w", sourcePath, err)
+	}
+	var additionalDocument yaml.Node
+	if err := decoder.Decode(&additionalDocument); err == nil {
+		return nil, fmt.Errorf("parse module spec %s: multiple YAML documents are not allowed", sourcePath)
+	} else if !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("parse module spec %s: %w", sourcePath, err)
 	}
 	module.Normalize()
 	if issues := module.Validate(); len(issues) > 0 {
@@ -431,6 +454,7 @@ func (m *Module) Validate() []Issue {
 		validateFieldConstraint(path, field, add)
 	}
 
+	indexNameSeen := make(map[string]bool, len(m.Spec.Entity.Indexes))
 	for index, databaseIndex := range m.Spec.Entity.Indexes {
 		path := "spec.entity.indexes[" + strconv.Itoa(index) + "]"
 		if !tableNamePattern.MatchString(databaseIndex.Name) {
@@ -439,6 +463,10 @@ func (m *Module) Validate() []Issue {
 		if len(databaseIndex.Fields) == 0 {
 			add(path+".fields", "required", "index must contain at least one field")
 		}
+		if indexNameSeen[databaseIndex.Name] {
+			add(path+".name", "duplicate-index", "index name must be unique")
+		}
+		indexNameSeen[databaseIndex.Name] = true
 		for _, fieldName := range databaseIndex.Fields {
 			if _, exists := fieldByName[fieldName]; !exists {
 				add(path+".fields", "unknown-field", "index references unknown field "+fieldName)
@@ -477,6 +505,17 @@ func (m *Module) Validate() []Issue {
 		if permission.DisplayName == "" {
 			add(path+".displayName", "required", "display name is required")
 		}
+		roleSeen := make(map[string]bool, len(permission.DefaultRoles))
+		for roleIndex, role := range permission.DefaultRoles {
+			rolePath := path + ".defaultRoles[" + strconv.Itoa(roleIndex) + "]"
+			if !moduleNamePattern.MatchString(role) {
+				add(rolePath, "invalid-default-role", "must be lower-case kebab-case")
+			}
+			if roleSeen[role] {
+				add(rolePath, "duplicate-default-role", "default role must be unique within one permission")
+			}
+			roleSeen[role] = true
+		}
 	}
 	for _, operation := range m.Spec.API.Operations {
 		requiredPermission := operationPermission(operation)
@@ -509,12 +548,29 @@ func (m *Module) Validate() []Issue {
 	if m.Spec.Workflow != nil {
 		validateWorkflow(m.Spec.Workflow, fieldByName, permissionSeen, add)
 	}
+	if (m.Spec.Generation.Backend == nil || *m.Spec.Generation.Backend) && m.Spec.Generation.MigrationID == "" {
+		add("spec.generation.migrationID", "required", "backend generation requires an explicit complete migration ID")
+	} else if m.Spec.Generation.MigrationID != "" && !migrationIDPattern.MatchString(m.Spec.Generation.MigrationID) {
+		add("spec.generation.migrationID", "invalid-migration-id", "must be a complete decimal identifier without leading zeroes")
+	}
+	if m.Spec.Generation.Backend == nil || *m.Spec.Generation.Backend {
+		if m.Spec.Generation.AuthorizationMigrationID == "" {
+			add("spec.generation.authorizationMigrationID", "required", "backend authorization generation requires an explicit complete migration ID")
+		} else if !migrationIDPattern.MatchString(m.Spec.Generation.AuthorizationMigrationID) {
+			add("spec.generation.authorizationMigrationID", "invalid-migration-id", "must be a complete decimal identifier without leading zeroes")
+		} else if m.Spec.Generation.AuthorizationMigrationID == m.Spec.Generation.MigrationID {
+			add("spec.generation.authorizationMigrationID", "duplicate-migration-id", "authorization migration ID must differ from the entity migration ID")
+		}
+	}
 
 	eventSeen := map[string]bool{}
+	eventTriggerSeen := map[string]bool{}
 	for index, event := range m.Spec.Events {
 		path := "spec.events[" + strconv.Itoa(index) + "]"
 		if event.Name == "" {
 			add(path+".name", "required", "event name is required")
+		} else if !eventNamePattern.MatchString(event.Name) {
+			add(path+".name", "invalid-event-name", "must start with a lower-case letter and contain only lower-case letters, digits, dots, or hyphens")
 		}
 		if eventSeen[event.Name] {
 			add(path+".name", "duplicate-event", "event name must be unique")
@@ -522,7 +578,10 @@ func (m *Module) Validate() []Issue {
 		eventSeen[event.Name] = true
 		if !contains([]string{"created", "updated", "deleted", "workflow-transition"}, event.When) {
 			add(path+".when", "unsupported-event-trigger", "unsupported event trigger "+event.When)
+		} else if eventTriggerSeen[event.When] {
+			add(path+".when", "duplicate-event-trigger", "event trigger must be unique")
 		}
+		eventTriggerSeen[event.When] = true
 	}
 
 	sort.SliceStable(issues, func(i, j int) bool {
@@ -544,6 +603,16 @@ func (m *Module) YAML() ([]byte, error) {
 // PermissionCode returns the stable fully-qualified permission code.
 func (m *Module) PermissionCode(action string) string {
 	return m.Metadata.Name + ":" + action
+}
+
+// Permission returns one declared action contract.
+func (m *Module) Permission(action string) (Permission, bool) {
+	for _, permission := range m.Spec.Permissions {
+		if permission.Action == action {
+			return permission, true
+		}
+	}
+	return Permission{}, false
 }
 
 // Field returns one field by its lower-camel name.

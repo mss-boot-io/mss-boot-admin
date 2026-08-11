@@ -21,8 +21,10 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	bootpkg "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	storagecache "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 	"github.com/spf13/cast"
 	"gorm.io/gorm"
 
@@ -45,6 +47,7 @@ var (
 const (
 	authenticationFailureKey      = "mss.authentication.failure"
 	authorizationPolicyFailureKey = "mss.authorization.policy.failure"
+	challengeUnavailableKey       = "mss.authentication.challenge-unavailable"
 	publicLoginDisallowOAuthKey   = "mss.authentication.public-login-disallow-oauth"
 )
 
@@ -148,21 +151,7 @@ func Init() {
 				"expire": expire.Format(time.RFC3339),
 			})
 		},
-		Unauthorized: func(c *gin.Context, code int, message string) {
-			if c.GetBool(authorizationPolicyFailureKey) {
-				writeAuthErrorResponse(
-					c,
-					http.StatusServiceUnavailable,
-					http.StatusServiceUnavailable,
-					"authorization policy is temporarily unavailable",
-				)
-				return
-			}
-			if code == http.StatusForbidden && c.GetBool(authenticationFailureKey) {
-				code = http.StatusUnauthorized
-			}
-			writeAuthErrorResponse(c, code, code, message)
-		},
+		Unauthorized: writeUnauthorizedAuthResponse,
 		// TokenLookup is a string in the form of "<source>:<name>" that is used
 		// to extract token from the request.
 		// Optional. Default value "header:Authorization".
@@ -190,6 +179,31 @@ func Init() {
 	response.AuthHandler = Auth.MiddlewareFunc()
 	response.VerifyHandler = GetVerify
 	Middlewares.Store("auth", Auth.MiddlewareFunc())
+}
+
+func writeUnauthorizedAuthResponse(c *gin.Context, code int, message string) {
+	if c.GetBool(challengeUnavailableKey) {
+		writeAuthErrorResponse(
+			c,
+			http.StatusServiceUnavailable,
+			http.StatusServiceUnavailable,
+			"authentication challenge is temporarily unavailable",
+		)
+		return
+	}
+	if c.GetBool(authorizationPolicyFailureKey) {
+		writeAuthErrorResponse(
+			c,
+			http.StatusServiceUnavailable,
+			http.StatusServiceUnavailable,
+			"authorization policy is temporarily unavailable",
+		)
+		return
+	}
+	if code == http.StatusForbidden && c.GetBool(authenticationFailureKey) {
+		code = http.StatusUnauthorized
+	}
+	writeAuthErrorResponse(c, code, code, message)
 }
 
 func authenticateLoginRequest(c *gin.Context) (any, error) {
@@ -255,6 +269,9 @@ func AuthenticateVerifier(c *gin.Context, loginVals security.Verifier) (security
 	db := center.Default.GetDB(c, nil)
 
 	if err != nil {
+		if errors.Is(err, storagecache.ErrChallengeUnavailable) || errors.Is(err, runtimechallenge.ErrUnavailable) {
+			c.Set(challengeUnavailableKey, true)
+		}
 		// Authentication providers may include credentials or upstream response
 		// details in errors. Keep the durable audit outcome diagnosable without
 		// persisting those details.

@@ -15,3 +15,23 @@ type AppConfigControlRequest struct {
 	Group string         `uri:"group" binding:"required" swaggerignore:"true"`
 	Data  map[string]any `json:"data" binding:"required"`
 }
+
+// AppConfigSecurityProfile documents the non-secret public authentication
+// capability projection returned to login and registration screens.
+type AppConfigSecurityProfile struct {
+	EmailChallengeReady bool `json:"emailChallengeReady"`
+	EmailEnabled        bool `json:"emailEnabled"`
+	GitHubEnabled       bool `json:"githubEnabled"`
+	LarkEnabled         bool `json:"larkEnabled"`
+	PhoneEnabled        bool `json:"phoneEnabled"`
+	RegisterEnabled     bool `json:"registerEnabled"`
+}
+
+// AppConfigPublicProfile is the OpenAPI shape of the public profile. Groups
+// remain extensible maps, while security has a typed contract for the runtime
+// email challenge capability consumed by the frontend.
+type AppConfigPublicProfile struct {
+	Base     map[string]any           `json:"base,omitempty"`
+	Security AppConfigSecurityProfile `json:"security"`
+	Theme    map[string]any           `json:"theme,omitempty"`
+}

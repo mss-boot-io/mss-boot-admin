@@ -25,7 +25,8 @@ keywords: [admin release checklist smoke regression]
 - [ ] 登录成功且首次登录状态正常
 - [ ] Welcome 页监控卡片与趋势图正常
 - [ ] 日志页面能看到登录日志、审计日志、运行时日志
-- [ ] 头像上传成功并可访问
+- [ ] 仅在显式 Local 开发 Delivery 中执行头像上传 smoke，并确认 `/public/uploads/{uuid}` 内容一致；该结果不作为生产 Provider 证据
+- [ ] 当 Local/S3-compatible 仍为 Legacy / Blocked 时，生产 ingress 已阻断两个上传路径，且未授予通用 `storage:upload` 权限作为纵深防御；头像入口没有独立 Casbin permission
 - [ ] 告警规则可以保存
 - [ ] 已启用任务状态正常
 - [ ] 国际化接口可返回有效语言资源
@@ -35,7 +36,7 @@ keywords: [admin release checklist smoke regression]
 - [ ] `/healthz` 正常
 - [ ] 前端首页可打开
 - [ ] WebSocket 在线状态正常
-- [ ] `/public/` 资源访问正常
+- [ ] `/public/` 未被当作生产对象 Delivery 代理，两个上传入口仍被部署侧阻断
 - [ ] 后端日志无持续性 fatal 错误
 
 ## 三、异常归属建议
@@ -44,7 +45,7 @@ keywords: [admin release checklist smoke regression]
 |------|----------|
 | 前端空白页 | 前端构建、代理、接口鉴权 |
 | 监控图表无数据 | `/admin/api/monitor` 的 `collectedAt`/`stale`/`instanceId`、内置系统作业日志、登录态 |
-| 头像无法显示 | `/public/` 代理、返回 URL、静态目录 |
+| 头像入口被禁用 | 当前 Provider / Delivery evidence 状态、ingress 与权限门禁；不要通过临时开放 `/public/` 绕过 |
 | 告警不发送 | 通知配置、规则状态、日志输出 |
 | 用户任务未执行 | `task.enable`、cron 表达式、任务状态、TaskRun |
 | 内置监控/会话清理未执行 | task server 启动日志和系统作业错误；不要以 Task/TaskRun 无记录判定失败 |
@@ -53,7 +54,8 @@ keywords: [admin release checklist smoke regression]
 
 - [ ] 问题是否来自配置而非代码
 - [ ] 数据库结构是否发生变化
-- [ ] 上传或日志目录是否需要保留
+- [ ] 若开发环境曾显式启用 Local，已有 opaque-key 对象是否已保留；不要回滚到解析后限流或 user/filename key
+- [ ] 日志目录是否需要保留
 - [ ] 通知渠道凭据是否改动
 
 ## 推荐阅读

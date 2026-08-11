@@ -25,6 +25,12 @@ export default {
   'pages.getCaptchaSecondText': '秒后重新获取',
   'pages.login.rememberMe': '自动登录',
   'pages.login.forgotPassword': '忘记密码 ?',
+  'pages.login.emailChallengeChecking': '正在检查邮箱验证服务…',
+  'pages.login.emailChallengeUnavailable': '邮箱验证暂不可用',
+  'pages.login.emailChallengeUnavailableDescription':
+    '邮箱验证服务当前不可用，请稍后重试或使用账号密码登录。',
+  'pages.login.registrationUnavailableDescription': '当前未开放用户注册。',
+  'pages.login.backToLogin': '返回登录',
   'pages.login.submit': '登录',
   'pages.login.loginWith': '其他登录方式 :',
   'pages.login.registerAccount': '注册账户',

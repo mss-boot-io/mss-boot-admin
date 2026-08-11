@@ -63,6 +63,7 @@ spec:
         goName: ContactName
         displayName: 联系人
         type: string
+        required: true
         searchable: true
         validation:
           maxLength: 100
@@ -133,7 +134,7 @@ spec:
   permissions:
     - action: list
       displayName: 查看供应商列表
-      defaultRoles: [admin, procurement]
+      defaultRoles: [admin, procurement, finance]
     - action: read
       displayName: 查看供应商详情
       defaultRoles: [admin, procurement, finance]
@@ -160,6 +161,8 @@ spec:
     displayNameEn: Suppliers
     icon: shop
     parent: /procurement
+    parentDisplayName: 采购管理
+    parentDisplayNameEn: Procurement
     order: 20
     hidden: false
 
@@ -187,6 +190,8 @@ spec:
     migrationUpgrade: true
 
   generation:
+    migrationID: "20260810160000"
+    authorizationMigrationID: "20260811120000"
     backend: true
     frontend: true
     docs: true

@@ -4,17 +4,168 @@ All notable, verifiable changes to the `mss-boot` framework are documented in
 this file. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses semantic versioning for nested-module releases.
 
-## [Unreleased] - mss-boot/v1.0.0 candidate
+## [Unreleased]
 
-Status: **preview / release preparation**. The framework is not published from
-the consolidated repository until the `mss-boot/v1.0.0` nested-module tag exists
-and resolves from an external module with `GOWORK=off`. A branch, local
-`go.work` replacement, or this changelog entry is not stable release evidence.
+Target: **mss-boot/v1.1.0 development train**. Intermediate patch and public
+prerelease tags are disabled; current Challenge, Kafka, and object-provider work
+remains internal and does not promote provider maturity.
+
+### Changed
+
+- Added the domain-neutral `runtime/config` checkpoint with exact-key strict
+  YAML/JSON decoding, explicit standalone/Sentinel/cluster Redis plans, typed
+  SecretRef resolution, redacted immutable snapshots, and a side-effect-free
+  Build boundary. It does not yet construct or qualify a Redis provider client.
+- Added the domain-neutral `runtime/resource` lifecycle graph. `Build` validates
+  and deterministically sorts named dependencies without invoking resources;
+  `Start` establishes required readiness before dependents; `Run` owns peer
+  cancellation; and `Close` performs concurrent-safe reverse release with
+  caller-deadline enforcement and retry after failure. Lifecycle diagnostics
+  redact provider text and provider objects while retaining fixed lifecycle metadata
+  and `errors.Is` classification without provider `errors.As` exposure.
+  The implementation checkpoint is `d90b4c7` and its deterministic concurrent
+  close evidence repair is `c830b5f`; the public error-tree repair is `c57ffc8`.
+  This checkpoint does not qualify provider health, real leak bounds, or an
+  Admin listener composition.
+- Added `runtime/redisresource` at `86c0e8a` as an additive named owner over the
+  strict Runtime v2 Redis profile and resource graph. Build is side-effect free;
+  Start constructs one standalone, Sentinel, or cluster go-redis client; reusable
+  Scope capabilities isolate resource-and-scope-prefixed keys and lend structured
+  leases without exposing the client or `Close`. Lifecycle PINGs and commands honor
+  caller deadlines, detached lease work is rejected, missing keys are provider-neutral,
+  and one tracked close generation closes the provider exactly once. Construction
+  matrices, standalone miniredis, stalled sockets, and twenty-two fully anchored
+  top-level tests passing race×20 are development evidence, not real Sentinel,
+  cluster, TLS, Admin-composition, or leak conformance.
+- Added public additive `runtime/challenge` at `1faa9ef`. It consumes one named
+  `redisresource.Scope`, owns no client or `Close`, and exposes explicit issue
+  reservation, delivery Commit/Abort, and collapsed Verify outcomes. An internal
+  opaque same-slot bridge derives physical placement server-side and permits only
+  fixed Challenge scripts inside structured leases. Rate-operation replay remains
+  idempotent at the limit boundary, and syntactically valid Verify paths use one
+  fixed read and one fixed completion script. The D0 exported API stays
+  source-compatible and Deprecated. Fully anchored uncached `count=1` race evidence
+  with `GOWORK=off` covers all twenty-two newly introduced top-level tests; Admin
+  composition and real Cluster/failover remain pending, with no Stable promotion.
+- Added additive `runtime/cache` at `88f40c3` over one named Redis Scope. Its explicit
+  policy fixes database authority, namespace, TTL, maximum payload, provider bypass,
+  and loader reconstruction; local singleflight and generation switching prevent a
+  concurrent old load from becoming reachable after invalidation. The opt-in
+  QueryCache adapter preserves not-found and RowsAffected and bypasses shared state for
+  active GORM transactions. It is not a transparent GORM plugin: callers own payload
+  codecs and stable non-sensitive QueryIdentity values, and cross-process recovery still
+  depends on EventBus/database-revision reconciliation. Eight exact new tests passed
+  uncached `count=1` race evidence with `GOWORK=off`; Beta status and the feature-freeze
+  rerun remain unchanged.
+- Added additive typed `runtime/eventbus` at `04e8e0c`. Memory synchronously fans a
+  revision notification to every subscriber present when publication is accepted;
+  Redis uses a shared `redisresource.Scope` to publish and poll only the latest
+  revision for currently connected replicas. Duplicate and out-of-order revisions
+  cannot move subscribers backward, panics are isolated and redacted, accepted work
+  participates in caller-bounded Close, and a domain-neutral Reconciler reloads an
+  authoritative revision after missed delivery, disconnect, or commit-before-publish
+  failure. Build performs no provider I/O or goroutine start, and neither provider
+  exposes WorkQueue acknowledgement, retry, or dead-letter semantics. All seven new
+  top-level tests passed exact uncached `count=1` race evidence with `GOWORK=off`.
+  This checkpoint promotes only the EventBus capability to Beta; real Redis
+  multi-replica/failover evidence, the frozen-SHA rerun, and published-tag external
+  resolution remain pending, so Runtime v2 stays Planned.
+- Replaced legacy object-storage provider globals with an exact Local-or-S3
+  startup configuration, immutable `StorageProfile`, explicit default/static
+  credential modes, typed environment `SecretRef` resolution, and one reusable
+  `StorageHandle` per profile. The v1.0 provider constants, `Storage` fields,
+  `Init`, `GetClient`, URL template, and middleware helpers remain as deprecated
+  source-compatible bridges; that bridge is fail-closed and no longer performs
+  implicit default-chain fallback or process termination. Local and S3-compatible
+  remain Legacy/Blocked.
+- Added leased Local/S3 use and bounded, retryable, idempotent close semantics so
+  one owner rejects new work during shutdown, drains in-flight operations, and
+  closes its private HTTP transport exactly once.
+- Preserved `AdapterQueue` for source compatibility and added the additive
+  `ManagedAdapterQueue` contract with error-returning context-aware registration,
+  blocking start, observed errors, and context-bounded close. `Queue.InitContext`
+  is the authoritative construction path; the historical wrapper remains
+  non-terminating for compatibility.
+- Replaced truncated integer migration registration with lossless decimal
+  `MigrationID` values, deterministic numeric ordering, duplicate preflight before
+  database access, context-aware error propagation, and explicit aliases for all
+  published v1.0.0 marker forms. The historical no-return `Migrate` method remains
+  as a logging-only source-compatibility bridge; correctness-sensitive callers use
+  `MigrateContext`.
+
+### Fixed
+
+- Moved the legacy Kafka consumer's Sarama session mark after successful decode
+  and handler completion, passed the session context to handlers, removed raw
+  payload logging, and stopped canceled or closed consumer loops. D1 also validates
+  the startup profile under the caller context, owns one producer and one consumer
+  group per unique topic/group, returns registration/factory errors, observes
+  consumer errors, rejects per-append configuration and unsupported manual commit,
+  and supplies cancellable start plus idempotent, deadline-bounded, retryable close.
+  Kafka remains Legacy/Blocked until retry/backoff, dead-letter, rebalance, outage,
+  idempotency, manual-commit policy, and real-broker conformance gates pass.
+- Made the S3 configuration source require a caller-owned context and client,
+  close object bodies on success and read failure, and return an explicit
+  unsupported error for Watch. Bootstrap now owns and closes a profile Handle
+  independently from the Admin application object-storage client. A missing stage
+  object is the only optional overlay; read/malformed-overlay failures fail closed,
+  and HTTP requires explicit `s3_tls_allow_insecure_http=true`.
+
+### Security
+
+- Added a provisional purpose-scoped Redis challenge implementation with
+  cryptographic codes, versioned HMAC verifiers, same-slot Lua transitions,
+  delivery compensation, pending-lease recovery, subject/caller/global quotas,
+  attempt limits, pepper rotation, and exactly-once successful verification.
+- Restricted the development-checkpoint provider claim to standalone Redis: generated
+  per-subject keys are preflighted for one hash tag, while concrete Cluster and
+  Ring clients fail closed until real multi-node conformance exists.
+- Permanently disabled the unsafe legacy verification-code behavior while
+  retaining its construction symbols for an explicit migration failure.
+
+### Documentation
+
+- Reconciled the changelog with the published nested-module Release and added
+  the internal storage-safety and Storage Runtime v2 planning contracts.
+- Recorded the D1 object-provider checkpoint and its deferred S3 Put, Delivery,
+  and RustFS conformance boundary. The provider catalog remains unchanged at
+  Legacy/Blocked.
+- Recorded the additive managed Kafka lifecycle, exact owner/configuration evidence,
+  and Admin Runnable boundary. D1 is complete and development proceeds to D2;
+  lifecycle completion does not promote Kafka beyond Legacy/Blocked.
+- Recorded the D3 resource-graph checkpoint with all eleven top-level tests
+  required for twenty uncached race-detected runs and synchronized its `c57ffc8`
+  provider error-tree repair.
+- Recorded the D3 named Redis checkpoint with all twenty-two top-level tests required
+  for twenty uncached race-detected runs. The aggregate Storage Runtime remains Planned
+  pending Sentinel control ACL, real Provider and Challenge Cluster/failover, Admin
+  composition, and frozen-SHA leak conformance.
+- Recorded the D3 Challenge Runtime checkpoint with five fully anchored single-package
+  `count=1`, race, `GOWORK=off` evidence commands covering only the new public Challenge,
+  opaque bridge, Redis adapter, rate-replay, equal valid-Verify I/O, and legacy contract tests.
+- Recorded the D5 Scoped Runtime Cache checkpoint with all eight exact new tests,
+  explicit caller-owned codec/QueryIdentity boundaries, transaction bypass, and the
+  still-open EventBus/revision reconciliation plus feature-freeze rerun.
+- Recorded the D5 Revision EventBus checkpoint with all seven exact new Framework
+  tests, the post-commit publish and authoritative reconciliation boundary, and the
+  separate Admin composition evidence at `160e2df`; no frozen-candidate or Stable
+  claim is implied.
+- Recorded that provider maturity evidence is now validated by the repository-level
+  `mss provider evidence` command at `668dfe3`. This release-tooling checkpoint starts
+  no provider, creates no provider result, and does not change any framework provider
+  maturity; ObjectStore/RustFS remains optional post-v1.1 work.
+
+## [mss-boot/v1.0.0] - 2026-08-09
+
+Status: **published / stable**. The `mss-boot/v1.0.0` nested-module Release was
+published before root `v1.0.0`, resolves externally with `GOWORK=off`, and points
+to `ee800262c035c5f4242aca1841d077554481d2c4`. The exact-commit evidence is
+recorded in repository issue `#471`.
 
 This tag is the reusable framework's first stable 1.0 release from the
 consolidated repository. Any package, checksum, proxy lookup, or test result
-created for the unpublished v0.8.0 candidate must be regenerated from the exact
-v1.0.0 release commit.
+created for the unpublished v0.8.0 candidate was excluded; the accepted evidence
+was regenerated from the exact v1.0.0 release commit.
 
 The compatibility and rollout requirements are part of the consolidated
 [v1.0.0 release contract](../docs/docs/releases/v1-0-0.md).

@@ -46,7 +46,7 @@ const loginPath = PUBLIC_ROUTE_PATHS.login;
 const AUTH_BOOTSTRAP_MAX_ATTEMPTS = 3;
 
 type AdminInitialState = ThemeRuntimeState & {
-  appConfig?: Record<string, Record<string, any>>;
+  appConfig?: API.AppConfigProfile;
   userConfig?: Record<string, Record<string, any>>;
   themeRuntime?: ThemeRuntimeCoordinatorState;
   currentUser?: API.User;

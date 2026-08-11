@@ -100,6 +100,7 @@
       "required": ["name", "operation"],
       "properties": {
         "name": {"$ref": "#/$defs/identifier"},
+        "kind": {"type": "string", "enum": ["admin-module", "infrastructure"]},
         "operation": {"type": "string", "enum": ["create", "extend", "deprecate", "remove"]},
         "specPath": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
         "description": {"type": "string", "maxLength": 500}
@@ -144,6 +145,7 @@
         "requirement": {"$ref": "#/$defs/identifier"},
         "statement": {"type": "string", "minLength": 10, "maxLength": 1000},
         "level": {"type": "string", "enum": ["unit", "contract", "integration", "e2e", "security", "migration", "manual"]},
+        "phase": {"type": "string", "enum": ["checkpoint", "feature-freeze", "pre-framework", "pre-root", "post-publication"], "default": "checkpoint"},
         "required": {"type": "boolean"},
         "evidence": {
           "type": "array",

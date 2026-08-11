@@ -26,7 +26,7 @@ A successful change must be understandable by humans, executable by coding agent
 | `.agents/skills/` | Reusable agent workflows; skills call the `mss` CLI instead of duplicating implementation logic |
 | `cmd/mss/` | Agent-facing deterministic CLI entrypoint |
 | `internal/mss/` | CLI implementation packages: project, doctor, generator, inspector, verifier, upgrader, eval |
-| `modules/` | New vertical business modules and generated module registry |
+| `admin/modules/` | New vertical business modules and generated module registry |
 | `templates/` | Deterministic application and module templates |
 | `tools/` | Codemods and contract tooling |
 | `compose/` | Local integration dependencies |
@@ -57,6 +57,16 @@ Historical prompt files are evidence, not active requirements, unless a current 
 9. Report commands, results, skipped checks, migrations, security impact, compatibility impact, and remaining risk.
 
 Do not rewrite pushed history to hide intermediate fixes. Follow-up repair commits are preferred over force-push, rebase, or destructive reset.
+
+## Pull request and release governance
+
+- Every repository change intended for a release, including source code, tests, migrations, generated output, machine-readable contracts, documentation, dependencies, and workflows, must be submitted through a pull request targeting `main` and merged into `main` before release qualification or publication.
+- Direct pushes to `main` and releases from topic branches, pull-request head commits, detached commits, local-only worktrees, or any commit not contained in the current remote `main` history are prohibited.
+- Pre-merge CI, local validation, browser evidence, and release rehearsals may support review, but they are preliminary evidence only and must never authorize a public tag, artifact, package, image, or GitHub Release.
+- A release candidate must be frozen from the exact commit that is already merged into `main`. After fetching the remote, release tooling must fail closed unless the frozen commit is contained in `origin/main`, the checkout matches that commit, and the tracked worktree is clean.
+- If any defect or release-gate failure requires a change after freeze, make a follow-up pull request, merge it into `main`, select the new merged `main` commit, and rerun every affected qualification phase. Do not bypass a failed gate with a manual release exception or publish artifacts built from an unmerged repair.
+- Release tags are created only after the merged-`main` checks pass. Never move or reuse an immutable tag to incorporate a later fix.
+- Repository rulesets and release workflows must enforce this PR-to-`main` boundary. If their enforcement is absent or fails, stop publication and repair the governance path through another pull request before continuing.
 
 ## Canonical commands
 
@@ -92,7 +102,7 @@ If `cmd/mss` is not yet available on an older branch, fall back to the Make targ
 
 ### New business modules
 
-- New business capabilities should use vertical modules under `modules/<name>/` once the module infrastructure is available.
+- New business capabilities should use vertical modules under `admin/modules/<name>/` once the module infrastructure is available.
 - Existing horizontal directories such as `apis/`, `dto/`, `models/`, and `service/` remain supported for compatibility.
 - Do not perform a broad mechanical migration of legacy modules unless a dedicated migration spec exists.
 - A complete module change includes backend behavior, migration, permission, menu/route, frontend, tests, and documentation as applicable.

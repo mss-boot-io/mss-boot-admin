@@ -272,8 +272,9 @@ jobs:
           "${BINARY}" migrate --help >/dev/null
 
   build:
-    # Keep this job name stable for the existing required check: CI / build.
-    name: build
+    # Use a repository-unique required context; several unrelated workflows
+    # also expose a generic "build" job and must not satisfy Admin CI.
+    name: admin-ci
     if: ${{ always() }}
     needs:
       - test

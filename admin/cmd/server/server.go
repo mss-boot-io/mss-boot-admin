@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server/task"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
@@ -26,6 +28,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/requestlog"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/schemahealth"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/sessioncache"
 	"github.com/mss-boot-io/mss-boot-admin/admin/router"
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
@@ -45,8 +48,8 @@ var (
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			return setup(cmd.Context())
 		},
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return run()
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return run(cmd.Context())
 		},
 	}
 )
@@ -155,6 +158,10 @@ func setup(ctx context.Context) (err error) {
 	}); err != nil {
 		return fmt.Errorf("configure monitor sampler: %w", err)
 	}
+	databaseHandle := config.Cfg.DatabaseHandle()
+	if databaseHandle == nil || databaseHandle.DB == nil {
+		return fmt.Errorf("application database handle is not initialized")
+	}
 
 	center.SetAppConfig(&models.AppConfig{})
 	center.SetUserConfig(&models.UserConfig{})
@@ -166,18 +173,38 @@ func setup(ctx context.Context) (err error) {
 	middleware.Init()
 
 	routerEngine := gin.New()
+	if err := routerEngine.SetTrustedProxies(config.Cfg.Application.TrustedProxies); err != nil {
+		return fmt.Errorf("configure trusted reverse proxies: %w", err)
+	}
 	routerEngine.Use(requestlog.Logger(), requestlog.Recovery())
 	routerEngine.Use(middleware.AuditLogMiddleware("/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
 	center.SetMakeRouter(router.DefaultMakeRouter)
 	center.SetRouter(routerEngine)
-	center.Default.MakeRouter(routerEngine.Group(group))
-	config.Cfg.Application.Init(center.GetRouter())
+	businessRoutes := routerEngine.Group(group)
+	if err := mountBusinessRoutesAfterSchemaReadiness(
+		ctx,
+		databaseHandle.DB,
+		center.GetMakeRouter(),
+		businessRoutes,
+	); err != nil {
+		return err
+	}
+	if err := mountSupplierRoutesAfterMigrationReadiness(
+		ctx,
+		databaseHandle.DB,
+		businessRoutes,
+	); err != nil {
+		return err
+	}
+	if err := initializeApplicationDelivery(ctx, config.Cfg, center.GetRouter()); err != nil {
+		return err
+	}
 
 	if apiCheck {
 		if err := models.SaveAPI(routerEngine.Routes()); err != nil {
-			slog.Error("save api error", "err", err)
+			return fmt.Errorf("save API routes: %w", err)
 		}
-		os.Exit(0)
+		return nil
 	}
 
 	runnable := []frameworkserver.Runnable{
@@ -186,11 +213,18 @@ func setup(ctx context.Context) (err error) {
 			listener.WithName("admin"),
 			listener.WithHandler(routerEngine)),
 	}
-
-	databaseHandle := config.Cfg.DatabaseHandle()
-	if databaseHandle == nil || databaseHandle.DB == nil {
-		return fmt.Errorf("application database handle is not initialized")
+	authorizationRuntime, err := buildAuthorizationEventRuntime(config.Cfg.WithDatabase)
+	if err != nil {
+		return err
 	}
+	if err := authorizationRuntime.Open(ctx); err != nil {
+		return fmt.Errorf("open authorization revision event runtime: %w", err)
+	}
+	runnable = append(runnable, authorizationRuntime)
+	if queueRunnable := managedQueueRunnable(config.Cfg.ManagedQueue()); queueRunnable != nil {
+		runnable = append(runnable, queueRunnable)
+	}
+
 	userTasksEnabled := config.Cfg.Task.Enable
 	userTaskSpec := config.Cfg.Task.Spec
 	taskOptions := []task.Option{task.WithUserSchedulesEnabled(userTasksEnabled)}
@@ -217,6 +251,26 @@ func setup(ctx context.Context) (err error) {
 	return nil
 }
 
+func mountBusinessRoutesAfterSchemaReadiness(
+	ctx context.Context,
+	db *gorm.DB,
+	maker center.MakeRouterImp,
+	group *gin.RouterGroup,
+) error {
+	if maker == nil || group == nil {
+		return errors.New("business route composition is not initialized")
+	}
+	if err := schemahealth.VerifyCanonicalEmailIdentity(
+		ctx,
+		db,
+		schemahealth.CanonicalEmailRuntimeReadiness,
+	); err != nil {
+		return fmt.Errorf("application schema readiness failed: %w", err)
+	}
+	maker.MakeRouter(group)
+	return nil
+}
+
 type systemTaskSchedule struct {
 	key  string
 	spec string
@@ -224,6 +278,33 @@ type systemTaskSchedule struct {
 }
 
 type databaseAccess func(func(*gorm.DB) error) error
+
+func buildAuthorizationEventRuntime(
+	useDatabase databaseAccess,
+) (*service.AuthorizationEventRuntime, error) {
+	if useDatabase == nil {
+		return nil, errors.New("authorization database lease is required")
+	}
+	runtime, err := service.BuildMemoryAuthorizationEventRuntime(
+		service.AuthorizationPolicies,
+		func(ctx context.Context, operation func(*gorm.DB) error) error {
+			if ctx == nil {
+				return errors.New("authorization database context is required")
+			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			return useDatabase(func(db *gorm.DB) error {
+				return operation(db.WithContext(ctx))
+			})
+		},
+		0,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("build authorization revision event runtime: %w", err)
+	}
+	return runtime, nil
+}
 
 func systemTaskSchedules(
 	userTasksEnabled bool,
@@ -243,12 +324,117 @@ func systemTaskSchedules(
 	})
 }
 
-func run() error {
-	ctx := context.Background()
-	if center.GetQueue() != nil {
-		go center.GetQueue().Run(ctx)
+func run(ctx context.Context) (err error) {
+	if ctx == nil {
+		ctx = context.Background()
 	}
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if closeErr := config.Cfg.CloseContext(closeCtx); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close application resources: %w", closeErr))
+		}
+	}()
+	if apiCheck {
+		return nil
+	}
+	startLegacyQueue(ctx, center.GetQueue())
 	return center.Default.Start(ctx)
+}
+
+func managedQueueRunnable(adapter storage.AdapterQueue) frameworkserver.Runnable {
+	managed, _ := adapter.(storage.ManagedAdapterQueue)
+	if managed == nil {
+		return nil
+	}
+	return &managedQueueRuntime{queue: managed}
+}
+
+type managedQueueRuntime struct {
+	queue storage.ManagedAdapterQueue
+}
+
+func (r *managedQueueRuntime) String() string {
+	return r.queue.String()
+}
+
+func (r *managedQueueRuntime) Start(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("managed queue runtime context is required")
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	result := make(chan error, 1)
+	go func() { result <- r.queue.Start(runCtx) }()
+	errorsCh := r.queue.Errors()
+	for {
+		select {
+		case err := <-result:
+			return errors.Join(err, drainManagedQueueErrors(errorsCh))
+		case runtimeErr, ok := <-errorsCh:
+			if !ok {
+				errorsCh = nil
+				continue
+			}
+			if runtimeErr == nil {
+				continue
+			}
+			cancel()
+			return errors.Join(
+				fmt.Errorf("managed queue runtime error: %w", runtimeErr),
+				stopManagedQueueAfterRuntimeError(ctx, r.queue, result),
+			)
+		}
+	}
+}
+
+func drainManagedQueueErrors(errorsCh <-chan error) error {
+	var observed error
+	for errorsCh != nil {
+		select {
+		case runtimeErr, ok := <-errorsCh:
+			if !ok {
+				return observed
+			}
+			if runtimeErr != nil {
+				observed = errors.Join(observed, runtimeErr)
+			}
+		default:
+			return observed
+		}
+	}
+	return observed
+}
+
+func stopManagedQueueAfterRuntimeError(
+	parent context.Context,
+	queue storage.ManagedAdapterQueue,
+	result <-chan error,
+) error {
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
+	closeErr := queue.Close(closeCtx)
+	var startErr error
+	select {
+	case startErr = <-result:
+		if errors.Is(startErr, context.Canceled) {
+			startErr = nil
+		}
+	case <-closeCtx.Done():
+		startErr = fmt.Errorf("wait for managed queue runtime: %w", closeCtx.Err())
+	}
+	cancel()
+	return errors.Join(closeErr, startErr)
+}
+
+// startLegacyQueue confines the detached compatibility bridge to providers
+// that have not adopted ManagedAdapterQueue. Kafka implements the managed
+// contract and therefore can only be started by the server manager.
+func startLegacyQueue(ctx context.Context, adapter storage.AdapterQueue) {
+	if adapter == nil || managedQueueRunnable(adapter) != nil {
+		return
+	}
+	go adapter.Run(ctx)
 }
 
 func tips() {

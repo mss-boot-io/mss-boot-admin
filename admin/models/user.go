@@ -2,6 +2,9 @@ package models
 
 import (
 	"context"
+	"crypto/rand"
+	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,11 +20,13 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 	"github.com/spf13/cast"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
+	"gorm.io/plugin/dbresolver"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
@@ -72,6 +77,11 @@ func (e *User) BeforeCreate(tx *gorm.DB) error {
 }
 
 func (e *User) BeforeSave(*gorm.DB) error {
+	canonicalEmail, err := CanonicalizeOptionalEmail(e.Email)
+	if err != nil {
+		return err
+	}
+	e.Email = canonicalEmail
 	//todo 判断密码强度
 	return nil
 }
@@ -148,12 +158,30 @@ func GetUserByUsername(ctx *gin.Context, username string) (*User, error) {
 
 // GetUserByEmail get user by email
 func GetUserByEmail(ctx *gin.Context, email string) (*User, error) {
-	var user User
-	err := center.GetDB(ctx, &user).Preload("Role").First(&user, "email = ?", email).Error
+	canonicalEmail, err := CanonicalEmailIdentity(email)
 	if err != nil {
 		return nil, err
 	}
-	return &user, nil
+	var users []User
+	database := center.GetDB(ctx, &User{})
+	if database.Logger != nil {
+		database = database.Session(&gorm.Session{Logger: database.Logger.LogMode(logger.Silent)})
+	}
+	err = database.
+		Preload("Role").
+		Where("email = ?", canonicalEmail).
+		Limit(2).
+		Find(&users).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(users) == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if len(users) != 1 {
+		return nil, ErrEmailIdentityAmbiguous
+	}
+	return &users[0], nil
 }
 
 // LoadCurrentUserPrincipal returns the minimal authorization identity from one
@@ -319,7 +347,48 @@ const (
 	larkUserInfoURL          = "https://open.larksuite.com/open-apis/authen/v1/user_info"
 	oauthUserInfoTimeout     = 10 * time.Second
 	oauthUserInfoMaxBodySize = 1 << 20
+	oauthUsernameEntropySize = 10
+	oauthUsernameAttempts    = 4
 )
+
+// newOpaqueOAuthUsername derives a 20-character lowercase hexadecimal username
+// from 80 bits of cryptographic entropy. Provider usernames and email
+// addresses are deliberately excluded: both can exceed the legacy varchar(20)
+// column and neither is a safe account-linking key.
+func newOpaqueOAuthUsername(random io.Reader) (string, error) {
+	if random == nil {
+		return "", errors.New("OAuth username entropy source is unavailable")
+	}
+	entropy := make([]byte, oauthUsernameEntropySize)
+	if _, err := io.ReadFull(random, entropy); err != nil {
+		return "", errors.New("generate opaque OAuth username")
+	}
+	return hex.EncodeToString(entropy), nil
+}
+
+func newAvailableOpaqueOAuthUsername(db *gorm.DB, random io.Reader) (string, error) {
+	if db == nil {
+		return "", errors.New("OAuth username database is unavailable")
+	}
+	quietWriter := db.Session(&gorm.Session{Logger: logger.Discard}).Clauses(dbresolver.Write)
+	for range oauthUsernameAttempts {
+		username, err := newOpaqueOAuthUsername(random)
+		if err != nil {
+			return "", err
+		}
+		var existing int64
+		if err := quietWriter.Model(&User{}).
+			Where("username = ?", username).
+			Limit(1).
+			Count(&existing).Error; err != nil {
+			return "", errors.New("check opaque OAuth username availability")
+		}
+		if existing == 0 {
+			return username, nil
+		}
+	}
+	return "", errors.New("generate unused opaque OAuth username")
+}
 
 func requirePublicRegistration(c *gin.Context) error {
 	value, ok := userAppConfig(c, "security:registerEnabled")
@@ -375,9 +444,9 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			if err != nil {
 				return false, nil, err
 			}
-			username := userOAuth2.Email
-			if username == "" {
-				username = userOAuth2.PreferredUsername
+			username, err := newAvailableOpaqueOAuthUsername(center.GetDB(c, &User{}), rand.Reader)
+			if err != nil {
+				return false, nil, err
 			}
 			userOAuth2.User = &User{
 				UserLogin: UserLogin{
@@ -396,7 +465,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			if e.GetUserID() != "" {
 				userOAuth2.User = nil
 			}
-			err = center.GetDB(c, &UserOAuth2{}).Create(userOAuth2).Error
+			err = createOAuthIdentityWithoutEmailMerge(center.GetDB(c, &UserOAuth2{}), userOAuth2)
 			if err != nil {
 				slog.Error("github identity registration failed")
 				return false, nil, err
@@ -419,10 +488,14 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			if err != nil {
 				return false, nil, err
 			}
+			username, err := newAvailableOpaqueOAuthUsername(center.GetDB(c, &User{}), rand.Reader)
+			if err != nil {
+				return false, nil, err
+			}
 			userOAuth2.User = &User{
 				UserLogin: UserLogin{
 					RoleID:                defaultRole.ID,
-					Username:              userOAuth2.PreferredUsername,
+					Username:              username,
 					Email:                 userOAuth2.Email,
 					Password:              security.GenerateRandomKey20(),
 					LocalPasswordDisabled: true,
@@ -435,7 +508,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			if e.GetUserID() != "" {
 				userOAuth2.User = nil
 			}
-			err = center.GetDB(c, &UserOAuth2{}).Create(userOAuth2).Error
+			err = createOAuthIdentityWithoutEmailMerge(center.GetDB(c, &UserOAuth2{}), userOAuth2)
 			if err != nil {
 				slog.Error("lark identity registration failed")
 				return false, nil, err
@@ -444,26 +517,53 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		}
 		return true, userOAuth2.User, nil
 	case pkg.EmailLoginProvider:
+		canonicalEmail, canonicalErr := CanonicalEmailIdentity(e.Email)
+		if canonicalErr != nil {
+			return false, nil, nil
+		}
+		e.Email = canonicalEmail
+		if !center.EmailChallengeCapabilityEnabled(c) {
+			return false, nil, nil
+		}
 		// verify captcha
 		if e.Captcha == "" {
 			return false, nil, nil
 		}
-		ok, err := center.Default.VerifyCode(c, e.Email, e.Captcha)
+		challenge := center.GetRuntimeChallenge()
+		if challenge == nil {
+			return false, nil, runtimechallenge.ErrUnavailable
+		}
+		outcome, err := challenge.Verify(c.Request.Context(), runtimechallenge.VerifyRequest{
+			Subject: e.Email,
+			Purpose: runtimechallenge.Purpose(pkg.EmailLoginChallengePurpose),
+			Code:    e.Captcha,
+		})
 		if err != nil {
 			return false, nil, err
 		}
-		if !ok {
+		if outcome != runtimechallenge.VerifyVerified {
 			return false, nil, nil
 		}
 		// get user from db
 		user, err := GetUserByEmail(c, e.Email)
 		if err != nil {
-			return false, nil, err
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return false, nil, nil
+			}
+			return false, nil, errors.Join(runtimechallenge.ErrUnavailable, err)
 		}
 		return true, user, nil
 	case pkg.EmailRegisterProvider:
+		canonicalEmail, canonicalErr := CanonicalEmailIdentity(e.Email)
+		if canonicalErr != nil {
+			return false, nil, nil
+		}
+		e.Email = canonicalEmail
 		if err := requirePublicRegistration(c); err != nil {
 			return false, nil, err
+		}
+		if !center.EmailChallengeCapabilityEnabled(c) {
+			return false, nil, nil
 		}
 		defaultRole, err := provisioningRole(c)
 		if err != nil {
@@ -473,16 +573,29 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		if e.Captcha == "" {
 			return false, nil, nil
 		}
-		ok, err := center.Default.VerifyCode(c, e.Email, e.Captcha)
+		challenge := center.GetRuntimeChallenge()
+		if challenge == nil {
+			return false, nil, runtimechallenge.ErrUnavailable
+		}
+		outcome, err := challenge.Verify(c.Request.Context(), runtimechallenge.VerifyRequest{
+			Subject: e.Email,
+			Purpose: runtimechallenge.Purpose(pkg.EmailRegisterChallengePurpose),
+			Code:    e.Captcha,
+		})
 		if err != nil {
 			return false, nil, err
 		}
-		if !ok {
+		if outcome != runtimechallenge.VerifyVerified {
 			return false, nil, nil
 		}
 		// fixme: 头像生成需要自己实现
 		user := &User{}
-		user.Username = e.Email
+		// Email identifiers may be up to 100 bytes while the legacy username
+		// column is varchar(20). Use an opaque bounded local username so a valid
+		// challenge is not consumed before a cross-database truncation failure.
+		user.Username = strings.ToLower(
+			security.GenerateRandomKey6() + security.GenerateRandomKey6() + security.GenerateRandomKey6(),
+		)
 		user.Name = strings.Split(e.Email, "@")[0]
 		user.Email = e.Email
 		user.Password = e.Password
@@ -490,10 +603,20 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 		user.RoleID = defaultRole.ID
 		user.Status = enum.Enabled                // register user
 		user.Provider = pkg.EmailRegisterProvider // support email login
-		err = center.GetDB(c, &User{}).Create(user).Error
+		registrationDB := center.GetDB(c, &User{})
+		if registrationDB.Logger != nil {
+			registrationDB = registrationDB.Session(&gorm.Session{Logger: registrationDB.Logger.LogMode(logger.Silent)})
+		}
+		err = registrationDB.Transaction(func(tx *gorm.DB) error {
+			return createUserWithCanonicalEmail(tx, user)
+		}, &sql.TxOptions{Isolation: sql.LevelSerializable})
+		err = NormalizeEmailIdentityCreateError(registrationDB, user.Email, err)
 		if err != nil {
-			slog.Error("create user error", slog.Any("error", err))
-			return false, nil, err
+			if errors.Is(err, ErrEmailIdentityExists) {
+				return false, nil, nil
+			}
+			slog.Error("email registration transaction unavailable")
+			return false, nil, errors.Join(runtimechallenge.ErrUnavailable, err)
 		}
 		user.Role = defaultRole
 		return true, user, nil
@@ -597,6 +720,12 @@ func (e *UserLogin) getUserLarkOAuth2(
 			Provider:          pkg.LarkLoginProvider,
 			PreferredUsername: preferredUsername,
 		}
+		if userOAuth2.Email != "" {
+			userOAuth2.Email, err = CanonicalEmailIdentity(userOAuth2.Email)
+			if err != nil {
+				return nil, err
+			}
+		}
 		userOAuth2.PhoneNumber = stringValue(data.Mobile)
 		userOAuth2.EmployeeNO = stringValue(data.EmployeeNo)
 	}
@@ -695,6 +824,12 @@ func (e *UserLogin) GetUserGithubOAuth2(c *gin.Context) (*UserOAuth2, error) {
 			Locale:            githubUser.Location,
 			Provider:          pkg.GithubLoginProvider,
 			PreferredUsername: githubUser.Login,
+		}
+		if userOAuth2.Email != "" {
+			userOAuth2.Email, err = CanonicalEmailIdentity(userOAuth2.Email)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	return userOAuth2, nil
@@ -818,11 +953,7 @@ func (e *UserLogin) Scope(ctx *gin.Context, table schema.Tabler) func(db *gorm.D
 }
 
 func UserRegister(ctx *gin.Context, user *User) error {
-	err := center.GetDB(ctx, user).Create(user).Error
-	if err != nil {
-		return err
-	}
-	return nil
+	return createUserWithCanonicalEmail(center.GetDB(ctx, user), user)
 }
 
 // ********************* statistics *********************

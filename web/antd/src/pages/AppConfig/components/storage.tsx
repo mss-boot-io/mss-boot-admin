@@ -3,160 +3,63 @@ import { ProColumns, ProFormInstance, ProTable } from '@ant-design/pro-component
 import { useIntl } from '@umijs/max';
 import { message } from 'antd';
 import React, { useRef } from 'react';
-import {
-  omitAppConfigSecrets,
-  prepareAppConfigSecretPayload,
-  useAppConfigAccess,
-} from '../useAppConfigAccess';
+import { useAppConfigAccess } from '../useAppConfigAccess';
+
+type StorageAdmissionConfig = {
+  allowedTypes?: string;
+  maxSize?: number | string;
+};
 
 const Storage: React.FC = () => {
   const intl = useIntl();
-  const { canReadSecrets, canWrite, canWriteSecrets } = useAppConfigAccess();
+  const { canWrite } = useAppConfigAccess();
+  const formRef = useRef<ProFormInstance>();
 
-  const fromRef = useRef<ProFormInstance>();
-  const [s3, setS3] = React.useState(false);
-
-  const columns: ProColumns<any>[] = [
-    {
-      title: 'type',
-      dataIndex: 'type',
-      valueEnum: {
-        local: {
-          text: 'local',
-          color: 'red',
-          status: 'local',
-        },
-        s3: {
-          text: 's3',
-          color: 'blue',
-          status: 's3',
-        },
-      },
-    },
-    {
-      title: 'endpoint',
-      dataIndex: 'endpoint',
-      tooltip: '本地存储访问路径前缀',
-    },
+  const columns: ProColumns<StorageAdmissionConfig>[] = [
     {
       title: 'maxSize',
       dataIndex: 'maxSize',
-      tooltip: '最大文件大小(字节)，默认10MB',
+      tooltip: 'Maximum object size in bytes; default 10485760, hard ceiling 104857600',
       valueType: 'digit',
       fieldProps: {
-        placeholder: '10485760 (10MB)',
+        min: 1,
+        max: 104857600,
+        precision: 0,
+        placeholder: '10485760 (10 MiB)',
       },
     },
     {
       title: 'allowedTypes',
       dataIndex: 'allowedTypes',
-      tooltip: '允许的文件类型，逗号分隔',
+      tooltip: 'Comma-separated MIME media types or type/* wildcards',
       valueType: 'textarea',
       fieldProps: {
-        placeholder: 'image/jpeg,image/png,image/gif,application/pdf',
+        placeholder: 'image/jpeg,image/png,image/*,application/pdf',
         rows: 3,
       },
     },
-    {
-      title: 's3Provider',
-      dataIndex: 's3Provider',
-      hideInForm: !s3,
-      valueEnum: {
-        s3: {
-          text: 's3(aws)',
-          status: 's3',
-        },
-        oss: {
-          text: 'oss(aliyun)',
-          status: 'oss',
-        },
-        minio: {
-          text: 'minio',
-          status: 'minio',
-        },
-        gcs: {
-          text: 'gcs(google)',
-          status: 'gcs',
-        },
-        oos: {
-          text: 'oos(ctyun)',
-          status: 'oos',
-        },
-        kodo: {
-          text: 'kodo(qiniu)',
-          status: 'kodo',
-        },
-        cos: {
-          text: 'cos(tencent)',
-          status: 'cos',
-        },
-        obs: {
-          text: 'obs(huawei)',
-          status: 'obs',
-        },
-        bos: {
-          text: 'bos(baidu)',
-          status: 'bos',
-        },
-        ks3: {
-          text: 'ks3(kingsoft)',
-          status: 'ks3',
-        },
-      },
-    },
-    {
-      title: 's3Endpoint',
-      dataIndex: 's3Endpoint',
-      hideInForm: !s3,
-    },
-    {
-      title: 's3Region',
-      dataIndex: 's3Region',
-      hideInForm: !s3,
-    },
-    {
-      title: 's3Bucket',
-      dataIndex: 's3Bucket',
-      hideInForm: !s3,
-    },
-    {
-      title: 's3AccessKeyID',
-      dataIndex: 's3AccessKeyID',
-      hideInForm: !s3,
-    },
-    {
-      title: 's3SecretAccessKey',
-      dataIndex: 's3SecretAccessKey',
-      hideInForm: !s3,
-      valueType: 'password',
-      fieldProps: {
-        disabled: !canWriteSecrets,
-      },
-    },
-    {
-      title: 's3SigningMethod',
-      dataIndex: 's3SigningMethod',
-      hideInForm: !s3,
-    },
   ];
 
-  const onSubmit = async (params: Record<string, any>) => {
+  const onSubmit = async (params: StorageAdmissionConfig) => {
     if (!canWrite) return;
-    const values = { ...params, type: s3 ? 's3' : 'local' };
-    const data = prepareAppConfigSecretPayload('storage', values, {
-      canReadSecrets,
-      canWriteSecrets,
-    });
-    await putAppConfigsGroup({ group: 'storage' }, { data });
+    await putAppConfigsGroup(
+      { group: 'storage' },
+      {
+        data: {
+          allowedTypes: params.allowedTypes,
+          maxSize: params.maxSize,
+        },
+      },
+    );
     message.success(
       intl.formatMessage({ id: 'pages.message.edit.success', defaultMessage: 'Update Success!' }),
     );
   };
 
   return (
-    <ProTable<any>
+    <ProTable<StorageAdmissionConfig>
       type="form"
-      formRef={fromRef}
+      formRef={formRef}
       columns={columns}
       onSubmit={canWrite ? onSubmit : undefined}
       form={{
@@ -164,23 +67,10 @@ const Storage: React.FC = () => {
         submitter: canWrite ? undefined : false,
         request: async () => {
           const res = await getAppConfigsGroup({ group: 'storage' });
-          // setLocal(res.type?.value === 'local');
-          setS3(res.type === 's3');
-          if (!res.type) {
-            // setLocal(true);
-            res.type = 'local';
-          }
-          // setMinio(res.s3Provider?.value === 'minio');
-          return canReadSecrets ? res : omitAppConfigSecrets('storage', res);
-        },
-        onValuesChange: (values) => {
-          if (values.type) {
-            // setLocal(values.type.value === 'local');
-            setS3(values.type === 's3');
-          }
-          if (values.s3Provider) {
-            // setMinio(values.s3Provider.value === 'minio');
-          }
+          return {
+            allowedTypes: res.allowedTypes,
+            maxSize: res.maxSize,
+          };
         },
       }}
     />

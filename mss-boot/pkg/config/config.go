@@ -9,14 +9,21 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
+	"reflect"
+	"strconv"
 	"strings"
 	"text/template"
 	"text/template/parse"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"gopkg.in/yaml.v3"
 
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
@@ -32,7 +39,20 @@ import (
 )
 
 // Init 初始化配置
-func Init(cfg source.Entity, options ...source.Option) (err error) {
+func Init(cfg source.Entity, options ...source.Option) error {
+	return InitContext(context.Background(), cfg, options...)
+}
+
+// InitContext initializes configuration with caller-owned cancellation. An S3
+// configuration source gets a bootstrap-only handle that is never shared with
+// application object storage.
+func InitContext(ctx context.Context, cfg source.Entity, options ...source.Option) (err error) {
+	if ctx == nil {
+		return errors.New("config initialization context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	opts := source.DefaultOptions()
 	for _, opt := range options {
 		opt(opts)
@@ -43,19 +63,37 @@ func Init(cfg source.Entity, options ...source.Option) (err error) {
 	case source.FS:
 		f, err = sourceFS.New(options...)
 	case source.S3:
-		s := &Storage{
-			Type:            ProviderType(os.Getenv("s3_provider")),
-			SigningMethod:   os.Getenv("s3_signing_method"),
-			Region:          os.Getenv("s3_region"),
-			Bucket:          os.Getenv("s3_bucket"),
-			Endpoint:        os.Getenv("s3_endpoint"),
-			AccessKeyID:     os.Getenv("s3_access_key_id"),
-			SecretAccessKey: os.Getenv("s3_secret_access_key"),
+		bootstrap, bootstrapErr := s3BootstrapStorageFromEnvironment()
+		if bootstrapErr != nil {
+			return bootstrapErr
 		}
-		s.Init()
-		options = append(options,
-			source.WithBucket(s.Bucket), source.WithClient(s.GetClient()))
-		f, err = sourceS3.New(options...)
+		profile, normalizeErr := bootstrap.Normalize(ctx, EnvSecretResolver{})
+		if normalizeErr != nil {
+			return fmt.Errorf("normalize S3 configuration source: %w", normalizeErr)
+		}
+		handle, buildErr := profile.Build(ctx)
+		if buildErr != nil {
+			return fmt.Errorf("build S3 configuration source: %w", buildErr)
+		}
+		defer func() {
+			closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			err = errors.Join(err, handle.Close(closeCtx))
+		}()
+		err = handle.Use(ctx, func(_ *StorageProfile, client *s3.Client) error {
+			s3Options := append(
+				append([]source.Option(nil), options...),
+				source.WithBucket(profile.bucket),
+				source.WithClient(client),
+				source.WithContext(ctx),
+			)
+			bootstrapSource, sourceErr := sourceS3.New(s3Options...)
+			if sourceErr != nil {
+				return sourceErr
+			}
+			return initFromSource(cfg, opts, bootstrapSource, stage)
+		})
+		return err
 	case source.MGDB:
 		f, err = mgdb.New(options...)
 	case source.GORM:
@@ -67,8 +105,10 @@ func Init(cfg source.Entity, options ...source.Option) (err error) {
 		f, err = sourceConsul.New(options...)
 	case source.APPConfig:
 		f, err = appconfig.New(options...)
-	default:
+	case source.Local, "":
 		f, err = sourceLocal.New(options...)
+	default:
+		return fmt.Errorf("config source provider %q is not supported", opts.Provider)
 	}
 	if err != nil {
 		return err
@@ -76,9 +116,11 @@ func Init(cfg source.Entity, options ...source.Option) (err error) {
 	if f == nil {
 		return fmt.Errorf("source not found")
 	}
+	return initFromSource(cfg, opts, f, stage)
+}
 
-	var rb []byte
-	rb, err = f.ReadFile(opts.Name)
+func initFromSource(cfg source.Entity, opts *source.Options, f source.Sourcer, stage string) (err error) {
+	rb, err := f.ReadFile(opts.Name)
 	if err != nil {
 		slog.Error(err.Error())
 		return err
@@ -89,6 +131,9 @@ func Init(cfg source.Entity, options ...source.Option) (err error) {
 		unm = yaml.Unmarshal
 	case source.SchemeJSOM:
 		unm = json.Unmarshal
+	}
+	if unm == nil {
+		return fmt.Errorf("configuration source extension %q is unsupported", f.GetExtend())
 	}
 	if opts.PrefixHook != nil {
 		err = unm(rb, opts.PrefixHook)
@@ -116,32 +161,47 @@ func Init(cfg source.Entity, options ...source.Option) (err error) {
 		}
 	}
 
-	rb, err = f.ReadFile(fmt.Sprintf("%s-%s", opts.Name, stage))
-	if err == nil {
+	overlay, overlayErr := f.ReadFile(fmt.Sprintf("%s-%s", opts.Name, stage))
+	switch {
+	case overlayErr == nil:
 		if opts.PrefixHook != nil {
-			err = unm(rb, opts.PrefixHook)
+			err = unm(overlay, opts.PrefixHook)
 			if err != nil {
 				slog.Error(err.Error())
 				return err
 			}
 			opts.PrefixHook.Init()
 		}
-		rb, err = parseTemplateWithEnv(rb)
+		overlay, err = parseTemplateWithEnv(overlay)
 		if err != nil {
 			return err
 		}
-		err = unm(rb, cfg)
-		if err != nil {
-			slog.Error(err.Error())
+		// Validate the overlay against a fresh value of the same concrete type
+		// before mutating cfg. Startup still aborts on any decode error, and the
+		// common type-mismatch path cannot leave a partially applied snapshot.
+		if err = validateConfigOverlay(overlay, cfg, unm); err != nil {
+			return err
 		}
-	}
-	// postfix hook
-	if opts.PostfixHook != nil {
-		err = unm(rb, opts.PostfixHook)
+		err = unm(overlay, cfg)
 		if err != nil {
 			slog.Error(err.Error())
 			return err
 		}
+		if opts.PostfixHook != nil {
+			err = unm(overlay, opts.PostfixHook)
+			if err != nil {
+				slog.Error(err.Error())
+				return err
+			}
+		}
+	case errors.Is(overlayErr, fs.ErrNotExist):
+		// A stage overlay is optional only when the source explicitly reports it
+		// missing. AccessDenied, network failures, and other provider errors are
+		// startup failures rather than permission to run the base snapshot.
+	case overlayErr != nil:
+		return fmt.Errorf("read stage configuration overlay: %w", overlayErr)
+	default:
+		return errors.New("read stage configuration overlay: unknown failure")
 	}
 
 	if !opts.Watch {
@@ -156,6 +216,71 @@ func Init(cfg source.Entity, options ...source.Option) (err error) {
 		}
 	}
 	return f.Watch(cfg, unm)
+}
+
+func validateConfigOverlay(data []byte, cfg source.Entity, unm func([]byte, any) error) error {
+	typeOfConfig := reflect.TypeOf(cfg)
+	if typeOfConfig == nil || typeOfConfig.Kind() != reflect.Pointer || reflect.ValueOf(cfg).IsNil() ||
+		typeOfConfig.Elem().Kind() != reflect.Struct {
+		return errors.New("configuration entity must be a non-nil pointer to a struct")
+	}
+	scratch := reflect.New(typeOfConfig.Elem()).Interface()
+	if err := unm(data, scratch); err != nil {
+		return fmt.Errorf("validate stage configuration overlay: %w", err)
+	}
+	return nil
+}
+
+func s3BootstrapStorageFromEnvironment() (Storage, error) {
+	usePathStyle := false
+	if raw := storageEnvironment("s3_use_path_style"); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			return Storage{}, storageConfigError("s3.usePathStyle", "must be a boolean")
+		}
+		usePathStyle = parsed
+	}
+	allowInsecureHTTP := false
+	if raw := storageEnvironment("s3_tls_allow_insecure_http"); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			return Storage{}, storageConfigError("s3.tls.allowInsecureHTTP", "must be a boolean")
+		}
+		allowInsecureHTTP = parsed
+	}
+	credentials := S3CredentialsConfig{}
+	switch strings.ToLower(strings.TrimSpace(storageEnvironment("s3_credential_source"))) {
+	case "default-chain":
+		credentials.DefaultChain = &DefaultChainCredentials{}
+	case "static":
+		credentials.Static = &StaticCredentialRefs{
+			AccessKeyRef:    SecretRef(storageEnvironment("s3_access_key_ref")),
+			SecretKeyRef:    SecretRef(storageEnvironment("s3_secret_key_ref")),
+			SessionTokenRef: SecretRef(storageEnvironment("s3_session_token_ref")),
+		}
+	default:
+		return Storage{}, storageConfigError("s3.credentials", "s3_credential_source must be default-chain or static")
+	}
+	return Storage{S3: &S3StorageConfig{
+		Endpoint:     storageEnvironment("s3_endpoint"),
+		Region:       storageEnvironment("s3_region"),
+		Bucket:       storageEnvironment("s3_bucket"),
+		UsePathStyle: usePathStyle,
+		TLS: S3TLSConfig{
+			CARef:                SecretRef(storageEnvironment("s3_tls_ca_ref")),
+			ClientCertificateRef: SecretRef(storageEnvironment("s3_tls_client_certificate_ref")),
+			ClientKeyRef:         SecretRef(storageEnvironment("s3_tls_client_key_ref")),
+			AllowInsecureHTTP:    allowInsecureHTTP,
+		},
+		Credentials: credentials,
+	}}, nil
+}
+
+func storageEnvironment(name string) string {
+	if value, ok := os.LookupEnv(name); ok {
+		return value
+	}
+	return os.Getenv(strings.ToUpper(name))
 }
 
 func parseTemplateWithEnv(rb []byte) ([]byte, error) {

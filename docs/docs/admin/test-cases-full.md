@@ -561,30 +561,33 @@ keywords: [admin test cases integration e2e]
 ### 9.1 文件上传
 
 #### TC-STORAGE-001：上传文件 - 成功
+**前置条件**：仅在开发/测试环境显式启用 Local，并确认同一部署实际挂载 `/public` Delivery；生产环境在 Provider fail-closed 与 Delivery 门禁完成前不得用此用例证明可用性
 **测试步骤**：
 1. 访问用户设置或任意支持上传的页面
-2. 选择一个图片文件（< 10MB）
+2. 选择一个符合 MIME policy 且不超过对象字节上限的文件
 3. 上传
 **预期结果**：
-- 上传成功
-- 返回文件 URL
-- URL 格式为 `/public/{userID}/{filename}`
+- 返回 201
+- Local 开发模式 URL 格式为 `/public/uploads/{uuid}`，不包含用户 ID 或原文件名
+- 返回 URL 实际可读且内容一致；否则本用例失败
 
 #### TC-STORAGE-002：上传文件 - 失败（文件过大）
 **测试步骤**：
 1. 选择超大文件（> 配置的最大值）
 2. 上传
 **预期结果**：
-- 上传失败
-- 提示"文件大小超过限制"
+- 返回 413
+- `errorCode` 固定为 `UPLOAD_REQUEST_TOO_LARGE`
+- 超限请求不进入 Provider，且没有 multipart 临时文件或对象残留
 
 #### TC-STORAGE-003：上传文件 - 失败（非法类型）
 **测试步骤**：
 1. 选择不允许的文件类型
 2. 上传
 **预期结果**：
-- 上传失败
-- 提示"不支持的文件类型"
+- 返回 422
+- `errorCode` 固定为 `INVALID_UPLOAD`
+- MIME policy 拒绝不进入 Provider
 
 ### 9.2 存储配置
 
@@ -592,8 +595,8 @@ keywords: [admin test cases integration e2e]
 **测试步骤**：
 1. 访问 `/app-config?key=storage`
 2. 设置：
-   - 最大文件大小：`10` MB
-   - 允许的文件类型：`.jpg,.png,.pdf`
+   - 最大对象字节数：`10485760`（10 MiB；合法范围 `1..104857600`）
+   - 允许的 MIME 类型：`image/jpeg,image/png,application/pdf`
 3. 保存
 **预期结果**：
 - 配置保存成功

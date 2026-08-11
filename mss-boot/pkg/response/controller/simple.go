@@ -112,6 +112,7 @@ func (e *Simple) getActionGorm(key string) response.Action {
 		gorm.WithAfterDelete(e.options.afterDelete),
 		gorm.WithBeforeSearch(e.options.beforeSearch),
 		gorm.WithAfterSearch(e.options.afterSearch),
+		gorm.WithWriteErrorMapper(e.options.writeErrorMapper),
 		gorm.WithKey(e.GetKey()),
 		gorm.WithSearch(e.options.search),
 	}

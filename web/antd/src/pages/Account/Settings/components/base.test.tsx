@@ -96,6 +96,7 @@ describe('account profile form', () => {
       }),
     );
     expect(request).not.toHaveProperty('username');
+    expect(request).not.toHaveProperty('email');
     expect(typeof request.province).toBe('string');
     expect(typeof request.city).toBe('string');
   });

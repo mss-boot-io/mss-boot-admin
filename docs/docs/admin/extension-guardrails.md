@@ -23,7 +23,7 @@ P4 覆盖四类扩展能力：
 | 能力 | 说明 | 状态 |
 |------|------|------|
 | 国际化 (i18n) | 多语言资源管理 | ✅ 已实现 |
-| 对象存储/上传 | 文件上传与存储 | ✅ 已实现 |
+| 对象存储/上传 | 文件上传与存储 | ⚠️ Legacy / Blocked |
 | WebSocket 事件 | 实时通信与推送 | ✅ 已实现 |
 | API-first 扩展 | 显式 Go 模型与标准控制器 | ✅ 已实现 |
 
@@ -127,62 +127,68 @@ POST /admin/api/languages
 
 ## 2. 对象存储/上传
 
-### 2.1 当前实现
+### 2.1 当前证据边界
 
-**支持的后端：**
-| 类型 | 说明 |
-|------|------|
-| Local | 本地文件系统 (`public/{userID}/`) |
-| S3 | AWS S3 |
-| OSS | 阿里云对象存储 |
-| COS | 腾讯云对象存储 |
-| OBS | 华为云对象存储 |
-| MinIO | 私有化部署 S3 兼容存储 |
-| GCS | Google Cloud Storage |
-| KODO | 七牛云存储 |
-| BOS | 百度对象存储 |
+| 路径 | 当前成熟度 | 已证明与未证明 |
+|------|------------|----------------|
+| Local | Legacy / Blocked | D0 已证明 admission、opaque key、`os.Root` confinement、`O_EXCL` no-clobber 与 partial cleanup；D1 已证明 strict profile、single owner、同一 pinned `os.Root` 的写入/StaticFS、零 fallback 与 dev-only exact static delivery；生产 Delivery、metadata/authorization 与 common conformance 未证明 |
+| S3-compatible | Legacy / Blocked | D1 已证明 immutable profile、完整 SecretRef credential mode、single client owner 与零 fallback；Admin 在 `Put` 前返回 503，create-only/checksum/Delivery/RustFS conformance 仍未实现 |
+
+严格配置只接受 Local 或 S3 分支。S3-compatible 产品只能通过显式 endpoint/path-style
+进入同一分支，这不等于 OSS、COS、OBS、MinIO、RustFS、GCS、KODO 或 BOS 已有生产支持矩阵。
 
 **实现文件：**
 ```
 mss-boot-admin/
-├── apis/storage.go      # 上传 API
-└── service/storage.go   # 存储逻辑
+└── admin/
+    ├── apis/storage.go               # 上传 API 与固定 503
+    ├── cmd/server/object_storage.go  # 启动安装与 dev Local Delivery
+    ├── config/object_storage.go      # 单一应用 owner
+    └── service/storage.go            # admission 与存储逻辑
 
 mss-boot/pkg/config/
 └── storage.go           # 存储配置
 ```
 
-**配置方式：**
-```yaml
-# 通过 app_config 表配置
-storage:
-  type: s3              # local 或 s3
-  endpoint: https://...
-  s3Region: us-east-1
-  s3Bucket: my-bucket
-  s3AccessKeyID: xxx
-  s3SecretAccessKey: xxx
-```
+上传 admission 的非密钥 AppConfig：
+
+| key | 合同 |
+| --- | --- |
+| `storage:maxSize` | bytes；默认 10 MiB（`10485760`）；硬上限 100 MiB（`104857600`） |
+| `storage:allowedTypes` | 逗号分隔 MIME types / `type/*` wildcards，例如 `image/png,image/*`；不是扩展名列表 |
+
+这是 Storage AppConfig 的完整 allowlist。provider、endpoint、region、bucket、TLS、
+credential source 和凭据材料既不会投影，也不能经此 API 写入；旧 key 的写入请求
+整批返回稳定 422。Provider 与 SecretRef 只允许来自进程启动时的不可变 profile，
+本检查点已完成其 fail-closed 解析和单一生命周期 owner 接线。
 
 ### 2.2 扩展边界
 
 | 边界 | 规则 |
 |------|------|
-| 存储路径 | 必须使用 `{userID}/` 前缀隔离 |
-| 访问方式 | 通过 `/storage/upload` API，禁止直接文件系统访问 |
-| 配置来源 | 从 `app_config` 表读取，支持运行时切换 |
+| 物理 key | 服务端生成 `uploads/<opaque-uuid>`；用户 ID 与原始文件名不得进入 key，原始文件名仅作响应元数据 |
+| 写入边界 | multipart 前限制 body，流式 max-plus-one；Local 在受限根中 create-only 写入并清理 partial |
+| 配置来源 | AppConfig 只读取 `maxSize` / `allowedTypes`；Provider / SecretRef 只来自一次性启动 profile；未知/非法 profile 拒绝安装对象资源、应用继续运行且上传固定 503，运行时切换不受支持 |
 | 认证要求 | 必须通过当前有效身份认证；通用上传还需 `storage:upload` 权限 |
+| URL / Delivery | Local 只有在 dev `staticPath` 精确映射配置 root 时才返回实际可读 URL；生产 Local 不安装；S3 不拼接 URL，并在 `Put` 前返回 503 |
+
+严格启动 profile 与 single owner 只关闭 D1 的对象子切片。真实 S3 Delivery、
+RustFS fixture 和 Local/S3-compatible 共用 conformance suite 仍留在
+`D4-authorization-object`；Kafka lifecycle 仍是 D1 的未完成部分。在这些门禁关闭前，
+provider 能力仍是 `Legacy / Blocked`。
+精确失败语义与测试命令见
+[D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)。
 
 ### 2.3 治理集成
 
 | 要求 | 当前状态 | 建议 |
 |------|----------|------|
 | JWT 认证 | ✅ 已实现 | - |
-| 用户隔离 | ✅ 按用户ID存储 | - |
-| 细粒度权限 | ✅ 已实现 | 通用上传使用独立 Casbin 权限；头像使用本人专用接口 |
+| 对象所有权/用户隔离 | ❌ 未实现 | opaque key 不是授权；在 Delivery/metadata 边界补 owner 与反向授权测试 |
+| 上传入口权限 | ⚠️ 部分实现 | 通用上传使用 `storage:upload`；头像为已认证本人接口，但不等于对象读取授权 |
 | 租户隔离 | ❌ 已移除 | 单租户架构 |
-| 审计日志 | ✅ 已实现 | 记录操作者、路径与结果，不缓冲 multipart 内容 |
-| 文件校验 | ✅ 已实现 | 服务端校验 MIME 与 10MB 大小上限 |
+| 审计日志 | ❌ 未形成对象审计合同 | 后续记录操作者、opaque ref 与结果，不记录 multipart 内容 |
+| 文件校验 | ⚠️ `D0-safety` 内部检查点 | MIME/wildcard allowlist；默认 10 MiB、硬上限 100 MiB，单位均为 bytes |
 
 ### 2.4 接入规范
 
@@ -198,29 +204,24 @@ file: <binary>
 **响应：**
 ```json
 {
-  "url": "https://endpoint/userID/filename"
+  "url": "/public/uploads/<opaque-uuid>",
+  "filename": "<original-name>",
+  "size": 1234,
+  "mimeType": "image/png"
 }
 ```
 
-**安全要求（当前实现）：**
-
-```go
-// 文件类型白名单
-var allowedTypes = []string{
-    "image/jpeg", "image/png", "image/gif",
-    "application/pdf",
-    "text/plain",
-}
-
-// 文件大小限制
-const maxSize = 10 * 1024 * 1024 // 10MB
-```
+该响应仅说明显式 dev Local 路径的返回形状；只有启动配置把同一绝对 root 映射为
+`/public` 时才会返回并实际提供该 URL。生产模式返回 503，URL 也不能替代鉴权
+Delivery。原始 `filename` 不是存储 key。
 
 ### 2.5 当前限制
 
-1. **无按用户配额和速率限制**：权限不能替代容量与滥用控制
-2. **单租户架构**：当前为单租户模式
-3. **无大文件支持**：缺少分片上传能力，单文件上限为 10MB
+1. **Local/S3-compatible 仍为 Legacy / Blocked**：不得作为生产可用 provider 宣传
+2. **D1 对象子切片已收敛**：strict profile、single owner、AppConfig 移除与 fail-closed 503 已完成；Kafka lifecycle 仍未完成
+3. **Delivery 与对象所有权未实现**：`prod` 模式不安装 Local，opaque key 本身也不是授权
+4. **S3 I/O 尚未开放**：Put、conditional create-only 与 RustFS 共用 provider conformance 留在 `D4-authorization-object`
+5. **无配额、速率限制和大文件协议**：当前无分片上传，且配置硬上限为 100 MiB
 
 ---
 
@@ -440,7 +441,7 @@ func afterCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
 | 能力 | 实现完整度 | 治理集成度 | 扩展灵活性 | 安全性 |
 |------|-----------|-----------|-----------|--------|
 | 国际化 | 高 | 中 | 中 | 中 |
-| 对象存储 | 中 | 低 | 高 | 低 |
+| 对象存储 | Legacy / Blocked | 低 | 低 | 低 |
 | WebSocket | 高 | 中 | 低 | 中 |
 | API-first | 高 | 高 | 高 | 高 |
 
@@ -449,7 +450,7 @@ func afterCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
 | 要求 | i18n | Storage | WebSocket | API-first |
 |------|------|---------|-----------|-----------|
 | JWT 认证 | ✅ | ✅ | ✅ | ✅ |
-| Casbin 权限 | ✅ | ❌ | ❌ | ✅ |
+| Casbin 权限 | ✅ | ⚠️ 仅通用上传入口 | ❌ | ✅ |
 | 租户隔离 | ❌ | ❌ | ❌ | ❌ |
 | 审计日志 | ❌ | ❌ | ❌ | ⚠️ |
 | 数据权限 | N/A | ❌ | N/A | ✅ |
@@ -457,14 +458,15 @@ func afterCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
 ### 5.3 改进优先级
 
 **高优先级（安全相关）：**
-1. 存储文件类型/大小校验
-2. 存储权限控制
+1. 保持已完成的 D1 object fail-closed、immutable profile 与 single owner 哨兵
+2. 完成 D1 Kafka lifecycle；在 D4 Provider/Delivery 门禁通过前保持生产上传关闭
 
 **中优先级（治理完善）：**
-1. 存储审计日志
-2. WebSocket 事件审计
-3. 国际化审计日志
-4. WebSocket 集群支持
+1. `D4-authorization-object` 完成 S3 conditional create-only、共用 conformance 与 Delivery 授权
+2. 存储审计日志
+3. WebSocket 事件审计
+4. 国际化审计日志
+5. WebSocket 集群支持
 
 **低优先级（体验优化）：**
 1. 存储大文件分片上传

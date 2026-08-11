@@ -4,7 +4,7 @@ order: 3
 nav:
   title: 发布
   order: 3
-description: 从 v0.7.x 升级到计划中的 v1.0.0 的预检、迁移、部署和验证步骤
+description: 从 v0.7.x 升级到已发布 v1.0.0 的预检、迁移、部署和验证步骤
 keywords: [v1.0.0 upgrade migration backup preflight]
 ---
 
@@ -12,8 +12,10 @@ keywords: [v1.0.0 upgrade migration backup preflight]
 
 本文适用于现有 v0.7.x Admin 数据库和下游源码。v1.0.0 是合并仓库后的首个稳定 1.0，也是包含 Go 模块路径、认证、授权、配置与运行时能力变化的迁移版本，不支持“替换二进制后直接启动”的无预检升级。未发布 v0.8.0 候选版上的预检、制品或冒烟结果不能替代精确 v1.0.0 发布提交上的重新执行。
 
-:::warning
-当前版本仍是 preview。必须先完成 [发布合同](/releases/v1-0-0) 的门禁并确认正式 tag 存在，再在生产环境执行本文。
+:::info
+根 `v1.0.0` 与先行的 `mss-boot/v1.0.0` 已从同一提交正式发布。生产升级必须使用
+已发布 tag 的校验制品，并按 [发布合同](/releases/v1-0-0) 与验收工单 #471 复核证据；
+不要使用分支构建、历史候选包或本地 `go.work` 替换。
 :::
 
 ## 环境基线

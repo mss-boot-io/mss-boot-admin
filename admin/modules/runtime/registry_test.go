@@ -41,7 +41,7 @@ func TestAllReturnsStableCopies(t *testing.T) {
 		Name:        "zeta",
 		DisplayName: "Zeta",
 		Model:       new(testModuleRecord),
-		Permissions: []Permission{{Code: "zeta:read", DisplayName: "Read"}},
+		Permissions: []Permission{{Code: "zeta:read", DisplayName: "Read", DefaultRoles: []string{"reader"}}},
 	})
 	MustRegister(Descriptor{
 		Name:        "alpha",
@@ -54,6 +54,7 @@ func TestAllReturnsStableCopies(t *testing.T) {
 		t.Fatalf("All() = %#v", all)
 	}
 	all[1].Permissions[0].Code = "mutated"
+	all[1].Permissions[0].DefaultRoles[0] = "mutated"
 	stored, ok := Get("zeta")
 	if !ok {
 		t.Fatal("Get(zeta) not found")
@@ -61,9 +62,12 @@ func TestAllReturnsStableCopies(t *testing.T) {
 	if stored.Permissions[0].Code != "zeta:read" {
 		t.Fatalf("registry exposed mutable permission slice: %#v", stored.Permissions)
 	}
+	if got := stored.Permissions[0].DefaultRoles[0]; got != "reader" {
+		t.Fatalf("registry exposed mutable default-role slice: %#v", stored.Permissions)
+	}
 }
 
-func TestMigrateAppliesRegisteredModels(t *testing.T) {
+func TestMigrateDoesNotInferDDLFromRegisteredModels(t *testing.T) {
 	ResetForTest()
 	t.Cleanup(ResetForTest)
 
@@ -79,8 +83,8 @@ func TestMigrateAppliesRegisteredModels(t *testing.T) {
 	if err := Migrate(db); err != nil {
 		t.Fatalf("Migrate() error = %v", err)
 	}
-	if !db.Migrator().HasTable(&testModuleRecord{}) {
-		t.Fatal("Migrate() did not create registered model table")
+	if db.Migrator().HasTable(&testModuleRecord{}) {
+		t.Fatal("Migrate() inferred production DDL from descriptor model")
 	}
 }
 

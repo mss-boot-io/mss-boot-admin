@@ -1,18 +1,24 @@
 package apis
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
+	storagecache "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
+	runtimechallenge "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/challenge"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"gorm.io/gorm/schema"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
@@ -20,7 +26,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/notice/email"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
-	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 )
 
 /*
@@ -30,22 +35,56 @@ import (
  * @Last Modified time: 2023/8/6 22:13:11
  */
 
-var (
-	errNotSupportEmail = errors.New("not support send email")
-)
-
 func init() {
-	e := &User{
+	response.AppendController(newUserController())
+}
+
+func newUserController() *User {
+	return &User{
 		Simple: controller.NewSimple(
 			controller.WithAuth(true),
 			controller.WithModel(new(models.User)),
 			controller.WithSearch(new(dto.UserSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithScope(redactUserPersistenceDiagnostics),
+			controller.WithWriteErrorMapper(mapUserWriteError),
 			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement, protectRootUserLifecycle}),
 			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement, protectRootUserLifecycle}),
 		),
 	}
-	response.AppendController(e)
+}
+
+func mapUserWriteError(
+	_ *gin.Context,
+	_ actions.WriteOperation,
+	err error,
+) (actions.PublicWriteError, bool) {
+	err = models.NormalizeEmailIdentityPersistenceError(err)
+	switch {
+	case errors.Is(err, models.ErrEmailIdentityInvalid):
+		return actions.PublicWriteError{
+			Status: http.StatusUnprocessableEntity,
+			Error:  response.NewError("INVALID_EMAIL_IDENTITY", "email identity is invalid"),
+		}, true
+	case errors.Is(err, models.ErrEmailIdentityExists),
+		errors.Is(err, models.ErrEmailIdentityAmbiguous):
+		return actions.PublicWriteError{
+			Status: http.StatusConflict,
+			Error:  response.NewError("EMAIL_IDENTITY_UNAVAILABLE", "email identity is unavailable"),
+		}, true
+	default:
+		return actions.PublicWriteError{}, false
+	}
+}
+
+// redactUserPersistenceDiagnostics keeps the generic user controller's GORM
+// logger from interpolating request identities, password material, SQL, or
+// driver constraint text before the public write-error mapper can classify the
+// result. The mapper emits a fixed operation and error code for diagnostics.
+func redactUserPersistenceDiagnostics(_ *gin.Context, _ schema.Tabler) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Session(&gorm.Session{Logger: logger.Discard})
+	}
 }
 
 type User struct {
@@ -55,7 +94,11 @@ type User struct {
 	oauthCodeExchange    oauthCodeExchange
 	oauthLoginComplete   oauthLoginCompleter
 	oauthBindingComplete oauthBindingCompleter
+	challengeSender      email.VerifyCodeSender
+	challengeSendSlots   chan struct{}
 }
+
+var defaultEmailChallengeSendSlots = make(chan struct{}, 32)
 
 // Other handler
 func (e *User) Other(r *gin.RouterGroup) {
@@ -210,20 +253,43 @@ func (e *User) ResetPassword(ctx *gin.Context) {
 		return
 
 	}
-	ok, err := center.Default.VerifyCode(ctx, req.Email, req.Captcha)
-	if err != nil {
-		api.AddError(err).Log.Error("VerifyCode error")
-		api.Err(http.StatusInternalServerError)
+	canonicalEmail, validEmail := pkg.CanonicalEmail(req.Email)
+	if !validEmail {
+		api.Err(http.StatusForbidden)
 		return
 	}
-	if !ok {
+	req.Email = canonicalEmail
+	if !center.EmailChallengeCapabilityEnabled(ctx) {
+		api.Err(http.StatusForbidden)
+		return
+	}
+	challenge := center.GetRuntimeChallenge()
+	if challenge == nil {
+		api.Err(http.StatusServiceUnavailable)
+		return
+	}
+	outcome, err := challenge.Verify(ctx.Request.Context(), runtimechallenge.VerifyRequest{
+		Subject: req.Email,
+		Purpose: runtimechallenge.Purpose(pkg.PasswordResetChallengePurpose),
+		Code:    req.Captcha,
+	})
+	if err != nil {
+		api.AddError(runtimechallenge.ErrUnavailable).Log.Warn("password recovery challenge unavailable")
+		api.Err(http.StatusServiceUnavailable)
+		return
+	}
+	if outcome != runtimechallenge.VerifyVerified {
 		api.Err(http.StatusForbidden)
 		return
 	}
 	user, err := models.GetUserByEmail(ctx, req.Email)
 	if err != nil {
-		api.AddError(err).Log.Error("GetUser error")
-		api.Err(http.StatusInternalServerError)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			api.Err(http.StatusForbidden)
+			return
+		}
+		api.Log.Error("password recovery account lookup unavailable")
+		api.Err(http.StatusServiceUnavailable)
 		return
 	}
 	err = models.PasswordReset(ctx, user.ID, req.Password)
@@ -235,20 +301,23 @@ func (e *User) ResetPassword(ctx *gin.Context) {
 	api.OK(struct{}{})
 }
 
+// UpdateAvatar stores a new avatar for the authenticated user.
+// @Summary Upload the current user's avatar
+// @Tags user
+// @Accept multipart/form-data
+// @Param file formData file true "Avatar"
+// @Success 201 {object} dto.UpdateAvatarResponse
+// @Failure 413 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 503 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/api/user/avatar [post]
+// @Security Bearer
 func (e *User) UpdateAvatar(ctx *gin.Context) {
 	api := response.Make(ctx)
-	verify := middleware.GetVerify(ctx)
-	file, err := ctx.FormFile("file")
+	result, err := defaultUploadService.Upload(ctx, "file")
 	if err != nil {
-		api.AddError(err).Log.Error("FormFile error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-	s := service.Storage{}
-	result, err := s.Upload(ctx, file, verify.GetUserID())
-	if err != nil {
-		api.AddError(err).Log.Error("upload error")
-		api.Err(http.StatusInternalServerError)
+		writeUploadError(api, err)
 		return
 	}
 	api.OK(dto.UpdateAvatarResponse{Avatar: result.URL})
@@ -277,6 +346,13 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
+	if _, attemptsEmailChange := reqMap["email"]; attemptsEmailChange {
+		// Email is an authentication and recovery identity. Until the v1.1.0 D2
+		// canonical-identity wave lands, self-service mutation could create
+		// an ambiguous identity and deny login/reset to another account.
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 
 	user := &models.User{}
 	err := center.Default.GetDB(ctx, &models.User{}).Where("id = ?", verify.GetUserID()).First(user).Error
@@ -288,9 +364,6 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 
 	if v, ok := reqMap["name"].(string); ok {
 		user.Name = v
-	}
-	if v, ok := reqMap["email"].(string); ok {
-		user.Email = v
 	}
 	if v, ok := reqMap["avatar"].(string); ok {
 		user.Avatar = v
@@ -372,7 +445,11 @@ func (e *User) RefreshToken(_ *gin.Context) {
 // @Accept  application/json
 // @Product application/json
 // @Param data body dto.FakeCaptchaRequest true "data"
-// @Success 200 {object} dto.FakeCaptchaResponse
+// @Success 202 {object} dto.FakeCaptchaResponse
+// @Failure 403 {object} response.Response "Email challenge capability is disabled"
+// @Failure 422 {object} response.Response "Invalid email or challenge purpose"
+// @Failure 429 {object} response.Response "Caller, global, subject, or sender-concurrency limit exceeded"
+// @Failure 503 {object} response.Response "Challenge store or email delivery is unavailable"
 // @Router /admin/api/user/fakeCaptcha [post]
 func (e *User) FakeCaptcha(ctx *gin.Context) {
 	api := response.Make(ctx)
@@ -381,91 +458,148 @@ func (e *User) FakeCaptcha(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	resp := &dto.FakeCaptchaResponse{}
-	if req.Email != "" {
-		// setup 01 get user by email
-		user := &models.User{}
-		user.Email = req.Email
-		if req.UseBy != email.RegisterSender.String() {
-			err := center.Default.
-				GetDB(ctx, &models.User{}).
-				Where("email = ?", req.Email).
-				First(user).Error
-			if err != nil {
-				api.AddError(err)
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					api.Err(http.StatusNotFound)
-					return
-				}
-				api.Log.Error("GetUser error")
-				api.Err(http.StatusInternalServerError)
-				return
-			}
-		}
-		// setup 02 generate verify code
-		code, err := center.Default.GenerateCode(ctx, req.Email, 5*time.Minute)
-		if err != nil {
-			api.AddError(err).Log.Error("GenerateCode error")
-			api.Err(http.StatusInternalServerError)
-			return
-		}
-		// setup 03 send email
-		smtpHost, ok := center.GetAppConfig().GetAppConfig(ctx, "email:smtpHost")
-		if !ok {
-			api.AddError(errNotSupportEmail).
-				Err(http.StatusNotImplemented)
-			return
-		}
-		smtpPort, ok := center.GetAppConfig().GetAppConfig(ctx, "email:smtpPort")
-		if !ok {
-			api.AddError(errNotSupportEmail).
-				Err(http.StatusNotImplemented)
-			return
-		}
-		username, ok := center.GetAppConfig().GetAppConfig(ctx, "email:username")
-		if !ok {
-			api.AddError(errNotSupportEmail).
-				Err(http.StatusNotImplemented)
-			return
-		}
-		password, ok := center.GetAppConfig().GetAppConfig(ctx, "email:password")
-		if !ok {
-			api.AddError(errNotSupportEmail).
-				Err(http.StatusNotImplemented)
-			return
-		}
-		organization, ok := center.GetAppConfig().GetAppConfig(ctx, "base:websiteName")
-		if !ok || organization == "" {
-			organization = "mss-boot-io"
-		}
-		var sender email.VerifyCodeSender
-		switch req.UseBy {
-		case email.RegisterSender.String(), email.LoginSender.String(), email.ResetPasswordSender.String():
-			sender = email.Sender[email.SendType(req.UseBy)]
-		default:
-			api.AddError(errNotSupportEmail).
-				Err(http.StatusNotImplemented)
-			return
-		}
-		err = sender(smtpHost, smtpPort,
-			username, password,
-			user.Username,
-			user.Email,
-			code,
-			organization)
-
-		if err != nil {
-			api.AddError(err).Log.Error("send email error")
-			api.Err(http.StatusInternalServerError)
-			return
-		}
-
-		resp.Status = "ok"
-		api.OK(resp)
+	canonicalEmail, validEmail := pkg.CanonicalEmail(req.Email)
+	if !validEmail {
+		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	err := fmt.Errorf("not support phone")
-	api.AddError(err).Err(http.StatusNotImplemented)
+	req.Email = canonicalEmail
+	purpose, sendType, ok := emailChallengePurpose(req.UseBy)
+	if !ok {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	appConfig := center.GetAppConfig()
+	if appConfig == nil {
+		api.Err(http.StatusServiceUnavailable)
+		return
+	}
+	if !center.EmailChallengeCapabilityEnabled(ctx) {
+		api.Err(http.StatusForbidden)
+		return
+	}
+	if purpose == pkg.EmailRegisterChallengePurpose {
+		registerEnabled, exists := appConfig.GetAppConfig(ctx, "security:registerEnabled")
+		enabled, parseErr := strconv.ParseBool(registerEnabled)
+		if !exists || parseErr != nil || !enabled {
+			api.Err(http.StatusForbidden)
+			return
+		}
+	}
+	challenge := center.GetRuntimeChallenge()
+	requestCtx := ctx.Request.Context()
+	if challenge == nil || challenge.Ready(requestCtx) != nil {
+		api.Err(http.StatusServiceUnavailable)
+		return
+	}
+	smtpHost, hostOK := appConfig.GetAppConfig(ctx, "email:smtpHost")
+	smtpPort, portOK := appConfig.GetAppConfig(ctx, "email:smtpPort")
+	username, usernameOK := appConfig.GetAppConfig(ctx, "email:username")
+	password, passwordOK := appConfig.GetAppConfig(ctx, "email:password")
+	if !hostOK || !portOK || !usernameOK || !passwordOK {
+		api.Err(http.StatusServiceUnavailable)
+		return
+	}
+	organization, organizationOK := appConfig.GetAppConfig(ctx, "base:websiteName")
+	if !organizationOK || organization == "" {
+		organization = "mss-boot-io"
+	}
+	sender := e.challengeSender
+	if sender == nil {
+		sender = email.Sender[sendType]
+	}
+	if sender == nil {
+		api.Err(http.StatusServiceUnavailable)
+		return
+	}
+	slots := e.challengeSendSlots
+	if slots == nil {
+		slots = defaultEmailChallengeSendSlots
+	}
+	select {
+	case slots <- struct{}{}:
+		defer func() { <-slots }()
+	case <-ctx.Done():
+		api.Err(http.StatusServiceUnavailable)
+		return
+	default:
+		api.Err(http.StatusTooManyRequests)
+		return
+	}
+	recipientName := strings.SplitN(req.Email, "@", 2)[0]
+	outcome, err := challenge.BeginIssue(requestCtx, runtimechallenge.BeginRequest{
+		Caller:  emailChallengeCaller(ctx),
+		Subject: req.Email,
+		Purpose: runtimechallenge.Purpose(purpose),
+	})
+	if err != nil {
+		if errors.Is(err, runtimechallenge.ErrInvalid) {
+			api.Err(http.StatusUnprocessableEntity)
+		} else {
+			api.Log.Warn("email challenge delivery unavailable")
+			api.Err(http.StatusServiceUnavailable)
+		}
+		return
+	}
+	if outcome.State() != runtimechallenge.BeginReserved {
+		switch outcome.State() {
+		case runtimechallenge.BeginPending, runtimechallenge.BeginCooldown, runtimechallenge.BeginQuota:
+			api.Err(http.StatusTooManyRequests)
+		default:
+			api.Err(http.StatusServiceUnavailable)
+		}
+		return
+	}
+	reservation, reserved := outcome.Reservation()
+	if !reserved {
+		api.Err(http.StatusServiceUnavailable)
+		return
+	}
+	if err := sender(requestCtx, smtpHost, smtpPort, username, password, recipientName, req.Email, reservation.Code(), organization); err != nil {
+		abortCtx, cancel := context.WithTimeout(context.WithoutCancel(requestCtx), 2*time.Second)
+		abortErr := challenge.Abort(abortCtx, reservation)
+		cancel()
+		if abortErr != nil {
+			api.Log.Warn("email challenge delivery rollback unavailable")
+		} else {
+			api.Log.Warn("email challenge delivery unavailable")
+		}
+		api.Err(http.StatusServiceUnavailable)
+		return
+	}
+	if err := challenge.Commit(requestCtx, reservation); err != nil {
+		api.Log.Warn("email challenge activation unavailable")
+		api.Err(http.StatusServiceUnavailable)
+		return
+	}
+	ctx.AbortWithStatusJSON(http.StatusAccepted, &dto.FakeCaptchaResponse{Status: "accepted"})
+}
+
+// emailChallengeCaller uses Gin's engine-level trusted-proxy policy. The
+// composition root explicitly disables forwarding headers unless operators
+// configure an allowlist, preventing arbitrary X-Forwarded-For rotation.
+func emailChallengeCaller(ctx *gin.Context) string {
+	if ctx == nil || ctx.Request == nil {
+		return "unknown"
+	}
+	caller := strings.TrimSpace(ctx.ClientIP())
+	if caller == "" {
+		return "unknown"
+	}
+	return caller
+}
+
+func emailChallengePurpose(useBy string) (storagecache.ChallengePurpose, email.SendType, bool) {
+	switch useBy {
+	case email.RegisterSender.String():
+		return pkg.EmailRegisterChallengePurpose, email.RegisterSender, true
+	case email.LoginSender.String():
+		return pkg.EmailLoginChallengePurpose, email.LoginSender, true
+	case email.ResetPasswordSender.String():
+		return pkg.PasswordResetChallengePurpose, email.ResetPasswordSender, true
+	default:
+		return "", "", false
+	}
 }
 
 // UserInfo 获取登录用户信息

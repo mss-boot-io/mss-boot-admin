@@ -15,7 +15,13 @@ import (
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
-	migration.Migrate.SetVersion(migration.GetFilename(fileName), _20260607162058SessionMenus)
+	// Upgraded pre-rename databases share ...6205 with user_sessions, while
+	// databases created from the v1.0.0 tag persisted ...6206 after the rename.
+	migration.Migrate.RegisterWithLegacyIDs(
+		migration.FilenameMigrationID(fileName),
+		[]migration.MigrationID{"2026060716205", "2026060716206"},
+		_20260607162058SessionMenus,
+	)
 }
 
 // _20260607162058SessionMenus seeds the frontend menu entries and Casbin API
