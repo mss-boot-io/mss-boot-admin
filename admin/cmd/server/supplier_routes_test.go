@@ -101,12 +101,21 @@ func TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutS
 		t.Fatalf("rejected Supplier mutation = %d, want %d; body=%s", deniedResponse.Code, http.StatusForbidden, deniedResponse.Body.String())
 	}
 
+	attachmentRequest := httptest.NewRequest(http.MethodPost, "/admin/api/suppliers", strings.NewReader("raw-attachment-payload"))
+	attachmentRequest.Header.Set("Content-Type", "multipart/form-data; boundary=supplier-audit")
+	attachmentRequest.Header.Set("X-Test-Principal", "denied")
+	attachmentResponse := httptest.NewRecorder()
+	engine.ServeHTTP(attachmentResponse, attachmentRequest)
+	if attachmentResponse.Code != http.StatusForbidden {
+		t.Fatalf("rejected Supplier attachment mutation = %d, want %d; body=%s", attachmentResponse.Code, http.StatusForbidden, attachmentResponse.Body.String())
+	}
+
 	var audits []models.AuditLog
 	if err := db.Order("created_at ASC").Find(&audits).Error; err != nil {
 		t.Fatalf("load Supplier audits: %v", err)
 	}
-	if len(audits) != 2 {
-		t.Fatalf("Supplier audit records = %d, want 2", len(audits))
+	if len(audits) != 3 {
+		t.Fatalf("Supplier audit records = %d, want 3", len(audits))
 	}
 	for index, audit := range audits {
 		if audit.Method != http.MethodPost || audit.Path != "/admin/api/suppliers" ||
@@ -125,6 +134,9 @@ func TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutS
 	}
 	if audits[1].UserID != denied.ID || audits[1].Status != "disabled" || !strings.Contains(audits[1].Request, "[REDACTED]") {
 		t.Fatalf("rejected Supplier audit = %#v", audits[1])
+	}
+	if audits[2].UserID != denied.ID || audits[2].Status != "disabled" || audits[2].Request != "" {
+		t.Fatalf("rejected Supplier attachment audit = %#v", audits[2])
 	}
 }
 
