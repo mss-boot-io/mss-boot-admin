@@ -260,7 +260,11 @@ func openSupplierProviderDatabase(t *testing.T, dialect, dsn string) *gorm.DB {
 	if !ok {
 		t.Fatalf("provider dialect %q is unavailable", dialect)
 	}
-	db, err := gorm.Open(dialector(dsn), &gorm.Config{TranslateError: false, Logger: logger.Discard})
+	db, err := gorm.Open(dialector(dsn), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+		TranslateError:                           false,
+		Logger:                                   logger.Discard,
+	})
 	if err != nil {
 		t.Fatalf("open %s provider database: %v", dialect, err)
 	}

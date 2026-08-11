@@ -625,6 +625,24 @@ func TestGenerateAlignsAuthorizedMenuNamesWithLocaleKeys(t *testing.T) {
 	}
 }
 
+func TestGenerateProviderMigrationHarnessDisablesInferredForeignKeys(t *testing.T) {
+	repositoryRoot := findRepositoryRoot(t)
+	root := t.TempDir()
+	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
+
+	if _, err := Generate(generatorTestModule(), Options{Root: root, Write: true}); err != nil {
+		t.Fatalf("Generate(provider migration harness) error = %v", err)
+	}
+	path := filepath.Join(root, "admin", "modules", "supplier", "migration_provider_generated_test.go")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read generated provider migration harness: %v", err)
+	}
+	if !strings.Contains(string(content), "DisableForeignKeyConstraintWhenMigrating: true") {
+		t.Fatal("generated provider migration harness enabled inferred foreign keys unlike the Admin runtime")
+	}
+}
+
 func TestGenerateWidensComparableE2EFieldNames(t *testing.T) {
 	repositoryRoot := findRepositoryRoot(t)
 	root := t.TempDir()
