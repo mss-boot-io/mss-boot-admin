@@ -2,6 +2,7 @@ package center
 
 import (
 	"os"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/grafana/pyroscope-go"
@@ -42,6 +43,7 @@ type DefaultCenter struct {
 	storage.AdapterCache
 	storage.AdapterQueue
 	storage.AdapterLocker
+	challengeMu sync.RWMutex
 	ChallengeImp
 }
 
@@ -110,6 +112,8 @@ func (d *DefaultCenter) SetLocker(l storage.AdapterLocker) {
 }
 
 func (d *DefaultCenter) SetChallenge(v ChallengeImp) {
+	d.challengeMu.Lock()
+	defer d.challengeMu.Unlock()
 	d.ChallengeImp = v
 }
 
@@ -178,6 +182,8 @@ func (d *DefaultCenter) GetLocker() storage.AdapterLocker {
 }
 
 func (d *DefaultCenter) GetChallenge() ChallengeImp {
+	d.challengeMu.RLock()
+	defer d.challengeMu.RUnlock()
 	return d.ChallengeImp
 }
 

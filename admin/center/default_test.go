@@ -1,13 +1,39 @@
 package center
 
 import (
+	"context"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/grafana/pyroscope-go"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 )
+
+type concurrentChallenge struct{}
+
+func (*concurrentChallenge) Ready(context.Context) error { return nil }
+
+func (*concurrentChallenge) Issue(
+	context.Context,
+	string,
+	string,
+	cache.ChallengePurpose,
+	func(context.Context, string) error,
+) error {
+	return nil
+}
+
+func (*concurrentChallenge) VerifyChallenge(
+	context.Context,
+	string,
+	cache.ChallengePurpose,
+	string,
+) (bool, error) {
+	return false, nil
+}
 
 type canonicalBoolAppConfig map[string]string
 
@@ -171,6 +197,37 @@ func TestEmailChallengeCapabilityRequiresCanonicalBoolean(t *testing.T) {
 				t.Fatalf("EmailChallengeCapabilityEnabled() = %v, want %v for %q", got, test.want, test.value)
 			}
 		})
+	}
+}
+
+func TestChallengeAccessIsSafeDuringConcurrentPublication(t *testing.T) {
+	center := &DefaultCenter{}
+	first := &concurrentChallenge{}
+	second := &concurrentChallenge{}
+
+	var workers sync.WaitGroup
+	workers.Add(2)
+	go func() {
+		defer workers.Done()
+		for index := 0; index < 1000; index++ {
+			if index%2 == 0 {
+				center.SetChallenge(first)
+				continue
+			}
+			center.SetChallenge(second)
+		}
+	}()
+	go func() {
+		defer workers.Done()
+		for range 1000 {
+			_ = center.GetChallenge()
+		}
+	}()
+	workers.Wait()
+
+	center.SetChallenge(first)
+	if got := center.GetChallenge(); got != first {
+		t.Fatalf("GetChallenge() = %T, want first published challenge", got)
 	}
 }
 
