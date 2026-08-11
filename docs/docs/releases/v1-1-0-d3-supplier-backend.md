@@ -1,15 +1,16 @@
 ---
-title: D3 Supplier Backend 内部 checkpoint
+title: D3 Supplier Backend 与 Authorization 内部 checkpoint
 order: 15
-description: v1.1.0 D3 Supplier 后端生成、显式三方言迁移、授权边界、精确开发证据与后续门禁
+description: v1.1.0 D3 Supplier 后端生成、显式迁移、持久授权矩阵、精确开发证据与后续门禁
 keywords: [v1.1.0 D3 supplier generator backend migration authorization]
 ---
 
-# D3 Supplier Backend 内部 checkpoint
+# D3 Supplier Backend 与 Authorization 内部 checkpoint
 
 本文记录累计进 `v1.1.0` 的 Generator/Blueprint 旗舰轴 Supplier 后端检查点。
-实现提交为 `5a60ad606fd8f17ed686aba29d44d8703cdceddf`，模板 revision 为
-`1.1.0-backend.2`。这是未打 tag 的开发 checkpoint，不是完整 Supplier 模块、
+后端实现提交为 `5a60ad606fd8f17ed686aba29d44d8703cdceddf`；授权投影提交为
+`d92458c56e0900781f3455ebfa1d515a06032912`，当前模板 revision 为
+`1.1.0-backend.3`。这是未打 tag 的开发 checkpoint，不是完整 Supplier 模块、
 feature-freeze SHA 或发布授权；`agent.fullstack-module-generator` 继续保持 Planned。
 
 ## 已落地的窄边界
@@ -33,6 +34,13 @@ feature-freeze SHA 或发布授权；`agent.fullstack-module-generator` 继续�
 - 六个声明操作生成 DTO/service/API/OpenAPI annotations 与 permission code。`RegisterRoutes`
   必须收到非 nil backend authorizer，否则拒绝挂载；descriptor 或 blank import 不会推断并自动
   挂载路由。
+- 独立 migration `20260811120000` 在单个事务内解析或创建 `admin`、`procurement`、`finance`
+  角色，持久化 `/procurement` parent、`/suppliers` MENU、六个隐藏 COMPONENT 与六个 API metadata，
+  按源 spec 写入精确 Casbin policy，并推进三个 role scope 与 global authorization revision；注入失败时
+  migration truth、角色、menu、policy 与 revision 全部回滚，重复执行只保留一份真值。
+- 生成的 `AdminAuthorizer` 同时绑定 permission code、HTTP method 与 Gin `FullPath()`，从显式注入的
+  canonical principal resolver 读取身份。缺少身份固定 401，错误角色或路由绑定固定 403，策略读取
+  不可用固定 503；`ownership.mode=none` 不回退行级 owner，root bypass 只按 `adminBypass=true` 生效。
 - 生成器会在写入前规划删除带正确 generated marker 的旧 auto-mounted controller/search 输出，
   但遇到 user-owned managed path 或 user-owned obsolete path 会在首次写入前整体失败。
 
@@ -42,17 +50,17 @@ feature-freeze SHA 或发布授权；`agent.fullstack-module-generator` 继续�
 
 ```text
 phase: backend-checkpoint
-templateRevision: 1.1.0-backend.2
+templateRevision: 1.1.0-backend.3
 complete: false
-managed changes: 15 unchanged
-deferred projections: 26
+managed changes: 19 unchanged
+deferred projections: 19
 ```
 
-26 项 deferred projection 包括字段 UI presentation、enum label/color、`generation.frontend`、
-`generation.docs`、menu persistence/visibility、六个 permission 的 `defaultRoles` 与 display metadata、
-permission matrix、browser E2E 和完整 UI。后端 authorizer injection 只证明“每个请求必须经过一个
-明确 permission code”，不证明 admin/procurement/finance 的 policy seed 或默认角色授权已经落库。
-因此本 checkpoint 不创建 menu，不暴露 UI，也不声称 typed frontend client、审计矩阵或 E2E 已完成。
+19 项 deferred projection 包括七个字段 UI presentation、enum label/color、`generation.frontend`、
+`generation.docs`、menu 的前端 route/locale/visibility、六个 permission 的前端 display presentation、
+browser E2E 和完整 UI。default roles、menu/COMPONENT/API metadata 与 backend permission matrix 已由
+授权 migration 和精确测试实现，但本 checkpoint 仍不暴露 typed frontend client 或 UI，也不声称
+browser E2E、生成模块文档、三方言冻结证据或 downstream upgrade 已完成。
 
 ## Exact development evidence
 
@@ -89,7 +97,7 @@ go run ./cmd/mss test evidence --directory . --package ./internal/mss/spec \
 
 ```shell
 go run ./cmd/mss test evidence --directory admin --package ./modules/supplier \
-  --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierForwardMigrationFreshRepeatAndConstraints|TestSupplierForwardMigrationPreservesUpgradeData|TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth|TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth|TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth|TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth|TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase|TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth|TestSupplierTableName|TestSupplierMigrationIdentityIsComplete|TestSupplierPermissionCodesAreUnique|TestSupplierOperationContractMatchesSpecification|TestSupplierDescriptorNeverInfersMigrationOrRoutes|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations)$' \
+  --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierForwardMigrationFreshRepeatAndConstraints|TestSupplierForwardMigrationPreservesUpgradeData|TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth|TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth|TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth|TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth|TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase|TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth|TestSupplierTableName|TestSupplierMigrationIdentityIsComplete|TestSupplierPermissionCodesAreUnique|TestSupplierOperationContractMatchesSpecification|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations)$' \
   --count 1 --race --go-work off \
   --require TestSupplierServiceCRUDQueryExportAndPostCommitEvents \
   --require TestSupplierForwardMigrationFreshRepeatAndConstraints \
@@ -104,10 +112,54 @@ go run ./cmd/mss test evidence --directory admin --package ./modules/supplier \
   --require TestSupplierMigrationIdentityIsComplete \
   --require TestSupplierPermissionCodesAreUnique \
   --require TestSupplierOperationContractMatchesSpecification \
-  --require TestSupplierDescriptorNeverInfersMigrationOrRoutes \
+  --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition \
   --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer \
   --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
 ```
+
+`d92458c` 的授权投影另以四条窄命令验证本次新增行为；它们不重跑此前已稳定的对象存储或其他
+runtime 轴：
+
+```shell
+go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator \
+  --run '^(TestGenerateRejectsMigrationIDCollisionsBeforeWriting|TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs)$' \
+  --count 1 --race --go-work off \
+  --require TestGenerateRejectsMigrationIDCollisionsBeforeWriting \
+  --require TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs
+```
+
+```shell
+go run ./cmd/mss test evidence --directory . --package ./internal/mss/spec \
+  --run '^(TestLoadExampleSupplierModule|TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID)$' \
+  --count 1 --race --go-work off \
+  --require TestLoadExampleSupplierModule \
+  --require TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID
+```
+
+```shell
+go run ./cmd/mss test evidence --directory admin --package ./modules/runtime \
+  --run '^TestAllReturnsStableCopies$' --count 1 --race --go-work off \
+  --require TestAllReturnsStableCopies
+```
+
+```shell
+go run ./cmd/mss test evidence --directory admin --package ./modules/supplier \
+  --run '^(TestSupplierEveryDeclaredOperationIsBackendAuthorized|TestSupplierAdminAuthorizerPermissionMatrix|TestSupplierAdminAuthorizerRequiresExplicitComposition|TestSupplierAuthorizationMigrationProjectsExactPolicy|TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth|TestSupplierAuthorizationMigrationIdentityIsComplete|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition)$' \
+  --count 1 --race --go-work off \
+  --require TestSupplierEveryDeclaredOperationIsBackendAuthorized \
+  --require TestSupplierAdminAuthorizerPermissionMatrix \
+  --require TestSupplierAdminAuthorizerRequiresExplicitComposition \
+  --require TestSupplierAuthorizationMigrationProjectsExactPolicy \
+  --require TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth \
+  --require TestSupplierAuthorizationMigrationIdentityIsComplete \
+  --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
+```
+
+这些测试证明 `authorizationMigrationID` 缺失、格式错误或与 entity migration 重复会在写入前失败；
+generator 同时报告 authorization/menu backend projection 已实现而 frontend projection 仍 deferred；
+registry 返回的 nested `DefaultRoles` 是稳定副本；Supplier 的六操作逐一经过 permission check，
+admin/procurement/finance allow/deny、missing identity、unauthenticated 与 root bypass 按源 spec 生效；
+授权迁移重复执行不重复 seed，注入失败不留下 partial truth。它们不声称 UI 或浏览器行为已验证。
 
 同一实现 checkpoint 还从 `admin/` 以 `GOWORK=off go test -race -count=1 ./modules/supplier` 在临时
 MySQL 8.4 与 PostgreSQL 17 容器上运行了四个真实顶级测试，两条 DSN 均非空且 zero-skip。
@@ -135,18 +187,19 @@ blank import 注册 descriptor，但不会自动挂载 HTTP；没有 composition
 也没有 legacy global permission fallback。错误响应不携带 SQL、constraint 名称、provider error 或
 冲突值。
 
-采用该模块的数据库需要按顺序应用 migration `20260810160000`。迁移只新增
-`biz_suppliers`、indexes 与 CHECK，不提供 destructive down migration。若部署后需要撤回，先停止 route/menu
-组合和 permission grants，保留表及业务数据，再通过新的 idempotent forward migration 修复；不得手工删除
-migration truth 或重建无关表。生成器删除 obsolete 文件时只处理带预期 generated marker 的路径，手写内容
-始终 fail closed。
+采用该模块的数据库需要先应用 entity migration `20260810160000`，再应用 authorization migration
+`20260811120000`。前者只新增 `biz_suppliers`、indexes 与 CHECK；后者只新增或同步声明的角色、menu metadata、
+Casbin policy、authorization revision 与自己的 migration truth，均不提供 destructive down migration。
+若部署后需要撤回，先停止 route composition 和前端入口，保留表及业务数据；通过新的 idempotent forward
+migration 修复授权 metadata，不得手工删除 migration truth、批量删 policy 或重建无关表。生成器删除 obsolete
+文件时只处理带预期 generated marker 的路径，手写内容始终 fail closed。
 
 ## 后续门禁
 
-D4 必须生成并验证 default-role/policy/menu persistence、admin/procurement/finance 正负授权、拒绝路径审计，
-并保持 backend permission 为唯一授权源。D5 必须生成 typed client、list/form/detail/export、双语 locale、
-loading/empty/error/permission-denied/conflict 等 UI 状态、browser E2E、模块文档，以及 Blueprint
-0.1→0.2 定制保留和第二次空升级。
+D5 必须生成 typed client、list/form/detail/export、双语 locale、loading/empty/error/permission-denied/
+validation/conflict/destructive-confirmation 等 UI 状态、browser E2E、模块文档，以及 Blueprint 0.1→0.2
+定制保留和第二次空升级。冻结阶段还要在同一候选 SHA 上重跑当前授权矩阵、三数据库 migration 与拒绝路径
+审计，并保持 backend permission 为唯一授权源；开发 checkpoint 证据不能替代这些集中门禁。
 
 完成这些开发项后，generation plan 才能从 `complete=false` 变为 `complete=true`。随后才能选择单一
 feature-freeze SHA，重跑三数据库、权限、browser、generated drift、external downstream、upgrade、

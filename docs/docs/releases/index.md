@@ -8,11 +8,10 @@ description: mss-boot-admin 版本状态、升级、兼容性与回滚合同
 keywords: [release upgrade rollback compatibility mss-boot-admin]
 ---
 
-> 最新 A 轴开发 checkpoint：[`5a60ad6` D3 Supplier Backend](/releases/v1-1-0-d3-supplier-backend)
-> 已生成显式三方言 migration、DTO/service/API/OpenAPI/export、typed post-commit events 与
-> fail-closed authorizer，并通过 exact development evidence。机器计划仍是
-> `phase=backend-checkpoint`、`complete=false`，26 项 default-role/policy/menu/frontend/docs/E2E
-> projection 延后。B 轴最新是
+> 最新 A 轴开发 checkpoint：[`d92458c` D3 Supplier Backend 与 Authorization](/releases/v1-1-0-d3-supplier-backend)
+> 在 `5a60ad6` 后端基础上增加独立授权 migration、default-role Casbin policy、MENU/COMPONENT/API
+> metadata、role/global revision 与精确 Admin 授权矩阵。机器计划仍是
+> `phase=backend-checkpoint`、`complete=false`，19 项 frontend/docs/E2E projection 延后。B 轴最新是
 > [`3e9ca94` D3 Challenge Runtime Admin composition](/releases/v1-1-0-d3-challenge-runtime)：
 > named Redis `main` / Scope `challenge.email` 在 Start/Ready 后发布，Config 唯一有界关闭，
 > optional invalid/outage 固定 503 且不回退 legacy global Redis；FakeCaptcha 与三个 Verify consumer
@@ -84,11 +83,13 @@ stalled socket；Sentinel/cluster/TLS 仍只有 construction matrix，不能据�
 本次新增的 22 个顶级测试通过五条 fully anchored、uncached count1/race/GOWORK=off evidence。
 Admin 尚未注入公共 API，也未运行真实 Cluster/failover，因此 capability 不自动晋级。
 
-同一波次的 Generator/Blueprint 轴在 `5a60ad6` 形成 Supplier backend checkpoint：source spec
-现在投影为显式 forward migration、model/DTO/service/API/OpenAPI/export、typed events 与 exact tests，
-且没有 injected authorizer 时拒绝挂载路由。SQLite 以及临时 MySQL 8.4/PostgreSQL 17 开发运行已通过；
-冻结 SHA 仍须重跑。defaultRoles/policy/menu、typed client、UI/E2E、模块文档与 upgrade rehearsal
-尚未生成，因此 full-stack capability 保持 Planned，generation plan 保持 `complete=false`。
+同一波次的 Generator/Blueprint 轴在 `5a60ad6` 形成 Supplier backend checkpoint，并在 `d92458c`
+增加 `20260811120000` authorization migration：source spec 现在同时投影显式 entity migration、
+model/DTO/service/API/OpenAPI/export、typed events、default-role policy、MENU/COMPONENT/API metadata、
+role/global revision、AdminAuthorizer 与 exact allow/deny tests；没有 injected authorizer 时仍拒绝挂载路由。
+SQLite 以及临时 MySQL 8.4/PostgreSQL 17 的 entity migration 开发运行已通过，冻结 SHA 仍须重跑。
+typed client、UI/browser E2E、模块文档与 upgrade rehearsal 尚未生成，因此 full-stack capability 保持
+Planned，generation plan 保持 `complete=false`，当前为 backend.3 的 19 managed / 19 deferred 真值。
 
 只有 Generator/Blueprint 与 Storage Runtime 的 v1.1.0 选定范围完成、选定一个功能冻结 SHA
 后，才手工启动 `release-readiness`，集中执行三数据库、browser、required Provider、upgrade、
@@ -111,4 +112,5 @@ external consumer、recovery、`verify --all` 与 `eval --all`。全部通过后
 - [D3 Resource Lifecycle 内部 checkpoint](/releases/v1-1-0-d3-resource-lifecycle)
 - [D3 Named Redis Resource 内部 checkpoint](/releases/v1-1-0-d3-named-redis-resource)
 - [D3 Challenge Runtime 内部 checkpoint](/releases/v1-1-0-d3-challenge-runtime)
-- [D3 Supplier Backend 内部 checkpoint](/releases/v1-1-0-d3-supplier-backend)
+- [D3 Supplier Backend 与 Authorization 内部 checkpoint](/releases/v1-1-0-d3-supplier-backend)
+- [v1.1.0 exact readiness attestation 合同](/releases/v1-1-0-exact-readiness-attestation)

@@ -79,20 +79,21 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   anchored, uncached `count=1` race evidence with `GOWORK=off`. Runtime configuration
   remains a startup snapshot, so changes require restart; browser and frozen-SHA
   provider/lifecycle gates remain pending and no capability is promoted to Stable.
-- Added the D3 Supplier backend generator checkpoint at `5a60ad6`. The canonical
-  AdminModule specification now deterministically projects an explicit lossless-ID
-  SQLite/MySQL/PostgreSQL forward migration, model, validated DTOs, CRUD/query/export
-  service, typed post-commit events, authorized HTTP operations, OpenAPI annotations,
-  and exact generated tests into `admin/modules/supplier`. Route composition fails
-  closed without an injected authorizer, provider-native unique violations remain
-  fixed and redacted with GORM translation disabled, and migration readiness verifies
-  exact index and check shapes before recording schema truth. Generator planning also
-  removes obsolete managed auto-mount outputs while refusing user-owned conflicts before
-  the first write. The dry-run honestly reports `phase=backend-checkpoint`,
-  `complete=false`, 15 unchanged managed files, and 26 deferred projections. Real
-  MySQL 8.4 and PostgreSQL 17 development tests passed with zero skip, but must rerun
-  on the selected feature-freeze SHA. Default-role/policy persistence, menu, typed
-  client, frontend/UI/E2E, generated module docs, and upgrade rehearsal remain D4/D5 work.
+- Added the cumulative D3 Supplier generator checkpoint. Commit `5a60ad6` projects the
+  canonical AdminModule into an explicit lossless-ID SQLite/MySQL/PostgreSQL forward
+  migration, model, validated DTOs, CRUD/query/export service, typed post-commit events,
+  authorized HTTP operations, OpenAPI annotations, and exact generated tests under
+  `admin/modules/supplier`. Commit `d92458c` adds the independent authorization migration
+  `20260811120000`, persists the parent/menu plus hidden permission COMPONENT/API metadata,
+  seeds exact admin/procurement/finance Casbin policy and role/global revisions atomically,
+  and binds the AdminAuthorizer to canonical identity, HTTP method, full Gin path, declared
+  root bypass, and ownership mode `none`. Route composition still fails closed without an
+  explicit authorizer. The current dry-run honestly reports `phase=backend-checkpoint`,
+  template `1.1.0-backend.3`, `complete=false`, 19 unchanged managed files, and 19 deferred
+  frontend/documentation/E2E projections. Real MySQL 8.4 and PostgreSQL 17 migration tests
+  passed at the earlier development checkpoint with zero skip, but must rerun on the selected
+  feature-freeze SHA. Typed client, frontend/UI/browser E2E, generated module docs, and the
+  customization-preserving upgrade rehearsal remain D5 work.
 - Switched the next train to development-first v1.1.0: internal waves remain
   untagged, publication is disabled by checked-in policy, acceptance evidence is
   phase-scoped, and complete release qualification starts only after feature freeze.

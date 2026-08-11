@@ -20,9 +20,10 @@ spec:
     generator. The checked-in supplier specification declares operations, export, ownership,
     events, tests, indexes, permissions, default roles, menu metadata, frontend behavior, and
     documentation that are not all projected into generated output. Commit 5a60ad6 checks in the
-    first generated supplier backend checkpoint, but its machine plan intentionally remains
-    phase backend-checkpoint and complete false while 26 authorization, menu, frontend, E2E, and
-    documentation projections are deferred. Historical human and machine module-path drift showed that the
+    first generated supplier backend checkpoint, and commit d92458c adds the separate authorization
+    migration, default-role policy, menu metadata, and exact Admin authorization matrix. Its machine
+    plan intentionally remains phase backend-checkpoint and complete false while 19 frontend,
+    documentation, and E2E projections are deferred. Historical human and machine module-path drift showed that the
     admin/modules/name target lacked an enforced single source of truth, and Foundation release,
     Blueprint, generator, and
     downstream snapshot versions are conflated. Expanding features before one upgradeable vertical
@@ -266,8 +267,9 @@ spec:
       statement: >-
         Commit 5a60ad6 generates and checks in the Supplier backend specification projection,
         explicit forward migration, model, DTO, service, authorized API and OpenAPI annotations,
-        export, typed post-commit events, and backend tests. The generation plan must continue to
-        report phase backend-checkpoint and complete false until every deferred surface is implemented.
+        export, typed post-commit events, and backend tests. Commit d92458c extends the cumulative
+        checkpoint with generated Admin authorization while the generation plan continues to report
+        phase backend-checkpoint and complete false until every deferred surface is implemented.
       level: integration
       phase: checkpoint
       required: true
@@ -338,7 +340,7 @@ spec:
         - type: command
           value: >-
             go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
-            --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierForwardMigrationFreshRepeatAndConstraints|TestSupplierForwardMigrationPreservesUpgradeData|TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth|TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth|TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth|TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth|TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase|TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth|TestSupplierTableName|TestSupplierMigrationIdentityIsComplete|TestSupplierPermissionCodesAreUnique|TestSupplierOperationContractMatchesSpecification|TestSupplierDescriptorNeverInfersMigrationOrRoutes|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations)$'
+            --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierForwardMigrationFreshRepeatAndConstraints|TestSupplierForwardMigrationPreservesUpgradeData|TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth|TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth|TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth|TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth|TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase|TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth|TestSupplierTableName|TestSupplierMigrationIdentityIsComplete|TestSupplierPermissionCodesAreUnique|TestSupplierOperationContractMatchesSpecification|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations)$'
             --count 1 --race --go-work off
             --require TestSupplierServiceCRUDQueryExportAndPostCommitEvents
             --require TestSupplierForwardMigrationFreshRepeatAndConstraints
@@ -351,18 +353,79 @@ spec:
             --require TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth
             --require TestSupplierTableName --require TestSupplierMigrationIdentityIsComplete
             --require TestSupplierPermissionCodesAreUnique --require TestSupplierOperationContractMatchesSpecification
-            --require TestSupplierDescriptorNeverInfersMigrationOrRoutes
+            --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
             --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
             --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
         - type: report
           value: >-
-            The dry-run plan reports template revision 1.1.0-backend.2, 15 unchanged managed files,
-            phase backend-checkpoint, complete false, and 26 explicitly deferred projections.
+            At d92458c the dry-run plan reports template revision 1.1.0-backend.3,
+            19 unchanged managed files, phase backend-checkpoint, complete false, and
+            19 explicitly deferred frontend, documentation, and E2E projections.
         - type: report
           value: >-
             Development provider evidence at 5a60ad6 ran the four named Supplier migration tests
             against MySQL 8.4 and PostgreSQL 17 with zero skip. This is development evidence only;
             the same exact tests must rerun from the selected feature-freeze SHA.
+    - id: supplier-authorization-checkpoint-evidence
+      requirement: generate-authorization-contract
+      statement: >-
+        Commit d92458c projects the Supplier authorizationMigrationID, default roles, parent/menu,
+        hidden permission COMPONENT metadata, API metadata, Casbin policies, and role/global
+        authorization revisions in one additive transaction. AdminAuthorizer binds every permission
+        to its declared HTTP method and full Gin path, requires canonical request identity, follows
+        the declared root bypass, and has no row-owner fallback because ownership mode is none.
+        This is development-checkpoint evidence, not feature-freeze or publication evidence.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID
+        - type: test
+          value: TestSupplierEveryDeclaredOperationIsBackendAuthorized
+        - type: test
+          value: TestSupplierAdminAuthorizerPermissionMatrix
+        - type: test
+          value: TestSupplierAdminAuthorizerRequiresExplicitComposition
+        - type: test
+          value: TestSupplierAuthorizationMigrationProjectsExactPolicy
+        - type: test
+          value: TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth
+        - type: test
+          value: TestSupplierAuthorizationMigrationIdentityIsComplete
+        - type: test
+          value: TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator
+            --run '^(TestGenerateRejectsMigrationIDCollisionsBeforeWriting|TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs)$'
+            --count 1 --race --go-work off
+            --require TestGenerateRejectsMigrationIDCollisionsBeforeWriting
+            --require TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory . --package ./internal/mss/spec
+            --run '^(TestLoadExampleSupplierModule|TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID)$'
+            --count 1 --race --go-work off
+            --require TestLoadExampleSupplierModule
+            --require TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/runtime
+            --run '^TestAllReturnsStableCopies$' --count 1 --race --go-work off
+            --require TestAllReturnsStableCopies
+        - type: command
+          value: >-
+            go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+            --run '^(TestSupplierEveryDeclaredOperationIsBackendAuthorized|TestSupplierAdminAuthorizerPermissionMatrix|TestSupplierAdminAuthorizerRequiresExplicitComposition|TestSupplierAuthorizationMigrationProjectsExactPolicy|TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth|TestSupplierAuthorizationMigrationIdentityIsComplete|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition)$'
+            --count 1 --race --go-work off
+            --require TestSupplierEveryDeclaredOperationIsBackendAuthorized
+            --require TestSupplierAdminAuthorizerPermissionMatrix
+            --require TestSupplierAdminAuthorizerRequiresExplicitComposition
+            --require TestSupplierAuthorizationMigrationProjectsExactPolicy
+            --require TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth
+            --require TestSupplierAuthorizationMigrationIdentityIsComplete
+            --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
     - id: fullstack-backend-gate
       requirement: generate-fullstack-projection
       statement: >-
@@ -752,8 +815,35 @@ spec:
         --require TestGeneratedUpgradeRemovesLegacyAutoMountedController
         --require TestGenerateEventShapesCompileOrRejectBeforeWrite
       - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/generator
+        --run '^(TestGenerateRejectsMigrationIDCollisionsBeforeWriting|TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs)$'
+        --count 1 --race --go-work off
+        --require TestGenerateRejectsMigrationIDCollisionsBeforeWriting
+        --require TestGenerateReportsDeferredSurfacesWithoutWritingFrontendOrDocs
+      - >-
+        go run ./cmd/mss test evidence --directory . --package ./internal/mss/spec
+        --run '^(TestLoadExampleSupplierModule|TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID)$'
+        --count 1 --race --go-work off
+        --require TestLoadExampleSupplierModule
+        --require TestModuleValidationRejectsMissingOrDuplicateAuthorizationMigrationID
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./modules/runtime
+        --run '^TestAllReturnsStableCopies$' --count 1 --race --go-work off
+        --require TestAllReturnsStableCopies
+      - >-
         go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
-        --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierForwardMigrationFreshRepeatAndConstraints|TestSupplierForwardMigrationPreservesUpgradeData|TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth|TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth|TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth|TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth|TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase|TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth|TestSupplierTableName|TestSupplierMigrationIdentityIsComplete|TestSupplierPermissionCodesAreUnique|TestSupplierOperationContractMatchesSpecification|TestSupplierDescriptorNeverInfersMigrationOrRoutes|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations)$'
+        --run '^(TestSupplierEveryDeclaredOperationIsBackendAuthorized|TestSupplierAdminAuthorizerPermissionMatrix|TestSupplierAdminAuthorizerRequiresExplicitComposition|TestSupplierAuthorizationMigrationProjectsExactPolicy|TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth|TestSupplierAuthorizationMigrationIdentityIsComplete|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition)$'
+        --count 1 --race --go-work off
+        --require TestSupplierEveryDeclaredOperationIsBackendAuthorized
+        --require TestSupplierAdminAuthorizerPermissionMatrix
+        --require TestSupplierAdminAuthorizerRequiresExplicitComposition
+        --require TestSupplierAuthorizationMigrationProjectsExactPolicy
+        --require TestSupplierAuthorizationMigrationFailureRollsBackAllProjectedTruth
+        --require TestSupplierAuthorizationMigrationIdentityIsComplete
+        --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
+      - >-
+        go run ./cmd/mss test evidence --directory admin --package ./modules/supplier
+        --run '^(TestSupplierServiceCRUDQueryExportAndPostCommitEvents|TestSupplierForwardMigrationFreshRepeatAndConstraints|TestSupplierForwardMigrationPreservesUpgradeData|TestSupplierForwardMigrationRecoversAfterInterruptionWithoutPartialTruth|TestSupplierForwardMigrationRejectsExistingColumnShapeDriftWithoutVersionTruth|TestSupplierForwardMigrationRejectsNullableRequiredColumnsWithoutVersionTruth|TestSupplierForwardMigrationRejectsIndexShapeDriftWithoutVersionTruth|TestSupplierGeneratedMigrationDuplicateRegistrationFailsPreflightWithoutDatabase|TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth|TestSupplierTableName|TestSupplierMigrationIdentityIsComplete|TestSupplierPermissionCodesAreUnique|TestSupplierOperationContractMatchesSpecification|TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition|TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer|TestSupplierHTTPAuthorizationValidationAndDeclaredOperations)$'
         --count 1 --race --go-work off
         --require TestSupplierServiceCRUDQueryExportAndPostCommitEvents
         --require TestSupplierForwardMigrationFreshRepeatAndConstraints
@@ -766,7 +856,7 @@ spec:
         --require TestSupplierForwardMigrationRejectsExistingCheckBodyDriftWithoutVersionTruth
         --require TestSupplierTableName --require TestSupplierMigrationIdentityIsComplete
         --require TestSupplierPermissionCodesAreUnique --require TestSupplierOperationContractMatchesSpecification
-        --require TestSupplierDescriptorNeverInfersMigrationOrRoutes
+        --require TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposition
         --require TestSupplierRegisterRoutesFailsClosedWithoutAuthorizer
         --require TestSupplierHTTPAuthorizationValidationAndDeclaredOperations
       - >-
@@ -880,8 +970,9 @@ spec:
       Keep Generator/Blueprint and Storage Runtime as parallel axes. First establish independent
       version identities, canonical path, strict schema/projection checks, and a safe migration
       engine. The supplier golden backend, explicit forward migration, authorized API, OpenAPI,
-      and typed post-commit events are checked in at 5a60ad6 with complete false. Next add
-      default-role/policy/menu persistence plus the typed client and frontend in untagged development waves, then feature-freeze the public
+      and typed post-commit events are checked in at 5a60ad6; d92458c adds the separate
+      authorization migration, default-role policies, menu metadata, and exact role matrix while
+      retaining complete false. Next add the typed client and frontend in untagged development waves, then feature-freeze the public
       contracts and run the complete three-database, browser, external-app, and Blueprint 0.1-to-0.2
       upgrade matrices on one candidate commit. The canonical-email checkpoint must retain its
       fail-closed server schema readiness and rerun both real database integrations from that

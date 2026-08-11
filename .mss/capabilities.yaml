@@ -679,10 +679,12 @@ spec:
         D3 now covers deterministic backend specification projection, dry-run/check, path confinement,
         stable ordering, obsolete generated-file cleanup, explicit SQLite/MySQL/PostgreSQL forward DDL,
         validated DTO/service/API/OpenAPI/export, typed post-commit events, and fail-closed injected
-        backend authorization. The Supplier plan intentionally remains phase backend-checkpoint and
-        complete false with 26 deferred projections. Beta does not imply default-role or policy
-        persistence, menu registration, typed frontend client, UI/E2E, generated module docs, or
-        downstream upgrade completeness.
+        backend authorization. Commit d92458c adds a separate lossless-ID authorization migration,
+        exact default-role Casbin policies, MENU/COMPONENT/API metadata, role/global revisions, and
+        the AdminAuthorizer permission matrix. The Supplier plan intentionally remains phase
+        backend-checkpoint and complete false with 19 deferred frontend, documentation, and E2E
+        projections. Beta does not imply typed frontend client, UI/browser acceptance, generated
+        module docs, downstream upgrade completeness, or frozen-SHA release evidence.
 
     - id: agent.fullstack-module-generator
       displayName: Full-Stack Upgradeable Module Generator
@@ -700,11 +702,12 @@ spec:
       guidance: >-
         Commit 5a60ad6 delivers the checked-in Supplier backend slice with explicit forward migration,
         DTO/service/API/OpenAPI/export, typed post-commit events, fail-closed authorizer injection,
-        deterministic drift checks, and SQLite/MySQL/PostgreSQL development evidence. The capability
-        stays Planned and the machine plan stays complete false until D4/D5 add RBAC policy and
-        default-role persistence, menu, typed client, frontend states, exact authorization/UI/E2E,
-        generated docs, and the customization-preserving three-way upgrade. Do not expand to a
-        second domain first.
+        deterministic drift checks, and SQLite/MySQL/PostgreSQL development evidence. Commit d92458c
+        projects the separate authorization migration, exact admin/procurement/finance policies,
+        persisted menu metadata, and positive/negative Admin authorization matrix. The capability
+        stays Planned and the machine plan stays complete false until D5 adds the typed client,
+        frontend states, UI/browser E2E, generated docs, and the customization-preserving three-way
+        upgrade, followed by exact frozen-SHA reruns. Do not expand to a second domain first.
 
     - id: agent.skills
       displayName: Repository Agent Skills
