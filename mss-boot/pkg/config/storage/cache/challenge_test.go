@@ -1,12 +1,16 @@
 package cache
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io"
+	"log/slog"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -17,6 +21,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -214,6 +219,51 @@ func TestChallengeCallerAndGlobalIssueLimitsAcrossSubjects(t *testing.T) {
 	}
 	if err := issue("caller-three", "four@example.com"); !errors.Is(err, ErrChallengeQuota) {
 		t.Fatalf("global-limit Issue error = %v, want quota", err)
+	}
+}
+
+func TestLegacyRateScriptReplayAtLimitAndPartialState(t *testing.T) {
+	store, _ := newTestChallengeStore(t, ChallengeOptions{
+		CallerLimit: 1, GlobalLimit: 1,
+		CallerWindow: time.Hour, GlobalWindow: time.Hour,
+	})
+	ctx := context.Background()
+	run := func(keys []string, operationID string) string {
+		t.Helper()
+		result, err := limitChallengeIssueScript.Run(ctx, store.client, keys,
+			operationID,
+			int64(store.callerWindow/time.Millisecond),
+			store.callerLimit,
+			int64(store.globalWindow/time.Millisecond),
+			store.globalLimit,
+			int64(challengeStateExpiryGrace/time.Millisecond),
+		).Text()
+		if err != nil {
+			t.Fatalf("rate script: %v", err)
+		}
+		return result
+	}
+	keys := []string{store.namespace + ":rate:caller:replay", store.namespace + ":rate:global:replay"}
+	if result := run(keys, "same-operation"); result != "OK" {
+		t.Fatalf("first result = %q, want OK", result)
+	}
+	if result := run(keys, "same-operation"); result != "OK" {
+		t.Fatalf("replay-at-limit result = %q, want OK", result)
+	}
+	if result := run(keys, "different-operation"); result != "CALLER" && result != "GLOBAL" {
+		t.Fatalf("different operation result = %q, want quota", result)
+	}
+
+	partial := []string{store.namespace + ":rate:caller:partial", store.namespace + ":rate:global:partial"}
+	now, err := store.client.Time(ctx).Result()
+	if err != nil {
+		t.Fatalf("Redis TIME: %v", err)
+	}
+	if err = store.client.ZAdd(ctx, partial[0], redis.Z{Score: float64(now.UnixMilli()), Member: "partial-operation"}).Err(); err != nil {
+		t.Fatalf("seed partial rate state: %v", err)
+	}
+	if result := run(partial, "partial-operation"); result != "INCONSISTENT" {
+		t.Fatalf("partial replay result = %q, want INCONSISTENT", result)
 	}
 }
 
@@ -539,6 +589,101 @@ func TestLegacyVerifyCodeStoreIsDisabled(t *testing.T) {
 		!errors.Is(err, ErrLegacyVerifyCodeDisabled) {
 		t.Fatalf("legacy VerifyCode = %v, %v; want false, disabled", ok, err)
 	}
+}
+
+func TestLegacyChallengeFormattingRedactsCompatibilitySecrets(t *testing.T) {
+	store, _ := newTestChallengeStore(t, ChallengeOptions{})
+	options := testChallengeOptions(ChallengeOptions{})
+	cases := []struct {
+		value    any
+		redacted string
+	}{
+		{options.Peppers[0], "LegacyChallengePepper<redacted>"},
+		{&options.Peppers[0], "LegacyChallengePepper<redacted>"},
+		{options, "LegacyChallengeOptions<redacted>"},
+		{&options, "LegacyChallengeOptions<redacted>"},
+		{store, "LegacyRedisChallenge<redacted>"},
+	}
+	for _, test := range cases {
+		for _, format := range []string{"%v", "%+v", "%#v", "%s", "%q"} {
+			formatted := fmt.Sprintf(format, test.value)
+			want := test.redacted
+			if format == "%q" {
+				want = fmt.Sprintf("%q", test.redacted)
+			}
+			if formatted != want {
+				t.Fatalf("legacy fmt %q on %T = %q, want %q", format, test.value, formatted, want)
+			}
+			for _, forbidden := range []string{
+				string(options.SubjectKey), string(options.Peppers[0].Secret), options.Namespace,
+			} {
+				if strings.Contains(formatted, forbidden) {
+					t.Fatalf("legacy format %q leaked %q: %q", format, forbidden, formatted)
+				}
+			}
+		}
+		jsonValue, jsonErr := json.Marshal(test.value)
+		if jsonErr != nil {
+			t.Fatalf("json.Marshal(%T): %v", test.value, jsonErr)
+		}
+		wantJSON, _ := json.Marshal(test.redacted)
+		if !bytes.Equal(jsonValue, wantJSON) {
+			t.Fatalf("legacy json(%T) = %s, want %s", test.value, jsonValue, wantJSON)
+		}
+		yamlValue, yamlErr := yaml.Marshal(test.value)
+		if yamlErr != nil {
+			t.Fatalf("yaml.Marshal(%T): %v", test.value, yamlErr)
+		}
+		wantYAML, _ := yaml.Marshal(test.redacted)
+		if !bytes.Equal(yamlValue, wantYAML) {
+			t.Fatalf("legacy yaml(%T) = %q, want %q", test.value, yamlValue, wantYAML)
+		}
+		textLog, jsonLog := renderLegacyChallengeLogs(test.value)
+		wantTextLog, wantJSONLog := renderLegacyChallengeLogs(test.redacted)
+		if textLog != wantTextLog || jsonLog != wantJSONLog {
+			t.Fatalf("legacy slog(%T) text=%q json=%q; want text=%q json=%q", test.value, textLog, jsonLog, wantTextLog, wantJSONLog)
+		}
+		for _, serialized := range []string{string(jsonValue), string(yamlValue), textLog, jsonLog} {
+			for _, forbidden := range []string{string(options.SubjectKey), string(options.Peppers[0].Secret), options.Namespace} {
+				if strings.Contains(serialized, forbidden) {
+					t.Fatalf("legacy serialization leaked %q: %q", forbidden, serialized)
+				}
+			}
+		}
+	}
+}
+
+func TestLegacyChallengeConstructorRejectsTypedNilClients(t *testing.T) {
+	for name, client := range map[string]redis.UniversalClient{
+		"client":         (*redis.Client)(nil),
+		"cluster":        (*redis.ClusterClient)(nil),
+		"ring":           (*redis.Ring)(nil),
+		"wrapper":        (*Redis)(nil),
+		"wrapped client": &Redis{UniversalClient: (*redis.Client)(nil)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			store, err := NewRedisChallengeStore(client, testChallengeOptions(ChallengeOptions{}))
+			if store != nil || err == nil {
+				t.Fatalf("constructor = %#v, %v; want nil,error", store, err)
+			}
+		})
+	}
+}
+
+func renderLegacyChallengeLogs(value any) (string, string) {
+	options := &slog.HandlerOptions{
+		ReplaceAttr: func(_ []string, attr slog.Attr) slog.Attr {
+			if attr.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+			return attr
+		},
+	}
+	var textLog bytes.Buffer
+	slog.New(slog.NewTextHandler(&textLog, options)).Info("canary", "value", value)
+	var jsonLog bytes.Buffer
+	slog.New(slog.NewJSONHandler(&jsonLog, options)).Info("canary", "value", value)
+	return textLog.String(), jsonLog.String()
 }
 
 func newTestChallengeStore(t *testing.T, overrides ChallengeOptions) (*RedisChallengeStore, *miniredis.Miniredis) {

@@ -15,8 +15,11 @@
 //
 // Cluster multi-key Delete and Exists are non-atomic, fail-fast sequences of
 // single-key commands; their count is the completed partial result. This
-// avoids CROSSSLOT and scope-wide hash-tag hotspots. Cross-key atomic groups
-// require a later server-owned capability and are intentionally absent here.
+// avoids CROSSSLOT and scope-wide hash-tag hotspots. The public Lease still has
+// no cross-key atomic primitive. Runtime-owned packages can use the sealed
+// runtime/internal/redisbridge adapter for server-derived same-slot groups and
+// source-fixed scripts; application consumers cannot import that bridge, see a
+// physical key/hash tag, borrow the client, or submit arbitrary Lua.
 // Sentinel credentials currently cover Redis data nodes only because Runtime
 // v2 has no separate Sentinel control-plane credential references; control
 // plane authentication is therefore anonymous in this checkpoint.

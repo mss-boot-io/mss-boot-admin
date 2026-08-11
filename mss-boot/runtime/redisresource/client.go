@@ -100,6 +100,10 @@ type goRedisClient struct {
 	mode   runtimeconfig.RedisMode
 }
 
+type atomicClient interface {
+	EvalFixed(context.Context, string, []string, ...any) (any, error)
+}
+
 func (c *goRedisClient) Ping(ctx context.Context) error {
 	return c.client.Ping(ctx).Err()
 }
@@ -122,6 +126,10 @@ func (c *goRedisClient) Delete(ctx context.Context, keys ...string) (int64, erro
 
 func (c *goRedisClient) Exists(ctx context.Context, keys ...string) (int64, error) {
 	return c.client.Exists(ctx, keys...).Result()
+}
+
+func (c *goRedisClient) EvalFixed(ctx context.Context, source string, keys []string, args ...any) (any, error) {
+	return redis.NewScript(source).Run(ctx, c.client, keys, args...).Result()
 }
 
 func (c *goRedisClient) Close() error {

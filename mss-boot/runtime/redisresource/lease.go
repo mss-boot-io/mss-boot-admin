@@ -8,6 +8,7 @@ import (
 	"time"
 
 	runtimeconfig "github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/config"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/runtime/internal/redisbridge"
 )
 
 // Keep this type non-zero-sized: Go permits pointers to distinct zero-sized
@@ -110,6 +111,14 @@ func (s *Scope) String() string {
 
 func (s *Scope) GoString() string { return s.String() }
 
+// Ready verifies the shared resource while preserving Scope ownership.
+func (s *Scope) Ready(ctx context.Context) error {
+	if s == nil || s.resource == nil {
+		return lifecycleError(OperationReady, ErrUnavailable, ErrUnavailable)
+	}
+	return s.resource.Ready(ctx)
+}
+
 // Use lends a client capability until callback returns. A callback must not
 // retain the Lease; retained method calls deterministically return
 // ErrLeaseExpired. Close waits for the callback itself to return.
@@ -162,6 +171,60 @@ func (s *Scope) Use(ctx context.Context, callback func(Lease) error) error {
 		return lifecycleError(OperationUse, ErrUseRejected, err)
 	}
 	return nil
+}
+
+// RedisBridgeUse is the sealed Runtime v2 borrow used by runtime-owned
+// same-slot capabilities. Application packages cannot import redisbridge and
+// therefore cannot obtain the provider driver or submit a request.
+func (s *Scope) RedisBridgeUse(ctx context.Context, callback func(redisbridge.Driver) error) error {
+	if callback == nil {
+		return lifecycleError(OperationUse, ErrUseRejected, ErrUseRejected)
+	}
+	return s.Use(ctx, func(public Lease) error {
+		borrowed, ok := public.(*lease)
+		if !ok {
+			return ErrUseRejected
+		}
+		return callback(&atomicDriver{lease: borrowed, prefix: s.prefix})
+	})
+}
+
+type atomicDriver struct {
+	lease  *lease
+	prefix string
+}
+
+func (d *atomicDriver) RedisBridgeRun(ctx context.Context, request redisbridge.Request) (redisbridge.Reply, error) {
+	if d == nil || d.lease == nil {
+		return redisbridge.Reply{}, lifecycleError(OperationAtomic, ErrLeaseExpired, ErrLeaseExpired)
+	}
+	marker := Key{
+		value:        "redisbridge",
+		resourceName: d.lease.resourceName,
+		scopeName:    d.lease.scopeName,
+		owner:        d.lease.capability,
+	}
+	commandContext, done, err := d.lease.beginCommand(ctx, []Key{marker}, OperationAtomic)
+	if err != nil {
+		return redisbridge.Reply{}, err
+	}
+	defer done()
+	client, ok := d.lease.client.(atomicClient)
+	if !ok {
+		return redisbridge.Reply{}, lifecycleError(OperationAtomic, ErrCommandFailed, ErrCommandFailed)
+	}
+	reply, err := request.Execute(commandContext, d.prefix, atomicExecutor{client: client})
+	err = withContextError(commandContext, err)
+	if err != nil {
+		return redisbridge.Reply{}, lifecycleError(OperationAtomic, ErrCommandFailed, err)
+	}
+	return reply, nil
+}
+
+type atomicExecutor struct{ client atomicClient }
+
+func (e atomicExecutor) RedisBridgeEvalFixed(ctx context.Context, source string, keys []string, args ...any) (any, error) {
+	return e.client.EvalFixed(ctx, source, keys, args...)
 }
 
 func (l *lease) QualifyKey(logical string) (Key, error) {
@@ -353,3 +416,5 @@ func withContextError(ctx context.Context, err error) error {
 }
 
 var _ Lease = (*lease)(nil)
+var _ redisbridge.Source = (*Scope)(nil)
+var _ redisbridge.Driver = (*atomicDriver)(nil)

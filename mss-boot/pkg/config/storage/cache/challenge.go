@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -18,9 +20,9 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// This is the deliberately provisional D0 challenge implementation carried by
-// the v1.1.0 development train. It closes the unsafe verification-code path
-// without freezing the Storage Runtime v2 public API.
+// This D0 implementation is retained only as a source-compatible, fail-closed
+// bridge for existing raw-client callers. New code uses runtime/challenge with
+// a named redisresource.Scope; the new API never falls back to this bridge.
 
 var (
 	ErrChallengeUnavailable = errors.New("challenge store unavailable")
@@ -51,13 +53,28 @@ const (
 
 var challengePurposePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
+// ChallengePurpose is the provisional D0 purpose type.
+// Deprecated: use runtime/challenge.Purpose with a named Redis scope.
 type ChallengePurpose string
 
+// ChallengePepper is the provisional D0 verifier-secret generation.
+// Deprecated: use runtime/challenge.Pepper with a named Redis scope.
 type ChallengePepper struct {
 	Version string
 	Secret  []byte
 }
 
+func (ChallengePepper) String() string         { return "LegacyChallengePepper<redacted>" }
+func (p ChallengePepper) GoString() string     { return p.String() }
+func (p ChallengePepper) LogValue() slog.Value { return slog.StringValue(p.String()) }
+func (ChallengePepper) MarshalJSON() ([]byte, error) {
+	return []byte(`"LegacyChallengePepper<redacted>"`), nil
+}
+func (p ChallengePepper) MarshalYAML() (any, error) { return p.String(), nil }
+
+// ChallengeOptions configures the provisional raw-client compatibility bridge.
+// Deprecated: use runtime/challenge.Options; the Runtime v2 API intentionally
+// derives physical isolation from redisresource.Scope and has no Namespace.
 type ChallengeOptions struct {
 	Namespace      string
 	SubjectKey     []byte
@@ -75,6 +92,14 @@ type ChallengeOptions struct {
 	GlobalLimit    int
 }
 
+func (ChallengeOptions) String() string         { return "LegacyChallengeOptions<redacted>" }
+func (o ChallengeOptions) GoString() string     { return o.String() }
+func (o ChallengeOptions) LogValue() slog.Value { return slog.StringValue(o.String()) }
+func (ChallengeOptions) MarshalJSON() ([]byte, error) {
+	return []byte(`"LegacyChallengeOptions<redacted>"`), nil
+}
+func (o ChallengeOptions) MarshalYAML() (any, error) { return o.String(), nil }
+
 // challengeIssue is an opaque, versioned delivery reservation. Only the code is
 // passed to the delivery callback; Redis keys, subject data, and verifier state
 // remain private to the store.
@@ -86,15 +111,16 @@ type challengeIssue struct {
 	opsKey   string
 }
 
-// ProvisionalChallenge deliberately exposes only delivery orchestration and
-// verification. Begin/commit/abort remain implementation details until the
-// v1.1 Runtime v2 API is designed.
+// ProvisionalChallenge exposes the historical delivery orchestration facade.
+// Deprecated: use runtime/challenge.Redis and its explicit reservation flow.
 type ProvisionalChallenge interface {
 	Ready(context.Context) error
 	Issue(context.Context, string, string, ChallengePurpose, func(context.Context, string) error) error
 	VerifyChallenge(context.Context, string, ChallengePurpose, string) (bool, error)
 }
 
+// RedisChallengeStore is the provisional D0 raw-client compatibility bridge.
+// Deprecated: use runtime/challenge.NewRedis with *redisresource.Scope.
 type RedisChallengeStore struct {
 	client         redis.UniversalClient
 	namespace      string
@@ -115,13 +141,38 @@ type RedisChallengeStore struct {
 	random         io.Reader
 }
 
+func (s *RedisChallengeStore) String() string {
+	if s == nil {
+		return "LegacyRedisChallenge<nil>"
+	}
+	return "LegacyRedisChallenge<redacted>"
+}
+
+func (s *RedisChallengeStore) GoString() string     { return s.String() }
+func (s *RedisChallengeStore) LogValue() slog.Value { return slog.StringValue(s.String()) }
+func (s *RedisChallengeStore) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + s.String() + `"`), nil
+}
+func (s *RedisChallengeStore) MarshalYAML() (any, error) { return s.String(), nil }
+
+// NewRedisChallengeStore preserves the D0 source contract for existing callers.
+// It is an independent fail-closed compatibility bridge and is never used as a
+// fallback by runtime/challenge.
+// Deprecated: use runtime/challenge.NewRedis with *redisresource.Scope.
 func NewRedisChallengeStore(client redis.UniversalClient, options ChallengeOptions) (*RedisChallengeStore, error) {
-	if client == nil {
+	return newLegacyRedisChallengeStore(client, options)
+}
+
+func newLegacyRedisChallengeStore(client redis.UniversalClient, options ChallengeOptions) (*RedisChallengeStore, error) {
+	if nilRedisUniversalClient(client) {
 		return nil, errors.New("challenge Redis client is required")
 	}
 	if cacheClient, ok := client.(*Redis); ok {
+		if cacheClient == nil {
+			return nil, errors.New("challenge Redis client is required")
+		}
 		client = cacheClient.UniversalClient
-		if client == nil {
+		if nilRedisUniversalClient(client) {
 			return nil, errors.New("challenge Redis client is required")
 		}
 	}
@@ -159,6 +210,14 @@ func NewRedisChallengeStore(client redis.UniversalClient, options ChallengeOptio
 		globalLimit:    options.GlobalLimit,
 		random:         cryptorand.Reader,
 	}, nil
+}
+
+func nilRedisUniversalClient(client redis.UniversalClient) bool {
+	if client == nil {
+		return true
+	}
+	value := reflect.ValueOf(client)
+	return value.Kind() == reflect.Pointer && value.IsNil()
 }
 
 func defaultChallengeOptions(options ChallengeOptions) ChallengeOptions {
@@ -659,6 +718,14 @@ local now = tonumber(server_time[1]) * 1000 + math.floor(tonumber(server_time[2]
 
 redis.call('ZREMRANGEBYSCORE', caller, '-inf', now - caller_window)
 redis.call('ZREMRANGEBYSCORE', global, '-inf', now - global_window)
+local caller_replay = redis.call('ZSCORE', caller, operation_id)
+local global_replay = redis.call('ZSCORE', global, operation_id)
+if caller_replay and global_replay then
+  return 'OK'
+end
+if caller_replay or global_replay then
+  return 'INCONSISTENT'
+end
 if tonumber(redis.call('ZCARD', caller)) >= caller_limit then
   return 'CALLER'
 end

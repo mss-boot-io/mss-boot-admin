@@ -40,6 +40,7 @@ const (
 	OperationDelete  Operation = "delete"
 	OperationExists  Operation = "exists"
 	OperationQualify Operation = "qualify-key"
+	OperationAtomic  Operation = "atomic"
 )
 
 // ValidationError describes profile structure without retaining a rejected
