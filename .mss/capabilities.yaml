@@ -9,6 +9,24 @@ spec:
     legacy: maintained for compatibility, not recommended for new modules
     planned: part of the approved roadmap but not yet implemented
   capabilities:
+    - id: frontend.ant-design-v6
+      displayName: Independent Ant Design 6 Admin Application
+      status: planned
+      owners: [frontend, release-engineering, security]
+      paths:
+        - .mss/features/admin-antd-v6-application.yaml
+        - docs/adr/2026-08-15-independent-ant-design-v6-application.md
+        - docs/docs/admin/ant-design-v6-migration-plan.md
+        - web/antd-v6
+        - web/antd-v6/CHANGELOG.md
+        - .github/workflows/frontend-v6-ci.yml
+        - .github/workflows/frontend-v6-release.yml
+      guidance: >-
+        Build and release this application independently from web/antd. Ant Design 6.6.0
+        and the ProComponents v3 beta are exact pins; backend-compatible cookie/CSRF and
+        WebSocket-ticket support, business parity, the v6 generator target, browser evidence,
+        and immutable release evidence remain required before this capability is production-ready.
+
     - id: identity.authentication
       displayName: Authentication
       status: stable
@@ -801,6 +819,7 @@ spec:
         - .mss/features/foundation-v1-0-0-release.yaml
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/foundation-v1-1-0-release.yaml
+        - .mss/features/admin-antd-v6-application.yaml
         - .mss/release-policy.yaml
         - CHANGELOG.md
         - mss-boot/CHANGELOG.md
@@ -820,12 +839,16 @@ spec:
         - web/antd/Dockerfile
         - web/antd/config/config.prod.release.ts
         - web/antd/scripts/check-release-api.mjs
+        - web/antd-v6/Dockerfile
+        - web/antd-v6/CHANGELOG.md
+        - web/antd-v6/scripts/check-release-api.mjs
         - .github/workflows/container.yml
         - .github/workflows/docs.yml
         - .github/workflows/release.yml
         - .github/workflows/release-readiness.yml
         - .github/workflows/framework-release.yml
         - .github/workflows/frontend-release.yml
+        - .github/workflows/frontend-v6-release.yml
         - .github/workflows/theme-settings-integration.yml
         - .github/workflows/v0.7-upgrade-integration.yml
       guidance: >-

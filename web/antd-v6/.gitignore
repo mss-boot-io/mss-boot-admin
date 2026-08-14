@@ -1,0 +1,14 @@
+/.umi
+/.umi-production
+/.umi-test
+/.umi-test-production
+/src/.umi
+/src/.umi-production
+/src/.umi-test
+/src/.umi-test-production
+/coverage
+/dist
+/node_modules
+/playwright-report
+/test-results
+*.log

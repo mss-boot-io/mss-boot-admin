@@ -1,0 +1,48 @@
+import { history, request, useParams } from '@umijs/max';
+import { Result, Spin } from 'antd';
+import { useEffect, useState } from 'react';
+import { resolveSafeRedirect } from '@/shared/auth/redirect';
+
+interface OAuthCallbackResponse {
+  redirect?: string;
+}
+
+export default function OAuthCallbackPage() {
+  const { provider } = useParams<{ provider: string }>();
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(history.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    if (!provider || !code || !state) {
+      setError(true);
+      return;
+    }
+    request<OAuthCallbackResponse>(`/user/${encodeURIComponent(provider)}/callback`, {
+      method: 'POST',
+      data: { code, state },
+      skipErrorHandler: true,
+    })
+      .then((result) => {
+        history.replace(resolveSafeRedirect(result.redirect));
+      })
+      .catch(() => setError(true));
+  }, [provider]);
+
+  if (error) {
+    return (
+      <Result
+        status="error"
+        title="第三方登录失败"
+        subTitle="授权结果无效或已过期，请返回登录页重试。"
+      />
+    );
+  }
+
+  return (
+    <div className="grid min-h-screen place-items-center">
+      <Spin size="large" tip="正在完成安全登录…" />
+    </div>
+  );
+}

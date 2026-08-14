@@ -24,11 +24,13 @@ REQUIRED_KEYS = {
     "rootTagTemplate",
     "frameworkTagTemplate",
     "frontendTagTemplate",
+    "frontendV6TagTemplate",
 }
 COMPONENT_TEMPLATE_KEYS = {
     "root": "rootTagTemplate",
     "framework": "frameworkTagTemplate",
     "frontend": "frontendTagTemplate",
+    "frontend-v6": "frontendV6TagTemplate",
 }
 
 

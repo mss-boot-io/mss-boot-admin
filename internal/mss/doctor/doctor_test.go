@@ -106,6 +106,40 @@ func TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains(t *testing.T) {
 	}
 }
 
+func TestRunFrontendScopeChecksEveryConfiguredApplication(t *testing.T) {
+	root := t.TempDir()
+	for _, relative := range []string{
+		"web/antd/pnpm-lock.yaml",
+		"web/antd-v6/pnpm-lock.yaml",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("create parent for %s: %v", relative, err)
+		}
+		if err := os.WriteFile(path, []byte("lockfileVersion: '9.0'\n"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", relative, err)
+		}
+	}
+	projectContext := &project.Context{Root: root}
+	projectContext.Project.Spec.Frontend.Applications = []project.FrontendApplicationSpec{
+		{ID: "antd-v5", Path: "web/antd", DevelopmentPort: 18123},
+		{ID: "antd-v6", Path: "web/antd-v6", DevelopmentPort: 18124},
+	}
+
+	report := Run(context.Background(), projectContext, WithComponents(ComponentFrontend))
+	checks := checksByID(report.Checks)
+	for _, required := range []string{
+		"file:web/antd/pnpm-lock.yaml",
+		"file:web/antd-v6/pnpm-lock.yaml",
+		"port:frontend-port",
+		"port:antd-v6-port",
+	} {
+		if _, ok := checks[required]; !ok {
+			t.Errorf("configured frontend check %q is missing", required)
+		}
+	}
+}
+
 func TestRunAgentScopeRequiresValidGeneratedSnapshot(t *testing.T) {
 	root := t.TempDir()
 	writeDoctorAgentContracts(t, root)

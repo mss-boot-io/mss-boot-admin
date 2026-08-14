@@ -157,6 +157,26 @@ spec:
       description: Build the local frontend profile.
       category: frontend
 
+    frontend-v6-install:
+      command: make web-v6-install
+      description: Install the independent Ant Design 6 frontend from its frozen lockfile.
+      category: frontend
+
+    frontend-v6-lint:
+      command: make web-v6-lint
+      description: Run Biome and TypeScript checks for the independent Ant Design 6 frontend.
+      category: frontend
+
+    frontend-v6-test:
+      command: make web-v6-test
+      description: Run Vitest for the independent Ant Design 6 frontend.
+      category: frontend
+
+    frontend-v6-build:
+      command: make web-v6-build
+      description: Build and validate the independently releasable Ant Design 6 frontend.
+      category: frontend
+
     docs-install:
       command: make docs-install
       description: Install documentation dependencies with the frozen lockfile.
@@ -180,7 +200,7 @@ spec:
       category: verification
 
     release-policy-check:
-      command: python3 tools/release/check_release_policy.py --component <root|framework|frontend> --version <version> --tag <tag> --intent <qualify|publish>
+      command: python3 tools/release/check_release_policy.py --component <root|framework|frontend|frontend-v6> --version <version> --tag <tag> --intent <qualify|publish>
       description: Validate the reviewed target and namespace; qualify permits unpublished candidate work, while publish also requires publication workflow readiness and is not itself phase approval.
       outputFormats: [text]
       category: release

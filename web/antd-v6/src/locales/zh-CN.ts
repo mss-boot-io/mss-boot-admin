@@ -1,0 +1,17 @@
+export default {
+  'menu.login': '登录',
+  'menu.workplace': '工作台',
+  'menu.migration': '迁移状态',
+  'menu.oauth-callback': '第三方登录',
+  'pages.login.subtitle': '安全、可升级的管理系统基础设施',
+  'pages.login.username': '用户名',
+  'pages.login.password': '密码',
+  'pages.login.usernameRequired': '请输入用户名',
+  'pages.login.passwordRequired': '请输入密码',
+  'pages.login.sessionNotice': '登录状态由服务端安全会话管理。',
+  'pages.login.remember': '保持登录',
+  'pages.login.forgot': '忘记密码',
+  'pages.login.success': '登录成功',
+  'pages.login.failure': '登录失败，请检查凭据或稍后重试',
+  'pages.login.cookieSecurity': '凭据不会写入 localStorage 或 WebSocket URL',
+};

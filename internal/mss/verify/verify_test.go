@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
 func TestToolingTestUsesConsolidatedAdminRuntimePathWhenOptionalRuntimeIsAbsent(t *testing.T) {
@@ -81,6 +83,45 @@ func TestFrontendBuildUsesPortableReleaseProfile(t *testing.T) {
 	if spec.Directory != filepath.Join(root, "web", "antd") {
 		t.Fatalf("frontend build directory = %q", spec.Directory)
 	}
+}
+
+func TestFrontendV6ChecksUseIndependentApplicationDirectory(t *testing.T) {
+	root := t.TempDir()
+	wantDirectory := filepath.Join(root, "web", "antd-v6")
+	for _, spec := range []struct {
+		name     string
+		got      commandSpecView
+		wantArgs []string
+	}{
+		{name: "lint", got: commandSpecView{frontendV6Lint(root).Directory, frontendV6Lint(root).Args}, wantArgs: []string{"corepack", "pnpm@10.34.5", "lint"}},
+		{name: "test", got: commandSpecView{frontendV6Test(root).Directory, frontendV6Test(root).Args}, wantArgs: []string{"corepack", "pnpm@10.34.5", "test:ci"}},
+		{name: "build", got: commandSpecView{frontendV6Build(root).Directory, frontendV6Build(root).Args}, wantArgs: []string{"corepack", "pnpm@10.34.5", "build:release"}},
+	} {
+		if spec.got.directory != wantDirectory {
+			t.Fatalf("%s directory = %q, want %q", spec.name, spec.got.directory, wantDirectory)
+		}
+		if !reflect.DeepEqual(spec.got.args, spec.wantArgs) {
+			t.Fatalf("%s arguments = %q, want %q", spec.name, spec.got.args, spec.wantArgs)
+		}
+	}
+}
+
+func TestFrontendV6FullChecksRequireConfiguredApplication(t *testing.T) {
+	ctx := &project.Context{}
+	if hasFrontendApplication(ctx, "web/antd-v6") {
+		t.Fatal("legacy project context unexpectedly enables the v6 frontend")
+	}
+	ctx.Project.Spec.Frontend.Applications = []project.FrontendApplicationSpec{
+		{ID: "antd-v6", Path: "web/antd-v6"},
+	}
+	if !hasFrontendApplication(ctx, "web/antd-v6") {
+		t.Fatal("configured v6 frontend was not detected")
+	}
+}
+
+type commandSpecView struct {
+	directory string
+	args      []string
 }
 
 func TestValidateContractsRejectsInvalidFeature(t *testing.T) {

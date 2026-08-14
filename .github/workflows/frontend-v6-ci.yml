@@ -1,0 +1,175 @@
+name: Frontend v6 CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'web/antd-v6/**'
+      - 'admin/modules/**/module.yaml'
+      - 'templates/module/frontend-v6/**'
+      - '.mss/commands.yaml'
+      - '.mss/project.yaml'
+      - '.github/workflows/frontend-v6-ci.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'web/antd-v6/**'
+      - 'admin/modules/**/module.yaml'
+      - 'templates/module/frontend-v6/**'
+      - '.mss/commands.yaml'
+      - '.mss/project.yaml'
+      - '.github/workflows/frontend-v6-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-v6-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  NODE_OPTIONS: '--max-old-space-size=4096'
+
+jobs:
+  dependency-contract:
+    name: dependency-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: web/antd-v6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
+
+      - name: Verify pinned toolchain
+        run: |
+          set -euo pipefail
+          test "$(pnpm --version)" = '10.34.5'
+          node -e "if (Number(process.versions.node.split('.')[0]) !== 24) process.exit(1)"
+
+      - name: Install frozen dependency graph
+        run: >-
+          pnpm install
+          --frozen-lockfile
+          --ignore-scripts
+          --prefer-offline
+
+      - name: Verify dependency and peer transition contract
+        run: pnpm run deps:check
+
+      - name: Check dependency deduplication
+        run: pnpm dedupe --check --config.strict-peer-dependencies=false --config.ignore-scripts=true
+
+      - name: Audit runtime and complete dependency graph
+        run: |
+          pnpm audit --prod --audit-level high
+          pnpm audit --audit-level critical
+
+      - name: Require dependency commands to leave contracts unchanged
+        run: git diff --exit-code -- package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc
+
+  quality:
+    name: quality
+    needs: dependency-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: web/antd-v6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
+
+      - name: Lint and type-check
+        run: pnpm run lint
+
+      - name: Run unit and component tests
+        run: pnpm run test:ci
+
+  compile:
+    name: production-build
+    needs: dependency-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: web/antd-v6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
+
+      - name: Build and enforce production contracts
+        run: pnpm run build:release
+
+      - name: Smoke-test Nginx delivery
+        run: pnpm run delivery:smoke
+
+  build:
+    name: build
+    if: ${{ always() }}
+    needs:
+      - dependency-contract
+      - quality
+      - compile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every v6 frontend check to pass
+        env:
+          DEPENDENCY_RESULT: ${{ needs.dependency-contract.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          COMPILE_RESULT: ${{ needs.compile.result }}
+        run: |
+          echo "dependency-contract=${DEPENDENCY_RESULT}"
+          echo "quality=${QUALITY_RESULT}"
+          echo "compile=${COMPILE_RESULT}"
+          test "${DEPENDENCY_RESULT}" = 'success'
+          test "${QUALITY_RESULT}" = 'success'
+          test "${COMPILE_RESULT}" = 'success'
