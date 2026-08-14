@@ -1,0 +1,265 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-antd-v6-application
+  displayName: Independent Ant Design 6 Admin application
+  description: >-
+    Creates an independently built and released Ant Design 6.6.0 application that
+    preserves MSS business, authorization, localization, and API contracts while
+    replacing legacy frontend implementation patterns with the current Pro v6 stack.
+  owner: admin-platform
+  labels:
+    domain: frontend
+    scope: admin-v6
+    phase: implementation
+spec:
+  problem: >-
+    The existing web/antd application is coupled to React 18, Ant Design 5, legacy
+    request and styling patterns, one hard-coded frontend toolchain, and one release
+    namespace. An in-place dependency upgrade would combine product migration,
+    rollback, generator, and release risk and would preserve implementation defects
+    that Ant Design 6 is intended to remove.
+  goals:
+    - Create web/antd-v6 as an independent application, dependency graph, artifact, image, tag namespace, and release workflow.
+    - Preserve reachable business capabilities, backend authorization semantics, API behavior, locale parity, and responsive operations without copying the old source structure or visual defects.
+    - Pin Ant Design 6.6.0 and every resolved dependency exactly in a committed pnpm lockfile.
+    - Use React Query for server state, a typed transport boundary, dayjs, CSS variables, semantic tokens, responsive shared views, Biome, Vitest, Playwright, and utoopack.
+    - Keep web/antd independently buildable, releasable, deployable, and immediately usable for rollback.
+    - Give the MSS project contract, verifier, generator, CI, and release tooling explicit knowledge of both frontend applications.
+  nonGoals:
+    - Replace or delete web/antd during this feature.
+    - Reintroduce removed runtime dynamic-model, virtual CRUD, or browser code-generation features.
+    - Add Ant Design Pro demonstration pages, AI Assistant, analytics, Cloudflare demo APIs, or external product integrations.
+    - Require pixel-level or source-level equivalence with the existing frontend.
+    - Introduce React Server Components or experimental production SSR into the static Admin delivery model.
+  actors:
+    - id: admin-user
+      displayName: Authenticated Admin user
+    - id: admin-operator
+      displayName: Authorized management operator
+    - id: release-operator
+      displayName: Frontend release operator
+    - id: downstream-agent
+      displayName: Downstream generation and upgrade agent
+  modules:
+    - name: frontend-v6-contract
+      kind: infrastructure
+      operation: create
+      description: Project, provenance, command, verification, and independent release contracts.
+    - name: frontend-v6-shell
+      kind: infrastructure
+      operation: create
+      description: React 19, Umi Max, Ant Design 6, ProLayout, query, theme, locale, access, and responsive application shell.
+    - name: frontend-v6-domains
+      kind: infrastructure
+      operation: create
+      description: Vertical frontend modules preserving existing Admin business capabilities.
+    - name: frontend-v6-generator
+      kind: infrastructure
+      operation: create
+      description: Versioned v6 projection for generated routes, locale catalogs, modules, and E2E tests.
+    - name: frontend-v6-release
+      kind: infrastructure
+      operation: create
+      description: Independent CI, immutable artifact, image, tag namespace, and deployment workflow.
+    - name: frontend-session-security
+      kind: infrastructure
+      operation: extend
+      description: Same-origin protected session transport and non-query WebSocket authentication.
+  requirements:
+    - id: freeze-upstream-and-dependencies
+      title: Freeze a reproducible current v6 baseline
+      description: The new application records its exact upstream source and resolved dependency graph.
+      priority: must
+      actor: downstream-agent
+      module: frontend-v6-contract
+      rules:
+        - The upstream scaffold is Ant Design Pro v6.0.2 commit 2b453c67b535b76f5f95d6542397a4b987b61de2.
+        - Ant Design is pinned exactly to 6.6.0 and package.json does not use floating ranges for runtime or build dependencies.
+        - ProComponents v3 beta is pinned exactly and consumed only through reviewed shared adapters where practical.
+        - Node, pnpm, package versions, lockfile, upstream source, and intentional template deviations are recorded in repository contracts.
+        - A dependency update is reviewed as a versioned change and cannot silently alter an existing release artifact.
+    - id: preserve-business-contracts
+      title: Preserve business and authorization behavior
+      description: Every retained Admin capability keeps its backend-enforced permission and API semantics.
+      priority: must
+      actor: admin-operator
+      module: frontend-v6-domains
+      rules:
+        - Authentication, account, workplace, users, roles, menus, departments, posts, language, options, application and system configuration, tasks, notices, logs, monitoring, sessions, theme, PAT, OAuth, and generated Supplier behavior have an explicit migration entry.
+        - The route registry is compiled code intersected with the backend-authorized menu and never imports an arbitrary database component string.
+        - UI access controls are experience only and direct API and direct-route negative cases remain backend enforced.
+        - Each page distinguishes loading, confirmed empty, retryable error, permission denied, not found, and conflict states where applicable.
+        - Chinese and English user-facing catalogs remain synchronized.
+    - id: modernize-runtime-architecture
+      title: Use one owner for each frontend responsibility
+      description: The v6 application separates transport, server state, client state, design tokens, and module behavior.
+      priority: must
+      actor: downstream-agent
+      module: frontend-v6-shell
+      rules:
+        - Generated OpenAPI types and endpoints are isolated from a handwritten transport adapter for envelopes, 201 and 204 responses, files, uploads, OAuth, and errors.
+        - React Query v5 owns server cache and invalidation while Umi initial state owns only verified identity and startup-critical client state.
+        - WebSocket events invalidate query keys instead of creating a second unbounded server-state cache.
+        - dayjs replaces direct moment usage.
+        - Utoopack and route prefetch replace the legacy mfsu path.
+    - id: use-v6-design-system
+      title: Use Ant Design 6 semantic customization
+      description: The visual system consumes public v6 tokens and semantic slots instead of internal DOM selectors.
+      priority: must
+      actor: admin-user
+      module: frontend-v6-shell
+      rules:
+        - ConfigProvider CSS variables and semantic Design Tokens are the source for brand, light, dark, density, focus, and component variants.
+        - Tailwind owns layout utilities, CSS Modules own local static styles, and antd-style owns complex token-aware styles.
+        - Application code does not depend on undocumented ant or pro DOM hierarchy selectors.
+        - Existing layered theme revisions, ETags, conflicts, precedence, first-paint hints, and cross-tab synchronization are preserved through a v6 adapter.
+        - Desktop and mobile behavior share responsive components unless the interaction model requires a distinct presentation.
+    - id: harden-browser-session
+      title: Remove browser token exposure patterns
+      description: The v6 application does not carry forward persistent bearer or WebSocket query-token defects.
+      priority: must
+      actor: admin-user
+      module: frontend-session-security
+      rules:
+        - Production REST authentication uses a same-origin HttpOnly Secure SameSite cookie with explicit CSRF protection for state-changing requests.
+        - OAuth provider access and refresh tokens never enter browser-visible storage or responses.
+        - WebSocket authentication uses a short-lived single-use server ticket or another reviewed non-query credential exchange and validates Origin.
+        - The v6 application does not cache authenticated API responses in a service worker and PWA is disabled by default.
+        - During rollout, backend changes remain compatible with the independently deployed legacy frontend until its own retirement decision.
+    - id: publish-independently
+      title: Build and release v6 independently
+      description: A v6 release cannot mutate or implicitly replace a v5 artifact or release.
+      priority: must
+      actor: release-operator
+      module: frontend-v6-release
+      rules:
+        - v6 uses the web/antd-v6/v{version} tag namespace and a distinct container image repository.
+        - v6 has an independent CI required check, release workflow, build identity, artifact names, deployment inputs, and delivery smoke test.
+        - web/antd tags, images, artifacts, deployment workflow, lockfile, and release history remain unchanged.
+        - Both release paths fail closed unless the exact source commit is merged into main and the tracked worktree is clean.
+        - Rollback redeploys the preceding application-specific immutable image and never requires rebuilding the other frontend.
+    - id: generate-v6-modules
+      title: Generate v6 projections deterministically
+      description: Generated business modules select an explicit frontend target and never blind-write both implementations.
+      priority: must
+      actor: downstream-agent
+      module: frontend-v6-generator
+      rules:
+        - The legacy v5 generator profile remains stable while a versioned v6 profile writes only web/antd-v6 paths.
+        - V6 generation supports dry-run, path confinement, stable ordering, two-run idempotency, and drift checks.
+        - Supplier is the first golden v6 generated module and validates route, locale, contracts, page, service, and E2E output.
+        - Removed runtime developer tools remain absent from both frontend targets.
+  constraints:
+    - id: independent-artifacts
+      type: operations
+      statement: web/antd and web/antd-v6 have no shared mutable build, cache, version, tag, image, or deployment artifact.
+    - id: backward-compatible-backend
+      type: compatibility
+      statement: Backend changes needed by v6 remain compatible with the independently released legacy frontend throughout the overlap window.
+    - id: beta-pro-components
+      type: dependency
+      statement: ProComponents v3 remains a beta dependency and requires exact pinning, adapter isolation, dependency-tree review, and critical CRUD regression tests.
+    - id: no-arbitrary-menu-import
+      type: security
+      statement: Backend menu metadata cannot select an executable component outside the compiled route registry.
+    - id: modern-browser-baseline
+      type: compatibility
+      statement: The supported browser matrix is current Chromium, Firefox, and WebKit with CSS variables; legacy IE behavior is not supported.
+    - id: separate-release-governance
+      type: operations
+      statement: V6 publication follows the repository PR-to-main and immutable-tag release governance through its own component namespace.
+  acceptance:
+    - id: dependency-contract
+      requirement: freeze-upstream-and-dependencies
+      statement: Frozen install, strict dependency inspection, React singleton, Ant Design runtime, audit, build, and bundle checks pass without manifest drift.
+      level: contract
+      required: true
+      evidence:
+        - type: command
+          value: cd web/antd-v6 && pnpm install --frozen-lockfile && pnpm deps:check
+    - id: shell-quality
+      requirement: modernize-runtime-architecture
+      statement: Biome, TypeScript, Vitest, production build, bundle budget, and Nginx delivery checks pass for the independent v6 application.
+      level: integration
+      required: true
+      evidence:
+        - type: command
+          value: make web-v6-lint web-v6-test web-v6-build
+    - id: permission-matrix
+      requirement: preserve-business-contracts
+      statement: Anonymous, root, non-root, permission-revoked, direct-route, direct-API, and unknown-menu cases pass positive and negative tests.
+      level: security
+      required: true
+      evidence:
+        - type: command
+          value: cd web/antd-v6 && pnpm test:e2e --grep @permission
+    - id: responsive-locale-matrix
+      requirement: use-v6-design-system
+      statement: Retained routes pass Chinese and English desktop and mobile acceptance without internal-selector or deprecation warnings.
+      level: e2e
+      required: true
+      evidence:
+        - type: command
+          value: cd web/antd-v6 && pnpm test:e2e --grep @parity
+    - id: session-security-tests
+      requirement: harden-browser-session
+      statement: Cookie, CSRF, OAuth redaction, Origin, WebSocket ticket replay, logout, expiry, and legacy-client compatibility tests pass.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/middleware frontend v6 session and websocket security tests
+    - id: independent-release-check
+      requirement: publish-independently
+      statement: V5 and v6 tag validation, image names, build identities, artifacts, workflows, and rollback paths are proven independent.
+      level: contract
+      required: true
+      evidence:
+        - type: test
+          value: tools/release/check_release_policy_test.py
+        - type: path
+          value: .github/workflows/frontend-v6-release.yml
+    - id: generator-v6-check
+      requirement: generate-v6-modules
+      statement: The v6 Supplier profile is path-confined, deterministic, idempotent, drift-free, and accepted by its production build and E2E test.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: internal/mss/generator v6 target tests
+  risks:
+    - id: pro-beta-churn
+      description: ProComponents v3 beta can introduce breaking behavior or type changes before its stable release.
+      severity: high
+      mitigation: Pin one exact beta, isolate shared use, gate upgrades separately, and retain a tested previous lockfile and image.
+    - id: dual-client-drift
+      description: Backend or generated contracts may diverge while React 18 and React 19 clients are both independently deployed.
+      severity: high
+      mitigation: Require backward-compatible APIs, contract tests for both clients, OpenAPI drift checks, and an explicit overlap exit decision.
+    - id: hidden-legacy-dependencies
+      description: Umi Max can install nested Ant Design 4 and other transitional packages even when application code targets Ant Design 6.
+      severity: high
+      mitigation: Inspect the resolved tree and production bundle and reject duplicate React or an unintended legacy Ant Design runtime.
+    - id: auth-rollout-order
+      description: Session hardening can break an independently deployed client if cookie, CSRF, OAuth, or WebSocket changes are rolled out in the wrong order.
+      severity: critical
+      mitigation: Add compatibility endpoints and tests, deploy backward-compatible backend support first, and retain application-specific rollback images.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/admin-antd-v6-application.yaml --format json
+      - make web-v6-install web-v6-lint web-v6-test web-v6-build
+      - python3 -m unittest tools.release.check_release_policy_test
+  rollout:
+    strategy: phased
+    migration: >-
+      Add the independent v6 contract and build first, deploy backward-compatible
+      backend security support before enabling v6 authentication, migrate capabilities
+      vertically, and publish only from the web/antd-v6/v{version} namespace after all
+      required gates pass. The legacy frontend continues its own release lifecycle.
+    rollback: >-
+      Redeploy the preceding mss-boot-admin-antd-v6 immutable image and retain the
+      backward-compatible backend. V5 artifacts and deployment are unaffected. Persistent
+      changes are additive and are not reversed merely because the v6 UI is rolled back.
