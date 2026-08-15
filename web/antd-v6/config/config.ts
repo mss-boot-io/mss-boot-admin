@@ -52,7 +52,10 @@ export default defineConfig({
   npmClient: 'pnpm',
   plugins: ['@umijs/max-plugin-openapi'],
   proxy: proxy[environment as keyof typeof proxy],
-  reactQuery: {},
+  // The bootstrap path must use the same cache as page hooks. Disable the
+  // plugin-created private client and provide the repository QueryClient once
+  // from app.tsx, where logout and permission invalidation can also reach it.
+  reactQuery: { queryClient: false },
   request: {},
   routePrefetch: {},
   routes,

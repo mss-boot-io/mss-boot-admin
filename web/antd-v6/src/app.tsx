@@ -2,46 +2,162 @@ import { LogoutOutlined } from '@ant-design/icons';
 import type { ProLayoutProps } from '@ant-design/pro-components';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
-import { history, Link, request as umiRequest } from '@umijs/max';
-import { App as AntdApp, Avatar, ConfigProvider, Dropdown, Tag, Typography } from 'antd';
+import { history, Link, useIntl } from '@umijs/max';
+import { App as AntdApp, Avatar, Dropdown, Tag, Typography } from 'antd';
 import type { ReactNode } from 'react';
-import defaultSettings from '../config/defaultSettings';
-import { requestConfig } from './shared/api/client';
+import { getRequestStatus, requestConfig } from './shared/api/client';
 import { RuntimeFeedbackBridge } from './shared/api/feedback';
+import { fetchAuthorizedMenu } from './shared/auth/authorization';
 import {
   clearServerSession,
   fetchCurrentUser,
   isPublicPath,
   redirectToLogin,
 } from './shared/auth/session';
-import type { AuthorizedMenuItem, InitialState } from './shared/auth/types';
-import { createThemeConfig, defaultThemeSettings } from './shared/design-system/theme';
-import { queryClient } from './shared/query/client';
-import { retainRegisteredMenu } from './shared/routes/registry';
+import type { InitialState, StartupFailure } from './shared/auth/types';
+import { PageError } from './shared/design-system/PageState';
+import { queryClient, queryKeys } from './shared/query/client';
+import { loadApplicationProfile, loadThemeResource } from './shared/theme/api';
+import { type ApplicationProfile, buildLayoutSettings } from './shared/theme/contract';
+import {
+  clearUserThemeRuntime,
+  getThemeRuntimeSnapshot,
+  replaceThemeRuntime,
+} from './shared/theme/runtime';
+import { ThemeRuntimeProvider } from './shared/theme/ThemeRuntimeProvider';
 
-async function fetchAuthorizedMenu(): Promise<AuthorizedMenuItem[]> {
+interface Settled<T> {
+  data?: T;
+  error?: unknown;
+}
+
+async function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
   try {
-    const menu = await umiRequest<AuthorizedMenuItem[]>('/menu/authorize', {
-      method: 'GET',
-      skipErrorHandler: true,
-    });
-    return retainRegisteredMenu(menu ?? []);
-  } catch {
-    return [];
+    return { data: await promise };
+  } catch (error) {
+    return { error };
   }
+}
+
+async function loadVerifiedCurrentUser() {
+  const value = await queryClient.fetchQuery({
+    queryKey: queryKeys.currentUser,
+    queryFn: async () => (await fetchCurrentUser()) ?? null,
+    staleTime: 0,
+  });
+  return value ?? undefined;
+}
+
+function currentLayoutSettings(profile?: ApplicationProfile): Partial<ProLayoutProps> {
+  return buildLayoutSettings(getThemeRuntimeSnapshot().resolved.settings, profile?.base);
 }
 
 export async function getInitialState(): Promise<InitialState> {
   const publicRoute = isPublicPath(history.location.pathname);
-  const currentUser = publicRoute ? undefined : await fetchCurrentUser();
-  if (!publicRoute && !currentUser) redirectToLogin();
-  const authorizedMenu = currentUser ? await fetchAuthorizedMenu() : [];
+  const applicationProfilePromise = settle(
+    queryClient.fetchQuery({
+      queryKey: queryKeys.applicationProfile,
+      queryFn: loadApplicationProfile,
+    }),
+  );
+
+  if (publicRoute) {
+    const application = await applicationProfilePromise;
+    replaceThemeRuntime({
+      application: application.data?.theme,
+      degradedScopes: application.error ? ['application'] : [],
+    });
+    return {
+      authorizedMenu: [],
+      fetchCurrentUser: loadVerifiedCurrentUser,
+      settings: currentLayoutSettings(application.data),
+      themeDegradedScopes: application.error ? ['application'] : undefined,
+    };
+  }
+
+  const [application, identity] = await Promise.all([
+    applicationProfilePromise,
+    settle(loadVerifiedCurrentUser()),
+  ]);
+  replaceThemeRuntime({
+    application: application.data?.theme,
+    degradedScopes: application.error ? ['application'] : [],
+  });
+
+  if (identity.error) {
+    return {
+      authorizedMenu: [],
+      fetchCurrentUser: loadVerifiedCurrentUser,
+      settings: currentLayoutSettings(application.data),
+      startupFailure: { area: 'identity', status: getRequestStatus(identity.error) },
+      themeDegradedScopes: application.error ? ['application'] : undefined,
+    };
+  }
+
+  const currentUser = identity.data;
+  if (!currentUser) {
+    redirectToLogin();
+    return {
+      authorizedMenu: [],
+      fetchCurrentUser: loadVerifiedCurrentUser,
+      settings: currentLayoutSettings(application.data),
+      themeDegradedScopes: application.error ? ['application'] : undefined,
+    };
+  }
+
+  const [authorizedMenu, userTheme] = await Promise.all([
+    settle(
+      queryClient.fetchQuery({
+        queryKey: queryKeys.authorizedMenu(currentUser.id),
+        queryFn: () => fetchAuthorizedMenu(currentUser),
+        staleTime: 0,
+      }),
+    ),
+    settle(
+      queryClient.fetchQuery({
+        queryKey: queryKeys.theme('user', currentUser.id),
+        queryFn: () => loadThemeResource('user'),
+      }),
+    ),
+  ]);
+
+  const degradedScopes = [
+    ...(application.error ? (['application'] as const) : []),
+    ...(userTheme.error ? (['user'] as const) : []),
+  ];
+  replaceThemeRuntime({
+    application: application.data?.theme,
+    user: userTheme.data,
+    degradedScopes: [...degradedScopes],
+  });
+
   return {
     currentUser,
-    authorizedMenu,
-    fetchCurrentUser,
-    settings: defaultSettings as Partial<ProLayoutProps>,
+    authorizedMenu: authorizedMenu.data ?? [],
+    fetchCurrentUser: loadVerifiedCurrentUser,
+    settings: currentLayoutSettings(application.data),
+    startupFailure: authorizedMenu.error
+      ? { area: 'authorization', status: getRequestStatus(authorizedMenu.error) }
+      : undefined,
+    themeDegradedScopes: degradedScopes.length > 0 ? [...degradedScopes] : undefined,
   };
+}
+
+function StartupFailureView({ failure }: { failure: StartupFailure }) {
+  const intl = useIntl();
+  const messageID =
+    failure.area === 'identity'
+      ? 'startup.identityUnavailable'
+      : 'startup.authorizationUnavailable';
+  const status = failure.status ? ` (HTTP ${failure.status})` : '';
+  return (
+    <PageError
+      message={`${intl.formatMessage({ id: messageID })}${status}`}
+      onRetry={() => window.location.reload()}
+      retryLabel={intl.formatMessage({ id: 'actions.retry' })}
+      title={intl.formatMessage({ id: 'states.loadError' })}
+    />
+  );
 }
 
 function AvatarMenu({ currentUser }: { currentUser?: InitialState['currentUser'] }) {
@@ -55,9 +171,13 @@ function AvatarMenu({ currentUser }: { currentUser?: InitialState['currentUser']
             icon: <LogoutOutlined />,
             label: '退出登录',
             onClick: async () => {
-              await clearServerSession();
-              queryClient.clear();
-              history.replace('/user/login');
+              try {
+                await clearServerSession();
+              } finally {
+                queryClient.clear();
+                clearUserThemeRuntime();
+                history.replace('/user/login');
+              }
             },
           },
         ],
@@ -72,6 +192,7 @@ function AvatarMenu({ currentUser }: { currentUser?: InitialState['currentUser']
 }
 
 export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
+  ...initialState?.settings,
   actionsRender: () => [
     <Tag key="antd" color="blue">
       antd {__ANTD_VERSION__}
@@ -81,6 +202,12 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     render: () => <AvatarMenu currentUser={initialState?.currentUser} />,
   },
   breadcrumbRender: (routers = []) => routers,
+  childrenRender: (children) =>
+    initialState?.startupFailure ? (
+      <StartupFailureView failure={initialState.startupFailure} />
+    ) : (
+      children
+    ),
   footerRender: () => (
     <div className="py-4 text-center text-sm text-neutral-500">
       MSS Admin v6 · <Link to="/migration">migration status</Link>
@@ -98,24 +225,27 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
       dom
     ),
   onPageChange: () => {
-    if (!initialState?.currentUser && !isPublicPath(history.location.pathname)) {
+    if (
+      !initialState?.startupFailure &&
+      !initialState?.currentUser &&
+      !isPublicPath(history.location.pathname)
+    ) {
       redirectToLogin();
     }
   },
   pageTitleRender: false,
-  ...initialState?.settings,
 });
 
 export const request: RequestConfig = requestConfig;
 
 function RuntimeProviders({ children }: { children: ReactNode }) {
   return (
-    <ConfigProvider theme={createThemeConfig(defaultThemeSettings)}>
+    <ThemeRuntimeProvider>
       <AntdApp>
         <RuntimeFeedbackBridge />
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       </AntdApp>
-    </ConfigProvider>
+    </ThemeRuntimeProvider>
   );
 }
 

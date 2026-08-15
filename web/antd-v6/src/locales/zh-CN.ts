@@ -14,4 +14,9 @@ export default {
   'pages.login.success': '登录成功',
   'pages.login.failure': '登录失败，请检查凭据或稍后重试',
   'pages.login.cookieSecurity': '凭据不会写入 localStorage 或 WebSocket URL',
+  'states.loadError': '加载失败',
+  'states.forbidden': '你没有访问此页面的权限。',
+  'actions.retry': '重试',
+  'startup.identityUnavailable': '身份服务暂时不可用，未将服务故障误判为退出登录。',
+  'startup.authorizationUnavailable': '授权菜单暂时不可用，为避免越权，本次启动已安全停止。',
 };

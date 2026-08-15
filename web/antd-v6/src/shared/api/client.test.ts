@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { browserRequestHeaders } from './client';
+import { browserRequestHeaders, getRequestErrorMessage, getRequestStatus } from './client';
 
 describe('browser request security headers', () => {
   it('copies the readable signed CSRF cookie only to unsafe requests', () => {
@@ -20,5 +20,20 @@ describe('browser request security headers', () => {
         'Authorization',
       ),
     ).toBeNull();
+  });
+
+  it('classifies transport failures without flattening their status', () => {
+    const failure = Object.assign(new Error('fallback'), {
+      response: { status: 503, data: { errorMessage: 'policy unavailable' } },
+    });
+    expect(getRequestStatus(failure)).toBe(503);
+    expect(getRequestErrorMessage(failure)).toBe('policy unavailable');
+  });
+
+  it('preserves an explicit versioned media type', () => {
+    const headers = browserRequestHeaders('GET', {
+      Accept: 'application/vnd.mss.theme.v1+json',
+    });
+    expect(new Headers(headers).get('Accept')).toBe('application/vnd.mss.theme.v1+json');
   });
 });

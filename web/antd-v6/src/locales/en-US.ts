@@ -14,4 +14,11 @@ export default {
   'pages.login.success': 'Signed in',
   'pages.login.failure': 'Sign-in failed. Check your credentials and try again.',
   'pages.login.cookieSecurity': 'Credentials are never stored in localStorage or WebSocket URLs',
+  'states.loadError': 'Unable to load',
+  'states.forbidden': 'You do not have permission to access this page.',
+  'actions.retry': 'Retry',
+  'startup.identityUnavailable':
+    'The identity service is unavailable. This service failure was not treated as a sign-out.',
+  'startup.authorizationUnavailable':
+    'The authorized menu is unavailable, so startup stopped safely to prevent excess access.',
 };

@@ -7,13 +7,13 @@ export interface RouteAccessMetadata {
 }
 
 export function isRootIdentity(user?: CurrentUser): boolean {
-  return user?.root === true;
+  return user?.role?.root === true;
 }
 
 export function hasPermission(user: CurrentUser | undefined, permission?: string): boolean {
   if (!permission) return Boolean(user);
   if (isRootIdentity(user)) return true;
-  return user?.permissions?.includes(permission) === true;
+  return user?.permissions[permission] === true;
 }
 
 export function canAccessRoute(

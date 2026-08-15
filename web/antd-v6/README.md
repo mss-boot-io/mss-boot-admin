@@ -5,10 +5,19 @@ its own dependency graph, build output, image, tag namespace, deployment, and
 rollback history. The legacy application remains in `web/antd`.
 
 This checkpoint is a buildable foundation, not a production release candidate.
-Opt-in backend cookie/CSRF, OAuth transport binding, and WebSocket-ticket support
-are implemented. Retained business modules, the v6 generator target, and required
-browser evidence remain release blockers and are fail-closed by the repository
-qualification contract.
+Opt-in backend cookie/CSRF, OAuth transport binding, WebSocket-ticket support,
+the typed identity/menu startup chain, and the layered Ant Design 6 theme runtime
+are implemented. Account editors, retained business modules, the v6 generator
+target, and required browser evidence remain release blockers and are fail-closed
+by the repository qualification contract.
+
+The runtime has one application-owned React Query client. Current identity and
+the authorized menu are loaded through it, but only the verified identity and
+startup-critical derived state enter Umi initial state. Backend `/welcome` is
+mapped explicitly to compiled `/workplace`; database component strings and unknown
+paths never select executable code. Theme values resolve field-by-field as
+V6 code defaults < public application profile < authenticated personal resource
+and are applied through Ant Design 6 CSS variables and semantic tokens.
 
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`; runtime and build packages are

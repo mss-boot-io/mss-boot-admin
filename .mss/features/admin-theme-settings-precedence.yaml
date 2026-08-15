@@ -219,6 +219,8 @@ spec:
       evidence:
         - type: test
           value: web/antd/src/utils/themeSettings.test.ts
+        - type: test
+          value: web/antd-v6/src/shared/theme/contract.test.ts
     - id: field-contract-tests
       requirement: define-theme-fields
       statement: Contract tests prove every supported field, default, enum, boolean, color normalization rule, and excluded runtime field.
@@ -227,6 +229,8 @@ spec:
       evidence:
         - type: test
           value: web/antd/src/utils/themeSettings.test.ts
+        - type: test
+          value: web/antd-v6/src/shared/theme/contract.test.ts
         - type: test
           value: admin/service/theme_test.go
     - id: tristate-contract-tests
@@ -279,6 +283,10 @@ spec:
       evidence:
         - type: test
           value: web/antd/e2e/theme-settings.spec.ts
+        - type: test
+          value: web/antd-v6/src/shared/theme/runtime.test.ts
+        - type: test
+          value: web/antd-v6/src/shared/theme/api.test.ts
         - type: test
           value: web/antd/src/utils/themeSettings.test.ts
         - type: test

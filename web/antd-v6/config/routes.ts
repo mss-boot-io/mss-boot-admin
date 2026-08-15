@@ -29,6 +29,7 @@ const routes = [
     icon: 'dashboard',
     component: './Workplace',
     access: 'canAccessRoute',
+    permission: '/welcome',
   },
   {
     path: '/welcome',

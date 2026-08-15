@@ -3,11 +3,18 @@ import { canAccessRoute, flattenAuthorizedMenu } from './access';
 
 describe('route access', () => {
   it('keeps root-only and permission checks explicit', () => {
-    expect(canAccessRoute({ id: 'root', root: true }, { rootOnly: true })).toBe(true);
-    expect(canAccessRoute({ id: 'user', root: false }, { rootOnly: true })).toBe(false);
     expect(
-      canAccessRoute({ id: 'user', permissions: ['user:read'] }, { permission: 'user:read' }),
+      canAccessRoute({ id: 'root', role: { root: true }, permissions: {} }, { rootOnly: true }),
     ).toBe(true);
+    expect(
+      canAccessRoute({ id: 'user', role: { root: false }, permissions: {} }, { rootOnly: true }),
+    ).toBe(false);
+    expect(
+      canAccessRoute({ id: 'user', permissions: { '/users': true } }, { permission: '/users' }),
+    ).toBe(true);
+    expect(
+      canAccessRoute({ id: 'user', permissions: { '/users': false } }, { permission: '/users' }),
+    ).toBe(false);
   });
 
   it('flattens authorized menu nodes without resolving component strings', () => {

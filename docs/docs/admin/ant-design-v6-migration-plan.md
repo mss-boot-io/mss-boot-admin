@@ -15,7 +15,7 @@ keywords: [admin ant-design v6 react umi migration release]
 - 决策状态：已接受，按独立应用方案实施。
 - 目标目录：`web/antd-v6`。
 - 旧应用：`web/antd` 保持独立构建、发布、部署和回滚，不在本项目中原位升级或删除。
-- 当前阶段：P0/P1 已完成，P2 的 opt-in 后端会话能力与 V6 客户端适配已实现；业务等价、生成器和浏览器验收尚未完成，因此不是生产发布候选。
+- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交和分层主题运行时底座已实现，账户编辑器、跨标签主题同步及其余业务等价仍在进行。生成器和浏览器验收尚未完成，因此不是生产发布候选。
 - 机器契约：`.mss/features/admin-antd-v6-application.yaml`。
 - 架构决策：`docs/adr/2026-08-15-independent-ant-design-v6-application.md`。
 
@@ -142,6 +142,17 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 
 - 完成 current user、RBAC access、授权菜单求交、权限刷新、账户、PAT、OAuth、语言和主题适配。
 - 不允许未知菜单路径加载组件；权限变化后清理受影响 query。
+
+当前已完成的启动底座：
+
+- current user 在传输边界按后端真实契约规范化：权限是精确布尔 map，root 只来自 `role.root`，畸形响应不会降级成匿名身份。
+- 401 才表示会话缺失；身份或策略的 5xx 与授权菜单失败会显示可重试的 fail-closed 状态，不再错误跳转登录或伪装为空菜单。
+- 后端 `/welcome` 能力显式映射到编译期 `/workplace` 页面；数据库 `component`、外链和未知路径不能成为可执行路由，未知目录只能保留为无链接容器。
+- 关闭 Max 自动创建的私有 React Query client，由应用提供唯一 QueryClient，使启动查询、页面 hook、退出清理和后续权限失效共享一套缓存。
+- application public profile 与 current-user canonical theme 解析为七字段稀疏层，按 code < application < user 求值，再通过 antd 6 CSS Variables、dark algorithm 和语义 token 应用；读取失败只降级到有效低层并留下 scope 状态。
+- canonical theme transport 已支持 vendor media type、强 ETag、`If-Match`、412 authoritative resource 和无静默重试。
+
+仍待本阶段完成：共享 application/user 主题编辑器、跨标签与首屏快照、账户中心/设置、PAT、OAuth binding、语言切换、权限事件失效及真实浏览器权限矩阵。
 
 完成门：匿名/root/普通用户/撤权/未知菜单/直接路由和直接 API 矩阵通过。
 

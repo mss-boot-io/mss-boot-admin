@@ -1,4 +1,6 @@
 import { history, request } from '@umijs/max';
+import { getRequestStatus } from '../api/client';
+import { normalizeCurrentUser } from './identity';
 import type { CurrentUser } from './types';
 
 export const LOGIN_PATH = '/user/login';
@@ -38,12 +40,14 @@ export function redirectToLogin(): void {
 
 export async function fetchCurrentUser(): Promise<CurrentUser | undefined> {
   try {
-    return await request<CurrentUser>('/user/userInfo', {
+    const value = await request<unknown>('/user/userInfo', {
       method: 'GET',
       skipErrorHandler: true,
     });
-  } catch {
-    return undefined;
+    return normalizeCurrentUser(value);
+  } catch (error) {
+    if (getRequestStatus(error) === 401) return undefined;
+    throw error;
   }
 }
 

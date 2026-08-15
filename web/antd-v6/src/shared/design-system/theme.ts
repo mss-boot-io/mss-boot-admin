@@ -1,23 +1,10 @@
 import type { ThemeConfig } from 'antd';
 import { theme } from 'antd';
+import type { ThemeSettings } from '../theme/contract';
 
-export type MSSThemeMode = 'light' | 'dark';
-
-export interface MSSThemeSettings {
-  mode: MSSThemeMode;
-  colorPrimary: string;
-  colorWeak: boolean;
-}
-
-export const defaultThemeSettings: MSSThemeSettings = {
-  mode: 'light',
-  colorPrimary: '#1677ff',
-  colorWeak: false,
-};
-
-export function createThemeConfig(settings: MSSThemeSettings): ThemeConfig {
+export function createThemeConfig(settings: ThemeSettings): ThemeConfig {
   return {
-    algorithm: settings.mode === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
+    algorithm: settings.navTheme === 'realDark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
     cssVar: { prefix: 'mss' },
     token: {
       colorPrimary: settings.colorPrimary,

@@ -10,23 +10,31 @@ export function PageEmpty({ description }: { description: ReactNode }) {
   return <Empty description={description} image={Empty.PRESENTED_IMAGE_SIMPLE} />;
 }
 
-export function PageError({ message, onRetry }: { message: ReactNode; onRetry: () => void }) {
+export function PageError({
+  message,
+  onRetry,
+  retryLabel = '重试',
+  title = '加载失败',
+}: {
+  message: ReactNode;
+  onRetry: () => void;
+  retryLabel?: ReactNode;
+  title?: ReactNode;
+}) {
   return (
     <Result
       status="error"
-      title="加载失败"
+      title={title}
       subTitle={message}
       extra={
         <Button type="primary" icon={<ReloadOutlined />} onClick={onRetry}>
-          重试
+          {retryLabel}
         </Button>
       }
     />
   );
 }
 
-export function PageForbidden() {
-  return (
-    <Result status="403" icon={<LockOutlined />} title="403" subTitle="你没有访问此页面的权限。" />
-  );
+export function PageForbidden({ message = '你没有访问此页面的权限。' }: { message?: ReactNode }) {
+  return <Result status="403" icon={<LockOutlined />} title="403" subTitle={message} />;
 }

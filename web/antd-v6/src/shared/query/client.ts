@@ -19,6 +19,9 @@ export const queryClient = new QueryClient({
 
 export const queryKeys = {
   currentUser: ['identity', 'current-user'] as const,
-  authorizedMenu: ['authorization', 'menu'] as const,
+  authorizedMenu: (userID: string) => ['authorization', 'menu', userID] as const,
+  applicationProfile: ['configuration', 'application-profile'] as const,
+  theme: (scope: 'application' | 'user', owner = '') =>
+    ['configuration', 'theme', scope, owner] as const,
   workplace: ['workplace'] as const,
 };

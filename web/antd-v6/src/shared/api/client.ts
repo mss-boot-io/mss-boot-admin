@@ -1,25 +1,10 @@
 import type { RequestConfig, RequestOptions } from '@umijs/max';
 import { history } from '@umijs/max';
 import { queryClient } from '../query/client';
+import { type ApiRequestFailure, getRequestErrorMessage, getRequestStatus } from './errors';
 import { feedback } from './feedback';
 
-interface ApiErrorBody {
-  code?: number | string;
-  error?: string;
-  errorMessage?: string;
-  message?: string;
-  msg?: string;
-}
-
-interface ResponseLike {
-  status?: number;
-  data?: ApiErrorBody;
-}
-
-interface RequestFailure extends Error {
-  response?: ResponseLike;
-  request?: unknown;
-}
+export { getRequestErrorMessage, getRequestStatus } from './errors';
 
 const mutationMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -33,25 +18,13 @@ function readCookie(name: string): string | undefined {
   return entry ? decodeURIComponent(entry.slice(prefix.length)) : undefined;
 }
 
-function errorMessage(error: RequestFailure): string {
-  const body = error.response?.data;
-  return (
-    body?.errorMessage ??
-    body?.message ??
-    body?.msg ??
-    body?.error ??
-    error.message ??
-    'Request failed'
-  );
-}
-
 export function browserRequestHeaders(
   method: string,
   initialHeaders?: HeadersInit,
   csrfToken = readCookie('mss_csrf'),
 ): Record<string, string> {
   const headers = new Headers(initialHeaders);
-  headers.set('Accept', 'application/json');
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json');
   if (mutationMethods.has(method.toUpperCase())) {
     if (csrfToken) headers.set('X-CSRF-Token', csrfToken);
   }
@@ -64,8 +37,8 @@ export const requestConfig: RequestConfig = {
   withCredentials: true,
   errorConfig: {
     errorHandler: (rawError, options) => {
-      const error = rawError as RequestFailure;
-      const status = error.response?.status;
+      const error = rawError as ApiRequestFailure;
+      const status = getRequestStatus(error);
       if (status === 401) {
         queryClient.clear();
         const redirect = encodeURIComponent(
@@ -86,7 +59,7 @@ export const requestConfig: RequestConfig = {
         feedback()?.message.error('网络不可用，请检查连接后重试');
         return;
       }
-      feedback()?.message.error(errorMessage(error));
+      feedback()?.message.error(getRequestErrorMessage(error));
     },
   },
   requestInterceptors: [
