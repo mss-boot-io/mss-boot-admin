@@ -1,5 +1,6 @@
 import SmileOutlined from '@ant-design/icons/SmileOutlined';
 import UserSwitchOutlined from '@ant-design/icons/UserSwitchOutlined';
+import WalletOutlined from '@ant-design/icons/WalletOutlined';
 import type { MenuDataItem } from '@ant-design/pro-components';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
@@ -31,5 +32,13 @@ describe('resolveMenuIcons', () => {
   it('drops unknown icon keys instead of rendering them as menu text', () => {
     const result = resolveMenuIcons([{ icon: 'serverControlledUnknownIcon' }]);
     expect(result.at(0)?.icon).toBeUndefined();
+  });
+
+  it('resolves the operational task icon through an explicit public import', () => {
+    const result = resolveMenuIcons([{ icon: 'wallet' }]);
+    const taskMenu = result.at(0);
+    if (!taskMenu) throw new Error('resolved task menu is missing');
+
+    expect((taskMenu.icon as ReactElement).type).toBe(WalletOutlined);
   });
 });

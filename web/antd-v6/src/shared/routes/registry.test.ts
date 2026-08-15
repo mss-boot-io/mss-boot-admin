@@ -123,6 +123,27 @@ describe('compiled route registry', () => {
     expect(JSON.stringify(retained)).not.toContain('untrusted.example');
   });
 
+  it('registers operational routes with exact component permissions and a root-only config boundary', () => {
+    expect(
+      ['/task', '/notice', '/log', '/system-config'].map((path) => routeRegistry.get(path)),
+    ).toMatchObject([
+      { permission: '/task', serverPaths: ['/task'] },
+      { permission: '/notice', serverPaths: ['/notice'] },
+      { permission: '/log', serverPaths: ['/log'] },
+      { rootOnly: true, serverPaths: ['/system-config'] },
+    ]);
+
+    const delegated = retainRegisteredMenu(
+      [{ path: '/task' }, { path: '/notice' }, { path: '/log' }, { path: '/system-config' }],
+      {
+        id: 'operator',
+        role: { root: false },
+        permissions: { '/task': true, '/notice': true, '/log': true, '/system-config': true },
+      },
+    );
+    expect(delegated.map((item) => item.path)).toEqual(['/task', '/notice', '/log']);
+  });
+
   it('loads generated supplier registration without executing backend component metadata', () => {
     expect(routeRegistry.get('/suppliers')).toMatchObject({
       menuName: 'supplier',

@@ -1,4 +1,7 @@
 import AuditOutlined from '@ant-design/icons/AuditOutlined';
+import FileTextOutlined from '@ant-design/icons/FileTextOutlined';
+import InboxOutlined from '@ant-design/icons/InboxOutlined';
+import MessageOutlined from '@ant-design/icons/MessageOutlined';
 import SafetyCertificateOutlined from '@ant-design/icons/SafetyCertificateOutlined';
 import SettingOutlined from '@ant-design/icons/SettingOutlined';
 import ShopOutlined from '@ant-design/icons/ShopOutlined';
@@ -6,11 +9,15 @@ import SmileOutlined from '@ant-design/icons/SmileOutlined';
 import TranslationOutlined from '@ant-design/icons/TranslationOutlined';
 import UnorderedListOutlined from '@ant-design/icons/UnorderedListOutlined';
 import UserSwitchOutlined from '@ant-design/icons/UserSwitchOutlined';
+import WalletOutlined from '@ant-design/icons/WalletOutlined';
 import type { MenuDataItem } from '@ant-design/pro-components';
 import { type ComponentType, createElement } from 'react';
 
 const registeredIcons: Readonly<Record<string, ComponentType>> = {
   audit: AuditOutlined,
+  fileText: FileTextOutlined,
+  inbox: InboxOutlined,
+  message: MessageOutlined,
   safetyCertificate: SafetyCertificateOutlined,
   setting: SettingOutlined,
   shop: ShopOutlined,
@@ -18,6 +25,7 @@ const registeredIcons: Readonly<Record<string, ComponentType>> = {
   translation: TranslationOutlined,
   unorderedList: UnorderedListOutlined,
   userSwitch: UserSwitchOutlined,
+  wallet: WalletOutlined,
 };
 
 function resolveIcon(icon: MenuDataItem['icon']): MenuDataItem['icon'] {

@@ -54,6 +54,30 @@ const registrations: readonly RouteRegistration[] = [
     permission: '/posts',
   },
   {
+    path: '/task',
+    serverPaths: ['/task'],
+    menuName: 'task',
+    permission: '/task',
+  },
+  {
+    path: '/notice',
+    serverPaths: ['/notice'],
+    menuName: 'notice',
+    permission: '/notice',
+  },
+  {
+    path: '/log',
+    serverPaths: ['/log'],
+    menuName: 'system-log',
+    permission: '/log',
+  },
+  {
+    path: '/system-config',
+    serverPaths: ['/system-config'],
+    menuName: 'system-config',
+    rootOnly: true,
+  },
+  {
     path: '/language',
     serverPaths: ['/language'],
     menuName: 'language',

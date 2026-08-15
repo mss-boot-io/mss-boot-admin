@@ -81,4 +81,19 @@ export const queryKeys = {
     ['administration', resource, 'tree'] as const,
   roleAuthorization: (roleID: string) =>
     ['administration', 'roles', roleID, 'authorization'] as const,
+  tasks: ['operations', 'tasks'] as const,
+  taskList: (params: Readonly<object>) => ['operations', 'tasks', 'list', params] as const,
+  task: (id: string) => ['operations', 'tasks', 'detail', id] as const,
+  taskFunctions: ['operations', 'tasks', 'functions'] as const,
+  notices: ['operations', 'notices'] as const,
+  noticeList: (params: Readonly<object>) => ['operations', 'notices', 'list', params] as const,
+  notice: (id: string) => ['operations', 'notices', 'detail', id] as const,
+  loginLogs: (params: Readonly<object>) => ['operations', 'logs', 'login', params] as const,
+  auditLogs: (params: Readonly<object>) => ['operations', 'logs', 'audit', params] as const,
+  runtimeLogs: (params: Readonly<object>) => ['operations', 'logs', 'runtime', params] as const,
+  runtimeLogFiles: ['operations', 'logs', 'runtime', 'files'] as const,
+  systemConfigs: ['operations', 'system-configs'] as const,
+  systemConfigList: (params: Readonly<object>) =>
+    ['operations', 'system-configs', 'list', params] as const,
+  systemConfig: (id: string) => ['operations', 'system-configs', 'detail', id] as const,
 };
