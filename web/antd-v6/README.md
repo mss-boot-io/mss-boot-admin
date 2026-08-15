@@ -18,10 +18,12 @@ and Option management with optimistic revisions and constrained runtime behavior
 Supplier is the first dual-target golden module: one specification now emits an isolated
 V6 typed contract, React Query data layer, responsive CRUD page, compiled route, locale
 catalog, contract tests, and HttpOnly/CSRF-aware Playwright flow without writing into V5.
-Its generated create/detail/edit/export/delete flow now passes concurrent Chromium desktop
-and mobile execution against the real Go browser-session backend. Retained business modules
-and the remaining cross-module permission, locale, and delivery evidence remain release
-blockers and are fail-closed by the qualification contract.
+Its generated create/detail/edit/export/delete flow passes Chromium desktop and mobile
+execution against the real Go browser-session backend. The same isolated browser suite now
+qualifies anonymous navigation, a real non-root Finance role across menu, route, controls,
+and direct APIs, plus Chinese and English responsive retained pages with zero Ant Design
+deprecation warnings. Retained business modules that still need a safe backend/product
+contract remain release blockers and are fail-closed by the qualification contract.
 
 The runtime has one application-owned React Query client. Current identity and
 the authorized menu are loaded through it, but only the verified identity and
@@ -86,9 +88,10 @@ complete shipped `zh-CN` and `en-US` catalogs can be overlaid. Adding another st
 language does not silently advertise an incomplete application locale.
 After replacing icon-barrel imports with public icon subpaths and aligning Umi's
 polyfills with the supported browser contract, the resulting release build is
-4.16 KiB at the entry, 882.04 KiB total JavaScript, and 199.59 KiB for the largest
-asynchronous chunk after the Supplier golden. It passes the existing 900/250 KiB
-budget with 17.96 KiB of total headroom without weakening the gate.
+4.16 KiB at the entry, 882.96 KiB total JavaScript, and 199.59 KiB for the largest
+asynchronous chunk after the Supplier golden and the allowlisted menu-icon adapter. It
+passes the existing 900/250 KiB budget with 17.04 KiB of total headroom without
+weakening the gate.
 
 Option management replaces the legacy generic controller and client-generated
 item identity with an explicit bounded contract. Lists use a summary projection,
@@ -132,8 +135,23 @@ remain correctly associated on desktop and mobile.
 corepack pnpm@10.34.5 install --frozen-lockfile
 corepack pnpm@10.34.5 lint
 corepack pnpm@10.34.5 test:ci
+corepack pnpm@10.34.5 test:e2e
 corepack pnpm@10.34.5 build:release
+corepack pnpm@10.34.5 delivery:smoke
 ```
+
+`test:e2e` builds and starts the real Go Admin server on `127.0.0.1:18080`, starts V6 on
+`127.0.0.1:8001`, and recreates a repository-local SQLite database under
+`.mss/run/antd-v6-e2e`. It never needs Redis or production credentials. Set
+`MSS_V6_EXTERNAL_BACKEND=1` or `MSS_V6_EXTERNAL_SERVER=1` only when the corresponding
+non-production service is already managed externally.
+
+The parity project checks both locales and both desktop/mobile viewports, document
+overflow, accessible language switching, allowlisted dynamic menu icons, and every
+browser console warning or error on the retained workplace, account, settings, and
+Supplier paths. The permission project creates an isolated Finance identity and proves
+both server-side denial and UI least privilege before the disposable database is
+destroyed.
 
 ## Browser-session backend
 

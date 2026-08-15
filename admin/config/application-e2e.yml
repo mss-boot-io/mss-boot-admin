@@ -1,0 +1,31 @@
+# Browser qualification uses an isolated, repository-local SQLite database.
+# These values are test-only and must never be reused for a deployed service.
+server:
+  addr: 127.0.0.1:18080
+application:
+  mode: dev
+  origin: http://127.0.0.1:8001
+  trustedProxies: []
+cors:
+  allowOrigins:
+    - 'http://127.0.0.1:8001'
+logger:
+  stdout: default
+  level: warn
+database:
+  driver: sqlite
+  source: '../.mss/run/antd-v6-e2e/admin.db?_busy_timeout=30000&_journal_mode=WAL'
+  name: mss-boot-admin-antd-v6-e2e
+auth:
+  key: 'mss-antd-v6-e2e-non-production-key'
+  identityKey: 'mss-antd-v6-e2e-non-production-identity-key'
+  sessionEnabled: true
+  browserSession:
+    enabled: true
+    secure: false
+    sameSite: lax
+    legacyWebSocketQueryTokenEnabled: false
+task:
+  enable: false
+cache:
+  redis: null

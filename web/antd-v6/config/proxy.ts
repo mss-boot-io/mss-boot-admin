@@ -10,14 +10,16 @@ const proxy = {
   dev: {
     '/admin/': {
       target: localTarget,
-      changeOrigin: true,
+      // Preserve the browser Origin so the backend's exact CSRF allowlist is
+      // exercised in development and E2E just as it is behind production Nginx.
+      changeOrigin: false,
       secure: false,
     },
   },
   local: {
     '/admin/': {
       target: localTarget,
-      changeOrigin: true,
+      changeOrigin: false,
       secure: false,
     },
   },

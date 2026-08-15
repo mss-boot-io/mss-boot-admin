@@ -19,7 +19,7 @@ export default function AccountSettingsPage() {
     <PageContainer title={intl.formatMessage({ id: 'pages.accountSettings.title' })}>
       <Tabs
         activeKey={activeTab}
-        tabPosition={screens.lg ? 'left' : 'top'}
+        tabPlacement={screens.lg ? 'start' : 'top'}
         destroyOnHidden
         items={[
           {

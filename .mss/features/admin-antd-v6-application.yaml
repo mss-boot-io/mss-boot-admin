@@ -372,7 +372,7 @@ spec:
       required: true
       evidence:
         - type: test
-          value: tools/release/check_release_policy_test.py
+          value: tools/release/test_check_release_policy.py
         - type: path
           value: .github/workflows/frontend-v6-release.yml
     - id: generator-v6-check
@@ -422,7 +422,7 @@ spec:
       - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v5 --check
       - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --check
       - make web-v6-install web-v6-lint web-v6-test web-v6-build
-      - python3 -m unittest tools.release.check_release_policy_test
+      - python3 -m unittest tools/release/test_check_release_policy.py
   rollout:
     strategy: phased
     migration: >-

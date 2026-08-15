@@ -29,6 +29,7 @@ __pycache__/
 # Local configuration and databases
 config/application-*
 admin/config/application-*
+!admin/config/application-e2e.yml
 *.db
 
 # Runtime and build output

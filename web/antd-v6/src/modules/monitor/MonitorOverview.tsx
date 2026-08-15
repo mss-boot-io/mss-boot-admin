@@ -225,7 +225,7 @@ function MonitorContent({ snapshot }: { snapshot: MonitorSnapshot }) {
               key: 'instance',
               label: intl.formatMessage({ id: 'monitor.runtime.instance' }),
               children: <Tag>{snapshot.instanceId}</Tag>,
-              span: 2,
+              span: { xs: 1, sm: 2 },
             },
           ]}
         />

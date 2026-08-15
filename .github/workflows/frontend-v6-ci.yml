@@ -9,6 +9,10 @@ on:
       - '.mss/modules/**'
       - '.mss/schemas/admin-module.schema.json'
       - 'admin/modules/**/module.yaml'
+      - 'admin/**'
+      - 'mss-boot/**'
+      - 'go.mod'
+      - 'go.work'
       - 'cmd/mss/**'
       - 'internal/mss/app/**'
       - 'internal/mss/generator/**'
@@ -25,6 +29,10 @@ on:
       - '.mss/modules/**'
       - '.mss/schemas/admin-module.schema.json'
       - 'admin/modules/**/module.yaml'
+      - 'admin/**'
+      - 'mss-boot/**'
+      - 'go.mod'
+      - 'go.work'
       - 'cmd/mss/**'
       - 'internal/mss/app/**'
       - 'internal/mss/generator/**'
@@ -184,6 +192,54 @@ jobs:
       - name: Smoke-test Nginx delivery
         run: pnpm run delivery:smoke
 
+  browser:
+    name: browser-permission-parity
+    needs: dependency-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: web/antd-v6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run browser permission and parity qualification
+        run: pnpm run test:e2e
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: frontend-v6-browser-evidence
+          path: |
+            web/antd-v6/playwright-report
+            web/antd-v6/test-results
+          if-no-files-found: ignore
+
   build:
     name: build
     if: ${{ always() }}
@@ -192,6 +248,7 @@ jobs:
       - generated-contract
       - quality
       - compile
+      - browser
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -201,12 +258,15 @@ jobs:
           GENERATED_RESULT: ${{ needs.generated-contract.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           COMPILE_RESULT: ${{ needs.compile.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
         run: |
           echo "dependency-contract=${DEPENDENCY_RESULT}"
           echo "generated-contract=${GENERATED_RESULT}"
           echo "quality=${QUALITY_RESULT}"
           echo "compile=${COMPILE_RESULT}"
+          echo "browser=${BROWSER_RESULT}"
           test "${DEPENDENCY_RESULT}" = 'success'
           test "${GENERATED_RESULT}" = 'success'
           test "${QUALITY_RESULT}" = 'success'
           test "${COMPILE_RESULT}" = 'success'
+          test "${BROWSER_RESULT}" = 'success'

@@ -8,6 +8,11 @@ import type { ThemeScopeResource } from '@/shared/theme/contract';
 import { replaceThemeRuntime } from '@/shared/theme/runtime';
 import ThemeSettingsEditor from './ThemeSettingsEditor';
 
+// Rendering the complete token-aware Ant Design form can exceed Vitest's 5s
+// default when the repository verifier has just run the V5 Jest suite. Keep a
+// local, bounded CI allowance without weakening any interaction assertions.
+const INTERACTION_TEST_TIMEOUT_MS = 15_000;
+
 const model = vi.hoisted(() => ({
   state: undefined as unknown,
   setInitialState: vi.fn(),
@@ -104,65 +109,77 @@ describe('scoped v6 theme editor', () => {
     browserDerivatives.write.mockResolvedValue(true);
   });
 
-  it('keeps application theme read-only without the control permission', async () => {
-    model.state = initialState({ '/app-config': true });
-    api.load.mockResolvedValue(resource('application', '4', { layout: 'top' }));
+  it(
+    'keeps application theme read-only without the control permission',
+    async () => {
+      model.state = initialState({ '/app-config': true });
+      api.load.mockResolvedValue(resource('application', '4', { layout: 'top' }));
 
-    renderEditor('application');
+      renderEditor('application');
 
-    expect(await screen.findByText('theme.scope.application')).toBeTruthy();
-    expect(api.load).toHaveBeenCalledWith('application');
-    expect(screen.getByText('theme.readOnly')).toBeTruthy();
-    expect(
-      (screen.getByRole('button', { name: /actions\.save/ }) as HTMLButtonElement).disabled,
-    ).toBe(true);
-    expect(api.patch).not.toHaveBeenCalled();
-  });
+      expect(await screen.findByText('theme.scope.application')).toBeTruthy();
+      expect(api.load).toHaveBeenCalledWith('application');
+      expect(screen.getByText('theme.readOnly')).toBeTruthy();
+      expect(
+        (screen.getByRole('button', { name: /actions\.save/ }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+      expect(api.patch).not.toHaveBeenCalled();
+    },
+    INTERACTION_TEST_TIMEOUT_MS,
+  );
 
-  it('saves only the touched personal field through the personal scope', async () => {
-    model.state = initialState({});
-    const base = resource('user', '7', { fixedHeader: false });
-    const saved = resource('user', '8', { fixedHeader: true });
-    api.load.mockResolvedValue(base);
-    api.patch.mockResolvedValue(saved);
+  it(
+    'saves only the touched personal field through the personal scope',
+    async () => {
+      model.state = initialState({});
+      const base = resource('user', '7', { fixedHeader: false });
+      const saved = resource('user', '8', { fixedHeader: true });
+      api.load.mockResolvedValue(base);
+      api.patch.mockResolvedValue(saved);
 
-    renderEditor('user');
+      renderEditor('user');
 
-    await screen.findByText('theme.scope.user');
-    const fixedHeaderSwitch = screen.getAllByRole('switch')[0];
-    if (!fixedHeaderSwitch) throw new Error('Fixed-header switch was not rendered');
-    fireEvent.click(fixedHeaderSwitch);
-    fireEvent.click(screen.getByRole('button', { name: /actions\.save/ }));
+      await screen.findByText('theme.scope.user');
+      const fixedHeaderSwitch = screen.getAllByRole('switch')[0];
+      if (!fixedHeaderSwitch) throw new Error('Fixed-header switch was not rendered');
+      fireEvent.click(fixedHeaderSwitch);
+      fireEvent.click(screen.getByRole('button', { name: /actions\.save/ }));
 
-    await waitFor(() =>
-      expect(api.patch).toHaveBeenCalledWith('user', { fixedHeader: true }, base),
-    );
-    await waitFor(() => expect(screen.getByText('theme.revision:8')).toBeTruthy());
-    expect(browserDerivatives.publish).toHaveBeenCalledWith(saved, 'session-1');
-    expect(browserDerivatives.write).toHaveBeenCalledWith(saved, 'session-1');
-  });
+      await waitFor(() =>
+        expect(api.patch).toHaveBeenCalledWith('user', { fixedHeader: true }, base),
+      );
+      await waitFor(() => expect(screen.getByText('theme.revision:8')).toBeTruthy());
+      expect(browserDerivatives.publish).toHaveBeenCalledWith(saved, 'session-1');
+      expect(browserDerivatives.write).toHaveBeenCalledWith(saved, 'session-1');
+    },
+    INTERACTION_TEST_TIMEOUT_MS,
+  );
 
-  it('shows an explicit 412 decision and never retries a stale draft automatically', async () => {
-    model.state = initialState({});
-    const base = resource('user', '7', { fixedHeader: false });
-    const current = resource('user', '8', { fixedHeader: false, layout: 'top' });
-    api.load.mockResolvedValue(base);
-    api.patch.mockRejectedValue(new ThemeRevisionConflictError(current));
+  it(
+    'shows an explicit 412 decision and never retries a stale draft automatically',
+    async () => {
+      model.state = initialState({});
+      const base = resource('user', '7', { fixedHeader: false });
+      const current = resource('user', '8', { fixedHeader: false, layout: 'top' });
+      api.load.mockResolvedValue(base);
+      api.patch.mockRejectedValue(new ThemeRevisionConflictError(current));
 
-    renderEditor('user');
+      renderEditor('user');
 
-    await screen.findByText('theme.scope.user');
-    const fixedHeaderSwitch = screen.getAllByRole('switch')[0];
-    if (!fixedHeaderSwitch) throw new Error('Fixed-header switch was not rendered');
-    fireEvent.click(fixedHeaderSwitch);
-    fireEvent.click(screen.getByRole('button', { name: /actions\.save/ }));
+      await screen.findByText('theme.scope.user');
+      const fixedHeaderSwitch = screen.getAllByRole('switch')[0];
+      if (!fixedHeaderSwitch) throw new Error('Fixed-header switch was not rendered');
+      fireEvent.click(fixedHeaderSwitch);
+      fireEvent.click(screen.getByRole('button', { name: /actions\.save/ }));
 
-    expect(await screen.findByText('theme.conflict.title')).toBeTruthy();
-    expect(screen.getByText('theme.conflict.description:8')).toBeTruthy();
-    expect(api.patch).toHaveBeenCalledTimes(1);
-    expect(
-      (screen.getByRole('button', { name: /actions\.save/ }) as HTMLButtonElement).disabled,
-    ).toBe(true);
-    expect(screen.getByRole('button', { name: 'theme.conflict.keep' })).toBeTruthy();
-  });
+      expect(await screen.findByText('theme.conflict.title')).toBeTruthy();
+      expect(screen.getByText('theme.conflict.description:8')).toBeTruthy();
+      expect(api.patch).toHaveBeenCalledTimes(1);
+      expect(
+        (screen.getByRole('button', { name: /actions\.save/ }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+      expect(screen.getByRole('button', { name: 'theme.conflict.keep' })).toBeTruthy();
+    },
+    INTERACTION_TEST_TIMEOUT_MS,
+  );
 });

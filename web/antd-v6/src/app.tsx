@@ -4,7 +4,7 @@ import UserOutlined from '@ant-design/icons/UserOutlined';
 import type { ProLayoutProps } from '@ant-design/pro-components';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
-import { addLocale, history, Link, SelectLang, useIntl } from '@umijs/max';
+import { addLocale, history, Link, useIntl } from '@umijs/max';
 import { App as AntdApp, Avatar, Dropdown, Tag, Typography } from 'antd';
 import type { ReactNode } from 'react';
 import { languageAPI } from './modules/language/api';
@@ -21,6 +21,8 @@ import {
 } from './shared/auth/session';
 import type { InitialState, StartupFailure } from './shared/auth/types';
 import { PageError } from './shared/design-system/PageState';
+import LocaleSwitcher from './shared/navigation/LocaleSwitcher';
+import { resolveMenuIcons } from './shared/navigation/menuIcons';
 import { queryClient, queryKeys } from './shared/query/client';
 import AuthorizationRealtimeBridge from './shared/realtime/AuthorizationRealtimeBridge';
 import { loadApplicationProfile, loadThemeResource } from './shared/theme/api';
@@ -319,7 +321,7 @@ function AvatarMenu({ initialState }: { initialState?: InitialState }) {
 export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   ...initialState?.settings,
   actionsRender: () => [
-    <SelectLang key="language" />,
+    <LocaleSwitcher key="language" />,
     <Tag key="antd" color="blue">
       antd {__ANTD_VERSION__}
     </Tag>,
@@ -343,6 +345,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     params: { authorizationVersion: initialState?.authorizationVersion ?? 0 },
     request: async () => initialState?.authorizedMenu ?? [],
   },
+  menuDataRender: resolveMenuIcons,
   menuItemRender: (item, dom) =>
     item.path ? (
       <Link to={item.path} prefetch>

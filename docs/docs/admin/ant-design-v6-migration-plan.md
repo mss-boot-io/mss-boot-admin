@@ -15,7 +15,7 @@ keywords: [admin ant-design v6 react umi migration release]
 - 决策状态：已接受，按独立应用方案实施。
 - 目标目录：`web/antd-v6`。
 - 旧应用：`web/antd` 保持独立构建、发布、部署和回滚，不在本项目中原位升级或删除。
-- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、权限新鲜度、服务端授权 revision 实时推送、分层主题闭环，以及安全账户中心、个人资料、PAT、OAuth 连接、语言切换已实现；P4 已完成工作台监控和在线会话两个垂直切片；P5 已完成语言与 Option 管理垂直切片；P6 的双目标生成器和 Supplier golden 已完成并通过桌面/移动真实浏览器验收。其余业务等价、跨模块权限与双语响应式验收、容器发布资格尚未完成，因此不是生产发布候选。
+- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、权限新鲜度、服务端授权 revision 实时推送、分层主题闭环，以及安全账户中心、个人资料、PAT、OAuth 连接、语言切换已实现；P4 已完成工作台监控和在线会话两个垂直切片；P5 已完成语言与 Option 管理垂直切片；P6 的双目标生成器和 Supplier golden 已完成。真实 Go 后端上的 Chromium 桌面/移动、中文/英文、匿名与 Finance 最小权限矩阵，以及独立 Nginx 容器交付 smoke 已通过。其余业务等价和被冻结的产品/安全契约尚未完成，因此不是生产发布候选。
 - 机器契约：`.mss/features/admin-antd-v6-application.yaml`。
 - 架构决策：`docs/adr/2026-08-15-independent-ant-design-v6-application.md`。
 
@@ -170,7 +170,7 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 2. 旧的已登录密码重置不要求当前密码或近期再认证；V6 不展示该操作，待增加 step-up/re-auth、限流及成功后全会话/PAT 撤销契约。
 3. 旧 OAuth 解绑可直接删除最后一种可用登录方式；V6 只允许安全连接，待后端事务性保证至少保留一种已验证登录方式并要求近期再认证后再开放解绑。
 
-仍待本阶段完成：上述密码/邮箱/解绑安全契约的产品确认与后端实现，以及真实浏览器权限矩阵。focus/visibility、网络恢复与 403 权威重读继续作为 WebSocket 不可用时的安全兜底。
+仍待本阶段完成：上述密码/邮箱/解绑安全契约的产品确认与后端实现。真实浏览器现已覆盖匿名直达、root 会话、Finance 非 root 菜单求交、无创建按钮、直接写 API 403、root-only API 403 和直接路由 403。focus/visibility、网络恢复与 403 权威重读继续作为 WebSocket 不可用时的安全兜底。
 
 完成门：匿名/root/普通用户/撤权/未知菜单/直接路由和直接 API 矩阵通过。
 
@@ -192,7 +192,7 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 - 单会话和按用户批量下线只能从权威列表行发起，继续使用后端目标保护与安全审计；旧界面允许手填任意 user ID 的工具栏没有复制。筛选、详情、空态、403、初次错误、刷新警告和破坏性确认均有中英文状态。
 - 此页面只需要受控筛选、分页和行操作，因此采用 antd 6 原生 `Table`。资格构建证明引入 `ProTable` 会把总 JS 推高到 952.10 KiB 并突破 900 KiB 预算；改用原生组件后 entry 为 4.16 KiB、总 JS 为 848.54 KiB、最大异步分包为 197.45 KiB，同时保留所需交互。
 
-仍待本阶段完成：日志、通知和运行记录，以及工作台监控与在线会话的真实浏览器桌面/移动、中文/英文和授权正反例证据。
+仍待本阶段完成：日志、通知和运行记录。工作台监控与已迁移页面已通过真实浏览器桌面/移动、中文/英文、键盘焦点、横向溢出和零弃用 warning 验证；在线会话的 root-only 直接路由/API 负例也已纳入同一权限套件。
 
 以下旧契约经评估后冻结，不在 P4 中直接复制，需先完成后端产品与安全契约：
 
@@ -230,7 +230,7 @@ Option 管理：
 - read/create/update/delete 菜单和 API 权限独立；列表使用 summary 投影，详情按需加载。V6 使用原生 `Table`、`Form.List` 和 antd 6.6 `Listy`，共享桌面/移动响应式页面并覆盖 loading、empty、error、403、404、refresh failure 和 412 conflict。
 - Option 切片后的 release build entry 为 4.16 KiB、总 JS 为 864.91 KiB、最大异步分包为 199.59 KiB，仍通过 900/250 KiB 门禁，余量为 35.09 KiB。新增业务仍须复用现有运行时并逐切片测量，不能把路由分包当成忽略总体积增长的理由。
 
-P5 中尚未实施的关键后端前置问题包括：部门/岗位需要先明确树循环、删除引用完整性与数据范围语义。完成这些契约前不会机械复制旧页面。
+P5 中尚未实施的关键后端前置问题包括：部门/岗位需要先明确树循环、删除引用完整性与数据范围语义。浏览器权限资格还复现了旧 `User` 的 `AfterCreate`/`AfterDelete` 在外层事务持有 SQLite 写锁时通过全局连接更新统计的缺陷：每次会固定等待约 5 秒，删除路径还会连带阻塞授权 revision 与审计写入。隔离 E2E 数据库随进程整体销毁，不通过生产 API 清理临时 Finance 用户；生产事务语义的修复需单独评审，不能在前端迁移里静默改写。完成这些契约前不会机械复制旧页面。
 
 完成门：关键 CRUD、批量操作、上传/下载、ETag 冲突和权限负例通过。
 
@@ -241,8 +241,9 @@ P5 中尚未实施的关键后端前置问题包括：部门/岗位需要先明�
 - Supplier 的同一受版本控制规格同时声明 V5/V6，V6 覆盖编译期 route registry、双语 catalog、运行时契约校验、typed transport、React Query、响应式页面和 HttpOnly/CSRF Playwright 流程。
 - 首版 V6 profile 的资格边界是带时间戳和 uuid/string ID 的完整 CRUD+export，以及非 nullable 的 string/text/uuid/enum/bool 字段。必填 create 字段必须具有可见编辑控件；启用 E2E 时还必须提供可重复清理和更新验证的唯一、可搜索、列表/表单可见文本字段。数值、文件、关系、create-only immutable 编辑、batch、import、workflow 等尚未实现的语义在规格校验阶段 fail-closed，不能用普通输入框近似。
 - 生成目录由生成器而非 Biome formatter/organize-imports 拥有；Biome lint、严格 TypeScript、Vitest、双目标 drift 和生产构建仍覆盖这些产物，任意手工格式化导致的漂移都会失败。
-- 生成的筛选/编辑表单使用独立 DOM 命名空间，有限枚举关闭虚拟化以保留真实 option 语义，操作按钮具有稳定的本地化可访问名称；E2E 唯一字段在长度和正则契约内生成 worker 隔离值，可并发执行且不受软删除唯一索引污染。Supplier 已在 Playwright 自启 V6 的模式下并发通过 Chromium 桌面和移动完整 CRUD、详情、导出及删除流程。
-- Supplier 加入后的 release build entry 为 4.16 KiB、总 JS 为 882.04 KiB、最大异步分包为 199.59 KiB，继续通过 900/250 KiB 门禁，但总量仅余 17.96 KiB；下一业务切片必须先给出依赖复用和预算证据。
+- 生成的筛选/编辑表单使用独立 DOM 命名空间，有限枚举关闭虚拟化以保留真实 option 语义，操作按钮具有稳定的本地化可访问名称；E2E 唯一字段在长度和正则契约内生成 worker 隔离值且不受软删除唯一索引污染。Supplier 已在 Playwright 自启真实 Go 后端和隔离 SQLite 的模式下，串行通过 Chromium 桌面和移动完整 CRUD、详情、导出及删除流程；串行执行用于规避 SQLite 单写者语义干扰跨项目资格结果。
+- 当前 release build entry 为 4.16 KiB、总 JS 为 882.96 KiB、最大异步分包为 199.59 KiB，继续通过 900/250 KiB 门禁，但总量仅余 17.04 KiB；该结果已包含后端菜单图标的显式 allowlist 适配器，下一业务切片必须先给出依赖复用和预算证据。
+- 桌面与移动端的中英文浏览器资格会访问工作台、账户中心、个人设置和 Supplier，验证无横向溢出、语言按钮可访问、动态菜单文案/图标正确，并将所有 console warning/error 作为失败；权限资格以隔离 Finance 身份同时证明后端拒绝与 UI 最小权限。
 
 完成门：生成两次零差异、V5/V6 drift check、生产构建和 Supplier 桌面/移动浏览器验收通过。
 

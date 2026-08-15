@@ -6,6 +6,7 @@ const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const manifest = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
 const lockfile = await readFile(join(projectRoot, 'pnpm-lock.yaml'), 'utf8');
 const runtimeApp = await readFile(join(projectRoot, 'src/app.tsx'), 'utf8');
+const proxyConfig = await readFile(join(projectRoot, 'config/proxy.ts'), 'utf8');
 
 const expected = {
   '@ant-design/icons': '6.3.2',
@@ -39,6 +40,13 @@ if (!/export function innerProvider\s*\(/.test(runtimeApp)) {
 }
 if (/export function rootContainer\s*\(/.test(runtimeApp)) {
   failures.push('src/app.tsx must not mount model-consuming bridges through rootContainer');
+}
+
+if (/\bchangeOrigin:\s*true\b/.test(proxyConfig)) {
+  failures.push('config/proxy.ts must preserve the browser Origin for backend CSRF checks');
+}
+if ((proxyConfig.match(/\bchangeOrigin:\s*false\b/g) ?? []).length < 2) {
+  failures.push('both local proxy environments must preserve the browser Origin');
 }
 
 const listTypeScript = async (directory) => {

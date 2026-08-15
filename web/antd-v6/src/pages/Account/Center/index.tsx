@@ -120,18 +120,19 @@ export default function AccountCenterPage() {
                 key: 'group',
                 label: intl.formatMessage({ id: 'account.profile.group' }),
                 children: display(current.group),
+                span: { xs: 1, md: 2 },
               },
               {
                 key: 'address',
                 label: intl.formatMessage({ id: 'account.profile.address' }),
                 children: display(address),
-                span: 2,
+                span: { xs: 1, md: 2 },
               },
               {
                 key: 'profile',
                 label: intl.formatMessage({ id: 'account.profile.profile' }),
                 children: display(current.profile),
-                span: 2,
+                span: { xs: 1, md: 2 },
               },
             ]}
           />

@@ -24,7 +24,7 @@ defaults:
 jobs:
   release:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 75
     environment: release-v6
     permissions:
       actions: read
@@ -101,6 +101,11 @@ jobs:
         with:
           version: 10.34.5
 
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
@@ -118,6 +123,11 @@ jobs:
           pnpm audit --audit-level critical
           pnpm run lint
           pnpm run test:ci
+
+      - name: Qualify browser permission and parity behavior
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm run test:e2e
 
       - name: Build same-origin v6 release
         run: pnpm run build:release
