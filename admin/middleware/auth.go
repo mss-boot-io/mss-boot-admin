@@ -822,18 +822,32 @@ func validateSessionFromClaims(
 	}
 	if shouldTouch, terr := service.Session.MarkLastSeen(c, sid); terr == nil && shouldTouch {
 		// Capture the request-scoped DB in the request goroutine so the
-		// async Touch keeps any tenant scope; rebind ctx to a fresh timeout
-		// so it doesn't get cancelled when the request finishes.
+		// async Touch keeps any tenant scope, and capture the service instance
+		// so a runtime/test lifecycle swap cannot redirect an in-flight write.
+		// Rebind ctx to a fresh timeout so request cancellation does not abort
+		// the bounded bookkeeping update.
 		scopedDB := db
-		go func(sid string, db *gorm.DB) {
+		sessionService := service.Session
+		sessionTouchGoroutines.Add(1)
+		go func(sid string, db *gorm.DB, sessions *service.SessionService) {
+			defer sessionTouchGoroutines.Done()
 			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			if err := service.Session.RecordLastSeen(bgCtx, db.WithContext(bgCtx), sid); err != nil {
+			if err := sessions.RecordLastSeen(bgCtx, db.WithContext(bgCtx), sid); err != nil {
 				slog.Warn("session record last_seen failed", "sid", sid, "err", err)
 			}
-		}(sid, scopedDB)
+		}(sid, scopedDB, sessionService)
 	}
 	return true
+}
+
+// sessionTouchGoroutines gives controlled runtime and test shutdown paths a
+// way to wait until bounded background bookkeeping no longer owns captured
+// database/cache resources. Request handling never waits on this tracker.
+var sessionTouchGoroutines sync.WaitGroup
+
+func waitForSessionTouches() {
+	sessionTouchGoroutines.Wait()
 }
 
 type loginCtxBag struct {
