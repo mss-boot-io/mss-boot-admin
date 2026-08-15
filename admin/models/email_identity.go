@@ -140,5 +140,9 @@ func createOAuthIdentityWithoutEmailMerge(db *gorm.DB, identity *UserOAuth2) err
 		return tx.Omit("User").Create(identity).Error
 	})
 	identity.User = user
-	return NormalizeEmailIdentityCreateError(quiet, user.Email, err)
+	err = NormalizeEmailIdentityCreateError(quiet, user.Email, err)
+	if err == nil {
+		recordUserCreatedFromDB(quiet, user)
+	}
+	return err
 }

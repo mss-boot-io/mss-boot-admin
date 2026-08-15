@@ -48,10 +48,30 @@ func newUserController() *User {
 			controller.WithModelProvider(actions.ModelProviderGorm),
 			controller.WithScope(redactUserPersistenceDiagnostics),
 			controller.WithWriteErrorMapper(mapUserWriteError),
+			controller.WithAfterCommitCreate(recordCreatedUserStatistics),
+			controller.WithAfterDelete(recordDeletedUserStatistics),
 			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement, protectRootUserLifecycle}),
 			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement, protectRootUserLifecycle}),
 		),
 	}
+}
+
+func recordCreatedUserStatistics(ctx *gin.Context, _ *gorm.DB, model schema.Tabler) error {
+	user, ok := model.(*models.User)
+	if !ok {
+		return errors.New("created user statistics model is invalid")
+	}
+	models.RecordUserCreated(ctx, user)
+	return nil
+}
+
+func recordDeletedUserStatistics(ctx *gin.Context, _ *gorm.DB, model schema.Tabler) error {
+	user, ok := model.(*models.User)
+	if !ok {
+		return errors.New("deleted user statistics model is invalid")
+	}
+	models.RecordUserDeleted(ctx, user)
+	return nil
 }
 
 func mapUserWriteError(

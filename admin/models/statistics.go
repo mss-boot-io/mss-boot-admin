@@ -68,11 +68,7 @@ func (e *Statistics) NowIncrease(ctx *gin.Context, object center.StatisticsObjec
 		slog.Error("Statistics NowIncrease", "error", err)
 		return err
 	}
-	if err != nil {
-		slog.Error("Statistics NowIncrease", "error", err)
-		return err
-	}
-	err = center.GetDB(ctx, s).Model(e).
+	err = center.GetDB(ctx, s).Model(s).
 		Update("value", gorm.Expr("value + ?", object.StatisticsStep())).Error
 	if err != nil {
 		slog.Error("Statistics NowIncrease", "error", err)
@@ -89,10 +85,6 @@ func (e *Statistics) NowReduce(ctx *gin.Context, object center.StatisticsObject)
 	}
 	err := center.GetDB(ctx, s).Where(s).
 		FirstOrCreate(s).Error
-	if err != nil {
-		slog.Error("Statistics NowReduce", "error", err)
-		return err
-	}
 	if err != nil {
 		slog.Error("Statistics NowReduce", "error", err)
 		return err

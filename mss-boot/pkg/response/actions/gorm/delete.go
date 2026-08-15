@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
+	gormpkg "gorm.io/gorm"
 	"gorm.io/plugin/dbresolver"
 )
 
@@ -81,12 +82,14 @@ func (e *Delete) delete(c *gin.Context, ids ...string) {
 		}
 	}
 	c.Set("ids", ids)
-	query := gormdb.DB.WithContext(c).
-		Where(fmt.Sprintf("%s IN ?", e.opts.Key), ids)
-	if e.opts.Scope != nil {
-		query = query.Clauses(dbresolver.Use(e.opts.Model.TableName())).Scopes(e.opts.Scope(c, e.opts.Model))
-	}
-	err := query.Delete(e.opts.Model).Error
+	query := gormdb.DB.WithContext(c)
+	err := query.Transaction(func(tx *gormpkg.DB) error {
+		deleteQuery := tx.Where(fmt.Sprintf("%s IN ?", e.opts.Key), ids)
+		if e.opts.Scope != nil {
+			deleteQuery = deleteQuery.Clauses(dbresolver.Use(e.opts.Model.TableName())).Scopes(e.opts.Scope(c, e.opts.Model))
+		}
+		return deleteQuery.Delete(e.opts.Model).Error
+	})
 	if err != nil {
 		api.AddError(err).Log.ErrorContext(c, "Delete error", "error", err)
 		api.Err(http.StatusInternalServerError)
