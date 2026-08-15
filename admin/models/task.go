@@ -17,6 +17,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	typedbatchv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
@@ -30,6 +31,14 @@ import (
  */
 
 var TaskFuncMap = make(map[string]pkg.TaskFunc)
+
+type taskKubernetesClient interface {
+	BatchV1() typedbatchv1.BatchV1Interface
+}
+
+var taskKubernetesClientFor = func(cluster string) taskKubernetesClient {
+	return config.Cfg.Clusters.GetClientSet(cluster)
+}
 
 var withTaskDatabase = func(operation func(*gorm.DB) error) error {
 	return config.Cfg.WithDatabase(operation)
@@ -115,7 +124,7 @@ func (t *Task) AfterCreate(tx *gorm.DB) error {
 		}
 		return nil
 	}
-	clientSet := config.Cfg.Clusters.GetClientSet(t.Cluster)
+	clientSet := taskKubernetesClientFor(t.Cluster)
 	if clientSet == nil {
 		return fmt.Errorf("cluster %s not found", t.Cluster)
 	}
@@ -123,6 +132,7 @@ func (t *Task) AfterCreate(tx *gorm.DB) error {
 	if t.Namespace == "" {
 		t.Namespace = "default"
 	}
+	suspend := t.Status != enum.Enabled
 	// 失败的pod只能重试3次
 	_, err := clientSet.BatchV1().CronJobs(t.Namespace).Create(tx.Statement.Context,
 		&batchv1.CronJob{
@@ -135,6 +145,7 @@ func (t *Task) AfterCreate(tx *gorm.DB) error {
 				},
 			},
 			Spec: batchv1.CronJobSpec{
+				Suspend:                    &suspend,
 				SuccessfulJobsHistoryLimit: &limitCount,
 				FailedJobsHistoryLimit:     &limitCount,
 				Schedule:                   t.Spec,
@@ -192,7 +203,7 @@ func (t *Task) AfterUpdate(tx *gorm.DB) error {
 		}
 		return nil
 	}
-	clientSet := config.Cfg.Clusters.GetClientSet(t.Cluster)
+	clientSet := taskKubernetesClientFor(t.Cluster)
 	if clientSet == nil {
 		return fmt.Errorf("cluster %s not found", t.Cluster)
 	}
@@ -206,6 +217,11 @@ func (t *Task) AfterUpdate(tx *gorm.DB) error {
 		return err
 	}
 	job.Spec.Schedule = t.Spec
+	suspend := t.Status != enum.Enabled
+	job.Spec.Suspend = &suspend
+	if len(job.Spec.JobTemplate.Spec.Template.Spec.Containers) == 0 {
+		return errors.New("Kubernetes task CronJob has no containers")
+	}
 	job.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Image = t.Image
 	job.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Command = t.GetCommand()
 	job.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args = t.GetArgs()
@@ -219,16 +235,45 @@ func (t *Task) AfterUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+// SetKubernetesEnabled keeps the database task status and the external
+// CronJob suspension state aligned. Process-local task scheduler operations
+// must never be used for Kubernetes-backed definitions.
+func (t *Task) SetKubernetesEnabled(ctx context.Context, enabled bool) error {
+	if t == nil || t.Provider != TaskProviderK8S {
+		return errors.New("task is not Kubernetes-backed")
+	}
+	clientSet := taskKubernetesClientFor(t.Cluster)
+	if clientSet == nil {
+		return fmt.Errorf("cluster %s not found", t.Cluster)
+	}
+	namespace := t.Namespace
+	if namespace == "" {
+		namespace = "default"
+	}
+	job, err := clientSet.BatchV1().CronJobs(namespace).Get(ctx, t.ID, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	suspend := !enabled
+	job.Spec.Suspend = &suspend
+	_, err = clientSet.BatchV1().CronJobs(namespace).Update(ctx, job, metav1.UpdateOptions{})
+	return err
+}
+
 func (t *Task) AfterDelete(tx *gorm.DB) error {
 	switch t.Provider {
 	case TaskProviderDefault, "", TaskProviderFunc:
 		return nil
 	}
-	clientSet := config.Cfg.Clusters.GetClientSet(t.Cluster)
+	clientSet := taskKubernetesClientFor(t.Cluster)
 	if clientSet == nil {
 		return fmt.Errorf("cluster %s not found", t.Cluster)
 	}
-	return clientSet.BatchV1().CronJobs(t.Namespace).Delete(tx.Statement.Context, t.ID, metav1.DeleteOptions{})
+	namespace := t.Namespace
+	if namespace == "" {
+		namespace = "default"
+	}
+	return clientSet.BatchV1().CronJobs(namespace).Delete(tx.Statement.Context, t.ID, metav1.DeleteOptions{})
 }
 
 func (t *Task) AfterFind(_ *gorm.DB) (err error) {

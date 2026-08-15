@@ -1,7 +1,9 @@
 package apis
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 
@@ -23,15 +25,23 @@ import (
  */
 
 func init() {
-	e := &Notice{
+	response.AppendController(newNoticeController())
+}
+
+func newNoticeController() *Notice {
+	return &Notice{
 		Simple: controller.NewSimple(
 			controller.WithAuth(true),
 			controller.WithModel(new(models.Notice)),
 			controller.WithSearch(new(dto.NoticeSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithHandlers(gin.HandlersChain{protectOperationalResponse}),
+			controller.WithScope(noticeOwnerScope),
+			controller.WithBeforeCreate(prepareNoticeCreate),
+			controller.WithBeforeUpdate(prepareNoticeUpdate),
+			controller.WithWriteErrorMapper(operationalWriteErrorMapper("NOTICE", "notice")),
 		),
 	}
-	response.AppendController(e)
 }
 
 type Notice struct {
@@ -47,9 +57,9 @@ const unreadNoticeLimit = 100
 //}
 
 func (e *Notice) Other(r *gin.RouterGroup) {
-	r.GET("/notice/unread", middleware.OptionalAuth(), e.Unread)
-	r.PUT("/notice/read/:id", response.AuthHandler, e.MarkRead)
-	r.GET("/notice/read/:id", response.AuthHandler, e.Read)
+	r.GET("/notice/unread", middleware.OptionalAuth(), protectOperationalResponse, e.Unread)
+	r.PUT("/notice/read/:id", response.AuthHandler, protectOperationalResponse, e.MarkRead)
+	r.GET("/notice/read/:id", response.AuthHandler, protectOperationalResponse, e.Read)
 }
 
 // Read 获取通知
@@ -64,14 +74,26 @@ func (e *Notice) Other(r *gin.RouterGroup) {
 // @Security Bearer
 func (e *Notice) Read(ctx *gin.Context) {
 	api := response.Make(ctx)
-	verify := response.VerifyHandler(ctx)
-	id := ctx.Param("id")
+	userID, ok := currentOperationalUserID(ctx)
+	if !ok {
+		api.Err(http.StatusUnauthorized)
+		return
+	}
+	id := strings.TrimSpace(ctx.Param("id"))
+	if id == "" || len(id) > 64 || strings.ContainsAny(id, ",\x00") {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 	var notice models.Notice
 	err := center.Default.GetDB(ctx, &models.Notice{}).Model(&models.Notice{}).
 		Where("id = ?", id).
-		Where("user_id = ?", verify.GetUserID()).
+		Where("user_id = ?", userID).
 		First(&notice).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			api.Err(http.StatusNotFound)
+			return
+		}
 		api.AddError(err).Log.Error("get notice error")
 		api.Err(http.StatusInternalServerError)
 		return
@@ -91,11 +113,20 @@ func (e *Notice) Read(ctx *gin.Context) {
 // @Security Bearer
 func (e *Notice) MarkRead(ctx *gin.Context) {
 	api := response.Make(ctx)
-	verify := response.VerifyHandler(ctx)
-	id := ctx.Param("id")
+	userID, ok := currentOperationalUserID(ctx)
+	if !ok {
+		api.Err(http.StatusUnauthorized)
+		return
+	}
+	id := strings.TrimSpace(ctx.Param("id"))
+	if id == "" || len(id) > 64 || strings.ContainsAny(id, ",\x00") {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 	query := center.Default.GetDB(ctx, &models.Notice{}).Model(&models.Notice{}).
-		Where("user_id = ?", verify.GetUserID())
+		Where("user_id = ?", userID)
 	switch id {
+	case "all":
 	case models.NoticeTypeMessage.String(),
 		models.NoticeTypeEvent.String(),
 		models.NoticeTypeNotification.String(),
@@ -104,12 +135,16 @@ func (e *Notice) MarkRead(ctx *gin.Context) {
 	default:
 		query = query.Where("id = ?", id)
 	}
-	if id != "all" {
-	}
-	err := query.Update("`read`", true).Error
-	if err != nil {
-		api.AddError(err).Log.Error("update notice error")
+	result := query.Update("`read`", true)
+	if result.Error != nil {
+		api.AddError(result.Error).Log.Error("update notice error")
 		api.Err(http.StatusInternalServerError)
+		return
+	}
+	if id != "all" && id != models.NoticeTypeMessage.String() &&
+		id != models.NoticeTypeEvent.String() && id != models.NoticeTypeNotification.String() &&
+		id != models.NoticeTypeMail.String() && result.RowsAffected == 0 {
+		api.Err(http.StatusNotFound)
 		return
 	}
 	api.OK(struct{}{})

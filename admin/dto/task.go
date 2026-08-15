@@ -12,11 +12,19 @@ import "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 type TaskSearch struct {
 	actions.Pagination `search:"inline"`
 	// ID
-	ID string `query:"id" form:"id" search:"type:contains;column:id"`
+	ID string `query:"id" form:"id" binding:"omitempty,max=64" search:"type:contains;column:id"`
 	//名称
-	Name string `query:"name" form:"name" search:"type:contains;column:name"`
+	Name string `query:"name" form:"name" binding:"omitempty,max=255" search:"type:contains;column:name"`
 	//状态
-	Status string `query:"status" form:"status" search:"type:exact;column:status"`
+	Status string `query:"status" form:"status" binding:"omitempty,oneof=enabled disabled" search:"type:exact;column:status"`
+}
+
+func (e *TaskSearch) GetPageSize() int64 {
+	pageSize := e.Pagination.GetPageSize()
+	if pageSize > 100 {
+		return 100
+	}
+	return pageSize
 }
 
 type TaskOperateRequest struct {

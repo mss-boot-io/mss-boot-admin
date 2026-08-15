@@ -1,7 +1,12 @@
 package apis
 
 import (
+	"net/http"
+	"time"
+
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin/admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage/cache"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
@@ -32,10 +37,16 @@ func newSystemConfigController() *SystemConfig {
 			// SystemConfig.Content is an opaque legacy payload and may contain
 			// credentials. Until it is split into typed, independently
 			// authorized resources, every read and mutation stays root-only.
-			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement, protectSystemConfigResponse}),
-			controller.WithGetHandlers(gin.HandlersChain{requireRootManagement, protectSystemConfigResponse}),
-			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement, protectSystemConfigResponse}),
-			controller.WithSearchHandlers(gin.HandlersChain{requireRootManagement, protectSystemConfigResponse}),
+			controller.WithHandlers(gin.HandlersChain{protectSystemConfigResponse}),
+			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithGetHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithBeforeCreate(prepareSystemConfigCreate),
+			controller.WithBeforeUpdate(prepareSystemConfigUpdate),
+			controller.WithBeforeDelete(validateSystemConfigDelete),
+			controller.WithWriteErrorMapper(
+				operationalWriteErrorMapper("SYSTEM_CONFIG", "system configuration"),
+			),
 		),
 	}
 }
@@ -56,6 +67,33 @@ func protectSystemConfigResponse(c *gin.Context) {
 
 type SystemConfig struct {
 	*controller.Simple
+}
+
+type systemConfigSummary struct {
+	ID        string        `json:"id"`
+	CreatedAt time.Time     `json:"createdAt"`
+	UpdatedAt time.Time     `json:"updatedAt"`
+	Name      string        `json:"name"`
+	Ext       source.Scheme `json:"ext"`
+	Remark    string        `json:"remark"`
+	BuiltIn   bool          `json:"isBuiltIn"`
+}
+
+func (e *SystemConfig) GetAction(key string) response.Action {
+	if key == response.Search {
+		return nil
+	}
+	return e.Simple.GetAction(key)
+}
+
+func (e *SystemConfig) Other(r *gin.RouterGroup) {
+	r.GET(
+		"/system-configs",
+		response.AuthHandler,
+		requireRootManagement,
+		protectSystemConfigResponse,
+		e.List,
+	)
 }
 
 // Create 创建系统配置
@@ -114,4 +152,36 @@ func (*SystemConfig) Get(*gin.Context) {}
 // @Success 200 {object} response.Page{data=[]models.SystemConfig}
 // @Router /admin/api/system-configs [get]
 // @Security Bearer
-func (*SystemConfig) List(*gin.Context) {}
+func (*SystemConfig) List(ctx *gin.Context) {
+	api := response.Make(ctx)
+	req := &dto.SystemConfigSearch{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	page, pageSize := req.GetPage(), req.GetPageSize()
+	if page > 10_000 || pageSize > 100 {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	query := center.Default.GetDB(ctx, &models.SystemConfig{}).Model(&models.SystemConfig{})
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		api.AddError(err).Log.Error("count system configuration summaries")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	items := make([]systemConfigSummary, 0, pageSize)
+	if err := query.
+		Select("id", "created_at", "updated_at", "name", "ext", "remark", "built_in").
+		Order("updated_at DESC").
+		Order("id DESC").
+		Offset(int((page - 1) * pageSize)).
+		Limit(int(pageSize)).
+		Scan(&items).Error; err != nil {
+		api.AddError(err).Log.Error("list system configuration summaries")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	api.PageOK(items, total, page, pageSize)
+}

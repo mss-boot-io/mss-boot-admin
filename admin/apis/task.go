@@ -4,6 +4,9 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
@@ -25,25 +28,70 @@ import (
  */
 
 func init() {
-	e := &Task{
+	response.AppendController(newTaskController())
+}
+
+func newTaskController() *Task {
+	return &Task{
 		Simple: controller.NewSimple(
 			controller.WithAuth(true),
 			controller.WithModel(new(models.Task)),
 			controller.WithSearch(new(dto.TaskSearch)),
 			controller.WithModelProvider(actions.ModelProviderGorm),
+			controller.WithHandlers(gin.HandlersChain{protectOperationalResponse}),
+			// A task definition can issue network requests or create Kubernetes
+			// workloads. Treat every mutation as privileged code execution.
+			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithGetHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithBeforeCreate(prepareTaskCreate),
+			controller.WithBeforeUpdate(prepareTaskUpdate),
+			controller.WithBeforeDelete(validateTaskDelete),
+			controller.WithWriteErrorMapper(operationalWriteErrorMapper("TASK", "task")),
 		),
 	}
-	response.AppendController(e)
 }
 
 type Task struct {
 	*controller.Simple
 }
 
+type taskSummary struct {
+	ID        string              `json:"id"`
+	CreatedAt time.Time           `json:"createdAt"`
+	UpdatedAt time.Time           `json:"updatedAt"`
+	Name      string              `json:"name"`
+	Provider  models.TaskProvider `json:"provider"`
+	Spec      string              `json:"spec"`
+	Status    enum.Status         `json:"status"`
+	CheckedAt *time.Time          `json:"checkedAt,omitempty"`
+	Remark    string              `json:"remark"`
+}
+
+func (e *Task) GetAction(key string) response.Action {
+	if key == response.Search {
+		return nil
+	}
+	return e.Simple.GetAction(key)
+}
+
 func (e *Task) Other(r *gin.RouterGroup) {
-	r.POST("/tasks/:id/actions/:operate", response.AuthHandler, e.Operate)
+	r.GET("/tasks", response.AuthHandler, protectOperationalResponse, e.List)
+	r.POST(
+		"/tasks/:id/actions/:operate",
+		response.AuthHandler,
+		requireRootManagement,
+		protectOperationalResponse,
+		e.Operate,
+	)
 	r.GET("/task/:operate/:id", methodNotAllowed)
-	r.GET("/task/func-list", response.AuthHandler, e.FuncList)
+	r.GET(
+		"/task/func-list",
+		response.AuthHandler,
+		requireRootManagement,
+		protectOperationalResponse,
+		e.FuncList,
+	)
 }
 
 // FuncList 任务函数列表
@@ -57,11 +105,19 @@ func (e *Task) Other(r *gin.RouterGroup) {
 // @Security Bearer
 func (e *Task) FuncList(c *gin.Context) {
 	api := response.Make(c)
-	resp := make([]*dto.TaskFuncItem, 0)
+	names := make([]string, 0, len(models.TaskFuncMap))
 	// 获取所有的任务函数
 	for k := range models.TaskFuncMap {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	if len(names) > 100 {
+		names = names[:100]
+	}
+	resp := make([]*dto.TaskFuncItem, 0, len(names))
+	for _, name := range names {
 		resp = append(resp, &dto.TaskFuncItem{
-			Name: k,
+			Name: name,
 		})
 	}
 	api.OK(resp)
@@ -88,6 +144,10 @@ func (e *Task) Operate(c *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
+	if len(req.ID) > 64 || strings.ContainsAny(req.ID, ",\x00") {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
 	t := &models.Task{}
 	err := center.Default.GetDB(c, &models.Task{}).
 		Model(&models.Task{}).
@@ -103,12 +163,29 @@ func (e *Task) Operate(c *gin.Context) {
 		return
 	}
 	var status enum.Status
+	isKubernetes := t.Provider == models.TaskProviderK8S
 	switch req.Operate {
 	case "start":
-		err = task.UpdateJob(t.ID, t.Spec, t)
+		if t.Status != enum.Disabled {
+			api.Err(http.StatusConflict, "task is not disabled")
+			return
+		}
+		if isKubernetes {
+			err = t.SetKubernetesEnabled(c, true)
+		} else {
+			err = task.UpdateJob(t.ID, t.Spec, t)
+		}
 		status = enum.Enabled
 	case "stop":
-		err = task.RemoveJob(t.ID)
+		if t.Status != enum.Enabled {
+			api.Err(http.StatusConflict, "task is not enabled")
+			return
+		}
+		if isKubernetes {
+			err = t.SetKubernetesEnabled(c, false)
+		} else {
+			err = task.RemoveJob(t.ID)
+		}
 		status = enum.Disabled
 	default:
 		api.Err(http.StatusBadRequest, "operate not support")
@@ -122,15 +199,24 @@ func (e *Task) Operate(c *gin.Context) {
 
 	err = center.Default.GetDB(c, &models.Task{}).Model(&models.Task{}).Where("id = ?", req.ID).Update("status", status).Error
 	if err != nil {
+		if isKubernetes {
+			if compensateErr := t.SetKubernetesEnabled(c, t.Status == enum.Enabled); compensateErr != nil {
+				slog.Error(
+					"compensate Kubernetes task status",
+					slog.Any("err", compensateErr),
+					slog.String("taskID", t.ID),
+				)
+			}
+		}
 		api.AddError(err).Log.Error("update task status error")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
-	if status == enum.Enabled {
+	if status == enum.Enabled && !isKubernetes {
+		taskID := req.ID
 		go func() {
-			err = models.TaskOnce(req.ID)
-			if err != nil {
-				slog.Error("task run error", slog.Any("err", err))
+			if runErr := models.TaskOnce(taskID); runErr != nil {
+				slog.Error("task run error", slog.Any("err", runErr), slog.String("taskID", taskID))
 			}
 		}()
 	}
@@ -197,4 +283,53 @@ func (e *Task) Get(*gin.Context) {}
 // @Success 200 {object} response.Page{data=[]models.Task}
 // @Router /admin/api/tasks [get]
 // @Security Bearer
-func (e *Task) List(*gin.Context) {}
+func (e *Task) List(ctx *gin.Context) {
+	api := response.Make(ctx)
+	req := &dto.TaskSearch{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	page, pageSize := req.GetPage(), req.GetPageSize()
+	if page > 10_000 || pageSize > 100 {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	base := func() *gorm.DB {
+		query := center.Default.GetDB(ctx, &models.Task{}).Model(&models.Task{})
+		if id := strings.TrimSpace(req.ID); id != "" {
+			escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(id)
+			query = query.Where("id LIKE ? ESCAPE '!'", "%"+escaped+"%")
+		}
+		if name := strings.TrimSpace(req.Name); name != "" {
+			escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(name)
+			query = query.Where("name LIKE ? ESCAPE '!'", "%"+escaped+"%")
+		}
+		if status := strings.TrimSpace(req.Status); status != "" {
+			if status != string(enum.Enabled) && status != string(enum.Disabled) {
+				return query.Where("1 = 0")
+			}
+			query = query.Where("status = ?", status)
+		}
+		return query
+	}
+	var total int64
+	if err := base().Count(&total).Error; err != nil {
+		api.AddError(err).Log.Error("count task summaries")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	items := make([]taskSummary, 0, pageSize)
+	if err := base().
+		Select("id", "created_at", "updated_at", "name", "provider", "spec", "status", "checked_at", "remark").
+		Order("updated_at DESC").
+		Order("id DESC").
+		Offset(int((page - 1) * pageSize)).
+		Limit(int(pageSize)).
+		Scan(&items).Error; err != nil {
+		api.AddError(err).Log.Error("list task summaries")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	api.PageOK(items, total, page, pageSize)
+}
