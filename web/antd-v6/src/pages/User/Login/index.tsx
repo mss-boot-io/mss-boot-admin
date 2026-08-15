@@ -90,7 +90,7 @@ export default function LoginPage() {
           }
         }}
       >
-        {error ? <Alert className="mb-4" type="error" showIcon message={error} /> : null}
+        {error ? <Alert className="mb-4" type="error" showIcon title={error} /> : null}
         <ProFormText
           name="username"
           fieldProps={{

@@ -130,7 +130,7 @@ export default function AccessTokensPanel() {
         showIcon
         icon={<SafetyCertificateOutlined />}
         type="info"
-        message={intl.formatMessage({ id: 'account.tokens.securityTitle' })}
+        title={intl.formatMessage({ id: 'account.tokens.securityTitle' })}
         description={intl.formatMessage({ id: 'account.tokens.securityDescription' })}
       />
       {operationError ? (
@@ -138,7 +138,7 @@ export default function AccessTokensPanel() {
           closable
           showIcon
           type="error"
-          message={intl.formatMessage({ id: 'account.tokens.operationFailed' })}
+          title={intl.formatMessage({ id: 'account.tokens.operationFailed' })}
           description={operationError}
           onClose={() => setOperationError(undefined)}
         />
@@ -292,7 +292,7 @@ export default function AccessTokensPanel() {
           className="mb-4"
           showIcon
           type="warning"
-          message={intl.formatMessage({ id: 'account.tokens.secretOnce' })}
+          title={intl.formatMessage({ id: 'account.tokens.secretOnce' })}
         />
         <Input.TextArea
           readOnly

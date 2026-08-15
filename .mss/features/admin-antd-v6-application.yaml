@@ -250,6 +250,22 @@ spec:
       evidence:
         - type: command
           value: cd web/antd-v6 && pnpm test:e2e --grep @parity
+    - id: workplace-monitor-contract
+      requirement: preserve-business-contracts
+      statement: The workplace monitor uses the protected relative API, validates bounded authoritative history, honors server cadence and Retry-After, stops automatic polling on authorization failures, retains last-good data on transient refresh errors, and renders explicit loading, empty, warm-up, stale, error, and permission states without an extra chart runtime.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6/src/modules/monitor/contract.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/monitor/api.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/monitor/polling.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/monitor/MonitorOverview.test.tsx
+        - type: command
+          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
     - id: session-security-tests
       requirement: harden-browser-session
       statement: Cookie, CSRF, OAuth redaction, Origin, WebSocket ticket replay, logout, expiry, and legacy-client compatibility tests pass.

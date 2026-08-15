@@ -57,7 +57,7 @@ export default function NotificationSettingsPanel() {
         showIcon
         icon={<BellOutlined />}
         type="info"
-        message={intl.formatMessage({ id: 'account.notifications.description' })}
+        title={intl.formatMessage({ id: 'account.notifications.description' })}
       />
       {mutationError ? (
         <Alert
@@ -65,7 +65,7 @@ export default function NotificationSettingsPanel() {
           closable
           showIcon
           type="error"
-          message={intl.formatMessage({ id: 'account.notifications.saveFailed' })}
+          title={intl.formatMessage({ id: 'account.notifications.saveFailed' })}
           description={mutationError}
           onClose={() => setMutationError(undefined)}
         />

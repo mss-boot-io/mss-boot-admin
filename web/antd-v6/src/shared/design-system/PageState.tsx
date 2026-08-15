@@ -3,7 +3,11 @@ import { Button, Empty, Result, Skeleton } from 'antd';
 import type { ReactNode } from 'react';
 
 export function PageLoading({ rows = 5 }: { rows?: number }) {
-  return <Skeleton active paragraph={{ rows }} title />;
+  return (
+    <div aria-busy="true" role="status">
+      <Skeleton active paragraph={{ rows }} title />
+    </div>
+  );
 }
 
 export function PageEmpty({ description }: { description: ReactNode }) {

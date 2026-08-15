@@ -15,7 +15,7 @@ keywords: [admin ant-design v6 react umi migration release]
 - 决策状态：已接受，按独立应用方案实施。
 - 目标目录：`web/antd-v6`。
 - 旧应用：`web/antd` 保持独立构建、发布、部署和回滚，不在本项目中原位升级或删除。
-- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、权限新鲜度、服务端授权 revision 实时推送、分层主题闭环，以及安全账户中心、个人资料、PAT、OAuth 连接、语言切换已实现。其余业务等价、生成器和浏览器验收尚未完成，因此不是生产发布候选。
+- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、权限新鲜度、服务端授权 revision 实时推送、分层主题闭环，以及安全账户中心、个人资料、PAT、OAuth 连接、语言切换已实现；P4 已完成首个工作台监控垂直切片。其余业务等价、生成器和浏览器验收尚未完成，因此不是生产发布候选。
 - 机器契约：`.mss/features/admin-antd-v6-application.yaml`。
 - 架构决策：`docs/adr/2026-08-15-independent-ant-design-v6-application.md`。
 
@@ -82,7 +82,7 @@ V5 使用浏览器 bearer token；该模式不应复制到 V6。V6 的目标是�
 | --- | --- | --- |
 | 登录、退出、刷新、OAuth | 安全会话适配后重写 | cookie/CSRF、OAuth token 不进浏览器存储、过期和退出闭环 |
 | 当前用户、账户中心、账户设置、PAT | 垂直 identity/account 模块 | self 权限、PAT 只显示一次、旋转后旧值失效 |
-| 工作台和监控摘要 | React Query + 按需图表重写 | 部分失败可诊断、移动端可用、轮询可取消 |
+| 工作台和监控摘要 | 已用 React Query + 原生语义 SVG 重写 | 权威历史、503 Retry-After、403 停止轮询、last-good/stale、移动端状态 |
 | 用户、角色、菜单 | ProTable/ProForm v3 重写 | root 与委派权限、ETag/If-Match 冲突、直接 API 负例 |
 | 部门、岗位 | 共用组织目录 primitives | 树/列表响应式、引用完整性、空态与冲突 |
 | 任务 | CRUD 与运行记录分离 | 状态刷新、失败信息、权限动作一致 |
@@ -177,6 +177,17 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 
 - 迁移工作台、日志、监控、在线会话、通知和运行记录。
 - 建立 Query key、轮询、失效、取消和边界状态规范。
+
+已完成的首个垂直切片：
+
+- `/workplace` 不再展示工程占位信息，而是提供当前身份、经过权限检查的已迁移快捷入口和服务监控。
+- `/monitor` 使用独立 Query key 和严格响应解析，最多接受 120 个按时间排序、去重且范围有效的服务端历史点；浏览器不推算或补造样本。
+- 正常刷新跟随服务端 `sampleIntervalMs`（最低 5 秒、最高 60 秒）；503 遵守有界 `Retry-After`，瞬时错误指数退避，401/403 停止自动轮询。后台标签不轮询，窗口重新聚焦后由 React Query 校验。
+- 首次加载、空历史、503 预热、403、普通错误、刷新失败保留 last-good 以及后端 `stale` 均有独立中英文状态；手动重试始终可用。
+- CPU、内存和磁盘摘要使用 antd 6 公开组件 API；CPU/内存趋势使用 Design Token 驱动的可访问原生 SVG，不增加图表运行时依赖，也不依赖 `.ant-*` 内部结构。
+- 单元/组件测试覆盖传输路径、契约拒绝、采样排序和边界、轮询策略、403/503、last-good/stale 与空历史。当前生产构建 entry 为 4.16 KiB、总 JS 为 748.73 KiB、最大异步分包为 197.27 KiB，继续通过 React/antd/Day.js、bundle 和同源发布门禁。
+
+仍待本阶段完成：日志、在线会话、通知和运行记录，以及工作台监控的真实浏览器桌面/移动、中文/英文和授权正反例证据。
 
 完成门：桌面/移动、zh-CN/en-US、错误降级和资源上限 E2E 通过。
 

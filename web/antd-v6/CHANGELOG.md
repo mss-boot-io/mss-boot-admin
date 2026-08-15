@@ -31,6 +31,12 @@ recorded here. This changelog does not describe releases of `web/antd`.
 - Push a non-sensitive global authorization revision after successful policy reload,
   with non-blocking server fan-out, secure ticketed WebSocket reconnect, heartbeat,
   cross-tab revision deduplication, and authoritative HTTP revalidation.
+- Replace the workplace foundation placeholder with a responsive, localized operations
+  view and protected monitor query. Validate bounded server history, follow server refresh
+  cadence, honor `Retry-After`, stop polling on 401/403, retain last-good data, and show
+  distinct warm-up, stale, error, permission, and empty-history states.
+- Render CPU and memory trends with accessible token-aware native SVG rather than adding
+  a chart runtime, and migrate remaining V6 Alerts and Statistics away from deprecated APIs.
 - Reserve the independent `web/antd-v6/v{version}` tag and
   `mss-boot-admin-antd-v6` image namespaces.
 

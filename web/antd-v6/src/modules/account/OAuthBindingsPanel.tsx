@@ -65,7 +65,7 @@ export default function OAuthBindingsPanel() {
           closable
           showIcon
           type="success"
-          message={intl.formatMessage({ id: 'account.oauth.bound' })}
+          title={intl.formatMessage({ id: 'account.oauth.bound' })}
           onClose={() => {
             const next = new URLSearchParams(searchParams);
             next.delete('binding');
@@ -78,7 +78,7 @@ export default function OAuthBindingsPanel() {
           closable
           showIcon
           type="error"
-          message={intl.formatMessage({ id: 'account.oauth.bindFailed' })}
+          title={intl.formatMessage({ id: 'account.oauth.bindFailed' })}
           description={bindingError}
           onClose={() => setBindingError(undefined)}
         />
@@ -87,7 +87,7 @@ export default function OAuthBindingsPanel() {
         showIcon
         icon={<SafetyCertificateOutlined />}
         type="warning"
-        message={intl.formatMessage({ id: 'account.oauth.unlinkGuardTitle' })}
+        title={intl.formatMessage({ id: 'account.oauth.unlinkGuardTitle' })}
         description={intl.formatMessage({ id: 'account.oauth.unlinkGuardDescription' })}
       />
       <List

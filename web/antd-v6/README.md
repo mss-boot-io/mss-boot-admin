@@ -10,9 +10,10 @@ the typed identity/menu startup chain, and the layered Ant Design 6 theme editor
 and runtime are implemented. The safe account slice now includes the account
 center, allowlisted profile editing, one-time PAT handling, provider-gated OAuth
 login/connection, notifications, synchronized language switching, and server-pushed
-authorization revision reconciliation. Retained business modules, the v6 generator
-target, and required browser evidence remain release blockers and are fail-closed by the
-qualification contract.
+authorization revision reconciliation. The first read-only operations slice replaces
+the workplace placeholder with a responsive service monitor backed by authoritative,
+bounded server history. Retained business modules, the v6 generator target, and required
+browser evidence remain release blockers and are fail-closed by the qualification contract.
 
 The runtime has one application-owned React Query client. Current identity and
 the authorized menu are loaded through it, but only the verified identity and
@@ -46,6 +47,13 @@ revision through a non-blocking secure WebSocket event. The browser deduplicates
 hint across tabs and reloads current identity and the compiled-menu intersection over
 HTTP. Bounded reconnect and focus/visibility/403 reconciliation remain correctness
 fallbacks; WebSocket payloads never become an authorization cache.
+
+The workplace monitor has its own React Query key and a strict transport contract.
+Successful refresh follows the server sample interval, `503 Retry-After` is bounded and
+honored, transient failures back off while retaining last-good data, and `401`/`403`
+stop automatic polling. Loading, empty history, warm-up, forbidden, stale, and refresh
+failure states are explicit in both locales. CPU and memory history is rendered with an
+accessible, token-aware native SVG, so this slice adds no chart runtime dependency.
 
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`; runtime and build packages are

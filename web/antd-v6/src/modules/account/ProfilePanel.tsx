@@ -134,7 +134,7 @@ export default function ProfilePanel() {
           className="mb-5"
           showIcon
           type="error"
-          message={intl.formatMessage({ id: 'account.profile.saveFailed' })}
+          title={intl.formatMessage({ id: 'account.profile.saveFailed' })}
           description={getRequestErrorMessage(update.error)}
         />
       ) : null}

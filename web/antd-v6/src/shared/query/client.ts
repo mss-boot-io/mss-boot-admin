@@ -27,4 +27,5 @@ export const queryKeys = {
   accountOAuth: (userID: string) => ['account', userID, 'oauth-bindings'] as const,
   accountNotifications: (userID: string) => ['account', userID, 'notifications'] as const,
   workplace: ['workplace'] as const,
+  monitor: ['operations', 'monitor'] as const,
 };
