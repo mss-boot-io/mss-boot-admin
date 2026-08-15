@@ -390,6 +390,24 @@ spec:
         - type: path
           value: web/antd-v6/src/modules/operations
         - type: test
+          value: web/antd-v6/src/modules/operations/contract.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/operations/api.test.ts
+        - type: test
+          value: web/antd-v6/src/pages/operations.guards.test.tsx
+        - type: test
+          value: web/antd-v6/e2e/operations.spec.ts
+        - type: test
+          value: admin/service/operational_data_test.go
+        - type: test
+          value: admin/service/operational_redaction_test.go
+        - type: test
+          value: admin/apis/operational_data_security_test.go
+        - type: test
+          value: admin/apis/log_security_test.go
+        - type: test
+          value: admin/models/task_kubernetes_test.go
+        - type: test
           value: web/antd/src/pages/Task/index.test.tsx
         - type: test
           value: web/antd/src/pages/Notice/Mobile/NoticeList.test.tsx

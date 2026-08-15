@@ -31,10 +31,10 @@ keywords: [admin operations config notice task monitor statistics log alert]
 ```
 SystemConfig
 ├── Name        → 配置文件名称
-├── Extension   → 文件类型枚举 (YAML/JSON/TOML/INI)
+├── Ext         → 文件类型枚举 (JSON/YAML/YML)
 ├── Content     → 配置内容 (文本)
-├── Remarks     → 配置说明
-├── Status      → 启用状态
+├── Remark      → 配置说明
+└── BuiltIn     → 内置配置保护标记
 ```
 
 **存储位置**: `mss_boot_system_configs` 表
@@ -52,13 +52,18 @@ SystemConfig
 ### 使用场景
 
 - 存储系统级 YAML/JSON 配置文件
-- 支持多种配置格式，适配不同子系统需求
+- 支持 JSON 与 YAML 配置格式
 - 配置内容可在线编辑，无需重启服务
 - 与 mss-boot 核心配置系统集成
 
 ### 运行机制
 
-配置存储为文本内容，系统通过 `source.Scheme` 解析不同格式，集成到 mss-boot 配置体系中。
+配置存储为不透明文本内容，系统通过 `source.Scheme` 解析格式并集成到 mss-boot 配置体系中。
+该内容可能包含凭据，因此所有读取和变更在后端再次强制 root 身份，不以菜单隐藏代替授权；列表只返回
+名称、格式、备注和内置标记，正文仅在详情请求中按需返回，相关响应使用 `Cache-Control: no-store`。
+
+名称和 ID 由服务端约束，名称唯一，正文最多 256 KiB，并在保存前按 JSON 或 YAML 语法校验。内置配置
+不可删除，更新时也不能修改名称和格式。`web/antd-v6` 在关闭详情或编辑器后立即清除正文查询缓存。
 
 ## 2. 通知公告系统
 
@@ -76,7 +81,7 @@ Notice
 ├── UserID      → 接收用户
 ├── Title       → 通知标题
 ├── Description → 通知内容
-├── ReadAt      → 阅读时间 (未读为空)
+├── Read        → 是否已读
 ├── CreatedAt
 ├── Status
 ```
@@ -87,11 +92,12 @@ Notice
 
 | 路径 | 方法 | 功能 |
 |------|------|------|
-| `/admin/api/notice` | GET | 通知列表 (当前用户) |
+| `/admin/api/notices` | GET | 通知列表（强制当前用户范围） |
 | `/admin/api/notice/unread` | GET | 未读通知列表 |
-| `/admin/api/notice/read/:id` | POST | 标记为已读 |
-| `/admin/api/notice` | POST | 创建通知 (管理员) |
-| `/admin/api/notice/:id` | DELETE | 删除通知 |
+| `/admin/api/notice/read/:id` | GET | 获取当前用户的通知详情 |
+| `/admin/api/notice/read/:id` | PUT | 按 ID、类型或 `all` 标记为已读 |
+| `/admin/api/notices` | POST | 创建当前用户通知（仍需 API 权限） |
+| `/admin/api/notices/:id` | PUT/DELETE | 更新或删除当前用户通知 |
 
 ### 实时通知 (WebSocket)
 
@@ -139,10 +145,13 @@ Notice
 
 ### 运行机制
 
-1. 管理员创建通知后，系统根据 `UserID` 投递给目标用户
+1. 通知创建、查询、更新和删除都从已验证会话派生所有者；请求中的 `UserID` 不能扩大范围
 2. 用户通过 `/unread` 接口获取未读消息列表
 3. 点击通知后调用 `/read` 标记为已读
 4. 支持按类型筛选和时间排序
+
+新建时 ID、所有者和已读状态由服务端生成或重置，更新时这些字段保持原值。列表页最多返回 100 条，
+未读快捷入口最多返回 100 条，跨用户读取统一不可见。
 
 ## 3. 定时任务与作业调度
 
@@ -163,8 +172,11 @@ Task
 │   ├── default → 内置 cron 调度
 │   ├── k8s     → Kubernetes CronJob
 │   ├── func    → 注册函数调用
-├── Spec        → 调度表达式 (cron 格式)
-├── Command     → 执行命令 (HTTP/脚本/gRPC)
+├── Spec        → Provider 对应的 cron 表达式
+├── Protocol    → HTTP/HTTPS（default 模式）
+├── Endpoint    → HTTP 目标主机与路径（default 模式）
+├── Method/Body/Metadata → HTTP 或注册函数参数
+├── Command     → 容器命令（K8s 模式）
 ├── Args        → 命令参数
 ├── Image       → 镜像地址 (K8s 模式)
 ├── Cluster     → 集群名称 (K8s 模式)
@@ -194,25 +206,32 @@ TaskRun
 | `/admin/api/tasks` | GET | 任务列表 |
 | `/admin/api/tasks` | POST | 创建任务 |
 | `/admin/api/tasks/:id` | GET/PUT/DELETE | 任务 CRUD |
-| `/admin/api/tasks/:id/actions/:operate` | POST | 任务操作 (start/stop/run) |
+| `/admin/api/tasks/:id/actions/:operate` | POST | 任务操作（start/stop） |
 | `/admin/api/task/func-list` | GET | 可用函数列表 |
 
 兼容说明：任务操作已从有副作用的 `GET /admin/api/task/:operate/:id` 迁移到
 `POST /admin/api/tasks/:id/actions/:operate`。旧 GET 仅保留为迁移提示入口，固定返回
 `405 Method Not Allowed`，不会启动、停止或执行任务；调用方必须改用新的 POST 路径。
 
+任务列表是去除请求正文、元数据、端点和容器命令的安全摘要；完整详情、函数列表以及所有变更都在
+后端强制 root 身份。新任务固定以停用状态创建，Provider 不允许在更新中切换，Kubernetes 任务的
+集群和命名空间也不可原地迁移；需要更换执行边界时应停用并新建任务。仅停用任务可删除。
+
 ### 执行提供者
 
 #### Default Provider (内置 cron)
 
-- 使用标准 cron 库实现调度
-- 支持 HTTP、gRPC、Shell 脚本执行
+- 使用带秒字段的六段 cron 表达式
+- 只支持 HTTP/HTTPS 的 GET、POST、PUT、DELETE 请求
+- 请求正文最多 64 KiB，元数据必须是最多 64 项的字符串映射
 - 任务在当前进程内运行
 
 #### K8s Provider (Kubernetes CronJob)
 
 - 自动创建/更新/删除 K8s CronJob 资源
+- 使用不含秒字段的五段 Kubernetes Cron 表达式
 - 支持镜像配置和集群选择
+- 停用状态对应 CronJob `spec.suspend: true`，启停 API 直接同步该字段，不进入进程内调度器
 - 适合大规模分布式任务
 
 #### Func Provider (注册函数)
@@ -220,6 +239,7 @@ TaskRun
 - 通过 `TaskFuncMap` 注册自定义函数
 - 任务执行时直接调用 Go 函数
 - 适合轻量级内部逻辑
+- 仅允许调用服务端已经注册的函数，浏览器脚本和任意 Python/命令执行入口不再提供
 - 需要访问数据库的内置或自定义函数必须从任务上下文调用 `pkg.TaskDatabase(ctx)`，不得直接读取全局
   `gormdb.DB`。配置热加载会把新租约切到新连接，并等待旧句柄上的在途任务结束后再关闭旧连接；任务函数也不得
   在返回后保存该 `*gorm.DB` 指针
@@ -264,7 +284,8 @@ task server 始终随服务启动，因此即使 `task.enable: false`，上述�
 1. 服务启动时先注册不可变内置系统作业，再按 `task.enable` 决定是否加载用户 Task 存储。
 2. task server 合并两个通道并拒绝重复或冲突 key。
 3. 用户 Task 根据 Provider 执行并记录 TaskRun；内置系统作业只记录业务日志或内存状态。
-4. 用户任务操作 API 支持手动启停和立即执行，但不能作用于内置系统作业。
+4. 用户任务操作 API 支持手动启停；启用 default/func 任务后会执行一次并进入调度，Kubernetes
+   任务则解除 CronJob 暂停。任何操作都不能作用于内置系统作业。
 
 ## 4. 系统监控
 
@@ -424,7 +445,7 @@ LoginLog
 ├── Username    → 用户名
 ├── IP          → 登录IP
 ├── UserAgent   → 浏览器信息
-├── Status      → 登录状态 (success/failed)
+├── Status      → 登录结果（enabled/disabled）
 ├── Message     → 登录消息
 ├── LoginAt     → 登录时间
 ```
@@ -440,8 +461,8 @@ LoginLog
 **记录时机**
 
 在 `middleware/auth.go` 的 `Authenticator` 函数中：
-- 登录成功：记录用户ID、用户名、IP、状态为 success
-- 登录失败：记录用户名、IP、状态为 failed、错误消息
+- 登录成功：记录用户ID、用户名、IP、状态为 enabled
+- 登录失败：记录用户名、IP、状态为 disabled、错误消息
 
 ### 审计日志
 
@@ -457,7 +478,7 @@ AuditLog
 ├── IP          → 请求IP
 ├── UserAgent   → 浏览器信息
 ├── RequestBody → 请求体
-├── Status      → 响应状态码
+├── Status      → 操作结果状态
 ├── CreatedAt   → 操作时间
 ```
 
@@ -469,6 +490,10 @@ AuditLog
 |------|------|------|
 | `/admin/api/audit-logs/operation` | GET | 审计日志列表 |
 
+浏览器 API 只返回有界安全投影，原始 Request/Response 正文不会通过通用 CRUD 或上述列表暴露；
+路径、消息和 User-Agent 中常见的 token、密码、Cookie、Authorization 等值会在序列化前脱敏。
+审计证据由服务写入，浏览器侧不能创建、覆盖或删除。
+
 **记录范围**
 
 通过 `middleware/audit.go` 中间件自动记录：
@@ -477,6 +502,16 @@ AuditLog
 - 记录请求体、响应状态、操作时间
 
 ### 运行时日志
+
+| 路径 | 方法 | 功能与权限 |
+|------|------|------------|
+| `/admin/api/logs` | GET | 分页读取脱敏日志，需要 `/log/runtime` |
+| `/admin/api/logs/files` | GET | 只返回顶层 `.log` 文件名，需要 `/log/runtime` |
+| `/admin/api/logs/export` | GET | 导出当前筛选，需要独立 `/log/export` |
+
+运行时读取只接受字面量关键词、固定日志级别和最长 31 天时间范围。单页最多 100 条，单次最多扫描
+32 个普通文件、每文件尾部 16 MiB、合计 64 MiB、100,000 行和 10,000 个匹配；符号链接、子目录和
+文件系统路径不会返回浏览器。结果被截断时会明确标记，并拒绝导出；完整导出仍限制为 5 MiB。
 
 **配置方式** (`config/application.yml`)
 
@@ -493,6 +528,7 @@ logger:
 
 系统内置 `log_cleaner` 任务函数，支持：
 - 清理数据库中的登录日志和审计日志
+- 按相同保留期先清理 TaskRunLog，再清理 TaskRun
 - 清理本地日志文件
 
 **配置清理任务**
