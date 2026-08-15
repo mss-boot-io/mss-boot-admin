@@ -23,6 +23,12 @@ const registrations: readonly RouteRegistration[] = [
     permission: '/app-config',
   },
   {
+    path: '/language',
+    serverPaths: ['/language'],
+    menuName: 'language',
+    permission: '/language',
+  },
+  {
     path: '/security/online-sessions',
     serverPaths: ['/security/online-sessions'],
     menuName: 'online-sessions',

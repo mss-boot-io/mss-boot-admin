@@ -2,9 +2,11 @@ import { LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons
 import type { ProLayoutProps } from '@ant-design/pro-components';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
-import { history, Link, SelectLang, useIntl } from '@umijs/max';
+import { addLocale, history, Link, SelectLang, useIntl } from '@umijs/max';
 import { App as AntdApp, Avatar, Dropdown, Tag, Typography } from 'antd';
 import type { ReactNode } from 'react';
+import { languageAPI } from './modules/language/api';
+import { registerSupportedLanguageProfile } from './modules/language/runtime';
 import { getRequestStatus, requestConfig } from './shared/api/client';
 import { RuntimeFeedbackBridge } from './shared/api/feedback';
 import AuthorizationFreshnessBridge from './shared/auth/AuthorizationFreshnessBridge';
@@ -42,6 +44,29 @@ async function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
   }
 }
 
+async function settleWithin<T>(promise: Promise<T>, timeoutMs: number): Promise<Settled<T>> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      settle(promise),
+      new Promise<Settled<T>>((resolve) => {
+        timeout = setTimeout(
+          () => resolve({ error: new Error('Optional startup resource timed out') }),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+function applyLanguageProfile(
+  profile: Settled<Awaited<ReturnType<typeof languageAPI.loadProfile>>>,
+): void {
+  if (profile.data) registerSupportedLanguageProfile(profile.data, addLocale);
+}
+
 async function loadVerifiedCurrentUser() {
   const value = await queryClient.fetchQuery({
     queryKey: queryKeys.currentUser,
@@ -75,9 +100,21 @@ export async function getInitialState(): Promise<InitialState> {
       queryFn: loadApplicationProfile,
     }),
   );
+  const languageProfilePromise = settleWithin(
+    queryClient.fetchQuery({
+      queryKey: queryKeys.languageProfile,
+      queryFn: languageAPI.loadProfile,
+      staleTime: 5 * 60_000,
+    }),
+    2_500,
+  );
 
   if (publicRoute) {
-    const application = await applicationProfilePromise;
+    const [application, languageProfile] = await Promise.all([
+      applicationProfilePromise,
+      languageProfilePromise,
+    ]);
+    applyLanguageProfile(languageProfile);
     const applicationTheme = application.data?.theme ?? bootstrap.application;
     replaceThemeRuntime({
       application: applicationTheme,
@@ -98,10 +135,12 @@ export async function getInitialState(): Promise<InitialState> {
     };
   }
 
-  const [application, identity] = await Promise.all([
+  const [application, identity, languageProfile] = await Promise.all([
     applicationProfilePromise,
     settle(loadVerifiedCurrentUser()),
+    languageProfilePromise,
   ]);
+  applyLanguageProfile(languageProfile);
   const applicationTheme = application.data?.theme ?? bootstrap.application;
   replaceThemeRuntime({
     application: applicationTheme,

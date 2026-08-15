@@ -40,4 +40,15 @@ export const queryKeys = {
     }>,
   ) => ['security', 'online-sessions', 'list', params] as const,
   onlineSession: (id: string) => ['security', 'online-sessions', 'detail', id] as const,
+  languages: ['configuration', 'languages'] as const,
+  languageProfile: ['configuration', 'language-profile'] as const,
+  languageList: (
+    params: Readonly<{
+      current: number;
+      pageSize: number;
+      status: string;
+      name?: string;
+    }>,
+  ) => ['configuration', 'languages', 'list', params] as const,
+  language: (id: string) => ['configuration', 'languages', 'detail', id] as const,
 };

@@ -79,6 +79,16 @@ func TestV100MigrationRowsDoNotRerun(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatalf("seed post-v1.0 canonical email migration row: %v", err)
 	}
+	if err := db.Create(&migrationmodels.Migration{
+		Version: languageIntegrityMigrationID.String(),
+	}).Error; err != nil {
+		t.Fatalf("seed post-v1.0 language integrity migration row: %v", err)
+	}
+	if err := db.Create(&migrationmodels.Migration{
+		Version: languageManagementPermissionsMigrationID.String(),
+	}).Error; err != nil {
+		t.Fatalf("seed post-v1.0 language permission migration row: %v", err)
+	}
 
 	migration.Migrate.SetDb(db)
 	migration.Migrate.SetModel(&migrationmodels.Migration{})
@@ -89,7 +99,7 @@ func TestV100MigrationRowsDoNotRerun(t *testing.T) {
 	if err := db.Model(&migrationmodels.Migration{}).Count(&rows).Error; err != nil {
 		t.Fatalf("count migration rows: %v", err)
 	}
-	wantRows := int64(len(v100Rows) + 1)
+	wantRows := int64(len(v100Rows) + 3)
 	if rows != wantRows {
 		t.Fatalf("migration rows = %d, want unchanged %d", rows, wantRows)
 	}

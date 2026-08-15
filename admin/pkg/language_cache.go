@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	LanguageCacheGenerationKey  = "language:profile:generation"
-	languageCacheSnapshotPrefix = "language:profile:snapshot:"
+	LanguageCacheGenerationKey = "language:profile:generation"
+	// v2 snapshots contain only explicitly enabled languages. Keeping a new
+	// namespace prevents a deployment from serving a pre-hardening snapshot.
+	languageCacheSnapshotPrefix = "language:profile:v2:snapshot:"
 	languageCacheSnapshotTTL    = 5 * time.Minute
 	languageCacheOperationLimit = 500 * time.Millisecond
 )

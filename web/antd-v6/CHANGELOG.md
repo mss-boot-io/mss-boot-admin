@@ -43,6 +43,11 @@ recorded here. This changelog does not describe releases of `web/antd`.
 - Enforce a 100-row server page limit and omit the legacy arbitrary user-ID revoke control.
   Use Ant Design 6 Table after the bundle gate demonstrated that ProTable's unused schema
   features would exceed the application's total JavaScript budget.
+- Add bounded language management with summary/detail projections, server-owned IDs,
+  canonical BCP 47 names, definition limits, optimistic revision conflicts, and separate
+  read/create/update/delete permissions. Use native Table/Form and Ant Design 6.6 Listy;
+  load runtime translations as an optional enhancement limited to the complete shipped
+  zh-CN and en-US catalogs.
 - Reserve the independent `web/antd-v6/v{version}` tag and
   `mss-boot-admin-antd-v6` image namespaces.
 

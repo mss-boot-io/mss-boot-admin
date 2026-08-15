@@ -94,6 +94,7 @@ spec:
         - Self-service profile updates use an exact mutable-field allowlist; username and email remain immutable until a verified identity-change workflow exists.
         - PAT list responses are metadata-only and a newly created or rotated raw secret is displayed once without entering shared query caches, browser persistence, or URLs.
         - Password change and OAuth disconnect remain unavailable until recent re-authentication is enforced and disconnect cannot remove the account's final verified login method.
+        - Language management uses server-owned identifiers, bounded summary/detail projections, canonical BCP 47 tags, bounded definitions, optimistic revisions, and independently assignable read/create/update/delete permissions; runtime overlays remain limited to the two shipped locale catalogs.
     - id: modernize-runtime-architecture
       title: Use one owner for each frontend responsibility
       description: The v6 application separates transport, server state, client state, design tokens, and module behavior.
@@ -290,6 +291,36 @@ spec:
           value: admin/apis/online_session_permission_test.go
         - type: test
           value: web/antd/src/pages/OnlineSession/index.test.tsx
+        - type: command
+          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+    - id: language-management-contract
+      requirement: preserve-business-contracts
+      statement: Public language resources expose only enabled projections, management writes cannot own record identity, definition count and encoded size are bounded, stale revisions conflict without discarding the browser draft, read and mutation grants remain separate, and only the shipped zh-CN and en-US catalogs can become runtime overlays.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/models/language_test.go
+        - type: test
+          value: admin/apis/language_test.go
+        - type: test
+          value: admin/cmd/migrate/migration/system/20260815120000_language_integrity_test.go
+        - type: test
+          value: admin/cmd/migrate/migration/system/20260815121000_language_management_permissions_test.go
+        - type: test
+          value: web/antd-v6/src/modules/language/contract.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/language/api.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/language/runtime.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/language/LanguageEditor.test.tsx
+        - type: test
+          value: web/antd-v6/src/modules/language/LanguageListView.test.tsx
+        - type: test
+          value: web/antd-v6/src/pages/Language/guards.test.tsx
+        - type: command
+          value: cd admin && GOWORK=off go test ./cmd/migrate/migration/system ./models ./apis
         - type: command
           value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
     - id: session-security-tests

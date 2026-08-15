@@ -13,7 +13,9 @@ login/connection, notifications, synchronized language switching, and server-pus
 authorization revision reconciliation. The read-only operations slices replace
 the workplace placeholder with a responsive service monitor backed by authoritative,
 bounded server history and add a root-only online-session inventory with audited revoke
-actions. Retained business modules, the v6 generator target, and required
+actions. The first core CRUD slice adds bounded, permission-separated language
+management with optimistic revisions and a constrained runtime locale overlay.
+Retained business modules, the v6 generator target, and required
 browser evidence remain release blockers and are fail-closed by the qualification contract.
 
 The runtime has one application-owned React Query client. Current identity and
@@ -63,6 +65,21 @@ authoritative page visible. Single-session and per-user revocation are row-bound
 audited; the legacy arbitrary user-ID action was intentionally not copied. This page uses
 Ant Design 6 `Table` because its controlled list does not need ProTable schema features:
 the release gate measured 952.10 KiB with ProTable versus 848.54 KiB with Table.
+
+Language management uses a small native `Table`, `Form.List`, and Ant Design 6.6
+`Listy` rather than importing ProTable for capabilities it does not need. List payloads
+omit definitions, detail is loaded on demand, writes contain only client-owned fields,
+and `expectedUpdatedAt` protects edits without discarding a conflicting draft. The
+backend canonicalizes BCP 47 tags, assigns identifiers, caps languages and definition
+payloads (including a 1 MiB aggregate public-response cap), and keeps
+read/create/update/delete grants independent. Public resources expose
+only enabled projections. Runtime profile loading is optional and time-bounded; only the
+complete shipped `zh-CN` and `en-US` catalogs can be overlaid. Adding another stored BCP 47
+language does not silently advertise an incomplete application locale.
+The resulting release build is 4.16 KiB at the entry, 891.99 KiB total JavaScript,
+and 199.59 KiB for the largest asynchronous chunk. It passes the existing budget,
+but only 8.01 KiB remains under the 900 KiB total cap, so the next business slice
+must reduce or split shared runtime before adding material dependencies.
 
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`; runtime and build packages are

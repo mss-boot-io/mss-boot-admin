@@ -53,6 +53,13 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodGet, Path: "/admin/api/language/profile", Class: RoutePublic},
 	{Method: http.MethodGet, Path: "/admin/api/languages/public", Class: RoutePublic},
 
+	// Language management. Read and mutation permissions remain independently
+	// assignable; public locale discovery above does not grant management access.
+	{Method: http.MethodGet, Path: "/admin/api/languages", Class: RouteAuthorized, Permission: "language:read"},
+	{Method: http.MethodGet, Path: "/admin/api/languages/:id", Class: RouteAuthorized, Permission: "language:read"},
+	{Method: http.MethodPost, Path: "/admin/api/languages", Class: RouteAuthorized, Permission: "language:create", Mutation: true},
+	{Method: http.MethodPut, Path: "/admin/api/languages/:id", Class: RouteAuthorized, Permission: "language:update", Mutation: true},
+
 	// Runtime logs and monitoring.
 	{Method: http.MethodGet, Path: "/admin/api/logs", Class: RouteAuthorized, Permission: "log:read"},
 	{Method: http.MethodGet, Path: "/admin/api/logs/files", Class: RouteAuthorized, Permission: "log:read"},

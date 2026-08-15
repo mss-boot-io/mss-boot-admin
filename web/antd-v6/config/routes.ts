@@ -55,6 +55,28 @@ const routes = [
     permission: '/app-config',
   },
   {
+    path: '/language',
+    name: 'language',
+    icon: 'translation',
+    component: './Language',
+    access: 'canAccessRoute',
+    permission: '/language',
+  },
+  {
+    path: '/language/create',
+    hideInMenu: true,
+    component: './Language/Create',
+    access: 'canAccessRoute',
+    permission: '/language/create',
+  },
+  {
+    path: '/language/:id',
+    hideInMenu: true,
+    component: './Language/Edit',
+    access: 'canAccessRoute',
+    permission: '/language/edit',
+  },
+  {
     path: '/security',
     name: 'security',
     icon: 'safety',
