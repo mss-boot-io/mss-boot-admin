@@ -201,7 +201,7 @@ spec:
           value: cd web/antd-v6 && pnpm test:e2e --grep @permission
     - id: startup-contract
       requirement: preserve-business-contracts
-      statement: Identity normalization, permission-map and role-root semantics, fail-closed registered-menu intersection, layered theme resolution, canonical ETag transport, and one React Query owner pass focused tests and a production build.
+      statement: Identity normalization, permission-map and role-root semantics, fail-closed registered-menu intersection, scoped theme editing, canonical ETag conflicts, verified-subject snapshots, monotonic cross-tab convergence, Day.js runtime replacement, and one React Query owner pass focused tests and a production build.
       level: integration
       required: true
       evidence:
@@ -213,6 +213,16 @@ spec:
           value: web/antd-v6/src/shared/theme/contract.test.ts
         - type: test
           value: web/antd-v6/src/shared/theme/api.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/theme/ThemeSettingsEditor.test.tsx
+        - type: test
+          value: web/antd-v6/src/shared/theme/runtime.test.ts
+        - type: test
+          value: web/antd-v6/src/shared/theme/snapshot.test.ts
+        - type: test
+          value: web/antd-v6/src/shared/theme/sync.test.ts
+        - type: path
+          value: web/antd-v6/scripts/check-runtime-bundle.mjs
         - type: command
           value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
     - id: responsive-locale-matrix

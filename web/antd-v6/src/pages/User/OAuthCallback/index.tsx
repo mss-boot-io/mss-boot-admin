@@ -2,7 +2,8 @@ import { history, request, useParams } from '@umijs/max';
 import { Result, Spin } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { resolveSafeRedirect } from '@/shared/auth/redirect';
-import { assertNoBrowserCredential } from '@/shared/auth/session';
+import { assertNoBrowserCredential, fetchCurrentUser } from '@/shared/auth/session';
+import { rotateThemeAuthSession } from '@/shared/theme/snapshot';
 
 interface OAuthCallbackResponse {
   redirect?: string;
@@ -32,8 +33,11 @@ export default function OAuthCallbackPage() {
       data: { code, state },
       skipErrorHandler: true,
     })
-      .then((result) => {
+      .then(async (result) => {
         assertNoBrowserCredential(result);
+        const currentUser = await fetchCurrentUser();
+        if (!currentUser) throw new Error('OAuth session identity was not established');
+        rotateThemeAuthSession(currentUser.id);
         history.replace(resolveSafeRedirect(result.redirect));
       })
       .catch(() => setError(true));

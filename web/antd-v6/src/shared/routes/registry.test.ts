@@ -75,4 +75,24 @@ describe('compiled route registry', () => {
       }),
     ).toHaveLength(1);
   });
+
+  it('registers application settings without trusting a server component string', () => {
+    const menu = retainRegisteredMenu(
+      [{ id: 'settings', path: '/app-config', component: 'UntrustedLegacyPage' }],
+      {
+        id: 'config-reader',
+        role: { root: false },
+        permissions: { '/app-config': true },
+      },
+    );
+    expect(menu).toMatchObject([
+      {
+        id: 'settings',
+        path: '/app-config',
+        sourcePath: '/app-config',
+        permission: '/app-config',
+      },
+    ]);
+    expect(JSON.stringify(menu)).not.toContain('UntrustedLegacyPage');
+  });
 });

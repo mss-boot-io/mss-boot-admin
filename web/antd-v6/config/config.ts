@@ -49,6 +49,13 @@ export default defineConfig({
   },
   manifest: {},
   model: {},
+  // Max still carries transitional Moment consumers. Keep one Day.js runtime
+  // for Ant Design and retained duration/relative-time behavior instead of
+  // shipping Moment plus every locale in the independent V6 application.
+  moment2dayjs: {
+    preset: 'antd',
+    plugins: ['duration', 'relativeTime'],
+  },
   npmClient: 'pnpm',
   plugins: ['@umijs/max-plugin-openapi'],
   proxy: proxy[environment as keyof typeof proxy],

@@ -42,6 +42,8 @@ export interface InitialState {
   settings: Partial<ProLayoutProps>;
   authorizedMenu: AuthorizedMenuItem[];
   fetchCurrentUser: () => Promise<CurrentUser | undefined>;
+  /** Random browser-only binding for non-sensitive personal theme derivatives. */
+  authSessionId?: string;
   startupFailure?: StartupFailure;
   themeDegradedScopes?: Array<'application' | 'user'>;
 }

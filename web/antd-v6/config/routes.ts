@@ -47,6 +47,26 @@ const routes = [
     access: 'canAccessRoute',
   },
   {
+    path: '/app-config',
+    name: 'app-config',
+    icon: 'setting',
+    component: './AppConfig',
+    access: 'canAccessRoute',
+    permission: '/app-config',
+  },
+  {
+    path: '/account',
+    hideInMenu: true,
+    routes: [
+      {
+        path: '/account/settings',
+        name: 'account-settings',
+        component: './Account/Settings',
+        access: 'canAccessRoute',
+      },
+    ],
+  },
+  {
     path: '/403',
     layout: false,
     component: './Exception/403',

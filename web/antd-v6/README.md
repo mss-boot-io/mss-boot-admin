@@ -6,10 +6,10 @@ rollback history. The legacy application remains in `web/antd`.
 
 This checkpoint is a buildable foundation, not a production release candidate.
 Opt-in backend cookie/CSRF, OAuth transport binding, WebSocket-ticket support,
-the typed identity/menu startup chain, and the layered Ant Design 6 theme runtime
-are implemented. Account editors, retained business modules, the v6 generator
-target, and required browser evidence remain release blockers and are fail-closed
-by the repository qualification contract.
+the typed identity/menu startup chain, and the layered Ant Design 6 theme editor
+and runtime are implemented. Non-theme account capabilities, retained business
+modules, the v6 generator target, and required browser evidence remain release
+blockers and are fail-closed by the repository qualification contract.
 
 The runtime has one application-owned React Query client. Current identity and
 the authorized menu are loaded through it, but only the verified identity and
@@ -18,6 +18,13 @@ mapped explicitly to compiled `/workplace`; database component strings and unkno
 paths never select executable code. Theme values resolve field-by-field as
 V6 code defaults < public application profile < authenticated personal resource
 and are applied through Ant Design 6 CSS variables and semantic tokens.
+Application and personal settings reuse one scope-explicit editor with canonical
+ETag writes, visible 412 resolution, field inheritance, whole-layer reset, and
+read-only RBAC states. A schema-versioned cross-tab channel converges monotonic
+revisions. The optional 24-hour first-paint snapshot contains only the seven theme
+fields and metadata; personal snapshots use a random session key additionally
+bound to the verified current-user subject. Production builds alias transitional
+Moment consumers to Day.js and fail if a Moment runtime enters the bundle.
 
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`; runtime and build packages are

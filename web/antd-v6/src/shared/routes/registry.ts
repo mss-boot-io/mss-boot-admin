@@ -16,6 +16,12 @@ const registrations: readonly RouteRegistration[] = [
     menuName: 'workplace',
     permission: '/welcome',
   },
+  {
+    path: '/app-config',
+    serverPaths: ['/app-config'],
+    menuName: 'app-config',
+    permission: '/app-config',
+  },
 ];
 
 export const routeRegistry = new Map(registrations.map((entry) => [entry.path, entry]));

@@ -1,4 +1,4 @@
-import { LogoutOutlined } from '@ant-design/icons';
+import { LogoutOutlined, SettingOutlined } from '@ant-design/icons';
 import type { ProLayoutProps } from '@ant-design/pro-components';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
@@ -24,6 +24,7 @@ import {
   getThemeRuntimeSnapshot,
   replaceThemeRuntime,
 } from './shared/theme/runtime';
+import { ThemeCrossTabBridge } from './shared/theme/ThemeCrossTabBridge';
 import { ThemeRuntimeProvider } from './shared/theme/ThemeRuntimeProvider';
 
 interface Settled<T> {
@@ -53,7 +54,19 @@ function currentLayoutSettings(profile?: ApplicationProfile): Partial<ProLayoutP
 }
 
 export async function getInitialState(): Promise<InitialState> {
+  const {
+    clearThemeIdentitySession,
+    ensureThemeAuthSession,
+    readThemeBootstrapSnapshot,
+    readThemeSnapshot,
+    writeThemeSnapshot,
+  } = await import('./shared/theme/snapshot');
   const publicRoute = isPublicPath(history.location.pathname);
+  const bootstrap = readThemeBootstrapSnapshot();
+  replaceThemeRuntime({
+    application: bootstrap.application,
+    degradedScopes: bootstrap.application ? ['application'] : [],
+  });
   const applicationProfilePromise = settle(
     queryClient.fetchQuery({
       queryKey: queryKeys.applicationProfile,
@@ -63,10 +76,16 @@ export async function getInitialState(): Promise<InitialState> {
 
   if (publicRoute) {
     const application = await applicationProfilePromise;
+    const applicationTheme = application.data?.theme ?? bootstrap.application;
     replaceThemeRuntime({
-      application: application.data?.theme,
+      application: applicationTheme,
       degradedScopes: application.error ? ['application'] : [],
     });
+    if (application.data?.theme) {
+      void writeThemeSnapshot(application.data.theme, undefined, Date.now(), {
+        authoritativePrevious: bootstrap.application,
+      });
+    }
     return {
       authorizedMenu: [],
       fetchCurrentUser: loadVerifiedCurrentUser,
@@ -79,10 +98,16 @@ export async function getInitialState(): Promise<InitialState> {
     applicationProfilePromise,
     settle(loadVerifiedCurrentUser()),
   ]);
+  const applicationTheme = application.data?.theme ?? bootstrap.application;
   replaceThemeRuntime({
-    application: application.data?.theme,
+    application: applicationTheme,
     degradedScopes: application.error ? ['application'] : [],
   });
+  if (application.data?.theme) {
+    void writeThemeSnapshot(application.data.theme, undefined, Date.now(), {
+      authoritativePrevious: bootstrap.application,
+    });
+  }
 
   if (identity.error) {
     return {
@@ -96,6 +121,7 @@ export async function getInitialState(): Promise<InitialState> {
 
   const currentUser = identity.data;
   if (!currentUser) {
+    clearThemeIdentitySession();
     redirectToLogin();
     return {
       authorizedMenu: [],
@@ -104,6 +130,17 @@ export async function getInitialState(): Promise<InitialState> {
       themeDegradedScopes: application.error ? ['application'] : undefined,
     };
   }
+
+  const authSessionId = ensureThemeAuthSession(currentUser.id);
+  const userBootstrap = readThemeSnapshot('user', authSessionId);
+  replaceThemeRuntime({
+    application: applicationTheme,
+    user: userBootstrap,
+    degradedScopes: [
+      ...(application.error ? (['application'] as const) : []),
+      ...(userBootstrap ? (['user'] as const) : []),
+    ],
+  });
 
   const [authorizedMenu, userTheme] = await Promise.all([
     settle(
@@ -125,14 +162,21 @@ export async function getInitialState(): Promise<InitialState> {
     ...(application.error ? (['application'] as const) : []),
     ...(userTheme.error ? (['user'] as const) : []),
   ];
+  const userThemeResource = userTheme.data ?? userBootstrap;
   replaceThemeRuntime({
-    application: application.data?.theme,
-    user: userTheme.data,
+    application: applicationTheme,
+    user: userThemeResource,
     degradedScopes: [...degradedScopes],
   });
+  if (userTheme.data) {
+    void writeThemeSnapshot(userTheme.data, authSessionId, Date.now(), {
+      authoritativePrevious: userBootstrap,
+    });
+  }
 
   return {
     currentUser,
+    authSessionId,
     authorizedMenu: authorizedMenu.data ?? [],
     fetchCurrentUser: loadVerifiedCurrentUser,
     settings: currentLayoutSettings(application.data),
@@ -160,22 +204,45 @@ function StartupFailureView({ failure }: { failure: StartupFailure }) {
   );
 }
 
-function AvatarMenu({ currentUser }: { currentUser?: InitialState['currentUser'] }) {
+function AvatarMenu({ initialState }: { initialState?: InitialState }) {
+  const intl = useIntl();
+  const currentUser = initialState?.currentUser;
   const label = currentUser?.name ?? currentUser?.username ?? 'MSS User';
   return (
     <Dropdown
       menu={{
         items: [
           {
+            key: 'settings',
+            icon: <SettingOutlined />,
+            label: (
+              <Link to="/account/settings">
+                {intl.formatMessage({ id: 'menu.account-settings' })}
+              </Link>
+            ),
+          },
+          {
             key: 'logout',
             icon: <LogoutOutlined />,
-            label: '退出登录',
+            label: intl.formatMessage({ id: 'menu.logout' }),
             onClick: async () => {
+              const { clearThemeIdentitySession } = await import('./shared/theme/snapshot');
+              const previousSessionID = clearThemeIdentitySession({
+                broadcast: false,
+                expectedSessionId: initialState?.authSessionId,
+              });
+              queryClient.clear();
+              clearUserThemeRuntime();
               try {
                 await clearServerSession();
               } finally {
-                queryClient.clear();
-                clearUserThemeRuntime();
+                if (previousSessionID) {
+                  void import('./shared/theme/sync')
+                    .then(({ publishThemeIdentityCleared }) =>
+                      publishThemeIdentityCleared(previousSessionID),
+                    )
+                    .catch(() => {});
+                }
                 history.replace('/user/login');
               }
             },
@@ -199,7 +266,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     </Tag>,
   ],
   avatarProps: {
-    render: () => <AvatarMenu currentUser={initialState?.currentUser} />,
+    render: () => <AvatarMenu initialState={initialState} />,
   },
   breadcrumbRender: (routers = []) => routers,
   childrenRender: (children) =>
@@ -243,7 +310,10 @@ function RuntimeProviders({ children }: { children: ReactNode }) {
     <ThemeRuntimeProvider>
       <AntdApp>
         <RuntimeFeedbackBridge />
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeCrossTabBridge />
+          {children}
+        </QueryClientProvider>
       </AntdApp>
     </ThemeRuntimeProvider>
   );

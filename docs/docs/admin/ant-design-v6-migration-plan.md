@@ -15,7 +15,7 @@ keywords: [admin ant-design v6 react umi migration release]
 - 决策状态：已接受，按独立应用方案实施。
 - 目标目录：`web/antd-v6`。
 - 旧应用：`web/antd` 保持独立构建、发布、部署和回滚，不在本项目中原位升级或删除。
-- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交和分层主题运行时底座已实现，账户编辑器、跨标签主题同步及其余业务等价仍在进行。生成器和浏览器验收尚未完成，因此不是生产发布候选。
+- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交，以及分层主题的编辑、并发、首屏和跨标签闭环已实现。账户中心、PAT、OAuth 绑定、语言和其余业务等价仍在进行。生成器和浏览器验收尚未完成，因此不是生产发布候选。
 - 机器契约：`.mss/features/admin-antd-v6-application.yaml`。
 - 架构决策：`docs/adr/2026-08-15-independent-ant-design-v6-application.md`。
 
@@ -151,8 +151,13 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 - 关闭 Max 自动创建的私有 React Query client，由应用提供唯一 QueryClient，使启动查询、页面 hook、退出清理和后续权限失效共享一套缓存。
 - application public profile 与 current-user canonical theme 解析为七字段稀疏层，按 code < application < user 求值，再通过 antd 6 CSS Variables、dark algorithm 和语义 token 应用；读取失败只降级到有效低层并留下 scope 状态。
 - canonical theme transport 已支持 vendor media type、强 ETag、`If-Match`、412 authoritative resource 和无静默重试。
+- `/app-config` 与 `/account/settings` 复用同一个显式 scope 主题编辑器；应用读取、应用控制和个人 self-service 分开判定，逐字段继承、整层重置、来源、草稿、降级与 412 决策均有中英文状态。
+- 主题保存和重置立即更新唯一 Query cache、Umi 布局和 antd 6 ConfigProvider；跨标签事件有 schema、TTL、去重、单调 revision 与个人随机会话绑定，同 revision 分歧只触发权威重读。
+- 首屏快照只包含规范化七字段、revision 和过期时间，最长 24 小时；应用层可匿名使用，个人层必须同时匹配随机会话和已验证用户主体，Web Locks 不可用时拒绝持久化而不是冒险覆盖新修订。
+- 密码登录和 OAuth 在取得规范化 current user 后轮换主题会话；退出先清除本标签个人派生状态，服务端退出完成后再通知其他标签重启，避免 cookie 撤销竞态。
+- Max 的过渡 Moment 消费通过官方 `moment2dayjs` 适配统一到 Day.js；release bundle 门禁会拒绝 Moment 进入生产图。当前生产构建总 JS 为 684.94 KiB，最大异步分包为 195.99 KiB。
 
-仍待本阶段完成：共享 application/user 主题编辑器、跨标签与首屏快照、账户中心/设置、PAT、OAuth binding、语言切换、权限事件失效及真实浏览器权限矩阵。
+仍待本阶段完成：账户中心与非主题个人资料设置、PAT、OAuth binding、语言切换、权限事件失效及真实浏览器权限矩阵。
 
 完成门：匿名/root/普通用户/撤权/未知菜单/直接路由和直接 API 矩阵通过。
 

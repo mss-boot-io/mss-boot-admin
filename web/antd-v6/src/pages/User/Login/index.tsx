@@ -1,10 +1,11 @@
 import { LockOutlined, SafetyCertificateOutlined, UserOutlined } from '@ant-design/icons';
 import { LoginFormPage, ProFormText } from '@ant-design/pro-components';
-import { history, request, useIntl } from '@umijs/max';
+import { history, useIntl } from '@umijs/max';
 import { Alert, App, Space, Typography } from 'antd';
 import { useState } from 'react';
 import { resolveSafeRedirect } from '@/shared/auth/redirect';
-import { createBrowserSession } from '@/shared/auth/session';
+import { createBrowserSession, fetchCurrentUser } from '@/shared/auth/session';
+import { rotateThemeAuthSession } from '@/shared/theme/snapshot';
 
 export default function LoginPage() {
   const intl = useIntl();
@@ -39,10 +40,9 @@ export default function LoginPage() {
               setError(intl.formatMessage({ id: 'pages.login.failure' }));
               return false;
             }
-            await request('/user/userInfo', {
-              method: 'GET',
-              skipErrorHandler: true,
-            });
+            const currentUser = await fetchCurrentUser();
+            if (!currentUser) throw new Error('Session identity was not established');
+            rotateThemeAuthSession(currentUser.id);
             await message.success(intl.formatMessage({ id: 'pages.login.success' }));
             const params = new URLSearchParams(history.location.search);
             window.location.replace(resolveSafeRedirect(params.get('redirect')));

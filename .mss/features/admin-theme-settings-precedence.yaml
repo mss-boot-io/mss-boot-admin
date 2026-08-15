@@ -76,8 +76,8 @@ spec:
       actor: application-admin
       module: theme-contract
       rules:
-        - navTheme accepts light or realDark and defaults to realDark.
-        - "colorPrimary accepts a normalized six-digit hexadecimal color and defaults to #1890ff."
+        - navTheme accepts light or realDark; the retained V5 code layer defaults to realDark while the independently versioned V6 design baseline defaults to light.
+        - "colorPrimary accepts a normalized six-digit hexadecimal color; the retained V5 code layer defaults to #1890ff while the independently versioned V6 design baseline defaults to #1677ff."
         - layout accepts side, top, or mix and defaults to mix.
         - contentWidth accepts Fluid or Fixed and defaults to Fluid.
         - fixedHeader, fixSiderbar, and colorWeak are booleans with defaults false, true, and false respectively.
@@ -154,7 +154,7 @@ spec:
         - Authentication loads the verified user's sparse overrides and applies the resulting effective theme without requiring a full reload.
         - Logout removes the user layer from memory and browser caches before returning to the application theme.
         - Save and reset update the current tab immediately from the canonical response; same-origin tabs reject older revisions and converge through BroadcastChannel with a storage-event fallback.
-        - Cross-tab events are schema-versioned, time-bounded, deduplicated, scoped, and bind personal updates to a random authentication-session identifier rather than trusting a client-selected user ID.
+        - Cross-tab events are schema-versioned, time-bounded, deduplicated, scoped, and bind personal updates to a random authentication-session identifier that is also matched to the server-verified current-user subject rather than trusting a client-selected user ID for authorization.
         - A dirty editor preserves touched draft fields when a newer canonical resource arrives, exposes a conflict state, and never silently overwrites or retries a stale draft.
         - Read failure at one layer falls back to lower valid layers without persisting that fallback as an override.
         - A versioned, non-sensitive last-known theme snapshot may support first paint, but it contains only supported theme values, expires within 24 hours, is identity-bound for personal scope, and is reconciled with authoritative revisions.
@@ -206,7 +206,7 @@ spec:
       statement: The imported code-default object is treated as immutable so one request, preview, user, or logout cannot contaminate a later resolution.
     - id: bounded-first-paint-cache
       type: performance
-      statement: Any browser theme snapshot is versioned, contains only the seven theme values and revision metadata, expires within 24 hours, binds personal data to a random authentication session, and cannot override a newer authoritative revision.
+      statement: Any browser theme snapshot is versioned, contains only the seven theme values and revision metadata, expires within 24 hours, binds personal data to a random authentication session matched to the verified current-user subject, uses Web Locks for monotonic persistence, and cannot override a newer authoritative revision.
     - id: responsive-accessible-ui
       type: ux
       statement: The same scoped editor provides loading, error, permission, inherited, dirty, saving, reset, and success states on desktop and mobile with keyboard-visible focus.
@@ -249,6 +249,8 @@ spec:
       evidence:
         - type: test
           value: web/antd/src/components/MssBoot/theme.test.tsx
+        - type: test
+          value: web/antd-v6/src/modules/theme/ThemeSettingsEditor.test.tsx
     - id: authorization-negative-tests
       requirement: authorize-theme-scopes
       statement: Positive and negative tests prove config read and write separation, authenticated-self personal access, anonymous denial, and inability to target another user's rows.
@@ -287,6 +289,12 @@ spec:
           value: web/antd-v6/src/shared/theme/runtime.test.ts
         - type: test
           value: web/antd-v6/src/shared/theme/api.test.ts
+        - type: test
+          value: web/antd-v6/src/shared/theme/snapshot.test.ts
+        - type: test
+          value: web/antd-v6/src/shared/theme/sync.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/theme/ThemeSettingsEditor.test.tsx
         - type: test
           value: web/antd/src/utils/themeSettings.test.ts
         - type: test
@@ -361,6 +369,9 @@ spec:
       - corepack pnpm@9.15.9 --dir web/antd tsc
       - corepack pnpm@9.15.9 --dir web/antd test -- --runInBand
       - corepack pnpm@9.15.9 --dir web/antd build:prod
+      - corepack pnpm@10.34.5 --dir web/antd-v6 lint
+      - corepack pnpm@10.34.5 --dir web/antd-v6 test:ci
+      - corepack pnpm@10.34.5 --dir web/antd-v6 build:release
       - corepack pnpm@9.15.9 --dir docs build
   rollout:
     strategy: phased

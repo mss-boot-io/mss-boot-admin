@@ -32,6 +32,10 @@ const contents = await Promise.all(
   files.map(async (file) => ({ file, content: await readFile(file, 'utf8') })),
 );
 const failures = [];
+const stats = JSON.parse(await readFile(join(distRoot, 'stats.json'), 'utf8'));
+const moduleNames = Array.isArray(stats.modules)
+  ? stats.modules.map((module) => String(module.name ?? ''))
+  : [];
 
 for (const marker of markers) {
   const matches = contents.filter(({ content }) => content.includes(marker.value));
@@ -45,5 +49,13 @@ for (const marker of markers) {
   }
 }
 
+const momentRuntime = moduleNames.filter((name) => name.includes('/node_modules/moment/'));
+if (momentRuntime.length > 0) {
+  failures.push(`Moment entered the production graph: ${momentRuntime.slice(0, 3).join(', ')}`);
+}
+if (!moduleNames.some((name) => name.includes('/node_modules/dayjs/'))) {
+  failures.push('the aliased Day.js runtime is missing from the production graph');
+}
+
 if (failures.length > 0) throw new Error(`Runtime bundle contract failed:\n${failures.join('\n')}`);
-console.log('Runtime bundle contract passed: React 19 and Ant Design 6 only');
+console.log('Runtime bundle contract passed: React 19, Ant Design 6, and Day.js without Moment');

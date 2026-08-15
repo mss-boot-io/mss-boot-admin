@@ -133,6 +133,21 @@ export function parseThemeScopeResource(value: unknown, scope: ThemeScope): Them
   return { scope, revision, overrides: normalizeThemeOverrides(record), versioned: true };
 }
 
+export function serializeThemeScopeResource(resource: ThemeScopeResource): Record<string, unknown> {
+  return {
+    ...normalizeThemeOverrides(resource.overrides),
+    ...(resource.versioned
+      ? {
+          _meta: {
+            v: 1,
+            scope: resource.scope,
+            revision: resource.revision,
+          },
+        }
+      : {}),
+  };
+}
+
 export function parseApplicationProfile(value: unknown): ApplicationProfile {
   if (!isRecord(value)) throw new Error('Invalid public application profile');
   return {
@@ -142,8 +157,25 @@ export function parseApplicationProfile(value: unknown): ApplicationProfile {
   };
 }
 
-function hasOverride(overrides: ThemeOverrides, key: ThemeSettingKey): boolean {
+export function hasThemeOverride(overrides: ThemeOverrides, key: ThemeSettingKey): boolean {
   return Object.hasOwn(overrides, key);
+}
+
+export function areThemeResourcesEqual(
+  left: ThemeScopeResource | undefined,
+  right: ThemeScopeResource | undefined,
+): boolean {
+  if (!left || !right) return left === right;
+  return (
+    left.scope === right.scope &&
+    left.revision === right.revision &&
+    left.versioned === right.versioned &&
+    THEME_SETTING_KEYS.every(
+      (key) =>
+        hasThemeOverride(left.overrides, key) === hasThemeOverride(right.overrides, key) &&
+        left.overrides[key] === right.overrides[key],
+    )
+  );
 }
 
 export function resolveTheme(
@@ -160,7 +192,7 @@ export function resolveTheme(
   for (const resource of [application, user]) {
     if (!resource) continue;
     for (const key of THEME_SETTING_KEYS) {
-      if (!hasOverride(resource.overrides, key)) continue;
+      if (!hasThemeOverride(resource.overrides, key)) continue;
       Object.assign(settings, { [key]: resource.overrides[key] });
       sources[key] = resource.scope;
     }

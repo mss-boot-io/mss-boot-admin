@@ -73,7 +73,9 @@ export function reconcileThemeResource(
   const current = snapshot[resource.scope];
   if (current) {
     const order = compareThemeRevisions(resource.revision, current.revision);
-    if (order < 0 && !options.authoritative) return 'stale';
+    const replacingDegradedBootstrapHint =
+      options.authoritative === true && snapshot.degradedScopes.includes(resource.scope);
+    if (order < 0 && !replacingDegradedBootstrapHint) return 'stale';
     if (order === 0 && sameOverrides(resource, current)) {
       if (!options.authoritative) return 'duplicate';
     } else if (order === 0 && !options.authoritative) {

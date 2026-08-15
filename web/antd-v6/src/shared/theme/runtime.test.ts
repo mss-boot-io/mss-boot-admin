@@ -50,4 +50,46 @@ describe('theme runtime store', () => {
     ).toBe('same-revision-conflict');
     expect(getThemeRuntimeSnapshot().resolved.settings.colorWeak).toBe(false);
   });
+
+  it('does not let an older authoritative response roll back healthy runtime state', () => {
+    replaceThemeRuntime({
+      application: parseThemeScopeResource(
+        { layout: 'top', _meta: { v: 1, scope: 'application', revision: '10' } },
+        'application',
+      ),
+    });
+
+    expect(
+      reconcileThemeResource(
+        parseThemeScopeResource(
+          { layout: 'side', _meta: { v: 1, scope: 'application', revision: '9' } },
+          'application',
+        ),
+        { authoritative: true },
+      ),
+    ).toBe('stale');
+    expect(getThemeRuntimeSnapshot().resolved.settings.layout).toBe('top');
+  });
+
+  it('lets an authoritative response replace an explicitly degraded bootstrap hint', () => {
+    replaceThemeRuntime({
+      application: parseThemeScopeResource(
+        { layout: 'top', _meta: { v: 1, scope: 'application', revision: '10' } },
+        'application',
+      ),
+      degradedScopes: ['application'],
+    });
+
+    expect(
+      reconcileThemeResource(
+        parseThemeScopeResource(
+          { layout: 'side', _meta: { v: 1, scope: 'application', revision: '9' } },
+          'application',
+        ),
+        { authoritative: true },
+      ),
+    ).toBe('applied');
+    expect(getThemeRuntimeSnapshot().resolved.settings.layout).toBe('side');
+    expect(getThemeRuntimeSnapshot().degradedScopes).toEqual([]);
+  });
 });
