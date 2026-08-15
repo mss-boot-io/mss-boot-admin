@@ -50,6 +50,8 @@ export interface InitialState {
   currentUser?: CurrentUser;
   /** Sanitized public application profile; secrets are removed server-side. */
   applicationProfile?: ApplicationProfile;
+  /** Changes only when the executable authorization projection must be reloaded. */
+  authorizationVersion?: number;
   settings: Partial<ProLayoutProps>;
   authorizedMenu: AuthorizedMenuItem[];
   fetchCurrentUser: () => Promise<CurrentUser | undefined>;

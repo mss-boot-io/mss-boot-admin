@@ -43,6 +43,7 @@ export async function fetchCurrentUser(): Promise<CurrentUser | undefined> {
     const value = await request<unknown>('/user/userInfo', {
       method: 'GET',
       skipErrorHandler: true,
+      skipAuthorizationRefresh: true,
     });
     return normalizeCurrentUser(value);
   } catch (error) {

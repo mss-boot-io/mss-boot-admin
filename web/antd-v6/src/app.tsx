@@ -7,6 +7,7 @@ import { App as AntdApp, Avatar, Dropdown, Tag, Typography } from 'antd';
 import type { ReactNode } from 'react';
 import { getRequestStatus, requestConfig } from './shared/api/client';
 import { RuntimeFeedbackBridge } from './shared/api/feedback';
+import AuthorizationFreshnessBridge from './shared/auth/AuthorizationFreshnessBridge';
 import { fetchAuthorizedMenu } from './shared/auth/authorization';
 import {
   clearServerSession,
@@ -88,6 +89,7 @@ export async function getInitialState(): Promise<InitialState> {
     }
     return {
       applicationProfile: application.data,
+      authorizationVersion: 0,
       authorizedMenu: [],
       fetchCurrentUser: loadVerifiedCurrentUser,
       settings: currentLayoutSettings(application.data),
@@ -113,6 +115,7 @@ export async function getInitialState(): Promise<InitialState> {
   if (identity.error) {
     return {
       applicationProfile: application.data,
+      authorizationVersion: 0,
       authorizedMenu: [],
       fetchCurrentUser: loadVerifiedCurrentUser,
       settings: currentLayoutSettings(application.data),
@@ -127,6 +130,7 @@ export async function getInitialState(): Promise<InitialState> {
     redirectToLogin();
     return {
       applicationProfile: application.data,
+      authorizationVersion: 0,
       authorizedMenu: [],
       fetchCurrentUser: loadVerifiedCurrentUser,
       settings: currentLayoutSettings(application.data),
@@ -179,6 +183,7 @@ export async function getInitialState(): Promise<InitialState> {
 
   return {
     applicationProfile: application.data,
+    authorizationVersion: 1,
     currentUser,
     authSessionId,
     authorizedMenu: authorizedMenu.data ?? [],
@@ -293,6 +298,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     </div>
   ),
   menu: {
+    params: { authorizationVersion: initialState?.authorizationVersion ?? 0 },
     request: async () => initialState?.authorizedMenu ?? [],
   },
   menuItemRender: (item, dom) =>
@@ -323,6 +329,7 @@ function RuntimeProviders({ children }: { children: ReactNode }) {
       <AntdApp>
         <RuntimeFeedbackBridge />
         <QueryClientProvider client={queryClient}>
+          <AuthorizationFreshnessBridge />
           <ThemeCrossTabBridge />
           {children}
         </QueryClientProvider>

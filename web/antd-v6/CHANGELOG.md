@@ -25,6 +25,9 @@ recorded here. This changelog does not describe releases of `web/antd`.
   shared React Query cache or browser persistence.
 - Keep unsafe legacy password reset and last-login-method OAuth disconnect actions
   unavailable pending a recent-reauthenticated backend contract.
+- Add authoritative authorization freshness on explicit/cross-tab events, 403,
+  network recovery, and throttled focus/visibility changes, with exact domain-query
+  eviction and a retryable fail-closed state when identity or menu cannot be verified.
 - Reserve the independent `web/antd-v6/v{version}` tag and
   `mss-boot-admin-antd-v6` image namespaces.
 

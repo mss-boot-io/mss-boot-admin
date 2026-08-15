@@ -204,12 +204,16 @@ spec:
           value: cd web/antd-v6 && pnpm test:e2e --grep @permission
     - id: startup-contract
       requirement: preserve-business-contracts
-      statement: Identity normalization, permission-map and role-root semantics, fail-closed registered-menu intersection, scoped theme editing, canonical ETag conflicts, verified-subject snapshots, monotonic cross-tab convergence, safe profile and one-time PAT contracts, provider-bound OAuth, locale parity, Day.js runtime replacement, and one React Query owner pass focused tests and a production build.
+      statement: Identity normalization, permission-map and role-root semantics, fail-closed registered-menu intersection, authorization freshness and domain-query eviction, scoped theme editing, canonical ETag conflicts, verified-subject snapshots, monotonic cross-tab convergence, safe profile and one-time PAT contracts, provider-bound OAuth, locale parity, Day.js runtime replacement, and one React Query owner pass focused tests and a production build.
       level: integration
       required: true
       evidence:
         - type: test
           value: web/antd-v6/src/shared/auth/identity.test.ts
+        - type: test
+          value: web/antd-v6/src/shared/auth/freshness.test.ts
+        - type: test
+          value: web/antd-v6/src/shared/auth/AuthorizationFreshnessBridge.test.tsx
         - type: test
           value: web/antd-v6/src/shared/routes/registry.test.ts
         - type: test

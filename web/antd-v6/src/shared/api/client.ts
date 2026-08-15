@@ -1,12 +1,27 @@
 import type { RequestConfig, RequestOptions } from '@umijs/max';
 import { history } from '@umijs/max';
+import { requestAuthorizationRefresh, shouldRefreshAuthorization } from '../auth/freshness';
 import { queryClient } from '../query/client';
+import { clearUserThemeRuntime } from '../theme/runtime';
+import { clearThemeIdentitySession } from '../theme/snapshot';
 import { type ApiRequestFailure, getRequestErrorMessage, getRequestStatus } from './errors';
 import { feedback } from './feedback';
 
 export { getRequestErrorMessage, getRequestStatus } from './errors';
 
 const mutationMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+let lastForbiddenRefreshAt: number | undefined;
+
+function refreshAuthorizationAfterForbidden(): void {
+  const now = Date.now();
+  if (
+    lastForbiddenRefreshAt === undefined ||
+    shouldRefreshAuthorization(lastForbiddenRefreshAt, now)
+  ) {
+    lastForbiddenRefreshAt = now;
+    requestAuthorizationRefresh();
+  }
+}
 
 function readCookie(name: string): string | undefined {
   if (typeof document === 'undefined') return undefined;
@@ -41,6 +56,8 @@ export const requestConfig: RequestConfig = {
       const status = getRequestStatus(error);
       if (status === 401) {
         queryClient.clear();
+        clearThemeIdentitySession();
+        clearUserThemeRuntime();
         const redirect = encodeURIComponent(
           history.location.pathname + history.location.search + history.location.hash,
         );
@@ -49,6 +66,12 @@ export const requestConfig: RequestConfig = {
         }
         if (options?.skipErrorHandler) throw error;
         return;
+      }
+      if (
+        status === 403 &&
+        !(options as { skipAuthorizationRefresh?: boolean } | undefined)?.skipAuthorizationRefresh
+      ) {
+        refreshAuthorizationAfterForbidden();
       }
       if (options?.skipErrorHandler) throw error;
       if (status === 403) {
