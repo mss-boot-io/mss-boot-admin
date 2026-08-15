@@ -15,7 +15,7 @@ keywords: [admin ant-design v6 react umi migration release]
 - 决策状态：已接受，按独立应用方案实施。
 - 目标目录：`web/antd-v6`。
 - 旧应用：`web/antd` 保持独立构建、发布、部署和回滚，不在本项目中原位升级或删除。
-- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、权限新鲜度、服务端授权 revision 实时推送、分层主题闭环，以及安全账户中心、个人资料、PAT、OAuth 连接、语言切换已实现；P4 已完成工作台监控和在线会话两个垂直切片；P5 已完成语言管理垂直切片。其余业务等价、生成器和浏览器验收尚未完成，因此不是生产发布候选。
+- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、权限新鲜度、服务端授权 revision 实时推送、分层主题闭环，以及安全账户中心、个人资料、PAT、OAuth 连接、语言切换已实现；P4 已完成工作台监控和在线会话两个垂直切片；P5 已完成语言与 Option 管理垂直切片；P6 的双目标生成器和 Supplier golden 已完成并通过桌面/移动真实浏览器验收。其余业务等价、跨模块权限与双语响应式验收、容器发布资格尚未完成，因此不是生产发布候选。
 - 机器契约：`.mss/features/admin-antd-v6-application.yaml`。
 - 架构决策：`docs/adr/2026-08-15-independent-ant-design-v6-application.md`。
 
