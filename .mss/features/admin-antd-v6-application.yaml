@@ -93,7 +93,15 @@ spec:
         - Chinese and English user-facing catalogs remain synchronized.
         - Self-service profile updates use an exact mutable-field allowlist; username and email remain immutable until a verified identity-change workflow exists.
         - PAT list responses are metadata-only and a newly created or rotated raw secret is displayed once without entering shared query caches, browser persistence, or URLs.
-        - Password change and OAuth disconnect remain unavailable until recent re-authentication is enforced and disconnect cannot remove the account's final verified login method.
+        - Password and primary-email changes require a short-lived server-verified re-authentication proof, revoke every other browser session and active PAT after commit, and cannot remove the account's final verified login method.
+        - OAuth disconnect requires the same recent re-authentication proof and fails closed when the provider is the account's final verified login method.
+        - User, role, menu, department, and post authority mutations are root-only at the handler boundary even when stale Casbin rows grant the route; non-root reads remain limited by backend permissions and row scope.
+        - Role assignment, menu authorization, post data scope, and department membership accept only server-resolved identifiers; the client never supplies an authoritative owner or scope identity.
+        - Department and post writes reject self-parenting and descendant-parent cycles, while deletion rejects live child, user, role, or scope references with a stable conflict response.
+        - Notice list, read, update, and delete operations derive ownership from the verified server identity; a request userID cannot expand the caller's scope.
+        - Task definitions, task output, runtime logs, and exports enforce bounded pages, time ranges, payload sizes, retention, and secret redaction before data reaches the browser.
+        - System configuration is root-only, protects built-in records and identity fields, bounds content and export size, and redacts configured secret-bearing values from list projections and diagnostics.
+        - User statistics are optional telemetry recorded only after the corresponding user mutation commits; telemetry failure never changes the committed business response.
         - Language management uses server-owned identifiers, bounded summary/detail projections, canonical BCP 47 tags, bounded definitions, optimistic revisions, and independently assignable read/create/update/delete permissions; runtime overlays remain limited to the two shipped locale catalogs.
         - Option management uses server-owned record and item identifiers, bounded summary/detail projections, full prior-resource snapshots, strong revision preconditions, independently assignable read/create/update/delete permissions, protected built-in identity, and usage-aware deletion.
     - id: modernize-runtime-architecture
@@ -353,6 +361,44 @@ spec:
           value: web/antd-v6/src/pages/Option/guards.test.tsx
         - type: command
           value: cd admin && GOWORK=off go test ./models ./service ./apis ./cmd/migrate/migration/system ./router
+        - type: command
+          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+    - id: identity-authority-management-contract
+      requirement: preserve-business-contracts
+      statement: User, role, menu, department, and post pages use bounded validated contracts, root-only authority mutations, server-owned role and scope identifiers, cycle-safe trees, reference-aware deletion, revision-safe role authorization, explicit page states, and post-commit user telemetry with positive and negative backend tests.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/apis/root_guard_test.go
+        - type: test
+          value: admin/apis/user_statistics_test.go
+        - type: test
+          value: mss-boot/pkg/response/actions/gorm/delete_test.go
+        - type: path
+          value: web/antd-v6/src/modules/administration
+        - type: command
+          value: cd admin && GOWORK=off go test ./models ./service ./apis ./router
+        - type: command
+          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+    - id: operational-data-management-contract
+      requirement: preserve-business-contracts
+      statement: Task, notice, log, and system-configuration pages validate bounded projections, preserve server ownership, enforce retention and secret-redaction boundaries, expose only allowed operations, and render loading, empty, stale, error, forbidden, not-found, and conflict states where applicable.
+      level: security
+      required: true
+      evidence:
+        - type: path
+          value: web/antd-v6/src/modules/operations
+        - type: test
+          value: web/antd/src/pages/Task/index.test.tsx
+        - type: test
+          value: web/antd/src/pages/Notice/Mobile/NoticeList.test.tsx
+        - type: test
+          value: web/antd/src/pages/Log/index.test.tsx
+        - type: test
+          value: admin/apis/system_config_security_test.go
+        - type: command
+          value: cd admin && GOWORK=off go test ./models ./service ./apis ./router
         - type: command
           value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
     - id: session-security-tests
