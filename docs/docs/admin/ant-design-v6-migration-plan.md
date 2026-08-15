@@ -236,11 +236,14 @@ P5 中尚未实施的关键后端前置问题包括：部门/岗位需要先明�
 
 ### P6：生成器与 Supplier golden
 
-- 为模块规范增加显式 `frontendTarget`，V5 默认行为保持稳定。
+- 为模块规范增加显式 `frontendTargets` 声明，并通过 `--frontend-target` 单次选择一个投影；未声明的新旧规格继续默认 V5，兼容行为保持稳定。
 - V6 profile 只写 `web/antd-v6`，支持 dry-run、path confinement、stable ordering、obsolete cleanup 和 idempotency。
-- Supplier 覆盖 route、locale、typed client、页面和 Playwright。
+- Supplier 的同一受版本控制规格同时声明 V5/V6，V6 覆盖编译期 route registry、双语 catalog、运行时契约校验、typed transport、React Query、响应式页面和 HttpOnly/CSRF Playwright 流程。
+- 首版 V6 profile 的资格边界是带时间戳和 uuid/string ID 的完整 CRUD+export，以及非 nullable 的 string/text/uuid/enum/bool 字段。必填 create 字段必须具有可见编辑控件；启用 E2E 时还必须提供可重复清理和更新验证的唯一、可搜索、列表/表单可见文本字段。数值、文件、关系、create-only immutable 编辑、batch、import、workflow 等尚未实现的语义在规格校验阶段 fail-closed，不能用普通输入框近似。
+- 生成目录由生成器而非 Biome formatter/organize-imports 拥有；Biome lint、严格 TypeScript、Vitest、双目标 drift 和生产构建仍覆盖这些产物，任意手工格式化导致的漂移都会失败。
+- Supplier 加入后的 release build entry 为 4.16 KiB、总 JS 为 881.98 KiB、最大异步分包为 199.59 KiB，继续通过 900/250 KiB 门禁，但总量仅余 18.02 KiB；下一业务切片必须先给出依赖复用和预算证据。
 
-完成门：生成两次零差异、drift check、生产构建和 Supplier 浏览器验收通过。
+完成门：生成两次零差异、V5/V6 drift check、生产构建和 Supplier 桌面/移动浏览器验收通过。
 
 ### P7：发布资格和切流
 
@@ -270,6 +273,8 @@ V6 发布只生成不可变静态包和 OCI 镜像，不自动替换 V5 部署�
 
 ```shell
 go run ./cmd/mss spec validate .mss/features/admin-antd-v6-application.yaml --format json
+go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v5 --check
+go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --check
 make web-v6-install web-v6-lint web-v6-test web-v6-build
 go run ./cmd/mss verify --changed
 ```

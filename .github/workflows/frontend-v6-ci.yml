@@ -6,8 +6,14 @@ on:
       - main
     paths:
       - 'web/antd-v6/**'
+      - '.mss/modules/**'
+      - '.mss/schemas/admin-module.schema.json'
       - 'admin/modules/**/module.yaml'
-      - 'templates/module/frontend-v6/**'
+      - 'cmd/mss/**'
+      - 'internal/mss/app/**'
+      - 'internal/mss/generator/**'
+      - 'internal/mss/spec/**'
+      - 'templates/module/**'
       - '.mss/commands.yaml'
       - '.mss/project.yaml'
       - '.github/workflows/frontend-v6-ci.yml'
@@ -16,8 +22,14 @@ on:
       - main
     paths:
       - 'web/antd-v6/**'
+      - '.mss/modules/**'
+      - '.mss/schemas/admin-module.schema.json'
       - 'admin/modules/**/module.yaml'
-      - 'templates/module/frontend-v6/**'
+      - 'cmd/mss/**'
+      - 'internal/mss/app/**'
+      - 'internal/mss/generator/**'
+      - 'internal/mss/spec/**'
+      - 'templates/module/**'
       - '.mss/commands.yaml'
       - '.mss/project.yaml'
       - '.github/workflows/frontend-v6-ci.yml'
@@ -35,6 +47,27 @@ env:
   NODE_OPTIONS: '--max-old-space-size=4096'
 
 jobs:
+  generated-contract:
+    name: generated-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+
+      - name: Require the committed v6 Supplier projection to be current
+        run: >-
+          go run ./cmd/mss module generate
+          .mss/modules/example-supplier.yaml
+          --frontend-target antd-v6
+          --check
+          --format json
+
   dependency-contract:
     name: dependency-contract
     runs-on: ubuntu-24.04
@@ -156,6 +189,7 @@ jobs:
     if: ${{ always() }}
     needs:
       - dependency-contract
+      - generated-contract
       - quality
       - compile
     runs-on: ubuntu-24.04
@@ -164,12 +198,15 @@ jobs:
       - name: Require every v6 frontend check to pass
         env:
           DEPENDENCY_RESULT: ${{ needs.dependency-contract.result }}
+          GENERATED_RESULT: ${{ needs.generated-contract.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           COMPILE_RESULT: ${{ needs.compile.result }}
         run: |
           echo "dependency-contract=${DEPENDENCY_RESULT}"
+          echo "generated-contract=${GENERATED_RESULT}"
           echo "quality=${QUALITY_RESULT}"
           echo "compile=${COMPILE_RESULT}"
           test "${DEPENDENCY_RESULT}" = 'success'
+          test "${GENERATED_RESULT}" = 'success'
           test "${QUALITY_RESULT}" = 'success'
           test "${COMPILE_RESULT}" = 'success'

@@ -161,6 +161,7 @@ spec:
         - The legacy v5 generator profile remains stable while a versioned v6 profile writes only web/antd-v6 paths.
         - V6 generation supports dry-run, path confinement, stable ordering, two-run idempotency, and drift checks.
         - Supplier is the first golden v6 generated module and validates route, locale, contracts, page, service, and E2E output.
+        - The initial v6 profile fails specification validation outside its qualified full CRUD and scalar field envelope; unsupported numeric, file, relation, nullable, immutable-editor, batch, import, or workflow semantics are never silently approximated.
         - Removed runtime developer tools remain absent from both frontend targets.
   constraints:
     - id: independent-artifacts
@@ -381,7 +382,21 @@ spec:
       required: true
       evidence:
         - type: test
-          value: internal/mss/generator v6 target tests
+          value: internal/mss/generator/generator_test.go
+        - type: test
+          value: web/antd-v6/src/generated/modules/supplier/contract.test.ts
+        - type: test
+          value: web/antd-v6/src/shared/routes/registry.test.ts
+        - type: command
+          value: go test ./internal/mss/spec ./internal/mss/generator ./internal/mss/app ./internal/mss/mcp
+        - type: command
+          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v5 --check
+        - type: command
+          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --check
+        - type: command
+          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+        - type: command
+          value: cd web/antd-v6 && pnpm test:e2e e2e/generated/supplier.spec.ts --project=chromium-desktop
   risks:
     - id: pro-beta-churn
       description: ProComponents v3 beta can introduce breaking behavior or type changes before its stable release.
@@ -404,6 +419,8 @@ spec:
     all: go run ./cmd/mss verify --all
     custom:
       - go run ./cmd/mss spec validate .mss/features/admin-antd-v6-application.yaml --format json
+      - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v5 --check
+      - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --check
       - make web-v6-install web-v6-lint web-v6-test web-v6-build
       - python3 -m unittest tools.release.check_release_policy_test
   rollout:

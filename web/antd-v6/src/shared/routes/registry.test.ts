@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CurrentUser } from '../auth/types';
-import { retainRegisteredMenu } from './registry';
+import { retainRegisteredMenu, routeRegistry } from './registry';
 
 const operator: CurrentUser = {
   id: 'operator',
@@ -94,6 +94,33 @@ describe('compiled route registry', () => {
       },
     ]);
     expect(JSON.stringify(menu)).not.toContain('UntrustedLegacyPage');
+  });
+
+  it('loads generated supplier registration without executing backend component metadata', () => {
+    expect(routeRegistry.get('/suppliers')).toMatchObject({
+      menuName: 'supplier',
+      permission: '/suppliers',
+      serverPaths: ['/suppliers'],
+    });
+
+    const menu = retainRegisteredMenu(
+      [{ id: 'suppliers', path: '/suppliers', component: 'https://untrusted.example/supplier.js' }],
+      {
+        id: 'supplier-reader',
+        role: { root: false },
+        permissions: { '/suppliers': true },
+      },
+    );
+    expect(menu).toMatchObject([
+      {
+        id: 'suppliers',
+        name: 'supplier',
+        path: '/suppliers',
+        permission: '/suppliers',
+        sourcePath: '/suppliers',
+      },
+    ]);
+    expect(JSON.stringify(menu)).not.toContain('untrusted.example');
   });
 
   it('retains the online-session route only for a root identity', () => {

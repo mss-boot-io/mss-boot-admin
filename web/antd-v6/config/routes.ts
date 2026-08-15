@@ -1,3 +1,5 @@
+import generatedRoutes from './routes.generated';
+
 const routes = [
   {
     path: '/user',
@@ -135,6 +137,7 @@ const routes = [
       },
     ],
   },
+  ...generatedRoutes,
   {
     path: '/403',
     layout: false,

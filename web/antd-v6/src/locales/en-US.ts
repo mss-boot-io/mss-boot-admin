@@ -1,4 +1,7 @@
+import generated from '@/generated/locales/en-US';
+
 export default {
+  ...generated,
   'menu.login': 'Sign in',
   'menu.workplace': 'Workplace',
   'menu.migration': 'Migration status',

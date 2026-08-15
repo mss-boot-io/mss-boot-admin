@@ -15,7 +15,10 @@ the workplace placeholder with a responsive service monitor backed by authoritat
 bounded server history and add a root-only online-session inventory with audited revoke
 actions. The first core CRUD slices add bounded, permission-separated language
 and Option management with optimistic revisions and constrained runtime behavior.
-Retained business modules, the v6 generator target, and required
+Supplier is the first dual-target golden module: one specification now emits an isolated
+V6 typed contract, React Query data layer, responsive CRUD page, compiled route, locale
+catalog, contract tests, and HttpOnly/CSRF-aware Playwright flow without writing into V5.
+Retained business modules and required
 browser evidence remain release blockers and are fail-closed by the qualification contract.
 
 The runtime has one application-owned React Query client. Current identity and
@@ -81,9 +84,9 @@ complete shipped `zh-CN` and `en-US` catalogs can be overlaid. Adding another st
 language does not silently advertise an incomplete application locale.
 After replacing icon-barrel imports with public icon subpaths and aligning Umi's
 polyfills with the supported browser contract, the resulting release build is
-4.16 KiB at the entry, 864.91 KiB total JavaScript, and 199.59 KiB for the largest
-asynchronous chunk. It passes the existing 900/250 KiB budget with 35.09 KiB of
-total headroom without weakening the gate.
+4.16 KiB at the entry, 881.98 KiB total JavaScript, and 199.59 KiB for the largest
+asynchronous chunk after the Supplier golden. It passes the existing 900/250 KiB
+budget with 18.02 KiB of total headroom without weakening the gate.
 
 Option management replaces the legacy generic controller and client-generated
 item identity with an explicit bounded contract. Lists use a summary projection,
@@ -97,6 +100,24 @@ and `color` metadata are displayed as inert text rather than executable UI input
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`; runtime and build packages are
 resolved and pinned independently for this repository.
+
+Generated V6 artifacts are owned by `mss module generate`, so Biome does not rewrite or
+reorder them after generation. They remain covered by Biome lint, strict TypeScript,
+Vitest, production build, and deterministic drift checks. Regenerate and verify Supplier
+from the repository root with:
+
+```shell
+go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --write
+go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --check
+```
+
+The initial generator profile is deliberately narrower than the full AdminModule schema:
+it qualifies timestamped, uuid/string-ID full CRUD+export modules with non-null
+string/text/uuid/enum/bool fields. Numeric, file, relation, immutable-editor, batch,
+import, and workflow semantics fail specification validation until their V6 controls and
+contracts are implemented. Required create fields must be visible in the editor, and an
+E2E-enabled module must expose deterministic visible marker/update fields; the generator
+never substitutes a generic text input or emits an unrepeatable browser flow silently.
 
 ```shell
 corepack pnpm@10.34.5 install --frozen-lockfile

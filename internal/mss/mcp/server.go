@@ -336,6 +336,10 @@ func (s *Server) generateModule(arguments map[string]any) (any, error) {
 	if write && check {
 		return nil, errors.New("write and check cannot both be true")
 	}
+	frontendTarget, err := optionalString(arguments, "frontendTarget")
+	if err != nil {
+		return nil, err
+	}
 	absolute, relative, err := s.resolveExistingFile(path)
 	if err != nil {
 		return nil, err
@@ -345,7 +349,12 @@ func (s *Server) generateModule(arguments map[string]any) (any, error) {
 		return nil, err
 	}
 	module.SourcePath = relative
-	return generator.Generate(module, generator.Options{Root: s.Root, Write: write, Check: check})
+	return generator.Generate(module, generator.Options{
+		Root:           s.Root,
+		Write:          write,
+		Check:          check,
+		FrontendTarget: frontendTarget,
+	})
 }
 
 func (s *Server) validationPlan(arguments map[string]any) (any, error) {
@@ -472,9 +481,10 @@ func tools() []Tool {
 			Title:       "Plan or apply deterministic module generation",
 			Description: "Generate a deterministic module plan. Defaults to dry-run; set write=true only after reviewing the plan. check=true verifies drift without writes.",
 			InputSchema: objectSchema(map[string]any{
-				"path":  map[string]any{"type": "string", "description": "Repository-relative AdminModule YAML path."},
-				"write": map[string]any{"type": "boolean", "default": false},
-				"check": map[string]any{"type": "boolean", "default": false},
+				"path":           map[string]any{"type": "string", "description": "Repository-relative AdminModule YAML path."},
+				"write":          map[string]any{"type": "boolean", "default": false},
+				"check":          map[string]any{"type": "boolean", "default": false},
+				"frontendTarget": map[string]any{"type": "string", "enum": []string{"antd-v5", "antd-v6"}, "default": "antd-v5"},
 			}, []string{"path"}),
 			Annotations: writeIdempotent,
 		},

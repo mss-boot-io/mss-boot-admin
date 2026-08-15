@@ -12,6 +12,10 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 
 ### Changed
 
+- Added an explicit, versioned `antd-v6` module-generation target while preserving
+  `antd-v5` as the compatibility default. The Supplier golden now produces isolated
+  V6 routes, locale catalogs, strict response contracts, React Query CRUD, and an
+  HttpOnly/CSRF-aware Playwright flow; CI checks both target projections for drift.
 - Enabled the protected v1.1.0 publication path after the scoped readiness runner, exact-run
   attestation, required-reviewer `release` environment, and immutable release-tag rulesets were
   installed and verified. Publication still requires exact-SHA pre-framework and pre-root authority.

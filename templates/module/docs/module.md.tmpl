@@ -25,6 +25,7 @@ This document is generated deterministically from [`{{ .SourceSpec }}`](../../..
 | Authorization migration | `{{ .AuthorizationMigrationID }}` |
 | API base | `{{ .FullAPIPath }}` |
 | Frontend route | `{{ .Menu.Path }}` |
+| Frontend targets | {{ if .HasFrontendV5 }}`antd-v5`{{ end }}{{ if and .HasFrontendV5 .HasFrontendV6 }}, {{ end }}{{ if .HasFrontendV6 }}`antd-v6`{{ end }} |
 | Ownership | role-only; no row ownership fallback |
 
 Both migrations are additive and must be applied by the Admin migration command before production routes are mounted. Authorization remains enforced by the Admin database-backed Casbin policy; frontend visibility is only a user-experience aid.
@@ -47,25 +48,18 @@ Both migrations are additive and must be applied by the Admin migration command 
 
 ## Generated UI and browser acceptance
 
-The generated page includes the declared loading, empty, error, forbidden, validation, conflict, and destructive-confirmation states. The generated Playwright entry is `web/antd/e2e/generated/{{ .ModuleName }}.spec.ts`.
+Each selected frontend target receives an isolated generated page with the declared loading, empty, error, forbidden, validation, conflict, and destructive-confirmation states. Browser entries are target-specific:
 
-Its single repeatable flow covers the declared surfaces:
+{{ if .HasFrontendV5 }}- Ant Design 5: `web/antd/e2e/generated/{{ .ModuleName }}.spec.ts`;{{ end }}
+{{ if .HasFrontendV6 }}- Ant Design 6: `web/antd-v6/e2e/generated/{{ .ModuleName }}.spec.ts`.{{ end }}
 
-{{- if and .HasCreate .UIForm }}
-- create through the generated form;
-{{- end }}
-{{- if and .HasGet .UIDetail }}
-- open and verify the detail drawer;
-{{- end }}
-{{- if and .HasUpdate .UIForm .HasE2EUpdateField }}
-- edit one mutable field and observe the persisted row;
-{{- end }}
-{{- if and .HasExport .UIExport }}
-- export and verify the downloaded filename;
-{{- end }}
-{{- if .HasDelete }}
-- confirm deletion and verify the row disappears.
-{{- end }}
+Each generated flow covers the declared surfaces:
+
+{{ if and .HasCreate .UIForm }}- create through the generated form;{{ end }}
+{{ if and .HasGet .UIDetail }}- open and verify the detail drawer;{{ end }}
+{{ if and .HasUpdate .UIForm .HasE2EUpdateField }}- edit one mutable field and observe the persisted row;{{ end }}
+{{ if and .HasExport .UIExport }}- export and verify the downloaded filename;{{ end }}
+{{ if .HasDelete }}- confirm deletion and verify the row disappears.{{ end }}
 
 The checked-in test is an executable contract, not proof that a browser run occurred. Record the actual Playwright or in-app-browser result separately with its server state and commit identity.
 
@@ -75,10 +69,21 @@ From the repository root:
 
 ```shell
 go run ./cmd/mss spec validate {{ .SourceSpec }} --format json
-go run ./cmd/mss module generate {{ .SourceSpec }} --write
-go run ./cmd/mss module generate {{ .SourceSpec }} --check
+{{- if .HasFrontendV5 }}
+go run ./cmd/mss module generate {{ .SourceSpec }} --frontend-target antd-v5 --write
+go run ./cmd/mss module generate {{ .SourceSpec }} --frontend-target antd-v5 --check
+{{- end }}
+{{- if .HasFrontendV6 }}
+go run ./cmd/mss module generate {{ .SourceSpec }} --frontend-target antd-v6 --write
+go run ./cmd/mss module generate {{ .SourceSpec }} --frontend-target antd-v6 --check
+{{- end }}
 cd admin && GOWORK=off go test ./modules/{{ .ModuleName }}/...
+{{- if .HasFrontendV5 }}
 cd web/antd && pnpm exec playwright test e2e/generated/{{ .ModuleName }}.spec.ts --project=chromium
+{{- end }}
+{{- if .HasFrontendV6 }}
+cd web/antd-v6 && pnpm exec playwright test e2e/generated/{{ .ModuleName }}.spec.ts --project=chromium-desktop
+{{- end }}
 ```
 
-`MSS_E2E_API_URL`, `MSS_E2E_USERNAME`, and `MSS_E2E_PASSWORD` may be set for a local non-production Admin instance. Browser execution requires both Admin and the frontend development server to be ready.
+`MSS_E2E_API_URL`, `MSS_E2E_USERNAME`, and `MSS_E2E_PASSWORD` may be set for a local non-production Admin instance. V6 additionally accepts `MSS_V6_BASE_URL`. Browser execution requires both Admin and the selected frontend development server to be ready.

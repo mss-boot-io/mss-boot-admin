@@ -264,7 +264,14 @@ spec:
 
     module-generate:
       command: go run ./cmd/mss module generate
-      description: Generate or synchronize a vertical admin module from its specification.
+      description: Generate or synchronize a vertical admin module; the compatibility default is the antd-v5 frontend target.
+      category: generation
+      dryRunByDefault: true
+      idempotent: true
+
+    module-generate-v6:
+      command: go run ./cmd/mss module generate --frontend-target antd-v6
+      description: Generate or drift-check the isolated Ant Design 6 projection declared by an AdminModule specification.
       category: generation
       dryRunByDefault: true
       idempotent: true

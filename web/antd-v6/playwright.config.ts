@@ -7,6 +7,7 @@ export default defineConfig({
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: process.env.MSS_V6_BASE_URL ?? 'http://127.0.0.1:8001',
+    locale: 'en-US',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

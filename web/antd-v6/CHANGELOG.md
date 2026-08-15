@@ -56,6 +56,10 @@ recorded here. This changelog does not describe releases of `web/antd`.
   strong `If-Match` conflicts, built-in identity protection, usage-aware deletion, and
   separate read/create/update/delete permissions. Render opaque metadata as inert text
   through native Table/Form and Ant Design 6.6 Listy components.
+- Add Supplier as the first deterministic dual-frontend golden. The V6 target emits only
+  `web/antd-v6` route, locale, strict contract, typed transport, React Query, responsive
+  CRUD, Vitest, and HttpOnly/CSRF-aware Playwright artifacts while the legacy target and
+  release remain independently drift-checked.
 - Reserve the independent `web/antd-v6/v{version}` tag and
   `mss-boot-admin-antd-v6` image namespaces.
 

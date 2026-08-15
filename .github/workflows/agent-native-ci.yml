@@ -220,15 +220,29 @@ jobs:
             cd "${worktree}"
             go run ./cmd/mss module generate \
               .mss/modules/example-supplier.yaml \
+              --frontend-target antd-v5 \
               --write \
               --format json \
-              > "${RUNNER_TEMP}/mss-generation-write.json"
+              > "${RUNNER_TEMP}/mss-generation-v5-write.json"
+            go run ./cmd/mss module generate \
+              .mss/modules/example-supplier.yaml \
+              --frontend-target antd-v6 \
+              --write \
+              --format json \
+              > "${RUNNER_TEMP}/mss-generation-v6-write.json"
             go test ./admin/modules/supplier/...
             go run ./cmd/mss module generate \
               .mss/modules/example-supplier.yaml \
+              --frontend-target antd-v5 \
               --check \
               --format json \
-              > "${RUNNER_TEMP}/mss-generation-check.json"
+              > "${RUNNER_TEMP}/mss-generation-v5-check.json"
+            go run ./cmd/mss module generate \
+              .mss/modules/example-supplier.yaml \
+              --frontend-target antd-v6 \
+              --check \
+              --format json \
+              > "${RUNNER_TEMP}/mss-generation-v6-check.json"
           )
 
       - name: Plan changed-file verification
@@ -254,8 +268,10 @@ jobs:
             ${{ runner.temp }}/mss-module-spec.json
             ${{ runner.temp }}/mss-feature-spec.json
             ${{ runner.temp }}/mss-feature-plan.json
-            ${{ runner.temp }}/mss-generation-write.json
-            ${{ runner.temp }}/mss-generation-check.json
+            ${{ runner.temp }}/mss-generation-v5-write.json
+            ${{ runner.temp }}/mss-generation-v5-check.json
+            ${{ runner.temp }}/mss-generation-v6-write.json
+            ${{ runner.temp }}/mss-generation-v6-check.json
             ${{ runner.temp }}/mss-verification-plan.json
             .mss/reports/verify.json
             .mss/reports/verify.md

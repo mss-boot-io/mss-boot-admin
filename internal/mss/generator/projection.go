@@ -230,6 +230,7 @@ func buildProjectionReport(module *spec.Module) ([]Projection, error) {
 	}
 	if module.Spec.Generation.Frontend != nil && *module.Spec.Generation.Frontend {
 		add("spec.generation.frontend", ProjectionImplemented, "typed client, permission contracts, React page, route registry, locale registries, and focused tests are generated", "frontend", "frontend-locales", "frontend-route", "frontend-tests")
+		add("spec.generation.frontendTargets", ProjectionImplemented, "each declared frontend profile is generated only when that target is selected", "frontend")
 	}
 	if module.Spec.Generation.Docs != nil && *module.Spec.Generation.Docs {
 		add("spec.generation.docs", ProjectionImplemented, "source-linked module contracts, migrations, permissions, generated outputs, and executable validation commands are emitted as deterministic documentation", "docs")

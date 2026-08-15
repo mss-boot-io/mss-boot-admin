@@ -1,3 +1,4 @@
+import generatedRegistrations from '@/generated/routes';
 import { canAccessRoute } from '@/shared/auth/access';
 import type { AuthorizedMenuItem, CurrentUser } from '@/shared/auth/types';
 
@@ -40,6 +41,7 @@ const registrations: readonly RouteRegistration[] = [
     menuName: 'online-sessions',
     rootOnly: true,
   },
+  ...generatedRegistrations,
 ];
 
 export const routeRegistry = new Map(registrations.map((entry) => [entry.path, entry]));

@@ -143,6 +143,7 @@ func newModuleGenerateCommand(rootOverride *string) *cobra.Command {
 	var format string
 	var write bool
 	var check bool
+	var frontendTarget string
 	command := &cobra.Command{
 		Use:   "generate <module-spec.yaml>",
 		Short: "Render a deterministic vertical module from an AdminModule specification",
@@ -164,9 +165,10 @@ func newModuleGenerateCommand(rootOverride *string) *cobra.Command {
 				module.SourcePath = filepath.ToSlash(relative)
 			}
 			plan, err := generator.Generate(module, generator.Options{
-				Root:  ctx.Root,
-				Write: write,
-				Check: check,
+				Root:           ctx.Root,
+				Write:          write,
+				Check:          check,
+				FrontendTarget: frontendTarget,
 			})
 			if outputErr := writeGeneration(cmd.OutOrStdout(), plan, format); outputErr != nil {
 				return outputErr
@@ -177,6 +179,7 @@ func newModuleGenerateCommand(rootOverride *string) *cobra.Command {
 	command.Flags().StringVar(&format, "format", "text", "output format: text or json")
 	command.Flags().BoolVar(&write, "write", false, "write generated files; default is dry-run")
 	command.Flags().BoolVar(&check, "check", false, "fail when generated output is missing or stale")
+	command.Flags().StringVar(&frontendTarget, "frontend-target", spec.FrontendTargetAntDV5, "generated frontend target: antd-v5 or antd-v6")
 	return command
 }
 

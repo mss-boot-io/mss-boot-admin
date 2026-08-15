@@ -1,4 +1,7 @@
+import generated from '@/generated/locales/zh-CN';
+
 export default {
+  ...generated,
   'menu.login': '登录',
   'menu.workplace': '工作台',
   'menu.migration': '迁移状态',
