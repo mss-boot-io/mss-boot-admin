@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const manifest = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
 const lockfile = await readFile(join(projectRoot, 'pnpm-lock.yaml'), 'utf8');
+const runtimeApp = await readFile(join(projectRoot, 'src/app.tsx'), 'utf8');
 
 const expected = {
   '@ant-design/icons': '6.3.2',
@@ -22,6 +23,23 @@ const expected = {
 const failures = [];
 const declared = { ...manifest.dependencies, ...manifest.devDependencies };
 const exactVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
+for (const scriptName of ['dev', 'start', 'start:dev']) {
+  const command = manifest.scripts?.[scriptName] ?? '';
+  if (!command.includes('cross-env PORT=8001 ') || !command.includes(' max dev')) {
+    failures.push(`${scriptName} must bind the independent V6 dev server through PORT=8001`);
+  }
+  if (command.includes('--port')) {
+    failures.push(`${scriptName} must not pass the unsupported --port option to max dev`);
+  }
+}
+
+if (!/export function innerProvider\s*\(/.test(runtimeApp)) {
+  failures.push('src/app.tsx must mount runtime bridges through Umi innerProvider');
+}
+if (/export function rootContainer\s*\(/.test(runtimeApp)) {
+  failures.push('src/app.tsx must not mount model-consuming bridges through rootContainer');
+}
 
 const listTypeScript = async (directory) => {
   const entries = await readdir(directory, { withFileTypes: true });

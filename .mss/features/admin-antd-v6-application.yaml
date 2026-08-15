@@ -396,7 +396,7 @@ spec:
         - type: command
           value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
         - type: command
-          value: cd web/antd-v6 && pnpm test:e2e e2e/generated/supplier.spec.ts --project=chromium-desktop
+          value: cd web/antd-v6 && pnpm test:e2e e2e/generated/supplier.spec.ts
   risks:
     - id: pro-beta-churn
       description: ProComponents v3 beta can introduce breaking behavior or type changes before its stable release.

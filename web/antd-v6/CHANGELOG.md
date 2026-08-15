@@ -60,6 +60,12 @@ recorded here. This changelog does not describe releases of `web/antd`.
   `web/antd-v6` route, locale, strict contract, typed transport, React Query, responsive
   CRUD, Vitest, and HttpOnly/CSRF-aware Playwright artifacts while the legacy target and
   release remain independently drift-checked.
+- Bind Max 4.7 development through its supported `PORT=8001` environment contract so
+  V6 does not fall back to the legacy port or confuse Playwright with Utoopack's helper endpoint.
+- Mount model-consuming runtime bridges inside Umi's dataflow provider, namespace generated
+  forms, expose stable localized action names, disable virtualization for bounded enum choices,
+  and make generated browser fixtures safe for concurrent and repeated soft-delete runs. The
+  Supplier HttpOnly/CSRF CRUD flow now passes Chromium desktop and mobile together.
 - Reserve the independent `web/antd-v6/v{version}` tag and
   `mss-boot-admin-antd-v6` image namespaces.
 

@@ -641,6 +641,9 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 			"PageContainer",
 			"destroyOnHidden",
 			"App.useApp()",
+			"name=\"supplier-filters\"",
+			"name=\"supplier-editor\"",
+			"aria-label={intl.formatMessage",
 		},
 		"web/antd-v6/src/generated/modules/supplier/contract.ts": {
 			"parseSupplierPage",
@@ -650,6 +653,9 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 			"mss_admin_session",
 			"X-CSRF-Token",
 			"not.toHaveProperty('token')",
+			"randomUUID",
+			"uniqueFixture",
+			"toPass({ timeout: 15_000 })",
 		},
 	} {
 		content, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))

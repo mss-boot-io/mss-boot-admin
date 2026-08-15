@@ -262,14 +262,26 @@ export default function {{ .ModelName }}Page() {
         <Space size="small" wrap>
 {{- if .HasGet }}
           {capabilities.canRead ? (
-            <Button icon={<EyeOutlined />} size="small" type="link" onClick={() => setDetailID(record.id)}>
+            <Button
+              aria-label={intl.formatMessage({ id: `${localePrefix}.actions.detail` })}
+              icon={<EyeOutlined />}
+              size="small"
+              type="link"
+              onClick={() => setDetailID(record.id)}
+            >
               {intl.formatMessage({ id: `${localePrefix}.actions.detail` })}
             </Button>
           ) : null}
 {{- end }}
 {{- if .HasUpdate }}
           {capabilities.canUpdate ? (
-            <Button icon={<EditOutlined />} size="small" type="link" onClick={() => openEdit(record)}>
+            <Button
+              aria-label={intl.formatMessage({ id: `${localePrefix}.actions.edit` })}
+              icon={<EditOutlined />}
+              size="small"
+              type="link"
+              onClick={() => openEdit(record)}
+            >
               {intl.formatMessage({ id: `${localePrefix}.actions.edit` })}
             </Button>
           ) : null}
@@ -280,7 +292,14 @@ export default function {{ .ModelName }}Page() {
               title={intl.formatMessage({ id: `${localePrefix}.actions.confirmDelete` })}
               onConfirm={() => remove.mutate(record)}
             >
-              <Button danger icon={<DeleteOutlined />} loading={remove.isPending} size="small" type="link">
+              <Button
+                aria-label={intl.formatMessage({ id: `${localePrefix}.actions.delete` })}
+                danger
+                icon={<DeleteOutlined />}
+                loading={remove.isPending}
+                size="small"
+                type="link"
+              >
                 {intl.formatMessage({ id: `${localePrefix}.actions.delete` })}
               </Button>
             </Popconfirm>
@@ -312,7 +331,12 @@ export default function {{ .ModelName }}Page() {
         {list.isError && list.data ? (
           <Alert
             action={
-              <Button icon={<ReloadOutlined />} size="small" onClick={() => void list.refetch()}>
+              <Button
+                aria-label={intl.formatMessage({ id: `${localePrefix}.actions.retry` })}
+                icon={<ReloadOutlined />}
+                size="small"
+                onClick={() => void list.refetch()}
+              >
                 {intl.formatMessage({ id: `${localePrefix}.actions.retry` })}
               </Button>
             }
@@ -349,6 +373,7 @@ export default function {{ .ModelName }}Page() {
           form={filterForm}
           initialValues={initialFilters}
           layout="vertical"
+          name="{{ .ModuleName }}-filters"
           onFinish={(values) => {
             setFilters(values);
             setParams(build{{ .ModelName }}Query(1, params.pageSize, values));
@@ -371,6 +396,7 @@ export default function {{ .ModelName }}Page() {
                     { value: 'all', label: intl.formatMessage({ id: `${localePrefix}.values.all` }) },
                     ...{{ .JSONName }}Options,
                   ]}
+                  virtual={false}
                 />
 {{- else if .IsBool }}
                 <Select
@@ -379,6 +405,7 @@ export default function {{ .ModelName }}Page() {
                     { value: 'true', label: intl.formatMessage({ id: `${localePrefix}.values.enabled` }) },
                     { value: 'false', label: intl.formatMessage({ id: `${localePrefix}.values.disabled` }) },
                   ]}
+                  virtual={false}
                 />
 {{- else }}
                 <Input allowClear autoComplete="off" />
@@ -389,7 +416,12 @@ export default function {{ .ModelName }}Page() {
             <Col flex="none">
               <Form.Item>
                 <Space>
-                  <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
+                  <Button
+                    aria-label={intl.formatMessage({ id: `${localePrefix}.actions.search` })}
+                    htmlType="submit"
+                    icon={<SearchOutlined />}
+                    type="primary"
+                  >
                     {intl.formatMessage({ id: `${localePrefix}.actions.search` })}
                   </Button>
                   <Button
@@ -417,6 +449,7 @@ export default function {{ .ModelName }}Page() {
 {{- if .HasExport }}
               {capabilities.canExport ? (
                 <Button
+                  aria-label={intl.formatMessage({ id: `${localePrefix}.actions.export` })}
                   icon={<DownloadOutlined />}
                   loading={exportRecords.isPending}
                   onClick={() => exportRecords.mutate()}
@@ -427,7 +460,12 @@ export default function {{ .ModelName }}Page() {
 {{- end }}
 {{- if .HasCreate }}
               {capabilities.canCreate ? (
-                <Button icon={<PlusOutlined />} type="primary" onClick={openCreate}>
+                <Button
+                  aria-label={intl.formatMessage({ id: `${localePrefix}.actions.create` })}
+                  icon={<PlusOutlined />}
+                  type="primary"
+                  onClick={openCreate}
+                >
                   {intl.formatMessage({ id: `${localePrefix}.actions.create` })}
                 </Button>
               ) : null}
@@ -477,6 +515,7 @@ export default function {{ .ModelName }}Page() {
         <Form<Create{{ .ModelName }}Input>
           form={editorForm}
           layout="vertical"
+          name="{{ .ModuleName }}-editor"
           preserve={false}
           onFinish={(values) => save.mutate(values)}
         >
@@ -538,7 +577,7 @@ export default function {{ .ModelName }}Page() {
             ]}
           >
 {{- if .IsEnum }}
-            <Select options={ {{ .JSONName }}Options } />
+            <Select options={ {{ .JSONName }}Options } virtual={false} />
 {{- else if .IsBool }}
             <Switch />
 {{- else if or (eq .UIComponent "textarea") (eq .SpecType "text") }}

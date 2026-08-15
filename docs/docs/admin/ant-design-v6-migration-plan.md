@@ -241,7 +241,8 @@ P5 中尚未实施的关键后端前置问题包括：部门/岗位需要先明�
 - Supplier 的同一受版本控制规格同时声明 V5/V6，V6 覆盖编译期 route registry、双语 catalog、运行时契约校验、typed transport、React Query、响应式页面和 HttpOnly/CSRF Playwright 流程。
 - 首版 V6 profile 的资格边界是带时间戳和 uuid/string ID 的完整 CRUD+export，以及非 nullable 的 string/text/uuid/enum/bool 字段。必填 create 字段必须具有可见编辑控件；启用 E2E 时还必须提供可重复清理和更新验证的唯一、可搜索、列表/表单可见文本字段。数值、文件、关系、create-only immutable 编辑、batch、import、workflow 等尚未实现的语义在规格校验阶段 fail-closed，不能用普通输入框近似。
 - 生成目录由生成器而非 Biome formatter/organize-imports 拥有；Biome lint、严格 TypeScript、Vitest、双目标 drift 和生产构建仍覆盖这些产物，任意手工格式化导致的漂移都会失败。
-- Supplier 加入后的 release build entry 为 4.16 KiB、总 JS 为 881.98 KiB、最大异步分包为 199.59 KiB，继续通过 900/250 KiB 门禁，但总量仅余 18.02 KiB；下一业务切片必须先给出依赖复用和预算证据。
+- 生成的筛选/编辑表单使用独立 DOM 命名空间，有限枚举关闭虚拟化以保留真实 option 语义，操作按钮具有稳定的本地化可访问名称；E2E 唯一字段在长度和正则契约内生成 worker 隔离值，可并发执行且不受软删除唯一索引污染。Supplier 已在 Playwright 自启 V6 的模式下并发通过 Chromium 桌面和移动完整 CRUD、详情、导出及删除流程。
+- Supplier 加入后的 release build entry 为 4.16 KiB、总 JS 为 882.04 KiB、最大异步分包为 199.59 KiB，继续通过 900/250 KiB 门禁，但总量仅余 17.96 KiB；下一业务切片必须先给出依赖复用和预算证据。
 
 完成门：生成两次零差异、V5/V6 drift check、生产构建和 Supplier 桌面/移动浏览器验收通过。
 

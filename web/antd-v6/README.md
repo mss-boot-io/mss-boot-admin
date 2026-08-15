@@ -18,8 +18,10 @@ and Option management with optimistic revisions and constrained runtime behavior
 Supplier is the first dual-target golden module: one specification now emits an isolated
 V6 typed contract, React Query data layer, responsive CRUD page, compiled route, locale
 catalog, contract tests, and HttpOnly/CSRF-aware Playwright flow without writing into V5.
-Retained business modules and required
-browser evidence remain release blockers and are fail-closed by the qualification contract.
+Its generated create/detail/edit/export/delete flow now passes concurrent Chromium desktop
+and mobile execution against the real Go browser-session backend. Retained business modules
+and the remaining cross-module permission, locale, and delivery evidence remain release
+blockers and are fail-closed by the qualification contract.
 
 The runtime has one application-owned React Query client. Current identity and
 the authorized menu are loaded through it, but only the verified identity and
@@ -84,9 +86,9 @@ complete shipped `zh-CN` and `en-US` catalogs can be overlaid. Adding another st
 language does not silently advertise an incomplete application locale.
 After replacing icon-barrel imports with public icon subpaths and aligning Umi's
 polyfills with the supported browser contract, the resulting release build is
-4.16 KiB at the entry, 881.98 KiB total JavaScript, and 199.59 KiB for the largest
+4.16 KiB at the entry, 882.04 KiB total JavaScript, and 199.59 KiB for the largest
 asynchronous chunk after the Supplier golden. It passes the existing 900/250 KiB
-budget with 18.02 KiB of total headroom without weakening the gate.
+budget with 17.96 KiB of total headroom without weakening the gate.
 
 Option management replaces the legacy generic controller and client-generated
 item identity with an explicit bounded contract. Lists use a summary projection,
@@ -100,6 +102,10 @@ and `color` metadata are displayed as inert text rather than executable UI input
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`; runtime and build packages are
 resolved and pinned independently for this repository.
+
+The development application owns port 8001. Max 4.7 accepts the development port
+through `PORT=8001` rather than a `--port` option; the dependency contract checks this
+explicitly so the V6 server cannot silently fall back to the V5 port 8000.
 
 Generated V6 artifacts are owned by `mss module generate`, so Biome does not rewrite or
 reorder them after generation. They remain covered by Biome lint, strict TypeScript,
@@ -118,6 +124,9 @@ import, and workflow semantics fail specification validation until their V6 cont
 contracts are implemented. Required create fields must be visible in the editor, and an
 E2E-enabled module must expose deterministic visible marker/update fields; the generator
 never substitutes a generic text input or emits an unrepeatable browser flow silently.
+Generated browser fixtures derive per-worker unique values within the field's length and
+pattern contract, and generated filter/editor forms use separate DOM namespaces so labels
+remain correctly associated on desktop and mobile.
 
 ```shell
 corepack pnpm@10.34.5 install --frozen-lockfile

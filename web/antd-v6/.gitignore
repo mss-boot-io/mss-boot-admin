@@ -2,6 +2,7 @@
 /.umi-production
 /.umi-test
 /.umi-test-production
+/.turbopack
 /src/.umi
 /src/.umi-production
 /src/.umi-test

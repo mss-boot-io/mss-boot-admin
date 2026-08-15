@@ -381,6 +381,10 @@ function RuntimeProviders({ children }: { children: ReactNode }) {
   );
 }
 
-export function rootContainer(container: ReactNode) {
+// Umi applies innerProvider before wrapping the application in its dataflow
+// provider. The resulting RuntimeProviders subtree is therefore inside the
+// @@initialState model context when it renders. Do not move model-consuming
+// bridges to rootContainer, which is intentionally the outermost runtime hook.
+export function innerProvider(container: ReactNode) {
   return <RuntimeProviders>{container}</RuntimeProviders>;
 }
