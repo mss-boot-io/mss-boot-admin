@@ -39,6 +39,12 @@ func newDepartmentController() *Department {
 			// Keep mutations root-only until subtree delegation is explicit.
 			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement}),
 			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement}),
+			controller.WithBeforeCreate(prepareDepartmentCreate),
+			controller.WithBeforeUpdate(prepareDepartmentUpdate),
+			controller.WithBeforeDelete(validateDepartmentDelete),
+			controller.WithWriteErrorMapper(
+				authorityHierarchyWriteErrorMapper("DEPARTMENT", "department"),
+			),
 		),
 	}
 }
