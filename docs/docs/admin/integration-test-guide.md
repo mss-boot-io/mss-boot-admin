@@ -21,7 +21,7 @@ keywords: [admin integration test e2e playwright]
 
 ### 开发环境
 
-- Go 1.26.5
+- Go 1.26.6
 - Node.js >= 22 且 < 25
 - 通过 Corepack 使用 pnpm 9.15.9
 - SQLite（默认本地数据库；MySQL/PostgreSQL 为可选集成目标）
@@ -366,7 +366,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26.5'
+          go-version: '1.26.6'
       - name: Run backend tests
         run: |
           cd admin
@@ -386,7 +386,7 @@ jobs:
           node-version: '24'
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26.5'
+          go-version: '1.26.6'
       - name: Install dependencies
         run: |
           corepack enable

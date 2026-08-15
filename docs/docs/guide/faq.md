@@ -11,7 +11,7 @@ keywords: [faq, troubleshooting, help, support]
 
 ## Q: Go 版本要求是什么？
 
-**A:** 当前仓库要求 Go 1.26.5。版本和目录约定以仓库根目录的
+**A:** 当前仓库要求 Go 1.26.6。版本和目录约定以仓库根目录的
 `.mss/project.yaml` 为准。
 
 检查当前版本：

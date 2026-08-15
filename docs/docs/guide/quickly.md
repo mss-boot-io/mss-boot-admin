@@ -11,7 +11,7 @@ keywords: [quickstart, installation, setup]
 
 ## 必要环境
 
-### 1. 安装 Go 1.26.5
+### 1. 安装 Go 1.26.6
 
 访问 [Go 官网](https://go.dev/dl/) 下载并安装。
 
@@ -19,7 +19,7 @@ keywords: [quickstart, installation, setup]
 
 ```bash
 go version
-# 输出应包含: go1.26.5
+# 输出应包含: go1.26.6
 ```
 
 ### 2. 准备数据库（默认 SQLite）
