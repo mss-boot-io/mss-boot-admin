@@ -49,6 +49,11 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodGet, Path: "/admin/api/departments", Class: RouteAuthorized, Permission: "department:read"},
 	{Method: http.MethodGet, Path: "/admin/api/posts", Class: RouteAuthorized, Permission: "post:read"},
 
+	// Bounded operational summaries. System configuration remains root-only
+	// because its full-resource routes can contain opaque credentials.
+	{Method: http.MethodGet, Path: "/admin/api/tasks", Class: RouteAuthorized, Permission: "task:read"},
+	{Method: http.MethodGet, Path: "/admin/api/system-configs", Class: RouteAuthorized, Permission: "config:read", RootOnly: true},
+
 	// Public authentication and locale discovery.
 	{Method: http.MethodGet, Path: "/admin/api/language/profile", Class: RoutePublic},
 	{Method: http.MethodGet, Path: "/admin/api/languages/public", Class: RoutePublic},
