@@ -59,6 +59,12 @@ const routes = [
     hideInMenu: true,
     routes: [
       {
+        path: '/account/center',
+        name: 'account-center',
+        component: './Account/Center',
+        access: 'canAccessRoute',
+      },
+      {
         path: '/account/settings',
         name: 'account-settings',
         component: './Account/Settings',

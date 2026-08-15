@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CODE_THEME_DEFAULTS,
   compareThemeRevisions,
+  isOAuthProviderEnabled,
   normalizeThemeOverrides,
   parseApplicationProfile,
   parseThemeScopeResource,
@@ -67,5 +68,14 @@ describe('v6 layered theme contract', () => {
     });
     expect(profile.theme.overrides).toEqual({ navTheme: 'realDark' });
     expect(profile).not.toHaveProperty('private');
+  });
+
+  it('enables OAuth providers only from an explicit public application flag', () => {
+    const profile = parseApplicationProfile({
+      security: { githubEnabled: true, larkEnabled: 'false', unknownEnabled: true },
+    });
+    expect(isOAuthProviderEnabled(profile, 'github')).toBe(true);
+    expect(isOAuthProviderEnabled(profile, 'lark')).toBe(false);
+    expect(isOAuthProviderEnabled(undefined, 'github')).toBe(false);
   });
 });

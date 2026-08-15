@@ -1,4 +1,5 @@
 import type { ProLayoutProps } from '@ant-design/pro-components';
+import type { ApplicationProfile } from '../theme/contract';
 
 export interface CurrentUserRole {
   id?: string;
@@ -6,6 +7,11 @@ export interface CurrentUserRole {
   root: boolean;
   default?: boolean;
   status?: string;
+}
+
+export interface CurrentUserOrganization {
+  id?: string;
+  name?: string;
 }
 
 export interface CurrentUser {
@@ -25,8 +31,11 @@ export interface CurrentUser {
   city?: string;
   address?: string;
   profile?: string;
+  tags?: readonly string[];
   departmentID?: string;
+  department?: CurrentUserOrganization;
   postID?: string;
+  post?: CurrentUserOrganization;
   permissions: Readonly<Record<string, boolean>>;
 }
 
@@ -39,6 +48,8 @@ export interface StartupFailure {
 
 export interface InitialState {
   currentUser?: CurrentUser;
+  /** Sanitized public application profile; secrets are removed server-side. */
+  applicationProfile?: ApplicationProfile;
   settings: Partial<ProLayoutProps>;
   authorizedMenu: AuthorizedMenuItem[];
   fetchCurrentUser: () => Promise<CurrentUser | undefined>;

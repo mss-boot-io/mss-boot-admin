@@ -46,6 +46,8 @@ export interface ApplicationProfile {
   theme: ThemeScopeResource;
 }
 
+export type PublicOAuthProvider = 'github' | 'lark';
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -155,6 +157,13 @@ export function parseApplicationProfile(value: unknown): ApplicationProfile {
     security: isRecord(value.security) ? { ...value.security } : {},
     theme: parseThemeScopeResource(value.theme, 'application'),
   };
+}
+
+export function isOAuthProviderEnabled(
+  profile: ApplicationProfile | undefined,
+  provider: PublicOAuthProvider,
+): boolean {
+  return normalizeBoolean(profile?.security[`${provider}Enabled`]) === true;
 }
 
 export function hasThemeOverride(overrides: ThemeOverrides, key: ThemeSettingKey): boolean {

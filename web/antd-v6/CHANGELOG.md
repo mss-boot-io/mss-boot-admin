@@ -17,6 +17,14 @@ recorded here. This changelog does not describe releases of `web/antd`.
 - Add monotonic cross-tab theme events, verified-subject personal session binding,
   Web-Locks-protected 24-hour snapshots, and public-only first-paint hints.
 - Alias transitional Moment consumers to Day.js and reject Moment in the release bundle.
+- Add responsive account center and settings views with exact self-profile fields,
+  synchronized locale catalogs, notification preferences, and provider-gated OAuth.
+- Keep identity email read-only and make profile empty-value persistence explicit on
+  the backend instead of copying the legacy ambiguous update behavior.
+- Add PAT list/create/rotate/revoke flows whose one-time raw secret never enters the
+  shared React Query cache or browser persistence.
+- Keep unsafe legacy password reset and last-login-method OAuth disconnect actions
+  unavailable pending a recent-reauthenticated backend contract.
 - Reserve the independent `web/antd-v6/v{version}` tag and
   `mss-boot-admin-antd-v6` image namespaces.
 

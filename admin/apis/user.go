@@ -379,72 +379,79 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	if _, attemptsEmailChange := reqMap["email"]; attemptsEmailChange {
-		// Email is an authentication and recovery identity. Until the v1.1.0 D2
-		// canonical-identity wave lands, self-service mutation could create
-		// an ambiguous identity and deny login/reset to another account.
+	updates, err := normalizeSelfProfileUpdates(reqMap)
+	if err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	if len(updates) == 0 {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
 
-	user := &models.User{}
-	err := center.Default.GetDB(ctx, &models.User{}).Where("id = ?", verify.GetUserID()).First(user).Error
-	if err != nil {
-		api.AddError(err).Log.Error("GetUser error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-
-	if v, ok := reqMap["name"].(string); ok {
-		user.Name = v
-	}
-	if v, ok := reqMap["avatar"].(string); ok {
-		user.Avatar = v
-	}
-	if v, ok := reqMap["signature"].(string); ok {
-		user.Signature = v
-	}
-	if v, ok := reqMap["title"].(string); ok {
-		user.Title = v
-	}
-	if v, ok := reqMap["group"].(string); ok {
-		user.Group = v
-	}
-	if v, ok := reqMap["country"].(string); ok {
-		user.Country = v
-	}
-	if v, ok := reqMap["province"].(string); ok {
-		user.Province = v
-	}
-	if v, ok := reqMap["city"].(string); ok {
-		user.City = v
-	}
-	if v, ok := reqMap["address"].(string); ok {
-		user.Address = v
-	}
-	if v, ok := reqMap["phone"].(string); ok {
-		user.Phone = v
-	}
-	if v, ok := reqMap["profile"].(string); ok {
-		user.Profile = v
-	}
-	if v, ok := reqMap["tags"].([]any); ok {
-		tags := make([]string, 0, len(v))
-		for _, tag := range v {
-			if s, ok := tag.(string); ok {
-				tags = append(tags, s)
-			}
-		}
-		user.Tags = tags
-	}
-
-	err = center.Default.GetDB(ctx, &models.User{}).Model(&models.User{}).Where("id = ?", verify.GetUserID()).Updates(user).Error
+	err = center.Default.GetDB(ctx, &models.User{}).
+		Model(&models.User{}).
+		Where("id = ?", verify.GetUserID()).
+		Updates(updates).Error
 	if err != nil {
 		api.AddError(err).Log.Error("UpdateUserInfo error")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
 	api.OK(struct{}{})
+}
+
+var selfProfileStringFields = map[string]string{
+	"name":      "name",
+	"avatar":    "avatar",
+	"signature": "signature",
+	"title":     "title",
+	"group":     "group",
+	"country":   "country",
+	"province":  "province",
+	"city":      "city",
+	"address":   "address",
+	"phone":     "phone",
+	"profile":   "profile",
+}
+
+// normalizeSelfProfileUpdates translates the public JSON patch into an exact
+// persistence allowlist. A map update is intentional: unlike a GORM struct it
+// persists empty strings and empty tag arrays, allowing users to clear optional
+// profile values. Authentication identities and unknown fields fail closed.
+func normalizeSelfProfileUpdates(input map[string]any) (map[string]any, error) {
+	updates := make(map[string]any, len(input))
+	for field, value := range input {
+		if column, ok := selfProfileStringFields[field]; ok {
+			text, valid := value.(string)
+			if !valid {
+				return nil, errors.New("profile field must be a string")
+			}
+			updates[column] = text
+			continue
+		}
+		if field == "tags" {
+			values, valid := value.([]any)
+			if !valid {
+				return nil, errors.New("profile tags must be an array")
+			}
+			tags := make(models.ArrayString, 0, len(values))
+			for _, value := range values {
+				tag, valid := value.(string)
+				if !valid {
+					return nil, errors.New("profile tag must be a string")
+				}
+				tags = append(tags, tag)
+			}
+			updates[field] = tags
+			continue
+		}
+		// Email is an authentication and recovery identity. It requires a
+		// dedicated verified-change workflow; username and every other unknown
+		// property are likewise outside this self-service profile contract.
+		return nil, errors.New("profile field is not self-service mutable")
+	}
+	return updates, nil
 }
 
 // Login 登录

@@ -1,8 +1,8 @@
-import { LogoutOutlined, SettingOutlined } from '@ant-design/icons';
+import { LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
 import type { ProLayoutProps } from '@ant-design/pro-components';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
-import { history, Link, useIntl } from '@umijs/max';
+import { history, Link, SelectLang, useIntl } from '@umijs/max';
 import { App as AntdApp, Avatar, Dropdown, Tag, Typography } from 'antd';
 import type { ReactNode } from 'react';
 import { getRequestStatus, requestConfig } from './shared/api/client';
@@ -87,6 +87,7 @@ export async function getInitialState(): Promise<InitialState> {
       });
     }
     return {
+      applicationProfile: application.data,
       authorizedMenu: [],
       fetchCurrentUser: loadVerifiedCurrentUser,
       settings: currentLayoutSettings(application.data),
@@ -111,6 +112,7 @@ export async function getInitialState(): Promise<InitialState> {
 
   if (identity.error) {
     return {
+      applicationProfile: application.data,
       authorizedMenu: [],
       fetchCurrentUser: loadVerifiedCurrentUser,
       settings: currentLayoutSettings(application.data),
@@ -124,6 +126,7 @@ export async function getInitialState(): Promise<InitialState> {
     clearThemeIdentitySession();
     redirectToLogin();
     return {
+      applicationProfile: application.data,
       authorizedMenu: [],
       fetchCurrentUser: loadVerifiedCurrentUser,
       settings: currentLayoutSettings(application.data),
@@ -175,6 +178,7 @@ export async function getInitialState(): Promise<InitialState> {
   }
 
   return {
+    applicationProfile: application.data,
     currentUser,
     authSessionId,
     authorizedMenu: authorizedMenu.data ?? [],
@@ -212,6 +216,13 @@ function AvatarMenu({ initialState }: { initialState?: InitialState }) {
     <Dropdown
       menu={{
         items: [
+          {
+            key: 'center',
+            icon: <UserOutlined />,
+            label: (
+              <Link to="/account/center">{intl.formatMessage({ id: 'menu.account-center' })}</Link>
+            ),
+          },
           {
             key: 'settings',
             icon: <SettingOutlined />,
@@ -261,6 +272,7 @@ function AvatarMenu({ initialState }: { initialState?: InitialState }) {
 export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   ...initialState?.settings,
   actionsRender: () => [
+    <SelectLang key="language" />,
     <Tag key="antd" color="blue">
       antd {__ANTD_VERSION__}
     </Tag>,

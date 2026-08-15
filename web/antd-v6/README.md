@@ -7,9 +7,11 @@ rollback history. The legacy application remains in `web/antd`.
 This checkpoint is a buildable foundation, not a production release candidate.
 Opt-in backend cookie/CSRF, OAuth transport binding, WebSocket-ticket support,
 the typed identity/menu startup chain, and the layered Ant Design 6 theme editor
-and runtime are implemented. Non-theme account capabilities, retained business
-modules, the v6 generator target, and required browser evidence remain release
-blockers and are fail-closed by the repository qualification contract.
+and runtime are implemented. The safe account slice now includes the account
+center, allowlisted profile editing, one-time PAT handling, provider-gated OAuth
+login/connection, notifications, and synchronized language switching. Permission
+freshness, retained business modules, the v6 generator target, and required browser
+evidence remain release blockers and are fail-closed by the qualification contract.
 
 The runtime has one application-owned React Query client. Current identity and
 the authorized menu are loaded through it, but only the verified identity and
@@ -25,6 +27,13 @@ revisions. The optional 24-hour first-paint snapshot contains only the seven the
 fields and metadata; personal snapshots use a random session key additionally
 bound to the verified current-user subject. Production builds alias transitional
 Moment consumers to Day.js and fail if a Moment runtime enters the bundle.
+
+Account identity fields are intentionally not copied from the legacy form contract:
+username and email remain read-only until a verified identity-change workflow exists.
+PAT secrets live only in a one-time component-memory dialog and never enter React
+Query mutation data or browser persistence. OAuth disconnect and self-service
+password change remain unavailable until the backend can require recent re-auth and
+guarantee that an account retains another verified login method.
 
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`; runtime and build packages are

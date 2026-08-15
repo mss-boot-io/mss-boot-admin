@@ -1,4 +1,4 @@
-import type { CurrentUser, CurrentUserRole } from './types';
+import type { CurrentUser, CurrentUserOrganization, CurrentUserRole } from './types';
 
 export class IdentityContractError extends Error {
   constructor(message: string) {
@@ -24,6 +24,20 @@ function normalizeRole(value: unknown): CurrentUserRole | undefined {
     default: typeof value.default === 'boolean' ? value.default : undefined,
     status: optionalString(value.status),
   };
+}
+
+function normalizeOrganization(value: unknown): CurrentUserOrganization | undefined {
+  if (!isRecord(value)) return undefined;
+  const id = optionalString(value.id);
+  const name = optionalString(value.name);
+  return id || name ? { id, name } : undefined;
+}
+
+function normalizeTags(value: unknown): readonly string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return Object.freeze(
+    value.flatMap((tag) => (typeof tag === 'string' && tag.trim() ? [tag.trim()] : [])),
+  );
 }
 
 function normalizePermissions(value: unknown): Readonly<Record<string, boolean>> {
@@ -63,8 +77,11 @@ export function normalizeCurrentUser(value: unknown): CurrentUser {
     city: optionalString(value.city),
     address: optionalString(value.address),
     profile: optionalString(value.profile),
+    tags: normalizeTags(value.tags),
     departmentID: optionalString(value.departmentID),
+    department: normalizeOrganization(value.department),
     postID: optionalString(value.postID),
+    post: normalizeOrganization(value.post),
     permissions: normalizePermissions(value.permissions),
   };
 }

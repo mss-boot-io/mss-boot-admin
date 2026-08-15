@@ -91,6 +91,9 @@ spec:
         - UI access controls are experience only and direct API and direct-route negative cases remain backend enforced.
         - Each page distinguishes loading, confirmed empty, retryable error, permission denied, not found, and conflict states where applicable.
         - Chinese and English user-facing catalogs remain synchronized.
+        - Self-service profile updates use an exact mutable-field allowlist; username and email remain immutable until a verified identity-change workflow exists.
+        - PAT list responses are metadata-only and a newly created or rotated raw secret is displayed once without entering shared query caches, browser persistence, or URLs.
+        - Password change and OAuth disconnect remain unavailable until recent re-authentication is enforced and disconnect cannot remove the account's final verified login method.
     - id: modernize-runtime-architecture
       title: Use one owner for each frontend responsibility
       description: The v6 application separates transport, server state, client state, design tokens, and module behavior.
@@ -201,7 +204,7 @@ spec:
           value: cd web/antd-v6 && pnpm test:e2e --grep @permission
     - id: startup-contract
       requirement: preserve-business-contracts
-      statement: Identity normalization, permission-map and role-root semantics, fail-closed registered-menu intersection, scoped theme editing, canonical ETag conflicts, verified-subject snapshots, monotonic cross-tab convergence, Day.js runtime replacement, and one React Query owner pass focused tests and a production build.
+      statement: Identity normalization, permission-map and role-root semantics, fail-closed registered-menu intersection, scoped theme editing, canonical ETag conflicts, verified-subject snapshots, monotonic cross-tab convergence, safe profile and one-time PAT contracts, provider-bound OAuth, locale parity, Day.js runtime replacement, and one React Query owner pass focused tests and a production build.
       level: integration
       required: true
       evidence:
@@ -221,6 +224,14 @@ spec:
           value: web/antd-v6/src/shared/theme/snapshot.test.ts
         - type: test
           value: web/antd-v6/src/shared/theme/sync.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/account/contracts.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/account/api.test.ts
+        - type: test
+          value: web/antd-v6/src/locales/catalog.test.ts
+        - type: test
+          value: admin/apis/user_profile_update_test.go
         - type: path
           value: web/antd-v6/scripts/check-runtime-bundle.mjs
         - type: command

@@ -7,10 +7,16 @@ describe('current user contract', () => {
       id: 'user-1',
       roleID: 'role-1',
       role: { id: 'role-1', name: 'operator', root: true },
+      department: { id: 'department-1', name: 'Platform' },
+      post: { id: 'post-1', name: 'Engineer' },
+      tags: [' owner ', 42, ''],
       permissions: { '/welcome': true, '/users': false, ignored: 'true' },
     });
 
     expect(user.role?.root).toBe(true);
+    expect(user.department).toEqual({ id: 'department-1', name: 'Platform' });
+    expect(user.post).toEqual({ id: 'post-1', name: 'Engineer' });
+    expect(user.tags).toEqual(['owner']);
     expect(user.permissions).toEqual({ '/welcome': true, '/users': false });
   });
 

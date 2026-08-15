@@ -1,15 +1,14 @@
-import { history, request, useParams } from '@umijs/max';
+import { history, request, useIntl, useParams } from '@umijs/max';
 import { Result, Spin } from 'antd';
 import { useEffect, useRef, useState } from 'react';
+import { parseOAuthCallbackOutcome } from '@/modules/account/contracts';
 import { resolveSafeRedirect } from '@/shared/auth/redirect';
 import { assertNoBrowserCredential, fetchCurrentUser } from '@/shared/auth/session';
+import { queryClient, queryKeys } from '@/shared/query/client';
 import { rotateThemeAuthSession } from '@/shared/theme/snapshot';
 
-interface OAuthCallbackResponse {
-  redirect?: string;
-}
-
 export default function OAuthCallbackPage() {
+  const intl = useIntl();
   const { provider } = useParams<{ provider: string }>();
   const callbackStarted = useRef(false);
   const [error, setError] = useState(false);
@@ -28,17 +27,25 @@ export default function OAuthCallbackPage() {
       setError(true);
       return;
     }
-    request<OAuthCallbackResponse>(`/user/session/${encodeURIComponent(provider)}/callback`, {
+    request<unknown>(`/user/session/${encodeURIComponent(provider)}/callback`, {
       method: 'POST',
       data: { code, state },
       skipErrorHandler: true,
     })
       .then(async (result) => {
         assertNoBrowserCredential(result);
+        const outcome = parseOAuthCallbackOutcome(result, provider);
         const currentUser = await fetchCurrentUser();
         if (!currentUser) throw new Error('OAuth session identity was not established');
+        if (outcome.intent === 'binding') {
+          await queryClient.invalidateQueries({
+            queryKey: queryKeys.accountOAuth(currentUser.id),
+          });
+          window.location.replace('/account/settings?tab=connections&binding=success');
+          return;
+        }
         rotateThemeAuthSession(currentUser.id);
-        history.replace(resolveSafeRedirect(result.redirect));
+        window.location.replace(resolveSafeRedirect(undefined));
       })
       .catch(() => setError(true));
   }, [provider]);
@@ -47,15 +54,15 @@ export default function OAuthCallbackPage() {
     return (
       <Result
         status="error"
-        title="第三方登录失败"
-        subTitle="授权结果无效或已过期，请返回登录页重试。"
+        title={intl.formatMessage({ id: 'pages.oauth.failureTitle' })}
+        subTitle={intl.formatMessage({ id: 'pages.oauth.failureDescription' })}
       />
     );
   }
 
   return (
     <div className="grid min-h-screen place-items-center">
-      <Spin size="large" tip="正在完成安全登录…" />
+      <Spin size="large" tip={intl.formatMessage({ id: 'pages.oauth.completing' })} />
     </div>
   );
 }

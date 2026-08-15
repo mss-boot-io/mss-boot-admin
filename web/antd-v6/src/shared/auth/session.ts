@@ -87,6 +87,13 @@ export async function refreshBrowserSession(): Promise<BrowserSessionResponse> {
   return requireCredentialFreeSessionResponse(result);
 }
 
+export async function clearStaleBrowserAuthCookie(): Promise<void> {
+  await request<void>(BROWSER_SESSION_CLEAR_ENDPOINT, {
+    method: 'POST',
+    skipErrorHandler: true,
+  });
+}
+
 export async function clearServerSession(): Promise<void> {
   await request<void>(BROWSER_SESSION_LOGOUT_ENDPOINT, {
     method: 'POST',

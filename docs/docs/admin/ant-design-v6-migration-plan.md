@@ -15,7 +15,7 @@ keywords: [admin ant-design v6 react umi migration release]
 - 决策状态：已接受，按独立应用方案实施。
 - 目标目录：`web/antd-v6`。
 - 旧应用：`web/antd` 保持独立构建、发布、部署和回滚，不在本项目中原位升级或删除。
-- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交，以及分层主题的编辑、并发、首屏和跨标签闭环已实现。账户中心、PAT、OAuth 绑定、语言和其余业务等价仍在进行。生成器和浏览器验收尚未完成，因此不是生产发布候选。
+- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、分层主题闭环，以及安全账户中心、个人资料、PAT、OAuth 连接、语言切换已实现。权限事件失效和其余业务等价仍在进行。生成器和浏览器验收尚未完成，因此不是生产发布候选。
 - 机器契约：`.mss/features/admin-antd-v6-application.yaml`。
 - 架构决策：`docs/adr/2026-08-15-independent-ant-design-v6-application.md`。
 
@@ -155,9 +155,19 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 - 主题保存和重置立即更新唯一 Query cache、Umi 布局和 antd 6 ConfigProvider；跨标签事件有 schema、TTL、去重、单调 revision 与个人随机会话绑定，同 revision 分歧只触发权威重读。
 - 首屏快照只包含规范化七字段、revision 和过期时间，最长 24 小时；应用层可匿名使用，个人层必须同时匹配随机会话和已验证用户主体，Web Locks 不可用时拒绝持久化而不是冒险覆盖新修订。
 - 密码登录和 OAuth 在取得规范化 current user 后轮换主题会话；退出先清除本标签个人派生状态，服务端退出完成后再通知其他标签重启，避免 cookie 撤销竞态。
-- Max 的过渡 Moment 消费通过官方 `moment2dayjs` 适配统一到 Day.js；release bundle 门禁会拒绝 Moment 进入生产图。当前生产构建总 JS 为 684.94 KiB，最大异步分包为 195.99 KiB。
+- 账户中心与响应式设置页已复用同一个规范化 current-user query；个人资料提交只含后端明确允许的字段，用户名和邮箱只读，服务端以精确 allowlist 拒绝身份字段、未知字段和错误类型，并可正确持久化显式空值。
+- PAT 列表只解析元数据；创建与旋转返回的原始 secret 不进入 React Query mutation cache、持久存储或 URL，只存在于不可跳过的一次性内存弹窗中。撤销、旋转和创建均继续由后端 self 权限约束，PAT 本身不能调用这些交互端点。
+- OAuth 登录与连接入口只在 public application profile 明确启用 provider 时显示；authorize/callback 使用服务端单次 state 和 cookie 会话，回调同时校验业务成功码、provider 和 intent，provider token 不进入浏览器响应。旧的直接解绑入口暂不迁移。
+- Umi 官方 `SelectLang` 已进入登录页和全局布局，中文/英文 catalog 由测试保证 key 完全一致。
+- Max 的过渡 Moment 消费通过官方 `moment2dayjs` 适配统一到 Day.js；release bundle 门禁会拒绝 Moment 进入生产图。当前账户切片后的生产构建 entry 为 4.16 KiB、总 JS 为 736.88 KiB、最大异步分包为 195.57 KiB，均通过预算门禁。
 
-仍待本阶段完成：账户中心与非主题个人资料设置、PAT、OAuth binding、语言切换、权限事件失效及真实浏览器权限矩阵。
+本阶段主动冻结三个旧契约缺陷，未按“表面等价”复制：
+
+1. 邮箱是登录与恢复身份，在专用双重验证变更流程完成前保持只读。
+2. 旧的已登录密码重置不要求当前密码或近期再认证；V6 不展示该操作，待增加 step-up/re-auth、限流及成功后全会话/PAT 撤销契约。
+3. 旧 OAuth 解绑可直接删除最后一种可用登录方式；V6 只允许安全连接，待后端事务性保证至少保留一种已验证登录方式并要求近期再认证后再开放解绑。
+
+仍待本阶段完成：权限事件失效、上述密码/邮箱/解绑安全契约的产品确认与后端实现，以及真实浏览器权限矩阵。
 
 完成门：匿名/root/普通用户/撤权/未知菜单/直接路由和直接 API 矩阵通过。
 
