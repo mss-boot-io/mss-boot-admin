@@ -1,11 +1,9 @@
-import {
-  CopyOutlined,
-  DeleteOutlined,
-  PlusOutlined,
-  ReloadOutlined,
-  SafetyCertificateOutlined,
-  SyncOutlined,
-} from '@ant-design/icons';
+import CopyOutlined from '@ant-design/icons/CopyOutlined';
+import DeleteOutlined from '@ant-design/icons/DeleteOutlined';
+import PlusOutlined from '@ant-design/icons/PlusOutlined';
+import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
+import SafetyCertificateOutlined from '@ant-design/icons/SafetyCertificateOutlined';
+import SyncOutlined from '@ant-design/icons/SyncOutlined';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
 import {

@@ -1,9 +1,7 @@
-import {
-  CloudServerOutlined,
-  DashboardOutlined,
-  HddOutlined,
-  ReloadOutlined,
-} from '@ant-design/icons';
+import CloudServerOutlined from '@ant-design/icons/CloudServerOutlined';
+import DashboardOutlined from '@ant-design/icons/DashboardOutlined';
+import HddOutlined from '@ant-design/icons/HddOutlined';
+import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import { ProCard } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import {

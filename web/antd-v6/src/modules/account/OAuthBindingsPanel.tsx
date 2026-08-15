@@ -1,4 +1,6 @@
-import { ApiOutlined, GithubOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import ApiOutlined from '@ant-design/icons/ApiOutlined';
+import GithubOutlined from '@ant-design/icons/GithubOutlined';
+import SafetyCertificateOutlined from '@ant-design/icons/SafetyCertificateOutlined';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl, useModel, useSearchParams } from '@umijs/max';
 import { Alert, Avatar, Button, List, Space, Tag, Typography } from 'antd';

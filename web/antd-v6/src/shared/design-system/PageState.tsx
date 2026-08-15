@@ -1,4 +1,5 @@
-import { LockOutlined, ReloadOutlined } from '@ant-design/icons';
+import LockOutlined from '@ant-design/icons/LockOutlined';
+import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import { Button, Empty, Result, Skeleton } from 'antd';
 import type { ReactNode } from 'react';
 

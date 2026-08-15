@@ -1,4 +1,5 @@
-import { CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import CheckCircleOutlined from '@ant-design/icons/CheckCircleOutlined';
+import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import { List, Tag, Typography } from 'antd';
 

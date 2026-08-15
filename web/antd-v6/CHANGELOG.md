@@ -17,6 +17,9 @@ recorded here. This changelog does not describe releases of `web/antd`.
 - Add monotonic cross-tab theme events, verified-subject personal session binding,
   Web-Locks-protected 24-hour snapshots, and public-only first-paint hints.
 - Alias transitional Moment consumers to Day.js and reject Moment in the release bundle.
+- Compile for the explicit Chromium/Edge 120+, Firefox 121+, and Safari 17.4+
+  baseline, reject legacy `core-js`, and use public per-icon package subpaths so
+  Utoopack does not retain unsupported compatibility or icon-barrel code.
 - Add responsive account center and settings views with exact self-profile fields,
   synchronized locale catalogs, notification preferences, and provider-gated OAuth.
 - Keep identity email read-only and make profile empty-value persistence explicit on

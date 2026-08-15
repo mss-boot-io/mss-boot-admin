@@ -1,11 +1,9 @@
-import {
-  CheckOutlined,
-  CloudSyncOutlined,
-  DeleteOutlined,
-  ReloadOutlined,
-  SaveOutlined,
-  UndoOutlined,
-} from '@ant-design/icons';
+import CheckOutlined from '@ant-design/icons/CheckOutlined';
+import CloudSyncOutlined from '@ant-design/icons/CloudSyncOutlined';
+import DeleteOutlined from '@ant-design/icons/DeleteOutlined';
+import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
+import SaveOutlined from '@ant-design/icons/SaveOutlined';
+import UndoOutlined from '@ant-design/icons/UndoOutlined';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
 import {

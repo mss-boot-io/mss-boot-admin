@@ -1,4 +1,6 @@
-import { CameraOutlined, SaveOutlined, UserOutlined } from '@ant-design/icons';
+import CameraOutlined from '@ant-design/icons/CameraOutlined';
+import SaveOutlined from '@ant-design/icons/SaveOutlined';
+import UserOutlined from '@ant-design/icons/UserOutlined';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
 import type { UploadProps } from 'antd';

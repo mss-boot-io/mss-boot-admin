@@ -1,4 +1,5 @@
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
+import SearchOutlined from '@ant-design/icons/SearchOutlined';
 import { useMutation } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
 import {

@@ -1,4 +1,7 @@
-import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import ArrowLeftOutlined from '@ant-design/icons/ArrowLeftOutlined';
+import DeleteOutlined from '@ant-design/icons/DeleteOutlined';
+import PlusOutlined from '@ant-design/icons/PlusOutlined';
+import SaveOutlined from '@ant-design/icons/SaveOutlined';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { history, useIntl } from '@umijs/max';
 import {

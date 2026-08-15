@@ -216,7 +216,8 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 - 新的 read/create/update/delete 菜单与 API 节点可独立分配；迁移只从迁移前已启用的精确父节点继承对应权限，读取不会隐式获得写入。
 - 列表使用 antd 6 原生 `Table`，编辑使用 `Form.List`；详情在定义较多时使用 antd 6.6 `Listy` 虚拟化。所有页面共享响应式实现并覆盖 loading、empty、error、403、404 和 conflict。
 - 动态 profile 是启动增强而非启动依赖：2.5 秒内失败或超时不会阻断应用。它只能覆盖仓库随包发布且 catalog key 对齐的 `zh-CN`、`en-US`；新增其他 BCP 47 数据不会静默变成不完整的 UI 语言，扩展运行时 locale 需单独产品决策与完整 catalog。
-- 本切片 release build 的 entry 为 4.16 KiB、总 JS 为 891.99 KiB、最大异步分包为 199.59 KiB，仍通过现有 900/250 KiB 预算；后续 CRUD 已只剩 8.01 KiB 总预算余量，下一切片必须先拆包或重新评审预算，不能靠放宽门禁掩盖增长。
+- 语言切片最初的 release build 为 891.99 KiB，总预算只余 8.01 KiB。随后将 Umi 默认 Chrome 80 全量 polyfill 收敛为契约化的 Chromium/Edge 120+、Firefox 121+、Safari/WebKit 17.4+ 现代浏览器基线，并将业务图标改为包公开子路径导入；release gate 现在同时拒绝 `core-js` 和图标 barrel 回归。
+- 优化后的 entry 为 4.16 KiB、总 JS 为 847.32 KiB、最大异步分包为 199.59 KiB，在不放宽 900/250 KiB 门禁的前提下恢复 52.68 KiB 余量。新增业务仍须复用现有运行时并逐切片测量，不能把路由分包当成忽略总体积增长的理由。
 
 P5 中另有两个已确认但尚未实施的后端前置问题：Option 的通用 PUT 绕过版本快照和缓存失效；部门/岗位需要先明确树循环、删除引用完整性与数据范围语义。完成这些契约前不会机械复制旧页面。
 

@@ -1,4 +1,4 @@
-import { ReloadOutlined } from '@ant-design/icons';
+import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import { useIntl } from '@umijs/max';
 import { Alert, Button, Descriptions, Drawer, Listy, Space, Tag, Typography } from 'antd';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';

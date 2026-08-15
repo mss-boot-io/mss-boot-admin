@@ -1,5 +1,5 @@
-import { readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { readdir, readFile } from 'node:fs/promises';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -22,6 +22,32 @@ const expected = {
 const failures = [];
 const declared = { ...manifest.dependencies, ...manifest.devDependencies };
 const exactVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
+const listTypeScript = async (directory) => {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(
+    entries
+      .filter((entry) => entry.name !== '.umi' && entry.name !== '.umi-production')
+      .map((entry) => {
+        const target = join(directory, entry.name);
+        return entry.isDirectory()
+          ? listTypeScript(target)
+          : /\.tsx?$/.test(entry.name)
+            ? [target]
+            : [];
+      }),
+  );
+  return files.flat();
+};
+
+for (const source of await listTypeScript(join(projectRoot, 'src'))) {
+  const contents = await readFile(source, 'utf8');
+  if (/(?:from\s*|import\s*\(\s*)['"]@ant-design\/icons['"]/.test(contents)) {
+    failures.push(
+      `${relative(projectRoot, source)} imports the icon barrel; use a public icon subpath`,
+    );
+  }
+}
 
 for (const [name, version] of Object.entries(declared)) {
   if (!exactVersion.test(version)) {

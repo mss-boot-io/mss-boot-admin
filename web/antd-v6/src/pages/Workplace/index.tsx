@@ -1,4 +1,6 @@
-import { SettingOutlined, SlidersOutlined, UserOutlined } from '@ant-design/icons';
+import SettingOutlined from '@ant-design/icons/SettingOutlined';
+import SlidersOutlined from '@ant-design/icons/SlidersOutlined';
+import UserOutlined from '@ant-design/icons/UserOutlined';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import { Link, useIntl, useModel } from '@umijs/max';
 import { Avatar, Button, Space, Tag, Typography } from 'antd';

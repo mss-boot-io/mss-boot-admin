@@ -60,6 +60,9 @@ experience guard and must have backend positive and negative tests.
 - Use `App.useApp()` for message, modal, and notification context.
 - Use current v6 API names and keep the browser console free of deprecation
   warnings.
+- Import icons from public `@ant-design/icons/<IconName>` subpaths. The package
+  barrel currently prevents complete Utoopack tree-shaking and is rejected by
+  the dependency contract.
 - Tailwind owns layout utilities, CSS Modules own local static rules, and
   antd-style owns complex token-aware rules.
 - Prefer one responsive component over parallel desktop and mobile business

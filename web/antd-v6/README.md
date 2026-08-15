@@ -31,7 +31,10 @@ read-only RBAC states. A schema-versioned cross-tab channel converges monotonic
 revisions. The optional 24-hour first-paint snapshot contains only the seven theme
 fields and metadata; personal snapshots use a random session key additionally
 bound to the verified current-user subject. Production builds alias transitional
-Moment consumers to Day.js and fail if a Moment runtime enters the bundle.
+Moment consumers to Day.js and fail if a Moment runtime enters the bundle. The
+browser contract is Chromium/Edge 120+, Firefox 121+, and Safari/WebKit 17.4+.
+Umi is compiled for that explicit evergreen baseline, so the release bundle also
+fails if the legacy default `core-js` graph reappears.
 
 Account identity fields are intentionally not copied from the legacy form contract:
 username and email remain read-only until a verified identity-change workflow exists.
@@ -76,10 +79,11 @@ read/create/update/delete grants independent. Public resources expose
 only enabled projections. Runtime profile loading is optional and time-bounded; only the
 complete shipped `zh-CN` and `en-US` catalogs can be overlaid. Adding another stored BCP 47
 language does not silently advertise an incomplete application locale.
-The resulting release build is 4.16 KiB at the entry, 891.99 KiB total JavaScript,
-and 199.59 KiB for the largest asynchronous chunk. It passes the existing budget,
-but only 8.01 KiB remains under the 900 KiB total cap, so the next business slice
-must reduce or split shared runtime before adding material dependencies.
+After replacing icon-barrel imports with public icon subpaths and aligning Umi's
+polyfills with the supported browser contract, the resulting release build is
+4.16 KiB at the entry, 847.32 KiB total JavaScript, and 199.59 KiB for the largest
+asynchronous chunk. It passes the existing 900/250 KiB budget with 52.68 KiB of
+total headroom without weakening the gate.
 
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`; runtime and build packages are

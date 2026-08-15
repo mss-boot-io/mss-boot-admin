@@ -31,11 +31,10 @@
     "tsc": "max setup && tsc --noEmit"
   },
   "browserslist": [
-    "last 2 Chrome versions",
-    "last 2 Edge versions",
-    "last 2 Firefox versions",
-    "last 2 Safari versions",
-    "not dead"
+    "Chrome >= 120",
+    "Edge >= 120",
+    "Firefox >= 121",
+    "Safari >= 17.4"
   ],
   "dependencies": {
     "@ant-design/icons": "6.3.2",

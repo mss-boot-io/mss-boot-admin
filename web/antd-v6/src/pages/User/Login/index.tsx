@@ -1,10 +1,8 @@
-import {
-  ApiOutlined,
-  GithubOutlined,
-  LockOutlined,
-  SafetyCertificateOutlined,
-  UserOutlined,
-} from '@ant-design/icons';
+import ApiOutlined from '@ant-design/icons/ApiOutlined';
+import GithubOutlined from '@ant-design/icons/GithubOutlined';
+import LockOutlined from '@ant-design/icons/LockOutlined';
+import SafetyCertificateOutlined from '@ant-design/icons/SafetyCertificateOutlined';
+import UserOutlined from '@ant-design/icons/UserOutlined';
 import { LoginFormPage, ProFormText } from '@ant-design/pro-components';
 import { history, SelectLang, useIntl, useModel } from '@umijs/max';
 import { Alert, App, Button, Divider, Space, Typography } from 'antd';

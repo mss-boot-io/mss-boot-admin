@@ -1,11 +1,9 @@
-import {
-  DeleteOutlined,
-  EditOutlined,
-  EyeOutlined,
-  PlusOutlined,
-  ReloadOutlined,
-  SearchOutlined,
-} from '@ant-design/icons';
+import DeleteOutlined from '@ant-design/icons/DeleteOutlined';
+import EditOutlined from '@ant-design/icons/EditOutlined';
+import EyeOutlined from '@ant-design/icons/EyeOutlined';
+import PlusOutlined from '@ant-design/icons/PlusOutlined';
+import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
+import SearchOutlined from '@ant-design/icons/SearchOutlined';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { history, useIntl } from '@umijs/max';
 import {

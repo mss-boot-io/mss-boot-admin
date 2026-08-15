@@ -1,4 +1,4 @@
-import { BellOutlined } from '@ant-design/icons';
+import BellOutlined from '@ant-design/icons/BellOutlined';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
 import { Alert, List, Switch } from 'antd';

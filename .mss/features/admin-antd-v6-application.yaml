@@ -176,7 +176,7 @@ spec:
       statement: Backend menu metadata cannot select an executable component outside the compiled route registry.
     - id: modern-browser-baseline
       type: compatibility
-      statement: The supported browser matrix is current Chromium, Firefox, and WebKit with CSS variables; legacy IE behavior is not supported.
+      statement: The supported browser matrix is Chromium and Edge 120+, Firefox 121+, and Safari or WebKit 17.4+ with CSS variables; legacy polyfill and IE behavior are not supported.
     - id: separate-release-governance
       type: operations
       statement: V6 publication follows the repository PR-to-main and immutable-tag release governance through its own component namespace.

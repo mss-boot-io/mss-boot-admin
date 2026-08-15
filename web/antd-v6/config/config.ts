@@ -58,6 +58,10 @@ export default defineConfig({
   },
   npmClient: 'pnpm',
   plugins: ['@umijs/max-plugin-openapi'],
+  // Umi defaults to Chrome 80 and injects a broad core-js bundle. V6 only
+  // supports the documented evergreen baseline, so compile for that contract
+  // and let browsers provide the platform instead of silently widening it.
+  polyfill: { imports: [] },
   proxy: proxy[environment as keyof typeof proxy],
   // The bootstrap path must use the same cache as page hooks. Disable the
   // plugin-created private client and provide the repository QueryClient once
@@ -66,6 +70,12 @@ export default defineConfig({
   request: {},
   routePrefetch: {},
   routes,
+  targets: {
+    chrome: 120,
+    edge: 120,
+    firefox: 121,
+    safari: '17.4',
+  },
   title: 'MSS Admin',
   utoopack: {},
 });

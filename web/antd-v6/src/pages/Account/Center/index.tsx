@@ -1,4 +1,7 @@
-import { EditOutlined, MailOutlined, PhoneOutlined, UserOutlined } from '@ant-design/icons';
+import EditOutlined from '@ant-design/icons/EditOutlined';
+import MailOutlined from '@ant-design/icons/MailOutlined';
+import PhoneOutlined from '@ant-design/icons/PhoneOutlined';
+import UserOutlined from '@ant-design/icons/UserOutlined';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useIntl, useModel } from '@umijs/max';
