@@ -88,7 +88,7 @@ V5 使用浏览器 bearer token；该模式不应复制到 V6。V6 的目标是�
 | 任务 | CRUD 与运行记录分离 | 状态刷新、失败信息、权限动作一致 |
 | 通知 | 列表与已读变更重写 | 未读数失效、WebSocket 只触发 query invalidation |
 | 语言 | 已用原生 Table/Form、Listy 和受限运行时资源适配重写 | BCP 47、服务端 ID、定义上限、revision 冲突、细粒度权限、仅 zh-CN/en-US 运行时覆盖 |
-| Option | schema 表单重写 | 类型、默认值、删除/更新语义一致 |
+| Option | 已用原生 Table/Form、Listy 和强 revision 契约重写 | 服务端 ID、完整快照、内置保护、usage 删除约束、细粒度权限 |
 | AppConfig / SystemConfig | 类型化配置编辑器 | secret 不回显、root/配置权限、缓存 revision 一致 |
 | 在线会话 | 已用 root-only Table + React Query 重写 | 严格响应契约、100 行上限、撤销审计与正反例 |
 | 日志、审计、登录日志 | 待安全查询契约后重写 | 敏感字段脱敏、资源上限、分页筛选与导出 |
@@ -207,7 +207,9 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 - 按用户与组织、角色与菜单、任务、语言与 Option、AppConfig/SystemConfig 分批迁移。
 - 每个切片同时完成 API 类型、权限、冲突、页面状态、测试和文档，不先复制全部页面再统一补质量。
 
-已完成语言管理垂直切片：
+已完成语言与 Option 管理垂直切片。
+
+语言管理：
 
 - 后端公开接口只返回启用语言和必要投影，并对语言总数、单语言定义条数/体积、公开聚合响应（1 MiB）以及管理分页设置硬上限；管理列表默认不携带大体积 `defines`，详情按需加载。
 - 创建/更新只绑定显式 DTO，记录 ID、时间戳、租户字段和空白定义 ID 均由服务端控制；旧 `BeforeCreate` 遮蔽嵌入模型钩子造成的空 ID/状态由前向兼容迁移修复。
@@ -217,9 +219,18 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 - 列表使用 antd 6 原生 `Table`，编辑使用 `Form.List`；详情在定义较多时使用 antd 6.6 `Listy` 虚拟化。所有页面共享响应式实现并覆盖 loading、empty、error、403、404 和 conflict。
 - 动态 profile 是启动增强而非启动依赖：2.5 秒内失败或超时不会阻断应用。它只能覆盖仓库随包发布且 catalog key 对齐的 `zh-CN`、`en-US`；新增其他 BCP 47 数据不会静默变成不完整的 UI 语言，扩展运行时 locale 需单独产品决策与完整 catalog。
 - 语言切片最初的 release build 为 891.99 KiB，总预算只余 8.01 KiB。随后将 Umi 默认 Chrome 80 全量 polyfill 收敛为契约化的 Chromium/Edge 120+、Firefox 121+、Safari/WebKit 17.4+ 现代浏览器基线，并将业务图标改为包公开子路径导入；release gate 现在同时拒绝 `core-js` 和图标 barrel 回归。
-- 优化后的 entry 为 4.16 KiB、总 JS 为 847.32 KiB、最大异步分包为 199.59 KiB，在不放宽 900/250 KiB 门禁的前提下恢复 52.68 KiB 余量。新增业务仍须复用现有运行时并逐切片测量，不能把路由分包当成忽略总体积增长的理由。
+- 优化后的语言切片 entry 为 4.16 KiB、总 JS 为 847.32 KiB、最大异步分包为 199.59 KiB，在不放宽 900/250 KiB 门禁的前提下恢复 52.68 KiB 余量。
 
-P5 中另有两个已确认但尚未实施的后端前置问题：Option 的通用 PUT 绕过版本快照和缓存失效；部门/岗位需要先明确树循环、删除引用完整性与数据范围语义。完成这些契约前不会机械复制旧页面。
+Option 管理：
+
+- 移除会绕过历史快照、缓存失效、内置资源保护和并发控制的通用 CRUD 注册，改为显式、allowlist、受限的管理 API；V5 在并行期缺少 revision 的写入暂时兼容并返回迁移警告，V6 的更新和删除始终发送同一资源的强 `If-Match`。
+- 服务端拥有记录 ID、version、built-in 标记和新增 item ID；更新携带未知 item ID 时按新增项处理，不能夺取其他字典项身份。每次更新和删除在同一事务内保存完整 prior-resource snapshot，CAS 失败返回最新权威资源，浏览器保留草稿并要求用户显式重载。
+- 字典、单项、嵌套 extra、排序、管理分页和完整列表响应都有硬上限；读取缓存或数据库中的畸形数据时失败关闭。Redis key 对 tenant/category/name 做命名空间和编码，cache miss 固定读 writer，提交后的缓存失效是有界 best-effort，不会诱发客户端重试已成功事务。
+- 内置字典允许调整显示信息与字典项，但 category、name、status 和删除保持受保护；自定义字典只有在没有启用的 `OptionUsage` 时可删。`icon`、`color` 与 opaque `extra` 在 V6 仅作为非执行文本显示，未开放动态组件或 HTML 注入路径。
+- read/create/update/delete 菜单和 API 权限独立；列表使用 summary 投影，详情按需加载。V6 使用原生 `Table`、`Form.List` 和 antd 6.6 `Listy`，共享桌面/移动响应式页面并覆盖 loading、empty、error、403、404、refresh failure 和 412 conflict。
+- Option 切片后的 release build entry 为 4.16 KiB、总 JS 为 864.91 KiB、最大异步分包为 199.59 KiB，仍通过 900/250 KiB 门禁，余量为 35.09 KiB。新增业务仍须复用现有运行时并逐切片测量，不能把路由分包当成忽略总体积增长的理由。
+
+P5 中尚未实施的关键后端前置问题包括：部门/岗位需要先明确树循环、删除引用完整性与数据范围语义。完成这些契约前不会机械复制旧页面。
 
 完成门：关键 CRUD、批量操作、上传/下载、ETag 冲突和权限负例通过。
 

@@ -51,4 +51,15 @@ export const queryKeys = {
     }>,
   ) => ['configuration', 'languages', 'list', params] as const,
   language: (id: string) => ['configuration', 'languages', 'detail', id] as const,
+  options: ['configuration', 'options'] as const,
+  optionList: (
+    params: Readonly<{
+      current: number;
+      pageSize: number;
+      status: string;
+      category?: string;
+      name?: string;
+    }>,
+  ) => ['configuration', 'options', 'list', params] as const,
+  option: (id: string) => ['configuration', 'options', 'detail', id] as const,
 };

@@ -60,6 +60,14 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodPost, Path: "/admin/api/languages", Class: RouteAuthorized, Permission: "language:create", Mutation: true},
 	{Method: http.MethodPut, Path: "/admin/api/languages/:id", Class: RouteAuthorized, Permission: "language:update", Mutation: true},
 
+	// Option management. Runtime dictionaries are read through the same bounded
+	// resources, while create/update/delete remain separately assignable.
+	{Method: http.MethodGet, Path: "/admin/api/options", Class: RouteAuthorized, Permission: "option:read"},
+	{Method: http.MethodGet, Path: "/admin/api/options/:id", Class: RouteAuthorized, Permission: "option:read"},
+	{Method: http.MethodPost, Path: "/admin/api/options", Class: RouteAuthorized, Permission: "option:create", Mutation: true},
+	{Method: http.MethodPut, Path: "/admin/api/options/:id", Class: RouteAuthorized, Permission: "option:update", Mutation: true},
+	{Method: http.MethodDelete, Path: "/admin/api/options/:id", Class: RouteAuthorized, Permission: "option:delete", Mutation: true},
+
 	// Runtime logs and monitoring.
 	{Method: http.MethodGet, Path: "/admin/api/logs", Class: RouteAuthorized, Permission: "log:read"},
 	{Method: http.MethodGet, Path: "/admin/api/logs/files", Class: RouteAuthorized, Permission: "log:read"},

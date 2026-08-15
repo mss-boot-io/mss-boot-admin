@@ -13,8 +13,8 @@ login/connection, notifications, synchronized language switching, and server-pus
 authorization revision reconciliation. The read-only operations slices replace
 the workplace placeholder with a responsive service monitor backed by authoritative,
 bounded server history and add a root-only online-session inventory with audited revoke
-actions. The first core CRUD slice adds bounded, permission-separated language
-management with optimistic revisions and a constrained runtime locale overlay.
+actions. The first core CRUD slices add bounded, permission-separated language
+and Option management with optimistic revisions and constrained runtime behavior.
 Retained business modules, the v6 generator target, and required
 browser evidence remain release blockers and are fail-closed by the qualification contract.
 
@@ -81,9 +81,18 @@ complete shipped `zh-CN` and `en-US` catalogs can be overlaid. Adding another st
 language does not silently advertise an incomplete application locale.
 After replacing icon-barrel imports with public icon subpaths and aligning Umi's
 polyfills with the supported browser contract, the resulting release build is
-4.16 KiB at the entry, 847.32 KiB total JavaScript, and 199.59 KiB for the largest
-asynchronous chunk. It passes the existing 900/250 KiB budget with 52.68 KiB of
+4.16 KiB at the entry, 864.91 KiB total JavaScript, and 199.59 KiB for the largest
+asynchronous chunk. It passes the existing 900/250 KiB budget with 35.09 KiB of
 total headroom without weakening the gate.
+
+Option management replaces the legacy generic controller and client-generated
+item identity with an explicit bounded contract. Lists use a summary projection,
+details load on demand, and updates/deletes use strong `If-Match` revisions. The
+backend records a complete prior-resource snapshot in the same transaction,
+protects built-in identity and deletion, blocks deletion while an enabled usage
+exists, and invalidates tenant-namespaced cache entries after commit. The editor
+preserves its draft on 412 and requires an explicit reload; opaque `extra`, `icon`,
+and `color` metadata are displayed as inert text rather than executable UI input.
 
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`; runtime and build packages are

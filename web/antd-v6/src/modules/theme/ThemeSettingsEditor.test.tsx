@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from 'antd';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InitialState } from '@/shared/auth/types';
+import { ThemeRevisionConflictError } from '@/shared/theme/api';
 import type { ThemeScopeResource } from '@/shared/theme/contract';
 import { replaceThemeRuntime } from '@/shared/theme/runtime';
 import ThemeSettingsEditor from './ThemeSettingsEditor';
@@ -142,7 +143,6 @@ describe('scoped v6 theme editor', () => {
   });
 
   it('shows an explicit 412 decision and never retries a stale draft automatically', async () => {
-    const { ThemeRevisionConflictError } = await import('@/shared/theme/api');
     model.state = initialState({});
     const base = resource('user', '7', { fixedHeader: false });
     const current = resource('user', '8', { fixedHeader: false, layout: 'top' });

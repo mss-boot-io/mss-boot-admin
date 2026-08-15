@@ -29,6 +29,12 @@ const registrations: readonly RouteRegistration[] = [
     permission: '/language',
   },
   {
+    path: '/option',
+    serverPaths: ['/option'],
+    menuName: 'option',
+    permission: '/option',
+  },
+  {
     path: '/security/online-sessions',
     serverPaths: ['/security/online-sessions'],
     menuName: 'online-sessions',

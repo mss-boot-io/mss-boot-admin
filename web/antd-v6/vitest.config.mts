@@ -12,6 +12,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./tests/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}'],
+    maxWorkers: 2,
     clearMocks: true,
     restoreMocks: true,
   },

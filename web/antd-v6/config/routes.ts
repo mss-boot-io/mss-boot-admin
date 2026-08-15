@@ -77,6 +77,28 @@ const routes = [
     permission: '/language/edit',
   },
   {
+    path: '/option',
+    name: 'option',
+    icon: 'unorderedList',
+    component: './Option',
+    access: 'canAccessRoute',
+    permission: '/option',
+  },
+  {
+    path: '/option/create',
+    hideInMenu: true,
+    component: './Option/Create',
+    access: 'canAccessRoute',
+    permission: '/option/create',
+  },
+  {
+    path: '/option/:id',
+    hideInMenu: true,
+    component: './Option/Edit',
+    access: 'canAccessRoute',
+    permission: '/option/edit',
+  },
+  {
     path: '/security',
     name: 'security',
     icon: 'safety',
