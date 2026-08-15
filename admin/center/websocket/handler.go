@@ -3,6 +3,7 @@ package websocket
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -107,7 +108,7 @@ func HandleWebSocket(ctx *gin.Context) {
 	go client.ReadPump(handleMessage)
 
 	client.SendMsg(&WResponse{
-		Event:     "connected",
+		Event:     EventConnected,
 		Code:      200,
 		Data:      gin.H{"clientId": clientID},
 		Timestamp: time.Now().Unix(),
@@ -153,6 +154,31 @@ func SendKickToUser(userID string, reason string) {
 		Data:      gin.H{"reason": reason},
 		Timestamp: time.Now().Unix(),
 	})
+}
+
+// BroadcastAuthorizationRevision emits only a monotonic decimal revision.
+// Browser clients must use it as a reload hint and fetch their own current
+// identity and authorized menu over the protected HTTP API.
+func BroadcastAuthorizationRevision(revision uint64) bool {
+	message := authorizationRevisionResponse(revision)
+	if message == nil {
+		return false
+	}
+	return GetHub().TryBroadcast(message)
+}
+
+func authorizationRevisionResponse(revision uint64) *WResponse {
+	if revision == 0 {
+		return nil
+	}
+	return &WResponse{
+		Event: EventAuthorization,
+		Code:  200,
+		Data: gin.H{
+			"revision": strconv.FormatUint(revision, 10),
+		},
+		Timestamp: time.Now().Unix(),
+	}
 }
 
 func BroadcastNotification(notice *models.Notice) {

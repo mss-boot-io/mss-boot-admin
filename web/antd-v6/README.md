@@ -9,10 +9,10 @@ Opt-in backend cookie/CSRF, OAuth transport binding, WebSocket-ticket support,
 the typed identity/menu startup chain, and the layered Ant Design 6 theme editor
 and runtime are implemented. The safe account slice now includes the account
 center, allowlisted profile editing, one-time PAT handling, provider-gated OAuth
-login/connection, notifications, and synchronized language switching. Permission
-server-pushed authorization revisions, retained business modules, the v6 generator
-target, and required browser evidence remain release blockers and are fail-closed by
-the qualification contract.
+login/connection, notifications, synchronized language switching, and server-pushed
+authorization revision reconciliation. Retained business modules, the v6 generator
+target, and required browser evidence remain release blockers and are fail-closed by the
+qualification contract.
 
 The runtime has one application-owned React Query client. Current identity and
 the authorized menu are loaded through it, but only the verified identity and
@@ -40,9 +40,12 @@ Authorization is reconciled from the server after explicit and cross-tab refresh
 events, 403 responses, network recovery, and throttled focus/visibility changes. A
 changed privilege/menu signature evicts domain queries and mutation results while
 retaining only exact startup query families. An unconfirmed identity or menu replaces
-the rendered application with a retryable fail-closed state. A secure WebSocket
-revision hint will reduce focus-independent latency later; it is not treated as the
-only correctness mechanism.
+the rendered application with a retryable fail-closed state. After a committed policy
+revision has successfully reloaded, the backend sends only its monotonic decimal
+revision through a non-blocking secure WebSocket event. The browser deduplicates the
+hint across tabs and reloads current identity and the compiled-menu intersection over
+HTTP. Bounded reconnect and focus/visibility/403 reconciliation remain correctness
+fallbacks; WebSocket payloads never become an authorization cache.
 
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`; runtime and build packages are
@@ -69,6 +72,7 @@ Its browser contract is:
 | OAuth callback | `POST /admin/api/user/session/{provider}/callback` |
 | WebSocket ticket | `POST /admin/api/ws/tickets` |
 | WebSocket connect | `/admin/api/ws/connect-v6` with the ticket in `Sec-WebSocket-Protocol` |
+| Authorization refresh | `authorization` event with a decimal revision hint; protected HTTP remains authoritative |
 
 The backend capability is disabled by default so a backend deployment can precede
 the V6 rollout without changing V5. A production environment must enable server

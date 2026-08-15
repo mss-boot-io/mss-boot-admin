@@ -10,6 +10,7 @@ interface AuthorizationRefreshSignal {
   kind: 'authorization-refresh';
   source: string;
   sentAt: number;
+  revision?: string;
 }
 
 const sourceID = (() => {
@@ -18,6 +19,8 @@ const sourceID = (() => {
   }
   return `runtime-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 })();
+
+let highestRealtimeRevision: string | undefined;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -29,6 +32,20 @@ export function shouldRefreshAuthorization(
   throttleMs = AUTHORIZATION_REFRESH_THROTTLE_MS,
 ): boolean {
   return now - lastRefreshAt >= throttleMs;
+}
+
+export function isCanonicalAuthorizationRevision(value: unknown): value is string {
+  return typeof value === 'string' && /^[1-9]\d*$/.test(value);
+}
+
+export function isNewerAuthorizationRevision(candidate: string, current?: string): boolean {
+  if (!isCanonicalAuthorizationRevision(candidate)) return false;
+  if (!current) return true;
+  if (!isCanonicalAuthorizationRevision(current)) return true;
+  return (
+    candidate.length > current.length ||
+    (candidate.length === current.length && candidate > current)
+  );
 }
 
 function menuSignature(items: readonly AuthorizedMenuItem[]): unknown[] {
@@ -88,14 +105,15 @@ function parseRefreshSignal(value: unknown): AuthorizationRefreshSignal | undefi
     typeof value.source !== 'string' ||
     !value.source ||
     typeof value.sentAt !== 'number' ||
-    !Number.isFinite(value.sentAt)
+    !Number.isFinite(value.sentAt) ||
+    (value.revision !== undefined && !isCanonicalAuthorizationRevision(value.revision))
   ) {
     return undefined;
   }
   return value as unknown as AuthorizationRefreshSignal;
 }
 
-export function requestAuthorizationRefresh(): void {
+function emitAuthorizationRefresh(revision?: string): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event(AUTHORIZATION_REFRESH_EVENT));
   }
@@ -107,11 +125,26 @@ export function requestAuthorizationRefresh(): void {
       kind: 'authorization-refresh',
       source: sourceID,
       sentAt: Date.now(),
+      revision,
     } satisfies AuthorizationRefreshSignal);
     channel.close();
   } catch {
     // Focus/visibility reconciliation remains the compatibility fallback.
   }
+}
+
+export function requestAuthorizationRefresh(): void {
+  emitAuthorizationRefresh();
+}
+
+/**
+ * Deduplicates one global server revision across this tab's socket and
+ * BroadcastChannel. A disconnected sibling tab can still receive the signal.
+ */
+export function requestAuthorizationRevisionRefresh(revision: string): void {
+  if (!isNewerAuthorizationRevision(revision, highestRealtimeRevision)) return;
+  highestRealtimeRevision = revision;
+  emitAuthorizationRefresh(revision);
 }
 
 export function subscribeAuthorizationRefreshBroadcast(onRefresh: () => void): () => void {
@@ -120,7 +153,12 @@ export function subscribeAuthorizationRefreshBroadcast(onRefresh: () => void): (
     const channel = new BroadcastChannel(AUTHORIZATION_REFRESH_CHANNEL);
     channel.onmessage = (event) => {
       const signal = parseRefreshSignal(event.data);
-      if (signal && signal.source !== sourceID) onRefresh();
+      if (!signal || signal.source === sourceID) return;
+      if (signal.revision) {
+        if (!isNewerAuthorizationRevision(signal.revision, highestRealtimeRevision)) return;
+        highestRealtimeRevision = signal.revision;
+      }
+      onRefresh();
     };
     return () => channel.close();
   } catch {

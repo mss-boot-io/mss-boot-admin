@@ -104,6 +104,8 @@ spec:
         - Generated OpenAPI types and endpoints are isolated from a handwritten transport adapter for envelopes, 201 and 204 responses, files, uploads, OAuth, and errors.
         - React Query v5 owns server cache and invalidation while Umi initial state owns only verified identity and startup-critical client state.
         - WebSocket events invalidate query keys instead of creating a second unbounded server-state cache.
+        - Authorization WebSocket events contain only a monotonic decimal revision after successful policy reload; clients deduplicate the hint and reload current identity and the compiled authorized menu over protected HTTP.
+        - Realtime fan-out is non-blocking and best-effort; reconnect, focus, network recovery, and 403 reconciliation remain correctness fallbacks.
         - dayjs replaces direct moment usage.
         - Utoopack and route prefetch replace the legacy mfsu path.
     - id: use-v6-design-system

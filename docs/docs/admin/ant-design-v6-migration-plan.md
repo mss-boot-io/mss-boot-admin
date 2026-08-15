@@ -15,7 +15,7 @@ keywords: [admin ant-design v6 react umi migration release]
 - 决策状态：已接受，按独立应用方案实施。
 - 目标目录：`web/antd-v6`。
 - 旧应用：`web/antd` 保持独立构建、发布、部署和回滚，不在本项目中原位升级或删除。
-- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、权限新鲜度、分层主题闭环，以及安全账户中心、个人资料、PAT、OAuth 连接、语言切换已实现。服务端授权 revision 实时推送和其余业务等价仍在进行。生成器和浏览器验收尚未完成，因此不是生产发布候选。
+- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、权限新鲜度、服务端授权 revision 实时推送、分层主题闭环，以及安全账户中心、个人资料、PAT、OAuth 连接、语言切换已实现。其余业务等价、生成器和浏览器验收尚未完成，因此不是生产发布候选。
 - 机器契约：`.mss/features/admin-antd-v6-application.yaml`。
 - 架构决策：`docs/adr/2026-08-15-independent-ant-design-v6-application.md`。
 
@@ -160,7 +160,8 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 - OAuth 登录与连接入口只在 public application profile 明确启用 provider 时显示；authorize/callback 使用服务端单次 state 和 cookie 会话，回调同时校验业务成功码、provider 和 intent，provider token 不进入浏览器响应。旧的直接解绑入口暂不迁移。
 - Umi 官方 `SelectLang` 已进入登录页和全局布局，中文/英文 catalog 由测试保证 key 完全一致。
 - 权限新鲜度桥在显式变更事件、跨标签 BroadcastChannel、403、网络恢复，以及节流后的 focus/visibility 上权威重读 current user 与编译期菜单求交；权限或可执行菜单签名变化时先取消并移除业务 Query 和 mutation cache，只保留身份、菜单、public profile 与主题启动 Query。身份/菜单不能确认时立即切换到可重试的 fail-closed 页面；异常主体切换会清空个人主题和所有缓存。
-- Max 的过渡 Moment 消费通过官方 `moment2dayjs` 适配统一到 Day.js；release bundle 门禁会拒绝 Moment 进入生产图。当前权限新鲜度切片后的生产构建 entry 为 4.16 KiB、总 JS 为 733.34 KiB、最大异步分包为 195.57 KiB，均通过预算门禁。
+- 后端只在已提交的全局授权 revision 成功重载进当前 Casbin 后，以非阻塞、best-effort WebSocket 事件广播十进制 revision；V6 经单次 ticket 建连，处理应用层 heartbeat、踢出与有抖动的上限退避重连，并在同页/跨标签对 revision 去重后从受保护 HTTP 重读身份和编译期菜单。事件不携带策略或用户权限，WebSocket 拥塞也不影响权限事务。
+- Max 的过渡 Moment 消费通过官方 `moment2dayjs` 适配统一到 Day.js；release bundle 门禁会拒绝 Moment 进入生产图。当前授权 revision 实时推送切片后的生产构建 entry 为 4.16 KiB、总 JS 为 734.67 KiB、最大异步分包为 195.57 KiB，均通过预算门禁。
 
 本阶段主动冻结三个旧契约缺陷，未按“表面等价”复制：
 
@@ -168,7 +169,7 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 2. 旧的已登录密码重置不要求当前密码或近期再认证；V6 不展示该操作，待增加 step-up/re-auth、限流及成功后全会话/PAT 撤销契约。
 3. 旧 OAuth 解绑可直接删除最后一种可用登录方式；V6 只允许安全连接，待后端事务性保证至少保留一种已验证登录方式并要求近期再认证后再开放解绑。
 
-仍待本阶段完成：把后端全局授权 revision 接入安全 WebSocket 作为无焦点场景的即时刷新提示、上述密码/邮箱/解绑安全契约的产品确认与后端实现，以及真实浏览器权限矩阵。focus/visibility 与 403 权威重读保留为 WebSocket 不可用时的安全兜底。
+仍待本阶段完成：上述密码/邮箱/解绑安全契约的产品确认与后端实现，以及真实浏览器权限矩阵。focus/visibility、网络恢复与 403 权威重读继续作为 WebSocket 不可用时的安全兜底。
 
 完成门：匿名/root/普通用户/撤权/未知菜单/直接路由和直接 API 矩阵通过。
 

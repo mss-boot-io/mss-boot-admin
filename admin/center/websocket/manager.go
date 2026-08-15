@@ -41,9 +41,9 @@ type userMessage struct {
 }
 
 type redisMessage struct {
-	Type    string          `json:"type"`
-	UserID  string          `json:"userId,omitempty"`
-	Message *WResponse      `json:"message"`
+	Type    string     `json:"type"`
+	UserID  string     `json:"userId,omitempty"`
+	Message *WResponse `json:"message"`
 }
 
 var hub *Hub
@@ -242,6 +242,27 @@ func (h *Hub) Unregister(client *Client) {
 
 func (h *Hub) Broadcast(msg *WResponse) {
 	h.broadcast <- msg
+}
+
+// TryBroadcast queues a disposable signal without allowing an optional
+// realtime consumer to block an authoritative transaction or reconciliation.
+func (h *Hub) TryBroadcast(msg *WResponse) bool {
+	if h == nil || msg == nil {
+		return false
+	}
+	select {
+	case <-h.stop:
+		return false
+	default:
+	}
+	select {
+	case h.broadcast <- msg:
+		return true
+	case <-h.stop:
+		return false
+	default:
+		return false
+	}
 }
 
 func (h *Hub) SendToUser(userID string, msg *WResponse) {

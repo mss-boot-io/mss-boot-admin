@@ -18,6 +18,7 @@ import {
 import type { InitialState, StartupFailure } from './shared/auth/types';
 import { PageError } from './shared/design-system/PageState';
 import { queryClient, queryKeys } from './shared/query/client';
+import AuthorizationRealtimeBridge from './shared/realtime/AuthorizationRealtimeBridge';
 import { loadApplicationProfile, loadThemeResource } from './shared/theme/api';
 import { type ApplicationProfile, buildLayoutSettings } from './shared/theme/contract';
 import {
@@ -330,6 +331,7 @@ function RuntimeProviders({ children }: { children: ReactNode }) {
         <RuntimeFeedbackBridge />
         <QueryClientProvider client={queryClient}>
           <AuthorizationFreshnessBridge />
+          <AuthorizationRealtimeBridge />
           <ThemeCrossTabBridge />
           {children}
         </QueryClientProvider>

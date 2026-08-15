@@ -28,6 +28,9 @@ recorded here. This changelog does not describe releases of `web/antd`.
 - Add authoritative authorization freshness on explicit/cross-tab events, 403,
   network recovery, and throttled focus/visibility changes, with exact domain-query
   eviction and a retryable fail-closed state when identity or menu cannot be verified.
+- Push a non-sensitive global authorization revision after successful policy reload,
+  with non-blocking server fan-out, secure ticketed WebSocket reconnect, heartbeat,
+  cross-tab revision deduplication, and authoritative HTTP revalidation.
 - Reserve the independent `web/antd-v6/v{version}` tag and
   `mss-boot-admin-antd-v6` image namespaces.
 

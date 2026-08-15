@@ -56,6 +56,15 @@ exact Origin. The browser sends `mss.v1` and `mss.ticket.{ticket}` in
 atomically, rechecks Origin, reloads current authority, and confirms the session is still
 active. Production issuance and consumption require the shared cache.
 
+After a committed global authorization revision has successfully reloaded into the
+local policy engine, the server may broadcast an `authorization` event containing only
+that revision as a decimal string. The fan-out queue is non-blocking and best-effort, so
+realtime congestion cannot fail or delay the authoritative permission transaction. V6
+deduplicates revision hints across its socket and sibling tabs, then reloads current
+identity and the compiled authorized-menu intersection over protected HTTP. Bounded
+reconnect, network/focus reconciliation, and 403-triggered refresh remain required
+fallbacks; the WebSocket is never an authorization-policy cache.
+
 The old `/ws/connect?token=...` path retains a dedicated compatibility middleware and an
 explicit `legacyWebSocketQueryTokenEnabled` switch. No other route can read that query
 credential.

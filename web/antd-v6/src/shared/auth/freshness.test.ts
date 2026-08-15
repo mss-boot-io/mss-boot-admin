@@ -3,7 +3,9 @@ import {
   AUTHORIZATION_REFRESH_EVENT,
   authorizationStateSignature,
   isAuthorizationBootstrapQuery,
+  isNewerAuthorizationRevision,
   requestAuthorizationRefresh,
+  requestAuthorizationRevisionRefresh,
   shouldRefreshAuthorization,
 } from './freshness';
 import type { CurrentUser } from './types';
@@ -46,6 +48,20 @@ describe('authorization freshness contract', () => {
     const listener = vi.fn();
     window.addEventListener(AUTHORIZATION_REFRESH_EVENT, listener);
     requestAuthorizationRefresh();
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(AUTHORIZATION_REFRESH_EVENT, listener);
+  });
+
+  it('compares unbounded decimal revisions and deduplicates realtime delivery', () => {
+    expect(isNewerAuthorizationRevision('10000000000000000000', '9999999999999999999')).toBe(true);
+    expect(isNewerAuthorizationRevision('9999999999999999999', '10000000000000000000')).toBe(false);
+    expect(isNewerAuthorizationRevision('1e20', '9')).toBe(false);
+
+    const listener = vi.fn();
+    window.addEventListener(AUTHORIZATION_REFRESH_EVENT, listener);
+    requestAuthorizationRevisionRefresh('10000000000000000001');
+    requestAuthorizationRevisionRefresh('10000000000000000001');
+    requestAuthorizationRevisionRefresh('10000000000000000000');
     expect(listener).toHaveBeenCalledTimes(1);
     window.removeEventListener(AUTHORIZATION_REFRESH_EVENT, listener);
   });
