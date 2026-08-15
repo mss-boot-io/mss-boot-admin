@@ -22,6 +22,12 @@ const registrations: readonly RouteRegistration[] = [
     menuName: 'app-config',
     permission: '/app-config',
   },
+  {
+    path: '/security/online-sessions',
+    serverPaths: ['/security/online-sessions'],
+    menuName: 'online-sessions',
+    rootOnly: true,
+  },
 ];
 
 export const routeRegistry = new Map(registrations.map((entry) => [entry.path, entry]));

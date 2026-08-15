@@ -95,4 +95,24 @@ describe('compiled route registry', () => {
     ]);
     expect(JSON.stringify(menu)).not.toContain('UntrustedLegacyPage');
   });
+
+  it('retains the online-session route only for a root identity', () => {
+    const serverMenu = [{ id: 'sessions', path: '/security/online-sessions' }];
+
+    expect(retainRegisteredMenu(serverMenu, operator)).toEqual([]);
+    expect(
+      retainRegisteredMenu(serverMenu, {
+        id: 'root',
+        role: { root: true },
+        permissions: {},
+      }),
+    ).toMatchObject([
+      {
+        id: 'sessions',
+        name: 'online-sessions',
+        path: '/security/online-sessions',
+        rootOnly: true,
+      },
+    ]);
+  });
 });

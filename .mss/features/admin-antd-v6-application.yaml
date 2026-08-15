@@ -266,6 +266,32 @@ spec:
           value: web/antd-v6/src/modules/monitor/MonitorOverview.test.tsx
         - type: command
           value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+    - id: online-session-operations-contract
+      requirement: preserve-business-contracts
+      statement: The online-session inventory is root-only in both the compiled route and backend, strictly validates list and detail data, limits pages to 100 rows, stops polling on 401 and 403, retains last-good data after refresh failures, and binds audited single-session and batch revocation only to identifiers selected from an authoritative row.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6/src/modules/session/contract.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/session/api.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/session/polling.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/session/OnlineSessionsView.test.tsx
+        - type: test
+          value: web/antd-v6/src/modules/session/SessionDetailDrawer.test.tsx
+        - type: test
+          value: web/antd-v6/src/pages/Security/OnlineSessions/index.test.tsx
+        - type: test
+          value: admin/apis/online_session_test.go
+        - type: test
+          value: admin/apis/online_session_permission_test.go
+        - type: test
+          value: web/antd/src/pages/OnlineSession/index.test.tsx
+        - type: command
+          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
     - id: session-security-tests
       requirement: harden-browser-session
       statement: Cookie, CSRF, OAuth redaction, Origin, WebSocket ticket replay, logout, expiry, and legacy-client compatibility tests pass.

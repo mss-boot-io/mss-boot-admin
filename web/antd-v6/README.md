@@ -10,9 +10,10 @@ the typed identity/menu startup chain, and the layered Ant Design 6 theme editor
 and runtime are implemented. The safe account slice now includes the account
 center, allowlisted profile editing, one-time PAT handling, provider-gated OAuth
 login/connection, notifications, synchronized language switching, and server-pushed
-authorization revision reconciliation. The first read-only operations slice replaces
+authorization revision reconciliation. The read-only operations slices replace
 the workplace placeholder with a responsive service monitor backed by authoritative,
-bounded server history. Retained business modules, the v6 generator target, and required
+bounded server history and add a root-only online-session inventory with audited revoke
+actions. Retained business modules, the v6 generator target, and required
 browser evidence remain release blockers and are fail-closed by the qualification contract.
 
 The runtime has one application-owned React Query client. Current identity and
@@ -54,6 +55,14 @@ honored, transient failures back off while retaining last-good data, and `401`/`
 stop automatic polling. Loading, empty history, warm-up, forbidden, stale, and refresh
 failure states are explicit in both locales. CPU and memory history is rendered with an
 accessible, token-aware native SVG, so this slice adds no chart runtime dependency.
+
+The online-session inventory intersects a compiled root-only route with the backend
+root guard, validates every list/detail response, caps pages at 100 rows, and stops its
+foreground-only 30-second polling after `401` or `403`. Refresh failures keep the last
+authoritative page visible. Single-session and per-user revocation are row-bound and
+audited; the legacy arbitrary user-ID action was intentionally not copied. This page uses
+Ant Design 6 `Table` because its controlled list does not need ProTable schema features:
+the release gate measured 952.10 KiB with ProTable versus 848.54 KiB with Table.
 
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`; runtime and build packages are

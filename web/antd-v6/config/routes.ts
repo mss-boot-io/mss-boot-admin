@@ -55,6 +55,25 @@ const routes = [
     permission: '/app-config',
   },
   {
+    path: '/security',
+    name: 'security',
+    icon: 'safety',
+    routes: [
+      {
+        path: '/security',
+        redirect: '/security/online-sessions',
+      },
+      {
+        path: '/security/online-sessions',
+        name: 'online-sessions',
+        icon: 'desktop',
+        component: './Security/OnlineSessions',
+        access: 'canAccessRoute',
+        rootOnly: true,
+      },
+    ],
+  },
+  {
     path: '/account',
     hideInMenu: true,
     routes: [

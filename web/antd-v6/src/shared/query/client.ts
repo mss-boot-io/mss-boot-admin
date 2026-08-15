@@ -28,4 +28,16 @@ export const queryKeys = {
   accountNotifications: (userID: string) => ['account', userID, 'notifications'] as const,
   workplace: ['workplace'] as const,
   monitor: ['operations', 'monitor'] as const,
+  onlineSessions: ['security', 'online-sessions'] as const,
+  onlineSessionList: (
+    params: Readonly<{
+      current: number;
+      pageSize: number;
+      status: string;
+      userID?: string;
+      username?: string;
+      ip?: string;
+    }>,
+  ) => ['security', 'online-sessions', 'list', params] as const,
+  onlineSession: (id: string) => ['security', 'online-sessions', 'detail', id] as const,
 };

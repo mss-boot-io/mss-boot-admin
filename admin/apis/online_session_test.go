@@ -72,6 +72,18 @@ func TestOnlineSessionList(t *testing.T) {
 	assert.Contains(t, resp, "data")
 }
 
+func TestOnlineSessionListRejectsOversizedPage(t *testing.T) {
+	r, _, _ := setupOnlineSessionTest(t)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/admin/api/online-sessions?pageSize=101",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 // TestOnlineSessionListStatusContract pins the response/contract for the
 // `status` query param (PR #376 review #2):
 //

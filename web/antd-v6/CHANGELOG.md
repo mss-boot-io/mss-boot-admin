@@ -37,6 +37,12 @@ recorded here. This changelog does not describe releases of `web/antd`.
   distinct warm-up, stale, error, permission, and empty-history states.
 - Render CPU and memory trends with accessible token-aware native SVG rather than adding
   a chart runtime, and migrate remaining V6 Alerts and Statistics away from deprecated APIs.
+- Add a fail-closed root-only online-session inventory with strict list/detail contracts,
+  bounded foreground polling, explicit last-good/error/empty/permission states, responsive
+  detail, and audited row-bound session and per-user revocation.
+- Enforce a 100-row server page limit and omit the legacy arbitrary user-ID revoke control.
+  Use Ant Design 6 Table after the bundle gate demonstrated that ProTable's unused schema
+  features would exceed the application's total JavaScript budget.
 - Reserve the independent `web/antd-v6/v{version}` tag and
   `mss-boot-admin-antd-v6` image namespaces.
 
