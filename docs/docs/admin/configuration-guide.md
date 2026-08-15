@@ -202,6 +202,12 @@ security:
   githubClientSecret: "your-github-client-secret"
   githubRedirectURL: "https://your-domain.com/user/github/callback"
   githubScope: "read:user,user:email"
+
+  # 独立发布的 Ant Design V6 使用单独的 OAuth App；不要覆盖上述 V5 配置。
+  githubBrowserSessionClientId: "your-v6-github-client-id"
+  githubBrowserSessionClientSecret: "your-v6-github-client-secret"
+  githubBrowserSessionRedirectURI: "https://v6.your-domain.com/user/github/callback"
+  githubBrowserSessionScope: "read:user,user:email"
 ```
 
 `repo` is not required for login and should not be granted. Add `read:org` only when
@@ -225,7 +231,16 @@ security:
   larkAppId: "cli_xxxxxxxxxx"
   larkAppSecret: "your-lark-app-secret"
   larkRedirectURI: "https://your-domain.com/user/lark/callback"
+
+  # 独立发布的 Ant Design V6 使用单独的飞书应用。
+  larkBrowserSessionAppId: "cli_v6_xxxxxxxxxx"
+  larkBrowserSessionAppSecret: "your-v6-lark-app-secret"
+  larkBrowserSessionRedirectURI: "https://v6.your-domain.com/user/lark/callback"
 ```
+
+V6 专用 Client Secret 与旧版 Secret 受相同的 `app-config:secret-read` /
+`app-config:secret-write` 权限保护。V5/V6 重叠期间分别维护回调地址和凭据，回滚
+任一前端都不需要修改另一套 OAuth 应用。
 
 ---
 

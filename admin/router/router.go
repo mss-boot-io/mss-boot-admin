@@ -8,15 +8,14 @@ package router
  */
 
 import (
-	"log/slog"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	_ "github.com/mss-boot-io/mss-boot-admin/admin/apis"
 	"github.com/mss-boot-io/mss-boot-admin/admin/config"
+	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/browsersecurity"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -51,6 +50,7 @@ func InitRouter(r *gin.RouterGroup) {
 		configCors.MaxAge = config.Cfg.CORS.MaxAge
 	}
 	v1.Use(cors.New(configCors))
+	v1.Use(middleware.EnforceBrowserCSRF())
 	v1.OPTIONS("/*path", func(c *gin.Context) {
 		c.Status(http.StatusNoContent)
 	})
@@ -81,25 +81,7 @@ func InitRouter(r *gin.RouterGroup) {
 }
 
 func trustedCORSOrigins(configured []string) []string {
-	trusted := make([]string, 0, len(configured))
-	seen := make(map[string]struct{}, len(configured))
-	for _, raw := range configured {
-		origin := strings.TrimSpace(raw)
-		parsed, err := url.Parse(origin)
-		if err != nil || origin == "*" || parsed.User != nil || parsed.Host == "" ||
-			(parsed.Scheme != "http" && parsed.Scheme != "https") ||
-			(parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
-			slog.Warn("ignore unsafe CORS origin", "origin", origin)
-			continue
-		}
-		normalized := strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host)
-		if _, ok := seen[normalized]; ok {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		trusted = append(trusted, normalized)
-	}
-	return trusted
+	return browsersecurity.TrustedOrigins(configured)
 }
 
 var DefaultMakeRouter = &MakeRouter{

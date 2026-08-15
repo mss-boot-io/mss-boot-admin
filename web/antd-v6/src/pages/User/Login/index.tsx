@@ -4,11 +4,7 @@ import { history, request, useIntl } from '@umijs/max';
 import { Alert, App, Space, Typography } from 'antd';
 import { useState } from 'react';
 import { resolveSafeRedirect } from '@/shared/auth/redirect';
-
-interface LoginResponse {
-  code?: number;
-  expire?: string;
-}
+import { createBrowserSession } from '@/shared/auth/session';
 
 export default function LoginPage() {
   const intl = useIntl();
@@ -35,13 +31,9 @@ export default function LoginPage() {
         onFinish={async (values) => {
           setError(undefined);
           try {
-            const result = await request<LoginResponse>('/user/login', {
-              method: 'POST',
-              data: {
-                username: values.username,
-                password: values.password,
-              },
-              skipErrorHandler: true,
+            const result = await createBrowserSession({
+              username: values.username,
+              password: values.password,
             });
             if (result.code && result.code !== 200) {
               setError(intl.formatMessage({ id: 'pages.login.failure' }));

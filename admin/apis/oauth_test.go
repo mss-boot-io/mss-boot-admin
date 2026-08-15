@@ -11,8 +11,12 @@ import (
 	"testing"
 	"time"
 
+	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin/admin/center"
+	"github.com/mss-boot-io/mss-boot-admin/admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
+	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/oauthstate"
@@ -291,6 +295,179 @@ func TestOAuthAuthorizeEnforcesIntentAuthenticationBoundary(t *testing.T) {
 	}
 }
 
+func TestOAuthBrowserTransportNeverExposesAdminToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	installOAuthTestVerifier(t)
+	configureOAuthBrowserSession(t)
+
+	exchanges := 0
+	user := newOAuthTestUser(&exchanges)
+	state, cookie := issueOAuthStateWithHandler(
+		t,
+		user,
+		pkg.GithubLoginProvider,
+		oauthstate.IntentLogin,
+		"",
+		nil,
+		user.SessionOAuthAuthorize,
+	)
+	callback := executeOAuthCallbackWithHandler(
+		user,
+		pkg.GithubLoginProvider,
+		state,
+		"",
+		nil,
+		cookie,
+		user.SessionCallback,
+	)
+	if callback.Code != http.StatusCreated || exchanges != 1 {
+		t.Fatalf("browser callback status=%d exchanges=%d body=%s", callback.Code, exchanges, callback.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(callback.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode browser callback: %v", err)
+	}
+	for _, forbidden := range []string{"token", "accessToken", "refreshToken"} {
+		if _, exists := payload[forbidden]; exists {
+			t.Fatalf("browser callback exposed %s: %s", forbidden, callback.Body.String())
+		}
+	}
+	cookies := callback.Result().Cookies()
+	byName := make(map[string]*http.Cookie, len(cookies))
+	for _, responseCookie := range cookies {
+		byName[responseCookie.Name] = responseCookie
+	}
+	if byName[middleware.BrowserSessionCookieName] == nil ||
+		byName[middleware.BrowserCSRFCookieName] == nil {
+		t.Fatalf("browser callback cookies = %#v", cookies)
+	}
+}
+
+func TestOAuthStateBurnsOnResponseTransportSwitch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	installOAuthTestVerifier(t)
+	configureOAuthBrowserSession(t)
+
+	tests := []struct {
+		name             string
+		authorizeHandler gin.HandlerFunc
+		callbackHandler  gin.HandlerFunc
+	}{
+		{name: "browser state on bearer callback"},
+		{name: "bearer state on browser callback"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			exchanges := 0
+			user := newOAuthTestUser(&exchanges)
+			authorizeHandler := user.SessionOAuthAuthorize
+			callbackHandler := user.Callback
+			replayHandler := user.SessionCallback
+			if test.name == "bearer state on browser callback" {
+				authorizeHandler = user.OAuthAuthorize
+				callbackHandler = user.SessionCallback
+				replayHandler = user.Callback
+			}
+			state, cookie := issueOAuthStateWithHandler(
+				t,
+				user,
+				pkg.GithubLoginProvider,
+				oauthstate.IntentLogin,
+				"",
+				nil,
+				authorizeHandler,
+			)
+			callback := executeOAuthCallbackWithHandler(
+				user,
+				pkg.GithubLoginProvider,
+				state,
+				"",
+				nil,
+				cookie,
+				callbackHandler,
+			)
+			if callback.Code != http.StatusUnauthorized || exchanges != 0 {
+				t.Fatalf("transport switch status=%d exchanges=%d body=%s", callback.Code, exchanges, callback.Body.String())
+			}
+			replay := executeOAuthCallbackWithHandler(
+				user,
+				pkg.GithubLoginProvider,
+				state,
+				"",
+				nil,
+				cookie,
+				replayHandler,
+			)
+			if replay.Code != http.StatusUnauthorized || exchanges != 0 {
+				t.Fatalf("transport-switch replay status=%d exchanges=%d", replay.Code, exchanges)
+			}
+		})
+	}
+}
+
+func TestOAuthProviderConfigurationIsTransportSpecific(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previous := center.GetAppConfig()
+	settings := oauthRedirectAppConfig{
+		"security:githubClientId":                   "v5-github-id",
+		"security:githubClientSecret":               "v5-github-secret",
+		"security:githubRedirectURI":                "https://v5.example/user/callback/github",
+		"security:githubBrowserSessionClientId":     "v6-github-id",
+		"security:githubBrowserSessionClientSecret": "v6-github-secret",
+		"security:githubBrowserSessionRedirectURI":  "https://v6.example/user/callback/github",
+		"security:larkAppId":                        "v5-lark-id",
+		"security:larkAppSecret":                    "v5-lark-secret",
+		"security:larkRedirectURI":                  "https://v5.example/user/callback/lark",
+		"security:larkBrowserSessionAppId":          "v6-lark-id",
+		"security:larkBrowserSessionAppSecret":      "v6-lark-secret",
+		"security:larkBrowserSessionRedirectURI":    "https://v6.example/user/callback/lark",
+	}
+	center.SetAppConfig(settings)
+	t.Cleanup(func() { center.SetAppConfig(previous) })
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	for _, test := range []struct {
+		provider      pkg.LoginProvider
+		legacy        string
+		browser       string
+		legacyID      string
+		browserID     string
+		legacySecret  string
+		browserSecret string
+	}{
+		{provider: pkg.GithubLoginProvider, legacy: settings["security:githubRedirectURI"], browser: settings["security:githubBrowserSessionRedirectURI"], legacyID: settings["security:githubClientId"], browserID: settings["security:githubBrowserSessionClientId"], legacySecret: settings["security:githubClientSecret"], browserSecret: settings["security:githubBrowserSessionClientSecret"]},
+		{provider: pkg.LarkLoginProvider, legacy: settings["security:larkRedirectURI"], browser: settings["security:larkBrowserSessionRedirectURI"], legacyID: settings["security:larkAppId"], browserID: settings["security:larkBrowserSessionAppId"], legacySecret: settings["security:larkAppSecret"], browserSecret: settings["security:larkBrowserSessionAppSecret"]},
+	} {
+		got, err := oauthRedirectURL(ctx, test.provider)
+		if err != nil || got != test.legacy {
+			t.Fatalf("legacy redirect = (%q, %v), want %q", got, err, test.legacy)
+		}
+		if got, err = oauthClientID(ctx, test.provider); err != nil || got != test.legacyID {
+			t.Fatalf("legacy client ID = (%q, %v), want %q", got, err, test.legacyID)
+		}
+		if got, err = oauthClientSecret(ctx, test.provider); err != nil || got != test.legacySecret {
+			t.Fatalf("legacy client secret selection failed: %v", err)
+		}
+		ctx.Set(oauthTransportContextKey, oauthstate.TransportBrowserCookie)
+		got, err = oauthRedirectURL(ctx, test.provider)
+		if err != nil || got != test.browser {
+			t.Fatalf("browser redirect = (%q, %v), want %q", got, err, test.browser)
+		}
+		if got, err = oauthClientID(ctx, test.provider); err != nil || got != test.browserID {
+			t.Fatalf("browser client ID = (%q, %v), want %q", got, err, test.browserID)
+		}
+		if got, err = oauthClientSecret(ctx, test.provider); err != nil || got != test.browserSecret {
+			t.Fatalf("browser client secret selection failed: %v", err)
+		}
+		ctx.Set(oauthTransportContextKey, oauthstate.TransportBearer)
+	}
+	delete(settings, "security:githubBrowserSessionRedirectURI")
+	ctx.Set(oauthTransportContextKey, oauthstate.TransportBrowserCookie)
+	if _, err := oauthRedirectURL(ctx, pkg.GithubLoginProvider); err == nil {
+		t.Fatal("browser OAuth silently fell back to the V5 redirect URI")
+	}
+}
+
 func newOAuthTestUser(exchanges *int) *User {
 	return &User{
 		oauthStates: oauthstate.New(),
@@ -323,8 +500,20 @@ func issueOAuthState(
 	credential string,
 	verifier security.Verifier,
 ) (string, *http.Cookie) {
+	return issueOAuthStateWithHandler(t, user, provider, intent, credential, verifier, user.OAuthAuthorize)
+}
+
+func issueOAuthStateWithHandler(
+	t *testing.T,
+	user *User,
+	provider pkg.LoginProvider,
+	intent oauthstate.Intent,
+	credential string,
+	verifier security.Verifier,
+	handler gin.HandlerFunc,
+) (string, *http.Cookie) {
 	t.Helper()
-	recorder := executeOAuthAuthorize(user, provider, intent, credential, verifier)
+	recorder := executeOAuthAuthorizeWithHandler(user, provider, intent, credential, verifier, handler)
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("authorize status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
@@ -360,13 +549,24 @@ func executeOAuthAuthorize(
 	credential string,
 	verifier security.Verifier,
 ) *httptest.ResponseRecorder {
+	return executeOAuthAuthorizeWithHandler(user, provider, intent, credential, verifier, user.OAuthAuthorize)
+}
+
+func executeOAuthAuthorizeWithHandler(
+	user *User,
+	provider pkg.LoginProvider,
+	intent oauthstate.Intent,
+	credential string,
+	verifier security.Verifier,
+	handler gin.HandlerFunc,
+) *httptest.ResponseRecorder {
 	body, _ := json.Marshal(dto.OAuthAuthorizeRequest{Provider: provider, Intent: string(intent)})
 	request := httptest.NewRequest(http.MethodPost, "/authorize", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	if credential != "" {
 		request.Header.Set("Authorization", "Bearer "+credential)
 	}
-	return executeOAuthRequest(request, verifier, user.OAuthAuthorize)
+	return executeOAuthRequest(request, verifier, handler)
 }
 
 func executeOAuthCallback(
@@ -376,6 +576,18 @@ func executeOAuthCallback(
 	credential string,
 	verifier security.Verifier,
 	cookie *http.Cookie,
+) *httptest.ResponseRecorder {
+	return executeOAuthCallbackWithHandler(user, provider, state, credential, verifier, cookie, user.Callback)
+}
+
+func executeOAuthCallbackWithHandler(
+	user *User,
+	provider pkg.LoginProvider,
+	state string,
+	credential string,
+	verifier security.Verifier,
+	cookie *http.Cookie,
+	handler gin.HandlerFunc,
 ) *httptest.ResponseRecorder {
 	body, _ := json.Marshal(dto.OauthCallbackReq{Code: "provider-code", State: state})
 	requestURL := "/callback/" + string(provider)
@@ -387,7 +599,7 @@ func executeOAuthCallback(
 	if cookie != nil {
 		request.AddCookie(cookie)
 	}
-	return executeOAuthRequest(request, verifier, user.Callback)
+	return executeOAuthRequest(request, verifier, handler)
 }
 
 func executeOAuthRequest(request *http.Request, verifier security.Verifier, handler gin.HandlerFunc) *httptest.ResponseRecorder {
@@ -422,6 +634,28 @@ func installOAuthTestVerifier(t *testing.T) {
 	t.Cleanup(func() { response.VerifyHandler = previous })
 }
 
+func configureOAuthBrowserSession(t *testing.T) {
+	t.Helper()
+	previousConfig := config.Cfg.Auth
+	previousAuth := middleware.Auth
+	config.Cfg.Auth = config.Auth{
+		Key:            "oauth-browser-session-test-key-32-bytes",
+		IdentityKey:    "oauth-browser-session-test-identity",
+		Timeout:        time.Hour,
+		SessionEnabled: true,
+		BrowserSession: config.BrowserSession{
+			Enabled:  true,
+			Secure:   true,
+			SameSite: "lax",
+		},
+	}
+	middleware.Auth = &jwt.GinJWTMiddleware{}
+	t.Cleanup(func() {
+		config.Cfg.Auth = previousConfig
+		middleware.Auth = previousAuth
+	})
+}
+
 func oauthTestUser(userID string, personalAccessToken bool) *models.User {
 	user := &models.User{}
 	user.ID = userID
@@ -433,6 +667,17 @@ func oauthTestUser(userID string, personalAccessToken bool) *models.User {
 }
 
 type expiredOAuthStateStore struct{}
+
+type oauthRedirectAppConfig map[string]string
+
+func (oauthRedirectAppConfig) SetAppConfig(*gin.Context, string, bool, string) error {
+	return nil
+}
+
+func (settings oauthRedirectAppConfig) GetAppConfig(_ *gin.Context, key string) (string, bool) {
+	value, ok := settings[key]
+	return value, ok
+}
 
 func (expiredOAuthStateStore) Issue(
 	context.Context,

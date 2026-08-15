@@ -2,21 +2,38 @@ package websocket
 
 import (
 	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/mss-boot-io/mss-boot-admin/admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/browsersecurity"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
-	"net/http"
+)
+
+const (
+	ApplicationSubprotocol = "mss.v1"
+	TicketProtocolPrefix   = "mss.ticket."
 )
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
+	Subprotocols:    []string{ApplicationSubprotocol},
+	CheckOrigin:     IsTrustedOrigin,
+}
+
+func IsTrustedOrigin(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	return browsersecurity.IsTrustedOrigin(
+		r.Header.Get("Origin"),
+		config.Cfg.Application.Origin,
+		config.Cfg.CORS.AllowOrigins,
+	)
 }
 
 type EventHandler func(*Client, json.RawMessage)

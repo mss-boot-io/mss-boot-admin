@@ -123,8 +123,13 @@ spec:
       module: frontend-session-security
       rules:
         - Production REST authentication uses a same-origin HttpOnly Secure SameSite cookie with explicit CSRF protection for state-changing requests.
+        - V6 browser login and refresh use dedicated session endpoints whose responses never contain the Admin JWT; the legacy login and refresh responses remain bearer-compatible for V5.
+        - Browser-session CSRF uses an exact trusted Origin plus a signed double-submit token bound to the current session cookie, and rotates whenever that cookie rotates.
         - OAuth provider access and refresh tokens never enter browser-visible storage or responses.
-        - WebSocket authentication uses a short-lived single-use server ticket or another reviewed non-query credential exchange and validates Origin.
+        - Browser OAuth state records bind the intended bearer or cookie transport so a callback cannot switch response modes and expose an Admin token.
+        - V6 OAuth authorization and exchange use dedicated provider client IDs, protected secrets, scopes, and exact callback URIs, leaving V5 provider application settings unchanged during independent rollout and rollback.
+        - WebSocket authentication uses a short-lived single-use server ticket carried in Sec-WebSocket-Protocol, never in the V6 URL, and validates an exact configured Origin before upgrade.
+        - Legacy query-token WebSocket authentication is confined to the existing V5 route behind an explicit compatibility switch and is never accepted as general REST authentication.
         - The v6 application does not cache authenticated API responses in a service worker and PWA is disabled by default.
         - During rollout, backend changes remain compatible with the independently deployed legacy frontend until its own retirement decision.
     - id: publish-independently
@@ -209,7 +214,9 @@ spec:
       required: true
       evidence:
         - type: test
-          value: admin/middleware frontend v6 session and websocket security tests
+          value: cd admin && GOWORK=off go test ./config ./middleware ./pkg/oauthstate ./pkg/browsersecurity ./pkg/wsticket ./models ./service ./apis ./center/websocket ./router
+        - type: test
+          value: cd web/antd-v6 && pnpm test:ci
     - id: independent-release-check
       requirement: publish-independently
       statement: V5 and v6 tag validation, image names, build identities, artifacts, workflows, and rollback paths are proven independent.

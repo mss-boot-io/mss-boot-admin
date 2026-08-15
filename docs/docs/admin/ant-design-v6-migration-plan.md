@@ -15,7 +15,7 @@ keywords: [admin ant-design v6 react umi migration release]
 - 决策状态：已接受，按独立应用方案实施。
 - 目标目录：`web/antd-v6`。
 - 旧应用：`web/antd` 保持独立构建、发布、部署和回滚，不在本项目中原位升级或删除。
-- 当前阶段：工程基础可构建；业务等价、浏览器会话安全、生成器和浏览器验收尚未完成，因此不是生产发布候选。
+- 当前阶段：P0/P1 已完成，P2 的 opt-in 后端会话能力与 V6 客户端适配已实现；业务等价、生成器和浏览器验收尚未完成，因此不是生产发布候选。
 - 机器契约：`.mss/features/admin-antd-v6-application.yaml`。
 - 架构决策：`docs/adr/2026-08-15-independent-ant-design-v6-application.md`。
 
@@ -121,7 +121,22 @@ V5 使用浏览器 bearer token；该模式不应复制到 V6。V6 的目标是�
 - 增加短时、单次 WebSocket ticket 和 Origin 校验，移除 V6 query token。
 - 覆盖登录、刷新、退出、过期、重放、跨站、OAuth 和 V5 兼容负例。
 
+实现状态：代码与聚焦安全测试已完成。新能力默认关闭，只有同时启用
+`auth.sessionEnabled` 和 `auth.browserSession.enabled` 才可使用；生产配置还会强制
+`auth.browserSession.secure: true`。V6 使用独立的 `/user/session/*` 登录、刷新和
+OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refresh-token`
+和 bearer header 契约保持不变。REST 已不再接受 query token；旧
+`/ws/connect?token=...` 仅由专用兼容中间件读取，并受独立开关控制。
+
 完成门：后端安全矩阵通过，先部署兼容后端，再启用 V6 登录。
+
+推荐上线顺序：
+
+1. 先发布默认关闭 browser session 的兼容后端，保持 V5 WebSocket 兼容开关开启。
+2. 为目标环境配置唯一的 HTTPS 应用/CORS origin、`X-CSRF-Token` header、共享 Redis、生产 auth key、Secure cookie，以及不覆盖 V5 的 V6 专用 OAuth 应用、密钥和精确 callback URI。
+3. 开启 server session 与 browser session，先执行 cookie、CSRF、OAuth、ticket、退出和过期的环境 smoke。
+4. 独立发布 V6 镜像并小流量启用；V5 的镜像、域名、tag 和回滚路径不变。
+5. 仅在 V5 完成退役后关闭 `legacyWebSocketQueryTokenEnabled`；后端兼容端点的删除另立变更。
 
 ### P3：身份、菜单、主题和账户
 

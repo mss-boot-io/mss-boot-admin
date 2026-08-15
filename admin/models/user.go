@@ -744,29 +744,16 @@ func (e *UserLogin) GetUserGithubOAuth2(c *gin.Context) (*UserOAuth2, error) {
 	if !ok || !cast.ToBool(githubEnabled) {
 		return nil, errors.New("github login is disabled")
 	}
-	clientID, _ := userAppConfig(c, "security:githubClientId")
-	clientSecret, _ := userAppConfig(c, "security:githubClientSecret")
-	redirectURL, _ := userAppConfig(c,
-		"security:githubRedirectURI",
-		"security:githubRedirectUrl",
-		"security:githubRedirectURL",
-	)
-	scope, _ := userAppConfig(c, "security:githubScope")
 	allowGroup, allowGroupConfigured := userAppConfig(c, "security:githubAllowGroup")
 	allowGroups := splitGithubCSV(allowGroup)
 	if allowGroupConfigured && strings.TrimSpace(allowGroup) != "" && len(allowGroups) == 0 {
 		return nil, errors.New("github allow group configuration is invalid")
 	}
-	conf := &oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Scopes:       splitGithubCSV(scope),
-		RedirectURL:  redirectURL,
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://github.com/login/oauth/authorize",
-			TokenURL: "https://github.com/login/oauth/access_token",
-		},
-	}
+	// The provider token has already been exchanged by the transport-specific
+	// callback. Resource requests need only that token; keeping OAuth app
+	// credentials out of this phase prevents V5 and V6 provider configuration
+	// from becoming coupled again after a successful exchange.
+	conf := &oauth2.Config{}
 	requestContext := context.Context(c)
 	if c.Request != nil {
 		requestContext = c.Request.Context()

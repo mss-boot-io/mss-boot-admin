@@ -85,6 +85,8 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodDelete, Path: "/admin/api/online-sessions/user/:userID", Class: RouteAuthorized, Permission: "session:revoke", RootOnly: true, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/online-sessions/logout", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodGet, Path: "/admin/api/ws/connect", Class: RouteAuthenticatedSelf},
+	{Method: http.MethodPost, Path: "/admin/api/ws/tickets", Class: RouteAuthenticatedSelf, Mutation: true},
+	{Method: http.MethodGet, Path: "/admin/api/ws/connect-v6", Class: RoutePublic, ConstrainedPublicGET: true},
 	{Method: http.MethodGet, Path: "/admin/api/ws/online", Class: RouteAuthorized, Permission: "session:read", RootOnly: true},
 
 	// Statistics and storage.
@@ -98,6 +100,8 @@ var customRouteContracts = []CustomRouteContract{
 
 	// Authentication, account recovery, and current-user profile.
 	{Method: http.MethodPost, Path: "/admin/api/user/login", Class: RoutePublic, Mutation: true},
+	{Method: http.MethodPost, Path: "/admin/api/user/session/login", Class: RoutePublic, Mutation: true},
+	{Method: http.MethodPost, Path: "/admin/api/user/session/refresh-token", Class: RoutePublic, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/auth-cookie/clear", Class: RoutePublic, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/reset-password", Class: RouteOptionalAuthenticated, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/fakeCaptcha", Class: RoutePublic, Mutation: true},
@@ -110,11 +114,18 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodPost, Path: "/admin/api/user/avatar", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodGet, Path: "/admin/api/user/oauth2", Class: RouteAuthenticatedSelf},
 	{Method: http.MethodPost, Path: "/admin/api/user/oauth2/authorize", Class: RouteOptionalAuthenticated, Mutation: true},
+	{Method: http.MethodPost, Path: "/admin/api/user/session/oauth2/authorize", Class: RouteOptionalAuthenticated, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/binding", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodDelete, Path: "/admin/api/user/unbinding", Class: RouteAuthenticatedSelf, Mutation: true},
 	{
 		Method:   http.MethodPost,
 		Path:     "/admin/api/user/:provider/callback",
+		Class:    RouteOptionalAuthenticated,
+		Mutation: true,
+	},
+	{
+		Method:   http.MethodPost,
+		Path:     "/admin/api/user/session/:provider/callback",
 		Class:    RouteOptionalAuthenticated,
 		Mutation: true,
 	},

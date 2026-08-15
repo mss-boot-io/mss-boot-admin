@@ -33,6 +33,13 @@ type LoginResponse struct {
 	Token  string    `json:"token"`
 }
 
+// BrowserSessionResponse intentionally omits the Admin JWT. The browser owns
+// only an HttpOnly cookie and a separate readable CSRF token.
+type BrowserSessionResponse struct {
+	Code   int       `json:"code"`
+	Expire time.Time `json:"expire"`
+}
+
 type FakeCaptchaRequest struct {
 	Email string `json:"email" binding:"required,email"`
 	UseBy string `json:"useBy" binding:"required,oneof=register login resetPassword"`

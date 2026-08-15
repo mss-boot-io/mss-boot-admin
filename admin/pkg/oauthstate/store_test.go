@@ -12,7 +12,7 @@ import (
 
 func TestMemoryStateIsHighEntropyBoundAndOneTime(t *testing.T) {
 	store := New()
-	record := Record{Provider: "github", Intent: IntentBinding, UserID: "user-1", CredentialFingerprint: "fingerprint"}
+	record := Record{Provider: "github", Intent: IntentBinding, Transport: TransportBrowserCookie, UserID: "user-1", CredentialFingerprint: "fingerprint"}
 	state, browserNonce, issued, err := store.Issue(context.Background(), nil, record, DefaultTTL)
 	if err != nil {
 		t.Fatalf("Issue() error = %v", err)
@@ -28,7 +28,7 @@ func TestMemoryStateIsHighEntropyBoundAndOneTime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Consume() error = %v", err)
 	}
-	if consumed.Provider != record.Provider || consumed.Intent != record.Intent || consumed.UserID != record.UserID || consumed.CredentialFingerprint != record.CredentialFingerprint {
+	if consumed.Provider != record.Provider || consumed.Intent != record.Intent || consumed.Transport != record.Transport || consumed.UserID != record.UserID || consumed.CredentialFingerprint != record.CredentialFingerprint {
 		t.Fatalf("consumed record lost binding context: %#v", consumed)
 	}
 	if _, err = store.Consume(context.Background(), nil, state); !errors.Is(err, ErrNotFound) {
@@ -46,6 +46,22 @@ func TestIssueRejectsRetiredIntegrationIntent(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("Issue() accepted retired integration intent")
+	}
+}
+
+func TestIssueRejectsUnknownTransport(t *testing.T) {
+	store := New()
+	_, _, _, err := store.Issue(
+		context.Background(),
+		nil,
+		Record{Provider: "github", Intent: IntentLogin, Transport: Transport("query-token")},
+		DefaultTTL,
+	)
+	if err == nil {
+		t.Fatal("Issue() accepted an unknown OAuth response transport")
+	}
+	if Transport("").EffectiveTransport() != TransportBearer {
+		t.Fatal("pre-migration state must remain bearer-compatible")
 	}
 }
 

@@ -112,6 +112,18 @@ func (e *Config) InitContext(ctx context.Context, opts ...source.Option) (err er
 	if err := validateProductionAuthKey(e.Application.Mode, e.Auth.Key); err != nil {
 		return err
 	}
+	if err := validateBrowserSession(e.Application.Mode, e.Auth); err != nil {
+		return err
+	}
+	if err := validateBrowserSessionOrigins(
+		e.Application.Mode,
+		e.Auth,
+		e.Application.Origin,
+		e.CORS.AllowOrigins,
+		e.CORS.AllowHeaders,
+	); err != nil {
+		return err
+	}
 	if e.Pyroscope.Enabled && len(e.Application.Labels) > 0 {
 		e.Pyroscope.MergeTags(e.Application.Labels)
 	}

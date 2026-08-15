@@ -103,7 +103,9 @@ var defaultEmailChallengeSendSlots = make(chan struct{}, 32)
 // Other handler
 func (e *User) Other(r *gin.RouterGroup) {
 	r.POST("/user/login", middleware.PublicLoginHandler)
-	r.POST("/user/auth-cookie/clear", e.ClearAuthCookie)
+	r.POST("/user/session/login", middleware.RequireTrustedBrowserOrigin(), e.SessionLogin)
+	r.POST("/user/session/refresh-token", middleware.RequireTrustedBrowserOrigin(), e.SessionRefreshToken)
+	r.POST("/user/auth-cookie/clear", middleware.RequireTrustedBrowserOrigin(), e.ClearAuthCookie)
 	r.POST("/user/reset-password", middleware.OptionalAuth(), e.ResetPassword)
 	r.POST("/user/fakeCaptcha", e.FakeCaptcha)
 	r.POST("/user/login/github", methodNotAllowed)
@@ -115,10 +117,41 @@ func (e *User) Other(r *gin.RouterGroup) {
 	r.POST("/user/avatar", middleware.Auth.MiddlewareFunc(), e.UpdateAvatar)
 	r.GET("/user/oauth2", response.AuthHandler, e.GetOauth2)
 	r.POST("/user/oauth2/authorize", middleware.OptionalAuth(), e.OAuthAuthorize)
+	r.POST("/user/session/oauth2/authorize", middleware.RequireTrustedBrowserOrigin(), middleware.OptionalAuth(), e.SessionOAuthAuthorize)
 	r.POST("/user/binding", response.AuthHandler, e.Binding)
 	r.DELETE("/user/unbinding", response.AuthHandler, e.Unbinding)
 	r.POST("/user/:provider/callback", middleware.OptionalAuth(), e.Callback)
+	r.POST("/user/session/:provider/callback", middleware.RequireTrustedBrowserOrigin(), middleware.OptionalAuth(), e.SessionCallback)
 	r.GET("/user/:provider/callback", methodNotAllowed)
+}
+
+// SessionLogin establishes the opt-in V6 browser session without returning an
+// Admin JWT to browser-visible JavaScript.
+// @Summary Login with an HttpOnly browser session
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param data body models.UserLogin true "data"
+// @Success 200 {object} dto.BrowserSessionResponse
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 503 {object} response.Response
+// @Router /admin/api/user/session/login [post]
+func (*User) SessionLogin(c *gin.Context) {
+	middleware.BrowserSessionLoginHandler(c)
+}
+
+// SessionRefreshToken rotates the V6 HttpOnly session and signed CSRF cookie.
+// @Summary Refresh an HttpOnly browser session
+// @Tags user
+// @Produce json
+// @Success 200 {object} dto.BrowserSessionResponse
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 503 {object} response.Response
+// @Router /admin/api/user/session/refresh-token [post]
+func (*User) SessionRefreshToken(c *gin.Context) {
+	middleware.BrowserSessionRefreshHandler(c)
 }
 
 // ClearAuthCookie expires the browser's HttpOnly Admin JWT cookie before a

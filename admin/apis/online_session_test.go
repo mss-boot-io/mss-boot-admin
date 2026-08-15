@@ -15,6 +15,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
+	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/sessioncache"
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
@@ -203,6 +204,16 @@ func TestOnlineSessionLogoutSuccess(t *testing.T) {
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusCreated, w.Code)
 	assert.Empty(t, w.Body.Bytes(), "logout must be 201 with no body")
+	cookies := make(map[string]*http.Cookie)
+	for _, cookie := range w.Result().Cookies() {
+		cookies[cookie.Name] = cookie
+	}
+	if assert.NotNil(t, cookies[middleware.BrowserSessionCookieName]) {
+		assert.Equal(t, -1, cookies[middleware.BrowserSessionCookieName].MaxAge)
+	}
+	if assert.NotNil(t, cookies[middleware.BrowserCSRFCookieName]) {
+		assert.Equal(t, -1, cookies[middleware.BrowserCSRFCookieName].MaxAge)
+	}
 
 	var row models.UserSession
 	assert.NoError(t, db.First(&row, "id = ?", sid).Error)

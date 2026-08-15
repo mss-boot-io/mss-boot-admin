@@ -6,6 +6,7 @@ import { feedback } from './feedback';
 interface ApiErrorBody {
   code?: number | string;
   error?: string;
+  errorMessage?: string;
   message?: string;
   msg?: string;
 }
@@ -25,13 +26,36 @@ const mutationMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 function readCookie(name: string): string | undefined {
   if (typeof document === 'undefined') return undefined;
   const prefix = `${encodeURIComponent(name)}=`;
-  const entry = document.cookie.split('; ').find((cookie) => cookie.startsWith(prefix));
+  const entry = document.cookie
+    .split(';')
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith(prefix));
   return entry ? decodeURIComponent(entry.slice(prefix.length)) : undefined;
 }
 
 function errorMessage(error: RequestFailure): string {
   const body = error.response?.data;
-  return body?.message ?? body?.msg ?? body?.error ?? error.message ?? 'Request failed';
+  return (
+    body?.errorMessage ??
+    body?.message ??
+    body?.msg ??
+    body?.error ??
+    error.message ??
+    'Request failed'
+  );
+}
+
+export function browserRequestHeaders(
+  method: string,
+  initialHeaders?: HeadersInit,
+  csrfToken = readCookie('mss_csrf'),
+): Record<string, string> {
+  const headers = new Headers(initialHeaders);
+  headers.set('Accept', 'application/json');
+  if (mutationMethods.has(method.toUpperCase())) {
+    if (csrfToken) headers.set('X-CSRF-Token', csrfToken);
+  }
+  return Object.fromEntries(headers.entries());
 }
 
 export const requestConfig: RequestConfig = {
@@ -69,18 +93,12 @@ export const requestConfig: RequestConfig = {
     (url, rawOptions) => {
       const options = rawOptions as RequestOptions;
       const method = (options.method ?? 'GET').toUpperCase();
-      const headers = new Headers(options.headers as HeadersInit | undefined);
-      headers.set('Accept', 'application/json');
-      if (mutationMethods.has(method)) {
-        const csrfToken = readCookie('mss_csrf');
-        if (csrfToken) headers.set('X-CSRF-Token', csrfToken);
-      }
       return {
         url,
         options: {
           ...options,
           credentials: 'include',
-          headers: Object.fromEntries(headers.entries()),
+          headers: browserRequestHeaders(method, options.headers as HeadersInit | undefined),
         },
       };
     },
