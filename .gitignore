@@ -37,6 +37,8 @@ bin/
 temp/
 test/
 public/
+!web/antd-v6/public/
+!web/antd-v6/public/**
 admin/public/
 dist/
 **/dist/

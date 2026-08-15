@@ -32,9 +32,21 @@ for (const expected of localeExpectations) {
   }, testInfo) => {
     test.setTimeout(90_000);
     const consoleViolations: string[] = [];
+    const responseViolations: string[] = [];
     page.on('console', (message) => {
       if (message.type() === 'warning' || message.type() === 'error') {
-        consoleViolations.push(`${message.type()}: ${message.text()}`);
+        const location = message.location();
+        const source = location.url
+          ? ` (${location.url}:${location.lineNumber}:${location.columnNumber})`
+          : '';
+        consoleViolations.push(`${message.type()}: ${message.text()}${source}`);
+      }
+    });
+    page.on('response', (response) => {
+      if (response.status() >= 400) {
+        responseViolations.push(
+          `${response.status()} ${response.request().method()} ${response.url()}`,
+        );
       }
     });
 
@@ -45,6 +57,11 @@ for (const expected of localeExpectations) {
     await expect(page.getByText(expected.workplace, { exact: true })).toBeVisible();
     await expect(page.getByText(expected.monitor, { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: expected.switchLanguage })).toBeVisible();
+    const logo = page.locator('img[src="/logo.svg"]').first();
+    await expect(logo).toBeVisible();
+    await expect
+      .poll(() => logo.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBeGreaterThan(0);
     if (testInfo.project.name === 'chromium-desktop') {
       const systemMenu = page.getByRole('menuitem', { name: new RegExp(expected.systemMenu) });
       const platformMenu = page.getByRole('menuitem', { name: new RegExp(expected.platformMenu) });
@@ -75,6 +92,7 @@ for (const expected of localeExpectations) {
 
     await page.keyboard.press('Tab');
     await expect(page.locator(':focus')).not.toHaveJSProperty('tagName', 'BODY');
+    expect(responseViolations).toEqual([]);
     expect(consoleViolations).toEqual([]);
   });
 }
