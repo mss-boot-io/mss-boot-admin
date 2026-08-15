@@ -96,6 +96,33 @@ describe('compiled route registry', () => {
     expect(JSON.stringify(menu)).not.toContain('UntrustedLegacyPage');
   });
 
+  it('registers the five compiled authority-management routes', () => {
+    expect(
+      ['/users', '/role', '/menu', '/departments', '/posts'].map((path) => routeRegistry.get(path)),
+    ).toMatchObject([
+      { permission: '/users', serverPaths: ['/users'] },
+      { permission: '/role', serverPaths: ['/role'] },
+      { permission: '/menu', serverPaths: ['/menu'] },
+      { permission: '/departments', serverPaths: ['/departments'] },
+      { permission: '/posts', serverPaths: ['/posts'] },
+    ]);
+
+    const retained = retainRegisteredMenu(
+      [
+        { path: '/users', component: 'UntrustedUserPage' },
+        { path: '/role', component: 'https://untrusted.example/role.js' },
+      ],
+      {
+        id: 'authority-reader',
+        role: { root: false },
+        permissions: { '/users': true, '/role': true },
+      },
+    );
+    expect(retained.map((item) => item.path)).toEqual(['/users', '/role']);
+    expect(JSON.stringify(retained)).not.toContain('UntrustedUserPage');
+    expect(JSON.stringify(retained)).not.toContain('untrusted.example');
+  });
+
   it('loads generated supplier registration without executing backend component metadata', () => {
     expect(routeRegistry.get('/suppliers')).toMatchObject({
       menuName: 'supplier',

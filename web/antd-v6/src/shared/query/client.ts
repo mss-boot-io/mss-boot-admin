@@ -62,4 +62,23 @@ export const queryKeys = {
     }>,
   ) => ['configuration', 'options', 'list', params] as const,
   option: (id: string) => ['configuration', 'options', 'detail', id] as const,
+  administration: (resource: 'departments' | 'menus' | 'posts' | 'roles' | 'users') =>
+    ['administration', resource] as const,
+  administrationList: (
+    resource: 'departments' | 'menus' | 'posts' | 'roles' | 'users',
+    params: Readonly<{
+      current: number;
+      pageSize: number;
+      name?: string;
+      status?: string;
+    }>,
+  ) => ['administration', resource, 'list', params] as const,
+  administrationDetail: (
+    resource: 'departments' | 'menus' | 'posts' | 'roles' | 'users',
+    id: string,
+  ) => ['administration', resource, 'detail', id] as const,
+  administrationTree: (resource: 'departments' | 'menus' | 'posts') =>
+    ['administration', resource, 'tree'] as const,
+  roleAuthorization: (roleID: string) =>
+    ['administration', 'roles', roleID, 'authorization'] as const,
 };

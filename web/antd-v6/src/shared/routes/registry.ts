@@ -24,6 +24,36 @@ const registrations: readonly RouteRegistration[] = [
     permission: '/app-config',
   },
   {
+    path: '/users',
+    serverPaths: ['/users'],
+    menuName: 'users',
+    permission: '/users',
+  },
+  {
+    path: '/role',
+    serverPaths: ['/role'],
+    menuName: 'role',
+    permission: '/role',
+  },
+  {
+    path: '/menu',
+    serverPaths: ['/menu'],
+    menuName: 'menu-management',
+    permission: '/menu',
+  },
+  {
+    path: '/departments',
+    serverPaths: ['/departments'],
+    menuName: 'departments',
+    permission: '/departments',
+  },
+  {
+    path: '/posts',
+    serverPaths: ['/posts'],
+    menuName: 'posts',
+    permission: '/posts',
+  },
+  {
     path: '/language',
     serverPaths: ['/language'],
     menuName: 'language',
