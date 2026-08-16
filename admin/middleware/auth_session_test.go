@@ -54,6 +54,9 @@ func setupAuthSessionTest(t *testing.T) (*gorm.DB, *miniredis.Miniredis) {
 	prevFlag := config.Cfg.Auth.SessionEnabled
 	config.Cfg.Auth.SessionEnabled = true
 	t.Cleanup(func() { config.Cfg.Auth.SessionEnabled = prevFlag })
+	// Registered last so it runs before the service, Redis, DB, and temporary
+	// directory cleanups registered above.
+	t.Cleanup(waitForSessionTouches)
 
 	return db, mr
 }

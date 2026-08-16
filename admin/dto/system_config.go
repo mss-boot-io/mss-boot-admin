@@ -12,3 +12,11 @@ import "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 type SystemConfigSearch struct {
 	actions.Pagination `search:"inline"`
 }
+
+func (e *SystemConfigSearch) GetPageSize() int64 {
+	pageSize := e.Pagination.GetPageSize()
+	if pageSize > 100 {
+		return 100
+	}
+	return pageSize
+}

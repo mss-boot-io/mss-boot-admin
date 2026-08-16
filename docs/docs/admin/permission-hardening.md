@@ -93,11 +93,13 @@ Casbin 使用并发安全的同步执行器，避免策略重载与请求鉴权�
 
 ## 配置凭据边界
 
-应用设置的普通读取和写入权限不再隐含凭据权限。以下三个固定字段单独受保护：
+应用设置的普通读取和写入权限不再隐含凭据权限。以下五个固定字段单独受保护：
 
 - `email/password`
 - `security/githubClientSecret`
+- `security/githubBrowserSessionClientSecret`
 - `security/larkAppSecret`
+- `security/larkBrowserSessionAppSecret`
 
 非 root 角色只有获得 `app-config:secret-read` 后，应用配置 GET 才返回这些字段；没有读取权限时响应正常，但敏感键被省略。`app-config:secret-write` 允许盲轮换凭据，仍需原有应用配置写权限；包含敏感字段的混合请求会整笔授权、整笔提交，拒绝时不会先写入普通字段。大小写别名、Casbin 故障和策略读取错误都默认拒绝且不返回敏感值。新增组件权限不会继承 `/app-config` 的既有授权，也不会自动授给任何角色。
 

@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
@@ -46,7 +48,7 @@ func TestResetPasswordRejectsPersonalAccessTokensWithoutChangingPassword(t *test
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			test.principal.ID = "user-1"
-			recorder := executePasswordReset(t, test.principal, `{"password":"replacement-password"}`)
+			recorder := executePasswordReset(t, test.principal, `{"password":"replacement-password1"}`)
 			if recorder.Code != http.StatusForbidden {
 				t.Fatalf("status = %d, body = %s, want 403", recorder.Code, recorder.Body.String())
 			}
@@ -57,21 +59,24 @@ func TestResetPasswordRejectsPersonalAccessTokensWithoutChangingPassword(t *test
 	}
 }
 
-func TestResetPasswordKeepsSessionAndAnonymousRecoveryBehavior(t *testing.T) {
+func TestResetPasswordRequiresRecentDurableSessionAndKeepsAnonymousRecoveryBehavior(t *testing.T) {
 	db := preparePasswordResetTestDB(t)
 	before := loadPasswordState(t, db, "user-1")
 
 	principal := &models.User{}
 	principal.ID = "user-1"
-	sessionResponse := executePasswordReset(t, principal, `{"password":"replacement-password"}`)
+	sessionResponse := executePasswordReset(t, principal, `{"password":"replacement-password1"}`)
 	if sessionResponse.Code != http.StatusCreated {
 		t.Fatalf("ordinary session status = %d, body = %s, want 201", sessionResponse.Code, sessionResponse.Body.String())
+	}
+	if sessionResponse.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("password change Cache-Control = %q, want no-store", sessionResponse.Header().Get("Cache-Control"))
 	}
 	afterSession := loadPasswordState(t, db, "user-1")
 	if afterSession == before {
 		t.Fatal("ordinary session did not update the password")
 	}
-	wantHash, err := security.SetPassword("replacement-password", afterSession.Salt)
+	wantHash, err := security.SetPassword("replacement-password1", afterSession.Salt)
 	if err != nil {
 		t.Fatalf("derive expected password: %v", err)
 	}
@@ -88,7 +93,7 @@ func TestResetPasswordKeepsSessionAndAnonymousRecoveryBehavior(t *testing.T) {
 	if anonymousMalformed.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("anonymous malformed recovery status = %d, body = %s, want existing 422", anonymousMalformed.Code, anonymousMalformed.Body.String())
 	}
-	anonymousResponse := executePasswordReset(t, nil, `{"password":"another-password"}`)
+	anonymousResponse := executePasswordReset(t, nil, `{"password":"another-password1"}`)
 	if anonymousResponse.Code != http.StatusForbidden {
 		t.Fatalf("anonymous recovery status = %d, body = %s, want existing 403", anonymousResponse.Code, anonymousResponse.Body.String())
 	}
@@ -180,6 +185,21 @@ func preparePasswordResetTestDB(t *testing.T) *gorm.DB {
 	).Error; err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
+	if err = db.AutoMigrate(&models.UserSession{}); err != nil {
+		t.Fatalf("create user sessions table: %v", err)
+	}
+	now := time.Now()
+	session := &models.UserSession{
+		UserID:            "user-1",
+		LoginAt:           now,
+		LastSeenAt:        now,
+		ReauthenticatedAt: &now,
+		ExpiredAt:         now.Add(time.Hour),
+	}
+	session.ID = "session-1"
+	if err = db.Create(session).Error; err != nil {
+		t.Fatalf("seed user session: %v", err)
+	}
 
 	previousDB := gormdb.DB
 	gormdb.DB = db
@@ -227,6 +247,12 @@ func executePasswordReset(t *testing.T, verifier security.Verifier, body string)
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		if verifier != nil {
+			c.Set("JWT_PAYLOAD", jwt.MapClaims{"sid": "session-1"})
+		}
+		c.Next()
+	})
 	router.POST("/admin/api/user/reset-password", (&User{}).ResetPassword)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/admin/api/user/reset-password", bytes.NewBufferString(body))

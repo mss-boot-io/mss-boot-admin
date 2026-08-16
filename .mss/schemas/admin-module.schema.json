@@ -661,6 +661,16 @@
           "type": "boolean",
           "default": true
         },
+        "frontendTargets": {
+          "type": "array",
+          "description": "Explicit generated frontend projections. Existing specifications default to the legacy antd-v5 target; antd-v6 also enforces its versioned semantic qualification envelope.",
+          "items": {
+            "type": "string",
+            "enum": ["antd-v5", "antd-v6"]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
         "docs": {
           "type": "boolean",
           "default": true

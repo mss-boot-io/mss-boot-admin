@@ -2,6 +2,7 @@ package security
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 
 	"golang.org/x/crypto/scrypt"
@@ -62,4 +63,15 @@ func SetPassword(password string, salt string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(derived), nil
+}
+
+// VerifyPassword derives the same one-way scrypt verifier used for storage and
+// compares it in constant time. Passwords are never decrypted because no
+// reversible password representation exists.
+func VerifyPassword(password, salt, storedHash string) (bool, error) {
+	derived, err := SetPassword(password, salt)
+	if err != nil {
+		return false, err
+	}
+	return subtle.ConstantTimeCompare([]byte(derived), []byte(storedHash)) == 1, nil
 }

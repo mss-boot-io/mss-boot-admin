@@ -109,7 +109,9 @@ type appConfigPublicKey struct {
 var sensitiveAppConfigKeys = []appConfigPublicKey{
 	{Group: "email", Name: "password"},
 	{Group: "security", Name: "githubClientSecret"},
+	{Group: "security", Name: "githubBrowserSessionClientSecret"},
 	{Group: "security", Name: "larkAppSecret"},
+	{Group: "security", Name: "larkBrowserSessionAppSecret"},
 }
 
 const storageAppConfigGroup = "storage"

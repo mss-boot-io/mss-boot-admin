@@ -31,13 +31,33 @@ var (
 
 type Intent string
 
+type Transport string
+
 const (
-	IntentLogin   Intent = "login"
-	IntentBinding Intent = "binding"
+	IntentLogin            Intent = "login"
+	IntentBinding          Intent = "binding"
+	IntentReauthentication Intent = "reauthentication"
+
+	TransportBearer        Transport = "bearer"
+	TransportBrowserCookie Transport = "browser-cookie"
 )
 
 func (i Intent) Valid() bool {
-	return i == IntentLogin || i == IntentBinding
+	return i == IntentLogin || i == IntentBinding || i == IntentReauthentication
+}
+
+func (t Transport) Valid() bool {
+	return t == TransportBearer || t == TransportBrowserCookie
+}
+
+// EffectiveTransport treats records issued before the transport field was
+// introduced as bearer flows, preserving already-issued legacy OAuth state
+// during a rolling backend deployment.
+func (t Transport) EffectiveTransport() Transport {
+	if t == "" {
+		return TransportBearer
+	}
+	return t
 }
 
 // Record is stored only on the server. CredentialFingerprint and BrowserHash
@@ -46,8 +66,10 @@ func (i Intent) Valid() bool {
 type Record struct {
 	Provider              string    `json:"provider"`
 	Intent                Intent    `json:"intent"`
+	Transport             Transport `json:"transport,omitempty"`
 	UserID                string    `json:"userID,omitempty"`
 	CredentialFingerprint string    `json:"credentialFingerprint,omitempty"`
+	SessionID             string    `json:"sessionID,omitempty"`
 	BrowserHash           string    `json:"browserHash"`
 	IssuedAt              time.Time `json:"issuedAt"`
 	ExpiresAt             time.Time `json:"expiresAt"`
@@ -91,6 +113,9 @@ func (s *Store) Issue(
 	}
 	if !record.Intent.Valid() || record.Provider == "" {
 		return "", "", Record{}, errors.New("oauth state provider and intent are required")
+	}
+	if record.Transport != "" && !record.Transport.Valid() {
+		return "", "", Record{}, errors.New("oauth state transport is invalid")
 	}
 	if s == nil {
 		return "", "", Record{}, errors.New("oauth state store is nil")

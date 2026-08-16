@@ -30,6 +30,8 @@ cors:
   allowOrigins:
     - 'http://localhost:8000'
     - 'http://127.0.0.1:8000'
+    - 'http://localhost:8001'
+    - 'http://127.0.0.1:8001'
     - 'https://admin-alpha.mss-boot-io.top'
     - 'https://admin-beta.mss-boot-io.top'
     - 'https://admin.mss-boot-io.top'
@@ -44,6 +46,7 @@ cors:
     - Authorization
     - Content-Type
     - If-Match
+    - X-CSRF-Token
   exposeHeaders:
     - ETag
   maxAge: 12h
@@ -81,6 +84,15 @@ auth:
   timeout: '12h'
   maxRefresh: '2160h'
   identityKey: 'mss-boot-admin-identity-key'
+  # Deploy support disabled first; enable both session switches only after the
+  # exact browser origin, shared Redis, and production Secure cookie are ready.
+  sessionEnabled: false
+  browserSession:
+    enabled: false
+    secure: false
+    sameSite: lax
+    webSocketTicketTTL: 30s
+    legacyWebSocketQueryTokenEnabled: true
 runtime:
   resources:
     main:

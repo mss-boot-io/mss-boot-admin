@@ -41,3 +41,28 @@ func TestMenuCreateDoesNotGrantDefaultRole(t *testing.T) {
 	}).Count(&count).Error)
 	require.Zero(t, count)
 }
+
+func TestCompleteNamePreservesCanonicalAndCompletesRelativeNames(t *testing.T) {
+	tree := []*Menu{
+		{
+			Name: "menu.origination",
+			Children: []*Menu{
+				{Name: "menu.origination.user"},
+				{Name: "origination.department"},
+				{Name: "post", Children: []*Menu{{Name: "create"}}},
+			},
+		},
+		{
+			Name:     "menu.super-permission",
+			Children: []*Menu{{Name: "menu.system.appConfig"}},
+		},
+	}
+
+	completed := CompleteName(tree)
+
+	require.Equal(t, "menu.origination.user", completed[0].Children[0].Name)
+	require.Equal(t, "menu.origination.department", completed[0].Children[1].Name)
+	require.Equal(t, "menu.origination.post", completed[0].Children[2].Name)
+	require.Equal(t, "menu.origination.post.create", completed[0].Children[2].Children[0].Name)
+	require.Equal(t, "menu.system.appConfig", completed[1].Children[0].Name)
+}

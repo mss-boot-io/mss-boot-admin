@@ -14,7 +14,7 @@ keywords: [admin quickly start]
 ## 环境要求
 
 :::warning
-Go 1.26.5
+Go 1.26.6
 
 Node.js >= 22 且 < 25
 

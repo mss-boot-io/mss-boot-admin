@@ -30,17 +30,41 @@ type AuthorizationRevisionEvent struct{}
 // lease so a configuration reload cannot close a handle during reconciliation.
 type AuthorizationDatabaseUse func(context.Context, func(*gorm.DB) error) error
 
+// AuthorizationRevisionNotifier is a best-effort, non-authoritative signal
+// emitted only after the in-memory policy has reloaded a committed revision.
+// Implementations must return promptly; clients always reload authorization
+// from the HTTP API and never trust this notification as policy data.
+type AuthorizationRevisionNotifier func(uint64)
+
+// AuthorizationEventRuntimeOption configures optional delivery integrations
+// without changing the authoritative EventBus contract.
+type AuthorizationEventRuntimeOption func(*AuthorizationEventRuntime) error
+
+// WithAuthorizationRevisionNotifier installs one best-effort revision signal.
+func WithAuthorizationRevisionNotifier(
+	notifier AuthorizationRevisionNotifier,
+) AuthorizationEventRuntimeOption {
+	return func(runtime *AuthorizationEventRuntime) error {
+		if runtime == nil || notifier == nil {
+			return ErrAuthorizationEventRuntimeInvalid
+		}
+		runtime.notifyRevision = notifier
+		return nil
+	}
+}
+
 // AuthorizationEventRuntime owns the Memory EventBus used by the Admin
 // composition and periodically reconciles it against ConfigRevision. It is a
 // server Runnable: Open is synchronous startup, Start owns the polling loop,
 // and Close withdraws the publisher and closes the bus.
 type AuthorizationEventRuntime struct {
-	policy       *AuthorizationPolicyService
-	useDB        AuthorizationDatabaseUse
-	bus          *runtimeeventbus.Memory[AuthorizationRevisionEvent]
-	reconciler   *runtimeeventbus.Reconciler[AuthorizationRevisionEvent]
-	subscription *runtimeeventbus.Subscription
-	interval     time.Duration
+	policy         *AuthorizationPolicyService
+	useDB          AuthorizationDatabaseUse
+	bus            *runtimeeventbus.Memory[AuthorizationRevisionEvent]
+	reconciler     *runtimeeventbus.Reconciler[AuthorizationRevisionEvent]
+	subscription   *runtimeeventbus.Subscription
+	interval       time.Duration
+	notifyRevision AuthorizationRevisionNotifier
 
 	transitionMu sync.Mutex
 	mu           sync.Mutex
@@ -58,6 +82,7 @@ func BuildMemoryAuthorizationEventRuntime(
 	policy *AuthorizationPolicyService,
 	useDB AuthorizationDatabaseUse,
 	reconcileInterval time.Duration,
+	options ...AuthorizationEventRuntimeOption,
 ) (*AuthorizationEventRuntime, error) {
 	if policy == nil || useDB == nil {
 		return nil, ErrAuthorizationEventRuntimeInvalid
@@ -76,6 +101,14 @@ func BuildMemoryAuthorizationEventRuntime(
 		bus:      bus,
 		interval: reconcileInterval,
 		runDone:  closedSignal(),
+	}
+	for _, option := range options {
+		if option == nil {
+			return nil, ErrAuthorizationEventRuntimeInvalid
+		}
+		if err := option(runtime); err != nil {
+			return nil, err
+		}
 	}
 	subscription, err := bus.Subscribe(runtime.reloadSubscriber)
 	if err != nil {
@@ -266,10 +299,29 @@ func (r *AuthorizationEventRuntime) Close(ctx context.Context) error {
 
 func (r *AuthorizationEventRuntime) String() string { return "authorization-revision-eventbus" }
 
-func (r *AuthorizationEventRuntime) reloadSubscriber(ctx context.Context, _ runtimeeventbus.Event[AuthorizationRevisionEvent]) error {
-	return r.useDB(ctx, func(db *gorm.DB) error {
+func (r *AuthorizationEventRuntime) reloadSubscriber(
+	ctx context.Context,
+	event runtimeeventbus.Event[AuthorizationRevisionEvent],
+) error {
+	if err := r.useDB(ctx, func(db *gorm.DB) error {
 		return r.policy.EnsureCurrent(ctx, db)
-	})
+	}); err != nil {
+		return err
+	}
+	r.notifyRevisionBestEffort(uint64(event.Revision))
+	return nil
+}
+
+func (r *AuthorizationEventRuntime) notifyRevisionBestEffort(revision uint64) {
+	if r == nil || r.notifyRevision == nil || revision == 0 {
+		return
+	}
+	defer func() {
+		// A realtime hint is optional. Its failure must not poison policy
+		// propagation or turn a committed authorization mutation into an error.
+		_ = recover()
+	}()
+	r.notifyRevision(revision)
 }
 
 func (r *AuthorizationEventRuntime) latestRevision(ctx context.Context) (

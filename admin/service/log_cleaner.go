@@ -58,26 +58,54 @@ func init() {
 }
 
 func (s *LogCleanerService) CleanOldLogs(db *gorm.DB, retentionDays int) error {
+	if db == nil {
+		return gorm.ErrInvalidDB
+	}
 	if retentionDays <= 0 {
 		retentionDays = 30
 	}
 	cutoff := time.Now().AddDate(0, 0, -retentionDays)
 
-	result := db.Where("created_at < ?", cutoff).Delete(&models.AuditLog{})
-	if result.Error != nil {
-		slog.Error("Failed to clean audit logs", "error", result.Error)
-		return result.Error
-	}
-	slog.Info("Cleaned audit logs", "count", result.RowsAffected, "older_than", cutoff.Format("2006-01-02"))
+	return db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Where("created_at < ?", cutoff).Delete(&models.AuditLog{})
+		if result.Error != nil {
+			slog.Error("Failed to clean audit logs", "error", result.Error)
+			return result.Error
+		}
+		slog.Info("Cleaned audit logs", "count", result.RowsAffected, "older_than", cutoff.Format("2006-01-02"))
 
-	result = db.Where("login_at < ?", cutoff).Delete(&models.LoginLog{})
-	if result.Error != nil {
-		slog.Error("Failed to clean login logs", "error", result.Error)
-		return result.Error
-	}
-	slog.Info("Cleaned login logs", "count", result.RowsAffected, "older_than", cutoff.Format("2006-01-02"))
+		result = tx.Where("login_at < ?", cutoff).Delete(&models.LoginLog{})
+		if result.Error != nil {
+			slog.Error("Failed to clean login logs", "error", result.Error)
+			return result.Error
+		}
+		slog.Info("Cleaned login logs", "count", result.RowsAffected, "older_than", cutoff.Format("2006-01-02"))
 
-	return nil
+		// Task output is diagnostic data too. Delete child output before the
+		// corresponding run row so both explicit and database-enforced foreign
+		// keys are handled. Older installations may not have these tables yet.
+		if tx.Migrator().HasTable(&models.TaskRun{}) {
+			oldRunIDs := tx.Model(&models.TaskRun{}).
+				Select("id").
+				Where("created_at < ?", cutoff)
+			if tx.Migrator().HasTable(&models.TaskRunLog{}) {
+				result = tx.Where("task_run_id IN (?)", oldRunIDs).Delete(&models.TaskRunLog{})
+				if result.Error != nil {
+					slog.Error("Failed to clean task run logs", "error", result.Error)
+					return result.Error
+				}
+				slog.Info("Cleaned task run logs", "count", result.RowsAffected, "older_than", cutoff.Format("2006-01-02"))
+			}
+			result = tx.Where("created_at < ?", cutoff).Delete(&models.TaskRun{})
+			if result.Error != nil {
+				slog.Error("Failed to clean task runs", "error", result.Error)
+				return result.Error
+			}
+			slog.Info("Cleaned task runs", "count", result.RowsAffected, "older_than", cutoff.Format("2006-01-02"))
+		}
+
+		return nil
+	})
 }
 
 func (s *LogCleanerService) CleanOldRuntimeLogs(logDir string, retentionDays int) error {

@@ -24,6 +24,26 @@ spec:
     specifications: .mss
   backend:
     module: example.com/test-admin
+  frontend:
+    applications:
+      - id: antd-v5
+        path: web/antd
+        role: legacy
+        nodeVersion: ">=22 <25"
+        packageManager: pnpm
+        packageManagerVersion: 9.15.9
+        developmentPort: 8000
+        releaseTagTemplate: web/antd/{version}
+        image: mss-boot-admin-antd
+      - id: antd-v6
+        path: web/antd-v6
+        role: independent
+        nodeVersion: ">=24 <25"
+        packageManager: pnpm
+        packageManagerVersion: 10.34.5
+        developmentPort: 8001
+        releaseTagTemplate: web/antd-v6/{version}
+        image: mss-boot-admin-antd-v6
 `)
 	writeTestFile(t, root, ".mss/capabilities.yaml", `apiVersion: mss.io/v1alpha1
 kind: CapabilityCatalog
@@ -61,6 +81,10 @@ spec:
 	}
 	if ctx.Project.Metadata.Name != "test-admin" {
 		t.Fatalf("project name = %q", ctx.Project.Metadata.Name)
+	}
+	if applications := ctx.Project.Spec.Frontend.Applications; len(applications) != 2 ||
+		applications[1].ID != "antd-v6" || applications[1].DevelopmentPort != 8001 {
+		t.Fatalf("frontend applications = %#v", applications)
 	}
 	if len(ctx.Capabilities.Spec.Capabilities) != 2 {
 		t.Fatalf("capability count = %d", len(ctx.Capabilities.Spec.Capabilities))

@@ -79,6 +79,36 @@ func TestV100MigrationRowsDoNotRerun(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatalf("seed post-v1.0 canonical email migration row: %v", err)
 	}
+	if err := db.Create(&migrationmodels.Migration{
+		Version: languageIntegrityMigrationID.String(),
+	}).Error; err != nil {
+		t.Fatalf("seed post-v1.0 language integrity migration row: %v", err)
+	}
+	if err := db.Create(&migrationmodels.Migration{
+		Version: languageManagementPermissionsMigrationID.String(),
+	}).Error; err != nil {
+		t.Fatalf("seed post-v1.0 language permission migration row: %v", err)
+	}
+	if err := db.Create(&migrationmodels.Migration{
+		Version: optionIntegrityMigrationID.String(),
+	}).Error; err != nil {
+		t.Fatalf("seed post-v1.0 option integrity migration row: %v", err)
+	}
+	if err := db.Create(&migrationmodels.Migration{
+		Version: optionManagementPermissionsMigrationID.String(),
+	}).Error; err != nil {
+		t.Fatalf("seed post-v1.0 option permission migration row: %v", err)
+	}
+	if err := db.Create(&migrationmodels.Migration{
+		Version: hideExampleSupplierMenuMigrationID.String(),
+	}).Error; err != nil {
+		t.Fatalf("seed post-v1.0 example supplier menu migration row: %v", err)
+	}
+	if err := db.Create(&migrationmodels.Migration{
+		Version: accountReauthenticationMigrationID.String(),
+	}).Error; err != nil {
+		t.Fatalf("seed post-v1.0 account reauthentication migration row: %v", err)
+	}
 
 	migration.Migrate.SetDb(db)
 	migration.Migrate.SetModel(&migrationmodels.Migration{})
@@ -89,7 +119,7 @@ func TestV100MigrationRowsDoNotRerun(t *testing.T) {
 	if err := db.Model(&migrationmodels.Migration{}).Count(&rows).Error; err != nil {
 		t.Fatalf("count migration rows: %v", err)
 	}
-	wantRows := int64(len(v100Rows) + 1)
+	wantRows := int64(len(v100Rows) + 7)
 	if rows != wantRows {
 		t.Fatalf("migration rows = %d, want unchanged %d", rows, wantRows)
 	}

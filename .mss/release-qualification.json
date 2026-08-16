@@ -6,6 +6,10 @@
   ],
   "excludedFeatures": [
     {
+      "path": ".mss/features/admin-antd-v6-application.yaml",
+      "reason": "carry-forward: the independent Ant Design 6 application remains implementation-only until its business parity, session security, generator, browser, and release evidence is complete; this exclusion grants no v6 publication authority."
+    },
+    {
       "path": ".mss/features/admin-config-cache-consistency.yaml",
       "reason": "carry-forward: accepted checkpoint evidence remains authoritative and no previously stable cache-consistency behavior is replayed by the frozen-SHA command gate."
     },

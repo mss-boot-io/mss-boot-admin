@@ -38,7 +38,6 @@ func TestSystemConfigActionsRequireRoot(t *testing.T) {
 		method string
 		path   string
 	}{
-		{name: "list", action: response.Search, method: http.MethodGet, path: "/system-configs"},
 		{name: "get", action: response.Get, method: http.MethodGet, path: "/system-configs/:id"},
 		{name: "create", action: response.Control, method: http.MethodPost, path: "/system-configs"},
 		{name: "update", action: response.Control, method: http.MethodPut, path: "/system-configs/:id"},
@@ -69,6 +68,27 @@ func TestSystemConfigActionsRequireRoot(t *testing.T) {
 			require.Equal(t, http.StatusForbidden, recorder.Code)
 		})
 	}
+
+	t.Run("list", func(t *testing.T) {
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set(config.Cfg.Auth.IdentityKey, &models.User{UserLogin: models.UserLogin{
+				RoleID: "delegated",
+				Role:   &models.Role{Root: false},
+			}})
+			c.Next()
+		})
+		router.GET(
+			"/system-configs",
+			response.AuthHandler,
+			requireRootManagement,
+			protectSystemConfigResponse,
+			controller.List,
+		)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/system-configs", nil))
+		require.Equal(t, http.StatusForbidden, recorder.Code)
+	})
 }
 
 func TestProtectSystemConfigResponseMarksBypassForRoot(t *testing.T) {
@@ -149,7 +169,6 @@ func TestSystemConfigRootReadsAndUpdateNeverPopulateQueryCache(t *testing.T) {
 		target string
 		body   string
 	}{
-		{name: "list", action: response.Search, method: http.MethodGet, path: "/system-configs", target: "/system-configs"},
 		{name: "get", action: response.Get, method: http.MethodGet, path: "/system-configs/:id", target: "/system-configs/" + record.ID},
 		{
 			name:   "update pre-read",
@@ -186,6 +205,30 @@ func TestSystemConfigRootReadsAndUpdateNeverPopulateQueryCache(t *testing.T) {
 			require.Empty(t, server.Keys(), "system config action populated shared query cache")
 		})
 	}
+
+	t.Run("list", func(t *testing.T) {
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set(config.Cfg.Auth.IdentityKey, &models.User{UserLogin: models.UserLogin{
+				RoleID: "root",
+				Role:   &models.Role{Root: true},
+			}})
+			c.Next()
+		})
+		router.GET(
+			"/system-configs",
+			response.AuthHandler,
+			requireRootManagement,
+			protectSystemConfigResponse,
+			controller.List,
+		)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/system-configs", nil))
+		require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+		require.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+		require.NotContains(t, recorder.Body.String(), `"content"`)
+		require.Empty(t, server.Keys(), "system config list populated shared query cache")
+	})
 }
 
 func TestAuthorityInputMutationsRequireRoot(t *testing.T) {

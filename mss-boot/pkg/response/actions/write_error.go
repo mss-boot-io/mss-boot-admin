@@ -18,6 +18,9 @@ const (
 	WriteOperationBeforeUpdate WriteOperation = "before-update"
 	WriteOperationUpdate       WriteOperation = "update"
 	WriteOperationAfterUpdate  WriteOperation = "after-update"
+	WriteOperationBeforeDelete WriteOperation = "before-delete"
+	WriteOperationDelete       WriteOperation = "delete"
+	WriteOperationAfterDelete  WriteOperation = "after-delete"
 )
 
 // PublicWriteError is a value-safe HTTP classification. Error must not retain

@@ -96,7 +96,18 @@ func (e *User) GetUserID() string {
 
 // PasswordReset reset password
 func PasswordReset(ctx context.Context, userID string, password string) error {
-	db := gormdb.DB.WithContext(ctx)
+	return PasswordResetWithDB(ctx, gormdb.DB, userID, password)
+}
+
+// PasswordResetWithDB rotates the one-way verifier and revokes durable
+// credentials on the supplied database handle. Passing an existing
+// transaction lets recent-authentication checks and the credential boundary
+// commit atomically.
+func PasswordResetWithDB(ctx context.Context, database *gorm.DB, userID string, password string) error {
+	if database == nil {
+		return errors.New("password reset database is unavailable")
+	}
+	db := database.WithContext(ctx)
 	if db.Logger != nil {
 		db = db.Session(&gorm.Session{Logger: db.Logger.LogMode(logger.Silent)})
 	}
@@ -618,6 +629,7 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 			slog.Error("email registration transaction unavailable")
 			return false, nil, errors.Join(runtimechallenge.ErrUnavailable, err)
 		}
+		RecordUserCreated(c, user)
 		user.Role = defaultRole
 		return true, user, nil
 	}
@@ -629,11 +641,11 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 	if user.LocalPasswordDisabled {
 		return false, nil, nil
 	}
-	verify, err := security.SetPassword(e.Password, user.Salt)
+	verified, err := security.VerifyPassword(e.Password, user.Salt, user.PasswordHash)
 	if err != nil {
 		return false, nil, err
 	}
-	return verify == user.PasswordHash, user, nil
+	return verified, user, nil
 }
 
 func (e *UserLogin) GetUserLarkOAuth2(c *gin.Context) (*UserOAuth2, error) {
@@ -744,29 +756,16 @@ func (e *UserLogin) GetUserGithubOAuth2(c *gin.Context) (*UserOAuth2, error) {
 	if !ok || !cast.ToBool(githubEnabled) {
 		return nil, errors.New("github login is disabled")
 	}
-	clientID, _ := userAppConfig(c, "security:githubClientId")
-	clientSecret, _ := userAppConfig(c, "security:githubClientSecret")
-	redirectURL, _ := userAppConfig(c,
-		"security:githubRedirectURI",
-		"security:githubRedirectUrl",
-		"security:githubRedirectURL",
-	)
-	scope, _ := userAppConfig(c, "security:githubScope")
 	allowGroup, allowGroupConfigured := userAppConfig(c, "security:githubAllowGroup")
 	allowGroups := splitGithubCSV(allowGroup)
 	if allowGroupConfigured && strings.TrimSpace(allowGroup) != "" && len(allowGroups) == 0 {
 		return nil, errors.New("github allow group configuration is invalid")
 	}
-	conf := &oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Scopes:       splitGithubCSV(scope),
-		RedirectURL:  redirectURL,
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://github.com/login/oauth/authorize",
-			TokenURL: "https://github.com/login/oauth/access_token",
-		},
-	}
+	// The provider token has already been exchanged by the transport-specific
+	// callback. Resource requests need only that token; keeping OAuth app
+	// credentials out of this phase prevents V5 and V6 provider configuration
+	// from becoming coupled again after a successful exchange.
+	conf := &oauth2.Config{}
 	requestContext := context.Context(c)
 	if c.Request != nil {
 		requestContext = c.Request.Context()
@@ -953,27 +952,47 @@ func (e *UserLogin) Scope(ctx *gin.Context, table schema.Tabler) func(db *gorm.D
 }
 
 func UserRegister(ctx *gin.Context, user *User) error {
-	return createUserWithCanonicalEmail(center.GetDB(ctx, user), user)
+	if err := createUserWithCanonicalEmail(center.GetDB(ctx, user), user); err != nil {
+		return err
+	}
+	RecordUserCreated(ctx, user)
+	return nil
 }
 
 // ********************* statistics *********************
 
-func (e *User) AfterCreate(tx *gorm.DB) error {
-	ctx, ok := tx.Statement.Context.(*gin.Context)
-	if !ok {
-		return nil
+// RecordUserCreated updates optional user telemetry only after the caller has
+// committed the user row. A telemetry failure must not turn a successful user
+// mutation into an ambiguous HTTP failure that clients may retry.
+func RecordUserCreated(ctx *gin.Context, user *User) {
+	statistics := center.GetStatistics()
+	if ctx == nil || user == nil || statistics == nil {
+		return
 	}
-	_ = center.Default.NowIncrease(ctx, e)
-	return nil
+	if err := statistics.NowIncrease(ctx, user); err != nil {
+		slog.Error("record committed user creation statistic", "error", err)
+	}
 }
 
-func (e *User) AfterDelete(tx *gorm.DB) error {
-	ctx, ok := tx.Statement.Context.(*gin.Context)
-	if !ok {
-		return nil
+// RecordUserDeleted updates optional user telemetry after a successful delete.
+func RecordUserDeleted(ctx *gin.Context, user *User) {
+	statistics := center.GetStatistics()
+	if ctx == nil || user == nil || statistics == nil {
+		return
 	}
-	_ = center.Default.NowReduce(ctx, e)
-	return nil
+	if err := statistics.NowReduce(ctx, user); err != nil {
+		slog.Error("record committed user deletion statistic", "error", err)
+	}
+}
+
+func recordUserCreatedFromDB(db *gorm.DB, user *User) {
+	if db == nil || db.Statement == nil {
+		return
+	}
+	ctx, ok := db.Statement.Context.(*gin.Context)
+	if ok {
+		RecordUserCreated(ctx, user)
+	}
 }
 
 // StatisticsName statistics name

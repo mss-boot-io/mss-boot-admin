@@ -65,13 +65,29 @@ type BackendSpec struct {
 
 // FrontendSpec describes the web application contract.
 type FrontendSpec struct {
-	Language              string `yaml:"language" json:"language"`
+	Language              string                    `yaml:"language" json:"language"`
+	NodeVersion           string                    `yaml:"nodeVersion" json:"nodeVersion"`
+	PackageManager        string                    `yaml:"packageManager" json:"packageManager"`
+	PackageManagerVersion string                    `yaml:"packageManagerVersion" json:"packageManagerVersion"`
+	Framework             string                    `yaml:"framework" json:"framework"`
+	ApplicationFramework  string                    `yaml:"applicationFramework" json:"applicationFramework"`
+	ComponentLibrary      string                    `yaml:"componentLibrary" json:"componentLibrary"`
+	Applications          []FrontendApplicationSpec `yaml:"applications,omitempty" json:"applications,omitempty"`
+}
+
+// FrontendApplicationSpec identifies one independently built and released web
+// application. The fields on FrontendSpec remain the legacy default toolchain
+// contract for downstream snapshots that predate multiple frontends.
+type FrontendApplicationSpec struct {
+	ID                    string `yaml:"id" json:"id"`
+	Path                  string `yaml:"path" json:"path"`
+	Role                  string `yaml:"role" json:"role"`
 	NodeVersion           string `yaml:"nodeVersion" json:"nodeVersion"`
 	PackageManager        string `yaml:"packageManager" json:"packageManager"`
 	PackageManagerVersion string `yaml:"packageManagerVersion" json:"packageManagerVersion"`
-	Framework             string `yaml:"framework" json:"framework"`
-	ApplicationFramework  string `yaml:"applicationFramework" json:"applicationFramework"`
-	ComponentLibrary      string `yaml:"componentLibrary" json:"componentLibrary"`
+	DevelopmentPort       int    `yaml:"developmentPort" json:"developmentPort"`
+	ReleaseTagTemplate    string `yaml:"releaseTagTemplate" json:"releaseTagTemplate"`
+	Image                 string `yaml:"image" json:"image"`
 }
 
 // DocumentationSpec describes the documentation toolchain.

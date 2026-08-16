@@ -434,7 +434,8 @@ func TestRequestHasCredentialRecognizesConfiguredSources(t *testing.T) {
 	}{
 		{name: "anonymous", url: "/admin/api/app-configs/profile", want: false},
 		{name: "authorization header", url: "/admin/api/app-configs/profile", set: func(r *http.Request) { r.Header.Set("Authorization", "Bearer token") }, want: true},
-		{name: "query token", url: "/admin/api/app-configs/profile?token=value", want: true},
+		{name: "query token is not a REST credential", url: "/admin/api/app-configs/profile?token=value", want: false},
+		{name: "browser session cookie", url: "/admin/api/app-configs/profile", set: func(r *http.Request) { r.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "value"}) }, want: true},
 		{name: "jwt cookie", url: "/admin/api/app-configs/profile", set: func(r *http.Request) { r.AddCookie(&http.Cookie{Name: "jwt", Value: "value"}) }, want: true},
 	}
 	for _, test := range tests {

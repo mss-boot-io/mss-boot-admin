@@ -13,7 +13,9 @@ func TestAppConfigGroupOmitsFixedSensitiveValuesByDefault(t *testing.T) {
 		{Group: "email", Name: "password", Value: "smtp-secret", Auth: true},
 		{Group: "email", Name: "smtpHost", Value: "smtp.example.test", Auth: true},
 		{Group: "security", Name: "githubClientSecret", Value: "github-secret", Auth: false},
+		{Group: "security", Name: "githubBrowserSessionClientSecret", Value: "github-browser-secret", Auth: false},
 		{Group: "security", Name: "larkAppSecret", Value: "lark-secret", Auth: true},
+		{Group: "security", Name: "larkBrowserSessionAppSecret", Value: "lark-browser-secret", Auth: false},
 		{Group: "security", Name: "githubClientId", Value: "client-id", Auth: true},
 	}).Error)
 
@@ -24,7 +26,9 @@ func TestAppConfigGroupOmitsFixedSensitiveValuesByDefault(t *testing.T) {
 	}{
 		{group: "email", secretKey: "password", visible: "smtpHost"},
 		{group: "security", secretKey: "githubClientSecret", visible: "githubClientId"},
+		{group: "security", secretKey: "githubBrowserSessionClientSecret", visible: "githubClientId"},
 		{group: "security", secretKey: "larkAppSecret", visible: "githubClientId"},
+		{group: "security", secretKey: "larkBrowserSessionAppSecret", visible: "githubClientId"},
 	}
 
 	svc := &AppConfig{}
@@ -38,9 +42,11 @@ func TestAppConfigGroupOmitsFixedSensitiveValuesByDefault(t *testing.T) {
 			privileged, err := svc.GroupWithSensitiveValues(env.ctx, test.group, true)
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
-				"password":           "smtp-secret",
-				"githubClientSecret": "github-secret",
-				"larkAppSecret":      "lark-secret",
+				"password":                         "smtp-secret",
+				"githubClientSecret":               "github-secret",
+				"githubBrowserSessionClientSecret": "github-browser-secret",
+				"larkAppSecret":                    "lark-secret",
+				"larkBrowserSessionAppSecret":      "lark-browser-secret",
 			}[test.secretKey], privileged[test.secretKey])
 		})
 	}
@@ -53,7 +59,9 @@ func TestAppConfigSensitiveKeyContractIsExactAndRejectsCaseBypass(t *testing.T) 
 	}{
 		{group: "email", name: "password"},
 		{group: "security", name: "githubClientSecret"},
+		{group: "security", name: "githubBrowserSessionClientSecret"},
 		{group: "security", name: "larkAppSecret"},
+		{group: "security", name: "larkBrowserSessionAppSecret"},
 	}
 	for _, test := range tests {
 		t.Run(test.group+"/"+test.name, func(t *testing.T) {

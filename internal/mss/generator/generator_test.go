@@ -585,6 +585,121 @@ func TestGenerateReportsCompleteDocsAndBrowserE2EOutputs(t *testing.T) {
 	}
 }
 
+func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
+	repositoryRoot := findRepositoryRoot(t)
+	root := t.TempDir()
+	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
+	module := generatorTestModule()
+	module.Spec.Generation.FrontendTargets = []string{spec.FrontendTargetAntDV5, spec.FrontendTargetAntDV6}
+	module.Spec.API.Operations = append(module.Spec.API.Operations, "export")
+	module.Spec.Permissions = append(module.Spec.Permissions, spec.Permission{
+		Action:       "export",
+		DisplayName:  "导出",
+		DefaultRoles: []string{"admin"},
+	})
+	module.Spec.UI.Export = true
+
+	options := Options{Root: root, Write: true, FrontendTarget: spec.FrontendTargetAntDV6}
+	written, err := Generate(module, options)
+	if err != nil {
+		t.Fatalf("Generate(v6 write) error = %v", err)
+	}
+	if written.FrontendTarget != spec.FrontendTargetAntDV6 {
+		t.Fatalf("frontend target = %q", written.FrontendTarget)
+	}
+	expected := map[string]bool{
+		"web/antd-v6/config/routes.generated.ts":                      false,
+		"web/antd-v6/e2e/generated/supplier.spec.ts":                  false,
+		"web/antd-v6/src/generated/locales/en-US.ts":                  false,
+		"web/antd-v6/src/generated/locales/zh-CN.ts":                  false,
+		"web/antd-v6/src/generated/modules/supplier/SupplierPage.tsx": false,
+		"web/antd-v6/src/generated/modules/supplier/api.ts":           false,
+		"web/antd-v6/src/generated/modules/supplier/contract.test.ts": false,
+		"web/antd-v6/src/generated/modules/supplier/contract.ts":      false,
+		"web/antd-v6/src/generated/modules/supplier/query.ts":         false,
+		"web/antd-v6/src/generated/modules/supplier/types.ts":         false,
+		"web/antd-v6/src/generated/routes.ts":                         false,
+		"web/antd-v6/src/pages/generated/Supplier/index.tsx":          false,
+	}
+	for _, change := range written.Changes {
+		if strings.HasPrefix(change.Path, "web/antd/") {
+			t.Fatalf("v6 generation crossed into legacy frontend: %s", change.Path)
+		}
+		if _, exists := expected[change.Path]; exists {
+			expected[change.Path] = true
+		}
+	}
+	for path, found := range expected {
+		if !found {
+			t.Fatalf("v6 generation omitted %s", path)
+		}
+	}
+
+	for path, fragments := range map[string][]string{
+		"web/antd-v6/src/generated/modules/supplier/SupplierPage.tsx": {
+			"@tanstack/react-query",
+			"PageContainer",
+			"destroyOnHidden",
+			"App.useApp()",
+			"name=\"supplier-filters\"",
+			"name=\"supplier-editor\"",
+			"aria-label={intl.formatMessage",
+		},
+		"web/antd-v6/src/generated/modules/supplier/contract.ts": {
+			"parseSupplierPage",
+			"hasPermission",
+		},
+		"web/antd-v6/e2e/generated/supplier.spec.ts": {
+			"mss_admin_session",
+			"X-CSRF-Token",
+			"not.toHaveProperty('token')",
+			"randomUUID",
+			"uniqueFixture",
+			"toPass({ timeout: 15_000 })",
+		},
+	} {
+		content, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		if readErr != nil {
+			t.Fatalf("read %s: %v", path, readErr)
+		}
+		for _, fragment := range fragments {
+			if !strings.Contains(string(content), fragment) {
+				t.Fatalf("%s omitted %q", path, fragment)
+			}
+		}
+	}
+
+	second, err := Generate(module, options)
+	if err != nil {
+		t.Fatalf("Generate(v6 second write) error = %v", err)
+	}
+	for _, change := range second.Changes {
+		if change.Action != ActionUnchanged {
+			t.Fatalf("second v6 action for %s = %s", change.Path, change.Action)
+		}
+	}
+}
+
+func TestGenerateRejectsUndeclaredFrontendTargetBeforeWriting(t *testing.T) {
+	repositoryRoot := findRepositoryRoot(t)
+	root := t.TempDir()
+	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
+	plan, err := Generate(generatorTestModule(), Options{
+		Root:           root,
+		Write:          true,
+		FrontendTarget: spec.FrontendTargetAntDV6,
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not declare frontend target") {
+		t.Fatalf("Generate(undeclared v6) error = %v", err)
+	}
+	if len(plan.Changes) != 0 {
+		t.Fatalf("undeclared target changes = %#v, want none", plan.Changes)
+	}
+	if _, statErr := os.Stat(filepath.Join(root, "web")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("undeclared target wrote frontend output: %v", statErr)
+	}
+}
+
 func TestGenerateAlignsAuthorizedMenuNamesWithLocaleKeys(t *testing.T) {
 	repositoryRoot := findRepositoryRoot(t)
 	root := t.TempDir()

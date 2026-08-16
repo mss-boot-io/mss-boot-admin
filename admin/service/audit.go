@@ -66,13 +66,16 @@ func (s *AuditService) LogWithContext(db *gorm.DB, logType string, userID, usern
 	})
 }
 
-func (s *AuditService) GetLoginLogs(db *gorm.DB, userID string, page, pageSize int) ([]*models.LoginLog, int64, error) {
+func (s *AuditService) GetLoginLogs(db *gorm.DB, userID, username string, page, pageSize int) ([]*models.LoginLog, int64, error) {
 	var logs []*models.LoginLog
 	var total int64
 
 	query := db.Model(&models.LoginLog{})
 	if userID != "" {
 		query = query.Where("user_id = ?", userID)
+	}
+	if username != "" {
+		query = query.Where("username LIKE ?", "%"+username+"%")
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -87,13 +90,16 @@ func (s *AuditService) GetLoginLogs(db *gorm.DB, userID string, page, pageSize i
 	return logs, total, nil
 }
 
-func (s *AuditService) GetAuditLogs(db *gorm.DB, userID string, logType models.AuditLogType, page, pageSize int) ([]*models.AuditLog, int64, error) {
+func (s *AuditService) GetAuditLogs(db *gorm.DB, userID, username string, logType models.AuditLogType, page, pageSize int) ([]*models.AuditLog, int64, error) {
 	var logs []*models.AuditLog
 	var total int64
 
 	query := db.Model(&models.AuditLog{})
 	if userID != "" {
 		query = query.Where("user_id = ?", userID)
+	}
+	if username != "" {
+		query = query.Where("username LIKE ?", "%"+username+"%")
 	}
 	if logType != "" {
 		query = query.Where("type = ?", logType)

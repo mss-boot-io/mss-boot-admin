@@ -112,13 +112,25 @@ web-test:
 web-build:
 	cd web/antd && pnpm build:local
 
+web-v6-install:
+	cd web/antd-v6 && corepack pnpm@10.34.5 install --frozen-lockfile
+
+web-v6-lint:
+	cd web/antd-v6 && corepack pnpm@10.34.5 lint
+
+web-v6-test:
+	cd web/antd-v6 && corepack pnpm@10.34.5 test:ci
+
+web-v6-build:
+	cd web/antd-v6 && corepack pnpm@10.34.5 build:release
+
 docs-install:
 	cd docs && corepack enable && pnpm install --frozen-lockfile
 
 docs-build:
 	cd docs && pnpm build
 
-verify-all: verify-admin verify-framework test-agent web-lint web-test web-build docs-build
+verify-all: verify-admin verify-framework test-agent web-lint web-test web-build web-v6-lint web-v6-test web-v6-build docs-build
 
 clean:
 	rm -rf $(BIN_DIR) $(COVERAGE_DIR)

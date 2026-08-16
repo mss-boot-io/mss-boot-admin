@@ -24,6 +24,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
+	adminwebsocket "github.com/mss-boot-io/mss-boot-admin/admin/center/websocket"
 	"github.com/mss-boot-io/mss-boot-admin/admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
@@ -191,7 +192,7 @@ func setup(ctx context.Context) (err error) {
 	}
 	if err := mountSupplierRoutesAfterMigrationReadiness(
 		ctx,
-		databaseHandle.DB,
+		config.Cfg.WithDatabase,
 		businessRoutes,
 	); err != nil {
 		return err
@@ -299,6 +300,11 @@ func buildAuthorizationEventRuntime(
 			})
 		},
 		0,
+		service.WithAuthorizationRevisionNotifier(func(revision uint64) {
+			if !adminwebsocket.BroadcastAuthorizationRevision(revision) {
+				slog.Warn("authorization revision realtime signal dropped", "revision", revision)
+			}
+		}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("build authorization revision event runtime: %w", err)

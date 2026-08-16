@@ -68,3 +68,18 @@ func TestSetPasswordIsDeterministicAndSaltSensitive(t *testing.T) {
 		t.Fatal("different salts produced the same password verifier")
 	}
 }
+
+func TestVerifyPasswordMatchesOnlyTheStoredOneWayVerifier(t *testing.T) {
+	stored, err := SetPassword("correct-password1", "unique-salt")
+	if err != nil {
+		t.Fatalf("derive stored password: %v", err)
+	}
+	verified, err := VerifyPassword("correct-password1", "unique-salt", stored)
+	if err != nil || !verified {
+		t.Fatalf("correct password verified=%v err=%v", verified, err)
+	}
+	verified, err = VerifyPassword("wrong-password1", "unique-salt", stored)
+	if err != nil || verified {
+		t.Fatalf("wrong password verified=%v err=%v", verified, err)
+	}
+}

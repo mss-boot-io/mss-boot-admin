@@ -18,6 +18,9 @@ import (
 const (
 	ModuleAPIVersion = "mss.io/v1alpha1"
 	ModuleKind       = "AdminModule"
+
+	FrontendTargetAntDV5 = "antd-v5"
+	FrontendTargetAntDV6 = "antd-v6"
 )
 
 var (
@@ -223,12 +226,13 @@ type TestSpec struct {
 
 // GenerationSpec controls generated surfaces.
 type GenerationSpec struct {
-	MigrationID              string `yaml:"migrationID,omitempty" json:"migrationID,omitempty"`
-	AuthorizationMigrationID string `yaml:"authorizationMigrationID,omitempty" json:"authorizationMigrationID,omitempty"`
-	Backend                  *bool  `yaml:"backend,omitempty" json:"backend,omitempty"`
-	Frontend                 *bool  `yaml:"frontend,omitempty" json:"frontend,omitempty"`
-	Docs                     *bool  `yaml:"docs,omitempty" json:"docs,omitempty"`
-	Tests                    *bool  `yaml:"tests,omitempty" json:"tests,omitempty"`
+	MigrationID              string   `yaml:"migrationID,omitempty" json:"migrationID,omitempty"`
+	AuthorizationMigrationID string   `yaml:"authorizationMigrationID,omitempty" json:"authorizationMigrationID,omitempty"`
+	Backend                  *bool    `yaml:"backend,omitempty" json:"backend,omitempty"`
+	Frontend                 *bool    `yaml:"frontend,omitempty" json:"frontend,omitempty"`
+	FrontendTargets          []string `yaml:"frontendTargets,omitempty" json:"frontendTargets,omitempty"`
+	Docs                     *bool    `yaml:"docs,omitempty" json:"docs,omitempty"`
+	Tests                    *bool    `yaml:"tests,omitempty" json:"tests,omitempty"`
 }
 
 // Issue is a stable validation diagnostic.
@@ -327,6 +331,13 @@ func (m *Module) Normalize() {
 	if m.Spec.Generation.Frontend == nil {
 		m.Spec.Generation.Frontend = boolPointer(true)
 	}
+	if *m.Spec.Generation.Frontend && len(m.Spec.Generation.FrontendTargets) == 0 {
+		m.Spec.Generation.FrontendTargets = []string{FrontendTargetAntDV5}
+	}
+	for index := range m.Spec.Generation.FrontendTargets {
+		m.Spec.Generation.FrontendTargets[index] = strings.TrimSpace(m.Spec.Generation.FrontendTargets[index])
+	}
+	sort.Strings(m.Spec.Generation.FrontendTargets)
 	if m.Spec.Generation.Docs == nil {
 		m.Spec.Generation.Docs = boolPointer(true)
 	}
@@ -562,6 +573,88 @@ func (m *Module) Validate() []Issue {
 			add("spec.generation.authorizationMigrationID", "duplicate-migration-id", "authorization migration ID must differ from the entity migration ID")
 		}
 	}
+	frontendEnabled := m.Spec.Generation.Frontend != nil && *m.Spec.Generation.Frontend
+	if !frontendEnabled && len(m.Spec.Generation.FrontendTargets) > 0 {
+		add("spec.generation.frontendTargets", "frontend-disabled", "frontend targets require frontend generation")
+	}
+	frontendTargetSeen := make(map[string]bool, len(m.Spec.Generation.FrontendTargets))
+	for index, target := range m.Spec.Generation.FrontendTargets {
+		path := "spec.generation.frontendTargets[" + strconv.Itoa(index) + "]"
+		if !contains([]string{FrontendTargetAntDV5, FrontendTargetAntDV6}, target) {
+			add(path, "unsupported-frontend-target", "supported values are antd-v5 and antd-v6")
+		}
+		if frontendTargetSeen[target] {
+			add(path, "duplicate-frontend-target", "frontend target must be unique")
+		}
+		frontendTargetSeen[target] = true
+	}
+	if contains(m.Spec.Generation.FrontendTargets, FrontendTargetAntDV6) {
+		hasE2EMarker := false
+		hasE2EUpdateField := false
+		for _, operation := range []string{"list", "get", "create", "update", "delete", "export"} {
+			if !operationSeen[operation] {
+				add("spec.api.operations", "antd-v6-operation-required", "the initial antd-v6 profile requires the "+operation+" operation")
+			}
+		}
+		if !m.Spec.UI.List || !m.Spec.UI.Form || !m.Spec.UI.Detail || !m.Spec.UI.Export {
+			add("spec.ui", "antd-v6-ui-required", "the initial antd-v6 profile requires list, form, detail, and export UI surfaces")
+		}
+		if m.Spec.UI.BatchDelete || m.Spec.UI.Import || m.Spec.Workflow != nil {
+			add("spec.ui", "antd-v6-ui-unsupported", "batch delete, import, and workflow UI require a later antd-v6 profile revision")
+		}
+		if m.Spec.Entity.IDType == "int64" {
+			add("spec.entity.idType", "antd-v6-id-type-unsupported", "the initial antd-v6 profile requires a uuid or string identifier")
+		}
+		if m.Spec.Entity.Timestamps == nil || !*m.Spec.Entity.Timestamps {
+			add("spec.entity.timestamps", "antd-v6-timestamps-required", "the initial antd-v6 response contract requires timestamps")
+		}
+		for index, field := range m.Spec.Entity.Fields {
+			path := "spec.entity.fields[" + strconv.Itoa(index) + "]"
+			if !contains([]string{"string", "text", "uuid", "enum", "bool"}, field.Type) {
+				add(path+".type", "antd-v6-field-type-unsupported", "the initial antd-v6 profile supports string, text, uuid, enum, and bool fields")
+			}
+			if field.Nullable {
+				add(path+".nullable", "antd-v6-nullable-unsupported", "nullable response and editor semantics require a later antd-v6 profile revision")
+			}
+			formEnabled := (field.Form == nil || *field.Form) && !field.UI.Hidden
+			listEnabled := (field.List == nil || *field.List) && !field.UI.Hidden
+			if field.Required && !formEnabled {
+				add(path+".form", "antd-v6-required-field-not-editable", "required create fields must have a visible v6 form control")
+			}
+			if field.Immutable && formEnabled {
+				add(path+".immutable", "antd-v6-immutable-form-unsupported", "immutable create-only fields require a later antd-v6 editor contract revision")
+			}
+			if field.Unique && field.Searchable && formEnabled && listEnabled && contains([]string{"string", "text"}, field.Type) {
+				hasE2EMarker = true
+			}
+			if !field.Immutable && formEnabled && listEnabled && contains([]string{"string", "text"}, field.Type) {
+				hasE2EUpdateField = true
+			}
+			if !formEnabled {
+				continue
+			}
+			supportedComponent := false
+			switch field.Type {
+			case "string", "uuid":
+				supportedComponent = field.UI.Component == "" || field.UI.Component == "input"
+			case "text":
+				supportedComponent = field.UI.Component == "" || field.UI.Component == "textarea"
+			case "enum":
+				supportedComponent = field.UI.Component == "" || field.UI.Component == "select"
+			case "bool":
+				supportedComponent = field.UI.Component == "" || field.UI.Component == "switch"
+			}
+			if !supportedComponent {
+				add(path+".ui.component", "antd-v6-component-unsupported", "the field component is not implemented by the initial antd-v6 profile")
+			}
+		}
+		if m.Spec.Tests.E2E && !hasE2EMarker {
+			add("spec.tests.e2e", "antd-v6-e2e-marker-required", "v6 browser cleanup requires a unique, searchable, visible string/text field present in the editor and list")
+		}
+		if m.Spec.Tests.E2E && !hasE2EUpdateField {
+			add("spec.tests.e2e", "antd-v6-e2e-update-field-required", "v6 browser update verification requires a mutable visible string/text field present in the editor and list")
+		}
+	}
 
 	eventSeen := map[string]bool{}
 	eventTriggerSeen := map[string]bool{}
@@ -613,6 +706,16 @@ func (m *Module) Permission(action string) (Permission, bool) {
 		}
 	}
 	return Permission{}, false
+}
+
+// SupportsFrontendTarget reports whether this module deliberately opts into
+// one generated frontend projection. Older specifications normalize to the
+// legacy Ant Design 5 target only.
+func (m *Module) SupportsFrontendTarget(target string) bool {
+	if m == nil || m.Spec.Generation.Frontend == nil || !*m.Spec.Generation.Frontend {
+		return false
+	}
+	return contains(m.Spec.Generation.FrontendTargets, target)
 }
 
 // Field returns one field by its lower-camel name.

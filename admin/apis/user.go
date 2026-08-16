@@ -26,6 +26,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/notice/email"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
+	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 )
 
 /*
@@ -48,10 +49,30 @@ func newUserController() *User {
 			controller.WithModelProvider(actions.ModelProviderGorm),
 			controller.WithScope(redactUserPersistenceDiagnostics),
 			controller.WithWriteErrorMapper(mapUserWriteError),
+			controller.WithAfterCommitCreate(recordCreatedUserStatistics),
+			controller.WithAfterDelete(recordDeletedUserStatistics),
 			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement, protectRootUserLifecycle}),
 			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement, protectRootUserLifecycle}),
 		),
 	}
+}
+
+func recordCreatedUserStatistics(ctx *gin.Context, _ *gorm.DB, model schema.Tabler) error {
+	user, ok := model.(*models.User)
+	if !ok {
+		return errors.New("created user statistics model is invalid")
+	}
+	models.RecordUserCreated(ctx, user)
+	return nil
+}
+
+func recordDeletedUserStatistics(ctx *gin.Context, _ *gorm.DB, model schema.Tabler) error {
+	user, ok := model.(*models.User)
+	if !ok {
+		return errors.New("deleted user statistics model is invalid")
+	}
+	models.RecordUserDeleted(ctx, user)
+	return nil
 }
 
 func mapUserWriteError(
@@ -94,6 +115,7 @@ type User struct {
 	oauthCodeExchange    oauthCodeExchange
 	oauthLoginComplete   oauthLoginCompleter
 	oauthBindingComplete oauthBindingCompleter
+	oauthReauthComplete  oauthReauthenticationCompleter
 	challengeSender      email.VerifyCodeSender
 	challengeSendSlots   chan struct{}
 }
@@ -103,7 +125,9 @@ var defaultEmailChallengeSendSlots = make(chan struct{}, 32)
 // Other handler
 func (e *User) Other(r *gin.RouterGroup) {
 	r.POST("/user/login", middleware.PublicLoginHandler)
-	r.POST("/user/auth-cookie/clear", e.ClearAuthCookie)
+	r.POST("/user/session/login", middleware.RequireTrustedBrowserOrigin(), e.SessionLogin)
+	r.POST("/user/session/refresh-token", middleware.RequireTrustedBrowserOrigin(), e.SessionRefreshToken)
+	r.POST("/user/auth-cookie/clear", middleware.RequireTrustedBrowserOrigin(), e.ClearAuthCookie)
 	r.POST("/user/reset-password", middleware.OptionalAuth(), e.ResetPassword)
 	r.POST("/user/fakeCaptcha", e.FakeCaptcha)
 	r.POST("/user/login/github", methodNotAllowed)
@@ -114,11 +138,46 @@ func (e *User) Other(r *gin.RouterGroup) {
 	r.PUT("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UpdateUserInfo)
 	r.POST("/user/avatar", middleware.Auth.MiddlewareFunc(), e.UpdateAvatar)
 	r.GET("/user/oauth2", response.AuthHandler, e.GetOauth2)
+	r.GET("/user/security", response.AuthHandler, e.GetAccountSecurity)
+	r.POST("/user/security/reauthenticate", response.AuthHandler, e.ReauthenticateAccount)
+	r.PUT("/user/security/password", response.AuthHandler, e.ChangeAccountPassword)
 	r.POST("/user/oauth2/authorize", middleware.OptionalAuth(), e.OAuthAuthorize)
+	r.POST("/user/session/oauth2/authorize", middleware.RequireTrustedBrowserOrigin(), middleware.OptionalAuth(), e.SessionOAuthAuthorize)
 	r.POST("/user/binding", response.AuthHandler, e.Binding)
 	r.DELETE("/user/unbinding", response.AuthHandler, e.Unbinding)
+	r.DELETE("/user/oauth2/:provider", response.AuthHandler, e.DisconnectOAuth)
 	r.POST("/user/:provider/callback", middleware.OptionalAuth(), e.Callback)
+	r.POST("/user/session/:provider/callback", middleware.RequireTrustedBrowserOrigin(), middleware.OptionalAuth(), e.SessionCallback)
 	r.GET("/user/:provider/callback", methodNotAllowed)
+}
+
+// SessionLogin establishes the opt-in V6 browser session without returning an
+// Admin JWT to browser-visible JavaScript.
+// @Summary Login with an HttpOnly browser session
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param data body models.UserLogin true "data"
+// @Success 200 {object} dto.BrowserSessionResponse
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 503 {object} response.Response
+// @Router /admin/api/user/session/login [post]
+func (*User) SessionLogin(c *gin.Context) {
+	middleware.BrowserSessionLoginHandler(c)
+}
+
+// SessionRefreshToken rotates the V6 HttpOnly session and signed CSRF cookie.
+// @Summary Refresh an HttpOnly browser session
+// @Tags user
+// @Produce json
+// @Success 200 {object} dto.BrowserSessionResponse
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 503 {object} response.Response
+// @Router /admin/api/user/session/refresh-token [post]
+func (*User) SessionRefreshToken(c *gin.Context) {
+	middleware.BrowserSessionRefreshHandler(c)
 }
 
 // ClearAuthCookie expires the browser's HttpOnly Admin JWT cookie before a
@@ -140,6 +199,7 @@ func (*User) ClearAuthCookie(c *gin.Context) {
 // @Router /admin/api/user/unbinding [delete]
 // @Security Bearer
 func (e *User) Unbinding(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
 	api := response.Make(ctx)
 	verify := response.VerifyHandler(ctx)
 	if verify == nil {
@@ -155,16 +215,40 @@ func (e *User) Unbinding(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	user := verify.(*models.User)
-	err := center.GetDB(ctx, &models.UserOAuth2{}).Where("user_id = ?", user.ID).
-		Where("provider = ?", req.Provider).
-		Unscoped().Delete(&models.UserOAuth2{}).Error
-	if err != nil {
-		api.AddError(err).Log.Error("DeleteUserOAuth2 error")
-		api.Err(http.StatusInternalServerError)
+	e.disconnectOAuth(ctx, verify.GetUserID(), req.Provider)
+}
+
+// DisconnectOAuth removes one provider only after recent proof and while
+// preserving at least one verified login method.
+func (e *User) DisconnectOAuth(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
+	verify := response.VerifyHandler(ctx)
+	if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) {
+		response.Make(ctx).Err(http.StatusForbidden)
 		return
 	}
-	api.OK(struct{}{})
+	provider := pkg.LoginProvider(strings.ToLower(strings.TrimSpace(ctx.Param("provider"))))
+	e.disconnectOAuth(ctx, verify.GetUserID(), provider)
+}
+
+func (*User) disconnectOAuth(ctx *gin.Context, userID string, provider pkg.LoginProvider) {
+	api := response.Make(ctx)
+	if provider != pkg.GithubLoginProvider && provider != pkg.LarkLoginProvider {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	err := service.Session.DisconnectOAuth(
+		ctx,
+		center.Default.GetDB(ctx, &models.UserOAuth2{}),
+		middleware.CurrentSessionID(ctx),
+		userID,
+		provider,
+	)
+	if err != nil {
+		writeAccountSecurityError(ctx, api, err)
+		return
+	}
+	ctx.Status(http.StatusNoContent)
 }
 
 // Binding 绑定第三方登录
@@ -191,6 +275,7 @@ func (e *User) Binding(ctx *gin.Context) {
 // @Router /admin/api/user/oauth2 [get]
 // @Security Bearer
 func (e *User) GetOauth2(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
 	api := response.Make(ctx)
 	verify := response.VerifyHandler(ctx)
 	if verify == nil {
@@ -214,6 +299,151 @@ func (e *User) GetOauth2(ctx *gin.Context) {
 	api.OK(user.OAuth2)
 }
 
+// GetAccountSecurity returns only safe credential capabilities and bounded
+// recent-authentication metadata for the current server session.
+func (*User) GetAccountSecurity(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
+	api := response.Make(ctx)
+	verify := response.VerifyHandler(ctx)
+	if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) {
+		api.Err(http.StatusForbidden)
+		return
+	}
+	user := &models.User{}
+	if err := center.Default.GetDB(ctx, user).
+		Select("id", "local_password_disabled", "password_hash", "salt").
+		Where("id = ?", verify.GetUserID()).
+		First(user).Error; err != nil {
+		api.AddError(err).Log.Error("load account security capability failed")
+		api.Err(http.StatusInternalServerError)
+		return
+	}
+	status, err := service.Session.RecentAuthenticationStatus(
+		ctx,
+		center.Default.GetDB(ctx, &models.UserSession{}),
+		middleware.CurrentSessionID(ctx),
+		verify.GetUserID(),
+	)
+	if err != nil {
+		writeAccountSecurityError(ctx, api, err)
+		return
+	}
+	api.OK(&dto.AccountSecurityStatus{
+		HasLocalPassword:              !user.LocalPasswordDisabled && user.PasswordHash != "" && user.Salt != "",
+		RecentAuthentication:          status.Recent,
+		RecentAuthenticationExpiresAt: status.ExpiresAt,
+		ReauthenticationLockedUntil:   status.LockedUntil,
+	})
+}
+
+// ReauthenticateAccount proves the current local password and records the
+// result only against the current durable browser session.
+func (*User) ReauthenticateAccount(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
+	api := response.Make(ctx)
+	verify := response.VerifyHandler(ctx)
+	if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) {
+		api.Err(http.StatusForbidden)
+		return
+	}
+	req := &dto.AccountReauthenticationRequest{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	err := service.Session.ReauthenticateWithPassword(
+		ctx,
+		center.Default.GetDB(ctx, &models.UserSession{}),
+		middleware.CurrentSessionID(ctx),
+		verify.GetUserID(),
+		req.Password,
+	)
+	req.Password = ""
+	if err != nil {
+		writeAccountSecurityError(ctx, api, err)
+		return
+	}
+	status, err := service.Session.RecentAuthenticationStatus(
+		ctx,
+		center.Default.GetDB(ctx, &models.UserSession{}),
+		middleware.CurrentSessionID(ctx),
+		verify.GetUserID(),
+	)
+	if err != nil {
+		writeAccountSecurityError(ctx, api, err)
+		return
+	}
+	api.OK(&dto.AccountSecurityStatus{
+		RecentAuthentication:          status.Recent,
+		RecentAuthenticationExpiresAt: status.ExpiresAt,
+		ReauthenticationLockedUntil:   status.LockedUntil,
+	})
+}
+
+// ChangeAccountPassword rotates the one-way password verifier and revokes all
+// existing sessions and PATs. The initiating browser is signed out as well.
+func (*User) ChangeAccountPassword(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
+	api := response.Make(ctx)
+	verify := response.VerifyHandler(ctx)
+	if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) {
+		api.Err(http.StatusForbidden)
+		return
+	}
+	req := &dto.AccountPasswordChangeRequest{}
+	if api.Bind(req).Error != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	err := service.Session.ChangePassword(
+		ctx,
+		center.Default.GetDB(ctx, &models.UserSession{}),
+		middleware.CurrentSessionID(ctx),
+		verify.GetUserID(),
+		req.NewPassword,
+	)
+	req.NewPassword = ""
+	if err != nil {
+		writeAccountSecurityError(ctx, api, err)
+		return
+	}
+	middleware.ClearBrowserSessionCookies(ctx)
+	api.OK(&dto.AccountPasswordChangeResponse{SignedOut: true})
+}
+
+func writeAccountSecurityError(ctx *gin.Context, api *response.API, err error) {
+	if api == nil {
+		return
+	}
+	code := "ACCOUNT_SECURITY_UNAVAILABLE"
+	message := "account security operation is unavailable"
+	status := http.StatusInternalServerError
+	switch {
+	case errors.Is(err, service.ErrSecuritySessionUnavailable):
+		code, message, status = "SECURITY_SESSION_REQUIRED", "an interactive server session is required", http.StatusUnauthorized
+	case errors.Is(err, service.ErrRecentAuthenticationRequired):
+		code, message, status = "RECENT_AUTHENTICATION_REQUIRED", "recent authentication is required", http.StatusPreconditionRequired
+	case errors.Is(err, service.ErrReauthenticationLocked):
+		code, message, status = "REAUTHENTICATION_LOCKED", "reauthentication is temporarily locked", http.StatusTooManyRequests
+		ctx.Header("Retry-After", "300")
+	case errors.Is(err, service.ErrInvalidCurrentPassword):
+		code, message, status = "REAUTHENTICATION_FAILED", "identity verification failed", http.StatusForbidden
+	case errors.Is(err, service.ErrLocalPasswordUnavailable):
+		code, message, status = "LOCAL_PASSWORD_UNAVAILABLE", "use a connected provider to verify your identity", http.StatusConflict
+	case errors.Is(err, service.ErrPasswordPolicy):
+		code, message, status = "PASSWORD_POLICY_FAILED", "password must be 8 to 128 characters and contain letters and numbers", http.StatusUnprocessableEntity
+	case errors.Is(err, service.ErrPasswordUnchanged):
+		code, message, status = "PASSWORD_UNCHANGED", "new password must differ from the current password", http.StatusConflict
+	case errors.Is(err, service.ErrOAuthBindingNotFound):
+		code, message, status = "OAUTH_BINDING_NOT_FOUND", "oauth connection was not found", http.StatusNotFound
+	case errors.Is(err, service.ErrFinalLoginMethod):
+		code, message, status = "FINAL_LOGIN_METHOD", "the final verified login method cannot be disconnected", http.StatusConflict
+	default:
+		api.AddError(err).Log.Error("account security operation failed")
+	}
+	api.AddError(response.NewError(code, message)).Err(status)
+}
+
 // ResetPassword 重置密码
 // @Summary 重置密码
 // @Description 重置密码
@@ -224,6 +454,7 @@ func (e *User) GetOauth2(ctx *gin.Context) {
 // @Success 200
 // @Router /admin/api/user/reset-password [post]
 func (e *User) ResetPassword(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-store")
 	api := response.Make(ctx)
 	verify := response.VerifyHandler(ctx)
 	// A personal access token is an automation credential, not proof of an
@@ -239,13 +470,20 @@ func (e *User) ResetPassword(ctx *gin.Context) {
 		return
 	}
 	if verify != nil {
-		err := models.PasswordReset(ctx, verify.GetUserID(), req.Password)
+		err := service.Session.ChangePassword(
+			ctx,
+			center.Default.GetDB(ctx, &models.UserSession{}),
+			middleware.CurrentSessionID(ctx),
+			verify.GetUserID(),
+			req.Password,
+		)
+		req.Password = ""
 		if err != nil {
-			api.AddError(err).Log.Error("PasswordReset error")
-			api.Err(http.StatusInternalServerError)
+			writeAccountSecurityError(ctx, api, err)
 			return
 		}
-		api.OK(struct{}{})
+		middleware.ClearBrowserSessionCookies(ctx)
+		api.OK(&dto.AccountPasswordChangeResponse{SignedOut: true})
 		return
 	}
 	if req.Email == "" || req.Captcha == "" {
@@ -346,72 +584,79 @@ func (e *User) UpdateUserInfo(ctx *gin.Context) {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
-	if _, attemptsEmailChange := reqMap["email"]; attemptsEmailChange {
-		// Email is an authentication and recovery identity. Until the v1.1.0 D2
-		// canonical-identity wave lands, self-service mutation could create
-		// an ambiguous identity and deny login/reset to another account.
+	updates, err := normalizeSelfProfileUpdates(reqMap)
+	if err != nil {
+		api.Err(http.StatusUnprocessableEntity)
+		return
+	}
+	if len(updates) == 0 {
 		api.Err(http.StatusUnprocessableEntity)
 		return
 	}
 
-	user := &models.User{}
-	err := center.Default.GetDB(ctx, &models.User{}).Where("id = ?", verify.GetUserID()).First(user).Error
-	if err != nil {
-		api.AddError(err).Log.Error("GetUser error")
-		api.Err(http.StatusInternalServerError)
-		return
-	}
-
-	if v, ok := reqMap["name"].(string); ok {
-		user.Name = v
-	}
-	if v, ok := reqMap["avatar"].(string); ok {
-		user.Avatar = v
-	}
-	if v, ok := reqMap["signature"].(string); ok {
-		user.Signature = v
-	}
-	if v, ok := reqMap["title"].(string); ok {
-		user.Title = v
-	}
-	if v, ok := reqMap["group"].(string); ok {
-		user.Group = v
-	}
-	if v, ok := reqMap["country"].(string); ok {
-		user.Country = v
-	}
-	if v, ok := reqMap["province"].(string); ok {
-		user.Province = v
-	}
-	if v, ok := reqMap["city"].(string); ok {
-		user.City = v
-	}
-	if v, ok := reqMap["address"].(string); ok {
-		user.Address = v
-	}
-	if v, ok := reqMap["phone"].(string); ok {
-		user.Phone = v
-	}
-	if v, ok := reqMap["profile"].(string); ok {
-		user.Profile = v
-	}
-	if v, ok := reqMap["tags"].([]any); ok {
-		tags := make([]string, 0, len(v))
-		for _, tag := range v {
-			if s, ok := tag.(string); ok {
-				tags = append(tags, s)
-			}
-		}
-		user.Tags = tags
-	}
-
-	err = center.Default.GetDB(ctx, &models.User{}).Model(&models.User{}).Where("id = ?", verify.GetUserID()).Updates(user).Error
+	err = center.Default.GetDB(ctx, &models.User{}).
+		Model(&models.User{}).
+		Where("id = ?", verify.GetUserID()).
+		Updates(updates).Error
 	if err != nil {
 		api.AddError(err).Log.Error("UpdateUserInfo error")
 		api.Err(http.StatusInternalServerError)
 		return
 	}
 	api.OK(struct{}{})
+}
+
+var selfProfileStringFields = map[string]string{
+	"name":      "name",
+	"avatar":    "avatar",
+	"signature": "signature",
+	"title":     "title",
+	"group":     "group",
+	"country":   "country",
+	"province":  "province",
+	"city":      "city",
+	"address":   "address",
+	"phone":     "phone",
+	"profile":   "profile",
+}
+
+// normalizeSelfProfileUpdates translates the public JSON patch into an exact
+// persistence allowlist. A map update is intentional: unlike a GORM struct it
+// persists empty strings and empty tag arrays, allowing users to clear optional
+// profile values. Authentication identities and unknown fields fail closed.
+func normalizeSelfProfileUpdates(input map[string]any) (map[string]any, error) {
+	updates := make(map[string]any, len(input))
+	for field, value := range input {
+		if column, ok := selfProfileStringFields[field]; ok {
+			text, valid := value.(string)
+			if !valid {
+				return nil, errors.New("profile field must be a string")
+			}
+			updates[column] = text
+			continue
+		}
+		if field == "tags" {
+			values, valid := value.([]any)
+			if !valid {
+				return nil, errors.New("profile tags must be an array")
+			}
+			tags := make(models.ArrayString, 0, len(values))
+			for _, value := range values {
+				tag, valid := value.(string)
+				if !valid {
+					return nil, errors.New("profile tag must be a string")
+				}
+				tags = append(tags, tag)
+			}
+			updates[field] = tags
+			continue
+		}
+		// Email is an authentication and recovery identity. It requires a
+		// dedicated verified-change workflow; username and every other unknown
+		// property are likewise outside this self-service profile contract.
+		return nil, errors.New("profile field is not self-service mutable")
+	}
+	return updates, nil
 }
 
 // Login 登录

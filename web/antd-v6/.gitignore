@@ -1,0 +1,15 @@
+/.umi
+/.umi-production
+/.umi-test
+/.umi-test-production
+/.turbopack
+/src/.umi
+/src/.umi-production
+/src/.umi-test
+/src/.umi-test-production
+/coverage
+/dist
+/node_modules
+/playwright-report
+/test-results
+*.log

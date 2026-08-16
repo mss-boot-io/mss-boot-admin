@@ -160,7 +160,7 @@ func Init() {
 		// - "query:<name>"
 		// - "cookie:<name>"
 		// - "param:<name>"
-		TokenLookup: "header: Authorization, query: token, cookie: jwt",
+		TokenLookup: authenticationTokenLookup(),
 		// TokenLookup: "query:token",
 		// TokenLookup: "cookie:token",
 
@@ -236,21 +236,32 @@ func PublicLoginHandler(c *gin.Context) {
 // ClearAuthCookie expires the HttpOnly JWT cookie without writing a response.
 // Session-aware logout handlers use it after revoking the server-side session.
 func ClearAuthCookie(c *gin.Context) {
-	if c == nil || Auth == nil || !Auth.SendCookie {
+	if c == nil {
 		return
 	}
-	if Auth.CookieSameSite != 0 {
-		c.SetSameSite(Auth.CookieSameSite)
+	ClearBrowserSessionCookies(c)
+	if Auth == nil {
+		return
 	}
-	c.SetCookie(
-		Auth.CookieName,
-		"",
-		-1,
-		"/",
-		Auth.CookieDomain,
-		Auth.SecureCookie,
-		Auth.CookieHTTPOnly,
-	)
+	cookieName := strings.TrimSpace(Auth.CookieName)
+	if cookieName == "" {
+		cookieName = "jwt"
+	}
+	sameSite := Auth.CookieSameSite
+	if sameSite == 0 {
+		sameSite = http.SameSiteLaxMode
+	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     cookieName,
+		Value:    "",
+		Path:     "/",
+		Domain:   Auth.CookieDomain,
+		Expires:  time.Unix(1, 0),
+		MaxAge:   -1,
+		Secure:   Auth.SecureCookie || requestIsHTTPS(c),
+		HttpOnly: true,
+		SameSite: sameSite,
+	})
 }
 
 // AuthenticateVerifier executes the canonical credential verification,
@@ -508,11 +519,53 @@ func requestHasCredential(c *gin.Context) bool {
 	if c == nil || c.Request == nil {
 		return false
 	}
-	if strings.TrimSpace(c.GetHeader("Authorization")) != "" || strings.TrimSpace(c.Query("token")) != "" {
+	if strings.TrimSpace(c.GetHeader("Authorization")) != "" {
 		return true
 	}
-	cookie, err := c.Cookie("jwt")
-	return err == nil && strings.TrimSpace(cookie) != ""
+	for _, name := range []string{BrowserSessionCookieName, "jwt"} {
+		cookie, err := c.Cookie(name)
+		if err == nil && strings.TrimSpace(cookie) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func authenticationTokenLookup() string {
+	lookups := []string{"header: Authorization"}
+	if config.Cfg.Auth.BrowserSession.Enabled {
+		lookups = append(lookups, "cookie: "+BrowserSessionCookieName)
+	}
+	// Retain the historical cookie reader during the dual-client window. New
+	// code never emits this cookie, and unsafe cookie-authenticated requests are
+	// still subject to the global CSRF middleware.
+	lookups = append(lookups, "cookie: jwt")
+	return strings.Join(lookups, ", ")
+}
+
+// LegacyWebSocketAuth confines V5's query credential to the one historical
+// upgrade route. Query tokens are deliberately absent from TokenLookup, so no
+// REST endpoint can authenticate from a URL credential.
+func LegacyWebSocketAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if Auth == nil {
+			writeAuthErrorResponse(c, http.StatusInternalServerError, http.StatusInternalServerError, "authentication middleware is not initialized")
+			return
+		}
+		if strings.TrimSpace(c.GetHeader("Authorization")) == "" {
+			if !config.Cfg.Auth.BrowserSession.LegacyWebSocketQueryTokenAllowed() {
+				writeAuthErrorResponse(c, http.StatusGone, http.StatusGone, "legacy websocket authentication is disabled")
+				return
+			}
+			token := strings.TrimSpace(c.Query("token"))
+			if token == "" {
+				writeAuthErrorResponse(c, http.StatusUnauthorized, http.StatusUnauthorized, "websocket credential is missing")
+				return
+			}
+			c.Request.Header.Set("Authorization", "Bearer "+token)
+		}
+		Auth.MiddlewareFunc()(c)
+	}
 }
 
 func markAuthenticationFailure(c *gin.Context) {
@@ -548,14 +601,31 @@ func IsPersonalAccessTokenVerifier(verifier security.Verifier) bool {
 		(verifier.GetPersonAccessToken() != "" || verifier.GetRefreshTokenDisable())
 }
 
+// CurrentSessionID returns the durable server-session identifier carried by
+// the authenticated JWT. Sensitive self-service fails closed when a legacy
+// credential has no sid instead of treating a bearer token as step-up proof.
+func CurrentSessionID(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	return strings.TrimSpace(cast.ToString(jwt.ExtractClaims(c)["sid"]))
+}
+
 func isInteractiveSensitiveRequest(method, path string) bool {
 	switch method + " " + path {
 	case http.MethodPost + " /admin/api/user/reset-password",
+		http.MethodGet + " /admin/api/user/security",
+		http.MethodPost + " /admin/api/user/security/reauthenticate",
+		http.MethodPut + " /admin/api/user/security/password",
+		http.MethodDelete + " /admin/api/user/oauth2/:provider",
 		http.MethodPut + " /admin/api/user/userInfo",
 		http.MethodPost + " /admin/api/user/oauth2/authorize",
+		http.MethodPost + " /admin/api/user/session/oauth2/authorize",
 		http.MethodPost + " /admin/api/user/:provider/callback",
+		http.MethodPost + " /admin/api/user/session/:provider/callback",
 		http.MethodPost + " /admin/api/user/binding",
 		http.MethodDelete + " /admin/api/user/unbinding",
+		http.MethodPost + " /admin/api/ws/tickets",
 		http.MethodGet + " /admin/api/user-auth-tokens",
 		http.MethodPost + " /admin/api/user-auth-tokens",
 		http.MethodPut + " /admin/api/user-auth-token/:id/revoke",
@@ -567,30 +637,37 @@ func isInteractiveSensitiveRequest(method, path string) bool {
 }
 
 var selfServiceRequests = map[string]struct{}{
-	http.MethodGet + " /admin/api/menu/authorize":              {},
-	http.MethodGet + " /admin/api/notice/unread":               {},
-	http.MethodGet + " /admin/api/notice/read/:id":             {},
-	http.MethodPut + " /admin/api/notice/read/:id":             {},
-	http.MethodGet + " /admin/api/user-configs/:group":         {},
-	http.MethodPut + " /admin/api/user-configs/:group":         {},
-	http.MethodDelete + " /admin/api/user-configs/theme":       {},
-	http.MethodGet + " /admin/api/user-configs/profile":        {},
-	http.MethodGet + " /admin/api/app-configs/profile":         {},
-	http.MethodGet + " /admin/api/user-auth-tokens":            {},
-	http.MethodPost + " /admin/api/user-auth-tokens":           {},
-	http.MethodPut + " /admin/api/user-auth-token/:id/revoke":  {},
-	http.MethodPut + " /admin/api/user-auth-token/:id/refresh": {},
-	http.MethodPost + " /admin/api/user/reset-password":        {},
-	http.MethodGet + " /admin/api/user/userInfo":               {},
-	http.MethodPut + " /admin/api/user/userInfo":               {},
-	http.MethodPost + " /admin/api/user/avatar":                {},
-	http.MethodGet + " /admin/api/user/oauth2":                 {},
-	http.MethodPost + " /admin/api/user/oauth2/authorize":      {},
-	http.MethodPost + " /admin/api/user/:provider/callback":    {},
-	http.MethodPost + " /admin/api/user/binding":               {},
-	http.MethodDelete + " /admin/api/user/unbinding":           {},
-	http.MethodPost + " /admin/api/online-sessions/logout":     {},
-	http.MethodGet + " /admin/api/ws/connect":                  {},
+	http.MethodGet + " /admin/api/menu/authorize":                   {},
+	http.MethodGet + " /admin/api/notice/unread":                    {},
+	http.MethodGet + " /admin/api/notice/read/:id":                  {},
+	http.MethodPut + " /admin/api/notice/read/:id":                  {},
+	http.MethodGet + " /admin/api/user-configs/:group":              {},
+	http.MethodPut + " /admin/api/user-configs/:group":              {},
+	http.MethodDelete + " /admin/api/user-configs/theme":            {},
+	http.MethodGet + " /admin/api/user-configs/profile":             {},
+	http.MethodGet + " /admin/api/app-configs/profile":              {},
+	http.MethodGet + " /admin/api/user-auth-tokens":                 {},
+	http.MethodPost + " /admin/api/user-auth-tokens":                {},
+	http.MethodPut + " /admin/api/user-auth-token/:id/revoke":       {},
+	http.MethodPut + " /admin/api/user-auth-token/:id/refresh":      {},
+	http.MethodPost + " /admin/api/user/reset-password":             {},
+	http.MethodGet + " /admin/api/user/security":                    {},
+	http.MethodPost + " /admin/api/user/security/reauthenticate":    {},
+	http.MethodPut + " /admin/api/user/security/password":           {},
+	http.MethodDelete + " /admin/api/user/oauth2/:provider":         {},
+	http.MethodGet + " /admin/api/user/userInfo":                    {},
+	http.MethodPut + " /admin/api/user/userInfo":                    {},
+	http.MethodPost + " /admin/api/user/avatar":                     {},
+	http.MethodGet + " /admin/api/user/oauth2":                      {},
+	http.MethodPost + " /admin/api/user/oauth2/authorize":           {},
+	http.MethodPost + " /admin/api/user/session/oauth2/authorize":   {},
+	http.MethodPost + " /admin/api/user/:provider/callback":         {},
+	http.MethodPost + " /admin/api/user/session/:provider/callback": {},
+	http.MethodPost + " /admin/api/user/binding":                    {},
+	http.MethodDelete + " /admin/api/user/unbinding":                {},
+	http.MethodPost + " /admin/api/online-sessions/logout":          {},
+	http.MethodGet + " /admin/api/ws/connect":                       {},
+	http.MethodPost + " /admin/api/ws/tickets":                      {},
 }
 
 func authorizeRequest(data any, c *gin.Context) bool {
@@ -763,18 +840,32 @@ func validateSessionFromClaims(
 	}
 	if shouldTouch, terr := service.Session.MarkLastSeen(c, sid); terr == nil && shouldTouch {
 		// Capture the request-scoped DB in the request goroutine so the
-		// async Touch keeps any tenant scope; rebind ctx to a fresh timeout
-		// so it doesn't get cancelled when the request finishes.
+		// async Touch keeps any tenant scope, and capture the service instance
+		// so a runtime/test lifecycle swap cannot redirect an in-flight write.
+		// Rebind ctx to a fresh timeout so request cancellation does not abort
+		// the bounded bookkeeping update.
 		scopedDB := db
-		go func(sid string, db *gorm.DB) {
+		sessionService := service.Session
+		sessionTouchGoroutines.Add(1)
+		go func(sid string, db *gorm.DB, sessions *service.SessionService) {
+			defer sessionTouchGoroutines.Done()
 			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			if err := service.Session.RecordLastSeen(bgCtx, db.WithContext(bgCtx), sid); err != nil {
+			if err := sessions.RecordLastSeen(bgCtx, db.WithContext(bgCtx), sid); err != nil {
 				slog.Warn("session record last_seen failed", "sid", sid, "err", err)
 			}
-		}(sid, scopedDB)
+		}(sid, scopedDB, sessionService)
 	}
 	return true
+}
+
+// sessionTouchGoroutines gives controlled runtime and test shutdown paths a
+// way to wait until bounded background bookkeeping no longer owns captured
+// database/cache resources. Request handling never waits on this tracker.
+var sessionTouchGoroutines sync.WaitGroup
+
+func waitForSessionTouches() {
+	sessionTouchGoroutines.Wait()
 }
 
 type loginCtxBag struct {

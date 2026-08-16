@@ -49,9 +49,29 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodGet, Path: "/admin/api/departments", Class: RouteAuthorized, Permission: "department:read"},
 	{Method: http.MethodGet, Path: "/admin/api/posts", Class: RouteAuthorized, Permission: "post:read"},
 
+	// Bounded operational summaries. System configuration remains root-only
+	// because its full-resource routes can contain opaque credentials.
+	{Method: http.MethodGet, Path: "/admin/api/tasks", Class: RouteAuthorized, Permission: "task:read"},
+	{Method: http.MethodGet, Path: "/admin/api/system-configs", Class: RouteAuthorized, Permission: "config:read", RootOnly: true},
+
 	// Public authentication and locale discovery.
 	{Method: http.MethodGet, Path: "/admin/api/language/profile", Class: RoutePublic},
 	{Method: http.MethodGet, Path: "/admin/api/languages/public", Class: RoutePublic},
+
+	// Language management. Read and mutation permissions remain independently
+	// assignable; public locale discovery above does not grant management access.
+	{Method: http.MethodGet, Path: "/admin/api/languages", Class: RouteAuthorized, Permission: "language:read"},
+	{Method: http.MethodGet, Path: "/admin/api/languages/:id", Class: RouteAuthorized, Permission: "language:read"},
+	{Method: http.MethodPost, Path: "/admin/api/languages", Class: RouteAuthorized, Permission: "language:create", Mutation: true},
+	{Method: http.MethodPut, Path: "/admin/api/languages/:id", Class: RouteAuthorized, Permission: "language:update", Mutation: true},
+
+	// Option management. Runtime dictionaries are read through the same bounded
+	// resources, while create/update/delete remain separately assignable.
+	{Method: http.MethodGet, Path: "/admin/api/options", Class: RouteAuthorized, Permission: "option:read"},
+	{Method: http.MethodGet, Path: "/admin/api/options/:id", Class: RouteAuthorized, Permission: "option:read"},
+	{Method: http.MethodPost, Path: "/admin/api/options", Class: RouteAuthorized, Permission: "option:create", Mutation: true},
+	{Method: http.MethodPut, Path: "/admin/api/options/:id", Class: RouteAuthorized, Permission: "option:update", Mutation: true},
+	{Method: http.MethodDelete, Path: "/admin/api/options/:id", Class: RouteAuthorized, Permission: "option:delete", Mutation: true},
 
 	// Runtime logs and monitoring.
 	{Method: http.MethodGet, Path: "/admin/api/logs", Class: RouteAuthorized, Permission: "log:read"},
@@ -85,6 +105,8 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodDelete, Path: "/admin/api/online-sessions/user/:userID", Class: RouteAuthorized, Permission: "session:revoke", RootOnly: true, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/online-sessions/logout", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodGet, Path: "/admin/api/ws/connect", Class: RouteAuthenticatedSelf},
+	{Method: http.MethodPost, Path: "/admin/api/ws/tickets", Class: RouteAuthenticatedSelf, Mutation: true},
+	{Method: http.MethodGet, Path: "/admin/api/ws/connect-v6", Class: RoutePublic, ConstrainedPublicGET: true},
 	{Method: http.MethodGet, Path: "/admin/api/ws/online", Class: RouteAuthorized, Permission: "session:read", RootOnly: true},
 
 	// Statistics and storage.
@@ -98,6 +120,8 @@ var customRouteContracts = []CustomRouteContract{
 
 	// Authentication, account recovery, and current-user profile.
 	{Method: http.MethodPost, Path: "/admin/api/user/login", Class: RoutePublic, Mutation: true},
+	{Method: http.MethodPost, Path: "/admin/api/user/session/login", Class: RoutePublic, Mutation: true},
+	{Method: http.MethodPost, Path: "/admin/api/user/session/refresh-token", Class: RoutePublic, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/auth-cookie/clear", Class: RoutePublic, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/reset-password", Class: RouteOptionalAuthenticated, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/fakeCaptcha", Class: RoutePublic, Mutation: true},
@@ -109,12 +133,23 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodPut, Path: "/admin/api/user/userInfo", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/avatar", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodGet, Path: "/admin/api/user/oauth2", Class: RouteAuthenticatedSelf},
+	{Method: http.MethodGet, Path: "/admin/api/user/security", Class: RouteAuthenticatedSelf},
+	{Method: http.MethodPost, Path: "/admin/api/user/security/reauthenticate", Class: RouteAuthenticatedSelf, Mutation: true},
+	{Method: http.MethodPut, Path: "/admin/api/user/security/password", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/oauth2/authorize", Class: RouteOptionalAuthenticated, Mutation: true},
+	{Method: http.MethodPost, Path: "/admin/api/user/session/oauth2/authorize", Class: RouteOptionalAuthenticated, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/binding", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodDelete, Path: "/admin/api/user/unbinding", Class: RouteAuthenticatedSelf, Mutation: true},
+	{Method: http.MethodDelete, Path: "/admin/api/user/oauth2/:provider", Class: RouteAuthenticatedSelf, Mutation: true},
 	{
 		Method:   http.MethodPost,
 		Path:     "/admin/api/user/:provider/callback",
+		Class:    RouteOptionalAuthenticated,
+		Mutation: true,
+	},
+	{
+		Method:   http.MethodPost,
+		Path:     "/admin/api/user/session/:provider/callback",
 		Class:    RouteOptionalAuthenticated,
 		Mutation: true,
 	},

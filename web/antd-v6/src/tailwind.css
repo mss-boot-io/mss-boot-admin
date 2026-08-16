@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@source "./**/*.{ts,tsx}";
+
+:root {
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-mss-theme="dark"] {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-width: 320px;
+  background: var(--mss-color-bg-layout);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--mss-color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion must override component transitions. */
+    scroll-behavior: auto !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion must override component transitions. */
+    transition-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion must override component animations. */
+    animation-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced motion must override component animations. */
+    animation-iteration-count: 1 !important;
+  }
+}

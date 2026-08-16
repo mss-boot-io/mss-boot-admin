@@ -18,12 +18,14 @@ const (
 type EventType string
 
 const (
-	EventPing   EventType = "ping"
-	EventPong   EventType = "pong"
-	EventNotify EventType = "notify"
-	EventKick   EventType = "kick"
-	EventJoin   EventType = "join"
-	EventQuit   EventType = "quit"
+	EventPing          EventType = "ping"
+	EventPong          EventType = "pong"
+	EventNotify        EventType = "notify"
+	EventKick          EventType = "kick"
+	EventAuthorization EventType = "authorization"
+	EventConnected     EventType = "connected"
+	EventJoin          EventType = "join"
+	EventQuit          EventType = "quit"
 )
 
 type WResponse struct {

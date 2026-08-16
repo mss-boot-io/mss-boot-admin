@@ -13,7 +13,6 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/controller"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/search/gorms"
 	"gorm.io/gorm"
-	"gorm.io/gorm/schema"
 )
 
 func init() {
@@ -33,68 +32,13 @@ func newPostController() *Post {
 			// grant-subset validation exists, changing that scope is root-only.
 			controller.WithCreateHandlers(gin.HandlersChain{requireRootManagement}),
 			controller.WithDeleteHandlers(gin.HandlersChain{requireRootManagement}),
-			controller.WithBeforeCreate(beforeCreate),
-			controller.WithBeforeUpdate(beforeUpdate),
+			controller.WithBeforeCreate(preparePostCreate),
+			controller.WithBeforeUpdate(preparePostUpdate),
+			controller.WithBeforeDelete(validatePostDelete),
+			controller.WithWriteErrorMapper(
+				authorityHierarchyWriteErrorMapper("POST", "post"),
+			),
 		),
-	}
-}
-
-func beforeCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
-	post, ok := m.(*models.Post)
-	if !ok {
-		return nil
-	}
-	if post.DataScope == models.DataScopeCustomDept {
-		post.DeptIDSArr = getUserDeptIDS(c, db)
-	}
-	return nil
-}
-
-func beforeUpdate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
-	post, ok := m.(*models.Post)
-	if !ok {
-		return nil
-	}
-	if post.DataScope == models.DataScopeCustomDept {
-		post.DeptIDSArr = getUserDeptIDS(c, db)
-	} else {
-		post.DeptIDSArr = nil
-	}
-	return nil
-}
-
-func getUserDeptIDS(c *gin.Context, db *gorm.DB) []string {
-	verify := response.VerifyHandler(c)
-	if verify == nil {
-		return nil
-	}
-
-	userID := verify.GetUserID()
-	if userID == "" {
-		return nil
-	}
-
-	user := &models.User{}
-	if err := db.First(user, "id = ?", userID).Error; err != nil {
-		return nil
-	}
-
-	if user.DepartmentID == "" {
-		return nil
-	}
-
-	deptIDS := []string{user.DepartmentID}
-	getChildDeptIDS(db, user.DepartmentID, &deptIDS)
-
-	return deptIDS
-}
-
-func getChildDeptIDS(db *gorm.DB, parentID string, deptIDS *[]string) {
-	var children []models.Department
-	db.Where("parent_id = ?", parentID).Find(&children)
-	for _, child := range children {
-		*deptIDS = append(*deptIDS, child.ID)
-		getChildDeptIDS(db, child.ID, deptIDS)
 	}
 }
 
@@ -124,7 +68,7 @@ func (e *Post) List(c *gin.Context) {
 	m := &models.Post{}
 	query := center.Default.GetDB(c, m).
 		Model(m).
-		Preload("Children").
+		Preload("Children.Children.Children.Children.Children").
 		Scopes(
 			gorms.MakeCondition(req),
 			gorms.Paginate(int(req.GetPageSize()), int(req.GetPage())),

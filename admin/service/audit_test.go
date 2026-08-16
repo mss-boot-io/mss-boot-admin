@@ -108,7 +108,7 @@ func TestAuditService_GetLoginLogs(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	logs, total, err := svc.GetLoginLogs(db, "user-1", 1, 10)
+	logs, total, err := svc.GetLoginLogs(db, "user-1", "test", 1, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(5), total)
 	assert.Len(t, logs, 5)
@@ -150,11 +150,11 @@ func TestAuditService_GetAuditLogs(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	logs, total, err := svc.GetAuditLogs(db, "user-1", "", 1, 10)
+	logs, total, err := svc.GetAuditLogs(db, "user-1", "test", "", 1, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(5), total)
 
-	logs, total, err = svc.GetAuditLogs(db, "user-1", models.AuditLogTypeCreate, 1, 10)
+	logs, total, err = svc.GetAuditLogs(db, "user-1", "test", models.AuditLogTypeCreate, 1, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(3), total)
 	assert.Len(t, logs, 3)

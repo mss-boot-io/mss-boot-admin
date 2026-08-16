@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -194,6 +195,35 @@ func TestHub_Broadcast(t *testing.T) {
 	case <-client2.Send:
 	case <-time.After(time.Second):
 		t.Fatal("client2 did not receive message")
+	}
+}
+
+func TestHubTryBroadcastIsNonBlockingAndRejectsStoppedHub(t *testing.T) {
+	hub := &Hub{
+		broadcast: make(chan *WResponse, 1),
+		stop:      make(chan struct{}),
+	}
+	message := &WResponse{Event: EventAuthorization, Code: 200}
+
+	assert.True(t, hub.TryBroadcast(message))
+	assert.False(t, hub.TryBroadcast(message), "a full disposable queue must not block")
+	assert.Same(t, message, <-hub.broadcast)
+
+	close(hub.stop)
+	assert.False(t, hub.TryBroadcast(message))
+}
+
+func TestAuthorizationRevisionResponseContainsOnlyDecimalRevision(t *testing.T) {
+	assert.Nil(t, authorizationRevisionResponse(0))
+	message := authorizationRevisionResponse(^uint64(0))
+	if assert.NotNil(t, message) {
+		assert.Equal(t, EventAuthorization, message.Event)
+		assert.Equal(t, 200, message.Code)
+		data, ok := message.Data.(gin.H)
+		if assert.True(t, ok) {
+			assert.Equal(t, "18446744073709551615", data["revision"])
+			assert.Len(t, data, 1)
+		}
 	}
 }
 

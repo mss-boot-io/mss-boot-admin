@@ -89,6 +89,8 @@ type onlineSessionListQuery struct {
 	PageSize int    `form:"pageSize"`
 }
 
+const maxOnlineSessionPageSize = 100
+
 // List 在线会话列表
 // @Summary 在线会话列表
 // @Tags OnlineSession
@@ -116,6 +118,10 @@ func (e *OnlineSessionAPI) List(c *gin.Context) {
 	}
 	if q.PageSize <= 0 {
 		q.PageSize = 20
+	}
+	if q.PageSize > maxOnlineSessionPageSize {
+		api.AddError(errors.New("pageSize exceeds maximum")).Err(http.StatusBadRequest)
+		return
 	}
 
 	db := e.getDB(c).Model(&models.UserSession{})

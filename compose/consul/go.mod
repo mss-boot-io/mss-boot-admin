@@ -1,6 +1,6 @@
 module github.com/mss-boot-io/mss-boot-admin/compose/consul
 
-go 1.26.5
+go 1.26.6
 
 require github.com/hashicorp/consul/api v1.34.4
 

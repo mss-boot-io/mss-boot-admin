@@ -235,13 +235,28 @@ func TestClearAuthCookieExpiresHttpOnlyJWT(t *testing.T) {
 
 	response := recorder.Result()
 	cookies := response.Cookies()
-	if len(cookies) != 1 {
-		t.Fatalf("cleared cookies = %d, want 1", len(cookies))
+	if len(cookies) != 3 {
+		t.Fatalf("cleared cookies = %d, want 3", len(cookies))
 	}
-	cookie := cookies[0]
+	byName := make(map[string]*http.Cookie, len(cookies))
+	for _, cookie := range cookies {
+		byName[cookie.Name] = cookie
+	}
+	cookie := byName["jwt"]
+	if cookie == nil {
+		t.Fatalf("legacy JWT cookie was not cleared: %#v", cookies)
+	}
 	if cookie.Name != "jwt" || cookie.Value != "" || cookie.MaxAge >= 0 ||
 		!cookie.HttpOnly || !cookie.Secure || cookie.Domain != "example.test" ||
 		cookie.SameSite != http.SameSiteLaxMode {
 		t.Fatalf("cleared cookie = %#v", cookie)
+	}
+	if browser := byName[BrowserSessionCookieName]; browser == nil || browser.MaxAge >= 0 ||
+		!browser.HttpOnly || browser.Path != browserSessionCookiePath {
+		t.Fatalf("cleared browser session cookie = %#v", browser)
+	}
+	if csrf := byName[BrowserCSRFCookieName]; csrf == nil || csrf.MaxAge >= 0 ||
+		csrf.HttpOnly || csrf.Path != browserCSRFCookiePath {
+		t.Fatalf("cleared browser CSRF cookie = %#v", csrf)
 	}
 }

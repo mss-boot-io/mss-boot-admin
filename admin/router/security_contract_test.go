@@ -369,6 +369,7 @@ func hasStringArgument(call *ast.CallExpr, expected string) bool {
 func hasRequiredAuthentication(middleware []string) bool {
 	return containsMiddleware(middleware, "AuthHandler") ||
 		containsMiddleware(middleware, "MiddlewareFunc") ||
+		containsMiddleware(middleware, "LegacyWebSocketAuth") ||
 		containsMiddleware(middleware, "GetMiddlewares(auth)")
 }
 

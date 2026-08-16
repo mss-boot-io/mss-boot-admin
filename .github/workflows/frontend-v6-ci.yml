@@ -1,0 +1,272 @@
+name: Frontend v6 CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'web/antd-v6/**'
+      - '.mss/modules/**'
+      - '.mss/schemas/admin-module.schema.json'
+      - 'admin/modules/**/module.yaml'
+      - 'admin/**'
+      - 'mss-boot/**'
+      - 'go.mod'
+      - 'go.work'
+      - 'cmd/mss/**'
+      - 'internal/mss/app/**'
+      - 'internal/mss/generator/**'
+      - 'internal/mss/spec/**'
+      - 'templates/module/**'
+      - '.mss/commands.yaml'
+      - '.mss/project.yaml'
+      - '.github/workflows/frontend-v6-ci.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'web/antd-v6/**'
+      - '.mss/modules/**'
+      - '.mss/schemas/admin-module.schema.json'
+      - 'admin/modules/**/module.yaml'
+      - 'admin/**'
+      - 'mss-boot/**'
+      - 'go.mod'
+      - 'go.work'
+      - 'cmd/mss/**'
+      - 'internal/mss/app/**'
+      - 'internal/mss/generator/**'
+      - 'internal/mss/spec/**'
+      - 'templates/module/**'
+      - '.mss/commands.yaml'
+      - '.mss/project.yaml'
+      - '.github/workflows/frontend-v6-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-v6-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  NODE_OPTIONS: '--max-old-space-size=4096'
+
+jobs:
+  generated-contract:
+    name: generated-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+
+      - name: Require the committed v6 Supplier projection to be current
+        run: >-
+          go run ./cmd/mss module generate
+          .mss/modules/example-supplier.yaml
+          --frontend-target antd-v6
+          --check
+          --format json
+
+  dependency-contract:
+    name: dependency-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: web/antd-v6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
+
+      - name: Verify pinned toolchain
+        run: |
+          set -euo pipefail
+          test "$(pnpm --version)" = '10.34.5'
+          node -e "if (Number(process.versions.node.split('.')[0]) !== 24) process.exit(1)"
+
+      - name: Install frozen dependency graph
+        run: >-
+          pnpm install
+          --frozen-lockfile
+          --ignore-scripts
+          --prefer-offline
+
+      - name: Verify dependency and peer transition contract
+        run: pnpm run deps:check
+
+      - name: Check dependency deduplication
+        run: pnpm dedupe --check --config.strict-peer-dependencies=false --config.ignore-scripts=true
+
+      - name: Audit runtime and complete dependency graph
+        run: |
+          pnpm audit --prod --audit-level high
+          pnpm audit --audit-level critical
+
+      - name: Require dependency commands to leave contracts unchanged
+        run: git diff --exit-code -- package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc
+
+  quality:
+    name: quality
+    needs: dependency-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: web/antd-v6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
+
+      - name: Lint and type-check
+        run: pnpm run lint
+
+      - name: Run unit and component tests
+        run: pnpm run test:ci
+
+  compile:
+    name: production-build
+    needs: dependency-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: web/antd-v6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
+
+      - name: Build and enforce production contracts
+        run: pnpm run build:release
+
+      - name: Smoke-test Nginx delivery
+        run: pnpm run delivery:smoke
+
+  browser:
+    name: browser-permission-parity
+    needs: dependency-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: web/antd-v6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run browser permission and parity qualification
+        run: pnpm run test:e2e
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: frontend-v6-browser-evidence
+          path: |
+            web/antd-v6/playwright-report
+            web/antd-v6/test-results
+          if-no-files-found: ignore
+
+  build:
+    name: build
+    if: ${{ always() }}
+    needs:
+      - dependency-contract
+      - generated-contract
+      - quality
+      - compile
+      - browser
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every v6 frontend check to pass
+        env:
+          DEPENDENCY_RESULT: ${{ needs.dependency-contract.result }}
+          GENERATED_RESULT: ${{ needs.generated-contract.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          COMPILE_RESULT: ${{ needs.compile.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          echo "dependency-contract=${DEPENDENCY_RESULT}"
+          echo "generated-contract=${GENERATED_RESULT}"
+          echo "quality=${QUALITY_RESULT}"
+          echo "compile=${COMPILE_RESULT}"
+          echo "browser=${BROWSER_RESULT}"
+          test "${DEPENDENCY_RESULT}" = 'success'
+          test "${GENERATED_RESULT}" = 'success'
+          test "${QUALITY_RESULT}" = 'success'
+          test "${COMPILE_RESULT}" = 'success'
+          test "${BROWSER_RESULT}" = 'success'

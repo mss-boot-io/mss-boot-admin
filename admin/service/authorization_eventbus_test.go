@@ -110,6 +110,39 @@ func TestAuthorizationMutationPublishesCommittedRevisionWithoutWorkQueueWatcher(
 	require.Equal(t, int64(1), policyCount)
 }
 
+func TestAuthorizationRevisionNotifierRunsAfterReloadAndCannotPoisonMutation(t *testing.T) {
+	db := setupAuthorizationServiceTest(t)
+	insertAuthorizationTestMenus(t, db, authorizationTestMenu("menu-a", "/a", adminpkg.MenuAccessType, ""))
+	var reloads atomic.Int64
+	var notified atomic.Uint64
+	svc := newAuthorizationPolicyService(
+		func() error { reloads.Add(1); return nil },
+		func() error { t.Fatal("legacy watcher must not run"); return nil },
+	)
+	runtime, err := BuildMemoryAuthorizationEventRuntime(
+		svc,
+		directAuthorizationDatabase(db),
+		time.Hour,
+		WithAuthorizationRevisionNotifier(func(revision uint64) {
+			if reloads.Load() == 0 {
+				t.Error("revision notification ran before policy reload")
+			}
+			notified.Store(revision)
+			panic("optional-realtime-notifier")
+		}),
+	)
+	require.NoError(t, err)
+	require.NoError(t, runtime.Open(context.Background()))
+	t.Cleanup(func() { _ = runtime.Close(context.Background()) })
+
+	revision0 := int64(0)
+	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, &revision0)
+	require.NoError(t, err, "optional notifier panic must not fail a committed mutation")
+	require.Equal(t, "1", resource.Revision)
+	require.Equal(t, uint64(1), notified.Load())
+	require.Equal(t, runtimeeventbus.Revision(1), runtime.bus.LastRevision())
+}
+
 func TestAuthorizationSubscriberPanicIsolatedAndReconciled(t *testing.T) {
 	db := setupAuthorizationServiceTest(t)
 	insertAuthorizationTestMenus(t, db, authorizationTestMenu("menu-a", "/a", adminpkg.MenuAccessType, ""))

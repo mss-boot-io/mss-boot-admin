@@ -29,6 +29,8 @@ __pycache__/
 # Local configuration and databases
 config/application-*
 admin/config/application-*
+!admin/config/application-e2e.yml
+!admin/config/application-v6-local.yml
 *.db
 
 # Runtime and build output
@@ -36,6 +38,8 @@ bin/
 temp/
 test/
 public/
+!web/antd-v6/public/
+!web/antd-v6/public/**
 admin/public/
 dist/
 **/dist/

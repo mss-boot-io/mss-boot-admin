@@ -41,3 +41,21 @@ spec:
         interval: 500ms
         timeout: 90s
         successStatus: [200, 304]
+
+    - id: frontend-v6
+      description: Independent React 19 and Ant Design 6 development server
+      directory: web/antd-v6
+      command:
+        - corepack
+        - pnpm@10.34.5
+        - start:dev
+      required: false
+      dependsOn: [backend]
+      environment:
+        BROWSER: none
+        MSS_DEV_MANAGED: "true"
+      health:
+        url: http://127.0.0.1:8001/
+        interval: 500ms
+        timeout: 90s
+        successStatus: [200, 304]

@@ -13,6 +13,7 @@ spec:
     backend: admin
     framework: mss-boot
     frontend: web/antd
+    frontendV6: web/antd-v6
     documentation: docs
     modules: admin/modules
     specifications: .mss
@@ -21,7 +22,7 @@ spec:
     reports: .mss/reports
   backend:
     language: go
-    goVersion: "1.26.5"
+    goVersion: "1.26.6"
     module: github.com/mss-boot-io/mss-boot-admin/admin
     frameworkModule: github.com/mss-boot-io/mss-boot-admin/mss-boot
     httpFramework: gin
@@ -37,6 +38,25 @@ spec:
     framework: react
     applicationFramework: umi
     componentLibrary: ant-design
+    applications:
+      - id: antd-v5
+        path: web/antd
+        role: legacy
+        nodeVersion: ">=22 <25"
+        packageManager: pnpm
+        packageManagerVersion: "9.15.9"
+        developmentPort: 8000
+        releaseTagTemplate: web/antd/{version}
+        image: mss-boot-admin-antd
+      - id: antd-v6
+        path: web/antd-v6
+        role: independent
+        nodeVersion: ">=24 <25"
+        packageManager: pnpm
+        packageManagerVersion: "10.34.5"
+        developmentPort: 8001
+        releaseTagTemplate: web/antd-v6/{version}
+        image: mss-boot-admin-antd-v6
   documentation:
     framework: dumi
     packageManager: pnpm

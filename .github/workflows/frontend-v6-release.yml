@@ -1,0 +1,268 @@
+name: Frontend v6 Release
+
+on:
+  push:
+    tags:
+      - 'web/antd-v6/v*.*.*'
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/mss-boot-admin-antd-v6
+
+defaults:
+  run:
+    working-directory: web/antd-v6
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    environment: release-v6
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve immutable v6 release identity
+        id: version
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#web/antd-v6/}"
+          test "${version}" != "${GITHUB_REF_NAME}"
+          resolved_commit="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
+          test "${resolved_commit}" = "${GITHUB_SHA}"
+          prerelease=false
+          if [[ "${version}" == *-* ]]; then prerelease=true; fi
+          {
+            echo "version=${version}"
+            echo "prerelease=${prerelease}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Verify merged-main release source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ../../tools/release/verify_release_source.py \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${GITHUB_SHA}" \
+            --tag "${GITHUB_REF_NAME}" \
+            --policy ../../.mss/release-policy.yaml
+
+      - name: Enforce reviewed v6 release target
+        env:
+          FRONTEND_V6_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 ../../tools/release/check_release_policy.py \
+            --policy ../../.mss/release-policy.yaml \
+            --component frontend-v6 \
+            --version "${FRONTEND_V6_VERSION}" \
+            --tag "${GITHUB_REF_NAME}"
+
+      - name: Require selected readiness attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FRONTEND_V6_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_READINESS_RUN_ID: ${{ vars.RELEASE_READINESS_RUN_ID }}
+        run: |
+          bash ../../tools/release/verify_readiness_run.sh \
+            --repository "${GITHUB_REPOSITORY}" \
+            --run-id "${RELEASE_READINESS_RUN_ID}" \
+            --target-version "${FRONTEND_V6_VERSION}" \
+            --commit "${GITHUB_SHA}" \
+            --phase pre-framework \
+            --policy ../../.mss/release-policy.yaml
+
+      - name: Refuse mutation of a public v6 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if release_json="$(gh release view "${GITHUB_REF_NAME}" --json isDraft 2>/dev/null)"; then
+            test "$(jq -r '.isDraft' <<< "${release_json}")" = 'true'
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
+
+      - name: Install frozen v6 dependency graph
+        run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
+
+      - name: Verify dependency and quality gates
+        run: |
+          pnpm run deps:check
+          pnpm audit --prod --audit-level high
+          pnpm audit --audit-level critical
+          pnpm run lint
+          pnpm run test:ci
+
+      - name: Qualify browser permission and parity behavior
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm run test:e2e
+
+      - name: Build same-origin v6 release
+        run: pnpm run build:release
+
+      - name: Embed and verify v6 artifact identity
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          jq -n \
+            --arg application 'mss-boot-admin-antd-v6' \
+            --arg version "${RELEASE_VERSION}" \
+            --arg commit "${GITHUB_SHA}" \
+            '{application: $application, version: $version, commit: $commit}' > dist/release.json
+          jq -e \
+            --arg version "${RELEASE_VERSION}" \
+            --arg commit "${GITHUB_SHA}" \
+            '.application == "mss-boot-admin-antd-v6" and .version == $version and .commit == $commit' \
+            dist/release.json >/dev/null
+          {
+            echo 'application=mss-boot-admin-antd-v6'
+            echo "version=${RELEASE_VERSION}"
+            echo "commit=${GITHUB_SHA}"
+          } > FRONTEND-V6-BUILD-INFO
+          tar --create --gzip --file dist-v6.tar.gz dist
+          sha256sum dist-v6.tar.gz FRONTEND-V6-BUILD-INFO > SHA256SUMS.frontend-v6
+
+      - name: Smoke-test v6 production delivery
+        run: pnpm run delivery:smoke
+
+      - name: Upload v6 build artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: frontend-v6-dist-release
+          path: |
+            web/antd-v6/dist
+            web/antd-v6/dist-v6.tar.gz
+            web/antd-v6/FRONTEND-V6-BUILD-INFO
+            web/antd-v6/SHA256SUMS.frontend-v6
+          if-no-files-found: error
+
+      - name: Log into registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Extract v6 Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest,enable=${{ steps.version.outputs.prerelease == 'false' }}
+            type=sha,prefix=,format=long
+
+      - name: Build and push v6 Docker image
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: web/antd-v6
+          file: web/antd-v6/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.title=mss-boot-admin-antd-v6
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          platforms: linux/amd64,linux/arm64
+          provenance: mode=max
+          sbom: true
+
+      - name: Verify published v6 image identity
+        id: image
+        run: |
+          set -euo pipefail
+          digest="${{ steps.build.outputs.digest }}"
+          [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image="${REGISTRY}/${IMAGE_NAME}@${digest}"
+          docker pull "${image}" >/dev/null
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.title" }}' "${image}")" = 'mss-boot-admin-antd-v6'
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "${image}")" = '${{ steps.version.outputs.version }}'
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${image}")" = "${GITHUB_SHA}"
+          release_json="$(docker run --rm --entrypoint cat "${image}" /usr/share/nginx/html/release.json)"
+          jq -e \
+            --arg version '${{ steps.version.outputs.version }}' \
+            --arg commit "${GITHUB_SHA}" \
+            '.application == "mss-boot-admin-antd-v6" and .version == $version and .commit == $commit' \
+            <<< "${release_json}" >/dev/null
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish immutable v6 GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          title="mss-boot-admin-antd-v6 ${VERSION}"
+          body="$(mktemp)"
+          trap 'rm -f "${body}"' EXIT
+          {
+            echo '## Pull the independent v6 image'
+            echo
+            echo '```shell'
+            echo "docker pull ${REGISTRY}/${IMAGE_NAME}:${VERSION}"
+            echo "docker pull ${REGISTRY}/${IMAGE_NAME}@${IMAGE_DIGEST}"
+            echo '```'
+            echo
+            echo "Image digest: \`${IMAGE_DIGEST}\`"
+            echo "Source commit: \`${GITHUB_SHA}\`"
+            echo 'This release does not mutate or redeploy web/antd.'
+          } > "${body}"
+          if ! gh release view "${tag}" --json isDraft >/dev/null 2>&1; then
+            release_flags=()
+            if [[ "${PRERELEASE}" == 'true' ]]; then release_flags+=(--prerelease); fi
+            gh release create "${tag}" --verify-tag --draft --title "${title}" --notes-file "${body}" "${release_flags[@]}"
+          fi
+          assets=(dist-v6.tar.gz FRONTEND-V6-BUILD-INFO SHA256SUMS.frontend-v6)
+          sha256sum --check SHA256SUMS.frontend-v6
+          gh release upload "${tag}" "${assets[@]}" --clobber
+          release_json="$(gh release view "${tag}" --json isDraft,assets)"
+          test "$(jq -r '.isDraft' <<< "${release_json}")" = 'true'
+          expected_names="$(printf '%s\n' "${assets[@]}" | jq -R . | jq -cs 'sort')"
+          actual_names="$(jq -c '[.assets[].name] | sort' <<< "${release_json}")"
+          test "${actual_names}" = "${expected_names}"
+          gh release edit "${tag}" --title "${title}" --notes-file "${body}" --draft=false --prerelease="${PRERELEASE}" --latest=false
