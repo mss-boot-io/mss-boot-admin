@@ -35,11 +35,7 @@ export function buildAuthorizedMenuSearchItems(
       const label = localize(name) || node.path || '';
       const hierarchy = label ? [...parents, label] : [...parents];
       const navigableType = !node.type || node.type === 'MENU';
-      if (
-        navigableType &&
-        isNavigablePath(node.path) &&
-        !seenPaths.has(node.path)
-      ) {
+      if (navigableType && isNavigablePath(node.path) && !seenPaths.has(node.path)) {
         seenPaths.add(node.path);
         const fullLabel = hierarchy.join(' / ') || node.path;
         result.push({
@@ -66,9 +62,8 @@ export default function MenuSearch({ items }: { items: readonly AuthorizedMenuIt
   );
   const results = useMemo(() => {
     const normalized = normalizeSearchText(query);
-    return (normalized
-      ? allItems.filter((item) => item.searchText.includes(normalized))
-      : allItems
+    return (
+      normalized ? allItems.filter((item) => item.searchText.includes(normalized)) : allItems
     ).slice(0, SEARCH_RESULT_LIMIT);
   }, [allItems, query]);
 
@@ -101,6 +96,7 @@ export default function MenuSearch({ items }: { items: readonly AuthorizedMenuIt
           <AutoComplete
             autoFocus
             className="w-full"
+            defaultActiveFirstOption
             value={query}
             options={results.map((item) => ({
               value: item.path,
