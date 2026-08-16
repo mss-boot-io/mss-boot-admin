@@ -5,7 +5,48 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
+
+func TestV6LocalOverlayEnablesOnlyDevelopmentBrowserSession(t *testing.T) {
+	base, err := FS.ReadFile("application.yml")
+	if err != nil {
+		t.Fatalf("read base configuration: %v", err)
+	}
+	overlay, err := FS.ReadFile("application-v6-local.yml")
+	if err != nil {
+		t.Fatalf("read V6 local overlay: %v", err)
+	}
+	var cfg Config
+	if err = yaml.Unmarshal(base, &cfg); err != nil {
+		t.Fatalf("decode base configuration: %v", err)
+	}
+	if err = yaml.Unmarshal(overlay, &cfg); err != nil {
+		t.Fatalf("decode V6 local overlay: %v", err)
+	}
+	if cfg.Application.Mode != ModeDev || cfg.Application.Origin != "http://localhost:8001" {
+		t.Fatalf("unexpected V6 local application profile: %#v", cfg.Application)
+	}
+	if !cfg.Auth.SessionEnabled || !cfg.Auth.BrowserSession.Enabled || cfg.Auth.BrowserSession.Secure {
+		t.Fatalf("unexpected V6 local browser-session profile: %#v", cfg.Auth)
+	}
+	if !cfg.Auth.BrowserSession.LegacyWebSocketQueryTokenAllowed() {
+		t.Fatal("V6 local overlay must preserve the independently served V5 compatibility path")
+	}
+	if err = validateBrowserSession(cfg.Application.Mode, cfg.Auth); err != nil {
+		t.Fatalf("validate V6 local browser session: %v", err)
+	}
+	if err = validateBrowserSessionOrigins(
+		cfg.Application.Mode,
+		cfg.Auth,
+		cfg.Application.Origin,
+		cfg.CORS.AllowOrigins,
+		cfg.CORS.AllowHeaders,
+	); err != nil {
+		t.Fatalf("validate V6 local browser origins: %v", err)
+	}
+}
 
 func TestValidateProductionAuthKeyFailsClosed(t *testing.T) {
 	tests := []struct {

@@ -7,7 +7,7 @@ import { clearThemeIdentitySession } from '../theme/snapshot';
 import { type ApiRequestFailure, getRequestErrorMessage, getRequestStatus } from './errors';
 import { feedback } from './feedback';
 
-export { getRequestErrorMessage, getRequestStatus } from './errors';
+export { getRequestErrorCode, getRequestErrorMessage, getRequestStatus } from './errors';
 
 const mutationMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 let lastForbiddenRefreshAt: number | undefined;

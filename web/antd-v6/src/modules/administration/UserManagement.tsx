@@ -142,7 +142,7 @@ export default function UserManagement({
       width: 210,
       render: (_, user) => (
         <Space>
-          <Avatar src={user.avatar}>
+          <Avatar src={user.avatar || undefined}>
             {(user.name || user.username).slice(0, 1).toUpperCase()}
           </Avatar>
           <span>{user.username}</span>

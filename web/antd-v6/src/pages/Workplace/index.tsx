@@ -18,7 +18,7 @@ export default function WorkplacePage() {
     <PageContainer
       content={
         <Space>
-          <Avatar src={currentUser?.avatar} icon={<UserOutlined />} />
+          <Avatar src={currentUser?.avatar || undefined} icon={<UserOutlined />} />
           <Typography.Text type="secondary">
             {currentUser?.signature || intl.formatMessage({ id: 'pages.workplace.subtitle' })}
           </Typography.Text>

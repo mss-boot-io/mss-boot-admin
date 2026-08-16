@@ -128,7 +128,7 @@ export default function BasePanel() {
         <Input />
       </Form.Item>
       <Space className="mb-6" align="center" wrap>
-        <Avatar shape="square" size={72} src={logo} />
+        <Avatar shape="square" size={72} src={logo || undefined} />
         {canUpload ? (
           <Upload
             accept="image/png,image/jpeg,image/webp"

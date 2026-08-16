@@ -60,7 +60,7 @@ function AvatarField({ onChange, value }: { onChange?: (value: string) => void; 
     >
       <Button type="text" className="h-auto p-2">
         <Space orientation="vertical" size="small">
-          <Avatar size={88} src={value} icon={<UserOutlined />} />
+          <Avatar size={88} src={value || undefined} icon={<UserOutlined />} />
           <span>
             <CameraOutlined /> {intl.formatMessage({ id: 'account.profile.avatarAction' })}
           </span>

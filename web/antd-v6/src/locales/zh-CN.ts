@@ -666,6 +666,10 @@ export default {
   'account.oauth.unlinkConfirmDescription': '解绑后，该提供商将不能再用于登录，除非重新连接。',
   'account.oauth.unlinked': '第三方账号已解绑',
   'account.security.loadFailed': '无法加载账户安全状态。',
+  'account.security.sessionRequiredTitle': '需要重新建立安全会话',
+  'account.security.sessionRequiredDescription':
+    '当前登录态来自旧版或已失效的浏览器会话。修改密码和解绑第三方账号必须在可撤销、可审计的 V6 交互会话中完成。',
+  'account.security.sessionRequiredAction': '重新登录并继续',
   'account.security.operationFailed': '账户安全操作失败',
   'account.security.passwordOwnershipTitle': '密码由你本人管理',
   'account.security.passwordOwnershipDescription':

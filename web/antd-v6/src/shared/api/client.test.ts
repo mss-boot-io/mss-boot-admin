@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { browserRequestHeaders, getRequestErrorMessage, getRequestStatus } from './client';
+import {
+  browserRequestHeaders,
+  getRequestErrorCode,
+  getRequestErrorMessage,
+  getRequestStatus,
+} from './client';
 
 describe('browser request security headers', () => {
   it('copies the readable signed CSRF cookie only to unsafe requests', () => {
@@ -28,6 +33,19 @@ describe('browser request security headers', () => {
     });
     expect(getRequestStatus(failure)).toBe(503);
     expect(getRequestErrorMessage(failure)).toBe('policy unavailable');
+  });
+
+  it('reads stable business errors from the Umi request error body', () => {
+    const failure = Object.assign(new Error('fallback'), {
+      data: {
+        errorCode: 'SECURITY_SESSION_REQUIRED',
+        errorMessage: 'an interactive server session is required',
+      },
+      response: { status: 401 },
+    });
+    expect(getRequestStatus(failure)).toBe(401);
+    expect(getRequestErrorCode(failure)).toBe('SECURITY_SESSION_REQUIRED');
+    expect(getRequestErrorMessage(failure)).toBe('an interactive server session is required');
   });
 
   it('preserves an explicit versioned media type', () => {

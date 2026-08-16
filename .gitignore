@@ -30,6 +30,7 @@ __pycache__/
 config/application-*
 admin/config/application-*
 !admin/config/application-e2e.yml
+!admin/config/application-v6-local.yml
 *.db
 
 # Runtime and build output

@@ -28,6 +28,7 @@
     "test:e2e": "playwright test",
     "test:e2e:parity": "playwright test --grep @parity",
     "test:e2e:permission": "playwright test --grep @permission",
+    "test:e2e:settings": "playwright test --grep @settings",
     "test:e2e:debug": "playwright test --debug",
     "test:update": "vitest run -u",
     "tsc": "max setup && tsc --noEmit"

@@ -138,7 +138,7 @@ export default function OAuthBindingsPanel() {
               <li className="flex flex-wrap items-center justify-between gap-4 py-4" key={provider}>
                 <div className="flex min-w-0 items-center gap-3">
                   {binding?.picture ? (
-                    <Avatar src={binding.picture} />
+                    <Avatar src={binding.picture || undefined} />
                   ) : (
                     <Avatar icon={provider === 'github' ? <GithubOutlined /> : <ApiOutlined />} />
                   )}

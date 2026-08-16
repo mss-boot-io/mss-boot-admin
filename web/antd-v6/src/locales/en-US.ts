@@ -709,6 +709,10 @@ export default {
     'This provider can no longer sign in until it is connected again.',
   'account.oauth.unlinked': 'External account disconnected',
   'account.security.loadFailed': 'Unable to load account security status.',
+  'account.security.sessionRequiredTitle': 'A new secure session is required',
+  'account.security.sessionRequiredDescription':
+    'This sign-in came from a legacy or expired browser session. Password changes and external-account disconnections require a revocable, auditable V6 interactive session.',
+  'account.security.sessionRequiredAction': 'Sign in again and continue',
   'account.security.operationFailed': 'The account security operation failed',
   'account.security.passwordOwnershipTitle': 'Your password is managed by you',
   'account.security.passwordOwnershipDescription':

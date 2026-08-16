@@ -312,7 +312,7 @@ function AvatarMenu({ initialState }: { initialState?: InitialState }) {
       }}
     >
       <span className="inline-flex cursor-pointer items-center gap-2">
-        <Avatar src={currentUser?.avatar}>{label.slice(0, 1).toUpperCase()}</Avatar>
+        <Avatar src={currentUser?.avatar || undefined}>{label.slice(0, 1).toUpperCase()}</Avatar>
         <Typography.Text>{label}</Typography.Text>
       </span>
     </Dropdown>

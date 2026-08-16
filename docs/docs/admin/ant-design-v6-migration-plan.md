@@ -131,6 +131,22 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 
 完成门：后端安全矩阵通过，先部署兼容后端，再启用 V6 登录。
 
+本地人工验收使用显式的 `v6-local` 配置层，避免把兼容期默认关闭的浏览器会话误当成运行故障，也避免为 V6 修改 V5 的默认启动语义：
+
+```bash
+docker run -d --name mss-boot-admin-local-redis --restart unless-stopped \
+  -p 127.0.0.1:6379:6379 redis:7.4-alpine \
+  redis-server --requirepass 123456
+
+cd admin
+STAGE=v6-local MSS_RUNTIME_REDIS_PASSWORD=123456 go run . server
+
+cd ../web/antd-v6
+corepack pnpm@10.34.5 start:dev
+```
+
+`application-v6-local.yml` 仅允许 HTTP localhost 和非 Secure 开发 Cookie；它不能作为生产配置。生产仍必须显式提供 HTTPS origin、强 auth key、共享 Redis、Secure Cookie 及独立 OAuth 应用凭据。
+
 推荐上线顺序：
 
 1. 先发布默认关闭 browser session 的兼容后端，保持 V5 WebSocket 兼容开关开启。

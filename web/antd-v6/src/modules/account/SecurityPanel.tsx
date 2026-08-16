@@ -1,12 +1,26 @@
 import ApiOutlined from '@ant-design/icons/ApiOutlined';
 import GithubOutlined from '@ant-design/icons/GithubOutlined';
 import KeyOutlined from '@ant-design/icons/KeyOutlined';
+import LoginOutlined from '@ant-design/icons/LoginOutlined';
 import SafetyCertificateOutlined from '@ant-design/icons/SafetyCertificateOutlined';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl, useModel, useSearchParams } from '@umijs/max';
-import { Alert, App, Button, Card, Descriptions, Form, Input, Space, Tag, Typography } from 'antd';
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Descriptions,
+  Form,
+  Input,
+  Result,
+  Space,
+  Tag,
+  Typography,
+} from 'antd';
 import { useState } from 'react';
-import { getRequestErrorMessage } from '@/shared/api/client';
+import { getRequestErrorCode, getRequestErrorMessage, getRequestStatus } from '@/shared/api/client';
+import { clearServerSession } from '@/shared/auth/session';
 import type { InitialState } from '@/shared/auth/types';
 import { PageError, PageLoading } from '@/shared/design-system/PageState';
 import { queryClient, queryKeys } from '@/shared/query/client';
@@ -46,6 +60,7 @@ export default function SecurityPanel() {
   const [proving, setProving] = useState(false);
   const [changing, setChanging] = useState(false);
   const [oauthProvider, setOAuthProvider] = useState<OAuthProvider>();
+  const [restartingSession, setRestartingSession] = useState(false);
   const [operationError, setOperationError] = useState<string>();
 
   const security = useQuery({
@@ -61,8 +76,47 @@ export default function SecurityPanel() {
     staleTime: 0,
   });
 
+  const restartInteractiveSession = async () => {
+    if (restartingSession) return;
+    setRestartingSession(true);
+    queryClient.clear();
+    clearThemeIdentitySession();
+    clearUserThemeRuntime();
+    try {
+      await clearServerSession();
+    } finally {
+      const redirect = encodeURIComponent('/account/settings?tab=security');
+      window.location.replace(`/user/login?redirect=${redirect}`);
+    }
+  };
+
   if (security.isPending && !security.data) return <PageLoading rows={6} />;
   if (security.isError || !security.data) {
+    const securityErrorMessage = getRequestErrorMessage(security.error);
+    const requiresInteractiveSession =
+      getRequestErrorCode(security.error) === 'SECURITY_SESSION_REQUIRED' ||
+      getRequestStatus(security.error) === 401 ||
+      securityErrorMessage === 'an interactive server session is required';
+    if (requiresInteractiveSession) {
+      return (
+        <Result
+          status="info"
+          icon={<SafetyCertificateOutlined />}
+          title={intl.formatMessage({ id: 'account.security.sessionRequiredTitle' })}
+          subTitle={intl.formatMessage({ id: 'account.security.sessionRequiredDescription' })}
+          extra={
+            <Button
+              type="primary"
+              icon={<LoginOutlined />}
+              loading={restartingSession}
+              onClick={() => void restartInteractiveSession()}
+            >
+              {intl.formatMessage({ id: 'account.security.sessionRequiredAction' })}
+            </Button>
+          }
+        />
+      );
+    }
     return (
       <PageError
         message={intl.formatMessage({ id: 'account.security.loadFailed' })}

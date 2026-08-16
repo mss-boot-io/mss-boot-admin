@@ -54,7 +54,7 @@ export default function AccountCenterPage() {
       <ProCard gutter={[16, 16]} wrap>
         <ProCard colSpan={{ xs: 24, lg: 7 }} variant="outlined">
           <Space orientation="vertical" align="center" size="middle" className="w-full py-4">
-            <Avatar size={112} src={current.avatar} icon={<UserOutlined />} />
+            <Avatar size={112} src={current.avatar || undefined} icon={<UserOutlined />} />
             <div className="text-center">
               <Typography.Title level={3} className="mb-1">
                 {display(current.name ?? current.username)}
