@@ -73,6 +73,11 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
   const [detailID, setDetailID] = useState<string>();
   const notices = useNoticePage(params);
   const detail = useNotice(detailID);
+  const listStatus = getRequestStatus(notices.error);
+  const isFilterFormMounted =
+    listStatus !== 403 &&
+    !(notices.isPending && !notices.data) &&
+    !(notices.isError && !notices.data);
   const markRead = useMutation({
     mutationFn: (id: string) => operationsAPI.notices.markRead(id),
     onSuccess: async () => {
@@ -82,11 +87,11 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
   });
 
   useEffect(() => {
-    form.setFieldValue('type', routeType);
     setParams((current) =>
       current.type === routeType ? current : { ...current, current: 1, type: routeType },
     );
-  }, [form, routeType]);
+    if (isFilterFormMounted) form.setFieldValue('type', routeType);
+  }, [form, isFilterFormMounted, routeType]);
 
   const formatDate = (value?: string) =>
     value
@@ -178,7 +183,6 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
     },
   ];
 
-  const listStatus = getRequestStatus(notices.error);
   if (listStatus === 403) {
     return <PageForbidden message={intl.formatMessage({ id: 'notice.forbidden.read' })} />;
   }
