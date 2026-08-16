@@ -20,6 +20,14 @@ export default function AppConfigPage() {
         activeKey={activeTab}
         tabPlacement={screens.lg ? 'start' : 'top'}
         destroyOnHidden
+        more={{
+          trigger: 'click',
+          icon: (
+            <span className="whitespace-nowrap px-1 text-sm">
+              {intl.formatMessage({ id: 'settings.tabs.more' })}
+            </span>
+          ),
+        }}
         items={[
           {
             key: 'base',

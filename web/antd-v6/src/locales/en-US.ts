@@ -26,6 +26,7 @@ export default {
   'navigation.search.hint': 'Press Ctrl/⌘+K to open, Enter to navigate, and Esc to close',
   'navigation.documentation': 'Open documentation',
   'navigation.accountMenu': 'Open the account menu for {name}',
+  'settings.tabs.more': 'More',
   'menu.oauth-callback': 'OAuth callback',
   'menu.welcome': 'Workplace',
   'menu.security': 'Security',
