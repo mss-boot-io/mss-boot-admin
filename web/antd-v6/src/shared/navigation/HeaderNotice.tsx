@@ -1,7 +1,7 @@
 import BellOutlined from '@ant-design/icons/BellOutlined';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { history, useIntl } from '@umijs/max';
-import { Badge, Popover } from 'antd';
+import { Badge, Grid, Popover } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { operationsAPI } from '@/modules/operations/api';
 import type { NoticeSummary, NoticeType } from '@/modules/operations/contract';
@@ -34,6 +34,7 @@ function groupUnreadNotices(notices: NoticeSummary[] | undefined): HeaderNoticeD
 export default function HeaderNotice({ user }: { user?: CurrentUser }) {
   const intl = useIntl();
   const { styles } = useHeaderNoticeStyles();
+  const screens = Grid.useBreakpoint();
   const queryClient = useQueryClient();
   const canRead = hasPermission(user, '/notice');
   const canMarkRead = hasPermission(user, '/notice/read');
@@ -118,7 +119,7 @@ export default function HeaderNotice({ user }: { user?: CurrentUser }) {
       }
       destroyOnHidden
       open={open}
-      placement="bottomRight"
+      placement={screens.sm === false ? 'bottom' : 'bottomRight'}
       styles={{
         container: {
           maxWidth: 'calc(100vw - 16px)',

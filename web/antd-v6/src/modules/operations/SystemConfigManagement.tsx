@@ -19,7 +19,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Table,
   type TableColumnsType,
   Tag,
   Typography,
@@ -27,6 +26,7 @@ import {
 import { useEffect, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+import ResponsiveEntityTable from '@/shared/design-system/ResponsiveEntityTable';
 import {
   finishManagementRouteIntent,
   type ManagementRouteIntent,
@@ -274,7 +274,7 @@ export default function SystemConfigManagement({ routeIntent }: SystemConfigMana
           {intl.formatMessage({ id: 'systemConfig.create.action' })}
         </Button>
       </Space>
-      <Table<SystemConfigSummary>
+      <ResponsiveEntityTable<SystemConfigSummary>
         columns={columns}
         dataSource={configs.data?.data ?? []}
         loading={configs.isFetching}
@@ -293,6 +293,7 @@ export default function SystemConfigManagement({ routeIntent }: SystemConfigMana
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
+        mobileColumnKeys={['name', 'format', 'remark', 'updatedAt', 'actions']}
         rowKey="id"
         scroll={{ x: 820 }}
       />

@@ -19,12 +19,12 @@ import type { DataNode } from 'antd/es/tree';
 import type { Key } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
-import { formatMenuLabel } from '@/shared/navigation/menuLocale';
 import {
   finishManagementRouteIntent,
   type ManagementRouteIntent,
   useManagementRouteIntent,
 } from '@/shared/navigation/managementRoute';
+import { formatMenuLabel } from '@/shared/navigation/menuLocale';
 import { queryKeys } from '@/shared/query/client';
 import AdministrationTable, { AdministrationStatusTag } from './AdministrationTable';
 import { administrationAPI, RoleAuthorizationRevisionConflictError } from './api';
@@ -250,6 +250,7 @@ export default function RoleManagement({
         params={params}
         query={roles}
         setParams={setParams}
+        mobileColumnKeys={['name', 'classification', 'status', 'actions']}
         toolbar={
           canCreate ? (
             <Button type="primary" onClick={() => openEditor('create')}>

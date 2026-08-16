@@ -19,12 +19,12 @@ import {
 } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
-import { formatMenuLabel } from '@/shared/navigation/menuLocale';
 import {
   finishManagementRouteIntent,
   type ManagementRouteIntent,
   useManagementRouteIntent,
 } from '@/shared/navigation/managementRoute';
+import { formatMenuLabel } from '@/shared/navigation/menuLocale';
 import { queryKeys } from '@/shared/query/client';
 import AdministrationTable, { AdministrationStatusTag } from './AdministrationTable';
 import { administrationAPI } from './api';
@@ -260,6 +260,7 @@ export default function MenuManagement({
         params={params}
         query={menus}
         setParams={setParams}
+        mobileColumnKeys={['name', 'type', 'path', 'status', 'actions']}
         toolbar={
           canCreate ? (
             <Button type="primary" onClick={() => openEditor('create')}>
@@ -421,10 +422,7 @@ export default function MenuManagement({
             type="primary"
             loading={bindAPIs.isPending}
             disabled={
-              apiCatalog.isPending ||
-              boundAPIs.isPending ||
-              apiCatalog.isError ||
-              boundAPIs.isError
+              apiCatalog.isPending || boundAPIs.isPending || apiCatalog.isError || boundAPIs.isError
             }
             onClick={() => bindAPIs.mutate()}
           >

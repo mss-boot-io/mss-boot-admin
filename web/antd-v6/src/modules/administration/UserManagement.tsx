@@ -258,6 +258,7 @@ export default function UserManagement({
         params={params}
         query={users}
         setParams={setParams}
+        mobileColumnKeys={['username', 'name', 'role', 'status', 'actions']}
         toolbar={
           canCreate ? (
             <Button type="primary" onClick={() => openEditor('create')}>

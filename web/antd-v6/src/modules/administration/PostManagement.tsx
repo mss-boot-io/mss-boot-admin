@@ -200,6 +200,7 @@ export default function PostManagement({
         params={params}
         query={posts}
         setParams={setParams}
+        mobileColumnKeys={['name', 'code', 'dataScope', 'status', 'actions']}
         toolbar={
           canCreate ? (
             <Button type="primary" onClick={() => openEditor('create')}>

@@ -21,7 +21,6 @@ import {
   Row,
   Select,
   Space,
-  Table,
   type TableColumnsType,
   Tag,
   Tooltip,
@@ -29,6 +28,7 @@ import {
 import { useEffect, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+import ResponsiveEntityTable from '@/shared/design-system/ResponsiveEntityTable';
 import {
   finishManagementRouteIntent,
   type ManagementRouteIntent,
@@ -395,7 +395,7 @@ export default function TaskManagement({ root, routeIntent }: TaskManagementProp
           </Col>
         </Row>
       </Form>
-      <Table<TaskSummary>
+      <ResponsiveEntityTable<TaskSummary>
         columns={columns}
         dataSource={tasks.data?.data ?? []}
         loading={tasks.isFetching}
@@ -413,6 +413,7 @@ export default function TaskManagement({ root, routeIntent }: TaskManagementProp
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
+        mobileColumnKeys={['name', 'provider', 'schedule', 'status', 'lastRun', 'actions']}
         rowKey="id"
         scroll={{ x: root ? 1_080 : 760 }}
       />

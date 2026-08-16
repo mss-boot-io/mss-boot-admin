@@ -6,9 +6,13 @@ import {
   Alert,
   App,
   Button,
+  Card,
   Col,
+  Descriptions,
   Form,
+  Grid,
   Input,
+  List,
   Popconfirm,
   Row,
   Select,
@@ -63,6 +67,7 @@ export default function OnlineSessionsView() {
   const intl = useIntl();
   const { message } = App.useApp();
   const [form] = Form.useForm<SessionFilterValues>();
+  const screens = Grid.useBreakpoint();
   const [params, setParams] = useState<OnlineSessionListParams>(initialParams);
   const [detailID, setDetailID] = useState<string>();
   const sessions = useOnlineSessionPage(params);
@@ -96,6 +101,66 @@ export default function OnlineSessionsView() {
       dateStyle: 'short',
       timeStyle: 'medium',
     }).format(new Date(value));
+
+  const renderStatus = (row: OnlineSession) => {
+    const status = getOnlineSessionStatus(row);
+    return (
+      <Tag color={statusColor(status)}>
+        {intl.formatMessage({ id: `sessions.status.${status}` })}
+      </Tag>
+    );
+  };
+
+  const renderActions = (row: OnlineSession) => {
+    const active = getOnlineSessionStatus(row) === 'active';
+    const sessionPending =
+      revoke.isPending && revoke.variables?.kind === 'session' && revoke.variables.id === row.id;
+    const userPending =
+      revoke.isPending && revoke.variables?.kind === 'user' && revoke.variables.id === row.userID;
+    return (
+      <Space size="small" wrap>
+        <Button type="link" size="small" onClick={() => setDetailID(row.id)}>
+          {intl.formatMessage({ id: 'sessions.action.detail' })}
+        </Button>
+        {active ? (
+          <Popconfirm
+            title={intl.formatMessage({ id: 'sessions.revoke.confirm' })}
+            onConfirm={() => revoke.mutate({ kind: 'session', id: row.id })}
+          >
+            <Button
+              danger
+              disabled={revoke.isPending && !sessionPending}
+              loading={sessionPending}
+              size="small"
+              type="link"
+            >
+              {intl.formatMessage({ id: 'sessions.action.revoke' })}
+            </Button>
+          </Popconfirm>
+        ) : null}
+        {active ? (
+          <Popconfirm
+            description={intl.formatMessage(
+              { id: 'sessions.revokeUser.description' },
+              { username: row.username },
+            )}
+            title={intl.formatMessage({ id: 'sessions.revokeUser.confirm' })}
+            onConfirm={() => revoke.mutate({ kind: 'user', id: row.userID })}
+          >
+            <Button
+              danger
+              disabled={revoke.isPending && !userPending}
+              loading={userPending}
+              size="small"
+              type="link"
+            >
+              {intl.formatMessage({ id: 'sessions.action.revokeUser' })}
+            </Button>
+          </Popconfirm>
+        ) : null}
+      </Space>
+    );
+  };
 
   const columns: TableColumnsType<OnlineSession> = [
     {
@@ -133,73 +198,13 @@ export default function OnlineSessionsView() {
     {
       title: intl.formatMessage({ id: 'sessions.field.status' }),
       key: 'status',
-      render: (_, row) => {
-        const status = getOnlineSessionStatus(row);
-        return (
-          <Tag color={statusColor(status)}>
-            {intl.formatMessage({ id: `sessions.status.${status}` })}
-          </Tag>
-        );
-      },
+      render: (_, row) => renderStatus(row),
     },
     {
       title: intl.formatMessage({ id: 'sessions.field.actions' }),
       key: 'actions',
       width: 230,
-      render: (_, row) => {
-        const active = getOnlineSessionStatus(row) === 'active';
-        const sessionPending =
-          revoke.isPending &&
-          revoke.variables?.kind === 'session' &&
-          revoke.variables.id === row.id;
-        const userPending =
-          revoke.isPending &&
-          revoke.variables?.kind === 'user' &&
-          revoke.variables.id === row.userID;
-        return (
-          <Space size="small" wrap>
-            <Button type="link" size="small" onClick={() => setDetailID(row.id)}>
-              {intl.formatMessage({ id: 'sessions.action.detail' })}
-            </Button>
-            {active ? (
-              <Popconfirm
-                title={intl.formatMessage({ id: 'sessions.revoke.confirm' })}
-                onConfirm={() => revoke.mutate({ kind: 'session', id: row.id })}
-              >
-                <Button
-                  danger
-                  disabled={revoke.isPending && !sessionPending}
-                  loading={sessionPending}
-                  size="small"
-                  type="link"
-                >
-                  {intl.formatMessage({ id: 'sessions.action.revoke' })}
-                </Button>
-              </Popconfirm>
-            ) : null}
-            {active ? (
-              <Popconfirm
-                description={intl.formatMessage(
-                  { id: 'sessions.revokeUser.description' },
-                  { username: row.username },
-                )}
-                title={intl.formatMessage({ id: 'sessions.revokeUser.confirm' })}
-                onConfirm={() => revoke.mutate({ kind: 'user', id: row.userID })}
-              >
-                <Button
-                  danger
-                  disabled={revoke.isPending && !userPending}
-                  loading={userPending}
-                  size="small"
-                  type="link"
-                >
-                  {intl.formatMessage({ id: 'sessions.action.revokeUser' })}
-                </Button>
-              </Popconfirm>
-            ) : null}
-          </Space>
-        );
-      },
+      render: (_, row) => renderActions(row),
     },
   ];
 
@@ -299,29 +304,84 @@ export default function OnlineSessionsView() {
           </Col>
         </Row>
       </Form>
-      <Table<OnlineSession>
-        columns={columns}
-        dataSource={sessions.data?.data ?? []}
-        loading={sessions.isFetching}
-        locale={{
-          emptyText: <PageEmpty description={intl.formatMessage({ id: 'sessions.empty' })} />,
-        }}
-        pagination={{
-          current: params.current,
-          pageSize: params.pageSize,
-          pageSizeOptions: ONLINE_SESSION_PAGE_SIZES.map(String),
-          showSizeChanger: true,
-          total: sessions.data?.total ?? 0,
-          onChange: (current, pageSize) =>
-            setParams((previous) => ({
-              ...previous,
-              current,
-              pageSize: isOnlineSessionPageSize(pageSize) ? pageSize : previous.pageSize,
-            })),
-        }}
-        rowKey="id"
-        scroll={{ x: 760 }}
-      />
+      {screens.md === false ? (
+        <List<OnlineSession>
+          dataSource={sessions.data?.data ?? []}
+          loading={sessions.isFetching}
+          locale={{
+            emptyText: <PageEmpty description={intl.formatMessage({ id: 'sessions.empty' })} />,
+          }}
+          pagination={{
+            current: params.current,
+            hideOnSinglePage: true,
+            pageSize: params.pageSize,
+            simple: true,
+            total: sessions.data?.total ?? 0,
+            onChange: (current) => setParams((previous) => ({ ...previous, current })),
+          }}
+          rowKey={(session) => session.id}
+          renderItem={(session) => (
+            <List.Item style={{ paddingInline: 0 }}>
+              <Card
+                className="w-full"
+                size="small"
+                title={
+                  <Button type="link" className="px-0" onClick={() => setDetailID(session.id)}>
+                    {session.username}
+                  </Button>
+                }
+              >
+                <Descriptions
+                  column={1}
+                  size="small"
+                  items={[
+                    {
+                      key: 'ip',
+                      label: intl.formatMessage({ id: 'sessions.field.ip' }),
+                      children: session.ip || '—',
+                    },
+                    {
+                      key: 'lastSeenAt',
+                      label: intl.formatMessage({ id: 'sessions.field.lastSeenAt' }),
+                      children: formatDate(session.lastSeenAt),
+                    },
+                    {
+                      key: 'status',
+                      label: intl.formatMessage({ id: 'sessions.field.status' }),
+                      children: renderStatus(session),
+                    },
+                  ]}
+                />
+                <div className="mt-3">{renderActions(session)}</div>
+              </Card>
+            </List.Item>
+          )}
+        />
+      ) : (
+        <Table<OnlineSession>
+          columns={columns}
+          dataSource={sessions.data?.data ?? []}
+          loading={sessions.isFetching}
+          locale={{
+            emptyText: <PageEmpty description={intl.formatMessage({ id: 'sessions.empty' })} />,
+          }}
+          pagination={{
+            current: params.current,
+            pageSize: params.pageSize,
+            pageSizeOptions: ONLINE_SESSION_PAGE_SIZES.map(String),
+            showSizeChanger: true,
+            total: sessions.data?.total ?? 0,
+            onChange: (current, pageSize) =>
+              setParams((previous) => ({
+                ...previous,
+                current,
+                pageSize: isOnlineSessionPageSize(pageSize) ? pageSize : previous.pageSize,
+              })),
+          }}
+          rowKey="id"
+          scroll={{ x: 760 }}
+        />
+      )}
       <SessionDetailDrawer
         id={detailID}
         open={Boolean(detailID)}

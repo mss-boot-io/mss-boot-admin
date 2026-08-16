@@ -12,7 +12,6 @@ import {
   Row,
   Select,
   Space,
-  Table,
   type TableColumnsType,
   Tabs,
   Tag,
@@ -22,6 +21,7 @@ import type { Dayjs } from 'dayjs';
 import { useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+import ResponsiveEntityTable from '@/shared/design-system/ResponsiveEntityTable';
 import { runtimeLogExportPath } from './api';
 import {
   type AuditLogEntry,
@@ -167,7 +167,7 @@ function LoginLogTable() {
           </Space>
         </Form.Item>
       </Form>
-      <Table<LoginLogEntry>
+      <ResponsiveEntityTable<LoginLogEntry>
         columns={columns}
         dataSource={logs.data?.data ?? []}
         loading={logs.isFetching}
@@ -185,6 +185,7 @@ function LoginLogTable() {
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
+        mobileColumnKeys={['username', 'ip', 'location', 'status', 'message', 'loginAt']}
         rowKey="id"
         scroll={{ x: 920 }}
       />
@@ -233,6 +234,13 @@ function AuditLogTable() {
       dataIndex: 'action',
       width: 150,
       ellipsis: true,
+    },
+    {
+      title: intl.formatMessage({ id: 'log.field.message' }),
+      dataIndex: 'message',
+      ellipsis: true,
+      responsive: ['xxl'],
+      render: (value: string) => value || '—',
     },
     {
       title: intl.formatMessage({ id: 'log.field.resource' }),
@@ -335,7 +343,7 @@ function AuditLogTable() {
           </Space>
         </Form.Item>
       </Form>
-      <Table<AuditLogEntry>
+      <ResponsiveEntityTable<AuditLogEntry>
         columns={columns}
         dataSource={logs.data?.data ?? []}
         expandable={{
@@ -361,6 +369,16 @@ function AuditLogTable() {
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
+        mobileColumnKeys={[
+          'username',
+          'type',
+          'action',
+          'resource',
+          'message',
+          'status',
+          'duration',
+          'createdAt',
+        ]}
         rowKey="id"
         scroll={{ x: 1_080 }}
       />
@@ -514,7 +532,7 @@ function RuntimeLogTable({ canExport }: { canExport: boolean }) {
           {intl.formatMessage({ id: 'log.runtime.files' }, { files: files.data.files.join(', ') })}
         </Typography.Text>
       ) : null}
-      <Table<RuntimeLogRow>
+      <ResponsiveEntityTable<RuntimeLogRow>
         columns={columns}
         dataSource={(logs.data?.list ?? []).map((entry, index) => ({
           ...entry,
@@ -540,6 +558,7 @@ function RuntimeLogTable({ canExport }: { canExport: boolean }) {
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
+        mobileColumnKeys={['timestamp', 'level', 'message']}
         rowKey="rowKey"
         scroll={{ x: 760 }}
       />

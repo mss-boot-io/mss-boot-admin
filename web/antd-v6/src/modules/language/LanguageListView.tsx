@@ -17,7 +17,6 @@ import {
   Row,
   Select,
   Space,
-  Table,
   type TableColumnsType,
   Tag,
   Typography,
@@ -25,6 +24,7 @@ import {
 import { useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+import ResponsiveEntityTable from '@/shared/design-system/ResponsiveEntityTable';
 import { queryKeys } from '@/shared/query/client';
 import { languageAPI } from './api';
 import {
@@ -262,7 +262,7 @@ export default function LanguageListView({ canCreate, canDelete, canEdit }: Lang
           </Col>
         </Row>
       </Form>
-      <Table<LanguageSummary>
+      <ResponsiveEntityTable<LanguageSummary>
         columns={columns}
         dataSource={languages.data?.data ?? []}
         loading={languages.isFetching}
@@ -282,6 +282,7 @@ export default function LanguageListView({ canCreate, canDelete, canEdit }: Lang
               pageSize: isLanguagePageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
+        mobileColumnKeys={['name', 'status', 'remark', 'actions']}
         rowKey="id"
         scroll={{ x: 720 }}
       />

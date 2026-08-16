@@ -18,7 +18,6 @@ import {
   Row,
   Select,
   Space,
-  Table,
   type TableColumnsType,
   Tag,
   Typography,
@@ -26,6 +25,7 @@ import {
 import { useEffect, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+import ResponsiveEntityTable from '@/shared/design-system/ResponsiveEntityTable';
 import { queryKeys } from '@/shared/query/client';
 import { operationsAPI } from './api';
 import {
@@ -294,7 +294,7 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
           </Col>
         </Row>
       </Form>
-      <Table<NoticeSummary>
+      <ResponsiveEntityTable<NoticeSummary>
         columns={columns}
         dataSource={notices.data?.data ?? []}
         loading={notices.isFetching}
@@ -314,6 +314,7 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
+        mobileColumnKeys={['title', 'type', 'status', 'description', 'sentAt', 'actions']}
         rowKey="id"
         scroll={{ x: 880 }}
       />

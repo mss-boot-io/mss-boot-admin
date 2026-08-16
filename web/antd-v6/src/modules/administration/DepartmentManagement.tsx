@@ -208,6 +208,7 @@ export default function DepartmentManagement({
         params={params}
         query={departments}
         setParams={setParams}
+        mobileColumnKeys={['name', 'code', 'leaderID', 'status', 'actions']}
         toolbar={
           canCreate ? (
             <Button type="primary" onClick={() => openEditor('create')}>
