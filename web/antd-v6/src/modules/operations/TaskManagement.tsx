@@ -13,6 +13,7 @@ import {
   Button,
   Col,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -96,6 +97,7 @@ export default function TaskManagement({ root }: TaskManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
+  const screens = Grid.useBreakpoint();
   const [filterForm] = Form.useForm<TaskFilterValues>();
   const [editorForm] = Form.useForm<TaskWriteValues>();
   const [params, setParams] = useState<OperationsListParams>(initialParams);
@@ -216,7 +218,7 @@ export default function TaskManagement({ root }: TaskManagementProps) {
             title: intl.formatMessage({ id: 'task.field.actions' }),
             key: 'actions',
             width: 300,
-            fixed: 'right',
+            fixed: screens.md ? 'right' : undefined,
             render: (_: unknown, task: TaskSummary) => {
               const operation = task.status === 'enabled' ? 'stop' : 'start';
               const pendingOperation = operate.isPending && operate.variables?.id === task.id;

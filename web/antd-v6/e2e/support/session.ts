@@ -27,10 +27,24 @@ export async function login(
   page: Page,
   credentials: SessionCredentials = { username: ROOT_USERNAME, password: ROOT_PASSWORD },
 ) {
-  const response = await page.request.post(`${API_BASE_URL}/user/session/login`, {
-    data: credentials,
-    headers: { Origin: APP_BASE_URL },
-  });
+  let response: APIResponse | undefined;
+  await expect
+    .poll(
+      async () => {
+        response = await page.request.post(`${API_BASE_URL}/user/session/login`, {
+          data: credentials,
+          headers: { Origin: APP_BASE_URL },
+        });
+        return response.headers()['content-type']?.includes('application/json') ?? false;
+      },
+      {
+        intervals: [250, 500, 1_000],
+        message: 'V6 development proxy should return the login JSON contract',
+        timeout: 15_000,
+      },
+    )
+    .toBe(true);
+  if (!response) throw new Error('V6 login response is unavailable');
   const body = await readJSON(response);
   expect(body.code).toBe(200);
   expect(body).not.toHaveProperty('token');

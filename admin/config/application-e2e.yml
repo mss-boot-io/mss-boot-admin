@@ -9,6 +9,12 @@ application:
 cors:
   allowOrigins:
     - 'http://127.0.0.1:8001'
+    # WSL exposes the dev server to Windows browsers through the localhost
+    # IPv6 relay, while Playwright remains on the qualification IPv4 origin.
+    - 'http://localhost:8001'
+  allowHeaders:
+    - Content-Type
+    - X-CSRF-Token
 logger:
   stdout: default
   level: warn

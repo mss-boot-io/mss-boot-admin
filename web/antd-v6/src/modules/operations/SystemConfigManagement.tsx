@@ -13,6 +13,7 @@ import {
   Descriptions,
   Drawer,
   Form,
+  Grid,
   Input,
   Modal,
   Popconfirm,
@@ -44,6 +45,7 @@ export default function SystemConfigManagement() {
   const intl = useIntl();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
+  const screens = Grid.useBreakpoint();
   const [params, setParams] = useState<{ current: number; pageSize: OperationsPageSize }>({
     current: 1,
     pageSize: 20,
@@ -163,7 +165,7 @@ export default function SystemConfigManagement() {
       title: intl.formatMessage({ id: 'systemConfig.field.actions' }),
       key: 'actions',
       width: 260,
-      fixed: 'right',
+      fixed: screens.md ? 'right' : undefined,
       render: (_: unknown, config) => (
         <Space size="small" wrap>
           <Button
@@ -278,8 +280,8 @@ export default function SystemConfigManagement() {
       <Drawer
         destroyOnHidden
         open={Boolean(viewing)}
+        size={screens.md ? 720 : '100%'}
         title={detail.data?.name ?? intl.formatMessage({ id: 'systemConfig.detail.title' })}
-        width="min(720px, 100vw)"
         onClose={closeView}
       >
         {detail.isPending ? <PageLoading rows={7} /> : null}

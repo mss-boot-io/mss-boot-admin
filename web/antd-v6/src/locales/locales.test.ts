@@ -8,9 +8,17 @@ describe('application locale contract', () => {
   });
 
   it.each([
+    'menu.origination',
+    'menu.origination.users',
+    'menu.origination.departments',
+    'menu.origination.posts',
+    'menu.authority',
+    'menu.authority.role',
+    'menu.authority.menu-management',
     'menu.system',
     'menu.system.language',
     'menu.system.option',
+    'menu.system.system-log',
     'menu.super-permission',
     'menu.super-permission.app-config',
   ])('defines the dynamic menu key %s', (key) => {

@@ -13,6 +13,7 @@ import {
   Descriptions,
   Drawer,
   Form,
+  Grid,
   Input,
   Row,
   Select,
@@ -57,6 +58,7 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
+  const screens = Grid.useBreakpoint();
   const [searchParams] = useSearchParams();
   const initialType = isNoticeType(searchParams.get('type')) ? searchParams.get('type') : 'all';
   const initialParams: NoticeListParams = {
@@ -141,7 +143,7 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
       title: intl.formatMessage({ id: 'notice.field.actions' }),
       key: 'actions',
       width: canMarkRead ? 220 : 110,
-      fixed: 'right',
+      fixed: screens.md ? 'right' : undefined,
       render: (_: unknown, notice) => (
         <Space size="small" wrap>
           <Button
@@ -306,8 +308,8 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
       <Drawer
         destroyOnHidden
         open={Boolean(detailID)}
+        size={screens.md ? 640 : '100%'}
         title={detail.data?.title ?? intl.formatMessage({ id: 'notice.detail.title' })}
-        width="min(640px, 100vw)"
         onClose={() => setDetailID(undefined)}
       >
         {detail.isPending ? <PageLoading rows={6} /> : null}

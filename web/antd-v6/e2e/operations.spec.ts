@@ -11,6 +11,7 @@ import {
 
 test('@operations bounded operational pages work through the browser contract', async ({
   page,
+  request,
 }) => {
   test.setTimeout(120_000);
   const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
@@ -19,6 +20,7 @@ test('@operations bounded operational pages work through the browser contract', 
   const configName = `e2e-${suffix}`;
   const configContent = `{"feature":"${suffix}"}`;
   const created: { config?: string; notice?: string; task?: string } = {};
+  let cleanupHeaders: Record<string, string> | undefined;
   const consoleViolations: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'warning' || message.type() === 'error') {
@@ -31,6 +33,12 @@ test('@operations bounded operational pages work through the browser contract', 
 
   try {
     const headers = await csrfHeaders(page);
+    cleanupHeaders = {
+      ...headers,
+      Cookie: (await page.context().cookies())
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join('; '),
+    };
     const taskResponse = await page.request.post(`${API_BASE_URL}/tasks`, {
       data: {
         name: taskName,
@@ -101,9 +109,9 @@ test('@operations bounded operational pages work through the browser contract', 
         response.request().method() === 'PUT' &&
         new URL(response.url()).pathname === `/admin/api/notice/read/${created.notice}`,
     );
-    await noticeRow.getByRole('button', { name: 'Mark read', exact: true }).click();
+    await noticeRow.getByRole('button', { name: /Mark read$/ }).click();
     expect((await markRead).ok()).toBe(true);
-    await expect(noticeRow.getByRole('button', { name: 'Mark read', exact: true })).toHaveCount(0);
+    await expect(noticeRow.getByRole('button', { name: /Mark read$/ })).toHaveCount(0);
     await expectNoDocumentOverflow(page);
 
     const loginLogs = page.waitForResponse(
@@ -143,15 +151,14 @@ test('@operations bounded operational pages work through the browser contract', 
 
     expect(consoleViolations).toEqual([]);
   } finally {
-    const headers = await csrfHeaders(page);
     for (const [resource, id] of [
       ['tasks', created.task],
       ['notices', created.notice],
       ['system-configs', created.config],
     ] as const) {
-      if (id) {
-        const response = await page.request.delete(`${API_BASE_URL}/${resource}/${id}`, {
-          headers,
+      if (id && cleanupHeaders) {
+        const response = await request.delete(`${API_BASE_URL}/${resource}/${id}`, {
+          headers: cleanupHeaders,
         });
         expect(response.status(), `cleanup ${resource}/${id}`).toBe(204);
       }

@@ -380,6 +380,10 @@ interface RuntimeFilterValues {
   range?: [Dayjs, Dayjs];
 }
 
+interface RuntimeLogRow extends RuntimeLogEntry {
+  rowKey: string;
+}
+
 function RuntimeLogTable({ canExport }: { canExport: boolean }) {
   const intl = useIntl();
   const [form] = Form.useForm<RuntimeFilterValues>();
@@ -387,7 +391,7 @@ function RuntimeLogTable({ canExport }: { canExport: boolean }) {
   const logs = useRuntimeLogPage(params, true);
   const files = useRuntimeLogFiles(true);
   const status = getRequestStatus(logs.error);
-  const columns: TableColumnsType<RuntimeLogEntry> = [
+  const columns: TableColumnsType<RuntimeLogRow> = [
     {
       title: intl.formatMessage({ id: 'log.field.timestamp' }),
       dataIndex: 'timestamp',
@@ -516,9 +520,12 @@ function RuntimeLogTable({ canExport }: { canExport: boolean }) {
           {intl.formatMessage({ id: 'log.runtime.files' }, { files: files.data.files.join(', ') })}
         </Typography.Text>
       ) : null}
-      <Table<RuntimeLogEntry>
+      <Table<RuntimeLogRow>
         columns={columns}
-        dataSource={logs.data?.list ?? []}
+        dataSource={(logs.data?.list ?? []).map((entry, index) => ({
+          ...entry,
+          rowKey: `${params.page}:${params.pageSize}:${index}`,
+        }))}
         expandable={{
           expandedRowRender: (row) => (
             <pre className="m-0 whitespace-pre-wrap break-all text-xs">{row.raw}</pre>
@@ -539,7 +546,7 @@ function RuntimeLogTable({ canExport }: { canExport: boolean }) {
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
-        rowKey={(row) => `${row.timestamp}:${row.level}:${row.raw}`}
+        rowKey="rowKey"
         scroll={{ x: 760 }}
       />
     </Space>
