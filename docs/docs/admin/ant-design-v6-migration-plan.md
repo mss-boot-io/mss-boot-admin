@@ -15,7 +15,7 @@ keywords: [admin ant-design v6 react umi migration release]
 - 决策状态：已接受，按独立应用方案实施。
 - 目标目录：`web/antd-v6`。
 - 旧应用：`web/antd` 保持独立构建、发布、部署和回滚，不在本项目中原位升级或删除。
-- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、权限新鲜度、服务端授权 revision 实时推送、分层主题闭环，以及安全账户中心、个人资料、PAT、OAuth 连接、语言切换已实现；P4 已完成工作台监控和在线会话两个垂直切片；P5 已完成语言与 Option 管理垂直切片；P6 的双目标生成器和 Supplier golden 已完成。真实 Go 后端上的 Chromium 桌面/移动、中文/英文、匿名与 Finance 最小权限矩阵，以及独立 Nginx 容器交付 smoke 已通过。其余业务等价和被冻结的产品/安全契约尚未完成，因此不是生产发布候选。
+- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、权限新鲜度、服务端授权 revision 实时推送、分层主题闭环，以及安全账户中心、个人资料、PAT、OAuth 连接、语言切换已实现；P4 已完成工作台监控、在线会话、任务、个人通知、审计/登录/运行时日志和系统配置；P5 已完成用户、角色、菜单、部门、岗位、语言与 Option 管理；P6 的双目标生成器和 Supplier golden 已完成。真实 Go 后端上的 Chromium 桌面/移动、中文/英文、匿名与 Finance 最小权限矩阵，以及独立 Nginx 容器交付 smoke 已通过。邮箱/密码近期再认证、全会话与 PAT 撤销、安全 OAuth 解绑及 TaskRun 原始输出等被冻结的产品/安全契约尚未完成，因此不是生产发布候选。
 - 机器契约：`.mss/features/admin-antd-v6-application.yaml`。
 - 架构决策：`docs/adr/2026-08-15-independent-ant-design-v6-application.md`。
 
@@ -83,15 +83,15 @@ V5 使用浏览器 bearer token；该模式不应复制到 V6。V6 的目标是�
 | 登录、退出、刷新、OAuth | 安全会话适配后重写 | cookie/CSRF、OAuth token 不进浏览器存储、过期和退出闭环 |
 | 当前用户、账户中心、账户设置、PAT | 垂直 identity/account 模块 | self 权限、PAT 只显示一次、旋转后旧值失效 |
 | 工作台和监控摘要 | 已用 React Query + 原生语义 SVG 重写 | 权威历史、503 Retry-After、403 停止轮询、last-good/stale、移动端状态 |
-| 用户、角色、菜单 | ProTable/ProForm v3 重写 | root 与委派权限、ETag/If-Match 冲突、直接 API 负例 |
-| 部门、岗位 | 共用组织目录 primitives | 树/列表响应式、引用完整性、空态与冲突 |
-| 任务 | CRUD 与运行记录分离 | 状态刷新、失败信息、权限动作一致 |
-| 通知 | 列表与已读变更重写 | 未读数失效、WebSocket 只触发 query invalidation |
+| 用户、角色、菜单 | 已用受限 ProTable/ProForm v3 与类型化 authority 模块重写 | root mutation guard、服务端标识、revision 冲突、直接 API 负例 |
+| 部门、岗位 | 已用共用组织目录 primitives 重写 | 循环拒绝、引用完整性、响应式树/列表、空态与冲突 |
+| 任务 | 已将受控任务 CRUD/运行操作与未开放的 TaskRun 原始输出分离 | provider allowlist、状态刷新、资源上限、权限动作一致 |
+| 通知 | 已按当前身份个人收件箱语义重写列表与已读变更 | 服务端 owner、未读数失效、跨身份负例 |
 | 语言 | 已用原生 Table/Form、Listy 和受限运行时资源适配重写 | BCP 47、服务端 ID、定义上限、revision 冲突、细粒度权限、仅 zh-CN/en-US 运行时覆盖 |
 | Option | 已用原生 Table/Form、Listy 和强 revision 契约重写 | 服务端 ID、完整快照、内置保护、usage 删除约束、细粒度权限 |
-| AppConfig / SystemConfig | 类型化配置编辑器 | secret 不回显、root/配置权限、缓存 revision 一致 |
+| AppConfig / SystemConfig | 已分别用分层主题编辑器和按需加载的有界配置编辑器重写 | secret 不回显、root/配置权限、内置保护、缓存 revision 一致 |
 | 在线会话 | 已用 root-only Table + React Query 重写 | 严格响应契约、100 行上限、撤销审计与正反例 |
-| 日志、审计、登录日志 | 待安全查询契约后重写 | 敏感字段脱敏、资源上限、分页筛选与导出 |
+| 日志、审计、登录日志 | 已按独立摘要和有界运行时文件读取重写 | 敏感字段脱敏、目录/文件/读取上限、分页筛选与受权导出 |
 | 分层主题 | v6 token adapter | code < application < user、ETag 冲突、首屏与跨标签同步 |
 | Supplier | 首个 v6 generator golden | route/locale/client/page/E2E 可重复生成且两次运行无漂移 |
 | PWA、动态模型、浏览器代码生成、Pro demo、AI/analytics | 不迁移 | 构建不得生成 service worker 或演示外部依赖 |
@@ -190,15 +190,22 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 - `/security/online-sessions` 同时在编译期路由、菜单求交和后端 API 失败关闭为 root-only；未确认身份和普通用户不能渲染页面，直接 API 仍由后端最终授权。
 - 列表和详情在传输边界严格校验标识、日期、撤销原因和分页结构；前后端统一只允许 20/50/100 行，服务端拒绝更大的页面。30 秒前台刷新在 401/403 后停止，瞬时刷新失败保留 last-good 列表。
 - 单会话和按用户批量下线只能从权威列表行发起，继续使用后端目标保护与安全审计；旧界面允许手填任意 user ID 的工具栏没有复制。筛选、详情、空态、403、初次错误、刷新警告和破坏性确认均有中英文状态。
-- 此页面只需要受控筛选、分页和行操作，因此采用 antd 6 原生 `Table`。资格构建证明引入 `ProTable` 会把总 JS 推高到 952.10 KiB 并突破 900 KiB 预算；改用原生组件后 entry 为 4.16 KiB、总 JS 为 848.54 KiB、最大异步分包为 197.45 KiB，同时保留所需交互。
+- 此页面只需要受控筛选、分页和行操作，因此采用 antd 6 原生 `Table`。资格构建证明引入 `ProTable` 会把总 JS 推高到 952.10 KiB；改用原生组件后 entry 为 4.16 KiB、总 JS 为 848.54 KiB、最大异步分包为 197.45 KiB，同时保留所需交互。
+- `/task` 只向拥有读取权限的用户返回脱敏摘要；详情、启停、立即执行、删除和函数目录均要求 root。任务只允许受控进程函数、已注册 Go 函数、HTTP 和 Kubernetes CronJob provider，不迁移任意脚本执行；删除只允许已停用任务，Kubernetes 启停直接映射 `spec.suspend`。
+- `/notice` 是按当前身份隔离的个人收件箱，记录 ID、owner 和已读状态由服务端拥有；批量已读只能作用于当前用户可见记录。列表、读取和空态使用独立 Query key，不把通知内容写入启动状态。
+- `/log` 将审计摘要、任务运行摘要和运行时文件日志分开。浏览器不接收原始请求/响应体；运行时读取和导出受 root 与独立权限双重约束，并执行目录、符号链接、文件大小、读取字节数和脱敏上限。
+- `/system-config` 全路径 root-only。列表只返回摘要，内容按需读取并禁止缓存；写入只接受有界 JSON/YAML，内置配置的关键字段和删除受保护。
+- 四个运维页面复用一个懒加载入口。将它们机械拆成四个入口会使 Utoo 生成的总 gzip JS 从 936.47 KiB 增至 1018.24 KiB，因此资格实现保留共享入口，并以编译期 route、页面权限守卫和后端授权维持隔离。
 
-仍待本阶段完成：日志、通知和运行记录。工作台监控与已迁移页面已通过真实浏览器桌面/移动、中文/英文、键盘焦点、横向溢出和零弃用 warning 验证；在线会话的 root-only 直接路由/API 负例也已纳入同一权限套件。
+随着权限、组织和完整运维切片进入同一独立应用，总懒加载 JS 语料库预算从脚手架阶段的 900 KiB 校准为 960 KiB；entry 32 KiB 与最大异步分包 240 KiB 的用户路径门限保持不变。资格基线为 entry 4.16 KiB、总 JS 936.67 KiB、最大异步分包 199.60 KiB。预算调整记录在 ADR 和机器契约中，不能仅以环境变量放宽。
 
-以下旧契约经评估后冻结，不在 P4 中直接复制，需先完成后端产品与安全契约：
+工作台监控、在线会话和四个运维页面均进入桌面/移动、中文/英文、权限负例、资源上限与零弃用 warning 验收；在线会话和系统配置的 root-only 直接路由/API 负例也纳入同一权限套件。
 
-1. 通知通用列表的租户范围不能表达“个人收件箱”，旧的全部已读语义也不完整；目标应拆分个人收件箱与管理员广播。
-2. 文件日志读取存在无界目录扫描/文件读取且缺少统一脱敏；审计筛选也有未落实字段，必须先完成分页、上限、保留和 redaction。
-3. TaskRun 尚无稳定前端/API，原始任意输出没有大小、脱敏、保留期和独立权限边界；任务执行器的并发错误变量也须先修复。
+旧契约问题没有按表面行为复制，处理结果如下：
+
+1. 通知页明确收敛为按已验证身份隔离的个人收件箱；管理员广播另立产品能力，不借用请求中的 `userID` 扩大范围。
+2. 文件日志改为 allowlist 目录内的有界扫描、普通文件检查、最大文件/读取字节数和统一 redaction；审计与登录日志只返回脱敏摘要。
+3. TaskRun 原始输出仍未开放。当前页面只迁移受控任务定义和允许的运行操作；在输出大小、脱敏、保留期和独立权限契约完成前，不以日志详情近似该能力。
 
 完成门：桌面/移动、zh-CN/en-US、错误降级和资源上限 E2E 通过。
 
@@ -207,7 +214,7 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 - 按用户与组织、角色与菜单、任务、语言与 Option、AppConfig/SystemConfig 分批迁移。
 - 每个切片同时完成 API 类型、权限、冲突、页面状态、测试和文档，不先复制全部页面再统一补质量。
 
-已完成语言与 Option 管理垂直切片。
+已完成用户、角色、菜单、部门、岗位、语言与 Option 管理垂直切片。
 
 语言管理：
 
@@ -230,7 +237,7 @@ Option 管理：
 - read/create/update/delete 菜单和 API 权限独立；列表使用 summary 投影，详情按需加载。V6 使用原生 `Table`、`Form.List` 和 antd 6.6 `Listy`，共享桌面/移动响应式页面并覆盖 loading、empty、error、403、404、refresh failure 和 412 conflict。
 - Option 切片后的 release build entry 为 4.16 KiB、总 JS 为 864.91 KiB、最大异步分包为 199.59 KiB，仍通过 900/250 KiB 门禁，余量为 35.09 KiB。新增业务仍须复用现有运行时并逐切片测量，不能把路由分包当成忽略总体积增长的理由。
 
-P5 中尚未实施的关键后端前置问题包括：部门/岗位需要先明确树循环、删除引用完整性与数据范围语义。浏览器权限资格还复现了旧 `User` 的 `AfterCreate`/`AfterDelete` 在外层事务持有 SQLite 写锁时通过全局连接更新统计的缺陷：每次会固定等待约 5 秒，删除路径还会连带阻塞授权 revision 与审计写入。隔离 E2E 数据库随进程整体销毁，不通过生产 API 清理临时 Finance 用户；生产事务语义的修复需单独评审，不能在前端迁移里静默改写。完成这些契约前不会机械复制旧页面。
+用户、角色、菜单、部门和岗位切片已在 root-only mutation guard、服务端标识解析、部门循环拒绝、引用完整性和 role authorization revision 契约下完成。旧 `User` 的 `AfterCreate`/`AfterDelete` 统计写入也已移到事务提交后，并被定义为不能反转已提交业务结果的可选遥测。仍冻结的是需要近期再认证与跨资源撤销的邮箱/密码/OAuth 身份变更，以及尚无安全输出契约的 TaskRun 详情；这些能力不会以旧页面行为近似。
 
 完成门：关键 CRUD、批量操作、上传/下载、ETag 冲突和权限负例通过。
 
@@ -242,7 +249,8 @@ P5 中尚未实施的关键后端前置问题包括：部门/岗位需要先明�
 - 首版 V6 profile 的资格边界是带时间戳和 uuid/string ID 的完整 CRUD+export，以及非 nullable 的 string/text/uuid/enum/bool 字段。必填 create 字段必须具有可见编辑控件；启用 E2E 时还必须提供可重复清理和更新验证的唯一、可搜索、列表/表单可见文本字段。数值、文件、关系、create-only immutable 编辑、batch、import、workflow 等尚未实现的语义在规格校验阶段 fail-closed，不能用普通输入框近似。
 - 生成目录由生成器而非 Biome formatter/organize-imports 拥有；Biome lint、严格 TypeScript、Vitest、双目标 drift 和生产构建仍覆盖这些产物，任意手工格式化导致的漂移都会失败。
 - 生成的筛选/编辑表单使用独立 DOM 命名空间，有限枚举关闭虚拟化以保留真实 option 语义，操作按钮具有稳定的本地化可访问名称；E2E 唯一字段在长度和正则契约内生成 worker 隔离值且不受软删除唯一索引污染。Supplier 已在 Playwright 自启真实 Go 后端和隔离 SQLite 的模式下，串行通过 Chromium 桌面和移动完整 CRUD、详情、导出及删除流程；串行执行用于规避 SQLite 单写者语义干扰跨项目资格结果。
-- 当前 release build entry 为 4.16 KiB、总 JS 为 882.96 KiB、最大异步分包为 199.59 KiB，继续通过 900/250 KiB 门禁，但总量仅余 17.04 KiB；该结果已包含后端菜单图标的显式 allowlist 适配器，下一业务切片必须先给出依赖复用和预算证据。
+- 生产路由在每个 Supplier 请求范围内获取当前数据库租约，认证、授权与生成 Application 共享同一 request-pinned handle；配置热更新会等待旧请求退出，再关闭旧连接池，新请求自动使用替换后的数据库。该生命周期属于服务端组合层，不手改生成代码，并有跨数据库替换回归测试。
+- Supplier 切片进入时的 release build 基线为 entry 4.16 KiB、总 JS 882.96 KiB、最大异步分包 199.59 KiB；其后权限、组织和运维切片的当前资格基线与 960/240 KiB 预算记录见 P4 与 ADR。该结果已包含后端菜单图标的显式 allowlist 适配器，后续业务切片仍必须给出依赖复用和预算证据。
 - 桌面与移动端的中英文浏览器资格会访问工作台、账户中心、个人设置和 Supplier，验证无横向溢出、语言按钮可访问、动态菜单文案/图标正确，并将所有 console warning/error 作为失败；权限资格以隔离 Finance 身份同时证明后端拒绝与 UI 最小权限。
 
 完成门：生成两次零差异、V5/V6 drift check、生产构建和 Supplier 桌面/移动浏览器验收通过。

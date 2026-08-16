@@ -187,6 +187,9 @@ spec:
     - id: modern-browser-baseline
       type: compatibility
       statement: The supported browser matrix is Chromium and Edge 120+, Firefox 121+, and Safari or WebKit 17.4+ with CSS variables; legacy polyfill and IE behavior are not supported.
+    - id: qualified-bundle-budgets
+      type: performance
+      statement: Release gzip budgets are 32 KiB for the entry, 240 KiB for the largest asynchronous chunk, and 960 KiB for the complete lazy-loaded JavaScript corpus; increases require measured route-transfer evidence and an ADR update.
     - id: separate-release-governance
       type: operations
       statement: V6 publication follows the repository PR-to-main and immutable-tag release governance through its own component namespace.

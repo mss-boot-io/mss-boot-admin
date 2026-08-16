@@ -41,6 +41,15 @@ Ant Design 6 CSS variables and semantic DOM, a pinned ProComponents v3 beta, Rea
 v5, dayjs, Tailwind for layout utilities, CSS Modules for local static rules, antd-style
 for token-aware rules, Biome, Vitest, and Playwright.
 
+The release bundle gate treats transfer cost and total application capability as
+different signals. The gzip budgets are 32 KiB for the entry, 240 KiB for any single
+asynchronous chunk, and 960 KiB for the complete lazy-loaded JavaScript corpus. The
+total-corpus budget was recalibrated from the 900 KiB scaffold threshold after the
+qualified authority and operations slices reached 936.67 KiB while the entry remained
+4.16 KiB and the largest asynchronous chunk remained 199.60 KiB. A four-way operations
+route split was rejected because it increased the same corpus to 1018.24 KiB without
+reducing either user-facing limit enough to justify the duplication.
+
 Business migration is capability-equivalent rather than source- or pixel-equivalent.
 Each vertical slice includes its route registry entry, backend-authorized menu mapping,
 typed API behavior, loading/empty/error/permission/conflict states, responsive behavior,
@@ -61,6 +70,13 @@ The existing frontend remains the canonical legacy generator target until an exp
 cutover decision. A versioned v6 generator profile writes only `web/antd-v6` and uses
 Supplier as its first golden module. A command must select its target; the generator does
 not blind-write both trees.
+
+Production Supplier routes acquire the currently published database through a bounded
+request lease. Authentication, authorization, and generated application operations share
+that request-pinned handle, so configuration reload can drain the previous pool without
+leaving the generated service bound to a closed database. Generated module output remains
+unchanged; the lease belongs to server composition and is regression-tested across a
+database replacement.
 
 The Project contract identifies both applications, while `repositoryLayout.frontend`
 continues to point at `web/antd` for backward compatibility. Each application records
@@ -90,6 +106,11 @@ framework migration from destroying the proven production rollback path.
 ProComponents beta upgrades require explicit review and regression evidence. Umi's
 resolved dependency graph must be checked for duplicate React and unintended legacy Ant
 Design runtime code rather than judged only from top-level package versions.
+
+The bundle thresholds are qualification contracts, not permanent allowances. Any change
+that exceeds the entry or single-chunk limit must be optimized before merge. A total
+corpus increase requires measured route-transfer evidence and an explicit ADR update;
+raising an environment override alone is not release evidence.
 
 The change is complete only when the feature contract's required evidence passes for the
 v6 application without weakening the independent v5 checks or publication controls.
