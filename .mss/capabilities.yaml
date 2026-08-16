@@ -15,6 +15,7 @@ spec:
       owners: [frontend, release-engineering, security]
       paths:
         - .mss/features/admin-antd-v6-application.yaml
+        - .mss/features/admin-antd-v6-cutover-retirement.yaml
         - docs/adr/2026-08-15-independent-ant-design-v6-application.md
         - docs/docs/admin/ant-design-v6-migration-plan.md
         - web/antd-v6
@@ -26,6 +27,8 @@ spec:
         and the ProComponents v3 beta are exact pins; backend-compatible cookie/CSRF and
         WebSocket-ticket support, business parity, the v6 generator target, browser evidence,
         and immutable release evidence remain required before this capability is production-ready.
+        Default cutover, observation, V5 retirement, and backend compatibility cleanup are later
+        ordered gates and must not be collapsed into the independent-application delivery.
 
     - id: identity.authentication
       displayName: Authentication
@@ -820,6 +823,7 @@ spec:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/foundation-v1-1-0-release.yaml
         - .mss/features/admin-antd-v6-application.yaml
+        - .mss/features/admin-antd-v6-cutover-retirement.yaml
         - .mss/release-policy.yaml
         - CHANGELOG.md
         - mss-boot/CHANGELOG.md

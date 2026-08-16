@@ -281,6 +281,25 @@ Option 管理：
 
 完成门：所有 Feature acceptance 有 exact-SHA 证据，资格清单移除 V6 exclusion 后才允许正式发布。
 
+### P8：V6 默认切流和观察窗口
+
+- V6 在功能追平、UI 精修、集中测试、体积优化和独立发布资格全部通过后，才成为本地开发、文档、部署与流量入口的默认 Admin 前端；目录、镜像、tag 和构建身份仍保持 `web/antd-v6` 独立命名。
+- 首次默认切流只修改默认值，不删除 V5：冻结最后一个可用 V5 镜像，保留兼容后端和明确回滚入口。
+- 观察登录/刷新失败、401/403、CSRF、OAuth callback、WebSocket 重连与授权刷新、前端异常、路由错误和实际回滚事件；观察期至少覆盖一个正常 cookie 到期前续期周期。
+- 浏览器流量与外部 API/自动化消费者分开盘点。V5 页面无访问不能证明 bearer API 无调用方。
+
+完成门：`.mss/reports/admin-antd-v6-cutover-observation.json` 记录起止时间、阈值、异常、调用方和明确的继续/回滚决定；需要代码修复时经新 PR 合入并重启受影响门禁。
+
+### P9：V5 退役与陈旧代码清理
+
+- V5 删除是默认切流完成后的独立 breaking-change PR；一次性同步处理 `web/antd` 源码、依赖、锁文件、测试、CI、发布工作流、镜像、Make/`.mss` 命令、文档和生成器投影，不能留下可调用但不可维护的半退役入口。
+- 删除前生成 `.mss/reports/admin-antd-v5-retirement-inventory.json`，逐项记录源码定义、运行时注册、调用方、权限、配置、数据库元数据、替代能力和 `remove/retain/defer` 决策。
+- V5 浏览器 bearer 响应模式、OAuth 兼容模式、query-token WebSocket、弱 revision 写入和 V5 专属配置分别评估；外部 API 客户端仍使用的通用 bearer 认证不得因前端退役被顺带删除。
+- 后端先取消注册已退役路由，再删除无调用实现；菜单、API、Casbin、OAuth 和配置元数据只通过精确来源标识做前向迁移，不按宽泛前缀删除，不清除未知自定义数据和历史审计。
+- 历史 tag、镜像、release note 与归档提示保持不可变；V6 继续使用 `web/antd-v6` 独立发布路径，不重命名回旧目录。
+
+完成门：V5 活跃构建/路由/发布面为零，保留的 API 认证有正向测试，退役路由有 404 负例，支持数据库完成 fresh/upgrade/repeat 迁移验证，下游升级文档明确最后一个支持 V5 与首个仅支持 V6 的版本。
+
 ## 独立发布拓扑
 
 | 项目 | V5 | V6 |
