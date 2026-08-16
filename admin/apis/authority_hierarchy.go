@@ -1,6 +1,7 @@
 package apis
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -18,7 +19,11 @@ func prepareDepartmentCreate(ctx *gin.Context, db *gorm.DB, table schema.Tabler)
 	if !ok {
 		return gorm.ErrInvalidData
 	}
-	return service.PrepareDepartmentCreate(ctx, db, department)
+	requestContext, err := authorityRequestContext(ctx)
+	if err != nil {
+		return err
+	}
+	return service.PrepareDepartmentCreate(requestContext, db, department)
 }
 
 func prepareDepartmentUpdate(ctx *gin.Context, db *gorm.DB, table schema.Tabler) error {
@@ -26,7 +31,11 @@ func prepareDepartmentUpdate(ctx *gin.Context, db *gorm.DB, table schema.Tabler)
 	if !ok {
 		return gorm.ErrInvalidData
 	}
-	return service.PrepareDepartmentUpdate(ctx, db, ctx.Param("id"), department)
+	requestContext, err := authorityRequestContext(ctx)
+	if err != nil {
+		return err
+	}
+	return service.PrepareDepartmentUpdate(requestContext, db, ctx.Param("id"), department)
 }
 
 func validateDepartmentDelete(ctx *gin.Context, db *gorm.DB, _ schema.Tabler) error {
@@ -34,7 +43,11 @@ func validateDepartmentDelete(ctx *gin.Context, db *gorm.DB, _ schema.Tabler) er
 	if !ok {
 		return service.ErrAuthorityPayloadInvalid
 	}
-	return service.ValidateDepartmentDelete(ctx, db, ids)
+	requestContext, err := authorityRequestContext(ctx)
+	if err != nil {
+		return err
+	}
+	return service.ValidateDepartmentDelete(requestContext, db, ids)
 }
 
 func preparePostCreate(ctx *gin.Context, db *gorm.DB, table schema.Tabler) error {
@@ -42,7 +55,11 @@ func preparePostCreate(ctx *gin.Context, db *gorm.DB, table schema.Tabler) error
 	if !ok {
 		return gorm.ErrInvalidData
 	}
-	return service.PreparePostCreate(ctx, db, post)
+	requestContext, err := authorityRequestContext(ctx)
+	if err != nil {
+		return err
+	}
+	return service.PreparePostCreate(requestContext, db, post)
 }
 
 func preparePostUpdate(ctx *gin.Context, db *gorm.DB, table schema.Tabler) error {
@@ -50,7 +67,11 @@ func preparePostUpdate(ctx *gin.Context, db *gorm.DB, table schema.Tabler) error
 	if !ok {
 		return gorm.ErrInvalidData
 	}
-	return service.PreparePostUpdate(ctx, db, ctx.Param("id"), post)
+	requestContext, err := authorityRequestContext(ctx)
+	if err != nil {
+		return err
+	}
+	return service.PreparePostUpdate(requestContext, db, ctx.Param("id"), post)
 }
 
 func validatePostDelete(ctx *gin.Context, db *gorm.DB, _ schema.Tabler) error {
@@ -58,7 +79,18 @@ func validatePostDelete(ctx *gin.Context, db *gorm.DB, _ schema.Tabler) error {
 	if !ok {
 		return service.ErrAuthorityPayloadInvalid
 	}
-	return service.ValidatePostDelete(ctx, db, ids)
+	requestContext, err := authorityRequestContext(ctx)
+	if err != nil {
+		return err
+	}
+	return service.ValidatePostDelete(requestContext, db, ids)
+}
+
+func authorityRequestContext(ctx *gin.Context) (context.Context, error) {
+	if ctx == nil || ctx.Request == nil {
+		return nil, gorm.ErrInvalidData
+	}
+	return ctx.Request.Context(), nil
 }
 
 func authorityDeleteIDs(ctx *gin.Context) ([]string, bool) {

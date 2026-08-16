@@ -1,6 +1,7 @@
 package apis
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -208,6 +209,26 @@ func TestPostAPIResolvesCustomScopeAndProtectsReferences(t *testing.T) {
 		require.Equal(t, http.StatusConflict, result.Code, result.Body.String())
 		require.Contains(t, result.Body.String(), `"errorCode":"POST_IN_USE"`)
 	}
+}
+
+func TestAuthorityRequestContextUsesStableHTTPRequestContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	requestContext, cancel := context.WithCancel(context.Background())
+	request := httptest.NewRequest(http.MethodGet, "/departments", nil).WithContext(requestContext)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = request
+
+	resolved, err := authorityRequestContext(ctx)
+	require.NoError(t, err)
+	require.Equal(t, request.Context(), resolved)
+	cancel()
+	require.ErrorIs(t, resolved.Err(), context.Canceled)
+
+	_, err = authorityRequestContext(nil)
+	require.ErrorIs(t, err, gorm.ErrInvalidData)
+	ctx.Request = nil
+	_, err = authorityRequestContext(ctx)
+	require.ErrorIs(t, err, gorm.ErrInvalidData)
 }
 
 func authorityHierarchyAPITestRouter(t *testing.T, identityKey string) (*gin.Engine, *gorm.DB) {
