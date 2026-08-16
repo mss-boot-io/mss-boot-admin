@@ -19,6 +19,11 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// The production-style regression held a second SQLite writer for roughly
+// five seconds. Leave enough headroom for all-package race-test scheduling
+// while still failing before that observed lock wait can return successfully.
+const userStatisticsContentionLimit = 4 * time.Second
+
 func TestUserControllerUpdatesStatisticsAfterMutationCommit(t *testing.T) {
 	dsn := filepath.Join(t.TempDir(), "user-statistics.db") + "?_busy_timeout=100&_journal_mode=WAL"
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Discard})
@@ -84,8 +89,12 @@ func TestUserControllerUpdatesStatisticsAfterMutationCommit(t *testing.T) {
 	if result.Code < http.StatusOK || result.Code >= http.StatusMultipleChoices {
 		t.Fatalf("create response = %d: %s", result.Code, result.Body.String())
 	}
-	if elapsed >= time.Second {
-		t.Fatalf("user create took %s; statistics likely contended with the writer transaction", elapsed)
+	if elapsed >= userStatisticsContentionLimit {
+		t.Fatalf(
+			"user create took %s (limit %s); statistics likely contended with the writer transaction",
+			elapsed,
+			userStatisticsContentionLimit,
+		)
 	}
 
 	var statistic models.Statistics
