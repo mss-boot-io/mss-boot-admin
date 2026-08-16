@@ -200,7 +200,7 @@ corepack pnpm@10.34.5 start:dev
 已完成的垂直切片：
 
 - `/workplace` 不再展示工程占位信息，而是提供当前身份、经过权限检查的已迁移快捷入口和服务监控。
-- `/monitor` 使用独立 Query key 和严格响应解析，最多接受 120 个按时间排序、去重且范围有效的服务端历史点；浏览器不推算或补造样本。
+- 工作台内的服务监控使用独立 Query key 和严格响应解析，最多接受 120 个按时间排序、去重且范围有效的服务端历史点；浏览器不推算或补造样本。V5 中未注册的独立 Monitor 页面不作为新菜单重复迁移。
 - 正常刷新跟随服务端 `sampleIntervalMs`（最低 5 秒、最高 60 秒）；503 遵守有界 `Retry-After`，瞬时错误指数退避，401/403 停止自动轮询。后台标签不轮询，窗口重新聚焦后由 React Query 校验。
 - 首次加载、空历史、503 预热、403、普通错误、刷新失败保留 last-good 以及后端 `stale` 均有独立中英文状态；手动重试始终可用。
 - CPU、内存和磁盘摘要使用 antd 6 公开组件 API；CPU/内存趋势使用 Design Token 驱动的可访问原生 SVG，不增加图表运行时依赖，也不依赖 `.ant-*` 内部结构。
@@ -294,6 +294,7 @@ Option 管理：
 
 - V5 删除是默认切流完成后的独立 breaking-change PR；一次性同步处理 `web/antd` 源码、依赖、锁文件、测试、CI、发布工作流、镜像、Make/`.mss` 命令、文档和生成器投影，不能留下可调用但不可维护的半退役入口。
 - 删除前生成 `.mss/reports/admin-antd-v5-retirement-inventory.json`，逐项记录源码定义、运行时注册、调用方、权限、配置、数据库元数据、替代能力和 `remove/retain/defer` 决策。
+- 清单源为 `.mss/inventories/admin-antd-v5-retirement.json`；运行 `python3 tools/cutover/generate_antd_v5_retirement_inventory.py` 会校验所有精确证据路径并生成本地时间戳报告，`--check` 仅校验不写报告。
 - V5 浏览器 bearer 响应模式、OAuth 兼容模式、query-token WebSocket、弱 revision 写入和 V5 专属配置分别评估；外部 API 客户端仍使用的通用 bearer 认证不得因前端退役被顺带删除。
 - 后端先取消注册已退役路由，再删除无调用实现；菜单、API、Casbin、OAuth 和配置元数据只通过精确来源标识做前向迁移，不按宽泛前缀删除，不清除未知自定义数据和历史审计。
 - 历史 tag、镜像、release note 与归档提示保持不可变；V6 继续使用 `web/antd-v6` 独立发布路径，不重命名回旧目录。

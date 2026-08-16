@@ -276,6 +276,13 @@ spec:
       dryRunByDefault: true
       idempotent: true
 
+    antd-v5-retirement-inventory:
+      command: python3 tools/cutover/generate_antd_v5_retirement_inventory.py
+      description: Validate the exact V5 and compatibility consumer inventory and emit the local cutover evidence report without deleting anything.
+      outputFormats: [text]
+      category: verification
+      idempotent: true
+
     eval-list:
       command: go run ./cmd/mss eval list
       description: List repository Agent evaluation cases.

@@ -192,6 +192,10 @@ spec:
       required: true
       evidence:
         - type: path
+          value: .mss/inventories/admin-antd-v5-retirement.json
+        - type: command
+          value: python3 tools/cutover/generate_antd_v5_retirement_inventory.py --check
+        - type: path
           value: .mss/reports/admin-antd-v5-retirement-inventory.json
     - id: v5-active-surface-absent
       requirement: retire-v5-application
@@ -235,6 +239,7 @@ spec:
     all: go run ./cmd/mss verify --all
     custom:
       - go run ./cmd/mss spec validate .mss/features/admin-antd-v6-cutover-retirement.yaml --format json
+      - python3 tools/cutover/generate_antd_v5_retirement_inventory.py --check
       - make web-v6-lint web-v6-test web-v6-build
       - cd web/antd-v6 && pnpm test:e2e --grep @parity
   rollout:
