@@ -22,11 +22,11 @@ import {
   type AdministrationListParams,
   administrationReferenceName,
   administrationSelectOptions,
+  administrationSubtreeIDs,
   type DepartmentSummary,
   type DepartmentWriteValues,
-  flattenAdministrationTree,
 } from './contract';
-import { useAdministrationPage } from './query';
+import { useAdministrationCatalog, useAdministrationPage } from './query';
 
 interface DepartmentManagementProps {
   canCreate: boolean;
@@ -50,25 +50,20 @@ export default function DepartmentManagement({
   const client = useQueryClient();
   const [params, setParams] = useState(initialParams);
   const departments = useAdministrationPage('departments', params);
-  const dependencyParams = useMemo<AdministrationListParams>(
-    () => ({ current: 1, pageSize: 100, status: 'enabled' }),
-    [],
-  );
-  const users = useAdministrationPage('users', dependencyParams);
+  const departmentCatalog = useAdministrationCatalog('departments');
+  const users = useAdministrationCatalog('users');
   const userNamesByID = useMemo(
-    () =>
-      new Map(
-        (users.data?.data ?? []).map((user) => [user.id, user.name || user.username] as const),
-      ),
-    [users.data?.data],
+    () => new Map((users.data ?? []).map((user) => [user.id, user.name || user.username] as const)),
+    [users.data],
   );
   const userOptions = useMemo(
     () =>
-      (users.data?.data ?? []).map((user) => ({
+      (users.data ?? []).map((user) => ({
+        disabled: user.status !== 'enabled',
         label: user.name ? `${user.name} (${user.username})` : user.username,
         value: user.id,
       })),
-    [users.data?.data],
+    [users.data],
   );
   const [editing, setEditing] = useState<DepartmentSummary | 'create'>();
   const [form] = Form.useForm<DepartmentWriteValues>();
@@ -96,11 +91,11 @@ export default function DepartmentManagement({
 
   const disabledParents = useMemo(() => {
     if (!editing || editing === 'create') return new Set<string>();
-    return new Set(flattenAdministrationTree([editing]).map((item) => item.id));
-  }, [editing]);
+    return administrationSubtreeIDs(departmentCatalog.data ?? [], editing.id);
+  }, [departmentCatalog.data, editing]);
   const parentOptions = useMemo(
-    () => administrationSelectOptions(departments.data?.data ?? [], { disabled: disabledParents }),
-    [departments.data?.data, disabledParents],
+    () => administrationSelectOptions(departmentCatalog.data ?? [], { disabled: disabledParents }),
+    [departmentCatalog.data, disabledParents],
   );
 
   const openEditor = (department: DepartmentSummary | 'create') => {
@@ -207,6 +202,13 @@ export default function DepartmentManagement({
         destroyOnHidden
         forceRender
         confirmLoading={save.isPending}
+        okButtonProps={{
+          disabled:
+            users.isPending ||
+            users.isError ||
+            departmentCatalog.isPending ||
+            departmentCatalog.isError,
+        }}
         open={Boolean(editing)}
         title={intl.formatMessage({
           id: editing === 'create' ? 'department.create.title' : 'department.edit.title',
@@ -219,12 +221,12 @@ export default function DepartmentManagement({
         }}
         onOk={() => form.submit()}
       >
-        {users.isError ? (
+        {users.isError || departmentCatalog.isError ? (
           <Alert
             className="mb-4"
-            description={getRequestErrorMessage(users.error)}
+            description={getRequestErrorMessage(users.error ?? departmentCatalog.error)}
             showIcon
-            title={intl.formatMessage({ id: 'department.dependencies.failed' })}
+            title={intl.formatMessage({ id: 'administration.dependencies.failed' })}
             type="error"
           />
         ) : null}
@@ -245,7 +247,14 @@ export default function DepartmentManagement({
             name="parentID"
             label={intl.formatMessage({ id: 'administration.field.parent' })}
           >
-            <Select allowClear showSearch optionFilterProp="label" options={parentOptions} />
+            <Select
+              allowClear
+              showSearch
+              disabled={departmentCatalog.isError}
+              loading={departmentCatalog.isPending}
+              optionFilterProp="label"
+              options={parentOptions}
+            />
           </Form.Item>
           <Form.Item
             name="name"
@@ -264,7 +273,8 @@ export default function DepartmentManagement({
           <Form.Item name="leaderID" label={intl.formatMessage({ id: 'department.field.leader' })}>
             <Select
               allowClear
-              loading={users.isFetching}
+              disabled={users.isError}
+              loading={users.isPending}
               options={userOptions}
               optionFilterProp="label"
               showSearch

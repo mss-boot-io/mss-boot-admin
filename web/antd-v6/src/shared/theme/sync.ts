@@ -8,8 +8,8 @@ import {
   type ThemeScopeResource,
 } from './contract';
 
-export const THEME_SYNC_CHANNEL = 'mss.theme.v1';
-export const THEME_SYNC_STORAGE_KEY = 'mss.theme.event.v1';
+export const THEME_SYNC_CHANNEL = 'mss.antd-v6.theme.v1';
+export const THEME_SYNC_STORAGE_KEY = 'mss.antd-v6.theme.event.v1';
 export const THEME_SYNC_EVENT_TTL_MS = 5 * 60 * 1000;
 
 interface ThemeSyncEventBase {

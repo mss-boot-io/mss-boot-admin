@@ -13,6 +13,7 @@ import { getRequestStatus, requestConfig } from './shared/api/client';
 import { RuntimeFeedbackBridge } from './shared/api/feedback';
 import AuthorizationFreshnessBridge from './shared/auth/AuthorizationFreshnessBridge';
 import { fetchAuthorizedMenu } from './shared/auth/authorization';
+import SessionRefreshBridge from './shared/auth/SessionRefreshBridge';
 import {
   clearServerSession,
   fetchCurrentUser,
@@ -21,6 +22,7 @@ import {
 } from './shared/auth/session';
 import type { InitialState, StartupFailure } from './shared/auth/types';
 import { PageError } from './shared/design-system/PageState';
+import { RuntimeMessageProvider } from './shared/i18n/runtime';
 import HeaderNotice from './shared/navigation/HeaderNotice';
 import LocaleSwitcher from './shared/navigation/LocaleSwitcher';
 import { resolveMenuIcons } from './shared/navigation/menuIcons';
@@ -375,18 +377,22 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
 export const request: RequestConfig = requestConfig;
 
 function RuntimeProviders({ children }: { children: ReactNode }) {
+  const intl = useIntl();
   return (
-    <ThemeRuntimeProvider>
-      <AntdApp>
-        <RuntimeFeedbackBridge />
-        <QueryClientProvider client={queryClient}>
-          <AuthorizationFreshnessBridge />
-          <AuthorizationRealtimeBridge />
-          <ThemeCrossTabBridge />
-          {children}
-        </QueryClientProvider>
-      </AntdApp>
-    </ThemeRuntimeProvider>
+    <RuntimeMessageProvider formatMessage={(messageID) => intl.formatMessage({ id: messageID })}>
+      <ThemeRuntimeProvider>
+        <AntdApp>
+          <RuntimeFeedbackBridge />
+          <QueryClientProvider client={queryClient}>
+            <SessionRefreshBridge />
+            <AuthorizationFreshnessBridge />
+            <AuthorizationRealtimeBridge />
+            <ThemeCrossTabBridge />
+            {children}
+          </QueryClientProvider>
+        </AntdApp>
+      </ThemeRuntimeProvider>
+    </RuntimeMessageProvider>
   );
 }
 

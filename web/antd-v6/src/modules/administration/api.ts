@@ -1,5 +1,7 @@
 import { request } from '@umijs/max';
 import {
+  administrationAPIReferenceKey,
+  type AdministrationAPIReference,
   type AdministrationListParams,
   type AdministrationPage,
   type DepartmentSummary,
@@ -9,6 +11,8 @@ import {
   type PostSummary,
   type PostWriteValues,
   parseAdministrationPage,
+  parseAdministrationAPIPage,
+  parseAdministrationAPIReference,
   parseDepartment,
   parseMenu,
   parsePost,
@@ -221,6 +225,57 @@ export function createAdministrationAPI(client: AdministrationRequestClient) {
       ),
     remove: async (id: string): Promise<void> => {
       await client(entityPath('menus', id), { method: 'DELETE', skipErrorHandler: true });
+    },
+    listAPIReferences: async (): Promise<AdministrationAPIReference[]> => {
+      const references: AdministrationAPIReference[] = [];
+      let current = 1;
+      let total = 0;
+      do {
+        const page = parseAdministrationAPIPage(
+          await client('/apis', {
+            method: 'GET',
+            params: { current, pageSize: 100 },
+            skipErrorHandler: true,
+          }),
+          current,
+          100,
+        );
+        if (current === 1) {
+          total = page.total;
+          if (total > 2_000) throw new Error('API reference catalog exceeds its limit');
+        }
+        if (page.data.length === 0 && references.length < total) {
+          throw new Error('API reference catalog pagination is incomplete');
+        }
+        references.push(...page.data);
+        current += 1;
+      } while (references.length < total);
+
+      const keys = new Set(references.map(administrationAPIReferenceKey));
+      if (keys.size !== references.length) {
+        throw new Error('API reference catalog contains duplicate method and path pairs');
+      }
+      return references;
+    },
+    loadBoundAPIs: async (id: string): Promise<AdministrationAPIReference[]> => {
+      const value = await client(`/menu/api/${encodeURIComponent(id)}`, {
+        method: 'GET',
+        skipErrorHandler: true,
+      });
+      if (!Array.isArray(value) || value.length > 2_000) {
+        throw new Error('Bound API reference list is invalid');
+      }
+      return value.map(parseAdministrationAPIReference);
+    },
+    bindAPIs: async (id: string, paths: readonly string[]): Promise<void> => {
+      await client('/menu/bind-api', {
+        method: 'POST',
+        data: {
+          menuID: id,
+          paths: [...new Set(paths.map((path) => path.trim()).filter(Boolean))].sort(),
+        },
+        skipErrorHandler: true,
+      });
     },
   };
 

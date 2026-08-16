@@ -20,7 +20,7 @@ export {
   USER_THEME_SNAPSHOT_PREFIX,
 } from './storage';
 
-const THEME_SNAPSHOT_LOCK_PREFIX = 'mss.theme.snapshot.lock.v1:';
+const THEME_SNAPSHOT_LOCK_PREFIX = 'mss.antd-v6.theme.snapshot.lock.v1:';
 
 interface ThemeSnapshotEnvelope {
   v: 1;

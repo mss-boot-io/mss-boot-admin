@@ -21,12 +21,12 @@ import { administrationAPI } from './api';
 import {
   type AdministrationListParams,
   administrationSelectOptions,
+  administrationSubtreeIDs,
   type DataScope,
-  flattenAdministrationTree,
   type PostSummary,
   type PostWriteValues,
 } from './contract';
-import { useAdministrationPage } from './query';
+import { useAdministrationCatalog, useAdministrationPage } from './query';
 
 interface PostManagementProps {
   canCreate: boolean;
@@ -56,11 +56,8 @@ export default function PostManagement({ canCreate, canDelete, canEdit }: PostMa
   const client = useQueryClient();
   const [params, setParams] = useState(initialParams);
   const posts = useAdministrationPage('posts', params);
-  const dependencyParams = useMemo<AdministrationListParams>(
-    () => ({ current: 1, pageSize: 100, status: 'enabled' }),
-    [],
-  );
-  const departments = useAdministrationPage('departments', dependencyParams);
+  const postCatalog = useAdministrationCatalog('posts');
+  const departments = useAdministrationCatalog('departments');
   const [editing, setEditing] = useState<PostSummary | 'create'>();
   const [form] = Form.useForm<PostWriteValues>();
   const selectedScope = Form.useWatch('dataScope', form);
@@ -87,15 +84,15 @@ export default function PostManagement({ canCreate, canDelete, canEdit }: PostMa
 
   const disabledParents = useMemo(() => {
     if (!editing || editing === 'create') return new Set<string>();
-    return new Set(flattenAdministrationTree([editing]).map((item) => item.id));
-  }, [editing]);
+    return administrationSubtreeIDs(postCatalog.data ?? [], editing.id);
+  }, [editing, postCatalog.data]);
   const parentOptions = useMemo(
-    () => administrationSelectOptions(posts.data?.data ?? [], { disabled: disabledParents }),
-    [posts.data?.data, disabledParents],
+    () => administrationSelectOptions(postCatalog.data ?? [], { disabled: disabledParents }),
+    [disabledParents, postCatalog.data],
   );
   const departmentOptions = useMemo(
-    () => administrationSelectOptions(departments.data?.data ?? []),
-    [departments.data?.data],
+    () => administrationSelectOptions(departments.data ?? []),
+    [departments.data],
   );
 
   const openEditor = (post: PostSummary | 'create') => {
@@ -193,6 +190,13 @@ export default function PostManagement({ canCreate, canDelete, canEdit }: PostMa
         destroyOnHidden
         forceRender
         confirmLoading={save.isPending}
+        okButtonProps={{
+          disabled:
+            postCatalog.isPending ||
+            postCatalog.isError ||
+            departments.isPending ||
+            departments.isError,
+        }}
         open={Boolean(editing)}
         title={intl.formatMessage({
           id: editing === 'create' ? 'post.create.title' : 'post.edit.title',
@@ -205,6 +209,15 @@ export default function PostManagement({ canCreate, canDelete, canEdit }: PostMa
         }}
         onOk={() => form.submit()}
       >
+        {postCatalog.isError || departments.isError ? (
+          <Alert
+            className="mb-4"
+            description={getRequestErrorMessage(postCatalog.error ?? departments.error)}
+            showIcon
+            title={intl.formatMessage({ id: 'administration.dependencies.failed' })}
+            type="error"
+          />
+        ) : null}
         {save.isError ? (
           <Alert
             className="mb-4"
@@ -222,7 +235,14 @@ export default function PostManagement({ canCreate, canDelete, canEdit }: PostMa
             name="parentID"
             label={intl.formatMessage({ id: 'administration.field.parent' })}
           >
-            <Select allowClear showSearch optionFilterProp="label" options={parentOptions} />
+            <Select
+              allowClear
+              showSearch
+              disabled={postCatalog.isError}
+              loading={postCatalog.isPending}
+              optionFilterProp="label"
+              options={parentOptions}
+            />
           </Form.Item>
           <Form.Item
             name="name"
@@ -259,6 +279,8 @@ export default function PostManagement({ canCreate, canDelete, canEdit }: PostMa
               <Select
                 mode="multiple"
                 showSearch
+                disabled={departments.isError}
+                loading={departments.isPending}
                 optionFilterProp="label"
                 options={departmentOptions}
               />

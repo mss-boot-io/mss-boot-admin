@@ -11,6 +11,16 @@ const routes = [
         component: './User/Login',
       },
       {
+        path: '/user/register',
+        name: 'register',
+        component: './User/Register',
+      },
+      {
+        path: '/user/forget',
+        name: 'forget-password',
+        component: './User/Forget',
+      },
+      {
         path: '/user/callback/:provider',
         name: 'oauth-callback',
         component: './User/OAuthCallback',

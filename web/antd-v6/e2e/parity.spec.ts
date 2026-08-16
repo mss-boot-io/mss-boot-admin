@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { expectNoDocumentOverflow, login, setLocale } from './support/session';
+import { APP_BASE_URL, expectNoDocumentOverflow, login, setLocale } from './support/session';
 
 const localeExpectations = [
   {
@@ -96,3 +96,73 @@ for (const expected of localeExpectations) {
     expect(consoleViolations).toEqual([]);
   });
 }
+
+test('@parity OAuth login preserves an attempt-bound safe deep link', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'chromium-desktop',
+    'one browser covers the redirect contract',
+  );
+  const attemptID = 'attempt-deep-link';
+  const redirectKey = `mss.antd-v6.auth.oauth-redirect.v1:${attemptID}`;
+
+  await page.route('**/admin/api/app-configs/profile', (route) =>
+    route.fulfill({
+      json: {
+        base: { websiteName: 'MSS' },
+        security: { githubEnabled: true },
+        theme: { _meta: { v: 1, scope: 'application', revision: '3' } },
+      },
+    }),
+  );
+  await page.route('**/admin/api/user/auth-cookie/clear', (route) =>
+    route.fulfill({ status: 204 }),
+  );
+  await page.route('**/admin/api/user/session/oauth2/authorize', (route) =>
+    route.fulfill({
+      json: {
+        authorizeURL: `${APP_BASE_URL}/oauth-provider-placeholder`,
+        attemptID,
+        expiresAt: '2099-08-16T00:05:00Z',
+      },
+    }),
+  );
+  await page.route('**/oauth-provider-placeholder', (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<main>provider placeholder</main>' }),
+  );
+  await page.route('**/admin/api/user/session/github/callback', (route) =>
+    route.fulfill({
+      status: 201,
+      json: {
+        code: 200,
+        provider: 'github',
+        intent: 'login',
+        attemptID,
+        expire: '2099-08-16T12:00:00Z',
+      },
+    }),
+  );
+  await page.route('**/admin/api/user/userInfo', (route) =>
+    route.fulfill({ json: { id: 'oauth-user', username: 'oauth-user' } }),
+  );
+  await page.route(/\/users(?:\?.*)?$/, (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<main>deep-link target</main>' }),
+  );
+
+  await page.goto('/user/login?redirect=%2Fusers%3Fpage%3D2%23details');
+  await page.getByRole('button', { name: /GitHub/ }).click();
+  await page.waitForURL('**/oauth-provider-placeholder');
+  await expect
+    .poll(() => page.evaluate((key) => window.sessionStorage.getItem(key), redirectKey))
+    .toContain('/users?page=2#details');
+
+  await page.goto('/user/callback/github?code=provider-code&state=opaque-state');
+  await page.waitForURL('**/users?page=2#details');
+  expect(await page.evaluate((key) => window.sessionStorage.getItem(key), redirectKey)).toBeNull();
+  const sessionMetadata = await page.evaluate(() =>
+    window.localStorage.getItem('mss.antd-v6.auth.session.v1'),
+  );
+  expect(sessionMetadata).toContain('expiresAt');
+  expect(sessionMetadata).not.toContain('token');
+});

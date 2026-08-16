@@ -6,6 +6,7 @@ import SaveOutlined from '@ant-design/icons/SaveOutlined';
 import UndoOutlined from '@ant-design/icons/UndoOutlined';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
+import type { ColorPickerProps } from 'antd';
 import {
   Alert,
   App,
@@ -51,6 +52,7 @@ import { publishThemeScopeResource } from '@/shared/theme/sync';
 import { applyCanonicalThemeResource, mergeAppliedThemeIntoInitialState } from './apply';
 
 type ThemeFormValues = ThemeSettings;
+type ThemeColorPickerValue = Parameters<NonNullable<ColorPickerProps['onChange']>>[0];
 
 interface ThemeSettingsEditorProps {
   scope: ThemeScope;
@@ -317,6 +319,7 @@ export default function ThemeSettingsEditor({ scope }: ThemeSettingsEditorProps)
     if (key === 'colorPrimary') {
       return (
         <ColorPicker
+          disabledAlpha
           showText
           format="hex"
           getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
@@ -454,7 +457,10 @@ export default function ThemeSettingsEditor({ scope }: ThemeSettingsEditorProps)
                     }
                     getValueFromEvent={
                       key === 'colorPrimary'
-                        ? (_color, css: string) => normalizeThemeColor(css) ?? css
+                        ? (color: ThemeColorPickerValue) => {
+                            const hex = color.toHexString();
+                            return normalizeThemeColor(hex) ?? hex;
+                          }
                         : undefined
                     }
                     rules={

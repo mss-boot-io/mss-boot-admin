@@ -1,5 +1,6 @@
 import LockOutlined from '@ant-design/icons/LockOutlined';
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
+import { useIntl } from '@umijs/max';
 import { Button, Empty, Result, Skeleton } from 'antd';
 import type { ReactNode } from 'react';
 
@@ -18,28 +19,37 @@ export function PageEmpty({ description }: { description: ReactNode }) {
 export function PageError({
   message,
   onRetry,
-  retryLabel = '重试',
-  title = '加载失败',
+  retryLabel,
+  title,
 }: {
   message: ReactNode;
   onRetry: () => void;
   retryLabel?: ReactNode;
   title?: ReactNode;
 }) {
+  const intl = useIntl();
   return (
     <Result
       status="error"
-      title={title}
+      title={title ?? intl.formatMessage({ id: 'states.loadError' })}
       subTitle={message}
       extra={
         <Button type="primary" icon={<ReloadOutlined />} onClick={onRetry}>
-          {retryLabel}
+          {retryLabel ?? intl.formatMessage({ id: 'actions.retry' })}
         </Button>
       }
     />
   );
 }
 
-export function PageForbidden({ message = '你没有访问此页面的权限。' }: { message?: ReactNode }) {
-  return <Result status="403" icon={<LockOutlined />} title="403" subTitle={message} />;
+export function PageForbidden({ message }: { message?: ReactNode }) {
+  const intl = useIntl();
+  return (
+    <Result
+      status="403"
+      icon={<LockOutlined />}
+      title="403"
+      subTitle={message ?? intl.formatMessage({ id: 'states.forbidden' })}
+    />
+  );
 }

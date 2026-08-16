@@ -20,7 +20,7 @@ import {
 } from 'antd';
 import { useState } from 'react';
 import { getRequestErrorCode, getRequestErrorMessage, getRequestStatus } from '@/shared/api/client';
-import { clearServerSession } from '@/shared/auth/session';
+import { clearBrowserSessionMetadata, clearServerSession } from '@/shared/auth/session';
 import type { InitialState } from '@/shared/auth/types';
 import { PageError, PageLoading } from '@/shared/design-system/PageState';
 import { queryClient, queryKeys } from '@/shared/query/client';
@@ -167,6 +167,7 @@ export default function SecurityPanel() {
       await accountAPI.changePassword(newPassword);
       passwordForm.resetFields();
       queryClient.clear();
+      clearBrowserSessionMetadata();
       clearThemeIdentitySession();
       clearUserThemeRuntime();
       window.location.replace('/user/login?passwordChanged=success');

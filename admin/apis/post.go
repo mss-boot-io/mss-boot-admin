@@ -68,7 +68,7 @@ func (e *Post) List(c *gin.Context) {
 	m := &models.Post{}
 	query := center.Default.GetDB(c, m).
 		Model(m).
-		Preload("Children").
+		Preload("Children.Children.Children.Children.Children").
 		Scopes(
 			gorms.MakeCondition(req),
 			gorms.Paginate(int(req.GetPageSize()), int(req.GetPage())),

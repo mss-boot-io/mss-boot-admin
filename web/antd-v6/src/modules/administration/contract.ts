@@ -54,6 +54,7 @@ export function administrationReferenceName(
 interface AdministrationSelectOptions<T> {
   disabled?: ReadonlySet<string>;
   include?: (item: T) => boolean;
+  label?: (item: T) => string;
 }
 
 export interface RoleSummary {
@@ -122,6 +123,13 @@ export interface MenuWriteValues {
   hideInMenu?: boolean;
   status: AdministrationStatus;
   sort?: number;
+}
+
+export interface AdministrationAPIReference {
+  id: string;
+  name: string;
+  path: string;
+  method: string;
 }
 
 export interface DepartmentSummary extends AdministrationNode {
@@ -381,6 +389,34 @@ export function parseMenu(value: unknown): MenuSummary {
   });
 }
 
+export function parseAdministrationAPIReference(value: unknown): AdministrationAPIReference {
+  const api = record(value, 'api reference');
+  const method = text(api, 'method', 10, true).toUpperCase();
+  if (!['DELETE', 'GET', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT'].includes(method)) {
+    throw new AdministrationContractError('api reference method is invalid');
+  }
+  return {
+    id: identifier(api),
+    name: text(api, 'name', 255) || text(api, 'path', 255, true),
+    path: text(api, 'path', 255, true),
+    method,
+  };
+}
+
+export function parseAdministrationAPIPage(
+  value: unknown,
+  current: number,
+  pageSize: AdminPageSize,
+): AdministrationPage<AdministrationAPIReference> {
+  return parseAdministrationPage(value, { current, pageSize }, parseAdministrationAPIReference);
+}
+
+export function administrationAPIReferenceKey(
+  reference: Pick<AdministrationAPIReference, 'method' | 'path'>,
+): string {
+  return `${reference.method.toUpperCase()}---${reference.path}`;
+}
+
 export function parseDepartment(value: unknown): DepartmentSummary {
   return parseTree<DepartmentSummary>(
     value,
@@ -440,6 +476,20 @@ export function flattenAdministrationTree<T extends AdministrationNode>(items: r
   ]);
 }
 
+export function administrationSubtreeIDs<T extends AdministrationNode>(
+  items: readonly T[],
+  rootID: string,
+): Set<string> {
+  for (const item of items) {
+    if (item.id === rootID) {
+      return new Set(flattenAdministrationTree([item]).map((entry) => entry.id));
+    }
+    const descendants = administrationSubtreeIDs((item.children ?? []) as T[], rootID);
+    if (descendants.size > 0) return descendants;
+  }
+  return new Set();
+}
+
 export function administrationSelectOptions<T extends AdministrationNode>(
   items: readonly T[],
   options: AdministrationSelectOptions<T> = {},
@@ -447,7 +497,7 @@ export function administrationSelectOptions<T extends AdministrationNode>(
 ): AdministrationSelectOption[] {
   return items.flatMap((item) => {
     if (options.include && !options.include(item)) return [];
-    const path = [...ancestors, item.name];
+    const path = [...ancestors, options.label?.(item) ?? item.name];
     return [
       {
         value: item.id,

@@ -3,6 +3,7 @@ import {
   AdministrationContractError,
   administrationReferenceName,
   administrationSelectOptions,
+  administrationSubtreeIDs,
   parseAdministrationPage,
   parseDepartment,
   parseRole,
@@ -128,6 +129,21 @@ describe('administration contracts', () => {
     expect(administrationSelectOptions([tree], { disabled: new Set(['dept-child']) })).toEqual([
       { value: 'dept-root', label: 'Platform', disabled: false },
       { value: 'dept-child', label: 'Platform / Security', disabled: true },
+    ]);
+    expect(administrationSubtreeIDs([tree], 'dept-root')).toEqual(
+      new Set(['dept-root', 'dept-child']),
+    );
+    expect(
+      administrationSelectOptions([tree], {
+        label: (department) => `localized:${department.name}`,
+      }),
+    ).toEqual([
+      { value: 'dept-root', label: 'localized:Platform', disabled: false },
+      {
+        value: 'dept-child',
+        label: 'localized:Platform / localized:Security',
+        disabled: false,
+      },
     ]);
   });
 });

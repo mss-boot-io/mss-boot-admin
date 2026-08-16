@@ -80,6 +80,8 @@ export const queryKeys = {
     resource: 'departments' | 'menus' | 'posts' | 'roles' | 'users',
     id: string,
   ) => ['administration', resource, 'detail', id] as const,
+  administrationCatalog: (resource: 'departments' | 'posts' | 'roles' | 'users') =>
+    ['administration', resource, 'catalog'] as const,
   administrationTree: (resource: 'departments' | 'menus' | 'posts') =>
     ['administration', resource, 'tree'] as const,
   roleAuthorization: (roleID: string) =>

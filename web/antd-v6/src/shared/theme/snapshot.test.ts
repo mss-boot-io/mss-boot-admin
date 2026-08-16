@@ -161,4 +161,28 @@ describe('v6 theme snapshots and identity binding', () => {
       '#112233',
     );
   });
+
+  it('ignores valid-looking V5 snapshots and uses only the V6 namespace', () => {
+    window.localStorage.setItem(
+      'mss.theme.application.v1',
+      JSON.stringify({
+        v: 1,
+        expiresAt: Date.now() + 60_000,
+        resource: {
+          navTheme: 'realDark',
+          colorPrimary: '#1890ff',
+          _meta: { v: 1, scope: 'application', revision: '99' },
+        },
+      }),
+    );
+
+    applyThemeFirstPaintHint();
+
+    expect(document.documentElement.dataset.mssTheme).toBe('light');
+    expect(document.documentElement.style.getPropertyValue('--mss-theme-color-primary')).toBe(
+      '#1677ff',
+    );
+    expect(APPLICATION_THEME_SNAPSHOT_KEY).toBe('mss.antd-v6.theme.application.v1');
+    expect(THEME_AUTH_SESSION_KEY).toBe('mss.antd-v6.theme.auth-session.v1');
+  });
 });

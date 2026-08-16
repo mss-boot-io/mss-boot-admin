@@ -1,15 +1,16 @@
-import { history } from '@umijs/max';
+import { history, useIntl } from '@umijs/max';
 import { Button, Result } from 'antd';
 
 export default function ForbiddenPage() {
+  const intl = useIntl();
   return (
     <Result
       status="403"
       title="403"
-      subTitle="你没有访问此页面的权限。"
+      subTitle={intl.formatMessage({ id: 'states.forbidden' })}
       extra={
         <Button type="primary" onClick={() => history.push('/workplace')}>
-          返回工作台
+          {intl.formatMessage({ id: 'actions.backToWorkplace' })}
         </Button>
       }
     />

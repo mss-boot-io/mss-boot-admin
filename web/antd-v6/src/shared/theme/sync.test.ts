@@ -6,6 +6,7 @@ import {
   parseThemeSyncEvent,
   publishThemeScopeResource,
   subscribeThemeSync,
+  THEME_SYNC_CHANNEL,
   THEME_SYNC_EVENT_TTL_MS,
   THEME_SYNC_STORAGE_KEY,
   type ThemeScopeUpdatedEvent,
@@ -109,6 +110,7 @@ describe('v6 theme cross-tab synchronization', () => {
     });
 
     expect(listener).toHaveBeenCalledTimes(1);
+    expect(FakeBroadcastChannel.instances[0]?.name).toBe(THEME_SYNC_CHANNEL);
     expect(FakeBroadcastChannel.instances[0]?.posted).toHaveLength(1);
     expect(storageWrite).not.toHaveBeenCalled();
     unsubscribe();

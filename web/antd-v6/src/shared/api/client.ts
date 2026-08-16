@@ -1,6 +1,7 @@
 import type { RequestConfig, RequestOptions } from '@umijs/max';
-import { history } from '@umijs/max';
+import { getIntl, history } from '@umijs/max';
 import { requestAuthorizationRefresh, shouldRefreshAuthorization } from '../auth/freshness';
+import { clearBrowserSessionMetadata } from '../auth/sessionMetadata';
 import { queryClient } from '../query/client';
 import { clearUserThemeRuntime } from '../theme/runtime';
 import { clearThemeIdentitySession } from '../theme/snapshot';
@@ -56,6 +57,7 @@ export const requestConfig: RequestConfig = {
       const status = getRequestStatus(error);
       if (status === 401) {
         queryClient.clear();
+        clearBrowserSessionMetadata();
         clearThemeIdentitySession();
         clearUserThemeRuntime();
         const redirect = encodeURIComponent(
@@ -79,7 +81,7 @@ export const requestConfig: RequestConfig = {
         return;
       }
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        feedback()?.message.error('网络不可用，请检查连接后重试');
+        feedback()?.message.error(getIntl().formatMessage({ id: 'errors.offline' }));
         return;
       }
       feedback()?.message.error(getRequestErrorMessage(error));

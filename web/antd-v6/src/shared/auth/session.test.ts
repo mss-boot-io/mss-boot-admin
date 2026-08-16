@@ -1,10 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   BROWSER_SESSION_CLEAR_ENDPOINT,
   BROWSER_SESSION_LOGIN_ENDPOINT,
   BROWSER_SESSION_LOGOUT_ENDPOINT,
+  BROWSER_SESSION_METADATA_KEY,
   BROWSER_SESSION_REFRESH_ENDPOINT,
+  browserSessionRefreshDelay,
+  clearBrowserSessionMetadata,
   isPublicPath,
+  readBrowserSessionExpiry,
+  recordBrowserSessionResponse,
   requireCredentialFreeSessionResponse,
 } from './session';
 
@@ -20,6 +25,8 @@ describe('isPublicPath', () => {
 });
 
 describe('browser session contract', () => {
+  beforeEach(() => window.localStorage.clear());
+
   it('uses only the dedicated cookie-session endpoints', () => {
     expect(BROWSER_SESSION_LOGIN_ENDPOINT).toBe('/user/session/login');
     expect(BROWSER_SESSION_REFRESH_ENDPOINT).toBe('/user/session/refresh-token');
@@ -28,10 +35,13 @@ describe('browser session contract', () => {
   });
 
   it('rejects a browser response that exposes a bearer credential', () => {
-    expect(requireCredentialFreeSessionResponse({ code: 200, expire: 'tomorrow' })).toEqual({
+    expect(
+      requireCredentialFreeSessionResponse({ code: 200, expire: '2026-08-17T00:00:00Z' }),
+    ).toEqual({
       code: 200,
-      expire: 'tomorrow',
+      expire: '2026-08-17T00:00:00Z',
     });
+    expect(() => requireCredentialFreeSessionResponse({ code: 200 })).toThrow(/expiry/);
     expect(() =>
       requireCredentialFreeSessionResponse({ code: 200, token: 'must-not-enter-v6' }),
     ).toThrow(/credential/);
@@ -41,5 +51,24 @@ describe('browser session contract', () => {
     expect(() =>
       requireCredentialFreeSessionResponse({ refreshToken: 'must-not-enter-v6' }),
     ).toThrow(/credential/);
+  });
+
+  it('stores only namespaced non-secret expiry metadata and derives the safety window', () => {
+    const now = Date.parse('2026-08-16T00:00:00Z');
+    const expiresAt = recordBrowserSessionResponse(
+      { code: 200, expire: '2026-08-16T12:00:00Z' },
+      now,
+    );
+
+    expect(readBrowserSessionExpiry()).toBe(expiresAt);
+    expect(browserSessionRefreshDelay(expiresAt, now)).toBe(11 * 60 * 60 * 1000 + 55 * 60 * 1000);
+    expect(JSON.parse(window.localStorage.getItem(BROWSER_SESSION_METADATA_KEY) ?? '{}')).toEqual({
+      v: 1,
+      expiresAt,
+    });
+    expect(window.localStorage.getItem(BROWSER_SESSION_METADATA_KEY)).not.toContain('token');
+
+    clearBrowserSessionMetadata();
+    expect(readBrowserSessionExpiry()).toBeUndefined();
   });
 });

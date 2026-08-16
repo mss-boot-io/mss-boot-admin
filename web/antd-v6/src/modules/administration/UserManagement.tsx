@@ -15,7 +15,7 @@ import {
   type UserSummary,
   type UserWriteValues,
 } from './contract';
-import { useAdministrationPage } from './query';
+import { useAdministrationCatalog, useAdministrationPage } from './query';
 
 interface UserManagementProps {
   canCreate: boolean;
@@ -41,46 +41,36 @@ export default function UserManagement({
   const client = useQueryClient();
   const [params, setParams] = useState(initialParams);
   const users = useAdministrationPage('users', params);
-  const dependencyParams = useMemo<AdministrationListParams>(
-    () => ({ current: 1, pageSize: 100, status: 'enabled' }),
-    [],
-  );
-  const roles = useAdministrationPage('roles', dependencyParams);
-  const departments = useAdministrationPage('departments', dependencyParams);
-  const posts = useAdministrationPage('posts', dependencyParams);
+  const roles = useAdministrationCatalog('roles');
+  const departments = useAdministrationCatalog('departments');
+  const posts = useAdministrationCatalog('posts');
   const rolesByID = useMemo(
-    () => new Map((roles.data?.data ?? []).map((role) => [role.id, role])),
-    [roles.data?.data],
+    () => new Map((roles.data ?? []).map((role) => [role.id, role])),
+    [roles.data],
   );
   const roleNamesByID = useMemo(
-    () => new Map((roles.data?.data ?? []).map((role) => [role.id, role.name] as const)),
-    [roles.data?.data],
+    () => new Map((roles.data ?? []).map((role) => [role.id, role.name] as const)),
+    [roles.data],
   );
   const departmentNamesByID = useMemo(
     () =>
       new Map(
-        flattenAdministrationTree(departments.data?.data ?? []).map((department) => [
+        flattenAdministrationTree(departments.data ?? []).map((department) => [
           department.id,
           department.name,
         ]),
       ),
-    [departments.data?.data],
+    [departments.data],
   );
   const postNamesByID = useMemo(
-    () =>
-      new Map(
-        flattenAdministrationTree(posts.data?.data ?? []).map((post) => [post.id, post.name]),
-      ),
-    [posts.data?.data],
+    () => new Map(flattenAdministrationTree(posts.data ?? []).map((post) => [post.id, post.name])),
+    [posts.data],
   );
   const departmentOptions = useMemo(
-    () => administrationSelectOptions(departments.data?.data ?? []),
-    [departments.data?.data],
+    () => administrationSelectOptions(departments.data ?? []),
+    [departments.data],
   );
-  const postOptions = useMemo(
-    () => administrationSelectOptions(posts.data?.data ?? []),
-    [posts.data?.data],
-  );
+  const postOptions = useMemo(() => administrationSelectOptions(posts.data ?? []), [posts.data]);
   const [editing, setEditing] = useState<UserSummary | 'create'>();
   const [form] = Form.useForm<UserWriteValues & { confirmPassword?: string }>();
   const [passwordTarget, setPasswordTarget] = useState<UserSummary>();
@@ -257,6 +247,15 @@ export default function UserManagement({
         destroyOnHidden
         forceRender
         confirmLoading={save.isPending}
+        okButtonProps={{
+          disabled:
+            roles.isPending ||
+            roles.isError ||
+            departments.isPending ||
+            departments.isError ||
+            posts.isPending ||
+            posts.isError,
+        }}
         open={Boolean(editing)}
         title={intl.formatMessage({
           id: editing === 'create' ? 'user.create.title' : 'user.edit.title',
@@ -351,8 +350,9 @@ export default function UserManagement({
             rules={[{ required: true }]}
           >
             <Select
-              loading={roles.isFetching}
-              options={(roles.data?.data ?? []).map((role) => ({
+              disabled={roles.isError}
+              loading={roles.isPending}
+              options={(roles.data ?? []).map((role) => ({
                 value: role.id,
                 label: role.name,
                 disabled: role.status !== 'enabled',
@@ -363,10 +363,24 @@ export default function UserManagement({
             name="departmentID"
             label={intl.formatMessage({ id: 'user.field.department' })}
           >
-            <Select allowClear showSearch optionFilterProp="label" options={departmentOptions} />
+            <Select
+              allowClear
+              showSearch
+              disabled={departments.isError}
+              loading={departments.isPending}
+              optionFilterProp="label"
+              options={departmentOptions}
+            />
           </Form.Item>
           <Form.Item name="postID" label={intl.formatMessage({ id: 'user.field.post' })}>
-            <Select allowClear showSearch optionFilterProp="label" options={postOptions} />
+            <Select
+              allowClear
+              showSearch
+              disabled={posts.isError}
+              loading={posts.isPending}
+              optionFilterProp="label"
+              options={postOptions}
+            />
           </Form.Item>
           <Form.Item
             name="status"

@@ -1,15 +1,16 @@
-import { history } from '@umijs/max';
+import { history, useIntl } from '@umijs/max';
 import { Button, Result } from 'antd';
 
 export default function NotFoundPage() {
+  const intl = useIntl();
   return (
     <Result
       status="404"
       title="404"
-      subTitle="页面不存在，或该能力尚未注册到 Ant Design 6 应用。"
+      subTitle={intl.formatMessage({ id: 'states.notFound' })}
       extra={
         <Button type="primary" onClick={() => history.push('/workplace')}>
-          返回工作台
+          {intl.formatMessage({ id: 'actions.backToWorkplace' })}
         </Button>
       }
     />

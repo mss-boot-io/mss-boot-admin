@@ -2,8 +2,14 @@ import { history, request, useIntl, useParams } from '@umijs/max';
 import { Result, Spin } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { parseOAuthCallbackOutcome } from '@/modules/account/contracts';
+import { consumeOAuthLoginRedirect } from '@/shared/auth/oauthRedirect';
 import { resolveSafeRedirect } from '@/shared/auth/redirect';
-import { assertNoBrowserCredential, fetchCurrentUser } from '@/shared/auth/session';
+import {
+  assertNoBrowserCredential,
+  fetchCurrentUser,
+  recordBrowserSessionResponse,
+  requireCredentialFreeSessionResponse,
+} from '@/shared/auth/session';
 import { queryClient, queryKeys } from '@/shared/query/client';
 import { rotateThemeAuthSession } from '@/shared/theme/snapshot';
 
@@ -51,8 +57,10 @@ export default function OAuthCallbackPage() {
           window.location.replace('/account/settings?tab=security&reauthentication=success');
           return;
         }
+        recordBrowserSessionResponse(requireCredentialFreeSessionResponse(result));
+        const redirect = consumeOAuthLoginRedirect(outcome.attemptID);
         rotateThemeAuthSession(currentUser.id);
-        window.location.replace(resolveSafeRedirect(undefined));
+        window.location.replace(resolveSafeRedirect(redirect));
       })
       .catch(() => setError(true));
   }, [provider]);

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ColorPickerProps } from 'antd';
 import { App } from 'antd';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InitialState } from '@/shared/auth/types';
@@ -36,6 +37,29 @@ vi.mock('@umijs/max', () => ({
   }),
   useModel: () => ({ initialState: model.state, setInitialState: model.setInitialState }),
 }));
+
+vi.mock('antd', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('antd')>();
+  return {
+    ...actual,
+    ColorPicker: ({ onChange }: Pick<ColorPickerProps, 'onChange'>) => (
+      <button
+        type="button"
+        aria-label="test-color-picker"
+        onClick={() =>
+          onChange?.(
+            {
+              toHexString: () => '#A1B2C3',
+            } as Parameters<NonNullable<ColorPickerProps['onChange']>>[0],
+            'rgb(161, 178, 195)',
+          )
+        }
+      >
+        color
+      </button>
+    ),
+  };
+});
 
 vi.mock('@/shared/theme/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/shared/theme/api')>();
@@ -151,6 +175,28 @@ describe('scoped v6 theme editor', () => {
       await waitFor(() => expect(screen.getByText('theme.revision:8')).toBeTruthy());
       expect(browserDerivatives.publish).toHaveBeenCalledWith(saved, 'session-1');
       expect(browserDerivatives.write).toHaveBeenCalledWith(saved, 'session-1');
+    },
+    INTERACTION_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'saves a ColorPicker selection as a canonical six-digit hex value',
+    async () => {
+      model.state = initialState({});
+      const base = resource('user', '9', { colorPrimary: '#1677ff' });
+      const saved = resource('user', '10', { colorPrimary: '#a1b2c3' });
+      api.load.mockResolvedValue(base);
+      api.patch.mockResolvedValue(saved);
+
+      renderEditor('user');
+
+      await screen.findByText('theme.scope.user');
+      fireEvent.click(screen.getByRole('button', { name: 'test-color-picker' }));
+      fireEvent.click(screen.getByRole('button', { name: /actions\.save/ }));
+
+      await waitFor(() =>
+        expect(api.patch).toHaveBeenCalledWith('user', { colorPrimary: '#a1b2c3' }, base),
+      );
     },
     INTERACTION_TEST_TIMEOUT_MS,
   );

@@ -37,7 +37,9 @@ const administrationRoutes: Record<string, AdministrationRouteDefinition> = {
     permission: '/menu',
     title: 'menu.title',
     description: 'menu.description',
-    render: (root) => <MenuManagement canCreate={root} canDelete={root} canEdit={root} />,
+    render: (root) => (
+      <MenuManagement canBindAPI={root} canCreate={root} canDelete={root} canEdit={root} />
+    ),
   },
   '/departments': {
     permission: '/departments',

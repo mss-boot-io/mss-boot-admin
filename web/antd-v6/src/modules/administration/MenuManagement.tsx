@@ -6,6 +6,7 @@ import {
   App,
   Button,
   Checkbox,
+  Drawer,
   Form,
   Input,
   InputNumber,
@@ -14,8 +15,9 @@ import {
   Select,
   Space,
   Tag,
+  Transfer,
 } from 'antd';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { formatMenuLabel } from '@/shared/navigation/menuLocale';
 import { queryKeys } from '@/shared/query/client';
@@ -23,14 +25,21 @@ import AdministrationTable, { AdministrationStatusTag } from './AdministrationTa
 import { administrationAPI } from './api';
 import {
   type AdministrationListParams,
+  administrationAPIReferenceKey,
   administrationSelectOptions,
-  flattenAdministrationTree,
+  administrationSubtreeIDs,
   type MenuSummary,
   type MenuWriteValues,
 } from './contract';
-import { useAdministrationPage } from './query';
+import {
+  useAdministrationAPICatalog,
+  useAdministrationPage,
+  useMenuAPIBindings,
+  useMenuTree,
+} from './query';
 
 interface MenuManagementProps {
+  canBindAPI: boolean;
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
@@ -42,15 +51,30 @@ const initialParams: AdministrationListParams = {
   status: 'all',
 };
 
-export default function MenuManagement({ canCreate, canDelete, canEdit }: MenuManagementProps) {
+export default function MenuManagement({
+  canBindAPI,
+  canCreate,
+  canDelete,
+  canEdit,
+}: MenuManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const client = useQueryClient();
   const [params, setParams] = useState(initialParams);
   const menus = useAdministrationPage('menus', params);
+  const menuCatalog = useMenuTree();
   const [editing, setEditing] = useState<MenuSummary | 'create'>();
+  const [bindingMenu, setBindingMenu] = useState<MenuSummary>();
+  const [boundAPIKeys, setBoundAPIKeys] = useState<string[]>([]);
   const [form] = Form.useForm<MenuWriteValues>();
   const selectedType = Form.useWatch('type', form);
+  const apiCatalog = useAdministrationAPICatalog(Boolean(bindingMenu));
+  const boundAPIs = useMenuAPIBindings(bindingMenu?.id);
+
+  useEffect(() => {
+    if (!boundAPIs.data) return;
+    setBoundAPIKeys(boundAPIs.data.map(administrationAPIReferenceKey));
+  }, [boundAPIs.data]);
 
   const save = useMutation({
     mutationFn: (values: MenuWriteValues) =>
@@ -77,18 +101,36 @@ export default function MenuManagement({ canCreate, canDelete, canEdit }: MenuMa
       void message.success(intl.formatMessage({ id: 'administration.delete.success' }));
     },
   });
+  const bindAPIs = useMutation({
+    mutationFn: async () => {
+      if (!bindingMenu) throw new Error('Menu API binding target is unavailable');
+      await administrationAPI.menus.bindAPIs(bindingMenu.id, boundAPIKeys);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        client.invalidateQueries({
+          queryKey: ['administration', 'menus', bindingMenu?.id ?? '', 'apis'],
+        }),
+        client.invalidateQueries({ queryKey: ['authorization'] }),
+      ]);
+      setBindingMenu(undefined);
+      setBoundAPIKeys([]);
+      void message.success(intl.formatMessage({ id: 'menu.apiBinding.success' }));
+    },
+  });
 
   const disabledParents = useMemo(() => {
     if (!editing || editing === 'create') return new Set<string>();
-    return new Set(flattenAdministrationTree([editing]).map((item) => item.id));
-  }, [editing]);
+    return administrationSubtreeIDs(menuCatalog.data ?? [], editing.id);
+  }, [editing, menuCatalog.data]);
   const parentOptions = useMemo(
     () =>
-      administrationSelectOptions(menus.data?.data ?? [], {
+      administrationSelectOptions(menuCatalog.data ?? [], {
         disabled: disabledParents,
         include: (menu) => menu.type !== 'COMPONENT' && menu.type !== 'API',
+        label: (menu) => formatMenuLabel(intl, menu.name),
       }),
-    [disabledParents, menus.data?.data],
+    [disabledParents, intl, menuCatalog.data],
   );
 
   const openEditor = (menu: MenuSummary | 'create') => {
@@ -154,13 +196,26 @@ export default function MenuManagement({ canCreate, canDelete, canEdit }: MenuMa
     {
       title: intl.formatMessage({ id: 'administration.field.actions' }),
       key: 'actions',
-      width: 190,
+      width: 280,
       fixed: 'right',
       render: (_, menu) => (
         <Space size="small">
           {canEdit ? (
             <Button size="small" type="link" onClick={() => openEditor(menu)}>
               {intl.formatMessage({ id: 'actions.edit' })}
+            </Button>
+          ) : null}
+          {canBindAPI && menu.type !== 'DIRECTORY' && menu.type !== 'API' ? (
+            <Button
+              size="small"
+              type="link"
+              onClick={() => {
+                bindAPIs.reset();
+                setBoundAPIKeys([]);
+                setBindingMenu(menu);
+              }}
+            >
+              {intl.formatMessage({ id: 'menu.apiBinding.action' })}
             </Button>
           ) : null}
           {canDelete ? (
@@ -199,6 +254,7 @@ export default function MenuManagement({ canCreate, canDelete, canEdit }: MenuMa
         destroyOnHidden
         forceRender
         confirmLoading={save.isPending}
+        okButtonProps={{ disabled: menuCatalog.isPending || menuCatalog.isError }}
         open={Boolean(editing)}
         title={intl.formatMessage({
           id: editing === 'create' ? 'menu.create.title' : 'menu.edit.title',
@@ -217,6 +273,15 @@ export default function MenuManagement({ canCreate, canDelete, canEdit }: MenuMa
           showIcon
           type="info"
         />
+        {menuCatalog.isError ? (
+          <Alert
+            className="mb-4"
+            description={getRequestErrorMessage(menuCatalog.error)}
+            showIcon
+            title={intl.formatMessage({ id: 'administration.dependencies.failed' })}
+            type="error"
+          />
+        ) : null}
         {save.isError ? (
           <Alert
             className="mb-4"
@@ -234,7 +299,14 @@ export default function MenuManagement({ canCreate, canDelete, canEdit }: MenuMa
             name="parentID"
             label={intl.formatMessage({ id: 'administration.field.parent' })}
           >
-            <Select allowClear showSearch optionFilterProp="label" options={parentOptions} />
+            <Select
+              allowClear
+              showSearch
+              disabled={menuCatalog.isError}
+              loading={menuCatalog.isPending}
+              optionFilterProp="label"
+              options={parentOptions}
+            />
           </Form.Item>
           <Form.Item
             name="name"
@@ -317,6 +389,69 @@ export default function MenuManagement({ canCreate, canDelete, canEdit }: MenuMa
           </Form.Item>
         </Form>
       </Modal>
+      <Drawer
+        destroyOnHidden
+        open={Boolean(bindingMenu)}
+        title={intl.formatMessage(
+          { id: 'menu.apiBinding.title' },
+          { name: bindingMenu ? formatMenuLabel(intl, bindingMenu.name) : '' },
+        )}
+        width={760}
+        extra={
+          <Button
+            type="primary"
+            loading={bindAPIs.isPending}
+            disabled={
+              apiCatalog.isPending ||
+              boundAPIs.isPending ||
+              apiCatalog.isError ||
+              boundAPIs.isError
+            }
+            onClick={() => bindAPIs.mutate()}
+          >
+            {intl.formatMessage({ id: 'actions.save' })}
+          </Button>
+        }
+        onClose={() => {
+          setBindingMenu(undefined);
+          setBoundAPIKeys([]);
+          bindAPIs.reset();
+        }}
+      >
+        {apiCatalog.isError || boundAPIs.isError || bindAPIs.isError ? (
+          <Alert
+            className="mb-4"
+            description={getRequestErrorMessage(
+              apiCatalog.error ?? boundAPIs.error ?? bindAPIs.error,
+            )}
+            showIcon
+            type="error"
+          />
+        ) : null}
+        <Alert
+          className="mb-4"
+          description={intl.formatMessage({ id: 'menu.apiBinding.description' })}
+          showIcon
+          type="info"
+        />
+        <Transfer
+          dataSource={(apiCatalog.data ?? []).map((api) => ({
+            key: administrationAPIReferenceKey(api),
+            title: `${api.method} ${api.path}`,
+            description: api.name,
+          }))}
+          disabled={apiCatalog.isPending || boundAPIs.isPending}
+          styles={{ section: { width: 'calc(50% - 24px)', height: 480 } }}
+          render={(item) => item.title}
+          showSearch
+          targetKeys={boundAPIKeys}
+          titles={[
+            intl.formatMessage({ id: 'menu.apiBinding.available' }),
+            intl.formatMessage({ id: 'menu.apiBinding.bound' }),
+          ]}
+          onChange={(keys) => setBoundAPIKeys(keys.map(String))}
+        />
+      </Drawer>
     </>
   );
 }
