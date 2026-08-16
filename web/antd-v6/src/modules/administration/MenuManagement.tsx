@@ -20,6 +20,11 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { formatMenuLabel } from '@/shared/navigation/menuLocale';
+import {
+  finishManagementRouteIntent,
+  type ManagementRouteIntent,
+  useManagementRouteIntent,
+} from '@/shared/navigation/managementRoute';
 import { queryKeys } from '@/shared/query/client';
 import AdministrationTable, { AdministrationStatusTag } from './AdministrationTable';
 import { administrationAPI } from './api';
@@ -43,6 +48,7 @@ interface MenuManagementProps {
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
+  routeIntent?: ManagementRouteIntent;
 }
 
 const initialParams: AdministrationListParams = {
@@ -56,6 +62,7 @@ export default function MenuManagement({
   canCreate,
   canDelete,
   canEdit,
+  routeIntent,
 }: MenuManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
@@ -88,6 +95,7 @@ export default function MenuManagement({
       ]);
       setEditing(undefined);
       form.resetFields();
+      finishManagementRouteIntent(routeIntent, '/menu');
       void message.success(intl.formatMessage({ id: 'administration.save.success' }));
     },
   });
@@ -160,6 +168,16 @@ export default function MenuManagement({
       sort: menu.sort,
     });
   };
+
+  useManagementRouteIntent(routeIntent, {
+    load: administrationAPI.menus.get,
+    openCreate: () => openEditor('create'),
+    openEdit: openEditor,
+    onError: (error) => {
+      void message.error(getRequestErrorMessage(error));
+      finishManagementRouteIntent(routeIntent, '/menu');
+    },
+  });
 
   const columns: TableColumnsType<MenuSummary> = [
     {
@@ -264,6 +282,7 @@ export default function MenuManagement({
           setEditing(undefined);
           form.resetFields();
           save.reset();
+          finishManagementRouteIntent(routeIntent, '/menu');
         }}
         onOk={() => form.submit()}
       >

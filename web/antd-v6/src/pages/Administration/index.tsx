@@ -8,11 +8,12 @@ import UserManagement from '@/modules/administration/UserManagement';
 import { hasPermission, isRootIdentity } from '@/shared/auth/access';
 import type { InitialState } from '@/shared/auth/types';
 import { PageForbidden } from '@/shared/design-system/PageState';
+import type { ManagementRouteIntent } from '@/shared/navigation/managementRoute';
 
 interface AdministrationRouteDefinition {
   description: string;
   permission: string;
-  render: (root: boolean) => React.ReactNode;
+  render: (root: boolean, intent?: ManagementRouteIntent) => React.ReactNode;
   title: string;
 }
 
@@ -21,46 +22,98 @@ const administrationRoutes: Record<string, AdministrationRouteDefinition> = {
     permission: '/users',
     title: 'user.title',
     description: 'user.description',
-    render: (root) => (
-      <UserManagement canCreate={root} canDelete={root} canEdit={root} canResetPassword={root} />
+    render: (root, routeIntent) => (
+      <UserManagement
+        canCreate={root}
+        canDelete={root}
+        canEdit={root}
+        canResetPassword={root}
+        routeIntent={routeIntent}
+      />
     ),
   },
   '/role': {
     permission: '/role',
     title: 'role.title',
     description: 'role.description',
-    render: (root) => (
-      <RoleManagement canAuthorize={root} canCreate={root} canDelete={root} canEdit={root} />
+    render: (root, routeIntent) => (
+      <RoleManagement
+        canAuthorize={root}
+        canCreate={root}
+        canDelete={root}
+        canEdit={root}
+        routeIntent={routeIntent}
+      />
     ),
   },
   '/menu': {
     permission: '/menu',
     title: 'menu.title',
     description: 'menu.description',
-    render: (root) => (
-      <MenuManagement canBindAPI={root} canCreate={root} canDelete={root} canEdit={root} />
+    render: (root, routeIntent) => (
+      <MenuManagement
+        canBindAPI={root}
+        canCreate={root}
+        canDelete={root}
+        canEdit={root}
+        routeIntent={routeIntent}
+      />
     ),
   },
   '/departments': {
     permission: '/departments',
     title: 'department.title',
     description: 'department.description',
-    render: (root) => <DepartmentManagement canCreate={root} canDelete={root} canEdit={root} />,
+    render: (root, routeIntent) => (
+      <DepartmentManagement
+        canCreate={root}
+        canDelete={root}
+        canEdit={root}
+        routeIntent={routeIntent}
+      />
+    ),
   },
   '/posts': {
     permission: '/posts',
     title: 'post.title',
     description: 'post.description',
-    render: (root) => <PostManagement canCreate={root} canDelete={root} canEdit={root} />,
+    render: (root, routeIntent) => (
+      <PostManagement
+        canCreate={root}
+        canDelete={root}
+        canEdit={root}
+        routeIntent={routeIntent}
+      />
+    ),
   },
 };
+
+function routeIntent(pathname: string, basePath: string): ManagementRouteIntent | undefined {
+  if (pathname === basePath) return undefined;
+  if (pathname === `${basePath}/create` || pathname === '/users/control/create') {
+    return { action: 'create' };
+  }
+  const resetMatch =
+    basePath === '/users' ? pathname.match(/^\/users\/password-reset\/([^/]+)$/) : undefined;
+  const resetID = resetMatch?.[1];
+  if (resetID) return { action: 'reset-password', id: decodeURIComponent(resetID) };
+  const editMatch =
+    basePath === '/users'
+      ? pathname.match(/^\/users\/control\/([^/]+)$/)
+      : pathname.match(new RegExp(`^${basePath}/([^/]+)$`));
+  const editID = editMatch?.[1];
+  return editID ? { action: 'edit', id: decodeURIComponent(editID) } : undefined;
+}
 
 export default function AdministrationPage() {
   const intl = useIntl();
   const location = useLocation();
   const { initialState } = useModel('@@initialState') as { initialState?: InitialState };
-  const pathname = location.pathname.replace(/\/+$/, '') || '/';
-  const route = administrationRoutes[pathname];
+  const rawPathname = location.pathname.replace(/\/+$/, '') || '/';
+  const pathname = Object.keys(administrationRoutes).find(
+    (candidate) => rawPathname === candidate || rawPathname.startsWith(`${candidate}/`),
+  );
+  const route = pathname ? administrationRoutes[pathname] : undefined;
   const user = initialState?.currentUser;
 
   if (!route || !hasPermission(user, route.permission)) {
@@ -68,12 +121,13 @@ export default function AdministrationPage() {
   }
 
   const root = isRootIdentity(user);
+  const intent = routeIntent(rawPathname, pathname ?? rawPathname);
   return (
     <PageContainer
       content={intl.formatMessage({ id: route.description })}
       title={intl.formatMessage({ id: route.title })}
     >
-      {route.render(root)}
+      {route.render(root, intent)}
     </PageContainer>
   );
 }

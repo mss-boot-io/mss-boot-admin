@@ -15,6 +15,11 @@ import {
 } from 'antd';
 import { useMemo, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
+import {
+  finishManagementRouteIntent,
+  type ManagementRouteIntent,
+  useManagementRouteIntent,
+} from '@/shared/navigation/managementRoute';
 import { queryKeys } from '@/shared/query/client';
 import AdministrationTable, { AdministrationStatusTag } from './AdministrationTable';
 import { administrationAPI } from './api';
@@ -32,6 +37,7 @@ interface DepartmentManagementProps {
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
+  routeIntent?: ManagementRouteIntent;
 }
 
 const initialParams: AdministrationListParams = {
@@ -44,6 +50,7 @@ export default function DepartmentManagement({
   canCreate,
   canDelete,
   canEdit,
+  routeIntent,
 }: DepartmentManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
@@ -77,6 +84,7 @@ export default function DepartmentManagement({
       await client.invalidateQueries({ queryKey: queryKeys.administration('departments') });
       setEditing(undefined);
       form.resetFields();
+      finishManagementRouteIntent(routeIntent, '/departments');
       void message.success(intl.formatMessage({ id: 'administration.save.success' }));
     },
   });
@@ -116,6 +124,16 @@ export default function DepartmentManagement({
       sort: department.sort,
     });
   };
+
+  useManagementRouteIntent(routeIntent, {
+    load: administrationAPI.departments.get,
+    openCreate: () => openEditor('create'),
+    openEdit: openEditor,
+    onError: (error) => {
+      void message.error(getRequestErrorMessage(error));
+      finishManagementRouteIntent(routeIntent, '/departments');
+    },
+  });
 
   const columns: TableColumnsType<DepartmentSummary> = [
     {
@@ -218,6 +236,7 @@ export default function DepartmentManagement({
           setEditing(undefined);
           form.resetFields();
           save.reset();
+          finishManagementRouteIntent(routeIntent, '/departments');
         }}
         onOk={() => form.submit()}
       >

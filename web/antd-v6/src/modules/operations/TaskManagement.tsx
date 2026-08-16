@@ -29,6 +29,11 @@ import {
 import { useEffect, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+import {
+  finishManagementRouteIntent,
+  type ManagementRouteIntent,
+  useManagementRouteIntent,
+} from '@/shared/navigation/managementRoute';
 import { queryKeys } from '@/shared/query/client';
 import { operationsAPI } from './api';
 import {
@@ -43,6 +48,7 @@ import { useTask, useTaskFunctions, useTaskPage } from './query';
 
 interface TaskManagementProps {
   root: boolean;
+  routeIntent?: ManagementRouteIntent;
 }
 
 interface TaskFilterValues {
@@ -93,7 +99,7 @@ function validateJSONObject(value: string | undefined, message: string): Promise
   }
 }
 
-export default function TaskManagement({ root }: TaskManagementProps) {
+export default function TaskManagement({ root, routeIntent }: TaskManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
@@ -115,6 +121,7 @@ export default function TaskManagement({ root }: TaskManagementProps) {
   const closeEditor = () => {
     setEditing(undefined);
     editorForm.resetFields();
+    finishManagementRouteIntent(routeIntent, '/task');
   };
 
   const save = useMutation({
@@ -157,6 +164,16 @@ export default function TaskManagement({ root }: TaskManagementProps) {
     editorForm.resetFields();
     setEditing(task.id);
   };
+
+  useManagementRouteIntent(routeIntent, {
+    load: operationsAPI.tasks.get,
+    openCreate,
+    openEdit,
+    onError: (error) => {
+      void message.error(getRequestErrorMessage(error));
+      finishManagementRouteIntent(routeIntent, '/task');
+    },
+  });
 
   const formatDate = (value?: string) =>
     value

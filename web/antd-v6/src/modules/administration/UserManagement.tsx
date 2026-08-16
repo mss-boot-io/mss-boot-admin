@@ -4,6 +4,11 @@ import type { TableColumnsType } from 'antd';
 import { Alert, App, Avatar, Button, Form, Input, Modal, Popconfirm, Select, Space } from 'antd';
 import { useMemo, useState } from 'react';
 import { getRequestErrorMessage } from '@/shared/api/errors';
+import {
+  finishManagementRouteIntent,
+  type ManagementRouteIntent,
+  useManagementRouteIntent,
+} from '@/shared/navigation/managementRoute';
 import { queryKeys } from '@/shared/query/client';
 import AdministrationTable, { AdministrationStatusTag } from './AdministrationTable';
 import { administrationAPI } from './api';
@@ -22,6 +27,7 @@ interface UserManagementProps {
   canDelete: boolean;
   canEdit: boolean;
   canResetPassword: boolean;
+  routeIntent?: ManagementRouteIntent;
 }
 
 const initialParams: AdministrationListParams = {
@@ -35,6 +41,7 @@ export default function UserManagement({
   canDelete,
   canEdit,
   canResetPassword,
+  routeIntent,
 }: UserManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
@@ -85,6 +92,7 @@ export default function UserManagement({
       await client.invalidateQueries({ queryKey: queryKeys.administration('users') });
       setEditing(undefined);
       form.resetFields();
+      finishManagementRouteIntent(routeIntent, '/users');
       void message.success(intl.formatMessage({ id: 'administration.save.success' }));
     },
   });
@@ -101,6 +109,7 @@ export default function UserManagement({
     onSuccess: () => {
       passwordForm.resetFields();
       setPasswordTarget(undefined);
+      finishManagementRouteIntent(routeIntent, '/users');
       void message.success(intl.formatMessage({ id: 'user.passwordReset.success' }));
     },
   });
@@ -124,6 +133,20 @@ export default function UserManagement({
       confirmPassword: undefined,
     });
   };
+
+  useManagementRouteIntent(routeIntent, {
+    load: administrationAPI.users.get,
+    openCreate: () => openEditor('create'),
+    openEdit: openEditor,
+    openResetPassword: (user) => {
+      passwordForm.resetFields();
+      setPasswordTarget(user);
+    },
+    onError: (error) => {
+      void message.error(getRequestErrorMessage(error));
+      finishManagementRouteIntent(routeIntent, '/users');
+    },
+  });
 
   const columns: TableColumnsType<UserSummary> = [
     {
@@ -265,6 +288,7 @@ export default function UserManagement({
           setEditing(undefined);
           form.resetFields();
           save.reset();
+          finishManagementRouteIntent(routeIntent, '/users');
         }}
         onOk={() => form.submit()}
       >
@@ -409,6 +433,7 @@ export default function UserManagement({
           passwordForm.resetFields();
           setPasswordTarget(undefined);
           resetPassword.reset();
+          finishManagementRouteIntent(routeIntent, '/users');
         }}
         onOk={() => passwordForm.submit()}
       >

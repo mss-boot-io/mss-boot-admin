@@ -20,6 +20,11 @@ import type { Key } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { formatMenuLabel } from '@/shared/navigation/menuLocale';
+import {
+  finishManagementRouteIntent,
+  type ManagementRouteIntent,
+  useManagementRouteIntent,
+} from '@/shared/navigation/managementRoute';
 import { queryKeys } from '@/shared/query/client';
 import AdministrationTable, { AdministrationStatusTag } from './AdministrationTable';
 import { administrationAPI, RoleAuthorizationRevisionConflictError } from './api';
@@ -37,6 +42,7 @@ interface RoleManagementProps {
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
+  routeIntent?: ManagementRouteIntent;
 }
 
 const initialParams: AdministrationListParams = {
@@ -62,6 +68,7 @@ export default function RoleManagement({
   canCreate,
   canDelete,
   canEdit,
+  routeIntent,
 }: RoleManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
@@ -92,6 +99,7 @@ export default function RoleManagement({
       await client.invalidateQueries({ queryKey: queryKeys.administration('roles') });
       setEditing(undefined);
       form.resetFields();
+      finishManagementRouteIntent(routeIntent, '/role');
       void message.success(intl.formatMessage({ id: 'administration.save.success' }));
     },
   });
@@ -148,6 +156,16 @@ export default function RoleManagement({
     }
     form.setFieldsValue({ name: role.name, remark: role.remark, status: role.status });
   };
+
+  useManagementRouteIntent(routeIntent, {
+    load: administrationAPI.roles.get,
+    openCreate: () => openEditor('create'),
+    openEdit: openEditor,
+    onError: (error) => {
+      void message.error(getRequestErrorMessage(error));
+      finishManagementRouteIntent(routeIntent, '/role');
+    },
+  });
 
   const columns: TableColumnsType<RoleSummary> = [
     {
@@ -251,6 +269,7 @@ export default function RoleManagement({
         onCancel={() => {
           setEditing(undefined);
           save.reset();
+          finishManagementRouteIntent(routeIntent, '/role');
         }}
         onOk={() => form.submit()}
       >

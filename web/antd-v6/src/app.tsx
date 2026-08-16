@@ -1,11 +1,13 @@
+import GithubOutlined from '@ant-design/icons/GithubOutlined';
 import LogoutOutlined from '@ant-design/icons/LogoutOutlined';
+import QuestionCircleOutlined from '@ant-design/icons/QuestionCircleOutlined';
 import SettingOutlined from '@ant-design/icons/SettingOutlined';
 import UserOutlined from '@ant-design/icons/UserOutlined';
 import type { ProLayoutProps } from '@ant-design/pro-components';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
 import { addLocale, history, Link, useIntl } from '@umijs/max';
-import { App as AntdApp, Avatar, Dropdown, Tag, Typography } from 'antd';
+import { App as AntdApp, Avatar, Button, Dropdown, Typography } from 'antd';
 import type { ReactNode } from 'react';
 import { languageAPI } from './modules/language/api';
 import { registerSupportedLanguageProfile } from './modules/language/runtime';
@@ -25,6 +27,7 @@ import { PageError } from './shared/design-system/PageState';
 import { RuntimeMessageProvider } from './shared/i18n/runtime';
 import HeaderNotice from './shared/navigation/HeaderNotice';
 import LocaleSwitcher from './shared/navigation/LocaleSwitcher';
+import MenuSearch from './shared/navigation/MenuSearch';
 import { resolveMenuIcons } from './shared/navigation/menuIcons';
 import { queryClient, queryKeys } from './shared/query/client';
 import AuthorizationRealtimeBridge from './shared/realtime/AuthorizationRealtimeBridge';
@@ -321,14 +324,66 @@ function AvatarMenu({ initialState }: { initialState?: InitialState }) {
   );
 }
 
+function DocumentationLink() {
+  const intl = useIntl();
+  return (
+    <Button
+      type="text"
+      href="https://docs.mss-boot-io.top"
+      target="_blank"
+      rel="noreferrer"
+      icon={<QuestionCircleOutlined />}
+      aria-label={intl.formatMessage({ id: 'navigation.documentation' })}
+    />
+  );
+}
+
+function ApplicationFooter({ initialState }: { initialState?: InitialState }) {
+  const base = initialState?.applicationProfile?.base;
+  const copyright =
+    typeof base?.websiteCopyRight === 'string' && base.websiteCopyRight.trim()
+      ? base.websiteCopyRight.trim()
+      : 'mss-boot-io';
+  const recordNumber =
+    typeof base?.websiteRecordNumber === 'string' ? base.websiteRecordNumber.trim() : '';
+
+  return (
+    <footer className="flex flex-col items-center gap-2 py-4 text-center text-sm text-neutral-500">
+      <div>
+        © {new Date().getFullYear()} {copyright}
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+        {recordNumber ? (
+          <Typography.Link href="https://beian.miit.gov.cn" target="_blank" rel="noreferrer">
+            {recordNumber}
+          </Typography.Link>
+        ) : null}
+        <Typography.Link
+          href="https://github.com/mss-boot-io/mss-boot"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <GithubOutlined /> mss-boot
+        </Typography.Link>
+        <Typography.Link
+          href="https://github.com/mss-boot-io/mss-boot-admin"
+          target="_blank"
+          rel="noreferrer"
+        >
+          mss-boot-admin
+        </Typography.Link>
+      </div>
+    </footer>
+  );
+}
+
 export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   ...initialState?.settings,
   actionsRender: () => [
+    <MenuSearch key="menu-search" items={initialState?.authorizedMenu ?? []} />,
     <HeaderNotice key="notice" user={initialState?.currentUser} />,
+    <DocumentationLink key="documentation" />,
     <LocaleSwitcher key="language" />,
-    <Tag key="antd" color="blue">
-      antd {__ANTD_VERSION__}
-    </Tag>,
   ],
   avatarProps: {
     render: () => <AvatarMenu initialState={initialState} />,
@@ -340,15 +395,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     ) : (
       children
     ),
-  footerRender: () => (
-    <div className="py-4 text-center text-sm text-neutral-500">
-      {new Date().getFullYear()}{' '}
-      {typeof initialState?.applicationProfile?.base.websiteCopyRight === 'string' &&
-      initialState.applicationProfile.base.websiteCopyRight.trim()
-        ? initialState.applicationProfile.base.websiteCopyRight
-        : 'mss-boot-io'}
-    </div>
-  ),
+  footerRender: () => <ApplicationFooter initialState={initialState} />,
   menu: {
     params: { authorizationVersion: initialState?.authorizationVersion ?? 0 },
     request: async () => initialState?.authorizedMenu ?? [],
@@ -372,6 +419,13 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     }
   },
   pageTitleRender: false,
+  waterMarkProps: {
+    content:
+      initialState?.currentUser?.name?.trim() || initialState?.currentUser?.username?.trim() || '',
+    gapX: 220,
+    gapY: 180,
+    font: { fontSize: 14 },
+  },
 });
 
 export const request: RequestConfig = requestConfig;

@@ -27,6 +27,11 @@ import {
 import { useEffect, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+import {
+  finishManagementRouteIntent,
+  type ManagementRouteIntent,
+  useManagementRouteIntent,
+} from '@/shared/navigation/managementRoute';
 import { queryKeys } from '@/shared/query/client';
 import { operationsAPI } from './api';
 import {
@@ -41,7 +46,11 @@ import {
 } from './contract';
 import { useSystemConfig, useSystemConfigPage } from './query';
 
-export default function SystemConfigManagement() {
+interface SystemConfigManagementProps {
+  routeIntent?: ManagementRouteIntent;
+}
+
+export default function SystemConfigManagement({ routeIntent }: SystemConfigManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
@@ -74,6 +83,7 @@ export default function SystemConfigManagement() {
     clearSensitiveDetail(editing && editing !== 'create' ? editing.id : undefined);
     setEditing(undefined);
     form.resetFields();
+    finishManagementRouteIntent(routeIntent, '/system-config');
   };
   const save = useMutation({
     mutationFn: (values: SystemConfigWriteValues) => {
@@ -108,6 +118,15 @@ export default function SystemConfigManagement() {
     setViewing(undefined);
     setEditing(config);
   };
+  useManagementRouteIntent(routeIntent, {
+    load: operationsAPI.systemConfigs.get,
+    openCreate,
+    openEdit,
+    onError: (error) => {
+      void message.error(getRequestErrorMessage(error));
+      finishManagementRouteIntent(routeIntent, '/system-config');
+    },
+  });
   const validateContent = async (_: unknown, value?: string) => {
     if (new TextEncoder().encode(value ?? '').length > MAX_SYSTEM_CONFIG_BYTES) {
       throw new Error(intl.formatMessage({ id: 'systemConfig.content.tooLarge' }));

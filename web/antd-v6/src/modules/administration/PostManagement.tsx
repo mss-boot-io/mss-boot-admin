@@ -15,6 +15,11 @@ import {
 } from 'antd';
 import { useMemo, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
+import {
+  finishManagementRouteIntent,
+  type ManagementRouteIntent,
+  useManagementRouteIntent,
+} from '@/shared/navigation/managementRoute';
 import { queryKeys } from '@/shared/query/client';
 import AdministrationTable, { AdministrationStatusTag } from './AdministrationTable';
 import { administrationAPI } from './api';
@@ -32,6 +37,7 @@ interface PostManagementProps {
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
+  routeIntent?: ManagementRouteIntent;
 }
 
 const initialParams: AdministrationListParams = {
@@ -50,7 +56,12 @@ const dataScopes: DataScope[] = [
   'selfAndAllChildren',
 ];
 
-export default function PostManagement({ canCreate, canDelete, canEdit }: PostManagementProps) {
+export default function PostManagement({
+  canCreate,
+  canDelete,
+  canEdit,
+  routeIntent,
+}: PostManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const client = useQueryClient();
@@ -71,6 +82,7 @@ export default function PostManagement({ canCreate, canDelete, canEdit }: PostMa
       await client.invalidateQueries({ queryKey: queryKeys.administration('posts') });
       setEditing(undefined);
       form.resetFields();
+      finishManagementRouteIntent(routeIntent, '/posts');
       void message.success(intl.formatMessage({ id: 'administration.save.success' }));
     },
   });
@@ -112,6 +124,16 @@ export default function PostManagement({ canCreate, canDelete, canEdit }: PostMa
       sort: post.sort,
     });
   };
+
+  useManagementRouteIntent(routeIntent, {
+    load: administrationAPI.posts.get,
+    openCreate: () => openEditor('create'),
+    openEdit: openEditor,
+    onError: (error) => {
+      void message.error(getRequestErrorMessage(error));
+      finishManagementRouteIntent(routeIntent, '/posts');
+    },
+  });
 
   const columns: TableColumnsType<PostSummary> = [
     {
@@ -206,6 +228,7 @@ export default function PostManagement({ canCreate, canDelete, canEdit }: PostMa
           setEditing(undefined);
           form.resetFields();
           save.reset();
+          finishManagementRouteIntent(routeIntent, '/posts');
         }}
         onOk={() => form.submit()}
       >
