@@ -78,5 +78,15 @@ export default defineConfig({
     safari: '17.4',
   },
   title: 'mss-boot-io',
-  utoopack: {},
+  utoopack: {
+    resolve: {
+      alias: {
+        // Utoopack 1.5.5 expands this legacy CJS leaf through the complete
+        // es5-ext/string barrel. Keep the descriptor API used by Umi's legacy
+        // event emitter without shipping that obsolete barrel to browsers.
+        d: join(__dirname, '../src/shims/d.cjs'),
+        'd/auto-bind': require.resolve('d/auto-bind'),
+      },
+    },
+  },
 });

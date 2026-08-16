@@ -102,16 +102,19 @@ test('@operations bounded operational pages work through the browser contract', 
     );
     await page.goto('/notice');
     expect((await noticeList).ok()).toBe(true);
-    const noticeRow = page.getByRole('row').filter({ hasText: noticeTitle });
-    await expect(noticeRow).toBeVisible();
+    const noticeRecord =
+      (page.viewportSize()?.width ?? Number.POSITIVE_INFINITY) < 768
+        ? page.getByRole('listitem').filter({ hasText: noticeTitle })
+        : page.getByRole('row').filter({ hasText: noticeTitle });
+    await expect(noticeRecord).toBeVisible();
     const markRead = page.waitForResponse(
       (response) =>
         response.request().method() === 'PUT' &&
         new URL(response.url()).pathname === `/admin/api/notice/read/${created.notice}`,
     );
-    await noticeRow.getByRole('button', { name: /Mark read$/ }).click();
+    await noticeRecord.getByRole('button', { name: /Mark read$/ }).click();
     expect((await markRead).ok()).toBe(true);
-    await expect(noticeRow.getByRole('button', { name: /Mark read$/ })).toHaveCount(0);
+    await expect(noticeRecord.getByRole('button', { name: /Mark read$/ })).toHaveCount(0);
     await expectNoDocumentOverflow(page);
 
     const loginLogs = page.waitForResponse(

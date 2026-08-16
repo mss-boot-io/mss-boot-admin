@@ -59,11 +59,21 @@ if (coreJsRuntime.length > 0) {
     `core-js entered the modern-browser production graph: ${coreJsRuntime.slice(0, 3).join(', ')}`,
   );
 }
+const legacyNormalizeRuntime = moduleNames.filter((name) =>
+  name.includes('/es5-ext/string/#/normalize/'),
+);
+if (legacyNormalizeRuntime.length > 0) {
+  failures.push(
+    `the obsolete es5-ext Unicode normalization table entered the production graph: ${legacyNormalizeRuntime
+      .slice(0, 3)
+      .join(', ')}`,
+  );
+}
 if (!moduleNames.some((name) => name.includes('/node_modules/dayjs/'))) {
   failures.push('the aliased Day.js runtime is missing from the production graph');
 }
 
 if (failures.length > 0) throw new Error(`Runtime bundle contract failed:\n${failures.join('\n')}`);
 console.log(
-  'Runtime bundle contract passed: React 19, Ant Design 6, and Day.js without Moment or legacy core-js',
+  'Runtime bundle contract passed: React 19, Ant Design 6, and Day.js without Moment, legacy core-js, or the obsolete es5-ext Unicode table',
 );
