@@ -1,4 +1,3 @@
-import { PageContainer } from '@ant-design/pro-components';
 import { useIntl, useLocation, useModel } from '@umijs/max';
 import DepartmentManagement from '@/modules/administration/DepartmentManagement';
 import MenuManagement from '@/modules/administration/MenuManagement';
@@ -7,6 +6,7 @@ import RoleManagement from '@/modules/administration/RoleManagement';
 import UserManagement from '@/modules/administration/UserManagement';
 import { hasPermission, isRootIdentity } from '@/shared/auth/access';
 import type { InitialState } from '@/shared/auth/types';
+import { PageContainer } from '@/shared/design-system/PageContainer';
 import { PageForbidden } from '@/shared/design-system/PageState';
 import type { ManagementRouteIntent } from '@/shared/navigation/managementRoute';
 

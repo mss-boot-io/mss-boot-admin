@@ -31,6 +31,7 @@ type UserSession struct {
 	RevokedAt            *time.Time          `gorm:"comment:吊销时间" json:"revokedAt,omitempty"`
 	RevokedBy            string              `gorm:"type:varchar(64);comment:吊销操作者" json:"revokedBy,omitempty"`
 	RevokeReason         SessionRevokeReason `gorm:"type:varchar(32);comment:吊销原因" json:"revokeReason,omitempty"`
+	Current              bool                `gorm:"-" json:"current"`
 }
 
 func (*UserSession) TableName() string {

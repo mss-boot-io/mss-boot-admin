@@ -524,12 +524,14 @@ spec:
           value: cd web/antd-v6 && pnpm test:e2e e2e/generated/supplier.spec.ts
     - id: reference-menu-baseline
       requirement: preserve-business-contracts
-      statement: The reference application initialization removes demonstration procurement menus while preserving Supplier generator artifacts and adopted Supplier data.
+      statement: The reference application initialization removes demonstration procurement menus and unused generator-created Supplier roles while preserving Supplier generator artifacts, adopted roles, authorization customizations, users, and business data.
       level: integration
       required: true
       evidence:
         - type: test
           value: admin/cmd/migrate/migration/system/20260816120000_hide_example_supplier_menu_test.go
+        - type: test
+          value: admin/cmd/migrate/migration/system/20260817120000_retire_example_supplier_roles_test.go
   risks:
     - id: pro-beta-churn
       description: ProComponents v3 beta can introduce breaking behavior or type changes before its stable release.

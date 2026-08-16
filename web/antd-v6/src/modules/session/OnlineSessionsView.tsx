@@ -31,6 +31,7 @@ import {
   type OnlineSessionListParams,
   type OnlineSessionStatusFilter,
 } from './contract';
+import { sessionDeviceSummary } from './device';
 import { useOnlineSessionPage } from './query';
 import SessionDetailDrawer from './SessionDetailDrawer';
 
@@ -100,9 +101,14 @@ export default function OnlineSessionsView() {
   const renderStatus = (row: OnlineSession) => {
     const status = getOnlineSessionStatus(row);
     return (
-      <Tag color={statusColor(status)}>
-        {intl.formatMessage({ id: `sessions.status.${status}` })}
-      </Tag>
+      <Space size="small" wrap>
+        <Tag color={statusColor(status)}>
+          {intl.formatMessage({ id: `sessions.status.${status}` })}
+        </Tag>
+        {row.current ? (
+          <Tag color="blue">{intl.formatMessage({ id: 'sessions.current' })}</Tag>
+        ) : null}
+      </Space>
     );
   };
 
@@ -119,6 +125,11 @@ export default function OnlineSessionsView() {
         </Button>
         {active ? (
           <Popconfirm
+            description={
+              row.current
+                ? intl.formatMessage({ id: 'sessions.revoke.current.description' })
+                : undefined
+            }
             title={intl.formatMessage({ id: 'sessions.revoke.confirm' })}
             onConfirm={() => revoke.mutate({ kind: 'session', id: row.id })}
           >
@@ -174,13 +185,17 @@ export default function OnlineSessionsView() {
       render: (_, row) => row.ip || '—',
     },
     {
-      title: intl.formatMessage({ id: 'sessions.field.userAgent' }),
+      title: intl.formatMessage({ id: 'sessions.field.device' }),
       dataIndex: 'userAgent',
       ellipsis: true,
       responsive: ['xl'],
       render: (_, row) => (
         <Typography.Text ellipsis={{ tooltip: row.userAgent }} className="block max-w-64">
-          {row.userAgent || '—'}
+          {sessionDeviceSummary(
+            row.userAgent,
+            intl.formatMessage({ id: 'sessions.device.mobile' }),
+            intl.formatMessage({ id: 'sessions.device.unknown' }),
+          )}
         </Typography.Text>
       ),
     },

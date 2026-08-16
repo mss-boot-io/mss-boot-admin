@@ -159,6 +159,8 @@ spec:
       level: integration
       required: true
       evidence:
+        - type: path
+          value: .mss/inventories/admin-antd-v6-parity.json
         - type: command
           value: go run ./cmd/mss verify --all
         - type: command

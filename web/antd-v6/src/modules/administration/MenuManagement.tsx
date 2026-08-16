@@ -402,7 +402,13 @@ export default function MenuManagement({
             />
           </Form.Item>
           <Form.Item name="sort" label={intl.formatMessage({ id: 'administration.field.sort' })}>
-            <InputNumber className="w-full" min={-1_000_000} max={1_000_000} precision={0} />
+            <InputNumber
+              className="w-full"
+              controls={false}
+              min={-1_000_000}
+              max={1_000_000}
+              precision={0}
+            />
           </Form.Item>
           <Form.Item name="hideInMenu" valuePropName="checked">
             <Checkbox>{intl.formatMessage({ id: 'menu.field.hideInMenu' })}</Checkbox>

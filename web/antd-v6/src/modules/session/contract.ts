@@ -19,6 +19,7 @@ export interface OnlineSession {
   revokedAt?: string;
   revokedBy?: string;
   revokeReason?: SessionRevokeReason;
+  current: boolean;
 }
 
 export interface OnlineSessionListParams {
@@ -114,6 +115,9 @@ export function parseOnlineSession(value: unknown): OnlineSession {
   if (typeof value.revoked !== 'boolean') {
     throw new OnlineSessionContractError('Online session field revoked is invalid');
   }
+  if (value.current !== undefined && typeof value.current !== 'boolean') {
+    throw new OnlineSessionContractError('Online session field current is invalid');
+  }
   return {
     id: stringField(value, 'id', { maxLength: 128 }) as string,
     userID: stringField(value, 'userID', { maxLength: 128 }) as string,
@@ -128,6 +132,7 @@ export function parseOnlineSession(value: unknown): OnlineSession {
     revokedAt: dateField(value, 'revokedAt', true),
     revokedBy: stringField(value, 'revokedBy', { optional: true, maxLength: 128 }),
     revokeReason: revokeReasonField(value),
+    current: value.current === true,
   };
 }
 

@@ -97,6 +97,7 @@ function onlineSession(): OnlineSession {
     lastSeenAt: '2026-08-15T01:00:00Z',
     expiredAt: '2099-08-15T02:00:00Z',
     revoked: false,
+    current: false,
   };
 }
 

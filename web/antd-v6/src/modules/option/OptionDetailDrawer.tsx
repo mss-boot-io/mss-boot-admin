@@ -3,6 +3,7 @@ import { useIntl } from '@umijs/max';
 import { Alert, Button, Descriptions, Drawer, Listy, Space, Tag, Typography } from 'antd';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+import { presentOptionDetail } from './presentation';
 import { useOption } from './query';
 
 interface OptionDetailDrawerProps {
@@ -16,6 +17,7 @@ export default function OptionDetailDrawer({ id, open, onClose }: OptionDetailDr
   const detail = useOption(open ? id : undefined);
   const status = getRequestStatus(detail.error);
   const option = detail.data;
+  const presentedOption = option ? presentOptionDetail(option, intl) : undefined;
 
   const content = (() => {
     if (detail.isPending && !option) return <PageLoading rows={7} />;
@@ -32,7 +34,7 @@ export default function OptionDetailDrawer({ id, open, onClose }: OptionDetailDr
         />
       );
     }
-    if (!option) return null;
+    if (!presentedOption) return null;
 
     return (
       <Space orientation="vertical" size="middle" className="w-full">
@@ -55,27 +57,27 @@ export default function OptionDetailDrawer({ id, open, onClose }: OptionDetailDr
             {
               key: 'name',
               label: intl.formatMessage({ id: 'option.field.name' }),
-              children: <Typography.Text code>{option.name}</Typography.Text>,
+              children: <Typography.Text code>{presentedOption.name}</Typography.Text>,
             },
             {
               key: 'category',
               label: intl.formatMessage({ id: 'option.field.category' }),
-              children: <Typography.Text code>{option.category}</Typography.Text>,
+              children: <Typography.Text code>{presentedOption.category}</Typography.Text>,
             },
             {
               key: 'displayName',
               label: intl.formatMessage({ id: 'option.field.displayName' }),
-              children: option.displayName || '—',
+              children: presentedOption.displayName || '—',
             },
             {
               key: 'status',
               label: intl.formatMessage({ id: 'option.field.status' }),
               children: (
                 <Space wrap>
-                  <Tag color={option.status === 'enabled' ? 'green' : 'red'}>
-                    {intl.formatMessage({ id: `option.status.${option.status}` })}
+                  <Tag color={presentedOption.status === 'enabled' ? 'green' : 'red'}>
+                    {intl.formatMessage({ id: `option.status.${presentedOption.status}` })}
                   </Tag>
-                  {option.builtIn ? (
+                  {presentedOption.builtIn ? (
                     <Tag>{intl.formatMessage({ id: 'option.builtIn' })}</Tag>
                   ) : null}
                 </Space>
@@ -84,32 +86,35 @@ export default function OptionDetailDrawer({ id, open, onClose }: OptionDetailDr
             {
               key: 'version',
               label: intl.formatMessage({ id: 'option.field.version' }),
-              children: option.version,
+              children: presentedOption.version,
             },
             {
               key: 'description',
               label: intl.formatMessage({ id: 'option.field.description' }),
-              children: option.description || '—',
+              children: presentedOption.description || '—',
             },
             {
               key: 'remark',
               label: intl.formatMessage({ id: 'option.field.remark' }),
-              children: option.remark || '—',
+              children: presentedOption.remark || '—',
             },
           ]}
           size="small"
         />
         <Typography.Title level={5} className="mb-0">
-          {intl.formatMessage({ id: 'option.items.title' }, { count: option.items.length })}
+          {intl.formatMessage(
+            { id: 'option.items.title' },
+            { count: presentedOption.items.length },
+          )}
         </Typography.Title>
-        {option.items.length === 0 ? (
+        {presentedOption.items.length === 0 ? (
           <PageEmpty description={intl.formatMessage({ id: 'option.items.empty' })} />
         ) : (
           <Listy
-            height={option.items.length > 20 ? 520 : undefined}
-            items={option.items}
+            height={presentedOption.items.length > 20 ? 520 : undefined}
+            items={presentedOption.items}
             rowKey="id"
-            virtual={option.items.length > 20}
+            virtual={presentedOption.items.length > 20}
             itemRender={(item) => (
               <Space orientation="vertical" size={2} className="w-full">
                 <Typography.Text strong>{item.label}</Typography.Text>
@@ -149,7 +154,9 @@ export default function OptionDetailDrawer({ id, open, onClose }: OptionDetailDr
       open={open}
       size="large"
       title={
-        option?.displayName || option?.name || intl.formatMessage({ id: 'option.detail.title' })
+        presentedOption?.displayName ||
+        presentedOption?.name ||
+        intl.formatMessage({ id: 'option.detail.title' })
       }
       onClose={onClose}
     >

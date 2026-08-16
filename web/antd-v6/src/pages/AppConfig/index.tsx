@@ -1,4 +1,3 @@
-import { PageContainer } from '@ant-design/pro-components';
 import { useIntl, useSearchParams } from '@umijs/max';
 import { Grid, Tabs } from 'antd';
 import BasePanel from '@/modules/app-config/BasePanel';
@@ -6,6 +5,7 @@ import EmailPanel from '@/modules/app-config/EmailPanel';
 import SecurityPanel from '@/modules/app-config/SecurityPanel';
 import StoragePanel from '@/modules/app-config/StoragePanel';
 import ThemeSettingsEditor from '@/modules/theme/ThemeSettingsEditor';
+import { PageContainer } from '@/shared/design-system/PageContainer';
 
 export default function AppConfigPage() {
   const intl = useIntl();

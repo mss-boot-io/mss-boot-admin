@@ -369,6 +369,7 @@ export default function OptionEditor({ id, mode }: OptionEditorProps) {
                         >
                           <InputNumber
                             className="w-full"
+                            controls={false}
                             max={MAX_OPTION_ITEM_SORT}
                             min={-MAX_OPTION_ITEM_SORT}
                             precision={0}

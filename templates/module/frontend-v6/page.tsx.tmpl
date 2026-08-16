@@ -17,7 +17,6 @@ import PlusOutlined from '@ant-design/icons/PlusOutlined';
 {{- end }}
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import SearchOutlined from '@ant-design/icons/SearchOutlined';
-import { PageContainer } from '@ant-design/pro-components';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
 import {
@@ -45,6 +44,7 @@ import {
 import { useMemo, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import type { InitialState } from '@/shared/auth/types';
+import { PageContainer } from '@/shared/design-system/PageContainer';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
 import { {{ .ModuleName }}API } from './api';
 import { build{{ .ModelName }}Query, get{{ .ModelName }}Capabilities } from './contract';

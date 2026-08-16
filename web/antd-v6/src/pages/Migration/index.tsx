@@ -1,6 +1,7 @@
 import CheckCircleOutlined from '@ant-design/icons/CheckCircleOutlined';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
 import { Tag, Typography } from 'antd';
+import { PageContainer } from '@/shared/design-system/PageContainer';
 import { useRuntimeMessage } from '@/shared/i18n/runtime';
 
 const capabilityMessageIDs = [

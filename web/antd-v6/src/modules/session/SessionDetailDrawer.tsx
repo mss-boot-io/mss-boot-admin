@@ -1,5 +1,5 @@
 import { useIntl } from '@umijs/max';
-import { Alert, Descriptions, Drawer, Grid, Tag } from 'antd';
+import { Alert, Descriptions, Drawer, Grid, Space, Tag } from 'antd';
 import { useMemo } from 'react';
 import {
   type AdministrationListParams,
@@ -9,6 +9,7 @@ import { useAdministrationPage } from '@/modules/administration/query';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
 import { getOnlineSessionStatus } from './contract';
+import { sessionDeviceSummary } from './device';
 import { useOnlineSession } from './query';
 
 function statusColor(status: ReturnType<typeof getOnlineSessionStatus>): string {
@@ -103,9 +104,14 @@ export default function SessionDetailDrawer({
               key: 'status',
               label: intl.formatMessage({ id: 'sessions.field.status' }),
               children: status ? (
-                <Tag color={statusColor(status)}>
-                  {intl.formatMessage({ id: `sessions.status.${status}` })}
-                </Tag>
+                <Space size="small" wrap>
+                  <Tag color={statusColor(status)}>
+                    {intl.formatMessage({ id: `sessions.status.${status}` })}
+                  </Tag>
+                  {session.data.current ? (
+                    <Tag color="blue">{intl.formatMessage({ id: 'sessions.current' })}</Tag>
+                  ) : null}
+                </Space>
               ) : (
                 '—'
               ),
@@ -116,8 +122,17 @@ export default function SessionDetailDrawer({
               children: session.data.ip || '—',
             },
             {
+              key: 'device',
+              label: intl.formatMessage({ id: 'sessions.field.device' }),
+              children: sessionDeviceSummary(
+                session.data.userAgent,
+                intl.formatMessage({ id: 'sessions.device.mobile' }),
+                intl.formatMessage({ id: 'sessions.device.unknown' }),
+              ),
+            },
+            {
               key: 'userAgent',
-              label: intl.formatMessage({ id: 'sessions.field.userAgent' }),
+              label: intl.formatMessage({ id: 'sessions.field.userAgentRaw' }),
               children: <span className="break-all">{session.data.userAgent || '—'}</span>,
             },
             {

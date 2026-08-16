@@ -314,7 +314,14 @@ export default function TaskManagement({ root, routeIntent }: TaskManagementProp
     <Space orientation="vertical" size="middle" className="w-full">
       {!root ? (
         <Alert showIcon title={intl.formatMessage({ id: 'task.readOnly' })} type="info" />
-      ) : null}
+      ) : (
+        <Alert
+          description={intl.formatMessage({ id: 'task.security.description' })}
+          showIcon
+          title={intl.formatMessage({ id: 'task.security.title' })}
+          type="warning"
+        />
+      )}
       {tasks.isError ? (
         <Alert
           showIcon
@@ -430,6 +437,12 @@ export default function TaskManagement({ root, routeIntent }: TaskManagementProp
         onCancel={closeEditor}
         onOk={() => editorForm.submit()}
       >
+        <Alert
+          className="mb-4"
+          description={intl.formatMessage({ id: 'task.editor.security.description' })}
+          showIcon
+          type="warning"
+        />
         {editing !== 'create' && detail.isPending ? <PageLoading rows={6} /> : null}
         {editorError ? (
           <Alert
@@ -494,7 +507,7 @@ export default function TaskManagement({ root, routeIntent }: TaskManagementProp
                   label={intl.formatMessage({ id: 'task.field.timeout' })}
                   rules={[{ required: true, type: 'number', min: 1, max: 3600 }]}
                 >
-                  <InputNumber className="w-full" min={1} max={3600} />
+                  <InputNumber className="w-full" controls={false} min={1} max={3600} />
                 </Form.Item>
               </Col>
             </Row>

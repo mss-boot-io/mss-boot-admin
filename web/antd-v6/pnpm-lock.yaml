@@ -9,6 +9,11 @@ overrides:
   '@umijs/plugins>@tanstack/react-query': 5.101.4
   dva-immer>immer: 9.0.21
 
+patchedDependencies:
+  '@rc-component/tabs@1.12.0':
+    hash: bce002b76080fb560d5ea043c539ac86e5ded9cc375c0ff5ad0463257ef0f146
+    path: patches/@rc-component__tabs@1.12.0.patch
+
 importers:
 
   .:
@@ -8753,7 +8758,7 @@ snapshots:
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
 
-  '@rc-component/tabs@1.12.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@rc-component/tabs@1.12.0(patch_hash=bce002b76080fb560d5ea043c539ac86e5ded9cc375c0ff5ad0463257ef0f146)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@rc-component/dropdown': 1.0.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@rc-component/menu': 1.4.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -10291,7 +10296,7 @@ snapshots:
       '@rc-component/steps': 1.2.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@rc-component/switch': 1.0.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@rc-component/table': 1.11.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@rc-component/tabs': 1.12.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@rc-component/tabs': 1.12.0(patch_hash=bce002b76080fb560d5ea043c539ac86e5ded9cc375c0ff5ad0463257ef0f146)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@rc-component/tooltip': 1.5.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@rc-component/tour': 2.4.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@rc-component/tree': 1.4.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)

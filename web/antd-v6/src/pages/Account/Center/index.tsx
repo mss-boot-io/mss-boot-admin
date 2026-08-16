@@ -2,12 +2,13 @@ import EditOutlined from '@ant-design/icons/EditOutlined';
 import MailOutlined from '@ant-design/icons/MailOutlined';
 import PhoneOutlined from '@ant-design/icons/PhoneOutlined';
 import UserOutlined from '@ant-design/icons/UserOutlined';
-import { PageContainer, ProCard } from '@ant-design/pro-components';
+import { ProCard } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useIntl, useModel } from '@umijs/max';
 import { Avatar, Button, Descriptions, Space, Tag, Typography } from 'antd';
 import { fetchCurrentUser } from '@/shared/auth/session';
 import type { InitialState } from '@/shared/auth/types';
+import { PageContainer } from '@/shared/design-system/PageContainer';
 import { PageError, PageLoading } from '@/shared/design-system/PageState';
 import { queryKeys } from '@/shared/query/client';
 

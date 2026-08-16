@@ -1,5 +1,6 @@
 import GithubOutlined from '@ant-design/icons/GithubOutlined';
 import LogoutOutlined from '@ant-design/icons/LogoutOutlined';
+import MenuOutlined from '@ant-design/icons/MenuOutlined';
 import QuestionCircleOutlined from '@ant-design/icons/QuestionCircleOutlined';
 import SettingOutlined from '@ant-design/icons/SettingOutlined';
 import UserOutlined from '@ant-design/icons/UserOutlined';
@@ -263,7 +264,13 @@ function StartupFailureView({ failure }: { failure: StartupFailure }) {
   );
 }
 
-function AvatarMenu({ initialState }: { initialState?: InitialState }) {
+function AvatarMenu({
+  initialState,
+  compact = false,
+}: {
+  initialState?: InitialState;
+  compact?: boolean;
+}) {
   const intl = useIntl();
   const currentUser = initialState?.currentUser;
   const label = currentUser?.name ?? currentUser?.username ?? 'MSS User';
@@ -326,7 +333,7 @@ function AvatarMenu({ initialState }: { initialState?: InitialState }) {
         }
         type="text"
       >
-        <Typography.Text>{label}</Typography.Text>
+        {compact ? null : <Typography.Text>{label}</Typography.Text>}
       </Button>
     </Dropdown>
   );
@@ -343,6 +350,107 @@ function DocumentationLink() {
       icon={<QuestionCircleOutlined />}
       aria-label={intl.formatMessage({ id: 'navigation.documentation' })}
     />
+  );
+}
+
+function HeaderActions({
+  initialState,
+  compact = false,
+}: {
+  initialState?: InitialState;
+  compact?: boolean;
+}) {
+  return (
+    <>
+      <MenuSearch items={initialState?.authorizedMenu ?? []} />
+      <HeaderNotice user={initialState?.currentUser} />
+      {compact ? null : <DocumentationLink />}
+      <LocaleSwitcher />
+    </>
+  );
+}
+
+function desktopHeaderActions(initialState?: InitialState) {
+  return [
+    <MenuSearch key="menu-search" items={initialState?.authorizedMenu ?? []} />,
+    <HeaderNotice key="notice" user={initialState?.currentUser} />,
+    <DocumentationLink key="documentation" />,
+    <LocaleSwitcher key="language" />,
+  ];
+}
+
+function applicationIdentity(initialState?: InitialState) {
+  return {
+    title:
+      typeof initialState?.settings?.title === 'string' && initialState.settings.title.trim()
+        ? initialState.settings.title.trim()
+        : 'mss-boot-io',
+    logo:
+      typeof initialState?.settings?.logo === 'string' && initialState.settings.logo.trim()
+        ? initialState.settings.logo.trim()
+        : '/logo.svg',
+  };
+}
+
+function ApplicationBrand({
+  collapsed = false,
+  initialState,
+}: {
+  collapsed?: boolean;
+  initialState?: InitialState;
+}) {
+  const intl = useIntl();
+  const { logo, title } = applicationIdentity(initialState);
+  return (
+    <Link
+      aria-label={intl.formatMessage({ id: 'navigation.home' }, { name: title })}
+      className="flex h-full min-w-0 items-center gap-2"
+      to="/workplace"
+    >
+      <img alt="" className="h-7 w-7 shrink-0 object-contain" src={logo} />
+      {collapsed ? null : <span className="truncate font-semibold">{title}</span>}
+    </Link>
+  );
+}
+
+function AccessibleMobileHeader({
+  collapsed,
+  initialState,
+  onCollapse,
+}: {
+  collapsed?: boolean;
+  initialState?: InitialState;
+  onCollapse?: (collapsed: boolean) => void;
+}) {
+  const intl = useIntl();
+  const { logo, title } = applicationIdentity(initialState);
+  const navigationLabel = intl.formatMessage({
+    id: collapsed ? 'navigation.sidebar.open' : 'navigation.sidebar.close',
+  });
+
+  return (
+    <div className="flex h-full min-w-0 flex-1 items-center gap-1 px-2">
+      <Button
+        aria-expanded={!collapsed}
+        aria-label={navigationLabel}
+        htmlType="button"
+        icon={<MenuOutlined />}
+        onClick={() => onCollapse?.(!collapsed)}
+        type="text"
+      />
+      <Link
+        aria-label={intl.formatMessage({ id: 'navigation.home' }, { name: title })}
+        className="flex min-w-0 items-center gap-2"
+        to="/workplace"
+      >
+        <img alt="" className="h-7 w-7 shrink-0 object-contain" src={logo} />
+        <span className="hidden max-w-36 truncate font-semibold sm:inline">{title}</span>
+      </Link>
+      <div className="ml-auto flex shrink-0 items-center">
+        <HeaderActions compact initialState={initialState} />
+        <AvatarMenu compact initialState={initialState} />
+      </div>
+    </div>
   );
 }
 
@@ -387,12 +495,7 @@ function ApplicationFooter({ initialState }: { initialState?: InitialState }) {
 
 export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   ...initialState?.settings,
-  actionsRender: () => [
-    <MenuSearch key="menu-search" items={initialState?.authorizedMenu ?? []} />,
-    <HeaderNotice key="notice" user={initialState?.currentUser} />,
-    <DocumentationLink key="documentation" />,
-    <LocaleSwitcher key="language" />,
-  ],
+  actionsRender: () => desktopHeaderActions(initialState),
   avatarProps: {
     render: () => <AvatarMenu initialState={initialState} />,
   },
@@ -404,11 +507,27 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
       children
     ),
   footerRender: () => <ApplicationFooter initialState={initialState} />,
+  headerRender: (props, defaultDom) =>
+    props.isMobile ? (
+      <AccessibleMobileHeader
+        collapsed={props.collapsed}
+        initialState={initialState}
+        onCollapse={props.onCollapse}
+      />
+    ) : (
+      defaultDom
+    ),
+  headerTitleRender: (_logo, _title, props) => (
+    <ApplicationBrand collapsed={props?.collapsed} initialState={initialState} />
+  ),
   menu: {
     params: { authorizationVersion: initialState?.authorizationVersion ?? 0 },
     request: async () => initialState?.authorizedMenu ?? [],
   },
   menuDataRender: resolveMenuIcons,
+  menuHeaderRender: (_logo, _title, props) => (
+    <ApplicationBrand collapsed={props?.collapsed} initialState={initialState} />
+  ),
   menuItemRender: (item, dom) =>
     item.path ? (
       <Link to={item.path} prefetch>
@@ -430,9 +549,15 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   waterMarkProps: {
     content:
       initialState?.currentUser?.name?.trim() || initialState?.currentUser?.username?.trim() || '',
-    gapX: 220,
-    gapY: 180,
-    font: { fontSize: 14 },
+    gapX: 320,
+    gapY: 240,
+    font: {
+      color:
+        initialState?.settings?.navTheme === 'realDark'
+          ? 'rgba(255, 255, 255, 0.035)'
+          : 'rgba(0, 0, 0, 0.025)',
+      fontSize: 12,
+    },
   },
 });
 
