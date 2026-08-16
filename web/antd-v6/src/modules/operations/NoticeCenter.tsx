@@ -23,7 +23,7 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
 import { queryKeys } from '@/shared/query/client';
@@ -60,12 +60,13 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
   const queryClient = useQueryClient();
   const screens = Grid.useBreakpoint();
   const [searchParams] = useSearchParams();
-  const initialType = isNoticeType(searchParams.get('type')) ? searchParams.get('type') : 'all';
+  const requestedType = searchParams.get('type');
+  const routeType: NoticeType | 'all' = isNoticeType(requestedType) ? requestedType : 'all';
   const initialParams: NoticeListParams = {
     current: 1,
     pageSize: 20,
     status: 'all',
-    type: initialType as NoticeType | 'all',
+    type: routeType,
   };
   const [form] = Form.useForm<NoticeFilterValues>();
   const [params, setParams] = useState<NoticeListParams>(initialParams);
@@ -79,6 +80,13 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
       void message.success(intl.formatMessage({ id: 'notice.read.success' }));
     },
   });
+
+  useEffect(() => {
+    form.setFieldValue('type', routeType);
+    setParams((current) =>
+      current.type === routeType ? current : { ...current, current: 1, type: routeType },
+    );
+  }, [form, routeType]);
 
   const formatDate = (value?: string) =>
     value
@@ -207,7 +215,7 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
       ) : null}
       <Form<NoticeFilterValues>
         form={form}
-        initialValues={{ status: 'all', type: initialType }}
+        initialValues={{ status: 'all', type: routeType }}
         layout="vertical"
         onFinish={(values) =>
           setParams((current) => ({
