@@ -96,7 +96,18 @@ func (e *User) GetUserID() string {
 
 // PasswordReset reset password
 func PasswordReset(ctx context.Context, userID string, password string) error {
-	db := gormdb.DB.WithContext(ctx)
+	return PasswordResetWithDB(ctx, gormdb.DB, userID, password)
+}
+
+// PasswordResetWithDB rotates the one-way verifier and revokes durable
+// credentials on the supplied database handle. Passing an existing
+// transaction lets recent-authentication checks and the credential boundary
+// commit atomically.
+func PasswordResetWithDB(ctx context.Context, database *gorm.DB, userID string, password string) error {
+	if database == nil {
+		return errors.New("password reset database is unavailable")
+	}
+	db := database.WithContext(ctx)
 	if db.Logger != nil {
 		db = db.Session(&gorm.Session{Logger: db.Logger.LogMode(logger.Silent)})
 	}
@@ -630,11 +641,11 @@ func (e *UserLogin) Verify(ctx context.Context) (bool, security.Verifier, error)
 	if user.LocalPasswordDisabled {
 		return false, nil, nil
 	}
-	verify, err := security.SetPassword(e.Password, user.Salt)
+	verified, err := security.VerifyPassword(e.Password, user.Salt, user.PasswordHash)
 	if err != nil {
 		return false, nil, err
 	}
-	return verify == user.PasswordHash, user, nil
+	return verified, user, nil
 }
 
 func (e *UserLogin) GetUserLarkOAuth2(c *gin.Context) (*UserOAuth2, error) {

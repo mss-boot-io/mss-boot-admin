@@ -21,7 +21,7 @@ type OauthCallbackReq struct {
 
 type OAuthAuthorizeRequest struct {
 	Provider pkg.LoginProvider `json:"provider" binding:"required"`
-	Intent   string            `json:"intent" binding:"required,oneof=login binding"`
+	Intent   string            `json:"intent" binding:"required,oneof=login binding reauthentication"`
 }
 
 type OAuthAuthorizeResponse struct {

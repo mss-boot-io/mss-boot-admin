@@ -253,8 +253,56 @@ spec:
           value: web/antd-v6/src/locales/catalog.test.ts
         - type: test
           value: admin/apis/user_profile_update_test.go
+        - type: test
+          value: admin/models/menu_test.go
+        - type: test
+          value: web/antd-v6/src/shared/navigation/menuLocale.test.ts
         - type: path
           value: web/antd-v6/scripts/check-runtime-bundle.mjs
+        - type: command
+          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+    - id: account-credential-self-service-contract
+      requirement: preserve-business-contracts
+      statement: Personal password rotation and OAuth disconnect require a current durable-session proof, persist proof-failure limits, never expose reversible password material or provider credentials, atomically revoke sessions and PATs on password change, and transactionally preserve at least one verified login method.
+      level: security
+      required: true
+      evidence:
+        - type: path
+          value: docs/adr/2026-08-16-account-reauthentication-and-credential-self-service.md
+        - type: test
+          value: mss-boot/pkg/security/tools_test.go
+        - type: test
+          value: admin/service/account_security_test.go
+        - type: test
+          value: admin/apis/user_password_reset_test.go
+        - type: test
+          value: admin/apis/oauth_test.go
+        - type: test
+          value: admin/cmd/migrate/migration/system/account_reauthentication_test.go
+        - type: test
+          value: web/antd-v6/src/modules/account/contracts.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/account/api.test.ts
+        - type: command
+          value: cd admin && GOWORK=off go test ./service ./apis ./pkg/oauthstate ./cmd/migrate/migration/system
+        - type: command
+          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+    - id: application-settings-parity-contract
+      requirement: preserve-business-contracts
+      statement: Application settings expose responsive base, security, storage-admission, email, and theme groups with explicit permissions, V5/V6 OAuth separation, write-only secret rotation, immediate runtime branding refresh, synchronized locales, and no browser-managed storage credentials.
+      level: integration
+      required: true
+      evidence:
+        - type: path
+          value: web/antd-v6/src/modules/app-config
+        - type: test
+          value: web/antd-v6/src/modules/app-config/contracts.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/app-config/api.test.ts
+        - type: test
+          value: admin/apis/theme_config_test.go
+        - type: test
+          value: admin/service/app_config_secret_test.go
         - type: command
           value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
     - id: responsive-locale-matrix

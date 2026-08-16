@@ -100,6 +100,52 @@ func TestOAuthCallbackValidatesStateBeforeCodeExchange(t *testing.T) {
 		}
 	})
 
+	t.Run("successful reauthentication is bound to the current durable session", func(t *testing.T) {
+		exchanges := 0
+		completions := 0
+		user := newOAuthTestUser(&exchanges)
+		user.oauthReauthComplete = func(
+			_ *gin.Context,
+			userID, sid string,
+			provider pkg.LoginProvider,
+			providerToken string,
+		) error {
+			completions++
+			if userID != "user-1" || sid != "oauth-session-id" ||
+				provider != pkg.GithubLoginProvider || providerToken == "" {
+				t.Fatalf("reauthentication completion user=%q sid=%q provider=%q token-empty=%v", userID, sid, provider, providerToken == "")
+			}
+			return nil
+		}
+		verifier := oauthTestUser("user-1", false)
+		state, cookie := issueOAuthState(
+			t,
+			user,
+			pkg.GithubLoginProvider,
+			oauthstate.IntentReauthentication,
+			testOAuthCredential,
+			verifier,
+		)
+		callback := executeOAuthCallback(
+			user,
+			pkg.GithubLoginProvider,
+			state,
+			testOAuthCredential,
+			verifier,
+			cookie,
+		)
+		if callback.Code != http.StatusCreated || exchanges != 1 || completions != 1 {
+			t.Fatalf("reauth callback status=%d exchanges=%d completions=%d body=%s", callback.Code, exchanges, completions, callback.Body.String())
+		}
+		var result dto.OAuthCallbackResponse
+		if err := json.Unmarshal(callback.Body.Bytes(), &result); err != nil {
+			t.Fatalf("decode reauthentication response: %v", err)
+		}
+		if result.Intent != string(oauthstate.IntentReauthentication) || result.Token != "" || result.Expire != nil {
+			t.Fatalf("reauthentication callback metadata = %#v", result)
+		}
+	})
+
 	t.Run("binding rejects an identity owned by another user", func(t *testing.T) {
 		exchanges := 0
 		user := newOAuthTestUser(&exchanges)
@@ -280,6 +326,8 @@ func TestOAuthAuthorizeEnforcesIntentAuthenticationBoundary(t *testing.T) {
 	}{
 		{name: "anonymous binding", intent: oauthstate.IntentBinding, wantStatus: http.StatusUnauthorized},
 		{name: "personal access token binding", intent: oauthstate.IntentBinding, credential: "pat", verifier: oauthTestUser("user-1", true), wantStatus: http.StatusForbidden},
+		{name: "anonymous reauthentication", intent: oauthstate.IntentReauthentication, wantStatus: http.StatusUnauthorized},
+		{name: "personal access token reauthentication", intent: oauthstate.IntentReauthentication, credential: "pat", verifier: oauthTestUser("user-1", true), wantStatus: http.StatusForbidden},
 		{name: "residual authenticated login", intent: oauthstate.IntentLogin, credential: "session", verifier: oauthTestUser("user-1", false), wantStatus: http.StatusConflict},
 		{name: "retired integration", intent: oauthstate.Intent("integration"), credential: "session", verifier: oauthTestUser("user-1", false), wantStatus: http.StatusUnprocessableEntity},
 	}
@@ -608,6 +656,7 @@ func executeOAuthRequest(request *http.Request, verifier security.Verifier, hand
 	router.Use(func(c *gin.Context) {
 		if verifier != nil {
 			c.Set("oauth-test-verifier", verifier)
+			c.Set("JWT_PAYLOAD", jwt.MapClaims{"sid": "oauth-session-id"})
 		}
 		c.Next()
 	})

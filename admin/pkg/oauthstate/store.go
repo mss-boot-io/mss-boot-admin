@@ -34,15 +34,16 @@ type Intent string
 type Transport string
 
 const (
-	IntentLogin   Intent = "login"
-	IntentBinding Intent = "binding"
+	IntentLogin            Intent = "login"
+	IntentBinding          Intent = "binding"
+	IntentReauthentication Intent = "reauthentication"
 
 	TransportBearer        Transport = "bearer"
 	TransportBrowserCookie Transport = "browser-cookie"
 )
 
 func (i Intent) Valid() bool {
-	return i == IntentLogin || i == IntentBinding
+	return i == IntentLogin || i == IntentBinding || i == IntentReauthentication
 }
 
 func (t Transport) Valid() bool {
@@ -68,6 +69,7 @@ type Record struct {
 	Transport             Transport `json:"transport,omitempty"`
 	UserID                string    `json:"userID,omitempty"`
 	CredentialFingerprint string    `json:"credentialFingerprint,omitempty"`
+	SessionID             string    `json:"sessionID,omitempty"`
 	BrowserHash           string    `json:"browserHash"`
 	IssuedAt              time.Time `json:"issuedAt"`
 	ExpiresAt             time.Time `json:"expiresAt"`

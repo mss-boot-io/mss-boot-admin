@@ -601,9 +601,23 @@ func IsPersonalAccessTokenVerifier(verifier security.Verifier) bool {
 		(verifier.GetPersonAccessToken() != "" || verifier.GetRefreshTokenDisable())
 }
 
+// CurrentSessionID returns the durable server-session identifier carried by
+// the authenticated JWT. Sensitive self-service fails closed when a legacy
+// credential has no sid instead of treating a bearer token as step-up proof.
+func CurrentSessionID(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	return strings.TrimSpace(cast.ToString(jwt.ExtractClaims(c)["sid"]))
+}
+
 func isInteractiveSensitiveRequest(method, path string) bool {
 	switch method + " " + path {
 	case http.MethodPost + " /admin/api/user/reset-password",
+		http.MethodGet + " /admin/api/user/security",
+		http.MethodPost + " /admin/api/user/security/reauthenticate",
+		http.MethodPut + " /admin/api/user/security/password",
+		http.MethodDelete + " /admin/api/user/oauth2/:provider",
 		http.MethodPut + " /admin/api/user/userInfo",
 		http.MethodPost + " /admin/api/user/oauth2/authorize",
 		http.MethodPost + " /admin/api/user/session/oauth2/authorize",
@@ -637,6 +651,10 @@ var selfServiceRequests = map[string]struct{}{
 	http.MethodPut + " /admin/api/user-auth-token/:id/revoke":       {},
 	http.MethodPut + " /admin/api/user-auth-token/:id/refresh":      {},
 	http.MethodPost + " /admin/api/user/reset-password":             {},
+	http.MethodGet + " /admin/api/user/security":                    {},
+	http.MethodPost + " /admin/api/user/security/reauthenticate":    {},
+	http.MethodPut + " /admin/api/user/security/password":           {},
+	http.MethodDelete + " /admin/api/user/oauth2/:provider":         {},
 	http.MethodGet + " /admin/api/user/userInfo":                    {},
 	http.MethodPut + " /admin/api/user/userInfo":                    {},
 	http.MethodPost + " /admin/api/user/avatar":                     {},

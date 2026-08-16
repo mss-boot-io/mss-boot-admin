@@ -17,6 +17,7 @@ import {
 } from 'antd';
 import { useMemo, useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
+import { formatMenuLabel } from '@/shared/navigation/menuLocale';
 import { queryKeys } from '@/shared/query/client';
 import AdministrationTable, { AdministrationStatusTag } from './AdministrationTable';
 import { administrationAPI } from './api';
@@ -123,7 +124,7 @@ export default function MenuManagement({ canCreate, canDelete, canEdit }: MenuMa
       title: intl.formatMessage({ id: 'administration.field.name' }),
       dataIndex: 'name',
       width: 240,
-      render: (_, menu) => intl.formatMessage({ id: menu.name, defaultMessage: menu.name }),
+      render: (_, menu) => formatMenuLabel(intl, menu.name),
     },
     {
       title: intl.formatMessage({ id: 'menu.field.path' }),

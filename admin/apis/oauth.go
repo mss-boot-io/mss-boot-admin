@@ -20,6 +20,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/oauthstate"
+	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 	"github.com/redis/go-redis/v9"
@@ -43,8 +44,10 @@ type oauthAuthorizeURLBuilder func(*gin.Context, pkg.LoginProvider, string) (str
 type oauthCodeExchange func(*gin.Context, pkg.LoginProvider, string) (*dto.OauthToken, error)
 type oauthLoginCompleter func(*gin.Context, pkg.LoginProvider, string) (string, time.Time, error)
 type oauthBindingCompleter func(*gin.Context, string, pkg.LoginProvider, string) error
+type oauthReauthenticationCompleter func(*gin.Context, string, string, pkg.LoginProvider, string) error
 
 var errOAuthIdentityAlreadyBound = errors.New("oauth identity is already bound")
+var errOAuthReauthenticationIdentityMismatch = errors.New("oauth reauthentication identity does not match")
 
 func (e *User) stateStore() oauthStateStore {
 	if e.oauthStates != nil {
@@ -79,6 +82,13 @@ func (e *User) bindingCompleter() oauthBindingCompleter {
 		return e.oauthBindingComplete
 	}
 	return completeOAuthBinding
+}
+
+func (e *User) reauthenticationCompleter() oauthReauthenticationCompleter {
+	if e.oauthReauthComplete != nil {
+		return e.oauthReauthComplete
+	}
+	return completeOAuthReauthentication
 }
 
 func oauthTransport(c *gin.Context) oauthstate.Transport {
@@ -186,6 +196,19 @@ func (e *User) OAuthAuthorize(c *gin.Context) {
 		}
 		record.UserID = verify.GetUserID()
 		record.CredentialFingerprint = credentialFingerprint
+	case oauthstate.IntentReauthentication:
+		sid := middleware.CurrentSessionID(c)
+		if verify == nil || credentialFingerprint == "" || sid == "" {
+			api.Err(http.StatusUnauthorized)
+			return
+		}
+		if middleware.IsPersonalAccessTokenVerifier(verify) {
+			api.Err(http.StatusForbidden)
+			return
+		}
+		record.UserID = verify.GetUserID()
+		record.CredentialFingerprint = credentialFingerprint
+		record.SessionID = sid
 	default:
 		api.Err(http.StatusUnprocessableEntity)
 		return
@@ -263,6 +286,15 @@ func (e *User) oauthCallback(c *gin.Context) {
 			api.Err(http.StatusUnauthorized)
 			return
 		}
+	case oauthstate.IntentReauthentication:
+		if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) ||
+			record.UserID == "" || record.UserID != verify.GetUserID() ||
+			record.SessionID == "" || record.SessionID != middleware.CurrentSessionID(c) ||
+			credentialFingerprint == "" ||
+			!constantTimeEqual(credentialFingerprint, record.CredentialFingerprint) {
+			api.Err(http.StatusUnauthorized)
+			return
+		}
 	}
 
 	providerToken, err := e.codeExchange()(c, req.Provider, req.Code)
@@ -309,6 +341,24 @@ func (e *User) oauthCallback(c *gin.Context) {
 			api.Err(http.StatusInternalServerError)
 			return
 		}
+	case oauthstate.IntentReauthentication:
+		completeErr := e.reauthenticationCompleter()(
+			c,
+			record.UserID,
+			record.SessionID,
+			req.Provider,
+			providerToken.AccessToken,
+		)
+		if errors.Is(completeErr, errOAuthReauthenticationIdentityMismatch) ||
+			errors.Is(completeErr, service.ErrSecuritySessionUnavailable) {
+			api.Err(http.StatusUnauthorized)
+			return
+		}
+		if completeErr != nil {
+			api.Log.Error("oauth reauthentication completion failed")
+			api.Err(http.StatusInternalServerError)
+			return
+		}
 	default:
 		api.Err(http.StatusUnprocessableEntity)
 		return
@@ -334,9 +384,22 @@ func completeOAuthBinding(
 	provider pkg.LoginProvider,
 	providerAccessToken string,
 ) error {
+	identity, err := resolveOAuthIdentity(c, userID, provider, providerAccessToken)
+	if err != nil {
+		return err
+	}
+	return persistOAuthBinding(c, userID, identity)
+}
+
+func resolveOAuthIdentity(
+	c *gin.Context,
+	userID string,
+	provider pkg.LoginProvider,
+	providerAccessToken string,
+) (*models.UserOAuth2, error) {
 	user := &models.User{}
 	if err := center.GetDB(c, user).Where("id = ?", userID).First(user).Error; err != nil {
-		return err
+		return nil, err
 	}
 	previousPassword := user.Password
 	user.Password = providerAccessToken
@@ -352,15 +415,36 @@ func completeOAuthBinding(
 	case pkg.LarkLoginProvider:
 		identity, err = user.GetUserLarkOAuth2(c)
 	default:
-		return errors.New("oauth provider is unsupported")
+		return nil, errors.New("oauth provider is unsupported")
 	}
+	if err != nil {
+		return nil, err
+	}
+	if identity == nil {
+		return nil, errors.New("oauth identity is missing")
+	}
+	return identity, nil
+}
+
+func completeOAuthReauthentication(
+	c *gin.Context,
+	userID, sid string,
+	provider pkg.LoginProvider,
+	providerAccessToken string,
+) error {
+	identity, err := resolveOAuthIdentity(c, userID, provider, providerAccessToken)
 	if err != nil {
 		return err
 	}
-	if identity == nil {
-		return errors.New("oauth identity is missing")
+	if identity.ID == "" || identity.UserID != userID || identity.Provider != provider {
+		return errOAuthReauthenticationIdentityMismatch
 	}
-	return persistOAuthBinding(c, userID, identity)
+	return service.Session.MarkRecentlyAuthenticated(
+		c,
+		center.Default.GetDB(c, &models.UserSession{}),
+		sid,
+		userID,
+	)
 }
 
 func persistOAuthBinding(c *gin.Context, userID string, identity *models.UserOAuth2) error {

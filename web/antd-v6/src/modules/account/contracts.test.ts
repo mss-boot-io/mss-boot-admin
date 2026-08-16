@@ -4,6 +4,7 @@ import {
   buildProfileUpdate,
   parseAccessTokenPage,
   parseAccessTokenSecret,
+  parseAccountSecurityStatus,
   parseNotificationSettings,
   parseOAuthBindings,
   parseOAuthCallbackOutcome,
@@ -113,5 +114,37 @@ describe('account contracts', () => {
         'lark',
       ),
     ).toThrow(AccountContractError);
+    expect(
+      parseOAuthCallbackOutcome(
+        {
+          code: 200,
+          provider: 'github',
+          intent: 'reauthentication',
+          attemptID: 'attempt-2',
+        },
+        'github',
+      ),
+    ).toEqual({
+      provider: 'github',
+      intent: 'reauthentication',
+      attemptID: 'attempt-2',
+    });
+  });
+
+  it('projects only safe account security metadata', () => {
+    expect(
+      parseAccountSecurityStatus({
+        hasLocalPassword: true,
+        recentAuthentication: true,
+        recentAuthenticationExpiresAt: '2026-08-16T04:00:00Z',
+        passwordHash: 'must-not-survive',
+        salt: 'must-not-survive',
+      }),
+    ).toEqual({
+      hasLocalPassword: true,
+      recentAuthentication: true,
+      recentAuthenticationExpiresAt: '2026-08-16T04:00:00Z',
+      reauthenticationLockedUntil: undefined,
+    });
   });
 });

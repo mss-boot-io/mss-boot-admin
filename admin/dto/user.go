@@ -21,6 +21,26 @@ type ResetPasswordRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type AccountReauthenticationRequest struct {
+	Method   string `json:"method" binding:"required,oneof=password"`
+	Password string `json:"password" binding:"required"`
+}
+
+type AccountPasswordChangeRequest struct {
+	NewPassword string `json:"newPassword" binding:"required"`
+}
+
+type AccountSecurityStatus struct {
+	HasLocalPassword              bool       `json:"hasLocalPassword"`
+	RecentAuthentication          bool       `json:"recentAuthentication"`
+	RecentAuthenticationExpiresAt *time.Time `json:"recentAuthenticationExpiresAt,omitempty"`
+	ReauthenticationLockedUntil   *time.Time `json:"reauthenticationLockedUntil,omitempty"`
+}
+
+type AccountPasswordChangeResponse struct {
+	SignedOut bool `json:"signedOut"`
+}
+
 type UserSearch struct {
 	actions.Pagination `search:"inline"`
 	ID                 string `query:"id" form:"id" search:"type:contains;column:id"`

@@ -44,6 +44,13 @@ export default function OAuthCallbackPage() {
           window.location.replace('/account/settings?tab=connections&binding=success');
           return;
         }
+        if (outcome.intent === 'reauthentication') {
+          await queryClient.invalidateQueries({
+            queryKey: queryKeys.accountSecurity(currentUser.id),
+          });
+          window.location.replace('/account/settings?tab=security&reauthentication=success');
+          return;
+        }
         rotateThemeAuthSession(currentUser.id);
         window.location.replace(resolveSafeRedirect(undefined));
       })

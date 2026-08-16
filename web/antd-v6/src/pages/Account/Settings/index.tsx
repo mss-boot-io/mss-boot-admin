@@ -5,13 +5,21 @@ import AccessTokensPanel from '@/modules/account/AccessTokensPanel';
 import NotificationSettingsPanel from '@/modules/account/NotificationSettingsPanel';
 import OAuthBindingsPanel from '@/modules/account/OAuthBindingsPanel';
 import ProfilePanel from '@/modules/account/ProfilePanel';
+import SecurityPanel from '@/modules/account/SecurityPanel';
 import ThemeSettingsEditor from '@/modules/theme/ThemeSettingsEditor';
 
 export default function AccountSettingsPage() {
   const intl = useIntl();
   const screens = Grid.useBreakpoint();
   const [searchParams, setSearchParams] = useSearchParams();
-  const validTabs = new Set(['profile', 'tokens', 'connections', 'notifications', 'theme']);
+  const validTabs = new Set([
+    'profile',
+    'security',
+    'tokens',
+    'connections',
+    'notifications',
+    'theme',
+  ]);
   const requestedTab = searchParams.get('tab') ?? searchParams.get('key') ?? 'profile';
   const activeTab = validTabs.has(requestedTab) ? requestedTab : 'profile';
 
@@ -26,6 +34,11 @@ export default function AccountSettingsPage() {
             key: 'profile',
             label: intl.formatMessage({ id: 'account.tabs.profile' }),
             children: <ProfilePanel />,
+          },
+          {
+            key: 'security',
+            label: intl.formatMessage({ id: 'account.tabs.security' }),
+            children: <SecurityPanel />,
           },
           {
             key: 'tokens',

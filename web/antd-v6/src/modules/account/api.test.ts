@@ -53,6 +53,48 @@ describe('account API', () => {
     });
   });
 
+  it('keeps password proof and rotation on dedicated self-service endpoints', async () => {
+    const client = vi
+      .fn()
+      .mockResolvedValueOnce({ recentAuthentication: true })
+      .mockResolvedValueOnce({ signedOut: true })
+      .mockResolvedValueOnce(undefined);
+    const api = createAccountAPI(client);
+
+    await api.reauthenticateWithPassword('current-password1');
+    await api.changePassword('replacement-password2');
+    await api.disconnectOAuth('github');
+
+    expect(client).toHaveBeenNthCalledWith(1, '/user/security/reauthenticate', {
+      method: 'POST',
+      data: { method: 'password', password: 'current-password1' },
+      skipErrorHandler: true,
+    });
+    expect(client).toHaveBeenNthCalledWith(2, '/user/security/password', {
+      method: 'PUT',
+      data: { newPassword: 'replacement-password2' },
+      skipErrorHandler: true,
+    });
+    expect(client).toHaveBeenNthCalledWith(3, '/user/oauth2/github', {
+      method: 'DELETE',
+      skipErrorHandler: true,
+    });
+  });
+
+  it('starts a server-session-bound OAuth reauthentication flow', async () => {
+    const client = vi.fn().mockResolvedValue({
+      authorizeURL: 'https://github.com/login/oauth/authorize?state=opaque',
+      attemptID: 'attempt-2',
+      expiresAt: '2026-08-16T03:00:00Z',
+    });
+    await createAccountAPI(client).startOAuthAuthorization('github', 'reauthentication');
+    expect(client).toHaveBeenCalledWith('/user/session/oauth2/authorize', {
+      method: 'POST',
+      data: { provider: 'github', intent: 'reauthentication' },
+      skipErrorHandler: true,
+    });
+  });
+
   it('persists one notification key through the authenticated user scope', async () => {
     const client = vi.fn().mockResolvedValue({});
     await createAccountAPI(client).updateNotificationSetting('email', true);

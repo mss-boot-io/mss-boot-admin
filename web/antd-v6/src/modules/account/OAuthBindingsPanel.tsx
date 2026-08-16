@@ -1,14 +1,15 @@
 import ApiOutlined from '@ant-design/icons/ApiOutlined';
+import DeleteOutlined from '@ant-design/icons/DeleteOutlined';
 import GithubOutlined from '@ant-design/icons/GithubOutlined';
 import SafetyCertificateOutlined from '@ant-design/icons/SafetyCertificateOutlined';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl, useModel, useSearchParams } from '@umijs/max';
-import { Alert, Avatar, Button, Empty, Space, Tag, Typography } from 'antd';
+import { Alert, App, Avatar, Button, Empty, Popconfirm, Space, Tag, Typography } from 'antd';
 import { useState } from 'react';
-import { getRequestErrorMessage } from '@/shared/api/client';
+import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/client';
 import type { InitialState } from '@/shared/auth/types';
 import { PageError, PageLoading } from '@/shared/design-system/PageState';
-import { queryKeys } from '@/shared/query/client';
+import { queryClient, queryKeys } from '@/shared/query/client';
 import { isOAuthProviderEnabled } from '@/shared/theme/contract';
 import { accountAPI } from './api';
 import type { OAuthProvider } from './contracts';
@@ -17,14 +18,22 @@ const providers: readonly OAuthProvider[] = ['github', 'lark'];
 
 export default function OAuthBindingsPanel() {
   const intl = useIntl();
+  const { message } = App.useApp();
   const { initialState } = useModel('@@initialState') as { initialState?: InitialState };
   const [searchParams, setSearchParams] = useSearchParams();
   const userID = initialState?.currentUser?.id ?? '';
   const [pendingProvider, setPendingProvider] = useState<OAuthProvider>();
+  const [unlinkingProvider, setUnlinkingProvider] = useState<OAuthProvider>();
   const [bindingError, setBindingError] = useState<string>();
   const bindings = useQuery({
     queryKey: queryKeys.accountOAuth(userID),
     queryFn: accountAPI.listOAuthBindings,
+    enabled: Boolean(userID),
+    staleTime: 0,
+  });
+  const security = useQuery({
+    queryKey: queryKeys.accountSecurity(userID),
+    queryFn: accountAPI.loadSecurityStatus,
     enabled: Boolean(userID),
     staleTime: 0,
   });
@@ -59,6 +68,32 @@ export default function OAuthBindingsPanel() {
   };
 
   const bindingSucceeded = searchParams.get('binding') === 'success';
+
+  const openSecurityProof = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('binding');
+    next.set('tab', 'security');
+    setSearchParams(next);
+  };
+
+  const disconnect = async (provider: OAuthProvider) => {
+    if (unlinkingProvider) return;
+    setUnlinkingProvider(provider);
+    setBindingError(undefined);
+    try {
+      await accountAPI.disconnectOAuth(provider);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.accountOAuth(userID) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.accountSecurity(userID) }),
+      ]);
+      void message.success(intl.formatMessage({ id: 'account.oauth.unlinked' }));
+    } catch (error) {
+      setBindingError(getRequestErrorMessage(error));
+      if (getRequestStatus(error) === 428) openSecurityProof();
+    } finally {
+      setUnlinkingProvider(undefined);
+    }
+  };
 
   return (
     <Space orientation="vertical" size="large" className="w-full">
@@ -131,9 +166,38 @@ export default function OAuthBindingsPanel() {
                 </div>
                 <div>
                   {binding ? (
-                    <Tag color="success">
-                      {intl.formatMessage({ id: 'account.oauth.statusBound' })}
-                    </Tag>
+                    <Space wrap>
+                      <Tag color="success">
+                        {intl.formatMessage({ id: 'account.oauth.statusBound' })}
+                      </Tag>
+                      {security.data?.recentAuthentication ? (
+                        <Popconfirm
+                          title={intl.formatMessage({ id: 'account.oauth.unlinkConfirmTitle' })}
+                          description={intl.formatMessage({
+                            id: 'account.oauth.unlinkConfirmDescription',
+                          })}
+                          okButtonProps={{ danger: true }}
+                          onConfirm={() => disconnect(provider)}
+                        >
+                          <Button
+                            danger
+                            icon={<DeleteOutlined />}
+                            loading={unlinkingProvider === provider}
+                            disabled={Boolean(unlinkingProvider && unlinkingProvider !== provider)}
+                          >
+                            {intl.formatMessage({ id: 'account.oauth.unlink' })}
+                          </Button>
+                        </Popconfirm>
+                      ) : (
+                        <Button
+                          icon={<SafetyCertificateOutlined />}
+                          loading={security.isPending}
+                          onClick={openSecurityProof}
+                        >
+                          {intl.formatMessage({ id: 'account.oauth.verifyBeforeUnlink' })}
+                        </Button>
+                      )}
+                    </Space>
                   ) : enabled ? (
                     <Button
                       type="primary"

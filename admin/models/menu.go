@@ -3,6 +3,7 @@ package models
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -219,13 +220,30 @@ func MenuTransferToTreeSlice(list []*Menu) []pkg.TreeImp {
 func CompleteName(tree []*Menu) []*Menu {
 	for i := range tree {
 		for j := range tree[i].Children {
-			tree[i].Children[j].Name = tree[i].Name + "." + tree[i].Children[j].Name
+			tree[i].Children[j].Name = completeMenuName(tree[i].Name, tree[i].Children[j].Name)
 		}
 		if len(tree[i].Children) > 0 {
 			tree[i].Children = CompleteName(tree[i].Children)
 		}
 	}
 	return tree
+}
+
+func completeMenuName(parentName, childName string) string {
+	parentName = strings.TrimSpace(parentName)
+	childName = strings.TrimSpace(childName)
+	if childName == "" || strings.HasPrefix(childName, "menu.") {
+		return childName
+	}
+	if parentName == "" {
+		return childName
+	}
+
+	parentWithoutPrefix := strings.TrimPrefix(parentName, "menu.")
+	if childName == parentWithoutPrefix || strings.HasPrefix(childName, parentWithoutPrefix+".") {
+		return "menu." + childName
+	}
+	return parentName + "." + childName
 }
 
 func SortMenu(tree MenuList) {

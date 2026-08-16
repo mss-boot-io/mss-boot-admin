@@ -15,9 +15,9 @@ keywords: [admin ant-design v6 react umi migration release]
 - 决策状态：已接受，按独立应用方案实施。
 - 目标目录：`web/antd-v6`。
 - 旧应用：`web/antd` 保持独立构建、发布、部署和回滚，不在本项目中原位升级或删除。
-- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、权限新鲜度、服务端授权 revision 实时推送、分层主题闭环，以及安全账户中心、个人资料、PAT、OAuth 连接、语言切换已实现；P4 已完成工作台监控、在线会话、任务、个人通知、审计/登录/运行时日志和系统配置；P5 已完成用户、角色、菜单、部门、岗位、语言与 Option 管理；P6 的双目标生成器和 Supplier golden 已完成。真实 Go 后端上的 Chromium 桌面/移动、中文/英文、匿名与 Finance 最小权限矩阵，以及独立 Nginx 容器交付 smoke 已通过。邮箱/密码近期再认证、全会话与 PAT 撤销、安全 OAuth 解绑及 TaskRun 原始输出等被冻结的产品/安全契约尚未完成，因此不是生产发布候选。
+- 当前阶段：P0/P1、P2 已完成；P3 的身份启动链、授权菜单求交、权限新鲜度、服务端授权 revision 实时推送、分层主题闭环，以及安全账户中心、个人资料、PAT、近期本人认证、个人改密、OAuth 连接与安全解绑、语言切换已实现；P4 已完成工作台监控、在线会话、任务、个人通知、审计/登录/运行时日志和系统配置；P5 已完成用户、角色、菜单、部门、岗位、语言、Option 与五组应用设置管理；P6 的双目标生成器和 Supplier golden 已完成。真实 Go 后端上的 Chromium 桌面/移动、中文/英文、匿名与 Finance 最小权限矩阵，以及独立 Nginx 容器交付 smoke 已通过。主邮箱变更与 TaskRun 原始输出仍保持冻结，正式发布资格仍以全部必需门禁为准。
 - 机器契约：`.mss/features/admin-antd-v6-application.yaml`。
-- 架构决策：`docs/adr/2026-08-15-independent-ant-design-v6-application.md`。
+- 架构决策：`docs/adr/2026-08-15-independent-ant-design-v6-application.md`、`docs/adr/2026-08-16-account-reauthentication-and-credential-self-service.md`。
 
 ## 结论
 
@@ -153,24 +153,26 @@ OAuth callback，不读取响应中的 JWT；V5 的 `/user/login`、`/user/refre
 - application public profile 与 current-user canonical theme 解析为七字段稀疏层，按 code < application < user 求值，再通过 antd 6 CSS Variables、dark algorithm 和语义 token 应用；读取失败只降级到有效低层并留下 scope 状态。
 - canonical theme transport 已支持 vendor media type、强 ETag、`If-Match`、412 authoritative resource 和无静默重试。
 - `/app-config` 与 `/account/settings` 复用同一个显式 scope 主题编辑器；应用读取、应用控制和个人 self-service 分开判定，逐字段继承、整层重置、来源、草稿、降级与 412 决策均有中英文状态。
+- `/app-config` 还以同一响应式 Tabs 容器补齐基础、安全、存储准入、邮件和主题五组设置；V6/V5 OAuth 凭据明确分区，密钥输入采用只写轮换语义，空值不会覆盖现有密钥，Logo 保存后即时刷新启动配置与布局。
 - 主题保存和重置立即更新唯一 Query cache、Umi 布局和 antd 6 ConfigProvider；跨标签事件有 schema、TTL、去重、单调 revision 与个人随机会话绑定，同 revision 分歧只触发权威重读。
 - 首屏快照只包含规范化七字段、revision 和过期时间，最长 24 小时；应用层可匿名使用，个人层必须同时匹配随机会话和已验证用户主体，Web Locks 不可用时拒绝持久化而不是冒险覆盖新修订。
 - 密码登录和 OAuth 在取得规范化 current user 后轮换主题会话；退出先清除本标签个人派生状态，服务端退出完成后再通知其他标签重启，避免 cookie 撤销竞态。
 - 账户中心与响应式设置页已复用同一个规范化 current-user query；个人资料提交只含后端明确允许的字段，用户名和邮箱只读，服务端以精确 allowlist 拒绝身份字段、未知字段和错误类型，并可正确持久化显式空值。
 - PAT 列表只解析元数据；创建与旋转返回的原始 secret 不进入 React Query mutation cache、持久存储或 URL，只存在于不可跳过的一次性内存弹窗中。撤销、旋转和创建均继续由后端 self 权限约束，PAT 本身不能调用这些交互端点。
-- OAuth 登录与连接入口只在 public application profile 明确启用 provider 时显示；authorize/callback 使用服务端单次 state 和 cookie 会话，回调同时校验业务成功码、provider 和 intent，provider token 不进入浏览器响应。旧的直接解绑入口暂不迁移。
+- OAuth 登录与连接入口只在 public application profile 明确启用 provider 时显示；authorize/callback 使用服务端单次 state 和 cookie 会话，回调同时校验业务成功码、provider 和 intent，provider token 不进入浏览器响应。解绑必须先取得绑定到当前服务端会话的近期本人认证，并由数据库事务保证至少保留本地密码或另一个 OAuth 登录方式。
+- 个人改密不进入 React Query mutation cache；服务端只保存加盐后的单向 scrypt 校验值，无法读取或解密原密码。当前密码或同账号既有 OAuth 身份可建立五分钟近期认证，密码失败有持久化限流；改密与所有浏览器会话、PAT 撤销在同一事务提交，发起浏览器也会退出。
 - Umi 官方 `SelectLang` 已进入登录页和全局布局，中文/英文 catalog 由测试保证 key 完全一致。
 - 权限新鲜度桥在显式变更事件、跨标签 BroadcastChannel、403、网络恢复，以及节流后的 focus/visibility 上权威重读 current user 与编译期菜单求交；权限或可执行菜单签名变化时先取消并移除业务 Query 和 mutation cache，只保留身份、菜单、public profile 与主题启动 Query。身份/菜单不能确认时立即切换到可重试的 fail-closed 页面；异常主体切换会清空个人主题和所有缓存。
 - 后端只在已提交的全局授权 revision 成功重载进当前 Casbin 后，以非阻塞、best-effort WebSocket 事件广播十进制 revision；V6 经单次 ticket 建连，处理应用层 heartbeat、踢出与有抖动的上限退避重连，并在同页/跨标签对 revision 去重后从受保护 HTTP 重读身份和编译期菜单。事件不携带策略或用户权限，WebSocket 拥塞也不影响权限事务。
 - Max 的过渡 Moment 消费通过官方 `moment2dayjs` 适配统一到 Day.js；release bundle 门禁会拒绝 Moment 进入生产图。当前授权 revision 实时推送切片后的生产构建 entry 为 4.16 KiB、总 JS 为 734.67 KiB、最大异步分包为 195.57 KiB，均通过预算门禁。
 
-本阶段主动冻结三个旧契约缺陷，未按“表面等价”复制：
+本阶段没有按“表面等价”复制三个旧契约缺陷，处理结果如下：
 
 1. 邮箱是登录与恢复身份，在专用双重验证变更流程完成前保持只读。
-2. 旧的已登录密码重置不要求当前密码或近期再认证；V6 不展示该操作，待增加 step-up/re-auth、限流及成功后全会话/PAT 撤销契约。
-3. 旧 OAuth 解绑可直接删除最后一种可用登录方式；V6 只允许安全连接，待后端事务性保证至少保留一种已验证登录方式并要求近期再认证后再开放解绑。
+2. 旧的已登录密码重置不要求当前密码或近期再认证；V6 已改为服务端 session-bound step-up、失败限流、密码策略、不可逆校验值轮换及成功后全会话/PAT 原子撤销。
+3. 旧 OAuth 解绑可直接删除最后一种可用登录方式；V6 已改为同一近期认证门禁和行锁事务，无法删除最后一种已验证登录方式，并保留受同样约束的 V5 兼容入口。
 
-仍待本阶段完成：上述密码/邮箱/解绑安全契约的产品确认与后端实现。真实浏览器现已覆盖匿名直达、root 会话、Finance 非 root 菜单求交、无创建按钮、直接写 API 403、root-only API 403 和直接路由 403。focus/visibility、网络恢复与 403 权威重读继续作为 WebSocket 不可用时的安全兜底。
+主邮箱身份变更仍等待独立的双重验证产品契约；当前个人设置会展示邮箱和手机号状态，但不会提供不安全的直接替换入口。真实浏览器现已覆盖匿名直达、root 会话、Finance 非 root 菜单求交、无创建按钮、直接写 API 403、root-only API 403 和直接路由 403。focus/visibility、网络恢复与 403 权威重读继续作为 WebSocket 不可用时的安全兜底。
 
 完成门：匿名/root/普通用户/撤权/未知菜单/直接路由和直接 API 矩阵通过。
 
@@ -237,7 +239,7 @@ Option 管理：
 - read/create/update/delete 菜单和 API 权限独立；列表使用 summary 投影，详情按需加载。V6 使用原生 `Table`、`Form.List` 和 antd 6.6 `Listy`，共享桌面/移动响应式页面并覆盖 loading、empty、error、403、404、refresh failure 和 412 conflict。
 - Option 切片后的 release build entry 为 4.16 KiB、总 JS 为 864.91 KiB、最大异步分包为 199.59 KiB，仍通过 900/250 KiB 门禁，余量为 35.09 KiB。新增业务仍须复用现有运行时并逐切片测量，不能把路由分包当成忽略总体积增长的理由。
 
-用户、角色、菜单、部门和岗位切片已在 root-only mutation guard、服务端标识解析、部门循环拒绝、引用完整性和 role authorization revision 契约下完成。旧 `User` 的 `AfterCreate`/`AfterDelete` 统计写入也已移到事务提交后，并被定义为不能反转已提交业务结果的可选遥测。仍冻结的是需要近期再认证与跨资源撤销的邮箱/密码/OAuth 身份变更，以及尚无安全输出契约的 TaskRun 详情；这些能力不会以旧页面行为近似。
+用户、角色、菜单、部门和岗位切片已在 root-only mutation guard、服务端标识解析、部门循环拒绝、引用完整性和 role authorization revision 契约下完成。旧 `User` 的 `AfterCreate`/`AfterDelete` 统计写入也已移到事务提交后，并被定义为不能反转已提交业务结果的可选遥测。菜单树会在服务端保留完整 `menu.*` 标识并在 V6 展示层兼容清理历史重复前缀，中英文名称与图标均来自显式 catalog/allowlist。密码与 OAuth 身份变更已具备近期认证和跨资源撤销契约；仍冻结的是主邮箱变更和尚无安全输出契约的 TaskRun 详情。
 
 完成门：关键 CRUD、批量操作、上传/下载、ETag 冲突和权限负例通过。
 

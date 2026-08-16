@@ -55,14 +55,15 @@ func (s *SessionService) Create(ctx context.Context, db *gorm.DB, in CreateSessi
 	now := time.Now()
 	sid := pkg.SimpleID()
 	row := &models.UserSession{
-		UserID:     in.UserID,
-		Username:   in.Username,
-		RoleID:     in.RoleID,
-		LoginAt:    now,
-		LastSeenAt: now,
-		ExpiredAt:  now.Add(in.TTL),
-		IP:         in.IP,
-		UserAgent:  in.UserAgent,
+		UserID:            in.UserID,
+		Username:          in.Username,
+		RoleID:            in.RoleID,
+		LoginAt:           now,
+		LastSeenAt:        now,
+		ReauthenticatedAt: &now,
+		ExpiredAt:         now.Add(in.TTL),
+		IP:                in.IP,
+		UserAgent:         in.UserAgent,
 	}
 	row.ID = sid
 	if err := db.WithContext(ctx).Create(row).Error; err != nil {

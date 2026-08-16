@@ -2,23 +2,27 @@ import { request } from '@umijs/max';
 import {
   type AccessTokenSecret,
   type AccessTokenSummary,
+  type AccountSecurityStatus,
   type NotificationSettingKey,
   type NotificationSettings,
   type OAuthAuthorizeAttempt,
   type OAuthBinding,
+  type OAuthIntent,
   type OAuthProvider,
   type ProfileUpdate,
   parseAccessTokenPage,
   parseAccessTokenSecret,
+  parseAccountSecurityStatus,
   parseAvatarResponse,
   parseNotificationSettings,
   parseOAuthAuthorizeAttempt,
   parseOAuthBindings,
+  parsePasswordChangeResponse,
   serializeNotificationSetting,
 } from './contracts';
 
 export interface AccountRequestOptions {
-  method: 'GET' | 'POST' | 'PUT';
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   data?: unknown;
   params?: Record<string, string>;
   skipErrorHandler: true;
@@ -39,8 +43,12 @@ export interface AccountAPI {
   listOAuthBindings: () => Promise<OAuthBinding[]>;
   startOAuthAuthorization: (
     provider: OAuthProvider,
-    intent: 'login' | 'binding',
+    intent: OAuthIntent,
   ) => Promise<OAuthAuthorizeAttempt>;
+  loadSecurityStatus: () => Promise<AccountSecurityStatus>;
+  reauthenticateWithPassword: (password: string) => Promise<AccountSecurityStatus>;
+  changePassword: (newPassword: string) => Promise<{ signedOut: true }>;
+  disconnectOAuth: (provider: OAuthProvider) => Promise<void>;
   loadNotificationSettings: () => Promise<NotificationSettings>;
   updateNotificationSetting: (key: NotificationSettingKey, enabled: boolean) => Promise<void>;
 }
@@ -100,6 +108,32 @@ export function createAccountAPI(client: AccountRequestClient): AccountAPI {
           skipErrorHandler: true,
         }),
       ),
+    loadSecurityStatus: async () =>
+      parseAccountSecurityStatus(
+        await client('/user/security', { method: 'GET', skipErrorHandler: true }),
+      ),
+    reauthenticateWithPassword: async (password) =>
+      parseAccountSecurityStatus(
+        await client('/user/security/reauthenticate', {
+          method: 'POST',
+          data: { method: 'password', password },
+          skipErrorHandler: true,
+        }),
+      ),
+    changePassword: async (newPassword) =>
+      parsePasswordChangeResponse(
+        await client('/user/security/password', {
+          method: 'PUT',
+          data: { newPassword },
+          skipErrorHandler: true,
+        }),
+      ),
+    disconnectOAuth: async (provider) => {
+      await client(`/user/oauth2/${encodeURIComponent(provider)}`, {
+        method: 'DELETE',
+        skipErrorHandler: true,
+      });
+    },
     loadNotificationSettings: async () =>
       parseNotificationSettings(
         await client('/user-configs/notification', {

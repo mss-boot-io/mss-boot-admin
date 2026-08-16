@@ -1,6 +1,7 @@
 import type { CurrentUser } from '@/shared/auth/types';
 
 export type OAuthProvider = 'github' | 'lark';
+export type OAuthIntent = 'login' | 'binding' | 'reauthentication';
 
 export interface ProfileUpdate {
   address?: string;
@@ -47,8 +48,15 @@ export interface OAuthAuthorizeAttempt {
 
 export interface OAuthCallbackOutcome {
   provider: OAuthProvider;
-  intent: 'login' | 'binding';
+  intent: OAuthIntent;
   attemptID: string;
+}
+
+export interface AccountSecurityStatus {
+  hasLocalPassword: boolean;
+  recentAuthentication: boolean;
+  recentAuthenticationExpiresAt?: string;
+  reauthenticationLockedUntil?: string;
 }
 
 export type NotificationSettingKey = 'password' | 'system' | 'todo' | 'email';
@@ -183,7 +191,11 @@ export function parseOAuthCallbackOutcome(
   if (callbackProvider !== expectedProvider) {
     throw new AccountContractError('OAuth callback provider does not match the route');
   }
-  if (value.intent !== 'login' && value.intent !== 'binding') {
+  if (
+    value.intent !== 'login' &&
+    value.intent !== 'binding' &&
+    value.intent !== 'reauthentication'
+  ) {
     throw new AccountContractError('OAuth callback intent is invalid');
   }
   return {
@@ -191,6 +203,23 @@ export function parseOAuthCallbackOutcome(
     intent: value.intent,
     attemptID: requiredString(value.attemptID, 'attemptID'),
   };
+}
+
+export function parseAccountSecurityStatus(value: unknown): AccountSecurityStatus {
+  if (!isRecord(value)) throw new AccountContractError('Account security must be an object');
+  return {
+    hasLocalPassword: value.hasLocalPassword === true,
+    recentAuthentication: value.recentAuthentication === true,
+    recentAuthenticationExpiresAt: optionalString(value.recentAuthenticationExpiresAt),
+    reauthenticationLockedUntil: optionalString(value.reauthenticationLockedUntil),
+  };
+}
+
+export function parsePasswordChangeResponse(value: unknown): { signedOut: true } {
+  if (!isRecord(value) || value.signedOut !== true) {
+    throw new AccountContractError('Password change did not revoke the browser session');
+  }
+  return { signedOut: true };
 }
 
 const notificationKeys: readonly NotificationSettingKey[] = ['password', 'system', 'todo', 'email'];

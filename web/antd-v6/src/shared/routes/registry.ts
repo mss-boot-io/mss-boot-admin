@@ -1,6 +1,7 @@
 import generatedRegistrations from '@/generated/routes';
 import { canAccessRoute } from '@/shared/auth/access';
 import type { AuthorizedMenuItem, CurrentUser } from '@/shared/auth/types';
+import { resolveLayoutMenuName } from '@/shared/navigation/menuLocale';
 
 export interface RouteRegistration {
   path: string;
@@ -120,7 +121,7 @@ function safeMetadata(item: Record<string, unknown>): AuthorizedMenuItem {
   return {
     id: optionalString(item.id),
     key: optionalString(item.id),
-    name: optionalString(item.name),
+    name: resolveLayoutMenuName(optionalString(item.name)),
     title: optionalString(item.title),
     icon: optionalString(item.icon),
     type: optionalString(item.type),

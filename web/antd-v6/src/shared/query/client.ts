@@ -21,10 +21,13 @@ export const queryKeys = {
   currentUser: ['identity', 'current-user'] as const,
   authorizedMenu: (userID: string) => ['authorization', 'menu', userID] as const,
   applicationProfile: ['configuration', 'application-profile'] as const,
+  appConfig: (group: 'base' | 'security' | 'storage' | 'email') =>
+    ['configuration', 'application', group] as const,
   theme: (scope: 'application' | 'user', owner = '') =>
     ['configuration', 'theme', scope, owner] as const,
   accountTokens: (userID: string) => ['account', userID, 'access-tokens'] as const,
   accountOAuth: (userID: string) => ['account', userID, 'oauth-bindings'] as const,
+  accountSecurity: (userID: string) => ['account', userID, 'security'] as const,
   accountNotifications: (userID: string) => ['account', userID, 'notifications'] as const,
   workplace: ['workplace'] as const,
   monitor: ['operations', 'monitor'] as const,
