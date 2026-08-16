@@ -1,7 +1,7 @@
 import BellOutlined from '@ant-design/icons/BellOutlined';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
-import { Alert, List, Switch } from 'antd';
+import { Alert, Switch, Typography } from 'antd';
 import { useState } from 'react';
 import { getRequestErrorMessage } from '@/shared/api/client';
 import type { InitialState } from '@/shared/auth/types';
@@ -70,27 +70,28 @@ export default function NotificationSettingsPanel() {
           onClose={() => setMutationError(undefined)}
         />
       ) : null}
-      <List
-        dataSource={[...settingKeys]}
-        renderItem={(key) => (
-          <List.Item
-            actions={[
-              <Switch
-                key={key}
-                checked={settings.data?.[key] ?? false}
-                loading={pendingKey === key}
-                disabled={Boolean(pendingKey && pendingKey !== key)}
-                onChange={(enabled) => void update(key, enabled)}
-              />,
-            ]}
-          >
-            <List.Item.Meta
-              title={intl.formatMessage({ id: `account.notifications.${key}.title` })}
-              description={intl.formatMessage({ id: `account.notifications.${key}.description` })}
+      <ul className="m-0 list-none divide-y divide-[var(--mss-color-split)] p-0">
+        {settingKeys.map((key) => (
+          <li className="flex items-center justify-between gap-4 py-4" key={key}>
+            <div>
+              <Typography.Text strong>
+                {intl.formatMessage({ id: `account.notifications.${key}.title` })}
+              </Typography.Text>
+              <div>
+                <Typography.Text type="secondary">
+                  {intl.formatMessage({ id: `account.notifications.${key}.description` })}
+                </Typography.Text>
+              </div>
+            </div>
+            <Switch
+              checked={settings.data?.[key] ?? false}
+              loading={pendingKey === key}
+              disabled={Boolean(pendingKey && pendingKey !== key)}
+              onChange={(enabled) => void update(key, enabled)}
             />
-          </List.Item>
-        )}
-      />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

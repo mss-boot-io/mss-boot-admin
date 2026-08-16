@@ -1,7 +1,7 @@
 import CheckCircleOutlined from '@ant-design/icons/CheckCircleOutlined';
 import ClockCircleOutlined from '@ant-design/icons/ClockCircleOutlined';
 import { PageContainer, ProCard } from '@ant-design/pro-components';
-import { List, Tag, Typography } from 'antd';
+import { Tag, Typography } from 'antd';
 
 type CapabilityState = 'ready' | 'active' | 'planned';
 
@@ -21,12 +21,12 @@ export default function MigrationPage() {
         <Typography.Paragraph>
           这是实现期诊断页面，只陈述已交付门禁，不用占位页冒充业务功能。未完成模块不会进入授权菜单。
         </Typography.Paragraph>
-        <List
-          dataSource={capabilities}
-          renderItem={(item) => (
-            <List.Item
-              extra={
-                item.state === 'ready' ? (
+        <ul className="m-0 list-none divide-y divide-[var(--mss-color-split)] p-0">
+          {capabilities.map((item) => (
+            <li className="flex items-center justify-between gap-4 py-3" key={item.name}>
+              <span>{item.name}</span>
+              <span>
+                {item.state === 'ready' ? (
                   <Tag icon={<CheckCircleOutlined />} color="success">
                     已建立
                   </Tag>
@@ -34,13 +34,11 @@ export default function MigrationPage() {
                   <Tag icon={<ClockCircleOutlined />} color="processing">
                     {item.state === 'active' ? '实施中' : '待迁移'}
                   </Tag>
-                )
-              }
-            >
-              {item.name}
-            </List.Item>
-          )}
-        />
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
       </ProCard>
     </PageContainer>
   );

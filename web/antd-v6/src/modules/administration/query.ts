@@ -36,10 +36,12 @@ const listAPI: {
 export function useAdministrationPage<R extends AdministrationResource>(
   resource: R,
   params: AdministrationListParams,
+  enabled = true,
 ) {
   return useQuery<AdministrationPage<AdministrationEntities[R]>>({
     queryKey: queryKeys.administrationList(resource, params),
     queryFn: () => listAPI[resource](params),
+    enabled,
     placeholderData: keepPreviousData,
     staleTime: 15_000,
   });

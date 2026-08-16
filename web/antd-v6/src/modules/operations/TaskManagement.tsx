@@ -401,6 +401,7 @@ export default function TaskManagement({ root }: TaskManagementProps) {
       />
       <Modal
         destroyOnHidden
+        forceRender
         confirmLoading={save.isPending}
         okButtonProps={{ disabled: editing !== 'create' && !detail.data }}
         open={Boolean(editing)}

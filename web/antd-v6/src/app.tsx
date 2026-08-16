@@ -21,6 +21,7 @@ import {
 } from './shared/auth/session';
 import type { InitialState, StartupFailure } from './shared/auth/types';
 import { PageError } from './shared/design-system/PageState';
+import HeaderNotice from './shared/navigation/HeaderNotice';
 import LocaleSwitcher from './shared/navigation/LocaleSwitcher';
 import { resolveMenuIcons } from './shared/navigation/menuIcons';
 import { queryClient, queryKeys } from './shared/query/client';
@@ -321,6 +322,7 @@ function AvatarMenu({ initialState }: { initialState?: InitialState }) {
 export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   ...initialState?.settings,
   actionsRender: () => [
+    <HeaderNotice key="notice" user={initialState?.currentUser} />,
     <LocaleSwitcher key="language" />,
     <Tag key="antd" color="blue">
       antd {__ANTD_VERSION__}
@@ -338,7 +340,11 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     ),
   footerRender: () => (
     <div className="py-4 text-center text-sm text-neutral-500">
-      MSS Admin v6 · <Link to="/migration">migration status</Link>
+      {new Date().getFullYear()}{' '}
+      {typeof initialState?.applicationProfile?.base.websiteCopyRight === 'string' &&
+      initialState.applicationProfile.base.websiteCopyRight.trim()
+        ? initialState.applicationProfile.base.websiteCopyRight
+        : 'mss-boot-io'}
     </div>
   ),
   menu: {

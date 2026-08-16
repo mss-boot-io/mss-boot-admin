@@ -191,6 +191,7 @@ export default function PostManagement({ canCreate, canDelete, canEdit }: PostMa
       />
       <Modal
         destroyOnHidden
+        forceRender
         confirmLoading={save.isPending}
         open={Boolean(editing)}
         title={intl.formatMessage({

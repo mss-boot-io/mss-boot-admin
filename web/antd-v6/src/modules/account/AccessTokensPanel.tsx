@@ -14,7 +14,6 @@ import {
   Empty,
   Form,
   Input,
-  List,
   Modal,
   Popconfirm,
   Select,
@@ -165,10 +164,9 @@ export default function AccessTokensPanel() {
       {!tokens.data?.length ? (
         <Empty description={intl.formatMessage({ id: 'account.tokens.empty' })} />
       ) : (
-        <List
-          dataSource={tokens.data}
-          renderItem={(token) => (
-            <List.Item>
+        <ul className="m-0 list-none space-y-3 p-0">
+          {tokens.data.map((token) => (
+            <li key={token.id}>
               <Card
                 className="w-full"
                 size="small"
@@ -220,15 +218,16 @@ export default function AccessTokensPanel() {
                   )}
                 </Typography.Text>
               </Card>
-            </List.Item>
-          )}
-        />
+            </li>
+          ))}
+        </ul>
       )}
 
       <Modal
         title={intl.formatMessage({ id: 'account.tokens.create' })}
         open={createOpen}
         destroyOnHidden
+        forceRender
         confirmLoading={creating}
         onCancel={() => {
           if (!creating) setCreateOpen(false);
@@ -262,7 +261,7 @@ export default function AccessTokensPanel() {
         open={Boolean(secret)}
         closable={false}
         keyboard={false}
-        maskClosable={false}
+        mask={{ closable: false }}
         destroyOnHidden
         footer={
           <Space wrap>

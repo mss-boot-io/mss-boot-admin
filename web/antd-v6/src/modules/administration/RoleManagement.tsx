@@ -245,6 +245,7 @@ export default function RoleManagement({
       />
       <Modal
         destroyOnHidden
+        forceRender
         confirmLoading={save.isPending}
         open={Boolean(editing)}
         title={intl.formatMessage({

@@ -99,17 +99,17 @@ export default function AccountCenterPage() {
               {
                 key: 'role',
                 label: intl.formatMessage({ id: 'account.center.role' }),
-                children: display(current.role?.name ?? current.roleID),
+                children: display(current.role?.name),
               },
               {
                 key: 'department',
                 label: intl.formatMessage({ id: 'account.center.department' }),
-                children: display(current.department?.name ?? current.departmentID),
+                children: display(current.department?.name),
               },
               {
                 key: 'post',
                 label: intl.formatMessage({ id: 'account.center.post' }),
-                children: display(current.post?.name ?? current.postID),
+                children: display(current.post?.name),
               },
               {
                 key: 'title',

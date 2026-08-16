@@ -87,6 +87,7 @@ spec:
       module: frontend-v6-domains
       rules:
         - Authentication, account, workplace, users, roles, menus, departments, posts, language, options, application and system configuration, tasks, notices, logs, monitoring, sessions, theme, PAT, OAuth, and generated Supplier behavior have an explicit migration entry.
+        - Supplier remains the deterministic generator golden module, but a fresh or upgraded reference Admin database does not expose the demonstration procurement or Supplier menus.
         - The route registry is compiled code intersected with the backend-authorized menu and never imports an arbitrary database component string.
         - UI access controls are experience only and direct API and direct-route negative cases remain backend enforced.
         - Each page distinguishes loading, confirmed empty, retryable error, permission denied, not found, and conflict states where applicable.
@@ -464,6 +465,14 @@ spec:
           value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
         - type: command
           value: cd web/antd-v6 && pnpm test:e2e e2e/generated/supplier.spec.ts
+    - id: reference-menu-baseline
+      requirement: preserve-business-contracts
+      statement: The reference application initialization removes demonstration procurement menus while preserving Supplier generator artifacts and adopted Supplier data.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/cmd/migrate/migration/system/20260816120000_hide_example_supplier_menu_test.go
   risks:
     - id: pro-beta-churn
       description: ProComponents v3 beta can introduce breaking behavior or type changes before its stable release.

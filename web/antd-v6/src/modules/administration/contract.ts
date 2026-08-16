@@ -36,6 +36,21 @@ export interface AdministrationSelectOption {
   value: string;
 }
 
+/**
+ * Resolve a relation through its embedded projection or a loaded option map.
+ * Identifiers remain transport values and are deliberately never UI fallbacks.
+ */
+export function administrationReferenceName(
+  reference: { name?: string } | undefined,
+  id: string | undefined,
+  namesByID: ReadonlyMap<string, string>,
+): string {
+  const embeddedName = reference?.name?.trim();
+  if (embeddedName) return embeddedName;
+  const loadedName = id ? namesByID.get(id)?.trim() : undefined;
+  return loadedName || '—';
+}
+
 interface AdministrationSelectOptions<T> {
   disabled?: ReadonlySet<string>;
   include?: (item: T) => boolean;

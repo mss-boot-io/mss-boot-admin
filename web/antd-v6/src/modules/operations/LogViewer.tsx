@@ -62,11 +62,11 @@ function StatusTag({ status }: { status: OperationalStatus }) {
 
 function LoginLogTable() {
   const intl = useIntl();
-  const [form] = Form.useForm<{ userID?: string }>();
+  const [form] = Form.useForm<{ username?: string }>();
   const [params, setParams] = useState<{
     current: number;
     pageSize: OperationsPageSize;
-    userID?: string;
+    username?: string;
   }>({ current: 1, pageSize: 20 });
   const logs = useLoginLogPage(params);
   const status = getRequestStatus(logs.error);
@@ -76,12 +76,6 @@ function LoginLogTable() {
       dataIndex: 'username',
       width: 160,
       render: (value: string) => value || '—',
-    },
-    {
-      title: intl.formatMessage({ id: 'log.field.userID' }),
-      dataIndex: 'userID',
-      responsive: ['lg'],
-      ellipsis: true,
     },
     {
       title: intl.formatMessage({ id: 'log.field.ip' }),
@@ -139,16 +133,16 @@ function LoginLogTable() {
       <Form
         form={form}
         layout="inline"
-        onFinish={(values: { userID?: string }) =>
+        onFinish={(values: { username?: string }) =>
           setParams((current) => ({
             ...current,
             current: 1,
-            userID: values.userID?.trim() || undefined,
+            username: values.username?.trim() || undefined,
           }))
         }
       >
-        <Form.Item name="userID" label={intl.formatMessage({ id: 'log.field.userID' })}>
-          <Input allowClear maxLength={64} />
+        <Form.Item name="username" label={intl.formatMessage({ id: 'log.field.username' })}>
+          <Input allowClear maxLength={255} />
         </Form.Item>
         <Form.Item>
           <Space wrap>
@@ -200,12 +194,12 @@ function LoginLogTable() {
 
 function AuditLogTable() {
   const intl = useIntl();
-  const [form] = Form.useForm<{ type: AuditLogType | 'all'; userID?: string }>();
+  const [form] = Form.useForm<{ type: AuditLogType | 'all'; username?: string }>();
   const [params, setParams] = useState<{
     current: number;
     pageSize: OperationsPageSize;
     type: AuditLogType | 'all';
-    userID?: string;
+    username?: string;
   }>({ current: 1, pageSize: 20, type: 'all' });
   const logs = useAuditLogPage(params);
   const status = getRequestStatus(logs.error);
@@ -297,17 +291,17 @@ function AuditLogTable() {
         form={form}
         initialValues={{ type: 'all' }}
         layout="inline"
-        onFinish={(values: { type: AuditLogType | 'all'; userID?: string }) =>
+        onFinish={(values: { type: AuditLogType | 'all'; username?: string }) =>
           setParams((current) => ({
             ...current,
             current: 1,
-            userID: values.userID?.trim() || undefined,
+            username: values.username?.trim() || undefined,
             type: values.type,
           }))
         }
       >
-        <Form.Item name="userID" label={intl.formatMessage({ id: 'log.field.userID' })}>
-          <Input allowClear maxLength={64} />
+        <Form.Item name="username" label={intl.formatMessage({ id: 'log.field.username' })}>
+          <Input allowClear maxLength={255} />
         </Form.Item>
         <Form.Item name="type" label={intl.formatMessage({ id: 'log.field.type' })}>
           <Select

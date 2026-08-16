@@ -9,7 +9,9 @@ import AdministrationTable, { AdministrationStatusTag } from './AdministrationTa
 import { administrationAPI } from './api';
 import {
   type AdministrationListParams,
+  administrationReferenceName,
   administrationSelectOptions,
+  flattenAdministrationTree,
   type UserSummary,
   type UserWriteValues,
 } from './contract';
@@ -46,6 +48,31 @@ export default function UserManagement({
   const roles = useAdministrationPage('roles', dependencyParams);
   const departments = useAdministrationPage('departments', dependencyParams);
   const posts = useAdministrationPage('posts', dependencyParams);
+  const rolesByID = useMemo(
+    () => new Map((roles.data?.data ?? []).map((role) => [role.id, role])),
+    [roles.data?.data],
+  );
+  const roleNamesByID = useMemo(
+    () => new Map((roles.data?.data ?? []).map((role) => [role.id, role.name] as const)),
+    [roles.data?.data],
+  );
+  const departmentNamesByID = useMemo(
+    () =>
+      new Map(
+        flattenAdministrationTree(departments.data?.data ?? []).map((department) => [
+          department.id,
+          department.name,
+        ]),
+      ),
+    [departments.data?.data],
+  );
+  const postNamesByID = useMemo(
+    () =>
+      new Map(
+        flattenAdministrationTree(posts.data?.data ?? []).map((post) => [post.id, post.name]),
+      ),
+    [posts.data?.data],
+  );
   const departmentOptions = useMemo(
     () => administrationSelectOptions(departments.data?.data ?? []),
     [departments.data?.data],
@@ -137,14 +164,21 @@ export default function UserManagement({
       title: intl.formatMessage({ id: 'user.field.role' }),
       key: 'role',
       width: 150,
-      render: (_, user) => user.role?.name || user.roleID || '—',
+      render: (_, user) => administrationReferenceName(user.role, user.roleID, roleNamesByID),
     },
     {
       title: intl.formatMessage({ id: 'user.field.organization' }),
       key: 'organization',
       responsive: ['lg'],
-      render: (_, user) =>
-        [user.department?.name, user.post?.name].filter(Boolean).join(' · ') || '—',
+      render: (_, user) => {
+        const department = administrationReferenceName(
+          user.department,
+          user.departmentID,
+          departmentNamesByID,
+        );
+        const post = administrationReferenceName(user.post, user.postID, postNamesByID);
+        return [department, post].filter((name) => name !== '—').join(' · ') || '—';
+      },
     },
     {
       title: intl.formatMessage({ id: 'administration.field.status' }),
@@ -158,7 +192,7 @@ export default function UserManagement({
       width: 300,
       fixed: 'right',
       render: (_, user) => {
-        const rootTarget = user.role?.root === true;
+        const rootTarget = (user.role ?? rolesByID.get(user.roleID))?.root === true;
         return (
           <Space size="small" wrap>
             {canEdit ? (
@@ -221,6 +255,7 @@ export default function UserManagement({
       />
       <Modal
         destroyOnHidden
+        forceRender
         confirmLoading={save.isPending}
         open={Boolean(editing)}
         title={intl.formatMessage({
@@ -349,6 +384,7 @@ export default function UserManagement({
       </Modal>
       <Modal
         destroyOnHidden
+        forceRender
         confirmLoading={resetPassword.isPending}
         open={Boolean(passwordTarget)}
         title={intl.formatMessage(

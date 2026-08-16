@@ -37,7 +37,6 @@ import SessionDetailDrawer from './SessionDetailDrawer';
 interface SessionFilterValues {
   ip?: string;
   status: OnlineSessionStatusFilter;
-  userID?: string;
   username?: string;
 }
 
@@ -107,13 +106,6 @@ export default function OnlineSessionsView() {
           {row.username}
         </Button>
       ),
-    },
-    {
-      title: intl.formatMessage({ id: 'sessions.field.userID' }),
-      dataIndex: 'userID',
-      ellipsis: true,
-      responsive: ['lg'],
-      render: (_, row) => <Typography.Text copyable>{row.userID}</Typography.Text>,
     },
     {
       title: intl.formatMessage({ id: 'sessions.field.ip' }),
@@ -251,7 +243,7 @@ export default function OnlineSessionsView() {
             ...current,
             current: 1,
             status: values.status,
-            userID: cleanFilter(values.userID),
+            userID: undefined,
             username: cleanFilter(values.username),
             ip: cleanFilter(values.ip),
           }))
@@ -264,11 +256,6 @@ export default function OnlineSessionsView() {
               label={intl.formatMessage({ id: 'sessions.field.username' })}
             >
               <Input allowClear maxLength={255} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12} lg={5}>
-            <Form.Item name="userID" label={intl.formatMessage({ id: 'sessions.field.userID' })}>
-              <Input allowClear maxLength={128} />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12} lg={4}>

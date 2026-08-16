@@ -325,6 +325,7 @@ export default function SystemConfigManagement() {
       </Drawer>
       <Modal
         destroyOnHidden
+        forceRender
         confirmLoading={save.isPending}
         okButtonProps={{ disabled: editing !== 'create' && !detail.data }}
         open={Boolean(editing)}

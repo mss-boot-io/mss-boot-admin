@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AdministrationContractError,
+  administrationReferenceName,
   administrationSelectOptions,
   parseAdministrationPage,
   parseDepartment,
@@ -12,6 +13,16 @@ import {
 const params = { current: 1, pageSize: 20 } as const;
 
 describe('administration contracts', () => {
+  it('never uses a relation identifier as display text', () => {
+    const names = new Map([['role-1', 'Administrator']]);
+
+    expect(administrationReferenceName(undefined, 'role-1', names)).toBe('Administrator');
+    expect(administrationReferenceName({ name: 'Embedded role' }, 'role-1', names)).toBe(
+      'Embedded role',
+    );
+    expect(administrationReferenceName(undefined, 'unresolved-id', names)).toBe('—');
+  });
+
   it('parses bounded page and managed-role flags without trusting extra fields', () => {
     const page = parseAdministrationPage(
       {

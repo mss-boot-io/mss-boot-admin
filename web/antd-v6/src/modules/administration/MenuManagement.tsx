@@ -196,6 +196,7 @@ export default function MenuManagement({ canCreate, canDelete, canEdit }: MenuMa
       />
       <Modal
         destroyOnHidden
+        forceRender
         confirmLoading={save.isPending}
         open={Boolean(editing)}
         title={intl.formatMessage({

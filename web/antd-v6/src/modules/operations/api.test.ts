@@ -82,6 +82,31 @@ describe('operations API', () => {
     });
   });
 
+  it('loads the bounded unread projection used by the global header', async () => {
+    const client = vi.fn(async () => [
+      {
+        id: 'notice-1',
+        title: 'Review required',
+        key: 'review',
+        read: false,
+        avatar: '',
+        extra: '',
+        status: 'todo',
+        description: '',
+        type: 'notification',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+    ]);
+    const api = createOperationsAPI(client);
+
+    await expect(api.notices.unread()).resolves.toHaveLength(1);
+    expect(client).toHaveBeenCalledWith('/notice/unread', {
+      method: 'GET',
+      skipErrorHandler: true,
+    });
+  });
+
   it('encodes export filters without accepting a filesystem path', () => {
     expect(
       runtimeLogExportPath({

@@ -64,7 +64,7 @@ test.describe('V6 authorization boundaries', () => {
     await expect(page).toHaveURL(/\/user\/login\?redirect=/);
   });
 
-  test('@permission finance access stays least-privilege in menu, route, controls, and API', async ({
+  test('@permission retired Supplier example stays absent from finance menu, route, and API', async ({
     browser,
     page,
   }) => {
@@ -84,19 +84,15 @@ test.describe('V6 authorization boundaries', () => {
       const menu = await page.request.get(`${API_BASE_URL}/menu/authorize`);
       const authorizedMenu = await menu.json();
       expect(menu.ok()).toBe(true);
-      expect(menuContainsPath(authorizedMenu, '/suppliers')).toBe(true);
+      expect(menuContainsPath(authorizedMenu, '/suppliers')).toBe(false);
       expect(menuContainsPath(authorizedMenu, '/security/online-sessions')).toBe(false);
 
-      const supplierList = page.waitForResponse(
-        (response) =>
-          response.request().method() === 'GET' &&
-          new URL(response.url()).pathname === '/admin/api/suppliers',
-      );
       await page.goto('/suppliers');
-      expect((await supplierList).ok()).toBe(true);
-      await expect(page.getByText('Suppliers list', { exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Create', exact: true })).toHaveCount(0);
+      await expect(page.getByText('403', { exact: true })).toBeVisible();
+      expect(page.url().startsWith(APP_BASE_URL)).toBe(true);
+
+      const deniedList = await page.request.get(`${API_BASE_URL}/suppliers`);
+      expect(deniedList.status()).toBe(403);
 
       const deniedCreate = await page.request.post(`${API_BASE_URL}/suppliers`, {
         data: {

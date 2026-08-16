@@ -86,6 +86,7 @@ export const queryKeys = {
   task: (id: string) => ['operations', 'tasks', 'detail', id] as const,
   taskFunctions: ['operations', 'tasks', 'functions'] as const,
   notices: ['operations', 'notices'] as const,
+  noticeUnread: ['operations', 'notices', 'unread'] as const,
   noticeList: (params: Readonly<object>) => ['operations', 'notices', 'list', params] as const,
   notice: (id: string) => ['operations', 'notices', 'detail', id] as const,
   loginLogs: (params: Readonly<object>) => ['operations', 'logs', 'login', params] as const,

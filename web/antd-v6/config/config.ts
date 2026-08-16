@@ -33,6 +33,7 @@ export default defineConfig({
     __ANTD_VERSION__: require('antd/package.json').version,
   },
   exportStatic: {},
+  favicons: ['/logo.svg'],
   fastRefresh: true,
   hash: true,
   history: { type: 'browser' },
@@ -76,6 +77,6 @@ export default defineConfig({
     firefox: 121,
     safari: '17.4',
   },
-  title: 'MSS Admin',
+  title: 'mss-boot-io',
   utoopack: {},
 });

@@ -8,7 +8,7 @@ export const defaultSettings = {
   fixedHeader: false,
   fixSiderbar: true,
   colorWeak: false,
-  title: 'MSS Admin',
+  title: 'mss-boot-io',
   logo: '/logo.svg',
   splitMenus: false,
 } satisfies ProLayoutProps & { logo: string };

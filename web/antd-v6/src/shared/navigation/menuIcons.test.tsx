@@ -1,3 +1,4 @@
+import ApartmentOutlined from '@ant-design/icons/ApartmentOutlined';
 import SmileOutlined from '@ant-design/icons/SmileOutlined';
 import UserSwitchOutlined from '@ant-design/icons/UserSwitchOutlined';
 import WalletOutlined from '@ant-design/icons/WalletOutlined';
@@ -40,5 +41,13 @@ describe('resolveMenuIcons', () => {
     if (!taskMenu) throw new Error('resolved task menu is missing');
 
     expect((taskMenu.icon as ReactElement).type).toBe(WalletOutlined);
+  });
+
+  it('resolves the organization directory icon seeded by the backend', () => {
+    const result = resolveMenuIcons([{ icon: 'apartment' }]);
+    const organizationMenu = result.at(0);
+    if (!organizationMenu) throw new Error('resolved organization menu is missing');
+
+    expect((organizationMenu.icon as ReactElement).type).toBe(ApartmentOutlined);
   });
 });

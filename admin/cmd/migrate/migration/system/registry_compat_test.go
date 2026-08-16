@@ -99,6 +99,11 @@ func TestV100MigrationRowsDoNotRerun(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatalf("seed post-v1.0 option permission migration row: %v", err)
 	}
+	if err := db.Create(&migrationmodels.Migration{
+		Version: hideExampleSupplierMenuMigrationID.String(),
+	}).Error; err != nil {
+		t.Fatalf("seed post-v1.0 example supplier menu migration row: %v", err)
+	}
 
 	migration.Migrate.SetDb(db)
 	migration.Migrate.SetModel(&migrationmodels.Migration{})
@@ -109,7 +114,7 @@ func TestV100MigrationRowsDoNotRerun(t *testing.T) {
 	if err := db.Model(&migrationmodels.Migration{}).Count(&rows).Error; err != nil {
 		t.Fatalf("count migration rows: %v", err)
 	}
-	wantRows := int64(len(v100Rows) + 5)
+	wantRows := int64(len(v100Rows) + 6)
 	if rows != wantRows {
 		t.Fatalf("migration rows = %d, want unchanged %d", rows, wantRows)
 	}

@@ -3,7 +3,7 @@ import GithubOutlined from '@ant-design/icons/GithubOutlined';
 import SafetyCertificateOutlined from '@ant-design/icons/SafetyCertificateOutlined';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl, useModel, useSearchParams } from '@umijs/max';
-import { Alert, Avatar, Button, List, Space, Tag, Typography } from 'antd';
+import { Alert, Avatar, Button, Empty, Space, Tag, Typography } from 'antd';
 import { useState } from 'react';
 import { getRequestErrorMessage } from '@/shared/api/client';
 import type { InitialState } from '@/shared/auth/types';
@@ -92,64 +92,66 @@ export default function OAuthBindingsPanel() {
         title={intl.formatMessage({ id: 'account.oauth.unlinkGuardTitle' })}
         description={intl.formatMessage({ id: 'account.oauth.unlinkGuardDescription' })}
       />
-      <List
-        dataSource={visibleProviders}
-        locale={{ emptyText: intl.formatMessage({ id: 'account.oauth.noneAvailable' }) }}
-        renderItem={(provider) => {
-          const binding = bindings.data?.find((item) => item.provider === provider);
-          const enabled = isOAuthProviderEnabled(initialState?.applicationProfile, provider);
-          return (
-            <List.Item
-              actions={[
-                binding ? (
-                  <Tag key="bound" color="success">
-                    {intl.formatMessage({ id: 'account.oauth.statusBound' })}
-                  </Tag>
-                ) : enabled ? (
-                  <Button
-                    key="bind"
-                    type="primary"
-                    loading={pendingProvider === provider}
-                    disabled={Boolean(pendingProvider && pendingProvider !== provider)}
-                    onClick={() => void startBinding(provider)}
-                  >
-                    {intl.formatMessage({ id: 'account.oauth.bind' })}
-                  </Button>
-                ) : (
-                  <Tag key="disabled">
-                    {intl.formatMessage({ id: 'account.oauth.statusDisabled' })}
-                  </Tag>
-                ),
-              ]}
-            >
-              <List.Item.Meta
-                avatar={
-                  binding?.picture ? (
+      {visibleProviders.length === 0 ? (
+        <Empty description={intl.formatMessage({ id: 'account.oauth.noneAvailable' })} />
+      ) : (
+        <ul className="m-0 list-none divide-y divide-[var(--mss-color-split)] p-0">
+          {visibleProviders.map((provider) => {
+            const binding = bindings.data?.find((item) => item.provider === provider);
+            const enabled = isOAuthProviderEnabled(initialState?.applicationProfile, provider);
+            return (
+              <li className="flex flex-wrap items-center justify-between gap-4 py-4" key={provider}>
+                <div className="flex min-w-0 items-center gap-3">
+                  {binding?.picture ? (
                     <Avatar src={binding.picture} />
                   ) : (
                     <Avatar icon={provider === 'github' ? <GithubOutlined /> : <ApiOutlined />} />
-                  )
-                }
-                title={provider === 'github' ? 'GitHub' : 'Lark'}
-                description={
-                  binding ? (
-                    <Space orientation="vertical" size={0}>
-                      <Typography.Text>
-                        {binding.displayName ?? binding.email ?? '—'}
-                      </Typography.Text>
-                      {binding.email && binding.displayName ? (
-                        <Typography.Text type="secondary">{binding.email}</Typography.Text>
-                      ) : null}
-                    </Space>
+                  )}
+                  <div className="min-w-0">
+                    <Typography.Text strong>
+                      {provider === 'github' ? 'GitHub' : 'Lark'}
+                    </Typography.Text>
+                    <div>
+                      {binding ? (
+                        <Space orientation="vertical" size={0}>
+                          <Typography.Text>
+                            {binding.displayName ?? binding.email ?? '—'}
+                          </Typography.Text>
+                          {binding.email && binding.displayName ? (
+                            <Typography.Text type="secondary">{binding.email}</Typography.Text>
+                          ) : null}
+                        </Space>
+                      ) : (
+                        <Typography.Text type="secondary">
+                          {intl.formatMessage({ id: 'account.oauth.notBound' })}
+                        </Typography.Text>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  {binding ? (
+                    <Tag color="success">
+                      {intl.formatMessage({ id: 'account.oauth.statusBound' })}
+                    </Tag>
+                  ) : enabled ? (
+                    <Button
+                      type="primary"
+                      loading={pendingProvider === provider}
+                      disabled={Boolean(pendingProvider && pendingProvider !== provider)}
+                      onClick={() => void startBinding(provider)}
+                    >
+                      {intl.formatMessage({ id: 'account.oauth.bind' })}
+                    </Button>
                   ) : (
-                    intl.formatMessage({ id: 'account.oauth.notBound' })
-                  )
-                }
-              />
-            </List.Item>
-          );
-        }}
-      />
+                    <Tag>{intl.formatMessage({ id: 'account.oauth.statusDisabled' })}</Tag>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </Space>
   );
 }

@@ -27,6 +27,14 @@ export default function LoginPage() {
   const [oauthProvider, setOAuthProvider] = useState<OAuthProvider>();
   const githubEnabled = isOAuthProviderEnabled(initialState?.applicationProfile, 'github');
   const larkEnabled = isOAuthProviderEnabled(initialState?.applicationProfile, 'lark');
+  const brandTitle =
+    typeof initialState?.settings.title === 'string' && initialState.settings.title.trim()
+      ? initialState.settings.title
+      : 'mss-boot-io';
+  const brandLogo =
+    typeof initialState?.settings.logo === 'string' && initialState.settings.logo.trim()
+      ? initialState.settings.logo
+      : '/logo.svg';
 
   const startOAuthLogin = async (provider: OAuthProvider) => {
     if (oauthProvider) return;
@@ -50,8 +58,8 @@ export default function LoginPage() {
         <SelectLang />
       </div>
       <LoginFormPage
-        logo="/logo.svg"
-        title="MSS Admin"
+        logo={brandLogo}
+        title={brandTitle}
         subTitle={intl.formatMessage({
           id: 'pages.login.subtitle',
           defaultMessage: '安全、可升级的管理系统基础设施',

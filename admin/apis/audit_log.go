@@ -101,6 +101,7 @@ func (e *AuditLogAPI) LoginLogs(ctx *gin.Context) {
 	logs, total, err := service.Audit.GetLoginLogs(
 		center.Default.GetDB(ctx, &models.LoginLog{}),
 		req.UserID,
+		req.Username,
 		page,
 		pageSize,
 	)
@@ -160,6 +161,7 @@ func (e *AuditLogAPI) OperationLogs(ctx *gin.Context) {
 	logs, total, err := service.Audit.GetAuditLogs(
 		center.Default.GetDB(ctx, &models.AuditLog{}),
 		req.UserID,
+		req.Username,
 		models.AuditLogType(req.Type),
 		page,
 		pageSize,

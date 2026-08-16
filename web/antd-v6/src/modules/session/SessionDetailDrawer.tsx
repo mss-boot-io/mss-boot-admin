@@ -1,5 +1,11 @@
 import { useIntl } from '@umijs/max';
-import { Alert, Descriptions, Drawer, Grid, Tag, Typography } from 'antd';
+import { Alert, Descriptions, Drawer, Grid, Tag } from 'antd';
+import { useMemo } from 'react';
+import {
+  type AdministrationListParams,
+  administrationReferenceName,
+} from '@/modules/administration/contract';
+import { useAdministrationPage } from '@/modules/administration/query';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
 import { getOnlineSessionStatus } from './contract';
@@ -23,6 +29,23 @@ export default function SessionDetailDrawer({
   const intl = useIntl();
   const screens = Grid.useBreakpoint();
   const session = useOnlineSession(open ? id : undefined);
+  const relationParams = useMemo<AdministrationListParams>(
+    () => ({ current: 1, pageSize: 100 }),
+    [],
+  );
+  const roles = useAdministrationPage('roles', relationParams, open);
+  const users = useAdministrationPage('users', relationParams, open);
+  const roleNamesByID = useMemo(
+    () => new Map((roles.data?.data ?? []).map((role) => [role.id, role.name] as const)),
+    [roles.data?.data],
+  );
+  const userNamesByID = useMemo(
+    () =>
+      new Map(
+        (users.data?.data ?? []).map((user) => [user.id, user.name || user.username] as const),
+      ),
+    [users.data?.data],
+  );
   const requestStatus = getRequestStatus(session.error);
   const authorizationFailure = requestStatus === 401 || requestStatus === 403;
   const formatDate = (value?: string) =>
@@ -72,14 +95,9 @@ export default function SessionDetailDrawer({
               children: session.data.username,
             },
             {
-              key: 'userID',
-              label: intl.formatMessage({ id: 'sessions.field.userID' }),
-              children: <Typography.Text copyable>{session.data.userID}</Typography.Text>,
-            },
-            {
-              key: 'roleID',
-              label: intl.formatMessage({ id: 'sessions.field.roleID' }),
-              children: session.data.roleID || '—',
+              key: 'role',
+              label: intl.formatMessage({ id: 'sessions.field.role' }),
+              children: administrationReferenceName(undefined, session.data.roleID, roleNamesByID),
             },
             {
               key: 'status',
@@ -120,7 +138,11 @@ export default function SessionDetailDrawer({
             {
               key: 'revokedBy',
               label: intl.formatMessage({ id: 'sessions.field.revokedBy' }),
-              children: session.data.revokedBy || '—',
+              children: administrationReferenceName(
+                undefined,
+                session.data.revokedBy,
+                userNamesByID,
+              ),
             },
             {
               key: 'revokedAt',

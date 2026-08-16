@@ -114,6 +114,17 @@ export function createOperationsAPI(client: OperationsRequestClient) {
         ),
     },
     notices: {
+      unread: async (): Promise<NoticeSummary[]> => {
+        const value = await client('/notice/unread', {
+          method: 'GET',
+          skipErrorHandler: true,
+        });
+        if (value === null || value === undefined) return [];
+        if (!Array.isArray(value) || value.length > 100) {
+          throw new Error('Unread notice list is invalid');
+        }
+        return value.map(parseNotice);
+      },
       list: async (params: NoticeListParams): Promise<OperationsPage<NoticeSummary>> =>
         parseOperationsPage(
           await client('/notices', {
@@ -148,7 +159,7 @@ export function createOperationsAPI(client: OperationsRequestClient) {
       login: async (params: {
         current: number;
         pageSize: number;
-        userID?: string;
+        username?: string;
       }): Promise<OperationsPage<LoginLogEntry>> =>
         parseOperationsPage(
           await client('/audit-logs/login', {
@@ -156,7 +167,7 @@ export function createOperationsAPI(client: OperationsRequestClient) {
             params: {
               current: params.current,
               pageSize: params.pageSize,
-              userID: params.userID?.trim() || undefined,
+              username: params.username?.trim() || undefined,
             },
             skipErrorHandler: true,
           }),
@@ -166,7 +177,7 @@ export function createOperationsAPI(client: OperationsRequestClient) {
       audit: async (params: {
         current: number;
         pageSize: number;
-        userID?: string;
+        username?: string;
         type?: AuditLogType | 'all';
       }): Promise<OperationsPage<AuditLogEntry>> =>
         parseOperationsPage(
@@ -175,7 +186,7 @@ export function createOperationsAPI(client: OperationsRequestClient) {
             params: {
               current: params.current,
               pageSize: params.pageSize,
-              userID: params.userID?.trim() || undefined,
+              username: params.username?.trim() || undefined,
               type: !params.type || params.type === 'all' ? undefined : params.type,
             },
             skipErrorHandler: true,

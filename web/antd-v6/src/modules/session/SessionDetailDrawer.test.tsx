@@ -17,15 +17,28 @@ vi.mock('./query', () => ({
   useOnlineSession: () => detailQuery.current,
 }));
 
+vi.mock('@/modules/administration/query', () => ({
+  useAdministrationPage: (resource: string) => ({
+    data: {
+      data:
+        resource === 'roles'
+          ? [{ id: 'role-1', name: 'Administrator' }]
+          : [{ id: 'user-2', name: 'Security Operator', username: 'operator' }],
+    },
+  }),
+}));
+
 function session(): OnlineSession {
   return {
     id: 'session-1',
     userID: 'user-1',
     username: 'alice',
+    roleID: 'role-1',
     loginAt: '2026-08-15T00:00:00Z',
     lastSeenAt: '2026-08-15T01:00:00Z',
     expiredAt: '2099-08-15T02:00:00Z',
     revoked: false,
+    revokedBy: 'user-2',
   };
 }
 
@@ -74,5 +87,9 @@ describe('online session detail drawer', () => {
 
     expect(screen.getByText('sessions.detail.refreshFailed')).toBeTruthy();
     expect(screen.getByText('alice')).toBeTruthy();
+    expect(screen.getByText('Administrator')).toBeTruthy();
+    expect(screen.getByText('Security Operator')).toBeTruthy();
+    expect(screen.queryByText('role-1')).toBeNull();
+    expect(screen.queryByText('user-2')).toBeNull();
   });
 });

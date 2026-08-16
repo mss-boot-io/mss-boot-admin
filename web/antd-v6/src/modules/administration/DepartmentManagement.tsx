@@ -20,6 +20,7 @@ import AdministrationTable, { AdministrationStatusTag } from './AdministrationTa
 import { administrationAPI } from './api';
 import {
   type AdministrationListParams,
+  administrationReferenceName,
   administrationSelectOptions,
   type DepartmentSummary,
   type DepartmentWriteValues,
@@ -49,6 +50,26 @@ export default function DepartmentManagement({
   const client = useQueryClient();
   const [params, setParams] = useState(initialParams);
   const departments = useAdministrationPage('departments', params);
+  const dependencyParams = useMemo<AdministrationListParams>(
+    () => ({ current: 1, pageSize: 100, status: 'enabled' }),
+    [],
+  );
+  const users = useAdministrationPage('users', dependencyParams);
+  const userNamesByID = useMemo(
+    () =>
+      new Map(
+        (users.data?.data ?? []).map((user) => [user.id, user.name || user.username] as const),
+      ),
+    [users.data?.data],
+  );
+  const userOptions = useMemo(
+    () =>
+      (users.data?.data ?? []).map((user) => ({
+        label: user.name ? `${user.name} (${user.username})` : user.username,
+        value: user.id,
+      })),
+    [users.data?.data],
+  );
   const [editing, setEditing] = useState<DepartmentSummary | 'create'>();
   const [form] = Form.useForm<DepartmentWriteValues>();
 
@@ -111,6 +132,13 @@ export default function DepartmentManagement({
       title: intl.formatMessage({ id: 'department.field.code' }),
       dataIndex: 'code',
       width: 160,
+    },
+    {
+      title: intl.formatMessage({ id: 'department.field.leader' }),
+      dataIndex: 'leaderID',
+      responsive: ['md'],
+      width: 150,
+      render: (leaderID: string) => administrationReferenceName(undefined, leaderID, userNamesByID),
     },
     {
       title: intl.formatMessage({ id: 'department.field.contact' }),
@@ -177,6 +205,7 @@ export default function DepartmentManagement({
       />
       <Modal
         destroyOnHidden
+        forceRender
         confirmLoading={save.isPending}
         open={Boolean(editing)}
         title={intl.formatMessage({
@@ -190,6 +219,15 @@ export default function DepartmentManagement({
         }}
         onOk={() => form.submit()}
       >
+        {users.isError ? (
+          <Alert
+            className="mb-4"
+            description={getRequestErrorMessage(users.error)}
+            showIcon
+            title={intl.formatMessage({ id: 'department.dependencies.failed' })}
+            type="error"
+          />
+        ) : null}
         {save.isError ? (
           <Alert
             className="mb-4"
@@ -223,12 +261,14 @@ export default function DepartmentManagement({
           >
             <Input autoComplete="off" />
           </Form.Item>
-          <Form.Item
-            name="leaderID"
-            label={intl.formatMessage({ id: 'department.field.leaderID' })}
-            rules={[{ max: 64 }]}
-          >
-            <Input autoComplete="off" />
+          <Form.Item name="leaderID" label={intl.formatMessage({ id: 'department.field.leader' })}>
+            <Select
+              allowClear
+              loading={users.isFetching}
+              options={userOptions}
+              optionFilterProp="label"
+              showSearch
+            />
           </Form.Item>
           <Form.Item
             name="phone"

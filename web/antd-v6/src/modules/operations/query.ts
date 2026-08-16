@@ -55,7 +55,7 @@ export function useNotice(id?: string) {
   });
 }
 
-export function useLoginLogPage(params: { current: number; pageSize: number; userID?: string }) {
+export function useLoginLogPage(params: { current: number; pageSize: number; username?: string }) {
   return useQuery({
     queryKey: queryKeys.loginLogs(params),
     queryFn: () => operationsAPI.logs.login(params),
@@ -67,7 +67,7 @@ export function useLoginLogPage(params: { current: number; pageSize: number; use
 export function useAuditLogPage(params: {
   current: number;
   pageSize: number;
-  userID?: string;
+  username?: string;
   type?: AuditLogType | 'all';
 }) {
   return useQuery({
