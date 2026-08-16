@@ -103,7 +103,7 @@ export default function EmailPanel() {
         label={intl.formatMessage({ id: 'pages.appConfig.email.smtpPort' })}
         rules={[{ required: true }]}
       >
-        <InputNumber min={1} max={65_535} precision={0} className="w-full" />
+        <InputNumber controls={false} min={1} max={65_535} precision={0} className="w-full" />
       </Form.Item>
       <Form.Item
         name="username"

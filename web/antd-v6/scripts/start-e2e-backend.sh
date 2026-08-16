@@ -34,5 +34,5 @@ go build -o "${binary_path}" .
 "${binary_path}" migrate \
   --username "${MSS_E2E_USERNAME:-admin}" \
   --password "${MSS_E2E_PASSWORD:-123456}" \
-  --domain 127.0.0.1:8001
+  --domain "${MSS_E2E_DOMAIN:-127.0.0.1:8001}"
 exec "${binary_path}" server

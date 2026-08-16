@@ -42,6 +42,20 @@ interface LogViewerProps {
   canReadRuntime: boolean;
 }
 
+const operationalMessageIDs: Readonly<Record<string, string>> = {
+  'authentication failed': 'log.message.authenticationFailed',
+  'by-session': 'log.message.forcedLogout',
+  'login success': 'log.message.loginSuccess',
+  'self-logout': 'log.message.selfLogout',
+};
+
+function formatOperationalMessage(value: string | undefined, translate: (id: string) => string) {
+  const normalized = value?.trim();
+  if (!normalized) return '—';
+  const messageID = operationalMessageIDs[normalized];
+  return messageID ? translate(messageID) : normalized;
+}
+
 function formatDate(locale: string, value?: string): string {
   return value
     ? new Intl.DateTimeFormat(locale || 'zh-CN', {
@@ -100,7 +114,8 @@ function LoginLogTable() {
       dataIndex: 'message',
       responsive: ['lg'],
       ellipsis: true,
-      render: (value: string) => value || '—',
+      render: (value: string) =>
+        formatOperationalMessage(value, (id) => intl.formatMessage({ id })),
     },
     {
       title: intl.formatMessage({ id: 'log.field.loginAt' }),
@@ -240,7 +255,8 @@ function AuditLogTable() {
       dataIndex: 'message',
       ellipsis: true,
       responsive: ['xxl'],
-      render: (value: string) => value || '—',
+      render: (value: string) =>
+        formatOperationalMessage(value, (id) => intl.formatMessage({ id })),
     },
     {
       title: intl.formatMessage({ id: 'log.field.resource' }),
@@ -349,7 +365,7 @@ function AuditLogTable() {
         expandable={{
           expandedRowRender: (row) => (
             <Typography.Paragraph className="mb-0 whitespace-pre-wrap break-all">
-              {row.message || '—'}
+              {formatOperationalMessage(row.message, (id) => intl.formatMessage({ id }))}
             </Typography.Paragraph>
           ),
           rowExpandable: (row) => Boolean(row.message),

@@ -1,8 +1,8 @@
-import { PageContainer } from '@ant-design/pro-components';
 import { useIntl, useModel } from '@umijs/max';
 import OptionListView from '@/modules/option/OptionListView';
 import { hasPermission } from '@/shared/auth/access';
 import type { InitialState } from '@/shared/auth/types';
+import { PageContainer } from '@/shared/design-system/PageContainer';
 import { PageForbidden } from '@/shared/design-system/PageState';
 
 export default function OptionPage() {

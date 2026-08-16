@@ -60,7 +60,7 @@ func setupOnlineSessionTest(t *testing.T) (*gin.Engine, *gorm.DB, string) {
 }
 
 func TestOnlineSessionList(t *testing.T) {
-	r, _, _ := setupOnlineSessionTest(t)
+	r, _, sid := setupOnlineSessionTest(t)
 	req := httptest.NewRequest(http.MethodGet, "/admin/api/online-sessions?status=active", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -68,8 +68,14 @@ func TestOnlineSessionList(t *testing.T) {
 
 	var resp map[string]any
 	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	// just sanity: should contain data array
-	assert.Contains(t, resp, "data")
+	rows, ok := resp["data"].([]any)
+	if assert.True(t, ok) && assert.Len(t, rows, 1) {
+		row, rowOK := rows[0].(map[string]any)
+		if assert.True(t, rowOK) {
+			assert.Equal(t, sid, row["id"])
+			assert.Equal(t, true, row["current"])
+		}
+	}
 }
 
 func TestOnlineSessionListRejectsOversizedPage(t *testing.T) {
@@ -178,6 +184,7 @@ func TestOnlineSessionGet(t *testing.T) {
 	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &row))
 	assert.Equal(t, sid, row.ID)
 	assert.Equal(t, "u1", row.UserID)
+	assert.True(t, row.Current)
 }
 
 func TestOnlineSessionGetNotFound(t *testing.T) {

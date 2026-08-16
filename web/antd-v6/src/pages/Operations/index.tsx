@@ -1,4 +1,3 @@
-import { PageContainer } from '@ant-design/pro-components';
 import { useIntl, useLocation, useModel } from '@umijs/max';
 import LogViewer from '@/modules/operations/LogViewer';
 import NoticeCenter from '@/modules/operations/NoticeCenter';
@@ -6,6 +5,7 @@ import SystemConfigManagement from '@/modules/operations/SystemConfigManagement'
 import TaskManagement from '@/modules/operations/TaskManagement';
 import { hasPermission, isRootIdentity } from '@/shared/auth/access';
 import type { InitialState } from '@/shared/auth/types';
+import { PageContainer } from '@/shared/design-system/PageContainer';
 import { PageForbidden } from '@/shared/design-system/PageState';
 import type { ManagementRouteIntent } from '@/shared/navigation/managementRoute';
 

@@ -1,4 +1,3 @@
-import { PageContainer } from '@ant-design/pro-components';
 import { useIntl, useSearchParams } from '@umijs/max';
 import { Grid, Tabs } from 'antd';
 import AccessTokensPanel from '@/modules/account/AccessTokensPanel';
@@ -7,6 +6,7 @@ import OAuthBindingsPanel from '@/modules/account/OAuthBindingsPanel';
 import ProfilePanel from '@/modules/account/ProfilePanel';
 import SecurityPanel from '@/modules/account/SecurityPanel';
 import ThemeSettingsEditor from '@/modules/theme/ThemeSettingsEditor';
+import { PageContainer } from '@/shared/design-system/PageContainer';
 
 export default function AccountSettingsPage() {
   const intl = useIntl();

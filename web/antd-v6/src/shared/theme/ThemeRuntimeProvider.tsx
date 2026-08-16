@@ -1,10 +1,14 @@
+import { useIntl } from '@umijs/max';
 import { ConfigProvider } from 'antd';
+import enUS from 'antd/locale/en_US';
+import zhCN from 'antd/locale/zh_CN';
 import type { ReactNode } from 'react';
 import { useEffect, useSyncExternalStore } from 'react';
 import { createThemeConfig } from '../design-system/theme';
 import { getThemeRuntimeSnapshot, subscribeThemeRuntime } from './runtime';
 
 export function ThemeRuntimeProvider({ children }: { children: ReactNode }) {
+  const intl = useIntl();
   const runtime = useSyncExternalStore(
     subscribeThemeRuntime,
     getThemeRuntimeSnapshot,
@@ -23,6 +27,11 @@ export function ThemeRuntimeProvider({ children }: { children: ReactNode }) {
   }, [runtime.resolved.settings.colorWeak, runtime.resolved.settings.navTheme]);
 
   return (
-    <ConfigProvider theme={createThemeConfig(runtime.resolved.settings)}>{children}</ConfigProvider>
+    <ConfigProvider
+      locale={intl.locale.toLowerCase().startsWith('en') ? enUS : zhCN}
+      theme={createThemeConfig(runtime.resolved.settings)}
+    >
+      {children}
+    </ConfigProvider>
   );
 }

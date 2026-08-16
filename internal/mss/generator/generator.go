@@ -29,7 +29,7 @@ const (
 	backendTemplateRevision      = "1.1.0-backend.3"
 	instructionsTemplateRevision = "1.2.0-module-instructions.1"
 	frontendTemplateRevision     = "1.1.0-frontend.1"
-	frontendV6TemplateRevision   = "1.2.0-frontend-v6.5"
+	frontendV6TemplateRevision   = "1.2.0-frontend-v6.6"
 	docsTemplateRevision         = "1.2.0-docs.1"
 	e2eTemplateRevision          = "1.1.0-e2e.2"
 	e2eV6TemplateRevision        = "1.2.0-e2e-v6.6"

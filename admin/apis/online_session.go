@@ -161,6 +161,10 @@ func (e *OnlineSessionAPI) List(c *gin.Context) {
 		api.AddError(err).Err(http.StatusInternalServerError)
 		return
 	}
+	currentSID := e.extractSID(c)
+	for i := range rows {
+		rows[i].Current = currentSID != "" && rows[i].ID == currentSID
+	}
 
 	api.PageOK(rows, total, int64(q.Current), int64(q.PageSize))
 }
@@ -184,6 +188,8 @@ func (e *OnlineSessionAPI) Get(c *gin.Context) {
 		api.AddError(err).Err(http.StatusInternalServerError)
 		return
 	}
+	currentSID := e.extractSID(c)
+	row.Current = currentSID != "" && row.ID == currentSID
 	api.OK(row)
 }
 

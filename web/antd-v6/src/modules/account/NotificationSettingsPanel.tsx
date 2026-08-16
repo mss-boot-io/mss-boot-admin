@@ -17,6 +17,7 @@ export default function NotificationSettingsPanel() {
   const { initialState } = useModel('@@initialState') as { initialState?: InitialState };
   const userID = initialState?.currentUser?.id ?? '';
   const [pendingKey, setPendingKey] = useState<NotificationSettingKey>();
+  const [savedKey, setSavedKey] = useState<NotificationSettingKey>();
   const [mutationError, setMutationError] = useState<string>();
   const settings = useQuery({
     queryKey: queryKeys.accountNotifications(userID),
@@ -39,10 +40,12 @@ export default function NotificationSettingsPanel() {
   const update = async (key: NotificationSettingKey, enabled: boolean) => {
     if (pendingKey) return;
     setPendingKey(key);
+    setSavedKey(undefined);
     setMutationError(undefined);
     try {
       await accountAPI.updateNotificationSetting(key, enabled);
       await queryClient.invalidateQueries({ queryKey: queryKeys.accountNotifications(userID) });
+      setSavedKey(key);
     } catch (error) {
       setMutationError(getRequestErrorMessage(error));
     } finally {
@@ -77,18 +80,27 @@ export default function NotificationSettingsPanel() {
               <Typography.Text strong>
                 {intl.formatMessage({ id: `account.notifications.${key}.title` })}
               </Typography.Text>
-              <div>
+              <div id={`notification-setting-${key}-description`}>
                 <Typography.Text type="secondary">
                   {intl.formatMessage({ id: `account.notifications.${key}.description` })}
                 </Typography.Text>
               </div>
             </div>
-            <Switch
-              checked={settings.data?.[key] ?? false}
-              loading={pendingKey === key}
-              disabled={Boolean(pendingKey && pendingKey !== key)}
-              onChange={(enabled) => void update(key, enabled)}
-            />
+            <div className="flex shrink-0 items-center gap-2">
+              {savedKey === key && pendingKey !== key ? (
+                <Typography.Text aria-live="polite" role="status" type="success">
+                  {intl.formatMessage({ id: 'account.notifications.saved' })}
+                </Typography.Text>
+              ) : null}
+              <Switch
+                aria-describedby={`notification-setting-${key}-description`}
+                aria-label={intl.formatMessage({ id: `account.notifications.${key}.title` })}
+                checked={settings.data?.[key] ?? false}
+                loading={pendingKey === key}
+                disabled={Boolean(pendingKey && pendingKey !== key)}
+                onChange={(enabled) => void update(key, enabled)}
+              />
+            </div>
           </li>
         ))}
       </ul>

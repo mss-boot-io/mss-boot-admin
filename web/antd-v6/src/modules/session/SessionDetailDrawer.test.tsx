@@ -39,6 +39,7 @@ function session(): OnlineSession {
     expiredAt: '2099-08-15T02:00:00Z',
     revoked: false,
     revokedBy: 'user-2',
+    current: false,
   };
 }
 
@@ -91,5 +92,22 @@ describe('online session detail drawer', () => {
     expect(screen.getByText('Security Operator')).toBeTruthy();
     expect(screen.queryByText('role-1')).toBeNull();
     expect(screen.queryByText('user-2')).toBeNull();
+  });
+
+  it('labels the current session and presents a readable device summary', () => {
+    detailQuery.current = {
+      ...detailQuery.current,
+      data: {
+        ...session(),
+        current: true,
+        userAgent:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36',
+      },
+    };
+
+    renderDrawer();
+
+    expect(screen.getByText('sessions.current')).toBeTruthy();
+    expect(screen.getByText('Google Chrome · Windows')).toBeTruthy();
   });
 });

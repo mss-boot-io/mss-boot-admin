@@ -86,7 +86,7 @@ export default function StoragePanel() {
         extra={intl.formatMessage({ id: 'pages.appConfig.storage.maxSizeHelp' })}
         rules={[{ required: true }]}
       >
-        <InputNumber min={1} max={104_857_600} precision={0} className="w-full" />
+        <InputNumber className="w-full" controls={false} max={104_857_600} min={1} precision={0} />
       </Form.Item>
       <Form.Item
         name="allowedTypes"

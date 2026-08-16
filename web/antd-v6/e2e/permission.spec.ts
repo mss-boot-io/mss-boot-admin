@@ -19,24 +19,36 @@ function menuContainsPath(value: unknown, expectedPath: string): boolean {
   });
 }
 
-async function createFinanceUser(rootPage: Page) {
+async function createRestrictedUser(rootPage: Page) {
   const roles = await readJSON(
     await rootPage.request.get(`${BACKEND_API_BASE_URL}/roles?current=1&pageSize=100`),
   );
-  const financeRole = (Array.isArray(roles.data) ? roles.data : []).find(
-    (entry) =>
-      entry &&
-      typeof entry === 'object' &&
-      !Array.isArray(entry) &&
-      (entry as Record<string, unknown>).name === 'finance',
-  ) as Record<string, unknown> | undefined;
-  const roleID = typeof financeRole?.id === 'string' ? financeRole.id : '';
-  expect(roleID, 'the Supplier migration must seed the finance role').not.toBe('');
+  const initializedRoleNames = (Array.isArray(roles.data) ? roles.data : [])
+    .filter(
+      (entry): entry is Record<string, unknown> =>
+        Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry),
+    )
+    .map((entry) => entry.name);
+  expect(initializedRoleNames).not.toContain('finance');
+  expect(initializedRoleNames).not.toContain('procurement');
 
   const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
+  const roleResponse = await rootPage.request.post(`${BACKEND_API_BASE_URL}/roles`, {
+    data: {
+      name: `e2e-restricted-${suffix}`,
+      remark: 'E2E authorization boundary fixture',
+      status: 'enabled',
+    },
+    headers: await csrfHeaders(rootPage),
+  });
+  expect(roleResponse.status()).toBe(201);
+  const role = await readJSON(roleResponse);
+  const roleID = typeof role.id === 'string' ? role.id : '';
+  expect(roleID, 'the E2E fixture must create an ordinary restricted role').not.toBe('');
+
   const credentials = {
-    username: `e2efin${suffix}`,
-    password: 'E2eFinance123!',
+    username: `e2erestricted${suffix}`,
+    password: 'E2eRestricted123!',
   };
   const response = await rootPage.request.post(`${BACKEND_API_BASE_URL}/users`, {
     data: {
@@ -72,7 +84,7 @@ test.describe('V6 authorization boundaries', () => {
     const rootContext = await browser.newContext();
     const rootPage = await rootContext.newPage();
     await login(rootPage);
-    const credentials = await createFinanceUser(rootPage);
+    const credentials = await createRestrictedUser(rootPage);
 
     try {
       await setLocale(page, 'en-US');

@@ -36,6 +36,7 @@ import {
   type OptionSummary,
 } from './contract';
 import OptionDetailDrawer from './OptionDetailDrawer';
+import { presentOptionSummary } from './presentation';
 import { useOptionPage } from './query';
 
 interface OptionListViewProps {
@@ -136,6 +137,8 @@ export default function OptionListView({ canCreate, canDelete, canEdit }: Option
     </Space>
   );
 
+  const displayName = (row: OptionSummary) => presentOptionSummary(row, intl).displayName || '—';
+
   const columns: TableColumnsType<OptionSummary> = [
     {
       title: intl.formatMessage({ id: 'option.field.name' }),
@@ -151,7 +154,7 @@ export default function OptionListView({ canCreate, canDelete, canEdit }: Option
       dataIndex: 'displayName',
       ellipsis: true,
       responsive: ['md'],
-      render: (_, row) => row.displayName || '—',
+      render: (_, row) => displayName(row),
     },
     {
       title: intl.formatMessage({ id: 'option.field.category' }),
