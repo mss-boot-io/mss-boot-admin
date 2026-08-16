@@ -4,21 +4,14 @@ import LockOutlined from '@ant-design/icons/LockOutlined';
 import MailOutlined from '@ant-design/icons/MailOutlined';
 import SafetyCertificateOutlined from '@ant-design/icons/SafetyCertificateOutlined';
 import UserOutlined from '@ant-design/icons/UserOutlined';
-import {
-  LoginFormPage,
-  ProFormCaptcha,
-  ProFormText,
-} from '@ant-design/pro-components';
+import { LoginFormPage, ProFormCaptcha, ProFormText } from '@ant-design/pro-components';
 import { history, Link, SelectLang, useIntl, useModel } from '@umijs/max';
 import { Alert, App, Button, Divider, Space, Tabs, Typography } from 'antd';
 import { useState } from 'react';
 import { accountAPI } from '@/modules/account/api';
 import type { OAuthProvider } from '@/modules/account/contracts';
 import { authAPI } from '@/modules/auth/api';
-import {
-  emailChallengeCapability,
-  isEmailChallengeFlowAvailable,
-} from '@/modules/auth/capability';
+import { emailChallengeCapability, isEmailChallengeFlowAvailable } from '@/modules/auth/capability';
 import { rememberOAuthLoginRedirect } from '@/shared/auth/oauthRedirect';
 import { resolveSafeRedirect } from '@/shared/auth/redirect';
 import {

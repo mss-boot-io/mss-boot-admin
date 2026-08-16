@@ -9,6 +9,12 @@ const runtime = vi.hoisted(() => ({
   pathname: '/users',
 }));
 
+function permissionFlags(props: Record<string, unknown>): string {
+  return Object.values(props)
+    .filter((value): value is boolean => typeof value === 'boolean')
+    .join(':');
+}
+
 vi.mock('@umijs/max', () => ({
   useIntl: () => ({ formatMessage: ({ id }: { id: string }) => id }),
   useLocation: () => ({ pathname: runtime.pathname }),
@@ -20,29 +26,19 @@ vi.mock('@ant-design/pro-components', () => ({
 }));
 
 vi.mock('@/modules/administration/UserManagement', () => ({
-  default: (props: Record<string, boolean>) => (
-    <div>{`users:${Object.values(props).join(':')}`}</div>
-  ),
+  default: (props: Record<string, unknown>) => <div>{`users:${permissionFlags(props)}`}</div>,
 }));
 vi.mock('@/modules/administration/RoleManagement', () => ({
-  default: (props: Record<string, boolean>) => (
-    <div>{`roles:${Object.values(props).join(':')}`}</div>
-  ),
+  default: (props: Record<string, unknown>) => <div>{`roles:${permissionFlags(props)}`}</div>,
 }));
 vi.mock('@/modules/administration/MenuManagement', () => ({
-  default: (props: Record<string, boolean>) => (
-    <div>{`menus:${Object.values(props).join(':')}`}</div>
-  ),
+  default: (props: Record<string, unknown>) => <div>{`menus:${permissionFlags(props)}`}</div>,
 }));
 vi.mock('@/modules/administration/DepartmentManagement', () => ({
-  default: (props: Record<string, boolean>) => (
-    <div>{`departments:${Object.values(props).join(':')}`}</div>
-  ),
+  default: (props: Record<string, unknown>) => <div>{`departments:${permissionFlags(props)}`}</div>,
 }));
 vi.mock('@/modules/administration/PostManagement', () => ({
-  default: (props: Record<string, boolean>) => (
-    <div>{`posts:${Object.values(props).join(':')}`}</div>
-  ),
+  default: (props: Record<string, unknown>) => <div>{`posts:${permissionFlags(props)}`}</div>,
 }));
 
 function state(permissions: Record<string, boolean>, root = false): InitialState {
@@ -92,7 +88,7 @@ describe('administration route guards', () => {
     expect(screen.getByText('roles:false:false:false:false')).toBeTruthy();
     cleanup();
     renderRoute('/menu');
-    expect(screen.getByText('menus:false:false:false')).toBeTruthy();
+    expect(screen.getByText('menus:false:false:false:false')).toBeTruthy();
     cleanup();
     renderRoute('/departments');
     expect(screen.getByText('departments:false:false:false')).toBeTruthy();
@@ -111,6 +107,6 @@ describe('administration route guards', () => {
     expect(screen.getByText('roles:true:true:true:true')).toBeTruthy();
     cleanup();
     renderRoute('/menu');
-    expect(screen.getByText('menus:true:true:true')).toBeTruthy();
+    expect(screen.getByText('menus:true:true:true:true')).toBeTruthy();
   });
 });

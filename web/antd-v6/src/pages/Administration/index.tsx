@@ -78,12 +78,7 @@ const administrationRoutes: Record<string, AdministrationRouteDefinition> = {
     title: 'post.title',
     description: 'post.description',
     render: (root, routeIntent) => (
-      <PostManagement
-        canCreate={root}
-        canDelete={root}
-        canEdit={root}
-        routeIntent={routeIntent}
-      />
+      <PostManagement canCreate={root} canDelete={root} canEdit={root} routeIntent={routeIntent} />
     ),
   },
 };

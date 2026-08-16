@@ -11,18 +11,13 @@ import {
   Alert,
   App,
   Button,
-  Card,
   Col,
-  Descriptions,
   Form,
-  Grid,
   Input,
-  List,
   Popconfirm,
   Row,
   Select,
   Space,
-  Table,
   type TableColumnsType,
   Tag,
   Typography,
@@ -30,6 +25,7 @@ import {
 import { useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+import ResponsiveEntityTable from '@/shared/design-system/ResponsiveEntityTable';
 import { queryKeys } from '@/shared/query/client';
 import { optionAPI } from './api';
 import {
@@ -65,7 +61,6 @@ export default function OptionListView({ canCreate, canDelete, canEdit }: Option
   const { message } = App.useApp();
   const client = useQueryClient();
   const [form] = Form.useForm<OptionFilterValues>();
-  const screens = Grid.useBreakpoint();
   const [params, setParams] = useState<OptionListParams>(initialParams);
   const [detailID, setDetailID] = useState<string>();
   const options = useOptionPage(params);
@@ -292,89 +287,30 @@ export default function OptionListView({ canCreate, canDelete, canEdit }: Option
           </Col>
         </Row>
       </Form>
-      {screens.md === false ? (
-        <List<OptionSummary>
-          dataSource={options.data?.data ?? []}
-          loading={options.isFetching}
-          locale={{
-            emptyText: <PageEmpty description={intl.formatMessage({ id: 'option.empty' })} />,
-          }}
-          pagination={{
-            current: params.current,
-            hideOnSinglePage: true,
-            pageSize: params.pageSize,
-            simple: true,
-            total: options.data?.total ?? 0,
-            onChange: (current) => setParams((previous) => ({ ...previous, current })),
-          }}
-          rowKey={(option) => option.id}
-          renderItem={(option) => (
-            <List.Item style={{ paddingInline: 0 }}>
-              <Card
-                className="w-full"
-                size="small"
-                title={
-                  <Button type="link" className="px-0" onClick={() => setDetailID(option.id)}>
-                    {option.name}
-                  </Button>
-                }
-              >
-                <Descriptions
-                  column={1}
-                  size="small"
-                  items={[
-                    {
-                      key: 'displayName',
-                      label: intl.formatMessage({ id: 'option.field.displayName' }),
-                      children: option.displayName || '—',
-                    },
-                    {
-                      key: 'category',
-                      label: intl.formatMessage({ id: 'option.field.category' }),
-                      children: <Typography.Text code>{option.category}</Typography.Text>,
-                    },
-                    {
-                      key: 'status',
-                      label: intl.formatMessage({ id: 'option.field.status' }),
-                      children: renderStatus(option),
-                    },
-                    {
-                      key: 'version',
-                      label: intl.formatMessage({ id: 'option.field.version' }),
-                      children: option.version,
-                    },
-                  ]}
-                />
-                <div className="mt-3">{renderActions(option)}</div>
-              </Card>
-            </List.Item>
-          )}
-        />
-      ) : (
-        <Table<OptionSummary>
-          columns={columns}
-          dataSource={options.data?.data ?? []}
-          loading={options.isFetching}
-          locale={{
-            emptyText: <PageEmpty description={intl.formatMessage({ id: 'option.empty' })} />,
-          }}
-          pagination={{
-            current: params.current,
-            pageSize: params.pageSize,
-            pageSizeOptions: OPTION_PAGE_SIZES.map(String),
-            showSizeChanger: true,
-            total: options.data?.total ?? 0,
-            onChange: (current, pageSize) =>
-              setParams((previous) => ({
-                ...previous,
-                current,
-                pageSize: isOptionPageSize(pageSize) ? pageSize : previous.pageSize,
-              })),
-          }}
-          rowKey="id"
-          scroll={{ x: 980 }}
-        />
-      )}
+      <ResponsiveEntityTable<OptionSummary>
+        columns={columns}
+        dataSource={options.data?.data ?? []}
+        loading={options.isFetching}
+        locale={{
+          emptyText: <PageEmpty description={intl.formatMessage({ id: 'option.empty' })} />,
+        }}
+        mobileColumnKeys={['name', 'displayName', 'category', 'status', 'version', 'actions']}
+        pagination={{
+          current: params.current,
+          pageSize: params.pageSize,
+          pageSizeOptions: OPTION_PAGE_SIZES.map(String),
+          showSizeChanger: true,
+          total: options.data?.total ?? 0,
+          onChange: (current, pageSize) =>
+            setParams((previous) => ({
+              ...previous,
+              current,
+              pageSize: isOptionPageSize(pageSize) ? pageSize : previous.pageSize,
+            })),
+        }}
+        rowKey="id"
+        scroll={{ x: 980 }}
+      />
       <Typography.Text type="secondary">
         {intl.formatMessage({ id: 'option.summaryNotice' })}
       </Typography.Text>

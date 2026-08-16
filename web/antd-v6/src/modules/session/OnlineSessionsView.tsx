@@ -6,18 +6,13 @@ import {
   Alert,
   App,
   Button,
-  Card,
   Col,
-  Descriptions,
   Form,
-  Grid,
   Input,
-  List,
   Popconfirm,
   Row,
   Select,
   Space,
-  Table,
   type TableColumnsType,
   Tag,
   Typography,
@@ -25,6 +20,7 @@ import {
 import { useState } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+import ResponsiveEntityTable from '@/shared/design-system/ResponsiveEntityTable';
 import { queryClient, queryKeys } from '@/shared/query/client';
 import { sessionAPI } from './api';
 import {
@@ -67,7 +63,6 @@ export default function OnlineSessionsView() {
   const intl = useIntl();
   const { message } = App.useApp();
   const [form] = Form.useForm<SessionFilterValues>();
-  const screens = Grid.useBreakpoint();
   const [params, setParams] = useState<OnlineSessionListParams>(initialParams);
   const [detailID, setDetailID] = useState<string>();
   const sessions = useOnlineSessionPage(params);
@@ -304,84 +299,30 @@ export default function OnlineSessionsView() {
           </Col>
         </Row>
       </Form>
-      {screens.md === false ? (
-        <List<OnlineSession>
-          dataSource={sessions.data?.data ?? []}
-          loading={sessions.isFetching}
-          locale={{
-            emptyText: <PageEmpty description={intl.formatMessage({ id: 'sessions.empty' })} />,
-          }}
-          pagination={{
-            current: params.current,
-            hideOnSinglePage: true,
-            pageSize: params.pageSize,
-            simple: true,
-            total: sessions.data?.total ?? 0,
-            onChange: (current) => setParams((previous) => ({ ...previous, current })),
-          }}
-          rowKey={(session) => session.id}
-          renderItem={(session) => (
-            <List.Item style={{ paddingInline: 0 }}>
-              <Card
-                className="w-full"
-                size="small"
-                title={
-                  <Button type="link" className="px-0" onClick={() => setDetailID(session.id)}>
-                    {session.username}
-                  </Button>
-                }
-              >
-                <Descriptions
-                  column={1}
-                  size="small"
-                  items={[
-                    {
-                      key: 'ip',
-                      label: intl.formatMessage({ id: 'sessions.field.ip' }),
-                      children: session.ip || '—',
-                    },
-                    {
-                      key: 'lastSeenAt',
-                      label: intl.formatMessage({ id: 'sessions.field.lastSeenAt' }),
-                      children: formatDate(session.lastSeenAt),
-                    },
-                    {
-                      key: 'status',
-                      label: intl.formatMessage({ id: 'sessions.field.status' }),
-                      children: renderStatus(session),
-                    },
-                  ]}
-                />
-                <div className="mt-3">{renderActions(session)}</div>
-              </Card>
-            </List.Item>
-          )}
-        />
-      ) : (
-        <Table<OnlineSession>
-          columns={columns}
-          dataSource={sessions.data?.data ?? []}
-          loading={sessions.isFetching}
-          locale={{
-            emptyText: <PageEmpty description={intl.formatMessage({ id: 'sessions.empty' })} />,
-          }}
-          pagination={{
-            current: params.current,
-            pageSize: params.pageSize,
-            pageSizeOptions: ONLINE_SESSION_PAGE_SIZES.map(String),
-            showSizeChanger: true,
-            total: sessions.data?.total ?? 0,
-            onChange: (current, pageSize) =>
-              setParams((previous) => ({
-                ...previous,
-                current,
-                pageSize: isOnlineSessionPageSize(pageSize) ? pageSize : previous.pageSize,
-              })),
-          }}
-          rowKey="id"
-          scroll={{ x: 760 }}
-        />
-      )}
+      <ResponsiveEntityTable<OnlineSession>
+        columns={columns}
+        dataSource={sessions.data?.data ?? []}
+        loading={sessions.isFetching}
+        locale={{
+          emptyText: <PageEmpty description={intl.formatMessage({ id: 'sessions.empty' })} />,
+        }}
+        mobileColumnKeys={['username', 'ip', 'lastSeenAt', 'status', 'actions']}
+        pagination={{
+          current: params.current,
+          pageSize: params.pageSize,
+          pageSizeOptions: ONLINE_SESSION_PAGE_SIZES.map(String),
+          showSizeChanger: true,
+          total: sessions.data?.total ?? 0,
+          onChange: (current, pageSize) =>
+            setParams((previous) => ({
+              ...previous,
+              current,
+              pageSize: isOnlineSessionPageSize(pageSize) ? pageSize : previous.pageSize,
+            })),
+        }}
+        rowKey="id"
+        scroll={{ x: 760 }}
+      />
       <SessionDetailDrawer
         id={detailID}
         open={Boolean(detailID)}

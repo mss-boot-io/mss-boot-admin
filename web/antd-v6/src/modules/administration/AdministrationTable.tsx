@@ -1,25 +1,11 @@
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
 import type { TableColumnsType } from 'antd';
-import {
-  Alert,
-  Button,
-  Card,
-  Col,
-  Descriptions,
-  Form,
-  Grid,
-  Input,
-  List,
-  Row,
-  Select,
-  Space,
-  Table,
-  Tag,
-} from 'antd';
+import { Alert, Button, Col, Form, Input, Row, Select, Space, Tag } from 'antd';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
 import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+import ResponsiveEntityTable from '@/shared/design-system/ResponsiveEntityTable';
 import {
   ADMIN_PAGE_SIZES,
   type AdministrationListParams,
@@ -40,48 +26,8 @@ interface AdministrationTableProps<T extends { id: string }> {
   params: AdministrationListParams;
   query: UseQueryResult<AdministrationPage<T>, Error>;
   setParams: Dispatch<SetStateAction<AdministrationListParams>>;
-  mobileColumnKeys?: readonly string[];
+  mobileColumnKeys: readonly string[];
   toolbar?: ReactNode;
-}
-
-function columnKey<T>(column: TableColumnsType<T>[number]): string | undefined {
-  if (column.key !== undefined) return String(column.key);
-  if (!('dataIndex' in column) || column.dataIndex === undefined) return undefined;
-  return Array.isArray(column.dataIndex)
-    ? column.dataIndex.map(String).join('.')
-    : String(column.dataIndex);
-}
-
-function dataIndexValue<T>(record: T, dataIndex: unknown): unknown {
-  const path = Array.isArray(dataIndex) ? dataIndex : [dataIndex];
-  return path.reduce<unknown>((value, segment) => {
-    if (!value || typeof value !== 'object') return undefined;
-    return (value as Record<PropertyKey, unknown>)[segment as PropertyKey];
-  }, record);
-}
-
-function mobileDescriptionItems<T>(
-  columns: TableColumnsType<T>,
-  keys: readonly string[],
-  record: T,
-  index: number,
-) {
-  const selected = new Set(keys);
-  return columns.flatMap((column) => {
-    const key = columnKey(column);
-    if (!key || !selected.has(key) || 'children' in column) return [];
-    const value = dataIndexValue(record, 'dataIndex' in column ? column.dataIndex : undefined);
-    const children = ('render' in column && typeof column.render === 'function'
-      ? column.render(value, record, index)
-      : (value as ReactNode) || '—') as unknown as ReactNode;
-    return [
-      {
-        key,
-        label: typeof column.title === 'function' ? key : column.title,
-        children,
-      },
-    ];
-  });
 }
 
 export function AdministrationStatusTag({ status }: { status: AdministrationStatus }) {
@@ -105,7 +51,6 @@ export default function AdministrationTable<T extends { id: string }>({
 }: AdministrationTableProps<T>) {
   const intl = useIntl();
   const [form] = Form.useForm<FilterValues>();
-  const screens = Grid.useBreakpoint();
   const status = getRequestStatus(query.error);
 
   if (status === 403) {
@@ -187,55 +132,28 @@ export default function AdministrationTable<T extends { id: string }>({
           </Col>
         </Row>
       </Form>
-      {screens.md === false && mobileColumnKeys ? (
-        <List<T>
-          dataSource={query.data?.data ?? []}
-          loading={query.isFetching}
-          locale={{ emptyText: <PageEmpty description={emptyText} /> }}
-          pagination={{
-            current: params.current,
-            hideOnSinglePage: true,
-            pageSize: params.pageSize,
-            simple: true,
-            total: query.data?.total ?? 0,
-            onChange: (current) => setParams((previous) => ({ ...previous, current })),
-          }}
-          rowKey={(item) => item.id}
-          renderItem={(item, index) => (
-            <List.Item style={{ paddingInline: 0 }}>
-              <Card className="w-full" size="small">
-                <Descriptions
-                  column={1}
-                  items={mobileDescriptionItems(columns, mobileColumnKeys, item, index)}
-                  size="small"
-                />
-              </Card>
-            </List.Item>
-          )}
-        />
-      ) : (
-        <Table<T>
-          columns={columns}
-          dataSource={query.data?.data ?? []}
-          loading={query.isFetching}
-          locale={{ emptyText: <PageEmpty description={emptyText} /> }}
-          pagination={{
-            current: params.current,
-            pageSize: params.pageSize,
-            pageSizeOptions: ADMIN_PAGE_SIZES.map(String),
-            showSizeChanger: true,
-            total: query.data?.total ?? 0,
-            onChange: (current, pageSize) =>
-              setParams((previous) => ({
-                ...previous,
-                current,
-                pageSize: isAdminPageSize(pageSize) ? pageSize : previous.pageSize,
-              })),
-          }}
-          rowKey="id"
-          scroll={{ x: 960 }}
-        />
-      )}
+      <ResponsiveEntityTable<T>
+        columns={columns}
+        dataSource={query.data?.data ?? []}
+        loading={query.isFetching}
+        locale={{ emptyText: <PageEmpty description={emptyText} /> }}
+        mobileColumnKeys={mobileColumnKeys}
+        pagination={{
+          current: params.current,
+          pageSize: params.pageSize,
+          pageSizeOptions: ADMIN_PAGE_SIZES.map(String),
+          showSizeChanger: true,
+          total: query.data?.total ?? 0,
+          onChange: (current, pageSize) =>
+            setParams((previous) => ({
+              ...previous,
+              current,
+              pageSize: isAdminPageSize(pageSize) ? pageSize : previous.pageSize,
+            })),
+        }}
+        rowKey="id"
+        scroll={{ x: 960 }}
+      />
     </Space>
   );
 }

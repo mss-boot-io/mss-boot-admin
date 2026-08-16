@@ -9,14 +9,14 @@ import {
 import { history, useIntl, useModel } from '@umijs/max';
 import { Alert, App, Result } from 'antd';
 import { useRef, useState } from 'react';
-import { fetchCurrentUser, createBrowserSession } from '@/shared/auth/session';
-import type { InitialState } from '@/shared/auth/types';
 import { resolveSafeRedirect } from '@/shared/auth/redirect';
+import { createBrowserSession, fetchCurrentUser } from '@/shared/auth/session';
+import type { InitialState } from '@/shared/auth/types';
 import { rotateThemeAuthSession } from '@/shared/theme/snapshot';
 import { authAPI } from './api';
 import {
-  emailChallengeCapability,
   type EmailChallengeFlow,
+  emailChallengeCapability,
   isEmailChallengeFlowAvailable,
 } from './capability';
 import PublicAuthFrame from './PublicAuthFrame';
@@ -154,10 +154,23 @@ export default function EmailChallengeFlowPage({
             label={intl.formatMessage({ id: 'pages.auth.newPassword' })}
             fieldProps={{ autoComplete: 'new-password', prefix: <LockOutlined /> }}
             rules={[
-              { required: true, message: intl.formatMessage({ id: 'pages.auth.passwordRequired' }) },
-              { min: 8, max: 128, message: intl.formatMessage({ id: 'pages.auth.passwordLength' }) },
-              { pattern: /[A-Za-z]/, message: intl.formatMessage({ id: 'pages.auth.passwordLetter' }) },
-              { pattern: /[0-9]/, message: intl.formatMessage({ id: 'pages.auth.passwordNumber' }) },
+              {
+                required: true,
+                message: intl.formatMessage({ id: 'pages.auth.passwordRequired' }),
+              },
+              {
+                min: 8,
+                max: 128,
+                message: intl.formatMessage({ id: 'pages.auth.passwordLength' }),
+              },
+              {
+                pattern: /[A-Za-z]/,
+                message: intl.formatMessage({ id: 'pages.auth.passwordLetter' }),
+              },
+              {
+                pattern: /[0-9]/,
+                message: intl.formatMessage({ id: 'pages.auth.passwordNumber' }),
+              },
             ]}
           />
           <ProFormText.Password

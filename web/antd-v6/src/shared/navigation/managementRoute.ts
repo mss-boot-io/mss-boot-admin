@@ -14,10 +14,6 @@ interface ManagementRouteHandlers<T> {
   openResetPassword?: (entity: T) => void;
 }
 
-function intentKey(intent: ManagementRouteIntent): string {
-  return intent.action === 'create' ? intent.action : `${intent.action}:${intent.id}`;
-}
-
 export function useManagementRouteIntent<T>(
   intent: ManagementRouteIntent | undefined,
   handlers: ManagementRouteHandlers<T>,
@@ -25,25 +21,31 @@ export function useManagementRouteIntent<T>(
   const handlersRef = useRef(handlers);
   const handledKeyRef = useRef<string | undefined>(undefined);
   handlersRef.current = handlers;
+  const action = intent?.action;
+  const id = intent && 'id' in intent ? intent.id : undefined;
 
   useEffect(() => {
-    if (!intent) return;
-    const key = intentKey(intent);
+    if (!action) {
+      handledKeyRef.current = undefined;
+      return;
+    }
+    const key = id ? `${action}:${id}` : action;
     if (handledKeyRef.current === key) return;
     handledKeyRef.current = key;
 
     const current = handlersRef.current;
-    if (intent.action === 'create') {
+    if (action === 'create') {
       current.openCreate();
       return;
     }
+    if (!id) return;
 
     let active = true;
     void current
-      .load(intent.id)
+      .load(id)
       .then((entity) => {
         if (!active) return;
-        if (intent.action === 'reset-password') {
+        if (action === 'reset-password') {
           current.openResetPassword?.(entity);
         } else {
           current.openEdit(entity);
@@ -56,7 +58,7 @@ export function useManagementRouteIntent<T>(
     return () => {
       active = false;
     };
-  }, [intent?.action, intent && 'id' in intent ? intent.id : undefined]);
+  }, [action, id]);
 }
 
 export function finishManagementRouteIntent(

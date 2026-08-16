@@ -1,5 +1,5 @@
 import type { TableColumnsType, TableProps } from 'antd';
-import { Card, Descriptions, Grid, List, Table } from 'antd';
+import { Card, Descriptions, Empty, Grid, Pagination, Spin, Table } from 'antd';
 import { isValidElement, type Key, type ReactNode } from 'react';
 
 interface ResponsiveEntityTableProps<T extends object> extends TableProps<T> {
@@ -69,36 +69,57 @@ export default function ResponsiveEntityTable<T extends object>({
     typeof tableProps.locale?.emptyText === 'function'
       ? tableProps.locale.emptyText()
       : tableProps.locale?.emptyText;
+  const loading =
+    typeof tableProps.loading === 'object'
+      ? tableProps.loading
+      : { spinning: Boolean(tableProps.loading) };
+  const dataSource = [...(tableProps.dataSource ?? [])];
 
   return (
-    <List<T>
-      dataSource={[...(tableProps.dataSource ?? [])]}
-      loading={tableProps.loading}
-      locale={{ emptyText }}
-      pagination={
-        pagination
-          ? {
-              current: pagination.current,
-              hideOnSinglePage: true,
-              pageSize: pagination.pageSize,
-              simple: true,
-              total: pagination.total,
-              onChange: (page, pageSize) => pagination.onChange?.(page, pageSize),
-            }
-          : false
-      }
-      rowKey={tableProps.rowKey as keyof T | ((item: T) => Key)}
-      renderItem={(item, index) => (
-        <List.Item style={{ paddingInline: 0 }}>
-          <Card className="w-full" size="small">
-            <Descriptions
-              column={1}
-              items={descriptionItems(tableProps.columns ?? [], mobileColumnKeys, item, index)}
-              size="small"
-            />
-          </Card>
-        </List.Item>
+    <Spin {...loading}>
+      {dataSource.length ? (
+        <ul className="m-0 grid list-none gap-3 p-0">
+          {dataSource.map((item, index) => {
+            const rowKey = tableProps.rowKey;
+            const key =
+              typeof rowKey === 'function'
+                ? rowKey(item)
+                : ((item as Record<PropertyKey, unknown>)[rowKey as PropertyKey] as Key);
+            return (
+              <li key={key ?? index}>
+                <Card className="w-full" size="small">
+                  <Descriptions
+                    column={1}
+                    items={descriptionItems(
+                      tableProps.columns ?? [],
+                      mobileColumnKeys,
+                      item,
+                      index,
+                    )}
+                    size="small"
+                  />
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <Empty description={emptyText} />
       )}
-    />
+      {pagination ? (
+        <div className="mt-4 flex justify-center">
+          <Pagination
+            current={pagination.current}
+            hideOnSinglePage
+            pageSize={pagination.pageSize}
+            responsive
+            showSizeChanger={false}
+            simple
+            total={pagination.total}
+            onChange={(page, pageSize) => pagination.onChange?.(page, pageSize)}
+          />
+        </div>
+      ) : null}
+    </Spin>
   );
 }

@@ -25,6 +25,10 @@ vi.mock('antd', async (importOriginal) => {
   const actual = await importOriginal<typeof import('antd')>();
   return {
     ...actual,
+    Grid: {
+      ...actual.Grid,
+      useBreakpoint: () => ({ md: true }),
+    },
     Table: ({
       columns,
       dataSource,

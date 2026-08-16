@@ -34,7 +34,12 @@ export default function PublicAuthFrame({
         <SelectLang />
       </div>
       <div className="mx-auto w-full max-w-xl pt-8 sm:pt-14">
-        <Space className="mb-6 w-full justify-center" orientation="vertical" align="center" size={8}>
+        <Space
+          className="mb-6 w-full justify-center"
+          orientation="vertical"
+          align="center"
+          size={8}
+        >
           <Image preview={false} src={brandLogo} alt={brandTitle} width={56} height={56} />
           <Typography.Title level={2} className="m-0 text-center">
             {brandTitle}
