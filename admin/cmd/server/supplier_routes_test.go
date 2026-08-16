@@ -29,6 +29,50 @@ func TestSupplierProductionComposition(t *testing.T) {
 	t.Run("requires both applied migrations", testSupplierCompositionMigrationReadiness)
 }
 
+func TestSupplierProductionCompositionUsesCurrentDatabaseLease(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	first := openSupplierCompositionSQLite(t)
+	second := openSupplierCompositionSQLite(t)
+	applySupplierCompositionMigrations(t, first)
+	applySupplierCompositionMigrations(t, second)
+
+	currentDatabase := first
+	currentUser := supplierCompositionUser(t, first)
+	previousIdentityKey := config.Cfg.Auth.IdentityKey
+	config.Cfg.Auth.IdentityKey = supplierCompositionIdentityKey
+	t.Cleanup(func() { config.Cfg.Auth.IdentityKey = previousIdentityKey })
+
+	engine := gin.New()
+	err := mountSupplierRoutesWithDatabaseDependencies(
+		t.Context(),
+		func(operation func(*gorm.DB) error) error { return operation(currentDatabase) },
+		engine.Group("/admin"),
+		supplierRouteDependencies{
+			authentication: func(ctx *gin.Context) {
+				ctx.Set(supplierCompositionIdentityKey, currentUser)
+				ctx.Next()
+			},
+			principal: middleware.GetVerify,
+			events:    supplierDomainEventLogger{},
+		},
+	)
+	if err != nil {
+		t.Fatalf("mount lease-aware Supplier composition: %v", err)
+	}
+	assertSupplierCompositionStatus(t, engine, "", http.StatusOK)
+
+	currentDatabase = second
+	currentUser = supplierCompositionUser(t, second)
+	firstSQL, err := first.DB()
+	if err != nil {
+		t.Fatalf("resolve first database pool: %v", err)
+	}
+	if err := firstSQL.Close(); err != nil {
+		t.Fatalf("close replaced database pool: %v", err)
+	}
+	assertSupplierCompositionStatus(t, engine, "", http.StatusOK)
+}
+
 func TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := openSupplierCompositionSQLite(t)
@@ -261,6 +305,15 @@ func assertSupplierCompositionStatus(
 	if response.Code != want {
 		t.Fatalf("Supplier list as %q = %d, want %d; body=%s", principal, response.Code, want, response.Body.String())
 	}
+}
+
+func supplierCompositionUser(t *testing.T, db *gorm.DB) *models.User {
+	t.Helper()
+	var role models.Role
+	if err := db.Where("name = ?", "procurement").Take(&role).Error; err != nil {
+		t.Fatalf("load migrated procurement role: %v", err)
+	}
+	return &models.User{UserLogin: models.UserLogin{RoleID: role.ID}}
 }
 
 func openSupplierCompositionSQLite(t *testing.T) *gorm.DB {

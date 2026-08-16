@@ -192,7 +192,7 @@ func setup(ctx context.Context) (err error) {
 	}
 	if err := mountSupplierRoutesAfterMigrationReadiness(
 		ctx,
-		databaseHandle.DB,
+		config.Cfg.WithDatabase,
 		businessRoutes,
 	); err != nil {
 		return err

@@ -19,7 +19,12 @@ func (s *SingleTenant) GetTenant(_ *gin.Context) (TenantImp, error) {
 	return s, nil
 }
 
-func (s *SingleTenant) GetDB(_ *gin.Context, _ schema.Tabler) *gorm.DB {
+func (s *SingleTenant) GetDB(ctx *gin.Context, _ schema.Tabler) *gorm.DB {
+	if ctx != nil && ctx.Request != nil {
+		if db, ok := RequestDatabase(ctx.Request.Context()); ok {
+			return db.WithContext(ctx.Request.Context())
+		}
+	}
 	return gormdb.DB
 }
 
