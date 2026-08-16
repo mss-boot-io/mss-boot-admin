@@ -25,6 +25,7 @@ export default {
   'navigation.search.empty': '没有匹配的可访问菜单',
   'navigation.search.hint': '按 Ctrl/⌘+K 随时打开，Enter 跳转，Esc 关闭',
   'navigation.documentation': '打开帮助文档',
+  'navigation.accountMenu': '打开 {name} 的账户菜单',
   'menu.oauth-callback': '第三方登录',
   'menu.welcome': '工作台',
   'menu.security': '安全管理',

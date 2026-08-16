@@ -316,10 +316,18 @@ function AvatarMenu({ initialState }: { initialState?: InitialState }) {
         ],
       }}
     >
-      <span className="inline-flex cursor-pointer items-center gap-2">
-        <Avatar src={currentUser?.avatar || undefined}>{label.slice(0, 1).toUpperCase()}</Avatar>
+      <Button
+        aria-haspopup="menu"
+        aria-label={intl.formatMessage({ id: 'navigation.accountMenu' }, { name: label })}
+        className="h-auto px-1 py-0"
+        htmlType="button"
+        icon={
+          <Avatar src={currentUser?.avatar || undefined}>{label.slice(0, 1).toUpperCase()}</Avatar>
+        }
+        type="text"
+      >
         <Typography.Text>{label}</Typography.Text>
-      </span>
+      </Button>
     </Dropdown>
   );
 }
