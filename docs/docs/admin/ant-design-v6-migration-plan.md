@@ -267,6 +267,7 @@ Option 管理：
 - 首版 V6 profile 的资格边界是带时间戳和 uuid/string ID 的完整 CRUD+export，以及非 nullable 的 string/text/uuid/enum/bool 字段。必填 create 字段必须具有可见编辑控件；启用 E2E 时还必须提供可重复清理和更新验证的唯一、可搜索、列表/表单可见文本字段。数值、文件、关系、create-only immutable 编辑、batch、import、workflow 等尚未实现的语义在规格校验阶段 fail-closed，不能用普通输入框近似。
 - 生成目录由生成器而非 Biome formatter/organize-imports 拥有；Biome lint、严格 TypeScript、Vitest、双目标 drift 和生产构建仍覆盖这些产物，任意手工格式化导致的漂移都会失败。
 - 生成的筛选/编辑表单使用独立 DOM 命名空间，有限枚举关闭虚拟化以保留真实 option 语义，操作按钮具有稳定的本地化可访问名称；E2E 唯一字段在长度和正则契约内生成 worker 隔离值且不受软删除唯一索引污染。Supplier 已在 Playwright 自启真实 Go 后端和隔离 SQLite 的模式下，串行通过 Chromium 桌面和移动完整 CRUD、详情、导出及删除流程；串行执行用于规避 SQLite 单写者语义干扰跨项目资格结果。
+- Supplier 只保留为开发期生成器 golden，参考 Admin 初始化不会暴露采购菜单。前向迁移 `20260817120000` 仅删除名称为 `finance`/`procurement` 且 remark 精确等于 `generated supplier default role` 的未使用生成角色；存在用户分配、Casbin 策略、软删除状态或已修改描述的角色全部保留，业务数据不受影响，重复执行保持幂等。
 - 生产路由在每个 Supplier 请求范围内获取当前数据库租约，认证、授权与生成 Application 共享同一 request-pinned handle；配置热更新会等待旧请求退出，再关闭旧连接池，新请求自动使用替换后的数据库。该生命周期属于服务端组合层，不手改生成代码，并有跨数据库替换回归测试。
 - Supplier 切片进入时的 release build 基线为 entry 4.16 KiB、总 JS 882.96 KiB、最大异步分包 199.59 KiB；其后权限、组织和运维切片的当前资格基线与 960/240 KiB 预算记录见 P4 与 ADR。该结果已包含后端菜单图标的显式 allowlist 适配器，后续业务切片仍必须给出依赖复用和预算证据。
 - 桌面与移动端的中英文浏览器资格会访问工作台、账户中心、个人设置和 Supplier，验证无横向溢出、语言按钮可访问、动态菜单文案/图标正确，并将所有 console warning/error 作为失败；权限资格以隔离 Finance 身份同时证明后端拒绝与 UI 最小权限。
@@ -278,6 +279,21 @@ Option 管理：
 - 在同一 merged-main SHA 上运行依赖、Go、两个前端、文档、权限、浏览器、容器和恢复门禁。
 - 生成独立 V6 tag、dist、镜像 digest 和 release；不修改 V5 artifact。
 - 先小范围部署 V6，观察错误、性能、401/403、WebSocket 和权限一致性，再扩大流量。
+
+#### 2026-08-17 产品完整度预合并快照
+
+本快照适用于分支 `codex/antd-v6-product-completeness` 的 PR #483，记录的 head 为
+`1631fa389da76669dd3abd4f147259ba85fff568`。机器可读的 V5→V6 能力逐项处置、保留项和明确排除项位于
+`.mss/inventories/admin-antd-v6-parity.json`；其状态仍是 `pre-pr-qualified`，不能替代 merged-main 发布资格。
+
+- 产品完整度：V6 已补齐语义化单一 `h1` 页面容器、显式 antd zh-CN/en-US locale、可访问的桌面/移动导航、品牌与水印、V5 熟悉的右上角通知弹层、权限感知工作台快捷入口、任务风险提示、内置 Option 展示本地化，以及可读的在线会话设备与当前会话状态。生成器模板同步使用同一页面容器契约。
+- 初始化边界：Supplier、finance 和 procurement 不作为参考产品模块或默认角色出现；Supplier 代码继续作为确定性 V5/V6 生成证据。迁移只清理具备精确生成来源且未分配、无策略的演示角色，保留下游采用、定制和授权数据。
+- 本地集中验证：`go run ./cmd/mss verify --changed` 通过七项门禁，V6 共 69 个测试文件、223 个测试通过；Playwright 在桌面/移动项目中 17 项通过、1 项按环境条件跳过；内置浏览器覆盖 `/workplace`、`/users`、`/role`、`/menu`、`/departments`、`/posts`、`/task`、`/language`、`/notice`、`/option`、`/log`、`/system-config`、`/app-config`、`/security/online-sessions`、`/account/center` 和 `/account/settings`，未发现加载失败、裸露 `menu.*` 或横向溢出。
+- 交付验证：冻结离线安装、依赖契约、双目标生成器 drift、release build 和固定 Nginx 容器 smoke 均通过；release build 的 entry 为 4.15 KiB、总 JS 为 934.97 KiB、最大异步分包为 226.06 KiB，满足当前预算。体积数据只用于本 PR 资格，不改变 P8/P9 的顺序门禁。
+- 文档影响：本节把当前产品完整度、初始化清理和预合并证据写入长期迁移计划，并由机器清单承载逐能力事实；V5 默认入口、发布产物和回滚路径均未改变。
+- 安全影响：在线会话的 `current` 布尔值由后端使用当前认证会话 SID 与权威会话记录比较后计算，不新增或暴露浏览器凭证；Supplier 角色清理由精确来源、用户分配和授权策略保护。此 PR 不关闭 V5 bearer/WebSocket 兼容，也不授权默认切流。
+
+下一可执行步骤是先使 PR #483 的文档、权限、浏览器和完整 CI 全绿并合入 `main`；随后从新的 merged-main SHA 创建独立默认切流 PR，继续保留 V5 回滚，不能在本 PR 中提前删除 V5。
 
 完成门：所有 Feature acceptance 有 exact-SHA 证据，资格清单移除 V6 exclusion 后才允许正式发布。
 
