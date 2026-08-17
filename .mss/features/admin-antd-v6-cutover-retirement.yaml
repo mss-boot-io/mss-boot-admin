@@ -11,7 +11,7 @@ metadata:
   labels:
     domain: admin-foundation
     compatibility: breaking
-    phase: implementation
+    phase: qualified
 spec:
   problem: >-
     V6 is now the only supported Admin browser client. Retaining the V5 source,
@@ -187,9 +187,10 @@ spec:
   rollout:
     strategy: direct
     migration: >-
-      Merge the V6-only source and protocol change through one reviewed pull request,
-      run the forward cleanup migration during deployment, and publish only from the
-      exact merged-main commit after the complete qualification batch passes.
+      The V6-only source and protocol change was merged through pull request #485 as
+      commit 9b9ff0b098cbe06b76f34b01ddcdf10afea55b3c. Run the forward cleanup migration
+      during deployment, and publish only from an exact later merged-main commit after
+      its complete qualification batch and Codex in-app Browser acceptance pass.
     rollback: >-
       Redeploy the preceding qualified V6 artifact while preserving additive database
       state. Do not restore V5 source, move tags, or reverse the cleanup migration.

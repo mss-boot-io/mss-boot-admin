@@ -11,7 +11,7 @@ metadata:
   labels:
     domain: configuration
     scope: theme
-    phase: p3-implementation
+    phase: qualified
 spec:
   problem: >-
     The baseline Admin implementation merged code, application, and user theme values without
@@ -374,8 +374,9 @@ spec:
     migration: >-
       Back up the database, apply the additive ConfigRevision migration and the exact obsolete-pwa cleanup,
       then deploy the V6-only backend and frontend from the same qualified release. Monitor migration failures,
-      412 and 428 responses, Redis warnings, and redacted audit outcomes. The capability remains unqualified until
-      SQLite, external MySQL/PostgreSQL, and the complete browser acceptance matrix pass.
+      412 and 428 responses, Redis warnings, and redacted audit outcomes. SQLite, external MySQL/PostgreSQL,
+      and the focused automated browser suite passed on the merged-main cutover. Each release candidate still
+      requires a Codex in-app Browser acceptance record for the scoped editor and effective theme before publication.
     rollback: >-
       Stop theme writes and redeploy the preceding qualified V6 frontend and backend together. Leave the additive
       revision table in place; restore an intentionally removed override only from the pre-rollout backup or redacted
