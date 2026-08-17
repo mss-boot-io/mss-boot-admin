@@ -6,6 +6,9 @@ describe('menu locale normalization', () => {
     ['menu.origination.user', 'menu.origination.user'],
     ['origination.user', 'menu.origination.user'],
     ['user', 'menu.user'],
+    ['menu', 'menu.menu-management'],
+    ['authority.menu', 'menu.authority.menu'],
+    ['menu.authority.menu', 'menu.authority.menu'],
     [' menu.origination.user ', 'menu.origination.user'],
   ])('normalizes %s', (source, expected) => {
     expect(resolveMenuLocaleID(source)).toBe(expected);
