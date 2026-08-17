@@ -93,19 +93,17 @@ go run . server
 #### 前端
 
 ```bash
-cd mss-boot-admin-antd
+cd web/antd-v6
 
-# 安装 Node 18+
+# 使用冻结的 Node 24 与 pnpm 10.34.5
 node --version
-
-# 安装 pnpm
-npm install -g pnpm
+corepack enable
 
 # 安装依赖
-pnpm install
+corepack pnpm@10.34.5 install --frozen-lockfile
 
 # 本地运行
-pnpm dev
+corepack pnpm@10.34.5 start:dev
 ```
 
 ### 4. 进行开发

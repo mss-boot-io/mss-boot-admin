@@ -49,7 +49,7 @@ export type BrowserSessionCredentials =
     };
 
 const PUBLIC_PATHS = new Set([LOGIN_PATH, '/user/register', '/user/forget']);
-const OAUTH_CALLBACK_PATH = /^\/user\/(?:oauth\/)?callback\/[^/]+$/;
+const OAUTH_CALLBACK_PATH = /^\/user\/oauth\/callback\/[^/]+$/;
 
 function browserLockManager(): LockManager | undefined {
   try {

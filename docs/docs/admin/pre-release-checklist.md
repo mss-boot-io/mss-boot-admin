@@ -251,33 +251,25 @@ go run . migrate
 
 #### 4.1 环境变量
 
-```bash
-# .env.production
-API_BASE_URL=https://your-domain.com/admin/api
-```
+V6 发布构建固定使用同源 `/admin/api`，不在浏览器静态资源中注入可漂移的后端地址。
+跨域部署必须作为单独架构变更评审，不能通过临时环境变量绕过 Cookie、CSRF 与 CORS 契约。
 
 #### 4.2 构建命令
 
 ```bash
-cd mss-boot-admin-antd
-pnpm install
-pnpm build
+make web-install
+make web-lint web-test web-build
 ```
 
 #### 4.3 静态资源
 
-**部署位置**：
-```yaml
-# mss-boot-admin config/application.yml
-application:
-  staticPath:
-    /public: public  # 前端静态资源
-```
+生产使用 `mss-boot-admin-antd-v6` 镜像，或把 `web/antd-v6/dist` 作为独立静态制品部署。
+后端 `/public` 不是生产前端托管或回滚入口。
 
-**或使用 Nginx**：
+**Nginx 静态制品示例**：
 ```nginx
 location / {
-    root /path/to/mss-boot-admin-antd/dist;
+    root /path/to/mss-boot-admin/web/antd-v6/dist;
     try_files $uri $uri/ /index.html;
 }
 ```
@@ -406,17 +398,11 @@ find /backup -name "mss_boot_admin_*.sql" -mtime +7 -delete
 ### 发布前（Pre-release）
 
 ```bash
-# 1. 代码检查
-cd mss-boot-admin
-go test ./...
-go vet ./...
+# 1. 仓库级集中验证
+go run ./cmd/mss verify --all
 
-cd mss-boot-admin-antd
-pnpm exec tsc --noEmit
-pnpm lint
-
-# 2. 构建验证
-pnpm build
+# 2. 显式复核唯一前端
+make web-lint web-test web-build
 
 # 3. 安全检查
 grep -r "password.*=.*\"" --include="*.go"

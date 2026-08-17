@@ -204,10 +204,10 @@ func TestOptionManagedCRUDOwnsIdentitySnapshotsAndRejectsStaleWriters(t *testing
 	}
 }
 
-func TestOptionManagedMutationKeepsTemporaryV5CompatibilityWarning(t *testing.T) {
+func TestOptionManagedMutationRequiresCanonicalIfMatch(t *testing.T) {
 	_, router := setupOptionAPITest(t)
 	createdResponse := optionAPIRequest(router, http.MethodPost, "/options", `{
-		"name":"legacy-compatible",
+		"name":"canonical-precondition",
 		"status":"enabled",
 		"items":[{"key":"yes","label":"Yes","value":"yes"}]
 	}`, "")
@@ -218,29 +218,25 @@ func TestOptionManagedMutationKeepsTemporaryV5CompatibilityWarning(t *testing.T)
 	if err := json.Unmarshal(createdResponse.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	legacyUpdate := optionAPIRequest(
+	missingRevision := optionAPIRequest(
 		router,
 		http.MethodPut,
 		"/options/"+created.ID,
-		`{"remark":"legacy write without revision"}`,
+		`{"remark":"write without revision"}`,
 		"",
 	)
-	if legacyUpdate.Code != http.StatusOK {
-		t.Fatalf("legacy update = %d: %s", legacyUpdate.Code, legacyUpdate.Body.String())
+	if missingRevision.Code != http.StatusPreconditionRequired {
+		t.Fatalf("missing revision update = %d: %s", missingRevision.Code, missingRevision.Body.String())
 	}
-	if legacyUpdate.Header().Get(optionPreconditionHeader) != "missing" || legacyUpdate.Header().Get("Warning") == "" {
-		t.Fatalf("legacy warning headers = %#v", legacyUpdate.Header())
-	}
-
-	mismatch := optionAPIRequest(
+	bodyRevisionOnly := optionAPIRequest(
 		router,
 		http.MethodPut,
 		"/options/"+created.ID,
-		`{"expectedVersion":2,"version":1,"remark":"invalid"}`,
+		`{"expectedVersion":1,"version":1,"remark":"body revision is not a precondition"}`,
 		"",
 	)
-	if mismatch.Code != http.StatusBadRequest {
-		t.Fatalf("mismatched body revisions = %d: %s", mismatch.Code, mismatch.Body.String())
+	if bodyRevisionOnly.Code != http.StatusPreconditionRequired {
+		t.Fatalf("body-only revision update = %d: %s", bodyRevisionOnly.Code, bodyRevisionOnly.Body.String())
 	}
 }
 
@@ -255,21 +251,21 @@ func TestOptionManagedSummaryIsBoundedAndReadsFailClosed(t *testing.T) {
 		t.Fatalf("seed option: %v", err)
 	}
 
-	summary := optionAPIRequest(router, http.MethodGet, "/options?view=summary&current=1&pageSize=20", "", "")
+	summary := optionAPIRequest(router, http.MethodGet, "/options?current=1&pageSize=20", "", "")
 	if summary.Code != http.StatusOK {
 		t.Fatalf("summary response = %d: %s", summary.Code, summary.Body.String())
 	}
 	if bytes.Contains(summary.Body.Bytes(), []byte(`"items"`)) || bytes.Contains(summary.Body.Bytes(), []byte(`"description"`)) {
 		t.Fatalf("summary disclosed detail payload: %s", summary.Body.String())
 	}
-	wildcard := optionAPIRequest(router, http.MethodGet, "/options?view=summary&name=stat_&pageSize=20", "", "")
+	wildcard := optionAPIRequest(router, http.MethodGet, "/options?name=stat_&pageSize=20", "", "")
 	var page struct {
 		Total int64 `json:"total"`
 	}
 	if err := json.Unmarshal(wildcard.Body.Bytes(), &page); err != nil || page.Total != 0 {
 		t.Fatalf("escaped wildcard page = %#v, err = %v, body = %s", page, err, wildcard.Body.String())
 	}
-	unbounded := optionAPIRequest(router, http.MethodGet, "/options?view=summary&pageSize=101", "", "")
+	unbounded := optionAPIRequest(router, http.MethodGet, "/options?pageSize=101", "", "")
 	if unbounded.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("unbounded response = %d: %s", unbounded.Code, unbounded.Body.String())
 	}

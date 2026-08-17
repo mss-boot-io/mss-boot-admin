@@ -22,7 +22,7 @@ spec:
       required: true
       dependsOn: [backend]
       health:
-        url: http://127.0.0.1:8000/
+        url: http://127.0.0.1:8001/
     - id: backend
       directory: .
       command: [go, run, .]
@@ -123,6 +123,48 @@ spec:
 	}
 	if _, err := config.Services([]string{"missing"}); err == nil {
 		t.Fatal("expected unknown service selection to fail")
+	}
+}
+
+func TestStartServicesDefaultsToRequiredAndKeepsRollbackExplicit(t *testing.T) {
+	root := writeDevelopmentConfig(t, `apiVersion: mss.io/v1alpha1
+kind: DevelopmentEnvironment
+metadata:
+  project: test-project
+spec:
+  services:
+    - id: backend
+      directory: .
+      command: [go, run, .]
+      required: true
+    - id: frontend
+      directory: .
+      command: [pnpm, dev]
+      required: true
+      dependsOn: [backend]
+    - id: worker
+      directory: .
+      command: [go, run, ./cmd/worker]
+      required: false
+      dependsOn: [backend]
+`)
+	config, err := Load(root)
+	if err != nil {
+		t.Fatalf("load development config: %v", err)
+	}
+	services, err := config.StartServices(nil)
+	if err != nil {
+		t.Fatalf("select default services: %v", err)
+	}
+	if len(services) != 2 || services[0].ID != "backend" || services[1].ID != "frontend" {
+		t.Fatalf("default services = %#v, want backend and frontend", services)
+	}
+	optional, err := config.StartServices([]string{"worker"})
+	if err != nil {
+		t.Fatalf("select optional service: %v", err)
+	}
+	if len(optional) != 2 || optional[0].ID != "backend" || optional[1].ID != "worker" {
+		t.Fatalf("optional services = %#v, want backend and worker", optional)
 	}
 }
 

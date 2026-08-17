@@ -33,7 +33,6 @@ export function createOptionAPI(client: OptionRequestClient) {
             status: params.status === 'all' ? undefined : params.status,
             category: params.category,
             name: params.name,
-            view: 'summary',
           },
           skipErrorHandler: true,
         }),

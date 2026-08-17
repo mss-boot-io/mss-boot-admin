@@ -97,7 +97,6 @@ export interface OptionWritePayload {
   remark: string;
   status?: OptionStatus;
   items: Array<OptionItemDraft & { extra?: OptionJSONObject }>;
-  expectedVersion?: number;
 }
 
 export class OptionContractError extends Error {
@@ -364,13 +363,11 @@ export function serializeOptionWrite(
     items,
   };
   if (base?.builtIn) {
-    payload.expectedVersion = base.version;
     return payload;
   }
   payload.category = requiredString(values, 'category', MAX_OPTION_CATEGORY);
   payload.name = requiredString(values, 'name', MAX_OPTION_NAME);
   payload.status = statusField(values);
-  if (base) payload.expectedVersion = base.version;
   return payload;
 }
 

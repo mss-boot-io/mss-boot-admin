@@ -244,7 +244,7 @@ spec:
     - .mss/release-policy.yaml
     - .mss/capabilities.yaml
     - .mss/commands.yaml
-    - web/antd/package.json
+    - web/antd-v6/package.json
     - docs/package.json
     - mss-boot/go.mod
   excludePrefixes:
@@ -270,7 +270,7 @@ spec:
   repositoryLayout:
     backend: admin
     framework: mss-boot
-    frontend: web/antd
+		frontend: web/antd-v6
     documentation: docs
     specifications: .mss
   backend:
@@ -292,14 +292,14 @@ spec:
   publicPrereleases: false
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"
-  frontendTagTemplate: "web/antd/{version}"
+  frontendTagTemplate: "web/antd-v6/{version}"
 `),
-		".mss/lock.yaml":              []byte("apiVersion: mss.io/v1alpha1\nkind: FoundationLock\nmetadata:\n  project: mss-boot-admin\n"),
-		"web/antd/package.json":       []byte(`{"name":"mss-boot-admin"}`),
-		"docs/package.json":           []byte(`{"name":"mss-boot-docs"}`),
-		"mss-boot/go.mod":             []byte("module github.com/mss-boot-io/mss-boot-admin/mss-boot\n\ngo 1.26.0\n"),
-		"web/antd/public/fixture.bin": {0, 1, 2, 255},
-		".mss/reports/ignored.txt":    []byte("ignore me"),
+		".mss/lock.yaml":                 []byte("apiVersion: mss.io/v1alpha1\nkind: FoundationLock\nmetadata:\n  project: mss-boot-admin\n"),
+		"web/antd-v6/package.json":       []byte(`{"name":"mss-boot-admin-antd-v6"}`),
+		"docs/package.json":              []byte(`{"name":"mss-boot-docs"}`),
+		"mss-boot/go.mod":                []byte("module github.com/mss-boot-io/mss-boot-admin/mss-boot\n\ngo 1.26.0\n"),
+		"web/antd-v6/public/fixture.bin": {0, 1, 2, 255},
+		".mss/reports/ignored.txt":       []byte("ignore me"),
 	}
 	for relative, data := range files {
 		path := filepath.Join(root, filepath.FromSlash(relative))

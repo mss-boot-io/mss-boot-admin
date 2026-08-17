@@ -143,6 +143,26 @@ func (c *Config) Services(selected []string) ([]ServiceSpec, error) {
 	return result, nil
 }
 
+// StartServices selects the required services when the caller does not name an
+// explicit service. Status and stop continue to inspect every configured
+// service, including an optional rollback frontend that may have been started
+// deliberately.
+func (c *Config) StartServices(selected []string) ([]ServiceSpec, error) {
+	if len(selected) > 0 {
+		return c.Services(selected)
+	}
+	required := make([]string, 0, len(c.Document.Spec.Services))
+	for _, service := range c.Document.Spec.Services {
+		if service.Required {
+			required = append(required, service.ID)
+		}
+	}
+	if len(required) == 0 {
+		return nil, errors.New("development environment has no required default services")
+	}
+	return c.Services(required)
+}
+
 // Service returns one validated service by ID.
 func (c *Config) Service(id string) (ServiceSpec, bool) {
 	service, exists := c.services[id]

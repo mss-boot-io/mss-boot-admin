@@ -16,7 +16,7 @@ const validAcceptance = () => ({
       package: 'image-size',
       severity: 'high',
       patchedVersions: '<0.0.0',
-      scopes: ['docs', 'web/antd'],
+      scopes: ['docs', 'web/antd-v6'],
       expiresOn: '2026-11-08',
       reason: 'No patched release exists and this is build-only.',
     },
@@ -48,11 +48,18 @@ test('accepts valid acceptance and audit documents', () => {
   assert.equal(validateAuditReport(validReport()).length, 1);
 });
 
-test('requires both the package pin and subprocess to use pnpm 9.15.9', () => {
-  assert.doesNotThrow(() => validatePnpmVersion('pnpm@9.15.9', '9.15.9\n'));
-  assert.throws(() => validatePnpmVersion('pnpm@9.15.8', '9.15.9'), /must pin/);
-  assert.throws(() => validatePnpmVersion('pnpm@9.15.9', '10.0.0'), /subprocess reported 10.0.0/);
-  assert.throws(() => validatePnpmVersion('pnpm@9.15.9', ''), /subprocess reported <empty>/);
+test('requires each package pin and subprocess to use its governed pnpm version', () => {
+  assert.doesNotThrow(() => validatePnpmVersion('pnpm@9.15.9', '9.15.9\n', '9.15.9'));
+  assert.doesNotThrow(() => validatePnpmVersion('pnpm@10.34.5', '10.34.5\n', '10.34.5'));
+  assert.throws(() => validatePnpmVersion('pnpm@9.15.8', '9.15.9', '9.15.9'), /must pin/);
+  assert.throws(
+    () => validatePnpmVersion('pnpm@9.15.9', '10.0.0', '9.15.9'),
+    /subprocess reported 10.0.0/,
+  );
+  assert.throws(
+    () => validatePnpmVersion('pnpm@10.34.5', '', '10.34.5'),
+    /subprocess reported <empty>/,
+  );
 });
 
 test('rejects unknown or missing acceptance fields', () => {

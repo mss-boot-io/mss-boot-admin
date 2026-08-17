@@ -73,7 +73,7 @@ func TestInitRouterUsesExactCredentialedCORSOrigins(t *testing.T) {
 
 	request := func(origin string) *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodOptions, "/admin/api/user/oauth2/authorize", nil)
+		req := httptest.NewRequest(http.MethodOptions, "/admin/api/user/session/oauth2/authorize", nil)
 		req.Header.Set("Origin", origin)
 		req.Header.Set("Access-Control-Request-Method", http.MethodPost)
 		req.Header.Set("Access-Control-Request-Headers", "authorization,content-type,if-match")

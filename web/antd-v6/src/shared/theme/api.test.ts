@@ -13,7 +13,6 @@ const api = createThemeAPI(client);
 const userBase: ThemeScopeResource = {
   scope: 'user',
   revision: '7',
-  versioned: true,
   overrides: { colorWeak: false },
 };
 

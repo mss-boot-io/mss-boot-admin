@@ -23,7 +23,6 @@ Put non-template business rules in explicitly custom files such as `service_cust
 
 ```shell
 go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml
-go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v5 --check
 go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --check
 cd admin && GOWORK=off go test ./modules/supplier/...
 go run ./cmd/mss verify --module supplier

@@ -23,13 +23,10 @@ Put non-template business rules in explicitly custom files such as `service_cust
 
 ```shell
 go run ./cmd/mss spec validate {{ .SourceSpec }}
-{{- if .HasFrontendV5 }}
-go run ./cmd/mss module generate {{ .SourceSpec }} --frontend-target antd-v5 --check
-{{- end }}
 {{- if .HasFrontendV6 }}
 go run ./cmd/mss module generate {{ .SourceSpec }} --frontend-target antd-v6 --check
 {{- end }}
-{{- if and (not .HasFrontendV5) (not .HasFrontendV6) }}
+{{- if not .HasFrontendV6 }}
 go run ./cmd/mss module generate {{ .SourceSpec }} --check
 {{- end }}
 cd admin && GOWORK=off go test ./modules/{{ .ModuleName }}/...

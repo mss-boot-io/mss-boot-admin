@@ -1,13 +1,19 @@
 # Changelog
 
 All notable changes to the independently released Ant Design 6 application are
-recorded here. This changelog does not describe releases of `web/antd`.
+recorded here. Retired frontend history remains available through Git history
+and the root changelog, not as a current release surface.
 
 ## Unreleased
 
+- Become the repository's sole Admin frontend without changing the independent
+  `web/antd-v6` directory, tag, image, lockfile, or release identity. Canonical
+  setup, local development, compose delivery, active documentation, generation,
+  and root distribution now select V6; rollback selects a preceding V6 pair.
 - Establish the React 19 and Ant Design 6.6.0 application foundation.
 - Add exact dependency, bundle, same-origin delivery, CI, and release contracts.
-- Use dedicated credential-free browser login, refresh, and OAuth callback endpoints.
+- Use mandatory credential-free browser login, refresh, and OAuth callback endpoints;
+  the backend has no stateless or retired-client browser compatibility mode.
 - Add signed-CSRF request integration and a single-use WebSocket subprotocol ticket client.
 - Add the typed backend identity contract, fail-closed compiled menu intersection,
   single React Query cache, and layered Ant Design 6 token theme runtime.
@@ -26,8 +32,9 @@ recorded here. This changelog does not describe releases of `web/antd`.
   the backend instead of copying the legacy ambiguous update behavior.
 - Add PAT list/create/rotate/revoke flows whose one-time raw secret never enters the
   shared React Query cache or browser persistence.
-- Keep unsafe legacy password reset and last-login-method OAuth disconnect actions
-  unavailable pending a recent-reauthenticated backend contract.
+- Add personal password rotation and OAuth disconnect with durable recent
+  reauthentication, proof-failure limits, atomic session/PAT revocation, and
+  protection against removing the final verified login method.
 - Add authoritative authorization freshness on explicit/cross-tab events, 403,
   network recovery, and throttled focus/visibility changes, with exact domain-query
   eviction and a retryable fail-closed state when identity or menu cannot be verified.
@@ -56,12 +63,11 @@ recorded here. This changelog does not describe releases of `web/antd`.
   strong `If-Match` conflicts, built-in identity protection, usage-aware deletion, and
   separate read/create/update/delete permissions. Render opaque metadata as inert text
   through native Table/Form and Ant Design 6.6 Listy components.
-- Add Supplier as the first deterministic dual-frontend golden. The V6 target emits only
-  `web/antd-v6` route, locale, strict contract, typed transport, React Query, responsive
-  CRUD, Vitest, and HttpOnly/CSRF-aware Playwright artifacts while the legacy target and
-  release remain independently drift-checked.
-- Bind Max 4.7 development through its supported `PORT=8001` environment contract so
-  V6 does not fall back to the legacy port or confuse Playwright with Utoopack's helper endpoint.
+- Keep Supplier as the deterministic V6 generator golden. The sole target emits
+  the `web/antd-v6` route, locale, strict contract, typed transport, React Query,
+  responsive CRUD, Vitest, and HttpOnly/CSRF-aware Playwright artifacts.
+- Bind Max 4.7 development through its supported `PORT=8001` environment contract
+  so local tools and Playwright cannot silently select another port.
 - Mount model-consuming runtime bridges inside Umi's dataflow provider, namespace generated
   forms, expose stable localized action names, disable virtualization for bounded enum choices,
   and make generated browser fixtures safe for concurrent and repeated soft-delete runs. The
@@ -69,5 +75,7 @@ recorded here. This changelog does not describe releases of `web/antd`.
 - Reserve the independent `web/antd-v6/v{version}` tag and
   `mss-boot-admin-antd-v6` image namespaces.
 
-The application remains blocked from production release until the FeatureSpec
-business parity, generator, E2E, and full qualification evidence is complete.
+Business parity is retained while this Unreleased change removes the retired
+frontend and browser compatibility protocol. Publication still requires the
+exact merged-main commit, the concentrated qualification suite, and immutable
+artifact promotion. Rollback selects only the preceding qualified V6 pair.

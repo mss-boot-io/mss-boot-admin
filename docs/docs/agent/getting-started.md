@@ -43,8 +43,8 @@ AGENTS.md
 规范版本以 `.mss/project.yaml` 和 CI 为准。当前基线包括：
 
 - Go 1.26；
-- Node.js 22；
-- pnpm 9；
+- Node.js 24；
+- pnpm 10；
 - Git；
 - 可选 Docker/Podman；
 - 本地开发默认 SQLite；
@@ -102,6 +102,8 @@ go run ./cmd/mss dev logs frontend --follow
 # 按反向依赖顺序停止进程树
 go run ./cmd/mss dev stop
 ```
+
+无参数启动只包含后端与唯一前端 `web/antd-v6`（端口 `8001`）。
 
 服务定义位于 `.mss/dev.yaml`，包括：
 

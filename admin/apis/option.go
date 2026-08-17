@@ -1,7 +1,6 @@
 package apis
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,10 +27,10 @@ import (
 const (
 	maxOptionPageSize         = 100
 	maxOptionPage             = 1_000_000
-	maxOptionListPayload      = 1 * 1024 * 1024
 	maxOptionWriteRequestSize = models.MaxOptionItemsEncodedSize + 64*1024
-	optionPreconditionHeader  = "X-MSS-Option-Precondition"
 )
+
+var errOptionIfMatchRequired = errors.New("option mutation requires If-Match")
 
 func init() {
 	response.AppendController(newOptionController())
@@ -75,17 +74,15 @@ func (e *Option) optionService() *service.Option {
 	return service.NewOption()
 }
 
-// ManagedList returns a bounded option page. The V6 client requests the
-// summary projection and loads item JSON only when opening a detail/editor.
-// Omitting view preserves the V5 list shape during the compatibility window.
+// ManagedList returns the sole bounded V6 summary page. Item JSON and the full
+// description are loaded only through the detail resource.
 // @Summary 获取选项管理列表
-// @Description 返回有界分页；view=summary 时不返回 items 和 description
+// @Description 返回不包含 items 和 description 的有界摘要分页
 // @Tags option
 // @Produce application/json
 // @Param name query string false "name"
 // @Param category query string false "category"
 // @Param status query string false "status" Enums(enabled,disabled)
-// @Param view query string false "view" Enums(summary,full)
 // @Param current query int false "current"
 // @Param pageSize query int false "pageSize" maximum(100)
 // @Success 200 {object} response.Page{data=[]dto.OptionSummary}
@@ -95,7 +92,6 @@ func (e *Option) ManagedList(ctx *gin.Context) {
 	request := &dto.OptionSearch{}
 	if response.Make(ctx).Bind(request).Error != nil {
 		optionAPIError(ctx, http.StatusUnprocessableEntity, "INVALID_OPTION_QUERY", "option query is invalid")
-		return
 	}
 	page, pageSize := request.GetPage(), request.GetPageSize()
 	if page > maxOptionPage || pageSize > maxOptionPageSize {
@@ -130,55 +126,31 @@ func (e *Option) ManagedList(ctx *gin.Context) {
 		Limit(int(pageSize))
 	ctx.Header("Cache-Control", "no-store")
 
-	if request.View == "summary" {
-		records := make([]models.Option, 0, pageSize)
-		if err := query.Select(
-			"id", "category", "display_name", "name", "remark", "status", "version", "built_in", "updated_at",
-		).Find(&records).Error; err != nil {
-			optionAPIError(ctx, http.StatusInternalServerError, "OPTION_READ_FAILED", "option records are unavailable")
-			return
-		}
-		items := make([]dto.OptionSummary, 0, len(records))
-		for i := range records {
-			if err := validateOptionSummary(&records[i]); err != nil {
-				slog.Error("stored option summary is invalid", "optionID", records[i].ID, "error", err)
-				optionAPIError(ctx, http.StatusServiceUnavailable, "OPTION_DATA_INVALID", "option data is invalid")
-				return
-			}
-			items = append(items, dto.OptionSummary{
-				ID:          records[i].ID,
-				Category:    records[i].Category,
-				DisplayName: records[i].DisplayName,
-				Name:        records[i].Name,
-				Remark:      records[i].Remark,
-				Status:      records[i].Status.String(),
-				Version:     records[i].Version,
-				BuiltIn:     records[i].BuiltIn,
-				UpdatedAt:   records[i].UpdatedAt,
-			})
-		}
-		response.Make(ctx).PageOK(items, count, page, pageSize)
-		return
-	}
-
-	items := make([]models.Option, 0, pageSize)
-	if err := query.Find(&items).Error; err != nil {
+	records := make([]models.Option, 0, pageSize)
+	if err := query.Select(
+		"id", "category", "display_name", "name", "remark", "status", "version", "built_in", "updated_at",
+	).Find(&records).Error; err != nil {
 		optionAPIError(ctx, http.StatusInternalServerError, "OPTION_READ_FAILED", "option records are unavailable")
 		return
 	}
-	for i := range items {
-		if !validateStoredOption(ctx, &items[i]) {
+	items := make([]dto.OptionSummary, 0, len(records))
+	for i := range records {
+		if err := validateOptionSummary(&records[i]); err != nil {
+			slog.Error("stored option summary is invalid", "optionID", records[i].ID, "error", err)
+			optionAPIError(ctx, http.StatusServiceUnavailable, "OPTION_DATA_INVALID", "option data is invalid")
 			return
 		}
-	}
-	payload, err := json.Marshal(items)
-	if err != nil {
-		optionAPIError(ctx, http.StatusServiceUnavailable, "OPTION_DATA_INVALID", "option data is invalid")
-		return
-	}
-	if len(payload) > maxOptionListPayload {
-		optionAPIError(ctx, http.StatusServiceUnavailable, "OPTION_CAPACITY_EXCEEDED", "option response exceeds the supported limit")
-		return
+		items = append(items, dto.OptionSummary{
+			ID:          records[i].ID,
+			Category:    records[i].Category,
+			DisplayName: records[i].DisplayName,
+			Name:        records[i].Name,
+			Remark:      records[i].Remark,
+			Status:      records[i].Status.String(),
+			Version:     records[i].Version,
+			BuiltIn:     records[i].BuiltIn,
+			UpdatedAt:   records[i].UpdatedAt,
+		})
 	}
 	response.Make(ctx).PageOK(items, count, page, pageSize)
 }
@@ -254,15 +226,13 @@ func (e *Option) ManagedCreate(ctx *gin.Context) {
 	response.Make(ctx).OK(created)
 }
 
-// ManagedUpdate updates an option through an optimistic revision check. V6
-// sends If-Match; a missing precondition is accepted only for V5 compatibility
-// and is marked with a deprecation warning header.
+// ManagedUpdate updates an option through a required optimistic revision check.
 // @Summary 更新选项
 // @Tags option
 // @Accept application/json
 // @Produce application/json
 // @Param id path string true "id"
-// @Param If-Match header string false "Strong ETag; temporarily optional for V5"
+// @Param If-Match header string true "Strong option ETag"
 // @Param data body dto.OptionWriteRequest true "data"
 // @Success 200 {object} models.Option
 // @Failure 412 {object} dto.OptionRevisionConflictResponse
@@ -281,9 +251,13 @@ func (e *Option) ManagedUpdate(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	expectedVersion, err := resolveOptionExpectedVersion(ctx, id, request)
+	expectedVersion, err := resolveOptionExpectedVersion(ctx, id)
 	if err != nil {
-		optionAPIError(ctx, http.StatusBadRequest, "OPTION_IF_MATCH_INVALID", err.Error())
+		status, code := http.StatusBadRequest, "OPTION_IF_MATCH_INVALID"
+		if errors.Is(err, errOptionIfMatchRequired) {
+			status, code = http.StatusPreconditionRequired, "OPTION_IF_MATCH_REQUIRED"
+		}
+		optionAPIError(ctx, status, code, err.Error())
 		return
 	}
 	input, err := optionUpdateInput(request, expectedVersion)
@@ -308,7 +282,7 @@ func (e *Option) ManagedUpdate(ctx *gin.Context) {
 // @Summary 删除自定义选项
 // @Tags option
 // @Param id path string true "id"
-// @Param If-Match header string false "Strong ETag; temporarily optional for V5"
+// @Param If-Match header string true "Strong option ETag"
 // @Success 204
 // @Failure 412 {object} dto.OptionRevisionConflictResponse
 // @Router /admin/api/options/{id} [delete]
@@ -322,9 +296,13 @@ func (e *Option) ManagedDelete(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	expectedVersion, err := resolveOptionExpectedVersion(ctx, id, nil)
+	expectedVersion, err := resolveOptionExpectedVersion(ctx, id)
 	if err != nil {
-		optionAPIError(ctx, http.StatusBadRequest, "OPTION_IF_MATCH_INVALID", err.Error())
+		status, code := http.StatusBadRequest, "OPTION_IF_MATCH_INVALID"
+		if errors.Is(err, errOptionIfMatchRequired) {
+			status, code = http.StatusPreconditionRequired, "OPTION_IF_MATCH_REQUIRED"
+		}
+		optionAPIError(ctx, status, code, err.Error())
 		return
 	}
 	_, err = e.optionService().DeleteOption(ctx, id, expectedVersion, actorID, "delete")
@@ -381,7 +359,7 @@ func bindOptionWriteRequest(ctx *gin.Context) (*dto.OptionWriteRequest, bool) {
 	return request, true
 }
 
-func optionUpdateInput(request *dto.OptionWriteRequest, expectedVersion *int) (service.OptionUpdateInput, error) {
+func optionUpdateInput(request *dto.OptionWriteRequest, expectedVersion int) (service.OptionUpdateInput, error) {
 	input := service.OptionUpdateInput{
 		Category:        request.Category,
 		DisplayName:     request.DisplayName,
@@ -420,79 +398,46 @@ func setOptionETag(ctx *gin.Context, option *models.Option) {
 	ctx.Header("Cache-Control", "no-store")
 }
 
-func parseOptionIfMatch(ctx *gin.Context, id string) (*int, error) {
+func parseOptionIfMatch(ctx *gin.Context, id string) (int, error) {
 	if ctx == nil || ctx.Request == nil {
-		return nil, errors.New("option request is missing")
+		return 0, errors.New("option request is missing")
 	}
 	values := ctx.Request.Header.Values("If-Match")
 	if len(values) == 0 {
-		return nil, nil
+		return 0, errOptionIfMatchRequired
 	}
 	if len(values) != 1 {
-		return nil, errors.New("expected one strong option ETag")
+		return 0, errors.New("expected one strong option ETag")
 	}
 	raw := strings.TrimSpace(values[0])
 	if raw == "" || strings.HasPrefix(raw, "W/") || strings.Contains(raw, ",") || raw == "*" {
-		return nil, errors.New("expected one strong option ETag")
+		return 0, errors.New("expected one strong option ETag")
 	}
 	value, err := strconv.Unquote(raw)
 	if err != nil {
-		return nil, errors.New("expected a quoted strong option ETag")
+		return 0, errors.New("expected a quoted strong option ETag")
 	}
 	prefix := "option-" + id + "-v"
 	if !strings.HasPrefix(value, prefix) {
-		return nil, errors.New("option ETag does not match this resource")
+		return 0, errors.New("option ETag does not match this resource")
 	}
 	versionText := strings.TrimPrefix(value, prefix)
 	if versionText == "" || strings.Trim(versionText, "0123456789") != "" {
-		return nil, errors.New("option ETag version must be a positive integer")
+		return 0, errors.New("option ETag version must be a positive integer")
 	}
 	version64, err := strconv.ParseInt(versionText, 10, 32)
 	if err != nil || version64 <= 0 {
-		return nil, errors.New("option ETag version is out of range")
+		return 0, errors.New("option ETag version is out of range")
 	}
 	version := int(version64)
 	if raw != optionETag(id, version) {
-		return nil, errors.New("expected the canonical option ETag")
+		return 0, errors.New("expected the canonical option ETag")
 	}
-	return &version, nil
+	return version, nil
 }
 
-func resolveOptionExpectedVersion(
-	ctx *gin.Context,
-	id string,
-	request *dto.OptionWriteRequest,
-) (*int, error) {
-	headerVersion, err := parseOptionIfMatch(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	var bodyVersion *int
-	if request != nil {
-		if request.ExpectedVersion != nil && request.LegacyVersion != nil &&
-			*request.ExpectedVersion != *request.LegacyVersion {
-			return nil, errors.New("option body revisions do not match")
-		}
-		bodyVersion = request.ExpectedVersion
-		if bodyVersion == nil {
-			bodyVersion = request.LegacyVersion
-		}
-		if bodyVersion != nil && *bodyVersion <= 0 {
-			return nil, errors.New("option body revision must be a positive integer")
-		}
-	}
-	if headerVersion != nil && bodyVersion != nil && *headerVersion != *bodyVersion {
-		return nil, errors.New("option header and body revisions do not match")
-	}
-	if headerVersion != nil {
-		return headerVersion, nil
-	}
-	if bodyVersion != nil {
-		return bodyVersion, nil
-	}
-	ctx.Header(optionPreconditionHeader, "missing")
-	ctx.Header("Warning", `299 mss-boot "If-Match will be required for option mutations"`)
-	return nil, nil
+func resolveOptionExpectedVersion(ctx *gin.Context, id string) (int, error) {
+	return parseOptionIfMatch(ctx, id)
 }
 
 func writeOptionRevisionConflict(ctx *gin.Context, err error) bool {

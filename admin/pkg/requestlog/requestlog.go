@@ -1,5 +1,6 @@
-// Package requestlog provides Gin access and recovery logging that keeps
-// query-string authentication compatible without writing raw credentials.
+// Package requestlog provides Gin access and recovery logging that redacts
+// credential-shaped query data even though query-string authentication is not
+// supported.
 package requestlog
 
 import (

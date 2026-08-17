@@ -48,7 +48,10 @@ describe('v6 layered theme contract', () => {
         { layout: 'mix', _meta: { v: 1, scope: 'user', revision: '0007' } },
         'user',
       ),
-    ).toMatchObject({ revision: '7', versioned: true });
+    ).toMatchObject({ revision: '7' });
+    expect(() => parseThemeScopeResource({ layout: 'mix' }, 'user')).toThrow(
+      'Invalid user theme resource metadata',
+    );
     expect(() =>
       parseThemeScopeResource({ _meta: { v: 1, scope: 'application', revision: 7 } }, 'user'),
     ).toThrow('Invalid user theme resource metadata');
@@ -73,6 +76,7 @@ describe('v6 layered theme contract', () => {
   it('enables OAuth providers only from an explicit public application flag', () => {
     const profile = parseApplicationProfile({
       security: { githubEnabled: true, larkEnabled: 'false', unknownEnabled: true },
+      theme: { _meta: { v: 1, scope: 'application', revision: '0' } },
     });
     expect(isOAuthProviderEnabled(profile, 'github')).toBe(true);
     expect(isOAuthProviderEnabled(profile, 'lark')).toBe(false);

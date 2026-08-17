@@ -44,7 +44,6 @@ func (e *UserAuthToken) GetAction(_ string) response.Action {
 
 func (e *UserAuthToken) Other(r *gin.RouterGroup) {
 	r.POST("/user-auth-tokens", response.AuthHandler, e.Generate)
-	r.GET("/user-auth-token/generate", methodNotAllowed)
 	r.GET("/user-auth-tokens", response.AuthHandler, e.List)
 	r.PUT("/user-auth-token/:id/revoke", response.AuthHandler, e.Revoked)
 	r.PUT("/user-auth-token/:id/refresh", response.AuthHandler, e.Refresh)

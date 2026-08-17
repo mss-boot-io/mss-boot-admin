@@ -190,7 +190,7 @@ func TestUserConfigCacheHitsRevalidateRevisionAfterConcurrentMutation(t *testing
 				revision := int64(0)
 				_, patchErr := svc.PatchUserResource(ctx, "user-a", map[string]any{
 					"navTheme": "realDark",
-				}, &revision)
+				}, revision)
 				return patchErr
 			},
 			"realDark",
@@ -286,7 +286,7 @@ func TestUserThemeCacheIsRevisionKeyedVersionedAndOwnerDigested(t *testing.T) {
 	revision0 := int64(0)
 	resource, err := (&Theme{}).PatchUserResource(env.ctx, "user-a", map[string]any{
 		"navTheme": "realDark",
-	}, &revision0)
+	}, revision0)
 	require.NoError(t, err)
 	require.Equal(t, "1", resource.Meta.Revision)
 
@@ -431,7 +431,7 @@ func TestUserThemePatchAndResetAdvanceProfileAndThemeRevisionsTogether(t *testin
 	revision0 := int64(0)
 	resource, err := (&Theme{}).PatchUserResource(env.ctx, "user-a", map[string]any{
 		"colorWeak": false,
-	}, &revision0)
+	}, revision0)
 	require.NoError(t, err)
 	require.Equal(t, "1", resource.Meta.Revision)
 	require.False(t, env.redis.Exists(userConfigProfileCacheKey("user-a", 0)))
@@ -445,7 +445,7 @@ func TestUserThemePatchAndResetAdvanceProfileAndThemeRevisionsTogether(t *testin
 	require.True(t, env.redis.Exists(userConfigProfileCacheKey("user-a", 1)))
 
 	revision1 := int64(1)
-	resource, err = (&Theme{}).ResetUserResource(env.ctx, "user-a", &revision1)
+	resource, err = (&Theme{}).ResetUserResource(env.ctx, "user-a", revision1)
 	require.NoError(t, err)
 	require.Equal(t, "2", resource.Meta.Revision)
 	require.False(t, env.redis.Exists(userConfigProfileCacheKey("user-a", 1)))
@@ -488,7 +488,7 @@ func TestUserConfigRevisionKeysDoNotAcceptStalePayloads(t *testing.T) {
 	revision0 := int64(0)
 	theme1, err := (&Theme{}).PatchUserResource(env.ctx, "user-b", map[string]any{
 		"layout": "side",
-	}, &revision0)
+	}, revision0)
 	require.NoError(t, err)
 	require.Equal(t, "1", theme1.Meta.Revision)
 	themeKey1 := userThemeCacheKey("user-b", 1)
@@ -497,7 +497,7 @@ func TestUserConfigRevisionKeysDoNotAcceptStalePayloads(t *testing.T) {
 	revision1 := int64(1)
 	_, err = (&Theme{}).PatchUserResource(env.ctx, "user-b", map[string]any{
 		"layout": "mix",
-	}, &revision1)
+	}, revision1)
 	require.NoError(t, err)
 	require.NoError(t, env.client.Set(env.ctx, themeKey1, themePayload1, userConfigCacheTTL).Err())
 	require.NoError(t, env.client.Del(env.ctx, userThemeCacheKey("user-b", 2)).Err())
@@ -659,11 +659,11 @@ func TestUserConfigAuthoritativeReadsBypassLaggingReplica(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "8", application.Meta.Revision)
 	require.Equal(t, "mix", *application.Layout)
-	legacyResource, legacy, err := (&Theme{}).LegacyApplicationSnapshot(ctx)
+	applicationGroup, err := (&AppConfig{}).Group(ctx, ThemeConfigGroup)
 	require.NoError(t, err)
-	require.Equal(t, "8", legacyResource.Meta.Revision)
-	require.Equal(t, "mix", legacy["layout"])
-	require.Equal(t, true, legacy["pwa"])
+	require.Equal(t, "8", requireThemeProfileMeta(t, applicationGroup["_meta"])["revision"])
+	require.Equal(t, "mix", applicationGroup["layout"])
+	require.NotContains(t, applicationGroup, "pwa")
 }
 
 func requireUserConfigRevisions(t *testing.T, db *gorm.DB, userID string, profile, theme int64) {

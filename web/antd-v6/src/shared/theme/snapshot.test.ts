@@ -52,7 +52,6 @@ describe('v6 theme snapshots and identity binding', () => {
       scope: 'application' as const,
       revision: '12',
       overrides: { navTheme: 'light' as const, colorPrimary: '#aabbcc' },
-      versioned: true,
     };
     expect(await writeThemeSnapshot(resource, undefined, 100)).toBe(true);
     expect(readThemeSnapshot('application', undefined, 101)).toEqual(resource);
@@ -73,14 +72,12 @@ describe('v6 theme snapshots and identity binding', () => {
       scope: 'application' as const,
       revision: '12',
       overrides: { navTheme: 'light' as const },
-      versioned: true,
     };
     await writeThemeSnapshot(hint, undefined, 100);
     const older = {
       scope: 'application' as const,
       revision: '11',
       overrides: { navTheme: 'realDark' as const },
-      versioned: true,
     };
     expect(await writeThemeSnapshot(older, undefined, 101)).toBe(false);
     expect(await writeThemeSnapshot(older, undefined, 102, { authoritativePrevious: hint })).toBe(
@@ -96,7 +93,6 @@ describe('v6 theme snapshots and identity binding', () => {
         scope: 'application',
         revision: '1',
         overrides: { fixedHeader: true },
-        versioned: true,
       }),
     ).toBe(false);
     expect(window.localStorage.getItem(APPLICATION_THEME_SNAPSHOT_KEY)).toBeNull();
@@ -117,7 +113,6 @@ describe('v6 theme snapshots and identity binding', () => {
       scope: 'user' as const,
       revision: '3',
       overrides: { fixedHeader: true },
-      versioned: true,
     };
     expect(await writeThemeSnapshot(personal, first)).toBe(true);
     expect(readThemeSnapshot('user', first)).toEqual(personal);
@@ -140,7 +135,6 @@ describe('v6 theme snapshots and identity binding', () => {
       scope: 'application',
       revision: '2',
       overrides: { navTheme: 'light', colorPrimary: '#112233' },
-      versioned: true,
     });
     const session = rotateThemeAuthSession('user-a');
     await writeThemeSnapshot(
@@ -148,7 +142,6 @@ describe('v6 theme snapshots and identity binding', () => {
         scope: 'user',
         revision: '4',
         overrides: { navTheme: 'realDark', colorPrimary: '#abcdef' },
-        versioned: true,
       },
       session,
     );

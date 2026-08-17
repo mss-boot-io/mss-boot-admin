@@ -10,8 +10,8 @@ import { replaceThemeRuntime } from '@/shared/theme/runtime';
 import ThemeSettingsEditor from './ThemeSettingsEditor';
 
 // Rendering the complete token-aware Ant Design form can exceed Vitest's 5s
-// default when the repository verifier has just run the V5 Jest suite. Keep a
-// local, bounded CI allowance without weakening any interaction assertions.
+// default on a busy repository verifier. Keep a local, bounded CI allowance
+// without weakening any interaction assertions.
 const INTERACTION_TEST_TIMEOUT_MS = 15_000;
 
 const model = vi.hoisted(() => ({
@@ -93,7 +93,7 @@ function resource(
   revision: string,
   overrides: ThemeScopeResource['overrides'] = {},
 ): ThemeScopeResource {
-  return { scope, revision, overrides, versioned: true };
+  return { scope, revision, overrides };
 }
 
 function renderEditor(scope: 'application' | 'user') {

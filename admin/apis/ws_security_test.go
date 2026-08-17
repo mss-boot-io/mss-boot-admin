@@ -17,7 +17,7 @@ func canonicalWebSocketTestTicket(fill byte) string {
 
 func TestWebSocketTicketFromProtocolsNeverUsesURLCredential(t *testing.T) {
 	ticket := canonicalWebSocketTestTicket(1)
-	request := httptest.NewRequest(http.MethodGet, "/admin/api/ws/connect-v6?ticket=url-secret", nil)
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/ws/connect?ticket=url-secret", nil)
 	request.Header.Set("Sec-WebSocket-Protocol", websocket.ApplicationSubprotocol+", "+websocket.TicketProtocolPrefix+ticket)
 	got, ok := webSocketTicketFromProtocols(request)
 	if !ok || got != ticket {
@@ -39,7 +39,7 @@ func TestWebSocketTicketFromProtocolsRejectsMalformedOrAmbiguousInput(t *testing
 		websocket.ApplicationSubprotocol + ", " + websocket.TicketProtocolPrefix + ticketOne + ", " + websocket.TicketProtocolPrefix + ticketTwo,
 	}
 	for _, protocols := range tests {
-		request := httptest.NewRequest(http.MethodGet, "/admin/api/ws/connect-v6", nil)
+		request := httptest.NewRequest(http.MethodGet, "/admin/api/ws/connect", nil)
 		request.Header.Set("Sec-WebSocket-Protocol", protocols)
 		if ticket, ok := webSocketTicketFromProtocols(request); ok || ticket != "" {
 			t.Fatalf("protocols %q parsed as (%q, %v)", protocols, ticket, ok)

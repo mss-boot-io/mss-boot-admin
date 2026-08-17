@@ -39,7 +39,6 @@ describe('option API', () => {
         status: undefined,
         category: 'system',
         name: 'stat',
-        view: 'summary',
       },
       skipErrorHandler: true,
     });
@@ -69,9 +68,9 @@ describe('option API', () => {
     expect(client.mock.calls[0]?.[1]?.data).not.toHaveProperty('version');
     expect(client.mock.calls[1]?.[1]).toMatchObject({
       method: 'PUT',
-      data: { expectedVersion: 2 },
       headers: { 'If-Match': '"option-option/1-v2"' },
     });
+		expect(client.mock.calls[1]?.[1]?.data).not.toHaveProperty('expectedVersion');
     expect(client).toHaveBeenNthCalledWith(3, '/options/option%2F1', {
       method: 'DELETE',
       headers: { 'If-Match': '"option-option/1-v2"' },

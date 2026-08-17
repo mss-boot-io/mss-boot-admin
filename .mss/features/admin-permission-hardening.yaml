@@ -243,11 +243,11 @@ spec:
       required: true
       evidence:
         - type: test
-          value: web/antd/src/utils/authorization.test.ts
+          value: web/antd-v6/src/shared/auth/access.test.ts
         - type: test
-          value: web/antd/config/routes.test.ts
+          value: web/antd-v6/src/shared/routes/registry.test.ts
         - type: test
-          value: web/antd/src/components/MssBoot/PermissionFreshnessBridge.test.tsx
+          value: web/antd-v6/src/shared/auth/AuthorizationFreshnessBridge.test.tsx
     - id: immutable-evidence-contract
       requirement: preserve-security-evidence
       statement: Controller tests prove audit and alert history expose read actions and no generic mutation action.
@@ -281,24 +281,24 @@ spec:
         - type: test
           value: admin/apis/system_config_security_test.go
         - type: test
-          value: web/antd/src/pages/AppConfig/useAppConfigAccess.test.ts
+          value: web/antd-v6/src/modules/app-config/api.test.ts
   risks:
     - id: upgrade-default-role-ambiguity
       description: Existing installations may have legitimate administrators and registered users sharing the historical root default role.
       severity: critical
       mitigation: Fail migration with a diagnostic preflight and require an operator to classify users before rerunning; never silently downgrade or retain root provisioning.
     - id: stricter-client-concurrency
-      description: Older role editors do not send If-Match and cannot explain a 412 conflict.
+      description: External clients that mutate role authorization without a current strong ETag receive a breaking 428 response.
       severity: medium
-      mitigation: Keep a documented compatibility window for missing If-Match while the bundled frontend always sends it, then make 428 mandatory in a later release.
+      mitigation: Publish the V6-only mutation contract, require clients to read the resource before writing, and return the authoritative current resource on 412.
     - id: frontend-custom-route-gap
       description: Downstream routes.custom entries may not yet declare a static permission requirement.
       severity: medium
       mitigation: Preserve dynamic menus, default unknown custom routes to authenticated access, and add a manifest drift check before requiring explicit permission metadata downstream.
     - id: session-disabled-password-rotation
-      description: A deployment that leaves server-side sessions disabled cannot revoke an already-issued ordinary browser JWT immediately after a password change.
+      description: A browser deployment that leaves V6 server sessions disabled cannot establish the supported login or credential-revocation boundary.
       severity: high
-      mitigation: Require auth.sessionEnabled=true in production rollout, prepare the session migration/cache/cleanup path, and announce the one-time re-login of legacy browser sessions.
+      mitigation: Require both session switches, shared state, Secure cookies, and the exact HTTPS origin in every production browser deployment; fail the browser smoke when any prerequisite is absent.
     - id: legacy-data-scope-gap
       description: Several legacy business controllers do not yet apply an authoritative row-level data-scope resolver.
       severity: high
@@ -309,9 +309,9 @@ spec:
     custom:
       - cd admin && GOWORK=off go test ./middleware ./apis ./service ./cmd/migrate/migration/system
       - cd mss-boot && GOWORK=off go test ./pkg/config/gormdb
-      - cd web/antd && corepack pnpm@9.15.9 tsc
-      - cd web/antd && corepack pnpm@9.15.9 lint:js
-      - cd web/antd && corepack pnpm@9.15.9 test -- --runInBand
+      - cd web/antd-v6 && corepack pnpm@10.34.5 tsc
+      - cd web/antd-v6 && corepack pnpm@10.34.5 lint
+      - cd web/antd-v6 && corepack pnpm@10.34.5 test:ci
   rollout:
     strategy: phased
     migration: >-
@@ -319,8 +319,8 @@ spec:
       an ambiguous root default role stop before mutation and must classify existing users. After
       migration, deploy the authoritative principal and versioned policy handlers with the bundled
       frontend guard and runtime refresh.
-      Production rollout also enables auth.sessionEnabled after session storage and cleanup are ready,
-      invalidating browser tokens that do not carry a server-side session identifier.
+      Production rollout enables the V6 server and browser session contract only after shared state,
+      exact origins, Secure cookies, and session cleanup are ready.
     rollback: >-
       Roll back application code while retaining additive revision rows and the non-root provisioning
       role. Do not restore root as the provisioning default. Role policies remain in the existing

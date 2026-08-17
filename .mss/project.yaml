@@ -12,8 +12,7 @@ spec:
   repositoryLayout:
     backend: admin
     framework: mss-boot
-    frontend: web/antd
-    frontendV6: web/antd-v6
+    frontend: web/antd-v6
     documentation: docs
     modules: admin/modules
     specifications: .mss
@@ -32,25 +31,17 @@ spec:
     contract: openapi
   frontend:
     language: typescript
-    nodeVersion: ">=22 <25"
+    nodeVersion: ">=24 <25"
     packageManager: pnpm
-    packageManagerVersion: "9.15.9"
+    packageManagerVersion: "10.34.5"
     framework: react
     applicationFramework: umi
     componentLibrary: ant-design
+    defaultApplication: antd-v6
     applications:
-      - id: antd-v5
-        path: web/antd
-        role: legacy
-        nodeVersion: ">=22 <25"
-        packageManager: pnpm
-        packageManagerVersion: "9.15.9"
-        developmentPort: 8000
-        releaseTagTemplate: web/antd/{version}
-        image: mss-boot-admin-antd
       - id: antd-v6
         path: web/antd-v6
-        role: independent
+        role: primary
         nodeVersion: ">=24 <25"
         packageManager: pnpm
         packageManagerVersion: "10.34.5"

@@ -174,7 +174,7 @@ MCP ───┘
        │                 │                   │
 ┌──────▼──────┐  ┌───────▼────────┐  ┌──────▼────────┐
 │ Go backend  │  │ React frontend │  │ docs / tests  │
-│ mss-boot    │  │ web/antd       │  │ migrations    │
+│ mss-boot    │  │ web/antd-v6    │  │ migrations    │
 └─────────────┘  └────────────────┘  └───────────────┘
 ```
 
@@ -227,7 +227,7 @@ mss-boot-admin/
 │   ├── codemods/
 │   └── contracts/
 ├── mss-boot/
-├── web/antd/
+├── web/antd-v6/
 ├── docs/
 ├── scripts/
 ├── compose/
@@ -416,13 +416,12 @@ modules/supplier/
 前端对应：
 
 ```text
-web/antd/src/modules/supplier/
-├── pages/
-├── components/
-├── services/
-├── locales/
-├── routes.ts
-└── permissions.ts
+web/antd-v6/src/generated/modules/supplier/
+├── SupplierPage.tsx
+├── api.ts
+├── contract.ts
+├── query.ts
+└── types.ts
 ```
 
 生成器必须维护统一模块注册文件，禁止人工维护多个互相漂移的模块列表。

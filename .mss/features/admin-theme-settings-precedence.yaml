@@ -17,8 +17,8 @@ spec:
     The baseline Admin implementation merged code, application, and user theme values without
     one typed concurrency contract, and the shared editor was bound to the wrong persistence
     scope. P1 and P2 corrected field-level precedence, scope ownership, reset, permissions, and
-    identity transitions. P3 must now make committed state authoritative across concurrent
-    writers, caches, tabs, warm startup, and rolling upgrades without breaking older clients.
+    identity transitions. P3 makes committed state authoritative across concurrent writers,
+    caches, tabs, warm startup, and V6-only upgrades with one strict resource contract.
   goals:
     - Resolve every supported theme field through immutable code defaults, sparse application overrides, and sparse current-user overrides in that order.
     - Preserve false as an explicit value, treat an omitted field as no mutation, and treat null as deletion of that scope's override.
@@ -76,14 +76,14 @@ spec:
       actor: application-admin
       module: theme-contract
       rules:
-        - navTheme accepts light or realDark; the retained V5 code layer defaults to realDark while the independently versioned V6 design baseline defaults to light.
-        - "colorPrimary accepts a normalized six-digit hexadecimal color; the retained V5 code layer defaults to #1890ff while the independently versioned V6 design baseline defaults to #1677ff."
+        - navTheme accepts light or realDark and the V6 code layer defaults to light.
+        - "colorPrimary accepts a normalized six-digit hexadecimal color and the V6 code layer defaults to #1677ff."
         - layout accepts side, top, or mix and defaults to mix.
         - contentWidth accepts Fluid or Fixed and defaults to Fluid.
         - fixedHeader, fixSiderbar, and colorWeak are booleans with defaults false, true, and false respectively.
         - The legacy fixSiderbar spelling remains the persistence and layout compatibility key during this delivery.
-        - pwa and splitMenus are outside the canonical runtime theme contract and cannot be written through either new scoped theme editor.
-        - During the rolling-compatibility window only, an application request that does not negotiate the canonical media type may retain the preceding frontend's legacy pwa read/write behavior; user scope never accepts pwa.
+        - pwa and splitMenus are outside the canonical runtime theme contract and are rejected by both scoped theme APIs.
+        - The forward V6 cutover migration removes only the exact obsolete application pwa row while preserving unknown theme rows.
     - id: preserve-tristate-mutations
       title: Preserve sparse tri-state update semantics
       description: Theme writes distinguish a missing field, an explicit value, and deletion of an existing override.
@@ -94,10 +94,10 @@ spec:
         - The API routes in this contract are relative to the existing /admin/api group.
         - PUT /app-configs/theme and PUT /user-configs/theme are sparse patches over the existing group resources.
         - An omitted field makes no database change, null deletes that field's override, and false persists as false rather than inherit.
-        - A canonical client sends Accept application/vnd.mss.theme.v1+json with a positive quality value on GET, PUT, and DELETE; q=0 does not select that representation, and a selected canonical response uses the same vendor Content-Type while returning normalized sparse overrides for its own scope rather than a flattened effective theme.
+        - The V6 client sends Accept application/vnd.mss.theme.v1+json on GET, PUT, and DELETE; every response uses that canonical Content-Type and returns normalized sparse overrides for its own scope rather than a flattened effective theme.
         - Canonical resources return exactly the seven sparse fields at the top level plus _meta containing schema version, scope, and a decimal-string revision.
-        - A request without the canonical Accept media type receives the temporary legacy projection without _meta; application legacy responses retain pwa so the preceding frontend remains operable, while user responses never expose or accept pwa.
-        - Canonical GET, PUT, and DELETE responses expose the matching strong ETag "theme-{scope}-{revision}", send Vary Accept, and all authoritative profile/theme GET responses use Cache-Control no-store.
+        - Missing or malformed canonical metadata is a client contract error and is never converted into an unversioned resource.
+        - Canonical GET, PUT, and DELETE responses expose the matching strong ETag "theme-{scope}-{revision}", and all authoritative profile/theme GET responses use Cache-Control no-store.
         - DELETE /app-configs/theme and DELETE /user-configs/theme remove every override in that scope and return the canonical empty sparse resource with its new revision.
         - Empty strings are invalid input and never act as deletion.
     - id: reuse-scoped-editor
@@ -124,7 +124,7 @@ spec:
         - GET /app-configs/theme requires config:read and PUT or DELETE /app-configs/theme requires config:write.
         - GET, PUT, and DELETE /user-configs/theme require authentication and derive the owner from the verified current identity.
         - Personal theme requests cannot select or mutate another user through a body, query, path, cached identity, or client-provided user ID.
-        - The public bootstrap continues to read only allowlisted fields from /app-configs/profile and never exposes private application configuration; pwa remains a temporary public legacy extension that the canonical seven-field resolver ignores.
+        - The public bootstrap reads only allowlisted fields from /app-configs/profile and never exposes private application configuration or pwa.
         - Frontend visibility and permission-denied states supplement but never replace backend authorization.
     - id: commit-theme-atomically
       title: Save a theme mutation atomically
@@ -138,7 +138,7 @@ spec:
         - A failed transaction leaves all persisted overrides unchanged and does not emit a successful change event.
         - Application and current-user theme resources use independent database-backed monotonic revisions stored outside the seven theme value rows.
         - Revisions are stored in the additive mss_boot_config_revisions table with the composite primary key (scope, owner_id, resource); application uses an empty owner_id and user scope uses the authenticated user ID.
-        - A new client sends the strong ETag from the resource in If-Match; a stale precondition returns 412 with the current canonical resource and performs no write, while a missing precondition remains temporarily accepted for rolling compatibility.
+        - Every V6 mutation sends the strong ETag from the resource in If-Match; a missing precondition returns 428 and a stale precondition returns 412 with the current canonical resource without writing.
         - A successful application mutation advances both its theme revision and the public-profile cache revision in the same database transaction before stale data can be accepted.
         - Public-profile cache keys are derived from the database revision, have a bounded TTL, and are treated as disposable; a Redis read, write, or cleanup failure cannot turn a committed database mutation into an HTTP failure.
         - PUT and DELETE return the canonical normalized sparse scope and revision used by the runtime resolver rather than a client-predicted result.
@@ -171,7 +171,7 @@ spec:
         - Existing valid enum and color values retain behavior and unknown rows are preserved but excluded from the runtime theme contract.
         - Configuration identifiers that collide with reserved theme or public keys under case-, accent-, Unicode-normalization-, or trailing-space-insensitive database collations are rejected or canonicalized without changing unrelated custom identifiers.
         - Reset implementation accounts for soft-delete and unique-index behavior so a deleted override can be set again.
-        - The canonical Accept media type is CORS-safelisted and ignored by the preceding backend, so a newly loaded frontend can still read a legacy response without requiring a new preflight allow-header entry.
+        - The V6 parser rejects unversioned theme responses so a mismatched backend fails visibly instead of silently weakening concurrency.
         - Fresh and upgraded SQLite, MySQL, and PostgreSQL databases produce the same normalized sparse and effective themes.
     - id: verify-theme-experience
       title: Verify desktop, mobile, and accessible themes
@@ -218,7 +218,7 @@ spec:
       required: true
       evidence:
         - type: test
-          value: web/antd/src/utils/themeSettings.test.ts
+          value: web/antd-v6/src/shared/theme/contract.test.ts
         - type: test
           value: web/antd-v6/src/shared/theme/contract.test.ts
     - id: field-contract-tests
@@ -228,14 +228,14 @@ spec:
       required: true
       evidence:
         - type: test
-          value: web/antd/src/utils/themeSettings.test.ts
+          value: web/antd-v6/src/shared/theme/runtime.test.ts
         - type: test
           value: web/antd-v6/src/shared/theme/contract.test.ts
         - type: test
           value: admin/service/theme_test.go
     - id: tristate-contract-tests
       requirement: preserve-tristate-mutations
-      statement: API tests prove omission makes no change, null removes one override, false remains explicit, empty string is rejected, negotiated GET returns a canonical sparse resource, legacy application requests retain pwa, user requests reject pwa, and DELETE clears one complete scope.
+      statement: API tests prove omission makes no change, null removes one override, false remains explicit, empty string is rejected, all reads return a canonical sparse resource, both scopes reject pwa, missing If-Match returns 428, stale state returns 412, and DELETE clears one complete scope.
       level: integration
       required: true
       evidence:
@@ -248,7 +248,7 @@ spec:
       required: true
       evidence:
         - type: test
-          value: web/antd/src/components/MssBoot/theme.test.tsx
+          value: web/antd-v6/src/modules/theme/ThemeSettingsEditor.test.tsx
         - type: test
           value: web/antd-v6/src/modules/theme/ThemeSettingsEditor.test.tsx
     - id: authorization-negative-tests
@@ -284,7 +284,7 @@ spec:
       required: true
       evidence:
         - type: test
-          value: web/antd/e2e/theme-settings.spec.ts
+          value: web/antd-v6/e2e/settings.spec.ts
         - type: test
           value: web/antd-v6/src/shared/theme/runtime.test.ts
         - type: test
@@ -296,15 +296,15 @@ spec:
         - type: test
           value: web/antd-v6/src/modules/theme/ThemeSettingsEditor.test.tsx
         - type: test
-          value: web/antd/src/utils/themeSettings.test.ts
+          value: web/antd-v6/src/shared/theme/contract.test.ts
         - type: test
-          value: web/antd/src/utils/themeSync.test.ts
+          value: web/antd-v6/src/shared/theme/sync.test.ts
         - type: test
-          value: web/antd/src/utils/themeSession.test.ts
+          value: web/antd-v6/src/shared/theme/snapshot.test.ts
         - type: test
-          value: web/antd/src/pages/User/Login/login.test.tsx
+          value: web/antd-v6/src/shared/auth/session.test.ts
         - type: test
-          value: web/antd/src/components/RightContent/AvatarDropdown.test.tsx
+          value: web/antd-v6/src/shared/auth/identity.test.ts
     - id: upgrade-compatibility-tests
       requirement: preserve-theme-compatibility
       statement: Fresh and upgrade fixtures normalize legacy string booleans, retain valid overrides and unknown rows, ignore invalid values, and support reset followed by set on every supported database.
@@ -322,7 +322,7 @@ spec:
       required: true
       evidence:
         - type: test
-          value: web/antd/e2e/theme-settings.spec.ts
+          value: web/antd-v6/e2e/settings.spec.ts
         - type: manual
           value: Verify application and personal theme settings in light and realDark modes at desktop and mobile widths.
     - id: changed-verification
@@ -365,29 +365,18 @@ spec:
     custom:
       - go run ./cmd/mss spec validate .mss/features/admin-theme-settings-precedence.yaml --format json
       - cd admin && GOWORK=off go test ./service ./apis ./middleware ./router ./cmd/migrate/migration/system
-      - corepack pnpm@9.15.9 --dir web/antd lint:js
-      - corepack pnpm@9.15.9 --dir web/antd tsc
-      - corepack pnpm@9.15.9 --dir web/antd test -- --runInBand
-      - corepack pnpm@9.15.9 --dir web/antd build:prod
       - corepack pnpm@10.34.5 --dir web/antd-v6 lint
       - corepack pnpm@10.34.5 --dir web/antd-v6 test:ci
       - corepack pnpm@10.34.5 --dir web/antd-v6 build:release
-      - corepack pnpm@9.15.9 --dir docs build
+      - corepack pnpm@10.34.5 --dir docs build
   rollout:
-    strategy: phased
+    strategy: replace
     migration: >-
-      Back up the database and inventory only theme rows, then apply the additive idempotent ConfigRevision migration.
-      Deploy revision-aware backend instances and drain old backend writers before relying on revision ordering because
-      old instances do not advance the new resource revisions. Deploy the revision-aware frontend next; it requests
-      Accept application/vnd.mss.theme.v1+json, while the backend temporarily accepts a missing If-Match and preserves
-      the preceding application's legacy pwa projection when that media type is absent. The new frontend rereads
-      canonical state after legacy empty responses. Remove the legacy projection and missing-precondition allowance
-      only in a separately reviewed compatibility release after preceding frontend assets have been drained.
-      Monitor migration failures, 412 responses, missing preconditions, Redis warnings, and audit outcomes. Keep the
-      capability planned until SQLite, external MySQL/PostgreSQL, and the complete browser acceptance matrix pass.
+      Back up the database, apply the additive ConfigRevision migration and the exact obsolete-pwa cleanup,
+      then deploy the V6-only backend and frontend from the same qualified release. Monitor migration failures,
+      412 and 428 responses, Redis warnings, and redacted audit outcomes. The capability remains unqualified until
+      SQLite, external MySQL/PostgreSQL, and the complete browser acceptance matrix pass.
     rollback: >-
-      Stop theme writes, deploy the preceding frontend and backend together, and leave compatible theme rows plus the
-      unused additive revision table in place until a separately reviewed cleanup release. Rows removed through an
-      intentional null or whole-scope reset remain inherited; restore only explicitly requested overrides from the
-      pre-rollout backup or redacted audit record. Delete revision-keyed public-profile cache entries and clear browser
-      snapshots, synchronization events, and authentication-session keys when reverting synchronization behavior.
+      Stop theme writes and redeploy the preceding qualified V6 frontend and backend together. Leave the additive
+      revision table in place; restore an intentionally removed override only from the pre-rollout backup or redacted
+      audit record. Clear revision-keyed public-profile cache entries and V6-namespaced browser snapshots when needed.

@@ -112,13 +112,6 @@ var (
 			kind: themeString,
 		},
 	}
-	// legacyThemeWriteFields is a rolling-deployment compatibility window.
-	// Old frontends submit pwa with the layout settings. The backend preserves
-	// that value for old consumers, while all new ThemeResource projections and
-	// resets remain limited to the canonical seven-field contract.
-	legacyThemeWriteFields = map[string]themeField{
-		"pwa": {kind: themeBoolean},
-	}
 	themeFieldNames = []string{
 		"navTheme",
 		"layout",
@@ -128,7 +121,6 @@ var (
 		"colorWeak",
 		"colorPrimary",
 	}
-	legacyThemeFieldNames = append(append([]string(nil), themeFieldNames...), "pwa")
 )
 
 type themeOperation struct {
@@ -176,36 +168,6 @@ func (e *Theme) ApplicationResource(ctx *gin.Context) (*dto.ThemeResource, error
 	return nil, errors.New("application theme changed during read")
 }
 
-// LegacyApplicationSnapshot returns the canonical application-theme resource
-// and its rolling-compatibility projection from one stable revision. The
-// strong ETag must be derived from the returned resource; callers must not
-// combine either value with a separately loaded pwa row.
-func (e *Theme) LegacyApplicationSnapshot(
-	ctx *gin.Context,
-) (*dto.ThemeResource, map[string]any, error) {
-	db := center.GetDB(ctx, &models.AppConfig{})
-	key := applicationThemeRevisionKey()
-	for attempt := 0; attempt < themeReadMaxAttempts; attempt++ {
-		before, err := readConfigRevision(db.Clauses(dbresolver.Write), key)
-		if err != nil {
-			return nil, nil, err
-		}
-		overrides, pwa, err := loadLegacyApplicationTheme(db.Clauses(dbresolver.Write))
-		if err != nil {
-			return nil, nil, err
-		}
-		after, err := readConfigRevision(db.Clauses(dbresolver.Write), key)
-		if err != nil {
-			return nil, nil, err
-		}
-		if before == after {
-			resource := newThemeResource(ThemeScopeApplication, after, overrides)
-			return resource, legacyApplicationThemeProjection(overrides, pwa), nil
-		}
-	}
-	return nil, nil, errors.New("application theme changed during read")
-}
-
 func loadApplicationTheme(db *gorm.DB) (*dto.ThemeOverrides, error) {
 	var rows []models.AppConfig
 	err := db.
@@ -223,46 +185,6 @@ func loadApplicationTheme(db *gorm.DB) (*dto.ThemeOverrides, error) {
 		records = append(records, themeRecord{name: rows[i].Name, value: rows[i].Value})
 	}
 	return decodeThemeRecords(records)
-}
-
-func loadLegacyApplicationTheme(db *gorm.DB) (*dto.ThemeOverrides, *bool, error) {
-	var rows []models.AppConfig
-	err := db.
-		Where(&models.AppConfig{Group: ThemeConfigGroup}).
-		Where("name IN ?", legacyThemeFieldNames).
-		Find(&rows).Error
-	if err != nil {
-		return nil, nil, err
-	}
-	records := make([]themeRecord, 0, len(rows))
-	var pwa *bool
-	for i := range rows {
-		if rows[i].Group != ThemeConfigGroup {
-			continue
-		}
-		if isCanonicalThemeField(rows[i].Name) {
-			records = append(records, themeRecord{name: rows[i].Name, value: rows[i].Value})
-			continue
-		}
-		if rows[i].Name != "pwa" {
-			continue
-		}
-		switch rows[i].Value {
-		case "true":
-			value := true
-			pwa = &value
-		case "false":
-			value := false
-			pwa = &value
-		default:
-			slog.Warn("ignore invalid stored legacy pwa override")
-		}
-	}
-	overrides, err := decodeThemeRecords(records)
-	if err != nil {
-		return nil, nil, err
-	}
-	return overrides, pwa, nil
 }
 
 func (e *Theme) User(ctx *gin.Context, userID string) (*dto.ThemeOverrides, error) {
@@ -339,57 +261,22 @@ func loadUserTheme(db *gorm.DB, userID string) (*dto.ThemeOverrides, error) {
 	return decodeThemeRecords(records)
 }
 
-func (e *Theme) PatchApplication(ctx *gin.Context, values map[string]any) error {
-	_, err := e.PatchApplicationResource(ctx, values, nil)
+func (e *Theme) PatchApplication(ctx *gin.Context, values map[string]any, expectedRevision int64) error {
+	_, err := e.PatchApplicationResource(ctx, values, expectedRevision)
 	return err
 }
 
 func (e *Theme) PatchApplicationResource(
 	ctx *gin.Context,
 	values map[string]any,
-	expectedRevision *int64,
+	expectedRevision int64,
 ) (*dto.ThemeResource, error) {
-	resource, _, err := e.patchApplicationResource(ctx, values, expectedRevision, false)
-	return resource, err
-}
-
-// PatchLegacyApplicationResource is a rolling-deployment compatibility path
-// for application-theme clients that predate the canonical seven-field media
-// type. It alone accepts the historical pwa boolean; pwa is persisted for old
-// clients but is never projected into ThemeResource.
-func (e *Theme) PatchLegacyApplicationResource(
-	ctx *gin.Context,
-	values map[string]any,
-	expectedRevision *int64,
-) (*dto.ThemeResource, error) {
-	resource, _, err := e.patchApplicationResource(ctx, values, expectedRevision, true)
-	return resource, err
-}
-
-// PatchLegacyApplicationSnapshot commits a legacy-compatible patch and forms
-// both response representations inside that transaction. This prevents a
-// successful commit from being reported as a 500 because of a later pwa read.
-func (e *Theme) PatchLegacyApplicationSnapshot(
-	ctx *gin.Context,
-	values map[string]any,
-	expectedRevision *int64,
-) (*dto.ThemeResource, map[string]any, error) {
-	return e.patchApplicationResource(ctx, values, expectedRevision, true)
-}
-
-func (e *Theme) patchApplicationResource(
-	ctx *gin.Context,
-	values map[string]any,
-	expectedRevision *int64,
-	allowLegacyPWA bool,
-) (*dto.ThemeResource, map[string]any, error) {
-	operations, err := parseThemePatch(values, allowLegacyPWA)
+	operations, err := parseThemePatch(values)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	db := center.GetDB(ctx, &models.AppConfig{})
 	var resource *dto.ThemeResource
-	var legacyProjection map[string]any
 	var staleProfileRevision int64
 	err = db.Transaction(func(tx *gorm.DB) error {
 		profileRevision, err := lockConfigRevision(tx, applicationPublicProfileRevisionKey())
@@ -400,13 +287,13 @@ func (e *Theme) patchApplicationResource(
 		if err != nil {
 			return err
 		}
-		if expectedRevision != nil && *expectedRevision != themeRevision {
+		if expectedRevision != themeRevision {
 			current, loadErr := loadApplicationTheme(tx)
 			if loadErr != nil {
 				return loadErr
 			}
 			return &ThemeRevisionConflictError{
-				Expected: *expectedRevision,
+				Expected: expectedRevision,
 				Actual:   themeRevision,
 				Current:  newThemeResource(ThemeScopeApplication, themeRevision, current),
 			}
@@ -429,33 +316,23 @@ func (e *Theme) patchApplicationResource(
 		if _, err = advanceConfigRevision(tx, applicationPublicProfileRevisionKey(), profileRevision); err != nil {
 			return err
 		}
-		if allowLegacyPWA {
-			overrides, pwa, loadErr := loadLegacyApplicationTheme(tx)
-			if loadErr != nil {
-				return loadErr
-			}
-			resource = newThemeResource(ThemeScopeApplication, nextThemeRevision, overrides)
-			legacyProjection = legacyApplicationThemeProjection(overrides, pwa)
-		} else {
-			overrides, loadErr := loadApplicationTheme(tx)
-			if loadErr != nil {
-				return loadErr
-			}
-			resource = newThemeResource(ThemeScopeApplication, nextThemeRevision, overrides)
+		overrides, loadErr := loadApplicationTheme(tx)
+		if loadErr != nil {
+			return loadErr
 		}
+		resource = newThemeResource(ThemeScopeApplication, nextThemeRevision, overrides)
 		staleProfileRevision = profileRevision
 		return nil
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	invalidateLegacyApplicationThemeCache(ctx, operations)
 	cleanupPublicProfileCache(ctx, staleProfileRevision)
-	return resource, legacyProjection, nil
+	return resource, nil
 }
 
-func (e *Theme) PatchUser(ctx *gin.Context, userID string, values map[string]any) error {
-	_, err := e.PatchUserResource(ctx, userID, values, nil)
+func (e *Theme) PatchUser(ctx *gin.Context, userID string, values map[string]any, expectedRevision int64) error {
+	_, err := e.PatchUserResource(ctx, userID, values, expectedRevision)
 	return err
 }
 
@@ -463,12 +340,12 @@ func (e *Theme) PatchUserResource(
 	ctx *gin.Context,
 	userID string,
 	values map[string]any,
-	expectedRevision *int64,
+	expectedRevision int64,
 ) (*dto.ThemeResource, error) {
 	if strings.TrimSpace(userID) == "" {
 		return nil, ErrThemeUserRequired
 	}
-	operations, err := parseThemePatch(values, false)
+	operations, err := parseThemePatch(values)
 	if err != nil {
 		return nil, err
 	}
@@ -485,13 +362,13 @@ func (e *Theme) PatchUserResource(
 		if err != nil {
 			return err
 		}
-		if expectedRevision != nil && *expectedRevision != themeRevision {
+		if expectedRevision != themeRevision {
 			current, loadErr := loadUserTheme(tx, userID)
 			if loadErr != nil {
 				return loadErr
 			}
 			return &ThemeRevisionConflictError{
-				Expected: *expectedRevision,
+				Expected: expectedRevision,
 				Actual:   themeRevision,
 				Current:  newThemeResource(ThemeScopeUser, themeRevision, current),
 			}
@@ -534,37 +411,17 @@ func (e *Theme) PatchUserResource(
 	return resource, nil
 }
 
-func (e *Theme) ResetApplication(ctx *gin.Context) error {
-	_, err := e.ResetApplicationResource(ctx, nil)
+func (e *Theme) ResetApplication(ctx *gin.Context, expectedRevision int64) error {
+	_, err := e.ResetApplicationResource(ctx, expectedRevision)
 	return err
 }
 
 func (e *Theme) ResetApplicationResource(
 	ctx *gin.Context,
-	expectedRevision *int64,
+	expectedRevision int64,
 ) (*dto.ThemeResource, error) {
-	resource, _, err := e.resetApplicationResource(ctx, expectedRevision, false)
-	return resource, err
-}
-
-// ResetLegacyApplicationSnapshot resets only the canonical seven overrides,
-// preserving pwa for rolling compatibility, and forms the legacy response in
-// the same transaction as the reset.
-func (e *Theme) ResetLegacyApplicationSnapshot(
-	ctx *gin.Context,
-	expectedRevision *int64,
-) (*dto.ThemeResource, map[string]any, error) {
-	return e.resetApplicationResource(ctx, expectedRevision, true)
-}
-
-func (e *Theme) resetApplicationResource(
-	ctx *gin.Context,
-	expectedRevision *int64,
-	includeLegacyProjection bool,
-) (*dto.ThemeResource, map[string]any, error) {
 	db := center.GetDB(ctx, &models.AppConfig{})
 	var resource *dto.ThemeResource
-	var legacyProjection map[string]any
 	var staleProfileRevision int64
 	err := db.Transaction(func(tx *gorm.DB) error {
 		profileRevision, err := lockConfigRevision(tx, applicationPublicProfileRevisionKey())
@@ -575,13 +432,13 @@ func (e *Theme) resetApplicationResource(
 		if err != nil {
 			return err
 		}
-		if expectedRevision != nil && *expectedRevision != themeRevision {
+		if expectedRevision != themeRevision {
 			current, loadErr := loadApplicationTheme(tx)
 			if loadErr != nil {
 				return loadErr
 			}
 			return &ThemeRevisionConflictError{
-				Expected: *expectedRevision,
+				Expected: expectedRevision,
 				Actual:   themeRevision,
 				Current:  newThemeResource(ThemeScopeApplication, themeRevision, current),
 			}
@@ -596,36 +453,26 @@ func (e *Theme) resetApplicationResource(
 		if _, err = advanceConfigRevision(tx, applicationPublicProfileRevisionKey(), profileRevision); err != nil {
 			return err
 		}
-		if includeLegacyProjection {
-			overrides, pwa, loadErr := loadLegacyApplicationTheme(tx)
-			if loadErr != nil {
-				return loadErr
-			}
-			resource = newThemeResource(ThemeScopeApplication, nextThemeRevision, overrides)
-			legacyProjection = legacyApplicationThemeProjection(overrides, pwa)
-		} else {
-			resource = newThemeResource(ThemeScopeApplication, nextThemeRevision, &dto.ThemeOverrides{})
-		}
+		resource = newThemeResource(ThemeScopeApplication, nextThemeRevision, &dto.ThemeOverrides{})
 		staleProfileRevision = profileRevision
 		return nil
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	clearLegacyApplicationThemeCache(ctx)
 	cleanupPublicProfileCache(ctx, staleProfileRevision)
-	return resource, legacyProjection, nil
+	return resource, nil
 }
 
-func (e *Theme) ResetUser(ctx *gin.Context, userID string) error {
-	_, err := e.ResetUserResource(ctx, userID, nil)
+func (e *Theme) ResetUser(ctx *gin.Context, userID string, expectedRevision int64) error {
+	_, err := e.ResetUserResource(ctx, userID, expectedRevision)
 	return err
 }
 
 func (e *Theme) ResetUserResource(
 	ctx *gin.Context,
 	userID string,
-	expectedRevision *int64,
+	expectedRevision int64,
 ) (*dto.ThemeResource, error) {
 	if strings.TrimSpace(userID) == "" {
 		return nil, ErrThemeUserRequired
@@ -643,13 +490,13 @@ func (e *Theme) ResetUserResource(
 		if err != nil {
 			return err
 		}
-		if expectedRevision != nil && *expectedRevision != themeRevision {
+		if expectedRevision != themeRevision {
 			current, loadErr := loadUserTheme(tx, userID)
 			if loadErr != nil {
 				return loadErr
 			}
 			return &ThemeRevisionConflictError{
-				Expected: *expectedRevision,
+				Expected: expectedRevision,
 				Actual:   themeRevision,
 				Current:  newThemeResource(ThemeScopeUser, themeRevision, current),
 			}
@@ -731,13 +578,13 @@ func canonicalConfigIdentifierFold(value string) string {
 	return builder.String()
 }
 
-func parseThemePatch(values map[string]any, allowLegacyPWA bool) ([]themeOperation, error) {
+func parseThemePatch(values map[string]any) ([]themeOperation, error) {
 	if len(values) == 0 {
 		return nil, fmt.Errorf("%w: data must contain at least one field", ErrInvalidThemePatch)
 	}
 	operations := make([]themeOperation, 0, len(values))
 	for name, rawValue := range values {
-		field, ok := themeWriteField(name, allowLegacyPWA)
+		field, ok := themeFields[name]
 		if !ok {
 			return nil, fmt.Errorf("%w: unsupported field %q", ErrInvalidThemePatch, name)
 		}
@@ -786,17 +633,6 @@ func validateThemeString(name, value string, field themeField) error {
 		return fmt.Errorf("%w: unsupported value %q for field %q", ErrInvalidThemePatch, value, name)
 	}
 	return nil
-}
-
-func themeWriteField(name string, allowLegacyPWA bool) (themeField, bool) {
-	if field, ok := themeFields[name]; ok {
-		return field, true
-	}
-	if !allowLegacyPWA {
-		return themeField{}, false
-	}
-	field, ok := legacyThemeWriteFields[name]
-	return field, ok
 }
 
 func decodeThemeRecords(records []themeRecord) (*dto.ThemeOverrides, error) {
@@ -885,14 +721,6 @@ func themeOverridesMap(overrides *dto.ThemeOverrides) map[string]any {
 	}
 	if overrides.ColorPrimary != nil {
 		result["colorPrimary"] = *overrides.ColorPrimary
-	}
-	return result
-}
-
-func legacyApplicationThemeProjection(overrides *dto.ThemeOverrides, pwa *bool) map[string]any {
-	result := themeOverridesMap(overrides)
-	if pwa != nil {
-		result["pwa"] = *pwa
 	}
 	return result
 }
@@ -1233,36 +1061,6 @@ func hardDeleteUserConfigIDs(tx *gorm.DB, ids []string) error {
 		return nil
 	}
 	return tx.Unscoped().Where("id IN ?", ids).Delete(&models.UserConfig{}).Error
-}
-
-func invalidateLegacyApplicationThemeCache(ctx *gin.Context, operations []themeOperation) {
-	cache := center.GetCache()
-	if cache == nil {
-		return
-	}
-	fields := make([]string, 0, len(operations))
-	for _, operation := range operations {
-		fields = append(fields, fmt.Sprintf("%s:%s", ThemeConfigGroup, operation.name))
-	}
-	if len(fields) > 0 {
-		if err := cache.HDel(ctx, legacyAppConfigCacheHash, fields...).Err(); err != nil {
-			slog.Warn("invalidate legacy application theme cache after commit", "err", err)
-		}
-	}
-}
-
-func clearLegacyApplicationThemeCache(ctx *gin.Context) {
-	cache := center.GetCache()
-	if cache == nil {
-		return
-	}
-	fields := make([]string, 0, len(themeFieldNames))
-	for _, name := range themeFieldNames {
-		fields = append(fields, fmt.Sprintf("%s:%s", ThemeConfigGroup, name))
-	}
-	if err := cache.HDel(ctx, legacyAppConfigCacheHash, fields...).Err(); err != nil {
-		slog.Warn("clear legacy application theme cache after commit", "err", err)
-	}
 }
 
 func stringSet(values ...string) map[string]struct{} {

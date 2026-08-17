@@ -113,9 +113,11 @@ func TestThemeMySQLAccentInsensitiveUpgradePath(t *testing.T) {
 	require.Zero(t, count)
 
 	// Rejected aliases cannot poison the first canonical writes.
-	require.NoError(t, app.CreateOrUpdate(ctx, ThemeConfigGroup, map[string]any{"layout": "side"}))
+	_, err = (&Theme{}).PatchApplicationResource(ctx, map[string]any{"layout": "side"}, 0)
+	require.NoError(t, err)
 	require.NoError(t, app.CreateOrUpdate(ctx, "base", map[string]any{"websiteName": "canonical"}))
-	require.NoError(t, user.CreateOrUpdate(ctx, "user-a", ThemeConfigGroup, map[string]any{"layout": "mix"}))
+	_, err = (&Theme{}).PatchUserResource(ctx, "user-a", map[string]any{"layout": "mix"}, 0)
+	require.NoError(t, err)
 
 	applicationAliases := []models.AppConfig{
 		{Group: "Theme", Name: "NavTheme", Value: "light", Auth: true},
@@ -124,7 +126,6 @@ func TestThemeMySQLAccentInsensitiveUpgradePath(t *testing.T) {
 		{Group: ThemeConfigGroup, Name: "fixedHéader", Value: "true", Auth: true},
 		{Group: ThemeConfigGroup, Name: "fixSiderbar ", Value: "true", Auth: true},
 		{Group: ThemeConfigGroup, Name: "colorPrímary", Value: "#112233", Auth: true},
-		{Group: "thème", Name: "pwa ", Value: "false", Auth: true},
 	}
 	require.NoError(t, cleanDB().Create(&applicationAliases).Error)
 	resource, err := (&Theme{}).PatchApplicationResource(ctx, map[string]any{
@@ -134,7 +135,7 @@ func TestThemeMySQLAccentInsensitiveUpgradePath(t *testing.T) {
 		"fixedHeader":  false,
 		"fixSiderbar":  false,
 		"colorPrimary": "#A1B2C3",
-	}, nil)
+	}, 1)
 	require.NoError(t, err)
 	require.Equal(t, "realDark", *resource.NavTheme)
 	require.Equal(t, "Fixed", *resource.ContentWidth)
@@ -142,11 +143,8 @@ func TestThemeMySQLAccentInsensitiveUpgradePath(t *testing.T) {
 	require.False(t, *resource.FixedHeader)
 	require.False(t, *resource.FixSiderbar)
 	require.Equal(t, "#a1b2c3", *resource.ColorPrimary)
-	_, err = (&Theme{}).PatchLegacyApplicationResource(ctx, map[string]any{"pwa": true}, nil)
-	require.NoError(t, err)
-
 	for i, name := range []string{
-		"navTheme", "contentWidth", "colorWeak", "fixedHeader", "fixSiderbar", "colorPrimary", "pwa",
+		"navTheme", "contentWidth", "colorWeak", "fixedHeader", "fixSiderbar", "colorPrimary",
 	} {
 		var persisted models.AppConfig
 		require.NoError(t, cleanDB().Unscoped().First(&persisted, "id = ?", applicationAliases[i].ID).Error)
@@ -172,16 +170,14 @@ func TestThemeMySQLAccentInsensitiveUpgradePath(t *testing.T) {
 		require.False(t, persisted.Auth)
 	}
 
-	legacyTheme, err := app.LegacyThemeGroup(ctx, nil)
+	theme, err := app.Group(ctx, ThemeConfigGroup)
 	require.NoError(t, err)
-	require.Equal(t, true, legacyTheme["pwa"])
-	require.Equal(t, "realDark", legacyTheme["navTheme"])
-	profile, err := app.Profile(ctx, false)
+	require.Equal(t, "realDark", theme["navTheme"])
+	profile, err := app.Profile(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "canonical", profile["base"]["websiteName"])
 	require.Equal(t, "canonical description", profile["base"]["websiteDescription"])
 	require.Equal(t, "canonical logo", profile["base"]["websiteLogo"])
-	require.Equal(t, true, profile[ThemeConfigGroup]["pwa"])
 	require.Equal(t, "realDark", profile[ThemeConfigGroup]["navTheme"])
 
 	userAlias := &models.UserConfig{
@@ -190,7 +186,7 @@ func TestThemeMySQLAccentInsensitiveUpgradePath(t *testing.T) {
 	require.NoError(t, cleanDB().Create(userAlias).Error)
 	userResource, err := (&Theme{}).PatchUserResource(ctx, "user-a", map[string]any{
 		"navTheme": "realDark",
-	}, nil)
+	}, 1)
 	require.NoError(t, err)
 	require.Equal(t, "realDark", *userResource.NavTheme)
 	var persistedUserAlias models.UserConfig
@@ -205,7 +201,7 @@ func TestThemeMySQLAccentInsensitiveUpgradePath(t *testing.T) {
 	require.NoError(t, cleanDB().Create(crossOwner).Error)
 	revisionBefore, err := strconv.ParseInt(userResource.Meta.Revision, 10, 64)
 	require.NoError(t, err)
-	_, err = (&Theme{}).PatchUserResource(ctx, "user-a", map[string]any{"colorWeak": false}, nil)
+	_, err = (&Theme{}).PatchUserResource(ctx, "user-a", map[string]any{"colorWeak": false}, revisionBefore)
 	require.ErrorIs(t, err, ErrThemeKeyCollision)
 	userResource, err = (&Theme{}).UserResource(ctx, "user-a")
 	require.NoError(t, err)

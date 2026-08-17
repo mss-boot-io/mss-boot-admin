@@ -31,7 +31,7 @@ authentication window. Older sessions must complete one of these step-up methods
 
 The proof is bound to the current server session identifier. It is not represented by a
 browser-readable token and cannot be copied to another session. Personal access tokens,
-legacy JWTs without a server session, and anonymous requests cannot create or consume
+obsolete JWTs without a server session, and anonymous requests cannot create or consume
 the proof. Password attempts are rate limited in the durable session row; five failed
 attempts lock step-up for five minutes. Successful proof clears the failure state.
 
@@ -48,21 +48,22 @@ then redirects to login. Signing the initiating browser out is deliberate: no ol
 credential remains usable after a password boundary changes.
 
 OAuth re-authentication uses a dedicated one-time `reauthentication` intent. Its state
-keeps the existing provider, browser nonce, response transport, user identifier, and
-credential fingerprint bindings. After provider exchange, the backend derives the
-canonical provider identity and succeeds only if that exact active identity is already
-bound to the current user; it neither creates nor moves a binding.
+keeps the provider, browser nonce, user identifier, and durable browser-session ID.
+Binding to the session ID allows the HttpOnly JWT to rotate during provider consent
+without weakening ownership. After provider exchange, the backend derives the canonical
+provider identity and succeeds only if that exact active identity is already bound to
+the current user; it neither creates nor moves a binding.
 
 OAuth disconnect requires an unexpired recent-authentication window. A database
 transaction locks the user and active bindings, confirms ownership, and refuses the
 delete unless another verified login method remains: either an enabled local password
 or another active OAuth binding. Concurrent disconnect attempts therefore cannot both
-remove the final method. The compatibility unbinding endpoint delegates to the same
-service and cannot bypass the guard.
+remove the final method. There is one canonical disconnect route; the retired unbinding
+facade is not registered.
 
-## API and compatibility
+## V6 API boundary
 
-The V6 browser client uses these additive self-service routes:
+The V6 browser client uses these self-service routes:
 
 - `GET /admin/api/user/security`
 - `POST /admin/api/user/security/reauthenticate`
@@ -72,8 +73,10 @@ The V6 browser client uses these additive self-service routes:
 OAuth authorization and callback routes accept the additive `reauthentication` intent.
 Existing anonymous recovery remains an independent verified-email flow. The old
 authenticated shortcut on `/user/reset-password` is removed; authenticated clients use
-the recent-authentication password route. The legacy OAuth unbinding route remains only
-as a compatibility facade with the same security checks.
+the recent-authentication password route. Browser OAuth binding and re-authentication
+accept only the HttpOnly browser session; standard REST Bearer and personal access-token
+authentication remain available for documented automation APIs but cannot enter these
+interactive credential-management flows.
 
 ## Deployment and rollback
 
@@ -82,10 +85,11 @@ remain valid for ordinary requests but must step up before a sensitive credentia
 change. Deploy the backend migration and API before exposing V6 controls. Provider
 redirect URIs already used by V6 callbacks remain unchanged.
 
-Rolling back the V6 UI hides the new controls. The additive session columns and routes
-may remain. Do not roll back to the unsafe authenticated password shortcut or unguarded
-OAuth delete. A backend rollback that cannot preserve these guards must disable the
-credential self-service routes until a repaired version is deployed.
+Rollback redeploys the preceding immutable V6 frontend artifact together with a backend
+that preserves the same session and recent-authentication contract. Do not roll back to
+the unsafe authenticated password shortcut, unguarded OAuth delete, or any retired
+browser protocol. A backend rollback that cannot preserve these guards must disable the
+credential self-service routes until a repaired V6 release is deployed.
 
 ## Consequences
 

@@ -81,7 +81,6 @@ describe('v6 theme cross-tab synchronization', () => {
       scope: 'user',
       revision: '8',
       overrides: {},
-      versioned: true,
     };
     expect(decideThemeScopeEvent(userEvent(), current, 'session-a')).toBe('apply');
     expect(decideThemeScopeEvent(userEvent(), current, 'session-b')).toBe('wrong-session');
@@ -106,7 +105,6 @@ describe('v6 theme cross-tab synchronization', () => {
       scope: 'application',
       revision: '12',
       overrides: { navTheme: 'light' },
-      versioned: true,
     });
 
     expect(listener).toHaveBeenCalledTimes(1);
@@ -128,7 +126,6 @@ describe('v6 theme cross-tab synchronization', () => {
       scope: 'application',
       revision: '13',
       overrides: { colorWeak: true },
-      versioned: true,
     });
 
     expect(setItem).toHaveBeenCalledWith(THEME_SYNC_STORAGE_KEY, expect.any(String));

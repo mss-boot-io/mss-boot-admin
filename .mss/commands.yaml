@@ -139,22 +139,22 @@ spec:
 
     frontend-install:
       command: make web-install
-      description: Install frontend dependencies with the frozen lockfile.
+      description: Install the primary Ant Design 6 frontend dependencies with its frozen lockfile.
       category: frontend
 
     frontend-lint:
       command: make web-lint
-      description: Run frontend ESLint and TypeScript checks.
+      description: Run Biome and TypeScript checks for the primary Ant Design 6 frontend.
       category: frontend
 
     frontend-test:
       command: make web-test
-      description: Run frontend Jest tests.
+      description: Run Vitest for the primary Ant Design 6 frontend.
       category: frontend
 
     frontend-build:
       command: make web-build
-      description: Build the local frontend profile.
+      description: Build and validate the primary Ant Design 6 release profile.
       category: frontend
 
     frontend-v6-install:
@@ -200,7 +200,7 @@ spec:
       category: verification
 
     release-policy-check:
-      command: python3 tools/release/check_release_policy.py --component <root|framework|frontend|frontend-v6> --version <version> --tag <tag> --intent <qualify|publish>
+      command: python3 tools/release/check_release_policy.py --component <root|framework|frontend> --version <version> --tag <tag> --intent <qualify|publish>
       description: Validate the reviewed target and namespace; qualify permits unpublished candidate work, while publish also requires publication workflow readiness and is not itself phase approval.
       outputFormats: [text]
       category: release
@@ -264,7 +264,7 @@ spec:
 
     module-generate:
       command: go run ./cmd/mss module generate
-      description: Generate or synchronize a vertical admin module; the compatibility default is the antd-v5 frontend target.
+      description: Generate or synchronize a vertical admin module for the only supported antd-v6 frontend target.
       category: generation
       dryRunByDefault: true
       idempotent: true
@@ -274,13 +274,6 @@ spec:
       description: Generate or drift-check the isolated Ant Design 6 projection declared by an AdminModule specification.
       category: generation
       dryRunByDefault: true
-      idempotent: true
-
-    antd-v5-retirement-inventory:
-      command: python3 tools/cutover/generate_antd_v5_retirement_inventory.py
-      description: Validate the exact V5 and compatibility consumer inventory and emit the local cutover evidence report without deleting anything.
-      outputFormats: [text]
-      category: verification
       idempotent: true
 
     eval-list:

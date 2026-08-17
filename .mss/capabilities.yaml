@@ -11,7 +11,7 @@ spec:
   capabilities:
     - id: frontend.ant-design-v6
       displayName: Independent Ant Design 6 Admin Application
-      status: planned
+      status: beta
       owners: [frontend, release-engineering, security]
       paths:
         - .mss/features/admin-antd-v6-application.yaml
@@ -23,12 +23,9 @@ spec:
         - .github/workflows/frontend-v6-ci.yml
         - .github/workflows/frontend-v6-release.yml
       guidance: >-
-        Build and release this application independently from web/antd. Ant Design 6.6.0
-        and the ProComponents v3 beta are exact pins; backend-compatible cookie/CSRF and
-        WebSocket-ticket support, business parity, the v6 generator target, browser evidence,
-        and immutable release evidence remain required before this capability is production-ready.
-        Default cutover, observation, V5 retirement, and backend compatibility cleanup are later
-        ordered gates and must not be collapsed into the independent-application delivery.
+        Ant Design 6.6.0 and the ProComponents v3 beta remain exact pins. Build and release
+        this application through its V6 tag, artifact, image, and rollback history. V6 is the
+        only browser application and backend browser-session contract.
 
     - id: identity.authentication
       displayName: Authentication
@@ -39,12 +36,12 @@ spec:
         - admin/models/user.go
         - admin/apis/user.go
       frontendPaths:
-        - web/antd/src/pages/User/Login
-        - web/antd/src/access.ts
+        - web/antd-v6/src/pages/User/Login
+        - web/antd-v6/src/access.ts
       guidance: >-
-        Reuse the existing JWT and OAuth2 flows; do not create a parallel login
-        system, and never serialize provider access or refresh tokens to browser
-        code or persist them in browser storage.
+        Reuse the existing identity and OAuth2 flows. The primary V6 browser uses
+        HttpOnly session cookies, signed CSRF, scheduled refresh, and WebSocket tickets;
+        never serialize provider access or refresh tokens to browser code or storage.
 
     - id: identity.personal-access-token
       displayName: Personal Access Token
@@ -54,7 +51,7 @@ spec:
         - admin/models/user_auth_token.go
         - admin/apis/user_auth_token.go
       frontendPaths:
-        - web/antd/src/pages/Account/Settings/components/AccessToken.tsx
+        - web/antd-v6/src/modules/account
       guidance: >-
         Return raw PAT values only from create or rotate, persist only a
         versioned digest and safe fingerprint, and use owner-scoped atomic
@@ -70,9 +67,8 @@ spec:
         - admin/apis/role.go
         - admin/middleware/auth.go
       frontendPaths:
-        - web/antd/src/access.ts
-        - web/antd/src/pages/Role
-        - web/antd/src/pages/Menu
+        - web/antd-v6/src/access.ts
+        - web/antd-v6/src/modules/administration
       guidance: Enforce permissions on the backend; frontend checks are advisory only.
 
     - id: organization.directory
@@ -85,10 +81,7 @@ spec:
         - admin/models/post.go
         - admin/models/role.go
       frontendPaths:
-        - web/antd/src/pages/User
-        - web/antd/src/pages/Department
-        - web/antd/src/pages/Post
-        - web/antd/src/pages/Role
+        - web/antd-v6/src/modules/administration
       guidance: Reuse existing organization entities for management applications.
 
     - id: governance.audit
@@ -119,8 +112,8 @@ spec:
       frameworkPaths:
         - mss-boot/pkg/config/storage/cache
       frontendPaths:
-        - web/antd/src/pages/AppConfig
-        - web/antd/src/pages/SystemConfig
+        - web/antd-v6/src/modules/app-config
+        - web/antd-v6/src/modules/operations/SystemConfigManagement.tsx
       guidance: >-
         Prefer typed configuration and secret references over raw unvalidated values. Keep the database
         authoritative: cache keys bind every query parameter, application writes commit before best-effort
@@ -150,16 +143,10 @@ spec:
         - admin/cmd/migrate/migration/system/20260807130000_app_config_theme_permissions.go
         - admin/cmd/migrate/migration/system/20260807150000_config_revisions.go
       frontendPaths:
-        - web/antd/config/defaultSettings.ts
-        - web/antd/src/app.tsx
-        - web/antd/src/components/MssBoot/ThemeRuntimeBridge.tsx
-        - web/antd/src/components/MssBoot/theme.tsx
-        - web/antd/src/pages/AppConfig
-        - web/antd/src/pages/Account/Settings
-        - web/antd/src/services/admin/themeSettings.ts
-        - web/antd/src/utils/themeSession.ts
-        - web/antd/src/utils/themeSettings.ts
-        - web/antd/src/utils/themeSync.ts
+        - web/antd-v6/src/app.tsx
+        - web/antd-v6/src/modules/app-config
+        - web/antd-v6/src/modules/theme
+        - web/antd-v6/src/pages/Account/Settings
       guidance: >-
         Resolve immutable code defaults with sparse application and then sparse current-user overrides.
         Reuse one scope-aware editor; omission means no mutation, null restores inheritance, and false is explicit.
@@ -636,7 +623,7 @@ spec:
         - admin/models/notice.go
         - admin/service/notification_channel.go
       frontendPaths:
-        - web/antd/src/pages/Notice
+        - web/antd-v6/src/modules/operations/NoticeCenter.tsx
       guidance: Treat channel credentials as secrets and test failure paths.
 
     - id: operations.monitoring
@@ -651,10 +638,8 @@ spec:
       frameworkPaths:
         - mss-boot/core/server/task
       frontendPaths:
-        - web/antd/src/hooks/useMonitorData.ts
-        - web/antd/src/components/MonitorTrend
-        - web/antd/src/pages/Monitor
-        - web/antd/src/pages/Welcome.tsx
+        - web/antd-v6/src/modules/monitor
+        - web/antd-v6/src/pages/Workplace
       guidance: >-
         Sample through the task server's immutable built-in system-job lane and serve bounded instance-local history;
         monitoring is not a user Task and is not a replacement for external observability.
@@ -667,7 +652,7 @@ spec:
         - admin/apis/ws.go
         - admin/center/websocket
       frontendPaths:
-        - web/antd/src/hooks/useWebSocket.ts
+        - web/antd-v6/src/shared/realtime/socket.ts
       guidance: >-
         The single-instance event path is beta. At v1.0.0 no SetRedisClient call wires the
         clustered Redis pub/sub path, so do not claim multi-replica delivery. Migrate it to an
@@ -693,8 +678,8 @@ spec:
         - admin/models/language.go
         - admin/apis/language.go
       frontendPaths:
-        - web/antd/src/locales
-        - web/antd/src/pages/Language
+        - web/antd-v6/src/locales
+        - web/antd-v6/src/modules/language
       guidance: Keep zh-CN and en-US user-facing keys synchronized.
 
     - id: agent.project-contract
@@ -827,7 +812,7 @@ spec:
         - .mss/release-policy.yaml
         - CHANGELOG.md
         - mss-boot/CHANGELOG.md
-        - web/antd/CHANGELOG.md
+        - web/antd-v6/CHANGELOG.md
         - docs/docs/releases
         - Dockerfile
         - admin/cmd/cobra.go
@@ -840,9 +825,6 @@ spec:
         - mss-boot/Makefile
         - tools/release
         - tools/security
-        - web/antd/Dockerfile
-        - web/antd/config/config.prod.release.ts
-        - web/antd/scripts/check-release-api.mjs
         - web/antd-v6/Dockerfile
         - web/antd-v6/CHANGELOG.md
         - web/antd-v6/scripts/check-release-api.mjs
@@ -851,7 +833,6 @@ spec:
         - .github/workflows/release.yml
         - .github/workflows/release-readiness.yml
         - .github/workflows/framework-release.yml
-        - .github/workflows/frontend-release.yml
         - .github/workflows/frontend-v6-release.yml
         - .github/workflows/theme-settings-integration.yml
         - .github/workflows/v0.7-upgrade-integration.yml
@@ -859,7 +840,7 @@ spec:
         Treat Unreleased, planned, preview, branches, and local workspace replacements as non-stable.
         Root v1.0.0 and mss-boot/v1.0.0 were published from
         ee800262c035c5f4242aca1841d077554481d2c4 on 2026-08-09, with exact-commit evidence in
-        GitHub issue 471. The standalone web/antd/v1.0.0 tag was not published. Regenerate
+        GitHub issue 471. The retired V5 frontend had no standalone v1.0.0 publication. Regenerate
         exact-commit artifacts and evidence for every later release; historical candidate or
         previous-version evidence is not reusable.
         The reviewed development-first policy advances directly to v1.1.0: v1.0.x and public

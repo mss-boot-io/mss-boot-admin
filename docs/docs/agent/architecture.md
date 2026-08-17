@@ -43,7 +43,7 @@ keywords: [agent architecture contracts generator cli mcp blueprint]
                        │
 ┌──────────────────────▼─────────────────────┐
 │ Management-system runtime                 │
-│ mss-boot / backend / web/antd / docs      │
+│ mss-boot / backend / AntD V6 / docs       │
 └────────────────────────────────────────────┘
 ```
 
@@ -90,7 +90,7 @@ internal/mss/
 modules/
 templates/
 mss-boot/
-web/antd/
+web/antd-v6/  # 唯一前端与独立发布单元
 docs/
 ```
 

@@ -76,8 +76,7 @@ func (e *UserConfig) Profile(ctx *gin.Context) {
 // @Accept application/json
 // @Produce application/json,application/vnd.mss.theme.v1+json
 // @Param group path string true "group"
-// @Param Accept header string false "Use application/vnd.mss.theme.v1+json for the canonical versioned theme resource; omitted keeps the legacy user-theme response"
-// @Success 200 {object} map[string]interface{} "Theme may return the negotiated canonical resource; other groups and legacy theme clients receive key/value objects"
+// @Success 200 {object} map[string]interface{} "Theme returns the canonical versioned resource; other groups receive key/value objects"
 // @Header 200 {string} ETag "Strong theme resource ETag when group=theme"
 // @Router /admin/api/user-configs/{group} [get]
 // @Security Bearer
@@ -91,25 +90,13 @@ func (e *UserConfig) Group(ctx *gin.Context) {
 		return
 	}
 	if req.Group == service.ThemeConfigGroup {
-		canonicalContract := wantsCanonicalThemeContract(ctx)
 		resource, err := e.service.ThemeResource(ctx, verify.GetUserID())
 		if err != nil {
 			api.AddError(err).Log.Error("get user theme resource error")
 			api.Err(http.StatusInternalServerError)
 			return
 		}
-		if canonicalContract {
-			writeThemeResource(ctx, resource)
-			return
-		}
-		result, err := e.service.LegacyThemeGroup(ctx, verify.GetUserID(), resource)
-		if err != nil {
-			api.AddError(err).Log.Error("get legacy user theme group error")
-			api.Err(http.StatusInternalServerError)
-			return
-		}
-		setThemeETag(ctx, resource)
-		api.OK(result)
+		writeThemeResource(ctx, resource)
 		return
 	}
 	result, err := e.service.Group(ctx, verify.GetUserID(), req.Group)
@@ -133,8 +120,7 @@ func (e *UserConfig) Group(ctx *gin.Context) {
 // @Accept application/json
 // @Produce application/json,application/vnd.mss.theme.v1+json
 // @Param group path string true "group"
-// @Param Accept header string false "Use application/vnd.mss.theme.v1+json for the canonical seven-field theme contract"
-// @Param If-Match header string false "Strong current-user theme ETag used for optimistic concurrency"
+// @Param If-Match header string true "Strong current-user theme ETag used for optimistic concurrency"
 // @Param data body dto.UserConfigControlRequest true "data"
 // @Success 200 {object} map[string]interface{} "Theme may return the negotiated canonical resource; other groups return an empty object"
 // @Header 200 {string} ETag "Strong theme resource ETag when group=theme"
@@ -157,14 +143,17 @@ func (e *UserConfig) Control(ctx *gin.Context) {
 		return
 	}
 	if req.Group == service.ThemeConfigGroup {
-		canonicalContract := wantsCanonicalThemeContract(ctx)
 		keys := submittedThemeKeys(req.Data)
 		expectedRevision, err := parseThemeIfMatch(ctx, service.ThemeScopeUser)
 		if err != nil {
 			middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
 				Scope: service.ThemeScopeUser, ChangedKeys: keys, Outcome: "bad_precondition",
 			})
-			api.AddError(response.NewError(themeIfMatchInvalidCode, err.Error())).Err(http.StatusBadRequest)
+			status, code := http.StatusBadRequest, themeIfMatchInvalidCode
+			if errors.Is(err, errThemeIfMatchRequired) {
+				status, code = http.StatusPreconditionRequired, themeIfMatchRequiredCode
+			}
+			api.AddError(response.NewError(code, err.Error())).Err(status)
 			return
 		}
 		result, err := e.service.UpdateTheme(ctx, verify.GetUserID(), req.Data, expectedRevision)
@@ -182,7 +171,7 @@ func (e *UserConfig) Control(ctx *gin.Context) {
 					Scope: service.ThemeScopeUser, ChangedKeys: keys, Outcome: "conflict",
 					Revision: conflict.Current.Meta.Revision,
 				})
-				writeThemeRevisionConflict(ctx, err, canonicalContract)
+				writeThemeRevisionConflict(ctx, err)
 				return
 			}
 			middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
@@ -196,17 +185,6 @@ func (e *UserConfig) Control(ctx *gin.Context) {
 			Scope: service.ThemeScopeUser, ChangedKeys: keys, Outcome: "success",
 			Revision: result.Meta.Revision,
 		})
-		if !canonicalContract {
-			legacy, legacyErr := e.service.LegacyThemeGroup(ctx, verify.GetUserID(), result)
-			if legacyErr != nil {
-				api.AddError(legacyErr).Log.Error("get legacy user theme after update error")
-				api.Err(http.StatusInternalServerError)
-				return
-			}
-			setThemeETag(ctx, result)
-			api.OK(legacy)
-			return
-		}
 		writeThemeResource(ctx, result)
 		return
 	}
@@ -235,9 +213,8 @@ func (e *UserConfig) Control(ctx *gin.Context) {
 // @Summary Reset current user theme overrides
 // @Tags user-config
 // @Produce application/json,application/vnd.mss.theme.v1+json
-// @Param Accept header string false "Use application/vnd.mss.theme.v1+json for the canonical versioned theme resource"
-// @Param If-Match header string false "Strong current-user theme ETag used for optimistic concurrency"
-// @Success 200 {object} map[string]interface{} "Returns the negotiated canonical resource or the legacy theme projection"
+// @Param If-Match header string true "Strong current-user theme ETag used for optimistic concurrency"
+// @Success 200 {object} dto.ThemeResource "Returns the canonical versioned resource"
 // @Header 200 {string} ETag "Strong current-user theme resource ETag"
 // @Failure 412 {object} dto.ThemeRevisionConflictResponse "Theme revision conflict"
 // @Header 412 {string} ETag "Current strong user theme ETag"
@@ -246,7 +223,6 @@ func (e *UserConfig) Control(ctx *gin.Context) {
 func (e *UserConfig) Reset(ctx *gin.Context) {
 	ctx.Header("Cache-Control", "no-store")
 	api := response.Make(ctx)
-	canonicalContract := wantsCanonicalThemeContract(ctx)
 	verify := middleware.GetVerify(ctx)
 	keys := service.ThemeFieldNames()
 	expectedRevision, err := parseThemeIfMatch(ctx, service.ThemeScopeUser)
@@ -254,7 +230,11 @@ func (e *UserConfig) Reset(ctx *gin.Context) {
 		middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
 			Scope: service.ThemeScopeUser, ChangedKeys: keys, Outcome: "bad_precondition",
 		})
-		api.AddError(response.NewError(themeIfMatchInvalidCode, err.Error())).Err(http.StatusBadRequest)
+		status, code := http.StatusBadRequest, themeIfMatchInvalidCode
+		if errors.Is(err, errThemeIfMatchRequired) {
+			status, code = http.StatusPreconditionRequired, themeIfMatchRequiredCode
+		}
+		api.AddError(response.NewError(code, err.Error())).Err(status)
 		return
 	}
 	result, err := e.service.ResetTheme(ctx, verify.GetUserID(), expectedRevision)
@@ -265,7 +245,7 @@ func (e *UserConfig) Reset(ctx *gin.Context) {
 				Scope: service.ThemeScopeUser, ChangedKeys: keys, Outcome: "conflict",
 				Revision: conflict.Current.Meta.Revision,
 			})
-			writeThemeRevisionConflict(ctx, err, canonicalContract)
+			writeThemeRevisionConflict(ctx, err)
 			return
 		}
 		middleware.SetThemeAuditMetadata(ctx, middleware.ThemeAuditMetadata{
@@ -279,16 +259,5 @@ func (e *UserConfig) Reset(ctx *gin.Context) {
 		Scope: service.ThemeScopeUser, ChangedKeys: keys, Outcome: "success",
 		Revision: result.Meta.Revision,
 	})
-	if !canonicalContract {
-		legacy, legacyErr := e.service.LegacyThemeGroup(ctx, verify.GetUserID(), result)
-		if legacyErr != nil {
-			api.AddError(legacyErr).Log.Error("get legacy user theme after reset error")
-			api.Err(http.StatusInternalServerError)
-			return
-		}
-		setThemeETag(ctx, result)
-		api.OK(legacy)
-		return
-	}
 	writeThemeResource(ctx, result)
 }

@@ -30,7 +30,7 @@ __pycache__/
 config/application-*
 admin/config/application-*
 !admin/config/application-e2e.yml
-!admin/config/application-v6-local.yml
+!admin/config/application-local.yml
 *.db
 
 # Runtime and build output
@@ -49,8 +49,8 @@ compose/**/**/datalogs/
 logs/
 
 # Frontend test output
-web/antd/test-results/
-web/antd/playwright-report/
+web/antd-v6/test-results/
+web/antd-v6/playwright-report/
 
 # Local agent-native reports, process state, logs, caches, and generated app output
 .mss/reports/

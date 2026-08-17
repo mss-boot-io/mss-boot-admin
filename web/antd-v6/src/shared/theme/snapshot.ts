@@ -202,12 +202,7 @@ export function readThemeSnapshot(
       storage.removeItem(key);
       return undefined;
     }
-    const resource = parseThemeScopeResource(envelope.resource, scope);
-    if (!resource.versioned) {
-      storage.removeItem(key);
-      return undefined;
-    }
-    return resource;
+    return parseThemeScopeResource(envelope.resource, scope);
   } catch {
     try {
       storage.removeItem(key);
@@ -224,7 +219,7 @@ export async function writeThemeSnapshot(
   now = Date.now(),
   options: ThemeSnapshotWriteOptions = {},
 ): Promise<boolean> {
-  if (!resource.versioned || (resource.scope === 'user' && !authSessionId)) return false;
+  if (resource.scope === 'user' && !authSessionId) return false;
   const storage = browserStorage();
   const locks = browserLockManager();
   // localStorage has no compare-and-set. Without Web Locks, declining the

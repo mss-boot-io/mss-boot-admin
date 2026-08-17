@@ -41,10 +41,10 @@ User
 
 | 路径 | 功能 | 权限控制 |
 |------|------|----------|
-| `/admin/api/user/login` | 用户登录 | JWT 签发 |
-| `/admin/api/user/info` | 获取当前用户信息 | 加载 Casbin 权限策略 |
-| `/admin/api/user` | 用户 CRUD | 标准 RBAC 控制 |
-| `/admin/api/user/change-password` | 用户修改密码 | 需要原密码验证 |
+| `/admin/api/user/session/login` | V6 浏览器登录 | HttpOnly 会话、Origin 与 CSRF 合同 |
+| `/admin/api/user/userInfo` | 获取当前用户信息 | 加载 Casbin 权限策略 |
+| `/admin/api/users` | 用户 CRUD | 标准 RBAC 与根级变更边界 |
+| `/admin/api/user/security/password` | 个人修改密码 | 需要近期服务端再认证并撤销其他会话和 PAT |
 
 **权限加载流程**
 

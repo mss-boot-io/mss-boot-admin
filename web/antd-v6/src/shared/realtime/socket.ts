@@ -3,7 +3,7 @@ import { request } from '@umijs/max';
 export const APPLICATION_WEBSOCKET_PROTOCOL = 'mss.v1';
 export const WEBSOCKET_TICKET_PROTOCOL_PREFIX = 'mss.ticket.';
 export const WEBSOCKET_TICKET_ENDPOINT = '/ws/tickets';
-export const WEBSOCKET_CONNECT_PATH = '/admin/api/ws/connect-v6';
+export const WEBSOCKET_CONNECT_PATH = '/admin/api/ws/connect';
 export const REALTIME_EVENT_CONNECTED = 'connected';
 export const REALTIME_EVENT_PING = 'ping';
 export const REALTIME_EVENT_PONG = 'pong';

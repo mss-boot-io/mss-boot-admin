@@ -22,7 +22,6 @@ type Auth struct {
 	IdentityKey    string         `yaml:"identityKey" json:"identityKey"`
 	Timeout        time.Duration  `yaml:"timeout" json:"timeout"`
 	MaxRefresh     time.Duration  `yaml:"maxRefresh" json:"maxRefresh"`
-	SessionEnabled bool           `yaml:"sessionEnabled" json:"sessionEnabled"`
 	BrowserSession BrowserSession `yaml:"browserSession" json:"browserSession"`
 }
 
@@ -34,19 +33,15 @@ const (
 	maximumWebSocketTicketTTL = 2 * time.Minute
 )
 
-// BrowserSession is an opt-in compatibility surface for the independently
-// deployed V6 frontend. Fixed host-only cookie names and paths are owned by the
-// auth middleware; deployment configuration can enable the capability, require
-// Secure cookies, select Lax or Strict SameSite behavior, and bound one-time
-// WebSocket tickets. The legacy query-token switch is intentionally separate
-// so V5 can remain available during the overlap window without making query
-// credentials valid for general REST authentication.
+// BrowserSession is the browser authentication contract for the V6 frontend.
+// Fixed host-only cookie names and paths are owned by the auth middleware;
+// deployment configuration requires Secure cookies in production, selects Lax
+// or Strict SameSite behavior, and bounds one-time WebSocket tickets. The
+// capability is mandatory: V6 is the sole supported browser client.
 type BrowserSession struct {
-	Enabled                          bool          `yaml:"enabled" json:"enabled"`
-	Secure                           bool          `yaml:"secure" json:"secure"`
-	SameSite                         string        `yaml:"sameSite" json:"sameSite"`
-	WebSocketTicketTTL               time.Duration `yaml:"webSocketTicketTTL" json:"webSocketTicketTTL"`
-	LegacyWebSocketQueryTokenEnabled *bool         `yaml:"legacyWebSocketQueryTokenEnabled" json:"legacyWebSocketQueryTokenEnabled"`
+	Secure             bool          `yaml:"secure" json:"secure"`
+	SameSite           string        `yaml:"sameSite" json:"sameSite"`
+	WebSocketTicketTTL time.Duration `yaml:"webSocketTicketTTL" json:"webSocketTicketTTL"`
 }
 
 func (e BrowserSession) CookieSameSite() http.SameSite {
@@ -65,14 +60,6 @@ func (e BrowserSession) TicketTTL() time.Duration {
 	return e.WebSocketTicketTTL
 }
 
-// LegacyWebSocketQueryTokenAllowed defaults to true when an older external
-// configuration has no knowledge of the new switch. Only an explicit false
-// retires the V5 route, preventing an additive backend rollout from silently
-// disconnecting the independently deployed legacy frontend.
-func (e BrowserSession) LegacyWebSocketQueryTokenAllowed() bool {
-	return e.LegacyWebSocketQueryTokenEnabled == nil || *e.LegacyWebSocketQueryTokenEnabled
-}
-
 func validateProductionAuthKey(mode Mode, key string) error {
 	if mode != ModeProd {
 		return nil
@@ -88,12 +75,6 @@ func validateProductionAuthKey(mode Mode, key string) error {
 }
 
 func validateBrowserSession(mode Mode, auth Auth) error {
-	if !auth.BrowserSession.Enabled {
-		return nil
-	}
-	if !auth.SessionEnabled {
-		return errors.New("auth.browserSession requires auth.sessionEnabled")
-	}
 	if strings.TrimSpace(auth.Key) == "" {
 		return errors.New("auth.browserSession requires auth.key")
 	}
@@ -127,9 +108,6 @@ func validateBrowserSessionOrigins(
 	corsOrigins []string,
 	corsHeaders []string,
 ) error {
-	if !auth.BrowserSession.Enabled {
-		return nil
-	}
 	applicationNormalized, _ := browsersecurity.NormalizeOrigin(applicationOrigin)
 	candidates := append([]string{applicationOrigin}, corsOrigins...)
 	validOrigins := 0

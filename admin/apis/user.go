@@ -124,15 +124,11 @@ var defaultEmailChallengeSendSlots = make(chan struct{}, 32)
 
 // Other handler
 func (e *User) Other(r *gin.RouterGroup) {
-	r.POST("/user/login", middleware.PublicLoginHandler)
 	r.POST("/user/session/login", middleware.RequireTrustedBrowserOrigin(), e.SessionLogin)
 	r.POST("/user/session/refresh-token", middleware.RequireTrustedBrowserOrigin(), e.SessionRefreshToken)
 	r.POST("/user/auth-cookie/clear", middleware.RequireTrustedBrowserOrigin(), e.ClearAuthCookie)
 	r.POST("/user/reset-password", middleware.OptionalAuth(), e.ResetPassword)
 	r.POST("/user/fakeCaptcha", e.FakeCaptcha)
-	r.POST("/user/login/github", methodNotAllowed)
-	r.POST("/user/refresh-token", middleware.Auth.RefreshHandler)
-	r.GET("/user/refresh-token", methodNotAllowed)
 	r.GET("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UserInfo)
 	r.PUT("/user/:userID/password-reset", response.AuthHandler, e.PasswordReset)
 	r.PUT("/user/userInfo", middleware.Auth.MiddlewareFunc(), e.UpdateUserInfo)
@@ -141,17 +137,12 @@ func (e *User) Other(r *gin.RouterGroup) {
 	r.GET("/user/security", response.AuthHandler, e.GetAccountSecurity)
 	r.POST("/user/security/reauthenticate", response.AuthHandler, e.ReauthenticateAccount)
 	r.PUT("/user/security/password", response.AuthHandler, e.ChangeAccountPassword)
-	r.POST("/user/oauth2/authorize", middleware.OptionalAuth(), e.OAuthAuthorize)
 	r.POST("/user/session/oauth2/authorize", middleware.RequireTrustedBrowserOrigin(), middleware.OptionalAuth(), e.SessionOAuthAuthorize)
-	r.POST("/user/binding", response.AuthHandler, e.Binding)
-	r.DELETE("/user/unbinding", response.AuthHandler, e.Unbinding)
 	r.DELETE("/user/oauth2/:provider", response.AuthHandler, e.DisconnectOAuth)
-	r.POST("/user/:provider/callback", middleware.OptionalAuth(), e.Callback)
 	r.POST("/user/session/:provider/callback", middleware.RequireTrustedBrowserOrigin(), middleware.OptionalAuth(), e.SessionCallback)
-	r.GET("/user/:provider/callback", methodNotAllowed)
 }
 
-// SessionLogin establishes the opt-in V6 browser session without returning an
+// SessionLogin establishes the V6 browser session without returning an
 // Admin JWT to browser-visible JavaScript.
 // @Summary Login with an HttpOnly browser session
 // @Tags user
@@ -188,36 +179,6 @@ func (*User) ClearAuthCookie(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Unbinding 解绑第三方登录
-// @Summary 解绑第三方登录
-// @Description 解绑第三方登录
-// @Tags user
-// @Accept  application/json
-// @Product application/json
-// @Param data body models.UserLogin true "data"
-// @Success 204
-// @Router /admin/api/user/unbinding [delete]
-// @Security Bearer
-func (e *User) Unbinding(ctx *gin.Context) {
-	ctx.Header("Cache-Control", "no-store")
-	api := response.Make(ctx)
-	verify := response.VerifyHandler(ctx)
-	if verify == nil {
-		api.Err(http.StatusForbidden)
-		return
-	}
-	if middleware.IsPersonalAccessTokenVerifier(verify) {
-		api.Err(http.StatusForbidden)
-		return
-	}
-	req := &models.UserLogin{}
-	if api.Bind(req).Error != nil {
-		api.Err(http.StatusUnprocessableEntity)
-		return
-	}
-	e.disconnectOAuth(ctx, verify.GetUserID(), req.Provider)
-}
-
 // DisconnectOAuth removes one provider only after recent proof and while
 // preserving at least one verified login method.
 func (e *User) DisconnectOAuth(ctx *gin.Context) {
@@ -249,20 +210,6 @@ func (*User) disconnectOAuth(ctx *gin.Context, userID string, provider pkg.Login
 		return
 	}
 	ctx.Status(http.StatusNoContent)
-}
-
-// Binding 绑定第三方登录
-// @Summary 绑定第三方登录
-// @Description 绑定第三方登录
-// Deprecated: browser-submitted provider tokens are rejected. Binding now
-// completes inside the state-bound OAuth callback.
-func (e *User) Binding(ctx *gin.Context) {
-	verify := response.VerifyHandler(ctx)
-	if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) {
-		response.Make(ctx).Err(http.StatusForbidden)
-		return
-	}
-	methodNotAllowed(ctx)
 }
 
 // GetOauth2 获取用户第三方登录信息
@@ -657,30 +604,6 @@ func normalizeSelfProfileUpdates(input map[string]any) (map[string]any, error) {
 		return nil, errors.New("profile field is not self-service mutable")
 	}
 	return updates, nil
-}
-
-// Login 登录
-// @Summary 登录
-// @Description 登录
-// @Tags user
-// @Accept  application/json
-// @Product application/json
-// @Param data body models.UserLogin true "data"
-// @Success 200 {object} dto.LoginResponse "{"code": 200, "expire": "2023-12-10T12:31:30+08:00", "token": "xxx"}"
-// @Router /admin/api/user/login [post]
-func (e *User) Login(_ *gin.Context) {}
-
-// RefreshToken 刷新token
-// @Summary 刷新token
-// @Description 刷新token
-// @Tags user
-// @Accept  application/json
-// @Product application/json
-// @Success 200 {object} dto.LoginResponse "{"code": 200, "expire": "2023-12-10T12:31:30+08:00", "token":
-// @Router /admin/api/user/refresh-token [post]
-// @Security Bearer
-func (e *User) RefreshToken(_ *gin.Context) {
-
 }
 
 // FakeCaptcha 获取验证码
@@ -1078,20 +1001,3 @@ func (e *User) List(*gin.Context) {}
 // @Router /admin/api/users/{id} [delete]
 // @Security Bearer
 func (e *User) Delete(*gin.Context) {}
-
-// Callback oauth2回调
-// @Summary oauth2回调
-// @Description oauth2回调
-// @Tags user
-// @Accept  application/json
-// @Product application/json
-// @Param provider path string true "provider"
-// @Param data body dto.OauthCallbackReq true "OAuth callback code and state"
-// @Success 201 {object} dto.OAuthCallbackResponse
-// @Failure 401 {object} response.Response
-// @Failure 422 {object} response.Response
-// @Failure 503 {object} response.Response
-// @Router /admin/api/user/{provider}/callback [post]
-func (e *User) Callback(c *gin.Context) {
-	e.oauthCallback(c)
-}

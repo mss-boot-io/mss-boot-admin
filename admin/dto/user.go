@@ -47,12 +47,6 @@ type UserSearch struct {
 	Name               string `query:"name" form:"name" search:"type:contains;column:name"`
 }
 
-type LoginResponse struct {
-	Code   int       `json:"code"`
-	Expire time.Time `json:"expire"`
-	Token  string    `json:"token"`
-}
-
 // BrowserSessionResponse intentionally omits the Admin JWT. The browser owns
 // only an HttpOnly cookie and a separate readable CSRF token.
 type BrowserSessionResponse struct {

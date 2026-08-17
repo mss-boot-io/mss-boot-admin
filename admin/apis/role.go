@@ -171,13 +171,13 @@ func (e *Role) GetAuthorize(ctx *gin.Context) {
 // @Accept application/json
 // @Produce application/json
 // @param roleID path string true "roleID"
-// @Param If-Match header string false "Strong role-authorization ETag; optional only during the rolling compatibility window"
+// @Param If-Match header string true "Strong role-authorization ETag"
 // @Param data body dto.SetAuthorizeRequest true "data"
 // @Success 200 {object} dto.GetAuthorizeResponse
 // @Header 200 {string} ETag "Strong role-authorization ETag"
-// @Header 200 {string} Warning "Compatibility warning when If-Match is omitted"
-// @Header 200 {string} X-MSS-Authorization-Precondition "missing when the compatibility path accepted a request without If-Match"
 // @Failure 400 {object} response.Error "Malformed If-Match"
+
+// @Failure 428 {object} response.Error "Missing If-Match"
 // @Failure 401 {object} response.Error "Current principal missing"
 // @Failure 403 {object} response.Error "Current principal is not root"
 // @Failure 404 {object} response.Error "Role not found"
@@ -211,7 +211,11 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	}
 	expectedRevision, err := parseRoleAuthorizationIfMatch(ctx, req.RoleID)
 	if err != nil {
-		api.AddError(response.NewError(roleAuthorizationIfMatchInvalidCode, err.Error())).Err(http.StatusBadRequest)
+		status, code := http.StatusBadRequest, roleAuthorizationIfMatchInvalidCode
+		if errors.Is(err, errRoleAuthorizationIfMatchRequired) {
+			status, code = http.StatusPreconditionRequired, roleAuthorizationIfMatchRequiredCode
+		}
+		api.AddError(response.NewError(code, err.Error())).Err(status)
 		return
 	}
 	resource, err := service.AuthorizationPolicies.ReplaceRole(
@@ -253,9 +257,6 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 		return
 	}
 	setRoleAuthorizationETag(ctx, resource)
-	if expectedRevision == nil {
-		setMissingRoleAuthorizationPreconditionWarning(ctx)
-	}
 	api.OK(resource)
 }
 

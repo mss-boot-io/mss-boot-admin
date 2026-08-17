@@ -210,7 +210,10 @@ func TestUpdateOptionCacheFailureDoesNotFailCommittedMutation(t *testing.T) {
 	// mutation must still report the authoritative database result.
 	env.redis.Close()
 	updated := &models.OptionItems{{Key: "new", Label: "New", Value: "new"}}
-	require.NoError(t, NewOption().UpdateOption(env.ctx, option.ID, updated, "tester", "cache fault"))
+	_, err := NewOption().UpdateOptionResource(env.ctx, option.ID, OptionUpdateInput{
+		Items: updated, ExpectedVersion: 1,
+	}, "tester", "cache fault")
+	require.NoError(t, err)
 
 	var persisted models.Option
 	require.NoError(t, env.db.First(&persisted, "id = ?", option.ID).Error)
@@ -239,7 +242,9 @@ func TestUpdateOptionSnapshotFailureRollsBackMutation(t *testing.T) {
 	`).Error)
 
 	updated := &models.OptionItems{{Key: "new", Label: "New", Value: "new"}}
-	err := NewOption().UpdateOption(env.ctx, option.ID, updated, "tester", "must roll back")
+	_, err := NewOption().UpdateOptionResource(env.ctx, option.ID, OptionUpdateInput{
+		Items: updated, ExpectedVersion: 1,
+	}, "tester", "must roll back")
 	require.Error(t, err)
 
 	var persisted models.Option
@@ -273,30 +278,39 @@ func TestUpdateOptionConcurrentWritersDoNotLoseVersions(t *testing.T) {
 		go func() {
 			<-start
 			items := &models.OptionItems{{Key: value, Label: value, Value: value}}
-			errorsCh <- NewOption().UpdateOption(env.ctx.Copy(), option.ID, items, value, "concurrent")
+			_, err := NewOption().UpdateOptionResource(env.ctx.Copy(), option.ID, OptionUpdateInput{
+				Items: items, ExpectedVersion: 1,
+			}, value, "concurrent")
+			errorsCh <- err
 		}()
 	}
 	close(start)
+	successes := 0
+	conflicts := 0
 	for range 2 {
-		require.NoError(t, <-errorsCh)
+		err := <-errorsCh
+		if err == nil {
+			successes++
+			continue
+		}
+		require.ErrorIs(t, err, ErrOptionVersionChanged)
+		conflicts++
 	}
+	require.Equal(t, 1, successes)
+	require.Equal(t, 1, conflicts)
 
 	var persisted models.Option
 	require.NoError(t, env.db.First(&persisted, "id = ?", option.ID).Error)
-	require.Equal(t, 3, persisted.Version)
+	require.Equal(t, 2, persisted.Version)
 	require.NotNil(t, persisted.Items)
 	require.Len(t, *persisted.Items, 1)
 
 	var snapshots []models.OptionVersion
 	require.NoError(t, env.db.Where("option_id = ?", option.ID).Order("version").Find(&snapshots).Error)
-	require.Len(t, snapshots, 2)
-	require.Equal(t, []int{1, 2}, []int{snapshots[0].Version, snapshots[1].Version})
+	require.Len(t, snapshots, 1)
+	require.Equal(t, 1, snapshots[0].Version)
 	require.Equal(t, "old", (*snapshots[0].Items)[0].Value)
-	require.ElementsMatch(
-		t,
-		[]string{"alpha", "beta"},
-		[]string{(*snapshots[1].Items)[0].Value, (*persisted.Items)[0].Value},
-	)
+	require.Contains(t, []string{"alpha", "beta"}, (*persisted.Items)[0].Value)
 }
 
 func TestOptionCacheOperationsHaveBoundedLatency(t *testing.T) {
@@ -320,7 +334,10 @@ func TestOptionCacheOperationsHaveBoundedLatency(t *testing.T) {
 
 	started = time.Now()
 	updated := &models.OptionItems{{Key: "new", Label: "New", Value: "new"}}
-	require.NoError(t, NewOption().UpdateOption(env.ctx, option.ID, updated, "tester", "cache timeout"))
+	_, err = NewOption().UpdateOptionResource(env.ctx, option.ID, OptionUpdateInput{
+		Items: updated, ExpectedVersion: 1,
+	}, "tester", "cache timeout")
+	require.NoError(t, err)
 	require.Less(t, time.Since(started), 500*time.Millisecond, "DEL timeout must not dominate committed response")
 	var persisted models.Option
 	require.NoError(t, env.db.First(&persisted, "id = ?", option.ID).Error)
@@ -409,7 +426,7 @@ func TestOptionResourceMutationsSnapshotFullStateAndRejectStaleWriters(t *testin
 		DisplayName:     &displayName,
 		Description:     &description,
 		Items:           requestedItems,
-		ExpectedVersion: &expected,
+		ExpectedVersion: expected,
 	}, "actor", "full snapshot")
 	require.NoError(t, err)
 	require.Equal(t, 2, updated.Version)
@@ -431,7 +448,7 @@ func TestOptionResourceMutationsSnapshotFullStateAndRejectStaleWriters(t *testin
 
 	_, err = NewOption().UpdateOptionResource(env.ctx, option.ID, OptionUpdateInput{
 		DisplayName:     &displayName,
-		ExpectedVersion: &expected,
+		ExpectedVersion: expected,
 	}, "stale", "must fail")
 	require.ErrorIs(t, err, ErrOptionVersionChanged)
 	var conflict *OptionRevisionConflictError
@@ -454,7 +471,7 @@ func TestOptionBuiltInAndUsageDeletionBoundaries(t *testing.T) {
 	items := &models.OptionItems{{ID: (*builtIn.Items)[0].ID, Key: "enabled", Label: "Active", Value: "enabled"}}
 	expected := 1
 	updated, err := NewOption().UpdateOptionResource(env.ctx, builtIn.ID, OptionUpdateInput{
-		Items: items, ExpectedVersion: &expected,
+		Items: items, ExpectedVersion: expected,
 	}, "actor", "allowed item edit")
 	require.NoError(t, err)
 	require.Equal(t, 2, updated.Version)
@@ -462,10 +479,10 @@ func TestOptionBuiltInAndUsageDeletionBoundaries(t *testing.T) {
 	disabled := enum.Disabled
 	expected = 2
 	_, err = NewOption().UpdateOptionResource(env.ctx, builtIn.ID, OptionUpdateInput{
-		Status: &disabled, ExpectedVersion: &expected,
+		Status: &disabled, ExpectedVersion: expected,
 	}, "actor", "forbidden identity mutation")
 	require.ErrorIs(t, err, ErrOptionBuiltIn)
-	_, err = NewOption().DeleteOption(env.ctx, builtIn.ID, &expected, "actor", "forbidden delete")
+	_, err = NewOption().DeleteOption(env.ctx, builtIn.ID, expected, "actor", "forbidden delete")
 	require.ErrorIs(t, err, ErrOptionBuiltIn)
 
 	custom := &models.Option{
@@ -476,10 +493,10 @@ func TestOptionBuiltInAndUsageDeletionBoundaries(t *testing.T) {
 	usage := &models.OptionUsage{OptionID: custom.ID, UsedBy: "orders", Status: enum.Enabled}
 	require.NoError(t, env.db.Create(usage).Error)
 	expected = 1
-	_, err = NewOption().DeleteOption(env.ctx, custom.ID, &expected, "actor", "still used")
+	_, err = NewOption().DeleteOption(env.ctx, custom.ID, expected, "actor", "still used")
 	require.ErrorIs(t, err, ErrOptionInUse)
 	require.NoError(t, env.db.Model(usage).Update("status", enum.Disabled).Error)
-	deleted, err := NewOption().DeleteOption(env.ctx, custom.ID, &expected, "actor", "retire")
+	deleted, err := NewOption().DeleteOption(env.ctx, custom.ID, expected, "actor", "retire")
 	require.NoError(t, err)
 	require.Equal(t, custom.ID, deleted.ID)
 	var remaining int64

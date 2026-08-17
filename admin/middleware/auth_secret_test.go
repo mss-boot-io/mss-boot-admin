@@ -101,6 +101,7 @@ func TestPublicLoginRejectsRawOAuthProviderVerifiers(t *testing.T) {
 }
 
 func TestPublicLoginEndpointRejectsRawProviderTokens(t *testing.T) {
+	configureBrowserSessionTest(t)
 	previousAuth := Auth
 	previousVerifier := Verifier
 	t.Cleanup(func() {
@@ -128,7 +129,7 @@ func TestPublicLoginEndpointRejectsRawProviderTokens(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.POST("/user/login", PublicLoginHandler)
+	router.POST("/user/session/login", BrowserSessionLoginHandler)
 	for _, provider := range []pkg.LoginProvider{pkg.GithubLoginProvider, pkg.LarkLoginProvider} {
 		body, err := json.Marshal(map[string]string{
 			"type":     string(provider),
@@ -137,8 +138,9 @@ func TestPublicLoginEndpointRejectsRawProviderTokens(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal login body: %v", err)
 		}
-		request := httptest.NewRequest(http.MethodPost, "/user/login", bytes.NewReader(body))
+		request := httptest.NewRequest(http.MethodPost, "/user/session/login", bytes.NewReader(body))
 		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Origin", "https://admin.example")
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, request)
 		if recorder.Code != http.StatusUnauthorized {
@@ -151,6 +153,7 @@ func TestPublicLoginEndpointRejectsRawProviderTokens(t *testing.T) {
 }
 
 func TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable(t *testing.T) {
+	configureBrowserSessionTest(t)
 	database, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open login audit database: %v", err)
@@ -201,10 +204,11 @@ func TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable(t *testing.T
 	if err = router.SetTrustedProxies(nil); err != nil {
 		t.Fatalf("disable trusted proxies: %v", err)
 	}
-	router.POST("/user/login", PublicLoginHandler)
+	router.POST("/user/session/login", BrowserSessionLoginHandler)
 	body := `{"type":"email","email":"person@example.com","captcha":"123456"}`
-	request := httptest.NewRequest(http.MethodPost, "/user/login", bytes.NewBufferString(body))
+	request := httptest.NewRequest(http.MethodPost, "/user/session/login", bytes.NewBufferString(body))
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Origin", "https://admin.example")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusServiceUnavailable {
@@ -218,7 +222,7 @@ func TestEmailChallengeLoginProviderOutageReturnsServiceUnavailable(t *testing.T
 	}
 }
 
-func TestClearAuthCookieExpiresHttpOnlyJWT(t *testing.T) {
+func TestClearAuthCookieExpiresOnlyV6BrowserCookies(t *testing.T) {
 	previousAuth := Auth
 	t.Cleanup(func() { Auth = previousAuth })
 	Auth = &ginjwt.GinJWTMiddleware{
@@ -235,21 +239,15 @@ func TestClearAuthCookieExpiresHttpOnlyJWT(t *testing.T) {
 
 	response := recorder.Result()
 	cookies := response.Cookies()
-	if len(cookies) != 3 {
-		t.Fatalf("cleared cookies = %d, want 3", len(cookies))
+	if len(cookies) != 2 {
+		t.Fatalf("cleared cookies = %d, want 2", len(cookies))
 	}
 	byName := make(map[string]*http.Cookie, len(cookies))
 	for _, cookie := range cookies {
 		byName[cookie.Name] = cookie
 	}
-	cookie := byName["jwt"]
-	if cookie == nil {
-		t.Fatalf("legacy JWT cookie was not cleared: %#v", cookies)
-	}
-	if cookie.Name != "jwt" || cookie.Value != "" || cookie.MaxAge >= 0 ||
-		!cookie.HttpOnly || !cookie.Secure || cookie.Domain != "example.test" ||
-		cookie.SameSite != http.SameSiteLaxMode {
-		t.Fatalf("cleared cookie = %#v", cookie)
+	if legacy := byName["jwt"]; legacy != nil {
+		t.Fatalf("retired JWT cookie was emitted: %#v", legacy)
 	}
 	if browser := byName[BrowserSessionCookieName]; browser == nil || browser.MaxAge >= 0 ||
 		!browser.HttpOnly || browser.Path != browserSessionCookiePath {

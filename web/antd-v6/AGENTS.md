@@ -3,9 +3,9 @@
 ## Scope
 
 This file applies to `web/antd-v6/` and inherits the repository contract. This
-directory is an independently built and released application. It must not read
-runtime source, build output, dependencies, local storage, service workers, or
-release identity from `web/antd/`.
+directory is the independently built and released Admin application. It must
+not read source, build output, dependencies, local storage, service workers, or
+release identity from any retired frontend artifact.
 
 ## Frozen toolchain
 

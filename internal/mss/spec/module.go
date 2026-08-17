@@ -19,7 +19,6 @@ const (
 	ModuleAPIVersion = "mss.io/v1alpha1"
 	ModuleKind       = "AdminModule"
 
-	FrontendTargetAntDV5 = "antd-v5"
 	FrontendTargetAntDV6 = "antd-v6"
 )
 
@@ -332,7 +331,7 @@ func (m *Module) Normalize() {
 		m.Spec.Generation.Frontend = boolPointer(true)
 	}
 	if *m.Spec.Generation.Frontend && len(m.Spec.Generation.FrontendTargets) == 0 {
-		m.Spec.Generation.FrontendTargets = []string{FrontendTargetAntDV5}
+		m.Spec.Generation.FrontendTargets = []string{FrontendTargetAntDV6}
 	}
 	for index := range m.Spec.Generation.FrontendTargets {
 		m.Spec.Generation.FrontendTargets[index] = strings.TrimSpace(m.Spec.Generation.FrontendTargets[index])
@@ -580,8 +579,8 @@ func (m *Module) Validate() []Issue {
 	frontendTargetSeen := make(map[string]bool, len(m.Spec.Generation.FrontendTargets))
 	for index, target := range m.Spec.Generation.FrontendTargets {
 		path := "spec.generation.frontendTargets[" + strconv.Itoa(index) + "]"
-		if !contains([]string{FrontendTargetAntDV5, FrontendTargetAntDV6}, target) {
-			add(path, "unsupported-frontend-target", "supported values are antd-v5 and antd-v6")
+		if target != FrontendTargetAntDV6 {
+			add(path, "unsupported-frontend-target", "the only supported value is antd-v6")
 		}
 		if frontendTargetSeen[target] {
 			add(path, "duplicate-frontend-target", "frontend target must be unique")
@@ -709,8 +708,8 @@ func (m *Module) Permission(action string) (Permission, bool) {
 }
 
 // SupportsFrontendTarget reports whether this module deliberately opts into
-// one generated frontend projection. Older specifications normalize to the
-// legacy Ant Design 5 target only.
+// the sole generated Ant Design 6 frontend projection. Specifications that
+// omit targets normalize to Ant Design 6 during loading.
 func (m *Module) SupportsFrontendTarget(target string) bool {
 	if m == nil || m.Spec.Generation.Frontend == nil || !*m.Spec.Generation.Frontend {
 		return false

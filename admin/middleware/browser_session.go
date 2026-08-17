@@ -119,8 +119,8 @@ func BrowserSessionRefreshHandler(c *gin.Context) {
 
 // EnforceBrowserCSRF protects every unsafe API operation that would otherwise
 // authenticate from a browser cookie. A syntactically present bearer header is
-// left to the JWT middleware so V5 keeps its existing non-cookie contract; an
-// invalid bearer still fails authentication and cannot fall back to a cookie.
+// left to the JWT middleware so API clients retain their explicit bearer
+// contract; an invalid bearer cannot fall back to a browser cookie.
 func EnforceBrowserCSRF() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !isUnsafeMethod(c.Request.Method) ||
@@ -163,9 +163,10 @@ func IsTrustedBrowserOrigin(c *gin.Context) bool {
 }
 
 // RequestUsesBrowserSession reports whether a route is using the dedicated V6
-// cookie rather than a bearer header or the legacy WebSocket query credential.
+// cookie rather than an explicit API bearer header. Query parameters are never
+// credentials and cannot disable browser CSRF enforcement.
 func RequestUsesBrowserSession(c *gin.Context) bool {
-	if c == nil || c.Request == nil || hasBearerHeader(c) || strings.TrimSpace(c.Query("token")) != "" {
+	if c == nil || c.Request == nil || hasBearerHeader(c) {
 		return false
 	}
 	return browserSessionCookie(c) != ""
@@ -234,7 +235,7 @@ func ClearBrowserSessionCookies(c *gin.Context) {
 }
 
 func browserSessionReady() bool {
-	return config.Cfg.Auth.BrowserSession.Enabled && config.Cfg.Auth.SessionEnabled && Auth != nil
+	return Auth != nil
 }
 
 // BrowserSessionAvailable exposes the configured runtime capability to API
@@ -254,23 +255,15 @@ func browserSessionCookie(c *gin.Context) string {
 	return strings.TrimSpace(value)
 }
 
-// authenticationCookieToken mirrors the cookie portion of TokenLookup. This
-// includes the historical jwt cookie during the dual-client window so an old
-// cookie can never bypass CSRF merely because it is not the dedicated V6 name.
+// authenticationCookieToken mirrors the cookie portion of TokenLookup.
 func authenticationCookieToken(c *gin.Context) string {
 	if c == nil {
 		return ""
 	}
-	if config.Cfg.Auth.BrowserSession.Enabled {
-		if value := browserSessionCookie(c); value != "" {
-			return value
-		}
+	if value := browserSessionCookie(c); value != "" {
+		return value
 	}
-	value, err := c.Cookie("jwt")
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(value)
+	return ""
 }
 
 func isUnsafeMethod(method string) bool {
@@ -295,7 +288,7 @@ func browserCSRFExempt(method, path string) bool {
 		return false
 	}
 	switch path {
-	case "/admin/api/user/login", "/admin/api/user/session/login", "/admin/api/user/auth-cookie/clear":
+	case "/admin/api/user/session/login", "/admin/api/user/auth-cookie/clear":
 		return true
 	default:
 		return false

@@ -8,12 +8,15 @@ const scriptDirectory = dirname(scriptPath);
 const repositoryRoot = resolve(scriptDirectory, '..', '..');
 const acceptancePath = resolve(scriptDirectory, 'pnpm-audit-acceptances.json');
 
-export const expectedPnpmVersion = '9.15.9';
+export const expectedPnpmVersions = new Map([
+  ['docs', '9.15.9'],
+  ['web/antd-v6', '10.34.5'],
+]);
 
 const blockingSeverities = new Set(['critical', 'high']);
 const advisorySeverities = ['info', 'low', 'moderate', 'high', 'critical'];
 const advisorySeveritySet = new Set(advisorySeverities);
-const acceptanceScopes = new Set(['docs', 'web/antd']);
+const acceptanceScopes = new Set(expectedPnpmVersions.keys());
 const acceptanceKeys = new Set([
   'advisory',
   'package',
@@ -231,7 +234,8 @@ export const assertSpawnCompleted = (result, label, allowedStatuses = new Set([0
   }
 };
 
-export const validatePnpmVersion = (packageManager, reportedVersion) => {
+export const validatePnpmVersion = (packageManager, reportedVersion, expectedPnpmVersion) => {
+  requireNonEmptyString(expectedPnpmVersion, 'expected pnpm version');
   if (packageManager !== `pnpm@${expectedPnpmVersion}`) {
     throw new Error(`package.json must pin packageManager to pnpm@${expectedPnpmVersion}.`);
   }
@@ -253,13 +257,13 @@ const spawnPnpm = (pnpmScript, arguments_, packageDirectory) =>
     maxBuffer: 32 * 1024 * 1024,
   });
 
-const validatePnpmRuntime = (pnpmScript, packageDirectory) => {
+const validatePnpmRuntime = (pnpmScript, packageDirectory, expectedPnpmVersion) => {
   const packageDocument = JSON.parse(
     readFileSync(resolve(packageDirectory, 'package.json'), 'utf8'),
   );
   const result = spawnPnpm(pnpmScript, ['--version'], packageDirectory);
   assertSpawnCompleted(result, 'pnpm version check');
-  validatePnpmVersion(packageDocument.packageManager, result.stdout);
+  validatePnpmVersion(packageDocument.packageManager, result.stdout, expectedPnpmVersion);
 };
 
 const runAudit = (pnpmScript, packageDirectory, productionOnly) => {
@@ -307,11 +311,12 @@ export const main = () => {
   if (!acceptanceScopes.has(packageScope)) {
     throw new Error(`Release dependency audit does not support package scope: ${packageScope}.`);
   }
+  const expectedPnpmVersion = expectedPnpmVersions.get(packageScope);
   const pnpmScript = process.env.npm_execpath;
   if (!pnpmScript) {
     throw new Error('Run this check through the package script so npm_execpath identifies pnpm.');
   }
-  validatePnpmRuntime(pnpmScript, packageDirectory);
+  validatePnpmRuntime(pnpmScript, packageDirectory, expectedPnpmVersion);
 
   const productionAdvisories = runAudit(pnpmScript, packageDirectory, true);
   const productionBlockers = productionAdvisories.filter((advisory) =>

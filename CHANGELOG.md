@@ -12,10 +12,21 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
 
 ### Changed
 
-- Added an explicit, versioned `antd-v6` module-generation target while preserving
-  `antd-v5` as the compatibility default. The Supplier golden now produces isolated
+- Made `web/antd-v6` the sole Admin browser application and removed the retired
+  frontend source, generator projection, dependency automation, CI/release/deploy
+  paths, active documentation, and rollback image. Root distribution and rollback
+  now use only qualified V6 frontend/backend pairs.
+- Made `antd-v6` the only module-generation target. The Supplier golden produces
   V6 routes, locale catalogs, strict response contracts, React Query CRUD, and an
-  HttpOnly/CSRF-aware Playwright flow; CI checks both target projections for drift.
+  HttpOnly/CSRF-aware Playwright flow; CI checks the one generated projection for drift.
+- Removed token-returning browser login/refresh, bearer OAuth callback mode,
+  query-token WebSocket authentication, the historical `jwt` cookie, unversioned
+  theme projections, and missing-revision mutation fallbacks. Standard REST Bearer
+  and PAT authentication remain supported for documented non-browser automation.
+- Made the V6 browser session and durable server-side session check mandatory.
+  The backend no longer exposes switches that can restore stateless browser JWT
+  behavior; production still configures Secure/SameSite cookies, trusted origins,
+  strong keys, shared session state, and one-time WebSocket ticket lifetime.
 - Enabled the protected v1.1.0 publication path after the scoped readiness runner, exact-run
   attestation, required-reviewer `release` environment, and immutable release-tag rulesets were
   installed and verified. Publication still requires exact-SHA pre-framework and pre-root authority.

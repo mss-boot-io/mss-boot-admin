@@ -114,7 +114,7 @@ func (e *Menu) Other(r *gin.RouterGroup) {
 // @Accept  application/json
 // @Produce application/json
 // @Param roleID path string true "roleID"
-// @Param If-Match header string false "Strong role-authorization ETag; optional only during the rolling compatibility window"
+// @Param If-Match header string true "Strong role-authorization ETag"
 // @Param data body dto.UpdateAuthorizeRequest true "data"
 // @Success 200 {object} dto.GetAuthorizeResponse
 // @Header 200 {string} ETag "Strong role-authorization ETag"
@@ -151,7 +151,11 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 	}
 	expectedRevision, err := parseRoleAuthorizationIfMatch(ctx, req.RoleID)
 	if err != nil {
-		api.AddError(response.NewError(roleAuthorizationIfMatchInvalidCode, err.Error())).Err(http.StatusBadRequest)
+		status, code := http.StatusBadRequest, roleAuthorizationIfMatchInvalidCode
+		if errors.Is(err, errRoleAuthorizationIfMatchRequired) {
+			status, code = http.StatusPreconditionRequired, roleAuthorizationIfMatchRequiredCode
+		}
+		api.AddError(response.NewError(code, err.Error())).Err(status)
 		return
 	}
 	resource, err := service.AuthorizationPolicies.ReplaceMenu(
@@ -193,9 +197,6 @@ func (e *Menu) UpdateAuthorize(ctx *gin.Context) {
 		return
 	}
 	setRoleAuthorizationETag(ctx, resource)
-	if expectedRevision == nil {
-		setMissingRoleAuthorizationPreconditionWarning(ctx)
-	}
 	api.OK(resource)
 }
 

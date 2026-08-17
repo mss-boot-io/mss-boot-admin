@@ -458,7 +458,7 @@ spec:
       required: true
       evidence:
         - type: path
-          value: web/antd/src/modules/supplier
+          value: web/antd-v6/src/generated/modules/supplier
         - type: report
           value: Golden supplier frontend and browser acceptance report
     - id: migration-engine-checkpoint-evidence

@@ -74,9 +74,9 @@ database migration, production deployment, or cross-repository refactors.
 | Outreach follow-up | External community check | Route external feedback back to GitHub Issues, Discussions, docs, or security policy. |
 
 AI may draft issue text, summarize CI failures, propose labels, update memory,
-and prepare release notes. AI should not auto-merge code, publish Cloudflare
-frontend releases, close user issues aggressively, or disclose security details
-publicly.
+and prepare release notes. AI should not auto-merge code, publish frontend or
+documentation releases, close user issues aggressively, or disclose security
+details publicly.
 
 ## GitHub-First AI And CI Delegation
 
@@ -105,8 +105,8 @@ Repository-level setup:
   dependencies for Copilot coding agent sessions;
 - group low-risk Dependabot updates where possible and keep explicit open PR
   limits to avoid overwhelming a personal maintainer;
-- keep frontend Cloudflare deployments manual, and use concurrency locks for
-  public deployment workflows.
+- keep V6 publication approval explicit, and use concurrency locks for public
+  deployment workflows.
 
 Pending maintainer GitHub settings:
 
@@ -132,8 +132,8 @@ Useful GitHub references:
 Public beta and prod should be boring:
 
 - backend beta can move quickly, but prod uses tagged versions;
-- frontend Cloudflare alpha/beta deployments are manual and should happen only
-  after local CI and smoke readiness;
+- V6 prerelease publication is explicit and happens only after CI, browser,
+  delivery-smoke, and immutable-artifact readiness;
 - docs deploy can remain automatic because it is the public source of truth;
 - each release should link commit, image tag or digest, frontend build, API
   compatibility, smoke result, and rollback path.
@@ -164,8 +164,8 @@ For a personal maintainer, the default should be low-noise:
 - Keep all core repository main branches green for the latest runs.
 - Merge low-risk CI reliability fixes before enabling stricter required checks.
 - Convert the existing good-first-issue factory into a monthly issue batch.
-- Add a release compatibility matrix for `mss-boot`, `mss-boot-admin`, and
-  `mss-boot-admin-antd`.
+- Maintain a release compatibility matrix for `mss-boot`, the Admin backend,
+  and the independently versioned `web/antd-v6` artifact in `mss-boot-admin`.
 - Add SBOM/provenance as a release hardening milestone after the CI baseline is
   stable.
 - Keep repository About text and topics aligned with the governance-first

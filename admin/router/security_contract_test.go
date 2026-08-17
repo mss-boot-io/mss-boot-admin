@@ -75,14 +75,9 @@ func TestCustomRouteContractsAreValid(t *testing.T) {
 		if contract.Method != http.MethodGet && !contract.Mutation {
 			t.Errorf("non-GET route %s %s must explicitly declare its mutation", key.method, key.path)
 		}
-		if contract.LegacyDenyOnly {
-			if contract.Method != http.MethodGet || contract.Mutation || contract.Class != RoutePublic {
-				t.Errorf("legacy deny-only route %s %s must be a non-mutating Public GET", key.method, key.path)
-			}
-		}
 		if contract.ConstrainedPublicGET {
 			if contract.Method != http.MethodGet || contract.Mutation ||
-				(contract.Class != RoutePublic && contract.Class != RouteOptionalAuthenticated) || contract.LegacyDenyOnly {
+				(contract.Class != RoutePublic && contract.Class != RouteOptionalAuthenticated) {
 				t.Errorf("constrained protocol route %s %s must be an active non-mutating Public or OptionalAuthenticated GET", key.method, key.path)
 			}
 		}
@@ -182,8 +177,8 @@ func TestCustomRouteContractsMatchRuntimeAuthentication(t *testing.T) {
 				)
 			}
 		case RoutePublic:
-			// Public, deny-only legacy, and constrained protocol GET routes do
-			// not require authentication. A controller may still apply a group
+			// Public and constrained protocol GET routes do not require
+			// authentication. A controller may still apply a group
 			// middleware for a narrower deployment policy.
 		}
 		if contract.RootOnly && !containsMiddleware(route.directMiddleware, "requireRootManagement") {
@@ -195,27 +190,6 @@ func TestCustomRouteContractsMatchRuntimeAuthentication(t *testing.T) {
 				route.line,
 				formatMiddleware(route.directMiddleware),
 			)
-		}
-	}
-}
-
-func TestLegacyGETRoutesAreDenyOnly(t *testing.T) {
-	t.Parallel()
-
-	discovered := discoverOtherRoutes(t)
-	for _, contract := range customRouteContracts {
-		if !contract.LegacyDenyOnly {
-			continue
-		}
-		key := customRouteKey{method: contract.Method, path: contract.Path}
-		route, exists := discovered[key]
-		if !exists {
-			t.Errorf("legacy deny-only route is not registered: %s %s", key.method, key.path)
-			continue
-		}
-		normalizedHandler := strings.ToLower(strings.NewReplacer("_", "", "-", "").Replace(route.handler))
-		if !strings.Contains(normalizedHandler, "methodnotallowed") {
-			t.Errorf("legacy route %s is handled by %q at %s:%d; its terminal handler must be named methodNotAllowed and return only 405", key.path, route.handler, route.file, route.line)
 		}
 	}
 }
@@ -369,7 +343,6 @@ func hasStringArgument(call *ast.CallExpr, expected string) bool {
 func hasRequiredAuthentication(middleware []string) bool {
 	return containsMiddleware(middleware, "AuthHandler") ||
 		containsMiddleware(middleware, "MiddlewareFunc") ||
-		containsMiddleware(middleware, "LegacyWebSocketAuth") ||
 		containsMiddleware(middleware, "GetMiddlewares(auth)")
 }
 

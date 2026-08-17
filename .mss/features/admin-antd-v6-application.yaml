@@ -11,23 +11,22 @@ metadata:
   labels:
     domain: frontend
     scope: admin-v6
-    phase: implementation
+    phase: qualified
 spec:
   problem: >-
-    The existing web/antd application is coupled to React 18, Ant Design 5, legacy
-    request and styling patterns, one hard-coded frontend toolchain, and one release
-    namespace. An in-place dependency upgrade would combine product migration,
-    rollback, generator, and release risk and would preserve implementation defects
-    that Ant Design 6 is intended to remove.
+    The Admin product needs one reproducible modern browser application and one
+    security protocol. Retaining an Ant Design 5 implementation, generator, delivery
+    path, or backend browser-compatibility layer would duplicate ownership and preserve
+    token exposure, weak concurrency, and maintenance defects that V6 removes.
   goals:
-    - Create web/antd-v6 as an independent application, dependency graph, artifact, image, tag namespace, and release workflow.
+    - Keep web/antd-v6 as the sole independently built application, dependency graph, artifact, image, tag namespace, and release workflow.
     - Preserve reachable business capabilities, backend authorization semantics, API behavior, locale parity, and responsive operations without copying the old source structure or visual defects.
     - Pin Ant Design 6.6.0 and every resolved dependency exactly in a committed pnpm lockfile.
     - Use React Query for server state, a typed transport boundary, dayjs, CSS variables, semantic tokens, responsive shared views, Biome, Vitest, Playwright, and utoopack.
-    - Keep web/antd independently buildable, releasable, deployable, and immediately usable for rollback.
-    - Give the MSS project contract, verifier, generator, CI, and release tooling explicit knowledge of both frontend applications.
+    - Roll back only to a preceding qualified immutable V6 artifact.
+    - Give the MSS project contract, verifier, generator, CI, and release tooling one explicit V6 frontend application.
   nonGoals:
-    - Replace or delete web/antd during this feature.
+    - Restore an Ant Design 5 application, build, generator, or delivery path.
     - Reintroduce removed runtime dynamic-model, virtual CRUD, or browser code-generation features.
     - Add Ant Design Pro demonstration pages, AI Assistant, analytics, Cloudflare demo APIs, or external product integrations.
     - Require pixel-level or source-level equivalence with the existing frontend.
@@ -139,49 +138,49 @@ spec:
       module: frontend-session-security
       rules:
         - Production REST authentication uses a same-origin HttpOnly Secure SameSite cookie with explicit CSRF protection for state-changing requests.
-        - V6 browser login and refresh use dedicated session endpoints whose responses never contain the Admin JWT; the legacy login and refresh responses remain bearer-compatible for V5.
+        - Browser login and refresh use dedicated V6 session endpoints whose responses never contain the Admin JWT; token-returning browser routes are absent.
         - An authenticated visible V6 tab refreshes the browser session before the HttpOnly cookie expires, coordinates refresh across tabs, stores only non-secret expiry metadata, and clears that metadata on logout or authorization failure.
         - Browser-session CSRF uses an exact trusted Origin plus a signed double-submit token bound to the current session cookie, and rotates whenever that cookie rotates.
         - OAuth provider access and refresh tokens never enter browser-visible storage or responses.
-        - Browser OAuth state records bind the intended bearer or cookie transport so a callback cannot switch response modes and expose an Admin token.
-        - V6 OAuth authorization and exchange use dedicated provider client IDs, protected secrets, scopes, and exact callback URIs, leaving V5 provider application settings unchanged during independent rollout and rollback.
+        - Browser OAuth state records bind the provider, intent, attempt, and browser nonce; callbacks always establish the canonical V6 session and never select a bearer response mode.
+        - OAuth authorization and exchange use only BrowserSession provider client IDs, protected secrets, scopes, and exact callback URIs; retired provider configuration keys cannot be recreated.
         - OAuth login preserves only a pre-validated same-origin redirect in attempt-bound tab storage, consumes it after the matching callback, and never trusts a callback query parameter as a return target.
         - WebSocket authentication uses a short-lived single-use server ticket carried in Sec-WebSocket-Protocol, never in the V6 URL, and validates an exact configured Origin before upgrade.
-        - Legacy query-token WebSocket authentication is confined to the existing V5 route behind an explicit compatibility switch and is never accepted as general REST authentication.
+        - Query-token WebSocket authentication and the alternate connect-v6 route are unregistered; /ws/connect is the single ticket-based endpoint.
         - The v6 application does not cache authenticated API responses in a service worker and PWA is disabled by default.
-        - During rollout, backend changes remain compatible with the independently deployed legacy frontend until its own retirement decision.
-        - V6 browser storage, Web Lock, storage-event, and BroadcastChannel namespaces are disjoint from V5 so co-hosted rollout and rollback cannot apply one application's snapshots or events to the other.
+        - Standard Authorization Bearer and PAT authentication remain supported for documented non-browser API automation only.
+        - Browser storage, Web Lock, storage-event, and BroadcastChannel keys use the mss.antd-v6 namespace and ignore historical browser state.
     - id: publish-independently
       title: Build and release v6 independently
-      description: A v6 release cannot mutate or implicitly replace a v5 artifact or release.
+      description: A V6 release is immutable, reproducible, and isolated from historical frontend artifacts.
       priority: must
       actor: release-operator
       module: frontend-v6-release
       rules:
-        - v6 uses the web/antd-v6/v{version} tag namespace and a distinct container image repository.
-        - v6 has an independent CI required check, release workflow, build identity, artifact names, deployment inputs, and delivery smoke test.
-        - web/antd tags, images, artifacts, deployment workflow, lockfile, and release history remain unchanged.
-        - Both release paths fail closed unless the exact source commit is merged into main and the tracked worktree is clean.
-        - Rollback redeploys the preceding application-specific immutable image and never requires rebuilding the other frontend.
+        - V6 uses the web/antd-v6/v{version} tag namespace and mss-boot-admin-antd-v6 image identity.
+        - V6 has one CI required check, release workflow, build identity, artifact set, deployment input, and delivery smoke test.
+        - Historical tags and release evidence remain immutable but are not active build or deployment inputs.
+        - Release and root bundle paths fail closed unless the exact source commit is merged into main and the tracked worktree is clean.
+        - Rollback redeploys the preceding qualified immutable V6 image and never rebuilds historical source.
     - id: generate-v6-modules
       title: Generate v6 projections deterministically
-      description: Generated business modules select an explicit frontend target and never blind-write both implementations.
+      description: Generated business modules write the sole V6 projection deterministically.
       priority: must
       actor: downstream-agent
       module: frontend-v6-generator
       rules:
-        - The legacy v5 generator profile remains stable while a versioned v6 profile writes only web/antd-v6 paths.
+        - The only accepted frontend generator target is antd-v6 and it writes only web/antd-v6 paths.
         - V6 generation supports dry-run, path confinement, stable ordering, two-run idempotency, and drift checks.
         - Supplier is the first golden v6 generated module and validates route, locale, contracts, page, service, and E2E output.
         - The initial v6 profile fails specification validation outside its qualified full CRUD and scalar field envelope; unsupported numeric, file, relation, nullable, immutable-editor, batch, import, or workflow semantics are never silently approximated.
-        - Removed runtime developer tools remain absent from both frontend targets.
+        - Removed runtime developer tools remain absent from the generated V6 application.
   constraints:
     - id: independent-artifacts
       type: operations
-      statement: web/antd and web/antd-v6 have no shared mutable build, cache, version, tag, image, or deployment artifact.
-    - id: backward-compatible-backend
+      statement: web/antd-v6 does not read or create mutable build, cache, version, tag, image, or deployment artifacts for a historical frontend.
+    - id: v6-only-backend
       type: compatibility
-      statement: Backend changes needed by v6 remain compatible with the independently released legacy frontend throughout the overlap window.
+      statement: Backend browser routes, responses, configuration, cookies, WebSocket authentication, and revision behavior implement only the canonical V6 contract.
     - id: beta-pro-components
       type: dependency
       statement: ProComponents v3 remains a beta dependency and requires exact pinning, adapter isolation, dependency-tree review, and critical CRUD regression tests.
@@ -205,7 +204,7 @@ spec:
       required: true
       evidence:
         - type: command
-          value: cd web/antd-v6 && pnpm install --frozen-lockfile && pnpm deps:check
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 install --frozen-lockfile && corepack pnpm@10.34.5 deps:check
     - id: shell-quality
       requirement: modernize-runtime-architecture
       statement: Biome, TypeScript, Vitest, production build, bundle budget, and Nginx delivery checks pass for the independent v6 application.
@@ -221,10 +220,10 @@ spec:
       required: true
       evidence:
         - type: command
-          value: cd web/antd-v6 && pnpm test:e2e --grep @permission
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 test:e2e:permission
     - id: startup-contract
       requirement: preserve-business-contracts
-      statement: Identity normalization, permission-map and role-root semantics, fail-closed registered-menu intersection, authorization freshness and domain-query eviction, scheduled browser-session refresh, attempt-bound OAuth redirects, scoped theme editing, canonical ETag conflicts, V5-isolated verified-subject snapshots, monotonic cross-tab convergence, safe profile and one-time PAT contracts, provider-bound OAuth, locale parity, Day.js runtime replacement, and one React Query owner pass focused tests and a production build.
+      statement: Identity normalization, permission-map and role-root semantics, fail-closed registered-menu intersection, authorization freshness and domain-query eviction, scheduled browser-session refresh, attempt-bound OAuth redirects, scoped theme editing, canonical ETag conflicts, V6-namespaced verified-subject snapshots, monotonic cross-tab convergence, safe profile and one-time PAT contracts, provider-bound OAuth, locale parity, Day.js runtime replacement, and one React Query owner pass focused tests and a production build.
       level: integration
       required: true
       evidence:
@@ -267,7 +266,7 @@ spec:
         - type: path
           value: web/antd-v6/scripts/check-runtime-bundle.mjs
         - type: command
-          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint && corepack pnpm@10.34.5 test:ci && corepack pnpm@10.34.5 build:release
     - id: account-credential-self-service-contract
       requirement: preserve-business-contracts
       statement: Personal password rotation and OAuth disconnect require a current durable-session proof, persist proof-failure limits, never expose reversible password material or provider credentials, atomically revoke sessions and PATs on password change, and transactionally preserve at least one verified login method.
@@ -293,10 +292,10 @@ spec:
         - type: command
           value: cd admin && GOWORK=off go test ./service ./apis ./pkg/oauthstate ./cmd/migrate/migration/system
         - type: command
-          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint && corepack pnpm@10.34.5 test:ci && corepack pnpm@10.34.5 build:release
     - id: application-settings-parity-contract
       requirement: preserve-business-contracts
-      statement: Application settings expose responsive base, security, storage-admission, email, and theme groups with explicit permissions, V5/V6 OAuth separation, write-only secret rotation, immediate runtime branding refresh, synchronized locales, and no browser-managed storage credentials.
+      statement: Application settings expose responsive base, security, storage-admission, email, and theme groups with explicit permissions, BrowserSession-only OAuth configuration, write-only secret rotation, immediate runtime branding refresh, synchronized locales, and no browser-managed storage credentials.
       level: integration
       required: true
       evidence:
@@ -311,7 +310,7 @@ spec:
         - type: test
           value: admin/service/app_config_secret_test.go
         - type: command
-          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint && corepack pnpm@10.34.5 test:ci && corepack pnpm@10.34.5 build:release
     - id: responsive-locale-matrix
       requirement: use-v6-design-system
       statement: Retained routes pass Chinese and English desktop and mobile acceptance without internal-selector or deprecation warnings.
@@ -319,7 +318,7 @@ spec:
       required: true
       evidence:
         - type: command
-          value: cd web/antd-v6 && pnpm test:e2e --grep @parity
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 test:e2e:parity
     - id: workplace-monitor-contract
       requirement: preserve-business-contracts
       statement: The workplace monitor uses the protected relative API, validates bounded authoritative history, honors server cadence and Retry-After, stops automatic polling on authorization failures, retains last-good data on transient refresh errors, and renders explicit loading, empty, warm-up, stale, error, and permission states without an extra chart runtime.
@@ -335,7 +334,7 @@ spec:
         - type: test
           value: web/antd-v6/src/modules/monitor/MonitorOverview.test.tsx
         - type: command
-          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint && corepack pnpm@10.34.5 test:ci && corepack pnpm@10.34.5 build:release
     - id: online-session-operations-contract
       requirement: preserve-business-contracts
       statement: The online-session inventory is root-only in both the compiled route and backend, strictly validates list and detail data, limits pages to 100 rows, stops polling on 401 and 403, retains last-good data after refresh failures, and binds audited single-session and batch revocation only to identifiers selected from an authoritative row.
@@ -358,10 +357,8 @@ spec:
           value: admin/apis/online_session_test.go
         - type: test
           value: admin/apis/online_session_permission_test.go
-        - type: test
-          value: web/antd/src/pages/OnlineSession/index.test.tsx
         - type: command
-          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint && corepack pnpm@10.34.5 test:ci && corepack pnpm@10.34.5 build:release
     - id: language-management-contract
       requirement: preserve-business-contracts
       statement: Public language resources expose only enabled projections, management writes cannot own record identity, definition count and encoded size are bounded, stale revisions conflict without discarding the browser draft, read and mutation grants remain separate, and only the shipped zh-CN and en-US catalogs can become runtime overlays.
@@ -391,7 +388,7 @@ spec:
         - type: command
           value: cd admin && GOWORK=off go test ./cmd/migrate/migration/system ./models ./apis
         - type: command
-          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint && corepack pnpm@10.34.5 test:ci && corepack pnpm@10.34.5 build:release
     - id: option-management-contract
       requirement: preserve-business-contracts
       statement: Option writes cannot own record identity or unknown item identity, item and response sizes are bounded, every update and delete snapshots the complete prior resource, stale revisions return the authoritative current resource without discarding the browser draft, built-in identity and deletion are protected, active usage blocks deletion, and read/create/update/delete grants remain separate.
@@ -421,7 +418,7 @@ spec:
         - type: command
           value: cd admin && GOWORK=off go test ./models ./service ./apis ./cmd/migrate/migration/system ./router
         - type: command
-          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint && corepack pnpm@10.34.5 test:ci && corepack pnpm@10.34.5 build:release
     - id: identity-authority-management-contract
       requirement: preserve-business-contracts
       statement: User, role, menu, department, and post pages use bounded validated contracts, complete unfiltered relation catalogs independent from table pagination, root-only authority mutations, server-owned role and scope identifiers, cycle-safe trees that disable self and descendants as parents, reference-aware deletion, revision-safe role authorization, explicit page states, and post-commit user telemetry with positive and negative backend tests.
@@ -441,7 +438,7 @@ spec:
         - type: command
           value: cd admin && GOWORK=off go test ./models ./service ./apis ./router
         - type: command
-          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint && corepack pnpm@10.34.5 test:ci && corepack pnpm@10.34.5 build:release
     - id: operational-data-management-contract
       requirement: preserve-business-contracts
       statement: Task, notice, log, and system-configuration pages validate bounded projections, preserve server ownership, enforce retention and secret-redaction boundaries, expose only allowed operations, and render loading, empty, stale, error, forbidden, not-found, and conflict states where applicable.
@@ -469,30 +466,24 @@ spec:
         - type: test
           value: admin/models/task_kubernetes_test.go
         - type: test
-          value: web/antd/src/pages/Task/index.test.tsx
-        - type: test
-          value: web/antd/src/pages/Notice/Mobile/NoticeList.test.tsx
-        - type: test
-          value: web/antd/src/pages/Log/index.test.tsx
-        - type: test
           value: admin/apis/system_config_security_test.go
         - type: command
           value: cd admin && GOWORK=off go test ./models ./service ./apis ./router
         - type: command
-          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint && corepack pnpm@10.34.5 test:ci && corepack pnpm@10.34.5 build:release
     - id: session-security-tests
       requirement: harden-browser-session
-      statement: Cookie, CSRF, scheduled pre-expiry refresh, attempt-bound OAuth return targets, OAuth redaction, Origin, WebSocket ticket replay, logout, expiry, V5 browser-namespace isolation, and legacy-client compatibility tests pass.
+      statement: Cookie, CSRF, scheduled pre-expiry refresh, attempt-bound OAuth return targets, OAuth redaction, Origin, WebSocket ticket replay, logout, expiry, and rejection of retired browser credentials are covered by tests.
       level: security
       required: true
       evidence:
         - type: test
           value: cd admin && GOWORK=off go test ./config ./middleware ./pkg/oauthstate ./pkg/browsersecurity ./pkg/wsticket ./models ./service ./apis ./center/websocket ./router
         - type: test
-          value: cd web/antd-v6 && pnpm test:ci
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 test:ci
     - id: independent-release-check
       requirement: publish-independently
-      statement: V5 and v6 tag validation, image names, build identities, artifacts, workflows, and rollback paths are proven independent.
+      statement: The sole V6 frontend tag, image, build identity, artifact, workflow, and rollback-to-previous-V6 path are validated.
       level: contract
       required: true
       evidence:
@@ -515,13 +506,11 @@ spec:
         - type: command
           value: go test ./internal/mss/spec ./internal/mss/generator ./internal/mss/app ./internal/mss/mcp
         - type: command
-          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v5 --check
-        - type: command
           value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --check
         - type: command
-          value: cd web/antd-v6 && pnpm lint && pnpm test:ci && pnpm build:release
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint && corepack pnpm@10.34.5 test:ci && corepack pnpm@10.34.5 build:release
         - type: command
-          value: cd web/antd-v6 && pnpm test:e2e e2e/generated/supplier.spec.ts
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 exec playwright test e2e/generated/supplier.spec.ts
     - id: reference-menu-baseline
       requirement: preserve-business-contracts
       statement: The reference application initialization removes demonstration procurement menus and unused generator-created Supplier roles while preserving Supplier generator artifacts, adopted roles, authorization customizations, users, and business data.
@@ -537,10 +526,10 @@ spec:
       description: ProComponents v3 beta can introduce breaking behavior or type changes before its stable release.
       severity: high
       mitigation: Pin one exact beta, isolate shared use, gate upgrades separately, and retain a tested previous lockfile and image.
-    - id: dual-client-drift
-      description: Backend or generated contracts may diverge while React 18 and React 19 clients are both independently deployed.
+    - id: frontend-backend-version-skew
+      description: A V6 frontend and backend from different qualified releases may diverge on strict session, theme, or revision contracts.
       severity: high
-      mitigation: Require backward-compatible APIs, contract tests for both clients, OpenAPI drift checks, and an explicit overlap exit decision.
+      mitigation: Version the canonical contracts, run OpenAPI and browser gates together, and roll back frontend and backend to the preceding qualified V6 pair.
     - id: hidden-legacy-dependencies
       description: Umi Max can install nested Ant Design 4 and other transitional packages even when application code targets Ant Design 6.
       severity: high
@@ -548,24 +537,22 @@ spec:
     - id: auth-rollout-order
       description: Session hardening can break an independently deployed client if cookie, CSRF, OAuth, or WebSocket changes are rolled out in the wrong order.
       severity: critical
-      mitigation: Add compatibility endpoints and tests, deploy backward-compatible backend support first, and retain application-specific rollback images.
+      mitigation: Deploy the V6-only backend and frontend as one qualified release and retain only the previous qualified V6 image for rollback.
   validation:
     changed: go run ./cmd/mss verify --changed
     all: go run ./cmd/mss verify --all
     custom:
       - go run ./cmd/mss spec validate .mss/features/admin-antd-v6-application.yaml --format json
-      - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v5 --check
       - go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --check
       - make web-v6-install web-v6-lint web-v6-test web-v6-build
       - python3 -m unittest tools/release/test_check_release_policy.py
   rollout:
-    strategy: phased
+    strategy: replace
     migration: >-
-      Add the independent v6 contract and build first, deploy backward-compatible
-      backend security support before enabling v6 authentication, migrate capabilities
-      vertically, and publish only from the web/antd-v6/v{version} namespace after all
-      required gates pass. The legacy frontend continues its own release lifecycle.
+      Qualify the sole V6 contract and build together with its V6-only backend, apply the
+      exact obsolete-configuration cleanup migration, and publish only from the
+      web/antd-v6/v{version} namespace after the merged-main release gates pass.
     rollback: >-
-      Redeploy the preceding mss-boot-admin-antd-v6 immutable image and retain the
-      backward-compatible backend. V5 artifacts and deployment are unaffected. Persistent
-      changes are additive and are not reversed merely because the v6 UI is rolled back.
+      Redeploy the preceding qualified V6 frontend and backend artifacts together.
+      Persistent business data and additive revisions remain; V5 source or protocol
+      compatibility is not restored as a rollback mechanism.

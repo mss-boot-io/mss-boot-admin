@@ -27,12 +27,9 @@ database:
 auth:
   key: 'mss-antd-v6-e2e-non-production-key'
   identityKey: 'mss-antd-v6-e2e-non-production-identity-key'
-  sessionEnabled: true
   browserSession:
-    enabled: true
     secure: false
     sameSite: lax
-    legacyWebSocketQueryTokenEnabled: false
 task:
   enable: false
 cache:

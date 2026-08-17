@@ -69,6 +69,11 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             self.step("Install documentation dependencies")["run"],
             "pnpm --dir docs install --frozen-lockfile",
         )
+        frontend_install = self.step("Install frontend dependencies")["run"]
+        self.assertEqual(
+            frontend_install,
+            "corepack pnpm@10.34.5 --dir web/antd-v6 install --frozen-lockfile --ignore-scripts",
+        )
 
     def test_qualification_carries_every_other_feature_forward(self):
         selected = PHASE_EVIDENCE.load_qualification(
@@ -115,7 +120,7 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             "TestUpgradeAppliesFoundationChangesAndPreservesCustomization",
             "TestLoadProviderEvidenceAcceptsStrictPinnedReport",
             "TestGenerateReportsCompleteDocsAndBrowserE2EOutputs",
-            "web/antd build:release",
+            "web/antd-v6 build:release",
             "docs build",
         ):
             self.assertIn(required, joined)

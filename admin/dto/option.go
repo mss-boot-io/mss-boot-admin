@@ -24,24 +24,19 @@ type OptionSearch struct {
 	Category string `query:"category" form:"category" search:"type:exact;column:category" binding:"max=50"`
 	// Status 状态
 	Status string `query:"status" form:"status" search:"type:exact;column:status" binding:"omitempty,oneof=enabled disabled"`
-	// View summary omits the bounded item payload from management rows.
-	View string `query:"view" form:"view" binding:"omitempty,oneof=summary full"`
 }
 
-// OptionWriteRequest is the allowlisted client-owned surface shared by the V5
-// compatibility endpoint and V6. Pointer fields keep omitted legacy form
-// values distinct from an explicit empty update.
+// OptionWriteRequest is the allowlisted client-owned V6 management surface.
+// Resource revisions are supplied only through the strong If-Match header.
 type OptionWriteRequest struct {
-	Category        *string             `json:"category"`
-	DisplayName     *string             `json:"displayName"`
-	Description     *string             `json:"description"`
-	Name            *string             `json:"name"`
-	Remark          *string             `json:"remark"`
-	Items           *models.OptionItems `json:"items"`
-	Status          *string             `json:"status"`
-	ExpectedVersion *int                `json:"expectedVersion"`
-	LegacyVersion   *int                `json:"version"`
-	ChangeNote      string              `json:"changeNote"`
+	Category    *string             `json:"category"`
+	DisplayName *string             `json:"displayName"`
+	Description *string             `json:"description"`
+	Name        *string             `json:"name"`
+	Remark      *string             `json:"remark"`
+	Items       *models.OptionItems `json:"items"`
+	Status      *string             `json:"status"`
+	ChangeNote  string              `json:"changeNote"`
 }
 
 type OptionSummary struct {

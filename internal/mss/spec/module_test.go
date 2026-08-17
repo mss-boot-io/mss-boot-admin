@@ -46,8 +46,8 @@ func TestLoadExampleSupplierModule(t *testing.T) {
 	if got, want := module.Spec.Generation.AuthorizationMigrationID, "20260811120000"; got != want {
 		t.Fatalf("authorization migration ID = %q, want %q", got, want)
 	}
-	if !module.SupportsFrontendTarget(FrontendTargetAntDV5) || !module.SupportsFrontendTarget(FrontendTargetAntDV6) {
-		t.Fatalf("supplier frontend targets = %#v, want v5 and v6", module.Spec.Generation.FrontendTargets)
+	if !module.SupportsFrontendTarget(FrontendTargetAntDV6) {
+		t.Fatalf("supplier frontend targets = %#v, want v6", module.Spec.Generation.FrontendTargets)
 	}
 	if got, want := module.Spec.Menu.ParentDisplayName, "采购管理"; got != want {
 		t.Fatalf("parent display name = %q, want %q", got, want)
@@ -279,12 +279,12 @@ func TestModuleValidationRequiresMigrationIDForBackendGeneration(t *testing.T) {
 	t.Fatalf("Validate() issues = %#v, want required migration ID", issues)
 }
 
-func TestModuleFrontendTargetsDefaultToV5AndRejectInvalidDeclarations(t *testing.T) {
+func TestModuleFrontendTargetsDefaultToV6AndRejectInvalidDeclarations(t *testing.T) {
 	module := validModule()
-	if got := module.Spec.Generation.FrontendTargets; len(got) != 1 || got[0] != FrontendTargetAntDV5 {
-		t.Fatalf("default frontend targets = %#v, want [%s]", got, FrontendTargetAntDV5)
+	if got := module.Spec.Generation.FrontendTargets; len(got) != 1 || got[0] != FrontendTargetAntDV6 {
+		t.Fatalf("default frontend targets = %#v, want [%s]", got, FrontendTargetAntDV6)
 	}
-	if !module.SupportsFrontendTarget(FrontendTargetAntDV5) || module.SupportsFrontendTarget(FrontendTargetAntDV6) {
+	if !module.SupportsFrontendTarget(FrontendTargetAntDV6) {
 		t.Fatalf("default target support = %#v", module.Spec.Generation.FrontendTargets)
 	}
 
@@ -309,13 +309,6 @@ func TestModuleFrontendTargetsDefaultToV5AndRejectInvalidDeclarations(t *testing
 func TestModuleAntDV6ProfileFailsClosedOutsideQualifiedSurface(t *testing.T) {
 	qualified := validModule()
 	qualified.Spec.Generation.FrontendTargets = []string{FrontendTargetAntDV6}
-	qualified.Spec.Entity.Fields[0].Unique = true
-	qualified.Spec.API.Operations = append(qualified.Spec.API.Operations, "export")
-	qualified.Spec.Permissions = append(qualified.Spec.Permissions, Permission{
-		Action:      "export",
-		DisplayName: "导出",
-	})
-	qualified.Spec.UI.Export = true
 	if issues := qualified.Validate(); len(issues) != 0 {
 		t.Fatalf("qualified v6 module issues = %#v", issues)
 	}
@@ -324,6 +317,8 @@ func TestModuleAntDV6ProfileFailsClosedOutsideQualifiedSurface(t *testing.T) {
 	unsupported.Spec.Generation.FrontendTargets = []string{FrontendTargetAntDV6}
 	unsupported.Spec.Entity.Fields[0].Type = "int"
 	unsupported.Spec.Entity.Fields[0].Form = boolPointer(false)
+	unsupported.Spec.API.Operations = []string{"list", "get", "create", "update", "delete"}
+	unsupported.Spec.UI.Export = false
 	unsupported.Spec.UI.BatchDelete = true
 	issues := unsupported.Validate()
 	wants := map[string]bool{
@@ -388,6 +383,7 @@ func validModule() *Module {
 						DisplayName: "订单编码",
 						Type:        "string",
 						Required:    true,
+						Unique:      true,
 						Searchable:  true,
 					},
 				},
@@ -395,7 +391,7 @@ func validModule() *Module {
 			API: APISpec{
 				BasePath:   "/purchase-orders",
 				Version:    "v1",
-				Operations: []string{"list", "get", "create", "update", "delete"},
+				Operations: []string{"list", "get", "create", "update", "delete", "export"},
 			},
 			Permissions: []Permission{
 				{Action: "list", DisplayName: "列表"},
@@ -403,13 +399,14 @@ func validModule() *Module {
 				{Action: "create", DisplayName: "创建"},
 				{Action: "update", DisplayName: "更新"},
 				{Action: "delete", DisplayName: "删除"},
+				{Action: "export", DisplayName: "导出"},
 			},
 			Ownership: OwnershipSpec{Mode: "none"},
 			Menu: MenuSpec{
 				Path:        "/purchase-orders",
 				DisplayName: "采购订单",
 			},
-			UI: UISpec{List: true, Form: true, Detail: true},
+			UI: UISpec{List: true, Form: true, Detail: true, Export: true},
 			Tests: TestSpec{
 				Unit:             true,
 				API:              true,

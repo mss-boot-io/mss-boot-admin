@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 )
 
@@ -24,7 +23,7 @@ func TestThemeApplicationPatchSupportsSparseFalseAndNull(t *testing.T) {
 	require.NoError(t, svc.PatchApplication(env.ctx, map[string]any{
 		"fixedHeader":  false,
 		"colorPrimary": "#A1b2C3",
-	}))
+	}, 0))
 
 	overrides, err := svc.Application(env.ctx)
 	require.NoError(t, err)
@@ -35,13 +34,13 @@ func TestThemeApplicationPatchSupportsSparseFalseAndNull(t *testing.T) {
 	require.NotNil(t, overrides.ColorPrimary)
 	require.Equal(t, "#a1b2c3", *overrides.ColorPrimary)
 
-	require.NoError(t, svc.PatchApplication(env.ctx, map[string]any{"fixedHeader": nil}))
+	require.NoError(t, svc.PatchApplication(env.ctx, map[string]any{"fixedHeader": nil}, 1))
 	overrides, err = svc.Application(env.ctx)
 	require.NoError(t, err)
 	require.Nil(t, overrides.FixedHeader, "null must remove the override")
 	require.Equal(t, "mix", *overrides.Layout)
 
-	require.NoError(t, svc.ResetApplication(env.ctx))
+	require.NoError(t, svc.ResetApplication(env.ctx, 2))
 	overrides, err = svc.Application(env.ctx)
 	require.NoError(t, err)
 	require.Empty(t, themeOverridesMap(overrides))
@@ -50,7 +49,7 @@ func TestThemeApplicationPatchSupportsSparseFalseAndNull(t *testing.T) {
 
 	// Reset uses a hard delete so the existing unique key cannot strand a
 	// soft-deleted row and prevent a later override from being recreated.
-	require.NoError(t, svc.PatchApplication(env.ctx, map[string]any{"layout": "side"}))
+	require.NoError(t, svc.PatchApplication(env.ctx, map[string]any{"layout": "side"}, 3))
 	overrides, err = svc.Application(env.ctx)
 	require.NoError(t, err)
 	require.Equal(t, "side", *overrides.Layout)
@@ -98,10 +97,10 @@ func TestThemeCaseVariantsAreIgnoredAndPreservedByReadDeleteAndReset(t *testing.
 
 	// A null patch must delete only an exact canonical key, even when the
 	// database collation would compare FixedHeader/ColorWeak as equal.
-	require.NoError(t, (&Theme{}).PatchApplication(env.ctx, map[string]any{"fixedHeader": nil}))
-	require.NoError(t, (&Theme{}).PatchUser(env.ctx, "user-a", map[string]any{"colorWeak": nil}))
-	require.NoError(t, (&Theme{}).ResetApplication(env.ctx))
-	require.NoError(t, (&Theme{}).ResetUser(env.ctx, "user-a"))
+	require.NoError(t, (&Theme{}).PatchApplication(env.ctx, map[string]any{"fixedHeader": nil}, 0))
+	require.NoError(t, (&Theme{}).PatchUser(env.ctx, "user-a", map[string]any{"colorWeak": nil}, 0))
+	require.NoError(t, (&Theme{}).ResetApplication(env.ctx, 1))
+	require.NoError(t, (&Theme{}).ResetUser(env.ctx, "user-a", 1))
 
 	for i := range applicationRows {
 		var row models.AppConfig
@@ -130,14 +129,14 @@ func TestThemePutCreatesCanonicalResourceWithoutMutatingSQLiteCaseVariant(t *tes
 	revision0 := int64(0)
 	application, err := (&Theme{}).PatchApplicationResource(env.ctx, map[string]any{
 		"navTheme": "light",
-	}, &revision0)
+	}, revision0)
 	require.NoError(t, err)
 	require.Equal(t, "1", application.Meta.Revision)
 	require.Equal(t, "light", *application.NavTheme)
 
 	user, err := (&Theme{}).PatchUserResource(env.ctx, "user-a", map[string]any{
 		"colorWeak": false,
-	}, &revision0)
+	}, revision0)
 	require.NoError(t, err)
 	require.Equal(t, "1", user.Meta.Revision)
 	require.NotNil(t, user.ColorWeak)
@@ -197,7 +196,7 @@ func TestThemePutRejectsAmbiguousCaseVariantCollisionAndRollsBack(t *testing.T) 
 	revision0 := int64(0)
 	_, err := (&Theme{}).PatchApplicationResource(env.ctx, map[string]any{
 		"navTheme": "realDark",
-	}, &revision0)
+	}, revision0)
 	require.ErrorIs(t, err, ErrThemeKeyCollision)
 	var collision *ThemeKeyCollisionError
 	require.ErrorAs(t, err, &collision)
@@ -237,7 +236,7 @@ func TestUserThemePutKeepsSQLiteCaseVariantOwnerIsolated(t *testing.T) {
 	revision0 := int64(0)
 	resource, err := (&Theme{}).PatchUserResource(env.ctx, "user-a", map[string]any{
 		"navTheme": "realDark",
-	}, &revision0)
+	}, revision0)
 	require.NoError(t, err)
 	require.Equal(t, "realDark", *resource.NavTheme)
 
@@ -263,10 +262,10 @@ func TestThemeUserScopeIsOwnedAndResetIndependently(t *testing.T) {
 	require.NoError(t, svc.PatchUser(env.ctx, "user-a", map[string]any{
 		"navTheme":    "realDark",
 		"fixSiderbar": false,
-	}))
+	}, 0))
 	require.NoError(t, svc.PatchUser(env.ctx, "user-b", map[string]any{
 		"navTheme": "light",
-	}))
+	}, 0))
 
 	userA, err := svc.User(env.ctx, "user-a")
 	require.NoError(t, err)
@@ -277,7 +276,7 @@ func TestThemeUserScopeIsOwnedAndResetIndependently(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "light", *userB.NavTheme)
 
-	require.NoError(t, svc.ResetUser(env.ctx, "user-a"))
+	require.NoError(t, svc.ResetUser(env.ctx, "user-a", 1))
 	userA, err = svc.User(env.ctx, "user-a")
 	require.NoError(t, err)
 	require.Empty(t, themeOverridesMap(userA))
@@ -285,8 +284,8 @@ func TestThemeUserScopeIsOwnedAndResetIndependently(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "light", *userB.NavTheme)
 
-	require.ErrorIs(t, svc.PatchUser(env.ctx, "", map[string]any{"layout": "mix"}), ErrThemeUserRequired)
-	require.ErrorIs(t, svc.ResetUser(env.ctx, ""), ErrThemeUserRequired)
+	require.ErrorIs(t, svc.PatchUser(env.ctx, "", map[string]any{"layout": "mix"}, 0), ErrThemeUserRequired)
+	require.ErrorIs(t, svc.ResetUser(env.ctx, "", 0), ErrThemeUserRequired)
 }
 
 func TestThemePatchRejectsUnknownAndIllTypedValuesBeforeWriting(t *testing.T) {
@@ -308,7 +307,7 @@ func TestThemePatchRejectsUnknownAndIllTypedValuesBeforeWriting(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := svc.PatchApplication(env.ctx, test.patch)
+			err := svc.PatchApplication(env.ctx, test.patch, 0)
 			require.ErrorIs(t, err, ErrInvalidThemePatch)
 		})
 	}
@@ -324,7 +323,7 @@ func TestUserThemeRejectsLegacyPWAWithoutWritingOrAdvancingRevision(t *testing.T
 
 	_, err := (&Theme{}).PatchUserResource(env.ctx, "user-a", map[string]any{
 		"pwa": true,
-	}, nil)
+	}, 0)
 	require.ErrorIs(t, err, ErrInvalidThemePatch)
 
 	var configCount int64
@@ -379,8 +378,8 @@ func TestReservedThemeAndPublicKeyVariantsCannotPoisonEmptyDatabase(t *testing.T
 
 func TestThemeGroupVariantReadsAreRejected(t *testing.T) {
 	env := setupAppConfigTestEnv(t)
-	require.NoError(t, (&Theme{}).PatchApplication(env.ctx, map[string]any{"layout": "side"}))
-	require.NoError(t, (&Theme{}).PatchUser(env.ctx, "user-a", map[string]any{"layout": "mix"}))
+	require.NoError(t, (&Theme{}).PatchApplication(env.ctx, map[string]any{"layout": "side"}, 0))
+	require.NoError(t, (&Theme{}).PatchUser(env.ctx, "user-a", map[string]any{"layout": "mix"}, 0))
 
 	for _, group := range []string{"Theme", "thème", "theme "} {
 		_, err := (&AppConfig{}).Group(env.ctx, group)
@@ -434,7 +433,7 @@ func TestThemeApplicationPatchRollsBackOnDatabaseFailure(t *testing.T) {
 	err := (&Theme{}).PatchApplication(env.ctx, map[string]any{
 		"colorPrimary": "#123456",
 		"layout":       "side",
-	})
+	}, 0)
 	require.Error(t, err)
 	require.False(t, errors.Is(err, ErrInvalidThemePatch), "database failures are server errors, not validation errors")
 
@@ -458,14 +457,14 @@ func TestThemeResourcesAdvanceScopedRevisionsAndRejectStaleWriters(t *testing.T)
 	revision0 := int64(0)
 	application, err = svc.PatchApplicationResource(env.ctx, map[string]any{
 		"colorPrimary": "#A1B2C3",
-	}, &revision0)
+	}, revision0)
 	require.NoError(t, err)
 	require.Equal(t, "1", application.Meta.Revision)
 	require.Equal(t, "#a1b2c3", *application.ColorPrimary)
 
 	_, err = svc.PatchApplicationResource(env.ctx, map[string]any{
 		"layout": "side",
-	}, &revision0)
+	}, revision0)
 	require.ErrorIs(t, err, ErrThemeRevisionConflict)
 	var conflict *ThemeRevisionConflictError
 	require.ErrorAs(t, err, &conflict)
@@ -475,34 +474,33 @@ func TestThemeResourcesAdvanceScopedRevisionsAndRejectStaleWriters(t *testing.T)
 	require.Nil(t, conflict.Current.Layout, "the stale mutation must be rolled back")
 	require.Equal(t, "#a1b2c3", *conflict.Current.ColorPrimary)
 
-	// A missing If-Match remains a supported legacy write, but still advances
-	// the authoritative revision.
+	// A writer holding the current strong revision advances the resource.
 	application, err = svc.PatchApplicationResource(env.ctx, map[string]any{
 		"layout": "mix",
-	}, nil)
+	}, 1)
 	require.NoError(t, err)
 	require.Equal(t, "2", application.Meta.Revision)
 
 	revision2 := int64(2)
-	application, err = svc.ResetApplicationResource(env.ctx, &revision2)
+	application, err = svc.ResetApplicationResource(env.ctx, revision2)
 	require.NoError(t, err)
 	require.Equal(t, "3", application.Meta.Revision)
 	require.Empty(t, themeOverridesMap(&application.ThemeOverrides))
 
 	userA, err := svc.PatchUserResource(env.ctx, "user-a", map[string]any{
 		"navTheme": "realDark",
-	}, &revision0)
+	}, revision0)
 	require.NoError(t, err)
 	require.Equal(t, ThemeScopeUser, userA.Meta.Scope)
 	require.Equal(t, "1", userA.Meta.Revision)
 
 	userB, err := svc.PatchUserResource(env.ctx, "user-b", map[string]any{
 		"navTheme": "light",
-	}, &revision0)
+	}, revision0)
 	require.NoError(t, err)
 	require.Equal(t, "1", userB.Meta.Revision, "user revisions must be isolated by owner")
 
-	_, err = svc.ResetUserResource(env.ctx, "user-a", &revision0)
+	_, err = svc.ResetUserResource(env.ctx, "user-a", revision0)
 	require.ErrorIs(t, err, ErrThemeRevisionConflict)
 	userA, err = svc.UserResource(env.ctx, "user-a")
 	require.NoError(t, err)
@@ -522,49 +520,20 @@ func TestThemeResourcesAdvanceScopedRevisionsAndRejectStaleWriters(t *testing.T)
 	require.Equal(t, int64(1), revisions["user/user-b/theme"])
 }
 
-func TestLegacyThemeServicesDelegateToStrictThemeContract(t *testing.T) {
+func TestGenericConfigServicesRejectThemeWrites(t *testing.T) {
 	env := setupAppConfigTestEnv(t)
-	env.redis.HSet(legacyAppConfigCacheHash, "theme:fixedHeader", "true")
 
-	require.NoError(t, (&AppConfig{}).CreateOrUpdate(env.ctx, ThemeConfigGroup, map[string]any{
+	require.ErrorIs(t, (&AppConfig{}).CreateOrUpdate(env.ctx, ThemeConfigGroup, map[string]any{
 		"fixedHeader": false,
-	}))
-	cacheExists, err := env.client.HExists(env.ctx, legacyAppConfigCacheHash, "theme:fixedHeader").Result()
-	require.NoError(t, err)
-	require.False(t, cacheExists, "post-commit cache work must invalidate rather than publish a possibly stale value")
-	cachedFixedHeader, ok := center.GetAppConfig().GetAppConfig(env.ctx, "theme:fixedHeader")
-	require.True(t, ok)
-	require.Equal(t, "false", cachedFixedHeader, "the next legacy read must refill from the database")
+	}), ErrThemeGroupOnly)
+	require.ErrorIs(t, (&UserConfig{}).CreateOrUpdate(env.ctx, "user-a", ThemeConfigGroup, map[string]any{
+		"colorWeak": false,
+	}), ErrThemeGroupOnly)
+
 	application, err := (&AppConfig{}).Group(env.ctx, ThemeConfigGroup)
 	require.NoError(t, err)
-	require.Equal(t, false, application["fixedHeader"])
-	require.NoError(t, (&AppConfig{}).CreateOrUpdate(env.ctx, ThemeConfigGroup, map[string]any{
-		"pwa": true,
-	}))
-	application, err = (&AppConfig{}).Group(env.ctx, ThemeConfigGroup)
-	require.NoError(t, err)
-	require.Equal(t, true, application["pwa"], "legacy/general application projection must retain pwa")
-	var legacyPWA models.AppConfig
-	require.NoError(t, env.db.First(&legacyPWA, `"group" = ? AND name = ?`, ThemeConfigGroup, "pwa").Error)
-	require.Equal(t, "true", legacyPWA.Value)
-	require.NoError(t, (&AppConfig{}).Reset(env.ctx, ThemeConfigGroup))
-	cacheExists, err = env.client.HExists(env.ctx, legacyAppConfigCacheHash, "theme:fixedHeader").Result()
-	require.NoError(t, err)
-	require.False(t, cacheExists)
-	require.NoError(t, env.db.First(&legacyPWA, `"group" = ? AND name = ?`, ThemeConfigGroup, "pwa").Error,
-		"canonical reset must preserve the write-only rolling-compatibility field")
-
-	require.NoError(t, (&UserConfig{}).CreateOrUpdate(env.ctx, "user-a", ThemeConfigGroup, map[string]any{
-		"colorWeak": false,
-	}))
-	require.ErrorIs(t, (&UserConfig{}).CreateOrUpdate(env.ctx, "user-a", ThemeConfigGroup, map[string]any{
-		"pwa": false,
-	}), ErrInvalidThemePatch)
+	require.Equal(t, "0", requireThemeProfileMeta(t, application["_meta"])["revision"])
 	user, err := (&UserConfig{}).Group(env.ctx, "user-a", ThemeConfigGroup)
 	require.NoError(t, err)
-	require.Equal(t, false, user["colorWeak"])
-	require.NoError(t, (&UserConfig{}).Reset(env.ctx, "user-a", ThemeConfigGroup))
-	user, err = (&UserConfig{}).Group(env.ctx, "user-a", ThemeConfigGroup)
-	require.NoError(t, err)
-	require.Empty(t, user)
+	require.Equal(t, "0", requireThemeProfileMeta(t, user["_meta"])["revision"])
 }

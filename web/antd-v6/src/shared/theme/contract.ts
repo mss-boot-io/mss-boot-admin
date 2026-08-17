@@ -32,7 +32,6 @@ export interface ThemeScopeResource {
   scope: ThemeScope;
   revision: string;
   overrides: ThemeOverrides;
-  versioned: boolean;
 }
 
 export interface ResolvedTheme {
@@ -126,27 +125,23 @@ export function parseThemeScopeResource(value: unknown, scope: ThemeScope): Them
   const record = isRecord(value) ? value : {};
   const meta = isRecord(record._meta) ? record._meta : undefined;
   if (!meta) {
-    return { scope, revision: '0', overrides: normalizeThemeOverrides(record), versioned: false };
+    throw new Error(`Invalid ${scope} theme resource metadata`);
   }
   const revision = normalizeThemeRevision(meta.revision);
   if (meta.v !== 1 || meta.scope !== scope || revision === undefined) {
     throw new Error(`Invalid ${scope} theme resource metadata`);
   }
-  return { scope, revision, overrides: normalizeThemeOverrides(record), versioned: true };
+  return { scope, revision, overrides: normalizeThemeOverrides(record) };
 }
 
 export function serializeThemeScopeResource(resource: ThemeScopeResource): Record<string, unknown> {
   return {
     ...normalizeThemeOverrides(resource.overrides),
-    ...(resource.versioned
-      ? {
-          _meta: {
-            v: 1,
-            scope: resource.scope,
-            revision: resource.revision,
-          },
-        }
-      : {}),
+    _meta: {
+      v: 1,
+      scope: resource.scope,
+      revision: resource.revision,
+    },
   };
 }
 
@@ -178,7 +173,6 @@ export function areThemeResourcesEqual(
   return (
     left.scope === right.scope &&
     left.revision === right.revision &&
-    left.versioned === right.versioned &&
     THEME_SETTING_KEYS.every(
       (key) =>
         hasThemeOverride(left.overrides, key) === hasThemeOverride(right.overrides, key) &&

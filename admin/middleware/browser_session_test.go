@@ -31,13 +31,11 @@ func configureBrowserSessionTest(t *testing.T) {
 		Auth = previousAuth
 	})
 	config.Cfg.Auth = config.Auth{
-		Key:            "browser-session-test-signing-key-32-bytes",
-		IdentityKey:    "browser-session-test-identity",
-		Timeout:        time.Hour,
-		MaxRefresh:     24 * time.Hour,
-		SessionEnabled: true,
+		Key:         "browser-session-test-signing-key-32-bytes",
+		IdentityKey: "browser-session-test-identity",
+		Timeout:     time.Hour,
+		MaxRefresh:  24 * time.Hour,
 		BrowserSession: config.BrowserSession{
-			Enabled:            true,
 			Secure:             true,
 			SameSite:           "lax",
 			WebSocketTicketTTL: 30 * time.Second,
@@ -64,6 +62,20 @@ func TestBrowserCSRFTokenIsBoundToSession(t *testing.T) {
 	}
 }
 
+func TestQueryTokenCannotDisableBrowserSessionCSRFClassification(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPut, "/admin/api/options?token=ignored", nil)
+	ctx.Request.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "browser-session"})
+	if !RequestUsesBrowserSession(ctx) {
+		t.Fatal("query token disabled V6 browser-session CSRF classification")
+	}
+	ctx.Request.Header.Set("Authorization", "Bearer api-token")
+	if RequestUsesBrowserSession(ctx) {
+		t.Fatal("explicit API bearer was classified as browser-session authentication")
+	}
+}
+
 func TestEnforceBrowserCSRFMatrix(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	configureBrowserSessionTest(t)
@@ -84,10 +96,10 @@ func TestEnforceBrowserCSRFMatrix(t *testing.T) {
 		want       int
 	}{
 		{name: "valid cookie mutation", method: http.MethodPost, origin: "https://admin.example", cookie: "session-jwt", csrfCookie: csrf, csrfHeader: csrf, want: http.StatusNoContent},
-		{name: "historical cookie is also protected", method: http.MethodPost, origin: "https://admin.example", cookie: "session-jwt", cookieName: "jwt", csrfCookie: csrf, csrfHeader: csrf, want: http.StatusNoContent},
+		{name: "retired jwt cookie is ignored", method: http.MethodPost, origin: "https://admin.example", cookie: "session-jwt", cookieName: "jwt", csrfCookie: csrf, csrfHeader: csrf, want: http.StatusNoContent},
 		{name: "safe method", method: http.MethodGet, cookie: "session-jwt", want: http.StatusNoContent},
 		{name: "anonymous mutation", method: http.MethodPost, origin: "https://attacker.example", want: http.StatusNoContent},
-		{name: "bearer remains compatible", method: http.MethodPost, cookie: "session-jwt", bearer: "legacy-bearer", want: http.StatusNoContent},
+		{name: "API bearer remains supported", method: http.MethodPost, cookie: "session-jwt", bearer: "api-bearer", want: http.StatusNoContent},
 		{name: "missing origin", method: http.MethodPost, cookie: "session-jwt", csrfCookie: csrf, csrfHeader: csrf, want: http.StatusForbidden},
 		{name: "untrusted origin", method: http.MethodPost, origin: "https://admin.example.attacker.test", cookie: "session-jwt", csrfCookie: csrf, csrfHeader: csrf, want: http.StatusForbidden},
 		{name: "missing header", method: http.MethodPost, origin: "https://admin.example", cookie: "session-jwt", csrfCookie: csrf, want: http.StatusForbidden},
@@ -285,66 +297,5 @@ func TestBrowserSessionRefreshRotatesCredentialWithoutReturningIt(t *testing.T) 
 	}
 	if err = validateBrowserCSRFToken(newCSRF.Value, newSession.Value, []byte(config.Cfg.Auth.Key)); err != nil {
 		t.Fatalf("rotated CSRF token is not bound to the new session: %v", err)
-	}
-}
-
-func TestLegacyWebSocketQueryTokenIsIsolatedAndDefaultCompatible(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	configureBrowserSessionTest(t)
-	Auth = &jwt.GinJWTMiddleware{
-		Realm:       "legacy-websocket-test",
-		Key:         []byte(config.Cfg.Auth.Key),
-		Timeout:     time.Hour,
-		MaxRefresh:  time.Hour,
-		IdentityKey: "identity",
-		PayloadFunc: func(data any) jwt.MapClaims { return data.(jwt.MapClaims) },
-		IdentityHandler: func(c *gin.Context) any {
-			return jwt.ExtractClaims(c)
-		},
-		Authorizator:  func(any, *gin.Context) bool { return true },
-		TokenLookup:   authenticationTokenLookup(),
-		TokenHeadName: "Bearer",
-	}
-	if err := Auth.MiddlewareInit(); err != nil {
-		t.Fatalf("MiddlewareInit() error = %v", err)
-	}
-	token, _, err := Auth.TokenGenerator(jwt.MapClaims{"uid": "user-1", "rid": "role-1"})
-	if err != nil {
-		t.Fatalf("TokenGenerator() error = %v", err)
-	}
-
-	legacyRouter := gin.New()
-	legacyRouter.GET("/admin/api/ws/connect", LegacyWebSocketAuth(), func(c *gin.Context) {
-		c.Status(http.StatusNoContent)
-	})
-	legacyRequest := httptest.NewRequest(http.MethodGet, "/admin/api/ws/connect?token="+token, nil)
-	legacyRecorder := httptest.NewRecorder()
-	legacyRouter.ServeHTTP(legacyRecorder, legacyRequest)
-	if legacyRecorder.Code != http.StatusNoContent {
-		t.Fatalf("default-compatible legacy status = %d, body=%s", legacyRecorder.Code, legacyRecorder.Body.String())
-	}
-
-	restRouter := gin.New()
-	restRouter.GET("/admin/api/protected", Auth.MiddlewareFunc(), func(c *gin.Context) {
-		c.Status(http.StatusNoContent)
-	})
-	restRecorder := httptest.NewRecorder()
-	restRouter.ServeHTTP(
-		restRecorder,
-		httptest.NewRequest(http.MethodGet, "/admin/api/protected?token="+token, nil),
-	)
-	if restRecorder.Code != http.StatusUnauthorized {
-		t.Fatalf("REST query-token status = %d, want 401", restRecorder.Code)
-	}
-
-	disabled := false
-	config.Cfg.Auth.BrowserSession.LegacyWebSocketQueryTokenEnabled = &disabled
-	disabledRecorder := httptest.NewRecorder()
-	legacyRouter.ServeHTTP(
-		disabledRecorder,
-		httptest.NewRequest(http.MethodGet, "/admin/api/ws/connect?token="+token, nil),
-	)
-	if disabledRecorder.Code != http.StatusGone {
-		t.Fatalf("disabled legacy status = %d, want 410", disabledRecorder.Code)
 	}
 }

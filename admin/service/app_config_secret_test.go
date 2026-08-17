@@ -12,11 +12,9 @@ func TestAppConfigGroupOmitsFixedSensitiveValuesByDefault(t *testing.T) {
 	require.NoError(t, env.db.Create([]*models.AppConfig{
 		{Group: "email", Name: "password", Value: "smtp-secret", Auth: true},
 		{Group: "email", Name: "smtpHost", Value: "smtp.example.test", Auth: true},
-		{Group: "security", Name: "githubClientSecret", Value: "github-secret", Auth: false},
 		{Group: "security", Name: "githubBrowserSessionClientSecret", Value: "github-browser-secret", Auth: false},
-		{Group: "security", Name: "larkAppSecret", Value: "lark-secret", Auth: true},
 		{Group: "security", Name: "larkBrowserSessionAppSecret", Value: "lark-browser-secret", Auth: false},
-		{Group: "security", Name: "githubClientId", Value: "client-id", Auth: true},
+		{Group: "security", Name: "githubBrowserSessionClientId", Value: "client-id", Auth: true},
 	}).Error)
 
 	tests := []struct {
@@ -25,10 +23,8 @@ func TestAppConfigGroupOmitsFixedSensitiveValuesByDefault(t *testing.T) {
 		visible   string
 	}{
 		{group: "email", secretKey: "password", visible: "smtpHost"},
-		{group: "security", secretKey: "githubClientSecret", visible: "githubClientId"},
-		{group: "security", secretKey: "githubBrowserSessionClientSecret", visible: "githubClientId"},
-		{group: "security", secretKey: "larkAppSecret", visible: "githubClientId"},
-		{group: "security", secretKey: "larkBrowserSessionAppSecret", visible: "githubClientId"},
+		{group: "security", secretKey: "githubBrowserSessionClientSecret", visible: "githubBrowserSessionClientId"},
+		{group: "security", secretKey: "larkBrowserSessionAppSecret", visible: "githubBrowserSessionClientId"},
 	}
 
 	svc := &AppConfig{}
@@ -43,9 +39,7 @@ func TestAppConfigGroupOmitsFixedSensitiveValuesByDefault(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
 				"password":                         "smtp-secret",
-				"githubClientSecret":               "github-secret",
 				"githubBrowserSessionClientSecret": "github-browser-secret",
-				"larkAppSecret":                    "lark-secret",
 				"larkBrowserSessionAppSecret":      "lark-browser-secret",
 			}[test.secretKey], privileged[test.secretKey])
 		})
@@ -58,9 +52,7 @@ func TestAppConfigSensitiveKeyContractIsExactAndRejectsCaseBypass(t *testing.T) 
 		name  string
 	}{
 		{group: "email", name: "password"},
-		{group: "security", name: "githubClientSecret"},
 		{group: "security", name: "githubBrowserSessionClientSecret"},
-		{group: "security", name: "larkAppSecret"},
 		{group: "security", name: "larkBrowserSessionAppSecret"},
 	}
 	for _, test := range tests {
@@ -81,22 +73,45 @@ func TestAppConfigSensitiveKeyContractIsExactAndRejectsCaseBypass(t *testing.T) 
 	))
 	require.False(t, AppConfigMutationContainsSensitiveValues(
 		"security",
-		map[string]any{"githubClientId": "public-id"},
+		map[string]any{"githubBrowserSessionClientId": "public-id"},
 	))
 
 	env := setupAppConfigTestEnv(t)
 	err := (&AppConfig{}).CreateOrUpdate(
 		env.ctx,
 		"security",
-		map[string]any{"GithubClientSecret": "case-bypass"},
+		map[string]any{"GithubBrowserSessionClientSecret": "case-bypass"},
 	)
 	require.ErrorIs(t, err, ErrAppConfigKeyCaseMismatch)
 	err = (&AppConfig{}).CreateOrUpdate(
 		env.ctx,
 		"Security",
-		map[string]any{"githubClientSecret": "group-case-bypass"},
+		map[string]any{"githubBrowserSessionClientSecret": "group-case-bypass"},
 	)
 	require.ErrorIs(t, err, ErrAppConfigKeyCaseMismatch)
+
+	var count int64
+	require.NoError(t, env.db.Model(&models.AppConfig{}).Count(&count).Error)
+	require.Zero(t, count)
+}
+
+func TestAppConfigRejectsRetiredBrowserOAuthKeys(t *testing.T) {
+	env := setupAppConfigTestEnv(t)
+	for _, name := range []string{
+		"githubClientId",
+		"githubClientSecret",
+		"githubRedirectURI",
+		"githubRedirectUrl",
+		"githubRedirectURL",
+		"githubScope",
+		"larkAppId",
+		"larkAppSecret",
+		"larkRedirectURI",
+		"larkRedirectUrl",
+	} {
+		err := (&AppConfig{}).CreateOrUpdate(env.ctx, "security", map[string]any{name: "retired"})
+		require.ErrorIs(t, err, ErrAppConfigKeyNotAllowed, name)
+	}
 
 	var count int64
 	require.NoError(t, env.db.Model(&models.AppConfig{}).Count(&count).Error)

@@ -28,10 +28,8 @@ const (
 	moduleTemplateRevision       = "1.2.0-fullstack.2"
 	backendTemplateRevision      = "1.1.0-backend.3"
 	instructionsTemplateRevision = "1.2.0-module-instructions.1"
-	frontendTemplateRevision     = "1.1.0-frontend.1"
 	frontendV6TemplateRevision   = "1.2.0-frontend-v6.6"
 	docsTemplateRevision         = "1.2.0-docs.1"
-	e2eTemplateRevision          = "1.1.0-e2e.2"
 	e2eV6TemplateRevision        = "1.2.0-e2e-v6.6"
 )
 
@@ -134,10 +132,10 @@ func Generate(module *spec.Module, options Options) (Plan, error) {
 	}
 	frontendTarget := strings.TrimSpace(options.FrontendTarget)
 	if frontendTarget == "" {
-		frontendTarget = spec.FrontendTargetAntDV5
+		frontendTarget = spec.FrontendTargetAntDV6
 	}
-	if frontendTarget != spec.FrontendTargetAntDV5 && frontendTarget != spec.FrontendTargetAntDV6 {
-		return Plan{}, fmt.Errorf("unsupported frontend target %q: use %s or %s", frontendTarget, spec.FrontendTargetAntDV5, spec.FrontendTargetAntDV6)
+	if frontendTarget != spec.FrontendTargetAntDV6 {
+		return Plan{}, fmt.Errorf("unsupported frontend target %q: use %s", frontendTarget, spec.FrontendTargetAntDV6)
 	}
 	repository, err := os.OpenRoot(options.Root)
 	if err != nil {
@@ -332,7 +330,6 @@ type templateData struct {
 	HasFormText                  bool
 	HasFormSelect                bool
 	HasFormSwitch                bool
-	HasFrontendV5                bool
 	HasFrontendV6                bool
 	PermissionListPath           string
 	PermissionReadPath           string
@@ -511,9 +508,9 @@ func buildTemplateData(module *spec.Module) (templateData, error) {
 	data := templateData{
 		SourceSpec:                   filepath.ToSlash(module.SourcePath),
 		TemplateRevision:             backendTemplateRevision,
-		FrontendTemplateRevision:     frontendTemplateRevision,
+		FrontendTemplateRevision:     frontendV6TemplateRevision,
 		DocsTemplateRevision:         docsTemplateRevision,
-		E2ETemplateRevision:          e2eTemplateRevision,
+		E2ETemplateRevision:          e2eV6TemplateRevision,
 		InstructionsTemplateRevision: instructionsTemplateRevision,
 		ModuleName:                   module.Metadata.Name,
 		EnvPrefix:                    strings.ToUpper(spec.SnakeCase(module.Metadata.Name)),
@@ -534,7 +531,6 @@ func buildTemplateData(module *spec.Module) (templateData, error) {
 		UIDetail:                     module.Spec.UI.Detail,
 		UIMobile:                     module.Spec.UI.Mobile != nil && *module.Spec.UI.Mobile,
 		UIExport:                     module.Spec.UI.Export,
-		HasFrontendV5:                module.SupportsFrontendTarget(spec.FrontendTargetAntDV5),
 		HasFrontendV6:                module.SupportsFrontendTarget(spec.FrontendTargetAntDV6),
 		Menu: menuData{
 			Name:          escapeGoContent(module.Metadata.Name),
@@ -1327,33 +1323,18 @@ func renderModuleOutputs(repository *os.Root, module *spec.Module, data template
 		{"templates/module/backend/AGENTS.md.tmpl", filepath.Join(moduleDir, "AGENTS.md")},
 	}
 	if module.Spec.Generation.Frontend != nil && *module.Spec.Generation.Frontend {
-		switch frontendTarget {
-		case spec.FrontendTargetAntDV5:
-			data.FrontendTemplateRevision = frontendTemplateRevision
-			data.E2ETemplateRevision = e2eTemplateRevision
-			frontendDir := filepath.Join("web", "antd", "src", "modules", module.Metadata.Name)
-			mappings = append(mappings,
-				struct{ template, path string }{"templates/module/frontend/types.ts.tmpl", filepath.Join(frontendDir, "types.ts")},
-				struct{ template, path string }{"templates/module/frontend/contracts.ts.tmpl", filepath.Join(frontendDir, "contracts.ts")},
-				struct{ template, path string }{"templates/module/frontend/service.ts.tmpl", filepath.Join(frontendDir, "service.ts")},
-				struct{ template, path string }{"templates/module/frontend/index.tsx.tmpl", filepath.Join(frontendDir, "index.tsx")},
-				struct{ template, path string }{"templates/module/frontend/contracts.test.ts.tmpl", filepath.Join(frontendDir, "contracts.test.ts")},
-				struct{ template, path string }{"templates/module/frontend/page.tsx.tmpl", filepath.Join("web", "antd", "src", "pages", "generated", module.Spec.Entity.GoName, "index.tsx")},
-			)
-		case spec.FrontendTargetAntDV6:
-			data.FrontendTemplateRevision = frontendV6TemplateRevision
-			data.E2ETemplateRevision = e2eV6TemplateRevision
-			frontendDir := filepath.Join("web", "antd-v6", "src", "generated", "modules", module.Metadata.Name)
-			mappings = append(mappings,
-				struct{ template, path string }{"templates/module/frontend-v6/types.ts.tmpl", filepath.Join(frontendDir, "types.ts")},
-				struct{ template, path string }{"templates/module/frontend-v6/contract.ts.tmpl", filepath.Join(frontendDir, "contract.ts")},
-				struct{ template, path string }{"templates/module/frontend-v6/api.ts.tmpl", filepath.Join(frontendDir, "api.ts")},
-				struct{ template, path string }{"templates/module/frontend-v6/query.ts.tmpl", filepath.Join(frontendDir, "query.ts")},
-				struct{ template, path string }{"templates/module/frontend-v6/page.tsx.tmpl", filepath.Join(frontendDir, module.Spec.Entity.GoName+"Page.tsx")},
-				struct{ template, path string }{"templates/module/frontend-v6/contract.test.ts.tmpl", filepath.Join(frontendDir, "contract.test.ts")},
-				struct{ template, path string }{"templates/module/frontend-v6/page-entry.tsx.tmpl", filepath.Join("web", "antd-v6", "src", "pages", "generated", module.Spec.Entity.GoName, "index.tsx")},
-			)
-		}
+		data.FrontendTemplateRevision = frontendV6TemplateRevision
+		data.E2ETemplateRevision = e2eV6TemplateRevision
+		frontendDir := filepath.Join("web", "antd-v6", "src", "generated", "modules", module.Metadata.Name)
+		mappings = append(mappings,
+			struct{ template, path string }{"templates/module/frontend-v6/types.ts.tmpl", filepath.Join(frontendDir, "types.ts")},
+			struct{ template, path string }{"templates/module/frontend-v6/contract.ts.tmpl", filepath.Join(frontendDir, "contract.ts")},
+			struct{ template, path string }{"templates/module/frontend-v6/api.ts.tmpl", filepath.Join(frontendDir, "api.ts")},
+			struct{ template, path string }{"templates/module/frontend-v6/query.ts.tmpl", filepath.Join(frontendDir, "query.ts")},
+			struct{ template, path string }{"templates/module/frontend-v6/page.tsx.tmpl", filepath.Join(frontendDir, module.Spec.Entity.GoName+"Page.tsx")},
+			struct{ template, path string }{"templates/module/frontend-v6/contract.test.ts.tmpl", filepath.Join(frontendDir, "contract.test.ts")},
+			struct{ template, path string }{"templates/module/frontend-v6/page-entry.tsx.tmpl", filepath.Join("web", "antd-v6", "src", "pages", "generated", module.Spec.Entity.GoName, "index.tsx")},
+		)
 	}
 	if module.Spec.Generation.Docs != nil && *module.Spec.Generation.Docs {
 		mappings = append(mappings, struct {
@@ -1365,18 +1346,12 @@ func renderModuleOutputs(repository *os.Root, module *spec.Module, data template
 		})
 	}
 	if module.Spec.Tests.E2E {
-		e2eTemplate := "templates/module/frontend/e2e.spec.ts.tmpl"
-		e2eRoot := filepath.Join("web", "antd")
-		if frontendTarget == spec.FrontendTargetAntDV6 {
-			e2eTemplate = "templates/module/frontend-v6/e2e.spec.ts.tmpl"
-			e2eRoot = filepath.Join("web", "antd-v6")
-		}
 		mappings = append(mappings, struct {
 			template string
 			path     string
 		}{
-			template: e2eTemplate,
-			path:     filepath.Join(e2eRoot, "e2e", "generated", module.Metadata.Name+".spec.ts"),
+			template: "templates/module/frontend-v6/e2e.spec.ts.tmpl",
+			path:     filepath.Join("web", "antd-v6", "e2e", "generated", module.Metadata.Name+".spec.ts"),
 		})
 	}
 
@@ -1442,11 +1417,7 @@ func obsoleteModuleOutputPaths(module *spec.Module, frontendTarget string) []str
 		paths = append(paths, filepath.ToSlash(filepath.Join("docs", "docs", "modules", module.Metadata.Name+".md")))
 	}
 	if !module.Spec.Tests.E2E {
-		frontendRoot := filepath.Join("web", "antd")
-		if frontendTarget == spec.FrontendTargetAntDV6 {
-			frontendRoot = filepath.Join("web", "antd-v6")
-		}
-		paths = append(paths, filepath.ToSlash(filepath.Join(frontendRoot, "e2e", "generated", module.Metadata.Name+".spec.ts")))
+		paths = append(paths, filepath.ToSlash(filepath.Join("web", "antd-v6", "e2e", "generated", module.Metadata.Name+".spec.ts")))
 	}
 	return paths
 }
@@ -1473,10 +1444,7 @@ func renderRegistryOutputs(repository *os.Root, current *spec.Module, frontendTa
 		return nil, fmt.Errorf("format generated module registry: %w", err)
 	}
 
-	frontendRevision := frontendTemplateRevision
-	if frontendTarget == spec.FrontendTargetAntDV6 {
-		frontendRevision = frontendV6TemplateRevision
-	}
+	frontendRevision := frontendV6TemplateRevision
 	var routes strings.Builder
 	routes.WriteString("// Code generated by mss module template " + frontendRevision + " sync. DO NOT EDIT.\n\n")
 	routes.WriteString("export default [\n")
@@ -1522,62 +1490,36 @@ func renderRegistryOutputs(repository *os.Root, current *spec.Module, frontendTa
 			fileMode: 0o644,
 		},
 	}
-	if frontendTarget == spec.FrontendTargetAntDV6 {
-		outputs = append(outputs,
-			output{
-				path:     "web/antd-v6/config/routes.generated.ts",
-				content:  normalizeNewline([]byte(routes.String())),
-				managed:  true,
-				source:   "admin/modules/*/module.yaml",
-				fileMode: 0o644,
-			},
-			output{
-				path:     "web/antd-v6/src/generated/locales/zh-CN.ts",
-				content:  normalizeNewline(zhCN),
-				managed:  true,
-				source:   "admin/modules/*/module.yaml",
-				fileMode: 0o644,
-			},
-			output{
-				path:     "web/antd-v6/src/generated/locales/en-US.ts",
-				content:  normalizeNewline(enUS),
-				managed:  true,
-				source:   "admin/modules/*/module.yaml",
-				fileMode: 0o644,
-			},
-			output{
-				path:     "web/antd-v6/src/generated/routes.ts",
-				content:  normalizeNewline(renderV6RouteRegistry(frontendModules)),
-				managed:  true,
-				source:   "admin/modules/*/module.yaml",
-				fileMode: 0o644,
-			},
-		)
-	} else {
-		outputs = append(outputs,
-			output{
-				path:     "web/antd/config/routes.generated.ts",
-				content:  normalizeNewline([]byte(routes.String())),
-				managed:  true,
-				source:   "admin/modules/*/module.yaml",
-				fileMode: 0o644,
-			},
-			output{
-				path:     "web/antd/src/locales/generated.zh-CN.ts",
-				content:  normalizeNewline(zhCN),
-				managed:  true,
-				source:   "admin/modules/*/module.yaml",
-				fileMode: 0o644,
-			},
-			output{
-				path:     "web/antd/src/locales/generated.en-US.ts",
-				content:  normalizeNewline(enUS),
-				managed:  true,
-				source:   "admin/modules/*/module.yaml",
-				fileMode: 0o644,
-			},
-		)
-	}
+	outputs = append(outputs,
+		output{
+			path:     "web/antd-v6/config/routes.generated.ts",
+			content:  normalizeNewline([]byte(routes.String())),
+			managed:  true,
+			source:   "admin/modules/*/module.yaml",
+			fileMode: 0o644,
+		},
+		output{
+			path:     "web/antd-v6/src/generated/locales/zh-CN.ts",
+			content:  normalizeNewline(zhCN),
+			managed:  true,
+			source:   "admin/modules/*/module.yaml",
+			fileMode: 0o644,
+		},
+		output{
+			path:     "web/antd-v6/src/generated/locales/en-US.ts",
+			content:  normalizeNewline(enUS),
+			managed:  true,
+			source:   "admin/modules/*/module.yaml",
+			fileMode: 0o644,
+		},
+		output{
+			path:     "web/antd-v6/src/generated/routes.ts",
+			content:  normalizeNewline(renderV6RouteRegistry(frontendModules)),
+			managed:  true,
+			source:   "admin/modules/*/module.yaml",
+			fileMode: 0o644,
+		},
+	)
 	return outputs, nil
 }
 

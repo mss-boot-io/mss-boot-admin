@@ -20,7 +20,7 @@ A successful change must be understandable by humans, executable by coding agent
 | `/` | Agent/Foundation Go tooling, workspace orchestration, and repository contracts |
 | `admin/` | Deployable reference Admin application and legacy business implementation |
 | `mss-boot/` | Reusable Go framework module; keep domain-neutral |
-| `web/antd/` | React + Ant Design frontend |
+| `web/antd-v6/` | React 19 + Ant Design 6 frontend and independent release unit |
 | `docs/` | Product, architecture, operations, and contributor documentation |
 | `.mss/` | Machine-readable project, capability, command, schema, module, eval, and lock contracts |
 | `.agents/skills/` | Reusable agent workflows; skills call the `mss` CLI instead of duplicating implementation logic |

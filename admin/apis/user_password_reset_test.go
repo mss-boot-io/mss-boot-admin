@@ -123,35 +123,21 @@ func TestOAuthBindingMutationsRejectPersonalAccessTokensWithoutDatabaseSideEffec
 			}},
 		},
 	}
-	routes := []struct {
-		name    string
-		method  string
-		path    string
-		handler gin.HandlerFunc
-	}{
-		{name: "binding", method: http.MethodPost, path: "/admin/api/user/binding", handler: (&User{}).Binding},
-		{name: "unbinding", method: http.MethodDelete, path: "/admin/api/user/unbinding", handler: (&User{}).Unbinding},
-	}
-
 	for _, principal := range principals {
 		t.Run(principal.name, func(t *testing.T) {
 			principal.principal.ID = "user-1"
-			for _, route := range routes {
-				t.Run(route.name, func(t *testing.T) {
-					recorder := executeUserOAuthMutation(
-						t,
-						principal.principal,
-						route.method,
-						route.path,
-						route.handler,
-					)
-					if recorder.Code != http.StatusForbidden {
-						t.Fatalf("status = %d, body = %s, want 403", recorder.Code, recorder.Body.String())
-					}
-					if after := countOAuthBindings(t, db); after != before {
-						t.Fatalf("OAuth binding rows changed for rejected token: before=%d after=%d", before, after)
-					}
-				})
+			recorder := executeUserOAuthMutation(
+				t,
+				principal.principal,
+				http.MethodDelete,
+				"/admin/api/user/oauth2/github",
+				(&User{}).DisconnectOAuth,
+			)
+			if recorder.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, body = %s, want 403", recorder.Code, recorder.Body.String())
+			}
+			if after := countOAuthBindings(t, db); after != before {
+				t.Fatalf("OAuth binding rows changed for rejected token: before=%d after=%d", before, after)
 			}
 		})
 	}

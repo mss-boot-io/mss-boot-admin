@@ -28,8 +28,7 @@ class ReleasePolicyTest(unittest.TestCase):
         cases = {
             "root": "v1.1.0",
             "framework": "mss-boot/v1.1.0",
-            "frontend": "web/antd/v1.1.0",
-            "frontend-v6": "web/antd-v6/v1.1.0",
+            "frontend": "web/antd-v6/v1.1.0",
         }
         for component, tag in cases.items():
             with self.subTest(component=component):
@@ -105,7 +104,6 @@ class ReleasePolicyTest(unittest.TestCase):
         workflows = (
             "release.yml",
             "framework-release.yml",
-            "frontend-release.yml",
             "frontend-v6-release.yml",
             "container.yml",
         )
@@ -125,7 +123,6 @@ class ReleasePolicyTest(unittest.TestCase):
         cases = {
             "release.yml": ("release-evidence", True),
             "framework-release.yml": ("release", True),
-            "frontend-release.yml": ("release", True),
             "frontend-v6-release.yml": ("release", True),
             "container.yml": ("publish", True),
             "release-readiness.yml": ("full-verification", False),
@@ -165,7 +162,6 @@ class ReleasePolicyTest(unittest.TestCase):
         workflows = (
             "release.yml",
             "framework-release.yml",
-            "frontend-release.yml",
             "frontend-v6-release.yml",
             "container.yml",
             "release-readiness.yml",
@@ -201,7 +197,6 @@ class ReleasePolicyTest(unittest.TestCase):
     def test_publication_workflows_require_the_phase_they_publish_from(self):
         expected_phases = {
             "framework-release.yml": "--phase pre-framework",
-            "frontend-release.yml": "--phase pre-framework",
             "frontend-v6-release.yml": "--phase pre-framework",
             "container.yml": "--phase pre-root",
             "release.yml": "--phase pre-root",

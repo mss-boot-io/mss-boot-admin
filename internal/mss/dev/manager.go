@@ -132,7 +132,7 @@ func Start(parent context.Context, config *Config, options StartOptions) (Report
 	if options.Stderr == nil {
 		options.Stderr = options.Stdout
 	}
-	services, err := config.Services(options.Services)
+	services, err := config.StartServices(options.Services)
 	if err != nil {
 		return Report{}, err
 	}

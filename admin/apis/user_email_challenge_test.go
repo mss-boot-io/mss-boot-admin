@@ -90,7 +90,7 @@ func TestEmailChallengePurposeIsolation(t *testing.T) {
 	prepareEmailRegistrationRole(t)
 	gin.SetMode(gin.TestMode)
 	loginContext, _ := gin.CreateTestContext(httptest.NewRecorder())
-	loginContext.Request = httptest.NewRequest(http.MethodPost, "/admin/api/user/login", nil)
+	loginContext.Request = httptest.NewRequest(http.MethodPost, "/admin/api/user/session/login", nil)
 	for _, provider := range []pkg.LoginProvider{pkg.EmailLoginProvider, pkg.EmailRegisterProvider} {
 		login := &models.UserLogin{Provider: provider, Email: testChallengeEmail, Captcha: "123456"}
 		ok, principal, err := login.Verify(loginContext)
@@ -306,7 +306,7 @@ func TestEmailChallengeCapabilityDisableRejectsEveryActiveCodeConsumer(t *testin
 	})
 
 	loginContext, _ := gin.CreateTestContext(httptest.NewRecorder())
-	loginContext.Request = httptest.NewRequest(http.MethodPost, "/admin/api/user/login", nil)
+	loginContext.Request = httptest.NewRequest(http.MethodPost, "/admin/api/user/session/login", nil)
 	for _, attempt := range []*models.UserLogin{
 		{Provider: pkg.EmailLoginProvider, Email: testChallengeEmail, Captcha: codes[pkg.EmailLoginChallengePurpose]},
 		{Provider: pkg.EmailRegisterProvider, Email: testChallengeEmail, Captcha: codes[pkg.EmailRegisterChallengePurpose]},

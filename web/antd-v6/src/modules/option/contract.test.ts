@@ -116,7 +116,7 @@ describe('option contract', () => {
     expect(create.items[0]).not.toHaveProperty('id');
 
     const update = serializeOptionWrite(values, { base: detail });
-    expect(update.expectedVersion).toBe(3);
+		expect(update).not.toHaveProperty('expectedVersion');
     expect(update.items[0]).toMatchObject({ id: 'item-1', extra: { source: 'seed' } });
   });
 
@@ -138,7 +138,6 @@ describe('option contract', () => {
       description: '',
       remark: '',
       items: [],
-      expectedVersion: 3,
     });
   });
 

@@ -25,7 +25,7 @@ This document is generated deterministically from [`{{ .SourceSpec }}`](../../..
 | Authorization migration | `{{ .AuthorizationMigrationID }}` |
 | API base | `{{ .FullAPIPath }}` |
 | Frontend route | `{{ .Menu.Path }}` |
-| Frontend targets | {{ if .HasFrontendV5 }}`antd-v5`{{ end }}{{ if and .HasFrontendV5 .HasFrontendV6 }}, {{ end }}{{ if .HasFrontendV6 }}`antd-v6`{{ end }} |
+| Frontend target | {{ if .HasFrontendV6 }}`antd-v6`{{ else }}none{{ end }} |
 | Ownership | role-only; no row ownership fallback |
 
 Both migrations are additive and must be applied by the Admin migration command before production routes are mounted. Authorization remains enforced by the Admin database-backed Casbin policy; frontend visibility is only a user-experience aid.
@@ -50,7 +50,6 @@ Both migrations are additive and must be applied by the Admin migration command 
 
 Each selected frontend target receives an isolated generated page with the declared loading, empty, error, forbidden, validation, conflict, and destructive-confirmation states. Browser entries are target-specific:
 
-{{ if .HasFrontendV5 }}- Ant Design 5: `web/antd/e2e/generated/{{ .ModuleName }}.spec.ts`;{{ end }}
 {{ if .HasFrontendV6 }}- Ant Design 6: `web/antd-v6/e2e/generated/{{ .ModuleName }}.spec.ts`.{{ end }}
 
 Each generated flow covers the declared surfaces:
@@ -69,18 +68,11 @@ From the repository root:
 
 ```shell
 go run ./cmd/mss spec validate {{ .SourceSpec }} --format json
-{{- if .HasFrontendV5 }}
-go run ./cmd/mss module generate {{ .SourceSpec }} --frontend-target antd-v5 --write
-go run ./cmd/mss module generate {{ .SourceSpec }} --frontend-target antd-v5 --check
-{{- end }}
 {{- if .HasFrontendV6 }}
 go run ./cmd/mss module generate {{ .SourceSpec }} --frontend-target antd-v6 --write
 go run ./cmd/mss module generate {{ .SourceSpec }} --frontend-target antd-v6 --check
 {{- end }}
 cd admin && GOWORK=off go test ./modules/{{ .ModuleName }}/...
-{{- if .HasFrontendV5 }}
-cd web/antd && pnpm exec playwright test e2e/generated/{{ .ModuleName }}.spec.ts --project=chromium
-{{- end }}
 {{- if .HasFrontendV6 }}
 cd web/antd-v6 && pnpm exec playwright test e2e/generated/{{ .ModuleName }}.spec.ts --project=chromium-desktop
 {{- end }}

@@ -57,7 +57,7 @@ The project has undergone comprehensive polish rounds focusing on:
 | --- | --- |
 | `/` | Go admin backend |
 | `mss-boot/` | Reusable Go framework module |
-| `web/antd/` | React + Ant Design frontend |
+| `web/antd-v6/` | React 19 + Ant Design 6 frontend, independently released |
 | `docs/` | Dumi documentation site |
 
 All active development now happens in this repository. The former standalone repositories are retained only as migration history and compatibility references.
@@ -113,7 +113,7 @@ All active development now happens in this repository. The former standalone rep
 ## 📦 Preparation
 - Install Go 1.26+
 - Optional for backend integration testing: MySQL 8.0+ and Redis 7+
-- Frontend development: Node.js 22+ and pnpm 9+
+- Primary frontend development: Node.js 24 and pnpm 10.34.5 through Corepack
 
 ## 📦 Quick start
 
@@ -126,6 +126,8 @@ cd mss-boot-admin
 ./mss dev --detach
 ./mss dev status --format json
 ```
+
+The single Admin client is served at `http://localhost:8001` from `web/antd-v6`.
 
 Create or validate development contracts before editing repetitive code:
 

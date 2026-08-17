@@ -87,9 +87,9 @@ func (l *Language) normalizeAndValidate(normalize bool) error {
 	if normalize {
 		l.Name = canonicalName
 	} else if l.Name != name {
-		// Pre-existing, parseable tags may use non-canonical casing. Preserve
-		// them on reads for V5 overlap; the next explicit write canonicalizes
-		// the value without allowing hidden surrounding whitespace.
+		// Pre-existing, parseable tags may use non-canonical casing. Reads do
+		// not rewrite persisted data; the next explicit write canonicalizes the
+		// value without allowing hidden surrounding whitespace.
 		return fmt.Errorf("%w: stored name contains surrounding whitespace", ErrLanguageInvalid)
 	}
 	if !normalize && (strings.TrimSpace(l.ID) == "" || len(l.ID) > 64) {

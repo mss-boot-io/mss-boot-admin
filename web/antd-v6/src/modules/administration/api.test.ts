@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAdministrationAPI } from './api';
 
 describe('administration API', () => {
-  it('maps hierarchy pagination to the legacy-compatible backend query', async () => {
+  it('maps hierarchy pagination to the canonical backend query', async () => {
     const client = vi.fn(async () => ({ data: [], total: 0, current: 2, pageSize: 20 }));
     const api = createAdministrationAPI(client);
 

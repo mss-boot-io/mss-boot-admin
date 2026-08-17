@@ -4,27 +4,28 @@ order: 13
 nav:
   order: 1
   title: admin
-description: admin 与 antd 的本地联调流程
+description: admin 与 Ant Design V6 的本地联调流程
 keywords: [admin local debug, mss-boot-admin debug]
 ---
 
-本文档给出一个可复现的本地联调流程，适用于 `admin` + `antd` 同时开发。
+本文档给出一个可复现的本地联调流程，适用于 `admin` + `web/antd-v6` 同时开发。
 
 ## 启动顺序
 
-1. 在 `mss-boot-admin` 执行后端启动：`go run . server`
-2. 在 `mss-boot-admin-antd` 执行前端启动：`pnpm dev`
+1. 在仓库根目录执行 `go run ./cmd/mss dev`，默认启动后端与 V6 前端。
+2. 如需分别调试，可在 `admin/` 执行 `go run . server`，在 `web/antd-v6/`
+   执行 `corepack pnpm@10.34.5 start:dev`。
 
 默认端口基线：
 
 - 后端：`0.0.0.0:8080`（以 `config/application.yml` `server.addr` 为准）
-- 前端：`8000`
+- V6 前端：`8001`
 
 ## 快速验证
 
 ```bash
 curl -I http://127.0.0.1:8080/healthz
-curl -I http://127.0.0.1:8000
+curl -I http://127.0.0.1:8001
 ```
 
 若返回 `200` 或可预期状态码（如鉴权相关 `401`），通常说明服务启动正常。
@@ -35,7 +36,7 @@ curl -I http://127.0.0.1:8000
 
 ```bash
 lsof -i :8080
-lsof -i :8000
+lsof -i :8001
 ```
 
 若被占用，先停止冲突进程再重启服务。

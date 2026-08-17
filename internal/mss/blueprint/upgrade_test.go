@@ -49,7 +49,7 @@ func TestUpgradeAppliesFoundationChangesAndPreservesCustomization(t *testing.T) 
 	assertUpgradeAction(t, plan, "AGENTS.md", ActionPreserve)
 	assertUpgradeAction(t, plan, "admin/main.go", ActionUpdate)
 	assertUpgradeAction(t, plan, "NEW.md", ActionCreate)
-	assertUpgradeAction(t, plan, "web/antd/public/fixture.bin", ActionDelete)
+	assertUpgradeAction(t, plan, "web/antd-v6/public/fixture.bin", ActionDelete)
 
 	applied, err := Upgrade(context.Background(), UpgradeOptions{
 		ApplicationRoot: applicationRoot,
@@ -182,7 +182,7 @@ func TestUpgradeDetectsCustomizedFileRemovedByFoundation(t *testing.T) {
 	if plan.Success {
 		t.Fatal("customized removed file did not cause a conflict")
 	}
-	assertUpgradeAction(t, plan, "web/antd/public/fixture.bin", ActionConflict)
+	assertUpgradeAction(t, plan, "web/antd-v6/public/fixture.bin", ActionConflict)
 }
 
 func TestUpgradeAcceptsLegacyManifestOnlyAsMigrationInput(t *testing.T) {

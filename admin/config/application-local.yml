@@ -1,0 +1,11 @@
+# Local development serves the sole Ant Design V6 application from port 8001.
+# Production still requires an exact HTTPS origin, a strong auth key, shared
+# runtime dependencies, and Secure cookies.
+application:
+  mode: dev
+  origin: http://localhost:8001
+auth:
+  browserSession:
+    secure: false
+    sameSite: lax
+    webSocketTicketTTL: 30s

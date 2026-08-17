@@ -19,6 +19,7 @@ spec:
       required: true
       environment:
         MSS_DEV_MANAGED: "true"
+        STAGE: local
       health:
         url: http://127.0.0.1:8080/healthz
         interval: 500ms
@@ -26,30 +27,13 @@ spec:
         successStatus: [200, 204]
 
     - id: frontend
-      description: React and Ant Design development server
-      directory: web/antd
-      command:
-        - pnpm
-        - start:dev
-      required: true
-      dependsOn: [backend]
-      environment:
-        BROWSER: none
-        MSS_DEV_MANAGED: "true"
-      health:
-        url: http://127.0.0.1:8000/
-        interval: 500ms
-        timeout: 90s
-        successStatus: [200, 304]
-
-    - id: frontend-v6
-      description: Independent React 19 and Ant Design 6 development server
+      description: Primary React 19 and Ant Design 6 development server
       directory: web/antd-v6
       command:
         - corepack
         - pnpm@10.34.5
         - start:dev
-      required: false
+      required: true
       dependsOn: [backend]
       environment:
         BROWSER: none

@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -71,17 +70,15 @@ func Init() {
 				if v.GetRefreshTokenDisable() {
 					return claims
 				}
-				if config.Cfg.Auth.SessionEnabled {
-					bag := loginContext.Load()
-					loginContext.Clear()
-					if bag.sid == "" {
-						// Authenticator 已经在 SessionEnabled 路径强制创建 session；
-						// 落到这里只可能是 sid 在 store→load 之间被冲掉，属于异常。
-						slog.Error("session sid missing in payload")
-						return jwt.MapClaims{}
-					}
-					claims["sid"] = bag.sid
+				bag := loginContext.Load()
+				loginContext.Clear()
+				if bag.sid == "" {
+					// AuthenticateVerifier always creates the durable V6 session.
+					// A missing sid means the handoff into TokenGenerator failed.
+					slog.Error("session sid missing in payload")
+					return jwt.MapClaims{}
 				}
+				claims["sid"] = bag.sid
 				return claims
 			}
 			return jwt.MapClaims{}
@@ -108,61 +105,20 @@ func Init() {
 				markAuthenticationFailure(c)
 				return nil
 			}
-			if config.Cfg.Auth.SessionEnabled {
-				if !validateSessionFromClaims(c, claims, principal) {
-					markAuthenticationFailure(c)
-					return nil
-				}
+			if !validateSessionFromClaims(c, claims, principal) {
+				markAuthenticationFailure(c)
+				return nil
 			}
 			return principal
 		},
-		Authenticator: authenticateLoginRequest,
-		Authorizator:  authorizeCurrentPolicyRequest,
-		RefreshResponse: func(c *gin.Context, code int, token string, expire time.Time) {
-			jwtToken, err := Auth.ParseTokenString(token)
-			if err != nil {
-				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
-				return
-			}
-			claims := jwt.ExtractClaimsFromToken(jwtToken)
-			if len(claims) == 0 {
-				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
-				return
-			}
-			if cast.ToBool(claims["refreshTokenDisabled"]) {
-				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token disabled")
-				return
-			}
-			principal, err := currentPrincipalFromClaims(c, claims)
-			if err != nil {
-				writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "refresh token error")
-				return
-			}
-			if config.Cfg.Auth.SessionEnabled {
-				if !validateSessionFromClaims(c, claims, principal) {
-					writeAuthErrorResponse(c, http.StatusOK, http.StatusUnauthorized, "session revoked")
-					return
-				}
-			}
-			//todo 重新颁发token
-			c.JSON(http.StatusOK, gin.H{
-				"code":   http.StatusOK,
-				"token":  token,
-				"expire": expire.Format(time.RFC3339),
-			})
-		},
-		Unauthorized: writeUnauthorizedAuthResponse,
-		// TokenLookup is a string in the form of "<source>:<name>" that is used
-		// to extract token from the request.
-		// Optional. Default value "header:Authorization".
-		// Possible values:
-		// - "header:<name>"
-		// - "query:<name>"
-		// - "cookie:<name>"
-		// - "param:<name>"
+		Authenticator:   authenticateLoginRequest,
+		Authorizator:    authorizeCurrentPolicyRequest,
+		LoginResponse:   rejectGenericAuthResponse,
+		RefreshResponse: rejectGenericAuthResponse,
+		Unauthorized:    writeUnauthorizedAuthResponse,
+		// The application accepts only explicit API Authorization headers and,
+		// when enabled, the fixed V6 browser-session cookie.
 		TokenLookup: authenticationTokenLookup(),
-		// TokenLookup: "query:token",
-		// TokenLookup: "cookie:token",
 
 		// TokenHeadName is a string in the header. Default value is "Bearer"
 		TokenHeadName: "Bearer",
@@ -206,6 +162,14 @@ func writeUnauthorizedAuthResponse(c *gin.Context, code int, message string) {
 	writeAuthErrorResponse(c, code, code, message)
 }
 
+// rejectGenericAuthResponse prevents future route registrations from exposing
+// gin-jwt's token-returning login or refresh response. Browser authentication
+// is owned exclusively by BrowserSessionLoginHandler and
+// BrowserSessionRefreshHandler; API automation uses PAT Bearer credentials.
+func rejectGenericAuthResponse(c *gin.Context, _ int, _ string, _ time.Time) {
+	writeAuthErrorResponse(c, http.StatusNotFound, http.StatusNotFound, "route not found")
+}
+
 func authenticateLoginRequest(c *gin.Context) (any, error) {
 	loginVals := reflect.New(reflect.TypeOf(Verifier).Elem()).Interface().(security.Verifier)
 	if err := c.ShouldBind(&loginVals); err != nil {
@@ -217,57 +181,20 @@ func authenticateLoginRequest(c *gin.Context) (any, error) {
 	return AuthenticateVerifier(c, loginVals)
 }
 
-// PublicLoginHandler keeps username/password, email, and phone login on the
-// canonical endpoint while rejecting legacy requests that submit a raw OAuth
-// provider token. Server-completed OAuth callbacks call
-// AuthenticateAndGenerateToken directly and do not set this marker.
-func PublicLoginHandler(c *gin.Context) {
-	if c == nil {
-		return
-	}
-	if Auth == nil {
-		writeAuthErrorResponse(c, http.StatusInternalServerError, http.StatusInternalServerError, "authentication middleware is not initialized")
-		return
-	}
-	c.Set(publicLoginDisallowOAuthKey, true)
-	Auth.LoginHandler(c)
-}
-
-// ClearAuthCookie expires the HttpOnly JWT cookie without writing a response.
-// Session-aware logout handlers use it after revoking the server-side session.
+// ClearAuthCookie expires the V6 browser session cookies without writing a
+// response. Session-aware logout handlers use it after revoking the
+// server-side session.
 func ClearAuthCookie(c *gin.Context) {
 	if c == nil {
 		return
 	}
 	ClearBrowserSessionCookies(c)
-	if Auth == nil {
-		return
-	}
-	cookieName := strings.TrimSpace(Auth.CookieName)
-	if cookieName == "" {
-		cookieName = "jwt"
-	}
-	sameSite := Auth.CookieSameSite
-	if sameSite == 0 {
-		sameSite = http.SameSiteLaxMode
-	}
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     cookieName,
-		Value:    "",
-		Path:     "/",
-		Domain:   Auth.CookieDomain,
-		Expires:  time.Unix(1, 0),
-		MaxAge:   -1,
-		Secure:   Auth.SecureCookie || requestIsHTTPS(c),
-		HttpOnly: true,
-		SameSite: sameSite,
-	})
 }
 
 // AuthenticateVerifier executes the canonical credential verification,
 // session creation, and login-audit path for a caller-supplied login verifier.
-// Callers that enable sessions must generate the JWT in the same goroutine so
-// PayloadFunc can consume the newly-created session identifier.
+// Callers must generate the JWT in the same goroutine so PayloadFunc can
+// consume the newly-created V6 session identifier.
 func AuthenticateVerifier(c *gin.Context, loginVals security.Verifier) (security.Verifier, error) {
 	if c == nil || loginVals == nil {
 		return nil, jwt.ErrMissingLoginValues
@@ -313,25 +240,23 @@ func AuthenticateVerifier(c *gin.Context, loginVals security.Verifier) (security
 		return nil, jwt.ErrFailedAuthentication
 	}
 	user = currentUser
-	if config.Cfg.Auth.SessionEnabled {
-		sid, sessionErr := service.Session.Create(c, center.Default.GetDB(c, &models.UserSession{}), service.CreateSessionInput{
-			UserID:    user.GetUserID(),
-			Username:  user.GetUsername(),
-			RoleID:    user.GetRoleID(),
-			IP:        ip,
-			UserAgent: userAgent,
-			TTL:       config.Cfg.Auth.Timeout,
-		})
-		if sessionErr != nil {
-			api.AddError(sessionErr).Log.Error("session create failed")
-			if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent,
-				"session creation failed", false); logErr != nil {
-				api.AddError(logErr).Log.Warn("write login log failed")
-			}
-			return nil, jwt.ErrFailedAuthentication
+	sid, sessionErr := service.Session.Create(c, center.Default.GetDB(c, &models.UserSession{}), service.CreateSessionInput{
+		UserID:    user.GetUserID(),
+		Username:  user.GetUsername(),
+		RoleID:    user.GetRoleID(),
+		IP:        ip,
+		UserAgent: userAgent,
+		TTL:       config.Cfg.Auth.Timeout,
+	})
+	if sessionErr != nil {
+		api.AddError(sessionErr).Log.Error("session create failed")
+		if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent,
+			"session creation failed", false); logErr != nil {
+			api.AddError(logErr).Log.Warn("write login log failed")
 		}
-		loginContext.Store(sid)
+		return nil, jwt.ErrFailedAuthentication
 	}
+	loginContext.Store(sid)
 	if logErr := service.Audit.LogLogin(db, user.GetUserID(), user.GetUsername(), ip, userAgent, "login success", true); logErr != nil {
 		api.AddError(logErr).Log.Warn("write login log failed")
 	}
@@ -361,30 +286,9 @@ func principalClaims(verifier security.Verifier) jwt.MapClaims {
 func principalSnapshotFromClaims(claims jwt.MapClaims) (string, string, error) {
 	userID := strings.TrimSpace(cast.ToString(claims["uid"]))
 	roleID := strings.TrimSpace(cast.ToString(claims["rid"]))
-	if userID != "" || roleID != "" {
-		if userID == "" || roleID == "" {
-			return "", "", errors.New("identity snapshot is incomplete")
-		}
-		return userID, roleID, nil
-	}
-
-	// Compatibility for interactive JWTs issued before uid/rid became the
-	// minimal claim contract. The embedded Role/Root values are ignored; only
-	// the signed identifiers are used to reload current database authority.
-	legacy := strings.TrimSpace(cast.ToString(claims["verifier"]))
-	if legacy == "" || Verifier == nil {
+	if userID == "" && roleID == "" {
 		return "", "", errors.New("identity snapshot is missing")
 	}
-	verifierType := reflect.TypeOf(Verifier)
-	if verifierType.Kind() != reflect.Pointer {
-		return "", "", errors.New("identity verifier type is invalid")
-	}
-	verifier := reflect.New(verifierType.Elem()).Interface().(security.Verifier)
-	if err := json.Unmarshal([]byte(legacy), verifier); err != nil {
-		return "", "", errors.New("identity snapshot is invalid")
-	}
-	userID = strings.TrimSpace(verifier.GetUserID())
-	roleID = strings.TrimSpace(verifier.GetRoleID())
 	if userID == "" || roleID == "" {
 		return "", "", errors.New("identity snapshot is incomplete")
 	}
@@ -442,7 +346,6 @@ func AuthenticateAndGenerateToken(
 		loginContext.Clear()
 		return "", time.Time{}, err
 	}
-	Auth.SetCookie(c, token)
 	return token, expiresAt, nil
 }
 
@@ -467,22 +370,6 @@ func authenticatePersonalAccessToken(
 }
 
 // GetVerify 获取当前登录用户
-// validateRefreshVerifier reloads the signed principal from the authoritative
-// database. Refresh must never reuse UserLogin.Verify: that method accepts
-// public login input, while this path may trust identity fields only after the
-// refresh token has been cryptographically validated by gin-jwt.
-func validateRefreshVerifier(c *gin.Context, verifier security.Verifier) error {
-	if c == nil || verifier == nil {
-		return errors.New("refresh identity is missing")
-	}
-	userID := strings.TrimSpace(verifier.GetUserID())
-	if userID == "" {
-		return errors.New("refresh identity is missing")
-	}
-	_, err := loadCurrentPrincipal(c, userID, verifier.GetRoleID())
-	return err
-}
-
 func GetVerify(ctx *gin.Context) security.Verifier {
 	if ctx == nil {
 		return nil
@@ -522,50 +409,14 @@ func requestHasCredential(c *gin.Context) bool {
 	if strings.TrimSpace(c.GetHeader("Authorization")) != "" {
 		return true
 	}
-	for _, name := range []string{BrowserSessionCookieName, "jwt"} {
-		cookie, err := c.Cookie(name)
-		if err == nil && strings.TrimSpace(cookie) != "" {
-			return true
-		}
+	if cookie, err := c.Cookie(BrowserSessionCookieName); err == nil && strings.TrimSpace(cookie) != "" {
+		return true
 	}
 	return false
 }
 
 func authenticationTokenLookup() string {
-	lookups := []string{"header: Authorization"}
-	if config.Cfg.Auth.BrowserSession.Enabled {
-		lookups = append(lookups, "cookie: "+BrowserSessionCookieName)
-	}
-	// Retain the historical cookie reader during the dual-client window. New
-	// code never emits this cookie, and unsafe cookie-authenticated requests are
-	// still subject to the global CSRF middleware.
-	lookups = append(lookups, "cookie: jwt")
-	return strings.Join(lookups, ", ")
-}
-
-// LegacyWebSocketAuth confines V5's query credential to the one historical
-// upgrade route. Query tokens are deliberately absent from TokenLookup, so no
-// REST endpoint can authenticate from a URL credential.
-func LegacyWebSocketAuth() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if Auth == nil {
-			writeAuthErrorResponse(c, http.StatusInternalServerError, http.StatusInternalServerError, "authentication middleware is not initialized")
-			return
-		}
-		if strings.TrimSpace(c.GetHeader("Authorization")) == "" {
-			if !config.Cfg.Auth.BrowserSession.LegacyWebSocketQueryTokenAllowed() {
-				writeAuthErrorResponse(c, http.StatusGone, http.StatusGone, "legacy websocket authentication is disabled")
-				return
-			}
-			token := strings.TrimSpace(c.Query("token"))
-			if token == "" {
-				writeAuthErrorResponse(c, http.StatusUnauthorized, http.StatusUnauthorized, "websocket credential is missing")
-				return
-			}
-			c.Request.Header.Set("Authorization", "Bearer "+token)
-		}
-		Auth.MiddlewareFunc()(c)
-	}
+	return "header: Authorization, cookie: " + BrowserSessionCookieName
 }
 
 func markAuthenticationFailure(c *gin.Context) {
@@ -602,8 +453,8 @@ func IsPersonalAccessTokenVerifier(verifier security.Verifier) bool {
 }
 
 // CurrentSessionID returns the durable server-session identifier carried by
-// the authenticated JWT. Sensitive self-service fails closed when a legacy
-// credential has no sid instead of treating a bearer token as step-up proof.
+// the authenticated JWT. Sensitive self-service fails closed when a credential
+// has no sid instead of treating an API token as step-up proof.
 func CurrentSessionID(c *gin.Context) string {
 	if c == nil {
 		return ""
@@ -619,12 +470,8 @@ func isInteractiveSensitiveRequest(method, path string) bool {
 		http.MethodPut + " /admin/api/user/security/password",
 		http.MethodDelete + " /admin/api/user/oauth2/:provider",
 		http.MethodPut + " /admin/api/user/userInfo",
-		http.MethodPost + " /admin/api/user/oauth2/authorize",
 		http.MethodPost + " /admin/api/user/session/oauth2/authorize",
-		http.MethodPost + " /admin/api/user/:provider/callback",
 		http.MethodPost + " /admin/api/user/session/:provider/callback",
-		http.MethodPost + " /admin/api/user/binding",
-		http.MethodDelete + " /admin/api/user/unbinding",
 		http.MethodPost + " /admin/api/ws/tickets",
 		http.MethodGet + " /admin/api/user-auth-tokens",
 		http.MethodPost + " /admin/api/user-auth-tokens",
@@ -659,14 +506,9 @@ var selfServiceRequests = map[string]struct{}{
 	http.MethodPut + " /admin/api/user/userInfo":                    {},
 	http.MethodPost + " /admin/api/user/avatar":                     {},
 	http.MethodGet + " /admin/api/user/oauth2":                      {},
-	http.MethodPost + " /admin/api/user/oauth2/authorize":           {},
 	http.MethodPost + " /admin/api/user/session/oauth2/authorize":   {},
-	http.MethodPost + " /admin/api/user/:provider/callback":         {},
 	http.MethodPost + " /admin/api/user/session/:provider/callback": {},
-	http.MethodPost + " /admin/api/user/binding":                    {},
-	http.MethodDelete + " /admin/api/user/unbinding":                {},
 	http.MethodPost + " /admin/api/online-sessions/logout":          {},
-	http.MethodGet + " /admin/api/ws/connect":                       {},
 	http.MethodPost + " /admin/api/ws/tickets":                      {},
 }
 
@@ -815,9 +657,8 @@ func writeAuthErrorResponse(c *gin.Context, httpStatus, businessCode int, messag
 // missing/revoked/expired session, identity mismatch, or unrecoverable DB
 // error). On success it kicks off a throttled async last_seen update.
 //
-// Extracted from middleware.Init so integration tests can exercise the four
-// branches the reviewer flagged (PR #376 review #5): sid present + active,
-// missing-sid legacy JWT, DB-revoked session, and DB-expired session.
+// Extracted from middleware.Init so integration tests can exercise active,
+// missing-sid, DB-revoked, DB-expired, and identity-mismatch branches.
 func validateSessionFromClaims(
 	c *gin.Context,
 	claims jwt.MapClaims,

@@ -105,7 +105,6 @@ export interface MenuSummary extends AdministrationNode {
   permission: string;
   method: string;
   type: 'API' | 'COMPONENT' | 'DIRECTORY' | 'MENU';
-  component: string;
   icon: string;
   hideInMenu: boolean;
   children?: MenuSummary[];
@@ -118,7 +117,6 @@ export interface MenuWriteValues {
   permission?: string;
   method?: string;
   type: MenuSummary['type'];
-  component?: string;
   icon?: string;
   hideInMenu?: boolean;
   status: AdministrationStatus;
@@ -382,7 +380,6 @@ export function parseMenu(value: unknown): MenuSummary {
       permission: text(menu, 'permission', 255),
       method: text(menu, 'method', 10) || 'GET',
       type: type as MenuSummary['type'],
-      component: text(menu, 'component', 255),
       icon: text(menu, 'icon', 255),
       hideInMenu: bool(menu, 'hideInMenu'),
     };
@@ -578,7 +575,6 @@ export function serializeMenuWrite(values: MenuWriteValues) {
     permission: cleanOptional(values.permission, 255),
     method,
     type: values.type,
-    component: cleanOptional(values.component, 255),
     icon: cleanOptional(values.icon, 255),
     hideInMenu: Boolean(values.hideInMenu),
     status: writeStatus(values.status),

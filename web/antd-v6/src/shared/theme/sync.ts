@@ -128,7 +128,6 @@ export function decideThemeScopeEvent(
     scope: event.scope,
     revision: event.revision,
     overrides: event.overrides,
-    versioned: true,
   };
   const order = compareThemeRevisions(incoming.revision, current.revision);
   if (order < 0) return 'stale';
@@ -201,7 +200,7 @@ export function publishThemeScopeResource(
   resource: ThemeScopeResource,
   authSessionId?: string,
 ): ThemeScopeUpdatedEvent | undefined {
-  if (!resource.versioned || (resource.scope === 'user' && !authSessionId)) return undefined;
+  if (resource.scope === 'user' && !authSessionId) return undefined;
   const event: ThemeScopeUpdatedEvent = {
     ...eventBase(),
     type: 'scope-updated',

@@ -161,7 +161,6 @@ export default function MenuManagement({
       permission: menu.permission,
       method: menu.method,
       type: menu.type,
-      component: menu.component,
       icon: menu.icon,
       hideInMenu: menu.hideInMenu,
       status: menu.status,
@@ -363,13 +362,6 @@ export default function MenuManagement({
               <Input autoComplete="off" />
             </Form.Item>
           ) : null}
-          <Form.Item
-            name="component"
-            label={intl.formatMessage({ id: 'menu.field.component' })}
-            rules={[{ max: 255 }]}
-          >
-            <Input autoComplete="off" />
-          </Form.Item>
           <Form.Item
             name="icon"
             label={intl.formatMessage({ id: 'menu.field.icon' })}

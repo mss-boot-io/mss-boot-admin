@@ -6,7 +6,7 @@
       "package": "image-size",
       "severity": "high",
       "patchedVersions": "<0.0.0",
-      "scopes": ["docs", "web/antd"],
+      "scopes": ["docs", "web/antd-v6"],
       "expiresOn": "2026-11-08",
       "reason": "No patched release exists. The package is confined to the build graph; the release audit separately requires zero high or critical production advisories."
     },
@@ -15,7 +15,7 @@
       "package": "image-size",
       "severity": "high",
       "patchedVersions": "<0.0.0",
-      "scopes": ["docs", "web/antd"],
+      "scopes": ["docs", "web/antd-v6"],
       "expiresOn": "2026-11-08",
       "reason": "No patched release exists. The package is confined to the build graph; the release audit separately requires zero high or critical production advisories."
     }

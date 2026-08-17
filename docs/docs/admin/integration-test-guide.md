@@ -22,19 +22,19 @@ keywords: [admin integration test e2e playwright]
 ### 开发环境
 
 - Go 1.26.6
-- Node.js >= 22 且 < 25
-- 通过 Corepack 使用 pnpm 9.15.9
+- Node.js >= 24 且 < 25
+- 通过 Corepack 使用 pnpm 10.34.5
 - SQLite（默认本地数据库；MySQL/PostgreSQL 为可选集成目标）
 
 版本和目录约定以仓库根目录的 `.mss/project.yaml` 为准。本仓库已同时包含
-`admin/` 后端和 `web/antd/` 前端。
+`admin/` 后端和默认的 `web/antd-v6/` 前端。V5 仅保留显式回退验证。
 
 ### 服务端口
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
 | 后端 API | 8080 | `go run . server` |
-| 前端 Dev | 8000 | `corepack pnpm dev` |
+| 默认 V6 前端 Dev | 8001 | `corepack pnpm@10.34.5 start:dev` |
 
 ## 快速开始
 
@@ -58,23 +58,23 @@ curl http://localhost:8080/healthz
 ### 2. 启动前端
 
 ```bash
-cd web/antd
-corepack pnpm install --frozen-lockfile
-corepack pnpm dev
+cd web/antd-v6
+corepack pnpm@10.34.5 install --frozen-lockfile
+corepack pnpm@10.34.5 start:dev
 ```
 
 验证：
 
 ```bash
-curl http://localhost:8000
+curl http://localhost:8001
 # 预期: HTML 响应
 ```
 
 ### 3. 运行 E2E 测试
 
 ```bash
-cd web/antd
-corepack pnpm exec playwright test --reporter=list
+cd web/antd-v6
+corepack pnpm@10.34.5 exec playwright test --reporter=list
 ```
 
 ## Playwright E2E 测试
@@ -82,61 +82,52 @@ corepack pnpm exec playwright test --reporter=list
 ### 测试文件结构
 
 ```
-web/antd/e2e/
-├── login.spec.ts           # 登录测试
-├── monitor.spec.ts         # 监控测试
-├── websocket.spec.ts       # WebSocket 测试
-└── post-customdept.spec.ts # 岗位数据权限测试
+web/antd-v6/e2e/
+├── parity.spec.ts          # 保留能力与响应式完整度
+├── permission.spec.ts      # 权限正反例
+├── settings.spec.ts        # 应用与个人设置
+├── operations.spec.ts      # 通知、任务、日志等运营能力
+└── generated/              # 确定性模块浏览器合同
 ```
 
 ### 测试覆盖
 
 | 测试文件 | 测试项 | 说明 |
 |----------|--------|------|
-| `login.spec.ts` | API 登录 | 通过 API 登录获取 Token |
-| `login.spec.ts` | UI 表单登录 | 输入用户名密码点击登录 |
-| `login.spec.ts` | 错误凭证验证 | 错误密码返回 401 |
-| `monitor.spec.ts` | 系统监控 | 返回 CPU/内存/磁盘信息 |
-| `monitor.spec.ts` | 网络统计 | 返回网络连接状态 |
-| `monitor.spec.ts` | 运行时统计 | 返回 Go 运行时信息 |
-| `websocket.spec.ts` | 在线状态 | 返回 WebSocket 在线用户数 |
-| `post-customdept.spec.ts` | 创建岗位 (all) | dataScope=all 时 deptIDS 为空 |
-| `post-customdept.spec.ts` | 创建岗位 (customDept) | dataScope=customDept 时 deptIDS 自动填充 |
+| `parity.spec.ts` | 登录与保留能力 | 使用 HttpOnly 会话完成桌面/移动主流程 |
+| `permission.spec.ts` | 权限正反例 | 验证路由、菜单与操作权限失败关闭 |
+| `settings.spec.ts` | 设置与近期认证 | 验证应用设置、个人设置、改密与 OAuth 解绑 |
+| `operations.spec.ts` | 运营能力 | 验证通知、任务、日志和状态展示 |
+| `generated/supplier.spec.ts` | 生成合同 | 验证 V6 生成模块的同源 API 与 CRUD 合同 |
 
 ### 运行测试
 
 ```bash
 # 运行所有测试
-corepack pnpm exec playwright test
+corepack pnpm@10.34.5 exec playwright test
 
 # 运行特定测试文件
-corepack pnpm exec playwright test e2e/login.spec.ts
+corepack pnpm@10.34.5 exec playwright test e2e/parity.spec.ts
 
 # 带界面运行（调试用）
-corepack pnpm exec playwright test --ui
+corepack pnpm@10.34.5 exec playwright test --ui
 
 # 生成报告
-corepack pnpm exec playwright show-report
+corepack pnpm@10.34.5 exec playwright show-report
 ```
 
 ## API 验证
 
-### 登录获取 Token
+### 非浏览器 PAT 验证
 
-以下占位值只用于隔离的本地/测试环境。不要将生产密码写入文档、命令历史或
-测试代码。
+V6 浏览器使用 HttpOnly Cookie、CSRF 与计划续期，不提供返回 Admin Token 的
+密码登录接口。非浏览器自动化先由用户在“个人设置 → 访问令牌”中创建一次性
+PAT，再通过标准 `Authorization: Bearer` 调用 API。不要把 PAT 写入仓库、文档、
+截图或共享命令历史。
 
 ```bash
-curl -X POST http://localhost:8080/admin/api/user/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"<local-development-password>"}'
-
-# 响应
-{
-  "code": 200,
-  "token": "eyJhbGciOiJIUzI1NiIs...",
-  "expire": "2026-04-03T07:36:38+08:00"
-}
+curl http://localhost:8080/admin/api/user/userInfo \
+  -H "Authorization: Bearer <one-time-personal-access-token>"
 ```
 
 ### 岗位管理
@@ -330,14 +321,14 @@ cd admin
 go build ./...
 
 # 2. 前端类型检查
-cd ../web/antd
-corepack pnpm tsc
+cd ../web/antd-v6
+corepack pnpm@10.34.5 tsc
 
 # 3. 后端健康检查
 curl -I http://127.0.0.1:8080/healthz
 
 # 4. 前端可达性检查
-curl -I http://127.0.0.1:8000
+curl -I http://127.0.0.1:8001
 ```
 
 发布前最低检查项：
@@ -390,9 +381,9 @@ jobs:
       - name: Install dependencies
         run: |
           corepack enable
-          cd web/antd
-          corepack pnpm install --frozen-lockfile
-          corepack pnpm exec playwright install --with-deps chromium
+          cd web/antd-v6
+          corepack pnpm@10.34.5 install --frozen-lockfile
+          corepack pnpm@10.34.5 exec playwright install --with-deps chromium
       - name: Start backend
         run: |
           cd admin
@@ -401,13 +392,13 @@ jobs:
           sleep 5
       - name: Start frontend
         run: |
-          cd web/antd
-          corepack pnpm dev &
+          cd web/antd-v6
+          corepack pnpm@10.34.5 start:dev &
           sleep 10
       - name: Run E2E tests
         run: |
-          cd web/antd
-          corepack pnpm exec playwright test
+          cd web/antd-v6
+          corepack pnpm@10.34.5 exec playwright test
 ```
 
 ## 推荐阅读

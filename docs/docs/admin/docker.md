@@ -10,7 +10,7 @@ keywords: [admin docker deploy nginx production]
 
 ## 适用范围
 
-本文面向 `mss-boot-admin` 与 `mss-boot-admin-antd` 的单租户部署场景，覆盖：
+本文面向后端 `mss-boot-admin` 与唯一前端镜像 `mss-boot-admin-antd-v6` 的单租户部署场景，覆盖：
 
 - 本地容器化验证
 - 基于 MySQL 的生产部署基线
@@ -21,7 +21,7 @@ keywords: [admin docker deploy nginx production]
 
 - 已准备 Docker 与 Docker Compose 环境
 - 已确认后端使用的数据库（本地可用 SQLite，生产建议 MySQL）
-- 已确认对外端口：后端 `8080`，前端 `8000`
+- 已确认对外端口：后端 `8080`，前端 `8001`
 - 已确认生产环境不暴露上传入口；Local/S3-compatible 当前仍为 Legacy / Blocked
 - 若启用 WebSocket 集群或缓存，已准备 Redis
 
@@ -76,16 +76,16 @@ docker run -d \
   server
 ```
 
-`public` 挂载只用于本地兼容路径验证，不能作为生产持久化或 Delivery 方案。
+`public` 挂载只用于本地上传边界验证，不能作为生产持久化或 Delivery 方案。
 
 ### 4. 启动前端
 
 ```bash
 docker run -d \
-  --name mss-boot-admin-antd \
+  --name mss-boot-admin-antd-v6 \
   --restart unless-stopped \
-  -p 8000:80 \
-  ghcr.io/mss-boot-io/mss-boot-admin-antd:latest
+  -p 8001:80 \
+  ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:latest
 ```
 
 ## 二、生产部署基线
@@ -138,7 +138,7 @@ server {
   server_name admin.example.com;
 
   location / {
-    proxy_pass http://127.0.0.1:8000;
+    proxy_pass http://127.0.0.1:8001;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -167,13 +167,13 @@ server {
 
 ```bash
 curl -I http://127.0.0.1:8080/healthz
-curl -I http://127.0.0.1:8000
+curl -I http://127.0.0.1:8001/healthz
 ```
 
 ### 核心检查项
 
 - [ ] 后端 `8080` 可访问
-- [ ] 前端 `8000` 可访问
+- [ ] 前端 `8001` 可访问且 `/healthz` 返回 `mss-boot-admin-antd-v6`
 - [ ] `/admin/api/storage/upload` 与 `/admin/api/user/avatar` 未向生产流量开放
 - [ ] Nginx 未把 `/public/` 当作生产对象 Delivery
 - [ ] WebSocket 握手正常
