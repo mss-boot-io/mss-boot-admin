@@ -11,6 +11,16 @@ import { feedback } from './feedback';
 export { getRequestErrorCode, getRequestErrorMessage, getRequestStatus } from './errors';
 
 const mutationMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const axiosHeaderBuckets = new Set([
+  'common',
+  'delete',
+  'get',
+  'head',
+  'options',
+  'patch',
+  'post',
+  'put',
+]);
 let lastForbiddenRefreshAt: number | undefined;
 
 function refreshAuthorizationAfterForbidden(): void {
@@ -36,10 +46,46 @@ function readCookie(name: string): string | undefined {
 
 export function browserRequestHeaders(
   method: string,
-  initialHeaders?: HeadersInit,
+  initialHeaders?: HeadersInit | Readonly<Record<string, unknown>>,
   csrfToken = readCookie('mss_csrf'),
 ): Record<string, string> {
-  const headers = new Headers(initialHeaders);
+  const headers = new Headers();
+  const append = (source: unknown, skipAxiosBuckets = false): void => {
+    if (!source) return;
+    if (source instanceof Headers) {
+      source.forEach((value, name) => {
+        headers.set(name, value);
+      });
+      return;
+    }
+    if (Array.isArray(source)) {
+      for (const entry of source) {
+        if (!Array.isArray(entry) || entry.length !== 2) continue;
+        const [name, value] = entry;
+        if (typeof name === 'string' && typeof value === 'string') headers.set(name, value);
+      }
+      return;
+    }
+    if (typeof source !== 'object') return;
+    for (const [name, value] of Object.entries(source)) {
+      if (skipAxiosBuckets && axiosHeaderBuckets.has(name.toLowerCase())) continue;
+      if (typeof value === 'string') headers.set(name, value);
+      else if (typeof value === 'number' || typeof value === 'boolean') {
+        headers.set(name, String(value));
+      } else if (Array.isArray(value) && value.every((entry) => typeof entry === 'string')) {
+        headers.set(name, value.join(', '));
+      }
+    }
+  };
+
+  const rawHeaders = initialHeaders as Readonly<Record<string, unknown>> | undefined;
+  if (rawHeaders && !Array.isArray(rawHeaders) && !(rawHeaders instanceof Headers)) {
+    append(rawHeaders.common);
+    append(rawHeaders[method.toLowerCase()]);
+    append(rawHeaders, true);
+  } else {
+    append(initialHeaders);
+  }
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
   if (mutationMethods.has(method.toUpperCase())) {
     if (csrfToken) headers.set('X-CSRF-Token', csrfToken);

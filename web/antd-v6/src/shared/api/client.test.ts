@@ -54,4 +54,27 @@ describe('browser request security headers', () => {
     });
     expect(new Headers(headers).get('Accept')).toBe('application/vnd.mss.theme.v1+json');
   });
+
+  it('flattens Axios method defaults before applying browser security headers', () => {
+    const headers = new Headers(
+      browserRequestHeaders(
+        'POST',
+        {
+          common: { Accept: 'application/json' },
+          delete: {},
+          get: {},
+          post: { 'Content-Type': 'application/json' },
+          'If-Match': '"revision-5"',
+        },
+        'signed-csrf-value',
+      ),
+    );
+
+    expect(headers.get('Accept')).toBe('application/json');
+    expect(headers.get('Content-Type')).toBe('application/json');
+    expect(headers.get('If-Match')).toBe('"revision-5"');
+    expect(headers.get('X-CSRF-Token')).toBe('signed-csrf-value');
+    expect(headers.get('common')).toBeNull();
+    expect(headers.get('post')).toBeNull();
+  });
 });
