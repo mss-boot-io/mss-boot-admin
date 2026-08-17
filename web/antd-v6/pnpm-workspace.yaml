@@ -7,5 +7,12 @@ packages:
 # remains build-tooling-only until Umi removes that direct dependency.
 overrides:
   '@umijs/plugins>@ant-design/pro-components': 3.1.14-6
+  # The request plugin generates this package into the browser bundle. Stay on
+  # its compatible 0.x line while replacing Umi's vulnerable 0.27.2 pin.
+  '@umijs/plugins>axios': 0.33.0
   '@umijs/plugins>@tanstack/react-query': 5.101.4
+  # These two inactive Umi tool paths have safe, API-compatible releases in
+  # their existing major lines. Pin them so a clean install cannot regress.
+  '@umijs/preset-umi>path-to-regexp': 1.9.0
   'dva-immer>immer': 9.0.21
+  'isomorphic-fetch>node-fetch': 2.7.0

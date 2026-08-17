@@ -167,7 +167,10 @@ export const validateAuditReport = (report) => {
     'pnpm audit vulnerability metadata',
   );
 
-  const counts = Object.fromEntries(advisorySeverities.map((severity) => [severity, 0]));
+  const advisoryCounts = Object.fromEntries(advisorySeverities.map((severity) => [severity, 0]));
+  const findingPathCounts = Object.fromEntries(
+    advisorySeverities.map((severity) => [severity, 0]),
+  );
   const seenAdvisories = new Set();
   const advisories = Object.values(report.advisories);
   for (const [index, advisory] of advisories.entries()) {
@@ -181,19 +184,35 @@ export const validateAuditReport = (report) => {
     if (!advisorySeveritySet.has(advisory.severity)) {
       throw new Error(`${label}.severity is unsupported: ${String(advisory.severity)}.`);
     }
+    if (!Array.isArray(advisory.findings) || advisory.findings.length === 0) {
+      throw new Error(`${label}.findings must be a non-empty array.`);
+    }
+    let findingPathCount = 0;
+    for (const [findingIndex, finding] of advisory.findings.entries()) {
+      const findingLabel = `${label}.findings[${findingIndex}]`;
+      requirePlainObject(finding, findingLabel);
+      if (!Array.isArray(finding.paths) || finding.paths.length === 0) {
+        throw new Error(`${findingLabel}.paths must be a non-empty array.`);
+      }
+      for (const [pathIndex, findingPath] of finding.paths.entries()) {
+        requireNonEmptyString(findingPath, `${findingLabel}.paths[${pathIndex}]`);
+      }
+      findingPathCount += finding.paths.length;
+    }
     if (seenAdvisories.has(advisory.github_advisory_id)) {
       throw new Error(`pnpm audit report contains duplicate advisory: ${advisory.github_advisory_id}.`);
     }
     seenAdvisories.add(advisory.github_advisory_id);
-    counts[advisory.severity] += 1;
+    advisoryCounts[advisory.severity] += 1;
+    findingPathCounts[advisory.severity] += findingPathCount;
   }
 
   for (const severity of advisorySeverities) {
     const reported = report.metadata.vulnerabilities[severity];
     requireNonNegativeInteger(reported, `pnpm audit metadata.vulnerabilities.${severity}`);
-    if (reported !== counts[severity]) {
+    if (reported !== advisoryCounts[severity] && reported !== findingPathCounts[severity]) {
       throw new Error(
-        `pnpm audit ${severity} count mismatch: metadata=${reported}, advisories=${counts[severity]}.`,
+        `pnpm audit ${severity} count mismatch: metadata=${reported}, uniqueAdvisories=${advisoryCounts[severity]}, findingPaths=${findingPathCounts[severity]}.`,
       );
     }
   }
@@ -266,11 +285,14 @@ const validatePnpmRuntime = (pnpmScript, packageDirectory, expectedPnpmVersion) 
   validatePnpmVersion(packageDocument.packageManager, result.stdout, expectedPnpmVersion);
 };
 
+export const buildAuditArguments = (productionOnly) => [
+  'audit',
+  '--json',
+  ...(productionOnly ? ['--prod'] : []),
+];
+
 const runAudit = (pnpmScript, packageDirectory, productionOnly) => {
-  const arguments_ = ['audit', '--json', '--audit-level=critical'];
-  if (productionOnly) {
-    arguments_.push('--prod');
-  }
+  const arguments_ = buildAuditArguments(productionOnly);
   const result = spawnPnpm(pnpmScript, arguments_, packageDirectory);
   if (result.error) {
     assertSpawnCompleted(result, 'pnpm audit');

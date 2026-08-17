@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   assertSpawnCompleted,
+  buildAuditArguments,
   validateAcceptanceDocument,
   validateAuditReport,
   validatePnpmVersion,
@@ -31,6 +32,7 @@ const validReport = () => ({
       module_name: 'image-size',
       severity: 'high',
       patched_versions: '<0.0.0',
+      findings: [{ version: '1.0.0', paths: ['root>image-size'] }],
     },
   },
   muted: [],
@@ -46,6 +48,12 @@ const validReport = () => ({
 test('accepts valid acceptance and audit documents', () => {
   assert.equal(validateAcceptanceDocument(validAcceptance()).acceptances.length, 1);
   assert.equal(validateAuditReport(validReport()).length, 1);
+});
+
+test('requests complete advisory details from pnpm audit', () => {
+  assert.deepEqual(buildAuditArguments(false), ['audit', '--json']);
+  assert.deepEqual(buildAuditArguments(true), ['audit', '--json', '--prod']);
+  assert.equal(buildAuditArguments(false).includes('--audit-level=critical'), false);
 });
 
 test('requires each package pin and subprocess to use its governed pnpm version', () => {
@@ -124,10 +132,34 @@ test('rejects audit error reports and malformed advisory metadata', () => {
   unknownSeverity.advisories[1].severity = 'unknown';
   assert.throws(() => validateAuditReport(unknownSeverity), /severity is unsupported/);
 
+  const missingFindings = validReport();
+  delete missingFindings.advisories[1].findings;
+  assert.throws(() => validateAuditReport(missingFindings), /findings must be a non-empty array/);
+
+  const missingPaths = validReport();
+  missingPaths.advisories[1].findings = [{ version: '1.0.0', paths: [] }];
+  assert.throws(() => validateAuditReport(missingPaths), /paths must be a non-empty array/);
+
   const duplicate = validReport();
   duplicate.advisories[2] = { ...duplicate.advisories[1] };
   duplicate.metadata.vulnerabilities.high = 2;
   assert.throws(() => validateAuditReport(duplicate), /duplicate advisory/);
+});
+
+test('accepts pnpm unique-advisory and finding-path metadata semantics', () => {
+  const report = validReport();
+  report.advisories[1].findings[0].paths.push('root>build-tool>image-size');
+  report.metadata.vulnerabilities.high = 2;
+  assert.equal(validateAuditReport(report).length, 1);
+
+  report.metadata.vulnerabilities.high = 1;
+  assert.equal(validateAuditReport(report).length, 1);
+
+  report.metadata.vulnerabilities.high = 3;
+  assert.throws(
+    () => validateAuditReport(report),
+    /metadata=3, uniqueAdvisories=1, findingPaths=2/,
+  );
 });
 
 test('rejects every abnormal spawn termination', () => {

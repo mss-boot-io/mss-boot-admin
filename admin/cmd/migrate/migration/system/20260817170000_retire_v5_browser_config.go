@@ -52,22 +52,15 @@ func _20260817170000RetireV5BrowserConfig(db *gorm.DB, version string) error {
 		}
 
 		if tx.Migrator().HasTable(&models.AppConfig{}) {
-			if err := tx.Unscoped().
-				Where(&models.AppConfig{Group: "security"}).
-				Where("name IN ?", retiredV5OAuthConfigNames).
-				Delete(&models.AppConfig{}).Error; err != nil {
+			if err := deleteExactAppConfigRows(tx, "security", retiredV5OAuthConfigNames); err != nil {
 				return fmt.Errorf("retire V5 browser configuration: delete OAuth settings: %w", err)
 			}
-			if err := tx.Unscoped().
-				Where(&models.AppConfig{Group: "theme", Name: "pwa"}).
-				Delete(&models.AppConfig{}).Error; err != nil {
+			if err := deleteExactAppConfigRows(tx, "theme", []string{"pwa"}); err != nil {
 				return fmt.Errorf("retire V5 browser configuration: delete application pwa setting: %w", err)
 			}
 		}
 		if tx.Migrator().HasTable(&models.UserConfig{}) {
-			if err := tx.Unscoped().
-				Where(&models.UserConfig{Group: "theme", Name: "pwa"}).
-				Delete(&models.UserConfig{}).Error; err != nil {
+			if err := deleteExactUserConfigRows(tx, "theme", []string{"pwa"}); err != nil {
 				return fmt.Errorf("retire V5 browser configuration: delete user pwa settings: %w", err)
 			}
 		}
@@ -82,4 +75,53 @@ func _20260817170000RetireV5BrowserConfig(db *gorm.DB, version string) error {
 		}
 		return nil
 	})
+}
+
+func deleteExactAppConfigRows(tx *gorm.DB, group string, names []string) error {
+	var candidates []models.AppConfig
+	if err := tx.Unscoped().
+		Where(&models.AppConfig{Group: group}).
+		Where("name IN ?", names).
+		Find(&candidates).Error; err != nil {
+		return err
+	}
+	exact := make([]models.AppConfig, 0, len(candidates))
+	for i := range candidates {
+		if candidates[i].Group == group && containsExactConfigName(names, candidates[i].Name) {
+			exact = append(exact, candidates[i])
+		}
+	}
+	if len(exact) == 0 {
+		return nil
+	}
+	return tx.Unscoped().Delete(&exact).Error
+}
+
+func deleteExactUserConfigRows(tx *gorm.DB, group string, names []string) error {
+	var candidates []models.UserConfig
+	if err := tx.Unscoped().
+		Where(&models.UserConfig{Group: group}).
+		Where("name IN ?", names).
+		Find(&candidates).Error; err != nil {
+		return err
+	}
+	exact := make([]models.UserConfig, 0, len(candidates))
+	for i := range candidates {
+		if candidates[i].Group == group && containsExactConfigName(names, candidates[i].Name) {
+			exact = append(exact, candidates[i])
+		}
+	}
+	if len(exact) == 0 {
+		return nil
+	}
+	return tx.Unscoped().Delete(&exact).Error
+}
+
+func containsExactConfigName(names []string, candidate string) bool {
+	for _, name := range names {
+		if candidate == name {
+			return true
+		}
+	}
+	return false
 }

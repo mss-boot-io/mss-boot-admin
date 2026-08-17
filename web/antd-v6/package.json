@@ -61,7 +61,6 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@umijs/max": "4.7.5",
-    "@umijs/max-plugin-openapi": "2.0.3",
     "cross-env": "10.1.0",
     "happy-dom": "20.11.2",
     "tailwindcss": "4.3.3",

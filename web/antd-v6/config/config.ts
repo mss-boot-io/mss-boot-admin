@@ -131,7 +131,6 @@ export default defineConfig({
     plugins: ['duration', 'relativeTime'],
   },
   npmClient: 'pnpm',
-  plugins: ['@umijs/max-plugin-openapi'],
   // Umi defaults to Chrome 80 and injects a broad core-js bundle. V6 only
   // supports the documented evergreen baseline, so compile for that contract
   // and let browsers provide the platform instead of silently widening it.

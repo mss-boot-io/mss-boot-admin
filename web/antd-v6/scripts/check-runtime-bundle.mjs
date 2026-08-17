@@ -77,8 +77,33 @@ if (legacyNormalizeRuntime.length > 0) {
 if (!moduleNames.some((name) => name.includes('/node_modules/dayjs/'))) {
   failures.push('the aliased Day.js runtime is missing from the production graph');
 }
+const axiosRuntime = moduleNames.filter((name) => name.includes('/node_modules/axios/'));
+if (axiosRuntime.length === 0) {
+  failures.push('the governed Axios request runtime is missing from the production graph');
+} else {
+  const unexpectedAxiosRuntime = axiosRuntime.filter(
+    (name) => !name.includes('.pnpm/axios@0.33.0/node_modules/axios/'),
+  );
+  if (unexpectedAxiosRuntime.length > 0) {
+    failures.push(
+      `an ungoverned Axios version entered the production graph: ${unexpectedAxiosRuntime
+        .slice(0, 3)
+        .join(', ')}`,
+    );
+  }
+}
+for (const packageName of ['image-size', 'mockjs', 'node-fetch', 'vite']) {
+  const buildToolRuntime = moduleNames.filter((name) =>
+    name.includes(`/node_modules/${packageName}/`),
+  );
+  if (buildToolRuntime.length > 0) {
+    failures.push(
+      `${packageName} must remain build-only: ${buildToolRuntime.slice(0, 3).join(', ')}`,
+    );
+  }
+}
 
 if (failures.length > 0) throw new Error(`Runtime bundle contract failed:\n${failures.join('\n')}`);
 console.log(
-  'Runtime bundle contract passed: React 19, Ant Design 6, and Day.js without Moment, legacy core-js, or the obsolete es5-ext Unicode table',
+  'Runtime bundle contract passed: governed React, Ant Design, Day.js, and Axios runtimes without retired or build-only packages',
 );
