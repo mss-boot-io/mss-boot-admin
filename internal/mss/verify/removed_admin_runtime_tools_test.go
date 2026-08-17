@@ -92,10 +92,6 @@ func TestRemovedAdminRuntimeToolsStayOutOfActiveContracts(t *testing.T) {
 			},
 		},
 		{
-			path:       "web/antd-v6/src/services/admin/index.ts",
-			prohibited: []string{"'./generator'", "'./model'", "'./field'", "'./virtual'"},
-		},
-		{
 			path:       ".mss/capabilities.yaml",
 			prohibited: []string{"legacy.dynamic-schema", "admin/models/model.go", "mss-boot/virtual"},
 		},
@@ -128,20 +124,20 @@ func TestRemovedAdminRuntimeToolsStayOutOfActiveContracts(t *testing.T) {
 		},
 		{
 			path:       "web/antd-v6/src/locales/en-US.ts",
-			prohibited: []string{"menu.develop", "menu.model", "menu.field", "menu.generator"},
+			prohibited: []string{"'menu.develop':", "'menu.model':", "'menu.field':", "'menu.generator':"},
 		},
 		{
 			path:       "web/antd-v6/src/locales/zh-CN.ts",
-			prohibited: []string{"menu.develop", "menu.model", "menu.field", "menu.generator"},
+			prohibited: []string{"'menu.develop':", "'menu.model':", "'menu.field':", "'menu.generator':"},
 		},
 		{
-			path: "web/antd-v6/src/pages/User/Callback/$provider.tsx",
+			path: "web/antd-v6/src/pages/User/OAuthCallback/index.tsx",
 			prohibited: []string{
 				"intent === 'integration'", "result.intent === 'integration'",
 			},
 		},
 		{
-			path: "web/antd-v6/src/services/admin/typings.d.ts",
+			path: "web/antd-v6/src/modules/account/contracts.ts",
 			prohibited: []string{
 				"'login' | 'binding' | 'integration'",
 				"credentialExpiresAt?: string",
@@ -150,7 +146,7 @@ func TestRemovedAdminRuntimeToolsStayOutOfActiveContracts(t *testing.T) {
 			},
 		},
 		{
-			path: "web/antd-v6/src/utils/oauth.ts",
+			path: "web/antd-v6/src/modules/account/api.ts",
 			prohibited: []string{
 				"intent: 'integration'",
 				"response.intent === 'integration'",

@@ -428,9 +428,12 @@ func (e *AppConfig) GroupWithSensitiveValues(
 		if !isAllowedAppConfigProjection(group, list[i]) {
 			continue
 		}
-		// Use the canonical request group and reject retired casing aliases as
-		// secrets too. Case-insensitive database collations can otherwise return
-		// a non-canonical `Security/githubClientSecret` row for `security`.
+		if isRetiredBrowserAppConfigKeyAlias(group, list[i].Name) {
+			continue
+		}
+		// Use the canonical request group for the remaining credential fields.
+		// Case-insensitive database collations can otherwise return a
+		// non-canonical credential row for a canonical group request.
 		if !includeSensitive && isSensitiveAppConfigKeyAlias(group, list[i].Name) {
 			continue
 		}
@@ -664,6 +667,16 @@ func isSensitiveAppConfigKeyAlias(group, name string) bool {
 	return false
 }
 
+func isRetiredBrowserAppConfigKeyAlias(group, name string) bool {
+	for _, key := range retiredBrowserAppConfigKeys {
+		if canonicalConfigIdentifierFold(group) == canonicalConfigIdentifierFold(key.Group) &&
+			canonicalConfigIdentifierFold(name) == canonicalConfigIdentifierFold(key.Name) {
+			return true
+		}
+	}
+	return false
+}
+
 func isAllowedAppConfigProjection(group string, config *models.AppConfig) bool {
 	if group != storageAppConfigGroup {
 		return true
@@ -676,11 +689,8 @@ func isAllowedAppConfigProjection(group string, config *models.AppConfig) bool {
 }
 
 func validateAllowedAppConfigKey(group, name string) error {
-	for _, key := range retiredBrowserAppConfigKeys {
-		if canonicalConfigIdentifierFold(group) == canonicalConfigIdentifierFold(key.Group) &&
-			canonicalConfigIdentifierFold(name) == canonicalConfigIdentifierFold(key.Name) {
-			return &AppConfigKeyNotAllowedError{Group: group, Name: name}
-		}
+	if isRetiredBrowserAppConfigKeyAlias(group, name) {
+		return &AppConfigKeyNotAllowedError{Group: group, Name: name}
 	}
 	if group != storageAppConfigGroup {
 		return nil

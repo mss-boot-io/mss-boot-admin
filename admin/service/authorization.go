@@ -341,6 +341,37 @@ func (e *AuthorizationPolicyService) ReadRole(
 	return nil, fmt.Errorf("role authorization changed during read")
 }
 
+// ValidateRoleAuthorizationMutation verifies the target before an HTTP
+// precondition is evaluated. ReplaceRole repeats the check under its write
+// lock, so a concurrent delete or disable still fails closed.
+func (e *AuthorizationPolicyService) ValidateRoleAuthorizationMutation(
+	ctx context.Context,
+	db *gorm.DB,
+	roleID string,
+) error {
+	if e == nil {
+		return fmt.Errorf("authorization policy service is nil")
+	}
+	if db == nil {
+		return fmt.Errorf("authorization database is nil")
+	}
+	roleID = strings.TrimSpace(roleID)
+	if roleID == "" {
+		return ErrAuthorizationRoleNotFound
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	role, err := loadAuthorizationRole(db.WithContext(ctx), roleID, "")
+	if err != nil {
+		return err
+	}
+	if role.Status != bootenum.Enabled {
+		return ErrAuthorizationRoleInactive
+	}
+	return nil
+}
+
 // ReplaceRole atomically replaces MENU, COMPONENT, and derived API rules for a
 // role under a mandatory strong revision precondition.
 func (e *AuthorizationPolicyService) ReplaceRole(

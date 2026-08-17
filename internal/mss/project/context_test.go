@@ -105,7 +105,7 @@ spec:
   repositoryLayout:
     backend: .
     framework: ../outside
-		frontend: web/antd-v6
+    frontend: web/antd-v6
     documentation: docs
     specifications: .mss
   backend:

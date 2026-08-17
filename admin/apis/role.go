@@ -209,6 +209,15 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 		respondInvalidAuthorizeRequest(api, "set role authorize request contains no valid paths", req.RoleID, nil)
 		return
 	}
+	db := center.Default.GetDB(ctx, &models.CasbinRule{})
+	if err := service.AuthorizationPolicies.ValidateRoleAuthorizationMutation(ctx, db, req.RoleID); err != nil {
+		if respondRoleAuthorizationTargetError(api, err) {
+			return
+		}
+		api.AddError(err).Log.Error("validate role authorization mutation target", "err", err, slog.String("roleID", req.RoleID))
+		api.Err(http.StatusInternalServerError)
+		return
+	}
 	expectedRevision, err := parseRoleAuthorizationIfMatch(ctx, req.RoleID)
 	if err != nil {
 		status, code := http.StatusBadRequest, roleAuthorizationIfMatchInvalidCode
@@ -220,21 +229,13 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	}
 	resource, err := service.AuthorizationPolicies.ReplaceRole(
 		ctx,
-		center.Default.GetDB(ctx, &models.CasbinRule{}),
+		db,
 		req.RoleID,
 		paths,
 		expectedRevision,
 	)
 	if err != nil {
-		if errors.Is(err, service.ErrAuthorizationRoleNotFound) {
-			api.Err(http.StatusNotFound)
-			return
-		}
-		if errors.Is(err, service.ErrAuthorizationRoleInactive) {
-			api.AddError(response.NewError(
-				roleAuthorizationInactiveCode,
-				"authorization cannot be changed while the role is inactive",
-			)).Err(http.StatusConflict)
+		if respondRoleAuthorizationTargetError(api, err) {
 			return
 		}
 		var invalid *service.InvalidAuthorizationPathsError
@@ -258,6 +259,22 @@ func (e *Role) SetAuthorize(ctx *gin.Context) {
 	}
 	setRoleAuthorizationETag(ctx, resource)
 	api.OK(resource)
+}
+
+func respondRoleAuthorizationTargetError(api *response.API, err error) bool {
+	switch {
+	case errors.Is(err, service.ErrAuthorizationRoleNotFound):
+		api.Err(http.StatusNotFound)
+		return true
+	case errors.Is(err, service.ErrAuthorizationRoleInactive):
+		api.AddError(response.NewError(
+			roleAuthorizationInactiveCode,
+			"authorization cannot be changed while the role is inactive",
+		)).Err(http.StatusConflict)
+		return true
+	default:
+		return false
+	}
 }
 
 // Create 创建角色

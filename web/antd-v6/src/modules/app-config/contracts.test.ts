@@ -15,10 +15,7 @@ describe('application config contracts', () => {
     const email = parseEmailAppConfig({ password: 'smtp-secret', smtpPort: '587' });
 
     expect(security.configuredSecrets).toEqual(
-      new Set([
-        'githubBrowserSessionClientSecret',
-        'larkBrowserSessionAppSecret',
-      ]),
+      new Set(['githubBrowserSessionClientSecret', 'larkBrowserSessionAppSecret']),
     );
     expect(security.values).not.toHaveProperty('githubBrowserSessionClientSecret');
     expect(security.values).not.toHaveProperty('larkBrowserSessionAppSecret');
@@ -37,23 +34,23 @@ describe('application config contracts', () => {
       githubBrowserSessionClientId: 'browser-id',
       githubBrowserSessionRedirectURI: 'https://v6.example/callback',
     });
-		expect(parsed.values).not.toHaveProperty('githubClientId');
-		expect(parsed.values).not.toHaveProperty('githubRedirectURI');
+    expect(parsed.values).not.toHaveProperty('githubClientId');
+    expect(parsed.values).not.toHaveProperty('githubRedirectURI');
   });
 
   it('omits blank or unauthorized secret rotations from writes', () => {
     const values = parseSecurityAppConfig({}).values;
-		values.githubBrowserSessionClientSecret = '  rotate-me  ';
-		values.larkBrowserSessionAppSecret = '   ';
+    values.githubBrowserSessionClientSecret = '  rotate-me  ';
+    values.larkBrowserSessionAppSecret = '   ';
     expect(serializeSecurityAppConfig(values, true)).toMatchObject({
-			githubBrowserSessionClientSecret: 'rotate-me',
+      githubBrowserSessionClientSecret: 'rotate-me',
     });
-		expect(serializeSecurityAppConfig(values, true)).not.toHaveProperty(
-			'larkBrowserSessionAppSecret',
-		);
-		expect(serializeSecurityAppConfig(values, false)).not.toHaveProperty(
-			'githubBrowserSessionClientSecret',
-		);
+    expect(serializeSecurityAppConfig(values, true)).not.toHaveProperty(
+      'larkBrowserSessionAppSecret',
+    );
+    expect(serializeSecurityAppConfig(values, false)).not.toHaveProperty(
+      'githubBrowserSessionClientSecret',
+    );
     expect(
       serializeEmailAppConfig(
         { smtpHost: 'smtp.example', smtpPort: 587, username: 'mailer', password: ' secret ' },

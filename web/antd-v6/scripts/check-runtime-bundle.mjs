@@ -33,9 +33,14 @@ const contents = await Promise.all(
 );
 const failures = [];
 const stats = JSON.parse(await readFile(join(distRoot, 'stats.json'), 'utf8'));
-const moduleNames = Array.isArray(stats.modules)
-  ? stats.modules.map((module) => String(module.name ?? ''))
-  : [];
+const collectModuleNames = (modules) =>
+  Array.isArray(modules)
+    ? modules.flatMap((module) => [
+        String(module.name ?? ''),
+        ...collectModuleNames(module.modules),
+      ])
+    : [];
+const moduleNames = collectModuleNames(stats.modules);
 
 for (const marker of markers) {
   const matches = contents.filter(({ content }) => content.includes(marker.value));

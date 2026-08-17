@@ -370,7 +370,7 @@ spec:
       - corepack pnpm@10.34.5 --dir web/antd-v6 build:release
       - corepack pnpm@10.34.5 --dir docs build
   rollout:
-    strategy: replace
+    strategy: direct
     migration: >-
       Back up the database, apply the additive ConfigRevision migration and the exact obsolete-pwa cleanup,
       then deploy the V6-only backend and frontend from the same qualified release. Monitor migration failures,

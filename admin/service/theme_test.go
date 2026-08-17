@@ -371,9 +371,11 @@ func TestReservedThemeAndPublicKeyVariantsCannotPoisonEmptyDatabase(t *testing.T
 	require.Zero(t, revisionCount)
 
 	// Rejected variants must not poison the subsequent canonical writes.
-	require.NoError(t, app.CreateOrUpdate(env.ctx, ThemeConfigGroup, map[string]any{"layout": "side"}))
+	_, err := (&Theme{}).PatchApplicationResource(env.ctx, map[string]any{"layout": "side"}, 0)
+	require.NoError(t, err)
 	require.NoError(t, app.CreateOrUpdate(env.ctx, "base", map[string]any{"websiteName": "canonical"}))
-	require.NoError(t, user.CreateOrUpdate(env.ctx, "user-a", ThemeConfigGroup, map[string]any{"layout": "mix"}))
+	_, err = (&Theme{}).PatchUserResource(env.ctx, "user-a", map[string]any{"layout": "mix"}, 0)
+	require.NoError(t, err)
 }
 
 func TestThemeGroupVariantReadsAreRejected(t *testing.T) {

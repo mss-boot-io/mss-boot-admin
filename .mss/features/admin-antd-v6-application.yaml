@@ -547,7 +547,7 @@ spec:
       - make web-v6-install web-v6-lint web-v6-test web-v6-build
       - python3 -m unittest tools/release/test_check_release_policy.py
   rollout:
-    strategy: replace
+    strategy: direct
     migration: >-
       Qualify the sole V6 contract and build together with its V6-only backend, apply the
       exact obsolete-configuration cleanup migration, and publish only from the

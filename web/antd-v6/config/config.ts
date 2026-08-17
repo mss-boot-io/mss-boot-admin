@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { defineConfig } from '@umijs/max';
 import defaultSettings from './defaultSettings';
 import proxy from './proxy';
+import RuntimeStatsPlugin from './RuntimeStatsPlugin';
 import routes from './routes';
 
 const environment = process.env.UMI_ENV ?? 'dev';
@@ -27,12 +28,84 @@ export default defineConfig({
       },
     },
   },
+  // Umi recommends granular shared chunks for application projects. Keep the
+  // React framework runtime and large reusable libraries independently cached
+  // instead of forcing every route through one oversized async payload.
+  codeSplitting: { jsStrategy: 'granularChunks' },
+  chainWebpack(memo) {
+    if (environment !== 'release') return memo;
+
+    memo.plugin('runtime-graph-stats').use(RuntimeStatsPlugin);
+    memo.optimization.runtimeChunk({ name: 'runtime' });
+    memo.optimization.splitChunks({
+      cacheGroups: {
+        antDesignRuntime: {
+          chunks: 'initial',
+          enforce: true,
+          name: 'ant-design-runtime',
+          priority: 35,
+          test: /[\\/]node_modules[\\/]@ant-design[\\/]/,
+        },
+        antdRuntime: {
+          chunks: 'initial',
+          enforce: true,
+          name: 'antd-runtime',
+          priority: 35,
+          test: /[\\/]node_modules[\\/]antd[\\/]/,
+        },
+        applicationShell: {
+          chunks: 'initial',
+          enforce: true,
+          name: 'application-shell',
+          priority: 34,
+          test: /[\\/]src[\\/](?:modules[\\/]language|shared)[\\/]/,
+        },
+        proComponents: {
+          chunks: 'all',
+          enforce: true,
+          name: 'pro-components',
+          priority: 36,
+          test: /[\\/]node_modules[\\/]@ant-design[\\/]pro-/,
+        },
+        queryRuntime: {
+          chunks: 'initial',
+          enforce: true,
+          name: 'query-runtime',
+          priority: 32,
+          test: /[\\/]node_modules[\\/](?:@tanstack|axios|ahooks)[\\/]/,
+        },
+        umiRuntime: {
+          chunks: 'initial',
+          enforce: true,
+          name: 'umi-runtime',
+          priority: 33,
+          test: /(?:[\\/]src[\\/]\.umi-production[\\/]|[\\/]node_modules[\\/](?:@umijs|umi)[\\/])/,
+        },
+        rcRuntime: {
+          chunks: 'initial',
+          enforce: true,
+          name: 'rc-runtime',
+          priority: 35,
+          test: /[\\/]node_modules[\\/](?:@rc-component|rc-[^\\/]+)[\\/]/,
+        },
+        vendors: {
+          chunks: 'initial',
+          enforce: true,
+          name: 'vendors',
+          priority: 20,
+          test: /[\\/]node_modules[\\/]/,
+        },
+      },
+    });
+    return memo;
+  },
   access: {},
   define: {
     __APP_VERSION__: require('../package.json').version,
     __ANTD_VERSION__: require('antd/package.json').version,
   },
   exportStatic: {},
+  esbuildMinifyIIFE: true,
   favicons: ['/logo.svg'],
   fastRefresh: true,
   hash: true,
@@ -78,15 +151,30 @@ export default defineConfig({
     safari: '17.4',
   },
   title: 'mss-boot-io',
-  utoopack: {
-    resolve: {
-      alias: {
-        // Utoopack 1.5.5 expands this legacy CJS leaf through the complete
-        // es5-ext/string barrel. Keep the descriptor API used by Umi's legacy
-        // event emitter without shipping that obsolete barrel to browsers.
-        d: join(__dirname, '../src/shims/d.cjs'),
-        'd/auto-bind': require.resolve('d/auto-bind'),
-      },
-    },
-  },
+  // Utoopack keeps local development fast, while its splitChunks support is
+  // still incomplete in 1.5.5. Use Umi's mature production bundler for the
+  // release artifact so granularChunks can enforce cache and transfer budgets.
+  utoopack:
+    environment === 'release'
+      ? false
+      : {
+          optimization: {
+            splitChunks: {
+              js: {
+                maxChunkCountPerGroup: 40,
+                maxMergeChunkSize: 200_000,
+                minChunkSize: 50_000,
+              },
+            },
+          },
+          resolve: {
+            alias: {
+              // Utoopack 1.5.5 expands this legacy CJS leaf through the complete
+              // es5-ext/string barrel. Keep the descriptor API used by Umi's legacy
+              // event emitter without shipping that obsolete barrel to browsers.
+              d: join(__dirname, '../src/shims/d.cjs'),
+              'd/auto-bind': require.resolve('d/auto-bind'),
+            },
+          },
+        },
 });

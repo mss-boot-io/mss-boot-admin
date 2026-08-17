@@ -12,10 +12,22 @@ import {
 describe('v6 layered theme contract', () => {
   it('resolves every field independently as code < application < user', () => {
     const application = parseThemeScopeResource(
-      { fixedHeader: true, colorWeak: true, colorPrimary: '#ABCDEF' },
+      {
+        fixedHeader: true,
+        colorWeak: true,
+        colorPrimary: '#ABCDEF',
+        _meta: { v: 1, scope: 'application', revision: '1' },
+      },
       'application',
     );
-    const user = parseThemeScopeResource({ colorWeak: false, layout: 'side' }, 'user');
+    const user = parseThemeScopeResource(
+      {
+        colorWeak: false,
+        layout: 'side',
+        _meta: { v: 1, scope: 'user', revision: '2' },
+      },
+      'user',
+    );
     const resolved = resolveTheme(application, user);
 
     expect(resolved.settings).toEqual({

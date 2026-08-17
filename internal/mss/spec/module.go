@@ -310,7 +310,7 @@ func (m *Module) Normalize() {
 		m.Spec.API.Version = "v1"
 	}
 	if len(m.Spec.API.Operations) == 0 {
-		m.Spec.API.Operations = []string{"list", "get", "create", "update", "delete"}
+		m.Spec.API.Operations = []string{"list", "get", "create", "update", "delete", "export"}
 	}
 	if m.Spec.Ownership.Mode == "" {
 		m.Spec.Ownership.Mode = "none"

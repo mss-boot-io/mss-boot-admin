@@ -70,7 +70,7 @@ describe('option API', () => {
       method: 'PUT',
       headers: { 'If-Match': '"option-option/1-v2"' },
     });
-		expect(client.mock.calls[1]?.[1]?.data).not.toHaveProperty('expectedVersion');
+    expect(client.mock.calls[1]?.[1]?.data).not.toHaveProperty('expectedVersion');
     expect(client).toHaveBeenNthCalledWith(3, '/options/option%2F1', {
       method: 'DELETE',
       headers: { 'If-Match': '"option-option/1-v2"' },

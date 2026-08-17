@@ -72,7 +72,7 @@ func TestUpgradeAppliesFoundationChangesAndPreservesCustomization(t *testing.T) 
 	}
 	assertContains(t, filepath.Join(applicationRoot, "admin/main.go"), "FoundationRevision = \"v2\"")
 	assertContains(t, filepath.Join(applicationRoot, "NEW.md"), "new foundation capability")
-	if _, err := os.Stat(filepath.Join(applicationRoot, "web", "antd", "public", "fixture.bin")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(applicationRoot, "web", "antd-v6", "public", "fixture.bin")); !os.IsNotExist(err) {
 		t.Fatalf("obsolete unmodified file was not removed: %v", err)
 	}
 	assertContains(t, filepath.Join(applicationRoot, "business-only.txt"), "preserve me")
@@ -167,7 +167,7 @@ func TestUpgradeDetectsCustomizedFileRemovedByFoundation(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("generate old application: %v", err)
 	}
-	binaryPath := filepath.Join(applicationRoot, "web", "antd", "public", "fixture.bin")
+	binaryPath := filepath.Join(applicationRoot, "web", "antd-v6", "public", "fixture.bin")
 	if err := os.WriteFile(binaryPath, []byte{9, 9, 9}, 0o644); err != nil {
 		t.Fatalf("customize removed binary: %v", err)
 	}
@@ -255,7 +255,7 @@ func prepareNewFoundation(t *testing.T, root string) {
 	if err := os.WriteFile(filepath.Join(root, "NEW.md"), []byte("new foundation capability\n"), 0o644); err != nil {
 		t.Fatalf("write new file: %v", err)
 	}
-	if err := os.Remove(filepath.Join(root, "web", "antd", "public", "fixture.bin")); err != nil {
+	if err := os.Remove(filepath.Join(root, "web", "antd-v6", "public", "fixture.bin")); err != nil {
 		t.Fatalf("remove obsolete fixture: %v", err)
 	}
 	runGit(t, root, "add", "-A")

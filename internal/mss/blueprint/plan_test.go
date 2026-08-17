@@ -57,7 +57,7 @@ func TestGenerateWritesCompleteIdempotentApplication(t *testing.T) {
 	assertContains(t, filepath.Join(destination, ".mss", "project.yaml"), "repository: acme/customer-admin")
 	assertContains(t, filepath.Join(destination, ".mss", "lock.yaml"), "repository: mss-boot-io/mss-boot-admin")
 
-	binary, err := os.ReadFile(filepath.Join(destination, "web", "antd", "public", "fixture.bin"))
+	binary, err := os.ReadFile(filepath.Join(destination, "web", "antd-v6", "public", "fixture.bin"))
 	if err != nil {
 		t.Fatalf("read generated binary: %v", err)
 	}
@@ -270,7 +270,7 @@ spec:
   repositoryLayout:
     backend: admin
     framework: mss-boot
-		frontend: web/antd-v6
+    frontend: web/antd-v6
     documentation: docs
     specifications: .mss
   backend:

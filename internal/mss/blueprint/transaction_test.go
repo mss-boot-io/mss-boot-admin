@@ -95,7 +95,7 @@ func TestUpgradeFailureBeforeSnapshotCommitRetainsPreviousSnapshotPair(t *testin
 	if err != nil {
 		t.Fatalf("read old managed file: %v", err)
 	}
-	oldRemoved, err := os.ReadFile(filepath.Join(fixture.applicationRoot, "web", "antd", "public", "fixture.bin"))
+	oldRemoved, err := os.ReadFile(filepath.Join(fixture.applicationRoot, "web", "antd-v6", "public", "fixture.bin"))
 	if err != nil {
 		t.Fatalf("read old soon-to-be-removed file: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestUpgradeFailureBeforeSnapshotCommitRetainsPreviousSnapshotPair(t *testin
 	if _, err := os.Stat(filepath.Join(fixture.applicationRoot, "NEW.md")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("created managed file survived rollback: %v", err)
 	}
-	gotRemoved, err := os.ReadFile(filepath.Join(fixture.applicationRoot, "web", "antd", "public", "fixture.bin"))
+	gotRemoved, err := os.ReadFile(filepath.Join(fixture.applicationRoot, "web", "antd-v6", "public", "fixture.bin"))
 	if err != nil || !bytes.Equal(gotRemoved, oldRemoved) {
 		t.Fatalf("deleted managed file was not restored: err=%v", err)
 	}

@@ -140,6 +140,30 @@ func TestAuthorizationReplaceRoleRejectsMissingSoftDeletedAndInactiveTargets(t *
 	})
 }
 
+func TestValidateRoleAuthorizationMutationRejectsInvalidTargets(t *testing.T) {
+	t.Run("missing", func(t *testing.T) {
+		db := setupAuthorizationServiceTest(t)
+		err := newAuthorizationPolicyService(func() error { return nil }, func() error { return nil }).
+			ValidateRoleAuthorizationMutation(context.Background(), db, "missing-role")
+		require.ErrorIs(t, err, ErrAuthorizationRoleNotFound)
+	})
+
+	t.Run("inactive", func(t *testing.T) {
+		db := setupAuthorizationServiceTest(t)
+		require.NoError(t, db.Model(&models.Role{}).Where("id = ?", "role-a").Update("status", bootenum.Disabled).Error)
+		err := newAuthorizationPolicyService(func() error { return nil }, func() error { return nil }).
+			ValidateRoleAuthorizationMutation(context.Background(), db, "role-a")
+		require.ErrorIs(t, err, ErrAuthorizationRoleInactive)
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		db := setupAuthorizationServiceTest(t)
+		err := newAuthorizationPolicyService(func() error { return nil }, func() error { return nil }).
+			ValidateRoleAuthorizationMutation(context.Background(), db, "role-a")
+		require.NoError(t, err)
+	})
+}
+
 func TestAuthorizationReplaceRoleAcceptsExplicitEmptySet(t *testing.T) {
 	db := setupAuthorizationServiceTest(t)
 	require.NoError(t, db.Create(&[]models.CasbinRule{

@@ -416,7 +416,8 @@ export default {
   'menu.field.hideInMenu': '在导航中隐藏',
   'menu.delete.confirm': '删除此菜单？',
   'menu.delete.description': '存在子节点或有效授权策略引用时无法删除。',
-  'menu.compiledRegistry.notice': 'V6 路由来自编译注册表；数据库菜单只控制导航和权限，不执行组件字符串。',
+  'menu.compiledRegistry.notice':
+    'V6 路由来自编译注册表；数据库菜单只控制导航和权限，不执行组件字符串。',
   'language.title': '语言管理',
   'language.description': '维护受控的界面翻译资源；列表仅加载摘要，定义内容按需读取。',
   'language.forbidden.read': '你没有查看语言资源的权限。',
