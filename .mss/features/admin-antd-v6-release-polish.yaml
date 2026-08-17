@@ -64,7 +64,8 @@ spec:
       module: product-acceptance
       rules:
         - No additional browser-family release matrix is introduced.
-        - The in-app Browser review covers navigation, labels, relationship names, settings, notification popover, theme, responsive layout, and visible failure states.
+        - The in-app Browser review covers navigation, labels, relationship names, settings, notification popover, theme, and visible states at the selected viewport.
+        - Narrow responsive behavior stays in the existing focused Chromium automation instead of expanding manual browser scope.
         - The evidence records the exact commit, backend identity, viewport, locale, findings, and result without credentials or sensitive response bodies.
     - id: verify-retained-critical-journeys
       title: Critical retained journeys have release evidence
@@ -124,7 +125,7 @@ spec:
       required: true
       evidence:
         - type: manual
-          value: .mss/reports/admin-antd-v6-in-app-browser-acceptance.md
+          value: docs/docs/releases/antd-v6-in-app-browser-acceptance.md
     - id: concentrated-frontend-gate
       requirement: verify-retained-critical-journeys
       statement: The focused frontend suite and production release build pass together before PR handoff.
