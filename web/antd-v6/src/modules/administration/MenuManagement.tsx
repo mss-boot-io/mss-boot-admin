@@ -414,7 +414,7 @@ export default function MenuManagement({
           { id: 'menu.apiBinding.title' },
           { name: bindingMenu ? formatMenuLabel(intl, bindingMenu.name) : '' },
         )}
-        width={760}
+        size={760}
         extra={
           <Button
             type="primary"
