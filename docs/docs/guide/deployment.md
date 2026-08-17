@@ -4,546 +4,116 @@ order: 13
 nav:
   title: 指南
   order: 1
-keywords: [deployment, docker, production, install]
+keywords: [deployment, docker, production, ant-design-v6]
 ---
 
-# 部署概述
+# 当前交付边界
 
-mss-boot-admin 支持多种部署方式：
+Admin 前后端分别发布：
 
-- **Docker 部署** - 推荐，快速部署
-- **二进制部署** - 传统部署方式
-- **Kubernetes 部署** - 容器编排部署
+| 组件 | 默认制品 | 身份 |
+| --- | --- | --- |
+| Go 后端 | 根版本二进制与 OCI 镜像 | `mss-boot-admin` |
+| 默认前端 | 独立静态包与 OCI 镜像 | `mss-boot-admin-antd-v6` |
 
----
+V6 始终位于 `web/antd-v6`，使用 `web/antd-v6/v{version}` 标签独立发布。
+历史标签和制品保持不可变，但不再作为活动构建、部署或回滚输入。
 
-# Docker 部署
+生产部署必须使用已经合入 `main`、通过发布门禁且带完整 digest 的不可变镜像。
+不要使用 `latest`、分支名镜像、PR head、个人构建或重新构建的历史源码。
 
-## 快速启动
+# 本地同源交付验证
 
-### 使用 Docker Compose
+后端先在宿主机 `8080` 端口启动。默认 `local` 配置会启用 V6 的 HttpOnly
+浏览器会话、CSRF 与 WebSocket ticket，并信任 `http://localhost:8001`。
 
-创建 `docker-compose.yml`：
-
-```yaml
-version: '3.8'
-
-services:
-  mysql:
-    image: mysql:8
-    container_name: mss-mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: your_password
-      MYSQL_DATABASE: mss_boot_admin
-      MYSQL_CHARSET: utf8mb4
-      MYSQL_COLLATION: utf8mb4_unicode_ci
-    volumes:
-      - mysql-data:/var/lib/mysql
-    ports:
-      - "3306:3306"
-    restart: unless-stopped
-
-  backend:
-    image: mss-boot-io/mss-boot-admin:latest
-    container_name: mss-backend
-    environment:
-      DB_DSN: "root:your_password@tcp(mysql:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local"
-      SERVER_ADDR: ":8080"
-      JWT_SECRET: "your-jwt-secret-key"
-      stage: "prod"
-    ports:
-      - "8080:8080"
-    depends_on:
-      - mysql
-    restart: unless-stopped
-
-  frontend:
-    image: mss-boot-io/mss-boot-admin-antd:latest
-    container_name: mss-frontend
-    environment:
-      API_BASE_URL: "http://backend:8080"
-    ports:
-      - "8000:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-volumes:
-  mysql-data:
+```shell
+# 仓库根目录
+make web-build
+docker compose -f compose/admin/docker-compose.yml up --detach --build
+curl --fail http://localhost:8001/healthz
 ```
 
-启动服务：
+Compose 中的 Nginx 将 `/admin/` HTTP 和 WebSocket 请求转发到宿主机后端，浏览器
+始终使用 `http://localhost:8001` 同源访问。停止本地前端：
 
-```bash
-docker-compose up -d
+```shell
+docker compose -f compose/admin/docker-compose.yml down
 ```
 
-查看状态：
+也可通过 `MSS_FRONTEND_V6_IMAGE=<repository>@sha256:<digest>` 验证一个已资格化的
+V6 镜像。该本地配置不注入生产凭据，也不替代生产 ingress、TLS 或 Secret 管理。
 
-```bash
-docker-compose ps
-```
+# 生产部署要求
 
-访问系统：http://localhost:8000
+## 前端和 API 路由
 
-## 自定义配置
+生产入口必须满足以下条件：
 
-### 后端配置
+- 浏览器通过一个 HTTPS origin 访问 V6；
+- `/admin/` API 与 WebSocket upgrade 路由到同一版本兼容的 Go 后端；
+- `/healthz` 能区分并返回 `mss-boot-admin-antd-v6`；
+- HTML 与 `release.json` 不缓存，带内容 hash 的静态资源可 immutable 缓存；
+- 旧 chunk 缺失返回 404，Service Worker 路径保持禁用；
+- 发布记录保存 V6 镜像 digest、前端 `release.json`、后端 commit 和部署时间。
 
-通过环境变量配置：
+## 后端安全配置
 
-| 环境变量 | 说明 | 默认值 |
-|----------|------|--------|
-| DB_DSN | 数据库连接 | - |
-| SERVER_ADDR | 服务端口 | :8080 |
-| JWT_SECRET | JWT 密钥 | - |
-| stage | 环境 | local |
-| LOG_LEVEL | 日志级别 | info |
+V6 生产浏览器会话必须显式配置，基础配置不会替部署者猜测：
 
-### 前端配置
+- `application.mode: prod`；
+- 唯一、精确的 HTTPS `application.origin` 和 CORS origin；
+- V6 浏览器会话和服务端会话校验始终启用，不存在兼容模式开关；
+- `auth.browserSession.secure: true`，SameSite 只能为 `lax` 或 `strict`；
+- 强随机 `auth.key` 和独立 `auth.identityKey`，通过 Secret 管理注入；
+- 所有副本共享的 Redis 会话资源；
+- 跨 origin 时允许 `X-CSRF-Token`，否则启动校验失败；
+- BrowserSession OAuth 应用、密钥和精确 `/user/oauth/callback/:provider` URI；
+- 只信任实际受控的反向代理地址，不接受任意 forwarded headers。
 
-通过环境变量配置：
+生产校验会对 HTTP origin、非 Secure Cookie、默认/弱密钥、缺少会话依赖和不完整
+CSRF 配置失败关闭。不要通过关闭校验来解决部署错误。
 
-| 环境变量 | 说明 | 默认值 |
-|----------|------|--------|
-| API_BASE_URL | 后端地址 | http://localhost:8080 |
+数据库 DSN、认证密钥、OAuth secret、对象存储凭据和第三方 token 不得写入 Compose、
+Kubernetes ConfigMap、命令行历史或仓库文件；使用部署平台的 SecretRef/Secret 机制。
 
----
+# 发布与提升顺序
 
-# 二进制部署
+1. 通过 PR 将 V6-only 后端、前端和前向配置清理迁移合入 `main`。
+2. 从同一 merged-main commit 生成后端制品以及 V6 静态包、checksum、SBOM、provenance 和镜像 digest。
+3. 在生产等价环境验证迁移、登录、刷新、退出、OAuth、CSRF、WebSocket、权限、直达路由与 Nginx 缓存。
+4. 只提升精确的后端与 V6 digest，并记录版本、配置、迁移和负责人。
+5. 覆盖至少一次正常会话到期前续期，再完成发布资格确认。
 
-## 构建后端
+根版本发布包可以附带同一 commit 构建的 V6 `dist`，但这不替代 V6 独立标签和镜像
+发布，也不能据此推断某个 `web/antd-v6/v{version}` Release 已存在。
 
-### 编译
+# 回滚
 
-```bash
-cd mss-boot-admin
+回滚时同时重部署上一个已资格化的 V6 前端与后端镜像 digest。禁止从当前
+分支重建历史源码、移动标签、force push、复用镜像名或反向执行已经上线的
+前向数据库迁移。V5 源码、制品和浏览器协议不作为回滚机制恢复。
 
-# 编译 Linux 版本
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o mss-boot-admin main.go
+任何需要代码修复的切流问题必须经新 PR 合入 `main`，重新生成制品并重启受影响的
+观察门禁。
 
-# 编译 Windows 版本
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o mss-boot-admin.exe main.go
-```
+# Kubernetes 与其他平台
 
-### 配置文件
+基础仓库不假设特定生产平台。Kubernetes、Nomad 或其他托管环境都必须
+实现相同合同：不可变 digest、同源路由、TLS/Secret、readiness、逐步提升、可观测信号
+和可审计回滚。建议至少配置：
 
-创建 `config/application-prod.yml`：
+- 后端 `/healthz` 与 `/readyz`；
+- V6 `/healthz` 且校验 application identity；
+- Pod/实例滚动更新与可用性预算；
+- 登录/刷新失败、401/403、CSRF、OAuth callback、WebSocket 重连、路由错误和前端异常告警；
+- 数据库备份与恢复演练；
+- 镜像 digest、配置版本、迁移版本和回滚决定的发布记录。
 
-```yaml
-server:
-  addr: ":8080"
-  name: "mss-boot-admin"
+# API 认证边界
 
-database:
-  dsn: "root:password@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local"
+浏览器只使用 V6 HttpOnly 会话、CSRF、BrowserSession OAuth 和一次性 WebSocket
+ticket。通用 `Authorization: Bearer` 与 PAT 继续服务已记录的非浏览器自动化，
+不用于恢复 token 返回式浏览器登录或 URL WebSocket token。
 
-jwt:
-  secret: "your-jwt-secret-key"
-  expire: "2h"
-
-logger:
-  level: "info"
-  json: true
-  stdout: "file"
-```
-
-### 启动服务
-
-```bash
-# 设置环境
-export stage=prod
-
-# 启动
-./mss-boot-admin server
-```
-
-或使用 systemd 管理服务：
-
-创建 `/etc/systemd/system/mss-boot-admin.service`：
-
-```ini
-[Unit]
-Description=mss-boot-admin backend service
-After=network.target mysql.service
-
-[Service]
-Type=simple
-User=mss
-WorkingDirectory=/opt/mss-boot-admin
-Environment="stage=prod"
-ExecStart=/opt/mss-boot-admin/mss-boot-admin server
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-启动服务：
-
-```bash
-systemctl daemon-reload
-systemctl enable mss-boot-admin
-systemctl start mss-boot-admin
-systemctl status mss-boot-admin
-```
-
-## 构建前端
-
-### 编译
-
-```bash
-cd mss-boot-admin-antd
-
-# 构建
-pnpm build
-```
-
-构建产物在 `dist/` 目录。
-
-### Nginx 配置
-
-创建 `/etc/nginx/sites-available/mss-boot-admin.conf`：
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    root /opt/mss-boot-admin-antd/dist;
-    index index.html;
-
-    # 前端路由
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # API 代理
-    location /api/ {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # 静态资源缓存
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-    }
-}
-```
-
-启用配置：
-
-```bash
-ln -s /etc/nginx/sites-available/mss-boot-admin.conf /etc/nginx/sites-enabled/
-nginx -t
-systemctl reload nginx
-```
-
----
-
-# Kubernetes 部署
-
-## Namespace
-
-创建 namespace：
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: mss-boot
-```
-
-## ConfigMap
-
-创建配置：
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mss-boot-admin-config
-  namespace: mss-boot
-data:
-  application.yml: |
-    server:
-      addr: ":8080"
-    database:
-      dsn: "root:password@tcp(mysql:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local"
-    jwt:
-      secret: "your-jwt-secret-key"
-    logger:
-      level: "info"
-      json: true
-```
-
-## Secret
-
-创建敏感配置：
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: mss-boot-admin-secret
-  namespace: mss-boot
-type: Opaque
-stringData:
-  jwt-secret: "your-jwt-secret-key"
-  db-password: "your_db_password"
-```
-
-## Deployment
-
-### 后端部署
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mss-boot-admin
-  namespace: mss-boot
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: mss-boot-admin
-  template:
-    metadata:
-      labels:
-        app: mss-boot-admin
-    spec:
-      containers:
-      - name: backend
-        image: mss-boot-io/mss-boot-admin:latest
-        ports:
-        - containerPort: 8080
-        env:
-        - name: stage
-          value: "prod"
-        - name: JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: mss-boot-admin-secret
-              key: jwt-secret
-        volumeMounts:
-        - name: config
-          mountPath: /app/config
-          readOnly: true
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "256Mi"
-          limits:
-            cpu: "500m"
-            memory: "512Mi"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 5
-      volumes:
-      - name: config
-        configMap:
-          name: mss-boot-admin-config
-```
-
-### 前端部署
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mss-boot-admin-antd
-  namespace: mss-boot
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: mss-boot-admin-antd
-  template:
-    metadata:
-      labels:
-        app: mss-boot-admin-antd
-    spec:
-      containers:
-      - name: frontend
-        image: mss-boot-io/mss-boot-admin-antd:latest
-        ports:
-        - containerPort: 80
-        resources:
-          requests:
-            cpu: "50m"
-            memory: "128Mi"
-          limits:
-            cpu: "200m"
-            memory: "256Mi"
-```
-
-## Service
-
-创建服务：
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: mss-boot-admin
-  namespace: mss-boot
-spec:
-  selector:
-    app: mss-boot-admin
-  ports:
-  - port: 8080
-    targetPort: 8080
-  type: ClusterIP
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: mss-boot-admin-antd
-  namespace: mss-boot
-spec:
-  selector:
-    app: mss-boot-admin-antd
-  ports:
-  - port: 80
-    targetPort: 80
-  type: ClusterIP
-```
-
-## Ingress
-
-创建入口：
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: mss-boot-admin-ingress
-  namespace: mss-boot
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-spec:
-  rules:
-  - host: your-domain.com
-    http:
-      paths:
-      - path: /api
-        pathType: Prefix
-        backend:
-          service:
-            name: mss-boot-admin
-            port:
-              number: 8080
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: mss-boot-admin-antd
-            port:
-              number: 80
-```
-
----
-
-# 生产环境检查清单
-
-部署前检查：
-
-## 1. 数据库
-
-- [ ] 数据库已创建
-- [ ] 字符集为 utf8mb4
-- [ ] 用户权限已配置
-- [ ] 数据库连接池参数已优化
-
-## 2. 配置文件
-
-- [ ] JWT 密钥已修改（不要使用默认值）
-- [ ] 数据库密码已配置
-- [ ] 日志级别为 info 或 error
-- [ ] 端口配置正确
-
-## 3. 安全配置
-
-- [ ] JWT 密钥强度足够（至少 32 字符）
-- [ ] HTTPS 已启用（生产环境必需）
-- [ ] CORS 配置正确
-- [ ] 防火墙规则已配置
-
-## 4. 监控配置
-
-- [ ] Prometheus 指标端点可访问
-- [ ] 健康检查端点可访问
-- [ ] 日志收集已配置
-- [ ] 告警规则已配置
-
-## 5. 性能优化
-
-- [ ] 数据库连接池大小合理
-- [ ] 资源限制已配置（CPU/内存）
-- [ ] 静态资源缓存已配置
-- [ ] gzip 压缩已启用
-
----
-
-# 运维建议
-
-## 日志管理
-
-- 日志文件定期清理
-- 日志级别动态调整
-- 日志归档备份
-
-## 数据备份
-
-定期备份数据库：
-
-```bash
-# MySQL 备份
-mysqldump -uroot -p mss_boot_admin > backup_$(date +%Y%m%d).sql
-
-# Docker MySQL 备份
-docker exec mysql mysqldump -uroot -pPASSWORD mss_boot_admin > backup.sql
-```
-
-## 监控告警
-
-配置关键指标告警：
-
-- CPU 使用率 > 80%
-- 内存使用率 > 80%
-- 磁盘使用率 > 80%
-- 服务不可用
-
-## 版本升级
-
-升级步骤：
-
-1. 备份数据库
-2. 拉取新版本代码
-3. 执行数据库迁移（如有）
-4. 重新部署服务
-5. 验证功能
-
----
-
-# 下一步
-
-- [核心功能](/guide/features) - 功能模块说明
-- [常见问题](/guide/faq) - 部署问题解答
-- [配置教程](/admin/configuration-guide) - 详细配置说明
+详细门禁与回滚原则见 [Ant Design 6 迁移计划](/admin/ant-design-v6-migration-plan)。

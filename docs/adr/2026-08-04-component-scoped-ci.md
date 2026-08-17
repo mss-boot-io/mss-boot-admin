@@ -10,7 +10,7 @@ The monorepo contains four independently testable products:
 
 1. the reusable `mss-boot/` Go framework module;
 2. the root Go admin application;
-3. the `web/antd/` frontend;
+3. the `web/antd-v6/` frontend;
 4. the `docs/` Dumi site.
 
 The previous root `CI` workflow executed root tests, framework tests, framework race tests, framework vet, module tidiness, backend compilation, workspace vendoring, and image publishing in one serial job. Agent infrastructure validation also installed Node and rebuilt the documentation site even though `docs.yml` already owned documentation validation and deployment. Feature branches additionally ran both `push` and `pull_request` copies of the same workflows.
@@ -25,7 +25,7 @@ Validation is split into component-owned workflows:
 | --- | --- | --- |
 | Admin backend | `.github/workflows/ci.yml` | Root tests and root build run in parallel; the historical `CI / build` aggregate check remains available for branch protection. |
 | Framework | `.github/workflows/mss-boot-ci.yml` | Independent `GOWORK=off` tests, race tests, vet, and module-tidiness checks. |
-| Frontend | `.github/workflows/frontend-ci.yml` | ESLint, TypeScript, Jest, and production-equivalent local build run in two parallel jobs; the historical `Frontend CI / build` check aggregates both. |
+| Frontend | `.github/workflows/frontend-v6-ci.yml` | Biome, TypeScript, Vitest, production build, delivery smoke, and browser evidence validate the sole V6 application. |
 | Documentation | `.github/workflows/docs.yml` | Dumi build on documentation changes and Cloudflare deployment only after a successful `main` build. |
 | Container image | `.github/workflows/container.yml` | Pull requests build the vendored image without pushing; `main`, tags, and manual dispatch publish with the GitHub Actions BuildKit cache. |
 

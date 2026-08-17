@@ -60,7 +60,6 @@ export function ThemeCrossTabBridge() {
               scope: event.scope,
               revision: event.revision,
               overrides: event.overrides,
-              versioned: true,
             } as const;
             const owner = resource.scope === 'user' ? (currentUserID ?? '') : '';
             const applied = applyCanonicalThemeResource(client, resource, owner, {

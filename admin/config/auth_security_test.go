@@ -9,14 +9,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestV6LocalOverlayEnablesOnlyDevelopmentBrowserSession(t *testing.T) {
+func TestLocalOverlayDefaultsToV6DevelopmentBrowserSession(t *testing.T) {
 	base, err := FS.ReadFile("application.yml")
 	if err != nil {
 		t.Fatalf("read base configuration: %v", err)
 	}
-	overlay, err := FS.ReadFile("application-v6-local.yml")
+	overlay, err := FS.ReadFile("application-local.yml")
 	if err != nil {
-		t.Fatalf("read V6 local overlay: %v", err)
+		t.Fatalf("read local overlay: %v", err)
 	}
 	var cfg Config
 	if err = yaml.Unmarshal(base, &cfg); err != nil {
@@ -26,16 +26,13 @@ func TestV6LocalOverlayEnablesOnlyDevelopmentBrowserSession(t *testing.T) {
 		t.Fatalf("decode V6 local overlay: %v", err)
 	}
 	if cfg.Application.Mode != ModeDev || cfg.Application.Origin != "http://localhost:8001" {
-		t.Fatalf("unexpected V6 local application profile: %#v", cfg.Application)
+		t.Fatalf("unexpected primary local application profile: %#v", cfg.Application)
 	}
-	if !cfg.Auth.SessionEnabled || !cfg.Auth.BrowserSession.Enabled || cfg.Auth.BrowserSession.Secure {
-		t.Fatalf("unexpected V6 local browser-session profile: %#v", cfg.Auth)
-	}
-	if !cfg.Auth.BrowserSession.LegacyWebSocketQueryTokenAllowed() {
-		t.Fatal("V6 local overlay must preserve the independently served V5 compatibility path")
+	if cfg.Auth.BrowserSession.Secure {
+		t.Fatalf("unexpected primary local browser-session profile: %#v", cfg.Auth)
 	}
 	if err = validateBrowserSession(cfg.Application.Mode, cfg.Auth); err != nil {
-		t.Fatalf("validate V6 local browser session: %v", err)
+		t.Fatalf("validate primary local browser session: %v", err)
 	}
 	if err = validateBrowserSessionOrigins(
 		cfg.Application.Mode,
@@ -44,7 +41,7 @@ func TestV6LocalOverlayEnablesOnlyDevelopmentBrowserSession(t *testing.T) {
 		cfg.CORS.AllowOrigins,
 		cfg.CORS.AllowHeaders,
 	); err != nil {
-		t.Fatalf("validate V6 local browser origins: %v", err)
+		t.Fatalf("validate primary local browser origins: %v", err)
 	}
 }
 
@@ -78,13 +75,11 @@ func TestValidateProductionAuthKeyFailsClosed(t *testing.T) {
 
 func TestValidateBrowserSessionFailsClosed(t *testing.T) {
 	valid := Auth{
-		Key:            "browser-session-test-key",
-		IdentityKey:    "browser-session-test-identity",
-		Timeout:        12 * time.Hour,
-		MaxRefresh:     30 * 24 * time.Hour,
-		SessionEnabled: true,
+		Key:         "browser-session-test-key",
+		IdentityKey: "browser-session-test-identity",
+		Timeout:     12 * time.Hour,
+		MaxRefresh:  30 * 24 * time.Hour,
 		BrowserSession: BrowserSession{
-			Enabled:            true,
 			Secure:             true,
 			SameSite:           "lax",
 			WebSocketTicketTTL: 30 * time.Second,
@@ -98,12 +93,6 @@ func TestValidateBrowserSessionFailsClosed(t *testing.T) {
 	}{
 		{name: "production valid", mode: ModeProd},
 		{name: "development may use insecure cookie", mode: ModeDev, mutate: func(auth *Auth) { auth.BrowserSession.Secure = false }},
-		{name: "disabled remains compatible", mode: ModeProd, mutate: func(auth *Auth) {
-			auth.BrowserSession.Enabled = false
-			auth.BrowserSession.Secure = false
-			auth.SessionEnabled = false
-		}},
-		{name: "server session required", mode: ModeDev, mutate: func(auth *Auth) { auth.SessionEnabled = false }, wantErr: true},
 		{name: "signing key required", mode: ModeDev, mutate: func(auth *Auth) { auth.Key = "" }, wantErr: true},
 		{name: "identity key required", mode: ModeDev, mutate: func(auth *Auth) { auth.IdentityKey = "" }, wantErr: true},
 		{name: "positive timeout required", mode: ModeDev, mutate: func(auth *Auth) { auth.Timeout = 0 }, wantErr: true},
@@ -135,14 +124,6 @@ func TestBrowserSessionDefaults(t *testing.T) {
 	if got := settings.TicketTTL(); got != 30*time.Second {
 		t.Fatalf("TicketTTL() = %v, want 30s", got)
 	}
-	if !settings.LegacyWebSocketQueryTokenAllowed() {
-		t.Fatal("an omitted legacy WebSocket switch must preserve V5 compatibility")
-	}
-	disabled := false
-	settings.LegacyWebSocketQueryTokenEnabled = &disabled
-	if settings.LegacyWebSocketQueryTokenAllowed() {
-		t.Fatal("an explicit false must retire legacy WebSocket query authentication")
-	}
 	settings.SameSite = "STRICT"
 	if got := settings.CookieSameSite(); got != http.SameSiteStrictMode {
 		t.Fatalf("CookieSameSite() = %v, want Strict", got)
@@ -150,7 +131,7 @@ func TestBrowserSessionDefaults(t *testing.T) {
 }
 
 func TestValidateBrowserSessionOrigins(t *testing.T) {
-	auth := Auth{BrowserSession: BrowserSession{Enabled: true}}
+	auth := Auth{}
 	tests := []struct {
 		name              string
 		mode              Mode
@@ -175,9 +156,6 @@ func TestValidateBrowserSessionOrigins(t *testing.T) {
 				t.Fatalf("validateBrowserSessionOrigins() error = %v, wantErr %v", err, test.wantErr)
 			}
 		})
-	}
-	if err := validateBrowserSessionOrigins(ModeProd, Auth{}, "", []string{"*"}, nil); err != nil {
-		t.Fatalf("disabled browser sessions must preserve existing origin configuration: %v", err)
 	}
 }
 

@@ -46,7 +46,7 @@ type OptionUpdateInput struct {
 	Remark          *string
 	Items           *models.OptionItems
 	Status          *enum.Status
-	ExpectedVersion *int
+	ExpectedVersion int
 }
 
 type OptionRevisionConflictError struct {
@@ -156,11 +156,6 @@ func (e *Option) InvalidateCache(ctx context.Context, category, name string) err
 	return center.GetCache().Del(cacheCtx, keys...).Err()
 }
 
-func (e *Option) UpdateOption(ctx context.Context, id string, items *models.OptionItems, changedBy, changeNote string) error {
-	_, err := e.UpdateOptionResource(ctx, id, OptionUpdateInput{Items: items}, changedBy, changeNote)
-	return err
-}
-
 func (e *Option) CreateOption(
 	ctx context.Context,
 	option *models.Option,
@@ -243,7 +238,7 @@ func (e *Option) UpdateOptionResource(
 		if err := current.ValidateStored(); err != nil {
 			return errors.Join(ErrOptionDataInvalid, err)
 		}
-		if input.ExpectedVersion != nil && current.Version != *input.ExpectedVersion {
+		if current.Version != input.ExpectedVersion {
 			return &OptionRevisionConflictError{Current: cloneOption(&current)}
 		}
 
@@ -329,7 +324,7 @@ func (e *Option) UpdateOptionResource(
 func (e *Option) DeleteOption(
 	ctx context.Context,
 	id string,
-	expectedVersion *int,
+	expectedVersion int,
 	changedBy string,
 	changeNote string,
 ) (*models.Option, error) {
@@ -351,7 +346,7 @@ func (e *Option) DeleteOption(
 		if err := current.ValidateStored(); err != nil {
 			return errors.Join(ErrOptionDataInvalid, err)
 		}
-		if expectedVersion != nil && current.Version != *expectedVersion {
+		if current.Version != expectedVersion {
 			return &OptionRevisionConflictError{Current: cloneOption(&current)}
 		}
 		if current.BuiltIn {

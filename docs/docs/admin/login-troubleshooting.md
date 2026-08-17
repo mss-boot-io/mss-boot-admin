@@ -74,8 +74,7 @@ curl -I http://127.0.0.1:8080/healthz
 
 前端可访问但接口报错时，先确认前端实际请求的 API 域名。常见错误包括：
 
-- 本地前端仍指向旧 beta/alpha API。
-- Cloudflare 页面指向了开发环境 API。
+- V6 本地代理指向了错误的后端端口或环境。
 - 本地代理未转发 `/admin/api/**`。
 - 反向代理没有转发 `Authorization`、`Cookie` 或必要的 CORS 头。
 
@@ -83,20 +82,20 @@ curl -I http://127.0.0.1:8080/healthz
 
 ```bash
 curl -I http://127.0.0.1:8080/healthz
-curl -I http://127.0.0.1:8000
+curl -I http://127.0.0.1:8001
 ```
 
-如果前端在本地启动，应对接 alpha/dev 后端；公开 beta 前端只应展示已经
-通过冒烟测试的 beta API。
+本地 `web/antd-v6` 应通过同源开发代理连接当前开发后端；不要在浏览器端配置第二套
+API host 或退役认证路径。
 
 ## 5. 浏览器缓存和旧构建
 
 当只有某一个浏览器异常，而无痕窗口或另一台机器正常，优先按会话问题处理：
 
-- 清理 localStorage 和 cookie。
+- 清理 `mss.antd-v6.*` localStorage、会话 Cookie 和 CSRF Cookie。
 - 强制刷新页面。
-- 确认 Service Worker 或 CDN 没有缓存旧构建。
-- 确认用户切换环境后没有复用旧 token。
+- 确认 CDN 没有缓存旧 HTML；V6 构建不包含 Service Worker。
+- 确认用户切换环境后没有复用其他环境的会话 Cookie。
 
 ## 提交 Issue 前的最小信息
 

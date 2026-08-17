@@ -77,15 +77,15 @@ func TestBackendChecksTargetIndependentAdminModule(t *testing.T) {
 func TestFrontendBuildUsesPortableReleaseProfile(t *testing.T) {
 	root := t.TempDir()
 	spec := frontendBuild(root)
-	if want := []string{"corepack", "pnpm", "build:release"}; !reflect.DeepEqual(spec.Args, want) {
+	if want := []string{"corepack", "pnpm@10.34.5", "build:release"}; !reflect.DeepEqual(spec.Args, want) {
 		t.Fatalf("frontend build arguments = %q, want %q", spec.Args, want)
 	}
-	if spec.Directory != filepath.Join(root, "web", "antd") {
+	if spec.Directory != filepath.Join(root, "web", "antd-v6") {
 		t.Fatalf("frontend build directory = %q", spec.Directory)
 	}
 }
 
-func TestFrontendV6ChecksUseIndependentApplicationDirectory(t *testing.T) {
+func TestFrontendChecksUseOnlyV6ApplicationDirectory(t *testing.T) {
 	root := t.TempDir()
 	wantDirectory := filepath.Join(root, "web", "antd-v6")
 	for _, spec := range []struct {
@@ -93,9 +93,9 @@ func TestFrontendV6ChecksUseIndependentApplicationDirectory(t *testing.T) {
 		got      commandSpecView
 		wantArgs []string
 	}{
-		{name: "lint", got: commandSpecView{frontendV6Lint(root).Directory, frontendV6Lint(root).Args}, wantArgs: []string{"corepack", "pnpm@10.34.5", "lint"}},
-		{name: "test", got: commandSpecView{frontendV6Test(root).Directory, frontendV6Test(root).Args}, wantArgs: []string{"corepack", "pnpm@10.34.5", "test:ci"}},
-		{name: "build", got: commandSpecView{frontendV6Build(root).Directory, frontendV6Build(root).Args}, wantArgs: []string{"corepack", "pnpm@10.34.5", "build:release"}},
+		{name: "lint", got: commandSpecView{frontendLint(root).Directory, frontendLint(root).Args}, wantArgs: []string{"corepack", "pnpm@10.34.5", "lint"}},
+		{name: "test", got: commandSpecView{frontendTest(root).Directory, frontendTest(root).Args}, wantArgs: []string{"corepack", "pnpm@10.34.5", "test:ci"}},
+		{name: "build", got: commandSpecView{frontendBuild(root).Directory, frontendBuild(root).Args}, wantArgs: []string{"corepack", "pnpm@10.34.5", "build:release"}},
 	} {
 		if spec.got.directory != wantDirectory {
 			t.Fatalf("%s directory = %q, want %q", spec.name, spec.got.directory, wantDirectory)
@@ -109,7 +109,7 @@ func TestFrontendV6ChecksUseIndependentApplicationDirectory(t *testing.T) {
 func TestFrontendV6FullChecksRequireConfiguredApplication(t *testing.T) {
 	ctx := &project.Context{}
 	if hasFrontendApplication(ctx, "web/antd-v6") {
-		t.Fatal("legacy project context unexpectedly enables the v6 frontend")
+		t.Fatal("empty project context unexpectedly enables the V6 frontend")
 	}
 	ctx.Project.Spec.Frontend.Applications = []project.FrontendApplicationSpec{
 		{ID: "antd-v6", Path: "web/antd-v6"},

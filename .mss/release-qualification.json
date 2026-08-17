@@ -7,7 +7,11 @@
   "excludedFeatures": [
     {
       "path": ".mss/features/admin-antd-v6-application.yaml",
-      "reason": "carry-forward: the independent Ant Design 6 application remains implementation-only until its business parity, session security, generator, browser, and release evidence is complete; this exclusion grants no v6 publication authority."
+      "reason": "carry-forward: the independent Ant Design 6 application passed merged-main product-parity qualification in PR #483; its exact publication evidence remains component-scoped and is not replayed by the root release feature."
+    },
+    {
+      "path": ".mss/features/admin-antd-v6-cutover-retirement.yaml",
+      "reason": "carry-forward: the direct V6-only source retirement and backend browser-protocol cleanup have their own concentrated pre-PR gates; this root qualification cannot skip or pre-authorize any unfinished gate."
     },
     {
       "path": ".mss/features/admin-config-cache-consistency.yaml",

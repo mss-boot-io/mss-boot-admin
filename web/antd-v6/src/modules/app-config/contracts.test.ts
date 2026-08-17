@@ -7,30 +7,23 @@ import {
 } from './contracts';
 
 describe('application config contracts', () => {
-  it('strips all five protected secrets from query-owned data', () => {
+  it('strips all V6 protected secrets from query-owned data', () => {
     const security = parseSecurityAppConfig({
-      githubClientSecret: 'legacy-github-secret',
       githubBrowserSessionClientSecret: 'browser-github-secret',
-      larkAppSecret: 'legacy-lark-secret',
       larkBrowserSessionAppSecret: 'browser-lark-secret',
     });
     const email = parseEmailAppConfig({ password: 'smtp-secret', smtpPort: '587' });
 
     expect(security.configuredSecrets).toEqual(
-      new Set([
-        'githubClientSecret',
-        'githubBrowserSessionClientSecret',
-        'larkAppSecret',
-        'larkBrowserSessionAppSecret',
-      ]),
+      new Set(['githubBrowserSessionClientSecret', 'larkBrowserSessionAppSecret']),
     );
-    expect(security.values).not.toHaveProperty('githubClientSecret');
+    expect(security.values).not.toHaveProperty('githubBrowserSessionClientSecret');
     expect(security.values).not.toHaveProperty('larkBrowserSessionAppSecret');
     expect(email.configuredSecrets).toEqual(new Set(['password']));
     expect(email.values).not.toHaveProperty('password');
   });
 
-  it('keeps V5 and V6 OAuth credential fields independent', () => {
+  it('ignores retired OAuth fields and keeps only V6 browser-session values', () => {
     const parsed = parseSecurityAppConfig({
       githubClientId: 'legacy-id',
       githubBrowserSessionClientId: 'browser-id',
@@ -38,24 +31,26 @@ describe('application config contracts', () => {
       githubBrowserSessionRedirectURI: 'https://v6.example/callback',
     });
     expect(parsed.values).toMatchObject({
-      githubClientId: 'legacy-id',
       githubBrowserSessionClientId: 'browser-id',
-      githubRedirectURI: 'https://legacy.example/callback',
       githubBrowserSessionRedirectURI: 'https://v6.example/callback',
     });
+    expect(parsed.values).not.toHaveProperty('githubClientId');
+    expect(parsed.values).not.toHaveProperty('githubRedirectURI');
   });
 
   it('omits blank or unauthorized secret rotations from writes', () => {
     const values = parseSecurityAppConfig({}).values;
-    values.githubClientSecret = '  rotate-me  ';
-    values.githubBrowserSessionClientSecret = '   ';
+    values.githubBrowserSessionClientSecret = '  rotate-me  ';
+    values.larkBrowserSessionAppSecret = '   ';
     expect(serializeSecurityAppConfig(values, true)).toMatchObject({
-      githubClientSecret: 'rotate-me',
+      githubBrowserSessionClientSecret: 'rotate-me',
     });
     expect(serializeSecurityAppConfig(values, true)).not.toHaveProperty(
+      'larkBrowserSessionAppSecret',
+    );
+    expect(serializeSecurityAppConfig(values, false)).not.toHaveProperty(
       'githubBrowserSessionClientSecret',
     );
-    expect(serializeSecurityAppConfig(values, false)).not.toHaveProperty('githubClientSecret');
     expect(
       serializeEmailAppConfig(
         { smtpHost: 'smtp.example', smtpPort: 587, username: 'mailer', password: ' secret ' },

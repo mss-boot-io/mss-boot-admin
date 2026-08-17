@@ -54,11 +54,32 @@ func Plan(ctx *project.Context, options Options) []command.Spec {
 		})
 	}
 	if !options.SkipFrontend {
+		application, ok := ctx.DefaultFrontendApplication()
+		if !ok {
+			frontendPath := strings.TrimSpace(ctx.Project.Spec.RepositoryLayout["frontend"])
+			if frontendPath == "" {
+				frontendPath = "web/antd-v6"
+			}
+			application = project.FrontendApplicationSpec{
+				ID:                    "frontend",
+				Path:                  frontendPath,
+				PackageManager:        "pnpm",
+				PackageManagerVersion: ctx.Project.Spec.Frontend.PackageManagerVersion,
+			}
+		}
+		packageManager := strings.TrimSpace(application.PackageManager)
+		if packageManager == "" {
+			packageManager = "pnpm"
+		}
+		packageManagerCommand := packageManager
+		if version := strings.TrimSpace(application.PackageManagerVersion); version != "" {
+			packageManagerCommand += "@" + version
+		}
 		steps = append(steps, command.Spec{
 			ID:          "frontend-dependencies",
-			Description: "install frontend dependencies from the frozen lockfile",
-			Directory:   filepath.Join(ctx.Root, "web", "antd"),
-			Args:        []string{"pnpm", "install", "--frozen-lockfile"},
+			Description: "install " + application.ID + " dependencies from the frozen lockfile",
+			Directory:   filepath.Join(ctx.Root, filepath.FromSlash(application.Path)),
+			Args:        []string{"corepack", packageManagerCommand, "install", "--frozen-lockfile"},
 			Environment: map[string]string{"CI": "true"},
 			Timeout:     20 * time.Minute,
 		})

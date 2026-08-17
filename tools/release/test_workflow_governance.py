@@ -91,27 +91,6 @@ class WorkflowGovernanceTest(unittest.TestCase):
         )
         self.assertNotIn("push", triggers)
 
-    def test_frontend_deployment_is_manual_and_self_contained(self):
-        workflow = self.workflows["frontend-deploy.yml"]
-        self.assertEqual(set(workflow["on"]), {"workflow_dispatch"})
-        self.assertIn("env", workflow["on"]["workflow_dispatch"]["inputs"])
-
-        job = workflow["jobs"]["deploy"]
-        self.assertNotIn("uses", job)
-        self.assertEqual(job["environment"], "${{ inputs.env }}")
-        step_uses = [step.get("uses", "") for step in job["steps"]]
-        for action in (
-            "actions/checkout@",
-            "pnpm/action-setup@",
-            "actions/setup-node@",
-            "cloudflare/wrangler-action@",
-        ):
-            with self.subTest(action=action):
-                self.assertTrue(any(item.startswith(action) for item in step_uses))
-
-        build = next(step for step in job["steps"] if step.get("name") == "Build")
-        self.assertEqual(build["run"], "pnpm build:${{ inputs.env }}")
-
     def test_agent_ci_runs_this_governance_suite(self):
         agent_workflow = self.workflows["agent-native-ci.yml"]
         for event in ("push", "pull_request"):

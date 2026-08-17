@@ -2,206 +2,128 @@ apiVersion: mss.io/v1alpha1
 kind: Feature
 metadata:
   name: admin-antd-v6-cutover-retirement
-  displayName: Make Ant Design 6 primary and retire the Ant Design 5 application
+  displayName: Converge Admin on the Ant Design 6 application
   description: >-
-    Qualifies the independent Ant Design 6 application as the primary Admin client,
-    changes backend and deployment defaults only after a reversible observation window,
-    then removes the retired Ant Design 5 application and proven-dead compatibility code.
+    Removes the retired Ant Design 5 browser application and converges the
+    frontend, backend browser protocol, generator, delivery, and documentation
+    on the independently published Ant Design 6 application.
   owner: admin-platform
   labels:
     domain: admin-foundation
     compatibility: breaking
-    phase: planned
+    phase: implementation
 spec:
   problem: >-
-    The independent web/antd-v6 application is intentionally being delivered beside
-    web/antd so capability migration and security changes remain reversible. Once V6
-    reaches functional parity and release quality, keeping both applications and every
-    compatibility path indefinitely would double frontend maintenance, preserve stale
-    browser authentication behavior, and make backend contracts ambiguous. Removing V5
-    before V6 qualification or without proving external consumers would instead create
-    an unsafe, irreversible cutover.
+    V6 is now the only supported Admin browser client. Retaining the V5 source,
+    browser bearer responses, query-token WebSocket route, legacy OAuth response
+    mode, weak mutation fallbacks, and duplicate delivery contracts creates an
+    ambiguous and less secure product boundary.
   goals:
-    - Prove V6 functional parity, responsive behavior, accessibility, security, and independent release readiness before changing any default traffic.
-    - Make the V6 browser-session, route, artifact, image, and deployment path the documented Admin default while keeping its web/antd-v6 identity and release namespace.
-    - Observe the V6 default in a time-bounded rollback window with explicit error, authentication, authorization, and WebSocket signals.
-    - Retire web/antd, its release path, its generator projection, and V5-only browser compatibility behavior through reviewed breaking changes.
-    - Remove backend and frontend code only after an exact consumer and route inventory proves it is obsolete.
-    - Preserve business data and use forward migrations for retired menu, API, policy, and configuration metadata.
+    - Keep web/antd-v6 as the only browser application and independent release artifact.
+    - Remove V5 source, generator projections, CI, release, deploy, dependency, and documentation surfaces.
+    - Make HttpOnly browser sessions, CSRF, scheduled refresh, browser-bound OAuth, and one-time WebSocket tickets the only browser protocol.
+    - Require strong If-Match preconditions for V6 theme, role authorization, menu authorization, and option mutations.
+    - Preserve standard PAT and Authorization Bearer support for documented non-browser API automation.
+    - Remove only exact obsolete configuration records through a forward, repeatable migration.
   nonGoals:
-    - Delete V5 while any required V6 acceptance gate is failing or lacks exact merged-main evidence.
-    - Rename web/antd-v6 to web/antd or merge its lockfile, build cache, image, tag, or release history into the retired application namespace.
-    - Treat retirement of the browser frontend as automatic authorization to remove bearer authentication used by documented API clients.
-    - Drop historical business tables, user data, audit records, or unknown downstream customizations.
-    - Rewrite pushed history, move release tags, or publish a cutover from an unmerged topic branch.
+    - Remove PAT or standard REST Bearer authentication.
+    - Delete user accounts, OAuth bindings, audit history, business data, or unknown downstream settings.
+    - Rewrite historical releases, tags, changelogs, or immutable evidence.
+    - Publish from a topic branch or before the removal pull request is merged into main.
   actors:
     - id: admin-user
       displayName: Admin user
-      description: Uses the primary V6 browser application without losing retained V5 capabilities.
-    - id: release-operator
-      displayName: Release operator
-      description: Promotes and rolls back immutable V6 artifacts through the governed deployment path.
+      description: Uses the V6 application and canonical browser-session protocol.
     - id: api-client-owner
       displayName: API client owner
-      description: Confirms whether legacy bearer or WebSocket behavior has a supported non-browser consumer.
+      description: Continues to use documented PAT and REST Bearer authentication.
     - id: downstream-maintainer
       displayName: Downstream maintainer
-      description: Upgrades generated applications across the intentional V5 removal boundary.
+      description: Generates and upgrades V6-only management modules.
   modules:
-    - name: frontend-v6-qualification
+    - name: frontend-v6-application
       operation: extend
-      description: Functional parity, UI refinement, browser acceptance, and release evidence for web/antd-v6.
-    - name: admin-v6-defaults
-      operation: extend
-      description: Backend, local-development, deployment, documentation, and routing defaults for the primary V6 application.
-    - name: frontend-v5-application
+      description: The only supported Admin browser application and release surface.
+    - name: retired-frontend-application
       operation: remove
-      description: Retired web/antd source, toolchain, workflows, images, templates, contracts, and active documentation.
-    - name: legacy-browser-compatibility
-      operation: remove
-      description: Proven V5-only session, OAuth, WebSocket, weak-concurrency, menu, and configuration compatibility paths.
-    - name: downstream-upgrade-boundary
+      description: Retired source, templates, workflows, contracts, and active documentation.
+    - name: v6-browser-protocol
       operation: extend
-      description: Breaking-change manifest, upgrade guidance, and deterministic cleanup for downstream applications.
+      description: Canonical cookie, CSRF, OAuth, refresh, WebSocket, and mutation contracts.
+    - name: retired-browser-compatibility
+      operation: remove
+      description: V5-only routes, response modes, configuration, and weak concurrency fallbacks.
   requirements:
-    - id: qualify-v6-parity
-      title: V6 reaches retained V5 capability parity before cutover
-      description: Every retained route, action, field, state, permission, locale, and responsive interaction is mapped and accepted in V6.
-      priority: must
-      actor: admin-user
-      module: frontend-v6-qualification
-      rules:
-        - The parity inventory distinguishes preserved business contracts from intentionally rejected V5 defects and removed product features.
-        - Login, refresh, logout, OAuth, account, password, PAT, organization, RBAC, task, notice, log, monitor, session, language, option, application configuration, system configuration, theme, and generated-module paths have positive and negative evidence.
-        - Desktop and mobile Chinese and English flows have no raw locale keys, horizontal document overflow, inaccessible primary controls, console errors, or Ant Design deprecation warnings.
-        - V6 production build, dependency, bundle, container, direct-route, direct-API, and rollback gates pass from one exact commit already merged into origin/main.
-        - Bundle optimization and the complete unit, integration, and E2E suite run as one pre-PR or release-qualification batch, not as a substitute for functional implementation.
-    - id: switch-primary-defaults
-      title: Backend and deployment defaults select V6 without deleting compatibility
-      description: The first cutover release makes V6 the documented and deployed default while preserving a tested, time-bounded V5 rollback path.
-      priority: must
-      actor: release-operator
-      module: admin-v6-defaults
-      rules:
-        - The V6 cookie, CSRF, OAuth, refresh scheduling, and WebSocket ticket configuration is explicit, production-safe, and validated before traffic moves.
-        - Local development, compose, examples, documentation, health checks, and deployment inputs start or reference V6 by default without changing its independent artifact identity.
-        - The V5 immutable image and the backend compatibility switches remain available but frozen during the observation window.
-        - Rollback redeploys the last qualified V5 image or preceding V6 image; it never rebuilds a historical source revision or reverses additive database migrations.
-        - Traffic promotion has named owners, start and end timestamps, success thresholds, and a recorded rollback decision.
-    - id: observe-cutover
-      title: The default V6 deployment completes an evidence-based observation window
-      description: V5 retirement cannot begin until production-equivalent signals show that V6 is stable and all required users have moved.
-      priority: must
-      actor: release-operator
-      module: admin-v6-defaults
-      rules:
-        - Signals include login and refresh failures, 401 and 403 rates, CSRF rejection, OAuth callback failure, WebSocket reconnect and authorization refresh, route errors, frontend exceptions, and rollback events.
-        - The window covers at least one normal credential-expiry and scheduled-refresh cycle in a production-equivalent environment.
-        - Known API and automation consumers are inventoried separately from browser traffic; absence of V5 page views is not evidence that bearer authentication is unused.
-        - Any cutover defect requiring code changes returns through a new pull request and restarts the affected observation gate.
-    - id: inventory-retirement-scope
-      title: Every removal candidate has an exact consumer and compatibility decision
-      description: Source, endpoints, settings, menus, migrations, workflows, generated output, and documentation are classified before deletion.
-      priority: must
-      actor: api-client-owner
-      module: legacy-browser-compatibility
-      rules:
-        - The inventory records defining source, runtime registration, callers, permissions, configuration switches, database metadata, tests, documentation, and replacement for each candidate.
-        - Browser-only bearer login and refresh responses, V5 OAuth response mode, query-token WebSocket authentication, missing-revision writes, V5 storage namespaces, and V5-only configuration fields are evaluated independently.
-        - General REST bearer authentication remains supported when a documented API client still needs it; only proven browser compatibility behavior is removed automatically with V5.
-        - Generated or downstream imports are checked before deleting V5 templates, target enums, validation branches, or upgrade code.
-        - Uncertain candidates remain deprecated and instrumented; they are not deleted by broad name, directory, or path-prefix matching.
-    - id: retire-v5-application
-      title: The V5 application and release path become absent
-      description: After the observation and inventory gates, active repository and delivery surfaces no longer build, publish, deploy, or document web/antd as a supported application.
+    - id: remove-v5-active-surface
+      title: V5 is absent from every active application surface
+      description: The repository builds, starts, generates, tests, releases, and documents one V6 frontend.
       priority: must
       actor: downstream-maintainer
-      module: frontend-v5-application
+      module: retired-frontend-application
       rules:
-        - V5 removal is a dedicated breaking-change pull request after the V6-default pull request has been merged and observed.
-        - Source, dependency manifests, lockfiles, tests, CI, release workflows, image definitions, Make targets, project contracts, docs, and generated projections are removed or redirected together without dangling commands.
-        - Historical release notes, immutable tags, published images, and archived prompts remain immutable evidence and are not rewritten.
-        - The V6 directory, image name, build identity, tag namespace, and independent rollback history remain unchanged.
-        - Downstream upgrade documentation states the final V5-supported foundation release and the first V6-only release.
-    - id: remove-proven-dead-backend-code
-      title: Backend compatibility and stale code is removed only when proven dead
-      description: Backend composition, routes, DTOs, configuration, migrations, services, tests, and dependencies converge on the V6 contract without breaking retained API clients.
+        - web/antd and its package manifests, workflows, images, generator templates, commands, and dependency automation are absent.
+        - Project, development, setup, doctor, verification, blueprint, release, and module contracts resolve only web/antd-v6.
+        - Historical tags and release evidence remain immutable and are not treated as active applications.
+    - id: remove-v5-browser-protocol
+      title: Backend browser behavior supports only V6
+      description: Browser authentication and real-time traffic use the V6 security contract exclusively.
       priority: must
-      actor: api-client-owner
-      module: legacy-browser-compatibility
+      actor: admin-user
+      module: retired-browser-compatibility
       rules:
-        - Legacy routes and modes are unregistered before their implementation is deleted, and route-inventory tests prove not-found behavior.
-        - Removal of a configuration key fails closed with an upgrade message instead of silently changing security behavior.
-        - Exact forward migrations remove only retired built-in menu, API, Casbin, OAuth, and configuration metadata with known provenance.
-        - Unknown custom menus, policies, OAuth clients, application settings, business data, and historical audit records are preserved.
-        - Supported databases run fresh-install, upgrade, repeat, and compatibility migration tests before release qualification.
-        - Dependency and static call-graph checks prove removed packages and helpers have no retained caller.
+        - Legacy token-returning login and refresh routes, bearer OAuth callback mode, generic OAuth binding routes, historical jwt cookies, and URL WebSocket tokens are unregistered.
+        - V6 browser sessions and durable server-session validation are mandatory backend behavior with no stateless compatibility switch.
+        - OAuth uses only BrowserSession provider settings and never serializes an Admin or provider credential to browser JavaScript.
+        - The canonical /ws/connect accepts only a short-lived, one-time ticket through Sec-WebSocket-Protocol.
+        - PAT and standard Authorization Bearer authentication remain available to non-browser API clients.
+    - id: enforce-v6-concurrency
+      title: V6 mutations fail closed on stale state
+      description: Revisioned settings and authorization writes require strong resource preconditions.
+      priority: must
+      actor: admin-user
+      module: v6-browser-protocol
+      rules:
+        - Missing If-Match returns 428 and malformed If-Match returns 400.
+        - Stale revisions return 412 with the current canonical resource and ETag.
+        - Request-body revision aliases and missing-precondition warning fallbacks are absent.
+        - Theme reads and writes always use the canonical ThemeResource contract; the pwa compatibility field is rejected.
+    - id: migrate-obsolete-config
+      title: Obsolete V5 settings are removed safely
+      description: A forward migration removes exact V5-only OAuth and pwa configuration keys.
+      priority: must
+      actor: downstream-maintainer
+      module: retired-browser-compatibility
+      rules:
+        - BrowserSession OAuth settings, OAuth bindings, user data, and unknown keys are preserved.
+        - The migration is transactional, idempotent, and records its version.
+        - Fresh install, upgrade, and repeat execution pass on supported databases before release.
+    - id: qualify-single-v6-product
+      title: The single V6 product is release-qualified
+      description: V6 functional parity and canonical backend behavior pass one concentrated pre-PR validation batch.
+      priority: must
+      actor: admin-user
+      module: frontend-v6-application
+      rules:
+        - Retained login, account, PAT, organization, RBAC, task, notice, log, monitor, session, language, option, configuration, theme, and generated-module flows pass.
+        - Chinese and English desktop and mobile views have no raw locale keys, console errors, or Ant Design deprecation warnings.
+        - Build-size optimization is deferred until functional convergence, then performed before release qualification.
   constraints:
-    - id: ordered-breaking-change
-      type: compatibility
-      statement: V6 qualification, V6 default, observation, V5 removal, and backend compatibility cleanup are separate ordered gates and cannot be collapsed into one release.
-    - id: preserve-independent-v6-release
+    - id: independent-v6-release
       type: operations
-      statement: V6 remains independently built and published from web/antd-v6 even after it becomes the only supported browser application.
+      statement: V6 remains independently built and published from web/antd-v6.
     - id: pr-to-main-release
       type: operations
-      statement: Every cutover and removal artifact is qualified from an exact clean commit already merged into origin/main under immutable release governance.
+      statement: Release qualification and publication occur only from the exact clean commit merged into origin/main.
+    - id: preserve-api-auth
+      type: security
+      statement: V5 browser removal does not remove PAT or standard REST Bearer authentication.
     - id: preserve-unknown-data
       type: data
-      statement: Automated cleanup is limited to records with exact retired-feature provenance and never drops unknown business data or historical evidence.
-    - id: api-auth-separation
-      type: security
-      statement: Retiring V5 browser token handling does not by itself retire supported bearer authentication for non-browser API clients.
+      statement: Automated cleanup removes exact obsolete keys only and preserves all unknown business data and historical evidence.
   acceptance:
-    - id: parity-release-gate
-      requirement: qualify-v6-parity
-      statement: The complete V6 frontend, backend compatibility, browser, container, dependency, and release suite passes from the frozen merged-main commit.
-      level: integration
-      required: true
-      evidence:
-        - type: path
-          value: .mss/inventories/admin-antd-v6-parity.json
-        - type: command
-          value: go run ./cmd/mss verify --all
-        - type: command
-          value: make web-v6-lint web-v6-test web-v6-build
-        - type: command
-          value: cd web/antd-v6 && pnpm test:e2e --grep @parity
-    - id: primary-default-smoke
-      requirement: switch-primary-defaults
-      statement: A clean setup and compose deployment serves V6 as the primary Admin client while authenticated browser, OAuth, refresh, authorization events, and rollback smokes pass.
-      level: integration
-      required: true
-      evidence:
-        - type: test
-          value: internal/mss/project/frontend_default_test.go
-        - type: test
-          value: admin/router/browser_session_compatibility_test.go
-        - type: command
-          value: go run ./cmd/mss doctor
-    - id: observation-decision
-      requirement: observe-cutover
-      statement: A timestamped cutover report records signals, consumer inventory, incidents, threshold results, and the explicit proceed or rollback decision.
-      level: manual
-      required: true
-      evidence:
-        - type: path
-          value: .mss/reports/admin-antd-v6-cutover-observation.json
-    - id: retirement-inventory
-      requirement: inventory-retirement-scope
-      statement: Every V5 and compatibility candidate is classified as remove, retain, or defer with defining source and known consumers.
-      level: contract
-      required: true
-      evidence:
-        - type: path
-          value: .mss/inventories/admin-antd-v5-retirement.json
-        - type: command
-          value: python3 tools/cutover/generate_antd_v5_retirement_inventory.py --check
-        - type: path
-          value: .mss/reports/admin-antd-v5-retirement-inventory.json
     - id: v5-active-surface-absent
-      requirement: retire-v5-application
-      statement: Project, command, generator, workflow, route, documentation, and release inventories contain no active V5 application surface.
+      requirement: remove-v5-active-surface
+      statement: Active repository contracts contain no V5 application or generator target.
       level: integration
       required: true
       evidence:
@@ -209,50 +131,65 @@ spec:
           value: internal/mss/verify/removed_antd_v5_frontend_test.go
         - type: command
           value: go run ./cmd/mss context
-    - id: backend-compatibility-cleanup
-      requirement: remove-proven-dead-backend-code
-      statement: Retired browser routes return not found, retained API authentication still works, exact metadata migrations are repeatable, and all supported databases pass affected tests.
+    - id: browser-compatibility-absent
+      requirement: remove-v5-browser-protocol
+      statement: Retired routes are absent while PAT and canonical V6 browser authentication pass.
       level: security
       required: true
       evidence:
         - type: test
           value: admin/router/removed_v5_browser_compatibility_test.go
+    - id: strict-mutation-contract
+      requirement: enforce-v6-concurrency
+      statement: Missing, malformed, stale, and successful V6 mutation cases return the specified status and ETag contract.
+      level: integration
+      required: true
+      evidence:
+        - type: command
+          value: cd admin && GOWORK=off go test ./apis ./service
+    - id: config-retirement-migration
+      requirement: migrate-obsolete-config
+      statement: The exact cleanup migration preserves V6 settings and is repeatable.
+      level: migration
+      required: true
+      evidence:
         - type: test
-          value: admin/cmd/migrate/migration/system/antd_v5_retirement_test.go
+          value: admin/cmd/migrate/migration/system/20260817170000_retire_v5_browser_config_test.go
+    - id: v6-release-gate
+      requirement: qualify-single-v6-product
+      statement: The full repository, V6 frontend, browser, and production build gates pass together before the pull request is handed off.
+      level: integration
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss verify --all
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 test:e2e
   risks:
-    - id: premature-v5-deletion
-      description: Removing V5 before V6 parity or observation completes could eliminate the only working path for a retained capability.
-      severity: critical
-      mitigation: Enforce ordered gates, immutable rollback artifacts, and separate pull requests for default switch and deletion.
-    - id: hidden-api-consumer
-      description: A non-browser integration may rely on bearer or compatibility behavior that appears V5-specific from frontend source alone.
-      severity: critical
-      mitigation: Require owner-confirmed consumer inventory and retain general API bearer authentication unless independently deprecated.
-    - id: overbroad-metadata-cleanup
-      description: Prefix-based cleanup could remove custom menus, policies, OAuth clients, or settings that resemble built-in V5 records.
-      severity: critical
-      mitigation: Collect exact provenance-bound identifiers transactionally and preserve every uncertain record.
-    - id: downstream-v5-projection
-      description: A generated downstream application may still rely on the V5 template or target enum after the reference application moves to V6.
+    - id: hidden-browser-consumer
+      description: An external browser client may still call a retired V5 route.
       severity: high
-      mitigation: Publish a breaking upgrade boundary, audit generated consumers, and retain an immutable final V5-supported release for migration reference.
+      mitigation: Publish the breaking contract and return normal not-found behavior; retain only documented API authentication.
+    - id: overbroad-config-cleanup
+      description: A broad key match could remove downstream custom configuration.
+      severity: critical
+      mitigation: Match the exact security group and fixed key list, preserve all BrowserSession and unknown names, and test repeat execution.
+    - id: incomplete-v6-parity
+      description: Removing V5 exposes a retained capability gap in V6.
+      severity: critical
+      mitigation: Validate every retained capability declared in .mss/capabilities.yaml and run the concentrated V6 browser suite before PR handoff.
   validation:
     changed: go run ./cmd/mss verify --changed
     all: go run ./cmd/mss verify --all
     custom:
       - go run ./cmd/mss spec validate .mss/features/admin-antd-v6-cutover-retirement.yaml --format json
-      - python3 tools/cutover/generate_antd_v5_retirement_inventory.py --check
-      - make web-v6-lint web-v6-test web-v6-build
-      - cd web/antd-v6 && pnpm test:e2e --grep @parity
+      - cd web/antd-v6 && corepack pnpm@10.34.5 test:e2e
   rollout:
-    strategy: phased
+    strategy: direct
     migration: >-
-      First qualify and refine V6. Next merge and release a backward-compatible change
-      that makes V6 the primary default, then complete the recorded observation window.
-      Only afterward merge the breaking V5 removal and, in a later reviewed change,
-      remove each proven-dead backend compatibility path and exact metadata record.
+      Merge the V6-only source and protocol change through one reviewed pull request,
+      run the forward cleanup migration during deployment, and publish only from the
+      exact merged-main commit after the complete qualification batch passes.
     rollback: >-
-      Before V5 removal, redeploy the frozen final V5 image or preceding V6 image while
-      retaining additive backend support. After the published V5 removal boundary, use
-      only the documented time-bounded emergency image during the compatibility window;
-      do not restore deleted source by moving tags or rewriting history.
+      Redeploy the preceding qualified V6 artifact while preserving additive database
+      state. Do not restore V5 source, move tags, or reverse the cleanup migration.

@@ -79,8 +79,8 @@ func configureAppConfigSecretIdentityKey(t *testing.T) {
 func seedAppConfigSecretReadRows(t *testing.T, db *gorm.DB) {
 	t.Helper()
 	require.NoError(t, db.Create([]*models.AppConfig{
-		{Group: "security", Name: "githubClientId", Value: "client-id", Auth: true},
-		{Group: "security", Name: "githubClientSecret", Value: "client-secret", Auth: false},
+		{Group: "security", Name: "githubBrowserSessionClientId", Value: "client-id", Auth: true},
+		{Group: "security", Name: "githubBrowserSessionClientSecret", Value: "client-secret", Auth: false},
 	}).Error)
 }
 
@@ -102,8 +102,8 @@ func TestAppConfigSecretReadProjectionUsesExplicitComponentPermission(t *testing
 		)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 		group := decodeAppConfigGroup(t, response)
-		require.Equal(t, "client-id", group["githubClientId"])
-		require.NotContains(t, group, "githubClientSecret")
+		require.Equal(t, "client-id", group["githubBrowserSessionClientId"])
+		require.NotContains(t, group, "githubBrowserSessionClientSecret")
 		require.Equal(t, [][]interface{}{{
 			"viewer", "COMPONENT", appConfigSecretReadPath, http.MethodGet,
 		}}, enforcer.calls)
@@ -123,7 +123,7 @@ func TestAppConfigSecretReadProjectionUsesExplicitComponentPermission(t *testing
 			appConfigSecretPrincipal("secret-reader", false),
 		)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-		require.Equal(t, "client-secret", decodeAppConfigGroup(t, response)["githubClientSecret"])
+		require.Equal(t, "client-secret", decodeAppConfigGroup(t, response)["githubBrowserSessionClientSecret"])
 	})
 
 	t.Run("root bypasses field policy", func(t *testing.T) {
@@ -140,7 +140,7 @@ func TestAppConfigSecretReadProjectionUsesExplicitComponentPermission(t *testing
 			appConfigSecretPrincipal("root", true),
 		)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-		require.Equal(t, "client-secret", decodeAppConfigGroup(t, response)["githubClientSecret"])
+		require.Equal(t, "client-secret", decodeAppConfigGroup(t, response)["githubBrowserSessionClientSecret"])
 		require.Empty(t, enforcer.calls)
 	})
 
@@ -174,7 +174,7 @@ func TestAppConfigSecretWriteRequiresExplicitComponentPermission(t *testing.T) {
 			&AppConfig{enforcer: enforcer},
 			http.MethodPut,
 			"security",
-			`{"data":{"githubClientSecret":"secret","githubClientId":"client-id"}}`,
+			`{"data":{"githubBrowserSessionClientSecret":"secret","githubBrowserSessionClientId":"client-id"}}`,
 			appConfigSecretPrincipal("config-editor", false),
 		)
 		require.Equal(t, http.StatusForbidden, response.Code, response.Body.String())
@@ -194,7 +194,7 @@ func TestAppConfigSecretWriteRequiresExplicitComponentPermission(t *testing.T) {
 			&AppConfig{enforcer: enforcer},
 			http.MethodPut,
 			"security",
-			`{"data":{"githubClientSecret":"secret","githubClientId":"client-id"}}`,
+			`{"data":{"githubBrowserSessionClientSecret":"secret","githubBrowserSessionClientId":"client-id"}}`,
 			appConfigSecretPrincipal("secret-editor", false),
 		)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
@@ -212,7 +212,7 @@ func TestAppConfigSecretWriteRequiresExplicitComponentPermission(t *testing.T) {
 			&AppConfig{enforcer: enforcer},
 			http.MethodPut,
 			"security",
-			`{"data":{"githubClientId":"client-id"}}`,
+			`{"data":{"githubBrowserSessionClientId":"client-id"}}`,
 			appConfigSecretPrincipal("config-editor", false),
 		)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
@@ -248,7 +248,7 @@ func TestAppConfigSecretWriteRequiresExplicitComponentPermission(t *testing.T) {
 				&AppConfig{enforcer: &appConfigSecretTestEnforcer{err: errors.New("policy backend unavailable")}},
 				http.MethodPut,
 				"security",
-				`{"data":{"githubClientSecret":"provider-secret"}}`,
+				`{"data":{"githubBrowserSessionClientSecret":"provider-secret"}}`,
 				appConfigSecretPrincipal("config-editor", false),
 			)
 			require.Equal(t, http.StatusServiceUnavailable, response.Code, response.Body.String())

@@ -484,7 +484,7 @@ func tools() []Tool {
 				"path":           map[string]any{"type": "string", "description": "Repository-relative AdminModule YAML path."},
 				"write":          map[string]any{"type": "boolean", "default": false},
 				"check":          map[string]any{"type": "boolean", "default": false},
-				"frontendTarget": map[string]any{"type": "string", "enum": []string{"antd-v5", "antd-v6"}, "default": "antd-v5"},
+				"frontendTarget": map[string]any{"type": "string", "enum": []string{"antd-v6"}, "default": "antd-v6"},
 			}, []string{"path"}),
 			Annotations: writeIdempotent,
 		},

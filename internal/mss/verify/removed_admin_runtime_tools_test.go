@@ -40,18 +40,18 @@ func TestRemovedAdminRuntimeToolsStayAbsent(t *testing.T) {
 		"admin/pkg/pack",
 		"admin/pkg/parse.go",
 		"mss-boot/virtual",
-		"web/antd/src/pages/Model",
-		"web/antd/src/pages/Field",
-		"web/antd/src/pages/Virtual",
-		"web/antd/src/pages/Generator",
-		"web/antd/src/pages/Generator/credentialLifecycle.ts",
-		"web/antd/src/pages/Generator/credentialLifecycle.test.ts",
-		"web/antd/src/services/admin/model.ts",
-		"web/antd/src/services/admin/field.ts",
-		"web/antd/src/services/admin/virtual.ts",
-		"web/antd/src/services/admin/generator.ts",
-		"web/antd/src/services/admin/generatorCredential.test.ts",
-		"web/antd/src/util/addOption.tsx",
+		"web/antd-v6/src/pages/Model",
+		"web/antd-v6/src/pages/Field",
+		"web/antd-v6/src/pages/Virtual",
+		"web/antd-v6/src/pages/Generator",
+		"web/antd-v6/src/pages/Generator/credentialLifecycle.ts",
+		"web/antd-v6/src/pages/Generator/credentialLifecycle.test.ts",
+		"web/antd-v6/src/services/admin/model.ts",
+		"web/antd-v6/src/services/admin/field.ts",
+		"web/antd-v6/src/services/admin/virtual.ts",
+		"web/antd-v6/src/services/admin/generator.ts",
+		"web/antd-v6/src/services/admin/generatorCredential.test.ts",
+		"web/antd-v6/src/util/addOption.tsx",
 		"docs/docs/vm",
 	}
 	for _, relative := range removed {
@@ -85,15 +85,11 @@ func TestRemovedAdminRuntimeToolsStayOutOfActiveContracts(t *testing.T) {
 		prohibited []string
 	}{
 		{
-			path: "web/antd/config/routes.ts",
+			path: "web/antd-v6/config/routes.ts",
 			prohibited: []string{
 				"path: '/generator'", "path: '/model'", "path: '/field/", "path: '/virtual/",
 				"component: './Generator'", "component: './Model'", "component: './Field'", "component: './Virtual'",
 			},
-		},
-		{
-			path:       "web/antd/src/services/admin/index.ts",
-			prohibited: []string{"'./generator'", "'./model'", "'./field'", "'./virtual'"},
 		},
 		{
 			path:       ".mss/capabilities.yaml",
@@ -127,21 +123,21 @@ func TestRemovedAdminRuntimeToolsStayOutOfActiveContracts(t *testing.T) {
 			},
 		},
 		{
-			path:       "web/antd/src/locales/en-US/menu.ts",
-			prohibited: []string{"menu.develop", "menu.model", "menu.field", "menu.generator"},
+			path:       "web/antd-v6/src/locales/en-US.ts",
+			prohibited: []string{"'menu.develop':", "'menu.model':", "'menu.field':", "'menu.generator':"},
 		},
 		{
-			path:       "web/antd/src/locales/zh-CN/menu.ts",
-			prohibited: []string{"menu.develop", "menu.model", "menu.field", "menu.generator"},
+			path:       "web/antd-v6/src/locales/zh-CN.ts",
+			prohibited: []string{"'menu.develop':", "'menu.model':", "'menu.field':", "'menu.generator':"},
 		},
 		{
-			path: "web/antd/src/pages/User/Callback/$provider.tsx",
+			path: "web/antd-v6/src/pages/User/OAuthCallback/index.tsx",
 			prohibited: []string{
 				"intent === 'integration'", "result.intent === 'integration'",
 			},
 		},
 		{
-			path: "web/antd/src/services/admin/typings.d.ts",
+			path: "web/antd-v6/src/modules/account/contracts.ts",
 			prohibited: []string{
 				"'login' | 'binding' | 'integration'",
 				"credentialExpiresAt?: string",
@@ -150,7 +146,7 @@ func TestRemovedAdminRuntimeToolsStayOutOfActiveContracts(t *testing.T) {
 			},
 		},
 		{
-			path: "web/antd/src/utils/oauth.ts",
+			path: "web/antd-v6/src/modules/account/api.ts",
 			prohibited: []string{
 				"intent: 'integration'",
 				"response.intent === 'integration'",

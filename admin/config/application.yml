@@ -16,7 +16,7 @@ application:
   trustedProxies: []
 #  ui:
 #    enabled: true
-#    addr: 0.0.0.0:8000
+#    addr: 0.0.0.0:8001
 #    path: dist
   staticPath:
     /public: public
@@ -25,11 +25,9 @@ application:
     namespace: local
     cluster: local
 cors:
-  # Credentialed browser requests require exact origins. Deployments should
-  # narrow this list to the frontend origin for that environment.
+  # Credentialed V6 browser requests require exact origins.
+  # Deployments must narrow this list to their exact HTTPS frontend origin.
   allowOrigins:
-    - 'http://localhost:8000'
-    - 'http://127.0.0.1:8000'
     - 'http://localhost:8001'
     - 'http://127.0.0.1:8001'
     - 'https://admin-alpha.mss-boot-io.top'
@@ -84,15 +82,12 @@ auth:
   timeout: '12h'
   maxRefresh: '2160h'
   identityKey: 'mss-boot-admin-identity-key'
-  # Deploy support disabled first; enable both session switches only after the
-  # exact browser origin, shared Redis, and production Secure cookie are ready.
-  sessionEnabled: false
+  # V6 browser sessions are mandatory. Production must override the development
+  # key, use an exact HTTPS origin, and enable Secure cookies before startup.
   browserSession:
-    enabled: false
     secure: false
     sameSite: lax
     webSocketTicketTTL: 30s
-    legacyWebSocketQueryTokenEnabled: true
 runtime:
   resources:
     main:

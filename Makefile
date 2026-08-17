@@ -10,7 +10,9 @@ COVERAGE_POLICY := .mss/coverage.json
 	deps deps-agent deps-admin deps-framework deps-all \
 	test-framework test-framework-race coverage-framework vet-framework \
 	tidy-framework-check verify-framework test-all generate lint fix-lint clean \
-	web-install web-lint web-test web-build docs-install docs-build verify-all
+	web-install web-lint web-test web-build \
+	web-v6-install web-v6-lint web-v6-test web-v6-build \
+	docs-install docs-build verify-all
 
 build: build-admin
 
@@ -100,17 +102,13 @@ lint:
 fix-lint:
 	goimports -w cmd internal $(ADMIN_DIR) $(FRAMEWORK_DIR)
 
-web-install:
-	cd web/antd && corepack enable && pnpm install --frozen-lockfile
+web-install: web-v6-install
 
-web-lint:
-	cd web/antd && pnpm lint:js && pnpm tsc
+web-lint: web-v6-lint
 
-web-test:
-	cd web/antd && pnpm test -- --runInBand
+web-test: web-v6-test
 
-web-build:
-	cd web/antd && pnpm build:local
+web-build: web-v6-build
 
 web-v6-install:
 	cd web/antd-v6 && corepack pnpm@10.34.5 install --frozen-lockfile
@@ -130,7 +128,7 @@ docs-install:
 docs-build:
 	cd docs && pnpm build
 
-verify-all: verify-admin verify-framework test-agent web-lint web-test web-build web-v6-lint web-v6-test web-v6-build docs-build
+verify-all: verify-admin verify-framework test-agent web-v6-lint web-v6-test web-v6-build docs-build
 
 clean:
 	rm -rf $(BIN_DIR) $(COVERAGE_DIR)

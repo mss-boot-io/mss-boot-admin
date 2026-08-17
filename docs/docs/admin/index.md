@@ -10,7 +10,7 @@ keywords: [admin mss-boot-admin]
 
 ## 简介
 
-> `mss-boot-admin` 是基于 `Gin` + `React` + `Ant Design v5` + `Umi v4` + `mss-boot` 的前后端分离后台管理平台。当前产品主线聚焦于权限治理、组织管理、系统配置、通知任务、国际化、监控统计，以及 AI 注解协同驱动的研发流程。
+> `mss-boot-admin` 是基于 `Gin` + `React 19` + `Ant Design 6.6.0` + `Umi Max 4` + `mss-boot` 的前后端分离后台管理平台。V6 位于 `web/antd-v6` 并保持独立发布身份；V5 仅在限时观察窗口内作为冻结回退。当前产品主线聚焦于权限治理、组织管理、系统配置、通知任务、国际化、监控统计，以及 AI 注解协同驱动的研发流程。
 
 ## 当前产品主线
 
@@ -85,7 +85,6 @@ Admin 运行时动态模型、虚拟 CRUD 和浏览器代码生成已经移除�
 - [移动端 H5 适配说明](/admin/mobile-h5-adaptation)
 - [HotGo 对比分析](/admin/hotgo-comparison)
 - [产品打磨与工程治理方案](/admin/product-polish-governance-plan)
-- [首轮整改清单](/admin/product-polish-remediation-round-1)
 - [Admin UI 体验与静态交付基线](/admin/ui-experience-and-static-delivery)
 - [生产部署标准化](/admin/production-standardization)
 - [发布验证清单](/admin/release-verification-checklist)

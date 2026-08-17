@@ -179,26 +179,11 @@ func (e *UserConfig) ThemeResource(ctx *gin.Context, userID string) (*dto.ThemeR
 	return (&Theme{}).UserResource(ctx, userID)
 }
 
-func (e *UserConfig) LegacyThemeGroup(
-	ctx *gin.Context,
-	userID string,
-	resource *dto.ThemeResource,
-) (map[string]any, error) {
-	if resource == nil {
-		var err error
-		resource, err = (&Theme{}).UserResource(ctx, userID)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return themeOverridesMap(&resource.ThemeOverrides), nil
-}
-
 func (e *UserConfig) UpdateTheme(
 	ctx *gin.Context,
 	userID string,
 	data map[string]any,
-	expectedRevision *int64,
+	expectedRevision int64,
 ) (*dto.ThemeResource, error) {
 	return (&Theme{}).PatchUserResource(ctx, userID, data, expectedRevision)
 }
@@ -206,7 +191,7 @@ func (e *UserConfig) UpdateTheme(
 func (e *UserConfig) ResetTheme(
 	ctx *gin.Context,
 	userID string,
-	expectedRevision *int64,
+	expectedRevision int64,
 ) (*dto.ThemeResource, error) {
 	return (&Theme{}).ResetUserResource(ctx, userID, expectedRevision)
 }
@@ -219,7 +204,11 @@ func (e *UserConfig) Group(ctx *gin.Context, userID, group string) (map[string]a
 		return nil, err
 	}
 	if group == ThemeConfigGroup {
-		return e.LegacyThemeGroup(ctx, userID, nil)
+		resource, err := e.ThemeResource(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		return themeResourceMap(resource), nil
 	}
 	db := center.GetDB(ctx, &models.UserConfig{})
 	key := userConfigProfileRevisionKey(userID)
@@ -287,7 +276,7 @@ func (e *UserConfig) CreateOrUpdate(ctx *gin.Context, userID, group string, data
 		return err
 	}
 	if group == ThemeConfigGroup {
-		return (&Theme{}).PatchUser(ctx, userID, data)
+		return ErrThemeGroupOnly
 	}
 	keys := make([]string, 0, len(data))
 	for name := range data {
@@ -324,16 +313,6 @@ func (e *UserConfig) CreateOrUpdate(ctx *gin.Context, userID, group string, data
 	cleanupUserConfigProfileCache(ctx, userID, staleProfileRevision)
 	cleanupUserConfigGroupCache(ctx, userID, group, staleProfileRevision)
 	return nil
-}
-
-func (e *UserConfig) Reset(ctx *gin.Context, userID, group string) error {
-	if err := rejectNonCanonicalThemeGroup(group); err != nil {
-		return err
-	}
-	if group != ThemeConfigGroup {
-		return ErrThemeGroupOnly
-	}
-	return (&Theme{}).ResetUser(ctx, userID)
 }
 
 func userConfigProfileRevisionKey(userID string) configRevisionKey {

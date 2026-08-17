@@ -84,7 +84,7 @@ func TestIsSelfServiceRequestUsesExactMethodAndRoute(t *testing.T) {
 		{name: "personal token list", method: http.MethodGet, path: "/admin/api/user-auth-tokens", want: true},
 		{name: "personal token revoke", method: http.MethodPut, path: "/admin/api/user-auth-token/:id/revoke", want: true},
 		{name: "personal token refresh", method: http.MethodPut, path: "/admin/api/user-auth-token/:id/refresh", want: true},
-		{name: "legacy personal token generate get", method: http.MethodGet, path: "/admin/api/user-auth-token/generate", want: false},
+		{name: "removed personal token generate get", method: http.MethodGet, path: "/admin/api/user-auth-token/generate", want: false},
 		{name: "personal token wrong method", method: http.MethodDelete, path: "/admin/api/user-auth-token/:id/revoke", want: false},
 
 		{name: "password reset", method: http.MethodPost, path: "/admin/api/user/reset-password", want: true},
@@ -92,14 +92,14 @@ func TestIsSelfServiceRequestUsesExactMethodAndRoute(t *testing.T) {
 		{name: "user info update", method: http.MethodPut, path: "/admin/api/user/userInfo", want: true},
 		{name: "user avatar", method: http.MethodPost, path: "/admin/api/user/avatar", want: true},
 		{name: "user oauth bindings", method: http.MethodGet, path: "/admin/api/user/oauth2", want: true},
-		{name: "user oauth callback", method: http.MethodPost, path: "/admin/api/user/:provider/callback", want: true},
-		{name: "legacy user oauth callback get", method: http.MethodGet, path: "/admin/api/user/:provider/callback", want: false},
-		{name: "user bind", method: http.MethodPost, path: "/admin/api/user/binding", want: true},
-		{name: "user unbind", method: http.MethodDelete, path: "/admin/api/user/unbinding", want: true},
+		{name: "session OAuth callback", method: http.MethodPost, path: "/admin/api/user/session/:provider/callback", want: true},
+		{name: "OAuth disconnect", method: http.MethodDelete, path: "/admin/api/user/oauth2/:provider", want: true},
+		{name: "retired OAuth callback", method: http.MethodPost, path: "/admin/api/user/:provider/callback", want: false},
 		{name: "user info wrong method", method: http.MethodDelete, path: "/admin/api/user/userInfo", want: false},
 		{name: "public app profile with optional identity", method: http.MethodGet, path: "/admin/api/app-configs/profile", want: true},
 		{name: "current session logout", method: http.MethodPost, path: "/admin/api/online-sessions/logout", want: true},
-		{name: "current user websocket", method: http.MethodGet, path: "/admin/api/ws/connect", want: true},
+		{name: "ticket websocket handshake is handler-owned", method: http.MethodGet, path: "/admin/api/ws/connect", want: false},
+		{name: "current user websocket ticket", method: http.MethodPost, path: "/admin/api/ws/tickets", want: true},
 		{name: "current user websocket wrong method", method: http.MethodPost, path: "/admin/api/ws/connect", want: false},
 		{name: "current user websocket lookalike", method: http.MethodGet, path: "/admin/api/ws/connect/online", want: false},
 		{name: "storage upload requires policy", method: http.MethodPost, path: "/admin/api/storage/upload", want: false},
@@ -287,9 +287,9 @@ func TestAuthorizeRequestRejectsPersonalAccessTokensForInteractiveSensitiveRoute
 	}{
 		{name: "password reset", method: http.MethodPost, path: "/admin/api/user/reset-password"},
 		{name: "profile update", method: http.MethodPut, path: "/admin/api/user/userInfo"},
-		{name: "OAuth callback", method: http.MethodPost, path: "/admin/api/user/:provider/callback"},
-		{name: "OAuth binding", method: http.MethodPost, path: "/admin/api/user/binding"},
-		{name: "OAuth unbinding", method: http.MethodDelete, path: "/admin/api/user/unbinding"},
+		{name: "OAuth authorization", method: http.MethodPost, path: "/admin/api/user/session/oauth2/authorize"},
+		{name: "OAuth callback", method: http.MethodPost, path: "/admin/api/user/session/:provider/callback"},
+		{name: "OAuth disconnect", method: http.MethodDelete, path: "/admin/api/user/oauth2/:provider"},
 		{name: "personal token list", method: http.MethodGet, path: "/admin/api/user-auth-tokens"},
 		{name: "personal token create", method: http.MethodPost, path: "/admin/api/user-auth-tokens"},
 		{name: "personal token revoke", method: http.MethodPut, path: "/admin/api/user-auth-token/:id/revoke"},
@@ -301,7 +301,7 @@ func TestAuthorizeRequestRejectsPersonalAccessTokensForInteractiveSensitiveRoute
 		want      bool
 	}{
 		{
-			name: "ordinary session remains compatible",
+			name: "interactive V6 session is allowed",
 			principal: &models.User{UserLogin: models.UserLogin{
 				RoleID: "ordinary-role",
 				Role:   &models.Role{},
@@ -436,7 +436,7 @@ func TestRequestHasCredentialRecognizesConfiguredSources(t *testing.T) {
 		{name: "authorization header", url: "/admin/api/app-configs/profile", set: func(r *http.Request) { r.Header.Set("Authorization", "Bearer token") }, want: true},
 		{name: "query token is not a REST credential", url: "/admin/api/app-configs/profile?token=value", want: false},
 		{name: "browser session cookie", url: "/admin/api/app-configs/profile", set: func(r *http.Request) { r.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "value"}) }, want: true},
-		{name: "jwt cookie", url: "/admin/api/app-configs/profile", set: func(r *http.Request) { r.AddCookie(&http.Cookie{Name: "jwt", Value: "value"}) }, want: true},
+		{name: "retired jwt cookie", url: "/admin/api/app-configs/profile", set: func(r *http.Request) { r.AddCookie(&http.Cookie{Name: "jwt", Value: "value"}) }, want: false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

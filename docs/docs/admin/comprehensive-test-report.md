@@ -1,5 +1,10 @@
 # 全量 E2E 测试执行报告
 
+:::warning
+本文是 2026-04-03 的历史测试快照，包含已经退役的 V5 前端路径，不能作为当前 V6
+发布证据。当前资格以合入 `main` 的精确提交、`mss verify --all` 和 V6 浏览器证据为准。
+:::
+
 **测试日期**: 2026-04-03
 **测试执行人**: OpenCode E2E Test Suite
 **测试版本**: 产品打磨三轮完成版
@@ -339,7 +344,7 @@ pnpm exec eslint --ext .ts,.tsx src/
 ### B. 测试文件位置
 
 - 后端测试: `mss-boot-admin/**/*_test.go`
-- 前端测试: `mss-boot-admin-antd/src/**/*.test.{ts,tsx}`
+- 历史 V5 前端测试: `mss-boot-admin-antd/src/**/*.test.{ts,tsx}`（已退役）
 - E2E 测试脚本: `scripts/e2e-test.sh`
 - 测试计划: `mss-boot-docs/docs/admin/e2e-test-plan.md`
 - 测试用例: `mss-boot-docs/docs/admin/test-cases-full.md`

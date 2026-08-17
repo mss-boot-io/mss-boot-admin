@@ -119,9 +119,7 @@ jobs:
         run: pnpm dedupe --check --config.strict-peer-dependencies=false --config.ignore-scripts=true
 
       - name: Audit runtime and complete dependency graph
-        run: |
-          pnpm audit --prod --audit-level high
-          pnpm audit --audit-level critical
+        run: pnpm run audit:release
 
       - name: Require dependency commands to leave contracts unchanged
         run: git diff --exit-code -- package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc

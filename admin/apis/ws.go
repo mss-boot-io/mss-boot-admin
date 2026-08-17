@@ -66,14 +66,9 @@ func (e *WS) GetAction(_ string) response.Action {
 }
 
 func (e *WS) Other(r *gin.RouterGroup) {
-	r.GET("/ws/connect", middleware.LegacyWebSocketAuth(), e.Connect)
 	r.POST("/ws/tickets", response.AuthHandler, e.IssueTicket)
-	r.GET("/ws/connect-v6", e.ConnectV6)
+	r.GET("/ws/connect", e.Connect)
 	r.GET("/ws/online", response.AuthHandler, requireRootManagement, e.Online)
-}
-
-func (e *WS) Connect(ctx *gin.Context) {
-	websocket.HandleWebSocket(ctx)
 }
 
 // IssueTicket creates a short-lived credential for the V6 browser's
@@ -139,14 +134,14 @@ func (e *WS) IssueTicket(ctx *gin.Context) {
 	})
 }
 
-// ConnectV6 consumes the ticket from Sec-WebSocket-Protocol before restoring
+// Connect consumes the ticket from Sec-WebSocket-Protocol before restoring
 // current database authority and upgrading the connection. Ticket validation
 // is intentionally handler-owned because browser WebSocket APIs cannot set an
 // Authorization header.
-// @Summary Connect a V6 authenticated WebSocket
+// @Summary Connect an authenticated browser WebSocket
 // @Tags websocket
-// @Router /admin/api/ws/connect-v6 [get]
-func (e *WS) ConnectV6(ctx *gin.Context) {
+// @Router /admin/api/ws/connect [get]
+func (e *WS) Connect(ctx *gin.Context) {
 	setWebSocketNoStoreHeaders(ctx)
 	api := response.Make(ctx)
 	if !middleware.BrowserSessionAvailable() {

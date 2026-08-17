@@ -91,9 +91,7 @@ export default function SecurityPanel() {
     try {
       await appConfigAPI.saveGroup('security', serializeSecurityAppConfig(values, canWriteSecrets));
       form.setFieldsValue({
-        githubClientSecret: undefined,
         githubBrowserSessionClientSecret: undefined,
-        larkAppSecret: undefined,
         larkBrowserSessionAppSecret: undefined,
       });
       await queryClient.invalidateQueries({ queryKey: queryKeys.appConfig('security') });
@@ -103,9 +101,7 @@ export default function SecurityPanel() {
       setOperationError(getRequestErrorMessage(error));
     } finally {
       form.setFieldsValue({
-        githubClientSecret: undefined,
         githubBrowserSessionClientSecret: undefined,
-        larkAppSecret: undefined,
         larkBrowserSessionAppSecret: undefined,
       });
       setSaving(false);
@@ -262,55 +258,6 @@ export default function SecurityPanel() {
                 <Input placeholder="read:user,user:email" />
               </Form.Item>
             </Col>
-          </Row>
-        </Card>
-
-        <Card
-          title={intl.formatMessage(
-            { id: 'pages.appConfig.security.legacyOAuthTitle' },
-            { provider: 'GitHub' },
-          )}
-          size="small"
-        >
-          <Typography.Paragraph type="secondary">
-            {intl.formatMessage({ id: 'pages.appConfig.security.legacyOAuthDescription' })}
-          </Typography.Paragraph>
-          <Row gutter={[24, 0]}>
-            <Col xs={24} lg={12}>
-              <Form.Item
-                name="githubClientId"
-                label={intl.formatMessage({ id: 'pages.appConfig.security.clientId' })}
-                rules={[{ max: 255 }]}
-              >
-                <Input autoComplete="off" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} lg={12}>
-              <SecretField
-                name="githubClientSecret"
-                label={intl.formatMessage({ id: 'pages.appConfig.security.clientSecret' })}
-                configured={configured.has('githubClientSecret')}
-                disabled={!canWriteSecrets}
-              />
-            </Col>
-            <Col xs={24} lg={16}>
-              <Form.Item
-                name="githubRedirectURI"
-                label={intl.formatMessage({ id: 'pages.appConfig.security.redirectUri' })}
-                rules={[urlRule, { max: 2048 }]}
-              >
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col xs={24} lg={8}>
-              <Form.Item
-                name="githubScope"
-                label={intl.formatMessage({ id: 'pages.appConfig.security.scope' })}
-                rules={[{ max: 500 }]}
-              >
-                <Input />
-              </Form.Item>
-            </Col>
             <Col span={24}>
               <Form.Item
                 name="githubAllowGroup"
@@ -329,9 +276,7 @@ export default function SecurityPanel() {
             { provider: 'Lark' },
           )}
           size="small"
-          extra={
-            <Tag color="blue">{intl.formatMessage({ id: 'pages.appConfig.recommended' })}</Tag>
-          }
+          extra={<Tag color="blue">V6</Tag>}
         >
           <Typography.Paragraph type="secondary">
             {intl.formatMessage({ id: 'pages.appConfig.security.browserOAuthDescription' })}
@@ -364,46 +309,6 @@ export default function SecurityPanel() {
                 name="larkBrowserSessionRedirectURI"
                 label={intl.formatMessage({ id: 'pages.appConfig.security.redirectUri' })}
                 rules={[{ required: Boolean(larkEnabled) }, urlRule, { max: 2048 }]}
-              >
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Card>
-
-        <Card
-          title={intl.formatMessage(
-            { id: 'pages.appConfig.security.legacyOAuthTitle' },
-            { provider: 'Lark' },
-          )}
-          size="small"
-        >
-          <Typography.Paragraph type="secondary">
-            {intl.formatMessage({ id: 'pages.appConfig.security.legacyOAuthDescription' })}
-          </Typography.Paragraph>
-          <Row gutter={[24, 0]}>
-            <Col xs={24} lg={12}>
-              <Form.Item
-                name="larkAppId"
-                label={intl.formatMessage({ id: 'pages.appConfig.security.appId' })}
-                rules={[{ max: 255 }]}
-              >
-                <Input autoComplete="off" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} lg={12}>
-              <SecretField
-                name="larkAppSecret"
-                label={intl.formatMessage({ id: 'pages.appConfig.security.appSecret' })}
-                configured={configured.has('larkAppSecret')}
-                disabled={!canWriteSecrets}
-              />
-            </Col>
-            <Col span={24}>
-              <Form.Item
-                name="larkRedirectURI"
-                label={intl.formatMessage({ id: 'pages.appConfig.security.redirectUri' })}
-                rules={[urlRule, { max: 2048 }]}
               >
                 <Input />
               </Form.Item>

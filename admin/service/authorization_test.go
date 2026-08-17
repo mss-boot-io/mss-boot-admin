@@ -113,7 +113,7 @@ func TestAuthorizationReplaceRoleRejectsMissingSoftDeletedAndInactiveTargets(t *
 	t.Run("missing", func(t *testing.T) {
 		db := setupAuthorizationServiceTest(t)
 		_, err := newAuthorizationPolicyService(func() error { return nil }, func() error { return nil }).
-			ReplaceRole(context.Background(), db, "missing-role", []string{}, nil)
+			ReplaceRole(context.Background(), db, "missing-role", []string{}, 0)
 		require.ErrorIs(t, err, ErrAuthorizationRoleNotFound)
 		var revisionCount int64
 		require.NoError(t, db.Model(&models.ConfigRevision{}).Count(&revisionCount).Error)
@@ -124,7 +124,7 @@ func TestAuthorizationReplaceRoleRejectsMissingSoftDeletedAndInactiveTargets(t *
 		db := setupAuthorizationServiceTest(t)
 		require.NoError(t, db.Delete(&models.Role{}, "id = ?", "role-a").Error)
 		_, err := newAuthorizationPolicyService(func() error { return nil }, func() error { return nil }).
-			ReplaceMenu(context.Background(), db, "role-a", []string{}, nil)
+			ReplaceMenu(context.Background(), db, "role-a", []string{}, 0)
 		require.ErrorIs(t, err, ErrAuthorizationRoleNotFound)
 	})
 
@@ -132,11 +132,35 @@ func TestAuthorizationReplaceRoleRejectsMissingSoftDeletedAndInactiveTargets(t *
 		db := setupAuthorizationServiceTest(t)
 		require.NoError(t, db.Model(&models.Role{}).Where("id = ?", "role-a").Update("status", bootenum.Disabled).Error)
 		_, err := newAuthorizationPolicyService(func() error { return nil }, func() error { return nil }).
-			ReplaceRole(context.Background(), db, "role-a", []string{}, nil)
+			ReplaceRole(context.Background(), db, "role-a", []string{}, 0)
 		require.ErrorIs(t, err, ErrAuthorizationRoleInactive)
 		var revisionCount int64
 		require.NoError(t, db.Model(&models.ConfigRevision{}).Count(&revisionCount).Error)
 		require.Zero(t, revisionCount)
+	})
+}
+
+func TestValidateRoleAuthorizationMutationRejectsInvalidTargets(t *testing.T) {
+	t.Run("missing", func(t *testing.T) {
+		db := setupAuthorizationServiceTest(t)
+		err := newAuthorizationPolicyService(func() error { return nil }, func() error { return nil }).
+			ValidateRoleAuthorizationMutation(context.Background(), db, "missing-role")
+		require.ErrorIs(t, err, ErrAuthorizationRoleNotFound)
+	})
+
+	t.Run("inactive", func(t *testing.T) {
+		db := setupAuthorizationServiceTest(t)
+		require.NoError(t, db.Model(&models.Role{}).Where("id = ?", "role-a").Update("status", bootenum.Disabled).Error)
+		err := newAuthorizationPolicyService(func() error { return nil }, func() error { return nil }).
+			ValidateRoleAuthorizationMutation(context.Background(), db, "role-a")
+		require.ErrorIs(t, err, ErrAuthorizationRoleInactive)
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		db := setupAuthorizationServiceTest(t)
+		err := newAuthorizationPolicyService(func() error { return nil }, func() error { return nil }).
+			ValidateRoleAuthorizationMutation(context.Background(), db, "role-a")
+		require.NoError(t, err)
 	})
 }
 
@@ -154,7 +178,7 @@ func TestAuthorizationReplaceRoleAcceptsExplicitEmptySet(t *testing.T) {
 		func() error { notifications.Add(1); return nil },
 	)
 	revision0 := int64(0)
-	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{}, &revision0)
+	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{}, revision0)
 	require.NoError(t, err)
 	require.Empty(t, resource.Paths)
 	require.NotNil(t, resource.Paths)
@@ -182,7 +206,7 @@ func TestAuthorizationReplaceRoleBuildsDerivedAPIRulesAndRejectsInactivePaths(t 
 	svc := newAuthorizationPolicyService(func() error { return nil }, func() error { return nil })
 	revision0 := int64(0)
 	resource, err := svc.ReplaceRole(
-		context.Background(), db, "role-a", []string{" /component-a ", "/menu-a", "/menu-a"}, &revision0,
+		context.Background(), db, "role-a", []string{" /component-a ", "/menu-a", "/menu-a"}, revision0,
 	)
 	require.NoError(t, err)
 	require.Equal(t, []string{"/component-a", "/menu-a"}, resource.Paths)
@@ -192,13 +216,13 @@ func TestAuthorizationReplaceRoleBuildsDerivedAPIRulesAndRejectsInactivePaths(t 
 	require.Equal(t, []string{adminpkg.APIAccessType.String(), adminpkg.ComponentAccessType.String(), adminpkg.MenuAccessType.String()},
 		[]string{rules[0].V1, rules[1].V1, rules[2].V1})
 
-	_, err = svc.ReplaceRole(context.Background(), db, "role-a", []string{"/disabled"}, nil)
+	_, err = svc.ReplaceRole(context.Background(), db, "role-a", []string{"/disabled"}, 1)
 	var invalid *InvalidAuthorizationPathsError
 	require.ErrorAs(t, err, &invalid)
 	require.Equal(t, []string{"/disabled"}, invalid.Paths)
 	require.Equal(t, int64(1), authorizationRevision(t, db, roleAuthorizationRevisionKey("role-a")))
 
-	_, err = svc.ReplaceRole(context.Background(), db, "role-a", []string{"/duplicate"}, nil)
+	_, err = svc.ReplaceRole(context.Background(), db, "role-a", []string{"/duplicate"}, 1)
 	require.ErrorAs(t, err, &invalid)
 	require.Equal(t, []string{"/duplicate"}, invalid.Paths)
 	require.Equal(t, int64(1), authorizationRevision(t, db, roleAuthorizationRevisionKey("role-a")))
@@ -212,11 +236,11 @@ func TestAuthorizationReplaceRoleStaleRevisionReturnsCurrentWithoutMutation(t *t
 	)
 	svc := newAuthorizationPolicyService(func() error { return nil }, func() error { return nil })
 	revision0 := int64(0)
-	first, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, &revision0)
+	first, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, revision0)
 	require.NoError(t, err)
 	require.Equal(t, "1", first.Revision)
 
-	_, err = svc.ReplaceRole(context.Background(), db, "role-a", []string{"/b"}, &revision0)
+	_, err = svc.ReplaceRole(context.Background(), db, "role-a", []string{"/b"}, revision0)
 	var conflict *AuthorizationRevisionConflictError
 	require.ErrorAs(t, err, &conflict)
 	require.Equal(t, int64(0), conflict.Expected)
@@ -245,7 +269,7 @@ func TestAuthorizationConcurrentWritersWithSameRevisionAllowOneCommit(t *testing
 		go func() {
 			defer wait.Done()
 			<-start
-			_, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{path}, &revision0)
+			_, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{path}, revision0)
 			errorsCh <- err
 		}()
 	}
@@ -284,7 +308,7 @@ func TestAuthorizationReloadFailureCommitsRevisionAndRetriesFailClosed(t *testin
 		func() error { notifications.Add(1); return nil },
 	)
 	revision0 := int64(0)
-	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, &revision0)
+	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, revision0)
 	require.Equal(t, "1", resource.Revision)
 	var propagation *AuthorizationPropagationError
 	require.ErrorAs(t, err, &propagation)
@@ -333,7 +357,7 @@ func TestAuthorizationReplaceMenuEmptySetRevokesDerivedAPIAndPreservesComponentR
 	}).Error)
 	svc := newAuthorizationPolicyService(func() error { return nil }, func() error { return nil })
 	revision0 := int64(0)
-	resource, err := svc.ReplaceMenu(context.Background(), db, "role-a", []string{}, &revision0)
+	resource, err := svc.ReplaceMenu(context.Background(), db, "role-a", []string{}, revision0)
 	require.NoError(t, err)
 	require.Equal(t, []string{"/component"}, resource.Paths)
 	var rules []models.CasbinRule

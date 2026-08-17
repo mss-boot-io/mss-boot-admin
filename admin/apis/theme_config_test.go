@@ -2,13 +2,10 @@ package apis
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 
@@ -57,61 +54,11 @@ func setupThemeConfigAPITest(t *testing.T) *gorm.DB {
 	return db
 }
 
-func registerOutsideTransactionPWAQueryFailure(
-	t *testing.T,
-	db *gorm.DB,
-) (*int, func()) {
-	t.Helper()
-	callbackName := "test:legacy-pwa-post-commit-" + strings.ReplaceAll(t.Name(), "/", "-")
-	outsideQueries := 0
-	injectedErr := errors.New("injected transaction-external pwa read failure")
-	require.NoError(t, db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
-		if tx.Statement == nil || tx.Statement.Table != (&models.AppConfig{}).TableName() {
-			return
-		}
-		if _, inTransaction := tx.Statement.ConnPool.(*sql.Tx); inTransaction {
-			return
-		}
-		for _, value := range tx.Statement.Vars {
-			if value == "pwa" {
-				outsideQueries++
-				tx.AddError(injectedErr)
-				return
-			}
-		}
-	}))
-
-	var removeOnce sync.Once
-	remove := func() {
-		removeOnce.Do(func() {
-			require.NoError(t, db.Callback().Query().Remove(callbackName))
-		})
-	}
-	t.Cleanup(remove)
-	return &outsideQueries, remove
-}
-
 func appThemeControlResponse(body string) *httptest.ResponseRecorder {
-	return appThemeResponse(http.MethodPut, body, "")
+	return appThemeResponse(http.MethodPut, body, `"theme-application-0"`)
 }
 
 func appThemeResponse(method, body, ifMatch string) *httptest.ResponseRecorder {
-	return appThemeResponseWithContract(method, body, ifMatch, true)
-}
-
-func appThemeLegacyResponse(method, body, ifMatch string) *httptest.ResponseRecorder {
-	return appThemeResponseWithContract(method, body, ifMatch, false)
-}
-
-func appThemeResponseWithContract(method, body, ifMatch string, canonical bool) *httptest.ResponseRecorder {
-	accept := ""
-	if canonical {
-		accept = themeContractMediaType
-	}
-	return appThemeResponseWithAccept(method, body, ifMatch, accept)
-}
-
-func appThemeResponseWithAccept(method, body, ifMatch, accept string) *httptest.ResponseRecorder {
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Params = gin.Params{{Key: "group", Value: service.ThemeConfigGroup}}
@@ -119,9 +66,6 @@ func appThemeResponseWithAccept(method, body, ifMatch, accept string) *httptest.
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	if ifMatch != "" {
 		ctx.Request.Header.Set("If-Match", ifMatch)
-	}
-	if accept != "" {
-		ctx.Request.Header.Set("Accept", accept)
 	}
 	switch method {
 	case http.MethodGet:
@@ -135,18 +79,6 @@ func appThemeResponseWithAccept(method, body, ifMatch, accept string) *httptest.
 }
 
 func userThemeResponse(method, body, ifMatch string, principal *models.User) *httptest.ResponseRecorder {
-	return userThemeResponseWithContract(method, body, ifMatch, principal, true)
-}
-
-func userThemeLegacyResponse(method, body, ifMatch string, principal *models.User) *httptest.ResponseRecorder {
-	return userThemeResponseWithContract(method, body, ifMatch, principal, false)
-}
-
-func userThemeResponseWithContract(
-	method, body, ifMatch string,
-	principal *models.User,
-	canonical bool,
-) *httptest.ResponseRecorder {
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Params = gin.Params{{Key: "group", Value: service.ThemeConfigGroup}}
@@ -154,9 +86,6 @@ func userThemeResponseWithContract(
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	if ifMatch != "" {
 		ctx.Request.Header.Set("If-Match", ifMatch)
-	}
-	if canonical {
-		ctx.Request.Header.Set("Accept", themeContractMediaType)
 	}
 	ctx.Set(config.Cfg.Auth.IdentityKey, principal)
 	switch method {
@@ -209,84 +138,30 @@ func decodeThemeResource(t *testing.T, recorder *httptest.ResponseRecorder) dto.
 	return resource
 }
 
-func TestThemeContractAcceptNegotiationUsesExactMediaType(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	for _, test := range []struct {
-		name      string
-		accept    string
-		canonical bool
-	}{
-		{name: "exact", accept: themeContractMediaType, canonical: true},
-		{name: "with quality", accept: themeContractMediaType + "; q=0.9", canonical: true},
-		{name: "quoted comma parameter", accept: themeContractMediaType + `; profile="a,b"; q=0.5`, canonical: true},
-		{name: "among alternatives", accept: "application/json, " + themeContractMediaType, canonical: true},
-		{name: "zero quality", accept: themeContractMediaType + "; q=0", canonical: false},
-		{name: "zero decimal quality", accept: themeContractMediaType + "; q=0.000", canonical: false},
-		{name: "invalid quality", accept: themeContractMediaType + "; q=not-a-number", canonical: false},
-		{name: "quality above one", accept: themeContractMediaType + "; q=1.1", canonical: false},
-		{name: "quality precision overflow", accept: themeContractMediaType + "; q=0.0001", canonical: false},
-		{name: "substring is legacy", accept: "application/vnd.mss.theme.v1+json-extra", canonical: false},
-		{name: "ordinary json is legacy", accept: "application/json", canonical: false},
-		{name: "missing is legacy", canonical: false},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			ctx, _ := gin.CreateTestContext(recorder)
-			ctx.Request = httptest.NewRequest(http.MethodGet, "/admin/api/app-configs/theme", nil)
-			if test.accept != "" {
-				ctx.Request.Header.Set("Accept", test.accept)
-			}
-			require.Equal(t, test.canonical, wantsCanonicalThemeContract(ctx))
-			require.Contains(t, recorder.Header().Values("Vary"), "Accept")
-		})
-	}
-}
-
-func TestThemeResponsesUseNegotiatedContentType(t *testing.T) {
+func TestThemeResponsesAlwaysUseCanonicalContentType(t *testing.T) {
 	setupThemeConfigAPITest(t)
 	gin.SetMode(gin.TestMode)
 
-	canonicalSuccess := appThemeResponse(http.MethodGet, "", "")
-	require.Equal(t, http.StatusOK, canonicalSuccess.Code, canonicalSuccess.Body.String())
-	require.Equal(t, themeContractMediaType, canonicalSuccess.Header().Get("Content-Type"))
+	success := appThemeResponse(http.MethodGet, "", "")
+	require.Equal(t, http.StatusOK, success.Code, success.Body.String())
+	require.Equal(t, themeContractMediaType, success.Header().Get("Content-Type"))
+	require.Contains(t, success.Body.String(), `"_meta"`)
 
-	canonicalUpdate := appThemeResponse(
+	update := appThemeResponse(
 		http.MethodPut,
 		`{"data":{"fixedHeader":false}}`,
 		`"theme-application-0"`,
 	)
-	require.Equal(t, http.StatusOK, canonicalUpdate.Code, canonicalUpdate.Body.String())
-	require.Equal(t, themeContractMediaType, canonicalUpdate.Header().Get("Content-Type"))
+	require.Equal(t, http.StatusOK, update.Code, update.Body.String())
+	require.Equal(t, themeContractMediaType, update.Header().Get("Content-Type"))
 
-	canonicalConflict := appThemeResponse(
+	conflict := appThemeResponse(
 		http.MethodPut,
 		`{"data":{"layout":"side"}}`,
 		`"theme-application-0"`,
 	)
-	require.Equal(t, http.StatusPreconditionFailed, canonicalConflict.Code, canonicalConflict.Body.String())
-	require.Equal(t, themeContractMediaType, canonicalConflict.Header().Get("Content-Type"))
-
-	legacySuccess := appThemeLegacyResponse(http.MethodGet, "", "")
-	require.Equal(t, http.StatusOK, legacySuccess.Code, legacySuccess.Body.String())
-	require.Equal(t, "application/json; charset=utf-8", legacySuccess.Header().Get("Content-Type"))
-
-	legacyConflict := appThemeLegacyResponse(
-		http.MethodPut,
-		`{"data":{"layout":"mix"}}`,
-		`"theme-application-0"`,
-	)
-	require.Equal(t, http.StatusPreconditionFailed, legacyConflict.Code, legacyConflict.Body.String())
-	require.Equal(t, "application/json; charset=utf-8", legacyConflict.Header().Get("Content-Type"))
-
-	zeroQuality := appThemeResponseWithAccept(
-		http.MethodGet,
-		"",
-		"",
-		themeContractMediaType+"; q=0",
-	)
-	require.Equal(t, http.StatusOK, zeroQuality.Code, zeroQuality.Body.String())
-	require.Equal(t, "application/json; charset=utf-8", zeroQuality.Header().Get("Content-Type"))
-	require.NotContains(t, zeroQuality.Body.String(), `"_meta"`)
+	require.Equal(t, http.StatusPreconditionFailed, conflict.Code, conflict.Body.String())
+	require.Equal(t, themeContractMediaType, conflict.Header().Get("Content-Type"))
 }
 
 func TestConfigurationProfilesAreNeverStoredByHTTPSharedCaches(t *testing.T) {
@@ -399,167 +274,7 @@ func TestCanonicalAppThemeRejectsLegacyPWAWithoutWriting(t *testing.T) {
 	require.Zero(t, revisionCount)
 }
 
-func TestLegacyAppThemeGETPutGETPreservesPWA(t *testing.T) {
-	db := setupThemeConfigAPITest(t)
-	gin.SetMode(gin.TestMode)
-
-	response := appThemeLegacyResponse(http.MethodGet, "", "")
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	require.Equal(t, `"theme-application-0"`, response.Header().Get("ETag"))
-	require.Equal(t, "no-store", response.Header().Get("Cache-Control"))
-	require.Contains(t, response.Header().Values("Vary"), "Accept")
-
-	response = appThemeLegacyResponse(
-		http.MethodPut,
-		`{"data":{"pwa":true,"layout":"side"}}`,
-		`"theme-application-0"`,
-	)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	require.Equal(t, `"theme-application-1"`, response.Header().Get("ETag"))
-	require.Equal(t, "no-store", response.Header().Get("Cache-Control"))
-	require.Contains(t, response.Header().Values("Vary"), "Accept")
-	require.Contains(t, response.Body.String(), `"pwa":true`)
-	require.Contains(t, response.Body.String(), `"layout":"side"`)
-	require.NotContains(t, response.Body.String(), `"_meta"`)
-
-	response = appThemeLegacyResponse(http.MethodGet, "", "")
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	require.Contains(t, response.Body.String(), `"pwa":true`)
-	require.Contains(t, response.Body.String(), `"layout":"side"`)
-	require.NotContains(t, response.Body.String(), `"_meta"`)
-
-	// The same persisted state projected through the canonical media type has
-	// seven fields plus metadata and intentionally excludes pwa.
-	response = appThemeResponse(http.MethodGet, "", "")
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	require.NotContains(t, response.Body.String(), `"pwa"`)
-	application := decodeThemeResource(t, response)
-	require.Equal(t, "side", *application.Layout)
-	require.Equal(t, "1", application.Meta.Revision)
-
-	var applicationPWA models.AppConfig
-	require.NoError(t, db.First(&applicationPWA, `"group" = ? AND name = ?`, service.ThemeConfigGroup, "pwa").Error)
-	require.Equal(t, "true", applicationPWA.Value)
-}
-
-func TestLegacyApplicationThemeGETKeepsPWAAndStrongETagOnOneRevision(t *testing.T) {
-	db := setupThemeConfigAPITest(t)
-	gin.SetMode(gin.TestMode)
-
-	require.NoError(t, db.Create(&[]models.AppConfig{
-		{Group: service.ThemeConfigGroup, Name: "layout", Value: "side"},
-		{Group: service.ThemeConfigGroup, Name: "pwa", Value: "false"},
-	}).Error)
-	require.NoError(t, db.Create(&models.ConfigRevision{
-		Scope: service.ThemeScopeApplication, Resource: "theme", Revision: 1,
-	}).Error)
-
-	callbackName := "test:legacy-theme-revision-flip"
-	revisionReads := 0
-	var mutationErr error
-	require.NoError(t, db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
-		if tx.Statement == nil || tx.Statement.Table != (&models.ConfigRevision{}).TableName() {
-			return
-		}
-		revisionReads++
-		if revisionReads != 2 {
-			return
-		}
-		mutationErr = db.Model(&models.AppConfig{}).
-			Where(&models.AppConfig{Group: service.ThemeConfigGroup, Name: "pwa"}).
-			UpdateColumn("value", "true").Error
-		if mutationErr == nil {
-			mutationErr = db.Model(&models.ConfigRevision{}).
-				Where("scope = ? AND owner_id = ? AND resource = ?", service.ThemeScopeApplication, "", "theme").
-				UpdateColumn("revision", 2).Error
-		}
-	}))
-	var removeOnce sync.Once
-	removeCallback := func() {
-		removeOnce.Do(func() {
-			require.NoError(t, db.Callback().Query().Remove(callbackName))
-		})
-	}
-	t.Cleanup(removeCallback)
-
-	response := appThemeLegacyResponse(http.MethodGet, "", "")
-	removeCallback()
-	require.NoError(t, mutationErr)
-	require.GreaterOrEqual(t, revisionReads, 2)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	require.Equal(t, `"theme-application-1"`, response.Header().Get("ETag"))
-
-	var projection map[string]any
-	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &projection))
-	require.Equal(t, "side", projection["layout"])
-	require.Equal(t, false, projection["pwa"], "pwa must belong to the revision named by the ETag")
-
-	var storedPWA models.AppConfig
-	require.NoError(t, db.First(
-		&storedPWA,
-		`"group" = ? AND name = ?`,
-		service.ThemeConfigGroup,
-		"pwa",
-	).Error)
-	require.Equal(t, "true", storedPWA.Value)
-	var storedRevision models.ConfigRevision
-	require.NoError(t, db.First(
-		&storedRevision,
-		"scope = ? AND owner_id = ? AND resource = ?",
-		service.ThemeScopeApplication,
-		"",
-		"theme",
-	).Error)
-	require.EqualValues(t, 2, storedRevision.Revision)
-}
-
-func TestLegacyApplicationThemeMutationsDoNotReadPWAAfterCommit(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	t.Run("put", func(t *testing.T) {
-		db := setupThemeConfigAPITest(t)
-		outsideQueries, removeCallback := registerOutsideTransactionPWAQueryFailure(t, db)
-
-		response := appThemeLegacyResponse(
-			http.MethodPut,
-			`{"data":{"pwa":true,"layout":"side"}}`,
-			`"theme-application-0"`,
-		)
-		removeCallback()
-		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-		require.Equal(t, `"theme-application-1"`, response.Header().Get("ETag"))
-		require.Zero(t, *outsideQueries, "legacy response must be formed before the transaction commits")
-
-		var projection map[string]any
-		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &projection))
-		require.Equal(t, true, projection["pwa"])
-		require.Equal(t, "side", projection["layout"])
-	})
-
-	t.Run("delete", func(t *testing.T) {
-		db := setupThemeConfigAPITest(t)
-		seed := appThemeLegacyResponse(
-			http.MethodPut,
-			`{"data":{"pwa":true,"layout":"side"}}`,
-			`"theme-application-0"`,
-		)
-		require.Equal(t, http.StatusOK, seed.Code, seed.Body.String())
-
-		outsideQueries, removeCallback := registerOutsideTransactionPWAQueryFailure(t, db)
-		response := appThemeLegacyResponse(http.MethodDelete, "", seed.Header().Get("ETag"))
-		removeCallback()
-		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-		require.Equal(t, `"theme-application-2"`, response.Header().Get("ETag"))
-		require.Zero(t, *outsideQueries, "legacy response must be formed before the transaction commits")
-
-		var projection map[string]any
-		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &projection))
-		require.Equal(t, true, projection["pwa"], "legacy pwa remains outside the canonical reset set")
-		require.NotContains(t, projection, "layout")
-	})
-}
-
-func TestUserThemeRejectsLegacyPWAWithAndWithoutCanonicalAccept(t *testing.T) {
+func TestUserThemeRejectsLegacyPWA(t *testing.T) {
 	db := setupThemeConfigAPITest(t)
 	gin.SetMode(gin.TestMode)
 
@@ -568,18 +283,13 @@ func TestUserThemeRejectsLegacyPWAWithAndWithoutCanonicalAccept(t *testing.T) {
 	t.Cleanup(func() { config.Cfg.Auth.IdentityKey = previousIdentityKey })
 	principal := &models.User{}
 	principal.ID = "user-a"
-	for _, request := range []func(string, string, string, *models.User) *httptest.ResponseRecorder{
-		userThemeResponse,
-		userThemeLegacyResponse,
-	} {
-		response := request(
-			http.MethodPut,
-			`{"data":{"pwa":false,"colorWeak":false}}`,
-			`"theme-user-0"`,
-			principal,
-		)
-		require.Equal(t, http.StatusUnprocessableEntity, response.Code, response.Body.String())
-	}
+	response := userThemeResponse(
+		http.MethodPut,
+		`{"data":{"pwa":false,"colorWeak":false}}`,
+		`"theme-user-0"`,
+		principal,
+	)
+	require.Equal(t, http.StatusUnprocessableEntity, response.Code, response.Body.String())
 
 	var configCount int64
 	require.NoError(t, db.Model(&models.UserConfig{}).Count(&configCount).Error)
@@ -597,7 +307,6 @@ func TestApplicationThemeEndpointsExposeCanonicalETagsAndStaleResource(t *testin
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.Equal(t, `"theme-application-0"`, response.Header().Get("ETag"))
 	require.Equal(t, "no-store", response.Header().Get("Cache-Control"))
-	require.Contains(t, response.Header().Values("Vary"), "Accept")
 	resource := decodeThemeResource(t, response)
 	require.Equal(t, service.ThemeScopeApplication, resource.Meta.Scope)
 	require.Equal(t, "0", resource.Meta.Revision)
@@ -634,17 +343,16 @@ func TestApplicationThemeEndpointsExposeCanonicalETagsAndStaleResource(t *testin
 	require.Nil(t, conflict.Data.Current.Layout, "a stale write must not reach the database")
 	require.Equal(t, "#abcdef", *conflict.Data.Current.ColorPrimary)
 
-	// Omitting If-Match keeps old clients working and still returns the new
-	// canonical representation and revision.
+	// V6 requires an explicit revision for every mutation.
 	response = appThemeResponse(http.MethodPut, `{"data":{"layout":"mix"}}`, "")
+	require.Equal(t, http.StatusPreconditionRequired, response.Code, response.Body.String())
+	require.Contains(t, response.Body.String(), themeIfMatchRequiredCode)
+
+	response = appThemeResponse(http.MethodDelete, "", `"theme-application-1"`)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.Equal(t, `"theme-application-2"`, response.Header().Get("ETag"))
-
-	response = appThemeResponse(http.MethodDelete, "", `"theme-application-2"`)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	require.Equal(t, `"theme-application-3"`, response.Header().Get("ETag"))
 	resource = decodeThemeResource(t, response)
-	require.Equal(t, "3", resource.Meta.Revision)
+	require.Equal(t, "2", resource.Meta.Revision)
 	require.Nil(t, resource.FixedHeader)
 	require.Nil(t, resource.ColorPrimary)
 	require.Nil(t, resource.Layout)
@@ -737,18 +445,11 @@ func TestUserThemeEndpointsUseOwnerScopedETagsAndDeleteReturnsCanonicalResource(
 	principal := &models.User{}
 	principal.ID = "user-a"
 
-	legacyResponse := userThemeLegacyResponse(http.MethodGet, "", "", principal)
-	require.Equal(t, http.StatusOK, legacyResponse.Code, legacyResponse.Body.String())
-	require.Equal(t, `"theme-user-0"`, legacyResponse.Header().Get("ETag"))
-	require.Equal(t, "no-store", legacyResponse.Header().Get("Cache-Control"))
-	require.Contains(t, legacyResponse.Header().Values("Vary"), "Accept")
-	require.NotContains(t, legacyResponse.Body.String(), `"_meta"`)
-
 	response := userThemeResponse(http.MethodGet, "", "", principal)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.Equal(t, `"theme-user-0"`, response.Header().Get("ETag"))
 	require.Equal(t, "no-store", response.Header().Get("Cache-Control"))
-	require.Contains(t, response.Header().Values("Vary"), "Accept")
+	require.Contains(t, response.Body.String(), `"_meta"`)
 
 	response = userThemeResponse(
 		http.MethodPut,
@@ -794,6 +495,7 @@ func TestUserThemeControlReturns422ForInvalidThemeValues(t *testing.T) {
 		bytes.NewBufferString(`{"data":{"layout":"invalid"}}`),
 	)
 	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Request.Header.Set("If-Match", `"theme-user-0"`)
 	principal := &models.User{}
 	principal.ID = "user-a"
 	ctx.Set(config.Cfg.Auth.IdentityKey, principal)
@@ -847,7 +549,7 @@ func TestAppThemeResetInvalidatesPublicProfileCache(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodDelete, "/admin/api/app-configs/theme", nil)
-	ctx.Request.Header.Set("Accept", themeContractMediaType)
+	ctx.Request.Header.Set("If-Match", `"theme-application-0"`)
 	(&AppConfig{}).Reset(ctx)
 
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())

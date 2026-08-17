@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"reflect"
 	"sort"
 	"strconv"
 	"time"
@@ -34,7 +33,6 @@ type AppConfig struct{}
 var ErrAppConfigKeyCaseMismatch = errors.New("application config key casing does not match canonical public contract")
 var ErrAppConfigKeyCollision = errors.New("application config canonical key collision")
 var ErrAppConfigKeyNotAllowed = errors.New("application config key is not allowed")
-var ErrLegacyThemeSnapshotMismatch = errors.New("legacy application theme snapshot does not match resource")
 
 type AppConfigKeyCaseMismatchError struct {
 	Group          string
@@ -86,15 +84,12 @@ func (e *AppConfigKeyNotAllowedError) Error() string {
 func (e *AppConfigKeyNotAllowedError) Unwrap() error { return ErrAppConfigKeyNotAllowed }
 
 const (
-	appConfigPublicProfileCacheKeyPrefix      = "app-configs:{profile:public}:v2:"
-	appConfigPublicProfileLegacyCacheKey      = "app-configs:{profile:public}:payload"
-	appConfigPublicProfileLegacyGenerationKey = "app-configs:{profile:public}:generation"
-	appConfigPublicProfileMaxReadAttempts     = 3
-	appConfigPublicProfileCacheTTL            = 15 * time.Minute
-	appConfigPublicProfileCacheVersion        = 2
-	appConfigEntryCacheHash                   = "app-configs:{entry}:v1"
-	legacyAppConfigCacheHash                  = "appConfig"
-	appConfigCacheOperationLimit              = 100 * time.Millisecond
+	appConfigPublicProfileCacheKeyPrefix  = "app-configs:{profile:public}:v2:"
+	appConfigPublicProfileMaxReadAttempts = 3
+	appConfigPublicProfileCacheTTL        = 15 * time.Minute
+	appConfigPublicProfileCacheVersion    = 2
+	appConfigEntryCacheHash               = "app-configs:{entry}:v1"
+	appConfigCacheOperationLimit          = 100 * time.Millisecond
 )
 
 type appConfigPublicKey struct {
@@ -108,9 +103,7 @@ type appConfigPublicKey struct {
 // and new private settings are not automatically credentials.
 var sensitiveAppConfigKeys = []appConfigPublicKey{
 	{Group: "email", Name: "password"},
-	{Group: "security", Name: "githubClientSecret"},
 	{Group: "security", Name: "githubBrowserSessionClientSecret"},
-	{Group: "security", Name: "larkAppSecret"},
 	{Group: "security", Name: "larkBrowserSessionAppSecret"},
 }
 
@@ -119,6 +112,23 @@ const storageAppConfigGroup = "storage"
 var storageAdmissionAppConfigKeys = map[string]struct{}{
 	"allowedTypes": {},
 	"maxSize":      {},
+}
+
+// retiredBrowserAppConfigKeys are intentionally rejected even though unknown
+// application settings are normally private-by-default. This prevents a
+// generic settings request from recreating credentials removed by the V6
+// cutover migration.
+var retiredBrowserAppConfigKeys = []appConfigPublicKey{
+	{Group: "security", Name: "githubClientId"},
+	{Group: "security", Name: "githubClientSecret"},
+	{Group: "security", Name: "githubRedirectURI"},
+	{Group: "security", Name: "githubRedirectUrl"},
+	{Group: "security", Name: "githubRedirectURL"},
+	{Group: "security", Name: "githubScope"},
+	{Group: "security", Name: "larkAppId"},
+	{Group: "security", Name: "larkAppSecret"},
+	{Group: "security", Name: "larkRedirectURI"},
+	{Group: "security", Name: "larkRedirectUrl"},
 }
 
 var sensitiveAppConfigKeySet = func() map[appConfigPublicKey]struct{} {
@@ -150,7 +160,6 @@ var publicAppConfigKeys = []appConfigPublicKey{
 	{Group: "theme", Name: "fixSiderbar"},
 	{Group: "theme", Name: "colorWeak"},
 	{Group: "theme", Name: "colorPrimary"},
-	{Group: "theme", Name: "pwa"},
 }
 
 var publicAppConfigKeySet = func() map[appConfigPublicKey]struct{} {
@@ -168,10 +177,9 @@ type publicAppConfigCacheEnvelope struct {
 	Profile         map[string]gin.H `json:"profile"`
 }
 
-// Profile returns the public application bootstrap projection. The auth
-// argument is retained for source compatibility, but caller identity must
-// never widen this endpoint to include authenticated-only or secret values.
-func (e *AppConfig) Profile(ctx *gin.Context, _ bool) (map[string]gin.H, error) {
+// Profile returns the public application bootstrap projection. Caller
+// identity never widens this endpoint to include private or secret values.
+func (e *AppConfig) Profile(ctx *gin.Context) (map[string]gin.H, error) {
 	// The revision/data/revision snapshot must come from the same authoritative
 	// writer pool; a lagging replica must never populate a current revision key.
 	db := center.GetDB(ctx, &models.AppConfig{})
@@ -245,18 +253,11 @@ func loadPublicProfile(db *gorm.DB, themeRevision int64) (map[string]gin.H, erro
 
 	result := make(map[string]gin.H)
 	themeRecords := make([]themeRecord, 0, len(themeFieldNames))
-	var legacyPWA *bool
 	for i := range list {
 		if !isPublicAppConfigKey(list[i].Group, list[i].Name) {
 			continue
 		}
 		if list[i].Group == ThemeConfigGroup {
-			if list[i].Name == "pwa" {
-				if value, ok := normalizeLegacyPWAValue(list[i].Value); ok {
-					legacyPWA = &value
-				}
-				continue
-			}
 			themeRecords = append(themeRecords, themeRecord{name: list[i].Name, value: list[i].Value})
 			continue
 		}
@@ -274,9 +275,6 @@ func loadPublicProfile(db *gorm.DB, themeRevision int64) (map[string]gin.H, erro
 		themeRevision,
 		theme,
 	)))
-	if legacyPWA != nil {
-		result[ThemeConfigGroup]["pwa"] = *legacyPWA
-	}
 	return result, nil
 }
 
@@ -358,19 +356,11 @@ func publicProfileProjection(profile map[string]gin.H) map[string]gin.H {
 				continue
 			}
 			if group == ThemeConfigGroup {
-				if name == "pwa" {
-					normalized, ok := normalizeLegacyPWAValue(value)
-					if !ok {
-						continue
-					}
-					value = normalized
-				} else {
-					normalized, ok := normalizeThemeProfileValue(name, value)
-					if !ok {
-						continue
-					}
-					value = normalized
+				normalized, ok := normalizeThemeProfileValue(name, value)
+				if !ok {
+					continue
 				}
+				value = normalized
 			}
 			if result[group] == nil {
 				result[group] = make(gin.H)
@@ -390,21 +380,6 @@ func ensureApplicationThemeMeta(profile map[string]gin.H, revision int64) {
 		"scope":    ThemeScopeApplication,
 		"revision": strconv.FormatInt(revision, 10),
 	}
-}
-
-func normalizeLegacyPWAValue(value any) (bool, bool) {
-	switch typed := value.(type) {
-	case bool:
-		return typed, true
-	case string:
-		if typed == "true" {
-			return true, true
-		}
-		if typed == "false" {
-			return false, true
-		}
-	}
-	return false, false
 }
 
 func transferValue(value string) any {
@@ -434,7 +409,11 @@ func (e *AppConfig) GroupWithSensitiveValues(
 		return nil, err
 	}
 	if group == ThemeConfigGroup {
-		return e.LegacyThemeGroup(ctx, nil)
+		resource, err := e.ThemeResource(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return themeResourceMap(resource), nil
 	}
 	list := make([]*models.AppConfig, 0)
 	db := center.GetDB(ctx, &models.AppConfig{})
@@ -449,9 +428,12 @@ func (e *AppConfig) GroupWithSensitiveValues(
 		if !isAllowedAppConfigProjection(group, list[i]) {
 			continue
 		}
-		// Use the canonical request group and reject historical casing aliases
-		// as secrets too. Case-insensitive database collations can otherwise
-		// return a legacy `Security/githubClientSecret` row for `security`.
+		if isRetiredBrowserAppConfigKeyAlias(group, list[i].Name) {
+			continue
+		}
+		// Use the canonical request group for the remaining credential fields.
+		// Case-insensitive database collations can otherwise return a
+		// non-canonical credential row for a canonical group request.
 		if !includeSensitive && isSensitiveAppConfigKeyAlias(group, list[i].Name) {
 			continue
 		}
@@ -484,26 +466,6 @@ func AppConfigMutationContainsSensitiveValues(group string, data map[string]any)
 	return false
 }
 
-func (e *AppConfig) LegacyThemeGroup(
-	ctx *gin.Context,
-	resource *dto.ThemeResource,
-) (map[string]any, error) {
-	snapshot, result, err := e.LegacyThemeResource(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if resource != nil && !reflect.DeepEqual(resource, snapshot) {
-		return nil, ErrLegacyThemeSnapshotMismatch
-	}
-	return result, nil
-}
-
-func (e *AppConfig) LegacyThemeResource(
-	ctx *gin.Context,
-) (*dto.ThemeResource, map[string]any, error) {
-	return (&Theme{}).LegacyApplicationSnapshot(ctx)
-}
-
 func (e *AppConfig) ThemeResource(ctx *gin.Context) (*dto.ThemeResource, error) {
 	return (&Theme{}).ApplicationResource(ctx)
 }
@@ -511,39 +473,16 @@ func (e *AppConfig) ThemeResource(ctx *gin.Context) (*dto.ThemeResource, error) 
 func (e *AppConfig) UpdateTheme(
 	ctx *gin.Context,
 	data map[string]any,
-	expectedRevision *int64,
+	expectedRevision int64,
 ) (*dto.ThemeResource, error) {
 	return (&Theme{}).PatchApplicationResource(ctx, data, expectedRevision)
 }
 
-func (e *AppConfig) UpdateLegacyTheme(
-	ctx *gin.Context,
-	data map[string]any,
-	expectedRevision *int64,
-) (*dto.ThemeResource, error) {
-	return (&Theme{}).PatchLegacyApplicationResource(ctx, data, expectedRevision)
-}
-
-func (e *AppConfig) UpdateLegacyThemeSnapshot(
-	ctx *gin.Context,
-	data map[string]any,
-	expectedRevision *int64,
-) (*dto.ThemeResource, map[string]any, error) {
-	return (&Theme{}).PatchLegacyApplicationSnapshot(ctx, data, expectedRevision)
-}
-
 func (e *AppConfig) ResetTheme(
 	ctx *gin.Context,
-	expectedRevision *int64,
+	expectedRevision int64,
 ) (*dto.ThemeResource, error) {
 	return (&Theme{}).ResetApplicationResource(ctx, expectedRevision)
-}
-
-func (e *AppConfig) ResetLegacyThemeSnapshot(
-	ctx *gin.Context,
-	expectedRevision *int64,
-) (*dto.ThemeResource, map[string]any, error) {
-	return (&Theme{}).ResetLegacyApplicationSnapshot(ctx, expectedRevision)
 }
 
 func (e *AppConfig) CreateOrUpdate(ctx *gin.Context, group string, data map[string]any) error {
@@ -559,8 +498,7 @@ func (e *AppConfig) CreateOrUpdate(ctx *gin.Context, group string, data map[stri
 		}
 	}
 	if group == ThemeConfigGroup {
-		_, err := (&Theme{}).PatchLegacyApplicationResource(ctx, data, nil)
-		return err
+		return ErrThemeGroupOnly
 	}
 	if len(data) == 0 {
 		return nil
@@ -613,16 +551,6 @@ func (e *AppConfig) CreateOrUpdate(ctx *gin.Context, group string, data map[stri
 		cleanupPublicProfileCache(ctx, staleProfileRevision)
 	}
 	return nil
-}
-
-func (e *AppConfig) Reset(ctx *gin.Context, group string) error {
-	if err := rejectNonCanonicalThemeGroup(group); err != nil {
-		return err
-	}
-	if group != ThemeConfigGroup {
-		return ErrThemeGroupOnly
-	}
-	return (&Theme{}).ResetApplication(ctx)
 }
 
 func upsertApplicationConfigValue(tx *gorm.DB, group, name, value string, auth bool) error {
@@ -691,18 +619,16 @@ func invalidateAppConfigEntryCaches(ctx *gin.Context, group string, keys []strin
 	if len(fields) == 0 {
 		return
 	}
-	for _, hash := range []string{appConfigEntryCacheHash, legacyAppConfigCacheHash} {
-		cacheCtx, cancel := appConfigCacheContext(ctx)
-		err := cache.HDel(cacheCtx, hash, fields...).Err()
-		cancel()
-		if err != nil {
-			slog.Warn(
-				"invalidate app config cache after commit",
-				"group", group,
-				"hash", hash,
-				"err", err,
-			)
-		}
+	cacheCtx, cancel := appConfigCacheContext(ctx)
+	err := cache.HDel(cacheCtx, appConfigEntryCacheHash, fields...).Err()
+	cancel()
+	if err != nil {
+		slog.Warn(
+			"invalidate app config cache after commit",
+			"group", group,
+			"hash", appConfigEntryCacheHash,
+			"err", err,
+		)
 	}
 }
 
@@ -716,8 +642,6 @@ func cleanupPublicProfileCache(ctx *gin.Context, staleRevision int64) {
 	if err := cache.Del(
 		cacheCtx,
 		publicProfileCacheKey(staleRevision),
-		appConfigPublicProfileLegacyCacheKey,
-		appConfigPublicProfileLegacyGenerationKey,
 	).Err(); err != nil {
 		slog.Warn("clean up public app config profile cache after commit", "revision", staleRevision, "err", err)
 	}
@@ -743,6 +667,16 @@ func isSensitiveAppConfigKeyAlias(group, name string) bool {
 	return false
 }
 
+func isRetiredBrowserAppConfigKeyAlias(group, name string) bool {
+	for _, key := range retiredBrowserAppConfigKeys {
+		if canonicalConfigIdentifierFold(group) == canonicalConfigIdentifierFold(key.Group) &&
+			canonicalConfigIdentifierFold(name) == canonicalConfigIdentifierFold(key.Name) {
+			return true
+		}
+	}
+	return false
+}
+
 func isAllowedAppConfigProjection(group string, config *models.AppConfig) bool {
 	if group != storageAppConfigGroup {
 		return true
@@ -755,6 +689,9 @@ func isAllowedAppConfigProjection(group string, config *models.AppConfig) bool {
 }
 
 func validateAllowedAppConfigKey(group, name string) error {
+	if isRetiredBrowserAppConfigKeyAlias(group, name) {
+		return &AppConfigKeyNotAllowedError{Group: group, Name: name}
+	}
 	if group != storageAppConfigGroup {
 		return nil
 	}

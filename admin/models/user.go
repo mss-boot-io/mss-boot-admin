@@ -763,8 +763,8 @@ func (e *UserLogin) GetUserGithubOAuth2(c *gin.Context) (*UserOAuth2, error) {
 	}
 	// The provider token has already been exchanged by the transport-specific
 	// callback. Resource requests need only that token; keeping OAuth app
-	// credentials out of this phase prevents V5 and V6 provider configuration
-	// from becoming coupled again after a successful exchange.
+	// credentials out of this phase keeps identity lookup independent from the
+	// provider application configuration after a successful exchange.
 	conf := &oauth2.Config{}
 	requestContext := context.Context(c)
 	if c.Request != nil {

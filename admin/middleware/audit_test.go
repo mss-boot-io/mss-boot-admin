@@ -63,7 +63,7 @@ func TestMatchesAuditSkipPathUsesSegmentBoundary(t *testing.T) {
 	}{
 		{path: "/admin/api/user", want: true},
 		{path: "/admin/api/user/profile", want: true},
-		{path: "/admin/api/user/oauth2/callback", want: true},
+		{path: "/admin/api/user/session/github/callback", want: true},
 		{path: "/admin/api/user-configs/theme", want: false},
 		{path: "/admin/api/users", want: false},
 	}

@@ -49,6 +49,17 @@ jobs:
           print(match.group(1))
           PY
           )"
+          blueprint_version="$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          blueprint = Path('.mss/blueprints/management-system.yaml').read_text(encoding='utf-8')
+          match = re.search(r'(?m)^  version:\s*([0-9]+\.[0-9]+\.[0-9]+)\s*$', blueprint)
+          if not match:
+              raise SystemExit('Blueprint metadata.version must be a stable semantic version')
+          print(match.group(1))
+          PY
+          )"
           if [[ ! "${foundation_commit}" =~ ^[0-9a-f]{40}$ ]]; then
             echo "Foundation commit is not a full SHA: ${foundation_commit}" >&2
             exit 1
@@ -57,12 +68,17 @@ jobs:
             echo "Generator version is empty." >&2
             exit 1
           fi
+          if [[ -z "${blueprint_version}" ]]; then
+            echo "Blueprint version is empty." >&2
+            exit 1
+          fi
           ldflags="-X github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo.Version=${generator_version} -X github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo.Commit=${foundation_commit}"
           go build -trimpath -ldflags "${ldflags}" -o "${RUNNER_TEMP}/mss-current" ./cmd/mss
           go build -trimpath -ldflags "${ldflags}" -o "${RUNNER_TEMP}/mss-mcp-current" ./cmd/mss-mcp
           "${RUNNER_TEMP}/mss-current" --version
           "${RUNNER_TEMP}/mss-mcp-current" -version
           echo "CURRENT_FOUNDATION_COMMIT=${foundation_commit}" >> "${GITHUB_ENV}"
+          echo "CURRENT_BLUEPRINT_VERSION=${blueprint_version}" >> "${GITHUB_ENV}"
           echo "GENERATOR_VERSION=${generator_version}" >> "${GITHUB_ENV}"
 
       - name: Configure Git identity
@@ -149,8 +165,8 @@ jobs:
           generator = identities['generator']
           if foundation.get('version') != os.environ['GENERATOR_VERSION'] or foundation.get('commit') != os.environ['CURRENT_FOUNDATION_COMMIT']:
               raise SystemExit(f'Foundation identity did not come from release policy and exact source: {foundation}')
-          if blueprint.get('version') != '0.2.0':
-              raise SystemExit(f'initial Blueprint identity is not the committed 0.2.0 revision: {blueprint}')
+          if blueprint.get('version') != os.environ['CURRENT_BLUEPRINT_VERSION']:
+              raise SystemExit(f'initial Blueprint identity does not match the committed contract: {blueprint}')
           if generator.get('version') != os.environ['GENERATOR_VERSION'] or generator.get('commit') != os.environ['CURRENT_FOUNDATION_COMMIT']:
               raise SystemExit(f'generator build identity was not injected: {generator}')
           project_baseline = context['project']['spec']['foundationVersion']
@@ -182,10 +198,10 @@ jobs:
 
           blueprint = root / ".mss/blueprints/management-system.yaml"
           text = blueprint.read_text(encoding="utf-8")
-          match = re.search(r'(?m)^(  version: )(0\.2\.([0-9]+))\s*$', text)
+          match = re.search(r'(?m)^(  version: )(([0-9]+)\.([0-9]+)\.([0-9]+))\s*$', text)
           if not match:
-              raise SystemExit("expected a 0.2.x Blueprint version")
-          next_blueprint = f"0.2.{int(match.group(3)) + 1}-ci"
+              raise SystemExit("expected a stable semantic Blueprint version")
+          next_blueprint = f"{match.group(3)}.{match.group(4)}.{int(match.group(5)) + 1}-ci"
           text = text[:match.start(2)] + next_blueprint + text[match.end(2):]
           blueprint.write_text(text, encoding="utf-8")
 

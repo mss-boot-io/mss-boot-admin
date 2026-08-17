@@ -31,8 +31,8 @@ MySQL 8.0 提供更好的 utf8mb4 支持和性能优化。
 
 ## Q: Node.js 版本要求是什么？
 
-**A:** 需要 Node.js >= 22 且 < 25，并通过 Corepack 使用仓库固定的
-pnpm 9.15.9。
+**A:** V6 前端需要 Node.js >= 24 且 < 25，并通过 Corepack 使用仓库固定的
+pnpm 10.34.5；精确版本以 `.mss/project.yaml` 为准。
 
 检查版本：
 
@@ -43,26 +43,26 @@ corepack pnpm --version
 
 ## Q: 前端依赖安装失败怎么办？
 
-**A:** 先确认位于单一 monorepo 的 `web/antd/` 目录，并按以下步骤处理：
+**A:** 在 monorepo 的 `web/antd-v6/` 目录处理。先按以下步骤检查：
 
 1. 启用 Corepack 并核对固定版本：
 
 ```bash
 corepack enable
-corepack pnpm --version
+corepack pnpm@10.34.5 --version
 ```
 
 2. 按 lockfile 冻结安装：
 
 ```bash
-corepack pnpm install --frozen-lockfile
+corepack pnpm@10.34.5 install --frozen-lockfile
 ```
 
 3. 如果下载缓存损坏，清理依赖缓存后重试冻结安装：
 
 ```bash
-corepack pnpm store prune
-corepack pnpm install --frozen-lockfile
+corepack pnpm@10.34.5 store prune
+corepack pnpm@10.34.5 install --frozen-lockfile
 ```
 
 不要删除 `pnpm-lock.yaml`，也不要改用其他包管理器绕过依赖锁；如果仍失败，

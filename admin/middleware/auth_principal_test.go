@@ -1,13 +1,15 @@
 package middleware
 
 import (
-	"encoding/json"
 	"path/filepath"
 	"testing"
+	"time"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/mss-boot-io/mss-boot-admin/admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/sessioncache"
+	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/gormdb"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"gorm.io/driver/sqlite"
@@ -22,6 +24,7 @@ func TestAuthenticateVerifierReloadsActiveDatabasePrincipal(t *testing.T) {
 			Username: user.Username,
 			Password: "correct-password",
 		}})
+		loginContext.Clear()
 		if err == nil {
 			current, ok := principal.(*models.User)
 			if !ok {
@@ -72,21 +75,8 @@ func TestCurrentPrincipalFromClaimsRejectsRoleDriftAndIgnoresJWTAuthority(t *tes
 		t.Fatal("non-root database role became root")
 	}
 
-	legacy := &models.User{UserLogin: models.UserLogin{
-		RoleID: role.ID,
-		Role:   &models.Role{Root: true},
-	}}
-	legacy.ID = user.ID
-	encoded, err := json.Marshal(legacy)
-	if err != nil {
-		t.Fatalf("marshal legacy verifier: %v", err)
-	}
-	principal, err = currentPrincipalFromClaims(ctx, jwt.MapClaims{"verifier": string(encoded)})
-	if err != nil {
-		t.Fatalf("load legacy claims principal: %v", err)
-	}
-	if principal.Root() {
-		t.Fatal("legacy JWT Root value was trusted over the database")
+	if _, err := currentPrincipalFromClaims(ctx, jwt.MapClaims{"verifier": `{"id":"legacy"}`}); err == nil {
+		t.Fatal("retired verifier claim was accepted")
 	}
 
 	newRole := &models.Role{Name: "new-role", Status: enum.Enabled}
@@ -119,20 +109,24 @@ func setupAuthPrincipalTest(t *testing.T) (*gorm.DB, *models.Role, *models.User)
 		&models.User{},
 		&models.UserOAuth2{},
 		&models.AuditLog{},
+		&models.UserSession{},
 	); err != nil {
 		t.Fatalf("migrate auth principal schema: %v", err)
 	}
 
 	previousDB := gormdb.DB
 	previousVerifier := Verifier
-	previousSessionEnabled := config.Cfg.Auth.SessionEnabled
+	previousTimeout := config.Cfg.Auth.Timeout
+	previousSessions := service.Session
 	gormdb.DB = db
 	Verifier = &models.User{}
-	config.Cfg.Auth.SessionEnabled = false
+	config.Cfg.Auth.Timeout = time.Hour
+	service.Session = service.NewSessionService(sessioncache.New(nil))
 	t.Cleanup(func() {
 		gormdb.DB = previousDB
 		Verifier = previousVerifier
-		config.Cfg.Auth.SessionEnabled = previousSessionEnabled
+		config.Cfg.Auth.Timeout = previousTimeout
+		service.Session = previousSessions
 	})
 
 	role := &models.Role{Name: "member", Status: enum.Enabled}

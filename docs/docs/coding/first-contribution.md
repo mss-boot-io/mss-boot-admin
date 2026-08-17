@@ -19,8 +19,7 @@ keywords: [first contribution, pull request, docs, tests]
 | --- | --- | --- |
 | [`mss-boot-io/mss-boot-docs`](https://github.com/mss-boot-io/mss-boot-docs) | 文档、教程、FAQ、流程说明 | `pnpm install --frozen-lockfile && pnpm build` |
 | [`mss-boot-io/mss-boot`](https://github.com/mss-boot-io/mss-boot) | 框架能力、HTTP/gRPC 服务模块、配置与中间件 | `go test ./...` |
-| [`mss-boot-io/mss-boot-admin`](https://github.com/mss-boot-io/mss-boot-admin) | 后端业务能力、接口、治理能力 | `go test ./... -v -coverprofile=coverage.out` |
-| [`mss-boot-io/mss-boot-admin-antd`](https://github.com/mss-boot-io/mss-boot-admin-antd) | 前端页面、组件、交互和文档截图 | `pnpm test --coverage` |
+| [`mss-boot-io/mss-boot-admin`](https://github.com/mss-boot-io/mss-boot-admin) | 后端、`web/antd-v6`、生成器、交付契约和集成文档 | `go run ./cmd/mss verify --changed` |
 
 如果只是补充说明、修正文案、增加 FAQ 或补充新手流程，优先从 `mss-boot-docs` 开始。
 
@@ -158,6 +157,6 @@ git push origin docs/first-contribution-guide
 
 - 给已有教程补测试或截图
 - 为 `mss-boot-admin` 补局部测试
-- 为 `mss-boot-admin-antd` 修复文档与界面说明不一致的问题
+- 为 `mss-boot-admin/web/antd-v6` 修复文档与界面说明不一致的问题
 
 先建立“选对仓库、改动够小、验证完整”的节奏，比一次做大更重要。

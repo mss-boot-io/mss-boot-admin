@@ -35,7 +35,7 @@ keywords: [admin test cases integration e2e]
 - Redis：可选（WebSocket 集群需要）
 
 ### 前端
-- 访问地址：`http://localhost:8000`
+- 访问地址：`http://localhost:8001`（默认 V6）
 - 浏览器：Chrome / Firefox / Safari
 
 ### 测试账号

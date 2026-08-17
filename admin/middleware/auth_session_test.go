@@ -16,7 +16,6 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"github.com/mss-boot-io/mss-boot-admin/admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/sessioncache"
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
@@ -25,10 +24,10 @@ import (
 // setupAuthSessionTest wires the bits of middleware.Init that
 // validateSessionFromClaims depends on without booting the whole admin server:
 // a sqlite DB exposed via gormdb.DB (single-tenant center.GetDB reads it),
-// a miniredis-backed Cache injected into SessionService, and the
-// SessionEnabled flag flipped on. A temporary SQLite file is used instead of
-// :memory: so the asynchronous last-seen writer and the assertion connection
-// observe the same database when GORM opens more than one physical connection.
+// a miniredis-backed Cache injected into SessionService. A temporary SQLite
+// file is used instead of :memory: so the asynchronous last-seen writer and
+// the assertion connection observe the same database when GORM opens more
+// than one physical connection.
 func setupAuthSessionTest(t *testing.T) (*gorm.DB, *miniredis.Miniredis) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -51,9 +50,6 @@ func setupAuthSessionTest(t *testing.T) (*gorm.DB, *miniredis.Miniredis) {
 	service.Session = service.NewSessionService(sessioncache.New(cli))
 	t.Cleanup(func() { service.Session = prevCache })
 
-	prevFlag := config.Cfg.Auth.SessionEnabled
-	config.Cfg.Auth.SessionEnabled = true
-	t.Cleanup(func() { config.Cfg.Auth.SessionEnabled = prevFlag })
 	// Registered last so it runs before the service, Redis, DB, and temporary
 	// directory cleanups registered above.
 	t.Cleanup(waitForSessionTouches)
@@ -74,8 +70,8 @@ func authSessionPrincipal(userID, roleID string) *models.User {
 	return principal
 }
 
-// TestValidateSessionFromClaims_MissingSid covers the "legacy JWT (issued
-// before sid was introduced) must be rejected" branch of PR #376 review #5.
+// TestValidateSessionFromClaims_MissingSid proves that an obsolete JWT without
+// the mandatory V6 server-session identifier is rejected.
 func TestValidateSessionFromClaims_MissingSid(t *testing.T) {
 	setupAuthSessionTest(t)
 	c := newTestGinCtx()

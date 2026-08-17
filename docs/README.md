@@ -62,11 +62,12 @@ pnpm run build
 - **集成测试**: `go test -tags=integration ./...`
 - **覆盖率要求**: ≥80%
 
-### 前端测试 (mss-boot-admin-antd)
+### 前端测试 (`web/antd-v6`)
 
-- **单元测试**: `pnpm test --coverage`
-- **E2E 测试**: `pnpm e2e`
-- **覆盖率要求**: ≥80%
+- **静态检查**: `make web-lint`
+- **单元测试**: `make web-test`
+- **生产构建**: `make web-build`
+- **E2E 测试**: `corepack pnpm@10.34.5 --dir web/antd-v6 e2e`
 
 ## 贡献说明
 

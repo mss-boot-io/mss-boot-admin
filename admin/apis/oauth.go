@@ -28,10 +28,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const (
-	oauthBrowserCookiePrefix = "mss_oauth_"
-	oauthTransportContextKey = "mss.oauth.transport"
-)
+const oauthBrowserCookiePrefix = "mss_oauth_"
 
 var defaultOAuthStateStore = oauthstate.New()
 
@@ -41,7 +38,7 @@ type oauthStateStore interface {
 }
 
 type oauthAuthorizeURLBuilder func(*gin.Context, pkg.LoginProvider, string) (string, error)
-type oauthCodeExchange func(*gin.Context, pkg.LoginProvider, string) (*dto.OauthToken, error)
+type oauthCodeExchange func(*gin.Context, pkg.LoginProvider, string) (string, error)
 type oauthLoginCompleter func(*gin.Context, pkg.LoginProvider, string) (string, time.Time, error)
 type oauthBindingCompleter func(*gin.Context, string, pkg.LoginProvider, string) error
 type oauthReauthenticationCompleter func(*gin.Context, string, string, pkg.LoginProvider, string) error
@@ -91,19 +88,7 @@ func (e *User) reauthenticationCompleter() oauthReauthenticationCompleter {
 	return completeOAuthReauthentication
 }
 
-func oauthTransport(c *gin.Context) oauthstate.Transport {
-	if c != nil {
-		if transport, ok := c.Get(oauthTransportContextKey); ok {
-			if typed, valid := transport.(oauthstate.Transport); valid && typed.Valid() {
-				return typed
-			}
-		}
-	}
-	return oauthstate.TransportBearer
-}
-
-// SessionOAuthAuthorize binds the OAuth attempt to the cookie response mode.
-// A bearer callback cannot consume this state and vice versa.
+// SessionOAuthAuthorize starts the only supported browser OAuth flow.
 // @Summary Start browser-session OAuth2 authorization
 // @Tags user
 // @Accept json
@@ -119,8 +104,7 @@ func (e *User) SessionOAuthAuthorize(c *gin.Context) {
 		response.Make(c).Err(http.StatusServiceUnavailable)
 		return
 	}
-	c.Set(oauthTransportContextKey, oauthstate.TransportBrowserCookie)
-	e.OAuthAuthorize(c)
+	e.oauthAuthorize(c)
 }
 
 // SessionCallback completes OAuth login into an HttpOnly browser cookie and
@@ -130,7 +114,7 @@ func (e *User) SessionOAuthAuthorize(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param provider path string true "provider"
-// @Param data body dto.OauthCallbackReq true "data"
+// @Param data body dto.OAuthCallbackRequest true "data"
 // @Success 201 {object} dto.OAuthCallbackResponse
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
@@ -141,22 +125,11 @@ func (e *User) SessionCallback(c *gin.Context) {
 		response.Make(c).Err(http.StatusServiceUnavailable)
 		return
 	}
-	c.Set(oauthTransportContextKey, oauthstate.TransportBrowserCookie)
-	e.Callback(c)
+	e.oauthCallback(c)
 }
 
-// OAuthAuthorize issues a server-owned, browser-bound authorization attempt.
-// @Summary Start an OAuth2 authorization attempt
-// @Tags user
-// @Accept json
-// @Produce json
-// @Param data body dto.OAuthAuthorizeRequest true "data"
-// @Success 201 {object} dto.OAuthAuthorizeResponse
-// @Failure 401 {object} response.Response
-// @Failure 403 {object} response.Response
-// @Failure 422 {object} response.Response
-// @Router /admin/api/user/oauth2/authorize [post]
-func (e *User) OAuthAuthorize(c *gin.Context) {
+// oauthAuthorize issues a server-owned, browser-bound authorization attempt.
+func (e *User) oauthAuthorize(c *gin.Context) {
 	setOAuthNoStoreHeaders(c)
 	api := response.Make(c)
 	req := &dto.OAuthAuthorizeRequest{}
@@ -171,22 +144,18 @@ func (e *User) OAuthAuthorize(c *gin.Context) {
 
 	intent := oauthstate.Intent(req.Intent)
 	verify := currentVerifier(c)
-	credentialFingerprint := requestCredentialFingerprint(c)
-	record := oauthstate.Record{
-		Provider:  string(req.Provider),
-		Intent:    intent,
-		Transport: oauthTransport(c),
-	}
+	record := oauthstate.Record{Provider: string(req.Provider), Intent: intent}
 	switch intent {
 	case oauthstate.IntentLogin:
 		// Login initiation must be anonymous. A stale or residual identity is
 		// rejected instead of silently becoming part of a different flow.
-		if verify != nil || credentialFingerprint != "" {
+		if verify != nil || middleware.RequestUsesBrowserSession(c) ||
+			strings.TrimSpace(c.GetHeader("Authorization")) != "" {
 			api.Err(http.StatusConflict)
 			return
 		}
 	case oauthstate.IntentBinding:
-		if verify == nil || credentialFingerprint == "" {
+		if verify == nil {
 			api.Err(http.StatusUnauthorized)
 			return
 		}
@@ -194,11 +163,16 @@ func (e *User) OAuthAuthorize(c *gin.Context) {
 			api.Err(http.StatusForbidden)
 			return
 		}
+		sid := middleware.CurrentSessionID(c)
+		if !middleware.RequestUsesBrowserSession(c) || sid == "" {
+			api.Err(http.StatusForbidden)
+			return
+		}
 		record.UserID = verify.GetUserID()
-		record.CredentialFingerprint = credentialFingerprint
+		record.SessionID = sid
 	case oauthstate.IntentReauthentication:
 		sid := middleware.CurrentSessionID(c)
-		if verify == nil || credentialFingerprint == "" || sid == "" {
+		if verify == nil {
 			api.Err(http.StatusUnauthorized)
 			return
 		}
@@ -206,8 +180,11 @@ func (e *User) OAuthAuthorize(c *gin.Context) {
 			api.Err(http.StatusForbidden)
 			return
 		}
+		if !middleware.RequestUsesBrowserSession(c) || sid == "" {
+			api.Err(http.StatusForbidden)
+			return
+		}
 		record.UserID = verify.GetUserID()
-		record.CredentialFingerprint = credentialFingerprint
 		record.SessionID = sid
 	default:
 		api.Err(http.StatusUnprocessableEntity)
@@ -242,7 +219,7 @@ func (e *User) OAuthAuthorize(c *gin.Context) {
 func (e *User) oauthCallback(c *gin.Context) {
 	setOAuthNoStoreHeaders(c)
 	api := response.Make(c)
-	req := &dto.OauthCallbackReq{}
+	req := &dto.OAuthCallbackRequest{}
 	if api.Bind(req).Error != nil {
 		api.Err(http.StatusUnprocessableEntity)
 		return
@@ -258,9 +235,7 @@ func (e *User) oauthCallback(c *gin.Context) {
 		api.Err(http.StatusServiceUnavailable)
 		return
 	}
-	transport := oauthTransport(c)
-	if record.Provider != string(req.Provider) || !record.Intent.Valid() ||
-		record.Transport.EffectiveTransport() != transport {
+	if record.Provider != string(req.Provider) || !record.Intent.Valid() {
 		api.Err(http.StatusUnauthorized)
 		return
 	}
@@ -271,34 +246,34 @@ func (e *User) oauthCallback(c *gin.Context) {
 	}
 
 	verify := currentVerifier(c)
-	credentialFingerprint := requestCredentialFingerprint(c)
 	switch record.Intent {
 	case oauthstate.IntentLogin:
-		if verify != nil || credentialFingerprint != "" || record.UserID != "" || record.CredentialFingerprint != "" {
+		if verify != nil || middleware.RequestUsesBrowserSession(c) ||
+			strings.TrimSpace(c.GetHeader("Authorization")) != "" ||
+			record.UserID != "" || record.SessionID != "" {
 			api.Err(http.StatusUnauthorized)
 			return
 		}
 	case oauthstate.IntentBinding:
 		if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) ||
+			!middleware.RequestUsesBrowserSession(c) ||
 			record.UserID == "" || record.UserID != verify.GetUserID() ||
-			credentialFingerprint == "" ||
-			!constantTimeEqual(credentialFingerprint, record.CredentialFingerprint) {
+			record.SessionID == "" || record.SessionID != middleware.CurrentSessionID(c) {
 			api.Err(http.StatusUnauthorized)
 			return
 		}
 	case oauthstate.IntentReauthentication:
 		if verify == nil || middleware.IsPersonalAccessTokenVerifier(verify) ||
+			!middleware.RequestUsesBrowserSession(c) ||
 			record.UserID == "" || record.UserID != verify.GetUserID() ||
-			record.SessionID == "" || record.SessionID != middleware.CurrentSessionID(c) ||
-			credentialFingerprint == "" ||
-			!constantTimeEqual(credentialFingerprint, record.CredentialFingerprint) {
+			record.SessionID == "" || record.SessionID != middleware.CurrentSessionID(c) {
 			api.Err(http.StatusUnauthorized)
 			return
 		}
 	}
 
-	providerToken, err := e.codeExchange()(c, req.Provider, req.Code)
-	if err != nil || providerToken == nil || strings.TrimSpace(providerToken.AccessToken) == "" {
+	providerAccessToken, err := e.codeExchange()(c, req.Provider, req.Code)
+	if err != nil || strings.TrimSpace(providerAccessToken) == "" {
 		// Provider failures may contain credentials in response details. Do not
 		// attach or log the raw error from this public callback.
 		api.Err(http.StatusUnauthorized)
@@ -316,22 +291,18 @@ func (e *User) oauthCallback(c *gin.Context) {
 	}
 	switch record.Intent {
 	case oauthstate.IntentLogin:
-		token, expiresAt, completeErr := e.loginCompleter()(c, req.Provider, providerToken.AccessToken)
+		token, expiresAt, completeErr := e.loginCompleter()(c, req.Provider, providerAccessToken)
 		if completeErr != nil || token == "" || expiresAt.IsZero() {
 			api.Err(http.StatusUnauthorized)
 			return
 		}
-		if transport == oauthstate.TransportBrowserCookie {
-			if cookieErr := middleware.SetBrowserSessionCookies(c, token, expiresAt); cookieErr != nil {
-				api.Err(http.StatusInternalServerError)
-				return
-			}
-		} else {
-			result.Token = token
+		if cookieErr := middleware.SetBrowserSessionCookies(c, token, expiresAt); cookieErr != nil {
+			api.Err(http.StatusInternalServerError)
+			return
 		}
 		result.Expire = &expiresAt
 	case oauthstate.IntentBinding:
-		completeErr := e.bindingCompleter()(c, record.UserID, req.Provider, providerToken.AccessToken)
+		completeErr := e.bindingCompleter()(c, record.UserID, req.Provider, providerAccessToken)
 		if errors.Is(completeErr, errOAuthIdentityAlreadyBound) {
 			api.Err(http.StatusConflict)
 			return
@@ -347,7 +318,7 @@ func (e *User) oauthCallback(c *gin.Context) {
 			record.UserID,
 			record.SessionID,
 			req.Provider,
-			providerToken.AccessToken,
+			providerAccessToken,
 		)
 		if errors.Is(completeErr, errOAuthReauthenticationIdentityMismatch) ||
 			errors.Is(completeErr, service.ErrSecuritySessionUnavailable) {
@@ -529,34 +500,6 @@ func currentVerifier(c *gin.Context) security.Verifier {
 	return response.VerifyHandler(c)
 }
 
-func requestCredentialFingerprint(c *gin.Context) string {
-	credential := requestCredential(c)
-	if credential == "" {
-		return ""
-	}
-	return oauthstate.Digest(credential)
-}
-
-func requestCredential(c *gin.Context) string {
-	if c == nil || c.Request == nil {
-		return ""
-	}
-	authorization := strings.TrimSpace(c.GetHeader("Authorization"))
-	if authorization != "" {
-		parts := strings.Fields(authorization)
-		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-			return parts[1]
-		}
-		return authorization
-	}
-	for _, name := range []string{middleware.BrowserSessionCookieName, "jwt"} {
-		if token, err := c.Cookie(name); err == nil && strings.TrimSpace(token) != "" {
-			return strings.TrimSpace(token)
-		}
-	}
-	return ""
-}
-
 func oauthBrowserCookieName(state string) string {
 	digest := oauthstate.Digest(state)
 	return oauthBrowserCookiePrefix + digest[:24]
@@ -636,20 +579,20 @@ func buildOAuthAuthorizeURL(c *gin.Context, provider pkg.LoginProvider, state st
 	}
 }
 
-func exchangeOAuthCode(c *gin.Context, provider pkg.LoginProvider, code string) (*dto.OauthToken, error) {
+func exchangeOAuthCode(c *gin.Context, provider pkg.LoginProvider, code string) (string, error) {
 	switch provider {
 	case pkg.GithubLoginProvider:
 		clientID, err := oauthClientID(c, provider)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		clientSecret, err := oauthClientSecret(c, provider)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		redirectURL, err := oauthRedirectURL(c, provider)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		scope := oauthScope(c, provider)
 		token, err := (&oauth2.Config{
@@ -663,21 +606,17 @@ func exchangeOAuthCode(c *gin.Context, provider pkg.LoginProvider, code string) 
 			},
 		}).Exchange(c, code)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
-		result := &dto.OauthToken{AccessToken: token.AccessToken, TokenType: token.TokenType, RefreshToken: token.RefreshToken}
-		if !token.Expiry.IsZero() {
-			result.Expiry = &token.Expiry
-		}
-		return result, nil
+		return strings.TrimSpace(token.AccessToken), nil
 	case pkg.LarkLoginProvider:
 		appID, err := oauthClientID(c, provider)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		appSecret, err := oauthClientSecret(c, provider)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		client := lark.NewClient(appID, appSecret)
 		request := larkauthen.NewCreateAccessTokenReqBuilder().
@@ -687,25 +626,15 @@ func exchangeOAuthCode(c *gin.Context, provider pkg.LoginProvider, code string) 
 				Build()).Build()
 		providerResponse, err := client.Authen.AccessToken.Create(c, request)
 		if err != nil || !providerResponse.Success() || providerResponse.Data == nil ||
-			providerResponse.Data.AccessToken == nil || providerResponse.Data.TokenType == nil ||
-			providerResponse.Data.RefreshToken == nil || providerResponse.Data.ExpiresIn == nil ||
-			providerResponse.Data.RefreshExpiresIn == nil {
+			providerResponse.Data.AccessToken == nil || strings.TrimSpace(*providerResponse.Data.AccessToken) == "" {
 			if err != nil {
-				return nil, err
+				return "", err
 			}
-			return nil, errors.New("lark oauth exchange failed")
+			return "", errors.New("lark oauth exchange failed")
 		}
-		expiry := time.Now().Add(time.Duration(*providerResponse.Data.ExpiresIn) * time.Second)
-		refreshExpiry := time.Now().Add(time.Duration(*providerResponse.Data.RefreshExpiresIn) * time.Second)
-		return &dto.OauthToken{
-			AccessToken:   *providerResponse.Data.AccessToken,
-			TokenType:     *providerResponse.Data.TokenType,
-			RefreshToken:  *providerResponse.Data.RefreshToken,
-			Expiry:        &expiry,
-			RefreshExpiry: &refreshExpiry,
-		}, nil
+		return strings.TrimSpace(*providerResponse.Data.AccessToken), nil
 	default:
-		return nil, errors.New("unsupported oauth provider")
+		return "", errors.New("unsupported oauth provider")
 	}
 }
 
@@ -717,67 +646,39 @@ func requiredAppConfig(c *gin.Context, keys ...string) (string, error) {
 }
 
 func oauthRedirectURL(c *gin.Context, provider pkg.LoginProvider) (string, error) {
-	if oauthTransport(c) == oauthstate.TransportBrowserCookie {
-		switch provider {
-		case pkg.GithubLoginProvider:
-			return requiredAppConfig(c,
-				"security:githubBrowserSessionRedirectURI",
-				"security:githubBrowserSessionRedirectURL",
-			)
-		case pkg.LarkLoginProvider:
-			return requiredAppConfig(c,
-				"security:larkBrowserSessionRedirectURI",
-				"security:larkBrowserSessionRedirectURL",
-			)
-		default:
-			return "", errors.New("unsupported oauth provider")
-		}
-	}
 	switch provider {
 	case pkg.GithubLoginProvider:
 		return requiredAppConfig(c,
-			"security:githubRedirectURI",
-			"security:githubRedirectUrl",
-			"security:githubRedirectURL",
+			"security:githubBrowserSessionRedirectURI",
+			"security:githubBrowserSessionRedirectURL",
 		)
 	case pkg.LarkLoginProvider:
-		return requiredAppConfig(c, "security:larkRedirectURI", "security:larkRedirectUrl")
+		return requiredAppConfig(c,
+			"security:larkBrowserSessionRedirectURI",
+			"security:larkBrowserSessionRedirectURL",
+		)
 	default:
 		return "", errors.New("unsupported oauth provider")
 	}
 }
 
 func oauthClientID(c *gin.Context, provider pkg.LoginProvider) (string, error) {
-	browser := oauthTransport(c) == oauthstate.TransportBrowserCookie
 	switch provider {
 	case pkg.GithubLoginProvider:
-		if browser {
-			return requiredAppConfig(c, "security:githubBrowserSessionClientId")
-		}
-		return requiredAppConfig(c, "security:githubClientId")
+		return requiredAppConfig(c, "security:githubBrowserSessionClientId")
 	case pkg.LarkLoginProvider:
-		if browser {
-			return requiredAppConfig(c, "security:larkBrowserSessionAppId")
-		}
-		return requiredAppConfig(c, "security:larkAppId")
+		return requiredAppConfig(c, "security:larkBrowserSessionAppId")
 	default:
 		return "", errors.New("unsupported oauth provider")
 	}
 }
 
 func oauthClientSecret(c *gin.Context, provider pkg.LoginProvider) (string, error) {
-	browser := oauthTransport(c) == oauthstate.TransportBrowserCookie
 	switch provider {
 	case pkg.GithubLoginProvider:
-		if browser {
-			return requiredAppConfig(c, "security:githubBrowserSessionClientSecret")
-		}
-		return requiredAppConfig(c, "security:githubClientSecret")
+		return requiredAppConfig(c, "security:githubBrowserSessionClientSecret")
 	case pkg.LarkLoginProvider:
-		if browser {
-			return requiredAppConfig(c, "security:larkBrowserSessionAppSecret")
-		}
-		return requiredAppConfig(c, "security:larkAppSecret")
+		return requiredAppConfig(c, "security:larkBrowserSessionAppSecret")
 	default:
 		return "", errors.New("unsupported oauth provider")
 	}
@@ -787,12 +688,7 @@ func oauthScope(c *gin.Context, provider pkg.LoginProvider) string {
 	if provider != pkg.GithubLoginProvider {
 		return ""
 	}
-	if oauthTransport(c) == oauthstate.TransportBrowserCookie {
-		if scope, ok := appConfigAny(c, "security:githubBrowserSessionScope"); ok {
-			return scope
-		}
-	}
-	scope, _ := appConfigAny(c, "security:githubScope")
+	scope, _ := appConfigAny(c, "security:githubBrowserSessionScope")
 	return scope
 }
 

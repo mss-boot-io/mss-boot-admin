@@ -209,9 +209,9 @@ spec:
         - type: command
           value: python3 -m unittest discover -s tools/release -p 'test_*.py'
         - type: command
-          value: pnpm --dir web/antd build:release
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 build:release
         - type: command
-          value: pnpm --dir web/antd delivery:smoke
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 delivery:smoke
     - id: feature-freeze-supplier-exact-evidence
       requirement: qualify-frozen-candidate
       statement: Only the new Supplier authorization, backend, provider migration, audit, and frontend contracts rerun from the frozen commit with exact test names and no required skip.
@@ -258,11 +258,11 @@ spec:
         - type: command
           value: cd admin && go vet ./cmd/server
         - type: command
-          value: pnpm --dir web/antd jest --runInBand src/modules/supplier/contracts.test.ts
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 exec vitest run src/generated/modules/supplier/contract.test.ts
         - type: command
-          value: pnpm --dir web/antd lint:js
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 lint
         - type: command
-          value: pnpm --dir web/antd tsc
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 tsc
     - id: feature-freeze-generator-blueprint-exact-evidence
       requirement: qualify-frozen-candidate
       statement: The new Supplier projection remains deterministic and the exact Blueprint upgrade transaction tests cover customization preservation, conflict reporting, and atomic failure before the external rehearsal is accepted.

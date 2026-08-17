@@ -19,22 +19,14 @@ spec:
   repositoryLayout:
     backend: .
     framework: mss-boot
-    frontend: web/antd
+    frontend: web/antd-v6
     documentation: docs
     specifications: .mss
   backend:
     module: example.com/test-admin
   frontend:
+    defaultApplication: antd-v6
     applications:
-      - id: antd-v5
-        path: web/antd
-        role: legacy
-        nodeVersion: ">=22 <25"
-        packageManager: pnpm
-        packageManagerVersion: 9.15.9
-        developmentPort: 8000
-        releaseTagTemplate: web/antd/{version}
-        image: mss-boot-admin-antd
       - id: antd-v6
         path: web/antd-v6
         role: independent
@@ -72,7 +64,7 @@ spec:
       category: verification
 `)
 
-	ctx, err := Load(filepath.Join(root, "web", "antd"))
+	ctx, err := Load(filepath.Join(root, "web", "antd-v6"))
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -82,8 +74,8 @@ spec:
 	if ctx.Project.Metadata.Name != "test-admin" {
 		t.Fatalf("project name = %q", ctx.Project.Metadata.Name)
 	}
-	if applications := ctx.Project.Spec.Frontend.Applications; len(applications) != 2 ||
-		applications[1].ID != "antd-v6" || applications[1].DevelopmentPort != 8001 {
+	if applications := ctx.Project.Spec.Frontend.Applications; len(applications) != 1 ||
+		applications[0].ID != "antd-v6" || applications[0].DevelopmentPort != 8001 {
 		t.Fatalf("frontend applications = %#v", applications)
 	}
 	if len(ctx.Capabilities.Spec.Capabilities) != 2 {
@@ -113,7 +105,7 @@ spec:
   repositoryLayout:
     backend: .
     framework: ../outside
-    frontend: web/antd
+    frontend: web/antd-v6
     documentation: docs
     specifications: .mss
   backend:

@@ -25,8 +25,7 @@ import (
 )
 
 const (
-	appConfigCacheTestHash       = "app-configs:{entry}:v1"
-	legacyAppConfigCacheTestHash = "appConfig"
+	appConfigCacheTestHash = "app-configs:{entry}:v1"
 )
 
 type appConfigCacheTestTenant struct {
@@ -235,26 +234,6 @@ func TestAppConfigReadThroughCacheRejectsLegacyAndInvalidEnvelopes(t *testing.T)
 			require.NotEqual(t, test.payload, cached, "a cache miss must be replaced by a fresh envelope")
 		})
 	}
-}
-
-func TestAppConfigReadThroughIgnoresAndRemovesLegacyNamespace(t *testing.T) {
-	env := setupAppConfigCacheTestEnv(t)
-	require.NoError(t, env.db.Create(&AppConfig{
-		Group: "base", Name: "websiteName", Value: "database-value",
-	}).Error)
-	field := appConfigCacheTestField("base", "websiteName")
-	env.redis.HSet(legacyAppConfigCacheTestHash, field, "stale-legacy-value")
-
-	value, ok := (&AppConfig{}).GetAppConfig(env.ctx, "base:websiteName")
-	require.True(t, ok)
-	require.Equal(t, "database-value", value)
-
-	legacyExists, err := env.client.HExists(env.ctx, legacyAppConfigCacheTestHash, field).Result()
-	require.NoError(t, err)
-	require.False(t, legacyExists)
-	currentExists, err := env.client.HExists(env.ctx, appConfigCacheTestHash, field).Result()
-	require.NoError(t, err)
-	require.True(t, currentExists)
 }
 
 func TestAppConfigReadThroughRemovesInvalidEntryWhenDatabaseFails(t *testing.T) {

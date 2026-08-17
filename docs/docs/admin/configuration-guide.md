@@ -167,7 +167,7 @@ database:
 
 ## 认证配置
 
-### JWT 配置
+### V6 浏览器会话与 API JWT 配置
 
 ```yaml
 auth:
@@ -176,7 +176,14 @@ auth:
   timeout: '12h'                          # Token 有效期
   maxRefresh: '2160h'                     # 最大刷新时间（90天）
   identityKey: 'mss-boot-admin-identity-key'  # 身份标识键
+  browserSession:
+    secure: true                          # 生产环境必须为 true
+    sameSite: lax                         # lax 或 strict
+    webSocketTicketTTL: 30s
 ```
+
+V6 浏览器会话与服务端会话校验是后端强制契约，不再提供关闭开关。标准
+`Authorization: Bearer` 与 PAT 仍仅用于受支持的非浏览器 API 自动化。
 
 **生成密钥**：
 ```bash
@@ -198,15 +205,9 @@ export AUTH_KEY="$(openssl rand -base64 32)"
 # 在系统配置中设置（前端访问 /app-config）
 security:
   githubEnabled: true
-  githubClientId: "your-github-client-id"
-  githubClientSecret: "your-github-client-secret"
-  githubRedirectURL: "https://your-domain.com/user/github/callback"
-  githubScope: "read:user,user:email"
-
-  # 独立发布的 Ant Design V6 使用单独的 OAuth App；不要覆盖上述 V5 配置。
-  githubBrowserSessionClientId: "your-v6-github-client-id"
-  githubBrowserSessionClientSecret: "your-v6-github-client-secret"
-  githubBrowserSessionRedirectURI: "https://v6.your-domain.com/user/github/callback"
+  githubBrowserSessionClientId: "your-github-client-id"
+  githubBrowserSessionClientSecret: "your-github-client-secret"
+  githubBrowserSessionRedirectURI: "https://your-domain.com/user/oauth/callback/github"
   githubBrowserSessionScope: "read:user,user:email"
 ```
 
@@ -220,7 +221,7 @@ membership does not require repository access.
 3. 填写信息：
    - Application name: `mss-boot-admin`
    - Homepage URL: `https://your-domain.com`
-   - Authorization callback URL: `https://your-domain.com/user/github/callback`
+   - Authorization callback URL: `https://your-domain.com/user/oauth/callback/github`
 4. 获取 Client ID 和 Client Secret
 
 #### 飞书 OAuth
@@ -228,19 +229,14 @@ membership does not require repository access.
 ```yaml
 security:
   larkEnabled: true
-  larkAppId: "cli_xxxxxxxxxx"
-  larkAppSecret: "your-lark-app-secret"
-  larkRedirectURI: "https://your-domain.com/user/lark/callback"
-
-  # 独立发布的 Ant Design V6 使用单独的飞书应用。
-  larkBrowserSessionAppId: "cli_v6_xxxxxxxxxx"
-  larkBrowserSessionAppSecret: "your-v6-lark-app-secret"
-  larkBrowserSessionRedirectURI: "https://v6.your-domain.com/user/lark/callback"
+  larkBrowserSessionAppId: "cli_xxxxxxxxxx"
+  larkBrowserSessionAppSecret: "your-lark-app-secret"
+  larkBrowserSessionRedirectURI: "https://your-domain.com/user/oauth/callback/lark"
 ```
 
-V6 专用 Client Secret 与旧版 Secret 受相同的 `app-config:secret-read` /
-`app-config:secret-write` 权限保护。V5/V6 重叠期间分别维护回调地址和凭据，回滚
-任一前端都不需要修改另一套 OAuth 应用。
+BrowserSession Client Secret 受 `app-config:secret-read` /
+`app-config:secret-write` 权限保护，写入后不回显。已退役的非 BrowserSession
+OAuth 配置名会被迁移清理，通用应用配置接口也拒绝重新创建这些名称。
 
 ---
 

@@ -22,8 +22,7 @@ export function applyThemeFirstPaintHint(now = Date.now()) {
         envelope.expiresAt > now &&
         envelope.expiresAt <= now + THEME_SNAPSHOT_TTL_MS
       ) {
-        const parsed = parseThemeScopeResource(envelope.resource, 'application');
-        if (parsed.versioned) application = parsed;
+        application = parseThemeScopeResource(envelope.resource, 'application');
       }
     }
   } catch {

@@ -562,6 +562,12 @@ func TestBindPolicyWatcherRegistersManagedConsumerExactlyOnce(t *testing.T) {
 func managedQueueConfigSource(name string) source.Option {
 	data := fmt.Sprintf(`application:
   mode: test
+  origin: http://127.0.0.1:8080
+auth:
+  key: managed-queue-test-signing-key
+  identityKey: managed-queue-test-identity-key
+  timeout: 1h
+  maxRefresh: 24h
 database:
   driver: sqlite
   source: "file:%s?mode=memory&cache=shared"

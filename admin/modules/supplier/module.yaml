@@ -221,7 +221,6 @@ spec:
         backend: true
         frontend: true
         frontendTargets:
-            - antd-v5
             - antd-v6
         docs: true
         tests: true

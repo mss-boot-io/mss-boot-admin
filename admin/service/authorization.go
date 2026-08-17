@@ -341,15 +341,45 @@ func (e *AuthorizationPolicyService) ReadRole(
 	return nil, fmt.Errorf("role authorization changed during read")
 }
 
+// ValidateRoleAuthorizationMutation verifies the target before an HTTP
+// precondition is evaluated. ReplaceRole repeats the check under its write
+// lock, so a concurrent delete or disable still fails closed.
+func (e *AuthorizationPolicyService) ValidateRoleAuthorizationMutation(
+	ctx context.Context,
+	db *gorm.DB,
+	roleID string,
+) error {
+	if e == nil {
+		return fmt.Errorf("authorization policy service is nil")
+	}
+	if db == nil {
+		return fmt.Errorf("authorization database is nil")
+	}
+	roleID = strings.TrimSpace(roleID)
+	if roleID == "" {
+		return ErrAuthorizationRoleNotFound
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	role, err := loadAuthorizationRole(db.WithContext(ctx), roleID, "")
+	if err != nil {
+		return err
+	}
+	if role.Status != bootenum.Enabled {
+		return ErrAuthorizationRoleInactive
+	}
+	return nil
+}
+
 // ReplaceRole atomically replaces MENU, COMPONENT, and derived API rules for a
-// role. A non-nil expectedRevision is a strong precondition; nil remains the
-// documented rolling-upgrade compatibility mode.
+// role under a mandatory strong revision precondition.
 func (e *AuthorizationPolicyService) ReplaceRole(
 	ctx context.Context,
 	db *gorm.DB,
 	roleID string,
 	paths []string,
-	expectedRevision *int64,
+	expectedRevision int64,
 ) (*dto.GetAuthorizeResponse, error) {
 	return e.replaceRolePolicy(ctx, db, roleID, paths, expectedRevision, rolePolicyReplacement{
 		selectedTypes: []adminpkg.AccessType{adminpkg.MenuAccessType, adminpkg.ComponentAccessType},
@@ -367,7 +397,7 @@ func (e *AuthorizationPolicyService) ReplaceMenu(
 	db *gorm.DB,
 	roleID string,
 	paths []string,
-	expectedRevision *int64,
+	expectedRevision int64,
 ) (*dto.GetAuthorizeResponse, error) {
 	return e.replaceRolePolicy(ctx, db, roleID, paths, expectedRevision, rolePolicyReplacement{
 		selectedTypes: []adminpkg.AccessType{adminpkg.MenuAccessType},
@@ -876,7 +906,7 @@ func (e *AuthorizationPolicyService) replaceRolePolicy(
 	db *gorm.DB,
 	roleID string,
 	paths []string,
-	expectedRevision *int64,
+	expectedRevision int64,
 	replacement rolePolicyReplacement,
 ) (*dto.GetAuthorizeResponse, error) {
 	if e == nil {
@@ -913,13 +943,13 @@ func (e *AuthorizationPolicyService) replaceRolePolicy(
 		if err != nil {
 			return err
 		}
-		if expectedRevision != nil && *expectedRevision != roleRevision {
+		if expectedRevision != roleRevision {
 			current, loadErr := loadRoleAuthorizationResource(tx, roleID, roleRevision)
 			if loadErr != nil {
 				return loadErr
 			}
 			return &AuthorizationRevisionConflictError{
-				Expected: *expectedRevision,
+				Expected: expectedRevision,
 				Actual:   roleRevision,
 				Current:  current,
 			}

@@ -147,7 +147,7 @@ spec:
         - type: test
           value: admin/router/removed_runtime_tools_test.go
         - type: test
-          value: web/antd/config/routes.test.ts
+          value: web/antd-v6/src/shared/routes/registry.test.ts
     - id: cleanup-migration-safe
       requirement: remove-upgrade-metadata
       statement: SQLite fixture tests cover upgrade, repeat, rollback, unrelated-menu reparenting, relative-path policy compatibility, and locale-copy behavior; MySQL and PostgreSQL execution remain explicit release gates rather than evidence claimed by this fixture.
@@ -191,9 +191,9 @@ spec:
       required: true
       evidence:
         - type: test
-          value: web/antd/src/components/MonitorTrend/MonitorTrend.test.tsx
+          value: web/antd-v6/src/modules/monitor/MonitorOverview.test.tsx
         - type: test
-          value: web/antd/src/hooks/useMonitorData.test.ts
+          value: web/antd-v6/src/modules/monitor/polling.test.ts
     - id: browser-theme-acceptance
       requirement: render-recent-trends
       statement: The in-app browser shows multiple recent CPU and memory points with readable geometry in both real-dark and light themes and no Development Tools menu.
@@ -236,10 +236,10 @@ spec:
     custom:
       - cd admin && GOWORK=off go test -race ./service ./apis ./router ./cmd/migrate/migration/system
       - cd mss-boot && GOWORK=off go test ./...
-      - corepack pnpm@9.15.9 --dir web/antd lint:js
-      - corepack pnpm@9.15.9 --dir web/antd tsc
-      - corepack pnpm@9.15.9 --dir web/antd test -- --runInBand
-      - corepack pnpm@9.15.9 --dir web/antd build:prod
+      - corepack pnpm@10.34.5 --dir web/antd-v6 lint
+      - corepack pnpm@10.34.5 --dir web/antd-v6 tsc
+      - corepack pnpm@10.34.5 --dir web/antd-v6 test:ci
+      - corepack pnpm@10.34.5 --dir web/antd-v6 build:release
       - corepack pnpm@9.15.9 --dir docs build
   rollout:
     strategy: direct
@@ -251,6 +251,6 @@ spec:
       Provider-side rotation or revocation of the historical OAuth credential and a secret-scanner audit are mandatory
       release gates; the database migration cannot revoke a credential or remove it from reachable Git history.
     rollback: >-
-      Revert the application to the preceding release and restore retired menu and policy metadata from the database
-      backup if the legacy runtime tools must be temporarily recovered. Monitoring history is process-local and is
-      intentionally lost on restart; no database rollback is needed for samples.
+      Redeploy the preceding qualified V6/backend pair while retaining the forward removal migrations and inert
+      historical metadata. Do not restore removed runtime routes, menus, permissions, or browser generation tools.
+      Monitoring history is process-local and is intentionally lost on restart; no database rollback is needed for samples.

@@ -206,15 +206,15 @@ spec:
         - type: test
           value: TestGenerateReportsCompleteDocsAndBrowserE2EOutputs
         - type: command
-          value: pnpm --dir web/antd jest --runInBand src/modules/supplier/contracts.test.ts
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 exec vitest run src/generated/modules/supplier/contract.test.ts
         - type: command
-          value: pnpm --dir web/antd lint:js
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 lint
         - type: command
-          value: pnpm --dir web/antd tsc
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 tsc
         - type: command
-          value: pnpm --dir web/antd build
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 build:release
         - type: command
-          value: pnpm --dir web/antd exec playwright test e2e/generated/supplier.spec.ts --project=chromium --list
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 exec playwright test e2e/generated/supplier.spec.ts --project=chromium --list
         - type: report
           value: >-
             The generated Playwright file is collectable as one test. Collection proves the executable
@@ -409,11 +409,11 @@ spec:
         --count 1 --race
         --require TestSupplierProductionComposition
         --require TestSupplierProductionCompositionAuditsAcceptedAndRejectedMutationsWithoutSecrets
-      - pnpm --dir web/antd jest --runInBand src/modules/supplier/contracts.test.ts
-      - pnpm --dir web/antd lint:js
-      - pnpm --dir web/antd tsc
-      - pnpm --dir web/antd build
-      - pnpm --dir web/antd exec playwright test e2e/generated/supplier.spec.ts --project=chromium --list
+      - corepack pnpm@10.34.5 --dir web/antd-v6 exec vitest run src/generated/modules/supplier/contract.test.ts
+      - corepack pnpm@10.34.5 --dir web/antd-v6 lint
+      - corepack pnpm@10.34.5 --dir web/antd-v6 tsc
+      - corepack pnpm@10.34.5 --dir web/antd-v6 build:release
+      - corepack pnpm@10.34.5 --dir web/antd-v6 exec playwright test e2e/generated/supplier.spec.ts --project=chromium --list
   rollout:
     strategy: phased
     migration: >-

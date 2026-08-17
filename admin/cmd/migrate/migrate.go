@@ -61,7 +61,7 @@ func init() {
 	StartCmd.PersistentFlags().StringVarP(&password, "password", "p",
 		"123456", "system super administrator login password")
 	StartCmd.PersistentFlags().StringVarP(&domain, "domain", "d",
-		"localhost:8000", "system tenant domain")
+		"localhost:8001", "system tenant domain")
 	StartCmd.PersistentFlags().StringVarP(&driver,
 		"gorm-driver", "r",
 		"mysql", "Start server with db driver")

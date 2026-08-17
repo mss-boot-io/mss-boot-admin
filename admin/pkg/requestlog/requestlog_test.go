@@ -7,9 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
-	ginjwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 )
 
@@ -49,31 +47,15 @@ func TestRedactRawQueryPreservesNonSensitiveParameters(t *testing.T) {
 	}
 }
 
-func TestLoggerRedactsQueryTokenWithoutChangingJWTAuthentication(t *testing.T) {
+func TestLoggerRedactsUnexpectedQueryTokenWithoutChangingHandlerInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	auth := &ginjwt.GinJWTMiddleware{
-		Realm:       "request-log-test",
-		Key:         []byte("request-log-test-signing-key-32-bytes"),
-		Timeout:     time.Hour,
-		IdentityKey: "identity",
-		PayloadFunc: func(data any) ginjwt.MapClaims {
-			return data.(ginjwt.MapClaims)
-		},
-		TokenLookup: "query: token",
-	}
-	if err := auth.MiddlewareInit(); err != nil {
-		t.Fatalf("initialize JWT middleware: %v", err)
-	}
-	token, _, err := auth.TokenGenerator(ginjwt.MapClaims{"identity": "admin"})
-	if err != nil {
-		t.Fatalf("generate JWT: %v", err)
-	}
+	const token = "header.payload.signature"
 
 	var logs bytes.Buffer
 	var handledRawQuery string
 	engine := gin.New()
 	engine.Use(LoggerWithWriter(&logs), RecoveryWithWriter(&logs))
-	engine.GET("/ws/connect", auth.MiddlewareFunc(), func(c *gin.Context) {
+	engine.GET("/unexpected-query", func(c *gin.Context) {
 		handledRawQuery = c.Request.URL.RawQuery
 		if got := c.Query("token"); got != token {
 			c.AbortWithStatus(http.StatusUnauthorized)
@@ -84,12 +66,12 @@ func TestLoggerRedactsQueryTokenWithoutChangingJWTAuthentication(t *testing.T) {
 	})
 
 	rawQuery := "room=alpha&token=" + token + "&ToKeN=provider%2Dcredential&token=another%2Esecret&filter=a%2Bb"
-	request := httptest.NewRequest(http.MethodGet, "/ws/connect?"+rawQuery, nil)
+	request := httptest.NewRequest(http.MethodGet, "/unexpected-query?"+rawQuery, nil)
 	response := httptest.NewRecorder()
 	engine.ServeHTTP(response, request)
 
 	if response.Code != http.StatusNoContent {
-		t.Fatalf("authenticated response status = %d, want %d", response.Code, http.StatusNoContent)
+		t.Fatalf("response status = %d, want %d", response.Code, http.StatusNoContent)
 	}
 	if handledRawQuery != rawQuery || request.URL.RawQuery != rawQuery {
 		t.Fatalf("request RawQuery changed: handler=%q request=%q want=%q", handledRawQuery, request.URL.RawQuery, rawQuery)

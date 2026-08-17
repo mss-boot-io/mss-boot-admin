@@ -16,13 +16,10 @@ const (
 
 // CustomRouteContract is the machine-readable inventory for an Admin custom
 // route. Permission is required only for RouteAuthorized. RootOnly records an
-// additional handler-adjacent authority/target boundary that a legacy Casbin
+// additional handler-adjacent authority/target boundary that a stale Casbin
 // row cannot bypass. Mutation describes application state, rather than the
-// HTTP method alone.
-//
-// LegacyDenyOnly marks a retired GET route whose only valid behavior is a 405
-// response. ConstrainedPublicGET is reserved for protocol callbacks that must
-// remain GET endpoints and perform their own state/nonce validation.
+// HTTP method alone. ConstrainedPublicGET is reserved for protocol callbacks
+// that must remain GET endpoints and perform their own state/nonce validation.
 type CustomRouteContract struct {
 	Method               string
 	Path                 string
@@ -30,7 +27,6 @@ type CustomRouteContract struct {
 	Permission           string
 	RootOnly             bool
 	Mutation             bool
-	LegacyDenyOnly       bool
 	ConstrainedPublicGET bool
 }
 
@@ -104,30 +100,24 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodDelete, Path: "/admin/api/online-sessions/:id", Class: RouteAuthorized, Permission: "session:revoke", RootOnly: true, Mutation: true},
 	{Method: http.MethodDelete, Path: "/admin/api/online-sessions/user/:userID", Class: RouteAuthorized, Permission: "session:revoke", RootOnly: true, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/online-sessions/logout", Class: RouteAuthenticatedSelf, Mutation: true},
-	{Method: http.MethodGet, Path: "/admin/api/ws/connect", Class: RouteAuthenticatedSelf},
 	{Method: http.MethodPost, Path: "/admin/api/ws/tickets", Class: RouteAuthenticatedSelf, Mutation: true},
-	{Method: http.MethodGet, Path: "/admin/api/ws/connect-v6", Class: RoutePublic, ConstrainedPublicGET: true},
+	{Method: http.MethodGet, Path: "/admin/api/ws/connect", Class: RoutePublic, ConstrainedPublicGET: true},
 	{Method: http.MethodGet, Path: "/admin/api/ws/online", Class: RouteAuthorized, Permission: "session:read", RootOnly: true},
 
 	// Statistics and storage.
 	{Method: http.MethodGet, Path: "/admin/api/statistics/:name", Class: RouteAuthorized, Permission: "statistics:read"},
 	{Method: http.MethodPost, Path: "/admin/api/storage/upload", Class: RouteAuthorized, Permission: "storage:upload", Mutation: true},
 
-	// Task administration. The legacy GET remains only as an explicit 405.
+	// Task administration.
 	{Method: http.MethodPost, Path: "/admin/api/tasks/:id/actions/:operate", Class: RouteAuthorized, Permission: "task:operate", Mutation: true},
-	{Method: http.MethodGet, Path: "/admin/api/task/:operate/:id", Class: RoutePublic, LegacyDenyOnly: true},
 	{Method: http.MethodGet, Path: "/admin/api/task/func-list", Class: RouteAuthorized, Permission: "task:read"},
 
 	// Authentication, account recovery, and current-user profile.
-	{Method: http.MethodPost, Path: "/admin/api/user/login", Class: RoutePublic, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/session/login", Class: RoutePublic, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/session/refresh-token", Class: RoutePublic, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/auth-cookie/clear", Class: RoutePublic, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/reset-password", Class: RouteOptionalAuthenticated, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/fakeCaptcha", Class: RoutePublic, Mutation: true},
-	{Method: http.MethodPost, Path: "/admin/api/user/login/github", Class: RoutePublic, Mutation: true},
-	{Method: http.MethodPost, Path: "/admin/api/user/refresh-token", Class: RoutePublic, Mutation: true},
-	{Method: http.MethodGet, Path: "/admin/api/user/refresh-token", Class: RoutePublic, LegacyDenyOnly: true},
 	{Method: http.MethodGet, Path: "/admin/api/user/userInfo", Class: RouteAuthenticatedSelf},
 	{Method: http.MethodPut, Path: "/admin/api/user/:userID/password-reset", Class: RouteAuthorized, Permission: "user:password-reset", Mutation: true},
 	{Method: http.MethodPut, Path: "/admin/api/user/userInfo", Class: RouteAuthenticatedSelf, Mutation: true},
@@ -136,29 +126,17 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodGet, Path: "/admin/api/user/security", Class: RouteAuthenticatedSelf},
 	{Method: http.MethodPost, Path: "/admin/api/user/security/reauthenticate", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodPut, Path: "/admin/api/user/security/password", Class: RouteAuthenticatedSelf, Mutation: true},
-	{Method: http.MethodPost, Path: "/admin/api/user/oauth2/authorize", Class: RouteOptionalAuthenticated, Mutation: true},
 	{Method: http.MethodPost, Path: "/admin/api/user/session/oauth2/authorize", Class: RouteOptionalAuthenticated, Mutation: true},
-	{Method: http.MethodPost, Path: "/admin/api/user/binding", Class: RouteAuthenticatedSelf, Mutation: true},
-	{Method: http.MethodDelete, Path: "/admin/api/user/unbinding", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodDelete, Path: "/admin/api/user/oauth2/:provider", Class: RouteAuthenticatedSelf, Mutation: true},
-	{
-		Method:   http.MethodPost,
-		Path:     "/admin/api/user/:provider/callback",
-		Class:    RouteOptionalAuthenticated,
-		Mutation: true,
-	},
 	{
 		Method:   http.MethodPost,
 		Path:     "/admin/api/user/session/:provider/callback",
 		Class:    RouteOptionalAuthenticated,
 		Mutation: true,
 	},
-	{Method: http.MethodGet, Path: "/admin/api/user/:provider/callback", Class: RoutePublic, LegacyDenyOnly: true},
 
-	// Personal access tokens. The two legacy action routes remain only as 405
-	// responses until clients have moved to the safe mutation methods.
+	// Personal access tokens.
 	{Method: http.MethodPost, Path: "/admin/api/user-auth-tokens", Class: RouteAuthenticatedSelf, Mutation: true},
-	{Method: http.MethodGet, Path: "/admin/api/user-auth-token/generate", Class: RoutePublic, LegacyDenyOnly: true},
 	{Method: http.MethodGet, Path: "/admin/api/user-auth-tokens", Class: RouteAuthenticatedSelf},
 	{Method: http.MethodPut, Path: "/admin/api/user-auth-token/:id/revoke", Class: RouteAuthenticatedSelf, Mutation: true},
 	{Method: http.MethodPut, Path: "/admin/api/user-auth-token/:id/refresh", Class: RouteAuthenticatedSelf, Mutation: true},

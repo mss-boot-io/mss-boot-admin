@@ -21,12 +21,8 @@ const routes = [
         component: './User/Forget',
       },
       {
-        path: '/user/callback/:provider',
-        name: 'oauth-callback',
-        component: './User/OAuthCallback',
-      },
-      {
         path: '/user/oauth/callback/:provider',
+        name: 'oauth-callback',
         component: './User/OAuthCallback',
       },
       {
@@ -50,13 +46,6 @@ const routes = [
   {
     path: '/analysis',
     redirect: '/workplace',
-  },
-  {
-    path: '/migration',
-    name: 'migration',
-    icon: 'deploymentUnit',
-    component: './Migration',
-    access: 'canAccessRoute',
   },
   {
     path: '/users',

@@ -69,6 +69,7 @@ func TestPersistOAuthBindingConcurrentIdentityClaimIsUnique(t *testing.T) {
 func TestOAuthCallbackMapsDatabaseIdentityConflictToHTTP409(t *testing.T) {
 	setupOAuthBindingTestDB(t)
 	installOAuthTestVerifier(t)
+	configureOAuthBrowserSession(t)
 	if err := persistOAuthBinding(
 		newOAuthBindingTestContext(),
 		"identity-owner",
@@ -199,6 +200,6 @@ func setupOAuthBindingTestDB(t *testing.T) *gorm.DB {
 
 func newOAuthBindingTestContext() *gin.Context {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/admin/api/user/oauth2/callback", nil)
+	c.Request = httptest.NewRequest(http.MethodPost, "/admin/api/user/session/github/callback", nil)
 	return c
 }

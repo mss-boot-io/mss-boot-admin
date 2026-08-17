@@ -100,7 +100,7 @@
 | 文档类型 | 文件 | 状态 |
 |----------|------|------|
 | CHANGELOG | mss-boot-admin/CHANGELOG.md | ✅ 存在 |
-| CHANGELOG | mss-boot-admin-antd/CHANGELOG.md | ✅ 存在 |
+| 历史 V5 CHANGELOG | mss-boot-admin-antd/CHANGELOG.md（已退役） | ✅ 当时存在 |
 | CONTRIBUTING | mss-boot-admin/CONTRIBUTING.md | ✅ 存在 |
 | LICENSE | 各项目 LICENSE 文件 | ✅ MIT |
 | CODE_OF_CONDUCT | CODE_OF_CONDUCT.md | ✅ 存在 |

@@ -31,10 +31,9 @@ on:
       - 'templates/module/**'
       - 'docs/docs/agent/**'
       - 'docs/docs/architecture/agent-native-foundation.zh-CN.md'
-      - 'web/antd/config/routes.custom.ts'
-      - 'web/antd/config/routes.generated.ts'
-      - 'web/antd/src/locales/generated.*.ts'
-      - 'web/antd/src/locales/*/custom.ts'
+      - 'web/antd-v6/config/routes.custom.ts'
+      - 'web/antd-v6/config/routes.generated.ts'
+      - 'web/antd-v6/src/generated/locales/*.ts'
       - '.github/workflows/**'
   pull_request:
     branches:
@@ -66,10 +65,9 @@ on:
       - 'templates/module/**'
       - 'docs/docs/agent/**'
       - 'docs/docs/architecture/agent-native-foundation.zh-CN.md'
-      - 'web/antd/config/routes.custom.ts'
-      - 'web/antd/config/routes.generated.ts'
-      - 'web/antd/src/locales/generated.*.ts'
-      - 'web/antd/src/locales/*/custom.ts'
+      - 'web/antd-v6/config/routes.custom.ts'
+      - 'web/antd-v6/config/routes.generated.ts'
+      - 'web/antd-v6/src/generated/locales/*.ts'
       - '.github/workflows/**'
   workflow_dispatch:
 
@@ -126,7 +124,7 @@ jobs:
               Path('docs/docs/agent'),
               Path('docs/docs/architecture/agent-native-foundation.zh-CN.md'),
               Path('mss-boot/AGENTS.md'),
-              Path('web/antd/AGENTS.md'),
+              Path('web/antd-v6/AGENTS.md'),
           ]
           violations = []
           for item in scan:
@@ -220,23 +218,11 @@ jobs:
             cd "${worktree}"
             go run ./cmd/mss module generate \
               .mss/modules/example-supplier.yaml \
-              --frontend-target antd-v5 \
-              --write \
-              --format json \
-              > "${RUNNER_TEMP}/mss-generation-v5-write.json"
-            go run ./cmd/mss module generate \
-              .mss/modules/example-supplier.yaml \
               --frontend-target antd-v6 \
               --write \
               --format json \
               > "${RUNNER_TEMP}/mss-generation-v6-write.json"
             go test ./admin/modules/supplier/...
-            go run ./cmd/mss module generate \
-              .mss/modules/example-supplier.yaml \
-              --frontend-target antd-v5 \
-              --check \
-              --format json \
-              > "${RUNNER_TEMP}/mss-generation-v5-check.json"
             go run ./cmd/mss module generate \
               .mss/modules/example-supplier.yaml \
               --frontend-target antd-v6 \
@@ -268,8 +254,6 @@ jobs:
             ${{ runner.temp }}/mss-module-spec.json
             ${{ runner.temp }}/mss-feature-spec.json
             ${{ runner.temp }}/mss-feature-plan.json
-            ${{ runner.temp }}/mss-generation-v5-write.json
-            ${{ runner.temp }}/mss-generation-v5-check.json
             ${{ runner.temp }}/mss-generation-v6-write.json
             ${{ runner.temp }}/mss-generation-v6-check.json
             ${{ runner.temp }}/mss-verification-plan.json

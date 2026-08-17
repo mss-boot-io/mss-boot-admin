@@ -122,6 +122,7 @@ func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testi
 	}
 	workflow := string(data)
 	for _, required := range []string{
+		"CURRENT_BLUEPRINT_VERSION",
 		"NEXT_BLUEPRINT_VERSION",
 		"NEXT_PROJECT_BASELINE_VERSION",
 		"CURRENT_FOUNDATION_COMMIT",
@@ -142,6 +143,7 @@ func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testi
 	}
 	for _, forbidden := range []string{
 		`text.replace("version: 0.1.0", "version: 0.1.1-ci"`,
+		`blueprint.get('version') != '`,
 		`go run ./cmd/mss new app compatibility-admin`,
 		`foundationVersion: 0.1.1-ci`,
 	} {

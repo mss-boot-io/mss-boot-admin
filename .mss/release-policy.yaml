@@ -13,5 +13,4 @@ spec:
   publicPrereleases: false
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"
-  frontendTagTemplate: "web/antd/{version}"
-  frontendV6TagTemplate: "web/antd-v6/{version}"
+  frontendTagTemplate: "web/antd-v6/{version}"

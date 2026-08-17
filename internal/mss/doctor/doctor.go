@@ -155,8 +155,12 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 	if selected(ComponentFrontend) {
 		applications := projectContext.Project.Spec.Frontend.Applications
 		if len(applications) == 0 {
+			frontendPath := strings.TrimSpace(projectContext.Project.Spec.RepositoryLayout["frontend"])
+			if frontendPath == "" {
+				frontendPath = "web/antd-v6"
+			}
 			report.Checks = append(report.Checks,
-				fileCheck(projectContext.Root, "web/antd/pnpm-lock.yaml", true),
+				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "pnpm-lock.yaml")), true),
 			)
 		} else {
 			for _, application := range applications {
@@ -195,11 +199,12 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 	if selected(ComponentFrontend) {
 		applications := projectContext.Project.Spec.Frontend.Applications
 		if len(applications) == 0 {
-			report.Checks = append(report.Checks, portCheck("frontend-port", 8000))
+			report.Checks = append(report.Checks, portCheck("frontend-port", 8001))
 		} else {
+			defaultApplication, hasDefault := projectContext.DefaultFrontendApplication()
 			for _, application := range applications {
 				id := application.ID + "-port"
-				if application.Path == "web/antd" {
+				if hasDefault && application.ID == defaultApplication.ID {
 					id = "frontend-port"
 				}
 				report.Checks = append(report.Checks, portCheck(id, application.DevelopmentPort))

@@ -185,15 +185,15 @@ jobs:
         if: ${{ inputs.phase == 'feature-freeze' }}
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: |
             docs/pnpm-lock.yaml
-            web/antd/pnpm-lock.yaml
+            web/antd-v6/pnpm-lock.yaml
 
       - name: Install frontend dependencies
         if: ${{ inputs.phase == 'feature-freeze' }}
-        run: pnpm --dir web/antd install --frozen-lockfile
+        run: corepack pnpm@10.34.5 --dir web/antd-v6 install --frozen-lockfile --ignore-scripts
 
       - name: Install documentation dependencies
         if: ${{ inputs.phase == 'feature-freeze' }}

@@ -501,7 +501,7 @@ jobs:
     runs-on: ubuntu-24.04
     defaults:
       run:
-        working-directory: web/antd
+        working-directory: web/antd-v6
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -509,47 +509,50 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
-          version: 9.15.9
+          version: 10.34.5
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
-          cache-dependency-path: web/antd/pnpm-lock.yaml
+          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install frozen V6 dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
 
-      - name: Enforce release dependency policy
-        run: pnpm audit:release
+      - name: Enforce V6 dependency policy
+        run: |
+          pnpm run deps:check
+          pnpm run audit:release
 
-      - name: Build same-origin release frontend
-        run: pnpm build:release
+      - name: Build same-origin primary V6 frontend
+        run: pnpm run build:release
 
-      - name: Embed and verify frontend release identity
+      - name: Embed and verify primary V6 release identity
         env:
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
           RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
         run: |
           jq -n \
+            --arg application 'mss-boot-admin-antd-v6' \
             --arg version "${RELEASE_VERSION}" \
             --arg commit "${RELEASE_COMMIT}" \
-            '{version: $version, commit: $commit}' > dist/release.json
+            '{application: $application, version: $version, commit: $commit}' > dist/release.json
           jq -e \
             --arg version "${RELEASE_VERSION}" \
             --arg commit "${RELEASE_COMMIT}" \
-            '.version == $version and .commit == $commit' \
+            '.application == "mss-boot-admin-antd-v6" and .version == $version and .commit == $commit' \
             dist/release.json >/dev/null
 
-      - name: Smoke-test release frontend delivery
-        run: pnpm delivery:smoke
+      - name: Smoke-test primary V6 delivery
+        run: pnpm run delivery:smoke
 
-      - name: Upload frontend artifact
+      - name: Upload primary V6 artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: frontend-dist
-          path: web/antd/dist
+          name: frontend-v6-dist
+          path: web/antd-v6/dist
           if-no-files-found: error
 
   release:
@@ -573,12 +576,12 @@ jobs:
           RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
         run: |
           set -euo pipefail
-          test -d frontend-dist
+          test -d frontend-v6-dist
           jq -e \
             --arg version "${RELEASE_VERSION}" \
             --arg commit "${RELEASE_COMMIT}" \
-            '.version == $version and .commit == $commit' \
-            frontend-dist/release.json >/dev/null
+            '.application == "mss-boot-admin-antd-v6" and .version == $version and .commit == $commit' \
+            frontend-v6-dist/release.json >/dev/null
           for dir in \
             mss-boot-admin-linux-amd64 \
             mss-boot-admin-linux-arm64 \
@@ -588,7 +591,7 @@ jobs:
             mss-boot-admin-windows-arm64; do
             test -d "${dir}"
             rm -rf "${dir}/dist"
-            cp -a frontend-dist "${dir}/dist"
+            cp -a frontend-v6-dist "${dir}/dist"
             case "${dir}" in
               mss-boot-admin-linux-*|mss-boot-admin-darwin-*)
                 chmod 0755 "${dir}/admin" "${dir}/mss" "${dir}/mss-mcp"

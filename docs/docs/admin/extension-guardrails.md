@@ -47,17 +47,14 @@ P4 覆盖四类扩展能力：
 **实现文件：**
 ```
 mss-boot-admin/
-├── models/language.go
-├── apis/language.go
-└── service/language.go
-
-mss-boot-admin-antd/
-├── src/locales/
-│   ├── zh-CN.ts
-│   ├── en-US.ts
-│   └── zh-CN/menu.ts
-├── config/config.ts  # i18n 配置
-└── src/app.tsx       # 动态加载语言
+├── admin/models/language.go
+├── admin/apis/language.go
+├── admin/service/language.go
+└── web/antd-v6/
+    ├── src/locales/zh-CN.ts
+    ├── src/locales/en-US.ts
+    ├── config/config.ts
+    └── src/app.tsx
 ```
 
 ### 1.2 扩展边界

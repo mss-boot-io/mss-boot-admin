@@ -88,12 +88,11 @@ export function createThemeAPI(client: ThemeRequestClient): ThemeAPI {
         data: method === 'PUT' ? { data: patch } : undefined,
         headers: {
           ...canonicalHeaders,
-          ...(base.versioned ? { 'If-Match': formatThemeETag(base) } : {}),
+          'If-Match': formatThemeETag(base),
         },
         skipErrorHandler: true,
       });
-      const resource = parseThemeScopeResource(value, scope);
-      return resource.versioned ? resource : loadThemeResource(scope);
+      return parseThemeScopeResource(value, scope);
     } catch (error) {
       if ((error as { response?: { status?: number } })?.response?.status === 412) {
         throw new ThemeRevisionConflictError(conflictResource(error, scope));

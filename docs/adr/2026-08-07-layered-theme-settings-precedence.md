@@ -64,19 +64,19 @@ default object.
 
 | Field | Code default | Accepted values |
 | --- | --- | --- |
-| `navTheme` | `realDark` | `light`, `realDark` |
-| `colorPrimary` | `#1890ff` | normalized six-digit hexadecimal color |
+| `navTheme` | `light` | `light`, `realDark` |
+| `colorPrimary` | `#1677ff` | normalized six-digit hexadecimal color |
 | `layout` | `mix` | `side`, `top`, `mix` |
 | `contentWidth` | `Fluid` | `Fluid`, `Fixed` |
 | `fixedHeader` | `false` | boolean |
 | `fixSiderbar` | `true` | boolean |
 | `colorWeak` | `false` | boolean |
 
-The legacy `fixSiderbar` spelling remains the persistence and ProLayout compatibility key for this delivery.
+The upstream ProLayout `fixSiderbar` spelling is the canonical persisted layout key for this delivery.
 `pwa` is a deployment and service-worker concern, and `splitMenus` is not currently active; neither belongs to the
 runtime application or personal theme contract.
 
-Legacy string `"true"` and `"false"` values are normalized before form display and resolution. Empty strings,
+Existing persisted string `"true"` and `"false"` values are normalized before form display and resolution. Empty strings,
 unknown keys, malformed colors, and unsupported enums are not inheritance markers: they are invalid and fall back
 to the next valid layer with diagnostics.
 
@@ -97,21 +97,17 @@ PUT retains the existing group route but has explicit sparse-patch semantics for
 - `false`: store an explicit false;
 - empty string: reject the complete request.
 
-Canonical clients send `Accept: application/vnd.mss.theme.v1+json`. That representation returns only normalized sparse
-overrides owned by the requested scope, not a flattened effective theme. The seven fields remain at the response top
-level and a reserved `_meta` member contains `{v, scope, revision}`. New clients use its decimal-string revision and
-the matching strong `ETag`; PUT, DELETE, and `412` return the same vendor `Content-Type` representation. An Accept
-entry with `q=0` explicitly declines it and therefore stays on the legacy representation. `Vary: Accept` makes the
-temporary content negotiation boundary explicit, and authoritative theme/profile reads use `Cache-Control: no-store`.
+The Ant Design 6 client sends `Accept: application/vnd.mss.theme.v1+json`, and the backend serves that canonical
+representation as the only theme resource. It returns normalized sparse overrides owned by the requested scope, not a
+flattened effective theme. The seven fields remain at the response top level and a reserved `_meta` member contains
+`{v, scope, revision}`. Clients use its decimal-string revision and the matching strong `ETag`; PUT and DELETE require
+that exact revision in `If-Match`, and PUT, DELETE, and `412` return the same vendor `Content-Type` representation.
+Missing preconditions fail with `428`; stale preconditions fail with `412` without writing. Authoritative
+theme/profile reads use `Cache-Control: no-store`.
 
-During the rolling window, a request without the canonical media type receives the preceding flat legacy
-representation without `_meta`. Application legacy GET/PUT continues to expose and accept `pwa` so already deployed
-frontend assets do not silently turn an existing service-worker setting off. User scope never accepts `pwa`, and a
-canonical application request that supplies it is rejected. The new resolver ignores the temporary `pwa` extension.
-This compatibility path is removed only in a separately reviewed release after preceding frontend assets are drained.
-DELETE removes the seven runtime overrides in exactly that scope and does not turn `pwa` into a runtime theme field.
-The public unauthenticated bootstrap remains `GET /app-configs/profile`; its allowlist temporarily retains legacy
-application `pwa`, which the new runtime resolver ignores.
+Both scopes reject `pwa`, and DELETE removes exactly the seven runtime overrides in its scope. The public
+unauthenticated bootstrap remains `GET /app-configs/profile`; its allowlist excludes `pwa` and all private application
+configuration.
 
 For example, a versioned application resource is shaped as follows:
 
@@ -131,8 +127,8 @@ Vary: Accept
 }
 ```
 
-The canonical overrides intentionally remain flat. Nesting them below an `overrides` member would add needless drift;
-legacy compatibility is instead explicit through media-type negotiation.
+The canonical overrides intentionally remain flat. Nesting them below an `overrides` member would add needless drift
+between the HTTP representation, persisted keys, and the editor contract.
 
 ### Keep one editor and inject scope
 
@@ -209,42 +205,37 @@ Snapshot persistence serializes the complete read/compare/write operation with a
 If Web Locks are unavailable or denied, the client skips persistence instead of risking a stale cross-tab overwrite;
 the authoritative runtime theme still works, but that browser does not receive the warm-start snapshot optimization.
 
-## Compatibility and migration
+## Data migration and V6 cutover
 
 The implementation reuses `mss_boot_app_configs` and `mss_boot_user_configs` and adds only
 `mss_boot_config_revisions` for resource metadata. The migration is additive, forward-only, idempotent, and does not
 rewrite the existing configuration schemas or rows.
 
-- Preserve all existing rows and normalize supported legacy values at the read/write boundary.
-- Preserve unknown theme rows for downgrade safety but exclude them from the effective runtime theme.
+- Preserve supported existing rows and normalize boolean string values at the read/write boundary.
+- Remove only the exact obsolete application/user `theme/pwa` rows; preserve unknown theme rows for data safety but
+  exclude them from the effective runtime theme.
 - Inventory invalid values before rollout without logging other application configuration.
 - If a forward normalization migration becomes necessary, it must be additive or narrowly targeted, idempotent,
   and tested on fresh and upgraded SQLite, MySQL, and PostgreSQL databases.
-- The new frontend negotiates `Accept: application/vnd.mss.theme.v1+json`. `Accept` is CORS-safelisted and is ignored by
-  the preceding backend, so a newly loaded frontend can still parse its legacy response without adding a custom
-  preflight header. The new backend accepts a temporarily missing `If-Match` and retains application-only legacy `pwa`
-  behavior when the canonical media type is absent.
-- Regenerate OpenAPI clients with the backend DTO change and keep the handwritten compatibility adapter tested until
-  generation is part of the repository workflow.
+- Serve only the canonical revisioned resource. Missing metadata, missing `If-Match`, `pwa`, and unversioned writes
+  fail closed instead of being projected through a browser compatibility adapter.
+- Keep the V6 typed client and OpenAPI contract synchronized with the backend DTO.
 
 ### Rolling upgrade order
 
 1. Back up the database and inventory invalid theme values without recording unrelated or sensitive configuration.
-2. Apply the additive revision migration; do not remove either existing configuration table.
-3. Deploy revision-aware backend instances and drain every old backend writer before relying on revision ordering,
-   because an old instance does not advance `ConfigRevision`.
-4. Deploy the revision-aware frontend. It asks for the canonical media type, interoperates with an old success body by
-   performing another GET, and sends `If-Match` only after it has loaded a versioned resource.
-5. Monitor migration errors, 412 rates, legacy-media and missing-precondition requests, Redis warnings, and audit
-   outcomes. Remove both legacy application `pwa` projection and missing-`If-Match` allowance only in a later
-   compatibility release after old frontend assets are drained.
-6. Promote the capability from `planned` only after SQLite, MySQL, PostgreSQL, and the complete browser matrix pass.
+2. Apply the additive revision migration and exact obsolete-browser configuration cleanup; do not remove either
+   configuration table.
+3. Drain every preceding backend and frontend instance, then deploy the V6-only backend and immutable V6 frontend as
+   one protocol boundary. A mixed old/new browser deployment is unsupported and must fail closed.
+4. Monitor migration errors, `428`/`412` rates, Redis warnings, and redacted audit outcomes.
+5. Promote the capability from `planned` only after SQLite, MySQL, PostgreSQL, and the complete browser matrix pass.
 
 ## Rollback
 
-Before rollout, back up the database. To roll back, first stop theme mutations so no writer can bypass the chosen
-revision contract, then deploy the preceding frontend and backend together. Compatible remaining rows may stay in
-place, and the additive revision table may remain unused until a separately reviewed cleanup release.
+Before rollout, back up the database. To roll back, first stop theme mutations, then deploy the preceding immutable V6
+frontend and a backend that preserves the same revision contract. The additive revision table and supported theme rows
+remain in place; no rollback may restore the retired flat response, missing-precondition writes, or `pwa` projection.
 
 An explicit `null` or DELETE reset intentionally removes overrides. Rolling back code cannot recreate those user
 choices; restore only requested overrides from the backup or redacted audit evidence. Delete revision-keyed public

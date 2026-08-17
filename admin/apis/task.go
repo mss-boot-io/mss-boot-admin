@@ -84,7 +84,6 @@ func (e *Task) Other(r *gin.RouterGroup) {
 		protectOperationalResponse,
 		e.Operate,
 	)
-	r.GET("/task/:operate/:id", methodNotAllowed)
 	r.GET(
 		"/task/func-list",
 		response.AuthHandler,

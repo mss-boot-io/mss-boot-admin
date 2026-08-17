@@ -24,7 +24,9 @@ keywords: [admin remediation checklist stability cleanup ui consistency]
 
 > **状态更新（2026-08-06）**：本文保留首轮评估的历史证据。下文所有文件清单与问题状态
 > 均以 2026-04-03 的评估快照为准；Admin Generator、运行时动态模型、虚拟 CRUD 及其
-> 模板/Git 接口已经删除，相关路径只用于解释历史问题，不是当前文件、能力或待办入口。
+> 模板/Git 接口已经删除。2026-08-17 起 V5 前端源码也已退役；下文旧仓库与文件路径只用于
+> 解释历史问题，不是当前文件、受支持能力或待办入口。当前实施基线见
+> [Ant Design V6 方案](/admin/ant-design-v6-migration-plan)。
 
 ## 优先级定义
 

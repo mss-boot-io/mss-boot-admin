@@ -47,7 +47,7 @@ func TestRuntimeDeveloperToolRoutesAreNotRegistered(t *testing.T) {
 	for _, expected := range []routeKey{
 		{method: http.MethodGet, path: "/admin/api/monitor"},
 		{method: http.MethodGet, path: "/admin/api/menus"},
-		{method: http.MethodPost, path: "/admin/api/user/login"},
+		{method: http.MethodPost, path: "/admin/api/user/session/login"},
 	} {
 		if !hasRoute(routes, expected.method, expected.path) {
 			t.Errorf("unrelated route missing after runtime tools removal: %s %s", expected.method, expected.path)

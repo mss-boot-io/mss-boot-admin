@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   assertSpawnCompleted,
+  buildAuditArguments,
   validateAcceptanceDocument,
   validateAuditReport,
   validatePnpmVersion,
@@ -16,7 +17,7 @@ const validAcceptance = () => ({
       package: 'image-size',
       severity: 'high',
       patchedVersions: '<0.0.0',
-      scopes: ['docs', 'web/antd'],
+      scopes: ['docs', 'web/antd-v6'],
       expiresOn: '2026-11-08',
       reason: 'No patched release exists and this is build-only.',
     },
@@ -31,6 +32,7 @@ const validReport = () => ({
       module_name: 'image-size',
       severity: 'high',
       patched_versions: '<0.0.0',
+      findings: [{ version: '1.0.0', paths: ['root>image-size'] }],
     },
   },
   muted: [],
@@ -48,11 +50,24 @@ test('accepts valid acceptance and audit documents', () => {
   assert.equal(validateAuditReport(validReport()).length, 1);
 });
 
-test('requires both the package pin and subprocess to use pnpm 9.15.9', () => {
-  assert.doesNotThrow(() => validatePnpmVersion('pnpm@9.15.9', '9.15.9\n'));
-  assert.throws(() => validatePnpmVersion('pnpm@9.15.8', '9.15.9'), /must pin/);
-  assert.throws(() => validatePnpmVersion('pnpm@9.15.9', '10.0.0'), /subprocess reported 10.0.0/);
-  assert.throws(() => validatePnpmVersion('pnpm@9.15.9', ''), /subprocess reported <empty>/);
+test('requests complete advisory details from pnpm audit', () => {
+  assert.deepEqual(buildAuditArguments(false), ['audit', '--json']);
+  assert.deepEqual(buildAuditArguments(true), ['audit', '--json', '--prod']);
+  assert.equal(buildAuditArguments(false).includes('--audit-level=critical'), false);
+});
+
+test('requires each package pin and subprocess to use its governed pnpm version', () => {
+  assert.doesNotThrow(() => validatePnpmVersion('pnpm@9.15.9', '9.15.9\n', '9.15.9'));
+  assert.doesNotThrow(() => validatePnpmVersion('pnpm@10.34.5', '10.34.5\n', '10.34.5'));
+  assert.throws(() => validatePnpmVersion('pnpm@9.15.8', '9.15.9', '9.15.9'), /must pin/);
+  assert.throws(
+    () => validatePnpmVersion('pnpm@9.15.9', '10.0.0', '9.15.9'),
+    /subprocess reported 10.0.0/,
+  );
+  assert.throws(
+    () => validatePnpmVersion('pnpm@10.34.5', '', '10.34.5'),
+    /subprocess reported <empty>/,
+  );
 });
 
 test('rejects unknown or missing acceptance fields', () => {
@@ -117,10 +132,34 @@ test('rejects audit error reports and malformed advisory metadata', () => {
   unknownSeverity.advisories[1].severity = 'unknown';
   assert.throws(() => validateAuditReport(unknownSeverity), /severity is unsupported/);
 
+  const missingFindings = validReport();
+  delete missingFindings.advisories[1].findings;
+  assert.throws(() => validateAuditReport(missingFindings), /findings must be a non-empty array/);
+
+  const missingPaths = validReport();
+  missingPaths.advisories[1].findings = [{ version: '1.0.0', paths: [] }];
+  assert.throws(() => validateAuditReport(missingPaths), /paths must be a non-empty array/);
+
   const duplicate = validReport();
   duplicate.advisories[2] = { ...duplicate.advisories[1] };
   duplicate.metadata.vulnerabilities.high = 2;
   assert.throws(() => validateAuditReport(duplicate), /duplicate advisory/);
+});
+
+test('accepts pnpm unique-advisory and finding-path metadata semantics', () => {
+  const report = validReport();
+  report.advisories[1].findings[0].paths.push('root>build-tool>image-size');
+  report.metadata.vulnerabilities.high = 2;
+  assert.equal(validateAuditReport(report).length, 1);
+
+  report.metadata.vulnerabilities.high = 1;
+  assert.equal(validateAuditReport(report).length, 1);
+
+  report.metadata.vulnerabilities.high = 3;
+  assert.throws(
+    () => validateAuditReport(report),
+    /metadata=3, uniqueAdvisories=1, findingPaths=2/,
+  );
 });
 
 test('rejects every abnormal spawn termination', () => {

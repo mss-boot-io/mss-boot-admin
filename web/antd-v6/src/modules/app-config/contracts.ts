@@ -13,19 +13,12 @@ export interface SecurityAppConfig {
   phoneEnabled: boolean;
   emailEnabled: boolean;
   githubEnabled: boolean;
-  githubClientId: string;
-  githubClientSecret?: string;
-  githubRedirectURI: string;
-  githubScope: string;
   githubAllowGroup: string;
   githubBrowserSessionClientId: string;
   githubBrowserSessionClientSecret?: string;
   githubBrowserSessionRedirectURI: string;
   githubBrowserSessionScope: string;
   larkEnabled: boolean;
-  larkAppId: string;
-  larkAppSecret?: string;
-  larkRedirectURI: string;
   larkBrowserSessionAppId: string;
   larkBrowserSessionAppSecret?: string;
   larkBrowserSessionRedirectURI: string;
@@ -44,9 +37,7 @@ export interface EmailAppConfig {
 }
 
 export const APP_CONFIG_SECRET_KEYS = [
-  'githubClientSecret',
   'githubBrowserSessionClientSecret',
-  'larkAppSecret',
   'larkBrowserSessionAppSecret',
   'password',
 ] as const;
@@ -95,9 +86,7 @@ export function parseBaseAppConfig(value: unknown): BaseAppConfig {
 }
 
 const securitySecretKeys = new Set<SecurityAppConfigSecretKey>([
-  'githubClientSecret',
   'githubBrowserSessionClientSecret',
-  'larkAppSecret',
   'larkBrowserSessionAppSecret',
 ]);
 
@@ -113,16 +102,11 @@ export function parseSecurityAppConfig(value: unknown): ProtectedAppConfig<Secur
       phoneEnabled: booleanValue(group.phoneEnabled),
       emailEnabled: booleanValue(group.emailEnabled),
       githubEnabled: booleanValue(group.githubEnabled),
-      githubClientId: stringValue(group.githubClientId),
-      githubRedirectURI: stringValue(group.githubRedirectURI),
-      githubScope: stringValue(group.githubScope),
       githubAllowGroup: stringValue(group.githubAllowGroup),
       githubBrowserSessionClientId: stringValue(group.githubBrowserSessionClientId),
       githubBrowserSessionRedirectURI: stringValue(group.githubBrowserSessionRedirectURI),
       githubBrowserSessionScope: stringValue(group.githubBrowserSessionScope),
       larkEnabled: booleanValue(group.larkEnabled),
-      larkAppId: stringValue(group.larkAppId),
-      larkRedirectURI: stringValue(group.larkRedirectURI),
       larkBrowserSessionAppId: stringValue(group.larkBrowserSessionAppId),
       larkBrowserSessionRedirectURI: stringValue(group.larkBrowserSessionRedirectURI),
     },
@@ -177,16 +161,11 @@ export function serializeSecurityAppConfig(
     phoneEnabled: value.phoneEnabled,
     emailEnabled: value.emailEnabled,
     githubEnabled: value.githubEnabled,
-    githubClientId: value.githubClientId.trim(),
-    githubRedirectURI: value.githubRedirectURI.trim(),
-    githubScope: value.githubScope.trim(),
     githubAllowGroup: value.githubAllowGroup.trim(),
     githubBrowserSessionClientId: value.githubBrowserSessionClientId.trim(),
     githubBrowserSessionRedirectURI: value.githubBrowserSessionRedirectURI.trim(),
     githubBrowserSessionScope: value.githubBrowserSessionScope.trim(),
     larkEnabled: value.larkEnabled,
-    larkAppId: value.larkAppId.trim(),
-    larkRedirectURI: value.larkRedirectURI.trim(),
     larkBrowserSessionAppId: value.larkBrowserSessionAppId.trim(),
     larkBrowserSessionRedirectURI: value.larkBrowserSessionRedirectURI.trim(),
   };

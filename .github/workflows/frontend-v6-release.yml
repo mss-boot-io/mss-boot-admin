@@ -68,7 +68,7 @@ jobs:
         run: |
           python3 ../../tools/release/check_release_policy.py \
             --policy ../../.mss/release-policy.yaml \
-            --component frontend-v6 \
+            --component frontend \
             --version "${FRONTEND_V6_VERSION}" \
             --tag "${GITHUB_REF_NAME}"
 
@@ -119,8 +119,7 @@ jobs:
       - name: Verify dependency and quality gates
         run: |
           pnpm run deps:check
-          pnpm audit --prod --audit-level high
-          pnpm audit --audit-level critical
+          pnpm run audit:release
           pnpm run lint
           pnpm run test:ci
 
@@ -250,7 +249,7 @@ jobs:
             echo
             echo "Image digest: \`${IMAGE_DIGEST}\`"
             echo "Source commit: \`${GITHUB_SHA}\`"
-            echo 'This release does not mutate or redeploy web/antd.'
+            echo 'Rollback selects only a preceding qualified V6 image and matching backend release.'
           } > "${body}"
           if ! gh release view "${tag}" --json isDraft >/dev/null 2>&1; then
             release_flags=()

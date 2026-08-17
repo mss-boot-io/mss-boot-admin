@@ -179,7 +179,7 @@ func newModuleGenerateCommand(rootOverride *string) *cobra.Command {
 	command.Flags().StringVar(&format, "format", "text", "output format: text or json")
 	command.Flags().BoolVar(&write, "write", false, "write generated files; default is dry-run")
 	command.Flags().BoolVar(&check, "check", false, "fail when generated output is missing or stale")
-	command.Flags().StringVar(&frontendTarget, "frontend-target", spec.FrontendTargetAntDV5, "generated frontend target: antd-v5 or antd-v6")
+	command.Flags().StringVar(&frontendTarget, "frontend-target", spec.FrontendTargetAntDV6, "generated frontend target: antd-v6")
 	return command
 }
 

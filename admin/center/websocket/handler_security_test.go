@@ -17,7 +17,7 @@ func TestIsTrustedOriginUsesExactConfiguredOrigins(t *testing.T) {
 	config.Cfg.Application.Origin = "https://api.example"
 	config.Cfg.CORS.AllowOrigins = []string{"https://admin.example", "*"}
 
-	request := httptest.NewRequest("GET", "/admin/api/ws/connect-v6", nil)
+	request := httptest.NewRequest("GET", "/admin/api/ws/connect", nil)
 	request.Header.Set("Origin", "https://admin.example")
 	if !IsTrustedOrigin(request) {
 		t.Fatal("configured origin was rejected")

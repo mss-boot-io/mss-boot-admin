@@ -178,14 +178,24 @@ Schema：
 # 统一验证器会自动识别 kind
 go run ./cmd/mss spec validate .mss/modules/supplier.yaml
 
-# dry-run，默认不写文件
+# dry-run，默认不写文件；唯一默认目标是 antd-v6
 go run ./cmd/mss module generate .mss/modules/supplier.yaml --format json
 
-# 审查计划后写入
-go run ./cmd/mss module generate .mss/modules/supplier.yaml --write --format json
+# 面向主前端生成 V6 模块
+go run ./cmd/mss module generate .mss/modules/supplier.yaml \
+  --frontend-target antd-v6 \
+  --format json
 
-# 检查生成物漂移
-go run ./cmd/mss module generate .mss/modules/supplier.yaml --check
+# 审查计划后写入 V6 生成物
+go run ./cmd/mss module generate .mss/modules/supplier.yaml \
+  --frontend-target antd-v6 \
+  --write \
+  --format json
+
+# 检查 V6 生成物漂移
+go run ./cmd/mss module generate .mss/modules/supplier.yaml \
+  --frontend-target antd-v6 \
+  --check
 ```
 
 生成范围包括：
@@ -202,17 +212,16 @@ modules/<name>/
   module.go
   tests/
 
-web/antd/src/modules/<name>/
-  pages/
-  services/
-  locales/
-  routes
-  permissions
+web/antd-v6/src/generated/modules/<name>/
+web/antd-v6/src/pages/generated/<Entity>/
+web/antd-v6/config/routes.generated.ts
+web/antd-v6/e2e/generated/<name>.spec.ts
 
 docs/modules/<name>.md
 ```
 
-实际文件以生成计划为准。
+实际文件以生成计划为准。生成器只支持 `antd-v6`，无参数调用和显式
+`--frontend-target antd-v6` 生成相同的 V6 投影。
 
 ## Generated 与 Custom 边界
 

@@ -49,7 +49,7 @@
 | --- | --- |
 | `/` | Go 管理后台后端 |
 | `mss-boot/` | 可复用 Go 框架模块 |
-| `web/antd/` | React + Ant Design 前端 |
+| `web/antd-v6/` | React 19 + Ant Design 6 前端，保持独立发布 |
 | `docs/` | Dumi 文档站点 |
 
 后续所有有效开发统一在本仓库进行，原有独立仓库仅保留为迁移历史与兼容性参考。
@@ -105,7 +105,7 @@
 ## 📦 准备工作
 - 安装 Go 1.26+
 - 后端集成测试可选安装 MySQL 8.0+、Redis 7+
-- 前端开发安装 Node.js 22+、pnpm 9+
+- 默认前端开发安装 Node.js 24，并通过 Corepack 使用 pnpm 10.34.5
 
 ## 📦 快速开始
 
@@ -118,6 +118,8 @@ cd mss-boot-admin
 ./mss dev --detach
 ./mss dev status --format json
 ```
+
+唯一的 Admin 前端位于 `web/antd-v6`，本地地址为 `http://localhost:8001`。
 
 在编写重复代码前先创建或验证结构化契约：
 

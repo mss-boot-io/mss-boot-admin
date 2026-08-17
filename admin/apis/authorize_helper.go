@@ -18,9 +18,11 @@ import (
 const (
 	roleAuthorizationRevisionConflictCode = "AUTHORIZATION_REVISION_CONFLICT"
 	roleAuthorizationIfMatchInvalidCode   = "AUTHORIZATION_IF_MATCH_INVALID"
+	roleAuthorizationIfMatchRequiredCode  = "AUTHORIZATION_IF_MATCH_REQUIRED"
 	roleAuthorizationInactiveCode         = "AUTHORIZATION_ROLE_INACTIVE"
-	roleAuthorizationPreconditionHeader   = "X-MSS-Authorization-Precondition"
 )
+
+var errRoleAuthorizationIfMatchRequired = errors.New("role authorization mutation requires If-Match")
 
 func requireCurrentRoot(ctx *gin.Context) bool {
 	verify := middleware.GetVerify(ctx)
@@ -47,46 +49,41 @@ func setRoleAuthorizationETag(ctx *gin.Context, resource *dto.GetAuthorizeRespon
 	ctx.Header("Cache-Control", "no-store")
 }
 
-func setMissingRoleAuthorizationPreconditionWarning(ctx *gin.Context) {
-	ctx.Header(roleAuthorizationPreconditionHeader, "missing")
-	ctx.Header("Warning", `299 mss-boot "If-Match will be required for role authorization updates"`)
-}
-
-func parseRoleAuthorizationIfMatch(ctx *gin.Context, roleID string) (*int64, error) {
+func parseRoleAuthorizationIfMatch(ctx *gin.Context, roleID string) (int64, error) {
 	if ctx == nil || ctx.Request == nil {
-		return nil, fmt.Errorf("%s: request is missing", roleAuthorizationIfMatchInvalidCode)
+		return 0, fmt.Errorf("%s: request is missing", roleAuthorizationIfMatchInvalidCode)
 	}
 	values := ctx.Request.Header.Values("If-Match")
 	if len(values) == 0 {
-		return nil, nil
+		return 0, errRoleAuthorizationIfMatchRequired
 	}
 	if len(values) != 1 {
-		return nil, fmt.Errorf("%s: expected one strong role authorization ETag", roleAuthorizationIfMatchInvalidCode)
+		return 0, fmt.Errorf("%s: expected one strong role authorization ETag", roleAuthorizationIfMatchInvalidCode)
 	}
 	raw := strings.TrimSpace(values[0])
 	if raw == "" || strings.HasPrefix(raw, "W/") || strings.Contains(raw, ",") || raw == "*" {
-		return nil, fmt.Errorf("%s: expected one strong role authorization ETag", roleAuthorizationIfMatchInvalidCode)
+		return 0, fmt.Errorf("%s: expected one strong role authorization ETag", roleAuthorizationIfMatchInvalidCode)
 	}
 	value, err := strconv.Unquote(raw)
 	if err != nil {
-		return nil, fmt.Errorf("%s: expected a quoted strong role authorization ETag", roleAuthorizationIfMatchInvalidCode)
+		return 0, fmt.Errorf("%s: expected a quoted strong role authorization ETag", roleAuthorizationIfMatchInvalidCode)
 	}
 	prefix := "role-authorization-" + roleID + "-"
 	if !strings.HasPrefix(value, prefix) {
-		return nil, fmt.Errorf("%s: ETag role does not match this resource", roleAuthorizationIfMatchInvalidCode)
+		return 0, fmt.Errorf("%s: ETag role does not match this resource", roleAuthorizationIfMatchInvalidCode)
 	}
 	revisionText := strings.TrimPrefix(value, prefix)
 	if revisionText == "" || strings.Trim(revisionText, "0123456789") != "" {
-		return nil, fmt.Errorf("%s: ETag revision must be a non-negative integer", roleAuthorizationIfMatchInvalidCode)
+		return 0, fmt.Errorf("%s: ETag revision must be a non-negative integer", roleAuthorizationIfMatchInvalidCode)
 	}
 	revision, err := strconv.ParseInt(revisionText, 10, 64)
 	if err != nil || revision < 0 {
-		return nil, fmt.Errorf("%s: ETag revision is out of range", roleAuthorizationIfMatchInvalidCode)
+		return 0, fmt.Errorf("%s: ETag revision is out of range", roleAuthorizationIfMatchInvalidCode)
 	}
 	if raw != roleAuthorizationETag(roleID, strconv.FormatInt(revision, 10)) {
-		return nil, fmt.Errorf("%s: expected the canonical role authorization ETag", roleAuthorizationIfMatchInvalidCode)
+		return 0, fmt.Errorf("%s: expected the canonical role authorization ETag", roleAuthorizationIfMatchInvalidCode)
 	}
-	return &revision, nil
+	return revision, nil
 }
 
 func writeRoleAuthorizationRevisionConflict(ctx *gin.Context, err error) bool {

@@ -58,11 +58,11 @@ updates:
         update-types: [minor, patch]
     labels: [area/devops, type/security]
   - package-ecosystem: npm
-    directory: /web/antd
+    directory: /web/antd-v6
     schedule: { interval: weekly }
     open-pull-requests-limit: 3
     groups:
-      frontend-non-major:
+      frontend-v6-non-major:
         patterns: ['*']
         update-types: [minor, patch]
     labels: [area/frontend, type/security]

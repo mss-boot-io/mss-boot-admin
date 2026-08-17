@@ -95,7 +95,7 @@ func TestAuthorizationMutationPublishesCommittedRevisionWithoutWorkQueueWatcher(
 	t.Cleanup(func() { _ = runtime.Close(context.Background()) })
 
 	revision0 := int64(0)
-	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, &revision0)
+	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, revision0)
 	require.NoError(t, err)
 	require.Equal(t, "1", resource.Revision)
 	require.Equal(t, int64(1), reloads.Load())
@@ -136,7 +136,7 @@ func TestAuthorizationRevisionNotifierRunsAfterReloadAndCannotPoisonMutation(t *
 	t.Cleanup(func() { _ = runtime.Close(context.Background()) })
 
 	revision0 := int64(0)
-	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, &revision0)
+	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, revision0)
 	require.NoError(t, err, "optional notifier panic must not fail a committed mutation")
 	require.Equal(t, "1", resource.Revision)
 	require.Equal(t, uint64(1), notified.Load())
@@ -162,7 +162,7 @@ func TestAuthorizationSubscriberPanicIsolatedAndReconciled(t *testing.T) {
 	t.Cleanup(func() { _ = runtime.Close(context.Background()) })
 
 	revision0 := int64(0)
-	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, &revision0)
+	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, revision0)
 	require.Equal(t, "1", resource.Revision)
 	var propagation *AuthorizationPropagationError
 	require.ErrorAs(t, err, &propagation)
@@ -191,7 +191,7 @@ func TestAuthorizationEventBusOutagePreservesCommittedPolicy(t *testing.T) {
 	// Keep the configured publisher bound while making its provider unavailable.
 	require.NoError(t, runtime.bus.Close(context.Background()))
 	revision0 := int64(0)
-	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, &revision0)
+	resource, err := svc.ReplaceRole(context.Background(), db, "role-a", []string{"/a"}, revision0)
 	require.Equal(t, "1", resource.Revision)
 	var propagation *AuthorizationPropagationError
 	require.ErrorAs(t, err, &propagation)

@@ -31,7 +31,7 @@ MySQL 8.0+ 和 PostgreSQL 是可选集成目标。切换数据库时应通过本
 部署平台的 Secret 机制注入 DSN；不要把生产用户名、密码或完整 DSN 写入
 文档、命令历史或仓库配置。
 
-### 3. 安装 Node.js >= 22 且 < 25（前端）
+### 3. 安装 Node.js >= 24 且 < 25（默认 V6 前端）
 
 访问 [Node.js 官网](https://nodejs.org/) 下载并安装。
 
@@ -39,15 +39,15 @@ MySQL 8.0+ 和 PostgreSQL 是可选集成目标。切换数据库时应通过本
 
 ```bash
 node -v
-# 输出应在 22.x、23.x 或 24.x 范围内
+# 输出应为 24.x
 ```
 
-通过 Corepack 使用仓库固定的 pnpm 9.15.9：
+通过 Corepack 使用仓库固定的 pnpm 10.34.5：
 
 ```bash
 corepack enable
-corepack pnpm --version
-# 输出: 9.15.9
+corepack pnpm@10.34.5 --version
+# 输出: 10.34.5
 ```
 
 以上版本和目录约定以仓库根目录的 `.mss/project.yaml` 为准。
@@ -116,19 +116,19 @@ curl http://localhost:8080/healthz
 进入前端项目目录：
 
 ```bash
-cd ../web/antd
+cd ../web/antd-v6
 ```
 
 按仓库 lockfile 安装依赖：
 
 ```bash
-corepack pnpm install --frozen-lockfile
+corepack pnpm@10.34.5 install --frozen-lockfile
 ```
 
 ## 2. 启动开发服务器
 
 ```bash
-corepack pnpm dev
+corepack pnpm@10.34.5 start:dev
 ```
 
 输出示例：
@@ -136,13 +136,13 @@ corepack pnpm dev
 ```
 √ Compiled successfully!
   App running at:
-  - Local:   http://localhost:8000
-  - Network: http://192.168.x.x:8000
+  - Local:   http://localhost:8001
+  - Network: http://192.168.x.x:8001
 ```
 
 ## 3. 访问系统
 
-浏览器访问：http://localhost:8000
+浏览器访问：http://localhost:8001
 
 使用初始化流程或部署者提供的本地开发凭据登录。生产环境必须使用独立的
 Secret 管理，不要在文档、工单或仓库中记录密码。
@@ -224,7 +224,7 @@ go run . server
 
 ## 端口冲突
 
-后端默认端口 8080，前端默认端口 8000。如遇冲突：
+后端默认端口 8080，V6 前端默认端口 8001。如遇冲突：
 
 后端修改 `config/application-local.yml`：
 
@@ -253,9 +253,9 @@ PORT=9000
 尝试：
 
 ```bash
-# 在 web/antd/ 中清理依赖缓存，再按 lockfile 重试
-corepack pnpm store prune
-corepack pnpm install --frozen-lockfile
+# 在 web/antd-v6/ 中清理依赖缓存，再按 lockfile 重试
+corepack pnpm@10.34.5 store prune
+corepack pnpm@10.34.5 install --frozen-lockfile
 ```
 
 不要删除 `pnpm-lock.yaml`，也不要改用其他包管理器绕过冻结安装。若仍失败，

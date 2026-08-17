@@ -27,8 +27,8 @@ the project readable by contributors, maintainers, and AI agents.
 ## Release Policy
 
 - Alpha/dev is for fast integration.
-- Beta is public preview and must pass smoke testing before frontend Cloudflare
-  deployment.
+- Beta is public preview and must pass browser and delivery smoke testing before
+  V6 artifact publication.
 - Production uses tagged backend releases and verified frontend deployments.
 
 ## Security

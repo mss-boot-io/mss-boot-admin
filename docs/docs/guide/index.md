@@ -26,8 +26,8 @@ nav:
 | 项目 | 说明 |
 |------|------|
 | [mss-boot](https://github.com/mss-boot-io/mss-boot) | 核心框架，提供 HTTP/GRPC 服务开发基础 |
-| [mss-boot-admin](https://github.com/mss-boot-io/mss-boot-admin) | 后端服务，开箱即用的后台管理系统 |
-| [mss-boot-admin-antd](https://github.com/mss-boot-io/mss-boot-admin-antd) | 前端服务，基于 React + Ant Design v5 + Umi v4 |
+| [mss-boot-admin](https://github.com/mss-boot-io/mss-boot-admin) | 后端、V6 前端、生成器和交付契约的统一事实源 |
+| `mss-boot-admin-antd-v6` | 唯一前端与独立发布单元，基于 React 19 + Ant Design 6 + Umi Max |
 | [mss-boot-docs](https://github.com/mss-boot-io/mss-boot-docs) | 文档站点，在线文档与教程 |
 
 ## 核心特性

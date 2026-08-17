@@ -100,7 +100,7 @@ spec:
   publicPrereleases: false
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"
-  frontendTagTemplate: "web/antd/{version}"
+  frontendTagTemplate: "web/antd-v6/{version}"
 `
 	policy, err := decodeFoundationReleasePolicy([]byte(valid))
 	if err != nil {

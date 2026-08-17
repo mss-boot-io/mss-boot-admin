@@ -99,7 +99,7 @@ beforeEach(() => {
 });
 
 describe('header notice popup', () => {
-  it('groups unread notices in V5-style tabs and opens the selected type in the full center', async () => {
+  it('groups unread notices in compact tabs and opens the selected type in the full center', async () => {
     unread.mockResolvedValue([
       notice('notice-1', '系统维护', 'notification'),
       notice('notice-2', '审批提醒', 'message'),

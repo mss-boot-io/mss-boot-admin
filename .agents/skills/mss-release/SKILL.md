@@ -12,7 +12,7 @@ Release only from a reproducible commit with explicit component scope, compatibi
 1. Identify the release component and tag namespace:
    - foundation/backend: `vX.Y.Z`;
    - framework: `mss-boot/vX.Y.Z`;
-   - frontend: `web/antd/vX.Y.Z`;
+   - frontend: `web/antd-v6/vX.Y.Z`;
    - downstream application: its own repository policy.
 2. Confirm all prerequisite stacked PRs are merged in dependency order.
 3. Read `.mss/lock.yaml`, module specs, migration history, and release workflows.

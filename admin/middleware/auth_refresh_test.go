@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
@@ -25,7 +26,7 @@ func (c refreshTestAppConfig) GetAppConfig(_ *gin.Context, key string) (string, 
 	return value, ok
 }
 
-func TestValidateRefreshVerifierDoesNotDependOnRegistrationSwitch(t *testing.T) {
+func TestRefreshPrincipalReloadDoesNotDependOnRegistrationSwitch(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	database, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "refresh.db")), &gorm.Config{})
 	require.NoError(t, err)
@@ -52,15 +53,15 @@ func TestValidateRefreshVerifierDoesNotDependOnRegistrationSwitch(t *testing.T) 
 	}
 	require.NoError(t, database.Create(user).Error)
 
-	claimsPrincipal := &models.User{}
-	claimsPrincipal.ID = user.ID
-	claimsPrincipal.RoleID = role.ID
-	require.NoError(t, validateRefreshVerifier(newTestGinCtx(), claimsPrincipal))
+	claims := jwt.MapClaims{"uid": user.ID, "rid": role.ID}
+	_, err = currentPrincipalFromClaims(newTestGinCtx(), claims)
+	require.NoError(t, err)
 
 	require.NoError(t, database.Model(&models.User{}).
 		Where("id = ?", user.ID).
 		Update("status", enum.Disabled).Error)
-	require.Error(t, validateRefreshVerifier(newTestGinCtx(), claimsPrincipal))
+	_, err = currentPrincipalFromClaims(newTestGinCtx(), claims)
+	require.Error(t, err)
 	require.NoError(t, database.Model(&models.User{}).
 		Where("id = ?", user.ID).
 		Update("status", enum.Enabled).Error)
@@ -68,7 +69,8 @@ func TestValidateRefreshVerifierDoesNotDependOnRegistrationSwitch(t *testing.T) 
 	require.NoError(t, database.Model(&models.Role{}).
 		Where("id = ?", role.ID).
 		Update("status", enum.Disabled).Error)
-	require.Error(t, validateRefreshVerifier(newTestGinCtx(), claimsPrincipal))
+	_, err = currentPrincipalFromClaims(newTestGinCtx(), claims)
+	require.Error(t, err)
 	require.NoError(t, database.Model(&models.Role{}).
 		Where("id = ?", role.ID).
 		Update("status", enum.Enabled).Error)
@@ -78,10 +80,12 @@ func TestValidateRefreshVerifierDoesNotDependOnRegistrationSwitch(t *testing.T) 
 	require.NoError(t, database.Model(&models.User{}).
 		Where("id = ?", user.ID).
 		Update("role_id", newRole.ID).Error)
-	require.Error(t, validateRefreshVerifier(newTestGinCtx(), claimsPrincipal))
+	_, err = currentPrincipalFromClaims(newTestGinCtx(), claims)
+	require.Error(t, err)
 
-	missing := &models.User{}
-	missing.ID = "missing-user"
-	missing.RoleID = role.ID
-	require.Error(t, validateRefreshVerifier(newTestGinCtx(), missing))
+	_, err = currentPrincipalFromClaims(
+		newTestGinCtx(),
+		jwt.MapClaims{"uid": "missing-user", "rid": role.ID},
+	)
+	require.Error(t, err)
 }

@@ -178,7 +178,7 @@ func runThemeSettingsMigrationIntegrationContract(t *testing.T, db *gorm.DB) {
 			application, err := (&service.Theme{}).PatchApplicationResource(ctx, map[string]any{
 				"colorPrimary": "#ABCDEF",
 				"fixedHeader":  false,
-			}, &zero)
+			}, zero)
 			if err != nil {
 				t.Fatalf("write fresh application theme: %v", err)
 			}
@@ -191,7 +191,7 @@ func runThemeSettingsMigrationIntegrationContract(t *testing.T, db *gorm.DB) {
 			user, err := (&service.Theme{}).PatchUserResource(ctx, "integration-user", map[string]any{
 				"colorWeak":   true,
 				"fixSiderbar": false,
-			}, &zero)
+			}, zero)
 			if err != nil {
 				t.Fatalf("write fresh user theme: %v", err)
 			}
@@ -262,14 +262,14 @@ func runThemeSettingsMigrationIntegrationContract(t *testing.T, db *gorm.DB) {
 			}
 
 			zero := int64(0)
-			application, err = (&service.Theme{}).ResetApplicationResource(ctx, &zero)
+			application, err = (&service.Theme{}).ResetApplicationResource(ctx, zero)
 			if err != nil {
 				t.Fatalf("reset upgraded application theme: %v", err)
 			}
 			if application.Meta.Revision != "1" || !themeSettingsResourceIsEmpty(application) {
 				t.Fatalf("application reset returned a non-empty resource: %#v", application)
 			}
-			user, err = (&service.Theme{}).ResetUserResource(ctx, "integration-user", &zero)
+			user, err = (&service.Theme{}).ResetUserResource(ctx, "integration-user", zero)
 			if err != nil {
 				t.Fatalf("reset upgraded user theme: %v", err)
 			}
@@ -286,7 +286,7 @@ func runThemeSettingsMigrationIntegrationContract(t *testing.T, db *gorm.DB) {
 			one := int64(1)
 			application, err = (&service.Theme{}).PatchApplicationResource(ctx, map[string]any{
 				"fixedHeader": false,
-			}, &one)
+			}, one)
 			if err != nil {
 				t.Fatalf("set application theme after reset: %v", err)
 			}
@@ -296,7 +296,7 @@ func runThemeSettingsMigrationIntegrationContract(t *testing.T, db *gorm.DB) {
 
 			user, err = (&service.Theme{}).PatchUserResource(ctx, "integration-user", map[string]any{
 				"colorWeak": false,
-			}, &one)
+			}, one)
 			if err != nil {
 				t.Fatalf("set user theme after reset: %v", err)
 			}

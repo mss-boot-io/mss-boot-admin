@@ -6,7 +6,7 @@
 | --- | --- |
 | `/` | `github.com/mss-boot-io/mss-boot-admin`, the Go admin backend |
 | `mss-boot/` | `github.com/mss-boot-io/mss-boot-admin/mss-boot`, the reusable Go framework |
-| `web/antd/` | React + Ant Design frontend |
+| `web/antd-v6/` | React 19 + Ant Design 6 frontend |
 | `docs/` | Dumi documentation site |
 
 `go.work` activates the backend and framework modules together. Do not add a local `replace` directive to either published `go.mod`; workspace mode is the source of truth for repository-local development.
@@ -26,7 +26,7 @@ make docs-install docs-build
 
 - Backend application: `vX.Y.Z`
 - Framework module: `mss-boot/vX.Y.Z`
-- Ant Design frontend: `web/antd/vX.Y.Z`
+- Ant Design frontend: `web/antd-v6/vX.Y.Z`
 - Documentation: built and deployed from `main`
 
 The first stable framework release after consolidation is `mss-boot/v1.0.0`. For a coordinated release, publish the framework tag before the backend tag so the backend's `go.mod` requirement is available outside workspace mode.

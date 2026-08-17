@@ -337,12 +337,16 @@ func TestRoleAuthorizationMissingPathsRejectsAndExplicitEmptyClears(t *testing.T
 	require.NoError(t, db.Model(&models.CasbinRule{}).Where("v0 = ?", "role-a").Count(&policyCount).Error)
 	require.Equal(t, int64(1), policyCount)
 
-	cleared := roleAuthorizationResponse(http.MethodPost, "role-a", `{"paths":[]}`, "", root)
+	cleared := roleAuthorizationResponse(
+		http.MethodPost,
+		"role-a",
+		`{"paths":[]}`,
+		`"role-authorization-role-a-0"`,
+		root,
+	)
 	require.Equal(t, http.StatusCreated, cleared.Code, cleared.Body.String())
 	require.Equal(t, `"role-authorization-role-a-1"`, cleared.Header().Get("ETag"))
 	require.Equal(t, "no-store", cleared.Header().Get("Cache-Control"))
-	require.Equal(t, "missing", cleared.Header().Get(roleAuthorizationPreconditionHeader))
-	require.Contains(t, cleared.Header().Get("Warning"), "If-Match will be required")
 	var resource dto.GetAuthorizeResponse
 	require.NoError(t, json.Unmarshal(cleared.Body.Bytes(), &resource))
 	require.Equal(t, "role-a", resource.RoleID)

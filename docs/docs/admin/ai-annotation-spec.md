@@ -36,7 +36,7 @@ keywords: [admin ai annotation spec collaboration]
 
 - `mss-boot`
 - `mss-boot-admin`
-- `mss-boot-admin-antd`
+- `web/antd-v6`
 - `mss-boot-docs`
 
 ## 为什么要做这件事

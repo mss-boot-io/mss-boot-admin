@@ -129,7 +129,7 @@ function emitAuthorizationRefresh(revision?: string): void {
     } satisfies AuthorizationRefreshSignal);
     channel.close();
   } catch {
-    // Focus/visibility reconciliation remains the compatibility fallback.
+    // Focus/visibility reconciliation remains the resilience fallback.
   }
 }
 

@@ -209,9 +209,8 @@ TaskRun
 | `/admin/api/tasks/:id/actions/:operate` | POST | 任务操作（start/stop） |
 | `/admin/api/task/func-list` | GET | 可用函数列表 |
 
-兼容说明：任务操作已从有副作用的 `GET /admin/api/task/:operate/:id` 迁移到
-`POST /admin/api/tasks/:id/actions/:operate`。旧 GET 仅保留为迁移提示入口，固定返回
-`405 Method Not Allowed`，不会启动、停止或执行任务；调用方必须改用新的 POST 路径。
+任务操作只支持 `POST /admin/api/tasks/:id/actions/:operate`。有副作用的历史
+`GET /admin/api/task/:operate/:id` 已从路由表移除，不能作为兼容或降级入口。
 
 任务列表是去除请求正文、元数据、端点和容器命令的安全摘要；完整详情、函数列表以及所有变更都在
 后端强制 root 身份。新任务固定以停用状态创建，Provider 不允许在更新中切换，Kubernetes 任务的

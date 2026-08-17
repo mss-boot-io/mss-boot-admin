@@ -194,6 +194,6 @@ spec:
     authorizationMigrationID: "20260811120000"
     backend: true
     frontend: true
-    frontendTargets: [antd-v5, antd-v6]
+    frontendTargets: [antd-v6]
     docs: true
     tests: true

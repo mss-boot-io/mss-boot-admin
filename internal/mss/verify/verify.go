@@ -77,7 +77,7 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 		}
 		plan.ChangedFiles = []string{
 			"modules/" + options.Module,
-			"web/antd/src/modules/" + options.Module,
+			"web/antd-v6/src/modules/" + options.Module,
 			"docs/docs/modules/" + options.Module + ".md",
 		}
 	case ModeChanged:
@@ -106,13 +106,10 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 		add(frameworkTest(ctx.Root), "full verification includes reusable framework tests")
 		add(backendTest(ctx.Root), "full verification includes backend tests")
 		add(backendBuild(ctx.Root), "full verification includes backend build")
-		add(frontendLint(ctx.Root), "full verification includes frontend lint and type checks")
-		add(frontendTest(ctx.Root), "full verification includes frontend unit tests")
-		add(frontendBuild(ctx.Root), "full verification includes frontend production build")
 		if hasFrontendApplication(ctx, "web/antd-v6") {
-			add(frontendV6Lint(ctx.Root), "full verification includes independent Ant Design 6 frontend lint and type checks")
-			add(frontendV6Test(ctx.Root), "full verification includes independent Ant Design 6 frontend unit tests")
-			add(frontendV6Build(ctx.Root), "full verification includes independent Ant Design 6 frontend production build")
+			add(frontendLint(ctx.Root), "full verification includes the Ant Design 6 frontend lint and type checks")
+			add(frontendTest(ctx.Root), "full verification includes the Ant Design 6 frontend unit tests")
+			add(frontendBuild(ctx.Root), "full verification includes the Ant Design 6 frontend production build")
 		}
 		add(docsBuild(ctx.Root), "full verification includes documentation build")
 	} else {
@@ -128,12 +125,6 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 				add(frontendTest(ctx.Root), path+" affects frontend behavior")
 				if frontendBuildSensitive(path) {
 					add(frontendBuild(ctx.Root), path+" affects frontend build or routing configuration")
-				}
-			case isFrontendV6(path):
-				add(frontendV6Lint(ctx.Root), path+" affects the independent Ant Design 6 frontend")
-				add(frontendV6Test(ctx.Root), path+" affects Ant Design 6 frontend behavior")
-				if frontendV6BuildSensitive(path) {
-					add(frontendV6Build(ctx.Root), path+" affects Ant Design 6 frontend build or routing configuration")
 				}
 			case isDocs(path):
 				add(docsBuild(ctx.Root), path+" affects the documentation site")
@@ -509,9 +500,9 @@ func backendBuild(root string) command.Spec {
 func frontendLint(root string) command.Spec {
 	return command.Spec{
 		ID:          "frontend-lint",
-		Description: "run frontend lint and TypeScript checks",
-		Directory:   filepath.Join(root, "web", "antd"),
-		Args:        []string{"corepack", "pnpm", "lint"},
+		Description: "run the Ant Design 6 frontend lint and TypeScript checks",
+		Directory:   filepath.Join(root, "web", "antd-v6"),
+		Args:        []string{"corepack", "pnpm@10.34.5", "lint"},
 		Environment: map[string]string{"CI": "true"},
 		Timeout:     15 * time.Minute,
 	}
@@ -520,9 +511,9 @@ func frontendLint(root string) command.Spec {
 func frontendTest(root string) command.Spec {
 	return command.Spec{
 		ID:          "frontend-test",
-		Description: "run frontend unit tests",
-		Directory:   filepath.Join(root, "web", "antd"),
-		Args:        []string{"corepack", "pnpm", "test", "--", "--runInBand"},
+		Description: "run the Ant Design 6 frontend unit tests",
+		Directory:   filepath.Join(root, "web", "antd-v6"),
+		Args:        []string{"corepack", "pnpm@10.34.5", "test:ci"},
 		Environment: map[string]string{"CI": "true"},
 		Timeout:     20 * time.Minute,
 	}
@@ -531,40 +522,7 @@ func frontendTest(root string) command.Spec {
 func frontendBuild(root string) command.Spec {
 	return command.Spec{
 		ID:          "frontend-build",
-		Description: "build the portable release frontend profile",
-		Directory:   filepath.Join(root, "web", "antd"),
-		Args:        []string{"corepack", "pnpm", "build:release"},
-		Environment: map[string]string{"CI": "true"},
-		Timeout:     20 * time.Minute,
-	}
-}
-
-func frontendV6Lint(root string) command.Spec {
-	return command.Spec{
-		ID:          "frontend-v6-lint",
-		Description: "run independent Ant Design 6 frontend lint and TypeScript checks",
-		Directory:   filepath.Join(root, "web", "antd-v6"),
-		Args:        []string{"corepack", "pnpm@10.34.5", "lint"},
-		Environment: map[string]string{"CI": "true"},
-		Timeout:     15 * time.Minute,
-	}
-}
-
-func frontendV6Test(root string) command.Spec {
-	return command.Spec{
-		ID:          "frontend-v6-test",
-		Description: "run independent Ant Design 6 frontend unit tests",
-		Directory:   filepath.Join(root, "web", "antd-v6"),
-		Args:        []string{"corepack", "pnpm@10.34.5", "test:ci"},
-		Environment: map[string]string{"CI": "true"},
-		Timeout:     20 * time.Minute,
-	}
-}
-
-func frontendV6Build(root string) command.Spec {
-	return command.Spec{
-		ID:          "frontend-v6-build",
-		Description: "build the independent Ant Design 6 release frontend",
+		Description: "build the Ant Design 6 release frontend",
 		Directory:   filepath.Join(root, "web", "antd-v6"),
 		Args:        []string{"corepack", "pnpm@10.34.5", "build:release"},
 		Environment: map[string]string{"CI": "true"},
@@ -595,10 +553,6 @@ func isAgentInfrastructure(path string) bool {
 }
 
 func isFrontend(path string) bool {
-	return strings.HasPrefix(path, "web/antd/")
-}
-
-func isFrontendV6(path string) bool {
 	return strings.HasPrefix(path, "web/antd-v6/")
 }
 
@@ -626,15 +580,6 @@ func isBackend(path string) bool {
 }
 
 func frontendBuildSensitive(path string) bool {
-	return strings.HasPrefix(path, "web/antd/config/") ||
-		strings.HasPrefix(path, "web/antd/src/modules/") ||
-		strings.HasPrefix(path, "web/antd/src/pages/") ||
-		strings.HasSuffix(path, "package.json") ||
-		strings.HasSuffix(path, "pnpm-lock.yaml") ||
-		strings.HasSuffix(path, "tsconfig.json")
-}
-
-func frontendV6BuildSensitive(path string) bool {
 	return strings.HasPrefix(path, "web/antd-v6/config/") ||
 		strings.HasPrefix(path, "web/antd-v6/src/modules/") ||
 		strings.HasPrefix(path, "web/antd-v6/src/pages/") ||

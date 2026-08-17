@@ -12,11 +12,9 @@ type ThemeOverrides struct {
 	ColorPrimary *string `json:"colorPrimary,omitempty"`
 }
 
-// ThemeResource is the canonical v1 representation selected with
-// Accept: application/vnd.mss.theme.v1+json. ThemeOverrides is embedded so the
-// seven supported values remain flat while _meta carries the authoritative
-// scope revision used for reconciliation. The historical application-only pwa
-// setting is deliberately excluded from this contract.
+// ThemeResource is the sole V6 theme representation. ThemeOverrides is
+// embedded so the seven supported values remain flat while _meta carries the
+// authoritative scope revision used for reconciliation.
 type ThemeResource struct {
 	ThemeOverrides
 	Meta ThemeResourceMeta `json:"_meta"`

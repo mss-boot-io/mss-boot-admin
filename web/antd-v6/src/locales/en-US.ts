@@ -6,7 +6,6 @@ export default {
   'menu.register': 'Register',
   'menu.forget-password': 'Recover password',
   'menu.workplace': 'Workplace',
-  'menu.migration': 'Migration status',
   'menu.app-config': 'Application settings',
   'menu.account-center': 'Account center',
   'menu.account-settings': 'Personal settings',
@@ -163,16 +162,6 @@ export default {
   'actions.edit': 'Edit',
   'actions.delete': 'Delete',
   'actions.backToWorkplace': 'Back to workplace',
-  'migration.title': 'Ant Design 6 migration status',
-  'migration.description':
-    'The V6 migration capabilities are delivered and remain governed by CI and independent release gates. The Supplier generator is ready, while the example module stays out of the initial menu by default.',
-  'migration.status.ready': 'Ready',
-  'migration.capability.release': 'Independent dependency, build, and release contract',
-  'migration.capability.shell': 'React 19 / antd 6 / Pro v3 application shell',
-  'migration.capability.session': 'Cookie, CSRF, session refresh, and WebSocket tickets',
-  'migration.capability.authorization': 'Identity, RBAC, authorized menus, and theme',
-  'migration.capability.business': 'Organization, settings, tasks, notices, and observability',
-  'migration.capability.generator': 'Supplier v6 generator golden',
   'operations.forbidden.read': 'You do not have permission to view this operational resource.',
   'operations.refreshFailed': 'Refresh failed. The last successfully loaded data remains visible.',
   'task.title': 'Task scheduler',
@@ -444,7 +433,6 @@ export default {
   'menu.field.path': 'Path',
   'menu.field.type': 'Type',
   'menu.field.permission': 'Permission key',
-  'menu.field.component': 'V5 compatibility component',
   'menu.field.icon': 'Icon',
   'menu.field.method': 'Method',
   'menu.field.hideInMenu': 'Hide from navigation',
@@ -452,7 +440,7 @@ export default {
   'menu.delete.description':
     'Deletion is blocked while child nodes or active authorization policies reference it.',
   'menu.compiledRegistry.notice':
-    'The component field is retained for V5 compatibility. V6 never executes component strings supplied by the database.',
+    'V6 routes come from the compiled registry. Database menu metadata controls navigation and access, never component execution.',
   'language.title': 'Languages',
   'language.description':
     'Maintain controlled interface translations. Lists load summaries and definitions are fetched on demand.',
@@ -615,7 +603,6 @@ export default {
   'pages.appConfig.security.larkEnabled': 'Lark sign-in',
   'pages.appConfig.security.githubAllowGroup': 'Allowed GitHub organizations (comma-separated)',
   'pages.appConfig.security.browserOAuthTitle': '{provider} · V6 browser session',
-  'pages.appConfig.security.legacyOAuthTitle': '{provider} · V5 compatibility',
   'pages.appConfig.security.clientId': 'Client ID',
   'pages.appConfig.security.clientSecret': 'Client secret',
   'pages.appConfig.security.appId': 'App ID',
@@ -623,9 +610,7 @@ export default {
   'pages.appConfig.security.redirectUri': 'Redirect URI',
   'pages.appConfig.security.scope': 'Scope',
   'pages.appConfig.security.browserOAuthDescription':
-    'Used by the independently deployed V6 HttpOnly-cookie session. Client, secret, and exact callback URI are not shared with V5.',
-  'pages.appConfig.security.legacyOAuthDescription':
-    'Used only by a separately running V5 bearer client. These values never overwrite V6 Browser Session credentials.',
+    'Used only by the V6 HttpOnly-cookie session. Configure a dedicated client, secret, and exact callback URI.',
   'pages.appConfig.storage.admissionOnlyTitle': 'Only upload admission is managed here',
   'pages.appConfig.storage.admissionOnlyDescription':
     'The storage provider, bucket, and access credentials are startup configuration and cannot be changed in a browser.',
@@ -823,7 +808,7 @@ export default {
   'account.security.loadFailed': 'Unable to load account security status.',
   'account.security.sessionRequiredTitle': 'A new secure session is required',
   'account.security.sessionRequiredDescription':
-    'This sign-in came from a legacy or expired browser session. Password changes and external-account disconnections require a revocable, auditable V6 interactive session.',
+    'This sign-in has no active durable browser session or has expired. Password changes and external-account disconnections require a revocable, auditable interactive session.',
   'account.security.sessionRequiredAction': 'Sign in again and continue',
   'account.security.operationFailed': 'The account security operation failed',
   'account.security.passwordOwnershipTitle': 'Your password is managed by you',

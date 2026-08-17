@@ -72,12 +72,13 @@ type FrontendSpec struct {
 	Framework             string                    `yaml:"framework" json:"framework"`
 	ApplicationFramework  string                    `yaml:"applicationFramework" json:"applicationFramework"`
 	ComponentLibrary      string                    `yaml:"componentLibrary" json:"componentLibrary"`
+	DefaultApplication    string                    `yaml:"defaultApplication,omitempty" json:"defaultApplication,omitempty"`
 	Applications          []FrontendApplicationSpec `yaml:"applications,omitempty" json:"applications,omitempty"`
 }
 
 // FrontendApplicationSpec identifies one independently built and released web
-// application. The fields on FrontendSpec remain the legacy default toolchain
-// contract for downstream snapshots that predate multiple frontends.
+// application. The fields on FrontendSpec are shared toolchain defaults; this
+// foundation currently accepts Ant Design 6 as its sole application.
 type FrontendApplicationSpec struct {
 	ID                    string `yaml:"id" json:"id"`
 	Path                  string `yaml:"path" json:"path"`
@@ -285,6 +286,41 @@ func (c *Context) Validate() error {
 			problems = append(problems, "project repositoryLayout."+key+" escapes repository root")
 		}
 	}
+	applicationIDs := make(map[string]bool, len(c.Project.Spec.Frontend.Applications))
+	applicationPaths := make(map[string]bool, len(c.Project.Spec.Frontend.Applications))
+	for index, application := range c.Project.Spec.Frontend.Applications {
+		id := strings.TrimSpace(application.ID)
+		path := strings.TrimSpace(application.Path)
+		if id == "" {
+			problems = append(problems, fmt.Sprintf("project frontend applications[%d].id is required", index))
+		} else if applicationIDs[id] {
+			problems = append(problems, "project frontend application id "+id+" is duplicated")
+		} else {
+			applicationIDs[id] = true
+		}
+		if path == "" {
+			problems = append(problems, fmt.Sprintf("project frontend applications[%d].path is required", index))
+		} else if !pathWithinRoot(c.Root, path) {
+			problems = append(problems, "project frontend application "+id+" path escapes repository root")
+		} else if applicationPaths[path] {
+			problems = append(problems, "project frontend application path "+path+" is duplicated")
+		} else {
+			applicationPaths[path] = true
+		}
+	}
+	if defaultID := strings.TrimSpace(c.Project.Spec.Frontend.DefaultApplication); defaultID != "" {
+		if !applicationIDs[defaultID] {
+			problems = append(problems, "project frontend defaultApplication must identify a configured application")
+		} else if application, ok := c.DefaultFrontendApplication(); ok &&
+			strings.TrimSpace(c.Project.Spec.RepositoryLayout["frontend"]) != strings.TrimSpace(application.Path) {
+			problems = append(problems, "project repositoryLayout.frontend must equal the default frontend application path")
+		}
+	} else if len(c.Project.Spec.Frontend.Applications) > 1 {
+		defaultPath := strings.TrimSpace(c.Project.Spec.RepositoryLayout["frontend"])
+		if !applicationPaths[defaultPath] {
+			problems = append(problems, "project frontend defaultApplication is required when repositoryLayout.frontend does not identify one configured application")
+		}
+	}
 	if c.Capabilities.APIVersion != "mss.io/v1alpha1" || c.Capabilities.Kind != "CapabilityCatalog" {
 		problems = append(problems, "capabilities.yaml must be mss.io/v1alpha1 CapabilityCatalog")
 	}
@@ -298,6 +334,33 @@ func (c *Context) Validate() error {
 		return errors.New(strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+// DefaultFrontendApplication resolves the explicitly selected primary
+// application. Snapshots without defaultApplication resolve through
+// repositoryLayout.frontend, while validation still requires that path to
+// identify the sole configured Ant Design 6 application.
+func (c *Context) DefaultFrontendApplication() (FrontendApplicationSpec, bool) {
+	frontend := c.Project.Spec.Frontend
+	defaultID := strings.TrimSpace(frontend.DefaultApplication)
+	defaultPath := strings.TrimSpace(c.Project.Spec.RepositoryLayout["frontend"])
+	for _, application := range frontend.Applications {
+		if (defaultID != "" && strings.TrimSpace(application.ID) == defaultID) ||
+			(defaultID == "" && strings.TrimSpace(application.Path) == defaultPath) {
+			return application, true
+		}
+	}
+	if len(frontend.Applications) == 0 && defaultPath != "" {
+		return FrontendApplicationSpec{
+			ID:                    "frontend",
+			Path:                  defaultPath,
+			Role:                  "primary",
+			NodeVersion:           frontend.NodeVersion,
+			PackageManager:        frontend.PackageManager,
+			PackageManagerVersion: frontend.PackageManagerVersion,
+		}, true
+	}
+	return FrontendApplicationSpec{}, false
 }
 
 // Sort makes agent-visible output deterministic.

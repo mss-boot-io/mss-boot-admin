@@ -25,7 +25,7 @@ This document is generated deterministically from [`.mss/modules/example-supplie
 | Authorization migration | `20260811120000` |
 | API base | `/admin/api/suppliers` |
 | Frontend route | `/suppliers` |
-| Frontend targets | `antd-v5`, `antd-v6` |
+| Frontend target | `antd-v6` |
 | Ownership | role-only; no row ownership fallback |
 
 Both migrations are additive and must be applied by the Admin migration command before production routes are mounted. Authorization remains enforced by the Admin database-backed Casbin policy; frontend visibility is only a user-experience aid.
@@ -57,7 +57,6 @@ Both migrations are additive and must be applied by the Admin migration command 
 
 Each selected frontend target receives an isolated generated page with the declared loading, empty, error, forbidden, validation, conflict, and destructive-confirmation states. Browser entries are target-specific:
 
-- Ant Design 5: `web/antd/e2e/generated/supplier.spec.ts`;
 - Ant Design 6: `web/antd-v6/e2e/generated/supplier.spec.ts`.
 
 Each generated flow covers the declared surfaces:
@@ -76,12 +75,9 @@ From the repository root:
 
 ```shell
 go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json
-go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v5 --write
-go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v5 --check
 go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --write
 go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --check
 cd admin && GOWORK=off go test ./modules/supplier/...
-cd web/antd && pnpm exec playwright test e2e/generated/supplier.spec.ts --project=chromium
 cd web/antd-v6 && pnpm exec playwright test e2e/generated/supplier.spec.ts --project=chromium-desktop
 ```
 

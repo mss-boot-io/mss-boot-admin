@@ -333,7 +333,7 @@ func generatorTestModule() *spec.Module {
 			API: spec.APISpec{
 				BasePath:   "/suppliers",
 				Version:    "v1",
-				Operations: []string{"list", "get", "create", "update", "delete"},
+				Operations: []string{"list", "get", "create", "update", "delete", "export"},
 			},
 			Permissions: []spec.Permission{
 				{Action: "list", DisplayName: "列表"},
@@ -341,6 +341,7 @@ func generatorTestModule() *spec.Module {
 				{Action: "create", DisplayName: "创建"},
 				{Action: "update", DisplayName: "更新"},
 				{Action: "delete", DisplayName: "删除"},
+				{Action: "export", DisplayName: "导出"},
 			},
 			Ownership: spec.OwnershipSpec{Mode: "none"},
 			Menu: spec.MenuSpec{
@@ -349,7 +350,7 @@ func generatorTestModule() *spec.Module {
 				DisplayNameEn: "Suppliers",
 				Icon:          "shop",
 			},
-			UI: spec.UISpec{List: true, Form: true, Detail: true},
+			UI: spec.UISpec{List: true, Form: true, Detail: true, Export: true},
 			Tests: spec.TestSpec{
 				Unit:             true,
 				API:              true,
@@ -374,6 +375,9 @@ func TestGenerateRejectsUnsupportedBackendProjectionBeforeWriting(t *testing.T) 
 	root := t.TempDir()
 	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
 	module := generatorTestModule()
+	frontend := false
+	module.Spec.Generation.Frontend = &frontend
+	module.Spec.Generation.FrontendTargets = nil
 	module.Spec.Entity.Fields[0].Type = "int64"
 	plan, err := Generate(module, Options{Root: root, Write: true})
 	var projectionError *ProjectionError
@@ -532,17 +536,19 @@ func TestGenerateReportsCompleteDocsAndBrowserE2EOutputs(t *testing.T) {
 		t.Fatalf("projection truth = deferred:%t complete:%t", deferred, plan.Complete)
 	}
 	generatedOutputs := map[string]bool{
-		"docs/docs/modules/supplier.md":                   false,
-		"web/antd/config/routes.generated.ts":             false,
-		"web/antd/e2e/generated/supplier.spec.ts":         false,
-		"web/antd/src/locales/generated.en-US.ts":         false,
-		"web/antd/src/locales/generated.zh-CN.ts":         false,
-		"web/antd/src/modules/supplier/contracts.ts":      false,
-		"web/antd/src/modules/supplier/contracts.test.ts": false,
-		"web/antd/src/modules/supplier/index.tsx":         false,
-		"web/antd/src/modules/supplier/service.ts":        false,
-		"web/antd/src/modules/supplier/types.ts":          false,
-		"web/antd/src/pages/generated/Supplier/index.tsx": false,
+		"docs/docs/modules/supplier.md":                               false,
+		"web/antd-v6/config/routes.generated.ts":                      false,
+		"web/antd-v6/e2e/generated/supplier.spec.ts":                  false,
+		"web/antd-v6/src/generated/locales/en-US.ts":                  false,
+		"web/antd-v6/src/generated/locales/zh-CN.ts":                  false,
+		"web/antd-v6/src/generated/modules/supplier/SupplierPage.tsx": false,
+		"web/antd-v6/src/generated/modules/supplier/api.ts":           false,
+		"web/antd-v6/src/generated/modules/supplier/contract.test.ts": false,
+		"web/antd-v6/src/generated/modules/supplier/contract.ts":      false,
+		"web/antd-v6/src/generated/modules/supplier/query.ts":         false,
+		"web/antd-v6/src/generated/modules/supplier/types.ts":         false,
+		"web/antd-v6/src/generated/routes.ts":                         false,
+		"web/antd-v6/src/pages/generated/Supplier/index.tsx":          false,
 	}
 	for _, change := range plan.Changes {
 		if _, expected := generatedOutputs[change.Path]; expected {
@@ -567,10 +573,10 @@ func TestGenerateReportsCompleteDocsAndBrowserE2EOutputs(t *testing.T) {
 			"20260810160001",
 			"e2e/generated/supplier.spec.ts",
 		},
-		"web/antd/e2e/generated/supplier.spec.ts": {
+		"web/antd-v6/e2e/generated/supplier.spec.ts": {
 			generatedMarker,
-			"MSS_E2E_API_URL",
-			"create, detail, edit, export, and delete",
+			"MSS_V6_BASE_URL",
+			"mss_admin_session",
 		},
 	} {
 		content, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
@@ -590,14 +596,7 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 	root := t.TempDir()
 	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
 	module := generatorTestModule()
-	module.Spec.Generation.FrontendTargets = []string{spec.FrontendTargetAntDV5, spec.FrontendTargetAntDV6}
-	module.Spec.API.Operations = append(module.Spec.API.Operations, "export")
-	module.Spec.Permissions = append(module.Spec.Permissions, spec.Permission{
-		Action:       "export",
-		DisplayName:  "导出",
-		DefaultRoles: []string{"admin"},
-	})
-	module.Spec.UI.Export = true
+	module.Spec.Generation.FrontendTargets = []string{spec.FrontendTargetAntDV6}
 
 	options := Options{Root: root, Write: true, FrontendTarget: spec.FrontendTargetAntDV6}
 	written, err := Generate(module, options)
@@ -622,9 +621,6 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 		"web/antd-v6/src/pages/generated/Supplier/index.tsx":          false,
 	}
 	for _, change := range written.Changes {
-		if strings.HasPrefix(change.Path, "web/antd/") {
-			t.Fatalf("v6 generation crossed into legacy frontend: %s", change.Path)
-		}
 		if _, exists := expected[change.Path]; exists {
 			expected[change.Path] = true
 		}
@@ -680,17 +676,17 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 	}
 }
 
-func TestGenerateRejectsUndeclaredFrontendTargetBeforeWriting(t *testing.T) {
+func TestGenerateRejectsUnsupportedFrontendTargetBeforeWriting(t *testing.T) {
 	repositoryRoot := findRepositoryRoot(t)
 	root := t.TempDir()
 	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
 	plan, err := Generate(generatorTestModule(), Options{
 		Root:           root,
 		Write:          true,
-		FrontendTarget: spec.FrontendTargetAntDV6,
+		FrontendTarget: "unsupported-frontend",
 	})
-	if err == nil || !strings.Contains(err.Error(), "does not declare frontend target") {
-		t.Fatalf("Generate(undeclared v6) error = %v", err)
+	if err == nil || !strings.Contains(err.Error(), "unsupported frontend target") {
+		t.Fatalf("Generate(unsupported frontend) error = %v", err)
 	}
 	if len(plan.Changes) != 0 {
 		t.Fatalf("undeclared target changes = %#v, want none", plan.Changes)
@@ -717,12 +713,12 @@ func TestGenerateAlignsAuthorizedMenuNamesWithLocaleKeys(t *testing.T) {
 			"name:       \"supplier\"",
 			"Name:   \"procurement\"",
 		},
-		"web/antd/src/locales/generated.zh-CN.ts": {
+		"web/antd-v6/src/generated/locales/zh-CN.ts": {
 			"\"menu.procurement\": \"采购管理\"",
 			"\"menu.procurement.supplier\": \"供应商管理\"",
 			"\"menu.supplier\": \"供应商管理\"",
 		},
-		"web/antd/src/locales/generated.en-US.ts": {
+		"web/antd-v6/src/generated/locales/en-US.ts": {
 			"\"menu.procurement\": \"Procurement\"",
 			"\"menu.procurement.supplier\": \"Suppliers\"",
 			"\"menu.supplier\": \"Suppliers\"",
@@ -766,7 +762,7 @@ func TestGenerateWidensComparableE2EFieldNames(t *testing.T) {
 	if _, err := Generate(generatorTestModule(), Options{Root: root, Write: true}); err != nil {
 		t.Fatalf("Generate(comparable E2E fields) error = %v", err)
 	}
-	path := filepath.Join(root, "web", "antd", "e2e", "generated", "supplier.spec.ts")
+	path := filepath.Join(root, "web", "antd-v6", "e2e", "generated", "supplier.spec.ts")
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read generated E2E: %v", err)

@@ -157,7 +157,7 @@ test('@parity OAuth login preserves an attempt-bound safe deep link', async ({
     .poll(() => page.evaluate((key) => window.sessionStorage.getItem(key), redirectKey))
     .toContain('/users?page=2#details');
 
-  await page.goto('/user/callback/github?code=provider-code&state=opaque-state');
+  await page.goto('/user/oauth/callback/github?code=provider-code&state=opaque-state');
   await page.waitForURL('**/users?page=2#details');
   expect(await page.evaluate((key) => window.sessionStorage.getItem(key), redirectKey)).toBeNull();
   const sessionMetadata = await page.evaluate(() =>

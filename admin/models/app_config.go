@@ -39,7 +39,6 @@ type AppConfig struct {
 
 const (
 	appConfigCacheHash            = "app-configs:{entry}:v1"
-	legacyAppConfigCacheHash      = "appConfig"
 	appConfigCacheEnvelopeVersion = 1
 	appConfigCacheStateFound      = "found"
 	appConfigCacheStateMissing    = "missing"
@@ -164,14 +163,10 @@ func cacheAppConfig(ctx *gin.Context, group, name, state, value string, ttl time
 	cacheCtx, cancel := appConfigCacheContext(ctx)
 	_ = cache.HSet(cacheCtx, appConfigCacheHash, appConfigCacheField(group, name), payload).Err()
 	cancel()
-	// A successful read-through is also the lazy migration point for the old raw-value hash.
-	deleteAppConfigCacheField(ctx, legacyAppConfigCacheHash, group, name)
 }
 
 func invalidateAppConfigCache(ctx *gin.Context, group, name string) {
-	for _, hash := range []string{appConfigCacheHash, legacyAppConfigCacheHash} {
-		deleteAppConfigCacheField(ctx, hash, group, name)
-	}
+	deleteAppConfigCacheField(ctx, appConfigCacheHash, group, name)
 }
 
 func (e *AppConfig) SetAppConfig(ctx *gin.Context, key string, auth bool, value string) error {
@@ -409,7 +404,7 @@ func getAppConfig(ctx *gin.Context, key string) (*AppConfig, error) {
 	}
 	if c.Auth {
 		// Authenticated configuration can contain credentials. Never retain it in the
-		// shared cache, including legacy raw values or invalid envelopes encountered above.
+		// shared cache, including invalid envelopes encountered above.
 		invalidateAppConfigCache(ctx, c.Group, c.Name)
 	} else {
 		cacheAppConfig(ctx, c.Group, c.Name, appConfigCacheStateFound, c.Value, appConfigCacheTTL)

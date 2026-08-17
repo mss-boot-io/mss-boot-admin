@@ -25,7 +25,7 @@ spec:
     - Improve workplace information density, focus visibility, theme readability, and navigation consistency.
     - Reduce avoidable duplicate requests and keep optional heavy UI code out of unrelated routes.
   nonGoals:
-    - Redesign every legacy CRUD module or replace Ant Design Pro.
+    - Redesign every retained CRUD module or replace Ant Design Pro.
     - Add a new notification delivery backend, bulk-read API, or verified phone/email binding protocol.
     - Remove authorization checks or make frontend visibility the source of authorization truth.
     - Change the layered theme persistence contract.
@@ -103,14 +103,15 @@ spec:
         - Initial list requests do not briefly render the confirmed-empty illustration.
         - Request failures retain retry affordances and do not silently become empty results.
     - id: stable-runtime-feedback
-      title: Keep browser lifecycle feedback valid outside React renders
-      description: Service-worker events use the imperative locale API and never call React hooks.
+      title: Keep runtime feedback localized and render-safe
+      description: Transport and page-state errors use the shared locale catalog without hidden Chinese fallbacks.
       priority: must
       actor: account-user
       module: frontend-runtime
       rules:
-        - Offline and update events format messages without useIntl or another React hook.
-        - The update action waits for skip-waiting, preserves the newly activated Workbox precache, and reloads only after success.
+        - Offline, authorization, not-found, and retryable errors resolve through synchronized zh-CN and en-US keys.
+        - Shared page states require explicit locale text and never substitute a hard-coded language.
+        - The V6 application does not register a service worker or cache authenticated API responses.
     - id: useful-header-and-navigation
       title: Avoid dead global navigation controls
       description: Header search and workplace aliases must lead to a real authorized destination.
@@ -142,7 +143,7 @@ spec:
       rules:
         - CI and release builds fail when the entry or an asynchronous JavaScript chunk exceeds its gzip budget.
         - Invalid or non-positive budget configuration fails closed instead of disabling the check.
-        - Hashed assets are compressed and immutable, while HTML and service-worker responses are never long-term cached.
+        - Hashed assets are compressed and immutable, while HTML is never long-term cached.
         - Missing hashed assets return a non-cacheable 404 and SPA navigation still falls back to the application shell.
   constraints:
     - id: backend-authority
@@ -165,7 +166,7 @@ spec:
       required: true
       evidence:
         - type: test
-          value: web/antd/src/pages/AppConfig/index.test.tsx
+          value: web/antd-v6/e2e/settings.spec.ts
     - id: profile-contract-tests
       requirement: correct-profile-form-contract
       statement: Tests cover province changes, city option resolution, string payloads, and upload prop shape.
@@ -173,7 +174,7 @@ spec:
       required: true
       evidence:
         - type: test
-          value: web/antd/src/pages/Account/Settings/components/base.test.tsx
+          value: web/antd-v6/src/modules/account/contracts.test.ts
     - id: notification-tests
       requirement: truthful-notification-center
       statement: Tests prove fake CRUD controls are absent and mark-as-read performs the API request before feedback.
@@ -181,7 +182,7 @@ spec:
       required: true
       evidence:
         - type: test
-          value: web/antd/src/pages/Notice/Mobile/NoticeList.test.tsx
+          value: web/antd-v6/src/modules/operations/NoticeCenter.test.tsx
     - id: responsive-action-tests
       requirement: responsive-action-parity
       statement: Tests cover mobile user password reset and task start or stop behavior.
@@ -189,17 +190,21 @@ spec:
       required: true
       evidence:
         - type: test
-          value: web/antd/src/pages/User/Mobile/UserList.test.tsx
+          value: web/antd-v6/src/pages/administration.guards.test.tsx
         - type: test
-          value: web/antd/src/pages/Task/Mobile/TaskList.test.tsx
+          value: web/antd-v6/src/pages/operations.guards.test.tsx
     - id: runtime-feedback-tests
       requirement: stable-runtime-feedback
-      statement: Service-worker tests cover imperative localization, activation ordering, precache preservation, and the failure path that must not reload.
+      statement: Catalog, transport, and shared page-state tests cover localized offline, authorization, empty, not-found, and retryable-error feedback without implicit language fallbacks.
       level: unit
       required: true
       evidence:
         - type: test
-          value: web/antd/src/global.test.tsx
+          value: web/antd-v6/src/shared/api/client.test.ts
+        - type: test
+          value: web/antd-v6/src/shared/design-system/PageState.test.tsx
+        - type: test
+          value: web/antd-v6/src/locales/catalog.test.ts
     - id: loading-state-tests
       requirement: honest-loading-states
       statement: User dependencies have a unified loading surface and a retryable error state; mobile list tests retain a distinct initial-loading state.
@@ -207,9 +212,9 @@ spec:
       required: true
       evidence:
         - type: path
-          value: web/antd/src/pages/User/index.tsx
+          value: web/antd-v6/src/modules/administration/UserManagement.tsx
         - type: test
-          value: web/antd/src/pages/User/Mobile/UserList.test.tsx
+          value: web/antd-v6/src/modules/administration/query.test.ts
     - id: authorized-navigation-tests
       requirement: useful-header-and-navigation
       statement: Tests cover authorized menu filtering, shared request caching, keyboard search behavior, navigation, and canonical workplace redirects.
@@ -217,13 +222,13 @@ spec:
       required: true
       evidence:
         - type: test
-          value: web/antd/src/components/AuthorizedMenuSearch/index.test.tsx
+          value: web/antd-v6/src/shared/navigation/MenuSearch.test.tsx
         - type: test
-          value: web/antd/src/components/HeaderSearch/index.test.tsx
+          value: web/antd-v6/src/shared/navigation/MenuSearch.test.tsx
         - type: test
-          value: web/antd/src/utils/requestAuthorizedMenu.test.ts
+          value: web/antd-v6/src/shared/auth/access.test.ts
         - type: test
-          value: web/antd/config/routes.test.ts
+          value: web/antd-v6/src/shared/routes/registry.test.ts
     - id: production-delivery-gates
       requirement: production-static-delivery
       statement: Production build budgets run in local, CI, and release paths, and the Nginx image is verified for compression, cache headers, 404 behavior, and SPA fallback.
@@ -231,17 +236,17 @@ spec:
       required: true
       evidence:
         - type: command
-          value: cd web/antd && pnpm delivery:smoke
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 delivery:smoke
         - type: path
-          value: web/antd/scripts/check-bundle-budget.mjs
+          value: web/antd-v6/scripts/check-bundle-budget.mjs
         - type: path
-          value: web/antd/scripts/smoke-nginx-delivery.sh
+          value: web/antd-v6/scripts/smoke-nginx-delivery.sh
         - type: path
-          value: web/antd/nginx.conf
+          value: web/antd-v6/nginx.conf
         - type: path
-          value: .github/workflows/frontend-ci.yml
+          value: .github/workflows/frontend-v6-ci.yml
         - type: path
-          value: .github/workflows/frontend-release.yml
+          value: .github/workflows/frontend-v6-release.yml
     - id: browser-matrix
       requirement: readable-efficient-workplace
       statement: The in-app browser verifies workplace, app settings, account settings, users, notices, and tasks at desktop and 375-pixel widths in light and realDark themes.
@@ -255,11 +260,10 @@ spec:
     all: go run ./cmd/mss verify --all
     custom:
       - go run ./cmd/mss spec validate .mss/features/admin-ui-experience-quality.yaml --format json
-      - corepack pnpm@9.15.9 --dir web/antd lint:js
-      - corepack pnpm@9.15.9 --dir web/antd tsc
-      - corepack pnpm@9.15.9 --dir web/antd test -- --runInBand
-      - corepack pnpm@9.15.9 --dir web/antd build:prod
-      - corepack pnpm@9.15.9 --dir web/antd delivery:smoke
+      - corepack pnpm@10.34.5 --dir web/antd-v6 lint
+      - corepack pnpm@10.34.5 --dir web/antd-v6 test:ci
+      - corepack pnpm@10.34.5 --dir web/antd-v6 build:release
+      - corepack pnpm@10.34.5 --dir web/antd-v6 delivery:smoke
   rollout:
     strategy: phased
     migration: >-

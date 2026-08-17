@@ -1,9 +1,13 @@
 # Build Ant Design 6 as an independently released Admin application
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-08-15
 - Owners: Admin Platform, Frontend, Release Engineering
 - Feature contract: `.mss/features/admin-antd-v6-application.yaml`
+
+This document records the temporary dual-application construction phase. It is
+fully superseded by `2026-08-17-ant-design-v6-default-cutover.md`, which makes V6
+the only active frontend and permits rollback only to a preceding V6 artifact.
 
 ## Context
 
