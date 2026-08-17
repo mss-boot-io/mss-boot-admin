@@ -60,21 +60,33 @@ describe('browser request security headers', () => {
       browserRequestHeaders(
         'POST',
         {
-          common: { Accept: 'application/json' },
+          common: { Accept: 'application/json, text/plain, */*' },
           delete: {},
           get: {},
-          post: { 'Content-Type': 'application/json' },
+          post: { 'Content-Type': 'application/x-www-form-urlencoded' },
           'If-Match': '"revision-5"',
         },
         'signed-csrf-value',
       ),
     );
 
-    expect(headers.get('Accept')).toBe('application/json');
-    expect(headers.get('Content-Type')).toBe('application/json');
+    expect(headers.get('Accept')).toBe('application/json, text/plain, */*');
+    expect(headers.get('Content-Type')).toBeNull();
     expect(headers.get('If-Match')).toBe('"revision-5"');
     expect(headers.get('X-CSRF-Token')).toBe('signed-csrf-value');
     expect(headers.get('common')).toBeNull();
     expect(headers.get('post')).toBeNull();
+  });
+
+  it('preserves a caller-provided content type after discarding Axios serialization defaults', () => {
+    const headers = new Headers(
+      browserRequestHeaders('PUT', {
+        common: { Accept: 'application/json' },
+        put: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        'Content-Type': 'application/merge-patch+json',
+      }),
+    );
+
+    expect(headers.get('Content-Type')).toBe('application/merge-patch+json');
   });
 });

@@ -82,6 +82,11 @@ export function browserRequestHeaders(
   if (rawHeaders && !Array.isArray(rawHeaders) && !(rawHeaders instanceof Headers)) {
     append(rawHeaders.common);
     append(rawHeaders[method.toLowerCase()]);
+    // Axios 0.x stores form serialization defaults in the method buckets.
+    // Promoting that internal default to a flat explicit header prevents its
+    // transform from selecting JSON for object request bodies. Callers can
+    // still provide an intentional top-level Content-Type below.
+    headers.delete('Content-Type');
     append(rawHeaders, true);
   } else {
     append(initialHeaders);
