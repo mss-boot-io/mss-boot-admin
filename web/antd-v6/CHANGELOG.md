@@ -12,6 +12,9 @@ and the root changelog, not as a current release surface.
   and root distribution now select V6; rollback selects a preceding V6 pair.
 - Establish the React 19 and Ant Design 6.6.0 application foundation.
 - Add exact dependency, bundle, same-origin delivery, CI, and release contracts.
+- Use the deeper Terser release profile while retaining fast esbuild local builds,
+  reducing the complete compressed JavaScript corpus from 958.47 KiB to 859.97 KiB
+  and lowering the enforced release ceiling to 900 KiB.
 - Use mandatory credential-free browser login, refresh, and OAuth callback endpoints;
   the backend has no stateless or retired-client browser compatibility mode.
 - Add signed-CSRF request integration and a single-use WebSocket subprotocol ticket client.

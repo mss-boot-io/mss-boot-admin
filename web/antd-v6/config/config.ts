@@ -111,6 +111,10 @@ export default defineConfig({
   hash: true,
   history: { type: 'browser' },
   initialState: {},
+  // The release artifact favors transfer size over compiler throughput. Terser
+  // performs deeper cross-statement compression than the development-oriented
+  // esbuild minifier, while local builds keep the faster default.
+  jsMinifier: environment === 'release' ? 'terser' : 'esbuild',
   locale: {
     antd: true,
     baseNavigator: true,
