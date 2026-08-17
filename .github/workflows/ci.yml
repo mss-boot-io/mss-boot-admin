@@ -20,17 +20,8 @@ on:
   pull_request:
     branches:
       - main
-    paths-ignore:
-      - 'docs/**'
-      - 'web/antd-v6/**'
-      - '.agents/**'
-      - '.codex/**'
-      - '.cursor/**'
-      - '**/*.md'
-      - '.github/workflows/agent-native-ci.yml'
-      - '.github/workflows/docs.yml'
-      - '.github/workflows/frontend-v6-ci.yml'
-      - '.github/workflows/swagger.yml'
+    # Branch protection requires the admin-ci context. Keep pull requests
+    # unfiltered so GitHub always creates that required check.
   workflow_dispatch:
 
 permissions:
