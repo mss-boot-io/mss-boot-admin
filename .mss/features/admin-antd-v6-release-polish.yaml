@@ -1,0 +1,185 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-antd-v6-release-polish
+  displayName: Qualify and polish the single Ant Design 6 product
+  description: >-
+    Reconciles post-cutover contracts, records one Codex in-app Browser product
+    acceptance, closes the highest-value retained-flow evidence gaps, and restores
+    sustainable production-bundle headroom before the V6 release is frozen.
+  owner: admin-platform
+  labels:
+    domain: admin-foundation
+    phase: implementation
+spec:
+  problem: >-
+    Pull request #485 completed the V6-only cutover, but several machine-readable
+    statuses still describe pre-cutover work, browser acceptance is not bound to the
+    user-selected in-app Browser surface, and the production JavaScript corpus is too
+    close to its release ceiling to absorb normal product growth safely.
+  goals:
+    - Make capability, feature, and historical retirement records describe the merged-main V6-only state accurately.
+    - Use the Codex in-app Browser as the sole manual browser acceptance surface.
+    - Verify the highest-value retained product journeys without creating a broad cross-browser matrix.
+    - Reduce the production JavaScript corpus enough to create measurable release headroom.
+    - Keep the exact Ant Design 6.6.0 and ProComponents v3 prerelease compatibility boundary visible.
+  nonGoals:
+    - Reintroduce or preserve an Ant Design 5 frontend or backend browser compatibility route.
+    - Add Firefox, Safari, WebKit, or Edge-specific release jobs.
+    - Publish a tag, package, image, or GitHub Release from this topic branch.
+    - Replace the existing focused Chromium automation with a broad browser laboratory.
+  actors:
+    - id: admin-user
+      displayName: Admin user
+      description: Completes retained daily management work in the single V6 application.
+    - id: release-manager
+      displayName: Release manager
+      description: Freezes and publishes only an exact qualified commit already merged into main.
+  modules:
+    - name: release-contracts
+      operation: extend
+      description: Post-cutover capability, feature, evidence, and release qualification records.
+    - name: product-acceptance
+      operation: extend
+      description: Focused automated journeys plus one in-app Browser manual product review.
+    - name: frontend-delivery
+      operation: extend
+      description: Production bundle ownership, budget, and dependency-risk evidence.
+  requirements:
+    - id: reconcile-post-cutover-state
+      title: Machine-readable state reflects the merged cutover
+      description: Active contracts no longer advertise completed work as planned or implementing.
+      priority: must
+      actor: release-manager
+      module: release-contracts
+      rules:
+        - The V5 retirement feature is qualified and names the merged pull request and commit.
+        - The implemented theme capability is beta rather than planned while its UI dependency remains a prerelease.
+        - The pre-cutover retirement inventory is explicitly historical and cannot be mistaken for current deletion readiness.
+    - id: accept-one-browser-surface
+      title: Manual acceptance uses only the Codex in-app Browser
+      description: Product review stays focused on the browser surface selected by the product owner.
+      priority: must
+      actor: admin-user
+      module: product-acceptance
+      rules:
+        - No additional browser-family release matrix is introduced.
+        - The in-app Browser review covers navigation, labels, relationship names, settings, notification popover, theme, and visible states at the selected viewport.
+        - Narrow responsive behavior stays in the existing focused Chromium automation instead of expanding manual browser scope.
+        - The evidence records the exact commit, backend identity, viewport, locale, findings, and result without credentials or sensitive response bodies.
+    - id: verify-retained-critical-journeys
+      title: Critical retained journeys have release evidence
+      description: A compact suite proves the most consequential V6 writes and self-service paths.
+      priority: must
+      actor: admin-user
+      module: product-acceptance
+      rules:
+        - Existing unit, integration, and focused Chromium tests remain the automated regression gate.
+        - Organization, RBAC, personal access token, profile, theme, language, option, and session-management gaps are reviewed by risk and covered without duplicating lower-level tests mechanically.
+        - Tests are executed as one concentrated pre-PR batch after implementation stabilizes.
+    - id: create-bundle-headroom
+      title: Production JavaScript has sustainable headroom
+      description: The release does not sit within incidental-build variance of its hard ceiling.
+      priority: must
+      actor: release-manager
+      module: frontend-delivery
+      rules:
+        - Entry and largest asynchronous chunk stay within their existing budgets.
+        - Total compressed JavaScript targets at most 900 KiB; any higher result requires an explicit measured exception rather than silently raising the ceiling.
+        - Optimization preserves route behavior, localization, permission checks, and Ant Design semantic styling.
+    - id: keep-dependency-risk-explicit
+      title: Dependency debt remains bounded and visible
+      description: Build-only advisories and prerelease compatibility are tracked without overstating runtime exposure.
+      priority: must
+      actor: release-manager
+      module: frontend-delivery
+      rules:
+        - Runtime bundle checks continue to reject inactive Umi/Vite build dependencies from shipped browser code.
+        - Audit acceptances remain time-bounded and are not broadened merely to make qualification pass.
+        - ProComponents stays exactly pinned until a stable v3 release passes the compatibility suite.
+  constraints:
+    - id: one-frontend
+      type: compatibility
+      statement: web/antd-v6 remains the only source, runtime, generator, and release frontend.
+    - id: pr-main-freeze
+      type: operations
+      statement: Development and preliminary evidence happen on this branch; release qualification and publication require a later exact clean commit merged into origin/main.
+    - id: focused-browser-evidence
+      type: ux
+      statement: Manual browser acceptance is intentionally limited to the Codex in-app Browser selected by the product owner.
+  acceptance:
+    - id: contract-validation
+      requirement: reconcile-post-cutover-state
+      statement: Updated feature and capability contracts validate and report only the V6 application.
+      level: contract
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/features/admin-antd-v6-release-polish.yaml --format json
+        - type: command
+          value: go run ./cmd/mss context
+    - id: in-app-browser-product-acceptance
+      requirement: accept-one-browser-surface
+      statement: One checked-in report records successful in-app Browser acceptance on the candidate commit.
+      level: e2e
+      required: true
+      evidence:
+        - type: manual
+          value: docs/docs/releases/antd-v6-in-app-browser-acceptance.md
+    - id: concentrated-frontend-gate
+      requirement: verify-retained-critical-journeys
+      statement: The focused frontend suite and production release build pass together before PR handoff.
+      level: integration
+      required: true
+      evidence:
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint && corepack pnpm@10.34.5 test:ci && corepack pnpm@10.34.5 test:e2e && corepack pnpm@10.34.5 build:release
+    - id: bundle-budget-gate
+      requirement: create-bundle-headroom
+      statement: The committed release build reports no more than 900 KiB of compressed JavaScript.
+      level: integration
+      required: true
+      evidence:
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 build:release
+    - id: dependency-contract-gate
+      requirement: keep-dependency-risk-explicit
+      statement: Exact pins, runtime contents, and bounded audit acceptance checks pass.
+      level: security
+      required: true
+      evidence:
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 deps:check && corepack pnpm@10.34.5 audit:release
+  risks:
+    - id: over-testing-browser-families
+      description: Expanding browser families consumes delivery time without matching the product owner's acceptance target.
+      severity: low
+      mitigation: Keep existing Chromium automation and one in-app Browser manual record; add another family only after a concrete compatibility defect.
+    - id: shallow-manual-pass
+      description: A navigation-only review can miss mutation, permission, or stale-state failures.
+      severity: high
+      mitigation: Use a fixed risk-based checklist and retain backend negative tests plus focused automation for security-sensitive behavior.
+    - id: unsafe-size-reduction
+      description: Removing shared code or forcing chunks can break lazy routes or duplicate runtime dependencies.
+      severity: high
+      mitigation: Measure gzip output after each coherent change and rerun focused behavior, production build, and delivery smoke checks.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/admin-antd-v6-release-polish.yaml --format json
+      - cd web/antd-v6 && corepack pnpm@10.34.5 deps:check
+      - cd web/antd-v6 && corepack pnpm@10.34.5 audit:release
+      - cd web/antd-v6 && corepack pnpm@10.34.5 lint
+      - cd web/antd-v6 && corepack pnpm@10.34.5 test:ci
+      - cd web/antd-v6 && corepack pnpm@10.34.5 test:e2e
+      - cd web/antd-v6 && corepack pnpm@10.34.5 build:release
+  rollout:
+    strategy: direct
+    migration: >-
+      Merge this polish change through a reviewed pull request, select the resulting
+      exact main commit, rerun release qualification there, then publish the V6 frontend
+      and matching backend through their existing immutable workflows.
+    rollback: >-
+      Redeploy the preceding qualified V6 frontend and matching backend. Never restore
+      V5 source or weaken the canonical V6 browser protocol as a rollback mechanism.

@@ -42,9 +42,12 @@ export const runtimeLayout: RunTimeLayoutConfig = ({ initialState }) => ({
     request: async () => initialState?.authorizedMenu ?? [],
   },
   menuDataRender: resolveMenuIcons,
-  menuHeaderRender: (_logo, _title, props) => (
-    <ApplicationBrand collapsed={props?.collapsed} initialState={initialState} />
-  ),
+  menuHeaderRender:
+    (initialState?.settings?.layout ?? 'mix') === 'mix'
+      ? false
+      : (_logo, _title, props) => (
+          <ApplicationBrand collapsed={props?.collapsed} initialState={initialState} />
+        ),
   menuItemRender: (item, dom) =>
     item.path ? (
       <Link to={item.path} prefetch>

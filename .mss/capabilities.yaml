@@ -123,7 +123,7 @@ spec:
 
     - id: platform.theme-settings
       displayName: Layered Application and Personal Theme Settings
-      status: planned
+      status: beta
       owners: [backend, frontend]
       paths:
         - .mss/features/admin-theme-settings-precedence.yaml
@@ -153,8 +153,10 @@ spec:
         Application reads and writes require config:read and config:write, while personal routes are authenticated-self.
         A save is atomic, revisioned through a composite-key database resource, conditionally written with a strong
         ETag, and returned as the canonical flat sparse resource plus _meta. Database-revisioned public-profile caches,
-        identity-bound snapshots, and schema-versioned cross-tab events are derived state only. This capability remains
-        planned until the external MySQL/PostgreSQL upgrade matrix and the complete browser E2E acceptance suite pass.
+        identity-bound snapshots, and schema-versioned cross-tab events are derived state only. The external
+        MySQL/PostgreSQL upgrade matrix and the focused V6 browser suite pass on the merged-main cutover. Keep this
+        capability in beta while the pinned ProComponents v3 dependency remains a prerelease, and require one
+        Codex in-app Browser acceptance record for each release candidate instead of expanding a cross-browser matrix.
 
     - id: platform.cache-lock-queue
       displayName: Legacy Cache, Distributed Lock, and Queue Adapters
