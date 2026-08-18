@@ -1,0 +1,286 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: foundation-v1-2-2-release
+  displayName: Portable artifact repair, qualify, and publish v1.2.2
+  description: >-
+    Governs the synchronized v1.2.2 forward repair of the root foundation,
+    reusable Framework, and sole Ant Design 6 frontend from one exact commit
+    already merged into main.
+  owner: release-engineering
+  labels:
+    domain: release-governance
+    current-stable: v1.1.0
+    target-version: v1.2.2
+    release-status: preparation
+spec:
+  problem: >-
+    The immutable v1.2.1 Framework and frontend releases completed, and the
+    root tag and runtime image were created, but the root Release workflow
+    still uploaded the generated V6 dist directory directly. Linux Umi static
+    export emitted literal dynamic-route components such as :id, which the
+    artifact service rejected before package assembly. The same names would
+    also have entered the Windows ZIPs. A restrictive local umask additionally
+    demonstrated that otherwise valid static files could reach Nginx as 600/700
+    and return 403. Every v1.2.1 public ref is immutable, so the complete repair
+    requires v1.2.2 and a new merged-main commit.
+  goals:
+    - Make v1.2.2 the only active public target in policy, qualification, commands, and operator documentation.
+    - Preserve every v1.2.0 and v1.2.1 tag, Release, image, workflow run, and failure as immutable audit evidence.
+    - Remove only Umi/Dumi literal dynamic-route HTML placeholders and normalize release static modes to directories 755 and files 644.
+    - Reject invalid, reserved, colliding, traversing, linked, or overlong artifact path components in directories and ZIP/TAR archives.
+    - Upload the V6 distribution through a checksummed portable archive in both frontend and root publication workflows.
+    - Validate every raw directory upload and every final root platform ZIP before publication.
+    - Isolate browser qualification from a developer server already running on port 8001.
+    - Requalify root, Framework, and frontend from one exact new merged-main commit.
+  nonGoals:
+    - Delete, move, reuse, or republish a v1.2.0 or v1.2.1 public ref.
+    - Hide or reinterpret the failed v1.2.1 root Release run as successful.
+    - Reintroduce the retired Ant Design 5 application or browser compatibility protocol.
+    - Publish a tag, package, image, or GitHub Release from a topic branch.
+    - Change the database schema or public Framework API for this artifact-only repair.
+  actors:
+    - id: maintainer
+      displayName: Foundation maintainer
+      description: Implements the portable artifact repair and its fail-closed tests.
+    - id: release-manager
+      displayName: Release manager
+      description: Selects exact readiness runs and controls immutable publication.
+    - id: admin-operator
+      displayName: Admin operator
+      description: Applies migrations, synchronizes APIs, and deploys matching artifacts.
+  modules:
+    - name: release-governance
+      operation: extend
+      description: Version policy, qualification, artifact validation, and publication order.
+    - name: framework
+      operation: extend
+      description: Source-compatible Framework v1.2 behavior synchronized under mss-boot/v1.2.2.
+    - name: admin-v6
+      operation: extend
+      description: Deterministic portable V6 output, archives, delivery, and deep-link behavior.
+    - name: operations
+      operation: extend
+      description: Fresh install, upgrade, API registry, recovery, and reconciliation evidence.
+  requirements:
+    - id: target-v122-only
+      title: All active release surfaces target v1.2.2
+      description: No active policy, command, qualification, or readiness path can qualify an older patch.
+      priority: must
+      actor: release-manager
+      module: release-governance
+      rules:
+        - Root, Framework, and frontend use their exact v1.2.2 tag namespaces.
+        - v1.2.0 and v1.2.1 public refs remain immutable partial-train audit records.
+        - Qualification selects only this v1.2.2 Feature and explicitly carries older Features forward.
+    - id: normalize-portable-v6-output
+      title: V6 release output is deterministic and cross-platform
+      description: Generated placeholders and restrictive umasks cannot create an unusable release tree.
+      priority: must
+      actor: maintainer
+      module: admin-v6
+      rules:
+        - Only literal Umi/Dumi dynamic-route placeholder directories containing one index.html are removed.
+        - Unexpected content below a dynamic placeholder fails closed instead of being deleted.
+        - Every remaining path passes the repository portability validator.
+        - Release directories use mode 755 and static files use mode 644.
+        - Fixed routes and a concrete dynamic deep link are served through the production Nginx smoke test.
+        - Playwright owns a dedicated port 18001 frontend and ephemeral compiler cache state, and never reuses the developer port 8001 server or its backend signing key.
+    - id: guard-all-artifact-boundaries
+      title: Every artifact boundary validates portable members
+      description: Upload and final distribution paths fail before an external artifact action or public Release can observe incompatible names.
+      priority: must
+      actor: maintainer
+      module: release-governance
+      rules:
+        - Both frontend workflows upload only dist-v6.tar.gz, build identity, and checksum metadata.
+        - Browser reports, readiness reports, and backend runtime directory uploads have preceding portability guards.
+        - Root assembly verifies the frontend checksum before extraction and validates the extracted tree.
+        - All six final platform ZIPs are inspected for portable members before upload or GitHub Release publication.
+        - Workflow governance tests inventory every raw directory upload so a new unguarded directory fails CI.
+    - id: preserve-v12-compatibility
+      title: v1.2.2 remains source and upgrade compatible
+      description: The artifact repair does not widen product, API, migration, or security scope.
+      priority: must
+      actor: maintainer
+      module: framework
+      rules:
+        - Framework public APIs and the v1.2 migration set are unchanged.
+        - Backend and V6 remain a matched pair with backend-authoritative authorization.
+        - The API registry one-shot synchronization remains required after migration.
+        - Rollback restores the database backup and preceding qualified V6 pair.
+    - id: publish-exact-v122
+      title: Publish immutable v1.2.2 components from one commit
+      description: Every tag, artifact, image, checksum, and Release points to the same approved merged-main commit.
+      priority: must
+      actor: release-manager
+      module: release-governance
+      rules:
+        - Framework publishes first and resolves from an external GOWORK=off consumer.
+        - Frontend and root publication use separate selected authority runs.
+        - Any implementation change after freeze selects a new commit and invalidates affected evidence.
+  constraints:
+    - id: merged-main-only
+      type: operations
+      statement: Qualification and publication require a clean exact commit contained in fresh origin/main and produced by a merged pull request targeting main.
+    - id: immutable-public-refs
+      type: compatibility
+      statement: No existing v1.2.0 or v1.2.1 tag, Release, package, image, or audit record may be moved, deleted, or reused.
+    - id: confined-normalization
+      type: security
+      statement: Frontend output normalization may modify only a supplied distribution inside the repository root and must fail closed on unexpected members.
+    - id: no-secret-evidence
+      type: security
+      statement: Release reports contain no credentials, database DSNs, tokens, cookies, secret values, or sensitive request bodies.
+  acceptance:
+    - id: checkpoint-v122-contract
+      requirement: target-v122-only
+      statement: Feature, policy, qualification, workflows, commands, and tag namespaces agree on v1.2.2.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/features/foundation-v1-2-2-release.yaml --format json
+        - type: command
+          value: python3 -m unittest discover -s tools/release -p 'test_*.py'
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component root --version v1.2.2 --tag v1.2.2 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component framework --version v1.2.2 --tag mss-boot/v1.2.2 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component frontend --version v1.2.2 --tag web/antd-v6/v1.2.2 --intent qualify
+    - id: checkpoint-portable-artifacts
+      requirement: guard-all-artifact-boundaries
+      statement: Unit and workflow tests reject colon paths, traversal, reserved names, case collisions, unsafe links, raw V6 uploads, and unguarded raw directories.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: python3 -m unittest tools.release.test_check_portable_paths tools.release.test_check_release_policy
+    - id: feature-freeze-framework
+      requirement: preserve-v12-compatibility
+      statement: The reusable module passes its isolated complete suite.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: cd mss-boot && GOWORK=off go test ./...
+    - id: feature-freeze-backend
+      requirement: preserve-v12-compatibility
+      statement: Root tooling and Admin, including migrations and API registry paths, pass on the frozen commit.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: go test ./...
+        - type: command
+          value: cd admin && go test ./...
+        - type: manual
+          value: On isolated fresh and upgraded SQLite, MySQL, and PostgreSQL databases, migrate, run `STAGE=local go run . server -a`, and confirm menu API binding is non-empty.
+    - id: feature-freeze-v6
+      requirement: normalize-portable-v6-output
+      statement: The sole frontend passes dependency, behavior, browser, build, path, archive, mode, and delivery gates.
+      level: e2e
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 deps:check
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 audit:release
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 test:ci
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 test:e2e
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 build:release
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 delivery:smoke
+        - type: report
+          value: A restrictive-umask build report showing zero invalid paths, directory mode 755, file mode 644, and passing concrete dynamic deep-link delivery.
+    - id: feature-freeze-docs
+      requirement: target-v122-only
+      statement: Release, upgrade, compatibility, and rollback guidance builds successfully with portable static paths.
+      level: contract
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: corepack pnpm@9.15.9 --dir docs build
+    - id: feature-freeze-sha-bound-evidence
+      requirement: publish-exact-v122
+      statement: Browser acceptance and external Blueprint rehearsal identify the frozen commit.
+      level: manual
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: report
+          value: .mss/reports/release-qualification-decision.json
+        - type: manual
+          value: Supply in-app Browser and Blueprint evidence references whose full commits equal the workflow SHA.
+    - id: pre-framework-authority
+      requirement: publish-exact-v122
+      statement: A selected pre-framework readiness run grants exact authority before Framework or frontend publication.
+      level: manual
+      phase: pre-framework
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.2.2 --commit <full-sha> --phase pre-framework --policy .mss/release-policy.yaml
+    - id: pre-root-authority
+      requirement: publish-exact-v122
+      statement: Framework v1.2.2 resolves externally and a separate pre-root run authorizes root publication.
+      level: integration
+      phase: pre-root
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.2.2 --commit <full-sha> --phase pre-root --policy .mss/release-policy.yaml
+        - type: manual
+          value: Resolve github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.2.2 from a clean external module with GOWORK=off and record checksums.
+    - id: post-publication-truth
+      requirement: publish-exact-v122
+      statement: Public refs, archives, images, checksums, install smoke, migrations, API registry, and recovery reconcile to one commit.
+      level: integration
+      phase: post-publication
+      required: true
+      evidence:
+        - type: report
+          value: Final v1.2.2 reconciliation comment on the release evidence issue.
+  risks:
+    - id: incompatible-artifact-member
+      description: A generated or copied path can pass Linux build but fail GitHub artifact upload or Windows extraction.
+      severity: critical
+      mitigation: Normalize known Umi placeholders, validate all raw uploads, inspect archive members, and inventory guards in CI.
+    - id: unreadable-static-mode
+      description: Restrictive build umasks can produce a valid archive whose Nginx worker cannot read the files.
+      severity: high
+      mitigation: Normalize distribution modes and exercise the exact Docker/Nginx delivery path after the release build.
+    - id: stale-candidate-evidence
+      description: Successful v1.2.1 component evidence can be mistaken for v1.2.2 publication authority.
+      severity: critical
+      mitigation: Bind every readiness, browser, Blueprint, tag, and artifact record to the full v1.2.2 merged-main SHA.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: python3 tools/release/release_phase_evidence.py run --target-version v1.2.2 --commit <full-sha> --phase feature-freeze --output .mss/reports/release-phase-command-evidence.json
+    custom:
+      - python3 -m unittest discover -s tools/release -p 'test_*.py'
+      - go run ./cmd/mss spec validate .mss/features/foundation-v1-2-2-release.yaml --format json
+  rollout:
+    strategy: phased
+    migration: >-
+      Merge the repair through a pull request, freeze the resulting clean main
+      commit, rerun feature-freeze evidence, obtain pre-framework authority,
+      publish Framework v1.2.2 and verify external resolution, publish matching
+      frontend assets and image, obtain pre-root authority, publish root assets
+      and image, then reconcile installation, migrations, API registry, and recovery.
+    rollback: >-
+      Stop before the next component when a gate fails. Never move v1.2.0,
+      v1.2.1, or v1.2.2 refs. For deployment failure, restore the pre-migration
+      database backup and the preceding qualified V6 backend/frontend pair.

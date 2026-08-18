@@ -24,28 +24,28 @@ class ReleasePolicyTest(unittest.TestCase):
     def setUp(self):
         self.policy = POLICY.load_policy(POLICY_PATH)
 
-    def test_only_v121_matches_component_tag_namespaces(self):
+    def test_only_v122_matches_component_tag_namespaces(self):
         cases = {
-            "root": "v1.2.1",
-            "framework": "mss-boot/v1.2.1",
-            "frontend": "web/antd-v6/v1.2.1",
+            "root": "v1.2.2",
+            "framework": "mss-boot/v1.2.2",
+            "frontend": "web/antd-v6/v1.2.2",
         }
         for component, tag in cases.items():
             with self.subTest(component=component):
                 POLICY.check_public_ref(
-                    self.policy, component, "v1.2.1", tag, intent="qualify"
+                    self.policy, component, "v1.2.2", tag, intent="qualify"
                 )
 
     def test_publication_is_enabled_after_protected_workflows_are_ready(self):
         self.assertIs(self.policy["publicationWorkflowsReady"], True)
-        POLICY.check_public_ref(self.policy, "root", "v1.2.1", "v1.2.1")
+        POLICY.check_public_ref(self.policy, "root", "v1.2.2", "v1.2.2")
 
     def test_policy_requires_pr_merged_main_release_source(self):
         self.assertEqual(self.policy["releaseBranch"], "main")
         self.assertIs(self.policy["requireMergedPullRequestSource"], True)
 
-    def test_policy_rejects_versions_other_than_v121(self):
-        for version in ("v1.0.1", "v1.1.0", "v1.2.0"):
+    def test_policy_rejects_versions_other_than_v122(self):
+        for version in ("v1.0.1", "v1.1.0", "v1.2.0", "v1.2.1"):
             with self.subTest(version=version):
                 with self.assertRaisesRegex(POLICY.PolicyError, "forbidden"):
                     POLICY.check_public_ref(
@@ -57,16 +57,16 @@ class ReleasePolicyTest(unittest.TestCase):
             POLICY.check_public_ref(
                 self.policy,
                 "root",
-                "v1.2.1-rc.1",
-                "v1.2.1-rc.1",
+                "v1.2.2-rc.1",
+                "v1.2.2-rc.1",
                 intent="qualify",
             )
         with self.assertRaisesRegex(POLICY.PolicyError, "does not match"):
             POLICY.check_public_ref(
                 self.policy,
                 "framework",
-                "v1.2.1",
-                "v1.2.1",
+                "v1.2.2",
+                "v1.2.2",
                 intent="qualify",
             )
 
@@ -74,7 +74,7 @@ class ReleasePolicyTest(unittest.TestCase):
         original = POLICY_PATH.read_text(encoding="utf-8")
         for suffix in (
             "  unexpected: true\n",
-            "  nextPublicVersion: v1.2.1\n",
+            "  nextPublicVersion: v1.2.2\n",
         ):
             with self.subTest(suffix=suffix.strip()):
                 with tempfile.TemporaryDirectory() as directory:
@@ -163,8 +163,10 @@ class ReleasePolicyTest(unittest.TestCase):
             "release.yml",
             "framework-release.yml",
             "frontend-v6-release.yml",
+            "frontend-v6-ci.yml",
             "container.yml",
             "release-readiness.yml",
+            "docs.yml",
         )
         for workflow_name in workflows:
             with self.subTest(workflow=workflow_name):
@@ -194,37 +196,210 @@ class ReleasePolicyTest(unittest.TestCase):
                             ),
                         )
 
-    def test_frontend_v6_artifact_upload_uses_portable_archive_only(self):
-        workflow = yaml.load(
-            (
-                REPOSITORY_ROOT / ".github" / "workflows" / "frontend-v6-release.yml"
-            ).read_text(encoding="utf-8"),
-            Loader=yaml.BaseLoader,
-        )
-        steps = workflow["jobs"]["release"]["steps"]
-        package = next(
-            step
-            for step in steps
-            if step.get("name") == "Embed and verify v6 artifact identity"
-        )
-        upload = next(
-            step for step in steps if step.get("name") == "Upload v6 build artifact"
-        )
-        paths = [
-            line.strip()
-            for line in upload["with"]["path"].splitlines()
-            if line.strip()
+    def test_every_frontend_release_upload_uses_portable_archive_only(self):
+        cases = {
+            "frontend-v6-release.yml": (
+                "release",
+                "Embed and verify v6 artifact identity",
+                "Upload v6 build artifact",
+            ),
+            "release.yml": (
+                "frontend-build",
+                "Package and verify portable primary V6 artifact",
+                "Upload primary V6 artifact",
+            ),
+        }
+        expected_paths = [
+            "web/antd-v6/dist-v6.tar.gz",
+            "web/antd-v6/FRONTEND-V6-BUILD-INFO",
+            "web/antd-v6/SHA256SUMS.frontend-v6",
         ]
+        for workflow_name, (job_name, package_name, upload_name) in cases.items():
+            with self.subTest(workflow=workflow_name):
+                workflow = yaml.load(
+                    (
+                        REPOSITORY_ROOT / ".github" / "workflows" / workflow_name
+                    ).read_text(encoding="utf-8"),
+                    Loader=yaml.BaseLoader,
+                )
+                steps = workflow["jobs"][job_name]["steps"]
+                package = next(
+                    step for step in steps if step.get("name") == package_name
+                )
+                upload = next(
+                    step for step in steps if step.get("name") == upload_name
+                )
+                paths = [
+                    line.strip()
+                    for line in upload["with"]["path"].splitlines()
+                    if line.strip()
+                ]
 
-        self.assertIn("tar --create --gzip --file dist-v6.tar.gz dist", package["run"])
+                self.assertIn(
+                    "tar --create --gzip --file dist-v6.tar.gz dist", package["run"]
+                )
+                self.assertIn("check_portable_paths.py", package["run"])
+                self.assertEqual(paths, expected_paths)
+
+    def test_all_raw_directory_uploads_have_portability_guards(self):
+        extensionless_files = {"FRONTEND-V6-BUILD-INFO", "SHA256SUMS"}
+        raw_uploads = []
+        for workflow_path in sorted(
+            (REPOSITORY_ROOT / ".github" / "workflows").glob("*.yml")
+        ):
+            workflow = yaml.load(
+                workflow_path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader
+            )
+            for job_name, job in workflow.get("jobs", {}).items():
+                steps = job.get("steps", [])
+                for upload_index, step in enumerate(steps):
+                    if "actions/upload-artifact@" not in step.get("uses", ""):
+                        continue
+                    paths = [
+                        line.strip()
+                        for line in step.get("with", {}).get("path", "").splitlines()
+                        if line.strip()
+                    ]
+                    for upload_path in paths:
+                        basename = upload_path.rsplit("/", 1)[-1]
+                        portable_basename = GITHUB_EXPRESSION.sub(
+                            "expression", basename
+                        )
+                        is_file = (
+                            "." in portable_basename
+                            or portable_basename in extensionless_files
+                            or portable_basename.startswith("SHA256SUMS")
+                        )
+                        if is_file:
+                            continue
+                        guard = next(
+                            (
+                                previous
+                                for previous in reversed(steps[:upload_index])
+                                if "check_portable_paths.py" in previous.get("run", "")
+                            ),
+                            None,
+                        )
+                        self.assertIsNotNone(
+                            guard,
+                            msg=(
+                                f"{workflow_path.name}:{job_name}:{step.get('name')} "
+                                f"uploads raw directory {upload_path} without a portability guard"
+                            ),
+                        )
+                        self.assertIn(basename, guard["run"])
+                        raw_uploads.append(
+                            (workflow_path.name, job_name, upload_path)
+                        )
+
         self.assertEqual(
-            paths,
+            raw_uploads,
             [
-                "web/antd-v6/dist-v6.tar.gz",
-                "web/antd-v6/FRONTEND-V6-BUILD-INFO",
-                "web/antd-v6/SHA256SUMS.frontend-v6",
+                (
+                    "frontend-v6-ci.yml",
+                    "browser",
+                    "web/antd-v6/playwright-report",
+                ),
+                ("frontend-v6-ci.yml", "browser", "web/antd-v6/test-results"),
+                ("release-readiness.yml", "full-verification", ".mss/reports"),
+                (
+                    "release.yml",
+                    "backend-build",
+                    "mss-boot-admin-${{ matrix.os }}-${{ matrix.arch }}",
+                ),
             ],
         )
+
+    def test_root_release_validates_extracted_frontend_and_every_final_zip(self):
+        content = (
+            REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
+        ).read_text(encoding="utf-8")
+        workflow = yaml.load(content, Loader=yaml.BaseLoader)
+        assemble = next(
+            step
+            for step in workflow["jobs"]["release"]["steps"]
+            if step.get("name") == "Assemble release packages"
+        )
+        script = assemble["run"]
+        self.assertIn("sha256sum --check SHA256SUMS.frontend-v6", script)
+        self.assertIn("frontend-v6-extracted/dist", script)
+        self.assertIn(
+            "check_portable_paths.py mss-boot-admin-*.zip", script
+        )
+
+    def test_static_release_builds_normalize_dynamic_route_placeholders(self):
+        frontend_package = (
+            REPOSITORY_ROOT / "web" / "antd-v6" / "package.json"
+        ).read_text(encoding="utf-8")
+        docs_package = (REPOSITORY_ROOT / "docs" / "package.json").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("prepare_portable_frontend.py dist", frontend_package)
+        self.assertIn("prepare_portable_frontend.py dist", docs_package)
+
+    def test_static_ci_runs_when_portability_tooling_changes(self):
+        for workflow_name in ("frontend-v6-ci.yml", "docs.yml"):
+            with self.subTest(workflow=workflow_name):
+                content = (
+                    REPOSITORY_ROOT / ".github" / "workflows" / workflow_name
+                ).read_text(encoding="utf-8")
+                self.assertGreaterEqual(content.count("'tools/release/**'"), 2)
+
+    def test_local_browser_qualification_cannot_reuse_the_development_server(self):
+        playwright = (
+            REPOSITORY_ROOT / "web" / "antd-v6" / "playwright.config.ts"
+        ).read_text(encoding="utf-8")
+        package = (
+            REPOSITORY_ROOT / "web" / "antd-v6" / "package.json"
+        ).read_text(encoding="utf-8")
+        support = (
+            REPOSITORY_ROOT / "web" / "antd-v6" / "e2e" / "support" / "session.ts"
+        ).read_text(encoding="utf-8")
+        backend = (
+            REPOSITORY_ROOT
+            / "web"
+            / "antd-v6"
+            / "scripts"
+            / "start-e2e-backend.sh"
+        ).read_text(encoding="utf-8")
+        e2e_config = (
+            REPOSITORY_ROOT / "admin" / "config" / "application-e2e.yml"
+        ).read_text(encoding="utf-8")
+        app_config = (
+            REPOSITORY_ROOT / "web" / "antd-v6" / "config" / "config.ts"
+        ).read_text(encoding="utf-8")
+        generated_supplier = (
+            REPOSITORY_ROOT
+            / "web"
+            / "antd-v6"
+            / "e2e"
+            / "generated"
+            / "supplier.spec.ts"
+        ).read_text(encoding="utf-8")
+        supplier_template = (
+            REPOSITORY_ROOT
+            / "templates"
+            / "module"
+            / "frontend-v6"
+            / "e2e.spec.ts.tmpl"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("reuseExistingServer: !process.env.CI", playwright)
+        self.assertEqual(playwright.count("reuseExistingServer: false"), 2)
+        self.assertIn("http://127.0.0.1:18001", playwright)
+        self.assertIn('"start:e2e"', package)
+        self.assertIn("MSS_V6_E2E=1", package)
+        self.assertIn("persistentCaching: !browserQualification", app_config)
+        for content in (
+            support,
+            backend,
+            e2e_config,
+            generated_supplier,
+            supplier_template,
+        ):
+            self.assertIn("18001", content)
+        for content in (support, backend, generated_supplier, supplier_template):
+            self.assertNotIn("http://127.0.0.1:8001", content)
 
     def test_publication_workflows_require_the_phase_they_publish_from(self):
         expected_phases = {

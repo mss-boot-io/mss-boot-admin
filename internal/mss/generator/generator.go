@@ -30,7 +30,7 @@ const (
 	instructionsTemplateRevision = "1.2.0-module-instructions.1"
 	frontendV6TemplateRevision   = "1.2.0-frontend-v6.6"
 	docsTemplateRevision         = "1.2.0-docs.1"
-	e2eV6TemplateRevision        = "1.2.0-e2e-v6.6"
+	e2eV6TemplateRevision        = "1.2.0-e2e-v6.7"
 )
 
 // Action describes how one output differs from the workspace.

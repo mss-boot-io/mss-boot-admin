@@ -489,6 +489,11 @@ jobs:
             done
           fi
 
+      - name: Verify portable runtime artifact paths
+        run: >-
+          python3 tools/release/check_portable_paths.py
+          mss-boot-admin-${{ matrix.os }}-${{ matrix.arch }}
+
       - name: Upload runtime artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -548,11 +553,33 @@ jobs:
       - name: Smoke-test primary V6 delivery
         run: pnpm run delivery:smoke
 
+      - name: Package and verify portable primary V6 artifact
+        env:
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+          RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
+        run: |
+          set -euo pipefail
+          python3 ../../tools/release/check_portable_paths.py dist
+          {
+            echo 'application=mss-boot-admin-antd-v6'
+            echo "version=${RELEASE_VERSION}"
+            echo "commit=${RELEASE_COMMIT}"
+          } > FRONTEND-V6-BUILD-INFO
+          tar --create --gzip --file dist-v6.tar.gz dist
+          sha256sum dist-v6.tar.gz FRONTEND-V6-BUILD-INFO > SHA256SUMS.frontend-v6
+          python3 ../../tools/release/check_portable_paths.py \
+            dist-v6.tar.gz \
+            FRONTEND-V6-BUILD-INFO \
+            SHA256SUMS.frontend-v6
+
       - name: Upload primary V6 artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: frontend-v6-dist
-          path: web/antd-v6/dist
+          path: |
+            web/antd-v6/dist-v6.tar.gz
+            web/antd-v6/FRONTEND-V6-BUILD-INFO
+            web/antd-v6/SHA256SUMS.frontend-v6
           if-no-files-found: error
 
   release:
@@ -567,6 +594,11 @@ jobs:
       contents: write
       packages: read
     steps:
+      - name: Checkout release validation tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          sparse-checkout: tools/release
+
       - name: Download all artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
 
@@ -577,11 +609,24 @@ jobs:
         run: |
           set -euo pipefail
           test -d frontend-v6-dist
+          (
+            cd frontend-v6-dist
+            sha256sum --check SHA256SUMS.frontend-v6
+          )
+          python3 tools/release/check_portable_paths.py \
+            frontend-v6-dist/dist-v6.tar.gz \
+            frontend-v6-dist/FRONTEND-V6-BUILD-INFO \
+            frontend-v6-dist/SHA256SUMS.frontend-v6
+          mkdir frontend-v6-extracted
+          tar --extract --gzip \
+            --file frontend-v6-dist/dist-v6.tar.gz \
+            --directory frontend-v6-extracted
+          python3 tools/release/check_portable_paths.py frontend-v6-extracted/dist
           jq -e \
             --arg version "${RELEASE_VERSION}" \
             --arg commit "${RELEASE_COMMIT}" \
             '.application == "mss-boot-admin-antd-v6" and .version == $version and .commit == $commit' \
-            frontend-v6-dist/release.json >/dev/null
+            frontend-v6-extracted/dist/release.json >/dev/null
           for dir in \
             mss-boot-admin-linux-amd64 \
             mss-boot-admin-linux-arm64 \
@@ -591,7 +636,7 @@ jobs:
             mss-boot-admin-windows-arm64; do
             test -d "${dir}"
             rm -rf "${dir}/dist"
-            cp -a frontend-v6-dist "${dir}/dist"
+            cp -a frontend-v6-extracted/dist "${dir}/dist"
             case "${dir}" in
               mss-boot-admin-linux-*|mss-boot-admin-darwin-*)
                 chmod 0755 "${dir}/admin" "${dir}/mss" "${dir}/mss-mcp"
@@ -599,6 +644,7 @@ jobs:
             esac
             zip -qr "${dir}.zip" "${dir}"
           done
+          python3 tools/release/check_portable_paths.py mss-boot-admin-*.zip
 
           smoke_dir="$(mktemp -d)"
           trap 'rm -rf "${smoke_dir}"' EXIT

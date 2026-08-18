@@ -6,18 +6,27 @@ and the root changelog, not as a current release surface.
 
 ## Unreleased
 
-Target: **web/antd-v6/v1.2.1**. This is the first completed public release of the sole
-supported Admin frontend and must use the same exact merged-main commit as the
-Framework and root v1.2.1 artifacts.
+Target: **web/antd-v6/v1.2.2**. The sole supported Admin frontend must use the
+same exact merged-main commit as the Framework and root v1.2.2 artifacts.
 
-The immutable `web/antd-v6/v1.2.0` tag is retained as a partial-train audit
-record. Its workflow passed source, policy, readiness, dependency, test, browser,
-build, identity, and production-smoke gates, then failed while the artifact action
-traversed a raw route filename containing `:`. It published no build artifact,
-container image, or GitHub Release; the root v1.2.0 tag was never created.
+The immutable `web/antd-v6/v1.2.1` release, assets, and image remain published.
+The synchronized root v1.2.1 Release did not complete because its separate
+workflow still uploaded raw generated paths, so the full train moves to v1.2.2.
 
-- Upload only the portable `dist-v6.tar.gz`, build identity, and checksum manifest;
-  keep a workflow contract test that rejects raw `dist` directory uploads.
+- Remove only Umi literal dynamic-route HTML placeholders from release output and
+  fail closed if a placeholder contains anything except its generated index.html.
+- Normalize release directory/file modes to 755/644, validate the output tree and
+  TAR members, and test a concrete dynamic deep link through production Nginx.
+- Keep both frontend and root workflows on the same checksummed portable archive;
+  no artifact action traverses raw V6 output.
+
+## [web/antd-v6/v1.2.1] - 2026-08-19
+
+Status: **published / historical**. This was the first completed public release
+of the sole Admin frontend. Its tag, GitHub Release, portable assets, image, and
+multi-architecture manifests point to
+`80d2d20f1b44105e18706cfa0deb7f8512966f92` and remain immutable.
+
 - Use the dark appearance as the code-layer default while preserving application
   and personal theme overrides above it.
 - Become the repository's sole Admin frontend without changing the independent

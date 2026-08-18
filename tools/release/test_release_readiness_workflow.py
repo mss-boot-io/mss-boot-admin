@@ -14,7 +14,7 @@ import release_phase_evidence as PHASE_EVIDENCE  # noqa: E402
 
 
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "release-readiness.yml"
-FEATURE_PATH = REPOSITORY_ROOT / ".mss" / "features" / "foundation-v1-2-1-release.yaml"
+FEATURE_PATH = REPOSITORY_ROOT / ".mss" / "features" / "foundation-v1-2-2-release.yaml"
 GITHUB_EXPRESSION = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
 
 
@@ -93,11 +93,11 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         selected = PHASE_EVIDENCE.load_qualification(
             REPOSITORY_ROOT,
             Path(".mss/release-qualification.json"),
-            "v1.2.1",
+            "v1.2.2",
         )
         self.assertEqual(
             [path.relative_to(REPOSITORY_ROOT).as_posix() for path in selected],
-            [".mss/features/foundation-v1-2-1-release.yaml"],
+            [".mss/features/foundation-v1-2-2-release.yaml"],
         )
         contract = yaml.safe_load(
             (REPOSITORY_ROOT / ".mss" / "release-qualification.json").read_text(

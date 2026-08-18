@@ -12,7 +12,7 @@
     "audit:release": "node ../tools/security/check-pnpm-audit.mjs",
     "start": "npm run dev",
     "dev": "dumi dev",
-    "build": "dumi build",
+    "build": "dumi build && python3 ../tools/release/prepare_portable_frontend.py dist",
     "prepare": "husky install && dumi setup"
   },
   "authors": [

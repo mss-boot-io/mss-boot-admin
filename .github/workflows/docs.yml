@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'docs/**'
+      - 'tools/release/**'
       - 'tools/security/**'
       - '.github/workflows/docs.yml'
   push:
@@ -13,6 +14,7 @@ on:
       - main
     paths:
       - 'docs/**'
+      - 'tools/release/**'
       - 'tools/security/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
@@ -63,7 +65,9 @@ jobs:
 
       - name: Package deployment artifact
         if: github.event_name != 'pull_request'
-        run: tar --create --gzip --file docs-dist.tar.gz --directory dist .
+        run: |
+          tar --create --gzip --file docs-dist.tar.gz --directory dist .
+          python3 ../tools/release/check_portable_paths.py dist docs-dist.tar.gz
 
       - name: Upload deployment artifact
         if: github.event_name != 'pull_request'
