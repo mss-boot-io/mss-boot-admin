@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create the exact-SHA manual decision used by v1.1.0 feature freeze."""
+"""Create the exact-SHA manual decision used by the active release freeze."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from pathlib import Path
 
 SCHEMA = "mss.io/release-qualification-decision/v1"
 QUALIFICATION_SCHEMA = "mss.io/release-qualification/v1"
-RELEASE_FEATURE = ".mss/features/foundation-v1-1-0-release.yaml"
+RELEASE_FEATURE = ".mss/features/foundation-v1-2-0-release.yaml"
 FULL_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 PLACEHOLDER_RE = re.compile(r"^(?:none|null|n/a|na|pending|todo|tbd|<.*>)$", re.IGNORECASE)
 
@@ -84,7 +84,7 @@ def _load_qualification(path: Path, target_version: str) -> tuple[dict[str, obje
         raise QualificationDecisionError("qualification target does not match requested version")
     if contract.get("features") != [RELEASE_FEATURE]:
         raise QualificationDecisionError(
-            "v1.1.0 qualification must select only the scoped release Feature"
+            "qualification must select only the active scoped release Feature"
         )
     exclusions = contract.get("excludedFeatures")
     if not isinstance(exclusions, list) or not exclusions:
@@ -150,7 +150,13 @@ def build_decision(
                 "status": "passed",
                 "commit": browser_commit,
                 "reference": browser_reference,
-                "operations": ["list", "create", "detail", "edit", "export", "delete"],
+                "operations": [
+                    "navigation",
+                    "menu-api-binding",
+                    "rbac",
+                    "session-management",
+                    "settings",
+                ],
             },
             {
                 "kind": "external-blueprint-upgrade-rehearsal",

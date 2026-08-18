@@ -14,7 +14,7 @@ import release_phase_evidence as PHASE_EVIDENCE  # noqa: E402
 
 
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "release-readiness.yml"
-FEATURE_PATH = REPOSITORY_ROOT / ".mss" / "features" / "foundation-v1-1-0-release.yaml"
+FEATURE_PATH = REPOSITORY_ROOT / ".mss" / "features" / "foundation-v1-2-0-release.yaml"
 GITHUB_EXPRESSION = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
 
 
@@ -67,23 +67,24 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         self.assertIn("release_phase_evidence.py run", phase["run"])
         self.assertEqual(
             self.step("Install documentation dependencies")["run"],
-            "pnpm --dir docs install --frozen-lockfile",
+            "corepack pnpm@9.15.9 --dir docs install --frozen-lockfile",
         )
         frontend_install = self.step("Install frontend dependencies")["run"]
         self.assertEqual(
             frontend_install,
             "corepack pnpm@10.34.5 --dir web/antd-v6 install --frozen-lockfile --ignore-scripts",
         )
+        self.assertEqual(self.step("Setup pnpm")["with"]["version"], "9.15.9")
 
-    def test_qualification_carries_every_other_feature_forward(self):
+    def test_v120_qualification_carries_every_other_feature_forward(self):
         selected = PHASE_EVIDENCE.load_qualification(
             REPOSITORY_ROOT,
             Path(".mss/release-qualification.json"),
-            "v1.1.0",
+            "v1.2.0",
         )
         self.assertEqual(
             [path.relative_to(REPOSITORY_ROOT).as_posix() for path in selected],
-            [".mss/features/foundation-v1-1-0-release.yaml"],
+            [".mss/features/foundation-v1-2-0-release.yaml"],
         )
         contract = yaml.safe_load(
             (REPOSITORY_ROOT / ".mss" / "release-qualification.json").read_text(
@@ -98,7 +99,7 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             )
         )
 
-    def test_release_feature_has_no_old_aggregate_or_nonexact_commands(self):
+    def test_v120_release_feature_has_scoped_exact_commands(self):
         feature = yaml.safe_load(FEATURE_PATH.read_text(encoding="utf-8"))
         plan = {
             "feature": {"name": feature["metadata"]["name"]},
@@ -113,19 +114,26 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             if item.get("type") in {"non-exact-command", "unsupported-command"}
         ]
         self.assertEqual(blockers, [])
-        commands = [" ".join(step.argv) for step in steps]
+        commands = [
+            " ".join(
+                [
+                    step.working_directory,
+                    *(f"{name}={value}" for name, value in sorted(step.environment.items())),
+                    *step.argv,
+                ]
+            )
+            for step in steps
+        ]
         joined = "\n".join(commands)
         for required in (
-            "TestSupplierEveryDeclaredOperationIsBackendAuthorized",
-            "TestUpgradeAppliesFoundationChangesAndPreservesCustomization",
-            "TestLoadProviderEvidenceAcceptsStrictPinnedReport",
-            "TestGenerateReportsCompleteDocsAndBrowserE2EOutputs",
-            "web/antd-v6 build:release",
-            "docs build",
+            "mss-boot GOWORK=off go test ./...",
+            ". go test ./...",
+            "admin go test ./...",
+            "web/antd-v6 corepack pnpm@10.34.5 test:e2e",
+            "web/antd-v6 corepack pnpm@10.34.5 build:release",
+            ". corepack pnpm@9.15.9 --dir docs build",
         ):
             self.assertIn(required, joined)
-        self.assertNotIn("TestRuntimeObservabilityRedactionCanary", joined)
-        self.assertNotIn("./pkg/config/source/s3", joined)
         self.assertNotIn("verify --all", joined)
         self.assertNotIn("eval run --all", joined)
 

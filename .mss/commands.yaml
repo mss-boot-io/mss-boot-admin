@@ -27,6 +27,12 @@ spec:
       category: environment
       idempotent: true
 
+    admin-api-registry-sync:
+      command: cd admin && STAGE=local go run . server -a
+      description: One-shot synchronization of mounted Admin routes into the API registry required by menu API binding.
+      category: environment
+      idempotent: true
+
     dev-start:
       command: go run ./cmd/mss dev --detach
       description: Start the canonical backend and frontend development services.
@@ -213,40 +219,40 @@ spec:
       idempotent: true
 
     release-phase-evidence-plan:
-      command: python3 tools/release/release_phase_evidence.py plan --target-version v1.1.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root|post-publication> --output .mss/reports/release-phase-plan.json
-      description: Resolve the explicitly selected v1.1.0 Feature contracts into a shell-free, phase-scoped command plan while retaining manual, report, and non-exact evidence as release-manager review items.
+      command: python3 tools/release/release_phase_evidence.py plan --target-version v1.2.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root|post-publication> --output .mss/reports/release-phase-plan.json
+      description: Resolve the explicitly selected v1.2.0 Feature contracts into a shell-free, phase-scoped command plan while retaining manual, report, and non-exact evidence as release-manager review items.
       outputFormats: [json]
       category: release
       idempotent: true
 
     release-phase-evidence-run:
-      command: python3 tools/release/release_phase_evidence.py run --target-version v1.1.0 --commit <full-sha> --phase feature-freeze --output .mss/reports/release-phase-command-evidence.json
+      command: python3 tools/release/release_phase_evidence.py run --target-version v1.2.0 --commit <full-sha> --phase feature-freeze --output .mss/reports/release-phase-command-evidence.json
       description: On one clean frozen commit, execute the scoped release Feature commands without a shell, retain per-command digests and logs, and fail when a selected command fails, times out, or still uses non-exact named Go test evidence.
       outputFormats: [json]
       category: release
 
     release-qualification-decision:
-      command: python3 tools/release/release_qualification_decision.py --target-version v1.1.0 --commit <full-sha> --phase feature-freeze --browser-evidence-commit <full-sha> --browser-evidence-ref <reference> --blueprint-evidence-commit <full-sha> --blueprint-evidence-ref <reference> --output .mss/reports/release-qualification-decision.json
+      command: python3 tools/release/release_qualification_decision.py --target-version v1.2.0 --commit <full-sha> --phase feature-freeze --browser-evidence-commit <full-sha> --browser-evidence-ref <reference> --blueprint-evidence-commit <full-sha> --blueprint-evidence-ref <reference> --output .mss/reports/release-qualification-decision.json
       description: Bind the Codex in-app Browser and external Blueprint rehearsal evidence to the exact frozen SHA while recording carry-forward and optional ObjectStore/RustFS decisions.
       outputFormats: [json]
       category: release
       idempotent: true
 
     release-readiness-attestation-create:
-      command: python3 tools/release/release_readiness_attestation.py create --output <attestation.json> --policy .mss/release-policy.yaml --target-version v1.1.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --publication-authority <true|false>
+      command: python3 tools/release/release_readiness_attestation.py create --output <attestation.json> --policy .mss/release-policy.yaml --target-version v1.2.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --publication-authority <true|false>
       description: Create the strict readiness metadata for one exact workflow run; the checked-in development policy permits checkpoint qualification only and cannot grant publication authority.
       outputFormats: [text]
       category: release
 
     release-readiness-attestation-verify:
-      command: python3 tools/release/release_readiness_attestation.py verify --attestation <attestation.json> --policy .mss/release-policy.yaml --target-version v1.1.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --intent <qualify|publish>
+      command: python3 tools/release/release_readiness_attestation.py verify --attestation <attestation.json> --policy .mss/release-policy.yaml --target-version v1.2.0 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --intent <qualify|publish>
       description: Reject an attestation unless its exact schema, version, commit, phase, policy digest, selected run identity, URL, and authority match the requested intent.
       outputFormats: [text]
       category: release
       idempotent: true
 
     release-readiness-run-verify:
-      command: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.1.0 --commit <full-sha> --phase <pre-framework|pre-root> --policy .mss/release-policy.yaml
+      command: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.2.0 --commit <full-sha> --phase <pre-framework|pre-root> --policy .mss/release-policy.yaml
       description: Read the specifically selected successful release-readiness workflow run and its run-named artifact, then require an exact publication attestation before a publishing workflow writes externally.
       outputFormats: [text]
       category: release

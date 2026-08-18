@@ -6,6 +6,10 @@ and the root changelog, not as a current release surface.
 
 ## Unreleased
 
+Target: **web/antd-v6/v1.2.0**. This is the first public release of the sole
+supported Admin frontend and must use the same exact merged-main commit as the
+Framework and root v1.2.0 artifacts.
+
 - Become the repository's sole Admin frontend without changing the independent
   `web/antd-v6` directory, tag, image, lockfile, or release identity. Canonical
   setup, local development, compose delivery, active documentation, generation,

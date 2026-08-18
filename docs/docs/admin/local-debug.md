@@ -12,8 +12,10 @@ keywords: [admin local debug, mss-boot-admin debug]
 
 ## 启动顺序
 
-1. 在仓库根目录执行 `go run ./cmd/mss dev`，默认启动后端与 V6 前端。
-2. 如需分别调试，可在 `admin/` 执行 `go run . server`，在 `web/antd-v6/`
+1. 首次迁移或路由变更后，在 `admin/` 执行一次 `STAGE=local go run . server -a`，
+   把实际挂载路由同步到 API 注册表；命令成功后会自行退出。
+2. 在仓库根目录执行 `go run ./cmd/mss dev`，默认启动后端与 V6 前端。
+3. 如需分别调试，可在 `admin/` 执行 `go run . server`，在 `web/antd-v6/`
    执行 `corepack pnpm@10.34.5 start:dev`。
 
 默认端口基线：
@@ -55,9 +57,21 @@ lsof -i :8001
 
 ```bash
 go run . migrate
+STAGE=local go run . server -a
 ```
 
 再重启后端服务并刷新前端页面。
+
+### 4) 菜单“绑定 API”为空
+
+先停止正在占用后端配置资源的本地服务，在 `admin/` 使用同一 stage 和数据库配置执行：
+
+```bash
+STAGE=local go run . server -a
+```
+
+该命令只同步路由并退出。重新启动后端后再次打开绑定窗口；如果仍为空，再检查同步命令
+使用的数据库是否与当前后端完全一致。
 
 ## 建议的调试习惯
 

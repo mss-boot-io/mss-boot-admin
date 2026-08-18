@@ -1,14 +1,20 @@
 ---
-title: 发布前检查清单
+title: 历史发布前检查清单（2026-04）
 order: 30
 nav:
   order: 1
   title: admin
-description: mss-boot-admin 发布前必须完成的检查项，确保生产环境安全稳定
+description: 2026-04 的历史发布前检查记录，不作为当前版本发布授权
 keywords: [admin release checklist production deployment]
 ---
 
 ## 概述
+
+:::warning
+本文是 2026-04 的历史记录，下面的勾选项、版本号、命令和结论不能用于当前发布。
+当前唯一活动目标及可执行门禁见 [v1.2.0 发布合同](/releases/v1-2-0)；缺少任一 required
+精确 SHA 证据时结论均为 **NO-GO**。
+:::
 
 本文档列出了 `mss-boot-admin` 正式发布前必须完成的所有检查项。
 

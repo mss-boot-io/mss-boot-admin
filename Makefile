@@ -123,10 +123,10 @@ web-v6-build:
 	cd web/antd-v6 && corepack pnpm@10.34.5 build:release
 
 docs-install:
-	cd docs && corepack enable && pnpm install --frozen-lockfile
+	cd docs && corepack pnpm@9.15.9 install --frozen-lockfile
 
 docs-build:
-	cd docs && pnpm build
+	cd docs && corepack pnpm@9.15.9 build
 
 verify-all: verify-admin verify-framework test-agent web-v6-lint web-v6-test web-v6-build docs-build
 

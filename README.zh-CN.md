@@ -28,6 +28,7 @@
 ./mss context --format json
 ./mss doctor --strict --format json
 ./mss setup
+(cd admin && STAGE=local go run . server -a)
 ./mss dev --detach
 ./mss verify --changed
 ./mss eval run --all
@@ -115,11 +116,14 @@ cd mss-boot-admin
 
 ./mss doctor --strict --format json
 ./mss setup
+(cd admin && STAGE=local go run . server -a)
 ./mss dev --detach
 ./mss dev status --format json
 ```
 
 唯一的 Admin 前端位于 `web/antd-v6`，本地地址为 `http://localhost:8001`。
+一次性的 `server -a` 会把实际挂载路由同步到 API 注册表；如果跳过，即使前后端健康，
+菜单管理中的“绑定 API”也可能没有任何可选项。
 
 在编写重复代码前先创建或验证结构化契约：
 
