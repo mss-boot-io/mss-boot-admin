@@ -74,6 +74,19 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             frontend_install,
             "corepack pnpm@10.34.5 --dir web/antd-v6 install --frozen-lockfile --ignore-scripts",
         )
+        playwright_install = self.step("Install Playwright Chromium")
+        self.assertEqual(
+            playwright_install["if"], "${{ inputs.phase == 'feature-freeze' }}"
+        )
+        self.assertEqual(playwright_install["working-directory"], "web/antd-v6")
+        self.assertEqual(
+            playwright_install["run"],
+            "corepack pnpm@10.34.5 exec playwright install --with-deps chromium",
+        )
+        self.assertLess(
+            self.steps.index(playwright_install),
+            self.steps.index(phase),
+        )
         self.assertEqual(self.step("Setup pnpm")["with"]["version"], "9.15.9")
 
     def test_v120_qualification_carries_every_other_feature_forward(self):
