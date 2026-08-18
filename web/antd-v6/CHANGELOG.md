@@ -18,6 +18,8 @@ container image, or GitHub Release; the root v1.2.0 tag was never created.
 
 - Upload only the portable `dist-v6.tar.gz`, build identity, and checksum manifest;
   keep a workflow contract test that rejects raw `dist` directory uploads.
+- Use the dark appearance as the code-layer default while preserving application
+  and personal theme overrides above it.
 - Become the repository's sole Admin frontend without changing the independent
   `web/antd-v6` directory, tag, image, lockfile, or release identity. Canonical
   setup, local development, compose delivery, active documentation, generation,

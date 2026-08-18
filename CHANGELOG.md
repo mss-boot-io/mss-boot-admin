@@ -20,6 +20,11 @@ either v1.2.0 component tag.
 
 ### Changed
 
+- Made V6 publication upload only the portable `dist-v6.tar.gz`, build identity,
+  and checksum manifest instead of traversing the raw `dist` tree. A workflow
+  contract test prevents the non-portable directory upload from returning.
+- Made the V6 code-layer theme default dark while retaining application and
+  personal overrides with their existing precedence.
 - Made `web/antd-v6` the sole Admin browser application and removed the retired
   frontend source, generator projection, dependency automation, CI/release/deploy
   paths, active documentation, and rollback image. Root distribution and rollback
@@ -59,9 +64,6 @@ history; all active release preparation now targets v1.2.1.
 
 ### Changed
 
-- Made V6 publication upload only the portable `dist-v6.tar.gz`, build identity,
-  and checksum manifest instead of traversing the raw `dist` tree. A workflow
-  contract test prevents the non-portable directory upload from returning.
 - Enabled the protected v1.1.0 publication path after the scoped readiness runner, exact-run
   attestation, required-reviewer `release` environment, and immutable release-tag rulesets were
   installed and verified. Publication still requires exact-SHA pre-framework and pre-root authority.

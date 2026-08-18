@@ -1,7 +1,7 @@
 import type { ProLayoutProps } from '@ant-design/pro-components';
 
 export const defaultSettings = {
-  navTheme: 'light',
+  navTheme: 'realDark',
   colorPrimary: '#1677ff',
   layout: 'mix',
   contentWidth: 'Fluid',
