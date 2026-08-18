@@ -6,17 +6,40 @@ tag namespaces.
 
 ## [Unreleased]
 
-Target: **v1.2.1** for the root foundation, `mss-boot/v1.2.1` for the reusable
-Framework, and `web/antd-v6/v1.2.1` for the sole Admin frontend. Publication
+Target: **v1.2.2** for the root foundation, `mss-boot/v1.2.2` for the reusable
+Framework, and `web/antd-v6/v1.2.2` for the sole Admin frontend. Publication
 requires one exact clean commit already merged into `origin/main`; local or
 topic-branch evidence is preliminary only.
 
-The immutable `mss-boot/v1.2.0` Framework release was published successfully,
-but the `web/antd-v6/v1.2.0` workflow stopped while uploading a raw build tree
-containing a colon-bearing route filename. That V6 tag has no uploaded artifact,
-container image, or GitHub Release, and the root `v1.2.0` tag was never created.
-The complete train therefore moves forward to v1.2.1 without moving or reusing
-either v1.2.0 component tag.
+The immutable v1.2.1 Framework and frontend releases completed, and the root tag
+and runtime image exist, but the root Release workflow retained a second raw V6
+directory upload and stopped on a colon-bearing route filename before assembling
+or publishing platform archives. v1.2.2 repairs the complete product boundary;
+no v1.2.0 or v1.2.1 public ref is moved, deleted, reused, or supplemented.
+
+### Changed
+
+- Normalize Umi's literal dynamic-route HTML placeholders out of release output,
+  fail closed on unexpected placeholder content, and set deterministic static
+  directory/file modes to 755/644 so restrictive build umasks cannot cause Nginx 403.
+- Added one cross-platform path validator for directories, ZIPs, and TARs. It
+  rejects forbidden/control characters, traversal, trailing spaces or periods,
+  Windows device names, case-insensitive collisions, unsafe links, and overlong
+  components before artifact or Release publication.
+- Made both frontend workflows transport only a checksummed `dist-v6.tar.gz`,
+  and made root assembly verify/extract it before validating all six final ZIPs.
+  Workflow tests inventory every remaining raw directory upload and require a
+  preceding portability guard.
+- Extended production delivery smoke to a concrete dynamic deep link after the
+  placeholder removal, in addition to hashed-asset, cache, and missing-file checks.
+
+## [v1.2.1] - 2026-08-19
+
+Status: **component-partial / immutable**. Framework and the sole V6 frontend were
+published from `80d2d20f1b44105e18706cfa0deb7f8512966f92`. The root tag and runtime
+image were created, but root package assembly and GitHub Release publication did
+not complete because the root workflow still uploaded raw V6 output. v1.2.2 is
+the only active forward-repair target.
 
 ### Changed
 
@@ -60,7 +83,7 @@ either v1.2.0 component tag.
 ## [v1.1.0] - 2026-08-11
 
 Status: **published / historical**. This section is retained as immutable release
-history; all active release preparation now targets v1.2.1.
+history; all active release preparation now targets v1.2.2.
 
 ### Changed
 

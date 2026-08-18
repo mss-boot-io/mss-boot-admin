@@ -152,6 +152,11 @@ jobs:
           } > FRONTEND-V6-BUILD-INFO
           tar --create --gzip --file dist-v6.tar.gz dist
           sha256sum dist-v6.tar.gz FRONTEND-V6-BUILD-INFO > SHA256SUMS.frontend-v6
+          python3 ../../tools/release/check_portable_paths.py \
+            dist \
+            dist-v6.tar.gz \
+            FRONTEND-V6-BUILD-INFO \
+            SHA256SUMS.frontend-v6
 
       - name: Smoke-test v6 production delivery
         run: pnpm run delivery:smoke

@@ -15,7 +15,7 @@ from pathlib import Path
 
 SCHEMA = "mss.io/release-qualification-decision/v1"
 QUALIFICATION_SCHEMA = "mss.io/release-qualification/v1"
-RELEASE_FEATURE = ".mss/features/foundation-v1-2-1-release.yaml"
+RELEASE_FEATURE = ".mss/features/foundation-v1-2-2-release.yaml"
 FULL_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 PLACEHOLDER_RE = re.compile(r"^(?:none|null|n/a|na|pending|todo|tbd|<.*>)$", re.IGNORECASE)
 

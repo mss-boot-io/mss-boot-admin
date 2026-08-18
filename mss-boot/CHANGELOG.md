@@ -6,15 +6,27 @@ and the project uses semantic versioning for nested-module releases.
 
 ## [Unreleased]
 
-Target: **mss-boot/v1.2.1**. This synchronized forward repair republishes the
+Target: **mss-boot/v1.2.2**. This synchronized forward repair republishes the
 same source-compatible Framework behavior from the exact merged-main commit used
 by the root and V6 frontend releases. It introduces no new public Framework API.
 
 ### Changed
 
-- Requalified the Framework from the merged v1.2.1 repair commit so all three
-  component tags can identify one exact source revision after the V6 artifact
-  workflow repair.
+- Requalify the Framework from the merged v1.2.2 repair commit so all three
+  component tags identify one exact source revision after the complete artifact
+  workflow and archive portability repair.
+
+## [mss-boot/v1.2.1] - 2026-08-19
+
+Status: **published / historical component release**. The Framework published
+successfully from `80d2d20f1b44105e18706cfa0deb7f8512966f92` and resolved through
+the public Go proxy. The synchronized root train remained partial after its
+separate raw frontend artifact upload failed; active qualification is v1.2.2.
+
+### Changed
+
+- Requalified the source-compatible v1.2 Framework behavior from the synchronized
+  v1.2.1 merged-main commit without adding or removing a public Framework API.
 
 ## [mss-boot/v1.2.0] - 2026-08-18
 
@@ -41,7 +53,7 @@ the original train and resolved from a clean external consumer with `GOWORK=off`
 ## [mss-boot/v1.1.0] - 2026-08-11
 
 Status: **published / historical**. Active Framework qualification now targets
-`mss-boot/v1.2.1`.
+`mss-boot/v1.2.2`.
 
 Target: **mss-boot/v1.1.0 development train**. Intermediate patch and public
 prerelease tags are disabled; current Challenge, Kafka, and object-provider work

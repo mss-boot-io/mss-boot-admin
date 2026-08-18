@@ -228,8 +228,15 @@ jobs:
       - name: Run browser permission and parity qualification
         run: pnpm run test:e2e
 
-      - name: Upload browser failure evidence
+      - name: Verify portable browser evidence paths
+        id: portable_browser_evidence
         if: failure()
+        run: >-
+          python3 ../../tools/release/check_portable_paths.py --allow-missing
+          playwright-report test-results
+
+      - name: Upload browser failure evidence
+        if: ${{ failure() && steps.portable_browser_evidence.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: frontend-v6-browser-evidence
