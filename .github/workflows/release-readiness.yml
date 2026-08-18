@@ -197,7 +197,7 @@ jobs:
 
       - name: Install documentation dependencies
         if: ${{ inputs.phase == 'feature-freeze' }}
-        run: pnpm --dir docs install --frozen-lockfile
+        run: corepack pnpm@9.15.9 --dir docs install --frozen-lockfile
 
       - name: Execute phase-scoped Feature command evidence
         if: ${{ success() && inputs.phase == 'feature-freeze' }}

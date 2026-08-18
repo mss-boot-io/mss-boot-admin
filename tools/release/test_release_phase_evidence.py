@@ -193,7 +193,7 @@ class ReleasePhaseEvidenceTest(unittest.TestCase):
             EVIDENCE.validate_binding(
                 root,
                 policy_path=policy,
-                target_version="v1.1.0",
+                target_version="v1.2.0",
                 commit=commit,
                 require_clean=True,
             )
@@ -202,7 +202,7 @@ class ReleasePhaseEvidenceTest(unittest.TestCase):
                 EVIDENCE.validate_binding(
                     root,
                     policy_path=policy,
-                    target_version="v1.1.0",
+                    target_version="v1.2.0",
                     commit=commit,
                     require_clean=True,
                 )

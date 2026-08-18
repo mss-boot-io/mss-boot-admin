@@ -6,6 +6,28 @@ and the project uses semantic versioning for nested-module releases.
 
 ## [Unreleased]
 
+Target: **mss-boot/v1.2.0**. The nested module must publish first from the same
+exact merged-main commit used by the root and V6 frontend releases, then resolve
+from a clean external consumer with `GOWORK=off`.
+
+### Changed
+
+- Made generic GORM delete controls run `BeforeDelete` and the delete itself in
+  one transaction, pass the transaction to the hook, and classify before/delete/
+  after failures through the fixed public write-error mapping boundary.
+- Raised the nested module toolchain declaration to Go 1.26.6.
+
+### Security
+
+- Added constant-time verification for the existing scrypt password representation.
+- Replaced directly hashed SecretRef locators with a bounded PBKDF2-SHA256
+  fingerprint so diagnostics remain stable without exposing source locators.
+
+## [mss-boot/v1.1.0] - 2026-08-11
+
+Status: **published / historical**. Active Framework qualification now targets
+`mss-boot/v1.2.0`.
+
 Target: **mss-boot/v1.1.0 development train**. Intermediate patch and public
 prerelease tags are disabled; current Challenge, Kafka, and object-provider work
 remains internal and does not promote provider maturity.

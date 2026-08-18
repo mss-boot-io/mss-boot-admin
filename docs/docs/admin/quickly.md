@@ -41,11 +41,16 @@ cd mss-boot-admin
 cd admin
 # 迁移数据库
 go run . migrate
+# 一次性同步实际挂载路由到 API 注册表，然后正常退出
+STAGE=local go run . server -a
 ```
 
 > 默认 SQLite 无需额外服务即可启动。如需切换 MySQL/PostgreSQL，请按实际情况
 > 设置 `DB_DSN`，并参考仓库根目录下的 `compose/`；不要把生产密码写入文档、
 > 命令历史或提交到仓库。
+>
+> `server -a` 是菜单“绑定 API”的数据前置条件。后端和前端能访问不代表 API 注册表
+> 已初始化；同步后还应确认绑定窗口存在可选 API。
 
 ## 3. 启动后端服务
 
@@ -80,6 +85,7 @@ curl -I http://127.0.0.1:8080/healthz
 # 后端（admin）
 cd admin
 go run . migrate
+STAGE=local go run . server -a
 go run . server
 
 # 默认前端（web/antd-v6）

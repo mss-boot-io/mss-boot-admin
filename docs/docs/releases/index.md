@@ -8,16 +8,21 @@ description: mss-boot-admin 版本状态、升级、兼容性与回滚合同
 keywords: [release upgrade rollback compatibility mss-boot-admin]
 ---
 
-> 最新 D5 开发 checkpoint 已覆盖三条并行路径：[`2771588` Supplier 完整生成投影](/releases/v1-1-0-d5-supplier-generated-module)、
-> [Blueprint 0.1→0.2 外部升级演练](/releases/v1-1-0-d5-blueprint-upgrade-rehearsal)，以及
-> [`668dfe3` Provider evidence validator](/releases/v1-1-0-d5-provider-evidence-validator)。Provider CLI
-> 只严格校验输入报告，不启动任何真实 provider，也不生成或推断 provider 成熟度。ObjectStore/RustFS
-> 继续是 v1.1.0 之后的可选成熟度工作；Runtime v2 保持 Planned。以上开发证据都必须在选定冻结 SHA
-> 后按发布阶段集中重跑或生成，不能直接授权 tag/Release。
+> 当前唯一活动发布目标是 **v1.2.0**。根、Framework 和唯一的 Ant Design V6
+> 前端必须绑定同一个已合并 `main` 的精确提交；本地与历史 checkpoint 不能授权
+> tag、Release、package 或镜像写入。
 
 # 发布与升级
 
 这里保存长期有效的版本合同。Git tag、GitHub Release、嵌套 Go 模块的外部解析结果和对应提交上的验证报告共同构成发布证据；分支名、`Unreleased`、`planned`、`preview` 或本地 `go.work` 替换都不代表稳定版本。
+
+## 下一公开版本：v1.2.0
+
+当前状态：**准备中 / NO-GO**。发布前仍需将准备变更通过 PR 合并到 `main`，在合并后的
+精确 SHA 上完成 feature-freeze、内置浏览器、外部 Blueprint、`pre-framework`、外部
+Framework 解析、`pre-root` 与发布后对账。
+
+- [v1.2.0 发布、升级与回滚合同](/releases/v1-2-0)
 
 ## v1.0.0 stable
 
@@ -48,7 +53,10 @@ forward-repair；根版本公开后的 reconciliation 失败则记录为
 `published / evidence-incomplete`。两种情况都不得移动或删除标签，并停止后续发布直到 evidence
 issue 完成终态记录或链接已验证的替代列车。
 
-## 下一公开版本：v1.1.0
+## v1.1.0 historical
+
+当前状态：**已发布 / 历史记录**。以下内容保留用于审计，不再作为活动发布目标；所有新
+资格与发布命令均以 v1.2.0 为准。
 
 当前采用“开发优先、冻结后集中验证”策略：原 `v1.0.1-v1.0.3` 和 alpha 切片只作为
 内部开发波次，不创建 tag、GitHub Release 或版本化包。Challenge、Kafka Mark/lifecycle、

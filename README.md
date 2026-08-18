@@ -28,6 +28,7 @@ business intent
 ./mss context --format json
 ./mss doctor --strict --format json
 ./mss setup
+(cd admin && STAGE=local go run . server -a)
 ./mss dev --detach
 ./mss verify --changed
 ./mss eval run --all
@@ -123,11 +124,14 @@ cd mss-boot-admin
 
 ./mss doctor --strict --format json
 ./mss setup
+(cd admin && STAGE=local go run . server -a)
 ./mss dev --detach
 ./mss dev status --format json
 ```
 
 The single Admin client is served at `http://localhost:8001` from `web/antd-v6`.
+The one-shot `server -a` step synchronizes mounted routes into the API registry;
+without it, menu API binding can be empty even while both services are healthy.
 
 Create or validate development contracts before editing repetitive code:
 

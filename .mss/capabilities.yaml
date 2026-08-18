@@ -809,9 +809,12 @@ spec:
         - .mss/features/foundation-v1-0-0-release.yaml
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/foundation-v1-1-0-release.yaml
+        - .mss/features/foundation-v1-2-0-release.yaml
         - .mss/features/admin-antd-v6-application.yaml
         - .mss/features/admin-antd-v6-cutover-retirement.yaml
+        - .mss/features/admin-antd-v6-release-polish.yaml
         - .mss/release-policy.yaml
+        - .mss/release-qualification.json
         - CHANGELOG.md
         - mss-boot/CHANGELOG.md
         - web/antd-v6/CHANGELOG.md
@@ -840,15 +843,11 @@ spec:
         - .github/workflows/v0.7-upgrade-integration.yml
       guidance: >-
         Treat Unreleased, planned, preview, branches, and local workspace replacements as non-stable.
-        Root v1.0.0 and mss-boot/v1.0.0 were published from
-        ee800262c035c5f4242aca1841d077554481d2c4 on 2026-08-09, with exact-commit evidence in
-        GitHub issue 471. The retired V5 frontend had no standalone v1.0.0 publication. Regenerate
-        exact-commit artifacts and evidence for every later release; historical candidate or
-        previous-version evidence is not reusable.
-        The reviewed development-first policy advances directly to v1.1.0: v1.0.x and public
-        alpha, beta, or RC tags are forbidden while internal waves accumulate on branches and
-        commits. Complete release readiness begins only after one v1.1.0 feature-freeze commit is
-        selected. An emergency patch requires a reviewed policy target change rather than a bypass.
+        Published historical versions remain immutable and their candidate evidence is not reusable.
+        The active reviewed target is v1.2.0 for root, Framework, and the sole Ant Design V6
+        frontend. Public alpha, beta, or RC tags remain forbidden. Complete release readiness begins
+        only after one v1.2.0 feature-freeze commit already merged into main is selected. An emergency
+        patch requires a reviewed policy target change rather than a bypass.
         Publish a required nested framework tag first, prove external GOWORK=off resolution, then publish
         the root tag from the same reviewed commit. Finalize a stable release only after migrations,
         security checks, versioned artifacts, containers, documentation, installation smoke tests, and

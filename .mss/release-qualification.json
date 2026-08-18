@@ -1,61 +1,69 @@
 {
   "schema": "mss.io/release-qualification/v1",
-  "targetVersion": "v1.1.0",
+  "targetVersion": "v1.2.0",
   "features": [
-    ".mss/features/foundation-v1-1-0-release.yaml"
+    ".mss/features/foundation-v1-2-0-release.yaml"
   ],
   "excludedFeatures": [
     {
       "path": ".mss/features/admin-antd-v6-application.yaml",
-      "reason": "carry-forward: the independent Ant Design 6 application passed merged-main product-parity qualification in PR #483; its exact publication evidence remains component-scoped and is not replayed by the root release feature."
+      "reason": "carry-forward: the merged V6 application contract is represented by the v1.2.0 product gates copied into the scoped release Feature."
     },
     {
       "path": ".mss/features/admin-antd-v6-cutover-retirement.yaml",
-      "reason": "carry-forward: the direct V6-only source retirement and backend browser-protocol cleanup have their own concentrated pre-PR gates; this root qualification cannot skip or pre-authorize any unfinished gate."
+      "reason": "carry-forward: the merged V6-only cutover remains authoritative and its absence guards are included in v1.2.0 qualification."
+    },
+    {
+      "path": ".mss/features/admin-antd-v6-release-polish.yaml",
+      "reason": "carry-forward: the merged polish evidence remains authoritative while its concentrated frontend gates rerun from the v1.2.0 frozen SHA."
     },
     {
       "path": ".mss/features/admin-config-cache-consistency.yaml",
-      "reason": "carry-forward: accepted checkpoint evidence remains authoritative and no previously stable cache-consistency behavior is replayed by the frozen-SHA command gate."
+      "reason": "carry-forward: accepted cache-consistency checkpoints remain permanent regression coverage and are not replayed as a separate release Feature."
     },
     {
       "path": ".mss/features/admin-permission-hardening.yaml",
-      "reason": "carry-forward: accepted checkpoint evidence remains authoritative and no previously stable permission-hardening behavior is replayed by the frozen-SHA command gate."
+      "reason": "carry-forward: accepted backend authorization and negative tests remain part of the complete Admin suite selected by v1.2.0."
     },
     {
       "path": ".mss/features/admin-runtime-tools-removal-monitoring.yaml",
-      "reason": "carry-forward: accepted checkpoint evidence remains authoritative and the removed runtime-tool boundary is not adversarially re-reviewed."
+      "reason": "carry-forward: the removed runtime developer-tool boundary remains enforced and is not reintroduced by v1.2.0."
     },
     {
       "path": ".mss/features/admin-secret-lifecycle.yaml",
-      "reason": "carry-forward: accepted checkpoint evidence remains authoritative and no previously stable secret-lifecycle behavior is replayed by the frozen-SHA command gate."
+      "reason": "carry-forward: accepted secret lifecycle and redaction tests remain permanent backend coverage."
     },
     {
       "path": ".mss/features/admin-theme-settings-precedence.yaml",
-      "reason": "carry-forward: accepted checkpoint evidence remains authoritative and no previously stable theme behavior is replayed by the frozen-SHA command gate."
+      "reason": "carry-forward: accepted theme precedence is covered by the complete Admin and V6 suites."
     },
     {
       "path": ".mss/features/admin-ui-experience-quality.yaml",
-      "reason": "carry-forward: accepted checkpoint evidence remains authoritative and no previously stable UI behavior is replayed by the frozen-SHA command gate."
+      "reason": "carry-forward: accepted UI quality work is represented by the V6-only product and browser gates."
     },
     {
       "path": ".mss/features/example-supplier-onboarding.yaml",
-      "reason": "carry-forward: stable Supplier checkpoints are not replayed wholesale; only the new exact Supplier commands and SHA-bound Codex in-app-browser evidence copied into the release Feature qualify v1.1.0."
+      "reason": "carry-forward: Supplier remains the deterministic generator golden and is covered by root, Admin, and V6 qualification."
     },
     {
       "path": ".mss/features/foundation-v1-0-0-release.yaml",
-      "reason": "carry-forward: published v1.0.0 historical evidence is retained for audit and is not rerun as v1.1.0 phase truth."
+      "reason": "carry-forward: published v1.0.0 evidence is immutable historical audit material."
     },
     {
       "path": ".mss/features/foundation-v1-0-1-storage-safety.yaml",
-      "reason": "carry-forward: accepted historical storage-safety checkpoints are not replayed; ObjectStore and RustFS conformance are optional and non-blocking for v1.1.0."
+      "reason": "carry-forward: accepted storage safety remains regression coverage while optional provider promotion stays outside v1.2.0."
     },
     {
       "path": ".mss/features/foundation-v1-1-0-generator-blueprint.yaml",
-      "reason": "carry-forward: stable Generator and Blueprint checkpoints are not replayed wholesale; only the new exact generator commands and SHA-bound external upgrade rehearsal copied into the release Feature qualify v1.1.0."
+      "reason": "carry-forward: merged Generator and Blueprint checkpoints remain covered by root tests and the exact-SHA external rehearsal."
+    },
+    {
+      "path": ".mss/features/foundation-v1-1-0-release.yaml",
+      "reason": "carry-forward: v1.1.0 is immutable historical release evidence and is not an active v1.2.0 gate."
     },
     {
       "path": ".mss/features/storage-runtime-v2.yaml",
-      "reason": "carry-forward: accepted runtime, cache, event, lifecycle, and storage checkpoints are not replayed; only the new provider-evidence validator commands copied into the release Feature run, while ObjectStore and RustFS remain optional and non-blocking."
+      "reason": "carry-forward: accepted runtime checkpoints remain regression coverage; optional ObjectStore and RustFS maturity does not block v1.2.0."
     }
   ]
 }

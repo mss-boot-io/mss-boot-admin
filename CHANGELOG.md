@@ -6,9 +6,10 @@ tag namespaces.
 
 ## [Unreleased]
 
-Target: **v1.1.0 development train**. The former v1.0.x and prerelease slices are
-internal, untagged checkpoints. Complete qualification starts only after feature
-freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
+Target: **v1.2.0** for the root foundation, `mss-boot/v1.2.0` for the reusable
+Framework, and `web/antd-v6/v1.2.0` for the sole Admin frontend. Publication
+requires one exact clean commit already merged into `origin/main`; local or
+topic-branch evidence is preliminary only.
 
 ### Changed
 
@@ -27,6 +28,26 @@ freeze; no public v1.0.x or v1.1.0 prerelease is planned by the current policy.
   The backend no longer exposes switches that can restore stateless browser JWT
   behavior; production still configures Secure/SameSite cookies, trusted origins,
   strong keys, shared session state, and one-time WebSocket ticket lifetime.
+- Added forward-only Language, Option, account-reauthentication, example-Supplier
+  retirement, and retired-V5 configuration migrations for fresh and upgraded
+  V6 deployments.
+- Made the one-shot `STAGE=local go run . server -a` route synchronization an
+  explicit setup and upgrade contract. A healthy process with an empty API registry
+  is not ready for menu API binding.
+- Prepared the source-compatible Framework v1.2.0 hardening for transactional
+  delete controls, fixed public write-error mapping, constant-time password
+  verification, and non-reversible SecretRef fingerprints.
+- Added a repository-wide LF checkout contract and explicit pnpm pins for the
+  pnpm 10.34.5 V6 application and pnpm 9.15.9 documentation site so WSL release
+  checks do not depend on a Windows Git or global package-manager setting.
+
+## [v1.1.0] - 2026-08-11
+
+Status: **published / historical**. This section is retained as immutable release
+history; all active release preparation now targets v1.2.0.
+
+### Changed
+
 - Enabled the protected v1.1.0 publication path after the scoped readiness runner, exact-run
   attestation, required-reviewer `release` environment, and immutable release-tag rulesets were
   installed and verified. Publication still requires exact-SHA pre-framework and pre-root authority.
