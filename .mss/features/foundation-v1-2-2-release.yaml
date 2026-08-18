@@ -27,7 +27,7 @@ spec:
   goals:
     - Make v1.2.2 the only active public target in policy, qualification, commands, and operator documentation.
     - Preserve every v1.2.0 and v1.2.1 tag, Release, image, workflow run, and failure as immutable audit evidence.
-    - Remove only Umi literal dynamic-route HTML placeholders and normalize release static modes to directories 755 and files 644.
+    - Remove only Umi/Dumi literal dynamic-route HTML placeholders and normalize release static modes to directories 755 and files 644.
     - Reject invalid, reserved, colliding, traversing, linked, or overlong artifact path components in directories and ZIP/TAR archives.
     - Upload the V6 distribution through a checksummed portable archive in both frontend and root publication workflows.
     - Validate every raw directory upload and every final root platform ZIP before publication.
@@ -79,7 +79,7 @@ spec:
       actor: maintainer
       module: admin-v6
       rules:
-        - Only literal Umi dynamic-route placeholder directories containing one index.html are removed.
+        - Only literal Umi/Dumi dynamic-route placeholder directories containing one index.html are removed.
         - Unexpected content below a dynamic placeholder fails closed instead of being deleted.
         - Every remaining path passes the repository portability validator.
         - Release directories use mode 755 and static files use mode 644.
@@ -204,7 +204,7 @@ spec:
           value: A restrictive-umask build report showing zero invalid paths, directory mode 755, file mode 644, and passing concrete dynamic deep-link delivery.
     - id: feature-freeze-docs
       requirement: target-v122-only
-      statement: Release, upgrade, compatibility, and rollback guidance builds successfully.
+      statement: Release, upgrade, compatibility, and rollback guidance builds successfully with portable static paths.
       level: contract
       phase: feature-freeze
       required: true

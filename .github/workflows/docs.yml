@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'docs/**'
+      - 'tools/release/**'
       - 'tools/security/**'
       - '.github/workflows/docs.yml'
   push:
@@ -13,6 +14,7 @@ on:
       - main
     paths:
       - 'docs/**'
+      - 'tools/release/**'
       - 'tools/security/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:

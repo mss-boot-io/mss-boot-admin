@@ -19,7 +19,8 @@ no v1.2.0 or v1.2.1 public ref is moved, deleted, reused, or supplemented.
 
 ### Changed
 
-- Normalize Umi's literal dynamic-route HTML placeholders out of release output,
+- Normalize Umi/Dumi literal dynamic-route HTML placeholders out of Admin and
+  documentation release output,
   fail closed on unexpected placeholder content, and set deterministic static
   directory/file modes to 755/644 so restrictive build umasks cannot cause Nginx 403.
 - Added one cross-platform path validator for directories, ZIPs, and TARs. It

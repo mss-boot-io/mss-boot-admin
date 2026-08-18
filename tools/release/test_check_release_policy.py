@@ -327,11 +327,23 @@ class ReleasePolicyTest(unittest.TestCase):
             "check_portable_paths.py mss-boot-admin-*.zip", script
         )
 
-    def test_release_build_normalizes_umi_dynamic_route_placeholders(self):
-        package = (
+    def test_static_release_builds_normalize_dynamic_route_placeholders(self):
+        frontend_package = (
             REPOSITORY_ROOT / "web" / "antd-v6" / "package.json"
         ).read_text(encoding="utf-8")
-        self.assertIn("prepare_portable_frontend.py dist", package)
+        docs_package = (REPOSITORY_ROOT / "docs" / "package.json").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("prepare_portable_frontend.py dist", frontend_package)
+        self.assertIn("prepare_portable_frontend.py dist", docs_package)
+
+    def test_static_ci_runs_when_portability_tooling_changes(self):
+        for workflow_name in ("frontend-v6-ci.yml", "docs.yml"):
+            with self.subTest(workflow=workflow_name):
+                content = (
+                    REPOSITORY_ROOT / ".github" / "workflows" / workflow_name
+                ).read_text(encoding="utf-8")
+                self.assertGreaterEqual(content.count("'tools/release/**'"), 2)
 
     def test_publication_workflows_require_the_phase_they_publish_from(self):
         expected_phases = {

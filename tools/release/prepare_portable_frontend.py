@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Normalize Umi static exports and prove the resulting frontend is portable."""
+"""Normalize Umi/Dumi static exports and prove the result is portable."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def prepare_frontend(
     allowed_root = allowed_root.resolve(strict=True)
     distribution = distribution.resolve(strict=True)
     if not distribution.is_dir():
-        raise PreparationError(f"frontend distribution is not a directory: {distribution}")
+        raise PreparationError(f"static distribution is not a directory: {distribution}")
     try:
         relative_distribution = distribution.relative_to(allowed_root)
     except ValueError as error:
@@ -91,8 +91,8 @@ def prepare_frontend(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Remove Umi's literal dynamic-route HTML placeholders and reject every "
-            "remaining cross-platform-incompatible path."
+            "Remove Umi/Dumi literal dynamic-route HTML placeholders and reject "
+            "every remaining cross-platform-incompatible path."
         )
     )
     parser.add_argument("distribution", type=Path)
@@ -104,12 +104,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         removed = prepare_frontend(args.distribution)
     except (OSError, PreparationError) as error:
-        print(f"portable frontend preparation failed: {error}", file=sys.stderr)
+        print(f"portable static preparation failed: {error}", file=sys.stderr)
         return 1
     print(f"Removed {len(removed)} Umi dynamic-route placeholder directorie(s)")
     for path in removed:
         print(f"  {path}")
-    print("Portable frontend distribution check passed")
+    print("Portable static distribution check passed")
     return 0
 
 
