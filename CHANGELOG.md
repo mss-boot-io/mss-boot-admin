@@ -6,16 +6,32 @@ tag namespaces.
 
 ## [Unreleased]
 
-Target: **v1.2.2** for the root foundation, `mss-boot/v1.2.2` for the reusable
-Framework, and `web/antd-v6/v1.2.2` for the sole Admin frontend. Publication
+Target: **v1.2.3** for the root foundation, `mss-boot/v1.2.3` for the reusable
+Framework, and `web/antd-v6/v1.2.3` for the sole Admin frontend. Publication
 requires one exact clean commit already merged into `origin/main`; local or
 topic-branch evidence is preliminary only.
 
-The immutable v1.2.1 Framework and frontend releases completed, and the root tag
-and runtime image exist, but the root Release workflow retained a second raw V6
-directory upload and stopped on a colon-bearing route filename before assembling
-or publishing platform archives. v1.2.2 repairs the complete product boundary;
-no v1.2.0 or v1.2.1 public ref is moved, deleted, reused, or supplemented.
+The immutable v1.2.2 Framework and frontend releases completed and root
+qualification passed. Root image publication then compiled arm64 under QEMU for
+2320 seconds and hit the 40-minute job limit during manifest export, leaving the
+root tag without a matching public image or GitHub Release. v1.2.3 repairs that
+publication boundary; no v1.2.0, v1.2.1, or v1.2.2 public ref is moved or reused.
+
+### Changed
+
+- Cross-compile target Go binaries on the native BuildKit build platform using
+  explicit `TARGETOS` and `TARGETARCH`, preventing arm64 Go compilation from
+  running under QEMU.
+- Raise the bounded root image publication job limit from 40 to 90 minutes and
+  add a workflow contract test that prevents either safeguard from regressing.
+
+## [v1.2.2] - 2026-08-19
+
+Status: **component-partial / immutable**. Framework and the sole V6 frontend
+were published from `29a99f2bdb9a2c516459529918795404c153df2e`. Root candidate
+qualification passed and the root tag was created, but the multi-architecture
+image publish timed out after the arm64 QEMU build; no root image or GitHub
+Release was completed. v1.2.3 is the only active forward-repair target.
 
 ### Changed
 
@@ -42,8 +58,9 @@ no v1.2.0 or v1.2.1 public ref is moved, deleted, reused, or supplemented.
 Status: **component-partial / immutable**. Framework and the sole V6 frontend were
 published from `80d2d20f1b44105e18706cfa0deb7f8512966f92`. The root tag and runtime
 image were created, but root package assembly and GitHub Release publication did
-not complete because the root workflow still uploaded raw V6 output. v1.2.2 is
-the only active forward-repair target.
+not complete because the root workflow still uploaded raw V6 output. v1.2.2
+repaired that artifact path but later stopped at root image publication; v1.2.3
+is the only active forward-repair target.
 
 ### Changed
 
@@ -87,7 +104,7 @@ the only active forward-repair target.
 ## [v1.1.0] - 2026-08-11
 
 Status: **published / historical**. This section is retained as immutable release
-history; all active release preparation now targets v1.2.2.
+history; all active release preparation now targets v1.2.3.
 
 ### Changed
 

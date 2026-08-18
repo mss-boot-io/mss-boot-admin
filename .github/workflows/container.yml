@@ -233,7 +233,7 @@ jobs:
         )
       }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 90
     environment: release
     permissions:
       actions: read
