@@ -1,13 +1,15 @@
-FROM golang:1.26.6-alpine@sha256:af8d6740070b8906d12eae1c3e3ea0957fb63f492051ea05e354c38ef9fe88df AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.6-alpine@sha256:af8d6740070b8906d12eae1c3e3ea0957fb63f492051ea05e354c38ef9fe88df AS builder
 
 ARG VERSION=devel
 ARG COMMIT=unknown
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /workspace
 
 COPY . .
 
-RUN CGO_ENABLED=0 go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -mod=vendor \
     -trimpath \
     -ldflags="-s -w -X github.com/mss-boot-io/mss-boot-admin/admin/pkg.Version=${VERSION} -X github.com/mss-boot-io/mss-boot-admin/admin/pkg.Commit=${COMMIT}" \

@@ -24,28 +24,28 @@ class ReleasePolicyTest(unittest.TestCase):
     def setUp(self):
         self.policy = POLICY.load_policy(POLICY_PATH)
 
-    def test_only_v122_matches_component_tag_namespaces(self):
+    def test_only_v123_matches_component_tag_namespaces(self):
         cases = {
-            "root": "v1.2.2",
-            "framework": "mss-boot/v1.2.2",
-            "frontend": "web/antd-v6/v1.2.2",
+            "root": "v1.2.3",
+            "framework": "mss-boot/v1.2.3",
+            "frontend": "web/antd-v6/v1.2.3",
         }
         for component, tag in cases.items():
             with self.subTest(component=component):
                 POLICY.check_public_ref(
-                    self.policy, component, "v1.2.2", tag, intent="qualify"
+                    self.policy, component, "v1.2.3", tag, intent="qualify"
                 )
 
     def test_publication_is_enabled_after_protected_workflows_are_ready(self):
         self.assertIs(self.policy["publicationWorkflowsReady"], True)
-        POLICY.check_public_ref(self.policy, "root", "v1.2.2", "v1.2.2")
+        POLICY.check_public_ref(self.policy, "root", "v1.2.3", "v1.2.3")
 
     def test_policy_requires_pr_merged_main_release_source(self):
         self.assertEqual(self.policy["releaseBranch"], "main")
         self.assertIs(self.policy["requireMergedPullRequestSource"], True)
 
-    def test_policy_rejects_versions_other_than_v122(self):
-        for version in ("v1.0.1", "v1.1.0", "v1.2.0", "v1.2.1"):
+    def test_policy_rejects_versions_other_than_v123(self):
+        for version in ("v1.0.1", "v1.1.0", "v1.2.0", "v1.2.1", "v1.2.2"):
             with self.subTest(version=version):
                 with self.assertRaisesRegex(POLICY.PolicyError, "forbidden"):
                     POLICY.check_public_ref(
@@ -57,16 +57,16 @@ class ReleasePolicyTest(unittest.TestCase):
             POLICY.check_public_ref(
                 self.policy,
                 "root",
-                "v1.2.2-rc.1",
-                "v1.2.2-rc.1",
+                "v1.2.3-rc.1",
+                "v1.2.3-rc.1",
                 intent="qualify",
             )
         with self.assertRaisesRegex(POLICY.PolicyError, "does not match"):
             POLICY.check_public_ref(
                 self.policy,
                 "framework",
-                "v1.2.2",
-                "v1.2.2",
+                "v1.2.3",
+                "v1.2.3",
                 intent="qualify",
             )
 
@@ -74,7 +74,7 @@ class ReleasePolicyTest(unittest.TestCase):
         original = POLICY_PATH.read_text(encoding="utf-8")
         for suffix in (
             "  unexpected: true\n",
-            "  nextPublicVersion: v1.2.2\n",
+            "  nextPublicVersion: v1.2.3\n",
         ):
             with self.subTest(suffix=suffix.strip()):
                 with tempfile.TemporaryDirectory() as directory:

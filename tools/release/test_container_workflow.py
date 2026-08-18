@@ -8,14 +8,28 @@ import yaml
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "container.yml"
+DOCKERFILE_PATH = REPOSITORY_ROOT / "Dockerfile"
 GITHUB_EXPRESSION = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
 
 
 class ContainerWorkflowTest(unittest.TestCase):
     def setUp(self):
         self.content = WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.dockerfile = DOCKERFILE_PATH.read_text(encoding="utf-8")
         self.workflow = yaml.load(self.content, Loader=yaml.BaseLoader)
         self.jobs = self.workflow["jobs"]
+
+    def test_multi_platform_go_build_cross_compiles_on_the_native_builder(self):
+        self.assertIn("FROM --platform=$BUILDPLATFORM golang:", self.dockerfile)
+        self.assertIn("ARG TARGETOS", self.dockerfile)
+        self.assertIn("ARG TARGETARCH", self.dockerfile)
+        self.assertIn(
+            "CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build",
+            self.dockerfile,
+        )
+
+        publish_timeout = int(self.jobs["publish"]["timeout-minutes"])
+        self.assertGreaterEqual(publish_timeout, 75)
 
     def test_publish_authority_is_confined_to_the_release_job(self):
         self.assertNotIn("packages", self.workflow["permissions"])

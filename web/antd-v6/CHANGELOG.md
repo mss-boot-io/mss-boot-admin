@@ -6,12 +6,24 @@ and the root changelog, not as a current release surface.
 
 ## Unreleased
 
-Target: **web/antd-v6/v1.2.2**. The sole supported Admin frontend must use the
-same exact merged-main commit as the Framework and root v1.2.2 artifacts.
+Target: **web/antd-v6/v1.2.3**. The sole supported Admin frontend must use the
+same exact merged-main commit as the Framework and root v1.2.3 artifacts.
 
-The immutable `web/antd-v6/v1.2.1` release, assets, and image remain published.
-The synchronized root v1.2.1 Release did not complete because its separate
-workflow still uploaded raw generated paths, so the full train moves to v1.2.2.
+The immutable `web/antd-v6/v1.2.2` release, assets, and image remain published.
+The synchronized root v1.2.2 image did not complete because its arm64 Go build
+ran under QEMU until the 40-minute job limit, so the full train moves to v1.2.3.
+
+- Requalify the unchanged V6 product from the merged v1.2.3 repair commit so
+  frontend, Framework, and root publication identify one exact source revision.
+
+## [web/antd-v6/v1.2.2] - 2026-08-19
+
+Status: **published / historical component release**. The V6 release, portable
+assets, and multi-architecture image were published from
+`29a99f2bdb9a2c516459529918795404c153df2e`. The synchronized root train remained
+partial after its root image publish timed out; active qualification is v1.2.3.
+
+### Changed
 
 - Remove only Umi literal dynamic-route HTML placeholders from release output and
   fail closed if a placeholder contains anything except its generated index.html.
