@@ -1,6 +1,6 @@
 import { type APIResponse, expect, type Page } from '@playwright/test';
 
-export const APP_BASE_URL = process.env.MSS_V6_BASE_URL ?? 'http://127.0.0.1:8001';
+export const APP_BASE_URL = process.env.MSS_V6_BASE_URL ?? 'http://127.0.0.1:18001';
 export const API_BASE_URL = (process.env.MSS_E2E_API_URL ?? `${APP_BASE_URL}/admin/api`).replace(
   /\/$/,
   '',

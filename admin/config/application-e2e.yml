@@ -4,12 +4,12 @@ server:
   addr: 127.0.0.1:18080
 application:
   mode: dev
-  origin: http://127.0.0.1:8001
+  origin: http://127.0.0.1:18001
   trustedProxies: []
 cors:
   allowOrigins:
     - 'http://127.0.0.1:8001'
-    # Dedicated parallel qualification frontend; never used by a deployment.
+    # Dedicated qualification frontend; never reused by a deployment.
     - 'http://127.0.0.1:18001'
     # WSL exposes the dev server to Windows browsers through the localhost
     # IPv6 relay, while Playwright remains on the qualification IPv4 origin.

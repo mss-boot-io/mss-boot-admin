@@ -24,6 +24,7 @@
     "setup": "max setup",
     "start": "cross-env PORT=8001 UMI_ENV=dev MOCK=none max dev",
     "start:dev": "cross-env PORT=8001 REACT_APP_ENV=dev UMI_ENV=dev MOCK=none max dev",
+    "start:e2e": "cross-env MSS_V6_E2E=1 PORT=18001 REACT_APP_ENV=dev UMI_ENV=dev MOCK=none max dev",
     "test": "vitest run",
     "test:ci": "vitest run --reporter=default",
     "test:e2e": "playwright test",

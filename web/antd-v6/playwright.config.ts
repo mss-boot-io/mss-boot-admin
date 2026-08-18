@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const webServers = [];
+const qualificationBaseURL = process.env.MSS_V6_BASE_URL ?? 'http://127.0.0.1:18001';
 
 if (!process.env.MSS_V6_EXTERNAL_BACKEND) {
   webServers.push({
@@ -13,9 +14,9 @@ if (!process.env.MSS_V6_EXTERNAL_BACKEND) {
 
 if (!process.env.MSS_V6_EXTERNAL_SERVER) {
   webServers.push({
-    command: 'MSS_ADMIN_API_TARGET=http://127.0.0.1:18080 corepack pnpm@10.34.5 start:dev',
-    url: 'http://127.0.0.1:8001/admin/api/languages/public',
-    reuseExistingServer: !process.env.CI,
+    command: 'MSS_ADMIN_API_TARGET=http://127.0.0.1:18080 corepack pnpm@10.34.5 start:e2e',
+    url: `${qualificationBaseURL}/admin/api/languages/public`,
+    reuseExistingServer: false,
     timeout: 120_000,
   });
 }
@@ -30,7 +31,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: process.env.MSS_V6_BASE_URL ?? 'http://127.0.0.1:8001',
+    baseURL: qualificationBaseURL,
     locale: 'en-US',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

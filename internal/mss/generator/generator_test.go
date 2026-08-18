@@ -576,6 +576,7 @@ func TestGenerateReportsCompleteDocsAndBrowserE2EOutputs(t *testing.T) {
 		"web/antd-v6/e2e/generated/supplier.spec.ts": {
 			generatedMarker,
 			"MSS_V6_BASE_URL",
+			"http://127.0.0.1:18001",
 			"mss_admin_session",
 		},
 	} {
@@ -647,6 +648,7 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 		},
 		"web/antd-v6/e2e/generated/supplier.spec.ts": {
 			"mss_admin_session",
+			"http://127.0.0.1:18001",
 			"X-CSRF-Token",
 			"not.toHaveProperty('token')",
 			"randomUUID",

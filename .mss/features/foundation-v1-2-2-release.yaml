@@ -31,6 +31,7 @@ spec:
     - Reject invalid, reserved, colliding, traversing, linked, or overlong artifact path components in directories and ZIP/TAR archives.
     - Upload the V6 distribution through a checksummed portable archive in both frontend and root publication workflows.
     - Validate every raw directory upload and every final root platform ZIP before publication.
+    - Isolate browser qualification from a developer server already running on port 8001.
     - Requalify root, Framework, and frontend from one exact new merged-main commit.
   nonGoals:
     - Delete, move, reuse, or republish a v1.2.0 or v1.2.1 public ref.
@@ -84,6 +85,7 @@ spec:
         - Every remaining path passes the repository portability validator.
         - Release directories use mode 755 and static files use mode 644.
         - Fixed routes and a concrete dynamic deep link are served through the production Nginx smoke test.
+        - Playwright owns a dedicated port 18001 frontend and ephemeral compiler cache state, and never reuses the developer port 8001 server or its backend signing key.
     - id: guard-all-artifact-boundaries
       title: Every artifact boundary validates portable members
       description: Upload and final distribution paths fail before an external artifact action or public Release can observe incompatible names.

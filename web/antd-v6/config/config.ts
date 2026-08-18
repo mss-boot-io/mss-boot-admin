@@ -6,6 +6,7 @@ import RuntimeStatsPlugin from './RuntimeStatsPlugin';
 import routes from './routes';
 
 const environment = process.env.UMI_ENV ?? 'dev';
+const browserQualification = process.env.MSS_V6_E2E === '1';
 
 export default defineConfig({
   alias: {
@@ -161,6 +162,10 @@ export default defineConfig({
     environment === 'release'
       ? false
       : {
+          // A developer server may already own the project-level .turbopack
+          // lock. Browser qualification uses its own port and ephemeral cache
+          // state so it can run without stopping or reusing that server.
+          persistentCaching: !browserQualification,
           optimization: {
             splitChunks: {
               js: {

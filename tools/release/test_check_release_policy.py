@@ -345,6 +345,62 @@ class ReleasePolicyTest(unittest.TestCase):
                 ).read_text(encoding="utf-8")
                 self.assertGreaterEqual(content.count("'tools/release/**'"), 2)
 
+    def test_local_browser_qualification_cannot_reuse_the_development_server(self):
+        playwright = (
+            REPOSITORY_ROOT / "web" / "antd-v6" / "playwright.config.ts"
+        ).read_text(encoding="utf-8")
+        package = (
+            REPOSITORY_ROOT / "web" / "antd-v6" / "package.json"
+        ).read_text(encoding="utf-8")
+        support = (
+            REPOSITORY_ROOT / "web" / "antd-v6" / "e2e" / "support" / "session.ts"
+        ).read_text(encoding="utf-8")
+        backend = (
+            REPOSITORY_ROOT
+            / "web"
+            / "antd-v6"
+            / "scripts"
+            / "start-e2e-backend.sh"
+        ).read_text(encoding="utf-8")
+        e2e_config = (
+            REPOSITORY_ROOT / "admin" / "config" / "application-e2e.yml"
+        ).read_text(encoding="utf-8")
+        app_config = (
+            REPOSITORY_ROOT / "web" / "antd-v6" / "config" / "config.ts"
+        ).read_text(encoding="utf-8")
+        generated_supplier = (
+            REPOSITORY_ROOT
+            / "web"
+            / "antd-v6"
+            / "e2e"
+            / "generated"
+            / "supplier.spec.ts"
+        ).read_text(encoding="utf-8")
+        supplier_template = (
+            REPOSITORY_ROOT
+            / "templates"
+            / "module"
+            / "frontend-v6"
+            / "e2e.spec.ts.tmpl"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("reuseExistingServer: !process.env.CI", playwright)
+        self.assertEqual(playwright.count("reuseExistingServer: false"), 2)
+        self.assertIn("http://127.0.0.1:18001", playwright)
+        self.assertIn('"start:e2e"', package)
+        self.assertIn("MSS_V6_E2E=1", package)
+        self.assertIn("persistentCaching: !browserQualification", app_config)
+        for content in (
+            support,
+            backend,
+            e2e_config,
+            generated_supplier,
+            supplier_template,
+        ):
+            self.assertIn("18001", content)
+        for content in (support, backend, generated_supplier, supplier_template):
+            self.assertNotIn("http://127.0.0.1:8001", content)
+
     def test_publication_workflows_require_the_phase_they_publish_from(self):
         expected_phases = {
             "framework-release.yml": "--phase pre-framework",

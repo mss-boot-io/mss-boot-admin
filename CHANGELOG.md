@@ -33,6 +33,9 @@ no v1.2.0 or v1.2.1 public ref is moved, deleted, reused, or supplemented.
   preceding portability guard.
 - Extended production delivery smoke to a concrete dynamic deep link after the
   placeholder removal, in addition to hashed-asset, cache, and missing-file checks.
+- Isolated Playwright qualification on port 18001 with non-persistent compiler
+  cache state so a running port 8001 developer process cannot supply cookies
+  from a different backend signing key or hold the E2E compiler lock.
 
 ## [v1.2.1] - 2026-08-19
 
