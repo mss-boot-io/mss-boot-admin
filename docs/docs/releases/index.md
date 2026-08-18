@@ -8,7 +8,7 @@ description: mss-boot-admin 版本状态、升级、兼容性与回滚合同
 keywords: [release upgrade rollback compatibility mss-boot-admin]
 ---
 
-> 当前唯一活动发布目标是 **v1.2.0**。根、Framework 和唯一的 Ant Design V6
+> 当前唯一活动发布目标是 **v1.2.1**。根、Framework 和唯一的 Ant Design V6
 > 前端必须绑定同一个已合并 `main` 的精确提交；本地与历史 checkpoint 不能授权
 > tag、Release、package 或镜像写入。
 
@@ -16,13 +16,22 @@ keywords: [release upgrade rollback compatibility mss-boot-admin]
 
 这里保存长期有效的版本合同。Git tag、GitHub Release、嵌套 Go 模块的外部解析结果和对应提交上的验证报告共同构成发布证据；分支名、`Unreleased`、`planned`、`preview` 或本地 `go.work` 替换都不代表稳定版本。
 
-## 下一公开版本：v1.2.0
+## 下一公开版本：v1.2.1
 
 当前状态：**准备中 / NO-GO**。发布前仍需将准备变更通过 PR 合并到 `main`，在合并后的
 精确 SHA 上完成 feature-freeze、内置浏览器、外部 Blueprint、`pre-framework`、外部
 Framework 解析、`pre-root` 与发布后对账。
 
-- [v1.2.0 发布、升级与回滚合同](/releases/v1-2-0)
+- [v1.2.1 发布、升级与回滚合同](/releases/v1-2-1)
+
+## v1.2.0 component-partial
+
+当前状态：**组件部分发布 / 已由 v1.2.1 接续**。`mss-boot/v1.2.0` 已公开；
+`web/antd-v6/v1.2.0` 标签已创建，但制品上传失败，因此没有 V6 构建制品、镜像或
+GitHub Release；根 `v1.2.0` 标签从未创建。所有已有标签与证据保持不可变，不能移动、
+复用或补发，完整同步发行改用 v1.2.1。
+
+- [v1.2.0 不完整列车审计记录](/releases/v1-2-0)
 
 ## v1.0.0 stable
 
@@ -56,7 +65,7 @@ issue 完成终态记录或链接已验证的替代列车。
 ## v1.1.0 historical
 
 当前状态：**已发布 / 历史记录**。以下内容保留用于审计，不再作为活动发布目标；所有新
-资格与发布命令均以 v1.2.0 为准。
+资格与发布命令均以 v1.2.1 为准。
 
 当前采用“开发优先、冻结后集中验证”策略：原 `v1.0.1-v1.0.3` 和 alpha 切片只作为
 内部开发波次，不创建 tag、GitHub Release 或版本化包。Challenge、Kafka Mark/lifecycle、

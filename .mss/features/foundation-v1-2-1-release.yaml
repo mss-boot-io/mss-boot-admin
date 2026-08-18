@@ -1,0 +1,304 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: foundation-v1-2-1-release
+  displayName: Forward-repair, qualify, and publish v1.2.1
+  description: >-
+    Governs the synchronized v1.2.1 forward repair of the root foundation,
+    reusable Framework, and sole Ant Design 6 frontend from one exact commit
+    already merged into main.
+  owner: release-engineering
+  labels:
+    domain: release-governance
+    current-stable: v1.1.0
+    target-version: v1.2.1
+    release-status: preparation
+spec:
+  problem: >-
+    The v1.2.0 Framework published successfully, but the immutable V6 tag
+    stopped before artifact, image, or Release publication because the workflow
+    attempted to upload a raw static route path containing a colon. The root
+    v1.2.0 tag was never created. Release governance forbids moving or reusing
+    either public component tag, so the repaired workflow and all synchronized
+    components require a new reviewed v1.2.1 train from a new merged-main commit.
+  goals:
+    - Make v1.2.1 the only active public release target in machine-readable contracts and operator documentation.
+    - Preserve every v1.2.0 tag, workflow run, Release, and failure record as immutable audit evidence.
+    - Upload the V6 distribution through its portable tar archive instead of raw platform-incompatible route paths.
+    - Qualify root, Framework, and the sole Ant Design 6 frontend from one exact new merged-main commit.
+    - Reprove fresh-install, upgrade, API registry, browser, Blueprint, and recovery behavior on the new commit.
+    - Keep publication disabled until exact-SHA feature-freeze, pre-framework, and pre-root authority gates pass.
+  nonGoals:
+    - Delete, move, reuse, or republish any v1.2.0 tag or mutate its published Framework Release.
+    - Treat the failed v1.2.0 V6 artifact run as successful or hide it from the release evidence issue.
+    - Reintroduce the retired Ant Design 5 application or browser compatibility protocol.
+    - Publish a tag, package, image, or GitHub Release from a topic branch.
+    - Promote optional ObjectStore or RustFS providers without their independent conformance evidence.
+  actors:
+    - id: maintainer
+      displayName: Foundation maintainer
+      description: Repairs the release workflow and resolves release-blocking defects through reviewed pull requests.
+    - id: release-manager
+      displayName: Release manager
+      description: Selects exact readiness runs and controls immutable component publication.
+    - id: admin-operator
+      displayName: Admin operator
+      description: Applies migrations, synchronizes the API registry, and deploys matching backend/frontend artifacts.
+  modules:
+    - name: release-governance
+      operation: extend
+      description: Forward-repair version policy, qualification scope, exact-SHA evidence, and publication order.
+    - name: framework
+      operation: extend
+      description: Source-compatible Framework v1.2 content republished under mss-boot/v1.2.1 from the synchronized repair commit.
+    - name: admin-v6
+      operation: extend
+      description: Portable V6 artifact packaging plus the existing V6-only browser, migration, and delivery contract.
+    - name: operations
+      operation: extend
+      description: Fresh-install, upgrade, API registry synchronization, rollback, and reconciliation guidance.
+  requirements:
+    - id: target-v121-only
+      title: All active release surfaces target v1.2.1
+      description: No active policy, command, qualification, or readiness path can accidentally qualify v1.2.0.
+      priority: must
+      actor: release-manager
+      module: release-governance
+      rules:
+        - The reviewed public version is exactly v1.2.1 for root, Framework, and frontend tag namespaces.
+        - The v1.2.0 Framework Release and V6 tag remain immutable partial-train audit records.
+        - Historical Feature contracts and tags remain immutable and are excluded with explicit carry-forward decisions.
+        - Project and lock snapshot identity remain their real development values until deterministic snapshot synchronization changes them.
+    - id: repair-portable-v6-artifact
+      title: V6 artifacts upload through a portable archive
+      description: The release workflow never presents generated route filenames containing forbidden platform characters to artifact upload.
+      priority: must
+      actor: maintainer
+      module: admin-v6
+      rules:
+        - The production dist tree is archived before artifact upload.
+        - The workflow uploads only dist-v6.tar.gz, build identity, and checksum metadata.
+        - A static workflow regression test rejects reintroducing the raw dist directory.
+        - The archive checksum is verified before GitHub Release publication.
+    - id: prove-framework-compatibility
+      title: Framework v1.2.1 remains source compatible
+      description: The nested Go module republishes the v1.2 hardening without an incompatible reusable API removal.
+      priority: must
+      actor: maintainer
+      module: framework
+      rules:
+        - Delete controls use transactional before/delete boundaries and fixed public error mapping.
+        - Password verification uses the existing scrypt representation with constant-time comparison.
+        - SecretRef fingerprints remain non-reversible and do not reveal environment locators.
+        - GOWORK=off Framework tests pass before the nested-module tag is authorized.
+    - id: prove-admin-upgrade
+      title: Admin fresh-install and upgrade paths are complete
+      description: Schema and seed state support the V6-only application after either a fresh migration or an upgrade.
+      priority: must
+      actor: admin-operator
+      module: operations
+      rules:
+        - Language, Option, example-Supplier retirement, account reauthentication, and retired-V5 configuration migrations are forward-only and covered by upgrade tests.
+        - A fresh or upgraded environment runs `STAGE=local go run . server -a` from admin once to synchronize mounted routes into the API registry.
+        - Menu API binding is not considered ready when the API registry is empty, even if backend and frontend health checks pass.
+        - Rollback restores a database backup and the preceding qualified V6 backend/frontend pair; it never attempts a schema down-migration in place.
+    - id: qualify-v6-product
+      title: The sole V6 product passes concentrated qualification
+      description: Backend, frontend, delivery, security, and browser evidence all identify the frozen v1.2.1 commit.
+      priority: must
+      actor: maintainer
+      module: admin-v6
+      rules:
+        - The retired V5 source and browser protocol remain absent.
+        - Dependency, lint, unit/integration, Chromium E2E, bundle, and same-origin delivery gates pass.
+        - One Codex in-app Browser acceptance proves navigation, RBAC, menu API binding, sessions, settings, and visible failure states on the exact frozen commit.
+        - The external Blueprint upgrade rehearsal is bound to the same frozen commit.
+    - id: publish-exact-v121
+      title: Publish immutable v1.2.1 components from one commit
+      description: Every tag, artifact, image, checksum, and Release points to the same approved merged-main commit.
+      priority: must
+      actor: release-manager
+      module: release-governance
+      rules:
+        - Framework publishes first and resolves from an external GOWORK=off consumer before root publication.
+        - The V6 frontend tag and image use web/antd-v6/v1.2.1 and the same frozen commit.
+        - Distinct selected pre-framework and pre-root readiness runs grant publication authority.
+        - Any implementation change after freeze selects a new commit and invalidates affected evidence.
+  constraints:
+    - id: merged-main-only
+      type: operations
+      statement: Qualification and publication require a clean exact commit contained in fresh origin/main and produced by a merged pull request targeting main.
+    - id: semver-boundary
+      type: compatibility
+      statement: v1.2.1 preserves the v1.2.0 product and migration boundary and must not remove or incompatibly change a public reusable Framework API.
+    - id: one-frontend
+      type: compatibility
+      statement: web/antd-v6 is the only source, generator target, runtime, image, and frontend release namespace.
+    - id: no-secret-evidence
+      type: security
+      statement: Release reports contain no credentials, database DSNs, tokens, cookies, secret values, or sensitive request bodies.
+  acceptance:
+    - id: checkpoint-v121-contract
+      requirement: target-v121-only
+      statement: The repair Feature, policy, qualification selector, workflows, and command catalog agree on v1.2.1.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/features/foundation-v1-2-1-release.yaml --format json
+        - type: command
+          value: python3 -m unittest discover -s tools/release -p 'test_*.py'
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component root --version v1.2.1 --tag v1.2.1 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component framework --version v1.2.1 --tag mss-boot/v1.2.1 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component frontend --version v1.2.1 --tag web/antd-v6/v1.2.1 --intent qualify
+    - id: checkpoint-portable-v6-artifact
+      requirement: repair-portable-v6-artifact
+      statement: The artifact regression proves the raw dist directory cannot reach actions/upload-artifact.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: python3 -m unittest tools.release.test_check_release_policy.ReleasePolicyTest.test_frontend_v6_artifact_upload_uses_portable_archive_only
+    - id: feature-freeze-framework
+      requirement: prove-framework-compatibility
+      statement: The reusable module passes its complete isolated test suite with no workspace replacement.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: cd mss-boot && GOWORK=off go test ./...
+    - id: feature-freeze-backend-upgrade
+      requirement: prove-admin-upgrade
+      statement: Root tooling and the complete Admin backend, including migrations and API registry synchronization paths, pass on the frozen commit.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: go test ./...
+        - type: command
+          value: cd admin && go test ./...
+        - type: manual
+          value: On isolated fresh and upgraded SQLite, MySQL, and PostgreSQL databases, run migrations, then run `STAGE=local go run . server -a` from admin and confirm the menu API-binding selector is non-empty.
+        - type: report
+          value: Exact-SHA fresh-install and upgrade reports for SQLite, MySQL, and PostgreSQL with no skipped required migration assertion.
+    - id: feature-freeze-v6
+      requirement: qualify-v6-product
+      statement: The sole frontend passes the concentrated dependency, behavior, browser, bundle, and delivery gates.
+      level: e2e
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 deps:check
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 audit:release
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 lint
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 test:ci
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 test:e2e
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 build:release
+        - type: command
+          value: cd web/antd-v6 && corepack pnpm@10.34.5 delivery:smoke
+    - id: feature-freeze-docs
+      requirement: target-v121-only
+      statement: Release, upgrade, API registry, compatibility, and rollback guidance build successfully.
+      level: contract
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: corepack pnpm@9.15.9 --dir docs build
+    - id: feature-freeze-sha-bound-evidence
+      requirement: qualify-v6-product
+      statement: Browser acceptance and the external Blueprint rehearsal are both bound to the exact frozen commit.
+      level: manual
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: report
+          value: .mss/reports/release-qualification-decision.json
+        - type: manual
+          value: Supply concrete in-app Browser and Blueprint evidence references whose full commits equal the frozen workflow SHA.
+    - id: pre-framework-authority
+      requirement: publish-exact-v121
+      statement: A selected pre-framework readiness run grants exact authority before Framework or frontend publication.
+      level: manual
+      phase: pre-framework
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.2.1 --commit <full-sha> --phase pre-framework --policy .mss/release-policy.yaml
+        - type: report
+          value: release-readiness-attestation-<run-id> artifact retained from the selected successful run
+    - id: pre-root-authority
+      requirement: publish-exact-v121
+      statement: Framework v1.2.1 resolves externally and a separately selected pre-root run authorizes root publication.
+      level: integration
+      phase: pre-root
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.2.1 --commit <full-sha> --phase pre-root --policy .mss/release-policy.yaml
+        - type: manual
+          value: Resolve github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.2.1 from a clean external module with GOWORK=off and record the checksum.
+    - id: post-publication-truth
+      requirement: publish-exact-v121
+      statement: Public tags, Releases, archives, images, checksums, installation smoke, migration state, and rollback evidence reconcile to one commit.
+      level: integration
+      phase: post-publication
+      required: true
+      evidence:
+        - type: report
+          value: Final v1.2.1 reconciliation comment on the release evidence issue
+        - type: manual
+          value: Close the evidence issue only after root, Framework, frontend, container, docs, install, API registry, and recovery facts agree.
+  risks:
+    - id: incompatible-artifact-path
+      description: Raw generated routes can contain characters rejected by cross-platform artifact services.
+      severity: high
+      mitigation: Upload the tar archive only and enforce its exact portable upload list with a workflow regression test.
+    - id: incomplete-api-registry
+      description: A healthy fresh installation can still show no bindable APIs when route metadata was not synchronized.
+      severity: high
+      mitigation: Make the one-shot server -a command an explicit quick-start and upgrade step and verify a non-empty selector before release acceptance.
+    - id: schema-rollback
+      description: Retired V5 and account-security migrations cannot be safely reversed by redeploying old binaries against the mutated database.
+      severity: critical
+      mitigation: Require a tested backup/restore point and roll back the database together with a preceding qualified V6 artifact pair.
+    - id: prerelease-ui-dependency
+      description: ProComponents v3 prerelease behavior may change despite an exact package pin.
+      severity: medium
+      mitigation: Keep the exact pin, dependency gate, focused tests, and release bundle checks until a stable v3 passes the same suite.
+    - id: stale-candidate-evidence
+      description: Evidence from the v1.2.0 commit or another earlier commit can be mistaken for v1.2.1 publication authority.
+      severity: critical
+      mitigation: Bind every readiness, browser, Blueprint, tag, and artifact record to the selected full v1.2.1 merged-main SHA and invalidate evidence after any change.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: python3 tools/release/release_phase_evidence.py run --target-version v1.2.1 --commit <full-sha> --phase feature-freeze --output .mss/reports/release-phase-command-evidence.json
+    custom:
+      - python3 -m unittest discover -s tools/release -p 'test_*.py'
+      - go run ./cmd/mss spec validate .mss/features/foundation-v1-2-1-release.yaml --format json
+  rollout:
+    strategy: phased
+    migration: >-
+      Merge the repair through a pull request, select the resulting clean exact
+      main commit, rerun feature-freeze evidence, obtain pre-framework authority,
+      publish Framework v1.2.1 and verify external GOWORK=off resolution, publish
+      the matching V6 frontend and image, obtain pre-root authority, publish root,
+      then reconcile installation, migrations, API registry, and recovery.
+    rollback: >-
+      Stop publication before the next component when a gate fails. Never move
+      the v1.2.0 or v1.2.1 tags. For a deployed Admin failure, restore the
+      pre-migration database backup and redeploy the preceding qualified V6
+      backend/frontend pair.

@@ -161,7 +161,6 @@ jobs:
         with:
           name: frontend-v6-dist-release
           path: |
-            web/antd-v6/dist
             web/antd-v6/dist-v6.tar.gz
             web/antd-v6/FRONTEND-V6-BUILD-INFO
             web/antd-v6/SHA256SUMS.frontend-v6

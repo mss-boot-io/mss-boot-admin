@@ -22,7 +22,7 @@ class ReleaseQualificationDecisionTest(unittest.TestCase):
             json.dumps(
                 {
                     "schema": "mss.io/release-qualification/v1",
-                    "targetVersion": "v1.2.0",
+                    "targetVersion": "v1.2.1",
                     "features": [DECISION.RELEASE_FEATURE],
                     "excludedFeatures": [
                         {
@@ -45,7 +45,7 @@ class ReleaseQualificationDecisionTest(unittest.TestCase):
     def build(self, root, commit, **overrides):
         values = {
             "qualification": ".mss/release-qualification.json",
-            "target_version": "v1.2.0",
+            "target_version": "v1.2.1",
             "commit": commit,
             "phase": "feature-freeze",
             "browser_commit": commit,

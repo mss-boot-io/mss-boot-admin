@@ -6,10 +6,18 @@ and the root changelog, not as a current release surface.
 
 ## Unreleased
 
-Target: **web/antd-v6/v1.2.0**. This is the first public release of the sole
+Target: **web/antd-v6/v1.2.1**. This is the first completed public release of the sole
 supported Admin frontend and must use the same exact merged-main commit as the
-Framework and root v1.2.0 artifacts.
+Framework and root v1.2.1 artifacts.
 
+The immutable `web/antd-v6/v1.2.0` tag is retained as a partial-train audit
+record. Its workflow passed source, policy, readiness, dependency, test, browser,
+build, identity, and production-smoke gates, then failed while the artifact action
+traversed a raw route filename containing `:`. It published no build artifact,
+container image, or GitHub Release; the root v1.2.0 tag was never created.
+
+- Upload only the portable `dist-v6.tar.gz`, build identity, and checksum manifest;
+  keep a workflow contract test that rejects raw `dist` directory uploads.
 - Become the repository's sole Admin frontend without changing the independent
   `web/antd-v6` directory, tag, image, lockfile, or release identity. Canonical
   setup, local development, compose delivery, active documentation, generation,

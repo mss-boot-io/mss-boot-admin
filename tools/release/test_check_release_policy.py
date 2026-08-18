@@ -24,28 +24,28 @@ class ReleasePolicyTest(unittest.TestCase):
     def setUp(self):
         self.policy = POLICY.load_policy(POLICY_PATH)
 
-    def test_only_v120_matches_component_tag_namespaces(self):
+    def test_only_v121_matches_component_tag_namespaces(self):
         cases = {
-            "root": "v1.2.0",
-            "framework": "mss-boot/v1.2.0",
-            "frontend": "web/antd-v6/v1.2.0",
+            "root": "v1.2.1",
+            "framework": "mss-boot/v1.2.1",
+            "frontend": "web/antd-v6/v1.2.1",
         }
         for component, tag in cases.items():
             with self.subTest(component=component):
                 POLICY.check_public_ref(
-                    self.policy, component, "v1.2.0", tag, intent="qualify"
+                    self.policy, component, "v1.2.1", tag, intent="qualify"
                 )
 
     def test_publication_is_enabled_after_protected_workflows_are_ready(self):
         self.assertIs(self.policy["publicationWorkflowsReady"], True)
-        POLICY.check_public_ref(self.policy, "root", "v1.2.0", "v1.2.0")
+        POLICY.check_public_ref(self.policy, "root", "v1.2.1", "v1.2.1")
 
     def test_policy_requires_pr_merged_main_release_source(self):
         self.assertEqual(self.policy["releaseBranch"], "main")
         self.assertIs(self.policy["requireMergedPullRequestSource"], True)
 
-    def test_policy_rejects_versions_other_than_v120(self):
-        for version in ("v1.0.1", "v1.1.0", "v1.2.1"):
+    def test_policy_rejects_versions_other_than_v121(self):
+        for version in ("v1.0.1", "v1.1.0", "v1.2.0"):
             with self.subTest(version=version):
                 with self.assertRaisesRegex(POLICY.PolicyError, "forbidden"):
                     POLICY.check_public_ref(
@@ -57,16 +57,16 @@ class ReleasePolicyTest(unittest.TestCase):
             POLICY.check_public_ref(
                 self.policy,
                 "root",
-                "v1.2.0-rc.1",
-                "v1.2.0-rc.1",
+                "v1.2.1-rc.1",
+                "v1.2.1-rc.1",
                 intent="qualify",
             )
         with self.assertRaisesRegex(POLICY.PolicyError, "does not match"):
             POLICY.check_public_ref(
                 self.policy,
                 "framework",
-                "v1.2.0",
-                "v1.2.0",
+                "v1.2.1",
+                "v1.2.1",
                 intent="qualify",
             )
 
@@ -74,7 +74,7 @@ class ReleasePolicyTest(unittest.TestCase):
         original = POLICY_PATH.read_text(encoding="utf-8")
         for suffix in (
             "  unexpected: true\n",
-            "  nextPublicVersion: v1.2.0\n",
+            "  nextPublicVersion: v1.2.1\n",
         ):
             with self.subTest(suffix=suffix.strip()):
                 with tempfile.TemporaryDirectory() as directory:
@@ -193,6 +193,38 @@ class ReleasePolicyTest(unittest.TestCase):
                                 f"{step.get('name')}: {result.stderr}"
                             ),
                         )
+
+    def test_frontend_v6_artifact_upload_uses_portable_archive_only(self):
+        workflow = yaml.load(
+            (
+                REPOSITORY_ROOT / ".github" / "workflows" / "frontend-v6-release.yml"
+            ).read_text(encoding="utf-8"),
+            Loader=yaml.BaseLoader,
+        )
+        steps = workflow["jobs"]["release"]["steps"]
+        package = next(
+            step
+            for step in steps
+            if step.get("name") == "Embed and verify v6 artifact identity"
+        )
+        upload = next(
+            step for step in steps if step.get("name") == "Upload v6 build artifact"
+        )
+        paths = [
+            line.strip()
+            for line in upload["with"]["path"].splitlines()
+            if line.strip()
+        ]
+
+        self.assertIn("tar --create --gzip --file dist-v6.tar.gz dist", package["run"])
+        self.assertEqual(
+            paths,
+            [
+                "web/antd-v6/dist-v6.tar.gz",
+                "web/antd-v6/FRONTEND-V6-BUILD-INFO",
+                "web/antd-v6/SHA256SUMS.frontend-v6",
+            ],
+        )
 
     def test_publication_workflows_require_the_phase_they_publish_from(self):
         expected_phases = {
