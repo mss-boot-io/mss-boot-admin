@@ -171,7 +171,8 @@ describe('v6 theme snapshots and identity binding', () => {
 
     applyThemeFirstPaintHint();
 
-    expect(document.documentElement.dataset.mssTheme).toBe('light');
+    expect(document.documentElement.dataset.mssTheme).toBe('realDark');
+    expect(document.documentElement.style.colorScheme).toBe('dark');
     expect(document.documentElement.style.getPropertyValue('--mss-theme-color-primary')).toBe(
       '#1677ff',
     );

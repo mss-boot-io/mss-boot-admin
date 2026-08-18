@@ -6,13 +6,25 @@ tag namespaces.
 
 ## [Unreleased]
 
-Target: **v1.2.0** for the root foundation, `mss-boot/v1.2.0` for the reusable
-Framework, and `web/antd-v6/v1.2.0` for the sole Admin frontend. Publication
+Target: **v1.2.1** for the root foundation, `mss-boot/v1.2.1` for the reusable
+Framework, and `web/antd-v6/v1.2.1` for the sole Admin frontend. Publication
 requires one exact clean commit already merged into `origin/main`; local or
 topic-branch evidence is preliminary only.
 
+The immutable `mss-boot/v1.2.0` Framework release was published successfully,
+but the `web/antd-v6/v1.2.0` workflow stopped while uploading a raw build tree
+containing a colon-bearing route filename. That V6 tag has no uploaded artifact,
+container image, or GitHub Release, and the root `v1.2.0` tag was never created.
+The complete train therefore moves forward to v1.2.1 without moving or reusing
+either v1.2.0 component tag.
+
 ### Changed
 
+- Made V6 publication upload only the portable `dist-v6.tar.gz`, build identity,
+  and checksum manifest instead of traversing the raw `dist` tree. A workflow
+  contract test prevents the non-portable directory upload from returning.
+- Made the V6 code-layer theme default dark while retaining application and
+  personal overrides with their existing precedence.
 - Made `web/antd-v6` the sole Admin browser application and removed the retired
   frontend source, generator projection, dependency automation, CI/release/deploy
   paths, active documentation, and rollback image. Root distribution and rollback
@@ -34,7 +46,8 @@ topic-branch evidence is preliminary only.
 - Made the one-shot `STAGE=local go run . server -a` route synchronization an
   explicit setup and upgrade contract. A healthy process with an empty API registry
   is not ready for menu API binding.
-- Prepared the source-compatible Framework v1.2.0 hardening for transactional
+- Preserved the source-compatible Framework hardening in the synchronized v1.2.1
+  forward repair for transactional
   delete controls, fixed public write-error mapping, constant-time password
   verification, and non-reversible SecretRef fingerprints.
 - Added a repository-wide LF checkout contract and explicit pnpm pins for the
@@ -47,7 +60,7 @@ topic-branch evidence is preliminary only.
 ## [v1.1.0] - 2026-08-11
 
 Status: **published / historical**. This section is retained as immutable release
-history; all active release preparation now targets v1.2.0.
+history; all active release preparation now targets v1.2.1.
 
 ### Changed
 

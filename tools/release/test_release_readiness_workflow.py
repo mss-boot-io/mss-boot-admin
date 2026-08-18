@@ -14,7 +14,7 @@ import release_phase_evidence as PHASE_EVIDENCE  # noqa: E402
 
 
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "release-readiness.yml"
-FEATURE_PATH = REPOSITORY_ROOT / ".mss" / "features" / "foundation-v1-2-0-release.yaml"
+FEATURE_PATH = REPOSITORY_ROOT / ".mss" / "features" / "foundation-v1-2-1-release.yaml"
 GITHUB_EXPRESSION = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
 
 
@@ -89,15 +89,15 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         )
         self.assertEqual(self.step("Setup pnpm")["with"]["version"], "9.15.9")
 
-    def test_v120_qualification_carries_every_other_feature_forward(self):
+    def test_v121_qualification_carries_every_other_feature_forward(self):
         selected = PHASE_EVIDENCE.load_qualification(
             REPOSITORY_ROOT,
             Path(".mss/release-qualification.json"),
-            "v1.2.0",
+            "v1.2.1",
         )
         self.assertEqual(
             [path.relative_to(REPOSITORY_ROOT).as_posix() for path in selected],
-            [".mss/features/foundation-v1-2-0-release.yaml"],
+            [".mss/features/foundation-v1-2-1-release.yaml"],
         )
         contract = yaml.safe_load(
             (REPOSITORY_ROOT / ".mss" / "release-qualification.json").read_text(
@@ -112,7 +112,7 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             )
         )
 
-    def test_v120_release_feature_has_scoped_exact_commands(self):
+    def test_v121_release_feature_has_scoped_exact_commands(self):
         feature = yaml.safe_load(FEATURE_PATH.read_text(encoding="utf-8"))
         plan = {
             "feature": {"name": feature["metadata"]["name"]},

@@ -10,6 +10,11 @@ import {
 } from './contract';
 
 describe('v6 layered theme contract', () => {
+  it('uses the dark theme as the code-layer default', () => {
+    expect(CODE_THEME_DEFAULTS.navTheme).toBe('realDark');
+    expect(resolveTheme().settings.navTheme).toBe('realDark');
+  });
+
   it('resolves every field independently as code < application < user', () => {
     const application = parseThemeScopeResource(
       {

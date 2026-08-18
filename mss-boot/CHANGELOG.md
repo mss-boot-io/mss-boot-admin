@@ -6,9 +6,24 @@ and the project uses semantic versioning for nested-module releases.
 
 ## [Unreleased]
 
-Target: **mss-boot/v1.2.0**. The nested module must publish first from the same
-exact merged-main commit used by the root and V6 frontend releases, then resolve
-from a clean external consumer with `GOWORK=off`.
+Target: **mss-boot/v1.2.1**. This synchronized forward repair republishes the
+same source-compatible Framework behavior from the exact merged-main commit used
+by the root and V6 frontend releases. It introduces no new public Framework API.
+
+### Changed
+
+- Requalified the Framework from the merged v1.2.1 repair commit so all three
+  component tags can identify one exact source revision after the V6 artifact
+  workflow repair.
+
+## [mss-boot/v1.2.0] - 2026-08-18
+
+Status: **published / historical component release**. The nested module published
+successfully, but the synchronized v1.2.0 train remained partial after V6 artifact
+upload failed and the root v1.2.0 tag was not created.
+
+The nested module published first from the exact merged-main commit selected for
+the original train and resolved from a clean external consumer with `GOWORK=off`.
 
 ### Changed
 
@@ -26,7 +41,7 @@ from a clean external consumer with `GOWORK=off`.
 ## [mss-boot/v1.1.0] - 2026-08-11
 
 Status: **published / historical**. Active Framework qualification now targets
-`mss-boot/v1.2.0`.
+`mss-boot/v1.2.1`.
 
 Target: **mss-boot/v1.1.0 development train**. Intermediate patch and public
 prerelease tags are disabled; current Challenge, Kafka, and object-provider work
