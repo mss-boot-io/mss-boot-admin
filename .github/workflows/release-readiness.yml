@@ -195,6 +195,11 @@ jobs:
         if: ${{ inputs.phase == 'feature-freeze' }}
         run: corepack pnpm@10.34.5 --dir web/antd-v6 install --frozen-lockfile --ignore-scripts
 
+      - name: Install Playwright Chromium
+        if: ${{ inputs.phase == 'feature-freeze' }}
+        working-directory: web/antd-v6
+        run: corepack pnpm@10.34.5 exec playwright install --with-deps chromium
+
       - name: Install documentation dependencies
         if: ${{ inputs.phase == 'feature-freeze' }}
         run: corepack pnpm@9.15.9 --dir docs install --frozen-lockfile

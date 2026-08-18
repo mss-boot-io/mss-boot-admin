@@ -40,6 +40,9 @@ topic-branch evidence is preliminary only.
 - Added a repository-wide LF checkout contract and explicit pnpm pins for the
   pnpm 10.34.5 V6 application and pnpm 9.15.9 documentation site so WSL release
   checks do not depend on a Windows Git or global package-manager setting.
+- Made feature-freeze release readiness install the repository-pinned Playwright
+  Chromium and operating-system dependencies before executing V6 browser evidence,
+  so clean GitHub runners no longer fail before E2E execution begins.
 
 ## [v1.1.0] - 2026-08-11
 
