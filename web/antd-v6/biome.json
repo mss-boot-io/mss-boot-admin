@@ -49,10 +49,11 @@
   "overrides": [
     {
       "includes": [
-        "config/routes.generated.ts",
-        "e2e/generated/**",
-        "src/generated/**",
-        "src/pages/generated/**"
+        "**/config/business-routes.generated.ts",
+        "**/config/routes.generated.ts",
+        "**/e2e/generated/**",
+        "**/src/generated/**",
+        "**/src/pages/generated/**"
       ],
       "formatter": {
         "enabled": false

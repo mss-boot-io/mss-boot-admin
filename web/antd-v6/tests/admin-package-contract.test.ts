@@ -59,6 +59,10 @@ describe('Admin web package contract', () => {
     expect(readFileSync(cli, 'utf8')).toContain(
       "['check', '--config-path', resolve(packageRoot, 'biome.json'), '.']",
     );
+    const biome = JSON.parse(readFileSync(biomeConfig, 'utf8')) as {
+      overrides?: Array<{ includes?: string[] }>;
+    };
+    expect(biome.overrides?.[0]?.includes).toContain('**/config/business-routes.generated.ts');
     expect(() =>
       execFileSync('git', ['check-ignore', '--quiet', cli], {
         cwd: resolve(import.meta.dirname, '..'),
