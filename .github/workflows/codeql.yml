@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'docs/**'
   pull_request:
     branches:
       - main
@@ -22,8 +24,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    uses: ./.github/workflows/component-scope.yml
+
   analyze:
     name: Analyze (${{ matrix.language }})
+    needs: scope
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -31,21 +37,31 @@ jobs:
         include:
           - language: actions
             build-mode: none
+            scopes: '["shared"]'
           - language: go
             build-mode: autobuild
+            scopes: '["shared","admin","framework"]'
           - language: javascript-typescript
             build-mode: none
+            scopes: '["shared","web"]'
     steps:
+      - name: Skip analysis outside the changed component
+        if: ${{ !contains(fromJSON(matrix.scopes), needs.scope.outputs.scope) }}
+        run: echo 'This CodeQL language is outside the changed component scope.'
+
       - name: Checkout
+        if: ${{ contains(fromJSON(matrix.scopes), needs.scope.outputs.scope) }}
         uses: actions/checkout@v7
 
       - name: Initialize CodeQL
+        if: ${{ contains(fromJSON(matrix.scopes), needs.scope.outputs.scope) }}
         uses: github/codeql-action/init@v4.37.5
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
 
       - name: Perform CodeQL Analysis
+        if: ${{ contains(fromJSON(matrix.scopes), needs.scope.outputs.scope) }}
         uses: github/codeql-action/analyze@v4.37.5
         with:
           category: "/language:${{ matrix.language }}"

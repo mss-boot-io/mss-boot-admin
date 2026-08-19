@@ -4,7 +4,8 @@
 
 | Path | Purpose |
 | --- | --- |
-| `/` | `github.com/mss-boot-io/mss-boot-admin`, the Go admin backend |
+| `/` | Agent/Foundation Go tooling and shared repository contracts |
+| `admin/` | `github.com/mss-boot-io/mss-boot-admin/admin`, the Go admin backend |
 | `mss-boot/` | `github.com/mss-boot-io/mss-boot-admin/mss-boot`, the reusable Go framework |
 | `web/antd-v6/` | React 19 + Ant Design 6 frontend |
 | `docs/` | Dumi documentation site |
@@ -27,9 +28,15 @@ make docs-install docs-build
 - Backend application: `vX.Y.Z`
 - Framework module: `mss-boot/vX.Y.Z`
 - Ant Design frontend: `web/antd-v6/vX.Y.Z`
-- Documentation: built and deployed from `main`
+- Documentation: `docs/vX.Y.Z`
 
-The first stable framework release after consolidation is `mss-boot/v1.0.0`. For a coordinated release, publish the framework tag before the backend tag so the backend's `go.mod` requirement is available outside workspace mode.
+Each component tag resolves to its own exact commit already merged into `main`.
+Components may publish independently. For a coordinated runtime release, publish
+the framework tag before the backend tag so the backend's `go.mod` requirement
+is available outside workspace mode. A Docs release packages its portable static
+site, deploys through the protected `prod` environment, verifies the public
+release identity, and publishes a separate GitHub Release without reissuing the
+runtime components.
 
 ## Workflow location
 

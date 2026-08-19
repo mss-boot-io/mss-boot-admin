@@ -14,3 +14,4 @@ spec:
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"
   frontendTagTemplate: "web/antd-v6/{version}"
+  docsTagTemplate: "docs/{version}"

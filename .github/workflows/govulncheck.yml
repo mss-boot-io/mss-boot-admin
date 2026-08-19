@@ -7,6 +7,9 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'docs/**'
+      - 'web/**'
   schedule:
     - cron: "17 20 * * 0"
   workflow_dispatch:
@@ -19,8 +22,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    uses: ./.github/workflows/component-scope.yml
+
   root:
     name: Agent/Foundation module
+    needs: scope
+    if: needs.scope.outputs.scope == 'shared'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -44,22 +52,24 @@ jobs:
 
   nested-modules:
     name: ${{ matrix.module }}
+    needs: scope
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
-        module:
-          - admin
-          - mss-boot
-          - cmd/tools/pr
-          - compose/consul
-          - compose/kafka
+        module: ${{ fromJSON(needs.scope.outputs.go_modules) }}
     steps:
+      - name: Skip Go vulnerability scan for this component
+        if: matrix.module == 'none'
+        run: echo 'This component does not own a Go module.'
+
       - name: Checkout
+        if: matrix.module != 'none'
         uses: actions/checkout@v7
 
       - name: Setup Go
+        if: matrix.module != 'none'
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ matrix.module }}/go.mod
@@ -67,9 +77,11 @@ jobs:
           cache-dependency-path: ${{ matrix.module }}/go.sum
 
       - name: Install govulncheck
+        if: matrix.module != 'none'
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Scan nested module
+        if: matrix.module != 'none'
         working-directory: ${{ matrix.module }}
         env:
           GOWORK: 'off'
@@ -79,6 +91,7 @@ jobs:
     # Keep this exact job name for the existing main-branch required check.
     name: govulncheck
     needs:
+      - scope
       - root
       - nested-modules
     if: ${{ always() }}
@@ -87,10 +100,19 @@ jobs:
     steps:
       - name: Require every vulnerability scan to pass
         env:
+          COMPONENT_SCOPE: ${{ needs.scope.outputs.scope }}
+          SCOPE_RESULT: ${{ needs.scope.result }}
           ROOT_RESULT: ${{ needs.root.result }}
           NESTED_RESULT: ${{ needs.nested-modules.result }}
         run: |
+          echo "scope=${SCOPE_RESULT}"
+          echo "component-scope=${COMPONENT_SCOPE}"
           echo "root=${ROOT_RESULT}"
           echo "nested-modules=${NESTED_RESULT}"
-          test "${ROOT_RESULT}" = "success"
+          test "${SCOPE_RESULT}" = "success"
+          if [[ "${COMPONENT_SCOPE}" == "shared" ]]; then
+            test "${ROOT_RESULT}" = "success"
+          else
+            test "${ROOT_RESULT}" = "skipped"
+          fi
           test "${NESTED_RESULT}" = "success"

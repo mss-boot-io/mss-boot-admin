@@ -21,6 +21,7 @@ on:
       - 'cmd/mss/**'
       - 'cmd/mss-mcp/**'
       - 'internal/mss/**'
+      - 'tools/ci/**'
       - 'tools/release/**'
       - 'admin/AGENTS.md'
       - 'admin/go.mod'
@@ -29,8 +30,6 @@ on:
       - 'admin/cmd/migrate/**'
       - 'admin/modules/**'
       - 'templates/module/**'
-      - 'docs/docs/agent/**'
-      - 'docs/docs/architecture/agent-native-foundation.zh-CN.md'
       - 'web/antd-v6/config/routes.custom.ts'
       - 'web/antd-v6/config/routes.generated.ts'
       - 'web/antd-v6/src/generated/locales/*.ts'
@@ -55,6 +54,7 @@ on:
       - 'cmd/mss/**'
       - 'cmd/mss-mcp/**'
       - 'internal/mss/**'
+      - 'tools/ci/**'
       - 'tools/release/**'
       - 'admin/AGENTS.md'
       - 'admin/go.mod'
@@ -63,8 +63,6 @@ on:
       - 'admin/cmd/migrate/**'
       - 'admin/modules/**'
       - 'templates/module/**'
-      - 'docs/docs/agent/**'
-      - 'docs/docs/architecture/agent-native-foundation.zh-CN.md'
       - 'web/antd-v6/config/routes.custom.ts'
       - 'web/antd-v6/config/routes.generated.ts'
       - 'web/antd-v6/src/generated/locales/*.ts'
@@ -237,6 +235,7 @@ jobs:
       - name: Verify release and workflow governance
         run: |
           python3 -m unittest \
+            tools/ci/test_detect_component_scope.py \
             tools/release/test_check_release_policy.py \
             tools/release/test_verify_release_source.py \
             tools/release/test_workflow_governance.py

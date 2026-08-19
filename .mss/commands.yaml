@@ -206,7 +206,7 @@ spec:
       category: verification
 
     release-policy-check:
-      command: python3 tools/release/check_release_policy.py --component <root|framework|frontend> --version <version> --tag <tag> --intent <qualify|publish>
+      command: python3 tools/release/check_release_policy.py --component <root|framework|frontend|docs> --version <version> --tag <tag> --intent <qualify|publish>
       description: Validate the reviewed target and namespace; qualify permits unpublished candidate work, while publish also requires publication workflow readiness and is not itself phase approval.
       outputFormats: [text]
       category: release

@@ -45,6 +45,8 @@ For the consolidated foundation repository, release the synchronized train in th
 
 For a component-only or downstream release, retain the same source, evidence, immutability, and reconciliation rules while following that repository's tag namespace and workflow.
 
+The foundation components are independently releasable. A Docs-only release uses `docs/{version}` and does not recreate root, Framework, or frontend refs. Qualify the documentation build and browser evidence on the Docs candidate, merge through PR, freeze the resulting exact `origin/main` commit, create only the Docs tag, wait for the tag-triggered Docs workflow and protected `prod` deployment, then reconcile the Docs Release assets, checksums, public `release.json`, and visible site against that commit.
+
 ## Procedure
 
 ### 1. Establish source and policy
@@ -63,6 +65,7 @@ SHA="$(git rev-parse HEAD)"
 ROOT_TAG="${VERSION}"
 FRAMEWORK_TAG="mss-boot/${VERSION}"
 FRONTEND_TAG="web/antd-v6/${VERSION}"
+DOCS_TAG="docs/${VERSION}"
 ```
 
 Fetch and fail closed before publication:
@@ -108,7 +111,7 @@ Inspect exact-commit runs and public refs before creating work:
 ```bash
 gh run list --commit "${SHA}" --limit 100 \
   --json databaseId,workflowName,event,status,conclusion,headSha,url,createdAt
-for tag in "${FRAMEWORK_TAG}" "${FRONTEND_TAG}" "${ROOT_TAG}"; do
+for tag in "${FRAMEWORK_TAG}" "${FRONTEND_TAG}" "${ROOT_TAG}" "${DOCS_TAG}"; do
   git ls-remote --tags origin "refs/tags/${tag}" "refs/tags/${tag}^{}"
   gh release view "${tag}" --json tagName,isDraft,isPrerelease,url,assets 2>/dev/null || true
 done
@@ -290,6 +293,7 @@ After publication, verify all of the following without relying only on workflow 
 - root and frontend images expose `linux/amd64` and `linux/arm64`, expected digests, and exact version/revision labels;
 - frontend checksum, portable archive members, file modes, and embedded `release.json` match version and commit;
 - root contains six platform ZIPs plus `SHA256SUMS`; checksums, portable members, and every embedded build identity match version and commit;
+- Docs-only publication exposes the expected application, version, and full commit at `/release.json`; its portable archive, build identity, checksum manifest, GitHub Release, protected deployment, and visible routes match the Docs tag commit;
 - fresh-install and upgrade migrations, API registry synchronization, menu API binding, authorization negative cases, and rollback evidence are attached where required;
 - the local checkout still matches fetched `origin/main`, the tracked worktree is clean, unrelated local services are untouched, and the original GitHub actor is active.
 
