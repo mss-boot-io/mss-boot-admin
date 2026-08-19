@@ -72,10 +72,6 @@ var {{ .ModuleName }}MigrationIndexes = []{{ .ModuleName }}MigrationIndex{
 {{- end }}
 }
 
-func init() {
-	_ = RegisterMigration(migration.Migrate)
-}
-
 // RegisterMigration registers the complete lossless ID on an explicit runner.
 func RegisterMigration(runner *migration.Migration) error {
 	if runner == nil {

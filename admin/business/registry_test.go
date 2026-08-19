@@ -1,0 +1,211 @@
+package business
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
+	"gorm.io/gorm"
+)
+
+type testRecord struct{}
+
+type testModule struct {
+	name         string
+	registration Registration
+	err          error
+	skip         bool
+}
+
+func (module testModule) Name() string { return module.name }
+
+func (module testModule) Register(registry *Registry) error {
+	if module.err != nil {
+		return module.err
+	}
+	if module.skip {
+		return nil
+	}
+	return registry.Register(module.registration)
+}
+
+type testEventCollector struct{}
+
+func (testEventCollector) Collect(context.Context, Event) {}
+
+func validTestModule(name string, migrationID migration.MigrationID) testModule {
+	return testModule{
+		name: name,
+		registration: Registration{
+			Descriptor: Descriptor{Name: name, DisplayName: strings.ToUpper(name), Model: new(testRecord)},
+			Migrations: func(runner *migration.Migration) error {
+				return runner.Register(migrationID, func(*gorm.DB, string) error { return nil })
+			},
+			Readiness: func(context.Context, *gorm.DB) error { return nil },
+			Routes: func(group *gin.RouterGroup, _ Runtime) error {
+				group.GET("/"+name, func(ctx *gin.Context) { ctx.Status(http.StatusNoContent) })
+				return nil
+			},
+		},
+	}
+}
+
+func TestComposeRejectsInvalidDuplicateAndFailedModules(t *testing.T) {
+	core := migration.New()
+	if _, err := Compose(core, (*testModule)(nil)); err == nil || !strings.Contains(err.Error(), "module is required") {
+		t.Fatalf("nil module error = %v", err)
+	}
+	if _, err := Compose(core, testModule{name: "blank", skip: true}); err == nil || !strings.Contains(err.Error(), "did not provide") {
+		t.Fatalf("missing registration error = %v", err)
+	}
+	injected := errors.New("injected registration failure")
+	if _, err := Compose(core, testModule{name: "failed", err: injected}); !errors.Is(err, injected) {
+		t.Fatalf("registration failure = %v, want injected error", err)
+	}
+
+	module := validTestModule("supplier", migration.MigrationID("202608190101"))
+	if _, err := Compose(core, module, module); !errors.Is(err, ErrDuplicateModule) {
+		t.Fatalf("duplicate module error = %v", err)
+	}
+}
+
+func TestComposePreservesOrderCopiesDescriptorsAndFreezes(t *testing.T) {
+	registry, err := Compose(
+		migration.New(),
+		validTestModule("zeta", migration.MigrationID("202608190102")),
+		validTestModule("alpha", migration.MigrationID("202608190103")),
+	)
+	if err != nil {
+		t.Fatalf("compose: %v", err)
+	}
+	descriptors := registry.Descriptors()
+	got := []string{descriptors[0].Name, descriptors[1].Name}
+	if want := []string{"zeta", "alpha"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("descriptor order = %v, want %v", got, want)
+	}
+	descriptors[0].Name = "mutated"
+	if got := registry.Descriptors()[0].Name; got != "zeta" {
+		t.Fatalf("descriptor mutation leaked into registry: %q", got)
+	}
+	if err := registry.Add(validTestModule("later", migration.MigrationID("202608190104"))); !errors.Is(err, ErrRegistryFrozen) {
+		t.Fatalf("post-freeze Add error = %v", err)
+	}
+	if err := registry.Register(Registration{}); !errors.Is(err, ErrRegistryFrozen) {
+		t.Fatalf("post-freeze Register error = %v", err)
+	}
+}
+
+func TestComposeDetectsMigrationCollisionWithoutMutatingCore(t *testing.T) {
+	core := migration.New()
+	id := migration.MigrationID("202608190105")
+	if err := core.Register(id, func(*gorm.DB, string) error { return nil }); err != nil {
+		t.Fatalf("register core migration: %v", err)
+	}
+	if _, err := Compose(core, validTestModule("collision", id)); !errors.Is(err, migration.ErrDuplicateMigrationID) {
+		t.Fatalf("migration collision error = %v", err)
+	}
+	if err := core.ValidateRegistrations(); err != nil {
+		t.Fatalf("failed composition mutated core migrations: %v", err)
+	}
+}
+
+func TestMigrationRunnerRequiresFreezeAndReturnsIsolatedClones(t *testing.T) {
+	registry, err := NewRegistry(migration.New())
+	if err != nil {
+		t.Fatalf("new registry: %v", err)
+	}
+	if _, err := registry.MigrationRunner(); !errors.Is(err, ErrRegistryNotFrozen) {
+		t.Fatalf("unfrozen migration runner error = %v", err)
+	}
+	if err := registry.Add(validTestModule("supplier", migration.MigrationID("202608190106"))); err != nil {
+		t.Fatalf("add module: %v", err)
+	}
+	if err := registry.Freeze(); err != nil {
+		t.Fatalf("freeze: %v", err)
+	}
+	first, err := registry.MigrationRunner()
+	if err != nil {
+		t.Fatalf("first migration runner: %v", err)
+	}
+	second, err := registry.MigrationRunner()
+	if err != nil {
+		t.Fatalf("second migration runner: %v", err)
+	}
+	extraID := migration.MigrationID("202608190107")
+	if err := first.Register(extraID, func(*gorm.DB, string) error { return nil }); err != nil {
+		t.Fatalf("register first clone: %v", err)
+	}
+	if err := second.Register(extraID, func(*gorm.DB, string) error { return nil }); err != nil {
+		t.Fatalf("migration runner clones share state: %v", err)
+	}
+}
+
+func TestMountChecksAllReadinessBeforeAnyRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	firstMounted := false
+	secondReadiness := errors.New("second module is not ready")
+	first := validTestModule("first", migration.MigrationID("202608190108"))
+	first.registration.Routes = func(*gin.RouterGroup, Runtime) error {
+		firstMounted = true
+		return nil
+	}
+	second := validTestModule("second", migration.MigrationID("202608190109"))
+	second.registration.Readiness = func(context.Context, *gorm.DB) error { return secondReadiness }
+	registry, err := Compose(migration.New(), first, second)
+	if err != nil {
+		t.Fatalf("compose: %v", err)
+	}
+	engine := gin.New()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open readiness database: %v", err)
+	}
+
+	err = registry.Mount(
+		context.Background(),
+		func(operation func(*gorm.DB) error) error { return operation(db) },
+		engine.Group("/admin/api"),
+		Runtime{
+			RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
+			Principal:       nil,
+			Events:          testEventCollector{},
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "principal resolver") {
+		t.Fatalf("invalid runtime error = %v", err)
+	}
+
+	// A valid principal resolver is supplied below; it may return nil because
+	// readiness does not authenticate a request.
+	err = registry.Mount(
+		context.Background(),
+		func(operation func(*gorm.DB) error) error { return operation(db) },
+		engine.Group("/admin/api"),
+		Runtime{
+			RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
+			Principal:       func(*gin.Context) security.Verifier { return nil },
+			Events:          testEventCollector{},
+		},
+	)
+	if !errors.Is(err, secondReadiness) {
+		t.Fatalf("readiness error = %v, want second module failure", err)
+	}
+	if firstMounted {
+		t.Fatal("a route was mounted before all module readiness checks passed")
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/first", nil)
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("unready route status = %d, want 404", recorder.Code)
+	}
+}

@@ -3,17 +3,18 @@
 package {{ .Package }}
 
 import (
-	moduleruntime "github.com/mss-boot-io/mss-boot-admin/admin/modules/runtime"
+	"github.com/mss-boot-io/mss-boot-admin/admin/business"
 )
 
-func init() {
-	moduleruntime.MustRegister(moduleruntime.Descriptor{
+// Descriptor returns this module's immutable metadata projection.
+func Descriptor() business.Descriptor {
+	return business.Descriptor{
 		Name:        "{{ .ModuleName }}",
 		DisplayName: "{{ .DisplayName }}",
 		Description: "{{ .Description }}",
 		Version:     "v1alpha1",
 		Model:       new({{ .ModelName }}),
-		Permissions: []moduleruntime.Permission{
+		Permissions: []business.Permission{
 {{- range .Permissions }}
 			{
 				Code: "{{ .Code }}",
@@ -23,7 +24,7 @@ func init() {
 			},
 {{- end }}
 		},
-		Menu: moduleruntime.Menu{
+		Menu: business.Menu{
 			Path: "{{ .Menu.Path }}",
 			DisplayName: "{{ .Menu.DisplayName }}",
 			DisplayNameEn: "{{ .Menu.DisplayNameEn }}",
@@ -32,5 +33,5 @@ func init() {
 			Order: {{ .Menu.Order }},
 			Hidden: {{ .Menu.Hidden }},
 		},
-	})
+	}
 }

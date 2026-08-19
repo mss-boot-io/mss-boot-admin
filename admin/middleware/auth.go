@@ -3,9 +3,9 @@ package middleware
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -57,7 +57,7 @@ var ensureAuthorizationPolicyCurrent = func(c *gin.Context) error {
 	)
 }
 
-func Init() {
+func Init() error {
 	Auth = &jwt.GinJWTMiddleware{
 		Realm:       config.Cfg.Auth.Realm,
 		Key:         []byte(config.Cfg.Auth.Key),
@@ -129,12 +129,13 @@ func Init() {
 	}
 	err := Auth.MiddlewareInit()
 	if err != nil {
-		slog.Error("authMiddleware.MiddlewareInit() Error", "err", err)
-		os.Exit(-1)
+		Auth = nil
+		return fmt.Errorf("initialize Admin authentication middleware: %w", err)
 	}
 	response.AuthHandler = Auth.MiddlewareFunc()
 	response.VerifyHandler = GetVerify
 	Middlewares.Store("auth", Auth.MiddlewareFunc())
+	return nil
 }
 
 func writeUnauthorizedAuthResponse(c *gin.Context, code int, message string) {

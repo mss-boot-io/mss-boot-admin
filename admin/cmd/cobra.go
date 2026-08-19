@@ -1,12 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
+	"github.com/mss-boot-io/mss-boot-admin/admin/business"
 	"github.com/mss-boot-io/mss-boot-admin/admin/cmd/migrate"
 	"github.com/mss-boot-io/mss-boot-admin/admin/cmd/server"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
@@ -19,40 +20,47 @@ import (
  * @Last Modified time: 2023/8/10 00:14:22
  */
 
-var rootCmd = &cobra.Command{
-	Use:          "mss-boot-admin",
-	Short:        "mss-boot-admin",
-	Version:      pkg.BuildVersion(),
-	SilenceUsage: true,
-	Long:         `mss-boot-admin is a background management system developed by the mss-boot framework`,
-	Args: func(cmd *cobra.Command, args []string) error {
-		if len(args) < 1 {
-			tip()
-			return errors.New(pkg.Red("requires at least one arg"))
-		}
-		return nil
-	},
-	PersistentPreRunE: func(*cobra.Command, []string) error { return nil },
-	Run: func(cmd *cobra.Command, args []string) {
-		tip()
-	},
+// New returns a fresh command tree for one Application instance.
+func New(registry *business.Registry) *cobra.Command {
+	root := &cobra.Command{
+		Use:          "mss-boot-admin",
+		Short:        "mss-boot-admin",
+		Version:      pkg.BuildVersion(),
+		SilenceUsage: true,
+		Long:         `mss-boot-admin is a background management system developed by the mss-boot framework`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				tip(cmd)
+				return errors.New(pkg.Red("requires at least one arg"))
+			}
+			return nil
+		},
+		PersistentPreRunE: func(*cobra.Command, []string) error { return nil },
+		Run: func(cmd *cobra.Command, _ []string) {
+			tip(cmd)
+		},
+	}
+	root.AddCommand(server.NewCommand(registry))
+	root.AddCommand(migrate.NewCommand(registry))
+	return root
 }
 
-func tip() {
+func tip(cmd *cobra.Command) {
 	usageStr := `欢迎使用 ` + pkg.Green(`mss-boot-admin `+pkg.BuildVersion()) + ` 可以使用 ` + pkg.Red(`-h`) + ` 查看命令`
 	usageStr1 := `也可以参考 https://docs.mss-boot-io.top 的相关内容`
-	fmt.Printf("%s\n", usageStr)
-	fmt.Printf("%s\n", usageStr1)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s\n", usageStr)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s\n", usageStr1)
 }
 
-func init() {
-	rootCmd.AddCommand(server.StartCmd)
-	rootCmd.AddCommand(migrate.StartCmd)
-}
-
-// Execute : apply commands
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(-2)
+// ExecuteContext runs a fresh command tree and returns every diagnostic error.
+func ExecuteContext(ctx context.Context, registry *business.Registry) error {
+	if ctx == nil {
+		return errors.New("Admin command context is required")
 	}
+	return New(registry).ExecuteContext(ctx)
+}
+
+// Execute preserves the historical helper without terminating the process.
+func Execute() error {
+	return ExecuteContext(context.Background(), nil)
 }

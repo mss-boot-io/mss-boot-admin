@@ -17,7 +17,6 @@ import (
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/schemahealth"
-	"github.com/mss-boot-io/mss-boot-admin/admin/router"
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	frameworkserver "github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
@@ -203,17 +202,9 @@ func TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness(t *testing.T)
 			db := openServerSchemaReadinessSQLite(t)
 			createServerCanonicalEmailSchema(t, db, test.recordVersion)
 			engine := gin.New()
-			maker := &router.MakeRouter{}
-			maker.SetFunc(func(group *gin.RouterGroup) {
-				group.GET("/readiness-marker", func(ctx *gin.Context) {
-					ctx.Status(http.StatusNoContent)
-				})
-			})
-
-			err := mountBusinessRoutesAfterSchemaReadiness(
+			groups, err := mountCoreRouteGroupsAfterSchemaReadiness(
 				t.Context(),
 				db,
-				maker,
 				engine.Group("/admin"),
 			)
 			if test.wantErr {
@@ -222,9 +213,13 @@ func TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness(t *testing.T)
 				}
 			} else if err != nil {
 				t.Fatalf("route composition failed: %v", err)
+			} else {
+				groups.ProtectedAPI.GET("/readiness-marker", func(ctx *gin.Context) {
+					ctx.Status(http.StatusNoContent)
+				})
 			}
 
-			request := httptest.NewRequest(http.MethodGet, "/admin/readiness-marker", nil)
+			request := httptest.NewRequest(http.MethodGet, "/admin/api/readiness-marker", nil)
 			response := httptest.NewRecorder()
 			engine.ServeHTTP(response, request)
 			if response.Code != test.wantStatus {

@@ -193,6 +193,44 @@ func (e *Migration) ValidateRegistrations() error {
 	return e.validateRegistrationsLocked()
 }
 
+// CloneRegistrations returns an isolated runner containing the same migration
+// registrations as e. Database handles, version models, and execution state are
+// deliberately not copied. Application composition roots use this to start
+// from the Admin core migration set and then add an explicit set of business
+// modules without mutating process-global registration state.
+func (e *Migration) CloneRegistrations() (*Migration, error) {
+	if e == nil {
+		return nil, fmt.Errorf("%w: migration runner is nil", ErrMigrationNotReady)
+	}
+
+	e.mutex.RLock()
+	if err := e.validateRegistrationsLocked(); err != nil {
+		e.mutex.RUnlock()
+		return nil, err
+	}
+	registrations := make([]registeredMigration, 0, len(e.versions))
+	for _, registered := range e.versions {
+		registered.legacyIDs = append([]MigrationID(nil), registered.legacyIDs...)
+		registrations = append(registrations, registered)
+	}
+	e.mutex.RUnlock()
+
+	sort.Slice(registrations, func(i, j int) bool {
+		return migrationIDLess(registrations[i].id, registrations[j].id)
+	})
+	clone := New()
+	for _, registered := range registrations {
+		if err := clone.RegisterWithLegacyIDs(
+			registered.id,
+			registered.legacyIDs,
+			registered.run,
+		); err != nil {
+			return nil, fmt.Errorf("clone migration %s: %w", registered.id, err)
+		}
+	}
+	return clone, nil
+}
+
 func (e *Migration) validateRegistrationsLocked() error {
 	if len(e.registrationErrors) == 0 {
 		return nil

@@ -23,6 +23,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 
+	"github.com/mss-boot-io/mss-boot-admin/admin/business"
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	adminwebsocket "github.com/mss-boot-io/mss-boot-admin/admin/center/websocket"
 	"github.com/mss-boot-io/mss-boot-admin/admin/config"
@@ -37,48 +38,81 @@ import (
 
 var (
 	apiCheck       bool
+	group          = "/admin"
+	driver         = "mysql"
+	dsn            = "root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local"
+	configProvider = os.Getenv("CONFIG_PROVIDER")
+	StartCmd       = NewCommand(nil)
+)
+
+type commandOptions struct {
+	apiCheck       bool
 	group          string
 	driver         string
 	dsn            string
 	configProvider string
-	StartCmd       = &cobra.Command{
+}
+
+func defaultCommandOptions() commandOptions {
+	return commandOptions{
+		group:          "/admin",
+		driver:         "mysql",
+		dsn:            "root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local",
+		configProvider: os.Getenv("CONFIG_PROVIDER"),
+	}
+}
+
+// NewCommand returns an isolated server command bound to one frozen business
+// module registry. Flag values never leak into another Application instance.
+func NewCommand(registry *business.Registry) *cobra.Command {
+	options := defaultCommandOptions()
+	command := &cobra.Command{
 		Use:     "server",
 		Short:   "start server",
 		Long:    "start mss-boot-admin server",
 		Example: "mss-boot-admin server",
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			return setup(cmd.Context())
+			return setupWithOptions(cmd.Context(), &options, registry)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return run(cmd.Context())
+			return runWithOptions(cmd.Context(), options.apiCheck)
 		},
 	}
-)
+	command.PersistentFlags().BoolVarP(&options.apiCheck,
+		"api", "a", false, "Start server with check api data")
+	command.PersistentFlags().StringVarP(&options.configProvider,
+		"config-provider", "c", options.configProvider, "Start server with config provider")
+	command.PersistentFlags().StringVarP(&options.group,
+		"group", "g", options.group, "Start server with group path")
+	command.PersistentFlags().StringVarP(&options.driver,
+		"gorm-driver", "r", options.driver, "Start server with db driver")
+	command.PersistentFlags().StringVarP(&options.dsn,
+		"gorm-dsn", "n", options.dsn, "Start server with db dsn")
+	return command
+}
 
 func init() {
-	StartCmd.PersistentFlags().BoolVarP(&apiCheck,
-		"api", "a",
-		false,
-		"Start server with check api data")
-	StartCmd.PersistentFlags().StringVarP(&configProvider,
-		"config-provider", "c",
-		os.Getenv("CONFIG_PROVIDER"),
-		"Start server with config provider")
-	StartCmd.PersistentFlags().StringVarP(&group,
-		"group", "g",
-		"/admin",
-		"Start server with group path")
-	StartCmd.PersistentFlags().StringVarP(&driver,
-		"gorm-driver", "r",
-		"mysql", "Start server with db driver")
-	StartCmd.PersistentFlags().StringVarP(&dsn,
-		"gorm-dsn", "n",
-		"root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local",
-		"Start server with db dsn")
 	center.SetVerify(&models.User{})
 }
 
 func setup(ctx context.Context) (err error) {
+	options := defaultCommandOptions()
+	options.apiCheck = apiCheck
+	options.group = group
+	options.driver = driver
+	options.dsn = dsn
+	options.configProvider = configProvider
+	return setupWithOptions(ctx, &options, nil)
+}
+
+func setupWithOptions(
+	ctx context.Context,
+	options *commandOptions,
+	businessRegistry *business.Registry,
+) (err error) {
+	if options == nil {
+		return errors.New("server command options are required")
+	}
 	defer func() {
 		if err != nil {
 			if closeErr := config.Cfg.Close(); closeErr != nil {
@@ -88,14 +122,14 @@ func setup(ctx context.Context) (err error) {
 	}()
 
 	if os.Getenv("DB_DRIVER") != "" {
-		driver = os.Getenv("DB_DRIVER")
+		options.driver = os.Getenv("DB_DRIVER")
 	} else {
-		_ = os.Setenv("DB_DRIVER", driver)
+		_ = os.Setenv("DB_DRIVER", options.driver)
 	}
 	if os.Getenv("DB_DSN") != "" {
-		dsn = os.Getenv("DB_DSN")
+		options.dsn = os.Getenv("DB_DSN")
 	} else {
-		_ = os.Setenv("DB_DSN", dsn)
+		_ = os.Setenv("DB_DSN", options.dsn)
 	}
 
 	opts := []source.Option{
@@ -105,14 +139,14 @@ func setup(ctx context.Context) (err error) {
 	}
 	switch pkg.GetStage() {
 	case "local", "dev":
-		configProvider = string(source.Local)
+		options.configProvider = string(source.Local)
 	}
-	switch source.Provider(configProvider) {
+	switch source.Provider(options.configProvider) {
 	case source.GORM:
 		opts = []source.Option{
 			source.WithProvider(source.GORM),
-			source.WithGORMDriver(driver),
-			source.WithGORMDsn(dsn),
+			source.WithGORMDriver(options.driver),
+			source.WithGORMDsn(options.dsn),
 			source.WithDriver(&models.SystemConfig{}),
 		}
 	case source.FS:
@@ -140,7 +174,7 @@ func setup(ctx context.Context) (err error) {
 		}
 	case source.Local, "":
 	default:
-		return fmt.Errorf("config provider %q is not supported", configProvider)
+		return fmt.Errorf("config provider %q is not supported", options.configProvider)
 	}
 	if customConfig := center.GetCustomConfig(); customConfig != nil {
 		opts = append(opts, source.WithPostfixHook(customConfig))
@@ -171,7 +205,9 @@ func setup(ctx context.Context) (err error) {
 
 	middleware.Verifier = center.GetUser()
 	service.Session.SetCache(sessioncache.New(redisClientFromCenter()))
-	middleware.Init()
+	if err := middleware.Init(); err != nil {
+		return err
+	}
 
 	routerEngine := gin.New()
 	if err := routerEngine.SetTrustedProxies(config.Cfg.Application.TrustedProxies); err != nil {
@@ -179,29 +215,45 @@ func setup(ctx context.Context) (err error) {
 	}
 	routerEngine.Use(requestlog.Logger(), requestlog.Recovery())
 	routerEngine.Use(middleware.AuditLogMiddleware("/admin/api/auth", "/admin/api/login", "/admin/api/logout"))
+	center.SetServerManager(frameworkserver.New())
 	center.SetMakeRouter(router.DefaultMakeRouter)
 	center.SetRouter(routerEngine)
-	businessRoutes := routerEngine.Group(group)
-	if err := mountBusinessRoutesAfterSchemaReadiness(
+	businessRoutes := routerEngine.Group(options.group)
+	routeGroups, err := mountCoreRouteGroupsAfterSchemaReadiness(
 		ctx,
 		databaseHandle.DB,
-		center.GetMakeRouter(),
 		businessRoutes,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
-	if err := mountSupplierRoutesAfterMigrationReadiness(
-		ctx,
-		config.Cfg.WithDatabase,
-		businessRoutes,
-	); err != nil {
-		return err
+	if businessRegistry != nil {
+		if middleware.Auth == nil {
+			return errors.New("business authentication middleware is not initialized")
+		}
+		protectedBusinessAPI := routeGroups.ProtectedAPI.Group(
+			"",
+			leaseBusinessRequestDatabase(config.Cfg.WithDatabase),
+			middleware.Auth.MiddlewareFunc(),
+		)
+		if err := businessRegistry.Mount(
+			ctx,
+			business.DatabaseAccess(config.Cfg.WithDatabase),
+			protectedBusinessAPI,
+			business.Runtime{
+				RequestDatabase: center.RequestDatabase,
+				Principal:       middleware.GetVerify,
+				Events:          businessEventLogger{},
+			},
+		); err != nil {
+			return err
+		}
 	}
 	if err := initializeApplicationDelivery(ctx, config.Cfg, center.GetRouter()); err != nil {
 		return err
 	}
 
-	if apiCheck {
+	if options.apiCheck {
 		if err := models.SaveAPI(routerEngine.Routes()); err != nil {
 			return fmt.Errorf("save API routes: %w", err)
 		}
@@ -252,24 +304,22 @@ func setup(ctx context.Context) (err error) {
 	return nil
 }
 
-func mountBusinessRoutesAfterSchemaReadiness(
+func mountCoreRouteGroupsAfterSchemaReadiness(
 	ctx context.Context,
 	db *gorm.DB,
-	maker center.MakeRouterImp,
 	group *gin.RouterGroup,
-) error {
-	if maker == nil || group == nil {
-		return errors.New("business route composition is not initialized")
+) (router.RouteGroups, error) {
+	if group == nil {
+		return router.RouteGroups{}, errors.New("core route composition is not initialized")
 	}
 	if err := schemahealth.VerifyCanonicalEmailIdentity(
 		ctx,
 		db,
 		schemahealth.CanonicalEmailRuntimeReadiness,
 	); err != nil {
-		return fmt.Errorf("application schema readiness failed: %w", err)
+		return router.RouteGroups{}, fmt.Errorf("application schema readiness failed: %w", err)
 	}
-	maker.MakeRouter(group)
-	return nil
+	return router.InitRouteGroups(group), nil
 }
 
 type systemTaskSchedule struct {
@@ -331,6 +381,10 @@ func systemTaskSchedules(
 }
 
 func run(ctx context.Context) (err error) {
+	return runWithOptions(ctx, apiCheck)
+}
+
+func runWithOptions(ctx context.Context, apiOnly bool) (err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -341,7 +395,7 @@ func run(ctx context.Context) (err error) {
 			err = errors.Join(err, fmt.Errorf("close application resources: %w", closeErr))
 		}
 	}()
-	if apiCheck {
+	if apiOnly {
 		return nil
 	}
 	startLegacyQueue(ctx, center.GetQueue())
