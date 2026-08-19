@@ -97,6 +97,8 @@ Require the checkpoint to cover release-policy and workflow tests, tag namespace
 
 Classify a missing local browser binary or package as workstation setup first. Install it locally when repository and CI contracts are already correct. Change repository setup only when the failure reproduces in the checked-in workflow or a clean supported setup.
 
+Treat broad documentation-site visual polish as release-preparation work. Do not mix a cosmetic sweep into ordinary feature delivery. During release preparation, start the docs site locally from the candidate branch and inspect the home page plus at least one representative nested release or guide page at desktop and narrow mobile widths. Check the nested-route logo and other static assets, header wrapping, hero actions, card rhythm, dark mode when offered, content readability, table scrolling, and document-level horizontal overflow. Fix visual defects through the release-preparation PR, rebuild the docs, and capture browser evidence before freezing `SHA`; after freeze, any visual fix is a source change and requires a new PR and frozen commit.
+
 Submit every source, workflow, dependency, generated, contract, or documentation change through a PR to `main`. After merge, freeze the new full SHA and do not carry forward topic-branch evidence as publication authority.
 
 ### 3. Reconstruct remote state before dispatching

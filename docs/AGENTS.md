@@ -43,6 +43,8 @@ pnpm start
 - Do not copy production credentials, private endpoints, personal absolute paths, or unredacted sensitive logs.
 - Update both Chinese and English material when both variants are part of the same public contract.
 - Keep generated module documents sourced from `modules/<module>/module.yaml`; do not hand-edit generated text.
+- Keep the top navigation bounded to stable, high-frequency journeys. Add new or specialist sections under the `更多` group in `.dumirc.ts` by default; promote an item only when it replaces an existing primary journey.
+- Reserve site-wide cosmetic sweeps and cross-page visual QA for release-preparation pull requests. Ordinary documentation changes should add the required content without opportunistic theme restyling.
 
 ## Cross-component changes
 

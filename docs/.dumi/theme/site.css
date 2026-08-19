@@ -1,0 +1,1466 @@
+:root {
+  --mss-primary: #1677ff;
+  --mss-primary-strong: #0958d9;
+  --mss-cyan: #13c2c2;
+  --mss-ink: #102039;
+  --mss-muted: #5f6f86;
+  --mss-line: rgba(16, 32, 57, 0.1);
+  --mss-surface: rgba(255, 255, 255, 0.92);
+  --mss-shadow: 0 20px 60px rgba(24, 79, 143, 0.1);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body,
+.dumi-default-doc-layout {
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
+    sans-serif;
+}
+
+body {
+  color: var(--mss-ink);
+  background:
+    radial-gradient(
+      circle at 8% 8%,
+      rgba(22, 119, 255, 0.07),
+      transparent 24rem
+    ),
+    #f7f9fc;
+}
+
+.dumi-default-doc-layout {
+  min-height: 100vh;
+  background: transparent;
+}
+
+.dumi-default-header:not([data-static]) {
+  border-bottom: 1px solid rgba(16, 32, 57, 0.08);
+  background: rgba(247, 249, 252, 0.82);
+  box-shadow: 0 8px 28px rgba(16, 32, 57, 0.035);
+  backdrop-filter: saturate(150%) blur(18px);
+}
+
+.dumi-default-header-content {
+  height: 68px;
+  max-width: 1560px;
+  padding-inline: 28px;
+}
+
+.dumi-default-header-left {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 158px;
+  margin-inline-end: 30px;
+}
+
+.dumi-default-logo {
+  color: var(--mss-ink);
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.dumi-default-logo img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 10px rgba(22, 119, 255, 0.18));
+}
+
+.dumi-default-header-right {
+  min-width: 0;
+  gap: 16px;
+}
+
+.dumi-default-navbar {
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid rgba(16, 32, 57, 0.075);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow:
+    0 7px 24px rgba(16, 32, 57, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+}
+
+.dumi-default-navbar > li {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+.dumi-default-navbar > li:not(:last-child) {
+  margin-inline-end: 2px;
+}
+
+.dumi-default-navbar > li > a,
+.dumi-default-navbar > li > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding-inline: 9px;
+  border-radius: 9px;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.dumi-default-navbar > li > a:hover,
+.dumi-default-navbar > li > span:hover {
+  color: var(--mss-primary-strong);
+  background: rgba(22, 119, 255, 0.075);
+}
+
+.dumi-default-navbar > li > a.active,
+.dumi-default-navbar > li > span.active {
+  color: var(--mss-primary-strong);
+  background: #fff;
+  box-shadow:
+    0 4px 12px rgba(16, 32, 57, 0.08),
+    0 0 0 1px rgba(22, 119, 255, 0.08);
+}
+
+.dumi-default-navbar > li > .dumi-default-navbar-collapse-btn {
+  margin-inline: -4px 4px;
+}
+
+.dumi-default-navbar > li > .dumi-default-navbar-dropdown {
+  right: 0;
+  left: auto;
+  display: grid;
+  width: max-content;
+  min-width: 350px;
+  max-width: min(560px, calc(100vw - 40px));
+  max-height: min(420px, 60vh);
+  margin-top: 9px;
+  padding: 9px;
+  overflow-y: auto;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 3px;
+  border: 1px solid rgba(16, 32, 57, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 46px rgba(16, 32, 57, 0.16);
+  backdrop-filter: blur(18px);
+}
+
+.dumi-default-navbar > li > .dumi-default-navbar-dropdown > li > a,
+.dumi-default-navbar > li > .dumi-default-navbar-dropdown > li > span {
+  display: flex;
+  min-height: 38px;
+  padding: 0 12px;
+  align-items: center;
+  border-radius: 9px;
+  color: #41536b;
+  font-size: 13px;
+  font-weight: 540;
+  line-height: 1.35;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.dumi-default-navbar > li > .dumi-default-navbar-dropdown > li > a:hover,
+.dumi-default-navbar > li > .dumi-default-navbar-dropdown > li > span:hover {
+  color: var(--mss-primary-strong);
+  background: rgba(22, 119, 255, 0.07);
+}
+
+.dumi-default-navbar > li > .dumi-default-navbar-dropdown > li > a.active,
+.dumi-default-navbar > li > .dumi-default-navbar-dropdown > li > span.active {
+  color: var(--mss-primary-strong);
+  background: rgba(22, 119, 255, 0.11);
+}
+
+.dumi-default-navbar > li:has(> .dumi-default-navbar-dropdown a.active) > span {
+  color: var(--mss-primary-strong);
+  background: #fff;
+  box-shadow:
+    0 4px 12px rgba(16, 32, 57, 0.08),
+    0 0 0 1px rgba(22, 119, 255, 0.08);
+}
+
+.dumi-default-header-right-aside {
+  flex: 0 0 auto;
+  gap: 10px;
+  margin-inline-start: auto;
+}
+
+.dumi-default-search-bar:not(:last-child) {
+  margin-inline-end: 4px;
+}
+
+.dumi-default-search-bar-input {
+  width: 224px;
+  height: 38px;
+  border-color: rgba(16, 32, 57, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.dumi-default-search-bar-input:hover {
+  border-color: rgba(22, 119, 255, 0.28);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.dumi-default-search-shortcut {
+  border-color: rgba(16, 32, 57, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.dumi-default-hero {
+  display: flex;
+  min-height: 690px;
+  height: auto;
+  margin: -88px auto -28px;
+  padding: 178px 24px 104px;
+  overflow: hidden;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.dumi-default-hero::before {
+  opacity: 1;
+  background:
+    radial-gradient(
+      circle at 50% 27%,
+      rgba(22, 119, 255, 0.18),
+      transparent 26%
+    ),
+    radial-gradient(
+      circle at 22% 58%,
+      rgba(19, 194, 194, 0.13),
+      transparent 22%
+    ),
+    radial-gradient(
+      circle at 82% 56%,
+      rgba(114, 46, 209, 0.1),
+      transparent 24%
+    ),
+    linear-gradient(180deg, rgba(247, 249, 252, 0.25), #f7f9fc 91%);
+}
+
+.dumi-default-hero-title {
+  margin: 0 0 24px;
+  font-family: inherit;
+  font-size: clamp(74px, 10vw, 136px);
+  font-weight: 800;
+  line-height: 0.92;
+  letter-spacing: -0.065em;
+}
+
+.dumi-default-hero-title > span {
+  color: transparent;
+  background: linear-gradient(120deg, #0958d9 12%, #1677ff 48%, #13c2c2 92%);
+  background-clip: text;
+  text-shadow: 0 18px 42px rgba(22, 119, 255, 0.14);
+}
+
+.dumi-default-hero > p {
+  position: relative;
+  max-width: 760px;
+  margin: 0 auto;
+  color: var(--mss-muted);
+  font-size: 19px;
+  line-height: 1.75;
+  text-wrap: balance;
+}
+
+.dumi-default-hero-actions {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  margin-top: 38px;
+  flex-wrap: wrap;
+}
+
+.dumi-default-hero-actions > a {
+  min-width: 148px;
+  height: 48px;
+  padding-inline: 24px;
+  border-radius: 13px;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 46px;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.dumi-default-hero-actions > a:not(:first-child) {
+  margin-inline-start: 0;
+  border-color: rgba(22, 119, 255, 0.32);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.dumi-default-hero-actions > a:first-child {
+  background: linear-gradient(
+    135deg,
+    var(--mss-primary-strong),
+    var(--mss-primary)
+  );
+  box-shadow: 0 12px 28px rgba(22, 119, 255, 0.25);
+}
+
+.dumi-default-hero-actions > a:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(22, 119, 255, 0.18);
+}
+
+.dumi-default-features {
+  display: grid;
+  max-width: 1240px;
+  margin: 0 auto 64px;
+  padding: 0 28px;
+  overflow: visible;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.dumi-default-features[data-cols] > .dumi-default-features-item {
+  width: auto;
+  margin: 0;
+}
+
+.dumi-default-features[data-cols] > .dumi-default-features-item:nth-child(n) {
+  margin-inline-end: 0;
+}
+
+.dumi-default-features-item {
+  position: relative;
+  float: none;
+  min-height: 214px;
+  padding: 28px;
+  overflow: hidden;
+  border: 1px solid var(--mss-line);
+  border-radius: 20px;
+  background: var(--mss-surface);
+  box-shadow: 0 12px 34px rgba(24, 79, 143, 0.055);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.dumi-default-features-item::after {
+  content: '';
+  position: absolute;
+  right: -50px;
+  bottom: -64px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(22, 119, 255, 0.1), transparent 68%);
+  pointer-events: none;
+}
+
+.dumi-default-features-item:hover {
+  border-color: rgba(22, 119, 255, 0.22);
+  box-shadow: var(--mss-shadow);
+  transform: translateY(-4px);
+}
+
+.dumi-default-features-item > i {
+  display: inline-grid;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 14px;
+  place-items: center;
+  border: 1px solid rgba(22, 119, 255, 0.11);
+  border-radius: 16px;
+  background: linear-gradient(
+    145deg,
+    rgba(22, 119, 255, 0.1),
+    rgba(19, 194, 194, 0.08)
+  );
+  font-size: 29px;
+}
+
+.dumi-default-features-item > h3 {
+  margin: 0 0 10px;
+  color: var(--mss-ink);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.dumi-default-features-item > p {
+  margin: 0;
+  color: var(--mss-muted);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.dumi-default-doc-layout > main {
+  max-width: 1480px;
+}
+
+.dumi-default-sidebar {
+  padding-top: 28px;
+  padding-inline: 4px 26px;
+}
+
+.dumi-default-sidebar > dl > dt {
+  margin: 10px 10px 6px;
+  color: #3f5067;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.dumi-default-sidebar > dl > dd {
+  padding: 2px 0;
+}
+
+.dumi-default-sidebar > dl > dd > a {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.dumi-default-sidebar > dl > dd > a:hover {
+  background: rgba(22, 119, 255, 0.06);
+}
+
+.dumi-default-sidebar > dl > dd > a.active {
+  color: var(--mss-primary-strong);
+  background: linear-gradient(
+    90deg,
+    rgba(22, 119, 255, 0.12),
+    rgba(22, 119, 255, 0.035)
+  );
+}
+
+.dumi-default-sidebar,
+.dumi-default-doc-layout-toc-wrapper,
+.dumi-default-search-popover > section {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(95, 111, 134, 0.3) transparent;
+}
+
+.dumi-default-sidebar::-webkit-scrollbar,
+.dumi-default-doc-layout-toc-wrapper::-webkit-scrollbar,
+.dumi-default-search-popover > section::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dumi-default-sidebar::-webkit-scrollbar-thumb,
+.dumi-default-doc-layout-toc-wrapper::-webkit-scrollbar-thumb,
+.dumi-default-search-popover > section::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(95, 111, 134, 0.3);
+}
+
+.dumi-default-content:not([data-no-sidebar]) {
+  margin-top: 18px;
+  padding: 44px 48px 0;
+  border: 1px solid var(--mss-line);
+  border-radius: 18px 18px 0 0;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--mss-shadow);
+}
+
+.dumi-default-content[data-no-sidebar] article > .markdown {
+  max-width: 1060px;
+  margin-inline: auto;
+  padding-inline: 28px;
+}
+
+.markdown {
+  color: #26384f;
+  font-size: 15px;
+  line-height: 1.82;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  color: var(--mss-ink);
+  font-weight: 720;
+  letter-spacing: -0.025em;
+}
+
+.markdown h1 {
+  margin-top: 0;
+  font-size: clamp(30px, 3vw, 40px);
+}
+
+.markdown h2 {
+  margin-top: 2.15em;
+  padding-bottom: 0.42em;
+  border-bottom: 1px solid rgba(16, 32, 57, 0.08);
+}
+
+.markdown :not(pre) > code {
+  padding: 0.16em 0.42em;
+  color: #c41d7f;
+  border: 1px solid rgba(196, 29, 127, 0.08);
+  border-radius: 6px;
+  background: rgba(196, 29, 127, 0.045);
+}
+
+.markdown pre {
+  border: 1px solid rgba(16, 32, 57, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 10px 32px rgba(16, 32, 57, 0.055);
+}
+
+.markdown pre code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  line-height: 1.7;
+}
+
+.markdown table {
+  overflow: hidden;
+  border: 1px solid rgba(16, 32, 57, 0.1);
+  border-radius: 12px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.markdown th {
+  color: #31445d;
+  background: #f3f7fc;
+}
+
+.markdown th,
+.markdown td {
+  padding: 11px 14px;
+}
+
+.markdown blockquote {
+  padding: 18px 20px;
+  font-style: normal;
+  border-left-color: var(--mss-primary);
+  border-radius: 0 10px 10px 0;
+  background: rgba(22, 119, 255, 0.055);
+}
+
+.markdown li::marker {
+  color: rgba(22, 119, 255, 0.7);
+}
+
+.markdown a {
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.markdown a:hover {
+  color: var(--mss-primary-strong);
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  article
+  > .markdown {
+  max-width: 1120px;
+  padding-inline: 28px;
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .markdown
+  > h3 {
+  display: flex;
+  margin: 54px 0 22px;
+  align-items: center;
+  gap: 14px;
+  font-size: 24px;
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .markdown
+  > h3::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, rgba(22, 119, 255, 0.2), transparent);
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .markdown
+  > h4 {
+  margin: 28px 0 12px;
+  color: #31445d;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .markdown
+  > h4
+  + ul {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  list-style: none;
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .markdown
+  > h4
+  + ul
+  > li {
+  position: relative;
+  min-width: 0;
+  padding: 11px 14px 11px 34px;
+  border: 1px solid rgba(16, 32, 57, 0.075);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.7);
+  line-height: 1.55;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .markdown
+  > h4
+  + ul
+  > li::before {
+  content: '→';
+  position: absolute;
+  top: 11px;
+  left: 14px;
+  color: var(--mss-primary);
+  font-weight: 700;
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .markdown
+  > h4
+  + ul
+  > li:hover {
+  border-color: rgba(22, 119, 255, 0.18);
+  box-shadow: 0 8px 22px rgba(24, 79, 143, 0.07);
+  transform: translateY(-1px);
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .dumi-default-table {
+  margin: 20px 0 38px;
+  overflow: hidden;
+  border: 1px solid rgba(16, 32, 57, 0.09);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 16px 42px rgba(24, 79, 143, 0.07);
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .dumi-default-table
+  table {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .dumi-default-table
+  td {
+  min-width: 190px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .dumi-default-table
+  tr:first-child
+  td {
+  padding: 24px 16px 16px;
+  background: linear-gradient(180deg, rgba(22, 119, 255, 0.035), transparent);
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .dumi-default-table
+  img {
+  width: auto;
+  max-width: 160px;
+  max-height: 180px;
+  border-radius: 12px;
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .markdown
+  > h3
+  + p
+  img {
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 8px 20px rgba(16, 32, 57, 0.12);
+  transition: transform 160ms ease;
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .markdown
+  > h3
+  + p
+  img:hover {
+  transform: translateY(-2px) scale(1.03);
+}
+
+.dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .markdown
+  > img.no-margin {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 360px;
+  margin: 18px auto 0;
+  border: 1px solid rgba(16, 32, 57, 0.09);
+  border-radius: 18px;
+  box-shadow: 0 18px 44px rgba(16, 32, 57, 0.1);
+}
+
+.dumi-default-content-footer {
+  margin-top: 68px;
+}
+
+.dumi-default-content-footer > dl {
+  padding: 0 2px 16px;
+}
+
+.dumi-default-content-footer > nav {
+  display: grid;
+  padding: 0 0 28px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  border-block-start: 0;
+  overflow: visible;
+}
+
+.dumi-default-content-footer > nav > a {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  padding: 16px 18px;
+  border: 1px solid rgba(16, 32, 57, 0.09);
+  border-radius: 13px;
+  background: rgba(247, 249, 252, 0.78);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.dumi-default-content-footer > nav > a[data-prev] {
+  float: none;
+  grid-column: 1;
+}
+
+.dumi-default-content-footer > nav > a[data-next] {
+  float: none;
+  grid-column: 2;
+}
+
+.dumi-default-content-footer > nav > a:hover {
+  border-color: rgba(22, 119, 255, 0.2);
+  background: rgba(22, 119, 255, 0.055);
+  transform: translateY(-1px);
+}
+
+.dumi-default-content-footer > nav > a small {
+  margin-bottom: 7px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.dumi-default-doc-layout-toc-wrapper {
+  padding: 16px 14px;
+  border: 1px solid rgba(16, 32, 57, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  box-sizing: border-box;
+  box-shadow: 0 12px 30px rgba(24, 79, 143, 0.05);
+}
+
+.dumi-default-doc-layout-toc-wrapper > h4 {
+  padding-inline: 8px;
+  letter-spacing: 0.08em;
+}
+
+.dumi-default-toc {
+  border-inline-start: 0;
+}
+
+.dumi-default-toc > li > a {
+  margin: 3px 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  line-height: 1.3;
+}
+
+.dumi-default-toc > li > a.active {
+  margin-inline-start: 0;
+  border-inline-start: 0;
+  background: rgba(22, 119, 255, 0.09);
+}
+
+.dumi-default-search-bar .dumi-default-search-popover {
+  width: min(560px, calc(100vw - 40px));
+  max-height: 500px;
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(16, 32, 57, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 22px 60px rgba(16, 32, 57, 0.2);
+}
+
+.dumi-default-search-result > dl > dt {
+  height: 34px;
+  padding-inline: 18px;
+  line-height: 34px;
+  background: #f3f7fc;
+}
+
+.dumi-default-search-result > dl > dd {
+  margin: 3px 7px;
+  padding: 0;
+}
+
+.dumi-default-search-result > dl > dd + dd {
+  border-top: 0;
+}
+
+.dumi-default-search-result > dl > dd > a {
+  height: 64px;
+  border-radius: 10px;
+}
+
+.dumi-default-search-result > dl > dd > a[data-active],
+.dumi-default-search-result > dl > dd > a:hover {
+  background: linear-gradient(
+    135deg,
+    var(--mss-primary-strong),
+    var(--mss-primary)
+  );
+}
+
+.dumi-default-doc-layout .dumi-default-not-found {
+  position: relative;
+  width: min(760px, calc(100% - 40px));
+  min-height: 500px;
+  height: min(640px, calc(100vh - 190px));
+  margin: 48px auto;
+  overflow: hidden;
+  border: 1px solid rgba(16, 32, 57, 0.08);
+  border-radius: 28px;
+  background:
+    radial-gradient(
+      circle at 50% 42%,
+      rgba(22, 119, 255, 0.12),
+      transparent 28%
+    ),
+    rgba(255, 255, 255, 0.72);
+  box-shadow: var(--mss-shadow);
+}
+
+.dumi-default-doc-layout .dumi-default-not-found::before {
+  content: '404';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: rgba(22, 119, 255, 0.08);
+  font-size: clamp(130px, 20vw, 230px);
+  font-weight: 850;
+  line-height: 1;
+  letter-spacing: -0.08em;
+  transform: translate(-50%, -66%);
+}
+
+.dumi-default-doc-layout .dumi-default-not-found > h1 {
+  z-index: 1;
+  margin: 112px 0 24px;
+  color: var(--mss-ink);
+  font-size: clamp(34px, 5vw, 52px);
+  text-shadow: none;
+}
+
+.dumi-default-doc-layout .dumi-default-not-found > a {
+  z-index: 1;
+  display: inline-flex;
+  min-height: 44px;
+  padding: 0 20px;
+  align-items: center;
+  border: 1px solid rgba(22, 119, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 8px 20px rgba(22, 119, 255, 0.08);
+}
+
+.dumi-default-footer {
+  margin-top: 72px;
+  border-top-color: rgba(16, 32, 57, 0.08);
+  background: linear-gradient(180deg, transparent, rgba(22, 119, 255, 0.025));
+}
+
+html[data-prefers-color='dark'] {
+  --mss-ink: #eef5ff;
+  --mss-muted: #a7b6cb;
+  --mss-line: rgba(224, 235, 255, 0.11);
+  --mss-surface: rgba(24, 34, 50, 0.9);
+  --mss-shadow: 0 22px 64px rgba(0, 0, 0, 0.28);
+}
+
+html[data-prefers-color='dark'] body {
+  background:
+    radial-gradient(
+      circle at 8% 8%,
+      rgba(22, 119, 255, 0.11),
+      transparent 24rem
+    ),
+    #0f1724;
+}
+
+html[data-prefers-color='dark'] .dumi-default-doc-layout {
+  background: transparent;
+}
+
+html[data-prefers-color='dark'] .dumi-default-header:not([data-static]) {
+  border-bottom-color: rgba(224, 235, 255, 0.08);
+  background: rgba(15, 23, 36, 0.84);
+}
+
+html[data-prefers-color='dark'] .dumi-default-navbar {
+  border-color: rgba(224, 235, 255, 0.085);
+  background: rgba(24, 34, 50, 0.6);
+  box-shadow:
+    0 8px 26px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+html[data-prefers-color='dark'] .dumi-default-navbar > li > a:hover,
+html[data-prefers-color='dark'] .dumi-default-navbar > li > span:hover {
+  color: #91caff;
+  background: rgba(105, 177, 255, 0.1);
+}
+
+html[data-prefers-color='dark'] .dumi-default-navbar > li > a.active,
+html[data-prefers-color='dark'] .dumi-default-navbar > li > span.active {
+  color: #91caff;
+  background: rgba(105, 177, 255, 0.14);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(105, 177, 255, 0.12);
+}
+
+html[data-prefers-color='dark']
+  .dumi-default-navbar
+  > li
+  > .dumi-default-navbar-dropdown {
+  border-color: rgba(224, 235, 255, 0.1);
+  background: rgba(24, 34, 50, 0.97);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.34);
+}
+
+html[data-prefers-color='dark']
+  .dumi-default-navbar
+  > li
+  > .dumi-default-navbar-dropdown
+  > li
+  > a,
+html[data-prefers-color='dark']
+  .dumi-default-navbar
+  > li
+  > .dumi-default-navbar-dropdown
+  > li
+  > span {
+  color: #b9c7d9;
+}
+
+html[data-prefers-color='dark']
+  .dumi-default-navbar
+  > li:has(> .dumi-default-navbar-dropdown a.active)
+  > span {
+  color: #91caff;
+  background: rgba(105, 177, 255, 0.14);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(105, 177, 255, 0.12);
+}
+
+html[data-prefers-color='dark'] .dumi-default-search-bar-input {
+  border-color: rgba(224, 235, 255, 0.1);
+  background: rgba(24, 34, 50, 0.48);
+}
+
+html[data-prefers-color='dark'] .dumi-default-hero::before {
+  opacity: 1;
+  background:
+    radial-gradient(
+      circle at 50% 27%,
+      rgba(22, 119, 255, 0.22),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 22% 58%,
+      rgba(19, 194, 194, 0.11),
+      transparent 22%
+    ),
+    radial-gradient(
+      circle at 82% 56%,
+      rgba(114, 46, 209, 0.13),
+      transparent 24%
+    ),
+    linear-gradient(180deg, rgba(15, 23, 36, 0.25), #0f1724 91%);
+}
+
+html[data-prefers-color='dark'] .dumi-default-hero-title {
+  opacity: 1;
+}
+
+html[data-prefers-color='dark'] .dumi-default-hero-title > span {
+  background: linear-gradient(120deg, #69b1ff 12%, #40a9ff 48%, #5cdbd3 92%);
+  background-clip: text;
+  text-shadow: 0 18px 46px rgba(22, 119, 255, 0.24);
+}
+
+html[data-prefers-color='dark'] .dumi-default-hero > p,
+html[data-prefers-color='dark'] .dumi-default-features-item > p {
+  color: var(--mss-muted);
+}
+
+html[data-prefers-color='dark']
+  .dumi-default-hero-actions
+  > a:not(:first-child) {
+  color: #69b1ff;
+  border-color: rgba(105, 177, 255, 0.42);
+  background: rgba(24, 34, 50, 0.68);
+}
+
+html[data-prefers-color='dark'] .dumi-default-content:not([data-no-sidebar]),
+html[data-prefers-color='dark'] .dumi-default-features-item {
+  background: var(--mss-surface);
+}
+
+html[data-prefers-color='dark']
+  .dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .markdown
+  > h4 {
+  color: #d9e6f7;
+}
+
+html[data-prefers-color='dark']
+  .dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .markdown
+  > h4
+  + ul
+  > li,
+html[data-prefers-color='dark']
+  .dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .dumi-default-table {
+  border-color: var(--mss-line);
+  background: rgba(24, 34, 50, 0.72);
+}
+
+html[data-prefers-color='dark']
+  .dumi-default-doc-layout:has(> .dumi-default-hero)
+  .dumi-default-content[data-no-sidebar]
+  .dumi-default-table
+  tr:first-child
+  td {
+  background: linear-gradient(180deg, rgba(105, 177, 255, 0.06), transparent);
+}
+
+html[data-prefers-color='dark'] .markdown,
+html[data-prefers-color='dark'] .dumi-default-features-item > h3 {
+  color: #d9e6f7;
+}
+
+html[data-prefers-color='dark'] .markdown h1,
+html[data-prefers-color='dark'] .markdown h2,
+html[data-prefers-color='dark'] .markdown h3,
+html[data-prefers-color='dark'] .markdown h4 {
+  color: var(--mss-ink);
+}
+
+html[data-prefers-color='dark'] .markdown h2 {
+  border-bottom-color: rgba(224, 235, 255, 0.1);
+}
+
+html[data-prefers-color='dark'] .markdown th {
+  color: #dce9f9;
+  background: #19263a;
+}
+
+html[data-prefers-color='dark'] .dumi-default-content-footer > nav > a,
+html[data-prefers-color='dark'] .dumi-default-doc-layout-toc-wrapper {
+  border-color: var(--mss-line);
+  background: rgba(24, 34, 50, 0.7);
+}
+
+html[data-prefers-color='dark']
+  .dumi-default-search-bar
+  .dumi-default-search-popover {
+  border-color: var(--mss-line);
+  background: rgba(24, 34, 50, 0.98);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
+}
+
+html[data-prefers-color='dark'] .dumi-default-search-result > dl > dt {
+  background: #19263a;
+}
+
+html[data-prefers-color='dark']
+  .dumi-default-doc-layout
+  .dumi-default-not-found {
+  border-color: var(--mss-line);
+  background:
+    radial-gradient(
+      circle at 50% 42%,
+      rgba(105, 177, 255, 0.13),
+      transparent 28%
+    ),
+    rgba(24, 34, 50, 0.72);
+}
+
+html[data-prefers-color='dark']
+  .dumi-default-doc-layout
+  .dumi-default-not-found::before {
+  color: rgba(105, 177, 255, 0.08);
+}
+
+html[data-prefers-color='dark']
+  .dumi-default-doc-layout
+  .dumi-default-not-found
+  > h1 {
+  color: var(--mss-ink);
+}
+
+html[data-prefers-color='dark']
+  .dumi-default-doc-layout
+  .dumi-default-not-found
+  > a {
+  border-color: rgba(105, 177, 255, 0.22);
+  background: rgba(24, 34, 50, 0.76);
+}
+
+@media (max-width: 1180px) {
+  .dumi-default-header-left {
+    min-width: 142px;
+    margin-inline-end: 20px;
+  }
+
+  .dumi-default-navbar > li > a,
+  .dumi-default-navbar > li > span {
+    padding-inline: 7px;
+  }
+
+  .dumi-default-features {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1320px) {
+  .dumi-default-search-bar {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 960px) {
+  .dumi-default-header-content {
+    padding-inline: 18px;
+  }
+
+  .dumi-default-header-left {
+    min-width: 40px;
+    margin-inline-end: 12px;
+  }
+
+  .dumi-default-logo {
+    font-size: 0;
+  }
+
+  .dumi-default-logo img {
+    margin-inline-end: 0;
+  }
+
+  .dumi-default-navbar > li {
+    font-size: 12px;
+  }
+
+  .dumi-default-navbar > li > a,
+  .dumi-default-navbar > li > span {
+    padding-inline: 6px;
+  }
+}
+
+@media (max-width: 767px) {
+  .dumi-default-header-content {
+    height: 64px;
+    padding-inline: 20px;
+  }
+
+  .dumi-default-header-left {
+    min-width: 0;
+    margin-inline-end: 0;
+  }
+
+  .dumi-default-logo {
+    font-size: 17px;
+  }
+
+  .dumi-default-logo img {
+    width: 31px;
+    height: 31px;
+  }
+
+  .dumi-default-header-right {
+    top: 64px;
+    height: calc(100vh - 64px);
+    background: rgba(247, 249, 252, 0.96);
+  }
+
+  .dumi-default-navbar > li {
+    font-size: 16px;
+  }
+
+  .dumi-default-navbar {
+    padding: 16px 20px 8px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .dumi-default-navbar > li > a,
+  .dumi-default-navbar > li > span {
+    justify-content: center;
+    min-height: 40px;
+  }
+
+  .dumi-default-navbar > li > .dumi-default-navbar-dropdown {
+    position: static;
+    display: grid;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    max-height: none;
+    margin: 4px 18px 0;
+    padding: 6px;
+    grid-template-columns: minmax(0, 1fr);
+    border: 0;
+    border-radius: 12px;
+    background: rgba(22, 119, 255, 0.045);
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .dumi-default-navbar
+    > li
+    > .dumi-default-navbar-dropdown:not([data-collapsed]) {
+    display: none;
+  }
+
+  .dumi-default-navbar > li > .dumi-default-navbar-dropdown > li > a,
+  .dumi-default-navbar > li > .dumi-default-navbar-dropdown > li > span {
+    justify-content: center;
+    min-height: 36px;
+  }
+
+  .dumi-default-hero {
+    min-height: 590px;
+    margin-top: -84px;
+    padding: 132px 20px 76px;
+  }
+
+  .dumi-default-hero-title {
+    margin-bottom: 20px;
+    font-size: clamp(52px, 17vw, 72px);
+  }
+
+  .dumi-default-hero > p {
+    max-width: 34em;
+    font-size: 15px;
+    line-height: 1.72;
+  }
+
+  .dumi-default-hero-actions {
+    width: 100%;
+    max-width: 290px;
+    margin-top: 30px;
+    gap: 10px;
+  }
+
+  .dumi-default-hero-actions > a {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    font-size: 15px;
+    line-height: 42px;
+  }
+
+  .dumi-default-features {
+    margin-bottom: 48px;
+    padding: 0 18px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .dumi-default-features-item {
+    min-height: 0;
+    padding: 22px;
+    border-radius: 16px;
+  }
+
+  .dumi-default-features-item > i {
+    width: 48px;
+    height: 48px;
+    font-size: 25px;
+  }
+
+  .dumi-default-doc-layout > main {
+    padding-inline: 18px;
+  }
+
+  .dumi-default-content:not([data-no-sidebar]) {
+    margin: 0 -18px;
+    padding: 28px 20px 0;
+    border-inline: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .dumi-default-content[data-no-sidebar] article > .markdown {
+    padding-inline: 20px;
+  }
+
+  .dumi-default-doc-layout:has(> .dumi-default-hero)
+    .dumi-default-content[data-no-sidebar]
+    article
+    > .markdown {
+    padding-inline: 18px;
+  }
+
+  .dumi-default-doc-layout:has(> .dumi-default-hero)
+    .dumi-default-content[data-no-sidebar]
+    .markdown
+    > h3 {
+    margin-top: 42px;
+    font-size: 21px;
+  }
+
+  .dumi-default-doc-layout:has(> .dumi-default-hero)
+    .dumi-default-content[data-no-sidebar]
+    .markdown
+    > h4
+    + ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dumi-default-doc-layout:has(> .dumi-default-hero)
+    .dumi-default-content[data-no-sidebar]
+    .dumi-default-table {
+    border-radius: 14px;
+  }
+
+  .markdown {
+    font-size: 14px;
+  }
+
+  .markdown h1 {
+    font-size: 29px;
+  }
+
+  .markdown table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    border-radius: 10px;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .markdown th,
+  .markdown td {
+    min-width: 112px;
+    white-space: nowrap;
+  }
+
+  .dumi-default-content-footer {
+    margin-top: 48px;
+  }
+
+  .dumi-default-content-footer > nav {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dumi-default-content-footer > nav > a[data-prev],
+  .dumi-default-content-footer > nav > a[data-next] {
+    grid-column: 1;
+  }
+
+  .dumi-default-doc-layout .dumi-default-not-found {
+    width: calc(100% - 28px);
+    min-height: 420px;
+    height: min(520px, calc(100vh - 150px));
+    margin: 22px auto;
+    border-radius: 20px;
+  }
+
+  .dumi-default-doc-layout .dumi-default-not-found > h1 {
+    margin-top: 92px;
+  }
+
+  .dumi-default-footer {
+    margin-top: 48px;
+    padding-inline: 18px;
+  }
+
+  html[data-prefers-color='dark'] .dumi-default-header-right {
+    background: rgba(15, 23, 36, 0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .dumi-default-hero-actions > a,
+  .dumi-default-features-item {
+    transition: none;
+  }
+}
