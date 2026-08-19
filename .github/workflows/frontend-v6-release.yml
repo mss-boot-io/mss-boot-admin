@@ -283,7 +283,7 @@ jobs:
           rm -f "${error_file}"
 
       - name: Attest Admin Web package provenance
-        uses: actions/attest-build-provenance@00014ed6ed5efc5b1ab7f7f34a39eb55d41aa4f8 # v3.1.0
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ runner.temp }}/admin-web-release-package/*.tgz
 
