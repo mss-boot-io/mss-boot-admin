@@ -96,8 +96,13 @@ describe('Admin web package contract', () => {
   it('keeps the retired MFSU runtime out of external development builds', () => {
     expect(defineBusinessAdmin()).toMatchObject({ mfsu: false, utoopack: false });
     expect(defineBusinessAdmin({ useUtoopack: true })).toMatchObject({
+      alias: { tailwindcss: expect.stringContaining('tailwindcss') },
       mfsu: false,
-      utoopack: expect.any(Object),
+      utoopack: {
+        resolve: {
+          alias: { tailwindcss: expect.stringContaining('tailwindcss') },
+        },
+      },
     });
   });
 

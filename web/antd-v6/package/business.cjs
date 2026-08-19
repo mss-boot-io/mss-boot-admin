@@ -28,6 +28,7 @@ function proxyConfig(apiTarget) {
 function defineBusinessAdmin(options = {}) {
   const title = options.title || 'mss-boot-io';
   const logo = logoDataURL();
+  const tailwindStyles = require.resolve('tailwindcss/index.css');
   const apiTarget =
     options.apiTarget || process.env.MSS_ADMIN_API_TARGET || 'http://127.0.0.1:8080';
   const routeRegistrations = options.routeRegistrations
@@ -54,6 +55,7 @@ function defineBusinessAdmin(options = {}) {
       '@mss-admin-core': resolve(packageRoot, 'src'),
       '@mss-admin-business/routes': routeRegistrations,
       '@root': packageRoot,
+      tailwindcss: tailwindStyles,
     },
     antd: {
       appConfig: {},
@@ -211,6 +213,7 @@ function defineBusinessAdmin(options = {}) {
             alias: {
               d: resolve(packageRoot, 'src/shims/d.cjs'),
               'd/auto-bind': require.resolve('d/auto-bind'),
+              tailwindcss: tailwindStyles,
             },
           },
         }
