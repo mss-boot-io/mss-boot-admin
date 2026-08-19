@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import manifest from '../package.json';
@@ -30,6 +31,12 @@ const { createAdminRoutes } = require('../package/core-routes.cjs') as {
 };
 const { defineBusinessAdmin } = require('../package/business.cjs') as {
   defineBusinessAdmin: (options?: Record<string, unknown>) => Record<string, unknown>;
+};
+const mssAdminPlugin = require('../package/mssAdminPlugin.cjs') as (
+  api: Record<string, unknown>,
+) => void;
+const RuntimeStatsPlugin = require('../package/runtime-stats-plugin.cjs') as new () => {
+  apply: (compiler: Record<string, unknown>) => void;
 };
 
 describe('Admin web package contract', () => {
@@ -125,6 +132,74 @@ describe('Admin web package contract', () => {
         },
       },
     });
+  });
+
+  it('resolves generated Tailwind CSS from the Admin Web dependency tree', () => {
+    const absTmpPath = resolve(import.meta.dirname, 'fixtures/external-host/.umi');
+    let generateFiles: (() => void) | undefined;
+    let generatedFile: { content: string; path: string } | undefined;
+    mssAdminPlugin({
+      EnableBy: { config: 'config' },
+      cwd: resolve(import.meta.dirname, 'fixtures/external-host'),
+      paths: {
+        absOutputPath: resolve(import.meta.dirname, 'fixtures/external-host/dist'),
+        absSrcPath: resolve(import.meta.dirname, 'fixtures/external-host/src'),
+        absTmpPath,
+      },
+      config: { mssAdmin: {} },
+      describe: () => undefined,
+      modifyConfig: () => undefined,
+      modifyTSConfig: () => undefined,
+      onGenerateFiles: (callback: () => void) => {
+        generateFiles = callback;
+      },
+      writeTmpFile: (file: { content: string; path: string }) => {
+        generatedFile = file;
+      },
+      addEntryImportsAhead: () => undefined,
+      addBeforeMiddlewares: () => undefined,
+      onBuildComplete: () => undefined,
+      addTmpGenerateWatcherPaths: () => undefined,
+    });
+
+    expect(generateFiles).toBeTypeOf('function');
+    generateFiles?.();
+    expect(generatedFile).toBeDefined();
+    const generated = generatedFile as { content: string; path: string };
+    const importMatch = generated.content.match(/^@import "([^"]+)";/m);
+    expect(importMatch).not.toBeNull();
+    expect(resolve(absTmpPath, importMatch?.[1] ?? '')).toBe(
+      require.resolve('tailwindcss/index.css'),
+    );
+    expect(generated.content).not.toContain('@import "tailwindcss";');
+  });
+
+  it('creates the stats output directory before emitting the runtime graph', () => {
+    const temporaryRoot = mkdtempSync(resolve(tmpdir(), 'mss-admin-runtime-stats-'));
+    const outputPath = resolve(temporaryRoot, 'nested/dist');
+    let done: ((stats: { toJson: () => { modules: Array<{ name: string }> } }) => void) | undefined;
+    try {
+      new RuntimeStatsPlugin().apply({
+        outputPath,
+        hooks: {
+          done: {
+            tap: (
+              _name: string,
+              callback: (stats: { toJson: () => { modules: Array<{ name: string }> } }) => void,
+            ) => {
+              done = callback;
+            },
+          },
+        },
+      });
+      expect(done).toBeTypeOf('function');
+      done?.({ toJson: () => ({ modules: [{ name: 'external-business-module' }] }) });
+      expect(JSON.parse(readFileSync(resolve(outputPath, 'stats.json'), 'utf8'))).toEqual({
+        modules: [{ name: 'external-business-module' }],
+      });
+    } finally {
+      rmSync(temporaryRoot, { force: true, recursive: true });
+    }
   });
 
   it('rejects reserved and duplicate business routes', () => {
