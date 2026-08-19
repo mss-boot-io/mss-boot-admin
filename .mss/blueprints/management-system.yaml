@@ -33,6 +33,7 @@ spec:
     - .mss/commands.yaml
     - .mss/evals/catalog.yaml
     - web/package.json
+    - web/tsconfig.json
     - web/mss-admin.config.ts
     - web/config/config.ts
     - web/config/business-routes.generated.ts

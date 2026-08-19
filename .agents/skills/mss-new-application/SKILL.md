@@ -76,7 +76,7 @@ Generate a Thin Business Host from a versioned Admin Distribution Blueprint. The
 - Never copy `.git`, reports, PID state, logs, caches, build output, `node_modules`, or archived one-off prompts.
 - Preserve the generated lock and blueprint manifest; they are the base side of future three-way upgrades.
 - Preserve exact coordinated dependency versions and the generated single-runtime frontend overrides; do not replace them with ranges or local paths.
-- A Thin Host must retain the generated `web/config/config.ts`, app/access/locale glue, and empty generated registries even before its first business module is added.
+- A Thin Host must retain the generated `web/tsconfig.json`, `web/config/config.ts`, app/access/locale glue, and empty generated registries even before its first business module is added.
 - Do not select a moving development foundation for a production application without explicitly documenting that risk.
 
 ## Output

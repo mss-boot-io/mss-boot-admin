@@ -189,6 +189,7 @@ func writeThinHostStructure(t *testing.T, ctx *project.Context) {
   "dependencies": {"@mss-boot-io/admin-web": "1.3.0"}
 }
 `,
+		joinRepositoryPath(frontend, "tsconfig.json"):        "{\n  \"extends\": \"./src/.umi/tsconfig.json\"\n}\n",
 		joinRepositoryPath(frontend, "config/config.ts"):     "import { defineBusinessAdmin } from '" + distribution.Frontend.Package + "/business';\nimport businessRoutes from './business-routes.generated';\nexport default defineBusinessAdmin({ businessRoutes, routeRegistrations: './src/generated/routes.ts' });\n",
 		joinRepositoryPath(frontend, "mss-admin.config.ts"):  "export { default } from './config/config';\n",
 		layout["businessRoutes"]:                             "export default [];\n",

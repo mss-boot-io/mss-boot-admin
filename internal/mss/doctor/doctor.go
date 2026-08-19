@@ -169,6 +169,7 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 			frontendPath := strings.TrimSpace(projectContext.Project.Spec.RepositoryLayout["frontend"])
 			report.Checks = append(report.Checks,
 				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "package.json")), true),
+				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "tsconfig.json")), true),
 				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "config", "config.ts")), true),
 				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "mss-admin.config.ts")), true),
 				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "src", "app.tsx")), true),

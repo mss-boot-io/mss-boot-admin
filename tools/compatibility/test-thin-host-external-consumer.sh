@@ -210,6 +210,7 @@ for required in \
   cmd/server/main.go \
   internal/modules/all \
   web/package.json \
+  web/tsconfig.json \
   web/mss-admin.config.ts \
   web/config/business-routes.generated.ts \
   .mss/project.yaml \

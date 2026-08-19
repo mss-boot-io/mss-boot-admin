@@ -72,6 +72,7 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 		joinRepositoryPath(backend, "cmd/server/main.go"),
 		joinRepositoryPath(modules, "all/generated.go"),
 		joinRepositoryPath(frontend, "package.json"),
+		joinRepositoryPath(frontend, "tsconfig.json"),
 		joinRepositoryPath(frontend, "config/config.ts"),
 		joinRepositoryPath(frontend, "mss-admin.config.ts"),
 		businessRoutes,
