@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 
+	"github.com/mss-boot-io/mss-boot-admin/admin/business"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
@@ -28,6 +29,18 @@ import (
 
 var (
 	generate       bool
+	username       = "admin"
+	password       = "123456"
+	domain         = "localhost:8001"
+	system         bool
+	configProvider = os.Getenv("CONFIG_PROVIDER")
+	driver         = "mysql"
+	dsn            = "root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local"
+	StartCmd       = NewCommand(nil)
+)
+
+type commandOptions struct {
+	generate       bool
 	username       string
 	password       string
 	domain         string
@@ -35,44 +48,73 @@ var (
 	configProvider string
 	driver         string
 	dsn            string
-	StartCmd       = &cobra.Command{
+}
+
+func defaultCommandOptions() commandOptions {
+	return commandOptions{
+		username:       "admin",
+		password:       "123456",
+		domain:         "localhost:8001",
+		configProvider: os.Getenv("CONFIG_PROVIDER"),
+		driver:         "mysql",
+		dsn:            "root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local",
+	}
+}
+
+// NewCommand returns an isolated migration command for one Application.
+func NewCommand(registry *business.Registry) *cobra.Command {
+	options := defaultCommandOptions()
+	command := &cobra.Command{
 		Use:     "migrate",
 		Short:   "Initialize the database",
 		Example: "mss-boot-admin migrate",
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			return setup(cmd.Context())
+			return setupWithOptions(cmd.Context(), &options)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return RunContext(cmd.Context())
+			return runContextWithOptions(cmd.Context(), options, registry)
 		},
 	}
-)
+	command.PersistentFlags().BoolVarP(&options.system, "system", "s",
+		false, "generate system migration file")
+	command.PersistentFlags().BoolVarP(&options.generate, "generate", "g",
+		false, "generate migration file")
+	command.PersistentFlags().StringVarP(&options.configProvider,
+		"config-provider", "c", options.configProvider, "Start server with config provider")
+	command.PersistentFlags().StringVarP(&options.username, "username", "u",
+		options.username, "system super administrator login username")
+	command.PersistentFlags().StringVarP(&options.password, "password", "p",
+		options.password, "system super administrator login password")
+	command.PersistentFlags().StringVarP(&options.domain, "domain", "d",
+		options.domain, "system tenant domain")
+	command.PersistentFlags().StringVarP(&options.driver, "gorm-driver", "r",
+		options.driver, "Start server with db driver")
+	command.PersistentFlags().StringVarP(&options.dsn, "gorm-dsn", "n",
+		options.dsn, "Start server with db dsn")
+	return command
+}
 
 func init() {
-	StartCmd.PersistentFlags().BoolVarP(&system, "system", "s",
-		false, "generate system migration file")
-	StartCmd.PersistentFlags().BoolVarP(&generate, "generate", "g",
-		false, "generate migration file")
-	StartCmd.PersistentFlags().StringVarP(&configProvider,
-		"config-provider", "c",
-		os.Getenv("CONFIG_PROVIDER"), "Start server with config provider")
-	StartCmd.PersistentFlags().StringVarP(&username, "username", "u",
-		"admin", "system super administrator login username")
-	StartCmd.PersistentFlags().StringVarP(&password, "password", "p",
-		"123456", "system super administrator login password")
-	StartCmd.PersistentFlags().StringVarP(&domain, "domain", "d",
-		"localhost:8001", "system tenant domain")
-	StartCmd.PersistentFlags().StringVarP(&driver,
-		"gorm-driver", "r",
-		"mysql", "Start server with db driver")
-	StartCmd.PersistentFlags().StringVarP(&dsn,
-		"gorm-dsn", "n",
-		"root:123456@tcp(127.0.0.1:3306)/mss-boot-admin-local?charset=utf8&parseTime=True&loc=Local",
-		"Start server with db dsn")
 	center.SetVerify(&models.User{})
 }
 
 func setup(ctx context.Context) (err error) {
+	options := defaultCommandOptions()
+	options.generate = generate
+	options.username = username
+	options.password = password
+	options.domain = domain
+	options.system = system
+	options.configProvider = configProvider
+	options.driver = driver
+	options.dsn = dsn
+	return setupWithOptions(ctx, &options)
+}
+
+func setupWithOptions(ctx context.Context, options *commandOptions) (err error) {
+	if options == nil {
+		return errors.New("migration command options are required")
+	}
 	defer func() {
 		if err != nil {
 			if closeErr := config.Cfg.Close(); closeErr != nil {
@@ -82,10 +124,10 @@ func setup(ctx context.Context) (err error) {
 	}()
 
 	if os.Getenv("DB_DRIVER") != "" {
-		driver = os.Getenv("DB_DRIVER")
+		options.driver = os.Getenv("DB_DRIVER")
 	}
 	if os.Getenv("DB_DSN") != "" {
-		dsn = os.Getenv("DB_DSN")
+		options.dsn = os.Getenv("DB_DSN")
 	}
 
 	opts := []source.Option{
@@ -93,12 +135,12 @@ func setup(ctx context.Context) (err error) {
 		source.WithProvider(source.Local),
 		source.WithWatch(true),
 	}
-	switch source.Provider(configProvider) {
+	switch source.Provider(options.configProvider) {
 	case source.GORM:
 		opts = []source.Option{
 			source.WithProvider(source.GORM),
-			source.WithGORMDriver(driver),
-			source.WithGORMDsn(dsn),
+			source.WithGORMDriver(options.driver),
+			source.WithGORMDsn(options.dsn),
 			source.WithDriver(&models.SystemConfig{}),
 		}
 	case source.FS:
@@ -126,7 +168,7 @@ func setup(ctx context.Context) (err error) {
 		}
 	case source.Local, "":
 	default:
-		return fmt.Errorf("config provider %q is not supported", configProvider)
+		return fmt.Errorf("config provider %q is not supported", options.configProvider)
 	}
 	center.SetConfig(config.Cfg)
 	if err := config.Cfg.InitContext(ctx, opts...); err != nil {
@@ -139,8 +181,7 @@ func setup(ctx context.Context) (err error) {
 	center.SetGRPCClient(&config.Cfg.GRPC)
 
 	middleware.Verifier = center.GetUser()
-	middleware.Init()
-	return nil
+	return middleware.Init()
 }
 
 func Run() (err error) {
@@ -148,20 +189,47 @@ func Run() (err error) {
 }
 
 func RunContext(ctx context.Context) (err error) {
+	options := defaultCommandOptions()
+	options.generate = generate
+	options.username = username
+	options.password = password
+	options.domain = domain
+	options.system = system
+	return runContextWithOptions(ctx, options, nil)
+}
+
+func runContextWithOptions(
+	ctx context.Context,
+	options commandOptions,
+	registry *business.Registry,
+) (err error) {
 	defer func() {
 		err = errors.Join(err, config.Cfg.Close())
 	}()
 
-	if generate {
+	if options.generate {
 		slog.Info("generate migration file")
-		return migration.GenFile(system, filepath.Join("cmd", "migrate", "migration"))
+		return migration.GenFile(options.system, filepath.Join("cmd", "migrate", "migration"))
 	}
 	slog.Info("start database migration")
 	handle := config.Cfg.DatabaseHandle()
 	if handle == nil || handle.DB == nil {
 		return fmt.Errorf("migration database handle is not initialized")
 	}
-	return migrateContext(ctx, handle.DB)
+	runner := migration.Migrate
+	if registry != nil {
+		runner, err = registry.MigrationRunner()
+		if err != nil {
+			return fmt.Errorf("prepare application migrations: %w", err)
+		}
+	}
+	return migrateContextWithRunnerCredentials(
+		ctx,
+		handle.DB,
+		runner,
+		options.username,
+		options.password,
+	)
 }
 
 func migrate(db *gorm.DB) error {
@@ -173,6 +241,16 @@ func migrateContext(ctx context.Context, db *gorm.DB) error {
 }
 
 func migrateContextWithRunner(ctx context.Context, db *gorm.DB, runner *migration.Migration) error {
+	return migrateContextWithRunnerCredentials(ctx, db, runner, username, password)
+}
+
+func migrateContextWithRunnerCredentials(
+	ctx context.Context,
+	db *gorm.DB,
+	runner *migration.Migration,
+	adminUsername string,
+	adminPassword string,
+) error {
 	if ctx == nil {
 		return fmt.Errorf("migration context is nil")
 	}
@@ -192,8 +270,8 @@ func migrateContextWithRunner(ctx context.Context, db *gorm.DB, runner *migratio
 		return fmt.Errorf("migration canceled before database preflight: %w", err)
 	}
 	db = db.WithContext(ctx)
-	systemMigrate.Username = username
-	systemMigrate.Password = password
+	systemMigrate.Username = adminUsername
+	systemMigrate.Password = adminPassword
 	if err := db.AutoMigrate(&common.Migration{}); err != nil {
 		slog.Error("auto migrate error", "err", err)
 		return err

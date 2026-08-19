@@ -1,11 +1,11 @@
+import BasePanel from '@mss-admin-core/modules/app-config/BasePanel';
+import EmailPanel from '@mss-admin-core/modules/app-config/EmailPanel';
+import SecurityPanel from '@mss-admin-core/modules/app-config/SecurityPanel';
+import StoragePanel from '@mss-admin-core/modules/app-config/StoragePanel';
+import ThemeSettingsEditor from '@mss-admin-core/modules/theme/ThemeSettingsEditor';
+import { PageContainer } from '@mss-admin-core/shared/design-system/PageContainer';
 import { useIntl, useSearchParams } from '@umijs/max';
 import { Grid, Tabs } from 'antd';
-import BasePanel from '@/modules/app-config/BasePanel';
-import EmailPanel from '@/modules/app-config/EmailPanel';
-import SecurityPanel from '@/modules/app-config/SecurityPanel';
-import StoragePanel from '@/modules/app-config/StoragePanel';
-import ThemeSettingsEditor from '@/modules/theme/ThemeSettingsEditor';
-import { PageContainer } from '@/shared/design-system/PageContainer';
 
 export default function AppConfigPage() {
   const intl = useIntl();

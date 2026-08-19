@@ -1,8 +1,8 @@
 import ArrowLeftOutlined from '@ant-design/icons/ArrowLeftOutlined';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
 import { Link, SelectLang, useIntl, useModel } from '@umijs/max';
 import { Button, Card, Image, Space, Typography } from 'antd';
 import type { ReactNode } from 'react';
-import type { InitialState } from '@/shared/auth/types';
 
 export interface PublicAuthFrameProps {
   title: ReactNode;

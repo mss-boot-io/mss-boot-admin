@@ -1,9 +1,9 @@
+import OnlineSessionsView from '@mss-admin-core/modules/session/OnlineSessionsView';
+import { isRootIdentity } from '@mss-admin-core/shared/auth/access';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageContainer } from '@mss-admin-core/shared/design-system/PageContainer';
+import { PageForbidden } from '@mss-admin-core/shared/design-system/PageState';
 import { useIntl, useModel } from '@umijs/max';
-import OnlineSessionsView from '@/modules/session/OnlineSessionsView';
-import { isRootIdentity } from '@/shared/auth/access';
-import type { InitialState } from '@/shared/auth/types';
-import { PageContainer } from '@/shared/design-system/PageContainer';
-import { PageForbidden } from '@/shared/design-system/PageState';
 
 export default function OnlineSessionsPage() {
   const intl = useIntl();

@@ -96,10 +96,13 @@ spec:
   currentStableVersion: v1.0.0
   currentStableCommit: 0000000000000000000000000000000000000000
   nextPublicVersion: v1.1.0
+  distributionVersion: v1.1.0
+  distributionComponents: "root,framework,admin,frontend"
   publicationWorkflowsReady: false
   publicPrereleases: false
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"
+  adminTagTemplate: "admin/{version}"
   frontendTagTemplate: "web/antd-v6/{version}"
   docsTagTemplate: "docs/{version}"
 `
@@ -113,6 +116,9 @@ spec:
 	if got, want := policy.Spec.DocsTagTemplate, "docs/{version}"; got != want {
 		t.Fatalf("docs tag template = %q, want %q", got, want)
 	}
+	if policy.Spec.DistributionVersion != "v1.1.0" || policy.Spec.DistributionComponents != "root,framework,admin,frontend" || policy.Spec.AdminTagTemplate != "admin/{version}" {
+		t.Fatalf("Admin Distribution release contract = %#v", policy.Spec)
+	}
 	tests := []struct {
 		name string
 		data string
@@ -121,6 +127,9 @@ spec:
 		{name: "unknown", data: strings.Replace(valid, "  mode:", "  unsupported: true\n  mode:", 1), want: "field unsupported"},
 		{name: "anchor", data: strings.Replace(valid, "metadata:", "metadata: &metadata", 1), want: "anchors and aliases"},
 		{name: "invalid docs tag", data: strings.Replace(valid, "docs/{version}", "docs/v1.2.3", 1), want: "docsTagTemplate must contain exactly one {version} placeholder"},
+		{name: "distribution version mismatch", data: strings.Replace(valid, "distributionVersion: v1.1.0", "distributionVersion: v1.2.0", 1), want: "distributionVersion must equal nextPublicVersion"},
+		{name: "missing Admin component", data: strings.Replace(valid, "root,framework,admin,frontend", "root,framework,frontend", 1), want: "distributionComponents"},
+		{name: "invalid Admin tag", data: strings.Replace(valid, "admin/{version}", "admin/v1.1.0", 1), want: "adminTagTemplate must contain exactly one {version} placeholder"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

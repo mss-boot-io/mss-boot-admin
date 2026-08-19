@@ -1,12 +1,12 @@
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { ThemeRevisionConflictError } from '@mss-admin-core/shared/theme/api';
+import type { ThemeScopeResource } from '@mss-admin-core/shared/theme/contract';
+import { replaceThemeRuntime } from '@mss-admin-core/shared/theme/runtime';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ColorPickerProps } from 'antd';
 import { App } from 'antd';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { InitialState } from '@/shared/auth/types';
-import { ThemeRevisionConflictError } from '@/shared/theme/api';
-import type { ThemeScopeResource } from '@/shared/theme/contract';
-import { replaceThemeRuntime } from '@/shared/theme/runtime';
 import ThemeSettingsEditor from './ThemeSettingsEditor';
 
 // Rendering the complete token-aware Ant Design form can exceed Vitest's 5s
@@ -61,8 +61,8 @@ vi.mock('antd', async (importOriginal) => {
   };
 });
 
-vi.mock('@/shared/theme/api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/shared/theme/api')>();
+vi.mock('@mss-admin-core/shared/theme/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@mss-admin-core/shared/theme/api')>();
   return {
     ...actual,
     loadThemeResource: api.load,
@@ -71,8 +71,12 @@ vi.mock('@/shared/theme/api', async (importOriginal) => {
   };
 });
 
-vi.mock('@/shared/theme/snapshot', () => ({ writeThemeSnapshot: browserDerivatives.write }));
-vi.mock('@/shared/theme/sync', () => ({ publishThemeScopeResource: browserDerivatives.publish }));
+vi.mock('@mss-admin-core/shared/theme/snapshot', () => ({
+  writeThemeSnapshot: browserDerivatives.write,
+}));
+vi.mock('@mss-admin-core/shared/theme/sync', () => ({
+  publishThemeScopeResource: browserDerivatives.publish,
+}));
 
 function initialState(permissions: Record<string, boolean>): InitialState {
   return {

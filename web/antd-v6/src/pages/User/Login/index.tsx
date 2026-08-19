@@ -5,23 +5,26 @@ import MailOutlined from '@ant-design/icons/MailOutlined';
 import SafetyCertificateOutlined from '@ant-design/icons/SafetyCertificateOutlined';
 import UserOutlined from '@ant-design/icons/UserOutlined';
 import { LoginFormPage, ProFormCaptcha, ProFormText } from '@ant-design/pro-components';
-import { history, Link, SelectLang, useIntl, useModel } from '@umijs/max';
-import { Alert, App, Button, Divider, Space, Tabs, Typography } from 'antd';
-import { useState } from 'react';
-import { accountAPI } from '@/modules/account/api';
-import type { OAuthProvider } from '@/modules/account/contracts';
-import { authAPI } from '@/modules/auth/api';
-import { emailChallengeCapability, isEmailChallengeFlowAvailable } from '@/modules/auth/capability';
-import { rememberOAuthLoginRedirect } from '@/shared/auth/oauthRedirect';
-import { resolveSafeRedirect } from '@/shared/auth/redirect';
+import { accountAPI } from '@mss-admin-core/modules/account/api';
+import type { OAuthProvider } from '@mss-admin-core/modules/account/contracts';
+import { authAPI } from '@mss-admin-core/modules/auth/api';
+import {
+  emailChallengeCapability,
+  isEmailChallengeFlowAvailable,
+} from '@mss-admin-core/modules/auth/capability';
+import { rememberOAuthLoginRedirect } from '@mss-admin-core/shared/auth/oauthRedirect';
+import { resolveSafeRedirect } from '@mss-admin-core/shared/auth/redirect';
 import {
   clearStaleBrowserAuthCookie,
   createBrowserSession,
   fetchCurrentUser,
-} from '@/shared/auth/session';
-import type { InitialState } from '@/shared/auth/types';
-import { isOAuthProviderEnabled } from '@/shared/theme/contract';
-import { rotateThemeAuthSession } from '@/shared/theme/snapshot';
+} from '@mss-admin-core/shared/auth/session';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { isOAuthProviderEnabled } from '@mss-admin-core/shared/theme/contract';
+import { rotateThemeAuthSession } from '@mss-admin-core/shared/theme/snapshot';
+import { history, Link, SelectLang, useIntl, useModel } from '@umijs/max';
+import { Alert, App, Button, Divider, Space, Tabs, Typography } from 'antd';
+import { useState } from 'react';
 
 export default function LoginPage() {
   const intl = useIntl();

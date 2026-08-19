@@ -17,7 +17,7 @@ vi.mock('./query', () => ({
   useOnlineSession: () => detailQuery.current,
 }));
 
-vi.mock('@/modules/administration/query', () => ({
+vi.mock('@mss-admin-core/modules/administration/query', () => ({
   useAdministrationPage: (resource: string) => ({
     data: {
       data:

@@ -90,6 +90,16 @@ for (const expected of localeExpectations) {
     await expect(page.getByText(expected.suppliers, { exact: true })).toBeVisible();
     await expectNoDocumentOverflow(page);
 
+    const refreshedSupplierList = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === '/admin/api/suppliers',
+    );
+    await page.reload();
+    expect((await refreshedSupplierList).ok()).toBe(true);
+    await expect(page.getByText(expected.suppliers, { exact: true })).toBeVisible();
+    await expectNoDocumentOverflow(page);
+
     await page.keyboard.press('Tab');
     await expect(page.locator(':focus')).not.toHaveJSProperty('tagName', 'BODY');
     expect(responseViolations).toEqual([]);

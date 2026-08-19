@@ -6,7 +6,7 @@ const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const manifest = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
 const lockfile = await readFile(join(projectRoot, 'pnpm-lock.yaml'), 'utf8');
 const runtimeApp = await readFile(join(projectRoot, 'src/app.tsx'), 'utf8');
-const proxyConfig = await readFile(join(projectRoot, 'config/proxy.ts'), 'utf8');
+const proxyConfig = await readFile(join(projectRoot, 'package/business.cjs'), 'utf8');
 
 const expected = {
   '@ant-design/icons': '6.3.2',
@@ -14,6 +14,7 @@ const expected = {
   '@tanstack/react-query': '5.101.4',
   antd: '6.6.0',
   'antd-style': '4.1.0',
+  d: '1.0.2',
   react: '19.2.8',
   'react-dom': '19.2.8',
   '@umijs/max': '4.7.5',
@@ -45,8 +46,8 @@ if (/export function rootContainer\s*\(/.test(runtimeApp)) {
 if (/\bchangeOrigin:\s*true\b/.test(proxyConfig)) {
   failures.push('config/proxy.ts must preserve the browser Origin for backend CSRF checks');
 }
-if ((proxyConfig.match(/\bchangeOrigin:\s*false\b/g) ?? []).length < 2) {
-  failures.push('both local proxy environments must preserve the browser Origin');
+if ((proxyConfig.match(/\bchangeOrigin:\s*false\b/g) ?? []).length < 1) {
+  failures.push('the local proxy must preserve the browser Origin');
 }
 
 const listTypeScript = async (directory) => {
@@ -113,12 +114,15 @@ const versionsFor = (name) => {
 };
 
 const allowedResolvedVersions = {
-  react: ['18.3.1', '19.2.8'],
-  'react-dom': ['18.3.1', '19.2.8'],
-  antd: ['4.24.16', '6.6.0'],
+  react: ['19.2.8'],
+  'react-dom': ['19.2.8'],
+  antd: ['6.6.0'],
   '@ant-design/pro-components': ['3.1.14-6'],
   '@tanstack/react-query': ['5.101.4'],
-  immer: ['9.0.21'],
+  '@umijs/max': ['4.7.5'],
+  axios: ['0.33.0'],
+  umi: ['4.7.5'],
+  immer: ['8.0.4'],
 };
 
 for (const [name, allowed] of Object.entries(allowedResolvedVersions)) {
@@ -131,6 +135,9 @@ for (const [name, allowed] of Object.entries(allowedResolvedVersions)) {
     failures.push(
       `${name} does not resolve the application version ${expected[name] ?? allowed.at(-1)}`,
     );
+  }
+  if (resolved.length !== 1) {
+    failures.push(`${name} must resolve exactly one version, found: ${resolved.join(', ')}`);
   }
 }
 
@@ -152,8 +159,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  'Dependency contract passed: exact application versions and reviewed Umi transition graph',
-);
-console.log(
-  'Known build-tool-only transition: antd 4.24.16 and React 18.3.1 remain under Umi packages',
+  'Dependency contract passed: exact versions and a single React, Ant Design, Query, and Umi runtime graph',
 );

@@ -1,0 +1,16 @@
+# The package consumes the reusable core source but not the reference
+# application's generated Supplier fixture or repository-only validation files.
+src/generated/
+src/pages/generated/
+src/**/*.test.ts
+src/**/*.test.tsx
+src/**/*.spec.ts
+src/**/*.spec.tsx
+src/**/__snapshots__/
+coverage/
+dist/
+e2e/
+playwright-report/
+test-results/
+node_modules/
+*.log

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mss.io/schemas/project.schema.json",
+  "title": "MSS Project",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "const": "mss.io/v1alpha1" },
+    "kind": { "const": "Project" },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "repository"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "displayName": { "type": "string" },
+        "repository": { "type": "string", "minLength": 3 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["foundationVersion", "distribution", "repositoryLayout", "backend", "frontend"],
+      "properties": {
+        "distribution": { "$ref": "admin-distribution.schema.json" },
+        "repositoryLayout": {
+          "type": "object",
+          "required": ["kind", "backend", "frontend", "modules", "generated", "businessRoutes", "specifications"],
+          "properties": {
+            "kind": { "enum": ["foundation", "thin-host"] },
+            "backend": { "$ref": "#/$defs/confinedPath" },
+            "frontend": { "$ref": "#/$defs/confinedPath" },
+            "modules": { "$ref": "#/$defs/confinedPath" },
+            "generated": { "$ref": "#/$defs/confinedPath" },
+            "businessRoutes": { "$ref": "#/$defs/confinedPath" },
+            "specifications": { "$ref": "#/$defs/confinedPath" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "confinedPath": {
+      "type": "string",
+      "minLength": 1,
+      "not": { "pattern": "^(?:/|[A-Za-z]:|\\\\|(?:\\.\\./))" }
+    }
+  }
+}

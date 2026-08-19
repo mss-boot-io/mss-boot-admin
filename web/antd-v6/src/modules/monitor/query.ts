@@ -1,5 +1,5 @@
+import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useQuery } from '@tanstack/react-query';
-import { queryKeys } from '@/shared/query/client';
 import { monitorAPI } from './api';
 import { monitorRefetchInterval } from './polling';
 

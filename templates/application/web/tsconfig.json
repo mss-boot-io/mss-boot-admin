@@ -1,0 +1,23 @@
+{
+  "extends": "./src/.umi/tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    "config/**/*.ts",
+    "e2e/**/*.ts",
+    "mss-admin.config.ts",
+    "playwright.config.ts",
+    "src/**/*.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "vitest.config.mts"
+  ]
+}

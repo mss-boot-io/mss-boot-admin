@@ -1,0 +1,80 @@
+apiVersion: mss.io/v1alpha1
+kind: Project
+metadata:
+  name: __MSS_APP_NAME__
+  displayName: __MSS_APP_DISPLAY_NAME__
+  repository: __MSS_APP_REPOSITORY__
+spec:
+  mission: Thin business host for __MSS_APP_DISPLAY_NAME__.
+  foundationVersion: 0.1.0
+  distribution:
+    name: __MSS_DISTRIBUTION_NAME__
+    version: __MSS_DISTRIBUTION_VERSION__
+    backend:
+      module: __MSS_DISTRIBUTION_BACKEND_MODULE__
+      version: __MSS_DISTRIBUTION_BACKEND_VERSION__
+    frontend:
+      package: "__MSS_DISTRIBUTION_FRONTEND_PACKAGE__"
+      version: __MSS_DISTRIBUTION_FRONTEND_VERSION__
+  repositoryLayout:
+    kind: thin-host
+    backend: .
+    frontend: web
+    modules: internal/modules
+    generated: web/src/generated
+    businessRoutes: web/config/business-routes.generated.ts
+    specifications: .mss
+    documentation: docs
+    reports: .mss/reports
+  backend:
+    language: go
+    goVersion: "1.26.6"
+    module: __MSS_APP_MODULE__
+    frameworkModule: github.com/mss-boot-io/mss-boot-admin/mss-boot
+    httpFramework: gin
+    orm: gorm
+    cli: cobra
+    authorization: casbin
+    contract: openapi
+  frontend:
+    language: typescript
+    nodeVersion: ">=24 <25"
+    packageManager: pnpm
+    packageManagerVersion: "10.34.5"
+    framework: react
+    applicationFramework: umi
+    componentLibrary: ant-design
+    defaultApplication: admin-web
+    applications:
+      - id: admin-web
+        path: web
+        role: primary
+        nodeVersion: ">=24 <25"
+        packageManager: pnpm
+        packageManagerVersion: "10.34.5"
+        developmentPort: 8001
+  documentation:
+    framework: markdown
+    packageManager: none
+  database:
+    local: sqlite
+    supported: [mysql, postgresql, sqlite]
+  localDependencies:
+    required: []
+    optional: [redis, mysql, postgresql]
+  conventions:
+    newBusinessModuleLayout: vertical
+    specificationFirst: true
+    deterministicGeneration: true
+    generatedFilesMustBeIdempotent: true
+    writesDefaultToDryRun: true
+    productionCredentialsRequiredForDevelopment: false
+  entrypoints:
+    admin: go run ./cmd/server
+    web: cd web && corepack pnpm@10.34.5 dev
+  validation:
+    changed: make verify
+    all: make verify
+    reports:
+      json: .mss/reports/verify.json
+      markdown: .mss/reports/verify.md

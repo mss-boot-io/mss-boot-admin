@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/config"
+	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 )
 
 func TestInitRouterRegistersOperationalRoutesByMode(t *testing.T) {
@@ -100,6 +101,49 @@ func TestInitRouterUsesExactCredentialedCORSOrigins(t *testing.T) {
 	}
 	if origins := trustedCORSOrigins([]string{"*", "file:///tmp", "https://ADMIN.example/"}); len(origins) != 1 || origins[0] != "https://admin.example" {
 		t.Fatalf("trusted origins = %#v", origins)
+	}
+}
+
+func TestInitRouteGroupsSharesProtectedAPIWithBusinessRoutes(t *testing.T) {
+	previousCORS := config.Cfg.CORS
+	previousGinMode := gin.Mode()
+	t.Cleanup(func() {
+		config.Cfg.CORS = previousCORS
+		gin.SetMode(previousGinMode)
+	})
+	config.Cfg.CORS = config.CORS{AllowOrigins: []string{"https://admin.example"}}
+	gin.SetMode(gin.TestMode)
+
+	engine := gin.New()
+	groups := InitRouteGroups(engine.Group("/admin"))
+	if groups.ProtectedAPI == nil {
+		t.Fatal("protected API group is nil")
+	}
+	groups.ProtectedAPI.POST("/business-probe", func(ctx *gin.Context) {
+		ctx.Status(http.StatusNoContent)
+	})
+
+	routes := engine.Routes()
+	options := 0
+	for _, route := range routes {
+		if route.Method == http.MethodOptions && route.Path == "/admin/api/*path" {
+			options++
+		}
+	}
+	if options != 1 {
+		t.Fatalf("protected OPTIONS registrations = %d, want exactly one", options)
+	}
+	if !hasRoute(routes, http.MethodPost, "/admin/api/business-probe") {
+		t.Fatalf("business route missing from protected group: %#v", routes)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/business-probe", nil)
+	request.AddCookie(&http.Cookie{Name: middleware.BrowserSessionCookieName, Value: "session"})
+	request.Header.Set("Origin", "https://admin.example")
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("cookie mutation without CSRF status = %d, want 403", recorder.Code)
 	}
 }
 

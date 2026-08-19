@@ -169,6 +169,7 @@ func newModuleGenerateCommand(rootOverride *string) *cobra.Command {
 				Write:          write,
 				Check:          check,
 				FrontendTarget: frontendTarget,
+				Project:        &ctx.Project,
 			})
 			if outputErr := writeGeneration(cmd.OutOrStdout(), plan, format); outputErr != nil {
 				return outputErr
@@ -253,6 +254,11 @@ func contextText(ctx *project.Context) string {
 	fmt.Fprintf(&builder, "display-name: %s\n", ctx.Project.Metadata.DisplayName)
 	fmt.Fprintf(&builder, "root: %s\n", ctx.Root)
 	fmt.Fprintf(&builder, "foundation-version: %s\n", ctx.Project.Spec.FoundationVersion)
+	if !ctx.Project.Spec.Distribution.Empty() {
+		fmt.Fprintf(&builder, "admin-distribution: %s@%s\n", ctx.Project.Spec.Distribution.Name, ctx.Project.Spec.Distribution.Version)
+		fmt.Fprintf(&builder, "admin-backend: %s@%s\n", ctx.Project.Spec.Distribution.Backend.Module, ctx.Project.Spec.Distribution.Backend.Version)
+		fmt.Fprintf(&builder, "admin-frontend: %s@%s\n", ctx.Project.Spec.Distribution.Frontend.Package, ctx.Project.Spec.Distribution.Frontend.Version)
+	}
 	fmt.Fprintf(&builder, "backend-module: %s\n", ctx.Project.Spec.Backend.Module)
 	fmt.Fprintf(&builder, "framework-module: %s\n", ctx.Project.Spec.Backend.FrameworkModule)
 	fmt.Fprintf(&builder, "frontend: %s + %s\n", ctx.Project.Spec.Frontend.Framework, ctx.Project.Spec.Frontend.ComponentLibrary)

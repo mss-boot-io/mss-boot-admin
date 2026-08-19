@@ -31,8 +31,8 @@ Prioritize defects and missing evidence over stylistic preferences.
 5. For generated modules, run:
 
    ```shell
-   go run ./cmd/mss spec validate modules/<module>/module.yaml
-   go run ./cmd/mss module generate modules/<module>/module.yaml --check
+   go run ./cmd/mss spec validate .mss/modules/<module>.yaml
+   go run ./cmd/mss module generate .mss/modules/<module>.yaml --check
    ```
 
 6. Run the smallest checks needed to confirm each suspected defect. Do not report speculative findings as confirmed facts.

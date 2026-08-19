@@ -1,4 +1,4 @@
-import type { CurrentUser } from '@/shared/auth/types';
+import type { CurrentUser } from '@mss-admin-core/shared/auth/types';
 
 export type OAuthProvider = 'github' | 'lark';
 export type OAuthIntent = 'login' | 'binding' | 'reauthentication';

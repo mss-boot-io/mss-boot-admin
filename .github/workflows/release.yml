@@ -192,6 +192,12 @@ jobs:
           go-version: 1.26.6
           cache: false
 
+      - name: Setup Node for the public Admin Web probe
+        if: needs.metadata.outputs.publish == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+
       - name: Require selected pre-root readiness attestation
         if: needs.metadata.outputs.publish == 'true'
         env:
@@ -251,12 +257,22 @@ jobs:
 
           root_commit="$(resolve_tag_commit "${RELEASE_VERSION}")"
           framework_commit="$(resolve_tag_commit "mss-boot/${RELEASE_VERSION}")"
+          admin_commit="$(resolve_tag_commit "admin/${RELEASE_VERSION}")"
+          frontend_commit="$(resolve_tag_commit "web/antd-v6/${RELEASE_VERSION}")"
           if [[ "${root_commit}" != "${RELEASE_COMMIT}" ]]; then
             echo "root tag ${RELEASE_VERSION} resolves to ${root_commit}, not ${RELEASE_COMMIT}" >&2
             exit 1
           fi
           if [[ "${framework_commit}" != "${RELEASE_COMMIT}" ]]; then
             echo "framework tag mss-boot/${RELEASE_VERSION} resolves to ${framework_commit}, not ${RELEASE_COMMIT}" >&2
+            exit 1
+          fi
+          if [[ "${admin_commit}" != "${RELEASE_COMMIT}" ]]; then
+            echo "Admin tag admin/${RELEASE_VERSION} resolves to ${admin_commit}, not ${RELEASE_COMMIT}" >&2
+            exit 1
+          fi
+          if [[ "${frontend_commit}" != "${RELEASE_COMMIT}" ]]; then
+            echo "frontend tag web/antd-v6/${RELEASE_VERSION} resolves to ${frontend_commit}, not ${RELEASE_COMMIT}" >&2
             exit 1
           fi
 
@@ -279,37 +295,75 @@ jobs:
             exit 1
           fi
 
-          framework_release="$(gh release view "mss-boot/${RELEASE_VERSION}" --json tagName,isDraft,isPrerelease)"
-          if [[ "$(jq -r '.tagName' <<< "${framework_release}")" != "mss-boot/${RELEASE_VERSION}" ]]; then
-            echo "framework release tag identity does not match mss-boot/${RELEASE_VERSION}" >&2
-            exit 1
-          fi
-          if [[ "$(jq -r '.isDraft' <<< "${framework_release}")" != "false" ]]; then
-            echo "framework release mss-boot/${RELEASE_VERSION} is missing or still a draft" >&2
-            exit 1
-          fi
-          expected_framework_prerelease=false
+          expected_component_prerelease=false
           if [[ "${RELEASE_VERSION}" == *-* ]]; then
-            expected_framework_prerelease=true
+            expected_component_prerelease=true
           fi
-          if [[ "$(jq -r '.isPrerelease' <<< "${framework_release}")" != "${expected_framework_prerelease}" ]]; then
-            echo "framework release prerelease state does not match ${RELEASE_VERSION}" >&2
-            exit 1
-          fi
+          for component_tag in \
+            "mss-boot/${RELEASE_VERSION}" \
+            "admin/${RELEASE_VERSION}" \
+            "web/antd-v6/${RELEASE_VERSION}"; do
+            component_release="$(gh release view "${component_tag}" --json tagName,isDraft,isPrerelease)"
+            if [[ "$(jq -r '.tagName' <<< "${component_release}")" != "${component_tag}" ]]; then
+              echo "component release tag identity does not match ${component_tag}" >&2
+              exit 1
+            fi
+            if [[ "$(jq -r '.isDraft' <<< "${component_release}")" != "false" ]]; then
+              echo "component release ${component_tag} is missing or still a draft" >&2
+              exit 1
+            fi
+            if [[ "$(jq -r '.isPrerelease' <<< "${component_release}")" != "${expected_component_prerelease}" ]]; then
+              echo "component release ${component_tag} prerelease state does not match ${RELEASE_VERSION}" >&2
+              exit 1
+            fi
+          done
 
-          for workflow in \
-            framework-release.yml \
-            v0.7-upgrade-integration.yml \
-            theme-settings-integration.yml \
-            docs.yml; do
-            successes="$(gh api \
+          while IFS='|' read -r workflow component_ref; do
+            workflow_path=".github/workflows/${workflow}"
+            runs="$(gh api \
               --method GET \
               -H 'Accept: application/vnd.github+json' \
               "/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs" \
               -f head_sha="${RELEASE_COMMIT}" \
               -f status=completed \
-              -f per_page=20 \
-              --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')"
+              -f per_page=20)"
+            successes="$(jq \
+              --arg commit "${RELEASE_COMMIT}" \
+              --arg component_ref "${component_ref}" \
+              --arg workflow_path "${workflow_path}" \
+              '[.workflow_runs[] | select(
+                .event == "push" and
+                .head_branch == $component_ref and
+                .head_sha == $commit and
+                .path == $workflow_path and
+                .conclusion == "success"
+              )] | length' <<< "${runs}")"
+            if [[ "${successes}" -lt 1 ]]; then
+              echo "no successful ${workflow} run exists for exact tag ${component_ref} at ${RELEASE_COMMIT}" >&2
+              exit 1
+            fi
+          done <<EOF
+          framework-release.yml|mss-boot/${RELEASE_VERSION}
+          admin-release.yml|admin/${RELEASE_VERSION}
+          frontend-v6-release.yml|web/antd-v6/${RELEASE_VERSION}
+          EOF
+
+          for workflow in \
+            v0.7-upgrade-integration.yml \
+            theme-settings-integration.yml; do
+            workflow_path=".github/workflows/${workflow}"
+            runs="$(gh api \
+              --method GET \
+              -H 'Accept: application/vnd.github+json' \
+              "/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs" \
+              -f head_sha="${RELEASE_COMMIT}" \
+              -f status=completed \
+              -f per_page=20)"
+            successes="$(jq \
+              --arg workflow_path "${workflow_path}" \
+              '[.workflow_runs[] | select(
+                .path == $workflow_path and .conclusion == "success"
+              )] | length' <<< "${runs}")"
             if [[ "${successes}" -lt 1 ]]; then
               echo "no successful ${workflow} run exists for ${RELEASE_COMMIT}" >&2
               exit 1
@@ -353,6 +407,49 @@ jobs:
             GOWORK=off GOPROXY=direct go mod tidy
             GOWORK=off GOPROXY=direct go build ./...
           )
+
+          admin_probe_dir="$(mktemp -d)"
+          trap 'rm -rf "${probe_dir}" "${admin_probe_dir}"' EXIT
+          admin_module="github.com/mss-boot-io/mss-boot-admin/admin"
+          admin_download_json="$(
+            cd "${admin_probe_dir}"
+            GOWORK=off GOPROXY=direct go mod init example.com/mss-admin-root-release-probe >/dev/null
+            GOWORK=off GOPROXY=direct go mod download -json "${admin_module}@${RELEASE_VERSION}"
+          )"
+          jq -e \
+            --arg module "${admin_module}" \
+            --arg version "${RELEASE_VERSION}" \
+            --arg commit "${RELEASE_COMMIT}" \
+            '.Path == $module and .Version == $version and .Origin.Hash == $commit and (.Sum | startswith("h1:"))' \
+            <<< "${admin_download_json}" >/dev/null
+          cat > "${admin_probe_dir}/main.go" <<'EOF'
+          package main
+
+          import adminapp "github.com/mss-boot-io/mss-boot-admin/admin/app"
+
+          func main() {
+            if _, err := adminapp.New(); err != nil {
+              panic(err)
+            }
+          }
+          EOF
+          (
+            cd "${admin_probe_dir}"
+            GOWORK=off go mod edit -require="${admin_module}@${RELEASE_VERSION}"
+            GOWORK=off GOPROXY=direct go mod tidy
+            GOWORK=off GOPROXY=direct go test ./...
+            GOWORK=off GOPROXY=direct go build ./...
+          )
+
+          npm_metadata="$(npm view \
+            "@mss-boot-io/admin-web@${RELEASE_VERSION#v}" \
+            version gitHead dist.integrity --json)"
+          jq -e \
+            --arg version "${RELEASE_VERSION#v}" \
+            --arg commit "${RELEASE_COMMIT}" \
+            '.version == $version and .gitHead == $commit and
+             (."dist.integrity" | startswith("sha512-"))' \
+            <<< "${npm_metadata}" >/dev/null
 
   foundation-compatibility:
     needs: metadata

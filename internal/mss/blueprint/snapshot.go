@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 	"gopkg.in/yaml.v3"
 )
 
@@ -33,11 +34,12 @@ type FoundationLockMetadata struct {
 }
 
 type FoundationLockSpec struct {
-	Identities IdentitySet         `yaml:"identities" json:"identities"`
-	Records    SnapshotRecordPaths `yaml:"records" json:"records"`
-	Contracts  map[string]string   `yaml:"contracts" json:"contracts"`
-	Modules    map[string]any      `yaml:"modules" json:"modules"`
-	Upgrades   []any               `yaml:"upgrades" json:"upgrades"`
+	Distribution project.DistributionSpec `yaml:"distribution,omitempty" json:"distribution,omitempty"`
+	Identities   IdentitySet              `yaml:"identities" json:"identities"`
+	Records      SnapshotRecordPaths      `yaml:"records" json:"records"`
+	Contracts    map[string]string        `yaml:"contracts" json:"contracts"`
+	Modules      map[string]any           `yaml:"modules" json:"modules"`
+	Upgrades     []any                    `yaml:"upgrades" json:"upgrades"`
 }
 
 // Snapshot is a lock and manifest pair that has passed strict structural,
@@ -47,7 +49,7 @@ type Snapshot struct {
 	Lock     FoundationLock `json:"lock"`
 }
 
-func renderFoundationLock(identities IdentitySet, records SnapshotRecordPaths) ([]byte, error) {
+func renderFoundationLock(identities IdentitySet, records SnapshotRecordPaths, distribution project.DistributionSpec) ([]byte, error) {
 	lock := FoundationLock{
 		APIVersion: snapshotAPIVersion,
 		Kind:       lockKind,
@@ -55,8 +57,9 @@ func renderFoundationLock(identities IdentitySet, records SnapshotRecordPaths) (
 			Project: identities.Snapshot.Project,
 		},
 		Spec: FoundationLockSpec{
-			Identities: identities,
-			Records:    records,
+			Distribution: distribution,
+			Identities:   identities,
+			Records:      records,
 			Contracts: map[string]string{
 				"project":           "v1alpha1",
 				"capabilityCatalog": "v1alpha1",
@@ -64,6 +67,7 @@ func renderFoundationLock(identities IdentitySet, records SnapshotRecordPaths) (
 				"adminModule":       "v1alpha1",
 				"feature":           "v1alpha1",
 				"evaluation":        "v1alpha1",
+				"adminDistribution": "v1alpha1",
 			},
 			Modules:  map[string]any{},
 			Upgrades: []any{},
@@ -325,6 +329,11 @@ func decodeFoundationLock(data []byte) (FoundationLock, error) {
 	if err := validateIdentitySet(lock.Spec.Identities, nil, lock.Spec.Records.LockPath, lock.Spec.Records.ManifestPath, false); err != nil {
 		return FoundationLock{}, fmt.Errorf("invalid foundation lock identities: %w", err)
 	}
+	if !lock.Spec.Distribution.Empty() {
+		if problems := lock.Spec.Distribution.Validate(); len(problems) > 0 {
+			return FoundationLock{}, fmt.Errorf("invalid foundation lock distribution: %s", strings.Join(problems, "; "))
+		}
+	}
 	return lock, nil
 }
 
@@ -334,6 +343,9 @@ func validateSnapshotPair(manifest Manifest, lock FoundationLock, lockData []byt
 	}
 	if !equalIdentitySets(manifest.Identities, lock.Spec.Identities) {
 		return errors.New("foundation lock and blueprint manifest identities contradict each other")
+	}
+	if !reflect.DeepEqual(manifest.Distribution, lock.Spec.Distribution) {
+		return errors.New("foundation lock and blueprint manifest distributions contradict each other")
 	}
 	if lock.Metadata.Project != manifest.Identities.Snapshot.Project {
 		return errors.New("foundation lock project contradicts the downstream snapshot identity")

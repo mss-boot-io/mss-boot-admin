@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
 const (
@@ -21,12 +23,16 @@ const (
 
 // UpgradeOptions controls three-way comparison against a newer foundation checkout.
 type UpgradeOptions struct {
-	ApplicationRoot string
-	FoundationRoot  string
-	ManifestPath    string
-	Blueprint       string
-	Application     Application
-	Write           bool
+	ApplicationRoot              string
+	FoundationRoot               string
+	ManifestPath                 string
+	Blueprint                    string
+	Application                  Application
+	RequestedDistributionVersion string
+	ModuleSpecificationsPath     string
+	PreservedBusinessPaths       []string
+	ValidationCommands           []string
+	Write                        bool
 }
 
 // UpgradeChange records base, current, and desired state for one managed file.
@@ -40,22 +46,43 @@ type UpgradeChange struct {
 	Detail        string      `json:"detail,omitempty"`
 }
 
+// DistributionArtifactChange describes one coordinated package transition.
+// Identity is explicit because a Distribution upgrade may also rename the
+// underlying module or package, not merely change its version.
+type DistributionArtifactChange struct {
+	Artifact     string `json:"artifact"`
+	FromIdentity string `json:"fromIdentity,omitempty"`
+	FromVersion  string `json:"fromVersion,omitempty"`
+	ToIdentity   string `json:"toIdentity,omitempty"`
+	ToVersion    string `json:"toVersion,omitempty"`
+	Changed      bool   `json:"changed"`
+}
+
 // UpgradePlan is safe to review before any downstream files change.
 type UpgradePlan struct {
-	Application          Application     `json:"application"`
-	ApplicationRoot      string          `json:"applicationRoot"`
-	FoundationRoot       string          `json:"foundationRoot"`
-	Blueprint            string          `json:"blueprint"`
-	FromBlueprintVersion string          `json:"fromBlueprintVersion"`
-	ToBlueprintVersion   string          `json:"toBlueprintVersion"`
-	FromFoundationCommit string          `json:"fromFoundationCommit"`
-	ToFoundationCommit   string          `json:"toFoundationCommit"`
-	FromIdentities       *IdentitySet    `json:"fromIdentities,omitempty"`
-	ToIdentities         IdentitySet     `json:"toIdentities"`
-	LegacyInput          bool            `json:"legacyInput,omitempty"`
-	DryRun               bool            `json:"dryRun"`
-	Success              bool            `json:"success"`
-	Changes              []UpgradeChange `json:"changes"`
+	Application          Application                `json:"application"`
+	ApplicationRoot      string                     `json:"applicationRoot"`
+	FoundationRoot       string                     `json:"foundationRoot"`
+	Blueprint            string                     `json:"blueprint"`
+	FromBlueprintVersion string                     `json:"fromBlueprintVersion"`
+	ToBlueprintVersion   string                     `json:"toBlueprintVersion"`
+	FromFoundationCommit string                     `json:"fromFoundationCommit"`
+	ToFoundationCommit   string                     `json:"toFoundationCommit"`
+	FromIdentities       *IdentitySet               `json:"fromIdentities,omitempty"`
+	ToIdentities         IdentitySet                `json:"toIdentities"`
+	FromDistribution     project.DistributionSpec   `json:"fromDistribution"`
+	ToDistribution       project.DistributionSpec   `json:"toDistribution"`
+	GoAdminModule        DistributionArtifactChange `json:"goAdminModule"`
+	AdminWebPackage      DistributionArtifactChange `json:"adminWebPackage"`
+	LegacyInput          bool                       `json:"legacyInput,omitempty"`
+	DryRun               bool                       `json:"dryRun"`
+	Success              bool                       `json:"success"`
+	Changes              []UpgradeChange            `json:"changes"`
+	ManagedHostChanges   []UpgradeChange            `json:"managedHostChanges"`
+	Conflicts            []UpgradeChange            `json:"conflicts"`
+	PreservedFiles       []string                   `json:"preservedFiles"`
+	ModulesToRegenerate  []string                   `json:"modulesToRegenerate"`
+	ValidationCommands   []string                   `json:"validationCommands"`
 }
 
 // Upgrade plans or applies a three-way foundation upgrade. User-created files
@@ -103,9 +130,23 @@ func Upgrade(ctx context.Context, options UpgradeOptions) (UpgradePlan, error) {
 	if err != nil {
 		return UpgradePlan{}, err
 	}
+	if err := validateRequestedAdminDistribution(options.RequestedDistributionVersion, newBlueprint.Spec.Distribution); err != nil {
+		return UpgradePlan{}, err
+	}
 	desired, newManifest, err := BuildDesired(ctx, foundationRoot, newBlueprint, options.Application)
 	if err != nil {
 		return UpgradePlan{}, err
+	}
+	if err := validateRequestedAdminDistribution(options.RequestedDistributionVersion, newManifest.Distribution); err != nil {
+		return UpgradePlan{}, err
+	}
+	if requested := strings.TrimSpace(options.RequestedDistributionVersion); requested != "" &&
+		newManifest.Identities.Foundation.Version != strings.TrimPrefix(requested, "v") {
+		return UpgradePlan{}, fmt.Errorf(
+			"requested Admin Distribution %s does not match target Foundation release policy version v%s",
+			requested,
+			newManifest.Identities.Foundation.Version,
+		)
 	}
 	if normalizedPath(options.ManifestPath) != normalizedPath(newBlueprint.Spec.ManifestPath) {
 		return UpgradePlan{}, fmt.Errorf("manifest path switch from %s to %s requires an explicit migration recipe", options.ManifestPath, newBlueprint.Spec.ManifestPath)
@@ -117,6 +158,17 @@ func Upgrade(ctx context.Context, options UpgradeOptions) (UpgradePlan, error) {
 
 	plan, err := buildUpgradePlan(applicationRoot, foundationRoot, options.ManifestPath, newBlueprint.Spec.LockPath, oldManifest, newBlueprint, newManifest, desired, !options.Write, options.Application)
 	if err != nil {
+		return plan, err
+	}
+	if err := finalizeUpgradePlan(
+		&plan,
+		applicationRoot,
+		options.ManifestPath,
+		newBlueprint.Spec.LockPath,
+		options.ModuleSpecificationsPath,
+		options.PreservedBusinessPaths,
+		options.ValidationCommands,
+	); err != nil {
 		return plan, err
 	}
 	if !options.Write {
@@ -154,6 +206,8 @@ func buildUpgradePlan(
 		ToBlueprintVersion:   newBlueprint.Metadata.Version,
 		FromFoundationCommit: oldManifest.Metadata.FoundationCommit,
 		ToFoundationCommit:   newManifest.Metadata.FoundationCommit,
+		FromDistribution:     oldManifest.Distribution,
+		ToDistribution:       newManifest.Distribution,
 		ToIdentities:         newManifest.Identities,
 		LegacyInput:          oldManifest.APIVersion == legacyAPIVersion,
 		DryRun:               dryRun,
@@ -269,6 +323,235 @@ func buildUpgradePlan(
 		plan.Changes = append(plan.Changes, change)
 	}
 	return plan, nil
+}
+
+func validateRequestedAdminDistribution(requested string, target project.DistributionSpec) error {
+	requested = strings.TrimSpace(requested)
+	if requested == "" {
+		return nil
+	}
+	if !strings.HasPrefix(requested, "v") || !validSemanticVersion(strings.TrimPrefix(requested, "v")) {
+		return fmt.Errorf("requested Admin Distribution version %q must be a v-prefixed semantic version", requested)
+	}
+	if target.Empty() {
+		return errors.New("target Foundation blueprint does not declare an Admin Distribution")
+	}
+	if problems := target.Validate(); len(problems) > 0 {
+		return fmt.Errorf("target Foundation blueprint Admin Distribution is invalid: %s", strings.Join(problems, "; "))
+	}
+	if target.Version != requested {
+		return fmt.Errorf(
+			"requested Admin Distribution %s does not match target Foundation blueprint Distribution %s",
+			requested,
+			target.Version,
+		)
+	}
+	return nil
+}
+
+func finalizeUpgradePlan(
+	plan *UpgradePlan,
+	applicationRoot string,
+	manifestPath string,
+	lockPath string,
+	moduleSpecificationsPath string,
+	preservedBusinessPaths []string,
+	validationCommands []string,
+) error {
+	if plan == nil {
+		return errors.New("upgrade plan is required")
+	}
+	plan.GoAdminModule = distributionArtifactChange(
+		"go-admin-module",
+		plan.FromDistribution.Backend.Module,
+		plan.FromDistribution.Backend.Version,
+		plan.ToDistribution.Backend.Module,
+		plan.ToDistribution.Backend.Version,
+	)
+	plan.AdminWebPackage = distributionArtifactChange(
+		"admin-web-package",
+		plan.FromDistribution.Frontend.Package,
+		plan.FromDistribution.Frontend.Version,
+		plan.ToDistribution.Frontend.Package,
+		plan.ToDistribution.Frontend.Version,
+	)
+	plan.ManagedHostChanges = make([]UpgradeChange, 0)
+	plan.Conflicts = make([]UpgradeChange, 0)
+	plan.PreservedFiles = make([]string, 0)
+	manifestPath = normalizedPath(manifestPath)
+	lockPath = normalizedPath(lockPath)
+	for _, change := range plan.Changes {
+		if change.Action == ActionConflict {
+			plan.Conflicts = append(plan.Conflicts, change)
+		}
+		if change.Action == ActionPreserve {
+			plan.PreservedFiles = append(plan.PreservedFiles, change.Path)
+		}
+		if change.Action != ActionUnchanged && change.Path != manifestPath && change.Path != lockPath {
+			plan.ManagedHostChanges = append(plan.ManagedHostChanges, change)
+		}
+	}
+	managed := make(map[string]bool, len(plan.Changes))
+	for _, change := range plan.Changes {
+		managed[normalizedPath(change.Path)] = true
+	}
+	for _, businessPath := range preservedBusinessPaths {
+		paths, err := readBusinessOwnedFiles(applicationRoot, businessPath)
+		if err != nil {
+			return err
+		}
+		for _, path := range paths {
+			if !managed[path] {
+				plan.PreservedFiles = append(plan.PreservedFiles, path)
+			}
+		}
+	}
+	sort.Strings(plan.PreservedFiles)
+	plan.PreservedFiles = compactSortedStrings(plan.PreservedFiles)
+	plan.ValidationCommands = normalizeValidationCommands(validationCommands)
+	plan.ModulesToRegenerate = make([]string, 0)
+	if plan.FromDistribution != plan.ToDistribution {
+		if strings.TrimSpace(moduleSpecificationsPath) == "" {
+			moduleSpecificationsPath = ".mss/modules"
+		}
+		modules, err := readAdminModuleNames(applicationRoot, moduleSpecificationsPath)
+		if err != nil {
+			return err
+		}
+		plan.ModulesToRegenerate = modules
+	}
+	return nil
+}
+
+func readBusinessOwnedFiles(root, relative string) ([]string, error) {
+	relative = normalizedPath(relative)
+	if relative == "" {
+		return []string{}, nil
+	}
+	if !safeRelativePath(relative) {
+		return nil, errors.New("business-owned path must be repository-relative")
+	}
+	if err := rejectSymlinkParents(root, filepath.ToSlash(filepath.Join(filepath.FromSlash(relative), ".mss-boundary"))); err != nil {
+		return nil, fmt.Errorf("inspect business-owned path %s: %w", relative, err)
+	}
+	absolute := filepath.Join(root, filepath.FromSlash(relative))
+	info, err := os.Lstat(absolute)
+	if errors.Is(err, os.ErrNotExist) {
+		return []string{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("inspect business-owned path %s: %w", relative, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return nil, fmt.Errorf("business-owned path %s must be a regular directory", relative)
+	}
+	paths := make([]string, 0)
+	err = filepath.WalkDir(absolute, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("business-owned path contains a symlink: %s", path)
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if !entry.Type().IsRegular() {
+			return fmt.Errorf("business-owned path contains a non-regular file: %s", path)
+		}
+		repositoryRelative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		repositoryRelative = normalizedPath(filepath.ToSlash(repositoryRelative))
+		if !safeRelativePath(repositoryRelative) {
+			return fmt.Errorf("business-owned file escaped repository root: %s", path)
+		}
+		paths = append(paths, repositoryRelative)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("inspect business-owned path %s: %w", relative, err)
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func compactSortedStrings(values []string) []string {
+	if len(values) < 2 {
+		return values
+	}
+	result := values[:1]
+	for _, value := range values[1:] {
+		if value != result[len(result)-1] {
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
+func distributionArtifactChange(artifact, fromIdentity, fromVersion, toIdentity, toVersion string) DistributionArtifactChange {
+	return DistributionArtifactChange{
+		Artifact:     artifact,
+		FromIdentity: fromIdentity,
+		FromVersion:  fromVersion,
+		ToIdentity:   toIdentity,
+		ToVersion:    toVersion,
+		Changed:      fromIdentity != toIdentity || fromVersion != toVersion,
+	}
+}
+
+func normalizeValidationCommands(commands []string) []string {
+	if len(commands) == 0 {
+		commands = []string{
+			"mss doctor --strict --format json",
+			"mss verify --all",
+		}
+	}
+	result := make([]string, 0, len(commands))
+	seen := make(map[string]bool, len(commands))
+	for _, command := range commands {
+		command = strings.TrimSpace(command)
+		if command == "" || seen[command] {
+			continue
+		}
+		seen[command] = true
+		result = append(result, command)
+	}
+	return result
+}
+
+func readAdminModuleNames(root, relative string) ([]string, error) {
+	relative = normalizedPath(relative)
+	if !safeRelativePath(relative) {
+		return nil, errors.New("AdminModule specification path must be repository-relative")
+	}
+	if err := rejectSymlinkParents(root, filepath.ToSlash(filepath.Join(filepath.FromSlash(relative), ".mss-boundary"))); err != nil {
+		return nil, fmt.Errorf("inspect AdminModule specifications: %w", err)
+	}
+	directory := filepath.Join(root, filepath.FromSlash(relative))
+	entries, err := os.ReadDir(directory)
+	if errors.Is(err, os.ErrNotExist) {
+		return []string{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read AdminModule specifications: %w", err)
+	}
+	modules := make([]string, 0)
+	for _, entry := range entries {
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("AdminModule specification path contains a symlink: %s", entry.Name())
+		}
+		if !entry.Type().IsRegular() || strings.ToLower(filepath.Ext(entry.Name())) != ".yaml" {
+			continue
+		}
+		name := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
+		if name != "" {
+			modules = append(modules, name)
+		}
+	}
+	sort.Strings(modules)
+	return modules, nil
 }
 
 func applyUpgrade(ctx context.Context, root string, plan UpgradePlan, desired map[string]desiredFile, records SnapshotRecordPaths) error {
@@ -471,6 +754,25 @@ func (p UpgradePlan) Text() string {
 	fmt.Fprintf(&builder, "mss foundation upgrade: %s\n", p.Application.Name)
 	fmt.Fprintf(&builder, "blueprint: %s %s -> %s\n", p.Blueprint, p.FromBlueprintVersion, p.ToBlueprintVersion)
 	fmt.Fprintf(&builder, "foundation: %s -> %s\n", p.FromFoundationCommit, p.ToFoundationCommit)
+	fmt.Fprintf(&builder, "admin distribution: %s -> %s\n", formatAdminDistribution(p.FromDistribution), formatAdminDistribution(p.ToDistribution))
+	fmt.Fprintf(
+		&builder,
+		"go admin module: %s@%s -> %s@%s (changed: %t)\n",
+		emptyIdentity(p.GoAdminModule.FromIdentity),
+		emptyIdentity(p.GoAdminModule.FromVersion),
+		emptyIdentity(p.GoAdminModule.ToIdentity),
+		emptyIdentity(p.GoAdminModule.ToVersion),
+		p.GoAdminModule.Changed,
+	)
+	fmt.Fprintf(
+		&builder,
+		"admin web package: %s@%s -> %s@%s (changed: %t)\n",
+		emptyIdentity(p.AdminWebPackage.FromIdentity),
+		emptyIdentity(p.AdminWebPackage.FromVersion),
+		emptyIdentity(p.AdminWebPackage.ToIdentity),
+		emptyIdentity(p.AdminWebPackage.ToVersion),
+		p.AdminWebPackage.Changed,
+	)
 	fmt.Fprintf(&builder, "target foundation version: %s\n", p.ToIdentities.Foundation.Version)
 	fmt.Fprintf(&builder, "target blueprint digest: %s\n", p.ToIdentities.Blueprint.SHA256)
 	fmt.Fprintf(&builder, "target generator: %s@%s\n", p.ToIdentities.Generator.Tool, p.ToIdentities.Generator.Version)
@@ -482,6 +784,23 @@ func (p UpgradePlan) Text() string {
 	fmt.Fprintf(&builder, "foundation root: %s\n", p.FoundationRoot)
 	fmt.Fprintf(&builder, "dry run: %t\n", p.DryRun)
 	fmt.Fprintf(&builder, "success: %t\n\n", p.Success)
+	fmt.Fprintf(&builder, "managed host changes: %d\n", len(p.ManagedHostChanges))
+	fmt.Fprintf(&builder, "conflicts: %d\n", len(p.Conflicts))
+	if len(p.PreservedFiles) == 0 {
+		builder.WriteString("preserved business/custom files: none\n")
+	} else {
+		fmt.Fprintf(&builder, "preserved business/custom files: %s\n", strings.Join(p.PreservedFiles, ", "))
+	}
+	if len(p.ModulesToRegenerate) == 0 {
+		builder.WriteString("modules to regenerate: none\n")
+	} else {
+		fmt.Fprintf(&builder, "modules to regenerate: %s\n", strings.Join(p.ModulesToRegenerate, ", "))
+	}
+	builder.WriteString("validation commands:\n")
+	for _, command := range p.ValidationCommands {
+		fmt.Fprintf(&builder, "- %s\n", command)
+	}
+	builder.WriteByte('\n')
 	counts := make(map[Action]int)
 	for _, change := range p.Changes {
 		counts[change.Action]++
@@ -505,6 +824,20 @@ func (p UpgradePlan) Text() string {
 		builder.WriteByte('\n')
 	}
 	return builder.String()
+}
+
+func formatAdminDistribution(distribution project.DistributionSpec) string {
+	if distribution.Empty() {
+		return "unrecorded"
+	}
+	return distribution.Name + "@" + distribution.Version
+}
+
+func emptyIdentity(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "unrecorded"
+	}
+	return value
 }
 
 func readManagedFile(root, relative string) ([]byte, bool, error) {

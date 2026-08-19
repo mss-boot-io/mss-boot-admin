@@ -5,6 +5,14 @@ description: Plan or apply an upgrade of an MSS-generated application from one f
 
 # Upgrade an MSS application foundation
 
+For a Thin Host, prefer the coordinated Admin Distribution command. It changes the pinned Admin Go, Framework, and Admin Web versions together and then delegates all managed-file decisions to the same three-way Blueprint engine:
+
+```shell
+go run ./cmd/mss --root <downstream-project> upgrade admin <vX.Y.Z> \
+  --foundation <new-foundation-checkout> \
+  --format json
+```
+
 The upgrade engine performs a three-way comparison for every foundation-managed file:
 
 ```text
@@ -32,13 +40,15 @@ Files created only by the downstream application are outside the managed manifes
    go run ./cmd/mss upgrade status --format json
    ```
 
-2. Produce a conflict-aware plan:
+2. Produce a conflict-aware, coordinated Distribution plan (read-only by default):
 
    ```shell
-   go run ./cmd/mss upgrade plan \
+   go run ./cmd/mss upgrade admin <vX.Y.Z> \
      --foundation <new-foundation-checkout> \
      --format json
    ```
+
+   The target Foundation must declare exactly `<vX.Y.Z>` for the Distribution and its root, Framework, Admin, and frontend components. Use the lower-level `upgrade plan` only for a legacy Blueprint that does not yet carry a Distribution contract.
 
 3. Review every non-unchanged action:
    - `create`: new foundation-managed file;
@@ -48,12 +58,12 @@ Files created only by the downstream application are outside the managed manifes
    - `conflict`: both sides changed, a required file was locally deleted, or a new foundation file collides with existing downstream content.
 
 4. Resolve every conflict in a separate committed change. Re-run the plan until `success` is true.
-5. Apply only the reviewed plan:
+5. Apply only the reviewed coordinated plan:
 
    ```shell
-   go run ./cmd/mss upgrade apply \
+   go run ./cmd/mss upgrade admin <vX.Y.Z> \
      --foundation <new-foundation-checkout> \
-     --yes \
+     --apply --yes \
      --format json
    ```
 
@@ -71,7 +81,9 @@ Files created only by the downstream application are outside the managed manifes
 
 ## Guardrails
 
-- Planning is always read-only; applying requires both the `apply` subcommand and `--yes`.
+- Planning is always read-only. The legacy lower-level path applies only through `upgrade apply --yes`.
+- For `upgrade admin`, applying requires both `--apply` and `--yes`; `--yes` without `--apply` is invalid.
+- Never advance only the Go Admin or Admin Web dependency when the Distribution contract requires a coordinated version transition.
 - Never overwrite a managed file whose current hash differs from the old foundation when the new foundation also changed it.
 - Never delete a locally customized file merely because the new foundation removed it.
 - Unknown downstream files and business modules are not foundation-managed and must remain untouched.
@@ -81,4 +93,4 @@ Files created only by the downstream application are outside the managed manifes
 
 ## Output
 
-Report source and target blueprint versions and commits, create/update/delete/preserve/conflict counts, all conflicts, preserved customizations, files written, post-upgrade validation, and rollback commit or branch.
+Report source and target Distribution/component versions, Blueprint versions and commits, managed host changes, modules to regenerate, create/update/delete/preserve/conflict counts, all conflicts, preserved customizations, files written, post-upgrade validation, and rollback commit or branch.

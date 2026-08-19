@@ -1,4 +1,4 @@
-import { getRequestStatus } from '@/shared/api/errors';
+import { getRequestStatus } from '@mss-admin-core/shared/api/errors';
 
 export const ONLINE_SESSION_REFRESH_MS = 30_000;
 

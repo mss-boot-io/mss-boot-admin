@@ -1,0 +1,48 @@
+apiVersion: mss.io/v1alpha1
+kind: CommandCatalog
+metadata:
+  project: __MSS_APP_NAME__
+spec:
+  conventions:
+    shell: sh
+    workingDirectory: repository-root
+    nonInteractive: true
+    productionCredentialsRequired: false
+  commands:
+    backend-test:
+      command: GOWORK=off go test ./...
+      description: Test the thin-host backend and business modules.
+      category: backend
+    backend-build:
+      command: GOWORK=off go build ./cmd/server
+      description: Build one complete Admin and business binary.
+      category: backend
+    frontend-lint:
+      command: corepack pnpm@10.34.5 --dir web lint
+      description: Lint the composed Admin Web application.
+      category: frontend
+    frontend-test:
+      command: corepack pnpm@10.34.5 --dir web test
+      description: Test the composed Admin Web application.
+      category: frontend
+    frontend-build:
+      command: corepack pnpm@10.34.5 --dir web build
+      description: Build one complete Admin Web dist.
+      category: frontend
+    verify:
+      command: make verify
+      description: Run backend and frontend thin-host validation.
+      category: verification
+    admin-distribution-upgrade-plan:
+      command: mss upgrade admin <version> --foundation <checkout> --format json
+      description: Plan a coordinated backend, frontend, and managed-host Distribution upgrade without writing files.
+      outputFormats: [text, json]
+      category: upgrade
+      dryRunByDefault: true
+      idempotent: true
+    admin-distribution-upgrade-apply:
+      command: mss upgrade admin <version> --foundation <checkout> --apply --yes --format json
+      description: Apply a reviewed conflict-free Admin Distribution upgrade and record its snapshot last.
+      outputFormats: [text, json]
+      category: upgrade
+      idempotent: true

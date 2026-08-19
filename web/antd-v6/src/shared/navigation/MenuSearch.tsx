@@ -1,8 +1,8 @@
 import SearchOutlined from '@ant-design/icons/SearchOutlined';
+import type { AuthorizedMenuItem } from '@mss-admin-core/shared/auth/types';
 import { history, useIntl } from '@umijs/max';
 import { AutoComplete, Button, Empty, Input, Popover, Space, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
-import type { AuthorizedMenuItem } from '@/shared/auth/types';
 import { formatMenuLabel } from './menuLocale';
 
 const SEARCH_RESULT_LIMIT = 20;

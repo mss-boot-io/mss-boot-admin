@@ -73,6 +73,7 @@ func TestGenerateDryRunWriteCheckAndDrift(t *testing.T) {
 	for _, generatedPath := range []string{
 		"admin/modules/supplier/descriptor_generated.go",
 		"admin/modules/supplier/migration_generated.go",
+		"admin/modules/supplier/module_generated.go",
 	} {
 		content, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(generatedPath)))
 		if readErr != nil {
@@ -81,9 +82,8 @@ func TestGenerateDryRunWriteCheckAndDrift(t *testing.T) {
 		if strings.Contains(string(content), "AutoMigrate") {
 			t.Fatalf("%s inferred production DDL with AutoMigrate", generatedPath)
 		}
-		if strings.HasSuffix(generatedPath, "migration_generated.go") &&
-			(!strings.Contains(string(content), "_ = RegisterMigration") || strings.Contains(string(content), "panic(")) {
-			t.Fatalf("%s does not retain migration registration errors for preflight", generatedPath)
+		if strings.Contains(string(content), "func init()") || strings.Contains(string(content), "panic(") {
+			t.Fatalf("%s relies on implicit or panicking composition", generatedPath)
 		}
 	}
 	apiData, err := os.ReadFile(filepath.Join(root, "admin", "modules", "supplier", "api_generated.go"))

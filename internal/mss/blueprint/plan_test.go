@@ -288,10 +288,13 @@ spec:
   currentStableVersion: v1.0.0
   currentStableCommit: 0000000000000000000000000000000000000000
   nextPublicVersion: v1.1.0
+  distributionVersion: v1.1.0
+  distributionComponents: "root,framework,admin,frontend"
   publicationWorkflowsReady: false
   publicPrereleases: false
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"
+  adminTagTemplate: "admin/{version}"
   frontendTagTemplate: "web/antd-v6/{version}"
   docsTagTemplate: "docs/{version}"
 `),

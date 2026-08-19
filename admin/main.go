@@ -1,8 +1,11 @@
 package main
 
 import (
-	"github.com/mss-boot-io/mss-boot-admin/admin/cmd"
-	_ "github.com/mss-boot-io/mss-boot-admin/admin/modules/all"
+	"context"
+	"log"
+
+	adminapp "github.com/mss-boot-io/mss-boot-admin/admin/app"
+	"github.com/mss-boot-io/mss-boot-admin/admin/modules/all"
 )
 
 /*
@@ -21,5 +24,10 @@ import (
 // @host localhost:8080
 // @BasePath
 func main() {
-	cmd.Execute()
+	if err := adminapp.ExecuteContext(
+		context.Background(),
+		adminapp.WithBusinessModules(all.Modules()...),
+	); err != nil {
+		log.Fatal(err)
+	}
 }

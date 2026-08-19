@@ -35,6 +35,8 @@ admin/config/application-*
 
 # Runtime and build output
 bin/
+!web/antd-v6/bin/
+!web/antd-v6/bin/mss-admin-web.cjs
 temp/
 test/
 public/

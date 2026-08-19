@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 	"gopkg.in/yaml.v3"
 )
 
@@ -24,20 +25,22 @@ const (
 // cross-digested snapshot records.
 type SnapshotStatus struct {
 	ManifestMetadata
-	Identities IdentitySet     `json:"identities"`
-	Records    ManifestRecords `json:"records"`
+	Distribution project.DistributionSpec `json:"distribution,omitempty"`
+	Identities   IdentitySet              `json:"identities"`
+	Records      ManifestRecords          `json:"records"`
 }
 
 // FoundationSourceStatus is the deliberately limited identity carried by the
 // Foundation repository's legacy development lock sentinel. It is not a
 // generated downstream snapshot and cannot be used as an upgrade baseline.
 type FoundationSourceStatus struct {
-	Project              string `json:"project"`
-	FoundationRepository string `json:"foundationRepository"`
-	FoundationVersion    string `json:"foundationVersion"`
-	Blueprint            string `json:"blueprint"`
-	BlueprintVersion     string `json:"blueprintVersion"`
-	GeneratorVersion     string `json:"generatorVersion"`
+	Project              string                   `json:"project"`
+	FoundationRepository string                   `json:"foundationRepository"`
+	FoundationVersion    string                   `json:"foundationVersion"`
+	Blueprint            string                   `json:"blueprint"`
+	BlueprintVersion     string                   `json:"blueprintVersion"`
+	GeneratorVersion     string                   `json:"generatorVersion"`
+	Distribution         project.DistributionSpec `json:"distribution,omitempty"`
 }
 
 // SnapshotInspection is used by repository readiness checks that must accept
@@ -62,6 +65,7 @@ func ReadSnapshotStatus(root, manifestRelative string) (SnapshotStatus, error) {
 func statusFromSnapshot(snapshot Snapshot) SnapshotStatus {
 	return SnapshotStatus{
 		ManifestMetadata: snapshot.Manifest.Metadata,
+		Distribution:     snapshot.Manifest.Distribution,
 		Identities:       snapshot.Manifest.Identities,
 		Records:          snapshot.Manifest.Records,
 	}
@@ -159,7 +163,8 @@ type foundationSourceLock struct {
 		Project string `yaml:"project"`
 	} `yaml:"metadata"`
 	Spec struct {
-		Foundation struct {
+		Distribution project.DistributionSpec `yaml:"distribution,omitempty"`
+		Foundation   struct {
 			Repository string `yaml:"repository"`
 			Version    string `yaml:"version"`
 			Channel    string `yaml:"channel"`
@@ -223,6 +228,11 @@ func decodeFoundationSourceSentinel(data []byte, projectName, projectRepository 
 	if len(lock.Spec.Contracts) == 0 {
 		problems = append(problems, "Foundation source lock contracts must not be empty")
 	}
+	if !lock.Spec.Distribution.Empty() {
+		if distributionProblems := lock.Spec.Distribution.Validate(); len(distributionProblems) > 0 {
+			problems = append(problems, distributionProblems...)
+		}
+	}
 	if lock.Spec.Modules == nil || lock.Spec.Upgrades == nil {
 		problems = append(problems, "Foundation source lock modules and upgrades sentinels are required")
 	}
@@ -236,5 +246,6 @@ func decodeFoundationSourceSentinel(data []byte, projectName, projectRepository 
 		Blueprint:            lock.Spec.Blueprint.Name,
 		BlueprintVersion:     lock.Spec.Blueprint.Version,
 		GeneratorVersion:     lock.Spec.GeneratedBy.Version,
+		Distribution:         lock.Spec.Distribution,
 	}, nil
 }

@@ -1,7 +1,7 @@
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { InitialState } from '@/shared/auth/types';
 import OperationsPage from './Operations';
 
 const runtime = vi.hoisted(() => ({
@@ -18,18 +18,18 @@ vi.mock('@umijs/max', () => ({
 vi.mock('@ant-design/pro-components', () => ({
   PageContainer: ({ children }: PropsWithChildren) => <main>{children}</main>,
 }));
-vi.mock('@/modules/operations/TaskManagement', () => ({
+vi.mock('@mss-admin-core/modules/operations/TaskManagement', () => ({
   default: ({ root }: { root: boolean }) => <div>{`task:${root}`}</div>,
 }));
-vi.mock('@/modules/operations/NoticeCenter', () => ({
+vi.mock('@mss-admin-core/modules/operations/NoticeCenter', () => ({
   default: ({ canMarkRead }: { canMarkRead: boolean }) => <div>{`notice:${canMarkRead}`}</div>,
 }));
-vi.mock('@/modules/operations/LogViewer', () => ({
+vi.mock('@mss-admin-core/modules/operations/LogViewer', () => ({
   default: ({ canExportRuntime, canReadRuntime }: Record<string, boolean>) => (
     <div>{`log:${canReadRuntime}:${canExportRuntime}`}</div>
   ),
 }));
-vi.mock('@/modules/operations/SystemConfigManagement', () => ({
+vi.mock('@mss-admin-core/modules/operations/SystemConfigManagement', () => ({
   default: () => <div>system-config</div>,
 }));
 

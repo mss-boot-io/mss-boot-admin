@@ -3,13 +3,22 @@ kind: FoundationLock
 metadata:
   project: mss-boot-admin
 spec:
+  distribution:
+    name: mss-boot-admin
+    version: v1.3.0
+    backend:
+      module: github.com/mss-boot-io/mss-boot-admin/admin
+      version: v1.3.0
+    frontend:
+      package: "@mss-boot-io/admin-web"
+      version: 1.3.0
   foundation:
     repository: mss-boot-io/mss-boot-admin
     version: 0.1.0
     channel: development
   blueprint:
     name: management-system
-    version: 0.1.0
+    version: 0.4.0
   contracts:
     project: v1alpha1
     capabilityCatalog: v1alpha1
@@ -17,6 +26,7 @@ spec:
     adminModule: v1alpha1
     feature: v1alpha1
     evaluation: v1alpha1
+    adminDistribution: v1alpha1
   generatedBy:
     tool: mss
     version: 0.1.0-dev

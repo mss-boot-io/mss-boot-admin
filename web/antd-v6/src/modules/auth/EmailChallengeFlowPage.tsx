@@ -6,13 +6,13 @@ import {
   ProFormText,
   StepsForm,
 } from '@ant-design/pro-components';
+import { resolveSafeRedirect } from '@mss-admin-core/shared/auth/redirect';
+import { createBrowserSession, fetchCurrentUser } from '@mss-admin-core/shared/auth/session';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { rotateThemeAuthSession } from '@mss-admin-core/shared/theme/snapshot';
 import { history, useIntl, useModel } from '@umijs/max';
 import { Alert, App, Result } from 'antd';
 import { useRef, useState } from 'react';
-import { resolveSafeRedirect } from '@/shared/auth/redirect';
-import { createBrowserSession, fetchCurrentUser } from '@/shared/auth/session';
-import type { InitialState } from '@/shared/auth/types';
-import { rotateThemeAuthSession } from '@/shared/theme/snapshot';
 import { authAPI } from './api';
 import {
   type EmailChallengeFlow,

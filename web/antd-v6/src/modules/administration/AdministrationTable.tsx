@@ -1,11 +1,16 @@
+import { getRequestErrorMessage, getRequestStatus } from '@mss-admin-core/shared/api/errors';
+import {
+  PageEmpty,
+  PageError,
+  PageForbidden,
+  PageLoading,
+} from '@mss-admin-core/shared/design-system/PageState';
+import ResponsiveEntityTable from '@mss-admin-core/shared/design-system/ResponsiveEntityTable';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
 import type { TableColumnsType } from 'antd';
 import { Alert, Button, Col, Form, Input, Row, Select, Space, Tag } from 'antd';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
-import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
-import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
-import ResponsiveEntityTable from '@/shared/design-system/ResponsiveEntityTable';
 import {
   ADMIN_PAGE_SIZES,
   type AdministrationListParams,

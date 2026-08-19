@@ -4,6 +4,41 @@ import DeleteOutlined from '@ant-design/icons/DeleteOutlined';
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import SaveOutlined from '@ant-design/icons/SaveOutlined';
 import UndoOutlined from '@ant-design/icons/UndoOutlined';
+import { getRequestStatus } from '@mss-admin-core/shared/api/errors';
+import { hasPermission } from '@mss-admin-core/shared/auth/access';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import {
+  PageError,
+  PageForbidden,
+  PageLoading,
+} from '@mss-admin-core/shared/design-system/PageState';
+import { queryKeys } from '@mss-admin-core/shared/query/client';
+import {
+  loadThemeResource,
+  patchThemeResource,
+  resetThemeResource,
+  ThemeRevisionConflictError,
+} from '@mss-admin-core/shared/theme/api';
+import {
+  areThemeResourcesEqual,
+  CODE_THEME_DEFAULTS,
+  hasThemeOverride,
+  normalizeThemeColor,
+  resolveTheme,
+  THEME_SETTING_KEYS,
+  type ThemePatch,
+  type ThemeScope,
+  type ThemeScopeResource,
+  type ThemeSettingKey,
+  type ThemeSettings,
+  type ThemeSource,
+} from '@mss-admin-core/shared/theme/contract';
+import {
+  getThemeRuntimeSnapshot,
+  subscribeThemeRuntime,
+} from '@mss-admin-core/shared/theme/runtime';
+import { writeThemeSnapshot } from '@mss-admin-core/shared/theme/snapshot';
+import { publishThemeScopeResource } from '@mss-admin-core/shared/theme/sync';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
 import type { ColorPickerProps } from 'antd';
@@ -22,33 +57,6 @@ import {
   Typography,
 } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getRequestStatus } from '@/shared/api/errors';
-import { hasPermission } from '@/shared/auth/access';
-import { PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
-import { queryKeys } from '@/shared/query/client';
-import {
-  loadThemeResource,
-  patchThemeResource,
-  resetThemeResource,
-  ThemeRevisionConflictError,
-} from '@/shared/theme/api';
-import {
-  areThemeResourcesEqual,
-  CODE_THEME_DEFAULTS,
-  hasThemeOverride,
-  normalizeThemeColor,
-  resolveTheme,
-  THEME_SETTING_KEYS,
-  type ThemePatch,
-  type ThemeScope,
-  type ThemeScopeResource,
-  type ThemeSettingKey,
-  type ThemeSettings,
-  type ThemeSource,
-} from '@/shared/theme/contract';
-import { getThemeRuntimeSnapshot, subscribeThemeRuntime } from '@/shared/theme/runtime';
-import { writeThemeSnapshot } from '@/shared/theme/snapshot';
-import { publishThemeScopeResource } from '@/shared/theme/sync';
 import { applyCanonicalThemeResource, mergeAppliedThemeIntoInitialState } from './apply';
 
 type ThemeFormValues = ThemeSettings;
@@ -122,7 +130,9 @@ export default function ThemeSettingsEditor({ scope }: ThemeSettingsEditorProps)
   const applyResource = useCallback(
     (resource: ThemeScopeResource) => {
       const applied = applyCanonicalThemeResource(client, resource, owner);
-      void setInitialState((previous) => mergeAppliedThemeIntoInitialState(previous, applied));
+      void setInitialState((previous: InitialState | undefined) =>
+        mergeAppliedThemeIntoInitialState(previous, applied),
+      );
       return applied.resource;
     },
     [client, owner, setInitialState],

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 	"gopkg.in/yaml.v3"
 )
 
@@ -45,17 +46,19 @@ type Metadata struct {
 
 // Spec controls tracked-file selection, transformations, and generated metadata.
 type Spec struct {
-	SourceMode             string   `yaml:"sourceMode" json:"sourceMode"`
-	SourceModule           string   `yaml:"sourceModule" json:"sourceModule"`
-	SourceProjectName      string   `yaml:"sourceProjectName" json:"sourceProjectName"`
-	DefaultOutputDirectory string   `yaml:"defaultOutputDirectory" json:"defaultOutputDirectory"`
-	ManifestPath           string   `yaml:"manifestPath" json:"manifestPath"`
-	LockPath               string   `yaml:"lockPath" json:"lockPath"`
-	RequiredFiles          []string `yaml:"requiredFiles" json:"requiredFiles"`
-	ExcludePaths           []string `yaml:"excludePaths,omitempty" json:"excludePaths,omitempty"`
-	ExcludePrefixes        []string `yaml:"excludePrefixes,omitempty" json:"excludePrefixes,omitempty"`
-	TextExtensions         []string `yaml:"textExtensions,omitempty" json:"textExtensions,omitempty"`
-	TextNames              []string `yaml:"textNames,omitempty" json:"textNames,omitempty"`
+	SourceMode             string                   `yaml:"sourceMode" json:"sourceMode"`
+	TemplateRoot           string                   `yaml:"templateRoot,omitempty" json:"templateRoot,omitempty"`
+	SourceModule           string                   `yaml:"sourceModule" json:"sourceModule"`
+	SourceProjectName      string                   `yaml:"sourceProjectName" json:"sourceProjectName"`
+	DefaultOutputDirectory string                   `yaml:"defaultOutputDirectory" json:"defaultOutputDirectory"`
+	ManifestPath           string                   `yaml:"manifestPath" json:"manifestPath"`
+	LockPath               string                   `yaml:"lockPath" json:"lockPath"`
+	RequiredFiles          []string                 `yaml:"requiredFiles" json:"requiredFiles"`
+	ExcludePaths           []string                 `yaml:"excludePaths,omitempty" json:"excludePaths,omitempty"`
+	ExcludePrefixes        []string                 `yaml:"excludePrefixes,omitempty" json:"excludePrefixes,omitempty"`
+	TextExtensions         []string                 `yaml:"textExtensions,omitempty" json:"textExtensions,omitempty"`
+	TextNames              []string                 `yaml:"textNames,omitempty" json:"textNames,omitempty"`
+	Distribution           project.DistributionSpec `yaml:"distribution,omitempty" json:"distribution,omitempty"`
 }
 
 // Application identifies the downstream project rendered from a blueprint.
@@ -117,6 +120,7 @@ func (d *Document) Normalize() {
 	d.Metadata.DisplayName = strings.TrimSpace(d.Metadata.DisplayName)
 	d.Metadata.Version = strings.TrimSpace(d.Metadata.Version)
 	d.Spec.SourceMode = strings.TrimSpace(d.Spec.SourceMode)
+	d.Spec.TemplateRoot = normalizedPath(d.Spec.TemplateRoot)
 	d.Spec.SourceModule = strings.TrimSpace(d.Spec.SourceModule)
 	d.Spec.SourceProjectName = strings.TrimSpace(d.Spec.SourceProjectName)
 	if d.Spec.DefaultOutputDirectory == "" {
@@ -167,6 +171,14 @@ func (d *Document) Validate(root string) error {
 	if d.Spec.SourceMode != "git-tracked" {
 		problems = append(problems, "spec.sourceMode must equal git-tracked")
 	}
+	if d.Spec.TemplateRoot != "" && !safeRelativePath(d.Spec.TemplateRoot) {
+		problems = append(problems, "spec.templateRoot must be a repository-relative confined path")
+	}
+	if d.Spec.TemplateRoot != "" {
+		for _, problem := range d.Spec.Distribution.Validate() {
+			problems = append(problems, strings.Replace(problem, "project spec.distribution", "blueprint spec.distribution", 1))
+		}
+	}
 	if !validModule(d.Spec.SourceModule) {
 		problems = append(problems, "spec.sourceModule is invalid")
 	}
@@ -194,7 +206,11 @@ func (d *Document) Validate(root string) error {
 			problems = append(problems, "required file has unsafe path: "+required)
 			continue
 		}
-		info, err := os.Stat(filepath.Join(root, filepath.FromSlash(required)))
+		sourceRequired := required
+		if d.Spec.TemplateRoot != "" {
+			sourceRequired = filepath.ToSlash(filepath.Join(d.Spec.TemplateRoot, required))
+		}
+		info, err := os.Stat(filepath.Join(root, filepath.FromSlash(sourceRequired)))
 		if err != nil {
 			problems = append(problems, "required file is missing: "+required)
 			continue

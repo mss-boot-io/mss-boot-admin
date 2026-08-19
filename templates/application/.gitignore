@@ -1,0 +1,13 @@
+bin/
+*.db
+*.out
+.mss/reports/
+.mss/run/
+.mss/cache/
+.mss/logs/
+web/node_modules/
+web/dist/
+web/test-results/
+web/playwright-report/
+config/application-*.yml
+!config/application-local.example.yml

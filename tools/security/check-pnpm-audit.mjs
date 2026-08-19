@@ -34,6 +34,7 @@ const auditMetadataKeys = new Set([
   'optionalDependencies',
   'totalDependencies',
 ]);
+const dependencyClassKeys = new Set(['runtime', 'tooling']);
 const githubAdvisoryPattern =
   /^GHSA-[23456789cfghjmpqrvwx]{4}-[23456789cfghjmpqrvwx]{4}-[23456789cfghjmpqrvwx]{4}$/;
 
@@ -60,6 +61,196 @@ const requireExactKeys = (value, expectedKeys, label) => {
 const requireNonEmptyString = (value, label) => {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error(`${label} must be a non-empty string.`);
+  }
+};
+
+const requireSortedUniqueStrings = (value, label) => {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${label} must be a non-empty array.`);
+  }
+  const normalized = [];
+  const seen = new Set();
+  for (const [index, item] of value.entries()) {
+    requireNonEmptyString(item, `${label}[${index}]`);
+    if (seen.has(item)) {
+      throw new Error(`${label} contains duplicate package: ${item}.`);
+    }
+    seen.add(item);
+    normalized.push(item);
+  }
+  const sorted = [...normalized].sort();
+  if (normalized.some((item, index) => item !== sorted[index])) {
+    throw new Error(`${label} must use stable sorted order.`);
+  }
+  return normalized;
+};
+
+const sameStrings = (left, right) =>
+  left.length === right.length && left.every((item, index) => item === right[index]);
+
+export const validateDistributionDependencyContract = (packageDocument) => {
+  requirePlainObject(packageDocument, 'package.json');
+  const distribution = packageDocument.mssAdminDistribution;
+  requirePlainObject(distribution, 'package.json mssAdminDistribution');
+  const dependencyClasses = distribution.dependencyClasses;
+  requirePlainObject(dependencyClasses, 'mssAdminDistribution.dependencyClasses');
+  requireExactKeys(
+    dependencyClasses,
+    dependencyClassKeys,
+    'mssAdminDistribution.dependencyClasses',
+  );
+  const runtime = requireSortedUniqueStrings(
+    dependencyClasses.runtime,
+    'mssAdminDistribution.dependencyClasses.runtime',
+  );
+  const tooling = requireSortedUniqueStrings(
+    dependencyClasses.tooling,
+    'mssAdminDistribution.dependencyClasses.tooling',
+  );
+  const combined = [...runtime, ...tooling];
+  const combinedSet = new Set(combined);
+  if (combinedSet.size !== combined.length) {
+    const overlap = runtime.filter((name) => tooling.includes(name));
+    throw new Error(`Admin Web runtime and tooling dependency classes overlap: ${overlap.join(', ')}.`);
+  }
+
+  const productionRoots = Object.keys({
+    ...(packageDocument.dependencies ?? {}),
+    ...(packageDocument.optionalDependencies ?? {}),
+  }).sort();
+  const classifiedRoots = [...combined].sort();
+  if (!sameStrings(productionRoots, classifiedRoots)) {
+    const missing = productionRoots.filter((name) => !combinedSet.has(name));
+    const unknown = classifiedRoots.filter((name) => !productionRoots.includes(name));
+    throw new Error(
+      `Admin Web dependency classes must exactly partition published dependencies; missing=${
+        missing.join(', ') || '<none>'
+      }; unknown=${unknown.join(', ') || '<none>'}.`,
+    );
+  }
+
+  const buildOnlyDependencies = distribution.buildOnlyDependencies;
+  requirePlainObject(buildOnlyDependencies, 'mssAdminDistribution.buildOnlyDependencies');
+  const buildOnlyNames = Object.keys(buildOnlyDependencies);
+  if (buildOnlyNames.length === 0) {
+    throw new Error('mssAdminDistribution.buildOnlyDependencies must not be empty.');
+  }
+  const sortedBuildOnlyNames = [...buildOnlyNames].sort();
+  if (buildOnlyNames.some((item, index) => item !== sortedBuildOnlyNames[index])) {
+    throw new Error('mssAdminDistribution.buildOnlyDependencies must use stable sorted order.');
+  }
+  const buildOnlyResolutions = new Map(
+    buildOnlyNames.map((name) => {
+      requireNonEmptyString(name, 'mssAdminDistribution.buildOnlyDependencies package');
+      return [
+        name,
+        new Set(
+          requireSortedUniqueStrings(
+            buildOnlyDependencies[name],
+            `mssAdminDistribution.buildOnlyDependencies.${name}`,
+          ),
+        ),
+      ];
+    }),
+  );
+  const developmentRoots = Object.keys(packageDocument.devDependencies ?? {});
+  return {
+    runtimeRoots: new Set(runtime),
+    toolingRoots: new Set(tooling),
+    developmentRoots: new Set(developmentRoots),
+    buildOnlyResolutions,
+  };
+};
+
+const auditPathRoot = (findingPath) => {
+  const parts = findingPath.split('>');
+  if (parts.length < 2 || (parts[0] !== '.' && parts[0] !== 'root') || !parts[1]) {
+    throw new Error(`Unsupported pnpm audit dependency path: ${findingPath}.`);
+  }
+  return parts[1];
+};
+
+export const classifyAuditAdvisory = (advisory, dependencyContract) => {
+  let observedToolingPath = false;
+  for (const finding of advisory.findings) {
+    for (const findingPath of finding.paths) {
+      const root = auditPathRoot(findingPath);
+      if (dependencyContract.runtimeRoots.has(root)) {
+        return 'runtime';
+      }
+      if (
+        dependencyContract.toolingRoots.has(root) ||
+        dependencyContract.developmentRoots.has(root)
+      ) {
+        observedToolingPath = true;
+        continue;
+      }
+      throw new Error(
+        `pnpm audit path ${findingPath} starts from unclassified dependency root ${root}.`,
+      );
+    }
+  }
+  if (!observedToolingPath) {
+    throw new Error(`pnpm audit advisory ${advisory.github_advisory_id} has no classified paths.`);
+  }
+  return 'tooling';
+};
+
+export const validateBuildOnlyAcceptanceCoverage = (
+  acceptedForScope,
+  dependencyContract,
+) => {
+  const acceptedPackages = [...new Set([...acceptedForScope.values()].map((item) => item.package))]
+    .sort();
+  const declaredPackages = [...dependencyContract.buildOnlyResolutions.keys()].sort();
+  if (!sameStrings(acceptedPackages, declaredPackages)) {
+    const acceptedSet = new Set(acceptedPackages);
+    const declaredSet = new Set(declaredPackages);
+    const missing = acceptedPackages.filter((name) => !declaredSet.has(name));
+    const stale = declaredPackages.filter((name) => !acceptedSet.has(name));
+    throw new Error(
+      `Admin Web build-only package contract must match audit acceptances; missing=${
+        missing.join(', ') || '<none>'
+      }; stale=${stale.join(', ') || '<none>'}.`,
+    );
+  }
+};
+
+export const validateBuildOnlyResolutionCoverage = (advisories, dependencyContract) => {
+  const observed = new Map();
+  for (const advisory of advisories) {
+    const declaredVersions = dependencyContract.buildOnlyResolutions.get(advisory.module_name);
+    if (!declaredVersions) {
+      throw new Error(
+        `Build-only advisory ${advisory.github_advisory_id} targets undeclared package ${advisory.module_name}.`,
+      );
+    }
+    const observedVersions = observed.get(advisory.module_name) ?? new Set();
+    for (const finding of advisory.findings) {
+      requireNonEmptyString(
+        finding.version,
+        `pnpm audit advisory ${advisory.github_advisory_id} finding version`,
+      );
+      if (!declaredVersions.has(finding.version)) {
+        throw new Error(
+          `Build-only advisory ${advisory.github_advisory_id} observed undeclared ${advisory.module_name}@${finding.version}.`,
+        );
+      }
+      observedVersions.add(finding.version);
+    }
+    observed.set(advisory.module_name, observedVersions);
+  }
+
+  for (const [name, declaredVersions] of dependencyContract.buildOnlyResolutions) {
+    const expected = [...declaredVersions].sort();
+    const actual = [...(observed.get(name) ?? [])].sort();
+    if (!sameStrings(expected, actual)) {
+      throw new Error(
+        `Admin Web build-only resolution contract drifted for ${name}; expected=${
+          expected.join(', ') || '<none>'
+        }; observed=${actual.join(', ') || '<none>'}.`,
+      );
+    }
   }
 };
 
@@ -283,6 +474,7 @@ const validatePnpmRuntime = (pnpmScript, packageDirectory, expectedPnpmVersion) 
   const result = spawnPnpm(pnpmScript, ['--version'], packageDirectory);
   assertSpawnCompleted(result, 'pnpm version check');
   validatePnpmVersion(packageDocument.packageManager, result.stdout, expectedPnpmVersion);
+  return packageDocument;
 };
 
 export const buildAuditArguments = (productionOnly) => [
@@ -338,16 +530,15 @@ export const main = () => {
   if (!pnpmScript) {
     throw new Error('Run this check through the package script so npm_execpath identifies pnpm.');
   }
-  validatePnpmRuntime(pnpmScript, packageDirectory, expectedPnpmVersion);
-
-  const productionAdvisories = runAudit(pnpmScript, packageDirectory, true);
-  const productionBlockers = productionAdvisories.filter((advisory) =>
-    blockingSeverities.has(advisory.severity),
+  const packageDocument = validatePnpmRuntime(
+    pnpmScript,
+    packageDirectory,
+    expectedPnpmVersion,
   );
-  if (productionBlockers.length > 0) {
-    const identifiers = productionBlockers.map((item) => item.github_advisory_id).join(', ');
-    throw new Error(`Production dependency audit has high or critical advisories: ${identifiers}`);
-  }
+  const dependencyContract =
+    packageScope === 'web/antd-v6'
+      ? validateDistributionDependencyContract(packageDocument)
+      : undefined;
 
   const acceptanceDocument = parseAcceptanceDocument();
   const today = new Date().toISOString().slice(0, 10);
@@ -356,16 +547,43 @@ export const main = () => {
       .filter((item) => item.scopes.includes(packageScope))
       .map((item) => [item.advisory, item]),
   );
+  if (dependencyContract) {
+    validateBuildOnlyAcceptanceCoverage(acceptedForScope, dependencyContract);
+  }
+
+  const productionAdvisories = runAudit(pnpmScript, packageDirectory, true);
+  const productionBlockers = productionAdvisories.filter((advisory) =>
+    blockingSeverities.has(advisory.severity),
+  );
+  const runtimeBlockers = dependencyContract
+    ? productionBlockers.filter(
+        (advisory) => classifyAuditAdvisory(advisory, dependencyContract) === 'runtime',
+      )
+    : productionBlockers;
+  if (runtimeBlockers.length > 0) {
+    const identifiers = runtimeBlockers.map((item) => item.github_advisory_id).join(', ');
+    throw new Error(`Production dependency audit has high or critical advisories: ${identifiers}`);
+  }
 
   const fullAdvisories = runAudit(pnpmScript, packageDirectory, false);
   const fullBlockers = fullAdvisories.filter((advisory) =>
     blockingSeverities.has(advisory.severity),
   );
   const unexpected = [];
+  const toolingBlockers = [];
   for (const advisory of fullBlockers) {
     const identifier = advisory.github_advisory_id;
     const acceptance = acceptedForScope.get(identifier);
+    const classification = dependencyContract
+      ? classifyAuditAdvisory(advisory, dependencyContract)
+      : 'tooling';
+    if (dependencyContract && classification === 'tooling') {
+      toolingBlockers.push(advisory);
+    }
     if (
+      classification === 'runtime' ||
+      (dependencyContract &&
+        !dependencyContract.buildOnlyResolutions.has(advisory.module_name)) ||
       !acceptance ||
       acceptance.expiresOn < today ||
       acceptance.package !== advisory.module_name ||
@@ -374,6 +592,10 @@ export const main = () => {
     ) {
       unexpected.push(identifier);
     }
+  }
+
+  if (dependencyContract) {
+    validateBuildOnlyResolutionCoverage(toolingBlockers, dependencyContract);
   }
 
   if (unexpected.length > 0) {
@@ -388,8 +610,9 @@ export const main = () => {
     throw new Error(`Remove stale pnpm audit acceptances: ${staleAcceptances.join(', ')}`);
   }
 
+  const boundary = dependencyContract ? 'runtime' : 'production';
   console.log(
-    `Release dependency audit passed for ${packageScope}: 0 production blockers, ${fullBlockers.length} accepted build-only advisories.`,
+    `Release dependency audit passed for ${packageScope}: 0 ${boundary} blockers, ${fullBlockers.length} accepted build-only advisories.`,
   );
 };
 

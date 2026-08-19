@@ -24,29 +24,43 @@ class ReleasePolicyTest(unittest.TestCase):
     def setUp(self):
         self.policy = POLICY.load_policy(POLICY_PATH)
 
-    def test_only_v123_matches_component_tag_namespaces(self):
+    def test_v130_matches_every_distribution_component_namespace(self):
         cases = {
-            "root": "v1.2.3",
-            "framework": "mss-boot/v1.2.3",
-            "frontend": "web/antd-v6/v1.2.3",
-            "docs": "docs/v1.2.3",
+            "root": "v1.3.0",
+            "framework": "mss-boot/v1.3.0",
+            "admin": "admin/v1.3.0",
+            "frontend": "web/antd-v6/v1.3.0",
+            "docs": "docs/v1.3.0",
         }
         for component, tag in cases.items():
             with self.subTest(component=component):
                 POLICY.check_public_ref(
-                    self.policy, component, "v1.2.3", tag, intent="qualify"
+                    self.policy, component, "v1.3.0", tag, intent="qualify"
                 )
+
+        self.assertEqual(
+            POLICY.coordinated_tags(self.policy, "v1.3.0"),
+            {component: cases[component] for component in POLICY.COORDINATED_COMPONENTS},
+        )
 
     def test_publication_is_enabled_after_protected_workflows_are_ready(self):
         self.assertIs(self.policy["publicationWorkflowsReady"], True)
-        POLICY.check_public_ref(self.policy, "root", "v1.2.3", "v1.2.3")
+        POLICY.check_public_ref(self.policy, "root", "v1.3.0", "v1.3.0")
 
     def test_policy_requires_pr_merged_main_release_source(self):
         self.assertEqual(self.policy["releaseBranch"], "main")
         self.assertIs(self.policy["requireMergedPullRequestSource"], True)
 
-    def test_policy_rejects_versions_other_than_v123(self):
-        for version in ("v1.0.1", "v1.1.0", "v1.2.0", "v1.2.1", "v1.2.2"):
+    def test_policy_rejects_versions_other_than_v130(self):
+        for version in (
+            "v1.0.1",
+            "v1.1.0",
+            "v1.2.0",
+            "v1.2.1",
+            "v1.2.2",
+            "v1.2.3",
+            "v1.3.1",
+        ):
             with self.subTest(version=version):
                 with self.assertRaisesRegex(POLICY.PolicyError, "forbidden"):
                     POLICY.check_public_ref(
@@ -58,24 +72,41 @@ class ReleasePolicyTest(unittest.TestCase):
             POLICY.check_public_ref(
                 self.policy,
                 "root",
-                "v1.2.3-rc.1",
-                "v1.2.3-rc.1",
+                "v1.3.0-rc.1",
+                "v1.3.0-rc.1",
                 intent="qualify",
             )
         with self.assertRaisesRegex(POLICY.PolicyError, "does not match"):
             POLICY.check_public_ref(
                 self.policy,
                 "framework",
-                "v1.2.3",
-                "v1.2.3",
+                "v1.3.0",
+                "v1.3.0",
                 intent="qualify",
             )
+
+    def test_policy_rejects_distribution_version_or_component_drift(self):
+        original = POLICY_PATH.read_text(encoding="utf-8")
+        replacements = (
+            ("  distributionVersion: v1.3.0\n", "  distributionVersion: v1.3.1\n"),
+            (
+                '  distributionComponents: "root,framework,admin,frontend"\n',
+                '  distributionComponents: "root,framework,frontend"\n',
+            ),
+        )
+        for old, new in replacements:
+            with self.subTest(replacement=new.strip()):
+                with tempfile.TemporaryDirectory() as directory:
+                    candidate = Path(directory) / "policy.yaml"
+                    candidate.write_text(original.replace(old, new), encoding="utf-8")
+                    with self.assertRaises(POLICY.PolicyError):
+                        POLICY.load_policy(candidate)
 
     def test_policy_parser_rejects_unknown_or_duplicate_keys(self):
         original = POLICY_PATH.read_text(encoding="utf-8")
         for suffix in (
             "  unexpected: true\n",
-            "  nextPublicVersion: v1.2.3\n",
+            "  nextPublicVersion: v1.3.0\n",
         ):
             with self.subTest(suffix=suffix.strip()):
                 with tempfile.TemporaryDirectory() as directory:
@@ -105,6 +136,7 @@ class ReleasePolicyTest(unittest.TestCase):
         workflows = (
             "release.yml",
             "framework-release.yml",
+            "admin-release.yml",
             "frontend-v6-release.yml",
             "container.yml",
         )
@@ -124,6 +156,7 @@ class ReleasePolicyTest(unittest.TestCase):
         cases = {
             "release.yml": ("release-evidence", True),
             "framework-release.yml": ("release", True),
+            "admin-release.yml": ("release", True),
             "frontend-v6-release.yml": ("release", True),
             "container.yml": ("publish", True),
             "docs.yml": ("build", True),
@@ -164,6 +197,8 @@ class ReleasePolicyTest(unittest.TestCase):
         workflows = (
             "release.yml",
             "framework-release.yml",
+            "admin-release.yml",
+            "admin-distribution-compatibility.yml",
             "frontend-v6-release.yml",
             "frontend-v6-ci.yml",
             "container.yml",
@@ -237,9 +272,14 @@ class ReleasePolicyTest(unittest.TestCase):
                     if line.strip()
                 ]
 
-                self.assertIn(
-                    "tar --create --gzip --file dist-v6.tar.gz dist", package["run"]
-                )
+                for required in (
+                    "tar",
+                    "--create",
+                    "--gzip",
+                    "--file dist-v6.tar.gz",
+                    "dist",
+                ):
+                    self.assertIn(required, package["run"])
                 self.assertIn("check_portable_paths.py", package["run"])
                 self.assertEqual(paths, expected_paths)
 
@@ -401,8 +441,8 @@ class ReleasePolicyTest(unittest.TestCase):
         e2e_config = (
             REPOSITORY_ROOT / "admin" / "config" / "application-e2e.yml"
         ).read_text(encoding="utf-8")
-        app_config = (
-            REPOSITORY_ROOT / "web" / "antd-v6" / "config" / "config.ts"
+        package_business_config = (
+            REPOSITORY_ROOT / "web" / "antd-v6" / "package" / "business.cjs"
         ).read_text(encoding="utf-8")
         generated_supplier = (
             REPOSITORY_ROOT
@@ -425,7 +465,9 @@ class ReleasePolicyTest(unittest.TestCase):
         self.assertIn("http://127.0.0.1:18001", playwright)
         self.assertIn('"start:e2e"', package)
         self.assertIn("MSS_V6_E2E=1", package)
-        self.assertIn("persistentCaching: !browserQualification", app_config)
+        self.assertIn(
+            "persistentCaching: !browserQualification", package_business_config
+        )
         for content in (
             support,
             backend,
@@ -440,6 +482,7 @@ class ReleasePolicyTest(unittest.TestCase):
     def test_publication_workflows_require_the_phase_they_publish_from(self):
         expected_phases = {
             "framework-release.yml": "--phase pre-framework",
+            "admin-release.yml": "--phase pre-framework",
             "frontend-v6-release.yml": "--phase pre-framework",
             "container.yml": "--phase pre-root",
             "release.yml": "--phase pre-root",

@@ -1,17 +1,17 @@
 import type { ProLayoutProps } from '@ant-design/pro-components';
-import type { QueryClient } from '@tanstack/react-query';
-import type { InitialState } from '@/shared/auth/types';
-import { queryKeys } from '@/shared/query/client';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { queryKeys } from '@mss-admin-core/shared/query/client';
 import {
   type ApplicationProfile,
   buildLayoutSettings,
   type ThemeScopeResource,
-} from '@/shared/theme/contract';
+} from '@mss-admin-core/shared/theme/contract';
 import {
   getThemeRuntimeSnapshot,
   reconcileThemeResource,
   type ThemeReconcileStatus,
-} from '@/shared/theme/runtime';
+} from '@mss-admin-core/shared/theme/runtime';
+import type { QueryClient } from '@tanstack/react-query';
 
 export interface AppliedThemeResource {
   resource: ThemeScopeResource;

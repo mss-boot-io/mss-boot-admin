@@ -1,8 +1,11 @@
+import { queryKeys } from '@mss-admin-core/shared/query/client';
+import {
+  parseApplicationProfile,
+  parseThemeScopeResource,
+} from '@mss-admin-core/shared/theme/contract';
+import { getThemeRuntimeSnapshot, replaceThemeRuntime } from '@mss-admin-core/shared/theme/runtime';
 import { QueryClient } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { queryKeys } from '@/shared/query/client';
-import { parseApplicationProfile, parseThemeScopeResource } from '@/shared/theme/contract';
-import { getThemeRuntimeSnapshot, replaceThemeRuntime } from '@/shared/theme/runtime';
 import { applyCanonicalThemeResource } from './apply';
 
 describe('canonical theme application', () => {

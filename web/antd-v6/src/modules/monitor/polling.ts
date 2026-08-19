@@ -1,4 +1,4 @@
-import { getRequestStatus } from '@/shared/api/errors';
+import { getRequestStatus } from '@mss-admin-core/shared/api/errors';
 import type { MonitorSnapshot } from './contract';
 
 export const MONITOR_BASE_REFRESH_MS = 5_000;

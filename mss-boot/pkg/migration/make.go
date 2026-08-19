@@ -193,6 +193,44 @@ func (e *Migration) ValidateRegistrations() error {
 	return e.validateRegistrationsLocked()
 }
 
+// CloneRegistrations returns an isolated runner containing the same migration
+// registrations as e. Database handles, version models, and execution state are
+// deliberately not copied. Application composition roots use this to start
+// from the Admin core migration set and then add an explicit set of business
+// modules without mutating process-global registration state.
+func (e *Migration) CloneRegistrations() (*Migration, error) {
+	if e == nil {
+		return nil, fmt.Errorf("%w: migration runner is nil", ErrMigrationNotReady)
+	}
+
+	e.mutex.RLock()
+	if err := e.validateRegistrationsLocked(); err != nil {
+		e.mutex.RUnlock()
+		return nil, err
+	}
+	registrations := make([]registeredMigration, 0, len(e.versions))
+	for _, registered := range e.versions {
+		registered.legacyIDs = append([]MigrationID(nil), registered.legacyIDs...)
+		registrations = append(registrations, registered)
+	}
+	e.mutex.RUnlock()
+
+	sort.Slice(registrations, func(i, j int) bool {
+		return migrationIDLess(registrations[i].id, registrations[j].id)
+	})
+	clone := New()
+	for _, registered := range registrations {
+		if err := clone.RegisterWithLegacyIDs(
+			registered.id,
+			registered.legacyIDs,
+			registered.run,
+		); err != nil {
+			return nil, fmt.Errorf("clone migration %s: %w", registered.id, err)
+		}
+	}
+	return clone, nil
+}
+
 func (e *Migration) validateRegistrationsLocked() error {
 	if len(e.registrationErrors) == 0 {
 		return nil
@@ -274,6 +312,21 @@ func newVersion(modelType reflect.Type) (Version, error) {
 	return model, nil
 }
 
+type executionContextKey struct{}
+
+type executionContext struct {
+	runner    *Migration
+	modelType reflect.Type
+}
+
+func migrationExecution(ctx context.Context) (executionContext, bool) {
+	if ctx == nil {
+		return executionContext{}, false
+	}
+	execution, ok := ctx.Value(executionContextKey{}).(executionContext)
+	return execution, ok && execution.runner != nil && execution.modelType != nil
+}
+
 func (e *Migration) CreateVersion(tx *gorm.DB, version string) error {
 	if tx == nil {
 		return fmt.Errorf("%w: database is nil", ErrMigrationNotReady)
@@ -282,7 +335,18 @@ func (e *Migration) CreateVersion(tx *gorm.DB, version string) error {
 	if err != nil {
 		return err
 	}
-	m, err := e.cloneModel()
+	var m Version
+	if tx.Statement != nil {
+		// A cloned registration can retain a legacy callback that closes over its
+		// source runner. The execution context rebinds only the bookkeeping model
+		// to the currently executing clone without mutating process-global state.
+		if execution, ok := migrationExecution(tx.Statement.Context); ok {
+			m, err = newVersion(execution.modelType)
+		}
+	}
+	if m == nil && err == nil {
+		m, err = e.cloneModel()
+	}
 	if err != nil {
 		return err
 	}
@@ -344,7 +408,8 @@ func (e *Migration) MigrateContext(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("migration canceled before execution: %w", err)
 	}
-	db := snapshot.db.WithContext(ctx)
+	execution := executionContext{runner: e, modelType: snapshot.modelType}
+	db := snapshot.db.WithContext(context.WithValue(ctx, executionContextKey{}, execution))
 	for _, registered := range snapshot.versions {
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("migration %s canceled: %w", registered.id, err)

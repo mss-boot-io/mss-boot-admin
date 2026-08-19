@@ -1,0 +1,20 @@
+apiVersion: mss.io/v1alpha1
+kind: CapabilityCatalog
+metadata:
+  project: __MSS_APP_NAME__
+spec:
+  statuses:
+    stable: supported for production business modules
+  capabilities:
+    - id: admin.complete-distribution
+      displayName: Complete Admin Distribution
+      status: stable
+      owners: [platform]
+      paths: [.mss/project.yaml, .mss/lock.yaml]
+      guidance: Consume the pinned Admin backend and frontend as one coordinated product.
+    - id: business.vertical-modules
+      displayName: Vertical Business Modules
+      status: stable
+      owners: [product-engineering]
+      paths: [.mss/modules, internal/modules, web/src/generated, web/src/business]
+      guidance: Change the AdminModule specification before regenerating managed business code.

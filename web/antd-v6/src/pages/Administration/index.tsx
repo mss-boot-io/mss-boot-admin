@@ -1,14 +1,14 @@
+import DepartmentManagement from '@mss-admin-core/modules/administration/DepartmentManagement';
+import MenuManagement from '@mss-admin-core/modules/administration/MenuManagement';
+import PostManagement from '@mss-admin-core/modules/administration/PostManagement';
+import RoleManagement from '@mss-admin-core/modules/administration/RoleManagement';
+import UserManagement from '@mss-admin-core/modules/administration/UserManagement';
+import { hasPermission, isRootIdentity } from '@mss-admin-core/shared/auth/access';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageContainer } from '@mss-admin-core/shared/design-system/PageContainer';
+import { PageForbidden } from '@mss-admin-core/shared/design-system/PageState';
+import type { ManagementRouteIntent } from '@mss-admin-core/shared/navigation/managementRoute';
 import { useIntl, useLocation, useModel } from '@umijs/max';
-import DepartmentManagement from '@/modules/administration/DepartmentManagement';
-import MenuManagement from '@/modules/administration/MenuManagement';
-import PostManagement from '@/modules/administration/PostManagement';
-import RoleManagement from '@/modules/administration/RoleManagement';
-import UserManagement from '@/modules/administration/UserManagement';
-import { hasPermission, isRootIdentity } from '@/shared/auth/access';
-import type { InitialState } from '@/shared/auth/types';
-import { PageContainer } from '@/shared/design-system/PageContainer';
-import { PageForbidden } from '@/shared/design-system/PageState';
-import type { ManagementRouteIntent } from '@/shared/navigation/managementRoute';
 
 interface AdministrationRouteDefinition {
   description: string;

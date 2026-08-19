@@ -17,6 +17,8 @@
     "types": ["node", "vitest/globals"],
     "paths": {
       "@/*": ["./src/*"],
+      "@mss-admin-core/*": ["./src/*"],
+      "@mss-admin-business/routes": ["./src/generated/routes.ts"],
       "@@/*": ["./src/.umi/*"],
       "@@test/*": ["./src/.umi-test/*"]
     }

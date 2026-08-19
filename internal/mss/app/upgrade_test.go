@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -37,6 +38,56 @@ func TestUpgradeApplicationDefersRootModuleIdentityToManifest(t *testing.T) {
 	}
 }
 
+func TestUpgradeAdminCommandDefaultsToPlanAndRequiresApplyConfirmation(t *testing.T) {
+	rootOverride := ""
+	command := newUpgradeAdminCommand(&rootOverride)
+	if flag := command.Flags().Lookup("apply"); flag == nil || flag.DefValue != "false" {
+		t.Fatalf("Admin Distribution apply flag = %#v", flag)
+	}
+	command.SetArgs([]string{"v1.4.0", "--foundation", t.TempDir(), "--apply"})
+	command.SilenceUsage = true
+	command.SilenceErrors = true
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "--yes is required with --apply") {
+		t.Fatalf("unconfirmed Admin Distribution apply error = %v", err)
+	}
+
+	command = newUpgradeAdminCommand(&rootOverride)
+	command.SetArgs([]string{"v1.4.0", "--foundation", t.TempDir(), "--yes"})
+	command.SilenceUsage = true
+	command.SilenceErrors = true
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "--yes is only valid together with --apply") {
+		t.Fatalf("plan with stray confirmation error = %v", err)
+	}
+}
+
+func TestUpgradePlanInputsUseProjectLayoutAndCanonicalCommands(t *testing.T) {
+	context := &project.Context{
+		Project: project.ProjectDocument{Spec: project.ProjectSpec{
+			RepositoryLayout: map[string]string{"specifications": "contracts"},
+		}},
+		Commands: project.CommandCatalog{Spec: project.CommandCatalogSpec{Commands: map[string]project.Command{
+			"backend-test":   {Command: "GOWORK=off go test ./..."},
+			"frontend-build": {Command: "corepack pnpm --dir web build"},
+			"verify":         {Command: "make verify"},
+		}}},
+	}
+	if got := upgradeModuleSpecificationsPath(context); got != filepath.ToSlash("contracts/modules") {
+		t.Fatalf("module specification path = %q", got)
+	}
+	commands := upgradeValidationCommands(context)
+	for _, expected := range []string{"mss doctor --strict --format json", "GOWORK=off go test ./...", "corepack pnpm --dir web build", "make verify"} {
+		if !containsAppString(commands, expected) {
+			t.Errorf("validation commands %q omit %q", commands, expected)
+		}
+	}
+	paths := upgradePreservedBusinessPaths(context)
+	for _, expected := range []string{"contracts/modules", "contracts/features"} {
+		if !containsAppString(paths, expected) {
+			t.Errorf("preserved business paths %q omit %q", paths, expected)
+		}
+	}
+}
+
 func TestUpgradeApplicationHandlesNilContext(t *testing.T) {
 	if application := upgradeApplication(nil); application.Name != "" || application.Module != "" {
 		t.Fatalf("nil project context produced %#v", application)
@@ -55,6 +106,12 @@ func TestWriteUpgradeStatusPreservesFlatJSONAndReportsFourIdentities(t *testing.
 			FoundationCommit:     strings.Repeat("a", 40),
 			GeneratorVersion:     "1.1.0",
 			GeneratorCommit:      strings.Repeat("b", 40),
+		},
+		Distribution: project.DistributionSpec{
+			Name:     "mss-boot-admin",
+			Version:  "v1.3.0",
+			Backend:  project.DistributionBackendSpec{Module: "github.com/mss-boot-io/mss-boot-admin/admin", Version: "v1.3.0"},
+			Frontend: project.DistributionFrontendSpec{Package: "@mss-boot-io/admin-web", Version: "1.3.0"},
 		},
 		Identities: blueprint.IdentitySet{
 			Foundation: blueprint.FoundationIdentity{Repository: "mss-boot-io/mss-boot-admin", Version: "1.1.0", Commit: strings.Repeat("a", 40)},
@@ -85,12 +142,16 @@ func TestWriteUpgradeStatusPreservesFlatJSONAndReportsFourIdentities(t *testing.
 	if _, ok := document["records"].(map[string]any); !ok {
 		t.Fatalf("records = %#v", document["records"])
 	}
+	if distribution, ok := document["distribution"].(map[string]any); !ok || distribution["version"] != "v1.3.0" {
+		t.Fatalf("status Distribution = %#v", document["distribution"])
+	}
 
 	output.Reset()
 	if err := writeUpgradeStatus(&output, status, "text"); err != nil {
 		t.Fatalf("writeUpgradeStatus(text) error = %v", err)
 	}
 	for _, expected := range []string{
+		"admin distribution: mss-boot-admin@v1.3.0",
 		"blueprint: management-system@0.2.1-ci sha256 ",
 		"foundation: mss-boot-io/mss-boot-admin@1.1.0 commit ",
 		"generator: mss@1.1.0 commit ",
@@ -101,4 +162,13 @@ func TestWriteUpgradeStatusPreservesFlatJSONAndReportsFourIdentities(t *testing.
 			t.Errorf("text status is missing %q:\n%s", expected, output.String())
 		}
 	}
+}
+
+func containsAppString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
 }

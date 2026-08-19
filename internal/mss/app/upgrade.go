@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -18,7 +20,35 @@ func newUpgradeCommand(rootOverride *string) *cobra.Command {
 	}
 	command.AddCommand(newUpgradePlanCommand(rootOverride))
 	command.AddCommand(newUpgradeApplyCommand(rootOverride))
+	command.AddCommand(newUpgradeAdminCommand(rootOverride))
 	command.AddCommand(newUpgradeStatusCommand(rootOverride))
+	return command
+}
+
+func newUpgradeAdminCommand(rootOverride *string) *cobra.Command {
+	var foundation string
+	var blueprintName string
+	var manifestPath string
+	var format string
+	var apply bool
+	var yes bool
+	command := &cobra.Command{
+		Use:   "admin <vX.Y.Z>",
+		Short: "Plan or apply one coordinated Admin Distribution upgrade",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if apply && !yes {
+				return fmt.Errorf("--yes is required with --apply for an Admin Distribution upgrade")
+			}
+			if yes && !apply {
+				return fmt.Errorf("--yes is only valid together with --apply")
+			}
+			return runAdminDistributionUpgrade(cmd, rootOverride, args[0], foundation, blueprintName, manifestPath, apply, format)
+		},
+	}
+	addUpgradeFlags(command, &foundation, &blueprintName, &manifestPath, &format)
+	command.Flags().BoolVar(&apply, "apply", false, "apply the reviewed conflict-free Distribution plan; default is read-only")
+	command.Flags().BoolVar(&yes, "yes", false, "confirm applying the complete Admin Distribution upgrade")
 	return command
 }
 
@@ -102,10 +132,11 @@ func writeUpgradeStatus(writer io.Writer, status blueprint.SnapshotStatus, forma
 	case "text":
 		_, err := fmt.Fprintf(
 			writer,
-			"project: %s\nmodule: %s\nrepository: %s\nblueprint: %s@%s sha256 %s\nfoundation: %s@%s commit %s\ngenerator: %s@%s commit %s\nsnapshot: %s\nlock: %s sha256 %s\nmanifest: %s\n",
+			"project: %s\nmodule: %s\nrepository: %s\nadmin distribution: %s\nblueprint: %s@%s sha256 %s\nfoundation: %s@%s commit %s\ngenerator: %s@%s commit %s\nsnapshot: %s\nlock: %s sha256 %s\nmanifest: %s\n",
 			status.Project,
 			status.Module,
 			status.Repository,
+			upgradeDistributionSummary(status.Distribution),
 			status.Identities.Blueprint.Name,
 			status.Identities.Blueprint.Version,
 			status.Identities.Blueprint.SHA256,
@@ -148,17 +179,136 @@ func runFoundationUpgrade(
 		return err
 	}
 	plan, upgradeErr := blueprint.Upgrade(command.Context(), blueprint.UpgradeOptions{
-		ApplicationRoot: projectContext.Root,
-		FoundationRoot:  foundation,
-		ManifestPath:    manifestPath,
-		Blueprint:       blueprintName,
-		Application:     upgradeApplication(projectContext),
-		Write:           write,
+		ApplicationRoot:          projectContext.Root,
+		FoundationRoot:           foundation,
+		ManifestPath:             manifestPath,
+		Blueprint:                blueprintName,
+		Application:              upgradeApplication(projectContext),
+		ModuleSpecificationsPath: upgradeModuleSpecificationsPath(projectContext),
+		PreservedBusinessPaths:   upgradePreservedBusinessPaths(projectContext),
+		ValidationCommands:       upgradeValidationCommands(projectContext),
+		Write:                    write,
 	})
 	if outputErr := writeUpgradePlan(command.OutOrStdout(), plan, format); outputErr != nil {
 		return outputErr
 	}
 	return upgradeErr
+}
+
+func runAdminDistributionUpgrade(
+	command *cobra.Command,
+	rootOverride *string,
+	requestedVersion string,
+	foundation string,
+	blueprintName string,
+	manifestPath string,
+	write bool,
+	format string,
+) error {
+	projectContext, err := loadProject(*rootOverride)
+	if err != nil {
+		return err
+	}
+	plan, upgradeErr := blueprint.Upgrade(command.Context(), blueprint.UpgradeOptions{
+		ApplicationRoot:              projectContext.Root,
+		FoundationRoot:               foundation,
+		ManifestPath:                 manifestPath,
+		Blueprint:                    blueprintName,
+		Application:                  upgradeApplication(projectContext),
+		RequestedDistributionVersion: requestedVersion,
+		ModuleSpecificationsPath:     upgradeModuleSpecificationsPath(projectContext),
+		PreservedBusinessPaths:       upgradePreservedBusinessPaths(projectContext),
+		ValidationCommands:           upgradeValidationCommands(projectContext),
+		Write:                        write,
+	})
+	if outputErr := writeUpgradePlan(command.OutOrStdout(), plan, format); outputErr != nil {
+		return outputErr
+	}
+	return upgradeErr
+}
+
+func upgradeModuleSpecificationsPath(projectContext *project.Context) string {
+	if projectContext == nil {
+		return ".mss/modules"
+	}
+	specifications := strings.TrimSpace(projectContext.Project.Spec.RepositoryLayout["specifications"])
+	if specifications == "" {
+		specifications = ".mss"
+	}
+	return filepath.ToSlash(filepath.Join(filepath.FromSlash(specifications), "modules"))
+}
+
+func upgradeValidationCommands(projectContext *project.Context) []string {
+	commands := []string{"mss doctor --strict --format json"}
+	if projectContext == nil {
+		return append(commands, "mss verify --all")
+	}
+	for _, name := range []string{"backend-test", "backend-build", "frontend-lint", "frontend-test", "frontend-build", "verify"} {
+		entry, ok := projectContext.Commands.Spec.Commands[name]
+		if !ok || strings.TrimSpace(entry.Command) == "" {
+			continue
+		}
+		commands = append(commands, strings.TrimSpace(entry.Command))
+	}
+	if len(commands) == 1 {
+		commands = append(commands, "mss verify --all")
+	}
+	return commands
+}
+
+func upgradePreservedBusinessPaths(projectContext *project.Context) []string {
+	if projectContext == nil {
+		return nil
+	}
+	layout := projectContext.Project.Spec.RepositoryLayout
+	specifications := strings.TrimSpace(layout["specifications"])
+	if specifications == "" {
+		specifications = ".mss"
+	}
+	frontend := strings.TrimSpace(layout["frontend"])
+	paths := []string{
+		strings.TrimSpace(layout["modules"]),
+		strings.TrimSpace(layout["generated"]),
+		filepath.ToSlash(filepath.Join(filepath.FromSlash(specifications), "modules")),
+		filepath.ToSlash(filepath.Join(filepath.FromSlash(specifications), "features")),
+	}
+	if frontend != "" {
+		paths = append(paths, filepath.ToSlash(filepath.Join(filepath.FromSlash(frontend), "src", "business")))
+	}
+	documentation := strings.TrimSpace(layout["documentation"])
+	if documentation != "" {
+		if projectContext.LayoutKind() == "foundation" {
+			paths = append(paths, filepath.ToSlash(filepath.Join(filepath.FromSlash(documentation), "docs", "modules")))
+		} else {
+			paths = append(paths, filepath.ToSlash(filepath.Join(filepath.FromSlash(documentation), "modules")))
+		}
+	}
+	result := make([]string, 0, len(paths))
+	seen := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path == "" || seen[path] {
+			continue
+		}
+		seen[path] = true
+		result = append(result, path)
+	}
+	return result
+}
+
+func upgradeDistributionSummary(distribution project.DistributionSpec) string {
+	if distribution.Empty() {
+		return "unrecorded"
+	}
+	return fmt.Sprintf(
+		"%s@%s (backend %s@%s, frontend %s@%s)",
+		distribution.Name,
+		distribution.Version,
+		distribution.Backend.Module,
+		distribution.Backend.Version,
+		distribution.Frontend.Package,
+		distribution.Frontend.Version,
+	)
 }
 
 // upgradeApplication intentionally leaves Module empty. The Blueprint manifest

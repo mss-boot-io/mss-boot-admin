@@ -5,7 +5,7 @@ description: Create a new standalone management-system repository from the MSS f
 
 # Create a new MSS application
 
-Generate a complete downstream application from a versioned blueprint. The blueprint copies only Git-tracked foundation files, applies deterministic project/module substitutions, omits local state and historical prompt archives, and records content hashes for later three-way upgrades.
+Generate a Thin Business Host from a versioned Admin Distribution Blueprint. The host pins the complete Admin Go and npm dependencies, contains only application composition glue and business-owned extension locations, and records managed-file hashes for later three-way upgrades. It does not copy the Foundation's backend or frontend core sources.
 
 ## Required inputs
 
@@ -37,7 +37,9 @@ Generate a complete downstream application from a versioned blueprint. The bluep
 3. Review:
    - destination and whether it is empty;
    - module and repository substitutions;
-   - excluded local/runtime files;
+   - exact Admin Distribution, Admin Go, Framework, and Admin Web versions;
+   - generated backend registry and frontend config/runtime/locale glue;
+   - excluded Foundation core, local, and runtime files;
    - file count, conflicts, and total bytes;
    - generated `.mss/lock.yaml` and `.mss/blueprint-manifest.json` provenance.
 
@@ -63,7 +65,8 @@ Generate a complete downstream application from a versioned blueprint. The bluep
    ```
 
 6. Commit the generated baseline before adding business modules. The generated Git repository is intentionally not auto-committed.
-7. Add business capabilities through `$mss-add-module`; do not edit foundation templates for application-specific behavior.
+7. Add business capabilities through `$mss-add-module`; generated modules compile into the same backend binary and frontend `dist` as the complete Admin.
+8. Keep application-specific behavior under the generated business paths. Do not copy or edit Foundation core sources in the Thin Host.
 
 ## Guardrails
 
@@ -72,8 +75,10 @@ Generate a complete downstream application from a versioned blueprint. The bluep
 - An explicit destination may be outside the foundation checkout only for this application-creation workflow; review it before `--write`.
 - Never copy `.git`, reports, PID state, logs, caches, build output, `node_modules`, or archived one-off prompts.
 - Preserve the generated lock and blueprint manifest; they are the base side of future three-way upgrades.
+- Preserve exact coordinated dependency versions and the generated single-runtime frontend overrides; do not replace them with ranges or local paths.
+- A Thin Host must retain the generated `web/tsconfig.json`, `web/config/config.ts`, app/access/locale glue, and empty generated registries even before its first business module is added.
 - Do not select a moving development foundation for a production application without explicitly documenting that risk.
 
 ## Output
 
-Report the destination, application module/repository, blueprint version, foundation commit, generated file count, conflicts, Git initialization status, validation results, and next module-development step.
+Report the destination, application module/repository, Admin Distribution and component versions, blueprint version, foundation commit, generated file count, conflicts, Git initialization status, validation results, and next module-development step.

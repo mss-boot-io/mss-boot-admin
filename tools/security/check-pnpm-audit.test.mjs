@@ -4,8 +4,12 @@ import test from 'node:test';
 import {
   assertSpawnCompleted,
   buildAuditArguments,
+  classifyAuditAdvisory,
   validateAcceptanceDocument,
   validateAuditReport,
+  validateBuildOnlyAcceptanceCoverage,
+  validateBuildOnlyResolutionCoverage,
+  validateDistributionDependencyContract,
   validatePnpmVersion,
 } from './check-pnpm-audit.mjs';
 
@@ -45,6 +49,25 @@ const validReport = () => ({
   },
 });
 
+const validDistributionPackage = () => ({
+  dependencies: {
+    '@umijs/max': '4.7.5',
+    react: '19.2.8',
+  },
+  devDependencies: {
+    '@playwright/test': '1.62.1',
+  },
+  mssAdminDistribution: {
+    dependencyClasses: {
+      runtime: ['react'],
+      tooling: ['@umijs/max'],
+    },
+    buildOnlyDependencies: {
+      'image-size': ['0.5.5'],
+    },
+  },
+});
+
 test('accepts valid acceptance and audit documents', () => {
   assert.equal(validateAcceptanceDocument(validAcceptance()).acceptances.length, 1);
   assert.equal(validateAuditReport(validReport()).length, 1);
@@ -54,6 +77,94 @@ test('requests complete advisory details from pnpm audit', () => {
   assert.deepEqual(buildAuditArguments(false), ['audit', '--json']);
   assert.deepEqual(buildAuditArguments(true), ['audit', '--json', '--prod']);
   assert.equal(buildAuditArguments(false).includes('--audit-level=critical'), false);
+});
+
+test('requires complete, disjoint, and stable Admin Web dependency classes', () => {
+  const contract = validateDistributionDependencyContract(validDistributionPackage());
+  assert.deepEqual([...contract.runtimeRoots], ['react']);
+  assert.deepEqual([...contract.toolingRoots], ['@umijs/max']);
+  assert.deepEqual([...contract.developmentRoots], ['@playwright/test']);
+  assert.deepEqual([...contract.buildOnlyResolutions], [
+    ['image-size', new Set(['0.5.5'])],
+  ]);
+
+  const missing = validDistributionPackage();
+  missing.mssAdminDistribution.dependencyClasses.tooling = [];
+  assert.throws(() => validateDistributionDependencyContract(missing), /non-empty array/);
+
+  const overlap = validDistributionPackage();
+  overlap.mssAdminDistribution.dependencyClasses.tooling = ['react'];
+  assert.throws(() => validateDistributionDependencyContract(overlap), /classes overlap/);
+
+  const unclassified = validDistributionPackage();
+  unclassified.dependencies.antd = '6.6.0';
+  assert.throws(() => validateDistributionDependencyContract(unclassified), /missing=antd/);
+
+  const unsorted = validDistributionPackage();
+  unsorted.mssAdminDistribution.buildOnlyDependencies['image-size'] = ['2.0.0', '0.5.5'];
+  assert.throws(() => validateDistributionDependencyContract(unsorted), /stable sorted order/);
+});
+
+test('classifies every advisory path from the published dependency boundary', () => {
+  const contract = validateDistributionDependencyContract(validDistributionPackage());
+  const advisory = validReport().advisories[1];
+
+  advisory.findings = [{ version: '1.0.0', paths: ['.>@umijs/max>image-size'] }];
+  assert.equal(classifyAuditAdvisory(advisory, contract), 'tooling');
+
+  advisory.findings = [{ version: '1.0.0', paths: ['.>@playwright/test>image-size'] }];
+  assert.equal(classifyAuditAdvisory(advisory, contract), 'tooling');
+
+  advisory.findings = [
+    {
+      version: '1.0.0',
+      paths: ['.>@umijs/max>image-size', '.>react>image-size'],
+    },
+  ];
+  assert.equal(classifyAuditAdvisory(advisory, contract), 'runtime');
+
+  advisory.findings = [{ version: '1.0.0', paths: ['.>unknown>image-size'] }];
+  assert.throws(() => classifyAuditAdvisory(advisory, contract), /unclassified dependency root/);
+});
+
+test('binds build-only package declarations to exact scoped acceptances', () => {
+  const contract = validateDistributionDependencyContract(validDistributionPackage());
+  const accepted = new Map([
+    [
+      'GHSA-w3rx-r6r6-pgpr',
+      { advisory: 'GHSA-w3rx-r6r6-pgpr', package: 'image-size' },
+    ],
+  ]);
+  assert.doesNotThrow(() => validateBuildOnlyAcceptanceCoverage(accepted, contract));
+
+  accepted.set('GHSA-c27g-q93r-2cwf', {
+    advisory: 'GHSA-c27g-q93r-2cwf',
+    package: 'vite',
+  });
+  assert.throws(
+    () => validateBuildOnlyAcceptanceCoverage(accepted, contract),
+    /missing=vite/,
+  );
+});
+
+test('binds accepted build-only advisories to exact installed versions', () => {
+  const contract = validateDistributionDependencyContract(validDistributionPackage());
+  const advisory = validReport().advisories[1];
+  advisory.findings = [
+    { version: '0.5.5', paths: ['.>@umijs/max>less>image-size'] },
+  ];
+  assert.doesNotThrow(() => validateBuildOnlyResolutionCoverage([advisory], contract));
+
+  advisory.findings[0].version = '0.5.6';
+  assert.throws(
+    () => validateBuildOnlyResolutionCoverage([advisory], contract),
+    /observed undeclared image-size@0.5.6/,
+  );
+
+  assert.throws(
+    () => validateBuildOnlyResolutionCoverage([], contract),
+    /expected=0.5.5; observed=<none>/,
+  );
 });
 
 test('requires each package pin and subprocess to use its governed pnpm version', () => {

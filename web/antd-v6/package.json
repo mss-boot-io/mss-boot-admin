@@ -1,9 +1,154 @@
 {
-  "name": "mss-boot-admin-antd-v6",
-  "version": "0.0.0-development",
-  "private": true,
-  "description": "Independent React 19 and Ant Design 6.6.0 management application for mss-boot.",
+  "name": "@mss-boot-io/admin-web",
+  "version": "1.3.0-development",
+  "description": "Complete React 19 and Ant Design 6 Admin application for mss-boot business hosts.",
   "packageManager": "pnpm@10.34.5",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mss-boot-io/mss-boot-admin.git",
+    "directory": "web/antd-v6"
+  },
+  "homepage": "https://docs.mss-boot-io.top/",
+  "bugs": {
+    "url": "https://github.com/mss-boot-io/mss-boot-admin/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "mssAdminDistribution": {
+    "packageManager": "pnpm@10.34.5",
+    "dependencyClasses": {
+      "runtime": [
+        "@ant-design/icons",
+        "@ant-design/pro-components",
+        "@tanstack/react-query",
+        "antd",
+        "antd-style",
+        "clsx",
+        "d",
+        "dayjs",
+        "react",
+        "react-dom"
+      ],
+      "tooling": [
+        "@biomejs/biome",
+        "@tailwindcss/postcss",
+        "@types/node",
+        "@types/react",
+        "@types/react-dom",
+        "@umijs/max",
+        "happy-dom",
+        "less",
+        "tailwindcss",
+        "typescript",
+        "vite",
+        "vitest"
+      ]
+    },
+    "buildOnlyDependencies": {
+      "image-size": [
+        "0.5.5"
+      ],
+      "immer": [
+        "8.0.4"
+      ],
+      "node-fetch": [
+        "1.7.3"
+      ],
+      "path-to-regexp": [
+        "1.7.0"
+      ],
+      "vite": [
+        "4.5.2"
+      ]
+    },
+    "runtimeOverrides": {
+      "@ant-design/pro-components": "3.1.14-6",
+      "@tanstack/react-query": "5.101.4",
+      "antd": "6.6.0",
+      "axios": "0.33.0",
+      "react": "19.2.8",
+      "react-dom": "19.2.8"
+    }
+  },
+  "files": [
+    "bin",
+    "package",
+    "public",
+    "scripts/check-bundle-budget.mjs",
+    "scripts/check-dependencies.mjs",
+    "scripts/check-release-api.mjs",
+    "scripts/check-runtime-bundle.mjs",
+    "src",
+    "tests/setup.ts",
+    "biome.json",
+    "postcss.config.cjs",
+    "tsconfig.json",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./package/runtime.ts",
+      "import": "./package/runtime.ts",
+      "default": "./package/runtime.ts"
+    },
+    "./business": {
+      "types": "./package/business.d.ts",
+      "require": "./package/business.cjs",
+      "default": "./package/business.cjs"
+    },
+    "./preset": {
+      "types": "./package/mssAdminPreset.d.ts",
+      "require": "./package/mssAdminPreset.cjs",
+      "default": "./package/mssAdminPreset.cjs"
+    },
+    "./runtime": {
+      "types": "./package/runtime.ts",
+      "import": "./package/runtime.ts",
+      "default": "./package/runtime.ts"
+    },
+    "./runtime/access": {
+      "types": "./src/access.ts",
+      "import": "./src/access.ts",
+      "default": "./src/access.ts"
+    },
+    "./runtime/app": {
+      "types": "./src/app.tsx",
+      "import": "./src/app.tsx",
+      "default": "./src/app.tsx"
+    },
+    "./runtime/locales/en-US": {
+      "types": "./package/locales/en-US.ts",
+      "import": "./package/locales/en-US.ts",
+      "default": "./package/locales/en-US.ts"
+    },
+    "./runtime/locales/zh-CN": {
+      "types": "./package/locales/zh-CN.ts",
+      "import": "./package/locales/zh-CN.ts",
+      "default": "./package/locales/zh-CN.ts"
+    },
+    "./styles": {
+      "import": "./src/global.tsx",
+      "default": "./src/global.tsx"
+    },
+    "./testing": {
+      "types": "./package/testing.ts",
+      "import": "./package/testing.ts",
+      "default": "./package/testing.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "mss-admin-web": "./bin/mss-admin-web.cjs"
+  },
+  "sideEffects": [
+    "**/*.css",
+    "./src/global.tsx"
+  ],
   "scripts": {
     "analyze": "cross-env ANALYZE=1 max build",
     "audit:release": "node ../../tools/security/check-pnpm-audit.mjs",
@@ -44,37 +189,45 @@
   "dependencies": {
     "@ant-design/icons": "6.3.2",
     "@ant-design/pro-components": "3.1.14-6",
-    "@tanstack/react-query": "5.101.4",
-    "antd": "6.6.0",
-    "antd-style": "4.1.0",
-    "clsx": "2.1.1",
-    "dayjs": "1.11.21",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
-  },
-  "devDependencies": {
     "@biomejs/biome": "2.5.8",
-    "@playwright/test": "1.62.1",
+    "@tanstack/react-query": "5.101.4",
     "@tailwindcss/postcss": "4.3.3",
-    "@testing-library/dom": "10.4.1",
-    "@testing-library/react": "16.3.2",
     "@types/node": "26.2.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@umijs/max": "4.7.5",
-    "cross-env": "10.1.0",
+    "antd": "6.6.0",
+    "antd-style": "4.1.0",
+    "clsx": "2.1.1",
+    "d": "1.0.2",
+    "dayjs": "1.11.21",
     "happy-dom": "20.11.2",
+    "less": "4.8.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
+    "vite": "8.2.1",
     "vitest": "4.1.10"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.2",
+    "cross-env": "10.1.0"
   },
   "engines": {
     "node": ">=24.0.0 <25",
     "pnpm": "10.34.5"
   },
   "pnpm": {
-    "patchedDependencies": {
-      "@rc-component/tabs@1.12.0": "patches/@rc-component__tabs@1.12.0.patch"
+    "overrides": {
+      "@ant-design/pro-components": "3.1.14-6",
+      "@tanstack/react-query": "5.101.4",
+      "antd": "6.6.0",
+      "axios": "0.33.0",
+      "react": "19.2.8",
+      "react-dom": "19.2.8"
     }
   }
 }

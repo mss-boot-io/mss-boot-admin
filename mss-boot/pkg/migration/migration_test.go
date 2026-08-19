@@ -139,6 +139,97 @@ func TestMigrationRegistrationPreflightRequiresNoDatabase(t *testing.T) {
 	}
 }
 
+func TestMigrationCloneRegistrationsIsIsolated(t *testing.T) {
+	source := New()
+	firstID := MigrationID("202608190001")
+	legacyID := MigrationID("1691804837583")
+	if err := source.RegisterWithLegacyIDs(
+		firstID,
+		[]MigrationID{legacyID},
+		func(*gorm.DB, string) error { return nil },
+	); err != nil {
+		t.Fatalf("register source migration: %v", err)
+	}
+
+	clone, err := source.CloneRegistrations()
+	if err != nil {
+		t.Fatalf("clone registrations: %v", err)
+	}
+	if clone.GetDb() != nil {
+		t.Fatal("cloned runner unexpectedly inherited database state")
+	}
+	if clone.Model != nil {
+		t.Fatal("cloned runner unexpectedly inherited version model state")
+	}
+
+	secondID := MigrationID("202608190002")
+	if err := clone.Register(secondID, func(*gorm.DB, string) error { return nil }); err != nil {
+		t.Fatalf("register clone-only migration: %v", err)
+	}
+	if err := source.Register(secondID, func(*gorm.DB, string) error { return nil }); err != nil {
+		t.Fatalf("clone mutation leaked into source runner: %v", err)
+	}
+
+	if err := clone.Register(legacyID, func(*gorm.DB, string) error { return nil }); !errors.Is(err, ErrDuplicateMigrationID) {
+		t.Fatalf("cloned legacy alias ownership error = %v, want duplicate ID", err)
+	}
+}
+
+func TestMigrationCloneRegistrationsRebindsVersionWritesToExecutingClone(t *testing.T) {
+	source := New()
+	id := MigrationID("202608190004")
+	if err := source.Register(id, func(db *gorm.DB, version string) error {
+		return db.Transaction(func(tx *gorm.DB) error {
+			return source.CreateVersion(tx, version)
+		})
+	}); err != nil {
+		t.Fatalf("register source migration: %v", err)
+	}
+
+	clone, err := source.CloneRegistrations()
+	if err != nil {
+		t.Fatalf("clone registrations: %v", err)
+	}
+	_, db := newMigrationTestRunner(t)
+	clone.SetDb(db)
+	clone.SetModel(&migrationmodels.Migration{})
+	if err := clone.MigrateContext(context.Background()); err != nil {
+		t.Fatalf("execute cloned migration: %v", err)
+	}
+
+	var rows int64
+	if err := db.Model(&migrationmodels.Migration{}).
+		Where("version = ?", id.String()).
+		Count(&rows).Error; err != nil {
+		t.Fatalf("count cloned migration version: %v", err)
+	}
+	if rows != 1 {
+		t.Fatalf("cloned migration version rows = %d, want one", rows)
+	}
+	if source.GetDb() != nil || source.Model != nil {
+		t.Fatalf("cloned execution mutated source state: db=%v model=%T", source.GetDb(), source.Model)
+	}
+}
+
+func TestMigrationCloneRegistrationsRejectsInvalidSource(t *testing.T) {
+	var nilRunner *Migration
+	if _, err := nilRunner.CloneRegistrations(); !errors.Is(err, ErrMigrationNotReady) {
+		t.Fatalf("nil clone error = %v, want migration not ready", err)
+	}
+
+	source := New()
+	migrationFn := func(*gorm.DB, string) error { return nil }
+	if err := source.Register(MigrationID("202608190003"), migrationFn); err != nil {
+		t.Fatalf("register first migration: %v", err)
+	}
+	if err := source.Register(MigrationID("202608190003"), migrationFn); !errors.Is(err, ErrDuplicateMigrationID) {
+		t.Fatalf("duplicate registration error = %v", err)
+	}
+	if _, err := source.CloneRegistrations(); !errors.Is(err, ErrDuplicateMigrationID) {
+		t.Fatalf("clone invalid source error = %v, want duplicate ID", err)
+	}
+}
+
 func TestMigrationTemplateUsesLosslessID(t *testing.T) {
 	templateSource, err := FS.ReadFile("migrate.tpl")
 	if err != nil {

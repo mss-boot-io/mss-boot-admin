@@ -28,7 +28,9 @@ jobs:
     environment: release-v6
     permissions:
       actions: read
+      attestations: write
       contents: write
+      id-token: write
       packages: write
       pull-requests: read
     steps:
@@ -86,15 +88,29 @@ jobs:
             --phase pre-framework \
             --policy ../../.mss/release-policy.yaml
 
-      - name: Refuse mutation of a public v6 release
+      - name: Require the already-published matching Admin release
         env:
+          FRONTEND_V6_VERSION: ${{ steps.version.outputs.version }}
+          FRONTEND_V6_PRERELEASE: ${{ steps.version.outputs.prerelease }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if release_json="$(gh release view "${GITHUB_REF_NAME}" --json isDraft 2>/dev/null)"; then
-            test "$(jq -r '.isDraft' <<< "${release_json}")" = 'true'
+          admin_tag="admin/${FRONTEND_V6_VERSION}"
+          admin_commit="$(git rev-parse "${admin_tag}^{commit}")"
+          if [[ "${admin_commit}" != "${GITHUB_SHA}" ]]; then
+            echo "Admin tag ${admin_tag} resolves to ${admin_commit}, not ${GITHUB_SHA}" >&2
+            exit 1
           fi
+          admin_release="$(
+            gh release view "${admin_tag}" \
+              --json tagName,isDraft,isPrerelease
+          )"
+          jq -e \
+            --arg tag "${admin_tag}" \
+            --argjson prerelease "${FRONTEND_V6_PRERELEASE}" \
+            '.tagName == $tag and .isDraft == false and .isPrerelease == $prerelease' \
+            <<< "${admin_release}" >/dev/null
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -112,6 +128,7 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: web/antd-v6/pnpm-lock.yaml
+          registry-url: https://registry.npmjs.org
 
       - name: Install frozen v6 dependency graph
         run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
@@ -150,7 +167,17 @@ jobs:
             echo "version=${RELEASE_VERSION}"
             echo "commit=${GITHUB_SHA}"
           } > FRONTEND-V6-BUILD-INFO
-          tar --create --gzip --file dist-v6.tar.gz dist
+          source_epoch="$(git show -s --format=%ct HEAD)"
+          tar \
+            --sort=name \
+            --mtime="@${source_epoch}" \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            --create \
+            --gzip \
+            --file dist-v6.tar.gz \
+            dist
           sha256sum dist-v6.tar.gz FRONTEND-V6-BUILD-INFO > SHA256SUMS.frontend-v6
           python3 ../../tools/release/check_portable_paths.py \
             dist \
@@ -160,6 +187,116 @@ jobs:
 
       - name: Smoke-test v6 production delivery
         run: pnpm run delivery:smoke
+
+      - name: Inject and qualify the Admin Distribution package version
+        env:
+          ADMIN_WEB_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          unprefixed_version="${ADMIN_WEB_VERSION#v}"
+          test "${unprefixed_version}" != "${ADMIN_WEB_VERSION}"
+          export UNPREFIXED_VERSION="${unprefixed_version}"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          if (manifest.name !== '@mss-boot-io/admin-web') {
+            throw new Error(`unexpected package name: ${manifest.name}`);
+          }
+          if (manifest.private === true) {
+            throw new Error('Admin Web package remains private');
+          }
+          manifest.version = process.env.UNPREFIXED_VERSION;
+          manifest.gitHead = process.env.GITHUB_SHA;
+          fs.writeFileSync('package.json', `${JSON.stringify(manifest, null, 2)}\n`);
+          NODE
+
+          package_dir="${RUNNER_TEMP}/admin-web-release-package"
+          mkdir -p "${package_dir}"
+          pnpm pack --pack-destination "${package_dir}" >/dev/null
+          mapfile -t tarballs < <(find "${package_dir}" -maxdepth 1 -type f -name '*.tgz' -print)
+          test "${#tarballs[@]}" -eq 1
+          tarball="${tarballs[0]}"
+          created="$(date -u -d "$(git show -s --format=%cI HEAD)" '+%Y-%m-%dT%H:%M:%SZ')"
+          pnpm list --prod --json --depth Infinity > "${package_dir}/pnpm-tree.json"
+          python3 ../../tools/release/verify_admin_web_package.py \
+            --tarball "${tarball}" \
+            --expected-name '@mss-boot-io/admin-web' \
+            --expected-version "${unprefixed_version}" \
+            --source-repository "${GITHUB_REPOSITORY}" \
+            --source-commit "${GITHUB_SHA}" \
+            --output "${package_dir}/admin-web-package.json"
+          python3 ../../tools/release/generate_admin_web_sbom.py \
+            --dependency-tree "${package_dir}/pnpm-tree.json" \
+            --package-evidence "${package_dir}/admin-web-package.json" \
+            --source-repository "${GITHUB_REPOSITORY}" \
+            --source-commit "${GITHUB_SHA}" \
+            --created "${created}" \
+            --output "${package_dir}/admin-web.spdx.json"
+          rm -f "${package_dir}/pnpm-tree.json"
+          (
+            cd "${package_dir}"
+            sha256sum -- *.tgz admin-web-package.json admin-web.spdx.json \
+              > SHA256SUMS.admin-web
+            sha256sum --check SHA256SUMS.admin-web
+          )
+          python3 ../../tools/release/check_portable_paths.py \
+            "${tarball}" \
+            "${package_dir}/admin-web-package.json" \
+            "${package_dir}/admin-web.spdx.json" \
+            "${package_dir}/SHA256SUMS.admin-web"
+
+      - name: Require protected npm credentials and reconcile version identity
+        id: npm-version
+        env:
+          ADMIN_WEB_VERSION: ${{ steps.version.outputs.version }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${NODE_AUTH_TOKEN}" ]]; then
+            echo 'NPM_TOKEN is required in the protected release-v6 environment; refusing to downgrade publication to a local-only success.' >&2
+            exit 1
+          fi
+          unprefixed_version="${ADMIN_WEB_VERSION#v}"
+          error_file="${RUNNER_TEMP}/npm-view-error.log"
+          if published_integrity="$(
+            npm view "@mss-boot-io/admin-web@${unprefixed_version}" \
+              dist.integrity --json 2> "${error_file}" | jq -er '.'
+          )"; then
+            expected_integrity="$(
+              jq -er '.artifact.integrity' \
+                "${RUNNER_TEMP}/admin-web-release-package/admin-web-package.json"
+            )"
+            if [[ "${published_integrity}" != "${expected_integrity}" ]]; then
+              echo "the existing npm version has different immutable content" >&2
+              exit 1
+            fi
+            echo 'publish=false' >> "${GITHUB_OUTPUT}"
+            rm -f "${error_file}"
+            exit 0
+          fi
+          if ! grep -q 'E404' "${error_file}"; then
+            echo 'npm registry availability check failed without an authoritative not-found response' >&2
+            sed -E 's#(//registry[^:]*:)(_authToken=)?[^[:space:]]+#\1[REDACTED]#g' "${error_file}" >&2
+            exit 1
+          fi
+          echo 'publish=true' >> "${GITHUB_OUTPUT}"
+          rm -f "${error_file}"
+
+      - name: Attest Admin Web package provenance
+        uses: actions/attest-build-provenance@00014ed6ed5efc5b1ab7f7f34a39eb55d41aa4f8 # v3.1.0
+        with:
+          subject-path: ${{ runner.temp }}/admin-web-release-package/*.tgz
+
+      - name: Upload Admin Web package evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: admin-web-package-release
+          path: |
+            ${{ runner.temp }}/admin-web-release-package/*.tgz
+            ${{ runner.temp }}/admin-web-release-package/admin-web-package.json
+            ${{ runner.temp }}/admin-web-release-package/admin-web.spdx.json
+            ${{ runner.temp }}/admin-web-release-package/SHA256SUMS.admin-web
+          if-no-files-found: error
 
       - name: Upload v6 build artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -184,6 +321,58 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
+      - name: Inspect immutable v6 image publication state
+        id: image-state
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          image_repository="${REGISTRY}/${IMAGE_NAME}"
+          version_ref="${image_repository}:${VERSION}"
+          commit_ref="${image_repository}:${GITHUB_SHA}"
+          error_file="${RUNNER_TEMP}/image-inspect-error.log"
+
+          if version_manifest="$(
+            docker buildx imagetools inspect "${version_ref}" \
+              --format '{{json .Manifest}}' 2> "${error_file}"
+          )"; then
+            digest="$(jq -er '.digest' <<< "${version_manifest}")"
+            [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+            commit_manifest="$(
+              docker buildx imagetools inspect "${commit_ref}" \
+                --format '{{json .Manifest}}'
+            )"
+            if [[ "$(jq -er '.digest' <<< "${commit_manifest}")" != "${digest}" ]]; then
+              echo "immutable version and commit image tags resolve to different digests" >&2
+              exit 1
+            fi
+            {
+              echo 'exists=true'
+              echo "digest=${digest}"
+            } >> "${GITHUB_OUTPUT}"
+            rm -f "${error_file}"
+            exit 0
+          fi
+
+          if ! grep -Eqi 'manifest unknown|not found|name_unknown' "${error_file}"; then
+            echo 'registry inspection failed without an authoritative not-found response' >&2
+            sed -E 's#(https?://)[^/@[:space:]]+@#\1[REDACTED]@#g' "${error_file}" >&2
+            exit 1
+          fi
+          rm -f "${error_file}"
+          if docker buildx imagetools inspect "${commit_ref}" \
+            --format '{{json .Manifest}}' > /dev/null 2> "${error_file}"; then
+            echo "commit image tag exists while version tag is absent; refusing to overwrite it" >&2
+            exit 1
+          fi
+          if ! grep -Eqi 'manifest unknown|not found|name_unknown' "${error_file}"; then
+            echo 'commit-tag inspection failed without an authoritative not-found response' >&2
+            sed -E 's#(https?://)[^/@[:space:]]+@#\1[REDACTED]@#g' "${error_file}" >&2
+            exit 1
+          fi
+          rm -f "${error_file}"
+          echo 'exists=false' >> "${GITHUB_OUTPUT}"
+
       - name: Extract v6 Docker metadata
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
@@ -191,11 +380,11 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ steps.version.outputs.version }}
-            type=raw,value=latest,enable=${{ steps.version.outputs.prerelease == 'false' }}
             type=sha,prefix=,format=long
 
       - name: Build and push v6 Docker image
         id: build
+        if: steps.image-state.outputs.exists != 'true'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: web/antd-v6
@@ -213,22 +402,77 @@ jobs:
 
       - name: Verify published v6 image identity
         id: image
+        env:
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+          EXISTING_DIGEST: ${{ steps.image-state.outputs.digest }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          digest="${{ steps.build.outputs.digest }}"
+          digest="${EXISTING_DIGEST:-${BUILD_DIGEST}}"
           [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          image="${REGISTRY}/${IMAGE_NAME}@${digest}"
-          docker pull "${image}" >/dev/null
-          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.title" }}' "${image}")" = 'mss-boot-admin-antd-v6'
-          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "${image}")" = '${{ steps.version.outputs.version }}'
-          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${image}")" = "${GITHUB_SHA}"
-          release_json="$(docker run --rm --entrypoint cat "${image}" /usr/share/nginx/html/release.json)"
+          image_repository="${REGISTRY}/${IMAGE_NAME}"
+          version_ref="${image_repository}:${VERSION}"
+          commit_ref="${image_repository}:${GITHUB_SHA}"
+          image="${image_repository}@${digest}"
+
+          version_manifest="$(
+            docker buildx imagetools inspect "${version_ref}" \
+              --format '{{json .Manifest}}'
+          )"
+          commit_manifest="$(
+            docker buildx imagetools inspect "${commit_ref}" \
+              --format '{{json .Manifest}}'
+          )"
           jq -e \
-            --arg version '${{ steps.version.outputs.version }}' \
-            --arg commit "${GITHUB_SHA}" \
-            '.application == "mss-boot-admin-antd-v6" and .version == $version and .commit == $commit' \
-            <<< "${release_json}" >/dev/null
+            --arg digest "${digest}" \
+            '.digest == $digest and
+             ([.manifests[] | select(
+               .platform.os == "linux" and .platform.architecture == "amd64"
+             )] | length) == 1 and
+             ([.manifests[] | select(
+               .platform.os == "linux" and .platform.architecture == "arm64"
+             )] | length) == 1' \
+            <<< "${version_manifest}" >/dev/null
+          test "$(jq -er '.digest' <<< "${commit_manifest}")" = "${digest}"
+
+          container_id=''
+          cleanup_container() {
+            if [[ -n "${container_id}" ]]; then
+              docker rm -f "${container_id}" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup_container EXIT
+          for architecture in amd64 arm64; do
+            container_id="$(docker create --platform "linux/${architecture}" "${image}")"
+            test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.title" }}' "${container_id}")" = 'mss-boot-admin-antd-v6'
+            test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "${container_id}")" = "${VERSION}"
+            test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${container_id}")" = "${GITHUB_SHA}"
+            release_file="${RUNNER_TEMP}/release-${architecture}.json"
+            docker cp \
+              "${container_id}:/usr/share/nginx/html/release.json" \
+              "${release_file}"
+            jq -e \
+              --arg version "${VERSION}" \
+              --arg commit "${GITHUB_SHA}" \
+              '.application == "mss-boot-admin-antd-v6" and
+               .version == $version and .commit == $commit' \
+              "${release_file}" >/dev/null
+            docker rm "${container_id}" >/dev/null
+            container_id=''
+          done
+          trap - EXIT
           echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish immutable Admin Web npm package with provenance
+        if: steps.npm-version.outputs.publish == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          mapfile -t tarballs < <(find "${RUNNER_TEMP}/admin-web-release-package" \
+            -maxdepth 1 -type f -name '*.tgz' -print)
+          test "${#tarballs[@]}" -eq 1
+          npm publish "${tarballs[0]}" --access public --provenance
 
       - name: Publish immutable v6 GitHub release
         env:
@@ -242,7 +486,14 @@ jobs:
           tag="${GITHUB_REF_NAME}"
           title="mss-boot-admin-antd-v6 ${VERSION}"
           body="$(mktemp)"
-          trap 'rm -f "${body}"' EXIT
+          existing_assets_dir=''
+          cleanup_release_files() {
+            rm -f "${body}"
+            if [[ -n "${existing_assets_dir}" ]]; then
+              rm -rf "${existing_assets_dir}"
+            fi
+          }
+          trap cleanup_release_files EXIT
           {
             echo '## Pull the independent v6 image'
             echo
@@ -255,17 +506,99 @@ jobs:
             echo "Source commit: \`${GITHUB_SHA}\`"
             echo 'Rollback selects only a preceding qualified V6 image and matching backend release.'
           } > "${body}"
-          if ! gh release view "${tag}" --json isDraft >/dev/null 2>&1; then
+          mapfile -t package_tarballs < <(find "${RUNNER_TEMP}/admin-web-release-package" \
+            -maxdepth 1 -type f -name '*.tgz' -print)
+          test "${#package_tarballs[@]}" -eq 1
+          assets=(
+            dist-v6.tar.gz
+            FRONTEND-V6-BUILD-INFO
+            SHA256SUMS.frontend-v6
+            "${package_tarballs[0]}"
+            "${RUNNER_TEMP}/admin-web-release-package/admin-web-package.json"
+            "${RUNNER_TEMP}/admin-web-release-package/admin-web.spdx.json"
+            "${RUNNER_TEMP}/admin-web-release-package/SHA256SUMS.admin-web"
+          )
+          sha256sum --check SHA256SUMS.frontend-v6
+          (
+            cd "${RUNNER_TEMP}/admin-web-release-package"
+            sha256sum --check SHA256SUMS.admin-web
+          )
+          expected_names="$({
+            for asset in "${assets[@]}"; do basename -- "${asset}"; done
+          } | jq -R . | jq -cs 'sort')"
+          release_error="${RUNNER_TEMP}/github-release-view-error.log"
+          if release_json="$(
+            gh release view "${tag}" \
+              --json tagName,isDraft,isPrerelease,name,body,assets \
+              2> "${release_error}"
+          )"; then
+            rm -f "${release_error}"
+            jq -e \
+              --arg tag "${tag}" \
+              --arg title "${title}" \
+              --argjson prerelease "${PRERELEASE}" \
+              '.tagName == $tag and .name == $title and
+               .isPrerelease == $prerelease' \
+              <<< "${release_json}" >/dev/null
+            if [[ "$(jq -r '.isDraft' <<< "${release_json}")" == 'false' ]]; then
+              expected_body="$(< "${body}")"
+              actual_body="$(jq -r '.body' <<< "${release_json}")"
+              test "${actual_body}" = "${expected_body}"
+              actual_names="$(jq -c '[.assets[].name] | sort' <<< "${release_json}")"
+              test "${actual_names}" = "${expected_names}"
+              existing_assets_dir="$(mktemp -d)"
+              gh release download "${tag}" --dir "${existing_assets_dir}"
+              for asset in "${assets[@]}"; do
+                cmp -- \
+                  "${asset}" \
+                  "${existing_assets_dir}/$(basename -- "${asset}")"
+              done
+              exit 0
+            fi
+          else
+            if ! grep -Eqi 'release not found|HTTP 404|Not Found' "${release_error}"; then
+              echo 'GitHub Release inspection failed without an authoritative not-found response' >&2
+              sed -E 's#(https?://)[^/@[:space:]]+@#\1[REDACTED]@#g' "${release_error}" >&2
+              exit 1
+            fi
+            rm -f "${release_error}"
             release_flags=()
             if [[ "${PRERELEASE}" == 'true' ]]; then release_flags+=(--prerelease); fi
-            gh release create "${tag}" --verify-tag --draft --title "${title}" --notes-file "${body}" "${release_flags[@]}"
+            gh release create \
+              "${tag}" \
+              --verify-tag \
+              --draft \
+              --title "${title}" \
+              --notes-file "${body}" \
+              "${release_flags[@]}"
           fi
-          assets=(dist-v6.tar.gz FRONTEND-V6-BUILD-INFO SHA256SUMS.frontend-v6)
-          sha256sum --check SHA256SUMS.frontend-v6
+
           gh release upload "${tag}" "${assets[@]}" --clobber
           release_json="$(gh release view "${tag}" --json isDraft,assets)"
           test "$(jq -r '.isDraft' <<< "${release_json}")" = 'true'
-          expected_names="$(printf '%s\n' "${assets[@]}" | jq -R . | jq -cs 'sort')"
           actual_names="$(jq -c '[.assets[].name] | sort' <<< "${release_json}")"
           test "${actual_names}" = "${expected_names}"
-          gh release edit "${tag}" --title "${title}" --notes-file "${body}" --draft=false --prerelease="${PRERELEASE}" --latest=false
+          gh release edit \
+            "${tag}" \
+            --title "${title}" \
+            --notes-file "${body}" \
+            --draft=false \
+            --prerelease="${PRERELEASE}" \
+            --latest=false
+
+      - name: Update the mutable stable v6 image alias last
+        if: steps.version.outputs.prerelease == 'false'
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "${IMAGE_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image_repository="${REGISTRY}/${IMAGE_NAME}"
+          docker buildx imagetools create \
+            --tag "${image_repository}:latest" \
+            "${image_repository}@${IMAGE_DIGEST}"
+          latest_manifest="$(
+            docker buildx imagetools inspect "${image_repository}:latest" \
+              --format '{{json .Manifest}}'
+          )"
+          test "$(jq -er '.digest' <<< "${latest_manifest}")" = "${IMAGE_DIGEST}"

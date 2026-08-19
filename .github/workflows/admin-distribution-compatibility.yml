@@ -1,0 +1,148 @@
+name: Admin Distribution Compatibility
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'admin/**'
+      - 'mss-boot/**'
+      - 'web/antd-v6/**'
+      - 'cmd/mss/**'
+      - 'internal/mss/**'
+      - 'templates/**'
+      - '.mss/**'
+      - 'tools/compatibility/**'
+      - 'tools/release/**'
+      - '.github/workflows/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'go.work'
+      - 'go.work.sum'
+  pull_request:
+    branches:
+      - main
+    # Keep this event unfiltered so a future required context is never missing.
+    # The shared scope classifier skips the expensive qualification for Docs-only PRs.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-distribution-compatibility-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+  CI: 'true'
+  NODE_OPTIONS: '--max-old-space-size=4096'
+
+jobs:
+  scope:
+    uses: ./.github/workflows/component-scope.yml
+
+  external-consumer:
+    name: external-thin-host
+    needs: scope
+    if: >-
+      needs.scope.outputs.scope == 'admin' ||
+      needs.scope.outputs.scope == 'framework' ||
+      needs.scope.outputs.scope == 'web' ||
+      needs.scope.outputs.scope == 'shared'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Test external-host process supervision
+        run: bash tools/compatibility/test-process-groups.sh
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            go.work.sum
+            admin/go.sum
+            mss-boot/go.sum
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
+
+      - name: Install the frozen Admin Web dependency graph
+        working-directory: web/antd-v6
+        run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
+
+      - name: Install Chromium for external-host qualification
+        working-directory: web/antd-v6
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Qualify a real external Thin Host
+        run: |
+          set -euo pipefail
+          bash tools/compatibility/test-thin-host-external-consumer.sh \
+            --foundation-root "${GITHUB_WORKSPACE}" \
+            --report-dir "${RUNNER_TEMP}/admin-distribution-compatibility"
+
+      - name: Verify portable external-consumer reports
+        if: always()
+        run: >-
+          python3 tools/release/check_portable_paths.py --allow-missing
+          "${RUNNER_TEMP}/admin-distribution-compatibility"
+
+      - name: Upload sanitized external-consumer evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: admin-distribution-external-consumer
+          path: ${{ runner.temp }}/admin-distribution-compatibility/*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  required:
+    name: admin-distribution-compatibility
+    if: ${{ always() }}
+    needs:
+      - scope
+      - external-consumer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require the routed compatibility result
+        env:
+          COMPONENT_SCOPE: ${{ needs.scope.outputs.scope }}
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          EXTERNAL_RESULT: ${{ needs.external-consumer.result }}
+        run: |
+          set -euo pipefail
+          echo "scope=${SCOPE_RESULT}"
+          echo "component-scope=${COMPONENT_SCOPE}"
+          echo "external-consumer=${EXTERNAL_RESULT}"
+          test "${SCOPE_RESULT}" = 'success'
+          case "${COMPONENT_SCOPE}" in
+            admin|framework|web|shared)
+              test "${EXTERNAL_RESULT}" = 'success'
+              ;;
+            docs)
+              test "${EXTERNAL_RESULT}" = 'skipped'
+              ;;
+            *)
+              echo "unsupported component scope: ${COMPONENT_SCOPE}" >&2
+              exit 1
+              ;;
+          esac

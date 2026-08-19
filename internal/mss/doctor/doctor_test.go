@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -78,6 +79,7 @@ func TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains(t *testing.T) {
 		checks[check.ID] = check
 	}
 	for _, required := range []string{
+		"contract:admin-distribution",
 		"file:.mss/project.yaml",
 		"file:.mss/capabilities.yaml",
 		"file:.mss/commands.yaml",
@@ -103,6 +105,99 @@ func TestRunAgentScopeDoesNotRequireFrontendOrDocsToolchains(t *testing.T) {
 	snapshot := checks["snapshot:foundation"]
 	if snapshot.Status != StatusInfo || snapshot.Required || snapshot.Snapshot != nil {
 		t.Fatalf("Foundation source snapshot check = %#v", snapshot)
+	}
+}
+
+func TestAdminDistributionCheckPassesOnlyWhenSnapshotIsAligned(t *testing.T) {
+	root := t.TempDir()
+	distribution := doctorDistribution("v1.3.0")
+	writeDoctorDistributionSourceSentinel(t, root, distribution)
+	projectContext := &project.Context{
+		Root: root,
+		Project: project.ProjectDocument{
+			Metadata: project.Metadata{Name: "doctor-test", Repository: "acme/doctor-test"},
+			Spec: project.ProjectSpec{
+				Distribution:     distribution,
+				RepositoryLayout: map[string]string{"kind": "thin-host"},
+			},
+		},
+	}
+
+	check := adminDistributionCheck(projectContext)
+	if check.Status != StatusPass || !check.Required {
+		t.Fatalf("aligned Distribution check = %#v", check)
+	}
+	for _, expected := range []string{"mss-boot-admin@v1.3.0", "backend and frontend version cores match", "snapshot aligned"} {
+		if !strings.Contains(check.Detail, expected) {
+			t.Fatalf("aligned Distribution detail %q does not contain %q", check.Detail, expected)
+		}
+	}
+
+	projectContext.Project.Spec.Distribution = doctorDistribution("v1.4.0")
+	check = adminDistributionCheck(projectContext)
+	if check.Status != StatusFail || !check.Required || !strings.Contains(check.Detail, "project pins") {
+		t.Fatalf("mismatched Distribution check = %#v", check)
+	}
+}
+
+func TestRunThinHostScopesRequireOnlyHostBackendAndFrontendGlue(t *testing.T) {
+	root := t.TempDir()
+	distribution := doctorDistribution("v1.3.0")
+	writeDoctorDistributionSourceSentinel(t, root, distribution)
+	for _, relative := range []string{
+		"go.mod",
+		"cmd/server/main.go",
+		"internal/modules/all/generated.go",
+		"web/package.json",
+		"web/tsconfig.json",
+		"web/config/config.ts",
+		"web/mss-admin.config.ts",
+		"web/src/app.tsx",
+		"web/src/access.ts",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("create %s parent: %v", relative, err)
+		}
+		if err := os.WriteFile(path, []byte("test\n"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", relative, err)
+		}
+	}
+	projectContext := &project.Context{
+		Root: root,
+		Project: project.ProjectDocument{
+			Metadata: project.Metadata{Name: "doctor-test", Repository: "acme/doctor-test"},
+			Spec: project.ProjectSpec{
+				Distribution: distribution,
+				RepositoryLayout: map[string]string{
+					"kind":     "thin-host",
+					"frontend": "web",
+					"modules":  "internal/modules",
+				},
+			},
+		},
+	}
+	report := Run(context.Background(), projectContext, WithComponents(ComponentBackend, ComponentFramework, ComponentFrontend))
+	checks := checksByID(report.Checks)
+	for _, required := range []string{
+		"file:go.mod",
+		"file:cmd/server/main.go",
+		"file:internal/modules/all/generated.go",
+		"file:web/package.json",
+		"file:web/tsconfig.json",
+		"file:web/config/config.ts",
+		"file:web/mss-admin.config.ts",
+		"file:web/src/app.tsx",
+		"file:web/src/access.ts",
+	} {
+		if check, ok := checks[required]; !ok || check.Status != StatusPass {
+			t.Errorf("Thin Host check %s = %#v", required, check)
+		}
+	}
+	for _, forbidden := range []string{"file:admin/go.mod", "file:mss-boot/go.mod", "file:web/pnpm-lock.yaml"} {
+		if _, ok := checks[forbidden]; ok {
+			t.Errorf("Thin Host doctor unexpectedly requires %s", forbidden)
+		}
 	}
 }
 
@@ -242,6 +337,63 @@ spec:
 `
 	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
 		t.Fatalf("write source lock: %v", err)
+	}
+}
+
+func doctorDistribution(version string) project.DistributionSpec {
+	core := strings.TrimPrefix(version, "v")
+	return project.DistributionSpec{
+		Name:    "mss-boot-admin",
+		Version: version,
+		Backend: project.DistributionBackendSpec{
+			Module:  "github.com/mss-boot-io/mss-boot-admin/admin",
+			Version: version,
+		},
+		Frontend: project.DistributionFrontendSpec{
+			Package: "@mss-boot-io/admin-web",
+			Version: core,
+		},
+	}
+}
+
+func writeDoctorDistributionSourceSentinel(t *testing.T, root string, distribution project.DistributionSpec) {
+	t.Helper()
+	path := filepath.Join(root, ".mss", "lock.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create source lock parent: %v", err)
+	}
+	data := fmt.Sprintf(`apiVersion: mss.io/v1alpha1
+kind: FoundationLock
+metadata:
+  project: doctor-test
+spec:
+  distribution:
+    name: %s
+    version: %s
+    backend:
+      module: %s
+      version: %s
+    frontend:
+      package: %q
+      version: %s
+  foundation:
+    repository: acme/doctor-test
+    version: 0.1.0
+    channel: development
+  blueprint:
+    name: management-system
+    version: 0.4.0
+  contracts:
+    project: v1alpha1
+    adminDistribution: v1alpha1
+  generatedBy:
+    tool: mss
+    version: 1.3.0-dev
+  modules: {}
+  upgrades: []
+`, distribution.Name, distribution.Version, distribution.Backend.Module, distribution.Backend.Version, distribution.Frontend.Package, distribution.Frontend.Version)
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatalf("write Distribution source lock: %v", err)
 	}
 }
 

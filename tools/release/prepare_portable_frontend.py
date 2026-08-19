@@ -96,13 +96,19 @@ def build_parser() -> argparse.ArgumentParser:
         )
     )
     parser.add_argument("distribution", type=Path)
+    parser.add_argument(
+        "--allowed-root",
+        type=Path,
+        default=REPOSITORY_ROOT,
+        help="root that must contain the supplied dist directory",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        removed = prepare_frontend(args.distribution)
+        removed = prepare_frontend(args.distribution, allowed_root=args.allowed_root)
     except (OSError, PreparationError) as error:
         print(f"portable static preparation failed: {error}", file=sys.stderr)
         return 1

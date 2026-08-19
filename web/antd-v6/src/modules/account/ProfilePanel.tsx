@@ -1,16 +1,16 @@
 import CameraOutlined from '@ant-design/icons/CameraOutlined';
 import SaveOutlined from '@ant-design/icons/SaveOutlined';
 import UserOutlined from '@ant-design/icons/UserOutlined';
+import { getRequestErrorMessage } from '@mss-admin-core/shared/api/client';
+import { fetchCurrentUser } from '@mss-admin-core/shared/auth/session';
+import type { CurrentUser, InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageError, PageLoading } from '@mss-admin-core/shared/design-system/PageState';
+import { queryClient, queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
 import type { UploadProps } from 'antd';
 import { Alert, App, Avatar, Button, Col, Form, Input, Row, Select, Space, Upload } from 'antd';
 import { useEffect } from 'react';
-import { getRequestErrorMessage } from '@/shared/api/client';
-import { fetchCurrentUser } from '@/shared/auth/session';
-import type { CurrentUser, InitialState } from '@/shared/auth/types';
-import { PageError, PageLoading } from '@/shared/design-system/PageState';
-import { queryClient, queryKeys } from '@/shared/query/client';
 import { accountAPI } from './api';
 import { buildProfileUpdate, type ProfileUpdate } from './contracts';
 

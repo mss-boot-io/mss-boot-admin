@@ -3,6 +3,21 @@ import GithubOutlined from '@ant-design/icons/GithubOutlined';
 import KeyOutlined from '@ant-design/icons/KeyOutlined';
 import LoginOutlined from '@ant-design/icons/LoginOutlined';
 import SafetyCertificateOutlined from '@ant-design/icons/SafetyCertificateOutlined';
+import {
+  getRequestErrorCode,
+  getRequestErrorMessage,
+  getRequestStatus,
+} from '@mss-admin-core/shared/api/client';
+import {
+  clearBrowserSessionMetadata,
+  clearServerSession,
+} from '@mss-admin-core/shared/auth/session';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageError, PageLoading } from '@mss-admin-core/shared/design-system/PageState';
+import { queryClient, queryKeys } from '@mss-admin-core/shared/query/client';
+import { isOAuthProviderEnabled } from '@mss-admin-core/shared/theme/contract';
+import { clearUserThemeRuntime } from '@mss-admin-core/shared/theme/runtime';
+import { clearThemeIdentitySession } from '@mss-admin-core/shared/theme/snapshot';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl, useModel, useSearchParams } from '@umijs/max';
 import {
@@ -19,14 +34,6 @@ import {
   Typography,
 } from 'antd';
 import { useState } from 'react';
-import { getRequestErrorCode, getRequestErrorMessage, getRequestStatus } from '@/shared/api/client';
-import { clearBrowserSessionMetadata, clearServerSession } from '@/shared/auth/session';
-import type { InitialState } from '@/shared/auth/types';
-import { PageError, PageLoading } from '@/shared/design-system/PageState';
-import { queryClient, queryKeys } from '@/shared/query/client';
-import { isOAuthProviderEnabled } from '@/shared/theme/contract';
-import { clearUserThemeRuntime } from '@/shared/theme/runtime';
-import { clearThemeIdentitySession } from '@/shared/theme/snapshot';
 import { accountAPI } from './api';
 import type { OAuthProvider } from './contracts';
 

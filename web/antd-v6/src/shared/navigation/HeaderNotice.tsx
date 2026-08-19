@@ -1,13 +1,13 @@
 import BellOutlined from '@ant-design/icons/BellOutlined';
+import { operationsAPI } from '@mss-admin-core/modules/operations/api';
+import type { NoticeSummary, NoticeType } from '@mss-admin-core/modules/operations/contract';
+import { hasPermission } from '@mss-admin-core/shared/auth/access';
+import type { CurrentUser } from '@mss-admin-core/shared/auth/types';
+import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { history, useIntl } from '@umijs/max';
 import { Badge, Grid, Popover } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { operationsAPI } from '@/modules/operations/api';
-import type { NoticeSummary, NoticeType } from '@/modules/operations/contract';
-import { hasPermission } from '@/shared/auth/access';
-import type { CurrentUser } from '@/shared/auth/types';
-import { queryKeys } from '@/shared/query/client';
 import { useHeaderNoticeStyles } from './HeaderNotice.styles';
 import HeaderNoticePanel, {
   HEADER_NOTICE_TYPES,

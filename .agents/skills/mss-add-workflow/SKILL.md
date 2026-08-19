@@ -24,7 +24,7 @@ Model state transitions explicitly. Do not permit arbitrary status updates throu
    | Transition | From | To | Permission | Side effects |
    | --- | --- | --- | --- | --- |
 
-3. Update `modules/<module>/module.yaml`:
+3. Update `.mss/modules/<module>.yaml`:
    - ensure the workflow field is an enum;
    - declare matching enum values;
    - add transition permissions;
@@ -33,7 +33,7 @@ Model state transitions explicitly. Do not permit arbitrary status updates throu
 4. Validate semantic consistency:
 
    ```shell
-   go run ./cmd/mss spec validate modules/<module>/module.yaml --format json
+   go run ./cmd/mss spec validate .mss/modules/<module>.yaml --format json
    ```
 
 5. Regenerate the deterministic baseline.

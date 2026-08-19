@@ -10,7 +10,7 @@ Treat persistent schema evolution as an upgrade operation, not a search-and-repl
 ## Procedure
 
 1. Identify the module's canonical specification:
-   - preferred: `modules/<module>/module.yaml`;
+   - preferred: `.mss/modules/<module>.yaml`;
    - pre-generation legacy module: current model, migration history, API contract, frontend type, and tests.
 2. Inspect existing rows and compatibility assumptions:
    - nullability and default requirements;
@@ -28,8 +28,8 @@ Treat persistent schema evolution as an upgrade operation, not a search-and-repl
 4. Validate and dry-run:
 
    ```shell
-   go run ./cmd/mss spec validate modules/<module>/module.yaml --format json
-   go run ./cmd/mss module generate modules/<module>/module.yaml --format json
+   go run ./cmd/mss spec validate .mss/modules/<module>.yaml --format json
+   go run ./cmd/mss module generate .mss/modules/<module>.yaml --format json
    ```
 
 5. Create an explicit forward migration when any of the following apply:
@@ -57,8 +57,8 @@ Treat persistent schema evolution as an upgrade operation, not a search-and-repl
 10. Run:
 
    ```shell
-   go run ./cmd/mss module generate modules/<module>/module.yaml --check
-   go test ./modules/<module>/...
+   go run ./cmd/mss module generate .mss/modules/<module>.yaml --check
+   go run ./cmd/mss verify --module <module>
    go run ./cmd/mss verify --module <module>
    ```
 

@@ -751,6 +751,35 @@ spec:
         frontend states, UI/browser E2E, generated docs, and the customization-preserving three-way
         upgrade, followed by exact frozen-SHA reruns. Do not expand to a second domain first.
 
+    - id: foundation.admin-distribution
+      displayName: Complete Admin Distribution and Thin Business Hosts
+      status: planned
+      owners: [agent-infrastructure, backend, frontend, release-engineering, security]
+      paths:
+        - .mss/features/complete-admin-distribution-thin-host.yaml
+        - .mss/project.yaml
+        - .mss/lock.yaml
+        - .mss/blueprints/management-system.yaml
+        - admin/app
+        - admin/business
+        - admin/modules/supplier
+        - web/antd-v6
+        - templates/application
+        - internal/mss/app
+        - internal/mss/blueprint
+        - internal/mss/generator
+        - internal/mss/project
+        - internal/mss/verify
+        - docs/adr/2026-08-19-complete-admin-distribution-and-thin-business-host.md
+        - docs/docs/architecture/complete-admin-distribution-and-thin-business-host.zh-CN.md
+      guidance: >-
+        Keep one complete Admin backend and one complete V6 frontend. External business repositories
+        consume them through coordinated versioned dependencies and add only compile-time modules and
+        pages. The capability remains Planned until the external Supplier host passes GOWORK=off backend,
+        local npm tarball, one-runtime, deterministic thin-host generation and upgrade, authorization,
+        and browser E2E gates. Do not add runtime plugins, micro-frontends, core feature selection,
+        telemetry, import records, or adopter registration.
+
     - id: agent.skills
       displayName: Repository Agent Skills
       status: planned
@@ -813,6 +842,7 @@ spec:
         - .mss/features/foundation-v1-2-1-release.yaml
         - .mss/features/foundation-v1-2-2-release.yaml
         - .mss/features/foundation-v1-2-3-release.yaml
+        - .mss/features/complete-admin-distribution-thin-host.yaml
         - .mss/features/admin-antd-v6-application.yaml
         - .mss/features/admin-antd-v6-cutover-retirement.yaml
         - .mss/features/admin-antd-v6-release-polish.yaml
@@ -847,12 +877,14 @@ spec:
       guidance: >-
         Treat Unreleased, planned, preview, branches, and local workspace replacements as non-stable.
         Published historical versions remain immutable and their candidate evidence is not reusable.
-        The active reviewed target is v1.2.3 for root, Framework, and the sole Ant Design V6
-        frontend. Public alpha, beta, or RC tags remain forbidden. Complete release readiness begins
-        only after one v1.2.3 feature-freeze commit already merged into main is selected. An emergency
+        The active reviewed target is v1.3.0 for root, Framework, the importable Admin module,
+        and the sole Ant Design V6 frontend. Public alpha, beta, or RC tags remain forbidden.
+        Complete release readiness begins only after one v1.3.0 feature-freeze commit already
+        merged into main is selected. An emergency
         patch requires a reviewed policy target change rather than a bypass.
-        Publish a required nested framework tag first, prove external GOWORK=off resolution, then publish
-        the root tag from the same reviewed commit. Finalize a stable release only after migrations,
+        Publish Framework first, then the importable Admin module, then the complete frontend package,
+        and finally root from the same reviewed commit; Docs remains an independent component. Finalize
+        a stable release only after migrations,
         security checks, versioned artifacts, containers, documentation, installation smoke tests, and
         recovery evidence pass. This governance remains beta until post-release truth reconciliation,
         deterministic Foundation release/Blueprint/generator/downstream-snapshot identity with atomic

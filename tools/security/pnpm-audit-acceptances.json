@@ -36,6 +36,50 @@
       "scopes": ["web/antd-v6"],
       "expiresOn": "2026-11-08",
       "reason": "Umi Max 4.7.5 pins Vite 4 as an inactive alternative bundler. Development uses Utoopack, release uses Webpack, and the release bundle gate rejects Vite at runtime; overriding Umi across the Vite major boundary is not compatible."
+    },
+    {
+      "advisory": "GHSA-r683-j2x4-v87g",
+      "package": "node-fetch",
+      "severity": "high",
+      "patchedVersions": ">=2.6.7",
+      "scopes": [
+        "web/antd-v6"
+      ],
+      "expiresOn": "2026-11-08",
+      "reason": "Umi Max 4.7.5 carries node-fetch 1 through its inactive DVA plugin toolchain. The Admin distribution does not enable DVA, and the release bundle gate rejects node-fetch at runtime; forcing the transitive dependency across its major boundary is not compatible."
+    },
+    {
+      "advisory": "GHSA-c36v-fmgq-m8hx",
+      "package": "immer",
+      "severity": "high",
+      "patchedVersions": ">=9.0.6",
+      "scopes": [
+        "web/antd-v6"
+      ],
+      "expiresOn": "2026-11-08",
+      "reason": "Umi Max 4.7.5 carries Immer 8 through its inactive DVA plugin toolchain. The Admin distribution does not enable DVA, and the release bundle gate rejects Immer at runtime; forcing the transitive dependency across its major boundary is not compatible."
+    },
+    {
+      "advisory": "GHSA-33f9-j839-rf8h",
+      "package": "immer",
+      "severity": "critical",
+      "patchedVersions": ">=9.0.6",
+      "scopes": [
+        "web/antd-v6"
+      ],
+      "expiresOn": "2026-11-08",
+      "reason": "Umi Max 4.7.5 carries Immer 8 through its inactive DVA plugin toolchain. The Admin distribution does not enable DVA, and the release bundle gate rejects Immer at runtime; forcing the transitive dependency across its major boundary is not compatible."
+    },
+    {
+      "advisory": "GHSA-9wv6-86v2-598j",
+      "package": "path-to-regexp",
+      "severity": "high",
+      "patchedVersions": ">=1.9.0",
+      "scopes": [
+        "web/antd-v6"
+      ],
+      "expiresOn": "2026-11-08",
+      "reason": "Umi Max 4.7.5 pins path-to-regexp 1.7 in its route compiler toolchain. Routes are compiled through the governed Umi preset, business route patterns fail closed before compilation, and the release bundle gate rejects path-to-regexp at runtime."
     }
   ]
 }

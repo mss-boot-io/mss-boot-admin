@@ -21,11 +21,31 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+// RouteGroups exposes the route groups that the Admin composition root may
+// extend. ProtectedAPI always carries the canonical CORS and browser CSRF
+// policy; business modules receive only a child of this group.
+type RouteGroups struct {
+	ProtectedAPI *gin.RouterGroup
+}
+
+// InitRouter preserves the historical router entrypoint.
 func InitRouter(r *gin.RouterGroup) {
-	v1 := r.Group("/api")
+	InitRouteGroups(r)
+}
+
+// InitRouteGroups mounts the complete core Admin routes and returns the single
+// protected API group for explicit business-module composition.
+func InitRouteGroups(r *gin.RouterGroup) RouteGroups {
 	if config.Cfg.Application.Mode == config.ModeDev {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
+	v1 := newProtectedAPI(r)
+	mountCoreRoutes(v1)
+	return RouteGroups{ProtectedAPI: v1}
+}
+
+func newProtectedAPI(r *gin.RouterGroup) *gin.RouterGroup {
+	v1 := r.Group("/api")
 	configCors := cors.DefaultConfig()
 	configCors.AllowOrigins = trustedCORSOrigins(config.Cfg.CORS.AllowOrigins)
 	if len(configCors.AllowOrigins) == 0 {
@@ -54,7 +74,10 @@ func InitRouter(r *gin.RouterGroup) {
 	v1.OPTIONS("/*path", func(c *gin.Context) {
 		c.Status(http.StatusNoContent)
 	})
+	return v1
+}
 
+func mountCoreRoutes(v1 *gin.RouterGroup) {
 	for i := range response.Controllers {
 		response.Controllers[i].Other(v1.Group("", response.Controllers[i].Handlers()...))
 		e := v1.Group(response.Controllers[i].Path(), response.Controllers[i].Handlers()...)

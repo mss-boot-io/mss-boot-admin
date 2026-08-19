@@ -67,6 +67,7 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 		Module:  options.Module,
 		Reasons: make(map[string][]string),
 	}
+	thinHost := ctx.LayoutKind() == "thin-host"
 
 	switch options.Mode {
 	case ModeAll:
@@ -75,11 +76,7 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 		if !moduleNameValid(options.Module) {
 			return Plan{}, fmt.Errorf("invalid module name %q", options.Module)
 		}
-		plan.ChangedFiles = []string{
-			"modules/" + options.Module,
-			"web/antd-v6/src/modules/" + options.Module,
-			"docs/docs/modules/" + options.Module + ".md",
-		}
+		plan.ChangedFiles = moduleScopePaths(ctx, options.Module)
 	case ModeChanged:
 		files, base, err := changedFiles(ctx.Root, options.BaseRef)
 		if err != nil {
@@ -102,19 +99,44 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 	add(diffCheck(ctx.Root), "all changes must pass Git whitespace and conflict-marker checks")
 
 	if options.Mode == ModeAll {
-		add(toolingTest(ctx.Root), "full verification includes agent infrastructure tests")
-		add(frameworkTest(ctx.Root), "full verification includes reusable framework tests")
-		add(backendTest(ctx.Root), "full verification includes backend tests")
-		add(backendBuild(ctx.Root), "full verification includes backend build")
-		if hasFrontendApplication(ctx, "web/antd-v6") {
-			add(frontendLint(ctx.Root), "full verification includes the Ant Design 6 frontend lint and type checks")
-			add(frontendTest(ctx.Root), "full verification includes the Ant Design 6 frontend unit tests")
-			add(frontendBuild(ctx.Root), "full verification includes the Ant Design 6 frontend production build")
+		if thinHost {
+			add(thinHostBackendTest(ctx), "full Thin Host verification includes downstream backend tests with GOWORK disabled")
+			add(thinHostBackendBuild(ctx), "full Thin Host verification builds the composed Admin and business modules")
+			add(thinHostFrontendLint(ctx), "full Thin Host verification includes host frontend lint and type checks")
+			add(thinHostFrontendTest(ctx), "full Thin Host verification includes host frontend tests")
+			add(thinHostFrontendBuild(ctx), "full Thin Host verification builds the single composed Umi application")
+		} else {
+			add(toolingTest(ctx.Root), "full verification includes agent infrastructure tests")
+			add(frameworkTest(ctx.Root), "full verification includes reusable framework tests")
+			add(backendTest(ctx.Root), "full verification includes backend tests")
+			add(backendBuild(ctx.Root), "full verification includes backend build")
+			if hasFrontendApplication(ctx, "web/antd-v6") {
+				add(frontendLint(ctx.Root), "full verification includes the Ant Design 6 frontend lint and type checks")
+				add(frontendTest(ctx.Root), "full verification includes the Ant Design 6 frontend unit tests")
+				add(frontendBuild(ctx.Root), "full verification includes the Ant Design 6 frontend production build")
+			}
+			add(docsBuild(ctx.Root), "full verification includes documentation build")
 		}
-		add(docsBuild(ctx.Root), "full verification includes documentation build")
 	} else {
 		for _, changed := range plan.ChangedFiles {
 			path := filepath.ToSlash(changed)
+			if thinHost {
+				switch {
+				case isThinHostFrontend(ctx, path):
+					add(thinHostFrontendLint(ctx), path+" affects the Thin Host frontend")
+					add(thinHostFrontendTest(ctx), path+" affects Thin Host frontend behavior")
+					if thinHostFrontendBuildSensitive(ctx, path) {
+						add(thinHostFrontendBuild(ctx), path+" affects Thin Host routing, generated code, or dependencies")
+					}
+				case isThinHostBackend(ctx, path):
+					add(thinHostBackendTest(ctx), path+" affects the Thin Host backend")
+					modulePrefix := normalizedLayoutPrefix(ctx.Project.Spec.RepositoryLayout["modules"])
+					if backendBuildSensitive(path) || (modulePrefix != "" && strings.HasPrefix(path, modulePrefix)) {
+						add(thinHostBackendBuild(ctx), path+" affects Thin Host startup, modules, or dependencies")
+					}
+				}
+				continue
+			}
 			switch {
 			case isAgentInfrastructure(path):
 				add(toolingTest(ctx.Root), path+" affects agent infrastructure contracts or tooling")
@@ -136,14 +158,11 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 			}
 		}
 		if options.Mode == ModeModule {
-			moduleDir := filepath.Join(ctx.Root, "modules", options.Module)
-			add(command.Spec{
-				ID:          "module-test:" + options.Module,
-				Description: "run focused tests for module " + options.Module,
-				Directory:   ctx.Root,
-				Args:        []string{"go", "test", "./modules/" + options.Module + "/..."},
-				Timeout:     10 * time.Minute,
-			}, filepath.ToSlash(moduleDir)+" is the requested module scope")
+			focused, moduleDir, focusedErr := focusedModuleTest(ctx, options.Module)
+			if focusedErr != nil {
+				return Plan{}, focusedErr
+			}
+			add(focused, filepath.ToSlash(moduleDir)+" is the requested module scope")
 		}
 	}
 
@@ -179,10 +198,17 @@ func Run(parent context.Context, ctx *project.Context, options Options) (Report,
 		Success:     true,
 	}
 
-	contractResult := validateContracts(ctx.Root)
+	contractResult := validateContracts(ctx.Root, ctx.Project.Spec.RepositoryLayout["modules"])
 	report.Results = append(report.Results, contractResult)
 	if contractResult.ExitCode != 0 {
 		report.Success = false
+	}
+	if ctx.LayoutKind() == "thin-host" {
+		thinHostResult := validateThinHostStructure(ctx)
+		report.Results = append(report.Results, thinHostResult)
+		if thinHostResult.ExitCode != 0 {
+			report.Success = false
+		}
 	}
 
 	if !options.PlanOnly && report.Success {
@@ -295,7 +321,7 @@ func (r Report) Markdown() string {
 	return builder.String()
 }
 
-func validateContracts(root string) command.Result {
+func validateContracts(root string, moduleDirectories ...string) command.Result {
 	started := time.Now()
 	result := command.Result{
 		ID:          "contract-validation",
@@ -304,9 +330,19 @@ func validateContracts(root string) command.Result {
 		StartedAt:   started.UTC(),
 		ExitCode:    0,
 	}
+	modulesDirectory := "modules"
+	if len(moduleDirectories) > 0 && strings.TrimSpace(moduleDirectories[0]) != "" {
+		modulesDirectory = strings.TrimSpace(moduleDirectories[0])
+	}
+	if !confinedRepositoryPath(modulesDirectory) {
+		result.ExitCode = 1
+		result.Error = "project modules directory must be repository-relative and confined"
+		result.Duration = time.Since(started)
+		return result
+	}
 	patterns := []string{
 		filepath.Join(root, ".mss", "modules", "*.yaml"),
-		filepath.Join(root, "modules", "*", "module.yaml"),
+		filepath.Join(root, filepath.FromSlash(modulesDirectory), "*", "module.yaml"),
 	}
 	var paths []string
 	for _, pattern := range patterns {
@@ -539,6 +575,156 @@ func docsBuild(root string) command.Spec {
 		Environment: map[string]string{"CI": "true"},
 		Timeout:     20 * time.Minute,
 	}
+}
+
+func thinHostBackendTest(ctx *project.Context) command.Spec {
+	return command.Spec{
+		ID:          "backend-test",
+		Description: "test the Thin Host backend and composed business modules independently",
+		Directory:   layoutDirectory(ctx.Root, ctx.Project.Spec.RepositoryLayout["backend"]),
+		Args: []string{
+			"go", "test",
+			"-coverprofile=" + filepath.Join(ctx.Root, ".mss", "reports", "thin-host-coverage.out"),
+			"./...",
+		},
+		Environment: map[string]string{"GOWORK": "off"},
+		Timeout:     20 * time.Minute,
+	}
+}
+
+func thinHostBackendBuild(ctx *project.Context) command.Spec {
+	return command.Spec{
+		ID:          "backend-build",
+		Description: "build the Thin Host Admin and business composition",
+		Directory:   layoutDirectory(ctx.Root, ctx.Project.Spec.RepositoryLayout["backend"]),
+		Args:        []string{"go", "build", "./..."},
+		Environment: map[string]string{"CGO_ENABLED": "0", "GOWORK": "off"},
+		Timeout:     10 * time.Minute,
+	}
+}
+
+func thinHostFrontendLint(ctx *project.Context) command.Spec {
+	return thinHostFrontendCommand(ctx, "frontend-lint", "lint", "run Thin Host frontend lint and TypeScript checks", 15*time.Minute)
+}
+
+func thinHostFrontendTest(ctx *project.Context) command.Spec {
+	return thinHostFrontendCommand(ctx, "frontend-test", "test", "run Thin Host frontend unit tests", 20*time.Minute)
+}
+
+func thinHostFrontendBuild(ctx *project.Context) command.Spec {
+	return thinHostFrontendCommand(ctx, "frontend-build", "build", "build the single composed Thin Host Umi application", 20*time.Minute)
+}
+
+func thinHostFrontendCommand(ctx *project.Context, id, script, description string, timeout time.Duration) command.Spec {
+	version := strings.TrimSpace(ctx.Project.Spec.Frontend.PackageManagerVersion)
+	if version == "" {
+		version = "10.34.5"
+	}
+	return command.Spec{
+		ID:          id,
+		Description: description,
+		Directory:   layoutDirectory(ctx.Root, ctx.Project.Spec.RepositoryLayout["frontend"]),
+		Args:        []string{"corepack", "pnpm@" + version, "run", script},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     timeout,
+	}
+}
+
+func layoutDirectory(root, relative string) string {
+	relative = strings.TrimSpace(relative)
+	if relative == "" || relative == "." {
+		return root
+	}
+	return filepath.Join(root, filepath.FromSlash(relative))
+}
+
+func moduleScopePaths(ctx *project.Context, module string) []string {
+	layout := ctx.Project.Spec.RepositoryLayout
+	modules := strings.TrimSpace(layout["modules"])
+	if modules == "" {
+		modules = "modules"
+	}
+	paths := []string{filepath.ToSlash(filepath.Join(filepath.FromSlash(modules), module))}
+	generated := strings.TrimSpace(layout["generated"])
+	if generated != "" {
+		paths = append(paths,
+			filepath.ToSlash(filepath.Join(filepath.FromSlash(generated), "modules", module)),
+			filepath.ToSlash(filepath.Join(filepath.FromSlash(layout["frontend"]), "src", "pages", "generated")),
+		)
+	}
+	documentation := strings.TrimSpace(layout["documentation"])
+	if documentation != "" {
+		if ctx.LayoutKind() == "foundation" {
+			paths = append(paths, filepath.ToSlash(filepath.Join(filepath.FromSlash(documentation), "docs", "modules", module+".md")))
+		} else {
+			paths = append(paths, filepath.ToSlash(filepath.Join(filepath.FromSlash(documentation), "modules", module+".md")))
+		}
+	}
+	return paths
+}
+
+func focusedModuleTest(ctx *project.Context, module string) (command.Spec, string, error) {
+	backendDirectory := layoutDirectory(ctx.Root, ctx.Project.Spec.RepositoryLayout["backend"])
+	modules := strings.TrimSpace(ctx.Project.Spec.RepositoryLayout["modules"])
+	if modules == "" {
+		modules = "modules"
+	}
+	moduleDirectory := filepath.Join(ctx.Root, filepath.FromSlash(modules), module)
+	relative, err := filepath.Rel(backendDirectory, moduleDirectory)
+	if err != nil {
+		return command.Spec{}, "", fmt.Errorf("resolve module verification path: %w", err)
+	}
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return command.Spec{}, "", errors.New("project modules directory must be inside the backend module root")
+	}
+	packagePattern := "./" + strings.TrimPrefix(filepath.ToSlash(relative), "./") + "/..."
+	return command.Spec{
+		ID:          "module-test:" + module,
+		Description: "run focused tests for module " + module,
+		Directory:   backendDirectory,
+		Args:        []string{"go", "test", packagePattern},
+		Environment: map[string]string{"GOWORK": "off"},
+		Timeout:     10 * time.Minute,
+	}, moduleDirectory, nil
+}
+
+func normalizedLayoutPrefix(relative string) string {
+	relative = strings.Trim(filepath.ToSlash(filepath.Clean(filepath.FromSlash(strings.TrimSpace(relative)))), "/")
+	if relative == "" || relative == "." {
+		return ""
+	}
+	return relative + "/"
+}
+
+func isThinHostFrontend(ctx *project.Context, path string) bool {
+	prefix := normalizedLayoutPrefix(ctx.Project.Spec.RepositoryLayout["frontend"])
+	return prefix != "" && strings.HasPrefix(path, prefix)
+}
+
+func thinHostFrontendBuildSensitive(ctx *project.Context, path string) bool {
+	frontend := strings.TrimSuffix(normalizedLayoutPrefix(ctx.Project.Spec.RepositoryLayout["frontend"]), "/")
+	generated := strings.TrimSuffix(normalizedLayoutPrefix(ctx.Project.Spec.RepositoryLayout["generated"]), "/")
+	return strings.HasPrefix(path, frontend+"/config/") ||
+		(generated != "" && strings.HasPrefix(path, generated+"/")) ||
+		strings.HasPrefix(path, frontend+"/src/pages/") ||
+		path == frontend+"/package.json" ||
+		path == frontend+"/pnpm-lock.yaml" ||
+		path == frontend+"/tsconfig.json"
+}
+
+func isThinHostBackend(ctx *project.Context, path string) bool {
+	if isThinHostFrontend(ctx, path) || strings.HasPrefix(path, ".mss/") || strings.HasPrefix(path, "docs/") {
+		return false
+	}
+	modulesPrefix := normalizedLayoutPrefix(ctx.Project.Spec.RepositoryLayout["modules"])
+	if modulesPrefix != "" && strings.HasPrefix(path, modulesPrefix) {
+		return true
+	}
+	backendPrefix := normalizedLayoutPrefix(ctx.Project.Spec.RepositoryLayout["backend"])
+	if backendPrefix != "" && strings.HasPrefix(path, backendPrefix) {
+		return strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "go.mod") || strings.HasSuffix(path, "go.sum")
+	}
+	return path == "go.mod" || path == "go.sum" || strings.HasPrefix(path, "cmd/") || strings.HasSuffix(path, ".go")
 }
 
 func isAgentInfrastructure(path string) bool {

@@ -5,14 +5,16 @@
 | Path | Purpose |
 | --- | --- |
 | `/` | Agent/Foundation Go tooling and shared repository contracts |
-| `admin/` | `github.com/mss-boot-io/mss-boot-admin/admin`, the Go admin backend |
+| `admin/` | `github.com/mss-boot-io/mss-boot-admin/admin`, the complete importable Admin application |
 | `mss-boot/` | `github.com/mss-boot-io/mss-boot-admin/mss-boot`, the reusable Go framework |
-| `web/antd-v6/` | React 19 + Ant Design 6 frontend |
+| `web/antd-v6/` | Sole React 19 + Ant Design 6 source and `@mss-boot-io/admin-web` package |
 | `docs/` | Dumi documentation site |
 
 `go.work` activates the backend and framework modules together. Do not add a local `replace` directive to either published `go.mod`; workspace mode is the source of truth for repository-local development.
 
-Until the first stable nested-module tag is published, `go.work` contains a version-scoped bridge from `mss-boot v1.0.0` to `./mss-boot`. After publishing `mss-boot/v1.0.0`, remove that bridge, refresh the root module metadata, and verify a build with `GOWORK=off`. Results produced for the unpublished v0.8.0 candidate do not prove that the v1.0.0 module resolves.
+`go.work` is only a repository-development convenience. Every publishable Go
+module and the generated Thin Host are also qualified with `GOWORK=off`; normal
+module files never contain a local checkout replacement.
 
 ## Common commands
 
@@ -25,17 +27,19 @@ make docs-install docs-build
 
 ## Release tags
 
-- Backend application: `vX.Y.Z`
+- Root Admin Distribution: `vX.Y.Z`
 - Framework module: `mss-boot/vX.Y.Z`
-- Ant Design frontend: `web/antd-v6/vX.Y.Z`
+- Complete Admin Go module: `admin/vX.Y.Z`
+- Admin Web package and image: `web/antd-v6/vX.Y.Z`
 - Documentation: `docs/vX.Y.Z`
 
-Each component tag resolves to its own exact commit already merged into `main`.
-Components may publish independently. For a coordinated runtime release, publish
-the framework tag before the backend tag so the backend's `go.mod` requirement
-is available outside workspace mode. A Docs release packages its portable static
-site, deploys through the protected `prod` environment, verifies the public
-release identity, and publishes a separate GitHub Release without reissuing the
+Runtime components have independently triggered workflows, but one Admin
+Distribution release requires the same version core and exact merged-main commit.
+The fail-closed publication order is Framework, Admin, Frontend, then Root. The
+Root release reconciles all three component tags, GitHub Releases, the public Go
+modules, npm integrity, and image identity before publication. A Docs release is
+independent: it packages its portable static site, deploys through the protected
+`prod` environment, and publishes its own GitHub Release without reissuing the
 runtime components.
 
 ## Workflow location

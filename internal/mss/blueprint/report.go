@@ -20,6 +20,9 @@ func (p Plan) Text() string {
 	fmt.Fprintf(&builder, "module: %s\n", p.Application.Module)
 	fmt.Fprintf(&builder, "repository: %s\n", p.Application.Repository)
 	fmt.Fprintf(&builder, "blueprint: %s@%s\n", p.Blueprint, p.BlueprintVersion)
+	if !p.Distribution.Empty() {
+		fmt.Fprintf(&builder, "admin distribution: %s@%s\n", p.Distribution.Name, p.Distribution.Version)
+	}
 	fmt.Fprintf(&builder, "blueprint digest: %s\n", p.Identities.Blueprint.SHA256)
 	fmt.Fprintf(&builder, "foundation: %s@%s commit %s\n", p.Identities.Foundation.Repository, p.Identities.Foundation.Version, p.FoundationCommit)
 	fmt.Fprintf(&builder, "generator: %s@%s", p.Identities.Generator.Tool, p.Identities.Generator.Version)

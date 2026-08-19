@@ -80,8 +80,8 @@ vi.mock('./SessionDetailDrawer', () => ({ default: () => null }));
 
 vi.mock('./api', () => ({ sessionAPI: api }));
 
-vi.mock('@/shared/query/client', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/shared/query/client')>();
+vi.mock('@mss-admin-core/shared/query/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@mss-admin-core/shared/query/client')>();
   return {
     ...actual,
     queryClient: { invalidateQueries },
