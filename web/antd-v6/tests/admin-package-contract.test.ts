@@ -54,12 +54,14 @@ describe('Admin web package contract', () => {
   it('keeps the published CLI available to a clean Git checkout', () => {
     const cli = resolve(import.meta.dirname, '../bin/mss-admin-web.cjs');
     const biomeConfig = resolve(import.meta.dirname, '../biome.json');
+    const consumerSetup = resolve(import.meta.dirname, './setup.ts');
     expect(existsSync(cli)).toBe(true);
     expect(existsSync(biomeConfig)).toBe(true);
     expect(packageManifest.files).toContain('biome.json');
     expect(readFileSync(cli, 'utf8')).toContain(
       "['check', '--config-path', resolve(packageRoot, 'biome.json'), '.']",
     );
+    expect(readFileSync(consumerSetup, 'utf8')).not.toContain("import '@testing-library/dom'");
     const biome = JSON.parse(readFileSync(biomeConfig, 'utf8')) as {
       overrides?: Array<{ includes?: string[] }>;
     };
