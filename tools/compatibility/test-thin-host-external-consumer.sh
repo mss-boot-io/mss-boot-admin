@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=tools/compatibility/process-groups.sh
+source "${script_dir}/process-groups.sh"
+
 usage() {
   cat <<'EOF'
 Usage: test-thin-host-external-consumer.sh [options]
@@ -64,27 +68,11 @@ work_dir="$(mktemp -d "${TMPDIR:-/tmp}/mss-thin-host-consumer.XXXXXX")"
 backend_pid=""
 web_pid=""
 
-stop_process_group() {
-  local pid="$1"
-  [[ -n "${pid}" ]] || return 0
-  if kill -0 -- "-${pid}" 2>/dev/null; then
-    kill -TERM -- "-${pid}" 2>/dev/null || true
-    for _ in {1..50}; do
-      kill -0 -- "-${pid}" 2>/dev/null || break
-      sleep 0.1
-    done
-    if kill -0 -- "-${pid}" 2>/dev/null; then
-      kill -KILL -- "-${pid}" 2>/dev/null || true
-    fi
-  fi
-  wait "${pid}" 2>/dev/null || true
-}
-
 cleanup() {
   local status=$?
   trap - EXIT HUP INT TERM
-  stop_process_group "${web_pid}"
-  stop_process_group "${backend_pid}"
+  mss_stop_process_group "${web_pid}" || true
+  mss_stop_process_group "${backend_pid}" || true
   rm -rf -- "${work_dir}"
   exit "${status}"
 }
@@ -117,7 +105,7 @@ else
   mkdir -p -- "${report_dir}"
 fi
 
-foundation_commit="$(git -C "${foundation_root}" rev-parse HEAD^{commit})"
+foundation_commit="$(git -C "${foundation_root}" rev-parse 'HEAD^{commit}')"
 [[ "${foundation_commit}" =~ ^[0-9a-f]{40}$ ]] || {
   echo "Foundation commit is not a full SHA" >&2
   exit 1
@@ -521,7 +509,7 @@ wait_for_http() {
     if curl --fail --silent --show-error --max-time 2 "${url}" >/dev/null 2>&1; then
       return 0
     fi
-    if ! kill -0 -- "-${pid}" 2>/dev/null; then
+    if ! mss_process_group_alive "${pid}"; then
       echo "${label} exited before becoming ready" >&2
       tail -n 80 -- "${log_file}" >&2 || true
       return 1
@@ -556,35 +544,39 @@ if ! (
   exit 1
 fi
 
-(
-  cd "${runtime_dir}"
-  exec setsid env \
-    STAGE=e2e \
-    CONFIG_PROVIDER=fs \
-    GIN_MODE=release \
-    GOTOOLCHAIN=local \
-    "${work_dir}/compatibility-admin-server" server
-) > "${backend_log}" 2>&1 &
-backend_pid=$!
+echo "external Thin Host stage: start backend"
+mss_start_process_group \
+  backend_pid \
+  "${runtime_dir}" \
+  "${backend_log}" \
+  "${work_dir}" \
+  env \
+  STAGE=e2e \
+  CONFIG_PROVIDER=fs \
+  GIN_MODE=release \
+  GOTOOLCHAIN=local \
+  "${work_dir}/compatibility-admin-server" server
 wait_for_http \
   "external Thin Host backend" \
   "http://127.0.0.1:18080/healthz" \
   "${backend_pid}" \
   "${backend_log}"
 
-(
-  cd "${web_root}"
-  exec setsid env \
-    BROWSER=none \
-    MSS_ADMIN_API_TARGET=http://127.0.0.1:18080 \
-    MSS_V6_E2E=1 \
-    PORT=18001 \
-    REACT_APP_ENV=dev \
-    UMI_ENV=dev \
-    MOCK=none \
-    corepack pnpm@10.34.5 run dev
-) > "${web_log}" 2>&1 &
-web_pid=$!
+echo "external Thin Host stage: start frontend"
+mss_start_process_group \
+  web_pid \
+  "${web_root}" \
+  "${web_log}" \
+  "${work_dir}" \
+  env \
+  BROWSER=none \
+  MSS_ADMIN_API_TARGET=http://127.0.0.1:18080 \
+  MSS_V6_E2E=1 \
+  PORT=18001 \
+  REACT_APP_ENV=dev \
+  UMI_ENV=dev \
+  MOCK=none \
+  corepack pnpm@10.34.5 run dev
 wait_for_http \
   "external Thin Host frontend" \
   "http://127.0.0.1:18001/admin/api/languages/public" \
@@ -598,6 +590,7 @@ wait_for_http \
   "${web_log}"
 
 external_e2e_raw="${raw_report_dir}/external-e2e.json"
+echo "external Thin Host stage: run browser qualification"
 set +e
 (
   cd "${foundation_root}/web/antd-v6"

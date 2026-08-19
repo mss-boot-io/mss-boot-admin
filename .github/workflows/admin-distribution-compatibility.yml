@@ -58,6 +58,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Test external-host process supervision
+        run: bash tools/compatibility/test-process-groups.sh
+
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:

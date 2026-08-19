@@ -242,6 +242,15 @@ class WorkflowGovernanceTest(unittest.TestCase):
             if step.get("name") == "Qualify a real external Thin Host"
         )["run"]
         self.assertIn("test-thin-host-external-consumer.sh", external_script)
+        process_supervision = next(
+            step
+            for step in jobs["external-consumer"]["steps"]
+            if step.get("name") == "Test external-host process supervision"
+        )["run"]
+        self.assertEqual(
+            process_supervision,
+            "bash tools/compatibility/test-process-groups.sh",
+        )
         browser_install = next(
             step
             for step in jobs["external-consumer"]["steps"]
@@ -275,11 +284,21 @@ class WorkflowGovernanceTest(unittest.TestCase):
             "resolved.startswith(expected + '(')",
             "fetch --frozen-lockfile",
             "install --offline --frozen-lockfile",
-            'stop_process_group "${web_pid}"',
-            'stop_process_group "${backend_pid}"',
+            'mss_start_process_group \\\n  backend_pid',
+            'mss_start_process_group \\\n  web_pid',
+            'mss_stop_process_group "${web_pid}"',
+            'mss_stop_process_group "${backend_pid}"',
         ):
             with self.subTest(required=required):
                 self.assertIn(required, thin_host_script)
+        process_group_helper = (
+            REPOSITORY_ROOT
+            / "tools"
+            / "compatibility"
+            / "process-groups.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn("setsid --fork", process_group_helper)
+        self.assertNotIn('wait "${pid}"', process_group_helper)
         self.assertLess(
             thin_host_script.index("fetch --frozen-lockfile"),
             thin_host_script.index("install --offline --frozen-lockfile"),
