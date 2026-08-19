@@ -136,6 +136,10 @@ func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testi
 		"status != mcp_status or status != doctor_status",
 		"identities != applied.get(\"toIdentities\")",
 		"project.foundationVersion was conflated with an independent runtime identity",
+		"go test -shuffle=on -count=1 ./...",
+		"go vet ./...",
+		"templates/application/cmd/server/main.go",
+		"internal/modules/customer-extension",
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Errorf("Foundation compatibility workflow is missing identity contract %q", required)
@@ -145,6 +149,10 @@ func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testi
 		`text.replace("version: 0.1.0", "version: 0.1.1-ci"`,
 		`blueprint.get('version') != '`,
 		`go run ./cmd/mss new app compatibility-admin`,
+		`go run ./cmd/mss skills validate`,
+		`go test ./internal/mss/...`,
+		`${DOWNSTREAM}/admin/`,
+		`${CONFLICT_FOUNDATION}/admin/main.go`,
 		`foundationVersion: 0.1.1-ci`,
 	} {
 		if strings.Contains(workflow, forbidden) {
