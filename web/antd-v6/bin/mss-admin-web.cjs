@@ -107,10 +107,14 @@ switch (command) {
     break;
   case 'lint': {
     validateHost();
-    const biome = spawnSync(require.resolve('@biomejs/biome/bin/biome'), ['check', '.'], {
-      cwd: process.cwd(),
-      stdio: 'inherit',
-    });
+    const biome = spawnSync(
+      require.resolve('@biomejs/biome/bin/biome'),
+      ['check', '--config-path', resolve(packageRoot, 'biome.json'), '.'],
+      {
+        cwd: process.cwd(),
+        stdio: 'inherit',
+      },
+    );
     if (biome.error) throw biome.error;
     if (biome.status !== 0) {
       process.exitCode = biome.status ?? 1;

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { isAbsolute, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -52,7 +52,13 @@ describe('Admin web package contract', () => {
 
   it('keeps the published CLI available to a clean Git checkout', () => {
     const cli = resolve(import.meta.dirname, '../bin/mss-admin-web.cjs');
+    const biomeConfig = resolve(import.meta.dirname, '../biome.json');
     expect(existsSync(cli)).toBe(true);
+    expect(existsSync(biomeConfig)).toBe(true);
+    expect(packageManifest.files).toContain('biome.json');
+    expect(readFileSync(cli, 'utf8')).toContain(
+      "['check', '--config-path', resolve(packageRoot, 'biome.json'), '.']",
+    );
     expect(() =>
       execFileSync('git', ['check-ignore', '--quiet', cli], {
         cwd: resolve(import.meta.dirname, '..'),
