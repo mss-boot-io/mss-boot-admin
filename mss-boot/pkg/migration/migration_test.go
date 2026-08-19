@@ -175,6 +175,42 @@ func TestMigrationCloneRegistrationsIsIsolated(t *testing.T) {
 	}
 }
 
+func TestMigrationCloneRegistrationsRebindsVersionWritesToExecutingClone(t *testing.T) {
+	source := New()
+	id := MigrationID("202608190004")
+	if err := source.Register(id, func(db *gorm.DB, version string) error {
+		return db.Transaction(func(tx *gorm.DB) error {
+			return source.CreateVersion(tx, version)
+		})
+	}); err != nil {
+		t.Fatalf("register source migration: %v", err)
+	}
+
+	clone, err := source.CloneRegistrations()
+	if err != nil {
+		t.Fatalf("clone registrations: %v", err)
+	}
+	_, db := newMigrationTestRunner(t)
+	clone.SetDb(db)
+	clone.SetModel(&migrationmodels.Migration{})
+	if err := clone.MigrateContext(context.Background()); err != nil {
+		t.Fatalf("execute cloned migration: %v", err)
+	}
+
+	var rows int64
+	if err := db.Model(&migrationmodels.Migration{}).
+		Where("version = ?", id.String()).
+		Count(&rows).Error; err != nil {
+		t.Fatalf("count cloned migration version: %v", err)
+	}
+	if rows != 1 {
+		t.Fatalf("cloned migration version rows = %d, want one", rows)
+	}
+	if source.GetDb() != nil || source.Model != nil {
+		t.Fatalf("cloned execution mutated source state: db=%v model=%T", source.GetDb(), source.Model)
+	}
+}
+
 func TestMigrationCloneRegistrationsRejectsInvalidSource(t *testing.T) {
 	var nilRunner *Migration
 	if _, err := nilRunner.CloneRegistrations(); !errors.Is(err, ErrMigrationNotReady) {
