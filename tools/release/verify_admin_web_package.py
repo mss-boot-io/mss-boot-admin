@@ -47,6 +47,7 @@ ADMIN_WEB_TOOLING_DEPENDENCIES = [
     "@types/react-dom",
     "@umijs/max",
     "happy-dom",
+    "less",
     "tailwindcss",
     "typescript",
     "vite",

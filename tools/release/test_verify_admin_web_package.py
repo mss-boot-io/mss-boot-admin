@@ -120,6 +120,21 @@ class AdminWebPackageTest(unittest.TestCase):
         self.assertIn("package/tests/setup.ts", evidence["artifact"]["members"])
         self.assertIn("package/LICENSE", evidence["artifact"]["members"])
 
+    def test_repository_manifest_matches_supported_distribution_contract(self):
+        manifest_path = TOOLS_DIR.parents[1] / "web" / "antd-v6" / "package.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        distribution = manifest["mssAdminDistribution"]
+
+        self.assertEqual(distribution, admin_distribution_contract())
+        classified_dependencies = [
+            *distribution["dependencyClasses"]["runtime"],
+            *distribution["dependencyClasses"]["tooling"],
+        ]
+        self.assertEqual(
+            sorted(classified_dependencies),
+            sorted(manifest["dependencies"]),
+        )
+
     def test_rejects_missing_or_incorrect_public_metadata(self):
         cases = (
             ({"license": "Apache-2.0"}, True, "repository MIT license"),
