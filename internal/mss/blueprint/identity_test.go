@@ -101,6 +101,7 @@ spec:
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"
   frontendTagTemplate: "web/antd-v6/{version}"
+  docsTagTemplate: "docs/{version}"
 `
 	policy, err := decodeFoundationReleasePolicy([]byte(valid))
 	if err != nil {
@@ -109,6 +110,9 @@ spec:
 	if policy.Spec.ReleaseBranch != "main" || policy.Spec.RequireMergedPRSource == nil || !*policy.Spec.RequireMergedPRSource {
 		t.Fatalf("release source governance = branch %q required %#v, want main/true", policy.Spec.ReleaseBranch, policy.Spec.RequireMergedPRSource)
 	}
+	if got, want := policy.Spec.DocsTagTemplate, "docs/{version}"; got != want {
+		t.Fatalf("docs tag template = %q, want %q", got, want)
+	}
 	tests := []struct {
 		name string
 		data string
@@ -116,6 +120,7 @@ spec:
 	}{
 		{name: "unknown", data: strings.Replace(valid, "  mode:", "  unsupported: true\n  mode:", 1), want: "field unsupported"},
 		{name: "anchor", data: strings.Replace(valid, "metadata:", "metadata: &metadata", 1), want: "anchors and aliases"},
+		{name: "invalid docs tag", data: strings.Replace(valid, "docs/{version}", "docs/v1.2.3", 1), want: "docsTagTemplate must contain exactly one {version} placeholder"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

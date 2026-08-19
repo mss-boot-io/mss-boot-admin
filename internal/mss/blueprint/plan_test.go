@@ -293,6 +293,7 @@ spec:
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"
   frontendTagTemplate: "web/antd-v6/{version}"
+  docsTagTemplate: "docs/{version}"
 `),
 		".mss/lock.yaml":                 []byte("apiVersion: mss.io/v1alpha1\nkind: FoundationLock\nmetadata:\n  project: mss-boot-admin\n"),
 		"web/antd-v6/package.json":       []byte(`{"name":"mss-boot-admin-antd-v6"}`),
