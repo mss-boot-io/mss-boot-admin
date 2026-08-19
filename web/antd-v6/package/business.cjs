@@ -175,6 +175,7 @@ function defineBusinessAdmin(options = {}) {
       splitMenus: false,
     },
     manifest: {},
+    mfsu: false,
     model: {},
     moment2dayjs: {
       preset: 'antd',

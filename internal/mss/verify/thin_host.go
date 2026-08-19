@@ -192,6 +192,7 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 			distribution.Frontend.Package + "/business",
 			"businessRoutes",
 			"routeRegistrations: './src/generated/routes.ts'",
+			"useUtoopack: true",
 		},
 		joinRepositoryPath(frontend, "mss-admin.config.ts"): {
 			"export { default } from './config/config'",

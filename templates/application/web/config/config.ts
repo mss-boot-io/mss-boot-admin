@@ -4,4 +4,5 @@ import businessRoutes from './business-routes.generated';
 export default defineBusinessAdmin({
   businessRoutes,
   routeRegistrations: './src/generated/routes.ts',
+  useUtoopack: true,
 });

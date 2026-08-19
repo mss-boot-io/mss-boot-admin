@@ -190,7 +190,7 @@ func writeThinHostStructure(t *testing.T, ctx *project.Context) {
 }
 `,
 		joinRepositoryPath(frontend, "tsconfig.json"):        "{\n  \"extends\": \"./src/.umi/tsconfig.json\"\n}\n",
-		joinRepositoryPath(frontend, "config/config.ts"):     "import { defineBusinessAdmin } from '" + distribution.Frontend.Package + "/business';\nimport businessRoutes from './business-routes.generated';\nexport default defineBusinessAdmin({ businessRoutes, routeRegistrations: './src/generated/routes.ts' });\n",
+		joinRepositoryPath(frontend, "config/config.ts"):     "import { defineBusinessAdmin } from '" + distribution.Frontend.Package + "/business';\nimport businessRoutes from './business-routes.generated';\nexport default defineBusinessAdmin({ businessRoutes, routeRegistrations: './src/generated/routes.ts', useUtoopack: true });\n",
 		joinRepositoryPath(frontend, "mss-admin.config.ts"):  "export { default } from './config/config';\n",
 		layout["businessRoutes"]:                             "export default [];\n",
 		joinRepositoryPath(frontend, "src/app.tsx"):          "export { getInitialState, layout, request, innerProvider } from '" + distribution.Frontend.Package + "/runtime/app';\n",

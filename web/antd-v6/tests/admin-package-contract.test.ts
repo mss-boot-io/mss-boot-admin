@@ -23,6 +23,9 @@ const require = createRequire(import.meta.url);
 const { createAdminRoutes } = require('../package/core-routes.cjs') as {
   createAdminRoutes: (options?: { businessRoutes?: Route[] }) => Route[];
 };
+const { defineBusinessAdmin } = require('../package/business.cjs') as {
+  defineBusinessAdmin: (options?: Record<string, unknown>) => Record<string, unknown>;
+};
 
 describe('Admin web package contract', () => {
   it('exposes only stable public entrypoints', () => {
@@ -88,6 +91,14 @@ describe('Admin web package contract', () => {
         .filter((route) => route.path !== '/contracts' && route.component)
         .every((route) => isAbsolute(route.component ?? '')),
     ).toBe(true);
+  });
+
+  it('keeps the retired MFSU runtime out of external development builds', () => {
+    expect(defineBusinessAdmin()).toMatchObject({ mfsu: false, utoopack: false });
+    expect(defineBusinessAdmin({ useUtoopack: true })).toMatchObject({
+      mfsu: false,
+      utoopack: expect.any(Object),
+    });
   });
 
   it('rejects reserved and duplicate business routes', () => {
