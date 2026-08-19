@@ -136,6 +136,7 @@ func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testi
 		"status != mcp_status or status != doctor_status",
 		"identities != applied.get(\"toIdentities\")",
 		"project.foundationVersion was conflated with an independent runtime identity",
+		"templates/application/.mss/project.yaml",
 		"go test -shuffle=on -count=1 ./...",
 		"go vet ./...",
 		"templates/application/cmd/server/main.go",
@@ -154,6 +155,7 @@ func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testi
 		`${DOWNSTREAM}/admin/`,
 		`${CONFLICT_FOUNDATION}/admin/main.go`,
 		`foundationVersion: 0.1.1-ci`,
+		`project = root / ".mss/project.yaml"`,
 	} {
 		if strings.Contains(workflow, forbidden) {
 			t.Errorf("Foundation compatibility workflow retains coupled or untraceable fixture %q", forbidden)

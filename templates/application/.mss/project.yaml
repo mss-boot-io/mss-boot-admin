@@ -6,7 +6,7 @@ metadata:
   repository: __MSS_APP_REPOSITORY__
 spec:
   mission: Thin business host for __MSS_APP_DISPLAY_NAME__.
-  foundationVersion: 0.4.0
+  foundationVersion: 0.1.0
   distribution:
     name: __MSS_DISTRIBUTION_NAME__
     version: __MSS_DISTRIBUTION_VERSION__

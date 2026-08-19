@@ -223,7 +223,7 @@ jobs:
           text = text[:match.start(2)] + next_blueprint + text[match.end(2):]
           blueprint.write_text(text, encoding="utf-8")
 
-          project = root / ".mss/project.yaml"
+          project = root / "templates/application/.mss/project.yaml"
           text = project.read_text(encoding="utf-8")
           match = re.search(r'(?m)^(  foundationVersion: )(([0-9]+)\.([0-9]+)\.([0-9]+)(?:-[^\s]+)?)\s*$', text)
           if not match:

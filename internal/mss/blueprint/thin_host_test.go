@@ -57,6 +57,7 @@ func TestGenerateThinHostSelectsOnlyApplicationTemplates(t *testing.T) {
 	assertContains(t, filepath.Join(destination, "cmd", "server", "main.go"), `"github.com/acme/orders-admin/internal/modules/all"`)
 	assertContains(t, filepath.Join(destination, "internal", "modules", "all", "generated.go"), `"github.com/mss-boot-io/mss-boot-admin/admin/business"`)
 	assertContains(t, filepath.Join(destination, ".mss", "project.yaml"), "kind: thin-host")
+	assertContains(t, filepath.Join(destination, ".mss", "project.yaml"), "foundationVersion: 0.1.0")
 	assertContains(t, filepath.Join(destination, ".mss", "project.yaml"), "version: v1.3.0")
 	assertContains(t, filepath.Join(destination, ".mss", "project.yaml"), "module: github.com/mss-boot-io/mss-boot-admin/admin")
 	for _, forbidden := range []string{"admin", "mss-boot", "web/antd-v6", "docs/package.json", ".mss/release-policy.yaml"} {
@@ -194,7 +195,7 @@ metadata:
   displayName: __MSS_APP_DISPLAY_NAME__
   repository: __MSS_APP_REPOSITORY__
 spec:
-  foundationVersion: 0.4.0
+  foundationVersion: 0.1.0
   distribution:
     name: __MSS_DISTRIBUTION_NAME__
     version: __MSS_DISTRIBUTION_VERSION__
