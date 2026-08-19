@@ -273,12 +273,17 @@ class WorkflowGovernanceTest(unittest.TestCase):
             '"@mss-boot-io/admin-web@file:../.mss/qualification/admin-web.tgz"',
             "entry.get('specifier') != expected",
             "resolved.startswith(expected + '(')",
+            "fetch --frozen-lockfile",
             "install --offline --frozen-lockfile",
             'stop_process_group "${web_pid}"',
             'stop_process_group "${backend_pid}"',
         ):
             with self.subTest(required=required):
                 self.assertIn(required, thin_host_script)
+        self.assertLess(
+            thin_host_script.index("fetch --frozen-lockfile"),
+            thin_host_script.index("install --offline --frozen-lockfile"),
+        )
         aggregate = jobs["required"]
         self.assertEqual(aggregate["name"], "admin-distribution-compatibility")
         aggregate_script = aggregate["steps"][0]["run"]

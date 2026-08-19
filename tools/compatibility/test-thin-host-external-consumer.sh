@@ -445,6 +445,7 @@ if entry.get('specifier') != expected or not (
 ):
     raise SystemExit(f'external host lock importer does not bind the qualified tarball: {entry!r}')
 PY
+  corepack pnpm@10.34.5 fetch --frozen-lockfile
   corepack pnpm@10.34.5 install --offline --frozen-lockfile --ignore-scripts
   corepack pnpm@10.34.5 run lint
   corepack pnpm@10.34.5 run test
