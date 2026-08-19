@@ -751,6 +751,35 @@ spec:
         frontend states, UI/browser E2E, generated docs, and the customization-preserving three-way
         upgrade, followed by exact frozen-SHA reruns. Do not expand to a second domain first.
 
+    - id: foundation.admin-distribution
+      displayName: Complete Admin Distribution and Thin Business Hosts
+      status: planned
+      owners: [agent-infrastructure, backend, frontend, release-engineering, security]
+      paths:
+        - .mss/features/complete-admin-distribution-thin-host.yaml
+        - .mss/project.yaml
+        - .mss/lock.yaml
+        - .mss/blueprints/management-system.yaml
+        - admin/app
+        - admin/business
+        - admin/modules/supplier
+        - web/antd-v6
+        - templates/application
+        - internal/mss/app
+        - internal/mss/blueprint
+        - internal/mss/generator
+        - internal/mss/project
+        - internal/mss/verify
+        - docs/adr/2026-08-19-complete-admin-distribution-and-thin-business-host.md
+        - docs/docs/architecture/complete-admin-distribution-and-thin-business-host.zh-CN.md
+      guidance: >-
+        Keep one complete Admin backend and one complete V6 frontend. External business repositories
+        consume them through coordinated versioned dependencies and add only compile-time modules and
+        pages. The capability remains Planned until the external Supplier host passes GOWORK=off backend,
+        local npm tarball, one-runtime, deterministic thin-host generation and upgrade, authorization,
+        and browser E2E gates. Do not add runtime plugins, micro-frontends, core feature selection,
+        telemetry, import records, or adopter registration.
+
     - id: agent.skills
       displayName: Repository Agent Skills
       status: planned

@@ -12,11 +12,13 @@ keywords: [complete admin distribution thin business host go module npm umi code
 
 ## 1. 文档状态
 
-- 设计状态：已确认，待实施
+- 设计状态：已确认，实施中
 - 设计日期：2026-08-19
 - 设计基线：`main@9a256229774bb255dfe8a618613522fd70538195`
 - 目标仓库：`mss-boot-io/mss-boot-admin`
 - 配套实施提示词：`docs/aigc/prompts/complete-admin-distribution-implementation-2026-08-19.zh-CN.md`
+- 机器实施契约：`.mss/features/complete-admin-distribution-thin-host.yaml`
+- 架构决策记录：`docs/adr/2026-08-19-complete-admin-distribution-and-thin-business-host.md`
 
 本文定义 `mss-boot-admin` 在下游业务代码隔离、完整产品交付、版本升级和 AI Agent 开发方面的长期目标架构。
 

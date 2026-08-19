@@ -1,0 +1,304 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: complete-admin-distribution-thin-host
+  displayName: Deliver the complete Admin distribution through thin business hosts
+  description: >-
+    Defines the implementation and evidence contract for keeping one complete Admin product while
+    external business repositories compose backend modules and frontend pages at build time.
+  owner: agent-infrastructure
+  labels:
+    domain: admin-distribution
+    implementation-status: in-progress
+    compatibility: coordinated-backend-frontend-version
+    privacy: no-telemetry
+spec:
+  problem: >-
+    Downstream applications currently receive more than one thousand Foundation-owned files and must
+    carry Admin backend, frontend, framework, documentation, and release sources. This makes business
+    changes indistinguishable from Foundation changes and turns upgrades into large source merges.
+    The complete Admin must instead remain one product that external repositories consume through a
+    versioned Go module and one npm package while adding only compile-time business extensions.
+  goals:
+    - Expose one context-aware, error-returning Admin application composition API without duplicating the official CLI lifecycle.
+    - Register generated and external business modules explicitly through one minimal, ordered, fail-closed contract.
+    - Package the only Ant Design V6 application as one complete external-consumer npm package with one Umi build and one runtime graph.
+    - Make management-system generate a deterministic thin host instead of copying Admin, framework, frontend, documentation, and release sources.
+    - Upgrade backend, frontend, generated glue, lock, and manifest together through one Admin Distribution version.
+    - Qualify the design through a real external Supplier host, GOWORK=off backend builds, tarball frontend builds, and browser E2E.
+  nonGoals:
+    - Split Admin features into services, independently selectable core packages, or separately operated applications.
+    - Add Go plugins, remote code loading, Qiankun, Module Federation, iframe applications, or a second maintained SPA.
+    - Allow business modules to replace authentication, Session, CSRF, authorization, configuration ownership, or security middleware.
+    - Reintroduce runtime dynamic models, virtual CRUD, or browser-facing code generation.
+    - Record imports, adopters, repositories, devices, users, analytics, telemetry, or runtime call-home data.
+  actors:
+    - id: downstream-maintainer
+      displayName: Downstream maintainer
+      description: Creates, develops, validates, and upgrades a thin business host.
+    - id: business-module-author
+      displayName: Business module author
+      description: Owns an AdminModule specification and its generated and custom business implementation.
+    - id: distribution-maintainer
+      displayName: Admin distribution maintainer
+      description: Evolves the complete Admin, coordinated artifacts, templates, and compatibility gates.
+    - id: security-reviewer
+      displayName: Security reviewer
+      description: Verifies that extension points preserve the existing browser and backend authorization boundaries.
+  modules:
+    - name: admin-composition
+      kind: infrastructure
+      operation: create
+      description: Importable complete application entrypoint and explicit business module registry.
+    - name: admin-web-distribution
+      kind: infrastructure
+      operation: extend
+      description: The single complete V6 npm package, Umi integration, CLI, exports, and runtime contract.
+    - name: thin-host-blueprint
+      kind: infrastructure
+      operation: extend
+      description: Deterministic application templates and target-layout-aware module generation.
+    - name: distribution-upgrade
+      kind: infrastructure
+      operation: extend
+      description: Coordinated backend, frontend, lock, manifest, regeneration, conflict, and validation plan.
+    - name: supplier
+      kind: admin-module
+      operation: extend
+      specPath: .mss/modules/example-supplier.yaml
+      description: Golden internal and external business module used by compatibility and E2E gates.
+  requirements:
+    - id: preserve-complete-admin
+      title: Keep one complete Admin product
+      description: Core Admin backend and frontend capabilities remain enabled and owned by the distribution.
+      priority: must
+      actor: distribution-maintainer
+      module: admin-composition
+      rules:
+        - The official application and every thin host share the same application construction and lifecycle implementation.
+        - Business hosts cannot disable or replace users, roles, menus, Session, CSRF, authorization, configuration, or the core application shell.
+        - One backend binary and one frontend dist remain the only Admin deployment units.
+    - id: expose-importable-admin
+      title: Expose a context-aware complete application API
+      description: External Go modules can execute the complete Admin CLI and server lifecycle without importing a main package.
+      priority: must
+      actor: downstream-maintainer
+      module: admin-composition
+      rules:
+        - Library code accepts context.Context, returns diagnosable errors, and never calls os.Exit.
+        - Existing server, migrate, flags, environment variables, relative configuration, version injection, and reference commands remain compatible.
+        - Repeated test construction does not accumulate commands, modules, routes, flags, or other process-global state.
+    - id: register-business-modules
+      title: Register compile-time business modules explicitly
+      description: Supplier and external modules use one ordered registration interface with readiness and authorization enforcement.
+      priority: must
+      actor: business-module-author
+      module: admin-composition
+      rules:
+        - Duplicate module names and registration failures are returned before the server starts.
+        - Database and authorization migrations complete and pass readiness before business routes are mounted.
+        - Business routes run behind the complete Admin authentication, authorization, audit, and request middleware.
+        - Public extension types do not expose Foundation internal packages or move Admin domain behavior into mss-boot.
+    - id: publish-single-admin-web
+      title: Package one complete Admin Web application
+      description: The only V6 source tree is installable as one package and composes business pages in the same Umi build.
+      priority: must
+      actor: downstream-maintainer
+      module: admin-web-distribution
+      rules:
+        - The package has a strict files allowlist, stable exports, build CLI, version injection, and no local or sensitive files.
+        - Core routes are always present and business routes are inserted before the 403 and 404 fallbacks.
+        - External installation proves one React, React DOM, Ant Design, ProComponents, React Query, and Umi runtime.
+        - The official reference application continues to build from the same source and configuration factory.
+    - id: generate-thin-host
+      title: Generate a thin host by default
+      description: management-system emits only application glue, business directories, contracts, deployment files, and CI.
+      priority: must
+      actor: downstream-maintainer
+      module: thin-host-blueprint
+      rules:
+        - Generated hosts depend on the versioned Admin Go module and complete Admin Web package.
+        - Generated hosts do not contain Admin core backend sources, mss-boot sources, full V6 sources, Foundation docs, or Foundation release tooling.
+        - Dry-run, path confinement, stable output, unknown-file preservation, and two-run idempotency remain mandatory.
+        - AdminModule generation resolves the target Go module, business module directory, frontend directory, generated directory, and business route file from the project contract.
+    - id: upgrade-one-distribution
+      title: Upgrade one coordinated Admin Distribution
+      description: A single version transition updates backend and frontend dependencies plus managed thin-host glue.
+      priority: must
+      actor: downstream-maintainer
+      module: distribution-upgrade
+      rules:
+        - Plan is read-only and reports old and new distribution versions, dependency changes, regeneration, managed files, conflicts, preserved files, and validation commands.
+        - Apply requires explicit confirmation, fails on conflicts, preserves unknown business files, and records the new baseline last.
+        - Backend, frontend, root, and nested component version cores cannot silently diverge.
+        - Upgrade automation never guesses or rewrites non-generated business logic.
+    - id: qualify-external-consumer
+      title: Qualify the real external consumption path
+      description: Compatibility evidence comes from a generated repository outside the Monorepo workspace.
+      priority: must
+      actor: distribution-maintainer
+      module: supplier
+      rules:
+        - The external backend tidies, tests, vets, builds, and runs help with GOWORK=off.
+        - The external frontend installs a local package tarball, lints, tests, builds one dist, and passes package and runtime gates.
+        - External E2E covers login, Admin shell, Supplier navigation, Supplier create or edit, authorization denial, route refresh, and console health.
+        - CI reruns the consumer gates for Admin, V6, CLI, generator, template, contract, release-tooling, and workflow changes.
+    - id: govern-coordinated-release
+      title: Govern coordinated artifacts without publishing from this feature branch
+      description: Release tooling recognizes the nested Admin module and complete frontend package while preserving merged-main governance.
+      priority: must
+      actor: distribution-maintainer
+      module: distribution-upgrade
+      rules:
+        - The nested Admin Go module uses admin/vX.Y.Z and all coordinated artifacts share the same semantic version core.
+        - Frontend qualification includes pack contents, integrity, SBOM, provenance, and fail-closed credential handling.
+        - This implementation creates no tag, GitHub Release, production image, or public npm package.
+    - id: preserve-privacy-boundary
+      title: Preserve the no-telemetry boundary
+      description: Creation, installation, execution, verification, and upgrade remain local and collect no adopter data.
+      priority: must
+      actor: security-reviewer
+      module: thin-host-blueprint
+      rules:
+        - No import record, repository registration, update call-home, analytics endpoint, or installation counter is added.
+        - Logs and reports redact secrets and never include production credentials or sensitive request bodies.
+  constraints:
+    - id: compile-time-composition-only
+      type: security
+      statement: Business backend and frontend code is linked during Go and Umi builds; no remote or runtime business code loader is permitted.
+    - id: one-product-version
+      type: compatibility
+      statement: Admin backend, Admin Web, and coordinated release metadata expose one semantic product version even when technical tag namespaces differ.
+    - id: backend-authorization-authoritative
+      type: security
+      statement: Frontend access checks remain advisory and every business operation has backend positive and negative authorization tests.
+    - id: generated-custom-separation
+      type: data
+      statement: Generated and user-owned files or regions remain explicit so sync and upgrade cannot silently overwrite business customization.
+    - id: no-adopter-observation
+      type: privacy
+      statement: The Foundation neither records nor transmits who creates, imports, installs, executes, or upgrades a thin host.
+  acceptance:
+    - id: complete-admin-regression-gate
+      requirement: preserve-complete-admin
+      statement: The official Admin backend and V6 frontend retain every current core route, lifecycle, security protocol, and regression gate.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: make test-all and complete V6 lint, test, release build, delivery smoke, and browser regression
+    - id: importable-backend-gate
+      requirement: expose-importable-admin
+      statement: The official Admin and a repository-external host compile and execute the same context-aware complete application entrypoint.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: cd admin && GOWORK=off go test ./... && GOWORK=off go vet ./...
+        - type: command
+          value: External thin-host GOWORK=off tidy, test, vet, build, and help verification
+    - id: business-module-gate
+      requirement: register-business-modules
+      statement: Supplier uses the public module contract and duplicate, migration, readiness, authorization, and route-order cases pass.
+      level: security
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: Admin business registry and Supplier positive and negative integration suite
+    - id: single-web-package-gate
+      requirement: publish-single-admin-web
+      statement: A packed local tarball installs outside the repository and builds complete Admin plus Supplier into one dist with one runtime graph.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: corepack pnpm@10.34.5 pack and external thin-host install, lint, test, and build
+        - type: report
+          value: Package file allowlist, dependency tree, runtime graph, and one-dist report
+    - id: thin-host-blueprint-gate
+      requirement: generate-thin-host
+      statement: Real mss new app output is confined, idempotent, contains only thin-host ownership, and supports target-layout Supplier generation.
+      level: contract
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: Thin-host generation, path attack, unknown-file preservation, and two-run drift suite
+        - type: report
+          value: External generated directory tree and forbidden-source scan
+    - id: coordinated-upgrade-gate
+      requirement: upgrade-one-distribution
+      statement: Read-only plan and confirmed apply coordinate both dependencies, preserve business files, report conflicts, and make a second apply empty.
+      level: migration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: Thin-host distribution upgrade plan, apply, conflict, preservation, rollback, and idempotency suite
+    - id: external-e2e-gate
+      requirement: qualify-external-consumer
+      statement: A generated external Supplier host passes login, shell, navigation, CRUD, denial, refresh, and console-health E2E without production access.
+      level: e2e
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: report
+          value: External thin-host Playwright result and sanitized browser evidence
+    - id: release-contract-gate
+      requirement: govern-coordinated-release
+      statement: Policy, source verification, package qualification, and workflow tests accept matching versions and reject mismatched or unmerged sources.
+      level: contract
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: test
+          value: Admin tag, frontend pack, coordinated-version, and release-source policy suite
+    - id: privacy-gate
+      requirement: preserve-privacy-boundary
+      statement: Static and runtime tests find no telemetry, adopter registry, import record, or call-home path.
+      level: security
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: report
+          value: No-telemetry repository and generated-host audit
+  risks:
+    - id: process-global-admin-state
+      description: Existing Cobra, configuration, router, and lifecycle globals may contaminate repeated application construction or external tests.
+      severity: high
+      mitigation: Introduce per-execution command and module registries, retain compatibility adapters only at the official boundary, and add repeated-construction tests.
+    - id: duplicate-frontend-runtime
+      description: Incorrect dependency or CLI resolution can install multiple React, Ant Design, Query, or Umi runtime copies in a thin host.
+      severity: high
+      mitigation: Design from the real pnpm installation tree and enforce package-manager and production-bundle runtime graph checks.
+    - id: destructive-blueprint-transition
+      description: Treating a historical full-copy manifest as a thin-host baseline could delete or overwrite downstream source customizations.
+      severity: critical
+      mitigation: Detect legacy ownership explicitly, produce a conflict-aware migration plan, preserve unknown files, and record the thin baseline only after complete success.
+    - id: coordinated-version-drift
+      description: Technical artifacts could resolve different semantic versions and fail only at runtime.
+      severity: high
+      mitigation: Store one distribution version and fail doctor, verify, upgrade, and release policy checks on any backend or frontend mismatch.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - cd admin && GOWORK=off go test ./... && GOWORK=off go vet ./...
+      - corepack pnpm@10.34.5 --dir web/antd-v6 run deps:check
+      - corepack pnpm@10.34.5 --dir web/antd-v6 run test:ci
+      - corepack pnpm@10.34.5 --dir web/antd-v6 run build:release
+      - External thin-host backend, frontend, upgrade, idempotency, and E2E qualification workflow
+  rollout:
+    strategy: phased
+    migration: >-
+      Land contracts first, then the backend and frontend consumption slices, then switch new application
+      generation to thin-host templates. Historical full-copy manifests are detected and receive an explicit
+      conflict-aware transition plan; no production database migration is executed by this source change.
+    rollback: >-
+      Before a coordinated release, revert the feature commits in reverse order. After downstream adoption,
+      pin the previous Admin Distribution version and restore the previous thin-host lock and manifest; never
+      move a published tag or silently restore full-source copying.
