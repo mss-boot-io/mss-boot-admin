@@ -1,6 +1,6 @@
 # ADR: Complete Admin distribution and thin business hosts
 
-- Status: Accepted; implementation in progress
+- Status: Accepted; implementation complete, pending PR merge and remote qualification
 - Date: 2026-08-19
 - Owners: Admin, frontend, agent infrastructure, release engineering
 - Feature contract: `.mss/features/complete-admin-distribution-thin-host.yaml`
@@ -101,6 +101,7 @@ Downstream repositories become substantially smaller and upgrades operate on thi
 product sources. In exchange, the complete Admin application entrypoint, business module API, frontend
 exports, and coordinated version become compatibility surfaces that require external-consumer gates.
 
-The decision is complete only when the external Supplier host passes GOWORK=off backend validation,
+The implementation has passed the repository-external Supplier host gate: GOWORK=off backend validation,
 tarball frontend validation, single-runtime analysis, deterministic generation and upgrade tests, and the
-required browser E2E described by the Feature contract.
+required browser E2E described by the Feature contract. Publication remains separately gated on PR merge,
+the exact merged-main commit, remote qualification, and coordinated immutable artifacts.

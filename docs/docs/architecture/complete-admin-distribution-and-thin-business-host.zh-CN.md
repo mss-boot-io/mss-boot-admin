@@ -12,7 +12,7 @@ keywords: [complete admin distribution thin business host go module npm umi code
 
 ## 1. 文档状态
 
-- 设计状态：已接受；`v1.3.0` 实现已落地，处于合并前资格验证
+- 设计状态：已接受；`v1.3.0` 实现与本地资格验证已完成，待 PR 合并和远端 CI
 - 设计日期：2026-08-19
 - 设计基线：`main@9a256229774bb255dfe8a618613522fd70538195`
 - 实现分支：`agent/complete-admin-distribution-plan`
@@ -681,6 +681,15 @@ Agent 不应编辑：
 内部实现可以持续演进。面向 AI Agent 的下游不要求无限期维持所有内部包路径不变，但每次不兼容调整必须有结构化升级计划、生成器或明确冲突输出。
 
 ## 17. 实施阶段
+
+截至 `agent/complete-admin-distribution-plan`，阶段一至阶段六的代码、机器契约、模板、
+升级入口、发行工作流和长期文档均已落地。仓库外 Supplier Thin Host 已通过生成、二次
+幂等、`GOWORK=off` 后端、Tarball 安装、lint、test、单一生产 `dist`/Runtime 和浏览器
+E2E。标准本地 Admin 另外通过 Codex 内置浏览器完成登录、工作台、菜单绑定 API、
+Supplier、硬刷新、403、深色主题和控制台健康检查。
+
+下一条可执行步骤是把当前分支通过 Pull Request 合并到 `main`，等待远端必需检查全部
+成功；本功能分支不创建 Tag、GitHub Release、镜像或 npm 公共包。
 
 ### 阶段一：设计与契约
 

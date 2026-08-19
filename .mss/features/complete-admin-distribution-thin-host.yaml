@@ -9,8 +9,8 @@ metadata:
   owner: agent-infrastructure
   labels:
     domain: admin-distribution
-    implementation-status: in-progress
-    release-status: preparation
+    implementation-status: complete
+    release-status: pr-ready
     target-version: v1.3.0
     compatibility: coordinated-backend-frontend-version
     privacy: no-telemetry
