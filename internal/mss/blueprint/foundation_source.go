@@ -46,10 +46,13 @@ type foundationReleasePolicy struct {
 		CurrentStableVersion      string `yaml:"currentStableVersion"`
 		CurrentStableCommit       string `yaml:"currentStableCommit"`
 		NextPublicVersion         string `yaml:"nextPublicVersion"`
+		DistributionVersion       string `yaml:"distributionVersion"`
+		DistributionComponents    string `yaml:"distributionComponents"`
 		PublicationWorkflowsReady *bool  `yaml:"publicationWorkflowsReady"`
 		PublicPrereleases         *bool  `yaml:"publicPrereleases"`
 		RootTagTemplate           string `yaml:"rootTagTemplate"`
 		FrameworkTagTemplate      string `yaml:"frameworkTagTemplate"`
+		AdminTagTemplate          string `yaml:"adminTagTemplate"`
 		FrontendTagTemplate       string `yaml:"frontendTagTemplate"`
 		FrontendV6TagTemplate     string `yaml:"frontendV6TagTemplate"`
 		DocsTagTemplate           string `yaml:"docsTagTemplate"`
@@ -359,13 +362,21 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 	}
 	currentRaw := strings.TrimSpace(policy.Spec.CurrentStableVersion)
 	nextRaw := strings.TrimSpace(policy.Spec.NextPublicVersion)
+	distributionRaw := strings.TrimSpace(policy.Spec.DistributionVersion)
 	current := strings.TrimPrefix(currentRaw, "v")
 	next := strings.TrimPrefix(nextRaw, "v")
-	if !strings.HasPrefix(currentRaw, "v") || !strings.HasPrefix(nextRaw, "v") {
+	distribution := strings.TrimPrefix(distributionRaw, "v")
+	if !strings.HasPrefix(currentRaw, "v") || !strings.HasPrefix(nextRaw, "v") || !strings.HasPrefix(distributionRaw, "v") {
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy versions must use a v prefix")
 	}
-	if !validSemanticVersion(current) || !validSemanticVersion(next) {
+	if !validSemanticVersion(current) || !validSemanticVersion(next) || !validSemanticVersion(distribution) {
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy versions must be semantic")
+	}
+	if distributionRaw != nextRaw {
+		return foundationReleasePolicy{}, errors.New("committed foundation release policy distributionVersion must equal nextPublicVersion")
+	}
+	if strings.TrimSpace(policy.Spec.DistributionComponents) != "root,framework,admin,frontend" {
+		return foundationReleasePolicy{}, errors.New("committed foundation release policy distributionComponents must equal root,framework,admin,frontend")
 	}
 	policy.Spec.CurrentStableCommit = strings.ToLower(strings.TrimSpace(policy.Spec.CurrentStableCommit))
 	if !fullCommitPattern.MatchString(policy.Spec.CurrentStableCommit) {
@@ -377,6 +388,7 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 	}{
 		{name: "rootTagTemplate", value: policy.Spec.RootTagTemplate},
 		{name: "frameworkTagTemplate", value: policy.Spec.FrameworkTagTemplate},
+		{name: "adminTagTemplate", value: policy.Spec.AdminTagTemplate},
 		{name: "frontendTagTemplate", value: policy.Spec.FrontendTagTemplate},
 		{name: "docsTagTemplate", value: policy.Spec.DocsTagTemplate},
 	}

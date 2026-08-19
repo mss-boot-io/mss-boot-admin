@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo"
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
 // Action describes one downstream file operation.
@@ -48,27 +49,29 @@ type FileChange struct {
 
 // Plan is returned in dry-run and write modes.
 type Plan struct {
-	Blueprint        string       `json:"blueprint"`
-	BlueprintVersion string       `json:"blueprintVersion"`
-	FoundationCommit string       `json:"foundationCommit"`
-	Identities       IdentitySet  `json:"identities"`
-	Application      Application  `json:"application"`
-	Destination      string       `json:"destination"`
-	DryRun           bool         `json:"dryRun"`
-	Success          bool         `json:"success"`
-	TotalFiles       int          `json:"totalFiles"`
-	TotalBytes       int64        `json:"totalBytes"`
-	Changes          []FileChange `json:"changes"`
+	Blueprint        string                   `json:"blueprint"`
+	BlueprintVersion string                   `json:"blueprintVersion"`
+	FoundationCommit string                   `json:"foundationCommit"`
+	Identities       IdentitySet              `json:"identities"`
+	Distribution     project.DistributionSpec `json:"distribution,omitempty"`
+	Application      Application              `json:"application"`
+	Destination      string                   `json:"destination"`
+	DryRun           bool                     `json:"dryRun"`
+	Success          bool                     `json:"success"`
+	TotalFiles       int                      `json:"totalFiles"`
+	TotalBytes       int64                    `json:"totalBytes"`
+	Changes          []FileChange             `json:"changes"`
 }
 
 // Manifest records the exact foundation file hashes used for future three-way upgrades.
 type Manifest struct {
-	APIVersion string                  `json:"apiVersion"`
-	Kind       string                  `json:"kind"`
-	Metadata   ManifestMetadata        `json:"metadata"`
-	Identities IdentitySet             `json:"identities,omitempty"`
-	Records    ManifestRecords         `json:"records,omitempty"`
-	Files      map[string]ManifestFile `json:"files"`
+	APIVersion   string                   `json:"apiVersion"`
+	Kind         string                   `json:"kind"`
+	Metadata     ManifestMetadata         `json:"metadata"`
+	Distribution project.DistributionSpec `json:"distribution,omitempty"`
+	Identities   IdentitySet              `json:"identities,omitempty"`
+	Records      ManifestRecords          `json:"records,omitempty"`
+	Files        map[string]ManifestFile  `json:"files"`
 }
 
 // ManifestMetadata identifies the downstream application and foundation revision.
@@ -108,6 +111,11 @@ type ManifestFile struct {
 type desiredFile struct {
 	Data []byte
 	Mode fs.FileMode
+}
+
+type selectedCommittedFile struct {
+	Source committedFile
+	Output string
 }
 
 // Generate plans or writes a complete downstream management-system repository.
@@ -163,9 +171,22 @@ func BuildDesired(ctx context.Context, root string, blueprint *Document, applica
 	}
 	blueprint = source.Blueprint
 	files := make(map[string]desiredFile, len(source.Entries)+2)
-	selected := make([]committedFile, 0, len(source.Entries))
+	selected := make([]selectedCommittedFile, 0, len(source.Entries))
+	templatePrefix := ""
+	if blueprint.Spec.TemplateRoot != "" {
+		templatePrefix = strings.TrimSuffix(normalizedPath(blueprint.Spec.TemplateRoot), "/") + "/"
+	}
 	for _, entry := range source.Entries {
 		relative := entry.Path
+		if templatePrefix != "" {
+			if !strings.HasPrefix(relative, templatePrefix) {
+				continue
+			}
+			relative = strings.TrimPrefix(relative, templatePrefix)
+			if !safeRelativePath(relative) {
+				return nil, Manifest{}, fmt.Errorf("application template produced unsafe output path %q", relative)
+			}
+		}
 		if blueprint.Excluded(relative) ||
 			normalizedPath(relative) == normalizedPath(blueprint.Spec.ManifestPath) ||
 			normalizedPath(relative) == normalizedPath(blueprint.Spec.LockPath) {
@@ -177,17 +198,25 @@ func BuildDesired(ctx context.Context, root string, blueprint *Document, applica
 		if entry.Type != "blob" {
 			continue
 		}
-		selected = append(selected, entry)
+		selected = append(selected, selectedCommittedFile{Source: entry, Output: relative})
 	}
-	blobs, err := readCommittedBlobs(ctx, root, selected)
+	sourceEntries := make([]committedFile, 0, len(selected))
+	for _, selectedEntry := range selected {
+		sourceEntries = append(sourceEntries, selectedEntry.Source)
+	}
+	blobs, err := readCommittedBlobs(ctx, root, sourceEntries)
 	if err != nil {
 		return nil, Manifest{}, err
 	}
-	for _, entry := range selected {
-		relative := entry.Path
-		data := blobs[relative]
+	for _, selectedEntry := range selected {
+		entry := selectedEntry.Source
+		relative := selectedEntry.Output
+		data := blobs[entry.Path]
 		if blueprint.Text(relative, data) {
 			data = transformText(data, blueprint, application)
+			if templatePrefix != "" && bytes.Contains(data, []byte("__MSS_")) {
+				return nil, Manifest{}, fmt.Errorf("application template %s contains an unresolved mss placeholder", entry.Path)
+			}
 		}
 		mode := entry.Mode.Perm()
 		if mode == 0 {
@@ -237,7 +266,7 @@ func BuildDesired(ctx context.Context, root string, blueprint *Document, applica
 	if err := validateIdentitySet(identities, baseline, records.LockPath, records.ManifestPath, true); err != nil {
 		return nil, Manifest{}, fmt.Errorf("resolve downstream snapshot identities: %w", err)
 	}
-	lockData, err := renderFoundationLock(identities, records)
+	lockData, err := renderFoundationLock(identities, records, blueprint.Spec.Distribution)
 	if err != nil {
 		return nil, Manifest{}, err
 	}
@@ -256,7 +285,8 @@ func BuildDesired(ctx context.Context, root string, blueprint *Document, applica
 			GeneratorVersion:     identities.Generator.Version,
 			GeneratorCommit:      identities.Generator.Commit,
 		},
-		Identities: identities,
+		Distribution: blueprint.Spec.Distribution,
+		Identities:   identities,
 		Records: ManifestRecords{
 			SnapshotRecordPaths: records,
 			LockSHA256:          digest(lockData),
@@ -319,6 +349,7 @@ func buildDestinationPlan(
 		BlueprintVersion: blueprint.Metadata.Version,
 		FoundationCommit: manifest.Metadata.FoundationCommit,
 		Identities:       manifest.Identities,
+		Distribution:     blueprint.Spec.Distribution,
 		Application:      application,
 		Destination:      destination,
 		DryRun:           dryRun,
@@ -379,6 +410,29 @@ func transformText(data []byte, blueprint *Document, application Application) []
 		moduleSentinel     = "__MSS_BLUEPRINT_TARGET_MODULE__"
 		repositorySentinel = "__MSS_BLUEPRINT_TARGET_REPOSITORY__"
 	)
+	replacements := []struct{ token, value string }{
+		{token: "__MSS_APP_NAME__", value: application.Name},
+		{token: "__MSS_APP_DISPLAY_NAME__", value: application.DisplayName},
+		{token: "__MSS_APP_MODULE__", value: application.Module},
+		{token: "__MSS_APP_REPOSITORY__", value: application.Repository},
+		{token: "__MSS_GENERATOR_VERSION__", value: buildinfo.VersionString()},
+		{token: "__MSS_DISTRIBUTION_NAME__", value: blueprint.Spec.Distribution.Name},
+		{token: "__MSS_DISTRIBUTION_VERSION__", value: blueprint.Spec.Distribution.Version},
+		{token: "__MSS_DISTRIBUTION_BACKEND_MODULE__", value: blueprint.Spec.Distribution.Backend.Module},
+		{token: "__MSS_DISTRIBUTION_BACKEND_VERSION__", value: blueprint.Spec.Distribution.Backend.Version},
+		{token: "__MSS_DISTRIBUTION_FRONTEND_PACKAGE__", value: blueprint.Spec.Distribution.Frontend.Package},
+		{token: "__MSS_DISTRIBUTION_FRONTEND_VERSION__", value: blueprint.Spec.Distribution.Frontend.Version},
+	}
+	for _, replacement := range replacements {
+		text = strings.ReplaceAll(text, replacement.token, replacement.value)
+	}
+	// Application templates use explicit placeholders for every downstream and
+	// Distribution-owned identity. Do not run the legacy full-repository text
+	// rewrite afterwards: the Admin module is intentionally rooted in the
+	// Foundation repository and must not be rewritten to the downstream module.
+	if blueprint.Spec.TemplateRoot != "" {
+		return []byte(text)
+	}
 	sourceRepository := foundationRepository(blueprint)
 	text = strings.ReplaceAll(text, blueprint.Spec.SourceModule, moduleSentinel)
 	if sourceRepository != "" {

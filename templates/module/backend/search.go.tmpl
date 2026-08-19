@@ -2,7 +2,7 @@
 
 package {{ .Package }}
 
-import "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
+import "{{ .FrameworkModule }}/pkg/response/actions"
 
 // {{ .ModelName }}Search defines supported list filters.
 type {{ .ModelName }}Search struct {

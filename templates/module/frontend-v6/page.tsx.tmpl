@@ -42,10 +42,16 @@ import {
   type TableProps,
 } from 'antd';
 import { useMemo, useState } from 'react';
-import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
-import type { InitialState } from '@/shared/auth/types';
-import { PageContainer } from '@/shared/design-system/PageContainer';
-import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+import {
+  getRequestErrorMessage,
+  getRequestStatus,
+  PageContainer,
+  PageEmpty,
+  PageError,
+  PageForbidden,
+  PageLoading,
+  type InitialState,
+} from '{{ .AdminWebPackage }}/runtime';
 import { {{ .ModuleName }}API } from './api';
 import { build{{ .ModelName }}Query, get{{ .ModelName }}Capabilities } from './contract';
 import {

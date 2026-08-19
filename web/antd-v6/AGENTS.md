@@ -3,9 +3,10 @@
 ## Scope
 
 This file applies to `web/antd-v6/` and inherits the repository contract. This
-directory is the independently built and released Admin application. It must
-not read source, build output, dependencies, local storage, service workers, or
-release identity from any retired frontend artifact.
+directory is both the official Admin application and the sole complete
+`@mss-boot-io/admin-web` package. Both surfaces use this same source tree. It
+must not read source, build output, dependencies, local storage, service
+workers, or release identity from any retired frontend artifact.
 
 ## Frozen toolchain
 
@@ -29,6 +30,7 @@ corepack pnpm@10.34.5 run lint
 corepack pnpm@10.34.5 run test:ci
 corepack pnpm@10.34.5 run build:release
 corepack pnpm@10.34.5 run delivery:smoke
+corepack pnpm@10.34.5 pack
 ```
 
 From the repository root use `make web-v6-install web-v6-lint web-v6-test
@@ -43,6 +45,14 @@ web-v6-build` or `go run ./cmd/mss verify --changed`.
 - `src/shared/design-system/` owns public tokens, semantic styles, page states,
   and responsive primitives.
 - `src/generated/` is deterministic output and must not be hand edited.
+- `package/` contains small public adapters only; it must not become a second
+  application source tree. `bin/mss-admin-web.cjs` owns downstream commands.
+- Public package imports use only declared `exports`. Do not expose `./src/*`,
+  redirect a Thin Host's `@` alias, or require consumers to copy core pages,
+  patches, configuration, or `src/shared`.
+- Core source uses `@mss-admin-core`; `@mss-admin-business/routes` is the only
+  generated menu-registration bridge. Business routes and registrations must
+  be injected together before the 403/404 fallbacks.
 
 React Query owns server state. Umi initial state contains only verified identity
 and startup-critical client state. Do not duplicate server resources in a Umi
@@ -50,6 +60,10 @@ model, component-local cache, and query cache.
 
 Backend authorization remains authoritative. Client route access is a user
 experience guard and must have backend positive and negative tests.
+
+Every package change must pass a real `pnpm pack` allowlist check and an
+external Thin Host install/lint/test/build. Runtime singleton claims require
+the installed pnpm graph and production bundle evidence, not manifest review.
 
 ## Ant Design 6 rules
 

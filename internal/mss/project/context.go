@@ -39,6 +39,7 @@ type ProjectDocument struct {
 type ProjectSpec struct {
 	Mission           string            `yaml:"mission" json:"mission"`
 	FoundationVersion string            `yaml:"foundationVersion" json:"foundationVersion"`
+	Distribution      DistributionSpec  `yaml:"distribution,omitempty" json:"distribution,omitempty"`
 	RepositoryLayout  map[string]string `yaml:"repositoryLayout" json:"repositoryLayout"`
 	Backend           BackendSpec       `yaml:"backend" json:"backend"`
 	Frontend          FrontendSpec      `yaml:"frontend" json:"frontend"`
@@ -48,6 +49,28 @@ type ProjectSpec struct {
 	Conventions       map[string]any    `yaml:"conventions" json:"conventions"`
 	Entrypoints       map[string]string `yaml:"entrypoints" json:"entrypoints"`
 	Validation        ValidationSpec    `yaml:"validation" json:"validation"`
+}
+
+// DistributionSpec pins the one coordinated Admin product consumed by a
+// project. The product version is v-prefixed for Go and release tooling while
+// the npm artifact uses the same semantic core without the prefix.
+type DistributionSpec struct {
+	Name     string                   `yaml:"name" json:"name"`
+	Version  string                   `yaml:"version" json:"version"`
+	Backend  DistributionBackendSpec  `yaml:"backend" json:"backend"`
+	Frontend DistributionFrontendSpec `yaml:"frontend" json:"frontend"`
+}
+
+// DistributionBackendSpec identifies the complete importable Admin module.
+type DistributionBackendSpec struct {
+	Module  string `yaml:"module" json:"module"`
+	Version string `yaml:"version" json:"version"`
+}
+
+// DistributionFrontendSpec identifies the complete Admin Web package.
+type DistributionFrontendSpec struct {
+	Package string `yaml:"package" json:"package"`
+	Version string `yaml:"version" json:"version"`
 }
 
 // BackendSpec describes the Go backend contract.
@@ -276,7 +299,15 @@ func (c *Context) Validate() error {
 	if strings.TrimSpace(c.Project.Spec.Backend.Module) == "" {
 		problems = append(problems, "project spec.backend.module is required")
 	}
-	for _, key := range []string{"backend", "framework", "frontend", "documentation", "specifications"} {
+	layoutKind := c.LayoutKind()
+	requiredLayoutKeys := []string{"backend", "framework", "frontend", "documentation", "specifications"}
+	if strings.TrimSpace(c.Project.Spec.RepositoryLayout["kind"]) != "" {
+		requiredLayoutKeys = []string{"backend", "frontend", "modules", "generated", "businessRoutes", "specifications"}
+		if layoutKind == "foundation" {
+			requiredLayoutKeys = append(requiredLayoutKeys, "framework", "documentation", "templates")
+		}
+	}
+	for _, key := range requiredLayoutKeys {
 		path := strings.TrimSpace(c.Project.Spec.RepositoryLayout[key])
 		if path == "" {
 			problems = append(problems, "project repositoryLayout."+key+" is required")
@@ -284,6 +315,14 @@ func (c *Context) Validate() error {
 		}
 		if !pathWithinRoot(c.Root, path) {
 			problems = append(problems, "project repositoryLayout."+key+" escapes repository root")
+		}
+	}
+	if layoutKind != "foundation" && layoutKind != "thin-host" {
+		problems = append(problems, "project repositoryLayout.kind must equal foundation or thin-host")
+	}
+	if strings.TrimSpace(c.Project.Spec.RepositoryLayout["kind"]) != "" || !c.Project.Spec.Distribution.Empty() {
+		if distributionProblems := c.Project.Spec.Distribution.Validate(); len(distributionProblems) > 0 {
+			problems = append(problems, distributionProblems...)
 		}
 	}
 	applicationIDs := make(map[string]bool, len(c.Project.Spec.Frontend.Applications))
@@ -334,6 +373,85 @@ func (c *Context) Validate() error {
 		return errors.New(strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+// LayoutKind distinguishes this Foundation checkout from a generated thin
+// host. Historical project contracts without repositoryLayout.kind retain the
+// Foundation interpretation so old snapshots remain readable.
+func (c *Context) LayoutKind() string {
+	kind := strings.TrimSpace(c.Project.Spec.RepositoryLayout["kind"])
+	if kind == "" {
+		return "foundation"
+	}
+	return kind
+}
+
+// Validate returns stable, field-qualified distribution contract problems.
+func (d DistributionSpec) Validate() []string {
+	var problems []string
+	if strings.TrimSpace(d.Name) == "" {
+		problems = append(problems, "project spec.distribution.name is required")
+	}
+	productVersion, ok := semanticVersionCore(d.Version, true)
+	if !ok {
+		problems = append(problems, "project spec.distribution.version must be a v-prefixed semantic version")
+	}
+	if strings.TrimSpace(d.Backend.Module) == "" || strings.ContainsAny(d.Backend.Module, " \\:") {
+		problems = append(problems, "project spec.distribution.backend.module is invalid")
+	}
+	backendVersion, backendOK := semanticVersionCore(d.Backend.Version, true)
+	if !backendOK {
+		problems = append(problems, "project spec.distribution.backend.version must be a v-prefixed semantic version")
+	}
+	if strings.TrimSpace(d.Frontend.Package) == "" {
+		problems = append(problems, "project spec.distribution.frontend.package is required")
+	}
+	frontendVersion, frontendOK := semanticVersionCore(d.Frontend.Version, false)
+	if !frontendOK {
+		problems = append(problems, "project spec.distribution.frontend.version must be an unprefixed semantic version")
+	}
+	if ok && backendOK && backendVersion != productVersion {
+		problems = append(problems, "project Admin Distribution backend version must match the product version core")
+	}
+	if ok && frontendOK && frontendVersion != productVersion {
+		problems = append(problems, "project Admin Distribution frontend version must match the product version core")
+	}
+	return problems
+}
+
+// Empty identifies historical project documents created before the
+// coordinated Admin Distribution contract was introduced.
+func (d DistributionSpec) Empty() bool {
+	return strings.TrimSpace(d.Name) == "" && strings.TrimSpace(d.Version) == "" &&
+		strings.TrimSpace(d.Backend.Module) == "" && strings.TrimSpace(d.Backend.Version) == "" &&
+		strings.TrimSpace(d.Frontend.Package) == "" && strings.TrimSpace(d.Frontend.Version) == ""
+}
+
+func semanticVersionCore(value string, prefixed bool) (string, bool) {
+	value = strings.TrimSpace(value)
+	if prefixed {
+		if !strings.HasPrefix(value, "v") {
+			return "", false
+		}
+		value = strings.TrimPrefix(value, "v")
+	} else if strings.HasPrefix(value, "v") {
+		return "", false
+	}
+	parts := strings.Split(value, ".")
+	if len(parts) != 3 {
+		return "", false
+	}
+	for _, part := range parts {
+		if part == "" || (len(part) > 1 && part[0] == '0') {
+			return "", false
+		}
+		for _, character := range part {
+			if character < '0' || character > '9' {
+				return "", false
+			}
+		}
+	}
+	return value, true
 }
 
 // DefaultFrontendApplication resolves the explicitly selected primary

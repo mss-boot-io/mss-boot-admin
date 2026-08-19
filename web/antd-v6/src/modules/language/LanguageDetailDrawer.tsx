@@ -1,8 +1,13 @@
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
+import { getRequestErrorMessage, getRequestStatus } from '@mss-admin-core/shared/api/errors';
+import {
+  PageEmpty,
+  PageError,
+  PageForbidden,
+  PageLoading,
+} from '@mss-admin-core/shared/design-system/PageState';
 import { useIntl } from '@umijs/max';
 import { Alert, Button, Descriptions, Drawer, Listy, Space, Tag, Typography } from 'antd';
-import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
-import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
 import { useLanguage } from './query';
 
 interface LanguageDetailDrawerProps {

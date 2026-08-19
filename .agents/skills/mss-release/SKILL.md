@@ -1,6 +1,6 @@
 ---
 name: mss-release
-description: Prepare, execute, resume, and verify an MSS foundation, framework, frontend, docs, or downstream-application release from one exact merged-main commit. Trigger for release readiness, version or tag planning, changelogs, phased GitHub Actions qualification, protected-environment approval, artifact or image publication, failed-release recovery, post-publication reconciliation, migration notes, and rollback preparation. Reuse exact successful evidence to shorten the release cycle; do not use this skill to merge an unverified feature PR or bypass a failed gate.
+description: Prepare, execute, resume, and verify an MSS foundation, framework, Admin, frontend, docs, or downstream-application release from one exact merged-main commit. Trigger for release readiness, version or tag planning, changelogs, phased GitHub Actions qualification, protected-environment approval, artifact or image publication, failed-release recovery, post-publication reconciliation, migration notes, and rollback preparation. Reuse exact successful evidence to shorten the release cycle; do not use this skill to merge an unverified feature PR or bypass a failed gate.
 ---
 
 # Release an MSS component
@@ -15,7 +15,7 @@ Record:
 
 - repository, component scope, version, and all tag names;
 - frozen full commit and merged PR;
-- feature-freeze, browser, Blueprint, pre-framework, framework, frontend, pre-root, root-container, root-candidate, and final-publication run IDs or URLs;
+- feature-freeze, browser, Blueprint, pre-framework, Framework, Admin, frontend, pre-root, root-container, root-candidate, and final-publication run IDs or URLs;
 - evidence issue URL, public release URLs, image digests, artifact checksums, active GitHub actor, and approver actor;
 - status as `missing`, `running`, `waiting-approval`, `successful`, `failed-before-publication`, or `public`.
 
@@ -37,11 +37,12 @@ For the consolidated foundation repository, release the synchronized train in th
 1. feature-freeze qualification;
 2. `pre-framework` authority;
 3. Framework tag and public external-module probe;
-4. frontend tag, artifact, image, and Release;
-5. independent `pre-root` authority;
-6. root tag, root image, and tag-triggered candidate artifacts;
-7. exact-tag manual root publication;
-8. independent public reconciliation.
+4. Admin tag, Release, and public external-module probe;
+5. frontend tag, npm package, artifact, image, and Release;
+6. independent `pre-root` authority;
+7. root tag, root image, and tag-triggered candidate artifacts;
+8. exact-tag manual root publication;
+9. independent public reconciliation.
 
 For a component-only or downstream release, retain the same source, evidence, immutability, and reconciliation rules while following that repository's tag namespace and workflow.
 
@@ -64,6 +65,7 @@ VERSION="$(python3 -c 'from pathlib import Path; from tools.release.check_releas
 SHA="$(git rev-parse HEAD)"
 ROOT_TAG="${VERSION}"
 FRAMEWORK_TAG="mss-boot/${VERSION}"
+ADMIN_TAG="admin/${VERSION}"
 FRONTEND_TAG="web/antd-v6/${VERSION}"
 DOCS_TAG="docs/${VERSION}"
 ```
@@ -80,7 +82,7 @@ python3 tools/release/verify_release_source.py \
   --policy .mss/release-policy.yaml
 ```
 
-Confirm all prerequisite PRs are merged in dependency order. Confirm root, Framework, and frontend version references agree. Check every proposed remote tag before creating any one of them. Stop on any existing unexpected ref; never move or reuse it.
+Confirm all prerequisite PRs are merged in dependency order. Confirm root, Framework, Admin, and frontend version references agree. Check every proposed remote tag before creating any one of them. Stop on any existing unexpected ref; never move or reuse it.
 
 ### 2. Run the cheap failure gates first
 
@@ -111,7 +113,7 @@ Inspect exact-commit runs and public refs before creating work:
 ```bash
 gh run list --commit "${SHA}" --limit 100 \
   --json databaseId,workflowName,event,status,conclusion,headSha,url,createdAt
-for tag in "${FRAMEWORK_TAG}" "${FRONTEND_TAG}" "${ROOT_TAG}" "${DOCS_TAG}"; do
+for tag in "${FRAMEWORK_TAG}" "${ADMIN_TAG}" "${FRONTEND_TAG}" "${ROOT_TAG}" "${DOCS_TAG}"; do
   git ls-remote --tags origin "refs/tags/${tag}" "refs/tags/${tag}^{}"
   gh release view "${tag}" --json tagName,isDraft,isPrerelease,url,assets 2>/dev/null || true
 done
@@ -140,7 +142,7 @@ gh workflow run release-readiness.yml --ref main \
 
 Capture the run created after dispatch, require `headSha == SHA`, inspect its inputs/evidence artifact, and wait with `gh run watch RUN_ID --exit-status`. Preserve the successful run ID. A later phase may cite it but may not reinterpret it as publication authority.
 
-### 5. Authorize and publish Framework and frontend
+### 5. Authorize and publish Framework, Admin, and frontend
 
 Dispatch a separate readiness run with `phase=pre-framework` and `publication_authority=true`. Verify it before use:
 
@@ -182,7 +184,17 @@ test "$(git rev-list -n 1 "${FRAMEWORK_TAG}")" = "${SHA}"
 git push origin "refs/tags/${FRAMEWORK_TAG}"
 ```
 
-After Framework publication, resolve `github.com/mss-boot-io/mss-boot-admin/mss-boot@VERSION` from a clean external module with `GOWORK=off`. Require the origin hash and checksum, then publish the frontend tag from the same SHA. Require the frontend Release assets, checksums, portable archive, `linux/amd64` plus `linux/arm64` image manifest, and OCI version/revision labels before proceeding.
+After Framework publication, resolve `github.com/mss-boot-io/mss-boot-admin/mss-boot@VERSION` from a clean external module with `GOWORK=off`. Require the origin hash and checksum, then create the Admin tag from the same SHA:
+
+```bash
+git tag -a "${ADMIN_TAG}" "${SHA}" -m "admin ${VERSION}"
+test "$(git rev-list -n 1 "${ADMIN_TAG}")" = "${SHA}"
+git push origin "refs/tags/${ADMIN_TAG}"
+```
+
+Wait for the exact `admin-release.yml` push run and its protected `release` environment. Require the public, immutable Admin Release, then resolve `github.com/mss-boot-io/mss-boot-admin/admin@VERSION` from a second clean external module with `GOWORK=off`; its required Framework version, origin hash, and checksum must all match the coordinated version and `SHA`.
+
+Only after both Go modules are public and externally resolvable may the frontend tag be created. Require `@mss-boot-io/admin-web` to publish the exact unprefixed version with `gitHead == SHA` and immutable registry integrity. Also require frontend Release assets, checksums, portable archive, `linux/amd64` plus `linux/arm64` image manifest, and OCI version/revision labels before proceeding.
 
 ```bash
 git tag -a "${FRONTEND_TAG}" "${SHA}" -m "web/antd-v6 ${VERSION}"
@@ -237,7 +249,7 @@ Verify the active account after restoration with `gh api user --jq .login`. Do n
 
 ### 7. Authorize and publish root
 
-After Framework external resolution and frontend publication succeed, dispatch and verify an independent `pre-root` readiness run. Update only the repository and `release` environment variables to its run ID; keep `release-v6` bound to the successful pre-framework run.
+After Framework and Admin external resolution and frontend publication succeed, dispatch and verify an independent `pre-root` readiness run. Update only the repository and `release` environment variables to its run ID; keep `release-v6` bound to the successful pre-framework run.
 
 ```bash
 gh workflow run release-readiness.yml --ref main \
@@ -289,7 +301,8 @@ Require `EVIDENCE_URL` to be exactly `https://github.com/OWNER/REPOSITORY/issues
 After publication, verify all of the following without relying only on workflow badges:
 
 - all component tags peel to `SHA` and all Releases are public, non-draft, and have the expected prerelease state;
-- Framework resolves through the public Go proxy with the exact origin hash and stable sums;
+- Framework and Admin resolve through the public Go proxy with exact origin hashes and stable sums, and Admin requires the matching Framework version;
+- `@mss-boot-io/admin-web` resolves from the public npm registry with the exact version, `gitHead`, and immutable integrity recorded by the release;
 - root and frontend images expose `linux/amd64` and `linux/arm64`, expected digests, and exact version/revision labels;
 - frontend checksum, portable archive members, file modes, and embedded `release.json` match version and commit;
 - root contains six platform ZIPs plus `SHA256SUMS`; checksums, portable members, and every embedded build identity match version and commit;

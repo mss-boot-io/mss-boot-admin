@@ -140,40 +140,66 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 		)
 	}
 	if selected(ComponentBackend) {
-		report.Checks = append(report.Checks,
-			fileCheck(projectContext.Root, "admin/go.mod", true),
-			fileCheck(projectContext.Root, "admin/go.sum", true),
-			fileCheck(projectContext.Root, "go.work", true),
-		)
-	}
-	if selected(ComponentFramework) {
-		report.Checks = append(report.Checks,
-			fileCheck(projectContext.Root, "mss-boot/go.mod", true),
-			fileCheck(projectContext.Root, "mss-boot/go.sum", true),
-		)
-	}
-	if selected(ComponentFrontend) {
-		applications := projectContext.Project.Spec.Frontend.Applications
-		if len(applications) == 0 {
-			frontendPath := strings.TrimSpace(projectContext.Project.Spec.RepositoryLayout["frontend"])
-			if frontendPath == "" {
-				frontendPath = "web/antd-v6"
-			}
+		if projectContext.LayoutKind() == "thin-host" {
+			backendPath := strings.TrimSpace(projectContext.Project.Spec.RepositoryLayout["backend"])
+			modulesPath := strings.TrimSpace(projectContext.Project.Spec.RepositoryLayout["modules"])
 			report.Checks = append(report.Checks,
-				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "pnpm-lock.yaml")), true),
+				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(backendPath, "go.mod")), true),
+				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(backendPath, "cmd", "server", "main.go")), true),
+				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(modulesPath, "all", "generated.go")), true),
 			)
 		} else {
-			for _, application := range applications {
+			report.Checks = append(report.Checks,
+				fileCheck(projectContext.Root, "admin/go.mod", true),
+				fileCheck(projectContext.Root, "admin/go.sum", true),
+				fileCheck(projectContext.Root, "go.work", true),
+			)
+		}
+	}
+	if selected(ComponentFramework) {
+		if projectContext.LayoutKind() != "thin-host" {
+			report.Checks = append(report.Checks,
+				fileCheck(projectContext.Root, "mss-boot/go.mod", true),
+				fileCheck(projectContext.Root, "mss-boot/go.sum", true),
+			)
+		}
+	}
+	if selected(ComponentFrontend) {
+		if projectContext.LayoutKind() == "thin-host" {
+			frontendPath := strings.TrimSpace(projectContext.Project.Spec.RepositoryLayout["frontend"])
+			report.Checks = append(report.Checks,
+				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "package.json")), true),
+				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "config", "config.ts")), true),
+				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "mss-admin.config.ts")), true),
+				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "src", "app.tsx")), true),
+				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "src", "access.ts")), true),
+			)
+		} else {
+			applications := projectContext.Project.Spec.Frontend.Applications
+			if len(applications) == 0 {
+				frontendPath := strings.TrimSpace(projectContext.Project.Spec.RepositoryLayout["frontend"])
+				if frontendPath == "" {
+					frontendPath = "web/antd-v6"
+				}
 				report.Checks = append(report.Checks,
-					fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(application.Path, "pnpm-lock.yaml")), true),
+					fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "pnpm-lock.yaml")), true),
 				)
+			} else {
+				for _, application := range applications {
+					report.Checks = append(report.Checks,
+						fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(application.Path, "pnpm-lock.yaml")), true),
+					)
+				}
 			}
 		}
 	}
-	if selected(ComponentDocs) {
+	if selected(ComponentDocs) && projectContext.LayoutKind() != "thin-host" {
 		report.Checks = append(report.Checks,
 			fileCheck(projectContext.Root, "docs/pnpm-lock.yaml", true),
 		)
+	}
+	if selected(ComponentAgent) || selected(ComponentBackend) || selected(ComponentFramework) || selected(ComponentFrontend) {
+		report.Checks = append(report.Checks, adminDistributionCheck(projectContext))
 	}
 
 	report.Checks = append(report.Checks, toolCheck(ctx, "git", true, "git", "--version"))
@@ -286,6 +312,100 @@ func foundationSnapshotCheck(projectContext *project.Context) Check {
 		check.Remediation = "restore a supported Foundation source or generated downstream snapshot"
 	}
 	return check
+}
+
+func adminDistributionCheck(projectContext *project.Context) Check {
+	distribution := projectContext.Project.Spec.Distribution
+	legacyContract := distribution.Empty() && strings.TrimSpace(projectContext.Project.Spec.RepositoryLayout["kind"]) == ""
+	check := Check{
+		ID:          "contract:admin-distribution",
+		Name:        "Admin Distribution",
+		Required:    true,
+		Remediation: "align project spec.distribution with the Foundation lock and manifest, then regenerate or upgrade the Thin Host",
+	}
+	if !distribution.Empty() {
+		if problems := distribution.Validate(); len(problems) > 0 {
+			check.Status = StatusFail
+			check.Detail = strings.Join(problems, "; ")
+			return check
+		}
+	} else if !legacyContract {
+		check.Status = StatusFail
+		check.Detail = "explicit project layout must pin a coordinated Admin Distribution"
+		return check
+	}
+
+	inspection, err := blueprint.InspectSnapshot(
+		projectContext.Root,
+		".mss/blueprint-manifest.json",
+		projectContext.Project.Metadata.Name,
+		projectContext.Project.Metadata.Repository,
+	)
+	if err != nil {
+		if legacyContract {
+			check.Status = StatusInfo
+			check.Required = false
+			check.Detail = "legacy project contract does not pin a coordinated Admin Distribution"
+			return check
+		}
+		check.Status = StatusFail
+		check.Detail = "cannot verify Distribution snapshot: " + err.Error()
+		return check
+	}
+	var recorded project.DistributionSpec
+	switch inspection.Role {
+	case blueprint.SnapshotRoleFoundationSource:
+		if inspection.Source == nil {
+			check.Status = StatusFail
+			check.Detail = "Foundation source snapshot omitted its Distribution"
+			return check
+		}
+		recorded = inspection.Source.Distribution
+	case blueprint.SnapshotRoleGenerated:
+		if inspection.Status == nil {
+			check.Status = StatusFail
+			check.Detail = "generated snapshot omitted its Distribution"
+			return check
+		}
+		recorded = inspection.Status.Distribution
+	default:
+		check.Status = StatusFail
+		check.Detail = "snapshot inspection returned an unsupported repository role"
+		return check
+	}
+	if recorded != distribution {
+		check.Status = StatusFail
+		check.Detail = fmt.Sprintf(
+			"project pins %s but snapshot pins %s",
+			distributionSummary(distribution),
+			distributionSummary(recorded),
+		)
+		return check
+	}
+	if legacyContract {
+		check.Status = StatusInfo
+		check.Required = false
+		check.Detail = "legacy project contract and snapshot do not pin a coordinated Admin Distribution"
+		return check
+	}
+	check.Status = StatusPass
+	check.Detail = distributionSummary(distribution) + "; backend and frontend version cores match; snapshot aligned"
+	return check
+}
+
+func distributionSummary(distribution project.DistributionSpec) string {
+	if distribution.Empty() {
+		return "no Admin Distribution"
+	}
+	return fmt.Sprintf(
+		"%s@%s (backend %s@%s, frontend %s@%s)",
+		distribution.Name,
+		distribution.Version,
+		distribution.Backend.Module,
+		distribution.Backend.Version,
+		distribution.Frontend.Package,
+		distribution.Frontend.Version,
+	)
 }
 
 // JSON returns stable indented JSON.

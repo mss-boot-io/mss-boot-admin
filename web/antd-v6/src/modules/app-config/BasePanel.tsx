@@ -1,13 +1,13 @@
 import UploadOutlined from '@ant-design/icons/UploadOutlined';
+import { getRequestErrorMessage } from '@mss-admin-core/shared/api/client';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageError, PageLoading } from '@mss-admin-core/shared/design-system/PageState';
+import { queryClient, queryKeys } from '@mss-admin-core/shared/query/client';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
 import type { UploadProps } from 'antd';
 import { Alert, App, Avatar, Button, Form, Input, Space, Upload } from 'antd';
 import { useEffect, useState } from 'react';
-import { getRequestErrorMessage } from '@/shared/api/client';
-import type { InitialState } from '@/shared/auth/types';
-import { PageError, PageLoading } from '@/shared/design-system/PageState';
-import { queryClient, queryKeys } from '@/shared/query/client';
 import { useAppConfigAccess } from './access';
 import { appConfigAPI } from './api';
 import { type BaseAppConfig, serializeBaseAppConfig } from './contracts';

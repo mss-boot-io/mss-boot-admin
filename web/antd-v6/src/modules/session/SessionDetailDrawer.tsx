@@ -1,13 +1,17 @@
-import { useIntl } from '@umijs/max';
-import { Alert, Descriptions, Drawer, Grid, Space, Tag } from 'antd';
-import { useMemo } from 'react';
 import {
   type AdministrationListParams,
   administrationReferenceName,
-} from '@/modules/administration/contract';
-import { useAdministrationPage } from '@/modules/administration/query';
-import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
-import { PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
+} from '@mss-admin-core/modules/administration/contract';
+import { useAdministrationPage } from '@mss-admin-core/modules/administration/query';
+import { getRequestErrorMessage, getRequestStatus } from '@mss-admin-core/shared/api/errors';
+import {
+  PageError,
+  PageForbidden,
+  PageLoading,
+} from '@mss-admin-core/shared/design-system/PageState';
+import { useIntl } from '@umijs/max';
+import { Alert, Descriptions, Drawer, Grid, Space, Tag } from 'antd';
+import { useMemo } from 'react';
 import { getOnlineSessionStatus } from './contract';
 import { sessionDeviceSummary } from './device';
 import { useOnlineSession } from './query';

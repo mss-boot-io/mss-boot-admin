@@ -1,7 +1,7 @@
+import type { AuthorizedMenuItem } from '@mss-admin-core/shared/auth/types';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from 'antd';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthorizedMenuItem } from '@/shared/auth/types';
 import MenuSearch, { buildAuthorizedMenuSearchItems } from './MenuSearch';
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));

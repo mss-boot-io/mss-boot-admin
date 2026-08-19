@@ -100,6 +100,15 @@ If `cmd/mss` is not yet available on an older branch, fall back to the Make targ
 - Framework changes require independent tests with `GOWORK=off` where relevant.
 - The `admin/` module may depend on `mss-boot`; the framework and root Agent module must not depend on Admin business packages.
 
+### Complete Admin distribution boundary
+
+- Root tools, `mss-boot`, `admin`, and `@mss-boot-io/admin-web` are coordinated by one Admin Distribution version even though each component remains independently publishable.
+- `admin/app` and `admin/business` are the public compile-time composition boundary. Business modules register explicitly; package initialization must not discover modules, mount routes, or mutate the migration registry.
+- `web/antd-v6` is both the reference frontend and the source of the single complete Admin npm package. Do not create a second SPA or split auth, layout, runtime, or contracts into independently versioned packages.
+- A generated downstream application is a Thin Host. It pins exact Admin dependencies and contains only composition glue plus owned business code; it must not copy Foundation core Admin sources.
+- `mss upgrade admin <version>` upgrades the coordinated distribution through the Blueprint three-way engine. Only managed Thin Host files may change automatically; unknown and business-owned files must be preserved.
+- Changes to distribution composition, templates, packages, or upgrade contracts require a clean external-consumer qualification covering Go resolution, npm tarball installation, lint, test, build, and representative browser behavior.
+
 ### New business modules
 
 - New business capabilities should use vertical modules under `admin/modules/<name>/` once the module infrastructure is available.

@@ -1,6 +1,6 @@
+import { hasPermission } from '@mss-admin-core/shared/auth/access';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
 import { useModel } from '@umijs/max';
-import { hasPermission } from '@/shared/auth/access';
-import type { InitialState } from '@/shared/auth/types';
 
 export function useAppConfigAccess() {
   const { initialState } = useModel('@@initialState') as { initialState?: InitialState };

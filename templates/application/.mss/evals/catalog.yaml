@@ -1,0 +1,7 @@
+apiVersion: mss.io/v1alpha1
+kind: AgentEvaluationCatalog
+metadata:
+  project: __MSS_APP_NAME__
+  version: 0.1.0
+spec:
+  cases: []

@@ -1,0 +1,10 @@
+.umi/
+.umi-production/
+generated/
+locales/
+pages/generated/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+**/__snapshots__/

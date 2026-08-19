@@ -1,0 +1,260 @@
+name: Admin Go Module Release
+
+on:
+  push:
+    tags:
+      - 'admin/v*.*.*'
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: release
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve immutable Admin module identity
+        id: version
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#admin/}"
+          test "${version}" != "${GITHUB_REF_NAME}"
+          resolved_commit="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
+          test "${resolved_commit}" = "${GITHUB_SHA}"
+          prerelease=false
+          if [[ "${version}" == *-* ]]; then prerelease=true; fi
+          {
+            echo "version=${version}"
+            echo "prerelease=${prerelease}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Verify merged-main release source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/release/verify_release_source.py \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${GITHUB_SHA}" \
+            --tag "${GITHUB_REF_NAME}" \
+            --policy .mss/release-policy.yaml
+
+      - name: Enforce coordinated Admin Distribution target
+        env:
+          ADMIN_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 tools/release/check_release_policy.py \
+            --component admin \
+            --version "${ADMIN_VERSION}" \
+            --tag "${GITHUB_REF_NAME}"
+
+      - name: Require selected pre-framework readiness attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ADMIN_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_READINESS_RUN_ID: ${{ vars.RELEASE_READINESS_RUN_ID }}
+        run: |
+          set -euo pipefail
+          bash tools/release/verify_readiness_run.sh \
+            --repository "${GITHUB_REPOSITORY}" \
+            --run-id "${RELEASE_READINESS_RUN_ID}" \
+            --target-version "${ADMIN_VERSION}" \
+            --commit "${GITHUB_SHA}" \
+            --phase pre-framework \
+            --policy .mss/release-policy.yaml
+
+      - name: Refuse mutation of an existing public Admin release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if release_json="$(gh release view "${GITHUB_REF_NAME}" --json isDraft 2>/dev/null)"; then
+            if [[ "$(jq -r '.isDraft' <<< "${release_json}")" != "true" ]]; then
+              echo "release ${GITHUB_REF_NAME} is already public; refusing to mutate it" >&2
+              exit 1
+            fi
+          fi
+
+      - name: Require the already-published matching Framework release
+        env:
+          ADMIN_VERSION: ${{ steps.version.outputs.version }}
+          ADMIN_PRERELEASE: ${{ steps.version.outputs.prerelease }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          framework_tag="mss-boot/${ADMIN_VERSION}"
+          framework_commit="$(git rev-parse "${framework_tag}^{commit}")"
+          if [[ "${framework_commit}" != "${GITHUB_SHA}" ]]; then
+            echo "Framework tag ${framework_tag} resolves to ${framework_commit}, not ${GITHUB_SHA}" >&2
+            exit 1
+          fi
+          framework_release="$(
+            gh release view "${framework_tag}" \
+              --json tagName,isDraft,isPrerelease
+          )"
+          jq -e \
+            --arg tag "${framework_tag}" \
+            --argjson prerelease "${ADMIN_PRERELEASE}" \
+            '.tagName == $tag and .isDraft == false and .isPrerelease == $prerelease' \
+            <<< "${framework_release}" >/dev/null
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: admin/go.mod
+          cache: true
+          cache-dependency-path: |
+            admin/go.sum
+            mss-boot/go.sum
+
+      - name: Require the matching Framework dependency
+        working-directory: admin
+        env:
+          ADMIN_VERSION: ${{ steps.version.outputs.version }}
+          GOWORK: 'off'
+        run: |
+          set -euo pipefail
+          framework_module='github.com/mss-boot-io/mss-boot-admin/mss-boot'
+          framework_version="$(
+            go mod edit -json \
+              | jq -r --arg module "${framework_module}" \
+                  '.Require[] | select(.Path == $module) | .Version'
+          )"
+          if [[ "${framework_version}" != "${ADMIN_VERSION}" ]]; then
+            echo "Admin ${ADMIN_VERSION} requires Framework ${framework_version}; version cores must match" >&2
+            exit 1
+          fi
+
+      - name: Qualify the independent Admin module
+        working-directory: admin
+        env:
+          GOWORK: 'off'
+        run: |
+          set -euo pipefail
+          go mod download
+          go test -shuffle=on -count=1 ./...
+          go vet ./...
+
+      - name: Qualify a local external Admin consumer
+        run: bash tools/compatibility/test-admin-external-consumer.sh
+
+      - name: Probe the tagged Admin module from a clean external workspace
+        env:
+          ADMIN_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          probe_dir="$(mktemp -d)"
+          trap 'rm -rf "${probe_dir}"' EXIT
+          module='github.com/mss-boot-io/mss-boot-admin/admin'
+          download_json="$(
+            cd "${probe_dir}"
+            GOWORK=off GOPROXY=direct go mod init example.com/mss-admin-release-probe >/dev/null
+            GOWORK=off GOPROXY=direct go mod download -json "${module}@${ADMIN_VERSION}"
+          )"
+          jq -e \
+            --arg module "${module}" \
+            --arg version "${ADMIN_VERSION}" \
+            --arg commit "${GITHUB_SHA}" \
+            '.Path == $module and .Version == $version and .Origin.Hash == $commit and (.Sum | startswith("h1:"))' \
+            <<< "${download_json}" >/dev/null
+          cat > "${probe_dir}/main.go" <<'EOF'
+          package main
+
+          import (
+            "fmt"
+
+            adminapp "github.com/mss-boot-io/mss-boot-admin/admin/app"
+          )
+
+          func main() {
+            application, err := adminapp.New()
+            if err != nil {
+              panic(err)
+            }
+            command, err := application.Command()
+            if err != nil {
+              panic(err)
+            }
+            fmt.Println(command.Name())
+          }
+          EOF
+          (
+            cd "${probe_dir}"
+            GOWORK=off go mod edit -require="${module}@${ADMIN_VERSION}"
+            GOWORK=off GOPROXY=direct go mod tidy
+            GOWORK=off GOPROXY=direct go test ./...
+            GOWORK=off GOPROXY=direct go vet ./...
+            GOWORK=off GOPROXY=direct go build -trimpath ./...
+          )
+
+      - name: Prepare component-scoped release notes
+        id: release-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ADMIN_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          previous_tag=""
+          while IFS= read -r candidate; do
+            if [[ "${candidate}" == "${GITHUB_REF_NAME}" ]]; then
+              continue
+            fi
+            if [[ "${candidate}" =~ ^admin/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              previous_tag="${candidate}"
+              break
+            fi
+          done < <(gh api --paginate "/repos/${GITHUB_REPOSITORY}/releases" --jq '.[].tag_name')
+
+          notes_file="${RUNNER_TEMP}/admin-release-notes.md"
+          api_args=(
+            --method POST
+            "/repos/${GITHUB_REPOSITORY}/releases/generate-notes"
+            -f "tag_name=${GITHUB_REF_NAME}"
+            -f "target_commitish=${GITHUB_SHA}"
+          )
+          if [[ -n "${previous_tag}" ]]; then
+            api_args+=(-f "previous_tag_name=${previous_tag}")
+          fi
+          gh api "${api_args[@]}" --jq .body > "${notes_file}"
+          {
+            echo
+            echo '## Install'
+            echo
+            echo '```shell'
+            echo "go get github.com/mss-boot-io/mss-boot-admin/admin@${ADMIN_VERSION}"
+            echo '```'
+            echo
+            echo "Source commit: \`${GITHUB_SHA}\`"
+            echo
+            echo 'The release workflow resolved this exact module from a clean external workspace with `GOWORK=off` and qualified its public application composition API.'
+          } >> "${notes_file}"
+          echo "path=${notes_file}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish immutable Admin module release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: Admin Go Module ${{ steps.version.outputs.version }}
+          body_path: ${{ steps.release-notes.outputs.path }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          make_latest: false

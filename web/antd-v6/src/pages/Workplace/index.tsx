@@ -7,12 +7,12 @@ import SlidersOutlined from '@ant-design/icons/SlidersOutlined';
 import TeamOutlined from '@ant-design/icons/TeamOutlined';
 import UserOutlined from '@ant-design/icons/UserOutlined';
 import { ProCard } from '@ant-design/pro-components';
+import MonitorOverview from '@mss-admin-core/modules/monitor/MonitorOverview';
+import { hasPermission } from '@mss-admin-core/shared/auth/access';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageContainer } from '@mss-admin-core/shared/design-system/PageContainer';
 import { Link, useIntl, useModel } from '@umijs/max';
 import { Avatar, Button, Col, Row, Space, Tag, Typography } from 'antd';
-import MonitorOverview from '@/modules/monitor/MonitorOverview';
-import { hasPermission } from '@/shared/auth/access';
-import type { InitialState } from '@/shared/auth/types';
-import { PageContainer } from '@/shared/design-system/PageContainer';
 
 export default function WorkplacePage() {
   const intl = useIntl();

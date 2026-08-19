@@ -19,19 +19,24 @@ REQUIRED_KEYS = {
     "currentStableVersion",
     "currentStableCommit",
     "nextPublicVersion",
+    "distributionVersion",
+    "distributionComponents",
     "publicationWorkflowsReady",
     "publicPrereleases",
     "rootTagTemplate",
     "frameworkTagTemplate",
+    "adminTagTemplate",
     "frontendTagTemplate",
     "docsTagTemplate",
 }
 COMPONENT_TEMPLATE_KEYS = {
     "root": "rootTagTemplate",
     "framework": "frameworkTagTemplate",
+    "admin": "adminTagTemplate",
     "frontend": "frontendTagTemplate",
     "docs": "docsTagTemplate",
 }
+COORDINATED_COMPONENTS = ("root", "framework", "admin", "frontend")
 
 
 class PolicyError(ValueError):
@@ -97,14 +102,39 @@ def load_policy(path: Path) -> dict[str, str | bool]:
     ):
         if not isinstance(policy[key], bool):
             raise PolicyError(f"release policy {key} must be a boolean")
-    for key in ("currentStableVersion", "nextPublicVersion"):
+    for key in ("currentStableVersion", "nextPublicVersion", "distributionVersion"):
         value = policy[key]
         if not isinstance(value, str) or not VERSION_RE.fullmatch(value):
             raise PolicyError(f"release policy {key} must be a valid semantic version")
+    if policy["distributionVersion"] != policy["nextPublicVersion"]:
+        raise PolicyError(
+            "release policy distributionVersion must equal nextPublicVersion"
+        )
+    expected_components = ",".join(COORDINATED_COMPONENTS)
+    if policy["distributionComponents"] != expected_components:
+        raise PolicyError(
+            "release policy distributionComponents must be " + expected_components
+        )
     commit = policy["currentStableCommit"]
     if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise PolicyError("release policy currentStableCommit must be a full commit SHA")
     return policy
+
+
+def coordinated_tags(
+    policy: dict[str, str | bool], version: str
+) -> dict[str, str]:
+    """Resolve and validate every coordinated Admin Distribution tag."""
+
+    tags: dict[str, str] = {}
+    for component in COORDINATED_COMPONENTS:
+        template = policy[COMPONENT_TEMPLATE_KEYS[component]]
+        if not isinstance(template, str) or template.count("{version}") != 1:
+            raise PolicyError(f"invalid tag template for component {component}")
+        tag = template.format(version=version)
+        check_public_ref(policy, component, version, tag, intent="qualify")
+        tags[component] = tag
+    return tags
 
 
 def check_public_ref(

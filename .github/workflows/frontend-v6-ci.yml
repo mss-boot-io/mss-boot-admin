@@ -16,6 +16,7 @@ on:
       - 'internal/mss/spec/**'
       - 'templates/module/**'
       - 'tools/release/**'
+      - 'tools/compatibility/test-thin-host-external-consumer.sh'
       - '.mss/commands.yaml'
       - '.mss/project.yaml'
       - '.github/workflows/frontend-v6-ci.yml'
@@ -34,6 +35,7 @@ on:
       - 'internal/mss/spec/**'
       - 'templates/module/**'
       - 'tools/release/**'
+      - 'tools/compatibility/test-thin-host-external-consumer.sh'
       - '.mss/commands.yaml'
       - '.mss/project.yaml'
       - '.github/workflows/frontend-v6-ci.yml'
@@ -153,6 +155,95 @@ jobs:
       - name: Run unit and component tests
         run: pnpm run test:ci
 
+  package-contract:
+    name: package-contract
+    needs: dependency-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: web/antd-v6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/antd-v6/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
+
+      - name: Pack and inventory the complete Admin Web package
+        run: |
+          set -euo pipefail
+          package_dir="${RUNNER_TEMP}/admin-web-package"
+          mkdir -p "${package_dir}"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          if (!/^[0-9a-f]{40}$/.test(process.env.GITHUB_SHA || '')) {
+            throw new Error('GITHUB_SHA must be a lowercase full commit SHA');
+          }
+          manifest.gitHead = process.env.GITHUB_SHA;
+          fs.writeFileSync('package.json', `${JSON.stringify(manifest, null, 2)}\n`);
+          NODE
+          pnpm pack --pack-destination "${package_dir}" >/dev/null
+          mapfile -t tarballs < <(find "${package_dir}" -maxdepth 1 -type f -name '*.tgz' -print)
+          test "${#tarballs[@]}" -eq 1
+          tarball="${tarballs[0]}"
+          package_version="$(node -p "require('./package.json').version")"
+          created="$(date -u -d "$(git show -s --format=%cI HEAD)" '+%Y-%m-%dT%H:%M:%SZ')"
+          pnpm list --prod --json --depth Infinity > "${package_dir}/pnpm-tree.json"
+          python3 ../../tools/release/verify_admin_web_package.py \
+            --tarball "${tarball}" \
+            --expected-name '@mss-boot-io/admin-web' \
+            --expected-version "${package_version}" \
+            --source-repository "${GITHUB_REPOSITORY}" \
+            --source-commit "${GITHUB_SHA}" \
+            --output "${package_dir}/admin-web-package.json"
+          python3 ../../tools/release/generate_admin_web_sbom.py \
+            --dependency-tree "${package_dir}/pnpm-tree.json" \
+            --package-evidence "${package_dir}/admin-web-package.json" \
+            --source-repository "${GITHUB_REPOSITORY}" \
+            --source-commit "${GITHUB_SHA}" \
+            --created "${created}" \
+            --output "${package_dir}/admin-web.spdx.json"
+          rm -f "${package_dir}/pnpm-tree.json"
+          (
+            cd "${package_dir}"
+            sha256sum -- *.tgz admin-web-package.json admin-web.spdx.json \
+              > SHA256SUMS.admin-web
+            sha256sum --check SHA256SUMS.admin-web
+          )
+          python3 ../../tools/release/check_portable_paths.py \
+            "${tarball}" \
+            "${package_dir}/admin-web-package.json" \
+            "${package_dir}/admin-web.spdx.json" \
+            "${package_dir}/SHA256SUMS.admin-web"
+
+      - name: Upload Admin Web package qualification
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: admin-web-package-qualification
+          path: |
+            ${{ runner.temp }}/admin-web-package/*.tgz
+            ${{ runner.temp }}/admin-web-package/admin-web-package.json
+            ${{ runner.temp }}/admin-web-package/admin-web.spdx.json
+            ${{ runner.temp }}/admin-web-package/SHA256SUMS.admin-web
+          if-no-files-found: error
+          retention-days: 14
+
   compile:
     name: production-build
     needs: dependency-contract
@@ -248,6 +339,7 @@ jobs:
       - dependency-contract
       - generated-contract
       - quality
+      - package-contract
       - compile
       - browser
     runs-on: ubuntu-24.04
@@ -258,16 +350,19 @@ jobs:
           DEPENDENCY_RESULT: ${{ needs.dependency-contract.result }}
           GENERATED_RESULT: ${{ needs.generated-contract.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
+          PACKAGE_RESULT: ${{ needs.package-contract.result }}
           COMPILE_RESULT: ${{ needs.compile.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
         run: |
           echo "dependency-contract=${DEPENDENCY_RESULT}"
           echo "generated-contract=${GENERATED_RESULT}"
           echo "quality=${QUALITY_RESULT}"
+          echo "package-contract=${PACKAGE_RESULT}"
           echo "compile=${COMPILE_RESULT}"
           echo "browser=${BROWSER_RESULT}"
           test "${DEPENDENCY_RESULT}" = 'success'
           test "${GENERATED_RESULT}" = 'success'
           test "${QUALITY_RESULT}" = 'success'
+          test "${PACKAGE_RESULT}" = 'success'
           test "${COMPILE_RESULT}" = 'success'
           test "${BROWSER_RESULT}" = 'success'

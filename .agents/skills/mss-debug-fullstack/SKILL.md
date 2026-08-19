@@ -38,8 +38,8 @@ Work from the smallest reproducible failure toward the root cause. Do not mask a
 6. Compare machine-readable contracts and generated output:
 
    ```shell
-   go run ./cmd/mss spec validate modules/<module>/module.yaml
-   go run ./cmd/mss module generate modules/<module>/module.yaml --check
+   go run ./cmd/mss spec validate .mss/modules/<module>.yaml
+   go run ./cmd/mss module generate .mss/modules/<module>.yaml --check
    ```
 
 7. Form a falsifiable root-cause hypothesis and test it with logging, a focused unit test, a temporary assertion, or a minimal reproducer.

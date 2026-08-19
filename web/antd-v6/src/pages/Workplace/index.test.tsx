@@ -23,7 +23,7 @@ vi.mock('@ant-design/pro-components', () => ({
   ),
 }));
 
-vi.mock('@/shared/design-system/PageContainer', () => ({
+vi.mock('@mss-admin-core/shared/design-system/PageContainer', () => ({
   PageContainer: ({ children, title }: { children: ReactNode; title: ReactNode }) => (
     <main>
       <h1>{title}</h1>
@@ -32,7 +32,9 @@ vi.mock('@/shared/design-system/PageContainer', () => ({
   ),
 }));
 
-vi.mock('@/modules/monitor/MonitorOverview', () => ({ default: () => <div>monitor</div> }));
+vi.mock('@mss-admin-core/modules/monitor/MonitorOverview', () => ({
+  default: () => <div>monitor</div>,
+}));
 
 describe('workplace quick links', () => {
   beforeEach(() => {

@@ -4,6 +4,15 @@ import EyeOutlined from '@ant-design/icons/EyeOutlined';
 import PlusOutlined from '@ant-design/icons/PlusOutlined';
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import SearchOutlined from '@ant-design/icons/SearchOutlined';
+import { getRequestErrorMessage, getRequestStatus } from '@mss-admin-core/shared/api/errors';
+import {
+  PageEmpty,
+  PageError,
+  PageForbidden,
+  PageLoading,
+} from '@mss-admin-core/shared/design-system/PageState';
+import ResponsiveEntityTable from '@mss-admin-core/shared/design-system/ResponsiveEntityTable';
+import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { history, useIntl } from '@umijs/max';
 import {
@@ -22,10 +31,6 @@ import {
   Typography,
 } from 'antd';
 import { useState } from 'react';
-import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
-import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
-import ResponsiveEntityTable from '@/shared/design-system/ResponsiveEntityTable';
-import { queryKeys } from '@/shared/query/client';
 import { languageAPI } from './api';
 import {
   isLanguagePageSize,

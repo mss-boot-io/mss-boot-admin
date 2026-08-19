@@ -25,12 +25,12 @@ Authorization is a backend security contract. UI visibility is a secondary proje
    | operator | other | update | deny |
    | viewer | any | update | deny |
 
-4. For a generated module, add or update a permission entry in `modules/<module>/module.yaml` and reference it from workflows or actions.
+4. For a generated module, add or update a permission entry in `.mss/modules/<module>.yaml` and reference it from workflows or actions.
 5. Validate and regenerate:
 
    ```shell
-   go run ./cmd/mss spec validate modules/<module>/module.yaml
-   go run ./cmd/mss module generate modules/<module>/module.yaml --write
+   go run ./cmd/mss spec validate .mss/modules/<module>.yaml
+   go run ./cmd/mss module generate .mss/modules/<module>.yaml --write
    ```
 
 6. Implement backend enforcement at the narrowest reliable boundary:
@@ -50,7 +50,6 @@ Authorization is a backend security contract. UI visibility is a secondary proje
 10. Verify:
 
    ```shell
-   go test ./modules/<module>/...
    go run ./cmd/mss verify --module <module>
    go run ./cmd/mss verify --changed
    ```

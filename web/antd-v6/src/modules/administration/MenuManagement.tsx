@@ -1,3 +1,11 @@
+import { getRequestErrorMessage, getRequestStatus } from '@mss-admin-core/shared/api/errors';
+import {
+  finishManagementRouteIntent,
+  type ManagementRouteIntent,
+  useManagementRouteIntent,
+} from '@mss-admin-core/shared/navigation/managementRoute';
+import { formatMenuLabel } from '@mss-admin-core/shared/navigation/menuLocale';
+import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
 import type { TableColumnsType } from 'antd';
@@ -18,14 +26,6 @@ import {
   Transfer,
 } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
-import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
-import {
-  finishManagementRouteIntent,
-  type ManagementRouteIntent,
-  useManagementRouteIntent,
-} from '@/shared/navigation/managementRoute';
-import { formatMenuLabel } from '@/shared/navigation/menuLocale';
-import { queryKeys } from '@/shared/query/client';
 import AdministrationTable, { AdministrationStatusTag } from './AdministrationTable';
 import { administrationAPI } from './api';
 import {

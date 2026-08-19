@@ -1,4 +1,4 @@
-import type { ApplicationProfile } from '@/shared/theme/contract';
+import type { ApplicationProfile } from '@mss-admin-core/shared/theme/contract';
 
 export type EmailChallengeFlow = 'login' | 'register' | 'resetPassword';
 

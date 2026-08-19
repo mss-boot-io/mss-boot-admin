@@ -26,7 +26,7 @@ When ambiguity remains, choose conservative defaults and record them in the spec
 ## Procedure
 
 1. Run `$mss-project-onboarding` steps if repository context is not already established.
-2. Search `.mss/capabilities.yaml` and `modules/*/module.yaml` for an existing capability or conflicting module name, table, API path, menu path, or permission prefix.
+2. Search `.mss/capabilities.yaml` and `.mss/modules/*.yaml` for an existing capability or conflicting module name, table, API path, menu path, or permission prefix. Read `mss context` for the target backend, frontend, generated, and business route locations instead of assuming Foundation paths.
 3. Create a specification under `.mss/modules/<module>.yaml` while designing. Use `.mss/modules/example-supplier.yaml` and `.mss/schemas/admin-module.schema.json` as references.
 4. Validate immediately:
 
@@ -64,17 +64,18 @@ When ambiguity remains, choose conservative defaults and record them in the spec
 12. Regenerate and prove idempotency:
 
    ```shell
-   go run ./cmd/mss module generate modules/<module>/module.yaml --write
-   go run ./cmd/mss module generate modules/<module>/module.yaml --check
+   go run ./cmd/mss module generate .mss/modules/<module>.yaml --write
+   go run ./cmd/mss module generate .mss/modules/<module>.yaml --check
    ```
 
 13. Run focused and change-aware validation:
 
    ```shell
-   go test ./modules/<module>/...
    go run ./cmd/mss verify --module <module>
    go run ./cmd/mss verify --changed
    ```
+
+    Run the focused Go and frontend paths reported by the generator plan. A Thin Host normally owns `internal/modules/<module>/` and `web/src/business/<module>/`; the Foundation reference application owns `admin/modules/<module>/` and `web/antd-v6/src/generated/`. Do not hardcode one layout into the skill or specification.
 
 14. Commit test-driven repairs as follow-up commits; do not rewrite already-pushed history.
 
@@ -87,6 +88,7 @@ When ambiguity remains, choose conservative defaults and record them in the spec
 - Do not assign permissions only in frontend routes.
 - Do not add production secrets, real customer data, or private endpoints to examples or tests.
 - Keep generic abstractions out of the module unless at least two real modules require them.
+- Ensure the generated backend registry and frontend business route/registration files include the module; a compilable page that is absent from the authorized menu registry is incomplete.
 
 ## Completion output
 

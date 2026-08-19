@@ -1,21 +1,21 @@
 {
   "schema": "mss.io/release-qualification/v1",
-  "targetVersion": "v1.2.3",
+  "targetVersion": "v1.3.0",
   "features": [
-    ".mss/features/foundation-v1-2-3-release.yaml"
+    ".mss/features/complete-admin-distribution-thin-host.yaml"
   ],
   "excludedFeatures": [
     {
       "path": ".mss/features/admin-antd-v6-application.yaml",
-      "reason": "carry-forward: the merged V6 application contract is represented by the v1.2.3 product gates copied into the scoped release Feature."
+      "reason": "carry-forward: the merged V6 application contract remains permanent regression coverage for the v1.3.0 complete Admin distribution."
     },
     {
       "path": ".mss/features/admin-antd-v6-cutover-retirement.yaml",
-      "reason": "carry-forward: the merged V6-only cutover remains authoritative and its absence guards are included in v1.2.3 qualification."
+      "reason": "carry-forward: the merged V6-only cutover remains authoritative and its absence guards are included in v1.3.0 qualification."
     },
     {
       "path": ".mss/features/admin-antd-v6-release-polish.yaml",
-      "reason": "carry-forward: the merged polish evidence remains authoritative while its concentrated frontend gates rerun from the v1.2.3 frozen SHA."
+      "reason": "carry-forward: the merged polish evidence remains authoritative while its frontend gates rerun from the v1.3.0 frozen SHA."
     },
     {
       "path": ".mss/features/admin-config-cache-consistency.yaml",
@@ -23,11 +23,11 @@
     },
     {
       "path": ".mss/features/admin-permission-hardening.yaml",
-      "reason": "carry-forward: accepted backend authorization and negative tests remain part of the complete Admin suite selected by v1.2.3."
+      "reason": "carry-forward: accepted backend authorization and negative tests remain part of the complete Admin suite selected by v1.3.0."
     },
     {
       "path": ".mss/features/admin-runtime-tools-removal-monitoring.yaml",
-      "reason": "carry-forward: the removed runtime developer-tool boundary remains enforced and is not reintroduced by v1.2.3."
+      "reason": "carry-forward: the removed runtime developer-tool boundary remains enforced and is not reintroduced by v1.3.0."
     },
     {
       "path": ".mss/features/admin-secret-lifecycle.yaml",
@@ -51,7 +51,7 @@
     },
     {
       "path": ".mss/features/foundation-v1-0-1-storage-safety.yaml",
-      "reason": "carry-forward: accepted storage safety remains regression coverage while optional provider promotion stays outside v1.2.3."
+      "reason": "carry-forward: accepted storage safety remains regression coverage while optional provider promotion stays outside v1.3.0."
     },
     {
       "path": ".mss/features/foundation-v1-1-0-generator-blueprint.yaml",
@@ -59,7 +59,7 @@
     },
     {
       "path": ".mss/features/foundation-v1-1-0-release.yaml",
-      "reason": "carry-forward: v1.1.0 is immutable historical release evidence and is not an active v1.2.3 gate."
+      "reason": "carry-forward: v1.1.0 is immutable historical release evidence and is not an active v1.3.0 gate."
     },
     {
       "path": ".mss/features/foundation-v1-2-0-release.yaml",
@@ -74,8 +74,12 @@
       "reason": "carry-forward: v1.2.2 is immutable partial-train evidence; Framework and frontend published and root qualification passed, but the root multi-architecture image compiled arm64 under QEMU for 2320 seconds and hit the 40-minute publish-job limit while exporting the image, so the root image and GitHub Release did not complete."
     },
     {
+      "path": ".mss/features/foundation-v1-2-3-release.yaml",
+      "reason": "carry-forward: v1.2.3 is immutable historical release evidence and is superseded by the coordinated v1.3.0 Admin Distribution train."
+    },
+    {
       "path": ".mss/features/storage-runtime-v2.yaml",
-      "reason": "carry-forward: accepted runtime checkpoints remain regression coverage; optional ObjectStore and RustFS maturity does not block v1.2.3."
+      "reason": "carry-forward: accepted runtime checkpoints remain regression coverage; optional ObjectStore and RustFS maturity does not block v1.3.0."
     }
   ]
 }

@@ -1,8 +1,8 @@
-import type { InitialState } from '@/shared/auth/types';
-import { queryClient, queryKeys } from '@/shared/query/client';
-import { loadApplicationProfile } from '@/shared/theme/api';
-import { buildLayoutSettings } from '@/shared/theme/contract';
-import { getThemeRuntimeSnapshot } from '@/shared/theme/runtime';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { queryClient, queryKeys } from '@mss-admin-core/shared/query/client';
+import { loadApplicationProfile } from '@mss-admin-core/shared/theme/api';
+import { buildLayoutSettings } from '@mss-admin-core/shared/theme/contract';
+import { getThemeRuntimeSnapshot } from '@mss-admin-core/shared/theme/runtime';
 
 export type InitialStateSetter = (
   state: InitialState | ((previous?: InitialState) => InitialState | undefined),

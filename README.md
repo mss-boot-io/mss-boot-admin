@@ -34,6 +34,43 @@ business intent
 ./mss eval run --all
 ```
 
+## Complete Admin distribution and thin business hosts
+
+`mss-boot-admin` remains one complete management product. Its coordinated distribution publishes the reusable Framework Go module, the complete Admin Go module, the single `@mss-boot-io/admin-web` package, and the root tools and delivery artifacts at the same version. Core identity, session, RBAC, menus, layout, and runtime behavior are not split into optional products.
+
+Real business applications are generated as Thin Hosts. They pin the coordinated Admin version, add compiled Go business modules and Umi build-time business routes, and still produce one backend binary, one frontend `dist`, one login/session boundary, and one permission/menu model. They do not copy the Foundation's Admin source tree or start a second Admin application.
+
+Create a Thin Host and generate a business module from a clean Foundation checkout:
+
+```shell
+go run ./cmd/mss new app orders-admin \
+  --module github.com/acme/orders-admin \
+  --repository acme/orders-admin \
+  --destination ../orders-admin \
+  --write \
+  --format json
+
+go run ./cmd/mss --root ../orders-admin module generate \
+  .mss/modules/example-supplier.yaml \
+  --write \
+  --frontend-target antd-v6 \
+  --format json
+```
+
+Upgrade the whole Admin distribution with one conflict-aware, read-only plan; apply only after review:
+
+```shell
+go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.0 \
+  --foundation . \
+  --format json
+go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.0 \
+  --foundation . \
+  --apply --yes \
+  --format json
+```
+
+The target Foundation checkout must declare exactly the requested distribution version. Three-way upgrade management is limited to generated host glue and other Blueprint-managed files; downstream business code is preserved.
+
 ## Recent Updates
 
 The project has undergone comprehensive polish rounds focusing on:
@@ -56,9 +93,10 @@ The project has undergone comprehensive polish rounds focusing on:
 
 | Path | Component |
 | --- | --- |
-| `/` | Go admin backend |
+| `/` | Agent CLI, project contracts, orchestration, and coordinated release tooling |
+| `admin/` | Complete reusable and deployable Admin Go application |
 | `mss-boot/` | Reusable Go framework module |
-| `web/antd-v6/` | React 19 + Ant Design 6 frontend, independently released |
+| `web/antd-v6/` | Complete React 19 + Ant Design 6 frontend and `@mss-boot-io/admin-web` package |
 | `docs/` | Dumi documentation site |
 
 All active development now happens in this repository. The former standalone repositories are retained only as migration history and compatibility references.

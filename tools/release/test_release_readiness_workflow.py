@@ -89,15 +89,15 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         )
         self.assertEqual(self.step("Setup pnpm")["with"]["version"], "9.15.9")
 
-    def test_v123_qualification_carries_every_other_feature_forward(self):
+    def test_v130_qualification_selects_the_distribution_feature(self):
         selected = PHASE_EVIDENCE.load_qualification(
             REPOSITORY_ROOT,
             Path(".mss/release-qualification.json"),
-            "v1.2.3",
+            "v1.3.0",
         )
         self.assertEqual(
             [path.relative_to(REPOSITORY_ROOT).as_posix() for path in selected],
-            [".mss/features/foundation-v1-2-3-release.yaml"],
+            [".mss/features/complete-admin-distribution-thin-host.yaml"],
         )
         contract = yaml.safe_load(
             (REPOSITORY_ROOT / ".mss" / "release-qualification.json").read_text(
@@ -112,7 +112,7 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             )
         )
 
-    def test_v123_release_feature_has_scoped_exact_commands(self):
+    def test_historical_v123_release_feature_has_scoped_exact_commands(self):
         feature = yaml.safe_load(FEATURE_PATH.read_text(encoding="utf-8"))
         plan = {
             "feature": {"name": feature["metadata"]["name"]},

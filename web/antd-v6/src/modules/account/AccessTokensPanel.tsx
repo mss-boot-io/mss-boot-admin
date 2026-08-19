@@ -4,6 +4,10 @@ import PlusOutlined from '@ant-design/icons/PlusOutlined';
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import SafetyCertificateOutlined from '@ant-design/icons/SafetyCertificateOutlined';
 import SyncOutlined from '@ant-design/icons/SyncOutlined';
+import { getRequestErrorMessage } from '@mss-admin-core/shared/api/client';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageError, PageLoading } from '@mss-admin-core/shared/design-system/PageState';
+import { queryClient, queryKeys } from '@mss-admin-core/shared/query/client';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
 import {
@@ -22,10 +26,6 @@ import {
   Typography,
 } from 'antd';
 import { useState } from 'react';
-import { getRequestErrorMessage } from '@/shared/api/client';
-import type { InitialState } from '@/shared/auth/types';
-import { PageError, PageLoading } from '@/shared/design-system/PageState';
-import { queryClient, queryKeys } from '@/shared/query/client';
 import { accountAPI } from './api';
 import type { AccessTokenSecret } from './contracts';
 

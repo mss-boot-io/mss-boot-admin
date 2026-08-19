@@ -1,5 +1,5 @@
 import type { ProLayoutProps } from '@ant-design/pro-components';
-import defaultSettings from '../../../config/defaultSettings';
+import defaultSettings from '../../../package/default-settings';
 
 export const THEME_SETTING_KEYS = [
   'navTheme',

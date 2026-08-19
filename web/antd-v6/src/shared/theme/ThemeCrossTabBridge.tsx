@@ -1,11 +1,12 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { useModel } from '@umijs/max';
-import { useEffect } from 'react';
 import {
   applyCanonicalThemeResource,
   mergeAppliedThemeIntoInitialState,
-} from '@/modules/theme/apply';
-import { queryKeys } from '@/shared/query/client';
+} from '@mss-admin-core/modules/theme/apply';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { queryKeys } from '@mss-admin-core/shared/query/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { useModel } from '@umijs/max';
+import { useEffect } from 'react';
 import { clearUserThemeRuntime, getThemeRuntimeSnapshot } from './runtime';
 
 export function ThemeCrossTabBridge() {
@@ -66,7 +67,7 @@ export function ThemeCrossTabBridge() {
               authoritative: false,
             });
             if (applied.status !== 'applied') return;
-            void setInitialState((previous) =>
+            void setInitialState((previous: InitialState | undefined) =>
               mergeAppliedThemeIntoInitialState(previous, applied),
             );
             void snapshot.writeThemeSnapshot(

@@ -1,7 +1,7 @@
-import generatedRegistrations from '@/generated/routes';
-import { canAccessRoute } from '@/shared/auth/access';
-import type { AuthorizedMenuItem, CurrentUser } from '@/shared/auth/types';
-import { resolveLayoutMenuName } from '@/shared/navigation/menuLocale';
+import businessRegistrations from '@mss-admin-business/routes';
+import { canAccessRoute } from '@mss-admin-core/shared/auth/access';
+import type { AuthorizedMenuItem, CurrentUser } from '@mss-admin-core/shared/auth/types';
+import { resolveLayoutMenuName } from '@mss-admin-core/shared/navigation/menuLocale';
 
 export interface RouteRegistration {
   path: string;
@@ -96,7 +96,7 @@ const registrations: readonly RouteRegistration[] = [
     menuName: 'online-sessions',
     rootOnly: true,
   },
-  ...generatedRegistrations,
+  ...businessRegistrations,
 ];
 
 export const routeRegistry = new Map(registrations.map((entry) => [entry.path, entry]));

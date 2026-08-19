@@ -1,8 +1,12 @@
+import type {
+  NoticeStatus,
+  NoticeSummary,
+  NoticeType,
+} from '@mss-admin-core/modules/operations/contract';
+import { getRequestErrorMessage } from '@mss-admin-core/shared/api/errors';
 import { useIntl } from '@umijs/max';
 import { Alert, Avatar, Button, Empty, Spin, Tabs, Tag, Typography } from 'antd';
 import { forwardRef, type KeyboardEvent, useImperativeHandle, useRef } from 'react';
-import type { NoticeStatus, NoticeSummary, NoticeType } from '@/modules/operations/contract';
-import { getRequestErrorMessage } from '@/shared/api/errors';
 import { useHeaderNoticeStyles } from './HeaderNotice.styles';
 
 export const HEADER_NOTICE_TYPES = ['notification', 'message', 'event', 'mail'] as const;

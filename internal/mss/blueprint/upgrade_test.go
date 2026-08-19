@@ -1,11 +1,218 @@
 package blueprint
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestAdminDistributionUpgradePlansReadOnlyThenAppliesAndPreservesUnknownBusinessFiles(t *testing.T) {
+	oldFoundation := writeThinHostBlueprintFixture(t)
+	newFoundation := writeThinHostBlueprintFixture(t)
+	promoteThinHostDistribution(t, newFoundation, "v1.3.0", "v1.4.0")
+	applicationRoot := filepath.Join(t.TempDir(), "orders-admin")
+	application := Application{
+		Name:        "orders-admin",
+		DisplayName: "Orders Administration",
+		Module:      "github.com/acme/orders-admin",
+		Repository:  "acme/orders-admin",
+	}
+	if _, err := Generate(context.Background(), Options{
+		FoundationRoot: oldFoundation,
+		Destination:    applicationRoot,
+		Application:    application,
+		Write:          true,
+	}); err != nil {
+		t.Fatalf("generate old Thin Host: %v", err)
+	}
+	writeUpgradeFixtureFile(t, applicationRoot, ".mss/modules/supplier.yaml", "apiVersion: mss.io/v1alpha1\nkind: AdminModule\n")
+	writeUpgradeFixtureFile(t, applicationRoot, "internal/modules/supplier/custom.go", "package supplier\n\nconst Custom = true\n")
+	goModPath := filepath.Join(applicationRoot, "go.mod")
+	manifestPath := filepath.Join(applicationRoot, ".mss", "blueprint-manifest.json")
+	goModBefore, err := os.ReadFile(goModPath)
+	if err != nil {
+		t.Fatalf("read old go.mod: %v", err)
+	}
+	manifestBefore, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read old manifest: %v", err)
+	}
+
+	plan, err := Upgrade(context.Background(), UpgradeOptions{
+		ApplicationRoot:              applicationRoot,
+		FoundationRoot:               newFoundation,
+		Application:                  application,
+		RequestedDistributionVersion: "v1.4.0",
+		PreservedBusinessPaths:       []string{"internal/modules", ".mss/modules"},
+	})
+	if err != nil {
+		t.Fatalf("plan Admin Distribution upgrade: %v", err)
+	}
+	if !plan.Success || !plan.DryRun {
+		t.Fatalf("Admin Distribution plan = %#v", plan)
+	}
+	if plan.FromDistribution.Version != "v1.3.0" || plan.ToDistribution.Version != "v1.4.0" {
+		t.Fatalf("Distribution transition = %#v -> %#v", plan.FromDistribution, plan.ToDistribution)
+	}
+	if !plan.GoAdminModule.Changed || plan.GoAdminModule.FromVersion != "v1.3.0" || plan.GoAdminModule.ToVersion != "v1.4.0" {
+		t.Fatalf("Go Admin transition = %#v", plan.GoAdminModule)
+	}
+	if !plan.AdminWebPackage.Changed || plan.AdminWebPackage.FromVersion != "1.3.0" || plan.AdminWebPackage.ToVersion != "1.4.0" {
+		t.Fatalf("Admin Web transition = %#v", plan.AdminWebPackage)
+	}
+	if len(plan.ManagedHostChanges) == 0 || len(plan.Conflicts) != 0 ||
+		!containsUpgradeString(plan.ModulesToRegenerate, "supplier") ||
+		!containsUpgradeString(plan.PreservedFiles, "internal/modules/supplier/custom.go") ||
+		len(plan.ValidationCommands) == 0 {
+		t.Fatalf("Admin Distribution structured impact = %#v", plan)
+	}
+	if !strings.Contains(plan.Text(), "admin distribution: mss-boot-admin@v1.3.0 -> mss-boot-admin@v1.4.0") ||
+		!strings.Contains(plan.Text(), "modules to regenerate: supplier") ||
+		!strings.Contains(plan.Text(), "validation commands:") {
+		t.Fatalf("Admin Distribution text plan omitted required fields:\n%s", plan.Text())
+	}
+	planJSON, err := plan.JSON()
+	if err != nil {
+		t.Fatalf("marshal Admin Distribution plan: %v", err)
+	}
+	var planDocument map[string]any
+	if err := json.Unmarshal(planJSON, &planDocument); err != nil {
+		t.Fatalf("decode Admin Distribution plan: %v", err)
+	}
+	for _, field := range []string{
+		"fromDistribution",
+		"toDistribution",
+		"goAdminModule",
+		"adminWebPackage",
+		"managedHostChanges",
+		"conflicts",
+		"preservedFiles",
+		"modulesToRegenerate",
+		"validationCommands",
+	} {
+		if _, ok := planDocument[field]; !ok {
+			t.Errorf("Admin Distribution plan JSON omitted %s: %s", field, planJSON)
+		}
+	}
+	goModAfterPlan, _ := os.ReadFile(goModPath)
+	manifestAfterPlan, _ := os.ReadFile(manifestPath)
+	if !bytes.Equal(goModBefore, goModAfterPlan) || !bytes.Equal(manifestBefore, manifestAfterPlan) {
+		t.Fatal("read-only Admin Distribution plan changed downstream files")
+	}
+
+	applied, err := Upgrade(context.Background(), UpgradeOptions{
+		ApplicationRoot:              applicationRoot,
+		FoundationRoot:               newFoundation,
+		Application:                  application,
+		RequestedDistributionVersion: "v1.4.0",
+		PreservedBusinessPaths:       []string{"internal/modules", ".mss/modules"},
+		Write:                        true,
+	})
+	if err != nil {
+		t.Fatalf("apply Admin Distribution upgrade: %v", err)
+	}
+	if applied.DryRun || !applied.Success {
+		t.Fatalf("applied Admin Distribution plan = %#v", applied)
+	}
+	assertContains(t, goModPath, "github.com/mss-boot-io/mss-boot-admin/admin v1.4.0")
+	assertContains(t, filepath.Join(applicationRoot, "internal", "modules", "supplier", "custom.go"), "const Custom = true")
+	snapshot, err := ReadSnapshot(applicationRoot, "")
+	if err != nil {
+		t.Fatalf("read upgraded Admin Distribution snapshot: %v", err)
+	}
+	if snapshot.Manifest.Distribution.Version != "v1.4.0" || snapshot.Lock.Spec.Distribution.Version != "v1.4.0" {
+		t.Fatalf("upgraded snapshot Distribution = %#v / %#v", snapshot.Manifest.Distribution, snapshot.Lock.Spec.Distribution)
+	}
+	repeat, err := Upgrade(context.Background(), UpgradeOptions{
+		ApplicationRoot:              applicationRoot,
+		FoundationRoot:               newFoundation,
+		Application:                  application,
+		RequestedDistributionVersion: "v1.4.0",
+		PreservedBusinessPaths:       []string{"internal/modules", ".mss/modules"},
+	})
+	if err != nil || !repeat.Success || len(repeat.ManagedHostChanges) != 0 || len(repeat.ModulesToRegenerate) != 0 {
+		t.Fatalf("repeat Admin Distribution plan=%#v error=%v", repeat, err)
+	}
+}
+
+func TestAdminDistributionUpgradeRejectsRequestedVersionThatDoesNotMatchTarget(t *testing.T) {
+	oldFoundation := writeThinHostBlueprintFixture(t)
+	newFoundation := writeThinHostBlueprintFixture(t)
+	promoteThinHostDistribution(t, newFoundation, "v1.3.0", "v1.4.0")
+	applicationRoot := filepath.Join(t.TempDir(), "mismatch-admin")
+	application := Application{Name: "mismatch-admin", Module: "github.com/acme/mismatch-admin", Repository: "acme/mismatch-admin"}
+	if _, err := Generate(context.Background(), Options{FoundationRoot: oldFoundation, Destination: applicationRoot, Application: application, Write: true}); err != nil {
+		t.Fatalf("generate old Thin Host: %v", err)
+	}
+	manifestPath := filepath.Join(applicationRoot, ".mss", "blueprint-manifest.json")
+	before, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read old manifest: %v", err)
+	}
+	_, err = Upgrade(context.Background(), UpgradeOptions{
+		ApplicationRoot:              applicationRoot,
+		FoundationRoot:               newFoundation,
+		Application:                  application,
+		RequestedDistributionVersion: "v1.5.0",
+		Write:                        true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not match target Foundation blueprint Distribution v1.4.0") {
+		t.Fatalf("mismatched Admin Distribution error = %v", err)
+	}
+	after, _ := os.ReadFile(manifestPath)
+	if !bytes.Equal(before, after) {
+		t.Fatal("version-mismatched Admin Distribution upgrade changed the baseline")
+	}
+}
+
+func TestAdminDistributionUpgradeConflictsFailClosedAndKeepUnknownBusinessFiles(t *testing.T) {
+	oldFoundation := writeThinHostBlueprintFixture(t)
+	newFoundation := writeThinHostBlueprintFixture(t)
+	promoteThinHostDistribution(t, newFoundation, "v1.3.0", "v1.4.0")
+	applicationRoot := filepath.Join(t.TempDir(), "conflict-thin-admin")
+	application := Application{Name: "conflict-thin-admin", Module: "github.com/acme/conflict-thin-admin", Repository: "acme/conflict-thin-admin"}
+	if _, err := Generate(context.Background(), Options{FoundationRoot: oldFoundation, Destination: applicationRoot, Application: application, Write: true}); err != nil {
+		t.Fatalf("generate old Thin Host: %v", err)
+	}
+	goModPath := filepath.Join(applicationRoot, "go.mod")
+	goMod, err := os.ReadFile(goModPath)
+	if err != nil {
+		t.Fatalf("read old go.mod: %v", err)
+	}
+	goMod = append(goMod, []byte("\n// downstream dependency customization\n")...)
+	if err := os.WriteFile(goModPath, goMod, 0o644); err != nil {
+		t.Fatalf("customize go.mod: %v", err)
+	}
+	writeUpgradeFixtureFile(t, applicationRoot, "internal/modules/order/custom.go", "package order\n\nconst Keep = true\n")
+	manifestPath := filepath.Join(applicationRoot, ".mss", "blueprint-manifest.json")
+	manifestBefore, _ := os.ReadFile(manifestPath)
+
+	plan, err := Upgrade(context.Background(), UpgradeOptions{
+		ApplicationRoot:              applicationRoot,
+		FoundationRoot:               newFoundation,
+		Application:                  application,
+		RequestedDistributionVersion: "v1.4.0",
+		PreservedBusinessPaths:       []string{"internal/modules"},
+		Write:                        true,
+	})
+	if err == nil || plan.Success || len(plan.Conflicts) == 0 {
+		t.Fatalf("conflicting Admin Distribution apply plan=%#v error=%v", plan, err)
+	}
+	assertUpgradeAction(t, plan, "go.mod", ActionConflict)
+	assertContains(t, goModPath, "downstream dependency customization")
+	assertContains(t, filepath.Join(applicationRoot, "internal", "modules", "order", "custom.go"), "const Keep = true")
+	if !containsUpgradeString(plan.PreservedFiles, "internal/modules/order/custom.go") {
+		t.Fatalf("conflict plan omitted preserved business file: %#v", plan.PreservedFiles)
+	}
+	manifestAfter, _ := os.ReadFile(manifestPath)
+	if !bytes.Equal(manifestBefore, manifestAfter) {
+		t.Fatal("conflicting Admin Distribution upgrade updated the snapshot baseline")
+	}
+}
 
 func TestUpgradeAppliesFoundationChangesAndPreservesCustomization(t *testing.T) {
 	oldFoundation := writeBlueprintFixture(t)
@@ -260,6 +467,54 @@ func prepareNewFoundation(t *testing.T, root string) {
 	}
 	runGit(t, root, "add", "-A")
 	runGit(t, root, "commit", "-m", "foundation v2")
+}
+
+func promoteThinHostDistribution(t *testing.T, root, fromVersion, toVersion string) {
+	t.Helper()
+	for _, relative := range []string{
+		".mss/blueprints/management-system.yaml",
+		".mss/release-policy.yaml",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(relative))
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", relative, err)
+		}
+		data = []byte(strings.ReplaceAll(string(data), fromVersion, toVersion))
+		data = []byte(strings.ReplaceAll(
+			string(data),
+			strings.TrimPrefix(fromVersion, "v"),
+			strings.TrimPrefix(toVersion, "v"),
+		))
+		if relative == ".mss/blueprints/management-system.yaml" {
+			data = []byte(strings.Replace(string(data), "version: 0.4.0", "version: 0.5.0", 1))
+		}
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			t.Fatalf("write %s: %v", relative, err)
+		}
+	}
+	runGit(t, root, "add", "-A")
+	runGit(t, root, "commit", "-m", "upgrade Admin Distribution to "+toVersion)
+}
+
+func writeUpgradeFixtureFile(t *testing.T, root, relative, content string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(relative))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create %s parent: %v", relative, err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", relative, err)
+	}
+}
+
+func containsUpgradeString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func assertUpgradeAction(t *testing.T, plan UpgradePlan, path string, action Action) {

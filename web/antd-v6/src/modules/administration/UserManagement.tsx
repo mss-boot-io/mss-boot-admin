@@ -1,15 +1,15 @@
+import { getRequestErrorMessage } from '@mss-admin-core/shared/api/errors';
+import {
+  finishManagementRouteIntent,
+  type ManagementRouteIntent,
+  useManagementRouteIntent,
+} from '@mss-admin-core/shared/navigation/managementRoute';
+import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
 import type { TableColumnsType } from 'antd';
 import { Alert, App, Avatar, Button, Form, Input, Modal, Popconfirm, Select, Space } from 'antd';
 import { useMemo, useState } from 'react';
-import { getRequestErrorMessage } from '@/shared/api/errors';
-import {
-  finishManagementRouteIntent,
-  type ManagementRouteIntent,
-  useManagementRouteIntent,
-} from '@/shared/navigation/managementRoute';
-import { queryKeys } from '@/shared/query/client';
 import AdministrationTable, { AdministrationStatusTag } from './AdministrationTable';
 import { administrationAPI } from './api';
 import {

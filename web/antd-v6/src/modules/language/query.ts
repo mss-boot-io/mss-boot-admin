@@ -1,5 +1,5 @@
+import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { queryKeys } from '@/shared/query/client';
 import { languageAPI } from './api';
 import type { LanguageListParams } from './contract';
 

@@ -1,9 +1,9 @@
+import LanguageEditor from '@mss-admin-core/modules/language/LanguageEditor';
+import { hasPermission } from '@mss-admin-core/shared/auth/access';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageContainer } from '@mss-admin-core/shared/design-system/PageContainer';
+import { PageForbidden } from '@mss-admin-core/shared/design-system/PageState';
 import { useIntl, useModel } from '@umijs/max';
-import LanguageEditor from '@/modules/language/LanguageEditor';
-import { hasPermission } from '@/shared/auth/access';
-import type { InitialState } from '@/shared/auth/types';
-import { PageContainer } from '@/shared/design-system/PageContainer';
-import { PageForbidden } from '@/shared/design-system/PageState';
 
 export default function CreateLanguagePage() {
   const intl = useIntl();

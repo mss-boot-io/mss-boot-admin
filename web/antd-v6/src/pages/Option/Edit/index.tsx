@@ -1,9 +1,9 @@
+import OptionEditor from '@mss-admin-core/modules/option/OptionEditor';
+import { hasPermission } from '@mss-admin-core/shared/auth/access';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageContainer } from '@mss-admin-core/shared/design-system/PageContainer';
+import { PageForbidden } from '@mss-admin-core/shared/design-system/PageState';
 import { useIntl, useModel, useParams } from '@umijs/max';
-import OptionEditor from '@/modules/option/OptionEditor';
-import { hasPermission } from '@/shared/auth/access';
-import type { InitialState } from '@/shared/auth/types';
-import { PageContainer } from '@/shared/design-system/PageContainer';
-import { PageForbidden } from '@/shared/design-system/PageState';
 
 export default function EditOptionPage() {
   const intl = useIntl();

@@ -1,7 +1,7 @@
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
 import { render, screen } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { InitialState } from '@/shared/auth/types';
 import CreateLanguagePage from './Create';
 import EditLanguagePage from './Edit';
 import LanguagePage from './index';
@@ -21,13 +21,13 @@ vi.mock('@ant-design/pro-components', () => ({
   PageContainer: ({ children }: PropsWithChildren) => <main>{children}</main>,
 }));
 
-vi.mock('@/modules/language/LanguageListView', () => ({
+vi.mock('@mss-admin-core/modules/language/LanguageListView', () => ({
   default: (props: { canCreate: boolean; canDelete: boolean; canEdit: boolean }) => (
     <div>{`list:${props.canCreate}:${props.canEdit}:${props.canDelete}`}</div>
   ),
 }));
 
-vi.mock('@/modules/language/LanguageEditor', () => ({
+vi.mock('@mss-admin-core/modules/language/LanguageEditor', () => ({
   default: ({ id, mode }: { id?: string; mode: string }) => (
     <div>{`editor:${mode}:${id ?? ''}`}</div>
   ),

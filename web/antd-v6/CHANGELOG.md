@@ -6,15 +6,28 @@ and the root changelog, not as a current release surface.
 
 ## Unreleased
 
-Target: **web/antd-v6/v1.2.3**. The sole supported Admin frontend must use the
-same exact merged-main commit as the Framework and root v1.2.3 artifacts.
+Target: **web/antd-v6/v1.3.0**. The Admin Web package, Admin Go module,
+Framework module, and root distribution use one version core and one exact
+merged-main commit. Documentation remains an independently released component.
 
-The immutable `web/antd-v6/v1.2.2` release, assets, and image remain published.
-The synchronized root v1.2.2 image did not complete because its arm64 Go build
-ran under QEMU until the 40-minute job limit, so the full train moves to v1.2.3.
+### Added
 
-- Requalify the unchanged V6 product from the merged v1.2.3 repair commit so
-  frontend, Framework, and root publication identify one exact source revision.
+- Publish the sole complete Admin frontend as `@mss-boot-io/admin-web`, with a
+  controlled file allowlist, stable exports, package-owned Umi integration, and
+  `mss-admin-web dev|lint|test|build` commands for Thin Hosts.
+- Compose deterministic business routes and menu registrations before the
+  fail-closed 403/404 routes without copying core pages, layout, session,
+  request, theme, locale, or design-system source into downstream repositories.
+- Qualify a real repository-external Thin Host from the packed tarball,
+  including one runtime graph, one `dist`, release bundle gates, and Playwright
+  coverage against the external backend and frontend.
+
+### Changed
+
+- Enforce one installed React 19.2.8, React DOM 19.2.8, Ant Design 6.6.0,
+  ProComponents 3.1.14-6, React Query 5.101.4, and Umi Max 4.7.5 runtime graph.
+- Remove the downstream-invisible pnpm patch dependency and keep the canonical
+  frontend source usable by both the official application and package consumers.
 
 ## [web/antd-v6/v1.2.2] - 2026-08-19
 

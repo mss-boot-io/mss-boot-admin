@@ -3,6 +3,13 @@ import DashboardOutlined from '@ant-design/icons/DashboardOutlined';
 import HddOutlined from '@ant-design/icons/HddOutlined';
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import { ProCard } from '@ant-design/pro-components';
+import { getRequestErrorMessage, getRequestStatus } from '@mss-admin-core/shared/api/errors';
+import {
+  PageEmpty,
+  PageError,
+  PageForbidden,
+  PageLoading,
+} from '@mss-admin-core/shared/design-system/PageState';
 import { useIntl } from '@umijs/max';
 import {
   Alert,
@@ -17,8 +24,6 @@ import {
   Typography,
   theme,
 } from 'antd';
-import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
-import { PageEmpty, PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
 import type { MonitorSnapshot } from './contract';
 import MonitorTrend from './MonitorTrend';
 import { useMonitorSnapshot } from './query';

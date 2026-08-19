@@ -50,7 +50,7 @@ Both migrations are additive and must be applied by the Admin migration command 
 
 Each selected frontend target receives an isolated generated page with the declared loading, empty, error, forbidden, validation, conflict, and destructive-confirmation states. Browser entries are target-specific:
 
-{{ if .HasFrontendV6 }}- Ant Design 6: `web/antd-v6/e2e/generated/{{ .ModuleName }}.spec.ts`.{{ end }}
+{{ if .HasFrontendV6 }}- Ant Design 6: `{{ .FrontendDirectory }}/e2e/generated/{{ .ModuleName }}.spec.ts`.{{ end }}
 
 Each generated flow covers the declared surfaces:
 
@@ -67,14 +67,14 @@ The checked-in test is an executable contract, not proof that a browser run occu
 From the repository root:
 
 ```shell
-go run ./cmd/mss spec validate {{ .SourceSpec }} --format json
+{{ .MSSCommand }} spec validate {{ .SourceSpec }} --format json
 {{- if .HasFrontendV6 }}
-go run ./cmd/mss module generate {{ .SourceSpec }} --frontend-target antd-v6 --write
-go run ./cmd/mss module generate {{ .SourceSpec }} --frontend-target antd-v6 --check
+{{ .MSSCommand }} module generate {{ .SourceSpec }} --frontend-target antd-v6 --write
+{{ .MSSCommand }} module generate {{ .SourceSpec }} --frontend-target antd-v6 --check
 {{- end }}
-cd admin && GOWORK=off go test ./modules/{{ .ModuleName }}/...
+cd {{ .BackendDirectory }} && GOWORK=off go test ./{{ .BackendRelativeModuleDirectory }}/...
 {{- if .HasFrontendV6 }}
-cd web/antd-v6 && pnpm exec playwright test e2e/generated/{{ .ModuleName }}.spec.ts --project=chromium-desktop
+cd {{ .FrontendDirectory }} && pnpm exec playwright test e2e/generated/{{ .ModuleName }}.spec.ts --project=chromium-desktop
 {{- end }}
 ```
 

@@ -1,8 +1,8 @@
+import type { NoticeSummary, NoticeType } from '@mss-admin-core/modules/operations/contract';
+import type { CurrentUser } from '@mss-admin-core/shared/auth/types';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NoticeSummary, NoticeType } from '@/modules/operations/contract';
-import type { CurrentUser } from '@/shared/auth/types';
 import HeaderNotice from './HeaderNotice';
 
 const { markRead, push, unread } = vi.hoisted(() => ({
@@ -44,7 +44,7 @@ vi.mock('@umijs/max', () => ({
   }),
 }));
 
-vi.mock('@/modules/operations/api', () => ({
+vi.mock('@mss-admin-core/modules/operations/api', () => ({
   operationsAPI: { notices: { markRead, unread } },
 }));
 

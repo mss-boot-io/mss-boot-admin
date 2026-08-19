@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mss-boot-io/mss-boot-admin/admin/models"
-	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
+	"{{ .AdminModule }}/models"
+	"{{ .FrameworkModule }}/pkg/security"
 )
 
 const {{ .ModuleName }}TestPrincipalKey = "{{ .ModuleName }}.test.principal"

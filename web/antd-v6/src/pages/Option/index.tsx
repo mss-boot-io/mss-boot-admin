@@ -1,9 +1,9 @@
+import OptionListView from '@mss-admin-core/modules/option/OptionListView';
+import { hasPermission } from '@mss-admin-core/shared/auth/access';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageContainer } from '@mss-admin-core/shared/design-system/PageContainer';
+import { PageForbidden } from '@mss-admin-core/shared/design-system/PageState';
 import { useIntl, useModel } from '@umijs/max';
-import OptionListView from '@/modules/option/OptionListView';
-import { hasPermission } from '@/shared/auth/access';
-import type { InitialState } from '@/shared/auth/types';
-import { PageContainer } from '@/shared/design-system/PageContainer';
-import { PageForbidden } from '@/shared/design-system/PageState';
 
 export default function OptionPage() {
   const intl = useIntl();

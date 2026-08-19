@@ -1,7 +1,7 @@
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
 import { render, screen } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { InitialState } from '@/shared/auth/types';
 import OnlineSessionsPage from './index';
 
 const model = vi.hoisted(() => ({ initialState: undefined as InitialState | undefined }));
@@ -15,7 +15,7 @@ vi.mock('@ant-design/pro-components', () => ({
   PageContainer: ({ children }: PropsWithChildren) => <main>{children}</main>,
 }));
 
-vi.mock('@/modules/session/OnlineSessionsView', () => ({
+vi.mock('@mss-admin-core/modules/session/OnlineSessionsView', () => ({
   default: () => <div>online-session-content</div>,
 }));
 

@@ -556,8 +556,18 @@ frontend 1.4.0
 用户操作应表达升级完整发行包，例如：
 
 ```bash
-mss upgrade admin v1.4.0
+# 默认只生成只读计划；目标 Foundation checkout 必须声明同一个 Distribution 版本
+mss upgrade admin v1.4.0 --foundation /path/to/mss-boot-admin-v1.4.0 --format json
+
+# 解决完计划中的全部冲突后，显式确认应用
+mss upgrade admin v1.4.0 --foundation /path/to/mss-boot-admin-v1.4.0 --apply --yes
 ```
+
+目标 Foundation Blueprint 的 `spec.distribution.version` 和发行策略版本必须
+与命令请求的版本完全一致，否则计划失败且不写文件。计划同时列出旧/新 Distribution、
+Go Admin Module 和 Admin Web package 的变化、需要重新生成的 AdminModule、
+受管宿主文件变化、冲突、保留文件及验证命令。内部仍使用同一个 Blueprint
+三方升级引擎；旧的 `mss upgrade plan/apply --foundation ...` 入口继续兼容。
 
 命令名称可根据现有 CLI 调整，但必须一次协调：
 

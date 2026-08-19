@@ -9,12 +9,24 @@ spec:
     Agent-native infrastructure for building, validating, operating, and upgrading
     management systems with Codex and other coding agents.
   foundationVersion: 0.1.0
+  distribution:
+    name: mss-boot-admin
+    version: v1.3.0
+    backend:
+      module: github.com/mss-boot-io/mss-boot-admin/admin
+      version: v1.3.0
+    frontend:
+      package: "@mss-boot-io/admin-web"
+      version: 1.3.0
   repositoryLayout:
+    kind: foundation
     backend: admin
     framework: mss-boot
     frontend: web/antd-v6
     documentation: docs
     modules: admin/modules
+    generated: web/antd-v6/src/generated
+    businessRoutes: web/antd-v6/config/routes.generated.ts
     specifications: .mss
     skills: .agents/skills
     templates: templates

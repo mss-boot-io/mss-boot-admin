@@ -1,13 +1,13 @@
+import LogViewer from '@mss-admin-core/modules/operations/LogViewer';
+import NoticeCenter from '@mss-admin-core/modules/operations/NoticeCenter';
+import SystemConfigManagement from '@mss-admin-core/modules/operations/SystemConfigManagement';
+import TaskManagement from '@mss-admin-core/modules/operations/TaskManagement';
+import { hasPermission, isRootIdentity } from '@mss-admin-core/shared/auth/access';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageContainer } from '@mss-admin-core/shared/design-system/PageContainer';
+import { PageForbidden } from '@mss-admin-core/shared/design-system/PageState';
+import type { ManagementRouteIntent } from '@mss-admin-core/shared/navigation/managementRoute';
 import { useIntl, useLocation, useModel } from '@umijs/max';
-import LogViewer from '@/modules/operations/LogViewer';
-import NoticeCenter from '@/modules/operations/NoticeCenter';
-import SystemConfigManagement from '@/modules/operations/SystemConfigManagement';
-import TaskManagement from '@/modules/operations/TaskManagement';
-import { hasPermission, isRootIdentity } from '@/shared/auth/access';
-import type { InitialState } from '@/shared/auth/types';
-import { PageContainer } from '@/shared/design-system/PageContainer';
-import { PageForbidden } from '@/shared/design-system/PageState';
-import type { ManagementRouteIntent } from '@/shared/navigation/managementRoute';
 
 interface OperationsRouteDefinition {
   description: string;

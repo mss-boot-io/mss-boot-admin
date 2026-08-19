@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mss.io/schemas/foundation-lock.schema.json",
+  "title": "MSS Foundation Lock",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "enum": ["mss.io/v1alpha1", "mss.io/v1alpha2"] },
+    "kind": { "const": "FoundationLock" },
+    "metadata": {
+      "type": "object",
+      "required": ["project"],
+      "properties": {
+        "project": { "type": "string", "minLength": 1 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["distribution"],
+      "properties": {
+        "distribution": { "$ref": "admin-distribution.schema.json" }
+      }
+    }
+  }
+}

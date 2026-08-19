@@ -3,14 +3,14 @@ import MailOutlined from '@ant-design/icons/MailOutlined';
 import PhoneOutlined from '@ant-design/icons/PhoneOutlined';
 import UserOutlined from '@ant-design/icons/UserOutlined';
 import { ProCard } from '@ant-design/pro-components';
+import { fetchCurrentUser } from '@mss-admin-core/shared/auth/session';
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
+import { PageContainer } from '@mss-admin-core/shared/design-system/PageContainer';
+import { PageError, PageLoading } from '@mss-admin-core/shared/design-system/PageState';
+import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useIntl, useModel } from '@umijs/max';
 import { Avatar, Button, Descriptions, Space, Tag, Typography } from 'antd';
-import { fetchCurrentUser } from '@/shared/auth/session';
-import type { InitialState } from '@/shared/auth/types';
-import { PageContainer } from '@/shared/design-system/PageContainer';
-import { PageError, PageLoading } from '@/shared/design-system/PageState';
-import { queryKeys } from '@/shared/query/client';
 
 function display(value?: string): string {
   return value?.trim() || '—';

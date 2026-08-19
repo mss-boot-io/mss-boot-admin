@@ -1,0 +1,88 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { isAbsolute, resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import manifest from '../package.json';
+
+const packageManifest = manifest as typeof manifest & {
+  private?: boolean;
+  mssAdminDistribution?: {
+    packageManager?: string;
+    runtimeOverrides?: Record<string, string>;
+  };
+};
+
+interface Route {
+  path?: string;
+  component?: string;
+  routes?: Route[];
+}
+
+const require = createRequire(import.meta.url);
+const { createAdminRoutes } = require('../package/core-routes.cjs') as {
+  createAdminRoutes: (options?: { businessRoutes?: Route[] }) => Route[];
+};
+
+describe('Admin web package contract', () => {
+  it('exposes only stable public entrypoints', () => {
+    expect(Object.keys(packageManifest.exports).sort()).toEqual(
+      [
+        '.',
+        './business',
+        './package.json',
+        './preset',
+        './runtime',
+        './runtime/access',
+        './runtime/app',
+        './runtime/locales/en-US',
+        './runtime/locales/zh-CN',
+        './styles',
+        './testing',
+      ].sort(),
+    );
+    expect(Object.keys(packageManifest.exports)).not.toContain('./src/*');
+    expect(packageManifest.name).toBe('@mss-boot-io/admin-web');
+    expect(packageManifest.private).not.toBe(true);
+    expect(packageManifest.mssAdminDistribution).toEqual({
+      packageManager: packageManifest.packageManager,
+      runtimeOverrides: packageManifest.pnpm.overrides,
+    });
+  });
+
+  it('keeps the published CLI available to a clean Git checkout', () => {
+    const cli = resolve(import.meta.dirname, '../bin/mss-admin-web.cjs');
+    expect(existsSync(cli)).toBe(true);
+    expect(() =>
+      execFileSync('git', ['check-ignore', '--quiet', cli], {
+        cwd: resolve(import.meta.dirname, '..'),
+        stdio: 'ignore',
+      }),
+    ).toThrow();
+  });
+
+  it('places business routes before the fail-closed fallbacks', () => {
+    const routes = createAdminRoutes({
+      businessRoutes: [{ path: '/contracts', component: '@/business/contracts' }],
+    });
+    const paths = routes.map((route) => route.path);
+    expect(paths.indexOf('/contracts')).toBeGreaterThan(paths.indexOf('/workplace'));
+    expect(paths.indexOf('/contracts')).toBeLessThan(paths.indexOf('/403'));
+    expect(paths.slice(-3)).toEqual(['/403', '/', '/*']);
+    expect(
+      routes
+        .flatMap((route) => [route, ...(route.routes ?? [])])
+        .filter((route) => route.path !== '/contracts' && route.component)
+        .every((route) => isAbsolute(route.component ?? '')),
+    ).toBe(true);
+  });
+
+  it('rejects reserved and duplicate business routes', () => {
+    expect(() => createAdminRoutes({ businessRoutes: [{ path: '/menu' }] })).toThrow(
+      'business route conflicts',
+    );
+    expect(() =>
+      createAdminRoutes({ businessRoutes: [{ path: '/contracts' }, { path: '/contracts' }] }),
+    ).toThrow('duplicate business route');
+  });
+});

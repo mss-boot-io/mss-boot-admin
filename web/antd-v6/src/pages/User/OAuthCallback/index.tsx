@@ -1,17 +1,17 @@
-import { history, request, useIntl, useParams } from '@umijs/max';
-import { Result, Spin } from 'antd';
-import { useEffect, useRef, useState } from 'react';
-import { parseOAuthCallbackOutcome } from '@/modules/account/contracts';
-import { consumeOAuthLoginRedirect } from '@/shared/auth/oauthRedirect';
-import { resolveSafeRedirect } from '@/shared/auth/redirect';
+import { parseOAuthCallbackOutcome } from '@mss-admin-core/modules/account/contracts';
+import { consumeOAuthLoginRedirect } from '@mss-admin-core/shared/auth/oauthRedirect';
+import { resolveSafeRedirect } from '@mss-admin-core/shared/auth/redirect';
 import {
   assertNoBrowserCredential,
   fetchCurrentUser,
   recordBrowserSessionResponse,
   requireCredentialFreeSessionResponse,
-} from '@/shared/auth/session';
-import { queryClient, queryKeys } from '@/shared/query/client';
-import { rotateThemeAuthSession } from '@/shared/theme/snapshot';
+} from '@mss-admin-core/shared/auth/session';
+import { queryClient, queryKeys } from '@mss-admin-core/shared/query/client';
+import { rotateThemeAuthSession } from '@mss-admin-core/shared/theme/snapshot';
+import { history, request, useIntl, useParams } from '@umijs/max';
+import { Result, Spin } from 'antd';
+import { useEffect, useRef, useState } from 'react';
 
 export default function OAuthCallbackPage() {
   const intl = useIntl();

@@ -10,6 +10,8 @@ metadata:
   labels:
     domain: admin-distribution
     implementation-status: in-progress
+    release-status: preparation
+    target-version: v1.3.0
     compatibility: coordinated-backend-frontend-version
     privacy: no-telemetry
 spec:

@@ -2,6 +2,13 @@ import ArrowLeftOutlined from '@ant-design/icons/ArrowLeftOutlined';
 import DeleteOutlined from '@ant-design/icons/DeleteOutlined';
 import PlusOutlined from '@ant-design/icons/PlusOutlined';
 import SaveOutlined from '@ant-design/icons/SaveOutlined';
+import { getRequestErrorMessage, getRequestStatus } from '@mss-admin-core/shared/api/errors';
+import {
+  PageError,
+  PageForbidden,
+  PageLoading,
+} from '@mss-admin-core/shared/design-system/PageState';
+import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { history, useIntl } from '@umijs/max';
 import {
@@ -21,9 +28,6 @@ import {
   Typography,
 } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getRequestErrorMessage, getRequestStatus } from '@/shared/api/errors';
-import { PageError, PageForbidden, PageLoading } from '@/shared/design-system/PageState';
-import { queryKeys } from '@/shared/query/client';
 import { optionAPI } from './api';
 import {
   MAX_OPTION_CATEGORY,

@@ -20,13 +20,14 @@ RUN_ID = 123456789
 RUN_URL = (
     "https://github.com/mss-boot-io/mss-boot-admin/actions/runs/123456789"
 )
+TARGET_VERSION = "v1.3.0"
 
 
 class ReleaseReadinessAttestationTest(unittest.TestCase):
     def checkpoint(self):
         return ATTESTATION.build_attestation(
             policy_path=POLICY_PATH,
-            target_version="v1.2.3",
+            target_version=TARGET_VERSION,
             commit=COMMIT,
             phase="checkpoint",
             workflow_run_id=RUN_ID,
@@ -49,11 +50,11 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
     def ready_policy(self, directory: str) -> Path:
         return self.policy_with_readiness(directory, True)
 
-    def test_checkpoint_attestation_binds_exact_v123_metadata(self):
+    def test_checkpoint_attestation_binds_exact_v130_metadata(self):
         attestation = self.checkpoint()
         self.assertEqual(set(attestation), ATTESTATION.REQUIRED_KEYS)
         self.assertEqual(attestation["schema"], ATTESTATION.SCHEMA)
-        self.assertEqual(attestation["targetVersion"], "v1.2.3")
+        self.assertEqual(attestation["targetVersion"], TARGET_VERSION)
         self.assertEqual(attestation["commit"], COMMIT)
         self.assertEqual(attestation["phase"], "checkpoint")
         self.assertEqual(attestation["workflowRunId"], RUN_ID)
@@ -66,7 +67,7 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
         ATTESTATION.validate_attestation(
             attestation,
             policy_path=POLICY_PATH,
-            target_version="v1.2.3",
+            target_version=TARGET_VERSION,
             commit=COMMIT,
             phase="checkpoint",
             workflow_run_id=RUN_ID,
@@ -82,7 +83,7 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
             ):
                 ATTESTATION.build_attestation(
                     policy_path=policy,
-                    target_version="v1.2.3",
+                    target_version=TARGET_VERSION,
                     commit=COMMIT,
                     phase="pre-framework",
                     workflow_run_id=RUN_ID,
@@ -94,7 +95,7 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
             ):
                 ATTESTATION.build_attestation(
                     policy_path=policy,
-                    target_version="v1.2.3",
+                    target_version=TARGET_VERSION,
                     commit=COMMIT,
                     phase="checkpoint",
                     workflow_run_id=RUN_ID,
@@ -103,7 +104,7 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
                 )
             checkpoint = ATTESTATION.build_attestation(
                 policy_path=policy,
-                target_version="v1.2.3",
+                target_version=TARGET_VERSION,
                 commit=COMMIT,
                 phase="checkpoint",
                 workflow_run_id=RUN_ID,
@@ -116,7 +117,7 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
                 ATTESTATION.validate_attestation(
                     checkpoint,
                     policy_path=policy,
-                    target_version="v1.2.3",
+                    target_version=TARGET_VERSION,
                     commit=COMMIT,
                     phase="checkpoint",
                     workflow_run_id=RUN_ID,
@@ -129,7 +130,7 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
             policy = self.ready_policy(directory)
             attestation = ATTESTATION.build_attestation(
                 policy_path=policy,
-                target_version="v1.2.3",
+                target_version=TARGET_VERSION,
                 commit=COMMIT,
                 phase="pre-framework",
                 workflow_run_id=RUN_ID,
@@ -140,7 +141,7 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
             ATTESTATION.validate_attestation(
                 attestation,
                 policy_path=policy,
-                target_version="v1.2.3",
+                target_version=TARGET_VERSION,
                 commit=COMMIT,
                 phase="pre-framework",
                 workflow_run_id=RUN_ID,
@@ -167,7 +168,7 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
                     ATTESTATION.validate_attestation(
                         candidate,
                         policy_path=POLICY_PATH,
-                        target_version="v1.2.3",
+                        target_version=TARGET_VERSION,
                         commit=COMMIT,
                         phase="checkpoint",
                         workflow_run_id=RUN_ID,
@@ -193,7 +194,7 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
                 ATTESTATION.validate_attestation(
                     ATTESTATION.load_attestation(path),
                     policy_path=POLICY_PATH,
-                    target_version="v1.2.3",
+                    target_version=TARGET_VERSION,
                     commit=COMMIT,
                     phase="checkpoint",
                     workflow_run_id=RUN_ID,
@@ -208,7 +209,7 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
                 "--policy",
                 str(POLICY_PATH),
                 "--target-version",
-                "v1.2.3",
+                TARGET_VERSION,
                 "--commit",
                 COMMIT,
                 "--phase",

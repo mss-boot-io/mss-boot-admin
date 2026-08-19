@@ -1,7 +1,7 @@
+import type { InitialState } from '@mss-admin-core/shared/auth/types';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { InitialState } from '@/shared/auth/types';
 import AdministrationPage from './Administration';
 
 const runtime = vi.hoisted(() => ({
@@ -25,19 +25,19 @@ vi.mock('@ant-design/pro-components', () => ({
   PageContainer: ({ children }: PropsWithChildren) => <main>{children}</main>,
 }));
 
-vi.mock('@/modules/administration/UserManagement', () => ({
+vi.mock('@mss-admin-core/modules/administration/UserManagement', () => ({
   default: (props: Record<string, unknown>) => <div>{`users:${permissionFlags(props)}`}</div>,
 }));
-vi.mock('@/modules/administration/RoleManagement', () => ({
+vi.mock('@mss-admin-core/modules/administration/RoleManagement', () => ({
   default: (props: Record<string, unknown>) => <div>{`roles:${permissionFlags(props)}`}</div>,
 }));
-vi.mock('@/modules/administration/MenuManagement', () => ({
+vi.mock('@mss-admin-core/modules/administration/MenuManagement', () => ({
   default: (props: Record<string, unknown>) => <div>{`menus:${permissionFlags(props)}`}</div>,
 }));
-vi.mock('@/modules/administration/DepartmentManagement', () => ({
+vi.mock('@mss-admin-core/modules/administration/DepartmentManagement', () => ({
   default: (props: Record<string, unknown>) => <div>{`departments:${permissionFlags(props)}`}</div>,
 }));
-vi.mock('@/modules/administration/PostManagement', () => ({
+vi.mock('@mss-admin-core/modules/administration/PostManagement', () => ({
   default: (props: Record<string, unknown>) => <div>{`posts:${permissionFlags(props)}`}</div>,
 }));
 

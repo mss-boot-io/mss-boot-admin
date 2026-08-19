@@ -1,10 +1,19 @@
 import { readdir, readFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const distRoot = join(projectRoot, 'dist');
+const distArgument = process.argv.indexOf('--dist');
+if (
+  distArgument >= 0 &&
+  (!process.argv[distArgument + 1] || process.argv[distArgument + 1].startsWith('--'))
+) {
+  throw new Error('--dist requires a path');
+}
+const distRoot = resolve(
+  distArgument >= 0 ? process.argv[distArgument + 1] : join(projectRoot, 'dist'),
+);
 const productionGzipLevel = 6;
 
 const readBudget = (name, fallbackKiB) => {

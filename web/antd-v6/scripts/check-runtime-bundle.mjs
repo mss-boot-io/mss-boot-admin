@@ -1,9 +1,17 @@
 import { readdir, readFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const distRoot = join(projectRoot, 'dist');
+const argumentValue = (name) => {
+  const index = process.argv.indexOf(name);
+  if (index < 0) return undefined;
+  const value = process.argv[index + 1];
+  if (!value || value.startsWith('--')) throw new Error(`${name} requires a path`);
+  return value;
+};
+const distRoot = resolve(argumentValue('--dist') || join(projectRoot, 'dist'));
+const statsPath = resolve(argumentValue('--stats') || join(distRoot, 'stats.json'));
 
 const listJavaScript = async (directory) => {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -32,7 +40,7 @@ const contents = await Promise.all(
   files.map(async (file) => ({ file, content: await readFile(file, 'utf8') })),
 );
 const failures = [];
-const stats = JSON.parse(await readFile(join(distRoot, 'stats.json'), 'utf8'));
+const stats = JSON.parse(await readFile(statsPath, 'utf8'));
 const collectModuleNames = (modules) =>
   Array.isArray(modules)
     ? modules.flatMap((module) => [

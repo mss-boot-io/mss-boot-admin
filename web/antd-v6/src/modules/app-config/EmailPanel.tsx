@@ -1,12 +1,12 @@
 import LockOutlined from '@ant-design/icons/LockOutlined';
 import SaveOutlined from '@ant-design/icons/SaveOutlined';
+import { getRequestErrorMessage } from '@mss-admin-core/shared/api/client';
+import { PageError, PageLoading } from '@mss-admin-core/shared/design-system/PageState';
+import { queryClient, queryKeys } from '@mss-admin-core/shared/query/client';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
 import { Alert, App, Button, Form, Input, InputNumber, Tag } from 'antd';
 import { useEffect, useState } from 'react';
-import { getRequestErrorMessage } from '@/shared/api/client';
-import { PageError, PageLoading } from '@/shared/design-system/PageState';
-import { queryClient, queryKeys } from '@/shared/query/client';
 import { useAppConfigAccess } from './access';
 import { appConfigAPI } from './api';
 import { type EmailAppConfig, serializeEmailAppConfig } from './contracts';

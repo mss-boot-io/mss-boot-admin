@@ -34,6 +34,43 @@
 ./mss eval run --all
 ```
 
+## 完整 Admin 发行包与轻量业务宿主
+
+`mss-boot-admin` 始终是一套完整管理产品。统一发行版本同时约束可复用 Framework Go Module、完整 Admin Go Module、唯一的 `@mss-boot-io/admin-web` 前端包，以及根工具和交付制品。身份、Session、RBAC、菜单、布局与公共运行时不会被拆成可选产品。
+
+真实业务项目由 Blueprint 生成 Thin Host。宿主锁定同一个 Admin 发行版本，在编译期追加 Go 业务模块和 Umi 业务路由，最终仍然只有一个后端二进制、一个前端 `dist`、一套登录与 Session、一套权限与菜单。它不会复制 Foundation 的 Admin 核心源码，也不会启动第二套 Admin。
+
+从干净的 Foundation checkout 创建 Thin Host，并生成业务模块：
+
+```shell
+go run ./cmd/mss new app orders-admin \
+  --module github.com/acme/orders-admin \
+  --repository acme/orders-admin \
+  --destination ../orders-admin \
+  --write \
+  --format json
+
+go run ./cmd/mss --root ../orders-admin module generate \
+  .mss/modules/example-supplier.yaml \
+  --write \
+  --frontend-target antd-v6 \
+  --format json
+```
+
+整套 Admin 升级先生成只读、可审查的冲突计划，确认后再显式应用：
+
+```shell
+go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.0 \
+  --foundation . \
+  --format json
+go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.0 \
+  --foundation . \
+  --apply --yes \
+  --format json
+```
+
+目标 Foundation checkout 必须精确声明请求的发行版本。三方升级只管理 Blueprint 生成的宿主胶水等受管文件，下游业务代码保持不变。
+
 [Beta环境](https://admin-beta.mss-boot-io.top)
 
 [Swagger](https://mss-boot-io.github.io/mss-boot-admin/swagger.json)
@@ -48,9 +85,10 @@
 
 | 路径 | 组件 |
 | --- | --- |
-| `/` | Go 管理后台后端 |
+| `/` | Agent CLI、项目契约、编排与协调发布工具 |
+| `admin/` | 完整、可复用且可部署的 Admin Go 应用 |
 | `mss-boot/` | 可复用 Go 框架模块 |
-| `web/antd-v6/` | React 19 + Ant Design 6 前端，保持独立发布 |
+| `web/antd-v6/` | 完整 React 19 + Ant Design 6 前端及 `@mss-boot-io/admin-web` 包 |
 | `docs/` | Dumi 文档站点 |
 
 后续所有有效开发统一在本仓库进行，原有独立仓库仅保留为迁移历史与兼容性参考。
