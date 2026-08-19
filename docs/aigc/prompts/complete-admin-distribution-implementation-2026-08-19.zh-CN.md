@@ -603,6 +603,11 @@ antd
 
 合理设计 `dependencies`、`peerDependencies` 和 CLI 解析，不得只凭顶层清单宣称没有重复依赖。
 
+发布合同必须完整、互斥地声明浏览器 `runtime` 与随 CLI 交付的 `tooling` 顶层依赖。
+高危或严重问题只要能从 `runtime` 路径到达就零豁免阻断；仅构建问题必须按 advisory、
+包名、精确受影响版本和到期日期接受，并由 runtime stats 证明该旧版本没有进入浏览器包。
+同名安全新版可以进入 Runtime，不能用只匹配包名的粗粒度门禁误判。
+
 ### 8.5 保留前端质量门槛
 
 不能降低：

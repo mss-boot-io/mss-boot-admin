@@ -111,6 +111,7 @@ spec:
         - The package has a strict files allowlist, stable exports, build CLI, version injection, and no local or sensitive files.
         - Core routes are always present and business routes are inserted before the 403 and 404 fallbacks.
         - External installation proves one React, React DOM, Ant Design, ProComponents, React Query, and Umi runtime.
+        - Published dependencies are completely and disjointly classified as browser runtime or package-owned tooling; runtime high and critical advisories have no acceptance path, while accepted tooling findings bind advisory, package, exact resolution, expiry, and runtime-bundle exclusion.
         - The official reference application continues to build from the same source and configuration factory.
     - id: generate-thin-host
       title: Generate a thin host by default

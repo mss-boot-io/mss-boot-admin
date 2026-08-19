@@ -12,6 +12,16 @@ const argumentValue = (name) => {
 };
 const distRoot = resolve(argumentValue('--dist') || join(projectRoot, 'dist'));
 const statsPath = resolve(argumentValue('--stats') || join(distRoot, 'stats.json'));
+const manifest = JSON.parse(await readFile(join(projectRoot, 'package.json'), 'utf8'));
+const buildOnlyDependencies = manifest.mssAdminDistribution?.buildOnlyDependencies;
+if (
+  !buildOnlyDependencies ||
+  typeof buildOnlyDependencies !== 'object' ||
+  Array.isArray(buildOnlyDependencies) ||
+  Object.keys(buildOnlyDependencies).length === 0
+) {
+  throw new Error('Admin Web package must declare mssAdminDistribution.buildOnlyDependencies');
+}
 
 const listJavaScript = async (directory) => {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -100,7 +110,31 @@ if (axiosRuntime.length === 0) {
     );
   }
 }
-for (const packageName of ['image-size', 'mockjs', 'node-fetch', 'vite']) {
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+for (const [packageName, versions] of Object.entries(buildOnlyDependencies)) {
+  if (!Array.isArray(versions) || versions.length === 0) {
+    failures.push(`build-only dependency ${packageName} must declare exact versions`);
+    continue;
+  }
+  const storeName = packageName.replace('/', '+');
+  const versionMatchers = versions.map(
+    (version) =>
+      new RegExp(
+        `/node_modules/\\.pnpm/${escapeRegExp(storeName)}@${escapeRegExp(version)}(?:_[^/]*)?/node_modules/${escapeRegExp(packageName)}/`,
+      ),
+  );
+  const buildToolRuntime = moduleNames.filter((name) =>
+    versionMatchers.some((matcher) => matcher.test(name)),
+  );
+  if (buildToolRuntime.length > 0) {
+    failures.push(
+      `${packageName} accepted build-only resolution entered the runtime graph: ${buildToolRuntime
+        .slice(0, 3)
+        .join(', ')}`,
+    );
+  }
+}
+for (const packageName of ['mockjs']) {
   const buildToolRuntime = moduleNames.filter((name) =>
     name.includes(`/node_modules/${packageName}/`),
   );

@@ -105,3 +105,8 @@ The implementation has passed the repository-external Supplier host gate: GOWORK
 tarball frontend validation, single-runtime analysis, deterministic generation and upgrade tests, and the
 required browser E2E described by the Feature contract. Publication remains separately gated on PR merge,
 the exact merged-main commit, remote qualification, and coordinated immutable artifacts.
+
+Because the npm package deliberately carries package-owned build tools for thin hosts, its distribution
+metadata partitions every published dependency into runtime or tooling roots. Runtime security findings
+remain unconditionally blocking; exact vulnerable tooling resolutions require expiring acceptance and are
+rejected if those versions appear in the browser bundle graph.

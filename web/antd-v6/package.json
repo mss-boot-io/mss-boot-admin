@@ -19,6 +19,50 @@
   },
   "mssAdminDistribution": {
     "packageManager": "pnpm@10.34.5",
+    "dependencyClasses": {
+      "runtime": [
+        "@ant-design/icons",
+        "@ant-design/pro-components",
+        "@tanstack/react-query",
+        "antd",
+        "antd-style",
+        "clsx",
+        "d",
+        "dayjs",
+        "react",
+        "react-dom"
+      ],
+      "tooling": [
+        "@biomejs/biome",
+        "@tailwindcss/postcss",
+        "@types/node",
+        "@types/react",
+        "@types/react-dom",
+        "@umijs/max",
+        "happy-dom",
+        "tailwindcss",
+        "typescript",
+        "vite",
+        "vitest"
+      ]
+    },
+    "buildOnlyDependencies": {
+      "image-size": [
+        "0.5.5"
+      ],
+      "immer": [
+        "8.0.4"
+      ],
+      "node-fetch": [
+        "1.7.3"
+      ],
+      "path-to-regexp": [
+        "1.7.0"
+      ],
+      "vite": [
+        "4.5.2"
+      ]
+    },
     "runtimeOverrides": {
       "@ant-design/pro-components": "3.1.14-6",
       "@tanstack/react-query": "5.101.4",

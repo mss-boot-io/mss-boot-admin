@@ -16,6 +16,15 @@ COMMIT = "a" * 40
 REPOSITORY = "mss-boot-io/mss-boot-admin"
 
 
+def admin_distribution_contract():
+    return {
+        "packageManager": PACKAGE.ADMIN_WEB_PACKAGE_MANAGER,
+        "dependencyClasses": PACKAGE.ADMIN_WEB_DEPENDENCY_CLASSES,
+        "buildOnlyDependencies": PACKAGE.ADMIN_WEB_BUILD_ONLY_DEPENDENCIES,
+        "runtimeOverrides": PACKAGE.ADMIN_WEB_RUNTIME_OVERRIDES,
+    }
+
+
 def write_tarball(
     path: Path,
     *,
@@ -38,10 +47,7 @@ def write_tarball(
         "homepage": "https://docs.mss-boot-io.top/",
         "bugs": {"url": f"https://github.com/{REPOSITORY}/issues"},
         "packageManager": "pnpm@10.34.5",
-        "mssAdminDistribution": {
-            "packageManager": PACKAGE.ADMIN_WEB_PACKAGE_MANAGER,
-            "runtimeOverrides": PACKAGE.ADMIN_WEB_RUNTIME_OVERRIDES,
-        },
+        "mssAdminDistribution": admin_distribution_contract(),
         "engines": {"node": ">=24.0.0 <25", "pnpm": "10.34.5"},
         "files": [
             "src",
@@ -106,10 +112,7 @@ class AdminWebPackageTest(unittest.TestCase):
         self.assertEqual(evidence["source"]["commit"], COMMIT)
         self.assertEqual(
             evidence["package"]["mssAdminDistribution"],
-            {
-                "packageManager": PACKAGE.ADMIN_WEB_PACKAGE_MANAGER,
-                "runtimeOverrides": PACKAGE.ADMIN_WEB_RUNTIME_OVERRIDES,
-            },
+            admin_distribution_contract(),
         )
         self.assertRegex(evidence["artifact"]["sha256"], r"^[0-9a-f]{64}$")
         self.assertTrue(evidence["artifact"]["integrity"].startswith("sha512-"))
@@ -138,10 +141,7 @@ class AdminWebPackageTest(unittest.TestCase):
                         self.inspect(tarball)
 
     def test_rejects_missing_or_drifted_distribution_host_contract(self):
-        valid_contract = {
-            "packageManager": PACKAGE.ADMIN_WEB_PACKAGE_MANAGER,
-            "runtimeOverrides": PACKAGE.ADMIN_WEB_RUNTIME_OVERRIDES,
-        }
+        valid_contract = admin_distribution_contract()
         cases = (
             None,
             {
@@ -168,6 +168,21 @@ class AdminWebPackageTest(unittest.TestCase):
                 "runtimeOverrides": {
                     **PACKAGE.ADMIN_WEB_RUNTIME_OVERRIDES,
                     "unsupported-runtime": "1.0.0",
+                },
+            },
+            {
+                **valid_contract,
+                "dependencyClasses": {
+                    **PACKAGE.ADMIN_WEB_DEPENDENCY_CLASSES,
+                    "runtime": PACKAGE.ADMIN_WEB_RUNTIME_DEPENDENCIES[:-1],
+                },
+            },
+            {
+                **valid_contract,
+                "buildOnlyDependencies": {
+                    name: versions
+                    for name, versions in PACKAGE.ADMIN_WEB_BUILD_ONLY_DEPENDENCIES.items()
+                    if name != "vite"
                 },
             },
         )

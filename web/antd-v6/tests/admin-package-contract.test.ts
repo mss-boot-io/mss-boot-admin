@@ -9,6 +9,11 @@ const packageManifest = manifest as typeof manifest & {
   private?: boolean;
   mssAdminDistribution?: {
     packageManager?: string;
+    dependencyClasses?: {
+      runtime?: string[];
+      tooling?: string[];
+    };
+    buildOnlyDependencies?: Record<string, string[]>;
     runtimeOverrides?: Record<string, string>;
   };
 };
@@ -47,10 +52,26 @@ describe('Admin web package contract', () => {
     expect(Object.keys(packageManifest.exports)).not.toContain('./src/*');
     expect(packageManifest.name).toBe('@mss-boot-io/admin-web');
     expect(packageManifest.private).not.toBe(true);
-    expect(packageManifest.mssAdminDistribution).toEqual({
+    expect(packageManifest.mssAdminDistribution).toMatchObject({
       packageManager: packageManifest.packageManager,
       runtimeOverrides: packageManifest.pnpm.overrides,
     });
+    expect(Object.keys(packageManifest.mssAdminDistribution ?? {}).sort()).toEqual(
+      ['buildOnlyDependencies', 'dependencyClasses', 'packageManager', 'runtimeOverrides'].sort(),
+    );
+    const runtimeDependencies =
+      packageManifest.mssAdminDistribution?.dependencyClasses?.runtime ?? [];
+    const toolingDependencies =
+      packageManifest.mssAdminDistribution?.dependencyClasses?.tooling ?? [];
+    expect([...runtimeDependencies, ...toolingDependencies].sort()).toEqual(
+      Object.keys(packageManifest.dependencies).sort(),
+    );
+    expect(runtimeDependencies.filter((name) => toolingDependencies.includes(name))).toEqual([]);
+    const buildOnlyDependencies = packageManifest.mssAdminDistribution?.buildOnlyDependencies ?? {};
+    expect(Object.keys(buildOnlyDependencies)).toEqual(Object.keys(buildOnlyDependencies).sort());
+    for (const versions of Object.values(buildOnlyDependencies)) {
+      expect(versions).toEqual([...new Set(versions)].sort());
+    }
     expect(packageManifest.dependencies.vite).toBe('8.2.1');
   });
 

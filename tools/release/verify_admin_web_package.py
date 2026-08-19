@@ -27,6 +27,42 @@ ADMIN_WEB_RUNTIME_OVERRIDES = {
     "react": "19.2.8",
     "react-dom": "19.2.8",
 }
+ADMIN_WEB_RUNTIME_DEPENDENCIES = [
+    "@ant-design/icons",
+    "@ant-design/pro-components",
+    "@tanstack/react-query",
+    "antd",
+    "antd-style",
+    "clsx",
+    "d",
+    "dayjs",
+    "react",
+    "react-dom",
+]
+ADMIN_WEB_TOOLING_DEPENDENCIES = [
+    "@biomejs/biome",
+    "@tailwindcss/postcss",
+    "@types/node",
+    "@types/react",
+    "@types/react-dom",
+    "@umijs/max",
+    "happy-dom",
+    "tailwindcss",
+    "typescript",
+    "vite",
+    "vitest",
+]
+ADMIN_WEB_BUILD_ONLY_DEPENDENCIES = {
+    "image-size": ["0.5.5"],
+    "immer": ["8.0.4"],
+    "node-fetch": ["1.7.3"],
+    "path-to-regexp": ["1.7.0"],
+    "vite": ["4.5.2"],
+}
+ADMIN_WEB_DEPENDENCY_CLASSES = {
+    "runtime": ADMIN_WEB_RUNTIME_DEPENDENCIES,
+    "tooling": ADMIN_WEB_TOOLING_DEPENDENCIES,
+}
 VERSION_RE = re.compile(
     r"^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
     r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
@@ -126,12 +162,14 @@ def _validate_manifest(
     distribution_contract = manifest.get("mssAdminDistribution")
     expected_distribution_contract = {
         "packageManager": ADMIN_WEB_PACKAGE_MANAGER,
+        "dependencyClasses": ADMIN_WEB_DEPENDENCY_CLASSES,
+        "buildOnlyDependencies": ADMIN_WEB_BUILD_ONLY_DEPENDENCIES,
         "runtimeOverrides": ADMIN_WEB_RUNTIME_OVERRIDES,
     }
     if distribution_contract != expected_distribution_contract:
         raise PackageError(
             "package mssAdminDistribution must retain the exact package manager "
-            "and supported runtime overrides"
+            "and supported dependency security contract"
         )
     package_manager = manifest.get("packageManager")
     if package_manager not in (None, ADMIN_WEB_PACKAGE_MANAGER):

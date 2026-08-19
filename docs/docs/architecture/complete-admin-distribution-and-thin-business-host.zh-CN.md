@@ -383,6 +383,12 @@ Umi runtime
 Ant Design、ProComponents、React Query 和 Axios 的六项 override。Vitest 4 的构建期
 peer 由 Thin Host 与发行包共同精确锁定到 Vite `8.2.1`，不进入浏览器 Runtime。
 
+同一合同还必须把发布包的顶层 `dependencies` 完整、互斥地划分为 `runtime` 和
+`tooling`。安全审计按每条 pnpm 依赖路径的顶层来源判定边界：任何高危或严重问题只要
+可由 `runtime` 到达就无条件阻断；仅由 CLI、编译器或测试工具到达的问题，必须同时满足
+精确 advisory、精确受影响版本、到期日期和原因记录。`buildOnlyDependencies` 固化这些
+旧解析版本，产物统计只拒绝对应版本进入浏览器图，因此不会误伤同名的安全新版 Runtime。
+
 ### 9.4 单一前端产物
 
 最终下游只运行：
