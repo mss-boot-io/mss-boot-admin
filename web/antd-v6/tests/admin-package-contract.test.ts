@@ -48,6 +48,7 @@ describe('Admin web package contract', () => {
       packageManager: packageManifest.packageManager,
       runtimeOverrides: packageManifest.pnpm.overrides,
     });
+    expect(packageManifest.dependencies.vite).toBe('8.2.1');
   });
 
   it('keeps the published CLI available to a clean Git checkout', () => {

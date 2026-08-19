@@ -99,7 +99,8 @@ func TestApplicationTemplatePinsOneFrontendRuntimeWithoutPatches(t *testing.T) {
 		t.Fatalf("read Thin Host package template: %v", err)
 	}
 	var document struct {
-		Pnpm struct {
+		DevDependencies map[string]string `json:"devDependencies"`
+		Pnpm            struct {
 			Overrides           map[string]string `json:"overrides"`
 			PatchedDependencies map[string]string `json:"patchedDependencies"`
 		} `json:"pnpm"`
@@ -125,6 +126,9 @@ func TestApplicationTemplatePinsOneFrontendRuntimeWithoutPatches(t *testing.T) {
 	}
 	if document.Pnpm.PatchedDependencies != nil {
 		t.Fatalf("Thin Host must not inherit package patches: %#v", document.Pnpm.PatchedDependencies)
+	}
+	if document.DevDependencies["vite"] != "8.2.1" {
+		t.Fatalf("Thin Host test Vite = %q, want 8.2.1", document.DevDependencies["vite"])
 	}
 }
 
