@@ -539,7 +539,7 @@ migration_log="${raw_report_dir}/external-migrate.log"
 web_log="${raw_report_dir}/external-web.log"
 playwright_error_log="${raw_report_dir}/external-playwright.stderr.log"
 
-(
+if ! (
   cd "${runtime_dir}"
   STAGE=e2e \
   CONFIG_PROVIDER=fs \
@@ -549,7 +549,11 @@ playwright_error_log="${raw_report_dir}/external-playwright.stderr.log"
       --username "${MSS_E2E_USERNAME:-admin}" \
       --password "${MSS_E2E_PASSWORD:-123456}" \
       --domain "127.0.0.1:18001"
-) > "${migration_log}" 2>&1
+) > "${migration_log}" 2>&1; then
+  echo "external Thin Host migration failed" >&2
+  tail -n 120 -- "${migration_log}" >&2 || true
+  exit 1
+fi
 
 (
   cd "${runtime_dir}"
