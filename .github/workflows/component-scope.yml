@@ -1,0 +1,45 @@
+name: Component Scope
+
+on:
+  workflow_call:
+    outputs:
+      scope:
+        description: One of admin, framework, web, docs, or shared
+        value: ${{ jobs.detect.outputs.scope }}
+      go_modules:
+        description: JSON matrix of Go modules owned by this change
+        value: ${{ jobs.detect.outputs.go_modules }}
+      changed_count:
+        description: Number of changed paths used for classification
+        value: ${{ jobs.detect.outputs.changed_count }}
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: detect
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
+      go_modules: ${{ steps.scope.outputs.go_modules }}
+      changed_count: ${{ steps.scope.outputs.changed_count }}
+    steps:
+      - name: Checkout complete comparison history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed component scope
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 tools/ci/detect_component_scope.py \
+            --event-name "${EVENT_NAME}" \
+            --base "${BASE_SHA:-0000000000000000000000000000000000000000}" \
+            --head "${HEAD_SHA:-0000000000000000000000000000000000000000}" \
+            --github-output "${GITHUB_OUTPUT}"

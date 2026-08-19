@@ -29,6 +29,7 @@ class ReleasePolicyTest(unittest.TestCase):
             "root": "v1.2.3",
             "framework": "mss-boot/v1.2.3",
             "frontend": "web/antd-v6/v1.2.3",
+            "docs": "docs/v1.2.3",
         }
         for component, tag in cases.items():
             with self.subTest(component=component):
@@ -125,6 +126,7 @@ class ReleasePolicyTest(unittest.TestCase):
             "framework-release.yml": ("release", True),
             "frontend-v6-release.yml": ("release", True),
             "container.yml": ("publish", True),
+            "docs.yml": ("build", True),
             "release-readiness.yml": ("full-verification", False),
         }
         for workflow_name, (job_name, requires_tag) in cases.items():
@@ -344,6 +346,40 @@ class ReleasePolicyTest(unittest.TestCase):
                     REPOSITORY_ROOT / ".github" / "workflows" / workflow_name
                 ).read_text(encoding="utf-8")
                 self.assertGreaterEqual(content.count("'tools/release/**'"), 2)
+
+    def test_docs_release_is_component_scoped_and_merged_main_only(self):
+        content = (
+            REPOSITORY_ROOT / ".github" / "workflows" / "docs.yml"
+        ).read_text(encoding="utf-8")
+        workflow = yaml.load(content, Loader=yaml.BaseLoader)
+        build_steps = workflow["jobs"]["build"]["steps"]
+        deployment = workflow["jobs"]["deployment"]
+
+        self.assertIn("docs/v*.*.*", content)
+        self.assertIn("refs/tags/docs/v", deployment["if"])
+        self.assertNotIn("refs/heads/main", deployment["if"])
+        self.assertTrue(
+            any(
+                "verify_release_source.py" in step.get("run", "")
+                and "--tag" in step.get("run", "")
+                for step in build_steps
+            )
+        )
+        self.assertTrue(
+            any(
+                "check_release_policy.py" in step.get("run", "")
+                and "--component docs" in step.get("run", "")
+                for step in build_steps
+            )
+        )
+        for required in (
+            "dist/release.json",
+            "DOCS-BUILD-INFO.txt",
+            "SHA256SUMS.docs",
+            "gh release create",
+            "https://docs.mss-boot-io.top/release.json",
+        ):
+            self.assertIn(required, content)
 
     def test_local_browser_qualification_cannot_reuse_the_development_server(self):
         playwright = (

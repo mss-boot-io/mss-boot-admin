@@ -12,6 +12,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'docs/v*.*.*'
     paths:
       - 'docs/**'
       - 'tools/release/**'
@@ -21,6 +23,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: docs-${{ github.event.pull_request.number || github.ref }}
@@ -35,12 +38,61 @@ jobs:
     name: build
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     defaults:
       run:
         working-directory: docs
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve docs version
+        id: version
+        if: startsWith(github.ref, 'refs/tags/docs/v')
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#docs/}"
+          resolved_commit="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
+          test "${resolved_commit}" = "${GITHUB_SHA}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify merged-main release source
+        if: startsWith(github.ref, 'refs/tags/docs/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ../tools/release/verify_release_source.py \
+            --repository-root .. \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${GITHUB_SHA}" \
+            --tag "${GITHUB_REF_NAME}" \
+            --policy ../.mss/release-policy.yaml
+
+      - name: Enforce reviewed docs release target
+        if: startsWith(github.ref, 'refs/tags/docs/v')
+        env:
+          DOCS_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 ../tools/release/check_release_policy.py \
+            --policy ../.mss/release-policy.yaml \
+            --component docs \
+            --version "${DOCS_VERSION}" \
+            --tag "${GITHUB_REF_NAME}"
+
+      - name: Refuse mutation of an existing docs release
+        if: startsWith(github.ref, 'refs/tags/docs/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view "${GITHUB_REF_NAME}" --json tagName >/dev/null 2>&1; then
+            echo "docs release ${GITHUB_REF_NAME} already exists; refusing to mutate it" >&2
+            exit 1
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -63,28 +115,63 @@ jobs:
       - name: Audit release dependencies
         run: pnpm audit:release
 
-      - name: Package deployment artifact
-        if: github.event_name != 'pull_request'
+      - name: Embed docs release identity
+        if: startsWith(github.ref, 'refs/tags/docs/v')
+        env:
+          DOCS_VERSION: ${{ steps.version.outputs.version }}
         run: |
+          set -euo pipefail
+          jq -n \
+            --arg application 'mss-boot-docs' \
+            --arg version "${DOCS_VERSION}" \
+            --arg commit "${GITHUB_SHA}" \
+            '{application: $application, version: $version, commit: $commit}' \
+            > dist/release.json
+          jq -e \
+            --arg version "${DOCS_VERSION}" \
+            --arg commit "${GITHUB_SHA}" \
+            '.application == "mss-boot-docs" and .version == $version and .commit == $commit' \
+            dist/release.json >/dev/null
+          {
+            echo 'application=mss-boot-docs'
+            echo "version=${DOCS_VERSION}"
+            echo "commit=${GITHUB_SHA}"
+          } > DOCS-BUILD-INFO.txt
+
+      - name: Package deployment artifact
+        if: startsWith(github.ref, 'refs/tags/docs/v')
+        run: |
+          set -euo pipefail
           tar --create --gzip --file docs-dist.tar.gz --directory dist .
-          python3 ../tools/release/check_portable_paths.py dist docs-dist.tar.gz
+          sha256sum docs-dist.tar.gz DOCS-BUILD-INFO.txt > SHA256SUMS.docs
+          python3 ../tools/release/check_portable_paths.py \
+            dist \
+            docs-dist.tar.gz \
+            DOCS-BUILD-INFO.txt \
+            SHA256SUMS.docs
 
       - name: Upload deployment artifact
-        if: github.event_name != 'pull_request'
+        if: startsWith(github.ref, 'refs/tags/docs/v')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: docs-dist
-          path: docs/docs-dist.tar.gz
+          name: docs-dist-release
+          path: |
+            docs/docs-dist.tar.gz
+            docs/DOCS-BUILD-INFO.txt
+            docs/SHA256SUMS.docs
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 7
 
   deployment:
     name: deployment
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: startsWith(github.ref, 'refs/tags/docs/v')
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: prod
+    permissions:
+      contents: write
+      pull-requests: read
     concurrency:
       group: cloudflare-docs-prod
       cancel-in-progress: false
@@ -95,13 +182,32 @@ jobs:
       - name: Download documentation artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: docs-dist
+          name: docs-dist-release
           path: docs/.deployment-artifact
 
-      - name: Extract documentation artifact
+      - name: Verify and extract documentation artifact
+        env:
+          DOCS_VERSION: ${{ needs.build.outputs.version }}
         run: |
+          set -euo pipefail
+          (
+            cd docs/.deployment-artifact
+            sha256sum --check SHA256SUMS.docs
+          )
           mkdir -p docs/dist
-          tar --extract --gzip --file docs/.deployment-artifact/docs-dist.tar.gz --directory docs/dist
+          tar --extract --gzip \
+            --file docs/.deployment-artifact/docs-dist.tar.gz \
+            --directory docs/dist
+          python3 tools/release/check_portable_paths.py \
+            docs/dist \
+            docs/.deployment-artifact/docs-dist.tar.gz \
+            docs/.deployment-artifact/DOCS-BUILD-INFO.txt \
+            docs/.deployment-artifact/SHA256SUMS.docs
+          jq -e \
+            --arg version "${DOCS_VERSION}" \
+            --arg commit "${GITHUB_SHA}" \
+            '.application == "mss-boot-docs" and .version == $version and .commit == $commit' \
+            docs/dist/release.json >/dev/null
 
       - name: Deploy production documentation
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
@@ -111,3 +217,56 @@ jobs:
           wranglerVersion: '4'
           workingDirectory: docs
           command: deploy --env prod
+
+      - name: Verify production docs identity
+        env:
+          DOCS_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          identity="$(mktemp)"
+          trap 'rm -f "${identity}"' EXIT
+          for attempt in $(seq 1 24); do
+            echo "production identity attempt ${attempt}/24"
+            if curl --fail --silent --show-error \
+              'https://docs.mss-boot-io.top/release.json' \
+              --output "${identity}" && \
+              jq -e \
+                --arg version "${DOCS_VERSION}" \
+                --arg commit "${GITHUB_SHA}" \
+                '.application == "mss-boot-docs" and .version == $version and .commit == $commit' \
+                "${identity}" >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'production docs identity did not converge to the release commit' >&2
+          exit 1
+
+      - name: Publish immutable docs GitHub release
+        env:
+          DOCS_VERSION: ${{ needs.build.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          notes="$(mktemp)"
+          trap 'rm -f "${notes}"' EXIT
+          {
+            echo '## Documentation site'
+            echo
+            echo 'https://docs.mss-boot-io.top/'
+            echo
+            echo "Version: \`${DOCS_VERSION}\`"
+            echo "Source commit: \`${GITHUB_SHA}\`"
+            echo
+            echo 'The protected Docs workflow verified the portable archive, checksum manifest, embedded release identity, Cloudflare deployment, and public /release.json before publishing this Release.'
+          } > "${notes}"
+          gh release create "${GITHUB_REF_NAME}" \
+            docs/.deployment-artifact/docs-dist.tar.gz \
+            docs/.deployment-artifact/DOCS-BUILD-INFO.txt \
+            docs/.deployment-artifact/SHA256SUMS.docs \
+            --verify-tag \
+            --target "${GITHUB_SHA}" \
+            --title "mss-boot Docs ${DOCS_VERSION}" \
+            --notes-file "${notes}" \
+            --latest=false

@@ -2,11 +2,12 @@ apiVersion: mss.io/v1alpha1
 kind: Feature
 metadata:
   name: foundation-v1-2-3-release
-  displayName: Native multi-architecture container repair, qualify, and publish v1.2.3
+  displayName: Qualify and publish independently versioned v1.2.3 components
   description: >-
-    Governs the synchronized v1.2.3 forward repair of the root foundation,
-    reusable Framework, and sole Ant Design 6 frontend from one exact commit
-    already merged into main.
+    Governs v1.2.3 publication for the independently releasable root foundation,
+    reusable Framework, sole Ant Design 6 frontend, and documentation site. Each
+    component binds its immutable public ref to its own exact commit already merged
+    into main; components that form a runtime pair retain their synchronized contract.
   owner: release-engineering
   labels:
     domain: release-governance
@@ -33,6 +34,8 @@ spec:
     - Validate every raw directory upload and every final root platform ZIP before publication.
     - Isolate browser qualification from a developer server already running on port 8001.
     - Requalify root, Framework, and frontend from one exact new merged-main commit.
+    - Publish Docs independently from `docs/v1.2.3` with its own source identity, checksums, deployment, and GitHub Release.
+    - Route pure Admin, Framework, frontend, and Docs changes to component-owned heavy checks while preserving required merge contexts.
   nonGoals:
     - Delete, move, reuse, or republish a v1.2.0, v1.2.1, or v1.2.2 public ref.
     - Hide or reinterpret the failed v1.2.2 root image publication as successful.
@@ -62,6 +65,9 @@ spec:
     - name: operations
       operation: extend
       description: Fresh install, upgrade, API registry, recovery, and reconciliation evidence.
+    - name: documentation
+      operation: extend
+      description: Independently versioned portable documentation build and production deployment.
   requirements:
     - id: target-v123-only
       title: All active release surfaces target v1.2.3
@@ -71,6 +77,7 @@ spec:
       module: release-governance
       rules:
         - Root, Framework, and frontend use their exact v1.2.3 tag namespaces.
+        - Docs uses the independent `docs/v1.2.3` tag namespace.
         - v1.2.0, v1.2.1, and v1.2.2 public refs remain immutable partial-train audit records.
         - Qualification selects only this v1.2.3 Feature and explicitly carries older Features forward.
     - id: normalize-portable-v6-output
@@ -109,6 +116,30 @@ spec:
         - TARGETOS and TARGETARCH are passed explicitly to the CGO-disabled Go build.
         - The public image remains a linux/amd64 and linux/arm64 manifest with provenance and SBOM attestations.
         - The publish job timeout is at least 75 minutes and remains bounded.
+    - id: publish-independent-docs
+      title: Publish Docs as an independent immutable component
+      description: The documentation site has its own versioned tag, artifact identity, production deployment, and Release.
+      priority: must
+      actor: release-manager
+      module: documentation
+      rules:
+        - "`docs/v1.2.3` resolves to an exact clean commit produced by a merged pull request targeting `main`."
+        - A tag build embeds `mss-boot-docs`, version, and full commit in `dist/release.json` before packaging.
+        - The portable archive, build identity, and checksum manifest are verified before the protected `prod` deployment.
+        - Production `/release.json` must expose the expected version and commit before the immutable Docs GitHub Release is created.
+        - Docs publication does not move, rebuild, or republish root, Framework, or frontend v1.2.3 refs.
+    - id: scope-component-ci
+      title: Route CI by independently owned component
+      description: Pure component changes do not spend time on unrelated build, test, audit, or publishing jobs.
+      priority: must
+      actor: maintainer
+      module: release-governance
+      rules:
+        - Changed paths classify as exactly Admin, Framework, frontend, Docs, or shared scope.
+        - Empty, root-level, mixed-component, workflow, and shared-tooling changes fail safe to shared scope.
+        - Required Admin, vulnerability, and CodeQL contexts still start on every pull request but use successful lightweight sentinels outside their owned scope.
+        - Pure Admin, Framework, frontend, and Docs main-branch pushes do not start unrelated component workflows.
+        - Static governance tests lock trigger paths, Go-module matrices, CodeQL language ownership, and aggregate-result contracts.
     - id: preserve-v12-compatibility
       title: v1.2.3 remains source and upgrade compatible
       description: The artifact repair does not widen product, API, migration, or security scope.
@@ -121,14 +152,15 @@ spec:
         - The API registry one-shot synchronization remains required after migration.
         - Rollback restores the database backup and preceding qualified V6 pair.
     - id: publish-exact-v123
-      title: Publish immutable v1.2.3 components from one commit
-      description: Every tag, artifact, image, checksum, and Release points to the same approved merged-main commit.
+      title: Publish immutable v1.2.3 components from exact merged-main commits
+      description: Every component tag, artifact, image, checksum, deployment, and Release points to that component's approved merged-main commit.
       priority: must
       actor: release-manager
       module: release-governance
       rules:
         - Framework publishes first and resolves from an external GOWORK=off consumer.
         - Frontend and root publication use separate selected authority runs.
+        - Docs may publish independently from its own tag without reissuing another component.
         - Any implementation change after freeze selects a new commit and invalidates affected evidence.
   constraints:
     - id: merged-main-only
@@ -161,6 +193,8 @@ spec:
           value: python3 tools/release/check_release_policy.py --component framework --version v1.2.3 --tag mss-boot/v1.2.3 --intent qualify
         - type: command
           value: python3 tools/release/check_release_policy.py --component frontend --version v1.2.3 --tag web/antd-v6/v1.2.3 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component docs --version v1.2.3 --tag docs/v1.2.3 --intent qualify
     - id: checkpoint-portable-artifacts
       requirement: guard-all-artifact-boundaries
       statement: Unit and workflow tests reject colon paths, traversal, reserved names, case collisions, unsafe links, raw V6 uploads, and unguarded raw directories.
@@ -170,6 +204,15 @@ spec:
       evidence:
         - type: command
           value: python3 -m unittest tools.release.test_check_portable_paths tools.release.test_check_release_policy
+    - id: checkpoint-component-ci-routing
+      requirement: scope-component-ci
+      statement: Component classification and workflow governance tests prove pure-directory routing and fail-safe shared fallback.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: python3 -m unittest tools.ci.test_detect_component_scope tools.release.test_workflow_governance
     - id: checkpoint-native-multiarch-container
       requirement: native-multiarch-root-image
       statement: Static workflow tests require native target cross-compilation and a bounded publication safety margin.
@@ -225,14 +268,16 @@ spec:
         - type: report
           value: A restrictive-umask build report showing zero invalid paths, directory mode 755, file mode 644, and passing concrete dynamic deep-link delivery.
     - id: feature-freeze-docs
-      requirement: target-v123-only
-      statement: Release, upgrade, compatibility, and rollback guidance builds successfully with portable static paths.
+      requirement: publish-independent-docs
+      statement: The independently releasable Docs site builds successfully with portable static paths.
       level: contract
       phase: feature-freeze
       required: true
       evidence:
         - type: command
           value: corepack pnpm@9.15.9 --dir docs build
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component docs --version v1.2.3 --tag docs/v1.2.3 --intent qualify
     - id: feature-freeze-sha-bound-evidence
       requirement: publish-exact-v123
       statement: Browser acceptance and external Blueprint rehearsal identify the frozen commit.
@@ -266,13 +311,24 @@ spec:
           value: Resolve github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.2.3 from a clean external module with GOWORK=off and record checksums.
     - id: post-publication-truth
       requirement: publish-exact-v123
-      statement: Public refs, archives, images, checksums, install smoke, migrations, API registry, and recovery reconcile to one commit.
+      statement: Public refs, archives, images, checksums, deployments, install smoke, migrations, API registry, and recovery reconcile to each component's exact commit.
       level: integration
       phase: post-publication
       required: true
       evidence:
         - type: report
           value: Final v1.2.3 reconciliation comment on the release evidence issue.
+    - id: post-docs-publication-truth
+      requirement: publish-independent-docs
+      statement: The Docs tag, Release assets, checksum manifest, production identity, and visible site reconcile to one exact merged-main commit.
+      level: integration
+      phase: post-publication
+      required: true
+      evidence:
+        - type: manual
+          value: Verify `https://docs.mss-boot-io.top/release.json` reports `mss-boot-docs`, `v1.2.3`, and the `docs/v1.2.3` commit.
+        - type: report
+          value: Record the Docs workflow URL, GitHub Release URL, artifact checksums, tag commit, and production smoke result.
   risks:
     - id: incompatible-artifact-member
       description: A generated or copied path can pass Linux build but fail GitHub artifact upload or Windows extraction.
@@ -283,9 +339,13 @@ spec:
       severity: high
       mitigation: Normalize distribution modes and exercise the exact Docker/Nginx delivery path after the release build.
     - id: stale-candidate-evidence
-      description: Successful v1.2.2 component evidence can be mistaken for v1.2.3 publication authority.
+      description: Evidence from another version, component, or commit can be mistaken for v1.2.3 publication authority.
       severity: critical
-      mitigation: Bind every readiness, browser, Blueprint, tag, and artifact record to the full v1.2.3 merged-main SHA.
+      mitigation: Bind every readiness, browser, Blueprint, tag, artifact, and deployment record to its component and full v1.2.3 merged-main SHA.
+    - id: incorrect-component-scope
+      description: A path classifier can skip a check that owns a changed contract or make required branch contexts disappear.
+      severity: high
+      mitigation: Treat every non-exclusive change as shared, keep required pull-request workflows unfiltered, and lock each routing table with static tests.
     - id: emulated-target-compilation
       description: A future Dockerfile change can silently compile arm64 Go code under QEMU and exhaust the bounded publish job.
       severity: high
@@ -303,7 +363,9 @@ spec:
       commit, rerun feature-freeze evidence, obtain pre-framework authority,
       publish Framework v1.2.3 and verify external resolution, publish matching
       frontend assets and image, obtain pre-root authority, publish root assets
-      and image, then reconcile installation, migrations, API registry, and recovery.
+      and image, and publish Docs independently from `docs/v1.2.3` when its own
+      merged-main candidate is ready. Reconcile each public component against its
+      exact source commit, plus installation, migrations, API registry, and recovery.
     rollback: >-
       Stop before the next component when a gate fails. Never move v1.2.0,
       v1.2.1, v1.2.2, or v1.2.3 refs. For deployment failure, restore the pre-migration

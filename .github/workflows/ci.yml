@@ -8,7 +8,7 @@ on:
       - 'v*.*.*'
     paths-ignore:
       - 'docs/**'
-      - 'web/antd-v6/**'
+      - 'web/**'
       - '.agents/**'
       - '.codex/**'
       - '.cursor/**'
@@ -35,8 +35,13 @@ env:
   GOTOOLCHAIN: local
 
 jobs:
+  scope:
+    uses: ./.github/workflows/component-scope.yml
+
   test:
     name: admin-test
+    needs: scope
+    if: needs.scope.outputs.scope == 'admin' || needs.scope.outputs.scope == 'shared'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -116,6 +121,8 @@ jobs:
 
   race:
     name: admin-race
+    needs: scope
+    if: needs.scope.outputs.scope == 'admin' || needs.scope.outputs.scope == 'shared'
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     services:
@@ -149,6 +156,8 @@ jobs:
 
   static-and-module:
     name: admin-static-and-module
+    needs: scope
+    if: needs.scope.outputs.scope == 'admin' || needs.scope.outputs.scope == 'shared'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -193,6 +202,11 @@ jobs:
 
   compatibility:
     name: admin-mss-boot-compatibility
+    needs: scope
+    if: >-
+      needs.scope.outputs.scope == 'admin' ||
+      needs.scope.outputs.scope == 'framework' ||
+      needs.scope.outputs.scope == 'shared'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
@@ -236,6 +250,8 @@ jobs:
 
   compile:
     name: admin-build
+    needs: scope
+    if: needs.scope.outputs.scope == 'admin' || needs.scope.outputs.scope == 'shared'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -268,6 +284,7 @@ jobs:
     name: admin-ci
     if: ${{ always() }}
     needs:
+      - scope
       - test
       - race
       - static-and-module
@@ -278,19 +295,46 @@ jobs:
     steps:
       - name: Require every Admin check to pass
         env:
+          COMPONENT_SCOPE: ${{ needs.scope.outputs.scope }}
+          SCOPE_RESULT: ${{ needs.scope.result }}
           TEST_RESULT: ${{ needs.test.result }}
           RACE_RESULT: ${{ needs.race.result }}
           STATIC_RESULT: ${{ needs.static-and-module.result }}
           COMPATIBILITY_RESULT: ${{ needs.compatibility.result }}
           COMPILE_RESULT: ${{ needs.compile.result }}
         run: |
+          echo "scope=${SCOPE_RESULT}"
+          echo "component-scope=${COMPONENT_SCOPE}"
           echo "test=${TEST_RESULT}"
           echo "race=${RACE_RESULT}"
           echo "static-and-module=${STATIC_RESULT}"
           echo "compatibility=${COMPATIBILITY_RESULT}"
           echo "compile=${COMPILE_RESULT}"
-          test "${TEST_RESULT}" = "success"
-          test "${RACE_RESULT}" = "success"
-          test "${STATIC_RESULT}" = "success"
-          test "${COMPATIBILITY_RESULT}" = "success"
-          test "${COMPILE_RESULT}" = "success"
+          test "${SCOPE_RESULT}" = "success"
+          case "${COMPONENT_SCOPE}" in
+            admin|shared)
+              test "${TEST_RESULT}" = "success"
+              test "${RACE_RESULT}" = "success"
+              test "${STATIC_RESULT}" = "success"
+              test "${COMPATIBILITY_RESULT}" = "success"
+              test "${COMPILE_RESULT}" = "success"
+              ;;
+            framework)
+              test "${TEST_RESULT}" = "skipped"
+              test "${RACE_RESULT}" = "skipped"
+              test "${STATIC_RESULT}" = "skipped"
+              test "${COMPATIBILITY_RESULT}" = "success"
+              test "${COMPILE_RESULT}" = "skipped"
+              ;;
+            docs|web)
+              test "${TEST_RESULT}" = "skipped"
+              test "${RACE_RESULT}" = "skipped"
+              test "${STATIC_RESULT}" = "skipped"
+              test "${COMPATIBILITY_RESULT}" = "skipped"
+              test "${COMPILE_RESULT}" = "skipped"
+              ;;
+            *)
+              echo "unsupported component scope: ${COMPONENT_SCOPE}" >&2
+              exit 1
+              ;;
+          esac

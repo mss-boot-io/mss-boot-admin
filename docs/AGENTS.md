@@ -43,9 +43,13 @@ pnpm start
 - Do not copy production credentials, private endpoints, personal absolute paths, or unredacted sensitive logs.
 - Update both Chinese and English material when both variants are part of the same public contract.
 - Keep generated module documents sourced from `modules/<module>/module.yaml`; do not hand-edit generated text.
+- Keep the top navigation bounded to stable, high-frequency journeys. Add new or specialist sections under the `更多` group in `.dumirc.ts` by default; promote an item only when it replaces an existing primary journey.
+- Reserve site-wide cosmetic sweeps and cross-page visual QA for release-preparation pull requests. Ordinary documentation changes should add the required content without opportunistic theme restyling.
 
 ## Cross-component changes
 
 A docs-only change does not require starting the backend or frontend. When documentation accompanies code, follow the nearest child `AGENTS.md` for those changed directories and run the corresponding focused checks.
+
+Pull requests that change only `docs/**` must keep unrelated required contexts as lightweight sentinels and run heavy work only in the Docs workflow. Main-branch Docs pushes likewise must not start Admin, Framework, frontend, Go vulnerability, CodeQL, or repository-mirror work. Changes to shared release tooling or workflow files intentionally fall back to full shared validation.
 
 Architecture and roadmap documents must identify a next executable step and a measurable completion definition; avoid vague “continue improving” conclusions.

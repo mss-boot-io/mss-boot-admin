@@ -52,6 +52,7 @@ type foundationReleasePolicy struct {
 		FrameworkTagTemplate      string `yaml:"frameworkTagTemplate"`
 		FrontendTagTemplate       string `yaml:"frontendTagTemplate"`
 		FrontendV6TagTemplate     string `yaml:"frontendV6TagTemplate"`
+		DocsTagTemplate           string `yaml:"docsTagTemplate"`
 	} `yaml:"spec"`
 }
 
@@ -377,6 +378,7 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 		{name: "rootTagTemplate", value: policy.Spec.RootTagTemplate},
 		{name: "frameworkTagTemplate", value: policy.Spec.FrameworkTagTemplate},
 		{name: "frontendTagTemplate", value: policy.Spec.FrontendTagTemplate},
+		{name: "docsTagTemplate", value: policy.Spec.DocsTagTemplate},
 	}
 	if policy.Spec.FrontendV6TagTemplate != "" {
 		templates = append(templates, struct {
