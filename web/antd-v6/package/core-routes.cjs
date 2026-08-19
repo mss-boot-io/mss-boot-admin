@@ -333,13 +333,51 @@ const fallbackRoutes = [
   },
 ];
 
-function routePaths(routes) {
-  return routes
-    .flatMap((route) => [
-      typeof route.path === 'string' ? route.path : undefined,
-      ...routePaths(Array.isArray(route.routes) ? route.routes : []),
-    ])
-    .filter(Boolean);
+function normalizeRoutePath(routePath, parentPath) {
+  let normalized = routePath.trim();
+  if (!normalized.startsWith('/')) {
+    if (!parentPath) {
+      throw new Error(`business route must use an absolute top-level path: ${routePath}`);
+    }
+    normalized = `${parentPath.replace(/\/$/, '')}/${normalized}`;
+  }
+  normalized = normalized.replace(/\/{2,}/g, '/');
+  if (normalized.length > 1) normalized = normalized.replace(/\/$/, '');
+  return normalized;
+}
+
+function routePaths(routes, parentPath) {
+  return routes.flatMap((route) => {
+    const routePath =
+      typeof route.path === 'string' ? normalizeRoutePath(route.path, parentPath) : undefined;
+    const childParent = routePath || parentPath;
+    return [
+      routePath,
+      ...routePaths(Array.isArray(route.routes) ? route.routes : [], childParent),
+    ].filter(Boolean);
+  });
+}
+
+function routePatternsOverlap(left, right) {
+  const leftSegments = left === '/' ? [] : left.slice(1).split('/');
+  const rightSegments = right === '/' ? [] : right.slice(1).split('/');
+  const segmentIsCatchAll = (segment) => segment === '*' || segment?.includes('*');
+  const segmentIsDynamic = (segment) => segment?.startsWith(':');
+
+  for (let index = 0; index < Math.max(leftSegments.length, rightSegments.length); index += 1) {
+    const leftSegment = leftSegments[index];
+    const rightSegment = rightSegments[index];
+    if (segmentIsCatchAll(leftSegment) || segmentIsCatchAll(rightSegment)) return true;
+    if (leftSegment === undefined || rightSegment === undefined) return false;
+    if (
+      leftSegment !== rightSegment &&
+      !segmentIsDynamic(leftSegment) &&
+      !segmentIsDynamic(rightSegment)
+    ) {
+      return false;
+    }
+  }
+  return leftSegments.length === rightSegments.length;
 }
 
 function resolveCoreComponent(pagesRoot, component) {
@@ -372,16 +410,29 @@ function qualifyCoreComponents(routes, pagesRoot) {
 function createAdminRoutes(options = {}) {
   const businessRoutes = Array.isArray(options.businessRoutes) ? options.businessRoutes : [];
   const pagesRoot = options.pagesRoot || resolve(__dirname, '../src/pages');
-  const reserved = new Set(routePaths([...coreRoutes, ...fallbackRoutes]));
-  const seen = new Set();
+  const corePatterns = routePaths(coreRoutes);
+  const reservedFallbacks = new Set(routePaths(fallbackRoutes));
+  const seen = [];
   for (const routePath of routePaths(businessRoutes)) {
-    if (reserved.has(routePath)) {
+    if (reservedFallbacks.has(routePath)) {
       throw new Error(`business route conflicts with an Admin route: ${routePath}`);
     }
-    if (seen.has(routePath)) {
+    const coreConflict = corePatterns.find((pattern) => routePatternsOverlap(routePath, pattern));
+    if (coreConflict) {
+      throw new Error(
+        `business route conflicts with an Admin route: ${routePath} overlaps ${coreConflict}`,
+      );
+    }
+    if (seen.includes(routePath)) {
       throw new Error(`duplicate business route: ${routePath}`);
     }
-    seen.add(routePath);
+    const businessConflict = seen.find((pattern) => routePatternsOverlap(routePath, pattern));
+    if (businessConflict) {
+      throw new Error(
+        `business route overlaps another business route: ${routePath} overlaps ${businessConflict}`,
+      );
+    }
+    seen.push(routePath);
   }
   return [
     ...qualifyCoreComponents(coreRoutes, pagesRoot),

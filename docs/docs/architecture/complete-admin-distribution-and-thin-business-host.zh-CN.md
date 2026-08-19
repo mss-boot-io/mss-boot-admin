@@ -4,7 +4,7 @@ order: 2
 nav:
   title: 架构
   order: 2
-description: mss-boot-admin 将完整管理系统作为统一发行包，由独立业务仓库通过编译期扩展生成单一后端和单一前端的目标架构与实施规划
+description: mss-boot-admin 将完整管理系统作为统一发行包，由独立业务仓库通过编译期扩展生成单一后端和单一前端的已实现架构与使用合同
 keywords: [complete admin distribution thin business host go module npm umi codex agent]
 ---
 
@@ -12,9 +12,11 @@ keywords: [complete admin distribution thin business host go module npm umi code
 
 ## 1. 文档状态
 
-- 设计状态：已确认，实施中
+- 设计状态：已接受；`v1.3.0` 实现已落地，处于合并前资格验证
 - 设计日期：2026-08-19
 - 设计基线：`main@9a256229774bb255dfe8a618613522fd70538195`
+- 实现分支：`agent/complete-admin-distribution-plan`
+- 目标发行：`Admin Distribution v1.3.0`
 - 目标仓库：`mss-boot-io/mss-boot-admin`
 - 配套实施提示词：`docs/aigc/prompts/complete-admin-distribution-implementation-2026-08-19.zh-CN.md`
 - 机器实施契约：`.mss/features/complete-admin-distribution-thin-host.yaml`
@@ -37,16 +39,18 @@ keywords: [complete admin distribution thin business host go module npm umi code
 5. Blueprint 三方合并需要管理越来越多核心源文件，升级成本最终接近重新合并一个 Fork。
 6. 为解决源码隔离而直接采用微服务和微应用，会把一个代码所有权问题转化为分布式系统、独立部署、跨应用认证和版本治理问题。
 
-当前仓库已经具备部分基础：
+当前仓库已经把这些基础收口为正式实现：
 
 - `admin/` 是独立 Go Module；
 - `mss-boot/` 是领域中立的框架 Module；
 - `web/antd-v6/` 是唯一正式 Admin 前端；
 - `AdminModule` 规格可以生成后端、前端、迁移、权限、菜单和测试；
 - `mss new app`、Blueprint 和三方升级机制已经存在；
-- Supplier 已经作为纵向模块和前端生成目标存在。
-
-但当前完整 Admin 后端仍主要以可执行程序形态使用，完整前端仍是 `private` 应用，默认 Blueprint 仍会复制大量 Foundation 源码。现有边界还没有形成“外部业务仓库只引用完整 Admin，并在编译期追加业务代码”的闭环。
+- Supplier 已经通过统一 `business.Module` 合同显式组合，并作为前后端生成与外部消费黄金样例；
+- `admin/app` 提供可导入的完整应用生命周期；
+- `web/antd-v6` 同时是官方应用和可打包的 `@mss-boot-io/admin-web`；
+- `management-system` Blueprint 默认生成 Thin Host，不再复制完整 Foundation 源码；
+- `mss upgrade admin`、发行策略和外部消费者流水线共同约束协调版本。
 
 ## 3. 核心目标
 
@@ -197,7 +201,7 @@ acme/example-business-admin
 
 ### 8.1 完整应用可导入入口
 
-当前 `admin/main.go` 直接执行 CLI。目标是在同一个 `admin` Go Module 内增加可导入的完整应用 API，例如：
+同一个 `admin` Go Module 已在 `admin/app` 暴露可导入的完整应用 API，官方入口与下游入口共用它：
 
 ```text
 admin/app/
@@ -227,7 +231,8 @@ func main() {
 }
 ```
 
-最终 API 名称根据现有 Cobra 和生命周期实现确定，但必须满足：
+公开入口已经确定为 `app.New`、`app.ExecuteContext`、
+`app.WithBusinessModules` 和可测试的 `Application.ExecuteArgsContext`，并满足：
 
 1. 库代码不调用 `os.Exit`；
 2. 错误返回给调用者；
@@ -240,7 +245,7 @@ func main() {
 
 ### 8.2 最小业务模块接口
 
-只为业务代码提供一个小而稳定的公共扩展面。接口可以类似：
+业务代码只获得一个小而稳定的公共扩展面。实际接口为：
 
 ```go
 type Module interface {
@@ -248,6 +253,10 @@ type Module interface {
     Register(*Registry) error
 }
 ```
+
+`Module.Register` 提交一个包含 `Descriptor`、`Migrations`、`Readiness` 和
+`Routes` 的完整 `business.Registration`。组合完成后 Registry 冻结；迁移执行器按
+Application 克隆，避免外部宿主和重复测试污染进程级状态。
 
 `Registry` 首版只暴露当前业务生成链路实际需要的能力：
 
@@ -271,7 +280,7 @@ type Module interface {
 
 ### 8.3 Supplier 作为黄金样例
 
-当前 Supplier 的专用服务器挂载需要迁移到统一业务模块接口。迁移后：
+Supplier 已从服务器专用挂载迁移到统一业务模块接口：
 
 - Supplier 不再被 `server.go` 特殊识别；
 - Supplier 使用与外部业务模块相同的注册机制；
@@ -305,7 +314,7 @@ require github.com/mss-boot-io/mss-boot-admin/admin vX.Y.Z
 2. 官方参考应用；
 3. 下游可消费的完整 Admin Web 包。
 
-建议包名：
+正式包名：
 
 ```text
 @mss-boot-io/admin-web
@@ -324,14 +333,17 @@ require github.com/mss-boot-io/mss-boot-admin/admin vX.Y.Z
 
 ### 9.2 Umi 构建期集成
 
-完整包应提供 Umi Preset、Plugin、配置工厂或等价能力，使下游配置足够薄：
+完整包提供 Umi Preset、Plugin 和配置工厂。Umi 实际读取 Thin Host 的
+`web/config/config.ts`；`web/mss-admin.config.ts` 只是对该文件的兼容转发：
 
 ```ts
 import { defineBusinessAdmin } from '@mss-boot-io/admin-web/business';
+import businessRoutes from './business-routes.generated';
 
 export default defineBusinessAdmin({
-  title: 'Example Business Admin',
-  routes: './config/business-routes.generated.ts',
+  businessRoutes,
+  routeRegistrations: './src/generated/routes.ts',
+  useUtoopack: true,
 });
 ```
 
@@ -346,7 +358,12 @@ export default defineBusinessAdmin({
 - Layout、登录和核心页面；
 - 403、404 和全局错误边界。
 
-业务路由必须插入最终 fallback 之前，并在同一次 Umi 构建中编译。
+业务路由与菜单注册必须成对注入、插入最终 fallback 之前，并在同一次 Umi 构建中编译。
+路由校验按模式 fail closed：完全重复、核心静态路径、核心动态参数路径、核心 wildcard
+和互相重叠的业务模式都在启动或构建前失败，不能依赖路由声明顺序掩盖冲突。
+
+Thin Host 开发构建明确禁用已退役的 MFSU，并在 `useUtoopack: true` 时使用
+Utoopack；发行构建继续走受控的 release 配置和 runtime/bundle/API 门槛。
 
 ### 9.3 单 Runtime 约束
 
@@ -362,6 +379,9 @@ Umi runtime
 ```
 
 依赖布局需要根据真实 pnpm 安装树和构建产物设计，不能只依据顶层 `package.json` 推断。
+发布合同通过 `mssAdminDistribution` 固化 `pnpm@10.34.5` 以及 React、React DOM、
+Ant Design、ProComponents、React Query 和 Axios 的六项 override。Vitest 4 的构建期
+peer 由 Thin Host 与发行包共同精确锁定到 Vite `8.2.1`，不进入浏览器 Runtime。
 
 ### 9.4 单一前端产物
 
@@ -409,11 +429,15 @@ example-business-admin/
 ├── web/
 │   ├── package.json
 │   ├── pnpm-lock.yaml
+│   ├── tsconfig.json
 │   ├── mss-admin.config.ts
 │   ├── config/
+│   │   ├── config.ts
 │   │   └── business-routes.generated.ts
 │   └── src/
 │       ├── app.tsx
+│       ├── access.ts
+│       ├── locales/
 │       ├── generated/
 │       └── business/
 ├── .mss/
@@ -447,7 +471,7 @@ Foundation 文档和发布流水线
 
 ### 11.1 Blueprint 从完整复制转为薄宿主
 
-`management-system` 应成为唯一推荐的新应用 Blueprint，并改为通过确定性模板生成轻量宿主。
+`management-system` 已成为唯一推荐的新应用 Blueprint，并通过确定性模板生成轻量宿主。
 
 Blueprint 负责：
 
@@ -467,7 +491,7 @@ Blueprint 不再负责复制：
 
 ### 11.2 应用模板
 
-增加确定性应用模板，例如：
+确定性应用模板位于：
 
 ```text
 templates/application/
@@ -500,7 +524,7 @@ templates/application/
 
 ## 12. 机器契约
 
-`.mss/project.yaml` 和 `.mss/lock.yaml` 需要表达统一 Admin Distribution，例如：
+`.mss/project.yaml` 和 `.mss/lock.yaml` 已表达统一 Admin Distribution，例如：
 
 ```yaml
 spec:
@@ -549,7 +573,10 @@ admin v1.2.0
 frontend 1.4.0
 ```
 
-正式发布流程需要分别产生 Go Module、完整 npm 包、镜像和证明材料，但对下游只暴露一个协调发行版本。
+正式发布按同一 merged-main SHA 严格执行：Framework → Admin → Frontend → Root。
+每一步验证前置制品的 Tag、GitHub Release、解析版本与源提交，Root 最后核对全部协调制品；
+Docs 保持独立发布单元，不阻塞 Admin Distribution。流程分别产生 Go Module、完整 npm 包、
+镜像和证明材料，但对下游只暴露一个协调发行版本。
 
 ## 14. 升级设计
 

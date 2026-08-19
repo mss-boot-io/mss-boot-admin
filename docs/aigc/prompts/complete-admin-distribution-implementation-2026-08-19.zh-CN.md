@@ -309,11 +309,15 @@ example-business-admin/
 ├── web/
 │   ├── package.json
 │   ├── pnpm-lock.yaml
+│   ├── tsconfig.json
 │   ├── mss-admin.config.ts
 │   ├── config/
+│   │   ├── config.ts
 │   │   └── business-routes.generated.ts
 │   └── src/
 │       ├── app.tsx
+│       ├── access.ts
+│       ├── locales/
 │       ├── generated/
 │       └── business/
 ├── .mss/
@@ -521,10 +525,12 @@ go run . migrate
 
 ```ts
 import { defineBusinessAdmin } from '@mss-boot-io/admin-web/business';
+import businessRoutes from './business-routes.generated';
 
 export default defineBusinessAdmin({
-  title: 'Example Business Admin',
-  routes: './config/business-routes.generated.ts',
+  businessRoutes,
+  routeRegistrations: './src/generated/routes.ts',
+  useUtoopack: true,
 });
 ```
 
@@ -544,6 +550,7 @@ export default {
 
 - 完整 Admin 基础路由自动存在；
 - 业务路由插入 403/404 fallback 之前；
+- 完全重复、核心动态参数、核心 wildcard 和互相重叠的业务路由模式在构建前 fail closed；
 - 完整 Session、CSRF、Request、React Query、Theme、国际化、WebSocket 和 Layout 自动存在；
 - 业务宿主不复制 `src/shared` 和核心页面；
 - 业务页面在同一次 Umi 构建中编译；
@@ -553,6 +560,7 @@ export default {
 - 业务页面可以使用同一包公开的组件、类型和 Hook；
 - 业务代码不能依赖包内未导出的相对路径；
 - 公共 exports 有契约测试。
+- Thin Host 开发构建禁用 MFSU 并显式使用 Utoopack；发行构建继续经过受控的 runtime、bundle 和 release API 门槛。
 
 ### 8.3 统一前端命令
 
@@ -608,6 +616,7 @@ Biome
 TypeScript
 Vitest
 Playwright
+Vite 8.2.1（仅作为 Vitest 4 的精确构建期 peer）
 bundle budget
 release API check
 runtime bundle check
@@ -652,8 +661,13 @@ go.mod
 cmd/server/main.go
 internal/modules/all/generated.go
 web/package.json
+web/tsconfig.json
+web/config/config.ts
 web/mss-admin.config.ts
 web/src/app.tsx
+web/src/access.ts
+web/src/locales/zh-CN.ts
+web/src/locales/en-US.ts
 Dockerfile
 Makefile
 业务 CI
@@ -1254,13 +1268,18 @@ corepack pnpm@10.34.5 pack
 ### 文档
 
 ```bash
-corepack pnpm@10.34.5 --dir docs install --frozen-lockfile
-corepack pnpm@10.34.5 --dir docs build
+corepack pnpm@9.15.9 --dir docs install --frozen-lockfile
+corepack pnpm@9.15.9 --dir docs build
 ```
 
 ### 外部消费者
 
 运行新增的完整消费者验证脚本或 Workflow 对应命令，并保留脱敏结果。
+
+CI 中的外部浏览器回归继续由 Playwright 串行执行并生成脱敏报告。本地人工 UI
+验收直接使用 Codex 内置浏览器连接标准开发服务，至少检查登录、Admin Shell、菜单与
+API 绑定、Supplier 页面、硬刷新、403 和控制台健康；不要用本地 Playwright 结果替代
+这份可见验收，也不要因此削弱 CI 的自动化门槛。
 
 不要声称执行了未实际运行的命令。
 

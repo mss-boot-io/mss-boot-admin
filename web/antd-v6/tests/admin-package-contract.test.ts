@@ -105,8 +105,19 @@ describe('Admin web package contract', () => {
     expect(() => createAdminRoutes({ businessRoutes: [{ path: '/menu' }] })).toThrow(
       'business route conflicts',
     );
+    expect(() => createAdminRoutes({ businessRoutes: [{ path: '/role/audit' }] })).toThrow(
+      '/role/:id',
+    );
+    expect(() => createAdminRoutes({ businessRoutes: [{ path: '/user/custom-login' }] })).toThrow(
+      '/user/*',
+    );
     expect(() =>
       createAdminRoutes({ businessRoutes: [{ path: '/contracts' }, { path: '/contracts' }] }),
     ).toThrow('duplicate business route');
+    expect(() =>
+      createAdminRoutes({
+        businessRoutes: [{ path: '/contracts/:id' }, { path: '/contracts/create' }],
+      }),
+    ).toThrow('business route overlaps another business route');
   });
 });

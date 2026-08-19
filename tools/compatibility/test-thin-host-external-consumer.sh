@@ -574,7 +574,7 @@ wait_for_http \
 (
   cd "${web_root}"
   exec setsid env \
-    CI=true \
+    BROWSER=none \
     MSS_ADMIN_API_TARGET=http://127.0.0.1:18080 \
     MSS_V6_E2E=1 \
     PORT=18001 \
@@ -586,6 +586,12 @@ wait_for_http \
 web_pid=$!
 wait_for_http \
   "external Thin Host frontend" \
+  "http://127.0.0.1:18001/admin/api/languages/public" \
+  "${web_pid}" \
+  "${web_log}"
+sleep 1
+wait_for_http \
+  "external Thin Host frontend stability check" \
   "http://127.0.0.1:18001/admin/api/languages/public" \
   "${web_pid}" \
   "${web_log}"
@@ -677,6 +683,10 @@ fi
 if ((playwright_status != 0 || report_status != 0)); then
   echo "external Thin Host Playwright qualification failed" >&2
   tail -n 120 -- "${playwright_error_log}" >&2 || true
+  echo "external Thin Host frontend log:" >&2
+  tail -n 120 -- "${web_log}" >&2 || true
+  echo "external Thin Host backend log:" >&2
+  tail -n 120 -- "${backend_log}" >&2 || true
   exit 1
 fi
 
