@@ -140,7 +140,7 @@ jobs:
                   '.Require[] | select(.Path == $module) | .Version'
           )"
           if [[ "${framework_version}" != "${ADMIN_VERSION}" ]]; then
-            echo "Admin ${ADMIN_VERSION} requires Framework ${framework_version}; version cores must match" >&2
+            echo "Admin ${ADMIN_VERSION} requires Framework ${framework_version}; exact versions must match" >&2
             exit 1
           fi
 

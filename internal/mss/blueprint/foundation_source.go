@@ -372,6 +372,12 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 	if !validSemanticVersion(current) || !validSemanticVersion(next) || !validSemanticVersion(distribution) {
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy versions must be semantic")
 	}
+	if strings.Contains(current, "-") {
+		return foundationReleasePolicy{}, errors.New("committed foundation currentStableVersion must not be a prerelease")
+	}
+	if strings.Contains(next, "-") && !*policy.Spec.PublicPrereleases {
+		return foundationReleasePolicy{}, errors.New("committed foundation publicPrereleases must be true for a prerelease target")
+	}
 	if distributionRaw != nextRaw {
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy distributionVersion must equal nextPublicVersion")
 	}
@@ -435,6 +441,12 @@ func foundationReleaseVersion(ctx context.Context, root, commit string, policy f
 		return "", "", fmt.Errorf("foundation release tag %q did not resolve to a full commit", tag)
 	}
 	if tagCommit == commit {
+		if strings.Contains(next, "-") {
+			// A published prerelease is an immutable release candidate, but it
+			// must not be promoted to the stable Foundation channel merely
+			// because its exact tag exists.
+			return next, "candidate", nil
+		}
 		return next, "stable", nil
 	}
 	return next, "candidate", nil

@@ -10,7 +10,9 @@ from pathlib import Path
 
 
 VERSION_RE = re.compile(
-    r"^v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+    r"^v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+    r"(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
+    r"(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?$"
 )
 REQUIRED_KEYS = {
     "mode",
@@ -109,6 +111,12 @@ def load_policy(path: Path) -> dict[str, str | bool]:
     if policy["distributionVersion"] != policy["nextPublicVersion"]:
         raise PolicyError(
             "release policy distributionVersion must equal nextPublicVersion"
+        )
+    if "-" in policy["currentStableVersion"]:
+        raise PolicyError("release policy currentStableVersion must not be a prerelease")
+    if "-" in policy["nextPublicVersion"] and policy["publicPrereleases"] is not True:
+        raise PolicyError(
+            "release policy publicPrereleases must be true for a prerelease target"
         )
     expected_components = ",".join(COORDINATED_COMPONENTS)
     if policy["distributionComponents"] != expected_components:

@@ -55,8 +55,6 @@ jobs:
 
       - name: Generate Admin API documentation
         working-directory: admin
-        env:
-          GOWORK: 'off'
         run: |
           go generate ./...
           test -s docs/swagger.json

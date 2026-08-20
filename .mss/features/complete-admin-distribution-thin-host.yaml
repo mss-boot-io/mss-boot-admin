@@ -10,8 +10,8 @@ metadata:
   labels:
     domain: admin-distribution
     implementation-status: complete
-    release-status: pr-ready
-    target-version: v1.3.0
+    release-status: rc-qualification
+    target-version: v1.3.0-rc.1
     compatibility: coordinated-backend-frontend-version
     privacy: no-telemetry
 spec:
@@ -133,7 +133,7 @@ spec:
       rules:
         - Plan is read-only and reports old and new distribution versions, dependency changes, regeneration, managed files, conflicts, preserved files, and validation commands.
         - Apply requires explicit confirmation, fails on conflicts, preserves unknown business files, and records the new baseline last.
-        - Backend, frontend, root, and nested component version cores cannot silently diverge.
+        - Backend, frontend, root, and nested component versions, including prerelease identifiers, cannot silently diverge.
         - Upgrade automation never guesses or rewrites non-generated business logic.
     - id: qualify-external-consumer
       title: Qualify the real external consumption path
@@ -153,9 +153,10 @@ spec:
       actor: distribution-maintainer
       module: distribution-upgrade
       rules:
-        - The nested Admin Go module uses admin/vX.Y.Z and all coordinated artifacts share the same semantic version core.
-        - Frontend qualification includes pack contents, integrity, SBOM, provenance, and fail-closed credential handling.
-        - This implementation creates no tag, GitHub Release, production image, or public npm package.
+        - The nested Admin Go module uses admin/vX.Y.Z and all coordinated artifacts share the same exact semantic version, including prerelease identifiers.
+        - Frontend qualification includes pack contents, integrity, SBOM, GitHub provenance attestation, and fail-closed credential handling.
+        - Admin Web publishes first to GitHub Packages under the repository-linked @mss-boot-io scope; Thin Hosts authenticate without committing a token.
+        - The v1.3.0-rc.1 train is a prerelease and does not replace the current v1.2.3 stable release.
     - id: preserve-privacy-boundary
       title: Preserve the no-telemetry boundary
       description: Creation, installation, execution, verification, and upgrade remain local and collect no adopter data.
@@ -199,7 +200,9 @@ spec:
       required: true
       evidence:
         - type: command
-          value: cd admin && GOWORK=off go test ./... && GOWORK=off go vet ./...
+          value: cd admin && go test ./... && go vet ./...
+        - type: command
+          value: bash tools/compatibility/test-admin-external-consumer.sh
         - type: command
           value: External thin-host GOWORK=off tidy, test, vet, build, and help verification
     - id: business-module-gate
@@ -253,7 +256,7 @@ spec:
           value: External thin-host Playwright result and sanitized browser evidence
     - id: release-contract-gate
       requirement: govern-coordinated-release
-      statement: Policy, source verification, package qualification, and workflow tests accept matching versions and reject mismatched or unmerged sources.
+      statement: Policy, source verification, GitHub Packages qualification, and workflow tests accept matching prerelease versions and reject mismatched or unmerged sources.
       level: contract
       phase: feature-freeze
       required: true
@@ -290,7 +293,8 @@ spec:
     changed: go run ./cmd/mss verify --changed
     all: go run ./cmd/mss verify --all
     custom:
-      - cd admin && GOWORK=off go test ./... && GOWORK=off go vet ./...
+      - cd admin && go test ./... && go vet ./...
+      - bash tools/compatibility/test-admin-external-consumer.sh
       - corepack pnpm@10.34.5 --dir web/antd-v6 run deps:check
       - corepack pnpm@10.34.5 --dir web/antd-v6 run test:ci
       - corepack pnpm@10.34.5 --dir web/antd-v6 run build:release

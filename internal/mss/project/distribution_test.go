@@ -25,6 +25,13 @@ func TestDistributionSpecRequiresOneSemanticVersionCore(t *testing.T) {
 	if problems := valid.Validate(); len(problems) != 0 {
 		t.Fatalf("valid distribution problems = %#v", problems)
 	}
+	prerelease := valid
+	prerelease.Version = "v1.3.0-rc.1"
+	prerelease.Backend.Version = "v1.3.0-rc.1"
+	prerelease.Frontend.Version = "1.3.0-rc.1"
+	if problems := prerelease.Validate(); len(problems) != 0 {
+		t.Fatalf("valid prerelease distribution problems = %#v", problems)
+	}
 
 	tests := []struct {
 		name   string
@@ -35,6 +42,9 @@ func TestDistributionSpecRequiresOneSemanticVersionCore(t *testing.T) {
 		{name: "frontend mismatch", mutate: func(value *DistributionSpec) { value.Frontend.Version = "1.4.0" }, want: "frontend version"},
 		{name: "frontend prefix", mutate: func(value *DistributionSpec) { value.Frontend.Version = "v1.3.0" }, want: "unprefixed"},
 		{name: "product prefix", mutate: func(value *DistributionSpec) { value.Version = "1.3.0" }, want: "v-prefixed"},
+		{name: "prerelease mismatch", mutate: func(value *DistributionSpec) { value.Frontend.Version = "1.3.0-rc.1" }, want: "frontend version"},
+		{name: "numeric prerelease leading zero", mutate: func(value *DistributionSpec) { value.Version = "v1.3.0-rc.01" }, want: "semantic version"},
+		{name: "build metadata", mutate: func(value *DistributionSpec) { value.Version = "v1.3.0+preview" }, want: "semantic version"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

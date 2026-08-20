@@ -14,5 +14,10 @@ This directory is the deployable reference Admin application and an independent 
   modules must not depend on package `init()` side effects.
 - Run development commands from `admin/` so runtime `config/` paths remain stable.
 - Do not place Agent/Foundation tooling in this module.
-- Admin changes require independent tests with `GOWORK=off`, a workspace compatibility test against the current local framework, coverage verification, vet, tidy, and binary smoke tests.
+- Before a coordinated Framework version is published, Admin pull requests use
+  the repository `go.work` plus the repository-external consumer test with
+  confined temporary replacements. After the exact Framework tag and GitHub
+  Release exist, the protected Admin release must resolve and qualify that
+  public dependency with `GOWORK=off` and no committed `replace`. Admin changes
+  still require coverage verification, vet, tidy, and binary smoke tests.
 - Public HTTP routes and database schema compatibility must be preserved unless a migration and explicit release note are included.

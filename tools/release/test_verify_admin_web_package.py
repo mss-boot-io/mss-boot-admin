@@ -46,6 +46,9 @@ def write_tarball(
         },
         "homepage": "https://docs.mss-boot-io.top/",
         "bugs": {"url": f"https://github.com/{REPOSITORY}/issues"},
+        "publishConfig": {
+            "registry": "https://npm.pkg.github.com",
+        },
         "packageManager": "pnpm@10.34.5",
         "mssAdminDistribution": admin_distribution_contract(),
         "engines": {"node": ">=24.0.0 <25", "pnpm": "10.34.5"},
@@ -109,6 +112,10 @@ class AdminWebPackageTest(unittest.TestCase):
         self.assertEqual(
             evidence["package"]["repository"]["directory"], "web/antd-v6"
         )
+        self.assertEqual(
+            evidence["package"]["publishConfig"]["registry"],
+            "https://npm.pkg.github.com",
+        )
         self.assertEqual(evidence["source"]["commit"], COMMIT)
         self.assertEqual(
             evidence["package"]["mssAdminDistribution"],
@@ -141,6 +148,11 @@ class AdminWebPackageTest(unittest.TestCase):
             ({"repository": {"type": "git", "url": "https://example.invalid"}}, True, "repository metadata"),
             ({"homepage": "https://example.invalid"}, True, "public MSS documentation"),
             ({"bugs": {"url": "https://example.invalid/issues"}}, True, "source issue tracker"),
+            (
+                {"publishConfig": {"registry": "https://registry.npmjs.org"}},
+                True,
+                "GitHub Packages npm registry",
+            ),
             ({}, False, "include its MIT LICENSE"),
         )
         for metadata, include_license, message in cases:

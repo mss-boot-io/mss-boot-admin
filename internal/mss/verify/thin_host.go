@@ -72,6 +72,7 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 		joinRepositoryPath(backend, "cmd/server/main.go"),
 		joinRepositoryPath(modules, "all/generated.go"),
 		joinRepositoryPath(frontend, "package.json"),
+		joinRepositoryPath(frontend, ".npmrc"),
 		joinRepositoryPath(frontend, "tsconfig.json"),
 		joinRepositoryPath(frontend, "config/config.ts"),
 		joinRepositoryPath(frontend, "mss-admin.config.ts"),
@@ -177,6 +178,17 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 					problems = append(problems, fmt.Sprintf("%s script %q must equal %q", packagePath, name, expected))
 				}
 			}
+		}
+	}
+
+	npmrcPath := joinRepositoryPath(frontend, ".npmrc")
+	if data, err := readThinHostFile(ctx.Root, npmrcPath); err == nil {
+		expected := "@mss-boot-io:registry=https://npm.pkg.github.com\n" +
+			"//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}"
+		if strings.TrimSpace(string(data)) != expected {
+			problems = append(problems,
+				npmrcPath+" must contain only the GitHub Packages scope and NODE_AUTH_TOKEN placeholder",
+			)
 		}
 	}
 

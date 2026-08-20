@@ -53,7 +53,7 @@ type ProjectSpec struct {
 
 // DistributionSpec pins the one coordinated Admin product consumed by a
 // project. The product version is v-prefixed for Go and release tooling while
-// the npm artifact uses the same semantic core without the prefix.
+// the npm artifact uses the same exact semantic version without the prefix.
 type DistributionSpec struct {
 	Name     string                   `yaml:"name" json:"name"`
 	Version  string                   `yaml:"version" json:"version"`
@@ -411,10 +411,10 @@ func (d DistributionSpec) Validate() []string {
 		problems = append(problems, "project spec.distribution.frontend.version must be an unprefixed semantic version")
 	}
 	if ok && backendOK && backendVersion != productVersion {
-		problems = append(problems, "project Admin Distribution backend version must match the product version core")
+		problems = append(problems, "project Admin Distribution backend version must exactly match the product version")
 	}
 	if ok && frontendOK && frontendVersion != productVersion {
-		problems = append(problems, "project Admin Distribution frontend version must match the product version core")
+		problems = append(problems, "project Admin Distribution frontend version must exactly match the product version")
 	}
 	return problems
 }
@@ -437,7 +437,23 @@ func semanticVersionCore(value string, prefixed bool) (string, bool) {
 	} else if strings.HasPrefix(value, "v") {
 		return "", false
 	}
-	parts := strings.Split(value, ".")
+	if strings.Contains(value, "+") {
+		// Coordinated Go modules, npm packages, and release refs must share one
+		// exact version. Build metadata is deliberately excluded because Go
+		// module versions cannot represent an arbitrary SemVer build suffix.
+		return "", false
+	}
+	version := value
+	core := value
+	prerelease := ""
+	if separator := strings.IndexByte(value, '-'); separator >= 0 {
+		core = value[:separator]
+		prerelease = value[separator+1:]
+		if prerelease == "" {
+			return "", false
+		}
+	}
+	parts := strings.Split(core, ".")
 	if len(parts) != 3 {
 		return "", false
 	}
@@ -451,7 +467,35 @@ func semanticVersionCore(value string, prefixed bool) (string, bool) {
 			}
 		}
 	}
-	return value, true
+	if prerelease != "" {
+		for _, identifier := range strings.Split(prerelease, ".") {
+			if !validSemanticPrereleaseIdentifier(identifier) {
+				return "", false
+			}
+		}
+	}
+	return version, true
+}
+
+func validSemanticPrereleaseIdentifier(identifier string) bool {
+	if identifier == "" {
+		return false
+	}
+	numeric := true
+	for _, character := range identifier {
+		switch {
+		case character >= '0' && character <= '9':
+		case character >= 'A' && character <= 'Z':
+			numeric = false
+		case character >= 'a' && character <= 'z':
+			numeric = false
+		case character == '-':
+			numeric = false
+		default:
+			return false
+		}
+	}
+	return !numeric || len(identifier) == 1 || identifier[0] != '0'
 }
 
 // DefaultFrontendApplication resolves the explicitly selected primary

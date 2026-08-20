@@ -198,6 +198,7 @@ for required in \
   cmd/server/main.go \
   internal/modules/all \
   web/package.json \
+  web/.npmrc \
   web/tsconfig.json \
   web/mss-admin.config.ts \
   web/config/business-routes.generated.ts \
@@ -208,6 +209,13 @@ for required in \
     exit 1
   }
 done
+
+expected_npmrc='@mss-boot-io:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}'
+[[ "$(cat -- "${host_root}/web/.npmrc")" = "${expected_npmrc}" ]] || {
+  echo "Thin Host web/.npmrc must use only the GitHub Packages scope and environment token" >&2
+  exit 1
+}
 
 for forbidden in \
   admin/models \
@@ -405,6 +413,10 @@ cp -- "${tarball}" "${qualified_tarball}"
 web_root="${host_root}/web"
 (
   cd "${web_root}"
+  # The generated .npmrc is intentionally environment-backed. This local
+  # tarball qualification never contacts GitHub Packages, but it still sets a
+  # non-secret sentinel so package-manager config expansion is deterministic.
+  export NODE_AUTH_TOKEN='local-tarball-qualification'
   corepack pnpm@10.34.5 add \
     --save-exact \
     --lockfile-only \

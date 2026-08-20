@@ -158,6 +158,12 @@ def _validate_manifest(
         raise PackageError("package bugs metadata must identify the source issue tracker")
     if manifest.get("gitHead") != source_commit:
         raise PackageError("package gitHead must equal the exact source commit")
+    if manifest.get("publishConfig") != {
+        "registry": "https://npm.pkg.github.com",
+    }:
+        raise PackageError(
+            "package publishConfig must target the GitHub Packages npm registry"
+        )
     if "package/LICENSE" not in members:
         raise PackageError("package must include its MIT LICENSE file")
     distribution_contract = manifest.get("mssAdminDistribution")
@@ -346,6 +352,7 @@ def inspect_package(
             "repository": manifest["repository"],
             "homepage": manifest["homepage"],
             "bugs": manifest["bugs"],
+            "publishConfig": manifest["publishConfig"],
             "gitHead": manifest.get("gitHead"),
             "mssAdminDistribution": manifest["mssAdminDistribution"],
             "files": file_allowlist,

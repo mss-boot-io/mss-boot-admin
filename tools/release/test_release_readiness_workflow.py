@@ -89,11 +89,11 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         )
         self.assertEqual(self.step("Setup pnpm")["with"]["version"], "9.15.9")
 
-    def test_v130_qualification_selects_the_distribution_feature(self):
+    def test_v130_rc1_qualification_selects_the_distribution_feature(self):
         selected = PHASE_EVIDENCE.load_qualification(
             REPOSITORY_ROOT,
             Path(".mss/release-qualification.json"),
-            "v1.3.0",
+            "v1.3.0-rc.1",
         )
         self.assertEqual(
             [path.relative_to(REPOSITORY_ROOT).as_posix() for path in selected],

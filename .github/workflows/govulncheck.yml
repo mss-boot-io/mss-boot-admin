@@ -83,8 +83,6 @@ jobs:
       - name: Scan nested module
         if: matrix.module != 'none'
         working-directory: ${{ matrix.module }}
-        env:
-          GOWORK: 'off'
         run: govulncheck ./...
 
   required-status:

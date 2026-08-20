@@ -390,7 +390,7 @@ func adminDistributionCheck(projectContext *project.Context) Check {
 		return check
 	}
 	check.Status = StatusPass
-	check.Detail = distributionSummary(distribution) + "; backend and frontend version cores match; snapshot aligned"
+	check.Detail = distributionSummary(distribution) + "; backend and frontend versions exactly match; snapshot aligned"
 	return check
 }
 

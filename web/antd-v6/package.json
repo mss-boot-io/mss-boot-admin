@@ -14,8 +14,7 @@
     "url": "https://github.com/mss-boot-io/mss-boot-admin/issues"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "registry": "https://npm.pkg.github.com"
   },
   "mssAdminDistribution": {
     "packageManager": "pnpm@10.34.5",

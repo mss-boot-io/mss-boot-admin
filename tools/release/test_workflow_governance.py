@@ -331,7 +331,7 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn("package-contract", aggregate["needs"])
         self.assertIn("PACKAGE_RESULT", aggregate["steps"][0]["run"])
 
-    def test_frontend_release_is_protected_and_fails_closed_without_npm_authority(self):
+    def test_frontend_release_is_protected_and_fails_closed_without_github_packages_authority(self):
         workflow = self.workflows["frontend-v6-release.yml"]
         release = workflow["jobs"]["release"]
         self.assertEqual(release["environment"], "release-v6")
@@ -359,12 +359,13 @@ class WorkflowGovernanceTest(unittest.TestCase):
             step
             for step in steps
             if step.get("name")
-            == "Require protected npm credentials and reconcile version identity"
+            == "Require GitHub Packages authority and reconcile version identity"
         )
-        self.assertEqual(credential["env"]["NODE_AUTH_TOKEN"], "${{ secrets.NPM_TOKEN }}")
+        self.assertEqual(credential["env"]["NODE_AUTH_TOKEN"], "${{ github.token }}")
         self.assertIn('-z "${NODE_AUTH_TOKEN}"', credential["run"])
         self.assertIn("E404", credential["run"])
         self.assertIn("dist.integrity", credential["run"])
+        self.assertIn("https://npm.pkg.github.com", credential["run"])
         self.assertIn("existing npm version has different immutable content", credential["run"])
 
         attestation = next(
@@ -379,14 +380,23 @@ class WorkflowGovernanceTest(unittest.TestCase):
         publish = next(
             step
             for step in steps
-            if step.get("name") == "Publish immutable Admin Web npm package with provenance"
+            if step.get("name") == "Publish immutable Admin Web package to GitHub Packages"
         )
         self.assertIn("npm publish", publish["run"])
-        self.assertIn("--provenance", publish["run"])
+        self.assertIn("https://npm.pkg.github.com", publish["run"])
         self.assertEqual(
             publish["if"], "steps.npm-version.outputs.publish == 'true'"
         )
-        self.assertEqual(publish["env"]["NODE_AUTH_TOKEN"], "${{ secrets.NPM_TOKEN }}")
+        self.assertEqual(publish["env"]["NODE_AUTH_TOKEN"], "${{ github.token }}")
+        verify_package = next(
+            step
+            for step in steps
+            if step.get("name")
+            == "Verify GitHub Packages identity and repository binding"
+        )
+        self.assertIn('.visibility == "private"', verify_package["run"])
+        self.assertIn('.visibility == "public"', verify_package["run"])
+        self.assertIn("admin-web", verify_package["run"])
 
         image_state = next(
             step
@@ -496,6 +506,12 @@ class WorkflowGovernanceTest(unittest.TestCase):
             self.assertIn(required, evidence)
         self.assertIn("gitHead", evidence)
         self.assertIn("dist.integrity", evidence)
+        self.assertIn("https://npm.pkg.github.com", evidence)
+        self.assertIn('.visibility == "public"', evidence)
+        self.assertEqual(
+            workflow["jobs"]["release-evidence"]["permissions"]["packages"],
+            "read",
+        )
         for required in (
             '.event == "push"',
             ".head_branch == $component_ref",

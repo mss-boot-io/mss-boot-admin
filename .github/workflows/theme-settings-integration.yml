@@ -96,7 +96,6 @@ jobs:
       - name: Verify fresh and upgraded theme settings schemas
         working-directory: admin
         env:
-          GOWORK: 'off'
           MSS_THEME_SETTINGS_TEST_MYSQL_DSN: 'mss_theme:mss_theme_ci@tcp(127.0.0.1:3306)/mss_theme_settings_test?charset=utf8mb4&parseTime=true&loc=UTC&multiStatements=false'
           MSS_THEME_SETTINGS_TEST_POSTGRES_DSN: 'postgres://mss_theme:mss_theme_ci@127.0.0.1:5432/mss_theme_settings_test?sslmode=disable&TimeZone=UTC'
         run: >-
@@ -107,7 +106,6 @@ jobs:
       - name: Verify MySQL accent-insensitive reserved keys
         working-directory: admin
         env:
-          GOWORK: 'off'
           MSS_THEME_TEST_MYSQL_DSN: 'mss_theme:mss_theme_ci@tcp(127.0.0.1:3306)/mss_theme_settings_test?charset=utf8mb4&parseTime=true&loc=UTC&multiStatements=false'
         run: >-
           go test -count=1 -timeout=10m

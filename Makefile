@@ -18,7 +18,7 @@ build: build-admin
 
 build-admin:
 	mkdir -p $(BIN_DIR)
-	cd $(ADMIN_DIR) && CGO_ENABLED=0 GOWORK=off go build -trimpath -o ../$(BIN_DIR)/$(PROJECT) .
+	cd $(ADMIN_DIR) && CGO_ENABLED=0 go build -trimpath -o ../$(BIN_DIR)/$(PROJECT) .
 
 build-agent:
 	mkdir -p $(BIN_DIR)
@@ -31,26 +31,26 @@ test-agent:
 	GOWORK=off go test -shuffle=on -count=1 ./...
 
 test-admin:
-	cd $(ADMIN_DIR) && GOWORK=off go test -shuffle=on -count=1 ./...
+	cd $(ADMIN_DIR) && go test -shuffle=on -count=1 ./...
 
 test-admin-race:
-	cd $(ADMIN_DIR) && GOWORK=off go test -race -shuffle=on -count=1 ./...
+	cd $(ADMIN_DIR) && go test -race -shuffle=on -count=1 ./...
 
 coverage-admin:
 	mkdir -p $(COVERAGE_DIR)
-	cd $(ADMIN_DIR) && GOWORK=off go test -shuffle=on -count=1 -covermode=atomic -coverpkg=./... -coverprofile=../$(COVERAGE_DIR)/admin.out ./...
+	cd $(ADMIN_DIR) && go test -shuffle=on -count=1 -covermode=atomic -coverpkg=./... -coverprofile=../$(COVERAGE_DIR)/admin.out ./...
 	python3 scripts/check-go-coverage.py --profile $(COVERAGE_DIR)/admin.out --policy $(COVERAGE_POLICY) --component admin --summary
 
 vet-admin:
-	cd $(ADMIN_DIR) && GOWORK=off go vet ./...
+	cd $(ADMIN_DIR) && go vet ./...
 
 tidy-admin-check:
-	cd $(ADMIN_DIR) && GOWORK=off go mod tidy
+	cd $(ADMIN_DIR) && go mod tidy
 	git diff --exit-code -- $(ADMIN_DIR)/go.mod $(ADMIN_DIR)/go.sum
 
 compatibility-admin:
-	cd $(ADMIN_DIR) && GOWORK=off go test -count=1 ./compatibility
 	go test -count=1 ./$(ADMIN_DIR)/compatibility
+	bash tools/compatibility/test-admin-external-consumer.sh
 
 verify-admin: test-admin-race coverage-admin vet-admin tidy-admin-check compatibility-admin build-admin
 
@@ -61,7 +61,7 @@ deps-agent:
 	GOWORK=off go mod download
 
 deps-admin:
-	cd $(ADMIN_DIR) && GOWORK=off go mod download
+	cd $(ADMIN_DIR) && go mod download
 
 deps-framework:
 	cd $(FRAMEWORK_DIR) && GOWORK=off go mod download
@@ -92,11 +92,11 @@ test-all: test-agent test-admin test-framework
 
 generate:
 	GOWORK=off go generate ./...
-	cd $(ADMIN_DIR) && GOWORK=off go generate ./...
+	cd $(ADMIN_DIR) && go generate ./...
 
 lint:
 	GOWORK=off golangci-lint run -v ./...
-	cd $(ADMIN_DIR) && GOWORK=off golangci-lint run -v ./...
+	cd $(ADMIN_DIR) && golangci-lint run -v ./...
 	cd $(FRAMEWORK_DIR) && GOWORK=off golangci-lint run -v ./...
 
 fix-lint:

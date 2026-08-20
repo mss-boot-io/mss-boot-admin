@@ -76,10 +76,8 @@ jobs:
       - name: Test coverage policy tooling
         run: python3 -m unittest scripts/test_check_go_coverage.py
 
-      - name: Test independent Admin module with atomic coverage
+      - name: Test coordinated Admin module with atomic coverage
         working-directory: admin
-        env:
-          GOWORK: 'off'
         run: >-
           go test -shuffle=on -count=1 -covermode=atomic -coverpkg=./...
           -coverprofile="${RUNNER_TEMP}/admin.coverage.out" ./...
@@ -148,10 +146,8 @@ jobs:
             admin/go.sum
             mss-boot/go.sum
 
-      - name: Race-test independent Admin module
+      - name: Race-test coordinated Admin module
         working-directory: admin
-        env:
-          GOWORK: 'off'
         run: go test -race -shuffle=on -count=1 ./...
 
   static-and-module:
@@ -175,14 +171,10 @@ jobs:
 
       - name: Vet Admin module
         working-directory: admin
-        env:
-          GOWORK: 'off'
         run: go vet ./...
 
       - name: Verify Admin module metadata
         working-directory: admin
-        env:
-          GOWORK: 'off'
         run: |
           go mod tidy
           git diff --exit-code -- go.mod go.sum
@@ -233,14 +225,11 @@ jobs:
             mss-boot/go.sum
             go.work.sum
 
-      - name: Verify independent compatibility contract
-        working-directory: admin
-        env:
-          GOWORK: 'off'
-        run: go test -count=1 ./compatibility
-
       - name: Verify workspace compatibility contract
         run: go test -count=1 ./admin/compatibility
+
+      - name: Verify repository-external Admin consumer
+        run: bash tools/compatibility/test-admin-external-consumer.sh
 
       - name: Verify workspace module graph
         run: |
@@ -267,10 +256,9 @@ jobs:
             admin/go.sum
             mss-boot/go.sum
 
-      - name: Build independent Admin binary
+      - name: Build coordinated Admin binary
         working-directory: admin
         env:
-          GOWORK: 'off'
           BINARY: ${{ runner.temp }}/mss-boot-admin
         run: |
           CGO_ENABLED=0 go build -trimpath -o "${BINARY}" .
