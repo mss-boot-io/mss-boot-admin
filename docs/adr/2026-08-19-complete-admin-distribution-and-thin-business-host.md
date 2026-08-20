@@ -1,6 +1,6 @@
 # ADR: Complete Admin distribution and thin business hosts
 
-- Status: Accepted; v1.3.0-rc.1 preview qualification in progress
+- Status: Accepted; v1.3.0-rc.2 preview qualification in progress
 - Date: 2026-08-19
 - Owners: Admin, frontend, agent infrastructure, release engineering
 - Feature contract: `.mss/features/complete-admin-distribution-thin-host.yaml`
@@ -89,9 +89,14 @@ business files, and records a thin baseline only after all file operations and v
 
 Technical artifacts may use root, `mss-boot/`, `admin/`, and `web/antd-v6/` tag namespaces, but their
 exact semantic version, including a prerelease suffix, must match for a coordinated distribution. The
-first public consumption rehearsal uses `v1.3.0-rc.1`; it is marked as a prerelease and does not replace
+current public consumption rehearsal uses `v1.3.0-rc.2`; it is marked as a prerelease and does not replace
 the current `v1.2.3` stable release. Publication remains restricted to the exact merged-main commit and
 the protected Framework -> Admin -> Frontend -> Root release train.
+
+The immutable `v1.3.0-rc.1` train remains partial evidence. Framework, Admin, and the multi-architecture
+frontend image published, but a workflow verifier defect stopped the frontend package and GitHub Release;
+the root tag and Release were never created. The repair advances the coordinated version instead of moving
+or reusing any published tag or artifact.
 
 Before publication, rollback is a normal revert of the feature commits. After downstream adoption,
 rollback pins the previous Admin Distribution and restores the previous thin-host lock and manifest.

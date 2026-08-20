@@ -418,8 +418,6 @@ jobs:
           image_repository="${REGISTRY}/${IMAGE_NAME}"
           version_ref="${image_repository}:${VERSION}"
           commit_ref="${image_repository}:${GITHUB_SHA}"
-          image="${image_repository}@${digest}"
-
           version_manifest="$(
             docker buildx imagetools inspect "${version_ref}" \
               --format '{{json .Manifest}}'
@@ -448,7 +446,19 @@ jobs:
           }
           trap cleanup_container EXIT
           for architecture in amd64 arm64; do
-            container_id="$(docker create --platform "linux/${architecture}" "${image}")"
+            platform_digest="$(
+              jq -er --arg architecture "${architecture}" '
+                .manifests[]
+                | select(
+                    .platform.os == "linux" and
+                    .platform.architecture == $architecture
+                  )
+                | .digest
+              ' <<< "${version_manifest}"
+            )"
+            [[ "${platform_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+            platform_image="${image_repository}@${platform_digest}"
+            container_id="$(docker create --platform "linux/${architecture}" "${platform_image}")"
             test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.title" }}' "${container_id}")" = 'mss-boot-admin-antd-v6'
             test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "${container_id}")" = "${VERSION}"
             test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${container_id}")" = "${GITHUB_SHA}"

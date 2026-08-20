@@ -425,6 +425,22 @@ class WorkflowGovernanceTest(unittest.TestCase):
             if step.get("name") == "Build and push v6 Docker image"
         )
         self.assertEqual(build["if"], "steps.image-state.outputs.exists != 'true'")
+        image_verification = next(
+            step
+            for step in steps
+            if step.get("name") == "Verify published v6 image identity"
+        )["run"]
+        for required in (
+            ".manifests[]",
+            ".platform.architecture == $architecture",
+            'platform_image="${image_repository}@${platform_digest}"',
+            'docker create --platform "linux/${architecture}" "${platform_image}"',
+        ):
+            self.assertIn(required, image_verification)
+        self.assertNotIn(
+            'docker create --platform "linux/${architecture}" "${image}"',
+            image_verification,
+        )
         metadata = next(
             step
             for step in steps
