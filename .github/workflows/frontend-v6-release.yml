@@ -48,10 +48,15 @@ jobs:
           resolved_commit="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
           test "${resolved_commit}" = "${GITHUB_SHA}"
           prerelease=false
-          if [[ "${version}" == *-* ]]; then prerelease=true; fi
+          npm_dist_tag=latest
+          if [[ "${version}" == *-* ]]; then
+            prerelease=true
+            npm_dist_tag=next
+          fi
           {
             echo "version=${version}"
             echo "prerelease=${prerelease}"
+            echo "npm_dist_tag=${npm_dist_tag}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Verify merged-main release source
@@ -287,6 +292,25 @@ jobs:
           echo 'publish=true' >> "${GITHUB_OUTPUT}"
           rm -f "${error_file}"
 
+      - name: Preflight immutable Admin Web publication without mutation
+        if: steps.npm-version.outputs.publish == 'true'
+        env:
+          NPM_DIST_TAG: ${{ steps.version.outputs.npm_dist_tag }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          case "${NPM_DIST_TAG}" in
+            latest|next) ;;
+            *) echo "unsupported npm dist-tag: ${NPM_DIST_TAG}" >&2; exit 1 ;;
+          esac
+          mapfile -t tarballs < <(find "${RUNNER_TEMP}/admin-web-release-package" \
+            -maxdepth 1 -type f -name '*.tgz' -print)
+          test "${#tarballs[@]}" -eq 1
+          npm publish "${tarballs[0]}" \
+            --dry-run \
+            --tag "${NPM_DIST_TAG}" \
+            --registry=https://npm.pkg.github.com
+
       - name: Attest Admin Web package provenance
         uses: actions/attest-build-provenance@00014ed6ed5efc5b1ab7f7f34a39eb55d41aa4f8 # v3.1.0
         with:
@@ -481,18 +505,25 @@ jobs:
       - name: Publish immutable Admin Web package to GitHub Packages
         if: steps.npm-version.outputs.publish == 'true'
         env:
+          NPM_DIST_TAG: ${{ steps.version.outputs.npm_dist_tag }}
           NODE_AUTH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          case "${NPM_DIST_TAG}" in
+            latest|next) ;;
+            *) echo "unsupported npm dist-tag: ${NPM_DIST_TAG}" >&2; exit 1 ;;
+          esac
           mapfile -t tarballs < <(find "${RUNNER_TEMP}/admin-web-release-package" \
             -maxdepth 1 -type f -name '*.tgz' -print)
           test "${#tarballs[@]}" -eq 1
           npm publish "${tarballs[0]}" \
+            --tag "${NPM_DIST_TAG}" \
             --registry=https://npm.pkg.github.com
 
       - name: Verify GitHub Packages identity and repository binding
         env:
           ADMIN_WEB_VERSION: ${{ steps.version.outputs.version }}
+          NPM_DIST_TAG: ${{ steps.version.outputs.npm_dist_tag }}
           GH_TOKEN: ${{ github.token }}
           NODE_AUTH_TOKEN: ${{ github.token }}
         run: |
@@ -514,6 +545,15 @@ jobs:
             '.version == $version and .gitHead == $commit and
              ."dist.integrity" == $integrity' \
             <<< "${package_metadata}" >/dev/null
+          dist_tags="$(
+            npm view '@mss-boot-io/admin-web' dist-tags --json \
+              --registry=https://npm.pkg.github.com
+          )"
+          jq -e \
+            --arg tag "${NPM_DIST_TAG}" \
+            --arg version "${unprefixed_version}" \
+            '.[$tag] == $version' \
+            <<< "${dist_tags}" >/dev/null
           package_record="$(
             gh api "/orgs/${GITHUB_REPOSITORY_OWNER}/packages/npm/admin-web"
           )"

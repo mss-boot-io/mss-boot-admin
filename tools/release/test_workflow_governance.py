@@ -351,6 +351,14 @@ class WorkflowGovernanceTest(unittest.TestCase):
         for permission in ("attestations", "id-token"):
             self.assertEqual(release["permissions"][permission], "write")
         steps = release["steps"]
+        identity = next(
+            step
+            for step in steps
+            if step.get("name") == "Resolve immutable v6 release identity"
+        )["run"]
+        self.assertIn("npm_dist_tag=latest", identity)
+        self.assertIn("npm_dist_tag=next", identity)
+        self.assertIn('echo "npm_dist_tag=${npm_dist_tag}"', identity)
         admin_predecessor = next(
             step
             for step in steps
@@ -380,6 +388,24 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn("dist.integrity", credential["run"])
         self.assertIn("https://npm.pkg.github.com", credential["run"])
         self.assertIn("existing npm version has different immutable content", credential["run"])
+        preflight = next(
+            step
+            for step in steps
+            if step.get("name")
+            == "Preflight immutable Admin Web publication without mutation"
+        )
+        self.assertEqual(
+            preflight["if"], "steps.npm-version.outputs.publish == 'true'"
+        )
+        self.assertEqual(
+            preflight["env"]["NPM_DIST_TAG"],
+            "${{ steps.version.outputs.npm_dist_tag }}",
+        )
+        self.assertEqual(preflight["env"]["NODE_AUTH_TOKEN"], "${{ github.token }}")
+        self.assertIn("npm publish", preflight["run"])
+        self.assertIn("--dry-run", preflight["run"])
+        self.assertIn('--tag "${NPM_DIST_TAG}"', preflight["run"])
+        self.assertIn("https://npm.pkg.github.com", preflight["run"])
 
         attestation = next(
             step
@@ -396,11 +422,18 @@ class WorkflowGovernanceTest(unittest.TestCase):
             if step.get("name") == "Publish immutable Admin Web package to GitHub Packages"
         )
         self.assertIn("npm publish", publish["run"])
+        self.assertIn('--tag "${NPM_DIST_TAG}"', publish["run"])
         self.assertIn("https://npm.pkg.github.com", publish["run"])
+        self.assertIn("latest|next", publish["run"])
         self.assertEqual(
             publish["if"], "steps.npm-version.outputs.publish == 'true'"
         )
+        self.assertEqual(
+            publish["env"]["NPM_DIST_TAG"],
+            "${{ steps.version.outputs.npm_dist_tag }}",
+        )
         self.assertEqual(publish["env"]["NODE_AUTH_TOKEN"], "${{ github.token }}")
+        self.assertLess(steps.index(preflight), steps.index(publish))
         verify_package = next(
             step
             for step in steps
@@ -409,6 +442,12 @@ class WorkflowGovernanceTest(unittest.TestCase):
         )
         self.assertIn('.visibility == "private"', verify_package["run"])
         self.assertIn('.visibility == "public"', verify_package["run"])
+        self.assertIn("dist-tags", verify_package["run"])
+        self.assertIn('.[$tag] == $version', verify_package["run"])
+        self.assertEqual(
+            verify_package["env"]["NPM_DIST_TAG"],
+            "${{ steps.version.outputs.npm_dist_tag }}",
+        )
         self.assertIn("admin-web", verify_package["run"])
 
         image_state = next(
@@ -416,6 +455,7 @@ class WorkflowGovernanceTest(unittest.TestCase):
             for step in steps
             if step.get("name") == "Inspect immutable v6 image publication state"
         )
+        self.assertLess(steps.index(preflight), steps.index(image_state))
         self.assertIn("imagetools inspect", image_state["run"])
         self.assertIn("exists=true", image_state["run"])
         self.assertIn("authoritative not-found", image_state["run"])
