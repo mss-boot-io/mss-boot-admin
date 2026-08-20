@@ -545,15 +545,41 @@ jobs:
             '.version == $version and .gitHead == $commit and
              ."dist.integrity" == $integrity' \
             <<< "${package_metadata}" >/dev/null
-          dist_tags="$(
-            npm view '@mss-boot-io/admin-web' dist-tags --json \
-              --registry=https://npm.pkg.github.com
-          )"
-          jq -e \
-            --arg tag "${NPM_DIST_TAG}" \
-            --arg version "${unprefixed_version}" \
-            '.[$tag] == $version' \
-            <<< "${dist_tags}" >/dev/null
+          tagged_version=''
+          for attempt in 1 2 3 4 5 6; do
+            dist_tags="$(
+              npm dist-tag ls '@mss-boot-io/admin-web' \
+                --registry=https://npm.pkg.github.com
+            )"
+            tag_record="$(
+              awk -v expected_tag="${NPM_DIST_TAG}" '
+                $1 == expected_tag ":" {
+                  count += 1
+                  version = $2
+                }
+                END {
+                  printf "%d\t%s\n", count, version
+                }
+              ' <<< "${dist_tags}"
+            )"
+            IFS=$'\t' read -r tag_count tagged_version <<< "${tag_record}"
+            if [[ "${tag_count}" == '1' ]]; then
+              if [[ "${tagged_version}" != "${unprefixed_version}" ]]; then
+                echo "npm dist-tag ${NPM_DIST_TAG} resolves to ${tagged_version}, expected ${unprefixed_version}" >&2
+                exit 1
+              fi
+              break
+            fi
+            if [[ "${tag_count}" != '0' ]]; then
+              echo "npm dist-tag ${NPM_DIST_TAG} returned ${tag_count} records" >&2
+              exit 1
+            fi
+            if [[ "${attempt}" == '6' ]]; then
+              echo "npm dist-tag ${NPM_DIST_TAG} did not resolve after bounded verification" >&2
+              exit 1
+            fi
+            sleep 5
+          done
           package_record="$(
             gh api "/orgs/${GITHUB_REPOSITORY_OWNER}/packages/npm/admin-web"
           )"

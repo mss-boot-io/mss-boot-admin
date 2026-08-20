@@ -1,6 +1,6 @@
 {
   "schema": "mss.io/release-qualification/v1",
-  "targetVersion": "v1.3.0-rc.3",
+  "targetVersion": "v1.3.0-rc.4",
   "features": [
     ".mss/features/complete-admin-distribution-thin-host.yaml"
   ],

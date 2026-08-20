@@ -11,7 +11,7 @@ metadata:
     domain: admin-distribution
     implementation-status: complete
     release-status: rc-qualification
-    target-version: v1.3.0-rc.3
+    target-version: v1.3.0-rc.4
     compatibility: coordinated-backend-frontend-version
     privacy: no-telemetry
 spec:
@@ -156,7 +156,7 @@ spec:
         - The nested Admin Go module uses admin/vX.Y.Z and all coordinated artifacts share the same exact semantic version, including prerelease identifiers.
         - Frontend qualification includes pack contents, integrity, SBOM, GitHub provenance attestation, and fail-closed credential handling.
         - Admin Web publishes first to GitHub Packages under the repository-linked @mss-boot-io scope; Thin Hosts authenticate without committing a token.
-        - The v1.3.0-rc.3 train is a prerelease and does not replace the current v1.2.3 stable release.
+        - The v1.3.0-rc.4 train is a prerelease and does not replace the current v1.2.3 stable release.
         - >-
           The immutable v1.3.0-rc.1 train remains partial evidence: Framework, Admin, and the
           frontend image published, while the frontend package, frontend GitHub Release, and root
@@ -166,6 +166,14 @@ spec:
           corrected multi-architecture frontend image published, while the frontend package,
           frontend GitHub Release, and root release did not publish because npm requires an
           explicit dist-tag when publishing a prerelease version.
+        - >-
+          The immutable v1.3.0-rc.3 train remains partial evidence: Framework, Admin, the
+          multi-architecture frontend image, and the Admin Web package published from one exact
+          commit. The frontend GitHub Release and root release did not publish because the
+          post-publication verifier queried GitHub Packages through `npm view ... dist-tags`,
+          which returned an empty result even after immutable package integrity reconciliation.
+          The rc.4 repair uses the npm CLI's supported `npm dist-tag ls` command with bounded,
+          read-only verification and never moves or overwrites rc.3 artifacts.
     - id: preserve-privacy-boundary
       title: Preserve the no-telemetry boundary
       description: Creation, installation, execution, verification, and upgrade remain local and collect no adopter data.

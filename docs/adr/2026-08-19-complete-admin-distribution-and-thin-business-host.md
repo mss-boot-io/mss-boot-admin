@@ -1,6 +1,6 @@
 # ADR: Complete Admin distribution and thin business hosts
 
-- Status: Accepted; v1.3.0-rc.3 preview qualification in progress
+- Status: Accepted; v1.3.0-rc.4 preview qualification in progress
 - Date: 2026-08-19
 - Owners: Admin, frontend, agent infrastructure, release engineering
 - Feature contract: `.mss/features/complete-admin-distribution-thin-host.yaml`
@@ -89,7 +89,7 @@ business files, and records a thin baseline only after all file operations and v
 
 Technical artifacts may use root, `mss-boot/`, `admin/`, and `web/antd-v6/` tag namespaces, but their
 exact semantic version, including a prerelease suffix, must match for a coordinated distribution. The
-current public consumption rehearsal uses `v1.3.0-rc.3`; it is marked as a prerelease and does not replace
+current public consumption rehearsal uses `v1.3.0-rc.4`; it is marked as a prerelease and does not replace
 the current `v1.2.3` stable release. Publication remains restricted to the exact merged-main commit and
 the protected Framework -> Admin -> Frontend -> Root release train.
 
@@ -102,6 +102,14 @@ The immutable `v1.3.0-rc.2` train also remains partial evidence. Framework, Admi
 multi-architecture frontend image published and passed identity checks, but npm rejected the prerelease
 package because the publish command omitted an explicit dist-tag. The repair assigns `next` to prereleases
 and `latest` to stable releases, adds a distribution-tag assertion, and advances the coordinated version.
+
+The immutable `v1.3.0-rc.3` train remains partial evidence as well. Framework, Admin, the corrected
+multi-architecture frontend image, and `@mss-boot-io/admin-web@1.3.0-rc.3` published from the same exact
+commit. Package integrity reconciliation succeeded on a clean rerun, but the post-publication verifier
+used `npm view <package> dist-tags --json`, which returns an empty result against GitHub Packages. The
+frontend GitHub Release and root Release were therefore not created. The repair uses the npm CLI's
+supported read-only `npm dist-tag ls <package>` interface with bounded verification and advances the
+coordinated version without moving or overwriting any rc.3 tag, package, or image.
 
 Before publication, rollback is a normal revert of the feature commits. After downstream adoption,
 rollback pins the previous Admin Distribution and restores the previous thin-host lock and manifest.

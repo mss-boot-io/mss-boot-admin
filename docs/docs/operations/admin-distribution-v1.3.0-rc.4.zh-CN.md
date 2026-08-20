@@ -1,11 +1,11 @@
 ---
-title: Admin Distribution v1.3.0-rc.3 预览版引用
+title: Admin Distribution v1.3.0-rc.4 预览版引用
 order: 35
 ---
 
-# Admin Distribution v1.3.0-rc.3 预览版引用
+# Admin Distribution v1.3.0-rc.4 预览版引用
 
-`v1.3.0-rc.3` 是完整 Admin Distribution 的公开预览版，不替代当前
+`v1.3.0-rc.4` 是完整 Admin Distribution 的公开预览版，不替代当前
 `v1.2.3` 稳定版。Root、Framework、Admin Go Module 与 Admin Web 使用同一个
 精确版本，并从同一个已合并到 `main` 的提交发布。
 
@@ -13,11 +13,11 @@ order: 35
 
 | 组件 | 引用 |
 | --- | --- |
-| Root | `v1.3.0-rc.3` |
-| Framework | `mss-boot/v1.3.0-rc.3` |
-| Admin Go Module | `admin/v1.3.0-rc.3` |
-| Admin Web | GitHub Packages：`@mss-boot-io/admin-web@1.3.0-rc.3` |
-| 前端镜像 | `ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.0-rc.3` |
+| Root | `v1.3.0-rc.4` |
+| Framework | `mss-boot/v1.3.0-rc.4` |
+| Admin Go Module | `admin/v1.3.0-rc.4` |
+| Admin Web | GitHub Packages：`@mss-boot-io/admin-web@1.3.0-rc.4` |
+| 前端镜像 | `ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.0-rc.4` |
 
 ## rc.1 状态
 
@@ -33,14 +33,23 @@ Admin Web 包、前端 GitHub Release 与 Root Release 未发布。镜像身份�
 版本，因为命令没有显式指定 dist-tag。修复通过新的 Pull Request 合并，预发布版本固定使用 `next`、正式版本固定使用
 `latest`，并推进到 `rc.3`；不会移动、覆盖或复用任何 `rc.2` 标签和制品。
 
+## rc.3 状态
+
+`v1.3.0-rc.3` 继续保留为不可变的部分发布记录：Framework、Admin、多架构前端镜像以及
+`@mss-boot-io/admin-web@1.3.0-rc.3` 已从同一个精确提交发布。安全恢复执行证明远端包完整性与镜像摘要
+完全一致，既有包和镜像均未被覆盖；但发布后校验使用了 `npm view <package> dist-tags --json`，GitHub
+Packages 对该字段查询持续返回空结果，因此前端 GitHub Release 与 Root Release 未发布。`rc.4` 改用 npm
+CLI 官方的只读 `npm dist-tag ls <package>` 命令，并进行有界重试与精确版本比对；不会移动、覆盖或复用任何
+`rc.3` 标签、包版本或镜像。
+
 ## 后端引用
 
 Thin Host 的 `go.mod` 必须同时精确固定 Admin 与 Framework：
 
 ```go
 require (
-    github.com/mss-boot-io/mss-boot-admin/admin v1.3.0-rc.3
-    github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.0-rc.3
+    github.com/mss-boot-io/mss-boot-admin/admin v1.3.0-rc.4
+    github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.0-rc.4
 )
 ```
 
