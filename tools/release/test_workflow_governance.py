@@ -179,6 +179,15 @@ class WorkflowGovernanceTest(unittest.TestCase):
                 "Scan nested module",
             }:
                 self.assertEqual(step["if"], "matrix.module != 'none'")
+        scan = next(
+            step
+            for step in nested_steps
+            if step.get("name") == "Scan nested module"
+        )
+        self.assertEqual(
+            scan["env"]["GOWORK"],
+            "${{ matrix.module == 'admin' && format('{0}/go.work', github.workspace) || 'off' }}",
+        )
 
     def test_codeql_languages_follow_component_ownership(self):
         workflow = self.workflows["codeql.yml"]
