@@ -24,7 +24,7 @@ class ReleasePolicyTest(unittest.TestCase):
     def setUp(self):
         self.policy = POLICY.load_policy(POLICY_PATH)
 
-    def test_v130_rc2_matches_every_distribution_component_namespace(self):
+    def test_v130_rc3_matches_every_distribution_component_namespace(self):
         cases = {
             "root": "v1.3.0-rc.3",
             "framework": "mss-boot/v1.3.0-rc.3",
