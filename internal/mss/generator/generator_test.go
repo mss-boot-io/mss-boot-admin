@@ -491,6 +491,33 @@ func TestGenerateRejectsMigrationIDCollisionsBeforeWriting(t *testing.T) {
 	}
 }
 
+func TestGenerateAllowsModuleScopedMigrationLedgerReference(t *testing.T) {
+	repositoryRoot := findRepositoryRoot(t)
+	root := t.TempDir()
+	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
+	module := generatorTestModule()
+	path := filepath.Join(root, "admin", "cmd", "migrate", "migration", "system", "compatibility_reference.go")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll(migrations) error = %v", err)
+	}
+	source := "package system\n\nconst supplierID = \"" + module.Spec.Generation.MigrationID + "\" // mss:migration-reference supplier\n"
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatalf("WriteFile(reference) error = %v", err)
+	}
+
+	if _, err := Generate(module, Options{Root: root}); err != nil {
+		t.Fatalf("Generate(module-scoped migration reference) error = %v", err)
+	}
+
+	source = "package system\n\nconst customerID = \"" + module.Spec.Generation.MigrationID + "\" // mss:migration-reference customer\n"
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatalf("WriteFile(other reference) error = %v", err)
+	}
+	if _, err := Generate(module, Options{Root: root}); err == nil {
+		t.Fatal("Generate(other module migration reference) succeeded, want collision")
+	}
+}
+
 func TestGenerateReportsCompleteDocsAndBrowserE2EOutputs(t *testing.T) {
 	repositoryRoot := findRepositoryRoot(t)
 	root := t.TempDir()
@@ -649,6 +676,10 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 		"web/antd-v6/e2e/generated/supplier.spec.ts": {
 			"mss_admin_session",
 			"http://127.0.0.1:18001",
+			"const PARENT_MENU_NAME = ",
+			"Open primary navigation|展开主导航",
+			"/menu/authorize",
+			"getByRole('menuitem'",
 			"X-CSRF-Token",
 			"not.toHaveProperty('token')",
 			"randomUUID",
@@ -724,6 +755,10 @@ func TestGenerateAlignsAuthorizedMenuNamesWithLocaleKeys(t *testing.T) {
 			"\"menu.procurement\": \"Procurement\"",
 			"\"menu.procurement.supplier\": \"Suppliers\"",
 			"\"menu.supplier\": \"Suppliers\"",
+		},
+		"web/antd-v6/e2e/generated/supplier.spec.ts": {
+			`const PARENT_MENU_NAME = "Procurement"`,
+			"/menu/authorize",
 		},
 	} {
 		content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))

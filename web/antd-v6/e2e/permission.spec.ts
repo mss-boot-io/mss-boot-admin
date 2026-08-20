@@ -20,18 +20,6 @@ function menuContainsPath(value: unknown, expectedPath: string): boolean {
 }
 
 async function createRestrictedUser(rootPage: Page) {
-  const roles = await readJSON(
-    await rootPage.request.get(`${BACKEND_API_BASE_URL}/roles?current=1&pageSize=100`),
-  );
-  const initializedRoleNames = (Array.isArray(roles.data) ? roles.data : [])
-    .filter(
-      (entry): entry is Record<string, unknown> =>
-        Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry),
-    )
-    .map((entry) => entry.name);
-  expect(initializedRoleNames).not.toContain('finance');
-  expect(initializedRoleNames).not.toContain('procurement');
-
   const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
   const roleResponse = await rootPage.request.post(`${BACKEND_API_BASE_URL}/roles`, {
     data: {
@@ -76,7 +64,7 @@ test.describe('V6 authorization boundaries', () => {
     await expect(page).toHaveURL(/\/user\/login\?redirect=/);
   });
 
-  test('@permission retired Supplier example stays absent from finance menu, route, and API', async ({
+  test('@permission restricted user cannot access Supplier or online-session menu, route, and API', async ({
     browser,
     page,
   }) => {

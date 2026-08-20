@@ -8,6 +8,7 @@ const API_BASE_URL = (process.env.MSS_E2E_API_URL ?? `${APP_BASE_URL}/admin/api`
 const RESOURCE_URL = `${API_BASE_URL}{{ .APIBasePath }}`;
 const RESOURCE_PATH = new URL(RESOURCE_URL).pathname;
 const PAGE_PATH = '{{ .Menu.Path }}';
+const PARENT_MENU_NAME = {{ .Menu.ParentDisplayNameEnLiteral }};
 const USERNAME = process.env.MSS_E2E_USERNAME ?? 'admin';
 const PASSWORD = process.env.MSS_E2E_PASSWORD ?? '123456';
 
@@ -146,6 +147,48 @@ async function csrfHeaders(page: Page) {
   return { Origin: APP_BASE_URL, 'X-CSRF-Token': csrf };
 }
 
+function menuContainsPath(value: unknown, expectedPath: string): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.some((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+    const item = entry as Record<string, unknown>;
+    return item.path === expectedPath || menuContainsPath(item.children, expectedPath);
+  });
+}
+
+async function navigateFromAuthorizedMenu(page: Page) {
+  const response = await page.request.get(`${API_BASE_URL}/menu/authorize`);
+  expect(response.ok()).toBeTruthy();
+  expect(menuContainsPath(await response.json(), PAGE_PATH)).toBe(true);
+
+  await page.goto('/');
+  const mobileViewport = (page.viewportSize()?.width ?? Number.POSITIVE_INFINITY) < 768;
+  if (mobileViewport) {
+    const mobileNavigationToggle = page.getByRole('button', {
+      name: /^(?:Open primary navigation|展开主导航)$/,
+    });
+    await expect(mobileNavigationToggle).toBeVisible();
+    await mobileNavigationToggle.click();
+  }
+  if (PARENT_MENU_NAME) {
+    const parentMenu = page.getByRole('menuitem', { name: PARENT_MENU_NAME, exact: true });
+    await expect(parentMenu).toBeVisible();
+    if ((await parentMenu.getAttribute('aria-expanded')) !== 'true') await parentMenu.click();
+  }
+  const menuLink = page.locator(`a[href="${PAGE_PATH}"]`).first();
+  await expect(menuLink).toBeVisible();
+  const initialList = waitForResource(page, 'GET');
+  await menuLink.click();
+  expect((await initialList).ok()).toBeTruthy();
+  await expect(page).toHaveURL(new RegExp(`${PAGE_PATH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[?#]|$)`));
+  if (mobileViewport) {
+    await page.keyboard.press('Escape');
+    await expect(
+      page.getByRole('button', { name: /^(?:Open primary navigation|展开主导航)$/ }),
+    ).toBeVisible();
+  }
+}
+
 function waitForResource(page: Page, method: string, suffix = '') {
   return page.waitForResponse((response) => {
     const url = new URL(response.url());
@@ -217,9 +260,7 @@ test.describe('{{ .Menu.DisplayNameEn }} generated V6 critical path', () => {
     let createdID = '';
     let deleted = false;
     try {
-      const initialList = waitForResource(page, 'GET');
-      await page.goto(PAGE_PATH);
-      expect((await initialList).ok()).toBeTruthy();
+      await navigateFromAuthorizedMenu(page);
 
 {{- if and .HasCreate .UIForm }}
       await page.getByRole('button', { name: 'Create', exact: true }).click();

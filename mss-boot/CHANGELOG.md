@@ -6,16 +6,21 @@ and the project uses semantic versioning for nested-module releases.
 
 ## [Unreleased]
 
-Target: **mss-boot/v1.2.3**. This synchronized forward repair republishes the
-same source-compatible Framework behavior from the exact merged-main commit used
-by the root and V6 frontend releases after the root container build repair. It
-introduces no new public Framework API.
+Target: **mss-boot/v1.3.0-rc.5**. This synchronized prerelease remains aligned
+with the Admin module, Admin Web package, and root distribution from one exact
+merged-main commit.
+
+### Added
+
+- Add `migration.CombineRegistrations`, which creates an isolated,
+  collision-checked compatibility runner from multiple read-only migration
+  registration sets without invoking a module registrar more than once.
 
 ### Changed
 
-- Requalify the Framework from the merged v1.2.3 repair commit so all three
-  component tags identify one exact source revision after the native
-  multi-architecture container build repair.
+- Keep core and business registration sets independently executable so the Admin
+  composition root can enforce Core-before-Business migration phases without
+  adding Admin-specific behavior to the Framework.
 
 ## [mss-boot/v1.2.2] - 2026-08-19
 

@@ -1,6 +1,6 @@
 # ADR: Complete Admin distribution and thin business hosts
 
-- Status: Accepted; v1.3.0-rc.4 preview qualification in progress
+- Status: Accepted; v1.3.0-rc.5 preview qualification in progress
 - Date: 2026-08-19
 - Owners: Admin, frontend, agent infrastructure, release engineering
 - Feature contract: `.mss/features/complete-admin-distribution-thin-host.yaml`
@@ -89,7 +89,7 @@ business files, and records a thin baseline only after all file operations and v
 
 Technical artifacts may use root, `mss-boot/`, `admin/`, and `web/antd-v6/` tag namespaces, but their
 exact semantic version, including a prerelease suffix, must match for a coordinated distribution. The
-current public consumption rehearsal uses `v1.3.0-rc.4`; it is marked as a prerelease and does not replace
+current public consumption rehearsal uses `v1.3.0-rc.5`; it is marked as a prerelease and does not replace
 the current `v1.2.3` stable release. Publication remains restricted to the exact merged-main commit and
 the protected Framework -> Admin -> Frontend -> Root release train.
 
@@ -110,6 +110,15 @@ used `npm view <package> dist-tags --json`, which returns an empty result agains
 frontend GitHub Release and root Release were therefore not created. The repair uses the npm CLI's
 supported read-only `npm dist-tag ls <package>` interface with bounded verification and advances the
 coordinated version without moving or overwriting any rc.3 tag, package, or image.
+
+The immutable `v1.3.0-rc.4` Framework, Admin, and frontend releases published from
+`3dddd01c4d3b70be13fb9ff53438505805ea6087`; the root tag exists but its GitHub Release does not. The
+retained Thin Host exposed a migration-order defect: globally sorting module migrations let the core
+example cleanup run after the composed Supplier authorization seed and remove its menu. Root candidate
+evaluation also rejected the checkout after workspace-mode dependency download changed `go.work.sum`.
+RC5 executes Core then Business phases, forward-repairs the stale Supplier authorization ledger, proves
+sidebar navigation in the external browser gate, and keeps dependency setup from mutating the release
+checkout. RC4 refs and artifacts remain unchanged.
 
 Before publication, rollback is a normal revert of the feature commits. After downstream adoption,
 rollback pins the previous Admin Distribution and restores the previous thin-host lock and manifest.

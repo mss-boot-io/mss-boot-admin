@@ -9,6 +9,9 @@ order: 35
 `v1.2.3` 稳定版。Root、Framework、Admin Go Module 与 Admin Web 使用同一个
 精确版本，并从同一个已合并到 `main` 的提交发布。
 
+> RC4 现为不可变历史预览记录。Framework、Admin 与前端制品已公开，Root 标签已创建但
+> Root GitHub Release 未完成；当前前向修复目标为 [v1.3.0-rc.5](./admin-distribution-v1.3.0-rc.5.zh-CN.md)。
+
 对应制品如下：
 
 | 组件 | 引用 |
@@ -41,6 +44,13 @@ Admin Web 包、前端 GitHub Release 与 Root Release 未发布。镜像身份�
 Packages 对该字段查询持续返回空结果，因此前端 GitHub Release 与 Root Release 未发布。`rc.4` 改用 npm
 CLI 官方的只读 `npm dist-tag ls <package>` 命令，并进行有界重试与精确版本比对；不会移动、覆盖或复用任何
 `rc.3` 标签、包版本或镜像。
+
+## rc.4 状态
+
+`v1.3.0-rc.4` 的 Framework、Admin 与前端 Release 已从同一精确提交公开；Root 标签存在，
+但 Root Release 未完成。保留的 Thin Host 验收发现 Core 与 Business 迁移全局排序会让 Core
+示例清理迁移删除已生成的 Supplier 菜单，发布测试还会因 workspace 依赖下载改写 `go.work.sum`。
+修复通过新的 Pull Request 推进到 `rc.5`，不会移动、覆盖或复用 RC4 的任何标签、包或镜像。
 
 ## 后端引用
 

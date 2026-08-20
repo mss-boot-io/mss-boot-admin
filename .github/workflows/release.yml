@@ -529,6 +529,8 @@ jobs:
           go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json
           go run ./cmd/mss spec validate .mss/features/example-supplier-onboarding.yaml --format json
           go run ./cmd/mss feature plan .mss/features/example-supplier-onboarding.yaml --format json
+          git diff --exit-code
+          git diff --cached --exit-code
           go run ./cmd/mss eval run --all --format json
 
   backend-build:

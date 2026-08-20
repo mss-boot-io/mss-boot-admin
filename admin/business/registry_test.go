@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
+	migrationmodels "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 	"gorm.io/gorm"
 )
@@ -145,6 +146,55 @@ func TestMigrationRunnerRequiresFreezeAndReturnsIsolatedClones(t *testing.T) {
 	}
 	if err := second.Register(extraID, func(*gorm.DB, string) error { return nil }); err != nil {
 		t.Fatalf("migration runner clones share state: %v", err)
+	}
+}
+
+func TestMigrationPhaseRunnersKeepCoreAheadOfBusiness(t *testing.T) {
+	var calls []string
+	registrationCalls := 0
+	core := migration.New()
+	if err := core.Register("20260820150000", func(db *gorm.DB, version string) error {
+		calls = append(calls, "core")
+		return core.CreateVersion(db, version)
+	}); err != nil {
+		t.Fatalf("register core migration: %v", err)
+	}
+	businessModule := validTestModule("supplier", "20260810150000")
+	businessModule.registration.Migrations = func(runner *migration.Migration) error {
+		registrationCalls++
+		return runner.Register("20260810150000", func(db *gorm.DB, version string) error {
+			calls = append(calls, "business")
+			return runner.CreateVersion(db, version)
+		})
+	}
+
+	registry, err := Compose(core, businessModule)
+	if err != nil {
+		t.Fatalf("compose phased registry: %v", err)
+	}
+	phases, err := registry.MigrationPhaseRunners()
+	if err != nil {
+		t.Fatalf("migration phases: %v", err)
+	}
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open migration phase database: %v", err)
+	}
+	if err := db.AutoMigrate(&migrationmodels.Migration{}); err != nil {
+		t.Fatalf("create migration ledger: %v", err)
+	}
+	for _, runner := range []*migration.Migration{phases.Core, phases.Business} {
+		runner.SetDb(db)
+		runner.SetModel(&migrationmodels.Migration{})
+		if err := runner.MigrateContext(t.Context()); err != nil {
+			t.Fatalf("run migration phase: %v", err)
+		}
+	}
+	if want := []string{"core", "business"}; !reflect.DeepEqual(calls, want) {
+		t.Fatalf("migration phase order = %v, want %v", calls, want)
+	}
+	if registrationCalls != 1 {
+		t.Fatalf("business migration registrar called %d times, want once", registrationCalls)
 	}
 }
 

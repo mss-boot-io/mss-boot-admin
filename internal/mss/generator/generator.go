@@ -32,7 +32,7 @@ const (
 	instructionsTemplateRevision = "1.3.0-module-instructions.1"
 	frontendV6TemplateRevision   = "1.3.0-frontend-v6.1"
 	docsTemplateRevision         = "1.3.0-docs.1"
-	e2eV6TemplateRevision        = "1.2.0-e2e-v6.7"
+	e2eV6TemplateRevision        = "1.3.0-e2e-v6.2"
 )
 
 // Action describes how one output differs from the workspace.
@@ -535,15 +535,16 @@ type eventData struct {
 }
 
 type menuData struct {
-	Name          string
-	Path          string
-	DisplayName   string
-	DisplayNameEn string
-	Icon          string
-	Parent        string
-	ParentName    string
-	Order         int
-	Hidden        bool
+	Name                       string
+	Path                       string
+	DisplayName                string
+	DisplayNameEn              string
+	Icon                       string
+	Parent                     string
+	ParentName                 string
+	ParentDisplayNameEnLiteral string
+	Order                      int
+	Hidden                     bool
 }
 
 func buildTemplateData(module *spec.Module) (templateData, error) {
@@ -575,15 +576,16 @@ func buildTemplateData(module *spec.Module) (templateData, error) {
 		UIExport:                     module.Spec.UI.Export,
 		HasFrontendV6:                module.SupportsFrontendTarget(spec.FrontendTargetAntDV6),
 		Menu: menuData{
-			Name:          escapeGoContent(module.Metadata.Name),
-			Path:          escapeGoContent(module.Spec.Menu.Path),
-			DisplayName:   escapeGoContent(module.Spec.Menu.DisplayName),
-			DisplayNameEn: escapeGoContent(module.Spec.Menu.DisplayNameEn),
-			Icon:          escapeGoContent(module.Spec.Menu.Icon),
-			Parent:        escapeGoContent(module.Spec.Menu.Parent),
-			ParentName:    escapeGoContent(menuNameFromPath(module.Spec.Menu.Parent)),
-			Order:         module.Spec.Menu.Order,
-			Hidden:        module.Spec.Menu.Hidden,
+			Name:                       escapeGoContent(module.Metadata.Name),
+			Path:                       escapeGoContent(module.Spec.Menu.Path),
+			DisplayName:                escapeGoContent(module.Spec.Menu.DisplayName),
+			DisplayNameEn:              escapeGoContent(module.Spec.Menu.DisplayNameEn),
+			Icon:                       escapeGoContent(module.Spec.Menu.Icon),
+			Parent:                     escapeGoContent(module.Spec.Menu.Parent),
+			ParentName:                 escapeGoContent(menuNameFromPath(module.Spec.Menu.Parent)),
+			ParentDisplayNameEnLiteral: jsLiteral(module.Spec.Menu.ParentDisplayNameEn),
+			Order:                      module.Spec.Menu.Order,
+			Hidden:                     module.Spec.Menu.Hidden,
 		},
 	}
 	if data.SourceSpec == "" {
@@ -1890,9 +1892,19 @@ func validateMigrationIDUniqueness(repository *os.Root, current *spec.Module, la
 		if err != nil {
 			return fmt.Errorf("read Admin migration identity %s: %w", path, err)
 		}
-		for _, match := range migrationLiteralIDPattern.FindAllSubmatch(content, -1) {
-			if err := register(string(match[1]), candidateOwner); err != nil {
-				return err
+		// Compatibility migrations may need to query the ledger identity owned by
+		// one generated module without claiming that identity. The explicit,
+		// module-scoped marker keeps that reference auditable and only suppresses
+		// collision ownership while regenerating the named module.
+		referenceMarker := []byte("mss:migration-reference " + current.Metadata.Name)
+		for _, line := range bytes.Split(content, []byte("\n")) {
+			if bytes.Contains(line, referenceMarker) {
+				continue
+			}
+			for _, match := range migrationLiteralIDPattern.FindAllSubmatch(line, -1) {
+				if err := register(string(match[1]), candidateOwner); err != nil {
+					return err
+				}
 			}
 		}
 		return nil

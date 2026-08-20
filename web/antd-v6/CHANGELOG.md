@@ -6,7 +6,7 @@ and the root changelog, not as a current release surface.
 
 ## Unreleased
 
-Target: **web/antd-v6/v1.3.0**. The Admin Web package, Admin Go module,
+Target: **web/antd-v6/v1.3.0-rc.5**. The Admin Web package, Admin Go module,
 Framework module, and root distribution use one version core and one exact
 merged-main commit. Documentation remains an independently released component.
 
@@ -28,6 +28,9 @@ merged-main commit. Documentation remains an independently released component.
   ProComponents 3.1.14-6, React Query 5.101.4, and Umi Max 4.7.5 runtime graph.
 - Remove the downstream-invisible pnpm patch dependency and keep the canonical
   frontend source usable by both the official application and package consumers.
+- Make generated Supplier browser qualification verify the authorized menu API,
+  expand the configured parent menu, and navigate through the visible sidebar
+  instead of allowing a direct URL to conceal a missing menu projection.
 
 ## [web/antd-v6/v1.2.2] - 2026-08-19
 

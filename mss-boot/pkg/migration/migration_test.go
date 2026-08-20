@@ -230,6 +230,44 @@ func TestMigrationCloneRegistrationsRejectsInvalidSource(t *testing.T) {
 	}
 }
 
+func TestCombineRegistrationsIsolatedAndRejectsCollisions(t *testing.T) {
+	first := New()
+	second := New()
+	firstID := MigrationID("202608190010")
+	secondID := MigrationID("202608190011")
+	if err := first.Register(firstID, func(*gorm.DB, string) error { return nil }); err != nil {
+		t.Fatalf("register first source: %v", err)
+	}
+	if err := second.Register(secondID, func(*gorm.DB, string) error { return nil }); err != nil {
+		t.Fatalf("register second source: %v", err)
+	}
+
+	combined, err := CombineRegistrations(first, second)
+	if err != nil {
+		t.Fatalf("combine registrations: %v", err)
+	}
+	cloneOnlyID := MigrationID("202608190012")
+	if err := combined.Register(cloneOnlyID, func(*gorm.DB, string) error { return nil }); err != nil {
+		t.Fatalf("register combined-only migration: %v", err)
+	}
+	if err := first.Register(cloneOnlyID, func(*gorm.DB, string) error { return nil }); err != nil {
+		t.Fatalf("combined mutation leaked into source: %v", err)
+	}
+
+	collision := New()
+	if err := collision.Register(secondID, func(*gorm.DB, string) error { return nil }); err != nil {
+		t.Fatalf("register colliding source: %v", err)
+	}
+	if _, err := CombineRegistrations(second, collision); !errors.Is(err, ErrDuplicateMigrationID) {
+		t.Fatalf("combined collision error = %v, want duplicate ID", err)
+	}
+
+	var nilRunner *Migration
+	if _, err := CombineRegistrations(first, nilRunner); !errors.Is(err, ErrMigrationNotReady) {
+		t.Fatalf("nil combined source error = %v, want migration not ready", err)
+	}
+}
+
 func TestMigrationTemplateUsesLosslessID(t *testing.T) {
 	templateSource, err := FS.ReadFile("migrate.tpl")
 	if err != nil {
