@@ -677,6 +677,7 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 			"mss_admin_session",
 			"http://127.0.0.1:18001",
 			"const PARENT_MENU_NAME = ",
+			"Open primary navigation|展开主导航",
 			"/menu/authorize",
 			"getByRole('menuitem'",
 			"X-CSRF-Token",

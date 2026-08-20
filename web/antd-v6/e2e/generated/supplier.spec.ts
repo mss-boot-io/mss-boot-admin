@@ -151,6 +151,14 @@ async function navigateFromAuthorizedMenu(page: Page) {
   expect(menuContainsPath(await response.json(), PAGE_PATH)).toBe(true);
 
   await page.goto('/');
+  const mobileViewport = (page.viewportSize()?.width ?? Number.POSITIVE_INFINITY) < 768;
+  if (mobileViewport) {
+    const mobileNavigationToggle = page.getByRole('button', {
+      name: /^(?:Open primary navigation|展开主导航)$/,
+    });
+    await expect(mobileNavigationToggle).toBeVisible();
+    await mobileNavigationToggle.click();
+  }
   if (PARENT_MENU_NAME) {
     const parentMenu = page.getByRole('menuitem', { name: PARENT_MENU_NAME, exact: true });
     await expect(parentMenu).toBeVisible();
@@ -162,6 +170,12 @@ async function navigateFromAuthorizedMenu(page: Page) {
   await menuLink.click();
   expect((await initialList).ok()).toBeTruthy();
   await expect(page).toHaveURL(new RegExp(`${PAGE_PATH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[?#]|$)`));
+  if (mobileViewport) {
+    await page.keyboard.press('Escape');
+    await expect(
+      page.getByRole('button', { name: /^(?:Open primary navigation|展开主导航)$/ }),
+    ).toBeVisible();
+  }
 }
 
 function waitForResource(page: Page, method: string, suffix = '') {
