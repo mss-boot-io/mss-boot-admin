@@ -111,6 +111,10 @@ class WorkflowGovernanceTest(unittest.TestCase):
         )
         self.assertIn("test_detect_component_scope.py", governance["run"])
         self.assertIn("test_check_release_policy.py", governance["run"])
+        self.assertIn("test_release_phase_evidence.py", governance["run"])
+        self.assertIn("test_release_qualification_decision.py", governance["run"])
+        self.assertIn("test_release_readiness_attestation.py", governance["run"])
+        self.assertIn("test_release_readiness_workflow.py", governance["run"])
         self.assertIn("test_verify_release_source.py", governance["run"])
         self.assertIn("test_workflow_governance.py", governance["run"])
 

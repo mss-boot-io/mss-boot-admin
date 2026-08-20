@@ -8,8 +8,12 @@ from pathlib import Path
 
 
 TOOLS_DIR = Path(__file__).resolve().parent
+REPOSITORY_ROOT = TOOLS_DIR.parents[1]
 sys.path.insert(0, str(TOOLS_DIR))
 import release_qualification_decision as DECISION  # noqa: E402
+
+
+TARGET_VERSION = "v1.3.0-rc.1"
 
 
 class ReleaseQualificationDecisionTest(unittest.TestCase):
@@ -22,7 +26,7 @@ class ReleaseQualificationDecisionTest(unittest.TestCase):
             json.dumps(
                 {
                     "schema": "mss.io/release-qualification/v1",
-                    "targetVersion": "v1.2.3",
+                    "targetVersion": TARGET_VERSION,
                     "features": [DECISION.RELEASE_FEATURE],
                     "excludedFeatures": [
                         {
@@ -45,7 +49,7 @@ class ReleaseQualificationDecisionTest(unittest.TestCase):
     def build(self, root, commit, **overrides):
         values = {
             "qualification": ".mss/release-qualification.json",
-            "target_version": "v1.2.3",
+            "target_version": TARGET_VERSION,
             "commit": commit,
             "phase": "feature-freeze",
             "browser_commit": commit,
@@ -70,6 +74,12 @@ class ReleaseQualificationDecisionTest(unittest.TestCase):
         )
         self.assertFalse(decision["scope"]["objectStoreProviderConformanceRequired"])
         self.assertFalse(decision["scope"]["rustfsRequired"])
+
+    def test_repository_qualification_matches_active_release_binding(self):
+        contract = REPOSITORY_ROOT / ".mss" / "release-qualification.json"
+        value, digest = DECISION._load_qualification(contract, TARGET_VERSION)
+        self.assertEqual(value["features"], [DECISION.RELEASE_FEATURE])
+        self.assertEqual(digest, hashlib.sha256(contract.read_bytes()).hexdigest())
 
     def test_rejects_short_or_mismatched_evidence_commits(self):
         temporary, root, _, commit = self.fixture()
