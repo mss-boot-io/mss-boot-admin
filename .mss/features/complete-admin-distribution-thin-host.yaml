@@ -11,7 +11,7 @@ metadata:
     domain: admin-distribution
     implementation-status: complete
     release-status: rc-qualification
-    target-version: v1.3.0-rc.4
+    target-version: v1.3.0-rc.5
     compatibility: coordinated-backend-frontend-version
     privacy: no-telemetry
 spec:
@@ -98,7 +98,8 @@ spec:
       module: admin-composition
       rules:
         - Duplicate module names and registration failures are returned before the server starts.
-        - Database and authorization migrations complete and pass readiness before business routes are mounted.
+        - Core Admin migrations always finish before business-module migrations, independent of migration ID ordering.
+        - Database and authorization migrations pass runtime readiness before business routes are mounted; release qualification proves their required navigation projection.
         - Business routes run behind the complete Admin authentication, authorization, audit, and request middleware.
         - Public extension types do not expose Foundation internal packages or move Admin domain behavior into mss-boot.
     - id: publish-single-admin-web
@@ -144,7 +145,7 @@ spec:
       rules:
         - The external backend tidies, tests, vets, builds, and runs help with GOWORK=off.
         - The external frontend installs a local package tarball, lints, tests, builds one dist, and passes package and runtime gates.
-        - External E2E covers login, Admin shell, Supplier navigation, Supplier create or edit, authorization denial, route refresh, and console health.
+        - External E2E proves the authorized Supplier menu is returned and navigates through the sidebar before CRUD, denial, route refresh, and console-health checks.
         - CI reruns the consumer gates for Admin, V6, CLI, generator, template, contract, release-tooling, and workflow changes.
     - id: govern-coordinated-release
       title: Govern coordinated artifacts without publishing from this feature branch
@@ -156,7 +157,7 @@ spec:
         - The nested Admin Go module uses admin/vX.Y.Z and all coordinated artifacts share the same exact semantic version, including prerelease identifiers.
         - Frontend qualification includes pack contents, integrity, SBOM, GitHub provenance attestation, and fail-closed credential handling.
         - Admin Web publishes first to GitHub Packages under the repository-linked @mss-boot-io scope; Thin Hosts authenticate without committing a token.
-        - The v1.3.0-rc.4 train is a prerelease and does not replace the current v1.2.3 stable release.
+        - The v1.3.0-rc.5 train is a prerelease and does not replace the current v1.2.3 stable release.
         - >-
           The immutable v1.3.0-rc.1 train remains partial evidence: Framework, Admin, and the
           frontend image published, while the frontend package, frontend GitHub Release, and root
@@ -228,7 +229,7 @@ spec:
           value: bash tools/compatibility/test-thin-host-external-consumer.sh
     - id: business-module-gate
       requirement: register-business-modules
-      statement: Supplier uses the public module contract and duplicate, migration, readiness, authorization, and route-order cases pass.
+      statement: Supplier uses the public module contract; core-before-business migration order repairs the retired-example collision; duplicate, readiness, menu, authorization, and route-order cases pass.
       level: security
       phase: feature-freeze
       required: true
@@ -268,7 +269,7 @@ spec:
           value: Thin-host distribution upgrade plan, apply, conflict, preservation, rollback, and idempotency suite
     - id: external-e2e-gate
       requirement: qualify-external-consumer
-      statement: A generated external Supplier host passes login, shell, navigation, CRUD, denial, refresh, and console-health E2E without production access.
+      statement: A generated external Supplier host exposes the authorized Supplier sidebar menu and passes menu navigation, CRUD, denial, refresh, and console-health E2E without production access.
       level: e2e
       phase: feature-freeze
       required: true

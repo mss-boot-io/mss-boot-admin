@@ -6,16 +6,43 @@ tag namespaces.
 
 ## [Unreleased]
 
-Target: **v1.2.3** for the root foundation, `mss-boot/v1.2.3` for the reusable
-Framework, and `web/antd-v6/v1.2.3` for the sole Admin frontend. Publication
-requires one exact clean commit already merged into `origin/main`; local or
-topic-branch evidence is preliminary only.
+Target: **v1.3.0-rc.5** for the root foundation, `mss-boot/v1.3.0-rc.5` for the
+Framework, `admin/v1.3.0-rc.5` for the importable Admin module, and
+`web/antd-v6/v1.3.0-rc.5` for Admin Web. Publication requires one exact clean
+commit already merged into `origin/main`; local or topic-branch evidence is
+preliminary only.
 
-The immutable v1.2.2 Framework and frontend releases completed and root
-qualification passed. Root image publication then compiled arm64 under QEMU for
-2320 seconds and hit the 40-minute job limit during manifest export, leaving the
-root tag without a matching public image or GitHub Release. v1.2.3 repairs that
-publication boundary; no v1.2.0, v1.2.1, or v1.2.2 public ref is moved or reused.
+The immutable v1.3.0-rc.4 Framework, Admin, and frontend releases were published
+from `3dddd01c4d3b70be13fb9ff53438505805ea6087`. The root tag was also created,
+but its GitHub Release did not publish. A retained external Thin Host then exposed
+that globally sorting core and business migration IDs let the core example cleanup
+run after the Supplier authorization seed, removing the authorized menu. The root
+release test also dirtied `go.work.sum` before a Blueprint evaluation that correctly
+requires a clean Foundation checkout. RC5 is the forward repair; no RC4 tag,
+package, image, or Release is moved or overwritten.
+
+### Added
+
+- Execute composed Admin migrations in explicit Core then Business phases while
+  retaining a collision-checked combined runner for source compatibility.
+- Add an idempotent forward migration that recognizes the RC4 Supplier collision,
+  clears only its stale authorization ledger marker, and lets the business phase
+  rebuild menus, API inventory, policies, revisions, and generated default roles.
+- Require generated browser qualification to prove the Supplier path exists in the
+  authorized menu and to enter it through the visible sidebar before CRUD checks.
+
+### Changed
+
+- Download Admin module dependencies with `GOWORK=off` and assert the release
+  checkout remains unchanged before Blueprint evaluations.
+- Add an explicit module-scoped marker for compatibility migrations that query a
+  generated module's ledger IDs without falsely claiming those IDs in generator
+  collision detection.
+
+## [v1.2.3] - 2026-08-19
+
+Status: **published / current stable**. The synchronized root, Framework, and V6
+frontend releases completed from `260d546851c58f7293b30e76b47d40d8e89f52fe`.
 
 ### Changed
 

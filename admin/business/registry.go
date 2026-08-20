@@ -86,6 +86,15 @@ type Registration struct {
 	Routes     RouteRegistrar
 }
 
+// MigrationPhases keeps Foundation-owned migrations ahead of business-owned
+// migrations without relying on globally comparable timestamp identifiers.
+// Both runners are isolated clones and must execute in Core, then Business,
+// order against the same migration ledger.
+type MigrationPhases struct {
+	Core     *migration.Migration
+	Business *migration.Migration
+}
+
 // Module is the minimum compile-time extension interface supported by Admin.
 type Module interface {
 	Name() string
@@ -102,14 +111,16 @@ type entry struct {
 // Registry is application-local. It is writable only while modules are being
 // composed and immutable once frozen for migration or server execution.
 type Registry struct {
-	mu               sync.RWMutex
-	registrationMu   sync.Mutex
-	migrations       *migration.Migration
-	entries          []entry
-	modules          map[string]struct{}
-	activeModule     string
-	activeRegistered bool
-	frozen           bool
+	mu                 sync.RWMutex
+	registrationMu     sync.Mutex
+	coreMigrations     *migration.Migration
+	businessMigrations *migration.Migration
+	migrations         *migration.Migration
+	entries            []entry
+	modules            map[string]struct{}
+	activeModule       string
+	activeRegistered   bool
+	frozen             bool
 }
 
 // NewRegistry clones only the core migration registrations. It never copies a
@@ -118,13 +129,14 @@ func NewRegistry(coreMigrations *migration.Migration) (*Registry, error) {
 	if coreMigrations == nil {
 		return nil, errors.New("core migration runner is required")
 	}
-	runner, err := coreMigrations.CloneRegistrations()
+	coreRunner, err := coreMigrations.CloneRegistrations()
 	if err != nil {
 		return nil, fmt.Errorf("clone core migrations: %w", err)
 	}
 	return &Registry{
-		migrations: runner,
-		modules:    make(map[string]struct{}),
+		coreMigrations:     coreRunner,
+		businessMigrations: migration.New(),
+		modules:            make(map[string]struct{}),
 	}, nil
 }
 
@@ -235,7 +247,7 @@ func (r *Registry) Register(registration Registration) error {
 		return fmt.Errorf("business module %s route registrar is required", r.activeModule)
 	}
 	if registration.Migrations != nil {
-		if err := registration.Migrations(r.migrations); err != nil {
+		if err := registration.Migrations(r.businessMigrations); err != nil {
 			return fmt.Errorf("register business module %s migrations: %w", r.activeModule, err)
 		}
 	}
@@ -264,9 +276,17 @@ func (r *Registry) Freeze() error {
 	if r.activeModule != "" {
 		return fmt.Errorf("business module %s registration is still in progress", r.activeModule)
 	}
-	if err := r.migrations.ValidateRegistrations(); err != nil {
-		return fmt.Errorf("validate business migrations: %w", err)
+	if err := r.coreMigrations.ValidateRegistrations(); err != nil {
+		return fmt.Errorf("validate core migration phase: %w", err)
 	}
+	if err := r.businessMigrations.ValidateRegistrations(); err != nil {
+		return fmt.Errorf("validate business migration phase: %w", err)
+	}
+	combinedRunner, err := migration.CombineRegistrations(r.coreMigrations, r.businessMigrations)
+	if err != nil {
+		return fmt.Errorf("combine application migrations: %w", err)
+	}
+	r.migrations = combinedRunner
 	r.frozen = true
 	return nil
 }
@@ -300,6 +320,30 @@ func (r *Registry) MigrationRunner() (*migration.Migration, error) {
 		return nil, fmt.Errorf("clone application migrations: %w", err)
 	}
 	return runner, nil
+}
+
+// MigrationPhaseRunners returns isolated Core and Business runners after
+// composition. The caller must execute Core before Business so a Foundation
+// compatibility migration can never retire metadata that a composed business
+// module seeded under an older numeric migration ID.
+func (r *Registry) MigrationPhaseRunners() (MigrationPhases, error) {
+	if r == nil {
+		return MigrationPhases{}, errors.New("business module registry is required")
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if !r.frozen {
+		return MigrationPhases{}, ErrRegistryNotFrozen
+	}
+	coreRunner, err := r.coreMigrations.CloneRegistrations()
+	if err != nil {
+		return MigrationPhases{}, fmt.Errorf("clone core migration phase: %w", err)
+	}
+	businessRunner, err := r.businessMigrations.CloneRegistrations()
+	if err != nil {
+		return MigrationPhases{}, fmt.Errorf("clone business migration phase: %w", err)
+	}
+	return MigrationPhases{Core: coreRunner, Business: businessRunner}, nil
 }
 
 // Mount verifies every module before registering the first business route.

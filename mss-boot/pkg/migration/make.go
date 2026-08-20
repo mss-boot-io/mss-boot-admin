@@ -199,6 +199,38 @@ func (e *Migration) ValidateRegistrations() error {
 // from the Admin core migration set and then add an explicit set of business
 // modules without mutating process-global registration state.
 func (e *Migration) CloneRegistrations() (*Migration, error) {
+	registrations, err := e.registrationSnapshot()
+	if err != nil {
+		return nil, err
+	}
+	return migrationFromRegistrations(registrations)
+}
+
+// CombineRegistrations returns an isolated runner containing the registrations
+// from every source runner. Sources are read only, and duplicate canonical or
+// legacy IDs fail closed. Composition roots use this compatibility view when
+// they also retain separately ordered migration phases.
+func CombineRegistrations(sources ...*Migration) (*Migration, error) {
+	combined := New()
+	for index, source := range sources {
+		registrations, err := source.registrationSnapshot()
+		if err != nil {
+			return nil, fmt.Errorf("read migration source %d: %w", index, err)
+		}
+		for _, registered := range registrations {
+			if err := combined.RegisterWithLegacyIDs(
+				registered.id,
+				registered.legacyIDs,
+				registered.run,
+			); err != nil {
+				return nil, fmt.Errorf("combine migration %s from source %d: %w", registered.id, index, err)
+			}
+		}
+	}
+	return combined, nil
+}
+
+func (e *Migration) registrationSnapshot() ([]registeredMigration, error) {
 	if e == nil {
 		return nil, fmt.Errorf("%w: migration runner is nil", ErrMigrationNotReady)
 	}
@@ -218,6 +250,10 @@ func (e *Migration) CloneRegistrations() (*Migration, error) {
 	sort.Slice(registrations, func(i, j int) bool {
 		return migrationIDLess(registrations[i].id, registrations[j].id)
 	})
+	return registrations, nil
+}
+
+func migrationFromRegistrations(registrations []registeredMigration) (*Migration, error) {
 	clone := New()
 	for _, registered := range registrations {
 		if err := clone.RegisterWithLegacyIDs(

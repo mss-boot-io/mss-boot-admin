@@ -26,20 +26,20 @@ class ReleasePolicyTest(unittest.TestCase):
 
     def test_v130_rc4_matches_every_distribution_component_namespace(self):
         cases = {
-            "root": "v1.3.0-rc.4",
-            "framework": "mss-boot/v1.3.0-rc.4",
-            "admin": "admin/v1.3.0-rc.4",
-            "frontend": "web/antd-v6/v1.3.0-rc.4",
-            "docs": "docs/v1.3.0-rc.4",
+            "root": "v1.3.0-rc.5",
+            "framework": "mss-boot/v1.3.0-rc.5",
+            "admin": "admin/v1.3.0-rc.5",
+            "frontend": "web/antd-v6/v1.3.0-rc.5",
+            "docs": "docs/v1.3.0-rc.5",
         }
         for component, tag in cases.items():
             with self.subTest(component=component):
                 POLICY.check_public_ref(
-                    self.policy, component, "v1.3.0-rc.4", tag, intent="qualify"
+                    self.policy, component, "v1.3.0-rc.5", tag, intent="qualify"
                 )
 
         self.assertEqual(
-            POLICY.coordinated_tags(self.policy, "v1.3.0-rc.4"),
+            POLICY.coordinated_tags(self.policy, "v1.3.0-rc.5"),
             {component: cases[component] for component in POLICY.COORDINATED_COMPONENTS},
         )
 
@@ -47,7 +47,7 @@ class ReleasePolicyTest(unittest.TestCase):
         self.assertIs(self.policy["publicationWorkflowsReady"], True)
         self.assertIs(self.policy["publicPrereleases"], True)
         POLICY.check_public_ref(
-            self.policy, "root", "v1.3.0-rc.4", "v1.3.0-rc.4"
+            self.policy, "root", "v1.3.0-rc.5", "v1.3.0-rc.5"
         )
 
     def test_policy_requires_pr_merged_main_release_source(self):
@@ -84,15 +84,15 @@ class ReleasePolicyTest(unittest.TestCase):
             POLICY.check_public_ref(
                 self.policy,
                 "framework",
-                "v1.3.0-rc.4",
-                "v1.3.0-rc.4",
+                "v1.3.0-rc.5",
+                "v1.3.0-rc.5",
                 intent="qualify",
             )
 
     def test_policy_rejects_distribution_version_or_component_drift(self):
         original = POLICY_PATH.read_text(encoding="utf-8")
         replacements = (
-            ("  distributionVersion: v1.3.0-rc.4\n", "  distributionVersion: v1.3.1\n"),
+            ("  distributionVersion: v1.3.0-rc.5\n", "  distributionVersion: v1.3.1\n"),
             (
                 '  distributionComponents: "root,framework,admin,frontend"\n',
                 '  distributionComponents: "root,framework,frontend"\n',
@@ -110,7 +110,7 @@ class ReleasePolicyTest(unittest.TestCase):
         original = POLICY_PATH.read_text(encoding="utf-8")
         replacements = (
             ("  publicPrereleases: true\n", "  publicPrereleases: false\n"),
-            ("  nextPublicVersion: v1.3.0-rc.4\n", "  nextPublicVersion: v1.3.0-rc.01\n"),
+            ("  nextPublicVersion: v1.3.0-rc.5\n", "  nextPublicVersion: v1.3.0-rc.01\n"),
             ("  currentStableVersion: v1.2.3\n", "  currentStableVersion: v1.2.3-rc.1\n"),
         )
         for old, new in replacements:
@@ -120,7 +120,7 @@ class ReleasePolicyTest(unittest.TestCase):
                     content = original.replace(old, new)
                     if "nextPublicVersion" in new:
                         content = content.replace(
-                            "  distributionVersion: v1.3.0-rc.4\n",
+                            "  distributionVersion: v1.3.0-rc.5\n",
                             "  distributionVersion: v1.3.0-rc.01\n",
                         )
                     candidate.write_text(content, encoding="utf-8")
@@ -131,7 +131,7 @@ class ReleasePolicyTest(unittest.TestCase):
         original = POLICY_PATH.read_text(encoding="utf-8")
         for suffix in (
             "  unexpected: true\n",
-            "  nextPublicVersion: v1.3.0-rc.4\n",
+            "  nextPublicVersion: v1.3.0-rc.5\n",
         ):
             with self.subTest(suffix=suffix.strip()):
                 with tempfile.TemporaryDirectory() as directory:

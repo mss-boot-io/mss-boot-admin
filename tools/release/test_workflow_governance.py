@@ -603,6 +603,23 @@ class WorkflowGovernanceTest(unittest.TestCase):
         workflow_list = evidence.split("for workflow in", 1)[1].split("; do", 1)[0]
         self.assertNotIn("docs.yml", workflow_list)
 
+    def test_root_release_keeps_the_foundation_checkout_immutable_for_evals(self):
+        makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertIn(
+            "deps-admin:\n\tcd $(ADMIN_DIR) && GOWORK=off go mod download",
+            makefile,
+        )
+
+        steps = self.workflows["release.yml"]["jobs"]["test"]["steps"]
+        agent_contracts = next(
+            step
+            for step in steps
+            if step.get("name") == "Verify Agent module and contracts"
+        )["run"]
+        eval_index = agent_contracts.index("go run ./cmd/mss eval run --all")
+        self.assertLess(agent_contracts.index("git diff --exit-code"), eval_index)
+        self.assertLess(agent_contracts.index("git diff --cached --exit-code"), eval_index)
+
 
 if __name__ == "__main__":
     unittest.main()

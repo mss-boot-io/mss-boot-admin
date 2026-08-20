@@ -61,7 +61,7 @@ deps-agent:
 	GOWORK=off go mod download
 
 deps-admin:
-	cd $(ADMIN_DIR) && go mod download
+	cd $(ADMIN_DIR) && GOWORK=off go mod download
 
 deps-framework:
 	cd $(FRAMEWORK_DIR) && GOWORK=off go mod download

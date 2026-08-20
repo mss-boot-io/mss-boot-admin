@@ -216,17 +216,24 @@ func runContextWithOptions(
 	if handle == nil || handle.DB == nil {
 		return fmt.Errorf("migration database handle is not initialized")
 	}
-	runner := migration.Migrate
 	if registry != nil {
-		runner, err = registry.MigrationRunner()
-		if err != nil {
-			return fmt.Errorf("prepare application migrations: %w", err)
+		phases, phaseErr := registry.MigrationPhaseRunners()
+		if phaseErr != nil {
+			return fmt.Errorf("prepare application migration phases: %w", phaseErr)
 		}
+		return migrateContextWithRunnersCredentials(
+			ctx,
+			handle.DB,
+			options.username,
+			options.password,
+			phases.Core,
+			phases.Business,
+		)
 	}
 	return migrateContextWithRunnerCredentials(
 		ctx,
 		handle.DB,
-		runner,
+		migration.Migrate,
 		options.username,
 		options.password,
 	)
@@ -251,20 +258,41 @@ func migrateContextWithRunnerCredentials(
 	adminUsername string,
 	adminPassword string,
 ) error {
+	return migrateContextWithRunnersCredentials(
+		ctx,
+		db,
+		adminUsername,
+		adminPassword,
+		runner,
+	)
+}
+
+func migrateContextWithRunnersCredentials(
+	ctx context.Context,
+	db *gorm.DB,
+	adminUsername string,
+	adminPassword string,
+	runners ...*migration.Migration,
+) error {
 	if ctx == nil {
 		return fmt.Errorf("migration context is nil")
 	}
 	if db == nil {
 		return fmt.Errorf("migration database is nil")
 	}
-	if runner == nil {
-		return fmt.Errorf("%w: migration runner is nil", migration.ErrMigrationNotReady)
+	if len(runners) == 0 {
+		return fmt.Errorf("%w: no migration runners were provided", migration.ErrMigrationNotReady)
 	}
 	// Registration validation is deliberately independent of the database and
 	// runs before WithContext or AutoMigrate. Invalid or duplicate IDs therefore
 	// cannot create or alter even the migration bookkeeping table.
-	if err := runner.ValidateRegistrations(); err != nil {
-		return err
+	for index, runner := range runners {
+		if runner == nil {
+			return fmt.Errorf("%w: migration phase %d runner is nil", migration.ErrMigrationNotReady, index)
+		}
+		if err := runner.ValidateRegistrations(); err != nil {
+			return fmt.Errorf("validate migration phase %d: %w", index, err)
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("migration canceled before database preflight: %w", err)
@@ -276,10 +304,12 @@ func migrateContextWithRunnerCredentials(
 		slog.Error("auto migrate error", "err", err)
 		return err
 	}
-	runner.SetDb(db)
-	runner.SetModel(&common.Migration{})
-	if err := runner.MigrateContext(ctx); err != nil {
-		return err
+	for index, runner := range runners {
+		runner.SetDb(db)
+		runner.SetModel(&common.Migration{})
+		if err := runner.MigrateContext(ctx); err != nil {
+			return fmt.Errorf("run migration phase %d: %w", index, err)
+		}
 	}
 	if err := moduleruntime.Migrate(db); err != nil {
 		return err
