@@ -112,7 +112,7 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             )
         )
 
-    def test_v130_rc4_feature_freeze_commands_are_exact_and_executable(self):
+    def test_v130_rc6_feature_freeze_commands_are_exact_and_executable(self):
         feature_path = (
             REPOSITORY_ROOT
             / ".mss"
@@ -148,6 +148,7 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             ". make web-v6-qualify",
             ". bash tools/compatibility/test-admin-external-consumer.sh",
             ". bash tools/compatibility/test-thin-host-external-consumer.sh",
+            ". go run ./cmd/mss eval run --all --format json",
         ):
             self.assertIn(required, commands)
 
