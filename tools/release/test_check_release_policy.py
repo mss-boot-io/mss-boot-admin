@@ -54,7 +54,7 @@ class ReleasePolicyTest(unittest.TestCase):
         self.assertEqual(self.policy["releaseBranch"], "main")
         self.assertIs(self.policy["requireMergedPullRequestSource"], True)
 
-    def test_policy_rejects_versions_other_than_v130_rc2(self):
+    def test_policy_rejects_versions_other_than_v130_rc3(self):
         for version in (
             "v1.0.1",
             "v1.1.0",
