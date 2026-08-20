@@ -8,8 +8,8 @@ spec:
   requireMergedPullRequestSource: true
   currentStableVersion: v1.2.3
   currentStableCommit: 260d546851c58f7293b30e76b47d40d8e89f52fe
-  nextPublicVersion: v1.3.0-rc.3
-  distributionVersion: v1.3.0-rc.3
+  nextPublicVersion: v1.3.0-rc.4
+  distributionVersion: v1.3.0-rc.4
   distributionComponents: "root,framework,admin,frontend"
   publicationWorkflowsReady: true
   publicPrereleases: true

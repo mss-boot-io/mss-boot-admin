@@ -442,8 +442,17 @@ class WorkflowGovernanceTest(unittest.TestCase):
         )
         self.assertIn('.visibility == "private"', verify_package["run"])
         self.assertIn('.visibility == "public"', verify_package["run"])
-        self.assertIn("dist-tags", verify_package["run"])
-        self.assertIn('.[$tag] == $version', verify_package["run"])
+        self.assertIn("npm dist-tag ls", verify_package["run"])
+        self.assertNotIn(
+            "npm view '@mss-boot-io/admin-web' dist-tags",
+            verify_package["run"],
+        )
+        self.assertIn('$1 == expected_tag ":"', verify_package["run"])
+        self.assertIn(
+            "did not resolve after bounded verification",
+            verify_package["run"],
+        )
+        self.assertIn("sleep 5", verify_package["run"])
         self.assertEqual(
             verify_package["env"]["NPM_DIST_TAG"],
             "${{ steps.version.outputs.npm_dist_tag }}",

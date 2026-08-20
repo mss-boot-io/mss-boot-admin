@@ -93,7 +93,7 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         selected = PHASE_EVIDENCE.load_qualification(
             REPOSITORY_ROOT,
             Path(".mss/release-qualification.json"),
-            "v1.3.0-rc.3",
+            "v1.3.0-rc.4",
         )
         self.assertEqual(
             [path.relative_to(REPOSITORY_ROOT).as_posix() for path in selected],
