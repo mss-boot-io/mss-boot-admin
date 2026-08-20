@@ -13,7 +13,7 @@ sys.path.insert(0, str(TOOLS_DIR))
 import release_qualification_decision as DECISION  # noqa: E402
 
 
-TARGET_VERSION = "v1.3.0-rc.1"
+TARGET_VERSION = "v1.3.0-rc.2"
 
 
 class ReleaseQualificationDecisionTest(unittest.TestCase):

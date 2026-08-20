@@ -11,7 +11,7 @@ metadata:
     domain: admin-distribution
     implementation-status: complete
     release-status: rc-qualification
-    target-version: v1.3.0-rc.1
+    target-version: v1.3.0-rc.2
     compatibility: coordinated-backend-frontend-version
     privacy: no-telemetry
 spec:
@@ -156,7 +156,11 @@ spec:
         - The nested Admin Go module uses admin/vX.Y.Z and all coordinated artifacts share the same exact semantic version, including prerelease identifiers.
         - Frontend qualification includes pack contents, integrity, SBOM, GitHub provenance attestation, and fail-closed credential handling.
         - Admin Web publishes first to GitHub Packages under the repository-linked @mss-boot-io scope; Thin Hosts authenticate without committing a token.
-        - The v1.3.0-rc.1 train is a prerelease and does not replace the current v1.2.3 stable release.
+        - The v1.3.0-rc.2 train is a prerelease and does not replace the current v1.2.3 stable release.
+        - >-
+          The immutable v1.3.0-rc.1 train remains partial evidence: Framework, Admin, and the
+          frontend image published, while the frontend package, frontend GitHub Release, and root
+          release did not publish after multi-architecture verification failed.
     - id: preserve-privacy-boundary
       title: Preserve the no-telemetry boundary
       description: Creation, installation, execution, verification, and upgrade remain local and collect no adopter data.
