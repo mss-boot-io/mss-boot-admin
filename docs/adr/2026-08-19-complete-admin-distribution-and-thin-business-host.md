@@ -1,6 +1,6 @@
 # ADR: Complete Admin distribution and thin business hosts
 
-- Status: Accepted; implementation complete, pending PR merge and remote qualification
+- Status: Accepted; v1.3.0-rc.1 preview qualification in progress
 - Date: 2026-08-19
 - Owners: Admin, frontend, agent infrastructure, release engineering
 - Feature contract: `.mss/features/complete-admin-distribution-thin-host.yaml`
@@ -31,6 +31,15 @@ Session, CSRF, authorization, configuration ownership, or core middleware.
 with stable exports and a build CLI. External business pages join the same Umi route tree before the
 fallback routes and compile into the same `dist`. The package does not become a collection of
 independently versioned runtime, shell, auth, layout, or contract packages.
+
+The preview package is published as `@mss-boot-io/admin-web` in GitHub Packages and linked to this
+repository. A generated Thin Host commits only the scoped registry mapping and an environment-backed
+`NODE_AUTH_TOKEN` placeholder. Local consumers use a classic GitHub token with `read:packages`; GitHub
+Actions uses its short-lived `GITHUB_TOKEN` with `packages: read`. No expanded token is written into a
+generated repository, lockfile, report, or package artifact. GitHub creates the first npm package as
+private; the release manager changes it to public in the package settings after verifying the exact
+version, source commit, integrity, and repository binding. The Root release gate then requires public
+visibility before it can publish.
 
 `management-system` becomes the single recommended thin-host Blueprint. It generates application glue,
 business source directories, machine contracts, deployment files, and CI while depending on the
@@ -79,8 +88,10 @@ business files, and records a thin baseline only after all file operations and v
 ## Release and rollback
 
 Technical artifacts may use root, `mss-boot/`, `admin/`, and `web/antd-v6/` tag namespaces, but their
-semantic version core must match for a coordinated distribution. This feature branch adds qualification
-and workflow support only; it creates no tag, GitHub Release, production image, or public npm package.
+exact semantic version, including a prerelease suffix, must match for a coordinated distribution. The
+first public consumption rehearsal uses `v1.3.0-rc.1`; it is marked as a prerelease and does not replace
+the current `v1.2.3` stable release. Publication remains restricted to the exact merged-main commit and
+the protected Framework -> Admin -> Frontend -> Root release train.
 
 Before publication, rollback is a normal revert of the feature commits. After downstream adoption,
 rollback pins the previous Admin Distribution and restores the previous thin-host lock and manifest.

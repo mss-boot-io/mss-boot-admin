@@ -129,6 +129,19 @@ curl --fail http://localhost:8001/healthz
 The package contains the complete core application. A downstream repository
 adds only its business routes, generated menu registry, locales, and pages:
 
+Preview packages are published to GitHub Packages rather than npmjs. GitHub's
+npm registry requires authentication even for public packages. Keep the
+generated `web/.npmrc` unchanged, grant GitHub CLI `read:packages`, and expose
+the token only to the install process:
+
+```shell
+gh auth refresh -h github.com -s read:packages
+NODE_AUTH_TOKEN="$(gh auth token)" corepack pnpm@10.34.5 install --frozen-lockfile
+```
+
+Never commit the expanded token or a user-level `.npmrc`. GitHub Actions uses
+its short-lived `GITHUB_TOKEN` with `packages: read`.
+
 ```ts
 // web/config/config.ts
 import { defineBusinessAdmin } from '@mss-boot-io/admin-web/business';

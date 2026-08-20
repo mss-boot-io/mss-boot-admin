@@ -90,7 +90,6 @@ jobs:
       - name: Verify credential migrations against MySQL and PostgreSQL
         working-directory: admin
         env:
-          GOWORK: 'off'
           MSS_PAT_TEST_MYSQL_DSN: 'mss_pat:mss_pat_ci@tcp(127.0.0.1:3306)/mss_pat_test?charset=utf8mb4&parseTime=true&loc=UTC&multiStatements=false'
           MSS_PAT_TEST_POSTGRES_DSN: 'postgres://mss_pat:mss_pat_ci@127.0.0.1:5432/mss_pat_test?sslmode=disable&TimeZone=UTC'
         run: >-

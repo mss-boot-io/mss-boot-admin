@@ -24,34 +24,37 @@ class ReleasePolicyTest(unittest.TestCase):
     def setUp(self):
         self.policy = POLICY.load_policy(POLICY_PATH)
 
-    def test_v130_matches_every_distribution_component_namespace(self):
+    def test_v130_rc1_matches_every_distribution_component_namespace(self):
         cases = {
-            "root": "v1.3.0",
-            "framework": "mss-boot/v1.3.0",
-            "admin": "admin/v1.3.0",
-            "frontend": "web/antd-v6/v1.3.0",
-            "docs": "docs/v1.3.0",
+            "root": "v1.3.0-rc.1",
+            "framework": "mss-boot/v1.3.0-rc.1",
+            "admin": "admin/v1.3.0-rc.1",
+            "frontend": "web/antd-v6/v1.3.0-rc.1",
+            "docs": "docs/v1.3.0-rc.1",
         }
         for component, tag in cases.items():
             with self.subTest(component=component):
                 POLICY.check_public_ref(
-                    self.policy, component, "v1.3.0", tag, intent="qualify"
+                    self.policy, component, "v1.3.0-rc.1", tag, intent="qualify"
                 )
 
         self.assertEqual(
-            POLICY.coordinated_tags(self.policy, "v1.3.0"),
+            POLICY.coordinated_tags(self.policy, "v1.3.0-rc.1"),
             {component: cases[component] for component in POLICY.COORDINATED_COMPONENTS},
         )
 
     def test_publication_is_enabled_after_protected_workflows_are_ready(self):
         self.assertIs(self.policy["publicationWorkflowsReady"], True)
-        POLICY.check_public_ref(self.policy, "root", "v1.3.0", "v1.3.0")
+        self.assertIs(self.policy["publicPrereleases"], True)
+        POLICY.check_public_ref(
+            self.policy, "root", "v1.3.0-rc.1", "v1.3.0-rc.1"
+        )
 
     def test_policy_requires_pr_merged_main_release_source(self):
         self.assertEqual(self.policy["releaseBranch"], "main")
         self.assertIs(self.policy["requireMergedPullRequestSource"], True)
 
-    def test_policy_rejects_versions_other_than_v130(self):
+    def test_policy_rejects_versions_other_than_v130_rc1(self):
         for version in (
             "v1.0.1",
             "v1.1.0",
@@ -59,6 +62,7 @@ class ReleasePolicyTest(unittest.TestCase):
             "v1.2.1",
             "v1.2.2",
             "v1.2.3",
+            "v1.3.0",
             "v1.3.1",
         ):
             with self.subTest(version=version):
@@ -67,28 +71,28 @@ class ReleasePolicyTest(unittest.TestCase):
                         self.policy, "root", version, version, intent="qualify"
                     )
 
-    def test_policy_rejects_public_prerelease_and_wrong_namespace(self):
+    def test_policy_rejects_other_prereleases_and_wrong_namespace(self):
         with self.assertRaises(POLICY.PolicyError):
             POLICY.check_public_ref(
                 self.policy,
                 "root",
-                "v1.3.0-rc.1",
-                "v1.3.0-rc.1",
+                "v1.3.0-rc.2",
+                "v1.3.0-rc.2",
                 intent="qualify",
             )
         with self.assertRaisesRegex(POLICY.PolicyError, "does not match"):
             POLICY.check_public_ref(
                 self.policy,
                 "framework",
-                "v1.3.0",
-                "v1.3.0",
+                "v1.3.0-rc.1",
+                "v1.3.0-rc.1",
                 intent="qualify",
             )
 
     def test_policy_rejects_distribution_version_or_component_drift(self):
         original = POLICY_PATH.read_text(encoding="utf-8")
         replacements = (
-            ("  distributionVersion: v1.3.0\n", "  distributionVersion: v1.3.1\n"),
+            ("  distributionVersion: v1.3.0-rc.1\n", "  distributionVersion: v1.3.1\n"),
             (
                 '  distributionComponents: "root,framework,admin,frontend"\n',
                 '  distributionComponents: "root,framework,frontend"\n',
@@ -102,11 +106,32 @@ class ReleasePolicyTest(unittest.TestCase):
                     with self.assertRaises(POLICY.PolicyError):
                         POLICY.load_policy(candidate)
 
+    def test_policy_rejects_invalid_or_disabled_prerelease_contracts(self):
+        original = POLICY_PATH.read_text(encoding="utf-8")
+        replacements = (
+            ("  publicPrereleases: true\n", "  publicPrereleases: false\n"),
+            ("  nextPublicVersion: v1.3.0-rc.1\n", "  nextPublicVersion: v1.3.0-rc.01\n"),
+            ("  currentStableVersion: v1.2.3\n", "  currentStableVersion: v1.2.3-rc.1\n"),
+        )
+        for old, new in replacements:
+            with self.subTest(replacement=new.strip()):
+                with tempfile.TemporaryDirectory() as directory:
+                    candidate = Path(directory) / "policy.yaml"
+                    content = original.replace(old, new)
+                    if "nextPublicVersion" in new:
+                        content = content.replace(
+                            "  distributionVersion: v1.3.0-rc.1\n",
+                            "  distributionVersion: v1.3.0-rc.01\n",
+                        )
+                    candidate.write_text(content, encoding="utf-8")
+                    with self.assertRaises(POLICY.PolicyError):
+                        POLICY.load_policy(candidate)
+
     def test_policy_parser_rejects_unknown_or_duplicate_keys(self):
         original = POLICY_PATH.read_text(encoding="utf-8")
         for suffix in (
             "  unexpected: true\n",
-            "  nextPublicVersion: v1.3.0\n",
+            "  nextPublicVersion: v1.3.0-rc.1\n",
         ):
             with self.subTest(suffix=suffix.strip()):
                 with tempfile.TemporaryDirectory() as directory:

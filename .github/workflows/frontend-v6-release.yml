@@ -128,9 +128,12 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: web/antd-v6/pnpm-lock.yaml
-          registry-url: https://registry.npmjs.org
+          registry-url: https://npm.pkg.github.com
+          scope: '@mss-boot-io'
 
       - name: Install frozen v6 dependency graph
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
 
       - name: Verify dependency and quality gates
@@ -245,22 +248,24 @@ jobs:
             "${package_dir}/admin-web.spdx.json" \
             "${package_dir}/SHA256SUMS.admin-web"
 
-      - name: Require protected npm credentials and reconcile version identity
+      - name: Require GitHub Packages authority and reconcile version identity
         id: npm-version
         env:
           ADMIN_WEB_VERSION: ${{ steps.version.outputs.version }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [[ -z "${NODE_AUTH_TOKEN}" ]]; then
-            echo 'NPM_TOKEN is required in the protected release-v6 environment; refusing to downgrade publication to a local-only success.' >&2
+            echo 'GITHUB_TOKEN package authority is required; refusing to downgrade publication to a local-only success.' >&2
             exit 1
           fi
           unprefixed_version="${ADMIN_WEB_VERSION#v}"
-          error_file="${RUNNER_TEMP}/npm-view-error.log"
+          error_file="${RUNNER_TEMP}/github-packages-view-error.log"
           if published_integrity="$(
             npm view "@mss-boot-io/admin-web@${unprefixed_version}" \
-              dist.integrity --json 2> "${error_file}" | jq -er '.'
+              dist.integrity --json \
+              --registry=https://npm.pkg.github.com \
+              2> "${error_file}" | jq -er '.'
           )"; then
             expected_integrity="$(
               jq -er '.artifact.integrity' \
@@ -275,7 +280,7 @@ jobs:
             exit 0
           fi
           if ! grep -q 'E404' "${error_file}"; then
-            echo 'npm registry availability check failed without an authoritative not-found response' >&2
+            echo 'GitHub Packages availability check failed without an authoritative not-found response' >&2
             sed -E 's#(//registry[^:]*:)(_authToken=)?[^[:space:]]+#\1[REDACTED]#g' "${error_file}" >&2
             exit 1
           fi
@@ -463,16 +468,51 @@ jobs:
           trap - EXIT
           echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
 
-      - name: Publish immutable Admin Web npm package with provenance
+      - name: Publish immutable Admin Web package to GitHub Packages
         if: steps.npm-version.outputs.publish == 'true'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mapfile -t tarballs < <(find "${RUNNER_TEMP}/admin-web-release-package" \
             -maxdepth 1 -type f -name '*.tgz' -print)
           test "${#tarballs[@]}" -eq 1
-          npm publish "${tarballs[0]}" --access public --provenance
+          npm publish "${tarballs[0]}" \
+            --registry=https://npm.pkg.github.com
+
+      - name: Verify GitHub Packages identity and repository binding
+        env:
+          ADMIN_WEB_VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          unprefixed_version="${ADMIN_WEB_VERSION#v}"
+          expected_integrity="$(
+            jq -er '.artifact.integrity' \
+              "${RUNNER_TEMP}/admin-web-release-package/admin-web-package.json"
+          )"
+          package_metadata="$(
+            npm view "@mss-boot-io/admin-web@${unprefixed_version}" \
+              version gitHead dist.integrity --json \
+              --registry=https://npm.pkg.github.com
+          )"
+          jq -e \
+            --arg version "${unprefixed_version}" \
+            --arg commit "${GITHUB_SHA}" \
+            --arg integrity "${expected_integrity}" \
+            '.version == $version and .gitHead == $commit and
+             ."dist.integrity" == $integrity' \
+            <<< "${package_metadata}" >/dev/null
+          package_record="$(
+            gh api "/orgs/${GITHUB_REPOSITORY_OWNER}/packages/npm/admin-web"
+          )"
+          jq -e \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            '.name == "admin-web" and .package_type == "npm" and
+             (.visibility == "private" or .visibility == "public") and
+             (.repository.full_name == $repository)' \
+            <<< "${package_record}" >/dev/null
 
       - name: Publish immutable v6 GitHub release
         env:

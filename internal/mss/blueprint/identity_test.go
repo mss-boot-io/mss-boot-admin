@@ -84,6 +84,47 @@ func TestBuildDesiredMarksExactPublicTagAsStableFoundationRelease(t *testing.T) 
 	}
 }
 
+func TestFoundationReleaseVersionKeepsExactPrereleaseTagOnCandidateChannel(t *testing.T) {
+	root, _, _ := identityFixture(t)
+	commitOutput, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatalf("resolve fixture commit: %v", err)
+	}
+	commit := strings.TrimSpace(string(commitOutput))
+	runGit(t, root, "tag", "v1.1.0-rc.1")
+	policy, err := decodeFoundationReleasePolicy([]byte(`apiVersion: mss.io/v1alpha1
+kind: ReleasePolicy
+metadata:
+  name: fixture
+spec:
+  mode: development-first
+  releaseBranch: main
+  requireMergedPullRequestSource: true
+  currentStableVersion: v1.0.0
+  currentStableCommit: 0000000000000000000000000000000000000000
+  nextPublicVersion: v1.1.0-rc.1
+  distributionVersion: v1.1.0-rc.1
+  distributionComponents: "root,framework,admin,frontend"
+  publicationWorkflowsReady: true
+  publicPrereleases: true
+  rootTagTemplate: "{version}"
+  frameworkTagTemplate: "mss-boot/{version}"
+  adminTagTemplate: "admin/{version}"
+  frontendTagTemplate: "web/antd-v6/{version}"
+  docsTagTemplate: "docs/{version}"
+`))
+	if err != nil {
+		t.Fatalf("decode prerelease policy: %v", err)
+	}
+	version, channel, err := foundationReleaseVersion(context.Background(), root, commit, policy)
+	if err != nil {
+		t.Fatalf("foundationReleaseVersion(prerelease): %v", err)
+	}
+	if version != "1.1.0-rc.1" || channel != "candidate" {
+		t.Fatalf("prerelease identity = %s %s, want 1.1.0-rc.1 candidate", version, channel)
+	}
+}
+
 func TestDecodeFoundationReleasePolicyRejectsUnknownFieldsAndYAMLGraphs(t *testing.T) {
 	valid := `apiVersion: mss.io/v1alpha1
 kind: ReleasePolicy
@@ -128,6 +169,8 @@ spec:
 		{name: "anchor", data: strings.Replace(valid, "metadata:", "metadata: &metadata", 1), want: "anchors and aliases"},
 		{name: "invalid docs tag", data: strings.Replace(valid, "docs/{version}", "docs/v1.2.3", 1), want: "docsTagTemplate must contain exactly one {version} placeholder"},
 		{name: "distribution version mismatch", data: strings.Replace(valid, "distributionVersion: v1.1.0", "distributionVersion: v1.2.0", 1), want: "distributionVersion must equal nextPublicVersion"},
+		{name: "disabled prerelease target", data: strings.Replace(strings.Replace(valid, "nextPublicVersion: v1.1.0", "nextPublicVersion: v1.1.0-rc.1", 1), "distributionVersion: v1.1.0", "distributionVersion: v1.1.0-rc.1", 1), want: "publicPrereleases must be true"},
+		{name: "prerelease stable", data: strings.Replace(valid, "currentStableVersion: v1.0.0", "currentStableVersion: v1.0.0-rc.1", 1), want: "currentStableVersion must not be a prerelease"},
 		{name: "missing Admin component", data: strings.Replace(valid, "root,framework,admin,frontend", "root,framework,frontend", 1), want: "distributionComponents"},
 		{name: "invalid Admin tag", data: strings.Replace(valid, "admin/{version}", "admin/v1.1.0", 1), want: "adminTagTemplate must contain exactly one {version} placeholder"},
 	}

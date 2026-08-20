@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -71,6 +72,39 @@ func TestValidateThinHostStructureRejectsDistributionDependencyDriftAndPrivateIm
 		if !strings.Contains(result.Error, expected) {
 			t.Errorf("Thin Host drift error %q does not contain %q", result.Error, expected)
 		}
+	}
+}
+
+func TestValidateThinHostStructureRejectsCommittedGitHubPackagesToken(t *testing.T) {
+	root := t.TempDir()
+	ctx := thinHostVerifyContext(root, ".", "web", "internal/modules")
+	writeThinHostStructure(t, ctx)
+	writeThinHostTestFile(t, root, "web/.npmrc", "@mss-boot-io:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=committed-token\n")
+
+	result := validateThinHostStructure(ctx)
+	if result.ExitCode == 0 || !strings.Contains(result.Error, "NODE_AUTH_TOKEN placeholder") {
+		t.Fatalf("committed package token was accepted: %#v", result)
+	}
+}
+
+func TestValidateThinHostStructureRejectsUnreadableRequiredFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not provide portable owner-read permission semantics")
+	}
+	root := t.TempDir()
+	ctx := thinHostVerifyContext(root, ".", "web", "internal/modules")
+	writeThinHostStructure(t, ctx)
+	npmrcPath := filepath.Join(root, "web", ".npmrc")
+	if err := os.Chmod(npmrcPath, 0); err != nil {
+		t.Fatalf("make npmrc unreadable: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(npmrcPath, 0o600)
+	})
+
+	result := validateThinHostStructure(ctx)
+	if result.ExitCode == 0 || !strings.Contains(result.Error, "read required Thin Host file web/.npmrc") {
+		t.Fatalf("unreadable required npmrc was accepted: %#v", result)
 	}
 }
 
@@ -189,6 +223,7 @@ func writeThinHostStructure(t *testing.T, ctx *project.Context) {
   "dependencies": {"@mss-boot-io/admin-web": "1.3.0"}
 }
 `,
+		joinRepositoryPath(frontend, ".npmrc"):               "@mss-boot-io:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n",
 		joinRepositoryPath(frontend, "tsconfig.json"):        "{\n  \"extends\": \"./src/.umi/tsconfig.json\"\n}\n",
 		joinRepositoryPath(frontend, "config/config.ts"):     "import { defineBusinessAdmin } from '" + distribution.Frontend.Package + "/business';\nimport businessRoutes from './business-routes.generated';\nexport default defineBusinessAdmin({ businessRoutes, routeRegistrations: './src/generated/routes.ts', useUtoopack: true });\n",
 		joinRepositoryPath(frontend, "mss-admin.config.ts"):  "export { default } from './config/config';\n",

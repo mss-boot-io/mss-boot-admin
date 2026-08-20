@@ -164,6 +164,7 @@ jobs:
     permissions:
       actions: read
       contents: read
+      packages: read
       pull-requests: read
     steps:
       - name: Checkout release source
@@ -197,6 +198,8 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
+          registry-url: https://npm.pkg.github.com
+          scope: '@mss-boot-io'
 
       - name: Require selected pre-root readiness attestation
         if: needs.metadata.outputs.publish == 'true'
@@ -222,6 +225,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
           RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
           RELEASE_EVIDENCE_URL: ${{ needs.metadata.outputs.evidence_url }}
@@ -443,13 +447,23 @@ jobs:
 
           npm_metadata="$(npm view \
             "@mss-boot-io/admin-web@${RELEASE_VERSION#v}" \
-            version gitHead dist.integrity --json)"
+            version gitHead dist.integrity --json \
+            --registry=https://npm.pkg.github.com)"
           jq -e \
             --arg version "${RELEASE_VERSION#v}" \
             --arg commit "${RELEASE_COMMIT}" \
             '.version == $version and .gitHead == $commit and
              (."dist.integrity" | startswith("sha512-"))' \
             <<< "${npm_metadata}" >/dev/null
+          package_record="$(
+            gh api "/orgs/${GITHUB_REPOSITORY_OWNER}/packages/npm/admin-web"
+          )"
+          jq -e \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            '.name == "admin-web" and .package_type == "npm" and
+             .visibility == "public" and
+             (.repository.full_name == $repository)' \
+            <<< "${package_record}" >/dev/null
 
   foundation-compatibility:
     needs: metadata

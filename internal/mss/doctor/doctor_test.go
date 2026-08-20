@@ -127,7 +127,7 @@ func TestAdminDistributionCheckPassesOnlyWhenSnapshotIsAligned(t *testing.T) {
 	if check.Status != StatusPass || !check.Required {
 		t.Fatalf("aligned Distribution check = %#v", check)
 	}
-	for _, expected := range []string{"mss-boot-admin@v1.3.0", "backend and frontend version cores match", "snapshot aligned"} {
+	for _, expected := range []string{"mss-boot-admin@v1.3.0", "backend and frontend versions exactly match", "snapshot aligned"} {
 		if !strings.Contains(check.Detail, expected) {
 			t.Fatalf("aligned Distribution detail %q does not contain %q", check.Detail, expected)
 		}
