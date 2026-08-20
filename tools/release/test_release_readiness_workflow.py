@@ -89,11 +89,11 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         )
         self.assertEqual(self.step("Setup pnpm")["with"]["version"], "9.15.9")
 
-    def test_v130_rc2_qualification_selects_the_distribution_feature(self):
+    def test_v130_rc3_qualification_selects_the_distribution_feature(self):
         selected = PHASE_EVIDENCE.load_qualification(
             REPOSITORY_ROOT,
             Path(".mss/release-qualification.json"),
-            "v1.3.0-rc.2",
+            "v1.3.0-rc.3",
         )
         self.assertEqual(
             [path.relative_to(REPOSITORY_ROOT).as_posix() for path in selected],
@@ -112,7 +112,7 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             )
         )
 
-    def test_v130_rc2_feature_freeze_commands_are_exact_and_executable(self):
+    def test_v130_rc3_feature_freeze_commands_are_exact_and_executable(self):
         feature_path = (
             REPOSITORY_ROOT
             / ".mss"

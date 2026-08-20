@@ -877,9 +877,9 @@ spec:
       guidance: >-
         Treat Unreleased, planned, preview, branches, and local workspace replacements as non-stable.
         Published historical versions remain immutable and their candidate evidence is not reusable.
-        The active reviewed target is the v1.3.0-rc.2 preview for root, Framework, the importable Admin module,
+        The active reviewed target is the v1.3.0-rc.3 preview for root, Framework, the importable Admin module,
         and the sole Ant Design V6 frontend. Other alpha, beta, RC, or stable tags remain forbidden.
-        Complete release readiness begins only after one v1.3.0-rc.2 feature-freeze commit already
+        Complete release readiness begins only after one v1.3.0-rc.3 feature-freeze commit already
         merged into main is selected. An emergency
         patch requires a reviewed policy target change rather than a bypass.
         Publish Framework first, then the importable Admin module, then the complete frontend package,

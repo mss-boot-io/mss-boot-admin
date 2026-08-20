@@ -1,11 +1,11 @@
 ---
-title: Admin Distribution v1.3.0-rc.2 预览版引用
+title: Admin Distribution v1.3.0-rc.3 预览版引用
 order: 35
 ---
 
-# Admin Distribution v1.3.0-rc.2 预览版引用
+# Admin Distribution v1.3.0-rc.3 预览版引用
 
-`v1.3.0-rc.2` 是完整 Admin Distribution 的公开预览版，不替代当前
+`v1.3.0-rc.3` 是完整 Admin Distribution 的公开预览版，不替代当前
 `v1.2.3` 稳定版。Root、Framework、Admin Go Module 与 Admin Web 使用同一个
 精确版本，并从同一个已合并到 `main` 的提交发布。
 
@@ -13,11 +13,11 @@ order: 35
 
 | 组件 | 引用 |
 | --- | --- |
-| Root | `v1.3.0-rc.2` |
-| Framework | `mss-boot/v1.3.0-rc.2` |
-| Admin Go Module | `admin/v1.3.0-rc.2` |
-| Admin Web | GitHub Packages：`@mss-boot-io/admin-web@1.3.0-rc.2` |
-| 前端镜像 | `ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.0-rc.2` |
+| Root | `v1.3.0-rc.3` |
+| Framework | `mss-boot/v1.3.0-rc.3` |
+| Admin Go Module | `admin/v1.3.0-rc.3` |
+| Admin Web | GitHub Packages：`@mss-boot-io/admin-web@1.3.0-rc.3` |
+| 前端镜像 | `ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.0-rc.3` |
 
 ## rc.1 状态
 
@@ -26,14 +26,21 @@ order: 35
 manifest-list digest 依次校验 amd64 与 arm64，第二次创建容器时被 Docker 拒绝。
 修复通过新的 Pull Request 合并，并推进到 `rc.2`；不会移动、覆盖或复用任何 `rc.1` 标签和制品。
 
+## rc.2 状态
+
+`v1.3.0-rc.2` 同样保留为不可变的部分发布记录：Framework、Admin 以及修复后的多架构前端镜像已经发布；
+Admin Web 包、前端 GitHub Release 与 Root Release 未发布。镜像身份和双架构容器验证均已通过，随后 npm 拒绝发布预发布
+版本，因为命令没有显式指定 dist-tag。修复通过新的 Pull Request 合并，预发布版本固定使用 `next`、正式版本固定使用
+`latest`，并推进到 `rc.3`；不会移动、覆盖或复用任何 `rc.2` 标签和制品。
+
 ## 后端引用
 
 Thin Host 的 `go.mod` 必须同时精确固定 Admin 与 Framework：
 
 ```go
 require (
-    github.com/mss-boot-io/mss-boot-admin/admin v1.3.0-rc.2
-    github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.0-rc.2
+    github.com/mss-boot-io/mss-boot-admin/admin v1.3.0-rc.3
+    github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.0-rc.3
 )
 ```
 
