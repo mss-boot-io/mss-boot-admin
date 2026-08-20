@@ -78,10 +78,10 @@ func TestMigrateContextRunsCoreBeforeBusinessRegardlessOfMigrationID(t *testing.
 	}); err != nil {
 		t.Fatal(err)
 	}
-	business := migration.New()
-	if err := business.Register("20260809140000", func(db *gorm.DB, version string) error {
+	businessRunner := migration.New()
+	if err := businessRunner.Register("20260809140000", func(db *gorm.DB, version string) error {
 		calls = append(calls, "business")
-		return business.CreateVersion(db, version)
+		return businessRunner.CreateVersion(db, version)
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestMigrateContextRunsCoreBeforeBusinessRegardlessOfMigrationID(t *testing.
 		"admin",
 		"password",
 		core,
-		business,
+		businessRunner,
 	); err != nil {
 		t.Fatalf("run phased migrations: %v", err)
 	}
