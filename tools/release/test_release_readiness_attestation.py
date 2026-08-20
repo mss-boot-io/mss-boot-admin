@@ -50,7 +50,7 @@ class ReleaseReadinessAttestationTest(unittest.TestCase):
     def ready_policy(self, directory: str) -> Path:
         return self.policy_with_readiness(directory, True)
 
-    def test_checkpoint_attestation_binds_exact_v130_rc3_metadata(self):
+    def test_checkpoint_attestation_binds_exact_v130_rc4_metadata(self):
         attestation = self.checkpoint()
         self.assertEqual(set(attestation), ATTESTATION.REQUIRED_KEYS)
         self.assertEqual(attestation["schema"], ATTESTATION.SCHEMA)

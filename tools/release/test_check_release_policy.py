@@ -24,7 +24,7 @@ class ReleasePolicyTest(unittest.TestCase):
     def setUp(self):
         self.policy = POLICY.load_policy(POLICY_PATH)
 
-    def test_v130_rc3_matches_every_distribution_component_namespace(self):
+    def test_v130_rc4_matches_every_distribution_component_namespace(self):
         cases = {
             "root": "v1.3.0-rc.4",
             "framework": "mss-boot/v1.3.0-rc.4",
@@ -54,7 +54,7 @@ class ReleasePolicyTest(unittest.TestCase):
         self.assertEqual(self.policy["releaseBranch"], "main")
         self.assertIs(self.policy["requireMergedPullRequestSource"], True)
 
-    def test_policy_rejects_versions_other_than_v130_rc3(self):
+    def test_policy_rejects_versions_other_than_v130_rc4(self):
         for version in (
             "v1.0.1",
             "v1.1.0",
