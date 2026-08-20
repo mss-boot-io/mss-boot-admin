@@ -27,6 +27,68 @@ func TestCatalogRejectsDuplicateCases(t *testing.T) {
 	}
 }
 
+func TestCatalogRejectsInvertedBlueprintBounds(t *testing.T) {
+	catalog := &Catalog{
+		APIVersion: "mss.io/v1alpha1",
+		Kind:       "AgentEvaluationCatalog",
+		Metadata:   CatalogMetadata{Project: "fixture", Version: "0.1.0"},
+		Spec: CatalogSpec{Cases: []Case{{
+			ID:    "application-blueprint",
+			Title: "Application Blueprint",
+			Checks: []CheckSpec{{
+				Type:    "application-blueprint-plan",
+				Minimum: 64,
+				Maximum: 30,
+			}},
+		}}},
+	}
+	if err := catalog.Validate(); err == nil || !strings.Contains(err.Error(), "minimum must not exceed maximum") {
+		t.Fatalf("expected inverted Blueprint bounds error, got %v", err)
+	}
+}
+
+func TestCatalogRejectsMaximumForUnboundedCheck(t *testing.T) {
+	catalog := &Catalog{
+		APIVersion: "mss.io/v1alpha1",
+		Kind:       "AgentEvaluationCatalog",
+		Metadata:   CatalogMetadata{Project: "fixture", Version: "0.1.0"},
+		Spec: CatalogSpec{Cases: []Case{{
+			ID:     "mcp-tools",
+			Title:  "MCP tools",
+			Checks: []CheckSpec{{Type: "mcp-tools", Maximum: 20}},
+		}}},
+	}
+	if err := catalog.Validate(); err == nil || !strings.Contains(err.Error(), "maximum is supported only") {
+		t.Fatalf("expected unsupported maximum error, got %v", err)
+	}
+}
+
+func TestApplicationBlueprintSizeEnforcesThinHostBounds(t *testing.T) {
+	tests := []struct {
+		name       string
+		totalFiles int
+		want       string
+	}{
+		{name: "within bounds", totalFiles: 31},
+		{name: "incomplete host", totalFiles: 29, want: "expected at least 30"},
+		{name: "copied foundation sources", totalFiles: 500, want: "expected at most 64"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateApplicationBlueprintSize(test.totalFiles, 30, 64)
+			if test.want == "" {
+				if err != nil {
+					t.Fatalf("validate Thin Host file count: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("validate Thin Host file count error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
 func TestRunMCPToolsEvaluation(t *testing.T) {
 	root := writeEvaluationFixture(t)
 	report, err := Run(context.Background(), root, []string{"mcp-project-tools"})

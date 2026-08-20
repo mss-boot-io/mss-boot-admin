@@ -11,7 +11,7 @@ metadata:
     domain: admin-distribution
     implementation-status: complete
     release-status: rc-qualification
-    target-version: v1.3.0-rc.5
+    target-version: v1.3.0-rc.6
     compatibility: coordinated-backend-frontend-version
     privacy: no-telemetry
 spec:
@@ -157,7 +157,7 @@ spec:
         - The nested Admin Go module uses admin/vX.Y.Z and all coordinated artifacts share the same exact semantic version, including prerelease identifiers.
         - Frontend qualification includes pack contents, integrity, SBOM, GitHub provenance attestation, and fail-closed credential handling.
         - Admin Web publishes first to GitHub Packages under the repository-linked @mss-boot-io scope; Thin Hosts authenticate without committing a token.
-        - The v1.3.0-rc.5 train is a prerelease and does not replace the current v1.2.3 stable release.
+        - The v1.3.0-rc.6 train is a prerelease and does not replace the current v1.2.3 stable release.
         - >-
           The immutable v1.3.0-rc.1 train remains partial evidence: Framework, Admin, and the
           frontend image published, while the frontend package, frontend GitHub Release, and root
@@ -175,6 +175,17 @@ spec:
           which returned an empty result even after immutable package integrity reconciliation.
           The rc.4 repair uses the npm CLI's supported `npm dist-tag ls` command with bounded,
           read-only verification and never moves or overwrites rc.3 artifacts.
+        - >-
+          The immutable v1.3.0-rc.4 train published Framework, Admin, and frontend artifacts,
+          but its root Release remained unpublished after the retained Thin Host exposed the
+          Supplier migration-order collision. RC5 repaired the migration and menu projection
+          without moving or overwriting rc.4 artifacts.
+        - >-
+          The immutable v1.3.0-rc.5 train published Framework, Admin, frontend package and image,
+          and the root image from one exact commit. Its root candidate Release remained
+          unpublished because the Agent evaluation catalog still expected at least 500 copied
+          application files after the supported Blueprint became a 31-file Thin Host. RC6 fixes
+          that stale evaluation and executes it during feature freeze before any public tag.
     - id: preserve-privacy-boundary
       title: Preserve the no-telemetry boundary
       description: Creation, installation, execution, verification, and upgrade remain local and collect no adopter data.
@@ -254,6 +265,8 @@ spec:
       phase: feature-freeze
       required: true
       evidence:
+        - type: command
+          value: go run ./cmd/mss eval run --all --format json
         - type: test
           value: Thin-host generation, path attack, unknown-file preservation, and two-run drift suite
         - type: report
@@ -317,6 +330,7 @@ spec:
     changed: go run ./cmd/mss verify --changed
     all: go run ./cmd/mss verify --all
     custom:
+      - go run ./cmd/mss eval run --all --format json
       - cd admin && go test ./... && go vet ./...
       - bash tools/compatibility/test-admin-external-consumer.sh
       - corepack pnpm@10.34.5 --dir web/antd-v6 run deps:check

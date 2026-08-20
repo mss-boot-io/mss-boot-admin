@@ -2,7 +2,7 @@ apiVersion: mss.io/v1alpha1
 kind: AgentEvaluationCatalog
 metadata:
   project: mss-boot-admin
-  version: 0.3.0
+  version: 0.3.1
 spec:
   cases:
     - id: project-onboarding
@@ -39,11 +39,12 @@ spec:
 
     - id: downstream-application-blueprint
       title: Agent can plan a complete standalone management-system repository
-      description: Validates the versioned Blueprint, Git-tracked file selection, project identity rewrites, Foundation Lock, and three-way upgrade baseline.
+      description: Validates the compact Thin Host Blueprint, project identity rewrites, Foundation Lock, and three-way upgrade baseline without copying Foundation core sources.
       tags: [application, blueprint, upgrade]
       checks:
         - type: application-blueprint-plan
-          minimum: 500
+          minimum: 30
+          maximum: 64
 
     - id: full-verification-plan
       title: Agent can derive the complete repository validation plan

@@ -6,19 +6,18 @@ tag namespaces.
 
 ## [Unreleased]
 
-Target: **v1.3.0-rc.5** for the root foundation, `mss-boot/v1.3.0-rc.5` for the
-Framework, `admin/v1.3.0-rc.5` for the importable Admin module, and
-`web/antd-v6/v1.3.0-rc.5` for Admin Web. Publication requires one exact clean
+Target: **v1.3.0-rc.6** for the root foundation, `mss-boot/v1.3.0-rc.6` for the
+Framework, `admin/v1.3.0-rc.6` for the importable Admin module, and
+`web/antd-v6/v1.3.0-rc.6` for Admin Web. Publication requires one exact clean
 commit already merged into `origin/main`; local or topic-branch evidence is
 preliminary only.
 
-The immutable v1.3.0-rc.4 Framework, Admin, and frontend releases were published
-from `3dddd01c4d3b70be13fb9ff53438505805ea6087`. The root tag was also created,
-but its GitHub Release did not publish. A retained external Thin Host then exposed
-that globally sorting core and business migration IDs let the core example cleanup
-run after the Supplier authorization seed, removing the authorized menu. The root
-release test also dirtied `go.work.sum` before a Blueprint evaluation that correctly
-requires a clean Foundation checkout. RC5 is the forward repair; no RC4 tag,
+The immutable v1.3.0-rc.5 Framework, Admin, frontend package and image, and root
+image were published from `49158fd65d577a5a94c41d428ab6ad458619a0d9`.
+Its root candidate Release stopped before publication because the Agent evaluation
+catalog still required at least 500 copied application files after the supported
+Blueprint had intentionally become a 31-file Thin Host. RC6 corrects that stale
+contract and moves the complete evaluation into feature freeze; no RC5 tag,
 package, image, or Release is moved or overwritten.
 
 ### Added
@@ -33,6 +32,11 @@ package, image, or Release is moved or overwritten.
 
 ### Changed
 
+- Bound the downstream Blueprint evaluation to a compact 30-64 file Thin Host
+  envelope, rejecting both incomplete hosts and regressions that copy Foundation
+  core sources.
+- Run the complete Agent evaluation during feature freeze so this contract fails
+  before any Framework, Admin, frontend, or root tag is created.
 - Download Admin module dependencies with `GOWORK=off` and assert the release
   checkout remains unchanged before Blueprint evaluations.
 - Add an explicit module-scoped marker for compatibility migrations that query a

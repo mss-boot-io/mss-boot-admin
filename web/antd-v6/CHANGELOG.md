@@ -6,7 +6,7 @@ and the root changelog, not as a current release surface.
 
 ## Unreleased
 
-Target: **web/antd-v6/v1.3.0-rc.5**. The Admin Web package, Admin Go module,
+Target: **web/antd-v6/v1.3.0-rc.6**. The Admin Web package, Admin Go module,
 Framework module, and root distribution use one version core and one exact
 merged-main commit. Documentation remains an independently released component.
 
@@ -24,6 +24,8 @@ merged-main commit. Documentation remains an independently released component.
 
 ### Changed
 
+- Requalify the unchanged Admin Web runtime from the RC6 merged-main repair commit
+  so its package, image, and coordinated Go modules retain one source identity.
 - Enforce one installed React 19.2.8, React DOM 19.2.8, Ant Design 6.6.0,
   ProComponents 3.1.14-6, React Query 5.101.4, and Umi Max 4.7.5 runtime graph.
 - Remove the downstream-invisible pnpm patch dependency and keep the canonical
