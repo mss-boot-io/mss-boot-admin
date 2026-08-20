@@ -89,8 +89,8 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 		if !confinedRepositoryPath(relative) {
 			continue
 		}
-		if problem := regularFileProblem(ctx.Root, relative); problem != "" {
-			problems = append(problems, problem)
+		if _, err := readThinHostFile(ctx.Root, relative); err != nil {
+			problems = append(problems, err.Error())
 		}
 	}
 
@@ -124,71 +124,82 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 	}
 
 	goModRelative := joinRepositoryPath(backend, "go.mod")
-	goModPath := filepath.Join(ctx.Root, filepath.FromSlash(goModRelative))
-	if data, err := os.ReadFile(goModPath); err == nil {
-		if actual := goModModule(data); actual != strings.TrimSpace(ctx.Project.Spec.Backend.Module) {
-			problems = append(problems, fmt.Sprintf(
-				"%s module must equal project backend module %s (found %q)",
-				goModRelative,
-				ctx.Project.Spec.Backend.Module,
-				actual,
-			))
-		}
-		if !goModRequires(data, distribution.Backend.Module, distribution.Backend.Version) {
-			problems = append(problems, fmt.Sprintf(
-				"go.mod must require Distribution backend %s %s",
-				distribution.Backend.Module,
-				distribution.Backend.Version,
-			))
-		}
-		if frameworkModule != "" && !goModRequires(data, frameworkModule, distribution.Backend.Version) {
-			problems = append(problems, fmt.Sprintf(
-				"go.mod must require Distribution framework %s %s",
-				frameworkModule,
-				distribution.Backend.Version,
-			))
+	if confinedRepositoryPath(goModRelative) {
+		if data, err := readThinHostFile(ctx.Root, goModRelative); err != nil {
+			problems = append(problems, err.Error())
+		} else {
+			if actual := goModModule(data); actual != strings.TrimSpace(ctx.Project.Spec.Backend.Module) {
+				problems = append(problems, fmt.Sprintf(
+					"%s module must equal project backend module %s (found %q)",
+					goModRelative,
+					ctx.Project.Spec.Backend.Module,
+					actual,
+				))
+			}
+			if !goModRequires(data, distribution.Backend.Module, distribution.Backend.Version) {
+				problems = append(problems, fmt.Sprintf(
+					"go.mod must require Distribution backend %s %s",
+					distribution.Backend.Module,
+					distribution.Backend.Version,
+				))
+			}
+			if frameworkModule != "" && !goModRequires(data, frameworkModule, distribution.Backend.Version) {
+				problems = append(problems, fmt.Sprintf(
+					"go.mod must require Distribution framework %s %s",
+					frameworkModule,
+					distribution.Backend.Version,
+				))
+			}
 		}
 	}
 
 	packagePath := joinRepositoryPath(frontend, "package.json")
-	if data, err := readThinHostFile(ctx.Root, packagePath); err == nil {
-		var packageDocument struct {
-			Dependencies map[string]string `json:"dependencies"`
-			Scripts      map[string]string `json:"scripts"`
-		}
-		if err := json.Unmarshal(data, &packageDocument); err != nil {
-			problems = append(problems, packagePath+": invalid JSON: "+err.Error())
+	if confinedRepositoryPath(packagePath) {
+		if data, err := readThinHostFile(ctx.Root, packagePath); err != nil {
+			problems = append(problems, err.Error())
 		} else {
-			if actual := packageDocument.Dependencies[distribution.Frontend.Package]; actual != distribution.Frontend.Version {
-				problems = append(problems, fmt.Sprintf(
-					"%s must depend on Distribution frontend %s@%s (found %q)",
-					packagePath,
-					distribution.Frontend.Package,
-					distribution.Frontend.Version,
-					actual,
-				))
+			var packageDocument struct {
+				Dependencies map[string]string `json:"dependencies"`
+				Scripts      map[string]string `json:"scripts"`
 			}
-			for name, expected := range map[string]string{
-				"dev":   "mss-admin-web dev",
-				"lint":  "mss-admin-web lint",
-				"test":  "mss-admin-web test",
-				"build": "mss-admin-web build",
-			} {
-				if packageDocument.Scripts[name] != expected {
-					problems = append(problems, fmt.Sprintf("%s script %q must equal %q", packagePath, name, expected))
+			if err := json.Unmarshal(data, &packageDocument); err != nil {
+				problems = append(problems, packagePath+": invalid JSON: "+err.Error())
+			} else {
+				if actual := packageDocument.Dependencies[distribution.Frontend.Package]; actual != distribution.Frontend.Version {
+					problems = append(problems, fmt.Sprintf(
+						"%s must depend on Distribution frontend %s@%s (found %q)",
+						packagePath,
+						distribution.Frontend.Package,
+						distribution.Frontend.Version,
+						actual,
+					))
+				}
+				for name, expected := range map[string]string{
+					"dev":   "mss-admin-web dev",
+					"lint":  "mss-admin-web lint",
+					"test":  "mss-admin-web test",
+					"build": "mss-admin-web build",
+				} {
+					if packageDocument.Scripts[name] != expected {
+						problems = append(problems, fmt.Sprintf("%s script %q must equal %q", packagePath, name, expected))
+					}
 				}
 			}
 		}
 	}
 
 	npmrcPath := joinRepositoryPath(frontend, ".npmrc")
-	if data, err := readThinHostFile(ctx.Root, npmrcPath); err == nil {
-		expected := "@mss-boot-io:registry=https://npm.pkg.github.com\n" +
-			"//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}"
-		if strings.TrimSpace(string(data)) != expected {
-			problems = append(problems,
-				npmrcPath+" must contain only the GitHub Packages scope and NODE_AUTH_TOKEN placeholder",
-			)
+	if confinedRepositoryPath(npmrcPath) {
+		if data, err := readThinHostFile(ctx.Root, npmrcPath); err != nil {
+			problems = append(problems, err.Error())
+		} else {
+			expected := "@mss-boot-io:registry=https://npm.pkg.github.com\n" +
+				"//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}"
+			if strings.TrimSpace(string(data)) != expected {
+				problems = append(problems,
+					npmrcPath+" must contain only the GitHub Packages scope and NODE_AUTH_TOKEN placeholder",
+				)
+			}
 		}
 	}
 
@@ -234,6 +245,7 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 		}
 		data, err := readThinHostFile(ctx.Root, relative)
 		if err != nil {
+			problems = append(problems, err.Error())
 			continue
 		}
 		for _, fragment := range fragments {
@@ -307,7 +319,11 @@ func readThinHostFile(root, relative string) ([]byte, error) {
 	if problem := regularFileProblem(root, relative); problem != "" {
 		return nil, fmt.Errorf("%s", problem)
 	}
-	return os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
+	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
+	if err != nil {
+		return nil, fmt.Errorf("read required Thin Host file %s: %w", relative, err)
+	}
+	return data, nil
 }
 
 func goModRequires(data []byte, module, version string) bool {
