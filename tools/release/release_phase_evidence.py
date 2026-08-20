@@ -28,6 +28,13 @@ FULL_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 SAFE_ID_RE = re.compile(r"[^a-zA-Z0-9_.-]+")
 ENVIRONMENT_NAME_RE = re.compile(r"^(?:GOWORK|GOTOOLCHAIN|GOFLAGS|MSS_[A-Z0-9_]+)$")
 ALLOWED_EXECUTABLES = frozenset(("bash", "corepack", "go", "make", "node", "pnpm", "python3"))
+ALLOWED_BASH_SCRIPTS = frozenset(
+    (
+        "tools/compatibility/test-admin-external-consumer.sh",
+        "tools/compatibility/test-thin-host-external-consumer.sh",
+        "tools/release/verify_readiness_run.sh",
+    )
+)
 SHELL_CONTROL_TOKENS = frozenset(("&&", "||", ";", "|", ">", ">>", "<", "<<"))
 
 
@@ -239,8 +246,10 @@ def parse_command(value: str) -> ParsedCommand:
     if any("$(" in token or "`" in token for token in argv):
         raise PhaseEvidenceError("shell expansion is not allowed in command evidence")
     if argv[0] == "bash":
-        if len(argv) < 2 or argv[1].startswith("-") or not argv[1].startswith("tools/release/"):
-            raise PhaseEvidenceError("bash evidence may invoke only a checked-in tools/release script")
+        if len(argv) < 2 or argv[1] not in ALLOWED_BASH_SCRIPTS:
+            raise PhaseEvidenceError(
+                "bash evidence may invoke only an explicitly allowlisted qualification script"
+            )
     return ParsedCommand(argv, working_directory, environment)
 
 

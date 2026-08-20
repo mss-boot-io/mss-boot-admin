@@ -112,6 +112,45 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             )
         )
 
+    def test_v130_rc1_feature_freeze_commands_are_exact_and_executable(self):
+        feature_path = (
+            REPOSITORY_ROOT
+            / ".mss"
+            / "features"
+            / "complete-admin-distribution-thin-host.yaml"
+        )
+        feature = yaml.safe_load(feature_path.read_text(encoding="utf-8"))
+        plan = {
+            "feature": {"name": feature["metadata"]["name"]},
+            "acceptance": feature["spec"]["acceptance"],
+        }
+        steps, review = PHASE_EVIDENCE.collect_phase_commands(
+            [plan], phase="feature-freeze"
+        )
+        blockers = [
+            item
+            for item in review
+            if item.get("type") in {"non-exact-command", "unsupported-command"}
+        ]
+        self.assertEqual(blockers, [])
+        commands = {
+            " ".join(
+                [
+                    step.working_directory,
+                    *(f"{name}={value}" for name, value in sorted(step.environment.items())),
+                    *step.argv,
+                ]
+            )
+            for step in steps
+        }
+        for required in (
+            ". make test-all",
+            ". make web-v6-qualify",
+            ". bash tools/compatibility/test-admin-external-consumer.sh",
+            ". bash tools/compatibility/test-thin-host-external-consumer.sh",
+        ):
+            self.assertIn(required, commands)
+
     def test_historical_v123_release_feature_has_scoped_exact_commands(self):
         feature = yaml.safe_load(FEATURE_PATH.read_text(encoding="utf-8"))
         plan = {

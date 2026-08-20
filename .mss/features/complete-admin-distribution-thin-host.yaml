@@ -191,7 +191,9 @@ spec:
       required: true
       evidence:
         - type: command
-          value: make test-all and complete V6 lint, test, release build, delivery smoke, and browser regression
+          value: make test-all
+        - type: command
+          value: make web-v6-qualify
     - id: importable-backend-gate
       requirement: expose-importable-admin
       statement: The official Admin and a repository-external host compile and execute the same context-aware complete application entrypoint.
@@ -200,11 +202,13 @@ spec:
       required: true
       evidence:
         - type: command
-          value: cd admin && go test ./... && go vet ./...
+          value: cd admin && go test ./...
+        - type: command
+          value: cd admin && go vet ./...
         - type: command
           value: bash tools/compatibility/test-admin-external-consumer.sh
         - type: command
-          value: External thin-host GOWORK=off tidy, test, vet, build, and help verification
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
     - id: business-module-gate
       requirement: register-business-modules
       statement: Supplier uses the public module contract and duplicate, migration, readiness, authorization, and route-order cases pass.
@@ -222,7 +226,7 @@ spec:
       required: true
       evidence:
         - type: command
-          value: corepack pnpm@10.34.5 pack and external thin-host install, lint, test, and build
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
         - type: report
           value: Package file allowlist, dependency tree, runtime graph, and one-dist report
     - id: thin-host-blueprint-gate
@@ -252,6 +256,8 @@ spec:
       phase: feature-freeze
       required: true
       evidence:
+        - type: command
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
         - type: report
           value: External thin-host Playwright result and sanitized browser evidence
     - id: release-contract-gate

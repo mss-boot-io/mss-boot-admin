@@ -11,7 +11,7 @@ COVERAGE_POLICY := .mss/coverage.json
 	test-framework test-framework-race coverage-framework vet-framework \
 	tidy-framework-check verify-framework test-all generate lint fix-lint clean \
 	web-install web-lint web-test web-build \
-	web-v6-install web-v6-lint web-v6-test web-v6-build \
+	web-v6-install web-v6-lint web-v6-test web-v6-build web-v6-qualify \
 	docs-install docs-build verify-all
 
 build: build-admin
@@ -121,6 +121,13 @@ web-v6-test:
 
 web-v6-build:
 	cd web/antd-v6 && corepack pnpm@10.34.5 build:release
+
+web-v6-qualify:
+	$(MAKE) web-v6-lint
+	$(MAKE) web-v6-test
+	$(MAKE) web-v6-build
+	cd web/antd-v6 && corepack pnpm@10.34.5 delivery:smoke
+	cd web/antd-v6 && corepack pnpm@10.34.5 test:e2e
 
 docs-install:
 	cd docs && corepack pnpm@9.15.9 install --frozen-lockfile

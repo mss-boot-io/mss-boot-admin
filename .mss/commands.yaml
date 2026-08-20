@@ -198,6 +198,11 @@ spec:
       description: Build and validate the independently releasable Ant Design 6 frontend.
       category: frontend
 
+    frontend-v6-qualify:
+      command: make web-v6-qualify
+      description: Run the ordered V6 lint, unit test, release build, delivery smoke, and browser qualification sequence.
+      category: release
+
     docs-install:
       command: make docs-install
       description: Install documentation dependencies with the frozen lockfile.

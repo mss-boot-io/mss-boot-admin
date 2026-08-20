@@ -142,6 +142,27 @@ class ReleasePhaseEvidenceTest(unittest.TestCase):
             EVIDENCE.parse_command("bash tools/release/verify_readiness_run.sh --help").argv[:2],
             ["bash", "tools/release/verify_readiness_run.sh"],
         )
+        for script in (
+            "tools/compatibility/test-admin-external-consumer.sh",
+            "tools/compatibility/test-thin-host-external-consumer.sh",
+        ):
+            with self.subTest(script=script):
+                self.assertEqual(
+                    EVIDENCE.parse_command(f"bash {script}").argv,
+                    ["bash", script],
+                )
+
+    def test_rejects_nonqualification_bash_scripts(self):
+        for script in (
+            "tools/compatibility/process-groups.sh",
+            "tools/release/../compatibility/test-admin-external-consumer.sh",
+            "scripts/arbitrary.sh",
+        ):
+            with self.subTest(script=script):
+                with self.assertRaisesRegex(
+                    EVIDENCE.PhaseEvidenceError, "explicitly allowlisted"
+                ):
+                    EVIDENCE.parse_command(f"bash {script}")
 
     def test_parses_safe_repository_cwd_and_allowlisted_environment_without_shell(self):
         command = EVIDENCE.parse_command(
