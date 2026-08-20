@@ -63,6 +63,7 @@ type CheckSpec struct {
 	Path    string `yaml:"path,omitempty" json:"path,omitempty"`
 	Mode    string `yaml:"mode,omitempty" json:"mode,omitempty"`
 	Minimum int    `yaml:"minimum,omitempty" json:"minimum,omitempty"`
+	Maximum int    `yaml:"maximum,omitempty" json:"maximum,omitempty"`
 }
 
 // Report is persisted for agents, CI, and release review.
@@ -175,6 +176,15 @@ func (c *Catalog) Validate() error {
 			}
 			if check.Minimum < 0 {
 				problems = append(problems, checkPrefix+".minimum must be non-negative")
+			}
+			if check.Maximum < 0 {
+				problems = append(problems, checkPrefix+".maximum must be non-negative")
+			}
+			if check.Maximum > 0 && check.Type != "application-blueprint-plan" {
+				problems = append(problems, checkPrefix+".maximum is supported only for application-blueprint-plan")
+			}
+			if check.Maximum > 0 && check.Minimum > check.Maximum {
+				problems = append(problems, checkPrefix+".minimum must not exceed maximum")
 			}
 		}
 	}
@@ -301,7 +311,7 @@ func runCheck(ctx context.Context, root string, projectContext *project.Context,
 	case "module-generation-plan":
 		value, err = checkModuleGeneration(root, check.Path, check.Minimum)
 	case "application-blueprint-plan":
-		value, err = checkApplicationBlueprint(ctx, root, check.Minimum)
+		value, err = checkApplicationBlueprint(ctx, root, check.Minimum, check.Maximum)
 	case "feature-spec":
 		value, err = checkFeatureSpec(root, check.Path)
 	case "feature-plan":
@@ -459,7 +469,7 @@ func checkFeaturePlan(root, inputPath string, minimum int) (map[string]any, erro
 	}, nil
 }
 
-func checkApplicationBlueprint(ctx context.Context, root string, minimum int) (map[string]any, error) {
+func checkApplicationBlueprint(ctx context.Context, root string, minimum, maximum int) (map[string]any, error) {
 	plan, err := blueprint.Generate(ctx, blueprint.Options{
 		FoundationRoot: root,
 		Application: blueprint.Application{
@@ -475,8 +485,8 @@ func checkApplicationBlueprint(ctx context.Context, root string, minimum int) (m
 	if !plan.DryRun || !plan.Success {
 		return nil, errors.New("application Blueprint plan must be a successful dry-run")
 	}
-	if plan.TotalFiles < minimum {
-		return nil, fmt.Errorf("application Blueprint planned %d files, expected at least %d", plan.TotalFiles, minimum)
+	if err := validateApplicationBlueprintSize(plan.TotalFiles, minimum, maximum); err != nil {
+		return nil, err
 	}
 	if plan.FoundationCommit == "" {
 		return nil, errors.New("application Blueprint plan does not record a foundation commit")
@@ -492,7 +502,19 @@ func checkApplicationBlueprint(ctx context.Context, root string, minimum int) (m
 		"files":            plan.TotalFiles,
 		"bytes":            plan.TotalBytes,
 		"actions":          actions,
+		"minimumFiles":     minimum,
+		"maximumFiles":     maximum,
 	}, nil
+}
+
+func validateApplicationBlueprintSize(totalFiles, minimum, maximum int) error {
+	if totalFiles < minimum {
+		return fmt.Errorf("application Blueprint planned %d files, expected at least %d", totalFiles, minimum)
+	}
+	if maximum > 0 && totalFiles > maximum {
+		return fmt.Errorf("application Blueprint planned %d files, expected at most %d", totalFiles, maximum)
+	}
+	return nil
 }
 
 func checkValidationPlan(projectContext *project.Context, mode string, minimum int) (map[string]any, error) {

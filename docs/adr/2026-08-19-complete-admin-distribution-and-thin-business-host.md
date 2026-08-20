@@ -1,6 +1,6 @@
 # ADR: Complete Admin distribution and thin business hosts
 
-- Status: Accepted; v1.3.0-rc.5 preview qualification in progress
+- Status: Accepted; v1.3.0-rc.6 preview qualification in progress
 - Date: 2026-08-19
 - Owners: Admin, frontend, agent infrastructure, release engineering
 - Feature contract: `.mss/features/complete-admin-distribution-thin-host.yaml`
@@ -89,7 +89,7 @@ business files, and records a thin baseline only after all file operations and v
 
 Technical artifacts may use root, `mss-boot/`, `admin/`, and `web/antd-v6/` tag namespaces, but their
 exact semantic version, including a prerelease suffix, must match for a coordinated distribution. The
-current public consumption rehearsal uses `v1.3.0-rc.5`; it is marked as a prerelease and does not replace
+current public consumption rehearsal uses `v1.3.0-rc.6`; it is marked as a prerelease and does not replace
 the current `v1.2.3` stable release. Publication remains restricted to the exact merged-main commit and
 the protected Framework -> Admin -> Frontend -> Root release train.
 
