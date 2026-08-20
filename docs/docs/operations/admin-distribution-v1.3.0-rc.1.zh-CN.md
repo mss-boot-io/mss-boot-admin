@@ -90,3 +90,8 @@ go run ./cmd/mss new app preview-admin \
 包可安装、前后端测试和构建通过、Supplier 业务模块可用，并在仓库外 Thin Host
 上完成登录、菜单、CRUD、拒绝访问、刷新与控制台健康检查。测试项目应保留，供
 人工检查；预览版发现问题后发布新的 RC，不移动或覆盖既有标签和包版本。
+
+发布资格决策必须只绑定 `.mss/release-qualification.json` 选中的
+`complete-admin-distribution-thin-host` Feature。Agent CI 会在每个相关 PR 中运行阶段证据、
+资格决策、readiness attestation 与工作流合同测试；活动版本、Feature 或精确提交绑定发生漂移时，
+预发布流程必须在创建任何标签或制品前失败。
