@@ -42,6 +42,27 @@ func (module testModule) Register(registry *Registry) error {
 	return module.afterRegisterErr
 }
 
+type ignoredRegistryErrorModule struct {
+	name string
+}
+
+func (module ignoredRegistryErrorModule) Name() string { return module.name }
+
+func (module ignoredRegistryErrorModule) Register(registry *Registry) error {
+	// A module must not be able to turn a rejected registration into success by
+	// ignoring the returned error and returning nil itself.
+	_ = registry.Register(Registration{
+		Descriptor: Descriptor{
+			Name:        "wrong-identity",
+			DisplayName: "Wrong identity",
+			Model:       new(testRecord),
+		},
+		Readiness: func(context.Context, *gorm.DB) error { return nil },
+		Routes:     func(*gin.RouterGroup, Runtime) error { return nil },
+	})
+	return nil
+}
+
 type testEventCollector struct{}
 
 func (testEventCollector) Collect(context.Context, Event) {}
@@ -123,23 +144,69 @@ func TestAddRollsBackEveryFailedRegistrationSideEffect(t *testing.T) {
 			if err := registry.Add(tt.module(migrationID, injected)); !errors.Is(err, injected) {
 				t.Fatalf("failed Add error = %v, want injected error", err)
 			}
-			if descriptors := registry.Descriptors(); len(descriptors) != 0 {
-				t.Fatalf("failed module leaked descriptors: %#v", descriptors)
-			}
-
-			// Reusing both the failed module identity and its migration ID proves
-			// that neither side effect escaped the discarded transaction.
-			if err := registry.Add(validTestModule("failed", migrationID)); err != nil {
-				t.Fatalf("replacement module inherited failed registration state: %v", err)
-			}
-			if err := registry.Freeze(); err != nil {
-				t.Fatalf("freeze replacement registry: %v", err)
-			}
-			descriptors := registry.Descriptors()
-			if len(descriptors) != 1 || descriptors[0].Name != "failed" {
-				t.Fatalf("replacement descriptors = %#v", descriptors)
-			}
+			assertFailedRegistrationIsReusable(t, registry, "failed", migrationID)
 		})
+	}
+}
+
+func TestAddRejectsIgnoredRegistrationErrorsWithoutLeakingState(t *testing.T) {
+	t.Run("ignored Registry.Register error", func(t *testing.T) {
+		registry, err := NewRegistry(migration.New())
+		if err != nil {
+			t.Fatalf("new registry: %v", err)
+		}
+		migrationID := migration.MigrationID("202608190112")
+		err = registry.Add(ignoredRegistryErrorModule{name: "failed"})
+		if err == nil || !strings.Contains(err.Error(), "identity mismatch") {
+			t.Fatalf("ignored Registry.Register error = %v", err)
+		}
+		assertFailedRegistrationIsReusable(t, registry, "failed", migrationID)
+	})
+
+	t.Run("ignored migration registration error", func(t *testing.T) {
+		registry, err := NewRegistry(migration.New())
+		if err != nil {
+			t.Fatalf("new registry: %v", err)
+		}
+		migrationID := migration.MigrationID("202608190113")
+		module := validTestModule("failed", migrationID)
+		module.registration.Migrations = func(runner *migration.Migration) error {
+			if err := runner.Register(migrationID, func(*gorm.DB, string) error { return nil }); err != nil {
+				return err
+			}
+			_ = runner.Register(migrationID, func(*gorm.DB, string) error { return nil })
+			return nil
+		}
+		err = registry.Add(module)
+		if !errors.Is(err, migration.ErrDuplicateMigrationID) {
+			t.Fatalf("ignored migration registration error = %v", err)
+		}
+		assertFailedRegistrationIsReusable(t, registry, "failed", migrationID)
+	})
+}
+
+func assertFailedRegistrationIsReusable(
+	t *testing.T,
+	registry *Registry,
+	moduleName string,
+	migrationID migration.MigrationID,
+) {
+	t.Helper()
+	if descriptors := registry.Descriptors(); len(descriptors) != 0 {
+		t.Fatalf("failed module leaked descriptors: %#v", descriptors)
+	}
+
+	// Reusing both the failed module identity and its migration ID proves that
+	// neither side effect escaped the discarded transaction.
+	if err := registry.Add(validTestModule(moduleName, migrationID)); err != nil {
+		t.Fatalf("replacement module inherited failed registration state: %v", err)
+	}
+	if err := registry.Freeze(); err != nil {
+		t.Fatalf("freeze replacement registry: %v", err)
+	}
+	descriptors := registry.Descriptors()
+	if len(descriptors) != 1 || descriptors[0].Name != moduleName {
+		t.Fatalf("replacement descriptors = %#v", descriptors)
 	}
 }
 
