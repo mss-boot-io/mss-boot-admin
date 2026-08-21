@@ -483,6 +483,9 @@
         "parent": {
           "type": "string"
         },
+        "parentIcon": {
+          "type": "string"
+        },
         "parentDisplayName": {
           "type": "string"
         },

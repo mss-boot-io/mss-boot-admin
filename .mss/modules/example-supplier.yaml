@@ -161,6 +161,7 @@ spec:
     displayNameEn: Suppliers
     icon: shop
     parent: /procurement
+    parentIcon: shop
     parentDisplayName: 采购管理
     parentDisplayNameEn: Procurement
     order: 20
@@ -191,7 +192,7 @@ spec:
 
   generation:
     migrationID: "20260810160000"
-    authorizationMigrationID: "20260811120000"
+    authorizationMigrationID: "20260821093000"
     backend: true
     frontend: true
     frontendTargets: [antd-v6]

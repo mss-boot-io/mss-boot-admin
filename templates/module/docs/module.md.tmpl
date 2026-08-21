@@ -25,10 +25,15 @@ This document is generated deterministically from [`{{ .SourceSpec }}`](../../..
 | Authorization migration | `{{ .AuthorizationMigrationID }}` |
 | API base | `{{ .FullAPIPath }}` |
 | Frontend route | `{{ .Menu.Path }}` |
+| Menu icon | `{{ .Menu.Icon }}` |
+| Parent menu | `{{ .Menu.Parent }}` |
+| Parent menu icon | `{{ .Menu.ParentIcon }}` |
 | Frontend target | {{ if .HasFrontendV6 }}`antd-v6`{{ else }}none{{ end }} |
 | Ownership | role-only; no row ownership fallback |
 
 Both migrations are additive and must be applied by the Admin migration command before production routes are mounted. Authorization remains enforced by the Admin database-backed Casbin policy; frontend visibility is only a user-experience aid.
+
+Set `spec.menu.icon` for the module leaf and `spec.menu.parentIcon` for its parent directory. The frontend resolves icon keys through its safe registry and falls back without executing arbitrary component names.
 
 ## Fields
 

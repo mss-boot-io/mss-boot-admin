@@ -735,6 +735,7 @@ func TestGenerateAlignsAuthorizedMenuNamesWithLocaleKeys(t *testing.T) {
 	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
 	module := generatorTestModule()
 	module.Spec.Menu.Parent = "/procurement"
+	module.Spec.Menu.ParentIcon = "shop"
 	module.Spec.Menu.ParentDisplayName = "采购管理"
 	module.Spec.Menu.ParentDisplayNameEn = "Procurement"
 
@@ -745,6 +746,9 @@ func TestGenerateAlignsAuthorizedMenuNamesWithLocaleKeys(t *testing.T) {
 		"admin/modules/supplier/authorization_migration_generated.go": {
 			"name:       \"supplier\"",
 			"Name:   \"procurement\"",
+			"\"/procurement\",",
+			"\"shop\",",
+			"Icon:   strings.TrimSpace(icon)",
 		},
 		"web/antd-v6/src/generated/locales/zh-CN.ts": {
 			"\"menu.procurement\": \"采购管理\"",

@@ -214,15 +214,12 @@ export default function {{ .ModelName }}Page() {
   const openCreate = () => {
     setConflict(false);
     setEditorRecord(undefined);
-    editorForm.resetFields();
-    editorForm.setFieldsValue(createDefaults);
     setEditorOpen(true);
   };
 
   const openEdit = (record: {{ .ModelName }}) => {
     setConflict(false);
     setEditorRecord(record);
-    editorForm.setFieldsValue(record);
     setEditorOpen(true);
   };
 
@@ -511,7 +508,6 @@ export default function {{ .ModelName }}Page() {
         onOk={() => editorForm.submit()}
         afterOpenChange={(open) => {
           if (!open) {
-            editorForm.resetFields();
             setEditorRecord(undefined);
             setConflict(false);
             save.reset();
@@ -520,6 +516,7 @@ export default function {{ .ModelName }}Page() {
       >
         <Form<Create{{ .ModelName }}Input>
           form={editorForm}
+          initialValues={editorRecord ?? createDefaults}
           layout="vertical"
           name="{{ .ModuleName }}-editor"
           preserve={false}

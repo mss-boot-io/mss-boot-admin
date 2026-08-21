@@ -174,6 +174,7 @@ type MenuSpec struct {
 	DisplayNameEn       string `yaml:"displayNameEn,omitempty" json:"displayNameEn,omitempty"`
 	Icon                string `yaml:"icon,omitempty" json:"icon,omitempty"`
 	Parent              string `yaml:"parent,omitempty" json:"parent,omitempty"`
+	ParentIcon          string `yaml:"parentIcon,omitempty" json:"parentIcon,omitempty"`
 	ParentDisplayName   string `yaml:"parentDisplayName,omitempty" json:"parentDisplayName,omitempty"`
 	ParentDisplayNameEn string `yaml:"parentDisplayNameEn,omitempty" json:"parentDisplayNameEn,omitempty"`
 	Order               int    `yaml:"order,omitempty" json:"order,omitempty"`
