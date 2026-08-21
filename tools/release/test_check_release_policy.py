@@ -524,6 +524,10 @@ class ReleasePolicyTest(unittest.TestCase):
             self.assertIn("18001", content)
         for content in (support, backend, generated_supplier, supplier_template):
             self.assertNotIn("http://127.0.0.1:8001", content)
+        for content in (generated_supplier, supplier_template):
+            self.assertIn("const authorizedMenu = page.waitForResponse", content)
+            self.assertIn("{ timeout: 20_000 }", content)
+            self.assertIn("toBeVisible({ timeout: 15_000 })", content)
 
     def test_publication_workflows_require_the_phase_they_publish_from(self):
         expected_phases = {

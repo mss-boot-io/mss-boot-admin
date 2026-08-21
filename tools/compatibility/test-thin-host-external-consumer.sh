@@ -645,8 +645,17 @@ required_files = {
     'permission.spec.ts',
     'parity.spec.ts',
 }
+required_titles = {
+    'uses the HttpOnly session for create, detail, edit, export, and delete',
+    '@parity en-US retained pages are responsive and deprecation-free',
+    '@parity zh-CN retained pages are responsive and deprecation-free',
+    '@parity OAuth login preserves an attempt-bound safe deep link',
+    '@permission anonymous direct navigation requires a server session',
+    '@permission restricted user cannot access Supplier or online-session menu, route, and API',
+}
 files = set()
 tests = []
+titles = []
 
 def visit(suites):
     for suite in suites:
@@ -657,24 +666,31 @@ def visit(suites):
             spec_file = spec.get('file')
             if isinstance(spec_file, str):
                 files.add(spec_file)
+            title = spec.get('title')
+            if isinstance(title, str):
+                titles.append(title)
             tests.extend(spec.get('tests', []))
         visit(suite.get('suites', []))
 
 visit(report.get('suites', []))
 if files != required_files:
     raise SystemExit(f'external E2E reporter files = {sorted(files)}, want {sorted(required_files)}')
+if len(titles) != len(required_titles) or set(titles) != required_titles:
+    raise SystemExit(
+        f'external E2E reporter titles = {sorted(titles)}, want {sorted(required_titles)}'
+    )
 if not tests:
     raise SystemExit('external E2E reporter contains no tests')
 projects = {test.get('projectName') for test in tests}
 if projects != {'chromium-desktop'}:
     raise SystemExit(f'external E2E projects = {sorted(projects)!r}')
 stats = report.get('stats', {})
-expected = stats.get('expected')
-if not isinstance(expected, int) or expected != len(tests):
-    raise SystemExit(f'external E2E expected count = {expected!r}, tests = {len(tests)}')
 for field in ('skipped', 'unexpected', 'flaky'):
     if stats.get(field) != 0:
         raise SystemExit(f'external E2E {field} count = {stats.get(field)!r}')
+expected = stats.get('expected')
+if not isinstance(expected, int) or expected != len(tests):
+    raise SystemExit(f'external E2E expected count = {expected!r}, tests = {len(tests)}')
 if report.get('errors'):
     raise SystemExit('external E2E reporter contains top-level errors')
 PY

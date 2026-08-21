@@ -293,6 +293,8 @@ class WorkflowGovernanceTest(unittest.TestCase):
             "--project=chromium-desktop",
             "--reporter=json",
             'external-e2e.json',
+            'required_titles = {',
+            'external E2E reporter titles',
             '"@mss-boot-io/admin-web@file:../.mss/qualification/admin-web.tgz"',
             "entry.get('specifier') != expected",
             "resolved.startswith(expected + '(')",
