@@ -113,6 +113,7 @@ jobs:
           MSS_RELEASE_ADMIN_PASSWORD: release-upgrade-ci-only
           MSS_RELEASE_ALLOW_DISPOSABLE_DATABASE: '1'
           MSS_RELEASE_EVIDENCE_MODE: '1'
+          MSS_RELEASE_CANDIDATE_GOWORK: ${{ github.workspace }}/go.work
           MSS_RELEASE_MYSQL_VERSION: ${{ steps.database_identity.outputs.mysql_version }}
           MSS_RELEASE_MYSQL_IMAGE_REF: ${{ steps.database_identity.outputs.mysql_image_ref }}
           MSS_RELEASE_MYSQL_IMAGE_ID: ${{ steps.database_identity.outputs.mysql_image_id }}

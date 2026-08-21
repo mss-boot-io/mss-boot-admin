@@ -157,6 +157,65 @@ class WorkflowGovernanceTest(unittest.TestCase):
         for route in ("admin|shared)", "framework)", "docs|web)"):
             self.assertIn(route, aggregate)
 
+    def test_admin_module_metadata_gate_uses_a_confined_prepublication_replace(self):
+        job = self.workflows["ci.yml"]["jobs"]["static-and-module"]
+        step = next(
+            item
+            for item in job["steps"]
+            if item.get("name") == "Verify Admin module metadata"
+        )
+        self.assertEqual(
+            step["run"], "bash tools/ci/verify-admin-module-metadata.sh"
+        )
+
+        script = (
+            REPOSITORY_ROOT / "tools" / "ci" / "verify-admin-module-metadata.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn('GOWORK=off go mod tidy -modfile="${temporary_mod}"', script)
+        self.assertIn(
+            '-replace="${framework_module}@${framework_version}=${framework_dir}"',
+            script,
+        )
+        self.assertIn(
+            '-dropreplace="${framework_module}@${framework_version}"', script
+        )
+        self.assertIn(
+            'diff -u -- "${admin_dir}/go.mod" "${temporary_mod}"', script
+        )
+        self.assertIn(
+            'diff -u -- "${admin_dir}/go.sum" "${temporary_sum}"', script
+        )
+
+    def test_v0_7_upgrade_candidate_uses_the_explicit_prepublication_workspace(self):
+        workflow = self.workflows["v0.7-upgrade-integration.yml"]
+        step = next(
+            item
+            for item in workflow["jobs"]["upgrade"]["steps"]
+            if item.get("name") == "Upgrade real v0.7 schema to the candidate twice"
+        )
+        self.assertEqual(
+            step["env"]["MSS_RELEASE_CANDIDATE_GOWORK"],
+            "${{ github.workspace }}/go.work",
+        )
+
+        script = (
+            REPOSITORY_ROOT / "tools" / "release" / "verify-v0.7-upgrade.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn('candidate_dependency_mode="repository-workspace"', script)
+        self.assertIn('candidate_dependency_mode="public-module"', script)
+        self.assertIn(
+            'GOWORK="${candidate_gowork}" go build -trimpath', script
+        )
+        self.assertIn(
+            'GOWORK="${candidate_gowork}" go test ./cmd/migrate/migration/system',
+            script,
+        )
+        self.assertIn(
+            'GOWORK="${candidate_gowork}" go list -m', script
+        )
+        self.assertIn('GOWORK=off go build -trimpath', script)
+        self.assertIn('"candidateDependencyMode": sys.argv[16]', script)
+
     def test_go_vulnerability_scans_follow_owned_modules(self):
         workflow = self.workflows["govulncheck.yml"]
         self.assertEqual(
