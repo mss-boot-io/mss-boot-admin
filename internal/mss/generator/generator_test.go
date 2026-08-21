@@ -690,7 +690,11 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 			"randomUUID",
 			"uniqueFixture",
 			"const CREATE_DEFAULTS: Record<string, FixtureValue>",
-			"expectEditorValues",
+			"async function expectEditorValues(",
+			"page.getByRole('option', { name: enumLabel, exact: true, selected: true })",
+			"await combobox.press('Escape')",
+			"await expect(combobox).toHaveAttribute('aria-expanded', 'false')",
+			"expectEditorValues(page, editDialog, CREATE_VALUES)",
 			"const consoleViolations: string[] = []",
 			"expect(consoleViolations).toEqual([])",
 			"const draftDialog = page.getByRole('dialog')",
@@ -716,6 +720,15 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 			} {
 				if strings.Contains(string(content), forbidden) {
 					t.Fatalf("%s retained stale editor form lifecycle %q", path, forbidden)
+				}
+			}
+		} else if path == "web/antd-v6/e2e/generated/supplier.spec.ts" {
+			for _, forbidden := range []string{
+				".ant-select-selection-item",
+				"filter({ has: combobox })",
+			} {
+				if strings.Contains(string(content), forbidden) {
+					t.Fatalf("%s retained stale enum assertion %q", path, forbidden)
 				}
 			}
 		}

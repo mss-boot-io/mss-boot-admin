@@ -256,7 +256,11 @@ async function fillEditor(page: Page, dialog: Locator, values: Record<string, Fi
   }
 }
 
-async function expectEditorValues(dialog: Locator, values: Record<string, FixtureValue>) {
+async function expectEditorValues(
+  page: Page,
+  dialog: Locator,
+  values: Record<string, FixtureValue>,
+) {
   for (const [name, value] of Object.entries(values)) {
     const label = FIELD_LABELS[name];
     if (!label) throw new Error(`Missing generated field label for ${name}`);
@@ -270,8 +274,12 @@ async function expectEditorValues(dialog: Locator, values: Record<string, Fixtur
     const enumLabel = ENUM_LABELS[`${name}:${value}`];
     if (enumLabel) {
       const combobox = dialog.getByRole('combobox', { name: fieldName(label) });
-      const formItem = dialog.locator('.ant-form-item').filter({ has: combobox });
-      await expect(formItem.locator('.ant-select-selection-item')).toHaveText(enumLabel);
+      await combobox.click();
+      await expect(
+        page.getByRole('option', { name: enumLabel, exact: true, selected: true }),
+      ).toBeVisible();
+      await combobox.press('Escape');
+      await expect(combobox).toHaveAttribute('aria-expanded', 'false');
       continue;
     }
     await expect(dialog.getByRole('textbox', { name: fieldName(label) })).toHaveValue(value);
@@ -337,7 +345,7 @@ test.describe('{{ .Menu.DisplayNameEn }} generated V6 critical path', () => {
 {{- if and .HasUpdate .UIForm .HasV6E2EUpdateField }}
       await row.getByRole('button', { name: 'Edit', exact: true }).click();
       const editDialog = page.getByRole('dialog');
-      await expectEditorValues(editDialog, CREATE_VALUES);
+      await expectEditorValues(page, editDialog, CREATE_VALUES);
       await fillEditor(page, editDialog, { [UPDATE_FIELD]: UPDATE_VALUE as FixtureValue });
       const updateResponse = waitForResource(page, 'PUT', `/${createdID}`);
       await editDialog.getByRole('button', { name: 'OK', exact: true }).click();
