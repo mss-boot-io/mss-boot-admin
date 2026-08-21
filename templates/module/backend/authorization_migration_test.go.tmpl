@@ -65,7 +65,9 @@ func Test{{ .ModelName }}AuthorizationMigrationProjectsExactPolicy(t *testing.T)
 	if err := db.Where("id = ?", menu.ParentID).Take(&parent).Error; err != nil {
 		t.Fatalf("load menu parent: %v", err)
 	}
-	if parent.Name != "{{ .Menu.ParentName }}" || parent.Path != "{{ .Menu.Parent }}" {
+	if parent.Name != "{{ .Menu.ParentName }}" ||
+		parent.Path != "{{ .Menu.Parent }}" ||
+		parent.Icon != "{{ .Menu.ParentIcon }}" {
 		t.Fatalf("menu parent metadata = %#v", parent)
 	}
 	{{- else }}
@@ -191,6 +193,38 @@ func Test{{ .ModelName }}AuthorizationMigrationProjectsExactPolicy(t *testing.T)
 		}
 	}
 }
+
+{{- if and .Menu.Parent .Menu.ParentIcon }}
+func Test{{ .ModelName }}AuthorizationMigrationBackfillsParentIcon(t *testing.T) {
+	db := open{{ .ModelName }}AuthorizationTestDatabase(t)
+	parent, err := upsert{{ .ModelName }}AuthorizationMenu(db, {{ .ModuleName }}AuthorizationMenuSeed{
+		name:       "{{ .Menu.ParentName }}",
+		path:       "{{ .Menu.Parent }}",
+		method:     "GET",
+		accessType: adminpkg.DirectoryAccessType,
+	})
+	if err != nil {
+		t.Fatalf("create parent without icon: %v", err)
+	}
+	if parent.Icon != "" {
+		t.Fatalf("parent icon before migration = %q, want empty", parent.Icon)
+	}
+
+	if err := apply{{ .ModelName }}AuthorizationMigration(
+		db,
+		{{ .ModelName }}AuthorizationMigrationID.String(),
+		nil,
+	); err != nil {
+		t.Fatalf("apply authorization migration: %v", err)
+	}
+	if err := db.Where("id = ?", parent.ID).Take(parent).Error; err != nil {
+		t.Fatalf("reload parent: %v", err)
+	}
+	if parent.Icon != "{{ .Menu.ParentIcon }}" {
+		t.Fatalf("parent icon after migration = %q, want %q", parent.Icon, "{{ .Menu.ParentIcon }}")
+	}
+}
+{{- end }}
 
 func Test{{ .ModelName }}AuthorizationMigrationFailureRollsBackAllProjectedTruth(t *testing.T) {
 	db := open{{ .ModelName }}AuthorizationTestDatabase(t)

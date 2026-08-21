@@ -99,13 +99,13 @@ export default function {{ .ModelName }}Page() {
     [initialState?.currentUser],
   );
   const [filterForm] = Form.useForm<{{ .ModelName }}FilterValues>();
-  const [editorForm] = Form.useForm<Create{{ .ModelName }}Input>();
   const [filters, setFilters] = useState<{{ .ModelName }}FilterValues>(initialFilters);
   const [params, setParams] = useState<{{ .ModelName }}Query>(() =>
     build{{ .ModelName }}Query(1, 20, initialFilters),
   );
   const [detailID, setDetailID] = useState<string>();
   const [editorRecord, setEditorRecord] = useState<{{ .ModelName }}>();
+  const [editorSession, setEditorSession] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
   const [conflict, setConflict] = useState(false);
   const list = use{{ .ModelName }}Page(params, capabilities.canList);
@@ -213,16 +213,17 @@ export default function {{ .ModelName }}Page() {
 
   const openCreate = () => {
     setConflict(false);
+    save.reset();
     setEditorRecord(undefined);
-    editorForm.resetFields();
-    editorForm.setFieldsValue(createDefaults);
+    setEditorSession((session) => session + 1);
     setEditorOpen(true);
   };
 
   const openEdit = (record: {{ .ModelName }}) => {
     setConflict(false);
+    save.reset();
     setEditorRecord(record);
-    editorForm.setFieldsValue(record);
+    setEditorSession((session) => session + 1);
     setEditorOpen(true);
   };
 
@@ -506,20 +507,21 @@ export default function {{ .ModelName }}Page() {
         title={intl.formatMessage({
           id: `${localePrefix}.actions.${editorRecord ? 'edit' : 'create'}`,
         })}
-        okButtonProps={ { loading: save.isPending } }
-        onCancel={() => setEditorOpen(false)}
-        onOk={() => editorForm.submit()}
-        afterOpenChange={(open) => {
-          if (!open) {
-            editorForm.resetFields();
-            setEditorRecord(undefined);
-            setConflict(false);
-            save.reset();
-          }
+        okButtonProps={ {
+          form: '{{ .ModuleName }}-editor',
+          htmlType: 'submit',
+          loading: save.isPending,
+        } }
+        onCancel={() => {
+          setEditorOpen(false);
+          setEditorRecord(undefined);
+          setConflict(false);
+          save.reset();
         }}
       >
         <Form<Create{{ .ModelName }}Input>
-          form={editorForm}
+          initialValues={editorRecord ?? createDefaults}
+          key={editorSession}
           layout="vertical"
           name="{{ .ModuleName }}-editor"
           preserve={false}

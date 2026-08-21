@@ -22,9 +22,9 @@ import UserSwitchOutlined from '@ant-design/icons/UserSwitchOutlined';
 import WalletOutlined from '@ant-design/icons/WalletOutlined';
 import WarningOutlined from '@ant-design/icons/WarningOutlined';
 import type { MenuDataItem } from '@ant-design/pro-components';
-import { type ComponentType, createElement } from 'react';
+import { type AriaAttributes, type ComponentType, createElement } from 'react';
 
-const registeredIcons: Readonly<Record<string, ComponentType>> = {
+const registeredIcons: Readonly<Record<string, ComponentType<AriaAttributes>>> = {
   apartment: ApartmentOutlined,
   audit: AuditOutlined,
   cluster: ClusterOutlined,
@@ -56,7 +56,7 @@ function resolveIcon(icon: MenuDataItem['icon']): MenuDataItem['icon'] {
   if (!normalized) return undefined;
   const key = `${normalized.slice(0, 1).toLowerCase()}${normalized.slice(1)}`;
   const Icon = registeredIcons[key];
-  return Icon ? createElement(Icon) : undefined;
+  return Icon ? createElement(Icon, { 'aria-hidden': true }) : undefined;
 }
 
 /**

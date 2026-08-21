@@ -28,6 +28,15 @@ const CREATE_VALUES: Record<string, FixtureValue> = {
 {{- end }}{{- end }}
 };
 
+const CREATE_DEFAULTS: Record<string, FixtureValue> = {
+{{- range .Fields }}{{ if .Form }}
+{{- if .HasDefault }}
+  {{ printf "%q" .JSONName }}: {{ .DefaultTS }},
+{{- else if and .Required .IsBool }}
+  {{ printf "%q" .JSONName }}: false,
+{{- end }}{{- end }}{{- end }}
+};
+
 const FIELD_LABELS: Record<string, string> = {
 {{- range .Fields }}{{ if .Form }}
   {{ printf "%q" .JSONName }}: {{ printf "%q" .DisplayNameEn }},
@@ -247,6 +256,36 @@ async function fillEditor(page: Page, dialog: Locator, values: Record<string, Fi
   }
 }
 
+async function expectEditorValues(
+  page: Page,
+  dialog: Locator,
+  values: Record<string, FixtureValue>,
+) {
+  for (const [name, value] of Object.entries(values)) {
+    const label = FIELD_LABELS[name];
+    if (!label) throw new Error(`Missing generated field label for ${name}`);
+    if (typeof value === 'boolean') {
+      await expect(dialog.getByRole('switch', { name: fieldName(label) })).toHaveAttribute(
+        'aria-checked',
+        String(value),
+      );
+      continue;
+    }
+    const enumLabel = ENUM_LABELS[`${name}:${value}`];
+    if (enumLabel) {
+      const combobox = dialog.getByRole('combobox', { name: fieldName(label) });
+      await combobox.click();
+      await expect(
+        page.getByRole('option', { name: enumLabel, exact: true, selected: true }),
+      ).toBeVisible();
+      await combobox.press('Escape');
+      await expect(combobox).toHaveAttribute('aria-expanded', 'false');
+      continue;
+    }
+    await expect(dialog.getByRole('textbox', { name: fieldName(label) })).toHaveValue(value);
+  }
+}
+
 function recordRow(page: Page, marker: string) {
   return page.getByRole('row').filter({ hasText: marker }).first();
 }
@@ -254,6 +293,12 @@ function recordRow(page: Page, marker: string) {
 test.describe('{{ .Menu.DisplayNameEn }} generated V6 critical path', () => {
   test('uses the HttpOnly session for create, detail, edit, export, and delete', async ({ page }) => {
     test.setTimeout(90_000);
+    const consoleViolations: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') {
+        consoleViolations.push(`${message.type()}: ${message.text()}`);
+      }
+    });
     await login(page);
     await removeExistingFixtures(page);
 
@@ -264,7 +309,21 @@ test.describe('{{ .Menu.DisplayNameEn }} generated V6 critical path', () => {
 
 {{- if and .HasCreate .UIForm }}
       await page.getByRole('button', { name: 'Create', exact: true }).click();
+      const draftDialog = page.getByRole('dialog');
+      const rowFieldLabel = FIELD_LABELS[ROW_FIELD];
+      if (!rowFieldLabel || typeof CREATE_VALUES[ROW_FIELD] !== 'string') {
+        throw new Error(`Generated row field ${ROW_FIELD} must be a text editor field`);
+      }
+      const draftRowField = draftDialog.getByRole('textbox', { name: fieldName(rowFieldLabel) });
+      await draftRowField.fill(String(CREATE_VALUES[ROW_FIELD]));
+      await draftDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(draftDialog).toHaveCount(0);
+
+      await page.getByRole('button', { name: 'Create', exact: true }).click();
       const createDialog = page.getByRole('dialog');
+      await expect(
+        createDialog.getByRole('textbox', { name: fieldName(rowFieldLabel) }),
+      ).toHaveValue(String(CREATE_DEFAULTS[ROW_FIELD] ?? ''));
       await fillEditor(page, createDialog, CREATE_VALUES);
       const createResponse = waitForResource(page, 'POST');
       await createDialog.getByRole('button', { name: 'OK', exact: true }).click();
@@ -286,6 +345,7 @@ test.describe('{{ .Menu.DisplayNameEn }} generated V6 critical path', () => {
 {{- if and .HasUpdate .UIForm .HasV6E2EUpdateField }}
       await row.getByRole('button', { name: 'Edit', exact: true }).click();
       const editDialog = page.getByRole('dialog');
+      await expectEditorValues(page, editDialog, CREATE_VALUES);
       await fillEditor(page, editDialog, { [UPDATE_FIELD]: UPDATE_VALUE as FixtureValue });
       const updateResponse = waitForResource(page, 'PUT', `/${createdID}`);
       await editDialog.getByRole('button', { name: 'OK', exact: true }).click();
@@ -312,6 +372,7 @@ test.describe('{{ .Menu.DisplayNameEn }} generated V6 critical path', () => {
       await expect(recordRow(page, rowMarker)).toHaveCount(0);
 {{- end }}
 {{- end }}
+      expect(consoleViolations).toEqual([]);
     } finally {
       if (createdID && !deleted) {
         const cleanup = await page.request.delete(`${RESOURCE_URL}/${encodeURIComponent(createdID)}`, {

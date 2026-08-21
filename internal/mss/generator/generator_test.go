@@ -664,9 +664,14 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 			"@tanstack/react-query",
 			"PageContainer",
 			"destroyOnHidden",
+			"form: 'supplier-editor'",
+			"htmlType: 'submit'",
+			"const [editorSession, setEditorSession] = useState(0)",
+			"key={editorSession}",
 			"App.useApp()",
 			"name=\"supplier-filters\"",
 			"name=\"supplier-editor\"",
+			"preserve={false}",
 			"aria-label={intl.formatMessage",
 		},
 		"web/antd-v6/src/generated/modules/supplier/contract.ts": {
@@ -684,6 +689,16 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 			"not.toHaveProperty('token')",
 			"randomUUID",
 			"uniqueFixture",
+			"const CREATE_DEFAULTS: Record<string, FixtureValue>",
+			"async function expectEditorValues(",
+			"page.getByRole('option', { name: enumLabel, exact: true, selected: true })",
+			"await combobox.press('Escape')",
+			"await expect(combobox).toHaveAttribute('aria-expanded', 'false')",
+			"expectEditorValues(page, editDialog, CREATE_VALUES)",
+			"const consoleViolations: string[] = []",
+			"expect(consoleViolations).toEqual([])",
+			"const draftDialog = page.getByRole('dialog')",
+			"await expect(draftDialog).toHaveCount(0)",
 			"toPass({ timeout: 15_000 })",
 		},
 	} {
@@ -694,6 +709,27 @@ func TestGenerateAntDV6TargetIsConfinedAndIdempotent(t *testing.T) {
 		for _, fragment := range fragments {
 			if !strings.Contains(string(content), fragment) {
 				t.Fatalf("%s omitted %q", path, fragment)
+			}
+		}
+		if path == "web/antd-v6/src/generated/modules/supplier/SupplierPage.tsx" {
+			for _, forbidden := range []string{
+				"const [editorForm]",
+				"form={editorForm}",
+				"editorForm.submit()",
+				"afterOpenChange={(open)",
+			} {
+				if strings.Contains(string(content), forbidden) {
+					t.Fatalf("%s retained stale editor form lifecycle %q", path, forbidden)
+				}
+			}
+		} else if path == "web/antd-v6/e2e/generated/supplier.spec.ts" {
+			for _, forbidden := range []string{
+				".ant-select-selection-item",
+				"filter({ has: combobox })",
+			} {
+				if strings.Contains(string(content), forbidden) {
+					t.Fatalf("%s retained stale enum assertion %q", path, forbidden)
+				}
 			}
 		}
 	}
@@ -735,6 +771,7 @@ func TestGenerateAlignsAuthorizedMenuNamesWithLocaleKeys(t *testing.T) {
 	copyTree(t, filepath.Join(repositoryRoot, "templates", "module"), filepath.Join(root, "templates", "module"))
 	module := generatorTestModule()
 	module.Spec.Menu.Parent = "/procurement"
+	module.Spec.Menu.ParentIcon = "shop"
 	module.Spec.Menu.ParentDisplayName = "采购管理"
 	module.Spec.Menu.ParentDisplayNameEn = "Procurement"
 
@@ -745,6 +782,9 @@ func TestGenerateAlignsAuthorizedMenuNamesWithLocaleKeys(t *testing.T) {
 		"admin/modules/supplier/authorization_migration_generated.go": {
 			"name:       \"supplier\"",
 			"Name:   \"procurement\"",
+			"\"/procurement\",",
+			"\"shop\",",
+			"Icon:   strings.TrimSpace(icon)",
 		},
 		"web/antd-v6/src/generated/locales/zh-CN.ts": {
 			"\"menu.procurement\": \"采购管理\"",

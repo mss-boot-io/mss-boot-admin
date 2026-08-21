@@ -125,6 +125,7 @@ describe('Admin web package contract', () => {
   });
 
   it('keeps the retired MFSU runtime out of external development builds', () => {
+    const tailwindPostCSS = require.resolve('@tailwindcss/postcss');
     expect(defineBusinessAdmin()).toMatchObject({ mfsu: false, utoopack: false });
     expect(defineBusinessAdmin({ useUtoopack: true })).toMatchObject({
       alias: { tailwindcss: expect.stringContaining('tailwindcss') },
@@ -132,6 +133,13 @@ describe('Admin web package contract', () => {
       utoopack: {
         resolve: {
           alias: { tailwindcss: expect.stringContaining('tailwindcss') },
+        },
+        styles: {
+          postcss: {
+            plugins: {
+              [tailwindPostCSS]: {},
+            },
+          },
         },
       },
     });

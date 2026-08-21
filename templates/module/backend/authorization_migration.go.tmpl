@@ -104,7 +104,11 @@ func apply{{ .ModelName }}AuthorizationMigration(
 			roles[roleName] = role
 		}
 
-		parent, err := ensure{{ .ModelName }}AuthorizationParent(tx, "{{ .Menu.Parent }}")
+		parent, err := ensure{{ .ModelName }}AuthorizationParent(
+			tx,
+			"{{ .Menu.Parent }}",
+			"{{ .Menu.ParentIcon }}",
+		)
 		if err != nil {
 			return err
 		}
@@ -250,7 +254,7 @@ type {{ .ModuleName }}AuthorizationMenuSeed struct {
 	hidden     bool
 }
 
-func ensure{{ .ModelName }}AuthorizationParent(tx *gorm.DB, path string) (*models.Menu, error) {
+func ensure{{ .ModelName }}AuthorizationParent(tx *gorm.DB, path string, icon string) (*models.Menu, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, nil
 	}
@@ -270,13 +274,20 @@ func ensure{{ .ModelName }}AuthorizationParent(tx *gorm.DB, path string) (*model
 		if parent.DeletedAt.Valid || parent.Status != enum.Enabled {
 			return nil, fmt.Errorf("{{ .ModuleName }} authorization migration: parent %q is not active", path)
 		}
+		if normalizedIcon := strings.TrimSpace(icon); normalizedIcon != "" && parent.Icon != normalizedIcon {
+			if err := tx.Model(parent).Update("icon", normalizedIcon).Error; err != nil {
+				return nil, fmt.Errorf("{{ .ModuleName }} authorization migration: update parent %q icon: %w", path, err)
+			}
+			parent.Icon = normalizedIcon
+		}
 		return parent, nil
 	}
 	parent := &models.Menu{
-		Name: "{{ .Menu.ParentName }}",
-		Path: path,
+		Name:   "{{ .Menu.ParentName }}",
+		Path:   path,
+		Icon:   strings.TrimSpace(icon),
 		Method: "GET",
-		Type: adminpkg.DirectoryAccessType,
+		Type:   adminpkg.DirectoryAccessType,
 		Status: enum.Enabled,
 	}
 	if err := tx.Create(parent).Error; err != nil {

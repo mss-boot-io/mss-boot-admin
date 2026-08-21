@@ -3,6 +3,7 @@ import SmileOutlined from '@ant-design/icons/SmileOutlined';
 import UserSwitchOutlined from '@ant-design/icons/UserSwitchOutlined';
 import WalletOutlined from '@ant-design/icons/WalletOutlined';
 import type { MenuDataItem } from '@ant-design/pro-components';
+import { render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 import { resolveMenuIcons } from './menuIcons';
@@ -33,6 +34,19 @@ describe('resolveMenuIcons', () => {
   it('drops unknown icon keys instead of rendering them as menu text', () => {
     const result = resolveMenuIcons([{ icon: 'serverControlledUnknownIcon' }]);
     expect(result.at(0)?.icon).toBeUndefined();
+  });
+
+  it('marks registered menu icons as decorative so menu names stay accessible', () => {
+    const result = resolveMenuIcons([{ icon: 'shop' }]);
+
+    render(
+      <div role="menuitem" tabIndex={0}>
+        {result.at(0)?.icon}
+        <span>Procurement</span>
+      </div>,
+    );
+
+    expect(screen.getByRole('menuitem', { name: 'Procurement' })).toBeTruthy();
   });
 
   it('resolves the operational task icon through an explicit public import', () => {
