@@ -423,6 +423,7 @@ jobs:
           labels: |
             ${{ steps.meta.outputs.labels }}
             org.opencontainers.image.title=mss-boot-admin-antd-v6
+            org.opencontainers.image.description=Complete React 19 and Ant Design 6 Admin application for mss-boot business hosts.
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
@@ -484,6 +485,7 @@ jobs:
             platform_image="${image_repository}@${platform_digest}"
             container_id="$(docker create --platform "linux/${architecture}" "${platform_image}")"
             test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.title" }}' "${container_id}")" = 'mss-boot-admin-antd-v6'
+            test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.description" }}' "${container_id}")" = 'Complete React 19 and Ant Design 6 Admin application for mss-boot business hosts.'
             test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "${container_id}")" = "${VERSION}"
             test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${container_id}")" = "${GITHUB_SHA}"
             release_file="${RUNNER_TEMP}/release-${architecture}.json"

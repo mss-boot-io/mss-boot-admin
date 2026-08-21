@@ -75,14 +75,14 @@ func TestValidateThinHostStructureRejectsDistributionDependencyDriftAndPrivateIm
 	}
 }
 
-func TestValidateThinHostStructureRejectsCommittedGitHubPackagesToken(t *testing.T) {
+func TestValidateThinHostStructureRejectsPrivateRegistryCredential(t *testing.T) {
 	root := t.TempDir()
 	ctx := thinHostVerifyContext(root, ".", "web", "internal/modules")
 	writeThinHostStructure(t, ctx)
 	writeThinHostTestFile(t, root, "web/.npmrc", "@mss-boot-io:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=committed-token\n")
 
 	result := validateThinHostStructure(ctx)
-	if result.ExitCode == 0 || !strings.Contains(result.Error, "NODE_AUTH_TOKEN placeholder") {
+	if result.ExitCode == 0 || !strings.Contains(result.Error, "public npm registry") {
 		t.Fatalf("committed package token was accepted: %#v", result)
 	}
 }
@@ -144,7 +144,8 @@ func TestPlanChecksUsesThinHostCommandsAndLayout(t *testing.T) {
 	if !ok {
 		t.Fatalf("Thin Host module plan omitted focused test: %#v", modulePlan.Checks)
 	}
-	if focused.Directory != root || !reflect.DeepEqual(focused.Args, []string{"go", "test", "./internal/modules/supplier/..."}) || focused.Environment["GOWORK"] != "off" {
+	if focused.Directory != root || !reflect.DeepEqual(focused.Args, []string{"go", "test", "./internal/modules/supplier/..."}) ||
+		focused.Environment["GOWORK"] != "off" || focused.Environment["GOFLAGS"] != "-mod=readonly" {
 		t.Fatalf("Thin Host focused module test = %#v", focused)
 	}
 	if !containsString(modulePlan.ChangedFiles, "internal/modules/supplier") {
@@ -223,7 +224,7 @@ func writeThinHostStructure(t *testing.T, ctx *project.Context) {
   "dependencies": {"@mss-boot-io/admin-web": "1.3.0"}
 }
 `,
-		joinRepositoryPath(frontend, ".npmrc"):               "@mss-boot-io:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n",
+		joinRepositoryPath(frontend, ".npmrc"):               "registry=https://registry.npmjs.org/\nsave-exact=true\n",
 		joinRepositoryPath(frontend, "tsconfig.json"):        "{\n  \"extends\": \"./src/.umi/tsconfig.json\"\n}\n",
 		joinRepositoryPath(frontend, "config/config.ts"):     "import { defineBusinessAdmin } from '" + distribution.Frontend.Package + "/business';\nimport businessRoutes from './business-routes.generated';\nexport default defineBusinessAdmin({ businessRoutes, routeRegistrations: './src/generated/routes.ts', useUtoopack: true });\n",
 		joinRepositoryPath(frontend, "mss-admin.config.ts"):  "export { default } from './config/config';\n",

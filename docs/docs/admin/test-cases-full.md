@@ -1,12 +1,18 @@
 ---
-title: 全量测试用例
+title: 历史全量测试用例（2026-04）
 order: 28
 nav:
   order: 1
   title: admin
-description: mss-boot-admin 完整功能测试用例，覆盖所有核心模块和边界场景
+description: 2026-04 留存的旧版全量测试用例快照，不代表当前 V6 执行合同
 keywords: [admin test cases integration e2e]
 ---
+
+> **历史快照，不可作为当前执行说明。** 本页保留 2026-04 当时的账号、
+> localStorage/Token 与接口假设作为演进证据，这些内容不代表当前 V6 安全合同。
+> 当前验证以[集成测试指南](/admin/integration-test-guide)与
+> [Token 与 OAuth2 联调说明](/admin/token-oauth2-guide)为准，并以待发布精确提交的
+> 自动化证据判定结果。
 
 ## 概述
 

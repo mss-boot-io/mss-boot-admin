@@ -492,7 +492,11 @@ func toolingTest(root string) command.Spec {
 		Description: "test mss CLI, contracts, generator, verifier, Admin module registry, and available vertical module runtime",
 		Directory:   root,
 		Args:        args,
-		Timeout:     10 * time.Minute,
+		Environment: map[string]string{
+			"GOFLAGS": "-mod=readonly",
+			"GOWORK":  filepath.Join(root, "go.work"),
+		},
+		Timeout: 10 * time.Minute,
 	}
 }
 
@@ -502,7 +506,7 @@ func frameworkTest(root string) command.Spec {
 		Description: "test the reusable mss-boot module independently",
 		Directory:   filepath.Join(root, "mss-boot"),
 		Args:        []string{"go", "test", "./..."},
-		Environment: map[string]string{"GOWORK": "off"},
+		Environment: map[string]string{"GOFLAGS": "-mod=readonly", "GOWORK": "off"},
 		Timeout:     20 * time.Minute,
 	}
 }
@@ -510,15 +514,18 @@ func frameworkTest(root string) command.Spec {
 func backendTest(root string) command.Spec {
 	return command.Spec{
 		ID:          "backend-test",
-		Description: "run the Admin application tests independently",
+		Description: "run the Admin application tests in the repository workspace",
 		Directory:   filepath.Join(root, "admin"),
 		Args: []string{
 			"go", "test",
 			"-coverprofile=" + filepath.Join(root, ".mss", "reports", "admin-coverage.out"),
 			"./...",
 		},
-		Environment: map[string]string{"GOWORK": "off"},
-		Timeout:     20 * time.Minute,
+		Environment: map[string]string{
+			"GOFLAGS": "-mod=readonly",
+			"GOWORK":  filepath.Join(root, "go.work"),
+		},
+		Timeout: 20 * time.Minute,
 	}
 }
 
@@ -528,8 +535,12 @@ func backendBuild(root string) command.Spec {
 		Description: "build the admin backend",
 		Directory:   filepath.Join(root, "admin"),
 		Args:        []string{"go", "build", "./..."},
-		Environment: map[string]string{"CGO_ENABLED": "0", "GOWORK": "off"},
-		Timeout:     10 * time.Minute,
+		Environment: map[string]string{
+			"CGO_ENABLED": "0",
+			"GOFLAGS":     "-mod=readonly",
+			"GOWORK":      filepath.Join(root, "go.work"),
+		},
+		Timeout: 10 * time.Minute,
 	}
 }
 
@@ -587,7 +598,7 @@ func thinHostBackendTest(ctx *project.Context) command.Spec {
 			"-coverprofile=" + filepath.Join(ctx.Root, ".mss", "reports", "thin-host-coverage.out"),
 			"./...",
 		},
-		Environment: map[string]string{"GOWORK": "off"},
+		Environment: map[string]string{"GOFLAGS": "-mod=readonly", "GOWORK": "off"},
 		Timeout:     20 * time.Minute,
 	}
 }
@@ -598,7 +609,7 @@ func thinHostBackendBuild(ctx *project.Context) command.Spec {
 		Description: "build the Thin Host Admin and business composition",
 		Directory:   layoutDirectory(ctx.Root, ctx.Project.Spec.RepositoryLayout["backend"]),
 		Args:        []string{"go", "build", "./..."},
-		Environment: map[string]string{"CGO_ENABLED": "0", "GOWORK": "off"},
+		Environment: map[string]string{"CGO_ENABLED": "0", "GOFLAGS": "-mod=readonly", "GOWORK": "off"},
 		Timeout:     10 * time.Minute,
 	}
 }
@@ -678,12 +689,19 @@ func focusedModuleTest(ctx *project.Context, module string) (command.Spec, strin
 		return command.Spec{}, "", errors.New("project modules directory must be inside the backend module root")
 	}
 	packagePattern := "./" + strings.TrimPrefix(filepath.ToSlash(relative), "./") + "/..."
+	environment := map[string]string{
+		"GOFLAGS": "-mod=readonly",
+		"GOWORK":  filepath.Join(ctx.Root, "go.work"),
+	}
+	if ctx.LayoutKind() != "foundation" {
+		environment["GOWORK"] = "off"
+	}
 	return command.Spec{
 		ID:          "module-test:" + module,
 		Description: "run focused tests for module " + module,
 		Directory:   backendDirectory,
 		Args:        []string{"go", "test", packagePattern},
-		Environment: map[string]string{"GOWORK": "off"},
+		Environment: environment,
 		Timeout:     10 * time.Minute,
 	}, moduleDirectory, nil
 }

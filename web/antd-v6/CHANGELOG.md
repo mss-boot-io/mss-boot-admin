@@ -6,15 +6,21 @@ and the root changelog, not as a current release surface.
 
 ## Unreleased
 
-Target: **web/antd-v6/v1.3.0-rc.6**. The Admin Web package, Admin Go module,
+Target: **web/antd-v6/v1.3.0**. The Admin Web package, Admin Go module,
 Framework module, and root distribution use one version core and one exact
 merged-main commit. Documentation remains an independently released component.
+The complete RC6 preview published successfully from
+`0ef09fb3caa1b2d424c540da23d01219135ebcfa` and remains immutable prerelease
+history.
 
 ### Added
 
 - Publish the sole complete Admin frontend as `@mss-boot-io/admin-web`, with a
   controlled file allowlist, stable exports, package-owned Umi integration, and
   `mss-admin-web dev|lint|test|build` commands for Thin Hosts.
+- Publish the exact same verified tarball to npmjs as the credential-free
+  primary registry and to GitHub Packages as a compatibility mirror, with
+  version, gitHead, integrity, dist-tag, checksum, and provenance reconciliation.
 - Compose deterministic business routes and menu registrations before the
   fail-closed 403/404 routes without copying core pages, layout, session,
   request, theme, locale, or design-system source into downstream repositories.
@@ -24,8 +30,12 @@ merged-main commit. Documentation remains an independently released component.
 
 ### Changed
 
-- Requalify the unchanged Admin Web runtime from the RC6 merged-main repair commit
-  so its package, image, and coordinated Go modules retain one source identity.
+- Promote the RC6-qualified Admin Web contract to the stable v1.3.0 target while
+  retaining one source identity across its package, image, portable assets, and
+  coordinated Go modules. Stable packages use the `latest` distribution tag;
+  prereleases use `next`.
+- Label the frontend image with an explicit Admin Web OCI description instead of
+  inheriting the root repository's Go-backend description.
 - Enforce one installed React 19.2.8, React DOM 19.2.8, Ant Design 6.6.0,
   ProComponents 3.1.14-6, React Query 5.101.4, and Umi Max 4.7.5 runtime graph.
 - Remove the downstream-invisible pnpm patch dependency and keep the canonical
@@ -33,6 +43,13 @@ merged-main commit. Documentation remains an independently released component.
 - Make generated Supplier browser qualification verify the authorized menu API,
   expand the configured parent menu, and navigate through the visible sidebar
   instead of allowing a direct URL to conceal a missing menu projection.
+- Preserve configured generated parent-menu icons, mark decorative navigation
+  icons as hidden from assistive technology, and retain accessible menu names.
+- Reset generated create and update form values from the current operation every
+  time an editor opens, so cancelled or stale values do not survive a reopen.
+- Scope generated enum-selection assertions to the exact listbox referenced by
+  the active combobox's `aria-controls`, keeping duplicate labels in separate
+  fields semantic and strict-mode safe.
 
 ## [web/antd-v6/v1.2.2] - 2026-08-19
 

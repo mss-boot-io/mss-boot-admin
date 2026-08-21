@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   backend:
@@ -32,12 +31,9 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24.13.1
-          registry-url: https://npm.pkg.github.com
-          scope: '@mss-boot-io'
+          registry-url: https://registry.npmjs.org
       - run: corepack enable
       - run: corepack pnpm@10.34.5 install --no-frozen-lockfile
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
       - run: corepack pnpm@10.34.5 lint
       - run: corepack pnpm@10.34.5 test
       - run: corepack pnpm@10.34.5 build

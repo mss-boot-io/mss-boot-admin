@@ -14,9 +14,12 @@ private GitHub advisories are the preferred intake path.
 
 ## Supported versions
 
-The active `main` branch, the beta deployment line, and the latest tagged release
-are supported by default. Older versions are handled case by case until a formal
-support matrix is published.
+The active `main` branch and the current stable Complete Admin Distribution are
+supported by default. During v1.3.0 preparation the reconciled stable remains
+v1.2.3; after all v1.3.0 public artifacts and the follow-up reconciliation are
+complete, the machine-readable policy advances the stable line to v1.3.0.
+Preview and release-candidate refs remain immutable evidence but do not receive
+the stable support commitment. Older stable versions are handled case by case.
 
 ## Response expectations
 

@@ -1,97 +1,86 @@
 ---
-title: mss-boot文档
+title: mss-boot Complete Admin Distribution
 hero:
-  title: mss-boot
-  description: 快速开发 http/grpc 服务的框架，提供开箱即用的单租户后台管理系统 mss-boot-admin，并覆盖治理、运营、部署、测试与文档协同。
+  title: mss-boot Admin
+  description: 完整、可组合、可升级的 Agent 原生管理系统基础设施。使用一套 Go Admin、一个 React 19 + Ant Design 6 前端和 Thin Host 构建真实业务系统。
   actions:
-    - text: 快速开始
+    - text: 了解 Admin
       link: /admin
-    - text: 框架指南
-      link: /guide
+    - text: v1.3.0 发布合同
+      link: /releases/v1-3-0
     - text: GitHub
-      link: https://github.com/mss-boot-io/mss-boot
+      link: https://github.com/mss-boot-io/mss-boot-admin
 features:
-  - title: 开箱即用
-    emoji: 📦
-    description: 提供开箱即用的后台管理系统 mss-boot-admin，适合单一组织或团队快速搭建治理型与运营型后台系统
-  - title: 微服务
-    emoji: 💎
-    description: 依托istio平台的微服务治理,提供了微服务的基础开发框架,不依赖于任何中间件或sdk
-  - title: 服务治理
-    emoji: 📈
-    description: 原生集成了指标暴露、日志收集、链路追踪、健康检查、pprof性能分析等功能
-  - title: Admin 平台能力
+  - title: Complete Admin Distribution
     emoji: 🧭
-    description: 覆盖权限治理、通知任务、日志监控、告警通知、国际化与 API 文档等后台核心能力
-  - title: http服务
-    emoji: 🚀
-    description: http服务基于gin框架, 提供了http服务的基础开发框架, 支持swagger文档, 支持自定义response结构, 内置prometheus监控、健康检查、pprof性能分析等
-  - title: grpc服务
-    emoji: 🚀
-    description: grpc服务基于grpc-go框架, 提供了全链路日志追踪, 内置prometheus监控、健康检查、pprof性能分析等
+    description: Framework、可导入 Admin Go Module、完整 Admin Web npm 包、CLI、机器契约和发布证据使用一个协调版本。
+  - title: Thin Host
+    emoji: 🪶
+    description: 下游仓库只保存组合胶水与业务代码，不复制 Foundation 核心源码；前后端仍编译成一个逻辑应用。
+  - title: Agent-native
+    emoji: 🤖
+    description: AGENTS.md、.mss 规格、mss CLI、Skills、确定性生成与变更感知验证让人和编码 Agent 使用同一事实源。
+  - title: 权限与迁移闭环
+    emoji: 🛡️
+    description: 后端 RBAC 强制执行，业务模块同时生成迁移、菜单、API、权限、前端、测试和文档投影。
+  - title: 单一前端 Runtime
+    emoji: ⚛️
+    description: React 19、Ant Design 6、Umi、Session、主题、国际化与业务页面进入同一路由树和同一个 dist。
+  - title: 可验证发布
+    emoji: ✅
+    description: PR 到 main、精确提交冻结、外部消费者、浏览器、不可变标签、制品校验和发布后对账共同定义完成。
 ---
 
-### 反馈
+## 当前版本状态
 
-点击 [github](https://github.com/mss-boot-io/mss-boot/issues/new) | [gitee](https://gitee.com/mss-boot-io/mss-boot/issues/new)，直接提issue
+| 项目 | 状态 |
+| --- | --- |
+| 当前稳定版 | `v1.2.3` |
+| 唯一活动目标 | `v1.3.0` 稳定版候选，尚未公开发布 |
+| 已完成预览 | `v1.3.0-rc.6` 完整列车；RC1–RC6 保持不可变 |
+| 前端主线 | `web/antd-v6`；Ant Design 5 已退役 |
+| 下游推荐形态 | `management-system` Thin Host |
 
-### 推荐阅读
+`v1.3.0` 只有在准备变更通过 PR 合并、从新的精确 `main` 提交完成资格审查、按顺序公开四个
+组件并完成发布后对账后，才会替代 `v1.2.3`。详见
+[发布与升级](/releases)和 [v1.3.0 合同](/releases/v1-3-0)。
 
-#### 指南系列（用户使用指南）
+## 选择你的路径
 
-- [框架介绍](/guide) - mss-boot 核心框架介绍
-- [快速开始](/guide/quickly) - 环境准备与项目启动
-- [核心功能](/guide/features) - 系统内置功能模块
-- [服务配置](/guide/config) - 配置文件详细说明
-- [部署指南](/guide/deployment) - 生产环境部署方案
-- [常见问题](/guide/faq) - 使用问题解答
+### 使用完整 Admin
 
-#### Admin 系列（产品文档）
-
-- [admin 介绍](/admin)
+- [Admin 产品概览](/admin)
 - [当前功能总览](/admin/current-capabilities)
-- [产品打磨治理计划](/admin/product-polish-governance-plan)
-- [容器化与生产部署](/admin/docker)
-- [发布前检查清单](/admin/pre-release-checklist)
-- [性能与可观测性指南](/admin/observability-guide)
-- [安全基线指南](/admin/security-baseline)
+- [本地启动](/admin/quickly)
+- [生产与安全基线](/admin/security-baseline)
+
+### 创建业务系统
+
+- [完整 Admin Distribution 与 Thin Host](/architecture/complete-admin-distribution-and-thin-business-host)
+- [Agent 开发入口](/agent)
+- [Blueprint 与升级](/agent/blueprints-and-upgrades)
+- [Supplier 黄金样例](/modules/supplier)
+
+### 安装、升级与恢复
+
+- [v1.3.0 安装、升级、兼容与回滚](/releases/v1-3-0)
+- [Docker 部署](/admin/docker)
 - [登录排障](/admin/login-troubleshooting)
-- [集成测试指南](/admin/integration-test-guide)
-- [配置教程](/admin/configuration-guide)
+- [API 与权限治理](/admin/governance-guide)
 
-#### DevOps 与社区治理
+## 仓库组成
 
-- [Open Source Governance](/devops/open-source-governance)
-- [SECURITY Policy FAQ](/devops/security-policy-faq)
+| 路径 | 作用 |
+| --- | --- |
+| `mss-boot/` | 领域中立的可复用 Go Framework |
+| `admin/` | 可部署且可导入的完整 Admin 应用 |
+| `web/antd-v6/` | 唯一正式前端与 `@mss-boot-io/admin-web` 来源 |
+| `cmd/mss/`、`internal/mss/` | Agent CLI、生成、验证、评测和升级实现 |
+| `.mss/` | 项目、能力、模块、Blueprint 和发布机器契约 |
+| `docs/` | 本站源码与可独立发布的 Docs 组件 |
 
-### 讨论交流
+## 反馈与安全
 
-加入讨论群
-`申请消息github名@mss-boot-io,e.g. lwnemngjing@mss-boot-io`
-
-<table>
-   <tr>
-    <td><img src="https://mss-boot-io.github.io/.github/images/wechat.jpg" width="180px"></td>
-    <td><img src="https://mss-boot-io.github.io/.github/images/wechat-mp.jpg" width="180px"></td>
-    <td><img src="https://mss-boot-io.github.io/.github/images/qq-group.jpg" width="200px"></td>
-    <td><a href="https://space.bilibili.com/597294782/channel/seriesdetail?sid=3881026&ctype=0">mss-boot-io</a></td>
-  </tr>
-  <tr>
-    <td>微信</td>
-    <td>公众号🔥🔥🔥</td>
-    <td><a target="_blank" href="https://shang.qq.com/wpa/qunwpa?idkey=0f2bf59f5f2edec6a4550c364242c0641f870aa328e468c4ee4b7dbfb392627b"><img border="0" src="https://pub.idqqimg.com/wpa/images/group.png" alt="mss-boot技术交流群" title="mss-boot技术交流群"></a></td>
-    <td>哔哩哔哩🔥🔥🔥</td>
-  </tr>
-</table>
-
-### 💎 贡献者
-
-<span style="margin: 0 5px;" ><a href="https://github.com/lwnmengjing" ><img src="https://images.weserv.nl/?url=avatars.githubusercontent.com/u/12806223?s=64&v=4&w=60&fit=cover&mask=circle&maxage=7d" /></a></span>
-<span style="margin: 0 5px;" ><a href="https://github.com/wangde7" ><img src="https://images.weserv.nl/?url=avatars.githubusercontent.com/u/56955959?s=64&v=4&w=60&fit=cover&mask=circle&maxage=7d" /></a></span>
-<span style="margin: 0 5px;" ><a href="https://github.com/wxip" ><img src="https://images.weserv.nl/?url=avatars.githubusercontent.com/u/25923931?s=64&v=4&w=60&fit=cover&mask=circle&maxage=7d" /></a></span>
-
-### 🤟 打赏
-
-如果你觉得这个项目帮助到了你，你可以帮作者买一杯果汁表示鼓励 🍹
-
-<img class="no-margin" src="https://mss-boot-io.github.io/.github/images/sponsor-us.jpg"  height="400px"  alt="Sponsor Us">
+一般问题请提交到
+[`mss-boot-admin` Issues](https://github.com/mss-boot-io/mss-boot-admin/issues)。疑似漏洞不要在
+公开 Issue 中披露，请先阅读 [Security Policy FAQ](/devops/security-policy-faq)。

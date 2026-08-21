@@ -68,7 +68,7 @@ corepack pnpm@10.34.5 --dir web/antd-v6 start:dev
 
 ```bash
 make web-lint web-test web-build
-corepack pnpm@10.34.5 --dir web/antd-v6 e2e
+corepack pnpm@10.34.5 --dir web/antd-v6 run test:e2e
 ```
 
 体积优化在功能追平和体验闭环后统一处理，但生产构建、运行时依赖契约和控制台零弃用

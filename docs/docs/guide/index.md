@@ -8,7 +8,7 @@ nav:
 
 ## 什么是 mss-boot
 
-[mss-boot](https://github.com/mss-boot-io/mss-boot) 是一个企业级服务开发框架，基于 Gin、GORM、Casbin 等成熟组件构建，专注于提供稳定、可维护的后台管理系统开发基础。
+`mss-boot` 是 `mss-boot-admin` 单仓库中的领域中立 Go Framework，基于 Gin、GORM、Casbin 等组件构建。它与可导入 Admin、完整 V6 前端、生成器和文档共同组成 Complete Admin Distribution。
 
 ## 核心定位
 
@@ -25,10 +25,11 @@ nav:
 
 | 项目 | 说明 |
 |------|------|
-| [mss-boot](https://github.com/mss-boot-io/mss-boot) | 核心框架，提供 HTTP/GRPC 服务开发基础 |
-| [mss-boot-admin](https://github.com/mss-boot-io/mss-boot-admin) | 后端、V6 前端、生成器和交付契约的统一事实源 |
-| `mss-boot-admin-antd-v6` | 唯一前端与独立发布单元，基于 React 19 + Ant Design 6 + Umi Max |
-| [mss-boot-docs](https://github.com/mss-boot-io/mss-boot-docs) | 文档站点，在线文档与教程 |
+| [mss-boot-admin](https://github.com/mss-boot-io/mss-boot-admin) | Root、Framework、Admin、V6 前端、生成器、机器契约和文档的统一事实源 |
+| `mss-boot/` | 领域中立 Framework，使用 `mss-boot/vX.Y.Z` 嵌套标签发布 |
+| `admin/` | 完整 Admin Go Module，使用 `admin/vX.Y.Z` 嵌套标签发布 |
+| `web/antd-v6/` | 唯一正式前端和 `@mss-boot-io/admin-web` 来源 |
+| `docs/` | 本站源码，使用 `docs/vX.Y.Z` 独立发布但不再是独立仓库 |
 
 ## 核心特性
 
@@ -48,7 +49,7 @@ nav:
 ### 权限与安全
 
 - RBAC 权限管理基于 Casbin
-- JWT 认证与 OAuth2.0 第三方登录
+- HttpOnly Session、签名 CSRF、WebSocket ticket 与 OAuth2.0 第三方登录
 - 个人访问令牌（Personal Access Token）
 
 ### 可观测性
@@ -90,5 +91,5 @@ mss-boot 适合以下场景：
 ## 获取帮助
 
 - [在线文档](https://docs.mss-boot-io.top)
-- [GitHub Issues](https://github.com/mss-boot-io/mss-boot/issues)
+- [GitHub Issues](https://github.com/mss-boot-io/mss-boot-admin/issues)
 - [视频教程](https://space.bilibili.com/597294782/channel/seriesdetail?sid=3881026)

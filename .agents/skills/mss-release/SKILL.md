@@ -15,7 +15,7 @@ Record:
 
 - repository, component scope, version, and all tag names;
 - frozen full commit and merged PR;
-- feature-freeze, browser, Blueprint, pre-framework, Framework, Admin, frontend, pre-root, root-container, root-candidate, and final-publication run IDs or URLs;
+- feature-freeze, browser, Blueprint, pre-framework, Framework, Admin, frontend, pre-root, root-container, root-candidate, final-publication, Docs, and official-npm run IDs or URLs;
 - evidence issue URL, public release URLs, image digests, artifact checksums, active GitHub actor, and approver actor;
 - status as `missing`, `running`, `waiting-approval`, `successful`, `failed-before-publication`, or `public`.
 
@@ -25,7 +25,7 @@ Show only transitions. Do not repeatedly narrate an unchanged queued or approval
 
 - Reuse a successful result only when version, full commit, phase, inputs, and workflow identity match exactly.
 - Run the complete feature-freeze suite once for a frozen commit. Do not repeat broad local validation after an exact successful feature-freeze run unless diagnosing a concrete failure.
-- Use `pre-framework` and `pre-root` for lightweight publication attestations; these phases plan evidence and must not replay the feature-freeze suite.
+- Use `pre-framework` and `pre-root` for scoped publication attestations. Execute only the commands selected for that phase; do not replay unrelated feature-freeze checks or reduce the phase to a plan-only result.
 - Treat a code, contract, dependency, workflow, or release-policy change after freeze as a new commit. Invalidate every affected later phase.
 - Rerun only the failed phase when no source or public state changed and the failure was transient or approval-related.
 - If a public tag, Release, package, or image already exists and repair needs source changes, preserve it and prepare a new patch version through a PR.
@@ -38,11 +38,13 @@ For the consolidated foundation repository, release the synchronized train in th
 2. `pre-framework` authority;
 3. Framework tag and public external-module probe;
 4. Admin tag, Release, and public external-module probe;
-5. frontend tag, npm package, artifact, image, and Release;
+5. frontend tag, GitHub Packages mirror, artifact, image, and Release;
 6. independent `pre-root` authority;
 7. root tag, root image, and tag-triggered candidate artifacts;
 8. exact-tag manual root publication;
-9. independent public reconciliation.
+9. Docs tag, protected deployment, and Release from the same commit;
+10. official npm publication of the already-qualified frontend tarball as the final artifact publication;
+11. independent public reconciliation.
 
 For a component-only or downstream release, retain the same source, evidence, immutability, and reconciliation rules while following that repository's tag namespace and workflow.
 
@@ -194,7 +196,7 @@ git push origin "refs/tags/${ADMIN_TAG}"
 
 Wait for the exact `admin-release.yml` push run and its protected `release` environment. Require the public, immutable Admin Release, then resolve `github.com/mss-boot-io/mss-boot-admin/admin@VERSION` from a second clean external module with `GOWORK=off`; its required Framework version, origin hash, and checksum must all match the coordinated version and `SHA`.
 
-Only after both Go modules are public and externally resolvable may the frontend tag be created. Require `@mss-boot-io/admin-web` to publish the exact unprefixed version with `gitHead == SHA` and immutable registry integrity. Also require frontend Release assets, checksums, portable archive, `linux/amd64` plus `linux/arm64` image manifest, and OCI version/revision labels before proceeding.
+Only after both Go modules are public and externally resolvable may the frontend tag be created. Require the GitHub Packages mirror of `@mss-boot-io/admin-web` to publish the exact unprefixed version with `gitHead == SHA` and immutable registry integrity. Also require frontend Release assets, checksums, portable archive, `linux/amd64` plus `linux/arm64` image manifest, and OCI version/revision labels before proceeding. Do not publish to npmjs in this phase.
 
 ```bash
 git tag -a "${FRONTEND_TAG}" "${SHA}" -m "web/antd-v6 ${VERSION}"
@@ -247,7 +249,7 @@ test "${approval_status}" -eq 0
 
 Verify the active account after restoration with `gh api user --jq .login`. Do not approve a run until its workflow, tag or ref, full SHA, version, and expected environment all match the ledger.
 
-### 7. Authorize and publish root
+### 7. Authorize and publish root, Docs, and official npm
 
 After Framework and Admin external resolution and frontend publication succeed, dispatch and verify an independent `pre-root` readiness run. Update only the repository and `release` environment variables to its run ID; keep `release-v6` bound to the successful pre-framework run.
 
@@ -296,13 +298,19 @@ gh workflow run release.yml --ref "${ROOT_TAG}" \
 
 Require `EVIDENCE_URL` to be exactly `https://github.com/OWNER/REPOSITORY/issues/NUMBER`. Do not pass a comment URL, fragment, pull request, empty issue, or cross-repository URL. Wait for the final run to conclude; its full test and six-platform build are expected work, not a reason to start another run.
 
+For a coordinated release, next create `DOCS_TAG` from the same `SHA`, wait for the protected Docs deployment and immutable Docs Release, and verify the public `release.json`. Do not create any tag or artifact after the official npm step.
+
+Finally dispatch `npm-release.yml` from the exact root tag with the exact version and full SHA. This workflow must download the existing frontend Release tarball and evidence rather than rebuild, prove every coordinated tag and Release points to `SHA`, verify the GitHub Packages mirror integrity, and publish the same bytes to npmjs. The npmjs publish is the final artifact publication; only read-only reconciliation, consumer verification, and the one-time Trusted Publisher credential handoff may follow it.
+
+For the first npmjs version, use one short-lived granular bootstrap credential scoped to `@mss-boot-io/admin-web` in the protected `release-v6` environment. Immediately after the first successful publication, bind npm Trusted Publishing to `mss-boot-io/mss-boot-admin`, `npm-release.yml`, and `release-v6`, then revoke and remove the bootstrap token. Future releases use GitHub OIDC and never store a long-lived npm write token.
+
 ### 8. Reconcile public truth independently
 
 After publication, verify all of the following without relying only on workflow badges:
 
 - all component tags peel to `SHA` and all Releases are public, non-draft, and have the expected prerelease state;
 - Framework and Admin resolve through the public Go proxy with exact origin hashes and stable sums, and Admin requires the matching Framework version;
-- `@mss-boot-io/admin-web` resolves from the public npm registry with the exact version, `gitHead`, and immutable integrity recorded by the release;
+- `@mss-boot-io/admin-web` resolves from npmjs with the exact version, `gitHead`, provenance, and immutable integrity recorded by the release; GitHub Packages has the same version, integrity, and dist-tag, and both downloads are byte-identical;
 - root and frontend images expose `linux/amd64` and `linux/arm64`, expected digests, and exact version/revision labels;
 - frontend checksum, portable archive members, file modes, and embedded `release.json` match version and commit;
 - root contains six platform ZIPs plus `SHA256SUMS`; checksums, portable members, and every embedded build identity match version and commit;

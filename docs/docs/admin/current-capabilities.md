@@ -3,154 +3,145 @@ title: 当前功能总览
 order: 13
 nav:
   order: 1
-  title: admin
-description: 基于当前仓库实现梳理 mss-boot-admin 的主要功能能力
-keywords: [admin capabilities features overview]
+  title: Admin
+description: 基于 v1.3.0 stable candidate 代码和机器契约梳理 mss-boot Admin 的已实现能力与边界
+keywords: [admin capabilities features session rbac generator thin host]
 ---
 
-## 说明
+# 当前功能总览
 
-本文基于当前仓库中可见的 `mss-boot-admin` 实现进行梳理，目标是帮助使用者快速理解当前产品已经具备的能力范围。
+本文描述 <code>v1.3.0</code> stable candidate 的当前实现，不是未来路线图。事实来源包括
+<code>admin/</code>、<code>web/antd-v6/</code>、<code>admin/modules/supplier/</code>、
+<code>.mss/</code>、迁移、测试和外部消费者门禁。正式发布前，生产稳定引用仍是
+<code>v1.2.3</code>。
 
-本文主要依据以下证据来源整理：
+## 1. 浏览器会话和账号安全
 
-- `mss-boot-admin` README
-- `mss-boot-admin/apis/*.go`
-- `mss-boot-admin/models/*.go`
-- `mss-boot-admin` 迁移种子中的默认菜单与模块分组
+- 用户名/密码与已配置的 OAuth2 登录；
+- 服务端 HttpOnly Session Cookie，不把 Admin Bearer Token 暴露给浏览器业务代码；
+- 签名 CSRF、受约束的 CORS 和一次性 WebSocket ticket；
+- 当前用户资料、头像、密码修改和管理员重置；
+- GitHub、Lark 等已配置 Provider 的绑定和解绑；
+- Personal Access Token 的创建、轮换、撤销和查询；
+- 在线会话列表、按会话或用户撤销、当前会话退出；
+- 敏感账号操作的近期身份验证和审计记录。
 
-这是一份“当前实现能力”视角的总览，不是路线图，也不保证所有能力在任意部署中都默认开启。
+OAuth、邮件和第三方身份是否可用取决于部署配置。前端控制只改善体验，所有敏感写入仍由
+后端身份与权限检查保护。
 
-## 功能分层
+## 2. RBAC、组织和 API 治理
 
-当前 `mss-boot-admin` 可以理解为一个以权限管理为基础、同时具备组织管理、系统配置、通知任务、国际化和监控统计能力的后台管理平台。
+- 用户、部门、岗位、角色和组织树；
+- 菜单目录、页面、组件、按钮与 API 节点；
+- Casbin 角色授权、数据范围和后端 API 强制执行；
+- 角色菜单授权、菜单 API 绑定及授权修订；
+- 真实 Gin 路由到 API 注册表的一次性同步；
+- 权限正向、负向和拒绝时无副作用测试；
+- 登录日志、操作审计和授权变更传播。
 
-从使用视角看，现有能力大致可以分为四组；后文另列已经退出产品的能力边界。
+### API 注册表运行合同
 
-## 1. 认证、账号与访问控制
+首次安装或迁移后必须执行：
 
-这一层解决“谁可以进入系统、以什么身份工作、拥有哪些权限”。
+~~~bash
+cd admin
+STAGE=local go run . server -a
+~~~
 
-当前可见能力包括：
+该命令使用完整已挂载路由生成 API 注册表。同步后，“权限管理 → 菜单管理”中的
+<code>MENU</code>/<code>COMPONENT</code>“绑定 API”列表必须非空。若为空，应先检查新旧二进制、
+Stage 或 DSN 混用，而不是手工补数据。
 
-- 用户登录、刷新 token、获取当前用户信息
-- 用户资料维护与头像上传
-- 用户主动修改密码，管理员重置用户密码
-- GitHub / Lark 等第三方登录回调与绑定能力
-- Personal Access Token 的生成、刷新、撤销与查询
-- 基于 Casbin 的 RBAC 权限控制
-- 菜单权限、API 权限、角色授权关系管理
+## 3. 配置、国际化和主题
 
-这意味着系统不仅能完成基本登录，还提供了适合后台管理系统的权限治理与账号自服务能力。
+- 系统、应用和用户级配置；
+- Local、文件、数据库和受支持的外部配置源；
+- 中文、英文国际化资源与动态语言管理；
+- 应用默认、用户偏好和浏览器临时设置的分层主题优先级；
+- 默认深色体验、跨标签页同步和首屏主题快照；
+- 选项管理及受约束的动态枚举。
 
-## 2. 组织与基础资料管理
+配置来源和可选外部服务需要部署者逐项启用；存在代码入口不等于任意环境默认可用。
 
-这一层解决“系统中有哪些人、部门、岗位，以及业务中通用的选项数据如何维护”。
+## 4. 运营与可观测性
 
-当前可见能力包括：
+- 通知公告、未读/已读处理；
+- 用户管理的定时任务和执行日志，由 <code>task.enable</code> 控制；
+- 监控采样和会话清理等内置系统作业，与用户 Task 表分离；
+- CPU、内存、磁盘、网络、Go Runtime 和实例内短期趋势；
+- 统计接口、运行时日志查看与清理；
+- 告警规则和已配置渠道通知；
+- readiness、health、Prometheus 和 pprof 等基础运维入口。
 
-- 用户管理
-- 部门管理
-- 岗位管理
-- 角色管理
-- 菜单管理
-- API 注册与维护
-- 选项管理（用于动态枚举/字典项维护）
+健康检查只证明相应运行状态，不自动证明数据库迁移、API 注册表、业务权限或外部消息完成。
 
-这些能力构成了后台系统最常见的组织与主数据基础层，也为权限与页面配置提供了承载。
+## 5. Complete Admin Distribution
 
-## 3. 系统配置、通知与运行能力
+### 可导入后端
 
-这一层解决“系统如何按环境配置、如何通知用户、如何查看部分运行状态”。
+<code>admin/app</code> 提供完整应用构造和执行入口；官方可执行程序与外部 Thin Host 使用同一
+生命周期。<code>admin/business</code> 的最小接口允许业务模块显式注册：
 
-当前可见能力包括：
+- 描述信息和权限/菜单元数据；
+- Core 之后执行的 Business 迁移；
+- readiness；
+- 认证与授权中间件之后的路由；
+- 当前生成模块使用的事件能力。
 
-- 系统配置管理
-- 应用配置与用户配置相关接口
-- 通知公告与未读/已读处理
-- 用户可管理的定时任务及执行日志（由 `task.enable` 控制）
-- 随服务启动的内置系统作业：监控采样与会话清理；它们不进入 Task/TaskRun 表，也不受用户任务 CRUD 影响
-- 监控信息接口（CPU、内存、磁盘、网络、运行时和最近约十分钟的实例内历史）
-- 使用主题 token 的 CPU/内存趋势图，在亮色和暗黑模式下均保持可读
-- 统计查询接口
-- 登录日志记录
-- 审计日志记录
-- 运行时日志配置与清理
-- 告警规则配置与多渠道通知
+Registry 完成组合后冻结。重复模块、无效迁移或未就绪路由 fail closed。
 
-这一部分说明 `mss-boot-admin` 不只是“做 CRUD 的后台”，它也在向可运营、可维护的平台能力延伸。
+### 完整 Admin Web
 
-## 4. 国际化与内容适配
+<code>web/antd-v6</code> 同时是参考前端和
+<code>@mss-boot-io/admin-web</code> 的源码。公开入口提供 Umi preset、业务路由注册、
+Runtime、样式和测试辅助；包内 CLI 提供 <code>dev</code>、<code>lint</code>、
+<code>test</code> 和 <code>build</code>。
 
-当前仓库中可以看到系统已经具备国际化相关能力，包括：
+下游只生成一个开发服务器、一个路由树、一个 React/AntD/Query Runtime 和一个
+<code>dist</code>。
 
-- 国际化资源管理
-- 多语言相关接口与数据模型
-- 与页面配置、菜单协同的语言资源支持
+## 6. Agent-native 生成与升级
 
-这使它更适合做面向多语言场景的管理系统，而不是仅限单语言后台。
+- <code>mss context</code> 和 <code>mss doctor</code> 读取项目事实源；
+- Feature/AdminModule 规格在写代码前表达需求；
+- Supplier 可以完整生成后端、迁移、权限、菜单、前端、测试、E2E 和文档；
+- 生成器支持 dry-run、路径限制、稳定顺序和两次运行幂等；
+- <code>mss verify --changed</code> 根据变更范围计算最小充分验证；
+- <code>management-system</code> Blueprint 创建 Thin Host；
+- <code>mss upgrade admin</code> 协调 Go/npm 版本和受管胶水，保留业务自有文件。
 
-## 已移除的运行时开发工具
+Supplier 是示例和回归契约，不把采购领域能力移动到领域中立的 <code>mss-boot/</code>。
 
-> 详见 [运行时开发工具移除与升级说明](/admin/legacy-capability-deprecation)
+## 7. 存储、队列和其他可选集成
 
-Admin 中曾经提供的运行时动态模型、虚拟 CRUD 和浏览器代码生成已经从当前实现移除，不再提供菜单、页面、API 或运行时框架入口。
+框架与 Admin 包含配置源、缓存、Redis、队列、对象存储、文件上传和事件抽象。不同 Provider
+有独立成熟度和部署要求。只有发布资格明确覆盖的 Provider 和行为才获得对应稳定声明；能构造、
+能编译或容器健康都不是业务成功证明。
 
-| 能力 | 状态 | 说明 |
-|------|------|------|
-| 动态模型/虚拟 CRUD | 已移除 | 升级时清理相关菜单和权限；为保护用户数据，不自动删除历史元数据表或业务表 |
-| 浏览器模板/代码生成 | 已移除 | Admin 页面、API 和 Go 实现均不再提供该能力 |
+## 8. 已移除和不支持的能力
 
-**与开发期生成的边界：**
+| 能力 | 状态 | 数据与兼容处理 |
+| --- | --- | --- |
+| Ant Design 5 | 已退役 | 不再构建、发布或作为回滚面 |
+| 运行时动态模型/虚拟 CRUD | 已移除 | 菜单、API 和运行时入口清理；历史数据表可保留 |
+| 浏览器模板/代码生成 | 已移除 | 使用受版本控制规格和 <code>cmd/mss</code> 开发期生成 |
+| 多租户 | 已移除 | 当前是单租户 Admin |
+| 第二套 SPA/远程业务入口 | 不支持 | 业务代码在 Go/Umi 构建期组合 |
+| 自动采集采用者信息 | 不支持 | 创建、安装、运行和升级不增加遥测或 call-home |
 
-- 仓库级 `cmd/mss` 离线确定性生成器继续保留。
-- `mss module generate` 读取受版本控制的规格，在开发期生成可编译、可测试、可审查的代码。
-- 它不在 Admin 浏览器或生产运行时中动态建表、挂载 CRUD 路由或写入其他仓库。
+## 9. 使用边界
 
-**仍属于主线的能力：**
+- 菜单可见性取决于迁移、API 同步、角色授权和当前 Session；
+- 可选集成取决于真实配置和外部服务；
+- Admin、Framework、Admin Web 必须使用同一个协调版本；
+- npmjs 是 Admin Web 默认公开安装源，不需要 Registry Token；GitHub Packages 仅作为完全相同制品的兼容镜像，选择镜像时 Token 不能写入仓库；
+- 生产升级先备份并验证恢复，再迁移、同步 API、启动和切流；
+- 回滚恢复上一组协调制品及其数据库备份，不临时 down migration。
 
-- 文件上传接口 → 见 [集成与扩展护栏](/admin/extension-guardrails)
-- WebSocket 事件接口 → 见 [集成与扩展护栏](/admin/extension-guardrails)
+下一步阅读：
 
-## 当前内置功能可以怎样理解
-
-如果从产品菜单角度看，当前能力大致可以理解为以下几类模块：
-
-- **权限与身份**：登录、角色、菜单、API、Token、OAuth2
-- **组织与用户**：用户、部门、岗位
-- **系统与运营**：系统配置、通知公告、任务管理、监控、统计、日志、告警
-- **内容与国际化**：选项管理、国际化资源
-- **平台与扩展**：上传、事件，以及开发期 `cmd/mss` 工程工作流
-
-## 使用这份总览时需要注意的边界
-
-### 1. 部分能力依赖运行时配置
-
-例如 OAuth2、邮件、对象存储等能力，在代码和接口层已实现，但是否可直接使用仍依赖部署时配置。
-
-### 2. 菜单可见性可能因初始化数据不同而变化
-
-本文参考了当前仓库中的迁移种子与菜单分组；不同部署若调整了初始化数据，实际后台可见菜单可能有所差异。
-
-### 3. 多租户能力已移除
-
-多租户功能已在产品演进过程中移除，当前版本为单租户架构，适合单一组织或团队的内部管理系统部署。
-
-## 下一步建议阅读
-
-- [快速开始](/admin/quickly)
-- [产品方向调整](/admin/product-direction)
-- [权限与组织治理说明](/admin/governance-guide)
-- [运营能力说明](/admin/operations-guide)
-- [Token 与 OAuth2 联调说明](/admin/token-oauth2-guide)
-- [AI 注解协同规范](/admin/ai-annotation-spec)
-- [配置操作](/admin/tutorials)
-- [本地联调](/admin/local-debug)
-- [Docker 部署](/admin/docker)
-
-## 后续建议细化的专题
-
-- 权限与组织管理 → 见 [权限与组织治理说明](/admin/governance-guide)
-- 通知、任务与系统配置 → 见 [运营能力说明](/admin/operations-guide)
-- Token、OAuth2 与联调使用说明 → 见 [Token 与 OAuth2 联调说明](/admin/token-oauth2-guide)
-- 日志管理与告警配置 → 见 [运营能力说明](/admin/operations-guide)
+- [完整 Admin Distribution 与 Thin Host 架构](/architecture/complete-admin-distribution-and-thin-business-host)
+- [v1.3.0 安装、升级与回滚](/releases/v1-3-0)
+- [权限与组织治理](/admin/governance-guide)
+- [运行时开发工具移除说明](/admin/legacy-capability-deprecation)
+- [Supplier 生成模块](/modules/supplier)

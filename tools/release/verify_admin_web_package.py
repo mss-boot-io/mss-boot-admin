@@ -159,10 +159,11 @@ def _validate_manifest(
     if manifest.get("gitHead") != source_commit:
         raise PackageError("package gitHead must equal the exact source commit")
     if manifest.get("publishConfig") != {
-        "registry": "https://npm.pkg.github.com",
+        "access": "public",
+        "registry": "https://registry.npmjs.org",
     }:
         raise PackageError(
-            "package publishConfig must target the GitHub Packages npm registry"
+            "package publishConfig must target the public npm registry with public access"
         )
     if "package/LICENSE" not in members:
         raise PackageError("package must include its MIT LICENSE file")

@@ -1,4 +1,19 @@
-# 全量 E2E 测试计划
+---
+title: 历史全量 E2E 测试计划（2026-04）
+order: 30
+nav:
+  order: 1
+  title: admin
+description: 2026-04 留存的旧版 E2E 计划，不代表当前 V6 执行合同
+keywords: [admin historical e2e test plan]
+---
+
+> **历史快照，不可直接执行。** 本页保留的账号、端点、Token 存储和命令属于
+> 2026-04 的旧环境，不代表当前 V6 合同。当前 E2E 入口、环境和认证要求以
+> [集成测试指南](/admin/integration-test-guide)与
+> [Token 与 OAuth2 联调说明](/admin/token-oauth2-guide)为准。
+
+# 历史全量 E2E 测试计划（2026-04）
 
 **测试日期**: 2026-04-03
 **测试范围**: mss-boot-admin 全栈系统

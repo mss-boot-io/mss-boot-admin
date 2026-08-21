@@ -180,7 +180,7 @@ provider 能力仍是 `Legacy / Blocked`。
 
 | 要求 | 当前状态 | 建议 |
 |------|----------|------|
-| JWT 认证 | ✅ 已实现 | - |
+| 当前身份认证 | ✅ 已实现 | 浏览器使用 HttpOnly 会话；API 自动化使用文档化的 PAT/Bearer |
 | 对象所有权/用户隔离 | ❌ 未实现 | opaque key 不是授权；在 Delivery/metadata 边界补 owner 与反向授权测试 |
 | 上传入口权限 | ⚠️ 部分实现 | 通用上传使用 `storage:upload`；头像为已认证本人接口，但不等于对象读取授权 |
 | 租户隔离 | ❌ 已移除 | 单租户架构 |
@@ -192,7 +192,7 @@ provider 能力仍是 `Legacy / Blocked`。
 **上传文件：**
 ```bash
 POST /admin/api/storage/upload
-Authorization: Bearer <具有 storage:upload 权限的 token>
+Authorization: Bearer <具有 storage:upload 权限的 PAT>
 Content-Type: multipart/form-data
 
 file: <binary>
@@ -259,13 +259,14 @@ mss-boot-admin/
 | 消息大小 | 最大 512KB (`maxMessageSize`) |
 | 发送缓冲 | 100 条消息 (`sendBufferSize`) |
 | 心跳超时 | 5 分钟无心跳断开连接 |
-| 认证 | 连接前必须通过 JWT 认证 |
+| 认证 | 已认证浏览器会话先通过 `POST /admin/api/ws/tickets` 领取短期一次性 ticket；握手只经 `Sec-WebSocket-Protocol` 传递 |
+| Origin | ticket 绑定可信 Origin 和当前服务端会话；URL 参数、Cookie JWT 与首条消息 Token 均不接受 |
 
 ### 3.3 治理集成
 
 | 要求 | 当前状态 | 建议 |
 |------|----------|------|
-| JWT 认证 | ✅ 已实现 | - |
+| 会话与一次性 ticket | ✅ 已实现 | ticket 单次消费，浏览器脚本不读取 Admin JWT |
 | 用户路由 | ✅ 按用户ID推送 | - |
 | 在线统计 | ✅ 已实现 | - |
 | 事件审计 | ❌ 未实现 | 建议记录关键事件 |
@@ -274,16 +275,15 @@ mss-boot-admin/
 ### 3.4 接入规范
 
 **连接 WebSocket：**
-```javascript
-const ws = new WebSocket('ws://localhost:8080/admin/api/ws/connect');
 
-// 认证（通过 URL 参数或首次消息）
-ws.onopen = () => {
-  ws.send(JSON.stringify({
-    event: 'connected',
-    data: { token: 'your-jwt-token' }
-  }));
-};
+V6 的权威实现位于 `web/antd-v6/src/shared/realtime/socket.ts`。调用方必须先使用
+同源 HttpOnly 会话和 CSRF 保护的 POST 请求领取 ticket，再把应用协议与 ticket 协议一起
+交给浏览器 WebSocket API；不得把凭证放进 URL 或业务消息：
+
+```javascript
+import { connectRealtimeSocket } from '@/shared/realtime/socket';
+
+const ws = await connectRealtimeSocket();
 
 // 接收消息
 ws.onmessage = (event) => {
@@ -446,7 +446,7 @@ func afterCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
 
 | 要求 | i18n | Storage | WebSocket | API-first |
 |------|------|---------|-----------|-----------|
-| JWT 认证 | ✅ | ✅ | ✅ | ✅ |
+| 当前身份认证 | ✅ | ✅ | ✅（会话 + ticket） | ✅ |
 | Casbin 权限 | ✅ | ⚠️ 仅通用上传入口 | ❌ | ✅ |
 | 租户隔离 | ❌ | ❌ | ❌ | ❌ |
 | 审计日志 | ❌ | ❌ | ❌ | ⚠️ |
@@ -479,7 +479,7 @@ func afterCreate(c *gin.Context, db *gorm.DB, m schema.Tabler) error {
 
 ### 6.1 治理集成
 
-- [ ] 是否需要 JWT 认证？
+- [ ] 浏览器是否使用 HttpOnly 会话、API 自动化是否使用文档化 PAT，并禁止把凭证放进 URL？
 - [ ] 是否需要 Casbin 权限控制？
 - [ ] 是否需要数据权限隔离？
 - [x] ~~是否需要租户隔离？~~ 已移除多租户功能

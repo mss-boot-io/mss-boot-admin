@@ -125,6 +125,50 @@ class PortablePathTest(unittest.TestCase):
             ):
                 PREPARE.prepare_frontend(dist, allowed_root=allowed_root)
 
+    def test_prepare_accepts_root_relative_markdown_link_with_static_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            allowed_root = Path(directory)
+            dist = allowed_root / "dist"
+            route = (
+                dist
+                / "operations"
+                / "admin-distribution-v1"
+                / "3"
+                / "0-rc"
+                / "5"
+            )
+            docs = allowed_root / "docs"
+            route.mkdir(parents=True)
+            docs.mkdir()
+            (route / "index.html").write_text("route")
+            (docs / "index.md").write_text(
+                "[RC5](/operations/admin-distribution-v1/3/0-rc/5)"
+            )
+
+            PREPARE.prepare_frontend(
+                dist, allowed_root=allowed_root, markdown_roots=[docs]
+            )
+
+    def test_prepare_rejects_root_relative_markdown_link_without_static_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            allowed_root = Path(directory)
+            dist = allowed_root / "dist"
+            docs = allowed_root / "docs"
+            dist.mkdir()
+            docs.mkdir()
+            (dist / "index.html").write_text("index")
+            (docs / "index.md").write_text(
+                "[RC5](/operations/admin-distribution-v1.3.0-rc.5)"
+            )
+
+            with self.assertRaisesRegex(
+                PREPARE.PreparationError,
+                r"/operations/admin-distribution-v1\.3\.0-rc\.5",
+            ):
+                PREPARE.prepare_frontend(
+                    dist, allowed_root=allowed_root, markdown_roots=[docs]
+                )
+
     def test_prepare_preflights_every_placeholder_before_deleting(self):
         with tempfile.TemporaryDirectory() as directory:
             allowed_root = Path(directory)

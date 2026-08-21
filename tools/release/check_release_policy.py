@@ -118,6 +118,10 @@ def load_policy(path: Path) -> dict[str, str | bool]:
         raise PolicyError(
             "release policy publicPrereleases must be true for a prerelease target"
         )
+    if "-" not in policy["nextPublicVersion"] and policy["publicPrereleases"] is not False:
+        raise PolicyError(
+            "release policy publicPrereleases must be false for a stable target"
+        )
     expected_components = ",".join(COORDINATED_COMPONENTS)
     if policy["distributionComponents"] != expected_components:
         raise PolicyError(

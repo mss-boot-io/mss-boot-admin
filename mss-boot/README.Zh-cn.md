@@ -17,12 +17,14 @@
 - Module 路径：`github.com/mss-boot-io/mss-boot-admin/mss-boot`
 - 源码目录：`mss-boot/`
 - Go 要求：Go 1.26 或更高版本
-- 稳定性：v1 之前；导出 API 属于兼容面，但正确性修复可能收紧过去含糊的行为
+- 稳定性：稳定 v1 兼容版本线；导出 API、配置键、持久化行为和接口均属于公共兼容面
+- 当前统一稳定版目标：`mss-boot/v1.3.0`，将与 v1.3.0 Admin Module、Admin Web
+  包和根发行包从同一提交发布
 
-开发版本可使用 `main`；生产环境应替换为已发布的子模块标签或不可变提交：
+稳定标签公开后，生产使用方应锁定精确的子模块版本；`main` 仅用于 Foundation 开发：
 
 ```bash
-go get github.com/mss-boot-io/mss-boot-admin/mss-boot@main
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.0
 ```
 
 ## 核心能力
@@ -135,8 +137,9 @@ git diff --exit-code -- go.mod go.sum
 
 ## 兼容与发布
 
-框架仍处于 v1 之前。任何改变可观察行为的变更都必须包含测试、文档、安全影响，以及迁移或
-回滚说明。子模块发布标签应采用 `mss-boot/vX.Y.Z`。
+框架遵循稳定 v1 兼容版本线并优先采用增量变更。任何改变可观察行为的变更都必须包含测试、
+文档、安全影响，以及迁移或回滚说明。子模块发布使用 `mss-boot/vX.Y.Z` 标签；统一
+Admin 发行列车继续之前，必须使用 `GOWORK=off` 从外部解析已发布 Framework。
 
 更多信息见 [CHANGELOG.md](./CHANGELOG.md)、[CONTRIBUTING.md](./CONTRIBUTING.md)
 和 [SECURITY.md](./SECURITY.md)。

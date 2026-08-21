@@ -69,6 +69,7 @@ jobs:
     outputs:
       version: ${{ steps.build-info.outputs.version }}
       publish: ${{ steps.build-info.outputs.publish }}
+      stable: ${{ steps.build-info.outputs.stable }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -160,9 +161,14 @@ jobs:
               exit 1
             fi
           fi
+          stable=false
+          if [[ "${version}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            stable=true
+          fi
           {
             echo "version=${version}"
             echo "publish=${publish}"
+            echo "stable=${stable}"
             echo "local-tag=${REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}"
           } >> "${GITHUB_OUTPUT}"
 
@@ -178,11 +184,12 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           flavor: |
-            latest=auto
+            latest=false
           tags: |
             type=ref,event=branch
             type=ref,event=pr
             type=ref,event=tag
+            type=raw,value=latest,enable=${{ steps.build-info.outputs.stable == 'true' }}
             type=raw,value=${{ steps.build-info.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
             type=sha,prefix=,format=long,enable=true,priority=100
 
@@ -197,6 +204,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
             ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.title=mss-boot-admin
+            org.opencontainers.image.description=Complete Go Admin backend for the mss-boot agent-native management-system distribution.
             org.opencontainers.image.version=${{ steps.build-info.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
@@ -218,6 +227,8 @@ jobs:
           output="$(docker run --rm "${IMAGE}" --version)"
           [[ "${output}" == *"${EXPECTED_VERSION}"* ]]
           [[ "${output}" == *"${EXPECTED_COMMIT}"* ]]
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.title" }}' "${IMAGE}")" = 'mss-boot-admin'
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.description" }}' "${IMAGE}")" = 'Complete Go Admin backend for the mss-boot agent-native management-system distribution.'
 
   publish:
     name: publish
@@ -334,11 +345,12 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           flavor: |
-            latest=auto
+            latest=false
           tags: |
             type=ref,event=branch
             type=ref,event=pr
             type=ref,event=tag
+            type=raw,value=latest,enable=${{ needs.build.outputs.stable == 'true' }}
             type=raw,value=${{ needs.build.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
             type=sha,prefix=,format=long,enable=true,priority=100
 
@@ -352,6 +364,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
             ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.title=mss-boot-admin
+            org.opencontainers.image.description=Complete Go Admin backend for the mss-boot agent-native management-system distribution.
             org.opencontainers.image.version=${{ needs.build.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
@@ -375,9 +389,51 @@ jobs:
           output="$(docker run --rm "${image}" --version)"
           [[ "${output}" == *"${{ needs.build.outputs.version }}"* ]]
           [[ "${output}" == *"${GITHUB_SHA}"* ]]
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.title" }}' "${image}")" = 'mss-boot-admin'
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.description" }}' "${image}")" = 'Complete Go Admin backend for the mss-boot agent-native management-system distribution.'
           {
             echo "### Runtime image"
             echo '```text'
             echo "${image}"
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Verify stable image aliases resolve to the published digest
+        if: ${{ needs.build.outputs.stable == 'true' }}
+        env:
+          EXPECTED_DIGEST: ${{ steps.publish.outputs.digest }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          [[ "${EXPECTED_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image_repository="${REGISTRY}/${IMAGE_NAME}"
+          version_digest=""
+          latest_digest=""
+          for attempt in $(seq 1 12); do
+            version_digest=""
+            latest_digest=""
+            if version_manifest="$(
+              docker buildx imagetools inspect \
+                "${image_repository}:${RELEASE_VERSION}" \
+                --format '{{json .Manifest}}'
+            )" && latest_manifest="$(
+              docker buildx imagetools inspect \
+                "${image_repository}:latest" \
+                --format '{{json .Manifest}}'
+            )" && version_digest="$(jq -er '.digest' <<< "${version_manifest}")" \
+              && latest_digest="$(jq -er '.digest' <<< "${latest_manifest}")"; then
+              if [[ "${version_digest}" == "${EXPECTED_DIGEST}" \
+                && "${latest_digest}" == "${version_digest}" ]]; then
+                break
+              fi
+            fi
+            echo "waiting for stable image aliases to converge (attempt ${attempt}/12)"
+            if [[ "${attempt}" -lt 12 ]]; then
+              sleep 5
+            fi
+          done
+          if [[ "${version_digest}" != "${EXPECTED_DIGEST}" \
+            || "${latest_digest}" != "${version_digest}" ]]; then
+            echo "stable image aliases do not resolve to the published manifest digest" >&2
+            exit 1
+          fi

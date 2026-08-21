@@ -1,12 +1,18 @@
 ---
-title: 测试执行报告
+title: 历史测试执行报告（2026-04）
 order: 29
 nav:
   order: 1
   title: admin
-description: mss-boot-admin 全量测试执行报告，包含测试结果、发现问题和改进建议
+description: 2026-04 留存的旧版测试执行快照，不代表当前 V6 发布证据
 keywords: [admin test report integration findings]
 ---
+
+> **历史快照，不可作为当前发布证据。** 本页只记录 2026-04 当时的环境、版本和
+> JWT/API 级测试结论；其中账号、依赖版本和认证假设均不代表当前 V6 合同。
+> 当前验证以[集成测试指南](/admin/integration-test-guide)与
+> [Token 与 OAuth2 联调说明](/admin/token-oauth2-guide)为准，并必须绑定待发布的
+> 精确 `main` 提交。
 
 ## 概述
 

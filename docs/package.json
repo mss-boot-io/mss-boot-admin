@@ -1,5 +1,5 @@
 {
-  "name": "mss-boot",
+  "name": "mss-boot-docs",
   "version": "0.0.0-development",
   "private": true,
   "packageManager": "pnpm@9.15.9",
@@ -7,12 +7,21 @@
     "node": ">=22.0.0 <25",
     "pnpm": "9.15.9"
   },
-  "description": "mss-boot document",
+  "description": "Documentation site for the mss-boot Complete Admin Distribution, Thin Host architecture, agent workflows, operations, and releases.",
+  "homepage": "https://docs.mss-boot-io.top",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mss-boot-io/mss-boot-admin.git",
+    "directory": "docs"
+  },
+  "bugs": {
+    "url": "https://github.com/mss-boot-io/mss-boot-admin/issues"
+  },
   "scripts": {
     "audit:release": "node ../tools/security/check-pnpm-audit.mjs",
-    "start": "npm run dev",
+    "start": "dumi dev",
     "dev": "dumi dev",
-    "build": "dumi build && python3 ../tools/release/prepare_portable_frontend.py dist",
+    "build": "dumi build && python3 ../tools/release/prepare_portable_frontend.py dist --markdown-root docs",
     "prepare": "husky install && dumi setup"
   },
   "authors": [

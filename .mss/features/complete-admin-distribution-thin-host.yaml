@@ -10,7 +10,7 @@ metadata:
   labels:
     domain: admin-distribution
     implementation-status: complete
-    release-status: rc-qualification
+    release-status: preview-published
     target-version: v1.3.0-rc.6
     compatibility: coordinated-backend-frontend-version
     privacy: no-telemetry
@@ -186,6 +186,11 @@ spec:
           unpublished because the Agent evaluation catalog still expected at least 500 copied
           application files after the supported Blueprint became a 31-file Thin Host. RC6 fixes
           that stale evaluation and executes it during feature freeze before any public tag.
+        - >-
+          The immutable v1.3.0-rc.6 train published Framework, Admin, the complete Admin Web package
+          and multi-architecture image, the root image, and the root GitHub Release from one exact
+          merged-main commit. It is accepted preview evidence for stable v1.3.0 qualification and
+          remains immutable; post-RC6 repairs are delivered only through new stable refs.
     - id: preserve-privacy-boundary
       title: Preserve the no-telemetry boundary
       description: Creation, installation, execution, verification, and upgrade remain local and collect no adopter data.

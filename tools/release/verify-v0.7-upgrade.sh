@@ -16,20 +16,33 @@ readonly postgres_version="${MSS_RELEASE_POSTGRES_VERSION:-}"
 readonly postgres_image_ref="${MSS_RELEASE_POSTGRES_IMAGE_REF:-}"
 readonly postgres_image_id="${MSS_RELEASE_POSTGRES_IMAGE_ID:-}"
 
-repo_root="$(git rev-parse --show-toplevel)"
-readonly repo_root
-readonly report_dir="${repo_root}/.mss/reports"
-readonly report_path="${report_dir}/release-upgrade.json"
-mkdir -p "${report_dir}"
-# A failed or refused run must never leave evidence from an earlier candidate.
-rm -f -- "${report_path}"
-
-for command in git go python3 tar; do
+for command in git go python3 realpath tar; do
   if ! command -v "${command}" >/dev/null 2>&1; then
     printf 'required command is unavailable: %s\n' "${command}" >&2
     exit 1
   fi
 done
+
+repo_root="$(git rev-parse --show-toplevel)"
+readonly repo_root
+candidate_gowork="${MSS_RELEASE_CANDIDATE_GOWORK:-${repo_root}/go.work}"
+if [[ "${candidate_gowork}" == "off" ]]; then
+  candidate_dependency_mode="public-module"
+else
+  candidate_gowork="$(realpath -m -- "${candidate_gowork}")"
+  if [[ "${candidate_gowork}" != "${repo_root}/go.work" || ! -f "${candidate_gowork}" ]]; then
+    printf 'MSS_RELEASE_CANDIDATE_GOWORK must be off or the repository go.work\n' >&2
+    exit 1
+  fi
+  candidate_dependency_mode="repository-workspace"
+fi
+readonly candidate_gowork
+readonly candidate_dependency_mode
+readonly report_dir="${repo_root}/.mss/reports"
+readonly report_path="${report_dir}/release-upgrade.json"
+mkdir -p "${report_dir}"
+# A failed or refused run must never leave evidence from an earlier candidate.
+rm -f -- "${report_path}"
 
 if [[ "${disposable_database_confirmed}" != "1" ]]; then
   printf 'set MSS_RELEASE_ALLOW_DISPOSABLE_DATABASE=1 to confirm the disposable targets\n' >&2
@@ -109,7 +122,7 @@ python3 "${repo_root}/tools/release/prepare-v0-7-fixture.py" \
 )
 (
   cd "${repo_root}/admin"
-  GOWORK=off go build -trimpath -o "${work_dir}/bin/admin-current" .
+  GOWORK="${candidate_gowork}" go build -trimpath -o "${work_dir}/bin/admin-current" .
 )
 
 prepare_runtime() {
@@ -171,7 +184,7 @@ run_release_upgrade_assertion() {
       MSS_RELEASE_UPGRADE_SQLITE_DSN="${sqlite_dsn}" \
       MSS_RELEASE_UPGRADE_MYSQL_DSN="${mysql_dsn}" \
       MSS_RELEASE_UPGRADE_POSTGRES_DSN="${postgres_dsn}" \
-      GOWORK=off go test ./cmd/migrate/migration/system \
+      GOWORK="${candidate_gowork}" go test ./cmd/migrate/migration/system \
         -run "^${test_name}$" -count=1
   )
 }
@@ -187,7 +200,7 @@ run_release_upgrade_assertion TestV07UpgradeStateIntegration
 
 sqlite_module_version="$(
   cd "${repo_root}/admin"
-  GOWORK=off go list -m -f '{{.Version}}' modernc.org/sqlite
+  GOWORK="${candidate_gowork}" go list -m -f '{{.Version}}' modernc.org/sqlite
 )"
 readonly sqlite_module_version
 final_candidate_commit="$(git -C "${repo_root}" rev-parse HEAD)"
@@ -222,6 +235,7 @@ temporary.write_text(
             "baselineRef": sys.argv[3],
             "baselineCommit": sys.argv[4],
             "candidateCommit": sys.argv[5],
+            "candidateDependencyMode": sys.argv[16],
             "dirty": sys.argv[6] == "true",
             "databaseName": sys.argv[7],
             "databases": {
@@ -279,4 +293,5 @@ temporary.replace(target)
   "${mysql_image_id}" \
   "${postgres_version}" \
   "${postgres_image_ref}" \
-  "${postgres_image_id}"
+  "${postgres_image_id}" \
+  "${candidate_dependency_mode}"

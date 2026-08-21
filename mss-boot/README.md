@@ -19,14 +19,16 @@ to prevent the repository workspace from hiding missing dependencies.
 - Module path: `github.com/mss-boot-io/mss-boot-admin/mss-boot`
 - Source directory: `mss-boot/`
 - Go requirement: Go 1.26 or later
-- Stability: pre-v1; exported APIs are compatibility surfaces, but correctness
-  fixes may tighten previously ambiguous behavior
+- Stability: stable v1 compatibility line; exported APIs, configuration keys,
+  persistence behavior, and interfaces are public compatibility surfaces
+- Coordinated stable target: `mss-boot/v1.3.0`, to be published from the same commit
+  as the v1.3.0 Admin module, Admin Web package, and root distribution
 
-For a development build, use `main`; for production, replace it with a released
-nested-module tag or an immutable commit:
+After the stable tag is public, production consumers should pin the exact
+nested-module version. Use `main` only for Foundation development:
 
 ```bash
-go get github.com/mss-boot-io/mss-boot-admin/mss-boot@main
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.0
 ```
 
 ## Capabilities
@@ -150,9 +152,11 @@ coverage percentage is claimed until CI enforces the same threshold.
 
 ## Compatibility and releases
 
-The module is pre-v1. Changes that alter observable behavior must include tests,
+The module follows the stable v1 compatibility line. Additive changes are
+preferred; changes that alter observable behavior must include tests,
 documentation, security impact, and migration or rollback notes. Nested-module
-releases should use tags in the form `mss-boot/vX.Y.Z`.
+releases use `mss-boot/vX.Y.Z` tags and are externally resolved with
+`GOWORK=off` before the coordinated Admin train proceeds.
 
 See [CHANGELOG.md](./CHANGELOG.md), [CONTRIBUTING.md](./CONTRIBUTING.md), and
 [SECURITY.md](./SECURITY.md).

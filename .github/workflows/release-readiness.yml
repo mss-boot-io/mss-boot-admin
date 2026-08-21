@@ -176,13 +176,13 @@ jobs:
             mss-boot/go.sum
 
       - name: Setup pnpm
-        if: ${{ inputs.phase == 'feature-freeze' }}
+        if: ${{ inputs.phase == 'feature-freeze' || inputs.phase == 'pre-framework' || inputs.phase == 'pre-root' }}
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 9.15.9
 
       - name: Setup Node
-        if: ${{ inputs.phase == 'feature-freeze' }}
+        if: ${{ inputs.phase == 'feature-freeze' || inputs.phase == 'pre-framework' || inputs.phase == 'pre-root' }}
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
@@ -192,11 +192,11 @@ jobs:
             web/antd-v6/pnpm-lock.yaml
 
       - name: Install frontend dependencies
-        if: ${{ inputs.phase == 'feature-freeze' }}
+        if: ${{ inputs.phase == 'feature-freeze' || inputs.phase == 'pre-framework' || inputs.phase == 'pre-root' }}
         run: corepack pnpm@10.34.5 --dir web/antd-v6 install --frozen-lockfile --ignore-scripts
 
       - name: Install Playwright Chromium
-        if: ${{ inputs.phase == 'feature-freeze' }}
+        if: ${{ inputs.phase == 'feature-freeze' || inputs.phase == 'pre-framework' || inputs.phase == 'pre-root' }}
         working-directory: web/antd-v6
         run: corepack pnpm@10.34.5 exec playwright install --with-deps chromium
 
@@ -205,21 +205,22 @@ jobs:
         run: corepack pnpm@9.15.9 --dir docs install --frozen-lockfile
 
       - name: Execute phase-scoped Feature command evidence
-        if: ${{ success() && inputs.phase == 'feature-freeze' }}
+        if: ${{ success() && (inputs.phase == 'feature-freeze' || inputs.phase == 'pre-framework' || inputs.phase == 'pre-root') }}
         env:
           RELEASE_VERSION: ${{ inputs.version }}
           FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+          READINESS_PHASE: ${{ inputs.phase }}
           MSS_SUPPLIER_TEST_MYSQL_DSN: 'mss_supplier:mss_supplier_ci@tcp(127.0.0.1:3306)/mss_supplier_test?charset=utf8mb4&parseTime=true&loc=UTC&multiStatements=false'
           MSS_SUPPLIER_TEST_POSTGRES_DSN: 'postgres://mss_supplier:mss_supplier_ci@127.0.0.1:5432/mss_supplier_test?sslmode=disable&TimeZone=UTC'
         run: |
           python3 tools/release/release_phase_evidence.py run \
             --target-version "${RELEASE_VERSION}" \
             --commit "${FROZEN_COMMIT}" \
-            --phase feature-freeze \
+            --phase "${READINESS_PHASE}" \
             --output .mss/reports/release-phase-command-evidence.json
 
       - name: Plan phase-scoped Feature command evidence
-        if: ${{ success() && inputs.phase != 'feature-freeze' }}
+        if: ${{ success() && inputs.phase == 'checkpoint' }}
         env:
           RELEASE_VERSION: ${{ inputs.version }}
           FROZEN_COMMIT: ${{ inputs.frozen_commit }}

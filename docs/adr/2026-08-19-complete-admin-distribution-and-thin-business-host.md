@@ -1,6 +1,6 @@
 # ADR: Complete Admin distribution and thin business hosts
 
-- Status: Accepted; v1.3.0-rc.6 preview qualification in progress
+- Status: Accepted and implemented; v1.3.0-rc.6 published successfully, v1.3.0 stable qualification in preparation
 - Date: 2026-08-19
 - Owners: Admin, frontend, agent infrastructure, release engineering
 - Feature contract: `.mss/features/complete-admin-distribution-thin-host.yaml`
@@ -32,14 +32,20 @@ with stable exports and a build CLI. External business pages join the same Umi r
 fallback routes and compile into the same `dist`. The package does not become a collection of
 independently versioned runtime, shell, auth, layout, or contract packages.
 
-The preview package is published as `@mss-boot-io/admin-web` in GitHub Packages and linked to this
-repository. A generated Thin Host commits only the scoped registry mapping and an environment-backed
-`NODE_AUTH_TOKEN` placeholder. Local consumers use a classic GitHub token with `read:packages`; GitHub
-Actions uses its short-lived `GITHUB_TOKEN` with `packages: read`. No expanded token is written into a
-generated repository, lockfile, report, or package artifact. GitHub creates the first npm package as
-private; the release manager changes it to public in the package settings after verifying the exact
-version, source commit, integrity, and repository binding. The Root release gate then requires public
-visibility before it can publish.
+The complete frontend package is published as `@mss-boot-io/admin-web`. npmjs is the default public,
+unauthenticated installation source; GitHub Packages remains a repository-linked compatibility mirror.
+Both registries receive the same qualified tarball and must agree on version, source commit, integrity,
+and dist-tag. Generated Thin Hosts select the public npm registry and commit no credential placeholder.
+Consumers that explicitly opt into the GitHub mirror inject a short-lived `read:packages` token only for
+the install process. No expanded token is written into a generated repository, lockfile, report, or
+package artifact.
+
+Official npm publication does not rebuild the frontend. A protected final workflow downloads the tarball,
+evidence, SBOM, and checksums from the exact frontend GitHub Release, verifies every coordinated tag and
+Release against the frozen commit, then publishes that same tarball to npmjs as the final artifact
+publication. The first package publication uses a short-lived protected bootstrap credential; after
+that package exists, one security-only handoff binds npm Trusted Publishing OIDC to the exact workflow
+and `release-v6` environment and revokes the bootstrap credential. Subsequent versions use OIDC.
 
 `management-system` becomes the single recommended thin-host Blueprint. It generates application glue,
 business source directories, machine contracts, deployment files, and CI while depending on the
@@ -66,7 +72,7 @@ not import Foundation `internal` packages or package-private V6 source paths.
 
 ## Security and privacy
 
-The browser retains the existing HttpOnly Session, signed CSRF, request, refresh, and WebSocket ticket
+The browser retains the existing HttpOnly Session, signed CSRF, request, and WebSocket ticket
 protocol. Backend authorization remains authoritative. Business routes are published only after database
 and authorization migrations pass readiness and are mounted behind the complete Admin middleware chain.
 
@@ -89,9 +95,10 @@ business files, and records a thin baseline only after all file operations and v
 
 Technical artifacts may use root, `mss-boot/`, `admin/`, and `web/antd-v6/` tag namespaces, but their
 exact semantic version, including a prerelease suffix, must match for a coordinated distribution. The
-current public consumption rehearsal uses `v1.3.0-rc.6`; it is marked as a prerelease and does not replace
-the current `v1.2.3` stable release. Publication remains restricted to the exact merged-main commit and
-the protected Framework -> Admin -> Frontend -> Root release train.
+successful public preview is `v1.3.0-rc.6`; it is immutable and does not replace the current `v1.2.3`
+stable release. The only active target is now `v1.3.0` stable. Publication remains restricted to a new
+exact merged-main commit and the protected Framework -> Admin -> Frontend -> Root -> Docs -> npmjs
+release train; the final npmjs step republishes the already-qualified frontend tarball without rebuilding.
 
 The immutable `v1.3.0-rc.1` train remains partial evidence. Framework, Admin, and the multi-architecture
 frontend image published, but a workflow verifier defect stopped the frontend package and GitHub Release;
@@ -120,6 +127,16 @@ RC5 executes Core then Business phases, forward-repairs the stale Supplier autho
 sidebar navigation in the external browser gate, and keeps dependency setup from mutating the release
 checkout. RC4 refs and artifacts remain unchanged.
 
+The immutable `v1.3.0-rc.5` train published Framework, Admin, the complete frontend package and image,
+and the Root image from one exact commit. Its Root GitHub Release did not publish because the Agent
+evaluation catalog still required the large copied-file footprint after `management-system` had become
+a 31-file Thin Host. RC6 corrected the stale evaluation without changing any RC5 ref or artifact.
+
+The immutable `v1.3.0-rc.6` train published Framework, Admin, the complete Admin Web package and
+multi-architecture image, the Root image, and the Root GitHub Release from one exact merged-main commit.
+It is accepted preview evidence for stable qualification. Post-RC6 Supplier, UI, E2E, image-alias, and
+documentation repairs are delivered only through new stable refs.
+
 Before publication, rollback is a normal revert of the feature commits. After downstream adoption,
 rollback pins the previous Admin Distribution and restores the previous thin-host lock and manifest.
 Published tags remain immutable.
@@ -139,10 +156,10 @@ Downstream repositories become substantially smaller and upgrades operate on thi
 product sources. In exchange, the complete Admin application entrypoint, business module API, frontend
 exports, and coordinated version become compatibility surfaces that require external-consumer gates.
 
-The implementation has passed the repository-external Supplier host gate: GOWORK=off backend validation,
+The implementation and RC6 preview have passed the repository-external Supplier host gate: GOWORK=off backend validation,
 tarball frontend validation, single-runtime analysis, deterministic generation and upgrade tests, and the
-required browser E2E described by the Feature contract. Publication remains separately gated on PR merge,
-the exact merged-main commit, remote qualification, and coordinated immutable artifacts.
+required browser E2E described by the Feature contract. Stable publication remains separately gated on
+the preparation PR merge, a new exact merged-main commit, remote qualification, and coordinated immutable artifacts.
 
 Because the npm package deliberately carries package-owned build tools for thin hosts, its distribution
 metadata partitions every published dependency into runtime or tooling roots. Runtime security findings

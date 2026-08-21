@@ -60,7 +60,8 @@ describe('Admin web package contract', () => {
     expect(packageManifest.name).toBe('@mss-boot-io/admin-web');
     expect(packageManifest.private).not.toBe(true);
     expect(packageManifest.publishConfig).toEqual({
-      registry: 'https://npm.pkg.github.com',
+      access: 'public',
+      registry: 'https://registry.npmjs.org',
     });
     expect(packageManifest.mssAdminDistribution).toMatchObject({
       packageManager: packageManifest.packageManager,

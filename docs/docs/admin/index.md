@@ -1,128 +1,121 @@
 ---
-title: 介绍
+title: Admin 产品概览
 order: 10
 nav:
   order: 0
-  title: admin
-description: 介绍mss-boot-admin
-keywords: [admin mss-boot-admin]
+  title: Admin
+description: mss-boot Complete Admin Distribution 的产品定位、组成、内置能力与扩展边界
+keywords: [admin mss-boot-admin complete distribution thin host react ant design]
 ---
 
-## 简介
+# Admin 产品概览
 
-> `mss-boot-admin` 是基于 `Gin` + `React 19` + `Ant Design 6.6.0` + `Umi Max 4` + `mss-boot` 的前后端分离后台管理平台。V6 位于 `web/antd-v6` 并保持独立发布身份；V5 仅在限时观察窗口内作为冻结回退。当前产品主线聚焦于权限治理、组织管理、系统配置、通知任务、国际化、监控统计，以及 AI 注解协同驱动的研发流程。
-
-## 当前产品主线
-
-- 治理核心：用户、角色、部门、岗位、菜单、API 权限
-- 运营能力：系统配置、通知公告、任务、监控、统计
-- 平台能力：国际化、对象存储、事件能力、API-first 扩展
-- 研发协同：以 AI 注解作为设计、实现、文档与交接的统一上下文载体
+<code>mss-boot-admin</code> 是基于 Go、Gin、GORM、Casbin、React 19、Ant Design 6.6 和
+Umi Max 4 的完整管理系统基础设施。它既是可直接部署的参考 Admin，也是可以被 Thin Host
+通过版本化 Go Module 和单一 npm 包引入的 Complete Admin Distribution。
 
 :::info
-Admin 运行时动态模型、虚拟 CRUD 和浏览器代码生成已经移除。仓库级 `cmd/mss` 离线确定性生成器属于开发基础设施，继续用于从受版本控制的规格生成可编译模块。
+**v1.3.0 状态**
+
+唯一活动目标是 <code>v1.3.0</code> 稳定版候选；正式发布和对账完成前，当前稳定版仍是
+<code>v1.2.3</code>。完整预览 <code>v1.3.0-rc.6</code> 保持不可变。
 :::
 
-## 🎬 体验环境
+## 一套产品，四个协同组件
 
-[体验地址](https://admin-beta.mss-boot-io.top)
+| 组件 | 作用 |
+| --- | --- |
+| <code>mss-boot/</code> | 领域中立 Framework，提供 HTTP、配置、运行时资源和基础设施抽象 |
+| <code>admin/</code> | 完整 Admin 后端、迁移、权限、菜单、API、可导入应用和业务模块接口 |
+| <code>web/antd-v6/</code> | 唯一正式前端，也是 <code>@mss-boot-io/admin-web</code> 的来源 |
+| Root Foundation | <code>mss</code> CLI、机器契约、Blueprint、生成、验证、评测、升级与发布治理 |
 
-> 账号：`admin` 密码：`123456`
->
-> 或者直接点击github图标通过`github`登录
+Root、Framework、Admin 和 Admin Web 在产品层面使用同一个 Distribution 版本。各组件可以
+独立发布，但不支持任意混配。
 
-## ✨ 特性
+## 内置产品能力
 
-- 支持国际化
-- 支持移动端 H5 响应式适配
-- 标准 Restful API 开发规范
-- 基于 Casbin 的 RBAC 权限管理
-- 基于 Gorm 的数据库存储
-- 基于 Gin 的中间件开发
-- 基于 Gin 的 Swagger 文档生成
-- 支持 oauth2.0 第三方登录
-- 支持 swagger 文档生成
-- 支持多种配置源(本地文件、embed、对象存储 s3 等、gorm 支持的数据库、mongodb)
-- 支持数据库迁移
-- 支持通知、任务、监控、统计等运营能力
-- 支持 AI 注解协同的工程化演进方向
+### 身份和权限
 
-## 📦 内置功能
+- HttpOnly 浏览器 Session、签名 CSRF 和一次性 WebSocket ticket；
+- 用户、角色、部门、岗位、菜单、API 注册表与 Casbin RBAC；
+- 角色菜单/API 授权、权限正负路径和后端强制执行；
+- OAuth2 账号绑定、Personal Access Token、密码与近期身份验证；
+- 在线会话查看和撤销、登录日志与审计日志。
 
-- 用户管理: 用户是系统操作者，该功能主要完成系统用户配置。
-- 部门管理: 管理组织树结构，支撑数据归属与权限边界。
-- 岗位管理: 管理岗位信息，辅助组织与权限配置。
-- 角色管理: 角色菜单权限分配、设置角色按机构进行数据范围权限划分。
-- 菜单管理: 配置系统菜单，操作权限，按钮权限标识等。
-- API 管理: 维护系统接口注册信息，辅助权限与接口治理。
-- 选项管理: 动态配置枚举。
-- 系统配置: 管理各种环境的配置。
-- 通知公告: 用户通知消息。
-- 任务管理: 管理定时任务，包括执行日志。
-- 国际化管理: 管理国际化资源。
-- 账号与令牌管理: 支持 OAuth2 绑定、个人令牌等账号安全能力。
-- 监控与统计: 支持基础监控信息与统计查询接口。
+### 组织、配置和运营
 
-## 📌 当前阶段说明
+- 组织树、岗位、选项、国际化资源；
+- 系统配置、应用配置、用户配置和分层主题；
+- 通知公告、定时任务与执行记录；
+- 监控、统计、日志、告警和基础运行状态；
+- 文件上传、对象存储与事件等可选集成入口。
 
-- Admin 运行时开发工具已移除；升级不会自动删除历史动态模型元数据表或其业务表，避免破坏用户数据。
-- `cmd/mss` 离线确定性生成器不属于已移除的 Admin 运行时能力，继续作为开发期标准工作流。
-- 当前阶段的重点是统一产品方向，并围绕治理、运营与 AI 注解协同完善平台能力。
-- **架构决策**: 多租户功能已移除，当前为单租户架构，适合单一组织或团队的内部管理系统。
+### 完整业务模块
 
-## 🧭 推荐阅读
+受版本控制的 AdminModule 规格可以确定性投影：
 
-- [快速开始](/admin/quickly)
-- [产品方向调整](/admin/product-direction)
+- 数据模型、DTO、Service、API 和 OpenAPI；
+- 前向迁移、权限、菜单、API 元数据和领域事件；
+- React 列表、筛选、表单、详情、路由、国际化和 API client；
+- 正负授权测试、生成测试、E2E 和模块文档。
+
+Supplier 是黄金样例。默认 Thin Host 通过“采购管理 → 供应商管理”从侧边栏进入，同一模块
+同时证明迁移、菜单、图标、API 绑定、CRUD、权限拒绝和刷新行为。
+
+## Thin Host：推荐的业务项目形态
+
+业务仓库不再复制完整 Foundation。Thin Host 只保存：
+
+- 很薄的 Go 组合入口；
+- 自有业务模块和业务前端页面；
+- AdminModule/Feature 规格、迁移、测试和文档；
+- <code>.mss/lock.yaml</code>、部署与 CI；
+- Foundation 管理的少量组合胶水。
+
+后端业务模块在编译期注册到同一个 Admin 应用；前端业务页面在构建期进入同一个 Umi 路由树。
+最终仍然只有一个后端二进制、一个前端 <code>dist</code>、一套 Session 和一套权限体系。
+
+## API 注册表是必需的部署步骤
+
+数据库迁移不会代替实际路由同步。首次安装或升级后要使用与常驻服务相同的版本、Stage 和 DSN
+执行一次：
+
+~~~bash
+cd admin
+STAGE=local go run . server -a
+~~~
+
+随后在“权限管理 → 菜单管理”中选择 <code>MENU</code> 或 <code>COMPONENT</code>，点击
+“绑定 API”，可选项必须非空。只有健康检查或页面能打开，不代表权限注册表已经完成。
+
+详见 [v1.3.0 安装与升级合同](/releases/v1-3-0)。
+
+## 已退役边界
+
+- Ant Design 5 已退役，不是回滚面，也不再接受兼容性修复；
+- Admin 运行时动态模型、虚拟 CRUD 和浏览器代码生成已移除；
+- 多租户已移除，当前产品是单租户 Admin；
+- 不提供 Qiankun、Module Federation、iframe、远程业务代码或第二套 SPA；
+- 历史动态模型表可以为保护用户数据而保留，但不代表相关运行时能力仍可用。
+
+仓库级 <code>cmd/mss</code> 是开发期确定性工具，与已经移除的浏览器运行时生成器不是同一
+能力。
+
+## 推荐阅读
+
 - [当前功能总览](/admin/current-capabilities)
-- [权限与组织治理说明](/admin/governance-guide)
-- [运营能力说明](/admin/operations-guide)
-- [Token 与 OAuth2 联调说明](/admin/token-oauth2-guide)
-- [AI 注解协同规范](/admin/ai-annotation-spec)
-- [AI 注解产物模板](/admin/ai-annotation-templates)
-- [四期路线图](/admin/phase-4-roadmap)
-- [五期路线图](/admin/phase-5-roadmap)
-- [移动端 H5 适配说明](/admin/mobile-h5-adaptation)
-- [HotGo 对比分析](/admin/hotgo-comparison)
-- [产品打磨与工程治理方案](/admin/product-polish-governance-plan)
-- [Admin UI 体验与静态交付基线](/admin/ui-experience-and-static-delivery)
-- [生产部署标准化](/admin/production-standardization)
-- [发布验证清单](/admin/release-verification-checklist)
-- [性能与可观测性指南](/admin/observability-guide)
-- [安全基线指南](/admin/security-baseline)
-- [登录排障](/admin/login-troubleshooting)
-- [集成测试指南](/admin/integration-test-guide)
-- [本地联调](/admin/local-debug)
-- [国际化排障](/admin/i18n-troubleshooting)
-- [配置操作](/admin/tutorials)
-- [配置缓存一致性](/admin/config-cache-consistency)
-- [Ant Design 6 独立应用评估与实施方案](/admin/ant-design-v6-migration-plan)
+- [快速开始](/admin/quickly)
+- [完整 Admin Distribution 与 Thin Host 架构](/architecture/complete-admin-distribution-and-thin-business-host)
+- [Agent 开发入口](/agent)
+- [权限与组织治理](/admin/governance-guide)
+- [生产和安全基线](/admin/security-baseline)
 - [Docker 部署](/admin/docker)
+- [v1.3.0 发布、升级与回滚](/releases/v1-3-0)
 
-## 贡献者
+## 反馈
 
-<span style="margin: 0 5px;" ><a href="https://github.com/lwnmengjing" ><img src="https://images.weserv.nl/?url=avatars.githubusercontent.com/u/12806223?s=64&v=4&w=60&fit=cover&mask=circle&maxage=7d" /></a></span> <span style="margin: 0 5px;" ><a href="https://github.com/wangde7" ><img src="https://images.weserv.nl/?url=avatars.githubusercontent.com/u/56955959?s=64&v=4&w=60&fit=cover&mask=circle&maxage=7d" /></a></span>
-
-## 建议反馈
-
-本文档为静态站点，项目托管在`github` [mss-boot-docs](https://github.com/mss-boot-io/mss-boot-docs) 基于 [dumi](https://d.umijs.org/) 开发，
-使用`github actions`将编译后的静态文件发布到`cloudflare workers`。
-
-如果您有任何建议或者意见，欢迎提`issue`或者`pr`。
-
-## 📨 互动
-
-<table>
-   <tr>
-    <td><img src="https://mss-boot-io.github.io/.github/images/wechat.jpg" width="180px"></td>
-    <td><img src="https://mss-boot-io.github.io/.github/images/wechat-mp.jpg" width="180px"></td>
-    <td><img src="https://mss-boot-io.github.io/.github/images/qq-group.jpg" width="200px"></td>
-    <td><a href="https://space.bilibili.com/597294782/channel/seriesdetail?sid=3881026&ctype=0">mss-boot-io</a></td>
-  </tr>
-  <tr>
-    <td>微信</td>
-    <td>公众号🔥🔥🔥</td>
-    <td><a target="_blank" href="https://shang.qq.com/wpa/qunwpa?idkey=0f2bf59f5f2edec6a4550c364242c0641f870aa328e468c4ee4b7dbfb392627b"><img border="0" src="https://pub.idqqimg.com/wpa/images/group.png" alt="mss-boot技术交流群" title="mss-boot技术交流群"></a></td>
-    <td>哔哩哔哩🔥🔥🔥</td>
-  </tr>
-</table>
+文档和产品源码位于同一个
+[`mss-boot-admin` 仓库](https://github.com/mss-boot-io/mss-boot-admin)。一般问题请提交
+[GitHub Issue](https://github.com/mss-boot-io/mss-boot-admin/issues)；疑似漏洞请遵循
+[Security Policy FAQ](/devops/security-policy-faq)，不要公开披露可被滥用的细节。

@@ -1,7 +1,10 @@
 package spec
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -15,6 +18,7 @@ func RenderModuleTemplate(name, displayName string) ([]byte, error) {
 	if displayName == "" {
 		displayName = titleWords(name)
 	}
+	migrationID, authorizationMigrationID := starterMigrationIDs(name)
 	module := &Module{
 		APIVersion: ModuleAPIVersion,
 		Kind:       ModuleKind,
@@ -34,6 +38,7 @@ func RenderModuleTemplate(name, displayName string) ([]byte, error) {
 						DisplayName: "Name",
 						Type:        "string",
 						Required:    true,
+						Unique:      true,
 						Searchable:  true,
 						Sortable:    true,
 						Validation: ValidationSpec{
@@ -60,11 +65,12 @@ func RenderModuleTemplate(name, displayName string) ([]byte, error) {
 			API: APISpec{
 				BasePath:   "/" + simplePlural(name),
 				Version:    "v1",
-				Operations: []string{"list", "get", "create", "update", "delete"},
+				Operations: []string{"list", "get", "create", "update", "delete", "export"},
 			},
 			Permissions: []Permission{
 				{Action: "create", DisplayName: "Create " + displayName, DefaultRoles: []string{"admin"}},
 				{Action: "delete", DisplayName: "Delete " + displayName, DefaultRoles: []string{"admin"}},
+				{Action: "export", DisplayName: "Export " + displayName, DefaultRoles: []string{"admin"}},
 				{Action: "list", DisplayName: "List " + displayName, DefaultRoles: []string{"admin"}},
 				{Action: "read", DisplayName: "Read " + displayName, DefaultRoles: []string{"admin"}},
 				{Action: "update", DisplayName: "Update " + displayName, DefaultRoles: []string{"admin"}},
@@ -80,12 +86,17 @@ func RenderModuleTemplate(name, displayName string) ([]byte, error) {
 				List:   true,
 				Form:   true,
 				Detail: true,
+				Export: true,
 			},
 			Tests: TestSpec{
 				Unit:             true,
 				API:              true,
 				E2E:              true,
 				PermissionMatrix: true,
+			},
+			Generation: GenerationSpec{
+				MigrationID:              migrationID,
+				AuthorizationMigrationID: authorizationMigrationID,
 			},
 		},
 	}
@@ -94,6 +105,17 @@ func RenderModuleTemplate(name, displayName string) ([]byte, error) {
 		return nil, &ValidationError{Issues: issues}
 	}
 	return module.YAML()
+}
+
+// starterMigrationIDs returns a deterministic, module-specific adjacent pair.
+// The 14-digit range is intentionally outside the timestamp-shaped IDs used by
+// the Foundation itself, while preserving stable decimal ordering and leaving
+// collision detection to the generator's repository-wide preflight.
+func starterMigrationIDs(name string) (string, string) {
+	digest := sha256.Sum256([]byte("mss-admin-module:" + name))
+	const pairCount uint64 = 30_000_000_000_000
+	base := uint64(30_000_000_000_000) + 2*(binary.BigEndian.Uint64(digest[:8])%pairCount)
+	return strconv.FormatUint(base, 10), strconv.FormatUint(base+1, 10)
 }
 
 func intPointer(value int) *int {

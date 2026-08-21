@@ -238,6 +238,7 @@ jobs:
             tools/ci/test_detect_component_scope.py \
             tools/release/test_check_release_policy.py \
             tools/release/test_generate_admin_web_sbom.py \
+            tools/release/test_npm_release_workflow.py \
             tools/release/test_release_phase_evidence.py \
             tools/release/test_release_qualification_decision.py \
             tools/release/test_release_readiness_attestation.py \

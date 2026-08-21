@@ -27,15 +27,13 @@ configuration, deployment, tests, and generated composition glue.
   boundary.
 - Run `make verify` before opening a pull request.
 
-## GitHub Packages
+## Admin Web package
 
-- `web/.npmrc` routes only the `@mss-boot-io` scope to GitHub Packages and
-  reads authentication from `NODE_AUTH_TOKEN`; never replace the environment
-  placeholder with a committed token.
-- For local installation, authenticate GitHub CLI with `read:packages`, export
-  `NODE_AUTH_TOKEN` only for the command process, and then run the pinned pnpm
-  install command. GitHub Actions uses its repository `GITHUB_TOKEN` with
-  `packages: read`.
+- `web/.npmrc` uses the public npm registry and exact dependency pins. Installing
+  `@mss-boot-io/admin-web` must not require a long-lived registry token.
+- GitHub Packages remains a release mirror for compatibility and evidence. A
+  host that explicitly selects that mirror must inject `NODE_AUTH_TOKEN` only
+  for the command process and must never commit the expanded token.
 
 ## Admin Distribution upgrades
 

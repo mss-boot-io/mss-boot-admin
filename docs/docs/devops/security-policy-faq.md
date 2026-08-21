@@ -25,12 +25,10 @@ Use the security policy of the affected repository instead:
 
 | Repository            | Security policy                                                                   |
 | --------------------- | --------------------------------------------------------------------------------- |
-| `mss-boot`            | [SECURITY.md](https://github.com/mss-boot-io/mss-boot/security/policy)            |
 | `mss-boot-admin`      | [SECURITY.md](https://github.com/mss-boot-io/mss-boot-admin/security/policy)      |
-| `mss-boot-docs`       | [SECURITY.md](https://github.com/mss-boot-io/mss-boot-docs/security/policy)       |
 
-The `mss-boot-admin` policy also covers `web/antd-v6` and its independently
-published artifacts. When GitHub private vulnerability reporting is available on the affected
+The `mss-boot-admin` policy covers the root tools, `mss-boot/`, `admin/`,
+`web/antd-v6/`, `docs/`, and their independently published artifacts. When GitHub private vulnerability reporting is available on the affected
 repository, prefer that path so maintainers can triage the report privately.
 
 ## What should a useful report include?

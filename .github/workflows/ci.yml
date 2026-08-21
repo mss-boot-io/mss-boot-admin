@@ -174,10 +174,7 @@ jobs:
         run: go vet ./...
 
       - name: Verify Admin module metadata
-        working-directory: admin
-        run: |
-          go mod tidy
-          git diff --exit-code -- go.mod go.sum
+        run: bash tools/ci/verify-admin-module-metadata.sh
 
       - name: Reject actual reverse Admin dependencies
         run: |
