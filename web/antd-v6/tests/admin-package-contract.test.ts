@@ -84,6 +84,16 @@ describe('Admin web package contract', () => {
       expect(versions).toEqual([...new Set(versions)].sort());
     }
     expect(packageManifest.dependencies.vite).toBe('8.2.1');
+
+    const businessTypes = readFileSync(
+      resolve(import.meta.dirname, '../package/business.d.ts'),
+      'utf8',
+    );
+    const optionsBlock = businessTypes.match(
+      /export interface BusinessAdminOptions \{([\s\S]*?)\n\}/,
+    )?.[1];
+    expect(optionsBlock).toContain('businessRoutes?: AdminBusinessRoute[];');
+    expect(optionsBlock).not.toMatch(/^\s*routes\?:/m);
   });
 
   it('keeps the published CLI available to a clean Git checkout', () => {
@@ -123,6 +133,24 @@ describe('Admin web package contract', () => {
         .filter((route) => route.path !== '/contracts' && route.component)
         .every((route) => isAbsolute(route.component ?? '')),
     ).toBe(true);
+  });
+
+  it('keeps complete Admin routes immutable at the public configuration boundary', () => {
+    expect(() => defineBusinessAdmin({ routes: [] })).toThrow('Admin core routes are immutable');
+    expect(() => defineBusinessAdmin({ businessRoutes: {} })).toThrow(
+      'Admin Web businessRoutes must be an array',
+    );
+
+    const inheritedOverride = Object.create({ routes: [] }) as Record<string, unknown>;
+    expect(() => defineBusinessAdmin(inheritedOverride)).toThrow('Admin core routes are immutable');
+
+    const configuration = defineBusinessAdmin({
+      businessRoutes: [{ path: '/contracts', component: '@/business/contracts' }],
+    }) as { routes: Route[] };
+    const paths = configuration.routes.map((route) => route.path);
+    expect(paths).toContain('/workplace');
+    expect(paths).toContain('/contracts');
+    expect(paths.slice(-3)).toEqual(['/403', '/', '/*']);
   });
 
   it('keeps the retired MFSU runtime out of external development builds', () => {

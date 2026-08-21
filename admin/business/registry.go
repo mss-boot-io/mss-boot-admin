@@ -108,6 +108,18 @@ type entry struct {
 	routes     RouteRegistrar
 }
 
+// registrationTransaction stages every side effect from one Module.Register
+// call. The registry publishes the staged entry and migrations together only
+// after the module returns successfully and the complete migration set passes
+// collision validation.
+type registrationTransaction struct {
+	module      string
+	migrations  *migration.Migration
+	entry       *entry
+	registering bool
+	err         error
+}
+
 // Registry is application-local. It is writable only while modules are being
 // composed and immutable once frozen for migration or server execution.
 type Registry struct {
@@ -118,8 +130,7 @@ type Registry struct {
 	migrations         *migration.Migration
 	entries            []entry
 	modules            map[string]struct{}
-	activeModule       string
-	activeRegistered   bool
+	active             *registrationTransaction
 	frozen             bool
 }
 
@@ -157,8 +168,9 @@ func Compose(coreMigrations *migration.Migration, modules ...Module) (*Registry,
 	return registry, nil
 }
 
-// Add explicitly composes one module. Calls are serialized so Register always
-// belongs to the module currently being added.
+// Add explicitly composes one module. Registration is transactional: a module
+// that returns an error, ignores a registration error, or partially mutates its
+// staged migration runner leaves no descriptor, identity, or migration behind.
 func (r *Registry) Add(module Module) error {
 	if r == nil {
 		return errors.New("business module registry is required")
@@ -174,6 +186,10 @@ func (r *Registry) Add(module Module) error {
 	r.registrationMu.Lock()
 	defer r.registrationMu.Unlock()
 
+	transaction := &registrationTransaction{
+		module:     name,
+		migrations: migration.New(),
+	}
 	r.mu.Lock()
 	if r.frozen {
 		r.mu.Unlock()
@@ -183,82 +199,198 @@ func (r *Registry) Add(module Module) error {
 		r.mu.Unlock()
 		return fmt.Errorf("%w: %s", ErrDuplicateModule, name)
 	}
-	r.modules[name] = struct{}{}
-	r.activeModule = name
-	r.activeRegistered = false
+	r.active = transaction
 	r.mu.Unlock()
+	defer func() {
+		r.mu.Lock()
+		if r.active == transaction {
+			r.active = nil
+		}
+		r.mu.Unlock()
+	}()
 
-	err := module.Register(r)
-
-	r.mu.Lock()
-	registered := r.activeRegistered
-	r.activeModule = ""
-	r.activeRegistered = false
-	if err != nil || !registered {
-		delete(r.modules, name)
-	}
-	r.mu.Unlock()
-	if err != nil {
+	if err := module.Register(r); err != nil {
 		return fmt.Errorf("register business module %s: %w", name, err)
 	}
-	if !registered {
+
+	r.mu.Lock()
+	if r.active != transaction {
+		r.mu.Unlock()
+		return fmt.Errorf("register business module %s: registration transaction was lost", name)
+	}
+	if transaction.registering {
+		r.active = nil
+		r.mu.Unlock()
+		return fmt.Errorf("register business module %s: registration is still in progress", name)
+	}
+	r.active = nil
+	stagedEntry := transaction.entry
+	stagedMigrations := transaction.migrations
+	registrationErr := transaction.err
+	r.mu.Unlock()
+
+	if registrationErr != nil {
+		return fmt.Errorf("register business module %s: %w", name, registrationErr)
+	}
+	if stagedEntry == nil {
 		return fmt.Errorf("register business module %s: module did not provide a registration", name)
 	}
+
+	nextBusinessMigrations, err := migration.CombineRegistrations(
+		r.businessMigrations,
+		stagedMigrations,
+	)
+	if err != nil {
+		return fmt.Errorf("register business module %s migrations: %w", name, err)
+	}
+	if _, err := migration.CombineRegistrations(r.coreMigrations, nextBusinessMigrations); err != nil {
+		return fmt.Errorf("validate business module %s migrations: %w", name, err)
+	}
+
+	r.mu.Lock()
+	r.businessMigrations = nextBusinessMigrations
+	r.entries = append(r.entries, *stagedEntry)
+	r.modules[name] = struct{}{}
+	r.mu.Unlock()
 	return nil
 }
 
-// Register records the active module's complete runtime projection.
+// Register stages the active module's complete runtime projection. It may only
+// be called from Module.Register while Add owns the registration transaction.
+// User-provided migration registration runs without the Registry mutex held;
+// recursive or concurrent Register calls poison the transaction and fail closed.
 func (r *Registry) Register(registration Registration) error {
 	if r == nil {
 		return errors.New("business module registry is required")
 	}
+
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.frozen {
+		r.mu.Unlock()
 		return ErrRegistryFrozen
 	}
-	if r.activeModule == "" {
+	transaction := r.active
+	if transaction == nil {
+		r.mu.Unlock()
 		return errors.New("business registration must be called from Module.Register")
 	}
-	if r.activeRegistered {
-		return fmt.Errorf("business module %s provided more than one registration", r.activeModule)
+	if transaction.err != nil {
+		err := transaction.err
+		r.mu.Unlock()
+		return err
 	}
+	if transaction.registering || transaction.entry != nil {
+		err := fmt.Errorf(
+			"business module %s provided more than one registration",
+			transaction.module,
+		)
+		r.failRegistrationLocked(transaction, err)
+		r.mu.Unlock()
+		return err
+	}
+	transaction.registering = true
+	r.mu.Unlock()
 
 	descriptor := cloneDescriptor(registration.Descriptor)
 	descriptor.Name = strings.TrimSpace(descriptor.Name)
 	descriptor.DisplayName = strings.TrimSpace(descriptor.DisplayName)
-	if descriptor.Name != r.activeModule {
-		return fmt.Errorf(
+	if descriptor.Name != transaction.module {
+		return r.failRegistration(transaction, fmt.Errorf(
 			"business module identity mismatch: Module.Name()=%q descriptor=%q",
-			r.activeModule,
+			transaction.module,
 			descriptor.Name,
-		)
+		))
 	}
 	if descriptor.DisplayName == "" {
-		return fmt.Errorf("business module %s display name is required", r.activeModule)
+		return r.failRegistration(transaction, fmt.Errorf(
+			"business module %s display name is required",
+			transaction.module,
+		))
 	}
 	if descriptor.Model == nil && descriptor.Migrate == nil {
-		return fmt.Errorf("business module %s must define a model or explicit compatibility migration", r.activeModule)
+		return r.failRegistration(transaction, fmt.Errorf(
+			"business module %s must define a model or explicit compatibility migration",
+			transaction.module,
+		))
 	}
 	if registration.Readiness == nil {
-		return fmt.Errorf("business module %s readiness check is required", r.activeModule)
+		return r.failRegistration(transaction, fmt.Errorf(
+			"business module %s readiness check is required",
+			transaction.module,
+		))
 	}
 	if registration.Routes == nil {
-		return fmt.Errorf("business module %s route registrar is required", r.activeModule)
+		return r.failRegistration(transaction, fmt.Errorf(
+			"business module %s route registrar is required",
+			transaction.module,
+		))
 	}
 	if registration.Migrations != nil {
-		if err := registration.Migrations(r.businessMigrations); err != nil {
-			return fmt.Errorf("register business module %s migrations: %w", r.activeModule, err)
+		if err := registration.Migrations(transaction.migrations); err != nil {
+			return r.failRegistration(transaction, fmt.Errorf(
+				"register business module %s migrations: %w",
+				transaction.module,
+				err,
+			))
 		}
 	}
-	r.entries = append(r.entries, entry{
-		name:       r.activeModule,
+	if err := transaction.migrations.ValidateRegistrations(); err != nil {
+		return r.failRegistration(transaction, fmt.Errorf(
+			"validate business module %s migrations: %w",
+			transaction.module,
+			err,
+		))
+	}
+
+	stagedEntry := &entry{
+		name:       transaction.module,
 		descriptor: descriptor,
 		readiness:  registration.Readiness,
 		routes:     registration.Routes,
-	})
-	r.activeRegistered = true
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	transaction.registering = false
+	if r.active != transaction {
+		return fmt.Errorf(
+			"register business module %s: registration transaction was lost",
+			transaction.module,
+		)
+	}
+	if transaction.err != nil {
+		return transaction.err
+	}
+	if transaction.entry != nil {
+		err := fmt.Errorf(
+			"business module %s provided more than one registration",
+			transaction.module,
+		)
+		r.failRegistrationLocked(transaction, err)
+		return err
+	}
+	transaction.entry = stagedEntry
 	return nil
+}
+
+func (r *Registry) failRegistration(transaction *registrationTransaction, err error) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.active == transaction {
+		transaction.registering = false
+		r.failRegistrationLocked(transaction, err)
+	}
+	return err
+}
+
+func (r *Registry) failRegistrationLocked(
+	transaction *registrationTransaction,
+	err error,
+) {
+	if transaction.err == nil {
+		transaction.err = err
+	} else {
+		transaction.err = errors.Join(transaction.err, err)
+	}
 }
 
 // Freeze validates the complete migration set and prevents later mutation.
@@ -273,8 +405,8 @@ func (r *Registry) Freeze() error {
 	if r.frozen {
 		return nil
 	}
-	if r.activeModule != "" {
-		return fmt.Errorf("business module %s registration is still in progress", r.activeModule)
+	if r.active != nil {
+		return fmt.Errorf("business module %s registration is still in progress", r.active.module)
 	}
 	if err := r.coreMigrations.ValidateRegistrations(); err != nil {
 		return fmt.Errorf("validate core migration phase: %w", err)

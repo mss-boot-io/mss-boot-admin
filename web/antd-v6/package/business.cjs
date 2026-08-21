@@ -25,7 +25,22 @@ function proxyConfig(apiTarget) {
   };
 }
 
+function validateBusinessAdminOptions(options) {
+  if (options === null || typeof options !== 'object' || Array.isArray(options)) {
+    throw new TypeError('Admin Web options must be an object.');
+  }
+  if ('routes' in options) {
+    throw new Error(
+      'Admin core routes are immutable; extend the complete application with businessRoutes instead of routes.',
+    );
+  }
+  if (options.businessRoutes !== undefined && !Array.isArray(options.businessRoutes)) {
+    throw new TypeError('Admin Web businessRoutes must be an array.');
+  }
+}
+
 function defineBusinessAdmin(options = {}) {
+  validateBusinessAdminOptions(options);
   const title = options.title || 'mss-boot-io';
   const logo = logoDataURL();
   const tailwindStyles = require.resolve('tailwindcss/index.css');
@@ -35,12 +50,10 @@ function defineBusinessAdmin(options = {}) {
   const routeRegistrations = options.routeRegistrations
     ? resolve(process.cwd(), options.routeRegistrations)
     : emptyRegistrations;
-  const routes =
-    options.routes ||
-    createAdminRoutes({
-      businessRoutes: options.businessRoutes || [],
-      pagesRoot: resolve(packageRoot, 'src/pages'),
-    });
+  const routes = createAdminRoutes({
+    businessRoutes: options.businessRoutes || [],
+    pagesRoot: resolve(packageRoot, 'src/pages'),
+  });
   const hasPostCSSConfig = ['postcss.config.cjs', 'postcss.config.js', 'postcss.config.mjs'].some(
     (name) => existsSync(resolve(process.cwd(), name)),
   );

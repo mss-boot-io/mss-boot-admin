@@ -8,8 +8,6 @@ import (
 	"os"
 	"sync/atomic"
 
-	"github.com/spf13/cobra"
-
 	"github.com/mss-boot-io/mss-boot-admin/admin/business"
 	"github.com/mss-boot-io/mss-boot-admin/admin/cmd"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
@@ -44,8 +42,9 @@ func WithBusinessModules(modules ...business.Module) Option {
 	}
 }
 
-// Application owns one frozen business registry and creates fresh Cobra
-// commands for official or downstream hosts.
+// Application owns one frozen business registry. Runtime command trees are
+// private implementation details and may execute only through the guarded
+// Execute entrypoints.
 type Application struct {
 	registry *business.Registry
 	executed atomic.Bool
@@ -67,15 +66,6 @@ func New(applicationOptions ...Option) (*Application, error) {
 		return nil, fmt.Errorf("compose Admin business modules: %w", err)
 	}
 	return &Application{registry: registry}, nil
-}
-
-// Command returns a fresh command tree. Help and inspection do not consume the
-// Application execution lifecycle or share flag values with another command.
-func (application *Application) Command() (*cobra.Command, error) {
-	if application == nil || application.registry == nil {
-		return nil, errors.New("Admin application is not initialized")
-	}
-	return cmd.New(application.registry), nil
 }
 
 // BusinessDescriptors returns immutable metadata in explicit composition
@@ -108,10 +98,7 @@ func (application *Application) ExecuteArgsContext(ctx context.Context, args []s
 	if !application.executed.CompareAndSwap(false, true) {
 		return ErrApplicationExecuted
 	}
-	command, err := application.Command()
-	if err != nil {
-		return err
-	}
+	command := cmd.New(application.registry)
 	command.SetArgs(append([]string(nil), args...))
 	return command.ExecuteContext(ctx)
 }

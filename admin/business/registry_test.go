@@ -20,10 +20,11 @@ import (
 type testRecord struct{}
 
 type testModule struct {
-	name         string
-	registration Registration
-	err          error
-	skip         bool
+	name             string
+	registration     Registration
+	err              error
+	afterRegisterErr error
+	skip             bool
 }
 
 func (module testModule) Name() string { return module.name }
@@ -35,7 +36,10 @@ func (module testModule) Register(registry *Registry) error {
 	if module.skip {
 		return nil
 	}
-	return registry.Register(module.registration)
+	if err := registry.Register(module.registration); err != nil {
+		return err
+	}
+	return module.afterRegisterErr
 }
 
 type testEventCollector struct{}
@@ -75,6 +79,67 @@ func TestComposeRejectsInvalidDuplicateAndFailedModules(t *testing.T) {
 	module := validTestModule("supplier", migration.MigrationID("202608190101"))
 	if _, err := Compose(core, module, module); !errors.Is(err, ErrDuplicateModule) {
 		t.Fatalf("duplicate module error = %v", err)
+	}
+}
+
+func TestAddRollsBackEveryFailedRegistrationSideEffect(t *testing.T) {
+	tests := []struct {
+		name   string
+		module func(migration.MigrationID, error) testModule
+	}{
+		{
+			name: "migration registrar fails after staging a migration",
+			module: func(id migration.MigrationID, injected error) testModule {
+				module := validTestModule("failed", id)
+				module.registration.Migrations = func(runner *migration.Migration) error {
+					if err := runner.Register(id, func(*gorm.DB, string) error { return nil }); err != nil {
+						return err
+					}
+					return injected
+				}
+				return module
+			},
+		},
+		{
+			name: "module fails after a complete registration",
+			module: func(id migration.MigrationID, injected error) testModule {
+				module := validTestModule("failed", id)
+				module.afterRegisterErr = injected
+				return module
+			},
+		},
+	}
+
+	for index, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			registry, err := NewRegistry(migration.New())
+			if err != nil {
+				t.Fatalf("new registry: %v", err)
+			}
+			migrationID := migration.MigrationID(
+				[]string{"202608190110", "202608190111"}[index],
+			)
+			injected := errors.New("injected transactional registration failure")
+			if err := registry.Add(tt.module(migrationID, injected)); !errors.Is(err, injected) {
+				t.Fatalf("failed Add error = %v, want injected error", err)
+			}
+			if descriptors := registry.Descriptors(); len(descriptors) != 0 {
+				t.Fatalf("failed module leaked descriptors: %#v", descriptors)
+			}
+
+			// Reusing both the failed module identity and its migration ID proves
+			// that neither side effect escaped the discarded transaction.
+			if err := registry.Add(validTestModule("failed", migrationID)); err != nil {
+				t.Fatalf("replacement module inherited failed registration state: %v", err)
+			}
+			if err := registry.Freeze(); err != nil {
+				t.Fatalf("freeze replacement registry: %v", err)
+			}
+			descriptors := registry.Descriptors()
+			if len(descriptors) != 1 || descriptors[0].Name != "failed" {
+				t.Fatalf("replacement descriptors = %#v", descriptors)
+			}
+		})
 	}
 }
 
