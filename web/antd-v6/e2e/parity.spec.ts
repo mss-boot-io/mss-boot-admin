@@ -66,9 +66,9 @@ for (const expected of localeExpectations) {
       const systemMenu = page.getByRole('menuitem', { name: new RegExp(expected.systemMenu) });
       const platformMenu = page.getByRole('menuitem', { name: new RegExp(expected.platformMenu) });
       await expect(systemMenu).toBeVisible();
-      await expect(systemMenu.getByRole('img', { name: 'setting' })).toBeVisible();
+      await expect(systemMenu.locator('[aria-hidden="true"][aria-label="setting"]')).toBeVisible();
       await expect(platformMenu).toBeVisible();
-      await expect(platformMenu.getByRole('img', { name: 'audit' })).toBeVisible();
+      await expect(platformMenu.locator('[aria-hidden="true"][aria-label="audit"]')).toBeVisible();
     }
     await expectNoDocumentOverflow(page);
 

@@ -30,9 +30,9 @@ const (
 	moduleTemplateRevision       = "1.3.0-fullstack.2"
 	backendTemplateRevision      = "1.3.0-backend.2"
 	instructionsTemplateRevision = "1.3.0-module-instructions.1"
-	frontendV6TemplateRevision   = "1.3.0-frontend-v6.2"
+	frontendV6TemplateRevision   = "1.3.0-frontend-v6.5"
 	docsTemplateRevision         = "1.3.0-docs.2"
-	e2eV6TemplateRevision        = "1.3.0-e2e-v6.2"
+	e2eV6TemplateRevision        = "1.3.0-e2e-v6.5"
 )
 
 // Action describes how one output differs from the workspace.
