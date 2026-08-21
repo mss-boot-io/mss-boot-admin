@@ -34,10 +34,11 @@ keywords: [admin ai annotation spec collaboration]
 
 本规范主要作用于：
 
-- `mss-boot`
-- `mss-boot-admin`
-- `web/antd-v6`
-- `mss-boot-docs`
+- `mss-boot-admin` 根工具与机器契约
+- `mss-boot/`
+- `admin/`
+- `web/antd-v6/`
+- `docs/`
 
 ## 为什么要做这件事
 
@@ -255,7 +256,7 @@ AI 注解并不是脱离角色体系存在的，它应当配合 leader-first 协
 ## 命名与落盘原则
 
 - 项目内提示词与分析文档继续遵循各项目 `aigc/prompts/` 约束。
-- 面向产品使用者和开源协作者的长期文档，优先沉淀到 `mss-boot-docs`。
+- 面向产品使用者和开源协作者的长期文档，沉淀到本仓库 `docs/docs/`；架构决策放在 `docs/adr/`。
 - 文件名使用小写 kebab-case，中文文档使用 `.zh-CN.md` 后缀。
 
 ## 质量红线

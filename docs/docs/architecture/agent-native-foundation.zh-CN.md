@@ -4,7 +4,7 @@ order: 1
 nav:
   title: 架构
   order: 2
-description: mss-boot-admin 面向 Codex 等编码 Agent 的完整目标架构、开发方案和演进路线
+description: mss-boot-admin 面向 Codex 等编码 Agent 的已实现基础设施、长期边界和演进路线
 keywords: [agent native codex infrastructure generator mcp skills eval]
 ---
 
@@ -19,6 +19,16 @@ keywords: [agent native codex infrastructure generator mcp skills eval]
 > `mss-boot-admin` 是一套面向 Codex、Claude Code、other coding agents、Cursor 及其他编码 Agent 的管理系统开发基础设施。它提供稳定运行时、机器可读项目契约、确定性代码生成、标准 Agent Skills、统一 CLI、可重复开发环境、自动验证、能力评测和持续升级机制，使 Agent 在克隆仓库后可以直接进入开发闭环。
 
 项目的最终用户既包括人类开发者，也包括编码 Agent。任何核心工程能力都必须同时满足“人能理解”和“机器能执行”。
+
+### 当前实现状态
+
+- P0–P7 的顶层契约、`mss` CLI、AdminModule 生成、Skills、MCP、Evals、Thin Host Blueprint
+  和升级引擎已经落地；具体成熟度以 `.mss/capabilities.yaml` 为准。
+- Supplier 已作为完整前后端生成和外部 Thin Host 黄金样例。
+- `v1.3.0-rc.6` 已完成协调预览发布；唯一活动目标为 `v1.3.0` stable，当前稳定版仍是
+  `v1.2.3`。
+- P8 的既有横向 Admin 模块不会机械式整体迁移；新业务默认使用 `admin/modules/<name>`，
+  老路径保持兼容维护。
 
 ## 2. 完成形态
 
@@ -124,7 +134,7 @@ MCP ───┘
 
 所有写操作必须满足：
 
-- 默认支持 `--dry-run`。
+- 默认只生成计划或输出，不写文件；需要变更时显式使用 `--write` 或对应的受确认 apply 参数。
 - 重复执行不会持续产生无意义 diff。
 - 输出修改文件列表和摘要。
 - 不自动提交 Git。
@@ -200,7 +210,6 @@ mss-boot-admin/
 │   ├── evals/
 │   └── reports/
 ├── cmd/
-│   ├── admin/
 │   ├── mss/
 │   └── mss-mcp/
 ├── internal/
@@ -212,14 +221,11 @@ mss-boot-admin/
 │       ├── verifier/
 │       ├── upgrader/
 │       └── eval/
-├── modules/
-│   ├── all/
-│   ├── identity/
-│   ├── authorization/
-│   ├── organization/
-│   ├── audit/
-│   ├── notification/
-│   └── task/
+├── admin/
+│   └── modules/
+│       ├── all/
+│       ├── runtime/
+│       └── supplier/
 ├── templates/
 │   ├── application/
 │   └── module/
@@ -278,10 +284,9 @@ mss-boot-admin/
 ```shell
 mss doctor [--format json]
 mss context [--format json]
-mss inspect project
-mss inspect capability <name>
-mss inspect module <name>
-mss inspect impact [--base <ref>]
+mss spec validate <spec-file> --format json
+mss feature plan <feature-file> --format json
+mss verify --changed --plan --format json
 ```
 
 ### 8.2 初始化和开发
@@ -298,12 +303,10 @@ mss dev stop
 ### 8.3 规格和生成
 
 ```shell
-mss spec init module <name>
+mss spec init <name> --kind module
 mss spec validate <file>
-mss module generate <file> --dry-run
+mss module generate <file>
 mss module generate <file> --write
-mss module add-field <module> <field-spec>
-mss module sync <module>
 ```
 
 ### 8.4 验证
@@ -318,9 +321,9 @@ mss verify --format json
 ### 8.5 升级
 
 ```shell
-mss upgrade plan
-mss upgrade apply
-mss upgrade status
+mss upgrade status --format json
+mss upgrade admin <version> --foundation <path> --format json
+mss upgrade admin <version> --foundation <path> --apply --yes --format json
 ```
 
 ### 8.6 评测
@@ -333,7 +336,7 @@ mss eval report
 
 ## 9. 标准 Agent Skills
 
-首批必须提供：
+当前提供：
 
 ```text
 mss-project-onboarding
@@ -396,20 +399,21 @@ mss_run_validation
 
 ## 11. 新模块架构
 
-现有 `apis/`、`dto/`、`models/`、`service/` 横向目录继续兼容。新业务默认采用垂直模块：
+现有 `admin/apis/`、`admin/dto/`、`admin/models/`、`admin/service/` 横向目录继续兼容。
+新业务默认采用垂直模块；Supplier 的真实结构为：
 
 ```text
-modules/supplier/
+admin/modules/supplier/
 ├── module.yaml
-├── model.go
-├── dto.go
-├── repository.go
-├── service.go
-├── handler.go
-├── routes.go
-├── permissions.go
-├── migrations/
-├── tests/
+├── model_generated.go
+├── dto_generated.go
+├── service_generated.go
+├── api_generated.go
+├── migration_generated.go
+├── authorization_generated.go
+├── events_generated.go
+├── custom.go
+├── *_generated_test.go
 └── AGENTS.md
 ```
 
@@ -626,15 +630,17 @@ Token 消耗
 
 ## 18. 当前实施基线
 
-本路线从 Monorepo 整合分支继续演进。整合 PR 只负责代码、历史、构建和发布入口合并；Agent 原生基础设施使用独立堆叠分支开发，以保持变更可审查和可回滚。
+截至 `v1.3.0` stable 准备，仓库已经形成以下可执行闭环：
 
-首批实施顺序：
+1. 顶层 `AGENTS.md` 与 `.mss/` 提供人机共享事实源。
+2. `mss context`、`doctor`、`setup`、`dev`、`verify`、`eval`、`new app` 和 `upgrade`
+   使用统一 CLI 实现。
+3. 标准 Skills 调用 CLI，不复制第二套生成、校验或发布逻辑。
+4. AdminModule 规格确定性生成 Supplier 的后端、迁移、权限、菜单、前端、测试、E2E 和文档。
+5. `management-system` Blueprint 生成 31 个受管文件的 Thin Host，并通过二次幂等和外部消费者门禁。
+6. MCP 保持 CLI 的薄适配层，写操作默认 dry-run。
+7. RC6 已从一个精确 merged-main 提交完成 Framework、Admin、Admin Web 和 Root 预览列车。
 
-1. 落盘本文和 ADR。
-2. 重写顶层 Agent 契约。
-3. 建立 `.mss` 项目事实源。
-4. 实现 `mss context`、`doctor` 和 `verify`。
-5. 建立首批 Agent Skills。
-6. 定义并实现 `AdminModuleSpec`。
-7. 建立生成器、幂等测试和示例模块。
-8. 再进入 MCP、Evals 和 Blueprint 升级体系。
+下一条可执行步骤是通过 Pull Request 合并 stable 准备，冻结新的精确 `main` 提交，重跑
+checkpoint、feature-freeze、外部 Thin Host、三数据库/API 注册表和内置浏览器证据，再发布
+`v1.3.0`。P8 继续采用按真实需求逐模块迁移，而不是一次性重写既有横向实现。

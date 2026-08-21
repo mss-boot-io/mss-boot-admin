@@ -88,7 +88,17 @@ go run . migrate
 2024/xx/xx xx:xx:xx Migration completed successfully
 ```
 
-## 3. 启动服务
+## 3. 同步 API 注册表
+
+```bash
+# 初始化菜单“绑定 API”所需的数据，完成后正常退出
+STAGE=local go run . server -a
+```
+
+该命令必须与待启动服务使用相同的阶段和数据库配置。新增或调整后端路由后应再次
+执行同步，否则菜单管理中的“绑定 API”可能没有完整候选项。
+
+## 4. 启动服务
 
 ```bash
 # 启动后端服务（端口 8080）

@@ -27,7 +27,7 @@ keywords: [admin integration test e2e playwright]
 - SQLite（默认本地数据库；MySQL/PostgreSQL 为可选集成目标）
 
 版本和目录约定以仓库根目录的 `.mss/project.yaml` 为准。本仓库已同时包含
-`admin/` 后端和默认的 `web/antd-v6/` 前端。V5 仅保留显式回退验证。
+`admin/` 后端和唯一正式的 `web/antd-v6/` 前端。V5 已退役，不属于构建、测试或回滚面。
 
 ### 服务端口
 
@@ -45,8 +45,12 @@ keywords: [admin integration test e2e playwright]
 ```bash
 cd admin
 go run . migrate  # 首次运行迁移
+STAGE=local go run . server -a  # 同步 API 注册表后退出
 go run . server   # 启动服务
 ```
+
+`server -a` 必须与待启动服务使用相同的阶段和数据库配置。它会同步菜单“绑定 API”
+所需的 API 注册数据，完成后正常退出，不会常驻监听端口。
 
 验证：
 
@@ -136,7 +140,7 @@ curl http://localhost:8080/admin/api/user/userInfo \
 
 ```bash
 curl -X POST http://localhost:8080/admin/api/posts \
-  -H "Authorization: Bearer <token>" \
+  -H "Authorization: Bearer <one-time-personal-access-token>" \
   -H "Content-Type: application/json" \
   -d '{"name":"测试岗位","dataScope":"customDept","status":"enabled"}'
 
@@ -153,7 +157,7 @@ curl -X POST http://localhost:8080/admin/api/posts \
 
 ```bash
 curl http://localhost:8080/admin/api/monitor \
-  -H "Authorization: Bearer <token>"
+  -H "Authorization: Bearer <one-time-personal-access-token>"
 
 # 响应包含
 {
@@ -173,7 +177,7 @@ curl http://localhost:8080/admin/api/monitor \
 ```bash
 # 在线用户数
 curl http://localhost:8080/admin/api/ws/online \
-  -H "Authorization: Bearer <token>"
+  -H "Authorization: Bearer <one-time-personal-access-token>"
 
 # 响应
 {
@@ -186,11 +190,11 @@ curl http://localhost:8080/admin/api/ws/online \
 ```bash
 # 登录日志
 curl http://localhost:8080/admin/api/audit-logs/login \
-  -H "Authorization: Bearer <token>"
+  -H "Authorization: Bearer <one-time-personal-access-token>"
 
 # 操作日志
 curl http://localhost:8080/admin/api/audit-logs/operation \
-  -H "Authorization: Bearer <token>"
+  -H "Authorization: Bearer <one-time-personal-access-token>"
 ```
 
 ## 回归检查清单
@@ -200,7 +204,8 @@ curl http://localhost:8080/admin/api/audit-logs/operation \
 - [ ] 输入正确账号密码，登录成功
 - [ ] 登录成功后跳转到首页（不停留在登录页）
 - [ ] 输入错误密码，显示错误提示
-- [ ] Token 存储到 localStorage
+- [ ] 登录建立 HttpOnly 服务端会话；响应体和 localStorage 均不包含 Admin JWT
+- [ ] 状态变更请求携带有效 CSRF 证明，缺失或不匹配时被拒绝
 
 ### 岗位管理
 
@@ -305,7 +310,7 @@ export default {
 
 | 现象 | 可能原因 | 排查方向 |
 |------|----------|----------|
-| 401 Unauthorized | Token 无效/过期 | 检查 Token 是否正确传递 |
+| 401 Unauthorized | 浏览器会话或 PAT 已过期、撤销或缺失 | 按调用方检查 HttpOnly 会话，或检查非浏览器 PAT 是否正确传递 |
 | 403 Forbidden | 权限不足 | 检查 Casbin 策略 |
 | 400 Bad Request | 参数格式错误 | 检查请求体格式 |
 | 500 Internal Error | 后端异常 | 查看后端日志 |
@@ -388,6 +393,7 @@ jobs:
         run: |
           cd admin
           go run . migrate
+          STAGE=local go run . server -a
           go run . server &
           sleep 5
       - name: Start frontend

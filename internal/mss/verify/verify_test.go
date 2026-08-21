@@ -19,8 +19,15 @@ func TestToolingTestUsesConsolidatedAdminRuntimePathWhenOptionalRuntimeIsAbsent(
 		"./admin/modules/runtime/...",
 	}
 
-	if got := toolingTest(root).Args; !reflect.DeepEqual(got, want) {
+	spec := toolingTest(root)
+	if got := spec.Args; !reflect.DeepEqual(got, want) {
 		t.Fatalf("tooling test arguments = %q, want %q", got, want)
+	}
+	if got, want := spec.Environment["GOWORK"], filepath.Join(root, "go.work"); got != want {
+		t.Fatalf("tooling test GOWORK = %q, want %q", got, want)
+	}
+	if got := spec.Environment["GOFLAGS"]; got != "-mod=readonly" {
+		t.Fatalf("tooling test GOFLAGS = %q, want -mod=readonly", got)
 	}
 }
 
@@ -43,7 +50,7 @@ func TestToolingTestIncludesExistingOptionalModuleRuntime(t *testing.T) {
 	}
 }
 
-func TestBackendChecksTargetIndependentAdminModule(t *testing.T) {
+func TestBackendChecksUseTheFoundationWorkspaceBeforePublicDependencyQualification(t *testing.T) {
 	root := t.TempDir()
 	adminDir := filepath.Join(root, "admin")
 
@@ -58,8 +65,11 @@ func TestBackendChecksTargetIndependentAdminModule(t *testing.T) {
 	}; !reflect.DeepEqual(testSpec.Args, want) {
 		t.Fatalf("backend test arguments = %q, want %q", testSpec.Args, want)
 	}
-	if testSpec.Environment["GOWORK"] != "off" {
-		t.Fatalf("backend test GOWORK = %q, want off", testSpec.Environment["GOWORK"])
+	if got, want := testSpec.Environment["GOWORK"], filepath.Join(root, "go.work"); got != want {
+		t.Fatalf("backend test GOWORK = %q, want %q", got, want)
+	}
+	if testSpec.Environment["GOFLAGS"] != "-mod=readonly" {
+		t.Fatalf("backend test environment = %#v", testSpec.Environment)
 	}
 
 	buildSpec := backendBuild(root)
@@ -69,8 +79,39 @@ func TestBackendChecksTargetIndependentAdminModule(t *testing.T) {
 	if want := []string{"go", "build", "./..."}; !reflect.DeepEqual(buildSpec.Args, want) {
 		t.Fatalf("backend build arguments = %q, want %q", buildSpec.Args, want)
 	}
-	if buildSpec.Environment["GOWORK"] != "off" || buildSpec.Environment["CGO_ENABLED"] != "0" {
+	if buildSpec.Environment["GOWORK"] != filepath.Join(root, "go.work") ||
+		buildSpec.Environment["GOFLAGS"] != "-mod=readonly" || buildSpec.Environment["CGO_ENABLED"] != "0" {
 		t.Fatalf("backend build environment = %#v", buildSpec.Environment)
+	}
+}
+
+func TestFocusedFoundationModulePinsFoundationWorkspace(t *testing.T) {
+	root := t.TempDir()
+	ctx := &project.Context{
+		Root: root,
+		Project: project.ProjectDocument{Spec: project.ProjectSpec{RepositoryLayout: map[string]string{
+			"kind":    "foundation",
+			"backend": "admin",
+			"modules": "admin/modules",
+		}}},
+	}
+
+	spec, _, err := focusedModuleTest(ctx, "supplier")
+	if err != nil {
+		t.Fatalf("focusedModuleTest() error = %v", err)
+	}
+	if got, want := spec.Environment["GOWORK"], filepath.Join(root, "go.work"); got != want {
+		t.Fatalf("focused Foundation GOWORK = %q, want %q", got, want)
+	}
+	if spec.Environment["GOFLAGS"] != "-mod=readonly" {
+		t.Fatalf("focused Foundation environment = %#v", spec.Environment)
+	}
+}
+
+func TestFrameworkCheckIsIndependentAndReadOnly(t *testing.T) {
+	spec := frameworkTest(t.TempDir())
+	if spec.Environment["GOWORK"] != "off" || spec.Environment["GOFLAGS"] != "-mod=readonly" {
+		t.Fatalf("framework test environment = %#v", spec.Environment)
 	}
 }
 

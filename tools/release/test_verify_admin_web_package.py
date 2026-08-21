@@ -47,7 +47,8 @@ def write_tarball(
         "homepage": "https://docs.mss-boot-io.top/",
         "bugs": {"url": f"https://github.com/{REPOSITORY}/issues"},
         "publishConfig": {
-            "registry": "https://npm.pkg.github.com",
+            "access": "public",
+            "registry": "https://registry.npmjs.org",
         },
         "packageManager": "pnpm@10.34.5",
         "mssAdminDistribution": admin_distribution_contract(),
@@ -114,7 +115,7 @@ class AdminWebPackageTest(unittest.TestCase):
         )
         self.assertEqual(
             evidence["package"]["publishConfig"]["registry"],
-            "https://npm.pkg.github.com",
+            "https://registry.npmjs.org",
         )
         self.assertEqual(evidence["source"]["commit"], COMMIT)
         self.assertEqual(
@@ -149,9 +150,9 @@ class AdminWebPackageTest(unittest.TestCase):
             ({"homepage": "https://example.invalid"}, True, "public MSS documentation"),
             ({"bugs": {"url": "https://example.invalid/issues"}}, True, "source issue tracker"),
             (
-                {"publishConfig": {"registry": "https://registry.npmjs.org"}},
+                {"publishConfig": {"registry": "https://npm.pkg.github.com"}},
                 True,
-                "GitHub Packages npm registry",
+                "public npm registry",
             ),
             ({}, False, "include its MIT LICENSE"),
         )

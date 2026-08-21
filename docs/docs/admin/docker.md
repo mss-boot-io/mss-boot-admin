@@ -25,6 +25,10 @@ keywords: [admin docker deploy nginx production]
 - 已确认生产环境不暴露上传入口；Local/S3-compatible 当前仍为 Legacy / Blocked
 - 若启用 WebSocket 集群或缓存，已准备 Redis
 
+下列命令固定使用 `v1.3.0`，仅在该稳定版本正式发布后执行。发布前资格验证应使用
+同一冻结提交在受控流程中构建的候选制品；生产部署还应记录并固定验证过的镜像
+digest，绝不能依赖 `latest`。
+
 ## 推荐目录约定
 
 ```text
@@ -41,10 +45,12 @@ keywords: [admin docker deploy nginx production]
 ### 1. 启动 MySQL
 
 ```bash
+export MSS_LOCAL_MYSQL_PASSWORD="$(openssl rand -hex 24)"
+
 docker run -d \
   --name mss-mysql \
   --restart unless-stopped \
-  -e MYSQL_ROOT_PASSWORD=123456 \
+  -e MYSQL_ROOT_PASSWORD="${MSS_LOCAL_MYSQL_PASSWORD}" \
   -e MYSQL_DATABASE=mss_boot_admin \
   -p 3306:3306 \
   mysql:8
@@ -55,37 +61,54 @@ docker run -d \
 ```bash
 docker run --rm \
   --network host \
+  -e STAGE=local \
   -e DB_DRIVER=mysql \
-  -e DB_DSN='root:123456@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local' \
-  ghcr.io/mss-boot-io/mss-boot-admin:latest \
+  -e DB_DSN="root:${MSS_LOCAL_MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local" \
+  ghcr.io/mss-boot-io/mss-boot-admin:v1.3.0 \
   migrate
 ```
 
-### 3. 启动后端
+### 3. 同步 API 注册表
+
+```bash
+docker run --rm \
+  --network host \
+  -e STAGE=local \
+  -e DB_DRIVER=mysql \
+  -e DB_DSN="root:${MSS_LOCAL_MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local" \
+  ghcr.io/mss-boot-io/mss-boot-admin:v1.3.0 \
+  server -a
+```
+
+该一次性命令与迁移、后端服务使用相同镜像、阶段和 DSN，完成后退出。它负责同步
+菜单“绑定 API”所需的 API 注册数据；路由变化后应在启动新版本前重新执行。
+
+### 4. 启动后端
 
 ```bash
 docker run -d \
   --name mss-boot-admin \
   --restart unless-stopped \
   --network host \
+  -e STAGE=local \
   -e DB_DRIVER=mysql \
-  -e DB_DSN='root:123456@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local' \
+  -e DB_DSN="root:${MSS_LOCAL_MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local" \
   -v $(pwd)/logs:/app/logs \
   -v $(pwd)/public:/app/public \
-  ghcr.io/mss-boot-io/mss-boot-admin:latest \
+  ghcr.io/mss-boot-io/mss-boot-admin:v1.3.0 \
   server
 ```
 
 `public` 挂载只用于本地上传边界验证，不能作为生产持久化或 Delivery 方案。
 
-### 4. 启动前端
+### 5. 启动前端
 
 ```bash
 docker run -d \
   --name mss-boot-admin-antd-v6 \
   --restart unless-stopped \
   -p 8001:80 \
-  ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:latest
+  ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.0
 ```
 
 ## 二、生产部署基线

@@ -1,46 +1,76 @@
 # mss-boot-admin
 
-[![Build Status](https://github.com/mss-boot-io/mss-boot-admin/workflows/CI/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin)
+[![CI](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/ci.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/mss-boot-io/mss-boot-admin.svg?style=flat-square)](https://github.com/mss-boot-io/mss-boot-admin/releases)
-[![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://github.com/mss-boot-io/mss-boot-admin)
+[![License](https://img.shields.io/github/license/mss-boot-io/mss-boot-admin.svg?style=flat-square)](https://github.com/mss-boot-io/mss-boot-admin/blob/main/LICENSE)
 
 [English](./README.md) | 简体中文
 
-## 简介
+`mss-boot-admin` 是一套 Agent 原生的管理系统基础设施。它在同一个源码仓库中
+整合了面向生产的 Go Admin、React 19 + Ant Design 6 应用、机器可读项目契约、
+确定性全栈生成、变更感知验证和可持续升级的 Thin Host Blueprint。
 
-> `mss-boot-admin` 是一套 Agent 原生的管理系统开发基础设施。它把可生产使用的 Gin + React + Ant Design 参考应用，与机器可读项目契约、Feature/Acceptance/AdminModule 规格、确定性全栈生成、仓库级 Skills、项目 MCP、可重复环境、变更感知验证、Agent Evals、应用 Blueprint 和三方 Foundation 升级能力整合在同一个仓库中。
+当前稳定版目标是 **v1.3.0**。正式发布前，完整 Admin 发行包必须从同一个已合并
+`main` 提交完成资格验证。已经发布的 v1.3.0 RC1-RC6 标签永久不可变；在稳定版
+发布与公共状态核对完成前，它们只提供预览证据，不能替代精确的稳定版制品。
 
-> 运行时管理平台继续提供身份、RBAC、组织、配置、审计、通知、任务、国际化、存储、WebSocket 和可观测性。Admin 运行时动态模型、虚拟 CRUD 与浏览器代码生成已经移除；开发者仍可通过 `cmd/mss` 使用开发期规格和离线确定性生成器创建可编译的垂直模块。
+## 完整 Admin 发行包
 
-## Agent 原生开发闭环
+v1.3.0 统一版本在同一源码提交上协调以下可独立发布的组件：
+
+| 组件 | 稳定版标识 |
+| --- | --- |
+| Foundation 工具与根交付物 | `v1.3.0` |
+| 可复用 Go Framework | `mss-boot/v1.3.0` |
+| 可导入 Admin Go Module | `admin/v1.3.0` |
+| 完整 Admin Web 包 | `web/antd-v6/v1.3.0` / `@mss-boot-io/admin-web@1.3.0` |
+| 文档 | 使用 `docs/vX.Y.Z` 独立发布 |
+
+身份、浏览器 Session、RBAC、菜单、布局、国际化和公共运行时仍然属于同一套 Admin
+产品。下游应用是 Thin Host：它锁定完整后端和前端，只增加自有业务模块与组合胶水，
+最终仍然只产生一个后端二进制、一个前端 `dist`、一套 Session 边界和一套权限/菜单模型。
+
+运行时动态模型、虚拟 CRUD 和浏览器代码生成已经移除。新的业务能力通过 Feature 与
+AdminModule 契约描述，并在开发期确定性生成。
 
 ```text
 业务意图
-  → Feature 与 Acceptance 契约
-  → AdminModule 契约
-  → 确定性生成
-  → Agent 实现非模板化业务规则
-  → 变更感知验证与 Evals
-  → 可审查 PR 与可持续升级的下游系统
+  -> Feature 与 Acceptance 契约
+  -> AdminModule 契约
+  -> 确定性生成后端、迁移、权限、菜单、前端与测试
+  -> 实现自有业务规则
+  -> 变更感知验证与 Agent Evals
+  -> 可审查 PR 与可持续升级的 Thin Host
 ```
+
+## 引用 v1.3.0
+
+稳定版标签公开后，Go 使用方应锁定完全一致的版本。Admin Module 不包含本地
+`replace`：
 
 ```shell
-./mss context --format json
-./mss doctor --strict --format json
-./mss setup
-(cd admin && STAGE=local go run . server -a)
-./mss dev --detach
-./mss verify --changed
-./mss eval run --all
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.0
+go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.0
 ```
 
-## 完整 Admin 发行包与轻量业务宿主
+完整前端公开发布到 npmjs，Thin Host 默认安装不需要 Registry Token：
 
-`mss-boot-admin` 始终是一套完整管理产品。统一发行版本同时约束可复用 Framework Go Module、完整 Admin Go Module、唯一的 `@mss-boot-io/admin-web` 前端包，以及根工具和交付制品。身份、Session、RBAC、菜单、布局与公共运行时不会被拆成可选产品。
+```shell
+corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.0
+```
 
-真实业务项目由 Blueprint 生成 Thin Host。宿主锁定同一个 Admin 发行版本，在编译期追加 Go 业务模块和 Umi 业务路由，最终仍然只有一个后端二进制、一个前端 `dist`、一套登录与 Session、一套权限与菜单。它不会复制 Foundation 的 Admin 核心源码，也不会启动第二套 Admin。
+GitHub Packages 保留完全相同的不可变 tarball 作为兼容镜像。只有明确选择该镜像的
+使用方才需要在安装进程中临时注入 `read:packages` Token，绝不能把 Token 写入仓库。
 
-从干净的 Foundation checkout 创建 Thin Host，并生成业务模块：
+稳定包使用 `latest` 分发标签，预发布包使用 `next`。生成的 Thin Host 仍会锁定精确
+版本，而不会依赖移动标签。官方 npm 发布是最后一次制品发布，必须等所有协调组件和
+Docs Release 都解析到同一个 merged-main 提交后才执行；之后只允许只读对账、安装验证，
+以及首次发布所需的一次 Trusted Publisher 绑定与临时 Token 撤销。
+
+## 创建与升级 Thin Host
+
+从干净的 Foundation checkout 创建宿主。随后初始化并校验纳入版本控制的模块
+规格，再生成第一个垂直业务模块：
 
 ```shell
 go run ./cmd/mss new app orders-admin \
@@ -50,192 +80,127 @@ go run ./cmd/mss new app orders-admin \
   --write \
   --format json
 
+go run ./cmd/mss --root ../orders-admin spec init supplier \
+  --kind module \
+  --output .mss/modules/supplier.yaml \
+  --write
+
+go run ./cmd/mss --root ../orders-admin spec validate \
+  .mss/modules/supplier.yaml \
+  --format json
+
 go run ./cmd/mss --root ../orders-admin module generate \
-  .mss/modules/example-supplier.yaml \
+  .mss/modules/supplier.yaml \
   --write \
   --frontend-target antd-v6 \
   --format json
 ```
 
-整套 Admin 升级先生成只读、可审查的冲突计划，确认后再显式应用：
+应用 Admin 发行包升级之前，必须先生成只读计划：
 
 ```shell
 go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.0 \
   --foundation . \
   --format json
+
 go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.0 \
   --foundation . \
   --apply --yes \
   --format json
 ```
 
-目标 Foundation checkout 必须精确声明请求的发行版本。三方升级只管理 Blueprint 生成的宿主胶水等受管文件，下游业务代码保持不变。
+三方升级引擎只自动修改 Blueprint 管理的宿主文件；未知文件和业务自有文件会被保留，
+有冲突的计划必须人工审查，不能自动应用。
 
-[Beta环境](https://admin-beta.mss-boot-io.top)
+## 本地开发
 
-[Swagger](https://mss-boot-io.github.io/mss-boot-admin/swagger.json)
+环境要求：
 
-
-
-## 教程
-[在线文档](https://docs.mss-boot-io.top)
-[视频教程](https://space.bilibili.com/597294782/channel/seriesdetail?sid=3881026)
-
-## 仓库结构
-
-| 路径 | 组件 |
-| --- | --- |
-| `/` | Agent CLI、项目契约、编排与协调发布工具 |
-| `admin/` | 完整、可复用且可部署的 Admin Go 应用 |
-| `mss-boot/` | 可复用 Go 框架模块 |
-| `web/antd-v6/` | 完整 React 19 + Ant Design 6 前端及 `@mss-boot-io/admin-web` 包 |
-| `docs/` | Dumi 文档站点 |
-
-后续所有有效开发统一在本仓库进行，原有独立仓库仅保留为迁移历史与兼容性参考。
-
-## 🎬 体验环境
-[体验地址](https://admin-beta.mss-boot-io.top)
-> 账号：admin 密码：123456
-
-## ✨ 特性
-- 支持国际化
-- 标准Restful API开发规范
-- 基于Casbin的RBAC权限管理
-- 基于Gorm的数据库存储
-- 基于Gin的中间件开发
-- 基于Gin的Swagger文档生成
-- 支持oauth2.0第三方登录
-- 支持swagger文档生成
-- 支持多种配置源(本地文件、embed、对象存储s3等、gorm支持的数据库、mongodb)
-- 支持数据库迁移
-- 支持用户、角色、部门、岗位、菜单、API、配置等治理型后台能力
-- 支持通知、任务、监控、统计等运营型能力
-- 提供 Agent 原生契约、确定性生成、项目 MCP、变更感知验证、应用 Blueprint 和三方 Foundation 升级
-
-## 📦 内置功能
-- 用户管理: 用户是系统操作者，该功能主要完成系统用户配置。
-- 部门管理: 管理组织树结构，支撑数据归属与权限边界。
-- 岗位管理: 管理岗位信息，辅助组织与权限配置。
-- 角色管理: 角色菜单权限分配、设置角色按机构进行数据范围权限划分。
-- 菜单管理: 配置系统菜单，操作权限，按钮权限标识等。
-- API 管理: 维护系统接口注册信息，辅助权限与接口治理。
-- 选项管理: 动态配置枚举。
-- 系统配置: 管理各种环境的配置。
-- 通知公告: 用户通知消息。
-- 任务管理: 管理定时任务，包括执行日志。
-- 国际化管理: 管理国际化资源。
-- 账号与令牌管理: 支持 OAuth2 绑定、个人令牌等账号安全能力。
-- 监控与统计: 支持基础监控信息与统计查询接口。
-
-## RBAC 术语表
-
-| 术语 | 在 mss-boot-admin 中的含义 |
-| --- | --- |
-| 用户 | 系统操作者。用户完成认证后，通过被分配的角色获得操作权限。 |
-| 角色 | 存储在 `mss_boot_roles` 中的权限分组，是 Casbin 策略中的主要主体，并可分配给用户。 |
-| 菜单 | 存储在 `mss_boot_menus` 中的前端导航或权限节点，可表示目录、页面、组件或 API 权限节点。 |
-| API | 存储在 `mss_boot_api` 中的后端路由记录，通常由 Gin route 元数据生成，用于接口治理和权限映射。 |
-| 权限路径 | 授权请求和 Casbin rule 中写入的菜单/API path；空路径和重复路径会在构建规则前被过滤。 |
-| Casbin rule | 存储在 `mss_boot_casbin_rule` 中的策略行，常见形态为 `p, roleID, accessType, path, method`。 |
-| Access type | 权限规则范围，例如 `MENU`、`API` 或组件访问；角色授权可以同时包含菜单规则和子 API 规则。 |
-| 数据范围 | 附着在角色上的组织/数据边界，用于限制角色可访问的部门归属数据。 |
-| 默认角色 | 被标记为 default 的角色。创建菜单记录时，可自动授予默认角色对应的菜单访问规则。 |
-
-## 📦 准备工作
-- 安装 Go 1.26+
-- 后端集成测试可选安装 MySQL 8.0+、Redis 7+
-- 默认前端开发安装 Node.js 24，并通过 Corepack 使用 pnpm 10.34.5
-
-## 📦 快速开始
+- Go 1.26.6 或同一 1.26 版本线的更高版本；
+- Node.js 24；
+- 通过 Corepack 使用 pnpm 10.34.5；
+- MySQL、PostgreSQL、Redis 只在验证对应可选集成时需要。
 
 ```shell
 git clone https://github.com/mss-boot-io/mss-boot-admin.git
 cd mss-boot-admin
 
-./mss doctor --strict --format json
-./mss setup
+go run ./cmd/mss doctor
+go run ./cmd/mss setup
 (cd admin && STAGE=local go run . server -a)
-./mss dev --detach
-./mss dev status --format json
+go run ./cmd/mss dev --detach
+go run ./cmd/mss dev status --format json
 ```
 
-唯一的 Admin 前端位于 `web/antd-v6`，本地地址为 `http://localhost:8001`。
-一次性的 `server -a` 会把实际挂载路由同步到 API 注册表；如果跳过，即使前后端健康，
-菜单管理中的“绑定 API”也可能没有任何可选项。
+Admin Web 开发服务监听 `http://localhost:8001`，并把 `/admin/` 代理到 Go 后端。
+一次性的 `server -a` 会把已挂载路由同步进 API 注册表；如果跳过它，即使前后端都健康，
+菜单的“绑定 API”列表也可能为空。
 
-在编写重复代码前先创建或验证结构化契约：
+## 产品能力
+
+- 身份、HttpOnly 浏览器 Session、OAuth 账号绑定、PAT 生命周期与在线 Session 撤销；
+- 基于 Casbin 的 RBAC、组织与数据范围、菜单/API 绑定，以及后端默认拒绝的鉴权边界；
+- 用户、角色、菜单、API、部门、岗位、选项、语言、配置、通知、任务、审计、存储、
+  监控与统计模块；
+- React Query 服务端状态、同步的中英文、响应式明暗主题，以及权限、加载、空、冲突、
+  错误等完整页面状态；
+- 确定性全栈模块生成、可升级迁移、仓库级 Skills、Agent Evals 与外部消费者验证。
+
+浏览器 JavaScript 不接触 Admin JWT 或第三方凭证。浏览器使用 HttpOnly
+`mss_admin_session` Cookie、签名且绑定 Session 的 CSRF Token 和一次性 WebSocket
+票据。标准 Bearer 与 PAT 仍用于有明确文档的非浏览器 API 自动化。
+
+## 仓库结构
+
+| 路径 | 职责 |
+| --- | --- |
+| `/`、`cmd/mss/`、`internal/mss/` | Agent CLI、编排、生成、验证与升级 |
+| `.mss/` | 项目、能力、发布、模块与评测的机器可读契约 |
+| `admin/` | 完整、可复用且可部署的 Admin Go 应用 |
+| `mss-boot/` | 领域无关的可复用 Go Framework |
+| `web/antd-v6/` | 官方 Admin Web 应用与完整 npm 包 |
+| `templates/` | 确定性应用和模块模板 |
+| `docs/` | 产品、架构、运维与贡献者文档 |
+
+## 验证
+
+优先使用仓库契约，而不是工作站特有命令：
 
 ```shell
-./mss spec validate .mss/features/example-supplier-onboarding.yaml
-./mss feature plan .mss/features/example-supplier-onboarding.yaml
-./mss module generate .mss/modules/example-supplier.yaml --format json
-./mss verify --changed
+go run ./cmd/mss context
+go run ./cmd/mss verify --changed
+go run ./cmd/mss verify --all
 ```
 
-后端、前端、迁移、Blueprint、升级、Skills、MCP 与 Evals 的详细流程位于 `docs/docs/agent/`。
+也可按组件执行真实的聚焦验证：
 
-## 本地测试前置条件
+```shell
+make test-framework
+make test-all
 
-`make test` 会执行 `go test -coverprofile=coverage.out ./...`。提交后端 PR 前建议确认：
+corepack pnpm@10.34.5 --dir web/antd-v6 run deps:check
+corepack pnpm@10.34.5 --dir web/antd-v6 run lint
+corepack pnpm@10.34.5 --dir web/antd-v6 run test:ci
+corepack pnpm@10.34.5 --dir web/antd-v6 run build:release
+corepack pnpm@10.34.5 --dir web/antd-v6 run test:e2e
 
-- 使用 Go 1.26+，与 `go.mod` 和 GitHub Actions 保持一致。
-- 拉取依赖或 `go.sum` 变更后先执行一次 `make deps`。
-- Redis 相关测试通常使用 `miniredis`，但手动验证缓存/session 行为时建议准备本地 Redis 7。
-- `make test` 不需要真实生产 DSN、token、Kubernetes 集群或私有凭据。
-- CI 会通过 `supercharge/redis-github-action` 启动 Redis 7，然后执行 `make deps`、`make test` 和 `make build`。
+make docs-build
+```
 
-如果本地测试因为可选外部服务不可用而失败，请在 PR 验证说明中写明具体命令和错误摘要，不要粘贴真实凭据或生产端点。
+Playwright 仅在浏览器契约变化或正式资格验证时运行。测试不需要生产凭证；只有当 CI
+执行同一阈值时，项目才会声明覆盖率百分比。
 
-## 📨 互动
-<table>
-   <tr>
-    <td><a href="https://t.me/+318z6NULrw81N2E1" target="_blank"><img src="https://th.bing.com/th/id/OIP.lYN2s7Dv1a4pLAVUaXMCVgAAAA?rs=1&pid=ImgDetMain" width="180px"></a></td>
-    <td><img src="https://mss-boot-io.github.io/.github/images/wechat.jpg" width="180px"></td>
-    <td><img src="https://mss-boot-io.github.io/.github/images/wechat-mp.jpg" width="180px"></td>
-    <td><img src="https://mss-boot-io.github.io/.github/images/qq-group.jpg" width="200px"></td>
-    <td><a href="https://space.bilibili.com/597294782/channel/seriesdetail?sid=3881026&ctype=0">mss-boot-io</a></td>
-  </tr>
-  <tr>
-    <td>telegram🔥🔥🔥</td>
-    <td>微信</td>
-    <td>公众号🔥🔥🔥</td>
-    <td><a target="_blank" href="https://shang.qq.com/wpa/qunwpa?idkey=0f2bf59f5f2edec6a4550c364242c0641f870aa328e468c4ee4b7dbfb392627b"><img border="0" src="https://pub.idqqimg.com/wpa/images/group.png" alt="mss-boot技术交流群" title="mss-boot技术交流群"></a></td>
-    <td>哔哩哔哩🔥🔥🔥</td>
-  </tr>
-</table>
+## 文档与社区
 
-## 💎 贡献者
+- [在线文档](https://docs.mss-boot-io.top)
+- [OpenAPI 文档](https://mss-boot-io.github.io/mss-boot-admin/swagger.json)
+- [版本发布](https://github.com/mss-boot-io/mss-boot-admin/releases)
+- [安全策略](./SECURITY.md)
+- [贡献指南](./CONTRIBUTING.md)
+- [视频教程](https://space.bilibili.com/597294782/channel/seriesdetail?sid=3881026)
 
-<span style="margin: 0 5px;" ><a href="https://github.com/lwnmengjing" ><img src="https://images.weserv.nl/?url=avatars.githubusercontent.com/u/12806223?s=64&v=4&w=60&fit=cover&mask=circle&maxage=7d" /></a></span>
-<span style="margin: 0 5px;" ><a href="https://github.com/wangde7" ><img src="https://images.weserv.nl/?url=avatars.githubusercontent.com/u/56955959?s=64&v=4&w=60&fit=cover&mask=circle&maxage=7d" /></a></span>
-<span style="margin: 0 5px;" ><a href="https://github.com/mss-boot" ><img src="https://images.weserv.nl/?url=avatars.githubusercontent.com/u/109259065?s=64&v=4&w=60&fit=cover&mask=circle&maxage=7d" /></a></span>
-<span style="margin: 0 5px;" ><a href="https://github.com/wxip" ><img src="https://images.weserv.nl/?url=avatars.githubusercontent.com/u/25923931?s=64&v=4&w=60&fit=cover&mask=circle&maxage=7d" /></a></span>
+## License
 
-## JetBrains 开源证书支持
+[MIT](./LICENSE)
 
-`mss-boot-io` 项目一直以来都是在 JetBrains 公司旗下的 GoLand 集成开发环境中进行开发，基于 **free JetBrains Open Source license(s)** 正版免费授权，在此表达我的谢意。
-
-<a href="https://www.jetbrains.com/?from=kubeadm-ha" target="_blank"><img src="https://raw.githubusercontent.com/panjf2000/illustrations/master/jetbrains/jetbrains-variant-4.png" width="250" align="middle"/></a>
-
-## 🤝 特别感谢
-
-1. [ant-design](https://github.com/ant-design/ant-design)
-2. [ant-design-pro](https://github.com/ant-design/ant-design-pro)
-3. [umi](https://umijs.org)
-4. [gin](https://github.com/gin-gonic/gin)
-5. [casbin](https://github.com/casbin/casbin)
-6. [gorm](https://github.com/jinzhu/gorm)
-7. [gin-swagger](https://github.com/swaggo/gin-swagger)
-8. [jwt-go](https://github.com/dgrijalva/jwt-go)
-9. [oauth2](https://pkg.go.dev/golang.org/x/oauth2)
-
-## 🤟 打赏
-如果你觉得这个项目帮助到了你，你可以帮作者买一杯果汁表示鼓励 🍹
-
-<img class="no-margin" src="https://mss-boot-io.github.io/.github/images/sponsor-us.jpg"  height="400px"  alt="Sponsor Us">
-
-## 🔑 License
-
-[MIT](https://github.com/mss-boot-io/mss-boot-admin/blob/main/LICENSE)
-
-Copyright (c) 2024 mss-boot-io
+Copyright (c) 2024-2026 mss-boot-io

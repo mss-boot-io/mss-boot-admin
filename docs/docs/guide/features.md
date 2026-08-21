@@ -39,14 +39,15 @@ mss-boot-admin 提供完整的后台管理系统功能，覆盖权限治理、�
 
 1. 用户输入账号密码
 2. 系统验证身份
-3. 生成 JWT Token
-4. 返回用户信息与权限数据
+3. 服务端创建可撤销会话，并通过 HttpOnly Cookie 建立浏览器会话
+4. 前端再读取用户信息、菜单与权限；登录响应不会向浏览器 JavaScript 返回 Admin JWT
 
-### Token 管理
+### 会话与 API 凭证
 
-- Token 有效期配置（默认 2 小时）
-- Refresh Token 机制（自动续期）
-- Token 撤销与黑名单管理
+- 浏览器会话按 `auth.timeout` 与 `auth.maxRefresh` 配置续期，并支持主动退出和服务端撤销
+- 浏览器状态变更请求必须通过可信 `Origin` 与签名双提交 CSRF 校验
+- WebSocket 通过已认证 HTTP 请求领取短期一次性 ticket，并经子协议发送；URL Token 会被拒绝
+- 非浏览器自动化使用用户主动创建的 Personal Access Token；明文只展示一次，服务端仅保存哈希
 
 ## 权限控制
 

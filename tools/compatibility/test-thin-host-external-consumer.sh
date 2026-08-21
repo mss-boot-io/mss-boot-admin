@@ -210,10 +210,10 @@ for required in \
   }
 done
 
-expected_npmrc='@mss-boot-io:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}'
+expected_npmrc='registry=https://registry.npmjs.org/
+save-exact=true'
 [[ "$(cat -- "${host_root}/web/.npmrc")" = "${expected_npmrc}" ]] || {
-  echo "Thin Host web/.npmrc must use only the GitHub Packages scope and environment token" >&2
+  echo "Thin Host web/.npmrc must use the public npm registry without credentials" >&2
   exit 1
 }
 
@@ -413,10 +413,7 @@ cp -- "${tarball}" "${qualified_tarball}"
 web_root="${host_root}/web"
 (
   cd "${web_root}"
-  # The generated .npmrc is intentionally environment-backed. This local
-  # tarball qualification never contacts GitHub Packages, but it still sets a
-  # non-secret sentinel so package-manager config expansion is deterministic.
-  export NODE_AUTH_TOKEN='local-tarball-qualification'
+  # This local tarball qualification never contacts either public registry.
   corepack pnpm@10.34.5 add \
     --save-exact \
     --lockfile-only \

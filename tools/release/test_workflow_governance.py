@@ -1,3 +1,4 @@
+import json
 import unittest
 from pathlib import Path
 
@@ -376,6 +377,27 @@ class WorkflowGovernanceTest(unittest.TestCase):
             == "Inject and qualify the Admin Distribution package version"
         )["run"]
         self.assertIn("manifest.gitHead = process.env.GITHUB_SHA", package_qualification)
+        image_build = next(
+            step
+            for step in steps
+            if step.get("name") == "Build and push v6 Docker image"
+        )
+        package_description = json.loads(
+            (REPOSITORY_ROOT / "web" / "antd-v6" / "package.json").read_text(
+                encoding="utf-8"
+            )
+        )["description"]
+        self.assertIn(
+            f"org.opencontainers.image.description={package_description}",
+            image_build["with"]["labels"],
+        )
+        image_identity = next(
+            step
+            for step in steps
+            if step.get("name") == "Verify published v6 image identity"
+        )["run"]
+        self.assertIn("org.opencontainers.image.description", image_identity)
+        self.assertIn(package_description, image_identity)
         credential = next(
             step
             for step in steps

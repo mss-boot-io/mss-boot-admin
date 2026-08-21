@@ -12,17 +12,20 @@ keywords: [complete admin distribution thin business host go module npm umi code
 
 ## 1. 文档状态
 
-- 设计状态：已接受；`v1.3.0` 实现与本地资格验证已完成，待 PR 合并和远端 CI
+- 设计状态：已接受并实现；`v1.3.0-rc.6` 完整预览已成功公开，`v1.3.0` stable 资格审查准备中
 - 设计日期：2026-08-19
-- 设计基线：`main@9a256229774bb255dfe8a618613522fd70538195`
-- 实现分支：`agent/complete-admin-distribution-plan`
 - 目标发行：`Admin Distribution v1.3.0`
+- 当前稳定：`v1.2.3`，直到 stable 公开和发布后对账完成
 - 目标仓库：`mss-boot-io/mss-boot-admin`
 - 配套实施提示词：`docs/aigc/prompts/complete-admin-distribution-implementation-2026-08-19.zh-CN.md`
 - 机器实施契约：`.mss/features/complete-admin-distribution-thin-host.yaml`
 - 架构决策记录：`docs/adr/2026-08-19-complete-admin-distribution-and-thin-business-host.md`
 
-本文定义 `mss-boot-admin` 在下游业务代码隔离、完整产品交付、版本升级和 AI Agent 开发方面的长期目标架构。
+本文定义 `mss-boot-admin` 在下游业务代码隔离、完整产品交付、版本升级和 AI Agent 开发方面的长期已实现架构。
+
+`v1.3.0-rc.6` 已从一个精确 merged-main 提交发布 Framework、Admin、完整 Admin Web package
+与多架构镜像、Root 镜像和 Root GitHub Release。RC6 及更早 RC 保持不可变；RC6 之后的 Supplier、
+UI、E2E、镜像别名和文档修复只进入新的 stable 引用，不回写任何预览制品。
 
 本文是架构实施的事实来源之一。代码实现、`.mss/` 机器契约、测试和后续正式 ADR 如与本文发生冲突，应按照仓库 `AGENTS.md` 规定的事实源优先级处理，并同步更新本文，避免文档与实现长期分叉。
 
@@ -569,6 +572,7 @@ vX.Y.Z
 mss-boot/vX.Y.Z
 admin/vX.Y.Z
 web/antd-v6/vX.Y.Z
+docs/vX.Y.Z
 ```
 
 版本核心必须一致。发布检查应拒绝：
@@ -688,14 +692,16 @@ Agent 不应编辑：
 
 ## 17. 实施阶段
 
-截至 `agent/complete-admin-distribution-plan`，阶段一至阶段六的代码、机器契约、模板、
-升级入口、发行工作流和长期文档均已落地。仓库外 Supplier Thin Host 已通过生成、二次
-幂等、`GOWORK=off` 后端、Tarball 安装、lint、test、单一生产 `dist`/Runtime 和浏览器
-E2E。标准本地 Admin 另外通过 Codex 内置浏览器完成登录、工作台、菜单绑定 API、
-Supplier、硬刷新、403、深色主题和控制台健康检查。
+阶段一至阶段六的代码、机器契约、模板、升级入口、发行工作流和长期文档均已落地。
+仓库外 Supplier Thin Host 已通过生成、二次幂等、`GOWORK=off` 后端、Tarball 安装、lint、
+test、单一生产 `dist`/Runtime 和浏览器 E2E。标准 Admin 通过 Codex 内置浏览器验证登录、
+工作台、菜单 API 绑定、Supplier、硬刷新、403、深色主题和控制台健康。
 
-下一条可执行步骤是把当前分支通过 Pull Request 合并到 `main`，等待远端必需检查全部
-成功；本功能分支不创建 Tag、GitHub Release、镜像或 npm 公共包。
+`v1.3.0-rc.6` 已完成一列协调预览发布，证明发布拓扑可用，但它不替代当前 `v1.2.3`
+stable。下一条可执行步骤是把 stable 准备变更通过 Pull Request 合并到 `main`，从新的精确
+提交重新执行 checkpoint、feature-freeze、三数据库/API 注册表、内置浏览器和外部消费者
+资格，再按 Framework → Admin → Frontend → Root 顺序发布。topic branch 不创建 Tag、Release、
+镜像或 npm package。
 
 ### 阶段一：设计与契约
 

@@ -2,22 +2,23 @@ apiVersion: mss.io/v1alpha1
 kind: Project
 metadata:
   name: mss-boot-admin
-  displayName: mss-boot Agent-Native Management Foundation
+  displayName: mss-boot Complete Admin Distribution
   repository: mss-boot-io/mss-boot-admin
 spec:
   mission: >-
-    Agent-native infrastructure for building, validating, operating, and upgrading
-    management systems with Codex and other coding agents.
+    Complete, agent-native management-system foundation with a reusable Go framework,
+    importable Admin application, packaged React frontend, deterministic generation,
+    verification, and customization-preserving upgrades.
   foundationVersion: 0.1.0
   distribution:
     name: mss-boot-admin
-    version: v1.3.0-rc.6
+    version: v1.3.0
     backend:
       module: github.com/mss-boot-io/mss-boot-admin/admin
-      version: v1.3.0-rc.6
+      version: v1.3.0
     frontend:
       package: "@mss-boot-io/admin-web"
-      version: 1.3.0-rc.6
+      version: 1.3.0
   repositoryLayout:
     kind: foundation
     backend: admin

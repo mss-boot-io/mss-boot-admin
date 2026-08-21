@@ -76,18 +76,20 @@ git checkout -b fix/your-bug-fix
 #### 后端
 
 ```bash
-# 安装 Go 1.21+
+# 使用 Go 1.26.6
 go version
 
-# 安装依赖
-go mod download
+# 从仓库根安装和检查工作区依赖
+go run ./cmd/mss setup
 
-# 运行测试
-go test ./...
+# 运行与当前变更匹配的验证
+go run ./cmd/mss verify --changed
 
-# 本地运行
-go run . migrate
-go run . server
+# 启动完整 Admin；迁移、API 注册表同步和常驻服务必须读取同一 Stage/DSN
+cd admin
+STAGE=local go run . migrate
+STAGE=local go run . server -a
+STAGE=local go run . server
 ```
 
 #### 前端
@@ -115,8 +117,8 @@ corepack pnpm@10.34.5 start:dev
 ### 5. 提交变更
 
 ```bash
-# 添加文件
-git add .
+# 只添加本次变更文件
+git add <changed-files>
 
 # 提交（遵循提交规范）
 git commit -m "feat: add new feature"
@@ -217,11 +219,11 @@ func TestCreateUser(t *testing.T) {
 1. **格式化**
 
 ```bash
-# 使用 Prettier 格式化
-pnpm format
+# 使用仓库脚本修复 Biome 可自动处理的问题
+corepack pnpm@10.34.5 run biome:fix
 
 # 检查格式
-pnpm lint
+corepack pnpm@10.34.5 run lint
 ```
 
 2. **命名规范**
@@ -399,7 +401,8 @@ git merge upstream/main
 
 ```bash
 # 启用 pprof
-go run . server
+cd admin
+STAGE=local go run . server
 
 # 访问性能分析
 # http://localhost:8080/debug/pprof/
@@ -409,13 +412,14 @@ go run . server
 
 ```bash
 # 开发模式
-pnpm dev
+cd web/antd-v6
+corepack pnpm@10.34.5 run start:dev
 
 # 构建生产版本
-pnpm build
+corepack pnpm@10.34.5 run build:release
 
 # 类型检查
-pnpm exec tsc --noEmit
+corepack pnpm@10.34.5 run tsc
 ```
 
 ### 日志查看

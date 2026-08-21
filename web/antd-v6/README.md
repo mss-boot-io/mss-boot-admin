@@ -7,6 +7,11 @@ own lockfile, immutable image, `web/antd-v6/v{version}` tag namespace,
 deployment, and previous-V6 rollback history. Retired frontend source and
 protocols are not build, runtime, or recovery inputs.
 
+The coordinated stable target is `web/antd-v6/v1.3.0` and
+`@mss-boot-io/admin-web@1.3.0`, to be published from the same merged-main commit as
+the v1.3.0 Framework, Admin module, and root distribution. Published RC tags
+remain immutable preview history.
+
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`. Runtime and build dependencies are
 resolved and pinned for this repository, including the reviewed ProComponents
@@ -127,20 +132,22 @@ curl --fail http://localhost:8001/healthz
 ## Thin Host consumption
 
 The package contains the complete core application. A downstream repository
-adds only its business routes, generated menu registry, locales, and pages:
+adds only its business routes, generated menu registry, locales, and pages.
 
-Preview packages are published to GitHub Packages rather than npmjs. GitHub's
-npm registry requires authentication even for public packages. Keep the
-generated `web/.npmrc` unchanged, grant GitHub CLI `read:packages`, and expose
-the token only to the install process:
+Packages are published publicly to npmjs and mirrored byte-for-byte in GitHub
+Packages. Stable releases receive the `latest` distribution tag and
+prereleases receive `next`; Thin Hosts pin an exact package version. The
+generated `web/.npmrc` selects the public registry and needs no credential:
 
 ```shell
-gh auth refresh -h github.com -s read:packages
-NODE_AUTH_TOKEN="$(gh auth token)" corepack pnpm@10.34.5 install --frozen-lockfile
+corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.0
+corepack pnpm@10.34.5 install --frozen-lockfile
 ```
 
-Never commit the expanded token or a user-level `.npmrc`. GitHub Actions uses
-its short-lived `GITHUB_TOKEN` with `packages: read`.
+The GitHub Packages mirror remains available for compatibility. A consumer
+that opts into it must inject a short-lived `read:packages` token only for the
+install process and must never commit the expanded token or a user-level
+`.npmrc`.
 
 ```ts
 // web/config/config.ts

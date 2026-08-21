@@ -206,9 +206,10 @@ p, role_1, API, /admin/api/user, POST   → 角色1可调用用户创建接口
 **中间件集成** (`middleware/auth.go`)
 
 每个请求经过 `Authorizator` 函数：
-1. 从 JWT 获取用户角色 ID
-2. 调用 `gormdb.Enforcer.Enforce(roleID, accessType, path, method)`
-3. 根据策略结果决定是否放行
+1. 验证受支持的身份凭证：浏览器 HttpOnly 服务端会话，或文档化的非浏览器 Bearer/PAT
+2. 查询当前用户和当前角色 ID，而不是信任客户端携带的角色声明
+3. 调用 `gormdb.Enforcer.Enforce(roleID, accessType, path, method)`
+4. 根据策略结果决定是否放行
 
 **实时同步**
 
@@ -223,9 +224,11 @@ p, role_1, API, /admin/api/user, POST   → 角色1可调用用户创建接口
     ↓
 验证账号密码
     ↓
-签发 JWT Token (包含 RoleID)
+创建可撤销服务端会话并设置 HttpOnly Cookie
     ↓
-前端请求 UserInfo
+返回会话到期元数据（不返回 Admin JWT）
+    ↓
+前端请求 UserInfo、菜单与权限
     ↓
 加载 Casbin 权限策略
     ↓
@@ -237,11 +240,11 @@ p, role_1, API, /admin/api/user, POST   → 角色1可调用用户创建接口
 ### API 调用流程
 
 ```
-前端发起请求 (携带 JWT)
+浏览器发起同源请求（自动携带会话 Cookie）
     ↓
-中间件解析 Token
+状态变更请求校验可信 Origin 与签名双提交 CSRF
     ↓
-获取用户 RoleID
+中间件验证服务端会话并查询当前 RoleID
     ↓
 Casbin Enforce(roleID, APIAccessType, path, method)
     ↓
@@ -253,6 +256,9 @@ Casbin Enforce(roleID, APIAccessType, path, method)
     ↓
 返回结果
 ```
+
+非浏览器自动化使用用户主动创建的 PAT 作为 `Authorization: Bearer` 凭证，仍经过
+同一套后端身份、角色、Casbin 与数据范围校验；PAT 不是浏览器会话的降级通道。
 
 ### 权限变更流程
 

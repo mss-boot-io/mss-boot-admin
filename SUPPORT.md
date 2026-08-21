@@ -6,6 +6,9 @@ when enabled for open-ended questions.
 Security reports must follow `SECURITY.md` and should not be filed as public
 issues.
 
-Backend beta deployments may be updated frequently during development. Public
-demo readiness should be verified through the frontend beta smoke-test flow
-before external announcements.
+`mss-boot-admin` is supported as one Complete Admin Distribution: Foundation
+tools, Framework, Admin, Admin Web, and Docs share an exact release source even
+though each component remains independently publishable. Reproducible issues
+should name the exact component tag, commit, database, browser, and deployment
+mode. Preview RCs are evaluation evidence and do not receive the stable support
+commitment.

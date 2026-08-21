@@ -2,161 +2,90 @@
 title: 首次贡献指南
 nav:
   order: 2
-  title: "coding"
-description: 面向新贡献者的 30 分钟首个 PR 指南
-keywords: [first contribution, pull request, docs, tests]
+  title: coding
+description: 在 mss-boot-admin 单仓库中完成一个小而可验证的首次 PR
+keywords: [first contribution pull request docs tests]
 ---
 
 # 首次贡献指南
 
-本文档面向第一次为 `mss-boot-io` 组织贡献代码或文档的协作者，目标是在大约 30 分钟内完成一个小而有价值的 PR。
+后端、Framework、前端、生成器、机器契约和文档现在都位于
+[`mss-boot-io/mss-boot-admin`](https://github.com/mss-boot-io/mss-boot-admin)。
+文档不是独立仓库；根据改动目录选择最小充分验证即可。
 
-## 先选对仓库
+## 1. Fork 和克隆
 
-根据你要修改的内容选择目标仓库：
-
-| 仓库 | 适合改什么 | 常用验证命令 |
-| --- | --- | --- |
-| [`mss-boot-io/mss-boot-docs`](https://github.com/mss-boot-io/mss-boot-docs) | 文档、教程、FAQ、流程说明 | `pnpm install --frozen-lockfile && pnpm build` |
-| [`mss-boot-io/mss-boot`](https://github.com/mss-boot-io/mss-boot) | 框架能力、HTTP/gRPC 服务模块、配置与中间件 | `go test ./...` |
-| [`mss-boot-io/mss-boot-admin`](https://github.com/mss-boot-io/mss-boot-admin) | 后端、`web/antd-v6`、生成器、交付契约和集成文档 | `go run ./cmd/mss verify --changed` |
-
-如果只是补充说明、修正文案、增加 FAQ 或补充新手流程，优先从 `mss-boot-docs` 开始。
-
-## Fork 与克隆
-
-1. 在 GitHub 上 fork 目标仓库到自己的账号。
-2. 克隆自己的 fork：
-
-```bash
-git clone https://github.com/<your-account>/mss-boot-docs.git
-cd mss-boot-docs
-```
-
-3. 可选：添加上游远程，方便后续同步：
-
-```bash
-git remote add upstream https://github.com/mss-boot-io/mss-boot-docs.git
+~~~bash
+git clone https://github.com/<your-account>/mss-boot-admin.git
+cd mss-boot-admin
+git remote add upstream https://github.com/mss-boot-io/mss-boot-admin.git
 git fetch upstream
-```
+~~~
 
-## 本地安装与验证
+从最新 <code>main</code> 创建一个小范围分支：
 
-### 文档仓库
+~~~bash
+git switch main
+git pull --ff-only upstream main
+git switch -c docs/fix-one-guide
+~~~
 
-```bash
-pnpm install --frozen-lockfile
-pnpm build
-```
+## 2. 先读范围约束
 
-需要本地预览时可以运行：
+1. 阅读根目录 <code>AGENTS.md</code>。
+2. 修改文档时再阅读 <code>docs/AGENTS.md</code>。
+3. 检查 <code>.mss/project.yaml</code>、<code>.mss/capabilities.yaml</code> 和
+   <code>.mss/commands.yaml</code>，不要用旧文档猜测当前命令。
+4. 保留工作区中不属于本任务的改动。
 
-```bash
-pnpm start
-```
+## 3. 选择小范围
 
-### Go 仓库
+适合首次 PR：
 
-```bash
-go test ./...
-```
+- 修正一个错误命令、路径或链接；
+- 补充一个缺失的状态、失败路径或排障步骤；
+- 为已有行为增加一个聚焦测试；
+- 修复一个有明确复现的小 UI 问题。
 
-如果你修改的是 `mss-boot-admin`，在需要覆盖率输出时运行：
+不要在首个 PR 中混合架构重写、数据库破坏性迁移、发布、生产配置和无关格式化。
 
-```bash
-go test ./... -v -coverprofile=coverage.out
-```
+## 4. 验证
 
-### 前端仓库
+| 改动 | 最小入口 |
+| --- | --- |
+| 文档 | <code>corepack pnpm@9.15.9 --dir docs build</code> |
+| Framework | <code>cd mss-boot && GOWORK=off go test ./...</code> |
+| Admin Go | 聚焦 <code>go test</code>，再运行受影响模块测试 |
+| Admin Web | lint、TypeScript、聚焦测试和相关 build |
+| 跨组件 | <code>go run ./cmd/mss verify --changed</code> |
 
-```bash
-pnpm install --frozen-lockfile
-pnpm test --coverage
-```
+只报告实际运行的命令。文档发布准备还需要在 Codex 内置浏览器检查桌面、窄屏、导航、深色
+主题和控制台；构建通过不等于视觉验收通过。
 
-## 选择一个小范围改动
+## 5. 提交和 PR
 
-适合首个 PR 的范围：
+使用 Conventional Commits，例如：
 
-- 修复 README、教程或 FAQ 中的错误命令
-- 补一段缺失的本地启动或测试步骤
-- 为已有功能增加文档示例
-- 为已存在行为补测试，不顺便重构无关代码
+- <code>docs(release): clarify database rollback</code>
+- <code>test(auth): cover denied session revoke</code>
+- <code>fix(web): preserve menu selection on refresh</code>
 
-避免首次贡献就同时修改多个仓库、部署配置、组织设置或需要私有环境信息的内容。
+PR 描述应写清：
 
-## 分支命名建议
+- 问题与范围；
+- 关键文件；
+- 实际验证结果；
+- 迁移、安全、兼容和发布影响；
+- 跳过项及原因。
 
-仓库目前没有强制的公开分支命名规则，但建议使用“改动类型/简短主题”的形式，方便 maintainer 识别：
+所有发布意图的改动都必须先合并到 <code>main</code>。不要从贡献分支创建 tag、package、镜像
+或 GitHub Release。
 
-- `docs/first-contribution-guide`
-- `docs/fix-broken-command`
-- `test/add-login-handler-coverage`
-- `fix/http-config-example`
+## 6. 获取帮助
 
-创建分支：
+一般问题使用
+[`mss-boot-admin` Issues](https://github.com/mss-boot-io/mss-boot-admin/issues)。疑似漏洞遵循
+[Security Policy FAQ](/devops/security-policy-faq)，不要在公开 Issue 中粘贴漏洞细节或凭据。
 
-```bash
-git checkout -b docs/first-contribution-guide
-```
-
-## 提交与 PR 标题
-
-提交信息和 PR 标题建议使用 Conventional Commits 风格：
-
-- `docs: add first contribution guide`
-- `docs(admin): clarify local debug steps`
-- `test(auth): cover expired token handling`
-
-提交前先确认你改动对应的验证命令已经跑过。
-
-## 提交前检查清单
-
-发起 PR 前至少确认以下几项：
-
-- 改动范围只覆盖一个明确问题
-- 命令、链接、日期、仓库名都已手动核对
-- 没有加入密钥、私有 URL、截图中的敏感信息
-- 本地执行了对应仓库的基础验证命令
-- PR 描述写清楚问题、改动和验证方式
-
-对于 `mss-boot-docs`，可以直接参考仓库里的 [`CONTRIBUTING.md`](https://github.com/mss-boot-io/mss-boot-docs/blob/main/CONTRIBUTING.md) 和 PR 模板。
-
-## 在哪里提问
-
-如果你卡住了，优先使用对维护者最容易跟进的公开渠道：
-
-1. 在你准备解决的 issue 下补充问题或确认范围
-2. 如果没有对应 issue，就在目标仓库新开一个问题说明背景
-3. 如果已经有 draft PR，可以直接在 PR 描述里列出待确认点
-
-当问题与公开仓库内容直接相关时，优先使用 GitHub issue/PR 线程，避免把决策散落到不可追踪的聊天工具里。
-
-## 一个推荐流程
-
-```bash
-git checkout -b docs/first-contribution-guide
-pnpm install --frozen-lockfile
-# 编辑 docs/**
-pnpm build
-git status
-git add docs/coding/first-contribution.md docs/coding/index.md
-git commit -m "docs: add first contribution guide"
-git push origin docs/first-contribution-guide
-```
-
-然后在 GitHub 上发起 PR，并在描述中写清楚：
-
-- 解决了哪个 issue
-- 改动了哪些页面或文件
-- 本地跑了什么验证命令
-
-## 下一步
-
-完成首个小 PR 后，再逐步尝试：
-
-- 给已有教程补测试或截图
-- 为 `mss-boot-admin` 补局部测试
-- 为 `mss-boot-admin/web/antd-v6` 修复文档与界面说明不一致的问题
-
-先建立“选对仓库、改动够小、验证完整”的节奏，比一次做大更重要。
+更多规则见
+[`docs/CONTRIBUTING.md`](https://github.com/mss-boot-io/mss-boot-admin/blob/main/docs/CONTRIBUTING.md)。

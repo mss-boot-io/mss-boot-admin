@@ -1,12 +1,17 @@
 ---
-title: 五期路线图
+title: 历史五期路线图（2026-04）
 order: 26
 nav:
   order: 1
   title: admin
-description: mss-boot-admin 五期演进规划与落地顺序
+description: 2026-04 留存的 V5 阶段路线图快照，不代表当前 V6 能力或路径
 keywords: [admin roadmap phase5 planning production]
 ---
+
+> **历史快照。** 本页保留 2026-04 的 V5 阶段规划、文件路径与完成状态作为演进
+> 证据，不是当前实现清单，也不应据此恢复已退役能力。当前 V6 状态以
+> [当前能力基线](/admin/current-capabilities)与
+> [移动端 H5 适配](/admin/mobile-h5-adaptation)为准。
 
 ## 概述
 

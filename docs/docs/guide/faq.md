@@ -125,13 +125,8 @@ test -n "${DB_DSN:-}" && echo "DB_DSN is set"
 
 **A:** 修改端口配置：
 
-方式一：环境变量：
-
-```bash
-export SERVER_ADDR=":9080"
-```
-
-方式二：配置文件 `config/application-local.yml`：
+修改当前 Stage 对应的配置覆盖文件；本地开发使用
+`config/application-local.yml`：
 
 ```yaml
 server:
@@ -151,7 +146,7 @@ PORT=9000
 或启动时指定：
 
 ```bash
-corepack pnpm dev --port 9000
+PORT=9000 corepack pnpm@10.34.5 --dir web/antd-v6 run start:dev
 ```
 
 ## Q: 数据库迁移失败怎么办？
@@ -247,15 +242,22 @@ go run . migrate
 
 **A:** 检查以下几点：
 
-1. **Token 是否有效**：
+1. **浏览器请求是否建立了服务端会话**：
 
-检查请求头是否包含有效的 Authorization token。
+确认登录成功、HttpOnly 会话 Cookie 已由浏览器接收，并检查 `userInfo` 请求是否成功。
+不要从响应或 localStorage 读取 Admin JWT，也不要为浏览器请求自行补
+`Authorization` Header。
 
-2. **Token 是否过期**：
+2. **状态变更请求是否通过浏览器安全校验**：
 
-JWT Token 默认有效期 2 小时，过期后需重新登录或刷新。
+确认请求来自精确可信的 `Origin`，且 `X-CSRF-Token` 与签名双提交 Cookie 匹配。
 
-3. **API 权限配置**：
+3. **非浏览器调用是否使用有效 PAT**：
+
+自动化调用应使用用户主动创建的一次性 Personal Access Token，通过
+`Authorization: Bearer` 传递，并检查它是否已过期或撤销。
+
+4. **API 权限配置**：
 
 在角色管理中，确保角色有该 API 的权限。
 
@@ -291,21 +293,24 @@ client_max_body_size 100M;
 
 # 配置问题
 
-## Q: JWT Token 有效期如何修改？
+## Q: 浏览器会话有效期如何修改？
 
 **A:** 在配置文件中修改：
 
 ```yaml
-jwt:
-  secret: 'your-secret-key'
-  expire: '4h' # 修改为 4 小时
+auth:
+  timeout: '12h'       # 单次会话有效期
+  maxRefresh: '2160h'  # 最长可续期窗口
+  browserSession:
+    secure: true       # 生产环境必须为 true
+    sameSite: lax      # 仅支持 lax 或 strict
+    webSocketTicketTTL: 30s
 ```
 
-或通过环境变量：
-
-```bash
-export JWT_EXPIRE="4h"
-```
+`timeout` 与 `maxRefresh` 必须为正值；WebSocket ticket 的有效期必须在 5 秒到
+2 分钟之间。生产环境还必须使用精确 HTTPS 应用 Origin 和 CORS Origin，并允许
+`X-CSRF-Token`。配置应通过部署平台的受控配置或 Secret 机制注入，不要假设存在
+未在当前配置合同中声明的 `JWT_EXPIRE` 环境变量。
 
 ## Q: 日志级别如何修改？
 
@@ -472,13 +477,14 @@ database:
 
 生产环境强制要求修改默认密码。
 
-## Q: JWT 密钥强度要求？
+## Q: 浏览器会话签名密钥强度要求？
 
-**A:** 建议：
+**A:** 生产环境要求：
 
-- 最少 32 字符
-- 包含大小写字母、数字、特殊字符
-- 不要使用简单字符串
+- `auth.key` 必须覆盖开发默认值，并包含至少 32 字节有熵材料
+- `auth.identityKey` 必须非空并在部署期间保持稳定
+- 通过 Secret 管理系统注入，绝不能写入仓库、日志或公开文档
+- 轮换 `auth.key` 会使现有浏览器会话和 PAT 签名失效，应按受控发布流程执行
 
 生成强密钥：
 
@@ -580,44 +586,29 @@ mysqldump -uroot -p mss_boot_admin > backup.sql
 
 ## Q: 如何升级版本？
 
-**A:** 升级步骤：
+**A:** 不要通过 `git pull main`、只替换前端或只替换后端来升级生产环境。先阅读
+[发布与升级](/releases)及目标版本的升级、兼容性和回滚说明，并锁定同一协调版本的
+后端、Framework、Admin Web 与镜像 digest。
 
-1. **备份数据库**：
+最低顺序如下：
+
+1. **冻结精确版本并建立恢复点**：备份数据库、配置与上一组协调制品，记录校验和和
+   镜像 digest。
+
+2. **执行目标版本迁移**：使用目标版本的后端二进制和实际生产 Stage/DSN 执行
+   `migrate`，不要使用分支源码或个人构建。
+
+3. **同步 API 注册表**：继续使用同一后端二进制、Stage 与 DSN 执行一次
+   `server -a`；命令成功退出后再启动常驻服务。省略此步可能导致菜单“绑定 API”缺少候选项。
+
+4. **协调启动并验证**：部署同版本前后端，检查 readiness、登录、权限正反例、菜单与
+   关键业务冒烟；失败时按目标版本文档停止写入并执行协调恢复或前向修复。
+
+数据库备份示例：
 
 ```bash
 mysqldump -uroot -p mss_boot_admin > backup_before_upgrade.sql
 ```
-
-2. **拉取新版本**：
-
-```bash
-git pull origin main
-```
-
-3. **检查变更**：
-
-查看 CHANGELOG 了解变更内容。
-
-4. **执行迁移**：
-
-如果有数据库变更：
-
-```bash
-cd admin
-go run . migrate
-```
-
-5. **重启服务**：
-
-```bash
-docker-compose restart
-# 或
-systemctl restart mss-boot-admin
-```
-
-6. **验证功能**：
-
-测试核心功能是否正常。
 
 ## Q: 如何获取帮助？
 

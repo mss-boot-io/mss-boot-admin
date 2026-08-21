@@ -275,8 +275,12 @@ async function expectEditorValues(
     if (enumLabel) {
       const combobox = dialog.getByRole('combobox', { name: fieldName(label) });
       await combobox.click();
+      const listboxId = await combobox.getAttribute('aria-controls');
+      if (!listboxId) throw new Error(`Missing listbox for ${label}`);
+      const listbox = page.locator(`[id=${JSON.stringify(listboxId)}]`);
+      await expect(listbox).toHaveAttribute('role', 'listbox');
       await expect(
-        page.getByRole('option', { name: enumLabel, exact: true, selected: true }),
+        listbox.getByRole('option', { name: enumLabel, exact: true, selected: true }),
       ).toBeVisible();
       await combobox.press('Escape');
       await expect(combobox).toHaveAttribute('aria-expanded', 'false');

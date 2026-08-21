@@ -1,304 +1,240 @@
-# 项目全量配置教程
-
-本教程涵盖 mss-boot-admin 的所有配置项，帮助您从开发到生产的完整配置。
-
-## 📋 目录
-
-- [配置概览](#配置概览)
-- [环境变量](#环境变量)
-- [数据库配置](#数据库配置)
-- [认证配置](#认证配置)
-- [缓存配置](#缓存配置)
-- [队列配置](#队列配置)
-- [通知配置](#通知配置)
-- [任务配置](#任务配置)
-- [存储配置](#存储配置)
-- [监控配置](#监控配置)
-- [日志配置](#日志配置)
-- [安全配置](#安全配置)
-- [前端配置](#前端配置)
-- [生产环境配置](#生产环境配置)
-
+---
+title: Admin 配置指南
+order: 11
+nav:
+  order: 1
+  title: admin
+description: mss-boot-admin 配置加载、环境模板、浏览器会话、生产部署与验证合同
+keywords: [admin configuration environment session pat production]
 ---
 
-## 配置概览
+# Admin 配置指南
 
-### 配置优先级
+本指南描述当前 `admin/config.Config` 与 `mss-boot/pkg/config` 实际编译的配置合同。
+配置结构以 Go 类型为准，仓库中的 `admin/config/application.yml` 是参考 Admin 的开发基线，
+`templates/application/config/README.md` 则要求 Thin Host 把环境配置和生产秘密保留在源码之外。
 
-```
-环境变量 > 配置文件 > 默认值
-```
+## 配置加载合同
 
-### 配置文件位置
+### 基础文件与 Stage 覆盖
 
-```
-mss-boot-admin/
-├── config/
-│   ├── application.yml    # 主配置文件
-│   ├── application.go     # 配置结构定义
-│   ├── auth.go            # 认证配置
-│   └── notification.go    # 通知配置
-```
+默认本地配置源按下面的顺序加载：
 
-### 配置文件示例
+1. `config/application.yml`；
+2. 如果存在，再加载 `config/application-<STAGE>.yml` 并覆盖已提供的字段。
 
-```yaml
-server:
-  addr: 0.0.0.0:8080
-  
-application:
-  mode: dev
-  
-database:
-  driver: sqlite
-  source: 'mss-boot-admin.db'
-  
-auth:
-  key: 'mss-boot-admin-secret'
-  timeout: '12h'
+`STAGE` 未设置时默认为 `local`，因此参考 Admin 会继续加载
+`config/application-local.yml`。配置路径相对进程工作目录；从源码运行时应先进入
+`admin/`：
+
+```shell
+cd admin
+STAGE=local go run . server
 ```
 
----
+Stage 文件是可选覆盖，不是第二份完整配置。生产部署通常保留一份受控的
+`config/application-prod.yml`，并以 `STAGE=prod` 启动。修改配置后应重启并重新验证依赖；
+不要把文件监听等同于数据库、缓存、队列等运行资源都会安全热重建。
 
-## 环境变量
+### 环境变量不是全局覆盖层
 
-### 核心环境变量
+系统没有“环境变量自动覆盖同名 YAML 字段”的通用优先级。只有两类环境读取：
 
-```bash
-# 数据库连接（必需）
-export DB_DSN="user:password@tcp(host:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local"
+- 配置文件显式使用 `{{ .Env.NAME }}` 模板；
+- 启动器为特定引导用途直接读取的变量。
 
-# Redis 连接（可选）
-export REDIS_ADDR="127.0.0.1:6379"
-export REDIS_PASSWORD="your-password"
+当前常用的直接读取项如下：
 
-# 认证密钥（生产环境必需）
-export AUTH_KEY="your-production-secret-key"
+| 变量 | 实际用途 |
+| --- | --- |
+| `STAGE`（兼容小写 `stage`） | 选择 `application-<STAGE>.yml`；默认 `local` |
+| `CONFIG_PROVIDER` | 选择配置源；`server` 在 `local`/`dev` Stage 强制使用本地文件源 |
+| `DB_DRIVER`、`DB_DSN` | 仅引导 `CONFIG_PROVIDER=gorm` 的配置数据库，或覆盖对应 CLI 引导参数；不会在本地文件源下自动覆盖 `database.driver` / `database.source` |
 
-# 应用模式
-export APP_MODE="prod"  # dev, test, prod
-```
+`AUTH_KEY`、`APP_MODE`、`REDIS_ADDR` 不是通用直读接口。仅把这些名字写进进程环境，
+不会修改 `auth.key`、`application.mode` 或 `cache.redis.addr`。
 
-### 使用方式
+### 正确的环境模板
 
-```bash
-# 方式1: 命令行
-DB_DSN="..." go run . server
-
-# 方式2: .env 文件
-cat > .env << EOF
-DB_DSN="user:password@tcp(host:3306)/dbname"
-REDIS_ADDR="127.0.0.1:6379"
-AUTH_KEY="your-secret-key"
-EOF
-
-source .env
-go run . server
-```
-
----
-
-## 数据库配置
-
-### SQLite（开发环境）
-
-```yaml
-database:
-  driver: sqlite
-  source: 'mss-boot-admin.db'
-  config:
-    disableForeignKeyConstraintWhenMigrating: true
-```
-
-### MySQL（生产环境）
+需要从部署环境注入的字段必须在 YAML 中显式引用：
 
 ```yaml
 database:
   driver: mysql
-  source: '${DB_DSN}'  # 从环境变量读取
-  name: mss_boot_admin
+  source: '{{ .Env.MSS_ADMIN_DATABASE_DSN }}'
+
+auth:
+  key: '{{ .Env.MSS_ADMIN_AUTH_SIGNING_KEY }}'
+
+cache:
+  redis:
+    addr: '{{ .Env.MSS_ADMIN_CACHE_REDIS_ENDPOINT }}'
+    password: '{{ .Env.MSS_ADMIN_CACHE_REDIS_PASSWORD }}'
+```
+
+模板在 YAML 解码前执行。缺失变量会得到空字符串，不会自动使用示例密码，也不会读取
+`.env` 文件。Shell、systemd、容器编排或秘密管理平台必须先把值放入进程环境。建议为模板
+变量使用应用命名空间前缀；这些名字之所以生效，是因为 YAML 明确引用了它们，而不是因为
+框架内置了这些环境变量。
+
+不要使用 `${NAME}`：当前配置加载器不会展开这种写法。
+
+## 本地开发与 API 注册表
+
+参考 Admin 的基础配置使用 SQLite，`application-local.yml` 把浏览器 Origin 对齐到前端
+开发端口。数据库迁移完成后，首次启动或路由发生变化时必须同步一次 API 注册表：
+
+```shell
+cd admin
+
+# 与常驻服务使用完全相同的 Stage、配置源和数据库
+STAGE=local go run . server -a
+
+# 同步成功退出后再启动常驻服务
+STAGE=local go run . server
+```
+
+`server -a` 会初始化配置和数据库、挂载实际路由、写入 API 注册表，然后退出。只执行迁移
+不会生成这份注册表；遗漏此步骤会使“权限管理 → 菜单管理 → 绑定 API”没有候选项。
+
+生产环境同样要在迁移之后、常驻服务启动之前执行一次 `server -a`。它必须使用与常驻服务
+相同的二进制版本、`STAGE`、配置源、工作目录和数据库；否则写入的是另一套数据库或另一组
+路由。
+
+## 数据库
+
+### SQLite 开发配置
+
+```yaml
+database:
+  driver: sqlite
+  source: mss-boot-admin-local.db
   config:
-    maxOpenConns: 100
-    maxIdleConns: 10
-    connMaxLifetime: 1h
+    disableForeignKeyConstraintWhenMigrating: true
+```
+
+### MySQL / PostgreSQL 生产配置
+
+把 DSN 放入部署秘密，而不是提交到仓库：
+
+```yaml
+database:
+  driver: mysql
+  source: '{{ .Env.MSS_ADMIN_DATABASE_DSN }}'
+  maxOpenConns: 100
+  maxIdleConns: 20
+  connMaxIdleTime: 300
+  connMaxLifeTime: 3600
+  config:
+    prepareStmt: true
     disableForeignKeyConstraintWhenMigrating: false
 ```
 
-**环境变量**：
-```bash
-export DB_DSN="mss_admin:StrongPassword123@tcp(192.168.1.100:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local"
-```
+PostgreSQL 只需把 `driver` 改为 `postgres`，并注入对应格式的 DSN。连接池四个字段位于
+`database` 下；`connMaxIdleTime` 和 `connMaxLifeTime` 是秒数整数。`database.config`
+只承载受支持的 GORM 开关，不要把连接池字段或 `timeout`、`name` 放进去。
 
-**创建数据库**：
-```sql
-CREATE DATABASE mss_boot_admin 
-  CHARACTER SET utf8mb4 
-  COLLATE utf8mb4_unicode_ci;
-
-CREATE USER 'mss_admin'@'%' IDENTIFIED BY 'StrongPassword123';
-GRANT ALL PRIVILEGES ON mss_boot_admin.* TO 'mss_admin'@'%';
-FLUSH PRIVILEGES;
-```
-
-### PostgreSQL
-
-```yaml
-database:
-  driver: postgres
-  source: 'host=127.0.0.1 user=postgres password=password dbname=mss_boot_admin port=5432 sslmode=disable'
-```
-
-### 连接池优化
-
-```yaml
-database:
-  config:
-    maxOpenConns: 100      # 最大打开连接数
-    maxIdleConns: 10       # 最大空闲连接数
-    connMaxLifetime: 1h    # 连接最大生命周期
-    connMaxIdleTime: 10m   # 空闲连接最大生命周期
-```
-
-**性能建议**：
-- 生产环境：`maxOpenConns = CPU核心数 * 2 + 有效磁盘数`
-- 开发环境：`maxOpenConns = 10`
-
----
-
-## 认证配置
-
-### V6 浏览器会话与 API JWT 配置
+## 认证：浏览器会话与 API PAT
 
 ```yaml
 auth:
-  realm: 'mss-boot-admin zone'           # 认证域
-  key: '${AUTH_KEY}'                      # JWT 密钥（生产环境必须修改）
-  timeout: '12h'                          # Token 有效期
-  maxRefresh: '2160h'                     # 最大刷新时间（90天）
-  identityKey: 'mss-boot-admin-identity-key'  # 身份标识键
+  realm: mss-boot-admin
+  key: '{{ .Env.MSS_ADMIN_AUTH_SIGNING_KEY }}'
+  identityKey: mss-boot-admin-identity
+  timeout: 12h
+  maxRefresh: 2160h
   browserSession:
-    secure: true                          # 生产环境必须为 true
-    sameSite: lax                         # lax 或 strict
+    secure: true
+    sameSite: lax
     webSocketTicketTTL: 30s
 ```
 
-V6 浏览器会话与服务端会话校验是后端强制契约，不再提供关闭开关。标准
-`Authorization: Bearer` 与 PAT 仍仅用于受支持的非浏览器 API 自动化。
+`auth.key` 是服务端认证签名材料，不是前端可以读取或保存的“API JWT 密钥”。交互式 V6
+浏览器登录把会话凭据只放在 host-only、HttpOnly 的 `mss_admin_session` Cookie 中；登录和
+刷新响应不返回 Admin JWT。可读的 `mss_csrf` Cookie 只用于为不安全方法生成
+`X-CSRF-Token`，不能代替会话凭据。
 
-**生成密钥**：
-```bash
-# 方式1: openssl
-openssl rand -base64 32
+非浏览器自动化使用用户自行创建、只展示一次的 PAT：
 
-# 方式2: go
-go run -e 'package main\nimport("crypto/rand";"encoding/base64";"fmt")\nfunc main(){b:=make([]byte,32);rand.Read(b);fmt.Println(base64.StdEncoding.EncodeToString(b))}'
-
-# 生产环境设置
-export AUTH_KEY="$(openssl rand -base64 32)"
+```shell
+curl https://admin.example.com/admin/api/user/userInfo \
+  -H 'Authorization: Bearer <personal-access-token>'
 ```
 
-### OAuth2 配置
+PAT 仍受关联用户当前状态、角色和后端 RBAC 约束，不能作为浏览器登录的回退。轮换
+`auth.key` 会使现有浏览器会话和 PAT 签名失效，应按受控发布处理。完整合同见
+[V6 browser sessions, PAT, and OAuth2](/admin/token-oauth2-guide)。
 
-#### GitHub OAuth
+生产模式在启动时强制检查：
+
+- `auth.key` 不能是开发默认值，去除首尾空白后至少 32 字节，并应来自高熵秘密；
+- `auth.browserSession.secure` 必须为 `true`；
+- `application.origin` 与每个 CORS Origin 必须是精确的 HTTPS Origin，不能使用通配符；
+- `sameSite` 只能为 `lax` 或 `strict`；
+- `webSocketTicketTTL` 必须在 5 秒到 2 分钟之间；
+- 跨 Origin 浏览器请求的 `cors.allowHeaders` 必须包含 `X-CSRF-Token`。
+
+GitHub/Lark OAuth 的 BrowserSession Client 配置属于系统 AppConfig，并通过权限受控的
+系统配置界面管理，不是 `security:` YAML 顶层块。OAuth 密钥写入后不回显，字段与流程以
+[认证指南](/admin/token-oauth2-guide)为准。
+
+## CORS、代理与 TLS
+
+生产浏览器配置示例：
 
 ```yaml
-# 在系统配置中设置（前端访问 /app-config）
-security:
-  githubEnabled: true
-  githubBrowserSessionClientId: "your-github-client-id"
-  githubBrowserSessionClientSecret: "your-github-client-secret"
-  githubBrowserSessionRedirectURI: "https://your-domain.com/user/oauth/callback/github"
-  githubBrowserSessionScope: "read:user,user:email"
+application:
+  mode: prod
+  origin: https://admin.example.com
+  # 为空表示不信任转发客户端 IP；使用反向代理时只列出自己控制的精确 IP/CIDR。
+  trustedProxies:
+    - 10.0.0.10/32
+
+cors:
+  allowOrigins:
+    - https://admin.example.com
+  allowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+  allowHeaders: [Authorization, Content-Type, If-Match, X-CSRF-Token]
+  exposeHeaders: [ETag]
+  maxAge: 12h
 ```
 
-`repo` is not required for login and should not be granted. Add `read:org` only when
-`githubAllowGroup` must validate private organization membership; public organization
-membership does not require repository access.
-
-**创建 GitHub OAuth App**：
-1. 访问 https://github.com/settings/developers
-2. 点击 "New OAuth App"
-3. 填写信息：
-   - Application name: `mss-boot-admin`
-   - Homepage URL: `https://your-domain.com`
-   - Authorization callback URL: `https://your-domain.com/user/oauth/callback/github`
-4. 获取 Client ID 和 Client Secret
-
-#### 飞书 OAuth
+通常由反向代理终止 TLS，并把同一站点的 `/admin/api` 转发到后端。如果由 Admin 监听器
+直接终止 TLS，证书字段属于 `server`，不存在顶层 `ssl.enabled`：
 
 ```yaml
-security:
-  larkEnabled: true
-  larkBrowserSessionAppId: "cli_xxxxxxxxxx"
-  larkBrowserSessionAppSecret: "your-lark-app-secret"
-  larkBrowserSessionRedirectURI: "https://your-domain.com/user/oauth/callback/lark"
+server:
+  addr: 0.0.0.0:8443
+  certFile: /run/secrets/admin-tls.crt
+  keyFile: /run/secrets/admin-tls.key
 ```
 
-BrowserSession Client Secret 受 `app-config:secret-read` /
-`app-config:secret-write` 权限保护，写入后不回显。已退役的非 BrowserSession
-OAuth 配置名会被迁移清理，通用应用配置接口也拒绝重新创建这些名称。
+## 缓存、队列与锁
 
----
-
-## 缓存配置
-
-Redis 是可选的派生缓存，不是配置事实源。生产环境不要使用 `queryCacheKeys: ['*']`；
-应保持通用查询缓存关闭，或只在完成数据敏感度、失效和故障降级验证后配置明确表白名单。
-应用配置、个人配置与系统配置的边界详见[配置缓存一致性](/admin/config-cache-consistency)。
-
-### 内存缓存（开发环境）
+Redis 配置必须显式写在对应资源下；没有 `REDIS_ADDR` 自动覆盖：
 
 ```yaml
 cache:
-  # Keep disabled unless an explicit, non-sensitive table allowlist has been verified.
-  queryCache: false
-  queryCacheDuration: 1h
-  queryCacheKeys: []
-```
-
-### Redis 缓存（生产环境）
-
-```yaml
-cache:
-  # Redis remains available to revisioned domain caches when generic query caching is disabled.
   queryCache: false
   queryCacheDuration: 1h
   queryCacheKeys: []
   redis:
-    addr: '${REDIS_ADDR}'
-    password: '${REDIS_PASSWORD}'
+    addr: '{{ .Env.MSS_ADMIN_CACHE_REDIS_ENDPOINT }}'
+    password: '{{ .Env.MSS_ADMIN_CACHE_REDIS_PASSWORD }}'
     db: 0
-    poolSize: 10
+    poolSize: 20
     minIdleConns: 5
-    maxRetries: 3
     dialTimeout: 5s
     readTimeout: 3s
     writeTimeout: 3s
 ```
 
-**环境变量**：
-```bash
-export REDIS_ADDR="192.168.1.100:6379"
-export REDIS_PASSWORD="StrongRedisPassword"
-```
+Redis 是可选派生缓存，不是配置事实源。通用查询缓存默认应保持关闭；只有在明确数据敏感度、
+失效机制和故障降级后，才为 `queryCacheKeys` 配置具体表名。详见
+[配置缓存一致性](/admin/config-cache-consistency)。
 
-**Redis 集群**：
-```yaml
-cache:
-  redis:
-    type: cluster
-    addrs:
-      - "redis-0:6379"
-      - "redis-1:6379"
-      - "redis-2:6379"
-    password: '${REDIS_PASSWORD}'
-```
-
----
-
-## 队列配置
-
-### 内存队列（开发环境）
+当前 `queue` 支持 `redis`、`nsq`、`kafka` 和 `memory`，兼容选择顺序为
+Redis → NSQ → Kafka → Memory。不要同时配置多种后再依赖隐式优先级。最小本地配置为：
 
 ```yaml
 queue:
@@ -306,417 +242,182 @@ queue:
     poolSize: 10
 ```
 
-### NSQ 队列
+NSQ 的地址字段是 `addresses` 与 `lookupdAddr`，Kafka 的 Broker 字段是 `brokers`。
+当前配置结构没有 `queue.pulsar`。分布式锁使用独立的 `locker.redis` 配置；不要假设
+`cache.redis` 的字段会自动复制到其他资源。
 
-```yaml
-queue:
-  nsq:
-    addr: "127.0.0.1:4150"
-    lookupAddr: "127.0.0.1:4161"
-```
-
-### Pulsar 队列
-
-```yaml
-queue:
-  pulsar:
-    url: "pulsar://localhost:6650"
-```
-
----
-
-## 通知配置
-
-### 邮件通知
+## 通知与任务
 
 ```yaml
 notification:
   email:
     enabled: true
-    host: "smtp.gmail.com"
+    host: smtp.example.com
     port: 587
-    username: "your-email@gmail.com"
-    password: '${EMAIL_PASSWORD}'
-    from: "noreply@your-domain.com"
-    useTLS: true
-```
-
-**Gmail 配置**：
-1. 启用两步验证
-2. 生成应用专用密码
-3. 使用应用密码作为 `password`
-
-**企业邮箱**：
-```yaml
-notification:
-  email:
-    host: "smtp.exmail.qq.com"  # 腾讯企业邮箱
-    port: 465
-    username: "noreply@company.com"
-    password: '${EMAIL_PASSWORD}'
-    from: "noreply@company.com"
-    useSSL: true
-```
-
-### 钉钉通知
-
-```yaml
-notification:
+    username: noreply@example.com
+    password: '{{ .Env.MSS_ADMIN_SMTP_PASSWORD }}'
+    from: noreply@example.com
   dingtalk:
-    enabled: true
-    webhook: "https://oapi.dingtalk.com/robot/send?access_token=xxx"
-    secret: "your-dingtalk-secret"
-```
-
-**创建钉钉机器人**：
-1. 打开钉钉群设置
-2. 智能群助手 → 添加机器人
-3. 选择"自定义"机器人
-4. 安全设置选择"加签"
-5. 复制 Webhook 和密钥
-
-### 企业微信通知
-
-```yaml
-notification:
+    enabled: false
+    webhook: ''
+    secret: ''
   wechat:
-    enabled: true
-    webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"
-```
+    enabled: false
+    webhook: ''
 
----
-
-## 任务配置
-
-### 内置任务调度
-
-```yaml
 task:
   enable: true
-  spec: "0 */1 * * * *"  # 每分钟执行
+  spec: '0 */1 * * * *'
 ```
 
-### Kubernetes Job 模式
+`notification.email` 只有 `enabled`、`host`、`port`、`username`、`password`、`from`
+字段；当前结构没有 `useTLS` / `useSSL`。`task` 只有 `enable` 和 Cron `spec`，没有
+Kubernetes provider、namespace 或 image 字段。容器镜像应在 Compose/Kubernetes 部署清单
+中固定到与 Admin Distribution 一致的 `v1.3.0`，生产再记录验证过的 digest，不要使用
+`latest`。
 
-```yaml
-task:
-  provider: k8s
-  config:
-    namespace: "default"
-    image: "mss-boot-admin:latest"
-```
-
----
-
-## 存储配置
-
-### D0-safety / D1-provider-owner 内部检查点
-
-当前工作树已完成 Upload admission、Local write boundary，以及严格启动 profile、
-未知/非法 provider fail closed 和单一生命周期 owner。这仍不代表对象存储已经可用于
-生产；Local 与 S3-compatible 路径在能力目录中仍是 `Legacy`，证据状态仍为 `Blocked`。
-
-上传策略通过独立的 AppConfig 条目读取：
-
-| AppConfig key | 格式 | 默认值与边界 |
-| --- | --- | --- |
-| `storage:maxSize` | 正整数，单位是 **bytes** | 默认 10 MiB（`10485760` bytes）；硬上限 100 MiB（`104857600` bytes），越界或非法值拒绝上传 |
-| `storage:allowedTypes` | 逗号分隔的 MIME media types / wildcards | 示例：`image/jpeg,image/png,image/*,application/pdf`；不接受 `.jpg` 一类扩展名作为策略 |
-
-Admin 的 Storage AppConfig 与设置页面只允许读取和写入这两个 admission 字段。
-provider、endpoint、region、bucket、TLS、credential source 与凭据材料都不属于
-AppConfig；Provider 与 SecretRef 的唯一合法来源保留为进程启动时的不可变 profile。
-历史数据库中的相关 AppConfig 行不会再投影到响应，提交已移除的 key 会得到稳定的
-`422 STORAGE_PROFILE_APP_CONFIG_FORBIDDEN`，且整批请求不会部分写入。
-
-入口会在 multipart 解析前限制请求体，并对选中文件做 max-plus-one 流式检查。
-Local 写入使用 `<configured-absolute-root>/uploads/<opaque-uuid>` 形式的随机物理 key、受限根目录与
-create-only 打开；失败或取消会清理未完成对象。用户 ID 和原始文件名都不参与
-物理 key，原始文件名只作为响应元数据返回。
-
-开发模式可继续用下面的静态映射做本地验证：
-
-```yaml
-application:
-  mode: dev
-  staticPath:
-    /public: /absolute/path/to/admin/public
-storage:
-  local:
-    # 必须与上面 staticPath 的文件系统值是同一绝对路径
-    root: /absolute/path/to/admin/public
-```
-
-只有 `dev` 模式且 `application.staticPath` 精确映射同一绝对 root 时，Local 才会
-安装并返回 `/public/uploads/<opaque-uuid>`。owner 只打开一次 `os.Root`，对象写入与
-pinned `StaticFS` 使用同一个 directory handle；测试会通过真实静态路由读取该 URL。
-两处值都必须直接写绝对路径；启动逻辑不会把相对路径隐式解析成工作目录下的路径。
-`prod` 模式不会注册 `application.staticPath`，因此配置 Nginx、挂载目录或拼接
-endpoint 都不能单独证明对象可交付。
-
-本检查点已完成 `D1-provider-owner`：启动时一次性解析 immutable profile 与
-SecretRef，未知/非法 provider 会拒绝安装对象存储资源，由单一 owner 管理 client
-生命周期；Admin 进程继续运行，两条上传路由固定返回 503，绝不 fallback 到 Local。
-S3 在 D1 只构造和持有 client，上传会在 `Put` 前返回 503；真实 S3 Delivery、
-RustFS fixture 与 Local/S3-compatible 共用 conformance suite 留在
-`D4-authorization-object`。Kafka lifecycle 仍是 D1 的未完成部分。
-精确配置、失败语义与测试命令见
-[D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)。
-
----
-
-## 监控配置
-
-### PProf 性能分析
+## 日志与可观测性
 
 ```yaml
 server:
-  pprof: true  # 启用 pprof
-```
+  metrics: true
+  healthz: true
+  readyz: true
+  pprof: false
 
-**访问地址**：
-```
-http://localhost:8080/debug/pprof/
-```
+monitor:
+  sampleInterval: 5s
+  sampleTimeout: 3s
+  historySize: 120
 
-### Pyroscope 持续 Profiling
-
-```yaml
-pyroscope:
-  enabled: true
-  applicationName: mss-boot-admin
-  serverAddress: "http://pyroscope:4040"
-  sampleRate: 100
-```
-
-### 健康检查
-
-```yaml
-server:
-  healthz: true  # 健康检查端点
-  readyz: true    # 就绪检查端点
-```
-
-**访问地址**：
-```
-http://localhost:8080/healthz
-http://localhost:8080/readyz
-```
-
-### 监控指标
-
-```yaml
-server:
-  metrics: true  # 启用 Prometheus 指标
-```
-
-**访问地址**：
-```
-http://localhost:8080/metrics
-```
-
----
-
-## 日志配置
-
-### 基本配置
-
-```yaml
 logger:
-  path: logs          # 日志目录
-  stdout: file         # 输出方式: stdout, file, both
-  level: info          # 日志级别: debug, info, warn, error
-  json: false          # JSON 格式（生产环境推荐 true）
-  addSource: true      # 添加源码位置
-  maxSize: 100         # 单文件最大大小（MB）
-  maxBackups: 10       # 保留文件数
-  maxAge: 30           # 保留天数
-  compress: true       # 压缩旧日志
-```
-
-### 生产环境日志
-
-```yaml
-logger:
-  path: /var/log/mss-boot-admin
-  stdout: file
+  stdout: default
   level: info
   json: true
   addSource: false
-  maxSize: 100
-  maxBackups: 30
-  maxAge: 90
-  compress: true
+
+pyroscope:
+  enabled: false
+  applicationName: mss-boot-admin
+  serverAddress: http://pyroscope:4040
 ```
 
-### Loki 日志收集
+`logger.stdout: file` 时还可以设置 `logger.path` 和按容量控制的 `logger.cap`。当前 Logger
+没有 `maxSize`、`maxBackups`、`maxAge`、`compress`，Loki writer 也未启用；日志轮转应由
+部署平台处理。Pyroscope 支持 `uploadRate`、认证字段、Tags 与 ProfileTypes，不存在
+`sampleRate` 配置。
+
+启用对应监听项后可检查：
+
+```shell
+curl --fail http://127.0.0.1:8080/healthz
+curl --fail http://127.0.0.1:8080/readyz
+curl --fail http://127.0.0.1:8080/metrics
+```
+
+生产环境不要直接暴露 PProf、metrics 或内部健康端点；通过受控网络或监控采集访问。
+
+## 对象存储边界
+
+启动配置 `storage` 是严格二选一结构：只能配置 `local` 或 `s3`。Local root 必须是绝对路径；
+S3-compatible 使用 `s3` 分支并显式设置 endpoint、region、bucket、路径风格、TLS 和凭据来源。
+静态凭据使用 `env://NAME` SecretRef，不把值写入 YAML：
 
 ```yaml
-logger:
-  loki:
-    url: "http://loki:3100"
-    interval: "5s"
-    labels:
-      app: mss-boot-admin
-      env: production
+storage:
+  s3:
+    endpoint: https://s3.example.com
+    region: region-1
+    bucket: admin-objects
+    usePathStyle: true
+    credentials:
+      static:
+        accessKeyRef: env://MSS_ADMIN_S3_ACCESS_KEY
+        secretKeyRef: env://MSS_ADMIN_S3_SECRET_KEY
 ```
 
----
-
-## 安全配置
-
-### TLS/SSL
-
-```yaml
-ssl:
-  enabled: true
-  cert: "/path/to/cert.pem"
-  key: "/path/to/key.pem"
-```
-
-### Casbin 权限模型
-
-```yaml
-database:
-  casbinModel: |
-    [request_definition]
-    r = sub, tp, obj, act
-
-    [policy_definition]
-    p = sub, tp, obj, act
-
-    [policy_effect]
-    e = some(where (p.eft == allow))
-
-    [matchers]
-    m = r.sub == p.sub && r.tp == p.tp && keyMatch(r.obj, p.obj) && regexMatch(r.act, p.act)
-```
-
-### 安全基线
-
-在系统配置中设置：
-
-```yaml
-security:
-  # 密码策略
-  passwordMinLength: 8
-  passwordRequireUppercase: true
-  passwordRequireLowercase: true
-  passwordRequireNumber: true
-  passwordRequireSpecial: false
-  
-  # 登录策略
-  maxLoginAttempts: 5
-  lockoutDuration: 30m
-  
-  # Session 策略
-  sessionTimeout: 12h
-  maxConcurrentSessions: 3
-```
-
----
+`storage:maxSize` 与 `storage:allowedTypes` 是数据库 AppConfig 中唯一的上传 admission 项，
+不是上面启动 profile 的子字段。当前 Local/S3-compatible 上传仍是 Legacy / Blocked；生产
+入口必须按[生产部署标准化](/admin/production-standardization)阻断上传路由，不能仅凭客户端
+已构造、目录已挂载或健康检查通过就开放对象交付。
 
 ## 前端配置
 
-### 环境配置
+V6 前端运行时把 API 基址固定为同源 `/admin/api`，请求携带 HttpOnly Cookie，并为不安全
+方法复制签名 CSRF Cookie。生产构建不会读取 `API_BASE_URL`；应由反向代理提供同源路由。
 
-```bash
-# .env.development
-API_BASE_URL=http://localhost:8080/admin/api
+开发模式下 `defineBusinessAdmin` 自动代理 `/admin/`，目标默认为
+`http://127.0.0.1:8080`。需要切换本地后端时使用其真实开发变量：
 
-# .env.production
-API_BASE_URL=https://api.your-domain.com/admin/api
+```shell
+cd web/antd-v6
+MSS_ADMIN_API_TARGET=http://127.0.0.1:18080 corepack pnpm@10.34.5 run dev
 ```
 
-### 构建配置
+不要在 `.env.production` 中设置虚构的 `API_BASE_URL`，也不要在浏览器存储会话 Token 或
+PAT。
 
-```javascript
-// .umirc.ts
-export default {
-  define: {
-    'process.env.API_BASE_URL': process.env.API_BASE_URL,
-  },
-  proxy: {
-    '/admin/api': {
-      target: 'http://localhost:8080',
-      changeOrigin: true,
-    },
-  },
-};
-```
+## 生产 Stage 示例
 
-### 国际化配置
-
-前端支持的语言由后端 API `/admin/api/languages` 动态加载。
-
----
-
-## 生产环境配置
-
-### 完整配置示例
+下面是一份 `config/application-prod.yml` 覆盖示例。所有秘密都由模板引用，示例本身不含
+固定密码：
 
 ```yaml
-# config/application.yml
 server:
   addr: 0.0.0.0:8080
   metrics: true
   healthz: true
   readyz: true
-  pprof: false  # 生产环境关闭
+  pprof: false
 
 application:
   mode: prod
-  origin: https://your-domain.com
+  origin: https://admin.example.com
+  trustedProxies:
+    - 10.0.0.10/32
+
+cors:
+  allowOrigins:
+    - https://admin.example.com
+  allowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+  allowHeaders: [Authorization, Content-Type, If-Match, X-CSRF-Token]
+  exposeHeaders: [ETag]
+  maxAge: 12h
 
 logger:
-  path: /var/log/mss-boot-admin
-  stdout: file
+  stdout: default
   level: info
   json: true
   addSource: false
-  maxSize: 100
-  maxBackups: 30
-  maxAge: 90
-  compress: true
 
 database:
   driver: mysql
-  source: '${DB_DSN}'
-  name: mss_boot_admin
+  source: '{{ .Env.MSS_ADMIN_DATABASE_DSN }}'
+  maxOpenConns: 100
+  maxIdleConns: 20
+  connMaxIdleTime: 300
+  connMaxLifeTime: 3600
   config:
-    maxOpenConns: 100
-    maxIdleConns: 10
-    connMaxLifetime: 1h
-  timeout: 10s
-  casbinModel: |
-    [request_definition]
-    r = sub, tp, obj, act
-    [policy_definition]
-    p = sub, tp, obj, act
-    [policy_effect]
-    e = some(where (p.eft == allow))
-    [matchers]
-    m = r.sub == p.sub && r.tp == p.tp && keyMatch(r.obj, p.obj) && regexMatch(r.act, p.act)
+    prepareStmt: true
 
 auth:
-  realm: 'mss-boot-admin'
-  key: '${AUTH_KEY}'
-  timeout: '12h'
-  maxRefresh: '2160h'
-  identityKey: 'mss-boot-admin-identity'
-
-pyroscope:
-  enabled: true
-  applicationName: mss-boot-admin
-  serverAddress: 'http://pyroscope:4040'
+  realm: mss-boot-admin
+  key: '{{ .Env.MSS_ADMIN_AUTH_SIGNING_KEY }}'
+  identityKey: mss-boot-admin-identity
+  timeout: 12h
+  maxRefresh: 2160h
+  browserSession:
+    secure: true
+    sameSite: lax
+    webSocketTicketTTL: 30s
 
 cache:
   queryCache: false
   queryCacheDuration: 1h
   queryCacheKeys: []
   redis:
-    addr: '${REDIS_ADDR}'
-    password: '${REDIS_PASSWORD}'
+    addr: '{{ .Env.MSS_ADMIN_CACHE_REDIS_ENDPOINT }}'
+    password: '{{ .Env.MSS_ADMIN_CACHE_REDIS_PASSWORD }}'
     db: 0
     poolSize: 20
 
@@ -726,117 +427,132 @@ queue:
 
 notification:
   email:
-    enabled: true
-    host: "smtp.example.com"
+    enabled: false
+    host: ''
     port: 587
-    username: "noreply@example.com"
-    password: '${EMAIL_PASSWORD}'
-    from: "noreply@example.com"
+    username: ''
+    password: ''
+    from: ''
   dingtalk:
-    enabled: true
-    webhook: '${DINGTALK_WEBHOOK}'
-    secret: '${DINGTALK_SECRET}'
+    enabled: false
+    webhook: ''
+    secret: ''
   wechat:
     enabled: false
-    webhook: ""
+    webhook: ''
 
 task:
   enable: true
-  spec: "0 */1 * * * *"
+  spec: '0 */1 * * * *'
 ```
 
-### 环境变量文件
+### systemd EnvironmentFile
 
-```bash
-# /etc/mss-boot-admin/.env
-DB_DSN="mss_admin:StrongPassword123@tcp(db.internal:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local"
-REDIS_ADDR="redis.internal:6379"
-REDIS_PASSWORD="StrongRedisPassword"
-AUTH_KEY="$(openssl rand -base64 32)"
-EMAIL_PASSWORD="your-email-password"
-DINGTALK_WEBHOOK="https://oapi.dingtalk.com/robot/send?access_token=xxx"
-DINGTALK_SECRET="your-dingtalk-secret"
+systemd 的 `EnvironmentFile=` 不执行 shell，因此不能把随机生成命令写在等号右侧。先在受控
+终端生成随机材料并存入秘密管理系统，再由部署平台把最终字面值写入只允许服务用户读取的
+文件。下面故意保留空值，使未注入秘密的部署失败而不是带示例密码启动：
+
+```ini
+# /etc/mss-boot-admin/admin.env
+# 由秘密管理/部署系统写入等号右侧的最终字面值；不要原样部署空值。
+STAGE=prod
+MSS_ADMIN_AUTH_SIGNING_KEY=
+MSS_ADMIN_DATABASE_DSN=
+MSS_ADMIN_CACHE_REDIS_ENDPOINT=
+MSS_ADMIN_CACHE_REDIS_PASSWORD=
+MSS_ADMIN_SMTP_PASSWORD=
 ```
 
-### Systemd 服务
+认证签名材料应一次生成并持久保存，例如用 `openssl rand -base64 48` 生成后写入秘密管理系统；
+不要在每次服务启动时重新生成，否则会使所有既有浏览器会话和 PAT 失效。保护该文件为
+`0600`，不要提交到 Git。
+
+### systemd 服务与 API 同步
+
+常驻服务：
 
 ```ini
 # /etc/systemd/system/mss-boot-admin.service
 [Unit]
 Description=mss-boot-admin
-After=network.target mysql.service redis.service
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=mss
 Group=mss
 WorkingDirectory=/opt/mss-boot-admin
-EnvironmentFile=/etc/mss-boot-admin/.env
+EnvironmentFile=/etc/mss-boot-admin/admin.env
 ExecStart=/opt/mss-boot-admin/mss-boot-admin server
-Restart=always
+Restart=on-failure
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-```bash
-# 启动服务
+配套的一次性 API 同步服务复用完全相同的工作目录和 EnvironmentFile：
+
+```ini
+# /etc/systemd/system/mss-boot-admin-api-sync.service
+[Unit]
+Description=Synchronize mss-boot-admin API registry
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=mss
+Group=mss
+WorkingDirectory=/opt/mss-boot-admin
+EnvironmentFile=/etc/mss-boot-admin/admin.env
+ExecStart=/opt/mss-boot-admin/mss-boot-admin server -a
+```
+
+每次首次部署或路由变更时，按“迁移 → API 同步 → 常驻服务”的顺序执行：
+
+```shell
 sudo systemctl daemon-reload
-sudo systemctl enable mss-boot-admin
-sudo systemctl start mss-boot-admin
-sudo systemctl status mss-boot-admin
+sudo systemctl start mss-boot-admin-api-sync.service
+sudo systemctl restart mss-boot-admin.service
+sudo systemctl status --no-pager mss-boot-admin.service
 ```
 
----
+## 验证与故障定位
 
-## 配置验证
+当前 CLI 没有 `server --validate`，`-c`/`--config-provider` 的参数是配置源名称，不是配置
+文件路径。不要使用 `server -c config/application.yml --validate`。
 
-### 检查配置
+部署前在隔离或预生产数据库完成迁移和 `server -a`，再启动常驻服务并检查 readiness。生产
+`server -a` 会写 API 注册表，不是只读配置检查。
 
-```bash
-# 验证配置文件
-go run . server -c config/application.yml --validate
+检查环境是否已注入时只判断存在性，不要把 DSN、认证材料或密码打印到终端和日志：
 
-# 查看运行状态
-curl http://localhost:8080/healthz
-curl http://localhost:8080/readyz
+```shell
+test -n "${MSS_ADMIN_AUTH_SIGNING_KEY:-}" && echo 'auth signing key: set' || echo 'auth signing key: missing'
+test -n "${MSS_ADMIN_DATABASE_DSN:-}" && echo 'database DSN: set' || echo 'database DSN: missing'
 ```
 
-### 常见问题
+常见问题：
 
-#### 1. 数据库连接失败
-
-```bash
-# 检查数据库连接
-mysql -h host -u user -p
-
-# 检查环境变量
-echo $DB_DSN
-```
-
-#### 2. Redis 连接失败
-
-```bash
-# 检查 Redis
-redis-cli -h host -p 6379 -a password ping
-
-# 检查环境变量
-echo $REDIS_ADDR
-```
-
-#### 3. JWT 密钥错误
-
-```bash
-# 重新生成密钥
-export AUTH_KEY="$(openssl rand -base64 32)"
-```
-
----
+- 启动仍是开发模式：检查 `STAGE=prod`、工作目录以及
+  `config/application-prod.yml` 是否实际存在；`APP_MODE=prod` 不会覆盖 YAML。
+- 数据库连接到了意外实例：检查 `database.source` 的 `{{ .Env.* }}` 名称与服务进程实际
+  环境；不要把 `DB_DSN` 的配置源引导语义误当成应用数据库覆盖。
+- “绑定 API”为空：使用与常驻服务相同的版本、Stage、配置源和数据库重新执行
+  `server -a`，确认命令成功退出。
+- 浏览器登录或写请求 403：核对精确 HTTPS Origin、Secure Cookie、反向代理协议以及
+  `X-CSRF-Token` CORS header；不要改成浏览器 Bearer Token 绕过。
+- Redis 配置未生效：确认 YAML 明确引用了部署变量，并检查字段位于目标资源的
+  `redis` 节点；设置 `REDIS_ADDR` 本身不会覆盖配置。
+- YAML 中的字段看似生效但运行时无变化：对照 `admin/config.Config` 及其嵌入的 Framework
+  配置类型；未知字段可能被 YAML 解码忽略，不要从旧示例推断字段名。
 
 ## 下一步
 
-- [部署指南](/admin/docker)
+- [本地调试](/admin/local-debug)
+- [容器化与生产部署](/admin/docker)
 - [安全基线](/admin/security-baseline)
-- [监控告警](/admin/observability-guide)
+- [监控与可观测性](/admin/observability-guide)
 - [发布前检查清单](/admin/pre-release-checklist)

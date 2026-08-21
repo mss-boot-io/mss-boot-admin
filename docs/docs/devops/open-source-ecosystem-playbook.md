@@ -16,16 +16,17 @@ toward 10/10 without relying on expensive community operations.
 
 ## North Star
 
-`mss-boot-io` should be positioned as an AI-governed Go microservice admin
-framework:
+`mss-boot-io` should position this repository as an agent-native Complete Admin
+Distribution and management-system foundation:
 
 - agent-readable: agents can understand modules, contracts, permissions,
   tests, and release environments;
 - governance-first: PRs, releases, security, and documentation leave an audit
   trail;
 - production-maintainable: beta/prod releases are smoke-tested and rollbackable;
-- docs-as-memory: durable decisions are recorded in `mss-boot-docs` and each
-  repository's `aigc` directory.
+- docs-as-contract: durable product decisions live in `docs/docs/` or
+  `docs/adr/`, executable facts live in `.mss/`, and historical prompts remain
+  under `docs/aigc/`.
 
 ## Score Ladder
 
@@ -43,9 +44,9 @@ framework:
 3. Read the issue's scope, non-goals, validation commands, and expected output.
 4. Run the repository-specific setup:
    - Go libraries: `go test ./...`
-   - Admin backend: `make test`
-   - Admin frontend: `pnpm install --frozen-lockfile && pnpm test -- --runInBand`
-   - Docs: `pnpm install --frozen-lockfile && pnpm build`
+   - Admin/Framework: focused Go tests, then `go run ./cmd/mss verify --changed`
+   - Admin Web: use the pinned Node 24 and pnpm 10.34.5 commands in `web/antd-v6`
+   - Docs: `corepack pnpm@9.15.9 --dir docs build`
 5. Open a PR with tests, docs, security, and release impact filled in.
 6. Let CI, CodeQL, govulncheck, Scorecard, PR Guard, and Docs Drift validate the change.
 
@@ -134,7 +135,7 @@ Public beta and prod should be boring:
 - backend beta can move quickly, but prod uses tagged versions;
 - V6 prerelease publication is explicit and happens only after CI, browser,
   delivery-smoke, and immutable-artifact readiness;
-- docs deploy can remain automatic because it is the public source of truth;
+- docs deployment remains an independently gated component sourced from merged `main`;
 - each release should link commit, image tag or digest, frontend build, API
   compatibility, smoke result, and rollback path.
 
@@ -164,11 +165,12 @@ For a personal maintainer, the default should be low-noise:
 - Keep all core repository main branches green for the latest runs.
 - Merge low-risk CI reliability fixes before enabling stricter required checks.
 - Convert the existing good-first-issue factory into a monthly issue batch.
-- Maintain a release compatibility matrix for `mss-boot`, the Admin backend,
-  and the independently versioned `web/antd-v6` artifact in `mss-boot-admin`.
-- Add SBOM/provenance as a release hardening milestone after the CI baseline is
-  stable.
-- Keep repository About text and topics aligned with the governance-first
-  direction before each outreach round.
+- Maintain a release compatibility matrix for the coordinated Framework,
+  Admin, and Admin Web versions while preserving their independent tag and
+  publication namespaces.
+- Verify the existing SBOM and provenance for root, frontend image, GitHub
+  Packages, and npmjs artifacts during every stable release reconciliation.
+- Keep repository About text and topics aligned with the Agent-native Complete
+  Admin Distribution before each release and outreach round.
 - Convert external comments into GitHub follow-up links within 48 hours when
   they are actionable.

@@ -16,6 +16,14 @@ import release_phase_evidence as PHASE_EVIDENCE  # noqa: E402
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "release-readiness.yml"
 FEATURE_PATH = REPOSITORY_ROOT / ".mss" / "features" / "foundation-v1-2-3-release.yaml"
 GITHUB_EXPRESSION = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
+RUNTIME_PHASE_CONDITION = (
+    "${{ inputs.phase == 'feature-freeze' || inputs.phase == 'pre-framework' || "
+    "inputs.phase == 'pre-root' }}"
+)
+COMMAND_EXECUTION_CONDITION = (
+    "${{ success() && (inputs.phase == 'feature-freeze' || "
+    "inputs.phase == 'pre-framework' || inputs.phase == 'pre-root') }}"
+)
 
 
 class ReleaseReadinessWorkflowTest(unittest.TestCase):
@@ -62,9 +70,12 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         self.assertNotIn("eval run --all", self.content)
         self.assertNotIn("RustFS", self.content)
         phase = self.step("Execute phase-scoped Feature command evidence")
+        self.assertEqual(phase["if"], COMMAND_EXECUTION_CONDITION)
+        self.assertEqual(phase["env"]["READINESS_PHASE"], "${{ inputs.phase }}")
         self.assertIn("MSS_SUPPLIER_TEST_MYSQL_DSN", phase["env"])
         self.assertIn("MSS_SUPPLIER_TEST_POSTGRES_DSN", phase["env"])
         self.assertIn("release_phase_evidence.py run", phase["run"])
+        self.assertIn('--phase "${READINESS_PHASE}"', phase["run"])
         self.assertEqual(
             self.step("Install documentation dependencies")["run"],
             "corepack pnpm@9.15.9 --dir docs install --frozen-lockfile",
@@ -75,9 +86,7 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             "corepack pnpm@10.34.5 --dir web/antd-v6 install --frozen-lockfile --ignore-scripts",
         )
         playwright_install = self.step("Install Playwright Chromium")
-        self.assertEqual(
-            playwright_install["if"], "${{ inputs.phase == 'feature-freeze' }}"
-        )
+        self.assertEqual(playwright_install["if"], RUNTIME_PHASE_CONDITION)
         self.assertEqual(playwright_install["working-directory"], "web/antd-v6")
         self.assertEqual(
             playwright_install["run"],
@@ -89,15 +98,37 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         )
         self.assertEqual(self.step("Setup pnpm")["with"]["version"], "9.15.9")
 
-    def test_v130_rc6_qualification_selects_the_distribution_feature(self):
+    def test_publication_authority_phases_execute_and_only_checkpoint_plans(self):
+        for step_name in (
+            "Setup pnpm",
+            "Setup Node",
+            "Install frontend dependencies",
+            "Install Playwright Chromium",
+        ):
+            self.assertEqual(self.step(step_name)["if"], RUNTIME_PHASE_CONDITION)
+
+        execute = self.step("Execute phase-scoped Feature command evidence")
+        self.assertEqual(execute["if"], COMMAND_EXECUTION_CONDITION)
+        self.assertIn("release_phase_evidence.py run", execute["run"])
+        self.assertIn('--phase "${READINESS_PHASE}"', execute["run"])
+        self.assertIn(
+            ".mss/reports/release-phase-command-evidence.json", execute["run"]
+        )
+
+        plan = self.step("Plan phase-scoped Feature command evidence")
+        self.assertEqual(plan["if"], "${{ success() && inputs.phase == 'checkpoint' }}")
+        self.assertIn("release_phase_evidence.py plan", plan["run"])
+        self.assertIn('--phase "${READINESS_PHASE}"', plan["run"])
+
+    def test_v130_qualification_selects_the_stable_release_feature(self):
         selected = PHASE_EVIDENCE.load_qualification(
             REPOSITORY_ROOT,
             Path(".mss/release-qualification.json"),
-            "v1.3.0-rc.6",
+            "v1.3.0",
         )
         self.assertEqual(
             [path.relative_to(REPOSITORY_ROOT).as_posix() for path in selected],
-            [".mss/features/complete-admin-distribution-thin-host.yaml"],
+            [".mss/features/foundation-v1-3-0-release.yaml"],
         )
         contract = yaml.safe_load(
             (REPOSITORY_ROOT / ".mss" / "release-qualification.json").read_text(
@@ -112,45 +143,57 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             )
         )
 
-    def test_v130_rc6_feature_freeze_commands_are_exact_and_executable(self):
+    def test_v130_checkpoint_and_feature_freeze_commands_are_exact_and_executable(self):
         feature_path = (
             REPOSITORY_ROOT
             / ".mss"
             / "features"
-            / "complete-admin-distribution-thin-host.yaml"
+            / "foundation-v1-3-0-release.yaml"
         )
         feature = yaml.safe_load(feature_path.read_text(encoding="utf-8"))
         plan = {
             "feature": {"name": feature["metadata"]["name"]},
             "acceptance": feature["spec"]["acceptance"],
         }
-        steps, review = PHASE_EVIDENCE.collect_phase_commands(
-            [plan], phase="feature-freeze"
-        )
-        blockers = [
-            item
-            for item in review
-            if item.get("type") in {"non-exact-command", "unsupported-command"}
-        ]
-        self.assertEqual(blockers, [])
-        commands = {
-            " ".join(
-                [
-                    step.working_directory,
-                    *(f"{name}={value}" for name, value in sorted(step.environment.items())),
-                    *step.argv,
-                ]
-            )
-            for step in steps
-        }
+        commands_by_phase = {}
+        for phase in ("checkpoint", "feature-freeze", "pre-framework", "pre-root"):
+            steps, review = PHASE_EVIDENCE.collect_phase_commands([plan], phase=phase)
+            blockers = [
+                item
+                for item in review
+                if item.get("type") in {"non-exact-command", "unsupported-command"}
+            ]
+            self.assertEqual(blockers, [], msg=f"{phase}: {blockers}")
+            commands_by_phase[phase] = {
+                " ".join(
+                    [
+                        step.working_directory,
+                        *(f"{name}={value}" for name, value in sorted(step.environment.items())),
+                        *step.argv,
+                    ]
+                )
+                for step in steps
+            }
+        for required in (
+            ". go run ./cmd/mss spec validate .mss/features/foundation-v1-3-0-release.yaml --format json",
+            ". python3 tools/release/check_release_policy.py --component admin --version v1.3.0 --tag admin/v1.3.0 --intent qualify",
+            ". python3 -m unittest tools.release.test_container_workflow tools.release.test_workflow_governance tools.release.test_check_release_policy",
+        ):
+            self.assertIn(required, commands_by_phase["checkpoint"])
         for required in (
             ". make test-all",
             ". make web-v6-qualify",
             ". bash tools/compatibility/test-admin-external-consumer.sh",
             ". bash tools/compatibility/test-thin-host-external-consumer.sh",
             ". go run ./cmd/mss eval run --all --format json",
+            ". corepack pnpm@9.15.9 --dir docs build",
         ):
-            self.assertIn(required, commands)
+            self.assertIn(required, commands_by_phase["feature-freeze"])
+        self.assertIn(
+            ". python3 tools/release/check_release_policy.py --component framework --version v1.3.0 --tag mss-boot/v1.3.0 --intent qualify",
+            commands_by_phase["pre-framework"],
+        )
+        self.assertIn(". make test-all", commands_by_phase["pre-root"])
 
     def test_historical_v123_release_feature_has_scoped_exact_commands(self):
         feature = yaml.safe_load(FEATURE_PATH.read_text(encoding="utf-8"))

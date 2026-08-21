@@ -2,13 +2,13 @@ import { defineConfig } from 'dumi';
 
 export default defineConfig({
   themeConfig: {
-    name: 'mss-boot',
+    name: 'mss-boot Admin',
     rtl: false,
     logo: '/favicon.ico',
     // Keep only stable, high-frequency journeys at the top level. New sections
     // belong under “更多” by default so the header stays bounded as docs grow.
     nav: [
-      { title: 'admin', link: '/admin/e2e-test-plan', activePath: '/admin' },
+      { title: 'Admin', link: '/admin', activePath: '/admin' },
       { title: '指南', link: '/guide', activePath: '/guide' },
       { title: 'Agent 开发', link: '/agent', activePath: '/agent' },
       {
@@ -18,7 +18,7 @@ export default defineConfig({
       },
       {
         title: '发布',
-        link: '/releases/antd-v6-in-app-browser-acceptance',
+        link: '/releases',
         activePath: '/releases',
       },
       {
@@ -39,7 +39,7 @@ export default defineConfig({
     <br />
     Powered by <a target="_blank" href="https://github.com/mss-boot-io">mss-boot-io</a>`,
     socialLinks: {
-      github: 'https://github.com/mss-boot-io/mss-boot',
+      github: 'https://github.com/mss-boot-io/mss-boot-admin',
     },
   },
   sitemap: { hostname: 'https://docs.mss-boot-io.top' },

@@ -193,11 +193,11 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 		if data, err := readThinHostFile(ctx.Root, npmrcPath); err != nil {
 			problems = append(problems, err.Error())
 		} else {
-			expected := "@mss-boot-io:registry=https://npm.pkg.github.com\n" +
-				"//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}"
+			expected := "registry=https://registry.npmjs.org/\n" +
+				"save-exact=true"
 			if strings.TrimSpace(string(data)) != expected {
 				problems = append(problems,
-					npmrcPath+" must contain only the GitHub Packages scope and NODE_AUTH_TOKEN placeholder",
+					npmrcPath+" must select the public npm registry with exact dependency pins and no credentials",
 				)
 			}
 		}

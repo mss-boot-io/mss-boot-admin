@@ -1,0 +1,534 @@
+name: Official npm Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact stable Admin Distribution version (vX.Y.Z)
+        required: true
+        type: string
+      commit:
+        description: Exact full lowercase commit published by every coordinated component
+        required: true
+        type: string
+      allow_npm_token_bootstrap:
+        description: Use the release-v6 NPM_TOKEN only for the initial trusted-publisher bootstrap
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+  packages: read
+  pull-requests: read
+
+concurrency:
+  group: official-npm-${{ inputs.version }}-${{ inputs.commit }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish-existing-admin-web-tarball
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: release-v6
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      packages: read
+      pull-requests: read
+    steps:
+      - name: Validate exact dispatch identity
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${INPUT_VERSION}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo 'version must be an exact stable vX.Y.Z value' >&2
+            exit 1
+          fi
+          if [[ ! "${INPUT_COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'commit must be one full lowercase Git SHA' >&2
+            exit 1
+          fi
+          if [[ "${GITHUB_REF_TYPE}" != 'tag' || "${GITHUB_REF_NAME}" != "${INPUT_VERSION}" ]]; then
+            echo "dispatch this workflow from the exact ${INPUT_VERSION} root tag" >&2
+            exit 1
+          fi
+          if [[ "${GITHUB_SHA}" != "${INPUT_COMMIT}" ]]; then
+            echo 'workflow provenance ref does not equal the requested source commit' >&2
+            exit 1
+          fi
+          {
+            echo "RELEASE_VERSION=${INPUT_VERSION}"
+            echo "RELEASE_COMMIT=${INPUT_COMMIT}"
+            echo "UNPREFIXED_VERSION=${INPUT_VERSION#v}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Checkout exact release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+
+      - name: Verify merged-main release source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${RELEASE_COMMIT}"
+          python3 tools/release/verify_release_source.py \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${RELEASE_COMMIT}" \
+            --tag "${RELEASE_VERSION}" \
+            --policy .mss/release-policy.yaml
+          python3 tools/release/check_release_policy.py \
+            --policy .mss/release-policy.yaml \
+            --component frontend \
+            --version "${RELEASE_VERSION}" \
+            --tag "web/antd-v6/${RELEASE_VERSION}" \
+            --intent publish
+
+      - name: Require the complete exact-commit release train
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          resolve_tag_commit() {
+            local tag_name="$1"
+            local object_type
+            local object_sha
+            local tag_object
+            local depth=0
+
+            tag_object="$(gh api "/repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag_name}")"
+            object_type="$(jq -r '.object.type' <<< "${tag_object}")"
+            object_sha="$(jq -r '.object.sha' <<< "${tag_object}")"
+            while [[ "${object_type}" == 'tag' ]]; do
+              depth=$((depth + 1))
+              if [[ "${depth}" -gt 5 ]]; then
+                echo "tag ${tag_name} has too many annotation levels" >&2
+                return 1
+              fi
+              tag_object="$(gh api "/repos/${GITHUB_REPOSITORY}/git/tags/${object_sha}")"
+              object_type="$(jq -r '.object.type' <<< "${tag_object}")"
+              object_sha="$(jq -r '.object.sha' <<< "${tag_object}")"
+            done
+            if [[ "${object_type}" != 'commit' || ! "${object_sha}" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "tag ${tag_name} does not resolve to one commit" >&2
+              return 1
+            fi
+            printf '%s\n' "${object_sha}"
+          }
+
+          while IFS= read -r component_tag; do
+            tag_commit="$(resolve_tag_commit "${component_tag}")"
+            if [[ "${tag_commit}" != "${RELEASE_COMMIT}" ]]; then
+              echo "tag ${component_tag} resolves to ${tag_commit}, not ${RELEASE_COMMIT}" >&2
+              exit 1
+            fi
+            release_json="$(
+              gh release view "${component_tag}" \
+                --json tagName,isDraft,isPrerelease
+            )"
+            jq -e \
+              --arg tag "${component_tag}" \
+              '.tagName == $tag and .isDraft == false and .isPrerelease == false' \
+              <<< "${release_json}" >/dev/null
+          done <<EOF
+          ${RELEASE_VERSION}
+          mss-boot/${RELEASE_VERSION}
+          admin/${RELEASE_VERSION}
+          web/antd-v6/${RELEASE_VERSION}
+          docs/${RELEASE_VERSION}
+          EOF
+
+          require_successful_workflow() {
+            local workflow="$1"
+            local component_ref="$2"
+            local event="$3"
+            local workflow_path=".github/workflows/${workflow}"
+            local runs
+            local successes
+
+            runs="$(gh api \
+              --method GET \
+              -H 'Accept: application/vnd.github+json' \
+              "/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs" \
+              -f head_sha="${RELEASE_COMMIT}" \
+              -f status=completed \
+              -f per_page=100)"
+            successes="$(jq \
+              --arg commit "${RELEASE_COMMIT}" \
+              --arg component_ref "${component_ref}" \
+              --arg event "${event}" \
+              --arg workflow_path "${workflow_path}" \
+              '[.workflow_runs[] | select(
+                .event == $event and
+                .head_branch == $component_ref and
+                .head_sha == $commit and
+                .path == $workflow_path and
+                .status == "completed" and
+                .conclusion == "success"
+              )] | length' <<< "${runs}")"
+            if [[ "${successes}" -lt 1 ]]; then
+              echo "no successful ${workflow} ${event} run exists for ${component_ref} at ${RELEASE_COMMIT}" >&2
+              exit 1
+            fi
+          }
+
+          while IFS='|' read -r workflow component_ref event; do
+            require_successful_workflow "${workflow}" "${component_ref}" "${event}"
+          done <<EOF
+          framework-release.yml|mss-boot/${RELEASE_VERSION}|push
+          admin-release.yml|admin/${RELEASE_VERSION}|push
+          frontend-v6-release.yml|web/antd-v6/${RELEASE_VERSION}|push
+          docs.yml|docs/${RELEASE_VERSION}|push
+          container.yml|${RELEASE_VERSION}|push
+          release.yml|${RELEASE_VERSION}|push
+          release.yml|${RELEASE_VERSION}|workflow_dispatch
+          EOF
+
+      - name: Download and verify existing frontend package assets
+        id: package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          frontend_tag="web/antd-v6/${RELEASE_VERSION}"
+          package_dir="${RUNNER_TEMP}/official-npm-package"
+          mkdir -p "${package_dir}"
+          release_json="$(gh release view "${frontend_tag}" --json assets)"
+          jq -e '
+            ([.assets[].name | select(endswith(".tgz"))] | length) == 1 and
+            ([.assets[].name | select(. == "admin-web-package.json")] | length) == 1 and
+            ([.assets[].name | select(. == "admin-web.spdx.json")] | length) == 1 and
+            ([.assets[].name | select(. == "SHA256SUMS.admin-web")] | length) == 1
+          ' <<< "${release_json}" >/dev/null
+          gh release download "${frontend_tag}" \
+            --dir "${package_dir}" \
+            --pattern '*.tgz' \
+            --pattern 'admin-web-package.json' \
+            --pattern 'admin-web.spdx.json' \
+            --pattern 'SHA256SUMS.admin-web'
+          mapfile -t tarballs < <(find "${package_dir}" -maxdepth 1 -type f -name '*.tgz' -print)
+          test "${#tarballs[@]}" -eq 1
+          tarball="${tarballs[0]}"
+
+          expected_names="$(
+            printf '%s\n' \
+              "$(basename -- "${tarball}")" \
+              admin-web-package.json \
+              admin-web.spdx.json | sort
+          )"
+          actual_names="$(
+            awk 'NF == 2 { name=$2; sub(/^\*/, "", name); print name }' \
+              "${package_dir}/SHA256SUMS.admin-web" | sort
+          )"
+          test "${actual_names}" = "${expected_names}"
+          (
+            cd "${package_dir}"
+            sha256sum --strict --check SHA256SUMS.admin-web
+          )
+
+          python3 tools/release/verify_admin_web_package.py \
+            --tarball "${tarball}" \
+            --expected-name '@mss-boot-io/admin-web' \
+            --expected-version "${UNPREFIXED_VERSION}" \
+            --source-repository "${GITHUB_REPOSITORY}" \
+            --source-commit "${RELEASE_COMMIT}" \
+            --output "${package_dir}/qualified-admin-web-package.json"
+          cmp -- \
+            "${package_dir}/qualified-admin-web-package.json" \
+            "${package_dir}/admin-web-package.json"
+          jq -e \
+            --arg version "${UNPREFIXED_VERSION}" \
+            --arg commit "${RELEASE_COMMIT}" \
+            '.spdxVersion == "SPDX-2.3" and
+             .packages[0].name == "@mss-boot-io/admin-web" and
+             .packages[0].versionInfo == $version and
+             (.documentComment | contains($commit))' \
+            "${package_dir}/admin-web.spdx.json" >/dev/null
+          {
+            echo "tarball=${tarball}"
+            echo "evidence=${package_dir}/admin-web-package.json"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Setup Node 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install a trusted-publishing capable npm CLI
+        run: |
+          set -euo pipefail
+          npm install --global --ignore-scripts npm@11.19.0
+          npm_version="$(npm --version)"
+          node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number);
+            if (major < 11 || (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) {
+              process.exit(1);
+            }
+          ' "${npm_version}"
+
+      - name: Verify GitHub Packages has the identical package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
+          PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
+          PACKAGE_EVIDENCE: ${{ steps.package.outputs.evidence }}
+        run: |
+          set -euo pipefail
+          package='@mss-boot-io/admin-web'
+          npmrc="${RUNNER_TEMP}/github-packages.npmrc"
+          github_tarball="${RUNNER_TEMP}/github-packages-admin-web.tgz"
+          printf '%s\n' \
+            '@mss-boot-io:registry=https://npm.pkg.github.com' \
+            '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "${npmrc}"
+          chmod 600 "${npmrc}"
+          metadata="$(
+            NPM_CONFIG_USERCONFIG="${npmrc}" npm view \
+              "${package}@${UNPREFIXED_VERSION}" \
+              version gitHead dist.integrity dist.tarball --json \
+              --registry=https://npm.pkg.github.com
+          )"
+          expected_integrity="$(jq -er '.artifact.integrity' "${PACKAGE_EVIDENCE}")"
+          jq -e \
+            --arg version "${UNPREFIXED_VERSION}" \
+            --arg commit "${RELEASE_COMMIT}" \
+            --arg integrity "${expected_integrity}" \
+            '.version == $version and .gitHead == $commit and
+             ."dist.integrity" == $integrity and
+             (."dist.tarball" | type == "string" and length > 0)' \
+            <<< "${metadata}" >/dev/null
+          latest="$(
+            NPM_CONFIG_USERCONFIG="${npmrc}" npm view \
+              "${package}" dist-tags.latest --json \
+              --registry=https://npm.pkg.github.com | jq -er '.'
+          )"
+          test "${latest}" = "${UNPREFIXED_VERSION}"
+          github_tarball_url="$(jq -er '."dist.tarball"' <<< "${metadata}")"
+          curl --fail --location --silent --show-error \
+            --header "Authorization: Bearer ${NODE_AUTH_TOKEN}" \
+            --output "${github_tarball}" \
+            "${github_tarball_url}"
+          cmp -- "${PACKAGE_TARBALL}" "${github_tarball}"
+          package_record="$(
+            gh api "/orgs/${GITHUB_REPOSITORY_OWNER}/packages/npm/admin-web"
+          )"
+          jq -e \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            '.name == "admin-web" and .package_type == "npm" and
+             .repository.full_name == $repository' \
+            <<< "${package_record}" >/dev/null
+          rm -f "${npmrc}"
+
+      - name: Reconcile immutable npmjs publication state
+        id: npmjs
+        env:
+          PACKAGE_EVIDENCE: ${{ steps.package.outputs.evidence }}
+        run: |
+          set -euo pipefail
+          package='@mss-boot-io/admin-web'
+          error_file="${RUNNER_TEMP}/npmjs-view-error.log"
+          expected_integrity="$(jq -er '.artifact.integrity' "${PACKAGE_EVIDENCE}")"
+          if metadata="$(
+            npm view "${package}@${UNPREFIXED_VERSION}" \
+              version gitHead dist.integrity --json \
+              --registry=https://registry.npmjs.org \
+              2> "${error_file}"
+          )"; then
+            rm -f "${error_file}"
+            jq -e \
+              --arg version "${UNPREFIXED_VERSION}" \
+              --arg commit "${RELEASE_COMMIT}" \
+              --arg integrity "${expected_integrity}" \
+              '.version == $version and .gitHead == $commit and
+               ."dist.integrity" == $integrity' \
+              <<< "${metadata}" >/dev/null
+            {
+              echo 'publish=false'
+              echo 'package_absent=false'
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          if ! grep -Eqi 'E404|404 Not Found' "${error_file}"; then
+            echo 'npmjs availability check failed without an authoritative E404' >&2
+            exit 1
+          fi
+          rm -f "${error_file}"
+
+          package_error_file="${RUNNER_TEMP}/npmjs-package-view-error.log"
+          package_absent=false
+          if npm view "${package}@*" name --json \
+              --registry=https://registry.npmjs.org \
+              2> "${package_error_file}" | jq -e --arg package "${package}" '
+                if type == "string" then . == $package
+                elif type == "array" then length > 0 and all(.[]; . == $package)
+                else false
+                end
+              ' >/dev/null; then
+            rm -f "${package_error_file}"
+          else
+            if ! grep -Eqi 'E404|404 Not Found' "${package_error_file}"; then
+              echo 'npmjs package existence check failed without an authoritative E404' >&2
+              exit 1
+            fi
+            rm -f "${package_error_file}"
+            package_absent=true
+          fi
+          {
+            echo 'publish=true'
+            echo "package_absent=${package_absent}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Publish the existing tarball to official npm last
+        if: steps.npmjs.outputs.publish == 'true'
+        env:
+          ALLOW_NPM_TOKEN_BOOTSTRAP: ${{ inputs.allow_npm_token_bootstrap }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PACKAGE_ABSENT: ${{ steps.npmjs.outputs.package_absent }}
+          PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
+        run: |
+          set -euo pipefail
+          package='@mss-boot-io/admin-web'
+          bootstrap_npmrc="${RUNNER_TEMP}/npmjs-bootstrap.npmrc"
+          authenticated_error="${RUNNER_TEMP}/npmjs-authenticated-package-view-error.log"
+          cleanup_bootstrap() {
+            rm -f "${bootstrap_npmrc}" "${authenticated_error}"
+          }
+          trap cleanup_bootstrap EXIT
+          case "${PACKAGE_ABSENT}" in
+            true|false) ;;
+            *) echo 'npmjs package existence was not authoritatively classified' >&2; exit 1 ;;
+          esac
+          if [[ "${ALLOW_NPM_TOKEN_BOOTSTRAP}" == 'true' ]]; then
+            if [[ "${PACKAGE_ABSENT}" != 'true' ]]; then
+              echo 'NPM_TOKEN bootstrap is allowed only while the entire npmjs package is absent' >&2
+              exit 1
+            fi
+            if [[ -z "${NPM_TOKEN}" ]]; then
+              echo 'NPM_TOKEN bootstrap was requested but the release-v6 environment secret is empty' >&2
+              exit 1
+            fi
+            printf '//registry.npmjs.org/:_authToken=%s\n' "${NPM_TOKEN}" > "${bootstrap_npmrc}"
+            chmod 600 "${bootstrap_npmrc}"
+            export NPM_CONFIG_USERCONFIG="${bootstrap_npmrc}"
+            if npm view "${package}@*" name --json \
+                --registry=https://registry.npmjs.org \
+                2> "${authenticated_error}" | jq -e --arg package "${package}" '
+                  if type == "string" then . == $package
+                  elif type == "array" then length > 0 and all(.[]; . == $package)
+                  else false
+                  end
+                ' >/dev/null; then
+              echo "npmjs package ${package} already exists for the bootstrap token; refusing bootstrap" >&2
+              exit 1
+            fi
+            if ! grep -Eqi 'E404|404 Not Found' "${authenticated_error}"; then
+              echo 'authenticated npmjs package existence check failed without an authoritative E404' >&2
+              exit 1
+            fi
+            rm -f "${authenticated_error}"
+          else
+            if [[ "${PACKAGE_ABSENT}" == 'true' ]]; then
+              echo 'the first npmjs package creation requires the explicit one-time token bootstrap' >&2
+              exit 1
+            fi
+            unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG
+          fi
+          npm publish "${PACKAGE_TARBALL}" \
+            --access public \
+            --tag latest \
+            --provenance \
+            --registry=https://registry.npmjs.org
+
+      - name: Verify npmjs integrity provenance identity and consumer install
+        env:
+          PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
+          PACKAGE_EVIDENCE: ${{ steps.package.outputs.evidence }}
+        run: |
+          set -euo pipefail
+          package='@mss-boot-io/admin-web'
+          expected_integrity="$(jq -er '.artifact.integrity' "${PACKAGE_EVIDENCE}")"
+          published_tarball="${RUNNER_TEMP}/npmjs-published-admin-web.tgz"
+          metadata=''
+          converged=false
+          for attempt in $(seq 1 24); do
+            echo "npmjs verification attempt ${attempt}/24"
+            if metadata="$(
+              npm view "${package}@${UNPREFIXED_VERSION}" \
+                version gitHead dist.integrity dist.tarball dist.attestations --json \
+                --registry=https://registry.npmjs.org 2>/dev/null
+            )"; then
+              if ! jq -e \
+                --arg version "${UNPREFIXED_VERSION}" \
+                --arg commit "${RELEASE_COMMIT}" \
+                --arg integrity "${expected_integrity}" \
+                '.version == $version and .gitHead == $commit and
+                 ."dist.integrity" == $integrity and
+                 ."dist.attestations".provenance.predicateType ==
+                   "https://slsa.dev/provenance/v1" and
+                 (."dist.attestations".url | type == "string" and length > 0) and
+                 (."dist.tarball" | type == "string" and length > 0)' \
+                <<< "${metadata}" >/dev/null; then
+                echo 'npmjs returned immutable package metadata that does not match the release asset' >&2
+                exit 1
+              fi
+              latest="$(
+                npm view "${package}" dist-tags.latest --json \
+                  --registry=https://registry.npmjs.org 2>/dev/null | jq -er '.'
+              )" || latest=''
+              if [[ "${latest}" == "${UNPREFIXED_VERSION}" ]]; then
+                tarball_url="$(jq -er '."dist.tarball"' <<< "${metadata}")"
+                if curl --fail --location --silent --show-error \
+                  --output "${published_tarball}" \
+                  "${tarball_url}" && \
+                  cmp -- "${PACKAGE_TARBALL}" "${published_tarball}"; then
+                  converged=true
+                  break
+                fi
+              fi
+            fi
+            if [[ "${attempt}" == '24' ]]; then
+              break
+            fi
+            sleep 5
+          done
+          if [[ "${converged}" != 'true' ]]; then
+            echo 'npmjs package identity did not converge after bounded verification' >&2
+            exit 1
+          fi
+
+          consumer_dir="$(mktemp -d)"
+          cleanup_consumer() {
+            rm -rf "${consumer_dir}"
+          }
+          trap cleanup_consumer EXIT
+          (
+            cd "${consumer_dir}"
+            npm init --yes >/dev/null
+            npm install \
+              --ignore-scripts \
+              --no-audit \
+              --no-fund \
+              --package-lock=false \
+              --registry=https://registry.npmjs.org \
+              "${package}@${UNPREFIXED_VERSION}"
+            EXPECTED_VERSION="${UNPREFIXED_VERSION}" \
+            EXPECTED_COMMIT="${RELEASE_COMMIT}" \
+              node <<'NODE'
+          const manifest = require('@mss-boot-io/admin-web/package.json');
+          if (manifest.name !== '@mss-boot-io/admin-web') process.exit(1);
+          if (manifest.version !== process.env.EXPECTED_VERSION) process.exit(1);
+          if (manifest.gitHead !== process.env.EXPECTED_COMMIT) process.exit(1);
+          NODE
+          )

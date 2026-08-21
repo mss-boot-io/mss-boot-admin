@@ -718,19 +718,16 @@ spec:
         - internal/mss/generator
         - templates/module
       guidance: >-
-        D3 now covers deterministic backend specification projection, dry-run/check, path confinement,
-        stable ordering, obsolete generated-file cleanup, explicit SQLite/MySQL/PostgreSQL forward DDL,
-        validated DTO/service/API/OpenAPI/export, typed post-commit events, and fail-closed injected
-        backend authorization. Commit d92458c adds a separate lossless-ID authorization migration,
-        exact default-role Casbin policies, MENU/COMPONENT/API metadata, role/global revisions, and
-        the AdminAuthorizer permission matrix. The Supplier plan intentionally remains phase
-        backend-checkpoint and complete false with 19 deferred frontend, documentation, and E2E
-        projections. Beta does not imply typed frontend client, UI/browser acceptance, generated
-        module docs, downstream upgrade completeness, or frozen-SHA release evidence.
+        The specification-first generator owns deterministic backend projection, forward
+        SQLite/MySQL/PostgreSQL migrations, authorization metadata, API and service contracts,
+        dry-run/check behavior, path confinement, stable ordering, obsolete generated-file cleanup,
+        and idempotent regeneration. Ant Design 6, documentation, E2E, and downstream layout
+        projections are qualified through the full-stack capability below. Beta reflects the
+        intentionally narrow AdminModule schema and Supplier golden, not deferred generated output.
 
     - id: agent.fullstack-module-generator
       displayName: Full-Stack Upgradeable Module Generator
-      status: planned
+      status: beta
       owners: [agent-infrastructure, backend, frontend]
       paths:
         - .mss/features/foundation-v1-1-0-generator-blueprint.yaml
@@ -742,18 +739,17 @@ spec:
         - internal/mss/generator
         - templates/module
       guidance: >-
-        Commit 5a60ad6 delivers the checked-in Supplier backend slice with explicit forward migration,
-        DTO/service/API/OpenAPI/export, typed post-commit events, fail-closed authorizer injection,
-        deterministic drift checks, and SQLite/MySQL/PostgreSQL development evidence. Commit d92458c
-        projects the separate authorization migration, exact admin/procurement/finance policies,
-        persisted menu metadata, and positive/negative Admin authorization matrix. The capability
-        stays Planned and the machine plan stays complete false until D5 adds the typed client,
-        frontend states, UI/browser E2E, generated docs, and the customization-preserving three-way
-        upgrade, followed by exact frozen-SHA reruns. Do not expand to a second domain first.
+        A validated AdminModule now projects a complete vertical backend, forward migrations,
+        permission and menu metadata, typed Ant Design 6 client/page/routes/locales, generated module
+        documentation, and semantic browser E2E. The Supplier plan is complete with zero deferred
+        projections and is exercised through repository-external Thin Host generation, build,
+        authorization, browser, upgrade, preservation, and two-run idempotency gates. Keep the
+        capability beta until stable v1.3.0 public consumption and a second representative domain
+        prove the schema without weakening deterministic or generated/custom ownership boundaries.
 
     - id: foundation.admin-distribution
       displayName: Complete Admin Distribution and Thin Business Hosts
-      status: planned
+      status: beta
       owners: [agent-infrastructure, backend, frontend, release-engineering, security]
       paths:
         - .mss/features/complete-admin-distribution-thin-host.yaml
@@ -775,10 +771,13 @@ spec:
       guidance: >-
         Keep one complete Admin backend and one complete V6 frontend. External business repositories
         consume them through coordinated versioned dependencies and add only compile-time modules and
-        pages. The capability remains Planned until the external Supplier host passes GOWORK=off backend,
-        local npm tarball, one-runtime, deterministic thin-host generation and upgrade, authorization,
-        and browser E2E gates. Do not add runtime plugins, micro-frontends, core feature selection,
-        telemetry, import records, or adopter registration.
+        pages. The external Supplier host has passed GOWORK=off backend, local npm tarball,
+        one-runtime, deterministic Thin Host generation and upgrade, authorization, and browser E2E
+        gates; v1.3.0-rc.6 is immutable successful preview evidence. The capability remains beta while
+        stable v1.3.0 Go resolution plus byte-identical npmjs and GitHub Packages resolution and
+        post-publication reconciliation are pending.
+        Do not add runtime plugins, micro-frontends, core feature selection, telemetry, import records,
+        or adopter registration.
 
     - id: agent.skills
       displayName: Repository Agent Skills
@@ -843,6 +842,7 @@ spec:
         - .mss/features/foundation-v1-2-2-release.yaml
         - .mss/features/foundation-v1-2-3-release.yaml
         - .mss/features/complete-admin-distribution-thin-host.yaml
+        - .mss/features/foundation-v1-3-0-release.yaml
         - .mss/features/admin-antd-v6-application.yaml
         - .mss/features/admin-antd-v6-cutover-retirement.yaml
         - .mss/features/admin-antd-v6-release-polish.yaml
@@ -864,7 +864,6 @@ spec:
         - tools/release
         - tools/security
         - web/antd-v6/Dockerfile
-        - web/antd-v6/CHANGELOG.md
         - web/antd-v6/scripts/check-release-api.mjs
         - .github/workflows/container.yml
         - .github/workflows/docs.yml
@@ -872,20 +871,23 @@ spec:
         - .github/workflows/release-readiness.yml
         - .github/workflows/framework-release.yml
         - .github/workflows/frontend-v6-release.yml
+        - .github/workflows/npm-release.yml
         - .github/workflows/theme-settings-integration.yml
         - .github/workflows/v0.7-upgrade-integration.yml
       guidance: >-
         Treat Unreleased, planned, preview, branches, and local workspace replacements as non-stable.
         Published historical versions remain immutable and their candidate evidence is not reusable.
-        The active reviewed target is the v1.3.0-rc.6 preview for root, Framework, the importable Admin module,
-        and the sole Ant Design V6 frontend. Other alpha, beta, RC, or stable tags remain forbidden.
-        Complete release readiness begins only after one v1.3.0-rc.6 feature-freeze commit already
+        The active reviewed target is stable v1.3.0 for root, Framework, the importable Admin module,
+        and the sole Ant Design V6 frontend. RC6 is immutable successful preview evidence; every other
+        alpha, beta, RC, or stable tag remains forbidden. Complete release readiness begins only after
+        one v1.3.0 feature-freeze commit already
         merged into main is selected. An emergency
         patch requires a reviewed policy target change rather than a bypass.
-        Publish Framework first, then the importable Admin module, then the complete frontend package,
-        and finally root from the same reviewed commit; Docs remains an independent component. Finalize
-        a stable release only after migrations,
-        security checks, versioned artifacts, containers, documentation, installation smoke tests, and
+        Publish Framework first, then the importable Admin module, the complete frontend GitHub Packages
+        mirror, root, and the independently releasable Docs component from the same reviewed commit;
+        publish the byte-identical frontend tarball to official npm as the final artifact publication.
+        Finalize a stable release only after migrations, security checks, versioned artifacts, containers,
+        documentation, installation smoke tests, and
         recovery evidence pass. This governance remains beta until post-release truth reconciliation,
         deterministic Foundation release/Blueprint/generator/downstream-snapshot identity with atomic
         lock and manifest records, and drift checks are enforced. Keep

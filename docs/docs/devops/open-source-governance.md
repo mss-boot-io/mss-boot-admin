@@ -10,8 +10,10 @@ keywords: [open source, governance, quality gates, release, AI memory]
 
 # Open Source Governance
 
-`mss-boot-io` uses a governance-first open source workflow. The goal is to keep
-the project readable by contributors, maintainers, and AI agents.
+`mss-boot-io` ships an Agent-native Complete Admin Distribution through a
+governance-first open source workflow. The goal is to keep its product,
+machine-readable contracts, generated code, releases, and upgrades readable by
+contributors, maintainers, downstream teams, and AI agents.
 
 ## Quality Gates
 
@@ -19,8 +21,9 @@ the project readable by contributors, maintainers, and AI agents.
   release impact.
 - Go repositories run CI, CodeQL, govulncheck, Dependabot, and OpenSSF
   Scorecard.
-- Frontend and docs repositories run CI, CodeQL, Dependabot, and OpenSSF
-  Scorecard.
+- Frontend and Docs are independently publishable components of this repository;
+  component-scoped CI keeps their heavy checks isolated while shared contract
+  changes run the broader gates.
 - API, config, deployment, or workflow changes should update documentation or AI
   memory.
 
@@ -38,8 +41,9 @@ the affected repository and use private GitHub Security Advisories when enabled.
 
 ## AI Memory
 
-Organization-level workflow, release policy, and cross-repository decisions must
-be recorded in `mss-boot-docs/aigc/prompts/`.
+Long-lived product and release decisions belong in `docs/docs/` or `docs/adr/`;
+machine-executable facts belong in `.mss/`; historical prompts remain in
+`docs/aigc/prompts/`.
 
 ## GitHub-First Community Flow
 
@@ -54,11 +58,11 @@ answers, FAQ entries, and release/process policy.
 
 ## Repository About And Topics
 
-Repository descriptions and topics should match the current governance-first
-direction:
+Repository descriptions and topics should match the current product:
 
-- RBAC, configuration, API registry, operations, release policy, and AI-assisted
-  maintenance are current public signals.
+- Agent-native management systems, the complete Go Admin, React 19 + Ant Design
+  6, RBAC, deterministic full-stack generation, Thin Host Blueprints, migration,
+  verification, and upgrades are current public signals.
 - Runtime virtual models, virtual CRUD, and browser-facing code generation have
   been removed and must not be presented as current capabilities. The separate
   development-time `cmd/mss` generator remains a supported, deterministic

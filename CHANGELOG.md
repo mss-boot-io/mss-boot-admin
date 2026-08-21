@@ -6,22 +6,33 @@ tag namespaces.
 
 ## [Unreleased]
 
-Target: **v1.3.0-rc.6** for the root foundation, `mss-boot/v1.3.0-rc.6` for the
-Framework, `admin/v1.3.0-rc.6` for the importable Admin module, and
-`web/antd-v6/v1.3.0-rc.6` for Admin Web. Publication requires one exact clean
-commit already merged into `origin/main`; local or topic-branch evidence is
-preliminary only.
+Target: **v1.3.0** for the root Foundation, `mss-boot/v1.3.0` for the Framework,
+`admin/v1.3.0` for the importable Admin module, and
+`web/antd-v6/v1.3.0` for Admin Web. Publication requires one exact clean commit
+already merged into `origin/main`; local or topic-branch evidence is preliminary
+only.
 
-The immutable v1.3.0-rc.5 Framework, Admin, frontend package and image, and root
-image were published from `49158fd65d577a5a94c41d428ab6ad458619a0d9`.
-Its root candidate Release stopped before publication because the Agent evaluation
-catalog still required at least 500 copied application files after the supported
-Blueprint had intentionally become a 31-file Thin Host. RC6 corrects that stale
-contract and moves the complete evaluation into feature freeze; no RC5 tag,
-package, image, or Release is moved or overwritten.
+The complete v1.3.0-rc.6 preview train was published successfully from
+`0ef09fb3caa1b2d424c540da23d01219135ebcfa`. Its Framework and Admin modules,
+Admin Web package, portable assets and image, root image and candidate assets
+remain immutable prerelease evidence. They do not replace v1.2.3 as the current
+stable release and are not moved or overwritten by this formal v1.3.0 target.
 
 ### Added
 
+- Publish one coordinated Complete Admin Distribution while retaining independent
+  root, Framework, Admin, Admin Web, and Docs release identities.
+- Add the importable `admin/app` composition root and explicit `admin/business`
+  module boundary without package-initialization route or migration side effects.
+- Add a compact Thin Host Blueprint that pins exact backend and frontend
+  dependencies, preserves owned business files, and upgrades managed glue through
+  a conflict-aware three-way plan.
+- Publish the complete React 19 and Ant Design 6 application as
+  `@mss-boot-io/admin-web` with package-owned Umi integration and external-consumer
+  install, lint, test, build, bundle, and browser qualification.
+- Publish one qualified Admin Web tarball to both GitHub Packages and npmjs;
+  npmjs is the credential-free default for Thin Hosts, while the protected
+  official-npm mirror step runs only after every coordinated Release is public.
 - Execute composed Admin migrations in explicit Core then Business phases while
   retaining a collision-checked combined runner for source compatibility.
 - Add an idempotent forward migration that recognizes the RC4 Supplier collision,
@@ -32,16 +43,43 @@ package, image, or Release is moved or overwritten.
 
 ### Changed
 
+- Promote the successfully qualified RC6 contract to the stable v1.3.0 target
+  while retaining the exact merged-main, staged publication, external resolution,
+  immutable artifact, rollback, and public-reconciliation gates.
+- Keep prerelease root images from advancing the mutable `latest` tag; only a
+  stable SemVer root tag may publish `latest`, and fail publication unless the
+  stable version tag and `latest` converge on the exact published manifest digest.
+- Give the Admin Web image an explicit frontend OCI description instead of
+  inheriting the root repository's Go-backend description.
+- Preserve configured generated parent-menu icons, make the Supplier menu path
+  visibly reachable, and mark decorative navigation icons as hidden from assistive
+  technology without removing their accessible menu labels.
+- Reset generated create and update editor state from current inputs whenever a
+  modal reopens, preventing cancelled or stale values from leaking into the next
+  operation.
+- Scope generated enum-selection checks to the exact listbox named by each
+  combobox's `aria-controls`, so duplicate labels in separate fields remain
+  semantic and strict-mode safe.
 - Bound the downstream Blueprint evaluation to a compact 30-64 file Thin Host
   envelope, rejecting both incomplete hosts and regressions that copy Foundation
   core sources.
 - Run the complete Agent evaluation during feature freeze so this contract fails
   before any Framework, Admin, frontend, or root tag is created.
+- Execute every required pre-Framework and pre-root Feature command before a
+  publication-authority attestation can be issued; checkpoint remains plan-only.
 - Download Admin module dependencies with `GOWORK=off` and assert the release
   checkout remains unchanged before Blueprint evaluations.
+- Keep `mss spec init --kind module` synchronized with the complete Ant Design 6
+  AdminModule contract, including export, browser marker, UI, permission, and
+  deterministic module-specific migration identities.
+- Fail the Docs build when a root-relative Markdown link has no corresponding
+  portable static target, including the immutable RC4 and RC5 audit routes.
 - Add an explicit module-scoped marker for compatibility migrations that query a
   generated module's ledger IDs without falsely claiming those IDs in generator
   collision detection.
+- Replace stale beta/support, contributor, release-phase, configuration, and
+  repository-description guidance with the executable v1.3.0 distribution
+  contract, including mandatory API registry synchronization.
 
 ## [v1.2.3] - 2026-08-19
 

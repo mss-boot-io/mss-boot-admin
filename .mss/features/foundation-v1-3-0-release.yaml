@@ -1,0 +1,329 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: foundation-v1-3-0-release
+  displayName: Qualify and publish the stable v1.3.0 Admin Distribution
+  description: >-
+    Governs the first stable Complete Admin Distribution across the root foundation,
+    reusable Framework, importable Admin module, complete Admin Web package, container
+    images, and independently published documentation.
+  owner: release-engineering
+  labels:
+    domain: release-governance
+    current-stable: v1.2.3
+    target-version: v1.3.0
+    release-status: preparation
+spec:
+  problem: >-
+    The immutable v1.3.0-rc.6 train proved the complete four-component distribution
+    and external Thin Host path from one merged-main commit. Formal publication still
+    requires a new exact merged-main freeze containing the post-RC6 Supplier and UI
+    repairs, stable-only latest-tag semantics, final documentation, upgrade guidance,
+    and complete release qualification without mutating any preview artifact.
+  goals:
+    - Make v1.3.0 the only active public release target in policy, qualification, commands, and operator documentation.
+    - Preserve v1.3.0-rc.1 through v1.3.0-rc.6 tags, Releases, packages, images, digests, and failure records as immutable evidence.
+    - Publish Framework, Admin, Admin Web, and root from one exact clean commit already merged into main.
+    - Prove the public Go modules, byte-identical GitHub Packages and npmjs Admin Web packages, images, Thin Host generation, upgrade, and representative browser behavior.
+    - Ensure prerelease images never advance a stable latest alias and stable images expose component-correct OCI metadata.
+    - Publish Docs independently from docs/v1.3.0 while keeping its content synchronized with the stable distribution contract.
+    - Document fresh installation, database upgrade, API registry synchronization, compatibility, rollback, and post-publication reconciliation.
+  nonGoals:
+    - Move, reuse, delete, or reinterpret an existing v1.3.0 release-candidate ref.
+    - Publish any component from this topic branch or from a commit not contained in current origin/main.
+    - Reintroduce the retired Ant Design 5 application, runtime dynamic-model tools, or a second frontend package.
+    - Promote optional integrations or the pinned prerelease ProComponents dependency to a broader stability claim.
+    - Change production data, credentials, traffic, or deployments during source qualification.
+  actors:
+    - id: release-manager
+      displayName: Release manager
+      description: Freezes one exact merged-main commit and controls protected publication phases.
+    - id: downstream-maintainer
+      displayName: Downstream maintainer
+      description: Consumes the coordinated Go and npm dependencies through a Thin Host.
+    - id: admin-operator
+      displayName: Admin operator
+      description: Backs up data, applies migrations, synchronizes the API registry, and verifies the matched deployment.
+    - id: security-reviewer
+      displayName: Security reviewer
+      description: Verifies authorization, artifact, provenance, secret, and rollback boundaries.
+  modules:
+    - name: release-governance
+      operation: extend
+      description: Stable version policy, exact-source checks, immutable refs, attestations, and publication order.
+    - name: complete-admin-distribution
+      operation: extend
+      description: Coordinated Framework, Admin, Admin Web, root tooling, images, and external consumption path.
+    - name: operations
+      operation: extend
+      description: Installation, migration, API registry, upgrade, rollback, and post-publication reconciliation.
+    - name: documentation
+      operation: extend
+      description: Stable product identity, references, release notes, and independent Docs publication.
+  requirements:
+    - id: target-stable-v130-only
+      title: All active release surfaces target stable v1.3.0
+      description: Policy, qualification, commands, component namespaces, and public guidance agree on the same stable version.
+      priority: must
+      actor: release-manager
+      module: release-governance
+      rules:
+        - Root uses v1.3.0, Framework uses mss-boot/v1.3.0, Admin uses admin/v1.3.0, and Admin Web uses web/antd-v6/v1.3.0.
+        - The npm package version is 1.3.0 and Docs uses its independent docs/v1.3.0 namespace.
+        - The release policy rejects every older, newer, or prerelease target until a reviewed policy change is merged.
+        - currentStableVersion remains v1.2.3 until successful publication and post-publication reconciliation.
+    - id: preserve-preview-history
+      title: Preserve every immutable preview record
+      description: RC artifacts remain auditable and cannot be repaired by moving or overwriting their refs.
+      priority: must
+      actor: release-manager
+      module: release-governance
+      rules:
+        - RC1 through RC6 tags, Releases, packages, images, digests, and recorded failures remain unchanged.
+        - Stable publication creates new refs from the newly frozen merged-main commit.
+        - Any source fix after freeze requires another pull request, a new main commit, and rerunning every affected gate.
+    - id: publish-complete-distribution
+      title: Publish one coordinated Complete Admin Distribution
+      description: Public dependencies and deployment artifacts form one tested runtime contract.
+      priority: must
+      actor: downstream-maintainer
+      module: complete-admin-distribution
+      rules:
+        - Framework publishes first, then Admin, then the complete Admin Web GitHub Packages mirror and image, then root artifacts and image and independently published Docs.
+        - The Admin module contains no committed local replace and resolves the exact public Framework version with GOWORK=off during protected publication.
+        - A repository-external Thin Host installs the exact public-style Go and npm contracts without copying Foundation core source.
+        - Backend authorization remains authoritative and generated Supplier routes, menus, migrations, and frontend projections remain deterministic.
+        - The exact GitHub Release package tarball is published to npmjs only after every coordinated tag and Release is public; stable packages use latest while prereleases remain on next.
+        - npmjs is the default unauthenticated Thin Host registry and GitHub Packages remains a repository-linked compatibility mirror with identical version, gitHead, integrity, and dist-tag.
+    - id: protect-image-identity
+      title: Keep stable and prerelease image identities distinct
+      description: Stable aliases and OCI labels describe the exact component and release channel.
+      priority: must
+      actor: security-reviewer
+      module: release-governance
+      rules:
+        - A root prerelease tag never creates or advances latest.
+        - A stable root tag creates latest only from the exact stable publication build.
+        - Root and frontend versioned tags, commit tags, digests, architectures, provenance, and SBOM are verified before release completion.
+        - Frontend OCI title and description identify the React 19 and Ant Design 6 Admin application rather than the Go backend.
+    - id: qualify-install-upgrade-rollback
+      title: Qualify installation, upgrade, and rollback
+      description: Operators can deploy a matched pair and recover without moving immutable refs.
+      priority: must
+      actor: admin-operator
+      module: operations
+      rules:
+        - Upgrade guidance starts with a verified database backup and exact current-version inventory.
+        - Forward migrations run before traffic is switched and the API registry one-shot synchronization must make menu API binding non-empty.
+        - Thin Host upgrades update the coordinated distribution lock and only managed files while preserving business-owned files.
+        - Rollback restores the preceding qualified database backup and coordinated backend/frontend version; schema downgrade is never improvised.
+    - id: publish-stable-documentation
+      title: Publish synchronized stable documentation
+      description: Public entry points describe the implemented product, supported consumption paths, compatibility, and known limits.
+      priority: must
+      actor: release-manager
+      module: documentation
+      rules:
+        - README, project metadata, changelogs, architecture status, release index, and v1.3.0 notes agree on the stable contract.
+        - Docs build without broken internal links or stale standalone-repository instructions.
+        - The Docs tag and deployment remain independently publishable but point to an exact merged-main source identity.
+        - Historical RC and earlier stable documents remain immutable audit records.
+  constraints:
+    - id: merged-main-only
+      type: operations
+      statement: Every release tag and public artifact must resolve to one clean exact commit contained in fresh origin/main and produced by a merged pull request targeting main.
+    - id: immutable-public-refs
+      type: compatibility
+      statement: Existing stable and prerelease tags, Releases, packages, images, checksums, attestations, and evidence are never moved, overwritten, or deleted to repair a release.
+    - id: coordinated-version
+      type: compatibility
+      statement: Root, Framework, Admin, and Admin Web share one semantic distribution version even though their tag namespaces differ.
+    - id: official-npm-last
+      type: operations
+      statement: Publishing the already-qualified Admin Web tarball to registry.npmjs.org is the final artifact publication, after root, Framework, Admin, frontend, and Docs tags and Releases all resolve to the frozen commit; afterward only read-only reconciliation and the one-time Trusted Publisher credential handoff are permitted.
+    - id: no-production-access
+      type: security
+      statement: Setup, qualification, generation, tests, and evidence collection require no production credential or unredacted sensitive data.
+  acceptance:
+    - id: checkpoint-v130-contract
+      requirement: target-stable-v130-only
+      statement: Feature, policy, qualification, commands, component namespaces, and tests agree on stable v1.3.0.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/features/foundation-v1-3-0-release.yaml --format json
+        - type: command
+          value: python3 -m unittest discover -s tools/release -p 'test_*.py'
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component root --version v1.3.0 --tag v1.3.0 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component framework --version v1.3.0 --tag mss-boot/v1.3.0 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component admin --version v1.3.0 --tag admin/v1.3.0 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component frontend --version v1.3.0 --tag web/antd-v6/v1.3.0 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component docs --version v1.3.0 --tag docs/v1.3.0 --intent qualify
+    - id: checkpoint-release-workflows
+      requirement: protect-image-identity
+      statement: Release tests lock stable-only latest behavior, component-correct OCI metadata, exact-source checks, portable artifacts, and protected authority.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: python3 -m unittest tools.release.test_container_workflow tools.release.test_workflow_governance tools.release.test_check_release_policy
+    - id: checkpoint-preview-immutability
+      requirement: preserve-preview-history
+      statement: RC1 through RC6 refs and public artifact identities are inventoried before a stable tag is created and remain unchanged.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: report
+          value: Read-only GitHub tag, Release, package, image digest, and workflow inventory for v1.3.0-rc.1 through v1.3.0-rc.6
+    - id: feature-freeze-root-admin-framework
+      requirement: publish-complete-distribution
+      statement: Root tooling, Framework, Admin, migrations, authorization, generators, and complete application composition pass on the frozen commit.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: make test-all
+        - type: command
+          value: cd mss-boot && GOWORK=off go test ./...
+        - type: command
+          value: cd admin && go test ./...
+        - type: command
+          value: cd admin && go vet ./...
+    - id: feature-freeze-external-consumers
+      requirement: publish-complete-distribution
+      statement: External consumers prove the public-style Admin, Framework, Admin Web, Thin Host, and generated Supplier contracts.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/compatibility/test-admin-external-consumer.sh
+        - type: command
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
+        - type: command
+          value: go run ./cmd/mss eval run --all --format json
+        - type: report
+          value: Exact frozen-commit external consumer, Blueprint, upgrade, idempotency, and runtime graph evidence
+    - id: feature-freeze-admin-web
+      requirement: protect-image-identity
+      statement: Admin Web passes dependency, behavior, accessibility, browser, build, package, portable-delivery, and image-contract gates.
+      level: e2e
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: make web-v6-qualify
+        - type: report
+          value: Sanitized in-app browser desktop and narrow-layout evidence bound to the frozen commit
+    - id: feature-freeze-documentation
+      requirement: publish-stable-documentation
+      statement: The stable Docs site builds and its primary desktop and mobile journeys are visually verified.
+      level: contract
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: corepack pnpm@9.15.9 --dir docs build
+        - type: report
+          value: In-app browser homepage, Admin, Releases, navigation, dark-theme, responsive-layout, and console-health evidence
+    - id: feature-freeze-operations
+      requirement: qualify-install-upgrade-rollback
+      statement: Fresh and upgraded databases, API synchronization, matched deployment, and rollback instructions are executable and unambiguous.
+      level: migration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: manual
+          value: On isolated fresh and upgraded SQLite, MySQL, and PostgreSQL databases, migrate, run the one-shot API registry synchronization, and confirm menu API binding is non-empty.
+        - type: report
+          value: Backup, migration, API registry, Thin Host upgrade, compatibility, and rollback evidence for the exact frozen commit
+    - id: pre-framework-publication-readiness
+      requirement: publish-complete-distribution
+      statement: The frozen source, Framework, local public-style consumers, and all pre-Framework component namespaces remain qualified immediately before protected publication.
+      level: integration
+      phase: pre-framework
+      required: true
+      evidence:
+        - type: command
+          value: cd mss-boot && GOWORK=off go test ./...
+        - type: command
+          value: bash tools/compatibility/test-admin-external-consumer.sh
+        - type: command
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component framework --version v1.3.0 --tag mss-boot/v1.3.0 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component admin --version v1.3.0 --tag admin/v1.3.0 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component frontend --version v1.3.0 --tag web/antd-v6/v1.3.0 --intent qualify
+    - id: pre-root-publication-readiness
+      requirement: publish-complete-distribution
+      statement: The complete source, generated Thin Host, and root namespace remain qualified after predecessor components publish and before root publication.
+      level: integration
+      phase: pre-root
+      required: true
+      evidence:
+        - type: command
+          value: make test-all
+        - type: command
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component root --version v1.3.0 --tag v1.3.0 --intent qualify
+    - id: post-publication-reconciliation
+      requirement: preserve-preview-history
+      statement: Stable public refs resolve to the frozen commit, stable aliases resolve to stable digests, Docs exposes the reviewed identity, and the active stable contract is reconciled in a follow-up pull request.
+      level: contract
+      phase: post-publication
+      required: true
+      evidence:
+        - type: report
+          value: Exact tags, Releases, Go modules, GitHub Packages and npmjs dist-tags, integrity and tarball parity, image digests and latest aliases, Docs release identity, and current-stable reconciliation report
+  risks:
+    - id: public-dependency-order
+      description: Admin cannot qualify with GOWORK=off until the exact Framework version is public.
+      severity: high
+      mitigation: Freeze once, publish and verify Framework first, then qualify and publish Admin without a local replace.
+    - id: latest-alias-drift
+      description: An automatic metadata flavor could advance latest from a prerelease or unrelated build.
+      severity: high
+      mitigation: Compute stable identity from an exact SemVer tag, disable automatic latest, and test both build and publish metadata blocks.
+    - id: coordinated-version-drift
+      description: Go, npm, image, lock, and documentation versions can diverge despite successful component builds.
+      severity: high
+      mitigation: Fail closed on policy drift and reconcile every public identity and digest after publication.
+    - id: database-rollback
+      description: A binary rollback without its matching data backup can leave an incompatible schema or authorization projection.
+      severity: critical
+      mitigation: Require verified backup and matched artifact inventory before migration; restore both data and coordinated binaries during rollback.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - python3 -m unittest discover -s tools/release -p 'test_*.py'
+      - make test-all
+      - make web-v6-qualify
+      - bash tools/compatibility/test-admin-external-consumer.sh
+      - bash tools/compatibility/test-thin-host-external-consumer.sh
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      Merge this preparation through pull request, select the new exact main commit, run checkpoint
+      and feature-freeze qualification, then publish Framework, Admin, the Admin Web GitHub mirror and image,
+      root, and Docs from the same reviewed source identity. Publish the byte-identical Admin Web tarball
+      to registry.npmjs.org only after all coordinated tags and Releases are verified; it is the final
+      artifact publication, followed only by read-only reconciliation and one-time credential cleanup.
+    rollback: >-
+      Before publication, repair through a follow-up pull request and select a new freeze. After
+      publication, pin the preceding coordinated distribution, restore its verified database backup,
+      and create a new patch release for repairs; never move a public v1.3.0 ref.
