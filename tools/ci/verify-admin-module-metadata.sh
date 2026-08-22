@@ -37,8 +37,12 @@ trap cleanup EXIT
 
 readonly temporary_mod="${temporary_dir}/admin.mod"
 readonly temporary_sum="${temporary_dir}/admin.sum"
+readonly tracked_sum_without_framework="${temporary_dir}/admin-without-framework.sum"
 cp -- "${admin_dir}/go.mod" "${temporary_mod}"
 cp -- "${admin_dir}/go.sum" "${temporary_sum}"
+awk -v module="${framework_module}" -v version="${framework_version}" '
+  !($1 == module && ($2 == version || $2 == version "/go.mod")) { print }
+' "${admin_dir}/go.sum" > "${tracked_sum_without_framework}"
 
 # The coordinated Framework version is intentionally not public before the
 # Framework release phase. Keep the tracked Admin module clean while checking
@@ -53,4 +57,7 @@ cp -- "${admin_dir}/go.sum" "${temporary_sum}"
 )
 
 diff -u -- "${admin_dir}/go.mod" "${temporary_mod}"
-diff -u -- "${admin_dir}/go.sum" "${temporary_sum}"
+# A local replacement deliberately removes public checksum entries for the
+# exact Framework version. Compare every other checksum without treating those
+# required external-consumer entries as repository-local dependency drift.
+diff -u -- "${tracked_sum_without_framework}" "${temporary_sum}"

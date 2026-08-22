@@ -186,7 +186,12 @@ class WorkflowGovernanceTest(unittest.TestCase):
             'diff -u -- "${admin_dir}/go.mod" "${temporary_mod}"', script
         )
         self.assertIn(
-            'diff -u -- "${admin_dir}/go.sum" "${temporary_sum}"', script
+            '!($1 == module && ($2 == version || $2 == version "/go.mod"))',
+            script,
+        )
+        self.assertIn(
+            'diff -u -- "${tracked_sum_without_framework}" "${temporary_sum}"',
+            script,
         )
 
     def test_v0_7_upgrade_candidate_uses_the_explicit_prepublication_workspace(self):
@@ -684,10 +689,15 @@ class WorkflowGovernanceTest(unittest.TestCase):
                 probe_source + "\n", encoding="utf-8"
             )
             environment = os.environ.copy()
+            # The release workflow itself remains fail-closed on GOPROXY=direct
+            # and verifies the tag origin hash above. This executable fixture
+            # only proves that a clean, replace-free consumer resolves and uses
+            # the public module, so prefer the checksum-backed public proxy and
+            # retain direct as its standard fallback on clean CI runners.
             environment.update(
                 {
                     "GOWORK": "off",
-                    "GOPROXY": "direct",
+                    "GOPROXY": "https://proxy.golang.org,direct",
                     "GOTOOLCHAIN": "local",
                 }
             )
