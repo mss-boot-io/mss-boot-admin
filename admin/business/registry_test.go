@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -63,6 +64,52 @@ func (module ignoredRegistryErrorModule) Register(registry *Registry) error {
 	return nil
 }
 
+type reentrantModule struct {
+	name        string
+	migrationID migration.MigrationID
+	operation   func(*Registry) error
+	inMigration bool
+}
+
+func (module reentrantModule) Name() string { return module.name }
+
+func (module reentrantModule) Register(registry *Registry) error {
+	registration := validTestModule(module.name, module.migrationID).registration
+	if module.inMigration {
+		registration.Migrations = func(runner *migration.Migration) error {
+			if err := runner.Register(
+				module.migrationID,
+				func(*gorm.DB, string) error { return nil },
+			); err != nil {
+				return err
+			}
+			_ = module.operation(registry)
+			return nil
+		}
+	} else {
+		_ = module.operation(registry)
+	}
+	// Both returned errors are intentionally ignored. A lifecycle reentry must
+	// poison the transaction so the parent Add still fails and rolls back.
+	_ = registry.Register(registration)
+	return nil
+}
+
+type blockingModule struct {
+	name        string
+	migrationID migration.MigrationID
+	started     chan<- struct{}
+	release     <-chan struct{}
+}
+
+func (module blockingModule) Name() string { return module.name }
+
+func (module blockingModule) Register(registry *Registry) error {
+	close(module.started)
+	<-module.release
+	return registry.Register(validTestModule(module.name, module.migrationID).registration)
+}
+
 type testEventCollector struct{}
 
 func (testEventCollector) Collect(context.Context, Event) {}
@@ -71,7 +118,11 @@ func validTestModule(name string, migrationID migration.MigrationID) testModule 
 	return testModule{
 		name: name,
 		registration: Registration{
-			Descriptor: Descriptor{Name: name, DisplayName: strings.ToUpper(name), Model: new(testRecord)},
+			Descriptor: Descriptor{
+				Name:        name,
+				DisplayName: strings.ToUpper(name),
+				Model:       new(testRecord),
+			},
 			Migrations: func(runner *migration.Migration) error {
 				return runner.Register(migrationID, func(*gorm.DB, string) error { return nil })
 			},
@@ -183,6 +234,133 @@ func TestAddRejectsIgnoredRegistrationErrorsWithoutLeakingState(t *testing.T) {
 		}
 		assertFailedRegistrationIsReusable(t, registry, "failed", migrationID)
 	})
+}
+
+func TestRegistryLifecycleReentryFailsFastAndRollsBack(t *testing.T) {
+	const timeout = 2 * time.Second
+	tests := []struct {
+		name        string
+		inMigration bool
+		operation   func(*Registry) error
+	}{
+		{
+			name: "Add calls Add",
+			operation: func(registry *Registry) error {
+				return registry.Add(validTestModule("nested", "202608190121"))
+			},
+		},
+		{
+			name:      "Add calls Freeze",
+			operation: (*Registry).Freeze,
+		},
+		{
+			name:        "MigrationRegistrar calls Add",
+			inMigration: true,
+			operation: func(registry *Registry) error {
+				return registry.Add(validTestModule("nested", "202608190122"))
+			},
+		},
+		{
+			name:        "MigrationRegistrar calls Freeze",
+			inMigration: true,
+			operation:   (*Registry).Freeze,
+		},
+	}
+
+	for index, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			registry, err := NewRegistry(migration.New())
+			if err != nil {
+				t.Fatalf("new registry: %v", err)
+			}
+			migrationID := migration.MigrationID(
+				[]string{
+					"202608190114",
+					"202608190115",
+					"202608190116",
+					"202608190117",
+				}[index],
+			)
+			err = runRegistryOperationWithTimeout(t, timeout, func() error {
+				return registry.Add(reentrantModule{
+					name:        "failed",
+					migrationID: migrationID,
+					operation:   tt.operation,
+					inMigration: tt.inMigration,
+				})
+			})
+			if !errors.Is(err, ErrRegistrationReentry) {
+				t.Fatalf("reentry error = %v, want ErrRegistrationReentry", err)
+			}
+			assertFailedRegistrationIsReusable(t, registry, "failed", migrationID)
+		})
+	}
+}
+
+func TestConcurrentAddFailsFastWithoutCorruptingActiveRegistration(t *testing.T) {
+	registry, err := NewRegistry(migration.New())
+	if err != nil {
+		t.Fatalf("new registry: %v", err)
+	}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	firstResult := make(chan error, 1)
+	go func() {
+		firstResult <- registry.Add(blockingModule{
+			name:        "first",
+			migrationID: "202608190118",
+			started:     started,
+			release:     release,
+		})
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first registration did not start")
+	}
+
+	secondErr := runRegistryOperationWithTimeout(t, 2*time.Second, func() error {
+		return registry.Add(validTestModule("second", "202608190119"))
+	})
+	if !errors.Is(secondErr, ErrRegistrationInProgress) {
+		t.Fatalf("concurrent Add error = %v, want ErrRegistrationInProgress", secondErr)
+	}
+	close(release)
+	select {
+	case err := <-firstResult:
+		if err != nil {
+			t.Fatalf("active registration failed after concurrent rejection: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("active registration did not finish")
+	}
+	if err := registry.Add(validTestModule("second", "202608190119")); err != nil {
+		t.Fatalf("serial Add after active registration: %v", err)
+	}
+	if err := registry.Freeze(); err != nil {
+		t.Fatalf("freeze concurrent registry: %v", err)
+	}
+	descriptors := registry.Descriptors()
+	if len(descriptors) != 2 || descriptors[0].Name != "first" || descriptors[1].Name != "second" {
+		t.Fatalf("concurrent descriptors = %#v", descriptors)
+	}
+}
+
+func runRegistryOperationWithTimeout(
+	t *testing.T,
+	timeout time.Duration,
+	operation func() error,
+) error {
+	t.Helper()
+	result := make(chan error, 1)
+	go func() { result <- operation() }()
+	select {
+	case err := <-result:
+		return err
+	case <-time.After(timeout):
+		t.Fatalf("registry operation did not return within %s", timeout)
+		return nil
+	}
 }
 
 func assertFailedRegistrationIsReusable(
