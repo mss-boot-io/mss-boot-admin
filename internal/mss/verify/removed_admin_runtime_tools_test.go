@@ -85,7 +85,7 @@ func TestRemovedAdminRuntimeToolsStayOutOfActiveContracts(t *testing.T) {
 		prohibited []string
 	}{
 		{
-			path: "web/antd-v6/config/routes.ts",
+			path: "web/antd-v6/config/routes.generated.ts",
 			prohibited: []string{
 				"path: '/generator'", "path: '/model'", "path: '/field/", "path: '/virtual/",
 				"component: './Generator'", "component: './Model'", "component: './Field'", "component: './Virtual'",

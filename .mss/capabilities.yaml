@@ -304,10 +304,10 @@ spec:
         - docs/docs/releases/v1-1-0-d2-canonical-email-identity.md
       backendPaths:
         - admin/apis/user.go
-        - admin/cmd/migrate/migrate.go
+        - admin/internal/cmd/migrate/migrate.go
         - admin/cmd/migrate/migration/system/20260810120000_canonical_email_identity.go
         - admin/cmd/migrate/migration/system/canonical_email_identity_integration_test.go
-        - admin/cmd/server/server.go
+        - admin/internal/cmd/server/server.go
         - admin/models/email_identity.go
         - admin/models/user.go
         - admin/pkg/challenge.go
@@ -350,7 +350,7 @@ spec:
       backendPaths:
         - admin/service/authorization.go
         - admin/service/authorization_eventbus.go
-        - admin/cmd/server/server.go
+        - admin/internal/cmd/server/server.go
       guidance: >-
         Commit 04e8e0c adds the typed, additive Memory/Redis revision EventBus, and commit 160e2df
         composes the Memory provider into Admin Casbin. Canonical policy mutation and its global
@@ -402,7 +402,7 @@ spec:
         - mss-boot/pkg/config/storage/queue/kafka_test.go
       backendPaths:
         - admin/config/config.go
-        - admin/cmd/server/server.go
+        - admin/internal/cmd/server/server.go
       guidance: >-
         Evidence state remains Blocked. D0 moves the Sarama session mark after successful decode and
         synchronous handler completion. D1 preserves AdapterQueue for source compatibility and adds
@@ -608,7 +608,7 @@ spec:
         - admin/models/task.go
         - admin/models/task_run.go
         - admin/apis/task.go
-        - admin/cmd/server/server.go
+        - admin/internal/cmd/server/server.go
       frameworkPaths:
         - mss-boot/core/server/task
       guidance: >-
@@ -636,7 +636,7 @@ spec:
         - admin/service/monitor.go
         - admin/service/monitor_sampler.go
         - admin/apis/monitor.go
-        - admin/cmd/server/server.go
+        - admin/internal/cmd/server/server.go
       frameworkPaths:
         - mss-boot/core/server/task
       frontendPaths:
@@ -853,7 +853,7 @@ spec:
         - web/antd-v6/CHANGELOG.md
         - docs/docs/releases
         - Dockerfile
-        - admin/cmd/cobra.go
+        - admin/internal/cmd/cobra.go
         - admin/cmd/migrate/migration/system/v0_7_upgrade_state_integration_test.go
         - admin/pkg/version
         - admin/pkg/version.go
