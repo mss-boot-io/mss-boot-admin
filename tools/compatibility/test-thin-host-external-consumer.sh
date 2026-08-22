@@ -375,7 +375,7 @@ if [[ -z "${tarball}" ]]; then
   pack_dir="${artifact_dir}/package"
   package_source="${artifact_dir}/admin-web-source"
   mkdir -p -- "${pack_dir}" "${package_source}"
-  git -C "${foundation_root}" archive --format=tar HEAD:web/antd-v6 \
+  git -C "${foundation_root}" -c core.autocrlf=false archive --format=tar HEAD:web/antd-v6 \
     | tar -xf - -C "${package_source}"
   (
     cd "${package_source}"
