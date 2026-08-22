@@ -180,21 +180,25 @@ jobs:
           package main
 
           import (
-            "fmt"
+            "context"
 
             adminapp "github.com/mss-boot-io/mss-boot-admin/admin/app"
           )
 
           func main() {
-            application, err := adminapp.New()
-            if err != nil {
-              panic(err)
+            for _, args := range [][]string{
+              {"--help"},
+              {"server", "--help"},
+              {"migrate", "--help"},
+            } {
+              application, err := adminapp.New()
+              if err != nil {
+                panic(err)
+              }
+              if err := application.ExecuteArgsContext(context.Background(), args); err != nil {
+                panic(err)
+              }
             }
-            command, err := application.Command()
-            if err != nil {
-              panic(err)
-            }
-            fmt.Println(command.Name())
           }
           EOF
           (
@@ -203,7 +207,8 @@ jobs:
             GOWORK=off GOPROXY=direct go mod tidy
             GOWORK=off GOPROXY=direct go test ./...
             GOWORK=off GOPROXY=direct go vet ./...
-            GOWORK=off GOPROXY=direct go build -trimpath ./...
+            GOWORK=off GOPROXY=direct go build -trimpath -o mss-admin-release-probe .
+            ./mss-admin-release-probe >/dev/null
           )
 
       - name: Prepare component-scoped release notes

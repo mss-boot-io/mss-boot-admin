@@ -1,4 +1,7 @@
 import json
+import os
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -359,8 +362,10 @@ class WorkflowGovernanceTest(unittest.TestCase):
             "resolved.startswith(expected + '(')",
             "fetch --frozen-lockfile",
             "install --offline --frozen-lockfile",
-            'mss_start_process_group \\\n  backend_pid',
-            'mss_start_process_group \\\n  web_pid',
+            'mss_start_process_group \\
+  backend_pid',
+            'mss_start_process_group \\
+  web_pid',
             'mss_stop_process_group "${web_pid}"',
             'mss_stop_process_group "${backend_pid}"',
         ):
@@ -639,9 +644,81 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn("GOPROXY=direct", probe)
         self.assertIn("GOWORK=off", probe)
         self.assertIn(".Origin.Hash == $commit", probe)
-        self.assertIn("command, err := application.Command()", probe)
-        self.assertIn("fmt.Println(command.Name())", probe)
-        self.assertNotIn("application.Command().Name()", probe)
+        self.assertIn("application.ExecuteArgsContext(context.Background(), args)", probe)
+        self.assertIn('{"--help"}', probe)
+        self.assertIn('{"server", "--help"}', probe)
+        self.assertIn('{"migrate", "--help"}', probe)
+        self.assertIn("go build -trimpath -o mss-admin-release-probe .", probe)
+        self.assertIn("./mss-admin-release-probe >/dev/null", probe)
+        self.assertNotIn(".Command()", probe)
+        self.assertNotIn("admin/internal/cmd", probe)
+
+        marker = 'cat > "${probe_dir}/main.go" <<\'EOF\'\n'
+        self.assertIn(marker, probe)
+        probe_source = probe.split(marker, 1)[1].split("\nEOF\n", 1)[0]
+        self.assertNotIn(".Command()", probe_source)
+        self.assertIn("ExecuteArgsContext", probe_source)
+
+        framework_module = "github.com/mss-boot-io/mss-boot-admin/mss-boot"
+        fixture_version = None
+        for line in (REPOSITORY_ROOT / "admin" / "go.mod").read_text(
+            encoding="utf-8"
+        ).splitlines():
+            fields = line.split()
+            if len(fields) >= 2 and fields[0] == framework_module:
+                fixture_version = fields[1]
+                break
+        self.assertIsNotNone(fixture_version)
+
+        module = "github.com/mss-boot-io/mss-boot-admin/admin"
+        with tempfile.TemporaryDirectory(
+            prefix="mss-admin-release-probe-governance-"
+        ) as temporary_directory:
+            probe_dir = Path(temporary_directory)
+            go_mod = (
+                "module example.com/mss-admin-release-probe-governance\n\n"
+                "go 1.26.6\n\n"
+                f"require {module} {fixture_version}\n"
+            )
+            self.assertNotIn("replace ", go_mod)
+            (probe_dir / "go.mod").write_text(go_mod, encoding="utf-8")
+            (probe_dir / "main.go").write_text(
+                probe_source + "\n", encoding="utf-8"
+            )
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "GOWORK": "off",
+                    "GOPROXY": "direct",
+                    "GOTOOLCHAIN": "local",
+                }
+            )
+            commands = (
+                ("go", "mod", "tidy"),
+                ("go", "test", "./..."),
+                ("go", "vet", "./..."),
+                ("go", "build", "-trimpath", "-o", "release-probe", "."),
+                (str(probe_dir / "release-probe"),),
+            )
+            for command in commands:
+                result = subprocess.run(
+                    command,
+                    cwd=probe_dir,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                    check=False,
+                )
+                self.assertEqual(
+                    result.returncode,
+                    0,
+                    msg=(
+                        f"release probe command failed: {' '.join(command)}\n"
+                        f"stdout:\n{result.stdout}\n"
+                        f"stderr:\n{result.stderr}"
+                    ),
+                )
 
     def test_root_publication_requires_the_complete_distribution_train(self):
         workflow = self.workflows["release.yml"]
