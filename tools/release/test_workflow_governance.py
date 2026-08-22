@@ -362,10 +362,8 @@ class WorkflowGovernanceTest(unittest.TestCase):
             "resolved.startswith(expected + '(')",
             "fetch --frozen-lockfile",
             "install --offline --frozen-lockfile",
-            'mss_start_process_group \\
-  backend_pid',
-            'mss_start_process_group \\
-  web_pid',
+            'mss_start_process_group \\\n  backend_pid',
+            'mss_start_process_group \\\n  web_pid',
             'mss_stop_process_group "${web_pid}"',
             'mss_stop_process_group "${backend_pid}"',
         ):
