@@ -55,13 +55,13 @@ jobs:
 
       - name: Initialize CodeQL
         if: ${{ contains(fromJSON(matrix.scopes), needs.scope.outputs.scope) }}
-        uses: github/codeql-action/init@v4.37.5
+        uses: github/codeql-action/init@v4.37.7
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
 
       - name: Perform CodeQL Analysis
         if: ${{ contains(fromJSON(matrix.scopes), needs.scope.outputs.scope) }}
-        uses: github/codeql-action/analyze@v4.37.5
+        uses: github/codeql-action/analyze@v4.37.7
         with:
           category: "/language:${{ matrix.language }}"
