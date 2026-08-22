@@ -172,6 +172,7 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn("test_release_qualification_decision.py", governance["run"])
         self.assertIn("test_release_readiness_attestation.py", governance["run"])
         self.assertIn("test_release_readiness_workflow.py", governance["run"])
+        self.assertIn("test_verify_framework_admin_checksum.py", governance["run"])
         self.assertIn("test_verify_release_source.py", governance["run"])
         self.assertIn("test_workflow_governance.py", governance["run"])
 
@@ -691,6 +692,16 @@ class WorkflowGovernanceTest(unittest.TestCase):
             if step.get("name") == "Require the matching Framework dependency"
         )["run"]
         self.assertIn('"${framework_version}" != "${ADMIN_VERSION}"', framework)
+        parity = next(
+            step
+            for step in steps
+            if step.get("name") == "Verify final Framework and Admin checksum parity"
+        )
+        self.assertIn("verify_framework_admin_checksum.py", parity["run"])
+        self.assertIn('--version "${ADMIN_VERSION}"', parity["run"])
+        self.assertLess(steps.index(parity), steps.index(next(
+            step for step in steps if step.get("name") == "Qualify the independent Admin module"
+        )))
         probe = next(
             step
             for step in steps
@@ -758,10 +769,10 @@ class WorkflowGovernanceTest(unittest.TestCase):
             # The release workflow itself remains fail-closed on GOPROXY=direct
             # and verifies the tag origin hash above. Before that tag exists,
             # this executable fixture exposes the exact candidate source through
-            # the Go proxy protocol. It uses no replace directive and therefore
-            # still exercises the Admin go.mod/go.sum boundary, including the
-            # pinned Framework checksum, while public dependencies use the
-            # checksum-backed public proxy.
+            # the Go proxy protocol. It uses no replace directive and exercises
+            # the Admin dependency graph; dependency module go.sum files are not
+            # consumed by Go, so verify_framework_admin_checksum.py separately
+            # compares Admin's committed sums with this final candidate tree.
             environment.update(
                 {
                     "GOWORK": "off",
@@ -797,6 +808,20 @@ class WorkflowGovernanceTest(unittest.TestCase):
                         f"stderr:\n{result.stderr}"
                     ),
                 )
+
+    def test_framework_release_rechecks_final_admin_checksum_before_module_qualification(self):
+        steps = self.workflows["framework-release.yml"]["jobs"]["release"]["steps"]
+        parity = next(
+            step
+            for step in steps
+            if step.get("name") == "Verify final Framework and Admin checksum parity"
+        )
+        qualification = next(
+            step for step in steps if step.get("name") == "Test framework module"
+        )
+        self.assertIn("verify_framework_admin_checksum.py", parity["run"])
+        self.assertIn('--version "${FRAMEWORK_VERSION}"', parity["run"])
+        self.assertLess(steps.index(parity), steps.index(qualification))
 
     def test_root_publication_requires_the_complete_distribution_train(self):
         workflow = self.workflows["release.yml"]

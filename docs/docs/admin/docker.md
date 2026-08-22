@@ -25,7 +25,7 @@ keywords: [admin docker deploy nginx production]
 - 已确认生产环境不暴露上传入口；Local/S3-compatible 当前仍为 Legacy / Blocked
 - 若启用 WebSocket 集群或缓存，已准备 Redis
 
-下列命令固定使用 `v1.3.1`，仅在该稳定版本正式发布后执行。发布前资格验证应使用
+下列命令固定使用 `v1.3.2`，仅在该稳定版本正式发布后执行。发布前资格验证应使用
 同一冻结提交在受控流程中构建的候选制品；生产部署还应记录并固定验证过的镜像
 digest，绝不能依赖 `latest`。
 
@@ -64,7 +64,7 @@ docker run --rm \
   -e STAGE=local \
   -e DB_DRIVER=mysql \
   -e DB_DSN="root:${MSS_LOCAL_MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local" \
-  ghcr.io/mss-boot-io/mss-boot-admin:v1.3.1 \
+  ghcr.io/mss-boot-io/mss-boot-admin:v1.3.2 \
   migrate
 ```
 
@@ -76,7 +76,7 @@ docker run --rm \
   -e STAGE=local \
   -e DB_DRIVER=mysql \
   -e DB_DSN="root:${MSS_LOCAL_MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local" \
-  ghcr.io/mss-boot-io/mss-boot-admin:v1.3.1 \
+  ghcr.io/mss-boot-io/mss-boot-admin:v1.3.2 \
   server -a
 ```
 
@@ -95,7 +95,7 @@ docker run -d \
   -e DB_DSN="root:${MSS_LOCAL_MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local" \
   -v $(pwd)/logs:/app/logs \
   -v $(pwd)/public:/app/public \
-  ghcr.io/mss-boot-io/mss-boot-admin:v1.3.1 \
+  ghcr.io/mss-boot-io/mss-boot-admin:v1.3.2 \
   server
 ```
 
@@ -108,7 +108,7 @@ docker run -d \
   --name mss-boot-admin-antd-v6 \
   --restart unless-stopped \
   -p 8001:80 \
-  ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.1
+  ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.2
 ```
 
 ## 二、生产部署基线

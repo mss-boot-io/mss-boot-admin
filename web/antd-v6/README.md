@@ -7,9 +7,9 @@ own lockfile, immutable image, `web/antd-v6/v{version}` tag namespace,
 deployment, and previous-V6 rollback history. Retired frontend source and
 protocols are not build, runtime, or recovery inputs.
 
-The coordinated stable target is `web/antd-v6/v1.3.1` and
-`@mss-boot-io/admin-web@1.3.1`, to be published from the same merged-main commit as
-the v1.3.1 Framework, Admin module, and root distribution. The incomplete v1.3.0
+The coordinated stable target is `web/antd-v6/v1.3.2` and
+`@mss-boot-io/admin-web@1.3.2`, to be published from the same merged-main commit as
+the v1.3.2 Framework, Admin module, and root distribution. The incomplete v1.3.1
 train and all RC tags remain immutable partial-train and preview history.
 
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
@@ -140,7 +140,7 @@ prereleases receive `next`; Thin Hosts pin an exact package version. The
 generated `web/.npmrc` selects the public registry and needs no credential:
 
 ```shell
-corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.0
+corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.2
 corepack pnpm@10.34.5 install --frozen-lockfile
 ```
 

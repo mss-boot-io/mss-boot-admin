@@ -6,8 +6,8 @@ hero:
   actions:
     - text: 了解 Admin
       link: /admin
-    - text: v1.3.1 发布合同
-      link: /releases/v1-3-1
+    - text: v1.3.2 发布合同
+      link: /releases/v1-3-2
     - text: GitHub
       link: https://github.com/mss-boot-io/mss-boot-admin
 features:
@@ -36,15 +36,15 @@ features:
 | 项目 | 状态 |
 | --- | --- |
 | 当前稳定版 | `v1.2.3` |
-| 唯一活动目标 | `v1.3.1` 稳定版候选，尚未公开发布 |
+| 唯一活动目标 | `v1.3.2` 稳定版候选，尚未公开发布 |
 | 不完整稳定列车 | Framework `v1.3.0` 已公开；Admin 发布失败，其余稳定组件未发布 |
 | 已完成预览 | `v1.3.0-rc.6` 完整列车；RC1–RC6 保持不可变 |
 | 前端主线 | `web/antd-v6`；Ant Design 5 已退役 |
 | 下游推荐形态 | `management-system` Thin Host |
 
-`v1.3.1` 只有在准备变更通过 PR 合并、从新的精确 `main` 提交完成资格审查、按顺序公开四个
+`v1.3.2` 只有在准备变更通过 PR 合并、从新的精确 `main` 提交完成资格审查、按顺序公开四个
 组件并完成发布后对账后，才会替代 `v1.2.3`。详见
-[发布与升级](/releases)和 [v1.3.1 合同](/releases/v1-3-1)。
+[发布与升级](/releases)和 [v1.3.2 合同](/releases/v1-3-2)。
 
 ## 选择你的路径
 
@@ -64,7 +64,7 @@ features:
 
 ### 安装、升级与恢复
 
-- [v1.3.1 安装、升级、兼容与回滚](/releases/v1-3-1)
+- [v1.3.2 安装、升级、兼容与回滚](/releases/v1-3-2)
 - [Docker 部署](/admin/docker)
 - [登录排障](/admin/login-troubleshooting)
 - [API 与权限治理](/admin/governance-guide)

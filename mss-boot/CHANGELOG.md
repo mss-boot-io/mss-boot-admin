@@ -6,13 +6,13 @@ and the project uses semantic versioning for nested-module releases.
 
 ## [Unreleased]
 
-Target: **mss-boot/v1.3.1**. The stable Framework remains aligned with the Admin
+Target: **mss-boot/v1.3.2**. The stable Framework remains aligned with the Admin
 module, Admin Web package, and root distribution from one exact merged-main
-commit. Framework `mss-boot/v1.3.0` was published from
-`76530526e436eb95652df1dd06e831a90ee73125`, but its coordinated train remained
-component-partial after the Admin metadata gate failed. The v1.3.1 Framework tree
-is intentionally source-identical to v1.3.0 and receives a new synchronized tag;
-the old tag remains immutable. The complete `mss-boot/v1.3.0-rc.6` preview published successfully from
+commit. Framework `mss-boot/v1.3.1` was published from
+`4830fee162326788732e476a04d24f47b8fd570a`, but its coordinated train remained
+component-partial after Admin metadata recorded a checksum from an earlier tree.
+The v1.3.2 source tree adds only release-governance and documentation repair; the
+public Framework API remains source compatible. The complete `mss-boot/v1.3.0-rc.6` preview published successfully from
 `0ef09fb3caa1b2d424c540da23d01219135ebcfa` and remains immutable prerelease
 history.
 
@@ -24,12 +24,21 @@ history.
 
 ### Changed
 
-- Requalify the source-identical Framework contract for the stable v1.3.1 train
-  without removing or changing its public API, and require an external
-  `GOWORK=off` resolution before the coordinated Admin release continues.
+- Requalify the Framework contract for the stable v1.3.2 train without removing
+  or changing its public API. Calculate the canonical candidate Module sum from
+  the final tracked tree before tagging and require an external `GOWORK=off`
+  resolution before the coordinated Admin release continues.
 - Keep core and business registration sets independently executable so the Admin
   composition root can enforce Core-before-Business migration phases without
   adding Admin-specific behavior to the Framework.
+
+## [mss-boot/v1.3.1] - 2026-08-23
+
+Status: **published / historical component release**. The Framework tag and
+GitHub Release resolve to `4830fee162326788732e476a04d24f47b8fd570a`, and the
+public Go Module sum is `h1:NDJgpVMj104PGgkLRDHqPompl/lf7LYA/VoH98Jpzoc=`.
+The coordinated train stopped when `admin/go.sum` recorded a different Module
+sum, so no Admin Release or later v1.3.1 component publication completed.
 
 ## [mss-boot/v1.2.2] - 2026-08-19
 

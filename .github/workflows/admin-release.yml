@@ -126,6 +126,13 @@ jobs:
             admin/go.sum
             mss-boot/go.sum
 
+      - name: Verify final Framework and Admin checksum parity
+        env:
+          ADMIN_VERSION: ${{ steps.version.outputs.version }}
+        run: >-
+          python3 tools/release/verify_framework_admin_checksum.py
+          --version "${ADMIN_VERSION}"
+
       - name: Require the matching Framework dependency
         working-directory: admin
         env:
