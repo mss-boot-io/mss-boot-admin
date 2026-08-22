@@ -6,24 +6,32 @@ tag namespaces.
 
 ## [Unreleased]
 
-Target: **v1.3.1** for the root Foundation, `mss-boot/v1.3.1` for the Framework,
-`admin/v1.3.1` for the importable Admin module, and
-`web/antd-v6/v1.3.1` for Admin Web. Publication requires one exact clean commit
+Target: **v1.3.2** for the root Foundation, `mss-boot/v1.3.2` for the Framework,
+`admin/v1.3.2` for the importable Admin module, and
+`web/antd-v6/v1.3.2` for Admin Web. Publication requires one exact clean commit
 already merged into `origin/main`; local or topic-branch evidence is preliminary
 only.
+
+The v1.3.1 train is immutable component-partial history. Framework
+`mss-boot/v1.3.1` was published from
+`4830fee162326788732e476a04d24f47b8fd570a`. The `admin/v1.3.1` tag points to
+the same commit, but its workflow stopped before creating an Admin Release when
+the committed Framework Module sum differed from the canonical public module.
+No v1.3.1 root, Admin Web, Docs, or npmjs release completed. The repair uses a
+new v1.3.2 patch and never moves or reuses those identities.
 
 The v1.3.0 train is immutable component-partial history. Framework
 `mss-boot/v1.3.0` was published from
 `76530526e436eb95652df1dd06e831a90ee73125`, while the Admin workflow stopped
 after creating `admin/v1.3.0` because the independent module metadata lacked the
 published Framework checksums. No v1.3.0 root, Admin Web, Docs, or npmjs release
-completed. Those identities are not moved or reused by this v1.3.1 target.
+completed. Those identities are not moved or reused by this v1.3.2 target.
 
 The complete v1.3.0-rc.6 preview train was published successfully from
 `0ef09fb3caa1b2d424c540da23d01219135ebcfa`. Its Framework and Admin modules,
 Admin Web package, portable assets and image, root image and candidate assets
 remain immutable prerelease evidence. They do not replace v1.2.3 as the current
-stable release and are not moved or overwritten by this formal v1.3.1 target.
+stable release and are not moved or overwritten by this formal v1.3.2 target.
 
 ### Added
 
@@ -50,12 +58,13 @@ stable release and are not moved or overwritten by this formal v1.3.1 target.
 
 ### Changed
 
-- Promote the successfully qualified RC6 contract to the stable v1.3.1 target
+- Promote the successfully qualified RC6 contract to the stable v1.3.2 target
   while retaining the exact merged-main, staged publication, external resolution,
   immutable artifact, rollback, and public-reconciliation gates.
-- Carry the exact v1.3.1 Framework module and `go.mod` checksums in the Admin
-  module metadata so its independent release fails early on drift and resolves
-  without a workspace or local replacement.
+- Calculate the exact v1.3.2 Framework module and `go.mod` checksums from every
+  tracked file in the final tree, compare them with Admin metadata at checkpoint,
+  pre-Framework, Framework release, and Admin release gates, and then resolve the
+  published dependency without a workspace or local replacement.
 - Harden external Admin route registration, package command resolution, and API
   registry synchronization so missing or malformed distribution extensions fail
   closed during qualification instead of surfacing after publication.
@@ -95,7 +104,7 @@ stable release and are not moved or overwritten by this formal v1.3.1 target.
   generated module's ledger IDs without falsely claiming those IDs in generator
   collision detection.
 - Replace stale beta/support, contributor, release-phase, configuration, and
-  repository-description guidance with the executable v1.3.1 distribution
+  repository-description guidance with the executable v1.3.2 distribution
   contract, including mandatory API registry synchronization.
 
 ## [v1.2.3] - 2026-08-19

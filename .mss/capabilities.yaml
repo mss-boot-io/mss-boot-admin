@@ -744,7 +744,7 @@ spec:
         documentation, and semantic browser E2E. The Supplier plan is complete with zero deferred
         projections and is exercised through repository-external Thin Host generation, build,
         authorization, browser, upgrade, preservation, and two-run idempotency gates. Keep the
-        capability beta until stable v1.3.1 public consumption and a second representative domain
+        capability beta until stable v1.3.2 public consumption and a second representative domain
         prove the schema without weakening deterministic or generated/custom ownership boundaries.
 
     - id: foundation.admin-distribution
@@ -774,7 +774,7 @@ spec:
         pages. The external Supplier host has passed GOWORK=off backend, local npm tarball,
         one-runtime, deterministic Thin Host generation and upgrade, authorization, and browser E2E
         gates; v1.3.0-rc.6 is immutable successful preview evidence. The capability remains beta while
-        stable v1.3.1 Go resolution plus byte-identical npmjs and GitHub Packages resolution and
+        stable v1.3.2 Go resolution plus byte-identical npmjs and GitHub Packages resolution and
         post-publication reconciliation are pending.
         Do not add runtime plugins, micro-frontends, core feature selection, telemetry, import records,
         or adopter registration.
@@ -844,6 +844,7 @@ spec:
         - .mss/features/complete-admin-distribution-thin-host.yaml
         - .mss/features/foundation-v1-3-0-release.yaml
         - .mss/features/foundation-v1-3-1-release.yaml
+        - .mss/features/foundation-v1-3-2-release.yaml
         - .mss/features/admin-antd-v6-application.yaml
         - .mss/features/admin-antd-v6-cutover-retirement.yaml
         - .mss/features/admin-antd-v6-release-polish.yaml
@@ -878,10 +879,10 @@ spec:
       guidance: >-
         Treat Unreleased, planned, preview, branches, and local workspace replacements as non-stable.
         Published historical versions remain immutable and their candidate evidence is not reusable.
-        The active reviewed target is stable v1.3.1 for root, Framework, the importable Admin module,
-        and the sole Ant Design V6 frontend. RC6 and the incomplete v1.3.0 publication attempt remain
-        immutable historical evidence; every other alpha, beta, RC, or stable tag remains forbidden.
-        Complete release readiness begins only after one v1.3.1 feature-freeze commit already
+        The active reviewed target is stable v1.3.2 for root, Framework, the importable Admin module,
+        and the sole Ant Design V6 frontend. RC6 plus the incomplete v1.3.0 and v1.3.1 publication
+        attempts remain immutable historical evidence; every other alpha, beta, RC, or stable tag
+        remains forbidden. Complete release readiness begins only after one v1.3.2 feature-freeze commit already
         merged into main is selected. An emergency
         patch requires a reviewed policy target change rather than a bypass.
         Publish Framework first, then the importable Admin module, the complete frontend GitHub Packages

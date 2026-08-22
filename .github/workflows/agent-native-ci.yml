@@ -246,6 +246,7 @@ jobs:
             tools/release/test_release_qualification_decision.py \
             tools/release/test_release_readiness_attestation.py \
             tools/release/test_release_readiness_workflow.py \
+            tools/release/test_verify_framework_admin_checksum.py \
             tools/release/test_verify_admin_web_package.py \
             tools/release/test_verify_release_source.py \
             tools/release/test_workflow_governance.py

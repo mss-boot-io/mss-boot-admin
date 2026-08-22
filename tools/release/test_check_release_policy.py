@@ -24,29 +24,29 @@ class ReleasePolicyTest(unittest.TestCase):
     def setUp(self):
         self.policy = POLICY.load_policy(POLICY_PATH)
 
-    def test_v131_matches_every_distribution_component_namespace(self):
+    def test_v132_matches_every_distribution_component_namespace(self):
         cases = {
-            "root": "v1.3.1",
-            "framework": "mss-boot/v1.3.1",
-            "admin": "admin/v1.3.1",
-            "frontend": "web/antd-v6/v1.3.1",
-            "docs": "docs/v1.3.1",
+            "root": "v1.3.2",
+            "framework": "mss-boot/v1.3.2",
+            "admin": "admin/v1.3.2",
+            "frontend": "web/antd-v6/v1.3.2",
+            "docs": "docs/v1.3.2",
         }
         for component, tag in cases.items():
             with self.subTest(component=component):
                 POLICY.check_public_ref(
-                    self.policy, component, "v1.3.1", tag, intent="qualify"
+                    self.policy, component, "v1.3.2", tag, intent="qualify"
                 )
 
         self.assertEqual(
-            POLICY.coordinated_tags(self.policy, "v1.3.1"),
+            POLICY.coordinated_tags(self.policy, "v1.3.2"),
             {component: cases[component] for component in POLICY.COORDINATED_COMPONENTS},
         )
 
     def test_publication_is_enabled_after_protected_workflows_are_ready(self):
         self.assertIs(self.policy["publicationWorkflowsReady"], True)
         self.assertIs(self.policy["publicPrereleases"], False)
-        POLICY.check_public_ref(self.policy, "root", "v1.3.1", "v1.3.1")
+        POLICY.check_public_ref(self.policy, "root", "v1.3.2", "v1.3.2")
 
     def test_policy_requires_pr_merged_main_release_source(self):
         self.assertEqual(self.policy["releaseBranch"], "main")
@@ -57,7 +57,7 @@ class ReleasePolicyTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn(
-            "github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.1",
+            "github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.2",
             admin_mod,
         )
         self.assertNotIn(
@@ -67,23 +67,24 @@ class ReleasePolicyTest(unittest.TestCase):
         workspace = (REPOSITORY_ROOT / "go.work").read_text(encoding="utf-8")
         self.assertIn("\t./mss-boot", workspace)
         self.assertIn(
-            "replace github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.1 => ./mss-boot",
+            "replace github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.2 => ./mss-boot",
             workspace,
         )
 
         admin_sum = (REPOSITORY_ROOT / "admin" / "go.sum").read_text(
             encoding="utf-8"
         )
-        self.assertIn(
-            "github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.1 h1:BqGZGIgh8KUfpfRE1q/Llb/LFvfuPoQDPh0yE4SziR0=",
-            admin_sum,
-        )
-        self.assertIn(
-            "github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.1/go.mod h1:ORk2A6CLcwJkfnnHq7IXZQD22H47TUHJ1yau9K3StvA=",
-            admin_sum,
-        )
+        module_lines = [
+            line
+            for line in admin_sum.splitlines()
+            if line.startswith(
+                "github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.2"
+            )
+        ]
+        self.assertEqual(len(module_lines), 2)
+        self.assertTrue(all(line.split()[-1].startswith("h1:") for line in module_lines))
 
-    def test_policy_rejects_versions_other_than_v131(self):
+    def test_policy_rejects_versions_other_than_v132(self):
         for version in (
             "v1.0.1",
             "v1.1.0",
@@ -93,7 +94,8 @@ class ReleasePolicyTest(unittest.TestCase):
             "v1.2.3",
             "v1.3.0-rc.6",
             "v1.3.0",
-            "v1.3.2",
+            "v1.3.1",
+            "v1.3.3",
         ):
             with self.subTest(version=version):
                 with self.assertRaisesRegex(POLICY.PolicyError, "forbidden"):
@@ -106,23 +108,23 @@ class ReleasePolicyTest(unittest.TestCase):
             POLICY.check_public_ref(
                 self.policy,
                 "root",
-                "v1.3.1-rc.1",
-                "v1.3.1-rc.1",
+                "v1.3.2-rc.1",
+                "v1.3.2-rc.1",
                 intent="qualify",
             )
         with self.assertRaisesRegex(POLICY.PolicyError, "does not match"):
             POLICY.check_public_ref(
                 self.policy,
                 "framework",
-                "v1.3.1",
-                "v1.3.1",
+                "v1.3.2",
+                "v1.3.2",
                 intent="qualify",
             )
 
     def test_policy_rejects_distribution_version_or_component_drift(self):
         original = POLICY_PATH.read_text(encoding="utf-8")
         replacements = (
-            ("  distributionVersion: v1.3.1\n", "  distributionVersion: v1.3.2\n"),
+            ("  distributionVersion: v1.3.2\n", "  distributionVersion: v1.3.3\n"),
             (
                 '  distributionComponents: "root,framework,admin,frontend"\n',
                 '  distributionComponents: "root,framework,frontend"\n',
@@ -140,7 +142,7 @@ class ReleasePolicyTest(unittest.TestCase):
         original = POLICY_PATH.read_text(encoding="utf-8")
         replacements = (
             ("  publicPrereleases: false\n", "  publicPrereleases: true\n"),
-            ("  nextPublicVersion: v1.3.1\n", "  nextPublicVersion: v1.3.1-rc.01\n"),
+            ("  nextPublicVersion: v1.3.2\n", "  nextPublicVersion: v1.3.2-rc.01\n"),
             ("  currentStableVersion: v1.2.3\n", "  currentStableVersion: v1.2.3-rc.1\n"),
         )
         for old, new in replacements:
@@ -150,8 +152,8 @@ class ReleasePolicyTest(unittest.TestCase):
                     content = original.replace(old, new)
                     if "nextPublicVersion" in new:
                         content = content.replace(
-                            "  distributionVersion: v1.3.1\n",
-                            "  distributionVersion: v1.3.1-rc.01\n",
+                            "  distributionVersion: v1.3.2\n",
+                            "  distributionVersion: v1.3.2-rc.01\n",
                         )
                     candidate.write_text(content, encoding="utf-8")
                     with self.assertRaises(POLICY.PolicyError):
@@ -161,7 +163,7 @@ class ReleasePolicyTest(unittest.TestCase):
         original = POLICY_PATH.read_text(encoding="utf-8")
         for suffix in (
             "  unexpected: true\n",
-            "  nextPublicVersion: v1.3.1\n",
+            "  nextPublicVersion: v1.3.2\n",
         ):
             with self.subTest(suffix=suffix.strip()):
                 with tempfile.TemporaryDirectory() as directory:

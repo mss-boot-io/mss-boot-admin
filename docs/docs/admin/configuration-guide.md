@@ -273,7 +273,7 @@ task:
 `notification.email` 只有 `enabled`、`host`、`port`、`username`、`password`、`from`
 字段；当前结构没有 `useTLS` / `useSSL`。`task` 只有 `enable` 和 Cron `spec`，没有
 Kubernetes provider、namespace 或 image 字段。容器镜像应在 Compose/Kubernetes 部署清单
-中固定到与 Admin Distribution 一致的 `v1.3.1`，生产再记录验证过的 digest，不要使用
+中固定到与 Admin Distribution 一致的 `v1.3.2`，生产再记录验证过的 digest，不要使用
 `latest`。
 
 ## 日志与可观测性

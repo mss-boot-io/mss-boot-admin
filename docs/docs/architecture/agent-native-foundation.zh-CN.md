@@ -25,7 +25,7 @@ keywords: [agent native codex infrastructure generator mcp skills eval]
 - P0–P7 的顶层契约、`mss` CLI、AdminModule 生成、Skills、MCP、Evals、Thin Host Blueprint
   和升级引擎已经落地；具体成熟度以 `.mss/capabilities.yaml` 为准。
 - Supplier 已作为完整前后端生成和外部 Thin Host 黄金样例。
-- `v1.3.0-rc.6` 已完成协调预览发布；唯一活动目标为 `v1.3.1` stable，当前稳定版仍是
+- `v1.3.0-rc.6` 已完成协调预览发布；`v1.3.1` 是不可变的部分发布历史，唯一活动目标为 `v1.3.2` stable，当前稳定版仍是
   `v1.2.3`。
 - P8 的既有横向 Admin 模块不会机械式整体迁移；新业务默认使用 `admin/modules/<name>`，
   老路径保持兼容维护。
@@ -630,7 +630,7 @@ Token 消耗
 
 ## 18. 当前实施基线
 
-截至 `v1.3.1` stable 准备，仓库已经形成以下可执行闭环：
+截至 `v1.3.2` stable 准备，仓库已经形成以下可执行闭环：
 
 1. 顶层 `AGENTS.md` 与 `.mss/` 提供人机共享事实源。
 2. `mss context`、`doctor`、`setup`、`dev`、`verify`、`eval`、`new app` 和 `upgrade`
@@ -643,4 +643,4 @@ Token 消耗
 
 下一条可执行步骤是通过 Pull Request 合并 stable 准备，冻结新的精确 `main` 提交，重跑
 checkpoint、feature-freeze、外部 Thin Host、三数据库/API 注册表和内置浏览器证据，再发布
-`v1.3.1`。P8 继续采用按真实需求逐模块迁移，而不是一次性重写既有横向实现。
+`v1.3.2`。P8 继续采用按真实需求逐模块迁移，而不是一次性重写既有横向实现。

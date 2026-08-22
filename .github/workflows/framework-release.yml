@@ -136,6 +136,13 @@ jobs:
             fi
           fi
 
+      - name: Verify final Framework and Admin checksum parity
+        env:
+          FRAMEWORK_VERSION: ${{ steps.version.outputs.version }}
+        run: >-
+          python3 tools/release/verify_framework_admin_checksum.py
+          --version "${FRAMEWORK_VERSION}"
+
       - name: Test framework module
         working-directory: mss-boot
         env:

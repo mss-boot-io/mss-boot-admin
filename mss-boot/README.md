@@ -21,14 +21,14 @@ to prevent the repository workspace from hiding missing dependencies.
 - Go requirement: Go 1.26 or later
 - Stability: stable v1 compatibility line; exported APIs, configuration keys,
   persistence behavior, and interfaces are public compatibility surfaces
-- Coordinated stable target: `mss-boot/v1.3.1`, to be published from the same commit
-  as the v1.3.1 Admin module, Admin Web package, and root distribution
+- Coordinated stable target: `mss-boot/v1.3.2`, to be published from the same commit
+  as the v1.3.2 Admin module, Admin Web package, and root distribution
 
 After the stable tag is public, production consumers should pin the exact
 nested-module version. Use `main` only for Foundation development:
 
 ```bash
-go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.1
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.2
 ```
 
 ## Capabilities

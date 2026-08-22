@@ -7,11 +7,11 @@ as an independent Go module:
 github.com/mss-boot-io/mss-boot-admin/admin
 ```
 
-The coordinated stable target is `admin/v1.3.1`. After publication, an external
+The coordinated stable target is `admin/v1.3.2`. After publication, an external
 consumer pins it exactly:
 
 ```bash
-go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.1
+go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.2
 ```
 
 `app/` is the public composition root and `business/` is the compile-time

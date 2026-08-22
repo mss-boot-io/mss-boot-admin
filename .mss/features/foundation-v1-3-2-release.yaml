@@ -1,0 +1,301 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: foundation-v1-3-2-release
+  displayName: Foundation v1.3.2 checksum repair and complete release
+  description: >-
+    Prepare the coordinated v1.3.2 Admin Distribution after the immutable v1.3.1
+    train published Framework but stopped at independent Admin qualification.
+  owner: release-engineering
+  labels:
+    domain: release-governance
+    current-stable: v1.2.3
+    target-version: v1.3.2
+    release-status: preparation
+spec:
+  problem: >-
+    The v1.3.1 Framework tag and Release were published from the merged-main tree,
+    then the Admin workflow rejected admin/go.sum because its Framework Module sum
+    had been copied from an earlier source tree. The Admin tag exists without a
+    GitHub Release and the remaining components were not published. Every v1.3.1
+    ref is immutable, so the repair requires a new patch version, a new merged-main
+    freeze, and an executable parity gate over the final Framework tree.
+  goals:
+    - Make v1.3.2 the only active public release target in policy, qualification, commands, and generated application contracts.
+    - Preserve every v1.3.1 tag, Release, workflow result, and partial-publication record as immutable evidence.
+    - Calculate the v1.3.2 Framework Module and go.mod sums from the final tracked tree and compare them with Admin metadata before tagging.
+    - Publish Framework, Admin, Admin Web, root, and Docs from one exact clean commit already merged into main.
+    - Publish the qualified Admin Web tarball to npmjs only after every coordinated GitHub artifact is public and reconciled.
+  nonGoals:
+    - Move, delete, overwrite, or reuse any v1.3.1 or release-candidate ref.
+    - Publish any component from this pull-request branch or from a commit absent from current origin/main.
+    - Change database schema, HTTP APIs, authentication, authorization, or migration order for this patch.
+    - Bypass protected environments, readiness attestations, external consumers, or manual browser evidence.
+  actors:
+    - id: release-manager
+      displayName: Release manager
+      description: Freezes one exact merged-main commit and advances protected publication phases.
+    - id: downstream-maintainer
+      displayName: Downstream maintainer
+      description: Installs the coordinated Go and npm dependencies in a Thin Host.
+    - id: security-reviewer
+      displayName: Security reviewer
+      description: Verifies immutable sources, credentials, provenance, and rollback boundaries.
+  modules:
+    - name: release-governance
+      kind: infrastructure
+      operation: extend
+      description: Version policy, exact-source guards, checksum parity, phase attestations, and reconciliation.
+    - name: complete-admin-distribution
+      kind: infrastructure
+      operation: extend
+      description: Coordinated Framework, Admin, Admin Web, root tooling, images, Docs, and Thin Host consumption.
+    - name: documentation
+      kind: infrastructure
+      operation: extend
+      description: Partial-train history, patch status, compatibility, upgrade, and rollback guidance.
+  requirements:
+    - id: target-v132-only
+      title: Select one coordinated patch target
+      description: Every active machine-readable release surface resolves the stable v1.3.2 target.
+      priority: must
+      actor: release-manager
+      module: release-governance
+      rules:
+        - Root uses v1.3.2, Framework uses mss-boot/v1.3.2, Admin uses admin/v1.3.2, and Admin Web uses web/antd-v6/v1.3.2.
+        - The frontend package uses 1.3.2 and Docs uses the independent docs/v1.3.2 namespace.
+        - The release policy rejects v1.3.1, prereleases, and every unreviewed later version.
+        - Current stable remains v1.2.3 until v1.3.2 publication and public reconciliation complete.
+    - id: preserve-v131-history
+      title: Preserve the incomplete v1.3.1 train
+      description: The earlier train remains immutable evidence and cannot be repaired by moving refs.
+      priority: must
+      actor: release-manager
+      module: release-governance
+      rules:
+        - The public mss-boot/v1.3.1 Release and failed admin/v1.3.1 run remain unchanged.
+        - No v1.3.1 tag, Release, package, image, checksum, or workflow result is deleted or overwritten.
+        - Every v1.3.2 component tag is new and peels to the newly frozen merged-main commit.
+    - id: verify-final-framework-sums
+      title: Bind Admin checksums to the final Framework tree
+      description: Admin metadata must contain canonical sums calculated from the same tree that will be tagged.
+      priority: must
+      actor: downstream-maintainer
+      module: release-governance
+      rules:
+        - Admin requires mss-boot v1.3.2 without a committed local replace.
+        - The repository workspace replacement is candidate-only and targets the exact v1.3.2 requirement.
+        - A replace-free local Go proxy is generated from every tracked final Framework file and Go calculates its canonical Module and GoMod sums.
+        - The calculated values must equal the unique v1.3.2 entries in admin/go.sum at checkpoint and pre-framework phases.
+        - Untracked Framework files, source drift after sum preparation, duplicate sums, or version drift fail closed before the first tag.
+        - After Framework publication, Admin passes public download, test, vet, build, and clean external-consumer probes with GOWORK off.
+    - id: publish-complete-v132
+      title: Publish one complete v1.3.2 distribution
+      description: All independently releasable components form one tested and traceable runtime contract.
+      priority: must
+      actor: downstream-maintainer
+      module: complete-admin-distribution
+      rules:
+        - Publication order is Framework, Admin, frontend, pre-root authority, root, Docs, and official npm.
+        - GitHub Packages and npmjs contain byte-identical Admin Web tarballs with version 1.3.2 and gitHead equal to the frozen commit.
+        - Root and frontend images expose amd64 and arm64 manifests with exact version and revision labels.
+        - A repository-external Thin Host installs the exact Go and npm contracts and preserves business-owned files during upgrade.
+    - id: document-patch-release
+      title: Document compatibility and recovery
+      description: Maintainers and operators can identify the patch scope and recover without reusing an immutable artifact.
+      priority: must
+      actor: release-manager
+      module: documentation
+      rules:
+        - Release notes identify the v1.3.1 checksum failure, final-tree parity repair, and absence of schema migrations.
+        - Upgrade guidance preserves verified backup, migration, API-registry synchronization, and matched backend/frontend versions.
+        - Rollback restores v1.2.3 and its verified database backup until v1.3.2 has completed reconciliation.
+  constraints:
+    - id: merged-main-only
+      type: operations
+      statement: Every public v1.3.2 tag and artifact resolves to one clean exact commit contained in fresh origin/main and produced by a merged pull request.
+    - id: immutable-public-refs
+      type: compatibility
+      statement: Existing v1.3.1 and release-candidate refs, Releases, packages, images, checksums, and evidence are never moved or overwritten.
+    - id: coordinated-version
+      type: dependency
+      statement: Root, Framework, Admin, Admin Web, Blueprint, lock, and operator commands agree on the v1.3.2 distribution version.
+    - id: official-npm-last
+      type: operations
+      statement: npmjs publication is the final artifact mutation and reuses the already-qualified frontend Release tarball without rebuilding.
+    - id: protected-credentials
+      type: security
+      statement: Qualification uses no production secret; initial npmjs publication uses only the protected bootstrap path and the credential is removed after Trusted Publishing is bound.
+  acceptance:
+    - id: checkpoint-v132-contract
+      requirement: target-v132-only
+      statement: Feature, policy, qualification, commands, namespaces, module metadata, and generated distribution contracts agree on v1.3.2.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/features/foundation-v1-3-2-release.yaml --format json
+        - type: command
+          value: python3 -m unittest discover -s tools/release -p 'test_*.py'
+        - type: command
+          value: python3 tools/release/verify_framework_admin_checksum.py --version v1.3.2
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component root --version v1.3.2 --tag v1.3.2 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component framework --version v1.3.2 --tag mss-boot/v1.3.2 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component admin --version v1.3.2 --tag admin/v1.3.2 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component frontend --version v1.3.2 --tag web/antd-v6/v1.3.2 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component docs --version v1.3.2 --tag docs/v1.3.2 --intent qualify
+        - type: report
+          value: Read-only inventory proving all five v1.3.2 tag namespaces are absent before the first publication phase.
+    - id: checkpoint-release-workflows
+      requirement: verify-final-framework-sums
+      statement: Release governance tests cover calculated Admin sums, source identity, tag namespaces, portability, and protected readiness authority.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: python3 -m unittest tools.release.test_container_workflow tools.release.test_workflow_governance tools.release.test_check_release_policy tools.release.test_verify_framework_admin_checksum
+        - type: report
+          value: Final-tree file-proxy sum and replace-free Admin consumer evidence for v1.3.2.
+    - id: feature-freeze-backend
+      requirement: publish-complete-v132
+      statement: Root tooling, Framework, Admin, migrations, authorization, and generators pass on the frozen commit.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: make test-all
+        - type: command
+          value: cd mss-boot && GOWORK=off go test ./...
+        - type: command
+          value: cd admin && go test ./...
+        - type: command
+          value: cd admin && go vet ./...
+    - id: feature-freeze-consumers
+      requirement: publish-complete-v132
+      statement: External consumers prove the public-style Admin, Framework, Admin Web, Thin Host, generated Supplier, and upgrade contracts.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/compatibility/test-admin-external-consumer.sh
+        - type: command
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
+        - type: command
+          value: go run ./cmd/mss eval run --all --format json
+        - type: report
+          value: Exact-commit Blueprint generation, two-run idempotency, browser, and upgrade-preservation evidence.
+    - id: feature-freeze-web-docs
+      requirement: document-patch-release
+      statement: Admin Web and Docs pass quality, build, package, delivery, browser, and portable-path gates.
+      level: e2e
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: make web-v6-qualify
+        - type: command
+          value: corepack pnpm@9.15.9 --dir docs build
+        - type: report
+          value: Codex in-app Browser desktop, refresh, narrow-layout, console, and failed-network evidence bound to the frozen commit.
+    - id: feature-freeze-operations
+      requirement: document-patch-release
+      statement: Fresh and upgraded databases, API synchronization, matched deployment, and rollback remain executable.
+      level: migration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: manual
+          value: On isolated SQLite, MySQL, and PostgreSQL databases, migrate, synchronize the API registry, and confirm menu API binding is non-empty.
+        - type: report
+          value: Backup, migration, API registry, compatibility, and rollback evidence for the exact frozen commit.
+    - id: pre-framework-publication-readiness
+      requirement: verify-final-framework-sums
+      statement: The final Framework tree, committed Admin sums, and local public-style consumers remain aligned immediately before publication.
+      level: integration
+      phase: pre-framework
+      required: true
+      evidence:
+        - type: command
+          value: python3 tools/release/verify_framework_admin_checksum.py --version v1.3.2
+        - type: command
+          value: cd mss-boot && GOWORK=off go test ./...
+        - type: command
+          value: bash tools/compatibility/test-admin-external-consumer.sh
+        - type: command
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component framework --version v1.3.2 --tag mss-boot/v1.3.2 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component admin --version v1.3.2 --tag admin/v1.3.2 --intent qualify
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component frontend --version v1.3.2 --tag web/antd-v6/v1.3.2 --intent qualify
+    - id: pre-root-publication-readiness
+      requirement: publish-complete-v132
+      statement: Source, generated Thin Host, and root namespace remain qualified after predecessor components publish.
+      level: integration
+      phase: pre-root
+      required: true
+      evidence:
+        - type: command
+          value: make test-all
+        - type: command
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component root --version v1.3.2 --tag v1.3.2 --intent qualify
+    - id: post-publication-reconciliation
+      requirement: preserve-v131-history
+      statement: Public v1.3.2 refs, modules, packages, images, Docs, and rollback records reconcile to the frozen commit.
+      level: contract
+      phase: post-publication
+      required: true
+      evidence:
+        - type: report
+          value: Exact tags, Releases, Go sums, npm provenance and byte parity, image digests, Docs identity, checksums, and current-stable reconciliation.
+  risks:
+    - id: public-dependency-order
+      description: Admin cannot run independently until the exact v1.3.2 Framework module is public.
+      severity: high
+      mitigation: Qualify the final sums and local proxy first, then publish and verify Framework before creating the Admin tag.
+    - id: checksum-drift
+      description: A Framework tree change after checksum preparation would invalidate Admin metadata.
+      severity: critical
+      mitigation: Calculate from every tracked final Framework file at checkpoint and pre-framework, and bind all readiness evidence to one immutable merged-main tree.
+    - id: bootstrap-credential
+      description: The first npmjs publication requires a temporary write credential before Trusted Publishing can be bound.
+      severity: high
+      mitigation: Keep it only in release-v6, use it once with explicit bootstrap input, then bind OIDC and revoke and remove the token immediately.
+    - id: database-rollback
+      description: A binary rollback without its matching data backup can leave an incompatible authorization or schema projection.
+      severity: critical
+      mitigation: Require a verified backup and matched artifact inventory before migration and restore both data and coordinated v1.2.3 artifacts on rollback.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - python3 -m unittest discover -s tools/release -p 'test_*.py'
+      - python3 tools/release/verify_framework_admin_checksum.py --version v1.3.2
+      - make test-all
+      - make web-v6-qualify
+      - bash tools/compatibility/test-admin-external-consumer.sh
+      - bash tools/compatibility/test-thin-host-external-consumer.sh
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      Merge this repair through a pull request, select the resulting exact main commit,
+      run feature-freeze and pre-framework authority, then publish new v1.3.2 component
+      tags in the required order. Obtain independent pre-root authority before root,
+      publish Docs from the same commit, and publish the byte-identical Admin Web tarball to npmjs last.
+    rollback: >-
+      Before publication, repair through another pull request and freeze a new main commit.
+      After any public v1.3.2 mutation, preserve it and use a later patch for source repairs;
+      operators remain on reconciled v1.2.3 artifacts and backup until v1.3.2 completes.
