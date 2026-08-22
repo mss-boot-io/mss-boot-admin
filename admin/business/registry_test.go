@@ -59,7 +59,7 @@ func (module ignoredRegistryErrorModule) Register(registry *Registry) error {
 			Model:       new(testRecord),
 		},
 		Readiness: func(context.Context, *gorm.DB) error { return nil },
-		Routes:     func(*gin.RouterGroup, Runtime) error { return nil },
+		Routes:    func(*gin.RouterGroup, Runtime) error { return nil },
 	})
 	return nil
 }
