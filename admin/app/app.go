@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/business"
-	"github.com/mss-boot-io/mss-boot-admin/admin/cmd"
+	"github.com/mss-boot-io/mss-boot-admin/admin/internal/cmd"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
 )
 
