@@ -1,66 +1,50 @@
+// Package cmd retains fail-closed source compatibility for the v1 Admin API.
+// The executable Admin command tree is private to admin/internal/cmd.
 package cmd
 
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/business"
-	"github.com/mss-boot-io/mss-boot-admin/admin/cmd/migrate"
-	"github.com/mss-boot-io/mss-boot-admin/admin/cmd/server"
-	"github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 )
 
-/*
- * @Author: lwnmengjing<lwnmengjing@qq.com>
- * @Date: 2023/8/10 00:14:22
- * @Last Modified by: lwnmengjing<lwnmengjing@qq.com>
- * @Last Modified time: 2023/8/10 00:14:22
- */
+// ErrDirectCommandAccess reports use of a legacy command-tree escape hatch.
+var ErrDirectCommandAccess = errors.New(
+	"direct Admin command access is unavailable; use admin/app ExecuteContext or ExecuteArgsContext",
+)
 
-// New returns a fresh command tree for one Application instance.
-func New(registry *business.Registry) *cobra.Command {
-	root := &cobra.Command{
-		Use:          "mss-boot-admin",
-		Short:        "mss-boot-admin",
-		Version:      pkg.BuildVersion(),
-		SilenceUsage: true,
-		Long:         `mss-boot-admin is a background management system developed by the mss-boot framework`,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 1 {
-				tip(cmd)
-				return errors.New(pkg.Red("requires at least one arg"))
-			}
-			return nil
-		},
-		PersistentPreRunE: func(*cobra.Command, []string) error { return nil },
-		Run: func(cmd *cobra.Command, _ []string) {
-			tip(cmd)
+// New preserves the v1.3.0 source signature without exposing the executable
+// Admin command tree. The returned command is an inert compatibility sentinel
+// whose execution always fails with ErrDirectCommandAccess.
+//
+// Deprecated: compose package app and call ExecuteContext or
+// ExecuteArgsContext.
+func New(_ *business.Registry) *cobra.Command {
+	return &cobra.Command{
+		Use:           "mss-boot-admin",
+		Short:         "deprecated direct Admin command access",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(*cobra.Command, []string) error {
+			return ErrDirectCommandAccess
 		},
 	}
-	root.AddCommand(server.NewCommand(registry))
-	root.AddCommand(migrate.NewCommand(registry))
-	return root
 }
 
-func tip(cmd *cobra.Command) {
-	usageStr := `欢迎使用 ` + pkg.Green(`mss-boot-admin `+pkg.BuildVersion()) + ` 可以使用 ` + pkg.Red(`-h`) + ` 查看命令`
-	usageStr1 := `也可以参考 https://docs.mss-boot-io.top 的相关内容`
-	fmt.Fprintf(cmd.OutOrStdout(), "%s\n", usageStr)
-	fmt.Fprintf(cmd.OutOrStdout(), "%s\n", usageStr1)
+// ExecuteContext preserves the v1.3.0 source signature and always fails
+// closed before constructing or executing Admin runtime state.
+//
+// Deprecated: compose package app and call Application.ExecuteContext.
+func ExecuteContext(context.Context, *business.Registry) error {
+	return ErrDirectCommandAccess
 }
 
-// ExecuteContext runs a fresh command tree and returns every diagnostic error.
-func ExecuteContext(ctx context.Context, registry *business.Registry) error {
-	if ctx == nil {
-		return errors.New("Admin command context is required")
-	}
-	return New(registry).ExecuteContext(ctx)
-}
-
-// Execute preserves the historical helper without terminating the process.
+// Execute preserves the historical source signature and always fails closed.
+//
+// Deprecated: compose package app and call Application.ExecuteContext.
 func Execute() error {
-	return ExecuteContext(context.Background(), nil)
+	return ErrDirectCommandAccess
 }

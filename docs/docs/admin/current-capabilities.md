@@ -4,13 +4,13 @@ order: 13
 nav:
   order: 1
   title: Admin
-description: 基于 v1.3.0 stable candidate 代码和机器契约梳理 mss-boot Admin 的已实现能力与边界
+description: 基于 v1.3.1 stable candidate 代码和机器契约梳理 mss-boot Admin 的已实现能力与边界
 keywords: [admin capabilities features session rbac generator thin host]
 ---
 
 # 当前功能总览
 
-本文描述 <code>v1.3.0</code> stable candidate 的当前实现，不是未来路线图。事实来源包括
+本文描述 <code>v1.3.1</code> stable candidate 的当前实现，不是未来路线图。事实来源包括
 <code>admin/</code>、<code>web/antd-v6/</code>、<code>admin/modules/supplier/</code>、
 <code>.mss/</code>、迁移、测试和外部消费者门禁。正式发布前，生产稳定引用仍是
 <code>v1.2.3</code>。
@@ -141,7 +141,7 @@ Supplier 是示例和回归契约，不把采购领域能力移动到领域中�
 下一步阅读：
 
 - [完整 Admin Distribution 与 Thin Host 架构](/architecture/complete-admin-distribution-and-thin-business-host)
-- [v1.3.0 安装、升级与回滚](/releases/v1-3-0)
+- [v1.3.1 安装、升级与回滚](/releases/v1-3-1)
 - [权限与组织治理](/admin/governance-guide)
 - [运行时开发工具移除说明](/admin/legacy-capability-deprecation)
 - [Supplier 生成模块](/modules/supplier)

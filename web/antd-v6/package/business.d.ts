@@ -10,7 +10,6 @@ export interface BusinessAdminOptions {
   title?: string;
   apiTarget?: string;
   businessRoutes?: AdminBusinessRoute[];
-  routes?: AdminBusinessRoute[];
   routeRegistrations?: string;
   useUtoopack?: boolean;
 }

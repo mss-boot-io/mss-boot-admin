@@ -20,7 +20,7 @@ RUN_ID = 123456789
 RUN_URL = (
     "https://github.com/mss-boot-io/mss-boot-admin/actions/runs/123456789"
 )
-TARGET_VERSION = "v1.3.0"
+TARGET_VERSION = "v1.3.1"
 
 
 class ReleaseReadinessAttestationTest(unittest.TestCase):

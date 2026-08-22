@@ -160,7 +160,10 @@ jobs:
             admin/modules/runtime \
             admin/modules/all \
             admin/main.go \
-            admin/cmd/migrate/migrate.go)"
+            admin/cmd/cobra.go \
+            admin/cmd/server/server.go \
+            admin/cmd/migrate/migrate.go \
+            admin/internal/cmd)"
           if [[ -n "${unformatted}" ]]; then
             echo "The following files require gofmt:" >&2
             echo "${unformatted}" >&2

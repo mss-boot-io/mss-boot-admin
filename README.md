@@ -12,23 +12,23 @@ machine-readable project contracts, deterministic full-stack generation,
 change-aware verification, and upgradeable Thin Host Blueprints in one source
 repository.
 
-The active stable target is **v1.3.0**. Formal publication qualifies it as one
-Complete Admin Distribution from one exact merged `main` commit. Published
-v1.3.0 RC1-RC6 tags are permanently immutable preview history; before stable
-publication and public reconciliation they are preview evidence only, never a
-substitute for the exact stable artifacts.
+The active stable target is **v1.3.1**. Formal publication qualifies it as one
+Complete Admin Distribution from one exact merged `main` commit. The published
+`mss-boot/v1.3.0` Framework release, failed `admin/v1.3.0` run, and v1.3.0
+RC1-RC6 tags are permanently immutable history; they cannot substitute for or
+be moved into the complete v1.3.1 artifacts.
 
 ## Complete Admin Distribution
 
-The coordinated v1.3.0 train keeps these independently publishable components
+The coordinated v1.3.1 train keeps these independently publishable components
 on the same version and source commit:
 
 | Component | Stable identity |
 | --- | --- |
-| Foundation tools and root delivery | `v1.3.0` |
-| Reusable Go framework | `mss-boot/v1.3.0` |
-| Importable Admin Go module | `admin/v1.3.0` |
-| Complete Admin Web package | `web/antd-v6/v1.3.0` / `@mss-boot-io/admin-web@1.3.0` |
+| Foundation tools and root delivery | `v1.3.1` |
+| Reusable Go framework | `mss-boot/v1.3.1` |
+| Importable Admin Go module | `admin/v1.3.1` |
+| Complete Admin Web package | `web/antd-v6/v1.3.1` / `@mss-boot-io/admin-web@1.3.1` |
 | Documentation | Independently released with `docs/vX.Y.Z` |
 
 Identity, browser sessions, RBAC, menus, layout, localization, and the shared
@@ -51,21 +51,21 @@ business intent
   -> reviewable PR and upgradeable Thin Host
 ```
 
-## Consume v1.3.0
+## Consume v1.3.1
 
 After the stable tags are public, Go consumers should pin the exact coordinated
 version. The Admin module has no committed local `replace`:
 
 ```shell
-go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.0
-go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.0
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.1
+go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.1
 ```
 
 The complete frontend is published publicly to npmjs, so the default Thin Host
 installation needs no registry credential:
 
 ```shell
-corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.0
+corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.1
 ```
 
 The same immutable tarball is retained in GitHub Packages as a compatibility
@@ -110,11 +110,11 @@ go run ./cmd/mss --root ../orders-admin module generate \
 Plan an Admin Distribution upgrade before applying it:
 
 ```shell
-go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.0 \
+go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.1 \
   --foundation . \
   --format json
 
-go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.0 \
+go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.1 \
   --foundation . \
   --apply --yes \
   --format json

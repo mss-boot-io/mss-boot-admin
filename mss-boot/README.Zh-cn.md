@@ -18,13 +18,13 @@
 - 源码目录：`mss-boot/`
 - Go 要求：Go 1.26 或更高版本
 - 稳定性：稳定 v1 兼容版本线；导出 API、配置键、持久化行为和接口均属于公共兼容面
-- 当前统一稳定版目标：`mss-boot/v1.3.0`，将与 v1.3.0 Admin Module、Admin Web
+- 当前统一稳定版目标：`mss-boot/v1.3.1`，将与 v1.3.1 Admin Module、Admin Web
   包和根发行包从同一提交发布
 
 稳定标签公开后，生产使用方应锁定精确的子模块版本；`main` 仅用于 Foundation 开发：
 
 ```bash
-go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.0
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.1
 ```
 
 ## 核心能力

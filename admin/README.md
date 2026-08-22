@@ -7,17 +7,24 @@ as an independent Go module:
 github.com/mss-boot-io/mss-boot-admin/admin
 ```
 
-The coordinated stable target is `admin/v1.3.0`. After publication, an external
+The coordinated stable target is `admin/v1.3.1`. After publication, an external
 consumer pins it exactly:
 
 ```bash
-go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.0
+go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.1
 ```
 
 `app/` is the public composition root and `business/` is the compile-time
 extension boundary. A Thin Host imports the complete Admin, registers owned
 business modules explicitly, and does not copy core startup, authentication,
 session, migration, route, or middleware source.
+
+External hosts execute the Admin only through `app.ExecuteContext` or an
+`Application`'s guarded `ExecuteContext` / `ExecuteArgsContext` methods. The
+public API deliberately does not expose an executable Cobra command tree, so a
+host cannot bypass the single-use and process-global runtime lifecycle guards.
+Business-module registration is atomic: a failed module publishes no descriptor,
+module identity, route registration, or migration into the application registry.
 
 For repository-local development:
 

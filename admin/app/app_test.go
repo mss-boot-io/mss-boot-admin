@@ -1,10 +1,8 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/modules/supplier"
@@ -43,25 +41,31 @@ func TestApplicationsConstructWithoutRegistryPollution(t *testing.T) {
 	}
 }
 
-func TestCommandTreesKeepHelpAndFlagsIsolated(t *testing.T) {
-	application, err := New(WithBusinessModules(supplier.Module()))
+func TestDeprecatedCommandFailsClosedWithoutExecutableTree(t *testing.T) {
+	application, err := New()
 	if err != nil {
 		t.Fatalf("construct Application: %v", err)
 	}
+	command, err := application.Command()
+	if !errors.Is(err, ErrCommandTreeUnavailable) {
+		t.Fatalf("Command error = %v, want unavailable", err)
+	}
+	if command == nil {
+		t.Fatal("Command did not preserve its v1 source-compatible return type")
+	}
+	if err := command.ExecuteContext(context.Background()); !errors.Is(err, ErrCommandTreeUnavailable) {
+		t.Fatalf("compatibility command execution error = %v, want unavailable", err)
+	}
+}
+
+func TestExecuteArgsBuildsFreshGuardedCommandTrees(t *testing.T) {
 	for _, args := range [][]string{{"--help"}, {"server", "--help"}, {"migrate", "--help"}} {
-		command, commandErr := application.Command()
-		if commandErr != nil {
-			t.Fatalf("construct command %v: %v", args, commandErr)
+		application, err := New(WithBusinessModules(supplier.Module()))
+		if err != nil {
+			t.Fatalf("construct Application for %v: %v", args, err)
 		}
-		var output bytes.Buffer
-		command.SetOut(&output)
-		command.SetErr(&output)
-		command.SetArgs(args)
-		if err := command.ExecuteContext(context.Background()); err != nil {
-			t.Fatalf("execute help %v: %v", args, err)
-		}
-		if !strings.Contains(output.String(), "Usage:") {
-			t.Fatalf("help %v output = %q", args, output.String())
+		if err := application.ExecuteArgsContext(context.Background(), args); err != nil {
+			t.Fatalf("execute guarded help %v: %v", args, err)
 		}
 	}
 }

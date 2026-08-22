@@ -15,10 +15,10 @@ Umi Max 4 的完整管理系统基础设施。它既是可直接部署的参考 
 通过版本化 Go Module 和单一 npm 包引入的 Complete Admin Distribution。
 
 :::info
-**v1.3.0 状态**
+**v1.3.1 状态**
 
-唯一活动目标是 <code>v1.3.0</code> 稳定版候选；正式发布和对账完成前，当前稳定版仍是
-<code>v1.2.3</code>。完整预览 <code>v1.3.0-rc.6</code> 保持不可变。
+唯一活动目标是 <code>v1.3.1</code> 稳定版候选；正式发布和对账完成前，当前稳定版仍是
+<code>v1.2.3</code>。不完整的 v1.3.0 列车和完整预览 <code>v1.3.0-rc.6</code> 保持不可变。
 :::
 
 ## 一套产品，四个协同组件
@@ -89,7 +89,7 @@ STAGE=local go run . server -a
 随后在“权限管理 → 菜单管理”中选择 <code>MENU</code> 或 <code>COMPONENT</code>，点击
 “绑定 API”，可选项必须非空。只有健康检查或页面能打开，不代表权限注册表已经完成。
 
-详见 [v1.3.0 安装与升级合同](/releases/v1-3-0)。
+详见 [v1.3.1 安装与升级合同](/releases/v1-3-1)。
 
 ## 已退役边界
 
@@ -111,7 +111,7 @@ STAGE=local go run . server -a
 - [权限与组织治理](/admin/governance-guide)
 - [生产和安全基线](/admin/security-baseline)
 - [Docker 部署](/admin/docker)
-- [v1.3.0 发布、升级与回滚](/releases/v1-3-0)
+- [v1.3.1 发布、升级与回滚](/releases/v1-3-1)
 
 ## 反馈
 

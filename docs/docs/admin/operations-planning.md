@@ -149,7 +149,7 @@ keywords: [admin operations planning roadmap enhancement]
 
 **影响范围**
 
-- 后端：`admin/service/monitor*.go`、`admin/cmd/server/server.go`
+- 后端：`admin/service/monitor*.go`、`admin/internal/cmd/server/server.go`
 - 调度：`mss-boot/core/server/task`
 - 前端：`src/components/MonitorTrend/`、`src/pages/Welcome.tsx`、`src/pages/Monitor/index.tsx`
 

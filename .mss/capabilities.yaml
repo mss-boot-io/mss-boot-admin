@@ -304,10 +304,10 @@ spec:
         - docs/docs/releases/v1-1-0-d2-canonical-email-identity.md
       backendPaths:
         - admin/apis/user.go
-        - admin/cmd/migrate/migrate.go
+        - admin/internal/cmd/migrate/migrate.go
         - admin/cmd/migrate/migration/system/20260810120000_canonical_email_identity.go
         - admin/cmd/migrate/migration/system/canonical_email_identity_integration_test.go
-        - admin/cmd/server/server.go
+        - admin/internal/cmd/server/server.go
         - admin/models/email_identity.go
         - admin/models/user.go
         - admin/pkg/challenge.go
@@ -350,7 +350,7 @@ spec:
       backendPaths:
         - admin/service/authorization.go
         - admin/service/authorization_eventbus.go
-        - admin/cmd/server/server.go
+        - admin/internal/cmd/server/server.go
       guidance: >-
         Commit 04e8e0c adds the typed, additive Memory/Redis revision EventBus, and commit 160e2df
         composes the Memory provider into Admin Casbin. Canonical policy mutation and its global
@@ -402,7 +402,7 @@ spec:
         - mss-boot/pkg/config/storage/queue/kafka_test.go
       backendPaths:
         - admin/config/config.go
-        - admin/cmd/server/server.go
+        - admin/internal/cmd/server/server.go
       guidance: >-
         Evidence state remains Blocked. D0 moves the Sarama session mark after successful decode and
         synchronous handler completion. D1 preserves AdapterQueue for source compatibility and adds
@@ -608,7 +608,7 @@ spec:
         - admin/models/task.go
         - admin/models/task_run.go
         - admin/apis/task.go
-        - admin/cmd/server/server.go
+        - admin/internal/cmd/server/server.go
       frameworkPaths:
         - mss-boot/core/server/task
       guidance: >-
@@ -636,7 +636,7 @@ spec:
         - admin/service/monitor.go
         - admin/service/monitor_sampler.go
         - admin/apis/monitor.go
-        - admin/cmd/server/server.go
+        - admin/internal/cmd/server/server.go
       frameworkPaths:
         - mss-boot/core/server/task
       frontendPaths:
@@ -744,7 +744,7 @@ spec:
         documentation, and semantic browser E2E. The Supplier plan is complete with zero deferred
         projections and is exercised through repository-external Thin Host generation, build,
         authorization, browser, upgrade, preservation, and two-run idempotency gates. Keep the
-        capability beta until stable v1.3.0 public consumption and a second representative domain
+        capability beta until stable v1.3.1 public consumption and a second representative domain
         prove the schema without weakening deterministic or generated/custom ownership boundaries.
 
     - id: foundation.admin-distribution
@@ -774,7 +774,7 @@ spec:
         pages. The external Supplier host has passed GOWORK=off backend, local npm tarball,
         one-runtime, deterministic Thin Host generation and upgrade, authorization, and browser E2E
         gates; v1.3.0-rc.6 is immutable successful preview evidence. The capability remains beta while
-        stable v1.3.0 Go resolution plus byte-identical npmjs and GitHub Packages resolution and
+        stable v1.3.1 Go resolution plus byte-identical npmjs and GitHub Packages resolution and
         post-publication reconciliation are pending.
         Do not add runtime plugins, micro-frontends, core feature selection, telemetry, import records,
         or adopter registration.
@@ -843,6 +843,7 @@ spec:
         - .mss/features/foundation-v1-2-3-release.yaml
         - .mss/features/complete-admin-distribution-thin-host.yaml
         - .mss/features/foundation-v1-3-0-release.yaml
+        - .mss/features/foundation-v1-3-1-release.yaml
         - .mss/features/admin-antd-v6-application.yaml
         - .mss/features/admin-antd-v6-cutover-retirement.yaml
         - .mss/features/admin-antd-v6-release-polish.yaml
@@ -853,7 +854,7 @@ spec:
         - web/antd-v6/CHANGELOG.md
         - docs/docs/releases
         - Dockerfile
-        - admin/cmd/cobra.go
+        - admin/internal/cmd/cobra.go
         - admin/cmd/migrate/migration/system/v0_7_upgrade_state_integration_test.go
         - admin/pkg/version
         - admin/pkg/version.go
@@ -877,10 +878,10 @@ spec:
       guidance: >-
         Treat Unreleased, planned, preview, branches, and local workspace replacements as non-stable.
         Published historical versions remain immutable and their candidate evidence is not reusable.
-        The active reviewed target is stable v1.3.0 for root, Framework, the importable Admin module,
-        and the sole Ant Design V6 frontend. RC6 is immutable successful preview evidence; every other
-        alpha, beta, RC, or stable tag remains forbidden. Complete release readiness begins only after
-        one v1.3.0 feature-freeze commit already
+        The active reviewed target is stable v1.3.1 for root, Framework, the importable Admin module,
+        and the sole Ant Design V6 frontend. RC6 and the incomplete v1.3.0 publication attempt remain
+        immutable historical evidence; every other alpha, beta, RC, or stable tag remains forbidden.
+        Complete release readiness begins only after one v1.3.1 feature-freeze commit already
         merged into main is selected. An emergency
         patch requires a reviewed policy target change rather than a bypass.
         Publish Framework first, then the importable Admin module, the complete frontend GitHub Packages

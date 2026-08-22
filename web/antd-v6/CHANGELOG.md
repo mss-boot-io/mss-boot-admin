@@ -6,9 +6,12 @@ and the root changelog, not as a current release surface.
 
 ## Unreleased
 
-Target: **web/antd-v6/v1.3.0**. The Admin Web package, Admin Go module,
+Target: **web/antd-v6/v1.3.1**. The Admin Web package, Admin Go module,
 Framework module, and root distribution use one version core and one exact
 merged-main commit. Documentation remains an independently released component.
+The v1.3.0 Admin Web tag, package, image, and Release were never published after
+the coordinated train stopped at the Admin metadata gate, so v1.3.1 is the next
+stable identity and v1.3.0 is retained only as component-partial history.
 The complete RC6 preview published successfully from
 `0ef09fb3caa1b2d424c540da23d01219135ebcfa` and remains immutable prerelease
 history.
@@ -30,10 +33,13 @@ history.
 
 ### Changed
 
-- Promote the RC6-qualified Admin Web contract to the stable v1.3.0 target while
+- Promote the RC6-qualified Admin Web contract to the stable v1.3.1 target while
   retaining one source identity across its package, image, portable assets, and
   coordinated Go modules. Stable packages use the `latest` distribution tag;
   prereleases use `next`.
+- Reject malformed external route contributions and resolve package-owned CLI
+  commands independently of the caller's working directory before a packed Thin
+  Host can reach the browser qualification phase.
 - Label the frontend image with an explicit Admin Web OCI description instead of
   inheriting the root repository's Go-backend description.
 - Enforce one installed React 19.2.8, React DOM 19.2.8, Ant Design 6.6.0,

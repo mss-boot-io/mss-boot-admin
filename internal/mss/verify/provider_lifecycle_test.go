@@ -23,7 +23,7 @@ func TestV101ChangedProvidersDoNotExitOrDetach(t *testing.T) {
 		"mss-boot/pkg/config/storage/queue/kafka.go",
 		"mss-boot/pkg/config/storage/queue/casbin_watcher.go",
 		"admin/config/config.go",
-		"admin/cmd/server/server.go",
+		"admin/internal/cmd/server/server.go",
 	}
 
 	files := make(map[string]*ast.File, len(targets))
@@ -52,12 +52,12 @@ func TestV101ChangedProvidersDoNotExitOrDetach(t *testing.T) {
 		"buildOptionalQueue": true, "closeQueueAdapter": true, "closeManagedQueue": true,
 		"CloseContext": true, "bindPolicyWatcher": true,
 	})
-	assertCriticalFunctionsUseCallerContext(t, "admin/cmd/server/server.go", files["admin/cmd/server/server.go"], map[string]bool{
+	assertCriticalFunctionsUseCallerContext(t, "admin/internal/cmd/server/server.go", files["admin/internal/cmd/server/server.go"], map[string]bool{
 		"Start": true, "drainManagedQueueErrors": true, "stopManagedQueueAfterRuntimeError": true,
 	})
 
 	assertGoStatementsOwnedByKafka(t, files["mss-boot/pkg/config/storage/queue/kafka.go"])
-	assertServerDoesNotDetachManagedKafka(t, files["admin/cmd/server/server.go"])
+	assertServerDoesNotDetachManagedKafka(t, files["admin/internal/cmd/server/server.go"])
 	assertManagedQueueCompositionContracts(t, root)
 }
 

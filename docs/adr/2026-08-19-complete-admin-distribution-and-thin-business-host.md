@@ -1,6 +1,6 @@
 # ADR: Complete Admin distribution and thin business hosts
 
-- Status: Accepted and implemented; v1.3.0-rc.6 published successfully, v1.3.0 stable qualification in preparation
+- Status: Accepted and implemented; v1.3.0-rc.6 published successfully, v1.3.0 is immutable component-partial history, and v1.3.1 is the active stable target
 - Date: 2026-08-19
 - Owners: Admin, frontend, agent infrastructure, release engineering
 - Feature contract: `.mss/features/complete-admin-distribution-thin-host.yaml`
@@ -96,7 +96,9 @@ business files, and records a thin baseline only after all file operations and v
 Technical artifacts may use root, `mss-boot/`, `admin/`, and `web/antd-v6/` tag namespaces, but their
 exact semantic version, including a prerelease suffix, must match for a coordinated distribution. The
 successful public preview is `v1.3.0-rc.6`; it is immutable and does not replace the current `v1.2.3`
-stable release. The only active target is now `v1.3.0` stable. Publication remains restricted to a new
+stable release. The `v1.3.0` train is also immutable component-partial history: Framework published,
+Admin failed before publication, and the remaining stable artifacts were not created. The only active
+target is now `v1.3.1` stable. Publication remains restricted to a new
 exact merged-main commit and the protected Framework -> Admin -> Frontend -> Root -> Docs -> npmjs
 release train; the final npmjs step republishes the already-qualified frontend tarball without rebuilding.
 
@@ -158,7 +160,8 @@ exports, and coordinated version become compatibility surfaces that require exte
 
 The implementation and RC6 preview have passed the repository-external Supplier host gate: GOWORK=off backend validation,
 tarball frontend validation, single-runtime analysis, deterministic generation and upgrade tests, and the
-required browser E2E described by the Feature contract. Stable publication remains separately gated on
+required browser E2E described by the Feature contract. The incomplete v1.3.0 stable attempt remains
+audit evidence only and must not be continued. v1.3.1 publication remains separately gated on
 the preparation PR merge, a new exact merged-main commit, remote qualification, and coordinated immutable artifacts.
 
 Because the npm package deliberately carries package-owned build tools for thin hosts, its distribution

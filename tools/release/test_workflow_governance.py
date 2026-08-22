@@ -1,5 +1,9 @@
 import json
+import os
+import subprocess
+import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 import yaml
@@ -19,6 +23,58 @@ RETIRED_WORKFLOWS = (
 def load_workflow(name):
     path = WORKFLOW_DIR / name
     return yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+
+
+def write_file_module_proxy(proxy_root, module, version, source_root):
+    """Expose one current source tree through a replace-free Go file proxy."""
+    version_root = proxy_root.joinpath(*module.split("/"), "@v")
+    version_root.mkdir(parents=True, exist_ok=True)
+    (version_root / "list").write_text(f"{version}\n", encoding="utf-8")
+    (version_root / f"{version}.info").write_text(
+        json.dumps({"Version": version, "Time": "1980-01-01T00:00:00Z"})
+        + "\n",
+        encoding="utf-8",
+    )
+    (version_root / f"{version}.mod").write_bytes(
+        (source_root / "go.mod").read_bytes()
+    )
+
+    archive_prefix = f"{module}@{version}/"
+    module_relative = source_root.relative_to(REPOSITORY_ROOT).as_posix()
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z", "--", module_relative],
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    ).stdout.split("\0")
+    sources = [REPOSITORY_ROOT / path for path in tracked if path]
+    nested_modules = {
+        source.parent.relative_to(source_root)
+        for source in sources
+        if source.name == "go.mod" and source.parent != source_root
+    }
+    with zipfile.ZipFile(
+        version_root / f"{version}.zip", "w", compression=zipfile.ZIP_DEFLATED
+    ) as archive:
+        for source in sources:
+            relative = source.relative_to(source_root)
+            if (
+                source.is_symlink()
+                or not source.is_file()
+                or "vendor" in relative.parts
+                or any(
+                    part in {".git", ".hg", ".svn", ".bzr"}
+                    for part in relative.parts
+                )
+                or any(
+                    relative == nested or nested in relative.parents
+                    for nested in nested_modules
+                )
+            ):
+                continue
+            archive.write(source, archive_prefix + relative.as_posix())
 
 
 class WorkflowGovernanceTest(unittest.TestCase):
@@ -183,7 +239,12 @@ class WorkflowGovernanceTest(unittest.TestCase):
             'diff -u -- "${admin_dir}/go.mod" "${temporary_mod}"', script
         )
         self.assertIn(
-            'diff -u -- "${admin_dir}/go.sum" "${temporary_sum}"', script
+            '!($1 == module && ($2 == version || $2 == version "/go.mod"))',
+            script,
+        )
+        self.assertIn(
+            'diff -u -- "${tracked_sum_without_framework}" "${temporary_sum}"',
+            script,
         )
 
     def test_v0_7_upgrade_candidate_uses_the_explicit_prepublication_workspace(self):
@@ -639,9 +700,103 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn("GOPROXY=direct", probe)
         self.assertIn("GOWORK=off", probe)
         self.assertIn(".Origin.Hash == $commit", probe)
-        self.assertIn("command, err := application.Command()", probe)
-        self.assertIn("fmt.Println(command.Name())", probe)
-        self.assertNotIn("application.Command().Name()", probe)
+        self.assertIn("application.ExecuteArgsContext(context.Background(), args)", probe)
+        self.assertIn('{"--help"}', probe)
+        self.assertIn('{"server", "--help"}', probe)
+        self.assertIn('{"migrate", "--help"}', probe)
+        self.assertIn("go build -trimpath -o mss-admin-release-probe .", probe)
+        self.assertIn("./mss-admin-release-probe >/dev/null", probe)
+        self.assertNotIn(".Command()", probe)
+        self.assertNotIn("admin/internal/cmd", probe)
+
+        marker = 'cat > "${probe_dir}/main.go" <<\'EOF\'\n'
+        self.assertIn(marker, probe)
+        probe_source = probe.split(marker, 1)[1].split("\nEOF\n", 1)[0]
+        self.assertNotIn(".Command()", probe_source)
+        self.assertIn("ExecuteArgsContext", probe_source)
+
+        framework_module = "github.com/mss-boot-io/mss-boot-admin/mss-boot"
+        fixture_version = None
+        for line in (REPOSITORY_ROOT / "admin" / "go.mod").read_text(
+            encoding="utf-8"
+        ).splitlines():
+            fields = line.split()
+            if len(fields) >= 2 and fields[0] == framework_module:
+                fixture_version = fields[1]
+                break
+        self.assertIsNotNone(fixture_version)
+
+        module = "github.com/mss-boot-io/mss-boot-admin/admin"
+        with tempfile.TemporaryDirectory(
+            prefix="mss-admin-release-probe-governance-"
+        ) as temporary_directory:
+            probe_dir = Path(temporary_directory)
+            proxy_dir = probe_dir / "proxy"
+            write_file_module_proxy(
+                proxy_dir,
+                framework_module,
+                fixture_version,
+                REPOSITORY_ROOT / "mss-boot",
+            )
+            write_file_module_proxy(
+                proxy_dir,
+                module,
+                fixture_version,
+                REPOSITORY_ROOT / "admin",
+            )
+            go_mod = (
+                "module example.com/mss-admin-release-probe-governance\n\n"
+                "go 1.26.6\n\n"
+                f"require {module} {fixture_version}\n"
+            )
+            self.assertNotIn("replace ", go_mod)
+            (probe_dir / "go.mod").write_text(go_mod, encoding="utf-8")
+            (probe_dir / "main.go").write_text(
+                probe_source + "\n", encoding="utf-8"
+            )
+            environment = os.environ.copy()
+            # The release workflow itself remains fail-closed on GOPROXY=direct
+            # and verifies the tag origin hash above. Before that tag exists,
+            # this executable fixture exposes the exact candidate source through
+            # the Go proxy protocol. It uses no replace directive and therefore
+            # still exercises the Admin go.mod/go.sum boundary, including the
+            # pinned Framework checksum, while public dependencies use the
+            # checksum-backed public proxy.
+            environment.update(
+                {
+                    "GOWORK": "off",
+                    "GOPROXY": f"{proxy_dir.as_uri()},https://proxy.golang.org,direct",
+                    "GONOPROXY": "none",
+                    "GONOSUMDB": "github.com/mss-boot-io/mss-boot-admin/*",
+                    "GOTOOLCHAIN": "local",
+                }
+            )
+            commands = (
+                ("go", "mod", "tidy"),
+                ("go", "test", "./..."),
+                ("go", "vet", "./..."),
+                ("go", "build", "-trimpath", "-o", "release-probe", "."),
+                (str(probe_dir / "release-probe"),),
+            )
+            for command in commands:
+                result = subprocess.run(
+                    command,
+                    cwd=probe_dir,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                    check=False,
+                )
+                self.assertEqual(
+                    result.returncode,
+                    0,
+                    msg=(
+                        f"release probe command failed: {' '.join(command)}\n"
+                        f"stdout:\n{result.stdout}\n"
+                        f"stderr:\n{result.stderr}"
+                    ),
+                )
 
     def test_root_publication_requires_the_complete_distribution_train(self):
         workflow = self.workflows["release.yml"]

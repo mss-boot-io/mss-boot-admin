@@ -120,15 +120,15 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         self.assertIn("release_phase_evidence.py plan", plan["run"])
         self.assertIn('--phase "${READINESS_PHASE}"', plan["run"])
 
-    def test_v130_qualification_selects_the_stable_release_feature(self):
+    def test_v131_qualification_selects_the_patch_release_feature(self):
         selected = PHASE_EVIDENCE.load_qualification(
             REPOSITORY_ROOT,
             Path(".mss/release-qualification.json"),
-            "v1.3.0",
+            "v1.3.1",
         )
         self.assertEqual(
             [path.relative_to(REPOSITORY_ROOT).as_posix() for path in selected],
-            [".mss/features/foundation-v1-3-0-release.yaml"],
+            [".mss/features/foundation-v1-3-1-release.yaml"],
         )
         contract = yaml.safe_load(
             (REPOSITORY_ROOT / ".mss" / "release-qualification.json").read_text(
@@ -143,12 +143,12 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             )
         )
 
-    def test_v130_checkpoint_and_feature_freeze_commands_are_exact_and_executable(self):
+    def test_v131_checkpoint_and_feature_freeze_commands_are_exact_and_executable(self):
         feature_path = (
             REPOSITORY_ROOT
             / ".mss"
             / "features"
-            / "foundation-v1-3-0-release.yaml"
+            / "foundation-v1-3-1-release.yaml"
         )
         feature = yaml.safe_load(feature_path.read_text(encoding="utf-8"))
         plan = {
@@ -175,8 +175,8 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
                 for step in steps
             }
         for required in (
-            ". go run ./cmd/mss spec validate .mss/features/foundation-v1-3-0-release.yaml --format json",
-            ". python3 tools/release/check_release_policy.py --component admin --version v1.3.0 --tag admin/v1.3.0 --intent qualify",
+            ". go run ./cmd/mss spec validate .mss/features/foundation-v1-3-1-release.yaml --format json",
+            ". python3 tools/release/check_release_policy.py --component admin --version v1.3.1 --tag admin/v1.3.1 --intent qualify",
             ". python3 -m unittest tools.release.test_container_workflow tools.release.test_workflow_governance tools.release.test_check_release_policy",
         ):
             self.assertIn(required, commands_by_phase["checkpoint"])
@@ -190,7 +190,7 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         ):
             self.assertIn(required, commands_by_phase["feature-freeze"])
         self.assertIn(
-            ". python3 tools/release/check_release_policy.py --component framework --version v1.3.0 --tag mss-boot/v1.3.0 --intent qualify",
+            ". python3 tools/release/check_release_policy.py --component framework --version v1.3.1 --tag mss-boot/v1.3.1 --intent qualify",
             commands_by_phase["pre-framework"],
         )
         self.assertIn(". make test-all", commands_by_phase["pre-root"])

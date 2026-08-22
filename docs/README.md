@@ -13,8 +13,9 @@
 
 ## 当前发布口径
 
-- 唯一活动目标：`v1.3.0` 稳定版候选。
-- 当前稳定版：`v1.2.3`；只有 `v1.3.0` 完成公开发布和发布后对账后才会切换。
+- 唯一活动目标：`v1.3.1` 稳定版候选。
+- 当前稳定版：`v1.2.3`；只有 `v1.3.1` 完成公开发布和发布后对账后才会切换。
+- `mss-boot/v1.3.0` 已公开、`admin/v1.3.0` 发布失败；该不完整列车永久保留且不复用。
 - `v1.3.0-rc.1` 至 `v1.3.0-rc.6` 是不可变的预览证据，不移动、不覆盖、不复用。
 - Docs 可以用 `docs/vX.Y.Z` 独立发布，但只能来自已合并到 `main` 的精确提交。
 
@@ -31,7 +32,7 @@
 1. [Admin 产品概览](./docs/admin/index.md)
 2. [当前功能总览](./docs/admin/current-capabilities.md)
 3. [完整 Admin Distribution 与 Thin Host](./docs/architecture/complete-admin-distribution-and-thin-business-host.zh-CN.md)
-4. [v1.3.0 发布、升级与回滚合同](./docs/releases/v1-3-0.md)
+4. [v1.3.1 发布、升级与回滚合同](./docs/releases/v1-3-1.md)
 5. [Agent 开发入口](./docs/agent/index.md)
 
 ## 本地预览

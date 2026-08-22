@@ -11,7 +11,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/business"
-	"github.com/mss-boot-io/mss-boot-admin/admin/cmd"
+	compatcmd "github.com/mss-boot-io/mss-boot-admin/admin/cmd"
+	internalcmd "github.com/mss-boot-io/mss-boot-admin/admin/internal/cmd"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
 )
 
@@ -22,7 +23,10 @@ var (
 	// compatibility state. Independent Applications may be built concurrently,
 	// but only one owns the runtime lifecycle at a time.
 	ErrApplicationRunning = errors.New("another Admin application is already running")
-	applicationRunning    atomic.Bool
+	// ErrCommandTreeUnavailable reports the deprecated v1 command-tree escape
+	// hatch without exposing an executable Admin command.
+	ErrCommandTreeUnavailable = compatcmd.ErrDirectCommandAccess
+	applicationRunning        atomic.Bool
 )
 
 type options struct {
@@ -44,8 +48,9 @@ func WithBusinessModules(modules ...business.Module) Option {
 	}
 }
 
-// Application owns one frozen business registry and creates fresh Cobra
-// commands for official or downstream hosts.
+// Application owns one frozen business registry. Runtime command trees are
+// private implementation details and may execute only through the guarded
+// Execute entrypoints.
 type Application struct {
 	registry *business.Registry
 	executed atomic.Bool
@@ -69,15 +74,6 @@ func New(applicationOptions ...Option) (*Application, error) {
 	return &Application{registry: registry}, nil
 }
 
-// Command returns a fresh command tree. Help and inspection do not consume the
-// Application execution lifecycle or share flag values with another command.
-func (application *Application) Command() (*cobra.Command, error) {
-	if application == nil || application.registry == nil {
-		return nil, errors.New("Admin application is not initialized")
-	}
-	return cmd.New(application.registry), nil
-}
-
 // BusinessDescriptors returns immutable metadata in explicit composition
 // order and is useful to hosts and compatibility tests.
 func (application *Application) BusinessDescriptors() []business.Descriptor {
@@ -85,6 +81,19 @@ func (application *Application) BusinessDescriptors() []business.Descriptor {
 		return nil
 	}
 	return application.registry.Descriptors()
+}
+
+// Command preserves the v1.3.0 source signature but never exposes the real
+// executable Admin command tree. The returned command is an inert sentinel and
+// the error is always ErrCommandTreeUnavailable for an initialized Application.
+//
+// Deprecated: call ExecuteContext or ExecuteArgsContext so the single-use and
+// process-global lifecycle guards remain authoritative.
+func (application *Application) Command() (*cobra.Command, error) {
+	if application == nil || application.registry == nil {
+		return nil, errors.New("Admin application is not initialized")
+	}
+	return compatcmd.New(application.registry), ErrCommandTreeUnavailable
 }
 
 // ExecuteContext runs the current process arguments.
@@ -108,10 +117,7 @@ func (application *Application) ExecuteArgsContext(ctx context.Context, args []s
 	if !application.executed.CompareAndSwap(false, true) {
 		return ErrApplicationExecuted
 	}
-	command, err := application.Command()
-	if err != nil {
-		return err
-	}
+	command := internalcmd.New(application.registry)
 	command.SetArgs(append([]string(nil), args...))
 	return command.ExecuteContext(ctx)
 }

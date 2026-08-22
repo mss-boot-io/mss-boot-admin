@@ -7,10 +7,10 @@ own lockfile, immutable image, `web/antd-v6/v{version}` tag namespace,
 deployment, and previous-V6 rollback history. Retired frontend source and
 protocols are not build, runtime, or recovery inputs.
 
-The coordinated stable target is `web/antd-v6/v1.3.0` and
-`@mss-boot-io/admin-web@1.3.0`, to be published from the same merged-main commit as
-the v1.3.0 Framework, Admin module, and root distribution. Published RC tags
-remain immutable preview history.
+The coordinated stable target is `web/antd-v6/v1.3.1` and
+`@mss-boot-io/admin-web@1.3.1`, to be published from the same merged-main commit as
+the v1.3.1 Framework, Admin module, and root distribution. The incomplete v1.3.0
+train and all RC tags remain immutable partial-train and preview history.
 
 The upstream engineering reference is Ant Design Pro v6.0.2 commit
 `2b453c67b535b76f5f95d6542397a4b987b61de2`. Runtime and build dependencies are

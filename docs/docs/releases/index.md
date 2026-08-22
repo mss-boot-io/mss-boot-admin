@@ -13,7 +13,7 @@ keywords: [release upgrade rollback compatibility mss-boot-admin thin host]
 :::warning
 **发布状态**
 
-<code>v1.3.0</code> 是唯一活动的稳定版候选，**尚未公开发布**。<code>v1.2.3</code> 在
+<code>v1.3.1</code> 是唯一活动的稳定版候选，**尚未公开发布**。<code>v1.2.3</code> 在
 stable 标签、Go Modules、npm package、镜像、GitHub Release 和发布后对账全部完成前仍是当前稳定版。
 :::
 
@@ -21,28 +21,29 @@ stable 标签、Go Modules、npm package、镜像、GitHub Release 和发布后�
 
 | 版本 | 状态 | 用途 |
 | --- | --- | --- |
-| [v1.3.0](/releases/v1-3-0) | 稳定版候选 / 准备中 | Complete Admin Distribution、Thin Host、正式安装与升级合同 |
-| [v1.2.3](/releases/v1-2-3) | 当前稳定版 / 已发布 | 现有生产引用与 v1.3.0 失败时的协调回滚基线 |
+| [v1.3.1](/releases/v1-3-1) | 稳定版候选 / 准备中 | Complete Admin Distribution、Thin Host、正式安装与升级合同 |
+| [v1.3.0](/releases/v1-3-0) | component-partial / 不复用 | Framework 已发布，Admin 发布失败，其余稳定组件未发布 |
+| [v1.2.3](/releases/v1-2-3) | 当前稳定版 / 已发布 | 现有生产引用与 v1.3.1 失败时的协调回滚基线 |
 | v1.3.0-rc.6 | 完整预览 / 已发布 | 从一个精确 merged-main 提交完成四组件列车，作为 stable 资格证据 |
 
-<code>v1.3.0</code> 的协调版本同时覆盖：
+<code>v1.3.1</code> 的协调版本同时覆盖：
 
 | 组件 | 目标身份 |
 | --- | --- |
-| Root | <code>v1.3.0</code> |
-| Framework | <code>mss-boot/v1.3.0</code> |
-| Admin Go Module | <code>admin/v1.3.0</code> |
-| Admin Web | <code>web/antd-v6/v1.3.0</code> 与 <code>@mss-boot-io/admin-web@1.3.0</code> |
-| Docs | 独立的 <code>docs/v1.3.0</code> |
+| Root | <code>v1.3.1</code> |
+| Framework | <code>mss-boot/v1.3.1</code> |
+| Admin Go Module | <code>admin/v1.3.1</code> |
+| Admin Web | <code>web/antd-v6/v1.3.1</code> 与 <code>@mss-boot-io/admin-web@1.3.1</code> |
+| Docs | 独立的 <code>docs/v1.3.1</code> |
 
 Root、Framework、Admin 和 Admin Web 必须来自同一个已合并 <code>main</code> 的精确提交。
 Docs 可以独立发布，但也必须绑定一个已合并 <code>main</code> 的精确提交，不得从 topic branch 发布。
 
-## v1.3.0 stable candidate
+## v1.3.1 stable candidate
 
 RC6 已证明可导入 Admin、完整 Admin Web、外部 Thin Host、单 Runtime、生成与升级、浏览器
-行为和协调发布路径。稳定版准备在新的 PR 中加入 RC6 之后的 Supplier 菜单与图标、表单生命周期、
-无障碍图标、生成 E2E 稳健性、stable-only <code>latest</code> 镜像语义和正式文档。
+行为和协调发布路径。v1.3.1 还包含扩展契约 fail-closed 加固、Admin 独立模块校验和修复，
+以及针对正式发布工作流的版本、Tag、npm 与外部消费者前置验证。
 
 准备完成的定义不是“本地能启动”，而是：
 
@@ -53,7 +54,7 @@ RC6 已证明可导入 Admin、完整 Admin Web、外部 Thin Host、单 Runtime
 5. 校验 Go 解析、npm integrity/dist-tag、镜像 digest/架构、Release 资产与 <code>latest</code>；
 6. 独立发布 Docs，并完成 current-stable 机器契约的后续对账。
 
-完整操作见 [v1.3.0 发布、安装、升级与回滚合同](/releases/v1-3-0)。
+完整操作见 [v1.3.1 发布、安装、升级与回滚合同](/releases/v1-3-1)。
 
 ## v1.3.0 预览列车审计
 

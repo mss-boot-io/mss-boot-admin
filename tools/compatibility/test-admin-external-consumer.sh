@@ -94,3 +94,6 @@ go build -trimpath -o "${work_dir}/mss-admin-consumer" .
 "${work_dir}/mss-admin-consumer" --help >/dev/null
 
 printf 'external Admin consumer passed: test, vet, build, --help (GOWORK=off)\n'
+
+cd -- "$repository_root"
+bash tools/compatibility/test-admin-command-boundary.sh
