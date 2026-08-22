@@ -10,20 +10,20 @@
 整合了面向生产的 Go Admin、React 19 + Ant Design 6 应用、机器可读项目契约、
 确定性全栈生成、变更感知验证和可持续升级的 Thin Host Blueprint。
 
-当前稳定版目标是 **v1.3.0**。正式发布前，完整 Admin 发行包必须从同一个已合并
-`main` 提交完成资格验证。已经发布的 v1.3.0 RC1-RC6 标签永久不可变；在稳定版
-发布与公共状态核对完成前，它们只提供预览证据，不能替代精确的稳定版制品。
+当前稳定版目标是 **v1.3.1**。正式发布前，完整 Admin 发行包必须从同一个已合并
+`main` 提交完成资格验证。已公开的 `mss-boot/v1.3.0`、失败的 `admin/v1.3.0`
+运行以及 v1.3.0 RC1-RC6 标签永久不可变；它们不能替代或移动为完整 v1.3.1 制品。
 
 ## 完整 Admin 发行包
 
-v1.3.0 统一版本在同一源码提交上协调以下可独立发布的组件：
+v1.3.1 统一版本在同一源码提交上协调以下可独立发布的组件：
 
 | 组件 | 稳定版标识 |
 | --- | --- |
-| Foundation 工具与根交付物 | `v1.3.0` |
-| 可复用 Go Framework | `mss-boot/v1.3.0` |
-| 可导入 Admin Go Module | `admin/v1.3.0` |
-| 完整 Admin Web 包 | `web/antd-v6/v1.3.0` / `@mss-boot-io/admin-web@1.3.0` |
+| Foundation 工具与根交付物 | `v1.3.1` |
+| 可复用 Go Framework | `mss-boot/v1.3.1` |
+| 可导入 Admin Go Module | `admin/v1.3.1` |
+| 完整 Admin Web 包 | `web/antd-v6/v1.3.1` / `@mss-boot-io/admin-web@1.3.1` |
 | 文档 | 使用 `docs/vX.Y.Z` 独立发布 |
 
 身份、浏览器 Session、RBAC、菜单、布局、国际化和公共运行时仍然属于同一套 Admin
@@ -43,20 +43,20 @@ AdminModule 契约描述，并在开发期确定性生成。
   -> 可审查 PR 与可持续升级的 Thin Host
 ```
 
-## 引用 v1.3.0
+## 引用 v1.3.1
 
 稳定版标签公开后，Go 使用方应锁定完全一致的版本。Admin Module 不包含本地
 `replace`：
 
 ```shell
-go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.0
-go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.0
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.1
+go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.1
 ```
 
 完整前端公开发布到 npmjs，Thin Host 默认安装不需要 Registry Token：
 
 ```shell
-corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.0
+corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.1
 ```
 
 GitHub Packages 保留完全相同的不可变 tarball 作为兼容镜像。只有明确选择该镜像的
@@ -99,11 +99,11 @@ go run ./cmd/mss --root ../orders-admin module generate \
 应用 Admin 发行包升级之前，必须先生成只读计划：
 
 ```shell
-go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.0 \
+go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.1 \
   --foundation . \
   --format json
 
-go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.0 \
+go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.1 \
   --foundation . \
   --apply --yes \
   --format json

@@ -1,7 +1,7 @@
 # Admin Distribution extension-contract hardening
 
 Date: 2026-08-22
-Status: Proposed
+Status: Accepted
 
 ## Context
 
@@ -35,8 +35,11 @@ compatibility view.
 
 The importable Admin no longer exposes a public executable command tree. Public
 hosts use `ExecuteContext` or `ExecuteArgsContext`; both retain the one-runtime
-and one-execution guards. Cobra remains an internal implementation detail of the
-Admin composition root.
+and one-execution guards. The v1.3.0 `Application.Command`, `cmd.New`,
+`server.NewCommand`, and migration command signatures remain only as deprecated,
+fail-closed compatibility sentinels: they cannot construct or execute Admin
+runtime state. The real Cobra tree remains an internal implementation detail of
+the Admin composition root.
 
 ### Immutable Admin Web route foundation
 
@@ -51,11 +54,12 @@ Hosts; the redundant local full-route composition file is removed.
 
 ## Compatibility
 
-This intentionally removes the unsafe Go `Application.Command` API and the
-unsafe Admin Web `routes` option. Consumers using the documented Thin Host
-contract are unaffected because generated hosts already use `ExecuteContext`
-and `businessRoutes`. Callers using either escape hatch must migrate to those
-canonical entrypoints.
+This disables the unsafe Go command-tree APIs while retaining their published v1
+source signatures as fail-closed deprecated sentinels, and removes the
+unpublished stable Admin Web `routes` option. Consumers using the documented Thin
+Host contract are unaffected because generated hosts already use
+`ExecuteContext` and `businessRoutes`. Callers using either escape hatch must
+migrate to those canonical entrypoints.
 
 ## Verification
 
@@ -63,8 +67,8 @@ Regression coverage must prove:
 
 - partial migration registration and post-registration module errors leave no
   descriptor, identity, or migration and allow exact identity/ID reuse;
-- the public `Application` method set has no `Command` method while guarded help,
-  single-use, and concurrent-runtime behavior still work;
+- the deprecated public command signatures return no executable Admin tree,
+  while guarded help, single-use, and concurrent-runtime behavior still work;
 - Admin Web rejects full-route overrides at runtime and in its type contract,
   while business routes preserve core routes and final fallbacks;
 - external Go and Thin Host consumers continue to test, vet, build, and execute

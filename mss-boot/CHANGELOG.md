@@ -6,9 +6,13 @@ and the project uses semantic versioning for nested-module releases.
 
 ## [Unreleased]
 
-Target: **mss-boot/v1.3.0**. The stable Framework remains aligned with the Admin
+Target: **mss-boot/v1.3.1**. The stable Framework remains aligned with the Admin
 module, Admin Web package, and root distribution from one exact merged-main
-commit. The complete `mss-boot/v1.3.0-rc.6` preview published successfully from
+commit. Framework `mss-boot/v1.3.0` was published from
+`76530526e436eb95652df1dd06e831a90ee73125`, but its coordinated train remained
+component-partial after the Admin metadata gate failed. The v1.3.1 Framework tree
+is intentionally source-identical to v1.3.0 and receives a new synchronized tag;
+the old tag remains immutable. The complete `mss-boot/v1.3.0-rc.6` preview published successfully from
 `0ef09fb3caa1b2d424c540da23d01219135ebcfa` and remains immutable prerelease
 history.
 
@@ -20,7 +24,7 @@ history.
 
 ### Changed
 
-- Promote the RC6-qualified Framework contract to the stable v1.3.0 target
+- Requalify the source-identical Framework contract for the stable v1.3.1 train
   without removing or changing its public API, and require an external
   `GOWORK=off` resolution before the coordinated Admin release continues.
 - Keep core and business registration sets independently executable so the Admin

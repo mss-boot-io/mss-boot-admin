@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/modules/supplier"
@@ -42,9 +41,20 @@ func TestApplicationsConstructWithoutRegistryPollution(t *testing.T) {
 	}
 }
 
-func TestApplicationExposesNoExecutableCommandTree(t *testing.T) {
-	if _, exists := reflect.TypeOf((*Application)(nil)).MethodByName("Command"); exists {
-		t.Fatal("Application exposes a Command method that can bypass lifecycle guards")
+func TestDeprecatedCommandFailsClosedWithoutExecutableTree(t *testing.T) {
+	application, err := New()
+	if err != nil {
+		t.Fatalf("construct Application: %v", err)
+	}
+	command, err := application.Command()
+	if !errors.Is(err, ErrCommandTreeUnavailable) {
+		t.Fatalf("Command error = %v, want unavailable", err)
+	}
+	if command == nil {
+		t.Fatal("Command did not preserve its v1 source-compatible return type")
+	}
+	if err := command.ExecuteContext(context.Background()); !errors.Is(err, ErrCommandTreeUnavailable) {
+		t.Fatalf("compatibility command execution error = %v, want unavailable", err)
 	}
 }
 

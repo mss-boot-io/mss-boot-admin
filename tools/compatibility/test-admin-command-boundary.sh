@@ -60,6 +60,96 @@ EOF
   ./guarded-admin >/dev/null
 )
 
+compatibility_dir="${work_root}/deprecated-compatibility"
+mkdir -p -- "$compatibility_dir"
+write_go_mod "$compatibility_dir"
+cat >"${compatibility_dir}/main.go" <<'EOF'
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	adminapp "github.com/mss-boot-io/mss-boot-admin/admin/app"
+	admincmd "github.com/mss-boot-io/mss-boot-admin/admin/cmd"
+	"github.com/mss-boot-io/mss-boot-admin/admin/cmd/migrate"
+	"github.com/mss-boot-io/mss-boot-admin/admin/cmd/server"
+)
+
+func requireError(label string, err, target error) {
+	if !errors.Is(err, target) {
+		panic(fmt.Sprintf("%s error = %v, want %v", label, err, target))
+	}
+}
+
+func requireInertCommand(label string, command *cobra.Command, target error) {
+	if command == nil {
+		panic(label + " returned a nil compatibility command")
+	}
+	if children := command.Commands(); len(children) != 0 {
+		panic(fmt.Sprintf("%s exposed %d executable child commands", label, len(children)))
+	}
+	command.SetArgs(nil)
+	requireError(label, command.ExecuteContext(context.Background()), target)
+}
+
+func main() {
+	application, err := adminapp.New()
+	if err != nil {
+		panic(err)
+	}
+	applicationCommand, err := application.Command()
+	requireError("app.Command", err, adminapp.ErrCommandTreeUnavailable)
+	requireInertCommand(
+		"app.Command execution",
+		applicationCommand,
+		adminapp.ErrCommandTreeUnavailable,
+	)
+
+	requireInertCommand("cmd.New", admincmd.New(nil), admincmd.ErrDirectCommandAccess)
+	requireError(
+		"cmd.ExecuteContext",
+		admincmd.ExecuteContext(context.Background(), nil),
+		admincmd.ErrDirectCommandAccess,
+	)
+	requireError("cmd.Execute", admincmd.Execute(), admincmd.ErrDirectCommandAccess)
+	requireInertCommand(
+		"server.NewCommand",
+		server.NewCommand(nil),
+		server.ErrDirectCommandAccess,
+	)
+	if server.StartCmd == nil {
+		panic("server.StartCmd did not preserve its v1 source-compatible type")
+	}
+	requireInertCommand(
+		"migrate.NewCommand",
+		migrate.NewCommand(nil),
+		migrate.ErrDirectCommandAccess,
+	)
+	requireError("migrate.Run", migrate.Run(), migrate.ErrDirectCommandAccess)
+	requireError(
+		"migrate.RunContext",
+		migrate.RunContext(context.Background()),
+		migrate.ErrDirectCommandAccess,
+	)
+	if migrate.StartCmd == nil {
+		panic("migrate.StartCmd did not preserve its v1 source-compatible type")
+	}
+}
+EOF
+(
+  cd -- "$compatibility_dir"
+  export GOWORK=off
+  go mod tidy
+  go test ./...
+  go vet ./...
+  go build -trimpath -o deprecated-admin-compatibility .
+  ./deprecated-admin-compatibility
+)
+
 expect_compile_failure() {
   local case_name=$1
   local expected=$2
@@ -92,31 +182,4 @@ import admincmd "github.com/mss-boot-io/mss-boot-admin/admin/internal/cmd"
 
 func main() { _ = admincmd.New }'
 
-expect_compile_failure \
-  public-root-command \
-  'undefined: admincmd.New' \
-  'package main
-
-import admincmd "github.com/mss-boot-io/mss-boot-admin/admin/cmd"
-
-func main() { _ = admincmd.New }'
-
-expect_compile_failure \
-  public-server-command \
-  'undefined: server.NewCommand' \
-  'package main
-
-import server "github.com/mss-boot-io/mss-boot-admin/admin/cmd/server"
-
-func main() { _ = server.NewCommand }'
-
-expect_compile_failure \
-  public-migrate-command \
-  'undefined: migrate.RunContext' \
-  'package main
-
-import migrate "github.com/mss-boot-io/mss-boot-admin/admin/cmd/migrate"
-
-func main() { _ = migrate.RunContext }'
-
-printf 'external Admin command boundary passed: guarded help and four negative compilation contracts\n'
+printf 'external Admin command boundary passed: guarded execution, fail-closed v1 compatibility, and internal-package rejection\n'

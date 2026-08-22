@@ -12,9 +12,9 @@ keywords: [complete admin distribution thin business host go module npm umi code
 
 ## 1. 文档状态
 
-- 设计状态：已接受并实现；`v1.3.0-rc.6` 完整预览已成功公开，`v1.3.0` stable 资格审查准备中
+- 设计状态：已接受并实现；`v1.3.0-rc.6` 完整预览已成功公开，`v1.3.1` stable 资格审查准备中
 - 设计日期：2026-08-19
-- 目标发行：`Admin Distribution v1.3.0`
+- 目标发行：`Admin Distribution v1.3.1`
 - 当前稳定：`v1.2.3`，直到 stable 公开和发布后对账完成
 - 目标仓库：`mss-boot-io/mss-boot-admin`
 - 配套实施提示词：`docs/aigc/prompts/complete-admin-distribution-implementation-2026-08-19.zh-CN.md`
@@ -539,10 +539,10 @@ templates/application/
 spec:
   distribution:
     name: mss-boot-admin
-    version: v1.3.0
+    version: v1.3.1
     backend:
       module: github.com/mss-boot-io/mss-boot-admin/admin
-      version: v1.3.0
+      version: v1.3.1
     frontend:
       package: "@mss-boot-io/admin-web"
       version: 1.3.0
@@ -578,7 +578,7 @@ docs/vX.Y.Z
 版本核心必须一致。发布检查应拒绝：
 
 ```text
-root v1.3.0
+root v1.3.1
 admin v1.2.0
 frontend 1.4.0
 ```

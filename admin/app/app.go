@@ -8,8 +8,11 @@ import (
 	"os"
 	"sync/atomic"
 
+	"github.com/spf13/cobra"
+
 	"github.com/mss-boot-io/mss-boot-admin/admin/business"
-	"github.com/mss-boot-io/mss-boot-admin/admin/internal/cmd"
+	compatcmd "github.com/mss-boot-io/mss-boot-admin/admin/cmd"
+	internalcmd "github.com/mss-boot-io/mss-boot-admin/admin/internal/cmd"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
 )
 
@@ -20,7 +23,10 @@ var (
 	// compatibility state. Independent Applications may be built concurrently,
 	// but only one owns the runtime lifecycle at a time.
 	ErrApplicationRunning = errors.New("another Admin application is already running")
-	applicationRunning    atomic.Bool
+	// ErrCommandTreeUnavailable reports the deprecated v1 command-tree escape
+	// hatch without exposing an executable Admin command.
+	ErrCommandTreeUnavailable = compatcmd.ErrDirectCommandAccess
+	applicationRunning        atomic.Bool
 )
 
 type options struct {
@@ -77,6 +83,19 @@ func (application *Application) BusinessDescriptors() []business.Descriptor {
 	return application.registry.Descriptors()
 }
 
+// Command preserves the v1.3.0 source signature but never exposes the real
+// executable Admin command tree. The returned command is an inert sentinel and
+// the error is always ErrCommandTreeUnavailable for an initialized Application.
+//
+// Deprecated: call ExecuteContext or ExecuteArgsContext so the single-use and
+// process-global lifecycle guards remain authoritative.
+func (application *Application) Command() (*cobra.Command, error) {
+	if application == nil || application.registry == nil {
+		return nil, errors.New("Admin application is not initialized")
+	}
+	return compatcmd.New(application.registry), ErrCommandTreeUnavailable
+}
+
 // ExecuteContext runs the current process arguments.
 func (application *Application) ExecuteContext(ctx context.Context) error {
 	return application.ExecuteArgsContext(ctx, os.Args[1:])
@@ -98,7 +117,7 @@ func (application *Application) ExecuteArgsContext(ctx context.Context, args []s
 	if !application.executed.CompareAndSwap(false, true) {
 		return ErrApplicationExecuted
 	}
-	command := cmd.New(application.registry)
+	command := internalcmd.New(application.registry)
 	command.SetArgs(append([]string(nil), args...))
 	return command.ExecuteContext(ctx)
 }
