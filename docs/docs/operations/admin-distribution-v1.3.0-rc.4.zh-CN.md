@@ -5,12 +5,13 @@ order: 35
 
 # Admin Distribution v1.3.0-rc.4 预览版引用
 
-`v1.3.0-rc.4` 是完整 Admin Distribution 的公开预览版，不替代当前
-`v1.2.3` 稳定版。Root、Framework、Admin Go Module 与 Admin Web 使用同一个
-精确版本，并从同一个已合并到 `main` 的提交发布。
+`v1.3.0-rc.4` 是完整 Admin Distribution 的公开预览版；在其发布时并未替代
+`v1.2.3` 稳定版。当前稳定版已推进到 [v1.3.2](/releases/v1-3-2)。Root、Framework、
+Admin Go Module 与 Admin Web 使用同一个精确版本，并从同一个已合并到 `main` 的提交发布。
 
 > RC4 现为不可变历史预览记录。Framework、Admin 与前端制品已公开，Root 标签已创建但
-> Root GitHub Release 未完成；当前前向修复目标为 [v1.3.0-rc.5](./admin-distribution-v1.3.0-rc.5.zh-CN.md)。
+> Root GitHub Release 未完成；当时的下一前向修复为
+> [v1.3.0-rc.5](./admin-distribution-v1.3.0-rc.5.zh-CN.md)。
 
 对应制品如下：
 

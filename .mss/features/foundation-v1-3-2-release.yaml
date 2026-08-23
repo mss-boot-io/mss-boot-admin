@@ -127,7 +127,7 @@ spec:
       statement: npmjs publication is the final artifact mutation and reuses the already-qualified frontend Release tarball without rebuilding.
     - id: protected-credentials
       type: security
-      statement: Qualification uses no production secret; the GitHub bootstrap secret is removed after initial npmjs publication, future publication fails closed until Trusted Publishing is bound, and the npm-side bootstrap token is then revoked.
+      statement: Qualification uses no production secret; the one-time GitHub bootstrap secret was removed after initial npmjs publication, npm Trusted Publishing is bound to mss-boot-io/mss-boot-admin npm-release.yml in release-v6 with only npm publish allowed, and the npm-side bootstrap token is revoked. Future publication uses matching OIDC identity and fails closed otherwise.
   acceptance:
     - id: checkpoint-v132-contract
       requirement: target-v132-only
@@ -272,9 +272,9 @@ spec:
       severity: critical
       mitigation: Calculate from every tracked final Framework file at checkpoint and pre-framework, and bind all readiness evidence to one immutable merged-main tree.
     - id: bootstrap-credential
-      description: The first npmjs publication requires a temporary write credential before Trusted Publishing can be bound.
+      description: The first npmjs publication required a temporary write credential before Trusted Publishing could be bound; retaining it afterward would create unnecessary persistent access.
       severity: high
-      mitigation: Keep it only in release-v6, use it once with explicit bootstrap input, then bind OIDC and revoke and remove the token immediately.
+      mitigation: The credential was used once, the GitHub secret was removed, OIDC was bound to the exact workflow and environment, and the npm-side token was revoked. Future publication has no token fallback.
     - id: database-rollback
       description: A binary rollback without its matching data backup can leave an incompatible authorization or schema projection.
       severity: critical

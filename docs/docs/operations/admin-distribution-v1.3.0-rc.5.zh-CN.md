@@ -5,9 +5,9 @@ order: 34
 
 # Admin Distribution v1.3.0-rc.5 预览版引用
 
-`v1.3.0-rc.5` 是完整 Admin Distribution 的公开预览版，不替代当前
-`v1.2.3` 稳定版。Root、Framework、Admin Go Module 与 Admin Web 必须使用同一精确版本，
-并从同一个已合并到 `main` 的提交发布。
+`v1.3.0-rc.5` 是完整 Admin Distribution 的公开预览版；在其发布时并未替代
+`v1.2.3` 稳定版。当前稳定版已推进到 [v1.3.2](/releases/v1-3-2)。Root、Framework、
+Admin Go Module 与 Admin Web 必须使用同一精确版本，并从同一个已合并到 `main` 的提交发布。
 
 | 组件 | 引用 |
 | --- | --- |

@@ -12,8 +12,9 @@ machine-readable project contracts, deterministic full-stack generation,
 change-aware verification, and upgradeable Thin Host Blueprints in one source
 repository.
 
-The active stable target is **v1.3.2**. Formal publication qualifies it as one
-Complete Admin Distribution from one exact merged `main` commit. The published
+The current stable release is **v1.3.2**, published as one Complete Admin
+Distribution from exact merged `main` commit
+`635fbb03a82976941e527d8ac1000fec0624abac`. The published
 `mss-boot/v1.3.1` Framework release and failed `admin/v1.3.1` qualification are
 permanently immutable partial-train history; they cannot substitute for or be
 moved into the complete v1.3.2 artifacts.
@@ -53,8 +54,8 @@ business intent
 
 ## Consume v1.3.2
 
-After the stable tags are public, Go consumers should pin the exact coordinated
-version. The Admin module has no committed local `replace`:
+The stable tags are public. Go consumers should pin the exact coordinated
+version; the Admin module has no committed local `replace`:
 
 ```shell
 go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.2
@@ -76,6 +77,10 @@ Stable packages receive the `latest` distribution tag. Prereleases receive
 `next`; generated Thin Hosts still pin an exact version rather than a moving
 tag. The official npm publication is the final artifact publication, after all
 coordinated component and Docs releases resolve to the same merged-main commit.
+For v1.3.2, npm `latest` resolves to `1.3.2`; future publication uses npm Trusted
+Publishing bound to `mss-boot-io/mss-boot-admin`, `npm-release.yml`, and the
+`release-v6` environment. No bootstrap npm token or GitHub `NPM_TOKEN` secret
+remains.
 
 ## Create and upgrade a Thin Host
 

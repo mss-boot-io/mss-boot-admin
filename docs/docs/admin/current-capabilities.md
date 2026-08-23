@@ -134,7 +134,7 @@ Supplier 是示例和回归契约，不把采购领域能力移动到领域中�
 - 菜单可见性取决于迁移、API 同步、角色授权和当前 Session；
 - 可选集成取决于真实配置和外部服务；
 - Admin、Framework、Admin Web 必须使用同一个协调版本；
-- npmjs 是 Admin Web 默认公开安装源，不需要 Registry Token；GitHub Packages 仅作为完全相同制品的兼容镜像，选择镜像时 Token 不能写入仓库；
+- npmjs 是 Admin Web 默认公开安装源，不需要 Registry Token；`latest` 已指向 `1.3.2`，发布端使用绑定 `npm-release.yml` 与 `release-v6` 的 Trusted Publishing OIDC；GitHub Packages 仅作为完全相同制品的兼容镜像，选择镜像时 Token 不能写入仓库；
 - 生产升级先备份并验证恢复，再迁移、同步 API、启动和切流；
 - 回滚恢复上一组协调制品及其数据库备份，不临时 down migration。
 

@@ -56,7 +56,10 @@ Framework 跟踪文件生成 replace-free 本地 Go Proxy，由 Go 计算规范 
 3. 按 Framework → Admin → Admin Web → Root → Docs → 官方 npm 顺序公开；
 4. 公开 Go Module、npm integrity/provenance、镜像 digest/架构、Release 资产与
    <code>latest</code> 均完成只读对账；
-5. 机器契约将 <code>v1.3.2</code> 与精确发布提交记录为 current stable。
+5. npm Trusted Publisher 已精确绑定 <code>mss-boot-io/mss-boot-admin</code>、
+   <code>npm-release.yml</code> 和 <code>release-v6</code>，且只允许 <code>npm publish</code>；
+   bootstrap npm Token 与 GitHub <code>NPM_TOKEN</code> Secret 均已撤销；
+6. 机器契约将 <code>v1.3.2</code> 与精确发布提交记录为 current stable。
 
 完整操作见 [v1.3.2 发布、安装、升级与回滚合同](/releases/v1-3-2)，证据索引见
 [GitHub issue #519](https://github.com/mss-boot-io/mss-boot-admin/issues/519)。

@@ -37,6 +37,7 @@ features:
 | --- | --- |
 | 当前稳定版 | `v1.3.2`，提交 `635fbb03a82976941e527d8ac1000fec0624abac` |
 | 上一稳定版 | `v1.2.3`，协调回滚基线 |
+| Admin Web 公开安装 | npm `latest=1.3.2`；后续发布使用 `release-v6` Trusted Publishing OIDC |
 | 不完整稳定列车 | Framework `v1.3.0` 已公开；Admin 发布失败，其余稳定组件未发布 |
 | 已完成预览 | `v1.3.0-rc.6` 完整列车；RC1–RC6 保持不可变 |
 | 前端主线 | `web/antd-v6`；Ant Design 5 已退役 |

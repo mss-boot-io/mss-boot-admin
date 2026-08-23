@@ -286,8 +286,8 @@ spec:
       idempotent: true
 
     official-npm-publish:
-      command: gh workflow run npm-release.yml --ref <root-tag> -f version=v1.3.2 -f commit=<full-sha> -f allow_npm_token_bootstrap=<true|false>
-      description: As the final artifact publication, publish the already-qualified Admin Web GitHub Release tarball to public npmjs from the exact root tag; use the protected bootstrap token only for the first package version, then rely on Trusted Publishing.
+      command: gh workflow run npm-release.yml --ref <root-tag> -f version=v1.3.2 -f commit=<full-sha> -f allow_npm_token_bootstrap=false
+      description: As the final artifact publication, publish the already-qualified Admin Web GitHub Release tarball to public npmjs from the exact root tag through the bound npm Trusted Publisher; the completed one-time bootstrap path is historical and future runs fail closed without matching OIDC identity.
       outputFormats: [text]
       category: release
 
