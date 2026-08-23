@@ -48,6 +48,33 @@ class ReleasePolicyTest(unittest.TestCase):
         self.assertIs(self.policy["publicPrereleases"], False)
         POLICY.check_public_ref(self.policy, "root", "v1.3.2", "v1.3.2")
 
+    def test_docs_revision_can_publish_current_stable_without_reusing_its_tag(self):
+        for intent in ("qualify", "publish"):
+            with self.subTest(intent=intent):
+                POLICY.check_public_ref(
+                    self.policy,
+                    "docs",
+                    "v1.3.2+docs.1",
+                    "docs/v1.3.2+docs.1",
+                    intent=intent,
+                )
+
+    def test_docs_revision_is_confined_to_current_stable_and_docs_namespace(self):
+        cases = (
+            ("docs", "v1.2.3+docs.1", "docs/v1.2.3+docs.1", "current stable"),
+            ("docs", "v1.3.2+docs.0", "docs/v1.3.2+docs.0", "invalid"),
+            ("docs", "v1.3.2+docs.01", "docs/v1.3.2+docs.01", "invalid"),
+            ("docs", "v1.3.2+other.1", "docs/v1.3.2+other.1", "invalid"),
+            ("root", "v1.3.2+docs.1", "v1.3.2+docs.1", "invalid"),
+            ("docs", "v1.3.2+docs.1", "docs/v1.3.2", "does not match"),
+        )
+        for component, version, tag, message in cases:
+            with self.subTest(component=component, version=version, tag=tag):
+                with self.assertRaisesRegex(POLICY.PolicyError, message):
+                    POLICY.check_public_ref(
+                        self.policy, component, version, tag, intent="qualify"
+                    )
+
     def test_policy_requires_pr_merged_main_release_source(self):
         self.assertEqual(self.policy["releaseBranch"], "main")
         self.assertIs(self.policy["requireMergedPullRequestSource"], True)

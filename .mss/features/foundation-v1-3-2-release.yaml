@@ -28,6 +28,7 @@ spec:
     - Calculate the v1.3.2 Framework Module and go.mod sums from the final tracked tree and compare them with Admin metadata before tagging.
     - Publish Framework, Admin, Admin Web, root, and Docs from one exact clean commit already merged into main.
     - Publish the qualified Admin Web tarball to npmjs only after every coordinated GitHub artifact is public and reconciled.
+    - Keep the public Docs site aligned with later merged documentation by using immutable Docs-only revision tags instead of moving docs/v1.3.2.
   nonGoals:
     - Move, delete, overwrite, or reuse any v1.3.1 or release-candidate ref.
     - Publish any component from this pull-request branch or from a commit absent from current origin/main.
@@ -66,6 +67,7 @@ spec:
       rules:
         - Root uses v1.3.2, Framework uses mss-boot/v1.3.2, Admin uses admin/v1.3.2, and Admin Web uses web/antd-v6/v1.3.2.
         - The frontend package uses 1.3.2 and Docs uses the independent docs/v1.3.2 namespace.
+        - The initial Docs release remains at docs/v1.3.2; later current-stable site corrections use unused docs/v1.3.2+docs.N revisions without changing the product version.
         - The release policy rejects v1.3.1, prereleases, and every unreviewed later version.
         - Current stable is v1.3.2 at exact commit 635fbb03a82976941e527d8ac1000fec0624abac after publication and public reconciliation.
     - id: preserve-v131-history
@@ -262,6 +264,17 @@ spec:
       evidence:
         - type: report
           value: GitHub issue #519 records exact tags, Releases, Go sums, npm provenance and byte parity, image digests, Docs identity, checksums, and current-stable reconciliation.
+    - id: post-publication-docs-site-revision
+      requirement: document-patch-release
+      statement: A later merged documentation correction can update the public site without moving the coordinated docs/v1.3.2 tag or consuming a future product patch version.
+      level: e2e
+      phase: post-publication
+      required: true
+      evidence:
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component docs --version v1.3.2+docs.1 --tag docs/v1.3.2+docs.1 --intent qualify
+        - type: report
+          value: The tag-triggered Docs workflow, protected prod deployment, GitHub Release, portable checksums, public release.json, refreshed nested route, console, failed-network, and screenshot evidence all resolve to the exact revision commit.
   risks:
     - id: public-dependency-order
       description: Admin cannot run independently until the exact v1.3.2 Framework module is public.
@@ -279,6 +292,10 @@ spec:
       description: A binary rollback without its matching data backup can leave an incompatible authorization or schema projection.
       severity: critical
       mitigation: Require a verified backup and matched artifact inventory before migration and restore both data and coordinated v1.2.3 artifacts on rollback.
+    - id: stale-public-docs
+      description: A successful main-branch Docs build can leave the public site on an older immutable Docs tag and continue presenting obsolete stable-version claims.
+      severity: high
+      mitigation: Track source and deployed identities separately, publish an unused docs/v1.3.2+docs.N revision from merged main, and verify release.json plus visible routes in the browser.
   validation:
     changed: go run ./cmd/mss verify --changed
     all: go run ./cmd/mss verify --all

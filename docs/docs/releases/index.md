@@ -36,10 +36,19 @@ keywords: [release upgrade rollback compatibility mss-boot-admin thin host]
 | Framework | <code>mss-boot/v1.3.2</code> |
 | Admin Go Module | <code>admin/v1.3.2</code> |
 | Admin Web | <code>web/antd-v6/v1.3.2</code> 与 <code>@mss-boot-io/admin-web@1.3.2</code> |
-| Docs | 独立的 <code>docs/v1.3.2</code> |
+| Docs | 初始协调标签 <code>docs/v1.3.2</code>；站点内容修订 <code>docs/v1.3.2+docs.1</code> |
 
 Root、Framework、Admin、Admin Web 和 Docs 均发布自同一个已合并 <code>main</code> 的精确提交
 <code>635fbb03a82976941e527d8ac1000fec0624abac</code>。Docs 仍保留独立标签和发布工作流。
+
+### Docs 站点修订
+
+<code>docs/v1.3.2</code> 保持为协调发布时的不可变 Docs 标签。协调发布之后合并的稳定版文档
+不会通过 <code>main</code> 构建自动替换公开站点；本次站点对账使用
+<code>docs/v1.3.2+docs.1</code> 从新的精确 merged-main 提交触发独立 Docs 部署。
+<code>+docs.1</code> 只表示文档组件修订，不发布 v1.3.3 产品、不改变任何 v1.3.2 Go Module、
+npm 包、镜像或 Root 制品。公开 <code>/release.json</code>、Docs Release、校验和与浏览器可见
+内容全部收敛后，站点更新才算完成。
 
 ## v1.3.2 当前稳定版
 
