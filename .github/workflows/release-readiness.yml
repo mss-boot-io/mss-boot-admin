@@ -179,7 +179,7 @@ jobs:
         if: ${{ inputs.phase == 'feature-freeze' || inputs.phase == 'pre-framework' || inputs.phase == 'pre-root' }}
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
-          version: 9.15.9
+          version: 10.34.5
 
       - name: Setup Node
         if: ${{ inputs.phase == 'feature-freeze' || inputs.phase == 'pre-framework' || inputs.phase == 'pre-root' }}
@@ -193,12 +193,12 @@ jobs:
 
       - name: Install frontend dependencies
         if: ${{ inputs.phase == 'feature-freeze' || inputs.phase == 'pre-framework' || inputs.phase == 'pre-root' }}
-        run: corepack pnpm@10.34.5 --dir web/antd-v6 install --frozen-lockfile --ignore-scripts
+        run: pnpm --dir web/antd-v6 install --frozen-lockfile --ignore-scripts
 
       - name: Install Playwright Chromium
         if: ${{ inputs.phase == 'feature-freeze' || inputs.phase == 'pre-framework' || inputs.phase == 'pre-root' }}
         working-directory: web/antd-v6
-        run: corepack pnpm@10.34.5 exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Install documentation dependencies
         if: ${{ inputs.phase == 'feature-freeze' }}

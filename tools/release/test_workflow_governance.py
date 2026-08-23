@@ -396,6 +396,12 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn(
             "playwright install --with-deps chromium", browser_install["run"]
         )
+        setup_pnpm = next(
+            step
+            for step in jobs["external-consumer"]["steps"]
+            if step.get("name") == "Setup pnpm"
+        )
+        self.assertEqual(setup_pnpm["with"]["version"], "10.34.5")
 
         thin_host_script = (
             REPOSITORY_ROOT
@@ -421,6 +427,9 @@ class WorkflowGovernanceTest(unittest.TestCase):
             "resolved.startswith(expected + '(')",
             "fetch --frozen-lockfile",
             "install --offline --frozen-lockfile",
+            "expected_pnpm_version='10.34.5'",
+            'actual_pnpm_version="$(pnpm --version)"',
+            "pnpm pack --pack-destination",
             'mss_start_process_group \\\n  backend_pid',
             'mss_start_process_group \\\n  web_pid',
             'mss_stop_process_group "${web_pid}"',
@@ -428,6 +437,7 @@ class WorkflowGovernanceTest(unittest.TestCase):
         ):
             with self.subTest(required=required):
                 self.assertIn(required, thin_host_script)
+        self.assertNotIn("corepack pnpm@10.34.5", thin_host_script)
         process_group_helper = (
             REPOSITORY_ROOT
             / "tools"
