@@ -6,12 +6,23 @@ and the root changelog, not as a current release surface.
 
 ## Unreleased
 
-Target: **web/antd-v6/v1.3.2**. The Admin Web package, Admin Go module,
-Framework module, and root distribution use one version core and one exact
-merged-main commit. Documentation remains an independently released component.
+No unreleased changes are recorded.
+
+## [web/antd-v6/v1.3.2] - 2026-08-23
+
+Status: **published / current stable component**. The Admin Web package, Admin Go
+module, Framework module, root distribution, and independently released Docs were
+published from exact merged-main commit
+`635fbb03a82976941e527d8ac1000fec0624abac`. The npm package tarball SHA-256 is
+`8f24e441e09416b2536eedaf692cdff7292c226d81d82da3468917f65bb8b9a7`, its
+integrity is
+`sha512-24K4Js0wk5J44AK8/3EyRksfn1pR7NViv0zG17myMwzKFmXNTOv9BOZJdk4SpWVLUop3DJKkBXYwsEFixZ+6lA==`,
+and the frontend image digest is
+`sha256:f52ef4664cfd419356805c74567f7317b4a2086467d729366ee2097efbf9ac1e`.
+
 The v1.3.1 Admin Web tag, package, image, and Release were never published after
-the coordinated train stopped at the Admin checksum gate, so v1.3.2 is the next
-stable identity and v1.3.1 is retained only as component-partial history.
+the coordinated train stopped at the Admin checksum gate, so v1.3.2 used the next
+stable identity and v1.3.1 remains component-partial history.
 The complete RC6 preview published successfully from
 `0ef09fb3caa1b2d424c540da23d01219135ebcfa` and remains immutable prerelease
 history.
@@ -62,7 +73,7 @@ history.
 Status: **published / historical component release**. The V6 release, portable
 assets, and multi-architecture image were published from
 `29a99f2bdb9a2c516459529918795404c153df2e`. The synchronized root train remained
-partial after its root image publish timed out; active qualification is v1.2.3.
+partial after its root image publish timed out; v1.2.3 later repaired that train.
 
 ### Changed
 

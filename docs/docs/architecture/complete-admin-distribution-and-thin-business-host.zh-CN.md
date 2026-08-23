@@ -12,10 +12,10 @@ keywords: [complete admin distribution thin business host go module npm umi code
 
 ## 1. 文档状态
 
-- 设计状态：已接受并实现；`v1.3.0-rc.6` 完整预览已成功公开，`v1.3.1` 部分列车永久保留，`v1.3.2` stable 资格审查准备中
+- 设计状态：已接受并实现；`v1.3.0-rc.6` 完整预览已成功公开，`v1.3.1` 部分列车永久保留，`v1.3.2` 已完整发布并对账
 - 设计日期：2026-08-19
 - 目标发行：`Admin Distribution v1.3.2`
-- 当前稳定：`v1.2.3`，直到 stable 公开和发布后对账完成
+- 当前稳定：`v1.3.2`，精确发布提交 `635fbb03a82976941e527d8ac1000fec0624abac`
 - 目标仓库：`mss-boot-io/mss-boot-admin`
 - 配套实施提示词：`docs/aigc/prompts/complete-admin-distribution-implementation-2026-08-19.zh-CN.md`
 - 机器实施契约：`.mss/features/complete-admin-distribution-thin-host.yaml`

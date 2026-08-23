@@ -6,11 +6,16 @@ tag namespaces.
 
 ## [Unreleased]
 
-Target: **v1.3.2** for the root Foundation, `mss-boot/v1.3.2` for the Framework,
-`admin/v1.3.2` for the importable Admin module, and
-`web/antd-v6/v1.3.2` for Admin Web. Publication requires one exact clean commit
-already merged into `origin/main`; local or topic-branch evidence is preliminary
-only.
+No unreleased changes are recorded.
+
+## [v1.3.2] - 2026-08-23
+
+Status: **published / current stable**. Root, `mss-boot/v1.3.2`,
+`admin/v1.3.2`, `web/antd-v6/v1.3.2`, `docs/v1.3.2`, and
+`@mss-boot-io/admin-web@1.3.2` were qualified and published from exact merged-main
+commit `635fbb03a82976941e527d8ac1000fec0624abac`. Public checksums, npm provenance,
+multi-architecture image digests, Docs identity, and immutable Release assets are
+indexed in [issue #519](https://github.com/mss-boot-io/mss-boot-admin/issues/519).
 
 The v1.3.1 train is immutable component-partial history. Framework
 `mss-boot/v1.3.1` was published from
@@ -30,8 +35,8 @@ completed. Those identities are not moved or reused by this v1.3.2 target.
 The complete v1.3.0-rc.6 preview train was published successfully from
 `0ef09fb3caa1b2d424c540da23d01219135ebcfa`. Its Framework and Admin modules,
 Admin Web package, portable assets and image, root image and candidate assets
-remain immutable prerelease evidence. They do not replace v1.2.3 as the current
-stable release and are not moved or overwritten by this formal v1.3.2 target.
+remain immutable prerelease evidence. They did not replace v1.2.3 and are not
+moved or overwritten by the completed v1.3.2 release.
 
 ### Added
 
@@ -109,7 +114,7 @@ stable release and are not moved or overwritten by this formal v1.3.2 target.
 
 ## [v1.2.3] - 2026-08-19
 
-Status: **published / current stable**. The synchronized root, Framework, and V6
+Status: **published / previous stable**. The synchronized root, Framework, and V6
 frontend releases completed from `260d546851c58f7293b30e76b47d40d8e89f52fe`.
 
 ### Changed

@@ -4,24 +4,26 @@ metadata:
   name: foundation-v1-3-2-release
   displayName: Foundation v1.3.2 checksum repair and complete release
   description: >-
-    Prepare the coordinated v1.3.2 Admin Distribution after the immutable v1.3.1
-    train published Framework but stopped at independent Admin qualification.
+    Records the coordinated v1.3.2 Admin Distribution published from one exact
+    merged-main commit after the immutable v1.3.1 train stopped at independent
+    Admin qualification.
   owner: release-engineering
   labels:
     domain: release-governance
-    current-stable: v1.2.3
+    current-stable: v1.3.2
     target-version: v1.3.2
-    release-status: preparation
+    release-status: stable
+    published-date: 2026-08-23
+    release-commit: 635fbb03a82976941e527d8ac1000fec0624abac
 spec:
   problem: >-
     The v1.3.1 Framework tag and Release were published from the merged-main tree,
     then the Admin workflow rejected admin/go.sum because its Framework Module sum
-    had been copied from an earlier source tree. The Admin tag exists without a
-    GitHub Release and the remaining components were not published. Every v1.3.1
-    ref is immutable, so the repair requires a new patch version, a new merged-main
-    freeze, and an executable parity gate over the final Framework tree.
+    had been copied from an earlier source tree. Every v1.3.1 ref remains immutable.
+    The v1.3.2 repair used a new patch version, an executable parity gate over the
+    final Framework tree, and one frozen merged-main commit for the complete train.
   goals:
-    - Make v1.3.2 the only active public release target in policy, qualification, commands, and generated application contracts.
+    - Keep v1.3.2 as the reconciled public release in policy, qualification, commands, and generated application contracts.
     - Preserve every v1.3.1 tag, Release, workflow result, and partial-publication record as immutable evidence.
     - Calculate the v1.3.2 Framework Module and go.mod sums from the final tracked tree and compare them with Admin metadata before tagging.
     - Publish Framework, Admin, Admin Web, root, and Docs from one exact clean commit already merged into main.
@@ -65,7 +67,7 @@ spec:
         - Root uses v1.3.2, Framework uses mss-boot/v1.3.2, Admin uses admin/v1.3.2, and Admin Web uses web/antd-v6/v1.3.2.
         - The frontend package uses 1.3.2 and Docs uses the independent docs/v1.3.2 namespace.
         - The release policy rejects v1.3.1, prereleases, and every unreviewed later version.
-        - Current stable remains v1.2.3 until v1.3.2 publication and public reconciliation complete.
+        - Current stable is v1.3.2 at exact commit 635fbb03a82976941e527d8ac1000fec0624abac after publication and public reconciliation.
     - id: preserve-v131-history
       title: Preserve the incomplete v1.3.1 train
       description: The earlier train remains immutable evidence and cannot be repaired by moving refs.
@@ -109,7 +111,7 @@ spec:
       rules:
         - Release notes identify the v1.3.1 checksum failure, final-tree parity repair, and absence of schema migrations.
         - Upgrade guidance preserves verified backup, migration, API-registry synchronization, and matched backend/frontend versions.
-        - Rollback restores v1.2.3 and its verified database backup until v1.3.2 has completed reconciliation.
+        - v1.2.3 and its verified database backup remain the previous-stable coordinated rollback baseline.
   constraints:
     - id: merged-main-only
       type: operations
@@ -125,7 +127,7 @@ spec:
       statement: npmjs publication is the final artifact mutation and reuses the already-qualified frontend Release tarball without rebuilding.
     - id: protected-credentials
       type: security
-      statement: Qualification uses no production secret; initial npmjs publication uses only the protected bootstrap path and the credential is removed after Trusted Publishing is bound.
+      statement: Qualification uses no production secret; the GitHub bootstrap secret is removed after initial npmjs publication, future publication fails closed until Trusted Publishing is bound, and the npm-side bootstrap token is then revoked.
   acceptance:
     - id: checkpoint-v132-contract
       requirement: target-v132-only
@@ -259,7 +261,7 @@ spec:
       required: true
       evidence:
         - type: report
-          value: Exact tags, Releases, Go sums, npm provenance and byte parity, image digests, Docs identity, checksums, and current-stable reconciliation.
+          value: GitHub issue #519 records exact tags, Releases, Go sums, npm provenance and byte parity, image digests, Docs identity, checksums, and current-stable reconciliation.
   risks:
     - id: public-dependency-order
       description: Admin cannot run independently until the exact v1.3.2 Framework module is public.
@@ -291,11 +293,11 @@ spec:
   rollout:
     strategy: phased
     migration: >-
-      Merge this repair through a pull request, select the resulting exact main commit,
-      run feature-freeze and pre-framework authority, then publish new v1.3.2 component
-      tags in the required order. Obtain independent pre-root authority before root,
-      publish Docs from the same commit, and publish the byte-identical Admin Web tarball to npmjs last.
+      The repair was merged through a pull request and frozen at exact main commit
+      635fbb03a82976941e527d8ac1000fec0624abac. Feature-freeze, pre-framework,
+      independent pre-root authority, ordered component publication, Docs, and the
+      byte-identical official npm publication completed from that source identity.
     rollback: >-
-      Before publication, repair through another pull request and freeze a new main commit.
-      After any public v1.3.2 mutation, preserve it and use a later patch for source repairs;
-      operators remain on reconciled v1.2.3 artifacts and backup until v1.3.2 completes.
+      Preserve every public v1.3.2 ref and use a later patch for source repairs.
+      A coordinated rollback restores the previous v1.2.3 artifacts together with
+      their verified matching database backup and API/permission projections.
