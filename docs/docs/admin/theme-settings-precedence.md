@@ -14,7 +14,7 @@ keywords: [admin ant-design-v6 theme settings precedence inheritance]
 - 前端：仅 `web/antd-v6`
 - 机器契约：`.mss/features/admin-theme-settings-precedence.yaml`
 - 切换决策：`docs/adr/2026-08-17-ant-design-v6-default-cutover.md`
-- 状态：实现已接入，发布前仍需完成集中测试、三数据库升级验证和浏览器验收
+- 状态：实现已接入，并已在 v1.3.2 冻结提交上完成集中测试、SQLite/MySQL/PostgreSQL 升级验证和 Codex 内置浏览器验收；能力成熟度仍以 `.mss/capabilities.yaml` 为准
 
 本页只描述 V6 规范契约。后端不再返回旧主题投影，不接受缺少修订号的写入，
 前端也不会从 V5 的本地存储键、媒体类型或无版本响应中恢复状态。

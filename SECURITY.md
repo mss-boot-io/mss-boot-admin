@@ -15,9 +15,10 @@ private GitHub advisories are the preferred intake path.
 ## Supported versions
 
 The active `main` branch and the current stable Complete Admin Distribution are
-supported by default. During v1.3.2 preparation the reconciled stable remains
-v1.2.3; after all v1.3.2 public artifacts and the follow-up reconciliation are
-complete, the machine-readable policy advances the stable line to v1.3.2.
+supported by default. The current stable line is v1.3.2 at release commit
+`635fbb03a82976941e527d8ac1000fec0624abac`; v1.2.3 is retained as the
+previous-stable coordinated rollback baseline, not as the default supported
+line.
 Preview and release-candidate refs remain immutable evidence but do not receive
 the stable support commitment. Older stable versions are handled case by case.
 

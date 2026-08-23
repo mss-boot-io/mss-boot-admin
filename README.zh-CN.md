@@ -10,8 +10,9 @@
 整合了面向生产的 Go Admin、React 19 + Ant Design 6 应用、机器可读项目契约、
 确定性全栈生成、变更感知验证和可持续升级的 Thin Host Blueprint。
 
-当前稳定版目标是 **v1.3.2**。正式发布前，完整 Admin 发行包必须从同一个已合并
-`main` 提交完成资格验证。已公开的 `mss-boot/v1.3.1` 与失败的 `admin/v1.3.1`
+当前稳定版是 **v1.3.2**，已从精确 merged-main 提交
+`635fbb03a82976941e527d8ac1000fec0624abac` 完整发布并完成公开对账。已公开的
+`mss-boot/v1.3.1` 与失败的 `admin/v1.3.1`
 资格验证属于永久不可变的部分发布历史；它们不能替代或移动为完整 v1.3.2 制品。
 
 ## 完整 Admin 发行包
@@ -45,7 +46,7 @@ AdminModule 契约描述，并在开发期确定性生成。
 
 ## 引用 v1.3.2
 
-稳定版标签公开后，Go 使用方应锁定完全一致的版本。Admin Module 不包含本地
+稳定版标签已经公开。Go 使用方应锁定完全一致的版本；Admin Module 不包含本地
 `replace`：
 
 ```shell
@@ -64,8 +65,10 @@ GitHub Packages 保留完全相同的不可变 tarball 作为兼容镜像。只�
 
 稳定包使用 `latest` 分发标签，预发布包使用 `next`。生成的 Thin Host 仍会锁定精确
 版本，而不会依赖移动标签。官方 npm 发布是最后一次制品发布，必须等所有协调组件和
-Docs Release 都解析到同一个 merged-main 提交后才执行；之后只允许只读对账、安装验证，
-以及首次发布所需的一次 Trusted Publisher 绑定与临时 Token 撤销。
+Docs Release 都解析到同一个 merged-main 提交后才执行。v1.3.2 的 npm `latest` 已指向
+`1.3.2`；后续发布通过绑定 `mss-boot-io/mss-boot-admin`、`npm-release.yml` 与
+`release-v6` 的 npm Trusted Publishing 完成，不再保留 bootstrap npm Token 或 GitHub
+`NPM_TOKEN` Secret。
 
 ## 创建与升级 Thin Host
 

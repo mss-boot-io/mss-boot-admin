@@ -19,6 +19,10 @@ integrity is
 `sha512-24K4Js0wk5J44AK8/3EyRksfn1pR7NViv0zG17myMwzKFmXNTOv9BOZJdk4SpWVLUop3DJKkBXYwsEFixZ+6lA==`,
 and the frontend image digest is
 `sha256:f52ef4664cfd419356805c74567f7317b4a2086467d729366ee2097efbf9ac1e`.
+The public npm `latest` tag resolves to `1.3.2`. Future publication uses npm
+Trusted Publishing bound to repository `mss-boot-io/mss-boot-admin`, workflow
+`npm-release.yml`, and environment `release-v6`; the one-time bootstrap token
+and GitHub secret are absent.
 
 The v1.3.1 Admin Web tag, package, image, and Release were never published after
 the coordinated train stopped at the Admin checksum gate, so v1.3.2 used the next

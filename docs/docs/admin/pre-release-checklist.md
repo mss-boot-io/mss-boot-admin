@@ -12,7 +12,7 @@ keywords: [admin release checklist production deployment]
 
 :::warning
 本文是 2026-04 的历史记录，下面的勾选项、版本号、命令和结论不能用于当前发布。
-当前唯一活动目标及可执行门禁见 [发布与升级](/releases)及
+当前稳定基线及后续版本的可执行门禁见 [发布与升级](/releases)及
 [v1.3.2 发布合同](/releases/v1-3-2)；缺少任一 required 精确 SHA 证据时结论均为
 **NO-GO**。
 :::

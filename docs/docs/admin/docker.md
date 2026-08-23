@@ -25,9 +25,9 @@ keywords: [admin docker deploy nginx production]
 - 已确认生产环境不暴露上传入口；Local/S3-compatible 当前仍为 Legacy / Blocked
 - 若启用 WebSocket 集群或缓存，已准备 Redis
 
-下列命令固定使用 `v1.3.2`，仅在该稳定版本正式发布后执行。发布前资格验证应使用
-同一冻结提交在受控流程中构建的候选制品；生产部署还应记录并固定验证过的镜像
-digest，绝不能依赖 `latest`。
+下列命令固定使用已发布并完成公开对账的当前稳定版 `v1.3.2`。生产部署还应记录并
+固定验证过的镜像 digest，绝不能依赖 `latest`；未来候选的资格验证仍必须使用同一
+冻结提交在受控流程中构建的候选制品。
 
 ## 推荐目录约定
 

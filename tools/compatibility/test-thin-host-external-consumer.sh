@@ -64,6 +64,17 @@ foundation_root="$(realpath -- "${foundation_root}")"
   exit 1
 }
 
+expected_pnpm_version='10.34.5'
+command -v pnpm >/dev/null 2>&1 || {
+  echo "pnpm ${expected_pnpm_version} must be installed before Thin Host qualification" >&2
+  exit 1
+}
+actual_pnpm_version="$(pnpm --version)"
+[[ "${actual_pnpm_version}" = "${expected_pnpm_version}" ]] || {
+  echo "Thin Host qualification requires pnpm ${expected_pnpm_version}; found ${actual_pnpm_version}" >&2
+  exit 1
+}
+
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/mss-thin-host-consumer.XXXXXX")"
 backend_pid=""
 web_pid=""
@@ -380,7 +391,7 @@ if [[ -z "${tarball}" ]]; then
   (
     cd "${package_source}"
     npm pkg set "gitHead=${foundation_commit}" >/dev/null
-    corepack pnpm@10.34.5 pack --pack-destination "${pack_dir}" >/dev/null
+    pnpm pack --pack-destination "${pack_dir}" >/dev/null
   )
   mapfile -t packed_tarballs < <(find "${pack_dir}" -maxdepth 1 -type f -name '*.tgz' -print)
   [[ ${#packed_tarballs[@]} -eq 1 ]] || {
@@ -414,7 +425,7 @@ web_root="${host_root}/web"
 (
   cd "${web_root}"
   # This local tarball qualification never contacts either public registry.
-  corepack pnpm@10.34.5 add \
+  pnpm add \
     --save-exact \
     --lockfile-only \
     --ignore-scripts \
@@ -442,12 +453,12 @@ if entry.get('specifier') != expected or not (
 ):
     raise SystemExit(f'external host lock importer does not bind the qualified tarball: {entry!r}')
 PY
-  corepack pnpm@10.34.5 fetch --frozen-lockfile
-  corepack pnpm@10.34.5 install --offline --frozen-lockfile --ignore-scripts
-  corepack pnpm@10.34.5 run lint
-  corepack pnpm@10.34.5 run test
-  corepack pnpm@10.34.5 run build
-  corepack pnpm@10.34.5 list --json --depth Infinity \
+  pnpm fetch --frozen-lockfile
+  pnpm install --offline --frozen-lockfile --ignore-scripts
+  pnpm run lint
+  pnpm run test
+  pnpm run build
+  pnpm list --json --depth Infinity \
     > "${artifact_dir}/pnpm-tree.raw.json"
 )
 
@@ -585,7 +596,7 @@ mss_start_process_group \
   REACT_APP_ENV=dev \
   UMI_ENV=dev \
   MOCK=none \
-  corepack pnpm@10.34.5 run dev
+  pnpm run dev
 wait_for_http \
   "external Thin Host frontend" \
   "http://127.0.0.1:18001/admin/api/languages/public" \
@@ -611,7 +622,7 @@ set +e
   MSS_E2E_BACKEND_API_URL=http://127.0.0.1:18080/admin/api \
   MSS_E2E_USERNAME="${MSS_E2E_USERNAME:-admin}" \
   MSS_E2E_PASSWORD="${MSS_E2E_PASSWORD:-123456}" \
-    corepack pnpm@10.34.5 exec playwright test \
+    pnpm exec playwright test \
       e2e/generated/supplier.spec.ts \
       e2e/permission.spec.ts \
       e2e/parity.spec.ts \

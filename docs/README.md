@@ -15,6 +15,7 @@
 
 - 当前稳定版：`v1.3.2`，精确发布提交为 `635fbb03a82976941e527d8ac1000fec0624abac`。
 - 上一稳定版：`v1.2.3`，保留为协调回滚基线和历史证据。
+- npm `latest`：`@mss-boot-io/admin-web@1.3.2`；发布身份已切换到精确绑定的 Trusted Publishing OIDC，bootstrap Token 与 GitHub Secret 均已撤销。
 - `mss-boot/v1.3.0` 已公开、`admin/v1.3.0` 发布失败；该不完整列车永久保留且不复用。
 - `v1.3.0-rc.1` 至 `v1.3.0-rc.6` 是不可变的预览证据，不移动、不覆盖、不复用。
 - Docs 可以用 `docs/vX.Y.Z` 独立发布，但只能来自已合并到 `main` 的精确提交。
@@ -61,7 +62,7 @@ corepack pnpm@9.15.9 --dir docs build
 go run ./cmd/mss verify --changed
 ```
 
-发布准备 PR 还需要使用 Codex 内置浏览器检查首页、Admin、发布页、导航、深色主题和窄屏布局。
+后续发布准备 PR 还需要使用 Codex 内置浏览器检查首页、Admin、发布页、导航、深色主题和窄屏布局。
 构建成功只证明静态产物可生成，不代替视觉检查或公开站点发布证据。
 
 ## 贡献

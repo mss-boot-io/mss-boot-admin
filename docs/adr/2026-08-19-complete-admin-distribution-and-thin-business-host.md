@@ -1,6 +1,6 @@
 # ADR: Complete Admin distribution and thin business hosts
 
-- Status: Accepted and implemented; v1.3.0-rc.6 published successfully, v1.3.0 and v1.3.1 are immutable component-partial history, and v1.3.2 is the active stable target
+- Status: Accepted and implemented; v1.3.0-rc.6 published successfully, v1.3.0 and v1.3.1 are immutable component-partial history, and v1.3.2 is the current stable release from `635fbb03a82976941e527d8ac1000fec0624abac`
 - Date: 2026-08-19
 - Owners: Admin, frontend, agent infrastructure, release engineering
 - Feature contract: `.mss/features/complete-admin-distribution-thin-host.yaml`
@@ -43,9 +43,11 @@ package artifact.
 Official npm publication does not rebuild the frontend. A protected final workflow downloads the tarball,
 evidence, SBOM, and checksums from the exact frontend GitHub Release, verifies every coordinated tag and
 Release against the frozen commit, then publishes that same tarball to npmjs as the final artifact
-publication. The first package publication uses a short-lived protected bootstrap credential; after
-that package exists, one security-only handoff binds npm Trusted Publishing OIDC to the exact workflow
-and `release-v6` environment and revokes the bootstrap credential. Subsequent versions use OIDC.
+publication. The v1.3.2 first package publication used a short-lived protected bootstrap credential;
+the completed security handoff then bound npm Trusted Publishing OIDC to
+`mss-boot-io/mss-boot-admin`, `npm-release.yml`, and `release-v6` with only `npm publish` allowed,
+removed the GitHub secret, and revoked the npm-side token. Subsequent versions use OIDC with no token
+fallback.
 
 `management-system` becomes the single recommended thin-host Blueprint. It generates application glue,
 business source directories, machine contracts, deployment files, and CI while depending on the
@@ -95,12 +97,13 @@ business files, and records a thin baseline only after all file operations and v
 
 Technical artifacts may use root, `mss-boot/`, `admin/`, and `web/antd-v6/` tag namespaces, but their
 exact semantic version, including a prerelease suffix, must match for a coordinated distribution. The
-successful public preview is `v1.3.0-rc.6`; it is immutable and does not replace the current `v1.2.3`
-stable release. The `v1.3.0` train is also immutable component-partial history: Framework published,
-Admin failed before publication, and the remaining stable artifacts were not created. The only active
-target is now `v1.3.2` stable. Publication remains restricted to a new
-exact merged-main commit and the protected Framework -> Admin -> Frontend -> Root -> Docs -> npmjs
-release train; the final npmjs step republishes the already-qualified frontend tarball without rebuilding.
+successful public preview is `v1.3.0-rc.6`; at publication time it did not replace v1.2.3 and it remains
+immutable preview evidence. The `v1.3.0` and `v1.3.1` trains are immutable component-partial history.
+The coordinated `v1.3.2` train completed through the protected Framework -> Admin -> Frontend -> Root ->
+Docs -> npmjs sequence from exact merged-main commit
+`635fbb03a82976941e527d8ac1000fec0624abac` and is now the current stable release. Any later release
+remains restricted to a new exact merged-main commit; the final npmjs step republishes the already
+qualified frontend tarball without rebuilding.
 
 The immutable `v1.3.0-rc.1` train remains partial evidence. Framework, Admin, and the multi-architecture
 frontend image published, but a workflow verifier defect stopped the frontend package and GitHub Release;
@@ -158,11 +161,12 @@ Downstream repositories become substantially smaller and upgrades operate on thi
 product sources. In exchange, the complete Admin application entrypoint, business module API, frontend
 exports, and coordinated version become compatibility surfaces that require external-consumer gates.
 
-The implementation and RC6 preview have passed the repository-external Supplier host gate: GOWORK=off backend validation,
-tarball frontend validation, single-runtime analysis, deterministic generation and upgrade tests, and the
-required browser E2E described by the Feature contract. The incomplete v1.3.0 stable attempt remains
-audit evidence only and must not be continued. v1.3.2 publication remains separately gated on
-the preparation PR merge, a new exact merged-main commit, remote qualification, and coordinated immutable artifacts.
+The implementation, RC6 preview, and stable v1.3.2 release have passed the repository-external Supplier
+host gate: GOWORK=off backend validation, public Go and npm consumption, single-runtime analysis,
+deterministic generation and upgrade tests, and the required browser E2E described by the Feature
+contract. The incomplete v1.3.0 and v1.3.1 attempts remain audit evidence only and must not be
+continued. The next measurable maturity step is to repeat the full specification, generation, external
+Thin Host, upgrade-preservation, and browser path with a second representative business domain.
 
 Because the npm package deliberately carries package-owned build tools for thin hosts, its distribution
 metadata partitions every published dependency into runtime or tooling roots. Runtime security findings

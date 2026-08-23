@@ -697,11 +697,12 @@ Agent 不应编辑：
 test、单一生产 `dist`/Runtime 和浏览器 E2E。标准 Admin 通过 Codex 内置浏览器验证登录、
 工作台、菜单 API 绑定、Supplier、硬刷新、403、深色主题和控制台健康。
 
-`v1.3.0-rc.6` 已完成一列协调预览发布，证明发布拓扑可用，但它不替代当前 `v1.2.3`
-stable。下一条可执行步骤是把 stable 准备变更通过 Pull Request 合并到 `main`，从新的精确
-提交重新执行 checkpoint、feature-freeze、三数据库/API 注册表、内置浏览器和外部消费者
-资格，再按 Framework → Admin → Frontend → Root 顺序发布。topic branch 不创建 Tag、Release、
-镜像或 npm package。
+`v1.3.0-rc.6` 已完成协调预览；`v1.3.2` 随后从精确 merged-main 提交
+`635fbb03a82976941e527d8ac1000fec0624abac` 完成 Framework → Admin → Frontend → Root →
+Docs → 官方 npm 的协调发布、外部消费者验证和公开对账，现为当前 stable。下一条可执行步骤
+是用第二个代表性业务域重跑规格、两次生成零漂移、仓库外 Thin Host、升级保留和浏览器 E2E，
+以验证扩展边界的通用性。未来任何修复仍必须先经 Pull Request 合并到 `main`；topic branch
+不创建 Tag、Release、镜像或 npm package。
 
 ### 阶段一：设计与契约
 

@@ -83,20 +83,20 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         frontend_install = self.step("Install frontend dependencies")["run"]
         self.assertEqual(
             frontend_install,
-            "corepack pnpm@10.34.5 --dir web/antd-v6 install --frozen-lockfile --ignore-scripts",
+            "pnpm --dir web/antd-v6 install --frozen-lockfile --ignore-scripts",
         )
         playwright_install = self.step("Install Playwright Chromium")
         self.assertEqual(playwright_install["if"], RUNTIME_PHASE_CONDITION)
         self.assertEqual(playwright_install["working-directory"], "web/antd-v6")
         self.assertEqual(
             playwright_install["run"],
-            "corepack pnpm@10.34.5 exec playwright install --with-deps chromium",
+            "pnpm exec playwright install --with-deps chromium",
         )
         self.assertLess(
             self.steps.index(playwright_install),
             self.steps.index(phase),
         )
-        self.assertEqual(self.step("Setup pnpm")["with"]["version"], "9.15.9")
+        self.assertEqual(self.step("Setup pnpm")["with"]["version"], "10.34.5")
 
     def test_publication_authority_phases_execute_and_only_checkpoint_plans(self):
         for step_name in (

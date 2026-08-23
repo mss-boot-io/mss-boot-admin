@@ -157,7 +157,7 @@ spec:
         - The nested Admin Go module uses admin/vX.Y.Z and all coordinated artifacts share the same exact semantic version, including prerelease identifiers.
         - Frontend qualification includes pack contents, integrity, SBOM, GitHub provenance attestation, and fail-closed credential handling.
         - Admin Web publishes first to GitHub Packages under the repository-linked @mss-boot-io scope; Thin Hosts authenticate without committing a token.
-        - The v1.3.0-rc.6 train is a prerelease and does not replace the current v1.2.3 stable release.
+        - At RC6 publication time, the prerelease did not replace v1.2.3; RC6 remains immutable preview evidence and v1.3.2 is now the reconciled current stable release.
         - >-
           The immutable v1.3.0-rc.1 train remains partial evidence: Framework, Admin, and the
           frontend image published, while the frontend package, frontend GitHub Release, and root

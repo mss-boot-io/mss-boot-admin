@@ -25,8 +25,9 @@ keywords: [agent native codex infrastructure generator mcp skills eval]
 - P0–P7 的顶层契约、`mss` CLI、AdminModule 生成、Skills、MCP、Evals、Thin Host Blueprint
   和升级引擎已经落地；具体成熟度以 `.mss/capabilities.yaml` 为准。
 - Supplier 已作为完整前后端生成和外部 Thin Host 黄金样例。
-- `v1.3.0-rc.6` 已完成协调预览发布；`v1.3.1` 是不可变的部分发布历史，唯一活动目标为 `v1.3.2` stable，当前稳定版仍是
-  `v1.2.3`。
+- `v1.3.0-rc.6` 已完成协调预览发布；`v1.3.1` 是不可变的部分发布历史；`v1.3.2`
+  已从精确 merged-main 提交 `635fbb03a82976941e527d8ac1000fec0624abac` 完整发布并完成
+  公开对账，现为当前稳定版，`v1.2.3` 保留为上一稳定版和协调回滚基线。
 - P8 的既有横向 Admin 模块不会机械式整体迁移；新业务默认使用 `admin/modules/<name>`，
   老路径保持兼容维护。
 
@@ -630,7 +631,7 @@ Token 消耗
 
 ## 18. 当前实施基线
 
-截至 `v1.3.2` stable 准备，仓库已经形成以下可执行闭环：
+截至 `v1.3.2` stable 完整发布和公开对账，仓库已经形成以下可执行闭环：
 
 1. 顶层 `AGENTS.md` 与 `.mss/` 提供人机共享事实源。
 2. `mss context`、`doctor`、`setup`、`dev`、`verify`、`eval`、`new app` 和 `upgrade`
@@ -640,7 +641,10 @@ Token 消耗
 5. `management-system` Blueprint 生成 31 个受管文件的 Thin Host，并通过二次幂等和外部消费者门禁。
 6. MCP 保持 CLI 的薄适配层，写操作默认 dry-run。
 7. RC6 已从一个精确 merged-main 提交完成 Framework、Admin、Admin Web 和 Root 预览列车。
+8. v1.3.2 已完成 Framework、Admin、Admin Web、Root、Docs、官方 npm 的协调发布，公共
+   Go/npm 解析、镜像、provenance、文档身份和 Trusted Publishing 均已对账。
 
-下一条可执行步骤是通过 Pull Request 合并 stable 准备，冻结新的精确 `main` 提交，重跑
-checkpoint、feature-freeze、外部 Thin Host、三数据库/API 注册表和内置浏览器证据，再发布
-`v1.3.2`。P8 继续采用按真实需求逐模块迁移，而不是一次性重写既有横向实现。
+下一条可执行步骤是选择第二个代表性业务域，提交结构化 AdminModule 规格，在仓库外 Thin
+Host 上完成两次生成零漂移、`GOWORK=off` 后端、精确 npm 安装、升级保留和浏览器 E2E，验证
+现有生成与扩展边界不只适用于 Supplier。P8 继续采用按真实需求逐模块迁移，而不是一次性
+重写既有横向实现。

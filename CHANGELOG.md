@@ -16,21 +16,25 @@ Status: **published / current stable**. Root, `mss-boot/v1.3.2`,
 commit `635fbb03a82976941e527d8ac1000fec0624abac`. Public checksums, npm provenance,
 multi-architecture image digests, Docs identity, and immutable Release assets are
 indexed in [issue #519](https://github.com/mss-boot-io/mss-boot-admin/issues/519).
+The public npm `latest` tag resolves to `1.3.2`; npm Trusted Publishing is bound
+to repository `mss-boot-io/mss-boot-admin`, workflow `npm-release.yml`, and
+environment `release-v6`. The one-time bootstrap npm token plus GitHub
+`NPM_TOKEN` secret have been removed.
 
 The v1.3.1 train is immutable component-partial history. Framework
 `mss-boot/v1.3.1` was published from
 `4830fee162326788732e476a04d24f47b8fd570a`. The `admin/v1.3.1` tag points to
 the same commit, but its workflow stopped before creating an Admin Release when
 the committed Framework Module sum differed from the canonical public module.
-No v1.3.1 root, Admin Web, Docs, or npmjs release completed. The repair uses a
-new v1.3.2 patch and never moves or reuses those identities.
+No v1.3.1 root, Admin Web, Docs, or npmjs release completed. The repair used a
+new v1.3.2 patch and never moved or reused those identities.
 
 The v1.3.0 train is immutable component-partial history. Framework
 `mss-boot/v1.3.0` was published from
 `76530526e436eb95652df1dd06e831a90ee73125`, while the Admin workflow stopped
 after creating `admin/v1.3.0` because the independent module metadata lacked the
 published Framework checksums. No v1.3.0 root, Admin Web, Docs, or npmjs release
-completed. Those identities are not moved or reused by this v1.3.2 target.
+completed. Those identities were not moved or reused by the v1.3.2 release.
 
 The complete v1.3.0-rc.6 preview train was published successfully from
 `0ef09fb3caa1b2d424c540da23d01219135ebcfa`. Its Framework and Admin modules,
@@ -131,7 +135,7 @@ Status: **component-partial / immutable**. Framework and the sole V6 frontend
 were published from `29a99f2bdb9a2c516459529918795404c153df2e`. Root candidate
 qualification passed and the root tag was created, but the multi-architecture
 image publish timed out after the arm64 QEMU build; no root image or GitHub
-Release was completed. v1.2.3 is the only active forward-repair target.
+Release was completed. The next complete coordinated train was v1.2.3.
 
 ### Changed
 
@@ -159,8 +163,8 @@ Status: **component-partial / immutable**. Framework and the sole V6 frontend we
 published from `80d2d20f1b44105e18706cfa0deb7f8512966f92`. The root tag and runtime
 image were created, but root package assembly and GitHub Release publication did
 not complete because the root workflow still uploaded raw V6 output. v1.2.2
-repaired that artifact path but later stopped at root image publication; v1.2.3
-is the only active forward-repair target.
+repaired that artifact path but later stopped at root image publication; the next
+complete coordinated train was v1.2.3.
 
 ### Changed
 
@@ -204,7 +208,8 @@ is the only active forward-repair target.
 ## [v1.1.0] - 2026-08-11
 
 Status: **published / historical**. This section is retained as immutable release
-history; all active release preparation now targets v1.2.3.
+history. The next complete coordinated train was v1.2.3; the current stable train
+is v1.3.2.
 
 ### Changed
 
