@@ -1,0 +1,4 @@
+interface:
+  display_name: "MSS Release Docs"
+  short_description: "Reconcile MSS documentation around an exact release baseline"
+  default_prompt: "Reconcile release documentation against exact repository and public artifact evidence, preserve immutable history, validate the docs and contracts, and report remaining risks."
