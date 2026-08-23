@@ -10,21 +10,22 @@ keywords: [release upgrade rollback compatibility mss-boot-admin thin host]
 
 # 发布与升级
 
-:::warning
+:::info
 **发布状态**
 
-<code>v1.3.2</code> 是唯一活动的稳定版候选，**尚未公开发布**。<code>v1.2.3</code> 在
-stable 标签、Go Modules、npm package、镜像、GitHub Release 和发布后对账全部完成前仍是当前稳定版。
+<code>v1.3.2</code> 已从精确 merged-main 提交
+<code>635fbb03a82976941e527d8ac1000fec0624abac</code> 完成协调发布和公开制品对账，
+现为当前稳定版。<code>v1.2.3</code> 保留为上一稳定版与协调回滚基线。
 :::
 
 ## 当前版本
 
 | 版本 | 状态 | 用途 |
 | --- | --- | --- |
-| [v1.3.2](/releases/v1-3-2) | 稳定版候选 / 准备中 | 最终 Framework 校验和绑定、Complete Admin Distribution、Thin Host、正式安装与升级合同 |
+| [v1.3.2](/releases/v1-3-2) | 当前稳定版 / 已完整发布 | 最终 Framework 校验和绑定、Complete Admin Distribution、Thin Host、正式安装与升级合同 |
 | [v1.3.1](/releases/v1-3-1) | component-partial / 不复用 | Framework 已发布；Admin Tag 存在但校验和资格验证失败；其余组件未发布 |
 | [v1.3.0](/releases/v1-3-0) | component-partial / 不复用 | Framework 已发布，Admin 发布失败，其余稳定组件未发布 |
-| [v1.2.3](/releases/v1-2-3) | 当前稳定版 / 已发布 | 现有生产引用与 v1.3.2 失败时的协调回滚基线 |
+| [v1.2.3](/releases/v1-2-3) | 上一稳定版 / 已发布 | v1.3.2 的协调回滚基线与历史证据 |
 | v1.3.0-rc.6 | 完整预览 / 已发布 | 从一个精确 merged-main 提交完成四组件列车，作为 stable 资格证据 |
 
 <code>v1.3.2</code> 的协调版本同时覆盖：
@@ -37,26 +38,28 @@ stable 标签、Go Modules、npm package、镜像、GitHub Release 和发布后�
 | Admin Web | <code>web/antd-v6/v1.3.2</code> 与 <code>@mss-boot-io/admin-web@1.3.2</code> |
 | Docs | 独立的 <code>docs/v1.3.2</code> |
 
-Root、Framework、Admin 和 Admin Web 必须来自同一个已合并 <code>main</code> 的精确提交。
-Docs 可以独立发布，但也必须绑定一个已合并 <code>main</code> 的精确提交，不得从 topic branch 发布。
+Root、Framework、Admin、Admin Web 和 Docs 均发布自同一个已合并 <code>main</code> 的精确提交
+<code>635fbb03a82976941e527d8ac1000fec0624abac</code>。Docs 仍保留独立标签和发布工作流。
 
-## v1.3.2 stable candidate
+## v1.3.2 当前稳定版
 
 RC6 已证明可导入 Admin、完整 Admin Web、外部 Thin Host、单 Runtime、生成与升级、浏览器
-行为和协调发布路径。v1.3.2 在此基础上修复 v1.3.1 的错误校验和：发布前从最终
+行为和协调发布路径。v1.3.2 在此基础上修复了 v1.3.1 的错误校验和：发布前从最终
 Framework 跟踪文件生成 replace-free 本地 Go Proxy，由 Go 计算规范 Module/GoMod Sum，
-并与 Admin 元数据逐项比较。版本、Tag、npm 与外部消费者前置验证保持不变。
+并与 Admin 元数据逐项比较。全部组件、双架构镜像、GitHub Release、官方 npm 包、Docs 与
+外部消费者随后从同一提交完成验证和公开对账。
 
-准备完成的定义不是“本地能启动”，而是：
+本次稳定版对账包括：
 
-1. 准备 PR 合并到 <code>main</code>，从新的干净精确提交冻结；
-2. checkpoint 与 feature-freeze 全部通过；
-3. 三数据库、API 注册表、内置浏览器和外部 Thin Host 证据绑定同一提交；
-4. 按 Framework → Admin → Admin Web → Root 顺序公开；
-5. 校验 Go 解析、npm integrity/dist-tag、镜像 digest/架构、Release 资产与 <code>latest</code>；
-6. 独立发布 Docs，并完成 current-stable 机器契约的后续对账。
+1. checkpoint、feature-freeze、pre-framework 与独立 pre-root 门禁全部通过；
+2. 三数据库、API 注册表、Codex 内置浏览器和外部 Thin Host 证据绑定同一提交；
+3. 按 Framework → Admin → Admin Web → Root → Docs → 官方 npm 顺序公开；
+4. 公开 Go Module、npm integrity/provenance、镜像 digest/架构、Release 资产与
+   <code>latest</code> 均完成只读对账；
+5. 机器契约将 <code>v1.3.2</code> 与精确发布提交记录为 current stable。
 
-完整操作见 [v1.3.2 发布、安装、升级与回滚合同](/releases/v1-3-2)。
+完整操作见 [v1.3.2 发布、安装、升级与回滚合同](/releases/v1-3-2)，证据索引见
+[GitHub issue #519](https://github.com/mss-boot-io/mss-boot-admin/issues/519)。
 
 ## v1.3.0 预览列车审计
 
@@ -80,7 +83,7 @@ Framework 跟踪文件生成 replace-free 本地 Go Proxy，由 Go 计算规范 
 
 | 版本 | 状态 | 记录 |
 | --- | --- | --- |
-| v1.2.3 | 已完整发布、当前稳定 | [发布合同](/releases/v1-2-3) |
+| v1.2.3 | 已完整发布、上一稳定版 | [发布合同](/releases/v1-2-3) |
 | v1.2.2 | component-partial | [根镜像发布未完成](/releases/v1-2-2) |
 | v1.2.1 | component-partial | [根便携资产发布未完成](/releases/v1-2-1) |
 | v1.2.0 | component-partial | [Framework 已发布，其他组件不完整](/releases/v1-2-0) |

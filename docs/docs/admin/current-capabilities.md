@@ -4,16 +4,16 @@ order: 13
 nav:
   order: 1
   title: Admin
-description: 基于 v1.3.2 stable candidate 代码和机器契约梳理 mss-boot Admin 的已实现能力与边界
+description: 基于 v1.3.2 当前稳定版代码和机器契约梳理 mss-boot Admin 的已实现能力与边界
 keywords: [admin capabilities features session rbac generator thin host]
 ---
 
 # 当前功能总览
 
-本文描述 <code>v1.3.2</code> stable candidate 的当前实现，不是未来路线图。事实来源包括
+本文描述 <code>v1.3.2</code> 当前稳定版的实现，不是未来路线图。事实来源包括
 <code>admin/</code>、<code>web/antd-v6/</code>、<code>admin/modules/supplier/</code>、
-<code>.mss/</code>、迁移、测试和外部消费者门禁。正式发布前，生产稳定引用仍是
-<code>v1.2.3</code>。
+<code>.mss/</code>、迁移、测试和外部消费者门禁。当前稳定提交是
+<code>635fbb03a82976941e527d8ac1000fec0624abac</code>。
 
 ## 1. 浏览器会话和账号安全
 

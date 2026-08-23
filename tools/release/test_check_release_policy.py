@@ -143,7 +143,7 @@ class ReleasePolicyTest(unittest.TestCase):
         replacements = (
             ("  publicPrereleases: false\n", "  publicPrereleases: true\n"),
             ("  nextPublicVersion: v1.3.2\n", "  nextPublicVersion: v1.3.2-rc.01\n"),
-            ("  currentStableVersion: v1.2.3\n", "  currentStableVersion: v1.2.3-rc.1\n"),
+            ("  currentStableVersion: v1.3.2\n", "  currentStableVersion: v1.3.2-rc.1\n"),
         )
         for old, new in replacements:
             with self.subTest(replacement=new.strip()):

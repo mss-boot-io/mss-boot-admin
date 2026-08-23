@@ -87,7 +87,7 @@
     },
     {
       "path": ".mss/features/foundation-v1-2-3-release.yaml",
-      "reason": "carry-forward: v1.2.3 remains the reconciled stable fallback and historical release evidence until the coordinated v1.3.2 Admin Distribution train is public."
+      "reason": "carry-forward: v1.2.3 is the previous reconciled stable train and remains immutable historical and coordinated rollback evidence after the complete v1.3.2 Admin Distribution became current stable."
     },
     {
       "path": ".mss/features/storage-runtime-v2.yaml",
