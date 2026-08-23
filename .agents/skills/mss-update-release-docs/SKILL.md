@@ -1,6 +1,6 @@
 ---
 name: mss-update-release-docs
-description: Reconcile MSS release documentation and machine-readable guidance to one exact stable, current, candidate, or historical release baseline. Trigger for post-release documentation, stable-version changes, README and changelog version sweeps, release-note reconciliation, install or image example updates, and correcting stale “latest” claims after publication. Do not use this skill to create or move tags, publish artifacts, or rewrite immutable release history.
+description: Reconcile MSS source documentation, machine-readable guidance, and public Docs-site state to one exact stable, current, candidate, or historical release baseline. Trigger for post-release documentation, stable-version changes, README and changelog version sweeps, release-note reconciliation, install or image example updates, stale “latest” claims, and a deployed Docs site that still shows old release facts. Do not use this skill by itself to create or move tags or publish artifacts; route authorized publication through the MSS release workflow.
 ---
 
 # Update MSS release documentation
@@ -18,6 +18,7 @@ Record a compact ledger:
 - exact merged-main commit;
 - root, Framework, Admin, frontend, Docs, image, and package tag names as applicable;
 - public Release, registry, image digest, and evidence references;
+- public Docs URL plus its `/release.json` version and full commit;
 - previous stable and rollback baseline;
 - capability maturity that has independent evidence.
 
@@ -62,6 +63,19 @@ A tagged Go module checksum covers every file in that module tree, including doc
 
 Do not change `go.mod`, `go.sum`, `go.work`, `go.work.sum`, pnpm lockfiles, or package metadata merely to make documentation validation pass. Do not move or recreate an existing release tag to pick up documentation changes. A source-documentation PR merged into `main` does not silently update an immutable Docs deployment; that requires the repository's explicit Docs release path.
 
+## Close the source-to-site gap
+
+When the repository has a public Docs domain, source reconciliation is not the same as publication:
+
+1. Before editing, record the visible home page and a nested release route in the available browser, and read the public `/release.json` version and full commit.
+2. After the source PR merges, compare that identity with the exact merged `main` commit. If the site still exposes an older commit or stale visible claims, report the state as `source-updated / deployment-pending`, never complete.
+3. If the user authorized a public-site update, use `mss-release` for the mutation. Publish only from the exact merged-main commit after its Docs build and browser evidence pass.
+4. Preserve an existing coordinated Docs tag. For a correction to the current stable documentation, select the lowest unused positive revision accepted by policy, such as `docs/v1.3.2+docs.1`; this is a Docs component revision, not a new product version.
+5. Wait for the tag-triggered workflow, protected production environment, portable archive checksums, public `/release.json`, and immutable GitHub Release. A successful main-branch Docs build without the tag deployment is preliminary evidence only.
+6. Reopen the production home page and a nested release route, refresh both, verify visible stable-version language, inspect console errors and failed network requests, and save final screenshots.
+
+If publication was not authorized or the environment cannot be approved, stop before creating a tag and provide the exact proposed Docs revision, merged commit, workflow, and remaining approval step.
+
 ## Validate proportionally
 
 Start with the cheapest relevant checks and use commands declared by `.mss/commands.yaml`:
@@ -98,3 +112,4 @@ Report:
 - commands actually run and their results;
 - skipped checks with concrete reasons;
 - merged commit and any separate Docs release still required.
+- source state and public-site state separately, including the deployed Docs tag, `/release.json`, workflow run, Release, browser routes, and screenshot paths.

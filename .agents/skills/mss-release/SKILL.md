@@ -50,6 +50,8 @@ For a component-only or downstream release, retain the same source, evidence, im
 
 The foundation components are independently releasable. A Docs-only release uses `docs/{version}` and does not recreate root, Framework, or frontend refs. Qualify the documentation build and browser evidence on the Docs candidate, merge through PR, freeze the resulting exact `origin/main` commit, create only the Docs tag, wait for the tag-triggered Docs workflow and protected `prod` deployment, then reconcile the Docs Release assets, checksums, public `release.json`, and visible site against that commit.
 
+When the coordinated Docs tag for the current stable version already exists but later merged documentation must replace stale public content, preserve that tag and use the lowest unused positive Docs revision allowed by policy, such as `docs/v1.3.2+docs.1`. A `+docs.N` tag updates only the Docs component, does not consume the next product patch version, and must still pass the exact merged-main source guard, protected deployment, Release, `/release.json`, and browser reconciliation.
+
 ## Procedure
 
 ### 1. Establish source and policy

@@ -14,6 +14,10 @@ VERSION_RE = re.compile(
     r"(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
     r"(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?$"
 )
+DOCS_REVISION_RE = re.compile(
+    r"^(?P<base>v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\."
+    r"(?:0|[1-9][0-9]*))\+docs\.(?P<revision>[1-9][0-9]*)$"
+)
 REQUIRED_KEYS = {
     "mode",
     "releaseBranch",
@@ -156,10 +160,20 @@ def check_public_ref(
     tag: str,
     intent: str = "publish",
 ) -> None:
-    if not VERSION_RE.fullmatch(version):
+    docs_revision = (
+        DOCS_REVISION_RE.fullmatch(version) if component == "docs" else None
+    )
+    if not VERSION_RE.fullmatch(version) and docs_revision is None:
         raise PolicyError(f"invalid release version: {version}")
     target = policy["nextPublicVersion"]
-    if version != target:
+    if docs_revision is not None:
+        stable = policy["currentStableVersion"]
+        if docs_revision.group("base") != stable:
+            raise PolicyError(
+                f"docs revision base {docs_revision.group('base')} is forbidden "
+                f"while current stable is {stable}"
+            )
+    elif version != target:
         raise PolicyError(
             f"public version {version} is forbidden while the reviewed target is {target}"
         )
