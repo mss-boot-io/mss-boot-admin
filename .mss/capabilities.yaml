@@ -158,6 +158,28 @@ spec:
         capability in beta while the pinned ProComponents v3 dependency remains a prerelease, and require one
         Codex in-app Browser acceptance record for each release candidate instead of expanding a cross-browser matrix.
 
+    - id: platform.presentation-configuration
+      displayName: Governed Admin Page Presentation Configuration
+      status: planned
+      owners: [frontend, backend, security, agent-infrastructure]
+      paths:
+        - .mss/features/admin-presentation-configuration.yaml
+        - .mss/schemas/admin-page-presentation.schema.json
+        - docs/adr/2026-08-24-governed-admin-presentation-configuration.md
+      frontendPaths:
+        - web/antd-v6/src/shared/presentation
+      guidance: >-
+        P0 defines a strict data-only sparse profile over compiled page, field, data-source,
+        component, action, and permission capabilities and proves it with a non-production Supplier
+        prototype. Code defaults resolve beneath application, role, and user layers; exact definition
+        hash validation rejects stale profiles, and trusted permissions are intersected last. The
+        prototype has no production route, persistence, API, menu, migration, browser storage, or
+        generated-file replacement. Keep this capability Planned until a separately reviewed P1 adds
+        authoritative draft, ETag publish, immutable history, rollback, audit, drift diagnostics,
+        recovery mode, and browser evidence. Never add scripts, HTML, SQL, transport definitions,
+        component imports, permissions, runtime models, virtual CRUD, or browser code generation to a
+        presentation profile.
+
     - id: platform.cache-lock-queue
       displayName: Legacy Cache, Distributed Lock, and Queue Adapters
       status: legacy

@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mss-boot.io/schemas/admin-page-presentation.v1alpha1.json",
+  "title": "MSS Admin page presentation profile",
+  "description": "A sparse, data-only presentation overlay that may reference only capabilities compiled into the Admin application.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {"const": "mss.io/v1alpha1"},
+    "kind": {"const": "AdminPagePresentation"},
+    "metadata": {"$ref": "#/$defs/metadata"},
+    "spec": {"$ref": "#/$defs/spec"}
+  },
+  "$comment": "JSON Schema validates document shape. The runtime registry must additionally reject unknown page, field, component, data-source, and action identifiers and must apply backend authorization after all overlays.",
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 120
+    },
+    "definitionHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "localizedText": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "zh-CN": {"type": "string", "minLength": 1, "maxLength": 200},
+        "en-US": {"type": "string", "minLength": 1, "maxLength": 200}
+      }
+    },
+    "applicationScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"const": "application"}
+      }
+    },
+    "roleScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "subject"],
+      "properties": {
+        "kind": {"const": "role"},
+        "subject": {"$ref": "#/$defs/identifier"}
+      }
+    },
+    "userScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "subject"],
+      "properties": {
+        "kind": {"const": "user"},
+        "subject": {"type": "string", "minLength": 1, "maxLength": 160}
+      }
+    },
+    "scope": {
+      "oneOf": [
+        {"$ref": "#/$defs/applicationScope"},
+        {"$ref": "#/$defs/roleScope"},
+        {"$ref": "#/$defs/userScope"}
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "pageKey", "definitionHash", "scope"],
+      "properties": {
+        "name": {"$ref": "#/$defs/identifier"},
+        "pageKey": {"$ref": "#/$defs/identifier"},
+        "description": {"type": "string", "maxLength": 500},
+        "definitionHash": {"$ref": "#/$defs/definitionHash"},
+        "scope": {"$ref": "#/$defs/scope"}
+      }
+    },
+    "scalar": {
+      "type": ["string", "number", "boolean", "null"]
+    },
+    "conditionValue": {
+      "oneOf": [
+        {"$ref": "#/$defs/scalar"},
+        {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/scalar"}
+        }
+      ]
+    },
+    "predicate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "operator"],
+      "properties": {
+        "field": {"$ref": "#/$defs/identifier"},
+        "operator": {
+          "type": "string",
+          "enum": ["eq", "neq", "in", "not-in", "exists", "not-exists", "gt", "gte", "lt", "lte"]
+        },
+        "value": {"$ref": "#/$defs/conditionValue"}
+      }
+    },
+    "allCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["all"],
+      "properties": {
+        "all": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {"$ref": "#/$defs/condition"}
+        }
+      }
+    },
+    "anyCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["any"],
+      "properties": {
+        "any": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {"$ref": "#/$defs/condition"}
+        }
+      }
+    },
+    "notCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["not"],
+      "properties": {
+        "not": {"$ref": "#/$defs/condition"}
+      }
+    },
+    "condition": {
+      "oneOf": [
+        {"$ref": "#/$defs/predicate"},
+        {"$ref": "#/$defs/allCondition"},
+        {"$ref": "#/$defs/anyCondition"},
+        {"$ref": "#/$defs/notCondition"}
+      ]
+    },
+    "fieldPatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field"],
+      "properties": {
+        "field": {"$ref": "#/$defs/identifier"},
+        "label": {"$ref": "#/$defs/localizedText"},
+        "component": {"$ref": "#/$defs/identifier"},
+        "order": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "hidden": {"type": "boolean"},
+        "width": {"type": "integer", "minimum": 60, "maximum": 1200},
+        "span": {"type": "integer", "minimum": 1, "maximum": 24},
+        "placeholder": {"$ref": "#/$defs/localizedText"},
+        "help": {"$ref": "#/$defs/localizedText"},
+        "visibleWhen": {"$ref": "#/$defs/condition"}
+      }
+    },
+    "fieldPatches": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {"$ref": "#/$defs/fieldPatch"}
+    },
+    "sort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "direction"],
+      "properties": {
+        "field": {"$ref": "#/$defs/identifier"},
+        "direction": {"type": "string", "enum": ["asc", "desc"]}
+      }
+    },
+    "list": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "columns": {"$ref": "#/$defs/fieldPatches"},
+        "density": {"type": "string", "enum": ["compact", "middle", "large"]},
+        "pageSize": {"type": "integer", "minimum": 1, "maximum": 200},
+        "defaultSort": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sort"}
+        }
+      }
+    },
+    "search": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "fields": {"$ref": "#/$defs/fieldPatches"},
+        "collapsedByDefault": {"type": "boolean"}
+      }
+    },
+    "form": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "fields": {"$ref": "#/$defs/fieldPatches"},
+        "columns": {"type": "integer", "minimum": 1, "maximum": 4}
+      }
+    },
+    "detail": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "fields": {"$ref": "#/$defs/fieldPatches"},
+        "columns": {"type": "integer", "minimum": 1, "maximum": 4}
+      }
+    },
+    "actionPatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": {
+        "action": {"$ref": "#/$defs/identifier"},
+        "label": {"$ref": "#/$defs/localizedText"},
+        "placement": {"type": "string", "enum": ["toolbar", "row", "form", "detail"]},
+        "order": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "hidden": {"type": "boolean"},
+        "confirm": {"$ref": "#/$defs/localizedText"},
+        "visibleWhen": {"$ref": "#/$defs/condition"}
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "title": {"$ref": "#/$defs/localizedText"},
+        "dataSource": {"$ref": "#/$defs/identifier"},
+        "list": {"$ref": "#/$defs/list"},
+        "search": {"$ref": "#/$defs/search"},
+        "form": {"$ref": "#/$defs/form"},
+        "detail": {"$ref": "#/$defs/detail"},
+        "actions": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {"$ref": "#/$defs/actionPatch"}
+        }
+      }
+    }
+  }
+}
