@@ -42,6 +42,10 @@
       "reason": "carry-forward: planned post-v1.3.2 presentation-configuration P0 contracts are intentionally outside the immutable v1.3.2 release evidence and must be selected by a future release qualification before production adoption."
     },
     {
+      "path": ".mss/features/admin-presentation-publication-workflow.yaml",
+      "reason": "carry-forward: the post-v1.3.2 P1 presentation publication workflow is intentionally outside the immutable v1.3.2 release evidence and registers no production business page until separately qualified."
+    },
+    {
       "path": ".mss/features/admin-runtime-tools-removal-monitoring.yaml",
       "reason": "carry-forward: the removed runtime developer-tool boundary remains enforced and is not reintroduced by v1.3.2."
     },

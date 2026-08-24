@@ -170,6 +170,95 @@ m = r.sub == p.sub && r.tp == p.tp && keyMatch(r.obj, p.obj) && regexMatch(r.act
 	}
 }
 
+func TestPresentationGovernancePermissionsAreExactAndIndependent(t *testing.T) {
+	policyModel, err := casbinmodel.NewModelFromString(`[request_definition]
+r = sub, tp, obj, act
+
+[policy_definition]
+p = sub, tp, obj, act
+
+[policy_effect]
+e = some(where (p.eft == allow))
+
+[matchers]
+m = r.sub == p.sub && r.tp == p.tp && keyMatch(r.obj, p.obj) && regexMatch(r.act, p.act)
+`)
+	if err != nil {
+		t.Fatalf("create policy model: %v", err)
+	}
+	enforcer, err := casbin.NewEnforcer(policyModel)
+	if err != nil {
+		t.Fatalf("create policy enforcer: %v", err)
+	}
+	previousEnforcer := gormdb.Enforcer
+	gormdb.Enforcer = enforcer
+	t.Cleanup(func() { gormdb.Enforcer = previousEnforcer })
+
+	routes := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{name: "read", method: http.MethodGet, path: "/admin/api/presentation-profiles"},
+		{name: "draft", method: http.MethodPost, path: "/admin/api/presentation-profiles"},
+		{name: "publish", method: http.MethodPost, path: "/admin/api/presentation-profiles/:id/publish"},
+		{name: "rollback", method: http.MethodPost, path: "/admin/api/presentation-profiles/:id/rollback"},
+	}
+	for index, route := range routes {
+		roleID := "presentation-" + route.name + "-only"
+		if _, err = enforcer.AddPolicy(roleID, "API", route.path, route.method); err != nil {
+			t.Fatalf("add %s policy: %v", route.name, err)
+		}
+		principal := &models.User{UserLogin: models.UserLogin{RoleID: roleID, Role: &models.Role{}}}
+		for otherIndex, other := range routes {
+			allowed := authorizeRequest(principal, newAuthorizationTestContext(other.method, other.path))
+			if otherIndex == index && !allowed {
+				t.Errorf("%s-only role was denied its exact %s %s policy", route.name, other.method, other.path)
+			}
+			if otherIndex != index && allowed {
+				t.Errorf("%s-only role inherited unrelated %s authority", route.name, other.name)
+			}
+		}
+	}
+
+	noPolicy := &models.User{UserLogin: models.UserLogin{RoleID: "presentation-no-policy", Role: &models.Role{}}}
+	for _, route := range routes {
+		if authorizeRequest(noPolicy, newAuthorizationTestContext(route.method, route.path)) {
+			t.Errorf("default-deny role was authorized for %s", route.name)
+		}
+	}
+	root := &models.User{UserLogin: models.UserLogin{RoleID: "presentation-root", Role: &models.Role{Root: true}}}
+	for _, route := range routes {
+		if !authorizeRequest(root, newAuthorizationTestContext(route.method, route.path)) {
+			t.Errorf("root role was denied %s", route.name)
+		}
+	}
+}
+
+func TestPresentationEffectiveReadIsExactAuthenticatedSelfService(t *testing.T) {
+	const route = "/admin/api/presentation/effective/:pageKey"
+	if !isSelfServiceRequest(http.MethodGet, route) {
+		t.Fatal("effective presentation read is not classified as authenticated self-service")
+	}
+	if isSelfServiceRequest(http.MethodPost, route) {
+		t.Fatal("effective presentation mutation unexpectedly bypasses policy")
+	}
+	if isSelfServiceRequest(http.MethodGet, route+"/export") {
+		t.Fatal("effective presentation lookalike unexpectedly bypasses policy")
+	}
+
+	previousEnforcer := gormdb.Enforcer
+	gormdb.Enforcer = nil
+	t.Cleanup(func() { gormdb.Enforcer = previousEnforcer })
+	principal := &models.User{UserLogin: models.UserLogin{RoleID: "ordinary-role", Role: &models.Role{}}}
+	if !authorizeRequest(principal, newAuthorizationTestContext(http.MethodGet, route)) {
+		t.Fatal("authenticated effective read depended on Casbin")
+	}
+	if authorizeRequest(nil, newAuthorizationTestContext(http.MethodGet, route)) {
+		t.Fatal("anonymous effective read was authorized")
+	}
+}
+
 func TestAuthorizeCurrentPolicyRequestReconcilesOnlyCasbinRequests(t *testing.T) {
 	policyModel, err := casbinmodel.NewModelFromString(`[request_definition]
 r = sub, tp, obj, act

@@ -8,6 +8,10 @@ monitor:
   sampleInterval: 5s
   sampleTimeout: 3s
   historySize: 120
+presentation:
+  # Startup-only emergency bypass. When true, effective presentation reads
+  # return no stored layers and every page uses its compiled defaults.
+  recoveryMode: false
 application:
   mode: dev
   origin: http://127.0.0.1:8080
@@ -44,6 +48,7 @@ cors:
     - Authorization
     - Content-Type
     - If-Match
+    - Idempotency-Key
     - X-CSRF-Token
   exposeHeaders:
     - ETag

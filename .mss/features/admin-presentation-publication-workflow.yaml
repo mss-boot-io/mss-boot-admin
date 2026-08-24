@@ -1,0 +1,417 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-presentation-publication-workflow
+  displayName: Governed Admin presentation publication workflow
+  description: >-
+    Adds the authoritative P1 persistence, validation, draft, publish, immutable history,
+    rollback, scoped authorization, redacted audit, drift fallback, recovery mode, and operator
+    console required before any compiled Admin page consumes presentation profiles in production.
+  owner: admin-platform
+  labels:
+    domain: configuration
+    scope: presentation
+    phase: p1-publication-governance
+spec:
+  problem: >-
+    P0 proves that a strict data-only overlay can safely adjust compiled page presentation, but it
+    intentionally has no database, API, publication state, history, authorization, recovery path,
+    or operator interface. Persisting that document as an ordinary JSON setting would allow stale
+    or partially validated data to become active, lose concurrent edits, erase rollback evidence,
+    and make a broken profile difficult to recover from. P1 must make publication an explicit,
+    auditable workflow while keeping compiled capabilities and backend permissions authoritative.
+  goals:
+    - Persist one authoritative profile aggregate per application, role, or user subject and compiled page key.
+    - Separate inactive drafts from immutable published revisions and expose explicit transition commands.
+    - Require strong HTTP preconditions and deterministic idempotency for every state-changing publication command.
+    - Validate portable profile shape on draft writes and require current capability-aware semantic validity before publication.
+    - Resolve only current published layers and fail safely to compiled defaults during definition drift, database failure, or recovery mode.
+    - Enforce independent read, draft-write, publish, and rollback permissions with value-free audit records.
+    - Provide an unconfigurable governance console for validation, publication, history, conflict recovery, and rollback.
+  nonGoals:
+    - Adopt Supplier or any other business page as a production configurable page in P1.
+    - Generate capability definitions from AdminModule specifications; that remains P2 work.
+    - Add a drag-and-drop or visual page designer; that remains P3 work after production capability projection.
+    - Allow profiles to create fields, entities, database schema, APIs, routes, permissions, workflows, components, data sources, or executable code.
+    - Make login, authentication, authorization, application configuration, release, recovery, or the presentation governance console configurable.
+    - Add a distributed presentation cache in P1; authoritative reads remain pinned to the writer database.
+    - Delete published history or hard-delete profile aggregates through an HTTP endpoint.
+  actors:
+    - id: presentation-reader
+      displayName: Presentation configuration reader
+      description: Inspects profile status, validation diagnostics, and immutable history without mutating it.
+    - id: presentation-author
+      displayName: Presentation draft author
+      description: Creates and updates inactive drafts but cannot publish or roll back active presentation.
+    - id: presentation-publisher
+      displayName: Presentation publisher
+      description: Activates a currently valid draft after reviewing diagnostics and preview output.
+    - id: presentation-recovery-operator
+      displayName: Presentation recovery operator
+      description: Publishes a prior valid revision as a new revision or starts the server in compiled-default recovery mode.
+    - id: admin-user
+      displayName: Authenticated Admin user
+      description: Receives only published application, current-role, and current-user layers selected by the server.
+    - id: platform-maintainer
+      displayName: Admin platform maintainer
+      description: Registers trusted compiled capabilities and maintains the persistence and recovery boundary.
+  modules:
+    - name: presentation-capability-registry
+      kind: infrastructure
+      operation: extend
+      description: Backend mirror of the trusted capability compatibility surface and semantic validation contract.
+    - name: presentation-publication-store
+      kind: infrastructure
+      operation: create
+      description: Profile aggregates, immutable revisions, conditional transitions, idempotency, and effective-layer reads.
+    - name: presentation-management-api
+      kind: infrastructure
+      operation: create
+      description: Versioned management and current-principal effective-profile HTTP contracts.
+    - name: presentation-authorization-audit
+      kind: infrastructure
+      operation: create
+      description: Independent RBAC permissions, server-owned scope identity, redacted audit metadata, and recovery controls.
+    - name: presentation-governance-console
+      kind: infrastructure
+      operation: create
+      description: Compiled V6 operator route for draft JSON, validation, publication, immutable history, conflict handling, and rollback.
+  requirements:
+    - id: register-trusted-capabilities
+      title: Register the server-side trusted compatibility surface
+      description: The backend validates every stored and published profile against compiled capability facts rather than client assertions.
+      priority: must
+      actor: platform-maintainer
+      module: presentation-capability-registry
+      rules:
+        - Registered definitions carry the same stable page key, semantic version, sha256 definition hash, fields, surfaces, components, data sources, actions, and permission identifiers as the frontend contract.
+        - Registration rejects duplicate page, field, component, data-source, or action identifiers and rejects an invalid complete default presentation.
+        - A profile definition hash must exactly match the currently registered page definition before publication or effective-layer selection.
+        - The registry rejects protected core page keys for login, authentication, authorization, application configuration, release, recovery, and presentation governance.
+        - P1 starts with no business page registered for production; test registries prove behavior without promoting the Supplier P0 fixture.
+    - id: persist-scoped-aggregate
+      title: Persist one exact scoped aggregate
+      description: Database identity and portable document identity remain separate, exact, and server verified.
+      priority: must
+      actor: presentation-author
+      module: presentation-publication-store
+      rules:
+        - One unique aggregate exists for each scope, subject, and page key; application has an empty subject and role or user subjects are exact existing opaque server identifiers and are not revalidated as semantic names.
+        - Create derives a server-owned aggregate ID and rejects a portable profile whose page key or scope does not exactly match the envelope.
+        - An aggregate exposes a monotonically increasing version, inactive draft metadata, current published revision pointer, and derived draft or published state; clients cannot write a target state or revision number.
+        - Draft and published JSON are canonicalized with bounded encoded size before hashing or persistence.
+        - No API deletes an aggregate or immutable revision in P1.
+    - id: validate-inactive-drafts
+      title: Keep draft work inactive and diagnosable
+      description: Authors may save bounded structurally safe work while semantic problems remain visible and block publication.
+      priority: must
+      actor: presentation-author
+      module: presentation-publication-store
+      permission: presentation:draft-write
+      rules:
+        - Draft create and replace strictly decode the portable schema, reject unknown properties and forbidden executable or transport surfaces, enforce all collection and text bounds, and preserve explicit false values.
+        - A structurally valid draft may retain capability-aware semantic issues so an author can repair drift or references without affecting the published revision.
+        - Validation returns stable issue codes and paths for unknown page, stale definition hash, scope mismatch, unknown reference, duplicate reference, unsupported surface or component, invalid condition, and required-field safety.
+        - Preview uses only the trusted registered definition plus the inactive draft and never changes the published pointer.
+        - Publishing reruns structural and semantic validation inside the same transaction boundary used for the state transition.
+    - id: enforce-conditional-transitions
+      title: Enforce explicit conditional state transitions
+      description: HTTP commands cannot silently overwrite newer work or accept arbitrary target states.
+      priority: must
+      actor: presentation-author
+      module: presentation-management-api
+      rules:
+        - Create requires the canonical If-None-Match star precondition and every later mutation requires exactly one strong aggregate ETag in If-Match.
+        - The canonical ETag binds the server aggregate ID and monotonically increasing version; weak tags, wildcards on updates, comma lists, malformed tags, and identity mismatches are rejected.
+        - Missing preconditions return 428, malformed preconditions return 400, and stale versions return 412 with only the current opaque aggregate ID, version, and ETag; draft content, history, and subject metadata require an independently authorized read.
+        - The only transitions are create draft, replace draft, publish draft, and publish prior revision as rollback; no generic status mutation endpoint exists.
+        - Concurrent writers using one ETag allow exactly one commit and never create duplicate immutable revisions.
+    - id: publish-immutable-history
+      title: Publish atomically with immutable history
+      description: Active presentation changes form an append-only, attributable revision chain.
+      priority: must
+      actor: presentation-publisher
+      module: presentation-publication-store
+      permission: presentation:publish
+      rules:
+        - Publish is allowed only from draft state after current-definition semantic validation succeeds.
+        - One transaction appends an immutable revision, advances the published pointer and aggregate version, clears the draft, and records actor and transition metadata.
+        - Each revision stores canonical profile JSON, content sha256, definition hash, monotonic profile-local revision number, transition kind, actor, timestamp, and only a digest of the idempotency key.
+        - Publish and rollback require a bounded Idempotency-Key; the request fingerprint binds the authenticated actor and an identical retry reconstructs the original transition result from its immutable revision without appending history, while key reuse by another actor or for a different request returns conflict.
+        - History responses are bounded and server paginated, return no raw idempotency key, cannot be updated through application services or APIs, and the console exposes navigation across every returned page.
+    - id: rollback-by-republication
+      title: Roll back by creating a new published revision
+      description: Recovery preserves history and revalidates old content against current compiled capabilities.
+      priority: must
+      actor: presentation-recovery-operator
+      module: presentation-publication-store
+      permission: presentation:rollback
+      rules:
+        - Rollback is allowed only from published state with no pending draft and targets an immutable revision belonging to the same aggregate.
+        - The target document is revalidated against the current registry and cannot publish when its definition hash or references have drifted.
+        - A successful rollback appends a new revision with transition rollback and source revision metadata; it never moves the pointer backward or mutates the source revision.
+        - A failed or stale rollback leaves the aggregate, published pointer, draft, and history unchanged.
+        - Repeating the same idempotent rollback command never creates another revision.
+    - id: resolve-published-layers-safely
+      title: Resolve only valid published layers with safe fallback
+      description: Runtime consumption cannot expose drafts or make presentation availability a page-availability dependency.
+      priority: must
+      actor: admin-user
+      module: presentation-management-api
+      rules:
+        - The server derives current user and role subjects from the verified principal and never accepts them as authoritative request input.
+        - Effective reads return at most one published application, current-role, and current-user document for the requested registered page key, in that deterministic order.
+        - Missing profiles are normal; stale, corrupt, or semantically invalid published profiles are omitted as complete layers with structured diagnostics and compiled defaults remain usable.
+        - P1 performs authoritative reads from the writer database without a presentation cache; management database errors return unavailable while effective reads fail open only to empty layers and emit a diagnosable fallback outcome.
+        - Startup recovery mode bypasses all stored layers and reports recovery state; it is configured outside the database and cannot be changed through an Admin API or page profile.
+    - id: enforce-presentation-rbac
+      title: Separate read, author, publish, and rollback authority
+      description: Backend authorization remains authoritative and least privilege is the default.
+      priority: must
+      actor: presentation-reader
+      module: presentation-authorization-audit
+      permission: presentation:read
+      rules:
+        - Management list, detail, validation, and history routes require presentation read permission.
+        - Draft create and replace require draft-write permission, publish requires publish permission, and rollback requires rollback permission; one grant never implies another.
+        - Root retains the existing explicit bypass, non-root callers require exact API policies, and frontend controls are only a projection of backend decisions.
+        - Role and user subjects are resolved against active database identities before aggregate creation; a client cannot claim a nonexistent or differently normalized owner.
+        - Positive, negative, direct-API, stale-policy, and migration upgrade tests prove default deny and exact method-path enforcement.
+    - id: record-redacted-audit
+      title: Record value-free audit and operational outcomes
+      description: Publication remains diagnosable without copying editable profile content into audit logs.
+      priority: must
+      actor: presentation-recovery-operator
+      module: presentation-authorization-audit
+      rules:
+        - Mutation audit metadata records aggregate ID, page key, scope, subject presence or one-way fingerprint, transition, outcome, aggregate version, published revision, definition hash, and content digest only.
+        - Audit capture never stores the portable document, labels, descriptions, conditions, request body, raw subject, raw idempotency key, cookies, tokens, or response body.
+        - Validation failure, bad precondition, stale conflict, authorization denial, database failure, success, definition drift, recovery bypass, and effective-read fallback have stable bounded outcome labels.
+        - Audit persistence failure follows the existing telemetry boundary and never changes an already committed publication result.
+    - id: provide-governance-console
+      title: Provide a compiled recovery-safe governance console
+      description: Operators can exercise the workflow without turning the browser into a code-generation or dynamic-component surface.
+      priority: must
+      actor: presentation-author
+      module: presentation-governance-console
+      rules:
+        - The compiled route lists aggregates, displays derived state and validation diagnostics, edits strict JSON drafts, validates and previews registered presentation data, publishes, lists history, and rolls back with explicit confirmation.
+        - The console preserves local draft text after a 412 response, displays the current server revision, and requires an explicit reload or reviewed retry.
+        - Loading, empty, validation error, service error, permission denied, conflict, recovery mode, and success states are distinct and localized in synchronized zh-CN and en-US catalogs.
+        - An empty capability registry never hides recovery mode or stored aggregate and history inspection; page preview follows the selected aggregate page key, and profile and history tables use server pagination instead of a fixed first-page cap.
+        - The route and its recovery controls are permanently excluded from the presentation capability registry and use only statically imported components.
+        - P1 does not wire any business route to effective profile data; production page adoption remains a separately reviewed P2 feature.
+  constraints:
+    - id: compiled-capability-remains-authoritative
+      type: security
+      statement: Client payloads and stored profile documents cannot create or redefine page, field, component, data-source, action, route, workflow, or permission capabilities.
+    - id: explicit-state-machine-only
+      type: data
+      statement: Aggregate state is derived from draft and published pointers and changes only through create-draft, replace-draft, publish-draft, or rollback-republication commands.
+    - id: published-history-is-append-only
+      type: data
+      statement: Published revisions are immutable append-only records; rollback creates a new revision and no API updates, deletes, renumbers, or reassigns history.
+    - id: authorization-before-service
+      type: security
+      statement: Management handlers enforce exact backend permissions before loading or mutating profile data, and runtime self-context never accepts an owner supplied by the browser.
+    - id: recovery-outside-profile-data
+      type: operations
+      statement: Recovery mode is a startup-owned setting that bypasses stored presentation and cannot be disabled by the database, management API, frontend console, or a presentation profile.
+    - id: no-profile-cache-in-p1
+      type: operations
+      statement: P1 uses the writer database as the sole source for aggregate, history, and effective-layer reads and introduces no Redis correctness dependency or stale cache window.
+    - id: safe-effective-fallback
+      type: compatibility
+      statement: Definition drift, invalid stored content, missing rows, recovery mode, or presentation-store outage never makes the compiled page unavailable and never partially applies an invalid layer.
+    - id: bounded-persistence-and-responses
+      type: performance
+      statement: Document bytes, identifier lengths, diagnostics, history page size, list page size, idempotency keys, and request bodies have explicit server-side bounds before allocation or persistence.
+    - id: no-business-adoption-in-p1
+      type: compatibility
+      statement: P1 adds governance infrastructure and its compiled console but no business page imports effective profiles and the P0 Supplier fixture remains test-only.
+  acceptance:
+    - id: p1-feature-contract
+      statement: The dedicated P1 FeatureSpec and publication ADR validate and remain linked from the capability catalog and P0 decision.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: path
+          value: .mss/features/admin-presentation-publication-workflow.yaml
+        - type: path
+          value: docs/adr/2026-08-24-admin-presentation-publication-workflow.md
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/features/admin-presentation-publication-workflow.yaml --format json
+    - id: registry-and-validation-tests
+      requirement: register-trusted-capabilities
+      statement: Backend tests reject invalid and duplicate trusted definitions and prove strict structural plus capability-aware semantic profile validation.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/presentation/contract_test.go
+    - id: workflow-transition-tests
+      requirement: publish-immutable-history
+      statement: Service tests cover every valid transition, invalid source state, missing draft, stale write, concurrent write, idempotent retry, conflicting key reuse, immutable history, and rollback republication.
+      level: unit
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/service/presentation_profile_test.go
+    - id: draft-validation-tests
+      requirement: validate-inactive-drafts
+      statement: Draft tests reject unsafe structure and bounds, retain stable semantic diagnostics without activation, and rerun current registry validation before publication.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/presentation/contract_test.go
+        - type: test
+          value: admin/service/presentation_profile_test.go
+    - id: conditional-http-tests
+      requirement: enforce-conditional-transitions
+      statement: HTTP tests prove canonical create and mutation preconditions, current-resource 412 responses, identity-bound strong ETags, and exactly one concurrent commit.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/apis/presentation_profile_test.go
+    - id: rollback-republication-tests
+      requirement: rollback-by-republication
+      statement: Rollback tests prove pending-draft rejection, same-aggregate lineage, current-definition revalidation, a new monotonic revision, stale no-op behavior, and idempotent retry.
+      level: unit
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/service/presentation_profile_test.go
+    - id: scoped-permission-tests
+      requirement: enforce-presentation-rbac
+      statement: API and migration tests prove read, draft-write, publish, and rollback grants are independent and direct unauthorized requests remain denied.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/apis/presentation_profile_test.go
+        - type: test
+          value: admin/cmd/migrate/migration/system/presentation_profile_permissions_test.go
+    - id: migration-upgrade-tests
+      requirement: persist-scoped-aggregate
+      statement: Fresh, repeated, and legacy-upgrade migration tests create exact constraints without changing existing configuration or business rows.
+      level: migration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/cmd/migrate/migration/system/presentation_profiles_test.go
+    - id: drift-recovery-tests
+      requirement: resolve-published-layers-safely
+      statement: Effective-layer tests prove exact precedence, server-owned current subjects, whole-layer drift rejection, database-outage fallback, no draft exposure, and startup recovery bypass.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/service/presentation_profile_effective_test.go
+    - id: redacted-audit-tests
+      requirement: record-redacted-audit
+      statement: Middleware and endpoint tests prove profile documents, text values, subjects, conditions, and raw idempotency keys never enter durable audit payloads.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/middleware/presentation_audit_test.go
+    - id: governance-console-tests
+      requirement: provide-governance-console
+      statement: Frontend tests cover permissions, strict draft handling, diagnostics, publish, history, rollback confirmation, conflict draft preservation, recovery state, and locale parity.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6/src/modules/presentation-config
+        - type: command
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 test src/modules/presentation-config src/shared/presentation
+    - id: in-app-browser-acceptance
+      requirement: provide-governance-console
+      statement: Codex in-app Browser opens the running local governance route, refreshes it, exercises empty, draft, validation, publish, conflict, history, rollback, and recovery-safe states, and records screenshots plus console and failed-request checks.
+      level: manual
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: manual
+          value: Codex in-app Browser acceptance against the exact P1 Head; screenshots and logs remain in the system temporary directory.
+    - id: p1-broad-verification
+      statement: Focused Admin, frontend, contract, migration, permission, lint, build, documentation, and changed-scope verification pass without tracked-file drift.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: cd admin && GOWORK=off go test ./presentation ./models ./service ./apis ./middleware ./cmd/migrate/migration/system ./router
+        - type: command
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 lint && corepack pnpm@10.34.5 --dir web/antd-v6 tsc && corepack pnpm@10.34.5 --dir web/antd-v6 test src/modules/presentation-config src/shared/presentation && corepack pnpm@10.34.5 --dir web/antd-v6 build
+        - type: command
+          value: corepack pnpm@9.15.9 --dir docs build
+        - type: command
+          value: go run ./cmd/mss verify --changed
+  risks:
+    - id: invalid-draft-becomes-active
+      description: A draft with stale identifiers or unsafe form behavior could be published without current semantic validation.
+      severity: critical
+      mitigation: Store drafts inactive, rerun registry validation inside the publication transaction, and append history only after validation succeeds.
+    - id: profile-workflow-expands-authority
+      description: A presentation permission or editable payload could be mistaken for backend resource authority.
+      severity: critical
+      mitigation: Keep capabilities and permissions in compiled code, separate management permissions, apply authorization before service access, and retain backend enforcement on business APIs.
+    - id: concurrent-publication-loses-work
+      description: Two authors or retries could overwrite drafts or append duplicate published revisions.
+      severity: high
+      mitigation: Require canonical strong preconditions, lock the aggregate transactionally, advance one version, and persist hashed idempotency with request fingerprints.
+    - id: rollback-republishes-drift
+      description: An old revision can reference fields or components removed by a later Admin release.
+      severity: high
+      mitigation: Revalidate the exact historical document against the current registered definition and reject rollback as one unit when drift exists.
+    - id: broken-profile-locks-recovery
+      description: Applying configuration to governance or recovery pages could hide the controls required to fix invalid presentation.
+      severity: critical
+      mitigation: Reject protected page registration, keep the console statically compiled, and provide startup-owned recovery mode that returns compiled defaults only.
+    - id: audit-copies-profile-content
+      description: Generic body capture could persist labels, condition values, subjects, or idempotency keys beyond the profile store.
+      severity: high
+      mitigation: Suppress request-body capture on every presentation mutation and write only bounded value-free metadata after redaction.
+    - id: p1-scope-creeps-into-low-code
+      description: Adding arbitrary URLs, components, expressions, or new business fields to simplify the console would recreate removed runtime developer tools.
+      severity: critical
+      mitigation: Preserve the closed P0 schema, accept only exact registry identifiers, and leave new capabilities to AdminModule generation and reviewed releases.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/admin-presentation-publication-workflow.yaml --format json
+      - cd admin && GOWORK=off go test ./presentation ./models ./service ./apis ./middleware ./cmd/migrate/migration/system ./router
+      - corepack pnpm@10.34.5 --dir web/antd-v6 lint
+      - corepack pnpm@10.34.5 --dir web/antd-v6 tsc
+      - corepack pnpm@10.34.5 --dir web/antd-v6 test src/modules/presentation-config src/shared/presentation
+      - corepack pnpm@10.34.5 --dir web/antd-v6 build
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: feature-flag
+    migration: >-
+      Apply forward-only aggregate, immutable revision, unique identity, aggregate-version, profile-local
+      revision, and hashed-idempotency constraints plus independent menu and API permission metadata. P1
+      ships the compiled governance console and effective-profile endpoint, but the registry contains no
+      production business page and no business route consumes profiles. Operators may exercise the workflow
+      with qualified test capabilities before P2 projects real definitions. Recovery mode is configured at
+      startup and empty by default.
+    rollback: >-
+      First enable startup presentation recovery mode so every effective read returns empty layers and compiled
+      defaults remain active. Roll back the application to the preceding qualified Admin and frontend pair while
+      retaining aggregate and immutable revision tables. A follow-up forward migration may retire unused P1 menu
+      metadata, but published history is never destroyed as part of emergency application rollback.

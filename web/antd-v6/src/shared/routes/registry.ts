@@ -91,6 +91,12 @@ const registrations: readonly RouteRegistration[] = [
     permission: '/option',
   },
   {
+    path: '/presentation-config',
+    serverPaths: ['/presentation-config'],
+    menuName: 'presentation-config',
+    permission: '/presentation-config',
+  },
+  {
     path: '/security/online-sessions',
     serverPaths: ['/security/online-sessions'],
     menuName: 'online-sessions',

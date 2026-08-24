@@ -69,6 +69,21 @@ var customRouteContracts = []CustomRouteContract{
 	{Method: http.MethodPut, Path: "/admin/api/options/:id", Class: RouteAuthorized, Permission: "option:update", Mutation: true},
 	{Method: http.MethodDelete, Path: "/admin/api/options/:id", Class: RouteAuthorized, Permission: "option:delete", Mutation: true},
 
+	// Governed page-presentation publication. Effective reads derive the
+	// current user and role from the authenticated principal; management
+	// authority is split across read, draft, publish and rollback policies.
+	{Method: http.MethodGet, Path: "/admin/api/presentation-capabilities", Class: RouteAuthorized, Permission: "presentation:read"},
+	{Method: http.MethodPost, Path: "/admin/api/presentation-profiles/validate", Class: RouteAuthorized, Permission: "presentation:read", Mutation: true},
+	{Method: http.MethodGet, Path: "/admin/api/presentation-profiles", Class: RouteAuthorized, Permission: "presentation:read"},
+	{Method: http.MethodPost, Path: "/admin/api/presentation-profiles", Class: RouteAuthorized, Permission: "presentation:draft-write", Mutation: true},
+	{Method: http.MethodGet, Path: "/admin/api/presentation-profiles/:id", Class: RouteAuthorized, Permission: "presentation:read"},
+	{Method: http.MethodPut, Path: "/admin/api/presentation-profiles/:id/draft", Class: RouteAuthorized, Permission: "presentation:draft-write", Mutation: true},
+	{Method: http.MethodPost, Path: "/admin/api/presentation-profiles/:id/publish", Class: RouteAuthorized, Permission: "presentation:publish", Mutation: true},
+	{Method: http.MethodGet, Path: "/admin/api/presentation-profiles/:id/revisions", Class: RouteAuthorized, Permission: "presentation:read"},
+	{Method: http.MethodGet, Path: "/admin/api/presentation-profiles/:id/revisions/:revision", Class: RouteAuthorized, Permission: "presentation:read"},
+	{Method: http.MethodPost, Path: "/admin/api/presentation-profiles/:id/rollback", Class: RouteAuthorized, Permission: "presentation:rollback", Mutation: true},
+	{Method: http.MethodGet, Path: "/admin/api/presentation/effective/:pageKey", Class: RouteAuthenticatedSelf},
+
 	// Runtime logs and monitoring.
 	{Method: http.MethodGet, Path: "/admin/api/logs", Class: RouteAuthorized, Permission: "log:read"},
 	{Method: http.MethodGet, Path: "/admin/api/logs/files", Class: RouteAuthorized, Permission: "log:read"},

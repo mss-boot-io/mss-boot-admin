@@ -111,6 +111,7 @@ STAGE=local go run . server -a
 - [完整 Admin Distribution 与 Thin Host 架构](/architecture/complete-admin-distribution-and-thin-business-host)
 - [Agent 开发入口](/agent)
 - [权限与组织治理](/admin/governance-guide)
+- [页面展示配置发布治理](/admin/presentation-configuration)
 - [生产和安全基线](/admin/security-baseline)
 - [Docker 部署](/admin/docker)
 - [v1.3.2 发布、升级与回滚](/releases/v1-3-2)

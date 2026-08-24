@@ -20,7 +20,10 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-const themeAuditMetadataContextKey = "mss.theme.audit.metadata"
+const (
+	themeAuditMetadataContextKey        = "mss.theme.audit.metadata"
+	presentationAuditMetadataContextKey = "mss.presentation.audit.metadata"
+)
 
 const (
 	applicationThemeMutationPath = "/admin/api/app-configs/theme"
@@ -38,9 +41,33 @@ type ThemeAuditMetadata struct {
 	Revision    string   `json:"revision,omitempty"`
 }
 
+// PresentationAuditMetadata intentionally contains no editable presentation
+// values. SubjectFingerprint is a one-way digest and SubjectPresent permits
+// application-scope evidence without persisting role or user identifiers.
+type PresentationAuditMetadata struct {
+	AggregateID        string `json:"aggregateID,omitempty"`
+	PageKey            string `json:"pageKey,omitempty"`
+	Scope              string `json:"scope,omitempty"`
+	SubjectPresent     bool   `json:"subjectPresent"`
+	SubjectFingerprint string `json:"subjectFingerprint,omitempty"`
+	Transition         string `json:"transition"`
+	Outcome            string `json:"outcome"`
+	AggregateVersion   int64  `json:"aggregateVersion,omitempty"`
+	PublishedRevision  int64  `json:"publishedRevision,omitempty"`
+	DefinitionHash     string `json:"definitionHash,omitempty"`
+	ContentDigest      string `json:"contentDigest,omitempty"`
+}
+
 func SetThemeAuditMetadata(ctx *gin.Context, metadata ThemeAuditMetadata) {
 	metadata.ChangedKeys = append([]string(nil), metadata.ChangedKeys...)
 	ctx.Set(themeAuditMetadataContextKey, metadata)
+}
+
+func SetPresentationAuditMetadata(ctx *gin.Context, metadata PresentationAuditMetadata) {
+	if ctx == nil {
+		return
+	}
+	ctx.Set(presentationAuditMetadataContextKey, metadata)
 }
 
 func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
@@ -107,22 +134,23 @@ func AuditLogMiddleware(skipPaths ...string) gin.HandlerFunc {
 			resource = strings.Join(parts[:4], "/")
 		}
 
-		metadata, hasThemeMetadata := themeAuditMetadataFromContext(c)
-		if !hasThemeMetadata {
-			metadata, hasThemeMetadata = fallbackThemeAuditMetadata(
-				c.Request.Method,
-				path,
-				status,
-				requestBody,
-			)
+		var metadata any
+		hasValueFreeMetadata := false
+		if presentationMetadata, ok := presentationAuditMetadataFromContext(c); ok {
+			metadata, hasValueFreeMetadata = presentationMetadata, true
+		} else if presentationMetadata, ok := fallbackPresentationAuditMetadata(c.Request.Method, path, status); ok {
+			metadata, hasValueFreeMetadata = presentationMetadata, true
+		} else if themeMetadata, ok := themeAuditMetadataFromContext(c); ok {
+			metadata, hasValueFreeMetadata = themeMetadata, true
+		} else if themeMetadata, ok := fallbackThemeAuditMetadata(c.Request.Method, path, status, requestBody); ok {
+			metadata, hasValueFreeMetadata = themeMetadata, true
 		}
-
 		message := ""
-		if hasThemeMetadata {
+		if hasValueFreeMetadata {
 			if encoded, err := json.Marshal(metadata); err == nil {
 				message = string(encoded)
-				// Theme values must never be persisted, including when an auth
-				// middleware rejects the request before the controller runs.
+				// Theme and presentation values must never be persisted, including
+				// when authorization rejects before the controller runs.
 				requestBody = ""
 			}
 		}
@@ -161,6 +189,9 @@ func shouldCaptureAuditRequestBody(request *http.Request) bool {
 	if request == nil || request.Body == nil || request.Method == http.MethodGet || request.Method == http.MethodOptions {
 		return false
 	}
+	if isPresentationAuditPath(request.URL.Path) {
+		return false
+	}
 	// Never buffer multipart uploads in the audit middleware. Upload handlers
 	// already enforce file size and MIME policy, while audit evidence records
 	// actor, route, status, and duration without copying file bytes into memory.
@@ -171,6 +202,89 @@ func shouldCaptureAuditRequestBody(request *http.Request) bool {
 	// Unknown/chunked or large bodies are intentionally not captured. Reading
 	// them merely to decide not to persist them would amplify request memory.
 	return request.ContentLength >= 0 && request.ContentLength < auditRequestBodyLimit
+}
+
+func presentationAuditMetadataFromContext(ctx *gin.Context) (PresentationAuditMetadata, bool) {
+	value, ok := ctx.Get(presentationAuditMetadataContextKey)
+	if !ok {
+		return PresentationAuditMetadata{}, false
+	}
+	metadata, ok := value.(PresentationAuditMetadata)
+	return metadata, ok
+}
+
+func fallbackPresentationAuditMetadata(method, path string, status int) (PresentationAuditMetadata, bool) {
+	transition, aggregateID, ok := presentationAuditRoute(method, path)
+	if !ok {
+		return PresentationAuditMetadata{}, false
+	}
+	return PresentationAuditMetadata{
+		AggregateID: aggregateID,
+		Transition:  transition,
+		Outcome:     presentationAuditOutcome(status),
+	}, true
+}
+
+func isPresentationAuditPath(path string) bool {
+	return path == "/admin/api/presentation-profiles" ||
+		strings.HasPrefix(path, "/admin/api/presentation-profiles/")
+}
+
+func presentationAuditRoute(method, path string) (transition, aggregateID string, ok bool) {
+	const prefix = "/admin/api/presentation-profiles"
+	if path == prefix {
+		if method == http.MethodPost {
+			return "create-draft", "", true
+		}
+		return "", "", false
+	}
+	remainder := strings.TrimPrefix(path, prefix+"/")
+	if remainder == path || remainder == "" {
+		return "", "", false
+	}
+	segments := strings.Split(remainder, "/")
+	if len(segments) == 1 && segments[0] == "validate" && method == http.MethodPost {
+		return "validate", "", true
+	}
+	if len(segments) != 2 || strings.TrimSpace(segments[0]) == "" {
+		return "", "", false
+	}
+	switch {
+	case segments[1] == "draft" && method == http.MethodPut:
+		return "replace-draft", segments[0], true
+	case segments[1] == "publish" && method == http.MethodPost:
+		return "publish", segments[0], true
+	case segments[1] == "rollback" && method == http.MethodPost:
+		return "rollback", segments[0], true
+	default:
+		return "", "", false
+	}
+}
+
+func presentationAuditOutcome(status int) string {
+	switch status {
+	case http.StatusUnauthorized:
+		return "authentication_failed"
+	case http.StatusForbidden:
+		return "authorization_failed"
+	case http.StatusPreconditionRequired, http.StatusBadRequest:
+		return "bad_precondition"
+	case http.StatusPreconditionFailed:
+		return "conflict"
+	case http.StatusConflict:
+		return "idempotency_conflict"
+	case http.StatusUnprocessableEntity:
+		return "validation_failed"
+	case http.StatusServiceUnavailable:
+		return "database_failure"
+	}
+	if status >= http.StatusOK && status < http.StatusBadRequest {
+		return "success"
+	}
+	if status >= http.StatusInternalServerError {
+		return "server_error"
+	}
+	return "rejected"
 }
 
 func isAuditedRead(path string) bool {

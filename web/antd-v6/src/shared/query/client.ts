@@ -65,6 +65,13 @@ export const queryKeys = {
     }>,
   ) => ['configuration', 'options', 'list', params] as const,
   option: (id: string) => ['configuration', 'options', 'detail', id] as const,
+  presentationCapabilities: ['configuration', 'presentation', 'capabilities'] as const,
+  presentationProfiles: ['configuration', 'presentation', 'profiles'] as const,
+  presentationProfile: (id: string) => ['configuration', 'presentation', 'profiles', id] as const,
+  presentationRevisions: (profileID: string) =>
+    ['configuration', 'presentation', 'profiles', profileID, 'revisions'] as const,
+  presentationRevision: (profileID: string, revision: number) =>
+    ['configuration', 'presentation', 'profiles', profileID, 'revisions', revision] as const,
   administration: (resource: 'departments' | 'menus' | 'posts' | 'roles' | 'users') =>
     ['administration', resource] as const,
   administrationList: (
