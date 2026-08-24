@@ -164,8 +164,10 @@ spec:
       owners: [frontend, backend, security, agent-infrastructure]
       paths:
         - .mss/features/admin-presentation-configuration.yaml
+        - .mss/features/admin-presentation-publication-workflow.yaml
         - .mss/schemas/admin-page-presentation.schema.json
         - docs/adr/2026-08-24-governed-admin-presentation-configuration.md
+        - docs/adr/2026-08-24-admin-presentation-publication-workflow.md
       frontendPaths:
         - web/antd-v6/src/shared/presentation
       guidance: >-
@@ -174,11 +176,13 @@ spec:
         prototype. Code defaults resolve beneath application, role, and user layers; exact definition
         hash validation rejects stale profiles, and trusted permissions are intersected last. The
         prototype has no production route, persistence, API, menu, migration, browser storage, or
-        generated-file replacement. Keep this capability Planned until a separately reviewed P1 adds
-        authoritative draft, ETag publish, immutable history, rollback, audit, drift diagnostics,
-        recovery mode, and browser evidence. Never add scripts, HTML, SQL, transport definitions,
-        component imports, permissions, runtime models, virtual CRUD, or browser code generation to a
-        presentation profile.
+        generated-file replacement. The dedicated P1 contract now fixes authoritative drafts, strong
+        conditional transitions, idempotent publication, immutable history, rollback republication,
+        independent permissions, redacted audit, drift fallback, startup recovery mode, and a compiled
+        governance console, while deliberately registering no production business page. Keep this
+        capability Planned until P1 implementation and exact-Head browser evidence pass. Never add scripts,
+        HTML, SQL, transport definitions, component imports, permissions, runtime models, virtual CRUD, or
+        browser code generation to a presentation profile.
 
     - id: platform.cache-lock-queue
       displayName: Legacy Cache, Distributed Lock, and Queue Adapters

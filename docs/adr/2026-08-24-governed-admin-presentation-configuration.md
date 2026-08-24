@@ -5,6 +5,8 @@
 - Owners: Admin platform, frontend, security, agent infrastructure
 - Feature contract: `.mss/features/admin-presentation-configuration.yaml`
 - Profile schema: `.mss/schemas/admin-page-presentation.schema.json`
+- P1 publication decision: `docs/adr/2026-08-24-admin-presentation-publication-workflow.md`
+- P1 feature contract: `.mss/features/admin-presentation-publication-workflow.yaml`
 
 ## Context
 
@@ -188,5 +190,6 @@ components as public contracts.
 P0 completion is measurable: the feature validates, the schema safety tests pass, the focused frontend
 tests produce the expected Supplier render model, lint and documentation build pass, no production route
 imports the prototype, and the tracked worktree remains clean after verification. The next executable step
-after P0 review is a separate P1 FeatureSpec for draft, publish, history, rollback, and recovery persistence;
-it is not to wire the prototype directly into production.
+after P0 review is the separately reviewed P1 publication workflow in
+`.mss/features/admin-presentation-publication-workflow.yaml`; it is not to wire the prototype directly into
+production.
