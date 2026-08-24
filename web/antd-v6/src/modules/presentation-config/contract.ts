@@ -1,7 +1,4 @@
-import {
-  type PageCapabilityDefinition,
-  validatePageCapabilityDefinition,
-} from '@mss-admin-core/shared/presentation/contract';
+import type { PageCapabilityDefinition } from '@mss-admin-core/shared/presentation/contract';
 
 export const PRESENTATION_API_VERSION = 'mss.io/v1alpha1';
 export const PRESENTATION_KIND = 'AdminPagePresentation';
@@ -146,6 +143,8 @@ export class PresentationContractError extends Error {
   }
 }
 
+const invalidResponse = () => new PresentationContractError('Invalid presentation response');
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -153,7 +152,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function requiredString(value: Record<string, unknown>, key: string, max = 512): string {
   const candidate = value[key];
   if (typeof candidate !== 'string' || !candidate.trim() || [...candidate].length > max) {
-    throw new PresentationContractError(`Presentation field ${key} is invalid`);
+    throw invalidResponse();
   }
   return candidate.trim();
 }
@@ -166,14 +165,14 @@ function optionalString(
   const candidate = value[key];
   if (candidate === undefined || candidate === null || candidate === '') return undefined;
   if (typeof candidate !== 'string' || [...candidate].length > max) {
-    throw new PresentationContractError(`Presentation field ${key} is invalid`);
+    throw invalidResponse();
   }
   return candidate.trim();
 }
 
 function requiredBoolean(value: Record<string, unknown>, key: string): boolean {
   if (typeof value[key] !== 'boolean') {
-    throw new PresentationContractError(`Presentation field ${key} is invalid`);
+    throw invalidResponse();
   }
   return value[key];
 }
@@ -181,7 +180,7 @@ function requiredBoolean(value: Record<string, unknown>, key: string): boolean {
 function integer(value: Record<string, unknown>, key: string, minimum: number): number {
   const candidate = value[key];
   if (typeof candidate !== 'number' || !Number.isSafeInteger(candidate) || candidate < minimum) {
-    throw new PresentationContractError(`Presentation field ${key} is invalid`);
+    throw invalidResponse();
   }
   return candidate;
 }
@@ -189,7 +188,7 @@ function integer(value: Record<string, unknown>, key: string, minimum: number): 
 function dateString(value: Record<string, unknown>, key: string): string {
   const candidate = requiredString(value, key, 64);
   if (!Number.isFinite(Date.parse(candidate))) {
-    throw new PresentationContractError(`Presentation field ${key} is invalid`);
+    throw invalidResponse();
   }
   return candidate;
 }
@@ -197,18 +196,18 @@ function dateString(value: Record<string, unknown>, key: string): string {
 function digest(value: Record<string, unknown>, key: string): string {
   const candidate = requiredString(value, key, 71);
   if (!/^sha256:[0-9a-f]{64}$/.test(candidate)) {
-    throw new PresentationContractError(`Presentation field ${key} is invalid`);
+    throw invalidResponse();
   }
   return candidate;
 }
 
-function stringArray(value: unknown, label: string, maximum = 500): string[] {
+function stringArray(value: unknown, maximum = 500): string[] {
   if (!Array.isArray(value) || value.length > maximum) {
-    throw new PresentationContractError(`${label} is invalid`);
+    throw invalidResponse();
   }
   return value.map((entry) => {
     if (typeof entry !== 'string' || !entry.trim() || [...entry].length > 512) {
-      throw new PresentationContractError(`${label} is invalid`);
+      throw invalidResponse();
     }
     return entry.trim();
   });
@@ -240,26 +239,26 @@ function parseJSONValue(value: unknown, depth = 0): PresentationJSONValue {
   return result;
 }
 
-function parseJSONObject(value: unknown, label: string): PresentationJSONObject {
+function parseJSONObject(value: unknown): PresentationJSONObject {
   const parsed = parseJSONValue(value);
-  if (!isRecord(parsed)) throw new PresentationContractError(`${label} must be an object`);
+  if (!isRecord(parsed)) throw invalidResponse();
   const encoded = JSON.stringify(parsed);
   if (new TextEncoder().encode(encoded).byteLength > MAX_PRESENTATION_DOCUMENT_BYTES) {
-    throw new PresentationContractError(`${label} exceeds the encoded size limit`);
+    throw invalidResponse();
   }
   return parsed;
 }
 
 function parseLocalizedText(value: unknown): LocalizedText {
-  if (!isRecord(value)) throw new PresentationContractError('Localized text is invalid');
+  if (!isRecord(value)) throw invalidResponse();
   const zhCN = optionalString(value, 'zh-CN', 200);
   const enUS = optionalString(value, 'en-US', 200);
-  if (!zhCN && !enUS) throw new PresentationContractError('Localized text is empty');
+  if (!zhCN && !enUS) throw invalidResponse();
   return { ...(zhCN ? { 'zh-CN': zhCN } : {}), ...(enUS ? { 'en-US': enUS } : {}) };
 }
 
 function parseIssue(value: unknown): PresentationIssue {
-  if (!isRecord(value)) throw new PresentationContractError('Presentation issue is invalid');
+  if (!isRecord(value)) throw invalidResponse();
   return {
     code: requiredString(value, 'code', 120),
     path: requiredString(value, 'path', 512),
@@ -269,13 +268,69 @@ function parseIssue(value: unknown): PresentationIssue {
 
 function parseIssues(value: unknown): PresentationIssue[] {
   if (!Array.isArray(value) || value.length > 1_000) {
-    throw new PresentationContractError('Presentation issues are invalid');
+    throw invalidResponse();
   }
   return value.map(parseIssue);
 }
 
+function recordArray(value: unknown, maximum: number): Record<string, unknown>[] {
+  if (!Array.isArray(value) || value.length > maximum) {
+    throw invalidResponse();
+  }
+  return value.map((entry) => {
+    if (!isRecord(entry)) throw invalidResponse();
+    return entry;
+  });
+}
+
+function validateCapabilityDefaults(value: unknown) {
+  if (!isRecord(value)) throw invalidResponse();
+  parseLocalizedText(value.title);
+  requiredString(value, 'dataSource', 120);
+  const list = value.list;
+  const search = value.search;
+  const form = value.form;
+  const detail = value.detail;
+  if (!isRecord(list) || !isRecord(search) || !isRecord(form) || !isRecord(detail)) {
+    throw invalidResponse();
+  }
+  const fields = [
+    ...recordArray(list.columns, 100),
+    ...recordArray(search.fields, 100),
+    ...recordArray(form.fields, 100),
+    ...recordArray(detail.fields, 100),
+  ];
+  for (const field of fields) {
+    requiredString(field, 'field', 120);
+    requiredString(field, 'component', 120);
+    integer(field, 'order', 0);
+    requiredBoolean(field, 'hidden');
+  }
+  const density = requiredString(list, 'density', 20);
+  if (density !== 'compact' && density !== 'middle' && density !== 'large') {
+    throw invalidResponse();
+  }
+  integer(list, 'pageSize', 1);
+  for (const sort of recordArray(list.defaultSort, 3)) {
+    requiredString(sort, 'field', 120);
+    const direction = requiredString(sort, 'direction', 4);
+    if (direction !== 'asc' && direction !== 'desc') {
+      throw invalidResponse();
+    }
+  }
+  requiredBoolean(search, 'collapsedByDefault');
+  integer(form, 'columns', 1);
+  integer(detail, 'columns', 1);
+  for (const action of recordArray(value.actions, 64)) {
+    requiredString(action, 'action', 120);
+    requiredString(action, 'placement', 20);
+    integer(action, 'order', 0);
+    requiredBoolean(action, 'hidden');
+  }
+}
+
 function parseCapability(value: unknown): PresentationCapability {
-  if (!isRecord(value)) throw new PresentationContractError('Presentation capability is invalid');
+  if (!isRecord(value)) throw invalidResponse();
   const rawComponents = value.components;
   const rawFields = value.fields;
   const rawDataSources = value.dataSources;
@@ -290,14 +345,14 @@ function parseCapability(value: unknown): PresentationCapability {
     rawDataSources.length > 500 ||
     rawActions.length > 500
   ) {
-    throw new PresentationContractError('Presentation capability collections are invalid');
+    throw invalidResponse();
   }
   const components = rawComponents.map((entry) => {
-    if (!isRecord(entry)) throw new PresentationContractError('Presentation component is invalid');
+    if (!isRecord(entry)) throw invalidResponse();
     return requiredString(entry, 'id', 120);
   });
   const fields = rawFields.map((entry): PresentationCapabilityField => {
-    if (!isRecord(entry)) throw new PresentationContractError('Presentation field is invalid');
+    if (!isRecord(entry)) throw invalidResponse();
     return {
       id: requiredString(entry, 'id', 120),
       label: parseLocalizedText(entry.label),
@@ -305,50 +360,36 @@ function parseCapability(value: unknown): PresentationCapability {
       required: requiredBoolean(entry, 'required'),
       sortable: requiredBoolean(entry, 'sortable'),
       filterable: requiredBoolean(entry, 'filterable'),
-      surfaces: stringArray(entry.surfaces, 'Presentation field surfaces', 10),
-      components: stringArray(entry.components, 'Presentation field components', 100),
+      surfaces: stringArray(entry.surfaces, 10),
+      components: stringArray(entry.components, 100),
     };
   });
   const dataSources = rawDataSources.map((entry) => {
-    if (!isRecord(entry))
-      throw new PresentationContractError('Presentation data source is invalid');
-    stringArray(entry.requiredPermissions, 'Presentation data source permissions', 500);
+    if (!isRecord(entry)) throw invalidResponse();
+    stringArray(entry.requiredPermissions, 500);
     return requiredString(entry, 'id', 120);
   });
   const actions = rawActions.map((entry) => {
-    if (!isRecord(entry)) throw new PresentationContractError('Presentation action is invalid');
-    stringArray(entry.requiredPermissions, 'Presentation action permissions', 500);
-    stringArray(entry.placements, 'Presentation action placements', 10);
+    if (!isRecord(entry)) throw invalidResponse();
+    stringArray(entry.requiredPermissions, 500);
+    stringArray(entry.placements, 10);
     return requiredString(entry, 'id', 120);
   });
-  const unique = (items: readonly string[], label: string) => {
+  const unique = (items: readonly string[]) => {
     if (new Set(items).size !== items.length) {
-      throw new PresentationContractError(`${label} contains duplicates`);
+      throw invalidResponse();
     }
   };
-  unique(components, 'Presentation components');
-  unique(
-    fields.map((field) => field.id),
-    'Presentation fields',
-  );
-  unique(dataSources, 'Presentation data sources');
-  unique(actions, 'Presentation actions');
+  unique(components);
+  unique(fields.map((field) => field.id));
+  unique(dataSources);
+  unique(actions);
   const normalizedDefinition = parseJSONValue(value);
   if (!isRecord(normalizedDefinition)) {
-    throw new PresentationContractError('Presentation capability is invalid');
+    throw invalidResponse();
   }
+  validateCapabilityDefaults(value.defaultPresentation);
   const definition = normalizedDefinition as unknown as PageCapabilityDefinition;
-  let definitionIssues: ReturnType<typeof validatePageCapabilityDefinition>;
-  try {
-    definitionIssues = validatePageCapabilityDefinition(definition);
-  } catch {
-    throw new PresentationContractError('Presentation capability definition is invalid');
-  }
-  if (definitionIssues.length > 0) {
-    throw new PresentationContractError(
-      `Presentation capability definition is invalid: ${definitionIssues[0]?.code ?? 'unknown'}`,
-    );
-  }
   return {
     pageKey: requiredString(value, 'pageKey', 120),
     definitionVersion: requiredString(value, 'definitionVersion', 40),
@@ -357,18 +398,18 @@ function parseCapability(value: unknown): PresentationCapability {
     fields,
     dataSources,
     actions,
-    defaultPresentation: parseJSONObject(value.defaultPresentation, 'Default presentation'),
+    defaultPresentation: parseJSONObject(value.defaultPresentation),
     definition,
   };
 }
 
 export function parsePresentationCapabilityCatalog(value: unknown): PresentationCapabilityCatalog {
   if (!isRecord(value) || !Array.isArray(value.items) || value.items.length > 500) {
-    throw new PresentationContractError('Presentation capability catalog is invalid');
+    throw invalidResponse();
   }
   const items = value.items.map(parseCapability);
   if (new Set(items.map((item) => item.pageKey)).size !== items.length) {
-    throw new PresentationContractError('Presentation capability page keys must be unique');
+    throw invalidResponse();
   }
   return { items, recoveryMode: requiredBoolean(value, 'recoveryMode') };
 }
@@ -435,7 +476,7 @@ export function parsePresentationProfile(value: unknown): PresentationProfile {
     if (!isRecord(value.draft))
       throw new PresentationContractError('Presentation draft is invalid');
     draft = {
-      document: parseJSONObject(value.draft.document, 'Presentation draft document'),
+      document: parseJSONObject(value.draft.document),
       digest: digest(value.draft, 'digest'),
       definitionHash: digest(value.draft, 'definitionHash'),
       valid: requiredBoolean(value.draft, 'valid'),
@@ -480,7 +521,7 @@ export function parsePresentationRevision(value: unknown): PresentationRevision 
   return {
     ...parseRevisionSummary(value),
     profileID: requiredString(value, 'profileID', 64),
-    document: parseJSONObject(value.document, 'Presentation revision document'),
+    document: parseJSONObject(value.document),
   };
 }
 
@@ -511,7 +552,7 @@ export function parsePresentationValidation(value: unknown): PresentationValidat
     semanticallyValid: requiredBoolean(value, 'semanticallyValid'),
     ...(value.canonicalDocument === undefined
       ? {}
-      : { canonicalDocument: parseJSONObject(value.canonicalDocument, 'Canonical presentation') }),
+      : { canonicalDocument: parseJSONObject(value.canonicalDocument) }),
     ...(optionalString(value, 'digest', 71) ? { digest: digest(value, 'digest') } : {}),
     ...(optionalString(value, 'currentDefinition', 71)
       ? { currentDefinition: digest(value, 'currentDefinition') }
@@ -539,7 +580,7 @@ export function parsePresentationDocumentText(value: string): PresentationJSONOb
   } catch {
     throw new PresentationContractError('Presentation document must be valid JSON');
   }
-  return parseJSONObject(parsed, 'Presentation document');
+  return parseJSONObject(parsed);
 }
 
 export function formatPresentationDocument(value: PresentationJSONObject): string {

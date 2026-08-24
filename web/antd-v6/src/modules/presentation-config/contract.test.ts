@@ -101,6 +101,12 @@ describe('presentation configuration contract', () => {
         recoveryMode: false,
       }),
     ).toThrow(PresentationContractError);
+    expect(() =>
+      parsePresentationCapabilityCatalog({
+        items: [{ ...capability, defaultPresentation: {} }],
+        recoveryMode: false,
+      }),
+    ).toThrow(PresentationContractError);
   });
 
   it('builds scope-safe initial documents and enforces the editor size boundary', () => {

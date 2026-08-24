@@ -1,10 +1,3 @@
-import CheckCircleOutlined from '@ant-design/icons/CheckCircleOutlined';
-import CloudUploadOutlined from '@ant-design/icons/CloudUploadOutlined';
-import HistoryOutlined from '@ant-design/icons/HistoryOutlined';
-import PlusOutlined from '@ant-design/icons/PlusOutlined';
-import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
-import SafetyCertificateOutlined from '@ant-design/icons/SafetyCertificateOutlined';
-import SaveOutlined from '@ant-design/icons/SaveOutlined';
 import { getRequestErrorMessage, getRequestStatus } from '@mss-admin-core/shared/api/errors';
 import {
   PageEmpty,
@@ -14,7 +7,6 @@ import {
 } from '@mss-admin-core/shared/design-system/PageState';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useIntl } from '@umijs/max';
 import {
   Alert,
   App,
@@ -47,6 +39,7 @@ import {
   parsePresentationDocumentText,
   presentationConflictCurrent,
 } from './contract';
+import { usePresentationIntl } from './messages';
 import { buildPresentationPreview } from './preview';
 import {
   usePresentationCapabilities,
@@ -100,7 +93,7 @@ export default function PresentationConfigConsole({
   canPublish,
   canRollback,
 }: PresentationConfigConsoleProps) {
-  const intl = useIntl();
+  const intl = usePresentationIntl();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const capabilities = usePresentationCapabilities();
@@ -485,7 +478,7 @@ export default function PresentationConfigConsole({
               title={intl.formatMessage({ id: 'presentation.conflict.discard.confirm' })}
               onConfirm={discardAndReload}
             >
-              <Button size="small" icon={<ReloadOutlined />}>
+              <Button size="small">
                 {intl.formatMessage({ id: 'presentation.conflict.reload' })}
               </Button>
             </Popconfirm>
@@ -513,7 +506,7 @@ export default function PresentationConfigConsole({
         title={intl.formatMessage({ id: 'presentation.profiles.title' })}
         extra={
           canDraft ? (
-            <Button icon={<PlusOutlined />} type="primary" onClick={beginCreate}>
+            <Button type="primary" onClick={beginCreate}>
               {intl.formatMessage({ id: 'presentation.create.action' })}
             </Button>
           ) : null
@@ -649,11 +642,7 @@ export default function PresentationConfigConsole({
             ) : null}
 
             <Space wrap>
-              <Button
-                icon={<SafetyCertificateOutlined />}
-                loading={validate.isPending}
-                onClick={() => validate.mutate()}
-              >
+              <Button loading={validate.isPending} onClick={() => validate.mutate()}>
                 {intl.formatMessage({ id: 'presentation.validate.action' })}
               </Button>
               {canDraft ? (
@@ -664,7 +653,6 @@ export default function PresentationConfigConsole({
                     !editorText ||
                     Boolean(conflict)
                   }
-                  icon={<SaveOutlined />}
                   loading={save.isPending}
                   type="primary"
                   onClick={() => save.mutate()}
@@ -680,7 +668,6 @@ export default function PresentationConfigConsole({
                 >
                   <Button
                     disabled={!profile.data.draft?.valid || dirty || Boolean(conflict)}
-                    icon={<CloudUploadOutlined />}
                     loading={publish.isPending}
                   >
                     {intl.formatMessage({ id: 'presentation.publish.action' })}
@@ -721,7 +708,6 @@ export default function PresentationConfigConsole({
                     </Space>
                   ) : undefined
                 }
-                icon={<CheckCircleOutlined />}
                 showIcon
                 title={intl.formatMessage({
                   id:
@@ -795,14 +781,7 @@ export default function PresentationConfigConsole({
       </Card>
 
       {!creating && selectedID ? (
-        <Card
-          title={
-            <Space>
-              <HistoryOutlined />
-              {intl.formatMessage({ id: 'presentation.history.title' })}
-            </Space>
-          }
-        >
+        <Card title={intl.formatMessage({ id: 'presentation.history.title' })}>
           {revisions.isError ? (
             <PageError
               message={getRequestErrorMessage(revisions.error)}
