@@ -1,0 +1,272 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-presentation-configuration
+  displayName: Governed Admin page presentation configuration
+  description: >-
+    Defines the trusted capability registry, sparse page-presentation overlays, deterministic
+    precedence, fail-closed drift handling, and a non-production Supplier prototype for making
+    approved Admin display choices configurable without runtime code generation.
+  owner: admin-platform
+  labels:
+    domain: configuration
+    scope: presentation
+    phase: p0-contract-prototype
+spec:
+  problem: >-
+    Admin pages are compiled safely but many display decisions remain embedded in React source.
+    Operators therefore need code changes for routine column, search, form, detail, label, order,
+    density, and action-placement changes. The repository also permanently removed runtime dynamic
+    models and browser code generation, so stronger configuration must remain inside compiled data,
+    component, action, route, and permission boundaries instead of recreating a low-code runtime.
+  goals:
+    - Define one strict versioned document for sparse Admin page-presentation overlays.
+    - Keep fields, data sources, components, actions, routes, and permissions in a trusted compile-time capability registry.
+    - Resolve code defaults, application, role, and user presentation layers deterministically while applying authorization last.
+    - Reject definition drift and unknown capability references as a whole profile with a safe fallback.
+    - Prove the contract with a non-persistent Supplier list-page prototype without changing production routing.
+    - Record a phased path from the P0 prototype to governed draft, publish, history, rollback, and visual editing.
+  nonGoals:
+    - Add database tables, migrations, HTTP APIs, caching, drafts, publishing, history, rollback, or an editor in P0.
+    - Replace the current Supplier production route or hand-edit any generated Supplier file.
+    - Create fields, database columns, models, APIs, data-source URLs, HTTP methods, headers, workflows, permissions, or routes at runtime.
+    - Execute JavaScript, expressions, SQL, HTML, imports, templates, plugins, or downloaded code from presentation configuration.
+    - Reintroduce dynamic models, virtual CRUD, runtime developer tools, browser code generation, micro-frontends, or remote modules.
+    - Make authentication, authorization, application configuration, or recovery pages configurable before later security qualification.
+  actors:
+    - id: page-operator
+      displayName: Page configuration operator
+      description: Selects allowed presentation options without gaining data or action permissions.
+    - id: platform-maintainer
+      displayName: Admin platform maintainer
+      description: Registers trusted capabilities and evolves schemas, generators, and renderers.
+    - id: security-reviewer
+      displayName: Security reviewer
+      description: Verifies that untrusted overlays cannot expand backend authority or load code.
+  modules:
+    - name: presentation-contract
+      kind: infrastructure
+      operation: create
+      description: Versioned JSON Schema, TypeScript types, identifiers, scope, and sparse overlay semantics.
+    - name: presentation-resolver
+      kind: infrastructure
+      operation: create
+      description: Registry validation, layer precedence, drift rejection, permission intersection, and render-model projection.
+    - name: supplier-presentation-prototype
+      kind: infrastructure
+      operation: create
+      description: Non-production capability manifest and compact Supplier overlay used only by contract tests.
+  requirements:
+    - id: define-trusted-capabilities
+      title: Define the trusted capability side of the boundary
+      description: Maintained or generated code declares everything a presentation profile is allowed to reference.
+      priority: must
+      actor: platform-maintainer
+      module: presentation-contract
+      rules:
+        - Every page capability has a stable page key, semantic definition version, and sha256 definition hash.
+        - Fields declare supported surfaces, value type, required state, sort and filter support, and allowed registered components.
+        - Data sources and actions carry opaque backend permission identifiers in trusted code rather than in editable profiles.
+        - Components, data sources, actions, and fields use stable identifiers and reject duplicates.
+        - Default presentation is complete, immutable input to resolution, and is not modified by an overlay.
+    - id: constrain-presentation-documents
+      title: Keep presentation documents sparse and data-only
+      description: The public profile schema exposes routine presentation choices without an executable or transport surface.
+      priority: must
+      actor: page-operator
+      module: presentation-contract
+      rules:
+        - The document uses apiVersion mss.io/v1alpha1 and kind AdminPagePresentation with strict additionalProperties false objects.
+        - Metadata binds a profile to one page key, one exact definition hash, and application, role, or user scope.
+        - Profiles may adjust localized text, field visibility, component choice, order, width, span, density, page size, sort, layout, action placement, and bounded declarative visibility conditions.
+        - Profiles contain only identifiers and scalar data and cannot carry permissions, routes, URLs, methods, headers, HTML, scripts, imports, SQL, or arbitrary expressions.
+        - Shape validation is followed by capability-aware semantic validation; JSON Schema alone never authorizes a reference.
+    - id: resolve-layered-presentation
+      title: Resolve deterministic sparse presentation layers
+      description: One pure resolver produces a renderer-ready model from trusted defaults and at most one profile per supported layer.
+      priority: must
+      actor: page-operator
+      module: presentation-resolver
+      rules:
+        - Precedence is code defaults, application profile, role profile, then current-user profile.
+        - Missing values inherit and explicit false values remain explicit rather than being treated as absent.
+        - A page-key mismatch, definition-hash mismatch, unknown reference, duplicate reference, unsupported surface, invalid component, or unsafe required-field hide rejects the complete offending layer.
+        - Rejected layers leave lower valid layers intact and return structured diagnostics for later audit and editor feedback.
+        - A trusted invalid capability definition fails closed during development instead of silently producing a partial page.
+    - id: preserve-authorization-boundary
+      title: Apply authorization after presentation resolution
+      description: Editable display choices never create authority or reveal a protected data source.
+      priority: must
+      actor: security-reviewer
+      module: presentation-resolver
+      rules:
+        - The selected data source is usable only when the current verified permission set contains its trusted required permission.
+        - Every resolved action is intersected with the trusted action permission after all profile layers are applied.
+        - A profile can hide or reorder a registered action but cannot supply, replace, or remove its permission requirement.
+        - A missing data-source permission yields a permission-denied render model and no visible actions.
+        - Frontend intersection remains a user-experience guard and does not replace backend authorization tests or enforcement.
+    - id: prove-supplier-reference
+      title: Prove one representative generated-domain reference
+      description: Supplier demonstrates the contract against an existing generated business capability without modifying generated output.
+      priority: must
+      actor: platform-maintainer
+      module: supplier-presentation-prototype
+      rules:
+        - The prototype capability derives its field, component, action, and permission choices from the existing Supplier AdminModule contract.
+        - A compact application profile changes title, visible list columns, ordering, density, page size, and action visibility using only profile data.
+        - Contract tests prove application, role, and user precedence, drift fallback, unknown-reference rejection, required-field safety, immutability, and authorization-last behavior.
+        - The prototype is not imported by production routes and creates no API request, persistent state, menu, migration, or browser storage.
+    - id: preserve-removed-runtime-boundary
+      title: Preserve the removed runtime developer-tools boundary
+      description: Page configuration remains a presentation overlay over compiled application capabilities.
+      priority: must
+      actor: security-reviewer
+      module: presentation-contract
+      rules:
+        - No profile creates or changes an entity, database schema, API, route, permission, workflow, component implementation, or executable template.
+        - New business fields and capabilities continue through AdminModule specifications, deterministic generation, migrations, code review, and tests.
+        - Later persistence must use draft, validation, ETag publish, immutable history, rollback, definition-drift reporting, and recovery-mode controls before production adoption.
+        - Authentication, authorization, configuration, release, and recovery pages remain excluded until an explicit security review approves each page.
+  constraints:
+    - id: compiled-capability-boundary
+      type: security
+      statement: Untrusted presentation documents may reference only identifiers present in the exact compiled capability definition selected by page key and definition hash.
+    - id: authorization-applied-last
+      type: security
+      statement: Trusted backend permission requirements are intersected after every presentation layer and cannot be edited, inherited away, or weakened by profile data.
+    - id: no-executable-configuration
+      type: security
+      statement: The contract admits no scripts, expressions, HTML, SQL, imports, network transport definitions, component loading, or other executable payloads.
+    - id: generated-source-ownership
+      type: compatibility
+      statement: P0 does not hand-edit generated Supplier files; a later production projection must originate in AdminModule specifications and deterministic generators.
+    - id: definition-drift-fails-closed
+      type: compatibility
+      statement: A profile bound to another capability hash is rejected as one unit and the resolver retains the latest lower valid presentation.
+    - id: p0-has-no-runtime-side-effects
+      type: operations
+      statement: P0 adds no production route, persistence, API call, browser storage, migration, menu entry, release artifact, or configuration mutation.
+    - id: bounded-profile-size
+      type: performance
+      statement: Schema collections, text, page sizes, sort keys, fields, actions, and condition groups are explicitly bounded before future persistence is introduced.
+    - id: localized-visible-text
+      type: ux
+      statement: Editable page, field, placeholder, help, action, and confirmation text is plain localized zh-CN and en-US data with no markup execution.
+  acceptance:
+    - id: trusted-capability-tests
+      requirement: define-trusted-capabilities
+      statement: Contract tests reject duplicate identifiers and invalid trusted defaults and prove resolution leaves the frozen Supplier definition unchanged.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6/src/shared/presentation/contract.test.ts
+    - id: strict-schema-tests
+      requirement: constrain-presentation-documents
+      statement: The schema parses as draft 2020-12, keeps every object closed, requires exact identity and hash metadata, and contains none of the executable or transport property names.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: path
+          value: .mss/schemas/admin-page-presentation.schema.json
+        - type: test
+          value: internal/mss/spec/presentation_schema_test.go
+    - id: layered-resolution-tests
+      requirement: resolve-layered-presentation
+      statement: Unit tests prove code, application, role, and user precedence plus whole-layer rejection and lower-layer fallback for drift and invalid references.
+      level: unit
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6/src/shared/presentation/contract.test.ts
+    - id: authorization-intersection-tests
+      requirement: preserve-authorization-boundary
+      statement: Unit tests prove an overlay cannot make an unauthorized data source or action visible and permission denial produces no visible actions.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6/src/shared/presentation/contract.test.ts
+    - id: supplier-prototype-tests
+      requirement: prove-supplier-reference
+      statement: The compact Supplier profile produces the expected renderer-ready list and remains absent from production route registration.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6/src/shared/presentation/supplier.prototype.test.ts
+        - type: path
+          value: web/antd-v6/src/shared/presentation/supplier.prototype.ts
+    - id: removed-boundary-review
+      requirement: preserve-removed-runtime-boundary
+      statement: Architecture review and schema tests prove P0 cannot create runtime models, APIs, routes, permissions, executable templates, or component implementations.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: path
+          value: docs/adr/2026-08-24-governed-admin-presentation-configuration.md
+        - type: test
+          value: internal/mss/spec/presentation_schema_test.go
+    - id: p0-changed-verification
+      statement: Feature validation, focused Go and frontend contract tests, frontend lint, and documentation build complete without tracked-file drift.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/features/admin-presentation-configuration.yaml --format json
+        - type: command
+          value: go test ./internal/mss/spec
+        - type: command
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 test src/shared/presentation
+        - type: command
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 lint
+        - type: command
+          value: corepack pnpm@9.15.9 --dir docs build
+  risks:
+    - id: presentation-becomes-low-code
+      description: Pressure for more flexibility could add arbitrary data sources, expressions, components, or schema mutation and recreate the removed runtime developer tools.
+      severity: critical
+      mitigation: Keep the schema data-only, require registry references and definition hashes, and route new capabilities through specifications, generation, review, and tests.
+    - id: profile-expands-authority
+      description: A display profile could accidentally bypass permission checks by adding an action or selecting a protected data source.
+      severity: critical
+      mitigation: Store permission requirements only in trusted capability code and intersect them after all overlays with backend enforcement remaining authoritative.
+    - id: capability-profile-drift
+      description: A module upgrade can remove or reinterpret identifiers while an older profile still appears structurally valid.
+      severity: high
+      mitigation: Bind every profile to a sha256 definition hash, reject the complete stale layer, expose diagnostics, and keep a safe compiled default.
+    - id: invalid-form-configuration
+      description: Hiding a required field or choosing an incompatible component can make create or edit flows unusable.
+      severity: high
+      mitigation: Declare required fields and allowed components per surface and reject an unsafe profile before it reaches the renderer.
+    - id: core-recovery-lockout
+      description: Configuring authorization, configuration, or recovery pages too early could remove the controls needed to repair a broken profile.
+      severity: high
+      mitigation: Exclude critical pages in early phases and require a non-configurable recovery mode before any later opt-in.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/admin-presentation-configuration.yaml --format json
+      - go test ./internal/mss/spec
+      - corepack pnpm@10.34.5 --dir web/antd-v6 test src/shared/presentation
+      - corepack pnpm@10.34.5 --dir web/antd-v6 lint
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: shadow
+    migration: >-
+      P0 is a source-only contract and test prototype. It has no database migration, API, route,
+      production import, browser storage, or generated-file replacement. P1 may add persistence only
+      after a separate reviewed specification defines draft, ETag publish, immutable history, rollback,
+      authorization, audit, cache, definition drift, and recovery behavior.
+    rollback: >-
+      Revert the P0 source commit. Because the prototype is not routed or persisted and creates no
+      external contract or data, rollback removes only the planned capability, schema, ADR, resolver,
+      Supplier fixture, and their tests.
