@@ -210,6 +210,12 @@ describe('presentation configuration console', () => {
     await waitFor(() => expect(screen.getByText('presentation.conflict.title')).toBeTruthy());
     expect(editor.value).toBe(localDocument);
     expect(runtime.api.replaceDraft).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText('presentation.conflict.reload'));
+    fireEvent.click(await screen.findByText('OK'));
+    await waitFor(() => {
+      expect(runtime.profile.refetch).toHaveBeenCalledTimes(1);
+      expect(runtime.profiles.refetch).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('publishes only after confirmation and keeps immutable history visible', async () => {

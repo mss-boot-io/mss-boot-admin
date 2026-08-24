@@ -367,7 +367,7 @@ export default function PresentationConfigConsole({
     setValidation(undefined);
     setLocalError(undefined);
     loadedSourceKey.current = '';
-    await profile.refetch();
+    await Promise.all([profile.refetch(), profiles.refetch()]);
   };
 
   const profileColumns: TableColumnsType<PresentationProfileSummary> = [
