@@ -52,6 +52,10 @@ func TestPresentationDraftValidationPublicationAndConflict(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(2), replaced.Version)
 	require.True(t, *replaced.DraftValid)
+	require.NotNil(t, replaced.Draft.Issues)
+	replacedDraftJSON, err := json.Marshal(replaced.Draft)
+	require.NoError(t, err)
+	require.Contains(t, string(replacedDraftJSON), `"issues":[]`)
 
 	_, err = service.ReplaceDraft(ctx, created.ID, created.Version, valid, "stale-author")
 	require.ErrorIs(t, err, ErrPresentationRevisionConflict)

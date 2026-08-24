@@ -624,7 +624,8 @@ func (service *PresentationProfileService) projectProfile(
 	}
 	if profile.DraftDocument != "" {
 		document, structuralIssues := presentation.ParseDocument([]byte(profile.DraftDocument))
-		issues := structuralIssues
+		issues := make([]presentation.Issue, 0, len(structuralIssues))
+		issues = append(issues, structuralIssues...)
 		var raw json.RawMessage
 		if document != nil {
 			raw = append(json.RawMessage(nil), document.Canonical...)
