@@ -1,17 +1,17 @@
 # Business module specifications
 
-Create `AdminModule` specifications in this directory and use the Foundation
+Create `AdminModule` specifications in this directory and use the installed
 `mss` CLI with this repository as `--root` to generate the backend, frontend,
 migration, authorization, menu, test, and documentation delivery unit.
 
-From the exact Foundation checkout pinned by `.mss/lock.yaml`:
+From any working directory:
 
 ```shell
-go run ./cmd/mss --root /path/to/thin-host spec init supplier \
+mss --root /path/to/thin-host spec init supplier \
   --kind module --output .mss/modules/supplier.yaml --write
-go run ./cmd/mss --root /path/to/thin-host spec validate \
+mss --root /path/to/thin-host spec validate \
   .mss/modules/supplier.yaml --format json
-go run ./cmd/mss --root /path/to/thin-host module generate \
+mss --root /path/to/thin-host module generate \
   .mss/modules/supplier.yaml --frontend-target antd-v6 --write --format json
 ```
 

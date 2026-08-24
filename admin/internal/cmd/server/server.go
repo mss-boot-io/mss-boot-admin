@@ -62,6 +62,14 @@ func defaultCommandOptions() commandOptions {
 	}
 }
 
+func effectiveConfigProvider(configured string) source.Provider {
+	provider := source.Provider(configured)
+	if provider == "" {
+		return source.Local
+	}
+	return provider
+}
+
 // NewCommand returns an isolated server command bound to one frozen business
 // module registry. Flag values never leak into another Application instance.
 func NewCommand(registry *business.Registry) *cobra.Command {
@@ -137,11 +145,7 @@ func setupWithOptions(
 		source.WithProvider(source.Local),
 		source.WithWatch(true),
 	}
-	switch pkg.GetStage() {
-	case "local", "dev":
-		options.configProvider = string(source.Local)
-	}
-	switch source.Provider(options.configProvider) {
+	switch effectiveConfigProvider(options.configProvider) {
 	case source.GORM:
 		opts = []source.Option{
 			source.WithProvider(source.GORM),
@@ -172,7 +176,7 @@ func setupWithOptions(
 			source.WithProjectName(pkg.GetProjectName()),
 			source.WithNamespace(pkg.GetStage()),
 		}
-	case source.Local, "":
+	case source.Local:
 	default:
 		return fmt.Errorf("config provider %q is not supported", options.configProvider)
 	}

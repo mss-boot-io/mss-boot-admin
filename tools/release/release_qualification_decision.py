@@ -15,7 +15,11 @@ from pathlib import Path
 
 SCHEMA = "mss.io/release-qualification-decision/v1"
 QUALIFICATION_SCHEMA = "mss.io/release-qualification/v1"
-RELEASE_FEATURE = ".mss/features/foundation-v1-3-2-release.yaml"
+RELEASE_FEATURES = (
+    ".mss/features/foundation-v1-3-3-package-first-release.yaml",
+    ".mss/features/admin-presentation-configuration.yaml",
+    ".mss/features/admin-presentation-publication-workflow.yaml",
+)
 FULL_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 PLACEHOLDER_RE = re.compile(r"^(?:none|null|n/a|na|pending|todo|tbd|<.*>)$", re.IGNORECASE)
 
@@ -82,9 +86,9 @@ def _load_qualification(path: Path, target_version: str) -> tuple[dict[str, obje
         raise QualificationDecisionError("unsupported release qualification schema")
     if contract.get("targetVersion") != target_version:
         raise QualificationDecisionError("qualification target does not match requested version")
-    if contract.get("features") != [RELEASE_FEATURE]:
+    if contract.get("features") != list(RELEASE_FEATURES):
         raise QualificationDecisionError(
-            "qualification must select only the active scoped release Feature"
+            "qualification must select the exact active v1.3.3 Feature set"
         )
     exclusions = contract.get("excludedFeatures")
     if not isinstance(exclusions, list) or not exclusions:
@@ -155,7 +159,8 @@ def build_decision(
                     "menu-api-binding",
                     "rbac",
                     "session-management",
-                    "settings",
+                    "presentation-governance",
+                    "package-first-documentation",
                 ],
             },
             {
@@ -164,9 +169,10 @@ def build_decision(
                 "commit": blueprint_commit,
                 "reference": blueprint_reference,
                 "assertions": [
+                    "empty-directory-create",
+                    "fresh-host-lifecycle",
                     "customizations-preserved",
                     "second-upgrade-empty",
-                    "failed-apply-retains-prior-snapshot",
                 ],
             },
         ],

@@ -1,7 +1,9 @@
 package verify
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -10,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/command"
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/generator"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/spec"
 )
 
 func TestValidateThinHostStructureRequiresGlueAndRejectsFoundationCore(t *testing.T) {
@@ -87,6 +91,41 @@ func TestValidateThinHostStructureRejectsPrivateRegistryCredential(t *testing.T)
 	}
 }
 
+func TestValidateThinHostStructureRequiresFrozenDistributionChecksums(t *testing.T) {
+	root := t.TempDir()
+	ctx := thinHostVerifyContext(root, ".", "web", "internal/modules")
+	writeThinHostStructure(t, ctx)
+	writeThinHostTestFile(t, root, "go.sum", "example.invalid/module v1.0.0 h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n")
+	writeThinHostTestFile(t, root, "web/pnpm-lock.yaml", "lockfileVersion: '9.0'\n")
+
+	result := validateThinHostStructure(ctx)
+	if result.ExitCode == 0 {
+		t.Fatalf("incomplete frozen dependency inputs were accepted: %#v", result)
+	}
+	for _, expected := range []string{
+		"go.sum must contain an exact non-placeholder checksum for github.com/mss-boot-io/mss-boot-admin/admin v1.3.0",
+		"go.sum must contain an exact non-placeholder checksum for github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.0/go.mod",
+		"pnpm-lock.yaml must pin frontend specifier @mss-boot-io/admin-web@1.3.0",
+		"pnpm-lock.yaml must contain the frozen package snapshot for @mss-boot-io/admin-web@1.3.0",
+	} {
+		if !strings.Contains(result.Error, expected) {
+			t.Errorf("frozen dependency error %q does not contain %q", result.Error, expected)
+		}
+	}
+}
+
+func TestValidateThinHostStructureRejectsMissingFrontendTarballIntegrity(t *testing.T) {
+	root := t.TempDir()
+	ctx := thinHostVerifyContext(root, ".", "web", "internal/modules")
+	writeThinHostStructure(t, ctx)
+	writeThinHostTestFile(t, root, "web/pnpm-lock.yaml", "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      '@mss-boot-io/admin-web':\n        specifier: 1.3.0\n        version: 1.3.0\npackages:\n  '@mss-boot-io/admin-web@1.3.0':\n    resolution: {}\n")
+
+	result := validateThinHostStructure(ctx)
+	if result.ExitCode == 0 || !strings.Contains(result.Error, "sha512 tarball integrity") {
+		t.Fatalf("missing frontend tarball integrity was accepted: %#v", result)
+	}
+}
+
 func TestValidateThinHostStructureRejectsUnreadableRequiredFile(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows does not provide portable owner-read permission semantics")
@@ -122,6 +161,7 @@ func TestPlanChecksUsesThinHostCommandsAndLayout(t *testing.T) {
 		"frontend-lint",
 		"frontend-test",
 		"git-diff-check",
+		"git-worktree-check",
 	}
 	if got := thinHostCommandIDs(plan.Checks); !reflect.DeepEqual(got, wantIDs) {
 		t.Fatalf("Thin Host all check IDs = %q, want %q", got, wantIDs)
@@ -159,6 +199,120 @@ func TestValidateContractsUsesConfiguredModulesDirectory(t *testing.T) {
 	result := validateContracts(root, "internal/modules")
 	if result.ExitCode == 0 || !strings.Contains(result.Error, "module") {
 		t.Fatalf("invalid configured generated module was ignored: %#v", result)
+	}
+}
+
+func TestThinHostGeneratedModuleDriftFailsVerification(t *testing.T) {
+	root := t.TempDir()
+	ctx := thinHostVerifyContext(root, ".", "web", "internal/modules")
+	data, err := spec.RenderModuleTemplate("inventory", "Inventory")
+	if err != nil {
+		t.Fatalf("render module template: %v", err)
+	}
+	specPath := filepath.Join(root, ".mss", "modules", "inventory.yaml")
+	writeThinHostTestFile(t, root, ".mss/modules/inventory.yaml", string(data))
+	module, err := spec.LoadModule(specPath)
+	if err != nil {
+		t.Fatalf("load module: %v", err)
+	}
+	module.SourcePath = ".mss/modules/inventory.yaml"
+	if _, err := generator.Generate(module, generator.Options{
+		Root: root, Write: true, Check: false, Project: &ctx.Project,
+	}); err != nil {
+		t.Fatalf("generate current module: %v", err)
+	}
+	if result := validateThinHostGeneratedModules(ctx); result.ExitCode != 0 {
+		t.Fatalf("current module reported drift: %#v", result)
+	}
+
+	module.Metadata.DisplayName = "Inventory changed"
+	changed, err := module.YAML()
+	if err != nil {
+		t.Fatalf("marshal changed module: %v", err)
+	}
+	if err := os.WriteFile(specPath, changed, 0o644); err != nil {
+		t.Fatalf("write changed module: %v", err)
+	}
+	result := validateThinHostGeneratedModules(ctx)
+	if result.ExitCode == 0 || !strings.Contains(result.Error, "generated module output is stale") {
+		t.Fatalf("stale module projections were accepted: %#v", result)
+	}
+}
+
+func TestThinHostGeneratedModuleOrphanFailsAfterLastSpecIsDeleted(t *testing.T) {
+	root := t.TempDir()
+	ctx := thinHostVerifyContext(root, ".", "web", "internal/modules")
+	data, err := spec.RenderModuleTemplate("inventory", "Inventory")
+	if err != nil {
+		t.Fatalf("render module template: %v", err)
+	}
+	specPath := filepath.Join(root, ".mss", "modules", "inventory.yaml")
+	writeThinHostTestFile(t, root, ".mss/modules/inventory.yaml", string(data))
+	module, err := spec.LoadModule(specPath)
+	if err != nil {
+		t.Fatalf("load module: %v", err)
+	}
+	module.SourcePath = ".mss/modules/inventory.yaml"
+	if _, err := generator.Generate(module, generator.Options{
+		Root: root, Write: true, Project: &ctx.Project,
+	}); err != nil {
+		t.Fatalf("generate module: %v", err)
+	}
+	if err := os.Remove(specPath); err != nil {
+		t.Fatalf("remove final module specification: %v", err)
+	}
+	result := validateThinHostGeneratedModules(ctx)
+	if result.ExitCode == 0 || !strings.Contains(result.Error, "references missing AdminModule specifications") || !strings.Contains(result.Error, ".mss/modules/inventory.yaml") {
+		t.Fatalf("orphaned generated module was accepted: %#v", result)
+	}
+}
+
+func TestUnbornRepositoryDiffAndUntrackedTextChecks(t *testing.T) {
+	root := t.TempDir()
+	git := exec.Command("git", "init", "-b", "main")
+	git.Dir = root
+	if output, err := git.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, output)
+	}
+	writeThinHostTestFile(t, root, "README.md", "# Fresh Thin Host\n")
+	check := diffCheck(root)
+	if !reflect.DeepEqual(check.Args, []string{"git", "diff", "--cached", "--check", "--"}) {
+		t.Fatalf("unborn diff check args = %#v", check.Args)
+	}
+	if result := command.Run(context.Background(), check); result.ExitCode != 0 {
+		t.Fatalf("unborn diff check failed: %#v", result)
+	}
+	if result := validateUntrackedWorkspaceText(root); result.ExitCode != 0 {
+		t.Fatalf("clean untracked file failed: %#v", result)
+	}
+	stage := exec.Command("git", "add", "--", "README.md")
+	stage.Dir = root
+	if output, err := stage.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v\n%s", err, output)
+	}
+	checks := diffChecks(root)
+	if len(checks) != 2 || checks[1].ID != "git-worktree-check" {
+		t.Fatalf("unborn diff checks = %#v", checks)
+	}
+	for _, stagedCheck := range checks {
+		if result := command.Run(context.Background(), stagedCheck); result.ExitCode != 0 {
+			t.Fatalf("clean unborn staged check failed: %#v", result)
+		}
+	}
+
+	writeThinHostTestFile(t, root, "README.md", "# Fresh Thin Host\n<<<<<<< local\nconflict  \n=======\n")
+	if result := validateUntrackedWorkspaceText(root); result.ExitCode != 0 {
+		t.Fatalf("tracked worktree file was incorrectly treated as untracked: %#v", result)
+	}
+	result := command.Run(context.Background(), checks[1])
+	if result.ExitCode == 0 || !strings.Contains(result.Stdout+result.Stderr+result.Error, "trailing whitespace") {
+		t.Fatalf("unsafe staged-then-modified file was accepted: %#v", result)
+	}
+
+	writeThinHostTestFile(t, root, "UNTRACKED.md", "<<<<<<< local\nconflict  \n=======\n")
+	result = validateUntrackedWorkspaceText(root)
+	if result.ExitCode == 0 || !strings.Contains(result.Error, "unresolved conflict marker") || !strings.Contains(result.Error, "trailing whitespace") {
+		t.Fatalf("unsafe untracked file was accepted: %#v", result)
 	}
 }
 
@@ -209,9 +363,15 @@ func writeThinHostStructure(t *testing.T, ctx *project.Context) {
 		".mss/project.yaml":            "project\n",
 		".mss/lock.yaml":               "lock\n",
 		".mss/blueprint-manifest.json": "{}\n",
+		".mss/dev.yaml":                "apiVersion: mss.io/v1alpha1\nkind: DevelopmentEnvironment\n",
+		"README.md":                    "# Thin Host\n",
 		joinRepositoryPath(backend, "go.mod"): "module " + ctx.Project.Spec.Backend.Module + "\n\nrequire (\n\t" +
 			distribution.Backend.Module + " " + distribution.Backend.Version + "\n\t" +
 			ctx.Project.Spec.Backend.FrameworkModule + " " + distribution.Backend.Version + "\n)\n",
+		joinRepositoryPath(backend, "go.sum"): distribution.Backend.Module + " " + distribution.Backend.Version + " h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n" +
+			distribution.Backend.Module + " " + distribution.Backend.Version + "/go.mod h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n" +
+			ctx.Project.Spec.Backend.FrameworkModule + " " + distribution.Backend.Version + " h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n" +
+			ctx.Project.Spec.Backend.FrameworkModule + " " + distribution.Backend.Version + "/go.mod h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n",
 		joinRepositoryPath(backend, "cmd/server/main.go"): "package main\n\nimport (\n\t_ \"" + distribution.Backend.Module + "/app\"\n\t_ \"" + ctx.Project.Spec.Backend.Module + "/internal/modules/all\"\n)\n\nfunc main() {}\n",
 		joinRepositoryPath(modules, "all/generated.go"):   "package all\n\nimport _ \"" + distribution.Backend.Module + "/business\"\n",
 		joinRepositoryPath(frontend, "package.json"): `{
@@ -225,6 +385,7 @@ func writeThinHostStructure(t *testing.T, ctx *project.Context) {
 }
 `,
 		joinRepositoryPath(frontend, ".npmrc"):               "registry=https://registry.npmjs.org/\nsave-exact=true\n",
+		joinRepositoryPath(frontend, "pnpm-lock.yaml"):       "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      '@mss-boot-io/admin-web':\n        specifier: 1.3.0\n        version: 1.3.0\npackages:\n  '@mss-boot-io/admin-web@1.3.0':\n    resolution: {integrity: sha512-" + strings.Repeat("A", 86) + "==}\n",
 		joinRepositoryPath(frontend, "tsconfig.json"):        "{\n  \"extends\": \"./src/.umi/tsconfig.json\"\n}\n",
 		joinRepositoryPath(frontend, "config/config.ts"):     "import { defineBusinessAdmin } from '" + distribution.Frontend.Package + "/business';\nimport businessRoutes from './business-routes.generated';\nexport default defineBusinessAdmin({ businessRoutes, routeRegistrations: './src/generated/routes.ts', useUtoopack: true });\n",
 		joinRepositoryPath(frontend, "mss-admin.config.ts"):  "export { default } from './config/config';\n",

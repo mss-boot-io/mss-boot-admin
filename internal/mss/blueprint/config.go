@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	pathpkg "path"
 	"path/filepath"
@@ -91,6 +92,18 @@ func Load(root, name string) (*Document, error) {
 }
 
 func decodeDocument(root, relative string, data []byte) (*Document, error) {
+	return decodeDocumentWithValidation(relative, data, func(document *Document) error {
+		return document.Validate(root)
+	})
+}
+
+func decodeEmbeddedDocument(source fs.FS, relative string, data []byte) (*Document, error) {
+	return decodeDocumentWithValidation(relative, data, func(document *Document) error {
+		return document.validateEmbedded(source)
+	})
+}
+
+func decodeDocumentWithValidation(relative string, data []byte, validate func(*Document) error) (*Document, error) {
 	if err := validateStrictYAMLDocument(data); err != nil {
 		return nil, fmt.Errorf("parse blueprint %s: %w", relative, err)
 	}
@@ -108,7 +121,7 @@ func decodeDocument(root, relative string, data []byte) (*Document, error) {
 		return nil, fmt.Errorf("parse blueprint %s: %w", relative, err)
 	}
 	document.Normalize()
-	if err := document.Validate(root); err != nil {
+	if err := validate(document); err != nil {
 		return nil, err
 	}
 	return document, nil
@@ -152,6 +165,18 @@ func (d *Document) Normalize() {
 
 // Validate checks blueprint identity, required source files, and path confinement.
 func (d *Document) Validate(root string) error {
+	return d.validate(func(relative string) (fs.FileInfo, error) {
+		return os.Stat(filepath.Join(root, filepath.FromSlash(relative)))
+	})
+}
+
+func (d *Document) validateEmbedded(source fs.FS) error {
+	return d.validate(func(relative string) (fs.FileInfo, error) {
+		return fs.Stat(source, normalizedPath(relative))
+	})
+}
+
+func (d *Document) validate(statFile func(string) (fs.FileInfo, error)) error {
 	var problems []string
 	if d.APIVersion != blueprintAPIVersion {
 		problems = append(problems, "apiVersion must equal "+blueprintAPIVersion)
@@ -210,7 +235,10 @@ func (d *Document) Validate(root string) error {
 		if d.Spec.TemplateRoot != "" {
 			sourceRequired = filepath.ToSlash(filepath.Join(d.Spec.TemplateRoot, required))
 		}
-		info, err := os.Stat(filepath.Join(root, filepath.FromSlash(sourceRequired)))
+		info, err := statFile(sourceRequired)
+		if err != nil && d.Spec.TemplateRoot != "" {
+			info, err = statFile(sourceRequired + ".tmpl")
+		}
 		if err != nil {
 			problems = append(problems, "required file is missing: "+required)
 			continue
@@ -232,6 +260,10 @@ func (d *Document) Validate(root string) error {
 		return errors.New(strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+func templateOutputPath(relative string) string {
+	return strings.TrimSuffix(relative, ".tmpl")
 }
 
 // ValidateApplication checks the identity used for downstream transformations.

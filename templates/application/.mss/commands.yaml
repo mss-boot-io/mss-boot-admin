@@ -9,6 +9,25 @@ spec:
     nonInteractive: true
     productionCredentialsRequired: false
   commands:
+    doctor:
+      command: mss doctor --strict
+      description: Validate Thin Host contracts, snapshots, tools, and frozen dependency inputs.
+      category: development
+      idempotent: true
+    setup:
+      command: mss setup
+      description: Resolve backend and frozen frontend dependencies idempotently.
+      category: development
+      idempotent: true
+    dev-start:
+      command: mss dev --detach
+      description: Start the backend and Admin Web development topology in the background.
+      category: development
+    dev-status:
+      command: mss dev status
+      description: Inspect local service process and health state.
+      category: development
+      idempotent: true
     backend-test:
       command: GOWORK=off go test ./...
       description: Test the thin-host backend and business modules.
@@ -34,14 +53,14 @@ spec:
       description: Run backend and frontend thin-host validation.
       category: verification
     admin-distribution-upgrade-plan:
-      command: mss upgrade admin <version> --foundation <checkout> --format json
+      command: mss upgrade admin <version> --format json
       description: Plan a coordinated backend, frontend, and managed-host Distribution upgrade without writing files.
       outputFormats: [text, json]
       category: upgrade
       dryRunByDefault: true
       idempotent: true
     admin-distribution-upgrade-apply:
-      command: mss upgrade admin <version> --foundation <checkout> --apply --yes --format json
+      command: mss upgrade admin <version> --apply --yes --format json
       description: Apply a reviewed conflict-free Admin Distribution upgrade and record its snapshot last.
       outputFormats: [text, json]
       category: upgrade

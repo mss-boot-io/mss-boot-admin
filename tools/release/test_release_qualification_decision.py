@@ -13,7 +13,7 @@ sys.path.insert(0, str(TOOLS_DIR))
 import release_qualification_decision as DECISION  # noqa: E402
 
 
-TARGET_VERSION = "v1.3.2"
+TARGET_VERSION = "v1.3.3"
 
 
 class ReleaseQualificationDecisionTest(unittest.TestCase):
@@ -27,7 +27,7 @@ class ReleaseQualificationDecisionTest(unittest.TestCase):
                 {
                     "schema": "mss.io/release-qualification/v1",
                     "targetVersion": TARGET_VERSION,
-                    "features": [DECISION.RELEASE_FEATURE],
+                    "features": list(DECISION.RELEASE_FEATURES),
                     "excludedFeatures": [
                         {
                             "path": ".mss/features/old.yaml",
@@ -78,7 +78,7 @@ class ReleaseQualificationDecisionTest(unittest.TestCase):
     def test_repository_qualification_matches_active_release_binding(self):
         contract = REPOSITORY_ROOT / ".mss" / "release-qualification.json"
         value, digest = DECISION._load_qualification(contract, TARGET_VERSION)
-        self.assertEqual(value["features"], [DECISION.RELEASE_FEATURE])
+        self.assertEqual(value["features"], list(DECISION.RELEASE_FEATURES))
         self.assertEqual(digest, hashlib.sha256(contract.read_bytes()).hexdigest())
 
     def test_rejects_short_or_mismatched_evidence_commits(self):
@@ -101,7 +101,9 @@ class ReleaseQualificationDecisionTest(unittest.TestCase):
         value = json.loads(contract.read_text(encoding="utf-8"))
         value["features"].append(".mss/features/storage-runtime-v2.yaml")
         contract.write_text(json.dumps(value), encoding="utf-8")
-        with self.assertRaisesRegex(DECISION.QualificationDecisionError, "scoped release Feature"):
+        with self.assertRaisesRegex(
+            DECISION.QualificationDecisionError, "exact active v1.3.3 Feature set"
+        ):
             self.build(root, commit)
 
 

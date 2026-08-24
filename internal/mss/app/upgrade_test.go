@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/blueprint"
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
@@ -44,6 +45,9 @@ func TestUpgradeAdminCommandDefaultsToPlanAndRequiresApplyConfirmation(t *testin
 	if flag := command.Flags().Lookup("apply"); flag == nil || flag.DefValue != "false" {
 		t.Fatalf("Admin Distribution apply flag = %#v", flag)
 	}
+	if flag := command.Flags().Lookup("foundation"); flag == nil || flag.DefValue != "" {
+		t.Fatalf("Admin Distribution foundation override = %#v", flag)
+	}
 	command.SetArgs([]string{"v1.4.0", "--foundation", t.TempDir(), "--apply"})
 	command.SilenceUsage = true
 	command.SilenceErrors = true
@@ -57,6 +61,22 @@ func TestUpgradeAdminCommandDefaultsToPlanAndRequiresApplyConfirmation(t *testin
 	command.SilenceErrors = true
 	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "--yes is only valid together with --apply") {
 		t.Fatalf("plan with stray confirmation error = %v", err)
+	}
+}
+
+func TestValidateEmbeddedAdminUpgradeVersionRequiresMatchingReleaseTool(t *testing.T) {
+	originalVersion, originalCommit, originalTimestamp := buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp
+	t.Cleanup(func() {
+		buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp = originalVersion, originalCommit, originalTimestamp
+	})
+	buildinfo.Version = "v1.3.3"
+	buildinfo.Commit = strings.Repeat("a", 40)
+	buildinfo.Timestamp = "2026-08-25T12:34:56Z"
+	if err := validateEmbeddedAdminUpgradeVersion("v1.3.3"); err != nil {
+		t.Fatalf("matching embedded version error = %v", err)
+	}
+	if err := validateEmbeddedAdminUpgradeVersion("v1.3.4"); err == nil || !strings.Contains(err.Error(), "install the matching mss v1.3.4") {
+		t.Fatalf("mismatched embedded version error = %v", err)
 	}
 }
 

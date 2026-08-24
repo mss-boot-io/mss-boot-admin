@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo"
@@ -29,12 +30,13 @@ const (
 
 // Options controls application generation.
 type Options struct {
-	FoundationRoot string
-	Blueprint      string
-	Destination    string
-	Application    Application
-	Write          bool
-	InitializeGit  bool
+	FoundationRoot      string
+	Blueprint           string
+	Destination         string
+	Application         Application
+	FrontendRegistryURL string
+	Write               bool
+	InitializeGit       bool
 }
 
 // FileChange is one deterministic output file decision.
@@ -118,6 +120,15 @@ type selectedCommittedFile struct {
 	Output string
 }
 
+type blueprintSourceFile struct {
+	SourcePath string
+	OutputPath string
+	Data       []byte
+	Mode       fs.FileMode
+}
+
+const applicationDisplayNameYAMLToken = "__MSS_APP_DISPLAY_NAME_YAML__"
+
 // Generate plans or writes a complete downstream management-system repository.
 func Generate(ctx context.Context, options Options) (Plan, error) {
 	root, err := filepath.Abs(options.FoundationRoot)
@@ -137,7 +148,7 @@ func Generate(ctx context.Context, options Options) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	files, manifest, err := BuildDesired(ctx, root, blueprint, options.Application)
+	files, manifest, err := buildDesired(ctx, root, blueprint, options.Application, options.FrontendRegistryURL)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -161,6 +172,10 @@ func Generate(ctx context.Context, options Options) (Plan, error) {
 
 // BuildDesired renders all tracked foundation files in memory without touching the destination.
 func BuildDesired(ctx context.Context, root string, blueprint *Document, application Application) (map[string]desiredFile, Manifest, error) {
+	return buildDesired(ctx, root, blueprint, application, "")
+}
+
+func buildDesired(ctx context.Context, root string, blueprint *Document, application Application, frontendRegistryURL string) (map[string]desiredFile, Manifest, error) {
 	application = normalizeApplication(application)
 	if err := ValidateApplication(application); err != nil {
 		return nil, Manifest{}, err
@@ -170,7 +185,6 @@ func BuildDesired(ctx context.Context, root string, blueprint *Document, applica
 		return nil, Manifest{}, err
 	}
 	blueprint = source.Blueprint
-	files := make(map[string]desiredFile, len(source.Entries)+2)
 	selected := make([]selectedCommittedFile, 0, len(source.Entries))
 	templatePrefix := ""
 	if blueprint.Spec.TemplateRoot != "" {
@@ -183,6 +197,7 @@ func BuildDesired(ctx context.Context, root string, blueprint *Document, applica
 				continue
 			}
 			relative = strings.TrimPrefix(relative, templatePrefix)
+			relative = templateOutputPath(relative)
 			if !safeRelativePath(relative) {
 				return nil, Manifest{}, fmt.Errorf("application template produced unsafe output path %q", relative)
 			}
@@ -208,17 +223,46 @@ func BuildDesired(ctx context.Context, root string, blueprint *Document, applica
 	if err != nil {
 		return nil, Manifest{}, err
 	}
+	resolved := make([]blueprintSourceFile, 0, len(selected))
 	for _, selectedEntry := range selected {
 		entry := selectedEntry.Source
-		relative := selectedEntry.Output
-		data := blobs[entry.Path]
+		resolved = append(resolved, blueprintSourceFile{
+			SourcePath: entry.Path,
+			OutputPath: selectedEntry.Output,
+			Data:       blobs[entry.Path],
+			Mode:       entry.Mode,
+		})
+	}
+	frontendIntegrity, err := resolveFrontendIntegrityForSource(ctx, frontendRegistryURL, blueprint, resolved)
+	if err != nil {
+		return nil, Manifest{}, err
+	}
+	return buildDesiredFromSource(blueprint, source.BlueprintSHA, source.Identity, resolved, application, frontendIntegrity)
+}
+
+func buildDesiredFromSource(
+	blueprint *Document,
+	blueprintSHA string,
+	foundationIdentity FoundationIdentity,
+	sourceFiles []blueprintSourceFile,
+	application Application,
+	frontendIntegrity string,
+) (map[string]desiredFile, Manifest, error) {
+	files := make(map[string]desiredFile, len(sourceFiles)+2)
+	templatePrefix := ""
+	if blueprint.Spec.TemplateRoot != "" {
+		templatePrefix = strings.TrimSuffix(normalizedPath(blueprint.Spec.TemplateRoot), "/") + "/"
+	}
+	for _, sourceFile := range sourceFiles {
+		relative := sourceFile.OutputPath
+		data := sourceFile.Data
 		if blueprint.Text(relative, data) {
-			data = transformText(data, blueprint, application)
+			data = transformText(data, blueprint, application, frontendIntegrity)
 			if templatePrefix != "" && bytes.Contains(data, []byte("__MSS_")) {
-				return nil, Manifest{}, fmt.Errorf("application template %s contains an unresolved mss placeholder", entry.Path)
+				return nil, Manifest{}, fmt.Errorf("application template %s contains an unresolved mss placeholder", sourceFile.SourcePath)
 			}
 		}
-		mode := entry.Mode.Perm()
+		mode := sourceFile.Mode.Perm()
 		if mode == 0 {
 			mode = 0o644
 		}
@@ -227,6 +271,22 @@ func BuildDesired(ctx context.Context, root string, blueprint *Document, applica
 	for _, required := range blueprint.Spec.RequiredFiles {
 		if _, exists := files[required]; !exists {
 			return nil, Manifest{}, fmt.Errorf("required blueprint output %s was excluded or missing", required)
+		}
+	}
+	if templatePrefix != "" {
+		projectFile, exists := files[".mss/project.yaml"]
+		if !exists {
+			return nil, Manifest{}, errors.New("application template is missing .mss/project.yaml")
+		}
+		renderedProject, err := project.DecodeProjectDocument(projectFile.Data)
+		if err != nil {
+			return nil, Manifest{}, fmt.Errorf("self-validate rendered .mss/project.yaml: %w", err)
+		}
+		if renderedProject.Metadata.Name != application.Name ||
+			renderedProject.Metadata.DisplayName != application.DisplayName ||
+			renderedProject.Metadata.Repository != application.Repository ||
+			renderedProject.Spec.Backend.Module != application.Module {
+			return nil, Manifest{}, errors.New("self-validate rendered .mss/project.yaml: application identity changed during rendering")
 		}
 	}
 	baseline := make(map[string]ManifestFile, len(files))
@@ -238,11 +298,11 @@ func BuildDesired(ctx context.Context, root string, blueprint *Document, applica
 		}
 	}
 	identities := IdentitySet{
-		Foundation: source.Identity,
+		Foundation: foundationIdentity,
 		Blueprint: BlueprintIdentity{
 			Name:    blueprint.Metadata.Name,
 			Version: blueprint.Metadata.Version,
-			SHA256:  source.BlueprintSHA,
+			SHA256:  blueprintSHA,
 		},
 		Generator: GeneratorIdentity{
 			Tool:    "mss",
@@ -255,10 +315,11 @@ func BuildDesired(ctx context.Context, root string, blueprint *Document, applica
 			Repository: application.Repository,
 		},
 	}
-	identities.Snapshot.SHA256, err = computeSnapshotDigest(identities, baseline)
+	snapshotSHA, err := computeSnapshotDigest(identities, baseline)
 	if err != nil {
 		return nil, Manifest{}, err
 	}
+	identities.Snapshot.SHA256 = snapshotSHA
 	records := SnapshotRecordPaths{
 		LockPath:     normalizedPath(blueprint.Spec.LockPath),
 		ManifestPath: normalizedPath(blueprint.Spec.ManifestPath),
@@ -269,6 +330,9 @@ func BuildDesired(ctx context.Context, root string, blueprint *Document, applica
 	lockData, err := renderFoundationLock(identities, records, blueprint.Spec.Distribution)
 	if err != nil {
 		return nil, Manifest{}, err
+	}
+	if _, err := decodeFoundationLock(lockData); err != nil {
+		return nil, Manifest{}, fmt.Errorf("self-validate rendered foundation lock: %w", err)
 	}
 	manifest := Manifest{
 		APIVersion: snapshotAPIVersion,
@@ -404,7 +468,7 @@ func buildDestinationPlan(
 	return plan, nil
 }
 
-func transformText(data []byte, blueprint *Document, application Application) []byte {
+func transformText(data []byte, blueprint *Document, application Application, frontendIntegrity string) []byte {
 	text := string(data)
 	const (
 		moduleSentinel     = "__MSS_BLUEPRINT_TARGET_MODULE__"
@@ -412,6 +476,11 @@ func transformText(data []byte, blueprint *Document, application Application) []
 	)
 	replacements := []struct{ token, value string }{
 		{token: "__MSS_APP_NAME__", value: application.Name},
+		// A Go-quoted string is also a portable YAML double-quoted scalar. Keep
+		// this context-specific token separate from the human-readable token so
+		// Markdown headings retain the exact display name rather than YAML
+		// quoting or escape sequences.
+		{token: applicationDisplayNameYAMLToken, value: strconv.Quote(application.DisplayName)},
 		{token: "__MSS_APP_DISPLAY_NAME__", value: application.DisplayName},
 		{token: "__MSS_APP_MODULE__", value: application.Module},
 		{token: "__MSS_APP_REPOSITORY__", value: application.Repository},
@@ -422,6 +491,7 @@ func transformText(data []byte, blueprint *Document, application Application) []
 		{token: "__MSS_DISTRIBUTION_BACKEND_VERSION__", value: blueprint.Spec.Distribution.Backend.Version},
 		{token: "__MSS_DISTRIBUTION_FRONTEND_PACKAGE__", value: blueprint.Spec.Distribution.Frontend.Package},
 		{token: "__MSS_DISTRIBUTION_FRONTEND_VERSION__", value: blueprint.Spec.Distribution.Frontend.Version},
+		{token: frontendIntegrityToken, value: frontendIntegrity},
 	}
 	for _, replacement := range replacements {
 		text = strings.ReplaceAll(text, replacement.token, replacement.value)
@@ -588,6 +658,7 @@ func normalizeApplication(application Application) Application {
 		}
 		application.DisplayName = strings.Join(words, " ")
 	}
+	application.DisplayName = strings.TrimSpace(application.DisplayName)
 	application.Module = strings.TrimSpace(application.Module)
 	application.Repository = strings.TrimSpace(application.Repository)
 	if application.Repository == "" {

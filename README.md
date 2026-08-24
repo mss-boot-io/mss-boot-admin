@@ -1,229 +1,101 @@
-# mss-boot-admin
+# mss-boot Complete Admin Distribution
 
-[![CI](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/ci.yml/badge.svg)](https://github.com/mss-boot-io/mss-boot-admin/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/mss-boot-io/mss-boot-admin.svg?style=flat-square)](https://github.com/mss-boot-io/mss-boot-admin/releases)
-[![License](https://img.shields.io/github/license/mss-boot-io/mss-boot-admin.svg?style=flat-square)](https://github.com/mss-boot-io/mss-boot-admin/blob/main/LICENSE)
+[简体中文](./README.zh-CN.md)
 
-English | [简体中文](./README.zh-CN.md)
+mss-boot is an agent-native management-system foundation. The coordinated
+**v1.3.3** distribution is consumed as released tools and packages: downstream
+applications do not clone or copy this repository.
 
-`mss-boot-admin` is an Agent-native management-system foundation. It combines
-a production-oriented Go Admin, a React 19 + Ant Design 6 application,
-machine-readable project contracts, deterministic full-stack generation,
-change-aware verification, and upgradeable Thin Host Blueprints in one source
-repository.
+## What v1.3.3 ships
 
-The current stable release is **v1.3.2**, published as one Complete Admin
-Distribution from exact merged `main` commit
-`635fbb03a82976941e527d8ac1000fec0624abac`. The published
-`mss-boot/v1.3.1` Framework release and failed `admin/v1.3.1` qualification are
-permanently immutable partial-train history; they cannot substitute for or be
-moved into the complete v1.3.2 artifacts.
+| Surface | Released identity | Purpose |
+| --- | --- | --- |
+| Agent tools | `mss`, `mss-mcp` from the `v1.3.3` GitHub Release | Create, inspect, develop, verify, and upgrade Thin Hosts |
+| Framework | `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.3` | Domain-neutral Go infrastructure |
+| Admin | `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.3` | Complete importable Admin backend |
+| Admin Web | `@mss-boot-io/admin-web@1.3.3` | Complete React 19 and Ant Design 6 frontend |
 
-## Complete Admin Distribution
+Every component is qualified from one exact commit already merged into
+`main`. A version is usable only after its public release and package
+reconciliation are complete.
 
-The coordinated v1.3.2 train keeps these independently publishable components
-on the same version and source commit:
+## Quick start
 
-| Component | Stable identity |
-| --- | --- |
-| Foundation tools and root delivery | `v1.3.2` |
-| Reusable Go framework | `mss-boot/v1.3.2` |
-| Importable Admin Go module | `admin/v1.3.2` |
-| Complete Admin Web package | `web/antd-v6/v1.3.2` / `@mss-boot-io/admin-web@1.3.2` |
-| Documentation | Independently released with `docs/vX.Y.Z` |
+On Linux or macOS:
 
-Identity, browser sessions, RBAC, menus, layout, localization, and the shared
-runtime stay in one Admin product. A downstream application is a Thin Host: it
-pins the complete backend and frontend, adds only owned business modules and
-composition glue, and still produces one backend binary, one frontend `dist`,
-one session boundary, and one permission/menu model.
-
-Runtime dynamic models, virtual CRUD, and browser-facing code generation have
-been removed. New business capabilities are described by Feature and
-AdminModule contracts and generated deterministically at development time.
-
-```text
-business intent
-  -> Feature and Acceptance contract
-  -> AdminModule contract
-  -> deterministic backend, migration, permission, menu, frontend, and tests
-  -> owned business rules
-  -> change-aware verification and Agent Evals
-  -> reviewable PR and upgradeable Thin Host
+```sh
+curl -fsSLO https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.3/install-mss.sh
+bash ./install-mss.sh --version v1.3.3 --install-dir "$HOME/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
+mss --version
+mss-mcp --version
 ```
 
-## Consume v1.3.2
+On Windows PowerShell:
 
-The stable tags are public. Go consumers should pin the exact coordinated
-version; the Admin module has no committed local `replace`:
-
-```shell
-go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.2
-go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.2
+```powershell
+Invoke-WebRequest https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.3/install-mss.ps1 -OutFile install-mss.ps1
+& .\install-mss.ps1 -Version v1.3.3 -InstallDir "$HOME\.local\bin"
+$env:Path = "$HOME\.local\bin;$env:Path"
+mss --version
+mss-mcp --version
 ```
 
-The complete frontend is published publicly to npmjs, so the default Thin Host
-installation needs no registry credential:
+Create a complete Thin Host from an empty directory:
 
-```shell
-corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.2
+```sh
+mss new app orders-admin --module github.com/acme/orders-admin --destination ./orders-admin --write --git-init
+cd orders-admin
+mss doctor --strict
+mss setup
+mss dev --detach
+mss dev status
+mss verify --changed
 ```
 
-The same immutable tarball is retained in GitHub Packages as a compatibility
-mirror. Consumers that explicitly select that mirror must inject a
-`read:packages` token only for the install process and must never commit it.
+On an interactive terminal, the first `mss setup` securely prompts for the
+initial administrator password with hidden input. It must be 8-128 characters
+and contain a letter and a number. Non-interactive automation injects the
+one-use `MSS_ADMIN_INITIAL_PASSWORD` from its secret store for the setup process
+only. After the first migration succeeds, repeated setup runs do not require it.
 
-Stable packages receive the `latest` distribution tag. Prereleases receive
-`next`; generated Thin Hosts still pin an exact version rather than a moving
-tag. The official npm publication is the final artifact publication, after all
-coordinated component and Docs releases resolve to the same merged-main commit.
-For v1.3.2, npm `latest` resolves to `1.3.2`; future publication uses npm Trusted
-Publishing bound to `mss-boot-io/mss-boot-admin`, `npm-release.yml`, and the
-`release-v6` environment. No bootstrap npm token or GitHub `NPM_TOKEN` secret
-remains.
+Open `http://127.0.0.1:8001` and sign in as `admin` with the password supplied
+during that first setup. There is no default password.
 
-## Create and upgrade a Thin Host
+The installer verifies `SHA256SUMS.tools-v1.3.3`, never requires `sudo`,
+and does not edit shell profiles. See the
+[package-first quick start](https://docs.mss-boot-io.top/getting-started) for
+prerequisites, Windows PATH handling, upgrade commands, and troubleshooting.
 
-Create a host from a clean Foundation checkout. Then initialize and validate a
-version-controlled module specification before generating the first vertical
-business module:
+## Architecture boundary
 
-```shell
-go run ./cmd/mss new app orders-admin \
-  --module github.com/acme/orders-admin \
-  --repository acme/orders-admin \
-  --destination ../orders-admin \
-  --write \
-  --format json
+A generated application is a **Thin Host**. It pins the exact Admin Go module
+and Admin Web package, contains composition glue and business-owned modules,
+and never copies Foundation core source. Business backend modules register at
+compile time; frontend business routes extend the packaged shell. Backend
+authorization remains authoritative.
 
-go run ./cmd/mss --root ../orders-admin spec init supplier \
-  --kind module \
-  --output .mss/modules/supplier.yaml \
-  --write
+Install the target-version tools, back up the application and database, and
+confirm `.mss/blueprint-manifest.json` exists before running
+`mss upgrade admin v1.3.3`. Add `--apply --yes` only after reviewing a
+conflict-free plan, then run `mss doctor --strict`, `mss verify --all`, and a
+second plan that must be empty. A hand-assembled or manifest-less repository
+must migrate business-owned files into a newly generated baseline instead of
+fabricating upgrade state. No Foundation checkout is required.
 
-go run ./cmd/mss --root ../orders-admin spec validate \
-  .mss/modules/supplier.yaml \
-  --format json
+## Documentation
 
-go run ./cmd/mss --root ../orders-admin module generate \
-  .mss/modules/supplier.yaml \
-  --write \
-  --frontend-target antd-v6 \
-  --format json
-```
+- [Quick start](https://docs.mss-boot-io.top/getting-started)
+- [Packages and import boundaries](https://docs.mss-boot-io.top/getting-started/packages)
+- [Tooling](https://docs.mss-boot-io.top/getting-started/tooling)
+- [mss-shop reference application](https://docs.mss-boot-io.top/getting-started/mss-shop)
+- [v1.3.3 release contract](https://docs.mss-boot-io.top/releases/v1-3-3)
 
-Plan an Admin Distribution upgrade before applying it:
+Foundation contributors should use
+[`CONTRIBUTING.md`](./docs/CONTRIBUTING.md); source-checkout commands are
+deliberately kept out of adopter onboarding.
 
-```shell
-go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.2 \
-  --foundation . \
-  --format json
+## License and security
 
-go run ./cmd/mss --root ../orders-admin upgrade admin v1.3.2 \
-  --foundation . \
-  --apply --yes \
-  --format json
-```
-
-The three-way upgrade engine changes only Blueprint-managed host files. Unknown
-and business-owned files are preserved, and a conflicting plan must be reviewed
-instead of applied automatically.
-
-## Local development
-
-Requirements:
-
-- Go 1.26.6 or later in the 1.26 line;
-- Node.js 24;
-- pnpm 10.34.5 through Corepack;
-- optional MySQL, PostgreSQL, or Redis only for the integrations being tested.
-
-```shell
-git clone https://github.com/mss-boot-io/mss-boot-admin.git
-cd mss-boot-admin
-
-go run ./cmd/mss doctor
-go run ./cmd/mss setup
-(cd admin && STAGE=local go run . server -a)
-go run ./cmd/mss dev --detach
-go run ./cmd/mss dev status --format json
-```
-
-The Admin Web development server listens on `http://localhost:8001` and proxies
-`/admin/` to the Go backend. The one-shot `server -a` command synchronizes
-mounted routes into the API registry; without it, menu API binding can remain
-empty even when both services are healthy.
-
-## Product capabilities
-
-- identity, HttpOnly browser sessions, OAuth account binding, PAT lifecycle,
-  and online-session revocation;
-- Casbin-backed RBAC, organization and data scopes, menu/API binding, and
-  fail-closed backend authorization;
-- user, role, menu, API, department, post, option, language, configuration,
-  notice, task, audit, storage, monitoring, and statistics modules;
-- React Query server state, synchronized zh-CN/en-US locales, responsive dark
-  and light themes, permission, loading, empty, conflict, and error states;
-- deterministic full-stack module generation, upgrade-safe migrations,
-  repository Skills, Agent Evals, and external-consumer qualification.
-
-Browser JavaScript does not receive the Admin JWT or provider credentials. The
-browser uses the HttpOnly `mss_admin_session` cookie, a signed session-bound
-CSRF token, and one-time WebSocket tickets. Standard Bearer and PAT
-authentication remain available for documented non-browser API automation.
-
-## Repository layout
-
-| Path | Responsibility |
-| --- | --- |
-| `/`, `cmd/mss/`, `internal/mss/` | Agent CLI, orchestration, generation, verification, and upgrades |
-| `.mss/` | Machine-readable project, capability, release, module, and evaluation contracts |
-| `admin/` | Complete reusable and deployable Admin Go application |
-| `mss-boot/` | Reusable domain-neutral Go framework module |
-| `web/antd-v6/` | Official Admin Web application and complete npm package |
-| `templates/` | Deterministic application and module templates |
-| `docs/` | Product, architecture, operations, and contributor documentation |
-
-## Verification
-
-Use the repository contracts rather than a workstation-specific command list:
-
-```shell
-go run ./cmd/mss context
-go run ./cmd/mss verify --changed
-go run ./cmd/mss verify --all
-```
-
-Focused component commands remain available:
-
-```shell
-make test-framework
-make test-all
-
-corepack pnpm@10.34.5 --dir web/antd-v6 run deps:check
-corepack pnpm@10.34.5 --dir web/antd-v6 run lint
-corepack pnpm@10.34.5 --dir web/antd-v6 run test:ci
-corepack pnpm@10.34.5 --dir web/antd-v6 run build:release
-corepack pnpm@10.34.5 --dir web/antd-v6 run test:e2e
-
-make docs-build
-```
-
-Run the Playwright suite only for browser-contract changes or formal
-qualification. Tests require no production credentials, and no coverage
-percentage is claimed unless the same threshold is enforced by CI.
-
-## Documentation and community
-
-- [Online documentation](https://docs.mss-boot-io.top)
-- [OpenAPI document](https://mss-boot-io.github.io/mss-boot-admin/swagger.json)
-- [Releases](https://github.com/mss-boot-io/mss-boot-admin/releases)
-- [Security policy](./SECURITY.md)
-- [Contributing](./CONTRIBUTING.md)
-- [Video tutorials](https://space.bilibili.com/597294782/channel/seriesdetail?sid=3881026)
-
-## License
-
-[MIT](./LICENSE)
-
-Copyright (c) 2024-2026 mss-boot-io
+Licensed under the [MIT License](./LICENSE). Report security issues through the
+private process in [`SECURITY.md`](./SECURITY.md), not a public issue.

@@ -27,10 +27,11 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/schemahealth"
 )
 
+const initialAdminPasswordEnvironment = "MSS_ADMIN_INITIAL_PASSWORD"
+
 var (
 	generate       bool
 	username       = "admin"
-	password       = "123456"
 	domain         = "localhost:8001"
 	system         bool
 	configProvider = os.Getenv("CONFIG_PROVIDER")
@@ -53,7 +54,6 @@ type commandOptions struct {
 func defaultCommandOptions() commandOptions {
 	return commandOptions{
 		username:       "admin",
-		password:       "123456",
 		domain:         "localhost:8001",
 		configProvider: os.Getenv("CONFIG_PROVIDER"),
 		driver:         "mysql",
@@ -69,6 +69,7 @@ func NewCommand(registry *business.Registry) *cobra.Command {
 		Short:   "Initialize the database",
 		Example: "mss-boot-admin migrate",
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			resolveInitialAdminPassword(&options)
 			return setupWithOptions(cmd.Context(), &options)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -83,8 +84,6 @@ func NewCommand(registry *business.Registry) *cobra.Command {
 		"config-provider", "c", options.configProvider, "Start server with config provider")
 	command.PersistentFlags().StringVarP(&options.username, "username", "u",
 		options.username, "system super administrator login username")
-	command.PersistentFlags().StringVarP(&options.password, "password", "p",
-		options.password, "system super administrator login password")
 	command.PersistentFlags().StringVarP(&options.domain, "domain", "d",
 		options.domain, "system tenant domain")
 	command.PersistentFlags().StringVarP(&options.driver, "gorm-driver", "r",
@@ -92,6 +91,13 @@ func NewCommand(registry *business.Registry) *cobra.Command {
 	command.PersistentFlags().StringVarP(&options.dsn, "gorm-dsn", "n",
 		options.dsn, "Start server with db dsn")
 	return command
+}
+
+func resolveInitialAdminPassword(options *commandOptions) {
+	if options == nil {
+		return
+	}
+	options.password = os.Getenv(initialAdminPasswordEnvironment)
 }
 
 func init() {
@@ -102,7 +108,7 @@ func setup(ctx context.Context) (err error) {
 	options := defaultCommandOptions()
 	options.generate = generate
 	options.username = username
-	options.password = password
+	options.password = os.Getenv(initialAdminPasswordEnvironment)
 	options.domain = domain
 	options.system = system
 	options.configProvider = configProvider
@@ -192,7 +198,7 @@ func RunContext(ctx context.Context) (err error) {
 	options := defaultCommandOptions()
 	options.generate = generate
 	options.username = username
-	options.password = password
+	options.password = os.Getenv(initialAdminPasswordEnvironment)
 	options.domain = domain
 	options.system = system
 	return runContextWithOptions(ctx, options, nil)
@@ -248,7 +254,13 @@ func migrateContext(ctx context.Context, db *gorm.DB) error {
 }
 
 func migrateContextWithRunner(ctx context.Context, db *gorm.DB, runner *migration.Migration) error {
-	return migrateContextWithRunnerCredentials(ctx, db, runner, username, password)
+	return migrateContextWithRunnerCredentials(
+		ctx,
+		db,
+		runner,
+		username,
+		os.Getenv(initialAdminPasswordEnvironment),
+	)
 }
 
 func migrateContextWithRunnerCredentials(
@@ -297,9 +309,12 @@ func migrateContextWithRunnersCredentials(
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("migration canceled before database preflight: %w", err)
 	}
+	ctx = systemMigrate.ContextWithInitialAdministratorCredentials(
+		ctx,
+		adminUsername,
+		adminPassword,
+	)
 	db = db.WithContext(ctx)
-	systemMigrate.Username = adminUsername
-	systemMigrate.Password = adminPassword
 	if err := db.AutoMigrate(&common.Migration{}); err != nil {
 		slog.Error("auto migrate error", "err", err)
 		return err

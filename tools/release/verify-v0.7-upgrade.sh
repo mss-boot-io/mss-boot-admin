@@ -6,7 +6,7 @@ readonly sqlite_database_file="${database_name}.sqlite"
 readonly baseline_ref="${MSS_RELEASE_BASELINE_REF:-v0.7.0}"
 readonly mysql_dsn="${MSS_RELEASE_MYSQL_DSN:-}"
 readonly postgres_dsn="${MSS_RELEASE_POSTGRES_DSN:-}"
-readonly admin_password="${MSS_RELEASE_ADMIN_PASSWORD:-release-upgrade-ci-only}"
+readonly admin_password="${MSS_RELEASE_ADMIN_PASSWORD:-ReleaseUpgrade-CI-1-only}"
 readonly disposable_database_confirmed="${MSS_RELEASE_ALLOW_DISPOSABLE_DATABASE:-}"
 readonly evidence_mode="${MSS_RELEASE_EVIDENCE_MODE:-1}"
 readonly mysql_version="${MSS_RELEASE_MYSQL_VERSION:-}"
@@ -164,13 +164,13 @@ run_upgrade() {
   )
   (
     cd "${current_runtime}"
-    "${work_dir}/bin/admin-current" migrate \
+    MSS_ADMIN_INITIAL_PASSWORD="${admin_password}" \
+      "${work_dir}/bin/admin-current" migrate \
       --username release-admin \
-      --password "${admin_password}" \
       --domain release-upgrade.invalid
+    unset MSS_ADMIN_INITIAL_PASSWORD
     "${work_dir}/bin/admin-current" migrate \
       --username release-admin \
-      --password "${admin_password}" \
       --domain release-upgrade.invalid
   )
 }

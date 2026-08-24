@@ -1,10 +1,11 @@
 # ADR: Complete Admin distribution and thin business hosts
 
-- Status: Accepted and implemented; v1.3.0-rc.6 published successfully, v1.3.0 and v1.3.1 are immutable component-partial history, and v1.3.2 is the current stable release from `635fbb03a82976941e527d8ac1000fec0624abac`
+- Status: Accepted and implemented; version-specific outcomes are retained in the release archive
 - Date: 2026-08-19
 - Owners: Admin, frontend, agent infrastructure, release engineering
 - Feature contract: `.mss/features/complete-admin-distribution-thin-host.yaml`
 - Detailed architecture: `docs/docs/architecture/complete-admin-distribution-and-thin-business-host.zh-CN.md`
+- Continued by: `.mss/features/foundation-v1-3-3-package-first-release.yaml`, which removes the remaining Foundation-checkout requirement for downstream creation and upgrade
 
 ## Context
 

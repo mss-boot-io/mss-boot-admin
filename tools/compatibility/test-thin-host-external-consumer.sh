@@ -78,12 +78,18 @@ actual_pnpm_version="$(pnpm --version)"
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/mss-thin-host-consumer.XXXXXX")"
 backend_pid=""
 web_pid=""
+registry_pid=""
 
 cleanup() {
   local status=$?
   trap - EXIT HUP INT TERM
   mss_stop_process_group "${web_pid}" || true
   mss_stop_process_group "${backend_pid}" || true
+  if [[ -n "${registry_pid}" ]]; then
+    kill "${registry_pid}" >/dev/null 2>&1 || true
+    wait "${registry_pid}" >/dev/null 2>&1 || true
+  fi
+  chmod -R u+w -- "${work_dir}" >/dev/null 2>&1 || true
   rm -rf -- "${work_dir}"
   exit "${status}"
 }
@@ -139,6 +145,113 @@ frontend_distribution_version="${distribution_version#v}"
   echo "Distribution version must retain its v prefix" >&2
   exit 1
 }
+
+if [[ -z "${tarball}" ]]; then
+  pack_dir="${artifact_dir}/package"
+  package_source="${artifact_dir}/admin-web-source"
+  mkdir -p -- "${pack_dir}" "${package_source}"
+  git -C "${foundation_root}" -c core.autocrlf=false archive --format=tar HEAD:web/antd-v6 \
+    | tar -xf - -C "${package_source}"
+  (
+    cd "${package_source}"
+    npm pkg set \
+      "version=${frontend_distribution_version}" \
+      "gitHead=${foundation_commit}" \
+      >/dev/null
+    pnpm pack --pack-destination "${pack_dir}" >/dev/null
+  )
+  mapfile -t packed_tarballs < <(find "${pack_dir}" -maxdepth 1 -type f -name '*.tgz' -print)
+  [[ ${#packed_tarballs[@]} -eq 1 ]] || {
+    echo "pnpm pack must produce exactly one tarball" >&2
+    exit 1
+  }
+  tarball="${packed_tarballs[0]}"
+else
+  tarball="$(realpath -- "${tarball}")"
+fi
+[[ -f "${tarball}" ]] || {
+  echo "Admin Web tarball does not exist: ${tarball}" >&2
+  exit 1
+}
+tar -xOf "${tarball}" package/package.json \
+  | jq -e \
+      --arg version "${frontend_distribution_version}" \
+      --arg commit "${foundation_commit}" \
+      '.name == "@mss-boot-io/admin-web" and .version == $version and .gitHead == $commit' \
+      >/dev/null || {
+  echo "Admin Web tarball identity does not match the Foundation Distribution" >&2
+  exit 1
+}
+
+registry_ready="${work_dir}/registry-url"
+registry_log="${work_dir}/registry.log"
+python3 - "${tarball}" "${frontend_distribution_version}" "${registry_ready}" <<'PY' >"${registry_log}" 2>&1 &
+from hashlib import sha512
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import base64
+import json
+from pathlib import Path
+import sys
+from urllib.parse import unquote, urlsplit
+
+tarball = Path(sys.argv[1]).resolve()
+version = sys.argv[2]
+ready = Path(sys.argv[3]).resolve()
+package_name = '@mss-boot-io/admin-web'
+integrity = 'sha512-' + base64.b64encode(sha512(tarball.read_bytes()).digest()).decode('ascii')
+metadata_path = f'/{package_name}/{version}'
+tarball_path = f'/{package_name}/-/admin-web-{version}.tgz'
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        path = unquote(urlsplit(self.path).path)
+        if path == metadata_path:
+            payload = json.dumps({
+                'name': package_name,
+                'version': version,
+                'dist': {
+                    'integrity': integrity,
+                    'tarball': f'http://127.0.0.1:{self.server.server_port}{tarball_path}',
+                },
+            }, separators=(',', ':')).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        if path == tarball_path:
+            payload = tarball.read_bytes()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Length', str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        self.send_error(404)
+
+    def log_message(self, _format, *_args):
+        return
+
+server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+ready.write_text(f'http://127.0.0.1:{server.server_port}\n', encoding='utf-8')
+server.serve_forever()
+PY
+registry_pid=$!
+for _ in $(seq 1 100); do
+  [[ -s "${registry_ready}" ]] && break
+  kill -0 "${registry_pid}" >/dev/null 2>&1 || {
+    sed -n '1,120p' "${registry_log}" >&2
+    echo "temporary Admin Web registry exited before readiness" >&2
+    exit 1
+  }
+  sleep 0.05
+done
+[[ -s "${registry_ready}" ]] || {
+  echo "temporary Admin Web registry did not become ready" >&2
+  exit 1
+}
+registry_url=$(<"${registry_ready}")
 
 sanitize_json_report() {
   local input="$1"
@@ -199,6 +312,8 @@ new_app_raw="${raw_report_dir}/new-app.json"
     --module example.com/compatibility-admin \
     --repository example/compatibility-admin \
     --destination "${host_root}" \
+    --foundation "${foundation_root}" \
+    --contributor-npm-registry "${registry_url}" \
     --write \
     --format json \
     > "${new_app_raw}"
@@ -382,31 +497,6 @@ framework_module='github.com/mss-boot-io/mss-boot-admin/mss-boot'
   "${work_dir}/compatibility-admin-server" --help >/dev/null
 )
 
-if [[ -z "${tarball}" ]]; then
-  pack_dir="${artifact_dir}/package"
-  package_source="${artifact_dir}/admin-web-source"
-  mkdir -p -- "${pack_dir}" "${package_source}"
-  git -C "${foundation_root}" -c core.autocrlf=false archive --format=tar HEAD:web/antd-v6 \
-    | tar -xf - -C "${package_source}"
-  (
-    cd "${package_source}"
-    npm pkg set "gitHead=${foundation_commit}" >/dev/null
-    pnpm pack --pack-destination "${pack_dir}" >/dev/null
-  )
-  mapfile -t packed_tarballs < <(find "${pack_dir}" -maxdepth 1 -type f -name '*.tgz' -print)
-  [[ ${#packed_tarballs[@]} -eq 1 ]] || {
-    echo "pnpm pack must produce exactly one tarball" >&2
-    exit 1
-  }
-  tarball="${packed_tarballs[0]}"
-else
-  tarball="$(realpath -- "${tarball}")"
-fi
-[[ -f "${tarball}" ]] || {
-  echo "Admin Web tarball does not exist: ${tarball}" >&2
-  exit 1
-}
-
 package_version="$(tar -xOf "${tarball}" package/package.json | jq -er '.version')"
 python3 "${foundation_root}/tools/release/verify_admin_web_package.py" \
   --tarball "${tarball}" \
@@ -547,6 +637,14 @@ backend_log="${raw_report_dir}/external-backend.log"
 migration_log="${raw_report_dir}/external-migrate.log"
 web_log="${raw_report_dir}/external-web.log"
 playwright_error_log="${raw_report_dir}/external-playwright.stderr.log"
+e2e_password=${MSS_E2E_PASSWORD:-}
+if [[ -z "${e2e_password}" ]]; then
+  e2e_password="MssE2E-A1-$(python3 - <<'PY'
+import secrets
+print(secrets.token_hex(24))
+PY
+)"
+fi
 
 if ! (
   cd "${runtime_dir}"
@@ -554,9 +652,9 @@ if ! (
   CONFIG_PROVIDER=fs \
   GIN_MODE=release \
   GOTOOLCHAIN=local \
+  MSS_ADMIN_INITIAL_PASSWORD="${e2e_password}" \
     "${work_dir}/compatibility-admin-server" migrate \
       --username "${MSS_E2E_USERNAME:-admin}" \
-      --password "${MSS_E2E_PASSWORD:-123456}" \
       --domain "127.0.0.1:18001"
 ) > "${migration_log}" 2>&1; then
   echo "external Thin Host migration failed" >&2
@@ -571,6 +669,8 @@ mss_start_process_group \
   "${backend_log}" \
   "${work_dir}" \
   env \
+  -u MSS_ADMIN_INITIAL_PASSWORD \
+  -u MSS_E2E_PASSWORD \
   STAGE=e2e \
   CONFIG_PROVIDER=fs \
   GIN_MODE=release \
@@ -589,6 +689,8 @@ mss_start_process_group \
   "${web_log}" \
   "${work_dir}" \
   env \
+  -u MSS_ADMIN_INITIAL_PASSWORD \
+  -u MSS_E2E_PASSWORD \
   BROWSER=none \
   MSS_ADMIN_API_TARGET=http://127.0.0.1:18080 \
   MSS_V6_E2E=1 \
@@ -621,7 +723,7 @@ set +e
   MSS_E2E_API_URL=http://127.0.0.1:18001/admin/api \
   MSS_E2E_BACKEND_API_URL=http://127.0.0.1:18080/admin/api \
   MSS_E2E_USERNAME="${MSS_E2E_USERNAME:-admin}" \
-  MSS_E2E_PASSWORD="${MSS_E2E_PASSWORD:-123456}" \
+  MSS_E2E_PASSWORD="${e2e_password}" \
     pnpm exec playwright test \
       e2e/generated/supplier.spec.ts \
       e2e/permission.spec.ts \

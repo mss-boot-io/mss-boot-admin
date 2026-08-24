@@ -10,8 +10,8 @@ keywords: [admin removed capability virtual model code generation migration]
 
 ## 适用范围
 
-本文适用于包含 2026-08-06 运行时开发工具移除变更及之后的版本。它描述的是
-Admin 产品和生产运行时，不改变仓库级 `cmd/mss` 开发工具的支持状态。
+本文适用于 v1.3.3 Admin 产品和生产运行时。开发期确定性生成继续由 Release 中安装的
+`mss` 工具提供，与已经删除的浏览器运行时生成能力互不相同。
 
 ## 当前状态
 
@@ -20,7 +20,7 @@ Admin 产品和生产运行时，不改变仓库级 `cmd/mss` 开发工具的支
 | 已移除能力 | 不再提供的入口 |
 | --- | --- |
 | 动态模型与字段管理 | Go model/field 实现、管理 API、前端页面、菜单和权限 |
-| 虚拟 CRUD | `mss-boot/virtual` 运行时框架、动态路由和前端虚拟模型页面 |
+| 虚拟 CRUD | 运行时虚拟模型框架、动态路由和前端虚拟模型页面 |
 | 浏览器模板/代码生成 | Admin 模板 API、Git 模板处理、生成页面、菜单和权限 |
 
 新安装不会创建这些运行时入口或对应的初始化菜单。任何新模块都不得依赖这些
@@ -58,19 +58,19 @@ Casbin 策略；旧策略不会被删除，已存在的目标策略也不会被�
 标准管理模块可以用结构化 `AdminModuleSpec` 描述，并在开发工作树中执行：
 
 ```shell
-go run ./cmd/mss module generate .mss/modules/<module>.yaml --format json
-go run ./cmd/mss module generate .mss/modules/<module>.yaml --write --format json
-go run ./cmd/mss verify --changed
+mss module generate .mss/modules/<module>.yaml --format json
+mss module generate .mss/modules/<module>.yaml --write --format json
+mss verify --changed
 ```
 
 生成结果必须像普通源码一样经过审查、编译、迁移和权限验证后再部署。
 
-## `cmd/mss` 为什么继续保留
+## `mss` 为什么继续保留
 
-`cmd/mss` 是仓库级、开发期、离线的确定性工具。它与已移除的 Admin 浏览器
-生成器有不同的信任边界：
+`mss` 是随 v1.3.3 Release 发布、供 Thin Host 开发期使用的确定性工具。它与已移除的
+Admin 浏览器生成器有不同的信任边界：
 
-| `cmd/mss` 离线生成器 | 已移除的 Admin 浏览器生成器 |
+| `mss` 确定性生成器 | 已移除的 Admin 浏览器生成器 |
 | --- | --- |
 | 读取受版本控制的结构化规格 | 在运行时页面接受模板和仓库参数 |
 | 默认 dry-run，限制写入仓库根目录 | 由 Admin API 执行模板/Git 操作 |
@@ -88,8 +88,6 @@ go run ./cmd/mss verify --changed
 
 ## 推荐阅读
 
-- [产品方向调整](/admin/product-direction)
 - [当前功能总览](/admin/current-capabilities)
 - [权限与组织治理说明](/admin/governance-guide)
-- [集成与扩展护栏](/admin/extension-guardrails)
 - [Agent 原生基础设施](/architecture/agent-native-foundation)

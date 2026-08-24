@@ -178,6 +178,17 @@ describe('Admin web package contract', () => {
     const absTmpPath = resolve(import.meta.dirname, 'fixtures/external-host/.umi');
     let generateFiles: (() => void) | undefined;
     let generatedFile: { content: string; path: string } | undefined;
+    type DevMiddleware = (
+      request: { path?: string },
+      response: {
+        sendFile: (path: string) => void;
+        setHeader: (name: string, value: string) => void;
+      },
+      next: () => void,
+    ) => void;
+    const middlewareFactories: Array<() => DevMiddleware[]> = [];
+    const previousNonce = process.env.MSS_DEV_HEALTH_NONCE;
+    process.env.MSS_DEV_HEALTH_NONCE = 'launch-nonce-for-test';
     mssAdminPlugin({
       EnableBy: { config: 'config' },
       cwd: resolve(import.meta.dirname, 'fixtures/external-host'),
@@ -197,10 +208,28 @@ describe('Admin web package contract', () => {
         generatedFile = file;
       },
       addEntryImportsAhead: () => undefined,
-      addBeforeMiddlewares: () => undefined,
+      addBeforeMiddlewares: (factory: () => DevMiddleware[]) => {
+        middlewareFactories.push(factory);
+      },
       onBuildComplete: () => undefined,
       addTmpGenerateWatcherPaths: () => undefined,
     });
+    const headers = new Map<string, string>();
+    for (const factory of middlewareFactories) {
+      for (const middleware of factory()) {
+        middleware(
+          { path: '/' },
+          {
+            sendFile: () => undefined,
+            setHeader: (name: string, value: string) => headers.set(name, value),
+          },
+          () => undefined,
+        );
+      }
+    }
+    expect(headers.get('X-MSS-Dev-Launch')).toBe('launch-nonce-for-test');
+    if (previousNonce === undefined) delete process.env.MSS_DEV_HEALTH_NONCE;
+    else process.env.MSS_DEV_HEALTH_NONCE = previousNonce;
 
     expect(generateFiles).toBeTypeOf('function');
     generateFiles?.();

@@ -7,7 +7,68 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
+
+func TestHealthzEchoesScopedDevLaunchNonce(t *testing.T) {
+	const nonce = "launch-nonce-for-test"
+	t.Setenv(devHealthLaunchEnvironment, nonce)
+
+	for name, handler := range map[string]http.Handler{
+		"serve-mux": http.NewServeMux(),
+		"gin":       gin.New(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			runnable := New(WithHandler(handler), WithHealthz(true))
+			listener, ok := runnable.(*Server)
+			if !ok {
+				t.Fatalf("listener type = %T, want *Server", runnable)
+			}
+			request, err := http.NewRequest(http.MethodGet, "/healthz", nil)
+			if err != nil {
+				t.Fatalf("new request: %v", err)
+			}
+			response := &recordingResponseWriter{header: make(http.Header)}
+			listener.options.handler.ServeHTTP(response, request)
+			if response.status != http.StatusOK {
+				t.Fatalf("health status = %d, want %d", response.status, http.StatusOK)
+			}
+			if got := response.header.Get(devHealthLaunchHeader); got != nonce {
+				t.Fatalf("%s = %q, want %q", devHealthLaunchHeader, got, nonce)
+			}
+		})
+	}
+}
+
+func TestHealthzOmitsDevLaunchHeaderWithoutScopedNonce(t *testing.T) {
+	t.Setenv(devHealthLaunchEnvironment, "")
+	handler := http.NewServeMux()
+	runnable := New(WithHandler(handler), WithHealthz(true))
+	request, err := http.NewRequest(http.MethodGet, "/healthz", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	response := &recordingResponseWriter{header: make(http.Header)}
+	runnable.(*Server).options.handler.ServeHTTP(response, request)
+	if got := response.header.Get(devHealthLaunchHeader); got != "" {
+		t.Fatalf("%s = %q, want empty", devHealthLaunchHeader, got)
+	}
+}
+
+type recordingResponseWriter struct {
+	header http.Header
+	status int
+}
+
+func (writer *recordingResponseWriter) Header() http.Header { return writer.header }
+func (writer *recordingResponseWriter) Write(payload []byte) (int, error) {
+	if writer.status == 0 {
+		writer.status = http.StatusOK
+	}
+	return len(payload), nil
+}
+func (writer *recordingResponseWriter) WriteHeader(status int) { writer.status = status }
 
 func TestStartBlocksUntilCancellationAndRunsHooks(t *testing.T) {
 	started := make(chan struct{})

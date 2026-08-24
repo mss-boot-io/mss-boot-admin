@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that Admin records canonical sums for the final Framework source tree."""
+"""Verify final Framework/Admin source sums before any v1.3.3 component tag."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from pathlib import Path
 
 
 FRAMEWORK_MODULE = "github.com/mss-boot-io/mss-boot-admin/mss-boot"
+ADMIN_MODULE = "github.com/mss-boot-io/mss-boot-admin/admin"
 VERSION_RE = re.compile(r"^v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$")
 
 
@@ -43,7 +44,12 @@ def _run(
         raise ChecksumContractError(f"cannot execute {' '.join(argv)}: {exc}") from exc
 
 
-def _tracked_module_files(repository_root: Path, source_root: Path) -> list[Path]:
+def _tracked_module_files(
+    repository_root: Path,
+    source_root: Path,
+    *,
+    label: str = "Framework",
+) -> list[Path]:
     relative_root = source_root.relative_to(repository_root).as_posix()
     tracked = _run(
         ["git", "ls-files", "-z", "--", relative_root],
@@ -51,7 +57,7 @@ def _tracked_module_files(repository_root: Path, source_root: Path) -> list[Path
     )
     if tracked.returncode != 0:
         raise ChecksumContractError(
-            f"cannot inventory tracked Framework files: {tracked.stderr.strip()}"
+            f"cannot inventory tracked {label} files: {tracked.stderr.strip()}"
         )
     untracked = _run(
         ["git", "ls-files", "--others", "--exclude-standard", "--", relative_root],
@@ -59,17 +65,17 @@ def _tracked_module_files(repository_root: Path, source_root: Path) -> list[Path
     )
     if untracked.returncode != 0:
         raise ChecksumContractError(
-            f"cannot inventory untracked Framework files: {untracked.stderr.strip()}"
+            f"cannot inventory untracked {label} files: {untracked.stderr.strip()}"
         )
     if untracked.stdout.strip():
         raise ChecksumContractError(
-            "untracked Framework files are excluded from the candidate module: "
+            f"untracked {label} files are excluded from the candidate module: "
             + ", ".join(untracked.stdout.splitlines())
         )
 
     files = [repository_root / value for value in tracked.stdout.split("\0") if value]
     if not files:
-        raise ChecksumContractError("the Framework candidate contains no tracked files")
+        raise ChecksumContractError(f"the {label} candidate contains no tracked files")
     return files
 
 
@@ -164,7 +170,7 @@ def _download_candidate_sums(
         )
         if result.returncode != 0:
             raise ChecksumContractError(
-                "cannot calculate the candidate Framework checksum: "
+                f"cannot calculate the candidate checksum for {module}: "
                 + (result.stderr.strip() or result.stdout.strip())
             )
         try:
@@ -180,31 +186,66 @@ def _download_candidate_sums(
         return module_sum, go_mod_sum
 
 
+def _calculate_module_candidate_sums(
+    repository_root: Path,
+    *,
+    module: str,
+    source_directory: str,
+    label: str,
+    version: str,
+    go_command: str = "go",
+) -> tuple[str, str, int]:
+    repository_root = repository_root.resolve()
+    source_root = repository_root / source_directory
+    sources = _tracked_module_files(repository_root, source_root, label=label)
+    with tempfile.TemporaryDirectory(prefix=f"mss-{label.lower()}-file-proxy-") as directory:
+        proxy_root = Path(directory)
+        file_count = _write_file_module_proxy(
+            proxy_root,
+            module=module,
+            version=version,
+            source_root=source_root,
+            sources=sources,
+        )
+        module_sum, go_mod_sum = _download_candidate_sums(
+            proxy_root=proxy_root,
+            module=module,
+            version=version,
+            go_command=go_command,
+        )
+    return module_sum, go_mod_sum, file_count
+
+
 def calculate_candidate_sums(
     repository_root: Path,
     *,
     version: str,
     go_command: str = "go",
 ) -> tuple[str, str, int]:
-    repository_root = repository_root.resolve()
-    framework_root = repository_root / "mss-boot"
-    sources = _tracked_module_files(repository_root, framework_root)
-    with tempfile.TemporaryDirectory(prefix="mss-framework-file-proxy-") as directory:
-        proxy_root = Path(directory)
-        file_count = _write_file_module_proxy(
-            proxy_root,
-            module=FRAMEWORK_MODULE,
-            version=version,
-            source_root=framework_root,
-            sources=sources,
-        )
-        module_sum, go_mod_sum = _download_candidate_sums(
-            proxy_root=proxy_root,
-            module=FRAMEWORK_MODULE,
-            version=version,
-            go_command=go_command,
-        )
-    return module_sum, go_mod_sum, file_count
+    return _calculate_module_candidate_sums(
+        repository_root,
+        module=FRAMEWORK_MODULE,
+        source_directory="mss-boot",
+        label="Framework",
+        version=version,
+        go_command=go_command,
+    )
+
+
+def calculate_admin_candidate_sums(
+    repository_root: Path,
+    *,
+    version: str,
+    go_command: str = "go",
+) -> tuple[str, str, int]:
+    return _calculate_module_candidate_sums(
+        repository_root,
+        module=ADMIN_MODULE,
+        source_directory="admin",
+        label="Admin",
+        version=version,
+        go_command=go_command,
+    )
 
 
 def _go_edit_metadata(
@@ -301,20 +342,35 @@ def _verify_workspace_replacement(
         )
 
 
-def _recorded_sums(admin_go_sum: Path, *, version: str) -> tuple[str, str]:
+def _recorded_module_sums(
+    go_sum: Path,
+    *,
+    module: str,
+    version: str,
+    label: str,
+) -> tuple[str, str]:
     entries: dict[str, list[str]] = {version: [], version + "/go.mod": []}
-    for line in admin_go_sum.read_text(encoding="utf-8").splitlines():
+    for line in go_sum.read_text(encoding="utf-8").splitlines():
         fields = line.split()
-        if len(fields) != 3 or fields[0] != FRAMEWORK_MODULE:
+        if len(fields) != 3 or fields[0] != module:
             continue
         if fields[1] in entries:
             entries[fields[1]].append(fields[2])
     for key, values in entries.items():
         if len(values) != 1:
             raise ChecksumContractError(
-                f"admin/go.sum must contain exactly one {FRAMEWORK_MODULE} {key} entry"
+                f"{label} must contain exactly one {module} {key} entry"
             )
     return entries[version][0], entries[version + "/go.mod"][0]
+
+
+def _recorded_sums(admin_go_sum: Path, *, version: str) -> tuple[str, str]:
+    return _recorded_module_sums(
+        admin_go_sum,
+        module=FRAMEWORK_MODULE,
+        version=version,
+        label="admin/go.sum",
+    )
 
 
 def verify_repository(
@@ -357,6 +413,29 @@ def verify_repository(
             "Admin Framework go.mod checksum does not match the final candidate tree: "
             f"recorded {recorded_go_mod_sum}, calculated {candidate_go_mod_sum}"
         )
+    template_admin_sum, template_admin_go_mod_sum = _recorded_module_sums(
+        repository_root / "templates" / "application" / "go.sum",
+        module=ADMIN_MODULE,
+        version=version,
+        label="templates/application/go.sum",
+    )
+    candidate_admin_sum, candidate_admin_go_mod_sum, admin_file_count = (
+        calculate_admin_candidate_sums(
+            repository_root,
+            version=version,
+            go_command=go_command,
+        )
+    )
+    if template_admin_sum != candidate_admin_sum:
+        raise ChecksumContractError(
+            "Thin Host Admin Module checksum does not match the final candidate tree: "
+            f"recorded {template_admin_sum}, calculated {candidate_admin_sum}"
+        )
+    if template_admin_go_mod_sum != candidate_admin_go_mod_sum:
+        raise ChecksumContractError(
+            "Thin Host Admin go.mod checksum does not match the final candidate tree: "
+            f"recorded {template_admin_go_mod_sum}, calculated {candidate_admin_go_mod_sum}"
+        )
     return {
         "success": True,
         "module": FRAMEWORK_MODULE,
@@ -364,6 +443,9 @@ def verify_repository(
         "sum": candidate_sum,
         "goModSum": candidate_go_mod_sum,
         "candidateFiles": file_count,
+        "adminSum": candidate_admin_sum,
+        "adminGoModSum": candidate_admin_go_mod_sum,
+        "adminCandidateFiles": admin_file_count,
         "dependencyMode": "replace-free-file-proxy",
         "checksumDatabaseMode": "explicit-candidate-parity",
     }

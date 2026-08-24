@@ -8,13 +8,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/blueprint"
+	devcmd "github.com/mss-boot-io/mss-boot-admin/internal/mss/dev"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/verify"
 )
 
 // Status is the outcome of one environment check.
@@ -138,6 +142,16 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 			fileCheck(projectContext.Root, ".mss/commands.yaml", true),
 			foundationSnapshotCheck(projectContext),
 		)
+		if projectContext.LayoutKind() == "thin-host" {
+			report.Checks = append(report.Checks,
+				fileCheck(projectContext.Root, ".mss/lock.yaml", true),
+				fileCheck(projectContext.Root, ".mss/blueprint-manifest.json", true),
+				fileCheck(projectContext.Root, ".mss/dev.yaml", true),
+				fileCheck(projectContext.Root, "README.md", true),
+				developmentConfigCheck(projectContext),
+				thinHostContractCheck(projectContext),
+			)
+		}
 	}
 	if selected(ComponentBackend) {
 		if projectContext.LayoutKind() == "thin-host" {
@@ -145,6 +159,7 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 			modulesPath := strings.TrimSpace(projectContext.Project.Spec.RepositoryLayout["modules"])
 			report.Checks = append(report.Checks,
 				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(backendPath, "go.mod")), true),
+				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(backendPath, "go.sum")), true),
 				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(backendPath, "cmd", "server", "main.go")), true),
 				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(modulesPath, "all", "generated.go")), true),
 			)
@@ -169,6 +184,7 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 			frontendPath := strings.TrimSpace(projectContext.Project.Spec.RepositoryLayout["frontend"])
 			report.Checks = append(report.Checks,
 				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "package.json")), true),
+				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "pnpm-lock.yaml")), true),
 				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "tsconfig.json")), true),
 				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "config", "config.ts")), true),
 				fileCheck(projectContext.Root, filepath.ToSlash(filepath.Join(frontendPath, "mss-admin.config.ts")), true),
@@ -205,13 +221,23 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 
 	report.Checks = append(report.Checks, toolCheck(ctx, "git", true, "git", "--version"))
 	if selected(ComponentBackend) || selected(ComponentFramework) || selected(ComponentAgent) {
-		report.Checks = append(report.Checks, toolCheck(ctx, "go", true, "go", "version"))
+		report.Checks = append(report.Checks, toolVersionCheck(
+			ctx,
+			"go",
+			true,
+			projectContext.Project.Spec.Backend.GoVersion,
+			"go",
+			"version",
+		))
 	}
 	if selected(ComponentFrontend) || selected(ComponentDocs) {
 		report.Checks = append(report.Checks,
-			toolCheck(ctx, "node", true, "node", "--version"),
-			toolCheck(ctx, "pnpm", true, "pnpm", "--version"),
+			toolVersionCheck(ctx, "node", true, projectContext.Project.Spec.Frontend.NodeVersion, "node", "--version"),
 		)
+		if projectContext.LayoutKind() == "thin-host" {
+			report.Checks = append(report.Checks, toolCheck(ctx, "corepack", true, "corepack", "--version"))
+		}
+		report.Checks = append(report.Checks, packageManagerToolCheck(ctx, projectContext))
 	}
 	if selected(ComponentBackend) {
 		report.Checks = append(report.Checks, toolCheck(ctx, "docker", false, "docker", "--version"))
@@ -250,6 +276,72 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 		return report.Checks[i].ID < report.Checks[j].ID
 	})
 	return report
+}
+
+func developmentConfigCheck(projectContext *project.Context) Check {
+	check := Check{
+		ID:          "contract:development-topology",
+		Name:        "Thin Host development topology",
+		Required:    true,
+		Remediation: "restore .mss/dev.yaml from the matching Distribution Blueprint",
+	}
+	config, err := devcmd.Load(projectContext.Root)
+	if err != nil {
+		check.Status = StatusFail
+		check.Detail = err.Error()
+		return check
+	}
+	if config.Document.Metadata.Project != projectContext.Project.Metadata.Name {
+		check.Status = StatusFail
+		check.Detail = fmt.Sprintf("development project %q does not match project contract %q", config.Document.Metadata.Project, projectContext.Project.Metadata.Name)
+		return check
+	}
+	ids := config.ServiceIDs()
+	if len(ids) == 0 {
+		check.Status = StatusFail
+		check.Detail = "development topology has no services"
+		return check
+	}
+	if application, ok := projectContext.DefaultFrontendApplication(); ok {
+		expectedVersion := strings.TrimSpace(application.PackageManagerVersion)
+		if expectedVersion == "" {
+			expectedVersion = strings.TrimSpace(projectContext.Project.Spec.Frontend.PackageManagerVersion)
+		}
+		if declared := strings.TrimSpace(projectContext.Project.Spec.Frontend.PackageManagerVersion); declared != "" && expectedVersion != declared {
+			check.Status = StatusFail
+			check.Detail = fmt.Sprintf("frontend application package manager version %q does not match project version %q", expectedVersion, declared)
+			return check
+		}
+		if expectedVersion != "" {
+			service, exists := config.Service(application.ID)
+			expectedCommand := "pnpm@" + expectedVersion
+			if !exists || len(service.Command) < 2 || service.Command[0] != "corepack" || service.Command[1] != expectedCommand {
+				check.Status = StatusFail
+				check.Detail = fmt.Sprintf("development service %s must invoke corepack %s", application.ID, expectedCommand)
+				return check
+			}
+		}
+	}
+	check.Status = StatusPass
+	check.Detail = "services: " + strings.Join(ids, ", ")
+	return check
+}
+
+func thinHostContractCheck(projectContext *project.Context) Check {
+	check := Check{
+		ID:          "contract:thin-host",
+		Name:        "Thin Host frozen package contract",
+		Required:    true,
+		Remediation: "restore managed Thin Host files from the matching Distribution Blueprint and run mss setup",
+	}
+	if err := verify.ValidateThinHostStructure(projectContext); err != nil {
+		check.Status = StatusFail
+		check.Detail = err.Error()
+		return check
+	}
+	check.Status = StatusPass
+	check.Detail = "managed layout, exact Go sums, frozen pnpm lock, and package pins are aligned"
+	return check
 }
 
 func foundationSnapshotCheck(projectContext *project.Context) Check {
@@ -553,6 +645,136 @@ func toolCheck(parent context.Context, id string, required bool, executable stri
 		check.Detail = path
 	}
 	return check
+}
+
+var semanticVersionPattern = regexp.MustCompile(`(?:^|[^0-9])v?(\d+)(?:\.(\d+))?(?:\.(\d+))?`)
+
+type semanticVersion struct {
+	major int
+	minor int
+	patch int
+}
+
+func toolVersionCheck(parent context.Context, id string, required bool, constraint string, executable string, args ...string) Check {
+	check := toolCheck(parent, id, required, executable, args...)
+	constraint = strings.TrimSpace(constraint)
+	if check.Status != StatusPass || constraint == "" {
+		return check
+	}
+	version, ok := parseSemanticVersion(check.Detail)
+	if !ok {
+		check.Status = StatusFail
+		check.Detail = fmt.Sprintf("cannot parse version from %q; project requires %s", check.Detail, constraint)
+		check.Remediation = "install the project-declared " + id + " version"
+		return check
+	}
+	if !satisfiesVersionConstraint(version, constraint) {
+		check.Status = StatusFail
+		check.Detail = fmt.Sprintf("found %s but project requires %s", formatSemanticVersion(version), constraint)
+		check.Remediation = "install the project-declared " + id + " version"
+		return check
+	}
+	check.Detail = fmt.Sprintf("%s (required %s)", check.Detail, constraint)
+	return check
+}
+
+func packageManagerToolCheck(parent context.Context, projectContext *project.Context) Check {
+	manager := strings.TrimSpace(projectContext.Project.Spec.Frontend.PackageManager)
+	if manager == "" {
+		manager = "pnpm"
+	}
+	version := strings.TrimSpace(projectContext.Project.Spec.Frontend.PackageManagerVersion)
+	if projectContext.LayoutKind() != "thin-host" {
+		return toolVersionCheck(parent, manager, true, version, manager, "--version")
+	}
+	pinnedManager := manager
+	if version != "" {
+		pinnedManager += "@" + version
+	}
+	return toolVersionCheck(parent, manager, true, version, "corepack", pinnedManager, "--version")
+}
+
+func parseSemanticVersion(value string) (semanticVersion, bool) {
+	match := semanticVersionPattern.FindStringSubmatch(strings.TrimSpace(value))
+	if len(match) != 4 {
+		return semanticVersion{}, false
+	}
+	parts := [3]int{}
+	for index := range parts {
+		if match[index+1] == "" {
+			continue
+		}
+		parsed, err := strconv.Atoi(match[index+1])
+		if err != nil {
+			return semanticVersion{}, false
+		}
+		parts[index] = parsed
+	}
+	return semanticVersion{major: parts[0], minor: parts[1], patch: parts[2]}, true
+}
+
+func satisfiesVersionConstraint(actual semanticVersion, constraint string) bool {
+	terms := strings.Fields(constraint)
+	if len(terms) == 0 {
+		return true
+	}
+	for _, term := range terms {
+		operator := "="
+		value := term
+		for _, candidate := range []string{">=", "<=", ">", "<", "="} {
+			if strings.HasPrefix(term, candidate) {
+				operator = candidate
+				value = strings.TrimPrefix(term, candidate)
+				break
+			}
+		}
+		required, ok := parseSemanticVersion(value)
+		if !ok {
+			return false
+		}
+		comparison := compareSemanticVersions(actual, required)
+		switch operator {
+		case "=":
+			if comparison != 0 {
+				return false
+			}
+		case ">=":
+			if comparison < 0 {
+				return false
+			}
+		case "<=":
+			if comparison > 0 {
+				return false
+			}
+		case ">":
+			if comparison <= 0 {
+				return false
+			}
+		case "<":
+			if comparison >= 0 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func compareSemanticVersions(left, right semanticVersion) int {
+	leftParts := [...]int{left.major, left.minor, left.patch}
+	rightParts := [...]int{right.major, right.minor, right.patch}
+	for index := range leftParts {
+		if leftParts[index] < rightParts[index] {
+			return -1
+		}
+		if leftParts[index] > rightParts[index] {
+			return 1
+		}
+	}
+	return 0
+}
+
+func formatSemanticVersion(version semanticVersion) string {
+	return fmt.Sprintf("%d.%d.%d", version.major, version.minor, version.patch)
 }
 
 func portCheck(id string, port int) Check {

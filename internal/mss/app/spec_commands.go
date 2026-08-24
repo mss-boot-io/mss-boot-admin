@@ -107,6 +107,7 @@ func newUnifiedSpecInitCommand(rootOverride *string) *cobra.Command {
 	var outputPath string
 	var displayName string
 	var owner string
+	var moduleName string
 	var write bool
 	command := &cobra.Command{
 		Use:   "init <name>",
@@ -121,10 +122,13 @@ func newUnifiedSpecInitCommand(rootOverride *string) *cobra.Command {
 			var data []byte
 			switch kind {
 			case "module", "admin-module":
+				if strings.TrimSpace(moduleName) != "" {
+					return errors.New("--module is supported only for Feature specifications")
+				}
 				kind = "module"
 				data, err = spec.RenderModuleTemplate(args[0], displayName)
 			case "feature":
-				data, err = spec.RenderFeatureTemplate(args[0], displayName, owner)
+				data, err = spec.RenderFeatureTemplateForModule(args[0], moduleName, displayName, owner)
 			default:
 				return fmt.Errorf("unsupported specification kind %q", kind)
 			}
@@ -165,6 +169,7 @@ func newUnifiedSpecInitCommand(rootOverride *string) *cobra.Command {
 	command.Flags().StringVar(&outputPath, "output", "", "repository-relative output path")
 	command.Flags().StringVar(&displayName, "display-name", "", "human-readable display name")
 	command.Flags().StringVar(&owner, "owner", "product-engineering", "Feature owner; ignored for modules")
+	command.Flags().StringVar(&moduleName, "module", "", "primary AdminModule name for a Feature; defaults to the Feature name")
 	command.Flags().BoolVar(&write, "write", false, "write the specification; default is stdout dry-run")
 	return command
 }

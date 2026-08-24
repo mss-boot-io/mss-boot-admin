@@ -78,6 +78,5 @@ safe.
 
 ## Related Docs
 
-- [Open Source Governance](/devops/open-source-governance)
-- [Community Operations Playbook](/devops/community-operations-playbook)
+- [Foundation Contributor Guide](/coding/first-contribution)
 - [Security Baseline Guide](/admin/security-baseline)

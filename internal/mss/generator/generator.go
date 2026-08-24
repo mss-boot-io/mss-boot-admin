@@ -31,7 +31,7 @@ const (
 	backendTemplateRevision      = "1.3.0-backend.2"
 	instructionsTemplateRevision = "1.3.0-module-instructions.1"
 	frontendV6TemplateRevision   = "1.3.0-frontend-v6.5"
-	docsTemplateRevision         = "1.3.0-docs.2"
+	docsTemplateRevision         = "1.3.3-docs.1"
 	e2eV6TemplateRevision        = "1.3.0-e2e-v6.8"
 )
 
@@ -284,6 +284,7 @@ type output struct {
 
 type templateData struct {
 	SourceSpec                     string
+	SourceSpecLink                 string
 	TemplateRevision               string
 	FrontendTemplateRevision       string
 	DocsTemplateRevision           string
@@ -593,6 +594,7 @@ func buildTemplateData(module *spec.Module) (templateData, error) {
 	if data.SourceSpec == "" {
 		data.SourceSpec = "module.yaml"
 	}
+	data.SourceSpecLink = data.SourceSpec
 
 	primarySearchAssigned := false
 	for _, field := range module.Spec.Entity.Fields {
@@ -1407,7 +1409,15 @@ func renderModuleOutputs(repository *os.Root, module *spec.Module, data template
 
 	outputs := make([]output, 0, len(mappings)+4)
 	for _, mapping := range mappings {
-		content, err := renderTemplate(mapping.template, data)
+		mappingData := data
+		if mapping.template == "templates/module/docs/module.md.tmpl" {
+			link, linkErr := filepath.Rel(filepath.Dir(mapping.path), filepath.FromSlash(data.SourceSpec))
+			if linkErr != nil {
+				return nil, fmt.Errorf("resolve generated documentation link for %s: %w", mapping.path, linkErr)
+			}
+			mappingData.SourceSpecLink = filepath.ToSlash(link)
+		}
+		content, err := renderTemplate(mapping.template, mappingData)
 		if err != nil {
 			return nil, err
 		}

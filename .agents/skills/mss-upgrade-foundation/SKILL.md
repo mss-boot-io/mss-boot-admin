@@ -1,96 +1,62 @@
 ---
 name: mss-upgrade-foundation
-description: Plan or apply an upgrade of an MSS-generated application from one foundation blueprint revision to another while preserving business customizations. Trigger for `mss upgrade`, base-template updates, foundation synchronization, or downstream contract changes. Do not use for routine dependency bumps inside the foundation repository itself.
+description: Plan or apply a coordinated MSS Admin Distribution upgrade in a generated Thin Host while preserving business customizations. Trigger for `mss upgrade admin`, Blueprint synchronization, or managed-host conflicts. Do not use for routine Foundation dependency bumps.
 ---
 
-# Upgrade an MSS application foundation
+# Upgrade an MSS Thin Host foundation
 
-For a Thin Host, prefer the coordinated Admin Distribution command. It changes the pinned Admin Go, Framework, and Admin Web versions together and then delegates all managed-file decisions to the same three-way Blueprint engine:
+Use the target release's installed `mss` binary. It upgrades the pinned Admin Go package, Framework dependency, Admin Web package, and managed Thin Host files as one Distribution contract.
 
-```shell
-go run ./cmd/mss --root <downstream-project> upgrade admin <vX.Y.Z> \
-  --foundation <new-foundation-checkout> \
-  --format json
-```
-
-The upgrade engine performs a three-way comparison for every foundation-managed file:
-
-```text
-recorded old foundation hash + current downstream content + new foundation content
-```
-
-Files created only by the downstream application are outside the managed manifest and are preserved. A managed file is updated automatically only when its current content still matches the recorded baseline. Concurrent downstream and foundation changes produce a conflict instead of an overwrite.
+The engine compares the recorded old foundation hash, current downstream content, and new embedded foundation content. It updates only unchanged managed files; downstream-only files remain outside the manifest, and concurrent edits become conflicts.
 
 ## Preconditions
 
-- Work from a clean downstream Git branch or create a normal checkpoint commit first.
-- Obtain a trusted checkout of the target foundation version.
-- Run the newer foundation CLI against the downstream project when the downstream CLI predates the required upgrade behavior:
-
-  ```shell
-  cd <new-foundation-checkout>
-  go run ./cmd/mss --root <downstream-project> upgrade ...
-  ```
+- The application must contain `.mss/blueprint-manifest.json`; a hand-assembled or legacy application without the recorded baseline cannot enter the three-way path directly.
+- Back up the repository and database as appropriate, then work from a clean branch or a normal checkpoint commit.
+- Install the `mss` binary for the exact target version and verify immutable release provenance with `mss --version`.
+- In the Foundation repository, this skill may be used to exercise a downstream fixture. The normal adopter path never needs a Foundation checkout; `--foundation` is contributor-only.
 
 ## Procedure
 
-1. Inspect the currently installed baseline:
+1. Inspect the recorded baseline:
 
    ```shell
-   go run ./cmd/mss upgrade status --format json
+   mss upgrade status --format json
    ```
 
-2. Produce a conflict-aware, coordinated Distribution plan (read-only by default):
+2. Produce the read-only coordinated plan:
 
    ```shell
-   go run ./cmd/mss upgrade admin <vX.Y.Z> \
-     --foundation <new-foundation-checkout> \
-     --format json
+   mss upgrade admin <vX.Y.Z> --format json
    ```
 
-   The target Foundation must declare exactly `<vX.Y.Z>` for the Distribution and its root, Framework, Admin, and frontend components. Use the lower-level `upgrade plan` only for a legacy Blueprint that does not yet carry a Distribution contract.
-
-3. Review every non-unchanged action:
-   - `create`: new foundation-managed file;
-   - `update`: foundation changed an unmodified downstream file;
-   - `delete`: foundation removed an unmodified managed file;
-   - `preserve`: downstream customized a file that the foundation did not change;
-   - `conflict`: both sides changed, a required file was locally deleted, or a new foundation file collides with existing downstream content.
-
-4. Resolve every conflict in a separate committed change. Re-run the plan until `success` is true.
-5. Apply only the reviewed coordinated plan:
+3. Review every `create`, `update`, `delete`, `preserve`, and `conflict`. Resolve conflicts in tracked source and rerun until the plan is successful.
+4. Apply only that reviewed plan:
 
    ```shell
-   go run ./cmd/mss upgrade admin <vX.Y.Z> \
-     --foundation <new-foundation-checkout> \
-     --apply --yes \
-     --format json
+   mss upgrade admin <vX.Y.Z> --apply --yes --format json
    ```
 
-6. The new blueprint manifest is written only after all conflict-free file operations complete. Confirm it records the target blueprint version and foundation commit.
-7. Run:
+5. Confirm `.mss/blueprint-manifest.json` and `.mss/lock.yaml` record the target Distribution and Blueprint identities, then run:
 
    ```shell
-   go run ./cmd/mss doctor --format json
-   go run ./cmd/mss skills validate --format json
-   go run ./cmd/mss verify --changed
-   go run ./cmd/mss eval run --all
+   mss doctor --format json
+   mss skills validate --format json
+   mss verify --changed
    ```
 
-8. Commit the upgrade, validation reports or summaries, and any explicit conflict resolutions. Do not rewrite prior history.
+6. Re-run the same upgrade plan and require a no-op result.
+7. Commit tracked managed-file changes, manifest/lock updates, preserved customizations, and explicit conflict resolutions. `.mss/reports` is ignored runtime evidence and is not required in the commit.
 
 ## Guardrails
 
-- Planning is always read-only. The legacy lower-level path applies only through `upgrade apply --yes`.
-- For `upgrade admin`, applying requires both `--apply` and `--yes`; `--yes` without `--apply` is invalid.
-- Never advance only the Go Admin or Admin Web dependency when the Distribution contract requires a coordinated version transition.
-- Never overwrite a managed file whose current hash differs from the old foundation when the new foundation also changed it.
-- Never delete a locally customized file merely because the new foundation removed it.
-- Unknown downstream files and business modules are not foundation-managed and must remain untouched.
-- Never mark a new baseline installed when any file operation failed.
-- Database migrations and destructive runtime changes require separate explicit policies; the source upgrade engine does not execute production migrations.
-- Foundation checkouts must not contain uncommitted source changes because blueprint generation reads Git-tracked files and records the checked-out commit.
+- Planning is read-only; Admin apply requires both `--apply` and `--yes`.
+- Never upgrade only one coordinated Admin Distribution component.
+- Never overwrite or delete a locally customized managed file.
+- Never advance the recorded baseline after a failed operation.
+- Source upgrade does not run production database migrations or destructive runtime changes.
+- A missing or invalid baseline manifest is an adoption/migration task, not permission to synthesize hashes or force an upgrade.
 
 ## Output
 
-Report source and target Distribution/component versions, Blueprint versions and commits, managed host changes, modules to regenerate, create/update/delete/preserve/conflict counts, all conflicts, preserved customizations, files written, post-upgrade validation, and rollback commit or branch.
+Report source and target Distribution/component versions, Blueprint identities, create/update/delete/preserve/conflict counts, preserved business files, validation results, no-op proof, and the rollback commit or branch.

@@ -12,13 +12,13 @@ spec:
   foundationVersion: 0.1.0
   distribution:
     name: mss-boot-admin
-    version: v1.3.2
+    version: v1.3.3
     backend:
       module: github.com/mss-boot-io/mss-boot-admin/admin
-      version: v1.3.2
+      version: v1.3.3
     frontend:
       package: "@mss-boot-io/admin-web"
-      version: 1.3.2
+      version: 1.3.3
   repositoryLayout:
     kind: foundation
     backend: admin
@@ -86,10 +86,10 @@ spec:
     productionCredentialsRequiredForDevelopment: false
   entrypoints:
     admin: cd admin && go run .
-    mss: go run ./cmd/mss
+    mss: GOWORK=off go run ./cmd/mss
   validation:
-    changed: go run ./cmd/mss verify --changed
-    all: go run ./cmd/mss verify --all
+    changed: GOWORK=off go run ./cmd/mss verify --changed
+    all: GOWORK=off go run ./cmd/mss verify --all
     reports:
       json: .mss/reports/verify.json
       markdown: .mss/reports/verify.md

@@ -51,6 +51,9 @@ spec:
 	if config.StartupTimeout.String() != "1m30s" {
 		t.Fatalf("unexpected default startup timeout: %s", config.StartupTimeout)
 	}
+	if services[0].Health.LaunchHeader != defaultLaunchHeader || services[1].Health.LaunchHeader != defaultLaunchHeader {
+		t.Fatalf("health launch header defaults were not normalized: %#v", services)
+	}
 }
 
 func TestLoadRejectsEscapingPaths(t *testing.T) {
@@ -74,6 +77,134 @@ spec:
 	}
 	if !strings.Contains(err.Error(), "escapes repository root") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadRejectsSymlinkOrReparseEscapes(t *testing.T) {
+	root := writeDevelopmentConfig(t, `apiVersion: mss.io/v1alpha1
+kind: DevelopmentEnvironment
+metadata:
+  project: test-project
+spec:
+  runtimeDirectory: .mss/run
+  logDirectory: .mss/logs
+  services:
+    - id: backend
+      directory: external-service
+      command: [go, run, .]
+      required: true
+`)
+	external := t.TempDir()
+	if err := os.Symlink(external, filepath.Join(root, "external-service")); err != nil {
+		t.Skipf("create symlink or reparse point: %v", err)
+	}
+
+	_, err := Load(root)
+	if err == nil {
+		t.Fatal("expected external service-directory link to fail validation")
+	}
+	if !strings.Contains(err.Error(), "escapes repository root") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadRejectsRuntimeAndLogSymlinkEscapes(t *testing.T) {
+	for _, relative := range []string{".mss/run", ".mss/logs"} {
+		t.Run(filepath.Base(relative), func(t *testing.T) {
+			root := writeDevelopmentConfig(t, `apiVersion: mss.io/v1alpha1
+kind: DevelopmentEnvironment
+metadata:
+  project: test-project
+spec:
+  runtimeDirectory: .mss/run
+  logDirectory: .mss/logs
+  services:
+    - id: backend
+      directory: .
+      command: [go, run, .]
+      required: true
+`)
+			if err := os.Symlink(t.TempDir(), filepath.Join(root, filepath.FromSlash(relative))); err != nil {
+				t.Skipf("create symlink or reparse point: %v", err)
+			}
+			_, err := Load(root)
+			if err == nil || !strings.Contains(err.Error(), "escapes repository root") {
+				t.Fatalf("expected %s escape to fail validation, got %v", relative, err)
+			}
+		})
+	}
+}
+
+func TestEnsureDirectoriesRejectsAncestorSwappedToSymlink(t *testing.T) {
+	root := writeDevelopmentConfig(t, `apiVersion: mss.io/v1alpha1
+kind: DevelopmentEnvironment
+metadata:
+  project: test-project
+spec:
+  runtimeDirectory: .mss/run
+  logDirectory: .mss/logs
+  services:
+    - id: backend
+      directory: .
+      command: [go, run, .]
+      required: true
+`)
+	config, err := Load(root)
+	if err != nil {
+		t.Fatalf("load development config: %v", err)
+	}
+	external := t.TempDir()
+	originalMSS := filepath.Join(root, ".mss")
+	parkedMSS := filepath.Join(root, ".mss-original")
+	if err := os.Rename(originalMSS, parkedMSS); err != nil {
+		t.Fatalf("park .mss directory: %v", err)
+	}
+	if err := os.Symlink(external, originalMSS); err != nil {
+		t.Skipf("create symlink or reparse point: %v", err)
+	}
+
+	err = ensureDirectories(config)
+	if err == nil {
+		t.Fatal("expected swapped .mss ancestor to fail confinement")
+	}
+	if !strings.Contains(err.Error(), "symlink or reparse point") && !strings.Contains(err.Error(), "escapes repository root") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(external, "run")); !os.IsNotExist(statErr) {
+		t.Fatalf("directory creation escaped repository before failure: %v", statErr)
+	}
+}
+
+func TestServiceDirectorySwapToSymlinkFailsRuntimeRevalidation(t *testing.T) {
+	root := writeDevelopmentConfig(t, `apiVersion: mss.io/v1alpha1
+kind: DevelopmentEnvironment
+metadata:
+  project: test-project
+spec:
+  services:
+    - id: backend
+      directory: service
+      command: [go, run, .]
+      required: true
+`)
+	serviceDirectory := filepath.Join(root, "service")
+	if err := os.MkdirAll(serviceDirectory, 0o755); err != nil {
+		t.Fatalf("create service directory: %v", err)
+	}
+	config, err := Load(root)
+	if err != nil {
+		t.Fatalf("load development config: %v", err)
+	}
+	parked := filepath.Join(root, "service-original")
+	if err := os.Rename(serviceDirectory, parked); err != nil {
+		t.Fatalf("park service directory: %v", err)
+	}
+	if err := os.Symlink(t.TempDir(), serviceDirectory); err != nil {
+		t.Skipf("create symlink or reparse point: %v", err)
+	}
+	service, _ := config.Service("backend")
+	if err := verifyStableConfinedPath(config.Root, config.ResolveDirectory(service)); err == nil {
+		t.Fatal("runtime revalidation accepted swapped service directory")
 	}
 }
 
@@ -102,6 +233,73 @@ spec:
 	}
 	if !strings.Contains(err.Error(), "dependency cycle") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadRejectsInitialAdministratorPasswordEnvironment(t *testing.T) {
+	root := writeDevelopmentConfig(t, `apiVersion: mss.io/v1alpha1
+kind: DevelopmentEnvironment
+metadata:
+  project: test-project
+spec:
+  services:
+    - id: backend
+      directory: .
+      command: [go, run, .]
+      environment:
+        mss_admin_initial_password: forbidden
+      required: true
+`)
+
+	_, err := Load(root)
+	if err == nil {
+		t.Fatal("expected one-use administrator password in dev config to fail validation")
+	}
+	if !strings.Contains(err.Error(), initialAdminPasswordEnvironment) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadRejectsConfiguredHealthNonceEnvironment(t *testing.T) {
+	root := writeDevelopmentConfig(t, `apiVersion: mss.io/v1alpha1
+kind: DevelopmentEnvironment
+metadata:
+  project: test-project
+spec:
+  services:
+    - id: backend
+      directory: .
+      command: [go, run, .]
+      environment:
+        MSS_DEV_HEALTH_NONCE: fixed-is-not-allowed
+      required: true
+`)
+
+	_, err := Load(root)
+	if err == nil || !strings.Contains(err.Error(), healthNonceEnvironment) {
+		t.Fatalf("expected configured health nonce to fail validation, got %v", err)
+	}
+}
+
+func TestLoadRejectsInvalidHealthLaunchHeader(t *testing.T) {
+	root := writeDevelopmentConfig(t, `apiVersion: mss.io/v1alpha1
+kind: DevelopmentEnvironment
+metadata:
+  project: test-project
+spec:
+  services:
+    - id: backend
+      directory: .
+      command: [go, run, .]
+      required: true
+      health:
+        url: http://127.0.0.1:8080/healthz
+        launchHeader: "bad header"
+`)
+
+	_, err := Load(root)
+	if err == nil || !strings.Contains(err.Error(), "launchHeader") {
+		t.Fatalf("expected invalid launch header to fail validation, got %v", err)
 	}
 }
 

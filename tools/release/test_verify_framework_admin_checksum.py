@@ -20,11 +20,20 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
     def test_final_repository_tree_matches_admin_metadata(self):
         result = CHECKSUM.verify_repository(
             REPOSITORY_ROOT,
-            version="v1.3.2",
+            version="v1.3.3",
         )
         self.assertTrue(result["success"])
-        self.assertEqual(result["version"], "v1.3.2")
+        self.assertEqual(result["version"], "v1.3.3")
         self.assertGreater(result["candidateFiles"], 0)
+        self.assertGreater(result["adminCandidateFiles"], 0)
+        self.assertEqual(
+            result["adminSum"],
+            "h1:7GVZJ+Q+SOTNkBC/OHKHCi8FwcBEYSAyw4jDy1fhoh8=",
+        )
+        self.assertEqual(
+            result["adminGoModSum"],
+            "h1:jxDuhwGHN92c8NNVeLnVmtoQbXJMsA6PdX2Cqbw+OnM=",
+        )
         self.assertEqual(result["dependencyMode"], "replace-free-file-proxy")
 
     def test_candidate_module_sum_changes_when_source_content_changes(self):
@@ -49,14 +58,14 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
             CHECKSUM._write_file_module_proxy(
                 first_proxy,
                 module=CHECKSUM.FRAMEWORK_MODULE,
-                version="v1.3.2",
+                version="v1.3.3",
                 source_root=source,
                 sources=sources,
             )
             first_sum, first_go_mod_sum = CHECKSUM._download_candidate_sums(
                 proxy_root=first_proxy,
                 module=CHECKSUM.FRAMEWORK_MODULE,
-                version="v1.3.2",
+                version="v1.3.3",
                 go_command="go",
             )
 
@@ -65,14 +74,14 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
             CHECKSUM._write_file_module_proxy(
                 second_proxy,
                 module=CHECKSUM.FRAMEWORK_MODULE,
-                version="v1.3.2",
+                version="v1.3.3",
                 source_root=source,
                 sources=sources,
             )
             second_sum, second_go_mod_sum = CHECKSUM._download_candidate_sums(
                 proxy_root=second_proxy,
                 module=CHECKSUM.FRAMEWORK_MODULE,
-                version="v1.3.2",
+                version="v1.3.3",
                 go_command="go",
             )
 
@@ -83,7 +92,7 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
         with self.assertRaisesRegex(CHECKSUM.ChecksumContractError, "stable"):
             CHECKSUM.verify_repository(
                 REPOSITORY_ROOT,
-                version="v1.3.2-rc.1",
+                version="v1.3.3-rc.1",
             )
 
     def test_rejects_multiline_admin_replace(self):
@@ -97,10 +106,10 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
 
 go 1.26.6
 
-require {CHECKSUM.FRAMEWORK_MODULE} v1.3.2
+require {CHECKSUM.FRAMEWORK_MODULE} v1.3.3
 
 replace (
-	{CHECKSUM.FRAMEWORK_MODULE} v1.3.2 => ../mss-boot
+	{CHECKSUM.FRAMEWORK_MODULE} v1.3.3 => ../mss-boot
 )
 """,
                 encoding="utf-8",
@@ -129,7 +138,7 @@ replace {CHECKSUM.FRAMEWORK_MODULE} => ./mss-boot
             ):
                 CHECKSUM._verify_workspace_replacement(
                     root,
-                    version="v1.3.2",
+                    version="v1.3.3",
                     go_command="go",
                 )
 

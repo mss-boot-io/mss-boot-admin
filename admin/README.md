@@ -1,51 +1,55 @@
-# mss-boot Admin application
+# Importable Admin application
 
-This directory contains the complete reusable and deployable Admin application
-as an independent Go module:
+`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.3` is the complete Admin
+backend for a Thin Host. It owns authentication, authorization, configuration,
+migrations, HTTP delivery, and the protected compile-time business extension
+boundary.
 
-```text
-github.com/mss-boot-io/mss-boot-admin/admin
+Add the exact public module:
+
+```sh
+go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.3
 ```
 
-The coordinated stable target is `admin/v1.3.2`. After publication, an external
-consumer pins it exactly:
+Compose owned business modules explicitly:
 
-```bash
-go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.2
+```go
+package main
+
+import (
+    "context"
+    "log"
+
+    "github.com/mss-boot-io/mss-boot-admin/admin/app"
+    "github.com/acme/orders-admin/internal/modules/orders"
+)
+
+func main() {
+    if err := app.ExecuteContext(
+        context.Background(),
+        app.WithBusinessModules(orders.Module()),
+    ); err != nil {
+        log.Fatal(err)
+    }
+}
 ```
 
-`app/` is the public composition root and `business/` is the compile-time
-extension boundary. A Thin Host imports the complete Admin, registers owned
-business modules explicitly, and does not copy core startup, authentication,
-session, migration, route, or middleware source.
+Do not copy Admin startup, security middleware, migrations, or core routes into
+a business repository. A business module may extend the protected group only
+through `admin/business`; UI visibility never replaces backend authorization.
 
-External hosts execute the Admin only through `app.ExecuteContext` or an
-`Application`'s guarded `ExecuteContext` / `ExecuteArgsContext` methods. The
-public API deliberately does not expose an executable Cobra command tree, so a
-host cannot bypass the single-use and process-global runtime lifecycle guards.
-Business-module registration is atomic: a failed module publishes no descriptor,
-module identity, route registration, or migration into the application registry.
+Create the complete host with `mss new app` instead of assembling these files
+by hand. See [packages](../docs/docs/getting-started/packages.md) and the
+[Admin architecture](../docs/docs/architecture/complete-admin-distribution-and-thin-business-host.zh-CN.md).
 
-For repository-local development:
+For a fresh Thin Host, interactive `mss setup` reads the initial administrator
+password through its built-in hidden prompt. Non-interactive automation passes
+the same one-use value through `MSS_ADMIN_INITIAL_PASSWORD` for the setup
+process only. It must be 8-128 characters and contain a letter and a number.
+The migration stores a one-way verifier; the value is not a CLI argument or
+generated file, and completed migrations do not require it again.
+The initial username is `admin`; sign in at the generated Admin Web address
+with the password supplied to the first setup. There is no default password.
 
-```bash
-cd admin
-STAGE=local go run . migrate
-STAGE=local go run . server -a
-STAGE=local go run . server
-go test ./...
-```
-
-The one-shot `server -a` command synchronizes the API registry from the exact
-mounted route tree. Run it with the same Stage and database as the resident
-server; otherwise menu management can show an empty “Bind API” selection.
-
-The repository `go.work` resolves the sibling `mss-boot/` framework for local
-development. The published Admin module pins the exact public Framework version
-without a committed `replace`; protected release qualification resolves that
-version with `GOWORK=off` after the matching Framework release is public.
-
-Before a release, the repository also creates a clean external Go module,
-resolves both public versions with `GOWORK=off`, verifies their source hashes
-and checksums, and builds a representative Thin Host. Business routes remain
-behind the complete Admin middleware and migration-readiness boundary.
+Foundation source validation remains documented for contributors in
+[`AGENTS.md`](./AGENTS.md); it is not an adopter installation path.

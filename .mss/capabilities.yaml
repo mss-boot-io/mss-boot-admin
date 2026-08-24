@@ -17,7 +17,6 @@ spec:
         - .mss/features/admin-antd-v6-application.yaml
         - .mss/features/admin-antd-v6-cutover-retirement.yaml
         - docs/adr/2026-08-15-independent-ant-design-v6-application.md
-        - docs/docs/admin/ant-design-v6-migration-plan.md
         - web/antd-v6
         - web/antd-v6/CHANGELOG.md
         - .github/workflows/frontend-v6-ci.yml
@@ -238,7 +237,6 @@ spec:
       paths:
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
-        - docs/docs/releases/v1-1-0-d5-scoped-runtime-cache.md
       frameworkPaths:
         - mss-boot/runtime/cache
         - mss-boot/pkg/config/storage/cache/context.go
@@ -259,7 +257,6 @@ spec:
       paths:
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
-        - docs/docs/releases/v1-1-0-d5-scoped-runtime-cache.md
       frameworkPaths:
         - mss-boot/runtime/cache
         - mss-boot/pkg/config/storage/cache/query.go
@@ -279,8 +276,6 @@ spec:
       paths:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/storage-runtime-v2.yaml
-        - docs/docs/releases/v1-0-1-challenge-safety.md
-        - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
       backendPaths:
         - admin/apis/user.go
         - admin/center/default.go
@@ -316,8 +311,6 @@ spec:
       paths:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/storage-runtime-v2.yaml
-        - docs/docs/releases/v1-0-1-challenge-safety.md
-        - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
       frameworkPaths:
         - mss-boot/pkg/config/storage/cache/challenge.go
         - mss-boot/runtime/challenge
@@ -337,8 +330,6 @@ spec:
       paths:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/foundation-v1-1-0-generator-blueprint.yaml
-        - docs/docs/releases/v1-0-1-challenge-safety.md
-        - docs/docs/releases/v1-1-0-d2-canonical-email-identity.md
       backendPaths:
         - admin/apis/user.go
         - admin/internal/cmd/migrate/migrate.go
@@ -381,7 +372,6 @@ spec:
       paths:
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
-        - docs/docs/releases/v1-1-0-d5-revision-eventbus.md
       frameworkPaths:
         - mss-boot/runtime/eventbus
       backendPaths:
@@ -429,8 +419,6 @@ spec:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
-        - docs/docs/releases/v1-0-1-kafka-ack-safety.md
-        - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
       frameworkPaths:
         - mss-boot/pkg/config/queue.go
         - mss-boot/pkg/config/storage/type.go
@@ -485,18 +473,9 @@ spec:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
-        - docs/docs/releases/v1-0-1-upload-admission-safety.md
-        - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
-        - docs/docs/releases/v1-1-0-d3-resource-lifecycle.md
-        - docs/docs/releases/v1-1-0-d3-named-redis-resource.md
-        - docs/docs/releases/v1-1-0-d3-challenge-runtime.md
-        - docs/docs/releases/v1-1-0-d5-scoped-runtime-cache.md
-        - docs/docs/releases/v1-1-0-d5-revision-eventbus.md
-        - docs/docs/releases/v1-1-0-d5-provider-evidence-validator.md
         - .mss/schemas/provider-maturity.schema.json
         - internal/mss/provider
         - internal/mss/app/provider.go
-        - docs/docs/releases/v1-0-1-to-v1-1-0-roadmap.md
       frameworkPaths:
         - mss-boot/runtime/config
         - mss-boot/runtime/resource
@@ -559,10 +538,8 @@ spec:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
-        - docs/docs/releases/v1-0-1-upload-admission-safety.md
-        - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
       backendPaths:
-        - admin/cmd/server/object_storage.go
+        - admin/internal/cmd/server/object_storage.go
         - admin/config/object_storage.go
         - admin/service/storage.go
         - admin/service/storage_test.go
@@ -587,13 +564,11 @@ spec:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
-        - docs/docs/releases/v1-0-1-upload-admission-safety.md
-        - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
       backendPaths:
         - admin/apis/storage.go
         - admin/apis/storage_upload_admission_test.go
         - admin/apis/user.go
-        - admin/cmd/server/object_storage.go
+        - admin/internal/cmd/server/object_storage.go
         - admin/config/object_storage.go
         - admin/service/storage.go
         - admin/service/storage_test.go
@@ -618,10 +593,8 @@ spec:
         - .mss/features/foundation-v1-0-1-storage-safety.yaml
         - .mss/features/storage-runtime-v2.yaml
         - docs/adr/2026-08-09-storage-runtime-v2.md
-        - docs/docs/releases/v1-0-1-upload-admission-safety.md
-        - docs/docs/releases/v1-1-0-d1-object-provider-owner.md
       backendPaths:
-        - admin/cmd/server/object_storage.go
+        - admin/internal/cmd/server/object_storage.go
         - admin/config/object_storage.go
         - admin/service/storage.go
       frameworkPaths:
@@ -734,15 +707,18 @@ spec:
 
     - id: agent.cli
       displayName: Unified mss CLI
-      status: beta
+      status: stable
       owners: [agent-infrastructure]
       paths:
         - cmd/mss
         - internal/mss
+        - tools/install
       guidance: >-
-        The released CLI is usable with explicit command-level evidence, but capability maturity is
-        not uniform. It is the implementation source for Skills, CI, and MCP; planned commands and
-        declarative acceptance evidence must not be reported as executed.
+        The v1.3.3 CLI is distributed through checksummed cross-platform tool archives and standard
+        Go installation. It embeds the matching application Blueprint, creates complete Thin Hosts
+        outside a Foundation checkout, and upgrades them by exact Admin Distribution version. Skills,
+        CI, and MCP must call this implementation instead of duplicating its logic; declarative
+        acceptance evidence must never be reported as executed.
 
     - id: agent.module-generator
       displayName: Deterministic Admin Module Scaffold Generator
@@ -751,7 +727,7 @@ spec:
       paths:
         - .mss/schemas/admin-module.schema.json
         - .mss/features/foundation-v1-1-0-generator-blueprint.yaml
-        - docs/docs/releases/v1-1-0-d3-supplier-backend.md
+        - docs/docs/modules/supplier.md
         - internal/mss/generator
         - templates/module
       guidance: >-
@@ -771,7 +747,7 @@ spec:
         - .mss/features/example-supplier-onboarding.yaml
         - .mss/modules/example-supplier.yaml
         - admin/modules/supplier
-        - docs/docs/releases/v1-1-0-d3-supplier-backend.md
+        - docs/docs/modules/supplier.md
         - internal/mss/blueprint
         - internal/mss/generator
         - templates/module
@@ -781,7 +757,8 @@ spec:
         documentation, and semantic browser E2E. The Supplier plan is complete with zero deferred
         projections and is exercised through repository-external Thin Host generation, build,
         authorization, browser, upgrade, preservation, and two-run idempotency gates. Stable
-        v1.3.2 public Go and npm consumption is now proven. Keep the capability beta until a second
+        v1.3.3 public Go and npm consumption plus the package-first mss-shop exemplar are the current
+        qualification target. Keep the capability beta until that second
         representative domain proves the schema without weakening deterministic or
         generated/custom ownership boundaries.
 
@@ -811,9 +788,10 @@ spec:
         consume them through coordinated versioned dependencies and add only compile-time modules and
         pages. The external Supplier host has passed GOWORK=off backend, local npm tarball,
         one-runtime, deterministic Thin Host generation and upgrade, authorization, and browser E2E
-        gates; v1.3.0-rc.6 is immutable successful preview evidence. Stable v1.3.2 Go resolution,
-        byte-identical npmjs and GitHub Packages resolution, and post-publication reconciliation
-        have completed. The released distribution is stable; the capability remains beta until a
+        gates; v1.3.0-rc.6 and stable v1.3.2 remain immutable historical evidence. The v1.3.3
+        package-first release removes the Foundation-checkout dependency from application creation
+        and Distribution upgrade, and requires public Go/npm resolution plus post-publication
+        reconciliation. The capability remains beta until a
         second representative domain and a later stable-to-stable Thin Host upgrade prove the
         extension and upgrade boundaries again.
         Do not add runtime plugins, micro-frontends, core feature selection, telemetry, import records,
@@ -821,19 +799,20 @@ spec:
 
     - id: agent.skills
       displayName: Repository Agent Skills
-      status: planned
+      status: beta
       owners: [agent-infrastructure]
       paths:
         - .agents/skills
-      guidance: Skills orchestrate the CLI and must not duplicate generator or verifier logic.
+      guidance: Installed-project Skills orchestrate the released mss CLI and must not clone the Foundation or duplicate generator and verifier logic.
 
     - id: agent.mcp
       displayName: mss MCP Server
-      status: planned
+      status: beta
       owners: [agent-infrastructure]
       paths:
         - cmd/mss-mcp
-      guidance: Thin protocol adapter over stable CLI packages; write tools default to dry-run.
+        - tools/install
+      guidance: The v1.3.3 tool archive installs mss-mcp beside mss; it remains a thin protocol adapter over stable CLI packages and write tools default to dry-run.
 
     - id: agent.evals
       displayName: Agent Task Evaluations
@@ -850,24 +829,20 @@ spec:
       owners: [agent-infrastructure]
       paths:
         - .mss/lock.yaml
-        - .mss/features/foundation-v1-1-0-generator-blueprint.yaml
+        - .mss/features/foundation-v1-3-3-package-first-release.yaml
         - .github/workflows/foundation-compatibility.yml
-        - docs/docs/releases/v1-1-0-d2-snapshot-identity.md
+        - docs/docs/architecture/complete-admin-distribution-and-thin-business-host.zh-CN.md
         - internal/mss/app
         - internal/mss/blueprint
         - internal/mss/doctor
         - internal/mss/mcp
         - .mss/blueprints
       guidance: >-
-        The current three-way planner/apply path remains beta. Checkpoint 151a91c gives CLI, MCP,
-        and doctor one strict SnapshotStatus over independently sourced Foundation, Blueprint,
-        generator, and downstream identities plus the atomic lock/manifest record digests. It
-        distinguishes the exact Foundation source sentinel from a strict generated pair, fails
-        malformed or orphaned state without source fallback, and recovers the downstream root
-        module from the snapshot rather than the nested Admin module. Before stable, bind a real
-        foundation-compatibility.yml run to the selected feature-freeze SHA, prove an actual
-        Blueprint 0.1-to-0.2 customization-preserving upgrade and an empty second application,
-        and emit explicit ownership, conflict, migration, identity, digest, and validation reports.
+        v1.3.3 preserves strict Foundation, Blueprint, generator, snapshot, lock, and manifest
+        identities while resolving the requested published Distribution from the mss binary's
+        embedded release source. A local --foundation path is an explicit Foundation-contributor
+        override, never a consumer prerequisite. Plan remains read-only, apply is confirmed and
+        conflict-free, business-owned paths are preserved, and the baseline pair is committed last.
 
     - id: foundation.versioned-release
       displayName: Versioned Foundation Release Governance
@@ -885,6 +860,7 @@ spec:
         - .mss/features/foundation-v1-3-0-release.yaml
         - .mss/features/foundation-v1-3-1-release.yaml
         - .mss/features/foundation-v1-3-2-release.yaml
+        - .mss/features/foundation-v1-3-3-package-first-release.yaml
         - .mss/features/admin-antd-v6-application.yaml
         - .mss/features/admin-antd-v6-cutover-retirement.yaml
         - .mss/features/admin-antd-v6-release-polish.yaml
@@ -904,6 +880,7 @@ spec:
         - internal/mss/verify
         - mss-boot/Makefile
         - tools/release
+        - tools/install
         - tools/security
         - web/antd-v6/Dockerfile
         - web/antd-v6/scripts/check-release-api.mjs
@@ -919,14 +896,9 @@ spec:
       guidance: >-
         Treat Unreleased, planned, preview, branches, and local workspace replacements as non-stable.
         Published historical versions remain immutable and their candidate evidence is not reusable.
-        The current stable release is v1.3.2 for root, Framework, the importable Admin module, and
-        the sole Ant Design V6 frontend. Its ordered Framework, Admin, frontend, root, Docs, and
-        official npm train plus public reconciliation completed from exact merged-main commit
-        635fbb03a82976941e527d8ac1000fec0624abac. RC6 and the incomplete v1.3.0 and v1.3.1
-        publication attempts remain immutable historical evidence. Any emergency patch requires a
-        reviewed policy target change, a new merged-main commit, and rerun affected gates rather
-        than a bypass. This governance remains beta because deterministic Foundation
-        release/Blueprint/generator/downstream-snapshot identity with atomic lock and manifest
-        records plus automated drift checks are not yet fully enforced. Keep .mss/lock.yaml honest:
-        its distribution entries record v1.3.2 while development/generated Foundation and Blueprint
-        baselines remain explicit until a later snapshot process records a published identity.
+        v1.3.2 remains the immutable previously published train. v1.3.3 is the reviewed target for
+        root, Framework, importable Admin, the sole Ant Design V6 frontend, Docs, npm, and the
+        checksummed mss/mss-mcp tool bundles. It must be published in that order from one exact clean
+        merged-main commit and reconciled through public Go, npm, GitHub Release, image, Docs, and
+        installed-consumer probes. Any repair requires a follow-up PR and a new merged-main commit;
+        no workflow may mutate an already-public Release or reuse historical evidence.

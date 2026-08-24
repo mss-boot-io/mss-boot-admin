@@ -22,14 +22,22 @@ on:
       - 'cmd/mss-mcp/**'
       - 'internal/mss/**'
       - 'tools/ci/**'
+      - 'tools/compatibility/**'
+      - 'tools/docs/**'
+      - 'tools/install/**'
       - 'tools/release/**'
       - 'admin/AGENTS.md'
+      - 'admin/README.md'
       - 'admin/go.mod'
       - 'admin/go.sum'
       - 'admin/main.go'
       - 'admin/cmd/migrate/**'
       - 'admin/modules/**'
+      - 'mss-boot/README.md'
+      - 'mss-boot/README.Zh-cn.md'
       - 'templates/module/**'
+      - 'templates/application/**'
+      - 'web/antd-v6/README.md'
       - 'web/antd-v6/config/routes.custom.ts'
       - 'web/antd-v6/config/routes.generated.ts'
       - 'web/antd-v6/src/generated/locales/*.ts'
@@ -55,14 +63,22 @@ on:
       - 'cmd/mss-mcp/**'
       - 'internal/mss/**'
       - 'tools/ci/**'
+      - 'tools/compatibility/**'
+      - 'tools/docs/**'
+      - 'tools/install/**'
       - 'tools/release/**'
       - 'admin/AGENTS.md'
+      - 'admin/README.md'
       - 'admin/go.mod'
       - 'admin/go.sum'
       - 'admin/main.go'
       - 'admin/cmd/migrate/**'
       - 'admin/modules/**'
+      - 'mss-boot/README.md'
+      - 'mss-boot/README.Zh-cn.md'
       - 'templates/module/**'
+      - 'templates/application/**'
+      - 'web/antd-v6/README.md'
       - 'web/antd-v6/config/routes.custom.ts'
       - 'web/antd-v6/config/routes.generated.ts'
       - 'web/antd-v6/src/generated/locales/*.ts'
@@ -99,6 +115,20 @@ jobs:
             go.work.sum
             admin/go.sum
             mss-boot/go.sum
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+
+      - name: Setup exact Corepack and pnpm
+        run: |
+          set -euo pipefail
+          npm install --global --force corepack@0.34.0
+          corepack enable pnpm
+          corepack prepare pnpm@10.34.5 --activate
+          test "$(corepack --version)" = '0.34.0'
+          test "$(corepack pnpm@10.34.5 --version)" = '10.34.5'
 
       - name: Reject disabled assistant integration
         run: |
@@ -180,6 +210,9 @@ jobs:
           GOWORK: 'off'
         run: go build ./cmd/mss ./cmd/mss-mcp
 
+      - name: Qualify standalone package-first generation and upgrade
+        run: bash tools/compatibility/test-standalone-mss-consumer.sh --upgrade
+
       - name: Load project context
         run: go run ./cmd/mss context --format json > "${RUNNER_TEMP}/mss-context.json"
 
@@ -242,6 +275,7 @@ jobs:
             tools/release/test_check_release_policy.py \
             tools/release/test_generate_admin_web_sbom.py \
             tools/release/test_npm_release_workflow.py \
+            tools/release/test_root_release_workflow.py \
             tools/release/test_release_phase_evidence.py \
             tools/release/test_release_qualification_decision.py \
             tools/release/test_release_readiness_attestation.py \
@@ -250,6 +284,11 @@ jobs:
             tools/release/test_verify_admin_web_package.py \
             tools/release/test_verify_release_source.py \
             tools/release/test_workflow_governance.py
+
+      - name: Verify package-first installers and current documentation contract
+        run: |
+          bash tools/install/test-install-mss.sh
+          python3 -m unittest tools/docs/test_check_current_docs.py
 
       - name: Upload Agent reports
         if: always()
@@ -303,6 +342,16 @@ jobs:
         env:
           GOWORK: 'off'
         run: go build ./cmd/mss ./cmd/mss-mcp
+
+      - name: Verify the checksummed Unix installer end to end
+        if: runner.os == 'macOS'
+        shell: bash
+        run: bash tools/install/test-install-mss.sh
+
+      - name: Verify the checksummed Windows installer end to end
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tools/install/test-install-mss.ps1
 
   foundation-compatibility:
     needs:

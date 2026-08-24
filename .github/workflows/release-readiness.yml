@@ -50,6 +50,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
   pull-requests: read
 
 concurrency:
@@ -210,6 +211,7 @@ jobs:
           RELEASE_VERSION: ${{ inputs.version }}
           FROZEN_COMMIT: ${{ inputs.frozen_commit }}
           READINESS_PHASE: ${{ inputs.phase }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
           MSS_SUPPLIER_TEST_MYSQL_DSN: 'mss_supplier:mss_supplier_ci@tcp(127.0.0.1:3306)/mss_supplier_test?charset=utf8mb4&parseTime=true&loc=UTC&multiStatements=false'
           MSS_SUPPLIER_TEST_POSTGRES_DSN: 'postgres://mss_supplier:mss_supplier_ci@127.0.0.1:5432/mss_supplier_test?sslmode=disable&TimeZone=UTC'
         run: |

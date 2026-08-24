@@ -33,7 +33,7 @@ Model state transitions explicitly. Do not permit arbitrary status updates throu
 4. Validate semantic consistency:
 
    ```shell
-   go run ./cmd/mss spec validate .mss/modules/<module>.yaml --format json
+   mss spec validate .mss/modules/<module>.yaml --format json
    ```
 
 5. Regenerate the deterministic baseline.

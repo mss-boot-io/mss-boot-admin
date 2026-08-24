@@ -6,7 +6,25 @@ and the project uses semantic versioning for nested-module releases.
 
 ## [Unreleased]
 
-Target: **mss-boot/v1.3.2**. The stable Framework remains aligned with the Admin
+No unreleased changes are recorded.
+
+## [mss-boot/v1.3.3] - 2026-08-25
+
+The Framework API remains source compatible. This coordinated patch supplies the
+public Framework identity consumed by `admin/v1.3.3` and by generated Thin Hosts;
+the package-first Blueprint and installer behavior belongs to the root Agent
+module rather than to this domain-neutral module.
+
+### Changed
+
+- Requalify the exact Framework tree as `mss-boot/v1.3.3` so external applications
+  resolve the same immutable source used by the coordinated Admin Distribution.
+- Keep the framework free of Admin business entities, frontend composition, and
+  application-generation behavior.
+
+## [mss-boot/v1.3.2] - 2026-08-23
+
+Status: **published / historical stable component**. The Framework is aligned with the Admin
 module, Admin Web package, and root distribution from one exact merged-main
 commit. Framework `mss-boot/v1.3.1` was published from
 `4830fee162326788732e476a04d24f47b8fd570a`, but its coordinated train remained
@@ -255,7 +273,7 @@ created for the unpublished v0.8.0 candidate was excluded; the accepted evidence
 was regenerated from the exact v1.0.0 release commit.
 
 The compatibility and rollout requirements are part of the consolidated
-[v1.0.0 release contract](../docs/docs/releases/v1-0-0.md).
+[v1.0.0 release contract](../docs/docs/releases/archive/v1-0-0.md).
 
 ### Added
 

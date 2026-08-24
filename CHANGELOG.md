@@ -6,7 +6,89 @@ tag namespaces.
 
 ## [Unreleased]
 
+- Route immutable root-tag creation through the protected GitHub Actions promotion workflow after exact `pre-root` authority and all component Releases; every exact-tag root run now rechecks that attestation before candidate work.
+- Keep the root command module free of `replace` and `exclude` directives so standard `go install .../cmd/mss@v1.3.3` and `mss-mcp` work outside the Foundation checkout.
+
 No unreleased changes are recorded.
+
+## [v1.3.3] - 2026-08-25
+
+This patch defines the package-first Admin Distribution: a user installs the
+versioned tools, creates a Thin Host in an empty directory, and imports the
+coordinated Go and npm packages without cloning the Foundation repository.
+Publication remains governed by the immutable component tags and GitHub Release
+attached to the exact merged-main commit.
+
+### Added
+
+- Publish checksummed `mss` and `mss-mcp` tool archives for Linux, macOS, and
+  Windows on amd64 and arm64, with non-privileged shell and PowerShell installers,
+  complete build provenance, exact archive contents, and immutable checksums.
+- Embed the version-matched application Blueprint and managed templates in the
+  released `mss` command so `mss new app` and `mss upgrade admin v1.3.3` do not
+  require a Foundation checkout.
+- Generate a complete Thin Host baseline with lockfiles, local-development
+  contract, repository README, Agent Skills, validation, and CI entrypoints.
+- Distribute an exact, validated Thin Host Skill set for basic ownership, module
+  and supported-field generation, coarse backend permissions, debugging, review,
+  and coordinated upgrades; unsupported relation, workflow, import, and row-scope
+  generation now fails closed instead of being advertised.
+- Add an installed-consumer qualification that starts from an empty temporary
+  directory and forbids Git checkout, local Go replacement, local npm tarballs,
+  and hand-written lockfiles.
+- Prompt for the first local administrator password through hidden terminal input
+  in `mss setup`, while retaining a one-use environment contract for
+  non-interactive automation and keeping the secret out of arguments and reports.
+- Let `mss spec init --kind feature --module <name>` target a primary AdminModule
+  whose name differs from the user-visible Feature, with deterministic write and
+  no-overwrite behavior.
+- Make Thin Host verification work in an unborn Git repository, inspect untracked
+  text safely, and fail when any AdminModule specification has stale generated
+  backend, frontend, migration, permission, test, or documentation projections.
+
+### Changed
+
+- Make the package-first quick start the only adopter path; clone-based commands
+  are confined to an explicitly labelled Foundation contributor workflow.
+- Rewrite the active documentation around the coordinated v1.3.3 Admin,
+  Framework, and Admin Web imports, one Thin Host lifecycle, and one upgrade path.
+- Require upgrade guidance to verify target-version tools and the Blueprint
+  manifest, back up state, review and apply a three-way plan, run full validation,
+  and prove a second no-op plan; document MCP stdio configuration and empty-root
+  boundaries explicitly.
+- Compute generated module-document links from each target layout so both the
+  Foundation projection and Thin Host output point to their in-repository source
+  specification.
+- Keep `--foundation` only as an explicit local override for Foundation
+  contributors; it is no longer required by normal creation or upgrade commands.
+- Calculate both candidate Go Module archives before any component tag, require
+  Admin to record the exact Framework sums, and require the generated Thin Host
+  to record the exact final Admin sums so a source-tree change cannot ship a
+  stale `go.sum` baseline.
+
+### Removed
+
+- Remove the internal `mss-pr` coverage commenter from the public tool surface and
+  keep its small CI responsibility inside the workflow that owns it.
+- Remove archived AIGC prompts, one-off handoffs, superseded roadmaps, duplicate
+  quick starts, and stale release plans from the active source and Docs tree.
+
+### Security
+
+- Verify every tool archive checksum, exact root file set, version, commit, and
+  RFC3339 build timestamp before installation, without using `sudo` or modifying
+  shell profiles.
+- Scope first-administrator credentials to one migration execution context so
+  concurrent database initialization cannot exchange identities, and remove the
+  one-use secret from dependency, verification, and long-running development
+  processes with centralized output redaction and private reports.
+- Bind development readiness and stop operations to the exact operating-system
+  process start identity, serialize lifecycle changes across CLI processes, and
+  refuse to signal a reused or unverifiable PID even with a force request.
+- Generate a non-root, multi-architecture Thin Host image from exact base-image
+  digests with CA certificates, timezone data, a real health check, and a build
+  context that excludes Git metadata, secrets, local configuration, databases,
+  logs, reports, and dependency caches.
 
 ## [v1.3.2] - 2026-08-23
 
@@ -596,7 +678,7 @@ Release, upgrade, rollback, and compatibility contracts are maintained under
 
 - A database backup, restore rehearsal, configuration backup, active-writer
   drain, and the preflight checks in the
-  [v1.0.0 upgrade guide](docs/docs/releases/v1-0-0-upgrade.md) are required.
+  [v1.0.0 upgrade guide](docs/docs/releases/archive/v1-0-0-upgrade.md) are required.
 - Run the Admin migration command before starting v1.0.0 application writers.
   The release adds or advances session/menu metadata, PAT digests, OAuth local
   password state and identity keys, permission metadata, retired-tool cleanup,

@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/doctor"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/generator"
@@ -109,8 +111,11 @@ func newSetupCommand(rootOverride *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := setupcmd.EnsureReportDirectory(ctx); err != nil {
-				return err
+			if !options.DryRun {
+				if err := setupcmd.EnsureReportDirectory(ctx); err != nil {
+					return err
+				}
+				options.PromptInitialAdminPassword = terminalSecretPrompt(cmd.InOrStdin(), cmd.ErrOrStderr())
 			}
 			report := setupcmd.Run(cmd.Context(), ctx, options)
 			if err := writeSetup(cmd.OutOrStdout(), report, format); err != nil {
@@ -128,6 +133,35 @@ func newSetupCommand(rootOverride *string) *cobra.Command {
 	command.Flags().BoolVar(&options.SkipFrontend, "skip-frontend", false, "skip frontend dependency install")
 	command.Flags().BoolVar(&options.SkipDocs, "skip-docs", false, "skip docs dependency install")
 	return command
+}
+
+func terminalSecretPrompt(input io.Reader, output io.Writer) setupcmd.SecretPrompt {
+	file, ok := input.(*os.File)
+	if !ok {
+		return nil
+	}
+	return terminalSecretPromptWith(file, output, term.IsTerminal, term.ReadPassword)
+}
+
+func terminalSecretPromptWith(
+	input *os.File,
+	output io.Writer,
+	isTerminal func(int) bool,
+	readPassword func(int) ([]byte, error),
+) setupcmd.SecretPrompt {
+	if input == nil || output == nil || !isTerminal(int(input.Fd())) {
+		return nil
+	}
+	return func() ([]byte, error) {
+		if _, err := io.WriteString(output, "Initial local administrator password: "); err != nil {
+			return nil, err
+		}
+		password, err := readPassword(int(input.Fd()))
+		if _, newlineErr := io.WriteString(output, "\n"); err == nil && newlineErr != nil {
+			err = newlineErr
+		}
+		return password, err
+	}
 }
 
 func newModuleCommand(rootOverride *string) *cobra.Command {

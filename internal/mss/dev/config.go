@@ -15,9 +15,11 @@ import (
 )
 
 const (
-	developmentAPIVersion = "mss.io/v1alpha1"
-	developmentKind       = "DevelopmentEnvironment"
-	developmentPath       = ".mss/dev.yaml"
+	developmentAPIVersion  = "mss.io/v1alpha1"
+	developmentKind        = "DevelopmentEnvironment"
+	developmentPath        = ".mss/dev.yaml"
+	defaultLaunchHeader    = "X-MSS-Dev-Launch"
+	healthNonceEnvironment = "MSS_DEV_HEALTH_NONCE"
 )
 
 var serviceIDPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
@@ -62,17 +64,28 @@ type HealthSpec struct {
 	Interval      string `yaml:"interval,omitempty" json:"interval,omitempty"`
 	Timeout       string `yaml:"timeout,omitempty" json:"timeout,omitempty"`
 	SuccessStatus []int  `yaml:"successStatus,omitempty" json:"successStatus,omitempty"`
+	LaunchHeader  string `yaml:"launchHeader,omitempty" json:"launchHeader,omitempty"`
 }
 
 // Config is a validated development contract rooted in one repository.
 type Config struct {
-	Root             string
-	Document         Document
-	StartupTimeout   time.Duration
-	StopTimeout      time.Duration
-	RuntimeDirectory string
-	LogDirectory     string
-	services         map[string]ServiceSpec
+	Root               string
+	Document           Document
+	StartupTimeout     time.Duration
+	StopTimeout        time.Duration
+	RuntimeDirectory   string
+	LogDirectory       string
+	services           map[string]ServiceSpec
+	serviceDirectories map[string]string
+	// The following hooks are nil in production and exist so lifecycle safety
+	// failures can be reproduced deterministically without weakening the public
+	// configuration contract.
+	processStartTokenReader func(int) (string, error)
+	processSignaler         func(int, bool) error
+	beforeStateRemove       func(ServiceState)
+	stateWriter             func(string, ServiceState) error
+	foregroundReady         func()
+	afterHealthPreflight    func(ServiceSpec)
 }
 
 // Load reads and validates .mss/dev.yaml.
@@ -81,7 +94,15 @@ func Load(root string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve repository root: %w", err)
 	}
-	data, err := os.ReadFile(filepath.Join(absoluteRoot, filepath.FromSlash(developmentPath)))
+	canonicalRoot, err := filepath.EvalSymlinks(absoluteRoot)
+	if err != nil {
+		return nil, fmt.Errorf("resolve repository root symlinks: %w", err)
+	}
+	configPath, err := confinedPath(canonicalRoot, developmentPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s: %w", developmentPath, err)
+	}
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", developmentPath, err)
 	}
@@ -89,7 +110,7 @@ func Load(root string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &document); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", developmentPath, err)
 	}
-	config := &Config{Root: absoluteRoot, Document: document}
+	config := &Config{Root: canonicalRoot, Document: document}
 	if err := config.normalizeAndValidate(); err != nil {
 		return nil, err
 	}
@@ -181,7 +202,20 @@ func (c *Config) ServiceIDs() []string {
 
 // ResolveDirectory returns a repository-confined service working directory.
 func (c *Config) ResolveDirectory(service ServiceSpec) string {
-	return filepath.Join(c.Root, filepath.FromSlash(service.Directory))
+	directory, _ := c.resolveDirectory(service)
+	return directory
+}
+
+func (c *Config) resolveDirectory(service ServiceSpec) (string, error) {
+	if c != nil && c.serviceDirectories != nil {
+		if directory, exists := c.serviceDirectories[service.ID]; exists {
+			return directory, nil
+		}
+	}
+	if c == nil {
+		return "", errors.New("development config is nil")
+	}
+	return confinedPath(c.Root, service.Directory)
 }
 
 // StatePath returns the state file for one service.
@@ -235,6 +269,7 @@ func (c *Config) normalizeAndValidate() error {
 		problems = append(problems, "spec.services must contain at least one service")
 	}
 	c.services = make(map[string]ServiceSpec, len(c.Document.Spec.Services))
+	c.serviceDirectories = make(map[string]string, len(c.Document.Spec.Services))
 	for index := range c.Document.Spec.Services {
 		service := &c.Document.Spec.Services[index]
 		service.ID = strings.TrimSpace(service.ID)
@@ -252,12 +287,18 @@ func (c *Config) normalizeAndValidate() error {
 		if service.Directory == "" {
 			service.Directory = "."
 		}
-		if _, pathErr := confinedPath(c.Root, service.Directory); pathErr != nil {
+		serviceDirectory, pathErr := confinedPath(c.Root, service.Directory)
+		if pathErr != nil {
 			problems = append(problems, fmt.Sprintf("service %s directory: %v", service.ID, pathErr))
+		} else {
+			c.serviceDirectories[service.ID] = serviceDirectory
 		}
 		for key := range service.Environment {
 			if strings.TrimSpace(key) == "" || strings.ContainsRune(key, '=') {
 				problems = append(problems, fmt.Sprintf("service %s has invalid environment key %q", service.ID, key))
+			}
+			if isReservedLifecycleEnvironment(key) {
+				problems = append(problems, fmt.Sprintf("service %s must not configure lifecycle-owned environment %s", service.ID, canonicalReservedLifecycleEnvironment(key)))
 			}
 		}
 		if service.Health != nil {
@@ -363,6 +404,13 @@ func normalizeHealth(health *HealthSpec, defaultTimeout time.Duration) error {
 		}
 	}
 	sort.Ints(health.SuccessStatus)
+	if strings.TrimSpace(health.LaunchHeader) == "" {
+		health.LaunchHeader = defaultLaunchHeader
+	}
+	if !strings.EqualFold(health.LaunchHeader, defaultLaunchHeader) {
+		return errors.New("launchHeader must equal " + defaultLaunchHeader)
+	}
+	health.LaunchHeader = defaultLaunchHeader
 	return nil
 }
 
@@ -388,13 +436,72 @@ func confinedPath(root, relative string) (string, error) {
 	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 		return "", errors.New("path escapes repository root")
 	}
-	resolved := filepath.Join(root, clean)
-	rel, err := filepath.Rel(root, resolved)
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve repository root: %w", err)
+	}
+	resolved, err := resolveExistingAncestors(filepath.Join(canonicalRoot, clean))
 	if err != nil {
 		return "", err
 	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	if !pathWithin(canonicalRoot, resolved) {
 		return "", errors.New("path escapes repository root")
 	}
 	return resolved, nil
+}
+
+func resolveExistingAncestors(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	current := filepath.Clean(absolute)
+	missing := make([]string, 0, 4)
+	for {
+		resolved, resolveErr := filepath.EvalSymlinks(current)
+		if resolveErr == nil {
+			for index := len(missing) - 1; index >= 0; index-- {
+				resolved = filepath.Join(resolved, missing[index])
+			}
+			return filepath.Clean(resolved), nil
+		}
+		if !errors.Is(resolveErr, os.ErrNotExist) {
+			return "", fmt.Errorf("resolve path symlinks: %w", resolveErr)
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", fmt.Errorf("resolve path symlinks: %w", resolveErr)
+		}
+		missing = append(missing, filepath.Base(current))
+		current = parent
+	}
+}
+
+func pathWithin(root, target string) bool {
+	relative, err := filepath.Rel(root, target)
+	if err != nil {
+		return false
+	}
+	if relative == "." {
+		return true
+	}
+	return relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) && !filepath.IsAbs(relative)
+}
+
+func verifyStableConfinedPath(root, target string) error {
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return fmt.Errorf("resolve repository root: %w", err)
+	}
+	resolved, err := resolveExistingAncestors(target)
+	if err != nil {
+		return err
+	}
+	if !pathWithin(canonicalRoot, resolved) {
+		return errors.New("path escapes repository root through a symlink or reparse point")
+	}
+	if !equalPath(resolved, target) {
+		return errors.New("path changed through a symlink or reparse point after validation")
+	}
+	return nil
 }

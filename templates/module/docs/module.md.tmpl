@@ -12,7 +12,17 @@ nav:
 
 {{ .Description }}
 
-This document is generated deterministically from [`{{ .SourceSpec }}`](../../../{{ .SourceSpec }}). Change the source specification or generator templates instead of editing this file.
+This document is generated deterministically from [`{{ .SourceSpec }}`]({{ .SourceSpecLink }}). Change the source specification or generator templates instead of editing this file.
+
+{{ if eq .BackendDirectory "admin" }}:::info Foundation contributor projection
+This checked-in page documents the Foundation reference projection. Its
+`admin/modules/**` and `web/antd-v6/**` paths are contributor evidence, not a
+downstream application layout. A v1.3.3 Thin Host uses the installed `mss` command
+and generates business ownership under `internal/modules/**` and
+`web/src/business/**`; use that generated repository's own module page and
+`mss verify --changed` as the adopter contract.
+:::
+{{ end }}
 
 ## Contract
 
@@ -72,10 +82,10 @@ The checked-in test is an executable contract, not proof that a browser run occu
 From the repository root:
 
 ```shell
-{{ .MSSCommand }} spec validate {{ .SourceSpec }} --format json
+mss spec validate {{ .SourceSpec }} --format json
 {{- if .HasFrontendV6 }}
-{{ .MSSCommand }} module generate {{ .SourceSpec }} --frontend-target antd-v6 --write
-{{ .MSSCommand }} module generate {{ .SourceSpec }} --frontend-target antd-v6 --check
+mss module generate {{ .SourceSpec }} --frontend-target antd-v6 --write
+mss module generate {{ .SourceSpec }} --frontend-target antd-v6 --check
 {{- end }}
 cd {{ .BackendDirectory }} && GOWORK=off go test ./{{ .BackendRelativeModuleDirectory }}/...
 {{- if .HasFrontendV6 }}
@@ -83,4 +93,4 @@ cd {{ .FrontendDirectory }} && pnpm exec playwright test e2e/generated/{{ .Modul
 {{- end }}
 ```
 
-`MSS_E2E_API_URL`, `MSS_E2E_USERNAME`, and `MSS_E2E_PASSWORD` may be set for a local non-production Admin instance. V6 additionally accepts `MSS_V6_BASE_URL`. Browser execution requires both Admin and the selected frontend development server to be ready.
+`MSS_E2E_PASSWORD` must be set explicitly for a local non-production Admin instance; `MSS_E2E_API_URL` and `MSS_E2E_USERNAME` may also be set. V6 additionally accepts `MSS_V6_BASE_URL`. Browser execution requires both Admin and the selected frontend development server to be ready.

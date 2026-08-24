@@ -2,6 +2,7 @@ package verify
 
 import (
 	"bufio"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -12,8 +13,21 @@ import (
 	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/command"
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/generator"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/spec"
+	"gopkg.in/yaml.v3"
 )
+
+// ValidateThinHostStructure exposes the complete read-only Thin Host contract
+// to doctor without running external build commands.
+func ValidateThinHostStructure(ctx *project.Context) error {
+	result := validateThinHostStructure(ctx)
+	if result.ExitCode != 0 {
+		return fmt.Errorf("%s", result.Error)
+	}
+	return nil
+}
 
 func validateThinHostStructure(ctx *project.Context) command.Result {
 	started := time.Now()
@@ -65,13 +79,17 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 	}
 
 	required := []string{
+		"README.md",
 		".mss/project.yaml",
 		".mss/lock.yaml",
 		".mss/blueprint-manifest.json",
+		".mss/dev.yaml",
 		joinRepositoryPath(backend, "go.mod"),
+		joinRepositoryPath(backend, "go.sum"),
 		joinRepositoryPath(backend, "cmd/server/main.go"),
 		joinRepositoryPath(modules, "all/generated.go"),
 		joinRepositoryPath(frontend, "package.json"),
+		joinRepositoryPath(frontend, "pnpm-lock.yaml"),
 		joinRepositoryPath(frontend, ".npmrc"),
 		joinRepositoryPath(frontend, "tsconfig.json"),
 		joinRepositoryPath(frontend, "config/config.ts"),
@@ -152,6 +170,14 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 			}
 		}
 	}
+	goSumRelative := joinRepositoryPath(backend, "go.sum")
+	if confinedRepositoryPath(goSumRelative) {
+		if data, err := readThinHostFile(ctx.Root, goSumRelative); err != nil {
+			problems = append(problems, err.Error())
+		} else {
+			problems = append(problems, distributionGoSumProblems(data, distribution.Backend.Module, frameworkModule, distribution.Backend.Version)...)
+		}
+	}
 
 	packagePath := joinRepositoryPath(frontend, "package.json")
 	if confinedRepositoryPath(packagePath) {
@@ -185,6 +211,14 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 					}
 				}
 			}
+		}
+	}
+	lockPath := joinRepositoryPath(frontend, "pnpm-lock.yaml")
+	if confinedRepositoryPath(lockPath) {
+		if data, err := readThinHostFile(ctx.Root, lockPath); err != nil {
+			problems = append(problems, err.Error())
+		} else {
+			problems = append(problems, frozenFrontendLockProblems(data, distribution.Frontend.Package, distribution.Frontend.Version)...)
 		}
 	}
 
@@ -277,6 +311,243 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 	}
 	result.Duration = time.Since(started)
 	return result
+}
+
+func validateThinHostGeneratedModules(ctx *project.Context) command.Result {
+	started := time.Now()
+	result := command.Result{
+		ID:          "thin-host-generated-drift",
+		Description: "verify every Thin Host AdminModule projection is current",
+		StartedAt:   started.UTC(),
+		ExitCode:    0,
+	}
+	if ctx == nil {
+		result.ExitCode = 1
+		result.Error = "project context is required"
+		result.Duration = time.Since(started)
+		return result
+	}
+	result.Directory = ctx.Root
+	if ctx.LayoutKind() != "thin-host" {
+		result.Stdout = "layout foundation: Thin Host generation drift is not applicable\n"
+		result.Duration = time.Since(started)
+		return result
+	}
+	specifications := strings.TrimSpace(ctx.Project.Spec.RepositoryLayout["specifications"])
+	if specifications == "" {
+		specifications = ".mss"
+	}
+	if !confinedRepositoryPath(specifications) {
+		result.ExitCode = 1
+		result.Error = "project specifications directory must be repository-relative and confined"
+		result.Duration = time.Since(started)
+		return result
+	}
+	pattern := filepath.Join(ctx.Root, filepath.FromSlash(specifications), "modules", "*.yaml")
+	paths, err := filepath.Glob(pattern)
+	if err != nil {
+		result.ExitCode = 1
+		result.Error = err.Error()
+		result.Duration = time.Since(started)
+		return result
+	}
+	sort.Strings(paths)
+	sourceSpecifications := make(map[string]struct{}, len(paths))
+	var output strings.Builder
+	for _, path := range paths {
+		module, loadErr := spec.LoadModule(path)
+		if loadErr != nil {
+			result.ExitCode = 1
+			result.Error = loadErr.Error()
+			break
+		}
+		relative, relErr := filepath.Rel(ctx.Root, path)
+		if relErr != nil || !confinedRepositoryPath(filepath.ToSlash(relative)) {
+			result.ExitCode = 1
+			result.Error = "module specification path is not repository-confined: " + path
+			break
+		}
+		module.SourcePath = filepath.ToSlash(relative)
+		sourceSpecifications[module.SourcePath] = struct{}{}
+		_, generateErr := generator.Generate(module, generator.Options{
+			Root:           ctx.Root,
+			Check:          true,
+			FrontendTarget: spec.FrontendTargetAntDV6,
+			Project:        &ctx.Project,
+		})
+		if generateErr != nil {
+			result.ExitCode = 1
+			result.Error = fmt.Sprintf("%s: %v", filepath.ToSlash(relative), generateErr)
+			break
+		}
+		fmt.Fprintf(&output, "generated projections current: %s (%s)\n", filepath.ToSlash(relative), module.Metadata.Name)
+	}
+	if result.ExitCode == 0 {
+		orphans, orphanErr := orphanedThinHostGeneratedSources(ctx.Root, specifications, sourceSpecifications)
+		if orphanErr != nil {
+			result.ExitCode = 1
+			result.Error = orphanErr.Error()
+		} else if len(orphans) > 0 {
+			result.ExitCode = 1
+			result.Error = "generated output references missing AdminModule specifications: " + strings.Join(orphans, ", ")
+		}
+	}
+	if len(paths) == 0 {
+		output.WriteString("no Thin Host AdminModule specifications declared\n")
+	}
+	result.Stdout = output.String()
+	result.Duration = time.Since(started)
+	return result
+}
+
+func orphanedThinHostGeneratedSources(root, specifications string, current map[string]struct{}) ([]string, error) {
+	modulePrefix := filepath.ToSlash(filepath.Join(specifications, "modules")) + "/"
+	orphans := make(map[string]struct{})
+	skipDirectories := map[string]bool{
+		".git": true, "node_modules": true, "vendor": true, "dist": true,
+	}
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if path != root && skipDirectories[entry.Name()] {
+				return fs.SkipDir
+			}
+			if path != root {
+				relative, err := filepath.Rel(root, path)
+				if err != nil {
+					return err
+				}
+				switch filepath.ToSlash(relative) {
+				case ".mss/run", ".mss/logs", ".mss/reports":
+					return fs.SkipDir
+				}
+			}
+			return nil
+		}
+		if entry.Type()&os.ModeSymlink != 0 || !entry.Type().IsRegular() {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if len(data) > 4096 {
+			data = data[:4096]
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			if !strings.Contains(line, "Code generated by mss") {
+				continue
+			}
+			from := strings.Index(line, " from ")
+			end := strings.Index(line, ". DO NOT EDIT")
+			if from < 0 || end <= from+len(" from ") {
+				continue
+			}
+			source := filepath.ToSlash(strings.TrimSpace(line[from+len(" from ") : end]))
+			_, exists := current[source]
+			if !exists || !strings.HasPrefix(source, modulePrefix) || filepath.Ext(source) != ".yaml" {
+				relative, relErr := filepath.Rel(root, path)
+				if relErr != nil {
+					return relErr
+				}
+				orphans[filepath.ToSlash(relative)+" -> "+source] = struct{}{}
+			}
+			break
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("inspect generated Thin Host ownership: %w", err)
+	}
+	result := make([]string, 0, len(orphans))
+	for orphan := range orphans {
+		result = append(result, orphan)
+	}
+	sort.Strings(result)
+	return result, nil
+}
+
+func distributionGoSumProblems(data []byte, adminModule, frameworkModule, version string) []string {
+	required := map[string]bool{
+		adminModule + " " + version:                 false,
+		adminModule + " " + version + "/go.mod":     false,
+		frameworkModule + " " + version:             false,
+		frameworkModule + " " + version + "/go.mod": false,
+	}
+	scanner := bufio.NewScanner(strings.NewReader(string(data)))
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) != 3 {
+			continue
+		}
+		key := fields[0] + " " + fields[1]
+		if _, exists := required[key]; !exists {
+			continue
+		}
+		required[key] = validGoChecksum(fields[2])
+	}
+	problems := make([]string, 0)
+	for key, valid := range required {
+		if !valid {
+			problems = append(problems, "go.sum must contain an exact non-placeholder checksum for "+key)
+		}
+	}
+	sort.Strings(problems)
+	return problems
+}
+
+func validGoChecksum(value string) bool {
+	if !strings.HasPrefix(value, "h1:") {
+		return false
+	}
+	digest, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(value, "h1:"))
+	return err == nil && len(digest) == 32
+}
+
+func frozenFrontendLockProblems(data []byte, packageName, version string) []string {
+	var problems []string
+	var document struct {
+		LockfileVersion string `yaml:"lockfileVersion"`
+		Importers       map[string]struct {
+			Dependencies map[string]struct {
+				Specifier string `yaml:"specifier"`
+				Version   string `yaml:"version"`
+			} `yaml:"dependencies"`
+		} `yaml:"importers"`
+		Packages map[string]struct {
+			Resolution struct {
+				Integrity string `yaml:"integrity"`
+			} `yaml:"resolution"`
+		} `yaml:"packages"`
+	}
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		return []string{"pnpm-lock.yaml must be valid YAML: " + err.Error()}
+	}
+	if document.LockfileVersion != "9.0" {
+		problems = append(problems, "pnpm-lock.yaml must use lockfileVersion 9.0")
+	}
+	dependency, hasDependency := document.Importers["."].Dependencies[packageName]
+	if !hasDependency || dependency.Specifier != version ||
+		(dependency.Version != version && !strings.HasPrefix(dependency.Version, version+"(")) {
+		problems = append(problems, "pnpm-lock.yaml must pin frontend specifier "+packageName+"@"+version)
+	}
+	packageEntry, hasPackage := document.Packages[packageName+"@"+version]
+	if !hasPackage {
+		problems = append(problems, "pnpm-lock.yaml must contain the frozen package snapshot for "+packageName+"@"+version)
+	} else if !validPNPMIntegrity(packageEntry.Resolution.Integrity) {
+		problems = append(problems, "pnpm-lock.yaml must contain a sha512 tarball integrity for "+packageName+"@"+version)
+	}
+	return problems
+}
+
+func validPNPMIntegrity(value string) bool {
+	if !strings.HasPrefix(value, "sha512-") {
+		return false
+	}
+	digest, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(value, "sha512-"))
+	return err == nil && len(digest) == 64
 }
 
 func confinedRepositoryPath(relative string) bool {

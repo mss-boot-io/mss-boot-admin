@@ -10,7 +10,10 @@ const RESOURCE_PATH = new URL(RESOURCE_URL).pathname;
 const PAGE_PATH = '/suppliers';
 const PARENT_MENU_NAME = "Procurement";
 const USERNAME = process.env.MSS_E2E_USERNAME ?? 'admin';
-const PASSWORD = process.env.MSS_E2E_PASSWORD ?? '123456';
+const PASSWORD = process.env.MSS_E2E_PASSWORD;
+if (!PASSWORD) {
+  throw new Error('MSS_E2E_PASSWORD is required for credentialed browser qualification');
+}
 
 type FixtureValue = boolean | string;
 

@@ -58,6 +58,17 @@ module.exports = function mssAdminPlugin(api) {
     };
   });
 
+  api.addBeforeMiddlewares(() => {
+    const devHealthLaunchNonce = process.env.MSS_DEV_HEALTH_NONCE;
+    if (!devHealthLaunchNonce) return [];
+    return [
+      (_request, response, next) => {
+        response.setHeader('X-MSS-Dev-Launch', devHealthLaunchNonce);
+        next();
+      },
+    ];
+  });
+
   if (resolve(api.paths.absSrcPath) !== coreSource) {
     const generatedTailwind = resolve(api.paths.absTmpPath, 'mss-admin-tailwind.css');
     api.onGenerateFiles(() => {

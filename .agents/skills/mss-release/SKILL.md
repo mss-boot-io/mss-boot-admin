@@ -40,7 +40,7 @@ For the consolidated foundation repository, release the synchronized train in th
 4. Admin tag, Release, and public external-module probe;
 5. frontend tag, GitHub Packages mirror, artifact, image, and Release;
 6. independent `pre-root` authority;
-7. root tag, root image, and tag-triggered candidate artifacts;
+7. protected root-tag promotion, root image, and exact-tag candidate artifacts;
 8. exact-tag manual root publication;
 9. Docs tag, protected deployment, and Release from the same commit;
 10. official npm publication of the already-qualified frontend tarball as the final artifact publication;
@@ -50,7 +50,7 @@ For a component-only or downstream release, retain the same source, evidence, im
 
 The foundation components are independently releasable. A Docs-only release uses `docs/{version}` and does not recreate root, Framework, or frontend refs. Qualify the documentation build and browser evidence on the Docs candidate, merge through PR, freeze the resulting exact `origin/main` commit, create only the Docs tag, wait for the tag-triggered Docs workflow and protected `prod` deployment, then reconcile the Docs Release assets, checksums, public `release.json`, and visible site against that commit.
 
-When the coordinated Docs tag for the current stable version already exists but later merged documentation must replace stale public content, preserve that tag and use the lowest unused positive Docs revision allowed by policy, such as `docs/v1.3.2+docs.1`. A `+docs.N` tag updates only the Docs component, does not consume the next product patch version, and must still pass the exact merged-main source guard, protected deployment, Release, `/release.json`, and browser reconciliation.
+When the coordinated Docs tag for the current stable version already exists but later merged documentation must replace stale public content, preserve that tag and use the lowest unused positive Docs revision allowed by policy, such as `docs/${VERSION}+docs.1`. A `+docs.N` tag updates only the Docs component, does not consume the next product patch version, and must still pass the exact merged-main source guard, protected deployment, Release, `/release.json`, and browser reconciliation.
 
 ## Procedure
 
@@ -222,7 +222,7 @@ Use the pending-deployments API with a JSON body shaped as:
 }
 ```
 
-Set `EXPECTED_ENV` to the exact environment (`release` or `release-v6`). Use a repository-confined ignored report file so the request is inspectable, and restore the original account on both success and failure:
+Set `EXPECTED_ENV` to the exact environment (`release`, `release-v6`, or `root-promotion`). Use a repository-confined ignored report file so the request is inspectable, and restore the original account on both success and failure:
 
 ```bash
 EXPECTED_ENV=release
@@ -278,13 +278,29 @@ gh variable get RELEASE_READINESS_RUN_ID
 gh variable get RELEASE_READINESS_RUN_ID --env release
 ```
 
-Create and push the annotated root tag from `SHA`. Expect the tag to trigger both `container.yml` and a non-publishing candidate `release.yml` run. Their shared concurrency group may serialize them. Wait for both exact-tag runs and approve the `release` environment when requested; do not treat a queued sibling as a failed or missing run.
+Never create the root tag from a human Git credential. Dispatch the protected promotion workflow from `main`; before checkout it requires the workflow SHA, requested frozen commit, and remote `main` tip to be identical, then rechecks completed `pre-root` authority, all three public component Releases, and their exact successful tag workflows before its GitHub Actions identity creates or resumes the immutable annotated root tag. Use a dedicated `root-promotion` environment restricted to `main`, with `prevent_self_review=true`, `can_admins_bypass=false`, and the second account as required reviewer. The root-only creation ruleset must match only `refs/tags/v*` and allow only GitHub Actions Integration ID `15368`; keep human bypass confined to the separate component and Docs creation ruleset, and keep the immutable ruleset free of every bypass.
+
+GitHub's built-in Actions Integration bypass is repository-wide, not scoped to one workflow. This release therefore also trusts workflow definitions already merged at the exact remote `main` tip; the environment and second-account approval protect the supported promotion path, but they do not turn Integration ID `15368` into a workflow-exclusive identity. If workflow-exclusive tag authority becomes mandatory, provision a dedicated GitHub App and expose only its short-lived installation token through `root-promotion`; do not claim that property or substitute a long-lived PAT before that boundary exists.
+
+The ordinary Actions token can inspect public ruleset structure but cannot reliably see `bypass_actors`. Immediately before dispatch, the active repository administrator must run the checked-in governance verifier with the exact second reviewer and attach its sanitized JSON output to the evidence issue. This admin-side check is mandatory; do not inject a broad administration PAT into the workflow to replace it. The promotion workflow independently rejects missing, overlapping, excluded, or structurally invalid rulesets and its tag push remains fail-closed.
 
 ```bash
-git tag -a "${ROOT_TAG}" "${SHA}" -m "mss-boot-admin ${VERSION}"
-test "$(git rev-list -n 1 "${ROOT_TAG}")" = "${SHA}"
-git push origin "refs/tags/${ROOT_TAG}"
+bash tools/release/verify_remote_release_governance.sh \
+  --repository "${REPO}" \
+  --reviewer-login "${APPROVER_GH_USER}" \
+  > ".mss/reports/remote-release-governance-${VERSION}.json"
 ```
+
+Approve the promotion job with the second account only after matching the exact workflow, main SHA, version, environment, and attached remote-governance result.
+
+```bash
+gh workflow run root-tag-promotion.yml --ref main \
+  -f version="${VERSION}" \
+  -f frozen_commit="${SHA}" \
+  -f readiness_run_id="${PRE_ROOT_RUN_ID}"
+```
+
+The promotion workflow explicitly dispatches `container.yml` with `publish=true` and `release.yml` with `publish=false` from the exact root tag because a tag created with `GITHUB_TOKEN` does not recursively trigger workflows. A retry first finds an exact tag/SHA run by its stable run title and skips every waiting, active, or successful stage. It dispatches only a stage with no exact run; an existing failed run stops promotion so the operator can inspect or rerun that same run without creating a duplicate. The container job never overwrites an immutable version tag; on a retry it reuses an existing image only when its manifest digest, `linux/amd64` and `linux/arm64` manifests, release version, and frozen revision all match exactly, then reruns the post-publication checks. Wait for the promotion, root image publication, and candidate assembly to succeed. Their shared concurrency group may serialize the last two; do not treat a queued sibling as failed or missing.
 
 Require the root image publication and tag-triggered candidate assembly to succeed before the final dispatch. Then dispatch `release.yml` from the exact tag:
 
@@ -316,6 +332,8 @@ After publication, verify all of the following without relying only on workflow 
 - root and frontend images expose `linux/amd64` and `linux/arm64`, expected digests, and exact version/revision labels;
 - frontend checksum, portable archive members, file modes, and embedded `release.json` match version and commit;
 - root contains six platform ZIPs plus `SHA256SUMS`; checksums, portable members, and every embedded build identity match version and commit;
+- root also contains six `mss-tools-${VERSION}-*` archives, `SHA256SUMS.tools-${VERSION}`, `install-mss.sh`, and `install-mss.ps1`; each tool archive has only `BUILD-INFO`, `LICENSE`, `mss`, and `mss-mcp` (with Windows suffixes), and no raw `admin` or internal `mss-pr` asset;
+- install the public tool bundle into an empty temporary directory, verify version/commit/timestamp, and create and validate a Thin Host without cloning the Foundation; separately verify both public command packages still compile with `go install`, while keeping release-provenance creation and upgrade confined to the checksummed bundle;
 - Docs-only publication exposes the expected application, version, and full commit at `/release.json`; its portable archive, build identity, checksum manifest, GitHub Release, protected deployment, and visible routes match the Docs tag commit;
 - fresh-install and upgrade migrations, API registry synchronization, menu API binding, authorization negative cases, and rollback evidence are attached where required;
 - the local checkout still matches fetched `origin/main`, the tracked worktree is clean, unrelated local services are untouched, and the original GitHub actor is active.

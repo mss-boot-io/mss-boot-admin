@@ -1,0 +1,36 @@
+apiVersion: mss.io/v1alpha1
+kind: DevelopmentEnvironment
+metadata:
+  project: __MSS_APP_NAME__
+spec:
+  runtimeDirectory: .mss/run
+  logDirectory: .mss/logs
+  startupTimeout: 90s
+  stopTimeout: 10s
+  services:
+    - id: backend
+      description: Complete Admin backend with compiled business modules
+      directory: .
+      command: [go, run, ./cmd/server, server]
+      environment:
+        GOWORK: "off"
+        CONFIG_PROVIDER: fs
+      required: true
+      health:
+        url: http://127.0.0.1:8080/healthz
+        interval: 500ms
+        timeout: 90s
+        successStatus: [200]
+    - id: admin-web
+      description: Composed Admin Web development server
+      directory: web
+      command: [corepack, pnpm@10.34.5, run, dev]
+      environment:
+        CI: "false"
+      dependsOn: [backend]
+      required: true
+      health:
+        url: http://127.0.0.1:8001/
+        interval: 500ms
+        timeout: 90s
+        successStatus: [200]

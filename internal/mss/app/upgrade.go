@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/blueprint"
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
@@ -30,6 +31,7 @@ func newUpgradeAdminCommand(rootOverride *string) *cobra.Command {
 	var blueprintName string
 	var manifestPath string
 	var format string
+	var frontendRegistry string
 	var apply bool
 	var yes bool
 	command := &cobra.Command{
@@ -43,10 +45,12 @@ func newUpgradeAdminCommand(rootOverride *string) *cobra.Command {
 			if yes && !apply {
 				return fmt.Errorf("--yes is only valid together with --apply")
 			}
-			return runAdminDistributionUpgrade(cmd, rootOverride, args[0], foundation, blueprintName, manifestPath, apply, format)
+			return runAdminDistributionUpgrade(cmd, rootOverride, args[0], foundation, blueprintName, manifestPath, frontendRegistry, apply, format)
 		},
 	}
-	addUpgradeFlags(command, &foundation, &blueprintName, &manifestPath, &format)
+	addUpgradeFlags(command, &foundation, &blueprintName, &manifestPath, &format, false)
+	command.Flags().StringVar(&frontendRegistry, "contributor-npm-registry", "", "loopback npm registry override for contributor qualification")
+	_ = command.Flags().MarkHidden("contributor-npm-registry")
 	command.Flags().BoolVar(&apply, "apply", false, "apply the reviewed conflict-free Distribution plan; default is read-only")
 	command.Flags().BoolVar(&yes, "yes", false, "confirm applying the complete Admin Distribution upgrade")
 	return command
@@ -65,7 +69,7 @@ func newUpgradePlanCommand(rootOverride *string) *cobra.Command {
 			return runFoundationUpgrade(cmd, rootOverride, foundation, blueprintName, manifestPath, false, format)
 		},
 	}
-	addUpgradeFlags(command, &foundation, &blueprintName, &manifestPath, &format)
+	addUpgradeFlags(command, &foundation, &blueprintName, &manifestPath, &format, true)
 	return command
 }
 
@@ -86,7 +90,7 @@ func newUpgradeApplyCommand(rootOverride *string) *cobra.Command {
 			return runFoundationUpgrade(cmd, rootOverride, foundation, blueprintName, manifestPath, true, format)
 		},
 	}
-	addUpgradeFlags(command, &foundation, &blueprintName, &manifestPath, &format)
+	addUpgradeFlags(command, &foundation, &blueprintName, &manifestPath, &format, true)
 	command.Flags().BoolVar(&yes, "yes", false, "confirm writing the reviewed conflict-free plan")
 	return command
 }
@@ -157,12 +161,14 @@ func writeUpgradeStatus(writer io.Writer, status blueprint.SnapshotStatus, forma
 	}
 }
 
-func addUpgradeFlags(command *cobra.Command, foundation, blueprintName, manifestPath, format *string) {
-	command.Flags().StringVar(foundation, "foundation", "", "path to the newer mss foundation checkout")
+func addUpgradeFlags(command *cobra.Command, foundation, blueprintName, manifestPath, format *string, requireFoundation bool) {
+	command.Flags().StringVar(foundation, "foundation", "", "clean Foundation checkout override for contributor development")
 	command.Flags().StringVar(blueprintName, "blueprint", "", "blueprint name; defaults to the recorded baseline")
 	command.Flags().StringVar(manifestPath, "manifest", ".mss/blueprint-manifest.json", "repository-relative blueprint manifest path")
 	command.Flags().StringVar(format, "format", "text", "output format: text or json")
-	_ = command.MarkFlagRequired("foundation")
+	if requireFoundation {
+		_ = command.MarkFlagRequired("foundation")
+	}
 }
 
 func runFoundationUpgrade(
@@ -202,6 +208,7 @@ func runAdminDistributionUpgrade(
 	foundation string,
 	blueprintName string,
 	manifestPath string,
+	frontendRegistry string,
 	write bool,
 	format string,
 ) error {
@@ -209,7 +216,7 @@ func runAdminDistributionUpgrade(
 	if err != nil {
 		return err
 	}
-	plan, upgradeErr := blueprint.Upgrade(command.Context(), blueprint.UpgradeOptions{
+	options := blueprint.UpgradeOptions{
 		ApplicationRoot:              projectContext.Root,
 		FoundationRoot:               foundation,
 		ManifestPath:                 manifestPath,
@@ -219,12 +226,43 @@ func runAdminDistributionUpgrade(
 		ModuleSpecificationsPath:     upgradeModuleSpecificationsPath(projectContext),
 		PreservedBusinessPaths:       upgradePreservedBusinessPaths(projectContext),
 		ValidationCommands:           upgradeValidationCommands(projectContext),
+		FrontendRegistryURL:          frontendRegistry,
 		Write:                        write,
-	})
+	}
+	var plan blueprint.UpgradePlan
+	var upgradeErr error
+	if strings.TrimSpace(foundation) == "" {
+		if err := validateEmbeddedAdminUpgradeVersion(requestedVersion); err != nil {
+			return err
+		}
+		plan, upgradeErr = blueprint.UpgradeEmbedded(command.Context(), options)
+	} else {
+		plan, upgradeErr = blueprint.Upgrade(command.Context(), options)
+	}
 	if outputErr := writeUpgradePlan(command.OutOrStdout(), plan, format); outputErr != nil {
 		return outputErr
 	}
 	return upgradeErr
+}
+
+func validateEmbeddedAdminUpgradeVersion(requestedVersion string) error {
+	provenance, err := buildinfo.ReleaseProvenance()
+	if err != nil {
+		return fmt.Errorf("embedded Admin upgrade is unavailable: %w; install an official release-built mss binary or use --foundation only from a clean Foundation contributor checkout", err)
+	}
+	installed := strings.TrimSpace(provenance.Version)
+	if !strings.HasPrefix(installed, "v") {
+		installed = "v" + installed
+	}
+	if strings.TrimSpace(requestedVersion) != installed {
+		return fmt.Errorf(
+			"installed mss %s cannot upgrade Admin Distribution %s; install the matching mss %s tool or use --foundation only from a clean Foundation contributor checkout",
+			installed,
+			requestedVersion,
+			requestedVersion,
+		)
+	}
+	return nil
 }
 
 func upgradeModuleSpecificationsPath(projectContext *project.Context) string {
