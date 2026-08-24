@@ -101,6 +101,9 @@ func resolveApplicationPlanDestination(workingRoot, requested string) (string, e
 		return "", nil
 	}
 	clean := filepath.Clean(filepath.FromSlash(requested))
+	if !filepath.IsAbs(clean) && (filepath.VolumeName(clean) != "" || strings.HasPrefix(clean, string(filepath.Separator))) {
+		return "", errors.New("application plan destination escapes the MCP working root")
+	}
 	if !filepath.IsAbs(clean) && (clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator))) {
 		return "", errors.New("application plan destination escapes the MCP working root")
 	}

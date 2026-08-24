@@ -15,16 +15,20 @@ func processStartToken(pid int) (string, error) {
 	if pid <= 1 {
 		return "", errProcessNotRunning
 	}
-	process, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
+	processes, err := unix.SysctlKinfoProcSlice("kern.proc.pid", pid)
 	if err != nil {
 		if errors.Is(err, unix.ESRCH) || errors.Is(err, unix.ENOENT) {
 			return "", errProcessNotRunning
 		}
 		return "", fmt.Errorf("read process %d start identity: %w", pid, err)
 	}
-	if process == nil || process.Proc.P_pid != int32(pid) {
+	if len(processes) == 0 {
 		return "", errProcessNotRunning
 	}
+	if len(processes) != 1 || processes[0].Proc.P_pid != int32(pid) {
+		return "", fmt.Errorf("read process %d start identity: kernel returned %d mismatched records", pid, len(processes))
+	}
+	process := &processes[0]
 	return processStartTokenFromSnapshot(processCreationSnapshot{
 		Platform:    "darwin-sysctl",
 		Seconds:     process.Proc.P_starttime.Sec,

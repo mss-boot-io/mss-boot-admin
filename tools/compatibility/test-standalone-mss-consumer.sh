@@ -291,7 +291,7 @@ PY
     echo "standard go-install binary unexpectedly authorized embedded generation" >&2
     exit 1
   }
-  rg -q 'official release-built mss' "${work_dir}/go-install-new.stderr"
+  grep -Eq 'official release-built mss' "${work_dir}/go-install-new.stderr"
 fi
 
 contributor_registry_args=()
@@ -531,12 +531,12 @@ done
 for forbidden in cmd/mss internal/mss mss-boot go.work templates/application tools/release; do
   [[ ! -e "${host_root}/${forbidden}" ]] || { echo "generated Thin Host copied Foundation path ${forbidden}" >&2; exit 1; }
 done
-if rg -n 'go run ./cmd/mss|--foundation|__MSS_' "${host_root}/README.md" "${host_root}/AGENTS.md" "${host_root}/.agents" "${host_root}/.mss"; then
+if grep -ERn 'go run ./cmd/mss|--foundation|__MSS_' "${host_root}/README.md" "${host_root}/AGENTS.md" "${host_root}/.agents" "${host_root}/.mss"; then
   echo "generated package-first instructions contain a checkout-only command or unresolved placeholder" >&2
   exit 1
 fi
-rg -q 'releases/download/v1\.3\.3/install-mss\.sh' "${host_root}/.github/workflows/ci.yml"
-rg -q 'mss verify --all' "${host_root}/.github/workflows/ci.yml"
+grep -Eq 'releases/download/v1\.3\.3/install-mss\.sh' "${host_root}/.github/workflows/ci.yml"
+grep -Eq 'mss verify --all' "${host_root}/.github/workflows/ci.yml"
 contracts_ci=$(sed -n '/^  contracts:/,/^  backend:/p' "${host_root}/.github/workflows/ci.yml")
 grep -Fq 'corepack pnpm@10.34.5 --dir web install --frozen-lockfile' <<< "${contracts_ci}"
 install_line=$(grep -Fn 'corepack pnpm@10.34.5 --dir web install --frozen-lockfile' <<< "${contracts_ci}" | cut -d: -f1)
@@ -545,12 +545,12 @@ verify_line=$(grep -Fn 'mss verify --all' <<< "${contracts_ci}" | cut -d: -f1)
   echo "generated Thin Host contracts CI does not install frontend dependencies before full verification" >&2
   exit 1
 }
-if rg -q 'go run ./cmd/mss|--foundation|__MSS_' "${host_root}/.github/workflows/ci.yml"; then
+if grep -Eq 'go run ./cmd/mss|--foundation|__MSS_' "${host_root}/.github/workflows/ci.yml"; then
   echo "generated Thin Host CI contains a checkout-only command or unresolved placeholder" >&2
   exit 1
 fi
-rg -Fq 'admin: go run ./cmd/server server' "${host_root}/.mss/project.yaml"
-rg -Fq 'command: [go, run, ./cmd/server, server]' "${host_root}/.mss/dev.yaml"
+grep -Fq 'admin: go run ./cmd/server server' "${host_root}/.mss/project.yaml"
+grep -Fq 'command: [go, run, ./cmd/server, server]' "${host_root}/.mss/dev.yaml"
 
 tree_digest() {
   python3 - "$1" <<'PY'
@@ -629,7 +629,7 @@ set +e
 mismatch_status=$?
 set -e
 [[ ${mismatch_status} -ne 0 ]] || { echo "mismatched embedded upgrade unexpectedly succeeded" >&2; exit 1; }
-rg -q 'install the matching mss v1.3.4' "${work_dir}/mismatch.stderr"
+grep -Eq 'install the matching mss v1.3.4' "${work_dir}/mismatch.stderr"
 
 if [[ "${run_upgrade}" = true ]]; then
   business_file="${host_root}/internal/modules/custom/owned.go"

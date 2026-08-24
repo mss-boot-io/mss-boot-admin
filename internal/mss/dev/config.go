@@ -94,7 +94,7 @@ func Load(root string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve repository root: %w", err)
 	}
-	canonicalRoot, err := filepath.EvalSymlinks(absoluteRoot)
+	canonicalRoot, err := canonicalExistingPath(absoluteRoot)
 	if err != nil {
 		return nil, fmt.Errorf("resolve repository root symlinks: %w", err)
 	}
@@ -436,7 +436,7 @@ func confinedPath(root, relative string) (string, error) {
 	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 		return "", errors.New("path escapes repository root")
 	}
-	canonicalRoot, err := filepath.EvalSymlinks(root)
+	canonicalRoot, err := canonicalExistingPath(root)
 	if err != nil {
 		return "", fmt.Errorf("resolve repository root: %w", err)
 	}
@@ -458,7 +458,7 @@ func resolveExistingAncestors(path string) (string, error) {
 	current := filepath.Clean(absolute)
 	missing := make([]string, 0, 4)
 	for {
-		resolved, resolveErr := filepath.EvalSymlinks(current)
+		resolved, resolveErr := canonicalExistingPath(current)
 		if resolveErr == nil {
 			for index := len(missing) - 1; index >= 0; index-- {
 				resolved = filepath.Join(resolved, missing[index])
@@ -489,18 +489,34 @@ func pathWithin(root, target string) bool {
 }
 
 func verifyStableConfinedPath(root, target string) error {
-	canonicalRoot, err := filepath.EvalSymlinks(root)
+	absoluteRoot, err := filepath.Abs(root)
 	if err != nil {
 		return fmt.Errorf("resolve repository root: %w", err)
 	}
-	resolved, err := resolveExistingAncestors(target)
+	absoluteTarget, err := filepath.Abs(target)
+	if err != nil {
+		return fmt.Errorf("resolve target path: %w", err)
+	}
+	if !pathWithin(absoluteRoot, absoluteTarget) {
+		return errors.New("path escapes repository root before symlink or reparse point resolution")
+	}
+	relative, err := filepath.Rel(absoluteRoot, absoluteTarget)
+	if err != nil {
+		return fmt.Errorf("resolve target relative path: %w", err)
+	}
+	canonicalRoot, err := canonicalExistingPath(absoluteRoot)
+	if err != nil {
+		return fmt.Errorf("resolve repository root: %w", err)
+	}
+	resolved, err := resolveExistingAncestors(absoluteTarget)
 	if err != nil {
 		return err
 	}
 	if !pathWithin(canonicalRoot, resolved) {
 		return errors.New("path escapes repository root through a symlink or reparse point")
 	}
-	if !equalPath(resolved, target) {
+	expected := filepath.Join(canonicalRoot, relative)
+	if !equalPath(resolved, expected) {
 		return errors.New("path changed through a symlink or reparse point after validation")
 	}
 	return nil

@@ -360,6 +360,38 @@ func TestTokenCaptureFailureTerminatesNoOpSignaledChildAndReleasesLock(t *testin
 	guard.Close()
 }
 
+func TestTokenCaptureFailureSignalsBeforeReapingExitedChild(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix keeps an exited process slot until Wait; Windows uses process handles")
+	}
+	root := t.TempDir()
+	service := helperService("exit")
+	config := testConfig(t, root, service)
+	config.processStartTokenReader = func(int) (string, error) {
+		return "", errors.New("injected process identity failure")
+	}
+	var observedUnreapedProcess atomic.Bool
+	config.processSignaler = func(pid int, _ bool) error {
+		time.Sleep(50 * time.Millisecond)
+		if _, err := processStartToken(pid); err != nil {
+			return fmt.Errorf("process was reaped before unidentified cleanup signal: %w", err)
+		}
+		observedUnreapedProcess.Store(true)
+		return nil
+	}
+
+	report, err := Start(context.Background(), config, StartOptions{Detach: true})
+	if err == nil || report.Success || len(report.Services) != 1 {
+		t.Fatalf("token-reader failure unexpectedly succeeded: report=%#v err=%v", report, err)
+	}
+	if !observedUnreapedProcess.Load() {
+		t.Fatalf("unidentified cleanup reaped PID %d before signalling", report.Services[0].PID)
+	}
+	if err := waitForProcessExit(report.Services[0].PID, time.Second); err != nil {
+		t.Fatalf("unidentified cleanup left exited child visible: %v", err)
+	}
+}
+
 func TestStateWriteFailureTerminatesNoOpSignaledChild(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("real child cleanup is covered on Unix; Windows is cross-compiled separately")

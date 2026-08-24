@@ -704,7 +704,8 @@ func stopManagedStateLocked(
 	inspection, detail, waitErr := waitForManagedStateExit(parent, config, service, state, config.StopTimeout)
 	if waitErr != nil && !force && errors.Is(waitErr, context.DeadlineExceeded) {
 		// Revalidate immediately before escalation. signalManagedProcess repeats
-		// the OS start-token check, so a reused PID is never force-signalled.
+		// the OS start-token check immediately before signalling and refuses any
+		// observed PID reuse or unverifiable identity.
 		if inspection != stateProcessManaged {
 			return inspectionFailure(service.ID, inspection, detail)
 		}
@@ -929,12 +930,15 @@ func terminateUnidentifiedStartedCommand(config *Config, command *exec.Cmd, time
 	if command == nil || command.Process == nil {
 		return errors.New("started command process is unavailable")
 	}
+	// Keep the original process unreaped until after the tree signal. On Unix,
+	// this retains the PID/PGID slot and prevents a concurrently reused PID from
+	// receiving cleanup intended for the command returned by Start.
+	signalErr := sendProcessSignal(config, command.Process.Pid, true)
 	exit := make(chan error, 1)
 	go func() {
 		exit <- command.Wait()
 		close(exit)
 	}()
-	signalErr := sendProcessSignal(config, command.Process.Pid, true)
 	if signalErr != nil {
 		// The process is still represented by the handle returned from Start.
 		// Kill that direct process as a last resort, but preserve the tree-signal
