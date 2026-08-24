@@ -16,6 +16,7 @@ cors:
     - 'http://localhost:8001'
   allowHeaders:
     - Content-Type
+    - Idempotency-Key
     - X-CSRF-Token
 logger:
   stdout: default

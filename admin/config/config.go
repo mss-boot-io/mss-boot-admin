@@ -56,6 +56,7 @@ type Config struct {
 	Storage      *frameworkconfig.Storage `yaml:"storage" json:"storage"`
 	Clusters     Clusters                 `yaml:"clusters" json:"clusters"`
 	Notification Notification             `yaml:"notification" json:"notification"`
+	Presentation Presentation             `yaml:"presentation" json:"presentation"`
 
 	databaseMu     sync.RWMutex
 	databaseHandle *gormdb.Handle

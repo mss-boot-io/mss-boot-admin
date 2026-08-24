@@ -511,6 +511,7 @@ var selfServiceRequests = map[string]struct{}{
 	http.MethodPost + " /admin/api/user/session/:provider/callback": {},
 	http.MethodPost + " /admin/api/online-sessions/logout":          {},
 	http.MethodPost + " /admin/api/ws/tickets":                      {},
+	http.MethodGet + " /admin/api/presentation/effective/:pageKey":  {},
 }
 
 func authorizeRequest(data any, c *gin.Context) bool {
