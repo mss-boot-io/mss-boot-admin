@@ -252,6 +252,8 @@ func TestPresentationScopeOwnershipAndListBounds(t *testing.T) {
 		Scope: presentation.ScopeApplication, PageKey: capability.PageKey,
 	}, presentationProfileJSON(t, capability, presentation.Scope{Kind: presentation.ScopeApplication}, nil), "author")
 	require.ErrorIs(t, err, ErrPresentationIdentityConflict)
+	published, err := service.Publish(ctx, created.ID, created.Version, "publish-list-projection", "publisher")
+	require.NoError(t, err)
 
 	list, err := service.List(ctx, dto.PresentationProfileListRequest{Page: -1, PageSize: 1000})
 	require.NoError(t, err)
@@ -259,6 +261,8 @@ func TestPresentationScopeOwnershipAndListBounds(t *testing.T) {
 	require.Equal(t, PresentationListMaxPageSize, list.PageSize)
 	require.Equal(t, int64(1), list.Total)
 	require.Equal(t, created.ID, list.Items[0].ID)
+	require.Equal(t, "published", list.Items[0].State)
+	require.Equal(t, published.Profile.PublishedRevision, list.Items[0].PublishedRevision)
 }
 
 func newPresentationService(t *testing.T) (*PresentationProfileService, *gorm.DB, *gin.Context, presentation.CapabilityDefinition) {

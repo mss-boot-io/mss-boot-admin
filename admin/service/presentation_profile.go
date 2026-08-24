@@ -642,7 +642,7 @@ func (service *PresentationProfileService) projectProfile(
 	}
 	if profile.PublishedRevision > 0 {
 		revision := &models.PresentationRevision{}
-		if err := db.Model(&models.PresentationRevision{}).
+		if err := db.Session(&gorm.Session{NewDB: true}).Model(&models.PresentationRevision{}).
 			Where("profile_id = ? AND revision = ?", profile.ID, profile.PublishedRevision).
 			Take(revision).Error; err != nil {
 			return nil, err
