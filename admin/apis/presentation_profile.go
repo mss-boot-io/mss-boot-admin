@@ -432,7 +432,11 @@ func setPresentationETag(ctx *gin.Context, resource *dto.PresentationProfileReso
 	if resource == nil {
 		return
 	}
-	ctx.Header("ETag", presentationProfileETag(resource.ID, resource.Version))
+	setPresentationVersionETag(ctx, resource.ID, resource.Version)
+}
+
+func setPresentationVersionETag(ctx *gin.Context, profileID string, version int64) {
+	ctx.Header("ETag", presentationProfileETag(profileID, version))
 	ctx.Header("Cache-Control", "no-store")
 }
 
@@ -491,8 +495,8 @@ func writePresentationConflict(ctx *gin.Context, err error, transition string) b
 	if !errors.As(err, &conflict) {
 		return false
 	}
-	setPresentationResourceAudit(ctx, transition, "conflict", conflict.Current)
-	setPresentationETag(ctx, conflict.Current)
+	setPresentationConflictAudit(ctx, transition, conflict.Current)
+	setPresentationVersionETag(ctx, conflict.Current.ID, conflict.Current.Version)
 	ctx.AbortWithStatusJSON(http.StatusPreconditionFailed, dto.PresentationConflictResponse{
 		Success:      false,
 		Status:       "error",
@@ -594,6 +598,20 @@ func setPresentationResourceAudit(ctx *gin.Context, transition, outcome string, 
 		metadata.DefinitionHash, metadata.ContentDigest = resource.Published.DefinitionHash, resource.Published.ContentDigest
 	}
 	middleware.SetPresentationAuditMetadata(ctx, metadata)
+}
+
+func setPresentationConflictAudit(
+	ctx *gin.Context,
+	transition string,
+	resource *dto.PresentationConflictResource,
+) {
+	if resource == nil {
+		return
+	}
+	middleware.SetPresentationAuditMetadata(ctx, middleware.PresentationAuditMetadata{
+		AggregateID: resource.ID, Transition: transition, Outcome: "conflict",
+		AggregateVersion: resource.Version,
+	})
 }
 
 func setPresentationErrorAudit(ctx *gin.Context, aggregateID, transition string, err error) {

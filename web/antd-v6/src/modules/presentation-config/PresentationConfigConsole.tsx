@@ -37,7 +37,7 @@ import {
   type PresentationScope,
   type PresentationValidationResult,
   parsePresentationDocumentText,
-  presentationConflictCurrent,
+  presentationConflictVersion,
 } from './contract';
 import { usePresentationIntl } from './messages';
 import { buildPresentationPreview } from './preview';
@@ -97,7 +97,10 @@ export default function PresentationConfigConsole({
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const capabilities = usePresentationCapabilities();
-  const profiles = usePresentationProfiles();
+  const capabilityItems = capabilities.data?.items ?? [];
+  const [profilePage, setProfilePage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const profiles = usePresentationProfiles(profilePage, 10);
   const [selectedID, setSelectedID] = useState<string>();
   const [creating, setCreating] = useState(false);
   const [pageKey, setPageKey] = useState('');
@@ -107,18 +110,17 @@ export default function PresentationConfigConsole({
   const [dirty, setDirty] = useState(false);
   const [localError, setLocalError] = useState<string>();
   const [validation, setValidation] = useState<PresentationValidationResult>();
-  const [conflict, setConflict] = useState<PresentationProfile>();
+  const [conflict, setConflict] = useState<number>();
   const loadedSourceKey = useRef('');
 
   const profile = usePresentationProfile(selectedID);
-  const revisions = usePresentationRevisions(selectedID);
+  const revisions = usePresentationRevisions(selectedID, historyPage, 10);
   const publishedDocument = usePresentationPublishedRevision(
     profile.data?.draft ? undefined : profile.data?.id,
     profile.data?.draft ? undefined : profile.data?.publishedRevision,
   );
-  const selectedCapability = useMemo(
-    () => capabilities.data?.items.find((item) => item.pageKey === pageKey),
-    [capabilities.data?.items, pageKey],
+  const selectedCapability = capabilityItems.find(
+    (item) => item.pageKey === (profile.data?.pageKey ?? pageKey),
   );
   const preview = useMemo(() => {
     if (
@@ -163,11 +165,11 @@ export default function PresentationConfigConsole({
   );
 
   useEffect(() => {
-    const firstCapability = capabilities.data?.items[0];
-    if (!firstCapability || pageKey) return;
+    const firstCapability = capabilityItems[0];
+    if (!firstCapability || pageKey || !profiles.data || profiles.isFetching) return;
     setPageKey(firstCapability.pageKey);
-    setCreating((profiles.data?.items.length ?? 0) === 0);
-  }, [capabilities.data?.items, pageKey, profiles.data?.items.length]);
+    setCreating(profiles.data.items.length === 0);
+  }, [capabilityItems, pageKey, profiles.data, profiles.isFetching]);
 
   useEffect(() => {
     if (selectedID || creating || !profiles.data?.items[0]) return;
@@ -240,8 +242,7 @@ export default function PresentationConfigConsole({
       void message.success(intl.formatMessage({ id: 'presentation.save.success' }));
     },
     onError: (error) => {
-      const current = presentationConflictCurrent(error);
-      if (current) setConflict(current);
+      setConflict(presentationConflictVersion(error));
       setLocalError(getRequestErrorMessage(error));
     },
   });
@@ -265,8 +266,7 @@ export default function PresentationConfigConsole({
       void message.success(intl.formatMessage({ id: 'presentation.publish.success' }));
     },
     onError: (error) => {
-      const current = presentationConflictCurrent(error);
-      if (current) setConflict(current);
+      setConflict(presentationConflictVersion(error));
       setLocalError(getRequestErrorMessage(error));
     },
   });
@@ -294,8 +294,7 @@ export default function PresentationConfigConsole({
       void message.success(intl.formatMessage({ id: 'presentation.rollback.success' }));
     },
     onError: (error) => {
-      const current = presentationConflictCurrent(error);
-      if (current) setConflict(current);
+      setConflict(presentationConflictVersion(error));
       setLocalError(getRequestErrorMessage(error));
     },
   });
@@ -329,14 +328,19 @@ export default function PresentationConfigConsole({
       />
     );
   }
-  if (!capabilities.data?.items.length) {
+  const recoveryNotice = capabilities.data?.recoveryMode ? (
+    <Alert title={intl.formatMessage({ id: 'presentation.recovery.title' })} type="warning" />
+  ) : null;
+  if (!capabilityItems.length && !profiles.data?.items.length) {
     return (
-      <PageEmpty description={intl.formatMessage({ id: 'presentation.capabilities.empty' })} />
+      recoveryNotice ?? (
+        <PageEmpty description={intl.formatMessage({ id: 'presentation.capabilities.empty' })} />
+      )
     );
   }
 
   const beginCreate = () => {
-    const capability = capabilities.data.items[0];
+    const capability = capabilityItems[0];
     if (!capability) return;
     const nextIdentity: PresentationProfileIdentity = {
       pageKey: capability.pageKey,
@@ -358,6 +362,7 @@ export default function PresentationConfigConsole({
     setConflict(undefined);
     setValidation(undefined);
     setLocalError(undefined);
+    setHistoryPage(1);
     loadedSourceKey.current = '';
   };
 
@@ -462,13 +467,9 @@ export default function PresentationConfigConsole({
 
   return (
     <Space orientation="vertical" size="middle" className="w-full">
-      {capabilities.data.recoveryMode ? (
-        <Alert
-          showIcon
-          title={intl.formatMessage({ id: 'presentation.recovery.title' })}
-          description={intl.formatMessage({ id: 'presentation.recovery.description' })}
-          type="warning"
-        />
+      {recoveryNotice}
+      {!capabilityItems.length ? (
+        <PageEmpty description={intl.formatMessage({ id: 'presentation.capabilities.empty' })} />
       ) : null}
       {conflict ? (
         <Alert
@@ -485,7 +486,7 @@ export default function PresentationConfigConsole({
           }
           description={intl.formatMessage(
             { id: 'presentation.conflict.description' },
-            { version: conflict.version },
+            { version: conflict },
           )}
           showIcon
           title={intl.formatMessage({ id: 'presentation.conflict.title' })}
@@ -505,7 +506,7 @@ export default function PresentationConfigConsole({
       <Card
         title={intl.formatMessage({ id: 'presentation.profiles.title' })}
         extra={
-          canDraft ? (
+          canDraft && capabilityItems.length ? (
             <Button type="primary" onClick={beginCreate}>
               {intl.formatMessage({ id: 'presentation.create.action' })}
             </Button>
@@ -521,7 +522,12 @@ export default function PresentationConfigConsole({
               <PageEmpty description={intl.formatMessage({ id: 'presentation.profiles.empty' })} />
             ),
           }}
-          pagination={false}
+          pagination={{
+            current: profilePage,
+            showSizeChanger: false,
+            total: profiles.data?.total ?? 0,
+            onChange: setProfilePage,
+          }}
           rowKey="id"
           rowClassName={(item) => (item.id === selectedID ? 'ant-table-row-selected' : '')}
           scroll={{ x: 720 }}
@@ -539,7 +545,10 @@ export default function PresentationConfigConsole({
           <PageError
             message={getRequestErrorMessage(detailError)}
             onRetry={() => {
-              void profile.refetch();
+              if (profile.error) {
+                void profile.refetch();
+                return;
+              }
               void publishedDocument.refetch();
             }}
           />
@@ -555,16 +564,14 @@ export default function PresentationConfigConsole({
                   </Typography.Text>
                   <Select
                     className="w-full"
-                    options={capabilities.data.items.map((item) => ({
+                    options={capabilityItems.map((item) => ({
                       value: item.pageKey,
                       label: `${capabilityLabel(item, intl.locale)} (${item.pageKey})`,
                     }))}
                     value={pageKey}
                     onChange={(value) => {
                       setPageKey(value);
-                      const capability = capabilities.data.items.find(
-                        (item) => item.pageKey === value,
-                      );
+                      const capability = capabilityItems.find((item) => item.pageKey === value);
                       if (capability) resetTemplate(capability, { ...identity, pageKey: value });
                     }}
                   />
@@ -799,7 +806,12 @@ export default function PresentationConfigConsole({
                   />
                 ),
               }}
-              pagination={false}
+              pagination={{
+                current: historyPage,
+                showSizeChanger: false,
+                total: revisions.data?.total ?? 0,
+                onChange: setHistoryPage,
+              }}
               rowKey="revision"
               scroll={{ x: 720 }}
             />

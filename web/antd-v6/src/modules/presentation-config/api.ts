@@ -1,6 +1,5 @@
 import { request } from '@umijs/max';
 import {
-  PRESENTATION_PAGE_SIZE,
   type PresentationCapabilityCatalog,
   type PresentationJSONObject,
   type PresentationProfile,
@@ -43,11 +42,11 @@ export function createPresentationAPI(client: PresentationRequestClient) {
         }),
       ),
 
-    profiles: async (): Promise<PresentationProfilePage> =>
+    profiles: async (page: number, pageSize: number): Promise<PresentationProfilePage> =>
       parsePresentationProfilePage(
         await client('/presentation-profiles', {
           method: 'GET',
-          params: { page: 1, pageSize: PRESENTATION_PAGE_SIZE },
+          params: { page, pageSize },
           skipErrorHandler: true,
         }),
       ),
@@ -115,11 +114,15 @@ export function createPresentationAPI(client: PresentationRequestClient) {
         }),
       ),
 
-    revisions: async (profileID: string): Promise<PresentationRevisionPage> =>
+    revisions: async (
+      profileID: string,
+      page: number,
+      pageSize: number,
+    ): Promise<PresentationRevisionPage> =>
       parsePresentationRevisionPage(
         await client(`/presentation-profiles/${encodeURIComponent(profileID)}/revisions`, {
           method: 'GET',
-          params: { page: 1, pageSize: PRESENTATION_PAGE_SIZE },
+          params: { page, pageSize },
           skipErrorHandler: true,
         }),
       ),

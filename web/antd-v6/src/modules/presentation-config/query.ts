@@ -10,10 +10,10 @@ export function usePresentationCapabilities() {
   });
 }
 
-export function usePresentationProfiles() {
+export function usePresentationProfiles(page: number, pageSize: number) {
   return useQuery({
-    queryKey: queryKeys.presentationProfiles,
-    queryFn: () => presentationAPI.profiles(),
+    queryKey: [...queryKeys.presentationProfiles, page, pageSize],
+    queryFn: () => presentationAPI.profiles(page, pageSize),
     staleTime: 15_000,
   });
 }
@@ -27,10 +27,14 @@ export function usePresentationProfile(id?: string) {
   });
 }
 
-export function usePresentationRevisions(profileID?: string) {
+export function usePresentationRevisions(
+  profileID: string | undefined,
+  page: number,
+  pageSize: number,
+) {
   return useQuery({
-    queryKey: queryKeys.presentationRevisions(profileID ?? ''),
-    queryFn: () => presentationAPI.revisions(profileID as string),
+    queryKey: [...queryKeys.presentationRevisions(profileID ?? ''), page, pageSize],
+    queryFn: () => presentationAPI.revisions(profileID as string, page, pageSize),
     enabled: Boolean(profileID),
     staleTime: 15_000,
   });

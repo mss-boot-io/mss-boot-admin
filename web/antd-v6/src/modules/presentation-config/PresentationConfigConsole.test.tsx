@@ -6,6 +6,8 @@ import PresentationConfigConsole from './PresentationConfigConsole';
 
 const definitionHash = `sha256:${'a'.repeat(64)}`;
 const contentDigest = `sha256:${'b'.repeat(64)}`;
+const customerDefinitionHash = `sha256:${'c'.repeat(64)}`;
+const customerContentDigest = `sha256:${'d'.repeat(64)}`;
 const document = {
   apiVersion: 'mss.io/v1alpha1',
   kind: 'AdminPagePresentation',
@@ -45,6 +47,34 @@ const capability = {
     },
   },
 };
+const customerDocument = {
+  ...document,
+  metadata: {
+    ...document.metadata,
+    name: 'customers-application',
+    pageKey: 'customers.list',
+    definitionHash: customerDefinitionHash,
+  },
+  spec: { title: { 'en-US': 'Customers' } },
+};
+const customerCapability = {
+  ...capability,
+  pageKey: 'customers.list',
+  definitionHash: customerDefinitionHash,
+  dataSources: ['customers.list'],
+  defaultPresentation: { title: { 'en-US': 'Customers' } },
+  definition: {
+    ...capability.definition,
+    pageKey: 'customers.list',
+    definitionHash: customerDefinitionHash,
+    dataSources: [{ id: 'customers.list', requiredPermissions: ['/customers'] }],
+    defaultPresentation: {
+      ...capability.definition.defaultPresentation,
+      title: { 'en-US': 'Customers' },
+      dataSource: 'customers.list',
+    },
+  },
+};
 const draftProfile = {
   id: 'profile-1',
   scope: 'application',
@@ -59,6 +89,18 @@ const draftProfile = {
   createdAt: '2026-08-24T00:00:00Z',
   updatedAt: '2026-08-24T00:01:00Z',
   draft: { document, digest: contentDigest, definitionHash, valid: true, issues: [] },
+};
+const customerProfile = {
+  ...draftProfile,
+  id: 'profile-2',
+  pageKey: 'customers.list',
+  draft: {
+    document: customerDocument,
+    digest: customerContentDigest,
+    definitionHash: customerDefinitionHash,
+    valid: true,
+    issues: [],
+  },
 };
 const revision = {
   revision: 1,
@@ -98,8 +140,11 @@ const runtime = vi.hoisted(() => ({
   capabilities: {} as ReturnType<typeof queryResult>,
   profiles: {} as ReturnType<typeof queryResult>,
   profile: {} as ReturnType<typeof queryResult>,
+  profilesByID: {} as Record<string, ReturnType<typeof queryResult>>,
   revisions: {} as ReturnType<typeof queryResult>,
   published: {} as ReturnType<typeof queryResult>,
+  profileQuery: vi.fn(),
+  revisionQuery: vi.fn(),
   api: {
     validate: vi.fn(),
     createDraft: vi.fn(),
@@ -123,9 +168,16 @@ vi.mock('./api', () => ({
 
 vi.mock('./query', () => ({
   usePresentationCapabilities: () => runtime.capabilities,
-  usePresentationProfiles: () => runtime.profiles,
-  usePresentationProfile: () => runtime.profile,
-  usePresentationRevisions: () => runtime.revisions,
+  usePresentationProfiles: (page: number, pageSize: number) => {
+    runtime.profileQuery(page, pageSize);
+    return runtime.profiles;
+  },
+  usePresentationProfile: (id?: string) =>
+    (id ? runtime.profilesByID[id] : undefined) ?? runtime.profile,
+  usePresentationRevisions: (profileID?: string, page?: number, pageSize?: number) => {
+    runtime.revisionQuery(profileID, page, pageSize);
+    return runtime.revisions;
+  },
   usePresentationPublishedRevision: () => runtime.published,
 }));
 
@@ -133,13 +185,15 @@ function renderConsole(props = { canDraft: true, canPublish: true, canRollback: 
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const element = (
     <QueryClientProvider client={client}>
       <App>
         <PresentationConfigConsole {...props} />
       </App>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  const view = render(element);
+  return { ...view, rerenderConsole: () => view.rerender(element) };
 }
 
 describe('presentation configuration console', () => {
@@ -147,8 +201,11 @@ describe('presentation configuration console', () => {
     runtime.capabilities = queryResult({ items: [capability], recoveryMode: false });
     runtime.profiles = queryResult({ items: [draftProfile], page: 1, pageSize: 100, total: 1 });
     runtime.profile = queryResult(draftProfile);
+    runtime.profilesByID = {};
     runtime.revisions = queryResult({ items: [], page: 1, pageSize: 100, total: 0 });
     runtime.published = queryResult(undefined);
+    runtime.profileQuery.mockReset();
+    runtime.revisionQuery.mockReset();
     for (const operation of Object.values(runtime.api)) operation.mockReset();
   });
 
@@ -158,12 +215,87 @@ describe('presentation configuration console', () => {
     expect(screen.getByText('presentation.capabilities.empty')).toBeTruthy();
     empty.unmount();
 
-    runtime.capabilities = queryResult({ items: [capability], recoveryMode: true });
-    runtime.profiles = queryResult({ items: [], page: 1, pageSize: 100, total: 0 });
-    runtime.profile = queryResult(undefined);
+    runtime.capabilities = queryResult({ items: [], recoveryMode: true });
+    runtime.profiles = queryResult({ items: [draftProfile], page: 1, pageSize: 100, total: 1 });
     renderConsole();
     expect(screen.getByText('presentation.recovery.title')).toBeTruthy();
+    expect(screen.getByText('presentation.profiles.title')).toBeTruthy();
     await waitFor(() => expect(screen.getByLabelText('presentation.document')).toBeTruthy());
+  });
+
+  it('waits for the profile page before deciding whether to create a draft', async () => {
+    runtime.profiles = queryResult(
+      { items: [], page: 1, pageSize: 10, total: 0 },
+      { isFetching: true, isPending: true },
+    );
+    const view = renderConsole();
+
+    runtime.profiles = queryResult({ items: [customerProfile], page: 1, pageSize: 10, total: 1 });
+    view.rerenderConsole();
+
+    expect(await screen.findByText('presentation.editor.title')).toBeTruthy();
+    expect(screen.queryByText('presentation.create.title')).toBeNull();
+  });
+
+  it('uses the selected profile capability when building a preview', async () => {
+    runtime.capabilities = queryResult({
+      items: [capability, customerCapability],
+      recoveryMode: false,
+    });
+    runtime.profiles = queryResult({
+      items: [draftProfile, customerProfile],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    });
+    runtime.profilesByID = {
+      'profile-1': queryResult(draftProfile),
+      'profile-2': queryResult(customerProfile),
+    };
+    runtime.api.validate.mockResolvedValue({
+      structurallyValid: true,
+      semanticallyValid: true,
+      canonicalDocument: customerDocument,
+      digest: customerContentDigest,
+      currentDefinition: customerDefinitionHash,
+      issues: [],
+    });
+
+    renderConsole();
+    fireEvent.click(await screen.findByText('customers.list · application'));
+    const editor = (await screen.findByLabelText('presentation.document')) as HTMLTextAreaElement;
+    await waitFor(() => expect(editor.value).toContain('customers.list'));
+    fireEvent.click(screen.getByText('presentation.validate.action'));
+
+    await waitFor(() => expect(screen.getByText('presentation.preview.title')).toBeTruthy());
+  });
+
+  it('requests later profile and history pages from table pagination', async () => {
+    runtime.profiles = queryResult({ items: [draftProfile], page: 1, pageSize: 20, total: 21 });
+    runtime.revisions = queryResult({ items: [revision], page: 1, pageSize: 20, total: 21 });
+
+    renderConsole();
+    const secondPageButtons = await waitFor(() => {
+      const buttons = screen.getAllByTitle('2');
+      expect(buttons).toHaveLength(2);
+      return buttons;
+    });
+    const profileSecondPageButton = secondPageButtons.at(0);
+    expect(profileSecondPageButton).toBeTruthy();
+    if (!profileSecondPageButton) {
+      throw new Error('profile pagination button is missing');
+    }
+    fireEvent.click(profileSecondPageButton);
+    await waitFor(() => expect(runtime.profileQuery).toHaveBeenCalledWith(2, 10));
+
+    const refreshedSecondPageButtons = screen.getAllByTitle('2');
+    const historySecondPageButton = refreshedSecondPageButtons.at(-1);
+    expect(historySecondPageButton).toBeTruthy();
+    if (!historySecondPageButton) {
+      throw new Error('history pagination button is missing');
+    }
+    fireEvent.click(historySecondPageButton);
+    await waitFor(() => expect(runtime.revisionQuery).toHaveBeenCalledWith('profile-1', 2, 10));
   });
 
   it('shows validation diagnostics without mutating the draft', async () => {
@@ -181,11 +313,26 @@ describe('presentation configuration console', () => {
     expect(runtime.api.replaceDraft).not.toHaveBeenCalled();
   });
 
+  it('does not retry the disabled published revision query for a draft detail error', async () => {
+    const profileRefetch = vi.fn(async () => ({ data: draftProfile }));
+    runtime.profile = queryResult(undefined, {
+      error: new Error('profile unavailable'),
+      isError: true,
+      refetch: profileRefetch,
+    });
+    runtime.published = queryResult(undefined);
+
+    renderConsole();
+    fireEvent.click(await screen.findByText('actions.retry'));
+
+    expect(profileRefetch).toHaveBeenCalledTimes(1);
+    expect(runtime.published.refetch).not.toHaveBeenCalled();
+  });
+
   it('preserves local JSON and reports the current version after a 412 conflict', async () => {
     const current = {
-      ...draftProfile,
+      id: draftProfile.id,
       version: 3,
-      updatedAt: '2026-08-24T00:02:00Z',
     };
     runtime.api.replaceDraft.mockRejectedValue({
       message: 'presentation profile changed since it was loaded',

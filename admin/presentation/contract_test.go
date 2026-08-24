@@ -26,6 +26,22 @@ func TestParseDocumentStrictShapeAndCanonicalDigest(t *testing.T) {
 	)
 }
 
+func TestParseDocumentAcceptsOpaqueRoleSubject(t *testing.T) {
+	const roleID = "0123456789abcdef0123456789abcdef"
+	raw := strings.Replace(
+		validProfileJSON(`{"title":{"en-US":"Orders"}}`),
+		`"scope":{"kind":"application"}`,
+		`"scope":{"kind":"role","subject":"`+roleID+`"}`,
+		1,
+	)
+
+	document, issues := ParseDocument([]byte(raw))
+	require.Empty(t, issues)
+	require.NotNil(t, document)
+	require.Equal(t, ScopeRole, document.Profile.Metadata.Scope.Kind)
+	require.Equal(t, roleID, *document.Profile.Metadata.Scope.Subject)
+}
+
 func TestParseDocumentRejectsUnsafeOrAmbiguousJSON(t *testing.T) {
 	tests := []struct {
 		name string

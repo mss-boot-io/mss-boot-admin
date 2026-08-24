@@ -15,10 +15,6 @@ const messages = {
     '当前没有页面开放展示配置；运行时继续使用代码默认值。',
   ],
   'presentation.recovery.title': ['Presentation recovery is active', '展示恢复模式已启用'],
-  'presentation.recovery.description': [
-    'Runtime pages are using compiled defaults; drafts and history remain available for diagnosis.',
-    '运行时页面正使用代码默认值；草稿和历史仍可用于排查。',
-  ],
   'presentation.profile': ['Profile', '配置档案'],
   'presentation.state': ['State', '状态'],
   'presentation.version': ['Version', '版本'],
@@ -89,6 +85,16 @@ const messages = {
 
 type PresentationMessageID = keyof typeof messages;
 
+function formatBundledMessage(
+  template: string,
+  values?: Parameters<ReturnType<typeof useIntl>['formatMessage']>[1],
+): string {
+  return template.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (placeholder, key: string) => {
+    const value = values?.[key];
+    return value === undefined || value === null ? placeholder : String(value);
+  });
+}
+
 export function usePresentationIntl() {
   const intl = useIntl();
   const locale = typeof intl.locale === 'string' ? intl.locale : 'en-US';
@@ -97,12 +103,15 @@ export function usePresentationIntl() {
     descriptor: Parameters<typeof intl.formatMessage>[0],
     values?: Parameters<typeof intl.formatMessage>[1],
   ) => {
-    const id = descriptor.id;
-    const defaultMessage =
-      typeof id === 'string' && Object.hasOwn(messages, id)
-        ? messages[id as PresentationMessageID][languageIndex]
-        : descriptor.defaultMessage;
-    return intl.formatMessage({ ...descriptor, defaultMessage }, values);
+    const { id } = descriptor;
+    if (typeof id === 'string' && Object.hasOwn(messages, id)) {
+      const defaultMessage = messages[id as PresentationMessageID][languageIndex];
+      if (Object.hasOwn(intl, 'messages')) {
+        return formatBundledMessage(defaultMessage, values);
+      }
+      return intl.formatMessage({ ...descriptor, defaultMessage }, values);
+    }
+    return intl.formatMessage(descriptor, values);
   }) as typeof intl.formatMessage;
 
   return { formatMessage, locale };

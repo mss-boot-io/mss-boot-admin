@@ -621,7 +621,7 @@ export function presentationProfileETag(
   return JSON.stringify(`presentation-profile-${profile.id}-${profile.version}`);
 }
 
-export function presentationConflictCurrent(error: unknown): PresentationProfile | undefined {
+export function presentationConflictVersion(error: unknown): number | undefined {
   const failure = error as {
     data?: unknown;
     response?: { data?: unknown };
@@ -635,7 +635,8 @@ export function presentationConflictCurrent(error: unknown): PresentationProfile
     return undefined;
   }
   try {
-    return parsePresentationProfile(body.data.current);
+    if (!isRecord(body.data.current)) return undefined;
+    return integer(body.data.current, 'version', 1);
   } catch {
     return undefined;
   }

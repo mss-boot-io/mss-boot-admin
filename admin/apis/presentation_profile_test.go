@@ -76,11 +76,15 @@ func TestPresentationProfileAPIPreconditionsConflictsIdempotencyAndHistory(t *te
 	)
 	require.Equal(t, http.StatusPreconditionFailed, staleResponse.Code, staleResponse.Body.String())
 	require.Equal(t, presentationProfileETag(created.ID, 2), staleResponse.Header().Get("ETag"))
-	var conflict dto.PresentationConflictResponse
+	var conflict struct {
+		ErrorCode string `json:"errorCode"`
+		Data      struct {
+			Current map[string]any `json:"current"`
+		} `json:"data"`
+	}
 	require.NoError(t, json.Unmarshal(staleResponse.Body.Bytes(), &conflict), staleResponse.Body.String())
 	require.Equal(t, "PRESENTATION_REVISION_CONFLICT", conflict.ErrorCode)
-	require.NotNil(t, conflict.Data.Current)
-	require.Equal(t, int64(2), conflict.Data.Current.Version)
+	require.Equal(t, map[string]any{"id": created.ID, "version": float64(2)}, conflict.Data.Current)
 
 	missingIdempotency := presentationAPIRequest(
 		router,

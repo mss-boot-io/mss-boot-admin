@@ -7,7 +7,7 @@ import {
   parsePresentationCapabilityCatalog,
   parsePresentationDocumentText,
   parsePresentationProfile,
-  presentationConflictCurrent,
+  presentationConflictVersion,
   presentationProfileETag,
 } from './contract';
 
@@ -151,17 +151,17 @@ describe('presentation configuration contract', () => {
 
   it('extracts a validated current resource from a 412 response only', () => {
     expect(
-      presentationConflictCurrent({
+      presentationConflictVersion({
         response: {
           data: {
             errorCode: 'PRESENTATION_REVISION_CONFLICT',
-            data: { current: draftProfile },
+            data: { current: { id: 'profile-1', version: 3 } },
           },
         },
       }),
-    ).toMatchObject({ id: 'profile-1', version: 2 });
+    ).toBe(3);
     expect(
-      presentationConflictCurrent({ response: { data: { data: { current: draftProfile } } } }),
+      presentationConflictVersion({ response: { data: { data: { current: draftProfile } } } }),
     ).toBeUndefined();
   });
 });

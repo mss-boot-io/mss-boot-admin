@@ -29,7 +29,8 @@ stream, explicit command endpoints, and a statically compiled governance console
 The aggregate is server owned. It has a stable opaque ID, exact scope identity, monotonically increasing
 aggregate version, optional inactive draft, optional current published revision pointer, creator,
 updater, and timestamps. Application scope has an empty subject; role and user scope require an exact,
-active database identifier. A unique database constraint prevents two aggregates for one layer and page.
+active opaque database identifier. These identifiers are compared as bounded strings and are never
+revalidated as semantic names. A unique database constraint prevents two aggregates for one layer and page.
 
 Aggregate state is derived rather than assigned by a client:
 
@@ -77,12 +78,15 @@ specifications before adopting Supplier.
 Create requires the canonical `If-None-Match: *` precondition. Every later mutation requires exactly one
 strong aggregate ETag. The canonical quoted value binds aggregate ID and monotonically increasing version.
 Missing preconditions return `428`, malformed values return `400`, and stale values return `412` together
-with the current safe aggregate and ETag so the console can reconcile without losing its local draft.
+with only the current opaque aggregate ID, version, and ETag so the console can reconcile without losing
+its local draft. Draft content, history, page and scope metadata, and subject fingerprints remain behind
+their independently authorized read paths.
 
 Publish and rollback also require a bounded `Idempotency-Key`. Only its SHA-256 digest is stored. The
-digest is unique within an aggregate and paired with a deterministic request fingerprint. Retrying the
-same command returns the original transition result without appending another revision; reusing a key for
-different input returns `409`.
+digest is unique within an aggregate and paired with a deterministic request fingerprint that includes
+the authenticated actor. Retrying the same command reconstructs the original transition result from the
+immutable revision, rather than projecting the aggregate's latest state, and does not append another
+revision. Reusing a key from another actor or for different input returns `409`.
 
 ### Read, outage, drift, and recovery behavior
 
@@ -128,6 +132,10 @@ preview diagnostics, publication, immutable history, conflict reconciliation, an
 It has distinct loading, empty, invalid, unavailable, permission-denied, conflict, recovery, and success
 states in synchronized Chinese and English catalogs. A `412` preserves local text and shows the current
 server revision; it never silently retries a write.
+
+The console keeps recovery status visible even when the capability registry is empty, continues to expose
+stored aggregates and immutable history for diagnosis, derives preview capability from the selected
+aggregate's page key, and uses server pagination for both aggregate and history tables.
 
 This is a governance console, not the P3 visual designer. It cannot load a component from configuration,
 generate code, create a route or data source, or change a business schema. No production business page

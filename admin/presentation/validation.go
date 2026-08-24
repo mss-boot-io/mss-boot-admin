@@ -107,15 +107,24 @@ func validateScope(scope Scope, issues *[]Issue) {
 	case ScopeRole:
 		if scope.Subject == nil {
 			addIssue(issues, "missing-scope-subject", "metadata.scope.subject", "role scope requires a subject")
-		} else {
-			validateIdentifier(*scope.Subject, "metadata.scope.subject", issues)
+			break
 		}
+		validateOpaqueScopeSubject(*scope.Subject, issues)
 	case ScopeUser:
-		if scope.Subject == nil || utf8.RuneCountInString(*scope.Subject) < 1 || utf8.RuneCountInString(*scope.Subject) > 160 {
-			addIssue(issues, "invalid-scope-subject", "metadata.scope.subject", "user scope subject must contain 1 to 160 characters")
+		if scope.Subject == nil {
+			addIssue(issues, "invalid-scope-subject", "metadata.scope.subject", "role and user scope subjects must contain 1 to 160 characters")
+			break
 		}
+		validateOpaqueScopeSubject(*scope.Subject, issues)
 	default:
 		addIssue(issues, "invalid-scope-kind", "metadata.scope.kind", "scope kind must be application, role, or user")
+	}
+}
+
+func validateOpaqueScopeSubject(subject string, issues *[]Issue) {
+	length := utf8.RuneCountInString(subject)
+	if length < 1 || length > 160 {
+		addIssue(issues, "invalid-scope-subject", "metadata.scope.subject", "role and user scope subjects must contain 1 to 160 characters")
 	}
 }
 

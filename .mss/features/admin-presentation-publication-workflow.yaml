@@ -96,7 +96,7 @@ spec:
       actor: presentation-author
       module: presentation-publication-store
       rules:
-        - One unique aggregate exists for each scope, subject, and page key; application has an empty subject and role or user subjects are exact existing server identifiers.
+        - One unique aggregate exists for each scope, subject, and page key; application has an empty subject and role or user subjects are exact existing opaque server identifiers and are not revalidated as semantic names.
         - Create derives a server-owned aggregate ID and rejects a portable profile whose page key or scope does not exactly match the envelope.
         - An aggregate exposes a monotonically increasing version, inactive draft metadata, current published revision pointer, and derived draft or published state; clients cannot write a target state or revision number.
         - Draft and published JSON are canonicalized with bounded encoded size before hashing or persistence.
@@ -123,7 +123,7 @@ spec:
       rules:
         - Create requires the canonical If-None-Match star precondition and every later mutation requires exactly one strong aggregate ETag in If-Match.
         - The canonical ETag binds the server aggregate ID and monotonically increasing version; weak tags, wildcards on updates, comma lists, malformed tags, and identity mismatches are rejected.
-        - Missing preconditions return 428, malformed preconditions return 400, and stale versions return 412 with the current safe aggregate projection and ETag.
+        - Missing preconditions return 428, malformed preconditions return 400, and stale versions return 412 with only the current opaque aggregate ID, version, and ETag; draft content, history, and subject metadata require an independently authorized read.
         - The only transitions are create draft, replace draft, publish draft, and publish prior revision as rollback; no generic status mutation endpoint exists.
         - Concurrent writers using one ETag allow exactly one commit and never create duplicate immutable revisions.
     - id: publish-immutable-history
@@ -137,8 +137,8 @@ spec:
         - Publish is allowed only from draft state after current-definition semantic validation succeeds.
         - One transaction appends an immutable revision, advances the published pointer and aggregate version, clears the draft, and records actor and transition metadata.
         - Each revision stores canonical profile JSON, content sha256, definition hash, monotonic profile-local revision number, transition kind, actor, timestamp, and only a digest of the idempotency key.
-        - Publish and rollback require a bounded Idempotency-Key; an identical retry returns the original transition result without appending history, while key reuse for a different request returns conflict.
-        - History responses are bounded and paginated, return no raw idempotency key, and cannot be updated through application services or APIs.
+        - Publish and rollback require a bounded Idempotency-Key; the request fingerprint binds the authenticated actor and an identical retry reconstructs the original transition result from its immutable revision without appending history, while key reuse by another actor or for a different request returns conflict.
+        - History responses are bounded and server paginated, return no raw idempotency key, cannot be updated through application services or APIs, and the console exposes navigation across every returned page.
     - id: rollback-by-republication
       title: Roll back by creating a new published revision
       description: Recovery preserves history and revalidates old content against current compiled capabilities.
@@ -198,6 +198,7 @@ spec:
         - The compiled route lists aggregates, displays derived state and validation diagnostics, edits strict JSON drafts, validates and previews registered presentation data, publishes, lists history, and rolls back with explicit confirmation.
         - The console preserves local draft text after a 412 response, displays the current server revision, and requires an explicit reload or reviewed retry.
         - Loading, empty, validation error, service error, permission denied, conflict, recovery mode, and success states are distinct and localized in synchronized zh-CN and en-US catalogs.
+        - An empty capability registry never hides recovery mode or stored aggregate and history inspection; page preview follows the selected aggregate page key, and profile and history tables use server pagination instead of a fixed first-page cap.
         - The route and its recovery controls are permanently excluded from the presentation capability registry and use only statically imported components.
         - P1 does not wire any business route to effective profile data; production page adoption remains a separately reviewed P2 feature.
   constraints:

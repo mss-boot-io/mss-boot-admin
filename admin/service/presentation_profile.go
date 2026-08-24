@@ -55,7 +55,7 @@ func (err *PresentationDocumentError) Unwrap() error { return ErrPresentationInv
 type PresentationRevisionConflictError struct {
 	Expected int64
 	Actual   int64
-	Current  *dto.PresentationProfileResource
+	Current  *dto.PresentationConflictResource
 }
 
 func (err *PresentationRevisionConflictError) Error() string {
@@ -185,7 +185,7 @@ func (service *PresentationProfileService) ReplaceDraft(
 			return err
 		}
 		if expectedVersion != profile.Version {
-			return service.conflict(tx, profile, expectedVersion)
+			return service.conflict(profile, expectedVersion)
 		}
 		identity := identityFromModel(profile)
 		if err = validatePresentationIdentity(identity, document.Profile); err != nil {
@@ -208,7 +208,7 @@ func (service *PresentationProfileService) ReplaceDraft(
 			if currentErr != nil {
 				return currentErr
 			}
-			return service.conflict(tx, current, expectedVersion)
+			return service.conflict(current, expectedVersion)
 		}
 		profile.DraftDocument = string(document.Canonical)
 		profile.DraftDigest = document.Digest
@@ -232,7 +232,7 @@ func (service *PresentationProfileService) Publish(
 	if err != nil {
 		return nil, err
 	}
-	requestHash := presentationRequestHash("publish", profileID, expectedVersion, 0)
+	requestHash := presentationRequestHash("publish", profileID, expectedVersion, 0, actorID)
 	return service.transition(ctx, transitionInput{
 		profileID: profileID, expectedVersion: expectedVersion, actorID: actorID,
 		keyHash: keyHash, requestHash: requestHash, transition: models.PresentationTransitionPublish,
@@ -254,7 +254,7 @@ func (service *PresentationProfileService) Rollback(
 	if err != nil {
 		return nil, err
 	}
-	requestHash := presentationRequestHash("rollback", profileID, expectedVersion, sourceRevision)
+	requestHash := presentationRequestHash("rollback", profileID, expectedVersion, sourceRevision, actorID)
 	return service.transition(ctx, transitionInput{
 		profileID: profileID, expectedVersion: expectedVersion, actorID: actorID,
 		keyHash: keyHash, requestHash: requestHash, transition: models.PresentationTransitionRollback,
@@ -301,7 +301,7 @@ func (service *PresentationProfileService) transition(
 			return lockErr
 		}
 		if input.expectedVersion != profile.Version {
-			return service.conflict(tx, profile, input.expectedVersion)
+			return service.conflict(profile, input.expectedVersion)
 		}
 
 		var document *presentation.Document
@@ -346,6 +346,7 @@ func (service *PresentationProfileService) transition(
 
 		nextRevision := profile.PublishedRevision + 1
 		nextVersion := profile.Version + 1
+		transitionedAt := time.Now()
 		transitionRevision = &models.PresentationRevision{
 			ProfileID:          profile.ID,
 			Revision:           nextRevision,
@@ -357,6 +358,7 @@ func (service *PresentationProfileService) transition(
 			ActorID:            input.actorID,
 			IdempotencyKeyHash: input.keyHash,
 			RequestHash:        input.requestHash,
+			CreatedAt:          transitionedAt,
 		}
 		if source != nil {
 			sourceRevision := source.Revision
@@ -375,7 +377,7 @@ func (service *PresentationProfileService) transition(
 			"published_revision":    nextRevision,
 			"version":               nextVersion,
 			"updated_by":            input.actorID,
-			"updated_at":            time.Now(),
+			"updated_at":            transitionedAt,
 		})
 		if updateErr != nil {
 			return updateErr
@@ -385,19 +387,21 @@ func (service *PresentationProfileService) transition(
 			if currentErr != nil {
 				return currentErr
 			}
-			return service.conflict(tx, current, input.expectedVersion)
+			return service.conflict(current, input.expectedVersion)
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	profile, err := service.Get(ctx, input.profileID)
+	profile, err := service.loadProfile(db, input.profileID)
 	if err != nil {
 		return nil, err
 	}
 	return &dto.PresentationTransitionResponse{
-		Profile: profile, Revision: projectPresentationRevision(transitionRevision), Replayed: replayed,
+		Profile:  projectTransitionProfile(profile, transitionRevision),
+		Revision: projectPresentationRevision(transitionRevision),
+		Replayed: replayed,
 	}, nil
 }
 
@@ -598,16 +602,14 @@ func (service *PresentationProfileService) lockProfile(db *gorm.DB, profileID st
 	return service.loadProfile(db.Clauses(clause.Locking{Strength: "UPDATE"}), profileID)
 }
 
-func (service *PresentationProfileService) conflict(
-	db *gorm.DB,
-	profile *models.PresentationProfile,
-	expected int64,
-) error {
-	current, err := service.projectProfile(db, profile)
-	if err != nil {
-		return err
+func (*PresentationProfileService) conflict(profile *models.PresentationProfile, expected int64) error {
+	return &PresentationRevisionConflictError{
+		Expected: expected,
+		Actual:   profile.Version,
+		Current: &dto.PresentationConflictResource{
+			ID: profile.ID, Version: profile.Version,
+		},
 	}
-	return &PresentationRevisionConflictError{Expected: expected, Actual: profile.Version, Current: current}
 }
 
 func (service *PresentationProfileService) projectProfile(
@@ -666,6 +668,25 @@ func projectPresentationRevision(revision *models.PresentationRevision) *dto.Pre
 		},
 		ProfileID: revision.ProfileID,
 		Document:  append(json.RawMessage(nil), []byte(revision.Document)...),
+	}
+}
+
+func projectTransitionProfile(
+	profile *models.PresentationProfile,
+	revision *models.PresentationRevision,
+) *dto.PresentationProfileResource {
+	if profile == nil || revision == nil {
+		return nil
+	}
+	published := projectPresentationRevision(revision)
+	return &dto.PresentationProfileResource{
+		PresentationProfileSummary: dto.PresentationProfileSummary{
+			ID: profile.ID, Scope: presentation.ScopeKind(profile.Scope), SubjectID: profile.SubjectID,
+			PageKey: profile.PageKey, State: "published", Version: revision.AggregateVersion,
+			PublishedRevision: revision.Revision, CreatedBy: profile.CreatedBy, UpdatedBy: revision.ActorID,
+			CreatedAt: profile.CreatedAt, UpdatedAt: revision.CreatedAt,
+		},
+		Published: &published.PresentationRevisionSummary,
 	}
 }
 
@@ -750,8 +771,8 @@ func presentationIdempotencyHash(key string) (string, error) {
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
-func presentationRequestHash(transition, profileID string, expectedVersion, sourceRevision int64) string {
-	value := fmt.Sprintf("%s\x00%s\x00%d\x00%d", transition, profileID, expectedVersion, sourceRevision)
+func presentationRequestHash(transition, profileID string, expectedVersion, sourceRevision int64, actorID string) string {
+	value := fmt.Sprintf("%s\x00%s\x00%d\x00%d\x00%s", transition, profileID, expectedVersion, sourceRevision, actorID)
 	sum := sha256.Sum256([]byte(value))
 	return "sha256:" + hex.EncodeToString(sum[:])
 }

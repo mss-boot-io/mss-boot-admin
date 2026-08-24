@@ -62,7 +62,9 @@ func TestPresentationDraftValidationPublicationAndConflict(t *testing.T) {
 	var conflict *PresentationRevisionConflictError
 	require.ErrorAs(t, err, &conflict)
 	require.Equal(t, int64(2), conflict.Actual)
-	require.Equal(t, replaced.Draft.Digest, conflict.Current.Draft.Digest)
+	conflictJSON, err := json.Marshal(conflict.Current)
+	require.NoError(t, err)
+	require.JSONEq(t, fmt.Sprintf(`{"id":%q,"version":2}`, created.ID), string(conflictJSON))
 
 	published, err := service.Publish(ctx, created.ID, replaced.Version, "publish-orders-v1", "publisher-a")
 	require.NoError(t, err)
@@ -141,11 +143,31 @@ func TestPresentationPublishIdempotencyAndConflictingReuse(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, first.Replayed)
 
+	draftAfterPublish, err := service.ReplaceDraft(
+		ctx,
+		created.ID,
+		first.Profile.Version,
+		presentationProfileJSON(t, capability, presentation.Scope{Kind: presentation.ScopeApplication}, nil),
+		"author-later",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, draftAfterPublish.Draft)
+
 	retry, err := service.Publish(ctx, created.ID, created.Version, "publish-idempotent-1", "publisher")
 	require.NoError(t, err)
 	require.True(t, retry.Replayed)
 	require.Equal(t, first.Revision.Revision, retry.Revision.Revision)
 	require.Equal(t, first.Revision.ContentDigest, retry.Revision.ContentDigest)
+	firstProfileJSON, err := json.Marshal(first.Profile)
+	require.NoError(t, err)
+	retryProfileJSON, err := json.Marshal(retry.Profile)
+	require.NoError(t, err)
+	require.JSONEq(t, string(firstProfileJSON), string(retryProfileJSON))
+	require.Nil(t, retry.Profile.Draft)
+	require.NotEqual(t, draftAfterPublish.Version, retry.Profile.Version)
+
+	_, err = service.Publish(ctx, created.ID, created.Version, "publish-idempotent-1", "another-publisher")
+	require.ErrorIs(t, err, ErrPresentationIdempotencyConflict)
 
 	var count int64
 	require.NoError(t, db.Model(&models.PresentationRevision{}).Where("profile_id = ?", created.ID).Count(&count).Error)
@@ -263,6 +285,27 @@ func TestPresentationScopeOwnershipAndListBounds(t *testing.T) {
 	require.Equal(t, created.ID, list.Items[0].ID)
 	require.Equal(t, "published", list.Items[0].State)
 	require.Equal(t, published.Profile.PublishedRevision, list.Items[0].PublishedRevision)
+}
+
+func TestPresentationRoleScopeAcceptsOpaqueServerIdentifier(t *testing.T) {
+	service, db, ctx, capability := newPresentationService(t)
+	const roleID = "0123456789abcdef0123456789abcdef"
+	role := &models.Role{Name: "opaque-role", Status: enum.Enabled}
+	role.ID = roleID
+	require.NoError(t, db.Create(role).Error)
+
+	roleSubject := role.ID
+	raw := presentationProfileJSON(
+		t,
+		capability,
+		presentation.Scope{Kind: presentation.ScopeRole, Subject: &roleSubject},
+		nil,
+	)
+	created, err := service.CreateDraft(ctx, dto.PresentationProfileIdentity{
+		Scope: presentation.ScopeRole, SubjectID: role.ID, PageKey: capability.PageKey,
+	}, raw, "author")
+	require.NoError(t, err)
+	require.Equal(t, role.ID, created.SubjectID)
 }
 
 func newPresentationService(t *testing.T) (*PresentationProfileService, *gorm.DB, *gin.Context, presentation.CapabilityDefinition) {

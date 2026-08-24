@@ -117,6 +117,14 @@ type PresentationTransitionResponse struct {
 	Replayed bool                          `json:"replayed"`
 }
 
+// PresentationConflictResource is deliberately limited to the opaque
+// concurrency identity required to reconcile a stale mutation. Mutation
+// permissions do not imply permission to read draft or history content.
+type PresentationConflictResource struct {
+	ID      string `json:"id"`
+	Version int64  `json:"version"`
+}
+
 type EffectivePresentationResponse struct {
 	PageKey      string                            `json:"pageKey"`
 	RecoveryMode bool                              `json:"recoveryMode"`
@@ -139,7 +147,7 @@ type EffectivePresentationDiagnostic struct {
 }
 
 type PresentationConflictResponseData struct {
-	Current *PresentationProfileResource `json:"current"`
+	Current *PresentationConflictResource `json:"current"`
 }
 
 type PresentationConflictResponse struct {

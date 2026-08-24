@@ -106,18 +106,18 @@ describe('presentation configuration API', () => {
     });
     const api = createPresentationAPI(client);
 
-    await api.profiles();
-    await api.revisions('profile/1');
+    await api.profiles(3, 50);
+    await api.revisions('profile/1', 4, 20);
     await api.revision('profile/1', 1);
 
     expect(client).toHaveBeenNthCalledWith(1, '/presentation-profiles', {
       method: 'GET',
-      params: { page: 1, pageSize: 100 },
+      params: { page: 3, pageSize: 50 },
       skipErrorHandler: true,
     });
     expect(client).toHaveBeenNthCalledWith(2, '/presentation-profiles/profile%2F1/revisions', {
       method: 'GET',
-      params: { page: 1, pageSize: 100 },
+      params: { page: 4, pageSize: 20 },
       skipErrorHandler: true,
     });
     expect(client).toHaveBeenNthCalledWith(3, '/presentation-profiles/profile%2F1/revisions/1', {
