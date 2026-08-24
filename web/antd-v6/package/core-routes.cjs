@@ -278,6 +278,14 @@ const coreRoutes = [
     permission: '/option/edit',
   },
   {
+    path: '/presentation-config',
+    name: 'presentation-config',
+    icon: 'layout',
+    component: './PresentationConfig',
+    access: 'canAccessRoute',
+    permission: '/presentation-config',
+  },
+  {
     path: '/security',
     name: 'security',
     icon: 'safety',

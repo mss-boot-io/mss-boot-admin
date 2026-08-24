@@ -168,8 +168,19 @@ spec:
         - .mss/schemas/admin-page-presentation.schema.json
         - docs/adr/2026-08-24-governed-admin-presentation-configuration.md
         - docs/adr/2026-08-24-admin-presentation-publication-workflow.md
+        - docs/docs/admin/presentation-configuration.md
+      backendPaths:
+        - admin/presentation
+        - admin/models/presentation_profile.go
+        - admin/dto/presentation_profile.go
+        - admin/service/presentation_profile.go
+        - admin/apis/presentation_profile.go
+        - admin/cmd/migrate/migration/system/20260824120000_presentation_profiles.go
+        - admin/cmd/migrate/migration/system/20260824121000_presentation_profile_permissions.go
       frontendPaths:
         - web/antd-v6/src/shared/presentation
+        - web/antd-v6/src/modules/presentation-config
+        - web/antd-v6/src/pages/PresentationConfig
       guidance: >-
         P0 defines a strict data-only sparse profile over compiled page, field, data-source,
         component, action, and permission capabilities and proves it with a non-production Supplier

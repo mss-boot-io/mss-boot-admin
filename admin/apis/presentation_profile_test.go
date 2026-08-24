@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -176,6 +177,79 @@ func TestPresentationProfileAPIPreconditionsConflictsIdempotencyAndHistory(t *te
 	var revisionCount int64
 	require.NoError(t, db.Model(&models.PresentationRevision{}).Where("profile_id = ?", created.ID).Count(&revisionCount).Error)
 	require.Equal(t, int64(3), revisionCount)
+}
+
+func TestPresentationProfileAPIConcurrentConditionalWritesCommitOnce(t *testing.T) {
+	_, router, capability := setupPresentationProfileAPITest(t)
+	createBody := apiPresentationCreateBody(
+		t,
+		presentation.ScopeApplication,
+		"",
+		capability.PageKey,
+		apiPresentationDocument(t, capability, presentation.ScopeApplication, "", 20),
+	)
+	createdResponse := presentationAPIRequest(
+		router,
+		http.MethodPost,
+		"/admin/api/presentation-profiles",
+		createBody,
+		map[string]string{"If-None-Match": "*"},
+	)
+	require.Equal(t, http.StatusCreated, createdResponse.Code, createdResponse.Body.String())
+	created := decodePresentationProfileResource(t, createdResponse)
+
+	start := make(chan struct{})
+	responses := make(chan *httptest.ResponseRecorder, 2)
+	var writers sync.WaitGroup
+	bodies := []string{
+		apiPresentationReplaceBody(
+			t,
+			apiPresentationDocument(t, capability, presentation.ScopeApplication, "", 50),
+		),
+		apiPresentationReplaceBody(
+			t,
+			apiPresentationDocument(t, capability, presentation.ScopeApplication, "", 100),
+		),
+	}
+	for _, body := range bodies {
+		body := body
+		writers.Add(1)
+		go func() {
+			defer writers.Done()
+			<-start
+			responses <- presentationAPIRequest(
+				router,
+				http.MethodPut,
+				"/admin/api/presentation-profiles/"+created.ID+"/draft",
+				body,
+				map[string]string{"If-Match": presentationProfileETag(created.ID, created.Version)},
+			)
+		}()
+	}
+	close(start)
+	writers.Wait()
+	close(responses)
+
+	statusCounts := map[int]int{}
+	for response := range responses {
+		statusCounts[response.Code]++
+		if response.Code == http.StatusOK || response.Code == http.StatusPreconditionFailed {
+			require.Equal(t, presentationProfileETag(created.ID, 2), response.Header().Get("ETag"))
+		}
+	}
+	require.Equal(t, 1, statusCounts[http.StatusOK])
+	require.Equal(t, 1, statusCounts[http.StatusPreconditionFailed])
+
+	detail := presentationAPIRequest(
+		router,
+		http.MethodGet,
+		"/admin/api/presentation-profiles/"+created.ID,
+		"",
+		nil,
+	)
+	require.Equal(t, http.StatusOK, detail.Code, detail.Body.String())
+	current := decodePresentationProfileResource(t, detail)
+	require.Equal(t, int64(2), current.Version)
 }
 
 func TestPresentationProfileAPIEffectiveReadUsesOnlyAuthenticatedSubjects(t *testing.T) {

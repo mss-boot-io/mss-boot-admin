@@ -54,6 +54,18 @@ Stage 文件是可选覆盖，不是第二份完整配置。生产部署通常�
 `AUTH_KEY`、`APP_MODE`、`REDIS_ADDR` 不是通用直读接口。仅把这些名字写进进程环境，
 不会修改 `auth.key`、`application.mode` 或 `cache.redis.addr`。
 
+### 页面展示紧急恢复开关
+
+`presentation.recoveryMode` 是启动时读取的本地安全开关，不是数据库 AppConfig，也没有管理接口：
+
+```yaml
+presentation:
+  recoveryMode: false
+```
+
+只有展示配置事故处理时才设为 `true` 并重启全部实例。此时有效展示接口返回空层，业务页面使用编译
+默认值，持久化草稿和历史保持不变。完整处置步骤见[页面展示配置发布治理](/admin/presentation-configuration)。
+
 ### 正确的环境模板
 
 需要从部署环境注入的字段必须在 YAML 中显式引用：

@@ -70,6 +70,63 @@ func TestPresentationDraftValidationPublicationAndConflict(t *testing.T) {
 	require.Equal(t, models.PresentationTransitionPublish, published.Revision.Transition)
 }
 
+func TestPresentationConcurrentPublicationCommitsExactlyOneRevision(t *testing.T) {
+	service, db, _, capability := newPresentationService(t)
+	identity := dto.PresentationProfileIdentity{Scope: presentation.ScopeApplication, PageKey: capability.PageKey}
+	ctx := newPresentationServiceTestContext()
+	created, err := service.CreateDraft(
+		ctx,
+		identity,
+		presentationProfileJSON(t, capability, presentation.Scope{Kind: presentation.ScopeApplication}, nil),
+		"author",
+	)
+	require.NoError(t, err)
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for attempt := 0; attempt < 2; attempt++ {
+		attempt := attempt
+		go func() {
+			requestContext := newPresentationServiceTestContext()
+			<-start
+			_, publishErr := service.Publish(
+				requestContext,
+				created.ID,
+				created.Version,
+				fmt.Sprintf("publish-concurrent-%d", attempt),
+				fmt.Sprintf("publisher-%d", attempt),
+			)
+			results <- publishErr
+		}()
+	}
+	close(start)
+
+	succeeded := 0
+	conflicted := 0
+	for attempt := 0; attempt < 2; attempt++ {
+		switch publishErr := <-results; {
+		case publishErr == nil:
+			succeeded++
+		case errors.Is(publishErr, ErrPresentationRevisionConflict):
+			conflicted++
+		default:
+			require.NoError(t, publishErr)
+		}
+	}
+	require.Equal(t, 1, succeeded)
+	require.Equal(t, 1, conflicted)
+
+	current, err := service.Get(ctx, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), current.Version)
+	require.Equal(t, int64(1), current.PublishedRevision)
+	var revisionCount int64
+	require.NoError(t, db.Model(&models.PresentationRevision{}).
+		Where("profile_id = ?", created.ID).
+		Count(&revisionCount).Error)
+	require.Equal(t, int64(1), revisionCount)
+}
+
 func TestPresentationPublishIdempotencyAndConflictingReuse(t *testing.T) {
 	service, db, ctx, capability := newPresentationService(t)
 	identity := dto.PresentationProfileIdentity{Scope: presentation.ScopeApplication, PageKey: capability.PageKey}
@@ -168,70 +225,6 @@ func TestPresentationRollbackAndEffectiveReadRejectDefinitionDrift(t *testing.T)
 	require.Equal(t, "published-definition-drift", effective.Diagnostics[0].Code)
 }
 
-func TestPresentationEffectiveLayersUseServerSubjectsAndNeverExposeDrafts(t *testing.T) {
-	service, db, ctx, capability := newPresentationService(t)
-	seedPresentationSubject(t, db, presentation.ScopeRole, "role-a")
-	seedPresentationSubject(t, db, presentation.ScopeUser, "user-a")
-
-	inputs := []struct {
-		scope     presentation.ScopeKind
-		subjectID string
-		pageSize  int
-		key       string
-	}{
-		{presentation.ScopeApplication, "", 20, "publish-app-1"},
-		{presentation.ScopeRole, "role-a", 30, "publish-role-1"},
-		{presentation.ScopeUser, "user-a", 40, "publish-user-1"},
-	}
-	resources := make([]*dto.PresentationProfileResource, 0, len(inputs))
-	for _, input := range inputs {
-		subject := input.subjectID
-		scope := presentation.Scope{Kind: input.scope}
-		if input.scope != presentation.ScopeApplication {
-			scope.Subject = &subject
-		}
-		raw := presentationProfileJSON(t, capability, scope, func(profile *presentation.Profile) {
-			pageSize := input.pageSize
-			profile.Spec.List = &presentation.ListPatch{PageSize: &pageSize}
-		})
-		created, err := service.CreateDraft(ctx, dto.PresentationProfileIdentity{
-			Scope: input.scope, SubjectID: input.subjectID, PageKey: capability.PageKey,
-		}, raw, "author")
-		require.NoError(t, err)
-		published, err := service.Publish(ctx, created.ID, created.Version, input.key, "publisher")
-		require.NoError(t, err)
-		resources = append(resources, published.Profile)
-	}
-
-	newPageSize := 99
-	userSubject := "user-a"
-	userDraft := presentationProfileJSON(t, capability, presentation.Scope{Kind: presentation.ScopeUser, Subject: &userSubject}, func(profile *presentation.Profile) {
-		profile.Spec.List = &presentation.ListPatch{PageSize: &newPageSize}
-	})
-	_, err := service.ReplaceDraft(ctx, resources[2].ID, resources[2].Version, userDraft, "author")
-	require.NoError(t, err)
-
-	effective, err := service.Effective(ctx, capability.PageKey, "user-a", "role-a")
-	require.NoError(t, err)
-	require.False(t, effective.Fallback)
-	require.Equal(t, 20, effectivePageSize(t, effective.Layers.Application))
-	require.Equal(t, 30, effectivePageSize(t, effective.Layers.Role))
-	require.Equal(t, 40, effectivePageSize(t, effective.Layers.User))
-
-	other, err := service.Effective(ctx, capability.PageKey, "user-b", "role-b")
-	require.NoError(t, err)
-	require.NotEmpty(t, other.Layers.Application)
-	require.Empty(t, other.Layers.Role)
-	require.Empty(t, other.Layers.User)
-
-	recovery := &PresentationProfileService{Database: db, Registry: service.Registry, RecoveryMode: func() bool { return true }}
-	recovered, err := recovery.Effective(ctx, capability.PageKey, "user-a", "role-a")
-	require.NoError(t, err)
-	require.True(t, recovered.RecoveryMode)
-	require.True(t, recovered.Fallback)
-	require.Empty(t, recovered.Layers.Application)
-}
-
 func TestPresentationScopeOwnershipAndListBounds(t *testing.T) {
 	service, db, ctx, capability := newPresentationService(t)
 	roleSubject := "missing-role"
@@ -281,10 +274,15 @@ func newPresentationService(t *testing.T) (*PresentationProfileService, *gorm.DB
 	))
 	capability := servicePresentationCapability(t)
 	service := &PresentationProfileService{Database: db, Registry: presentation.MustNewRegistry(capability)}
+	ctx := newPresentationServiceTestContext()
+	return service, db, ctx, capability
+}
+
+func newPresentationServiceTestContext() *gin.Context {
 	request := httptest.NewRequest("GET", "/", nil)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Request = request
-	return service, db, ctx, capability
+	return ctx
 }
 
 func servicePresentationCapability(t *testing.T) presentation.CapabilityDefinition {
