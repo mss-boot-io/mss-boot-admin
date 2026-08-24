@@ -15,6 +15,28 @@ import (
 
 func TestGenerateEmbeddedWorksOutsideGitAndIsIdempotent(t *testing.T) {
 	setEmbeddedReleaseBuild(t)
+	foundation, err := loadEmbeddedFoundation("")
+	if err != nil {
+		t.Fatalf("loadEmbeddedFoundation() error = %v", err)
+	}
+	expectedTemplateSources := map[string]string{
+		"go.mod":                            "templates/application/go.mod.tmpl",
+		"cmd/server/main.go":                "templates/application/cmd/server/main.go.tmpl",
+		"internal/modules/all/generated.go": "templates/application/internal/modules/all/generated.go.tmpl",
+	}
+	for _, file := range foundation.Files {
+		expectedSource, ok := expectedTemplateSources[file.OutputPath]
+		if !ok {
+			continue
+		}
+		if file.SourcePath != expectedSource {
+			t.Fatalf("embedded %s source = %q, want %q", file.OutputPath, file.SourcePath, expectedSource)
+		}
+		delete(expectedTemplateSources, file.OutputPath)
+	}
+	if len(expectedTemplateSources) != 0 {
+		t.Fatalf("embedded template outputs missing = %v", expectedTemplateSources)
+	}
 	working := t.TempDir()
 	registry := embeddedFrontendRegistry(t)
 	destination := filepath.Join(working, "standalone-admin")

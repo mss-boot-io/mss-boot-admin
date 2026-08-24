@@ -219,7 +219,7 @@ spec:
   textNames: [AGENTS.md]
 `)
 	writeFixtureFile(t, root, "templates/application/AGENTS.md", "# __MSS_APP_DISPLAY_NAME__\n")
-	writeFixtureFile(t, root, "templates/application/go.mod", `module __MSS_APP_MODULE__
+	writeFixtureFile(t, root, "templates/application/go.mod.tmpl", `module __MSS_APP_MODULE__
 
 go 1.26.0
 
@@ -228,7 +228,7 @@ require (
 	github.com/mss-boot-io/mss-boot-admin/mss-boot __MSS_DISTRIBUTION_BACKEND_VERSION__
 )
 `)
-	writeFixtureFile(t, root, "templates/application/cmd/server/main.go", `package main
+	writeFixtureFile(t, root, "templates/application/cmd/server/main.go.tmpl", `package main
 
 import (
 	adminapp "__MSS_DISTRIBUTION_BACKEND_MODULE__/app"
@@ -237,7 +237,7 @@ import (
 
 func main() { _ = adminapp.ExecuteContext }
 `)
-	writeFixtureFile(t, root, "templates/application/internal/modules/all/generated.go", `package all
+	writeFixtureFile(t, root, "templates/application/internal/modules/all/generated.go.tmpl", `package all
 
 import "__MSS_DISTRIBUTION_BACKEND_MODULE__/business"
 

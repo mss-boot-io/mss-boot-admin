@@ -139,7 +139,7 @@ func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testi
 		"templates/application/.mss/project.yaml",
 		"go test -shuffle=on -count=1 ./...",
 		"go vet ./...",
-		"templates/application/cmd/server/main.go",
+		"templates/application/cmd/server/main.go.tmpl",
 		"internal/modules/customer-extension",
 	} {
 		if !strings.Contains(workflow, required) {
