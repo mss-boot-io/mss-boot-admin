@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentUser } from '../auth/types';
 import { retainRegisteredMenu, routeRegistry } from './registry';
 
@@ -187,6 +187,129 @@ describe('compiled route registry', () => {
         name: 'online-sessions',
         path: '/security/online-sessions',
         rootOnly: true,
+      },
+    ]);
+  });
+});
+
+describe('compiled route registry uniqueness', () => {
+  afterEach(() => {
+    vi.doUnmock('@mss-admin-business/routes');
+    vi.resetModules();
+  });
+
+  it('fails closed when a business registration duplicates a core UI path', async () => {
+    vi.resetModules();
+    vi.doMock('@mss-admin-business/routes', () => ({
+      default: [
+        {
+          path: '/workplace',
+          serverPaths: ['/custom-workplace'],
+          menuName: 'custom-workplace',
+        },
+      ],
+    }));
+
+    await expect(import('./registry')).rejects.toThrowError(
+      '[mss-admin] duplicate UI route path "/workplace" between route registrations "workplace" (/workplace) and "custom-workplace" (/workplace).',
+    );
+  });
+
+  it('fails closed when a business registration duplicates a core server path', async () => {
+    vi.resetModules();
+    vi.doMock('@mss-admin-business/routes', () => ({
+      default: [
+        {
+          path: '/custom-welcome',
+          serverPaths: ['/welcome'],
+          menuName: 'custom-welcome',
+        },
+      ],
+    }));
+
+    await expect(import('./registry')).rejects.toThrowError(
+      '[mss-admin] duplicate server route path "/welcome" between route registrations "workplace" (/workplace) and "custom-welcome" (/custom-welcome).',
+    );
+  });
+
+  it('fails closed when business registrations duplicate a UI path', async () => {
+    vi.resetModules();
+    vi.doMock('@mss-admin-business/routes', () => ({
+      default: [
+        {
+          path: '/business-duplicate',
+          serverPaths: ['/business-one'],
+          menuName: 'business-one',
+        },
+        {
+          path: '/business-duplicate',
+          serverPaths: ['/business-two'],
+          menuName: 'business-two',
+        },
+      ],
+    }));
+
+    await expect(import('./registry')).rejects.toThrowError(
+      '[mss-admin] duplicate UI route path "/business-duplicate" between route registrations "business-one" (/business-duplicate) and "business-two" (/business-duplicate).',
+    );
+  });
+
+  it('fails closed when business registrations duplicate a server path', async () => {
+    vi.resetModules();
+    vi.doMock('@mss-admin-business/routes', () => ({
+      default: [
+        {
+          path: '/business-one',
+          serverPaths: ['/business-duplicate'],
+          menuName: 'business-one',
+        },
+        {
+          path: '/business-two',
+          serverPaths: ['/business-duplicate'],
+          menuName: 'business-two',
+        },
+      ],
+    }));
+
+    await expect(import('./registry')).rejects.toThrowError(
+      '[mss-admin] duplicate server route path "/business-duplicate" between route registrations "business-one" (/business-one) and "business-two" (/business-two).',
+    );
+  });
+
+  it('combines unique core and business registrations normally', async () => {
+    vi.resetModules();
+    vi.doMock('@mss-admin-business/routes', () => ({
+      default: [
+        {
+          path: '/custom-health',
+          serverPaths: ['/custom-health-api'],
+          menuName: 'custom-health',
+          permission: '/custom-health-api',
+        },
+      ],
+    }));
+
+    const registry = await import('./registry');
+    expect(registry.routeRegistry.get('/workplace')).toMatchObject({
+      menuName: 'workplace',
+      serverPaths: ['/welcome'],
+    });
+    expect(registry.routeRegistry.get('/custom-health')).toMatchObject({
+      menuName: 'custom-health',
+      serverPaths: ['/custom-health-api'],
+    });
+    expect(
+      registry.retainRegisteredMenu([{ id: 'custom-health', path: '/custom-health-api' }], {
+        id: 'custom-reader',
+        role: { root: false },
+        permissions: { '/custom-health-api': true },
+      }),
+    ).toMatchObject([
+      {
+        id: 'custom-health',
+        path: '/custom-health',
+        sourcePath: '/custom-health-api',
+        permission: '/custom-health-api',
       },
     ]);
   });

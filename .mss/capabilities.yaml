@@ -22,7 +22,7 @@ spec:
         - .github/workflows/frontend-v6-ci.yml
         - .github/workflows/frontend-v6-release.yml
       guidance: >-
-        Ant Design 6.6.0 and the ProComponents v3 beta remain exact pins. Build and release
+        Ant Design 6.6.1 and the ProComponents v3 beta remain exact pins. Build and release
         this application through its V6 tag, artifact, image, and rollback history. V6 is the
         only browser application and backend browser-session contract.
 
@@ -714,11 +714,13 @@ spec:
         - internal/mss
         - tools/install
       guidance: >-
-        The v1.3.3 CLI is distributed through checksummed cross-platform tool archives and standard
-        Go installation. It embeds the matching application Blueprint, creates complete Thin Hosts
-        outside a Foundation checkout, and upgrades them by exact Admin Distribution version. Skills,
-        CI, and MCP must call this implementation instead of duplicating its logic; declarative
-        acceptance evidence must never be reported as executed.
+        The v1.3.3 release bundle distributes checksummed cross-platform tools with embedded release
+        provenance and the matching application Blueprint; only that bundle creates complete Thin Hosts
+        outside a Foundation checkout and upgrades them by exact Admin Distribution version. Exact
+        `go install` of cmd/mss and cmd/mss-mcp remains a public command-package compilation path, but
+        those binaries fail closed for provenance-bound creation and upgrade. Skills, CI, and MCP must
+        call this implementation instead of duplicating its logic; declarative acceptance evidence must
+        never be reported as executed.
 
     - id: agent.module-generator
       displayName: Deterministic Admin Module Scaffold Generator

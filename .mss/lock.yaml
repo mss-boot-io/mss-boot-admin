@@ -18,7 +18,7 @@ spec:
     channel: development
   blueprint:
     name: management-system
-    version: 0.5.0
+    version: 0.6.0
   contracts:
     project: v1alpha1
     capabilityCatalog: v1alpha1

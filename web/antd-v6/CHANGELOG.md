@@ -22,6 +22,13 @@ with the package-first v1.3.3 Distribution.
   generated routes/locales, and business-owned pages.
 - Preserve the single React 19 and Ant Design 6 runtime graph and all v1.3.2 API,
   route-composition, authorization, accessibility, and delivery contracts.
+- Validate the complete Admin-core plus business route registry before building
+  lookup maps, failing closed on duplicate UI or server paths with both owners
+  identified instead of allowing a business registration to overwrite core.
+- Point the package-owned downstream Vitest configuration at the managed route
+  facade when present, so custom registrations receive the same core-collision
+  checks in tests as they do in the production application while older hosts
+  retain the generated-only fallback.
 - Refresh the exact Admin Web and Thin Host dependency graph to Ant Design 6.6.1,
   Umi Max 4.7.7, Vite 8.2.2, and Vitest 4.1.11 while retaining one resolved
   version of every governed runtime package.

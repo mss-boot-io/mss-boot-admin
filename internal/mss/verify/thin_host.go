@@ -77,6 +77,15 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 	if frameworkModule == "" || strings.ContainsAny(frameworkModule, " \\:") {
 		problems = append(problems, "project spec.backend.frameworkModule is invalid")
 	}
+	modulesImportPath := ""
+	if confinedRepositoryDirectory(backend) && confinedRepositoryPath(modules) {
+		relativeModules, err := filepath.Rel(filepath.FromSlash(backend), filepath.FromSlash(modules))
+		if err != nil || !confinedRepositoryPath(filepath.ToSlash(relativeModules)) {
+			problems = append(problems, "repositoryLayout.modules must be inside repositoryLayout.backend")
+		} else {
+			modulesImportPath = strings.TrimSuffix(ctx.Project.Spec.Backend.Module, "/") + "/" + filepath.ToSlash(relativeModules)
+		}
+	}
 
 	required := []string{
 		"README.md",
@@ -87,16 +96,24 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 		joinRepositoryPath(backend, "go.mod"),
 		joinRepositoryPath(backend, "go.sum"),
 		joinRepositoryPath(backend, "cmd/server/main.go"),
+		joinRepositoryPath(modules, "registry.go"),
 		joinRepositoryPath(modules, "all/generated.go"),
+		joinRepositoryPath(modules, "custom/modules.go"),
 		joinRepositoryPath(frontend, "package.json"),
 		joinRepositoryPath(frontend, "pnpm-lock.yaml"),
 		joinRepositoryPath(frontend, ".npmrc"),
 		joinRepositoryPath(frontend, "tsconfig.json"),
 		joinRepositoryPath(frontend, "config/config.ts"),
+		joinRepositoryPath(frontend, "config/business-routes.ts"),
 		joinRepositoryPath(frontend, "mss-admin.config.ts"),
 		businessRoutes,
 		joinRepositoryPath(frontend, "src/app.tsx"),
 		joinRepositoryPath(frontend, "src/access.ts"),
+		joinRepositoryPath(frontend, "src/route-registrations.ts"),
+		joinRepositoryPath(frontend, "src/business/routes.config.ts"),
+		joinRepositoryPath(frontend, "src/business/route-registrations.ts"),
+		joinRepositoryPath(frontend, "src/business/locales/zh-CN.ts"),
+		joinRepositoryPath(frontend, "src/business/locales/en-US.ts"),
 		joinRepositoryPath(frontend, "src/locales/zh-CN.ts"),
 		joinRepositoryPath(frontend, "src/locales/en-US.ts"),
 		joinRepositoryPath(generated, "routes.ts"),
@@ -240,16 +257,37 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 	requiredFragments := map[string][]string{
 		joinRepositoryPath(backend, "cmd/server/main.go"): {
 			distribution.Backend.Module + "/app",
-			ctx.Project.Spec.Backend.Module + "/internal/modules/all",
+			modulesImportPath,
+			"modules.Modules()",
+		},
+		joinRepositoryPath(modules, "registry.go"): {
+			distribution.Backend.Module + "/business",
+			modulesImportPath + "/all",
+			modulesImportPath + "/custom",
+			"append(all.Modules(), custom.Modules()...)",
 		},
 		joinRepositoryPath(modules, "all/generated.go"): {
 			distribution.Backend.Module + "/business",
 		},
 		joinRepositoryPath(frontend, "config/config.ts"): {
 			distribution.Frontend.Package + "/business",
-			"businessRoutes",
-			"routeRegistrations: './src/generated/routes.ts'",
+			"./business-routes",
+			"routeRegistrations: './src/route-registrations.ts'",
 			"useUtoopack: true",
+		},
+		joinRepositoryPath(frontend, "config/business-routes.ts"): {
+			distribution.Frontend.Package + "/business",
+			"../src/business/routes.config",
+			"./business-routes.generated",
+			"...generatedBusinessRoutes",
+			"...customBusinessRoutes",
+		},
+		joinRepositoryPath(frontend, "src/route-registrations.ts"): {
+			distribution.Frontend.Package + "/runtime",
+			"./generated/routes",
+			"./business/route-registrations",
+			"duplicate business UI route path",
+			"duplicate business server route path",
 		},
 		joinRepositoryPath(frontend, "mss-admin.config.ts"): {
 			"export { default } from './config/config'",
@@ -267,10 +305,18 @@ func validateThinHostStructure(ctx *project.Context) command.Result {
 		joinRepositoryPath(frontend, "src/locales/zh-CN.ts"): {
 			distribution.Frontend.Package + "/runtime/locales/zh-CN",
 			"../generated/locales/zh-CN",
+			"../business/locales/zh-CN",
+			"...coreMessages",
+			"...generatedMessages",
+			"...customMessages",
 		},
 		joinRepositoryPath(frontend, "src/locales/en-US.ts"): {
 			distribution.Frontend.Package + "/runtime/locales/en-US",
 			"../generated/locales/en-US",
+			"../business/locales/en-US",
+			"...coreMessages",
+			"...generatedMessages",
+			"...customMessages",
 		},
 	}
 	for relative, fragments := range requiredFragments {

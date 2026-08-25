@@ -26,6 +26,14 @@ attached to the exact merged-main commit.
   require a Foundation checkout.
 - Generate a complete Thin Host baseline with lockfiles, local-development
   contract, repository README, Agent Skills, validation, and CI entrypoints.
+- Add explicit Thin Host registries and bilingual locale catalogs that merge
+  generated modules, routes, and messages with ordered handwritten backend
+  modules, page routes, authorization metadata, and zh-CN/en-US messages;
+  custom code stays outside generated files and survives three-way upgrades.
+- Fail closed when any handwritten or generated business route duplicates an
+  Admin-owned UI or server path, and require handwritten protected handlers to
+  enforce explicit backend permissions instead of relying on session auth or UI
+  visibility.
 - Distribute an exact, validated Thin Host Skill set for basic ownership, module
   and supported-field generation, coarse backend permissions, debugging, review,
   and coordinated upgrades; unsupported relation, workflow, import, and row-scope

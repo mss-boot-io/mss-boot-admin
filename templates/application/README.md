@@ -48,9 +48,29 @@ mss module generate .mss/modules/example.yaml --write
 mss verify --module example
 ```
 
-Custom backend files belong under `internal/modules/<name>/`; custom frontend
-files belong under `web/src/business/`. Do not copy Foundation Admin,
-Framework, or Admin Web source into this repository.
+Custom backend files belong under `internal/modules/<name>/`. Register a
+handwritten module explicitly in `internal/modules/custom/modules.go`; the
+managed `internal/modules/registry.go` facade composes generated modules first.
+Custom frontend files belong under `web/src/business/`. Add handwritten Umi
+routes to `web/src/business/routes.config.ts` and the matching frontend-only
+server-path projections to `web/src/business/route-registrations.ts`. These
+registrations drive menu visibility; they do not write Admin Menu or Casbin rows
+and never authorize a backend request. The managed facades compose both
+registries, and the final Admin Web registry rejects duplicates across core,
+generated, and handwritten UI or server paths.
+
+Keep handwritten user-facing messages synchronized in
+`web/src/business/locales/zh-CN.ts` and
+`web/src/business/locales/en-US.ts`. Managed locale facades merge Admin core,
+generated module, and handwritten messages in that order, so business pages can
+add both languages without editing generated locale registries.
+
+The protected backend group authenticates sessions but does not infer business
+permissions. Every handwritten module must add a forward migration that creates
+or validates permission metadata and default role policies, verify those records
+in readiness, and enforce the exact permission in each handler through the
+injected principal and request database. Cover both allowed and denied callers.
+Do not copy Foundation Admin, Framework, or Admin Web source into this repository.
 
 ## Upgrade the Admin Distribution
 
@@ -72,11 +92,17 @@ mss upgrade admin __MSS_DISTRIBUTION_VERSION__ --format json
 ```
 
 The first command is read-only. Review every managed change and conflict before
-the confirmed apply; the final plan must be empty. Unknown and business-owned
-files remain outside the managed Blueprint baseline. A hand-assembled repository
-or one missing its manifest cannot use three-way upgrade: generate a clean target
-baseline in a new directory and migrate business-owned specifications and files
-instead of fabricating a manifest.
+the confirmed apply; the final plan must contain no create, update, delete, or
+conflict operations. It may continue to report a customized default registry as
+`preserve`, which is read-only and must leave its bytes unchanged. Unknown
+business-owned files remain outside the managed Blueprint baseline. The three
+default handwritten registry files and two bilingual locale catalogs start in
+the baseline so new hosts compile; their explicit edits are preserved while the
+corresponding Blueprint defaults remain unchanged. A hand-assembled repository
+or one missing its manifest cannot
+use three-way upgrade: generate a clean target baseline in a new directory and
+migrate business-owned specifications and files instead of fabricating a
+manifest.
 
 ## Configuration and security
 

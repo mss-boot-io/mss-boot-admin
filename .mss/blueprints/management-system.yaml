@@ -3,7 +3,7 @@ kind: ApplicationBlueprint
 metadata:
   name: management-system
   displayName: Agent-Native Management System
-  version: 0.5.0
+  version: 0.6.0
 spec:
   sourceMode: git-tracked
   templateRoot: templates/application
@@ -27,7 +27,9 @@ spec:
     - go.mod
     - go.sum
     - cmd/server/main.go
+    - internal/modules/registry.go
     - internal/modules/all/generated.go
+    - internal/modules/custom/modules.go
     - Makefile
     - Dockerfile
     - .dockerignore
@@ -49,9 +51,15 @@ spec:
     - web/tsconfig.json
     - web/mss-admin.config.ts
     - web/config/config.ts
+    - web/config/business-routes.ts
     - web/config/business-routes.generated.ts
     - web/src/app.tsx
     - web/src/access.ts
+    - web/src/route-registrations.ts
+    - web/src/business/routes.config.ts
+    - web/src/business/route-registrations.ts
+    - web/src/business/locales/zh-CN.ts
+    - web/src/business/locales/en-US.ts
     - web/src/generated/routes.ts
     - web/src/locales/zh-CN.ts
     - web/src/locales/en-US.ts
