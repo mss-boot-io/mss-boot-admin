@@ -279,9 +279,14 @@ func setMCPReleaseBuild(t *testing.T) {
 func mcpFrontendRegistry(t *testing.T) string {
 	t.Helper()
 	integrity := "sha512-" + strings.Repeat("A", 86) + "=="
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(writer, `{"name":"@mss-boot-io/admin-web","version":"1.3.4","dist":{"integrity":%q}}`, integrity)
+		_, _ = fmt.Fprintf(
+			writer,
+			`{"name":"@mss-boot-io/admin-web","version":"1.3.4","dist":{"integrity":%q,"tarball":%q}}`,
+			integrity,
+			"http://"+request.Host+"/artifacts/mcp-admin-web-1.3.4.tgz",
+		)
 	}))
 	t.Cleanup(server.Close)
 	return server.URL

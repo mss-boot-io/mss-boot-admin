@@ -141,8 +141,14 @@ func TestGenerateEmbeddedWorksOutsideGitAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(lockData), frontendIntegrityToken) || !strings.Contains(string(lockData), "resolution: {integrity: sha512-") {
-		t.Fatalf("generated frontend lock did not resolve exact tarball integrity")
+	for _, forbidden := range []string{frontendIntegrityToken, frontendTarballToken, "NODE_AUTH_TOKEN", "_authToken"} {
+		if strings.Contains(string(lockData), forbidden) {
+			t.Fatalf("generated frontend lock contains forbidden value %q", forbidden)
+		}
+	}
+	if !strings.Contains(string(lockData), "resolution: {tarball: http://127.0.0.1:") ||
+		!strings.Contains(string(lockData), "/artifacts/frozen-admin-web-1.3.4.tgz, integrity: sha512-") {
+		t.Fatalf("generated frontend lock did not resolve the exact tarball URL and integrity")
 	}
 	goModuleData, err := os.ReadFile(filepath.Join(destination, "go.mod"))
 	if err != nil {
@@ -281,9 +287,14 @@ func setEmbeddedReleaseBuild(t *testing.T) {
 func embeddedFrontendRegistry(t *testing.T) string {
 	t.Helper()
 	integrity := testFrontendIntegrity("embedded-admin-web-candidate")
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(writer, `{"name":"@mss-boot-io/admin-web","version":"1.3.4","dist":{"integrity":%q}}`, integrity)
+		_, _ = fmt.Fprintf(
+			writer,
+			`{"name":"@mss-boot-io/admin-web","version":"1.3.4","dist":{"integrity":%q,"tarball":%q}}`,
+			integrity,
+			"http://"+request.Host+"/artifacts/frozen-admin-web-1.3.4.tgz",
+		)
 	}))
 	t.Cleanup(server.Close)
 	return server.URL

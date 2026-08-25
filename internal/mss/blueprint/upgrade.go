@@ -119,7 +119,7 @@ func UpgradeEmbedded(ctx context.Context, options UpgradeOptions) (UpgradePlan, 
 	if err != nil {
 		return UpgradePlan{}, err
 	}
-	frontendIntegrity, err := resolveFrontendIntegrityForSource(ctx, prepared.Options.FrontendRegistryURL, source.Blueprint, source.Files)
+	frontendPackage, err := resolveFrontendPackageForSource(ctx, prepared.Options.FrontendRegistryURL, source.Blueprint, source.Files)
 	if err != nil {
 		return UpgradePlan{}, err
 	}
@@ -129,7 +129,7 @@ func UpgradeEmbedded(ctx context.Context, options UpgradeOptions) (UpgradePlan, 
 		source.Identity,
 		source.Files,
 		prepared.Options.Application,
-		frontendIntegrity,
+		frontendPackage,
 	)
 	if err != nil {
 		return UpgradePlan{}, err

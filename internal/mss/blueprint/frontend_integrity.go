@@ -17,51 +17,60 @@ import (
 const (
 	defaultFrontendRegistryURL = "https://registry.npmjs.org"
 	frontendIntegrityToken     = "__MSS_DISTRIBUTION_FRONTEND_INTEGRITY__"
+	frontendTarballToken       = "__MSS_DISTRIBUTION_FRONTEND_TARBALL__"
 	maxFrontendMetadataBytes   = 1 << 20
 )
 
-// resolveFrontendIntegrityForSource resolves the immutable npm tarball SRI
-// only when a selected application template actually consumes it. Exact npm
-// versions are immutable, so the resolved value becomes part of the generated
+type frontendPackageResolution struct {
+	Integrity string
+	Tarball   string
+}
+
+// resolveFrontendPackageForSource resolves the immutable npm tarball URL and
+// SRI only when a selected application template actually consumes them. Exact
+// npm versions are immutable, so both values become part of the generated
 // snapshot and subsequent three-way upgrade baseline.
-func resolveFrontendIntegrityForSource(
+func resolveFrontendPackageForSource(
 	ctx context.Context,
 	registryURL string,
 	blueprint *Document,
 	sourceFiles []blueprintSourceFile,
-) (string, error) {
+) (frontendPackageResolution, error) {
 	needsIntegrity := false
+	needsTarball := false
 	for _, sourceFile := range sourceFiles {
-		if strings.Contains(string(sourceFile.Data), frontendIntegrityToken) {
-			needsIntegrity = true
-			break
-		}
+		text := string(sourceFile.Data)
+		needsIntegrity = needsIntegrity || strings.Contains(text, frontendIntegrityToken)
+		needsTarball = needsTarball || strings.Contains(text, frontendTarballToken)
 	}
-	if !needsIntegrity {
-		return "", nil
+	if !needsIntegrity && !needsTarball {
+		return frontendPackageResolution{}, nil
+	}
+	if !needsIntegrity || !needsTarball {
+		return frontendPackageResolution{}, errors.New("application template must consume frontend tarball and integrity together")
 	}
 	if blueprint == nil {
-		return "", errors.New("application blueprint is required to resolve frontend integrity")
+		return frontendPackageResolution{}, errors.New("application blueprint is required to resolve frontend package")
 	}
 	frontend := blueprint.Spec.Distribution.Frontend
-	integrity, err := resolveFrontendIntegrity(ctx, registryURL, frontend.Package, frontend.Version)
+	resolved, err := resolveFrontendPackage(ctx, registryURL, frontend.Package, frontend.Version)
 	if err != nil {
-		return "", fmt.Errorf("resolve frozen frontend %s@%s: %w", frontend.Package, frontend.Version, err)
+		return frontendPackageResolution{}, fmt.Errorf("resolve frozen frontend %s@%s: %w", frontend.Package, frontend.Version, err)
 	}
-	return integrity, nil
+	return resolved, nil
 }
 
-func resolveFrontendIntegrity(ctx context.Context, registryURL, packageName, version string) (string, error) {
+func resolveFrontendPackage(ctx context.Context, registryURL, packageName, version string) (frontendPackageResolution, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	endpoint, err := frontendMetadataEndpoint(registryURL, packageName, version)
 	if err != nil {
-		return "", err
+		return frontendPackageResolution{}, err
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return "", fmt.Errorf("create npm metadata request: %w", err)
+		return frontendPackageResolution{}, fmt.Errorf("create npm metadata request: %w", err)
 	}
 	request.Header.Set("Accept", "application/vnd.npm.install-v1+json, application/json")
 	client := &http.Client{
@@ -72,32 +81,33 @@ func resolveFrontendIntegrity(ctx context.Context, registryURL, packageName, ver
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		return "", fmt.Errorf("fetch exact npm metadata: %w", err)
+		return frontendPackageResolution{}, fmt.Errorf("fetch exact npm metadata: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
-		return "", fmt.Errorf("npm registry returned HTTP %d", response.StatusCode)
+		return frontendPackageResolution{}, fmt.Errorf("npm registry returned HTTP %d", response.StatusCode)
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxFrontendMetadataBytes+1))
 	if err != nil {
-		return "", fmt.Errorf("read npm metadata: %w", err)
+		return frontendPackageResolution{}, fmt.Errorf("read npm metadata: %w", err)
 	}
 	if len(data) > maxFrontendMetadataBytes {
-		return "", fmt.Errorf("npm metadata exceeds %d bytes", maxFrontendMetadataBytes)
+		return frontendPackageResolution{}, fmt.Errorf("npm metadata exceeds %d bytes", maxFrontendMetadataBytes)
 	}
 	var metadata struct {
 		Name    string `json:"name"`
 		Version string `json:"version"`
 		Dist    struct {
 			Integrity string `json:"integrity"`
+			Tarball   string `json:"tarball"`
 		} `json:"dist"`
 	}
 	if err := json.Unmarshal(data, &metadata); err != nil {
-		return "", fmt.Errorf("decode npm metadata: %w", err)
+		return frontendPackageResolution{}, fmt.Errorf("decode npm metadata: %w", err)
 	}
 	if metadata.Name != packageName || metadata.Version != version {
-		return "", fmt.Errorf(
+		return frontendPackageResolution{}, fmt.Errorf(
 			"npm metadata identity mismatch: requested %s@%s, received %s@%s",
 			packageName,
 			version,
@@ -106,9 +116,40 @@ func resolveFrontendIntegrity(ctx context.Context, registryURL, packageName, ver
 		)
 	}
 	if !validFrontendIntegrity(metadata.Dist.Integrity) {
-		return "", errors.New("npm metadata dist.integrity must be one exact sha512 SRI")
+		return frontendPackageResolution{}, errors.New("npm metadata dist.integrity must be one exact sha512 SRI")
 	}
-	return metadata.Dist.Integrity, nil
+	tarball, err := validFrontendTarballURL(metadata.Dist.Tarball)
+	if err != nil {
+		return frontendPackageResolution{}, fmt.Errorf("npm metadata dist.tarball: %w", err)
+	}
+	return frontendPackageResolution{Integrity: metadata.Dist.Integrity, Tarball: tarball}, nil
+}
+
+func validFrontendTarballURL(value string) (string, error) {
+	if value == "" || value != strings.TrimSpace(value) || strings.ContainsAny(value, "\r\n\t") {
+		return "", errors.New("must be one absolute stable URL")
+	}
+	tarball, err := url.Parse(value)
+	if err != nil || !tarball.IsAbs() || tarball.Opaque != "" || tarball.Hostname() == "" || tarball.Path == "" {
+		return "", errors.New("must be one absolute stable URL")
+	}
+	if tarball.User != nil {
+		return "", errors.New("must not contain credentials")
+	}
+	if tarball.RawQuery != "" || tarball.Fragment != "" {
+		return "", errors.New("must not contain a query or fragment")
+	}
+	switch tarball.Scheme {
+	case "https":
+		return tarball.String(), nil
+	case "http":
+		if loopbackRegistryHost(tarball.Hostname()) {
+			return tarball.String(), nil
+		}
+		return "", errors.New("HTTP is allowed only for an explicit loopback fixture")
+	default:
+		return "", errors.New("must use HTTPS outside an explicit loopback fixture")
+	}
 }
 
 func frontendMetadataEndpoint(registryURL, packageName, version string) (string, error) {
