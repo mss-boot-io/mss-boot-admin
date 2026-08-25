@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/blueprint"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
@@ -61,6 +63,44 @@ func TestUpgradeAdminCommandDefaultsToPlanAndRequiresApplyConfirmation(t *testin
 	command.SilenceErrors = true
 	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "--yes is only valid together with --apply") {
 		t.Fatalf("plan with stray confirmation error = %v", err)
+	}
+}
+
+func TestFoundationUpgradeCommandsAcceptHiddenContributorRegistry(t *testing.T) {
+	rootOverride := ""
+	for name, command := range map[string]func(*string) *cobra.Command{
+		"plan":  newUpgradePlanCommand,
+		"apply": newUpgradeApplyCommand,
+	} {
+		flag := command(&rootOverride).Flags().Lookup("contributor-npm-registry")
+		if flag == nil {
+			t.Fatalf("%s command does not accept the contributor registry", name)
+		}
+		if !flag.Hidden || flag.DefValue != "" {
+			t.Fatalf("%s contributor registry flag = %#v", name, flag)
+		}
+	}
+}
+
+func TestFoundationUpgradeOptionsForwardContributorRegistry(t *testing.T) {
+	const registry = "http://127.0.0.1:4873"
+	context := &project.Context{
+		Root: t.TempDir(),
+		Project: project.ProjectDocument{Metadata: project.Metadata{
+			Name:       "customer-admin",
+			Repository: "acme/customer-admin",
+		}},
+	}
+	options := foundationUpgradeOptions(
+		context,
+		t.TempDir(),
+		"management-system",
+		".mss/blueprint-manifest.json",
+		registry,
+		false,
+	)
+	if options.FrontendRegistryURL != registry {
+		t.Fatalf("contributor registry = %q, want %q", options.FrontendRegistryURL, registry)
 	}
 }
 

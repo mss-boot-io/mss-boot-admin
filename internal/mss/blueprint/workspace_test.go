@@ -141,6 +141,15 @@ func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testi
 		"go vet ./...",
 		"templates/application/cmd/server/main.go.tmpl",
 		"internal/modules/customer-extension",
+		"Start temporary Admin Web metadata registry",
+		"COMPATIBILITY_FRONTEND_REGISTRY_URL=${registry_url}",
+		"COMPATIBILITY_FRONTEND_REGISTRY_PID=${registry_pid}",
+		"COMPATIBILITY_FRONTEND_REGISTRY_READY=${registry_ready}",
+		`--contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}"`,
+		`-contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}"`,
+		"Stop temporary Admin Web metadata registry\n        if: always()",
+		`/proc/${registry_pid}/cmdline`,
+		"refusing to stop a process that is not the compatibility registry",
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Errorf("Foundation compatibility workflow is missing identity contract %q", required)
@@ -156,10 +165,25 @@ func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testi
 		`${CONFLICT_FOUNDATION}/admin/main.go`,
 		`foundationVersion: 0.1.1-ci`,
 		`project = root / ".mss/project.yaml"`,
+		`registry.npmjs.org`,
+		`version = '1.3.3'`,
 	} {
 		if strings.Contains(workflow, forbidden) {
 			t.Errorf("Foundation compatibility workflow retains coupled or untraceable fixture %q", forbidden)
 		}
+	}
+	if count := strings.Count(workflow, `--contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}"`); count != 5 {
+		t.Errorf("Foundation compatibility workflow contributor registry CLI uses = %d, want 5", count)
+	}
+	if count := strings.Count(workflow, "COMPATIBILITY_FRONTEND_REGISTRY_URL"); count != 7 {
+		t.Errorf("Foundation compatibility workflow registry URL references = %d, want 7", count)
+	}
+	start := strings.Index(workflow, "Start temporary Admin Web metadata registry")
+	generate := strings.Index(workflow, "Generate a standalone downstream repository")
+	stop := strings.Index(workflow, "Stop temporary Admin Web metadata registry")
+	upload := strings.Index(workflow, "Upload compatibility evidence")
+	if start < 0 || generate < 0 || stop < 0 || upload < 0 || !(start < generate && generate < stop && stop < upload) {
+		t.Errorf("Foundation compatibility registry lifecycle is not ordered around generation and evidence upload")
 	}
 }
 

@@ -49,8 +49,7 @@ func newUpgradeAdminCommand(rootOverride *string) *cobra.Command {
 		},
 	}
 	addUpgradeFlags(command, &foundation, &blueprintName, &manifestPath, &format, false)
-	command.Flags().StringVar(&frontendRegistry, "contributor-npm-registry", "", "loopback npm registry override for contributor qualification")
-	_ = command.Flags().MarkHidden("contributor-npm-registry")
+	addContributorFrontendRegistryFlag(command, &frontendRegistry)
 	command.Flags().BoolVar(&apply, "apply", false, "apply the reviewed conflict-free Distribution plan; default is read-only")
 	command.Flags().BoolVar(&yes, "yes", false, "confirm applying the complete Admin Distribution upgrade")
 	return command
@@ -61,15 +60,17 @@ func newUpgradePlanCommand(rootOverride *string) *cobra.Command {
 	var blueprintName string
 	var manifestPath string
 	var format string
+	var frontendRegistry string
 	command := &cobra.Command{
 		Use:   "plan",
 		Short: "Compare downstream customizations with a newer foundation checkout",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runFoundationUpgrade(cmd, rootOverride, foundation, blueprintName, manifestPath, false, format)
+			return runFoundationUpgrade(cmd, rootOverride, foundation, blueprintName, manifestPath, frontendRegistry, false, format)
 		},
 	}
 	addUpgradeFlags(command, &foundation, &blueprintName, &manifestPath, &format, true)
+	addContributorFrontendRegistryFlag(command, &frontendRegistry)
 	return command
 }
 
@@ -78,6 +79,7 @@ func newUpgradeApplyCommand(rootOverride *string) *cobra.Command {
 	var blueprintName string
 	var manifestPath string
 	var format string
+	var frontendRegistry string
 	var yes bool
 	command := &cobra.Command{
 		Use:   "apply",
@@ -87,10 +89,11 @@ func newUpgradeApplyCommand(rootOverride *string) *cobra.Command {
 			if !yes {
 				return fmt.Errorf("--yes is required to apply a foundation upgrade")
 			}
-			return runFoundationUpgrade(cmd, rootOverride, foundation, blueprintName, manifestPath, true, format)
+			return runFoundationUpgrade(cmd, rootOverride, foundation, blueprintName, manifestPath, frontendRegistry, true, format)
 		},
 	}
 	addUpgradeFlags(command, &foundation, &blueprintName, &manifestPath, &format, true)
+	addContributorFrontendRegistryFlag(command, &frontendRegistry)
 	command.Flags().BoolVar(&yes, "yes", false, "confirm writing the reviewed conflict-free plan")
 	return command
 }
@@ -171,12 +174,18 @@ func addUpgradeFlags(command *cobra.Command, foundation, blueprintName, manifest
 	}
 }
 
+func addContributorFrontendRegistryFlag(command *cobra.Command, frontendRegistry *string) {
+	command.Flags().StringVar(frontendRegistry, "contributor-npm-registry", "", "loopback npm registry override for contributor qualification")
+	_ = command.Flags().MarkHidden("contributor-npm-registry")
+}
+
 func runFoundationUpgrade(
 	command *cobra.Command,
 	rootOverride *string,
 	foundation string,
 	blueprintName string,
 	manifestPath string,
+	frontendRegistry string,
 	write bool,
 	format string,
 ) error {
@@ -184,7 +193,29 @@ func runFoundationUpgrade(
 	if err != nil {
 		return err
 	}
-	plan, upgradeErr := blueprint.Upgrade(command.Context(), blueprint.UpgradeOptions{
+	plan, upgradeErr := blueprint.Upgrade(command.Context(), foundationUpgradeOptions(
+		projectContext,
+		foundation,
+		blueprintName,
+		manifestPath,
+		frontendRegistry,
+		write,
+	))
+	if outputErr := writeUpgradePlan(command.OutOrStdout(), plan, format); outputErr != nil {
+		return outputErr
+	}
+	return upgradeErr
+}
+
+func foundationUpgradeOptions(
+	projectContext *project.Context,
+	foundation string,
+	blueprintName string,
+	manifestPath string,
+	frontendRegistry string,
+	write bool,
+) blueprint.UpgradeOptions {
+	return blueprint.UpgradeOptions{
 		ApplicationRoot:          projectContext.Root,
 		FoundationRoot:           foundation,
 		ManifestPath:             manifestPath,
@@ -193,12 +224,9 @@ func runFoundationUpgrade(
 		ModuleSpecificationsPath: upgradeModuleSpecificationsPath(projectContext),
 		PreservedBusinessPaths:   upgradePreservedBusinessPaths(projectContext),
 		ValidationCommands:       upgradeValidationCommands(projectContext),
+		FrontendRegistryURL:      frontendRegistry,
 		Write:                    write,
-	})
-	if outputErr := writeUpgradePlan(command.OutOrStdout(), plan, format); outputErr != nil {
-		return outputErr
 	}
-	return upgradeErr
 }
 
 func runAdminDistributionUpgrade(

@@ -1,10 +1,19 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestNewMCPServerForwardsContributorRegistry(t *testing.T) {
+	const registry = "http://127.0.0.1:4873"
+	server := newMCPServer(t.TempDir(), registry, io.Discard)
+	if server.ContributorFrontendRegistryURL != registry {
+		t.Fatalf("contributor registry = %q, want %q", server.ContributorFrontendRegistryURL, registry)
+	}
+}
 
 func TestResolveWorkingRootDefaultsToEmptyCurrentDirectory(t *testing.T) {
 	original, err := os.Getwd()

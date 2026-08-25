@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 
 func main() {
 	root := flag.String("root", "", "working directory; defaults to the current directory (project tools validate .mss contracts when called)")
+	frontendRegistry := flag.String("contributor-npm-registry", "", "loopback npm registry override for contributor qualification")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 	if *showVersion {
@@ -31,10 +33,18 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
-	server := &mcp.Server{Root: resolvedRoot, Stderr: os.Stderr}
+	server := newMCPServer(resolvedRoot, *frontendRegistry, os.Stderr)
 	if err := server.Serve(ctx, os.Stdin, os.Stdout); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+}
+
+func newMCPServer(root, frontendRegistry string, stderr io.Writer) *mcp.Server {
+	return &mcp.Server{
+		Root:                           root,
+		Stderr:                         stderr,
+		ContributorFrontendRegistryURL: frontendRegistry,
 	}
 }
 
