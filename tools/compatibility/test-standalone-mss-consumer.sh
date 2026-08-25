@@ -263,13 +263,36 @@ for module, source_prefix in modules:
         if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
             continue
         paths.append(relative)
+    inherited_license = False
+    repository_license = repository / 'LICENSE'
+    if source_prefix and 'LICENSE' not in paths:
+        try:
+            repository_license_mode = repository_license.lstat().st_mode
+        except FileNotFoundError:
+            repository_license_mode = 0
+        if stat.S_ISREG(repository_license_mode):
+            # cmd/go injects the repository-root LICENSE into a module in a
+            # subdirectory when that module has no top-level LICENSE.
+            paths.append('LICENSE')
+            inherited_license = True
     module_prefix = f'{module}@{version}/'
-    with zipfile.ZipFile(destination / f'{version}.zip', 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+    archive_path = destination / f'{version}.zip'
+    with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         for relative in sorted(paths):
             info = zipfile.ZipInfo(module_prefix + relative)
             info.date_time = (2026, 1, 1, 0, 0, 0)
             info.external_attr = 0o644 << 16
-            archive.writestr(info, (source / relative).read_bytes())
+            file_source = (
+                repository_license
+                if inherited_license and relative == 'LICENSE'
+                else source / relative
+            )
+            archive.writestr(info, file_source.read_bytes())
+    if inherited_license:
+        with zipfile.ZipFile(archive_path) as archive:
+            inherited = archive.read(module_prefix + 'LICENSE')
+        if inherited != repository_license.read_bytes():
+            raise SystemExit(f'{module} did not inherit the repository LICENSE')
 PY
 
   GOWORK=off GOPROXY="file://${proxy_root},https://proxy.golang.org" GOSUMDB=off \
