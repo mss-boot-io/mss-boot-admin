@@ -75,6 +75,16 @@ def write_file_module_proxy(proxy_root, module, version, source_root):
             ):
                 continue
             archive.write(source, archive_prefix + relative.as_posix())
+        module_license = source_root / "LICENSE"
+        repository_license = REPOSITORY_ROOT / "LICENSE"
+        if (
+            source_root != REPOSITORY_ROOT
+            and not module_license.is_file()
+            and repository_license.is_file()
+        ):
+            archive.writestr(
+                archive_prefix + "LICENSE", repository_license.read_bytes()
+            )
 
 
 class WorkflowGovernanceTest(unittest.TestCase):
@@ -724,20 +734,50 @@ class WorkflowGovernanceTest(unittest.TestCase):
             for step in steps
             if step.get("name") == "Verify final Framework and Admin checksum parity"
         )
+        self.assertEqual(parity["id"], "candidate-checksums")
         self.assertIn("verify_framework_admin_checksum.py", parity["run"])
         self.assertIn('--version "${ADMIN_VERSION}"', parity["run"])
+        for required in (
+            ".sum",
+            ".goModSum",
+            ".adminSum",
+            ".adminGoModSum",
+            'echo "framework_sum=${framework_sum}"',
+            'echo "framework_go_mod_sum=${framework_go_mod_sum}"',
+            'echo "admin_sum=${admin_sum}"',
+            'echo "admin_go_mod_sum=${admin_go_mod_sum}"',
+            "Framework Module Sum:",
+            "Framework GoModSum:",
+            "Admin Module Sum:",
+            "Admin GoModSum:",
+        ):
+            self.assertIn(required, parity["run"])
         self.assertLess(steps.index(parity), steps.index(next(
             step for step in steps if step.get("name") == "Qualify the independent Admin module"
         )))
-        probe = next(
+        probe_step = next(
             step
             for step in steps
             if step.get("name")
             == "Probe the tagged Admin module from a clean external workspace"
-        )["run"]
+        )
+        probe = probe_step["run"]
+        self.assertEqual(
+            probe_step["env"]["ADMIN_SUM"],
+            "${{ steps.candidate-checksums.outputs.admin_sum }}",
+        )
+        self.assertEqual(
+            probe_step["env"]["ADMIN_GO_MOD_SUM"],
+            "${{ steps.candidate-checksums.outputs.admin_go_mod_sum }}",
+        )
         self.assertIn("GOPROXY=direct", probe)
         self.assertIn("GOWORK=off", probe)
         self.assertIn(".Origin.Hash == $commit", probe)
+        self.assertIn('--arg sum "${ADMIN_SUM}"', probe)
+        self.assertIn('--arg go_mod_sum "${ADMIN_GO_MOD_SUM}"', probe)
+        self.assertIn(".Sum == $sum", probe)
+        self.assertIn(".GoModSum == $go_mod_sum", probe)
+        self.assertNotIn('startswith("h1:")', probe)
         self.assertIn("application.ExecuteArgsContext(context.Background(), args)", probe)
         self.assertIn('{"--help"}', probe)
         self.assertIn('{"server", "--help"}', probe)
@@ -782,6 +822,14 @@ class WorkflowGovernanceTest(unittest.TestCase):
                 fixture_version,
                 REPOSITORY_ROOT / "admin",
             )
+            admin_archive = proxy_dir.joinpath(
+                *module.split("/"), "@v", f"{fixture_version}.zip"
+            )
+            with zipfile.ZipFile(admin_archive) as archive:
+                self.assertEqual(
+                    archive.read(f"{module}@{fixture_version}/LICENSE"),
+                    (REPOSITORY_ROOT / "LICENSE").read_bytes(),
+                )
             go_mod = (
                 "module example.com/mss-admin-release-probe-governance\n\n"
                 "go 1.26.6\n\n"
@@ -846,9 +894,46 @@ class WorkflowGovernanceTest(unittest.TestCase):
         qualification = next(
             step for step in steps if step.get("name") == "Test framework module"
         )
+        probe_step = next(
+            step
+            for step in steps
+            if step.get("name")
+            == "Probe the published module from a clean external workspace"
+        )
+        self.assertEqual(parity["id"], "candidate-checksums")
         self.assertIn("verify_framework_admin_checksum.py", parity["run"])
         self.assertIn('--version "${FRAMEWORK_VERSION}"', parity["run"])
+        for required in (
+            ".sum",
+            ".goModSum",
+            ".adminSum",
+            ".adminGoModSum",
+            'echo "framework_sum=${framework_sum}"',
+            'echo "framework_go_mod_sum=${framework_go_mod_sum}"',
+            'echo "admin_sum=${admin_sum}"',
+            'echo "admin_go_mod_sum=${admin_go_mod_sum}"',
+            "Framework Module Sum:",
+            "Framework GoModSum:",
+            "Admin Module Sum:",
+            "Admin GoModSum:",
+        ):
+            self.assertIn(required, parity["run"])
         self.assertLess(steps.index(parity), steps.index(qualification))
+        self.assertEqual(
+            probe_step["env"]["FRAMEWORK_SUM"],
+            "${{ steps.candidate-checksums.outputs.framework_sum }}",
+        )
+        self.assertEqual(
+            probe_step["env"]["FRAMEWORK_GO_MOD_SUM"],
+            "${{ steps.candidate-checksums.outputs.framework_go_mod_sum }}",
+        )
+        probe = probe_step["run"]
+        self.assertIn(".Origin.Hash == $commit", probe)
+        self.assertIn('--arg sum "${FRAMEWORK_SUM}"', probe)
+        self.assertIn('--arg go_mod_sum "${FRAMEWORK_GO_MOD_SUM}"', probe)
+        self.assertIn(".Sum == $sum", probe)
+        self.assertIn(".GoModSum == $go_mod_sum", probe)
+        self.assertNotIn('startswith("h1:")', probe)
 
     def test_root_publication_requires_the_complete_distribution_train(self):
         workflow = self.workflows["release.yml"]
