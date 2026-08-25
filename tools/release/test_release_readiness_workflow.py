@@ -207,6 +207,7 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
                 ". bash tools/compatibility/test-standalone-mss-consumer.sh",
                 ". bash tools/compatibility/test-standalone-mss-consumer.sh --lifecycle",
                 ". bash tools/compatibility/test-standalone-mss-consumer.sh --upgrade",
+                ". bash tools/compatibility/test-thin-host-external-consumer.sh",
                 ". python3 tools/docs/check_current_docs.py",
                 ". corepack pnpm@9.15.9 --dir docs build",
             },
