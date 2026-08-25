@@ -239,8 +239,8 @@ spec:
       idempotent: true
 
     framework-admin-checksum-verify:
-      command: python3 tools/release/verify_framework_admin_checksum.py --version v1.3.3
-      description: Generate a replace-free local Go proxy from every tracked file in the final Framework tree, calculate canonical Module and GoMod sums with Go, and require exact parity with the unique Admin metadata entries.
+      command: python3 tools/release/verify_framework_admin_checksum.py --version v1.3.3 [--write]
+      description: Fail closed on source drift, generate replace-free local Go proxies from exact HEAD blobs, and verify or deterministically refresh the approved Framework-to-Admin-to-Thin-Host checksum metadata.
       outputFormats: [json]
       category: release
       idempotent: true

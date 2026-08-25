@@ -1,8 +1,16 @@
 # Admin module boundary and coverage contracts
 
-- Status: Accepted
+- Status: Amended
 - Date: 2026-08-04
 - Scope: repository Go modules, compatibility verification, and coverage policy
+
+## v1.3.3 amendment
+
+The package-first v1.3.3 release ends the transitional sibling replacement in
+`admin/go.mod`. The Admin module now requires the exact stable Framework version
+without a module-local `replace`. Only the repository `go.work` may carry the
+exact candidate replacement for Foundation contributor development; generated
+Thin Hosts and external consumers must resolve the published modules.
 
 ## Context
 
@@ -32,7 +40,10 @@ The repository contains three explicit Go modules:
 └── mss-boot/go.mod
 ```
 
-`go.work` composes the three modules for repository development. The Admin module keeps an explicit sibling replacement for `mss-boot` until a stable nested framework tag is published and consumed independently.
+`go.work` composes the three modules for repository development. Before the
+v1.3.3 amendment, the Admin module temporarily kept an explicit sibling
+replacement for `mss-boot` while the first stable nested Framework publication
+path was being established.
 
 Dependency direction is:
 

@@ -4,14 +4,18 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
+import tarfile
 import tempfile
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import NamedTuple
 
 
 FRAMEWORK_MODULE = "github.com/mss-boot-io/mss-boot-admin/mss-boot"
@@ -21,6 +25,14 @@ VERSION_RE = re.compile(r"^v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9
 
 class ChecksumContractError(ValueError):
     pass
+
+
+class GitCandidateFile(NamedTuple):
+    """One canonical module file read from the exact HEAD Git tree."""
+
+    relative: PurePosixPath
+    content: bytes
+    mode: int
 
 
 def _run(
@@ -44,56 +56,124 @@ def _run(
         raise ChecksumContractError(f"cannot execute {' '.join(argv)}: {exc}") from exc
 
 
-def _tracked_module_files(
+def _run_bytes(argv: list[str], *, cwd: Path) -> subprocess.CompletedProcess[bytes]:
+    try:
+        return subprocess.run(
+            argv,
+            cwd=cwd,
+            check=False,
+            capture_output=True,
+            timeout=300,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ChecksumContractError(f"cannot execute {' '.join(argv)}: {exc}") from exc
+
+
+def _ensure_clean_paths(
     repository_root: Path,
-    source_root: Path,
+    paths: list[str],
     *,
-    label: str = "Framework",
-) -> list[Path]:
-    relative_root = source_root.relative_to(repository_root).as_posix()
-    tracked = _run(
-        ["git", "ls-files", "-z", "--", relative_root],
-        cwd=repository_root,
-    )
-    if tracked.returncode != 0:
-        raise ChecksumContractError(
-            f"cannot inventory tracked {label} files: {tracked.stderr.strip()}"
-        )
-    untracked = _run(
-        ["git", "ls-files", "--others", "--exclude-standard", "--", relative_root],
-        cwd=repository_root,
-    )
-    if untracked.returncode != 0:
-        raise ChecksumContractError(
-            f"cannot inventory untracked {label} files: {untracked.stderr.strip()}"
-        )
-    if untracked.stdout.strip():
-        raise ChecksumContractError(
-            f"untracked {label} files are excluded from the candidate module: "
-            + ", ".join(untracked.stdout.splitlines())
-        )
-
-    files = [repository_root / value for value in tracked.stdout.split("\0") if value]
-    if not files:
-        raise ChecksumContractError(f"the {label} candidate contains no tracked files")
-    return files
-
-
-def _module_archive_files(source_root: Path, sources: list[Path]) -> list[Path]:
-    nested_modules = {
-        source.parent.relative_to(source_root)
-        for source in sources
-        if source.name == "go.mod" and source.parent != source_root
-    }
-    selected: list[Path] = []
-    for source in sources:
-        try:
-            relative = source.relative_to(source_root)
-        except ValueError as exc:
+    label: str,
+) -> None:
+    commands = [
+        ["git", "diff", "--cached", "--name-only", "-z", "HEAD", "--", *paths],
+        ["git", "diff", "--name-only", "-z", "--ignore-cr-at-eol", "--", *paths],
+        ["git", "ls-files", "--others", "--exclude-standard", "-z", "--", *paths],
+    ]
+    changed: list[str] = []
+    for argv in commands:
+        result = _run(argv, cwd=repository_root)
+        if result.returncode != 0:
             raise ChecksumContractError(
-                f"candidate file escapes the Framework root: {source}"
-            ) from exc
-        if source.is_symlink() or not source.is_file():
+                f"cannot verify the {label} Git candidate: {result.stderr.strip()}"
+            )
+        changed.extend(value for value in result.stdout.split("\0") if value)
+    if changed:
+        raise ChecksumContractError(
+            f"uncommitted {label} candidate drift is not allowed: "
+            + ", ".join(sorted(set(changed)))
+        )
+
+
+def _git_module_candidate(
+    repository_root: Path,
+    *,
+    source_directory: str,
+    label: str,
+    verify_clean: bool = True,
+) -> list[GitCandidateFile]:
+    """Read module inputs from HEAD after proving the index/worktree is equivalent."""
+
+    if verify_clean:
+        _ensure_clean_paths(
+            repository_root,
+            [source_directory],
+            label=label,
+        )
+    archive_result = _run_bytes(
+        ["git", "archive", "--format=tar", "HEAD", "--", source_directory],
+        cwd=repository_root,
+    )
+    if archive_result.returncode != 0:
+        raise ChecksumContractError(
+            f"cannot read the exact HEAD {label} candidate: "
+            + archive_result.stderr.decode("utf-8", errors="replace").strip()
+        )
+    prefix = source_directory.rstrip("/") + "/"
+    try:
+        with tarfile.open(fileobj=io.BytesIO(archive_result.stdout), mode="r:") as archive:
+            result: list[GitCandidateFile] = []
+            for member in archive.getmembers():
+                if member.isdir() or not member.name.startswith(prefix):
+                    continue
+                relative = PurePosixPath(member.name[len(prefix) :])
+                if member.issym():
+                    content = b""
+                    mode = stat.S_IFLNK | member.mode
+                elif member.isfile():
+                    extracted = archive.extractfile(member)
+                    if extracted is None:
+                        raise ChecksumContractError(
+                            f"cannot read archived {label} file: {member.name}"
+                        )
+                    content = extracted.read()
+                    mode = stat.S_IFREG | member.mode
+                else:
+                    continue
+                result.append(
+                    GitCandidateFile(
+                        relative=relative,
+                        content=content,
+                        mode=mode,
+                    )
+                )
+    except (OSError, tarfile.TarError) as exc:
+        raise ChecksumContractError(
+            f"cannot decode the exact HEAD {label} candidate: {exc}"
+        ) from exc
+    if not result:
+        raise ChecksumContractError(f"the {label} candidate contains no tracked files")
+    return result
+
+
+def _module_archive_files(
+    sources: list[GitCandidateFile],
+) -> list[GitCandidateFile]:
+    nested_modules = {
+        source.relative.parent
+        for source in sources
+        if stat.S_ISREG(source.mode)
+        and source.relative.name == "go.mod"
+        and source.relative.parent != PurePosixPath(".")
+    }
+    selected: list[GitCandidateFile] = []
+    for source in sources:
+        relative = source.relative
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ChecksumContractError(
+                f"candidate file escapes the module root: {relative}"
+            )
+        if stat.S_ISLNK(source.mode):
             continue
         if "vendor" in relative.parts:
             continue
@@ -102,9 +182,9 @@ def _module_archive_files(source_root: Path, sources: list[Path]) -> list[Path]:
         if any(relative == nested or nested in relative.parents for nested in nested_modules):
             continue
         selected.append(source)
-    if not any(path.name == "go.mod" and path.parent == source_root for path in selected):
-        raise ChecksumContractError("the Framework candidate does not contain its root go.mod")
-    return sorted(selected, key=lambda path: path.relative_to(source_root).as_posix())
+    if not any(source.relative == PurePosixPath("go.mod") for source in selected):
+        raise ChecksumContractError("the candidate does not contain its root go.mod")
+    return sorted(selected, key=lambda source: source.relative.as_posix())
 
 
 def _write_file_module_proxy(
@@ -112,8 +192,7 @@ def _write_file_module_proxy(
     *,
     module: str,
     version: str,
-    source_root: Path,
-    sources: list[Path],
+    sources: list[GitCandidateFile],
 ) -> int:
     version_root = proxy_root.joinpath(*module.split("/"), "@v")
     version_root.mkdir(parents=True, exist_ok=True)
@@ -122,9 +201,13 @@ def _write_file_module_proxy(
         json.dumps({"Version": version, "Time": "1980-01-01T00:00:00Z"}) + "\n",
         encoding="utf-8",
     )
-    (version_root / f"{version}.mod").write_bytes((source_root / "go.mod").read_bytes())
-
-    selected = _module_archive_files(source_root, sources)
+    selected = _module_archive_files(sources)
+    root_go_mod = next(
+        source.content
+        for source in selected
+        if source.relative == PurePosixPath("go.mod")
+    )
+    (version_root / f"{version}.mod").write_bytes(root_go_mod)
     prefix = f"{module}@{version}/"
     with zipfile.ZipFile(
         version_root / f"{version}.zip",
@@ -132,8 +215,12 @@ def _write_file_module_proxy(
         compression=zipfile.ZIP_DEFLATED,
     ) as archive:
         for source in selected:
-            relative = source.relative_to(source_root).as_posix()
-            archive.write(source, prefix + relative)
+            info = zipfile.ZipInfo(prefix + source.relative.as_posix())
+            info.date_time = (1980, 1, 1, 0, 0, 0)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            executable = bool(source.mode & 0o111)
+            info.external_attr = ((0o100755 if executable else 0o100644) << 16)
+            archive.writestr(info, source.content)
     return len(selected)
 
 
@@ -194,17 +281,21 @@ def _calculate_module_candidate_sums(
     label: str,
     version: str,
     go_command: str = "go",
+    sources: list[GitCandidateFile] | None = None,
 ) -> tuple[str, str, int]:
     repository_root = repository_root.resolve()
-    source_root = repository_root / source_directory
-    sources = _tracked_module_files(repository_root, source_root, label=label)
+    if sources is None:
+        sources = _git_module_candidate(
+            repository_root,
+            source_directory=source_directory,
+            label=label,
+        )
     with tempfile.TemporaryDirectory(prefix=f"mss-{label.lower()}-file-proxy-") as directory:
         proxy_root = Path(directory)
         file_count = _write_file_module_proxy(
             proxy_root,
             module=module,
             version=version,
-            source_root=source_root,
             sources=sources,
         )
         module_sum, go_mod_sum = _download_candidate_sums(
@@ -373,6 +464,263 @@ def _recorded_sums(admin_go_sum: Path, *, version: str) -> tuple[str, str]:
     )
 
 
+def _updated_go_sum(
+    original: bytes,
+    *,
+    module: str,
+    version: str,
+    module_sum: str,
+    go_mod_sum: str,
+    label: str,
+) -> bytes:
+    try:
+        lines = original.decode("utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        raise ChecksumContractError(f"{label} is not UTF-8") from exc
+    replacements = {
+        version: module_sum,
+        version + "/go.mod": go_mod_sum,
+    }
+    matches = {key: 0 for key in replacements}
+    updated: list[str] = []
+    for line in lines:
+        fields = line.split()
+        if len(fields) == 3 and fields[0] == module and fields[1] in replacements:
+            key = fields[1]
+            matches[key] += 1
+            updated.append(f"{module} {key} {replacements[key]}")
+        else:
+            updated.append(line)
+    for key, count in matches.items():
+        if count != 1:
+            raise ChecksumContractError(
+                f"{label} must contain exactly one {module} {key} entry"
+            )
+    return ("\n".join(updated) + "\n").encode("utf-8")
+
+
+def _updated_test_constants(
+    original: bytes,
+    *,
+    framework_sum: str,
+    framework_go_mod_sum: str,
+    admin_sum: str,
+    admin_go_mod_sum: str,
+) -> bytes:
+    text = original.decode("utf-8")
+    values = {
+        "EXPECTED_FRAMEWORK_SUM": framework_sum,
+        "EXPECTED_FRAMEWORK_GO_MOD_SUM": framework_go_mod_sum,
+        "EXPECTED_ADMIN_SUM": admin_sum,
+        "EXPECTED_ADMIN_GO_MOD_SUM": admin_go_mod_sum,
+    }
+    for name, value in values.items():
+        text, count = re.subn(
+            rf'^{name} = "[^"]+"$',
+            f'{name} = "{value}"',
+            text,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        if count != 1:
+            raise ChecksumContractError(
+                f"checksum test must define {name} exactly once"
+            )
+    return text.encode("utf-8")
+
+
+def _head_file_bytes(repository_root: Path, relative: str) -> bytes:
+    result = _run_bytes(["git", "show", f"HEAD:{relative}"], cwd=repository_root)
+    if result.returncode != 0:
+        raise ChecksumContractError(
+            f"cannot read exact HEAD metadata {relative}: "
+            + result.stderr.decode("utf-8", errors="replace").strip()
+        )
+    return result.stdout
+
+
+def _write_if_changed(path: Path, content: bytes) -> bool:
+    if path.read_bytes() == content:
+        return False
+    mode = path.stat().st_mode
+    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as temporary:
+        temporary.write(content)
+        temporary_path = Path(temporary.name)
+    try:
+        os.chmod(temporary_path, stat.S_IMODE(mode))
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+    return True
+
+
+def _verify_update_target_state(
+    repository_root: Path,
+    *,
+    relative: str,
+    expected: bytes,
+) -> None:
+    current = (repository_root / relative).read_bytes()
+    committed = _head_file_bytes(repository_root, relative)
+    # The approved targets are text files governed by the repository's LF
+    # attributes. A Windows checkout may still expose CRLF bytes, so compare
+    # their Git-equivalent text before deciding that the user changed them.
+    normalized_current = current.replace(b"\r\n", b"\n")
+    if normalized_current not in (
+        committed.replace(b"\r\n", b"\n"),
+        expected.replace(b"\r\n", b"\n"),
+    ):
+        raise ChecksumContractError(
+            f"refusing to overwrite unrelated drift in updater target {relative}"
+        )
+
+
+def refresh_repository_metadata(
+    repository_root: Path,
+    *,
+    version: str,
+    go_command: str = "go",
+) -> dict[str, object]:
+    """Deterministically refresh the four checksum layers from exact HEAD blobs."""
+
+    if not VERSION_RE.fullmatch(version):
+        raise ChecksumContractError("version must be an exact stable vX.Y.Z value")
+    repository_root = repository_root.resolve()
+    _ensure_clean_paths(repository_root, ["mss-boot"], label="Framework")
+    _ensure_clean_paths(
+        repository_root,
+        ["admin", ":(exclude)admin/go.sum"],
+        label="Admin source",
+    )
+    _ensure_clean_paths(
+        repository_root,
+        ["templates/application", ":(exclude)templates/application/go.sum"],
+        label="Thin Host source",
+    )
+    _ensure_clean_paths(repository_root, ["go.work"], label="workspace")
+
+    required_version = _required_framework_version(
+        repository_root / "admin" / "go.mod",
+        go_command=go_command,
+    )
+    if required_version != version:
+        raise ChecksumContractError(
+            f"Admin requires Framework {required_version}, not candidate {version}"
+        )
+    _verify_workspace_replacement(
+        repository_root,
+        version=version,
+        go_command=go_command,
+    )
+
+    framework_sources = _git_module_candidate(
+        repository_root,
+        source_directory="mss-boot",
+        label="Framework",
+        verify_clean=False,
+    )
+    admin_sources = _git_module_candidate(
+        repository_root,
+        source_directory="admin",
+        label="Admin",
+        verify_clean=False,
+    )
+    framework_sum, framework_go_mod_sum, framework_file_count = (
+        _calculate_module_candidate_sums(
+            repository_root,
+            module=FRAMEWORK_MODULE,
+            source_directory="mss-boot",
+            label="Framework",
+            version=version,
+            go_command=go_command,
+            sources=framework_sources,
+        )
+    )
+    committed_admin_go_sum = next(
+        source.content
+        for source in admin_sources
+        if source.relative == PurePosixPath("go.sum")
+    )
+    updated_admin_go_sum = _updated_go_sum(
+        committed_admin_go_sum,
+        module=FRAMEWORK_MODULE,
+        version=version,
+        module_sum=framework_sum,
+        go_mod_sum=framework_go_mod_sum,
+        label="admin/go.sum",
+    )
+    updated_admin_sources = [
+        GitCandidateFile(source.relative, updated_admin_go_sum, source.mode)
+        if source.relative == PurePosixPath("go.sum")
+        else source
+        for source in admin_sources
+    ]
+    admin_sum, admin_go_mod_sum, admin_file_count = _calculate_module_candidate_sums(
+        repository_root,
+        module=ADMIN_MODULE,
+        source_directory="admin",
+        label="Admin",
+        version=version,
+        go_command=go_command,
+        sources=updated_admin_sources,
+    )
+
+    template_relative = "templates/application/go.sum"
+    updated_template_go_sum = _updated_go_sum(
+        _head_file_bytes(repository_root, template_relative),
+        module=FRAMEWORK_MODULE,
+        version=version,
+        module_sum=framework_sum,
+        go_mod_sum=framework_go_mod_sum,
+        label=template_relative,
+    )
+    updated_template_go_sum = _updated_go_sum(
+        updated_template_go_sum,
+        module=ADMIN_MODULE,
+        version=version,
+        module_sum=admin_sum,
+        go_mod_sum=admin_go_mod_sum,
+        label=template_relative,
+    )
+    test_relative = "tools/release/test_verify_framework_admin_checksum.py"
+    updated_test = _updated_test_constants(
+        _head_file_bytes(repository_root, test_relative),
+        framework_sum=framework_sum,
+        framework_go_mod_sum=framework_go_mod_sum,
+        admin_sum=admin_sum,
+        admin_go_mod_sum=admin_go_mod_sum,
+    )
+
+    outputs = {
+        "admin/go.sum": updated_admin_go_sum,
+        template_relative: updated_template_go_sum,
+        test_relative: updated_test,
+    }
+    for relative, content in outputs.items():
+        _verify_update_target_state(
+            repository_root,
+            relative=relative,
+            expected=content,
+        )
+    updated_files = [
+        relative
+        for relative, content in outputs.items()
+        if _write_if_changed(repository_root / relative, content)
+    ]
+    return {
+        "success": True,
+        "write": True,
+        "version": version,
+        "sum": framework_sum,
+        "goModSum": framework_go_mod_sum,
+        "candidateFiles": framework_file_count,
+        "adminSum": admin_sum,
+        "adminGoModSum": admin_go_mod_sum,
+        "adminCandidateFiles": admin_file_count,
+        "updatedFiles": updated_files,
+    }
+
+
 def verify_repository(
     repository_root: Path,
     *,
@@ -382,6 +730,12 @@ def verify_repository(
     if not VERSION_RE.fullmatch(version):
         raise ChecksumContractError("version must be an exact stable vX.Y.Z value")
     repository_root = repository_root.resolve()
+    _ensure_clean_paths(
+        repository_root,
+        ["templates/application"],
+        label="Thin Host metadata",
+    )
+    _ensure_clean_paths(repository_root, ["go.work"], label="workspace")
     required_version = _required_framework_version(
         repository_root / "admin" / "go.mod",
         go_command=go_command,
@@ -413,8 +767,25 @@ def verify_repository(
             "Admin Framework go.mod checksum does not match the final candidate tree: "
             f"recorded {recorded_go_mod_sum}, calculated {candidate_go_mod_sum}"
         )
+    template_go_sum = repository_root / "templates" / "application" / "go.sum"
+    template_framework_sum, template_framework_go_mod_sum = _recorded_module_sums(
+        template_go_sum,
+        module=FRAMEWORK_MODULE,
+        version=version,
+        label="templates/application/go.sum",
+    )
+    if template_framework_sum != candidate_sum:
+        raise ChecksumContractError(
+            "Thin Host Framework Module checksum does not match the final candidate tree: "
+            f"recorded {template_framework_sum}, calculated {candidate_sum}"
+        )
+    if template_framework_go_mod_sum != candidate_go_mod_sum:
+        raise ChecksumContractError(
+            "Thin Host Framework go.mod checksum does not match the final candidate tree: "
+            f"recorded {template_framework_go_mod_sum}, calculated {candidate_go_mod_sum}"
+        )
     template_admin_sum, template_admin_go_mod_sum = _recorded_module_sums(
-        repository_root / "templates" / "application" / "go.sum",
+        template_go_sum,
         module=ADMIN_MODULE,
         version=version,
         label="templates/application/go.sum",
@@ -456,17 +827,29 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--root", type=Path, default=Path("."))
     parser.add_argument("--version", required=True)
     parser.add_argument("--go", default="go", dest="go_command")
+    parser.add_argument(
+        "--write",
+        action="store_true",
+        help="refresh only the approved checksum metadata and test constants",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        result = verify_repository(
-            args.root,
-            version=args.version,
-            go_command=args.go_command,
-        )
+        if args.write:
+            result = refresh_repository_metadata(
+                args.root,
+                version=args.version,
+                go_command=args.go_command,
+            )
+        else:
+            result = verify_repository(
+                args.root,
+                version=args.version,
+                go_command=args.go_command,
+            )
     except (ChecksumContractError, OSError) as exc:
         print(f"Framework/Admin checksum contract failed: {exc}", file=sys.stderr)
         return 1
