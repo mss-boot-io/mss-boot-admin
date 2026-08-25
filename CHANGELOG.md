@@ -55,6 +55,9 @@ attached to the exact merged-main commit.
 - Recalibrate the complete frontend gzip JavaScript budget from 900 KiB to
   905 KiB against measured 899.96 KiB and 900.47 KiB before/after release builds;
   entry and largest-chunk limits remain unchanged.
+- Treat Linux procfs `ESRCH` during an already verified stop sequence as a
+  completed process exit while continuing to reject PID reuse and unverifiable
+  identities; keep the frontend lockfile deduplicated under the release pnpm.
 - Keep the root command module free of `replace` and `exclude` directives so
   standard `go install .../cmd/mss@v1.3.3` and `mss-mcp` work outside the
   Foundation checkout.

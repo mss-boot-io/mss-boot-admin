@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"syscall"
 )
 
 // processStartToken returns the kernel starttime field, measured in clock
@@ -22,12 +23,18 @@ func processStartToken(pid int) (string, error) {
 	}
 	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if linuxProcessNotRunningError(err) {
 			return "", errProcessNotRunning
 		}
 		return "", fmt.Errorf("read process %d start identity: %w", pid, err)
 	}
 	return linuxProcessStartToken(strings.TrimSpace(string(bootIDData)), data)
+}
+
+func linuxProcessNotRunningError(err error) bool {
+	// procfs can report either ENOENT or ESRCH when the target exits between
+	// identity checks. Both prove that this PID no longer names a live process.
+	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH)
 }
 
 func linuxProcessStartToken(bootID string, stat []byte) (string, error) {
