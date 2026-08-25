@@ -16,6 +16,8 @@ DOCS_ROOT = Path("docs/docs")
 CORE_CURRENT_FILES = (
     Path("README.md"),
     Path("README.zh-CN.md"),
+    Path("CONTRIBUTING.md"),
+    Path("MONOREPO.md"),
     Path("admin/README.md"),
     Path("mss-boot/README.md"),
     Path("mss-boot/README.Zh-cn.md"),
@@ -94,8 +96,14 @@ EXACT_SECTION_CONTENT = {
 REMOVED_TREES = (
     Path("aigc/prompts"),
     Path("docs/aigc"),
+    Path("docs/.github"),
     Path("mss-boot/aigc"),
+    Path("mss-boot/.github"),
     Path("docs/docs/aigc"),
+)
+
+REMOVED_PATHS = (
+    Path("mss-boot/core/README.md"),
 )
 
 REMOVED_ADMIN_PAGES = {
@@ -433,6 +441,78 @@ def package_and_container_contract_errors(root: Path) -> list[str]:
     return errors
 
 
+def repository_context_errors(root: Path) -> list[str]:
+    """Reject stale monorepo, contributor, release, and user-visible context."""
+
+    errors: list[str] = []
+    contributor = root / "CONTRIBUTING.md"
+    if not contributor.is_file():
+        errors.append("missing Foundation contributor contract: CONTRIBUTING.md")
+    else:
+        text = contributor.read_text(encoding="utf-8")
+        for marker in (
+            "v1.3.3 快速开始",
+            "本文只适用于修改 Foundation 本身的贡献者",
+            "go run ./cmd/mss context",
+            "go run ./cmd/mss verify --changed",
+            "corepack pnpm@10.34.5 --dir web/antd-v6 run start:dev",
+        ):
+            if marker not in text:
+                errors.append(f"CONTRIBUTING.md: missing contributor boundary {marker}")
+        for label, pattern in {
+            "repository-wide gofmt": r"(?m)^\s*gofmt\s+-w\s+\.\s*$",
+            "uncontracted log file": r"(?m)^\s*tail\s+-f\s+logs/app\.log\s*$",
+        }.items():
+            if re.search(pattern, text):
+                errors.append(f"CONTRIBUTING.md: obsolete {label} command is not allowed")
+
+    monorepo = root / "MONOREPO.md"
+    if not monorepo.is_file():
+        errors.append("missing monorepo release contract: MONOREPO.md")
+    else:
+        normalized = " ".join(monorepo.read_text(encoding="utf-8").split())
+        expected_order = (
+            "The fail-closed v1.3.3 publication order is Framework, Admin, "
+            "Admin Web, protected Root tag promotion, Root release, Docs, and "
+            "finally npm Trusted Publishing."
+        )
+        if expected_order not in normalized:
+            errors.append("MONOREPO.md: v1.3.3 publication order is incomplete or stale")
+        if "After this migration is merged" in normalized:
+            errors.append("MONOREPO.md: completed import must not remain future work")
+
+    layout = root / "web/antd-v6/src/shared/layout/LayoutChrome.tsx"
+    if not layout.is_file():
+        errors.append(f"missing Admin Web layout: {layout.relative_to(root)}")
+    elif 'href="https://github.com/mss-boot-io/mss-boot"' in layout.read_text(
+        encoding="utf-8"
+    ):
+        errors.append(
+            "web/antd-v6/src/shared/layout/LayoutChrome.tsx: retired Framework "
+            "repository must not be exposed in the shipped UI"
+        )
+
+    changelog = root / "CHANGELOG.md"
+    if not changelog.is_file():
+        errors.append("missing release history: CHANGELOG.md")
+    else:
+        match = re.search(
+            r"(?ms)^## \[Unreleased\]\s*(.*?)(?=^## \[)",
+            changelog.read_text(encoding="utf-8"),
+        )
+        if not match:
+            errors.append("CHANGELOG.md: missing bounded Unreleased section")
+        else:
+            body = match.group(1)
+            if "No unreleased changes are recorded." not in body:
+                errors.append("CHANGELOG.md: Unreleased state must be explicit")
+            if re.search(r"(?m)^\s*-\s+", body):
+                errors.append(
+                    "CHANGELOG.md: Unreleased cannot list changes while declaring none"
+                )
+    return errors
+
+
 def route_exists(root: Path, route: str) -> bool:
     clean = unquote(route.split("#", 1)[0].split("?", 1)[0]).strip("/")
     if not clean:
@@ -518,6 +598,10 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         if absolute.is_dir() and any(path.is_file() for path in absolute.rglob("*")):
             errors.append(f"obsolete context tree must remain absent: {tree}")
 
+    for path in REMOVED_PATHS:
+        if (root / path).exists():
+            errors.append(f"obsolete context path must remain absent: {path}")
+
     admin_root = root / "docs/docs/admin"
     for name in sorted(REMOVED_ADMIN_PAGES):
         if (admin_root / name).exists():
@@ -549,6 +633,7 @@ def collect_errors(root: Path = ROOT) -> list[str]:
     errors.extend(mcp_contract_errors(root))
     errors.extend(public_skill_documentation_errors(root))
     errors.extend(package_and_container_contract_errors(root))
+    errors.extend(repository_context_errors(root))
 
     quick_start_titles: list[Path] = []
     for path in sorted((root / DOCS_ROOT).rglob("*.md")):

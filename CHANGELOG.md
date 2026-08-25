@@ -6,9 +6,6 @@ tag namespaces.
 
 ## [Unreleased]
 
-- Route immutable root-tag creation through the protected GitHub Actions promotion workflow after exact `pre-root` authority and all component Releases; every exact-tag root run now rechecks that attestation before candidate work.
-- Keep the root command module free of `replace` and `exclude` directives so standard `go install .../cmd/mss@v1.3.3` and `mss-mcp` work outside the Foundation checkout.
-
 No unreleased changes are recorded.
 
 ## [v1.3.3] - 2026-08-25
@@ -48,6 +45,13 @@ attached to the exact merged-main commit.
 
 ### Changed
 
+- Route immutable root-tag creation through the protected GitHub Actions
+  promotion workflow after exact `pre-root` authority and all component
+  Releases; every exact-tag root run rechecks that attestation before candidate
+  work.
+- Keep the root command module free of `replace` and `exclude` directives so
+  standard `go install .../cmd/mss@v1.3.3` and `mss-mcp` work outside the
+  Foundation checkout.
 - Make the package-first quick start the only adopter path; clone-based commands
   are confined to an explicitly labelled Foundation contributor workflow.
 - Rewrite the active documentation around the coordinated v1.3.3 Admin,

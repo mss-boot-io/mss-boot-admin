@@ -236,6 +236,67 @@ class CurrentDocsContractTest(unittest.TestCase):
             errors = check_current_docs.package_and_container_contract_errors(root)
             self.assertTrue(any("immutable digest" in error for error in errors))
 
+    def test_repository_context_rejects_stale_contributor_release_and_ui_text(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            contributor = root / "CONTRIBUTING.md"
+            contributor.write_text(
+                "v1.3.3 快速开始\n"
+                "本文只适用于修改 Foundation 本身的贡献者\n"
+                "go run ./cmd/mss context\n"
+                "go run ./cmd/mss verify --changed\n"
+                "corepack pnpm@10.34.5 --dir web/antd-v6 run start:dev\n",
+                encoding="utf-8",
+            )
+            monorepo = root / "MONOREPO.md"
+            monorepo.write_text(
+                "The fail-closed v1.3.3 publication order is Framework, Admin, "
+                "Admin Web, protected Root tag promotion, Root release, Docs, and "
+                "finally npm Trusted Publishing.\n",
+                encoding="utf-8",
+            )
+            layout = root / "web/antd-v6/src/shared/layout/LayoutChrome.tsx"
+            layout.parent.mkdir(parents=True)
+            layout.write_text(
+                'href="https://github.com/mss-boot-io/mss-boot-admin"\n',
+                encoding="utf-8",
+            )
+            changelog = root / "CHANGELOG.md"
+            changelog.write_text(
+                "## [Unreleased]\n\nNo unreleased changes are recorded.\n\n"
+                "## [v1.3.3]\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(check_current_docs.repository_context_errors(root), [])
+
+            contributor.write_text(
+                contributor.read_text(encoding="utf-8")
+                + "gofmt -w .\ntail -f logs/app.log\n",
+                encoding="utf-8",
+            )
+            monorepo.write_text(
+                "After this migration is merged, publish Root before Frontend.\n",
+                encoding="utf-8",
+            )
+            layout.write_text(
+                'href="https://github.com/mss-boot-io/mss-boot"\n',
+                encoding="utf-8",
+            )
+            changelog.write_text(
+                "## [Unreleased]\n\n- hidden change\n\n"
+                "No unreleased changes are recorded.\n\n## [v1.3.3]\n",
+                encoding="utf-8",
+            )
+            joined = "\n".join(
+                check_current_docs.repository_context_errors(root)
+            )
+            self.assertIn("repository-wide gofmt", joined)
+            self.assertIn("uncontracted log file", joined)
+            self.assertIn("publication order", joined)
+            self.assertIn("completed import", joined)
+            self.assertIn("retired Framework repository", joined)
+            self.assertIn("Unreleased cannot list changes", joined)
+
 
 if __name__ == "__main__":
     unittest.main()
