@@ -10,7 +10,7 @@ description: Thin Host 日常开发、配置、验证、部署与故障排查入
 # 使用指南
 
 本区不重复安装或建项目步骤；新项目统一从
-[v1.3.3 快速开始](/getting-started)进入。
+[v1.3.4 快速开始](/getting-started)进入。
 
 ## 日常路径
 

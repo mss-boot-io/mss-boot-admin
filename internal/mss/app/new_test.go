@@ -30,7 +30,7 @@ func TestGenerateApplicationUsesEmbeddedSourceInEmptyDirectory(t *testing.T) {
 	t.Cleanup(func() {
 		buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp = originalVersion, originalCommit, originalTimestamp
 	})
-	buildinfo.Version = "v1.3.3"
+	buildinfo.Version = "v1.3.4"
 	buildinfo.Commit = strings.Repeat("a", 40)
 	buildinfo.Timestamp = "2026-08-25T12:34:56Z"
 
@@ -50,7 +50,7 @@ func TestGenerateApplicationUsesEmbeddedSourceInEmptyDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generateApplication() error = %v", err)
 	}
-	if plan.Identities.Foundation.Version != "1.3.3" || plan.Destination != filepath.Join(working, "generated-admin") {
+	if plan.Identities.Foundation.Version != "1.3.4" || plan.Destination != filepath.Join(working, "generated-admin") {
 		t.Fatalf("standalone application plan = %#v", plan)
 	}
 	if _, err := os.Stat(filepath.Join(working, "generated-admin", "README.md")); err != nil {
@@ -95,7 +95,7 @@ func appFrontendRegistry(t *testing.T) string {
 	integrity := "sha512-" + strings.Repeat("A", 86) + "=="
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(writer, `{"name":"@mss-boot-io/admin-web","version":"1.3.3","dist":{"integrity":%q}}`, integrity)
+		_, _ = fmt.Fprintf(writer, `{"name":"@mss-boot-io/admin-web","version":"1.3.4","dist":{"integrity":%q}}`, integrity)
 	}))
 	t.Cleanup(server.Close)
 	return server.URL
@@ -107,7 +107,7 @@ func setAppReleaseBuild(t *testing.T) {
 	t.Cleanup(func() {
 		buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp = originalVersion, originalCommit, originalTimestamp
 	})
-	buildinfo.Version = "v1.3.3"
+	buildinfo.Version = "v1.3.4"
 	buildinfo.Commit = strings.Repeat("a", 40)
 	buildinfo.Timestamp = "2026-08-25T12:34:56Z"
 }

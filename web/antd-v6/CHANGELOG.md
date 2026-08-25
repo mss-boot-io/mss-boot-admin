@@ -8,7 +8,32 @@ and the root changelog, not as a current release surface.
 
 No unreleased changes are recorded.
 
+## [web/antd-v6/v1.3.4] - 2026-08-25
+
+Status: **coordinated v1.3.4 patch candidate**. This source-compatible release
+reissues the single Admin Web package from the repaired merged-main distribution
+commit. It does not move or overwrite the published v1.3.3 component tag or
+GitHub Release.
+
+### Changed
+
+- Qualify `@mss-boot-io/admin-web@1.3.4` as the exact frontend dependency for
+  a v1.3.4 Thin Host and keep the package-first development, lint, test, build,
+  route-composition, authorization, localization, and bundle contracts.
+- Retain one React 19 and Ant Design 6 runtime graph and the source-compatible
+  v1.3.3 frontend behavior while the complete distribution restarts under the
+  new patch identity.
+- Publish the official npmjs package only after Framework, Admin, Admin Web,
+  protected Root, and Docs evidence from the same commit is complete.
+
 ## [web/antd-v6/v1.3.3] - 2026-08-25
+
+Status: **published component / immutable partial train**. The Admin Web tag
+and GitHub Release resolve to
+`c00591f2a3edd0bec29bb1023bca8a230648107a`; the coordinated train stopped
+before Root and Docs, and `@mss-boot-io/admin-web@1.3.3` was never published to
+npmjs. The tag and Release remain unchanged. Complete package-first adoption
+uses v1.3.4.
 
 This source-compatible patch aligns the only supported Admin frontend package
 with the package-first v1.3.3 Distribution.

@@ -9,7 +9,7 @@ Work from the smallest reproducible failure toward the root cause. Do not mask a
 
 ## Command and layout context
 
-- In a Thin Host, use the installed `mss` v1.3.3 binary.
+- In a Thin Host, use the installed `mss` v1.3.4 binary.
 - In the Foundation repository, substitute `GOWORK=off go run ./cmd/mss` only when testing unpublished CLI changes.
 - Always read `mss context --format json`; backend, frontend, module, and generated paths differ between the two layouts.
 
@@ -33,7 +33,7 @@ Work from the smallest reproducible failure toward the root cause. Do not mask a
    mss module generate .mss/modules/<module>.yaml --check
    ```
 
-   Remember that the public v1.3.3 profile generates only its documented simple CRUD surface; do not diagnose an unsupported relation, import, workflow, or row-scope request as ordinary generated drift.
+   Remember that the public v1.3.4 profile generates only its documented simple CRUD surface; do not diagnose an unsupported relation, import, workflow, or row-scope request as ordinary generated drift.
 
 7. Form a falsifiable hypothesis, test it with a focused assertion or regression test, and implement the smallest correct repair.
 8. Run the focused test first, then:

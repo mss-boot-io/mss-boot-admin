@@ -1,7 +1,7 @@
 ---
 title: Agent-native Foundation
 order: 1
-description: v1.3.3 人机协作、机器合同、确定性工具与运行时产品的整体架构
+description: v1.3.4 人机协作、机器合同、确定性工具与运行时产品的整体架构
 ---
 
 # Agent-native Foundation
@@ -39,7 +39,7 @@ Foundation 让人和 Agent 在同一套可审查合同上开发管理系统。Ag
 
 ### 执行平面
 
-v1.3.3 公开工具只有 `mss` 与 `mss-mcp`。`mss` 提供 context、doctor、setup、
+v1.3.4 公开工具只有 `mss` 与 `mss-mcp`。`mss` 提供 context、doctor、setup、
 dev、spec、module、verify、eval、new app 和 upgrade；`mss-mcp` 复用相同实现和
 权限边界。写操作默认 dry-run、路径受限、拒绝未知覆盖、输出稳定且不发送遥测。
 
@@ -56,13 +56,13 @@ Agent 工具不进入 Admin 运行时。Framework 只提供领域无关基础设
 ## Package-first 采用路径
 
 ```text
-v1.3.3 Release 工具
+v1.3.4 Release 工具
         │ 内置同源 Blueprint
         ▼
 空目录 --mss new app--> Thin Host
         │
-        ├── Go: Admin / Framework @ v1.3.3
-        └── npm: Admin Web @ 1.3.3
+        ├── Go: Admin / Framework @ v1.3.4
+        └── npm: Admin Web @ 1.3.4
 ```
 
 采用者不需要 Foundation checkout、`go.work` 或本地 `replace`。公共包资格必须在空
@@ -96,5 +96,5 @@ v1.3.3 Release 工具
 必须来自同一个已合入 `main` 的干净提交，公开标签和摘要不可移动。发布后的修复使用
 下一补丁版本。
 
-外部 [mss-shop](/getting-started/mss-shop) 从公开 v1.3.3 生成，作为 package-first
+外部 [mss-shop](/getting-started/mss-shop) 从公开 v1.3.4 生成，作为 package-first
 路径和单租户业务扩展的真实验证。

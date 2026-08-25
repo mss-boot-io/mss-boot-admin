@@ -1,12 +1,12 @@
 # @mss-boot-io/admin-web
 
-`@mss-boot-io/admin-web@1.3.3` is the v1.3.3 Distribution's single complete Admin browser
+`@mss-boot-io/admin-web@1.3.4` is the v1.3.4 Distribution's single complete Admin browser
 application: React 19, Ant Design 6, Umi Max, React Query, generated API
 contracts, authentication shell, page states, locales, and the narrow business
 route extension.
 
 ```sh
-corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.3
+corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.4
 ```
 
 Use only declared exports:

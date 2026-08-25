@@ -4,15 +4,15 @@ order: 1
 nav:
   title: Admin
   order: 3
-description: v1.3.3 完整 Admin 后端与浏览器应用的使用和扩展入口
+description: v1.3.4 完整 Admin 后端与浏览器应用的使用和扩展入口
 ---
 
-# Admin v1.3.3
+# Admin v1.3.4
 
 Admin 是一个协调发布的完整产品，不是业务仓库需要复制的模板：
 
-- Go Module `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.3`；
-- npm Package `@mss-boot-io/admin-web@1.3.3`；
+- Go Module `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.4`；
+- npm Package `@mss-boot-io/admin-web@1.3.4`；
 - 编译期后端业务模块与显式前端业务路由；
 - 统一认证、授权、配置、迁移、应用壳和页面状态。
 

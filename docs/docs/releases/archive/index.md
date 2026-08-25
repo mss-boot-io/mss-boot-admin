@@ -7,10 +7,11 @@ description: 不参与当前安装和升级决策的不可变历史发布材料
 # 历史版本归档
 
 > 本区只保留历史发布、兼容、升级与恢复证据。新项目统一使用
-> [v1.3.3 快速开始](/getting-started)。
+> [v1.3.4 快速开始](/getting-started)。
 
 ## 稳定与修复历史
 
+- [v1.3.3 组件部分发布](/releases/archive/v1-3-3)
 - [v1.3.2](/releases/archive/v1-3-2)
 - [v1.3.1 部分发布](/releases/archive/v1-3-1)
 - [v1.3.0 部分发布](/releases/archive/v1-3-0)

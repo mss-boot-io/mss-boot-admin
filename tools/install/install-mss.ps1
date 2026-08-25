@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidatePattern('^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$')]
-    [string]$Version = 'v1.3.3',
+    [string]$Version = 'v1.3.4',
 
     [string]$InstallDir = $(
         if ($env:LOCALAPPDATA) {

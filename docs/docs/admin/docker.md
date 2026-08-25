@@ -1,22 +1,22 @@
 ---
 title: 容器部署
 order: 6
-description: v1.3.3 Admin 后端与前端镜像的拉取、配置、验证和回滚边界
+description: v1.3.4 Admin 后端与前端镜像的拉取、配置、验证和回滚边界
 ---
 
-# v1.3.3 容器部署
+# v1.3.4 容器部署
 
 官方镜像与 Go/npm 包来自同一个协调发行提交：
 
-- `ghcr.io/mss-boot-io/mss-boot-admin:v1.3.3`；
-- `ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.3`。
+- `ghcr.io/mss-boot-io/mss-boot-admin:v1.3.4`；
+- `ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.4`。
 
 这两个镜像是 Foundation 发行与参考应用证据，不包含你的业务模块、组合入口或业务
 前端路由。Thin Host 不能直接部署它们来代替自己的应用镜像。
 
 ## 构建 Thin Host 镜像
 
-`mss new app` 生成的 Dockerfile 从精确 v1.3.3 依赖和冻结锁构建后端、Admin Web 与
+`mss new app` 生成的 Dockerfile 从精确 v1.3.4 依赖和冻结锁构建后端、Admin Web 与
 业务代码，并把 Go、Node 和最终运行时基础镜像固定到已核验的多架构 digest。配套
 `.dockerignore` 会排除 Git 元数据、Agent 指令、运行报告/日志、数据库、环境文件、配置
 覆盖和前端构建缓存；不得删除这些边界把本地 secret 带入构建上下文。应在业务仓库自己
@@ -39,10 +39,10 @@ docker buildx build \
 ## 拉取与检查
 
 ```sh
-docker pull ghcr.io/mss-boot-io/mss-boot-admin:v1.3.3
-docker pull ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.3
-docker image inspect ghcr.io/mss-boot-io/mss-boot-admin:v1.3.3
-docker image inspect ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.3
+docker pull ghcr.io/mss-boot-io/mss-boot-admin:v1.3.4
+docker pull ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.4
+docker image inspect ghcr.io/mss-boot-io/mss-boot-admin:v1.3.4
+docker image inspect ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.4
 ```
 
 多架构标签对应 OCI index；部署证据应区分 index digest 与节点实际平台 manifest。

@@ -1,11 +1,11 @@
 ---
-title: v1.3.3 国际化排障
+title: v1.3.4 国际化排障
 order: 14
 nav:
   order: 1
   title: admin
 description: Thin Host 业务国际化缺失、键名漂移与运行时语言快照排障
-keywords: [v1.3.3 react-intl i18n missing message thin host]
+keywords: [v1.3.4 react-intl i18n missing message thin host]
 ---
 
 本文档从生成的 Thin Host 根目录处理：

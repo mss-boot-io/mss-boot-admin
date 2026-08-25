@@ -1,13 +1,13 @@
 ---
-title: v1.3.3 工具说明
+title: v1.3.4 工具说明
 order: 3
 description: mss 与 mss-mcp 的安装资产、校验、职责和安全边界
-keywords: [v1.3.3 mss mss-mcp install checksum tools]
+keywords: [v1.3.4 mss mss-mcp install checksum tools]
 ---
 
-# v1.3.3 工具说明
+# v1.3.4 工具说明
 
-v1.3.3 对外只发布两个工具：
+v1.3.4 对外只发布两个工具：
 
 | 工具 | 职责 |
 | --- | --- |
@@ -15,7 +15,7 @@ v1.3.3 对外只发布两个工具：
 | `mss-mcp` | 将同一组确定性只读/默认 dry-run 能力提供给 MCP 客户端 |
 
 覆盖 Linux、macOS、Windows 的 amd64 与 arm64。Release 资产命名为
-`mss-tools-v1.3.3-{linux|darwin}-{amd64|arm64}.tar.gz` 或 Windows zip。
+`mss-tools-v1.3.4-{linux|darwin}-{amd64|arm64}.tar.gz` 或 Windows zip。
 
 ## 安装接口
 
@@ -24,21 +24,21 @@ Shell：
 需要 Bash 3.2 或更高版本；不要用 POSIX `sh` 解释该安装器。
 
 ```sh
-curl -fsSLO https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.3/install-mss.sh
-bash ./install-mss.sh --version v1.3.3 --install-dir "$HOME/.local/bin"
+curl -fsSLO https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.4/install-mss.sh
+bash ./install-mss.sh --version v1.3.4 --install-dir "$HOME/.local/bin"
 ```
 
 PowerShell：
 
 ```powershell
-Invoke-WebRequest https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.3/install-mss.ps1 -OutFile install-mss.ps1
-& .\install-mss.ps1 -Version v1.3.3 -InstallDir "$HOME\.local\bin"
+Invoke-WebRequest https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.4/install-mss.ps1 -OutFile install-mss.ps1
+& .\install-mss.ps1 -Version v1.3.4 -InstallDir "$HOME\.local\bin"
 ```
 
-默认版本同样固定为 v1.3.3，默认目录位于当前用户目录。显式参数更适合可复现脚本。
+默认版本同样固定为 v1.3.4，默认目录位于当前用户目录。显式参数更适合可复现脚本。
 
 :::warning
-不要用 `go install` 代替上述 Release 安装器。两个带精确 `@v1.3.3` 的公共命令包只用于
+不要用 `go install` 代替上述 Release 安装器。两个带精确 `@v1.3.4` 的公共命令包只用于
 兼容性编译验证；由它们生成的二进制不包含可核验的 Release Blueprint 来源，因此会对
 `mss new app` 和 `mss upgrade admin` 失败关闭。创建与升级必须使用校验和工具包中的二进制。
 :::
@@ -49,12 +49,12 @@ Invoke-WebRequest https://github.com/mss-boot-io/mss-boot-admin/releases/downloa
 
 1. 识别受支持的系统和架构；
 2. 下载一个精确版本工具包；
-3. 读取 `SHA256SUMS.tools-v1.3.3`；
+3. 读取 `SHA256SUMS.tools-v1.3.4`；
 4. 校验归档摘要；
 5. 安装 `mss` 与 `mss-mcp`；
 6. 保留用户对 PATH 的控制。
 
-两个二进制都应通过 `--version` 报告 v1.3.3 与 Release 源提交。摘要、版本或提交身份
+两个二进制都应通过 `--version` 报告 v1.3.4 与 Release 源提交。摘要、版本或提交身份
 不一致时应停止，而不是继续安装。
 
 ## 常用命令
@@ -65,7 +65,7 @@ mss doctor --strict
 mss setup
 mss dev --detach
 mss verify --changed
-mss upgrade admin v1.3.3
+mss upgrade admin v1.3.4
 mss skills list
 ```
 

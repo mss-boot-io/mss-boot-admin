@@ -7,7 +7,7 @@ description: 明确隔离的 mss-boot-admin 源码贡献流程
 # Foundation 贡献者入门
 
 > 本页仅适用于修改 Foundation 本身的贡献者。创建业务应用请使用
-> [v1.3.3 快速开始](/getting-started)，不要照搬本页的源码命令。
+> [v1.3.4 快速开始](/getting-started)，不要照搬本页的源码命令。
 
 ## 获取源码
 

@@ -15,7 +15,7 @@ private GitHub advisories are the preferred intake path.
 ## Supported versions
 
 The active `main` branch and the current stable Complete Admin Distribution are
-supported by default. The v1.3.3 line becomes the supported stable Distribution
+supported by default. The v1.3.4 line becomes the supported stable Distribution
 only after its coordinated Framework, Admin, frontend, root, Docs, and npm
 artifacts have been published and publicly reconciled from one exact merged-main
 commit. During release preparation, `.mss/release-policy.yaml` remains the

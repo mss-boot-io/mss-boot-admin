@@ -1,16 +1,16 @@
 ---
-title: v1.3.3 Thin Host 移动端响应式规范
+title: v1.3.4 Thin Host 移动端响应式规范
 order: 27
 nav:
   order: 1
   title: admin
 description: Thin Host 业务页面的响应式、可访问性与内置浏览器验收矩阵
-keywords: [v1.3.3 thin host admin mobile responsive accessibility]
+keywords: [v1.3.4 thin host admin mobile responsive accessibility]
 ---
 
 ## 目标
 
-`web/` 通过 `@mss-boot-io/admin-web@1.3.3` 组合唯一 Admin 前端。桌面和移动端
+`web/` 通过 `@mss-boot-io/admin-web@1.3.4` 组合唯一 Admin 前端。桌面和移动端
 共享同一套业务组件、权限判断、请求契约和
 表单校验，不维护两份页面实现。移动适配解决信息密度、触摸操作和导航可达性，不能改变
 后端权限或业务语义。

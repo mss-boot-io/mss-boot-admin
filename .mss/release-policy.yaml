@@ -1,15 +1,15 @@
 apiVersion: mss.io/v1alpha1
 kind: ReleasePolicy
 metadata:
-  name: foundation-v1-3-3-package-first-release
+  name: foundation-v1-3-4-release-recovery
 spec:
   mode: development-first
   releaseBranch: main
   requireMergedPullRequestSource: true
   currentStableVersion: v1.3.2
   currentStableCommit: 635fbb03a82976941e527d8ac1000fec0624abac
-  nextPublicVersion: v1.3.3
-  distributionVersion: v1.3.3
+  nextPublicVersion: v1.3.4
+  distributionVersion: v1.3.4
   distributionComponents: "root,framework,admin,frontend"
   publicationWorkflowsReady: true
   publicPrereleases: false
