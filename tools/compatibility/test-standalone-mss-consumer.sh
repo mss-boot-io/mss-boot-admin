@@ -361,7 +361,9 @@ if [[ "${use_public_packages}" = true ]]; then
     --arg commit "${release_commit}" \
     '.name == "@mss-boot-io/admin-web" and
      .version == $version and .gitHead == $commit and
-     (.dist.integrity | type == "string" and startswith("sha512-"))' \
+     (.dist.integrity | type == "string" and startswith("sha512-")) and
+     (.dist.tarball | type == "string" and startswith("https://") and
+      (contains("?") or contains("#")) == false)' \
     "${public_package_metadata}" >/dev/null || {
     echo "published GitHub Packages Admin Web candidate has the wrong identity or provenance" >&2
     exit 1
@@ -449,7 +451,13 @@ fi
 
 registry_ready="${work_dir}/registry-url"
 registry_log="${work_dir}/registry.log"
-python3 - "${admin_web_tarball}" "${release_version#v}" "${release_commit}" "${registry_ready}" <<'PY' >"${registry_log}" 2>&1 &
+fixture_tarball_path="/artifacts/frozen-admin-web-${release_version#v}.tgz"
+pnpm_fallback_tarball_path="/@mss-boot-io/admin-web/-/admin-web-${release_version#v}.tgz"
+[[ "${fixture_tarball_path}" != "${pnpm_fallback_tarball_path}" ]] || {
+  echo "temporary registry tarball path must differ from pnpm's generic registry fallback" >&2
+  exit 1
+}
+python3 - "${admin_web_tarball}" "${release_version#v}" "${release_commit}" "${registry_ready}" "${fixture_tarball_path}" <<'PY' >"${registry_log}" 2>&1 &
 from hashlib import sha512
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import base64
@@ -462,10 +470,10 @@ tarball = Path(sys.argv[1]).resolve()
 version = sys.argv[2]
 commit = sys.argv[3]
 ready = Path(sys.argv[4]).resolve()
+tarball_path = sys.argv[5]
 package_name = '@mss-boot-io/admin-web'
 integrity = 'sha512-' + base64.b64encode(sha512(tarball.read_bytes()).digest()).decode('ascii')
 metadata_path = f'/{package_name}/{version}'
-tarball_path = f'/{package_name}/-/admin-web-{version}.tgz'
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -583,6 +591,22 @@ if grep -Eq 'go run ./cmd/mss|--foundation|__MSS_' "${host_root}/.github/workflo
 fi
 grep -Fq 'admin: go run ./cmd/server server' "${host_root}/.mss/project.yaml"
 grep -Fq 'command: [go, run, ./cmd/server, server]' "${host_root}/.mss/dev.yaml"
+grep -Fq "tarball: ${registry_url}${fixture_tarball_path}" "${host_root}/web/pnpm-lock.yaml" || {
+  echo "generated frontend lock does not pin the metadata dist.tarball URL" >&2
+  exit 1
+}
+grep -Fq "integrity: ${computed_admin_web_integrity}" "${host_root}/web/pnpm-lock.yaml" || {
+  echo "generated frontend lock does not pin the metadata dist.integrity" >&2
+  exit 1
+}
+if grep -Fq "${registry_url}${pnpm_fallback_tarball_path}" "${host_root}/web/pnpm-lock.yaml"; then
+  echo "generated frontend lock fell back to pnpm's inferred tarball URL" >&2
+  exit 1
+fi
+if grep -Eq 'NODE_AUTH_TOKEN|_authToken' "${host_root}/web/.npmrc" "${host_root}/web/pnpm-lock.yaml"; then
+  echo "generated frontend files contain a registry credential reference" >&2
+  exit 1
+fi
 
 tree_digest() {
   python3 - "$1" <<'PY'

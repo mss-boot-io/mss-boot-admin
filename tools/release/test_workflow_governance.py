@@ -150,6 +150,26 @@ class WorkflowGovernanceTest(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, script)
 
+    def test_foundation_compatibility_registry_serves_exact_tarball_metadata(self):
+        workflow = self.workflows["foundation-compatibility.yml"]
+        steps = workflow["jobs"]["downstream-generation-and-upgrade"]["steps"]
+        registry = next(
+            step
+            for step in steps
+            if step.get("name") == "Start temporary Admin Web metadata registry"
+        )
+        script = registry["run"]
+        for required in (
+            "tarball = f'foundation-compatibility-admin-web-{version}'.encode('utf-8')",
+            "sha512(tarball).digest()",
+            "tarball_path = f'/artifacts/foundation-compatibility-admin-web-{version}.tgz'",
+            "'tarball': f'http://127.0.0.1:{self.server.server_port}{tarball_path}'",
+            "if path == tarball_path:",
+            "self.wfile.write(tarball)",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, script)
+
     def test_scorecard_does_not_run_on_every_main_push(self):
         triggers = self.workflows["scorecard.yml"]["on"]
         self.assertEqual(

@@ -6,7 +6,11 @@ tag namespaces.
 
 ## [Unreleased]
 
-No unreleased changes are recorded.
+### Fixed
+
+- Preserve the exact Admin Web package tarball URL in generated Thin Host
+  lockfiles, and keep the downstream compatibility registry fixture aligned
+  with that metadata contract so frozen installs never infer a registry path.
 
 ## [v1.3.4] - 2026-08-25
 

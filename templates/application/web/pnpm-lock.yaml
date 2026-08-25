@@ -1010,7 +1010,7 @@ packages:
     resolution: {integrity: sha512-zd343RO7/R7Xjh5ym5KdnYQ70z4LBmMxWsa44FS0nyNv04sOq6V1eZSCGKbEhbfqqhbS5Wfj8OzJyedeVvV/OQ==}
 
   '@mss-boot-io/admin-web@__MSS_DISTRIBUTION_FRONTEND_VERSION__':
-    resolution: {integrity: __MSS_DISTRIBUTION_FRONTEND_INTEGRITY__}
+    resolution: {tarball: __MSS_DISTRIBUTION_FRONTEND_TARBALL__, integrity: __MSS_DISTRIBUTION_FRONTEND_INTEGRITY__}
     engines: {node: '>=24.0.0 <25', pnpm: 10.34.5}
     hasBin: true
 

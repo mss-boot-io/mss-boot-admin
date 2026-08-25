@@ -233,11 +233,11 @@ func buildDesired(ctx context.Context, root string, blueprint *Document, applica
 			Mode:       entry.Mode,
 		})
 	}
-	frontendIntegrity, err := resolveFrontendIntegrityForSource(ctx, frontendRegistryURL, blueprint, resolved)
+	frontendPackage, err := resolveFrontendPackageForSource(ctx, frontendRegistryURL, blueprint, resolved)
 	if err != nil {
 		return nil, Manifest{}, err
 	}
-	return buildDesiredFromSource(blueprint, source.BlueprintSHA, source.Identity, resolved, application, frontendIntegrity)
+	return buildDesiredFromSource(blueprint, source.BlueprintSHA, source.Identity, resolved, application, frontendPackage)
 }
 
 func buildDesiredFromSource(
@@ -246,7 +246,7 @@ func buildDesiredFromSource(
 	foundationIdentity FoundationIdentity,
 	sourceFiles []blueprintSourceFile,
 	application Application,
-	frontendIntegrity string,
+	frontendPackage frontendPackageResolution,
 ) (map[string]desiredFile, Manifest, error) {
 	files := make(map[string]desiredFile, len(sourceFiles)+2)
 	templatePrefix := ""
@@ -257,7 +257,7 @@ func buildDesiredFromSource(
 		relative := sourceFile.OutputPath
 		data := sourceFile.Data
 		if blueprint.Text(relative, data) {
-			data = transformText(data, blueprint, application, frontendIntegrity)
+			data = transformText(data, blueprint, application, frontendPackage)
 			if templatePrefix != "" && bytes.Contains(data, []byte("__MSS_")) {
 				return nil, Manifest{}, fmt.Errorf("application template %s contains an unresolved mss placeholder", sourceFile.SourcePath)
 			}
@@ -468,7 +468,7 @@ func buildDestinationPlan(
 	return plan, nil
 }
 
-func transformText(data []byte, blueprint *Document, application Application, frontendIntegrity string) []byte {
+func transformText(data []byte, blueprint *Document, application Application, frontendPackage frontendPackageResolution) []byte {
 	text := string(data)
 	const (
 		moduleSentinel     = "__MSS_BLUEPRINT_TARGET_MODULE__"
@@ -491,7 +491,8 @@ func transformText(data []byte, blueprint *Document, application Application, fr
 		{token: "__MSS_DISTRIBUTION_BACKEND_VERSION__", value: blueprint.Spec.Distribution.Backend.Version},
 		{token: "__MSS_DISTRIBUTION_FRONTEND_PACKAGE__", value: blueprint.Spec.Distribution.Frontend.Package},
 		{token: "__MSS_DISTRIBUTION_FRONTEND_VERSION__", value: blueprint.Spec.Distribution.Frontend.Version},
-		{token: frontendIntegrityToken, value: frontendIntegrity},
+		{token: frontendIntegrityToken, value: frontendPackage.Integrity},
+		{token: frontendTarballToken, value: frontendPackage.Tarball},
 	}
 	for _, replacement := range replacements {
 		text = strings.ReplaceAll(text, replacement.token, replacement.value)

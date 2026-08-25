@@ -37,7 +37,7 @@ func GenerateEmbedded(ctx context.Context, workingDirectory string, options Opti
 	if err != nil {
 		return Plan{}, err
 	}
-	frontendIntegrity, err := resolveFrontendIntegrityForSource(ctx, options.FrontendRegistryURL, source.Blueprint, source.Files)
+	frontendPackage, err := resolveFrontendPackageForSource(ctx, options.FrontendRegistryURL, source.Blueprint, source.Files)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -51,7 +51,7 @@ func GenerateEmbedded(ctx context.Context, workingDirectory string, options Opti
 		source.Identity,
 		source.Files,
 		options.Application,
-		frontendIntegrity,
+		frontendPackage,
 	)
 	if err != nil {
 		return Plan{}, err
