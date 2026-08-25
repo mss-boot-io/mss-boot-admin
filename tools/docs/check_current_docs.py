@@ -504,11 +504,15 @@ def repository_context_errors(root: Path) -> list[str]:
             errors.append("CHANGELOG.md: missing bounded Unreleased section")
         else:
             body = match.group(1)
-            if "No unreleased changes are recorded." not in body:
-                errors.append("CHANGELOG.md: Unreleased state must be explicit")
-            if re.search(r"(?m)^\s*-\s+", body):
+            has_empty_declaration = "No unreleased changes are recorded." in body
+            has_entries = bool(re.search(r"(?m)^\s*-\s+", body))
+            if has_empty_declaration and has_entries:
                 errors.append(
                     "CHANGELOG.md: Unreleased cannot list changes while declaring none"
+                )
+            elif not has_empty_declaration and not has_entries:
+                errors.append(
+                    "CHANGELOG.md: Unreleased must contain entries or an explicit empty state"
                 )
     return errors
 

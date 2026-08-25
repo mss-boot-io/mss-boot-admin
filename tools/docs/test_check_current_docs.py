@@ -269,6 +269,12 @@ class CurrentDocsContractTest(unittest.TestCase):
             )
             self.assertEqual(check_current_docs.repository_context_errors(root), [])
 
+            changelog.write_text(
+                "## [Unreleased]\n\n- future change\n\n## [v1.3.3]\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(check_current_docs.repository_context_errors(root), [])
+
             contributor.write_text(
                 contributor.read_text(encoding="utf-8")
                 + "gofmt -w .\ntail -f logs/app.log\n",
