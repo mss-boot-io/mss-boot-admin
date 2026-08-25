@@ -13,7 +13,7 @@ workers, or release identity from any retired frontend artifact.
 - Node.js 24.
 - pnpm 10.34.5 through Corepack. pnpm 11 is intentionally deferred until its
   SQLite store is reliable on the supported Node 24 and WSL/CI matrix.
-- React 19, Ant Design 6.6.0, Umi Max, React Query 5, and a pinned
+- React 19, Ant Design 6.6.1, Umi Max 4.7.7, React Query 5, and a pinned
   ProComponents 3 beta.
 - Biome, TypeScript, Vitest, and Playwright.
 

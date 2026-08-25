@@ -16,8 +16,8 @@
     "__MSS_DISTRIBUTION_FRONTEND_PACKAGE__": "__MSS_DISTRIBUTION_FRONTEND_VERSION__",
     "@ant-design/icons": "6.3.2",
     "@tanstack/react-query": "5.101.4",
-    "@umijs/max": "4.7.5",
-    "antd": "6.6.0",
+    "@umijs/max": "4.7.7",
+    "antd": "6.6.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -27,14 +27,14 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "typescript": "7.0.2",
-    "vite": "8.2.1",
-    "vitest": "4.1.10"
+    "vite": "8.2.2",
+    "vitest": "4.1.11"
   },
   "pnpm": {
     "overrides": {
       "react": "19.2.8",
       "react-dom": "19.2.8",
-      "antd": "6.6.0",
+      "antd": "6.6.1",
       "@ant-design/pro-components": "3.1.14-6",
       "@tanstack/react-query": "5.101.4",
       "axios": "0.33.0"

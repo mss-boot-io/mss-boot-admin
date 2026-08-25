@@ -12,14 +12,14 @@ const expected = {
   '@ant-design/icons': '6.3.2',
   '@ant-design/pro-components': '3.1.14-6',
   '@tanstack/react-query': '5.101.4',
-  antd: '6.6.0',
+  antd: '6.6.1',
   'antd-style': '4.1.0',
   d: '1.0.2',
   react: '19.2.8',
   'react-dom': '19.2.8',
-  '@umijs/max': '4.7.5',
+  '@umijs/max': '4.7.7',
   typescript: '7.0.2',
-  vitest: '4.1.10',
+  vitest: '4.1.11',
 };
 
 const failures = [];
@@ -116,12 +116,12 @@ const versionsFor = (name) => {
 const allowedResolvedVersions = {
   react: ['19.2.8'],
   'react-dom': ['19.2.8'],
-  antd: ['6.6.0'],
+  antd: ['6.6.1'],
   '@ant-design/pro-components': ['3.1.14-6'],
   '@tanstack/react-query': ['5.101.4'],
-  '@umijs/max': ['4.7.5'],
+  '@umijs/max': ['4.7.7'],
   axios: ['0.33.0'],
-  umi: ['4.7.5'],
+  umi: ['4.7.7'],
   immer: ['8.0.4'],
 };
 

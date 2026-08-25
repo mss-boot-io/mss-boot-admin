@@ -45,10 +45,16 @@ attached to the exact merged-main commit.
 
 ### Changed
 
-- Route immutable root-tag creation through the protected GitHub Actions
-  promotion workflow after exact `pre-root` authority and all component
-  Releases; every exact-tag root run rechecks that attestation before candidate
-  work.
+- Route immutable root-tag creation through the protected promotion workflow and
+  its single dedicated SSH deploy key after exact `pre-root` authority and all
+  component Releases; every exact-tag root run rechecks that attestation before
+  candidate work.
+- Refresh the coordinated Framework, Admin Web, Thin Host, Docs, and pinned
+  GitHub Actions dependency sets, including Ant Design 6.6.1, Umi Max 4.7.7,
+  Vite 8.2.2, and Vitest 4.1.11, without introducing a second runtime graph.
+- Recalibrate the complete frontend gzip JavaScript budget from 900 KiB to
+  905 KiB against measured 899.96 KiB and 900.47 KiB before/after release builds;
+  entry and largest-chunk limits remain unchanged.
 - Keep the root command module free of `replace` and `exclude` directives so
   standard `go install .../cmd/mss@v1.3.3` and `mss-mcp` work outside the
   Foundation checkout.
