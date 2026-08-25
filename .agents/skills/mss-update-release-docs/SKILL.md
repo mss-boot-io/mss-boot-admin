@@ -70,7 +70,7 @@ When the repository has a public Docs domain, source reconciliation is not the s
 1. Before editing, record the visible home page and a nested release route in the available browser, and read the public `/release.json` version and full commit.
 2. After the source PR merges, compare that identity with the exact merged `main` commit. If the site still exposes an older commit or stale visible claims, report the state as `source-updated / deployment-pending`, never complete.
 3. If the user authorized a public-site update, use `mss-release` for the mutation. Publish only from the exact merged-main commit after its Docs build and browser evidence pass.
-4. Preserve an existing coordinated Docs tag. For a correction to the current stable documentation, select the lowest unused positive revision accepted by policy, such as `docs/v1.3.2+docs.1`; this is a Docs component revision, not a new product version.
+4. Preserve an existing coordinated Docs tag. For a correction to the current stable documentation, select the lowest unused positive revision accepted by policy, such as `docs/${VERSION}+docs.1`; this is a Docs component revision, not a new product version.
 5. Wait for the tag-triggered workflow, protected production environment, portable archive checksums, public `/release.json`, and immutable GitHub Release. A successful main-branch Docs build without the tag deployment is preliminary evidence only.
 6. Reopen the production home page and a nested release route, refresh both, verify visible stable-version language, inspect console errors and failed network requests, and save final screenshots.
 

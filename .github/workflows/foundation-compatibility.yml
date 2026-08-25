@@ -99,6 +99,79 @@ jobs:
             ./internal/mss/eval \
             ./internal/mss/app
 
+      - name: Start temporary Admin Web metadata registry
+        run: |
+          set -euo pipefail
+          registry_ready="${RUNNER_TEMP}/foundation-compatibility-registry-url"
+          registry_log="${RUNNER_TEMP}/foundation-compatibility-registry.log"
+          rm -f "${registry_ready}" "${registry_log}"
+          python3 - "${registry_ready}" "${GENERATOR_VERSION}" >"${registry_log}" 2>&1 <<'PY' &
+          from hashlib import sha512
+          from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+          import base64
+          import json
+          from pathlib import Path
+          import re
+          import sys
+          from urllib.parse import unquote, urlsplit
+
+          ready = Path(sys.argv[1])
+          package_name = '@mss-boot-io/admin-web'
+          version = sys.argv[2].removeprefix('v')
+          if not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', version):
+              raise SystemExit(f'invalid compatibility Admin Web version: {version}')
+          integrity = 'sha512-' + base64.b64encode(
+              sha512(f'foundation-compatibility-admin-web-{version}'.encode('utf-8')).digest()
+          ).decode('ascii')
+
+          class Handler(BaseHTTPRequestHandler):
+              def do_GET(self):
+                  path = unquote(urlsplit(self.path).path)
+                  if path != f'/{package_name}/{version}':
+                      self.send_error(404)
+                      return
+                  payload = json.dumps({
+                      'name': package_name,
+                      'version': version,
+                      'dist': {'integrity': integrity},
+                  }, separators=(',', ':')).encode('utf-8')
+                  self.send_response(200)
+                  self.send_header('Content-Type', 'application/json')
+                  self.send_header('Content-Length', str(len(payload)))
+                  self.end_headers()
+                  self.wfile.write(payload)
+
+              def log_message(self, _format, *_args):
+                  return
+
+          server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+          ready.write_text(f'http://127.0.0.1:{server.server_port}\n', encoding='utf-8')
+          server.serve_forever()
+          PY
+          registry_pid=$!
+          cleanup_failed_start() {
+            kill "${registry_pid}" >/dev/null 2>&1 || true
+            wait "${registry_pid}" >/dev/null 2>&1 || true
+          }
+          trap cleanup_failed_start EXIT
+          for _ in $(seq 1 100); do
+            [[ -s "${registry_ready}" ]] && break
+            kill -0 "${registry_pid}" >/dev/null 2>&1 || {
+              sed -n '1,120p' "${registry_log}" >&2
+              exit 1
+            }
+            sleep 0.05
+          done
+          [[ -s "${registry_ready}" ]] || {
+            echo "temporary compatibility registry did not become ready" >&2
+            exit 1
+          }
+          registry_url=$(<"${registry_ready}")
+          echo "COMPATIBILITY_FRONTEND_REGISTRY_URL=${registry_url}" >> "${GITHUB_ENV}"
+          echo "COMPATIBILITY_FRONTEND_REGISTRY_PID=${registry_pid}" >> "${GITHUB_ENV}"
+          echo "COMPATIBILITY_FRONTEND_REGISTRY_READY=${registry_ready}" >> "${GITHUB_ENV}"
+          trap - EXIT
+
       - name: Generate a standalone downstream repository
         run: |
           set -euo pipefail
@@ -108,6 +181,8 @@ jobs:
             --module github.com/example/compatibility-admin \
             --repository example/compatibility-admin \
             --destination "${DOWNSTREAM}" \
+            --foundation "${GITHUB_WORKSPACE}" \
+            --contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}" \
             --write \
             --git-init \
             --format json \
@@ -292,10 +367,13 @@ jobs:
             --root "${DOWNSTREAM}" \
             upgrade plan \
             --foundation "${NEXT_FOUNDATION}" \
+            --contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}" \
             --format json \
             > "${RUNNER_TEMP}/upgrade-plan.json"
           printf '%s\n' "{\"jsonrpc\":\"2.0\",\"id\":\"upgrade-plan\",\"method\":\"tools/call\",\"params\":{\"name\":\"mss_plan_foundation_upgrade\",\"arguments\":{\"foundationRoot\":\"${NEXT_FOUNDATION}\"}}}" \
-            | "${RUNNER_TEMP}/mss-mcp-next" -root "${DOWNSTREAM}" \
+            | "${RUNNER_TEMP}/mss-mcp-next" \
+                -root "${DOWNSTREAM}" \
+                -contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}" \
             > "${RUNNER_TEMP}/mcp-upgrade-plan.json"
 
           python3 - <<'PY'
@@ -328,6 +406,7 @@ jobs:
             --root "${DOWNSTREAM}" \
             upgrade apply \
             --foundation "${NEXT_FOUNDATION}" \
+            --contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}" \
             --yes \
             --format json \
             > "${RUNNER_TEMP}/upgrade-apply.json"
@@ -433,8 +512,8 @@ jobs:
           git clone --no-hardlinks --no-checkout "${NEXT_FOUNDATION}" "${CONFLICT_FOUNDATION}"
           git -C "${CONFLICT_FOUNDATION}" checkout --detach "${next_commit}"
 
-          printf '\nconst FoundationConflictProbe = true\n' >> "${CONFLICT_FOUNDATION}/templates/application/cmd/server/main.go"
-          git -C "${CONFLICT_FOUNDATION}" add templates/application/cmd/server/main.go
+          printf '\nconst FoundationConflictProbe = true\n' >> "${CONFLICT_FOUNDATION}/templates/application/cmd/server/main.go.tmpl"
+          git -C "${CONFLICT_FOUNDATION}" add templates/application/cmd/server/main.go.tmpl
           git -C "${CONFLICT_FOUNDATION}" commit -m "test: change foundation Admin entrypoint"
 
           printf '\nconst DownstreamConflictProbe = true\n' >> "${DOWNSTREAM}/cmd/server/main.go"
@@ -445,6 +524,7 @@ jobs:
             --root "${DOWNSTREAM}" \
             upgrade plan \
             --foundation "${CONFLICT_FOUNDATION}" \
+            --contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}" \
             --format json \
             > "${RUNNER_TEMP}/upgrade-conflict.json"
           plan_exit=$?
@@ -471,6 +551,7 @@ jobs:
               --root "${DOWNSTREAM}" \
               upgrade apply \
               --foundation "${CONFLICT_FOUNDATION}" \
+              --contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}" \
               --yes \
               --format json \
               > "${RUNNER_TEMP}/unexpected-conflict-apply.json"; then
@@ -479,6 +560,38 @@ jobs:
           fi
 
           cmp "${DOWNSTREAM}/cmd/server/main.go" "${RUNNER_TEMP}/downstream-admin-main-before-conflict.go"
+
+      - name: Stop temporary Admin Web metadata registry
+        if: always()
+        run: |
+          set -euo pipefail
+          registry_pid="${COMPATIBILITY_FRONTEND_REGISTRY_PID:-}"
+          registry_ready="${COMPATIBILITY_FRONTEND_REGISTRY_READY:-}"
+          if [[ -n "${registry_pid}" ]]; then
+            [[ "${registry_pid}" =~ ^[0-9]+$ ]] || {
+              echo "invalid compatibility registry PID: ${registry_pid}" >&2
+              exit 1
+            }
+            if ! kill -0 "${registry_pid}" >/dev/null 2>&1; then
+              echo "temporary compatibility registry already stopped"
+              exit 0
+            fi
+            [[ -n "${registry_ready}" && -r "/proc/${registry_pid}/cmdline" ]] || {
+              echo "cannot verify compatibility registry process identity" >&2
+              exit 1
+            }
+            tr '\0' '\n' < "/proc/${registry_pid}/cmdline" | grep -Fqx -- "${registry_ready}" || {
+              echo "refusing to stop a process that is not the compatibility registry" >&2
+              exit 1
+            }
+            kill "${registry_pid}" >/dev/null 2>&1 || true
+            for _ in $(seq 1 50); do
+              kill -0 "${registry_pid}" >/dev/null 2>&1 || exit 0
+              sleep 0.1
+            done
+            echo "temporary compatibility registry did not stop" >&2
+            exit 1
+          fi
 
       - name: Upload compatibility evidence
         if: always()

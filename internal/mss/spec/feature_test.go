@@ -214,6 +214,23 @@ func TestRenderFeatureTemplateSetsAdminModuleKind(t *testing.T) {
 	}
 }
 
+func TestRenderFeatureTemplateUsesExplicitPrimaryModule(t *testing.T) {
+	data, err := RenderFeatureTemplateForModule("order-approval", "orders", "Order approval", "commerce")
+	if err != nil {
+		t.Fatalf("render Feature template: %v", err)
+	}
+	feature, err := LoadFeature(writeFeatureFixture(t, string(data)))
+	if err != nil {
+		t.Fatalf("load rendered Feature template: %v", err)
+	}
+	if len(feature.Spec.Modules) != 1 || feature.Spec.Modules[0].Name != "orders" || feature.Spec.Modules[0].SpecPath != ".mss/modules/orders.yaml" {
+		t.Fatalf("rendered module = %#v", feature.Spec.Modules)
+	}
+	if len(feature.Spec.Requirements) != 1 || feature.Spec.Requirements[0].Module != "orders" || feature.Spec.Requirements[0].Permission != "orders:manage" {
+		t.Fatalf("rendered requirement = %#v", feature.Spec.Requirements)
+	}
+}
+
 func TestFeatureRejectsUnknownActorAndRequirement(t *testing.T) {
 	content := strings.Replace(validFeatureYAML, "actor: procurement", "actor: finance", 1)
 	content = strings.Replace(content, "requirement: supplier-create", "requirement: missing-requirement", 1)
@@ -341,8 +358,8 @@ spec:
       severity: high
       mitigation: Generate permission identifiers from the module specification.
   validation:
-    changed: go run ./cmd/mss verify --changed
-    all: go run ./cmd/mss verify --all
+    changed: mss verify --changed
+    all: mss verify --all
   rollout:
     strategy: phased
     migration: Apply additive migrations in a test environment first.

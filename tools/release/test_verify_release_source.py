@@ -185,6 +185,18 @@ class ReleaseSourceGitTest(unittest.TestCase):
         with self.assertRaisesRegex(SOURCE.SourceError, "not contained"):
             self.verify(commit=local_commit, tag=None)
 
+    def test_rejects_candidate_after_remote_main_advances(self):
+        (self.work / "tracked.txt").write_text("later main change\n", encoding="utf-8")
+        run_git(self.work, "add", "tracked.txt")
+        run_git(self.work, "commit", "-m", "later main change")
+        later_commit = run_git(self.work, "rev-parse", "HEAD")
+        self.assertNotEqual(later_commit, self.candidate)
+        run_git(self.work, "push", "origin", "main")
+        run_git(self.work, "checkout", "--detach", self.candidate)
+
+        with self.assertRaisesRegex(SOURCE.SourceError, "does not equal current"):
+            self.verify(tag=None)
+
     def test_rejects_checkout_that_does_not_match_candidate(self):
         run_git(self.work, "checkout", "--detach", self.base_commit)
         with self.assertRaisesRegex(SOURCE.SourceError, "does not equal candidate"):

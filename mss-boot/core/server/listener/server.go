@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"os"
 	"sync"
 
 	ginPprof "github.com/gin-contrib/pprof"
@@ -20,6 +21,11 @@ var (
 	ErrAlreadyStarted = errors.New("HTTP server has already been started")
 	// ErrIncompleteTLSConfiguration is returned when only one TLS file is set.
 	ErrIncompleteTLSConfiguration = errors.New("both TLS certificate and key files are required")
+)
+
+const (
+	devHealthLaunchEnvironment = "MSS_DEV_HEALTH_NONCE"
+	devHealthLaunchHeader      = "X-MSS-Dev-Launch"
 )
 
 // Server is a managed HTTP listener.
@@ -166,6 +172,7 @@ func (e *Server) registerOperationalRoutes() {
 		}
 		if e.options.healthz {
 			handler.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+				setDevHealthLaunchHeader(w.Header())
 				w.WriteHeader(http.StatusOK)
 			})
 		}
@@ -184,6 +191,7 @@ func (e *Server) registerOperationalRoutes() {
 		}
 		if e.options.healthz {
 			handler.GET("/healthz", func(c *gin.Context) {
+				setDevHealthLaunchHeader(c.Writer.Header())
 				c.AbortWithStatus(http.StatusOK)
 			})
 		}
@@ -192,5 +200,11 @@ func (e *Server) registerOperationalRoutes() {
 				c.AbortWithStatus(http.StatusOK)
 			})
 		}
+	}
+}
+
+func setDevHealthLaunchHeader(header http.Header) {
+	if nonce := os.Getenv(devHealthLaunchEnvironment); nonce != "" {
+		header.Set(devHealthLaunchHeader, nonce)
 	}
 }

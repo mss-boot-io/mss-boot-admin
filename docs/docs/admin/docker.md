@@ -1,255 +1,88 @@
 ---
-title: 容器化与生产部署
-order: 12
-nav:
-  order: 1
-  title: admin
-description: mss-boot-admin 的容器化、反向代理与生产部署指南
-keywords: [admin docker deploy nginx production]
+title: 容器部署
+order: 6
+description: v1.3.3 Admin 后端与前端镜像的拉取、配置、验证和回滚边界
 ---
 
-## 适用范围
+# v1.3.3 容器部署
 
-本文面向后端 `mss-boot-admin` 与唯一前端镜像 `mss-boot-admin-antd-v6` 的单租户部署场景，覆盖：
+官方镜像与 Go/npm 包来自同一个协调发行提交：
 
-- 本地容器化验证
-- 基于 MySQL 的生产部署基线
-- Nginx 反向代理
-- 日志与任务调度目录约定；上传仅覆盖本地非生产验证
+- `ghcr.io/mss-boot-io/mss-boot-admin:v1.3.3`；
+- `ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.3`。
 
-## 部署前检查
+这两个镜像是 Foundation 发行与参考应用证据，不包含你的业务模块、组合入口或业务
+前端路由。Thin Host 不能直接部署它们来代替自己的应用镜像。
 
-- 已准备 Docker 与 Docker Compose 环境
-- 已确认后端使用的数据库（本地可用 SQLite，生产建议 MySQL）
-- 已确认对外端口：后端 `8080`，前端 `8001`
-- 已确认生产环境不暴露上传入口；Local/S3-compatible 当前仍为 Legacy / Blocked
-- 若启用 WebSocket 集群或缓存，已准备 Redis
+## 构建 Thin Host 镜像
 
-下列命令固定使用已发布并完成公开对账的当前稳定版 `v1.3.2`。生产部署还应记录并
-固定验证过的镜像 digest，绝不能依赖 `latest`；未来候选的资格验证仍必须使用同一
-冻结提交在受控流程中构建的候选制品。
+`mss new app` 生成的 Dockerfile 从精确 v1.3.3 依赖和冻结锁构建后端、Admin Web 与
+业务代码，并把 Go、Node 和最终运行时基础镜像固定到已核验的多架构 digest。配套
+`.dockerignore` 会排除 Git 元数据、Agent 指令、运行报告/日志、数据库、环境文件、配置
+覆盖和前端构建缓存；不得删除这些边界把本地 secret 带入构建上下文。应在业务仓库自己
+的 CI 中构建、测试并推送不可变应用镜像，例如：
 
-## 推荐目录约定
-
-```text
-/opt/mss-boot-admin/
-├── config/          # 配置文件
-├── logs/            # 后端运行日志
-├── public/          # 仅本地开发/评估上传，不属于生产基线
-├── data/            # SQLite 或备份文件
-└── compose/         # compose 编排文件
+```sh
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  --tag ghcr.io/acme/orders-admin:2026.08.25-1 \
+  --push .
 ```
 
-## 一、本地容器化验证
+发布时记录业务镜像的 OCI index digest、源提交和锁文件身份；部署配置使用 digest，
+而不是只依赖可移动标签。基础镜像 digest 需要升级时，通过新的应用 PR 更新并重跑构建
+与浏览器验收。
 
-### 1. 启动 MySQL
+发布前不要把候选标签当作可用镜像。生产部署应在首次解析后记录不可变 digest，并在
+变更单中同时记录版本、源提交和平台。
 
-```bash
-export MSS_LOCAL_MYSQL_PASSWORD="$(openssl rand -hex 24)"
+## 拉取与检查
 
-docker run -d \
-  --name mss-mysql \
-  --restart unless-stopped \
-  -e MYSQL_ROOT_PASSWORD="${MSS_LOCAL_MYSQL_PASSWORD}" \
-  -e MYSQL_DATABASE=mss_boot_admin \
-  -p 3306:3306 \
-  mysql:8
+```sh
+docker pull ghcr.io/mss-boot-io/mss-boot-admin:v1.3.3
+docker pull ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.3
+docker image inspect ghcr.io/mss-boot-io/mss-boot-admin:v1.3.3
+docker image inspect ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.3
 ```
 
-### 2. 执行迁移
+多架构标签对应 OCI index；部署证据应区分 index digest 与节点实际平台 manifest。
 
-```bash
-docker run --rm \
-  --network host \
-  -e STAGE=local \
-  -e DB_DRIVER=mysql \
-  -e DB_DSN="root:${MSS_LOCAL_MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local" \
-  ghcr.io/mss-boot-io/mss-boot-admin:v1.3.2 \
-  migrate
-```
+## 配置与数据
 
-### 3. 同步 API 注册表
+- 配置以只读文件或部署平台注入；
+- 数据库、上传与日志使用持久卷；
+- secret 不写入镜像、Compose 文件或命令历史；
+- 前后端 origin、CORS、Cookie Secure 和反向代理信任边界保持一致；
+- 迁移前完成备份和恢复演练。
 
-```bash
-docker run --rm \
-  --network host \
-  -e STAGE=local \
-  -e DB_DRIVER=mysql \
-  -e DB_DSN="root:${MSS_LOCAL_MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local" \
-  ghcr.io/mss-boot-io/mss-boot-admin:v1.3.2 \
-  server -a
-```
+## 先迁移，后启动服务
 
-该一次性命令与迁移、后端服务使用相同镜像、阶段和 DSN，完成后退出。它负责同步
-菜单“绑定 API”所需的 API 注册数据；路由变化后应在启动新版本前重新执行。
+Thin Host 后端不会在 `server` 启动时偷偷修改数据库。部署编排必须先用同一个业务镜像
+digest 运行一次 `migrate` init job，成功后才允许启动或滚动更新 `server`：
 
-### 4. 启动后端
+- init job 和 server 使用同一套生产配置提供方与数据库连接；
+- 全新数据库只在 init job 中由 secret store 映射 `MSS_ADMIN_INITIAL_PASSWORD`；
+- 该值不写入命令参数、镜像、Compose、日志或长期 server 环境；
+- 已记录首次迁移后，后续幂等迁移不再需要该值；
+- 迁移失败必须阻止服务发布，不能让 server 以缺表状态继续运行。
 
-```bash
-docker run -d \
-  --name mss-boot-admin \
-  --restart unless-stopped \
-  --network host \
-  -e STAGE=local \
-  -e DB_DRIVER=mysql \
-  -e DB_DSN="root:${MSS_LOCAL_MYSQL_PASSWORD}@tcp(127.0.0.1:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local" \
-  -v $(pwd)/logs:/app/logs \
-  -v $(pwd)/public:/app/public \
-  ghcr.io/mss-boot-io/mss-boot-admin:v1.3.2 \
-  server
-```
+镜像的入口程序同时支持 `migrate` 与默认的 `server` 子命令，因此 Kubernetes init
+container、一次性 Job 或等价部署阶段都可以复用同一制品。不要在容器启动命令中拼接
+明文密码。
 
-`public` 挂载只用于本地上传边界验证，不能作为生产持久化或 Delivery 方案。
+## 启动后验证
 
-### 5. 启动前端
+至少检查：
 
-```bash
-docker run -d \
-  --name mss-boot-admin-antd-v6 \
-  --restart unless-stopped \
-  -p 8001:80 \
-  ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.2
-```
+1. 后端 `/healthz` 与 `/readyz` 的状态和正文；
+2. 登录、刷新、退出和权限拒绝；
+3. 前端静态资源、深链刷新和 API 代理；
+4. 一个真实只读与一个授权写业务流程；
+5. 容器重启计数、错误日志和浏览器控制台。
 
-## 二、生产部署基线
+仅有 `running` 或 HTTP 200 不足以证明业务成功。
 
-### 推荐配置
+## 回滚
 
-生产环境建议：
-
-- 数据库：MySQL
-- 缓存/集群：Redis
-- 上传：应用不会自动关闭；ingress 显式阻断两个上传路径，并且不授予通用 `storage:upload` 权限作为纵深防御。头像入口没有独立 Casbin permission，Local/S3-compatible 均为 Legacy / Blocked
-- 反向代理：Nginx
-- 日志：文件输出 + 定期清理
-
-### 环境变量建议
-
-```bash
-export DB_DRIVER=mysql
-export DB_DSN='user:password@tcp(mysql:3306)/mss_boot_admin?charset=utf8mb4&parseTime=True&loc=Local'
-export CONFIG_PROVIDER=local
-export REDIS_PASSWORD='change-me'
-```
-
-### 关键配置建议
-
-```yaml
-server:
-  addr: 0.0.0.0:8080
-
-logger:
-  path: logs
-  stdout: file
-  level: info
-
-task:
-  enable: true
-  spec: "0 */1 * * * *"
-
-cache:
-  redis:
-    addr: 'redis:6379'
-    password: '{{ .Env.REDIS_PASSWORD }}'
-```
-
-## 三、Nginx 反向代理示例
-
-```nginx
-server {
-  listen 80;
-  server_name admin.example.com;
-
-  location / {
-    proxy_pass http://127.0.0.1:8001;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  }
-
-  location /admin/api/ {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  }
-
-  location /admin/api/ws/connect {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-  }
-}
-```
-
-## 四、运维检查清单
-
-### 启动后验证
-
-```bash
-curl -I http://127.0.0.1:8080/healthz
-curl -I http://127.0.0.1:8001/healthz
-```
-
-### 核心检查项
-
-- [ ] 后端 `8080` 可访问
-- [ ] 前端 `8001` 可访问且 `/healthz` 返回 `mss-boot-admin-antd-v6`
-- [ ] `/admin/api/storage/upload` 与 `/admin/api/user/avatar` 未向生产流量开放
-- [ ] Nginx 未把 `/public/` 当作生产对象 Delivery
-- [ ] WebSocket 握手正常
-- [ ] `logs/` 目录持续写入
-- [ ] 定时任务 `checked_at` 正常更新
-- [ ] Redis 可用时 WebSocket 集群模式已启用
-
-### 发布后巡检
-
-- [ ] 登录与退出正常
-- [ ] 监控页面数据可见
-- [ ] 日志页面有数据
-- [ ] 告警通知渠道可联通
-- [ ] 上传与头像写入在 provider gate 完成前保持关闭
-
-## 五、常见问题
-
-### 1. 为什么不能把 `/public/` 代理当作生产上传方案
-
-`D0-safety` 内部检查点只证明 Upload admission 与 Local write boundary：
-`storage:maxSize` 以 bytes 为单位，默认 10 MiB（`10485760`），硬上限
-100 MiB（`104857600`）；`storage:allowedTypes` 使用 MIME types /
-wildcards；Local 使用 opaque UUID key、受限根、create-only 写入与 partial
-cleanup。
-
-`prod` 模式不会注册 `application.staticPath`，返回的 `/public/...` 或 S3
-endpoint 拼接 URL 也不是已鉴权 Delivery。`D1-provider-owner` 必须先完成 provider
-fail-closed、immutable profile 与 single owner；S3 conditional create-only
-及 Local/S3-compatible 共用 conformance suite 留在 `D4-authorization-object`。
-
-### 2. 用户任务调度未生效
-
-优先检查：
-
-- `task.enable` 是否为 `true`
-- `task.spec` 是否为 6 段 cron 表达式
-- 数据库中的任务 `status` 是否为 `enabled`
-
-`task.enable` 不控制内置系统作业。即使它为 `false`，监控采样和会话清理也应
-随服务运行；这两项应通过监控响应时间戳和服务日志排查，而不是查询 TaskRun。
-
-### 3. WebSocket 集群未启用
-
-优先检查：
-
-- Redis 是否可连接
-- `cache.redis` 是否正确配置
-- 服务启动日志中是否出现 `WebSocket cluster mode enabled`
-
-## 推荐阅读
-
-- [快速开始](/admin/quickly)
-- [本地联调](/admin/local-debug)
-- [集成测试指南](/admin/integration-test-guide)
-- [四期路线图](/admin/phase-4-roadmap)
-- [五期路线图](/admin/phase-5-roadmap)
+应用修复优先使用后续补丁版本。需要回退时同时恢复匹配的镜像、配置、数据库快照和
+业务数据；不要只换二进制跨越不兼容迁移。公共标签和 digest 不移动、不覆盖。

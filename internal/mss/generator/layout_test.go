@@ -31,6 +31,7 @@ func TestGenerateUsesThinHostProjectLayoutWithoutCopiedTemplates(t *testing.T) {
 		"web/src/generated/modules/supplier/SupplierPage.tsx",
 		"web/src/generated/locales/en-US.ts",
 		"web/src/pages/generated/Supplier/index.tsx",
+		"docs/modules/supplier.md",
 	} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(required))); err != nil {
 			t.Errorf("generated thin-host output %s: %v", required, err)
@@ -44,8 +45,10 @@ func TestGenerateUsesThinHostProjectLayoutWithoutCopiedTemplates(t *testing.T) {
 
 	assertGeneratedContains(t, root, "internal/modules/all/generated.go", `module0 "github.com/acme/orders-admin/internal/modules/supplier"`)
 	assertGeneratedContains(t, root, "internal/modules/supplier/module_generated.go", `"github.com/mss-boot-io/mss-boot-admin/admin/business"`)
+	assertGeneratedContains(t, root, "internal/modules/supplier/AGENTS.md", `mss --root . verify --module supplier`)
 	assertGeneratedContains(t, root, "web/src/generated/modules/supplier/SupplierPage.tsx", `from '@mss-boot-io/admin-web/runtime'`)
 	assertGeneratedContains(t, root, "web/src/generated/modules/supplier/contract.ts", `from '@mss-boot-io/admin-web/runtime'`)
+	assertGeneratedContains(t, root, "docs/modules/supplier.md", `](../../.mss/modules/example-supplier.yaml)`)
 
 	second, err := Generate(module, Options{Root: root, Check: true, Project: &document})
 	if err != nil {

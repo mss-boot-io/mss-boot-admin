@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build linux || darwin || freebsd || netbsd || openbsd || dragonfly
 
 package dev
 
@@ -31,13 +31,16 @@ func signalProcess(pid int, force bool) error {
 
 	// Services are started in a dedicated process group so child processes such
 	// as `go run` and package-manager wrappers are terminated together.
-	if err := syscall.Kill(-pid, signal); err != nil {
-		if errors.Is(err, syscall.ESRCH) {
-			return nil
-		}
-		if directErr := syscall.Kill(pid, signal); directErr != nil && !errors.Is(directErr, syscall.ESRCH) {
-			return directErr
-		}
+	groupErr := syscall.Kill(-pid, signal)
+	if groupErr == nil {
+		return nil
 	}
-	return nil
+	directErr := syscall.Kill(pid, signal)
+	if errors.Is(groupErr, syscall.ESRCH) && errors.Is(directErr, syscall.ESRCH) {
+		return nil
+	}
+	// A direct signal cannot prove that descendants in the missing or
+	// inaccessible process group were terminated, so retain the group error as
+	// cleanup evidence even when the direct process accepted the signal.
+	return errors.Join(groupErr, directErr)
 }

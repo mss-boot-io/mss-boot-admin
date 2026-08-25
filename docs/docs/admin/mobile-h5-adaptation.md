@@ -1,24 +1,25 @@
 ---
-title: Ant Design V6 移动端响应式规范
+title: v1.3.3 Thin Host 移动端响应式规范
 order: 27
 nav:
   order: 1
   title: admin
-description: web/antd-v6 的共享响应式组件、页面约束与验收矩阵
-keywords: [admin ant-design-v6 mobile responsive accessibility]
+description: Thin Host 业务页面的响应式、可访问性与内置浏览器验收矩阵
+keywords: [v1.3.3 thin host admin mobile responsive accessibility]
 ---
 
 ## 目标
 
-`web/antd-v6` 是唯一前端。桌面和移动端共享同一套业务组件、权限判断、请求契约和
+`web/` 通过 `@mss-boot-io/admin-web@1.3.3` 组合唯一 Admin 前端。桌面和移动端
+共享同一套业务组件、权限判断、请求契约和
 表单校验，不维护两份页面实现。移动适配解决信息密度、触摸操作和导航可达性，不能改变
 后端权限或业务语义。
 
 ## 实现原则
 
 1. 使用 Ant Design 6 `Grid.useBreakpoint()` 和语义化布局，不读取浏览器 UA 判断设备。
-2. 列表优先复用 `src/shared/design-system/ResponsiveEntityTable.tsx`：桌面展示表格，
-   小于 `md` 时展示同一数据源的卡片投影。
+2. 业务页面只使用 Admin Web 的公开导出和 Ant Design 公共 API；桌面表格与小于
+   `md` 的卡片投影必须共享查询、筛选、分页和操作语义，不能导入包内私有路径。
 3. 表单、抽屉、确认框和操作菜单复用同一 mutation；移动端只调整排列和触控尺寸。
 4. 页面必须显式覆盖 loading、空、错误、403、冲突与保存中状态。
 5. 不覆盖 `.ant-*` 内部 DOM；品牌和主题走 token，布局走页面样式或 Tailwind。
@@ -34,10 +35,11 @@ keywords: [admin ant-design-v6 mobile responsive accessibility]
 
 ## 开发调试
 
-从仓库根目录启动唯一前端：
+从 Thin Host 根目录启动完整开发拓扑：
 
-```bash
-corepack pnpm@10.34.5 --dir web/antd-v6 start:dev
+```sh
+mss dev --detach
+mss dev status
 ```
 
 默认访问 `http://localhost:8001`。浏览器设备模式只能作为快速检查，发布证据还必须包含
@@ -66,9 +68,9 @@ corepack pnpm@10.34.5 --dir web/antd-v6 start:dev
 
 开发阶段只做针对性检查；提 PR 前统一运行：
 
-```bash
-make web-lint web-test web-build
-corepack pnpm@10.34.5 --dir web/antd-v6 run test:e2e
+```sh
+mss verify --changed
+mss verify --all
 ```
 
 体积优化在功能追平和体验闭环后统一处理，但生产构建、运行时依赖契约和控制台零弃用

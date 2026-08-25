@@ -17,17 +17,17 @@ Generate a Thin Business Host from a versioned Admin Distribution Blueprint. The
 
 ## Procedure
 
-1. Inspect the current foundation and blueprint contract:
+1. Confirm the installed, versioned tool and inspect the application command. This step is valid in an empty directory and does not require a Foundation checkout:
 
    ```shell
-   go run ./cmd/mss context --format json
-   go run ./cmd/mss new app --help
+   mss --version
+   mss new app --help
    ```
 
 2. Produce the default dry-run plan. Do not pass `--write` yet:
 
    ```shell
-   go run ./cmd/mss new app <name> \
+   mss new app <name> \
      --module <go-module> \
      --repository <owner/name> \
      --destination <path> \
@@ -46,7 +46,7 @@ Generate a Thin Business Host from a versioned Admin Distribution Blueprint. The
 4. Write only after the plan is conflict-free:
 
    ```shell
-   go run ./cmd/mss new app <name> \
+   mss new app <name> \
      --module <go-module> \
      --repository <owner/name> \
      --destination <path> \
@@ -58,10 +58,11 @@ Generate a Thin Business Host from a versioned Admin Distribution Blueprint. The
 5. Enter the generated repository and verify the foundation:
 
    ```shell
-   go run ./cmd/mss doctor --format json
-   go run ./cmd/mss setup
-   go run ./cmd/mss verify --all
-   go run ./cmd/mss upgrade status
+   mss context --format json
+   mss doctor --format json
+   mss setup
+   mss verify --all
+   mss upgrade status
    ```
 
 6. Commit the generated baseline before adding business modules. The generated Git repository is intentionally not auto-committed.
@@ -72,12 +73,12 @@ Generate a Thin Business Host from a versioned Admin Distribution Blueprint. The
 
 - Never embed passwords, tokens, private keys, production DSNs, kubeconfigs, or environment-specific secrets.
 - The command defaults to dry-run and must never silently overwrite differing or unknown destination files.
-- An explicit destination may be outside the foundation checkout only for this application-creation workflow; review it before `--write`.
+- The destination does not need to be inside any Foundation checkout; review the exact path before `--write`.
 - Never copy `.git`, reports, PID state, logs, caches, build output, `node_modules`, or archived one-off prompts.
 - Preserve the generated lock and blueprint manifest; they are the base side of future three-way upgrades.
 - Preserve exact coordinated dependency versions and the generated single-runtime frontend overrides; do not replace them with ranges or local paths.
 - A Thin Host must retain the generated `web/tsconfig.json`, `web/config/config.ts`, app/access/locale glue, and empty generated registries even before its first business module is added.
-- Do not select a moving development foundation for a production application without explicitly documenting that risk.
+- The default Blueprint must come from the installed command's immutable release identity. `--foundation` is reserved for an explicit Foundation-contributor override and must not appear in a normal consumer quick start.
 
 ## Output
 

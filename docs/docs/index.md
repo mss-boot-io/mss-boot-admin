@@ -1,87 +1,47 @@
 ---
-title: mss-boot Complete Admin Distribution
+title: mss-boot Admin v1.3.3
 hero:
   title: mss-boot Admin
-  description: 完整、可组合、可升级的 Agent 原生管理系统基础设施。使用一套 Go Admin、一个 React 19 + Ant Design 6 前端和 Thin Host 构建真实业务系统。
+  description: 通过已发布工具和包创建、开发、验证与升级可维护的 Thin Host
   actions:
-    - text: 了解 Admin
-      link: /admin
-    - text: v1.3.2 发布合同
-      link: /releases/v1-3-2
-    - text: GitHub
-      link: https://github.com/mss-boot-io/mss-boot-admin
+    - text: 5 分钟快速开始
+      link: /getting-started
+    - text: 查看 v1.3.3
+      link: /releases/v1-3-3
 features:
-  - title: Complete Admin Distribution
+  - title: Package first
+    emoji: 📦
+    description: 精确固定 Admin Go Module 与 Admin Web npm 包，不复制 Foundation 核心源码。
+  - title: Agent native
     emoji: 🧭
-    description: Framework、可导入 Admin Go Module、完整 Admin Web npm 包、CLI、机器契约和发布证据使用一个协调版本。
+    description: mss 提供可检查的生成、诊断、开发、验证和三方升级入口。
   - title: Thin Host
-    emoji: 🪶
-    description: 下游仓库只保存组合胶水与业务代码，不复制 Foundation 核心源码；前后端仍编译成一个逻辑应用。
-  - title: Agent-native
-    emoji: 🤖
-    description: AGENTS.md、.mss 规格、mss CLI、Skills、确定性生成与变更感知验证让人和编码 Agent 使用同一事实源。
-  - title: 权限与迁移闭环
-    emoji: 🛡️
-    description: 后端 RBAC 强制执行，业务模块同时生成迁移、菜单、API、权限、前端、测试和文档投影。
-  - title: 单一前端 Runtime
-    emoji: ⚛️
-    description: React 19、Ant Design 6、Umi、Session、主题、国际化与业务页面进入同一路由树和同一个 dist。
-  - title: 可验证发布
-    emoji: ✅
-    description: PR 到 main、精确提交冻结、外部消费者、浏览器、不可变标签、制品校验和发布后对账共同定义完成。
+    emoji: 🧩
+    description: 下游只拥有组合胶水和业务模块，安全与运行时核心由统一发行版维护。
 ---
 
-## 当前版本状态
+# 从 v1.3.3 开始
 
-| 项目 | 状态 |
+当前文档只维护一条采用者路径：
+
+1. 从 `v1.3.3` Release 安装 `mss` 与 `mss-mcp`；
+2. 在空目录运行 `mss new app`；
+3. 运行 `mss doctor --strict`、`mss setup` 与 `mss dev`；
+4. 用 `mss verify --changed` 验证变更；
+5. 用 `mss upgrade admin v1.3.3` 查看匹配发行版的升级计划。
+
+[进入快速开始](/getting-started)
+
+## 按任务阅读
+
+| 目标 | 文档 |
 | --- | --- |
-| 当前稳定版 | `v1.3.2`，提交 `635fbb03a82976941e527d8ac1000fec0624abac` |
-| 上一稳定版 | `v1.2.3`，协调回滚基线 |
-| Admin Web 公开安装 | npm `latest=1.3.2`；后续发布使用 `release-v6` Trusted Publishing OIDC |
-| 不完整稳定列车 | Framework `v1.3.0` 已公开；Admin 发布失败，其余稳定组件未发布 |
-| 已完成预览 | `v1.3.0-rc.6` 完整列车；RC1–RC6 保持不可变 |
-| 前端主线 | `web/antd-v6`；Ant Design 5 已退役 |
-| 下游推荐形态 | `management-system` Thin Host |
+| 创建第一个应用 | [快速开始](/getting-started) |
+| 理解 Go/npm 依赖 | [包与导入边界](/getting-started/packages) |
+| 安装和验证工具 | [工具说明](/getting-started/tooling) |
+| 参考真实业务范本 | [mss-shop](/getting-started/mss-shop) |
+| 配置和运行 Admin | [Admin 指南](/admin) |
+| 编写规格与生成模块 | [Agent 开发](/agent) |
+| 了解版本边界 | [v1.3.3 发布合同](/releases/v1-3-3) |
 
-`v1.3.2` 已从同一个精确 merged-main 提交完成资格审查、协调组件发布和公开对账。详见
-[发布与升级](/releases)和 [v1.3.2 合同](/releases/v1-3-2)。
-
-## 选择你的路径
-
-### 使用完整 Admin
-
-- [Admin 产品概览](/admin)
-- [当前功能总览](/admin/current-capabilities)
-- [本地启动](/admin/quickly)
-- [生产与安全基线](/admin/security-baseline)
-
-### 创建业务系统
-
-- [完整 Admin Distribution 与 Thin Host](/architecture/complete-admin-distribution-and-thin-business-host)
-- [Agent 开发入口](/agent)
-- [Blueprint 与升级](/agent/blueprints-and-upgrades)
-- [Supplier 黄金样例](/modules/supplier)
-
-### 安装、升级与恢复
-
-- [v1.3.2 安装、升级、兼容与回滚](/releases/v1-3-2)
-- [Docker 部署](/admin/docker)
-- [登录排障](/admin/login-troubleshooting)
-- [API 与权限治理](/admin/governance-guide)
-
-## 仓库组成
-
-| 路径 | 作用 |
-| --- | --- |
-| `mss-boot/` | 领域中立的可复用 Go Framework |
-| `admin/` | 可部署且可导入的完整 Admin 应用 |
-| `web/antd-v6/` | 唯一正式前端与 `@mss-boot-io/admin-web` 来源 |
-| `cmd/mss/`、`internal/mss/` | Agent CLI、生成、验证、评测和升级实现 |
-| `.mss/` | 项目、能力、模块、Blueprint 和发布机器契约 |
-| `docs/` | 本站源码与可独立发布的 Docs 组件 |
-
-## 反馈与安全
-
-一般问题请提交到
-[`mss-boot-admin` Issues](https://github.com/mss-boot-io/mss-boot-admin/issues)。疑似漏洞不要在
-公开 Issue 中披露，请先阅读 [Security Policy FAQ](/devops/security-policy-faq)。
+旧版本发布材料只作为不可变证据保留在[历史归档](/releases/archive)，不会参与当前入门。

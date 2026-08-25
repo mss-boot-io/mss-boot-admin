@@ -9,7 +9,11 @@ export const BACKEND_API_BASE_URL = (
   process.env.MSS_E2E_BACKEND_API_URL ?? 'http://127.0.0.1:18080/admin/api'
 ).replace(/\/$/, '');
 export const ROOT_USERNAME = process.env.MSS_E2E_USERNAME ?? 'admin';
-export const ROOT_PASSWORD = process.env.MSS_E2E_PASSWORD ?? '123456';
+const configuredRootPassword = process.env.MSS_E2E_PASSWORD;
+if (!configuredRootPassword) {
+  throw new Error('MSS_E2E_PASSWORD is required for credentialed browser qualification');
+}
+export const ROOT_PASSWORD: string = configuredRootPassword;
 
 export interface SessionCredentials {
   username: string;

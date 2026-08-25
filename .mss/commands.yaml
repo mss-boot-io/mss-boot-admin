@@ -80,22 +80,22 @@ spec:
       category: upgrade
 
     upgrade-plan:
-      command: go run ./cmd/mss upgrade plan --foundation <checkout> --format json
-      description: Perform a read-only three-way comparison against a newer foundation checkout.
+      command: go run ./cmd/mss upgrade plan --format json
+      description: Perform a read-only three-way comparison against the version-matched embedded Foundation; --foundation remains an explicit contributor override.
       outputFormats: [text, json]
       category: upgrade
       dryRunByDefault: true
       idempotent: true
 
     upgrade-apply:
-      command: go run ./cmd/mss upgrade apply --foundation <checkout> --yes --format json
+      command: go run ./cmd/mss upgrade apply --yes --format json
       description: Apply a reviewed conflict-free foundation upgrade and commit the new baseline last.
       outputFormats: [text, json]
       category: upgrade
       idempotent: true
 
     admin-distribution-upgrade-plan:
-      command: go run ./cmd/mss --root <downstream> upgrade admin <version> --foundation <checkout> --format json
+      command: go run ./cmd/mss --root <downstream> upgrade admin <version> --format json
       description: Plan one coordinated Admin Distribution upgrade and report backend, frontend, host, module, conflict, preservation, and validation impacts.
       outputFormats: [text, json]
       category: upgrade
@@ -103,7 +103,7 @@ spec:
       idempotent: true
 
     admin-distribution-upgrade-apply:
-      command: go run ./cmd/mss --root <downstream> upgrade admin <version> --foundation <checkout> --apply --yes --format json
+      command: go run ./cmd/mss --root <downstream> upgrade admin <version> --apply --yes --format json
       description: Apply a reviewed conflict-free Admin Distribution upgrade and commit the new snapshot pair last.
       outputFormats: [text, json]
       category: upgrade
@@ -239,54 +239,54 @@ spec:
       idempotent: true
 
     framework-admin-checksum-verify:
-      command: python3 tools/release/verify_framework_admin_checksum.py --version v1.3.2
-      description: Generate a replace-free local Go proxy from every tracked file in the final Framework tree, calculate canonical Module and GoMod sums with Go, and require exact parity with the unique Admin metadata entries.
+      command: python3 tools/release/verify_framework_admin_checksum.py --version v1.3.3 [--write]
+      description: Fail closed on source drift, generate replace-free local Go proxies from exact HEAD blobs, and verify or deterministically refresh the approved Framework-to-Admin-to-Thin-Host checksum metadata.
       outputFormats: [json]
       category: release
       idempotent: true
 
     release-phase-evidence-plan:
-      command: python3 tools/release/release_phase_evidence.py plan --target-version v1.3.2 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root|post-publication> --output .mss/reports/release-phase-plan.json
-      description: Resolve the explicitly selected v1.3.2 Feature contracts into a shell-free, phase-scoped command plan while retaining manual, report, and non-exact evidence as release-manager review items.
+      command: python3 tools/release/release_phase_evidence.py plan --target-version v1.3.3 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root|post-publication> --output .mss/reports/release-phase-plan.json
+      description: Resolve the explicitly selected v1.3.3 Feature contracts into a shell-free, phase-scoped command plan while retaining manual, report, and non-exact evidence as release-manager review items.
       outputFormats: [json]
       category: release
       idempotent: true
 
     release-phase-evidence-run:
-      command: python3 tools/release/release_phase_evidence.py run --target-version v1.3.2 --commit <full-sha> --phase <feature-freeze|pre-framework|pre-root> --output .mss/reports/release-phase-command-evidence.json
+      command: python3 tools/release/release_phase_evidence.py run --target-version v1.3.3 --commit <full-sha> --phase <feature-freeze|pre-framework|pre-root> --output .mss/reports/release-phase-command-evidence.json
       description: On one clean frozen commit, execute only the selected phase's release Feature commands without a shell, retain per-command digests and logs, and fail when a selected command fails, times out, or still uses non-exact named Go test evidence.
       outputFormats: [json]
       category: release
 
     release-qualification-decision:
-      command: python3 tools/release/release_qualification_decision.py --target-version v1.3.2 --commit <full-sha> --phase feature-freeze --browser-evidence-commit <full-sha> --browser-evidence-ref <reference> --blueprint-evidence-commit <full-sha> --blueprint-evidence-ref <reference> --output .mss/reports/release-qualification-decision.json
+      command: python3 tools/release/release_qualification_decision.py --target-version v1.3.3 --commit <full-sha> --phase feature-freeze --browser-evidence-commit <full-sha> --browser-evidence-ref <reference> --blueprint-evidence-commit <full-sha> --blueprint-evidence-ref <reference> --output .mss/reports/release-qualification-decision.json
       description: Bind the Codex in-app Browser and external Blueprint rehearsal evidence to the exact frozen SHA while recording carry-forward and optional ObjectStore/RustFS decisions.
       outputFormats: [json]
       category: release
       idempotent: true
 
     release-readiness-attestation-create:
-      command: python3 tools/release/release_readiness_attestation.py create --output <attestation.json> --policy .mss/release-policy.yaml --target-version v1.3.2 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --publication-authority <true|false>
+      command: python3 tools/release/release_readiness_attestation.py create --output <attestation.json> --policy .mss/release-policy.yaml --target-version v1.3.3 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --publication-authority <true|false>
       description: Create strict readiness metadata for one exact workflow run; checkpoint and feature-freeze remain qualification-only, while an explicitly authorized pre-framework or pre-root run may grant publication authority when the reviewed policy enables publication workflows.
       outputFormats: [text]
       category: release
 
     release-readiness-attestation-verify:
-      command: python3 tools/release/release_readiness_attestation.py verify --attestation <attestation.json> --policy .mss/release-policy.yaml --target-version v1.3.2 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --intent <qualify|publish>
+      command: python3 tools/release/release_readiness_attestation.py verify --attestation <attestation.json> --policy .mss/release-policy.yaml --target-version v1.3.3 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --intent <qualify|publish>
       description: Reject an attestation unless its exact schema, version, commit, phase, policy digest, selected run identity, URL, and authority match the requested intent.
       outputFormats: [text]
       category: release
       idempotent: true
 
     release-readiness-run-verify:
-      command: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.3.2 --commit <full-sha> --phase <pre-framework|pre-root> --policy .mss/release-policy.yaml
+      command: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.3.3 --commit <full-sha> --phase <pre-framework|pre-root> --policy .mss/release-policy.yaml
       description: Read the specifically selected successful release-readiness workflow run and its run-named artifact, then require an exact publication attestation before a publishing workflow writes externally.
       outputFormats: [text]
       category: release
       idempotent: true
 
     official-npm-publish:
-      command: gh workflow run npm-release.yml --ref <root-tag> -f version=v1.3.2 -f commit=<full-sha> -f allow_npm_token_bootstrap=false
+      command: gh workflow run npm-release.yml --ref <root-tag> -f version=v1.3.3 -f commit=<full-sha> -f allow_npm_token_bootstrap=false
       description: As the final artifact publication, publish the already-qualified Admin Web GitHub Release tarball to public npmjs from the exact root tag through the bound npm Trusted Publisher; the completed one-time bootstrap path is historical and future runs fail closed without matching OIDC identity.
       outputFormats: [text]
       category: release

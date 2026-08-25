@@ -119,18 +119,11 @@ export function ApplicationFooter({ initialState }: { initialState?: InitialStat
           </Typography.Link>
         ) : null}
         <Typography.Link
-          href="https://github.com/mss-boot-io/mss-boot"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <GithubOutlined /> mss-boot
-        </Typography.Link>
-        <Typography.Link
           href="https://github.com/mss-boot-io/mss-boot-admin"
           target="_blank"
           rel="noreferrer"
         >
-          mss-boot-admin
+          <GithubOutlined /> mss-boot-admin
         </Typography.Link>
       </div>
     </footer>

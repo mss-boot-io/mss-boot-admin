@@ -71,7 +71,6 @@ jobs:
             admin/go.sum
             mss-boot/go.sum
             go.work.sum
-            cmd/tools/pr/go.sum
 
       - name: Test coverage policy tooling
         run: python3 -m unittest scripts/test_check_go_coverage.py
@@ -100,14 +99,21 @@ jobs:
 
       - name: Comment on PR with Admin coverage
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        working-directory: cmd/tools/pr
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO_NAME: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.number }}
-          COVERAGE_FILE: ../../../admin_coverage_table.md
-          GOWORK: 'off'
-        run: go run -mod=readonly .
+        run: |
+          set -euo pipefail
+          comment="${RUNNER_TEMP}/admin-coverage-comment.md"
+          {
+            echo '| Field | Coverage |'
+            echo '| --- | --- |'
+            cat admin_coverage_table.md
+          } > "${comment}"
+          jq -n --rawfile body "${comment}" '{body: $body}' \
+            | gh api "/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+                --method POST \
+                --input - >/dev/null
 
       - name: Upload Admin coverage profile
         uses: actions/upload-artifact@v7

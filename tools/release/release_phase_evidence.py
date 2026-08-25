@@ -35,6 +35,17 @@ ALLOWED_BASH_SCRIPTS = frozenset(
         "tools/release/verify_readiness_run.sh",
     )
 )
+ALLOWED_BASH_INVOCATIONS = {
+    "tools/install/test-install-mss.sh": frozenset(((),)),
+    "tools/compatibility/test-standalone-mss-consumer.sh": frozenset(
+        (
+            (),
+            ("--lifecycle",),
+            ("--upgrade",),
+            ("--public-packages", "--lifecycle", "--upgrade"),
+        )
+    ),
+}
 SHELL_CONTROL_TOKENS = frozenset(("&&", "||", ";", "|", ">", ">>", "<", "<<"))
 
 
@@ -246,9 +257,17 @@ def parse_command(value: str) -> ParsedCommand:
     if any("$(" in token or "`" in token for token in argv):
         raise PhaseEvidenceError("shell expansion is not allowed in command evidence")
     if argv[0] == "bash":
-        if len(argv) < 2 or argv[1] not in ALLOWED_BASH_SCRIPTS:
+        if len(argv) < 2 or (
+            argv[1] not in ALLOWED_BASH_SCRIPTS
+            and argv[1] not in ALLOWED_BASH_INVOCATIONS
+        ):
             raise PhaseEvidenceError(
                 "bash evidence may invoke only an explicitly allowlisted qualification script"
+            )
+        allowed_arguments = ALLOWED_BASH_INVOCATIONS.get(argv[1])
+        if allowed_arguments is not None and tuple(argv[2:]) not in allowed_arguments:
+            raise PhaseEvidenceError(
+                f"bash evidence uses unsupported arguments for {argv[1]!r}"
             )
     return ParsedCommand(argv, working_directory, environment)
 

@@ -5,9 +5,14 @@ bin/
 .mss/run/
 .mss/cache/
 .mss/logs/
+logs/
 web/node_modules/
+web/.pnpm-store/
 web/dist/
+web/.umi/
+web/.umi-production/
+web/src/.umi/
+web/src/.umi-production/
 web/test-results/
 web/playwright-report/
 config/application-*.yml
-!config/application-local.example.yml

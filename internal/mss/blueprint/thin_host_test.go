@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
 func TestGenerateThinHostSelectsOnlyApplicationTemplates(t *testing.T) {
@@ -89,6 +91,59 @@ func TestGenerateThinHostSelectsOnlyApplicationTemplates(t *testing.T) {
 	}
 }
 
+func TestGenerateThinHostQuotesDisplayNameOnlyInYAMLContext(t *testing.T) {
+	root := writeThinHostBlueprintFixture(t)
+	tests := []struct {
+		name        string
+		displayName string
+	}{
+		{name: "colon", displayName: "ACME: Admin"},
+		{name: "hash", displayName: "ACME # Admin"},
+		{name: "single-quote", displayName: "Owner's Admin"},
+		{name: "double-quote", displayName: `ACME "Admin"`},
+		{name: "newline", displayName: "ACME\nAdmin"},
+		{name: "unicode", displayName: "示例管理后台"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			applicationName := "display-" + strings.ReplaceAll(test.name, "-", "")
+			destination := filepath.Join(t.TempDir(), applicationName)
+			_, err := Generate(context.Background(), Options{
+				FoundationRoot: root,
+				Destination:    destination,
+				Write:          true,
+				Application: Application{
+					Name:        applicationName,
+					DisplayName: test.displayName,
+					Module:      "github.com/acme/" + applicationName,
+					Repository:  "acme/" + applicationName,
+				},
+			})
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+			projectData, err := os.ReadFile(filepath.Join(destination, ".mss", "project.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			document, err := project.DecodeProjectDocument(projectData)
+			if err != nil {
+				t.Fatalf("DecodeProjectDocument() error = %v\n%s", err, projectData)
+			}
+			if document.Metadata.DisplayName != test.displayName {
+				t.Fatalf("displayName = %q, want %q", document.Metadata.DisplayName, test.displayName)
+			}
+			readme, err := os.ReadFile(filepath.Join(destination, "AGENTS.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, want := string(readme), "# "+test.displayName+"\n"; got != want {
+				t.Fatalf("AGENTS.md = %q, want raw human-readable value %q", got, want)
+			}
+		})
+	}
+}
+
 func TestApplicationTemplatePinsOneFrontendRuntimeWithoutPatches(t *testing.T) {
 	_, sourceFile, _, ok := runtime.Caller(0)
 	if !ok {
@@ -164,7 +219,7 @@ spec:
   textNames: [AGENTS.md]
 `)
 	writeFixtureFile(t, root, "templates/application/AGENTS.md", "# __MSS_APP_DISPLAY_NAME__\n")
-	writeFixtureFile(t, root, "templates/application/go.mod", `module __MSS_APP_MODULE__
+	writeFixtureFile(t, root, "templates/application/go.mod.tmpl", `module __MSS_APP_MODULE__
 
 go 1.26.0
 
@@ -173,7 +228,7 @@ require (
 	github.com/mss-boot-io/mss-boot-admin/mss-boot __MSS_DISTRIBUTION_BACKEND_VERSION__
 )
 `)
-	writeFixtureFile(t, root, "templates/application/cmd/server/main.go", `package main
+	writeFixtureFile(t, root, "templates/application/cmd/server/main.go.tmpl", `package main
 
 import (
 	adminapp "__MSS_DISTRIBUTION_BACKEND_MODULE__/app"
@@ -182,7 +237,7 @@ import (
 
 func main() { _ = adminapp.ExecuteContext }
 `)
-	writeFixtureFile(t, root, "templates/application/internal/modules/all/generated.go", `package all
+	writeFixtureFile(t, root, "templates/application/internal/modules/all/generated.go.tmpl", `package all
 
 import "__MSS_DISTRIBUTION_BACKEND_MODULE__/business"
 
@@ -192,7 +247,7 @@ func Modules() []business.Module { return nil }
 kind: Project
 metadata:
   name: __MSS_APP_NAME__
-  displayName: __MSS_APP_DISPLAY_NAME__
+  displayName: __MSS_APP_DISPLAY_NAME_YAML__
   repository: __MSS_APP_REPOSITORY__
 spec:
   foundationVersion: 0.1.0

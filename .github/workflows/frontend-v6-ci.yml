@@ -312,6 +312,13 @@ jobs:
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
 
+      - name: Create ephemeral browser administrator secret
+        run: |
+          set -euo pipefail
+          password="MssE2E-A1-$(openssl rand -hex 24)"
+          echo "::add-mask::${password}"
+          echo "MSS_E2E_PASSWORD=${password}" >> "${GITHUB_ENV}"
+
       - name: Run browser permission and parity qualification
         run: pnpm run test:e2e
 

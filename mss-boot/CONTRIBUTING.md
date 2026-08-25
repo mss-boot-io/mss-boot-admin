@@ -11,8 +11,8 @@ bugs. Do not report vulnerabilities in public issues.
 - Use a Conventional Commits title, for example `fix(config): handle empty app name`.
 - Keep changes scoped and include tests for behavior changes.
 - Run `go test ./...` before requesting review.
-- Update README, docs, changelog, `aigc/prompts/`, or the organization docs
-  project when behavior, configuration, release policy, or AI workflow changes.
+- Update the README, current docs, changelog, ADRs, and machine-readable contracts
+  when behavior, configuration, release policy, or an Agent workflow changes.
 
 AI-assisted changes are welcome when the generated output is reviewed and
 verified by the contributor.

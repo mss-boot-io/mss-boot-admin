@@ -356,7 +356,13 @@ spec:
         - type: command
           value: cd admin && GOWORK=off go test ./presentation ./models ./service ./apis ./middleware ./cmd/migrate/migration/system ./router
         - type: command
-          value: corepack pnpm@10.34.5 --dir web/antd-v6 lint && corepack pnpm@10.34.5 --dir web/antd-v6 tsc && corepack pnpm@10.34.5 --dir web/antd-v6 test src/modules/presentation-config src/shared/presentation && corepack pnpm@10.34.5 --dir web/antd-v6 build
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 lint
+        - type: command
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 tsc
+        - type: command
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 test src/modules/presentation-config src/shared/presentation
+        - type: command
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 build
         - type: command
           value: corepack pnpm@9.15.9 --dir docs build
         - type: command

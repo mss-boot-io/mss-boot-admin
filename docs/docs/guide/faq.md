@@ -1,643 +1,111 @@
 ---
-title: 常见问题
-order: 14
-nav:
-  title: 指南
-  order: 1
-keywords: [faq, troubleshooting, help, support]
+title: FAQ
+order: 3
+description: v1.3.3 安装、创建、开发、验证和升级的常见问题
 ---
 
-# 安装问题
+# FAQ
 
-## Q: Go 版本要求是什么？
+## 为什么不再先克隆 Foundation？
 
-**A:** 当前仓库要求 Go 1.26.6。版本和目录约定以仓库根目录的
-`.mss/project.yaml` 为准。
+v1.3.3 的 `mss` 内置与自身版本、提交和时间戳绑定的 Blueprint。采用者只需要
+Release 工具与公开 Go/npm 包；克隆流程只属于 Foundation 贡献者。
 
-检查当前版本：
+## 安装后找不到 mss
 
-```bash
-go version
+安装器不会修改 profile。当前终端可执行：
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+mss --version
 ```
 
-如果版本过低，访问 [Go 官网](https://go.dev/dl/) 下载最新版本。
+PowerShell：
 
-## Q: MySQL 版本要求是什么？
-
-**A:** 本地启动默认使用 SQLite，不要求安装 MySQL。需要验证 MySQL 兼容性时，
-推荐使用 MySQL 8.0 或更高版本；PostgreSQL 也是受支持的可选数据库。
-
-MySQL 8.0 提供更好的 utf8mb4 支持和性能优化。
-
-## Q: Node.js 版本要求是什么？
-
-**A:** V6 前端需要 Node.js >= 24 且 < 25，并通过 Corepack 使用仓库固定的
-pnpm 10.34.5；精确版本以 `.mss/project.yaml` 为准。
-
-检查版本：
-
-```bash
-node -v
-corepack pnpm --version
+```powershell
+$env:Path = "$HOME\.local\bin;$env:Path"
+mss --version
 ```
 
-## Q: 前端依赖安装失败怎么办？
+需要持久化时由用户按自己的 shell 管理 PATH。
 
-**A:** 在 monorepo 的 `web/antd-v6/` 目录处理。先按以下步骤检查：
+## 可以只下载一个二进制吗？
 
-1. 启用 Corepack 并核对固定版本：
+工具包固定包含 `mss`、`mss-mcp`、`BUILD-INFO` 与 `LICENSE`，并由一个摘要清单
+校验。不要从未知来源拆分或改名下载。
 
-```bash
-corepack enable
-corepack pnpm@10.34.5 --version
+## 为什么 mss new app 没写文件？
+
+写入默认关闭。确认计划后加 `--write`；需要初始化 Git 时再加 `--git-init`。
+目标目录存在未知文件时会拒绝覆盖。
+
+## mss new app 需要访问哪些公共服务？
+
+创建时会匿名读取 `registry.npmjs.org` 上精确版本的 Admin Web 元数据，把公开的
+SHA-512 完整性值写入冻结锁；`mss setup` 随后按 Go 与 npm 的标准公共代理下载依赖。
+如果公司代理阻断这些地址，命令会明确失败且不写入半成品。不要把 npm token、私有
+镜像地址或临时本地包写进生成仓库来绕过发布合同。
+
+## doctor 为什么在项目刚生成后失败？
+
+`mss doctor --strict` 会检查 Go、Node、Corepack/pnpm、冻结锁、Go sums、Blueprint
+快照与项目合同。按输出修复真实缺项，然后重新运行；不要关闭 strict 掩盖问题。
+
+## setup 为什么要求初始管理员密码？
+
+全新 Thin Host 的第一次 `mss setup` 会在本地 SQLite 中执行迁移并创建初始管理员。
+交互终端使用内置隐藏提示；非交互自动化只在 setup 进程中从密钥存储注入一次性
+`MSS_ADMIN_INITIAL_PASSWORD`。密码必须为 8-128 个字符并同时包含字母和数字，且不会
+进入参数、报告或生成文件。迁移记录存在后，重复 `setup` 不再要求这个值。不要使用
+命令行密码参数。
+
+初始用户名固定为 `admin`。打开 `http://127.0.0.1:8001`，使用该用户名和首次 setup
+时提供的密码登录；系统没有默认密码。
+
+## setup 会连接生产系统吗？
+
+不会。它按 Thin Host 合同安装冻结依赖并迁移本地 SQLite；初始管理员密码是本地启动
+密钥，不是生产凭据。Redis 或其他外部提供方只有在配置明确启用后才属于运行时依赖。
+
+## 前端包装好后为何仍不能构建？
+
+确认 Node 24、Corepack pnpm 10.34.5、`@mss-boot-io/admin-web@1.3.3` 和冻结
+`pnpm-lock.yaml` 一致。运行 `mss doctor --strict` 后再执行 `mss verify --all`。
+
+## 如何升级？
+
+先备份业务仓库和数据库，安装目标版本工具，并确认仓库仍有生成时的三方合并基线：
+
+```sh
+mss --version
+mss-mcp --version
+mss upgrade status --format json
+mss upgrade admin v1.3.3
+mss upgrade admin v1.3.3 --apply --yes
+mss doctor --strict
+mss verify --all
+mss upgrade admin v1.3.3
 ```
 
-2. 按 lockfile 冻结安装：
+第一次 upgrade 只读。只有看过无冲突计划和备份策略后才执行 apply；最后一次计划必须
+为空。匹配的公开发行版不需要额外源码目录。
 
-```bash
-corepack pnpm@10.34.5 install --frozen-lockfile
-```
+`.mss/blueprint-manifest.json` 缺失时不能直接升级。对手工拼装或基线丢失的仓库，使用
+目标版本 `mss new app` 在新目录生成干净 Thin Host，再按业务所有权迁入规格和业务文件，
+然后运行完整验证；不要手写或复制别人的 manifest。
 
-3. 如果下载缓存损坏，清理依赖缓存后重试冻结安装：
+## 能否混用不同补丁版本？
 
-```bash
-corepack pnpm@10.34.5 store prune
-corepack pnpm@10.34.5 install --frozen-lockfile
-```
+不能。Admin、Framework、Admin Web、工具、Blueprint 和锁记录构成一个协调发行版。
+混用版本会失去资格验证证据。
 
-不要删除 `pnpm-lock.yaml`，也不要改用其他包管理器绕过依赖锁；如果仍失败，
-保留完整错误并检查 Node 版本、网络和 lockfile 是否与当前提交一致。
+## 何时直接修改生成文件？
 
----
+不要直接修改生成区。能由规格表达的变化先修改 `.mss/` 规格，再生成并运行漂移检查。
+业务所有文件不在生成管理范围内，可以正常维护。
 
-# 启动问题
+## 从哪里确认版本是否已经公开？
 
-## Q: 后端启动失败，提示数据库连接错误？
-
-**A:** 默认 SQLite 无需额外数据库服务。先从仓库根目录进入 `admin/`，重新执行
-`go run . migrate` 并检查 SQLite 文件目录的读写权限和后端日志。
-
-如果明确切换到了可选的 MySQL/PostgreSQL，再检查以下几点：
-
-1. **MySQL 服务是否启动**：
-
-```bash
-# Docker 方式
-docker ps | grep mysql
-
-# 本地安装
-systemctl status mysql
-```
-
-2. **数据库是否创建**：
-
-```bash
-mysql -uroot -p -e "show databases;"
-```
-
-如果没有，创建数据库：
-
-```sql
-CREATE DATABASE mss_boot_admin DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-3. **DSN 配置是否正确**：
-
-检查环境变量或配置文件中的 `DB_DSN` 是否已设置，不要把完整 DSN 输出到日志：
-
-```bash
-test -n "${DB_DSN:-}" && echo "DB_DSN is set"
-```
-
-格式应为：
-
-```
-<user>:<password>@tcp(<host>:<port>)/<database>?charset=utf8mb4&parseTime=True&loc=Local
-```
-
-生产凭据应由部署平台的 Secret 机制注入，不能写入文档、工单或仓库配置。
-
-4. **防火墙是否允许连接**：
-
-确保 3306 端口可访问。
-
-## Q: 后端端口冲突怎么办？
-
-**A:** 修改端口配置：
-
-修改当前 Stage 对应的配置覆盖文件；本地开发使用
-`config/application-local.yml`：
-
-```yaml
-server:
-  addr: ':9080'
-```
-
-## Q: 前端端口冲突怎么办？
-
-**A:** 修改端口配置：
-
-创建 `.env.local`：
-
-```
-PORT=9000
-```
-
-或启动时指定：
-
-```bash
-PORT=9000 corepack pnpm@10.34.5 --dir web/antd-v6 run start:dev
-```
-
-## Q: 数据库迁移失败怎么办？
-
-**A:** 检查以下问题：
-
-1. **数据库连接正常**：
-
-```bash
-mysql -uroot -p -h 127.0.0.1 -e "select 1;"
-```
-
-2. **用户权限足够**：
-
-确保用户有 CREATE、ALTER、INSERT 权限。
-
-3. **查看详细错误**：
-
-```bash
-cd admin
-go run . migrate
-```
-
-4. **手动执行迁移**：
-
-如果自动迁移失败，可以手动执行 SQL 文件（在 `cmd/migrate/migration/` 目录）。
-
-## Q: 如何生成或新增数据表？
-
-**A:** Admin 已不再提供运行时虚拟模型。新增数据表应使用 Go model +
-forward-compatible migration；标准管理模块也可以先用 `mss module generate`
-在开发期从规格离线生成，再审查和编译生成结果。
-
-推荐流程：
-
-1. 在后端新增或调整 Go model，明确字段、索引和关联关系。
-2. 在 migration 中添加数据库结构变更。
-3. 执行迁移：
-
-```bash
-cd admin
-go run . migrate
-```
-
-4. 启动服务并验证 API、菜单、角色权限和前端页面是否符合预期。
-5. 如果这个表会暴露给后台用户，补充对应的权限、菜单、文档和测试说明。
-
-从旧版本升级时，历史虚拟模型元数据表和已经创建的业务表会保留，避免自动
-破坏用户数据；相关菜单、权限和运行时 API 已移除。需要继续使用这些数据时，
-应将其迁移到可审查的 Go model、migration 和权限治理路径。
-
----
-
-# 功能问题
-
-## Q: 登录后提示"权限不足"？
-
-**A:** 检查以下几点：
-
-1. **用户是否分配角色**：
-
-在用户管理中，检查用户是否有角色分配。
-
-2. **角色是否有权限**：
-
-在角色管理中，检查角色的菜单权限和 API 权限。
-
-3. **菜单权限配置**：
-
-确保菜单已正确分配给角色。
-
-## Q: 菜单不显示？
-
-**A:** 检查以下几点：
-
-1. **菜单状态**：
-
-菜单管理中，确保菜单状态为"启用"。
-
-2. **用户角色权限**：
-
-确保用户角色有该菜单的权限。
-
-3. **菜单可见性**：
-
-检查菜单的"可见"属性是否为"是"。
-
-4. **前端路由配置**：
-
-检查前端路由是否正确配置。
-
-## Q: API 请求返回 401 Unauthorized？
-
-**A:** 检查以下几点：
-
-1. **浏览器请求是否建立了服务端会话**：
-
-确认登录成功、HttpOnly 会话 Cookie 已由浏览器接收，并检查 `userInfo` 请求是否成功。
-不要从响应或 localStorage 读取 Admin JWT，也不要为浏览器请求自行补
-`Authorization` Header。
-
-2. **状态变更请求是否通过浏览器安全校验**：
-
-确认请求来自精确可信的 `Origin`，且 `X-CSRF-Token` 与签名双提交 Cookie 匹配。
-
-3. **非浏览器调用是否使用有效 PAT**：
-
-自动化调用应使用用户主动创建的一次性 Personal Access Token，通过
-`Authorization: Bearer` 传递，并检查它是否已过期或撤销。
-
-4. **API 权限配置**：
-
-在角色管理中，确保角色有该 API 的权限。
-
-登录链路的完整排查步骤请参考 [登录排障](/admin/login-troubleshooting)。
-
-## Q: 文件上传失败？
-
-**A:** 检查以下几点：
-
-1. **存储配置**：
-
-检查对象存储配置是否正确（S3、OSS 等）。
-
-2. **文件大小限制**：
-
-检查服务器和 Nginx 的文件大小限制。
-
-Nginx 配置：
-
-```nginx
-client_max_body_size 100M;
-```
-
-3. **文件类型限制**：
-
-检查允许的文件类型配置。
-
-4. **权限问题**：
-
-确保上传目录有写入权限。
-
----
-
-# 配置问题
-
-## Q: 浏览器会话有效期如何修改？
-
-**A:** 在配置文件中修改：
-
-```yaml
-auth:
-  timeout: '12h'       # 单次会话有效期
-  maxRefresh: '2160h'  # 最长可续期窗口
-  browserSession:
-    secure: true       # 生产环境必须为 true
-    sameSite: lax      # 仅支持 lax 或 strict
-    webSocketTicketTTL: 30s
-```
-
-`timeout` 与 `maxRefresh` 必须为正值；WebSocket ticket 的有效期必须在 5 秒到
-2 分钟之间。生产环境还必须使用精确 HTTPS 应用 Origin 和 CORS Origin，并允许
-`X-CSRF-Token`。配置应通过部署平台的受控配置或 Secret 机制注入，不要假设存在
-未在当前配置合同中声明的 `JWT_EXPIRE` 环境变量。
-
-## Q: 日志级别如何修改？
-
-**A:** 在配置文件中修改：
-
-```yaml
-logger:
-  level: 'debug' # debug / info / warn / error
-```
-
-或通过环境变量：
-
-```bash
-export LOG_LEVEL="debug"
-```
-
-动态修改（运行时）：
-
-在监控页面可以动态调整日志级别。
-
-## Q: 如何配置 OAuth2 第三方登录？
-
-**A:** 配置步骤：
-
-1. 在第三方平台（GitHub、飞书）创建应用，获取 Client ID 和 Client Secret。
-
-2. 配置文件：
-
-```yaml
-oauth2:
-  github:
-    clientID: 'your-client-id'
-    clientSecret: 'your-client-secret'
-    redirectURL: 'http://your-domain/api/v1/oauth2/github/callback'
-```
-
-3. 前端配置登录入口。
-
-## Q: 如何配置邮件通知？
-
-**A:** 配置 SMTP：
-
-```yaml
-email:
-  host: 'smtp.example.com'
-  port: 587
-  username: 'your-email@example.com'
-  password: 'your-password'
-  from: 'noreply@example.com'
-```
-
----
-
-# 部署问题
-
-## Q: Docker 容器启动后无法访问？
-
-**A:** 检查以下几点：
-
-1. **容器状态**：
-
-```bash
-docker ps
-docker logs mss-backend
-```
-
-2. **端口映射**：
-
-确保端口正确映射：
-
-```bash
-docker port mss-backend
-```
-
-3. **网络连接**：
-
-```bash
-docker network ls
-docker network inspect bridge
-```
-
-4. **防火墙规则**：
-
-确保防火墙允许访问端口。
-
-## Q: Kubernetes 部署后服务无法访问？
-
-**A:** 检查以下几点：
-
-1. **Pod 状态**：
-
-```bash
-kubectl get pods -n mss-boot
-kubectl describe pod <pod-name> -n mss-boot
-kubectl logs <pod-name> -n mss-boot
-```
-
-2. **Service 状态**：
-
-```bash
-kubectl get svc -n mss-boot
-kubectl describe svc mss-boot-admin -n mss-boot
-```
-
-3. **Ingress 配置**：
-
-```bash
-kubectl get ingress -n mss-boot
-kubectl describe ingress mss-boot-admin-ingress -n mss-boot
-```
-
-4. **DNS 解析**：
-
-确保域名正确解析到 Ingress IP。
-
-## Q: 生产环境性能慢怎么办？
-
-**A:** 优化建议：
-
-1. **数据库优化**：
-
-- 增加连接池大小
-- 添加索引
-- 查询优化
-
-```yaml
-database:
-  maxOpen: 100
-  maxIdle: 20
-  maxLifetime: '1h'
-```
-
-2. **缓存配置**：
-
-使用 Redis 缓存热点数据。
-
-3. **资源限制**：
-
-合理配置 CPU 和内存限制。
-
-4. **静态资源**：
-
-- 启用 CDN
-- 启用 gzip 压缩
-- 配置缓存策略
-
----
-
-# 安全问题
-
-## Q: 如何报告疑似安全漏洞？
-
-**A:** 不要在公开 Issue 中披露漏洞细节、token、密码、生产日志或可直接
-滥用的复现步骤。请先阅读 [SECURITY Policy FAQ](/devops/security-policy-faq)，
-并按受影响仓库的 `SECURITY.md` 路径提交私密报告。
-
-## Q: 如何修改默认密码？
-
-**A:** 首次登录后立即修改：
-
-1. 使用部署者提供的账号和一次性密码登录，不要在文档或工单中记录生产密码
-2. 进入个人中心
-3. 修改密码
-
-生产环境强制要求修改默认密码。
-
-## Q: 浏览器会话签名密钥强度要求？
-
-**A:** 生产环境要求：
-
-- `auth.key` 必须覆盖开发默认值，并包含至少 32 字节有熵材料
-- `auth.identityKey` 必须非空并在部署期间保持稳定
-- 通过 Secret 管理系统注入，绝不能写入仓库、日志或公开文档
-- 轮换 `auth.key` 会使现有浏览器会话和 PAT 签名失效，应按受控发布流程执行
-
-生成强密钥：
-
-```bash
-openssl rand -base64 32
-```
-
-## Q: 如何启用 HTTPS？
-
-**A:** 配置 SSL 证书：
-
-**Nginx 配置**：
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name your-domain.com;
-
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-
-    # 其他配置...
-}
-```
-
-**直接配置**：
-
-```yaml
-server:
-  addr: ':443'
-  certFile: '/path/to/cert.pem'
-  keyFile: '/path/to/key.pem'
-```
-
-## Q: CORS 配置如何设置？
-
-**A:** 配置允许的域名：
-
-```yaml
-cors:
-  allowOrigins:
-    - 'https://admin.your-domain.com'
-  allowMethods:
-    - 'GET'
-    - 'POST'
-    - 'PUT'
-    - 'DELETE'
-  allowHeaders:
-    - 'Authorization'
-    - 'Content-Type'
-```
-
-OAuth 浏览器绑定使用 HttpOnly Cookie，因此前后端跨 Origin 时必须启用凭据请求，且 `allowOrigins` 必须是精确 Origin，不能配置 `*`。生产、Beta、Alpha 应分别只允许各自的前端域名。
-
----
-
-# 其他问题
-
-## Q: 如何查看系统日志？
-
-**A:** 多种方式：
-
-1. **Docker 日志**：
-
-```bash
-docker logs mss-backend
-docker logs -f mss-backend  # 实时查看
-```
-
-2. **日志文件**：
-
-查看配置的日志文件路径。
-
-3. **系统登录日志**：
-
-在后台"日志管理"查看用户登录日志。
-
-4. **操作日志**：
-
-在后台"日志管理"查看用户操作日志。
-
-## Q: 如何备份数据？
-
-**A:** 备份方案：
-
-1. **数据库备份**：
-
-```bash
-mysqldump -uroot -p mss_boot_admin > backup.sql
-```
-
-2. **配置文件备份**：
-
-备份 `config/` 目录。
-
-3. **定期备份**：
-
-设置定时任务定期备份。
-
-## Q: 如何升级版本？
-
-**A:** 不要通过 `git pull main`、只替换前端或只替换后端来升级生产环境。先阅读
-[发布与升级](/releases)及目标版本的升级、兼容性和回滚说明，并锁定同一协调版本的
-后端、Framework、Admin Web 与镜像 digest。
-
-最低顺序如下：
-
-1. **冻结精确版本并建立恢复点**：备份数据库、配置与上一组协调制品，记录校验和和
-   镜像 digest。
-
-2. **执行目标版本迁移**：使用目标版本的后端二进制和实际生产 Stage/DSN 执行
-   `migrate`，不要使用分支源码或个人构建。
-
-3. **同步 API 注册表**：继续使用同一后端二进制、Stage 与 DSN 执行一次
-   `server -a`；命令成功退出后再启动常驻服务。省略此步可能导致菜单“绑定 API”缺少候选项。
-
-4. **协调启动并验证**：部署同版本前后端，检查 readiness、登录、权限正反例、菜单与
-   关键业务冒烟；失败时按目标版本文档停止写入并执行协调恢复或前向修复。
-
-数据库备份示例：
-
-```bash
-mysqldump -uroot -p mss_boot_admin > backup_before_upgrade.sql
-```
-
-## Q: 如何获取帮助？
-
-**A:** 多种渠道：
-
-1. **在线文档**：
-
-https://docs.mss-boot-io.top
-
-2. **GitHub Issues**：
-
-https://github.com/mss-boot-io/mss-boot-admin/issues
-
-3. **社区交流**：
-
-- 微信群
-- QQ 群
-- Telegram 群
-
-4. **视频教程**：
-
-https://space.bilibili.com/597294782
-
----
-
-# 更多问题？
-
-如有其他问题，请通过 GitHub Issues 提交：
-
-https://github.com/mss-boot-io/mss-boot-admin/issues/new
-
-我们会在第一时间回复。
+查看 [v1.3.3 发布合同](/releases/v1-3-3)以及
+[GitHub Release](https://github.com/mss-boot-io/mss-boot-admin/releases/tag/v1.3.3)。
+本地分支或 PR 成功不代表公共包已经可用。

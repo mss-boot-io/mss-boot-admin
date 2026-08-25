@@ -152,6 +152,32 @@ class ReleasePhaseEvidenceTest(unittest.TestCase):
                     ["bash", script],
                 )
 
+    def test_standalone_release_scripts_allow_only_the_declared_invocations(self):
+        allowed = (
+            "bash tools/install/test-install-mss.sh",
+            "bash tools/compatibility/test-standalone-mss-consumer.sh",
+            "bash tools/compatibility/test-standalone-mss-consumer.sh --lifecycle",
+            "bash tools/compatibility/test-standalone-mss-consumer.sh --upgrade",
+            "bash tools/compatibility/test-standalone-mss-consumer.sh --public-packages --lifecycle --upgrade",
+        )
+        for command in allowed:
+            with self.subTest(command=command):
+                self.assertEqual(EVIDENCE.parse_command(command).argv, command.split())
+
+        rejected = (
+            "bash tools/install/test-install-mss.sh --help",
+            "bash tools/compatibility/test-standalone-mss-consumer.sh --all",
+            "bash tools/compatibility/test-standalone-mss-consumer.sh --lifecycle --upgrade",
+            "bash tools/compatibility/test-standalone-mss-consumer.sh --release-artifact",
+            "bash tools/compatibility/test-standalone-mss-consumer.sh --release-artifact=latest",
+        )
+        for command in rejected:
+            with self.subTest(command=command):
+                with self.assertRaisesRegex(
+                    EVIDENCE.PhaseEvidenceError, "unsupported arguments"
+                ):
+                    EVIDENCE.parse_command(command)
+
     def test_rejects_nonqualification_bash_scripts(self):
         for script in (
             "tools/compatibility/process-groups.sh",
@@ -214,7 +240,7 @@ class ReleasePhaseEvidenceTest(unittest.TestCase):
             EVIDENCE.validate_binding(
                 root,
                 policy_path=policy,
-                target_version="v1.3.2",
+                target_version="v1.3.3",
                 commit=commit,
                 require_clean=True,
             )
@@ -223,7 +249,7 @@ class ReleasePhaseEvidenceTest(unittest.TestCase):
                 EVIDENCE.validate_binding(
                     root,
                     policy_path=policy,
-                    target_version="v1.3.2",
+                    target_version="v1.3.3",
                     commit=commit,
                     require_clean=True,
                 )

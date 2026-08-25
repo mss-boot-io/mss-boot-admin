@@ -72,6 +72,8 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         phase = self.step("Execute phase-scoped Feature command evidence")
         self.assertEqual(phase["if"], COMMAND_EXECUTION_CONDITION)
         self.assertEqual(phase["env"]["READINESS_PHASE"], "${{ inputs.phase }}")
+        self.assertEqual(phase["env"]["NODE_AUTH_TOKEN"], "${{ github.token }}")
+        self.assertEqual(self.workflow["permissions"]["packages"], "read")
         self.assertIn("MSS_SUPPLIER_TEST_MYSQL_DSN", phase["env"])
         self.assertIn("MSS_SUPPLIER_TEST_POSTGRES_DSN", phase["env"])
         self.assertIn("release_phase_evidence.py run", phase["run"])
@@ -120,15 +122,19 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         self.assertIn("release_phase_evidence.py plan", plan["run"])
         self.assertIn('--phase "${READINESS_PHASE}"', plan["run"])
 
-    def test_v132_qualification_selects_the_patch_release_feature(self):
+    def test_v133_qualification_selects_package_first_and_presentation_features(self):
         selected = PHASE_EVIDENCE.load_qualification(
             REPOSITORY_ROOT,
             Path(".mss/release-qualification.json"),
-            "v1.3.2",
+            "v1.3.3",
         )
         self.assertEqual(
             [path.relative_to(REPOSITORY_ROOT).as_posix() for path in selected],
-            [".mss/features/foundation-v1-3-2-release.yaml"],
+            [
+                ".mss/features/foundation-v1-3-3-package-first-release.yaml",
+                ".mss/features/admin-presentation-configuration.yaml",
+                ".mss/features/admin-presentation-publication-workflow.yaml",
+            ],
         )
         contract = yaml.safe_load(
             (REPOSITORY_ROOT / ".mss" / "release-qualification.json").read_text(
@@ -143,21 +149,24 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             )
         )
 
-    def test_v132_checkpoint_and_feature_freeze_commands_are_exact_and_executable(self):
-        feature_path = (
-            REPOSITORY_ROOT
-            / ".mss"
-            / "features"
-            / "foundation-v1-3-2-release.yaml"
+    def test_v133_checkpoint_and_release_phases_are_exact_and_executable(self):
+        feature_paths = PHASE_EVIDENCE.load_qualification(
+            REPOSITORY_ROOT,
+            Path(".mss/release-qualification.json"),
+            "v1.3.3",
         )
-        feature = yaml.safe_load(feature_path.read_text(encoding="utf-8"))
-        plan = {
-            "feature": {"name": feature["metadata"]["name"]},
-            "acceptance": feature["spec"]["acceptance"],
-        }
+        plans = []
+        for feature_path in feature_paths:
+            feature = yaml.safe_load(feature_path.read_text(encoding="utf-8"))
+            plans.append(
+                {
+                    "feature": {"name": feature["metadata"]["name"]},
+                    "acceptance": feature["spec"]["acceptance"],
+                }
+            )
         commands_by_phase = {}
         for phase in ("checkpoint", "feature-freeze", "pre-framework", "pre-root"):
-            steps, review = PHASE_EVIDENCE.collect_phase_commands([plan], phase=phase)
+            steps, review = PHASE_EVIDENCE.collect_phase_commands(plans, phase=phase)
             blockers = [
                 item
                 for item in review
@@ -174,31 +183,51 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
                 )
                 for step in steps
             }
-        for required in (
-            ". go run ./cmd/mss spec validate .mss/features/foundation-v1-3-2-release.yaml --format json",
-            ". python3 tools/release/check_release_policy.py --component admin --version v1.3.2 --tag admin/v1.3.2 --intent qualify",
-            ". python3 tools/release/verify_framework_admin_checksum.py --version v1.3.2",
-            ". python3 -m unittest tools.release.test_container_workflow tools.release.test_workflow_governance tools.release.test_check_release_policy tools.release.test_verify_framework_admin_checksum",
-        ):
-            self.assertIn(required, commands_by_phase["checkpoint"])
-        for required in (
-            ". make test-all",
-            ". make web-v6-qualify",
-            ". bash tools/compatibility/test-admin-external-consumer.sh",
-            ". bash tools/compatibility/test-thin-host-external-consumer.sh",
-            ". go run ./cmd/mss eval run --all --format json",
-            ". corepack pnpm@9.15.9 --dir docs build",
-        ):
-            self.assertIn(required, commands_by_phase["feature-freeze"])
-        self.assertIn(
-            ". python3 tools/release/check_release_policy.py --component framework --version v1.3.2 --tag mss-boot/v1.3.2 --intent qualify",
-            commands_by_phase["pre-framework"],
+        self.assertEqual(
+            commands_by_phase["checkpoint"],
+            {
+                ". python3 -m unittest discover -s tools/release -p test_*.py",
+                ". bash tools/install/test-install-mss.sh",
+                ". go run ./cmd/mss spec validate .mss/features/admin-presentation-configuration.yaml --format json",
+                ". go test ./internal/mss/spec",
+                ". corepack pnpm@10.34.5 --dir web/antd-v6 test src/shared/presentation",
+                ". corepack pnpm@10.34.5 --dir web/antd-v6 lint",
+                ". corepack pnpm@9.15.9 --dir docs build",
+                ". go run ./cmd/mss spec validate .mss/features/admin-presentation-publication-workflow.yaml --format json",
+                ". corepack pnpm@10.34.5 --dir web/antd-v6 test src/modules/presentation-config src/shared/presentation",
+                "admin GOWORK=off go test ./presentation ./models ./service ./apis ./middleware ./cmd/migrate/migration/system ./router",
+                ". corepack pnpm@10.34.5 --dir web/antd-v6 tsc",
+                ". corepack pnpm@10.34.5 --dir web/antd-v6 build",
+                ". go run ./cmd/mss verify --changed",
+            },
         )
-        self.assertIn(
-            ". python3 tools/release/verify_framework_admin_checksum.py --version v1.3.2",
-            commands_by_phase["pre-framework"],
+        self.assertEqual(
+            commands_by_phase["feature-freeze"],
+            {
+                ". bash tools/compatibility/test-standalone-mss-consumer.sh",
+                ". bash tools/compatibility/test-standalone-mss-consumer.sh --lifecycle",
+                ". bash tools/compatibility/test-standalone-mss-consumer.sh --upgrade",
+                ". python3 tools/docs/check_current_docs.py",
+                ". corepack pnpm@9.15.9 --dir docs build",
+            },
         )
-        self.assertIn(". make test-all", commands_by_phase["pre-root"])
+        self.assertEqual(
+            commands_by_phase["pre-framework"],
+            {
+                ". python3 tools/release/verify_framework_admin_checksum.py --version v1.3.3",
+                "mss-boot GOWORK=off go test ./...",
+                ". bash tools/compatibility/test-admin-external-consumer.sh",
+                ". bash tools/compatibility/test-standalone-mss-consumer.sh",
+                ". python3 tools/release/check_release_policy.py --component framework --version v1.3.3 --tag mss-boot/v1.3.3 --intent qualify",
+            },
+        )
+        self.assertEqual(
+            commands_by_phase["pre-root"],
+            {
+                ". python3 tools/release/check_release_policy.py --component root --version v1.3.3 --tag v1.3.3 --intent qualify",
+                ". bash tools/compatibility/test-standalone-mss-consumer.sh --public-packages --lifecycle --upgrade",
+            },
+        )
 
     def test_historical_v123_release_feature_has_scoped_exact_commands(self):
         feature = yaml.safe_load(FEATURE_PATH.read_text(encoding="utf-8"))

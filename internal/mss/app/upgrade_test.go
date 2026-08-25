@@ -7,7 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/blueprint"
+	"github.com/mss-boot-io/mss-boot-admin/internal/mss/buildinfo"
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
@@ -44,6 +47,9 @@ func TestUpgradeAdminCommandDefaultsToPlanAndRequiresApplyConfirmation(t *testin
 	if flag := command.Flags().Lookup("apply"); flag == nil || flag.DefValue != "false" {
 		t.Fatalf("Admin Distribution apply flag = %#v", flag)
 	}
+	if flag := command.Flags().Lookup("foundation"); flag == nil || flag.DefValue != "" {
+		t.Fatalf("Admin Distribution foundation override = %#v", flag)
+	}
 	command.SetArgs([]string{"v1.4.0", "--foundation", t.TempDir(), "--apply"})
 	command.SilenceUsage = true
 	command.SilenceErrors = true
@@ -57,6 +63,60 @@ func TestUpgradeAdminCommandDefaultsToPlanAndRequiresApplyConfirmation(t *testin
 	command.SilenceErrors = true
 	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "--yes is only valid together with --apply") {
 		t.Fatalf("plan with stray confirmation error = %v", err)
+	}
+}
+
+func TestFoundationUpgradeCommandsAcceptHiddenContributorRegistry(t *testing.T) {
+	rootOverride := ""
+	for name, command := range map[string]func(*string) *cobra.Command{
+		"plan":  newUpgradePlanCommand,
+		"apply": newUpgradeApplyCommand,
+	} {
+		flag := command(&rootOverride).Flags().Lookup("contributor-npm-registry")
+		if flag == nil {
+			t.Fatalf("%s command does not accept the contributor registry", name)
+		}
+		if !flag.Hidden || flag.DefValue != "" {
+			t.Fatalf("%s contributor registry flag = %#v", name, flag)
+		}
+	}
+}
+
+func TestFoundationUpgradeOptionsForwardContributorRegistry(t *testing.T) {
+	const registry = "http://127.0.0.1:4873"
+	context := &project.Context{
+		Root: t.TempDir(),
+		Project: project.ProjectDocument{Metadata: project.Metadata{
+			Name:       "customer-admin",
+			Repository: "acme/customer-admin",
+		}},
+	}
+	options := foundationUpgradeOptions(
+		context,
+		t.TempDir(),
+		"management-system",
+		".mss/blueprint-manifest.json",
+		registry,
+		false,
+	)
+	if options.FrontendRegistryURL != registry {
+		t.Fatalf("contributor registry = %q, want %q", options.FrontendRegistryURL, registry)
+	}
+}
+
+func TestValidateEmbeddedAdminUpgradeVersionRequiresMatchingReleaseTool(t *testing.T) {
+	originalVersion, originalCommit, originalTimestamp := buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp
+	t.Cleanup(func() {
+		buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp = originalVersion, originalCommit, originalTimestamp
+	})
+	buildinfo.Version = "v1.3.3"
+	buildinfo.Commit = strings.Repeat("a", 40)
+	buildinfo.Timestamp = "2026-08-25T12:34:56Z"
+	if err := validateEmbeddedAdminUpgradeVersion("v1.3.3"); err != nil {
+		t.Fatalf("matching embedded version error = %v", err)
+	}
+	if err := validateEmbeddedAdminUpgradeVersion("v1.3.4"); err == nil || !strings.Contains(err.Error(), "install the matching mss v1.3.4") {
+		t.Fatalf("mismatched embedded version error = %v", err)
 	}
 }
 

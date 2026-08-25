@@ -154,6 +154,13 @@ class WorkflowGovernanceTest(unittest.TestCase):
             paths = agent_workflow["on"][event]["paths"]
             self.assertIn(".github/workflows/**", paths)
             self.assertIn("tools/ci/**", paths)
+            for current_document in (
+                "admin/README.md",
+                "mss-boot/README.md",
+                "mss-boot/README.Zh-cn.md",
+                "web/antd-v6/README.md",
+            ):
+                self.assertIn(current_document, paths)
             self.assertNotIn("docs/docs/agent/**", paths)
             self.assertNotIn(
                 "docs/docs/architecture/agent-native-foundation.zh-CN.md",
@@ -172,6 +179,7 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn("test_release_qualification_decision.py", governance["run"])
         self.assertIn("test_release_readiness_attestation.py", governance["run"])
         self.assertIn("test_release_readiness_workflow.py", governance["run"])
+        self.assertIn("test_root_release_workflow.py", governance["run"])
         self.assertIn("test_verify_framework_admin_checksum.py", governance["run"])
         self.assertIn("test_verify_release_source.py", governance["run"])
         self.assertIn("test_workflow_governance.py", governance["run"])
@@ -277,6 +285,15 @@ class WorkflowGovernanceTest(unittest.TestCase):
         )
         self.assertIn('GOWORK=off go build -trimpath', script)
         self.assertIn('"candidateDependencyMode": sys.argv[16]', script)
+        current_migrations = script.split(
+            '"${work_dir}/bin/admin-current" migrate', 1
+        )[1]
+        self.assertNotIn('--password "${admin_password}"', current_migrations)
+        self.assertIn(
+            'MSS_ADMIN_INITIAL_PASSWORD="${admin_password}"',
+            script,
+        )
+        self.assertIn("unset MSS_ADMIN_INITIAL_PASSWORD", current_migrations)
 
     def test_go_vulnerability_scans_follow_owned_modules(self):
         workflow = self.workflows["govulncheck.yml"]
@@ -875,6 +892,42 @@ class WorkflowGovernanceTest(unittest.TestCase):
             self.assertIn(required, evidence)
         workflow_list = evidence.split("for workflow in", 1)[1].split("; do", 1)[0]
         self.assertNotIn("docs.yml", workflow_list)
+
+    def test_docs_publication_requires_the_stable_matching_root_release(self):
+        workflow = self.workflows["docs.yml"]
+        self.assertEqual(workflow["permissions"]["actions"], "read")
+        steps = workflow["jobs"]["build"]["steps"]
+        predecessor = next(
+            step
+            for step in steps
+            if step.get("name")
+            == "Require the already-published matching root release"
+        )
+        script = predecessor["run"]
+        for required in (
+            'git rev-parse "refs/tags/${root_tag}^{commit}"',
+            'gh release view "${root_tag}"',
+            ".isDraft == false",
+            ".isPrerelease == false",
+            'actions/workflows/release.yml/runs',
+            '.event == "workflow_dispatch"',
+            ".head_branch == $root_tag",
+            ".head_sha == $commit",
+            '.path == ".github/workflows/release.yml"',
+            '--arg display_title "Root Release publish ${root_tag}"',
+            ".display_title == $display_title",
+            '.conclusion == "success"',
+        ):
+            self.assertIn(required, script)
+        self.assertNotIn('Root Release candidate ${root_tag}', script)
+        self.assertLess(
+            steps.index(predecessor),
+            next(
+                index
+                for index, step in enumerate(steps)
+                if step.get("name") == "Build documentation"
+            ),
+        )
 
     def test_root_release_keeps_the_foundation_checkout_immutable_for_evals(self):
         makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")

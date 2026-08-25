@@ -19,9 +19,11 @@
   },
   "scripts": {
     "audit:release": "node ../tools/security/check-pnpm-audit.mjs",
+    "check:current": "python3 ../tools/docs/check_current_docs.py",
+    "test:contract": "python3 ../tools/docs/test_check_current_docs.py",
     "start": "dumi dev",
     "dev": "dumi dev",
-    "build": "dumi build && python3 ../tools/release/prepare_portable_frontend.py dist --markdown-root docs",
+    "build": "python3 ../tools/docs/check_current_docs.py && dumi build && python3 ../tools/release/prepare_portable_frontend.py dist --markdown-root docs",
     "prepare": "husky install && dumi setup"
   },
   "authors": [

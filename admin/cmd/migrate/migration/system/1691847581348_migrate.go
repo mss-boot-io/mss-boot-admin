@@ -1,10 +1,14 @@
 package system
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"runtime"
+	"strings"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
@@ -13,10 +17,32 @@ import (
 )
 
 var (
-	Username string
-	Password string
-	Domain   string
+	// ErrInitialAdministratorCredentials reports a pending initial seed without
+	// a username and password that satisfy the current Admin password policy.
+	ErrInitialAdministratorCredentials = errors.New("initial administrator credentials are required")
 )
+
+type initialAdministratorCredentialsContextKey struct{}
+
+type initialAdministratorCredentials struct {
+	username string
+	password string
+}
+
+// ContextWithInitialAdministratorCredentials scopes one bootstrap identity to
+// one migration execution. Keeping the credentials on the execution context
+// prevents concurrent databases from observing each other's bootstrap secret.
+func ContextWithInitialAdministratorCredentials(
+	ctx context.Context,
+	username string,
+	password string,
+) context.Context {
+	return context.WithValue(
+		ctx,
+		initialAdministratorCredentialsContextKey{},
+		initialAdministratorCredentials{username: username, password: password},
+	)
+}
 
 func init() {
 	_, fileName, _, _ := runtime.Caller(0)
@@ -24,6 +50,10 @@ func init() {
 }
 
 func _1691847581348Migrate(db *gorm.DB, version string) error {
+	credentials := initialAdministratorCredentialsFromContext(db)
+	if err := validateInitialAdministratorCredentials(credentials.username, credentials.password); err != nil {
+		return err
+	}
 	return db.Transaction(func(tx *gorm.DB) error {
 
 		systemConfig := &models.SystemConfig{
@@ -128,17 +158,40 @@ oauth2:
 		adminUser := &models.User{
 			UserLogin: models.UserLogin{
 				RoleID:   adminRole.ID,
-				Username: Username,
-				Password: Password,
+				Username: credentials.username,
+				Password: credentials.password,
 				Status:   enum.Enabled,
 			},
 			Name: "admin",
 		}
-		err = tx.Where("username = ?", Username).FirstOrCreate(adminUser).Error
+		err = tx.Where("username = ?", credentials.username).FirstOrCreate(adminUser).Error
 		if err != nil {
 			return err
 		}
 
 		return migration.Migrate.CreateVersion(tx, version)
 	})
+}
+
+func initialAdministratorCredentialsFromContext(db *gorm.DB) initialAdministratorCredentials {
+	if db == nil || db.Statement == nil || db.Statement.Context == nil {
+		return initialAdministratorCredentials{}
+	}
+	credentials, _ := db.Statement.Context.Value(
+		initialAdministratorCredentialsContextKey{},
+	).(initialAdministratorCredentials)
+	return credentials
+}
+
+func validateInitialAdministratorCredentials(username, password string) error {
+	if strings.TrimSpace(username) == "" {
+		return fmt.Errorf("%w: username is empty", ErrInitialAdministratorCredentials)
+	}
+	if err := service.ValidateUserPassword(password); err != nil {
+		return fmt.Errorf(
+			"%w: password must satisfy the Admin password policy",
+			ErrInitialAdministratorCredentials,
+		)
+	}
+	return nil
 }

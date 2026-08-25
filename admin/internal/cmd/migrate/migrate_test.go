@@ -1,14 +1,17 @@
 package migrate
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/business"
+	systemmigration "github.com/mss-boot-io/mss-boot-admin/admin/cmd/migrate/migration/system"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/modules/supplier"
 	adminpkg "github.com/mss-boot-io/mss-boot-admin/admin/pkg"
@@ -19,6 +22,46 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
+
+func TestInitialAdminPasswordEnvironmentIsResolvedWithoutHelpDisclosure(t *testing.T) {
+	const environmentPassword = "EnvironmentBootstrapPassword2026"
+	t.Setenv(initialAdminPasswordEnvironment, environmentPassword)
+
+	options := defaultCommandOptions()
+	command := NewCommand(nil)
+	resolveInitialAdminPassword(&options)
+	if options.password != environmentPassword {
+		t.Fatal("initial administrator password was not resolved from the environment")
+	}
+
+	var output bytes.Buffer
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetArgs([]string{"--help"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("render migrate help: %v", err)
+	}
+	if strings.Contains(output.String(), environmentPassword) {
+		t.Fatal("migrate help exposed the initial administrator password")
+	}
+	if strings.Contains(output.String(), "--password") {
+		t.Fatal("migrate help still exposes a command-line password flag")
+	}
+
+	unknown := NewCommand(nil)
+	output.Reset()
+	unknown.SetOut(&output)
+	unknown.SetErr(&output)
+	unknown.SetArgs([]string{"--password=" + environmentPassword})
+	err := unknown.Execute()
+	if err == nil {
+		t.Fatal("removed --password flag was accepted")
+	}
+	if strings.Contains(err.Error(), environmentPassword) ||
+		strings.Contains(output.String(), environmentPassword) {
+		t.Fatal("unknown --password error exposed its rejected value")
+	}
+}
 
 func TestMigrateContextRejectsDuplicateRegistrationBeforeDatabaseAccess(t *testing.T) {
 	runner := migration.New()
@@ -127,7 +170,7 @@ func TestComposedSupplierMigrationKeepsAuthorizedMenuAfterCoreRetirement(t *test
 		t.Context(),
 		db,
 		"admin",
-		"password",
+		"StrongAdminPassword2026",
 		phases.Core,
 		phases.Business,
 	); err != nil {
@@ -151,6 +194,71 @@ func TestComposedSupplierMigrationKeepsAuthorizedMenuAfterCoreRetirement(t *test
 	}
 	if policyCount == 0 {
 		t.Fatal("Supplier menu has no authorization policy after composed migrations")
+	}
+}
+
+func TestFreshMigrationRequiresCredentialsBeforeBusinessAndCompletedMigrationIsNoOp(t *testing.T) {
+	db, err := gorm.Open(
+		sqlite.Open(filepath.Join(t.TempDir(), "secure-bootstrap.db")),
+		&gorm.Config{Logger: logger.Discard},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.CasbinRule{}); err != nil {
+		t.Fatalf("create Casbin migration prerequisite: %v", err)
+	}
+
+	var businessCalls atomic.Int64
+	businessRunner := migration.New()
+	if err := businessRunner.Register("9999999999999", func(db *gorm.DB, version string) error {
+		businessCalls.Add(1)
+		return businessRunner.CreateVersion(db, version)
+	}); err != nil {
+		t.Fatalf("register business migration: %v", err)
+	}
+
+	err = migrateContextWithRunnersCredentials(
+		t.Context(),
+		db,
+		"admin",
+		"",
+		migration.Migrate,
+		businessRunner,
+	)
+	if !errors.Is(err, systemmigration.ErrInitialAdministratorCredentials) {
+		t.Fatalf("fresh migration error = %v, want initial credential requirement", err)
+	}
+	if got := businessCalls.Load(); got != 0 {
+		t.Fatalf("business migrations ran %d times before secure bootstrap", got)
+	}
+
+	if err := migrateContextWithRunnersCredentials(
+		t.Context(),
+		db,
+		"admin",
+		"SecureBootstrapPassword2026",
+		migration.Migrate,
+		businessRunner,
+	); err != nil {
+		t.Fatalf("complete secure bootstrap migration: %v", err)
+	}
+	if got := businessCalls.Load(); got != 1 {
+		t.Fatalf("business migrations ran %d times, want 1", got)
+	}
+
+	if err := migrateContextWithRunnersCredentials(
+		t.Context(),
+		db,
+		"admin",
+		"",
+		migration.Migrate,
+		businessRunner,
+	); err != nil {
+		t.Fatalf("repeat completed migration without initial password: %v", err)
+	}
+	if got := businessCalls.Load(); got != 1 {
+		t.Fatalf("completed business migration reran; calls = %d", got)
 	}
 }
 

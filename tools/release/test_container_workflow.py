@@ -159,6 +159,63 @@ class ContainerWorkflowTest(unittest.TestCase):
             if step.get("name") == "Record published image digest"
         )
         self.assertIn("org.opencontainers.image.description", digest["run"])
+        self.assertEqual(
+            digest["env"]["IMAGE_DIGEST"],
+            "${{ steps.publish.outputs.digest || steps.existing-image.outputs.digest }}",
+        )
+
+        immutability = next(
+            step
+            for step in publish_steps
+            if step.get("name") == "Resolve immutable root image version"
+        )
+        self.assertEqual(immutability["id"], "existing-image")
+        for required in (
+            '"${REGISTRY}/${IMAGE_NAME}:${RELEASE_VERSION}"',
+            "docker buildx imagetools inspect",
+            "--raw",
+            '"linux/amd64"',
+            '"linux/arm64"',
+            'org.opencontainers.image.revision"] == $commit',
+            "Reusing exact immutable root image",
+            "exists=true",
+            "exists=false",
+            'echo "digest=${digest}"',
+            "authoritative not-found response",
+        ):
+            self.assertIn(required, immutability["run"])
+        self.assertEqual(
+            publish_image["if"],
+            "${{ steps.existing-image.outputs.exists != 'true' }}",
+        )
+        self.assertLess(
+            publish_steps.index(immutability), publish_steps.index(publish_image)
+        )
+
+        recovered_alias = next(
+            step
+            for step in publish_steps
+            if step.get("name")
+            == "Restore stable alias from a recovered immutable image"
+        )
+        self.assertEqual(
+            recovered_alias["if"],
+            "${{ needs.build.outputs.stable == 'true' && steps.existing-image.outputs.exists == 'true' }}",
+        )
+        self.assertEqual(
+            recovered_alias["env"]["IMAGE_DIGEST"],
+            "${{ steps.existing-image.outputs.digest }}",
+        )
+        for required in (
+            "docker buildx imagetools create",
+            '--tag "${image_repository}:latest"',
+            '"${image_repository}@${IMAGE_DIGEST}"',
+        ):
+            self.assertIn(required, recovered_alias["run"])
+        self.assertLess(
+            publish_steps.index(publish_image), publish_steps.index(recovered_alias)
+        )
+        self.assertLess(publish_steps.index(recovered_alias), publish_steps.index(digest))
 
     def test_only_stable_tags_receive_the_latest_alias(self):
         metadata_steps = [
@@ -188,7 +245,8 @@ class ContainerWorkflowTest(unittest.TestCase):
         )
         self.assertEqual(alias["if"], "${{ needs.build.outputs.stable == 'true' }}")
         self.assertEqual(
-            alias["env"]["EXPECTED_DIGEST"], "${{ steps.publish.outputs.digest }}"
+            alias["env"]["EXPECTED_DIGEST"],
+            "${{ steps.publish.outputs.digest || steps.existing-image.outputs.digest }}",
         )
         self.assertEqual(
             alias["env"]["RELEASE_VERSION"], "${{ needs.build.outputs.version }}"

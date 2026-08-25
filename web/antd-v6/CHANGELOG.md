@@ -8,6 +8,21 @@ and the root changelog, not as a current release surface.
 
 No unreleased changes are recorded.
 
+## [web/antd-v6/v1.3.3] - 2026-08-25
+
+This source-compatible patch aligns the only supported Admin frontend package
+with the package-first v1.3.3 Distribution.
+
+### Changed
+
+- Qualify `@mss-boot-io/admin-web@1.3.3` as the exact frontend dependency emitted
+  by a generated Thin Host, resolved from public npm without a local tarball.
+- Document package-owned development, lint, test, and build commands as the sole
+  downstream frontend lifecycle; downstream applications retain only config,
+  generated routes/locales, and business-owned pages.
+- Preserve the single React 19 and Ant Design 6 runtime graph and all v1.3.2 API,
+  route-composition, authorization, accessibility, and delivery contracts.
+
 ## [web/antd-v6/v1.3.2] - 2026-08-23
 
 Status: **published / current stable component**. The Admin Web package, Admin Go

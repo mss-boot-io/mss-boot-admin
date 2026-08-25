@@ -1,415 +1,59 @@
 ---
-title: 集成测试指南
-order: 21
-nav:
-  order: 1
-  title: admin
-description: mss-boot-admin 前后端联调、E2E 测试与回归验证指南
-keywords: [admin integration test e2e playwright]
+title: 集成验证
+order: 5
+description: v1.3.3 Thin Host 的分层自动检查和浏览器验收
 ---
 
-## 概述
+# v1.3.3 集成验证
 
-本文档描述 `mss-boot-admin` 的集成测试方法，包括：
+先运行最小相关检查，再扩大范围。所有报告必须说明实际执行命令、结果和未执行项。
 
-- 前后端联调流程
-- Playwright E2E 测试
-- API 验证方式
-- 回归检查清单
+## 统一入口
 
-## 前置条件
-
-### 开发环境
-
-- Go 1.26.6
-- Node.js >= 24 且 < 25
-- 通过 Corepack 使用 pnpm 10.34.5
-- SQLite（默认本地数据库；MySQL/PostgreSQL 为可选集成目标）
-
-版本和目录约定以仓库根目录的 `.mss/project.yaml` 为准。本仓库已同时包含
-`admin/` 后端和唯一正式的 `web/antd-v6/` 前端。V5 已退役，不属于构建、测试或回滚面。
-
-### 服务端口
-
-| 服务 | 端口 | 说明 |
-|------|------|------|
-| 后端 API | 8080 | `go run . server` |
-| 默认 V6 前端 Dev | 8001 | `corepack pnpm@10.34.5 start:dev` |
-
-## 快速开始
-
-以下目录切换均从仓库根目录执行；后端和前端应分别在独立终端中启动。
-
-### 1. 启动后端
-
-```bash
-cd admin
-go run . migrate  # 首次运行迁移
-STAGE=local go run . server -a  # 同步 API 注册表后退出
-go run . server   # 启动服务
+```sh
+mss verify --changed
+mss verify --all
 ```
 
-`server -a` 必须与待启动服务使用相同的阶段和数据库配置。它会同步菜单“绑定 API”
-所需的 API 注册数据，完成后正常退出，不会常驻监听端口。
+`--changed` 按 Git 差异选择检查；`--all` 用于合并、升级或交付前完整资格验证。
 
-验证：
+## 后端
 
-```bash
-curl http://localhost:8080/healthz
-# 预期: {"status":"ok"}
+```sh
+GOWORK=off go test ./...
+GOWORK=off go build ./cmd/server
 ```
 
-### 2. 启动前端
+持久化变化还需覆盖空库迁移和上一版本升级；权限变化同时需要允许与拒绝测试；多写步骤
+需验证事务、冲突和幂等语义。
 
-```bash
-cd web/antd-v6
-corepack pnpm@10.34.5 install --frozen-lockfile
-corepack pnpm@10.34.5 start:dev
+## 前端
+
+```sh
+corepack pnpm@10.34.5 --dir web install --frozen-lockfile
+corepack pnpm@10.34.5 --dir web lint
+corepack pnpm@10.34.5 --dir web test
+corepack pnpm@10.34.5 --dir web build
 ```
 
-验证：
+生成 API、路由、菜单与 locale 发生变化时必须运行漂移检查，不能只验证 TypeScript
+编译。
 
-```bash
-curl http://localhost:8001
-# 预期: HTML 响应
-```
+## 浏览器验收
 
-### 3. 运行 E2E 测试
+使用 Codex 内置浏览器验证：
 
-```bash
-cd web/antd-v6
-corepack pnpm@10.34.5 exec playwright test --reporter=list
-```
+- 登录和会话恢复；
+- 允许和拒绝两种权限路径；
+- 加载、空、可重试错误、403、404、冲突；
+- 桌面与窄屏；
+- zh-CN 与 en-US；
+- 深链刷新、键盘焦点和控制台；
+- 关键写操作后的真实服务端结果。
 
-## Playwright E2E 测试
+不得用源码内的 standalone browser 脚本代替用户要求的内置浏览器证据。
 
-### 测试文件结构
+## 证据
 
-```
-web/antd-v6/e2e/
-├── parity.spec.ts          # 保留能力与响应式完整度
-├── permission.spec.ts      # 权限正反例
-├── settings.spec.ts        # 应用与个人设置
-├── operations.spec.ts      # 通知、任务、日志等运营能力
-└── generated/              # 确定性模块浏览器合同
-```
-
-### 测试覆盖
-
-| 测试文件 | 测试项 | 说明 |
-|----------|--------|------|
-| `parity.spec.ts` | 登录与保留能力 | 使用 HttpOnly 会话完成桌面/移动主流程 |
-| `permission.spec.ts` | 权限正反例 | 验证路由、菜单与操作权限失败关闭 |
-| `settings.spec.ts` | 设置与近期认证 | 验证应用设置、个人设置、改密与 OAuth 解绑 |
-| `operations.spec.ts` | 运营能力 | 验证通知、任务、日志和状态展示 |
-| `generated/supplier.spec.ts` | 生成合同 | 验证 V6 生成模块的同源 API 与 CRUD 合同 |
-
-### 运行测试
-
-```bash
-# 运行所有测试
-corepack pnpm@10.34.5 exec playwright test
-
-# 运行特定测试文件
-corepack pnpm@10.34.5 exec playwright test e2e/parity.spec.ts
-
-# 带界面运行（调试用）
-corepack pnpm@10.34.5 exec playwright test --ui
-
-# 生成报告
-corepack pnpm@10.34.5 exec playwright show-report
-```
-
-## API 验证
-
-### 非浏览器 PAT 验证
-
-V6 浏览器使用 HttpOnly Cookie、CSRF 与计划续期，不提供返回 Admin Token 的
-密码登录接口。非浏览器自动化先由用户在“个人设置 → 访问令牌”中创建一次性
-PAT，再通过标准 `Authorization: Bearer` 调用 API。不要把 PAT 写入仓库、文档、
-截图或共享命令历史。
-
-```bash
-curl http://localhost:8080/admin/api/user/userInfo \
-  -H "Authorization: Bearer <one-time-personal-access-token>"
-```
-
-### 岗位管理
-
-**创建岗位（customDept 自动填充 deptIDS）**
-
-```bash
-curl -X POST http://localhost:8080/admin/api/posts \
-  -H "Authorization: Bearer <one-time-personal-access-token>" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"测试岗位","dataScope":"customDept","status":"enabled"}'
-
-# 响应（deptIDS 自动填充）
-{
-  "id": "xxx",
-  "name": "测试岗位",
-  "dataScope": "customDept",
-  "deptIDS": ["e19bdf394f6d410ca703dfb6f4f3a751"]
-}
-```
-
-### 监控接口
-
-```bash
-curl http://localhost:8080/admin/api/monitor \
-  -H "Authorization: Bearer <one-time-personal-access-token>"
-
-# 响应包含
-{
-  "cpuPhysicalCore": 4,
-  "cpuLogicalCore": 8,
-  "memoryTotal": 16384,
-  "memoryUsage": 5120,
-  "diskTotal": 500,
-  "diskUsage": 150,
-  "network": {...},
-  "runtime": {...}
-}
-```
-
-### WebSocket 接口
-
-```bash
-# 在线用户数
-curl http://localhost:8080/admin/api/ws/online \
-  -H "Authorization: Bearer <one-time-personal-access-token>"
-
-# 响应
-{
-  "online": 1
-}
-```
-
-### 审计日志
-
-```bash
-# 登录日志
-curl http://localhost:8080/admin/api/audit-logs/login \
-  -H "Authorization: Bearer <one-time-personal-access-token>"
-
-# 操作日志
-curl http://localhost:8080/admin/api/audit-logs/operation \
-  -H "Authorization: Bearer <one-time-personal-access-token>"
-```
-
-## 回归检查清单
-
-### 登录流程
-
-- [ ] 输入正确账号密码，登录成功
-- [ ] 登录成功后跳转到首页（不停留在登录页）
-- [ ] 输入错误密码，显示错误提示
-- [ ] 登录建立 HttpOnly 服务端会话；响应体和 localStorage 均不包含 Admin JWT
-- [ ] 状态变更请求携带有效 CSRF 证明，缺失或不匹配时被拒绝
-
-### 岗位管理
-
-- [ ] 岗位列表正常显示
-- [ ] 创建岗位成功，dataScope 可选择
-- [ ] `dataScope = "customDept"` 时，deptIDS 自动填充（无需手动选择）
-- [ ] `dataScope = "all"` 时，deptIDS 为空
-- [ ] 编辑岗位正常保存
-
-### 监控功能
-
-- [ ] CPU 信息正确显示
-- [ ] 内存信息正确显示
-- [ ] 磁盘信息正确显示
-- [ ] CPU/内存趋势图正常刷新
-- [ ] 百分比与容量单位保留 2 位小数
-- [ ] 网络统计正确显示
-- [ ] 运行时信息正确显示
-
-### WebSocket
-
-- [ ] WebSocket 连接建立成功
-- [ ] 在线用户统计正确
-- [ ] 心跳保活正常
-
-### 审计日志
-
-- [ ] 登录日志正确记录
-- [ ] 操作日志正确记录
-- [ ] 日志列表查询正常
-
-### 存储安全
-
-- [ ] 已知长度的原始请求 cap+1 在读取 body 前返回 413，未知长度 cap+1 最多读取探测字节
-- [ ] 超限请求清理 multipart 临时文件且不创建对象，`errorCode=UPLOAD_REQUEST_TOO_LARGE`
-- [ ] 非白名单 MIME 类型返回 422，`errorCode=INVALID_UPLOAD`，且不进入 Provider
-- [ ] 仅在显式 Local 开发模式和同部署 `/public` Delivery 下，合法对象以 `/public/uploads/{uuid}` 返回并可读；这不是生产 Provider 成熟度证据
-
-### 告警与通知
-
-- [ ] 告警规则可创建和保存
-- [ ] 告警历史可查询
-- [ ] WebSocket 告警通知可收到
-- [ ] 已配置的邮件 / 钉钉 / 企业微信通知可验证
-
-### 国际化
-
-- [ ] `Accept-Language: zh-CN` 返回中文语言结果
-- [ ] `Accept-Language: en-US` 返回英文语言结果
-- [ ] 非法语言代码创建时被后端拒绝
-
-### 任务调度
-
-- [ ] task server 始终随服务启动，`task.enable=true` 时额外加载持久化用户任务
-- [ ] `task.enable=false` 时监控采样与会话清理仍运行
-- [ ] 内置系统作业不出现在 `mss_boot_tasks`/TaskRun，且不能被用户任务 CRUD 修改
-- [ ] 日志清理任务 `checked_at` 持续更新
-- [ ] `log_cleaner` 任务可执行
-
-## 前后端联调流程
-
-### 1. 接口契约确认
-
-**后端提供：**
-
-- API 路径和方法
-- 请求参数结构
-- 响应数据结构
-- 鉴权要求
-
-**前端确认：**
-
-- 字段命名符合前端约定
-- 分页参数格式
-- 错误码处理方式
-
-### 2. 接口 Mock（可选）
-
-前端可先使用 Mock 数据开发：
-
-```typescript
-// mock/post.ts
-export default {
-  'POST /admin/api/posts': {
-    id: 'mock-id',
-    name: 'Mock 岗位',
-    dataScope: 'all',
-    deptIDS: null,
-  },
-};
-```
-
-### 3. 联调验证
-
-1. 后端先完成接口并提供 Swagger 文档
-2. 前端对接真实接口
-3. 验证请求/响应格式
-4. 验证错误处理
-5. 编写 E2E 测试
-
-### 4. 问题归属判断
-
-| 现象 | 可能原因 | 排查方向 |
-|------|----------|----------|
-| 401 Unauthorized | 浏览器会话或 PAT 已过期、撤销或缺失 | 按调用方检查 HttpOnly 会话，或检查非浏览器 PAT 是否正确传递 |
-| 403 Forbidden | 权限不足 | 检查 Casbin 策略 |
-| 400 Bad Request | 参数格式错误 | 检查请求体格式 |
-| 500 Internal Error | 后端异常 | 查看后端日志 |
-| CORS 错误 | 跨域配置 | 检查 server.cors 配置 |
-
-## 发布前冒烟检查
-
-建议在每次发布前至少完成以下最小验证：
-
-```bash
-# 1. 后端构建
-cd admin
-go build ./...
-
-# 2. 前端类型检查
-cd ../web/antd-v6
-corepack pnpm@10.34.5 tsc
-
-# 3. 后端健康检查
-curl -I http://127.0.0.1:8080/healthz
-
-# 4. 前端可达性检查
-curl -I http://127.0.0.1:8001
-```
-
-发布前最低检查项：
-
-- [ ] 登录成功且首次登录后页面状态正常
-- [ ] Welcome 监控卡片与趋势图正常
-- [ ] 日志页面三类日志可见
-- [ ] 在已证明的开发 Delivery 环境中，头像上传成功并可访问；生产环境保持显式关闭直到 Provider/Delivery 门禁完成
-- [ ] WebSocket 在线状态正常
-- [ ] 关键配置页可保存
-- [ ] 至少一条定时任务处于启用状态
-
-## CI/CD 集成
-
-### GitHub Actions 示例
-
-```yaml
-name: Test
-
-on: [push, pull_request]
-
-jobs:
-  backend-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version: '1.26.6'
-      - name: Run backend tests
-        run: |
-          cd admin
-          go test ./... -v -race -coverprofile=coverage.out
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./admin/coverage.out
-
-  e2e-test:
-    runs-on: ubuntu-latest
-    needs: backend-test
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-      - uses: actions/setup-go@v6
-        with:
-          go-version: '1.26.6'
-      - name: Install dependencies
-        run: |
-          corepack enable
-          cd web/antd-v6
-          corepack pnpm@10.34.5 install --frozen-lockfile
-          corepack pnpm@10.34.5 exec playwright install --with-deps chromium
-      - name: Start backend
-        run: |
-          cd admin
-          go run . migrate
-          STAGE=local go run . server -a
-          go run . server &
-          sleep 5
-      - name: Start frontend
-        run: |
-          cd web/antd-v6
-          corepack pnpm@10.34.5 start:dev &
-          sleep 10
-      - name: Run E2E tests
-        run: |
-          cd web/antd-v6
-          corepack pnpm@10.34.5 exec playwright test
-```
-
-## 推荐阅读
-
-- [权限与组织治理说明](/admin/governance-guide)
-- [运营能力说明](/admin/operations-guide)
-- [Token 与 OAuth2 联调说明](/admin/token-oauth2-guide)
-- [四期路线图](/admin/phase-4-roadmap)
+记录版本、提交、工具版本、数据库、命令、退出码、浏览器路径和已知限制。容器健康、
+TCP 可达、任务显示 done 或页面出现都只是局部证据。

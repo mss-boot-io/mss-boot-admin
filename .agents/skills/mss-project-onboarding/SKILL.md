@@ -19,8 +19,8 @@ Use this workflow to establish repository facts before proposing or changing cod
 2. Run:
 
    ```shell
-   go run ./cmd/mss context --format json
-   go run ./cmd/mss doctor --format json
+   mss context --format json
+   mss doctor --format json
    ```
 
 3. Read `.mss/project.yaml`, `.mss/capabilities.yaml`, and `.mss/commands.yaml` only as needed to resolve details not obvious in the normalized context output.

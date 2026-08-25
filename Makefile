@@ -6,7 +6,7 @@ COVERAGE_DIR ?= .coverage
 COVERAGE_POLICY := .mss/coverage.json
 
 .PHONY: build build-admin build-agent test test-agent test-admin test-admin-race \
-	coverage-admin vet-admin tidy-admin-check verify-admin compatibility-admin \
+	coverage-admin vet-admin tidy-admin-check verify-admin compatibility-admin compatibility-standalone-mss \
 	deps deps-agent deps-admin deps-framework deps-all \
 	test-framework test-framework-race coverage-framework vet-framework \
 	tidy-framework-check verify-framework test-all generate lint fix-lint clean \
@@ -51,6 +51,9 @@ tidy-admin-check:
 compatibility-admin:
 	go test -count=1 ./$(ADMIN_DIR)/compatibility
 	bash tools/compatibility/test-admin-external-consumer.sh
+
+compatibility-standalone-mss:
+	bash tools/compatibility/test-standalone-mss-consumer.sh
 
 verify-admin: test-admin-race coverage-admin vet-admin tidy-admin-check compatibility-admin build-admin
 

@@ -224,6 +224,17 @@ def verify_release_source(
     )
     if ancestry.returncode != 0:
         raise SourceError(f"candidate {commit} is not contained in {remote}/{branch}")
+    remote_tip = git(
+        root,
+        "rev-parse",
+        "--verify",
+        f"refs/remotes/{remote}/{branch}^{{commit}}",
+    )
+    if remote_tip != commit:
+        raise SourceError(
+            f"candidate {commit} does not equal current {remote}/{branch} tip "
+            f"{remote_tip}"
+        )
 
     if tag is not None:
         if not tag or tag.startswith("-"):

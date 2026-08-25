@@ -19,6 +19,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/schemahealth"
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	frameworkserver "github.com/mss-boot-io/mss-boot-admin/mss-boot/core/server"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/source"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
 	migrationmodels "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
 )
@@ -62,6 +63,39 @@ func (q *serverManagedQueue) Close(context.Context) error { return nil }
 
 type serverLegacyQueue struct {
 	runCalled chan struct{}
+}
+
+func TestExplicitFSConfigProviderSurvivesLocalDevelopmentStage(t *testing.T) {
+	t.Setenv("STAGE", "local")
+	t.Setenv("CONFIG_PROVIDER", string(source.FS))
+
+	fromEnvironment := defaultCommandOptions()
+	if got := effectiveConfigProvider(fromEnvironment.configProvider); got != source.FS {
+		t.Fatalf("CONFIG_PROVIDER resolved to %q, want %q", got, source.FS)
+	}
+
+	t.Setenv("CONFIG_PROVIDER", "")
+	command := NewCommand(nil)
+	if err := command.PersistentFlags().Set("config-provider", string(source.FS)); err != nil {
+		t.Fatalf("set --config-provider: %v", err)
+	}
+	fromFlag, err := command.PersistentFlags().GetString("config-provider")
+	if err != nil {
+		t.Fatalf("read --config-provider: %v", err)
+	}
+	if got := effectiveConfigProvider(fromFlag); got != source.FS {
+		t.Fatalf("--config-provider resolved to %q, want %q", got, source.FS)
+	}
+}
+
+func TestDefaultConfigProviderRemainsLocal(t *testing.T) {
+	t.Setenv("STAGE", "dev")
+	t.Setenv("CONFIG_PROVIDER", "")
+
+	options := defaultCommandOptions()
+	if got := effectiveConfigProvider(options.configProvider); got != source.Local {
+		t.Fatalf("default config provider = %q, want %q", got, source.Local)
+	}
 }
 
 func (q *serverLegacyQueue) String() string { return "server-legacy-queue" }

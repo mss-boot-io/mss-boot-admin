@@ -22,7 +22,6 @@ ROOT_SCOPES = {
 ALL_GO_MODULES = [
     "admin",
     "mss-boot",
-    "cmd/tools/pr",
     "compose/consul",
     "compose/kafka",
 ]

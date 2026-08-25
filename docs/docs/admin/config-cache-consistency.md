@@ -1,5 +1,5 @@
 ---
-title: Configuration cache consistency
+title: v1.3.3 configuration cache consistency
 order: 15
 nav:
   order: 1
@@ -80,13 +80,14 @@ old entry can remain until TTL without becoming visible again.
 
 ## Verification
 
-Run the independent framework and Admin gates from the repository root:
+From a generated Thin Host, validate the imported Admin Distribution and business
+composition through its package-first gate:
 
-```bash
-cd mss-boot && GOWORK=off go test -race ./pkg/config ./pkg/config/storage/cache -count=1
-cd ../admin && GOWORK=off go test -race ./models ./service ./apis -count=1
-GOWORK=off go vet ./models ./service ./apis
+```sh
+mss verify --all
 ```
 
-The feature contract at `.mss/features/admin-config-cache-consistency.yaml` lists the fault-injection,
-isolation, transaction rollback, and cache poisoning evidence required for this behavior.
+The v1.3.3 Admin package itself is released only after its independent fault-injection,
+isolation, transaction-rollback, cache-poisoning, and Redis-failure tests pass. Downstream
+applications must not copy those Foundation test packages or weaken the database-authoritative
+contract.

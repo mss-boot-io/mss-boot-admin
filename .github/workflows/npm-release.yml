@@ -153,6 +153,7 @@ jobs:
             local workflow="$1"
             local component_ref="$2"
             local event="$3"
+            local display_title="${4:-}"
             local workflow_path=".github/workflows/${workflow}"
             local runs
             local successes
@@ -168,31 +169,33 @@ jobs:
               --arg commit "${RELEASE_COMMIT}" \
               --arg component_ref "${component_ref}" \
               --arg event "${event}" \
+              --arg display_title "${display_title}" \
               --arg workflow_path "${workflow_path}" \
               '[.workflow_runs[] | select(
                 .event == $event and
                 .head_branch == $component_ref and
                 .head_sha == $commit and
                 .path == $workflow_path and
+                ($display_title == "" or .display_title == $display_title) and
                 .status == "completed" and
                 .conclusion == "success"
               )] | length' <<< "${runs}")"
             if [[ "${successes}" -lt 1 ]]; then
-              echo "no successful ${workflow} ${event} run exists for ${component_ref} at ${RELEASE_COMMIT}" >&2
+              echo "no successful ${workflow} ${event} run named '${display_title}' exists for ${component_ref} at ${RELEASE_COMMIT}" >&2
               exit 1
             fi
           }
 
-          while IFS='|' read -r workflow component_ref event; do
-            require_successful_workflow "${workflow}" "${component_ref}" "${event}"
+          while IFS='|' read -r workflow component_ref event display_title; do
+            require_successful_workflow "${workflow}" "${component_ref}" "${event}" "${display_title}"
           done <<EOF
-          framework-release.yml|mss-boot/${RELEASE_VERSION}|push
-          admin-release.yml|admin/${RELEASE_VERSION}|push
-          frontend-v6-release.yml|web/antd-v6/${RELEASE_VERSION}|push
-          docs.yml|docs/${RELEASE_VERSION}|push
-          container.yml|${RELEASE_VERSION}|push
-          release.yml|${RELEASE_VERSION}|push
-          release.yml|${RELEASE_VERSION}|workflow_dispatch
+          framework-release.yml|mss-boot/${RELEASE_VERSION}|push|
+          admin-release.yml|admin/${RELEASE_VERSION}|push|
+          frontend-v6-release.yml|web/antd-v6/${RELEASE_VERSION}|push|
+          docs.yml|docs/${RELEASE_VERSION}|push|
+          container.yml|${RELEASE_VERSION}|workflow_dispatch|Root Image publish ${RELEASE_VERSION}
+          release.yml|${RELEASE_VERSION}|workflow_dispatch|Root Release candidate ${RELEASE_VERSION}
+          release.yml|${RELEASE_VERSION}|workflow_dispatch|Root Release publish ${RELEASE_VERSION}
           EOF
 
       - name: Download and verify existing frontend package assets

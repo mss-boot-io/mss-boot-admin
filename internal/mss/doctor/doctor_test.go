@@ -146,9 +146,11 @@ func TestRunThinHostScopesRequireOnlyHostBackendAndFrontendGlue(t *testing.T) {
 	writeDoctorDistributionSourceSentinel(t, root, distribution)
 	for _, relative := range []string{
 		"go.mod",
+		"go.sum",
 		"cmd/server/main.go",
 		"internal/modules/all/generated.go",
 		"web/package.json",
+		"web/pnpm-lock.yaml",
 		"web/tsconfig.json",
 		"web/config/config.ts",
 		"web/mss-admin.config.ts",
@@ -194,10 +196,126 @@ func TestRunThinHostScopesRequireOnlyHostBackendAndFrontendGlue(t *testing.T) {
 			t.Errorf("Thin Host check %s = %#v", required, check)
 		}
 	}
-	for _, forbidden := range []string{"file:admin/go.mod", "file:mss-boot/go.mod", "file:web/pnpm-lock.yaml"} {
+	if _, ok := checks["tool:corepack"]; !ok {
+		t.Error("Thin Host doctor omitted required corepack prerequisite")
+	}
+	for _, forbidden := range []string{"file:admin/go.mod", "file:mss-boot/go.mod", "file:docs/pnpm-lock.yaml"} {
 		if _, ok := checks[forbidden]; ok {
 			t.Errorf("Thin Host doctor unexpectedly requires %s", forbidden)
 		}
+	}
+}
+
+func TestToolVersionCheckEnforcesExactAndRangeConstraints(t *testing.T) {
+	tools := t.TempDir()
+	writeDoctorTool(t, tools, "go", "go version go1.26.5 linux/amd64")
+	writeDoctorTool(t, tools, "node", "v24.12.0")
+	writeDoctorTool(t, tools, "pnpm", "10.34.5")
+	t.Setenv("PATH", tools)
+
+	if check := toolVersionCheck(context.Background(), "go", true, "1.26.6", "go", "version"); check.Status != StatusFail || !strings.Contains(check.Detail, "requires 1.26.6") {
+		t.Fatalf("old Go version check = %#v", check)
+	}
+	if check := toolVersionCheck(context.Background(), "node", true, ">=24 <25", "node", "--version"); check.Status != StatusPass {
+		t.Fatalf("Node range check = %#v", check)
+	}
+	if check := toolVersionCheck(context.Background(), "pnpm", true, "10.34.5", "pnpm", "--version"); check.Status != StatusPass {
+		t.Fatalf("pnpm exact check = %#v", check)
+	}
+}
+
+func TestThinHostPackageManagerCheckUsesPinnedCorepackWithoutBarePNPM(t *testing.T) {
+	tools := t.TempDir()
+	corepack := filepath.Join(tools, "corepack")
+	content := "#!/bin/sh\nif [ \"$1\" != \"pnpm@10.34.5\" ] || [ \"$2\" != \"--version\" ]; then exit 2; fi\nprintf '%s\\n' '10.34.5'\n"
+	if err := os.WriteFile(corepack, []byte(content), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", tools)
+	ctx := &project.Context{}
+	ctx.Project.Spec.RepositoryLayout = map[string]string{"kind": "thin-host"}
+	ctx.Project.Spec.Frontend.PackageManager = "pnpm"
+	ctx.Project.Spec.Frontend.PackageManagerVersion = "10.34.5"
+	check := packageManagerToolCheck(context.Background(), ctx)
+	if check.Status != StatusPass || check.ID != "tool:pnpm" {
+		t.Fatalf("Thin Host package manager check = %#v", check)
+	}
+}
+
+func TestVersionConstraintRejectsOutsideNodeMajor(t *testing.T) {
+	for _, version := range []semanticVersion{{major: 23, minor: 9}, {major: 25}} {
+		if satisfiesVersionConstraint(version, ">=24 <25") {
+			t.Fatalf("Node version %s unexpectedly satisfies >=24 <25", formatSemanticVersion(version))
+		}
+	}
+}
+
+func TestDevelopmentConfigCheckRequiresMatchingThinHostTopology(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".mss", "dev.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := `apiVersion: mss.io/v1alpha1
+kind: DevelopmentEnvironment
+metadata:
+  project: doctor-test
+spec:
+  services:
+    - id: backend
+      directory: .
+      command: [go, run, ./cmd/server]
+      required: true
+`
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ctx := &project.Context{Root: root}
+	ctx.Project.Metadata.Name = "doctor-test"
+	check := developmentConfigCheck(ctx)
+	if check.Status != StatusPass || !strings.Contains(check.Detail, "backend") {
+		t.Fatalf("valid development topology check = %#v", check)
+	}
+	ctx.Project.Metadata.Name = "different-project"
+	check = developmentConfigCheck(ctx)
+	if check.Status != StatusFail || !strings.Contains(check.Detail, "does not match") {
+		t.Fatalf("mismatched development topology check = %#v", check)
+	}
+}
+
+func TestDevelopmentConfigCheckRequiresDeclaredCorepackPNPMVersion(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".mss", "dev.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := `apiVersion: mss.io/v1alpha1
+kind: DevelopmentEnvironment
+metadata:
+  project: doctor-test
+spec:
+  services:
+    - id: admin-web
+      directory: web
+      command: [corepack, pnpm@10.34.4, run, dev]
+      required: true
+`
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ctx := &project.Context{Root: root}
+	ctx.Project.Metadata.Name = "doctor-test"
+	ctx.Project.Spec.Frontend.DefaultApplication = "admin-web"
+	ctx.Project.Spec.Frontend.PackageManagerVersion = "10.34.5"
+	ctx.Project.Spec.Frontend.Applications = []project.FrontendApplicationSpec{{
+		ID:                    "admin-web",
+		Path:                  "web",
+		PackageManager:        "pnpm",
+		PackageManagerVersion: "10.34.5",
+	}}
+	check := developmentConfigCheck(ctx)
+	if check.Status != StatusFail || !strings.Contains(check.Detail, "corepack pnpm@10.34.5") {
+		t.Fatalf("drifted development pnpm command was accepted: %#v", check)
 	}
 }
 
@@ -307,6 +425,15 @@ func checksByID(checks []Check) map[string]Check {
 		result[check.ID] = check
 	}
 	return result
+}
+
+func writeDoctorTool(t *testing.T, root, name, output string) {
+	t.Helper()
+	path := filepath.Join(root, name)
+	content := "#!/bin/sh\nprintf '%s\\n' '" + strings.ReplaceAll(output, "'", "") + "'\n"
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+		t.Fatalf("write fake %s: %v", name, err)
+	}
 }
 
 func writeDoctorSourceSentinel(t *testing.T, root string) {

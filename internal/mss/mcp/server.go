@@ -26,12 +26,17 @@ const (
 	serverName     = "mss-agent-foundation"
 )
 
-const serverInstructions = "Use these tools as the repository source of truth. Inspect project context and existing capabilities before planning changes. Module generation and validation execution default to dry-run; set write or execute only after reviewing the returned plan. Never pass production credentials or paths outside the repository root."
+const serverInstructions = "The application planner can use the release-built embedded Blueprint from an empty working directory. Project inspection, generation, validation, status, and upgrade tools validate .mss project contracts when called and fail closed when they are absent. Module generation and validation execution default to dry-run; set write or execute only after reviewing the returned plan. Never pass production credentials or paths outside the working root."
 
 // Server exposes stable project packages through newline-delimited JSON-RPC.
 type Server struct {
 	Root   string
 	Stderr io.Writer
+
+	// ContributorFrontendRegistryURL is a qualification-only dependency
+	// injection point for immutable npm metadata. Release binaries leave it
+	// empty and use the registry selected by the Blueprint implementation.
+	ContributorFrontendRegistryURL string
 }
 
 type rpcRequest struct {
@@ -212,9 +217,9 @@ func (s *Server) initialize(raw json.RawMessage) map[string]any {
 		},
 		"serverInfo": map[string]any{
 			"name":        serverName,
-			"title":       "mss Agent-Native Foundation",
+			"title":       "mss Admin Distribution Tooling",
 			"version":     buildinfo.VersionString(),
-			"description": "Repository context, generation, and validation tools for mss-boot-admin.",
+			"description": "Standalone embedded-Blueprint planning plus fail-closed project generation, upgrade, and validation tools.",
 		},
 		"instructions": serverInstructions,
 	}

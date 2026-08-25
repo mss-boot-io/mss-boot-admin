@@ -148,6 +148,13 @@ jobs:
           pnpm run lint
           pnpm run test:ci
 
+      - name: Create ephemeral browser administrator secret
+        run: |
+          set -euo pipefail
+          password="MssE2E-A1-$(openssl rand -hex 24)"
+          echo "::add-mask::${password}"
+          echo "MSS_E2E_PASSWORD=${password}" >> "${GITHUB_ENV}"
+
       - name: Qualify browser permission and parity behavior
         run: |
           pnpm exec playwright install --with-deps chromium

@@ -9,9 +9,23 @@ import (
 
 // RenderFeatureTemplate returns a semantically valid Feature starter contract.
 func RenderFeatureTemplate(name, displayName, owner string) ([]byte, error) {
+	return RenderFeatureTemplateForModule(name, "", displayName, owner)
+}
+
+// RenderFeatureTemplateForModule returns a semantically valid Feature starter
+// contract whose primary AdminModule may have a different name from the
+// user-visible feature. An empty module name preserves the historical default.
+func RenderFeatureTemplateForModule(name, moduleName, displayName, owner string) ([]byte, error) {
 	name = normalizeIdentifier(name)
 	if !identifierPattern.MatchString(name) {
 		return nil, fmt.Errorf("feature name %q must be lower-case kebab-case", name)
+	}
+	moduleName = normalizeIdentifier(moduleName)
+	if moduleName == "" {
+		moduleName = name
+	}
+	if !identifierPattern.MatchString(moduleName) {
+		return nil, fmt.Errorf("module name %q must be lower-case kebab-case", moduleName)
 	}
 	displayName = strings.TrimSpace(displayName)
 	if displayName == "" {
@@ -38,7 +52,7 @@ func RenderFeatureTemplate(name, displayName, owner string) ([]byte, error) {
 				{ID: "administrator", DisplayName: "Administrator", Description: "Administers this feature according to backend permissions."},
 			},
 			Modules: []FeatureModule{
-				{Name: name, Kind: FeatureModuleKindAdminModule, Operation: "create", SpecPath: ".mss/modules/" + name + ".yaml", Description: "Primary vertical management module for the feature."},
+				{Name: moduleName, Kind: FeatureModuleKindAdminModule, Operation: "create", SpecPath: ".mss/modules/" + moduleName + ".yaml", Description: "Primary vertical management module for the feature."},
 			},
 			Requirements: []FeatureRequirement{
 				{
@@ -47,8 +61,8 @@ func RenderFeatureTemplate(name, displayName, owner string) ([]byte, error) {
 					Description: "An authorized administrator can create, read, update, and delete valid records for this feature.",
 					Priority:    "must",
 					Actor:       "administrator",
-					Module:      name,
-					Permission:  name + ":manage",
+					Module:      moduleName,
+					Permission:  moduleName + ":manage",
 					Rules:       []string{"Every mutation is authorized on the backend and invalid input is rejected."},
 				},
 			},
@@ -65,7 +79,7 @@ func RenderFeatureTemplate(name, displayName, owner string) ([]byte, error) {
 					Phase:       AcceptancePhaseCheckpoint,
 					Required:    true,
 					Evidence: []AcceptanceEvidence{
-						{Type: "command", Value: "go run ./cmd/mss verify --changed"},
+						{Type: "command", Value: "mss verify --changed"},
 					},
 				},
 			},
@@ -73,8 +87,8 @@ func RenderFeatureTemplate(name, displayName, owner string) ([]byte, error) {
 				{ID: "delivery-drift", Description: "Implementation, permissions, tests, and documentation may drift from the approved feature contract.", Severity: "high", Mitigation: "Keep the Feature and AdminModule specifications in the same change and enforce contract and verifier checks in CI."},
 			},
 			Validation: FeatureValidation{
-				Changed: "go run ./cmd/mss verify --changed",
-				All:     "go run ./cmd/mss verify --all",
+				Changed: "mss verify --changed",
+				All:     "mss verify --all",
 			},
 			Rollout: FeatureRollout{
 				Strategy:  "phased",

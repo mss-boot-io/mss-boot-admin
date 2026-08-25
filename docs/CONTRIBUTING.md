@@ -12,17 +12,17 @@ Use these locations consistently:
 
 - long-lived product and operator guidance: `docs/docs/`;
 - architecture decisions: `docs/adr/`;
-- historical prompts and handoffs: `docs/aigc/prompts/`;
 - executable project, release, capability, and module facts: `.mss/`.
 
-Historical prompts are evidence of earlier work. Do not silently turn them into
-current requirements or rewrite an old release record to describe a newer train.
+Prompt dumps and one-off handoffs are not documentation inputs. Do not restore
+them to the active tree or rewrite an archived release record to describe a
+newer train.
 
 ## Pull requests
 
 - Target `main` through a pull request; do not publish Docs from a topic branch.
 - Use a Conventional Commits title, for example
-  `docs(release): document v1.3.0 upgrade`.
+  `docs(release): document v1.3.3 upgrade`.
 - State the applicable version, branch, or commit for current-behavior claims.
 - Use repository-relative source paths and links. Public GitHub links must point
   to `mss-boot-io/mss-boot-admin` unless the target is genuinely external.
@@ -37,6 +37,7 @@ From the repository root:
 
 ```bash
 corepack pnpm@9.15.9 --dir docs install --frozen-lockfile
+python3 tools/docs/check_current_docs.py
 corepack pnpm@9.15.9 --dir docs build
 go run ./cmd/mss verify --changed
 ```

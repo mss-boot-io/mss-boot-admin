@@ -25,7 +25,10 @@ configuration, deployment, tests, and generated composition glue.
   local absolute paths.
 - Keep business routes behind the complete Admin middleware and readiness
   boundary.
-- Run `make verify` before opening a pull request.
+- Use the scoped `.agents/skills/mss-thin-host/SKILL.md` workflow for business
+  changes.
+- Run `mss doctor --strict` after setup and `mss verify --all` before opening a
+  pull request.
 
 ## Admin Web package
 
@@ -37,8 +40,8 @@ configuration, deployment, tests, and generated composition glue.
 
 ## Admin Distribution upgrades
 
-- Plan the complete backend, frontend, and host update with
-  `mss upgrade admin <vX.Y.Z> --foundation <checkout>`.
+- Install the matching released `mss` tool and plan the complete backend,
+  frontend, and host update with `mss upgrade admin <vX.Y.Z>`.
 - Review managed changes, regenerated modules, conflicts, preserved business
   files, and validation commands before applying.
 - Apply only a conflict-free reviewed plan with `--apply --yes`; never upgrade

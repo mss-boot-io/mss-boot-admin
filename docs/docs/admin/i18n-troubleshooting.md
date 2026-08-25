@@ -1,14 +1,14 @@
 ---
-title: 国际化排障
+title: v1.3.3 国际化排障
 order: 14
 nav:
   order: 1
   title: admin
-description: React Intl Missing message 常见问题与修复方法
-keywords: [react-intl, i18n, missing message, mss-boot-admin]
+description: Thin Host 业务国际化缺失、键名漂移与运行时语言快照排障
+keywords: [v1.3.3 react-intl i18n missing message thin host]
 ---
 
-本文档基于当前仓库常见问题整理，重点处理：
+本文档从生成的 Thin Host 根目录处理：
 
 - `[React Intl] Missing message: "..."`
 - `[React Intl] Cannot format message: "..."`
@@ -16,10 +16,10 @@ keywords: [react-intl, i18n, missing message, mss-boot-admin]
 ## 一、快速定位步骤
 
 1. 复制完整 message id（例如 `menu.super-permission.appConfig`）
-2. 在前端仓库搜索该 key：
+2. 在业务拥有的前端目录搜索该 key：
 
-```bash
-grep -R "menu.super-permission.appConfig" src/locales
+```sh
+rg "menu.super-permission.appConfig" web/src/locales web/src/business
 ```
 
 3. 若不存在：补充到 `zh-CN` 与 `en-US`
@@ -54,12 +54,14 @@ grep -R "menu.super-permission.appConfig" src/locales
 
 ### 修复建议
 
-优先在聚合语言文件中补齐：
+业务文案只在 Thin Host 拥有的语言文件中补齐：
 
-- `src/locales/zh-CN.ts`
-- `src/locales/en-US.ts`
+- `web/src/locales/zh-CN.ts`
+- `web/src/locales/en-US.ts`
 
-并保持中英文 key 对齐，避免仅修复单语种后另一个语种继续告警。
+并保持中英文 key 对齐。不要修改 `node_modules` 中的 Admin Web 包，也不要把
+Foundation 的核心语言目录复制进业务仓库。由生成器拥有的
+`web/src/generated/locales/*` 应通过对应业务规格和生成器更新。
 
 ## 四、数据库语言包缓存
 
@@ -74,10 +76,10 @@ Redis 是优化层：读取失败时 Profile 回退数据库；语言 CRUD 已�
 
 ## 五、验证方式
 
-1. 前端执行类型检查：
+1. 从 Thin Host 根目录运行当前变更验证：
 
-```bash
-pnpm -s tsc --noEmit
+```sh
+mss verify --changed
 ```
 
 2. 刷新页面后确认控制台无新增 Missing message

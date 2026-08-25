@@ -1,447 +1,205 @@
 # Contributing to mss-boot-admin
 
-感谢您有兴趣为 mss-boot-admin 做贡献！
+感谢你参与 mss-boot-admin。当前仓库维护 v1.3.3 Admin Distribution 的源代码、
+测试、文档、生成器和发布合同。
 
-## 📋 目录
+如果你只是创建业务系统，请不要按本文 clone Foundation，也不要添加本地
+`replace`。请直接使用 [v1.3.3 快速开始](docs/docs/getting-started/index.md)，安装
+版本化 `mss` 工具并生成 Thin Host。本文只适用于修改 Foundation 本身的贡献者。
 
-- [行为准则](#行为准则)
-- [如何贡献](#如何贡献)
-- [开发流程](#开发流程)
-- [代码规范](#代码规范)
-- [提交规范](#提交规范)
-- [Pull Request 流程](#pull-request-流程)
+## 提交问题
 
-## 行为准则
+Bug 和功能建议统一提交到
+[GitHub Issues](https://github.com/mss-boot-io/mss-boot-admin/issues)。请提供：
 
-本项目采用贡献者公约作为行为准则。参与此项目即表示您同意遵守其条款。请阅读 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) 了解详情。
+- 可复现步骤、预期结果和实际结果；
+- 操作系统以及 Go、Node.js、pnpm 版本；
+- 已脱敏的日志、错误输出或截图；
+- 受影响的组件：根工具、`mss-boot/`、`admin/`、`web/antd-v6/` 或 `docs/`。
 
-## 如何贡献
+不要提交令牌、密码、私钥、生产 DSN、内部地址或未脱敏的请求内容。
 
-### 报告 Bug
+## 仓库开发准备
 
-如果您发现了 bug，请通过 [GitHub Issues](https://github.com/mss-boot-io/mss-boot-admin/issues) 提交。
+贡献者可以 fork 并 clone 本仓库。所有命令从仓库根目录执行，除非命令段明确
+切换了目录。
 
-提交 Bug 报告时，请包含：
-
-1. **清晰的标题和描述**
-2. **复现步骤**
-3. **预期行为**
-4. **实际行为**
-5. **环境信息**（操作系统、Go 版本、Node 版本等）
-6. **日志或截图**（如果适用）
-
-### 建议新功能
-
-我们欢迎新功能建议！请在 Issue 中详细描述：
-
-1. **功能描述**
-2. **使用场景**
-3. **预期效果**
-4. **可能的实现方式**（可选）
-
-### 改进文档
-
-文档改进是最容易上手的方式：
-
-- 修正错别字
-- 改进说明
-- 添加示例
-- 翻译文档
-
-## 开发流程
-
-### 1. Fork 和 Clone
-
-```bash
-# Fork 后 clone 您的仓库
+```shell
 git clone https://github.com/YOUR_USERNAME/mss-boot-admin.git
 cd mss-boot-admin
-
-# 添加上游仓库
 git remote add upstream https://github.com/mss-boot-io/mss-boot-admin.git
-```
 
-### 2. 创建分支
-
-```bash
-# 从 main 创建功能分支
-git checkout -b feature/your-feature-name
-
-# 或修复分支
-git checkout -b fix/your-bug-fix
-```
-
-### 3. 开发环境设置
-
-#### 后端
-
-```bash
-# 使用 Go 1.26.6
-go version
-
-# 从仓库根安装和检查工作区依赖
+go run ./cmd/mss context
+go run ./cmd/mss doctor
 go run ./cmd/mss setup
+```
 
-# 运行与当前变更匹配的验证
+冻结工具链为 Go 1.26.6 和 Node.js 24。Admin Web 使用 pnpm 10.34.5；Docs
+使用 `docs/package.json` 固定的 pnpm 9.15.9。仓库内开发使用 `go.work` 协调
+根工具、Framework 和 Admin；发布模块和外部消费者仍必须在 `GOWORK=off`
+下独立成立。不得向任何发布模块提交本地 `replace`。
+
+修改前请依次阅读：
+
+1. 根目录 `AGENTS.md`；
+2. `.mss/project.yaml`、`.mss/capabilities.yaml`、`.mss/commands.yaml`；
+3. 目标目录最近的 `AGENTS.md`；
+4. 与目标能力对应的结构化 spec、迁移、测试和文档。
+
+从最新 `main` 建立一个主题分支。不要直接推送 `main`，也不要通过重写历史
+隐藏修复提交。
+
+```shell
+git fetch upstream
+git switch main
+git merge --ff-only upstream/main
+git switch -c feature/short-description
+```
+
+## 修改边界
+
+- `mss-boot/` 只放可复用、领域无关的 Framework 能力。
+- `admin/` 是完整可导入 Admin 后端；新业务能力优先放在
+  `admin/modules/<name>/`。
+- `web/antd-v6/` 同时是参考前端和唯一完整的
+  `@mss-boot-io/admin-web` 包，不得建立第二套 SPA。
+- `docs/` 是当前仓库内的文档站，不是独立 `mss-boot-docs` checkout。
+- `.mss/` 保存机器可执行事实；长期说明放在 `docs/docs/`，架构决策放在
+  `docs/adr/`。
+- 生成文件必须从 spec 或模板重新生成，不得手改生成区域。
+
+中大型变更先更新结构化 spec，再实现最小完整切片。涉及持久化、权限或工作流
+时，必须同时覆盖迁移、后端强制授权、前端状态、正反向测试和升级路径。
+
+## 常用开发命令
+
+### 根工具与 Go
+
+```shell
+go run ./cmd/mss context
 go run ./cmd/mss verify --changed
 
-# 启动完整 Admin；迁移、API 注册表同步和常驻服务必须读取同一 Stage/DSN
+# Framework 独立边界
+(cd mss-boot && GOWORK=off go test ./...)
+
+# 根、Framework 和 Admin 的广泛验证
+make test-all
+make build
+```
+
+只格式化本次修改的 Go 文件，例如：
+
+```shell
+gofmt -w path/to/changed_file.go
+```
+
+### Admin 后端本地运行
+
+迁移、API 注册同步和服务必须读取相同的 `STAGE` 与 DSN：
+
+```shell
 cd admin
 STAGE=local go run . migrate
 STAGE=local go run . server -a
 STAGE=local go run . server
 ```
 
-#### 前端
+数据库或权限变更还必须运行匹配的集成测试；服务启动成功不等于迁移、授权和
+业务合同已通过。
 
-```bash
+### Admin Web
+
+```shell
 cd web/antd-v6
-
-# 使用冻结的 Node 24 与 pnpm 10.34.5
-node --version
-corepack enable
-
-# 安装依赖
 corepack pnpm@10.34.5 install --frozen-lockfile
-
-# 本地运行
-corepack pnpm@10.34.5 start:dev
-```
-
-### 4. 进行开发
-
-- 遵循 [代码规范](#代码规范)
-- 编写测试
-- 更新文档
-
-### 5. 提交变更
-
-```bash
-# 只添加本次变更文件
-git add <changed-files>
-
-# 提交（遵循提交规范）
-git commit -m "feat: add new feature"
-
-# 推送到您的 fork
-git push origin feature/your-feature-name
-```
-
-### 6. 创建 Pull Request
-
-在 GitHub 上创建 Pull Request，填写 PR 模板。
-
-## 代码规范
-
-### Go 代码规范
-
-1. **格式化**
-
-```bash
-# 使用 gofmt 格式化代码
-gofmt -w .
-
-# 或使用 goimports
-goimports -w .
-```
-
-2. **命名规范**
-
-- 包名：小写单词，不使用下划线
-- 导出函数/变量：大写开头
-- 私有函数/变量：小写开头
-- 常量：大写或驼峰
-
-3. **注释规范**
-
-```go
-// User 用户模型
-// 用于存储用户信息
-type User struct {
-    ID       string `json:"id"`       // 用户ID
-    Username string `json:"username"` // 用户名
-}
-
-// CreateUser 创建用户
-// 参数：
-//   - ctx: 上下文
-//   - user: 用户信息
-// 返回：
-//   - error: 错误信息
-func CreateUser(ctx context.Context, user *User) error {
-    // 实现
-}
-```
-
-4. **错误处理**
-
-```go
-// 推荐：提供上下文信息
-if err != nil {
-    return fmt.Errorf("failed to create user: %w", err)
-}
-
-// 不推荐：忽略错误
-if err != nil {
-    log.Println(err)
-}
-```
-
-5. **测试**
-
-```go
-func TestCreateUser(t *testing.T) {
-    tests := []struct {
-        name    string
-        user    *User
-        wantErr bool
-    }{
-        {
-            name:    "valid user",
-            user:    &User{Username: "test"},
-            wantErr: false,
-        },
-    }
-    
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            err := CreateUser(context.Background(), tt.user)
-            if (err != nil) != tt.wantErr {
-                t.Errorf("CreateUser() error = %v, wantErr %v", err, tt.wantErr)
-            }
-        })
-    }
-}
-```
-
-### TypeScript/React 代码规范
-
-1. **格式化**
-
-```bash
-# 使用仓库脚本修复 Biome 可自动处理的问题
-corepack pnpm@10.34.5 run biome:fix
-
-# 检查格式
+corepack pnpm@10.34.5 run deps:check
 corepack pnpm@10.34.5 run lint
-```
-
-2. **命名规范**
-
-- 组件：大驼峰（PascalCase）
-- 函数/变量：小驼峰（camelCase）
-- 常量：大写下划线（UPPER_SNAKE_CASE）
-- 文件名：小写连字符（kebab-case）
-
-3. **组件规范**
-
-```typescript
-// 推荐：函数组件 + TypeScript
-interface UserCardProps {
-  user: API.User;
-  onEdit?: (id: string) => void;
-}
-
-const UserCard: React.FC<UserCardProps> = ({ user, onEdit }) => {
-  return (
-    <div>
-      <h3>{user.name}</h3>
-      {onEdit && <button onClick={() => onEdit(user.id)}>编辑</button>}
-    </div>
-  );
-};
-
-export default UserCard;
-```
-
-4. **Hooks 规范**
-
-```typescript
-// 推荐：自定义 Hook
-const useUserData = (userId: string) => {
-  const [user, setUser] = useState<API.User>();
-  const [loading, setLoading] = useState(false);
-  
-  useEffect(() => {
-    setLoading(true);
-    getUserUserId({ userID: userId })
-      .then(setUser)
-      .finally(() => setLoading(false));
-  }, [userId]);
-  
-  return { user, loading };
-};
-```
-
-5. **国际化**
-
-```typescript
-// 推荐：使用 i18n
-import { useIntl } from '@umijs/max';
-
-const MyComponent = () => {
-  const intl = useIntl();
-  
-  return (
-    <div>
-      {intl.formatMessage({ id: 'welcome', defaultMessage: '欢迎' })}
-    </div>
-  );
-};
-```
-
-## 提交规范
-
-我们使用 [Conventional Commits](https://www.conventionalcommits.org/) 规范。
-
-### 提交消息格式
-
-```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-### Type 类型
-
-- `feat`: 新功能
-- `fix`: 修复 bug
-- `docs`: 文档变更
-- `style`: 代码格式（不影响功能）
-- `refactor`: 重构（不增加功能，不修复 bug）
-- `perf`: 性能优化
-- `test`: 测试相关
-- `chore`: 构建/工具链变更
-- `revert`: 回退
-
-### Scope 范围
-
-- `api`: API 相关
-- `ui`: UI 组件
-- `auth`: 认证授权
-- `config`: 配置相关
-- `db`: 数据库相关
-- `docs`: 文档
-
-### 示例
-
-```bash
-# 新功能
-feat(auth): add OAuth2 login support
-
-# 修复 bug
-fix(api): correct user pagination offset
-
-# 文档
-docs(readme): update installation guide
-
-# 重构
-refactor(service): extract common validation logic
-
-# 性能优化
-perf(query): optimize user list query performance
-```
-
-## Pull Request 流程
-
-### 1. PR 标题
-
-使用与提交消息相同的格式：
-
-```
-feat(auth): add OAuth2 login support
-```
-
-### 2. PR 描述
-
-使用 PR 模板，包括：
-
-- **变更说明**：描述您的变更
-- **相关 Issue**：链接相关 Issue
-- **测试方法**：如何测试这些变更
-- **截图**：如果涉及 UI 变更
-
-### 3. 检查清单
-
-提交 PR 前，确保：
-
-- [ ] 代码遵循项目代码规范
-- [ ] 已添加必要的测试
-- [ ] 所有测试通过
-- [ ] 文档已更新
-- [ ] 提交消息遵循规范
-- [ ] PR 标题清晰明确
-
-### 4. Code Review
-
-- 维护者会审核您的 PR
-- 积极回应反馈意见
-- 及时更新代码
-
-### 5. 合并
-
-PR 审核通过后，维护者会将其合并到主分支。
-
-## 开发提示
-
-### 保持同步
-
-```bash
-# 定期同步上游
-git fetch upstream
-git checkout main
-git merge upstream/main
-```
-
-### 调试技巧
-
-#### 后端调试
-
-```bash
-# 启用 pprof
-cd admin
-STAGE=local go run . server
-
-# 访问性能分析
-# http://localhost:8080/debug/pprof/
-```
-
-#### 前端调试
-
-```bash
-# 开发模式
-cd web/antd-v6
-corepack pnpm@10.34.5 run start:dev
-
-# 构建生产版本
+corepack pnpm@10.34.5 run test:ci
 corepack pnpm@10.34.5 run build:release
-
-# 类型检查
-corepack pnpm@10.34.5 run tsc
 ```
 
-### 日志查看
+本地开发使用：
 
-```bash
-# 后端日志
-tail -f logs/app.log
-
-# 前端控制台
-# 浏览器开发者工具
+```shell
+corepack pnpm@10.34.5 --dir web/antd-v6 run start:dev
 ```
+
+UI 变更必须核验 loading、empty、error、403/404、桌面与窄屏状态，并保持
+浏览器控制台无错误和弃用警告。前端隐藏按钮不能替代后端授权。
+
+### 文档
+
+```shell
+make docs-install
+make docs-build
+```
+
+用户路径、命令、版本或发布合同发生变化时，同步更新当前文档和机器可读合同。
+历史发布记录可以保留在 `docs/docs/releases/archive/`，但不得重新成为当前快速
+开始或默认导航。
+
+## 验证要求
+
+先运行最小相关测试，再按影响扩展：
+
+| 变更 | 最低验证 |
+| --- | --- |
+| Go 实现 | focused `go test`，然后受影响模块测试 |
+| `mss-boot/` | `GOWORK=off go test ./...` |
+| 根共享合同 | `make test-all`、`make build` |
+| 前端 | dependency check、lint、TypeScript、focused test、release build |
+| 文档 | Docs build 和链接/版本合同 |
+| 迁移 | 新数据库迁移和旧版本升级测试 |
+| 权限 | 后端允许与拒绝测试 |
+| 生成器 | schema、golden、路径约束和两次运行幂等测试 |
+
+最后运行：
+
+```shell
+go run ./cmd/mss verify --changed
+```
+
+只报告实际执行过的检查。Docker、数据库、浏览器或外部发布面未验证时，在 PR
+中明确说明原因和剩余风险。
+
+## 提交与 Pull Request
+
+使用 Conventional Commits，例如：
+
+```text
+feat(module): add supplier approval workflow
+fix(upgrade): preserve downstream-owned files
+docs(getting-started): clarify v1.3.3 package imports
+```
+
+只暂存本次变更，提交前检查差异和敏感信息：
+
+```shell
+git status --short
+git diff --check
+git diff --cached
+git commit -m "type(scope): summary"
+git push origin HEAD
+```
+
+Pull Request 必须以 `main` 为目标，并说明：
+
+- 目标与实际范围；
+- 重要文件和架构选择；
+- 实际运行的命令及结果；
+- 迁移、兼容性和安全影响；
+- UI 截图或浏览器证据（如适用）；
+- 跳过的检查和具体原因。
+
+完成审核和所需 CI 后再合并。所有可发布内容都必须先进入 `main`；不得从主题
+分支、PR head、detached commit 或本地提交创建公开 tag、包、镜像或 Release。
+若冻结后发现缺陷，应提交后续 PR，并从新的 merged-main commit 重新资格验证。
 
 ## 获取帮助
 
-- **文档**: https://docs.mss-boot-io.top
-- **Issues**: https://github.com/mss-boot-io/mss-boot-admin/issues
-- **讨论**: https://github.com/mss-boot-io/mss-boot-admin/discussions
+- 文档：https://docs.mss-boot-io.top
+- Issues：https://github.com/mss-boot-io/mss-boot-admin/issues
+- Discussions：https://github.com/mss-boot-io/mss-boot-admin/discussions
 
-## 许可证
-
-通过向本项目提交代码，您同意您的代码将在 MIT 许可证下发布。
-
----
-
-再次感谢您的贡献！🎉
+提交代码即表示你同意相关贡献按本仓库的 MIT License 发布，并遵守
+`CODE_OF_CONDUCT.md`。

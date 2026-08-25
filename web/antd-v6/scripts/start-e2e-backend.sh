@@ -29,10 +29,15 @@ export STAGE=e2e
 export GOTOOLCHAIN=auto
 export GIN_MODE=release
 
+if [[ -z "${MSS_E2E_PASSWORD:-}" ]]; then
+  echo "MSS_E2E_PASSWORD is required for the isolated browser qualification" >&2
+  exit 1
+fi
+
 cd "${repo_dir}/admin"
 go build -o "${binary_path}" .
-"${binary_path}" migrate \
+MSS_ADMIN_INITIAL_PASSWORD="${MSS_E2E_PASSWORD}" "${binary_path}" migrate \
   --username "${MSS_E2E_USERNAME:-admin}" \
-  --password "${MSS_E2E_PASSWORD:-123456}" \
   --domain "${MSS_E2E_DOMAIN:-127.0.0.1:18001}"
+unset MSS_ADMIN_INITIAL_PASSWORD MSS_E2E_PASSWORD
 exec "${binary_path}" server

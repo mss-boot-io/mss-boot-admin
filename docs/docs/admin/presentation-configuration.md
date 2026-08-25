@@ -1,11 +1,11 @@
 ---
-title: 页面展示配置发布治理
+title: v1.3.3 页面展示配置发布治理
 order: 16
 nav:
   order: 1
   title: Admin
-description: Admin 页面展示配置的草稿、校验、发布、回滚、权限、故障回退与阶段边界
-keywords: [admin presentation configuration draft publish rollback recovery etag]
+description: v1.3.3 页面展示配置的草稿、发布、回滚、权限与恢复合同
+keywords: [v1.3.3 admin presentation configuration publish rollback recovery etag]
 ---
 
 # 页面展示配置发布治理
@@ -72,17 +72,18 @@ P1 只提供受治理的草稿、发布、历史、回滚、有效层读取和�
 
 ## 部署与升级
 
-使用与常驻服务完全相同的版本、Stage、配置源和数据库执行：
+本地 Thin Host 使用统一工具完成幂等迁移并启动完整拓扑：
 
-```shell
-cd admin
-STAGE=local go run . migrate
-STAGE=local go run . server -a
-STAGE=local go run . server
+```sh
+mss setup
+mss dev --detach
 ```
 
-迁移是前向兼容的，只新增展示配置聚合、不可变历史及其权限/菜单元数据，不修改已有业务表和配置行。
-`server -a` 负责把真实路由同步到 API 注册表，不能由数据库迁移代替。
+生产部署必须复用同一个不可变 Thin Host 后端镜像和配置：先运行 `migrate` init job，
+再运行一次 `server -a` 路由同步 job，两者成功后才启动长期 `server`。全新数据库
+仅在 migrate job 中由 secret store 注入一次性 `MSS_ADMIN_INITIAL_PASSWORD`；同步
+和长期服务环境不得保留该值。迁移是前向兼容的，只新增展示配置聚合、不可变历史及其
+权限/菜单元数据，不修改已有业务表和配置行。`server -a` 不能由数据库迁移代替。
 
 部署后至少确认：
 
@@ -115,5 +116,8 @@ presentation:
 
 - [P0：受治理的页面展示配置 ADR](https://github.com/mss-boot-io/mss-boot-admin/blob/main/docs/adr/2026-08-24-governed-admin-presentation-configuration.md)
 - [P1：发布工作流 ADR](https://github.com/mss-boot-io/mss-boot-admin/blob/main/docs/adr/2026-08-24-admin-presentation-publication-workflow.md)
-- 机器契约：`.mss/features/admin-presentation-configuration.yaml`、`.mss/features/admin-presentation-publication-workflow.yaml`
-- 可移植文档 Schema：`.mss/schemas/admin-page-presentation.schema.json`
+- Foundation 设计合同：[展示配置 Feature](https://github.com/mss-boot-io/mss-boot-admin/blob/main/.mss/features/admin-presentation-configuration.yaml)、[发布工作流 Feature](https://github.com/mss-boot-io/mss-boot-admin/blob/main/.mss/features/admin-presentation-publication-workflow.yaml)
+- Foundation 可移植 Schema：[admin-page-presentation.schema.json](https://github.com/mss-boot-io/mss-boot-admin/blob/main/.mss/schemas/admin-page-presentation.schema.json)
+
+这些链接是 Foundation 贡献者与发布流程的设计证据，Thin Host 采用者无需在本地复制
+或维护它们。

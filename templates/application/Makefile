@@ -8,7 +8,7 @@ backend-test:
 	GOWORK=off go test ./...
 
 frontend-install:
-	corepack pnpm@10.34.5 --dir web install
+	corepack pnpm@10.34.5 --dir web install --frozen-lockfile
 
 frontend-lint:
 	corepack pnpm@10.34.5 --dir web lint

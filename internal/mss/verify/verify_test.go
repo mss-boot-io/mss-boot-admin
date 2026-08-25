@@ -4,10 +4,32 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
+
+func TestWriteReportsUsesPrivateFilePermissions(t *testing.T) {
+	root := t.TempDir()
+	ctx := &project.Context{Root: root}
+	report := Report{Project: "private-report", Root: root, Success: true}
+	if err := WriteReports(ctx, report); err != nil {
+		t.Fatalf("WriteReports() error = %v", err)
+	}
+	if runtime.GOOS == "windows" {
+		return
+	}
+	for _, name := range []string{"verify.json", "verify.md"} {
+		info, err := os.Stat(filepath.Join(root, ".mss", "reports", name))
+		if err != nil {
+			t.Fatalf("stat %s: %v", name, err)
+		}
+		if got := info.Mode().Perm(); got != 0o600 {
+			t.Fatalf("%s mode = %o, want 600", name, got)
+		}
+	}
+}
 
 func TestToolingTestUsesConsolidatedAdminRuntimePathWhenOptionalRuntimeIsAbsent(t *testing.T) {
 	root := t.TempDir()

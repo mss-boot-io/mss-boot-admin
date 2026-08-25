@@ -35,17 +35,20 @@ make docs-install docs-build
 
 Runtime components have independently triggered workflows, but one Admin
 Distribution release requires the same version core and exact merged-main commit.
-The fail-closed publication order is Framework, Admin, Frontend, then Root. The
-Root release reconciles all three component tags, GitHub Releases, the public Go
-modules, npm integrity, and image identity before publication. A Docs release is
-independent: it packages its portable static site, deploys through the protected
-`prod` environment, and publishes its own GitHub Release without reissuing the
-runtime components.
+The fail-closed v1.3.3 publication order is Framework, Admin, Admin Web, protected
+Root tag promotion, Root release, Docs, and finally npm Trusted Publishing. Each
+phase rechecks the same frozen merged-main commit and the evidence produced by its
+predecessors. The Docs phase packages its portable static site and deploys through
+the protected `prod` environment without reissuing runtime components.
 
 ## Workflow location
 
-Only workflows under the repository-root `.github/workflows/` directory are active. Workflow files preserved inside imported component directories are historical source snapshots and are not executed by GitHub Actions.
+Only workflows under the repository-root `.github/workflows/` directory are
+active. Imported, nested workflow snapshots are not retained because GitHub does
+not execute them in this monorepo.
 
-## Migration boundary
+## Import provenance
 
-See `MONOREPO_IMPORTS.md` for the exact source repositories and imported commit revisions. After this migration is merged and production verification succeeds, the three former standalone repositories should be marked deprecated and archived rather than deleted, preserving issues, releases, tags, and external links.
+`MONOREPO_IMPORTS.md` records the source repositories and exact imported commits
+as historical provenance. It does not define a current checkout, build, adoption,
+or release path.

@@ -28,7 +28,7 @@ keywords: [admin observability metrics pprof logs websocket]
 - 监控接口：`/admin/api/monitor`
 - 后端每 5 秒采样、最多保留 120 个实例内历史点；接口读取缓存快照，不在请求内阻塞测量 CPU
 - Welcome/Monitor 共用主题感知趋势图，显示服务端时间、实例标识和陈旧状态
-- `mss-boot/core/server/task` 的内置系统作业通道始终调度监控采样与会话清理
+- Admin 内置系统作业通道始终调度监控采样与会话清理
 - 文件日志输出：`logger.path`, `logger.stdout=file`
 - 运行时信息：Goroutines、Heap、GC 次数
 - WebSocket 在线状态接口
@@ -87,5 +87,5 @@ keywords: [admin observability metrics pprof logs websocket]
 
 ## 推荐阅读
 
-- [四期路线图](/admin/phase-4-roadmap)
+- [运营能力说明](/admin/operations-guide)
 - [发布验证清单](/admin/release-verification-checklist)

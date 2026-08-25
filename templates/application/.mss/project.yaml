@@ -2,7 +2,7 @@ apiVersion: mss.io/v1alpha1
 kind: Project
 metadata:
   name: __MSS_APP_NAME__
-  displayName: __MSS_APP_DISPLAY_NAME__
+  displayName: __MSS_APP_DISPLAY_NAME_YAML__
   repository: __MSS_APP_REPOSITORY__
 spec:
   mission: Thin business host that consumes __MSS_DISTRIBUTION_NAME__ as exact-version backend and frontend dependencies while owning only business modules and composition glue.
@@ -70,7 +70,7 @@ spec:
     writesDefaultToDryRun: true
     productionCredentialsRequiredForDevelopment: false
   entrypoints:
-    admin: go run ./cmd/server
+    admin: go run ./cmd/server server
     web: cd web && corepack pnpm@10.34.5 dev
   validation:
     changed: make verify

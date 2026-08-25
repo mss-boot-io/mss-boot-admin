@@ -63,4 +63,4 @@ Run `govulncheck` when dependency, transport, authentication, storage, configura
 
 The project contract, module generator, Skills, MCP adapter, and evaluations live outside `mss-boot/`. Framework primitives may support those tools, but tool-specific orchestration belongs under `internal/mss/`, `cmd/mss/`, `.agents/`, or `.mss/`.
 
-Historical files under `aigc/prompts/` are archived engineering evidence, not active requirements unless a current specification references them.
+Archived conversational prompts are intentionally absent from the Framework tree. Use compiling code, `.mss/` contracts, tests, ADRs, and current documentation as the durable engineering context.

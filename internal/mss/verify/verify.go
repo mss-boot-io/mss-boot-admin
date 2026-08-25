@@ -96,7 +96,9 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 		plan.Reasons[check.ID] = appendUnique(plan.Reasons[check.ID], reason)
 	}
 
-	add(diffCheck(ctx.Root), "all changes must pass Git whitespace and conflict-marker checks")
+	for _, check := range diffChecks(ctx.Root) {
+		add(check, "all changes must pass Git whitespace and conflict-marker checks")
+	}
 
 	if options.Mode == ModeAll {
 		if thinHost {
@@ -209,6 +211,16 @@ func Run(parent context.Context, ctx *project.Context, options Options) (Report,
 		if thinHostResult.ExitCode != 0 {
 			report.Success = false
 		}
+		generatedResult := validateThinHostGeneratedModules(ctx)
+		report.Results = append(report.Results, generatedResult)
+		if generatedResult.ExitCode != 0 {
+			report.Success = false
+		}
+	}
+	untrackedResult := validateUntrackedWorkspaceText(ctx.Root)
+	report.Results = append(report.Results, untrackedResult)
+	if untrackedResult.ExitCode != 0 {
+		report.Success = false
 	}
 
 	if !options.PlanOnly && report.Success {
@@ -463,13 +475,99 @@ func runGit(root string, args ...string) ([]byte, error) {
 }
 
 func diffCheck(root string) command.Spec {
-	return command.Spec{
+	return diffChecks(root)[0]
+}
+
+func diffChecks(root string) []command.Spec {
+	if _, err := runGit(root, "rev-parse", "--verify", "HEAD^{commit}"); err != nil {
+		return []command.Spec{
+			{
+				ID:          "git-diff-check",
+				Description: "check staged whitespace errors and conflict markers before the first commit",
+				Directory:   root,
+				Args:        []string{"git", "diff", "--cached", "--check", "--"},
+				Timeout:     2 * time.Minute,
+			},
+			{
+				ID:          "git-worktree-check",
+				Description: "check unstaged whitespace errors and conflict markers before the first commit",
+				Directory:   root,
+				Args:        []string{"git", "diff", "--check", "--"},
+				Timeout:     2 * time.Minute,
+			},
+		}
+	}
+	return []command.Spec{{
 		ID:          "git-diff-check",
 		Description: "check whitespace errors and conflict markers",
 		Directory:   root,
-		Args:        []string{"git", "diff", "--check", "HEAD"},
+		Args:        []string{"git", "diff", "--check", "HEAD", "--"},
 		Timeout:     2 * time.Minute,
+	}}
+}
+
+func validateUntrackedWorkspaceText(root string) command.Result {
+	started := time.Now()
+	result := command.Result{
+		ID:          "untracked-text-check",
+		Description: "check untracked text files for whitespace errors and conflict markers",
+		Directory:   root,
+		StartedAt:   started.UTC(),
+		ExitCode:    0,
 	}
+	output, err := runGit(root, "ls-files", "--others", "--exclude-standard", "-z")
+	if err != nil {
+		result.ExitCode = 1
+		result.Error = err.Error()
+		result.Duration = time.Since(started)
+		return result
+	}
+	var problems []string
+	for _, raw := range bytes.Split(output, []byte{0}) {
+		relative := filepath.ToSlash(string(raw))
+		if relative == "" {
+			continue
+		}
+		if !confinedRepositoryPath(relative) {
+			problems = append(problems, relative+": untracked path is not repository-confined")
+			continue
+		}
+		path := filepath.Join(root, filepath.FromSlash(relative))
+		info, statErr := os.Lstat(path)
+		if statErr != nil {
+			problems = append(problems, relative+": inspect untracked file: "+statErr.Error())
+			continue
+		}
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			problems = append(problems, relative+": read untracked file: "+readErr.Error())
+			continue
+		}
+		if bytes.IndexByte(data, 0) >= 0 {
+			continue
+		}
+		for index, line := range bytes.Split(data, []byte{'\n'}) {
+			line = bytes.TrimSuffix(line, []byte{'\r'})
+			if len(line) > 0 && (line[len(line)-1] == ' ' || line[len(line)-1] == '\t') {
+				problems = append(problems, fmt.Sprintf("%s:%d: trailing whitespace", relative, index+1))
+			}
+			if bytes.HasPrefix(line, []byte("<<<<<<< ")) || bytes.Equal(line, []byte("=======")) || bytes.HasPrefix(line, []byte(">>>>>>> ")) {
+				problems = append(problems, fmt.Sprintf("%s:%d: unresolved conflict marker", relative, index+1))
+			}
+		}
+	}
+	if len(problems) > 0 {
+		sort.Strings(problems)
+		result.ExitCode = 1
+		result.Error = strings.Join(problems, "; ")
+	} else {
+		result.Stdout = "untracked text files contain no trailing whitespace or conflict markers\n"
+	}
+	result.Duration = time.Since(started)
+	return result
 }
 
 func toolingTest(root string) command.Spec {
@@ -843,7 +941,7 @@ func writeAtomic(path string, data []byte) error {
 		cleanup()
 		return fmt.Errorf("write temporary report: %w", err)
 	}
-	if err := temporary.Chmod(0o644); err != nil {
+	if err := temporary.Chmod(0o600); err != nil {
 		cleanup()
 		return fmt.Errorf("chmod temporary report: %w", err)
 	}

@@ -1,10 +1,14 @@
-# Codex project integration
+# Codex integration for Foundation contributors
 
-This directory contains repository-local Codex configuration without credentials.
+This directory configures Codex only for contributors working inside the
+`mss-boot-admin` Foundation source checkout. It is not the v1.3.3 application
+quick start and must not be copied into a Thin Host. Generated applications use
+the installed `mss` and `mss-mcp` commands instead.
 
 ## MCP
 
-`.codex/config.toml` starts the checked-in stdio MCP server:
+`.codex/config.toml` deliberately starts the checked-in stdio MCP server in
+Foundation contributor mode:
 
 ```shell
 go run ./cmd/mss-mcp --root .
@@ -20,7 +24,7 @@ Configure the Codex environment setup command as:
 bash .codex/setup.sh
 ```
 
-The script:
+The contributor setup script:
 
 - runs from the repository root;
 - uses the canonical `mss setup` implementation;
@@ -29,7 +33,7 @@ The script:
 - validates repository Skills;
 - stores local JSON context under ignored `.mss/cache/`.
 
-After setup, a task should begin with:
+After setup, a Foundation task should begin with:
 
 ```shell
 go run ./cmd/mss context --format json

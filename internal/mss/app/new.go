@@ -3,6 +3,8 @@ package app
 import (
 	"fmt"
 	"io"
+	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -24,6 +26,8 @@ func newApplicationCommand(rootOverride *string) *cobra.Command {
 	var repository string
 	var blueprintName string
 	var destination string
+	var foundation string
+	var frontendRegistry string
 	var write bool
 	var initializeGit bool
 	var format string
@@ -32,26 +36,23 @@ func newApplicationCommand(rootOverride *string) *cobra.Command {
 		Short: "Plan or create a complete agent-native management-system repository",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			projectContext, err := loadProject(*rootOverride)
-			if err != nil {
-				return err
-			}
 			if module == "" {
 				return fmt.Errorf("--module is required")
 			}
-			plan, generateErr := blueprint.Generate(cmd.Context(), blueprint.Options{
-				FoundationRoot: projectContext.Root,
-				Blueprint:      blueprintName,
-				Destination:    destination,
+			options := blueprint.Options{
+				Blueprint:   blueprintName,
+				Destination: destination,
 				Application: blueprint.Application{
 					Name:        args[0],
 					DisplayName: displayName,
 					Module:      module,
 					Repository:  repository,
 				},
-				Write:         write,
-				InitializeGit: initializeGit,
-			})
+				Write:               write,
+				InitializeGit:       initializeGit,
+				FrontendRegistryURL: frontendRegistry,
+			}
+			plan, generateErr := generateApplication(cmd, rootOverride, foundation, options)
 			if outputErr := writeBlueprintPlan(cmd.OutOrStdout(), plan, format); outputErr != nil {
 				return outputErr
 			}
@@ -63,10 +64,38 @@ func newApplicationCommand(rootOverride *string) *cobra.Command {
 	command.Flags().StringVar(&repository, "repository", "", "target GitHub repository in owner/name form; inferred from github.com module when omitted")
 	command.Flags().StringVar(&blueprintName, "blueprint", "management-system", "foundation blueprint name")
 	command.Flags().StringVar(&destination, "destination", "", "target directory; defaults to .mss/output/<name>")
+	command.Flags().StringVar(&foundation, "foundation", "", "clean Foundation checkout override for contributor development")
+	command.Flags().StringVar(&frontendRegistry, "contributor-npm-registry", "", "loopback npm registry override for contributor qualification")
+	_ = command.Flags().MarkHidden("contributor-npm-registry")
 	command.Flags().BoolVar(&write, "write", false, "write files after a conflict-free plan; default is dry-run")
 	command.Flags().BoolVar(&initializeGit, "git-init", false, "initialize a new Git repository after files are written")
 	command.Flags().StringVar(&format, "format", "text", "output format: text or json")
 	return command
+}
+
+func generateApplication(command *cobra.Command, rootOverride *string, foundation string, options blueprint.Options) (blueprint.Plan, error) {
+	foundation = strings.TrimSpace(foundation)
+	if foundation != "" {
+		context, err := loadProject(foundation)
+		if err != nil {
+			return blueprint.Plan{}, fmt.Errorf("load contributor Foundation checkout: %w", err)
+		}
+		options.FoundationRoot = context.Root
+		return blueprint.Generate(command.Context(), options)
+	}
+	if rootOverride != nil && strings.TrimSpace(*rootOverride) != "" {
+		context, err := loadProject(*rootOverride)
+		if err != nil {
+			return blueprint.Plan{}, err
+		}
+		options.FoundationRoot = context.Root
+		return blueprint.Generate(command.Context(), options)
+	}
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		return blueprint.Plan{}, fmt.Errorf("get standalone working directory: %w", err)
+	}
+	return blueprint.GenerateEmbedded(command.Context(), workingDirectory, options)
 }
 
 func writeBlueprintPlan(writer io.Writer, plan blueprint.Plan, format string) error {

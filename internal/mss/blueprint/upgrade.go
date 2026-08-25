@@ -32,6 +32,7 @@ type UpgradeOptions struct {
 	ModuleSpecificationsPath     string
 	PreservedBusinessPaths       []string
 	ValidationCommands           []string
+	FrontendRegistryURL          string
 	Write                        bool
 }
 
@@ -88,26 +89,79 @@ type UpgradePlan struct {
 // Upgrade plans or applies a three-way foundation upgrade. User-created files
 // outside the managed manifest are preserved and ignored.
 func Upgrade(ctx context.Context, options UpgradeOptions) (UpgradePlan, error) {
-	applicationRoot, err := filepath.Abs(options.ApplicationRoot)
-	if err != nil {
-		return UpgradePlan{}, fmt.Errorf("resolve application root: %w", err)
-	}
 	foundationRoot, err := filepath.Abs(options.FoundationRoot)
 	if err != nil {
 		return UpgradePlan{}, fmt.Errorf("resolve foundation root: %w", err)
+	}
+	prepared, err := prepareUpgrade(options)
+	if err != nil {
+		return UpgradePlan{}, err
+	}
+	newBlueprint, err := Load(foundationRoot, prepared.Options.Blueprint)
+	if err != nil {
+		return UpgradePlan{}, err
+	}
+	desired, newManifest, err := buildDesired(ctx, foundationRoot, newBlueprint, prepared.Options.Application, prepared.Options.FrontendRegistryURL)
+	if err != nil {
+		return UpgradePlan{}, err
+	}
+	return finishUpgrade(ctx, prepared, foundationRoot, newBlueprint, desired, newManifest)
+}
+
+// UpgradeEmbedded plans or applies an Admin Distribution upgrade from the
+// source carried by the matching release-built mss binary.
+func UpgradeEmbedded(ctx context.Context, options UpgradeOptions) (UpgradePlan, error) {
+	prepared, err := prepareUpgrade(options)
+	if err != nil {
+		return UpgradePlan{}, err
+	}
+	source, err := loadEmbeddedFoundation(prepared.Options.Blueprint)
+	if err != nil {
+		return UpgradePlan{}, err
+	}
+	frontendIntegrity, err := resolveFrontendIntegrityForSource(ctx, prepared.Options.FrontendRegistryURL, source.Blueprint, source.Files)
+	if err != nil {
+		return UpgradePlan{}, err
+	}
+	desired, newManifest, err := buildDesiredFromSource(
+		source.Blueprint,
+		source.BlueprintSHA,
+		source.Identity,
+		source.Files,
+		prepared.Options.Application,
+		frontendIntegrity,
+	)
+	if err != nil {
+		return UpgradePlan{}, err
+	}
+	foundationSource := "embedded://mss/" + strings.TrimPrefix(source.Blueprint.Spec.Distribution.Version, "v")
+	return finishUpgrade(ctx, prepared, foundationSource, source.Blueprint, desired, newManifest)
+}
+
+type preparedUpgrade struct {
+	ApplicationRoot string
+	OldManifest     Manifest
+	LegacyManifest  bool
+	Options         UpgradeOptions
+}
+
+func prepareUpgrade(options UpgradeOptions) (preparedUpgrade, error) {
+	applicationRoot, err := filepath.Abs(options.ApplicationRoot)
+	if err != nil {
+		return preparedUpgrade{}, fmt.Errorf("resolve application root: %w", err)
 	}
 	if options.ManifestPath == "" {
 		options.ManifestPath = ".mss/blueprint-manifest.json"
 	}
 	oldManifest, legacyManifest, err := readManifestForUpgrade(applicationRoot, options.ManifestPath)
 	if err != nil {
-		return UpgradePlan{}, fmt.Errorf("read downstream foundation baseline: %w", err)
+		return preparedUpgrade{}, fmt.Errorf("read downstream foundation baseline: %w", err)
 	}
 	if options.Blueprint == "" {
 		options.Blueprint = oldManifest.Metadata.Blueprint
 	}
 	if options.Blueprint != oldManifest.Metadata.Blueprint {
-		return UpgradePlan{}, fmt.Errorf("blueprint switch from %s to %s requires an explicit migration recipe", oldManifest.Metadata.Blueprint, options.Blueprint)
+		return preparedUpgrade{}, fmt.Errorf("blueprint switch from %s to %s requires an explicit migration recipe", oldManifest.Metadata.Blueprint, options.Blueprint)
 	}
 	if options.Application.Name == "" {
 		options.Application.Name = oldManifest.Metadata.Project
@@ -120,21 +174,26 @@ func Upgrade(ctx context.Context, options UpgradeOptions) (UpgradePlan, error) {
 	}
 	options.Application = normalizeApplication(options.Application)
 	if err := ValidateApplication(options.Application); err != nil {
-		return UpgradePlan{}, err
+		return preparedUpgrade{}, err
 	}
 	if options.Application.Name != oldManifest.Metadata.Project || options.Application.Module != oldManifest.Metadata.Module {
-		return UpgradePlan{}, errors.New("application identity does not match the existing blueprint manifest")
+		return preparedUpgrade{}, errors.New("application identity does not match the existing blueprint manifest")
 	}
+	return preparedUpgrade{ApplicationRoot: applicationRoot, OldManifest: oldManifest, LegacyManifest: legacyManifest, Options: options}, nil
+}
 
-	newBlueprint, err := Load(foundationRoot, options.Blueprint)
-	if err != nil {
-		return UpgradePlan{}, err
-	}
+func finishUpgrade(
+	ctx context.Context,
+	prepared preparedUpgrade,
+	foundationRoot string,
+	newBlueprint *Document,
+	desired map[string]desiredFile,
+	newManifest Manifest,
+) (UpgradePlan, error) {
+	options := prepared.Options
+	applicationRoot := prepared.ApplicationRoot
+	oldManifest := prepared.OldManifest
 	if err := validateRequestedAdminDistribution(options.RequestedDistributionVersion, newBlueprint.Spec.Distribution); err != nil {
-		return UpgradePlan{}, err
-	}
-	desired, newManifest, err := BuildDesired(ctx, foundationRoot, newBlueprint, options.Application)
-	if err != nil {
 		return UpgradePlan{}, err
 	}
 	if err := validateRequestedAdminDistribution(options.RequestedDistributionVersion, newManifest.Distribution); err != nil {
@@ -151,7 +210,7 @@ func Upgrade(ctx context.Context, options UpgradeOptions) (UpgradePlan, error) {
 	if normalizedPath(options.ManifestPath) != normalizedPath(newBlueprint.Spec.ManifestPath) {
 		return UpgradePlan{}, fmt.Errorf("manifest path switch from %s to %s requires an explicit migration recipe", options.ManifestPath, newBlueprint.Spec.ManifestPath)
 	}
-	if !legacyManifest && (normalizedPath(oldManifest.Records.LockPath) != normalizedPath(newBlueprint.Spec.LockPath) ||
+	if !prepared.LegacyManifest && (normalizedPath(oldManifest.Records.LockPath) != normalizedPath(newBlueprint.Spec.LockPath) ||
 		normalizedPath(oldManifest.Records.ManifestPath) != normalizedPath(newBlueprint.Spec.ManifestPath)) {
 		return UpgradePlan{}, errors.New("snapshot record path changes require an explicit migration recipe")
 	}

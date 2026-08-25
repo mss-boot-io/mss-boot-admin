@@ -1,5 +1,5 @@
 ---
-title: V6 主题设置优先级、继承与重置
+title: v1.3.3 主题设置优先级、继承与重置
 order: 14
 nav:
   order: 1
@@ -8,13 +8,12 @@ description: Ant Design V6 应用主题与个人主题的唯一运行时契约
 keywords: [admin ant-design-v6 theme settings precedence inheritance]
 ---
 
-## 文档状态
+## 产品合同
 
-- 契约日期：2026-08-17
-- 前端：仅 `web/antd-v6`
-- 机器契约：`.mss/features/admin-theme-settings-precedence.yaml`
-- 切换决策：`docs/adr/2026-08-17-ant-design-v6-default-cutover.md`
-- 状态：实现已接入，并已在 v1.3.2 冻结提交上完成集中测试、SQLite/MySQL/PostgreSQL 升级验证和 Codex 内置浏览器验收；能力成熟度仍以 `.mss/capabilities.yaml` 为准
+- Admin Web：`@mss-boot-io/admin-web@1.3.3`；
+- Admin 后端：`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.3`；
+- 状态：主题继承、重置、并发前置条件和授权是协调发行合同的一部分；
+- 设计历史保留在[默认 V6 切换 ADR](https://github.com/mss-boot-io/mss-boot-admin/blob/main/docs/adr/2026-08-17-ant-design-v6-default-cutover.md)，使用方无需 Foundation 源码。
 
 本页只描述 V6 规范契约。后端不再返回旧主题投影，不接受缺少修订号的写入，
 前端也不会从 V5 的本地存储键、媒体类型或无版本响应中恢复状态。

@@ -1,97 +1,56 @@
 ---
-title: 安全基线指南
-order: 30
-nav:
-  order: 1
-  title: admin
-description: mss-boot-admin 的默认配置风险、凭据注入与上传安全建议
-keywords: [admin security baseline upload credentials]
+title: 安全基线
+order: 7
+description: v1.3.3 Admin 身份、授权、密钥、浏览器与供应链最低要求
 ---
 
-## 目标
+# v1.3.3 安全基线
 
-把当前版本上线前必须确认的安全基线整理成最小清单。
+## 身份与会话
 
-## 一、默认配置风险
+- 密码只保存带盐单向 verifier，不支持显示或恢复；
+- 改密、解绑 OAuth 等敏感操作要求近期重新认证；
+- 浏览器使用 HttpOnly 会话和 CSRF 防护；
+- WebSocket 使用一次性短期 ticket，不在 URL 放长期凭据；
+- 生产使用 HTTPS、Secure Cookie 和精确 origin。
 
-上线前必须确认：
+## 授权
 
-- [ ] 默认账号密码已修改
-- [ ] 默认数据库连接未直接暴露到公网
-- [ ] 默认 Redis 密码已替换
-- [ ] 通知渠道 webhook 与 SMTP 凭据未写死在仓库中
+- 每个受保护 API 在后端执行 Casbin 或业务授权；
+- 行级范围在查询和写入层同时约束；
+- UI 隐藏、菜单过滤和路由守卫不是授权；
+- 新权限必须有允许与拒绝测试；
+- 状态变更不使用 GET。
 
-## 二、凭据注入建议
+## 密钥与配置
 
-优先使用环境变量或部署系统注入：
+- 不提交 token、密码、私钥、生产 DSN、kubeconfig 或云凭据；
+- 使用环境或部署平台 secret reference；
+- 日志、审计、验证报告和浏览器输出脱敏；
+- API key 只显示一次，服务端保存哈希；
+- 可选集成失败不终止无关能力。
 
-- 数据库连接串
-- Redis 密码
-- SMTP 用户名与密码
-- DingTalk Secret
-- WeChat Webhook Key
+## 浏览器与前端
 
-## 三、上传安全建议
+- CORS 对凭据请求使用精确来源；
+- 不把服务端权限或长期令牌放入 localStorage；
+- 外链、上传、富文本和动态内容按上下文转义；
+- 依赖、锁文件、公开导出和生产 bundle 均纳入验证。
 
-`D0-safety` 内部检查点只覆盖 Upload admission 与 Local write boundary：
+## 供应链与发布
 
-- `storage:maxSize` 是 bytes 整数；默认 10 MiB（`10485760` bytes），硬上限
-  100 MiB（`104857600` bytes），非法或越界配置拒绝上传。
-- `storage:allowedTypes` 是逗号分隔的 MIME types / `type/*` wildcards，例如
-  `image/png,image/*`；文件扩展名不是安全策略。
-- 这两个字段是 Storage AppConfig 的完整 allowlist。provider、endpoint、bucket 与
-  凭据 key 的历史行不会返回；提交这些已移除的 key 会以稳定 422 整批拒绝。
-- Provider 与 SecretRef 只能来自进程启动时的不可变 profile，不允许通过 Admin
-  设置或 AppConfig API 注入、轮换或切换。
-- 请求体在 multipart 解析前受限，选中文件还会做 max-plus-one 流式检查。
-- Local 使用 `uploads/<opaque-uuid>`、`os.Root` confinement 与 `O_EXCL`
-  create-only 写入；错误或取消清理 partial。用户 ID 和原始文件名不进入 key。
+- v1.3.3 只能从已经合入 `main` 的精确干净提交发布；
+- 工具安装校验 `SHA256SUMS.tools-v1.3.3`；
+- Go 模块关闭 workspace 验证公共解析；
+- npm 包从 npmjs 匿名安装并冻结锁；
+- 标签、Release 和 digest 不移动、不覆盖。
 
-D1 的对象子切片也已完成：Provider / SecretRef 在启动时从 immutable profile
-一次性解析，未知/非法 profile 拒绝安装对象资源，client 由单一 owner 管理。Admin
-进程继续运行，两条上传路由固定返回 503，零 Local fallback。Local 只在 dev 模式与
-`application.staticPath` 精确映射配置 root 时安装；`prod` Local 不安装。S3 在 D1
-只持有 client，并在 `Put` 前返回 503。
+## 上线门禁
 
-这不等于生产存储已经就绪；Local 与 S3-compatible 仍为 `Legacy / Blocked`。
-Nginx 代理、目录挂载、endpoint 拼接或 opaque key 不能单独补齐 Delivery 与授权边界。
+```sh
+mss doctor --strict
+mss verify --all
+```
 
-上线前必须：
-
-- [ ] `storage:maxSize` 已按 bytes 设置为业务可接受值，且不超过 `104857600`
-- [ ] `storage:allowedTypes` 仅包含必要的 MIME types / wildcards
-- [ ] ingress 阻断 `/admin/api/storage/upload` 与 `/admin/api/user/avatar` 的生产流量，
-  同时不授予通用 `storage:upload` 权限作为纵深防御；头像入口没有独立 Casbin permission
-- [ ] 未将 `/public/`、endpoint 拼接 URL 或 opaque key 当成对象读取授权
-
-D1 的对象子切片已完成，且不能把旧 AppConfig 行作为兼容回退；Kafka lifecycle 仍未
-完成。真实 S3 Put/Delivery、RustFS fixture 和 Local/S3-compatible 共用 conformance
-suite 留在 `D4-authorization-object`。精确边界见
-[D1 Object Provider/Owner 内部 checkpoint](/releases/v1-1-0-d1-object-provider-owner)。
-
-## 四、通知渠道安全建议
-
-- 邮件账号应使用独立发送账号
-- 钉钉与企微 webhook 建议专用机器人
-- 凭据变更后应做最小联通性验证
-
-## 五、日志与审计建议
-
-- 保留登录日志
-- 保留审计日志
-- 为日志清理任务设置明确保留周期
-
-## 六、上线前最小安全检查
-
-- [ ] 默认密码已替换
-- [ ] 凭据通过环境变量注入
-- [ ] 上传限制已按 bytes 与 MIME/wildcard 合同配置
-- [ ] Legacy / Blocked 上传 provider 在生产入口保持关闭
-- [ ] 告警通知渠道可用且未泄露凭据
-- [ ] 日志保留周期已配置
-
-## 推荐阅读
-
-- [生产部署标准化](/admin/production-standardization)
-- [容器化与生产部署](/admin/docker)
-- [SECURITY Policy FAQ](/devops/security-policy-faq)
+同时完成迁移、权限正反例、真实业务流程、浏览器控制台和回滚演练。任何绕过项必须明确
+记录为阻断或剩余风险。
