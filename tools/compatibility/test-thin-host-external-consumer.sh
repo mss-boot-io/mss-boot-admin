@@ -396,7 +396,7 @@ jq -e \
    .pnpm.overrides == {
      "react": "19.2.8",
      "react-dom": "19.2.8",
-     "antd": "6.6.0",
+     "antd": "6.6.1",
      "@ant-design/pro-components": "3.1.14-6",
      "@tanstack/react-query": "5.101.4",
      "axios": "0.33.0"

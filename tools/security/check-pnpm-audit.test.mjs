@@ -51,7 +51,7 @@ const validReport = () => ({
 
 const validDistributionPackage = () => ({
   dependencies: {
-    '@umijs/max': '4.7.5',
+    '@umijs/max': '4.7.7',
     react: '19.2.8',
   },
   devDependencies: {
@@ -97,7 +97,7 @@ test('requires complete, disjoint, and stable Admin Web dependency classes', () 
   assert.throws(() => validateDistributionDependencyContract(overlap), /classes overlap/);
 
   const unclassified = validDistributionPackage();
-  unclassified.dependencies.antd = '6.6.0';
+  unclassified.dependencies.antd = '6.6.1';
   assert.throws(() => validateDistributionDependencyContract(unclassified), /missing=antd/);
 
   const unsorted = validDistributionPackage();

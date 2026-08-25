@@ -22,7 +22,7 @@ ADMIN_WEB_PACKAGE_MANAGER = "pnpm@10.34.5"
 ADMIN_WEB_RUNTIME_OVERRIDES = {
     "@ant-design/pro-components": "3.1.14-6",
     "@tanstack/react-query": "5.101.4",
-    "antd": "6.6.0",
+    "antd": "6.6.1",
     "axios": "0.33.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",

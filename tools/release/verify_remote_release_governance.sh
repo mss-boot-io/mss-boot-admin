@@ -50,10 +50,12 @@ if [[ "${actor_id}" == "${reviewer_id}" ]]; then
   echo 'release actor and protected-environment reviewer must be different accounts' >&2
   exit 1
 fi
-gh api "/repos/${repository}" --jq '.permissions.admin == true' | grep -qx true || {
+repository_json="$(gh api "/repos/${repository}")"
+jq -e '.permissions.admin == true' <<< "${repository_json}" >/dev/null || {
   echo "${actor_login} must have repository admin access to inspect bypass actors" >&2
   exit 1
 }
+repository_id="$(jq -er '.id' <<< "${repository_json}")"
 
 rulesets="$(gh api "/repos/${repository}/rulesets?includes_parents=true&per_page=100")"
 mapfile -t creation_names < <(
@@ -101,14 +103,28 @@ jq -e \
   .conditions.ref_name.exclude == [] and
   ([.rules[].type] == ["creation"]) and
   (.bypass_actors == [{
-    actor_id: 15368,
-    actor_type: "Integration",
+    actor_id: null,
+    actor_type: "DeployKey",
     bypass_mode: "always"
   }])
 ' <<< "${root_ruleset}" >/dev/null || {
-  echo 'root creation authority must be root-only and GitHub-Actions-only' >&2
+  echo 'root creation authority must be root-only and deploy-key-only' >&2
   exit 1
 }
+
+deploy_keys="$(gh api "/repos/${repository}/keys?per_page=100")"
+jq -e '
+  length == 1 and
+  .[0].title == "mss-root-tag-promotion" and
+  .[0].read_only == false and
+  .[0].verified == true and
+  .[0].enabled == true and
+  (.[0].key | startswith("ssh-ed25519 "))
+' <<< "${deploy_keys}" >/dev/null || {
+  echo 'repository must have exactly one verified, enabled, write-enabled Ed25519 deploy key titled mss-root-tag-promotion' >&2
+  exit 1
+}
+deploy_key_id="$(jq -er '.[0].id' <<< "${deploy_keys}")"
 
 controlled_id="$(unique_ruleset_id release-tags-controlled-creation)"
 controlled_ruleset="$(gh api "/repos/${repository}/rulesets/${controlled_id}?includes_parents=true")"
@@ -193,6 +209,16 @@ jq -e '
   exit 1
 }
 
+environment_secrets="$(gh api "/repositories/${repository_id}/environments/root-promotion/secrets?per_page=100")"
+jq -e '
+  .total_count == 1 and
+  (.secrets | length) == 1 and
+  .secrets[0].name == "ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY"
+' <<< "${environment_secrets}" >/dev/null || {
+  echo 'root-promotion environment must contain only ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY' >&2
+  exit 1
+}
+
 jq -n \
   --arg repository "${repository}" \
   --arg actor "${actor_login}" \
@@ -200,12 +226,24 @@ jq -n \
   --argjson root_ruleset_id "${root_id}" \
   --argjson controlled_ruleset_id "${controlled_id}" \
   --argjson immutable_ruleset_id "${immutable_id}" \
+  --argjson deploy_key_id "${deploy_key_id}" \
   '{
     success: true,
     repository: $repository,
     releaseActor: $actor,
     protectedReviewer: $reviewer,
     rootCreationRuleset: $root_ruleset_id,
+    rootPromotionDeployKey: {
+      id: $deploy_key_id,
+      title: "mss-root-tag-promotion",
+      writeEnabled: true,
+      verified: true,
+      enabled: true
+    },
+    rootPromotionEnvironmentSecret: {
+      name: "ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY",
+      configured: true
+    },
     componentCreationRuleset: $controlled_ruleset_id,
     immutableRuleset: $immutable_ruleset_id,
     environment: "root-promotion",

@@ -285,6 +285,13 @@ spec:
       category: release
       idempotent: true
 
+    remote-release-governance-verify:
+      command: bash tools/release/verify_remote_release_governance.sh --repository <owner/repository> --reviewer-login <login>
+      description: As a repository administrator, emit sanitized metadata proving the main-only root-promotion environment, its sole named secret, the sole write-enabled deploy key, exact DeployKey root bypass, two-account component authority, and no-bypass release-tag immutability; no secret value is read or reported.
+      outputFormats: [json]
+      category: release
+      idempotent: true
+
     official-npm-publish:
       command: gh workflow run npm-release.yml --ref <root-tag> -f version=v1.3.3 -f commit=<full-sha> -f allow_npm_token_bootstrap=false
       description: As the final artifact publication, publish the already-qualified Admin Web GitHub Release tarball to public npmjs from the exact root tag through the bound npm Trusted Publisher; the completed one-time bootstrap path is historical and future runs fail closed without matching OIDC identity.

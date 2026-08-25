@@ -3,9 +3,26 @@
 package dev
 
 import (
+	"errors"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 )
+
+func TestLinuxProcessNotRunningErrorAcceptsProcfsExitRaces(t *testing.T) {
+	for _, err := range []error{
+		&os.PathError{Op: "read", Path: "/proc/42/stat", Err: syscall.ENOENT},
+		&os.PathError{Op: "read", Path: "/proc/42/stat", Err: syscall.ESRCH},
+	} {
+		if !linuxProcessNotRunningError(err) {
+			t.Fatalf("procfs exit race %v was not treated as a stopped process", err)
+		}
+	}
+	if linuxProcessNotRunningError(errors.New("permission denied")) {
+		t.Fatal("unverifiable process identity was treated as a stopped process")
+	}
+}
 
 func TestLinuxProcessStartTokenIncludesBootAndIgnoresCommand(t *testing.T) {
 	fields := make([]string, 20)

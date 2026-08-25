@@ -137,8 +137,9 @@ spec:
         - Candidate Framework and Admin Module sums are calculated from their final tracked trees and match both Admin metadata and the generated Thin Host baseline before any component tag.
         - Candidate frontend lifecycle tests consume a tarball built from the exact frozen tree; a dirty local rehearsal must inject its exact current candidate instead of silently packaging an older Git HEAD.
         - Every publication guard fetches remote main and rejects a frozen candidate that is merely an ancestor rather than the current exact tip.
-        - The supported root-tag path is a protected GitHub Actions promotion from the exact remote main tip; its dedicated environment forbids self-review and administrator bypass, an administrator-side pre-root verifier records exact bypass actors, the workflow rechecks public rule structure, and retries do not duplicate waiting, active, successful, or failed candidate stages.
-        - The built-in GitHub Actions Integration bypass is repository-wide rather than workflow-specific, so the security boundary also trusts workflow definitions already merged to the exact main tip; a future workflow-exclusive boundary requires a dedicated GitHub App whose short-lived token is confined to root-promotion.
+        - The supported root-tag path is a protected promotion from the exact remote main tip; its dedicated environment forbids self-review and administrator bypass, contains only the ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY secret, exposes that dedicated Ed25519 deploy private key only to the exact SSH tag-creation step, pins and verifies the GitHub SSH host key, and removes temporary key material on every exit.
+        - The root creation ruleset bypass list is exactly one generic DeployKey always actor with a null actor ID; the repository has exactly one verified, enabled, write-enabled Ed25519 deploy key titled mss-root-tag-promotion, while every additional deploy key, PAT, human, Integration, App, or administrator root bypass is rejected.
+        - The deploy-key tag push naturally starts exactly one root image run and one non-publishing root candidate run; promotion accepts queued or in-progress exact runs, while rejecting a mismatched commit, stale or duplicate run, completed failure, or bounded missing result without dispatching substitutes.
         - Public refs and assets are immutable; every repair uses a later patch version.
     - id: replace-active-documentation
       title: Keep one current package-first documentation path
@@ -276,7 +277,7 @@ spec:
         - type: report
           value: Public Framework and Admin modules, the exact GitHub Packages Admin Web candidate and SRI, a locally release-built root tool, image, and Docs predecessor reconciliation; the root archive and official npmjs package remain later gates.
         - type: report
-          value: Sanitized remote release-governance JSON proving the main-only root-promotion environment, distinct reviewer, exact GitHub Actions root bypass, human-only component bypass, and no-bypass immutability.
+          value: Sanitized remote release-governance JSON proving the main-only root-promotion environment, distinct reviewer, the sole metadata-only ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY secret, the sole write-enabled mss-root-tag-promotion deploy key, exact DeployKey root bypass, human-only component bypass, and no-bypass immutability.
     - id: public-mss-shop-gate
       requirement: prove-with-mss-shop
       statement: The public v1.3.3 tool and packages produce a clean mss-shop baseline and the completed single-tenant app passes code and browser acceptance.

@@ -21,7 +21,7 @@ class RootTagPromotionWorkflowTest(unittest.TestCase):
     def step(self, name):
         return next(step for step in self.steps if step.get("name") == name)
 
-    def test_only_manual_protected_job_can_write_root_tag(self):
+    def test_only_manual_protected_job_can_use_the_deploy_key(self):
         self.assertEqual(set(self.workflow["on"]), {"workflow_dispatch"})
         self.assertEqual(
             set(self.workflow["on"]["workflow_dispatch"]["inputs"]),
@@ -29,12 +29,24 @@ class RootTagPromotionWorkflowTest(unittest.TestCase):
         )
         self.assertEqual(self.workflow["permissions"]["contents"], "read")
         self.assertEqual(self.job["environment"], "root-promotion")
-        self.assertEqual(self.job["permissions"]["contents"], "write")
-        self.assertEqual(self.job["permissions"]["actions"], "write")
+        self.assertEqual(self.job["permissions"]["contents"], "read")
+        self.assertEqual(self.job["permissions"]["actions"], "read")
         self.assertEqual(
             [name for name, job in self.workflow["jobs"].items() if job.get("environment")],
             ["promote"],
         )
+        secret_steps = [
+            step
+            for step in self.steps
+            if "ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY" in step.get("env", {})
+        ]
+        self.assertEqual(len(secret_steps), 1)
+        self.assertEqual(
+            secret_steps[0]["env"]["ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY"],
+            "${{ secrets.ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY }}",
+        )
+        self.assertNotIn("contents: write", self.content)
+        self.assertNotIn("actions: write", self.content)
 
     def test_untrusted_commit_is_rejected_before_checkout_or_repo_code(self):
         self.assertEqual(
@@ -59,6 +71,9 @@ class RootTagPromotionWorkflowTest(unittest.TestCase):
         self.assertGreater(checkout_index, 0)
         self.assertEqual(
             self.steps[checkout_index]["with"]["ref"], "${{ inputs.frozen_commit }}"
+        )
+        self.assertEqual(
+            self.steps[checkout_index]["with"]["persist-credentials"], "false"
         )
 
     def test_promotion_rechecks_source_readiness_and_component_publication(self):
@@ -99,54 +114,89 @@ class RootTagPromotionWorkflowTest(unittest.TestCase):
             self.assertIn(required, authority)
         self.assertNotIn("bypass_actors", authority)
 
-    def test_tag_creation_is_exact_and_resumable(self):
-        promotion = self.step("Create or resume the exact immutable root tag")["run"]
+    def test_tag_creation_uses_only_the_dedicated_ssh_deploy_key(self):
+        inspection = self.step("Inspect the exact immutable root tag")["run"]
         for required in (
             'git/ref/tags/${RELEASE_VERSION}',
             '"${object_type}" != "tag"',
-            '.object.type == "commit" and .object.sha == $commit',
+            '.message == ("mss-boot-admin " + $version)',
+            '.object.type == "commit"',
+            ".object.sha == $commit",
+            'echo "create=false" >> "${GITHUB_OUTPUT}"',
+            'echo "create=true" >> "${GITHUB_OUTPUT}"',
+        ):
+            self.assertIn(required, inspection)
+
+        creation_step = self.step(
+            "Create the exact annotated root tag with the dedicated deploy key"
+        )
+        self.assertEqual(creation_step["if"], "steps.root-tag.outputs.create == 'true'")
+        self.assertNotIn("GH_TOKEN", creation_step["env"])
+        creation = creation_step["run"]
+        for required in (
+            'trap cleanup_root_tag_key EXIT',
+            "trap 'exit 129' HUP",
+            "trap 'exit 130' INT",
+            "trap 'exit 143' TERM",
+            'unset GIT_SSH_COMMAND ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY',
+            "ssh-keygen -y -P ''",
+            "root-tag deploy key must use Ed25519",
+            "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl",
+            "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU",
+            "GlobalKnownHostsFile=/dev/null",
+            "StrictHostKeyChecking=yes",
+            "IdentitiesOnly=yes",
             'git tag -a "${RELEASE_VERSION}" "${FROZEN_COMMIT}"',
-            'git push origin "refs/tags/${RELEASE_VERSION}"',
-            "checking candidate runs",
+            '"git@github.com:${GITHUB_REPOSITORY}.git"',
+            '"refs/tags/${RELEASE_VERSION}:refs/tags/${RELEASE_VERSION}"',
+        ):
+            self.assertIn(required, creation)
+        self.assertNotIn("ssh-keyscan", creation)
+        self.assertNotIn("git push origin", creation)
+        self.assertNotIn("git tag -f", creation)
+        self.assertNotIn("--force", creation)
+        self.assertNotRegex(creation, re.compile(r"\bPAT\b|Authorization:"))
+
+        verification = self.step("Require the exact annotated root tag")["run"]
+        for required in (
             "waiting for the exact annotated root tag to propagate",
             '"${remote_ready}" != "true"',
         ):
-            self.assertIn(required, promotion)
-        self.assertNotIn("git tag -f", promotion)
-        self.assertNotIn("--force", promotion)
-        self.assertNotIn("delete", promotion.lower())
+            self.assertIn(required, verification)
 
-    def test_actions_dispatch_candidates_because_token_tag_push_does_not_recurse(self):
-        dispatch = self.step("Dispatch exact-tag root image and candidate assembly")["run"]
+    def test_deploy_key_push_creates_one_exact_natural_run_per_stage(self):
+        natural = self.step("Require exact natural root-tag push runs")["run"]
         for required in (
-            "exact_run_state",
-            "Root Image publish ${RELEASE_VERSION}",
-            "Root Release candidate ${RELEASE_VERSION}",
+            "require_natural_push_run",
+            "Container Image ${RELEASE_VERSION}",
+            "Root Release ${RELEASE_VERSION}",
+            "-f event=push",
+            '-f branch="${RELEASE_VERSION}"',
+            '.event == "push"',
+            ".head_branch == $branch",
+            ".head_sha != $commit",
+            ".head_sha == $commit",
+            ".path == $path",
             '.display_title == $title',
-            '.head_sha == $commit',
-            '.status != "completed" or .conclusion == "success"',
-            '"live-or-success"',
-            '"failed"',
-            '"missing"',
-            "already failed; inspect or rerun that run",
-            "gh workflow run container.yml",
-            "gh workflow run release.yml",
-            '--ref "${RELEASE_VERSION}"',
-            "-f publish=true",
-            "-f publish=false",
-            '-f readiness_run_id="${READINESS_RUN_ID}"',
+            '"${exact_count}" -gt 1',
+            '"${status}" == "completed" && "${conclusion}" != "success"',
+            "did not appear",
         ):
-            self.assertIn(required, dispatch)
+            self.assertIn(required, natural)
+        self.assertNotIn("gh workflow run", natural)
+        self.assertNotIn("workflow_dispatch", natural)
 
         container_workflow = (
             REPOSITORY_ROOT / ".github" / "workflows" / "container.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn("Root Image publish {0}", container_workflow)
+        self.assertIn("format('Container Image {0}', github.ref_name)", container_workflow)
+        self.assertIn("tags:\n      - 'v*.*.*'", container_workflow)
 
         release_workflow = (
             REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn("Root Release candidate {0}", release_workflow)
+        self.assertIn("format('Root Release {0}', github.ref_name)", release_workflow)
+        self.assertIn("tags:\n      - 'v*.*.*'", release_workflow)
         readiness_step = release_workflow.split(
             "- name: Require selected pre-root readiness attestation", 1
         )[1].split("- name:", 1)[0]

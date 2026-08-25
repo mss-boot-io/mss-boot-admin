@@ -167,7 +167,7 @@ func TestApplicationTemplatePinsOneFrontendRuntimeWithoutPatches(t *testing.T) {
 	expected := map[string]string{
 		"react":                      "19.2.8",
 		"react-dom":                  "19.2.8",
-		"antd":                       "6.6.0",
+		"antd":                       "6.6.1",
 		"@ant-design/pro-components": "3.1.14-6",
 		"@tanstack/react-query":      "5.101.4",
 		"axios":                      "0.33.0",
@@ -183,8 +183,8 @@ func TestApplicationTemplatePinsOneFrontendRuntimeWithoutPatches(t *testing.T) {
 	if document.Pnpm.PatchedDependencies != nil {
 		t.Fatalf("Thin Host must not inherit package patches: %#v", document.Pnpm.PatchedDependencies)
 	}
-	if document.DevDependencies["vite"] != "8.2.1" {
-		t.Fatalf("Thin Host test Vite = %q, want 8.2.1", document.DevDependencies["vite"])
+	if document.DevDependencies["vite"] != "8.2.2" {
+		t.Fatalf("Thin Host test Vite = %q, want 8.2.2", document.DevDependencies["vite"])
 	}
 }
 
