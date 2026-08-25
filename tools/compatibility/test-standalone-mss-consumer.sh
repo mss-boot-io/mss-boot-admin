@@ -567,7 +567,7 @@ if grep -ERn 'go run ./cmd/mss|--foundation|__MSS_' "${host_root}/README.md" "${
   echo "generated package-first instructions contain a checkout-only command or unresolved placeholder" >&2
   exit 1
 fi
-grep -Eq 'releases/download/v1\.3\.3/install-mss\.sh' "${host_root}/.github/workflows/ci.yml"
+grep -Fq "releases/download/${release_version}/install-mss.sh" "${host_root}/.github/workflows/ci.yml"
 grep -Eq 'mss verify --all' "${host_root}/.github/workflows/ci.yml"
 contracts_ci=$(sed -n '/^  contracts:/,/^  backend:/p' "${host_root}/.github/workflows/ci.yml")
 grep -Fq 'corepack pnpm@10.34.5 --dir web install --frozen-lockfile' <<< "${contracts_ci}"
