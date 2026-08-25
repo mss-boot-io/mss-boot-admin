@@ -105,6 +105,38 @@ const registrations: readonly RouteRegistration[] = [
   ...businessRegistrations,
 ];
 
+function describeRegistration(registration: RouteRegistration): string {
+  return `"${registration.menuName}" (${registration.path})`;
+}
+
+function assertUniqueRouteRegistrations(entries: readonly RouteRegistration[]): void {
+  const uiPathOwners = new Map<string, RouteRegistration>();
+  for (const entry of entries) {
+    const existing = uiPathOwners.get(entry.path);
+    if (existing) {
+      throw new Error(
+        `[mss-admin] duplicate UI route path "${entry.path}" between route registrations ${describeRegistration(existing)} and ${describeRegistration(entry)}.`,
+      );
+    }
+    uiPathOwners.set(entry.path, entry);
+  }
+
+  const serverPathOwners = new Map<string, RouteRegistration>();
+  for (const entry of entries) {
+    for (const serverPath of entry.serverPaths) {
+      const existing = serverPathOwners.get(serverPath);
+      if (existing) {
+        throw new Error(
+          `[mss-admin] duplicate server route path "${serverPath}" between route registrations ${describeRegistration(existing)} and ${describeRegistration(entry)}.`,
+        );
+      }
+      serverPathOwners.set(serverPath, entry);
+    }
+  }
+}
+
+assertUniqueRouteRegistrations(registrations);
+
 export const routeRegistry = new Map(registrations.map((entry) => [entry.path, entry]));
 
 const serverRouteRegistry = new Map(

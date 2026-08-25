@@ -6,13 +6,13 @@ import (
 	"log"
 
 	adminapp "__MSS_DISTRIBUTION_BACKEND_MODULE__/app"
-	"__MSS_APP_MODULE__/internal/modules/all"
+	"__MSS_APP_MODULE__/internal/modules"
 )
 
 func main() {
 	if err := adminapp.ExecuteContext(
 		context.Background(),
-		adminapp.WithBusinessModules(all.Modules()...),
+		adminapp.WithBusinessModules(modules.Modules()...),
 	); err != nil {
 		log.Fatal(err)
 	}

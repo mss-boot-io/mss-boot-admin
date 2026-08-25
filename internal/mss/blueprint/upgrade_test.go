@@ -169,6 +169,205 @@ func TestAdminDistributionUpgradeRejectsRequestedVersionThatDoesNotMatchTarget(t
 	}
 }
 
+func TestThinHostUpgradePreservesExplicitBusinessExtensionSeamsWithoutMutatingRepeat(t *testing.T) {
+	oldFoundation := writeThinHostBlueprintFixture(t)
+	newFoundation := writeThinHostBlueprintFixture(t)
+	bumpThinHostBlueprintRevision(t, newFoundation, "0.4.0", "0.5.0")
+	applicationRoot := filepath.Join(t.TempDir(), "extension-admin")
+	application := Application{
+		Name:       "extension-admin",
+		Module:     "github.com/acme/extension-admin",
+		Repository: "acme/extension-admin",
+	}
+	if _, err := Generate(context.Background(), Options{
+		FoundationRoot: oldFoundation,
+		Destination:    applicationRoot,
+		Application:    application,
+		Write:          true,
+	}); err != nil {
+		t.Fatalf("generate Thin Host with extension seams: %v", err)
+	}
+
+	customized := map[string][]byte{
+		"internal/modules/custom/modules.go":      []byte("package custom\n\n// downstream backend registration\nfunc Modules() []any { return []any{\"owned\"} }\n"),
+		"web/src/business/routes.config.ts":       []byte("// downstream Umi route\nexport default [{ path: '/owned' }];\n"),
+		"web/src/business/route-registrations.ts": []byte("// downstream menu registration\nexport default [{ path: '/owned', serverPaths: ['/owned'], menuName: 'owned' }];\n"),
+		"web/src/business/locales/zh-CN.ts":       []byte("// downstream Simplified Chinese messages\nexport default { 'menu.owned': 'Owned zh-CN' };\n"),
+		"web/src/business/locales/en-US.ts":       []byte("// downstream English messages\nexport default { 'menu.owned': 'Owned en-US' };\n"),
+	}
+	for relative, content := range customized {
+		writeUpgradeFixtureFile(t, applicationRoot, relative, string(content))
+	}
+
+	plan, err := Upgrade(context.Background(), UpgradeOptions{
+		ApplicationRoot: applicationRoot,
+		FoundationRoot:  newFoundation,
+		Application:     application,
+	})
+	if err != nil || !plan.Success {
+		t.Fatalf("plan Thin Host extension upgrade=%#v error=%v", plan, err)
+	}
+	for relative := range customized {
+		assertUpgradeAction(t, plan, relative, ActionPreserve)
+	}
+
+	applied, err := Upgrade(context.Background(), UpgradeOptions{
+		ApplicationRoot: applicationRoot,
+		FoundationRoot:  newFoundation,
+		Application:     application,
+		Write:           true,
+	})
+	if err != nil || !applied.Success || applied.DryRun {
+		t.Fatalf("apply Thin Host extension upgrade=%#v error=%v", applied, err)
+	}
+	assertUpgradeFilesEqual(t, applicationRoot, customized)
+
+	manifestBefore, err := os.ReadFile(filepath.Join(applicationRoot, ".mss", "blueprint-manifest.json"))
+	if err != nil {
+		t.Fatalf("read manifest before repeat plan: %v", err)
+	}
+	lockBefore, err := os.ReadFile(filepath.Join(applicationRoot, ".mss", "lock.yaml"))
+	if err != nil {
+		t.Fatalf("read lock before repeat plan: %v", err)
+	}
+	repeat, err := Upgrade(context.Background(), UpgradeOptions{
+		ApplicationRoot: applicationRoot,
+		FoundationRoot:  newFoundation,
+		Application:     application,
+	})
+	if err != nil || !repeat.Success {
+		t.Fatalf("repeat Thin Host extension plan=%#v error=%v", repeat, err)
+	}
+	assertNoMutatingUpgradeActions(t, repeat)
+	for relative := range customized {
+		assertUpgradeAction(t, repeat, relative, ActionPreserve)
+	}
+	assertUpgradeFilesEqual(t, applicationRoot, customized)
+	manifestAfter, _ := os.ReadFile(filepath.Join(applicationRoot, ".mss", "blueprint-manifest.json"))
+	lockAfter, _ := os.ReadFile(filepath.Join(applicationRoot, ".mss", "lock.yaml"))
+	if !bytes.Equal(manifestBefore, manifestAfter) || !bytes.Equal(lockBefore, lockAfter) {
+		t.Fatal("repeat read-only Thin Host plan wrote snapshot records")
+	}
+}
+
+func TestThinHostUpgradeConflictsWhenFoundationAndDownstreamChangeBusinessExtensionSeams(t *testing.T) {
+	oldFoundation := writeThinHostBlueprintFixture(t)
+	newFoundation := writeThinHostBlueprintFixture(t)
+	writeUpgradeFixtureFile(t, newFoundation, "templates/application/internal/modules/custom/modules.go.tmpl", "package custom\n\n// changed Foundation backend seam\nfunc Modules() []any { return nil }\n")
+	writeUpgradeFixtureFile(t, newFoundation, "templates/application/web/src/business/routes.config.ts", "// changed Foundation route seam\nexport default [];\n")
+	writeUpgradeFixtureFile(t, newFoundation, "templates/application/web/src/business/route-registrations.ts", "// changed Foundation registration seam\nexport default [];\n")
+	writeUpgradeFixtureFile(t, newFoundation, "templates/application/web/src/business/locales/zh-CN.ts", "// changed Foundation Simplified Chinese seam\nexport default {};\n")
+	writeUpgradeFixtureFile(t, newFoundation, "templates/application/web/src/business/locales/en-US.ts", "// changed Foundation English seam\nexport default {};\n")
+	bumpThinHostBlueprintRevision(t, newFoundation, "0.4.0", "0.5.0")
+
+	applicationRoot := filepath.Join(t.TempDir(), "conflicting-extension-admin")
+	application := Application{
+		Name:       "conflicting-extension-admin",
+		Module:     "github.com/acme/conflicting-extension-admin",
+		Repository: "acme/conflicting-extension-admin",
+	}
+	if _, err := Generate(context.Background(), Options{
+		FoundationRoot: oldFoundation,
+		Destination:    applicationRoot,
+		Application:    application,
+		Write:          true,
+	}); err != nil {
+		t.Fatalf("generate Thin Host before competing seam changes: %v", err)
+	}
+
+	customized := map[string][]byte{
+		"internal/modules/custom/modules.go":      []byte("package custom\n\n// downstream backend seam\nfunc Modules() []any { return []any{\"owned\"} }\n"),
+		"web/src/business/routes.config.ts":       []byte("// downstream route seam\nexport default [{ path: '/owned' }];\n"),
+		"web/src/business/route-registrations.ts": []byte("// downstream registration seam\nexport default [{ path: '/owned', serverPaths: ['/owned'], menuName: 'owned' }];\n"),
+		"web/src/business/locales/zh-CN.ts":       []byte("// downstream Simplified Chinese seam\nexport default { 'menu.owned': 'Owned zh-CN' };\n"),
+		"web/src/business/locales/en-US.ts":       []byte("// downstream English seam\nexport default { 'menu.owned': 'Owned en-US' };\n"),
+	}
+	for relative, content := range customized {
+		writeUpgradeFixtureFile(t, applicationRoot, relative, string(content))
+	}
+	manifestPath := filepath.Join(applicationRoot, ".mss", "blueprint-manifest.json")
+	manifestBefore, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read manifest before competing seam plan: %v", err)
+	}
+
+	plan, err := Upgrade(context.Background(), UpgradeOptions{
+		ApplicationRoot: applicationRoot,
+		FoundationRoot:  newFoundation,
+		Application:     application,
+	})
+	if err != nil {
+		t.Fatalf("dry-run competing seam plan: %v", err)
+	}
+	if plan.Success || len(plan.Conflicts) != len(customized) {
+		t.Fatalf("competing business seam changes were not all rejected: %#v", plan)
+	}
+	for relative := range customized {
+		assertUpgradeAction(t, plan, relative, ActionConflict)
+	}
+	assertUpgradeFilesEqual(t, applicationRoot, customized)
+
+	applied, err := Upgrade(context.Background(), UpgradeOptions{
+		ApplicationRoot: applicationRoot,
+		FoundationRoot:  newFoundation,
+		Application:     application,
+		Write:           true,
+	})
+	if err == nil || applied.Success || len(applied.Conflicts) != len(customized) {
+		t.Fatalf("competing business seam apply did not fail closed: plan=%#v error=%v", applied, err)
+	}
+	assertUpgradeFilesEqual(t, applicationRoot, customized)
+	manifestAfter, _ := os.ReadFile(manifestPath)
+	if !bytes.Equal(manifestBefore, manifestAfter) {
+		t.Fatal("conflicting business seam apply updated the snapshot baseline")
+	}
+}
+
+func TestThinHostUpgradeRejectsDownstreamCollisionsWithNewManagedFacades(t *testing.T) {
+	oldFoundation := writeThinHostBlueprintFixture(t)
+	removeThinHostManagedFacades(t, oldFoundation)
+	newFoundation := writeThinHostBlueprintFixture(t)
+	bumpThinHostBlueprintRevision(t, newFoundation, "0.4.0", "0.5.0")
+	applicationRoot := filepath.Join(t.TempDir(), "collision-admin")
+	application := Application{
+		Name:       "collision-admin",
+		Module:     "github.com/acme/collision-admin",
+		Repository: "acme/collision-admin",
+	}
+	if _, err := Generate(context.Background(), Options{
+		FoundationRoot: oldFoundation,
+		Destination:    applicationRoot,
+		Application:    application,
+		Write:          true,
+	}); err != nil {
+		t.Fatalf("generate pre-facade Thin Host: %v", err)
+	}
+	collisions := map[string][]byte{
+		"internal/modules/registry.go":   []byte("package modules\n\nconst DownstreamOwned = true\n"),
+		"web/config/business-routes.ts":  []byte("export default [{ path: '/downstream' }];\n"),
+		"web/src/route-registrations.ts": []byte("export default [{ path: '/downstream' }];\n"),
+	}
+	for relative, content := range collisions {
+		writeUpgradeFixtureFile(t, applicationRoot, relative, string(content))
+	}
+
+	plan, err := Upgrade(context.Background(), UpgradeOptions{
+		ApplicationRoot: applicationRoot,
+		FoundationRoot:  newFoundation,
+		Application:     application,
+	})
+	if err != nil {
+		t.Fatalf("plan facade-collision upgrade: %v", err)
+	}
+	if plan.Success || len(plan.Conflicts) != len(collisions) {
+		t.Fatalf("new managed facade collisions were not rejected: %#v", plan)
+	}
+	for relative := range collisions {
+		assertUpgradeAction(t, plan, relative, ActionConflict)
+	}
+	assertUpgradeFilesEqual(t, applicationRoot, collisions)
+}
+
 func TestAdminDistributionUpgradeConflictsFailClosedAndKeepUnknownBusinessFiles(t *testing.T) {
 	oldFoundation := writeThinHostBlueprintFixture(t)
 	newFoundation := writeThinHostBlueprintFixture(t)
@@ -495,6 +694,89 @@ func promoteThinHostDistribution(t *testing.T, root, fromVersion, toVersion stri
 	}
 	runGit(t, root, "add", "-A")
 	runGit(t, root, "commit", "-m", "upgrade Admin Distribution to "+toVersion)
+}
+
+func bumpThinHostBlueprintRevision(t *testing.T, root, fromVersion, toVersion string) {
+	t.Helper()
+	path := filepath.Join(root, ".mss", "blueprints", "management-system.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read Thin Host blueprint revision: %v", err)
+	}
+	updated := strings.Replace(string(data), "version: "+fromVersion, "version: "+toVersion, 1)
+	if updated == string(data) {
+		t.Fatalf("Thin Host blueprint revision %s not found", fromVersion)
+	}
+	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+		t.Fatalf("write Thin Host blueprint revision: %v", err)
+	}
+	runGit(t, root, "add", "-A")
+	runGit(t, root, "commit", "-m", "bump Thin Host Blueprint to "+toVersion)
+}
+
+func removeThinHostManagedFacades(t *testing.T, root string) {
+	t.Helper()
+	for _, relative := range []string{
+		"templates/application/internal/modules/registry.go.tmpl",
+		"templates/application/web/config/business-routes.ts",
+		"templates/application/web/src/route-registrations.ts",
+	} {
+		if err := os.Remove(filepath.Join(root, filepath.FromSlash(relative))); err != nil {
+			t.Fatalf("remove pre-facade template %s: %v", relative, err)
+		}
+	}
+	serverPath := filepath.Join(root, "templates", "application", "cmd", "server", "main.go.tmpl")
+	serverData, err := os.ReadFile(serverPath)
+	if err != nil {
+		t.Fatalf("read pre-facade server template: %v", err)
+	}
+	serverData = []byte(strings.ReplaceAll(string(serverData), `"__MSS_APP_MODULE__/internal/modules"`, `_ "__MSS_APP_MODULE__/internal/modules/all"`))
+	serverData = []byte(strings.ReplaceAll(string(serverData), "_ = adminapp.ExecuteContext; _ = modules.Modules", "_ = adminapp.ExecuteContext"))
+	if err := os.WriteFile(serverPath, serverData, 0o644); err != nil {
+		t.Fatalf("write pre-facade server template: %v", err)
+	}
+	blueprintPath := filepath.Join(root, ".mss", "blueprints", "management-system.yaml")
+	blueprintData, err := os.ReadFile(blueprintPath)
+	if err != nil {
+		t.Fatalf("read pre-facade blueprint: %v", err)
+	}
+	for _, required := range []string{
+		"internal/modules/registry.go",
+		"web/config/business-routes.ts",
+		"web/src/route-registrations.ts",
+	} {
+		blueprintData = []byte(strings.ReplaceAll(string(blueprintData), ", "+required, ""))
+	}
+	if err := os.WriteFile(blueprintPath, blueprintData, 0o644); err != nil {
+		t.Fatalf("write pre-facade blueprint: %v", err)
+	}
+	runGit(t, root, "add", "-A")
+	runGit(t, root, "commit", "-m", "fixture: remove managed Thin Host facades")
+}
+
+func assertUpgradeFilesEqual(t *testing.T, root string, expected map[string][]byte) {
+	t.Helper()
+	for relative, want := range expected {
+		got, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
+		if err != nil {
+			t.Fatalf("read preserved %s: %v", relative, err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Fatalf("preserved %s changed:\ngot:  %q\nwant: %q", relative, got, want)
+		}
+	}
+}
+
+func assertNoMutatingUpgradeActions(t *testing.T, plan UpgradePlan) {
+	t.Helper()
+	for _, change := range plan.Changes {
+		switch change.Action {
+		case ActionUnchanged, ActionPreserve:
+			continue
+		default:
+			t.Fatalf("repeat upgrade contains mutating action: %#v", change)
+		}
+	}
 }
 
 func writeUpgradeFixtureFile(t *testing.T, root, relative, content string) {

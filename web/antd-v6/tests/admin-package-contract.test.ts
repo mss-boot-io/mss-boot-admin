@@ -106,6 +106,14 @@ describe('Admin web package contract', () => {
     expect(readFileSync(cli, 'utf8')).toContain(
       "['check', '--config-path', resolve(packageRoot, 'biome.json'), '.']",
     );
+    const vitestConfig = readFileSync(
+      resolve(import.meta.dirname, '../package/vitest.config.mjs'),
+      'utf8',
+    );
+    expect(vitestConfig).toContain("import { existsSync } from 'node:fs'");
+    expect(vitestConfig).toContain('src/route-registrations.ts');
+    expect(vitestConfig).toContain('src/generated/routes.ts');
+    expect(vitestConfig).toContain('existsSync(managedRouteRegistrations)');
     expect(readFileSync(consumerSetup, 'utf8')).not.toContain("import '@testing-library/dom'");
     const biome = JSON.parse(readFileSync(biomeConfig, 'utf8')) as {
       overrides?: Array<{ includes?: string[] }>;

@@ -37,6 +37,12 @@ Invoke-WebRequest https://github.com/mss-boot-io/mss-boot-admin/releases/downloa
 
 默认版本同样固定为 v1.3.3，默认目录位于当前用户目录。显式参数更适合可复现脚本。
 
+:::warning
+不要用 `go install` 代替上述 Release 安装器。两个带精确 `@v1.3.3` 的公共命令包只用于
+兼容性编译验证；由它们生成的二进制不包含可核验的 Release Blueprint 来源，因此会对
+`mss new app` 和 `mss upgrade admin` 失败关闭。创建与升级必须使用校验和工具包中的二进制。
+:::
+
 ## 完整性与来源
 
 安装器在替换现有文件前：

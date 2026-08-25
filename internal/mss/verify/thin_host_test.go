@@ -52,6 +52,36 @@ func TestValidateThinHostStructureUsesCustomProjectLayout(t *testing.T) {
 	}
 }
 
+func TestValidateThinHostStructureRequiresExplicitBusinessExtensionFacades(t *testing.T) {
+	root := t.TempDir()
+	ctx := thinHostVerifyContext(root, ".", "web", "internal/modules")
+	writeThinHostStructure(t, ctx)
+	writeThinHostTestFile(t, root, "internal/modules/registry.go", "package modules\n")
+	writeThinHostTestFile(t, root, "web/src/route-registrations.ts", "export default [];\n")
+	writeThinHostTestFile(t, root, "web/src/locales/zh-CN.ts", "export default {};\n")
+	writeThinHostTestFile(t, root, "web/src/locales/en-US.ts", "export default {};\n")
+	if err := os.Remove(filepath.Join(root, "web", "src", "business", "locales", "en-US.ts")); err != nil {
+		t.Fatalf("remove handwritten English locale seam: %v", err)
+	}
+
+	result := validateThinHostStructure(ctx)
+	if result.ExitCode == 0 {
+		t.Fatalf("Thin Host without explicit business composition was accepted: %#v", result)
+	}
+	for _, expected := range []string{
+		"append(all.Modules(), custom.Modules()...)",
+		"duplicate business UI route path",
+		"duplicate business server route path",
+		"../business/locales/zh-CN",
+		"../business/locales/en-US",
+		"web/src/business/locales/en-US.ts",
+	} {
+		if !strings.Contains(result.Error, expected) {
+			t.Errorf("Thin Host composition error %q does not contain %q", result.Error, expected)
+		}
+	}
+}
+
 func TestValidateThinHostStructureRejectsDistributionDependencyDriftAndPrivateImports(t *testing.T) {
 	root := t.TempDir()
 	ctx := thinHostVerifyContext(root, ".", "web", "internal/modules")
@@ -359,6 +389,11 @@ func writeThinHostStructure(t *testing.T, ctx *project.Context) {
 	modules := layout["modules"]
 	generated := layout["generated"]
 	distribution := ctx.Project.Spec.Distribution
+	modulesRelative, err := filepath.Rel(filepath.FromSlash(backend), filepath.FromSlash(modules))
+	if err != nil {
+		t.Fatalf("resolve modules import path: %v", err)
+	}
+	modulesImport := strings.TrimSuffix(ctx.Project.Spec.Backend.Module, "/") + "/" + filepath.ToSlash(modulesRelative)
 	files := map[string]string{
 		".mss/project.yaml":            "project\n",
 		".mss/lock.yaml":               "lock\n",
@@ -372,8 +407,10 @@ func writeThinHostStructure(t *testing.T, ctx *project.Context) {
 			distribution.Backend.Module + " " + distribution.Backend.Version + "/go.mod h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n" +
 			ctx.Project.Spec.Backend.FrameworkModule + " " + distribution.Backend.Version + " h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n" +
 			ctx.Project.Spec.Backend.FrameworkModule + " " + distribution.Backend.Version + "/go.mod h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n",
-		joinRepositoryPath(backend, "cmd/server/main.go"): "package main\n\nimport (\n\t_ \"" + distribution.Backend.Module + "/app\"\n\t_ \"" + ctx.Project.Spec.Backend.Module + "/internal/modules/all\"\n)\n\nfunc main() {}\n",
+		joinRepositoryPath(backend, "cmd/server/main.go"): "package main\n\nimport (\n\t_ \"" + distribution.Backend.Module + "/app\"\n\t\"" + modulesImport + "\"\n)\n\nfunc main() { _ = modules.Modules() }\n",
+		joinRepositoryPath(modules, "registry.go"):        "package modules\n\nimport (\n\t\"" + modulesImport + "/all\"\n\t\"" + modulesImport + "/custom\"\n\t\"" + distribution.Backend.Module + "/business\"\n)\n\nfunc Modules() []business.Module { return append(all.Modules(), custom.Modules()...) }\n",
 		joinRepositoryPath(modules, "all/generated.go"):   "package all\n\nimport _ \"" + distribution.Backend.Module + "/business\"\n",
+		joinRepositoryPath(modules, "custom/modules.go"):  "package custom\n\nimport \"" + distribution.Backend.Module + "/business\"\n\nfunc Modules() []business.Module { return []business.Module{} }\n",
 		joinRepositoryPath(frontend, "package.json"): `{
   "scripts": {
     "dev": "mss-admin-web dev",
@@ -384,19 +421,25 @@ func writeThinHostStructure(t *testing.T, ctx *project.Context) {
   "dependencies": {"@mss-boot-io/admin-web": "1.3.0"}
 }
 `,
-		joinRepositoryPath(frontend, ".npmrc"):               "registry=https://registry.npmjs.org/\nsave-exact=true\n",
-		joinRepositoryPath(frontend, "pnpm-lock.yaml"):       "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      '@mss-boot-io/admin-web':\n        specifier: 1.3.0\n        version: 1.3.0\npackages:\n  '@mss-boot-io/admin-web@1.3.0':\n    resolution: {integrity: sha512-" + strings.Repeat("A", 86) + "==}\n",
-		joinRepositoryPath(frontend, "tsconfig.json"):        "{\n  \"extends\": \"./src/.umi/tsconfig.json\"\n}\n",
-		joinRepositoryPath(frontend, "config/config.ts"):     "import { defineBusinessAdmin } from '" + distribution.Frontend.Package + "/business';\nimport businessRoutes from './business-routes.generated';\nexport default defineBusinessAdmin({ businessRoutes, routeRegistrations: './src/generated/routes.ts', useUtoopack: true });\n",
-		joinRepositoryPath(frontend, "mss-admin.config.ts"):  "export { default } from './config/config';\n",
-		layout["businessRoutes"]:                             "export default [];\n",
-		joinRepositoryPath(frontend, "src/app.tsx"):          "export { getInitialState, layout, request, innerProvider } from '" + distribution.Frontend.Package + "/runtime/app';\n",
-		joinRepositoryPath(frontend, "src/access.ts"):        "export { default } from '" + distribution.Frontend.Package + "/runtime/access';\n",
-		joinRepositoryPath(frontend, "src/locales/zh-CN.ts"): "import core from '" + distribution.Frontend.Package + "/runtime/locales/zh-CN';\nimport generated from '../generated/locales/zh-CN';\nexport default { ...core, ...generated };\n",
-		joinRepositoryPath(frontend, "src/locales/en-US.ts"): "import core from '" + distribution.Frontend.Package + "/runtime/locales/en-US';\nimport generated from '../generated/locales/en-US';\nexport default { ...core, ...generated };\n",
-		joinRepositoryPath(generated, "routes.ts"):           "export default [];\n",
-		joinRepositoryPath(generated, "locales/zh-CN.ts"):    "export default {};\n",
-		joinRepositoryPath(generated, "locales/en-US.ts"):    "export default {};\n",
+		joinRepositoryPath(frontend, ".npmrc"):                              "registry=https://registry.npmjs.org/\nsave-exact=true\n",
+		joinRepositoryPath(frontend, "pnpm-lock.yaml"):                      "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      '@mss-boot-io/admin-web':\n        specifier: 1.3.0\n        version: 1.3.0\npackages:\n  '@mss-boot-io/admin-web@1.3.0':\n    resolution: {integrity: sha512-" + strings.Repeat("A", 86) + "==}\n",
+		joinRepositoryPath(frontend, "tsconfig.json"):                       "{\n  \"extends\": \"./src/.umi/tsconfig.json\"\n}\n",
+		joinRepositoryPath(frontend, "config/config.ts"):                    "import { defineBusinessAdmin } from '" + distribution.Frontend.Package + "/business';\nimport businessRoutes from './business-routes';\nexport default defineBusinessAdmin({ businessRoutes, routeRegistrations: './src/route-registrations.ts', useUtoopack: true });\n",
+		joinRepositoryPath(frontend, "config/business-routes.ts"):           "import type { AdminBusinessRoute } from '" + distribution.Frontend.Package + "/business';\nimport customBusinessRoutes from '../src/business/routes.config';\nimport generatedBusinessRoutes from './business-routes.generated';\nconst businessRoutes: AdminBusinessRoute[] = [...generatedBusinessRoutes, ...customBusinessRoutes];\nexport default businessRoutes;\n",
+		joinRepositoryPath(frontend, "mss-admin.config.ts"):                 "export { default } from './config/config';\n",
+		layout["businessRoutes"]:                                            "export default [];\n",
+		joinRepositoryPath(frontend, "src/app.tsx"):                         "export { getInitialState, layout, request, innerProvider } from '" + distribution.Frontend.Package + "/runtime/app';\n",
+		joinRepositoryPath(frontend, "src/access.ts"):                       "export { default } from '" + distribution.Frontend.Package + "/runtime/access';\n",
+		joinRepositoryPath(frontend, "src/route-registrations.ts"):          "import type { RouteRegistration } from '" + distribution.Frontend.Package + "/runtime';\nimport generatedRouteRegistrations from './generated/routes';\nimport customRouteRegistrations from './business/route-registrations';\nconst ui = 'duplicate business UI route path';\nconst server = 'duplicate business server route path';\nexport default [...generatedRouteRegistrations, ...customRouteRegistrations] as readonly RouteRegistration[];\n",
+		joinRepositoryPath(frontend, "src/business/routes.config.ts"):       "export default [];\n",
+		joinRepositoryPath(frontend, "src/business/route-registrations.ts"): "export default [];\n",
+		joinRepositoryPath(frontend, "src/business/locales/zh-CN.ts"):       "const messages = {};\nexport default messages;\n",
+		joinRepositoryPath(frontend, "src/business/locales/en-US.ts"):       "const messages = {};\nexport default messages;\n",
+		joinRepositoryPath(frontend, "src/locales/zh-CN.ts"):                "import coreMessages from '" + distribution.Frontend.Package + "/runtime/locales/zh-CN';\nimport generatedMessages from '../generated/locales/zh-CN';\nimport customMessages from '../business/locales/zh-CN';\nexport default { ...coreMessages, ...generatedMessages, ...customMessages };\n",
+		joinRepositoryPath(frontend, "src/locales/en-US.ts"):                "import coreMessages from '" + distribution.Frontend.Package + "/runtime/locales/en-US';\nimport generatedMessages from '../generated/locales/en-US';\nimport customMessages from '../business/locales/en-US';\nexport default { ...coreMessages, ...generatedMessages, ...customMessages };\n",
+		joinRepositoryPath(generated, "routes.ts"):                          "export default [];\n",
+		joinRepositoryPath(generated, "locales/zh-CN.ts"):                   "export default {};\n",
+		joinRepositoryPath(generated, "locales/en-US.ts"):                   "export default {};\n",
 	}
 	for relative, content := range files {
 		writeThinHostTestFile(t, root, relative, content)

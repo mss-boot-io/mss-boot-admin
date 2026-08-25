@@ -1,15 +1,21 @@
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 const packageRoot = fileURLToPath(new URL('..', import.meta.url));
 const projectRoot = process.cwd();
+const managedRouteRegistrations = `${projectRoot}/src/route-registrations.ts`;
+const generatedRouteRegistrations = `${projectRoot}/src/generated/routes.ts`;
+const routeRegistrations = existsSync(managedRouteRegistrations)
+  ? managedRouteRegistrations
+  : generatedRouteRegistrations;
 
 export default defineConfig({
   resolve: {
     alias: [
       {
         find: '@mss-admin-business/routes',
-        replacement: `${projectRoot}/src/generated/routes.ts`,
+        replacement: routeRegistrations,
       },
       { find: '@mss-admin-core', replacement: `${packageRoot}/src` },
       { find: '@', replacement: `${projectRoot}/src` },

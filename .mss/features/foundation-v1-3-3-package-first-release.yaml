@@ -25,6 +25,7 @@ spec:
     - Publish self-contained, provenance-bound mss and mss-mcp tools for every supported platform as part of the immutable v1.3.3 root release.
     - Create and upgrade a Thin Host from the released mss bundle in an empty directory without a Foundation checkout or Git metadata.
     - Make a fresh Thin Host complete enough for doctor, setup, development, verification, backend builds, and frozen frontend installs.
+    - Expose explicit compile-time registries for handwritten backend modules, frontend routes, and bilingual locale catalogs so complex business behavior never requires editing generated files.
     - Make exact v1.3.3 Go and public npmjs dependencies the only supported downstream consumption path.
     - Replace active documentation with one package-first quick start and remove obsolete prompt, plan, report, and duplicate-guide context.
     - Prove the post-publication path by creating the generic single-tenant mss-shop reference repository from public v1.3.3 artifacts.
@@ -92,6 +93,7 @@ spec:
         - The embedded Blueprint is byte-bound to the binary version, full release commit, commit timestamp, and source repository.
         - Dry-run, destination confinement, atomic write, unknown-file rejection, git-init, stable ordering, and two-run idempotency remain enforced.
         - Generated Go and npm dependencies pin exactly v1.3.3 and 1.3.3 from their public registries.
+        - The generated composition root merges deterministic AdminModule output with explicit business-owned backend and frontend registries plus zh-CN and en-US locale catalogs; package initialization, runtime discovery, and generated-file edits remain prohibited.
     - id: operate-fresh-thin-host
       title: Operate a fresh Thin Host end to end
       description: Generated output contains every contract needed for a clean setup and development loop.
@@ -111,6 +113,9 @@ spec:
         - mss verify works before the first Git commit and fails when a module specification has not been regenerated.
         - Failed lifecycle verification prints the retained machine report and human report before temporary evidence is removed.
         - All generated instructions invoke installed mss commands and never refer to a nonexistent local cmd/mss.
+        - Handwritten business.Module implementations enter through one ordered custom registry and receive the Admin-owned migration, readiness, protected-route, principal, database, and event boundaries; the protected group authenticates but never infers a business permission, so every handwritten handler must enforce backend authorization explicitly.
+        - Handwritten frontend route configuration and authorization metadata enter through separate explicit registries; the final Admin core, generated, and custom registry rejects every duplicate UI or server path instead of silently overwriting one.
+        - Handwritten zh-CN and en-US messages enter through paired business-owned catalogs; managed locale facades compose core, generated, and custom messages in that order without requiring generated-file edits.
     - id: upgrade-without-checkout
       title: Upgrade from the released distribution
       description: A downstream repository can plan and apply the distribution embedded in its matching mss release.
@@ -120,7 +125,8 @@ spec:
       rules:
         - mss upgrade admin v1.3.3 requires no --foundation checkout for the matching embedded release.
         - An explicit Foundation path remains available only for contributor development and compatibility testing.
-        - Plan is read-only; apply requires --apply --yes, preserves business-owned and unknown files, writes snapshot records last, and a second apply is empty.
+        - Plan is read-only; apply requires --apply --yes, preserves business-owned and unknown files, writes snapshot records last, and a second apply has no create, update, delete, or conflict operation.
+        - The five customized backend, frontend-route, and bilingual-locale seams are preserved byte-for-byte when the Foundation seam is unchanged; a future competing Foundation change becomes a reviewed conflict instead of an overwrite.
         - A requested distribution version that differs from the installed embedded source fails with actionable installation guidance.
     - id: publish-package-first-v133
       title: Publish one complete v1.3.3 distribution
@@ -233,6 +239,17 @@ spec:
           value: bash tools/compatibility/test-standalone-mss-consumer.sh --upgrade
         - type: report
           value: Read-only plan, confirmed apply, second no-op, mismatch rejection, and customization-preservation evidence.
+    - id: handwritten-business-extension-gate
+      requirement: operate-fresh-thin-host
+      statement: A generated Thin Host composes one handwritten business module and matching frontend route metadata without editing generated files.
+      level: e2e
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
+        - type: report
+          value: Explicit custom registry, paired custom locales, migration readiness, anonymous 401, restricted-role 403, authorized 200, generated-plus-custom frontend route, Admin-core and business collision rejection, and real five-seam customization-preserving external-upgrade evidence.
     - id: documentation-context-gate
       requirement: replace-active-documentation
       statement: Current docs have one v1.3.3 path, no stale active commands, no removed navigation targets, and a successful site build.
