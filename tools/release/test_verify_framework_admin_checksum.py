@@ -19,7 +19,7 @@ SPEC.loader.exec_module(CHECKSUM)
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_FRAMEWORK_SUM = "h1:BTQhNT/O0l4AUedfu5gagGynadhPexol8X0Pl/S5vow="
 EXPECTED_FRAMEWORK_GO_MOD_SUM = "h1:qejH+UcGKJRwGtMQisbYCLg7nYf4TEOe/h6fGJ1nK7Q="
-EXPECTED_ADMIN_SUM = "h1:GN8RZTV6RtluGslJ+FyZPw+be2xie1bqI5Sk9oGxodo="
+EXPECTED_ADMIN_SUM = "h1:Ev5fcHJwXo5RL7uvTDYkUQps0YojbIk+H4z0dG4BLtQ="
 EXPECTED_ADMIN_GO_MOD_SUM = "h1:Ll369X4tvb7tuBelv0HqOXFLHiOohwjtVWQBPsHsTqI="
 
 
@@ -37,6 +37,7 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
     def _init_checksum_repository(self, root: Path) -> None:
         files = {
             ".gitattributes": "* text=auto eol=lf\n",
+            "LICENSE": "repository license\n",
             "mss-boot/go.mod": f"module {CHECKSUM.FRAMEWORK_MODULE}\n\ngo 1.26.6\n",
             "mss-boot/runtime.go": "package mssboot\n",
             "admin/go.mod": (
@@ -95,6 +96,72 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
             EXPECTED_ADMIN_GO_MOD_SUM,
         )
         self.assertEqual(result["dependencyMode"], "replace-free-file-proxy")
+
+    def test_nested_module_inherits_repository_root_license(self):
+        with tempfile.TemporaryDirectory(
+            prefix="mss-admin-license-inheritance-"
+        ) as directory:
+            root = Path(directory)
+            self._init_checksum_repository(root)
+
+            sources = CHECKSUM._git_module_candidate(
+                root,
+                source_directory="admin",
+                label="Admin",
+            )
+            licenses = [
+                source
+                for source in sources
+                if source.relative == PurePosixPath("LICENSE")
+            ]
+            self.assertEqual(len(licenses), 1)
+            self.assertEqual(licenses[0].content, b"repository license\n")
+            self.assertEqual(licenses[0].mode, stat.S_IFREG | 0o644)
+
+    def test_nested_module_license_takes_precedence_over_repository_license(self):
+        with tempfile.TemporaryDirectory(
+            prefix="mss-admin-own-license-"
+        ) as directory:
+            root = Path(directory)
+            self._init_checksum_repository(root)
+            admin_license = root / "admin" / "LICENSE"
+            admin_license.write_text("admin license\n", encoding="utf-8")
+            self._git(root, "add", "admin/LICENSE")
+            self._git(root, "commit", "-qm", "add admin license")
+
+            sources = CHECKSUM._git_module_candidate(
+                root,
+                source_directory="admin",
+                label="Admin",
+            )
+            licenses = [
+                source
+                for source in sources
+                if source.relative == PurePosixPath("LICENSE")
+            ]
+            self.assertEqual(len(licenses), 1)
+            self.assertEqual(licenses[0].content, b"admin license\n")
+
+    def test_dirty_inherited_repository_license_fails_closed(self):
+        with tempfile.TemporaryDirectory(
+            prefix="mss-admin-dirty-license-"
+        ) as directory:
+            root = Path(directory)
+            self._init_checksum_repository(root)
+            (root / "LICENSE").write_text(
+                "uncommitted license drift\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                CHECKSUM.ChecksumContractError,
+                "Admin repository LICENSE candidate drift",
+            ):
+                CHECKSUM.calculate_admin_candidate_sums(
+                    root,
+                    version="v1.3.3",
+                    go_command=os.environ.get("MSS_TEST_GO", "go"),
+                )
 
     def test_candidate_module_sum_changes_when_source_content_changes(self):
         with tempfile.TemporaryDirectory(
