@@ -1,5 +1,5 @@
 ---
-title: v1.3.3 主题设置优先级、继承与重置
+title: v1.3.4 主题设置优先级、继承与重置
 order: 14
 nav:
   order: 1
@@ -10,8 +10,8 @@ keywords: [admin ant-design-v6 theme settings precedence inheritance]
 
 ## 产品合同
 
-- Admin Web：`@mss-boot-io/admin-web@1.3.3`；
-- Admin 后端：`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.3`；
+- Admin Web：`@mss-boot-io/admin-web@1.3.4`；
+- Admin 后端：`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.4`；
 - 状态：主题继承、重置、并发前置条件和授权是协调发行合同的一部分；
 - 设计历史保留在[默认 V6 切换 ADR](https://github.com/mss-boot-io/mss-boot-admin/blob/main/docs/adr/2026-08-17-ant-design-v6-default-cutover.md)，使用方无需 Foundation 源码。
 

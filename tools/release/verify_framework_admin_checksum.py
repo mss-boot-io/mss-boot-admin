@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify final Framework/Admin source sums before any v1.3.3 component tag."""
+"""Verify final Framework/Admin source sums before any v1.3.4 component tag."""
 
 from __future__ import annotations
 
@@ -153,7 +153,66 @@ def _git_module_candidate(
         ) from exc
     if not result:
         raise ChecksumContractError(f"the {label} candidate contains no tracked files")
+
+    # cmd/go copies the repository-root LICENSE into a module stored in a
+    # subdirectory when that module has no LICENSE of its own. Reproduce that
+    # behavior before calculating the candidate h1 sum, otherwise a local
+    # file proxy can disagree with the public Go proxy for the exact same tag.
+    if not any(source.relative == PurePosixPath("LICENSE") for source in result):
+        if verify_clean:
+            _ensure_clean_paths(
+                repository_root,
+                ["LICENSE"],
+                label=f"{label} repository LICENSE",
+            )
+        root_license = _repository_root_license_candidate(repository_root)
+        if root_license is not None:
+            result.append(root_license)
     return result
+
+
+def _repository_root_license_candidate(
+    repository_root: Path,
+) -> GitCandidateFile | None:
+    tree = _run_bytes(
+        ["git", "ls-tree", "-z", "HEAD", "--", "LICENSE"],
+        cwd=repository_root,
+    )
+    if tree.returncode != 0:
+        raise ChecksumContractError(
+            "cannot inspect the exact HEAD repository LICENSE: "
+            + tree.stderr.decode("utf-8", errors="replace").strip()
+        )
+    entry = tree.stdout.removesuffix(b"\0")
+    if not entry:
+        return None
+    try:
+        metadata, name = entry.split(b"\t", 1)
+        _mode, object_type, object_id = metadata.split(b" ", 2)
+    except ValueError as exc:
+        raise ChecksumContractError(
+            "Git returned malformed repository LICENSE metadata"
+        ) from exc
+    if name != b"LICENSE" or object_type != b"blob":
+        raise ChecksumContractError(
+            "the repository LICENSE must be one regular Git blob"
+        )
+    content = _run_bytes(
+        ["git", "cat-file", "blob", object_id.decode("ascii")],
+        cwd=repository_root,
+    )
+    if content.returncode != 0:
+        raise ChecksumContractError(
+            "cannot read the exact HEAD repository LICENSE: "
+            + content.stderr.decode("utf-8", errors="replace").strip()
+        )
+    # cmd/go's inherited dataFile always exposes mode 0644, independently of
+    # the repository-root blob's executable bit.
+    return GitCandidateFile(
+        relative=PurePosixPath("LICENSE"),
+        content=content.stdout,
+        mode=stat.S_IFREG | 0o644,
+    )
 
 
 def _module_archive_files(
@@ -596,6 +655,11 @@ def refresh_repository_metadata(
         repository_root,
         ["templates/application", ":(exclude)templates/application/go.sum"],
         label="Thin Host source",
+    )
+    _ensure_clean_paths(
+        repository_root,
+        ["LICENSE"],
+        label="repository LICENSE",
     )
     _ensure_clean_paths(repository_root, ["go.work"], label="workspace")
 

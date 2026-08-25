@@ -13,19 +13,19 @@ Options:
                       frontend install, lint, test, and build.
   --upgrade           Prove embedded plan/apply/no-op and preservation.
   --release-artifact  Use MSS_TOOLS_ARCHIVE instead of locally built tools.
-  --public-packages   Resolve the published v1.3.3 Go and npm packages through
+  --public-packages   Resolve the published v1.3.4 Go and npm packages through
                       proxy.golang.org and the exact GitHub Packages Admin Web
                       candidate; requires NODE_AUTH_TOKEN. Official npmjs is a
                       later post-publication gate.
   --help              Show this help.
 
 Environment:
-  MSS_RELEASE_VERSION     Release version (default: v1.3.3).
+  MSS_RELEASE_VERSION     Release version (default: v1.3.4).
   MSS_RELEASE_COMMIT      Full release commit (default: current HEAD).
   MSS_RELEASE_TIMESTAMP   RFC3339 source timestamp (default: current HEAD).
   MSS_TOOLS_ARCHIVE       Versioned mss tools tar.gz or zip for
                           --release-artifact.
-  MSS_ADMIN_WEB_TARBALL   Optional exact v1.3.3 Admin Web candidate tarball.
+  MSS_ADMIN_WEB_TARBALL   Optional exact v1.3.4 Admin Web candidate tarball.
                          When omitted, the script packs the release commit;
                          either candidate is served only from loopback.
   NODE_AUTH_TOKEN         GitHub Packages read token required only with
@@ -82,7 +82,7 @@ repository_root=$(realpath -- "${repository_root}")
   exit 1
 }
 
-release_version=${MSS_RELEASE_VERSION:-v1.3.3}
+release_version=${MSS_RELEASE_VERSION:-v1.3.4}
 release_commit=${MSS_RELEASE_COMMIT:-$(git -C "${repository_root}" rev-parse 'HEAD^{commit}')}
 release_timestamp=${MSS_RELEASE_TIMESTAMP:-$(git -C "${repository_root}" show -s --format=%cI "${release_commit}")}
 [[ "${release_version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]] || {
@@ -196,7 +196,7 @@ assert_tool_identity "${mss}" --version
 assert_tool_identity "${mss_mcp}" --version
 
 # Build a standards-shaped local file proxy from the candidate source, then
-# qualify the same module paths users can install after v1.3.3 is public. The
+# qualify the same module paths users can install after v1.3.4 is public. The
 # release installer remains the recommended acquisition path because it also
 # verifies the immutable tools archive checksum and BUILD-INFO manifest.
 if [[ "${use_public_packages}" = false ]]; then
@@ -263,13 +263,36 @@ for module, source_prefix in modules:
         if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
             continue
         paths.append(relative)
+    inherited_license = False
+    repository_license = repository / 'LICENSE'
+    if source_prefix and 'LICENSE' not in paths:
+        try:
+            repository_license_mode = repository_license.lstat().st_mode
+        except FileNotFoundError:
+            repository_license_mode = 0
+        if stat.S_ISREG(repository_license_mode):
+            # cmd/go injects the repository-root LICENSE into a module in a
+            # subdirectory when that module has no top-level LICENSE.
+            paths.append('LICENSE')
+            inherited_license = True
     module_prefix = f'{module}@{version}/'
-    with zipfile.ZipFile(destination / f'{version}.zip', 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+    archive_path = destination / f'{version}.zip'
+    with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         for relative in sorted(paths):
             info = zipfile.ZipInfo(module_prefix + relative)
             info.date_time = (2026, 1, 1, 0, 0, 0)
             info.external_attr = 0o644 << 16
-            archive.writestr(info, (source / relative).read_bytes())
+            file_source = (
+                repository_license
+                if inherited_license and relative == 'LICENSE'
+                else source / relative
+            )
+            archive.writestr(info, file_source.read_bytes())
+    if inherited_license:
+        with zipfile.ZipFile(archive_path) as archive:
+            inherited = archive.read(module_prefix + 'LICENSE')
+        if inherited != repository_license.read_bytes():
+            raise SystemExit(f'{module} did not inherit the repository LICENSE')
 PY
 
   GOWORK=off GOPROXY="file://${proxy_root},https://proxy.golang.org" GOSUMDB=off \
@@ -512,7 +535,7 @@ dry_run_report="${work_dir}/new-app-dry-run.json"
     "${contributor_registry_args[@]}" \
     --format json > "${dry_run_report}"
 )
-jq -e '.dryRun == true and .success == true and .identities.foundation.version == "1.3.3"' "${dry_run_report}" >/dev/null
+jq -e '.dryRun == true and .success == true and .identities.foundation.version == "1.3.4"' "${dry_run_report}" >/dev/null
 [[ ! -e "${host_root}" ]] || { echo "new app dry-run changed the destination" >&2; exit 1; }
 
 write_report="${work_dir}/new-app-write.json"
@@ -544,7 +567,7 @@ if grep -ERn 'go run ./cmd/mss|--foundation|__MSS_' "${host_root}/README.md" "${
   echo "generated package-first instructions contain a checkout-only command or unresolved placeholder" >&2
   exit 1
 fi
-grep -Eq 'releases/download/v1\.3\.3/install-mss\.sh' "${host_root}/.github/workflows/ci.yml"
+grep -Fq "releases/download/${release_version}/install-mss.sh" "${host_root}/.github/workflows/ci.yml"
 grep -Eq 'mss verify --all' "${host_root}/.github/workflows/ci.yml"
 contracts_ci=$(sed -n '/^  contracts:/,/^  backend:/p' "${host_root}/.github/workflows/ci.yml")
 grep -Fq 'corepack pnpm@10.34.5 --dir web install --frozen-lockfile' <<< "${contracts_ci}"
@@ -634,11 +657,11 @@ cmp --silent "${work_dir}/setup-one.normalized.json" "${work_dir}/setup-two.norm
 jq -e '.success == true and ([.services[].status] | all(. == "stopped"))' "${work_dir}/dev-status.json" >/dev/null
 
 set +e
-"${mss}" --root "${host_root}" upgrade admin v1.3.4 "${contributor_registry_args[@]}" --format json > "${work_dir}/mismatch.stdout" 2> "${work_dir}/mismatch.stderr"
+"${mss}" --root "${host_root}" upgrade admin v1.3.5 "${contributor_registry_args[@]}" --format json > "${work_dir}/mismatch.stdout" 2> "${work_dir}/mismatch.stderr"
 mismatch_status=$?
 set -e
 [[ ${mismatch_status} -ne 0 ]] || { echo "mismatched embedded upgrade unexpectedly succeeded" >&2; exit 1; }
-grep -Eq 'install the matching mss v1.3.4' "${work_dir}/mismatch.stderr"
+grep -Eq 'install the matching mss v1.3.5' "${work_dir}/mismatch.stderr"
 
 if [[ "${run_upgrade}" = true ]]; then
   business_file="${host_root}/internal/modules/custom/owned.go"

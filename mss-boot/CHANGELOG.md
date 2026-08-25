@@ -8,7 +8,29 @@ and the project uses semantic versioning for nested-module releases.
 
 No unreleased changes are recorded.
 
+## [mss-boot/v1.3.4] - 2026-08-25
+
+Status: **coordinated v1.3.4 patch candidate**. The public Framework API remains
+source compatible. This new component identity lets the complete distribution
+restart from one repaired merged-main commit without moving the already
+published `mss-boot/v1.3.3` tag or Release.
+
+### Changed
+
+- Requalify the exact domain-neutral Framework tree as `mss-boot/v1.3.4` for
+  Admin and Thin Host consumers in the coordinated v1.3.4 distribution.
+- Keep Framework behavior and public APIs unchanged; the release repair belongs
+  to root candidate-checksum, file-proxy, workflow, and Thin Host metadata
+  contracts.
+
 ## [mss-boot/v1.3.3] - 2026-08-25
+
+Status: **published component / immutable partial train**. The Framework tag
+and GitHub Release resolve to
+`c00591f2a3edd0bec29bb1023bca8a230648107a`. Framework publication succeeded,
+but the v1.3.3 distribution stopped at the Root-preparation public Thin Host
+gate; Root, Docs, and npmjs did not publish. Use the coordinated v1.3.4 patch
+instead of combining this component with another version.
 
 The Framework API remains source compatible. This coordinated patch supplies the
 public Framework identity consumed by `admin/v1.3.3` and by generated Thin Hosts;

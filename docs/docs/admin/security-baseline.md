@@ -1,10 +1,10 @@
 ---
 title: 安全基线
 order: 7
-description: v1.3.3 Admin 身份、授权、密钥、浏览器与供应链最低要求
+description: v1.3.4 Admin 身份、授权、密钥、浏览器与供应链最低要求
 ---
 
-# v1.3.3 安全基线
+# v1.3.4 安全基线
 
 ## 身份与会话
 
@@ -39,8 +39,8 @@ description: v1.3.3 Admin 身份、授权、密钥、浏览器与供应链最低
 
 ## 供应链与发布
 
-- v1.3.3 只能从已经合入 `main` 的精确干净提交发布；
-- 工具安装校验 `SHA256SUMS.tools-v1.3.3`；
+- v1.3.4 只能从已经合入 `main` 的精确干净提交发布；
+- 工具安装校验 `SHA256SUMS.tools-v1.3.4`；
 - Go 模块关闭 workspace 验证公共解析；
 - npm 包从 npmjs 匿名安装并冻结锁；
 - 标签、Release 和 digest 不移动、不覆盖。

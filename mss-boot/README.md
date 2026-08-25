@@ -2,11 +2,11 @@
 
 [简体中文](./README.Zh-cn.md)
 
-`github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.3` is the reusable,
+`github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.4` is the reusable,
 domain-neutral Go framework in the Complete Admin Distribution.
 
 ```sh
-go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.3
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.4
 ```
 
 It provides lifecycle, configuration, logging, cache, queues, locking, storage,
@@ -22,7 +22,7 @@ Thin Host business code -> Admin -> mss-boot
 
 Most applications should import the complete Admin module and let Go resolve
 the matching Framework transitively. Import `mss-boot` directly only for
-domain-neutral infrastructure extensions, and keep the exact v1.3.3 version.
+domain-neutral infrastructure extensions, and keep the exact v1.3.4 version.
 
 Public APIs, configuration keys, interfaces, and persistence behavior are
 compatibility surfaces. See the

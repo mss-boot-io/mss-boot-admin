@@ -8,7 +8,46 @@ tag namespaces.
 
 No unreleased changes are recorded.
 
+## [v1.3.4] - 2026-08-25
+
+This coordinated patch repairs the package-first release path after v1.3.3
+stopped as an immutable component-partial train. It uses a new merged-main
+commit and a complete v1.3.4 release train; no v1.3.3 tag, Release, package,
+or artifact is moved or overwritten.
+
+### Fixed
+
+- Match cmd/go's nested-module archive semantics by inheriting the repository
+  root `LICENSE` when Admin or Framework has no module-local license, while
+  preserving a module-local license and failing closed on uncommitted root
+  license drift.
+- Record the canonical public Admin Module Sum in generated Thin Host `go.sum`
+  and mirror the inherited-license behavior in standalone file proxies, so an
+  empty external consumer resolves the same bytes as the public Go proxy.
+- Bind Framework and Admin public download probes to the exact candidate Module
+  Sum and GoModSum in addition to version, source commit, and replace-free
+  resolution.
+
+### Changed
+
+- Move the current package-first tools, Go Module, npm, Thin Host, upgrade,
+  operations, security, and contributor guidance to v1.3.4.
+- Archive v1.3.3 as a component-partial release: Framework, Admin, and Admin Web
+  were published from `c00591f2a3edd0bec29bb1023bca8a230648107a`, while Root
+  tools, the Root Release, Docs, and npmjs were not published.
+- Require the repaired distribution to restart qualification from a new exact
+  merged-main commit and rerun every affected release and public-consumer gate.
+
 ## [v1.3.3] - 2026-08-25
+
+Status: **published components / immutable partial train**. Framework
+`mss-boot/v1.3.3`, Admin `admin/v1.3.3`, and Admin Web
+`web/antd-v6/v1.3.3` were published from
+`c00591f2a3edd0bec29bb1023bca8a230648107a`. The public Thin Host gate then
+found that the generated Admin checksum omitted cmd/go's inherited repository
+`LICENSE`, so Root `v1.3.3`, Root tools, Docs `docs/v1.3.3`, and npmjs
+`@mss-boot-io/admin-web@1.3.3` were not published. These identities remain
+immutable; the repair uses v1.3.4.
 
 This patch defines the package-first Admin Distribution: a user installs the
 versioned tools, creates a Thin Host in an empty directory, and imports the

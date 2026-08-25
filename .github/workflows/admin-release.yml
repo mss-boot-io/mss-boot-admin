@@ -127,11 +127,30 @@ jobs:
             mss-boot/go.sum
 
       - name: Verify final Framework and Admin checksum parity
+        id: candidate-checksums
         env:
           ADMIN_VERSION: ${{ steps.version.outputs.version }}
-        run: >-
-          python3 tools/release/verify_framework_admin_checksum.py
-          --version "${ADMIN_VERSION}"
+        run: |
+          set -euo pipefail
+          checksum_json="$(
+            python3 tools/release/verify_framework_admin_checksum.py \
+              --version "${ADMIN_VERSION}"
+          )"
+          framework_sum="$(jq -er '.sum | select(type == "string" and startswith("h1:"))' <<< "${checksum_json}")"
+          framework_go_mod_sum="$(jq -er '.goModSum | select(type == "string" and startswith("h1:"))' <<< "${checksum_json}")"
+          admin_sum="$(jq -er '.adminSum | select(type == "string" and startswith("h1:"))' <<< "${checksum_json}")"
+          admin_go_mod_sum="$(jq -er '.adminGoModSum | select(type == "string" and startswith("h1:"))' <<< "${checksum_json}")"
+          {
+            echo "framework_sum=${framework_sum}"
+            echo "framework_go_mod_sum=${framework_go_mod_sum}"
+            echo "admin_sum=${admin_sum}"
+            echo "admin_go_mod_sum=${admin_go_mod_sum}"
+          } >> "${GITHUB_OUTPUT}"
+          printf '%s\n' \
+            "Framework Module Sum: ${framework_sum}" \
+            "Framework GoModSum: ${framework_go_mod_sum}" \
+            "Admin Module Sum: ${admin_sum}" \
+            "Admin GoModSum: ${admin_go_mod_sum}"
 
       - name: Require the matching Framework dependency
         working-directory: admin
@@ -167,6 +186,8 @@ jobs:
       - name: Probe the tagged Admin module from a clean external workspace
         env:
           ADMIN_VERSION: ${{ steps.version.outputs.version }}
+          ADMIN_SUM: ${{ steps.candidate-checksums.outputs.admin_sum }}
+          ADMIN_GO_MOD_SUM: ${{ steps.candidate-checksums.outputs.admin_go_mod_sum }}
         run: |
           set -euo pipefail
           probe_dir="$(mktemp -d)"
@@ -181,7 +202,9 @@ jobs:
             --arg module "${module}" \
             --arg version "${ADMIN_VERSION}" \
             --arg commit "${GITHUB_SHA}" \
-            '.Path == $module and .Version == $version and .Origin.Hash == $commit and (.Sum | startswith("h1:"))' \
+            --arg sum "${ADMIN_SUM}" \
+            --arg go_mod_sum "${ADMIN_GO_MOD_SUM}" \
+            '.Path == $module and .Version == $version and .Origin.Hash == $commit and .Sum == $sum and .GoModSum == $go_mod_sum' \
             <<< "${download_json}" >/dev/null
           cat > "${probe_dir}/main.go" <<'EOF'
           package main

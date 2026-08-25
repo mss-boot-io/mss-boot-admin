@@ -16,7 +16,7 @@ mss skills list --format json
 mss skills validate --format json
 ```
 
-生成的 v1.3.3 Thin Host 精确分发以下 Skill：
+生成的 v1.3.4 Thin Host 精确分发以下 Skill：
 
 - `mss-thin-host`：项目所有权和日常生成/验证边界；
 - `mss-add-module`：当前生成器支持的基础 CRUD 模块；
@@ -52,4 +52,4 @@ mss-mcp --root .
 - 生成先看变更列表，升级先看三方计划；
 - 对 MCP 返回的“完成”继续用仓库状态、测试和真实合同验证。
 
-`mss` 与 `mss-mcp` 必须来自同一个 v1.3.3 工具包并报告相同源提交。
+`mss` 与 `mss-mcp` 必须来自同一个 v1.3.4 工具包并报告相同源提交。

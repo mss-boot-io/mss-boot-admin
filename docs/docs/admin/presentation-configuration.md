@@ -1,11 +1,11 @@
 ---
-title: v1.3.3 页面展示配置发布治理
+title: v1.3.4 页面展示配置发布治理
 order: 16
 nav:
   order: 1
   title: Admin
-description: v1.3.3 页面展示配置的草稿、发布、回滚、权限与恢复合同
-keywords: [v1.3.3 admin presentation configuration publish rollback recovery etag]
+description: v1.3.4 页面展示配置的草稿、发布、回滚、权限与恢复合同
+keywords: [v1.3.4 admin presentation configuration publish rollback recovery etag]
 ---
 
 # 页面展示配置发布治理

@@ -1,14 +1,14 @@
 ---
 title: FAQ
 order: 3
-description: v1.3.3 安装、创建、开发、验证和升级的常见问题
+description: v1.3.4 安装、创建、开发、验证和升级的常见问题
 ---
 
 # FAQ
 
 ## 为什么不再先克隆 Foundation？
 
-v1.3.3 的 `mss` 内置与自身版本、提交和时间戳绑定的 Blueprint。采用者只需要
+v1.3.4 的 `mss` 内置与自身版本、提交和时间戳绑定的 Blueprint。采用者只需要
 Release 工具与公开 Go/npm 包；克隆流程只属于 Foundation 贡献者。
 
 ## 安装后找不到 mss
@@ -69,7 +69,7 @@ SHA-512 完整性值写入冻结锁；`mss setup` 随后按 Go 与 npm 的标准
 
 ## 前端包装好后为何仍不能构建？
 
-确认 Node 24、Corepack pnpm 10.34.5、`@mss-boot-io/admin-web@1.3.3` 和冻结
+确认 Node 24、Corepack pnpm 10.34.5、`@mss-boot-io/admin-web@1.3.4` 和冻结
 `pnpm-lock.yaml` 一致。运行 `mss doctor --strict` 后再执行 `mss verify --all`。
 
 ## 如何升级？
@@ -80,11 +80,11 @@ SHA-512 完整性值写入冻结锁；`mss setup` 随后按 Go 与 npm 的标准
 mss --version
 mss-mcp --version
 mss upgrade status --format json
-mss upgrade admin v1.3.3
-mss upgrade admin v1.3.3 --apply --yes
+mss upgrade admin v1.3.4
+mss upgrade admin v1.3.4 --apply --yes
 mss doctor --strict
 mss verify --all
-mss upgrade admin v1.3.3
+mss upgrade admin v1.3.4
 ```
 
 第一次 upgrade 只读。只有看过无冲突计划和备份策略后才执行 apply；最后一次计划必须
@@ -106,6 +106,6 @@ mss upgrade admin v1.3.3
 
 ## 从哪里确认版本是否已经公开？
 
-查看 [v1.3.3 发布合同](/releases/v1-3-3)以及
-[GitHub Release](https://github.com/mss-boot-io/mss-boot-admin/releases/tag/v1.3.3)。
+查看 [v1.3.4 发布合同](/releases/v1-3-4)以及
+[GitHub Release](https://github.com/mss-boot-io/mss-boot-admin/releases/tag/v1.3.4)。
 本地分支或 PR 成功不代表公共包已经可用。

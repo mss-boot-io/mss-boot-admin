@@ -1,14 +1,14 @@
 ---
-title: v1.3.3 快速开始
+title: v1.3.4 快速开始
 order: 1
 nav:
   title: 快速开始
   order: 1
-description: 不克隆 Foundation 源码，使用 v1.3.3 工具和公开包创建可开发、可验证、可升级的 Thin Host
-keywords: [v1.3.3 package first mss thin host quick start]
+description: 不克隆 Foundation 源码，使用 v1.3.4 工具和公开包创建可开发、可验证、可升级的 Thin Host
+keywords: [v1.3.4 package first mss thin host quick start]
 ---
 
-# v1.3.3 快速开始
+# v1.3.4 快速开始
 
 这是一条唯一受支持的新项目入门路径。它从公开 Release 安装工具，在空目录生成
 Thin Host，并通过公开 Go/npm 包组合完整 Admin。
@@ -31,8 +31,8 @@ Thin Host，并通过公开 Go/npm 包组合完整 Admin。
 Linux 或 macOS：
 
 ```sh
-curl -fsSLO https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.3/install-mss.sh
-bash ./install-mss.sh --version v1.3.3 --install-dir "$HOME/.local/bin"
+curl -fsSLO https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.4/install-mss.sh
+bash ./install-mss.sh --version v1.3.4 --install-dir "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 mss --version
 mss-mcp --version
@@ -41,15 +41,15 @@ mss-mcp --version
 Windows PowerShell：
 
 ```powershell
-Invoke-WebRequest https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.3/install-mss.ps1 -OutFile install-mss.ps1
-& .\install-mss.ps1 -Version v1.3.3 -InstallDir "$HOME\.local\bin"
+Invoke-WebRequest https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.4/install-mss.ps1 -OutFile install-mss.ps1
+& .\install-mss.ps1 -Version v1.3.4 -InstallDir "$HOME\.local\bin"
 $env:Path = "$HOME\.local\bin;$env:Path"
 mss --version
 mss-mcp --version
 ```
 
 脚本会选择当前操作系统和架构的工具包，并在替换二进制前校验
-`SHA256SUMS.tools-v1.3.3`。它不会请求 `sudo`，也不会修改 profile。正式支持的公开
+`SHA256SUMS.tools-v1.3.4`。它不会请求 `sudo`，也不会修改 profile。正式支持的公开
 工具只有 `mss` 与 `mss-mcp`。
 
 ## 3. 从空目录创建应用
@@ -62,9 +62,9 @@ cd orders-admin
 `mss new app` 默认先产生只读计划；`--write` 才写文件，`--git-init` 在成功后
 初始化 Git。生成结果精确固定：
 
-- `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.3`；
-- `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.3`；
-- `@mss-boot-io/admin-web@1.3.3`；
+- `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.4`；
+- `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.4`；
+- `@mss-boot-io/admin-web@1.3.4`；
 - 与工具二进制同源的 Blueprint 身份和快照。
 
 ## 4. 检查、安装并启动
@@ -126,22 +126,22 @@ mss upgrade status --format json
 ```
 
 三方升级只支持由 Blueprint 生成、且保留 `.mss/blueprint-manifest.json` 的 Thin Host。
-手工拼装或丢失 manifest 的仓库不能直接套用升级；先用 v1.3.3 在新目录生成基线，再按
+手工拼装或丢失 manifest 的仓库不能直接套用升级；先用 v1.3.4 在新目录生成基线，再按
 业务所有权迁入规格和业务文件并重新验证，不要伪造 manifest。
 
-匹配 v1.3.3 工具的只读计划不需要 Foundation 源码：
+匹配 v1.3.4 工具的只读计划不需要 Foundation 源码：
 
 ```sh
-mss upgrade admin v1.3.3
+mss upgrade admin v1.3.4
 ```
 
 确认计划无冲突后再应用：
 
 ```sh
-mss upgrade admin v1.3.3 --apply --yes
+mss upgrade admin v1.3.4 --apply --yes
 mss doctor --strict
 mss verify --all
-mss upgrade admin v1.3.3
+mss upgrade admin v1.3.4
 ```
 
 升级只管理 Blueprint 声明的 Thin Host 文件，保留业务所有和未知文件，并在所有写入成功
@@ -155,4 +155,4 @@ mss upgrade admin v1.3.3
 - [配置与运行 Admin](/admin)
 
 如果 Release 资产或公共包尚未可用，请查看
-[v1.3.3 发布合同](/releases/v1-3-3)；不要回退到源码克隆路径伪装成使用方验证。
+[v1.3.4 发布合同](/releases/v1-3-4)；不要回退到源码克隆路径伪装成使用方验证。

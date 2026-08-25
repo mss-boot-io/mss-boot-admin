@@ -1,0 +1,350 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: foundation-v1-3-4-release-recovery
+  displayName: Foundation v1.3.4 package-first recovery release
+  description: >-
+    Recovers the coordinated package-first Admin Distribution after the
+    immutable v1.3.3 train stopped at the public Thin Host checksum gate, then
+    proves the corrected public v1.3.4 path with the external mss-shop app.
+  owner: release-engineering
+  labels:
+    domain: complete-admin-distribution
+    target-version: v1.3.4
+    release-status: preparation
+spec:
+  problem: >-
+    The immutable v1.3.3 train published Framework, Admin, and Admin Web from
+    commit c00591f2a3edd0bec29bb1023bca8a230648107a, but pre-root qualification
+    rejected the generated Thin Host because candidate Admin checksum tooling
+    omitted Go's inherited repository-root LICENSE file. Root, Docs, and the
+    official npmjs package were not published. The corrected checksum model,
+    package-first documentation, complete tools, and external mss-shop proof
+    therefore require a new coordinated v1.3.4 train from one later merged-main
+    commit while all v1.3.3 objects remain immutable audit evidence.
+  goals:
+    - Publish self-contained, provenance-bound mss and mss-mcp tools for every supported platform as part of the immutable v1.3.4 root release.
+    - Create and upgrade a Thin Host from the released mss bundle in an empty directory without a Foundation checkout or Git metadata.
+    - Make a fresh Thin Host complete enough for doctor, setup, development, verification, backend builds, and frozen frontend installs.
+    - Expose explicit compile-time registries for handwritten backend modules, frontend routes, and bilingual locale catalogs so complex business behavior never requires editing generated files.
+    - Make exact v1.3.4 Go and public npmjs dependencies the only supported downstream consumption path.
+    - Replace active documentation with one package-first quick start and remove obsolete prompt, plan, report, and duplicate-guide context.
+    - Prove the post-publication path by creating the generic single-tenant mss-shop reference repository from public v1.3.4 artifacts.
+  nonGoals:
+    - Move, overwrite, delete, reuse, or otherwise repair any immutable v1.3.3 tag, Release, package, image, checksum, or workflow evidence.
+    - Move, overwrite, delete, or otherwise repair any immutable v1.3.2 tag or release asset.
+    - Publish the internal coverage-comment helper as a supported end-user command.
+    - Copy Foundation Admin, framework, or complete frontend sources into a Thin Host or mss-shop.
+    - Add multi-tenant isolation, production credentials, or a runtime code loader.
+    - Publish any v1.3.4 artifact from a pull-request head or a commit absent from current origin/main.
+  actors:
+    - id: downstream-maintainer
+      displayName: Downstream maintainer
+      description: Installs the released tools and creates, develops, verifies, and upgrades a Thin Host.
+    - id: release-manager
+      displayName: Release manager
+      description: Freezes one merged-main commit and publishes the complete coordinated distribution.
+    - id: documentation-reader
+      displayName: Documentation reader
+      description: Follows one current quick start without needing historical repository context.
+    - id: reference-app-maintainer
+      displayName: Reference app maintainer
+      description: Refactors the R1Shop business capabilities into the external single-tenant mss-shop Thin Host.
+  modules:
+    - name: standalone-agent-tooling
+      kind: infrastructure
+      operation: extend
+      description: Embedded release Blueprint, tool installation, setup, doctor, development, verification, and upgrade behavior.
+    - name: thin-host-blueprint
+      kind: infrastructure
+      operation: extend
+      description: Complete package-first application template and deterministic downstream snapshot.
+    - name: release-governance
+      kind: infrastructure
+      operation: extend
+      description: Exact tool assets, checksums, provenance, public-package probes, and merged-main publication gates.
+    - name: documentation
+      kind: infrastructure
+      operation: extend
+      description: One current information architecture with historical material isolated from active guidance.
+    - name: mss-shop-reference
+      kind: infrastructure
+      operation: create
+      description: External generic single-tenant shop application built only after public v1.3.4 is available.
+  requirements:
+    - id: install-supported-tools
+      title: Install the complete supported tool set
+      description: A user can obtain mss and mss-mcp for a supported platform with checksum and source identity verification.
+      priority: must
+      actor: downstream-maintainer
+      module: standalone-agent-tooling
+      rules:
+        - Linux, macOS, and Windows on amd64 and arm64 receive immutable versioned tool artifacts and one exact checksum manifest.
+        - Installers pin an explicit version, verify the checksum before replacement, never require sudo, and never edit a shell profile.
+        - Every supported binary reports v1.3.4 and the exact release commit; incomplete or post-publication asset append workflows fail closed.
+        - The Admin runtime remains in the complete runtime archive with configuration and frontend dist instead of being presented as a context-free tool.
+        - The internal PR coverage commenter is not a public v1.3.4 tool or release asset.
+    - id: create-without-checkout
+      title: Create a Thin Host without Foundation source
+      description: The released mss binary owns the exact v1.3.4 Blueprint inputs required by new app.
+      priority: must
+      actor: downstream-maintainer
+      module: thin-host-blueprint
+      rules:
+        - mss new app runs from an empty non-Git directory with no Foundation checkout, local replace, or production credential.
+        - The embedded Blueprint is byte-bound to the binary version, full release commit, commit timestamp, and source repository.
+        - Dry-run, destination confinement, atomic write, unknown-file rejection, git-init, stable ordering, and two-run idempotency remain enforced.
+        - Generated Go and npm dependencies pin exactly v1.3.4 and 1.3.4 from their public registries.
+        - The generated composition root merges deterministic AdminModule output with explicit business-owned backend and frontend registries plus zh-CN and en-US locale catalogs; package initialization, runtime discovery, and generated-file edits remain prohibited.
+    - id: operate-fresh-thin-host
+      title: Operate a fresh Thin Host end to end
+      description: Generated output contains every contract needed for a clean setup and development loop.
+      priority: must
+      actor: downstream-maintainer
+      module: thin-host-blueprint
+      rules:
+        - The host includes current README, project commands, development topology, Go sums, a frozen frontend lock, and only the scoped Agent guidance it uses.
+        - Generated repository hygiene excludes runtime logs, Umi compiler caches, dependency directories, reports, and build output while keeping business source visible to verification.
+        - mss doctor --strict detects missing or stale Thin Host inputs instead of reporting a false ready state.
+        - mss setup follows the thin-host layout and never assumes Foundation-only framework or Docs directories.
+        - Interactive first setup reads the initial administrator password through built-in hidden terminal input; non-interactive automation uses a one-process environment secret, and neither path leaks it into arguments or reports.
+        - mss dev, mss verify, backend tests and build, frontend lint, tests and build work from the generated repository.
+        - Development lifecycle state is repository-confined, serialized, boot-aware, bound to the exact child identity, and cleaned on startup, readiness, interrupt, termination, and stop failures without signalling a reused PID.
+        - Backend and frontend readiness echo a per-launch secret nonce so an unrelated or reused listener cannot satisfy mss dev readiness.
+        - Generated clean-runner CI installs the exact frozen frontend dependencies before contract diagnosis and complete verification.
+        - mss verify works before the first Git commit and fails when a module specification has not been regenerated.
+        - Failed lifecycle verification prints the retained machine report and human report before temporary evidence is removed.
+        - All generated instructions invoke installed mss commands and never refer to a nonexistent local cmd/mss.
+        - Handwritten business.Module implementations enter through one ordered custom registry and receive the Admin-owned migration, readiness, protected-route, principal, database, and event boundaries; the protected group authenticates but never infers a business permission, so every handwritten handler must enforce backend authorization explicitly.
+        - Handwritten frontend route configuration and authorization metadata enter through separate explicit registries; the final Admin core, generated, and custom registry rejects every duplicate UI or server path instead of silently overwriting one.
+        - Handwritten zh-CN and en-US messages enter through paired business-owned catalogs; managed locale facades compose core, generated, and custom messages in that order without requiring generated-file edits.
+    - id: upgrade-without-checkout
+      title: Upgrade from the released distribution
+      description: A downstream repository can plan and apply the distribution embedded in its matching mss release.
+      priority: must
+      actor: downstream-maintainer
+      module: standalone-agent-tooling
+      rules:
+        - mss upgrade admin v1.3.4 requires no --foundation checkout for the matching embedded release.
+        - An explicit Foundation path remains available only for contributor development and compatibility testing.
+        - Plan is read-only; apply requires --apply --yes, preserves business-owned and unknown files, writes snapshot records last, and a second apply has no create, update, delete, or conflict operation.
+        - The five customized backend, frontend-route, and bilingual-locale seams are preserved byte-for-byte when the Foundation seam is unchanged; a future competing Foundation change becomes a reviewed conflict instead of an overwrite.
+        - A requested distribution version that differs from the installed embedded source fails with actionable installation guidance.
+    - id: publish-package-first-v134
+      title: Publish one complete v1.3.4 distribution
+      description: Public artifacts and package consumers resolve one exact merged-main source identity.
+      priority: must
+      actor: release-manager
+      module: release-governance
+      rules:
+        - Publication order remains Framework, Admin, Admin Web, root, Docs, and official npmjs.
+        - Root, mss-boot, Admin, Admin Web, Blueprint, project, lock, commands, and release policy agree on v1.3.4.
+        - Release qualification starts from built artifacts in an empty directory, not from a Foundation checkout disguised as a consumer.
+        - Public Go modules resolve with GOWORK off and the npmjs package installs without a registry token.
+        - The root module contains no replace or exclude directive, so both public command packages install from an exact semantic version in a clean module cache.
+        - Candidate Framework and Admin Module sums are calculated from their final tracked trees and match both Admin metadata and the generated Thin Host baseline before any component tag.
+        - Candidate frontend lifecycle tests consume a tarball built from the exact frozen tree; a dirty local rehearsal must inject its exact current candidate instead of silently packaging an older Git HEAD.
+        - Every publication guard fetches remote main and rejects a frozen candidate that is merely an ancestor rather than the current exact tip.
+        - The supported root-tag path is a protected promotion from the exact remote main tip; its dedicated environment forbids self-review and administrator bypass, contains only the ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY secret, exposes that dedicated Ed25519 deploy private key only to the exact SSH tag-creation step, pins and verifies the GitHub SSH host key, and removes temporary key material on every exit.
+        - The root creation ruleset bypass list is exactly one generic DeployKey always actor with a null actor ID; the repository has exactly one verified, enabled, write-enabled Ed25519 deploy key titled mss-root-tag-promotion, while every additional deploy key, PAT, human, Integration, App, or administrator root bypass is rejected.
+        - The deploy-key tag push naturally starts exactly one root image run and one non-publishing root candidate run; promotion accepts queued or in-progress exact runs, while rejecting a mismatched commit, stale or duplicate run, completed failure, or bounded missing result without dispatching substitutes.
+        - Public refs and assets are immutable; every repair uses a later patch version.
+    - id: replace-active-documentation
+      title: Keep one current package-first documentation path
+      description: Active docs explain v1.3.4 without leaking obsolete implementation history into onboarding.
+      priority: must
+      actor: documentation-reader
+      module: documentation
+      rules:
+        - The repository and site expose one quick start centered on installing mss, creating a host, setup, dev, verify, and upgrade.
+        - Clone, go run ./cmd/mss, --foundation, go.work, and local replace appear only in clearly labeled Foundation contributor material.
+        - Historical release notes and ADRs are isolated and labeled; prompt archives, stale plans, snapshots, duplicate guides, and unused reports are removed from the current tree.
+        - Active version text is derived from or checked against release policy, and deleted pages cannot remain in navigation or internal links.
+        - Chinese and English entry documentation stay semantically aligned.
+    - id: prove-with-mss-shop
+      title: Deliver the generic single-tenant mss-shop reference
+      description: The external reference repository demonstrates real v1.3.4 package consumption and selected R1Shop business behavior.
+      priority: must
+      actor: reference-app-maintainer
+      module: mss-shop-reference
+      rules:
+        - The repository is generated by the public v1.3.4 mss artifact and commits that untouched Thin Host baseline before business work.
+        - R1Shop server, admin UI, and uni-app consumer capabilities are inventoried before selective refactoring; Foundation core is not copied.
+        - Tenant-specific, deployment-specific, secret, and brand coupling is removed; the initial product is explicitly single-tenant.
+        - Backend authorization is authoritative and state-changing APIs, migrations, generated contracts, locales, loading, empty, error, and denied UI states are covered as applicable.
+        - The complete backend and admin frontend pass automated checks plus Codex in-app Browser acceptance before delivery.
+  constraints:
+    - id: merged-main-only
+      type: operations
+      statement: Every v1.3.4 component is released only from one clean exact commit already merged into current origin/main.
+    - id: one-distribution-version
+      type: dependency
+      statement: Backend, frontend, tool, Blueprint, generated lock, and documentation surfaces use the exact coordinated v1.3.4 version.
+    - id: compile-time-composition
+      type: security
+      statement: Downstream and mss-shop business code composes at build time; no runtime or remote business-code loader is introduced.
+    - id: backend-authorization-authoritative
+      type: security
+      statement: UI visibility never substitutes for backend authorization, including business behavior inherited conceptually from R1Shop.
+    - id: no-adopter-observation
+      type: privacy
+      statement: Installation, creation, setup, verification, development, and upgrade perform no telemetry or adopter registration.
+    - id: preserve-immutable-history
+      type: compatibility
+      statement: Existing v1.3.3 partial-train and v1.3.2 stable tags, packages, images, Releases, checksums, and evidence remain unchanged.
+  acceptance:
+    - id: standalone-tool-contract
+      requirement: install-supported-tools
+      statement: Release tooling produces and verifies the exact supported v1.3.4 tool asset matrix, installers, checksums, and provenance.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: python3 -m unittest discover -s tools/release -p 'test_*.py'
+        - type: command
+          value: bash tools/install/test-install-mss.sh
+        - type: report
+          value: Windows PowerShell checksum, provenance, replacement, atomic rollback, and tamper-rejection test evidence.
+        - type: report
+          value: Exact v1.3.4 release asset inventory with per-platform version, commit, and checksum evidence.
+    - id: empty-directory-create-gate
+      requirement: create-without-checkout
+      statement: A release-built mss creates a complete host in an empty directory with no Git or Foundation source available.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/compatibility/test-standalone-mss-consumer.sh
+        - type: report
+          value: Empty-directory dry-run, write, public dependency pins, path confinement, and two-run idempotency evidence.
+    - id: fresh-host-lifecycle-gate
+      requirement: operate-fresh-thin-host
+      statement: The generated host passes strict diagnosis, idempotent setup, development readiness, and complete verification.
+      level: e2e
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/compatibility/test-standalone-mss-consumer.sh --lifecycle
+        - type: report
+          value: GOWORK-off backend, clean versioned command installation, frozen exact frontend-candidate, nonce-bound real dev readiness, and final verification evidence with no local replacement.
+    - id: embedded-upgrade-gate
+      requirement: upgrade-without-checkout
+      statement: The matching installed tool plans and applies an upgrade without a Foundation checkout and preserves user-owned files.
+      level: migration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/compatibility/test-standalone-mss-consumer.sh --upgrade
+        - type: report
+          value: Read-only plan, confirmed apply, second no-op, mismatch rejection, and customization-preservation evidence.
+    - id: handwritten-business-extension-gate
+      requirement: operate-fresh-thin-host
+      statement: A generated Thin Host composes one handwritten business module and matching frontend route metadata without editing generated files.
+      level: e2e
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
+        - type: report
+          value: Explicit custom registry, paired custom locales, migration readiness, anonymous 401, restricted-role 403, authorized 200, generated-plus-custom frontend route, Admin-core and business collision rejection, and real five-seam customization-preserving external-upgrade evidence.
+    - id: documentation-context-gate
+      requirement: replace-active-documentation
+      statement: Current docs have one v1.3.4 path, no stale active commands, no removed navigation targets, and a successful site build.
+      level: contract
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: python3 tools/docs/check_current_docs.py
+        - type: command
+          value: corepack pnpm@9.15.9 --dir docs build
+        - type: report
+          value: Codex in-app Browser desktop, narrow-layout, deep-link refresh, and console evidence for home, quick start, packages, and v1.3.4.
+    - id: pre-framework-publication-readiness
+      requirement: publish-package-first-v134
+      statement: The final Framework tree, committed Admin sums, and checkout-free consumers remain aligned immediately before protected Framework publication.
+      level: integration
+      phase: pre-framework
+      required: true
+      evidence:
+        - type: command
+          value: python3 tools/release/verify_framework_admin_checksum.py --version v1.3.4
+        - type: command
+          value: cd mss-boot && GOWORK=off go test ./...
+        - type: command
+          value: bash tools/compatibility/test-admin-external-consumer.sh
+        - type: command
+          value: bash tools/compatibility/test-standalone-mss-consumer.sh
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component framework --version v1.3.4 --tag mss-boot/v1.3.4 --intent qualify
+    - id: coordinated-release-gate
+      requirement: publish-package-first-v134
+      statement: Every selected release phase and public-package consumer is bound to the frozen v1.3.4 merged-main commit.
+      level: integration
+      phase: pre-root
+      required: true
+      evidence:
+        - type: command
+          value: python3 tools/release/check_release_policy.py --component root --version v1.3.4 --tag v1.3.4 --intent qualify
+        - type: command
+          value: bash tools/compatibility/test-standalone-mss-consumer.sh --public-packages --lifecycle --upgrade
+        - type: report
+          value: Public Framework and Admin modules, the exact GitHub Packages Admin Web candidate and SRI, a locally release-built root tool, image, and Docs predecessor reconciliation; the root archive and official npmjs package remain later gates.
+        - type: report
+          value: Sanitized remote release-governance JSON proving the main-only root-promotion environment, distinct reviewer, the sole metadata-only ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY secret, the sole write-enabled mss-root-tag-promotion deploy key, exact DeployKey root bypass, human-only component bypass, and no-bypass immutability.
+    - id: public-mss-shop-gate
+      requirement: prove-with-mss-shop
+      statement: The public v1.3.4 tool and packages produce a clean mss-shop baseline and the completed single-tenant app passes code and browser acceptance.
+      level: e2e
+      phase: post-publication
+      required: true
+      evidence:
+        - type: report
+          value: Public artifact installation, baseline commit, R1Shop mapping, backend and frontend validation, and Codex in-app Browser evidence in mss-boot-io/mss-shop.
+  risks:
+    - id: embedded-source-drift
+      description: Embedded Blueprint bytes could differ from reviewed source templates or claim the wrong release identity.
+      severity: critical
+      mitigation: Embed the single source tree directly, inject and validate version/commit/timestamp at build time, and compare generated output with checkout-mode output in CI.
+    - id: incomplete-fresh-host
+      description: A generator-only test can pass while setup, dev, frozen install, or verification fails for a real adopter.
+      severity: high
+      mitigation: Start qualification from the packaged binary in an empty directory and execute the complete lifecycle without local replacements.
+    - id: destructive-doc-cleanup
+      description: Removing stale context could also remove current operator or security guidance or leave broken links.
+      severity: high
+      mitigation: Keep ADR and release history in a labeled archive, use an explicit deletion inventory, run link and navigation checks, and build and browse the final site.
+    - id: source-application-coupling
+      description: Copying R1Shop implementation wholesale could import tenant assumptions, weak authorization, branding, or incompatible framework code.
+      severity: critical
+      mitigation: Inventory behavior first, port business capabilities through MSS module contracts, keep single-tenancy explicit, and require backend permission and migration tests.
+  validation:
+    changed: mss verify --changed
+    all: mss verify --all
+    custom:
+      - GOWORK=off go test ./internal/mss/... ./cmd/mss/... ./cmd/mss-mcp/...
+      - python3 -m unittest discover -s tools/release -p 'test_*.py'
+      - python3 tools/docs/check_current_docs.py
+      - bash tools/install/test-install-mss.sh
+      - bash tools/compatibility/test-standalone-mss-consumer.sh
+      - make test-all
+      - make web-v6-qualify
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      Merge the package-first tool, Thin Host, documentation, and release-governance
+      changes through a pull request. Freeze the resulting exact main commit, publish
+      every coordinated v1.3.4 component in dependency order, reconcile public
+      artifacts, then use only the public v1.3.4 tool and packages to initialize and
+      develop mss-shop in its own repository.
+    rollback: >-
+      Before publication, revert through a follow-up pull request. After publication,
+      preserve every v1.3.4 artifact and deliver source corrections under a later
+      patch. Downstream applications can pin the previous complete distribution and
+      restore their matching snapshot and data backup without moving public refs.

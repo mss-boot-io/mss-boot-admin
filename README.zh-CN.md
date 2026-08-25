@@ -2,17 +2,17 @@
 
 [English](./README.md)
 
-mss-boot 是面向 Agent 的管理系统基础设施。统一的 **v1.3.3** 发行版通过已发布
+mss-boot 是面向 Agent 的管理系统基础设施。统一的 **v1.3.4** 发行版通过已发布
 工具和包使用；下游应用不需要克隆或复制本仓库。
 
-## v1.3.3 交付内容
+## v1.3.4 交付内容
 
 | 入口 | 发布身份 | 用途 |
 | --- | --- | --- |
-| Agent 工具 | 根 `v1.3.3` GitHub Release 中的 `mss`、`mss-mcp` | 创建、检查、开发、验证和升级 Thin Host |
-| Framework | `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.3` | 领域无关的 Go 基础设施 |
-| Admin | `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.3` | 可导入的完整 Admin 后端 |
-| Admin Web | `@mss-boot-io/admin-web@1.3.3` | 完整 React 19 与 Ant Design 6 前端 |
+| Agent 工具 | 根 `v1.3.4` GitHub Release 中的 `mss`、`mss-mcp` | 创建、检查、开发、验证和升级 Thin Host |
+| Framework | `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.4` | 领域无关的 Go 基础设施 |
+| Admin | `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.4` | 可导入的完整 Admin 后端 |
+| Admin Web | `@mss-boot-io/admin-web@1.3.4` | 完整 React 19 与 Ant Design 6 前端 |
 
 所有组件都从已经合入 `main` 的同一个精确提交完成资格验证。只有公开发布和包对账
 全部完成后，该版本才可供下游使用。
@@ -22,8 +22,8 @@ mss-boot 是面向 Agent 的管理系统基础设施。统一的 **v1.3.3** 发�
 Linux 或 macOS：
 
 ```sh
-curl -fsSLO https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.3/install-mss.sh
-bash ./install-mss.sh --version v1.3.3 --install-dir "$HOME/.local/bin"
+curl -fsSLO https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.4/install-mss.sh
+bash ./install-mss.sh --version v1.3.4 --install-dir "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 mss --version
 mss-mcp --version
@@ -32,8 +32,8 @@ mss-mcp --version
 Windows PowerShell：
 
 ```powershell
-Invoke-WebRequest https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.3/install-mss.ps1 -OutFile install-mss.ps1
-& .\install-mss.ps1 -Version v1.3.3 -InstallDir "$HOME\.local\bin"
+Invoke-WebRequest https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.4/install-mss.ps1 -OutFile install-mss.ps1
+& .\install-mss.ps1 -Version v1.3.4 -InstallDir "$HOME\.local\bin"
 $env:Path = "$HOME\.local\bin;$env:Path"
 mss --version
 mss-mcp --version
@@ -58,7 +58,7 @@ mss verify --changed
 打开 `http://127.0.0.1:8001`，使用初始用户名 `admin` 和本次 setup 提供的密码登录；
 系统没有默认密码。
 
-安装器会校验 `SHA256SUMS.tools-v1.3.3`，不需要 `sudo`，也不会修改 shell
+安装器会校验 `SHA256SUMS.tools-v1.3.4`，不需要 `sudo`，也不会修改 shell
 profile。环境要求、Windows PATH、升级和故障排查见
 [package-first 快速开始](https://docs.mss-boot-io.top/getting-started)。
 
@@ -69,7 +69,7 @@ profile。环境要求、Windows PATH、升级和故障排查见
 业务路由扩展已发布的应用壳；后端授权始终是最终权威。
 
 先安装目标版本工具、备份应用和数据库，并确认 `.mss/blueprint-manifest.json` 存在，
-再用 `mss upgrade admin v1.3.3` 查看升级计划。无冲突后才加 `--apply --yes`，随后运行
+再用 `mss upgrade admin v1.3.4` 查看升级计划。无冲突后才加 `--apply --yes`，随后运行
 `mss doctor --strict`、`mss verify --all`，并确认第二次计划为空。手工拼装或丢失
 manifest 的仓库必须把业务所有文件迁入新生成的基线，不能伪造升级状态。全程不需要
 Foundation 源码目录。
@@ -80,7 +80,7 @@ Foundation 源码目录。
 - [包与导入边界](https://docs.mss-boot-io.top/getting-started/packages)
 - [工具说明](https://docs.mss-boot-io.top/getting-started/tooling)
 - [mss-shop 范本](https://docs.mss-boot-io.top/getting-started/mss-shop)
-- [v1.3.3 发布合同](https://docs.mss-boot-io.top/releases/v1-3-3)
+- [v1.3.4 发布合同](https://docs.mss-boot-io.top/releases/v1-3-4)
 
 Foundation 贡献者请阅读 [`CONTRIBUTING.md`](./docs/CONTRIBUTING.md)。源码检出命令
 与下游入门路径明确隔离。

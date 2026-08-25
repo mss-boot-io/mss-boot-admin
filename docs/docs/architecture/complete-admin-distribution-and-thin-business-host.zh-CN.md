@@ -1,27 +1,27 @@
 ---
 title: Complete Admin Distribution 与 Thin Host
 order: 2
-description: v1.3.3 完整 Admin 发行、编译期扩展、文件所有权与三方升级架构
+description: v1.3.4 完整 Admin 发行、编译期扩展、文件所有权与三方升级架构
 ---
 
 # Complete Admin Distribution 与 Thin Host
 
 ## 决策
 
-Admin 后端、Admin Web、Framework、Agent 工具和 Blueprint 使用同一个 v1.3.3
+Admin 后端、Admin Web、Framework、Agent 工具和 Blueprint 使用同一个 v1.3.4
 Distribution 版本协调，但保留独立发布制品。下游应用是 Thin Host，不是 Foundation
 源码副本。
 
 ## 发行组成
 
-| 组件 | v1.3.3 身份 | 所有权 |
+| 组件 | v1.3.4 身份 | 所有权 |
 | --- | --- | --- |
-| Root tools | GitHub Release `v1.3.3` | new/setup/dev/verify/upgrade |
-| Framework | `mss-boot/v1.3.3` | 领域无关运行时 |
-| Admin | `admin/v1.3.3` | 完整后端与编译期扩展边界 |
-| Admin Web | `web/antd-v6/v1.3.3`、npm `1.3.3` | 完整浏览器应用 |
-| Blueprint | 嵌入 `mss v1.3.3` | Thin Host 受管文件 |
-| Docs | `docs/v1.3.3` | 当前使用和发布合同 |
+| Root tools | GitHub Release `v1.3.4` | new/setup/dev/verify/upgrade |
+| Framework | `mss-boot/v1.3.4` | 领域无关运行时 |
+| Admin | `admin/v1.3.4` | 完整后端与编译期扩展边界 |
+| Admin Web | `web/antd-v6/v1.3.4`、npm `1.3.4` | 完整浏览器应用 |
+| Blueprint | 嵌入 `mss v1.3.4` | Thin Host 受管文件 |
+| Docs | `docs/v1.3.4` | 当前使用和发布合同 |
 
 所有制品绑定一个完整 merged-main 提交，不能用分支头、本地替换或相邻版本拼装。
 
@@ -55,7 +55,7 @@ API 位于核心安全中间件后的受保护组中。
 
 ## 前端组合
 
-`@mss-boot-io/admin-web@1.3.3` 是唯一完整 SPA。Thin Host 使用公开 preset、runtime
+`@mss-boot-io/admin-web@1.3.4` 是唯一完整 SPA。Thin Host 使用公开 preset、runtime
 和 business 导出注册业务路由与菜单。核心路由先注册，业务扩展随后注册，403/404
 回退最后注册。
 
@@ -71,14 +71,14 @@ Release 构建把单一 Blueprint 源直接嵌入 `mss`，并注入版本、提�
 - 检查目标路径和未知文件；
 - 原子写入；
 - 可选初始化 Git；
-- 固定 v1.3.3 Go/npm 依赖与冻结锁；
+- 固定 v1.3.4 Go/npm 依赖与冻结锁；
 - 写入 manifest、lock 和同源快照；
 - 第二次生成无差异。
 
 ## 三方升级
 
 ```text
-旧 Blueprint 基线 + 当前 Thin Host + v1.3.3 新基线
+旧 Blueprint 基线 + 当前 Thin Host + v1.3.4 新基线
                          │
                          ▼
                  只读计划 / 冲突列表
@@ -87,7 +87,7 @@ Release 构建把单一 Blueprint 源直接嵌入 `mss`，并注入版本、提�
                   --apply --yes
 ```
 
-`mss upgrade admin v1.3.3` 默认只读。匹配版本从工具内置基线获取，不需要额外源码。
+`mss upgrade admin v1.3.4` 默认只读。匹配版本从工具内置基线获取，不需要额外源码。
 三方比较要求仓库保留生成时的 `.mss/blueprint-manifest.json`；手工拼装或基线丢失的
 仓库必须迁入新生成的 Thin Host，不能伪造摘要。应用保留业务和未知文件，写入受管文件
 后最后更新快照；完成后第二次计划为空。
@@ -108,6 +108,6 @@ Release 构建把单一 Blueprint 源直接嵌入 `mss`，并注入版本、提�
 
 ## mss-shop 证明
 
-[mss-shop](/getting-started/mss-shop) 必须在 v1.3.3 公开后由 Release 工具生成，先提交
+[mss-shop](/getting-started/mss-shop) 必须在 v1.3.4 公开后由 Release 工具生成，先提交
 未修改基线，再加入通用单租户商城模块。它验证包导入、业务所有权、升级、自动测试和
 Codex 内置浏览器流程，而不是复制 R1Shop 或 Foundation。

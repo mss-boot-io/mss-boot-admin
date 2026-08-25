@@ -63,7 +63,7 @@ func TestGenerateEmbeddedWorksOutsideGitAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateEmbedded(dry-run) error = %v", err)
 	}
-	if !plan.DryRun || !plan.Success || plan.Identities.Foundation.Version != "1.3.3" || plan.Identities.Foundation.Commit != strings.Repeat("a", 40) {
+	if !plan.DryRun || !plan.Success || plan.Identities.Foundation.Version != "1.3.4" || plan.Identities.Foundation.Commit != strings.Repeat("a", 40) {
 		t.Fatalf("embedded dry-run plan = %#v", plan)
 	}
 	if _, err := os.Stat(destination); !os.IsNotExist(err) {
@@ -101,8 +101,8 @@ func TestGenerateEmbeddedWorksOutsideGitAndIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, expected := range []string{
-		"releases/download/v1.3.3/install-mss.sh",
-		"--version v1.3.3",
+		"releases/download/v1.3.4/install-mss.sh",
+		"--version v1.3.4",
 		"mss doctor --strict",
 		"mss verify --all",
 	} {
@@ -148,7 +148,7 @@ func TestGenerateEmbeddedWorksOutsideGitAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(goModuleData), "github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.3 // indirect") {
+	if !strings.Contains(string(goModuleData), "github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.4 // indirect") {
 		t.Fatal("generated Go module does not keep the exact Framework pin in tidy readonly form")
 	}
 	for _, forbidden := range []string{"\nreplace ", "\nexclude ", "file:", "127.0.0.1", "localhost", "__MSS_"} {
@@ -197,7 +197,7 @@ func TestGenerateEmbeddedRejectsIncompleteBuildProvenance(t *testing.T) {
 	t.Cleanup(func() {
 		buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp = originalVersion, originalCommit, originalTimestamp
 	})
-	buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp = "v1.3.3", "deadbeef", "2026-08-25T12:34:56Z"
+	buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp = "v1.3.4", "deadbeef", "2026-08-25T12:34:56Z"
 	_, err := GenerateEmbedded(context.Background(), t.TempDir(), Options{
 		Application: Application{Name: "invalid", DisplayName: "Invalid", Module: "github.com/acme/invalid", Repository: "acme/invalid"},
 	})
@@ -230,7 +230,7 @@ func TestUpgradeEmbeddedUsesMatchingSourceAndPreservesBusinessFiles(t *testing.T
 
 	options := UpgradeOptions{
 		ApplicationRoot:              applicationRoot,
-		RequestedDistributionVersion: "v1.3.3",
+		RequestedDistributionVersion: "v1.3.4",
 		PreservedBusinessPaths:       []string{"internal/modules"},
 		FrontendRegistryURL:          registry,
 	}
@@ -238,7 +238,7 @@ func TestUpgradeEmbeddedUsesMatchingSourceAndPreservesBusinessFiles(t *testing.T
 	if err != nil {
 		t.Fatalf("UpgradeEmbedded(plan) error = %v", err)
 	}
-	if !plan.DryRun || !plan.Success || plan.FoundationRoot != "embedded://mss/1.3.3" {
+	if !plan.DryRun || !plan.Success || plan.FoundationRoot != "embedded://mss/1.3.4" {
 		t.Fatalf("embedded upgrade plan = %#v", plan)
 	}
 	if !containsEmbeddedString(plan.PreservedFiles, "internal/modules/custom/owned.go") {
@@ -273,7 +273,7 @@ func setEmbeddedReleaseBuild(t *testing.T) {
 	t.Cleanup(func() {
 		buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp = originalVersion, originalCommit, originalTimestamp
 	})
-	buildinfo.Version = "v1.3.3"
+	buildinfo.Version = "v1.3.4"
 	buildinfo.Commit = strings.Repeat("a", 40)
 	buildinfo.Timestamp = "2026-08-25T12:34:56Z"
 }
@@ -283,7 +283,7 @@ func embeddedFrontendRegistry(t *testing.T) string {
 	integrity := testFrontendIntegrity("embedded-admin-web-candidate")
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(writer, `{"name":"@mss-boot-io/admin-web","version":"1.3.3","dist":{"integrity":%q}}`, integrity)
+		_, _ = fmt.Fprintf(writer, `{"name":"@mss-boot-io/admin-web","version":"1.3.4","dist":{"integrity":%q}}`, integrity)
 	}))
 	t.Cleanup(server.Close)
 	return server.URL
