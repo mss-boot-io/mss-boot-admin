@@ -1,6 +1,7 @@
 package blueprint
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -24,7 +25,11 @@ func TestGenerateEmbeddedWorksOutsideGitAndIsIdempotent(t *testing.T) {
 		"cmd/server/main.go":                "templates/application/cmd/server/main.go.tmpl",
 		"internal/modules/all/generated.go": "templates/application/internal/modules/all/generated.go.tmpl",
 	}
+	var embeddedGoSum []byte
 	for _, file := range foundation.Files {
+		if file.OutputPath == "go.sum" {
+			embeddedGoSum = append([]byte(nil), file.Data...)
+		}
 		expectedSource, ok := expectedTemplateSources[file.OutputPath]
 		if !ok {
 			continue
@@ -36,6 +41,9 @@ func TestGenerateEmbeddedWorksOutsideGitAndIsIdempotent(t *testing.T) {
 	}
 	if len(expectedTemplateSources) != 0 {
 		t.Fatalf("embedded template outputs missing = %v", expectedTemplateSources)
+	}
+	if len(embeddedGoSum) == 0 {
+		t.Fatal("embedded template does not contain go.sum")
 	}
 	working := t.TempDir()
 	registry := embeddedFrontendRegistry(t)
@@ -152,15 +160,8 @@ func TestGenerateEmbeddedWorksOutsideGitAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, exact := range []string{
-		"github.com/mss-boot-io/mss-boot-admin/admin v1.3.3 h1:7GVZJ+Q+SOTNkBC/OHKHCi8FwcBEYSAyw4jDy1fhoh8=",
-		"github.com/mss-boot-io/mss-boot-admin/admin v1.3.3/go.mod h1:jxDuhwGHN92c8NNVeLnVmtoQbXJMsA6PdX2Cqbw+OnM=",
-		"github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.3 h1:2groP3RILhEowH9PKTSBXLse5yq0iHJ+olBz67h6xEQ=",
-		"github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.3/go.mod h1:nAx374r4AfngLiw7QFsG42bQxp0FzhK4XVA+RKyHtb8=",
-	} {
-		if strings.Count(string(goSumData), exact+"\n") != 1 {
-			t.Fatalf("generated Go checksum lock is missing %q", exact)
-		}
+	if !bytes.Equal(goSumData, embeddedGoSum) {
+		t.Fatal("generated Go checksum lock differs from the embedded template")
 	}
 	developmentData, err := os.ReadFile(filepath.Join(destination, ".mss", "dev.yaml"))
 	if err != nil {

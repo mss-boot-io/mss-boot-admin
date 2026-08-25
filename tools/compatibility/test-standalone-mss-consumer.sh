@@ -134,7 +134,18 @@ tool_dir="${work_dir}/tools"
 candidate_bin="${work_dir}/go-install-bin"
 consumer_parent="${work_dir}/empty"
 host_root="${consumer_parent}/standalone-admin"
-mkdir -p -- "${tool_dir}" "${candidate_bin}" "${consumer_parent}"
+candidate_source="${work_dir}/candidate-source"
+candidate_archive="${work_dir}/candidate-source.tar"
+mkdir -p -- "${tool_dir}" "${candidate_bin}" "${consumer_parent}" "${candidate_source}"
+git -C "${repository_root}" archive \
+  --format=tar \
+  --output="${candidate_archive}" \
+  "${release_commit}"
+tar -xf "${candidate_archive}" -C "${candidate_source}"
+[[ -f "${candidate_source}/embedded_distribution.go" ]] || {
+  echo "release commit archive does not contain the embedded Distribution source" >&2
+  exit 1
+}
 if git -C "${consumer_parent}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "standalone consumer parent unexpectedly belongs to a Git worktree" >&2
   exit 1
@@ -166,7 +177,7 @@ else
   mss="${tool_dir}/mss"
   mss_mcp="${tool_dir}/mss-mcp"
   (
-    cd "${repository_root}"
+    cd "${candidate_source}"
     GOWORK=off go build -mod=mod -trimpath -ldflags "${ldflags}" -o "${mss}" ./cmd/mss
     GOWORK=off go build -mod=mod -trimpath -ldflags "${ldflags}" -o "${mss_mcp}" ./cmd/mss-mcp
   )
@@ -190,11 +201,10 @@ assert_tool_identity "${mss_mcp}" --version
 # verifies the immutable tools archive checksum and BUILD-INFO manifest.
 if [[ "${use_public_packages}" = false ]]; then
   proxy_root="${work_dir}/proxy"
-  python3 - "${repository_root}" "${proxy_root}" "${release_version}" "${release_timestamp}" <<'PY'
+  python3 - "${candidate_source}" "${proxy_root}" "${release_version}" "${release_timestamp}" <<'PY'
 import json
 from pathlib import Path
 import stat
-import subprocess
 import sys
 import zipfile
 
@@ -202,10 +212,14 @@ repository = Path(sys.argv[1]).resolve()
 proxy = Path(sys.argv[2]).resolve()
 version = sys.argv[3]
 timestamp = sys.argv[4]
-listed = subprocess.check_output(
-    ['git', '-C', str(repository), 'ls-files', '--cached', '--others', '--exclude-standard', '-z']
-).split(b'\0')
-repository_paths = [item.decode('utf-8') for item in listed if item]
+repository_paths = []
+for path in repository.rglob('*'):
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        continue
+    if stat.S_ISREG(mode) or stat.S_ISLNK(mode):
+        repository_paths.append(path.relative_to(repository).as_posix())
 modules = (
     ('github.com/mss-boot-io/mss-boot-admin', ''),
     ('github.com/mss-boot-io/mss-boot-admin/admin', 'admin'),
@@ -236,7 +250,7 @@ for module, source_prefix in modules:
         for relative in relative_paths
         if relative != 'go.mod'
         and relative.endswith('/go.mod')
-        and (source / relative).is_file()
+        and stat.S_ISREG((source / relative).lstat().st_mode)
     )
     paths = []
     for relative in relative_paths:
@@ -245,12 +259,7 @@ for module, source_prefix in modules:
         if relative.startswith('vendor/') or relative.startswith(nested_module_roots):
             continue
         path = source / relative
-        try:
-            mode = path.lstat().st_mode
-        except FileNotFoundError:
-            # A release candidate may be qualified before removed tracked files
-            # are committed. Package only files that actually exist.
-            continue
+        mode = path.lstat().st_mode
         if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
             continue
         paths.append(relative)
