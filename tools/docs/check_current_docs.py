@@ -23,6 +23,7 @@ CORE_CURRENT_FILES = (
     Path("mss-boot/README.Zh-cn.md"),
     Path("web/antd-v6/README.md"),
     Path("docs/README.md"),
+    Path("docs/CONTRIBUTING.md"),
     Path("docs/docs/index.md"),
     Path("docs/docs/getting-started/index.md"),
     Path("docs/docs/getting-started/packages.md"),
