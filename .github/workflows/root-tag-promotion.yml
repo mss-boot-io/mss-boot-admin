@@ -31,8 +31,8 @@ jobs:
     runs-on: ubuntu-24.04
     environment: root-promotion
     permissions:
-      actions: write
-      contents: write
+      actions: read
+      contents: read
       packages: read
     steps:
       - name: Require workflow dispatch from exact remote main tip
@@ -62,6 +62,7 @@ jobs:
         with:
           ref: ${{ inputs.frozen_commit }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Verify exact merged-main source and root policy
         env:
@@ -253,7 +254,8 @@ jobs:
             exit 1
           }
 
-      - name: Create or resume the exact immutable root tag
+      - name: Inspect the exact immutable root tag
+        id: root-tag
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ inputs.version }}
@@ -271,20 +273,89 @@ jobs:
             if ! jq -e \
               --arg version "${RELEASE_VERSION}" \
               --arg commit "${FROZEN_COMMIT}" \
-              '.tag == $version and .object.type == "commit" and .object.sha == $commit' \
+              '.tag == $version and
+               .message == ("mss-boot-admin " + $version) and
+               .object.type == "commit" and
+               .object.sha == $commit' \
               <<< "${tag_object}" >/dev/null; then
               echo "immutable root tag ${RELEASE_VERSION} is not the exact annotated release tag" >&2
               exit 1
             fi
-            echo "Exact annotated root tag already exists; checking candidate runs."
+            echo "create=false" >> "${GITHUB_OUTPUT}"
+            echo "Exact annotated root tag already exists; checking its natural push runs."
           else
-            git config user.name github-actions[bot]
-            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-            git tag -a "${RELEASE_VERSION}" "${FROZEN_COMMIT}" -m "mss-boot-admin ${RELEASE_VERSION}"
-            test "$(git rev-list -n 1 "${RELEASE_VERSION}")" = "${FROZEN_COMMIT}"
-            git push origin "refs/tags/${RELEASE_VERSION}"
+            echo "create=true" >> "${GITHUB_OUTPUT}"
           fi
 
+      - name: Create the exact annotated root tag with the dedicated deploy key
+        if: steps.root-tag.outputs.create == 'true'
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+          ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY: ${{ secrets.ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY:-}" ]]; then
+            echo "root-promotion requires the dedicated deploy private key secret" >&2
+            exit 1
+          fi
+
+          umask 077
+          ssh_workspace="$(mktemp -d)"
+          key_file="${ssh_workspace}/deploy-key"
+          public_key_file="${ssh_workspace}/deploy-key.pub"
+          known_hosts_file="${ssh_workspace}/known_hosts"
+          cleanup_root_tag_key() {
+            unset GIT_SSH_COMMAND ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY
+            rm -f -- "${key_file}" "${public_key_file}" "${known_hosts_file}"
+            rmdir -- "${ssh_workspace}" 2>/dev/null || true
+          }
+          trap cleanup_root_tag_key EXIT
+          trap 'exit 129' HUP
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+
+          printf '%s\n' "${ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY}" > "${key_file}"
+          unset ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY
+          chmod 600 "${key_file}"
+          if ! ssh-keygen -y -P '' -f "${key_file}" > "${public_key_file}"; then
+            echo "root-tag deploy key must be a valid unencrypted SSH private key" >&2
+            exit 1
+          fi
+          if ! grep -Eq '^ssh-ed25519 [A-Za-z0-9+/]+={0,3}$' "${public_key_file}"; then
+            echo "root-tag deploy key must use Ed25519" >&2
+            exit 1
+          fi
+
+          # Pinned from GitHub's published SSH host keys. Never replace this
+          # with host data returned by the same network connection.
+          printf '%s\n' \
+            'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' \
+            > "${known_hosts_file}"
+          host_fingerprint="$(ssh-keygen -lf "${known_hosts_file}" -E sha256 | awk 'NR == 1 {print $2}')"
+          if [[ "${host_fingerprint}" != 'SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU' ]]; then
+            echo "pinned GitHub SSH host key fingerprint is invalid" >&2
+            exit 1
+          fi
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git tag -a "${RELEASE_VERSION}" "${FROZEN_COMMIT}" -m "mss-boot-admin ${RELEASE_VERSION}"
+          test "$(git cat-file -t "refs/tags/${RELEASE_VERSION}")" = "tag"
+          test "$(git rev-parse "refs/tags/${RELEASE_VERSION}^{}")" = "${FROZEN_COMMIT}"
+
+          export GIT_SSH_COMMAND="ssh -F /dev/null -i ${key_file} -o IdentitiesOnly=yes -o UserKnownHostsFile=${known_hosts_file} -o GlobalKnownHostsFile=/dev/null -o StrictHostKeyChecking=yes -o BatchMode=yes -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no"
+          git push \
+            "git@github.com:${GITHUB_REPOSITORY}.git" \
+            "refs/tags/${RELEASE_VERSION}:refs/tags/${RELEASE_VERSION}"
+
+      - name: Require the exact annotated root tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          FROZEN_COMMIT: ${{ inputs.frozen_commit }}
+        run: |
+          set -euo pipefail
           remote_ready=false
           for attempt in $(seq 1 12); do
             if remote_ref="$(gh api "/repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_VERSION}" 2>/dev/null)" \
@@ -293,7 +364,10 @@ jobs:
               if jq -e \
                 --arg version "${RELEASE_VERSION}" \
                 --arg commit "${FROZEN_COMMIT}" \
-                '.tag == $version and .object.type == "commit" and .object.sha == $commit' \
+                '.tag == $version and
+                 .message == ("mss-boot-admin " + $version) and
+                 .object.type == "commit" and
+                 .object.sha == $commit' \
                 <<< "${remote_tag}" >/dev/null; then
                 remote_ready=true
                 break
@@ -307,89 +381,78 @@ jobs:
             exit 1
           fi
 
-      - name: Dispatch exact-tag root image and candidate assembly
+      - name: Require exact natural root-tag push runs
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ inputs.version }}
           FROZEN_COMMIT: ${{ inputs.frozen_commit }}
-          READINESS_RUN_ID: ${{ inputs.readiness_run_id }}
         run: |
           set -euo pipefail
-          exact_run_state() {
+          require_natural_push_run() {
             local workflow="$1"
             local title="$2"
+            local path=".github/workflows/${workflow}"
+            local attempt
             local runs
-            runs="$(gh api \
-              --method GET \
-              "/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs" \
-              -f event=workflow_dispatch \
-              -f head_sha="${FROZEN_COMMIT}" \
-              -f per_page=100)"
-            jq -r \
-              --arg branch "${RELEASE_VERSION}" \
-              --arg commit "${FROZEN_COMMIT}" \
-              --arg title "${title}" \
-              '[.workflow_runs[] | select(
-                .event == "workflow_dispatch" and
-                .head_branch == $branch and
-                .head_sha == $commit and
-                .display_title == $title
-              )] as $matches |
-              if any($matches[]; .status != "completed" or .conclusion == "success") then
-                "live-or-success"
-              elif ($matches | length) > 0 then
-                "failed"
-              else
-                "missing"
-              end' <<< "${runs}"
+            local tag_runs
+            local exact_runs
+            local exact_count
+            local status
+            local conclusion
+            local url
+
+            for attempt in $(seq 1 12); do
+              runs="$(gh api \
+                --method GET \
+                "/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs" \
+                -f event=push \
+                -f branch="${RELEASE_VERSION}" \
+                -f per_page=100)"
+              tag_runs="$(jq -c \
+                --arg branch "${RELEASE_VERSION}" \
+                --arg path "${path}" \
+                --arg title "${title}" \
+                '[.workflow_runs[] | select(
+                  .event == "push" and
+                  .head_branch == $branch and
+                  .path == $path and
+                  .display_title == $title
+                )]' <<< "${runs}")"
+              if jq -e \
+                --arg commit "${FROZEN_COMMIT}" \
+                'any(.[]; .head_sha != $commit)' <<< "${tag_runs}" >/dev/null; then
+                echo "${workflow} has a natural ${RELEASE_VERSION} push run for a non-frozen commit" >&2
+                exit 1
+              fi
+
+              exact_runs="$(jq -c \
+                --arg commit "${FROZEN_COMMIT}" \
+                '[.[] | select(.head_sha == $commit)]' <<< "${tag_runs}")"
+              exact_count="$(jq -r 'length' <<< "${exact_runs}")"
+              if [[ "${exact_count}" -gt 1 ]]; then
+                echo "${workflow} has duplicate exact natural root-tag push runs" >&2
+                exit 1
+              fi
+              if [[ "${exact_count}" -eq 1 ]]; then
+                status="$(jq -r '.[0].status' <<< "${exact_runs}")"
+                conclusion="$(jq -r '.[0].conclusion // ""' <<< "${exact_runs}")"
+                url="$(jq -r '.[0].html_url' <<< "${exact_runs}")"
+                if [[ "${status}" == "completed" && "${conclusion}" != "success" ]]; then
+                  echo "exact natural ${workflow} root-tag push run failed: ${url}" >&2
+                  exit 1
+                fi
+                printf 'Exact natural %s run is %s%s: %s\n' \
+                  "${workflow}" "${status}" "${conclusion:+/${conclusion}}" "${url}"
+                return 0
+              fi
+
+              echo "waiting for exact natural ${workflow} root-tag push run (attempt ${attempt}/12)"
+              if [[ "${attempt}" -lt 12 ]]; then sleep 5; fi
+            done
+
+            echo "exact natural ${workflow} root-tag push run did not appear" >&2
+            return 1
           }
 
-          image_title="Root Image publish ${RELEASE_VERSION}"
-          image_state="$(exact_run_state container.yml "${image_title}")"
-          case "${image_state}" in
-            live-or-success)
-              echo "Exact root image run is waiting, active, or successful; not dispatching it again."
-              ;;
-            failed)
-              echo "An exact root image run already failed; inspect or rerun that run without creating a duplicate dispatch." >&2
-              exit 1
-              ;;
-            missing)
-              gh workflow run container.yml \
-                --repo "${GITHUB_REPOSITORY}" \
-                --ref "${RELEASE_VERSION}" \
-                -f version="${RELEASE_VERSION}" \
-                -f publish=true \
-                -f readiness_run_id="${READINESS_RUN_ID}"
-              ;;
-            *)
-              echo "unexpected root image run state: ${image_state}" >&2
-              exit 1
-              ;;
-          esac
-
-          release_title="Root Release candidate ${RELEASE_VERSION}"
-          release_state="$(exact_run_state release.yml "${release_title}")"
-          case "${release_state}" in
-            live-or-success)
-              echo "Exact root release candidate is waiting, active, or successful; not dispatching it again."
-              ;;
-            failed)
-              echo "An exact root release candidate already failed; inspect or rerun that run without creating a duplicate dispatch." >&2
-              exit 1
-              ;;
-            missing)
-              gh workflow run release.yml \
-                --repo "${GITHUB_REPOSITORY}" \
-                --ref "${RELEASE_VERSION}" \
-                -f version="${RELEASE_VERSION}" \
-                -f feature_freeze_confirmed=true \
-                -f publish=false \
-                -f manual_evidence_complete=false \
-                -f readiness_run_id="${READINESS_RUN_ID}"
-              ;;
-            *)
-              echo "unexpected root release run state: ${release_state}" >&2
-              exit 1
-              ;;
-          esac
+          require_natural_push_run container.yml "Container Image ${RELEASE_VERSION}"
+          require_natural_push_run release.yml "Root Release ${RELEASE_VERSION}"
