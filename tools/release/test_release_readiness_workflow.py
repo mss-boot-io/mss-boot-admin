@@ -98,6 +98,21 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             self.steps.index(playwright_install),
             self.steps.index(phase),
         )
+        browser_secret = self.step("Create ephemeral browser administrator secret")
+        self.assertEqual(browser_secret["if"], RUNTIME_PHASE_CONDITION)
+        self.assertIn(
+            'password="MssE2E-A1-$(openssl rand -hex 24)"',
+            browser_secret["run"],
+        )
+        self.assertIn('echo "::add-mask::${password}"', browser_secret["run"])
+        self.assertIn(
+            'echo "MSS_E2E_PASSWORD=${password}" >> "${GITHUB_ENV}"',
+            browser_secret["run"],
+        )
+        self.assertLess(
+            self.steps.index(browser_secret),
+            self.steps.index(phase),
+        )
         self.assertEqual(self.step("Setup pnpm")["with"]["version"], "10.34.5")
 
     def test_publication_authority_phases_execute_and_only_checkpoint_plans(self):
@@ -106,6 +121,7 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             "Setup Node",
             "Install frontend dependencies",
             "Install Playwright Chromium",
+            "Create ephemeral browser administrator secret",
         ):
             self.assertEqual(self.step(step_name)["if"], RUNTIME_PHASE_CONDITION)
 
