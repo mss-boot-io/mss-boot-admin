@@ -681,11 +681,12 @@ cmp --silent "${work_dir}/setup-one.normalized.json" "${work_dir}/setup-two.norm
 jq -e '.success == true and ([.services[].status] | all(. == "stopped"))' "${work_dir}/dev-status.json" >/dev/null
 
 set +e
-"${mss}" --root "${host_root}" upgrade admin v1.3.5 "${contributor_registry_args[@]}" --format json > "${work_dir}/mismatch.stdout" 2> "${work_dir}/mismatch.stderr"
+mismatch_version=v9.9.9
+"${mss}" --root "${host_root}" upgrade admin "${mismatch_version}" "${contributor_registry_args[@]}" --format json > "${work_dir}/mismatch.stdout" 2> "${work_dir}/mismatch.stderr"
 mismatch_status=$?
 set -e
 [[ ${mismatch_status} -ne 0 ]] || { echo "mismatched embedded upgrade unexpectedly succeeded" >&2; exit 1; }
-grep -Eq 'install the matching mss v1.3.5' "${work_dir}/mismatch.stderr"
+grep -Fq "install the matching mss ${mismatch_version}" "${work_dir}/mismatch.stderr"
 
 if [[ "${run_upgrade}" = true ]]; then
   business_file="${host_root}/internal/modules/custom/owned.go"
