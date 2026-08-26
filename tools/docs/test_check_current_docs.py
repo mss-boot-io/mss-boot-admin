@@ -25,11 +25,11 @@ class CurrentDocsContractTest(unittest.TestCase):
                 "git clone https://example.invalid/foundation\n"
                 "go run ./cmd/mss verify --changed\n"
                 "mss upgrade admin v1.3.2 --foundation ../foundation\n"
-                "sh ./install-mss.sh --version v1.3.4\n",
+                "sh ./install-mss.sh --version v1.3.5\n",
                 encoding="utf-8",
             )
             errors = check_current_docs.forbidden_content_errors(
-                root, "v1.3.4", [Path("page.md")]
+                root, "v1.3.5", [Path("page.md")]
             )
         joined = "\n".join(errors)
         self.assertIn("Foundation clone command", joined)
@@ -41,31 +41,51 @@ class CurrentDocsContractTest(unittest.TestCase):
     def test_allows_bounded_release_history_but_rejects_stale_commands(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            relative = Path("docs/docs/releases/v1-3-4.md")
+            relative = Path("docs/docs/releases/v1-3-5.md")
             page = root / relative
             page.parent.mkdir(parents=True)
             page.write_text(
-                "v1.3.3 is immutable component-partial history; "
-                "@mss-boot-io/admin-web@1.3.3 was not published.\n",
+                "v1.3.4 is immutable component-partial history; "
+                "@mss-boot-io/admin-web@1.3.4 was not published.\n",
                 encoding="utf-8",
             )
             self.assertEqual(
                 check_current_docs.forbidden_content_errors(
-                    root, "v1.3.4", [relative]
+                    root, "v1.3.5", [relative]
                 ),
                 [],
             )
 
             page.write_text(
-                "v1.3.3 is immutable component-partial history.\n"
-                "mss upgrade admin v1.3.3\n",
+                "v1.3.4 is immutable component-partial history.\n"
+                "mss upgrade admin v1.3.4\n",
                 encoding="utf-8",
             )
             errors = check_current_docs.forbidden_content_errors(
-                root, "v1.3.4", [relative]
+                root, "v1.3.5", [relative]
             )
         self.assertTrue(
-            any("stale distribution token v1.3.3" in error for error in errors)
+            any("stale distribution token v1.3.4" in error for error in errors)
+        )
+
+    def test_rejects_historical_version_inside_current_code_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            relative = Path("docs/docs/releases/v1-3-5.md")
+            page = root / relative
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                "v1.3.4 remains immutable history.\n"
+                "```text\n"
+                "candidate metadata: v1.3.4\n"
+                "```\n",
+                encoding="utf-8",
+            )
+            errors = check_current_docs.forbidden_content_errors(
+                root, "v1.3.5", [relative]
+            )
+        self.assertTrue(
+            any("stale distribution token v1.3.4" in error for error in errors)
         )
 
     def test_rejects_manual_bootstrap_password_prompts(self) -> None:
@@ -78,7 +98,7 @@ class CurrentDocsContractTest(unittest.TestCase):
                 encoding="utf-8",
             )
             errors = check_current_docs.forbidden_content_errors(
-                root, "v1.3.4", [Path("page.md")]
+                root, "v1.3.5", [Path("page.md")]
             )
         joined = "\n".join(errors)
         self.assertIn("manual shell bootstrap password prompt", joined)
@@ -95,7 +115,7 @@ class CurrentDocsContractTest(unittest.TestCase):
                 encoding="utf-8",
             )
             errors = check_current_docs.forbidden_content_errors(
-                root, "v1.3.4", [Path("page.md")]
+                root, "v1.3.5", [Path("page.md")]
             )
         joined = "\n".join(errors)
         self.assertIn("retired monolithic application config", joined)
@@ -169,10 +189,10 @@ class CurrentDocsContractTest(unittest.TestCase):
             complete = (
                 "Back up code and database. Hand-assembled repositories missing their manifest migrate to a clean baseline.\n"
                 "mss --version\nmss-mcp --version\n.mss/blueprint-manifest.json\n"
-                "mss upgrade admin v1.3.4\n"
-                "mss upgrade admin v1.3.4 --apply --yes\n"
+                "mss upgrade admin v1.3.5\n"
+                "mss upgrade admin v1.3.5 --apply --yes\n"
                 "mss doctor --strict\nmss verify --all\n"
-                "mss upgrade admin v1.3.4\n"
+                "mss upgrade admin v1.3.5\n"
             )
             for relative in check_current_docs.UPGRADE_CONTRACT_FILES:
                 path = root / relative
@@ -181,7 +201,7 @@ class CurrentDocsContractTest(unittest.TestCase):
             self.assertEqual(check_current_docs.upgrade_contract_errors(root), [])
 
             incomplete = root / check_current_docs.UPGRADE_CONTRACT_FILES[0]
-            incomplete.write_text("mss upgrade admin v1.3.4\n", encoding="utf-8")
+            incomplete.write_text("mss upgrade admin v1.3.5\n", encoding="utf-8")
             errors = check_current_docs.upgrade_contract_errors(root)
             self.assertTrue(any("blueprint-manifest" in error for error in errors))
             self.assertTrue(any("final no-op" in error for error in errors))
@@ -233,8 +253,8 @@ class CurrentDocsContractTest(unittest.TestCase):
             packages = root / "docs/docs/getting-started/packages.md"
             packages.parent.mkdir(parents=True)
             packages.write_text(
-                "go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.4\n"
-                "go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.4\n"
+                "go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5\n"
+                "go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5\n"
                 "$previousGowork\nRemove-Item Env:GOWORK\n",
                 encoding="utf-8",
             )
@@ -271,7 +291,7 @@ class CurrentDocsContractTest(unittest.TestCase):
             root = Path(temp)
             contributor = root / "CONTRIBUTING.md"
             contributor.write_text(
-                "v1.3.4 快速开始\n"
+                "v1.3.5 快速开始\n"
                 "本文只适用于修改 Foundation 本身的贡献者\n"
                 "go run ./cmd/mss context\n"
                 "go run ./cmd/mss verify --changed\n"
@@ -280,7 +300,7 @@ class CurrentDocsContractTest(unittest.TestCase):
             )
             monorepo = root / "MONOREPO.md"
             monorepo.write_text(
-                "The fail-closed v1.3.4 publication order is Framework, Admin, "
+                "The fail-closed v1.3.5 publication order is Framework, Admin, "
                 "Admin Web, protected Root tag promotion, Root release, Docs, and "
                 "finally npm Trusted Publishing.\n",
                 encoding="utf-8",
@@ -294,13 +314,13 @@ class CurrentDocsContractTest(unittest.TestCase):
             changelog = root / "CHANGELOG.md"
             changelog.write_text(
                 "## [Unreleased]\n\nNo unreleased changes are recorded.\n\n"
-                "## [v1.3.4]\n",
+                "## [v1.3.5]\n",
                 encoding="utf-8",
             )
             self.assertEqual(check_current_docs.repository_context_errors(root), [])
 
             changelog.write_text(
-                "## [Unreleased]\n\n- future change\n\n## [v1.3.4]\n",
+                "## [Unreleased]\n\n- future change\n\n## [v1.3.5]\n",
                 encoding="utf-8",
             )
             self.assertEqual(check_current_docs.repository_context_errors(root), [])
@@ -320,7 +340,7 @@ class CurrentDocsContractTest(unittest.TestCase):
             )
             changelog.write_text(
                 "## [Unreleased]\n\n- hidden change\n\n"
-                "No unreleased changes are recorded.\n\n## [v1.3.4]\n",
+                "No unreleased changes are recorded.\n\n## [v1.3.5]\n",
                 encoding="utf-8",
             )
             joined = "\n".join(

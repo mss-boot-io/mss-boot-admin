@@ -1,10 +1,10 @@
 ---
 title: 当前能力与边界
 order: 2
-description: v1.3.4 Complete Admin Distribution 的实现能力与明确非目标
+description: v1.3.5 Complete Admin Distribution 的实现能力与明确非目标
 ---
 
-# v1.3.4 当前能力与边界
+# v1.3.5 当前能力与边界
 
 机器可执行事实以 [`.mss/project.yaml`](https://github.com/mss-boot-io/mss-boot-admin/blob/main/.mss/project.yaml)
 和 [`.mss/capabilities.yaml`](https://github.com/mss-boot-io/mss-boot-admin/blob/main/.mss/capabilities.yaml)

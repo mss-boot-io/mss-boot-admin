@@ -1,10 +1,10 @@
 ---
 title: 配置指南
 order: 3
-description: v1.3.4 Thin Host 的配置来源、安全优先级和部署检查
+description: v1.3.5 Thin Host 的配置来源、安全优先级和部署检查
 ---
 
-# v1.3.4 配置指南
+# v1.3.5 配置指南
 
 生成仓库的 `config/` 只保存可公开的默认值和说明。环境差异与密钥由部署平台注入，
 不要提交真实 DSN、密码、OAuth secret、Cookie key 或云凭据。

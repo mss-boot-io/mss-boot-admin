@@ -18,6 +18,7 @@ CORE_CURRENT_FILES = (
     Path("README.zh-CN.md"),
     Path("CONTRIBUTING.md"),
     Path("MONOREPO.md"),
+    Path("SECURITY.md"),
     Path("admin/README.md"),
     Path("mss-boot/README.md"),
     Path("mss-boot/README.Zh-cn.md"),
@@ -30,7 +31,7 @@ CORE_CURRENT_FILES = (
     Path("docs/docs/getting-started/tooling.md"),
     Path("docs/docs/getting-started/mss-shop.md"),
     Path("docs/docs/releases/index.md"),
-    Path("docs/docs/releases/v1-3-4.md"),
+    Path("docs/docs/releases/v1-3-5.md"),
 )
 
 CORE_LINK_FILES = CORE_CURRENT_FILES + (
@@ -62,7 +63,7 @@ UPGRADE_CONTRACT_FILES = (
     Path("docs/docs/getting-started/index.md"),
     Path("docs/docs/guide/faq.md"),
     Path("docs/docs/agent/blueprints-and-upgrades.md"),
-    Path("docs/docs/releases/v1-3-4.md"),
+    Path("docs/docs/releases/v1-3-5.md"),
     Path("templates/application/README.md"),
 )
 
@@ -132,7 +133,7 @@ REMOVED_ADMIN_PAGES = {
     "ui-experience-and-static-delivery.md",
 }
 
-ALLOWED_RELEASE_ROOT = {"index.md", "v1-3-4.md"}
+ALLOWED_RELEASE_ROOT = {"index.md", "v1-3-5.md"}
 REQUIRED_ARCHIVE_PAGES = {
     "index.md",
     "v1-0-0.md",
@@ -147,6 +148,7 @@ REQUIRED_ARCHIVE_PAGES = {
     "v1-3-1.md",
     "v1-3-2.md",
     "v1-3-3.md",
+    "v1-3-4.md",
 }
 REQUIRED_ADRS = {
     "2026-08-04-admin-module-boundary-and-coverage.md",
@@ -181,8 +183,8 @@ OPERATIONAL_VERSION_LINE = re.compile(
     re.IGNORECASE,
 )
 HISTORICAL_RELEASE_VERSION_REFERENCES = {
-    Path("docs/docs/releases/index.md"): {"v1.3.3"},
-    Path("docs/docs/releases/v1-3-4.md"): {"v1.3.3"},
+    Path("docs/docs/releases/index.md"): {"v1.3.4"},
+    Path("docs/docs/releases/v1-3-5.md"): {"v1.3.4"},
 }
 FORBIDDEN_SOURCE_COMMANDS = {
     "Foundation clone command": re.compile(r"\bgit\s+clone\b"),
@@ -238,6 +240,7 @@ def active_markdown_paths(root: Path) -> list[Path]:
     paths = [
         Path("README.md"),
         Path("README.zh-CN.md"),
+        Path("SECURITY.md"),
         Path("admin/README.md"),
         Path("mss-boot/README.md"),
         Path("mss-boot/README.Zh-cn.md"),
@@ -374,7 +377,7 @@ def upgrade_contract_errors(root: Path) -> list[str]:
             if marker not in text:
                 errors.append(f"{path}: upgrade contract is missing {marker}")
         upgrade_commands = re.findall(
-            r"mss upgrade admin (?:v1\.3\.4|__MSS_DISTRIBUTION_VERSION__)",
+            r"mss upgrade admin (?:v1\.3\.5|__MSS_DISTRIBUTION_VERSION__)",
             text,
         )
         if len(upgrade_commands) < 3:
@@ -437,8 +440,8 @@ def package_and_container_contract_errors(root: Path) -> list[str]:
     if packages.is_file():
         text = packages.read_text(encoding="utf-8")
         for marker in (
-            "go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.4",
-            "go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.4",
+            "go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5",
+            "go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5",
             "$previousGowork",
             "Remove-Item Env:GOWORK",
         ):
@@ -462,7 +465,7 @@ def package_and_container_contract_errors(root: Path) -> list[str]:
             if not re.search(pattern, text, re.MULTILINE):
                 errors.append(
                     "templates/application/Dockerfile: every base image must use the "
-                    f"v1.3.4-qualified tag and immutable digest ({pattern})"
+                    f"v1.3.5-qualified tag and immutable digest ({pattern})"
                 )
     else:
         errors.append("missing Thin Host templates/application/Dockerfile")
@@ -489,7 +492,7 @@ def repository_context_errors(root: Path) -> list[str]:
     else:
         text = contributor.read_text(encoding="utf-8")
         for marker in (
-            "v1.3.4 快速开始",
+            "v1.3.5 快速开始",
             "本文只适用于修改 Foundation 本身的贡献者",
             "go run ./cmd/mss context",
             "go run ./cmd/mss verify --changed",
@@ -510,12 +513,12 @@ def repository_context_errors(root: Path) -> list[str]:
     else:
         normalized = " ".join(monorepo.read_text(encoding="utf-8").split())
         expected_order = (
-            "The fail-closed v1.3.4 publication order is Framework, Admin, "
+            "The fail-closed v1.3.5 publication order is Framework, Admin, "
             "Admin Web, protected Root tag promotion, Root release, Docs, and "
             "finally npm Trusted Publishing."
         )
         if expected_order not in normalized:
-            errors.append("MONOREPO.md: v1.3.4 publication order is incomplete or stale")
+            errors.append("MONOREPO.md: v1.3.5 publication order is incomplete or stale")
         if "After this migration is merged" in normalized:
             errors.append("MONOREPO.md: completed import must not remain future work")
 
@@ -622,9 +625,9 @@ def collect_errors(root: Path = ROOT) -> list[str]:
     except ValueError as exc:
         return [str(exc)]
 
-    if version != "v1.3.4":
+    if version != "v1.3.5":
         errors.append(
-            f"documentation contract is for v1.3.4, release policy declares {version}"
+            f"documentation contract is for v1.3.5, release policy declares {version}"
         )
 
     for path in CORE_CURRENT_FILES:
@@ -720,7 +723,7 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             )
         for page in sorted(archive.glob("v*.md")):
             text = page.read_text(encoding="utf-8")
-            if "v1.3.4" not in text or "/getting-started" not in text:
+            if "v1.3.5" not in text or "/getting-started" not in text:
                 errors.append(
                     f"{page.relative_to(root)}: missing read-only historical banner"
                 )
@@ -754,9 +757,9 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         "install-mss.ps1",
         "$env:Path",
         "mss new app",
-        "mss upgrade admin v1.3.4",
+        "mss upgrade admin v1.3.5",
         "mss-mcp",
-        "@mss-boot-io/admin-web@1.3.4",
+        "@mss-boot-io/admin-web@1.3.5",
         "MSS_ADMIN_INITIAL_PASSWORD",
     )
     for marker in aligned_markers:
@@ -774,7 +777,7 @@ def main() -> int:
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    print("current documentation contract OK: v1.3.4 package-first, links and archive")
+    print("current documentation contract OK: v1.3.5 package-first, links and archive")
     return 0
 
 

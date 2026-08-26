@@ -1,5 +1,5 @@
 ---
-title: v1.3.4 发布与部署验证清单
+title: v1.3.5 发布与部署验证清单
 order: 28
 nav:
   order: 1
@@ -11,14 +11,14 @@ keywords: [admin release checklist smoke regression]
 ## 使用方式
 
 本清单区分使用方代码门禁与生产部署巡检。Foundation 发布方的组件级资格验证由
-[v1.3.4 发布合同](/releases/v1-3-4)单独治理。
+[v1.3.5 发布合同](/releases/v1-3-5)单独治理。
 
 ## 一、发布前检查
 
 ### 构建检查
 
 - [ ] Thin Host 根目录执行 `mss verify --all` 成功
-- [ ] 后端和 Admin Web 依赖都精确为 v1.3.4，锁文件无漂移
+- [ ] 后端和 Admin Web 依赖都精确为 v1.3.5，锁文件无漂移
 - [ ] 文档如有更新，关键链接可访问
 
 ### 核心能力检查
@@ -62,4 +62,4 @@ keywords: [admin release checklist smoke regression]
 ## 推荐阅读
 
 - [集成测试指南](/admin/integration-test-guide)
-- [v1.3.4 发布合同](/releases/v1-3-4)
+- [v1.3.5 发布合同](/releases/v1-3-5)

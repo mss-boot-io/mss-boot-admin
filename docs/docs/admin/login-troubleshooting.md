@@ -1,14 +1,14 @@
 ---
-title: v1.3.4 登录与会话排障
+title: v1.3.5 登录与会话排障
 order: 14
 nav:
   order: 1
   title: admin
-description: 排查 v1.3.4 HttpOnly Cookie 会话、CSRF、刷新、权限和同源代理问题
-keywords: [v1.3.4 admin login session cookie csrf troubleshooting]
+description: 排查 v1.3.5 HttpOnly Cookie 会话、CSRF、刷新、权限和同源代理问题
+keywords: [v1.3.5 admin login session cookie csrf troubleshooting]
 ---
 
-# v1.3.4 登录与会话排障
+# v1.3.5 登录与会话排障
 
 浏览器登录使用服务端会话和 HttpOnly Cookie；浏览器不会接收或保存 Admin JWT，
 也不应把个人访问令牌（PAT）当作登录兜底。排查时只记录请求路径、状态码、错误 key
@@ -82,7 +82,7 @@ Cookie、刷新接口是否成功。不要尝试把 Cookie 复制到 localStorag
 
 ## 提交问题时
 
-提供 v1.3.4 精确版本/提交、页面和 API 路径、状态码、错误 key、发生时间、是否仅影响
+提供 v1.3.5 精确版本/提交、页面和 API 路径、状态码、错误 key、发生时间、是否仅影响
 特定用户或角色、无痕窗口是否可复现。响应头只保留无敏感信息的字段，截图前遮盖所有
 Cookie、CSRF、PAT、邮箱和业务数据。
 

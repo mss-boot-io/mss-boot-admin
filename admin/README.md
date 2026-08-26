@@ -1,14 +1,16 @@
 # Importable Admin application
 
-`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.4` is the complete Admin
+The v1.3.5 candidate publishes
+`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5` as the complete Admin
 backend for a Thin Host. It owns authentication, authorization, configuration,
 migrations, HTTP delivery, and the protected compile-time business extension
-boundary.
+boundary. Use the command below only after the public module reconciles with
+the coordinated release commit.
 
 Add the exact public module:
 
 ```sh
-go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.4
+go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5
 ```
 
 Compose owned business modules explicitly:

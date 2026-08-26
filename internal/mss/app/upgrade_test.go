@@ -109,13 +109,13 @@ func TestValidateEmbeddedAdminUpgradeVersionRequiresMatchingReleaseTool(t *testi
 	t.Cleanup(func() {
 		buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp = originalVersion, originalCommit, originalTimestamp
 	})
-	buildinfo.Version = "v1.3.4"
+	buildinfo.Version = "v1.3.5"
 	buildinfo.Commit = strings.Repeat("a", 40)
 	buildinfo.Timestamp = "2026-08-25T12:34:56Z"
-	if err := validateEmbeddedAdminUpgradeVersion("v1.3.4"); err != nil {
+	if err := validateEmbeddedAdminUpgradeVersion("v1.3.5"); err != nil {
 		t.Fatalf("matching embedded version error = %v", err)
 	}
-	if err := validateEmbeddedAdminUpgradeVersion("v1.3.5"); err == nil || !strings.Contains(err.Error(), "install the matching mss v1.3.5") {
+	if err := validateEmbeddedAdminUpgradeVersion("v9.9.9"); err == nil || !strings.Contains(err.Error(), "install the matching mss v9.9.9") {
 		t.Fatalf("mismatched embedded version error = %v", err)
 	}
 }

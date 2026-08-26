@@ -714,7 +714,7 @@ spec:
         - internal/mss
         - tools/install
       guidance: >-
-        The v1.3.4 release bundle distributes checksummed cross-platform tools with embedded release
+        The v1.3.5 release bundle distributes checksummed cross-platform tools with embedded release
         provenance and the matching application Blueprint; only that bundle creates complete Thin Hosts
         outside a Foundation checkout and upgrades them by exact Admin Distribution version. Exact
         `go install` of cmd/mss and cmd/mss-mcp remains a public command-package compilation path, but
@@ -758,8 +758,8 @@ spec:
         permission and menu metadata, typed Ant Design 6 client/page/routes/locales, generated module
         documentation, and semantic browser E2E. The Supplier plan is complete with zero deferred
         projections and is exercised through repository-external Thin Host generation, build,
-        authorization, browser, upgrade, preservation, and two-run idempotency gates. Stable
-        v1.3.4 public Go and npm consumption plus the package-first mss-shop exemplar are the current
+        authorization, browser, upgrade, preservation, and two-run idempotency gates. Exact
+        v1.3.5 public Go and npm consumption plus the package-first mss-shop exemplar are the current
         qualification target. Keep the capability beta until that second
         representative domain proves the schema without weakening deterministic or
         generated/custom ownership boundaries.
@@ -771,6 +771,7 @@ spec:
       paths:
         - .mss/features/complete-admin-distribution-thin-host.yaml
         - .mss/features/foundation-v1-3-4-release-recovery.yaml
+        - .mss/features/foundation-v1-3-5-release-recovery.yaml
         - .mss/project.yaml
         - .mss/lock.yaml
         - .mss/blueprints/management-system.yaml
@@ -793,9 +794,13 @@ spec:
         one-runtime, deterministic Thin Host generation and upgrade, authorization, and browser E2E
         gates; v1.3.0-rc.6 and stable v1.3.2 remain immutable historical evidence. The v1.3.3
         partial train stopped before root, Docs, and npmjs publication and cannot be reused. The
-        v1.3.4 recovery target removes the Foundation-checkout dependency from application creation
-        and Distribution upgrade, and requires public Go/npm resolution plus post-publication
-        reconciliation. The capability remains beta until a
+        v1.3.4 partial train published Framework, Admin, and Admin Web from
+        d9b210d6672800f84f6403496a3ae871fb2aea9f, but Root, Docs, and npmjs remained unpublished
+        after the Thin Host frozen lock lost the exact frontend tarball URL. Its correction merged
+        in 99a4f1ad157b934841786be031e7c55b8e25f5b5. The one final v1.3.5 target removes the
+        Foundation-checkout dependency from application creation and Distribution upgrade, and
+        requires public Go/npm resolution plus post-publication reconciliation. The capability
+        remains beta until a
         second representative domain and a later stable-to-stable Thin Host upgrade prove the
         extension and upgrade boundaries again.
         Do not add runtime plugins, micro-frontends, core feature selection, telemetry, import records,
@@ -816,7 +821,7 @@ spec:
       paths:
         - cmd/mss-mcp
         - tools/install
-      guidance: The v1.3.4 tool archive installs mss-mcp beside mss; it remains a thin protocol adapter over stable CLI packages and write tools default to dry-run.
+      guidance: The v1.3.5 tool archive installs mss-mcp beside mss; it remains a thin protocol adapter over stable CLI packages and write tools default to dry-run.
 
     - id: agent.evals
       displayName: Agent Task Evaluations
@@ -835,6 +840,7 @@ spec:
         - .mss/lock.yaml
         - .mss/features/foundation-v1-3-3-package-first-release.yaml
         - .mss/features/foundation-v1-3-4-release-recovery.yaml
+        - .mss/features/foundation-v1-3-5-release-recovery.yaml
         - .github/workflows/foundation-compatibility.yml
         - docs/docs/architecture/complete-admin-distribution-and-thin-business-host.zh-CN.md
         - internal/mss/app
@@ -843,7 +849,7 @@ spec:
         - internal/mss/mcp
         - .mss/blueprints
       guidance: >-
-        v1.3.4 preserves strict Foundation, Blueprint, generator, snapshot, lock, and manifest
+        v1.3.5 preserves strict Foundation, Blueprint, generator, snapshot, lock, and manifest
         identities while resolving the requested published Distribution from the mss binary's
         embedded release source. A local --foundation path is an explicit Foundation-contributor
         override, never a consumer prerequisite. Plan remains read-only, apply is confirmed and
@@ -867,6 +873,7 @@ spec:
         - .mss/features/foundation-v1-3-2-release.yaml
         - .mss/features/foundation-v1-3-3-package-first-release.yaml
         - .mss/features/foundation-v1-3-4-release-recovery.yaml
+        - .mss/features/foundation-v1-3-5-release-recovery.yaml
         - .mss/features/admin-antd-v6-application.yaml
         - .mss/features/admin-antd-v6-cutover-retirement.yaml
         - .mss/features/admin-antd-v6-release-polish.yaml
@@ -902,10 +909,14 @@ spec:
       guidance: >-
         Treat Unreleased, planned, preview, branches, and local workspace replacements as non-stable.
         Published historical versions remain immutable and their candidate evidence is not reusable.
-        v1.3.2 remains the immutable current stable train, and v1.3.3 remains immutable partial-publication
-        evidence that cannot authorize a later repair. v1.3.4 is the reviewed target for root, Framework,
-        importable Admin, the sole Ant Design V6 frontend, Docs, npm, and the
-        checksummed mss/mss-mcp tool bundles. It must be published in that order from one exact clean
-        merged-main commit and reconciled through public Go, npm, GitHub Release, image, Docs, and
+        v1.3.2 remains the immutable current stable train, and v1.3.3 remains immutable
+        partial-publication evidence that cannot authorize a later repair. v1.3.4 is also immutable
+        partial-publication evidence: Framework, Admin, and Admin Web were published from
+        d9b210d6672800f84f6403496a3ae871fb2aea9f, while Root, Docs, and npmjs were not published after
+        the Thin Host frozen lock discarded the frontend tarball URL; the correction merged in
+        99a4f1ad157b934841786be031e7c55b8e25f5b5. v1.3.5 is the one final reviewed target for root,
+        Framework, importable Admin, the sole Ant Design V6 frontend, Docs, npm, and the checksummed
+        mss/mss-mcp tool bundles. It must be published in that order from one exact clean merged-main
+        commit and reconciled through public Go, npm, GitHub Release, image, Docs, and
         installed-consumer probes. Any repair requires a follow-up PR and a new merged-main commit;
         no workflow may mutate an already-public Release or reuse historical evidence.

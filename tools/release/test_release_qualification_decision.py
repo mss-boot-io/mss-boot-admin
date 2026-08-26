@@ -13,7 +13,7 @@ sys.path.insert(0, str(TOOLS_DIR))
 import release_qualification_decision as DECISION  # noqa: E402
 
 
-TARGET_VERSION = "v1.3.4"
+TARGET_VERSION = "v1.3.5"
 
 
 class ReleaseQualificationDecisionTest(unittest.TestCase):
@@ -102,7 +102,7 @@ class ReleaseQualificationDecisionTest(unittest.TestCase):
         value["features"].append(".mss/features/storage-runtime-v2.yaml")
         contract.write_text(json.dumps(value), encoding="utf-8")
         with self.assertRaisesRegex(
-            DECISION.QualificationDecisionError, "exact active v1.3.4 Feature set"
+            DECISION.QualificationDecisionError, "exact active v1.3.5 Feature set"
         ):
             self.build(root, commit)
 

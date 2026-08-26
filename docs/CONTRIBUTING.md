@@ -22,7 +22,7 @@ newer train.
 
 - Target `main` through a pull request; do not publish Docs from a topic branch.
 - Use a Conventional Commits title, for example
-  `docs(release): document v1.3.4 upgrade`.
+  `docs(release): document v1.3.5 upgrade`.
 - State the applicable version, branch, or commit for current-behavior claims.
 - Use repository-relative source paths and links. Public GitHub links must point
   to `mss-boot-io/mss-boot-admin` unless the target is genuinely external.

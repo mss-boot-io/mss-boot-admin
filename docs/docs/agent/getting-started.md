@@ -1,7 +1,7 @@
 ---
 title: 在 Thin Host 中开始
 order: 2
-description: Agent 进入已生成 v1.3.4 Thin Host 后的检查、规划和交付顺序
+description: Agent 进入已生成 v1.3.5 Thin Host 后的检查、规划和交付顺序
 ---
 
 # 在 Thin Host 中开始

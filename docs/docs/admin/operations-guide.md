@@ -1,16 +1,16 @@
 ---
-title: v1.3.4 运行与运营指南
+title: v1.3.5 运行与运营指南
 order: 19
 nav:
   order: 1
   title: admin
 description: Thin Host 的安全运行、变更、任务、通知、监控与故障处置入口
-keywords: [v1.3.4 admin operations task notice monitoring rollback]
+keywords: [v1.3.5 admin operations task notice monitoring rollback]
 ---
 
-# v1.3.4 运行与运营指南
+# v1.3.5 运行与运营指南
 
-本文面向通过公开 v1.3.4 工具和包生成的 Thin Host。应用仓库只维护业务模块、组合胶水
+本文面向通过公开 v1.3.5 工具和包生成的 Thin Host。应用仓库只维护业务模块、组合胶水
 和非敏感配置；不要复制 Foundation 源码、旧版配置文件或历史部署脚本。
 
 ## 日常操作入口
@@ -146,16 +146,16 @@ mss setup
 先查看只读计划：
 
 ```sh
-mss upgrade admin v1.3.4
+mss upgrade admin v1.3.5
 ```
 
 只有确认无冲突后才应用：
 
 ```sh
-mss upgrade admin v1.3.4 --apply --yes
+mss upgrade admin v1.3.5 --apply --yes
 mss doctor --strict
 mss verify --all
-mss upgrade admin v1.3.4
+mss upgrade admin v1.3.5
 ```
 
 升级只管理 Blueprint 声明的 Thin Host 文件，业务所有和未知文件必须保留。应用后验证

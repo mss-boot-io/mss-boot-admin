@@ -6,18 +6,49 @@ tag namespaces.
 
 ## [Unreleased]
 
+No unreleased changes are recorded.
+
+## [v1.3.5] - 2026-08-26
+
+This coordinated patch completes the package-first distribution from one new
+merged-main commit after v1.3.4 stopped as an immutable component-partial
+train. It does not move or overwrite any v1.3.4 tag, Release, package, or
+artifact.
+
 ### Fixed
 
 - Preserve the exact Admin Web package tarball URL in generated Thin Host
   lockfiles, and keep the downstream compatibility registry fixture aligned
   with that metadata contract so frozen installs never infer a registry path.
 
+### Changed
+
+- Coordinate the Framework, Admin, Admin Web, Root tools, Docs, and official
+  npmjs package under the single v1.3.5 distribution identity.
+- Jointly requalify the consolidated Framework Go, Admin Web, Docs, and pinned
+  GitHub Actions dependency sets instead of releasing their equivalent closed
+  Dependabot proposals as separate trains.
+- Keep package-first installation and upgrades as the adopter path: install the
+  versioned tools, generate a Thin Host in an empty directory, and consume exact
+  Go and npm packages without cloning the Foundation repository.
+- Requalify the full external-consumer, release-governance, documentation,
+  browser, upgrade, and public-reconciliation gates before any v1.3.5 object is
+  published.
+
 ## [v1.3.4] - 2026-08-25
 
-This coordinated patch repairs the package-first release path after v1.3.3
-stopped as an immutable component-partial train. It uses a new merged-main
-commit and a complete v1.3.4 release train; no v1.3.3 tag, Release, package,
-or artifact is moved or overwritten.
+Status: **published components / immutable partial train**. Framework
+`mss-boot/v1.3.4`, Admin `admin/v1.3.4`, and Admin Web
+`web/antd-v6/v1.3.4` were published from
+`d9b210d6672800f84f6403496a3ae871fb2aea9f`. Root pre-publication then found
+that generated Thin Host frozen lockfiles discarded the exact Admin Web
+tarball URL and inferred an invalid registry path. Root `v1.3.4`, Root tools,
+Docs `docs/v1.3.4`, and npmjs `@mss-boot-io/admin-web@1.3.4` were not
+published. These identities remain immutable; the repair uses v1.3.5.
+
+This coordinated patch repaired the package-first release path after v1.3.3
+stopped as an immutable component-partial train. It used a new merged-main
+commit and never moved or overwrote any v1.3.3 identity.
 
 ### Fixed
 
@@ -51,7 +82,8 @@ Status: **published components / immutable partial train**. Framework
 found that the generated Admin checksum omitted cmd/go's inherited repository
 `LICENSE`, so Root `v1.3.3`, Root tools, Docs `docs/v1.3.3`, and npmjs
 `@mss-boot-io/admin-web@1.3.3` were not published. These identities remain
-immutable; the repair uses v1.3.4.
+immutable. The first repair used v1.3.4, which also stopped as a component-
+partial train; the coordinated complete repair uses v1.3.5.
 
 This patch defines the package-first Admin Distribution: a user installs the
 versioned tools, creates a Thin Host in an empty directory, and imports the

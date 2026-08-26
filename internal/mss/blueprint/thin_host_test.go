@@ -208,8 +208,8 @@ func TestApplicationTemplateSeparatesManagedFacadesFromBusinessOwnedRegistries(t
 	if err != nil {
 		t.Fatalf("load management-system Blueprint: %v", err)
 	}
-	if blueprint.Metadata.Version != "0.6.0" {
-		t.Fatalf("management-system Blueprint version = %q, want 0.6.0", blueprint.Metadata.Version)
+	if blueprint.Metadata.Version != "0.6.1" {
+		t.Fatalf("management-system Blueprint version = %q, want 0.6.1", blueprint.Metadata.Version)
 	}
 
 	managed := []string{
