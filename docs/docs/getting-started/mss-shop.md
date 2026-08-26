@@ -1,19 +1,19 @@
 ---
 title: mss-shop 最佳范本
 order: 4
-description: 使用公开 v1.3.4 工具和包构建通用单租户商城管理系统的参考边界
-keywords: [mss-shop v1.3.4 single tenant reference r1shop]
+description: 使用公开 v1.3.5 工具和包构建通用单租户商城管理系统的参考边界
+keywords: [mss-shop v1.3.5 single tenant reference r1shop]
 ---
 
 # mss-shop 最佳范本
 
-[mss-boot-io/mss-shop](https://github.com/mss-boot-io/mss-shop) 是计划在 v1.3.4
+[mss-boot-io/mss-shop](https://github.com/mss-boot-io/mss-shop) 是计划在 v1.3.5
 公开对账完成后创建的外部参考应用。完成状态只由该仓库的生成基线、业务提交和 CI
 证明；本页不把尚未执行的发布后工作描述成既成事实。
 
 ## 可复现基线
 
-公开 v1.3.4 完成对账后，基线从空目录生成：
+公开 v1.3.5 完成对账后，基线从空目录生成：
 
 ```sh
 mss new app mss-shop --module github.com/mss-boot-io/mss-shop --destination ./mss-shop --write --git-init

@@ -8,11 +8,32 @@ and the project uses semantic versioning for nested-module releases.
 
 No unreleased changes are recorded.
 
+## [mss-boot/v1.3.5] - 2026-08-26
+
+Status: **coordinated v1.3.5 patch candidate**. The public Framework API remains
+source compatible. This new component identity lets the distribution complete
+from one repaired merged-main commit without moving the published
+`mss-boot/v1.3.4` tag or Release.
+
+### Changed
+
+- Requalify the exact domain-neutral Framework tree as `mss-boot/v1.3.5` for
+  Admin and Thin Host consumers in the coordinated v1.3.5 distribution.
+- Keep Framework behavior and public APIs unchanged; the release repair belongs
+  to root Thin Host lock metadata, qualification, and publication contracts.
+
 ## [mss-boot/v1.3.4] - 2026-08-25
 
-Status: **coordinated v1.3.4 patch candidate**. The public Framework API remains
-source compatible. This new component identity lets the complete distribution
-restart from one repaired merged-main commit without moving the already
+Status: **published component / immutable partial train**. The Framework tag and
+GitHub Release resolve to
+`d9b210d6672800f84f6403496a3ae871fb2aea9f`. Framework publication succeeded,
+but the v1.3.4 distribution stopped before Root, Docs, and npmjs publication
+after the public Thin Host frozen install exposed a missing exact Admin Web
+tarball URL. Use the coordinated v1.3.5 patch instead of combining this
+component with another version.
+
+The public Framework API remains source compatible. This component identity
+allowed the complete distribution to restart without moving the already
 published `mss-boot/v1.3.3` tag or Release.
 
 ### Changed
@@ -29,8 +50,9 @@ Status: **published component / immutable partial train**. The Framework tag
 and GitHub Release resolve to
 `c00591f2a3edd0bec29bb1023bca8a230648107a`. Framework publication succeeded,
 but the v1.3.3 distribution stopped at the Root-preparation public Thin Host
-gate; Root, Docs, and npmjs did not publish. Use the coordinated v1.3.4 patch
-instead of combining this component with another version.
+gate; Root, Docs, and npmjs did not publish. The v1.3.4 component was also part
+of an incomplete coordinated train; use v1.3.5 instead of combining either
+component with another version.
 
 The Framework API remains source compatible. This coordinated patch supplies the
 public Framework identity consumed by `admin/v1.3.3` and by generated Thin Hosts;

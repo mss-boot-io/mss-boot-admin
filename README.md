@@ -3,29 +3,33 @@
 [简体中文](./README.zh-CN.md)
 
 mss-boot is an agent-native management-system foundation. The coordinated
-**v1.3.4** distribution is consumed as released tools and packages: downstream
-applications do not clone or copy this repository.
+**v1.3.5** release candidate is designed to be consumed as released tools and
+packages: downstream applications do not clone or copy this repository.
 
-## What v1.3.4 ships
+## What v1.3.5 will ship
 
 | Surface | Released identity | Purpose |
 | --- | --- | --- |
-| Agent tools | `mss`, `mss-mcp` from the `v1.3.4` GitHub Release | Create, inspect, develop, verify, and upgrade Thin Hosts |
-| Framework | `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.4` | Domain-neutral Go infrastructure |
-| Admin | `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.4` | Complete importable Admin backend |
-| Admin Web | `@mss-boot-io/admin-web@1.3.4` | Complete React 19 and Ant Design 6 frontend |
+| Agent tools | `mss`, `mss-mcp` from the `v1.3.5` GitHub Release | Create, inspect, develop, verify, and upgrade Thin Hosts |
+| Framework | `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5` | Domain-neutral Go infrastructure |
+| Admin | `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5` | Complete importable Admin backend |
+| Admin Web | `@mss-boot-io/admin-web@1.3.5` | Complete React 19 and Ant Design 6 frontend |
 
 Every component is qualified from one exact commit already merged into
 `main`. A version is usable only after its public release and package
 reconciliation are complete.
 
+The commands below become the supported adopter path only after the v1.3.5
+GitHub Release, Go modules, npm package, images, and Docs site reconcile to that
+same commit. Until then, this source tree documents the candidate contract.
+
 ## Quick start
 
-On Linux or macOS:
+After public reconciliation, on Linux or macOS:
 
 ```sh
-curl -fsSLO https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.4/install-mss.sh
-bash ./install-mss.sh --version v1.3.4 --install-dir "$HOME/.local/bin"
+curl -fsSLO https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.5/install-mss.sh
+bash ./install-mss.sh --version v1.3.5 --install-dir "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 mss --version
 mss-mcp --version
@@ -34,8 +38,8 @@ mss-mcp --version
 On Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.4/install-mss.ps1 -OutFile install-mss.ps1
-& .\install-mss.ps1 -Version v1.3.4 -InstallDir "$HOME\.local\bin"
+Invoke-WebRequest https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.5/install-mss.ps1 -OutFile install-mss.ps1
+& .\install-mss.ps1 -Version v1.3.5 -InstallDir "$HOME\.local\bin"
 $env:Path = "$HOME\.local\bin;$env:Path"
 mss --version
 mss-mcp --version
@@ -62,7 +66,7 @@ only. After the first migration succeeds, repeated setup runs do not require it.
 Open `http://127.0.0.1:8001` and sign in as `admin` with the password supplied
 during that first setup. There is no default password.
 
-The installer verifies `SHA256SUMS.tools-v1.3.4`, never requires `sudo`,
+The installer verifies `SHA256SUMS.tools-v1.3.5`, never requires `sudo`,
 and does not edit shell profiles. See the
 [package-first quick start](https://docs.mss-boot-io.top/getting-started) for
 prerequisites, Windows PATH handling, upgrade commands, and troubleshooting.
@@ -77,7 +81,7 @@ authorization remains authoritative.
 
 Install the target-version tools, back up the application and database, and
 confirm `.mss/blueprint-manifest.json` exists before running
-`mss upgrade admin v1.3.4`. Add `--apply --yes` only after reviewing a
+`mss upgrade admin v1.3.5`. Add `--apply --yes` only after reviewing a
 conflict-free plan, then run `mss doctor --strict`, `mss verify --all`, and a
 second plan that must be empty. A hand-assembled or manifest-less repository
 must migrate business-owned files into a newly generated baseline instead of
@@ -89,7 +93,7 @@ fabricating upgrade state. No Foundation checkout is required.
 - [Packages and import boundaries](https://docs.mss-boot-io.top/getting-started/packages)
 - [Tooling](https://docs.mss-boot-io.top/getting-started/tooling)
 - [mss-shop reference application](https://docs.mss-boot-io.top/getting-started/mss-shop)
-- [v1.3.4 release contract](https://docs.mss-boot-io.top/releases/v1-3-4)
+- [v1.3.5 release contract](https://docs.mss-boot-io.top/releases/v1-3-5)
 
 Foundation contributors should use
 [`CONTRIBUTING.md`](./docs/CONTRIBUTING.md); source-checkout commands are

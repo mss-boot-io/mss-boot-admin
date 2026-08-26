@@ -122,16 +122,16 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         self.assertIn("release_phase_evidence.py plan", plan["run"])
         self.assertIn('--phase "${READINESS_PHASE}"', plan["run"])
 
-    def test_v134_qualification_selects_package_first_and_presentation_features(self):
+    def test_v135_qualification_selects_package_first_and_presentation_features(self):
         selected = PHASE_EVIDENCE.load_qualification(
             REPOSITORY_ROOT,
             Path(".mss/release-qualification.json"),
-            "v1.3.4",
+            "v1.3.5",
         )
         self.assertEqual(
             [path.relative_to(REPOSITORY_ROOT).as_posix() for path in selected],
             [
-                ".mss/features/foundation-v1-3-4-release-recovery.yaml",
+                ".mss/features/foundation-v1-3-5-release-recovery.yaml",
                 ".mss/features/admin-presentation-configuration.yaml",
                 ".mss/features/admin-presentation-publication-workflow.yaml",
             ],
@@ -149,11 +149,11 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
             )
         )
 
-    def test_v134_checkpoint_and_release_phases_are_exact_and_executable(self):
+    def test_v135_checkpoint_and_release_phases_are_exact_and_executable(self):
         feature_paths = PHASE_EVIDENCE.load_qualification(
             REPOSITORY_ROOT,
             Path(".mss/release-qualification.json"),
-            "v1.3.4",
+            "v1.3.5",
         )
         plans = []
         for feature_path in feature_paths:
@@ -208,6 +208,9 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
                 ". bash tools/compatibility/test-standalone-mss-consumer.sh --lifecycle",
                 ". bash tools/compatibility/test-standalone-mss-consumer.sh --upgrade",
                 ". bash tools/compatibility/test-thin-host-external-consumer.sh",
+                ". make test-all",
+                ". make web-v6-qualify",
+                ". python3 -m unittest discover -s tools/release -p test_*.py",
                 ". python3 tools/docs/check_current_docs.py",
                 ". corepack pnpm@9.15.9 --dir docs build",
             },
@@ -215,17 +218,17 @@ class ReleaseReadinessWorkflowTest(unittest.TestCase):
         self.assertEqual(
             commands_by_phase["pre-framework"],
             {
-                ". python3 tools/release/verify_framework_admin_checksum.py --version v1.3.4",
+                ". python3 tools/release/verify_framework_admin_checksum.py --version v1.3.5",
                 "mss-boot GOWORK=off go test ./...",
                 ". bash tools/compatibility/test-admin-external-consumer.sh",
                 ". bash tools/compatibility/test-standalone-mss-consumer.sh",
-                ". python3 tools/release/check_release_policy.py --component framework --version v1.3.4 --tag mss-boot/v1.3.4 --intent qualify",
+                ". python3 tools/release/check_release_policy.py --component framework --version v1.3.5 --tag mss-boot/v1.3.5 --intent qualify",
             },
         )
         self.assertEqual(
             commands_by_phase["pre-root"],
             {
-                ". python3 tools/release/check_release_policy.py --component root --version v1.3.4 --tag v1.3.4 --intent qualify",
+                ". python3 tools/release/check_release_policy.py --component root --version v1.3.5 --tag v1.3.5 --intent qualify",
                 ". bash tools/compatibility/test-standalone-mss-consumer.sh --public-packages --lifecycle --upgrade",
             },
         )

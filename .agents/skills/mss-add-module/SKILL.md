@@ -1,20 +1,20 @@
 ---
 name: mss-add-module
-description: Add a generated CRUD module to an MSS Foundation or Thin Host from a v1.3.4 AdminModule specification. Trigger for a new simple management resource. Do not use for relations, imports, workflows, row-scoped ownership, or runtime dynamic-model features.
+description: Add a generated CRUD module to an MSS Foundation or Thin Host from a v1.3.5 AdminModule specification. Trigger for a new simple management resource. Do not use for relations, imports, workflows, row-scoped ownership, or runtime dynamic-model features.
 ---
 
 # Add an MSS management module
 
-Use the deterministic module specification and generator for the capability that v1.3.4 actually implements. Do not turn an unsupported projection into an implied generator promise.
+Use the deterministic module specification and generator for the capability that v1.3.5 actually implements. Do not turn an unsupported projection into an implied generator promise.
 
 ## Command and layout context
 
-- In a generated Thin Host, use the installed `mss` v1.3.4 binary and the paths reported by `mss context --format json`.
+- In a generated Thin Host, use the installed `mss` v1.3.5 binary and the paths reported by `mss context --format json`.
 - In the Foundation repository, the same examples can be run with the repository entrypoint `GOWORK=off go run ./cmd/mss` while developing unpublished tool changes. Read `.mss/project.yaml`; do not assume Thin Host and Foundation output paths are identical.
 
 ## Supported generated profile
 
-The public v1.3.4 profile is intentionally narrow:
+The public v1.3.5 profile is intentionally narrow:
 
 - fields are `string`, `enum`, or `bool`;
 - ownership is `none`;

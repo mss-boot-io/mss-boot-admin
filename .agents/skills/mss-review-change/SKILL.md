@@ -16,7 +16,7 @@ Lead with evidence-backed defects and missing validation, not style preferences.
    mss verify --changed --plan --format json
    ```
 
-   A Foundation contributor may substitute `GOWORK=off go run ./cmd/mss` only while reviewing unpublished CLI behavior; a Thin Host uses the installed v1.3.4 binary.
+   A Foundation contributor may substitute `GOWORK=off go run ./cmd/mss` only while reviewing unpublished CLI behavior; a Thin Host uses the installed v1.3.5 binary.
 
 2. Read applicable `AGENTS.md` files and affected `.mss` contracts.
 3. Review behavior and error handling, backend authorization, migration safety, API compatibility, generated/spec drift, frontend loading/error/empty/permission states, concurrency and side effects, secret redaction, tests, docs, and upgrade impact.
@@ -27,7 +27,7 @@ Lead with evidence-backed defects and missing validation, not style preferences.
    mss module generate .mss/modules/<module>.yaml --check
    ```
 
-   Check the request against the public v1.3.4 profile: `string`/`enum`/`bool`, `ownership: none`, simple CRUD/export, and coarse permissions. Treat claims of generated relation, import, workflow, or row-scope behavior as unsupported until separately implemented and tested.
+   Check the request against the public v1.3.5 profile: `string`/`enum`/`bool`, `ownership: none`, simple CRUD/export, and coarse permissions. Treat claims of generated relation, import, workflow, or row-scope behavior as unsupported until separately implemented and tested.
 
 5. Run the smallest focused checks needed to confirm each suspected defect. Do not report speculation as fact.
 6. Rank findings as blocker, high, medium, or low. For each one include a concrete location, failing scenario, why current guards miss it, minimal repair, and required validation.

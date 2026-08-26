@@ -1,19 +1,23 @@
 {
   "schema": "mss.io/release-qualification/v1",
-  "targetVersion": "v1.3.4",
+  "targetVersion": "v1.3.5",
   "features": [
-    ".mss/features/foundation-v1-3-4-release-recovery.yaml",
+    ".mss/features/foundation-v1-3-5-release-recovery.yaml",
     ".mss/features/admin-presentation-configuration.yaml",
     ".mss/features/admin-presentation-publication-workflow.yaml"
   ],
   "excludedFeatures": [
+    {
+      "path": ".mss/features/foundation-v1-3-4-release-recovery.yaml",
+      "reason": "carry-forward: v1.3.4 is immutable partial-train evidence; Framework, Admin, and Admin Web were published from d9b210d6672800f84f6403496a3ae871fb2aea9f, while Root, Docs, and the official npmjs package were not published because the generated Thin Host frozen lock discarded the frontend tarball URL and inferred an invalid registry URL. The correction merged in 99a4f1ad157b934841786be031e7c55b8e25f5b5 and must ship only through the final coordinated v1.3.5 train."
+    },
     {
       "path": ".mss/features/foundation-v1-3-3-package-first-release.yaml",
       "reason": "carry-forward: v1.3.3 is immutable partial-train evidence; Framework, Admin, and Admin Web were published from c00591f2a3edd0bec29bb1023bca8a230648107a, while pre-root qualification rejected an Admin Module checksum that omitted Go's inherited repository-root LICENSE. Root, Docs, and the official npmjs package were not published."
     },
     {
       "path": ".mss/features/foundation-v1-3-2-release.yaml",
-      "reason": "carry-forward: v1.3.2 is the immutable current stable distribution and remains rollback evidence until v1.3.4 publication reconciles completely."
+      "reason": "carry-forward: v1.3.2 is the immutable current stable distribution and remains rollback evidence until the one final v1.3.5 publication reconciles completely."
     },
     {
       "path": ".mss/features/foundation-v1-3-1-release.yaml",
@@ -25,19 +29,19 @@
     },
     {
       "path": ".mss/features/complete-admin-distribution-thin-host.yaml",
-      "reason": "carry-forward: the complete Admin Distribution and Thin Host implementation was qualified and published as the immutable v1.3.0-rc.6 preview; its permanent regressions run through the selected v1.3.4 recovery Feature."
+      "reason": "carry-forward: the complete Admin Distribution and Thin Host implementation was qualified and published as the immutable v1.3.0-rc.6 preview; its permanent regressions run through the selected v1.3.5 recovery Feature."
     },
     {
       "path": ".mss/features/admin-antd-v6-application.yaml",
-      "reason": "carry-forward: the merged V6 application contract remains permanent regression coverage for the v1.3.4 complete Admin Distribution."
+      "reason": "carry-forward: the merged V6 application contract remains permanent regression coverage for the v1.3.5 complete Admin Distribution."
     },
     {
       "path": ".mss/features/admin-antd-v6-cutover-retirement.yaml",
-      "reason": "carry-forward: the merged V6-only cutover remains authoritative and its absence guards are included in v1.3.4 qualification."
+      "reason": "carry-forward: the merged V6-only cutover remains authoritative and its absence guards are included in v1.3.5 qualification."
     },
     {
       "path": ".mss/features/admin-antd-v6-release-polish.yaml",
-      "reason": "carry-forward: the merged polish evidence remains authoritative while its frontend gates rerun from the v1.3.4 frozen SHA."
+      "reason": "carry-forward: the merged polish evidence remains authoritative while its frontend gates rerun from the v1.3.5 frozen SHA."
     },
     {
       "path": ".mss/features/admin-config-cache-consistency.yaml",
@@ -45,11 +49,11 @@
     },
     {
       "path": ".mss/features/admin-permission-hardening.yaml",
-      "reason": "carry-forward: accepted backend authorization and negative tests remain part of the complete Admin suite selected by v1.3.4."
+      "reason": "carry-forward: accepted backend authorization and negative tests remain part of the complete Admin suite selected by v1.3.5."
     },
     {
       "path": ".mss/features/admin-runtime-tools-removal-monitoring.yaml",
-      "reason": "carry-forward: the removed runtime developer-tool boundary remains enforced and is not reintroduced by v1.3.4."
+      "reason": "carry-forward: the removed runtime developer-tool boundary remains enforced and is not reintroduced by v1.3.5."
     },
     {
       "path": ".mss/features/admin-secret-lifecycle.yaml",
@@ -73,7 +77,7 @@
     },
     {
       "path": ".mss/features/foundation-v1-0-1-storage-safety.yaml",
-      "reason": "carry-forward: accepted storage safety remains regression coverage while optional provider promotion stays outside v1.3.4."
+      "reason": "carry-forward: accepted storage safety remains regression coverage while optional provider promotion stays outside v1.3.5."
     },
     {
       "path": ".mss/features/foundation-v1-1-0-generator-blueprint.yaml",
@@ -81,7 +85,7 @@
     },
     {
       "path": ".mss/features/foundation-v1-1-0-release.yaml",
-      "reason": "carry-forward: v1.1.0 is immutable historical release evidence and is not an active v1.3.4 gate."
+      "reason": "carry-forward: v1.1.0 is immutable historical release evidence and is not an active v1.3.5 gate."
     },
     {
       "path": ".mss/features/foundation-v1-2-0-release.yaml",
@@ -101,7 +105,7 @@
     },
     {
       "path": ".mss/features/storage-runtime-v2.yaml",
-      "reason": "carry-forward: accepted runtime checkpoints remain regression coverage; optional ObjectStore and RustFS maturity does not block v1.3.4."
+      "reason": "carry-forward: accepted runtime checkpoints remain regression coverage; optional ObjectStore and RustFS maturity does not block v1.3.5."
     }
   ]
 }

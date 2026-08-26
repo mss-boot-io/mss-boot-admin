@@ -1,12 +1,12 @@
 ---
 title: Blueprint 与升级
 order: 4
-description: v1.3.4 内置 Blueprint、Thin Host 所有权和三方升级合同
+description: v1.3.5 内置 Blueprint、Thin Host 所有权和三方升级合同
 ---
 
 # Blueprint 与升级
 
-v1.3.4 的 `mss` 二进制内置与版本、完整提交、提交时间和源码仓库绑定的
+v1.3.5 的 `mss` 二进制内置与版本、完整提交、提交时间和源码仓库绑定的
 `management-system` Blueprint。采用者不需要 Foundation checkout。
 
 ## 创建
@@ -48,7 +48,7 @@ mss upgrade status --format json
 
 ```sh
 mss upgrade status --format json
-mss upgrade admin v1.3.4
+mss upgrade admin v1.3.5
 ```
 
 计划比较旧基线、当前工作树和安装工具内置的新基线。它不写文件，并明确列出新增、更新、
@@ -59,11 +59,11 @@ mss upgrade admin v1.3.4
 在备份、评审和冲突清零后：
 
 ```sh
-mss upgrade admin v1.3.4 --apply --yes
+mss upgrade admin v1.3.5 --apply --yes
 mss upgrade status --format json
 mss doctor --strict
 mss verify --all
-mss upgrade admin v1.3.4
+mss upgrade admin v1.3.5
 ```
 
 写入使用事务式暂存，业务与未知文件保留，快照最后更新。第二次应用必须为空。请求版本

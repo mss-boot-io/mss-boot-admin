@@ -16,7 +16,7 @@ from pathlib import Path
 SCHEMA = "mss.io/release-qualification-decision/v1"
 QUALIFICATION_SCHEMA = "mss.io/release-qualification/v1"
 RELEASE_FEATURES = (
-    ".mss/features/foundation-v1-3-4-release-recovery.yaml",
+    ".mss/features/foundation-v1-3-5-release-recovery.yaml",
     ".mss/features/admin-presentation-configuration.yaml",
     ".mss/features/admin-presentation-publication-workflow.yaml",
 )
@@ -88,7 +88,7 @@ def _load_qualification(path: Path, target_version: str) -> tuple[dict[str, obje
         raise QualificationDecisionError("qualification target does not match requested version")
     if contract.get("features") != list(RELEASE_FEATURES):
         raise QualificationDecisionError(
-            "qualification must select the exact active v1.3.4 Feature set"
+            "qualification must select the exact active v1.3.5 Feature set"
         )
     exclusions = contract.get("excludedFeatures")
     if not isinstance(exclusions, list) or not exclusions:

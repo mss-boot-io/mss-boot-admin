@@ -1,19 +1,24 @@
 ---
-title: v1.3.4 包与导入边界
+title: v1.3.5 包与导入边界
 order: 2
 description: Complete Admin Distribution 的 Go Module、npm 包、组合边界与公共解析验证
-keywords: [v1.3.4 go module npm admin web import thin host]
+keywords: [v1.3.5 go module npm admin web import thin host]
 ---
 
-# v1.3.4 包与导入边界
+# v1.3.5 包与导入边界
 
 Thin Host 只引用公开制品，不复制 Foundation 代码。三个包使用同一个协调版本，但保持
 各自发布身份。
 
+:::warning
+下面的 v1.3.5 依赖只在协调发行完成公共对账后可用。候选源码、组件 Tag 或本地 tarball
+不能替代公共 Go 代理和 npmjs 解析证明。
+:::
+
 ## 普通应用只导入 Admin
 
 ```sh
-go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.4
+go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5
 ```
 
 `admin` 是完整后端组合入口，并传递解析同版本 Framework。普通 Thin Host 不需要再把
@@ -22,7 +27,7 @@ go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.4
 只有开发不依赖 Admin 业务面的通用基础设施扩展时，才直接导入 Framework：
 
 ```sh
-go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.4
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5
 ```
 
 不要为了“版本看起来一致”同时手工添加两个直接依赖；以代码真实导入边界和
@@ -59,7 +64,7 @@ try {
 ## Admin Web
 
 ```sh
-corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.4
+corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.5
 ```
 
 Thin Host 必须提交由 pnpm 10.34.5 生成的冻结锁。只使用包声明的导出：
@@ -112,6 +117,6 @@ Thin Host 必须提交由 pnpm 10.34.5 生成的冻结锁。只使用包声明�
 ## 版本完整性
 
 `.mss/project.yaml`、`.mss/lock.yaml`、`go.mod`、`web/package.json` 与冻结锁必须
-一致指向 v1.3.4。不要混用不同补丁版本，也不要用分支、PR 提交或本地替换代替公共包。
+一致指向 v1.3.5。不要混用不同补丁版本，也不要用分支、PR 提交或本地替换代替公共包。
 
 `mss doctor --strict` 检查本地合同，`mss verify --all` 执行完整验证。

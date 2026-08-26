@@ -8,12 +8,37 @@ and the root changelog, not as a current release surface.
 
 No unreleased changes are recorded.
 
+## [web/antd-v6/v1.3.5] - 2026-08-26
+
+Status: **coordinated v1.3.5 patch candidate**. This source-compatible release
+uses a new identity so the package-first distribution can complete without
+moving the published v1.3.4 component tag or GitHub Release.
+
+### Fixed
+
+- Preserve the exact packed Admin Web tarball URL in generated Thin Host lock
+  metadata so frozen installs do not infer an invalid registry path.
+
+### Changed
+
+- Qualify `@mss-boot-io/admin-web@1.3.5` as the exact frontend dependency for
+  a v1.3.5 Thin Host while retaining one React 19 and Ant Design 6 runtime graph.
+- Publish the official npmjs package only after Framework, Admin, Admin Web,
+  protected Root, and Docs evidence from the same commit is complete.
+
 ## [web/antd-v6/v1.3.4] - 2026-08-25
 
-Status: **coordinated v1.3.4 patch candidate**. This source-compatible release
-reissues the single Admin Web package from the repaired merged-main distribution
-commit. It does not move or overwrite the published v1.3.3 component tag or
-GitHub Release.
+Status: **published component / immutable partial train**. The Admin Web tag and
+GitHub Release resolve to
+`d9b210d6672800f84f6403496a3ae871fb2aea9f`. GitHub Packages and the component
+image were published, but Root, Docs, and
+`@mss-boot-io/admin-web@1.3.4` on npmjs did not publish after the Thin Host
+frozen-install gate exposed missing exact tarball metadata. Use v1.3.5 for a
+coordinated distribution.
+
+This source-compatible release reissued the single Admin Web package from the
+repaired merged-main distribution commit without moving the published v1.3.3
+component tag or GitHub Release.
 
 ### Changed
 
@@ -33,7 +58,7 @@ and GitHub Release resolve to
 `c00591f2a3edd0bec29bb1023bca8a230648107a`; the coordinated train stopped
 before Root and Docs, and `@mss-boot-io/admin-web@1.3.3` was never published to
 npmjs. The tag and Release remain unchanged. Complete package-first adoption
-uses v1.3.4.
+uses v1.3.5 because the intervening v1.3.4 train was also component-partial.
 
 This source-compatible patch aligns the only supported Admin frontend package
 with the package-first v1.3.3 Distribution.

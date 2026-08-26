@@ -35,7 +35,7 @@ make docs-install docs-build
 
 Runtime components have independently triggered workflows, but one Admin
 Distribution release requires the same version core and exact merged-main commit.
-The fail-closed v1.3.4 publication order is Framework, Admin, Admin Web, protected
+The fail-closed v1.3.5 publication order is Framework, Admin, Admin Web, protected
 Root tag promotion, Root release, Docs, and finally npm Trusted Publishing. Each
 phase rechecks the same frozen merged-main commit and the evidence produced by its
 predecessors. The Docs phase packages its portable static site and deploys through

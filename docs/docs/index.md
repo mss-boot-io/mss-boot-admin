@@ -1,13 +1,13 @@
 ---
-title: mss-boot Admin v1.3.4
+title: mss-boot Admin v1.3.5
 hero:
   title: mss-boot Admin
   description: 通过已发布工具和包创建、开发、验证与升级可维护的 Thin Host
   actions:
     - text: 5 分钟快速开始
       link: /getting-started
-    - text: 查看 v1.3.4
-      link: /releases/v1-3-4
+    - text: 查看 v1.3.5
+      link: /releases/v1-3-5
 features:
   - title: Package first
     emoji: 📦
@@ -20,15 +20,20 @@ features:
     description: 下游只拥有组合胶水和业务模块，安全与运行时核心由统一发行版维护。
 ---
 
-# 从 v1.3.4 开始
+# 从 v1.3.5 开始
 
 当前文档只维护一条采用者路径：
 
-1. 从 `v1.3.4` Release 安装 `mss` 与 `mss-mcp`；
+:::warning
+v1.3.5 仍是候选合同。以下路径只在 Root Release、Go/npm 包、镜像与 Docs 全部完成
+公共对账后开放；源码页面不能单独证明版本已经可安装。
+:::
+
+1. 从 `v1.3.5` Release 安装 `mss` 与 `mss-mcp`；
 2. 在空目录运行 `mss new app`；
 3. 运行 `mss doctor --strict`、`mss setup` 与 `mss dev`；
 4. 用 `mss verify --changed` 验证变更；
-5. 用 `mss upgrade admin v1.3.4` 查看匹配发行版的升级计划。
+5. 用 `mss upgrade admin v1.3.5` 查看匹配发行版的升级计划。
 
 [进入快速开始](/getting-started)
 
@@ -42,6 +47,6 @@ features:
 | 参考真实业务范本 | [mss-shop](/getting-started/mss-shop) |
 | 配置和运行 Admin | [Admin 指南](/admin) |
 | 编写规格与生成模块 | [Agent 开发](/agent) |
-| 了解版本边界 | [v1.3.4 发布合同](/releases/v1-3-4) |
+| 了解版本边界 | [v1.3.5 发布合同](/releases/v1-3-5) |
 
 旧版本发布材料只作为不可变证据保留在[历史归档](/releases/archive)，不会参与当前入门。
