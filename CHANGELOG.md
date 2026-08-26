@@ -20,6 +20,9 @@ artifact.
 - Preserve the exact Admin Web package tarball URL in generated Thin Host
   lockfiles, and keep the downstream compatibility registry fixture aligned
   with that metadata contract so frozen installs never infer a registry path.
+- Provision a masked, job-scoped browser administrator password before Release
+  Readiness executes qualifying phase commands, so the canonical browser suite
+  retains its required isolated credential without storing a reusable secret.
 
 ### Changed
 
