@@ -201,6 +201,14 @@ jobs:
         working-directory: web/antd-v6
         run: pnpm exec playwright install --with-deps chromium
 
+      - name: Create ephemeral browser administrator secret
+        if: ${{ inputs.phase == 'feature-freeze' || inputs.phase == 'pre-framework' || inputs.phase == 'pre-root' }}
+        run: |
+          set -euo pipefail
+          password="MssE2E-A1-$(openssl rand -hex 24)"
+          echo "::add-mask::${password}"
+          echo "MSS_E2E_PASSWORD=${password}" >> "${GITHUB_ENV}"
+
       - name: Install documentation dependencies
         if: ${{ inputs.phase == 'feature-freeze' }}
         run: corepack pnpm@9.15.9 --dir docs install --frozen-lockfile
