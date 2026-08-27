@@ -22,7 +22,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: read
   contents: read
   pull-requests: read
 
@@ -108,33 +107,16 @@ jobs:
 
           root_release="$(
             gh release view "${root_tag}" \
-              --json tagName,isDraft,isPrerelease
+              --json tagName,targetCommitish,isDraft,isPrerelease
           )"
           jq -e \
             --arg tag "${root_tag}" \
-            '.tagName == $tag and .isDraft == false and .isPrerelease == false' \
-            <<< "${root_release}" >/dev/null
-
-          root_runs="$(gh api \
-            --method GET \
-            -H 'Accept: application/vnd.github+json' \
-            "/repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/runs" \
-            -f head_sha="${root_commit}" \
-            -f status=completed \
-            -f per_page=100)"
-          jq -e \
             --arg commit "${root_commit}" \
-            --arg root_tag "${root_tag}" \
-            --arg display_title "Root Release ${root_tag}" \
-            '[.workflow_runs[] | select(
-              .event == "push" and
-              .head_branch == $root_tag and
-              .head_sha == $commit and
-              .path == ".github/workflows/release.yml" and
-              .display_title == $display_title and
-              .status == "completed" and
-              .conclusion == "success"
-            )] | length >= 1' <<< "${root_runs}" >/dev/null
+            '.tagName == $tag and
+             .targetCommitish == $commit and
+             .isDraft == false and
+             .isPrerelease == false' \
+            <<< "${root_release}" >/dev/null
 
       - name: Refuse mutation of an existing docs release
         if: startsWith(github.ref, 'refs/tags/docs/v')

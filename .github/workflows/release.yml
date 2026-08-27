@@ -591,11 +591,13 @@ jobs:
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
 
       - name: Qualify the exact V6 multi-platform release image
+        id: image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: web/antd-v6
           file: web/antd-v6/Dockerfile
           push: false
+          outputs: type=oci,dest=${{ runner.temp }}/frontend-v6-image.oci.tar
           labels: |
             org.opencontainers.image.title=mss-boot-admin-antd-v6
             org.opencontainers.image.description=Complete React 19 and Ant Design 6 Admin application for mss-boot business hosts.
@@ -606,6 +608,78 @@ jobs:
           sbom: true
           cache-from: type=gha,scope=frontend-v6-image
           cache-to: type=gha,mode=max,scope=frontend-v6-image
+
+      - name: Verify and stage the exact V6 OCI image
+        env:
+          BUILD_DIGEST: ${{ steps.image.outputs.digest }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+          RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
+        run: |
+          set -euo pipefail
+          source_archive="${RUNNER_TEMP}/frontend-v6-image.oci.tar"
+          layout_index="${RUNNER_TEMP}/frontend-v6-image.index.json"
+          source_manifest="${RUNNER_TEMP}/frontend-v6-image.manifest.json"
+          test -s "${source_archive}"
+          command -v skopeo >/dev/null
+          tar -xOf "${source_archive}" index.json > "${layout_index}"
+          archive_digest="$(
+            jq -er '
+              if (.manifests | length) == 1 then
+                .manifests[0].digest
+              else
+                error("OCI layout must expose exactly one top-level image")
+              end
+            ' "${layout_index}"
+          )"
+          manifest_hash="${archive_digest#sha256:}"
+          [[ "${manifest_hash}" =~ ^[0-9a-f]{64}$ ]]
+          tar -xOf \
+            "${source_archive}" \
+            "blobs/sha256/${manifest_hash}" \
+            > "${source_manifest}"
+          test "sha256:$(sha256sum "${source_manifest}" | awk '{print $1}')" = "${archive_digest}"
+          [[ "${BUILD_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          test "${archive_digest}" = "${BUILD_DIGEST}"
+          jq -e '
+            (.mediaType == "application/vnd.oci.image.index.v1+json" or
+             .mediaType == "application/vnd.docker.distribution.manifest.list.v2+json") and
+            ([.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "amd64"
+            )] | length) == 1 and
+            ([.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "arm64"
+            )] | length) == 1
+          ' "${source_manifest}" >/dev/null
+
+          for architecture in amd64 arm64; do
+            config="$(
+              skopeo \
+                --override-os linux \
+                --override-arch "${architecture}" \
+                inspect --config "oci-archive:${source_archive}"
+            )"
+            jq -e \
+              --arg version "${RELEASE_VERSION}" \
+              --arg commit "${RELEASE_COMMIT}" \
+              '.config.Labels["org.opencontainers.image.title"] == "mss-boot-admin-antd-v6" and
+               .config.Labels["org.opencontainers.image.description"] == "Complete React 19 and Ant Design 6 Admin application for mss-boot business hosts." and
+               .config.Labels["org.opencontainers.image.version"] == $version and
+               .config.Labels["org.opencontainers.image.revision"] == $commit' \
+              <<< "${config}" >/dev/null
+          done
+
+          install -m 0644 "${source_archive}" frontend-v6-image.oci.tar
+          {
+            echo 'application=mss-boot-admin-antd-v6'
+            echo "version=${RELEASE_VERSION}"
+            echo "commit=${RELEASE_COMMIT}"
+            echo "digest=${archive_digest}"
+          } > FRONTEND-V6-IMAGE-INFO
+          sha256sum \
+            frontend-v6-image.oci.tar \
+            FRONTEND-V6-IMAGE-INFO \
+            > SHA256SUMS.frontend-v6-image
+          sha256sum --check SHA256SUMS.frontend-v6-image
 
       - name: Upload primary V6 artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -619,7 +693,12 @@ jobs:
             web/antd-v6/admin-web-release-package/admin-web-package.json
             web/antd-v6/admin-web-release-package/admin-web.spdx.json
             web/antd-v6/admin-web-release-package/SHA256SUMS.admin-web
+            web/antd-v6/frontend-v6-image.oci.tar
+            web/antd-v6/FRONTEND-V6-IMAGE-INFO
+            web/antd-v6/SHA256SUMS.frontend-v6-image
           if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
 
   assemble:
     needs:

@@ -507,6 +507,9 @@ class ReleasePolicyTest(unittest.TestCase):
             "web/antd-v6/admin-web-release-package/admin-web-package.json",
             "web/antd-v6/admin-web-release-package/admin-web.spdx.json",
             "web/antd-v6/admin-web-release-package/SHA256SUMS.admin-web",
+            "web/antd-v6/frontend-v6-image.oci.tar",
+            "web/antd-v6/FRONTEND-V6-IMAGE-INFO",
+            "web/antd-v6/SHA256SUMS.frontend-v6-image",
         ]
         paths = [
             line.strip()
@@ -545,12 +548,37 @@ class ReleasePolicyTest(unittest.TestCase):
         for required in (
             'sha256sum --check SHA256SUMS.frontend-v6',
             'sha256sum --check SHA256SUMS.admin-web',
-            "check_portable_paths.py",
-            "tar --extract --gzip",
-            'cp -a "${extracted_dist}/dist" ./dist',
+            'sha256sum --check SHA256SUMS.frontend-v6-image',
+            'tar -xOf "${preview_dir}/dist-v6.tar.gz" dist/release.json',
+            'tar -xOf "${tarball}" package/package.json',
+            'artifact.get("integrity") == expected_integrity',
+            '"blobs/sha256/${image_manifest_hash}"',
             'cp -a "${preview_package_dir}/." "${package_dir}/"',
         ):
             self.assertIn(required, stage)
+        for forbidden in (
+            "check_portable_paths.py",
+            "verify_admin_web_package.py",
+            "generate_admin_web_sbom.py",
+            '.spdxVersion == "SPDX-2.3"',
+            "tar --extract",
+        ):
+            self.assertNotIn(forbidden, stage)
+        tag_content = (
+            REPOSITORY_ROOT
+            / ".github"
+            / "workflows"
+            / "frontend-v6-release.yml"
+        ).read_text(encoding="utf-8")
+        for forbidden in (
+            "docker/build-push-action@",
+            "docker/setup-buildx-action@",
+            "docker/setup-qemu-action@",
+            "docker buildx",
+        ):
+            self.assertNotIn(forbidden, tag_content)
+        self.assertIn("skopeo copy", tag_content)
+        self.assertIn("--preserve-digests", tag_content)
         self.assertFalse(
             any(
                 "actions/upload-artifact@" in step.get("uses", "")
@@ -559,7 +587,11 @@ class ReleasePolicyTest(unittest.TestCase):
         )
 
     def test_all_raw_directory_uploads_have_portability_guards(self):
-        extensionless_files = {"FRONTEND-V6-BUILD-INFO", "SHA256SUMS"}
+        extensionless_files = {
+            "FRONTEND-V6-BUILD-INFO",
+            "FRONTEND-V6-IMAGE-INFO",
+            "SHA256SUMS",
+        }
         raw_uploads = []
         for workflow_path in sorted(
             (REPOSITORY_ROOT / ".github" / "workflows").glob("*.yml")

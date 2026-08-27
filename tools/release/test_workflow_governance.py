@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import subprocess
@@ -622,14 +623,14 @@ class WorkflowGovernanceTest(unittest.TestCase):
         for required in (
             'sha256sum --check SHA256SUMS.frontend-v6',
             'sha256sum --check SHA256SUMS.admin-web',
-            "check_portable_paths.py",
+            'sha256sum --check SHA256SUMS.frontend-v6-image',
             'version=${RELEASE_VERSION}',
             'commit=${GITHUB_SHA}',
-            '"${extracted_dist}/dist/release.json"',
-            "verify_admin_web_package.py",
-            'cmp -- "${verified_evidence}"',
-            '.spdxVersion == "SPDX-2.3"',
-            'cp -a "${extracted_dist}/dist" ./dist',
+            'tar -xOf "${preview_dir}/dist-v6.tar.gz" dist/release.json',
+            'tar -xOf "${tarball}" package/package.json',
+            'artifact.get("integrity") == expected_integrity',
+            '"blobs/sha256/${image_manifest_hash}"',
+            'test "${actual_image_digest}" = "${expected_image_digest}"',
             'cp -a "${preview_package_dir}/." "${package_dir}/"',
         ):
             self.assertIn(required, stage)
@@ -638,6 +639,10 @@ class WorkflowGovernanceTest(unittest.TestCase):
             "pnpm pack",
             "pnpm list",
             "generate_admin_web_sbom.py",
+            "verify_admin_web_package.py",
+            "check_portable_paths.py",
+            '.spdxVersion == "SPDX-2.3"',
+            "tar --extract",
             "build:release",
             "delivery:smoke",
         ):
@@ -653,6 +658,12 @@ class WorkflowGovernanceTest(unittest.TestCase):
             "Inject and qualify the Admin Distribution package version",
             "Upload Admin Web package evidence",
             "Upload v6 build artifact",
+            "Set up QEMU",
+            "Set up Docker Buildx",
+            "Inspect immutable v6 image publication state",
+            "Extract v6 Docker metadata",
+            "Build and push v6 Docker image",
+            "Verify published v6 image identity",
         ):
             self.assertNotIn(forbidden, step_names)
 
@@ -665,31 +676,6 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn("NPM_CONFIG_USERCONFIG", auth["run"])
         self.assertIn("npm.pkg.github.com/:_authToken", auth["run"])
 
-        image_build = next(
-            step
-            for step in steps
-            if step.get("name") == "Build and push v6 Docker image"
-        )
-        package_description = json.loads(
-            (REPOSITORY_ROOT / "web" / "antd-v6" / "package.json").read_text(
-                encoding="utf-8"
-            )
-        )["description"]
-        self.assertIn(
-            f"org.opencontainers.image.description={package_description}",
-            image_build["with"]["labels"],
-        )
-        self.assertEqual(
-            image_build["with"]["cache-from"],
-            "type=gha,scope=frontend-v6-image",
-        )
-        image_identity = next(
-            step
-            for step in steps
-            if step.get("name") == "Verify published v6 image identity"
-        )["run"]
-        self.assertIn("org.opencontainers.image.description", image_identity)
-        self.assertIn(package_description, image_identity)
         credential = next(
             step
             for step in steps
@@ -772,43 +758,56 @@ class WorkflowGovernanceTest(unittest.TestCase):
         )
         self.assertIn("admin-web", verify_package["run"])
 
-        image_state = next(
+        image_publication = next(
             step
             for step in steps
-            if step.get("name") == "Inspect immutable v6 image publication state"
+            if step.get("name") == "Publish the exact preview V6 OCI image"
         )
-        self.assertLess(steps.index(credential), steps.index(image_state))
-        self.assertIn("imagetools inspect", image_state["run"])
-        self.assertIn("exists=true", image_state["run"])
-        self.assertIn("authoritative not-found", image_state["run"])
-        build = next(
-            step
-            for step in steps
-            if step.get("name") == "Build and push v6 Docker image"
-        )
-        self.assertEqual(build["if"], "steps.image-state.outputs.exists != 'true'")
-        image_verification = next(
-            step
-            for step in steps
-            if step.get("name") == "Verify published v6 image identity"
-        )["run"]
+        self.assertEqual(image_publication["id"], "image")
+        self.assertLess(steps.index(credential), steps.index(image_publication))
+        image_script = image_publication["run"]
         for required in (
-            ".manifests[]",
-            ".platform.architecture == $architecture",
-            'platform_image="${image_repository}@${platform_digest}"',
-            'docker create --platform "linux/${architecture}" "${platform_image}"',
+            'archive="${RUNNER_TEMP}/frontend-v6-preview/frontend-v6-image.oci.tar"',
+            'digest="$(sed -n',
+            "inspect_digest()",
+            "preflight_reference()",
+            "validate_preflight()",
+            "publish_reference_if_missing()",
+            "verify_exact_reference()",
+            "skopeo copy",
+            "--all",
+            "--preserve-digests",
+            "--dest-authfile",
+            "--digestfile",
+            '"oci-archive:${archive}"',
+            'preflight_reference "${version_ref}" frontend-v6-version',
+            'preflight_reference "${commit_ref}" frontend-v6-commit',
+            'validate_preflight "${version_ref}" frontend-v6-version',
+            'validate_preflight "${commit_ref}" frontend-v6-commit',
+            "image publication preflight failed before any registry write",
+            'publish_reference_if_missing "${version_ref}" frontend-v6-version',
+            'publish_reference_if_missing "${commit_ref}" frontend-v6-commit',
+            'verify_exact_reference "${version_ref}" frontend-v6-version',
+            'verify_exact_reference "${commit_ref}" frontend-v6-commit',
+            "already has $(cat \"${observed_digest_file}\"), expected ${digest}",
+            '.platform.architecture == "amd64"',
+            '.platform.architecture == "arm64"',
+            '--config "docker://${version_ref}"',
+            'echo "digest=${digest}"',
         ):
-            self.assertIn(required, image_verification)
-        self.assertNotIn(
-            'docker create --platform "linux/${architecture}" "${image}"',
-            image_verification,
+            self.assertIn(required, image_script)
+        workflow_content = (WORKFLOW_DIR / "frontend-v6-release.yml").read_text(
+            encoding="utf-8"
         )
-        metadata = next(
-            step
-            for step in steps
-            if step.get("name") == "Extract v6 Docker metadata"
-        )
-        self.assertNotIn("latest", metadata["with"]["tags"])
+        for forbidden in (
+            "docker/build-push-action@",
+            "docker/setup-buildx-action@",
+            "docker/setup-qemu-action@",
+            "docker buildx",
+            "push: true",
+            ":latest",
+        ):
+            self.assertNotIn(forbidden, workflow_content)
 
         github_release = next(
             step
@@ -822,7 +821,219 @@ class WorkflowGovernanceTest(unittest.TestCase):
             "Update the mutable stable v6 image alias last",
             [step.get("name") for step in steps],
         )
-        self.assertNotIn(":latest", metadata["with"]["tags"])
+
+    def test_frontend_image_publication_preflights_both_refs_before_writes(self):
+        workflow = self.workflows["frontend-v6-release.yml"]
+        image_script = next(
+            step
+            for step in workflow["jobs"]["release"]["steps"]
+            if step.get("name") == "Publish the exact preview V6 OCI image"
+        )["run"]
+        calls = [line.strip() for line in image_script.splitlines()]
+        ordered_calls = (
+            'preflight_reference "${version_ref}" frontend-v6-version',
+            'preflight_reference "${commit_ref}" frontend-v6-commit',
+            'validate_preflight "${version_ref}" frontend-v6-version || preflight_failed=1',
+            'validate_preflight "${commit_ref}" frontend-v6-commit || preflight_failed=1',
+            'publish_reference_if_missing "${version_ref}" frontend-v6-version',
+            'publish_reference_if_missing "${commit_ref}" frontend-v6-commit',
+            'verify_exact_reference "${version_ref}" frontend-v6-version',
+            'verify_exact_reference "${commit_ref}" frontend-v6-commit',
+        )
+        positions = [calls.index(call) for call in ordered_calls]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn(
+            "manifest unknown|manifest_unknown|name unknown|name_unknown",
+            image_script,
+        )
+        self.assertNotIn("name_unknown|not found", image_script)
+
+        version = "v9.8.7"
+        commit = "0123456789abcdef0123456789abcdef01234567"
+        manifest = json.dumps(
+            {
+                "schemaVersion": 2,
+                "mediaType": "application/vnd.oci.image.index.v1+json",
+                "manifests": [
+                    {
+                        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                        "digest": f"sha256:{'a' * 64}",
+                        "size": 1,
+                        "platform": {"os": "linux", "architecture": "amd64"},
+                    },
+                    {
+                        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                        "digest": f"sha256:{'b' * 64}",
+                        "size": 1,
+                        "platform": {"os": "linux", "architecture": "arm64"},
+                    },
+                ],
+            },
+            separators=(",", ":"),
+        )
+        digest = f"sha256:{hashlib.sha256(manifest.encode()).hexdigest()}"
+        conflict_manifest = json.dumps(
+            {"schemaVersion": 2, "manifests": []}, separators=(",", ":")
+        )
+        config = json.dumps(
+            {
+                "config": {
+                    "Labels": {
+                        "org.opencontainers.image.title": "mss-boot-admin-antd-v6",
+                        "org.opencontainers.image.description": "Complete React 19 and Ant Design 6 Admin application for mss-boot business hosts.",
+                        "org.opencontainers.image.version": version,
+                        "org.opencontainers.image.revision": commit,
+                    }
+                }
+            },
+            separators=(",", ":"),
+        )
+        cases = (
+            ("both missing", "missing", "missing", ("version", "commit"), True),
+            ("one missing", "missing", "matching", ("version",), True),
+            ("both matching", "matching", "matching", (), True),
+            ("commit conflicts", "missing", "conflict", (), False),
+            ("version conflicts", "conflict", "missing", (), False),
+            ("inspection error", "missing", "error", (), False),
+            ("generic not found error", "missing", "generic-not-found", (), False),
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            fixture_root = Path(directory)
+            fake_bin = fixture_root / "bin"
+            fake_bin.mkdir()
+            fake_skopeo = fake_bin / "skopeo"
+            fake_skopeo.write_text(
+                """#!/usr/bin/env bash
+set -euo pipefail
+reference="${!#}"
+case "${reference}" in
+  *":${VERSION}") key=version ;;
+  *":${GITHUB_SHA}") key=commit ;;
+  *) echo "unexpected reference: ${reference}" >&2; exit 64 ;;
+esac
+state_file="${FAKE_STATE_DIR}/${key}"
+if [[ " $* " == *" --config "* ]]; then
+  cat "${FAKE_CONFIG}"
+  exit 0
+fi
+if [[ "${1:-}" == inspect ]]; then
+  printf 'inspect:%s\n' "${key}" >> "${FAKE_OPERATIONS}"
+  case "$(cat "${state_file}")" in
+    matching) cat "${FAKE_MANIFEST}" ;;
+    conflict) cat "${FAKE_CONFLICT_MANIFEST}" ;;
+    missing) echo 'manifest unknown' >&2; exit 1 ;;
+    error) echo 'temporary registry inspection failure' >&2; exit 1 ;;
+    generic-not-found) echo 'credential helper executable not found' >&2; exit 1 ;;
+    *) exit 65 ;;
+  esac
+  exit 0
+fi
+if [[ "${1:-}" == copy ]]; then
+  printf 'copy:%s\n' "${key}" >> "${FAKE_OPERATIONS}"
+  digest_file=''
+  for ((argument_index=1; argument_index <= $#; argument_index++)); do
+    if [[ "${!argument_index}" == --digestfile ]]; then
+      digest_index=$((argument_index + 1))
+      digest_file="${!digest_index}"
+    fi
+  done
+  test -n "${digest_file}"
+  printf '%s\n' "${EXPECTED_DIGEST}" > "${digest_file}"
+  printf '%s\n' matching > "${state_file}"
+  exit 0
+fi
+exit 66
+""",
+                encoding="utf-8",
+            )
+            fake_skopeo.chmod(0o755)
+            manifest_path = fixture_root / "manifest.json"
+            manifest_path.write_text(manifest, encoding="utf-8")
+            conflict_manifest_path = fixture_root / "conflict-manifest.json"
+            conflict_manifest_path.write_text(conflict_manifest, encoding="utf-8")
+            config_path = fixture_root / "config.json"
+            config_path.write_text(config, encoding="utf-8")
+
+            for name, version_state, commit_state, expected_writes, succeeds in cases:
+                with self.subTest(name=name):
+                    case_root = fixture_root / name.replace(" ", "-")
+                    runner_temp = case_root / "runner"
+                    preview = runner_temp / "frontend-v6-preview"
+                    state_dir = case_root / "state"
+                    home = case_root / "home"
+                    preview.mkdir(parents=True)
+                    state_dir.mkdir(parents=True)
+                    (home / ".docker").mkdir(parents=True)
+                    (preview / "frontend-v6-image.oci.tar").write_bytes(b"oci")
+                    (preview / "FRONTEND-V6-IMAGE-INFO").write_text(
+                        f"application=mss-boot-admin-antd-v6\nversion={version}\ncommit={commit}\ndigest={digest}\n",
+                        encoding="utf-8",
+                    )
+                    (home / ".docker" / "config.json").write_text(
+                        "{}\n", encoding="utf-8"
+                    )
+                    (state_dir / "version").write_text(
+                        f"{version_state}\n", encoding="utf-8"
+                    )
+                    (state_dir / "commit").write_text(
+                        f"{commit_state}\n", encoding="utf-8"
+                    )
+                    operations = case_root / "operations"
+                    output = case_root / "github-output"
+                    environment = os.environ.copy()
+                    environment.pop("DOCKER_CONFIG", None)
+                    environment.update(
+                        {
+                            "PATH": f"{fake_bin}:{environment['PATH']}",
+                            "HOME": str(home),
+                            "RUNNER_TEMP": str(runner_temp),
+                            "GITHUB_OUTPUT": str(output),
+                            "GITHUB_SHA": commit,
+                            "REGISTRY": "ghcr.example.invalid",
+                            "IMAGE_NAME": "mss/example",
+                            "VERSION": version,
+                            "FAKE_STATE_DIR": str(state_dir),
+                            "FAKE_OPERATIONS": str(operations),
+                            "FAKE_MANIFEST": str(manifest_path),
+                            "FAKE_CONFLICT_MANIFEST": str(conflict_manifest_path),
+                            "FAKE_CONFIG": str(config_path),
+                            "EXPECTED_DIGEST": digest,
+                        }
+                    )
+                    result = subprocess.run(
+                        ["bash", "-c", image_script],
+                        cwd=REPOSITORY_ROOT,
+                        env=environment,
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                    )
+                    self.assertEqual(
+                        result.returncode == 0,
+                        succeeds,
+                        msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+                    )
+                    operation_lines = (
+                        operations.read_text(encoding="utf-8").splitlines()
+                        if operations.exists()
+                        else []
+                    )
+                    self.assertEqual(
+                        operation_lines[:2], ["inspect:version", "inspect:commit"]
+                    )
+                    writes = tuple(
+                        line.removeprefix("copy:")
+                        for line in operation_lines
+                        if line.startswith("copy:")
+                    )
+                    self.assertEqual(writes, expected_writes)
+                    if succeeds:
+                        self.assertIn(f"digest={digest}", output.read_text(encoding="utf-8"))
+                    else:
+                        self.assertIn(
+                            "before any registry write", result.stderr
+                        )
 
     def test_admin_module_tag_is_a_light_preview_backed_publication(self):
         workflow = self.workflows["admin-release.yml"]
@@ -1084,7 +1295,7 @@ class WorkflowGovernanceTest(unittest.TestCase):
 
     def test_docs_publication_can_follow_from_a_later_merged_main_commit(self):
         workflow = self.workflows["docs.yml"]
-        self.assertEqual(workflow["permissions"]["actions"], "read")
+        self.assertNotIn("actions", workflow["permissions"])
         steps = workflow["jobs"]["build"]["steps"]
         predecessor = next(
             step
@@ -1097,22 +1308,22 @@ class WorkflowGovernanceTest(unittest.TestCase):
             'root_tag="${DOCS_VERSION%%+docs.*}"',
             'git rev-parse "refs/tags/${root_tag}^{commit}"',
             'gh release view "${root_tag}"',
+            "--json tagName,targetCommitish,isDraft,isPrerelease",
+            '--arg commit "${root_commit}"',
+            ".targetCommitish == $commit",
             ".isDraft == false",
             ".isPrerelease == false",
-            'actions/workflows/release.yml/runs',
-            '.event == "push"',
-            ".head_branch == $root_tag",
-            ".head_sha == $commit",
-            '.path == ".github/workflows/release.yml"',
-            '--arg display_title "Root Release ${root_tag}"',
-            ".display_title == $display_title",
-            '.conclusion == "success"',
         ):
             self.assertIn(required, script)
-        self.assertIn('-f head_sha="${root_commit}"', script)
-        self.assertIn('--arg commit "${root_commit}"', script)
+        for forbidden in (
+            "actions/workflows/release.yml/runs",
+            "workflow_runs",
+            'head_sha="${root_commit}"',
+            "display_title",
+            'workflow_dispatch',
+        ):
+            self.assertNotIn(forbidden, script)
         self.assertNotIn('"${root_commit}" != "${GITHUB_SHA}"', script)
-        self.assertNotIn("workflow_dispatch", script)
         self.assertLess(
             steps.index(predecessor),
             next(

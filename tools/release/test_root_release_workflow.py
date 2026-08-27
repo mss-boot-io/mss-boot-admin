@@ -280,6 +280,51 @@ class RootReleaseWorkflowTest(unittest.TestCase):
         self.assertIn('--contributor-npm-registry "${registry_url}"', smoke)
         self.assertNotIn("registry.npmjs.org", smoke)
 
+    def test_preview_exports_one_verified_multiarch_oci_image_without_push(self):
+        image = self.step(
+            "frontend-build", "Qualify the exact V6 multi-platform release image"
+        )
+        self.assertEqual(image["id"], "image")
+        self.assertRegex(
+            image["uses"], r"^docker/build-push-action@[0-9a-f]{40}$"
+        )
+        self.assertEqual(image["with"]["push"], "false")
+        self.assertEqual(
+            image["with"]["outputs"],
+            "type=oci,dest=${{ runner.temp }}/frontend-v6-image.oci.tar",
+        )
+        self.assertEqual(image["with"]["platforms"], "linux/amd64,linux/arm64")
+        self.assertEqual(image["with"]["provenance"], "mode=max")
+        self.assertEqual(image["with"]["sbom"], "true")
+
+        verify = self.step(
+            "frontend-build", "Verify and stage the exact V6 OCI image"
+        )["run"]
+        for required in (
+            'archive_digest="$(' ,
+            'test "${archive_digest}" = "${BUILD_DIGEST}"',
+            '"blobs/sha256/${manifest_hash}"',
+            '.platform.architecture == "amd64"',
+            '.platform.architecture == "arm64"',
+            'inspect --config "oci-archive:${source_archive}"',
+            "FRONTEND-V6-IMAGE-INFO",
+            "SHA256SUMS.frontend-v6-image",
+        ):
+            self.assertIn(required, verify)
+
+        upload = self.step(
+            "frontend-build", "Upload primary V6 artifact"
+        )["with"]
+        paths = upload["path"].splitlines()
+        for expected in (
+            "web/antd-v6/frontend-v6-image.oci.tar",
+            "web/antd-v6/FRONTEND-V6-IMAGE-INFO",
+            "web/antd-v6/SHA256SUMS.frontend-v6-image",
+        ):
+            self.assertIn(expected, paths)
+        self.assertEqual(upload["compression-level"], "0")
+        self.assertEqual(upload["retention-days"], "30")
+
     def test_public_release_asset_set_is_exact_and_has_no_retired_tools(self):
         publish = self.step(
             "publish", "Stage, verify, and publish GitHub release atomically"

@@ -145,24 +145,25 @@ jobs:
           preview_dir="${RUNNER_TEMP}/frontend-v6-preview"
           preview_package_dir="${preview_dir}/admin-web-release-package"
           package_dir="${RUNNER_TEMP}/admin-web-release-package"
+          image_archive="${preview_dir}/frontend-v6-image.oci.tar"
+          image_info="${preview_dir}/FRONTEND-V6-IMAGE-INFO"
 
           test -f "${preview_dir}/dist-v6.tar.gz"
           test -f "${preview_dir}/FRONTEND-V6-BUILD-INFO"
           test -f "${preview_dir}/SHA256SUMS.frontend-v6"
           test -d "${preview_package_dir}"
+          test -s "${image_archive}"
+          test -f "${image_info}"
+          test -f "${preview_dir}/SHA256SUMS.frontend-v6-image"
           (
             cd "${preview_dir}"
             sha256sum --check SHA256SUMS.frontend-v6
+            sha256sum --check SHA256SUMS.frontend-v6-image
           )
           (
             cd "${preview_package_dir}"
             sha256sum --check SHA256SUMS.admin-web
           )
-          python3 ../../tools/release/check_portable_paths.py \
-            "${preview_dir}/dist-v6.tar.gz" \
-            "${preview_dir}/FRONTEND-V6-BUILD-INFO" \
-            "${preview_dir}/SHA256SUMS.frontend-v6" \
-            "${preview_package_dir}"
 
           grep -Fx "application=mss-boot-admin-antd-v6" \
             "${preview_dir}/FRONTEND-V6-BUILD-INFO" >/dev/null
@@ -171,49 +172,89 @@ jobs:
           grep -Fx "commit=${GITHUB_SHA}" \
             "${preview_dir}/FRONTEND-V6-BUILD-INFO" >/dev/null
           test "$(wc -l < "${preview_dir}/FRONTEND-V6-BUILD-INFO")" -eq 3
-
-          extracted_dist="${RUNNER_TEMP}/frontend-v6-dist-extracted"
-          mkdir -p "${extracted_dist}"
-          tar --extract --gzip \
-            --file "${preview_dir}/dist-v6.tar.gz" \
-            --directory "${extracted_dist}"
-          python3 ../../tools/release/check_portable_paths.py "${extracted_dist}/dist"
-          jq -e \
+          tar -xOf "${preview_dir}/dist-v6.tar.gz" dist/release.json \
+            | jq -e \
             --arg version "${RELEASE_VERSION}" \
             --arg commit "${GITHUB_SHA}" \
             '.application == "mss-boot-admin-antd-v6" and .version == $version and .commit == $commit' \
-            "${extracted_dist}/dist/release.json" >/dev/null
+            >/dev/null
 
           mapfile -t tarballs < <(
             find "${preview_package_dir}" -maxdepth 1 -type f -name '*.tgz' -print
           )
           test "${#tarballs[@]}" -eq 1
           tarball="${tarballs[0]}"
-          verified_evidence="${RUNNER_TEMP}/verified-admin-web-package.json"
-          python3 ../../tools/release/verify_admin_web_package.py \
-            --tarball "${tarball}" \
-            --expected-name '@mss-boot-io/admin-web' \
-            --expected-version "${RELEASE_VERSION#v}" \
-            --source-repository "${GITHUB_REPOSITORY}" \
-            --source-commit "${GITHUB_SHA}" \
-            --output "${verified_evidence}"
-          cmp -- "${verified_evidence}" "${preview_package_dir}/admin-web-package.json"
-          jq -e \
-            --arg version "${RELEASE_VERSION#v}" \
-            --arg commit "${GITHUB_SHA}" \
-            '.spdxVersion == "SPDX-2.3" and
-             ([.packages[] | select(
-               .name == "@mss-boot-io/admin-web" and
-               .versionInfo == $version and
-               (.sourceInfo | contains($commit))
-             )] | length) == 1' \
-            "${preview_package_dir}/admin-web.spdx.json" >/dev/null
+          tar -xOf "${tarball}" package/package.json \
+            | jq -e \
+                --arg version "${RELEASE_VERSION#v}" \
+                --arg commit "${GITHUB_SHA}" \
+                '.name == "@mss-boot-io/admin-web" and
+                 .version == $version and .gitHead == $commit' \
+            >/dev/null
+          python3 - \
+            "${tarball}" \
+            "${preview_package_dir}/admin-web-package.json" \
+            "${RELEASE_VERSION#v}" \
+            "${GITHUB_SHA}" <<'PY'
+          import base64
+          import hashlib
+          import json
+          from pathlib import Path
+          import sys
+
+          tarball = Path(sys.argv[1])
+          evidence = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          content = tarball.read_bytes()
+          artifact = evidence.get("artifact", {})
+          package = evidence.get("package", {})
+          source = evidence.get("source", {})
+          expected_integrity = "sha512-" + base64.b64encode(
+              hashlib.sha512(content).digest()
+          ).decode("ascii")
+          if not (
+              package.get("name") == "@mss-boot-io/admin-web"
+              and package.get("version") == sys.argv[3]
+              and package.get("gitHead") == sys.argv[4]
+              and source.get("repository") == "mss-boot-io/mss-boot-admin"
+              and source.get("commit") == sys.argv[4]
+              and artifact.get("filename") == tarball.name
+              and artifact.get("size") == len(content)
+              and artifact.get("sha256") == hashlib.sha256(content).hexdigest()
+              and artifact.get("integrity") == expected_integrity
+          ):
+              raise SystemExit("Admin Web preview identity or integrity mismatch")
+          PY
+
+          grep -Fx "application=mss-boot-admin-antd-v6" "${image_info}" >/dev/null
+          grep -Fx "version=${RELEASE_VERSION}" "${image_info}" >/dev/null
+          grep -Fx "commit=${GITHUB_SHA}" "${image_info}" >/dev/null
+          test "$(wc -l < "${image_info}")" -eq 4
+          expected_image_digest="$(sed -n 's/^digest=//p' "${image_info}")"
+          [[ "${expected_image_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          layout_index="${RUNNER_TEMP}/frontend-v6-preview.index.json"
+          image_manifest="${RUNNER_TEMP}/frontend-v6-preview.manifest.json"
+          tar -xOf "${image_archive}" index.json > "${layout_index}"
+          actual_image_digest="$(
+            jq -er '
+              if (.manifests | length) == 1 then
+                .manifests[0].digest
+              else
+                error("OCI layout must expose exactly one top-level image")
+              end
+            ' "${layout_index}"
+          )"
+          image_manifest_hash="${actual_image_digest#sha256:}"
+          [[ "${image_manifest_hash}" =~ ^[0-9a-f]{64}$ ]]
+          tar -xOf \
+            "${image_archive}" \
+            "blobs/sha256/${image_manifest_hash}" \
+            > "${image_manifest}"
+          test "sha256:$(sha256sum "${image_manifest}" | awk '{print $1}')" = "${actual_image_digest}"
+          test "${actual_image_digest}" = "${expected_image_digest}"
 
           cp -a "${preview_dir}/dist-v6.tar.gz" .
           cp -a "${preview_dir}/FRONTEND-V6-BUILD-INFO" .
           cp -a "${preview_dir}/SHA256SUMS.frontend-v6" .
-          rm -rf dist
-          cp -a "${extracted_dist}/dist" ./dist
           mkdir -p "${package_dir}"
           cp -a "${preview_package_dir}/." "${package_dir}/"
 
@@ -297,166 +338,201 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
-
-      - name: Inspect immutable v6 image publication state
-        id: image-state
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          image_repository="${REGISTRY}/${IMAGE_NAME}"
-          version_ref="${image_repository}:${VERSION}"
-          commit_ref="${image_repository}:${GITHUB_SHA}"
-          error_file="${RUNNER_TEMP}/image-inspect-error.log"
-
-          if version_manifest="$(
-            docker buildx imagetools inspect "${version_ref}" \
-              --format '{{json .Manifest}}' 2> "${error_file}"
-          )"; then
-            digest="$(jq -er '.digest' <<< "${version_manifest}")"
-            [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-            commit_manifest="$(
-              docker buildx imagetools inspect "${commit_ref}" \
-                --format '{{json .Manifest}}'
-            )"
-            if [[ "$(jq -er '.digest' <<< "${commit_manifest}")" != "${digest}" ]]; then
-              echo "immutable version and commit image tags resolve to different digests" >&2
-              exit 1
-            fi
-            {
-              echo 'exists=true'
-              echo "digest=${digest}"
-            } >> "${GITHUB_OUTPUT}"
-            rm -f "${error_file}"
-            exit 0
-          fi
-
-          if ! grep -Eqi 'manifest unknown|not found|name_unknown' "${error_file}"; then
-            echo 'registry inspection failed without an authoritative not-found response' >&2
-            sed -E 's#(https?://)[^/@[:space:]]+@#\1[REDACTED]@#g' "${error_file}" >&2
-            exit 1
-          fi
-          rm -f "${error_file}"
-          if docker buildx imagetools inspect "${commit_ref}" \
-            --format '{{json .Manifest}}' > /dev/null 2> "${error_file}"; then
-            echo "commit image tag exists while version tag is absent; refusing to overwrite it" >&2
-            exit 1
-          fi
-          if ! grep -Eqi 'manifest unknown|not found|name_unknown' "${error_file}"; then
-            echo 'commit-tag inspection failed without an authoritative not-found response' >&2
-            sed -E 's#(https?://)[^/@[:space:]]+@#\1[REDACTED]@#g' "${error_file}" >&2
-            exit 1
-          fi
-          rm -f "${error_file}"
-          echo 'exists=false' >> "${GITHUB_OUTPUT}"
-
-      - name: Extract v6 Docker metadata
-        id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ steps.version.outputs.version }}
-            type=sha,prefix=,format=long
-
-      - name: Build and push v6 Docker image
-        id: build
-        if: steps.image-state.outputs.exists != 'true'
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
-        with:
-          context: web/antd-v6
-          file: web/antd-v6/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: |
-            ${{ steps.meta.outputs.labels }}
-            org.opencontainers.image.title=mss-boot-admin-antd-v6
-            org.opencontainers.image.description=Complete React 19 and Ant Design 6 Admin application for mss-boot business hosts.
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          platforms: linux/amd64,linux/arm64
-          provenance: mode=max
-          sbom: true
-          cache-from: type=gha,scope=frontend-v6-image
-          cache-to: type=gha,mode=max,scope=frontend-v6-image
-
-      - name: Verify published v6 image identity
+      - name: Publish the exact preview V6 OCI image
         id: image
         env:
-          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
-          EXISTING_DIGEST: ${{ steps.image-state.outputs.digest }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          digest="${EXISTING_DIGEST:-${BUILD_DIGEST}}"
+          command -v skopeo >/dev/null
+          archive="${RUNNER_TEMP}/frontend-v6-preview/frontend-v6-image.oci.tar"
+          image_info="${RUNNER_TEMP}/frontend-v6-preview/FRONTEND-V6-IMAGE-INFO"
+          test -s "${archive}"
+          test -f "${image_info}"
+          digest="$(sed -n 's/^digest=//p' "${image_info}")"
           [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          auth_file="${DOCKER_CONFIG:-${HOME}/.docker}/config.json"
+          test -s "${auth_file}"
           image_repository="${REGISTRY}/${IMAGE_NAME}"
           version_ref="${image_repository}:${VERSION}"
           commit_ref="${image_repository}:${GITHUB_SHA}"
-          version_manifest="$(
-            docker buildx imagetools inspect "${version_ref}" \
-              --format '{{json .Manifest}}'
-          )"
-          commit_manifest="$(
-            docker buildx imagetools inspect "${commit_ref}" \
-              --format '{{json .Manifest}}'
-          )"
-          jq -e \
-            --arg digest "${digest}" \
-            '.digest == $digest and
-             ([.manifests[] | select(
-               .platform.os == "linux" and .platform.architecture == "amd64"
-             )] | length) == 1 and
-             ([.manifests[] | select(
-               .platform.os == "linux" and .platform.architecture == "arm64"
-             )] | length) == 1' \
-            <<< "${version_manifest}" >/dev/null
-          test "$(jq -er '.digest' <<< "${commit_manifest}")" = "${digest}"
 
-          container_id=''
-          cleanup_container() {
-            if [[ -n "${container_id}" ]]; then
-              docker rm -f "${container_id}" >/dev/null 2>&1 || true
+          inspect_digest() {
+            local reference="$1"
+            local manifest_file="$2"
+            local error_file="$3"
+            if skopeo inspect \
+              --authfile "${auth_file}" \
+              --raw "docker://${reference}" \
+              > "${manifest_file}" 2> "${error_file}"; then
+              printf 'sha256:%s\n' "$(sha256sum "${manifest_file}" | awk '{print $1}')"
+              return 0
+            fi
+            if grep -Eqi \
+              'manifest unknown|manifest_unknown|name unknown|name_unknown' \
+              "${error_file}"; then
+              return 2
+            fi
+            return 1
+          }
+
+          preflight_reference() {
+            local reference="$1"
+            local safe_name="$2"
+            local manifest_file="${RUNNER_TEMP}/${safe_name}.manifest.json"
+            local error_file="${RUNNER_TEMP}/${safe_name}.inspect.log"
+            local observed_digest_file="${RUNNER_TEMP}/${safe_name}.observed-digest"
+            local state_file="${RUNNER_TEMP}/${safe_name}.preflight-state"
+            local current_digest
+            local inspect_status
+
+            rm -f "${manifest_file}" "${error_file}" \
+              "${observed_digest_file}" "${state_file}"
+            if current_digest="$(
+              inspect_digest "${reference}" "${manifest_file}" "${error_file}"
+            )"; then
+              printf '%s\n' "${current_digest}" > "${observed_digest_file}"
+              if [[ "${current_digest}" == "${digest}" ]]; then
+                printf '%s\n' matching > "${state_file}"
+              else
+                printf '%s\n' conflict > "${state_file}"
+              fi
+            else
+              inspect_status=$?
+              if [[ "${inspect_status}" -eq 2 ]]; then
+                printf '%s\n' missing > "${state_file}"
+              else
+                printf '%s\n' error > "${state_file}"
+              fi
             fi
           }
-          trap cleanup_container EXIT
+
+          validate_preflight() {
+            local reference="$1"
+            local safe_name="$2"
+            local state_file="${RUNNER_TEMP}/${safe_name}.preflight-state"
+            local observed_digest_file="${RUNNER_TEMP}/${safe_name}.observed-digest"
+            local error_file="${RUNNER_TEMP}/${safe_name}.inspect.log"
+            local state
+
+            state="$(cat "${state_file}")"
+            case "${state}" in
+              matching|missing)
+                return 0
+                ;;
+              conflict)
+                echo "immutable image ${reference} already has $(cat "${observed_digest_file}"), expected ${digest}" >&2
+                return 1
+                ;;
+              error)
+                echo "registry inspection failed for ${reference}" >&2
+                sed -E 's#(https?://)[^/@[:space:]]+@#\1[REDACTED]@#g' \
+                  "${error_file}" >&2
+                return 1
+                ;;
+              *)
+                echo "invalid image preflight state for ${reference}: ${state}" >&2
+                return 1
+                ;;
+            esac
+          }
+
+          publish_reference_if_missing() {
+            local reference="$1"
+            local safe_name="$2"
+            local state_file="${RUNNER_TEMP}/${safe_name}.preflight-state"
+            local digest_file="${RUNNER_TEMP}/${safe_name}.published-digest"
+            local state
+
+            state="$(cat "${state_file}")"
+            case "${state}" in
+              matching)
+                return 0
+                ;;
+              missing)
+                ;;
+              *)
+                echo "refusing to publish ${reference} after preflight state ${state}" >&2
+                return 1
+                ;;
+            esac
+            rm -f "${digest_file}"
+            skopeo copy \
+              --all \
+              --preserve-digests \
+              --dest-authfile "${auth_file}" \
+              --digestfile "${digest_file}" \
+              "oci-archive:${archive}" \
+              "docker://${reference}"
+            test "$(tr -d '\r\n' < "${digest_file}")" = "${digest}"
+          }
+
+          verify_exact_reference() {
+            local reference="$1"
+            local safe_name="$2"
+            local manifest_file="${RUNNER_TEMP}/${safe_name}.manifest.json"
+            local error_file="${RUNNER_TEMP}/${safe_name}.inspect.log"
+            local current_digest
+            local inspect_status
+
+            current_digest="$(
+              inspect_digest "${reference}" "${manifest_file}" "${error_file}"
+            )" || inspect_status=$?
+            if [[ -n "${inspect_status:-}" ]]; then
+              echo "published image verification failed for ${reference}" >&2
+              sed -E 's#(https?://)[^/@[:space:]]+@#\1[REDACTED]@#g' \
+                "${error_file}" >&2
+              return "${inspect_status}"
+            fi
+            if [[ "${current_digest}" != "${digest}" ]]; then
+              echo "published image ${reference} has ${current_digest}, expected ${digest}" >&2
+              return 1
+            fi
+            rm -f "${error_file}"
+          }
+
+          preflight_reference "${version_ref}" frontend-v6-version
+          preflight_reference "${commit_ref}" frontend-v6-commit
+          preflight_failed=0
+          validate_preflight "${version_ref}" frontend-v6-version || preflight_failed=1
+          validate_preflight "${commit_ref}" frontend-v6-commit || preflight_failed=1
+          if [[ "${preflight_failed}" -ne 0 ]]; then
+            echo 'image publication preflight failed before any registry write' >&2
+            exit 1
+          fi
+
+          publish_reference_if_missing "${version_ref}" frontend-v6-version
+          publish_reference_if_missing "${commit_ref}" frontend-v6-commit
+          verify_exact_reference "${version_ref}" frontend-v6-version
+          verify_exact_reference "${commit_ref}" frontend-v6-commit
+
+          version_manifest="${RUNNER_TEMP}/frontend-v6-version.manifest.json"
+          jq -e '
+            ([.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "amd64"
+            )] | length) == 1 and
+            ([.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "arm64"
+            )] | length) == 1
+          ' "${version_manifest}" >/dev/null
           for architecture in amd64 arm64; do
-            platform_digest="$(
-              jq -er --arg architecture "${architecture}" '
-                .manifests[]
-                | select(
-                    .platform.os == "linux" and
-                    .platform.architecture == $architecture
-                  )
-                | .digest
-              ' <<< "${version_manifest}"
+            config="$(
+              skopeo \
+                --override-os linux \
+                --override-arch "${architecture}" \
+                inspect \
+                --authfile "${auth_file}" \
+                --config "docker://${version_ref}"
             )"
-            [[ "${platform_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-            platform_image="${image_repository}@${platform_digest}"
-            container_id="$(docker create --platform "linux/${architecture}" "${platform_image}")"
-            test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.title" }}' "${container_id}")" = 'mss-boot-admin-antd-v6'
-            test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.description" }}' "${container_id}")" = 'Complete React 19 and Ant Design 6 Admin application for mss-boot business hosts.'
-            test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "${container_id}")" = "${VERSION}"
-            test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${container_id}")" = "${GITHUB_SHA}"
-            release_file="${RUNNER_TEMP}/release-${architecture}.json"
-            docker cp \
-              "${container_id}:/usr/share/nginx/html/release.json" \
-              "${release_file}"
             jq -e \
               --arg version "${VERSION}" \
               --arg commit "${GITHUB_SHA}" \
-              '.application == "mss-boot-admin-antd-v6" and
-               .version == $version and .commit == $commit' \
-              "${release_file}" >/dev/null
-            docker rm "${container_id}" >/dev/null
-            container_id=''
+              '.config.Labels["org.opencontainers.image.title"] == "mss-boot-admin-antd-v6" and
+               .config.Labels["org.opencontainers.image.description"] == "Complete React 19 and Ant Design 6 Admin application for mss-boot business hosts." and
+               .config.Labels["org.opencontainers.image.version"] == $version and
+               .config.Labels["org.opencontainers.image.revision"] == $commit' \
+              <<< "${config}" >/dev/null
           done
-          trap - EXIT
           echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
 
       - name: Publish immutable Admin Web package to GitHub Packages
