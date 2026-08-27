@@ -1,5 +1,6 @@
 import re
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -119,7 +120,7 @@ class RootTagPromotionWorkflowTest(unittest.TestCase):
         for required in (
             'git/ref/tags/${RELEASE_VERSION}',
             '"${object_type}" != "tag"',
-            '.message == ("mss-boot-admin " + $version)',
+            '.message == ("mss-boot-admin " + $version + "\\n")',
             '.object.type == "commit"',
             ".object.sha == $commit",
             'echo "create=false" >> "${GITHUB_OUTPUT}"',
@@ -163,6 +164,105 @@ class RootTagPromotionWorkflowTest(unittest.TestCase):
             '"${remote_ready}" != "true"',
         ):
             self.assertIn(required, verification)
+
+    def test_annotated_tag_message_matches_the_git_object_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory)
+            subprocess.run(
+                ["git", "init", "-q"],
+                cwd=repository,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "workflow-test"],
+                cwd=repository,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "workflow-test@example.invalid"],
+                cwd=repository,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "commit", "--allow-empty", "-qm", "fixture"],
+                cwd=repository,
+                check=True,
+            )
+            subprocess.run(
+                [
+                    "git",
+                    "tag",
+                    "-a",
+                    "v1.3.5",
+                    "-m",
+                    "mss-boot-admin v1.3.5",
+                ],
+                cwd=repository,
+                check=True,
+            )
+            tag_object = subprocess.run(
+                ["git", "cat-file", "tag", "v1.3.5"],
+                cwd=repository,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+
+        self.assertEqual(
+            tag_object.split("\n\n", 1)[1],
+            "mss-boot-admin v1.3.5\n",
+        )
+        exact_message = '.message == ("mss-boot-admin " + $version + "\\n")'
+        self.assertIn(
+            exact_message,
+            self.step("Inspect the exact immutable root tag")["run"],
+        )
+        self.assertIn(
+            exact_message,
+            self.step("Require the exact annotated root tag")["run"],
+        )
+
+    def test_deploy_key_validation_accepts_a_standard_ssh_comment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            private_key = Path(directory) / "deploy-key"
+            subprocess.run(
+                [
+                    "ssh-keygen",
+                    "-q",
+                    "-t",
+                    "ed25519",
+                    "-N",
+                    "",
+                    "-C",
+                    "mss-root-tag-promotion",
+                    "-f",
+                    str(private_key),
+                ],
+                check=True,
+            )
+            public_key = subprocess.run(
+                ["ssh-keygen", "-y", "-P", "", "-f", str(private_key)],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+
+        self.assertEqual(public_key.split()[0], "ssh-ed25519")
+        self.assertEqual(len(public_key.split()), 3)
+        creation = self.step(
+            "Create the exact annotated root tag with the dedicated deploy key"
+        )["run"]
+        for required in (
+            '"$(wc -l < "${public_key_file}")" -ne 1',
+            "read -r public_key_type public_key_payload public_key_comment",
+            '"${public_key_type}" != "ssh-ed25519"',
+            '"${public_key_payload}" =~ ^[A-Za-z0-9+/]+={0,3}$',
+        ):
+            self.assertIn(required, creation)
+        self.assertNotIn(
+            "grep -Eq '^ssh-ed25519 [A-Za-z0-9+/]+={0,3}$'",
+            creation,
+        )
 
     def test_deploy_key_push_creates_one_exact_natural_run_per_stage(self):
         natural = self.step("Require exact natural root-tag push runs")["run"]

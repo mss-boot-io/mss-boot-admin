@@ -274,7 +274,7 @@ jobs:
               --arg version "${RELEASE_VERSION}" \
               --arg commit "${FROZEN_COMMIT}" \
               '.tag == $version and
-               .message == ("mss-boot-admin " + $version) and
+               .message == ("mss-boot-admin " + $version + "\n") and
                .object.type == "commit" and
                .object.sha == $commit' \
               <<< "${tag_object}" >/dev/null; then
@@ -322,7 +322,14 @@ jobs:
             echo "root-tag deploy key must be a valid unencrypted SSH private key" >&2
             exit 1
           fi
-          if ! grep -Eq '^ssh-ed25519 [A-Za-z0-9+/]+={0,3}$' "${public_key_file}"; then
+          if [[ "$(wc -l < "${public_key_file}")" -ne 1 ]]; then
+            echo "root-tag deploy key must use Ed25519" >&2
+            exit 1
+          fi
+          IFS=' ' read -r public_key_type public_key_payload public_key_comment \
+            < "${public_key_file}"
+          if [[ "${public_key_type}" != "ssh-ed25519" \
+            || ! "${public_key_payload}" =~ ^[A-Za-z0-9+/]+={0,3}$ ]]; then
             echo "root-tag deploy key must use Ed25519" >&2
             exit 1
           fi
@@ -365,7 +372,7 @@ jobs:
                 --arg version "${RELEASE_VERSION}" \
                 --arg commit "${FROZEN_COMMIT}" \
                 '.tag == $version and
-                 .message == ("mss-boot-admin " + $version) and
+             .message == ("mss-boot-admin " + $version + "\n") and
                  .object.type == "commit" and
                  .object.sha == $commit' \
                 <<< "${remote_tag}" >/dev/null; then
