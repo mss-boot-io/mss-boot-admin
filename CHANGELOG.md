@@ -51,6 +51,10 @@ commit. This entry does not authorize installation or mixed-version adoption.
 
 ### Fixed
 
+- Allow the Root candidate to call the reusable container workflow with its
+  exact nested permission ceiling. GitHub can now start the candidate graph,
+  while the version-only preview remains non-publishing and its container build
+  keeps the called workflow's read-only permissions.
 - Make a manual Root Release dispatch a candidate-only preview and make an
   exact formal Root tag push publish automatically, eliminating the second
   publish dispatch, manually selected run IDs, evidence URL, and protected

@@ -8,6 +8,9 @@ import yaml
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
+CONTAINER_WORKFLOW_PATH = (
+    REPOSITORY_ROOT / ".github" / "workflows" / "container.yml"
+)
 GITHUB_EXPRESSION = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
 
 
@@ -140,6 +143,21 @@ class RootReleaseWorkflowTest(unittest.TestCase):
         self.assertNotIn("refusing to mutate", script)
         for forbidden in ("gh run watch", "gh workflow run", "sleep "):
             self.assertNotIn(forbidden, script)
+
+    def test_container_preview_allows_only_the_nested_permission_ceiling(self):
+        container_workflow = yaml.load(
+            CONTAINER_WORKFLOW_PATH.read_text(encoding="utf-8"),
+            Loader=yaml.BaseLoader,
+        )
+        preview = self.jobs["container-preview"]
+        self.assertEqual(
+            preview["permissions"],
+            container_workflow["jobs"]["publish"]["permissions"],
+        )
+        self.assertEqual(
+            preview["if"], "needs.metadata.outputs.publish != 'true'"
+        )
+        self.assertEqual(set(preview["with"]), {"version"})
 
     def test_root_requires_only_exact_public_component_releases(self):
         evidence = self.step(

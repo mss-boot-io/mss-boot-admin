@@ -251,6 +251,11 @@ jobs:
   container-preview:
     needs: metadata
     if: needs.metadata.outputs.publish != 'true'
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+      pull-requests: read
     uses: ./.github/workflows/container.yml
     with:
       version: ${{ needs.metadata.outputs.version }}
