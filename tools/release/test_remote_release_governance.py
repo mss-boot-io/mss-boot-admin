@@ -154,6 +154,12 @@ json.dump(responses[endpoint], sys.stdout)
             f"/repos/{REPOSITORY}/actions/variables?per_page=100": named_items(
                 "variables", []
             ),
+            f"/repos/{REPOSITORY}/actions/secrets?per_page=100": named_items(
+                "secrets", []
+            ),
+            f"/repos/{REPOSITORY}/actions/organization-secrets?per_page=100": named_items(
+                "secrets", ["CF_API_TOKEN", "UNRELATED_ORG_SECRET"]
+            ),
             f"/repos/{REPOSITORY}/rulesets?includes_parents=true&per_page=100": ruleset_summaries,
             f"/repos/{REPOSITORY}/rulesets/101?includes_parents=true": {
                 **common_ruleset,
@@ -205,10 +211,9 @@ json.dump(responses[endpoint], sys.stdout)
             state[
                 f"/repositories/{REPOSITORY_ID}/environments/{name}/variables?per_page=100"
             ] = named_items("variables", [])
-            secret_names = ["cf_api_token"] if name == "prod" else []
             state[
                 f"/repositories/{REPOSITORY_ID}/environments/{name}/secrets?per_page=100"
-            ] = named_items("secrets", secret_names)
+            ] = named_items("secrets", [])
         return state
 
     def run_script(self, state=None):
@@ -285,7 +290,16 @@ json.dump(responses[endpoint], sys.stdout)
                 "releaseAuto": [],
                 "releaseV6Auto": [],
                 "npmAuto": [],
-                "prod": ["cf_api_token"],
+                "prod": [],
+            },
+        )
+        self.assertEqual(
+            report["docsCredential"],
+            {
+                "name": "CF_API_TOKEN",
+                "source": "organization",
+                "repositoryOverride": False,
+                "environmentOverride": False,
             },
         )
 
@@ -337,14 +351,8 @@ json.dump(responses[endpoint], sys.stdout)
                     f"{name} environment deployment branch or tag policies are not exact",
                 )
 
-    def test_environment_secret_name_sets_are_exact(self):
-        for name in (
-            "release",
-            "release-v6",
-            "release-auto",
-            "release-v6-auto",
-            "npm-auto",
-        ):
+    def test_environment_secret_name_sets_are_exact_and_docs_secret_is_org_scoped(self):
+        for name in ALL_ENVIRONMENTS:
             with self.subTest(environment=name):
                 state = copy.deepcopy(self.state)
                 endpoint = (
@@ -358,9 +366,21 @@ json.dump(responses[endpoint], sys.stdout)
 
         state = copy.deepcopy(self.state)
         state[
-            f"/repositories/{REPOSITORY_ID}/environments/prod/secrets?per_page=100"
-        ] = named_items("secrets", [])
-        self.assert_rejected(state, "prod environment secret names are not exact")
+            f"/repos/{REPOSITORY}/actions/organization-secrets?per_page=100"
+        ] = named_items("secrets", ["UNRELATED_ORG_SECRET"])
+        self.assert_rejected(
+            state,
+            "CF_API_TOKEN must be available to this repository from organization Actions secrets",
+        )
+
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/actions/secrets?per_page=100"] = named_items(
+            "secrets", ["CF_API_TOKEN"]
+        )
+        self.assert_rejected(
+            state,
+            "repository-level CF_API_TOKEN would override the organization secret",
+        )
 
     def test_readiness_run_variable_is_absent_at_repository_and_every_environment(self):
         self.assertIn(

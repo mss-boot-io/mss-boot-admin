@@ -256,10 +256,20 @@ jobs:
             '.application == "mss-boot-docs" and .version == $version and .commit == $commit' \
             docs/dist/release.json >/dev/null
 
+      - name: Require organization-managed Cloudflare credential
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CF_API_TOKEN:-}" ]]; then
+            echo 'CF_API_TOKEN must be shared with this repository from organization Actions secrets' >&2
+            exit 1
+          fi
+
       - name: Deploy production documentation
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
         with:
-          apiToken: ${{ secrets.cf_api_token }}
+          apiToken: ${{ secrets.CF_API_TOKEN }}
           packageManager: npm
           wranglerVersion: '4'
           workingDirectory: docs

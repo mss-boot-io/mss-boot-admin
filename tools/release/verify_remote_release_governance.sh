@@ -52,6 +52,22 @@ jq -e '.permissions.admin == true' <<< "${repository_json}" >/dev/null || {
 }
 repository_id="$(jq -er '.id' <<< "${repository_json}")"
 
+repository_secrets="$(gh api "/repos/${repository}/actions/secrets?per_page=100")"
+if jq -e '
+  any(.secrets[]; (.name | ascii_upcase) == "CF_API_TOKEN")
+' <<< "${repository_secrets}" >/dev/null; then
+  echo 'repository-level CF_API_TOKEN would override the organization secret' >&2
+  exit 1
+fi
+
+organization_secrets="$(gh api "/repos/${repository}/actions/organization-secrets?per_page=100")"
+jq -e '
+  ([.secrets[] | select((.name | ascii_upcase) == "CF_API_TOKEN")] | length) == 1
+' <<< "${organization_secrets}" >/dev/null || {
+  echo 'CF_API_TOKEN must be available to this repository from organization Actions secrets' >&2
+  exit 1
+}
+
 deploy_keys="$(gh api "/repos/${repository}/keys?per_page=100")"
 if jq -e 'any(.[]; .title == "mss-root-tag-promotion")' \
   <<< "${deploy_keys}" >/dev/null; then
@@ -308,7 +324,7 @@ verify_environment_secrets release-v6
 verify_environment_secrets release-auto
 verify_environment_secrets release-v6-auto
 verify_environment_secrets npm-auto
-verify_environment_secrets prod cf_api_token
+verify_environment_secrets prod
 
 jq -n \
   --arg repository "${repository}" \
@@ -345,6 +361,12 @@ jq -n \
       releaseAuto: [],
       releaseV6Auto: [],
       npmAuto: [],
-      prod: ["cf_api_token"]
+      prod: []
+    },
+    docsCredential: {
+      name: "CF_API_TOKEN",
+      source: "organization",
+      repositoryOverride: false,
+      environmentOverride: false
     }
   }'
