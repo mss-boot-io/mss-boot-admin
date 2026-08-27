@@ -88,16 +88,30 @@ import json
 import os
 import sys
 
-if len(sys.argv) != 3 or sys.argv[1] != "api":
-    print("fake gh supports only: gh api ENDPOINT", file=sys.stderr)
+if len(sys.argv) < 3 or sys.argv[1] != "api":
+    print("fake gh supports only: gh api [FLAGS] ENDPOINT", file=sys.stderr)
     raise SystemExit(2)
 with open(os.environ["FAKE_GH_STATE"], encoding="utf-8") as handle:
     responses = json.load(handle)
-endpoint = sys.argv[2]
+arguments = sys.argv[2:]
+endpoints = [argument for argument in arguments if not argument.startswith("-")]
+if len(endpoints) != 1:
+    print("fake gh requires exactly one API endpoint", file=sys.stderr)
+    raise SystemExit(2)
+endpoint = endpoints[0]
 if endpoint not in responses:
     print(f"unexpected gh api endpoint: {endpoint}", file=sys.stderr)
     raise SystemExit(3)
-json.dump(responses[endpoint], sys.stdout)
+response = responses[endpoint]
+if isinstance(response, dict) and "__pages__" in response:
+    if "--paginate" not in arguments:
+        print("multi-page fake response requires --paginate", file=sys.stderr)
+        raise SystemExit(4)
+    for page in response["__pages__"]:
+        json.dump(page, sys.stdout)
+        sys.stdout.write("\\n")
+else:
+    json.dump(response, sys.stdout)
 """,
             encoding="utf-8",
         )
@@ -154,6 +168,12 @@ json.dump(responses[endpoint], sys.stdout)
             f"/repos/{REPOSITORY}/actions/variables?per_page=100": named_items(
                 "variables", []
             ),
+            f"/repos/{REPOSITORY}/actions/secrets?per_page=100": named_items(
+                "secrets", []
+            ),
+            f"/repos/{REPOSITORY}/actions/organization-secrets?per_page=100": named_items(
+                "secrets", ["CF_API_TOKEN", "UNRELATED_ORG_SECRET"]
+            ),
             f"/repos/{REPOSITORY}/rulesets?includes_parents=true&per_page=100": ruleset_summaries,
             f"/repos/{REPOSITORY}/rulesets/101?includes_parents=true": {
                 **common_ruleset,
@@ -205,10 +225,9 @@ json.dump(responses[endpoint], sys.stdout)
             state[
                 f"/repositories/{REPOSITORY_ID}/environments/{name}/variables?per_page=100"
             ] = named_items("variables", [])
-            secret_names = ["cf_api_token"] if name == "prod" else []
             state[
                 f"/repositories/{REPOSITORY_ID}/environments/{name}/secrets?per_page=100"
-            ] = named_items("secrets", secret_names)
+            ] = named_items("secrets", [])
         return state
 
     def run_script(self, state=None):
@@ -252,6 +271,8 @@ json.dump(responses[endpoint], sys.stdout)
         self.assertIn("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", self.content)
         self.assertNotRegex(self.content, re.compile(r"gh auth token|Authorization:"))
         self.assertNotRegex(self.content, re.compile(r"secrets\[[^]]+\]\.value"))
+        self.assertIn("gh api --paginate", self.content)
+        self.assertIn("jq -s -e", self.content)
 
     def test_valid_simplified_governance_contract_is_reported(self):
         result = self.run_script()
@@ -285,7 +306,16 @@ json.dump(responses[endpoint], sys.stdout)
                 "releaseAuto": [],
                 "releaseV6Auto": [],
                 "npmAuto": [],
-                "prod": ["cf_api_token"],
+                "prod": [],
+            },
+        )
+        self.assertEqual(
+            report["docsCredential"],
+            {
+                "name": "CF_API_TOKEN",
+                "source": "organization",
+                "repositoryOverride": False,
+                "environmentOverride": False,
             },
         )
 
@@ -337,14 +367,8 @@ json.dump(responses[endpoint], sys.stdout)
                     f"{name} environment deployment branch or tag policies are not exact",
                 )
 
-    def test_environment_secret_name_sets_are_exact(self):
-        for name in (
-            "release",
-            "release-v6",
-            "release-auto",
-            "release-v6-auto",
-            "npm-auto",
-        ):
+    def test_environment_secret_name_sets_are_exact_and_docs_secret_is_org_scoped(self):
+        for name in ALL_ENVIRONMENTS:
             with self.subTest(environment=name):
                 state = copy.deepcopy(self.state)
                 endpoint = (
@@ -358,9 +382,46 @@ json.dump(responses[endpoint], sys.stdout)
 
         state = copy.deepcopy(self.state)
         state[
-            f"/repositories/{REPOSITORY_ID}/environments/prod/secrets?per_page=100"
-        ] = named_items("secrets", [])
-        self.assert_rejected(state, "prod environment secret names are not exact")
+            f"/repos/{REPOSITORY}/actions/organization-secrets?per_page=100"
+        ] = named_items("secrets", ["UNRELATED_ORG_SECRET"])
+        self.assert_rejected(
+            state,
+            "CF_API_TOKEN must be available to this repository from organization Actions secrets",
+        )
+
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/actions/secrets?per_page=100"] = named_items(
+            "secrets", ["CF_API_TOKEN"]
+        )
+        self.assert_rejected(
+            state,
+            "repository-level CF_API_TOKEN would override the organization secret",
+        )
+
+    def test_docs_secret_checks_all_repository_and_organization_pages(self):
+        state = copy.deepcopy(self.state)
+        state[
+            f"/repos/{REPOSITORY}/actions/organization-secrets?per_page=100"
+        ] = {
+            "__pages__": [
+                named_items("secrets", ["UNRELATED_ORG_SECRET"]),
+                named_items("secrets", ["CF_API_TOKEN"]),
+            ]
+        }
+        result = self.run_script(state)
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/actions/secrets?per_page=100"] = {
+            "__pages__": [
+                named_items("secrets", ["UNRELATED_REPOSITORY_SECRET"]),
+                named_items("secrets", ["CF_API_TOKEN"]),
+            ]
+        }
+        self.assert_rejected(
+            state,
+            "repository-level CF_API_TOKEN would override the organization secret",
+        )
 
     def test_readiness_run_variable_is_absent_at_repository_and_every_environment(self):
         self.assertIn(

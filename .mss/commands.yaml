@@ -247,7 +247,7 @@ spec:
 
     remote-release-governance-verify:
       command: bash tools/release/verify_remote_release_governance.sh --repository <owner/repository> --release-actor-login lwnmengjing
-      description: As any authenticated repository administrator, emit sanitized metadata proving that Root, component, and Docs tag creation belongs only to lwnmengjing, stopped v1.3.5 refs have a creation-only no-bypass freeze, every release tag remains immutable, active publishing environments have exact tag policies with no reviewer pause or administrator bypass, and retired environments allow no ref; required environment secret names are checked without reading secret values.
+      description: As any authenticated repository administrator, emit sanitized metadata proving that Root, component, and Docs tag creation belongs only to lwnmengjing, stopped v1.3.5 refs have a creation-only no-bypass freeze, every release tag remains immutable, active publishing environments have exact tag policies with no reviewer pause or administrator bypass, and retired environments allow no ref; the organization-managed Docs credential must be available to this repository without repository or environment overrides, and no secret value is read.
       outputFormats: [json]
       category: release
       idempotent: true

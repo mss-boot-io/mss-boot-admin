@@ -163,7 +163,7 @@ bash tools/release/verify_remote_release_governance.sh \
   > ".mss/reports/remote-release-governance-${VERSION}.json"
 ```
 
-The verifier requires exactly one consolidated controlled-creation ruleset, the no-bypass v1.3.5 stopped-tag creation ruleset, and the no-bypass immutable tag ruleset. It also requires exact tag policies, no administrator bypass, and no required reviewers on the active publishing environments, while confirming required environment secret names without reading their values. The retired publishing environments must remain blocked so an old workflow cannot regain publication authority.
+The verifier requires exactly one consolidated controlled-creation ruleset, the no-bypass v1.3.5 stopped-tag creation ruleset, and the no-bypass immutable tag ruleset. It also requires exact tag policies, no administrator bypass, and no required reviewers on the active publishing environments. The Docs credential must be the organization-managed `CF_API_TOKEN` shared with this repository, with no repository or environment override; the environment-bound Docs workflow checks effective availability without printing its value before deployment. The retired publishing environments must remain blocked so an old workflow cannot regain publication authority.
 
 ### 7. Push the Root tag; publish Docs later
 

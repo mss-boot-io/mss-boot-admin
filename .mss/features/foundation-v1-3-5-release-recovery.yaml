@@ -103,7 +103,7 @@ spec:
       rules:
         - Every release preview and component, Root, npm, or Docs tag workflow requires both GITHUB_ACTOR and GITHUB_TRIGGERING_ACTOR to equal lwnmengjing before checkout, secrets, or writes.
         - One controlled-creation ruleset covers component, Root, and Docs tag namespaces and contains exactly lwnmengjing with no second user, Team, App, Integration, DeployKey, or administrator authority.
-        - New release-auto, release-v6-auto, npm-auto, and prod environments retain exact tag policies and required secrets but have no required reviewers; retired release and release-v6 environments allow no ref and cannot revive old workflows.
+        - New release-auto, release-v6-auto, npm-auto, and prod environments retain exact tag policies but have no required reviewers; Docs consumes the organization-managed CF_API_TOKEN shared with this repository, repository and environment overrides remain absent, and the environment-bound workflow checks effective availability before deployment. Retired release and release-v6 environments allow no ref and cannot revive old workflows.
         - The obsolete Root promotion workflow, write-enabled DeployKey, promotion secret, promotion environment, and root-only creation ruleset are absent.
     - id: publish-truthful-status-documentation
       title: Disable incomplete adopter onboarding

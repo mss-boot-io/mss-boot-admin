@@ -1350,6 +1350,32 @@ exit 66
             ),
         )
 
+        deployment = workflow["jobs"]["deployment"]
+        self.assertEqual(deployment["environment"], "prod")
+        deployment_steps = deployment["steps"]
+        credential = next(
+            step
+            for step in deployment_steps
+            if step.get("name")
+            == "Require organization-managed Cloudflare credential"
+        )
+        self.assertEqual(
+            credential["env"],
+            {"CF_API_TOKEN": "${{ secrets.CF_API_TOKEN }}"},
+        )
+        self.assertIn('[[ -z "${CF_API_TOKEN:-}" ]]', credential["run"])
+        publish = next(
+            step
+            for step in deployment_steps
+            if step.get("name") == "Deploy production documentation"
+        )
+        self.assertEqual(
+            publish["with"]["apiToken"], "${{ secrets.CF_API_TOKEN }}"
+        )
+        self.assertLess(
+            deployment_steps.index(credential), deployment_steps.index(publish)
+        )
+
     def test_root_tag_automatically_drives_root_image_and_npm_without_docs(self):
         root = self.workflows["release.yml"]
         metadata = next(
