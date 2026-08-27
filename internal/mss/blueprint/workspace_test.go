@@ -167,6 +167,7 @@ func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testi
 		`project = root / ".mss/project.yaml"`,
 		`registry.npmjs.org`,
 		`version = '1.3.5'`,
+		`version = '1.3.6'`,
 	} {
 		if strings.Contains(workflow, forbidden) {
 			t.Errorf("Foundation compatibility workflow retains coupled or untraceable fixture %q", forbidden)

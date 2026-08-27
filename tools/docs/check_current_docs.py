@@ -12,6 +12,9 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS_ROOT = Path("docs/docs")
+EXPECTED_DISTRIBUTION_VERSION = "v1.3.6"
+CURRENT_RELEASE_PAGE = Path("docs/docs/releases/v1-3-6.md")
+STOPPED_RELEASE_PAGE = Path("docs/docs/releases/v1-3-5.md")
 
 CORE_CURRENT_FILES = (
     Path("README.md"),
@@ -31,7 +34,7 @@ CORE_CURRENT_FILES = (
     Path("docs/docs/getting-started/tooling.md"),
     Path("docs/docs/getting-started/mss-shop.md"),
     Path("docs/docs/releases/index.md"),
-    Path("docs/docs/releases/v1-3-5.md"),
+    CURRENT_RELEASE_PAGE,
 )
 
 CORE_LINK_FILES = CORE_CURRENT_FILES + (
@@ -48,7 +51,7 @@ ADOPTER_ONBOARDING_FILES = (
     Path("docs/docs/getting-started/tooling.md"),
     Path("docs/docs/getting-started/mss-shop.md"),
     Path("docs/docs/releases/index.md"),
-    Path("docs/docs/releases/v1-3-5.md"),
+    CURRENT_RELEASE_PAGE,
 )
 
 PARTIAL_RELEASE_STATUS_FILES = ADOPTER_ONBOARDING_FILES + (
@@ -104,7 +107,7 @@ UPGRADE_CONTRACT_FILES = (
     Path("docs/docs/getting-started/index.md"),
     Path("docs/docs/guide/faq.md"),
     Path("docs/docs/agent/blueprints-and-upgrades.md"),
-    Path("docs/docs/releases/v1-3-5.md"),
+    CURRENT_RELEASE_PAGE,
     Path("templates/application/README.md"),
 )
 
@@ -174,7 +177,11 @@ REMOVED_ADMIN_PAGES = {
     "ui-experience-and-static-delivery.md",
 }
 
-ALLOWED_RELEASE_ROOT = {"index.md", "v1-3-5.md"}
+ALLOWED_RELEASE_ROOT = {
+    "index.md",
+    CURRENT_RELEASE_PAGE.name,
+    STOPPED_RELEASE_PAGE.name,
+}
 REQUIRED_ARCHIVE_PAGES = {
     "index.md",
     "v1-0-0.md",
@@ -225,7 +232,8 @@ OPERATIONAL_VERSION_LINE = re.compile(
 )
 HISTORICAL_RELEASE_VERSION_REFERENCES = {
     Path("docs/docs/releases/index.md"): {"v1.3.4"},
-    Path("docs/docs/releases/v1-3-5.md"): {"v1.3.4"},
+    CURRENT_RELEASE_PAGE: {"v1.3.4"},
+    STOPPED_RELEASE_PAGE: {"v1.3.4"},
 }
 FORBIDDEN_SOURCE_COMMANDS = {
     "Foundation clone command": re.compile(r"\bgit\s+clone\b"),
@@ -258,40 +266,49 @@ FORBIDDEN_SOURCE_COMMANDS = {
     ),
 }
 
-PARTIAL_RELEASE_OPERATIONAL_COMMANDS = {
-    "unpublished v1.3.5 installer URL": re.compile(
-        r"https://github\.com/mss-boot-io/mss-boot-admin/releases/download/"
-        r"v1\.3\.5/install-mss\.(?:sh|ps1)",
-        re.IGNORECASE,
-    ),
-    "unpublished shell installer invocation": re.compile(
-        r"(?im)^(?=[^\n]*v1\.3\.5)[^\n]*"
-        r"\b(?:bash|sh)\s+(?:\./)?install-mss\.sh\b[^\n]*$",
-    ),
-    "unpublished PowerShell installer invocation": re.compile(
-        r"(?im)^(?=[^\n]*v1\.3\.5)[^\n]*"
-        r"(?:Invoke-WebRequest[^\n]*install-mss\.ps1|"
-        r"&\s+\.\\install-mss\.ps1\b)[^\n]*$",
-    ),
-    "unpublished v1.3.5 Admin upgrade": re.compile(
-        r"(?<![A-Za-z0-9_-])mss\s+upgrade\s+admin\s+v1\.3\.5\b",
-        re.IGNORECASE,
-    ),
-    "unpublished official npmjs install": re.compile(
-        r"(?im)^\s*(?:[$>]\s*)?(?:corepack\s+)?(?:npm|pnpm|yarn|bun)\b"
-        r"[^\n]*@mss-boot-io/admin-web@1\.3\.5\b",
-    ),
-    "unpublished Root image command": re.compile(
-        r"(?im)^\s*(?:[$>]\s*)?(?:docker|podman|nerdctl)\s+(?:pull|run)\b"
-        r"[^\n]*ghcr\.io/mss-boot-io/mss-boot-admin:v1\.3\.5\b",
-    ),
-    "source-built v1.3.5 Root tool": re.compile(
-        r"(?im)^\s*(?:[$>]\s*)?go\s+install\b[^\n]*/cmd/mss(?:-mcp)?@v1\.3\.5\b",
-    ),
-}
+def unpublished_operational_commands(version: str) -> dict[str, re.Pattern[str]]:
+    escaped_version = re.escape(version)
+    escaped_npm_version = re.escape(version.removeprefix("v"))
+    return {
+        f"unpublished {version} installer URL": re.compile(
+            r"https://github\.com/mss-boot-io/mss-boot-admin/releases/download/"
+            rf"{escaped_version}/install-mss\.(?:sh|ps1)",
+            re.IGNORECASE,
+        ),
+        "unpublished shell installer invocation": re.compile(
+            rf"(?im)^(?=[^\n]*{escaped_version})[^\n]*"
+            r"\b(?:bash|sh)\s+(?:\./)?install-mss\.sh\b[^\n]*$",
+        ),
+        "unpublished PowerShell installer invocation": re.compile(
+            rf"(?im)^(?=[^\n]*{escaped_version})[^\n]*"
+            r"(?:Invoke-WebRequest[^\n]*install-mss\.ps1|"
+            r"&\s+\.\\install-mss\.ps1\b)[^\n]*$",
+        ),
+        f"unpublished {version} Admin upgrade": re.compile(
+            rf"(?<![A-Za-z0-9_-])mss\s+upgrade\s+admin\s+{escaped_version}\b",
+            re.IGNORECASE,
+        ),
+        "unpublished official npmjs install": re.compile(
+            r"(?im)^\s*(?:[$>]\s*)?(?:corepack\s+)?(?:npm|pnpm|yarn|bun)\b"
+            rf"[^\n]*@mss-boot-io/admin-web@{escaped_npm_version}\b",
+        ),
+        "unpublished Root image command": re.compile(
+            r"(?im)^\s*(?:[$>]\s*)?(?:docker|podman|nerdctl)\s+(?:pull|run)\b"
+            rf"[^\n]*ghcr\.io/mss-boot-io/mss-boot-admin:{escaped_version}\b",
+        ),
+        f"source-built {version} Root tool": re.compile(
+            r"(?im)^\s*(?:[$>]\s*)?go\s+install\b[^\n]*/cmd/mss(?:-mcp)?@"
+            rf"{escaped_version}\b",
+        ),
+    }
 
 PARTIAL_RELEASE_STATUS_MARKER = re.compile(
-    r"(?:immutable[- ]partial|不可变(?:的)?部分发布)",
+    r"(?:permanently stopped|immutable[- ]partial|永久停止|不可变(?:的)?部分发布)",
+    re.IGNORECASE,
+)
+ACTIVE_TARGET_STATUS_MARKER = re.compile(
+    r"(?:release[- ]candidate|candidate|pre[- ]publication|unpublished|"
+    r"active target|候选|发布前|尚未发布|未发布|当前目标)",
     re.IGNORECASE,
 )
 PARTIAL_RELEASE_BOUNDARY_MARKER = re.compile(
@@ -303,35 +320,46 @@ PARTIAL_RELEASE_BOUNDARY_MARKER = re.compile(
     r"不能[^\n]{0,80}(?:采用|安装|升级|发行|Thin Host))",
     re.IGNORECASE,
 )
-CURRENT_V135_ADOPTION_CLAIMS = {
-    "v1.3.5 tool availability claim": re.compile(
-        r"(?:公共对账完成后[,，]?\s*)?v1\.3\.5[^\n]{0,100}"
-        r"(?:对外工具|工具包并报告|工具和包生成)",
-        re.IGNORECASE,
-    ),
-    "v1.3.5 generated Thin Host claim": re.compile(
-        r"(?:生成的|通过公开|从公开|由公开)[^\n]{0,50}v1\.3\.5"
-        r"[^\n]{0,100}(?:Thin Host|生成|mss-shop)",
-        re.IGNORECASE,
-    ),
-    "v1.3.5 current-capabilities heading": re.compile(
-        r"(?m)^#\s+v1\.3\.5\s+当前能力(?:与边界)?\s*$",
-        re.IGNORECASE,
-    ),
-    "v1.3.5 embedded-tool availability claim": re.compile(
-        r"v1\.3\.5\s+的\s+`?mss`?\s+二进制内置",
-        re.IGNORECASE,
-    ),
-    "English v1.3.5 candidate publication claim": re.compile(
-        r"\bThe\s+v1\.3\.5\s+candidate\s+publishes\b",
-        re.IGNORECASE,
-    ),
-}
+def unreconciled_adoption_claims(version: str) -> dict[str, re.Pattern[str]]:
+    escaped_version = re.escape(version)
+    return {
+        f"{version} tool availability claim": re.compile(
+            rf"(?:公共对账完成后[,，]?\s*)?{escaped_version}[^\n]{{0,100}}"
+            r"(?:对外工具|工具包并报告|工具和包生成)",
+            re.IGNORECASE,
+        ),
+        f"{version} generated Thin Host claim": re.compile(
+            rf"(?:生成的|通过公开|从公开|由公开)[^\n]{{0,50}}{escaped_version}"
+            r"[^\n]{0,100}(?:Thin Host|生成|mss-shop)",
+            re.IGNORECASE,
+        ),
+        f"{version} current-capabilities heading": re.compile(
+            rf"(?m)^#\s+{escaped_version}\s+当前能力(?:与边界)?\s*$",
+            re.IGNORECASE,
+        ),
+        f"{version} embedded-tool availability claim": re.compile(
+            rf"{escaped_version}\s+的\s+`?mss`?\s+二进制内置",
+            re.IGNORECASE,
+        ),
+        f"English {version} candidate publication claim": re.compile(
+            rf"\bThe\s+{escaped_version}\s+candidate\s+publishes\b",
+            re.IGNORECASE,
+        ),
+        f"unreconciled {version} current-stable claim": re.compile(
+            rf"(?:\bcurrent(?:\s+coordinated)?\s+stable(?:\s+(?:distribution|version))?"
+            rf"\s*(?:is|:)\s*[*_`]*{escaped_version}\b|"
+            rf"\b{escaped_version}\s+is\s+(?:the\s+)?current\s+stable\b|"
+            rf"当前(?:协调)?稳定(?:版本|版|基线)?\s*(?:是|为|：|:)\s*[*_`]*{escaped_version}\b|"
+            rf"{escaped_version}\s*(?:是|为)\s*当前(?:协调)?稳定(?:版本|版|基线)?)",
+            re.IGNORECASE,
+        ),
+    }
 
 
 class ReleaseDocumentationState(NamedTuple):
     distribution_version: str
     current_stable_version: str
+    immutable_stopped_version: str
     publication_workflows_ready: bool
     release_status: str
 
@@ -364,6 +392,9 @@ def release_documentation_state(root: Path) -> ReleaseDocumentationState:
     )
     stable = required_value(
         "currentStableVersion", r"v\d+\.\d+\.\d+"
+    )
+    immutable_stopped = required_value(
+        "immutableStoppedVersion", r"v\d+\.\d+\.\d+"
     )
     publication_ready_text = required_value(
         "publicationWorkflowsReady", r"true|false"
@@ -404,6 +435,7 @@ def release_documentation_state(root: Path) -> ReleaseDocumentationState:
     return ReleaseDocumentationState(
         distribution_version=distribution,
         current_stable_version=stable,
+        immutable_stopped_version=immutable_stopped,
         publication_workflows_ready=publication_ready_text == "true",
         release_status=matching_features[0][1],
     )
@@ -448,6 +480,7 @@ def forbidden_content_errors(
     paths: Iterable[Path],
     *,
     current_stable_version: str | None = None,
+    immutable_stopped_version: str | None = None,
 ) -> list[str]:
     errors: list[str] = []
     npm_version = version.removeprefix("v")
@@ -484,7 +517,10 @@ def forbidden_content_errors(
                 token != version
                 and token != current_stable_version
                 and not (
-                    token in allowed_historical_versions
+                    (
+                        token in allowed_historical_versions
+                        or token == immutable_stopped_version
+                    )
                     and not in_fenced_code(match.start())
                     and not on_operational_line(match.start())
                 )
@@ -496,7 +532,10 @@ def forbidden_content_errors(
         for match in ADMIN_WEB_TOKEN.finditer(text):
             token = match.group(1)
             if token != npm_version and not (
-                f"v{token}" in allowed_historical_versions
+                (
+                    f"v{token}" in allowed_historical_versions
+                    or f"v{token}" == immutable_stopped_version
+                )
                 and not in_fenced_code(match.start())
                 and not on_operational_line(match.start())
             ):
@@ -521,7 +560,9 @@ def partial_release_operational_errors(
         if not absolute.is_file():
             continue
         text = absolute.read_text(encoding="utf-8")
-        for label, pattern in PARTIAL_RELEASE_OPERATIONAL_COMMANDS.items():
+        for label, pattern in unpublished_operational_commands(
+            state.distribution_version
+        ).items():
             for match in pattern.finditer(text):
                 line = text.count("\n", 0, match.start()) + 1
                 errors.append(
@@ -544,6 +585,11 @@ def partial_release_semantic_errors(
 
     errors: list[str] = []
     checked_status_paths = tuple(status_paths)
+    status_marker = (
+        PARTIAL_RELEASE_STATUS_MARKER
+        if state.release_status == "immutable-partial"
+        else ACTIVE_TARGET_STATUS_MARKER
+    )
     for path in checked_status_paths:
         absolute = root / path
         if not absolute.is_file():
@@ -560,10 +606,19 @@ def partial_release_semantic_errors(
                 f"{path}: partial-release status page must name current stable "
                 f"{state.current_stable_version}"
             )
-        if not PARTIAL_RELEASE_STATUS_MARKER.search(text):
+        if (
+            state.immutable_stopped_version != state.distribution_version
+            and state.immutable_stopped_version not in text
+        ):
+            errors.append(
+                f"{path}: pre-publication status page must name immutable stopped "
+                f"{state.immutable_stopped_version} separately from active target "
+                f"{state.distribution_version}"
+            )
+        if not status_marker.search(text):
             errors.append(
                 f"{path}: must explicitly label {state.distribution_version} "
-                "immutable-partial"
+                f"release-status={state.release_status}"
             )
         if not PARTIAL_RELEASE_BOUNDARY_MARKER.search(text):
             errors.append(
@@ -582,13 +637,39 @@ def partial_release_semantic_errors(
         if not absolute.is_file():
             continue
         text = absolute.read_text(encoding="utf-8")
-        for label, pattern in CURRENT_V135_ADOPTION_CLAIMS.items():
+        for label, pattern in unreconciled_adoption_claims(
+            state.distribution_version
+        ).items():
             for match in pattern.finditer(text):
                 line = text.count("\n", 0, match.start()) + 1
                 errors.append(
                     f"{path}:{line}: {label} is incompatible with "
                     f"release-status={state.release_status}"
                 )
+    return errors
+
+
+def stopped_release_history_errors(
+    root: Path, state: ReleaseDocumentationState
+) -> list[str]:
+    path = STOPPED_RELEASE_PAGE
+    absolute = root / path
+    if not absolute.is_file():
+        return [f"missing immutable stopped release record: {path}"]
+    text = absolute.read_text(encoding="utf-8")
+    errors: list[str] = []
+    if state.immutable_stopped_version not in text:
+        errors.append(
+            f"{path}: must name immutable stopped {state.immutable_stopped_version}"
+        )
+    if state.current_stable_version not in text:
+        errors.append(
+            f"{path}: must retain rollback baseline {state.current_stable_version}"
+        )
+    if not PARTIAL_RELEASE_STATUS_MARKER.search(text):
+        errors.append(
+            f"{path}: must retain the immutable-partial or permanently stopped boundary"
+        )
     return errors
 
 
@@ -631,7 +712,10 @@ def first_login_errors(
 
 
 def upgrade_contract_errors(
-    root: Path, paths: Iterable[Path] = UPGRADE_CONTRACT_FILES
+    root: Path,
+    paths: Iterable[Path] = UPGRADE_CONTRACT_FILES,
+    *,
+    version: str = EXPECTED_DISTRIBUTION_VERSION,
 ) -> list[str]:
     errors: list[str] = []
     required_markers = (
@@ -651,7 +735,7 @@ def upgrade_contract_errors(
             if marker not in text:
                 errors.append(f"{path}: upgrade contract is missing {marker}")
         upgrade_commands = re.findall(
-            r"mss upgrade admin (?:v1\.3\.5|__MSS_DISTRIBUTION_VERSION__)",
+            rf"mss upgrade admin (?:{re.escape(version)}|__MSS_DISTRIBUTION_VERSION__)",
             text,
         )
         if len(upgrade_commands) < 3:
@@ -714,15 +798,18 @@ def public_skill_documentation_errors(root: Path) -> list[str]:
 
 
 def package_and_container_contract_errors(
-    root: Path, *, require_adopter_packages: bool = True
+    root: Path,
+    *,
+    require_adopter_packages: bool = True,
+    version: str = EXPECTED_DISTRIBUTION_VERSION,
 ) -> list[str]:
     errors: list[str] = []
     packages = root / "docs/docs/getting-started/packages.md"
     if require_adopter_packages and packages.is_file():
         text = packages.read_text(encoding="utf-8")
         for marker in (
-            "go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5",
-            "go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5",
+            f"go get github.com/mss-boot-io/mss-boot-admin/admin@{version}",
+            f"go get github.com/mss-boot-io/mss-boot-admin/mss-boot@{version}",
             "$previousGowork",
             "Remove-Item Env:GOWORK",
         ):
@@ -746,7 +833,7 @@ def package_and_container_contract_errors(
             if not re.search(pattern, text, re.MULTILINE):
                 errors.append(
                     "templates/application/Dockerfile: every base image must use the "
-                    f"v1.3.5-qualified tag and immutable digest ({pattern})"
+                    f"{version}-qualified tag and immutable digest ({pattern})"
                 )
     else:
         errors.append("missing Thin Host templates/application/Dockerfile")
@@ -925,9 +1012,10 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         return [str(exc)]
     version = state.distribution_version
 
-    if version != "v1.3.5":
+    if version != EXPECTED_DISTRIBUTION_VERSION:
         errors.append(
-            f"documentation contract is for v1.3.5, release policy declares {version}"
+            "documentation contract is for "
+            f"{EXPECTED_DISTRIBUTION_VERSION}, release policy declares {version}"
         )
 
     for path in CORE_CURRENT_FILES:
@@ -977,14 +1065,16 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             version,
             active_paths,
             current_stable_version=state.current_stable_version,
+            immutable_stopped_version=state.immutable_stopped_version,
         )
     )
+    errors.extend(stopped_release_history_errors(root, state))
 
     partial_status_set = frozenset(PARTIAL_RELEASE_STATUS_FILES)
     if state.operational_onboarding_allowed:
         errors.extend(bootstrap_password_errors(root))
         errors.extend(first_login_errors(root))
-        errors.extend(upgrade_contract_errors(root))
+        errors.extend(upgrade_contract_errors(root, version=version))
         errors.extend(mcp_contract_errors(root))
     else:
         errors.extend(partial_release_semantic_errors(root, state))
@@ -1005,6 +1095,7 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             upgrade_contract_errors(
                 root,
                 (path for path in UPGRADE_CONTRACT_FILES if path not in partial_status_set),
+                version=version,
             )
         )
         errors.extend(
@@ -1019,6 +1110,7 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         package_and_container_contract_errors(
             root,
             require_adopter_packages=state.operational_onboarding_allowed,
+            version=version,
         )
     )
     errors.extend(repository_context_errors(root))
@@ -1082,7 +1174,7 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             )
         for page in sorted(archive.glob("v*.md")):
             text = page.read_text(encoding="utf-8")
-            if "v1.3.5" not in text or "/getting-started" not in text:
+            if version not in text or "/getting-started" not in text:
                 errors.append(
                     f"{page.relative_to(root)}: missing read-only historical banner"
                 )
@@ -1117,19 +1209,22 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             "install-mss.ps1",
             "$env:Path",
             "mss new app",
-            "mss upgrade admin v1.3.5",
+            f"mss upgrade admin {version}",
             "mss-mcp",
-            "@mss-boot-io/admin-web@1.3.5",
+            f"@mss-boot-io/admin-web@{version.removeprefix('v')}",
             "MSS_ADMIN_INITIAL_PASSWORD",
         )
         if state.operational_onboarding_allowed
         else (
             state.current_stable_version,
             state.distribution_version,
-            "github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5",
-            "github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5",
-            "@mss-boot-io/admin-web@1.3.5",
-            "docs/v1.3.5",
+            "github.com/mss-boot-io/mss-boot-admin/mss-boot@"
+            f"{state.immutable_stopped_version}",
+            "github.com/mss-boot-io/mss-boot-admin/admin@"
+            f"{state.immutable_stopped_version}",
+            "@mss-boot-io/admin-web@"
+            f"{state.immutable_stopped_version.removeprefix('v')}",
+            f"docs/{state.immutable_stopped_version}",
             "Root Release",
         )
     )

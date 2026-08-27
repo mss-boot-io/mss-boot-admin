@@ -1,8 +1,8 @@
 ---
 title: mss-shop 范本采用状态
 order: 4
-description: 通用单租户商城范本的设计边界，以及 v1.3.5 不可作为生成基线的原因
-keywords: [mss-shop v1.3.5 v1.3.2 single tenant reference r1shop]
+description: v1.3.6 候选通用单租户商城范本边界与公共验收前置条件
+keywords: [mss-shop v1.3.6 v1.3.5 v1.3.2 single tenant reference r1shop]
 ---
 
 # mss-shop 范本采用状态
@@ -12,9 +12,9 @@ Distribution 公开对账后创建。v1.3.5 已停止为不可变部分发布，
 npmjs 包和 Docs，因此不能成为范本的生成、安装或升级基线。当前稳定版本仍是 v1.3.2，
 但它也不是本轮 mss-shop 重构所声明的生成基线。
 
-实施必须等待维护者显式选择一个未使用版本，并由该版本的完整公共证据证明工具、Go
-Module、npmjs、镜像、Docs 与外部使用方路径全部可用。本页只保留业务和架构设计，不提供
-候选命令。
+v1.3.6 已选为 release candidate，但尚未发布。实施必须等待其完整公共证据证明工具、Go
+Module、npmjs、镜像、Docs 与外部使用方路径全部可用。本页只保留 source-only 的业务和
+架构设计；公共制品对账前，v1.3.6 不可采用，也不提供候选命令。
 
 ## 可复现基线要求
 

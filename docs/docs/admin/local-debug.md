@@ -7,9 +7,9 @@ description: Foundation 源码调试边界与未来 Thin Host 开发拓扑
 # 本地调试合同
 
 :::warning
-v1.3.5 是不可变部分发布，Root 开发工具、官方 npmjs 包和完整 Thin Host 路径未发布；
-当前稳定版本仍是 v1.3.2。本页描述 Foundation source-only 调试和未来完整发行合同，
-不是 v1.3.5 本地启动指引。
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+为 release candidate，但尚未发布。本页描述 Foundation source-only 调试和候选合同；
+公共制品对账前，v1.3.6 不可采用，也不是下游本地启动指引。
 :::
 
 ## Foundation 源码调试

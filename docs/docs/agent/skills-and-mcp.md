@@ -1,18 +1,19 @@
 ---
 title: Skills 与 MCP 合同状态
 order: 5
-description: Foundation 源码 Skill 清单，以及未来 mss-mcp 的安全边界
+description: Foundation 源码 Skill 清单，以及 v1.3.6 候选 mss-mcp 的安全边界
 ---
 
 # Skills 与 MCP 合同状态
 
 :::warning
-v1.3.5 是不可变部分发布，Root Release 与 `mss`、`mss-mcp` 工具未发布；当前稳定
-版本仍是 v1.3.2。本页记录 Foundation 源码中的 Skill 和未来完整发行合同，不是
-v1.3.5 工具安装或 MCP 客户端配置指引。
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+为 release candidate，但 Root Release 与 `mss`、`mss-mcp` 尚未发布。本页记录 Foundation
+源码中的 Skill 和候选合同；公共制品对账前，v1.3.6 不可采用，也不是工具安装或 MCP
+客户端配置指引。
 :::
 
-Skill 描述一类可复用工作流。源码实现由确定性 CLI、生成器和验证器承载，未来完整发行
+Skill 描述一类可复用工作流。源码实现由确定性 CLI、生成器和验证器承载，v1.3.6 候选
 的 MCP 工具复用同一合同；Skill 不应复制实现逻辑。
 
 ## Foundation 源码 Skill 清单

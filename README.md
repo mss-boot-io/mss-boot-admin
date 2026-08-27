@@ -2,17 +2,24 @@
 
 [简体中文](./README.zh-CN.md)
 
-mss-boot is an agent-native management-system foundation. **v1.3.5 is an
-immutable partial train, not a complete adopter distribution.** Framework,
-Admin, and Admin Web were published and the Root tag is public, but the Root
-Release and tools, Docs, and the public npmjs package were not published. Do
-not delete, move, recreate, or reuse any v1.3.5 identity.
+mss-boot is an agent-native management-system foundation. **v1.3.6 is the
+selected complete package-first release candidate, but it is not public or
+stable yet.** v1.3.5 remains an immutable partial train: Framework, Admin, and
+Admin Web were published and the Root tag is public, while the Root Release,
+tools, Docs, and public npmjs package were not published. No v1.3.5 identity
+may be deleted, moved, recreated, reused, or completed.
 
 ## Current availability
 
 The release policy still identifies **v1.3.2** as the current coordinated
 stable distribution. Its immutable release record remains the supported
 baseline for existing adopters.
+
+v1.3.6 has been reserved as the next candidate. Its checksummed tools,
+Framework, Admin, Admin Web, npmjs package, images, and Root Release must first
+pass one non-publishing preview from an exact merged-main commit and then be
+published and reconciled from that same commit. Until that ledger is complete,
+no v1.3.6 download, install, creation, or upgrade procedure is supported.
 
 v1.3.5 published only part of the intended train from commit
 `396f60615cdfa589353b16ef9d3531e249e65432`:
@@ -32,25 +39,29 @@ replacement, or an unpublished package.
 ## Adopter status
 
 There is no supported v1.3.5 installer, empty-directory application creation,
-local setup, or distribution-upgrade procedure. The original candidate
-interfaces are intentionally absent from current onboarding so they cannot be
-mistaken for downloadable commands. The next unused distribution version has
-not been selected.
+local setup, or distribution-upgrade procedure. v1.3.6 is now the selected
+candidate for those package-first interfaces, but current onboarding continues
+to withhold executable commands until its public artifacts and external Thin
+Host acceptance have reconciled.
 
 Use the [v1.3.2 stable record](./docs/docs/releases/archive/v1-3-2.md)
 for the current stable boundary and the
 [v1.3.5 partial-release record](./docs/docs/releases/v1-3-5.md)
 for immutable audit evidence.
+The [v1.3.6 candidate record](./docs/docs/releases/v1-3-6.md) describes the
+planned package, migration, security, and rollback boundary without claiming
+publication.
 
 ## Architecture boundary
 
-A complete future distribution will keep a generated application as a **Thin
-Host**: it pins one coordinated Admin Go module and Admin Web package, contains
+The v1.3.6 candidate keeps a generated application as a **Thin Host**: it pins
+one coordinated Admin Go module and Admin Web package, contains
 only composition glue and business-owned modules, and never copies Foundation
 core source. Business backend modules register at compile time, frontend
 business routes extend the packaged shell, and backend authorization remains
-authoritative. This architecture contract does not make the incomplete v1.3.5
-train adoptable.
+authoritative. This candidate architecture contract does not make v1.3.6
+adoptable before publication and does not make the incomplete v1.3.5 train
+complete.
 
 ## Documentation
 
@@ -58,6 +69,7 @@ train adoptable.
 - [Published components and import boundaries](./docs/docs/getting-started/packages.md)
 - [Tool publication status](./docs/docs/getting-started/tooling.md)
 - [mss-shop reference status](./docs/docs/getting-started/mss-shop.md)
+- [v1.3.6 release-candidate record](./docs/docs/releases/v1-3-6.md)
 - [v1.3.5 immutable partial-release record](./docs/docs/releases/v1-3-5.md)
 
 Foundation contributors should use

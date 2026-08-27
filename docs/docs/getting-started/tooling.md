@@ -1,16 +1,16 @@
 ---
-title: v1.3.5 工具发布状态
+title: v1.3.6 候选工具发布状态
 order: 3
-description: v1.3.5 Root 工具未发布及未来 mss 与 mss-mcp 的安全边界
-keywords: [v1.3.5 v1.3.2 mss mss-mcp immutable partial]
+description: v1.3.6 未发布 mss/mss-mcp 候选与 v1.3.5 永久停止工具边界
+keywords: [v1.3.6 v1.3.5 v1.3.2 candidate mss mss-mcp immutable partial]
 ---
 
-# v1.3.5 工具发布状态
+# v1.3.6 候选工具发布状态
 
 :::warning
-v1.3.5 的 Root GitHub Release 没有创建，因而没有可下载、可校验的 `mss`、`mss-mcp`、
-安装器或工具校验和。当前稳定版本仍是 v1.3.2；本页不提供 v1.3.5 的安装、创建、开发、
-验证或升级命令。
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止且 Root 工具从未发布；v1.3.6 已选
+为 release candidate，但 `mss`、`mss-mcp`、安装器和校验和尚未公开。公共制品对账前，
+v1.3.6 不可采用，本页也不提供安装、创建、开发、验证或升级命令。
 :::
 
 ## 实际结果

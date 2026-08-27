@@ -714,7 +714,7 @@ spec:
         - internal/mss
         - tools/install
       guidance: >-
-        The v1.3.5 release bundle distributes checksummed cross-platform tools with embedded release
+        The v1.3.6 release bundle distributes checksummed cross-platform tools with embedded release
         provenance and the matching application Blueprint; only that bundle creates complete Thin Hosts
         outside a Foundation checkout and upgrades them by exact Admin Distribution version. Exact
         `go install` of cmd/mss and cmd/mss-mcp remains a public command-package compilation path, but
@@ -759,7 +759,7 @@ spec:
         documentation, and semantic browser E2E. The Supplier plan is complete with zero deferred
         projections and is exercised through repository-external Thin Host generation, build,
         authorization, browser, upgrade, preservation, and two-run idempotency gates. Exact
-        v1.3.5 public Go and npm consumption plus the package-first mss-shop exemplar are the current
+        v1.3.6 public Go and npm consumption plus the package-first mss-shop exemplar are the current
         qualification target. Keep the capability beta until that second
         representative domain proves the schema without weakening deterministic or
         generated/custom ownership boundaries.
@@ -772,6 +772,7 @@ spec:
         - .mss/features/complete-admin-distribution-thin-host.yaml
         - .mss/features/foundation-v1-3-4-release-recovery.yaml
         - .mss/features/foundation-v1-3-5-release-recovery.yaml
+        - .mss/features/foundation-v1-3-6-release.yaml
         - .mss/project.yaml
         - .mss/lock.yaml
         - .mss/blueprints/management-system.yaml
@@ -797,8 +798,9 @@ spec:
         v1.3.4 partial train published Framework, Admin, and Admin Web from
         d9b210d6672800f84f6403496a3ae871fb2aea9f, but Root, Docs, and npmjs remained unpublished
         after the Thin Host frozen lock lost the exact frontend tarball URL. Its correction merged
-        in 99a4f1ad157b934841786be031e7c55b8e25f5b5. The one final v1.3.5 target removes the
-        Foundation-checkout dependency from application creation and Distribution upgrade, and
+        in 99a4f1ad157b934841786be031e7c55b8e25f5b5. The v1.3.5 train is permanently
+        stopped after partial publication and cannot be continued. The active v1.3.6 target removes
+        the Foundation-checkout dependency from application creation and Distribution upgrade, and
         requires public Go/npm resolution plus post-publication reconciliation. The capability
         remains beta until a
         second representative domain and a later stable-to-stable Thin Host upgrade prove the
@@ -821,7 +823,7 @@ spec:
       paths:
         - cmd/mss-mcp
         - tools/install
-      guidance: The v1.3.5 tool archive installs mss-mcp beside mss; it remains a thin protocol adapter over stable CLI packages and write tools default to dry-run.
+      guidance: The v1.3.6 tool archive installs mss-mcp beside mss; it remains a thin protocol adapter over stable CLI packages and write tools default to dry-run.
 
     - id: agent.evals
       displayName: Agent Task Evaluations
@@ -841,6 +843,7 @@ spec:
         - .mss/features/foundation-v1-3-3-package-first-release.yaml
         - .mss/features/foundation-v1-3-4-release-recovery.yaml
         - .mss/features/foundation-v1-3-5-release-recovery.yaml
+        - .mss/features/foundation-v1-3-6-release.yaml
         - .github/workflows/foundation-compatibility.yml
         - docs/docs/architecture/complete-admin-distribution-and-thin-business-host.zh-CN.md
         - internal/mss/app
@@ -849,7 +852,7 @@ spec:
         - internal/mss/mcp
         - .mss/blueprints
       guidance: >-
-        v1.3.5 preserves strict Foundation, Blueprint, generator, snapshot, lock, and manifest
+        v1.3.6 preserves strict Foundation, Blueprint, generator, snapshot, lock, and manifest
         identities while resolving the requested published Distribution from the mss binary's
         embedded release source. A local --foundation path is an explicit Foundation-contributor
         override, never a consumer prerequisite. Plan remains read-only, apply is confirmed and
@@ -874,6 +877,7 @@ spec:
         - .mss/features/foundation-v1-3-3-package-first-release.yaml
         - .mss/features/foundation-v1-3-4-release-recovery.yaml
         - .mss/features/foundation-v1-3-5-release-recovery.yaml
+        - .mss/features/foundation-v1-3-6-release.yaml
         - .mss/features/admin-antd-v6-application.yaml
         - .mss/features/admin-antd-v6-cutover-retirement.yaml
         - .mss/features/admin-antd-v6-release-polish.yaml
@@ -916,7 +920,7 @@ spec:
         99a4f1ad157b934841786be031e7c55b8e25f5b5. v1.3.5 and its exact Root, Framework,
         Admin, frontend, Docs, and npm public refs are permanently stopped; existing refs or artifacts
         remain immutable and may not authorize continuation, deletion, movement, or recreation. A
-        future reviewed active version must be built from one exact clean merged-main commit and
+        reviewed active v1.3.6 version must be built from one exact clean merged-main commit and
         first pass the candidate-only Release preview. Formal Framework, Admin, frontend, and Root
         tags created by lwnmengjing then publish automatically; the Root tag also starts the image
         and official npm workflows, while Docs follows later from its independent tag. Reconcile

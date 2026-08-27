@@ -1,24 +1,24 @@
 ---
-title: Admin 运行合同与 v1.3.5 状态
+title: Admin 运行合同与 v1.3.6 候选状态
 order: 19
 nav:
   order: 1
   title: admin
-description: v1.3.5 不可运行状态，以及未来 Thin Host 的安全运行、变更、监控和故障处置合同
-keywords: [v1.3.5 v1.3.2 admin operations monitoring rollback immutable partial]
+description: v1.3.6 候选 Thin Host 的安全运行合同与 v1.3.5 永久停止状态
+keywords: [v1.3.6 v1.3.5 v1.3.2 admin operations monitoring rollback immutable partial]
 ---
 
-# Admin 运行合同与 v1.3.5 状态
+# Admin 运行合同与 v1.3.6 候选状态
 
 :::warning
-v1.3.5 是不可变部分发布：Root 工具、官方 npmjs 包、Docs 与后端镜像缺失，没有受支持的
-v1.3.5 Thin Host 运行或升级入口。当前稳定版本仍是 v1.3.2。本页的运行内容是未来完整
-发行必须满足的合同，不是 v1.3.5 操作手册。
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+为 release candidate，但尚未发布。本页记录候选运行合同；公共制品对账前，v1.3.6 不可
+采用，也不是操作或升级手册。
 :::
 
 ## 运行入口边界
 
-未来完整发行的项目工具应检查 Distribution、锁文件、Blueprint 与本地依赖，管理且只
+v1.3.6 候选项目工具应检查 Distribution、锁文件、Blueprint 与本地依赖，管理且只
 管理当前 Thin Host 的开发进程，并按改动范围执行验证。工具存在、进程运行或容器健康
 都不等于业务成功，仍需验证 `/healthz`、`/readyz`、登录、权限拒绝和关键写操作。
 

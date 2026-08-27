@@ -144,7 +144,7 @@ func TestServePlansEmbeddedApplicationFromEmptyWorkingDirectory(t *testing.T) {
 	if plan.Destination != filepath.Join(working, ".mss", "output", "empty-admin") {
 		t.Fatalf("plan destination = %q", plan.Destination)
 	}
-	if plan.Identities.Foundation.Version != "1.3.5" || plan.Identities.Foundation.Commit != strings.Repeat("a", 40) {
+	if plan.Identities.Foundation.Version != "1.3.6" || plan.Identities.Foundation.Commit != strings.Repeat("a", 40) {
 		t.Fatalf("embedded release identity = %#v", plan.Identities.Foundation)
 	}
 	entries, err := os.ReadDir(working)
@@ -224,10 +224,10 @@ func TestEmbeddedUpgradeLifecyclePreservesThinHostBusinessFiles(t *testing.T) {
 	}
 
 	dryRun := structuredResult[blueprint.UpgradePlan](t, responses[0])
-	if !dryRun.DryRun || !dryRun.Success || dryRun.FoundationRoot != "embedded://mss/1.3.5" {
+	if !dryRun.DryRun || !dryRun.Success || dryRun.FoundationRoot != "embedded://mss/1.3.6" {
 		t.Fatalf("embedded upgrade dry-run = %#v", dryRun)
 	}
-	if dryRun.ToDistribution.Version != "v1.3.5" || dryRun.ToIdentities.Foundation.Commit != strings.Repeat("a", 40) {
+	if dryRun.ToDistribution.Version != "v1.3.6" || dryRun.ToIdentities.Foundation.Commit != strings.Repeat("a", 40) {
 		t.Fatalf("upgrade target is not bound to release build identity: %#v", dryRun.ToIdentities)
 	}
 	if !containsString(dryRun.PreservedFiles, "internal/modules/custom/owned.go") {
@@ -271,7 +271,7 @@ func setMCPReleaseBuild(t *testing.T) {
 	t.Cleanup(func() {
 		buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp = originalVersion, originalCommit, originalTimestamp
 	})
-	buildinfo.Version = "v1.3.5"
+	buildinfo.Version = "v1.3.6"
 	buildinfo.Commit = strings.Repeat("a", 40)
 	buildinfo.Timestamp = "2026-08-25T12:34:56Z"
 }
@@ -283,9 +283,9 @@ func mcpFrontendRegistry(t *testing.T) string {
 		writer.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(
 			writer,
-			`{"name":"@mss-boot-io/admin-web","version":"1.3.5","dist":{"integrity":%q,"tarball":%q}}`,
+			`{"name":"@mss-boot-io/admin-web","version":"1.3.6","dist":{"integrity":%q,"tarball":%q}}`,
 			integrity,
-			"http://"+request.Host+"/artifacts/mcp-admin-web-1.3.5.tgz",
+			"http://"+request.Host+"/artifacts/mcp-admin-web-1.3.6.tgz",
 		)
 	}))
 	t.Cleanup(server.Close)

@@ -2,9 +2,14 @@
 
 [English](./README.md)
 
-## v1.3.5 组件状态
+## v1.3.6 候选组件状态
 
-v1.3.5 是不可变部分发布。Framework 组件
+v1.3.6 已选为完整 package-first 候选，但
+`github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.6` 尚未公开。候选 preview
+可以从精确仓库 workspace 资格验证它；正式 Admin 发布随后必须用 `GOWORK=off` 解析
+同一公共 Framework。
+
+v1.3.5 仍是不可变部分发布。Framework 组件
 `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5` 已公开并继续绑定原始发布
 提交，但 Root 工具、官方 npmjs 包、Docs、后端镜像和完整 Thin Host 资格未发布。
 
@@ -18,15 +23,15 @@ mss-boot 提供生命周期、配置、日志、缓存、队列、锁、存储�
 重试、幂等与协调等基础能力；不包含 Admin 实体、菜单、业务流程、React 代码或 Agent
 编排。
 
-未来完整发行的受支持依赖方向是：
+v1.3.6 候选的受支持依赖方向是：
 
 ```text
 Thin Host 业务代码 -> Admin -> mss-boot
 ```
 
 大多数应用应依赖完整 Admin Module，并让 Go 传递解析匹配的 Framework。只有领域无关
-基础设施扩展才直接依赖 Framework。这是未来完整发行合同，不是 v1.3.5 Thin Host 安装
-路径。
+基础设施扩展才直接依赖 Framework。这是正在资格验证的完整发行合同，不是公共 v1.3.6
+或 v1.3.5 Thin Host 安装路径。
 
 公开 API、配置键、接口和持久化行为仍是兼容性表面。参见
 [包发布状态](../docs/docs/getting-started/packages.md) 与

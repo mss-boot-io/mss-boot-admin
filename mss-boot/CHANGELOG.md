@@ -8,6 +8,31 @@ and the project uses semantic versioning for nested-module releases.
 
 No unreleased changes are recorded.
 
+## [mss-boot/v1.3.6] - 2026-08-27
+
+Status: **coordinated v1.3.6 release candidate / not yet published**. The
+Framework public API remains source compatible. v1.3.6 is a fresh component
+identity for the complete package-first train and does not move, rebuild, or
+complete the immutable `mss-boot/v1.3.5` Release.
+
+### Changed
+
+- Requalify the exact domain-neutral Framework tree as `mss-boot/v1.3.6` for
+  the coordinated Admin module and generated Thin Host consumers.
+- Keep Admin presentation entities, menus, permissions, frontend composition,
+  Blueprint generation, and release orchestration outside this reusable module.
+- Reconcile the Framework dependency graph and listener/process behavior under
+  the candidate's exact `GOWORK=off` tests and public-module checksum gate
+  without removing a published API.
+
+### Compatibility
+
+- Candidate preview uses the same repository workspace because the public
+  Framework tag cannot exist before qualification. Formal Admin publication
+  must later resolve this exact public Framework version with `GOWORK=off`.
+- Rollback selects the matching v1.3.2 Framework, Admin, frontend, configuration,
+  lock, and database backup; mixed patch versions are unsupported.
+
 ## [mss-boot/v1.3.5] - 2026-08-26
 
 Status: **coordinated v1.3.5 patch candidate**. The public Framework API remains
