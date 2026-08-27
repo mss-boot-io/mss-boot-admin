@@ -6,4 +6,4 @@ use (
 	./mss-boot
 )
 
-replace github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.5 => ./mss-boot
+replace github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.6 => ./mss-boot

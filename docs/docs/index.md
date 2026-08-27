@@ -2,12 +2,14 @@
 title: mss-boot Admin 采用状态
 hero:
   title: mss-boot Admin
-  description: 当前稳定版本为 v1.3.2；v1.3.5 是不可安装、不可升级的不可变部分发布
+  description: v1.3.2 当前稳定；v1.3.5 永久停止；v1.3.6 是尚未发布的候选
   actions:
     - text: 查看采用状态
       link: /getting-started
     - text: 查看 v1.3.5 部分发布
       link: /releases/v1-3-5
+    - text: 查看 v1.3.6 候选
+      link: /releases/v1-3-6
 features:
   - title: Current stable
     emoji: ✅
@@ -15,9 +17,9 @@ features:
   - title: Immutable partial
     emoji: 🧊
     description: v1.3.5 已公开部分组件，但 Root 工具、npmjs 与 Docs 缺失，不能补发或拼装。
-  - title: Fail closed
+  - title: Selected candidate
     emoji: 🔒
-    description: 完整公开对账前不展示候选安装、创建、开发或升级命令。
+    description: v1.3.6 已选但尚未发布；完整公开对账前不展示安装、创建、开发或升级命令。
 ---
 
 # 当前采用边界
@@ -26,6 +28,9 @@ features:
 v1.3.5 已停止为不可变部分发布：Framework、Admin、Admin Web 与 Root Tag 已公开；Root
 Release 及工具、官方 npmjs 包、Docs 和后端镜像未发布。已公开身份保持不可变，缺失制品
 不得补附，也不能用本地包、源码或其他 registry 拼成完整发行。
+
+v1.3.6 已选为 release candidate，但尚未发布。当前稳定版本仍是 v1.3.2；本页只描述候选
+和 source-only 合同，公共制品完成对账前 v1.3.6 不可采用。
 :::
 
 当前稳定版本仍是 **v1.3.2**。需要可执行的稳定安装资料时，请从

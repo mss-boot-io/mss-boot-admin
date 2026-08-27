@@ -1,12 +1,12 @@
 # Contributing to mss-boot-admin
 
 感谢你参与 mss-boot-admin。当前仓库维护 Admin Distribution 的源代码、测试、文档、
-生成器，以及 v1.3.5 不可变部分发布后的恢复合同。
+生成器，以及 v1.3.5 不可变部分发布后的 v1.3.6 候选恢复合同。
 
 如果你只是创建业务系统，请不要按本文 clone Foundation，也不要添加本地
 `replace`。v1.3.5 已永久停止，未发布 Root 工具和完整 Thin Host 路径，不能用于创建或
 升级应用。已有采用者以 [v1.3.2 稳定记录](docs/docs/releases/archive/v1-3-2.md)为准；
-新应用等待未来显式选定并完成公共对账的版本。请先阅读
+v1.3.6 已选为 release candidate 但尚未发布，新应用等待其完整公共对账。请先阅读
 [采用状态](docs/docs/getting-started/index.md)。本文只适用于修改 Foundation 本身的贡献者。
 
 ## 提交问题

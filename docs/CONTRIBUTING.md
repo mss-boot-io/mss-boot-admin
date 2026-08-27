@@ -8,6 +8,10 @@ repository. It is an independently publishable component, not a separate source
 repository. Product prose, implementation, tests, and `.mss/` machine contracts
 must describe the same behavior.
 
+Release-state baseline for this source-only contributor guide: v1.3.2 remains
+stable, v1.3.5 is permanently stopped as an immutable partial train, and v1.3.6
+is the selected release candidate but is not published or adoptable yet.
+
 Use these locations consistently:
 
 - long-lived product and operator guidance: `docs/docs/`;
@@ -22,7 +26,7 @@ newer train.
 
 - Target `main` through a pull request; do not publish Docs from a topic branch.
 - Use a Conventional Commits title, for example
-  `docs(release): reconcile v1.3.5 immutable partial status`.
+  `docs(release): prepare v1.3.6 candidate status`.
 - State the applicable version, branch, or commit for current-behavior claims.
 - Use repository-relative source paths and links. Public GitHub links must point
   to `mss-boot-io/mss-boot-admin` unless the target is genuinely external.

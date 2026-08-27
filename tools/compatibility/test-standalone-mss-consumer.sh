@@ -13,19 +13,19 @@ Options:
                       frontend install, lint, test, and build.
   --upgrade           Prove embedded plan/apply/no-op and preservation.
   --release-artifact  Use MSS_TOOLS_ARCHIVE instead of locally built tools.
-  --public-packages   Resolve the published v1.3.5 Go and npm packages through
+  --public-packages   Resolve the published v1.3.6 Go and npm packages through
                       proxy.golang.org and the exact GitHub Packages Admin Web
                       candidate; requires NODE_AUTH_TOKEN. Official npmjs is a
                       later post-publication gate.
   --help              Show this help.
 
 Environment:
-  MSS_RELEASE_VERSION     Release version (default: v1.3.5).
+  MSS_RELEASE_VERSION     Release version (default: v1.3.6).
   MSS_RELEASE_COMMIT      Full release commit (default: current HEAD).
   MSS_RELEASE_TIMESTAMP   RFC3339 source timestamp (default: current HEAD).
   MSS_TOOLS_ARCHIVE       Versioned mss tools tar.gz or zip for
                           --release-artifact.
-  MSS_ADMIN_WEB_TARBALL   Optional exact v1.3.5 Admin Web candidate tarball.
+  MSS_ADMIN_WEB_TARBALL   Optional exact v1.3.6 Admin Web candidate tarball.
                          When omitted, the script packs the release commit;
                          either candidate is served only from loopback.
   NODE_AUTH_TOKEN         GitHub Packages read token required only with
@@ -82,7 +82,7 @@ repository_root=$(realpath -- "${repository_root}")
   exit 1
 }
 
-release_version=${MSS_RELEASE_VERSION:-v1.3.5}
+release_version=${MSS_RELEASE_VERSION:-v1.3.6}
 release_commit=${MSS_RELEASE_COMMIT:-$(git -C "${repository_root}" rev-parse 'HEAD^{commit}')}
 release_timestamp=${MSS_RELEASE_TIMESTAMP:-$(git -C "${repository_root}" show -s --format=%cI "${release_commit}")}
 [[ "${release_version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]] || {
@@ -196,7 +196,7 @@ assert_tool_identity "${mss}" --version
 assert_tool_identity "${mss_mcp}" --version
 
 # Build a standards-shaped local file proxy from the candidate source, then
-# qualify the same module paths users can install after v1.3.5 is public. The
+# qualify the same module paths users can install after v1.3.6 is public. The
 # release installer remains the recommended acquisition path because it also
 # verifies the immutable tools archive checksum and BUILD-INFO manifest.
 if [[ "${use_public_packages}" = false ]]; then
@@ -543,7 +543,9 @@ dry_run_report="${work_dir}/new-app-dry-run.json"
     "${contributor_registry_args[@]}" \
     --format json > "${dry_run_report}"
 )
-jq -e '.dryRun == true and .success == true and .identities.foundation.version == "1.3.5"' "${dry_run_report}" >/dev/null
+jq -e --arg expected_version "${release_version#v}" \
+  '.dryRun == true and .success == true and .identities.foundation.version == $expected_version' \
+  "${dry_run_report}" >/dev/null
 [[ ! -e "${host_root}" ]] || { echo "new app dry-run changed the destination" >&2; exit 1; }
 
 write_report="${work_dir}/new-app-write.json"

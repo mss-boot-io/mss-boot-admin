@@ -6,6 +6,49 @@ tag namespaces.
 
 ## [Unreleased]
 
+No unreleased changes are recorded.
+
+## [v1.3.6] - 2026-08-27
+
+Status: **release candidate / not yet published**. v1.3.6 is the unused
+identity selected to complete the package-first distribution after the
+immutable partial v1.3.5 train. The current stable and rollback baseline
+remains v1.3.2 until every v1.3.6 component, package, image, tool archive, and
+Release has been published and publicly reconciled from one exact merged-main
+commit. This entry does not authorize installation or mixed-version adoption.
+
+### Added
+
+- Qualify checksummed `mss` and `mss-mcp` archives for Linux, macOS, and Windows
+  on amd64 and arm64, including `BUILD-INFO`, `LICENSE`, source provenance, and
+  checksum-verifying shell and PowerShell installers.
+- Embed the version-matched Blueprint so an adopter can create, set up, run,
+  verify, and three-way upgrade a Thin Host from an empty directory while
+  consuming exact public Admin, Framework, and Admin Web packages instead of a
+  Foundation clone.
+- Add the governed presentation-configuration aggregate and management console.
+  Its documents are sparse data over compiled capabilities; they cannot add
+  code, routes, transport definitions, permissions, or runtime models.
+- Add the `mss_boot_presentation_profiles` mutable aggregate table and the
+  append-only `mss_boot_presentation_revisions` history table, with exact
+  identity, aggregate-version, revision, digest, and idempotency constraints.
+
+### Changed
+
+- Make presentation configuration dormant for business pages until a trusted
+  capability is compiled and registered. Existing pages therefore retain their
+  compiled v1.3.2-compatible presentation after upgrade.
+- Require presentation deployments to run the Admin migration first, one
+  `server -a` route/permission synchronization second, and the long-running
+  server last. The migrations are additive and do not rewrite existing business
+  rows.
+- Remove the legacy `migrate --password` and `migrate -p` bootstrap interfaces.
+  Interactive setup uses hidden input, while automation may inject
+  `MSS_ADMIN_INITIAL_PASSWORD` only into the one initialization process.
+- Coordinate Framework, Admin, Admin Web, Root tools, the backend and frontend
+  images, and the official npmjs package under one exact v1.3.6 identity. Docs
+  remains a later independent publication and does not block the package train.
+
 ### Fixed
 
 - Make a manual Root Release dispatch a candidate-only preview and make an
@@ -25,6 +68,47 @@ tag namespaces.
   official npmjs publication complete from formal tags, while Docs follows later
   from its own versioned tag.
 
+### Security
+
+- Enforce the presentation boundary in the backend: strict data-only schema and
+  semantic validation, compiled capability hashes, strong ETags, hashed
+  idempotency keys, immutable revisions, and authorization applied after every
+  presentation layer.
+- Keep `presentation:read`, `presentation:draft-write`, `presentation:publish`,
+  and `presentation:rollback` independent. The migration grants no presentation
+  access to existing ordinary roles; frontend visibility remains advisory to
+  backend RBAC.
+- Redact profile documents, localized values, raw subject identifiers, and raw
+  idempotency keys from general audit bodies while retaining bounded transition,
+  actor, aggregate, revision, outcome, and reason metadata.
+- Record six time-bounded high/critical findings from the Umi package-owned
+  build and inactive-plugin graph as non-runtime acceptances. Their exact
+  package resolutions and 2026-11-08 expiry remain machine governed, and the
+  release bundle gate fails if Vite, node-fetch, Immer, or path-to-regexp enters
+  browser runtime output.
+
+### Migration and rollback
+
+- Back up and rehearse disaster recovery of the v1.3.2 database, configuration,
+  Thin Host lock, Admin binary, and Admin Web artifact before deployment. Record
+  the database backup time and how readable post-backup audit and business data
+  will be exported and preserved before any full-database restore. Do not combine
+  a v1.3.6 backend with a v1.3.2 frontend or vice versa.
+- For a normal emergency binary rollback, first enable startup-only
+  `presentation.recoveryMode`, verify that effective reads use compiled defaults,
+  then redeploy only the matching v1.3.2 Admin, frontend, configuration, and
+  lock. Keep the live database and its forward-compatible schema and data in
+  place; preserve the additive presentation tables, immutable history,
+  permission metadata, audit evidence, and business writes without a destructive
+  down migration.
+- Restore a full database backup only for disaster recovery. A restore discards
+  every write after the backup time; before it starts, export and preserve
+  post-backup audit and business data outside the target database whenever the
+  current storage remains readable.
+- Keep `mss-shop` outside this candidate claim. It becomes a v1.3.6 development
+  exemplar only after the complete public distribution ledger and an external
+  single-tenant package-consumer acceptance both pass.
+
 ### Release governance
 
 - Record v1.3.5 as an immutable partial train after root promotion created the
@@ -33,7 +117,7 @@ tag namespaces.
   assets, the Root Release, Docs, or the public npmjs package were published.
   No later repair may delete, move, recreate, or reuse a v1.3.5 identity. A
   complete train requires a fresh merged-main commit and an unused version;
-  that version has not been selected.
+  v1.3.6 is that candidate identity, not a continuation of v1.3.5.
 - Permanently reject v1.3.5 qualification and publication independently of the
   general publication-ready switch, and require a no-bypass server ruleset to
   block late creation of every exact v1.3.5 release-tag namespace.

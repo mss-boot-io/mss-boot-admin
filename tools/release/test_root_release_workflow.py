@@ -375,12 +375,36 @@ class RootReleaseWorkflowTest(unittest.TestCase):
             "SHA256SUMS.tools-*",
             "versioned Foundation Blueprint embedded in the installed tool",
             "without a Foundation source checkout",
+            "## Migration",
+            "mss_boot_presentation_profiles",
+            "mss_boot_presentation_revisions",
+            "admin migrate",
+            "admin server -a",
+            "--password",
+            "-p",
+            "## Compatibility",
+            "## Security",
+            "data-only",
+            "Backend RBAC remains authoritative",
+            "## Rollback",
+            "presentation.recoveryMode",
+            "redeploy only the matching v1.3.2 Admin, frontend, configuration, and lock",
+            "Keep the live forward-compatible database schema and data",
+            "full database-backup restore is disaster recovery only",
+            "discards every write after the backup time",
+            "post-backup audit and business data outside the target database",
+            "## Known limits",
+            "six accepted non-runtime advisories",
+            "2026-11-08",
+            "not a zero-vulnerability claim",
         ):
             self.assertIn(required, notes)
         for forbidden in (
             "must run from a checked-out Foundation source tree",
             "must clone",
             "mss-pr",
+            "zero vulnerabilities",
+            "current stable distribution",
         ):
             self.assertNotIn(forbidden, notes)
 

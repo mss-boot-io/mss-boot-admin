@@ -8,6 +8,53 @@ and the root changelog, not as a current release surface.
 
 No unreleased changes are recorded.
 
+## [web/antd-v6/v1.3.6] - 2026-08-27
+
+Status: **coordinated v1.3.6 release candidate / not yet published**. The
+current public stable frontend remains v1.3.2. This candidate uses a new
+identity and does not move or complete the immutable v1.3.5 component Release.
+
+### Added
+
+- Add the statically compiled presentation-configuration console with distinct
+  permission-denied, empty, draft, validation-error, publish, conflict,
+  history, rollback, recovery-mode, and failed-request states in synchronized
+  zh-CN and en-US catalogs.
+- Add strict data-only presentation contracts, capability-hash validation,
+  server-paginated aggregate/history views, safe previews, strong ETag
+  transitions, and immutable rollback-as-republication behavior.
+
+### Changed
+
+- Export the complete Admin Web lifecycle and handwritten business route/locale
+  seams through the single `@mss-boot-io/admin-web` package so generated Thin
+  Hosts keep one React 19, Ant Design 6, Umi, and React Query runtime graph.
+- Preserve exact package tarball metadata in frozen Thin Host locks and retain
+  business-owned routes, locale files, and pages across Blueprint three-way
+  upgrades.
+- Requalify the exact React 19.2.8, Ant Design 6.6.1, ProComponents 3.1.14-6,
+  React Query 5.101.4, Umi Max 4.7.7, Vite 8.2.2, and Vitest 4.1.11 graph.
+
+### Security
+
+- Treat presentation profiles as untrusted scalar data. They cannot carry
+  scripts, HTML, SQL, URLs, methods, headers, permissions, dynamic imports, or
+  executable components, and frontend permission controls do not replace
+  backend authorization.
+- Retain six machine-governed non-runtime Umi toolchain acceptances: two Vite,
+  one node-fetch, two Immer, and one path-to-regexp advisory. Each is bound to
+  an exact resolution and 2026-11-08 expiry; the release fails if any accepted
+  package appears in browser runtime output.
+
+### Compatibility and rollback
+
+- Production business capability registration remains empty in this candidate,
+  so existing pages continue to use compiled defaults after upgrade.
+- Emergency rollback first enables backend startup-only
+  `presentation.recoveryMode`, then restores the matching v1.3.2 frontend,
+  Admin, configuration, lock, and database backup. Do not pair this candidate
+  frontend with another Admin patch version.
+
 ## [web/antd-v6/v1.3.5] - 2026-08-26
 
 Status: **coordinated v1.3.5 patch candidate**. This source-compatible release

@@ -2,9 +2,15 @@
 
 [简体中文](./README.Zh-cn.md)
 
-## v1.3.5 component status
+## v1.3.6 candidate component status
 
-v1.3.5 is an immutable-partial train. The Framework component
+v1.3.6 is the selected complete package-first candidate, but
+`github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.6` is not public yet.
+Candidate preview may qualify it from the exact repository workspace; formal
+Admin publication must later resolve this exact public Framework with
+`GOWORK=off`.
+
+v1.3.5 remains an immutable-partial train. The Framework component
 `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5` is publicly
 available and remains bound to its original release commit, but the Root tools,
 official npmjs package, Docs, backend image, and complete Thin Host
@@ -23,7 +29,7 @@ storage, transport, migration, response, condition, retry, idempotency, and
 reconciliation primitives. It does **not** contain Admin entities, menus,
 business workflows, React code, or Agent orchestration.
 
-The supported dependency direction for a future complete distribution is:
+The supported dependency direction for the v1.3.6 candidate is:
 
 ```text
 Thin Host business code -> Admin -> mss-boot
@@ -31,8 +37,9 @@ Thin Host business code -> Admin -> mss-boot
 
 Most applications should depend on the complete Admin module and let Go
 resolve the matching Framework transitively. Direct Framework imports are
-reserved for domain-neutral infrastructure extensions. This is a future
-complete-distribution contract, not a v1.3.5 Thin Host installation path.
+reserved for domain-neutral infrastructure extensions. This is a candidate
+complete-distribution contract under qualification, not a public v1.3.6 or
+v1.3.5 Thin Host installation path.
 
 Public APIs, configuration keys, interfaces, and persistence behavior remain
 compatibility surfaces. See the

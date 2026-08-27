@@ -10,9 +10,9 @@ description: Thin Host 日常开发、配置、验证、部署与故障排查入
 # 使用指南
 
 :::warning
-v1.3.5 是不可变部分发布，不能安装、创建或升级完整 Thin Host；当前稳定版本仍是
-v1.3.2。本区页面记录 Foundation source-only 能力和未来完整发行合同，版本判断从
-[采用状态](/getting-started)进入。
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+为 release candidate，但尚未发布。本区记录 Foundation source-only 能力和候选合同；
+公共制品对账前，v1.3.6 不可采用，版本判断从[采用状态](/getting-started)进入。
 :::
 
 ## 合同入口
@@ -20,7 +20,7 @@ v1.3.2。本区页面记录 Foundation source-only 能力和未来完整发行�
 | 任务 | 入口 |
 | --- | --- |
 | 查看源码能力与发布边界 | [源码能力](/admin/current-capabilities) |
-| 理解未来工具与 Blueprint | [Blueprint 与升级状态](/agent/blueprints-and-upgrades) |
+| 理解候选工具与 Blueprint | [Blueprint 与升级状态](/agent/blueprints-and-upgrades) |
 | 调试 Foundation 源码 | [本地调试合同](/admin/local-debug) |
 | 配置数据库、会话、CORS 与资源 | [配置指南](/admin/configuration-guide) |
 | 运行变更或完整验证 | [集成验证](/admin/integration-test-guide) |

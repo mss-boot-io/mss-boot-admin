@@ -1,15 +1,16 @@
 ---
-title: v1.3.5 包发布状态
+title: v1.3.6 候选包发布状态
 order: 2
-description: v1.3.5 已公开组件、缺失 npmjs 包与不可组成 Thin Host 的边界
-keywords: [v1.3.5 v1.3.2 go module npm admin web immutable partial]
+description: v1.3.6 未发布候选包与 v1.3.5 永久停止组件边界
+keywords: [v1.3.6 v1.3.5 v1.3.2 candidate go module npm admin web immutable partial]
 ---
 
-# v1.3.5 包发布状态
+# v1.3.6 候选包发布状态
 
 :::warning
-v1.3.5 是不可变部分发布，不是可采用的完整 Admin Distribution。当前稳定版本仍是
-v1.3.2；需要安装或升级时应返回 [v1.3.2 稳定记录](/releases/archive/v1-3-2)。
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+为 release candidate，但 Go Module、Admin Web npmjs 与 Root 包面尚未发布。公共制品
+对账前，v1.3.6 不可采用，也不开放安装或升级命令。
 :::
 
 ## 已公开与缺失的身份

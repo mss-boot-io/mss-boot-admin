@@ -297,14 +297,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install Go dependencies
-        run: make deps-all
+      - name: Install same-commit preview dependencies
+        run: make deps-release-preview
 
       - name: Verify root release workflow contract
         run: python3 -m unittest tools/release/test_root_release_workflow.py
 
       - name: Verify independent Admin module
-        run: make verify-admin
+        run: make verify-admin-preview
 
       - name: Verify independent framework module
         run: make verify-framework
@@ -1093,6 +1093,32 @@ jobs:
             echo 'Install the versioned `mss` and `mss-mcp` commands with the attached `install-mss.sh` or `install-mss.ps1`. Each installer verifies `SHA256SUMS.tools-*` before replacing either command.'
             echo
             echo '`mss new app` and `mss upgrade` use the versioned Foundation Blueprint embedded in the installed tool, so application development starts from published packages without a Foundation source checkout.'
+            echo
+            echo '## Migration'
+            echo
+            echo 'The additive migration creates `mss_boot_presentation_profiles` and `mss_boot_presentation_revisions` without deleting existing business rows. Run `admin migrate` first, run one `admin server -a` API-registry synchronization, and only then start the long-running `admin server` process.'
+            echo
+            echo 'Initial administrator secrets are accepted only through the documented hidden prompt or one-use `MSS_ADMIN_INITIAL_PASSWORD` environment injection. The removed `--password` and `-p` migration flags are rejected.'
+            echo
+            echo '## Compatibility'
+            echo
+            echo 'Framework, Admin, Admin Web, Root tools, and images must use this exact coordinated version. The presentation tables and permission metadata are additive; production capability registration remains empty, so existing business pages continue to use compiled defaults after upgrade.'
+            echo
+            echo '## Security'
+            echo
+            echo 'Presentation documents are data-only and cannot carry JavaScript, HTML, SQL, URLs, permissions, executable components, or dynamic code. Backend RBAC remains authoritative; frontend visibility is not an authorization boundary.'
+            echo
+            echo '## Rollback'
+            echo
+            echo 'For a normal binary rollback, enable `presentation.recoveryMode`, verify compiled defaults, and redeploy only the matching v1.3.2 Admin, frontend, configuration, and lock. Keep the live forward-compatible database schema and data; do not down-migrate or delete additive presentation tables, immutable revisions, permission history, audit evidence, or business writes.'
+            echo
+            echo 'A full database-backup restore is disaster recovery only and discards every write after the backup time. Before restoring, export and preserve post-backup audit and business data outside the target database whenever the current storage remains readable.'
+            echo
+            echo '## Known limits'
+            echo
+            echo 'The qualified dependency graph carries six accepted non-runtime advisories whose bounded acceptances expire on 2026-11-08. Runtime bundle exclusion, exact advisory identity, dependency scope, and expiry remain release gates; this is not a zero-vulnerability claim.'
+            echo
+            echo 'Docs publication and the current-stable designation are reconciled independently after the package, image, tool, and registry surfaces are public.'
           } >> "${notes_file}"
           echo "path=${notes_file}" >> "${GITHUB_OUTPUT}"
 

@@ -1,15 +1,15 @@
 ---
 title: Agent-native Foundation
 order: 1
-description: v1.3.5 人机协作、机器合同、确定性工具与运行时产品的整体架构
+description: v1.3.6 候选人机协作、机器合同、确定性工具与运行时产品架构
 ---
 
 # Agent-native Foundation
 
 :::warning
-v1.3.5 是不可变部分发布，Root 工具、官方 npmjs、Docs 与完整 Thin Host 路径未发布；
-当前稳定版本仍是 v1.3.2。本页描述 Foundation 源码架构和未来完整发行合同，不是
-v1.3.5 采用指引。
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+为 release candidate，但尚未发布。本页描述 Foundation 源码架构和候选合同；公共制品
+对账前，v1.3.6 不可采用，也不是安装、创建或升级指引。
 :::
 
 ## 目标

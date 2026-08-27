@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify final Framework/Admin source sums before any v1.3.5 component tag."""
+"""Verify final Framework/Admin source sums before coordinated component tags."""
 
 from __future__ import annotations
 

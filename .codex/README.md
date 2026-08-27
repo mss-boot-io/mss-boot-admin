@@ -1,7 +1,7 @@
 # Codex integration for Foundation contributors
 
 This directory configures Codex only for contributors working inside the
-`mss-boot-admin` Foundation source checkout. It is not the v1.3.5 application
+`mss-boot-admin` Foundation source checkout. It is not the v1.3.6 application
 quick start and must not be copied into a Thin Host. Generated applications use
 the installed `mss` and `mss-mcp` commands instead.
 

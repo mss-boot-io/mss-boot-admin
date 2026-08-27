@@ -1,5 +1,5 @@
 ---
-title: v1.3.5 主题设置优先级、继承与重置
+title: v1.3.6 候选主题设置优先级、继承与重置
 order: 14
 nav:
   order: 1
@@ -9,15 +9,16 @@ keywords: [admin ant-design-v6 theme settings precedence inheritance]
 ---
 
 :::warning
-v1.3.5 是不可变部分发布，官方 npmjs、Root 工具和完整 Thin Host 路径未发布；当前稳定
-版本仍是 v1.3.2。本页记录 merged-main 源码中的 V6 主题合同与未来完整发行行为，不是
-v1.3.5 Admin Web 采用指引。
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+为 release candidate，但官方 npmjs 包和 Root 工具尚未发布。本页记录 merged-main 源码
+中的 V6 主题候选合同；公共制品对账前，v1.3.6 不可采用，也不是 Admin Web 采用指引。
 :::
 
 ## 产品合同
 
-- Admin Web 概念身份：`@mss-boot-io/admin-web@1.3.5`，官方 npmjs 未发布；
-- Admin 后端组件：`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5` 已公开；
+- Admin Web 候选身份：`@mss-boot-io/admin-web@1.3.6`，尚未公开；
+- Admin 后端候选身份：`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.6`，尚未公开；
+- 历史状态：v1.3.5 的已公开组件保持不可变，但不能补全或混用；
 - 源码状态：主题继承、重置、并发前置条件和授权已在 Foundation 中实现；
 - 采用状态：只有未来完成全部公共对账的协调版本才能把这套源码合同作为 Thin Host 产品面；
 - 设计历史保留在[默认 V6 切换 ADR](https://github.com/mss-boot-io/mss-boot-admin/blob/main/docs/adr/2026-08-17-ant-design-v6-default-cutover.md)，使用方无需 Foundation 源码。

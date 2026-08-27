@@ -38,8 +38,9 @@ Distribution release requires the same version core and exact merged-main commit
 v1.3.5 is permanently stopped as an immutable partial release and cannot be
 qualified, resumed, completed, or reused.
 
-For a future unused version, run one non-publishing Root preview on the exact
-merged-main commit. After it succeeds, publish the Framework, Admin, and Admin Web
+v1.3.6 is the selected release candidate and is not published or adoptable yet.
+Run one non-publishing Root preview for v1.3.6 on the exact merged-main commit.
+After it succeeds, publish the Framework, Admin, and Admin Web
 tags in order. One Root tag then starts the Root release, backend image, and
 official npm publication independently and in parallel. Formal tag workflows
 reuse the exact preview and do not repeat its expensive qualification or accept a

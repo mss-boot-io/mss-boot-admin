@@ -6,8 +6,8 @@ COVERAGE_DIR ?= .coverage
 COVERAGE_POLICY := .mss/coverage.json
 
 .PHONY: build build-admin build-agent test test-agent test-admin test-admin-race \
-	coverage-admin vet-admin tidy-admin-check verify-admin compatibility-admin compatibility-standalone-mss \
-	deps deps-agent deps-admin deps-framework deps-all \
+	coverage-admin vet-admin tidy-admin-check tidy-admin-prepublication-check verify-admin verify-admin-preview compatibility-admin compatibility-standalone-mss \
+	deps deps-agent deps-admin deps-admin-workspace deps-framework deps-all deps-release-preview \
 	test-framework test-framework-race coverage-framework vet-framework \
 	tidy-framework-check verify-framework test-all generate lint fix-lint clean \
 	web-install web-lint web-test web-build \
@@ -48,6 +48,9 @@ tidy-admin-check:
 	cd $(ADMIN_DIR) && go mod tidy
 	git diff --exit-code -- $(ADMIN_DIR)/go.mod $(ADMIN_DIR)/go.sum
 
+tidy-admin-prepublication-check:
+	bash tools/ci/verify-admin-module-metadata.sh
+
 compatibility-admin:
 	go test -count=1 ./$(ADMIN_DIR)/compatibility
 	bash tools/compatibility/test-admin-external-consumer.sh
@@ -56,6 +59,8 @@ compatibility-standalone-mss:
 	bash tools/compatibility/test-standalone-mss-consumer.sh
 
 verify-admin: test-admin-race coverage-admin vet-admin tidy-admin-check compatibility-admin build-admin
+
+verify-admin-preview: test-admin-race coverage-admin vet-admin tidy-admin-prepublication-check compatibility-admin build-admin
 
 deps:
 	$(MAKE) deps-all
@@ -66,10 +71,18 @@ deps-agent:
 deps-admin:
 	cd $(ADMIN_DIR) && GOWORK=off go mod download
 
+deps-admin-workspace:
+	@temporary_gowork="$$(mktemp "$(CURDIR)/.release-preview-go.XXXXXX.work")"; \
+	trap 'rm -f -- "$$temporary_gowork" "$$temporary_gowork.sum"' EXIT HUP INT TERM; \
+	cp go.work "$$temporary_gowork"; \
+	cd $(ADMIN_DIR) && GOWORK="$$temporary_gowork" go mod download
+
 deps-framework:
 	cd $(FRAMEWORK_DIR) && GOWORK=off go mod download
 
 deps-all: deps-agent deps-admin deps-framework
+
+deps-release-preview: deps-agent deps-admin-workspace deps-framework
 
 test-framework:
 	cd $(FRAMEWORK_DIR) && GOWORK=off go test -shuffle=on -count=1 ./...

@@ -1,14 +1,15 @@
 ---
 title: 源码能力与发布边界
 order: 2
-description: v1.3.5 merged-main 源码能力、已公开组件与未完成采用路径
+description: v1.3.6 候选源码能力、v1.3.5 永久停止记录与未开放采用路径
 ---
 
-# v1.3.5 源码能力与发布边界
+# v1.3.6 候选源码能力与发布边界
 
 :::warning
-v1.3.5 是不可变部分发布，不是当前可采用的 Complete Admin Distribution。当前稳定版本
-仍是 v1.3.2；本页区分源码实现、已公开组件和未来完整发行合同。
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+为 release candidate，但尚未发布。本页只区分 Foundation 源码实现、历史公开组件和候选
+合同；公共制品对账前，v1.3.6 不可采用，也不开放安装、创建或升级命令。
 :::
 
 机器可执行事实以 [`.mss/project.yaml`](https://github.com/mss-boot-io/mss-boot-admin/blob/main/.mss/project.yaml)

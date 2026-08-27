@@ -1490,8 +1490,52 @@ exit 66
             "deps-admin:\n\tcd $(ADMIN_DIR) && GOWORK=off go mod download",
             makefile,
         )
+        self.assertIn(
+            'temporary_gowork="$$(mktemp "$(CURDIR)/.release-preview-go.XXXXXX.work")"',
+            makefile,
+        )
+        self.assertIn(
+            'GOWORK="$$temporary_gowork" go mod download',
+            makefile,
+        )
+        self.assertIn(
+            'rm -f -- "$$temporary_gowork" "$$temporary_gowork.sum"',
+            makefile,
+        )
+        self.assertIn(
+            "deps-release-preview: deps-agent deps-admin-workspace deps-framework",
+            makefile,
+        )
+        self.assertIn(
+            "tidy-admin-prepublication-check:\n\tbash tools/ci/verify-admin-module-metadata.sh",
+            makefile,
+        )
+        self.assertIn(
+            "verify-admin: test-admin-race coverage-admin vet-admin tidy-admin-check compatibility-admin build-admin",
+            makefile,
+        )
+        self.assertIn(
+            "verify-admin-preview: test-admin-race coverage-admin vet-admin tidy-admin-prepublication-check compatibility-admin build-admin",
+            makefile,
+        )
 
         steps = self.workflows["release.yml"]["jobs"]["test"]["steps"]
+        preview_dependencies = next(
+            step
+            for step in steps
+            if step.get("name") == "Install same-commit preview dependencies"
+        )["run"]
+        self.assertEqual(preview_dependencies, "make deps-release-preview")
+        self.assertNotIn("deps-all", preview_dependencies)
+
+        preview_admin = next(
+            step
+            for step in steps
+            if step.get("name") == "Verify independent Admin module"
+        )["run"]
+        self.assertEqual(preview_admin, "make verify-admin-preview")
+        self.assertNotEqual(preview_admin, "make verify-admin")
+
         agent_contracts = next(
             step
             for step in steps

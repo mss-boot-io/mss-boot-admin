@@ -17,10 +17,10 @@ SPEC.loader.exec_module(CHECKSUM)
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-EXPECTED_FRAMEWORK_SUM = "h1:bWOVBinhcvTGmGUL6CNqShVcbDMfZNk4HZbH4nynydo="
+EXPECTED_FRAMEWORK_SUM = "h1:BJtlPCx9LIDXEKA9DO/Eb9eL1+IcCdNmxyDICKOVlTI="
 EXPECTED_FRAMEWORK_GO_MOD_SUM = "h1:qejH+UcGKJRwGtMQisbYCLg7nYf4TEOe/h6fGJ1nK7Q="
-EXPECTED_ADMIN_SUM = "h1:q2r+U4cWIKIkaOXyp86CLAt2NpJAcSahSf99aOCKR10="
-EXPECTED_ADMIN_GO_MOD_SUM = "h1:/Hm81hM6DCmGxqwEFTmPY9N2cvD4o2zHNiLECQT+C5w="
+EXPECTED_ADMIN_SUM = "h1:9/Xy9/l7hXu0CjuDbEkMuzd8a3KC3aEE//27czbWh2k="
+EXPECTED_ADMIN_GO_MOD_SUM = "h1:FJkr7IMUgrz3Un0nuPPanu6+hlfmEoKrUCFbSx5Z9QI="
 
 
 class FrameworkAdminChecksumTest(unittest.TestCase):
@@ -79,10 +79,10 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
     def test_final_repository_tree_matches_admin_metadata(self):
         result = CHECKSUM.verify_repository(
             REPOSITORY_ROOT,
-            version="v1.3.5",
+            version="v1.3.6",
         )
         self.assertTrue(result["success"])
-        self.assertEqual(result["version"], "v1.3.5")
+        self.assertEqual(result["version"], "v1.3.6")
         self.assertGreater(result["candidateFiles"], 0)
         self.assertGreater(result["adminCandidateFiles"], 0)
         self.assertEqual(result["sum"], EXPECTED_FRAMEWORK_SUM)
