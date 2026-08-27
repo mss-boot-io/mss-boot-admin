@@ -54,7 +54,7 @@ Additional rules:
 
 ## Compatibility
 
-The workflow file `.github/workflows/ci.yml` keeps the workflow name `CI` and exposes a final job named `admin-ci`. The `main` branch rule requires that exact context, so the workflow is intentionally unfiltered for pull requests. Push and tag events remain path-scoped where no pull-request merge gate depends on them.
+The workflow file `.github/workflows/ci.yml` keeps the workflow name `CI` and exposes a final job named `admin-ci`. The `main` branch rule requires that exact context, so the workflow is intentionally unfiltered for pull requests. Main-branch pushes remain path-scoped where no pull-request merge gate depends on them. Release tags are owned only by their publication workflows so a tag cannot repeat the component test suites already qualified by the exact successful preview.
 
 The frontend workflow similarly keeps `Frontend CI / build` as an aggregate over quality and compilation. New framework and container checks can be made required after one successful pull-request run establishes their exact check names.
 

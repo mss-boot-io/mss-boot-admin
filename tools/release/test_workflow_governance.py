@@ -121,6 +121,23 @@ class WorkflowGovernanceTest(unittest.TestCase):
             self.workflows["ci.yml"]["jobs"]["build"]["name"], "admin-ci"
         )
 
+    def test_release_tags_do_not_retrigger_component_ci(self):
+        for workflow_name in ("ci.yml", "mss-boot-ci.yml"):
+            workflow = self.workflows[workflow_name]
+            self.assertEqual(workflow["on"]["push"]["branches"], ["main"])
+            self.assertNotIn("tags", workflow["on"]["push"])
+            self.assertEqual(
+                workflow["on"]["pull_request"]["branches"], ["main"]
+            )
+        self.assertEqual(
+            self.workflows["release.yml"]["on"]["push"]["tags"],
+            ["v*.*.*"],
+        )
+        self.assertEqual(
+            self.workflows["framework-release.yml"]["on"]["push"]["tags"],
+            ["mss-boot/v*.*.*"],
+        )
+
     def test_macos_portable_tests_use_the_real_runner_temp_directory(self):
         job = self.workflows["agent-native-ci.yml"]["jobs"][
             "cross-platform-agent-tools"
