@@ -1,24 +1,32 @@
 ---
-title: v1.3.5 发布与部署验证清单
+title: Admin 发布与部署验证清单
 order: 28
 nav:
   order: 1
   title: admin
-description: mss-boot-admin 发布前后的最小验证清单
+description: 完整 Thin Host 业务发行前后的最小验证清单
 keywords: [admin release checklist smoke regression]
 ---
 
 ## 使用方式
 
-本清单区分使用方代码门禁与生产部署巡检。Foundation 发布方的组件级资格验证由
-[v1.3.5 发布合同](/releases/v1-3-5)单独治理。
+:::warning
+v1.3.5 已永久停止为不可变部分发布，缺少 Root 工具、官方 npmjs、Docs 和完整 Thin Host
+路径。本清单不能把 v1.3.5 变成可安装或可升级版本，也不能授权补发其缺失制品。当前稳定
+资料见 [v1.3.2 稳定记录](/releases/archive/v1-3-2)。
+:::
+
+本清单区分未来完整版本或业务 Thin Host 的代码门禁与生产部署巡检。Foundation 发布方先
+在唯一 Root preview 中完成测试、审计、浏览器、归档和多架构资格，再依次发布组件 Tag；
+一个 Root Tag 独立并行触发 Root Release、后端镜像和官方 npmjs，Docs 从后续文档 Tag
+发布。正式 Tag 不重复昂贵验证，也不接受 promotion、readiness run ID 或人工环境审批。
 
 ## 一、发布前检查
 
 ### 构建检查
 
 - [ ] Thin Host 根目录执行 `mss verify --all` 成功
-- [ ] 后端和 Admin Web 依赖都精确为 v1.3.5，锁文件无漂移
+- [ ] 后端和 Admin Web 依赖都精确为同一个已完成公共对账的协调版本，锁文件无漂移
 - [ ] 文档如有更新，关键链接可访问
 
 ### 核心能力检查
@@ -62,4 +70,5 @@ keywords: [admin release checklist smoke regression]
 ## 推荐阅读
 
 - [集成测试指南](/admin/integration-test-guide)
-- [v1.3.5 发布合同](/releases/v1-3-5)
+- [v1.3.5 不可变部分发布记录](/releases/v1-3-5)
+- [当前采用状态](/getting-started)

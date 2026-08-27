@@ -375,8 +375,7 @@ for forbidden in \
   .github/workflows/release.yml \
   .github/workflows/framework-release.yml \
   .github/workflows/admin-release.yml \
-  .github/workflows/frontend-v6-release.yml \
-  .github/workflows/release-readiness.yml; do
+  .github/workflows/frontend-v6-release.yml; do
   [[ ! -e "${host_root}/${forbidden}" ]] || {
     echo "Thin Host copied forbidden Foundation source: ${forbidden}" >&2
     exit 1

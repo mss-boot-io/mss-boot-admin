@@ -10,6 +10,12 @@ keywords: [v1.3.5 admin login session cookie csrf troubleshooting]
 
 # v1.3.5 登录与会话排障
 
+:::warning
+v1.3.5 是不可变部分发布，没有完整 Root 工具、官方 npmjs 包或可生成 Thin Host；
+当前稳定版本仍是 v1.3.2。本页记录 Foundation 源码会话合同和未来完整发行的排障顺序，
+不是 v1.3.5 运行手册。
+:::
+
 浏览器登录使用服务端会话和 HttpOnly Cookie；浏览器不会接收或保存 Admin JWT，
 也不应把个人访问令牌（PAT）当作登录兜底。排查时只记录请求路径、状态码、错误 key
 和脱敏时间线，不要公开密码、Cookie、CSRF 值、PAT、数据库连接串或生产地址。
@@ -26,17 +32,11 @@ keywords: [v1.3.5 admin login session cookie csrf troubleshooting]
 
 ## 1. 确认服务与同源代理
 
-从 Thin Host 根目录执行：
-
-```sh
-mss dev status
-mss dev logs backend
-mss dev logs admin-web
-```
-
-再检查健康入口和浏览器实际访问的 `/admin/api/**` 是否落到同一个开发后端。前端应通过
-生成项目的同源代理访问 API；不要额外配置浏览器 Bearer token、第二套 API host 或退役
-登录路由。反向代理必须保留 Cookie、Origin 和 CSRF 请求头。
+Foundation 源码调试先按 `.mss/commands.yaml` 确认后端、前端与日志进程身份，再检查
+健康入口和浏览器实际访问的 `/admin/api/**` 是否落到同一个开发后端。该 source-only
+流程不能被复制为 v1.3.5 下游命令。前端应通过同源代理访问 API；不要额外配置浏览器
+Bearer token、第二套 API host 或退役登录路由。反向代理必须保留 Cookie、Origin 和
+CSRF 请求头。
 
 ## 2. 检查浏览器会话合同
 
@@ -59,10 +59,10 @@ Cookie、刷新接口是否成功。不要尝试把 Cookie 复制到 localStorag
 
 ## 4. 初始管理员与密码
 
-新数据库没有默认密码。第一次交互式 `mss setup` 通过内置隐藏提示读取用户提供的强
-密码；非交互自动化只在 setup 进程中从密钥存储注入一次性
-`MSS_ADMIN_INITIAL_PASSWORD`。迁移成功后重复 setup 不再需要它。若数据库已经初始化，
-重新设置该环境变量不会重置现有管理员密码。此时应走
+新数据库没有默认密码。未来完整 Thin Host 的第一次交互式初始化通过内置隐藏提示读取
+用户提供的强密码；非交互自动化只在初始化进程中从密钥存储注入一次性
+`MSS_ADMIN_INITIAL_PASSWORD`。迁移成功后不再需要它。若数据库已经初始化，重新设置
+该环境变量不会重置现有管理员密码。此时应走
 受审计的自助改密、恢复身份或运维恢复流程。
 
 全新数据库创建的初始用户名是 `admin`，密码是首次 setup 提供的值；系统没有默认密码。
@@ -82,9 +82,9 @@ Cookie、刷新接口是否成功。不要尝试把 Cookie 复制到 localStorag
 
 ## 提交问题时
 
-提供 v1.3.5 精确版本/提交、页面和 API 路径、状态码、错误 key、发生时间、是否仅影响
-特定用户或角色、无痕窗口是否可复现。响应头只保留无敏感信息的字段，截图前遮盖所有
-Cookie、CSRF、PAT、邮箱和业务数据。
+对 Foundation 源码问题，提供精确提交、页面和 API 路径、状态码、错误 key、发生时间、
+是否仅影响特定用户或角色、无痕窗口是否可复现；不要把源码提交称为 v1.3.5 公共使用方
+版本。响应头只保留无敏感信息的字段，截图前遮盖所有 Cookie、CSRF、PAT、邮箱和业务数据。
 
 更多协议细节见 [浏览器会话、PAT 与 OAuth2](/admin/token-oauth2-guide)，本地进程与
 代理见 [本地调试](/admin/local-debug)，权限边界见

@@ -1,44 +1,50 @@
 ---
-title: 当前能力与边界
+title: 源码能力与发布边界
 order: 2
-description: v1.3.5 Complete Admin Distribution 的实现能力与明确非目标
+description: v1.3.5 merged-main 源码能力、已公开组件与未完成采用路径
 ---
 
-# v1.3.5 当前能力与边界
+# v1.3.5 源码能力与发布边界
+
+:::warning
+v1.3.5 是不可变部分发布，不是当前可采用的 Complete Admin Distribution。当前稳定版本
+仍是 v1.3.2；本页区分源码实现、已公开组件和未来完整发行合同。
+:::
 
 机器可执行事实以 [`.mss/project.yaml`](https://github.com/mss-boot-io/mss-boot-admin/blob/main/.mss/project.yaml)
 和 [`.mss/capabilities.yaml`](https://github.com/mss-boot-io/mss-boot-admin/blob/main/.mss/capabilities.yaml)
-为准；本页提供使用者视角的摘要。
+为准。源码能力不等于公共制品已经完成对账。
 
-## 已提供
+## merged-main 源码能力
 
-| 领域 | 能力 |
+| 范围 | 源码合同 |
 | --- | --- |
-| 身份与授权 | 登录、浏览器会话、OAuth 绑定、个人凭据自助、Casbin 后端授权、短期 WebSocket ticket |
-| Admin 运行时 | 配置、数据库迁移、健康与就绪、日志、缓存、任务、通知和可选资源 |
-| 完整前端 | React 19、Ant Design 6、Umi Max、React Query、响应式页面、zh-CN/en-US |
+| 后端 | 会话认证、Casbin 授权、配置提供方、迁移、缓存、任务、通知、对象存储、健康检查 |
+| Admin Web | React 19、Ant Design 6、Umi Max、React Query、登录壳、路由、页面状态、主题和 locale |
 | 业务扩展 | 编译期 Go 模块、确定性菜单与路由、迁移就绪、生成合同 |
-| Agent 工作流 | 规格、生成、doctor、setup、dev、verify、eval 和三方升级 |
-| 发行 | 精确版本 Go/npm 包、跨平台工具、容器、Docs 与来源对账 |
+| Agent 工作流 | 规格、生成、诊断、开发、验证、评估和三方升级实现 |
+| 发行治理 | 组件资格、受保护发布、制品来源与外部使用方验证 |
+
+这些能力供 Foundation 贡献者在源码工作区验证。一般源码 `doctor`、`verify` 和生成
+合同可以保留，但不能被描述成 v1.3.5 已发布的下游工具。
+
+## v1.3.5 公共结果
+
+- Framework 与 Admin Go Module 已公开；
+- Admin Web 的 GitHub Release、GitHub Packages 与前端镜像已公开；
+- Root Tag 已公开并保持不可变；
+- Root Release 与工具、官方 npmjs、Docs、后端镜像和完整 Thin Host 使用方资格未完成。
+
+因此不能用源码、相邻版本、本地替换或其他 registry 补齐部分发布。
 
 ## 明确边界
 
 - Thin Host 不复制 Admin、Framework 或完整前端源码；
 - 不提供浏览器运行时建模、虚拟 CRUD 或远程代码加载；
 - 不自动把 UI 权限当作后端授权；
-- 不要求生产凭据完成创建、设置或验证；
-- 不在工具安装或运行中加入遥测和采用者登记；
-- `mss-shop` 的初始业务范本是显式单租户，不暗示多租户隔离。
+- 不要求生产凭据完成源码验证；
+- 不在工具设计中加入遥测和采用者登记；
+- `mss-shop` 必须等待维护者显式选择的未使用完整版本，且保持单租户边界。
 
-## 状态判定
-
-本地可执行：
-
-```sh
-mss doctor --strict
-mss context --format json
-mss verify --changed
-```
-
-进程健康、页面能打开或工作流单个 Job 成功都不是完整业务证据。变更应同时覆盖实际
-API、后端权限、迁移、前端状态和必要浏览器流程。
+未来版本只有在 Root 工具、Go/npm 包、镜像、Docs 与外部使用方证据全部公开对账后，
+才能把源码能力转成可执行采用路径。

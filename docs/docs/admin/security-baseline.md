@@ -6,6 +6,12 @@ description: v1.3.5 Admin 身份、授权、密钥、浏览器与供应链最低
 
 # v1.3.5 安全基线
 
+:::warning
+v1.3.5 是不可变部分发布，Root 工具、官方 npmjs、Docs 与完整 Thin Host 路径未发布；
+当前稳定版本仍是 v1.3.2。本页记录 Foundation 源码安全基线和未来完整发行合同，不是
+v1.3.5 工具安装或部署指引。
+:::
+
 ## 身份与会话
 
 - 密码只保存带盐单向 verifier，不支持显示或恢复；
@@ -39,18 +45,16 @@ description: v1.3.5 Admin 身份、授权、密钥、浏览器与供应链最低
 
 ## 供应链与发布
 
-- v1.3.5 只能从已经合入 `main` 的精确干净提交发布；
-- 工具安装校验 `SHA256SUMS.tools-v1.3.5`；
-- Go 模块关闭 workspace 验证公共解析；
-- npm 包从 npmjs 匿名安装并冻结锁；
-- 标签、Release 和 digest 不移动、不覆盖。
+- v1.3.5 已公开标签、组件 Release、包与镜像保持不可变，不补附缺失制品；
+- 原计划的 `SHA256SUMS.tools-v1.3.5` 只是一项未发布资产身份，不能用于安装；
+- 已公开 Go Module 的公共解析与完整发行资格必须区分；
+- 官方 npmjs 1.3.5 未发布，GitHub Packages 或本地 tarball 不能替代；
+- 未来完整版本从合入 `main` 的精确干净提交资格，并冻结标签、Release 和 digest。
 
 ## 上线门禁
 
-```sh
-mss doctor --strict
-mss verify --all
-```
+Foundation 贡献者按 `.mss/commands.yaml` 运行源码诊断与验证；一般 `doctor`、`verify`
+合同可以保留，但这些结果不能证明 v1.3.5 下游工具或公共依赖可用。
 
 同时完成迁移、权限正反例、真实业务流程、浏览器控制台和回滚演练。任何绕过项必须明确
 记录为阻断或剩余风险。

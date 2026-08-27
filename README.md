@@ -2,98 +2,63 @@
 
 [简体中文](./README.zh-CN.md)
 
-mss-boot is an agent-native management-system foundation. The coordinated
-**v1.3.5** release candidate is designed to be consumed as released tools and
-packages: downstream applications do not clone or copy this repository.
+mss-boot is an agent-native management-system foundation. **v1.3.5 is an
+immutable partial train, not a complete adopter distribution.** Framework,
+Admin, and Admin Web were published and the Root tag is public, but the Root
+Release and tools, Docs, and the public npmjs package were not published. Do
+not delete, move, recreate, or reuse any v1.3.5 identity.
 
-## What v1.3.5 will ship
+## Current availability
 
-| Surface | Released identity | Purpose |
+The release policy still identifies **v1.3.2** as the current coordinated
+stable distribution. Its immutable release record remains the supported
+baseline for existing adopters.
+
+v1.3.5 published only part of the intended train from commit
+`396f60615cdfa589353b16ef9d3531e249e65432`:
+
+| Surface | Public v1.3.5 identity | Availability |
 | --- | --- | --- |
-| Agent tools | `mss`, `mss-mcp` from the `v1.3.5` GitHub Release | Create, inspect, develop, verify, and upgrade Thin Hosts |
-| Framework | `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5` | Domain-neutral Go infrastructure |
-| Admin | `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5` | Complete importable Admin backend |
-| Admin Web | `@mss-boot-io/admin-web@1.3.5` | Complete React 19 and Ant Design 6 frontend |
+| Framework | `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5` | Public Go component |
+| Admin | `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5` | Public Go component |
+| Admin Web | `web/antd-v6/v1.3.5` and `@mss-boot-io/admin-web@1.3.5` release assets | GitHub Release and GitHub Packages only; npmjs is absent |
+| Root | annotated `v1.3.5` tag | Tag only; no Root Release, tools, or Root image |
+| Docs | planned `docs/v1.3.5` | Not published |
 
-Every component is qualified from one exact commit already merged into
-`main`. A version is usable only after its public release and package
-reconciliation are complete.
+These component identities are immutable but do not form a complete Thin Host
+distribution. Do not combine them with v1.3.2, a source checkout, a local
+replacement, or an unpublished package.
 
-The commands below become the supported adopter path only after the v1.3.5
-GitHub Release, Go modules, npm package, images, and Docs site reconcile to that
-same commit. Until then, this source tree documents the candidate contract.
+## Adopter status
 
-## Quick start
+There is no supported v1.3.5 installer, empty-directory application creation,
+local setup, or distribution-upgrade procedure. The original candidate
+interfaces are intentionally absent from current onboarding so they cannot be
+mistaken for downloadable commands. The next unused distribution version has
+not been selected.
 
-After public reconciliation, on Linux or macOS:
-
-```sh
-curl -fsSLO https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.5/install-mss.sh
-bash ./install-mss.sh --version v1.3.5 --install-dir "$HOME/.local/bin"
-export PATH="$HOME/.local/bin:$PATH"
-mss --version
-mss-mcp --version
-```
-
-On Windows PowerShell:
-
-```powershell
-Invoke-WebRequest https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.5/install-mss.ps1 -OutFile install-mss.ps1
-& .\install-mss.ps1 -Version v1.3.5 -InstallDir "$HOME\.local\bin"
-$env:Path = "$HOME\.local\bin;$env:Path"
-mss --version
-mss-mcp --version
-```
-
-Create a complete Thin Host from an empty directory:
-
-```sh
-mss new app orders-admin --module github.com/acme/orders-admin --destination ./orders-admin --write --git-init
-cd orders-admin
-mss doctor --strict
-mss setup
-mss dev --detach
-mss dev status
-mss verify --changed
-```
-
-On an interactive terminal, the first `mss setup` securely prompts for the
-initial administrator password with hidden input. It must be 8-128 characters
-and contain a letter and a number. Non-interactive automation injects the
-one-use `MSS_ADMIN_INITIAL_PASSWORD` from its secret store for the setup process
-only. After the first migration succeeds, repeated setup runs do not require it.
-
-Open `http://127.0.0.1:8001` and sign in as `admin` with the password supplied
-during that first setup. There is no default password.
-
-The installer verifies `SHA256SUMS.tools-v1.3.5`, never requires `sudo`,
-and does not edit shell profiles. See the
-[package-first quick start](https://docs.mss-boot-io.top/getting-started) for
-prerequisites, Windows PATH handling, upgrade commands, and troubleshooting.
+Use the [v1.3.2 stable record](./docs/docs/releases/archive/v1-3-2.md)
+for the current stable boundary and the
+[v1.3.5 partial-release record](./docs/docs/releases/v1-3-5.md)
+for immutable audit evidence.
 
 ## Architecture boundary
 
-A generated application is a **Thin Host**. It pins the exact Admin Go module
-and Admin Web package, contains composition glue and business-owned modules,
-and never copies Foundation core source. Business backend modules register at
-compile time; frontend business routes extend the packaged shell. Backend
-authorization remains authoritative.
-
-Install the target-version tools, back up the application and database, and
-confirm `.mss/blueprint-manifest.json` exists before running
-`mss upgrade admin v1.3.5`. Add `--apply --yes` only after reviewing a
-conflict-free plan, then run `mss doctor --strict`, `mss verify --all`, and a
-second plan that must be empty. A hand-assembled or manifest-less repository
-must migrate business-owned files into a newly generated baseline instead of
-fabricating upgrade state. No Foundation checkout is required.
+A complete future distribution will keep a generated application as a **Thin
+Host**: it pins one coordinated Admin Go module and Admin Web package, contains
+only composition glue and business-owned modules, and never copies Foundation
+core source. Business backend modules register at compile time, frontend
+business routes extend the packaged shell, and backend authorization remains
+authoritative. This architecture contract does not make the incomplete v1.3.5
+train adoptable.
 
 ## Documentation
 
-- [Quick start](https://docs.mss-boot-io.top/getting-started)
-- [Packages and import boundaries](https://docs.mss-boot-io.top/getting-started/packages)
-- [Tooling](https://docs.mss-boot-io.top/getting-started/tooling)
-- [mss-shop reference application](https://docs.mss-boot-io.top/getting-started/mss-shop)
-- [v1.3.5 release contract](https://docs.mss-boot-io.top/releases/v1-3-5)
+- [Adopter and component status](./docs/docs/getting-started/index.md)
+- [Published components and import boundaries](./docs/docs/getting-started/packages.md)
+- [Tool publication status](./docs/docs/getting-started/tooling.md)
+- [mss-shop reference status](./docs/docs/getting-started/mss-shop.md)
+- [v1.3.5 immutable partial-release record](./docs/docs/releases/v1-3-5.md)
 
 Foundation contributors should use
 [`CONTRIBUTING.md`](./docs/CONTRIBUTING.md); source-checkout commands are

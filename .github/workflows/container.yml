@@ -1,5 +1,5 @@
 name: Container Image
-run-name: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && format('Root Image publish {0}', inputs.version) || github.event_name == 'workflow_dispatch' && format('Root Image candidate {0}', inputs.version) || format('Container Image {0}', github.ref_name) }}
+run-name: ${{ github.event_name == 'workflow_call' && format('Root Image candidate {0}', inputs.version) || format('Container Image {0}', github.ref_name) }}
 
 on:
   pull_request:
@@ -32,21 +32,11 @@ on:
       - 'Dockerfile'
       - '.dockerignore'
       - '.github/workflows/container.yml'
-  workflow_dispatch:
+  workflow_call:
     inputs:
       version:
-        description: Version embedded in a manually built image
+        description: Exact candidate version supplied by the Root preview
         required: true
-        default: devel
-        type: string
-      publish:
-        description: Push the manually built image to GHCR
-        required: true
-        default: false
-        type: boolean
-      readiness_run_id:
-        description: Exact release-readiness workflow run ID required for publication
-        required: false
         type: string
 
 permissions:
@@ -54,7 +44,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ startsWith(github.ref, 'refs/tags/') && format('foundation-release-{0}', github.ref) || format('container-{0}', github.event.pull_request.number || github.ref) }}
+  group: container-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 env:
@@ -71,11 +61,24 @@ jobs:
       version: ${{ steps.build-info.outputs.version }}
       publish: ${{ steps.build-info.outputs.publish }}
       stable: ${{ steps.build-info.outputs.stable }}
+      preview-run-id: ${{ steps.preview.outputs.run-id }}
     steps:
+      - name: Require authorized release operator
+        if: ${{ github.event_name == 'workflow_call' || github.ref_type == 'tag' }}
+        env:
+          RELEASE_ACTOR_LOGIN: lwnmengjing
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" || "${GITHUB_TRIGGERING_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" ]]; then
+            echo "release operations must be initiated and triggered by ${RELEASE_ACTOR_LOGIN}" >&2
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Go
+        if: github.ref_type != 'tag'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: admin/go.mod
@@ -87,13 +90,13 @@ jobs:
             mss-boot/go.sum
 
       - name: Vendor workspace for Docker context
+        if: github.ref_type != 'tag'
         run: go work vendor
 
       - name: Resolve build metadata
         id: build-info
         env:
           INPUT_VERSION: ${{ inputs.version }}
-          INPUT_PUBLISH: ${{ inputs.publish }}
         run: |
           set -euo pipefail
 
@@ -126,9 +129,8 @@ jobs:
 
           version="sha-${GITHUB_SHA:0:12}"
           publish=false
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_call" ]]; then
             version="${INPUT_VERSION}"
-            publish="${INPUT_PUBLISH}"
           elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             version="${GITHUB_REF_NAME}"
             publish=true
@@ -152,16 +154,6 @@ jobs:
               --tag "${version}" \
               --intent qualify
           fi
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${publish}" == "true" ]]; then
-            if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${version}" ]]; then
-              echo "manual publication requires workflow_dispatch from the exact ${version} tag" >&2
-              exit 1
-            fi
-            if ! validate_release_version "${version}"; then
-              echo "manual publication requires a valid release version" >&2
-              exit 1
-            fi
-          fi
           stable=false
           if [[ "${version}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             stable=true
@@ -173,13 +165,31 @@ jobs:
             echo "local-tag=${REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}"
           } >> "${GITHUB_OUTPUT}"
 
+      - name: Require successful exact preview
+        id: preview
+        if: steps.build-info.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.build-info.outputs.version }}
+        run: |
+          set -euo pipefail
+          preview_run_id="$(bash tools/release/resolve_successful_preview.sh \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${GITHUB_SHA}" \
+            --version "${RELEASE_VERSION}" \
+            --actor lwnmengjing)"
+          echo "run-id=${preview_run_id}" >> "${GITHUB_OUTPUT}"
+
       - name: Set up QEMU
+        if: github.event_name == 'workflow_call'
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
 
       - name: Set up Docker Buildx
+        if: github.ref_type != 'tag'
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
 
       - name: Extract Docker metadata
+        if: github.ref_type != 'tag'
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
@@ -190,11 +200,10 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=ref,event=tag
-            type=raw,value=latest,enable=${{ steps.build-info.outputs.stable == 'true' }}
-            type=raw,value=${{ steps.build-info.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
             type=sha,prefix=,format=long,enable=true,priority=100
 
       - name: Build candidate image
+        if: github.ref_type != 'tag'
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
@@ -219,6 +228,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=admin-image
 
       - name: Smoke-test candidate image
+        if: github.ref_type != 'tag'
         env:
           IMAGE: ${{ steps.build-info.outputs.local-tag }}
           EXPECTED_VERSION: ${{ steps.build-info.outputs.version }}
@@ -231,28 +241,150 @@ jobs:
           test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.title" }}' "${IMAGE}")" = 'mss-boot-admin'
           test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.description" }}' "${IMAGE}")" = 'Complete Go Admin backend for the mss-boot agent-native management-system distribution.'
 
+      - name: Qualify the exact multi-platform release image
+        if: github.event_name == 'workflow_call'
+        id: release-image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          outputs: type=oci,dest=${{ runner.temp }}/root-image.oci.tar
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.title=mss-boot-admin
+            org.opencontainers.image.description=Complete Go Admin backend for the mss-boot agent-native management-system distribution.
+            org.opencontainers.image.version=${{ steps.build-info.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            VERSION=${{ steps.build-info.outputs.version }}
+            COMMIT=${{ github.sha }}
+          provenance: true
+          sbom: true
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha,scope=admin-image
+          cache-to: type=gha,mode=max,scope=admin-image
+
+      - name: Verify and stage the exact Root OCI image
+        if: github.event_name == 'workflow_call'
+        env:
+          BUILD_DIGEST: ${{ steps.release-image.outputs.digest }}
+          RELEASE_VERSION: ${{ steps.build-info.outputs.version }}
+        run: |
+          set -euo pipefail
+          source_archive="${RUNNER_TEMP}/root-image.oci.tar"
+          layout_index="${RUNNER_TEMP}/root-image.index.json"
+          source_manifest="${RUNNER_TEMP}/root-image.manifest.json"
+          artifact_dir="${RUNNER_TEMP}/root-image-preview"
+          test -s "${source_archive}"
+          command -v skopeo >/dev/null
+          tar -xOf "${source_archive}" index.json > "${layout_index}"
+          archive_digest="$(
+            jq -er '
+              if (.manifests | length) == 1 then
+                .manifests[0].digest
+              else
+                error("OCI layout must expose exactly one top-level image")
+              end
+            ' "${layout_index}"
+          )"
+          manifest_hash="${archive_digest#sha256:}"
+          [[ "${manifest_hash}" =~ ^[0-9a-f]{64}$ ]]
+          tar -xOf \
+            "${source_archive}" \
+            "blobs/sha256/${manifest_hash}" \
+            > "${source_manifest}"
+          test "sha256:$(sha256sum "${source_manifest}" | awk '{print $1}')" = "${archive_digest}"
+          [[ "${BUILD_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          test "${archive_digest}" = "${BUILD_DIGEST}"
+          jq -e '
+            (.mediaType == "application/vnd.oci.image.index.v1+json" or
+             .mediaType == "application/vnd.docker.distribution.manifest.list.v2+json") and
+            ([.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "amd64"
+            )] | length) == 1 and
+            ([.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "arm64"
+            )] | length) == 1
+          ' "${source_manifest}" >/dev/null
+
+          for architecture in amd64 arm64; do
+            config="$(
+              skopeo \
+                --override-os linux \
+                --override-arch "${architecture}" \
+                inspect --config "oci-archive:${source_archive}"
+            )"
+            jq -e \
+              --arg version "${RELEASE_VERSION}" \
+              --arg commit "${GITHUB_SHA}" \
+              '.config.Labels["org.opencontainers.image.title"] == "mss-boot-admin" and
+               .config.Labels["org.opencontainers.image.description"] == "Complete Go Admin backend for the mss-boot agent-native management-system distribution." and
+               .config.Labels["org.opencontainers.image.version"] == $version and
+               .config.Labels["org.opencontainers.image.revision"] == $commit' \
+              <<< "${config}" >/dev/null
+          done
+
+          mkdir -p "${artifact_dir}"
+          install -m 0644 "${source_archive}" "${artifact_dir}/root-image.oci.tar"
+          {
+            echo 'application=mss-boot-admin'
+            echo "version=${RELEASE_VERSION}"
+            echo "commit=${GITHUB_SHA}"
+            echo "digest=${archive_digest}"
+          } > "${artifact_dir}/ROOT-IMAGE-INFO.txt"
+          (
+            cd "${artifact_dir}"
+            sha256sum root-image.oci.tar ROOT-IMAGE-INFO.txt > SHA256SUMS.root-image
+            sha256sum --check SHA256SUMS.root-image
+          )
+          python3 tools/release/check_portable_paths.py \
+            "${artifact_dir}/root-image.oci.tar" \
+            "${artifact_dir}/ROOT-IMAGE-INFO.txt" \
+            "${artifact_dir}/SHA256SUMS.root-image"
+
+      - name: Upload exact Root OCI preview artifact
+        if: github.event_name == 'workflow_call'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: root-image-preview-${{ steps.build-info.outputs.version }}
+          path: |
+            ${{ runner.temp }}/root-image-preview/root-image.oci.tar
+            ${{ runner.temp }}/root-image-preview/ROOT-IMAGE-INFO.txt
+            ${{ runner.temp }}/root-image-preview/SHA256SUMS.root-image
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
   publish:
     name: publish
     needs: build
     if: >-
       ${{
         needs.build.outputs.publish == 'true' &&
+        github.event_name == 'push' &&
         github.ref_type == 'tag' &&
-        github.ref_name == needs.build.outputs.version &&
-        (
-          github.event_name == 'push' ||
-          (github.event_name == 'workflow_dispatch' && inputs.publish == true)
-        )
+        github.ref_name == needs.build.outputs.version
       }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
-    environment: release
+    environment: release-auto
     permissions:
       actions: read
       contents: read
       packages: write
       pull-requests: read
     steps:
+      - name: Require authorized release operator
+        env:
+          RELEASE_ACTOR_LOGIN: lwnmengjing
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" || "${GITHUB_TRIGGERING_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" ]]; then
+            echo "release operations must be initiated and triggered by ${RELEASE_ACTOR_LOGIN}" >&2
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -267,41 +399,95 @@ jobs:
             --tag "${RELEASE_VERSION}" \
             --policy .mss/release-policy.yaml
 
-      - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      - name: Download exact Root OCI image from the successful preview
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          go-version-file: admin/go.mod
-          cache: true
-          cache-dependency-path: |
-            go.sum
-            go.work.sum
-            admin/go.sum
-            mss-boot/go.sum
+          name: root-image-preview-${{ needs.build.outputs.version }}
+          path: ${{ runner.temp }}/root-image-preview
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.build.outputs.preview-run-id }}
 
-      - name: Vendor workspace for Docker context
-        run: go work vendor
+      - name: Verify the exact Root OCI preview artifact
+        env:
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          preview_dir="${RUNNER_TEMP}/root-image-preview"
+          archive="${preview_dir}/root-image.oci.tar"
+          image_info="${preview_dir}/ROOT-IMAGE-INFO.txt"
+          checksum_file="${preview_dir}/SHA256SUMS.root-image"
+          test -s "${archive}"
+          test -f "${image_info}"
+          test -f "${checksum_file}"
+          (
+            cd "${preview_dir}"
+            sha256sum --check SHA256SUMS.root-image
+          )
+          grep -Fx 'application=mss-boot-admin' "${image_info}" >/dev/null
+          grep -Fx "version=${RELEASE_VERSION}" "${image_info}" >/dev/null
+          grep -Fx "commit=${GITHUB_SHA}" "${image_info}" >/dev/null
+          test "$(wc -l < "${image_info}")" -eq 4
+          expected_digest="$(sed -n 's/^digest=//p' "${image_info}")"
+          [[ "${expected_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+          layout_index="${RUNNER_TEMP}/root-image-preview.index.json"
+          image_manifest="${RUNNER_TEMP}/root-image-preview.manifest.json"
+          tar -xOf "${archive}" index.json > "${layout_index}"
+          actual_digest="$(
+            jq -er '
+              if (.manifests | length) == 1 then
+                .manifests[0].digest
+              else
+                error("OCI layout must expose exactly one top-level image")
+              end
+            ' "${layout_index}"
+          )"
+          manifest_hash="${actual_digest#sha256:}"
+          [[ "${manifest_hash}" =~ ^[0-9a-f]{64}$ ]]
+          tar -xOf \
+            "${archive}" \
+            "blobs/sha256/${manifest_hash}" \
+            > "${image_manifest}"
+          test "sha256:$(sha256sum "${image_manifest}" | awk '{print $1}')" = "${actual_digest}"
+          test "${actual_digest}" = "${expected_digest}"
+          jq -e '
+            (.mediaType == "application/vnd.oci.image.index.v1+json" or
+             .mediaType == "application/vnd.docker.distribution.manifest.list.v2+json") and
+            ([.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "amd64"
+            )] | length) == 1 and
+            ([.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "arm64"
+            )] | length) == 1
+          ' "${image_manifest}" >/dev/null
+          for architecture in amd64 arm64; do
+            config="$(
+              skopeo \
+                --override-os linux \
+                --override-arch "${architecture}" \
+                inspect --config "oci-archive:${archive}"
+            )"
+            jq -e \
+              --arg version "${RELEASE_VERSION}" \
+              --arg commit "${GITHUB_SHA}" \
+              '.config.Labels["org.opencontainers.image.title"] == "mss-boot-admin" and
+               .config.Labels["org.opencontainers.image.description"] == "Complete Go Admin backend for the mss-boot agent-native management-system distribution." and
+               .config.Labels["org.opencontainers.image.version"] == $version and
+               .config.Labels["org.opencontainers.image.revision"] == $commit' \
+              <<< "${config}" >/dev/null
+          done
 
       - name: Require exact release publication authority
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          INPUT_PUBLISH: ${{ inputs.publish }}
-          INPUT_READINESS_RUN_ID: ${{ inputs.readiness_run_id }}
-          RELEASE_READINESS_RUN_ID: ${{ vars.RELEASE_READINESS_RUN_ID }}
           RELEASE_VERSION: ${{ needs.build.outputs.version }}
         run: |
           set -euo pipefail
 
-          if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${RELEASE_VERSION}" ]]; then
-            echo "publication requires the exact ${RELEASE_VERSION} tag" >&2
-            exit 1
-          fi
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${INPUT_PUBLISH}" != "true" ]]; then
-            echo "manual publication requires publish=true" >&2
-            exit 1
-          fi
-          if [[ "${GITHUB_EVENT_NAME}" != "push" && "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ]]; then
-            echo "unsupported publication event: ${GITHUB_EVENT_NAME}" >&2
+          if [[ "${GITHUB_EVENT_NAME}" != "push" || "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${RELEASE_VERSION}" ]]; then
+            echo "publication requires the exact ${RELEASE_VERSION} tag push" >&2
             exit 1
           fi
 
@@ -311,22 +497,6 @@ jobs:
             --tag "${GITHUB_REF_NAME}" \
             --intent publish
 
-          readiness_run_id="${INPUT_READINESS_RUN_ID:-${RELEASE_READINESS_RUN_ID}}"
-          bash tools/release/verify_readiness_run.sh \
-            --repository "${GITHUB_REPOSITORY}" \
-            --run-id "${readiness_run_id}" \
-            --target-version "${RELEASE_VERSION}" \
-            --commit "${GITHUB_SHA}" \
-            --phase pre-root \
-            --policy .mss/release-policy.yaml
-
-          if release_json="$(gh release view "${RELEASE_VERSION}" --json isDraft 2>/dev/null)"; then
-            if [[ "$(jq -r '.isDraft' <<< "${release_json}")" != "true" ]]; then
-              echo "release ${RELEASE_VERSION} is already public; refusing to mutate its image tag" >&2
-              exit 1
-            fi
-          fi
-
       - name: Log into registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
@@ -334,207 +504,205 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
-
-      - name: Resolve immutable root image version
-        id: existing-image
+      - name: Publish the exact preview Root OCI image
+        id: image
         env:
-          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
           set -euo pipefail
-          image_ref="${REGISTRY}/${IMAGE_NAME}:${RELEASE_VERSION}"
-          error_file="${RUNNER_TEMP}/root-image-inspect-error.log"
-          manifest_file="${RUNNER_TEMP}/root-image-manifest.json"
-          descriptor_file="${RUNNER_TEMP}/root-image-descriptor.json"
-          if docker buildx imagetools inspect "${image_ref}" \
-            --format '{{json .Manifest}}' > "${descriptor_file}" 2> "${error_file}"; then
-            docker buildx imagetools inspect "${image_ref}" --raw > "${manifest_file}"
-            digest="$(jq -er '.digest' "${descriptor_file}")"
-            [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-
-            mapfile -t image_rows < <(
-              jq -r '
-                [.manifests[]
-                  | select(.platform.os == "linux")
-                  | select(.platform.architecture == "amd64" or .platform.architecture == "arm64")
-                  | "\(.platform.os)/\(.platform.architecture)|\(.digest)"]
-                | sort
-                | .[]
-              ' "${manifest_file}"
-            )
-            expected_rows=(
-              "linux/amd64"
-              "linux/arm64"
-            )
-            actual_platforms=()
-            for row in "${image_rows[@]}"; do
-              actual_platforms+=("${row%%|*}")
-            done
-            if [[ "${actual_platforms[*]}" != "${expected_rows[*]}" ]]; then
-              echo "existing immutable root image does not contain exactly linux/amd64 and linux/arm64" >&2
-              exit 1
-            fi
-
-            for row in "${image_rows[@]}"; do
-              platform="${row%%|*}"
-              platform_digest="${row#*|}"
-              [[ "${platform_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
-              platform_config="$(
-                docker buildx imagetools inspect \
-                  "${REGISTRY}/${IMAGE_NAME}@${platform_digest}" \
-                  --format '{{json .Image}}'
-              )"
-              platform_os="${platform%%/*}"
-              platform_arch="${platform#*/}"
-              if ! jq -e \
-                --arg os "${platform_os}" \
-                --arg arch "${platform_arch}" \
-                --arg version "${RELEASE_VERSION}" \
-                --arg commit "${GITHUB_SHA}" \
-                '.os == $os and
-                 .architecture == $arch and
-                 .config.Labels["org.opencontainers.image.title"] == "mss-boot-admin" and
-                 .config.Labels["org.opencontainers.image.version"] == $version and
-                 .config.Labels["org.opencontainers.image.revision"] == $commit' \
-                <<< "${platform_config}" >/dev/null; then
-                echo "existing immutable root image platform ${platform} does not match the frozen release" >&2
-                exit 1
-              fi
-            done
-
-            {
-              echo 'exists=true'
-              echo "digest=${digest}"
-            } >> "${GITHUB_OUTPUT}"
-            echo "Reusing exact immutable root image ${image_ref}@${digest}."
-            rm -f "${error_file}" "${manifest_file}" "${descriptor_file}"
-            exit 0
-          fi
-          if ! grep -Eqi 'manifest unknown|not found|name_unknown' "${error_file}"; then
-            echo 'registry inspection failed without an authoritative not-found response' >&2
-            sed -E 's#(https?://)[^/@[:space:]]+@#\1[REDACTED]@#g' "${error_file}" >&2
-            exit 1
-          fi
-          {
-            echo 'exists=false'
-            echo 'digest='
-          } >> "${GITHUB_OUTPUT}"
-          rm -f "${error_file}" "${manifest_file}" "${descriptor_file}"
-
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          flavor: |
-            latest=false
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=ref,event=tag
-            type=raw,value=latest,enable=${{ needs.build.outputs.stable == 'true' }}
-            type=raw,value=${{ needs.build.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
-            type=sha,prefix=,format=long,enable=true,priority=100
-
-      - name: Build and publish image
-        id: publish
-        if: ${{ steps.existing-image.outputs.exists != 'true' }}
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
-        with:
-          context: .
-          file: Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: |
-            ${{ steps.meta.outputs.labels }}
-            org.opencontainers.image.title=mss-boot-admin
-            org.opencontainers.image.description=Complete Go Admin backend for the mss-boot agent-native management-system distribution.
-            org.opencontainers.image.version=${{ needs.build.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          build-args: |
-            VERSION=${{ needs.build.outputs.version }}
-            COMMIT=${{ github.sha }}
-          provenance: true
-          sbom: true
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha,scope=admin-image
-          cache-to: type=gha,mode=max,scope=admin-image
-
-      - name: Restore stable alias from a recovered immutable image
-        if: ${{ needs.build.outputs.stable == 'true' && steps.existing-image.outputs.exists == 'true' }}
-        env:
-          IMAGE_DIGEST: ${{ steps.existing-image.outputs.digest }}
-        run: |
-          set -euo pipefail
-          [[ "${IMAGE_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          command -v skopeo >/dev/null
+          archive="${RUNNER_TEMP}/root-image-preview/root-image.oci.tar"
+          image_info="${RUNNER_TEMP}/root-image-preview/ROOT-IMAGE-INFO.txt"
+          test -s "${archive}"
+          test -f "${image_info}"
+          digest="$(sed -n 's/^digest=//p' "${image_info}")"
+          [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          auth_file="${DOCKER_CONFIG:-${HOME}/.docker}/config.json"
+          test -s "${auth_file}"
           image_repository="${REGISTRY}/${IMAGE_NAME}"
-          docker buildx imagetools create \
-            --tag "${image_repository}:latest" \
-            "${image_repository}@${IMAGE_DIGEST}"
+          version_ref="${image_repository}:${VERSION}"
+          commit_ref="${image_repository}:${GITHUB_SHA}"
 
-      - name: Record published image digest
-        env:
-          IMAGE_DIGEST: ${{ steps.publish.outputs.digest || steps.existing-image.outputs.digest }}
-        run: |
-          set -euo pipefail
-          digest="${IMAGE_DIGEST}"
-          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "published image did not return a valid digest" >&2
+          inspect_digest() {
+            local reference="$1"
+            local manifest_file="$2"
+            local error_file="$3"
+            if skopeo inspect \
+              --authfile "${auth_file}" \
+              --raw "docker://${reference}" \
+              > "${manifest_file}" 2> "${error_file}"; then
+              printf 'sha256:%s\n' "$(sha256sum "${manifest_file}" | awk '{print $1}')"
+              return 0
+            fi
+            if grep -Eqi \
+              'manifest unknown|manifest_unknown|name unknown|name_unknown' \
+              "${error_file}"; then
+              return 2
+            fi
+            return 1
+          }
+
+          preflight_reference() {
+            local reference="$1"
+            local safe_name="$2"
+            local manifest_file="${RUNNER_TEMP}/${safe_name}.manifest.json"
+            local error_file="${RUNNER_TEMP}/${safe_name}.inspect.log"
+            local observed_digest_file="${RUNNER_TEMP}/${safe_name}.observed-digest"
+            local state_file="${RUNNER_TEMP}/${safe_name}.preflight-state"
+            local current_digest
+            local inspect_status
+
+            rm -f "${manifest_file}" "${error_file}" \
+              "${observed_digest_file}" "${state_file}"
+            if current_digest="$(
+              inspect_digest "${reference}" "${manifest_file}" "${error_file}"
+            )"; then
+              printf '%s\n' "${current_digest}" > "${observed_digest_file}"
+              if [[ "${current_digest}" == "${digest}" ]]; then
+                printf '%s\n' matching > "${state_file}"
+              else
+                printf '%s\n' conflict > "${state_file}"
+              fi
+            else
+              inspect_status=$?
+              if [[ "${inspect_status}" -eq 2 ]]; then
+                printf '%s\n' missing > "${state_file}"
+              else
+                printf '%s\n' error > "${state_file}"
+              fi
+            fi
+          }
+
+          validate_preflight() {
+            local reference="$1"
+            local safe_name="$2"
+            local state_file="${RUNNER_TEMP}/${safe_name}.preflight-state"
+            local observed_digest_file="${RUNNER_TEMP}/${safe_name}.observed-digest"
+            local error_file="${RUNNER_TEMP}/${safe_name}.inspect.log"
+            local state
+
+            state="$(cat "${state_file}")"
+            case "${state}" in
+              matching|missing)
+                return 0
+                ;;
+              conflict)
+                echo "immutable image ${reference} already has $(cat "${observed_digest_file}"), expected ${digest}" >&2
+                return 1
+                ;;
+              error)
+                echo "registry inspection failed for ${reference}" >&2
+                sed -E 's#(https?://)[^/@[:space:]]+@#\1[REDACTED]@#g' \
+                  "${error_file}" >&2
+                return 1
+                ;;
+              *)
+                echo "invalid image preflight state for ${reference}: ${state}" >&2
+                return 1
+                ;;
+            esac
+          }
+
+          publish_reference_if_missing() {
+            local reference="$1"
+            local safe_name="$2"
+            local state_file="${RUNNER_TEMP}/${safe_name}.preflight-state"
+            local digest_file="${RUNNER_TEMP}/${safe_name}.published-digest"
+            local state
+
+            state="$(cat "${state_file}")"
+            case "${state}" in
+              matching)
+                return 0
+                ;;
+              missing)
+                ;;
+              *)
+                echo "refusing to publish ${reference} after preflight state ${state}" >&2
+                return 1
+                ;;
+            esac
+            rm -f "${digest_file}"
+            skopeo copy \
+              --all \
+              --preserve-digests \
+              --dest-authfile "${auth_file}" \
+              --digestfile "${digest_file}" \
+              "oci-archive:${archive}" \
+              "docker://${reference}"
+            test "$(tr -d '\r\n' < "${digest_file}")" = "${digest}"
+          }
+
+          verify_exact_reference() {
+            local reference="$1"
+            local safe_name="$2"
+            local manifest_file="${RUNNER_TEMP}/${safe_name}.manifest.json"
+            local error_file="${RUNNER_TEMP}/${safe_name}.inspect.log"
+            local current_digest
+            local inspect_status
+
+            current_digest="$(
+              inspect_digest "${reference}" "${manifest_file}" "${error_file}"
+            )" || inspect_status=$?
+            if [[ -n "${inspect_status:-}" ]]; then
+              echo "published image verification failed for ${reference}" >&2
+              sed -E 's#(https?://)[^/@[:space:]]+@#\1[REDACTED]@#g' \
+                "${error_file}" >&2
+              return "${inspect_status}"
+            fi
+            if [[ "${current_digest}" != "${digest}" ]]; then
+              echo "published image ${reference} has ${current_digest}, expected ${digest}" >&2
+              return 1
+            fi
+            rm -f "${error_file}"
+          }
+
+          preflight_reference "${version_ref}" root-version
+          preflight_reference "${commit_ref}" root-commit
+          preflight_failed=0
+          validate_preflight "${version_ref}" root-version || preflight_failed=1
+          validate_preflight "${commit_ref}" root-commit || preflight_failed=1
+          if [[ "${preflight_failed}" -ne 0 ]]; then
+            echo 'image publication preflight failed before any registry write' >&2
             exit 1
           fi
-          image="${REGISTRY}/${IMAGE_NAME}@${digest}"
-          output="$(docker run --rm "${image}" --version)"
-          [[ "${output}" == *"${{ needs.build.outputs.version }}"* ]]
-          [[ "${output}" == *"${GITHUB_SHA}"* ]]
-          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.title" }}' "${image}")" = 'mss-boot-admin'
-          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.description" }}' "${image}")" = 'Complete Go Admin backend for the mss-boot agent-native management-system distribution.'
+
+          publish_reference_if_missing "${version_ref}" root-version
+          publish_reference_if_missing "${commit_ref}" root-commit
+          verify_exact_reference "${version_ref}" root-version
+          verify_exact_reference "${commit_ref}" root-commit
+
+          version_manifest="${RUNNER_TEMP}/root-version.manifest.json"
+          jq -e '
+            ([.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "amd64"
+            )] | length) == 1 and
+            ([.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "arm64"
+            )] | length) == 1
+          ' "${version_manifest}" >/dev/null
+          for architecture in amd64 arm64; do
+            config="$(
+              skopeo \
+                --override-os linux \
+                --override-arch "${architecture}" \
+                inspect \
+                --authfile "${auth_file}" \
+                --config "docker://${version_ref}"
+            )"
+            jq -e \
+              --arg version "${VERSION}" \
+              --arg commit "${GITHUB_SHA}" \
+              '.config.Labels["org.opencontainers.image.title"] == "mss-boot-admin" and
+               .config.Labels["org.opencontainers.image.description"] == "Complete Go Admin backend for the mss-boot agent-native management-system distribution." and
+               .config.Labels["org.opencontainers.image.version"] == $version and
+               .config.Labels["org.opencontainers.image.revision"] == $commit' \
+              <<< "${config}" >/dev/null
+          done
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
           {
             echo "### Runtime image"
             echo '```text'
-            echo "${image}"
+            echo "${version_ref}@${digest}"
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Verify stable image aliases resolve to the published digest
-        if: ${{ needs.build.outputs.stable == 'true' }}
-        env:
-          EXPECTED_DIGEST: ${{ steps.publish.outputs.digest || steps.existing-image.outputs.digest }}
-          RELEASE_VERSION: ${{ needs.build.outputs.version }}
-        run: |
-          set -euo pipefail
-          [[ "${EXPECTED_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          image_repository="${REGISTRY}/${IMAGE_NAME}"
-          version_digest=""
-          latest_digest=""
-          for attempt in $(seq 1 12); do
-            version_digest=""
-            latest_digest=""
-            if version_manifest="$(
-              docker buildx imagetools inspect \
-                "${image_repository}:${RELEASE_VERSION}" \
-                --format '{{json .Manifest}}'
-            )" && latest_manifest="$(
-              docker buildx imagetools inspect \
-                "${image_repository}:latest" \
-                --format '{{json .Manifest}}'
-            )" && version_digest="$(jq -er '.digest' <<< "${version_manifest}")" \
-              && latest_digest="$(jq -er '.digest' <<< "${latest_manifest}")"; then
-              if [[ "${version_digest}" == "${EXPECTED_DIGEST}" \
-                && "${latest_digest}" == "${version_digest}" ]]; then
-                break
-              fi
-            fi
-            echo "waiting for stable image aliases to converge (attempt ${attempt}/12)"
-            if [[ "${attempt}" -lt 12 ]]; then
-              sleep 5
-            fi
-          done
-          if [[ "${version_digest}" != "${EXPECTED_DIGEST}" \
-            || "${latest_digest}" != "${version_digest}" ]]; then
-            echo "stable image aliases do not resolve to the published manifest digest" >&2
-            exit 1
-          fi

@@ -17,6 +17,230 @@ class CurrentDocsContractTest(unittest.TestCase):
     def test_repository_satisfies_contract(self) -> None:
         self.assertEqual(check_current_docs.collect_errors(), [])
 
+    def test_release_state_reads_policy_and_matching_feature(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            policy = root / ".mss/release-policy.yaml"
+            policy.parent.mkdir(parents=True)
+            policy.write_text(
+                "spec:\n"
+                "  currentStableVersion: v1.3.2\n"
+                "  distributionVersion: v1.3.5\n"
+                "  publicationWorkflowsReady: false\n",
+                encoding="utf-8",
+            )
+            feature = root / ".mss/features/release.yaml"
+            feature.parent.mkdir(parents=True)
+            feature.write_text(
+                "metadata:\n"
+                "  labels:\n"
+                "    target-version: v1.3.5\n"
+                "    release-status: immutable-partial\n",
+                encoding="utf-8",
+            )
+            state = check_current_docs.release_documentation_state(root)
+
+        self.assertEqual(state.distribution_version, "v1.3.5")
+        self.assertEqual(state.current_stable_version, "v1.3.2")
+        self.assertFalse(state.publication_workflows_ready)
+        self.assertEqual(state.release_status, "immutable-partial")
+        self.assertFalse(state.operational_onboarding_allowed)
+
+    def test_partial_release_rejects_version_specific_dead_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            relative = Path("docs/docs/getting-started/tooling.md")
+            page = root / relative
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                "https://github.com/mss-boot-io/mss-boot-admin/releases/download/"
+                "v1.3.5/install-mss.sh\n"
+                "bash ./install-mss.sh --version v1.3.5\n"
+                "& .\\install-mss.ps1 -Version v1.3.5\n"
+                "mss new app demo\n"
+                "mss setup\n"
+                "mss upgrade admin v1.3.5\n"
+                "corepack pnpm add @mss-boot-io/admin-web@1.3.5\n"
+                "docker pull ghcr.io/mss-boot-io/mss-boot-admin:v1.3.5\n"
+                '{\"command\": \"mss-mcp\"}\n'
+                "go install example.invalid/cmd/mss@v1.3.5\n",
+                encoding="utf-8",
+            )
+            state = check_current_docs.ReleaseDocumentationState(
+                distribution_version="v1.3.5",
+                current_stable_version="v1.3.2",
+                publication_workflows_ready=False,
+                release_status="immutable-partial",
+            )
+            errors = check_current_docs.partial_release_operational_errors(root, state)
+
+        joined = "\n".join(errors)
+        self.assertIn("unpublished v1.3.5 installer URL", joined)
+        self.assertIn("unpublished shell installer invocation", joined)
+        self.assertIn("unpublished PowerShell installer invocation", joined)
+        self.assertIn("unpublished v1.3.5 Admin upgrade", joined)
+        self.assertIn("unpublished official npmjs install", joined)
+        self.assertIn("unpublished Root image command", joined)
+        self.assertIn("source-built v1.3.5 Root tool", joined)
+        self.assertNotIn("mss new app", joined)
+        self.assertNotIn("mss setup", joined)
+        self.assertNotIn("mss-mcp client", joined)
+
+    def test_partial_release_scans_deep_active_pages_but_not_archives(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            deep = root / "docs/docs/admin/deep.md"
+            archived = root / "docs/docs/releases/archive/v1-3-5.md"
+            contributor = root / "docs/docs/coding/first-contribution.md"
+            for page in (deep, archived, contributor):
+                page.parent.mkdir(parents=True, exist_ok=True)
+                page.write_text(
+                    "mss upgrade admin v1.3.5\n",
+                    encoding="utf-8",
+                )
+            state = check_current_docs.ReleaseDocumentationState(
+                distribution_version="v1.3.5",
+                current_stable_version="v1.3.2",
+                publication_workflows_ready=False,
+                release_status="immutable-partial",
+            )
+            errors = check_current_docs.partial_release_operational_errors(root, state)
+
+        joined = "\n".join(errors)
+        self.assertIn("docs/docs/admin/deep.md:1", joined)
+        self.assertNotIn("docs/docs/releases/archive", joined)
+        self.assertNotIn("docs/docs/coding/first-contribution.md", joined)
+
+    def test_partial_release_allows_general_development_contracts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            page = root / "docs/docs/agent/development.md"
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                "mss new app demo\n"
+                "mss setup\n"
+                "mss doctor --strict\n"
+                "mss verify --all\n"
+                "mss-mcp --root /workspace\n",
+                encoding="utf-8",
+            )
+            state = check_current_docs.ReleaseDocumentationState(
+                distribution_version="v1.3.5",
+                current_stable_version="v1.3.2",
+                publication_workflows_ready=False,
+                release_status="immutable-partial",
+            )
+            errors = check_current_docs.partial_release_operational_errors(root, state)
+
+        self.assertEqual(errors, [])
+
+    def test_partial_release_semantics_require_status_and_boundary_anchors(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            relative = Path("docs/docs/admin/status.md")
+            page = root / relative
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                "v1.3.5 components and current stable v1.3.2.\n",
+                encoding="utf-8",
+            )
+            state = check_current_docs.ReleaseDocumentationState(
+                distribution_version="v1.3.5",
+                current_stable_version="v1.3.2",
+                publication_workflows_ready=False,
+                release_status="immutable-partial",
+            )
+            errors = check_current_docs.partial_release_semantic_errors(
+                root,
+                state,
+                status_paths=[relative],
+                claim_paths=[relative],
+            )
+            self.assertTrue(any("immutable-partial" in error for error in errors))
+            self.assertTrue(any("future-contract" in error for error in errors))
+
+            page.write_text(
+                "v1.3.5 is immutable-partial; current stable is v1.3.2. "
+                "This is a future contract, not an adoptable release.\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                check_current_docs.partial_release_semantic_errors(
+                    root,
+                    state,
+                    status_paths=[relative],
+                    claim_paths=[relative],
+                ),
+                [],
+            )
+
+    def test_partial_release_semantics_reject_current_adoption_claims(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            relative = Path("docs/docs/admin/status.md")
+            page = root / relative
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                "v1.3.5 is immutable-partial; current stable is v1.3.2. "
+                "This is a future contract, not an adoptable release.\n"
+                "The v1.3.5 candidate publishes a complete adopter package.\n",
+                encoding="utf-8",
+            )
+            state = check_current_docs.ReleaseDocumentationState(
+                distribution_version="v1.3.5",
+                current_stable_version="v1.3.2",
+                publication_workflows_ready=False,
+                release_status="immutable-partial",
+            )
+            errors = check_current_docs.partial_release_semantic_errors(
+                root,
+                state,
+                status_paths=[relative],
+                claim_paths=[relative],
+            )
+
+        self.assertTrue(
+            any("candidate publication claim" in error for error in errors)
+        )
+
+    def test_partial_release_allows_audit_identities_without_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            relative = Path("docs/docs/releases/v1-3-5.md")
+            page = root / relative
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                "Missing assets: install-mss.sh, mss-tools-v1.3.5-linux-amd64.tar.gz.\n"
+                "Published component identity: "
+                "github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5.\n"
+                "Missing npm identity: @mss-boot-io/admin-web@1.3.5.\n"
+                "Missing image identity: "
+                "ghcr.io/mss-boot-io/mss-boot-admin:v1.3.5.\n",
+                encoding="utf-8",
+            )
+            state = check_current_docs.ReleaseDocumentationState(
+                distribution_version="v1.3.5",
+                current_stable_version="v1.3.2",
+                publication_workflows_ready=False,
+                release_status="immutable-partial",
+            )
+            errors = check_current_docs.partial_release_operational_errors(root, state)
+
+        self.assertEqual(errors, [])
+
+    def test_partial_release_success_message_is_not_package_first(self) -> None:
+        state = check_current_docs.ReleaseDocumentationState(
+            distribution_version="v1.3.5",
+            current_stable_version="v1.3.2",
+            publication_workflows_ready=False,
+            release_status="immutable-partial",
+        )
+        message = check_current_docs.success_message(state)
+        self.assertNotIn("package-first", message)
+        self.assertIn("immutable-partial", message)
+        self.assertIn("current stable v1.3.2", message)
+        self.assertIn("operational onboarding disabled", message)
+
     def test_rejects_source_checkout_commands_and_old_versions(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -291,7 +515,8 @@ class CurrentDocsContractTest(unittest.TestCase):
             root = Path(temp)
             contributor = root / "CONTRIBUTING.md"
             contributor.write_text(
-                "v1.3.5 快速开始\n"
+                "v1.3.5 已永久停止\n"
+                "v1.3.2 稳定记录\n"
                 "本文只适用于修改 Foundation 本身的贡献者\n"
                 "go run ./cmd/mss context\n"
                 "go run ./cmd/mss verify --changed\n"
@@ -299,12 +524,17 @@ class CurrentDocsContractTest(unittest.TestCase):
                 encoding="utf-8",
             )
             monorepo = root / "MONOREPO.md"
-            monorepo.write_text(
-                "The fail-closed v1.3.5 publication order is Framework, Admin, "
-                "Admin Web, protected Root tag promotion, Root release, Docs, and "
-                "finally npm Trusted Publishing.\n",
-                encoding="utf-8",
+            valid_monorepo = (
+                "v1.3.5 is permanently stopped as an immutable partial release. "
+                "For a future unused version, run one non-publishing Root preview, "
+                "then publish the Framework, Admin, and Admin Web tags in order. "
+                "One Root tag starts the Root release, backend image, and official "
+                "npm publication independently and in parallel. Formal tags do not "
+                "repeat its expensive qualification or accept a promotion, readiness "
+                "run ID, second publish dispatch, or manual environment approval. "
+                "Docs follows later from its own tag.\n"
             )
+            monorepo.write_text(valid_monorepo, encoding="utf-8")
             layout = root / "web/antd-v6/src/shared/layout/LayoutChrome.tsx"
             layout.parent.mkdir(parents=True)
             layout.write_text(
@@ -319,6 +549,19 @@ class CurrentDocsContractTest(unittest.TestCase):
             )
             self.assertEqual(check_current_docs.repository_context_errors(root), [])
 
+            monorepo.write_text(
+                valid_monorepo
+                + "Use protected Root tag promotion and finally npm Trusted "
+                "Publishing.\n",
+                encoding="utf-8",
+            )
+            obsolete = "\n".join(
+                check_current_docs.repository_context_errors(root)
+            )
+            self.assertIn("protected Root tag promotion", obsolete)
+            self.assertIn("finally npm Trusted Publishing", obsolete)
+            monorepo.write_text(valid_monorepo, encoding="utf-8")
+
             changelog.write_text(
                 "## [Unreleased]\n\n- future change\n\n## [v1.3.5]\n",
                 encoding="utf-8",
@@ -327,6 +570,7 @@ class CurrentDocsContractTest(unittest.TestCase):
 
             contributor.write_text(
                 contributor.read_text(encoding="utf-8")
+                + "v1.3.5 快速开始\n"
                 + "gofmt -w .\ntail -f logs/app.log\n",
                 encoding="utf-8",
             )
@@ -346,9 +590,10 @@ class CurrentDocsContractTest(unittest.TestCase):
             joined = "\n".join(
                 check_current_docs.repository_context_errors(root)
             )
+            self.assertIn("stopped-version adopter quick start", joined)
             self.assertIn("repository-wide gofmt", joined)
             self.assertIn("uncontracted log file", joined)
-            self.assertIn("publication order", joined)
+            self.assertIn("simplified release contract", joined)
             self.assertIn("completed import", joined)
             self.assertIn("retired Framework repository", joined)
             self.assertIn("Unreleased cannot list changes", joined)

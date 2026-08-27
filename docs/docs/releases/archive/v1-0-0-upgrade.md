@@ -109,7 +109,7 @@ GOWORK=off go test ./...
 
 ## 5. 执行迁移
 
-:::info MySQL v0.7 基线说明
+:::info
 `v0.7.0` 的历史迁移 `1746193492486` 使用了 ANSI SQL 的 `"group"` 标识符，Options 迁移还使用了现代 MySQL 不支持的 `ADD COLUMN/CREATE INDEX IF NOT EXISTS`，默认角色查询则使用了 PostgreSQL 不支持的 MySQL 反引号。发布升级演练在一次性 v0.7 基线中启用会话级 `ANSI_QUOTES`，以当前仓库中同版本、同目标结构的跨数据库修正版替换 Options 迁移，并只把默认角色查询改写成等价的 GORM `clause.Eq`；每个替换都有特征校验，其他 v0.7 数据和迁移语义保持不变。随后当前候选仍以默认 SQL mode 完成升级和重复迁移。已经完成 v0.7 迁移的生产数据库不需要为 v1.0.0 开启该模式，也不要全局修改生产 SQL mode 或迁移版本行。
 :::
 

@@ -900,7 +900,6 @@ spec:
         - .github/workflows/container.yml
         - .github/workflows/docs.yml
         - .github/workflows/release.yml
-        - .github/workflows/release-readiness.yml
         - .github/workflows/framework-release.yml
         - .github/workflows/frontend-v6-release.yml
         - .github/workflows/npm-release.yml
@@ -914,9 +913,13 @@ spec:
         partial-publication evidence: Framework, Admin, and Admin Web were published from
         d9b210d6672800f84f6403496a3ae871fb2aea9f, while Root, Docs, and npmjs were not published after
         the Thin Host frozen lock discarded the frontend tarball URL; the correction merged in
-        99a4f1ad157b934841786be031e7c55b8e25f5b5. v1.3.5 is the one final reviewed target for root,
-        Framework, importable Admin, the sole Ant Design V6 frontend, Docs, npm, and the checksummed
-        mss/mss-mcp tool bundles. It must be published in that order from one exact clean merged-main
-        commit and reconciled through public Go, npm, GitHub Release, image, Docs, and
-        installed-consumer probes. Any repair requires a follow-up PR and a new merged-main commit;
-        no workflow may mutate an already-public Release or reuse historical evidence.
+        99a4f1ad157b934841786be031e7c55b8e25f5b5. v1.3.5 and its exact Root, Framework,
+        Admin, frontend, Docs, and npm public refs are permanently stopped; existing refs or artifacts
+        remain immutable and may not authorize continuation, deletion, movement, or recreation. A
+        future reviewed active version must be built from one exact clean merged-main commit and
+        first pass the candidate-only Release preview. Formal Framework, Admin, frontend, and Root
+        tags created by lwnmengjing then publish automatically; the Root tag also starts the image
+        and official npm workflows, while Docs follows later from its independent tag. Reconcile
+        public Go, npm, GitHub Release, image, Docs, and installed-consumer probes. Any repair
+        requires a follow-up PR and a new merged-main commit; no workflow may mutate an already-public
+        Release or reuse historical evidence.

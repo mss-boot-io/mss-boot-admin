@@ -1,19 +1,25 @@
 # Importable Admin application
 
-The v1.3.5 candidate publishes
-`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5` as the complete Admin
-backend for a Thin Host. It owns authentication, authorization, configuration,
-migrations, HTTP delivery, and the protected compile-time business extension
-boundary. Use the command below only after the public module reconciles with
-the coordinated release commit.
+## v1.3.5 publication status
 
-Add the exact public module:
+v1.3.5 is an immutable-partial train. It published the Admin component identity
+`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5`, but it did not publish
+the Root tools, official npmjs package, Docs, or complete external-consumer
+path. The component remains public and immutable; it is not, by itself, a
+complete Thin Host distribution.
 
-```sh
-go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5
-```
+The release policy still identifies **v1.3.2** as the current stable
+distribution. Do not combine the v1.3.5 Admin module with another patch,
+Foundation source, a local replacement, or an unpublished frontend package to
+manufacture a mixed distribution.
 
-Compose owned business modules explicitly:
+## Composition contract
+
+`admin/app` is the complete backend composition entrypoint. It owns
+authentication, authorization, configuration, migrations, HTTP delivery, and
+the protected compile-time business extension boundary.
+
+Owned business modules register explicitly:
 
 ```go
 package main
@@ -40,18 +46,18 @@ Do not copy Admin startup, security middleware, migrations, or core routes into
 a business repository. A business module may extend the protected group only
 through `admin/business`; UI visibility never replaces backend authorization.
 
-Create the complete host with `mss new app` instead of assembling these files
-by hand. See [packages](../docs/docs/getting-started/packages.md) and the
+A future complete distribution will generate this composition as part of a
+version-bound Thin Host. Until its Root tools, official npmjs package, Docs,
+and external-consumer evidence are public, this file describes the composition
+boundary only and is not an application-creation or setup guide.
+
+The future bootstrap contract must read the initial administrator password
+through hidden input or a one-use `MSS_ADMIN_INITIAL_PASSWORD` secret, store
+only a one-way verifier, and expose no default password. The generated local
+application identity remains user `admin` at `http://127.0.0.1:8001`, but
+those facts do not make the incomplete v1.3.5 train adoptable.
+
+See the [component status](../docs/docs/getting-started/packages.md) and
 [Admin architecture](../docs/docs/architecture/complete-admin-distribution-and-thin-business-host.zh-CN.md).
-
-For a fresh Thin Host, interactive `mss setup` reads the initial administrator
-password through its built-in hidden prompt. Non-interactive automation passes
-the same one-use value through `MSS_ADMIN_INITIAL_PASSWORD` for the setup
-process only. It must be 8-128 characters and contain a letter and a number.
-The migration stores a one-way verifier; the value is not a CLI argument or
-generated file, and completed migrations do not require it again.
-The initial username is `admin`; sign in at the generated Admin Web address
-with the password supplied to the first setup. There is no default password.
-
-Foundation source validation remains documented for contributors in
-[`AGENTS.md`](./AGENTS.md); it is not an adopter installation path.
+Foundation source validation remains contributor-only in
+[`AGENTS.md`](./AGENTS.md).

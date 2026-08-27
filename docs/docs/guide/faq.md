@@ -1,111 +1,87 @@
 ---
 title: FAQ
 order: 3
-description: v1.3.5 安装、创建、开发、验证和升级的常见问题
+description: v1.3.5 不可变部分发布、当前稳定版本与未来完整发行合同的常见问题
 ---
 
 # FAQ
 
-## 为什么不再先克隆 Foundation？
+## v1.3.5 现在可以安装或升级吗？
 
-v1.3.5 的 `mss` 内置与自身版本、提交和时间戳绑定的 Blueprint。采用者只需要
-Release 工具与公开 Go/npm 包；克隆流程只属于 Foundation 贡献者。
+不可以。v1.3.5 已停止为不可变部分发布：Framework、Admin、Admin Web 的部分身份与
+Root Tag 已公开，但 Root Release 与工具、官方 npmjs 包、Docs 和后端镜像未发布。
+当前稳定版本仍是 **v1.3.2**。
 
-## 安装后找不到 mss
+已公开 v1.3.5 身份不能删除、移动、重建或补附缺失制品，也不能与 v1.3.2、源码、本地包
+或其他 registry 混合成完整发行。
 
-安装器不会修改 profile。当前终端可执行：
+## 为什么文档不再展示 v1.3.5 安装和升级命令？
 
-```sh
-export PATH="$HOME/.local/bin:$PATH"
-mss --version
-```
+这些命令依赖不存在的 Root 工具、官方 npmjs 包或后端镜像。即使标注“不可执行”，代码
+块仍容易被复制为快速开始，因此活跃文档只保留实际发布状态和未来合同。资产名称或包名
+可以作为审计身份出现，但不代表存在可执行下载或安装路径。
 
-PowerShell：
+## 已公开的 Admin Go Module 可以单独使用吗？
 
-```powershell
-$env:Path = "$HOME\.local\bin;$env:Path"
-mss --version
-```
+`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5` 是真实、不可变的公开组件；它只
+证明 Admin Go Module 发布，不证明完整 Admin Distribution。缺少官方 npmjs 包、Root
+工具与完整外部使用方资格时，不应把它单独组装成 Thin Host。
 
-需要持久化时由用户按自己的 shell 管理 PATH。
+## Admin Web 为什么显示已发布却不能从 npmjs 安装？
 
-## 可以只下载一个二进制吗？
+`web/antd-v6/v1.3.5` 的 GitHub Release、GitHub Packages 和前端镜像已公开，而官方
+npmjs 身份 `@mss-boot-io/admin-web@1.3.5` 未发布。不同发布面不能互相替代；GitHub
+Packages、Release tarball 或本地包不能冒充官方 npmjs 对账。
 
-工具包固定包含 `mss`、`mss-mcp`、`BUILD-INFO` 与 `LICENSE`，并由一个摘要清单
-校验。不要从未知来源拆分或改名下载。
+## 为什么不能直接使用 v1.3.5 容器？
 
-## 为什么 mss new app 没写文件？
+后端 Root 镜像 `ghcr.io/mss-boot-io/mss-boot-admin:v1.3.5` 未发布。前端参考镜像虽已
+公开，也不包含业务模块、组合入口或业务路由，不能单独构成 Thin Host。生产应用还必须
+构建并固定自身业务镜像的不可变 digest。
 
-写入默认关闭。确认计划后加 `--write`；需要初始化 Git 时再加 `--git-init`。
-目标目录存在未知文件时会拒绝覆盖。
+## 未来为什么不再要求先克隆 Foundation？
 
-## mss new app 需要访问哪些公共服务？
+未来完整 Root Release 的工具会内置与版本、源提交和构建身份绑定的 Blueprint。采用者
+从公开工具和包生成 Thin Host；Foundation checkout 只服务贡献者。v1.3.5 没有发布这套
+Root 工具，因此这项设计不能被解释为当前创建入口。
 
-创建时会匿名读取 `registry.npmjs.org` 上精确版本的 Admin Web 元数据，把公开的
-SHA-512 完整性值写入冻结锁；`mss setup` 随后按 Go 与 npm 的标准公共代理下载依赖。
-如果公司代理阻断这些地址，命令会明确失败且不写入半成品。不要把 npm token、私有
-镜像地址或临时本地包写进生成仓库来绕过发布合同。
+## 未来创建流程怎样保护现有文件？
 
-## doctor 为什么在项目刚生成后失败？
+它应默认先返回只读计划，验证目标目录、未知文件、公共包身份与冻结锁，再在显式确认后
+原子写入。生成结果记录 Blueprint manifest 与同源快照，两次生成必须稳定；未知文件和
+业务所有文件不得被静默覆盖。
 
-`mss doctor --strict` 会检查 Go、Node、Corepack/pnpm、冻结锁、Go sums、Blueprint
-快照与项目合同。按输出修复真实缺项，然后重新运行；不要关闭 strict 掩盖问题。
+## 初始管理员凭据的未来合同是什么？
 
-## setup 为什么要求初始管理员密码？
+完整 Thin Host 的首次初始化使用隐藏输入；非交互自动化只向初始化进程注入一次性
+`MSS_ADMIN_INITIAL_PASSWORD`。密码不进入参数、报告、生成文件或长期服务环境，只存
+一向验证值。生成应用的初始用户名为 `admin`，本地地址为
+`http://127.0.0.1:8001`，系统没有默认密码。这是安全合同，不表示 v1.3.5 初始化工具
+已经发布。
 
-全新 Thin Host 的第一次 `mss setup` 会在本地 SQLite 中执行迁移并创建初始管理员。
-交互终端使用内置隐藏提示；非交互自动化只在 setup 进程中从密钥存储注入一次性
-`MSS_ADMIN_INITIAL_PASSWORD`。密码必须为 8-128 个字符并同时包含字母和数字，且不会
-进入参数、报告或生成文件。迁移记录存在后，重复 `setup` 不再要求这个值。不要使用
-命令行密码参数。
+## 未来三方升级需要哪些前置条件？
 
-初始用户名固定为 `admin`。打开 `http://127.0.0.1:8001`，使用该用户名和首次 setup
-时提供的密码登录；系统没有默认密码。
+目标完整发行的 Root 工具、Blueprint、Admin、Framework、Admin Web、官方 npmjs 与锁
+必须同源；仓库还要保留 `.mss/blueprint-manifest.json`。升级前备份代码、配置、数据库
+和业务数据，先评审只读计划，冲突清零后才应用，最后再次计划必须为空。
 
-## setup 会连接生产系统吗？
-
-不会。它按 Thin Host 合同安装冻结依赖并迁移本地 SQLite；初始管理员密码是本地启动
-密钥，不是生产凭据。Redis 或其他外部提供方只有在配置明确启用后才属于运行时依赖。
-
-## 前端包装好后为何仍不能构建？
-
-确认 Node 24、Corepack pnpm 10.34.5、`@mss-boot-io/admin-web@1.3.5` 和冻结
-`pnpm-lock.yaml` 一致。运行 `mss doctor --strict` 后再执行 `mss verify --all`。
-
-## 如何升级？
-
-先备份业务仓库和数据库，安装目标版本工具，并确认仓库仍有生成时的三方合并基线：
-
-```sh
-mss --version
-mss-mcp --version
-mss upgrade status --format json
-mss upgrade admin v1.3.5
-mss upgrade admin v1.3.5 --apply --yes
-mss doctor --strict
-mss verify --all
-mss upgrade admin v1.3.5
-```
-
-第一次 upgrade 只读。只有看过无冲突计划和备份策略后才执行 apply；最后一次计划必须
-为空。匹配的公开发行版不需要额外源码目录。
-
-`.mss/blueprint-manifest.json` 缺失时不能直接升级。对手工拼装或基线丢失的仓库，使用
-目标版本 `mss new app` 在新目录生成干净 Thin Host，再按业务所有权迁入规格和业务文件，
-然后运行完整验证；不要手写或复制别人的 manifest。
+手工拼装或丢失 manifest 的仓库不能伪造摘要。它应迁入由目标完整版本生成的新 Thin
+Host，再按所有权迁入规格和业务文件。v1.3.5 不具备这些前置条件，因此没有受支持的
+升级命令。
 
 ## 能否混用不同补丁版本？
 
 不能。Admin、Framework、Admin Web、工具、Blueprint 和锁记录构成一个协调发行版。
-混用版本会失去资格验证证据。
+混用版本会失去公共资格验证证据。
 
-## 何时直接修改生成文件？
+## 何时可以直接修改生成文件？
 
 不要直接修改生成区。能由规格表达的变化先修改 `.mss/` 规格，再生成并运行漂移检查。
 业务所有文件不在生成管理范围内，可以正常维护。
 
-## 从哪里确认版本是否已经公开？
+## 从哪里确认版本状态？
 
-查看 [v1.3.5 发布合同](/releases/v1-3-5)以及
-[GitHub Release](https://github.com/mss-boot-io/mss-boot-admin/releases/tag/v1.3.5)。
-本地分支或 PR 成功不代表公共包已经可用。
+当前采用判断见[采用状态](/getting-started)，v1.3.5 的不可变事实见
+[v1.3.5 部分发布记录](/releases/v1-3-5)，当前稳定历史见
+[v1.3.2 稳定记录](/releases/archive/v1-3-2)。本地分支、PR 成功、一个标签或一个组件
+可下载都不能单独证明完整发行。

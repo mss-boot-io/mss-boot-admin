@@ -1,11 +1,12 @@
 ---
 name: mss-release
-description: Prepare, execute, resume, and verify an MSS foundation, framework, Admin, frontend, docs, or downstream-application release from one exact merged-main commit. Trigger for release readiness, version or tag planning, changelogs, phased GitHub Actions qualification, protected-environment approval, artifact or image publication, failed-release recovery, post-publication reconciliation, migration notes, and rollback preparation. Reuse exact successful evidence to shorten the release cycle; do not use this skill to merge an unverified feature PR or bypass a failed gate.
+description: Prepare, execute, resume, and verify an MSS foundation, framework, Admin, frontend, docs, or downstream-application release from one exact merged-main commit. Trigger for release policy or tag planning, the unique Root candidate preview, automatic tag-driven artifact or image publication, failed-release recovery, post-publication reconciliation, migration notes, and rollback preparation. Reuse exact successful evidence to shorten the release cycle; do not use this skill to merge an unverified feature PR or bypass a failed gate.
 ---
 
 # Release an MSS component
 
-Release from one clean commit already merged into `origin/main`. Bind every reusable result to the tuple `(repository, version, full commit, phase, workflow run ID)`.
+Release from one clean commit already merged into `origin/main`. Bind every
+reusable result to `(repository, version, full commit, workflow identity)`.
 
 ## Keep one release ledger
 
@@ -15,36 +16,41 @@ Record:
 
 - repository, component scope, version, and all tag names;
 - frozen full commit and merged PR;
-- feature-freeze, browser, Blueprint, pre-framework, Framework, Admin, frontend, pre-root, root-container, root-candidate, final-publication, Docs, and official-npm run IDs or URLs;
-- evidence issue URL, public release URLs, image digests, artifact checksums, active GitHub actor, and approver actor;
-- status as `missing`, `running`, `waiting-approval`, `successful`, `failed-before-publication`, or `public`.
+- browser and Blueprint evidence, Root candidate preview, Framework, Admin,
+  frontend, Root, container, npm, and later Docs run URLs;
+- public release URLs, image digests, artifact checksums, and the active GitHub
+  actor;
+- status as `missing`, `running`, `successful`, `failed-before-publication`, or
+  `public`.
 
-Show only transitions. Do not repeatedly narrate an unchanged queued or approval-waiting run.
+Show only transitions. Do not repeatedly narrate an unchanged queued run.
 
 ## Reuse evidence safely
 
-- Reuse a successful result only when version, full commit, phase, inputs, and workflow identity match exactly.
-- Run the complete feature-freeze suite once for a frozen commit. Do not repeat broad local validation after an exact successful feature-freeze run unless diagnosing a concrete failure.
-- Use `pre-framework` and `pre-root` for scoped publication attestations. Execute only the commands selected for that phase; do not replay unrelated feature-freeze checks or reduce the phase to a plan-only result.
+- Reuse a successful result only when repository, version, full commit, inputs,
+  actor, and workflow identity match exactly.
+- Run one successful Root candidate preview for the frozen commit. Multiple
+  exact successful reruns are harmless; do not pass any run ID into later
+  workflows.
 - Treat a code, contract, dependency, workflow, or release-policy change after freeze as a new commit. Invalidate every affected later phase.
-- Rerun only the failed phase when no source or public state changed and the failure was transient or approval-related.
+- Rerun only the failed workflow when no source or public state changed and the
+  failure was transient.
 - If a public tag, Release, package, or image already exists and repair needs source changes, preserve it and prepare a new patch version through a PR.
 
 ## Choose the release path
 
 For the consolidated foundation repository, release the synchronized train in this order:
 
-1. feature-freeze qualification;
-2. `pre-framework` authority;
-3. Framework tag and public external-module probe;
-4. Admin tag, Release, and public external-module probe;
-5. frontend tag, GitHub Packages mirror, artifact, image, and Release;
-6. independent `pre-root` authority;
-7. protected root-tag promotion, root image, and exact-tag candidate artifacts;
-8. exact-tag manual root publication;
-9. Docs tag, protected deployment, and Release from the same commit;
-10. official npm publication of the already-qualified frontend tarball as the final artifact publication;
-11. independent public reconciliation.
+1. merge and freeze one exact `origin/main` commit;
+2. run the unique Root candidate preview for that version and commit;
+3. push the Framework tag and verify its public external-module result;
+4. push the Admin tag and verify its Release and external-module result;
+5. push the frontend tag and verify its GitHub Packages mirror, image, artifact,
+   and Release;
+6. push the Root tag, which automatically starts Root Release, Root image, and
+   official npmjs publication;
+7. reconcile those public packages, assets, images, and checksums;
+8. after content is ready, push the independent Docs tag and reconcile the site.
 
 For a component-only or downstream release, retain the same source, evidence, immutability, and reconciliation rules while following that repository's tag namespace and workflow.
 
@@ -90,19 +96,14 @@ Confirm all prerequisite PRs are merged in dependency order. Confirm root, Frame
 
 ### 2. Run the cheap failure gates first
 
-Before the release-preparation PR, run the changed-impact plan and the phase-scoped checkpoint:
+Before the release-preparation PR, run the changed-impact plan and focused verification:
 
 ```bash
 go run ./cmd/mss verify --changed --plan --format json
 go run ./cmd/mss verify --changed
-python3 tools/release/release_phase_evidence.py run \
-  --target-version "${VERSION}" \
-  --commit "${SHA}" \
-  --phase checkpoint \
-  --output ".mss/reports/${VERSION}-checkpoint-command-evidence.json"
 ```
 
-Require the checkpoint to cover release-policy and workflow tests, tag namespaces, artifact portability, archive members, and native multi-architecture build contracts. This is the pre-tag guard for colon-containing paths, traversal, reserved names, case collisions, unsafe links, restrictive modes, raw directory uploads, and emulated target compilation.
+The unique Root candidate preview owns the complete release-policy, workflow, build, test, artifact-portability, archive, and multi-architecture qualification graph. Do not recreate that graph in a second evidence command or require a manually selected run artifact before a tag can publish.
 
 Classify a missing local browser binary or package as workstation setup first. Install it locally when repository and CI contracts are already correct. Change repository setup only when the failure reproduces in the checked-in workflow or a clean supported setup.
 
@@ -110,7 +111,7 @@ Treat broad documentation-site visual polish as release-preparation work. Do not
 
 Submit every source, workflow, dependency, generated, contract, or documentation change through a PR to `main`. After merge, freeze the new full SHA and do not carry forward topic-branch evidence as publication authority.
 
-### 3. Reconstruct remote state before dispatching
+### 3. Reconstruct remote state before preview or tags
 
 Inspect exact-commit runs and public refs before creating work:
 
@@ -123,206 +124,63 @@ for tag in "${FRAMEWORK_TAG}" "${ADMIN_TAG}" "${FRONTEND_TAG}" "${ROOT_TAG}" "${
 done
 ```
 
-Verify a candidate run with `gh run view` and the repository verifier before recording its ID. Do not select a run merely because it is the newest one.
+Immediately before the preview and every tag push, fetch `origin/main` again and require it to remain `SHA`. If `main` advanced, stop before creating an immutable ref and select the new merged-main commit. If the reviewed policy marks the version stopped, stop: in particular, v1.3.5 and all six of its public refs are permanently rejected and must never be deleted, moved, recreated, or resumed.
 
-Immediately before every readiness dispatch and tag push, fetch `origin/main` again and require it to remain `SHA`. If `main` advanced, stop before creating a failed run or immutable ref and select the new merged-main commit.
+### 4. Run the unique Root candidate preview
 
-### 4. Run feature-freeze once
-
-Dispatch `release-readiness.yml` from the branch whose current head is exactly `SHA`. Supply the exact browser and Blueprint evidence commits and references. Set `phase=feature-freeze` and `publication_authority=false`.
+The only current preview authority is `release.yml` on `workflow_dispatch`. It accepts only `version`, never publishes, and owns the complete repository test, browser, archive, package, and multi-platform image qualification graph. Formal tag workflows do not repeat that graph.
 
 ```bash
-gh workflow run release-readiness.yml --ref main \
-  -f version="${VERSION}" \
-  -f frozen_commit="${SHA}" \
-  -f feature_freeze_confirmed=true \
-  -f phase=feature-freeze \
-  -f publication_authority=false \
-  -f in_app_browser_evidence_commit="${SHA}" \
-  -f in_app_browser_evidence_ref="${BROWSER_EVIDENCE_REF}" \
-  -f blueprint_rehearsal_evidence_commit="${SHA}" \
-  -f blueprint_rehearsal_evidence_ref="${BLUEPRINT_EVIDENCE_REF}"
+test "$(gh api user --jq .login)" = "lwnmengjing"
+gh workflow run release.yml --ref main -f version="${VERSION}"
 ```
 
-Capture the run created after dispatch, require `headSha == SHA`, inspect its inputs/evidence artifact, and wait with `gh run watch RUN_ID --exit-status`. Preserve the successful run ID. A later phase may cite it but may not reinterpret it as publication authority.
+Locate the resulting run by the exact title `Root Release candidate VERSION`, then require `event=workflow_dispatch`, `headSha=SHA`, actor and triggering actor `lwnmengjing`, and a successful conclusion. Multiple successful reruns for the same version and SHA are harmless; at least one exact success is required. Do not record or pass a run ID into publication workflows.
 
-### 5. Authorize and publish Framework, Admin, and frontend
+### 5. Publish Framework, Admin, and frontend tags
 
-Dispatch a separate readiness run with `phase=pre-framework` and `publication_authority=true`. Verify it before use:
-
-```bash
-gh workflow run release-readiness.yml --ref main \
-  -f version="${VERSION}" \
-  -f frozen_commit="${SHA}" \
-  -f feature_freeze_confirmed=true \
-  -f phase=pre-framework \
-  -f publication_authority=true
-```
+Only `lwnmengjing` creates release tags. Push one annotated component tag at a time from the exact clean `SHA`, and verify the immutable Release and workflow before continuing:
 
 ```bash
-bash tools/release/verify_readiness_run.sh \
-  --repository "${REPO}" \
-  --run-id "${PRE_FRAMEWORK_RUN_ID}" \
-  --target-version "${VERSION}" \
-  --commit "${SHA}" \
-  --phase pre-framework \
-  --policy .mss/release-policy.yaml
-```
-
-Set the selected run ID at every scope that consumes it, then read it back:
-
-```bash
-gh variable set RELEASE_READINESS_RUN_ID --body "${PRE_FRAMEWORK_RUN_ID}"
-gh variable set RELEASE_READINESS_RUN_ID --env release --body "${PRE_FRAMEWORK_RUN_ID}"
-gh variable set RELEASE_READINESS_RUN_ID --env release-v6 --body "${PRE_FRAMEWORK_RUN_ID}"
-gh variable get RELEASE_READINESS_RUN_ID
-gh variable get RELEASE_READINESS_RUN_ID --env release
-gh variable get RELEASE_READINESS_RUN_ID --env release-v6
-```
-
-Create and push one annotated tag at a time. Wait for and verify its release before creating the next tag:
-
-```bash
-git tag -a "${FRAMEWORK_TAG}" "${SHA}" -m "mss-boot ${VERSION}"
-test "$(git rev-list -n 1 "${FRAMEWORK_TAG}")" = "${SHA}"
+git tag -a "${FRAMEWORK_TAG}" "${SHA}" -m "${FRAMEWORK_TAG}"
 git push origin "refs/tags/${FRAMEWORK_TAG}"
-```
-
-After Framework publication, resolve `github.com/mss-boot-io/mss-boot-admin/mss-boot@VERSION` from a clean external module with `GOWORK=off`. Require the origin hash and checksum, then create the Admin tag from the same SHA:
-
-```bash
-git tag -a "${ADMIN_TAG}" "${SHA}" -m "admin ${VERSION}"
-test "$(git rev-list -n 1 "${ADMIN_TAG}")" = "${SHA}"
+git tag -a "${ADMIN_TAG}" "${SHA}" -m "${ADMIN_TAG}"
 git push origin "refs/tags/${ADMIN_TAG}"
-```
-
-Wait for the exact `admin-release.yml` push run and its protected `release` environment. Require the public, immutable Admin Release, then resolve `github.com/mss-boot-io/mss-boot-admin/admin@VERSION` from a second clean external module with `GOWORK=off`; its required Framework version, origin hash, and checksum must all match the coordinated version and `SHA`.
-
-Only after both Go modules are public and externally resolvable may the frontend tag be created. Require the GitHub Packages mirror of `@mss-boot-io/admin-web` to publish the exact unprefixed version with `gitHead == SHA` and immutable registry integrity. Also require frontend Release assets, checksums, portable archive, `linux/amd64` plus `linux/arm64` image manifest, and OCI version/revision labels before proceeding. Do not publish to npmjs in this phase.
-
-```bash
-git tag -a "${FRONTEND_TAG}" "${SHA}" -m "web/antd-v6 ${VERSION}"
-test "$(git rev-list -n 1 "${FRONTEND_TAG}")" = "${SHA}"
+git tag -a "${FRONTEND_TAG}" "${SHA}" -m "${FRONTEND_TAG}"
 git push origin "refs/tags/${FRONTEND_TAG}"
 ```
 
-### 6. Approve protected environments deliberately
+The workflows fail before checkout, secrets, or writes unless both actor identities are `lwnmengjing`; each also verifies the exact merged-main source and active release policy. The consolidated controlled-creation ruleset covers Root, component, and Docs tag namespaces with `lwnmengjing` as its only bypass. The immutable ruleset has no bypass. SullivanPrime remains an independent PR reviewer and is not a release-environment reviewer.
 
-Treat `waiting` and `pending_deployment` as approval states, not failures. Query the exact run's pending deployments and verify the expected environment name before approval.
+### 6. Verify remote governance without adding an approval pause
 
-When repository policy forbids self-approval, record the initiating actor, switch `gh` to a configured reviewer with write access, approve only the exact run and environment IDs, then restore the original actor even if approval fails. Never hardcode personal account names or tokens in the skill, repository, logs, or evidence.
-
-Use the pending-deployments API with a JSON body shaped as:
-
-```json
-{
-  "environment_ids": [123456],
-  "state": "approved",
-  "comment": "Approved for the exact VERSION / SHA release phase"
-}
-```
-
-Set `EXPECTED_ENV` to the exact environment (`release`, `release-v6`, or `root-promotion`). Use a repository-confined ignored report file so the request is inspectable, and restore the original account on both success and failure:
-
-```bash
-EXPECTED_ENV=release
-PENDING_FILE=".mss/reports/pending-deployments-${RUN_ID}.json"
-APPROVAL_FILE=".mss/reports/pending-approval-${RUN_ID}.json"
-gh api "/repos/${REPO}/actions/runs/${RUN_ID}/pending_deployments" > "${PENDING_FILE}"
-jq -e --arg expected "${EXPECTED_ENV}" \
-  'length > 0 and all(.[]; .environment.name == $expected)' \
-  "${PENDING_FILE}" >/dev/null
-jq --arg comment "Approved for ${VERSION} / ${SHA}" \
-  '{environment_ids: [.[].environment.id] | unique, state: "approved", comment: $comment}' \
-  "${PENDING_FILE}" > "${APPROVAL_FILE}"
-
-ORIGINAL_GH_USER="$(gh api user --jq .login)"
-TRIGGER_ACTOR="$(gh api "/repos/${REPO}/actions/runs/${RUN_ID}" --jq .actor.login)"
-test "${APPROVER_GH_USER}" != "${TRIGGER_ACTOR}"
-gh auth switch --user "${APPROVER_GH_USER}"
-approval_status=0
-gh api --method POST \
-  "/repos/${REPO}/actions/runs/${RUN_ID}/pending_deployments" \
-  --input "${APPROVAL_FILE}" || approval_status=$?
-gh auth switch --user "${ORIGINAL_GH_USER}"
-test "$(gh api user --jq .login)" = "${ORIGINAL_GH_USER}"
-test "${approval_status}" -eq 0
-```
-
-Verify the active account after restoration with `gh api user --jq .login`. Do not approve a run until its workflow, tag or ref, full SHA, version, and expected environment all match the ledger.
-
-### 7. Authorize and publish root, Docs, and official npm
-
-After Framework and Admin external resolution and frontend publication succeed, dispatch and verify an independent `pre-root` readiness run. Update only the repository and `release` environment variables to its run ID; keep `release-v6` bound to the successful pre-framework run.
-
-```bash
-gh workflow run release-readiness.yml --ref main \
-  -f version="${VERSION}" \
-  -f frozen_commit="${SHA}" \
-  -f feature_freeze_confirmed=true \
-  -f phase=pre-root \
-  -f publication_authority=true
-```
-
-```bash
-bash tools/release/verify_readiness_run.sh \
-  --repository "${REPO}" \
-  --run-id "${PRE_ROOT_RUN_ID}" \
-  --target-version "${VERSION}" \
-  --commit "${SHA}" \
-  --phase pre-root \
-  --policy .mss/release-policy.yaml
-gh variable set RELEASE_READINESS_RUN_ID --body "${PRE_ROOT_RUN_ID}"
-gh variable set RELEASE_READINESS_RUN_ID --env release --body "${PRE_ROOT_RUN_ID}"
-gh variable get RELEASE_READINESS_RUN_ID
-gh variable get RELEASE_READINESS_RUN_ID --env release
-```
-
-Never create the root tag from a human Git credential, PAT, or `GITHUB_TOKEN`. Dispatch the protected promotion workflow from `main`; before checkout it requires the workflow SHA, requested frozen commit, and remote `main` tip to be identical, then rechecks completed `pre-root` authority, all three public component Releases, and their exact successful tag workflows. Use a dedicated `root-promotion` environment restricted to `main`, with `prevent_self_review=true`, `can_admins_bypass=false`, the second account as required reviewer, and one environment secret named `ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY`.
-
-The environment secret contains the unencrypted Ed25519 private half of the repository's only deploy key. The public deploy key must be verified, enabled, write-enabled, and titled exactly `mss-root-tag-promotion`. The root-only creation ruleset must match only `refs/tags/v*` and its complete bypass list must be exactly one `DeployKey` actor with `actor_id: null` and `bypass_mode: always`; this actor type authorizes repository deploy keys generically, so every additional deploy key is prohibited. Keep human bypass confined to the separate component and Docs creation ruleset, and keep the immutable ruleset free of every bypass.
-
-The promotion job exposes the private key only after protected-environment approval and only in the exact tag-creation step. It writes the key and GitHub's pinned Ed25519 host key into a mode-restricted temporary directory, verifies the published host-key fingerprint, disables checkout credentials and ambient SSH identities, pushes only the exact annotated root-tag refspec, and removes the temporary key on every exit. Do not replace the pinned host key with `ssh-keyscan`, add a human or Integration bypass, or substitute any PAT.
-
-The ordinary Actions token can inspect public ruleset structure but cannot inspect the full admin-only bypass, deploy-key, and environment-secret metadata. Immediately before dispatch, the active repository administrator must run the checked-in governance verifier with the exact second reviewer and attach its sanitized JSON output to the evidence issue. The verifier requires `root-promotion` to contain exactly one environment secret named `ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY`; it reads and reports metadata only, never the secret value. This admin-side check is mandatory; do not inject a broad administration PAT into the workflow to replace it. The promotion workflow independently rejects missing, overlapping, excluded, or structurally invalid rulesets and its SSH tag push remains fail-closed.
+Before the formal Root tag, an authenticated repository administrator must run:
 
 ```bash
 bash tools/release/verify_remote_release_governance.sh \
   --repository "${REPO}" \
-  --reviewer-login "${APPROVER_GH_USER}" \
+  --release-actor-login lwnmengjing \
   > ".mss/reports/remote-release-governance-${VERSION}.json"
 ```
 
-Approve the promotion job with the second account only after matching the exact workflow, main SHA, version, environment, and attached remote-governance result.
+The verifier requires exactly one consolidated controlled-creation ruleset, the no-bypass v1.3.5 stopped-tag creation ruleset, and the no-bypass immutable tag ruleset. It also requires exact tag policies, no administrator bypass, and no required reviewers on the active publishing environments, while confirming required environment secret names without reading their values. The retired publishing environments must remain blocked so an old workflow cannot regain publication authority.
+
+### 7. Push the Root tag; publish Docs later
+
+After all three component Releases and their exact tag workflows succeed, `lwnmengjing` creates and pushes the annotated Root tag at the same `SHA`:
 
 ```bash
-gh workflow run root-tag-promotion.yml --ref main \
-  -f version="${VERSION}" \
-  -f frozen_commit="${SHA}" \
-  -f readiness_run_id="${PRE_ROOT_RUN_ID}"
+git tag -a "${ROOT_TAG}" "${SHA}" -m "${ROOT_TAG}"
+git push origin "refs/tags/${ROOT_TAG}"
 ```
 
-The deploy-key SSH push naturally triggers `container.yml` and the non-publishing `release.yml` candidate from the exact root tag. The promotion workflow never dispatches duplicate substitutes: it waits for exactly one natural `push` run per workflow and requires the exact tag, full commit, workflow path, and stable push-event title. A mismatched commit, duplicate run, completed failure, or missing bounded result fails promotion. Wait for the promotion, root image publication, and candidate assembly to succeed. Their shared concurrency group may serialize the last two; do not treat a queued sibling as failed or missing. The container job never overwrites an immutable version tag; on a retry it reuses an existing image only when its manifest digest, `linux/amd64` and `linux/arm64` manifests, release version, and frozen revision all match exactly, then reruns the post-publication checks.
+That one push naturally starts `release.yml`, `container.yml`, and `npm-release.yml` in parallel. Each re-verifies the exact merged-main tag, active policy, and successful exact preview, then performs only its necessary publication and public-identity reconciliation. Root immediately checks the already-completed component tags and Releases, downloads the exact preview archive, and publishes it. The image workflow publishes the cache-qualified multi-platform image. The npm workflow immediately requires the already-completed frontend Release, verifies its GitHub Packages version-specific mirror and byte identity, and publishes those bytes through npm Trusted Publishing. Root, image, and npm never wait on one another, and none waits for Docs. Root and official npm publication are serialized across versions and never move a `latest` pointer backward.
 
-Require the root image publication and tag-triggered candidate assembly to succeed before the final dispatch. Then dispatch `release.yml` from the exact tag:
+Never dispatch a second publish run or approve a release environment after the tag. A retry is an ordinary workflow rerun by `lwnmengjing`; immutable identity checks refuse conflicting public state.
 
-```bash
-gh workflow run release.yml --ref "${ROOT_TAG}" \
-  -f version="${VERSION}" \
-  -f feature_freeze_confirmed=true \
-  -f publish=true \
-  -f manual_evidence_complete=true \
-  -f evidence_url="${EVIDENCE_URL}" \
-  -f readiness_run_id="${PRE_ROOT_RUN_ID}"
-```
+The automatic npm path is OIDC-only. If the npm package does not exist at all, it fails closed and requires a separately reviewed one-time bootstrap; do not expose a bootstrap token to the automatic tag workflow. Existing packages never use a long-lived npm write token.
 
-Require `EVIDENCE_URL` to be exactly `https://github.com/OWNER/REPOSITORY/issues/NUMBER`. Do not pass a comment URL, fragment, pull request, empty issue, or cross-repository URL. Wait for the final run to conclude; its full test and six-platform build are expected work, not a reason to start another run.
-
-For a coordinated release, next create `DOCS_TAG` from the same `SHA`, wait for the protected Docs deployment and immutable Docs Release, and verify the public `release.json`. Do not create any tag or artifact after the official npm step.
-
-Finally dispatch `npm-release.yml` from the exact root tag with the exact version and full SHA. This workflow must download the existing frontend Release tarball and evidence rather than rebuild, prove every coordinated tag and Release points to `SHA`, verify the GitHub Packages mirror integrity, and publish the same bytes to npmjs. The npmjs publish is the final artifact publication; only read-only reconciliation, consumer verification, and the one-time Trusted Publisher credential handoff may follow it.
-
-For the first npmjs version, use one short-lived granular bootstrap credential scoped to `@mss-boot-io/admin-web` in the protected `release-v6` environment. Immediately after the first successful publication, bind npm Trusted Publishing to `mss-boot-io/mss-boot-admin`, `npm-release.yml`, and `release-v6`, then revoke and remove the bootstrap token. Future releases use GitHub OIDC and never store a long-lived npm write token.
+After the documentation content is merged, create `DOCS_TAG` from that later exact `origin/main` commit. Docs remains an independent later tag workflow: it requires the already-published base Root Release, then publishes the immutable Docs Release and deployment from its own merged-main source. Docs is not a prerequisite for Root or npm, and its commit need not equal the older Root commit.
 
 ### 8. Reconcile public truth independently
 
@@ -348,9 +206,14 @@ Write one sanitized reconciliation comment to the evidence issue with run URLs, 
 - Stop before the next component when publication fails. Inspect whether any public mutation occurred before deciding between an exact-stage rerun and a new patch version.
 - Never delete, move, overwrite, or reuse a public tag, Release, package, image, or checksum.
 - Never release from a topic branch, detached commit, local-only fix, dirty worktree, or commit absent from current `origin/main`.
-- Never weaken a test, skip an environment, forge manual evidence, or use an old run ID to shorten the cycle.
+- Never weaken a test, bypass an environment policy, forge evidence, or invent a
+  preview result to shorten the cycle.
 - Never expose credentials, cookies, database DSNs, tokens, or sensitive bodies in artifacts or evidence.
 
 ## Output
 
-Report the component train, version, exact commit, merged PR, phase ledger, approvals and actor restoration, commands actually run, migrations, security and compatibility impact, public tags/Releases, artifact checksums, image digests and platforms, smoke-test results, rollback path, skipped checks with reasons, and the next executable step.
+Report the component train, version, exact commit, merged PR, preview and tag
+workflow ledger, active actor, commands actually run, migrations, security and
+compatibility impact, public tags/Releases, artifact checksums, image digests
+and platforms, smoke-test results, rollback path, skipped checks with reasons,
+and the next executable step.

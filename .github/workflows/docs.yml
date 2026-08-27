@@ -22,7 +22,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: read
   contents: read
   pull-requests: read
 
@@ -45,6 +44,18 @@ jobs:
       run:
         working-directory: docs
     steps:
+      - name: Require authorized release operator
+        if: startsWith(github.ref, 'refs/tags/docs/v')
+        working-directory: ${{ github.workspace }}
+        env:
+          RELEASE_ACTOR_LOGIN: lwnmengjing
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" || "${GITHUB_TRIGGERING_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" ]]; then
+            echo "release operations must be initiated and triggered by ${RELEASE_ACTOR_LOGIN}" >&2
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -83,7 +94,7 @@ jobs:
             --version "${DOCS_VERSION}" \
             --tag "${GITHUB_REF_NAME}"
 
-      - name: Require the already-published matching root release
+      - name: Require the already-published base root release
         if: startsWith(github.ref, 'refs/tags/docs/v')
         env:
           DOCS_VERSION: ${{ steps.version.outputs.version }}
@@ -91,42 +102,21 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          root_tag="${DOCS_VERSION}"
+          root_tag="${DOCS_VERSION%%+docs.*}"
           root_commit="$(git rev-parse "refs/tags/${root_tag}^{commit}")"
-          if [[ "${root_commit}" != "${GITHUB_SHA}" ]]; then
-            echo "root tag ${root_tag} resolves to ${root_commit}, not ${GITHUB_SHA}" >&2
-            exit 1
-          fi
 
           root_release="$(
             gh release view "${root_tag}" \
-              --json tagName,isDraft,isPrerelease
+              --json tagName,targetCommitish,isDraft,isPrerelease
           )"
           jq -e \
             --arg tag "${root_tag}" \
-            '.tagName == $tag and .isDraft == false and .isPrerelease == false' \
+            --arg commit "${root_commit}" \
+            '.tagName == $tag and
+             .targetCommitish == $commit and
+             .isDraft == false and
+             .isPrerelease == false' \
             <<< "${root_release}" >/dev/null
-
-          root_runs="$(gh api \
-            --method GET \
-            -H 'Accept: application/vnd.github+json' \
-            "/repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/runs" \
-            -f head_sha="${GITHUB_SHA}" \
-            -f status=completed \
-            -f per_page=100)"
-          jq -e \
-            --arg commit "${GITHUB_SHA}" \
-            --arg root_tag "${root_tag}" \
-            --arg display_title "Root Release publish ${root_tag}" \
-            '[.workflow_runs[] | select(
-              .event == "workflow_dispatch" and
-              .head_branch == $root_tag and
-              .head_sha == $commit and
-              .path == ".github/workflows/release.yml" and
-              .display_title == $display_title and
-              .status == "completed" and
-              .conclusion == "success"
-            )] | length >= 1' <<< "${root_runs}" >/dev/null
 
       - name: Refuse mutation of an existing docs release
         if: startsWith(github.ref, 'refs/tags/docs/v')
@@ -159,6 +149,7 @@ jobs:
         run: pnpm build
 
       - name: Audit release dependencies
+        if: ${{ !startsWith(github.ref, 'refs/tags/docs/v') }}
         run: pnpm audit:release
 
       - name: Embed docs release identity
@@ -222,6 +213,16 @@ jobs:
       group: cloudflare-docs-prod
       cancel-in-progress: false
     steps:
+      - name: Require authorized release operator
+        env:
+          RELEASE_ACTOR_LOGIN: lwnmengjing
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" || "${GITHUB_TRIGGERING_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" ]]; then
+            echo "release operations must be initiated and triggered by ${RELEASE_ACTOR_LOGIN}" >&2
+            exit 1
+          fi
+
       - name: Checkout deployment configuration
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 

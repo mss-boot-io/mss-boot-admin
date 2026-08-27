@@ -105,13 +105,18 @@ spec:
   nextPublicVersion: v1.1.0-rc.1
   distributionVersion: v1.1.0-rc.1
   distributionComponents: "root,framework,admin,frontend"
+  releaseTargetState: active
+  immutableStoppedVersion: v1.3.5
+  immutableStoppedPublicRefs: "root=v1.3.5"
   publicationWorkflowsReady: true
+  docsRevisionPublicationReady: false
   publicPrereleases: true
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"
   adminTagTemplate: "admin/{version}"
   frontendTagTemplate: "web/antd-v6/{version}"
   docsTagTemplate: "docs/{version}"
+  npmPackageTemplate: "@mss-boot-io/admin-web@{npmVersion}"
 `))
 	if err != nil {
 		t.Fatalf("decode prerelease policy: %v", err)
@@ -139,13 +144,18 @@ spec:
   nextPublicVersion: v1.1.0
   distributionVersion: v1.1.0
   distributionComponents: "root,framework,admin,frontend"
+  releaseTargetState: active
+  immutableStoppedVersion: v1.3.5
+  immutableStoppedPublicRefs: "root=v1.3.5"
   publicationWorkflowsReady: false
+  docsRevisionPublicationReady: false
   publicPrereleases: false
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"
   adminTagTemplate: "admin/{version}"
   frontendTagTemplate: "web/antd-v6/{version}"
   docsTagTemplate: "docs/{version}"
+  npmPackageTemplate: "@mss-boot-io/admin-web@{npmVersion}"
 `
 	policy, err := decodeFoundationReleasePolicy([]byte(valid))
 	if err != nil {
@@ -160,6 +170,9 @@ spec:
 	if policy.Spec.DistributionVersion != "v1.1.0" || policy.Spec.DistributionComponents != "root,framework,admin,frontend" || policy.Spec.AdminTagTemplate != "admin/{version}" {
 		t.Fatalf("Admin Distribution release contract = %#v", policy.Spec)
 	}
+	if policy.Spec.ReleaseTargetState != "active" || policy.Spec.DocsRevisionPublicationReady == nil || *policy.Spec.DocsRevisionPublicationReady || policy.Spec.NpmPackageTemplate != "@mss-boot-io/admin-web@{npmVersion}" {
+		t.Fatalf("extended release contract = %#v", policy.Spec)
+	}
 	tests := []struct {
 		name string
 		data string
@@ -173,6 +186,10 @@ spec:
 		{name: "prerelease stable", data: strings.Replace(valid, "currentStableVersion: v1.0.0", "currentStableVersion: v1.0.0-rc.1", 1), want: "currentStableVersion must not be a prerelease"},
 		{name: "missing Admin component", data: strings.Replace(valid, "root,framework,admin,frontend", "root,framework,frontend", 1), want: "distributionComponents"},
 		{name: "invalid Admin tag", data: strings.Replace(valid, "admin/{version}", "admin/v1.1.0", 1), want: "adminTagTemplate must contain exactly one {version} placeholder"},
+		{name: "invalid target state", data: strings.Replace(valid, "releaseTargetState: active", "releaseTargetState: pending", 1), want: "releaseTargetState must equal active or stopped"},
+		{name: "missing docs publication boolean", data: strings.Replace(valid, "  docsRevisionPublicationReady: false\n", "", 1), want: "boolean controls are required"},
+		{name: "stopped target version mismatch", data: strings.Replace(valid, "releaseTargetState: active", "releaseTargetState: stopped", 1), want: "immutableStoppedVersion must equal nextPublicVersion"},
+		{name: "invalid npm package template", data: strings.Replace(valid, "@mss-boot-io/admin-web@{npmVersion}", "@mss-boot-io/admin-web@1.1.0", 1), want: "npmPackageTemplate must contain exactly one {npmVersion} placeholder"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -180,6 +197,20 @@ spec:
 				t.Fatalf("decodeFoundationReleasePolicy() error = %v, want %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestDecodeCanonicalFoundationReleasePolicy(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", ".mss", "release-policy.yaml"))
+	if err != nil {
+		t.Fatalf("read canonical release policy: %v", err)
+	}
+	policy, err := decodeFoundationReleasePolicy(data)
+	if err != nil {
+		t.Fatalf("decode canonical release policy: %v", err)
+	}
+	if policy.Spec.DocsRevisionPublicationReady == nil || strings.TrimSpace(policy.Spec.ImmutableStoppedPublicRefs) == "" {
+		t.Fatalf("canonical extended release controls = %#v", policy.Spec)
 	}
 }
 

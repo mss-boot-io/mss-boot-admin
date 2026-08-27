@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Fail closed when current documentation drifts from the package-first release."""
+"""Fail closed when current documentation drifts from reviewed release state."""
 
 from __future__ import annotations
 
 import re
 import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, NamedTuple
 from urllib.parse import unquote
 
 
@@ -37,6 +37,47 @@ CORE_CURRENT_FILES = (
 CORE_LINK_FILES = CORE_CURRENT_FILES + (
     Path("CHANGELOG.md"),
     Path("mss-boot/CHANGELOG.md"),
+)
+
+ADOPTER_ONBOARDING_FILES = (
+    Path("README.md"),
+    Path("README.zh-CN.md"),
+    Path("docs/docs/index.md"),
+    Path("docs/docs/getting-started/index.md"),
+    Path("docs/docs/getting-started/packages.md"),
+    Path("docs/docs/getting-started/tooling.md"),
+    Path("docs/docs/getting-started/mss-shop.md"),
+    Path("docs/docs/releases/index.md"),
+    Path("docs/docs/releases/v1-3-5.md"),
+)
+
+PARTIAL_RELEASE_STATUS_FILES = ADOPTER_ONBOARDING_FILES + (
+    Path("admin/README.md"),
+    Path("web/antd-v6/README.md"),
+    Path(
+        "docs/docs/architecture/"
+        "complete-admin-distribution-and-thin-business-host.zh-CN.md"
+    ),
+    Path("docs/docs/agent/blueprints-and-upgrades.md"),
+    Path("docs/docs/admin/docker.md"),
+    Path("docs/docs/admin/operations-guide.md"),
+    Path("docs/docs/admin/index.md"),
+    Path("docs/docs/guide/faq.md"),
+    Path("docs/docs/agent/skills-and-mcp.md"),
+    Path("docs/docs/architecture/agent-native-foundation.zh-CN.md"),
+    Path("docs/docs/admin/mobile-h5-adaptation.md"),
+    Path("docs/docs/admin/presentation-configuration.md"),
+    Path("docs/docs/admin/login-troubleshooting.md"),
+    Path("docs/docs/admin/local-debug.md"),
+    Path("docs/docs/admin/theme-settings-precedence.md"),
+    Path("docs/docs/admin/current-capabilities.md"),
+    Path("docs/docs/agent/getting-started.md"),
+    Path("docs/docs/admin/security-baseline.md"),
+    Path("docs/docs/modules/supplier.md"),
+    Path("docs/docs/guide/index.md"),
+    Path("docs/docs/coding/first-contribution.md"),
+    Path("mss-boot/README.md"),
+    Path("mss-boot/README.Zh-cn.md"),
 )
 
 BOOTSTRAP_PASSWORD_FILES = (
@@ -217,23 +258,159 @@ FORBIDDEN_SOURCE_COMMANDS = {
     ),
 }
 
+PARTIAL_RELEASE_OPERATIONAL_COMMANDS = {
+    "unpublished v1.3.5 installer URL": re.compile(
+        r"https://github\.com/mss-boot-io/mss-boot-admin/releases/download/"
+        r"v1\.3\.5/install-mss\.(?:sh|ps1)",
+        re.IGNORECASE,
+    ),
+    "unpublished shell installer invocation": re.compile(
+        r"(?im)^(?=[^\n]*v1\.3\.5)[^\n]*"
+        r"\b(?:bash|sh)\s+(?:\./)?install-mss\.sh\b[^\n]*$",
+    ),
+    "unpublished PowerShell installer invocation": re.compile(
+        r"(?im)^(?=[^\n]*v1\.3\.5)[^\n]*"
+        r"(?:Invoke-WebRequest[^\n]*install-mss\.ps1|"
+        r"&\s+\.\\install-mss\.ps1\b)[^\n]*$",
+    ),
+    "unpublished v1.3.5 Admin upgrade": re.compile(
+        r"(?<![A-Za-z0-9_-])mss\s+upgrade\s+admin\s+v1\.3\.5\b",
+        re.IGNORECASE,
+    ),
+    "unpublished official npmjs install": re.compile(
+        r"(?im)^\s*(?:[$>]\s*)?(?:corepack\s+)?(?:npm|pnpm|yarn|bun)\b"
+        r"[^\n]*@mss-boot-io/admin-web@1\.3\.5\b",
+    ),
+    "unpublished Root image command": re.compile(
+        r"(?im)^\s*(?:[$>]\s*)?(?:docker|podman|nerdctl)\s+(?:pull|run)\b"
+        r"[^\n]*ghcr\.io/mss-boot-io/mss-boot-admin:v1\.3\.5\b",
+    ),
+    "source-built v1.3.5 Root tool": re.compile(
+        r"(?im)^\s*(?:[$>]\s*)?go\s+install\b[^\n]*/cmd/mss(?:-mcp)?@v1\.3\.5\b",
+    ),
+}
 
-def distribution_version(root: Path) -> str:
+PARTIAL_RELEASE_STATUS_MARKER = re.compile(
+    r"(?:immutable[- ]partial|不可变(?:的)?部分发布)",
+    re.IGNORECASE,
+)
+PARTIAL_RELEASE_BOUNDARY_MARKER = re.compile(
+    r"(?:source-only|source (?:checkout|contract|development)|"
+    r"future (?:complete|release|contract)|"
+    r"not (?:a |an )?(?:complete|installable|adoptable|supported)|"
+    r"源码(?:专用|工作区|贡献|合同|开发)|未来(?:未使用|完整|发行|合同)|"
+    r"不是(?:可安装|可采用|完整|当前)|不可(?:安装|采用|升级|运行)|"
+    r"不能[^\n]{0,80}(?:采用|安装|升级|发行|Thin Host))",
+    re.IGNORECASE,
+)
+CURRENT_V135_ADOPTION_CLAIMS = {
+    "v1.3.5 tool availability claim": re.compile(
+        r"(?:公共对账完成后[,，]?\s*)?v1\.3\.5[^\n]{0,100}"
+        r"(?:对外工具|工具包并报告|工具和包生成)",
+        re.IGNORECASE,
+    ),
+    "v1.3.5 generated Thin Host claim": re.compile(
+        r"(?:生成的|通过公开|从公开|由公开)[^\n]{0,50}v1\.3\.5"
+        r"[^\n]{0,100}(?:Thin Host|生成|mss-shop)",
+        re.IGNORECASE,
+    ),
+    "v1.3.5 current-capabilities heading": re.compile(
+        r"(?m)^#\s+v1\.3\.5\s+当前能力(?:与边界)?\s*$",
+        re.IGNORECASE,
+    ),
+    "v1.3.5 embedded-tool availability claim": re.compile(
+        r"v1\.3\.5\s+的\s+`?mss`?\s+二进制内置",
+        re.IGNORECASE,
+    ),
+    "English v1.3.5 candidate publication claim": re.compile(
+        r"\bThe\s+v1\.3\.5\s+candidate\s+publishes\b",
+        re.IGNORECASE,
+    ),
+}
+
+
+class ReleaseDocumentationState(NamedTuple):
+    distribution_version: str
+    current_stable_version: str
+    publication_workflows_ready: bool
+    release_status: str
+
+    @property
+    def operational_onboarding_allowed(self) -> bool:
+        return self.publication_workflows_ready and self.release_status == "stable"
+
+
+def release_documentation_state(root: Path) -> ReleaseDocumentationState:
     policy = root / ".mss/release-policy.yaml"
     try:
         text = policy.read_text(encoding="utf-8")
     except OSError as exc:
         raise ValueError(f"cannot read {policy}: {exc}") from exc
-    match = re.search(
-        r"^\s*distributionVersion:\s*['\"]?(v\d+\.\d+\.\d+)['\"]?\s*$",
-        text,
-        re.MULTILINE,
-    )
-    if not match:
-        raise ValueError(
-            ".mss/release-policy.yaml must declare spec.distributionVersion"
+
+    def required_value(name: str, value_pattern: str) -> str:
+        match = re.search(
+            rf"^\s*{re.escape(name)}:\s*['\"]?({value_pattern})['\"]?\s*$",
+            text,
+            re.MULTILINE,
         )
-    return match.group(1)
+        if not match:
+            raise ValueError(
+                f".mss/release-policy.yaml must declare spec.{name}"
+            )
+        return match.group(1)
+
+    distribution = required_value(
+        "distributionVersion", r"v\d+\.\d+\.\d+"
+    )
+    stable = required_value(
+        "currentStableVersion", r"v\d+\.\d+\.\d+"
+    )
+    publication_ready_text = required_value(
+        "publicationWorkflowsReady", r"true|false"
+    )
+
+    matching_features: list[tuple[Path, str]] = []
+    feature_root = root / ".mss/features"
+    for feature in sorted(feature_root.glob("*.yaml")):
+        try:
+            feature_text = feature.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ValueError(f"cannot read {feature}: {exc}") from exc
+        target = re.search(
+            r"^\s*target-version:\s*['\"]?(v\d+\.\d+\.\d+)['\"]?\s*$",
+            feature_text,
+            re.MULTILINE,
+        )
+        if not target or target.group(1) != distribution:
+            continue
+        status = re.search(
+            r"^\s*release-status:\s*['\"]?([a-z0-9-]+)['\"]?\s*$",
+            feature_text,
+            re.MULTILINE,
+        )
+        if not status:
+            raise ValueError(
+                f"{feature.relative_to(root)} must declare metadata.labels.release-status"
+            )
+        matching_features.append((feature, status.group(1)))
+
+    if len(matching_features) != 1:
+        names = ", ".join(str(path.relative_to(root)) for path, _ in matching_features)
+        raise ValueError(
+            f"expected exactly one Feature for {distribution}; found "
+            f"{len(matching_features)} ({names})"
+        )
+
+    return ReleaseDocumentationState(
+        distribution_version=distribution,
+        current_stable_version=stable,
+        publication_workflows_ready=publication_ready_text == "true",
+        release_status=matching_features[0][1],
+    )
+
+
+def distribution_version(root: Path) -> str:
+    return release_documentation_state(root).distribution_version
 
 
 def active_markdown_paths(root: Path) -> list[Path]:
@@ -266,7 +443,11 @@ def active_markdown_paths(root: Path) -> list[Path]:
 
 
 def forbidden_content_errors(
-    root: Path, version: str, paths: Iterable[Path]
+    root: Path,
+    version: str,
+    paths: Iterable[Path],
+    *,
+    current_stable_version: str | None = None,
 ) -> list[str]:
     errors: list[str] = []
     npm_version = version.removeprefix("v")
@@ -299,10 +480,14 @@ def forbidden_content_errors(
                 errors.append(f"{path}:{line}: {label} is not allowed in current docs")
         for match in VERSION_TOKEN.finditer(text):
             token = match.group(0)
-            if token != version and not (
-                token in allowed_historical_versions
-                and not in_fenced_code(match.start())
-                and not on_operational_line(match.start())
+            if (
+                token != version
+                and token != current_stable_version
+                and not (
+                    token in allowed_historical_versions
+                    and not in_fenced_code(match.start())
+                    and not on_operational_line(match.start())
+                )
             ):
                 line = text.count("\n", 0, match.start()) + 1
                 errors.append(
@@ -324,9 +509,94 @@ def forbidden_content_errors(
     return errors
 
 
-def bootstrap_password_errors(root: Path) -> list[str]:
+def partial_release_operational_errors(
+    root: Path, state: ReleaseDocumentationState
+) -> list[str]:
+    if state.operational_onboarding_allowed:
+        return []
+
     errors: list[str] = []
-    for path in BOOTSTRAP_PASSWORD_FILES:
+    for path in active_markdown_paths(root):
+        absolute = root / path
+        if not absolute.is_file():
+            continue
+        text = absolute.read_text(encoding="utf-8")
+        for label, pattern in PARTIAL_RELEASE_OPERATIONAL_COMMANDS.items():
+            for match in pattern.finditer(text):
+                line = text.count("\n", 0, match.start()) + 1
+                errors.append(
+                    f"{path}:{line}: {label} is forbidden while "
+                    f"publicationWorkflowsReady={str(state.publication_workflows_ready).lower()} "
+                    f"and release-status={state.release_status}"
+                )
+    return errors
+
+
+def partial_release_semantic_errors(
+    root: Path,
+    state: ReleaseDocumentationState,
+    *,
+    status_paths: Iterable[Path] = PARTIAL_RELEASE_STATUS_FILES,
+    claim_paths: Iterable[Path] | None = None,
+) -> list[str]:
+    if state.operational_onboarding_allowed:
+        return []
+
+    errors: list[str] = []
+    checked_status_paths = tuple(status_paths)
+    for path in checked_status_paths:
+        absolute = root / path
+        if not absolute.is_file():
+            errors.append(f"missing partial-release status documentation: {path}")
+            continue
+        text = absolute.read_text(encoding="utf-8")
+        if state.distribution_version not in text:
+            errors.append(
+                f"{path}: partial-release status page must name "
+                f"{state.distribution_version}"
+            )
+        if state.current_stable_version not in text:
+            errors.append(
+                f"{path}: partial-release status page must name current stable "
+                f"{state.current_stable_version}"
+            )
+        if not PARTIAL_RELEASE_STATUS_MARKER.search(text):
+            errors.append(
+                f"{path}: must explicitly label {state.distribution_version} "
+                "immutable-partial"
+            )
+        if not PARTIAL_RELEASE_BOUNDARY_MARKER.search(text):
+            errors.append(
+                f"{path}: must distinguish source-only or future-contract content "
+                "from current adoption"
+            )
+
+    if claim_paths is None:
+        scanned_claim_paths = active_markdown_paths(root)
+        if (root / CONTRIBUTOR_PAGE).is_file():
+            scanned_claim_paths.append(CONTRIBUTOR_PAGE)
+    else:
+        scanned_claim_paths = list(claim_paths)
+    for path in scanned_claim_paths:
+        absolute = root / path
+        if not absolute.is_file():
+            continue
+        text = absolute.read_text(encoding="utf-8")
+        for label, pattern in CURRENT_V135_ADOPTION_CLAIMS.items():
+            for match in pattern.finditer(text):
+                line = text.count("\n", 0, match.start()) + 1
+                errors.append(
+                    f"{path}:{line}: {label} is incompatible with "
+                    f"release-status={state.release_status}"
+                )
+    return errors
+
+
+def bootstrap_password_errors(
+    root: Path, paths: Iterable[Path] = BOOTSTRAP_PASSWORD_FILES
+) -> list[str]:
+    errors: list[str] = []
+    for path in paths:
         absolute = root / path
         if not absolute.is_file():
             errors.append(f"missing bootstrap password documentation: {path}")
@@ -343,9 +613,11 @@ def bootstrap_password_errors(root: Path) -> list[str]:
     return errors
 
 
-def first_login_errors(root: Path) -> list[str]:
+def first_login_errors(
+    root: Path, paths: Iterable[Path] = FIRST_LOGIN_FILES
+) -> list[str]:
     errors: list[str] = []
-    for path in FIRST_LOGIN_FILES:
+    for path in paths:
         absolute = root / path
         if not absolute.is_file():
             errors.append(f"missing first-login documentation: {path}")
@@ -358,7 +630,9 @@ def first_login_errors(root: Path) -> list[str]:
     return errors
 
 
-def upgrade_contract_errors(root: Path) -> list[str]:
+def upgrade_contract_errors(
+    root: Path, paths: Iterable[Path] = UPGRADE_CONTRACT_FILES
+) -> list[str]:
     errors: list[str] = []
     required_markers = (
         "mss --version",
@@ -367,7 +641,7 @@ def upgrade_contract_errors(root: Path) -> list[str]:
         "mss doctor --strict",
         "mss verify --all",
     )
-    for path in UPGRADE_CONTRACT_FILES:
+    for path in paths:
         absolute = root / path
         if not absolute.is_file():
             errors.append(f"missing upgrade documentation: {path}")
@@ -397,9 +671,14 @@ def upgrade_contract_errors(root: Path) -> list[str]:
     return errors
 
 
-def mcp_contract_errors(root: Path) -> list[str]:
+def mcp_contract_errors(
+    root: Path,
+    paths: Iterable[Path] = MCP_CONTRACT_FILES,
+    *,
+    require_client_example: bool = True,
+) -> list[str]:
     errors: list[str] = []
-    for path in MCP_CONTRACT_FILES:
+    for path in paths:
         absolute = root / path
         if not absolute.is_file():
             errors.append(f"missing MCP documentation: {path}")
@@ -409,7 +688,7 @@ def mcp_contract_errors(root: Path) -> list[str]:
             if marker not in text:
                 errors.append(f"{path}: MCP contract is missing {marker}")
     tooling = root / "docs/docs/getting-started/tooling.md"
-    if tooling.is_file():
+    if require_client_example and tooling.is_file():
         text = tooling.read_text(encoding="utf-8")
         for marker in ('"mcpServers"', '"command"', '"args"'):
             if marker not in text:
@@ -434,10 +713,12 @@ def public_skill_documentation_errors(root: Path) -> list[str]:
     return errors
 
 
-def package_and_container_contract_errors(root: Path) -> list[str]:
+def package_and_container_contract_errors(
+    root: Path, *, require_adopter_packages: bool = True
+) -> list[str]:
     errors: list[str] = []
     packages = root / "docs/docs/getting-started/packages.md"
-    if packages.is_file():
+    if require_adopter_packages and packages.is_file():
         text = packages.read_text(encoding="utf-8")
         for marker in (
             "go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5",
@@ -492,7 +773,8 @@ def repository_context_errors(root: Path) -> list[str]:
     else:
         text = contributor.read_text(encoding="utf-8")
         for marker in (
-            "v1.3.5 快速开始",
+            "v1.3.5 已永久停止",
+            "v1.3.2 稳定记录",
             "本文只适用于修改 Foundation 本身的贡献者",
             "go run ./cmd/mss context",
             "go run ./cmd/mss verify --changed",
@@ -501,6 +783,7 @@ def repository_context_errors(root: Path) -> list[str]:
             if marker not in text:
                 errors.append(f"CONTRIBUTING.md: missing contributor boundary {marker}")
         for label, pattern in {
+            "stopped-version adopter quick start": r"v1\.3\.5\s+快速开始",
             "repository-wide gofmt": r"(?m)^\s*gofmt\s+-w\s+\.\s*$",
             "uncontracted log file": r"(?m)^\s*tail\s+-f\s+logs/app\.log\s*$",
         }.items():
@@ -512,13 +795,29 @@ def repository_context_errors(root: Path) -> list[str]:
         errors.append("missing monorepo release contract: MONOREPO.md")
     else:
         normalized = " ".join(monorepo.read_text(encoding="utf-8").split())
-        expected_order = (
-            "The fail-closed v1.3.5 publication order is Framework, Admin, "
-            "Admin Web, protected Root tag promotion, Root release, Docs, and "
-            "finally npm Trusted Publishing."
-        )
-        if expected_order not in normalized:
-            errors.append("MONOREPO.md: v1.3.5 publication order is incomplete or stale")
+        for marker in (
+            "v1.3.5 is permanently stopped as an immutable partial release",
+            "one non-publishing Root preview",
+            "Framework, Admin, and Admin Web tags in order",
+            "Root release, backend image, and official npm publication "
+            "independently and in parallel",
+            "do not repeat its expensive qualification",
+            "promotion, readiness run ID, second publish dispatch, or manual "
+            "environment approval",
+            "Docs follows later from its own tag",
+        ):
+            if marker not in normalized:
+                errors.append(
+                    f"MONOREPO.md: missing simplified release contract {marker}"
+                )
+        for obsolete in (
+            "protected Root tag promotion",
+            "finally npm Trusted Publishing",
+        ):
+            if obsolete in normalized:
+                errors.append(
+                    f"MONOREPO.md: obsolete release mechanism is not allowed: {obsolete}"
+                )
         if "After this migration is merged" in normalized:
             errors.append("MONOREPO.md: completed import must not remain future work")
 
@@ -621,9 +920,10 @@ def internal_link_errors(root: Path) -> list[str]:
 def collect_errors(root: Path = ROOT) -> list[str]:
     errors: list[str] = []
     try:
-        version = distribution_version(root)
+        state = release_documentation_state(root)
     except ValueError as exc:
         return [str(exc)]
+    version = state.distribution_version
 
     if version != "v1.3.5":
         errors.append(
@@ -671,13 +971,56 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         )
 
     active_paths = active_markdown_paths(root)
-    errors.extend(forbidden_content_errors(root, version, active_paths))
-    errors.extend(bootstrap_password_errors(root))
-    errors.extend(first_login_errors(root))
-    errors.extend(upgrade_contract_errors(root))
-    errors.extend(mcp_contract_errors(root))
+    errors.extend(
+        forbidden_content_errors(
+            root,
+            version,
+            active_paths,
+            current_stable_version=state.current_stable_version,
+        )
+    )
+
+    partial_status_set = frozenset(PARTIAL_RELEASE_STATUS_FILES)
+    if state.operational_onboarding_allowed:
+        errors.extend(bootstrap_password_errors(root))
+        errors.extend(first_login_errors(root))
+        errors.extend(upgrade_contract_errors(root))
+        errors.extend(mcp_contract_errors(root))
+    else:
+        errors.extend(partial_release_semantic_errors(root, state))
+        errors.extend(partial_release_operational_errors(root, state))
+        errors.extend(
+            bootstrap_password_errors(
+                root,
+                (path for path in BOOTSTRAP_PASSWORD_FILES if path not in partial_status_set),
+            )
+        )
+        errors.extend(
+            first_login_errors(
+                root,
+                (path for path in FIRST_LOGIN_FILES if path not in partial_status_set),
+            )
+        )
+        errors.extend(
+            upgrade_contract_errors(
+                root,
+                (path for path in UPGRADE_CONTRACT_FILES if path not in partial_status_set),
+            )
+        )
+        errors.extend(
+            mcp_contract_errors(
+                root,
+                (path for path in MCP_CONTRACT_FILES if path not in partial_status_set),
+                require_client_example=False,
+            )
+        )
     errors.extend(public_skill_documentation_errors(root))
-    errors.extend(package_and_container_contract_errors(root))
+    errors.extend(
+        package_and_container_contract_errors(
+            root,
+            require_adopter_packages=state.operational_onboarding_allowed,
+        )
+    )
     errors.extend(repository_context_errors(root))
 
     quick_start_titles: list[Path] = []
@@ -693,9 +1036,14 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             r"(?:快速开始|quick\s*start)", title_match.group(1), re.IGNORECASE
         ):
             quick_start_titles.append(path.relative_to(root))
-    if quick_start_titles != [Path("docs/docs/getting-started/index.md")]:
+    expected_quick_start_titles = (
+        [Path("docs/docs/getting-started/index.md")]
+        if state.operational_onboarding_allowed
+        else []
+    )
+    if quick_start_titles != expected_quick_start_titles:
         errors.append(
-            "exactly one quick-start page is allowed; found "
+            "quick-start page set does not match publication state; found "
             + ", ".join(map(str, quick_start_titles))
         )
 
@@ -707,6 +1055,17 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         nav_routes = NAV_LINK.findall(nav_text)
         if nav_routes.count("/getting-started") != 1:
             errors.append("navigation must expose exactly one /getting-started entry")
+        if (
+            not state.operational_onboarding_allowed
+            and not re.search(
+                r"title:\s*['\"]采用状态['\"][\s\S]{0,160}?"
+                r"link:\s*['\"]/getting-started['\"]",
+                nav_text,
+            )
+        ):
+            errors.append(
+                "partial-release navigation must label /getting-started as 采用状态"
+            )
         for route in nav_routes:
             if not route_exists(root, route):
                 errors.append(f"docs/.dumirc.ts: navigation target does not exist: {route}")
@@ -753,14 +1112,26 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         else ""
     )
     aligned_markers = (
-        "install-mss.sh",
-        "install-mss.ps1",
-        "$env:Path",
-        "mss new app",
-        "mss upgrade admin v1.3.5",
-        "mss-mcp",
-        "@mss-boot-io/admin-web@1.3.5",
-        "MSS_ADMIN_INITIAL_PASSWORD",
+        (
+            "install-mss.sh",
+            "install-mss.ps1",
+            "$env:Path",
+            "mss new app",
+            "mss upgrade admin v1.3.5",
+            "mss-mcp",
+            "@mss-boot-io/admin-web@1.3.5",
+            "MSS_ADMIN_INITIAL_PASSWORD",
+        )
+        if state.operational_onboarding_allowed
+        else (
+            state.current_stable_version,
+            state.distribution_version,
+            "github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5",
+            "github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5",
+            "@mss-boot-io/admin-web@1.3.5",
+            "docs/v1.3.5",
+            "Root Release",
+        )
     )
     for marker in aligned_markers:
         if marker not in root_readme or marker not in zh_readme:
@@ -770,14 +1141,33 @@ def collect_errors(root: Path = ROOT) -> list[str]:
     return sorted(set(errors))
 
 
+def success_message(state: ReleaseDocumentationState) -> str:
+    if state.operational_onboarding_allowed:
+        return (
+            f"current documentation contract OK: {state.distribution_version} "
+            "stable operational onboarding, links and archive"
+        )
+    return (
+        f"current documentation contract OK: {state.distribution_version} "
+        f"{state.release_status}; current stable {state.current_stable_version}; "
+        "operational onboarding disabled"
+    )
+
+
 def main() -> int:
+    try:
+        state = release_documentation_state(ROOT)
+    except ValueError as exc:
+        print("current documentation contract failed:", file=sys.stderr)
+        print(f"- {exc}", file=sys.stderr)
+        return 1
     errors = collect_errors()
     if errors:
         print("current documentation contract failed:", file=sys.stderr)
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    print("current documentation contract OK: v1.3.5 package-first, links and archive")
+    print(success_message(state))
     return 0
 
 

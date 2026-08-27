@@ -74,7 +74,7 @@ When the repository has a public Docs domain, source reconciliation is not the s
 5. Wait for the tag-triggered workflow, protected production environment, portable archive checksums, public `/release.json`, and immutable GitHub Release. A successful main-branch Docs build without the tag deployment is preliminary evidence only.
 6. Reopen the production home page and a nested release route, refresh both, verify visible stable-version language, inspect console errors and failed network requests, and save final screenshots.
 
-If publication was not authorized or the environment cannot be approved, stop before creating a tag and provide the exact proposed Docs revision, merged commit, workflow, and remaining approval step.
+If publication was not authorized or the tag or environment policy blocks the exact merged commit, stop before creating a tag and provide the exact proposed Docs revision, merged commit, workflow, and policy blocker. Do not request or invent a manual environment approval for the automatic tag path.
 
 ## Validate proportionally
 

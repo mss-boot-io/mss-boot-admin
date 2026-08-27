@@ -17,10 +17,12 @@ This document is generated deterministically from [`.mss/modules/example-supplie
 :::info Foundation contributor projection
 This checked-in page documents the Foundation reference projection. Its
 `admin/modules/**` and `web/antd-v6/**` paths are contributor evidence, not a
-downstream application layout. A v1.3.5 Thin Host uses the installed `mss` command
-and generates business ownership under `internal/modules/**` and
-`web/src/business/**`; use that generated repository's own module page and
-`mss verify --changed` as the adopter contract.
+downstream application layout. v1.3.5 is an immutable-partial train without
+published Root tools, official npmjs, Docs, or a complete Thin Host path; the
+current stable version remains v1.3.2. The commands below are source-only
+Foundation validation. A future complete distribution generates business
+ownership under `internal/modules/**` and `web/src/business/**`; its generated
+repository owns the adopter module page and validation contract.
 :::
 
 
@@ -86,7 +88,8 @@ The checked-in test is an executable contract, not proof that a browser run occu
 
 ## Generate and validate
 
-From the repository root:
+From the Foundation source repository root; these are not v1.3.5 adopter
+commands:
 
 ```shell
 mss spec validate .mss/modules/example-supplier.yaml --format json
