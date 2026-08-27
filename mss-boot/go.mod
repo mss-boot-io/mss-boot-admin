@@ -3,7 +3,7 @@ module github.com/mss-boot-io/mss-boot-admin/mss-boot
 go 1.26.6
 
 require (
-	github.com/IBM/sarama v1.60.1
+	github.com/IBM/sarama v1.60.2
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.4
 	github.com/aws/aws-sdk-go-v2 v1.43.7
@@ -13,7 +13,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/appconfigdata v1.26.7
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.63.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.107.3
-	github.com/aws/smithy-go v1.27.8
+	github.com/aws/smithy-go v1.27.9
 	github.com/bsm/redislock v0.10.0
 	github.com/casbin/casbin/v2 v2.135.0
 	github.com/casbin/gorm-adapter/v3 v3.38.0
@@ -160,7 +160,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
-	github.com/klauspost/compress v1.19.1 // indirect
+	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kyokomi/emoji/v2 v2.2.13 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
@@ -178,7 +178,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.3.0 // indirect
-	github.com/pierrec/lz4/v4 v4.1.27 // indirect
+	github.com/pierrec/lz4/v4 v4.1.29 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.70.1 // indirect
@@ -214,7 +214,7 @@ require (
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/image v0.41.0 // indirect
 	golang.org/x/mod v0.38.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
