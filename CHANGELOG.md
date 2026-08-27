@@ -51,6 +51,8 @@ commit. This entry does not authorize installation or mixed-version adoption.
 
 ### Fixed
 
+- Keep upload-admission leak checks scoped to the user-visible error message so
+  an unrelated randomized trace ID cannot fail the Admin race gate.
 - Run the complete Agent evaluation catalog against the existing loopback
   candidate registry in Foundation compatibility instead of asking public npm
   for an Admin Web version that cannot exist before the preview succeeds.

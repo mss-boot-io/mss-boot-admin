@@ -294,8 +294,8 @@ func assertUploadErrorResponse(t *testing.T, recorder *httptest.ResponseRecorder
 	if body.Status != "error" || body.Code != status || body.ErrorCode != errorCode || body.ErrorMessage != wantMessage {
 		t.Fatalf("unexpected error response: %#v", body)
 	}
-	if bytes.Contains(recorder.Body.Bytes(), []byte("6553")) || bytes.Contains(recorder.Body.Bytes(), []byte("multipart body")) {
-		t.Fatalf("response leaked internal admission details: %s", recorder.Body.String())
+	if bytes.Contains([]byte(body.ErrorMessage), []byte("6553")) || bytes.Contains([]byte(body.ErrorMessage), []byte("multipart body")) {
+		t.Fatalf("error message leaked internal admission details: %q", body.ErrorMessage)
 	}
 }
 
