@@ -1,39 +1,41 @@
 ---
 title: Complete Admin Distribution 与 Thin Host
 order: 2
-description: v1.3.5 完整 Admin 发行、编译期扩展、文件所有权与三方升级架构
+description: v1.3.5 部分发布事实，以及未来完整 Admin 发行的组合、所有权与升级架构
 ---
 
 # Complete Admin Distribution 与 Thin Host
 
-## 决策
+## 当前版本状态
 
-Admin 后端、Admin Web、Framework、Agent 工具和 Blueprint 使用同一个 v1.3.5
-Distribution 版本协调，但保留独立发布制品。下游应用是 Thin Host，不是 Foundation
-源码副本。
+发布策略仍将 **v1.3.2** 定义为当前稳定版本。v1.3.5 已停止为不可变部分发布，不是可
+安装或升级的完整 Admin Distribution。
 
-## 发行组成
-
-| 组件 | v1.3.5 身份 | 所有权 |
+| 组件 | v1.3.5 身份 | 实际结果 |
 | --- | --- | --- |
-| Root tools | GitHub Release `v1.3.5` | new/setup/dev/verify/upgrade |
-| Framework | `mss-boot/v1.3.5` | 领域无关运行时 |
-| Admin | `admin/v1.3.5` | 完整后端与编译期扩展边界 |
-| Admin Web | `web/antd-v6/v1.3.5`、npm `1.3.5` | 完整浏览器应用 |
-| Blueprint | 嵌入 `mss v1.3.5` | Thin Host 受管文件 |
-| Docs | `docs/v1.3.5` | 当前使用和发布合同 |
+| Root | `v1.3.5` | 只有不可变 Tag；Release、工具与后端镜像未发布 |
+| Framework | `mss-boot/v1.3.5` | GitHub Release 与 Go Module 已发布 |
+| Admin | `admin/v1.3.5` | GitHub Release 与 Go Module 已发布 |
+| Admin Web | `web/antd-v6/v1.3.5` | GitHub Release、GitHub Packages 与前端镜像已发布 |
+| npmjs | `@mss-boot-io/admin-web@1.3.5` | 未发布 |
+| Blueprint | 原计划嵌入 v1.3.5 Root 工具 | 没有可消费的 Release 工具 |
+| Docs | `docs/v1.3.5` | 未创建、未部署 |
 
-所有制品绑定一个完整 merged-main 提交，不能用分支头、本地替换或相邻版本拼装。
-候选文档中的身份是发布目标；只有公共对账全部完成后，它们才成为可安装制品。
+所有已公开身份保持不可变，但不能与 v1.3.2、分支头、Foundation 源码、本地替换或其他
+registry 拼成完整发行。
 
-## Thin Host 内容
+## 架构决策
+
+未来完成公共对账的 Admin Distribution 仍由 Root 工具、Framework、Admin、Admin Web、
+Blueprint 与 Docs 使用一个协调版本，同时保留独立发布身份。下游应用是 Thin Host，
+不是 Foundation 源码副本。
 
 ```text
 cmd/server/main.go                 Admin 组合入口
 internal/modules/<business>/       业务后端所有
 web/src/business/                  业务前端所有
-.mss/                             项目、模块、命令和锁合同
-受管配置/构建胶水                 Blueprint 所有
+.mss/                              项目、模块、命令和锁合同
+受管配置/构建胶水                  Blueprint 所有
 ```
 
 Thin Host 不包含 Admin 核心路由、中间件、迁移、Framework、完整前端页面、Foundation
@@ -45,70 +47,54 @@ Thin Host 不包含 Admin 核心路由、中间件、迁移、Framework、完整
 registry 中完成；迁移冲突、路由冲突、重入或部分注册失败必须 fail closed。所有业务
 API 位于核心安全中间件后的受保护组中。
 
-后端模块可以拥有：
-
-- 前向迁移；
-- 模型、DTO、服务和受保护 API；
-- 权限、菜单投影与就绪检查；
-- 正向和负向授权测试。
-
-它不能替换认证、会话、CSRF、核心路由或迁移 registry。
+后端模块可以拥有前向迁移、模型、DTO、服务、受保护 API、权限、菜单投影与就绪检查；
+它不能替换认证、会话、CSRF、核心路由或迁移 registry。正向和负向授权测试必须同时
+证明允许与拒绝路径。
 
 ## 前端组合
 
-`@mss-boot-io/admin-web@1.3.5` 是唯一完整 SPA。Thin Host 使用公开 preset、runtime
-和 business 导出注册业务路由与菜单。核心路由先注册，业务扩展随后注册，403/404
-回退最后注册。
+未来完整发行只提供一个 Admin Web SPA。Thin Host 使用公开 preset、runtime 和 business
+导出注册业务路由与菜单；核心路由先注册，业务扩展随后注册，403/404 回退最后注册。
 
-业务页面必须覆盖 loading、empty、retryable error、denied、responsive 和 locale。
-浏览器 route guard 不替代后端授权。
+业务页面覆盖 loading、empty、retryable error、denied、responsive 和 locale。浏览器
+route guard 只改善体验，不能替代后端授权。v1.3.5 的概念性包身份不代表官方 npmjs
+安装路径存在。
 
-## 内置 Blueprint
+## Blueprint 与三方升级
 
-Release 构建把单一 Blueprint 源直接嵌入 `mss`，并注入版本、提交、时间戳和仓库。
-`mss new app` 在空目录也能：
+未来 Root Release 会把单一 Blueprint 源嵌入工具，并绑定版本、源提交、构建时间和仓库。
+创建流程先产生只读计划，再检查路径与未知文件、原子写入受管文件、固定同一完整版本的
+公共依赖，并写入 manifest、lock 与同源快照；第二次生成必须无差异。
 
-- 先产生只读计划；
-- 检查目标路径和未知文件；
-- 原子写入；
-- 可选初始化 Git；
-- 固定 v1.3.5 Go/npm 依赖与冻结锁；
-- 写入 manifest、lock 和同源快照；
-- 第二次生成无差异。
-
-## 三方升级
+三方升级比较：
 
 ```text
-旧 Blueprint 基线 + 当前 Thin Host + v1.3.5 新基线
+旧 Blueprint 基线 + 当前 Thin Host + 新完整版本基线
                          │
                          ▼
                  只读计划 / 冲突列表
                          │ 人工确认
                          ▼
-                  --apply --yes
+                       应用
 ```
 
-`mss upgrade admin v1.3.5` 默认只读。匹配版本从工具内置基线获取，不需要额外源码。
-三方比较要求仓库保留生成时的 `.mss/blueprint-manifest.json`；手工拼装或基线丢失的
-仓库必须迁入新生成的 Thin Host，不能伪造摘要。应用保留业务和未知文件，写入受管文件
-后最后更新快照；完成后第二次计划为空。
+仓库必须保留 `.mss/blueprint-manifest.json`。手工拼装或基线丢失的仓库迁入由目标完整
+版本生成的新 Thin Host，不得伪造摘要。应用只更新受管文件，保留业务和未知文件，最后
+更新快照；再次计划必须为空。v1.3.5 缺少 Root 工具与完整包图，不能执行这条升级路径。
 
-## 发布与公共验证
+## 完整发布与公共验证
 
-1. 通过 PR 合并全部代码、合同、文档和工作流；
-2. 冻结精确干净的 `origin/main` 提交；
-3. 发布 Framework 并执行外部 Go 解析；
-4. 发布 Admin 并执行外部组合测试；
-5. 发布 Admin Web 候选、镜像与 GitHub Release；
-6. 发布 Root 工具、安装脚本、摘要和来源；
-7. 发布 Docs；
-8. 最后发布官方 npmjs 包；
-9. 从空目录安装公开工具并验证完整 Thin Host 生命周期。
+未来未使用版本先在 main 上完成一次同版本、同提交的 Release candidate preview，再由
+`lwnmengjing` 依次推送 Framework、Admin、Admin Web 与 Root 正式 tag。各 tag 自行完成
+对应发布；Root tag 自动发布 Root Release、镜像、工具与官方 npmjs。Docs 不再阻塞包发布，
+内容确认后由独立的 `docs/vX.Y.Z` tag 后补。公共对账仍需匿名解析 Go/npm 依赖，并覆盖
+生成、升级、测试、构建、运行、权限与浏览器关键流程。
 
-任何修复都使用后续 PR 和补丁版本，不移动已公开 ref。
+任一门禁失败，后续阶段保持关闭。需要修复时通过后续 PR 合入 main，选择新的
+merged-main 提交并重新资格；不得移动或补附任何已公开 v1.3.5 身份。
 
 ## mss-shop 证明
 
-[mss-shop](/getting-started/mss-shop) 必须在 v1.3.5 公开后由 Release 工具生成，先提交
-未修改基线，再加入通用单租户商城模块。它验证包导入、业务所有权、升级、自动测试和
+[mss-shop](/getting-started/mss-shop) 必须等待维护者显式选择的未使用完整版本，再提交
+未修改生成基线并加入通用单租户商城模块。它验证包导入、业务所有权、升级、自动测试和
 Codex 内置浏览器流程，而不是复制 R1Shop 或 Foundation。

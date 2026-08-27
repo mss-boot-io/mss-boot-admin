@@ -1,11 +1,13 @@
 # Contributing to mss-boot-admin
 
-感谢你参与 mss-boot-admin。当前仓库维护 v1.3.5 Admin Distribution 的源代码、
-测试、文档、生成器和发布合同。
+感谢你参与 mss-boot-admin。当前仓库维护 Admin Distribution 的源代码、测试、文档、
+生成器，以及 v1.3.5 不可变部分发布后的恢复合同。
 
 如果你只是创建业务系统，请不要按本文 clone Foundation，也不要添加本地
-`replace`。请直接使用 [v1.3.5 快速开始](docs/docs/getting-started/index.md)，安装
-版本化 `mss` 工具并生成 Thin Host。本文只适用于修改 Foundation 本身的贡献者。
+`replace`。v1.3.5 已永久停止，未发布 Root 工具和完整 Thin Host 路径，不能用于创建或
+升级应用。已有采用者以 [v1.3.2 稳定记录](docs/docs/releases/archive/v1-3-2.md)为准；
+新应用等待未来显式选定并完成公共对账的版本。请先阅读
+[采用状态](docs/docs/getting-started/index.md)。本文只适用于修改 Foundation 本身的贡献者。
 
 ## 提交问题
 
@@ -169,7 +171,7 @@ go run ./cmd/mss verify --changed
 ```text
 feat(module): add supplier approval workflow
 fix(upgrade): preserve downstream-owned files
-docs(getting-started): clarify v1.3.5 package imports
+docs(release): record v1.3.5 immutable partial state
 ```
 
 只暂存本次变更，提交前检查差异和敏感信息：

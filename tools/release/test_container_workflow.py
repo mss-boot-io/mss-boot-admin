@@ -42,7 +42,9 @@ class ContainerWorkflowTest(unittest.TestCase):
         self.assertEqual(package_writers, ["publish"])
 
         release_jobs = [
-            name for name, job in self.jobs.items() if job.get("environment") == "release"
+            name
+            for name, job in self.jobs.items()
+            if job.get("environment") == "release-auto"
         ]
         self.assertEqual(release_jobs, ["publish"])
         self.assertNotIn("environment", self.jobs["build"])
@@ -72,20 +74,41 @@ class ContainerWorkflowTest(unittest.TestCase):
         self.assertEqual(
             condition,
             "${{ needs.build.outputs.publish == 'true' && "
+            "github.event_name == 'push' && "
             "github.ref_type == 'tag' && "
-            "github.ref_name == needs.build.outputs.version && "
-            "( github.event_name == 'push' || "
-            "(github.event_name == 'workflow_dispatch' && inputs.publish == true) ) }}",
+            "github.ref_name == needs.build.outputs.version }}",
         )
+        self.assertNotIn("workflow_dispatch", self.workflow["on"])
+        self.assertEqual(
+            set(self.workflow["on"]["workflow_call"]["inputs"]), {"version"}
+        )
+        self.assertIn("github.event_name == 'workflow_call'", self.workflow["run-name"])
+        self.assertNotIn("workflow_dispatch", self.workflow["run-name"])
 
-    def test_candidate_build_is_unpublished_and_smoke_tested(self):
+    def test_root_tag_container_run_does_not_share_the_root_release_lock(self):
+        self.assertEqual(
+            self.workflow["concurrency"]["group"],
+            "container-${{ github.event.pull_request.number || github.ref }}",
+        )
+        self.assertEqual(
+            self.workflow["concurrency"]["cancel-in-progress"],
+            "${{ !startsWith(github.ref, 'refs/tags/') }}",
+        )
+        root_content = (
+            REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("foundation-release-${{ github.ref }}", root_content)
+        self.assertNotIn("foundation-release-{0}", self.content)
+
+    def test_root_preview_qualifies_amd64_smoke_and_both_release_platforms(self):
         build_steps = self.jobs["build"]["steps"]
         build_info = next(step for step in build_steps if step.get("id") == "build-info")
         for required in (
             "publish=false",
+            'if [[ "${GITHUB_EVENT_NAME}" == "workflow_call" ]]',
             'version="${INPUT_VERSION}"',
-            'publish="${INPUT_PUBLISH}"',
             'elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]',
+            "publish=true",
             'stable=false',
             'if [[ "${version}" =~ ^v(0|[1-9][0-9]*)\\.',
             'echo "stable=${stable}"',
@@ -93,7 +116,44 @@ class ContainerWorkflowTest(unittest.TestCase):
         ):
             self.assertIn(required, build_info["run"])
         self.assertNotIn("--intent publish", build_info["run"])
+        self.assertNotIn("INPUT_PUBLISH", build_info["run"])
+        self.assertNotIn("workflow_dispatch", build_info["run"])
         self.assertNotIn("verify_readiness_run.sh", build_info["run"])
+
+        operator_gate = next(
+            step
+            for step in build_steps
+            if step.get("name") == "Require authorized release operator"
+        )
+        self.assertEqual(
+            operator_gate["if"],
+            "${{ github.event_name == 'workflow_call' || github.ref_type == 'tag' }}",
+        )
+
+        self.assertEqual(
+            set(self.workflow["on"]["workflow_call"]["inputs"]), {"version"}
+        )
+        self.assertEqual(
+            self.workflow["on"]["workflow_call"]["inputs"]["version"]["required"],
+            "true",
+        )
+
+        preview = next(
+            step
+            for step in build_steps
+            if step.get("name") == "Require successful exact preview"
+        )
+        self.assertEqual(
+            preview["if"], "steps.build-info.outputs.publish == 'true'"
+        )
+        for required in (
+            "tools/release/resolve_successful_preview.sh",
+            '--repository "${GITHUB_REPOSITORY}"',
+            '--commit "${GITHUB_SHA}"',
+            '--version "${RELEASE_VERSION}"',
+            "--actor lwnmengjing",
+        ):
+            self.assertIn(required, preview["run"])
 
         build_image = next(
             step
@@ -113,7 +173,7 @@ class ContainerWorkflowTest(unittest.TestCase):
         smoke = next(
             step for step in build_steps if step.get("name") == "Smoke-test candidate image"
         )
-        self.assertNotIn("if", smoke)
+        self.assertEqual(smoke["if"], "github.ref_type != 'tag'")
         for label in (
             "org.opencontainers.image.title=mss-boot-admin",
             "org.opencontainers.image.description=Complete Go Admin backend for the mss-boot agent-native management-system distribution.",
@@ -121,7 +181,44 @@ class ContainerWorkflowTest(unittest.TestCase):
             self.assertIn(label, build_image["with"]["labels"])
             self.assertIn(label.split("=", 1)[1], smoke["run"])
 
-    def test_publish_job_keeps_policy_readiness_and_image_evidence(self):
+        qualification = next(
+            step
+            for step in build_steps
+            if step.get("name") == "Qualify the exact multi-platform release image"
+        )
+        self.assertEqual(
+            qualification["if"], "github.event_name == 'workflow_call'"
+        )
+        self.assertEqual(qualification["with"]["push"], "false")
+        self.assertEqual(
+            qualification["with"]["platforms"], "linux/amd64,linux/arm64"
+        )
+        self.assertEqual(qualification["with"]["provenance"], "true")
+        self.assertEqual(qualification["with"]["sbom"], "true")
+
+        non_tag_ci_steps = {
+            "Setup Go",
+            "Vendor workspace for Docker context",
+            "Set up Docker Buildx",
+            "Extract Docker metadata",
+            "Build candidate image",
+            "Smoke-test candidate image",
+        }
+        for step in build_steps:
+            if step.get("name") in non_tag_ci_steps:
+                with self.subTest(step=step["name"]):
+                    self.assertEqual(step["if"], "github.ref_type != 'tag'")
+
+        root_preview_only_steps = {
+            "Set up QEMU",
+            "Qualify the exact multi-platform release image",
+        }
+        for step in build_steps:
+            if step.get("name") in root_preview_only_steps:
+                with self.subTest(step=step["name"]):
+                    self.assertEqual(step["if"], "github.event_name == 'workflow_call'")
+
+    def test_publish_job_keeps_policy_and_image_evidence_without_manual_gate(self):
         publish_steps = self.jobs["publish"]["steps"]
         authority = next(
             step
@@ -131,13 +228,18 @@ class ContainerWorkflowTest(unittest.TestCase):
         for required in (
             "check_release_policy.py",
             "--intent publish",
-            'readiness_run_id="${INPUT_READINESS_RUN_ID:-${RELEASE_READINESS_RUN_ID}}"',
-            "verify_readiness_run.sh",
-            '--run-id "${readiness_run_id}"',
-            "--phase pre-root",
+            '"${GITHUB_EVENT_NAME}" != "push"',
             '"${GITHUB_REF_NAME}" != "${RELEASE_VERSION}"',
         ):
             self.assertIn(required, authority["run"])
+        for forbidden in (
+            "INPUT_PUBLISH",
+            "READINESS_RUN_ID",
+            "verify_readiness_run.sh",
+            "workflow_dispatch",
+        ):
+            self.assertNotIn(forbidden, authority["run"])
+        self.assertNotIn("inputs.publish", self.content)
 
         publish_image = next(
             step
@@ -192,32 +294,7 @@ class ContainerWorkflowTest(unittest.TestCase):
             publish_steps.index(immutability), publish_steps.index(publish_image)
         )
 
-        recovered_alias = next(
-            step
-            for step in publish_steps
-            if step.get("name")
-            == "Restore stable alias from a recovered immutable image"
-        )
-        self.assertEqual(
-            recovered_alias["if"],
-            "${{ needs.build.outputs.stable == 'true' && steps.existing-image.outputs.exists == 'true' }}",
-        )
-        self.assertEqual(
-            recovered_alias["env"]["IMAGE_DIGEST"],
-            "${{ steps.existing-image.outputs.digest }}",
-        )
-        for required in (
-            "docker buildx imagetools create",
-            '--tag "${image_repository}:latest"',
-            '"${image_repository}@${IMAGE_DIGEST}"',
-        ):
-            self.assertIn(required, recovered_alias["run"])
-        self.assertLess(
-            publish_steps.index(publish_image), publish_steps.index(recovered_alias)
-        )
-        self.assertLess(publish_steps.index(recovered_alias), publish_steps.index(digest))
-
-    def test_only_stable_tags_receive_the_latest_alias(self):
+    def test_candidate_and_publish_metadata_never_create_latest_alias(self):
         metadata_steps = [
             step
             for job in self.jobs.values()
@@ -225,92 +302,67 @@ class ContainerWorkflowTest(unittest.TestCase):
             if step.get("uses", "").startswith("docker/metadata-action@")
         ]
         self.assertEqual(len(metadata_steps), 2)
-        stable_latest = (
-            "type=raw,value=latest,enable=${{ steps.build-info.outputs.stable == 'true' }}",
-            "type=raw,value=latest,enable=${{ needs.build.outputs.stable == 'true' }}",
-        )
-        for step, expected in zip(metadata_steps, stable_latest, strict=True):
+        for step in metadata_steps:
             with self.subTest(step=step.get("name")):
                 self.assertEqual(step["with"]["flavor"].strip(), "latest=false")
-                self.assertIn(expected, step["with"]["tags"])
+                self.assertIn("type=ref,event=tag", step["with"]["tags"])
+                self.assertIn(
+                    "type=sha,prefix=,format=long,enable=true,priority=100",
+                    step["with"]["tags"],
+                )
+                self.assertNotIn("value=latest", step["with"]["tags"])
                 self.assertNotIn("latest=auto", step["with"]["flavor"])
+        self.assertNotIn(":latest", self.content)
+        self.assertNotIn("Restore stable alias", self.content)
+        self.assertNotIn("imagetools create", self.content)
 
-    def test_stable_aliases_fail_closed_on_the_published_manifest_digest(self):
+    def test_immutable_version_tag_fails_closed_on_the_published_manifest_digest(self):
         publish_steps = self.jobs["publish"]["steps"]
-        alias = next(
+        verification = next(
             step
             for step in publish_steps
             if step.get("name")
-            == "Verify stable image aliases resolve to the published digest"
+            == "Verify immutable image tag resolves to the published digest"
         )
-        self.assertEqual(alias["if"], "${{ needs.build.outputs.stable == 'true' }}")
         self.assertEqual(
-            alias["env"]["EXPECTED_DIGEST"],
+            verification["env"]["EXPECTED_DIGEST"],
             "${{ steps.publish.outputs.digest || steps.existing-image.outputs.digest }}",
         )
         self.assertEqual(
-            alias["env"]["RELEASE_VERSION"], "${{ needs.build.outputs.version }}"
+            verification["env"]["RELEASE_VERSION"],
+            "${{ needs.build.outputs.version }}",
         )
         for required in (
             '"${image_repository}:${RELEASE_VERSION}"',
-            '"${image_repository}:latest"',
             "docker buildx imagetools inspect",
             "--format '{{json .Manifest}}'",
             "version_digest=\"$(jq -er '.digest'",
-            "latest_digest=\"$(jq -er '.digest'",
             '"${version_digest}" == "${EXPECTED_DIGEST}"',
-            '"${latest_digest}" == "${version_digest}"',
-            "stable image aliases do not resolve to the published manifest digest",
+            "immutable image tag does not resolve to the published manifest digest",
+            "for attempt in $(seq 1 12)",
             "exit 1",
         ):
-            self.assertIn(required, alias["run"])
-        self.assertNotIn("imagetools create", alias["run"])
-
-        alias_readers = [
-            step
-            for step in publish_steps
-            if ":latest" in step.get("run", "")
-            and "imagetools inspect" in step.get("run", "")
-        ]
-        self.assertEqual(alias_readers, [alias])
+            self.assertIn(required, verification["run"])
+        self.assertNotIn(":latest", verification["run"])
+        self.assertNotIn("imagetools create", verification["run"])
         publish_image = next(
             step
             for step in publish_steps
             if step.get("uses", "").startswith("docker/build-push-action@")
         )
-        self.assertLess(publish_steps.index(publish_image), publish_steps.index(alias))
-
-    def test_stable_classifier_accepts_only_exact_semver(self):
-        build_info = next(
-            step for step in self.jobs["build"]["steps"] if step.get("id") == "build-info"
+        self.assertLess(
+            publish_steps.index(publish_image), publish_steps.index(verification)
         )
-        script = build_info["run"]
-        start = script.index("stable=false")
-        end = script.index("\n{", start)
-        classifier = script[start:end]
-        for version, expected in (
-            ("v1.3.0", "true"),
-            ("v0.0.0", "true"),
-            ("v1.3.0-rc.6", "false"),
-            ("v1.3.0+build.1", "false"),
-            ("v01.3.0", "false"),
-            ("sha-0123456789ab", "false"),
+
+    def test_root_container_publication_does_not_wait_for_root_or_npm(self):
+        for forbidden in (
+            "gh run watch",
+            "gh workflow run",
+            "npm-release.yml",
+            "/actions/workflows/release.yml/runs",
+            "/actions/workflows/npm-release.yml/runs",
         ):
-            with self.subTest(version=version):
-                result = subprocess.run(
-                    [
-                        "bash",
-                        "-c",
-                        'version="$1"\n' + classifier + '\nprintf "%s" "$stable"',
-                        "stable-classifier",
-                        version,
-                    ],
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                )
-                self.assertEqual(result.returncode, 0, msg=result.stderr)
-                self.assertEqual(result.stdout, expected)
+            self.assertNotIn(forbidden, self.content)
 
     def test_all_run_blocks_are_valid_bash(self):
         for job_name, job in self.jobs.items():

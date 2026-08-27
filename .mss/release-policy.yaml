@@ -11,10 +11,15 @@ spec:
   nextPublicVersion: v1.3.5
   distributionVersion: v1.3.5
   distributionComponents: "root,framework,admin,frontend"
-  publicationWorkflowsReady: true
+  releaseTargetState: stopped
+  immutableStoppedVersion: v1.3.5
+  immutableStoppedPublicRefs: "root=v1.3.5,framework=mss-boot/v1.3.5,admin=admin/v1.3.5,frontend=web/antd-v6/v1.3.5,docs=docs/v1.3.5,npm=@mss-boot-io/admin-web@1.3.5"
+  publicationWorkflowsReady: false
+  docsRevisionPublicationReady: false
   publicPrereleases: false
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"
   adminTagTemplate: "admin/{version}"
   frontendTagTemplate: "web/antd-v6/{version}"
   docsTagTemplate: "docs/{version}"
+  npmPackageTemplate: "@mss-boot-io/admin-web@{npmVersion}"

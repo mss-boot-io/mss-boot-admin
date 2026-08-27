@@ -1,25 +1,28 @@
 ---
-title: Admin
+title: Admin 组件状态
 order: 1
 nav:
   title: Admin
   order: 3
-description: v1.3.5 完整 Admin 后端与浏览器应用的使用和扩展入口
+description: v1.3.5 Admin 已发布组件、缺失采用路径与未来完整发行的扩展入口
 ---
 
-# Admin v1.3.5
+# Admin v1.3.5 组件状态
 
-Admin 是一个协调发布的完整产品，不是业务仓库需要复制的模板：
+v1.3.5 是不可变部分发布，只公开了部分 Admin 组件：
 
 - Go Module `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5`；
-- npm Package `@mss-boot-io/admin-web@1.3.5`；
+- Admin Web GitHub Release、GitHub Packages 与前端镜像身份；
 - 编译期后端业务模块与显式前端业务路由；
 - 统一认证、授权、配置、迁移、应用壳和页面状态。
 
-这些 v1.3.5 身份在协调发行完成公共对账后才可供下游解析；候选期只描述组合边界，
-不允许用仓库源码或相邻版本代替公共包。
+但 Root Release 与工具、官方 npmjs 包 `@mss-boot-io/admin-web@1.3.5`、Docs 和后端
+镜像未发布，v1.3.5 因而不是可创建或升级的完整 Admin Distribution。公开组件保持
+不可变，不能用仓库源码、本地包、其他 registry 或相邻版本补齐。
 
-新应用从 [快速开始](/getting-started)生成 Thin Host；不要手工拼装核心启动逻辑。
+当前稳定版本仍是 **v1.3.2**。版本采用判断从[采用状态](/getting-started)进入；本节其余
+页面记录架构和仓库合同，不替代缺失的 v1.3.5 公共制品。未来完整版本仍会以 Thin Host
+承载业务组合，不要求业务仓库复制核心启动逻辑。
 
 ## 参考入口
 

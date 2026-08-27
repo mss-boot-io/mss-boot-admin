@@ -6,8 +6,9 @@ description: 明确隔离的 mss-boot-admin 源码贡献流程
 
 # Foundation 贡献者入门
 
-> 本页仅适用于修改 Foundation 本身的贡献者。创建业务应用请使用
-> [v1.3.5 快速开始](/getting-started)，不要照搬本页的源码命令。
+> 本页仅适用于修改 Foundation 本身的贡献者。v1.3.5 是不可变部分发布，不能创建完整
+> Thin Host；当前稳定版本仍是 v1.3.2。采用状态见[状态页](/getting-started)。下面内容
+> 是 source-only 贡献者合同，不是 v1.3.5 安装、生成或升级指引。
 
 ## 获取源码
 

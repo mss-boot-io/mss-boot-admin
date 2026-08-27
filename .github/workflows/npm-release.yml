@@ -1,21 +1,10 @@
 name: Official npm Release
+run-name: Official npm Release ${{ github.ref_name }}
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Exact stable Admin Distribution version (vX.Y.Z)
-        required: true
-        type: string
-      commit:
-        description: Exact full lowercase commit published by every coordinated component
-        required: true
-        type: string
-      allow_npm_token_bootstrap:
-        description: Use the release-v6 NPM_TOKEN only for the initial trusted-publisher bootstrap
-        required: true
-        default: false
-        type: boolean
+  push:
+    tags:
+      - 'v*.*.*'
 
 permissions:
   actions: read
@@ -25,15 +14,15 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: official-npm-${{ inputs.version }}-${{ inputs.commit }}
+  group: official-npm-publication
   cancel-in-progress: false
 
 jobs:
   publish:
     name: publish-existing-admin-web-tarball
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    environment: release-v6
+    timeout-minutes: 150
+    environment: npm-auto
     permissions:
       actions: read
       contents: read
@@ -41,38 +30,41 @@ jobs:
       packages: read
       pull-requests: read
     steps:
-      - name: Validate exact dispatch identity
+      - name: Require authorized release operator
         env:
-          INPUT_VERSION: ${{ inputs.version }}
-          INPUT_COMMIT: ${{ inputs.commit }}
+          RELEASE_ACTOR_LOGIN: lwnmengjing
         run: |
           set -euo pipefail
-          if [[ ! "${INPUT_VERSION}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo 'version must be an exact stable vX.Y.Z value' >&2
+          if [[ "${GITHUB_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" || "${GITHUB_TRIGGERING_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" ]]; then
+            echo "release operations must be initiated and triggered by ${RELEASE_ACTOR_LOGIN}" >&2
             exit 1
           fi
-          if [[ ! "${INPUT_COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
-            echo 'commit must be one full lowercase Git SHA' >&2
+
+      - name: Validate exact root tag identity
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" != 'push' || "${GITHUB_REF_TYPE}" != 'tag' ]]; then
+            echo 'official npm publication is authorized only by a root tag push' >&2
             exit 1
           fi
-          if [[ "${GITHUB_REF_TYPE}" != 'tag' || "${GITHUB_REF_NAME}" != "${INPUT_VERSION}" ]]; then
-            echo "dispatch this workflow from the exact ${INPUT_VERSION} root tag" >&2
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo 'root tag must be an exact stable vX.Y.Z value' >&2
             exit 1
           fi
-          if [[ "${GITHUB_SHA}" != "${INPUT_COMMIT}" ]]; then
-            echo 'workflow provenance ref does not equal the requested source commit' >&2
+          if [[ ! "${GITHUB_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'workflow provenance must be one full lowercase Git SHA' >&2
             exit 1
           fi
           {
-            echo "RELEASE_VERSION=${INPUT_VERSION}"
-            echo "RELEASE_COMMIT=${INPUT_COMMIT}"
-            echo "UNPREFIXED_VERSION=${INPUT_VERSION#v}"
+            echo "RELEASE_VERSION=${GITHUB_REF_NAME}"
+            echo "RELEASE_COMMIT=${GITHUB_SHA}"
+            echo "UNPREFIXED_VERSION=${GITHUB_REF_NAME#v}"
           } >> "${GITHUB_ENV}"
 
       - name: Checkout exact release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.commit }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Verify merged-main release source
@@ -93,7 +85,17 @@ jobs:
             --tag "web/antd-v6/${RELEASE_VERSION}" \
             --intent publish
 
-      - name: Require the complete exact-commit release train
+      - name: Require successful exact preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash tools/release/resolve_successful_preview.sh \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${RELEASE_COMMIT}" \
+            --version "${RELEASE_VERSION}" \
+            --actor lwnmengjing
+
+      - name: Require the exact frontend release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -127,76 +129,26 @@ jobs:
             printf '%s\n' "${object_sha}"
           }
 
-          while IFS= read -r component_tag; do
-            tag_commit="$(resolve_tag_commit "${component_tag}")"
-            if [[ "${tag_commit}" != "${RELEASE_COMMIT}" ]]; then
-              echo "tag ${component_tag} resolves to ${tag_commit}, not ${RELEASE_COMMIT}" >&2
+          frontend_tag="web/antd-v6/${RELEASE_VERSION}"
+          if ! tag_commit="$(resolve_tag_commit "${frontend_tag}" 2>/dev/null)"; then
+            echo "required frontend tag ${frontend_tag} is not available" >&2
+            exit 1
+          fi
+          if [[ "${tag_commit}" != "${RELEASE_COMMIT}" ]]; then
+            echo "tag ${frontend_tag} resolves to ${tag_commit}, not ${RELEASE_COMMIT}" >&2
+            exit 1
+          fi
+          if ! frontend_release="$(gh release view "${frontend_tag}" --json tagName,isDraft,isPrerelease 2>/dev/null)"; then
+            echo "required frontend release ${frontend_tag} is not public" >&2
+            exit 1
+          fi
+          jq -e \
+            --arg tag "${frontend_tag}" \
+            '.tagName == $tag and .isDraft == false and .isPrerelease == false' \
+            <<< "${frontend_release}" >/dev/null || {
+              echo "frontend release ${frontend_tag} has conflicting immutable identity" >&2
               exit 1
-            fi
-            release_json="$(
-              gh release view "${component_tag}" \
-                --json tagName,isDraft,isPrerelease
-            )"
-            jq -e \
-              --arg tag "${component_tag}" \
-              '.tagName == $tag and .isDraft == false and .isPrerelease == false' \
-              <<< "${release_json}" >/dev/null
-          done <<EOF
-          ${RELEASE_VERSION}
-          mss-boot/${RELEASE_VERSION}
-          admin/${RELEASE_VERSION}
-          web/antd-v6/${RELEASE_VERSION}
-          docs/${RELEASE_VERSION}
-          EOF
-
-          require_successful_workflow() {
-            local workflow="$1"
-            local component_ref="$2"
-            local event="$3"
-            local display_title="${4:-}"
-            local workflow_path=".github/workflows/${workflow}"
-            local runs
-            local successes
-
-            runs="$(gh api \
-              --method GET \
-              -H 'Accept: application/vnd.github+json' \
-              "/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs" \
-              -f head_sha="${RELEASE_COMMIT}" \
-              -f status=completed \
-              -f per_page=100)"
-            successes="$(jq \
-              --arg commit "${RELEASE_COMMIT}" \
-              --arg component_ref "${component_ref}" \
-              --arg event "${event}" \
-              --arg display_title "${display_title}" \
-              --arg workflow_path "${workflow_path}" \
-              '[.workflow_runs[] | select(
-                .event == $event and
-                .head_branch == $component_ref and
-                .head_sha == $commit and
-                .path == $workflow_path and
-                ($display_title == "" or .display_title == $display_title) and
-                .status == "completed" and
-                .conclusion == "success"
-              )] | length' <<< "${runs}")"
-            if [[ "${successes}" -lt 1 ]]; then
-              echo "no successful ${workflow} ${event} run named '${display_title}' exists for ${component_ref} at ${RELEASE_COMMIT}" >&2
-              exit 1
-            fi
-          }
-
-          while IFS='|' read -r workflow component_ref event display_title; do
-            require_successful_workflow "${workflow}" "${component_ref}" "${event}" "${display_title}"
-          done <<EOF
-          framework-release.yml|mss-boot/${RELEASE_VERSION}|push|
-          admin-release.yml|admin/${RELEASE_VERSION}|push|
-          frontend-v6-release.yml|web/antd-v6/${RELEASE_VERSION}|push|
-          docs.yml|docs/${RELEASE_VERSION}|push|
-          container.yml|${RELEASE_VERSION}|push|Container Image ${RELEASE_VERSION}
-          release.yml|${RELEASE_VERSION}|push|Root Release ${RELEASE_VERSION}
-          release.yml|${RELEASE_VERSION}|workflow_dispatch|Root Release publish ${RELEASE_VERSION}
-          EOF
+            }
 
       - name: Download and verify existing frontend package assets
         id: package
@@ -312,12 +264,13 @@ jobs:
              ."dist.integrity" == $integrity and
              (."dist.tarball" | type == "string" and length > 0)' \
             <<< "${metadata}" >/dev/null
-          latest="$(
+          mirror_dist_tag="$(printf '%s' "release-${UNPREFIXED_VERSION}" | tr '[:upper:].' '[:lower:]-')"
+          tagged_version="$(
             NPM_CONFIG_USERCONFIG="${npmrc}" npm view \
-              "${package}" dist-tags.latest --json \
+              "${package}" "dist-tags.${mirror_dist_tag}" --json \
               --registry=https://npm.pkg.github.com | jq -er '.'
           )"
-          test "${latest}" = "${UNPREFIXED_VERSION}"
+          test "${tagged_version}" = "${UNPREFIXED_VERSION}"
           github_tarball_url="$(jq -er '."dist.tarball"' <<< "${metadata}")"
           curl --fail --location --silent --show-error \
             --header "Authorization: Bearer ${NODE_AUTH_TOKEN}" \
@@ -333,6 +286,41 @@ jobs:
              .repository.full_name == $repository' \
             <<< "${package_record}" >/dev/null
           rm -f "${npmrc}"
+
+      - name: Select a monotonic official npm dist-tag
+        id: npm-tag
+        run: |
+          set -euo pipefail
+          package='@mss-boot-io/admin-web'
+          selected_tag=latest
+          expected_latest="${UNPREFIXED_VERSION}"
+          error_file="${RUNNER_TEMP}/npmjs-latest-error.log"
+          if current_latest="$(
+            npm view "${package}" dist-tags.latest --json \
+              --registry=https://registry.npmjs.org \
+              2> "${error_file}" | jq -er '.'
+          )"; then
+            rm -f "${error_file}"
+            if [[ ! "${current_latest}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "npmjs latest has an unexpected value: ${current_latest}" >&2
+              exit 1
+            fi
+            highest="$(printf '%s\n' "${current_latest}" "${UNPREFIXED_VERSION}" | sort -V | tail -n 1)"
+            if [[ "${highest}" != "${UNPREFIXED_VERSION}" ]]; then
+              selected_tag="$(printf '%s' "release-${UNPREFIXED_VERSION}" | tr '[:upper:].' '[:lower:]-')"
+              expected_latest="${current_latest}"
+            fi
+          else
+            if ! grep -Eqi 'E404|404 Not Found' "${error_file}"; then
+              echo 'npmjs latest lookup failed without an authoritative E404' >&2
+              exit 1
+            fi
+            rm -f "${error_file}"
+          fi
+          {
+            echo "dist-tag=${selected_tag}"
+            echo "expected-latest=${expected_latest}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Reconcile immutable npmjs publication state
         id: npmjs
@@ -393,71 +381,40 @@ jobs:
             echo "package_absent=${package_absent}"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Publish the existing tarball to official npm last
+      - name: Publish the existing tarball to official npm
         if: steps.npmjs.outputs.publish == 'true'
         env:
-          ALLOW_NPM_TOKEN_BOOTSTRAP: ${{ inputs.allow_npm_token_bootstrap }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           PACKAGE_ABSENT: ${{ steps.npmjs.outputs.package_absent }}
           PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
+          NPM_DIST_TAG: ${{ steps.npm-tag.outputs.dist-tag }}
         run: |
           set -euo pipefail
-          package='@mss-boot-io/admin-web'
-          bootstrap_npmrc="${RUNNER_TEMP}/npmjs-bootstrap.npmrc"
-          authenticated_error="${RUNNER_TEMP}/npmjs-authenticated-package-view-error.log"
-          cleanup_bootstrap() {
-            rm -f "${bootstrap_npmrc}" "${authenticated_error}"
-          }
-          trap cleanup_bootstrap EXIT
           case "${PACKAGE_ABSENT}" in
             true|false) ;;
             *) echo 'npmjs package existence was not authoritatively classified' >&2; exit 1 ;;
           esac
-          if [[ "${ALLOW_NPM_TOKEN_BOOTSTRAP}" == 'true' ]]; then
-            if [[ "${PACKAGE_ABSENT}" != 'true' ]]; then
-              echo 'NPM_TOKEN bootstrap is allowed only while the entire npmjs package is absent' >&2
-              exit 1
-            fi
-            if [[ -z "${NPM_TOKEN}" ]]; then
-              echo 'NPM_TOKEN bootstrap was requested but the release-v6 environment secret is empty' >&2
-              exit 1
-            fi
-            printf '//registry.npmjs.org/:_authToken=%s\n' "${NPM_TOKEN}" > "${bootstrap_npmrc}"
-            chmod 600 "${bootstrap_npmrc}"
-            export NPM_CONFIG_USERCONFIG="${bootstrap_npmrc}"
-            if npm view "${package}@*" name --json \
-                --registry=https://registry.npmjs.org \
-                2> "${authenticated_error}" | jq -e --arg package "${package}" '
-                  if type == "string" then . == $package
-                  elif type == "array" then length > 0 and all(.[]; . == $package)
-                  else false
-                  end
-                ' >/dev/null; then
-              echo "npmjs package ${package} already exists for the bootstrap token; refusing bootstrap" >&2
-              exit 1
-            fi
-            if ! grep -Eqi 'E404|404 Not Found' "${authenticated_error}"; then
-              echo 'authenticated npmjs package existence check failed without an authoritative E404' >&2
-              exit 1
-            fi
-            rm -f "${authenticated_error}"
-          else
-            if [[ "${PACKAGE_ABSENT}" == 'true' ]]; then
-              echo 'the first npmjs package creation requires the explicit one-time token bootstrap' >&2
-              exit 1
-            fi
-            unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG
+          case "${NPM_DIST_TAG}" in
+            latest|release-*) ;;
+            *) echo "unsupported npm dist-tag: ${NPM_DIST_TAG}" >&2; exit 1 ;;
+          esac
+          if [[ "${PACKAGE_ABSENT}" == 'true' ]]; then
+            echo 'the first npmjs package creation requires a separately reviewed one-time bootstrap; the automatic tag workflow is trusted-publishing only' >&2
+            exit 1
           fi
+          unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG
           npm publish "${PACKAGE_TARBALL}" \
             --access public \
-            --tag latest \
+            --tag "${NPM_DIST_TAG}" \
             --provenance \
             --registry=https://registry.npmjs.org
 
-      - name: Verify npmjs integrity provenance identity and consumer install
+      - name: Verify npmjs integrity provenance and immutable identity
         env:
           PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
           PACKAGE_EVIDENCE: ${{ steps.package.outputs.evidence }}
+          NPM_DIST_TAG: ${{ steps.npm-tag.outputs.dist-tag }}
+          EXPECTED_LATEST: ${{ steps.npm-tag.outputs.expected-latest }}
+          VERSION_WAS_PUBLISHED: ${{ steps.npmjs.outputs.publish }}
         run: |
           set -euo pipefail
           package='@mss-boot-io/admin-web'
@@ -490,7 +447,17 @@ jobs:
                 npm view "${package}" dist-tags.latest --json \
                   --registry=https://registry.npmjs.org 2>/dev/null | jq -er '.'
               )" || latest=''
-              if [[ "${latest}" == "${UNPREFIXED_VERSION}" ]]; then
+              selected_tag_matches=true
+              if [[ "${VERSION_WAS_PUBLISHED}" == 'true' && "${NPM_DIST_TAG}" != 'latest' ]]; then
+                selected_version="$(
+                  npm view "${package}" "dist-tags.${NPM_DIST_TAG}" --json \
+                    --registry=https://registry.npmjs.org 2>/dev/null | jq -er '.'
+                )" || selected_version=''
+                if [[ "${selected_version}" != "${UNPREFIXED_VERSION}" ]]; then
+                  selected_tag_matches=false
+                fi
+              fi
+              if [[ "${latest}" == "${EXPECTED_LATEST}" && "${selected_tag_matches}" == 'true' ]]; then
                 tarball_url="$(jq -er '."dist.tarball"' <<< "${metadata}")"
                 if curl --fail --location --silent --show-error \
                   --output "${published_tarball}" \
@@ -510,28 +477,3 @@ jobs:
             echo 'npmjs package identity did not converge after bounded verification' >&2
             exit 1
           fi
-
-          consumer_dir="$(mktemp -d)"
-          cleanup_consumer() {
-            rm -rf "${consumer_dir}"
-          }
-          trap cleanup_consumer EXIT
-          (
-            cd "${consumer_dir}"
-            npm init --yes >/dev/null
-            npm install \
-              --ignore-scripts \
-              --no-audit \
-              --no-fund \
-              --package-lock=false \
-              --registry=https://registry.npmjs.org \
-              "${package}@${UNPREFIXED_VERSION}"
-            EXPECTED_VERSION="${UNPREFIXED_VERSION}" \
-            EXPECTED_COMMIT="${RELEASE_COMMIT}" \
-              node <<'NODE'
-          const manifest = require('@mss-boot-io/admin-web/package.json');
-          if (manifest.name !== '@mss-boot-io/admin-web') process.exit(1);
-          if (manifest.version !== process.env.EXPECTED_VERSION) process.exit(1);
-          if (manifest.gitHead !== process.env.EXPECTED_COMMIT) process.exit(1);
-          NODE
-          )

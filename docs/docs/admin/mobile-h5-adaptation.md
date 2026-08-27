@@ -10,8 +10,14 @@ keywords: [v1.3.5 thin host admin mobile responsive accessibility]
 
 ## 目标
 
-`web/` 通过 `@mss-boot-io/admin-web@1.3.5` 组合唯一 Admin 前端。桌面和移动端
-共享同一套业务组件、权限判断、请求契约和
+:::warning
+v1.3.5 是不可变部分发布，`@mss-boot-io/admin-web@1.3.5` 的官方 npmjs 包与完整
+Thin Host 路径未发布；当前稳定版本仍是 v1.3.2。本页记录 Foundation 源码中的响应式
+能力和未来完整发行合同，不是 v1.3.5 前端采用指引。
+:::
+
+未来完整 Admin Web 只组合一个前端应用。桌面和移动端共享同一套业务组件、权限判断、
+请求契约和
 表单校验，不维护两份页面实现。移动适配解决信息密度、触摸操作和导航可达性，不能改变
 后端权限或业务语义。
 
@@ -35,15 +41,9 @@ keywords: [v1.3.5 thin host admin mobile responsive accessibility]
 
 ## 开发调试
 
-从 Thin Host 根目录启动完整开发拓扑：
-
-```sh
-mss dev --detach
-mss dev status
-```
-
-默认访问 `http://localhost:8001`。浏览器设备模式只能作为快速检查，发布证据还必须包含
-真实 Playwright mobile project 和内置浏览器人工验收。
+Foundation 源码开发按 `.mss/commands.yaml` 运行前后端与针对性检查；这属于贡献者
+合同，不表示 v1.3.5 Release 工具存在。浏览器设备模式只能作为快速检查，发布证据还
+必须包含真实 Playwright mobile project 和 Codex 内置浏览器人工验收。
 
 ## 验收视口
 
@@ -66,12 +66,6 @@ mss dev status
 
 ## 发布门禁
 
-开发阶段只做针对性检查；提 PR 前统一运行：
-
-```sh
-mss verify --changed
-mss verify --all
-```
-
-体积优化在功能追平和体验闭环后统一处理，但生产构建、运行时依赖契约和控制台零弃用
-警告始终是发布门禁。
+开发阶段先做针对性检查，提 PR 前按仓库 `.mss/commands.yaml` 扩大验证。一般源码
+`verify` 合同可以继续使用，但不能被解释为 v1.3.5 下游工具命令。体积优化在功能追平
+和体验闭环后统一处理，生产构建、运行时依赖契约和控制台零弃用警告始终是发布门禁。

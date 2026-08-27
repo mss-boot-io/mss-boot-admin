@@ -27,13 +27,18 @@ REQUIRED_KEYS = {
     "nextPublicVersion",
     "distributionVersion",
     "distributionComponents",
+    "releaseTargetState",
+    "immutableStoppedVersion",
+    "immutableStoppedPublicRefs",
     "publicationWorkflowsReady",
+    "docsRevisionPublicationReady",
     "publicPrereleases",
     "rootTagTemplate",
     "frameworkTagTemplate",
     "adminTagTemplate",
     "frontendTagTemplate",
     "docsTagTemplate",
+    "npmPackageTemplate",
 }
 COMPONENT_TEMPLATE_KEYS = {
     "root": "rootTagTemplate",
@@ -41,8 +46,19 @@ COMPONENT_TEMPLATE_KEYS = {
     "admin": "adminTagTemplate",
     "frontend": "frontendTagTemplate",
     "docs": "docsTagTemplate",
+    "npm": "npmPackageTemplate",
 }
 COORDINATED_COMPONENTS = ("root", "framework", "admin", "frontend")
+PERMANENTLY_STOPPED_VERSION = "v1.3.5"
+PERMANENTLY_STOPPED_PUBLIC_REFS = {
+    "root": "v1.3.5",
+    "framework": "mss-boot/v1.3.5",
+    "admin": "admin/v1.3.5",
+    "frontend": "web/antd-v6/v1.3.5",
+    "docs": "docs/v1.3.5",
+    "npm": "@mss-boot-io/admin-web@1.3.5",
+}
+IMMUTABLE_STOPPED_COMPONENTS = tuple(PERMANENTLY_STOPPED_PUBLIC_REFS)
 
 
 class PolicyError(ValueError):
@@ -58,6 +74,58 @@ def parse_scalar(value: str) -> str | bool:
     if value == "false":
         return False
     return value
+
+
+def release_ref(
+    policy: dict[str, str | bool], component: str, version: str
+) -> str:
+    template_key = COMPONENT_TEMPLATE_KEYS.get(component)
+    if template_key is None:
+        raise PolicyError(f"unsupported release component: {component}")
+    template = policy[template_key]
+    placeholder = "{npmVersion}" if component == "npm" else "{version}"
+    if not isinstance(template, str) or template.count(placeholder) != 1:
+        raise PolicyError(f"invalid tag or package template for component {component}")
+    if component == "npm":
+        if not version.startswith("v"):
+            raise PolicyError("npm release version must use the canonical v-prefixed input")
+        return template.format(npmVersion=version[1:])
+    return template.format(version=version)
+
+
+def immutable_stopped_public_refs(
+    policy: dict[str, str | bool],
+) -> dict[str, str]:
+    raw_refs = policy["immutableStoppedPublicRefs"]
+    if not isinstance(raw_refs, str) or not raw_refs:
+        raise PolicyError(
+            "release policy immutableStoppedPublicRefs must be a non-empty mapping"
+        )
+
+    refs: dict[str, str] = {}
+    for entry in raw_refs.split(","):
+        component, separator, public_ref = entry.partition("=")
+        if not separator or not component or not public_ref:
+            raise PolicyError(
+                "release policy immutableStoppedPublicRefs must use component=ref entries"
+            )
+        if component not in IMMUTABLE_STOPPED_COMPONENTS:
+            raise PolicyError(
+                f"release policy immutableStoppedPublicRefs has unsupported component {component}"
+            )
+        if component in refs:
+            raise PolicyError(
+                f"release policy immutableStoppedPublicRefs duplicates component {component}"
+            )
+        refs[component] = public_ref
+
+    missing = sorted(set(IMMUTABLE_STOPPED_COMPONENTS) - refs.keys())
+    if missing:
+        raise PolicyError(
+            "release policy immutableStoppedPublicRefs is missing components: "
+            + ", ".join(missing)
+        )
+    return refs
 
 
 def load_policy(path: Path) -> dict[str, str | bool]:
@@ -104,6 +172,7 @@ def load_policy(path: Path) -> dict[str, str | bool]:
         )
     for key in (
         "publicationWorkflowsReady",
+        "docsRevisionPublicationReady",
         "publicPrereleases",
     ):
         if not isinstance(policy[key], bool):
@@ -115,6 +184,24 @@ def load_policy(path: Path) -> dict[str, str | bool]:
     if policy["distributionVersion"] != policy["nextPublicVersion"]:
         raise PolicyError(
             "release policy distributionVersion must equal nextPublicVersion"
+        )
+    target_state = policy["releaseTargetState"]
+    if target_state not in {"active", "stopped"}:
+        raise PolicyError("release policy releaseTargetState must be active or stopped")
+    stopped_version = policy["immutableStoppedVersion"]
+    if stopped_version != PERMANENTLY_STOPPED_VERSION:
+        raise PolicyError(
+            "release policy immutableStoppedVersion must preserve v1.3.5 permanently"
+        )
+    if policy["nextPublicVersion"] == stopped_version and target_state != "stopped":
+        raise PolicyError(
+            "release policy releaseTargetState must be stopped while v1.3.5 remains "
+            "the unselectable legacy target"
+        )
+    if policy["nextPublicVersion"] != stopped_version and target_state != "active":
+        raise PolicyError(
+            "release policy releaseTargetState must be active for a reviewed target "
+            "that is not permanently stopped"
         )
     if "-" in policy["currentStableVersion"]:
         raise PolicyError("release policy currentStableVersion must not be a prerelease")
@@ -134,6 +221,18 @@ def load_policy(path: Path) -> dict[str, str | bool]:
     commit = policy["currentStableCommit"]
     if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise PolicyError("release policy currentStableCommit must be a full commit SHA")
+    stopped_refs = immutable_stopped_public_refs(policy)
+    if stopped_refs != PERMANENTLY_STOPPED_PUBLIC_REFS:
+        raise PolicyError(
+            "release policy immutableStoppedPublicRefs must preserve every exact "
+            "v1.3.5 public or stopped ref permanently"
+        )
+    for component in IMMUTABLE_STOPPED_COMPONENTS:
+        expected = release_ref(policy, component, stopped_version)
+        if stopped_refs[component] != expected:
+            raise PolicyError(
+                f"release policy immutable stopped {component} ref must remain {expected!r}"
+            )
     return policy
 
 
@@ -144,10 +243,7 @@ def coordinated_tags(
 
     tags: dict[str, str] = {}
     for component in COORDINATED_COMPONENTS:
-        template = policy[COMPONENT_TEMPLATE_KEYS[component]]
-        if not isinstance(template, str) or template.count("{version}") != 1:
-            raise PolicyError(f"invalid tag template for component {component}")
-        tag = template.format(version=version)
+        tag = release_ref(policy, component, version)
         check_public_ref(policy, component, version, tag, intent="qualify")
         tags[component] = tag
     return tags
@@ -160,11 +256,28 @@ def check_public_ref(
     tag: str,
     intent: str = "publish",
 ) -> None:
+    if intent not in {"qualify", "publish"}:
+        raise PolicyError(f"unsupported release intent: {intent}")
     docs_revision = (
         DOCS_REVISION_RE.fullmatch(version) if component == "docs" else None
     )
     if not VERSION_RE.fullmatch(version) and docs_revision is None:
         raise PolicyError(f"invalid release version: {version}")
+    expected = release_ref(policy, component, version)
+    if tag != expected:
+        raise PolicyError(
+            f"tag or package ref {tag!r} does not match the {component} release ref "
+            f"{expected!r}"
+        )
+
+    stopped_version = policy["immutableStoppedVersion"]
+    stopped_refs = immutable_stopped_public_refs(policy)
+    if version == stopped_version or tag in stopped_refs.values():
+        raise PolicyError(
+            f"{component} public ref {tag!r} belongs to immutable stopped version "
+            f"{stopped_version}; qualify and publish are permanently forbidden"
+        )
+
     target = policy["nextPublicVersion"]
     if docs_revision is not None:
         stable = policy["currentStableVersion"]
@@ -173,27 +286,27 @@ def check_public_ref(
                 f"docs revision base {docs_revision.group('base')} is forbidden "
                 f"while current stable is {stable}"
             )
+        if policy["docsRevisionPublicationReady"] is not True:
+            raise PolicyError(
+                "docs revision qualification and publication remain disabled until policy "
+                "binds an exact new revision tag, current-stable baseline, and new "
+                "merged-main source"
+            )
     elif version != target:
         raise PolicyError(
             f"public version {version} is forbidden while the reviewed target is {target}"
         )
-    if intent not in {"qualify", "publish"}:
-        raise PolicyError(f"unsupported release intent: {intent}")
-    if intent == "publish" and policy["publicationWorkflowsReady"] is not True:
+    if (
+        intent == "publish"
+        and docs_revision is None
+        and policy["publicationWorkflowsReady"] is not True
+    ):
         raise PolicyError(
-            "public component tags and artifacts remain disabled until the complete phase "
-            "runner, evidence attestation, protected write jobs, and tag rules are ready"
+            "public component tags and artifacts remain disabled until the complete "
+            "tag-driven workflows, protected write jobs, and tag rules are ready"
         )
     if "-" in version and policy["publicPrereleases"] is not True:
         raise PolicyError("public prerelease tags are disabled during development-first mode")
-    template = policy[COMPONENT_TEMPLATE_KEYS[component]]
-    if not isinstance(template, str) or template.count("{version}") != 1:
-        raise PolicyError(f"invalid tag template for component {component}")
-    expected = template.format(version=version)
-    if tag != expected:
-        raise PolicyError(
-            f"tag {tag!r} does not match the {component} release ref {expected!r}"
-        )
 
 
 def main(argv: list[str] | None = None) -> int:

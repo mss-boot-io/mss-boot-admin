@@ -2,29 +2,34 @@
 
 [English](./README.md)
 
-v1.3.5 候选计划把
-`github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5` 作为完整 Admin 发行版中
-可复用、领域无关的 Go Framework 发布。仅在公共 Module 与协调发行提交完成对账后
-执行下面的安装命令。
+## v1.3.5 组件状态
 
-```sh
-go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5
-```
+v1.3.5 是不可变部分发布。Framework 组件
+`github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5` 已公开并继续绑定原始发布
+提交，但 Root 工具、官方 npmjs 包、Docs、后端镜像和完整 Thin Host 资格未发布。
 
-它提供生命周期、配置、日志、缓存、队列、锁、存储、传输、迁移、响应、条件、重试、
-幂等与协调等基础能力；不包含 Admin 实体、菜单、业务流程、React 代码或 Agent 编排。
+发布策略仍将 **v1.3.2** 定义为当前稳定发行版。v1.3.5 Go 组件只能作为不可变审计证据
+和独立 Framework 身份，不能与其他补丁版本、本地替换、源码检出或未发布包混合，拼成
+完整 Admin Distribution。
 
-受支持的依赖方向是：
+## Framework 边界
+
+mss-boot 提供生命周期、配置、日志、缓存、队列、锁、存储、传输、迁移、响应、条件、
+重试、幂等与协调等基础能力；不包含 Admin 实体、菜单、业务流程、React 代码或 Agent
+编排。
+
+未来完整发行的受支持依赖方向是：
 
 ```text
 Thin Host 业务代码 -> Admin -> mss-boot
 ```
 
-大多数应用应导入完整 Admin Module，并让 Go 传递解析匹配的 Framework。只有在扩展
-领域无关基础设施时才直接导入 `mss-boot`，并精确固定 v1.3.5。
+大多数应用应依赖完整 Admin Module，并让 Go 传递解析匹配的 Framework。只有领域无关
+基础设施扩展才直接依赖 Framework。这是未来完整发行合同，不是 v1.3.5 Thin Host 安装
+路径。
 
-公开 API、配置键、接口和持久化行为都是兼容性表面。参见
-[包合同](../docs/docs/getting-started/packages.md) 与
+公开 API、配置键、接口和持久化行为仍是兼容性表面。参见
+[包发布状态](../docs/docs/getting-started/packages.md) 与
 [`CHANGELOG.md`](./CHANGELOG.md)。
 
-仓库源码测试命令仅面向贡献者，保留在 [`AGENTS.md`](./AGENTS.md)。
+仓库源码测试命令是 source-only 贡献者合同，保留在 [`AGENTS.md`](./AGENTS.md)。

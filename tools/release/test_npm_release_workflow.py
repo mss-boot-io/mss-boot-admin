@@ -21,30 +21,43 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
     def step(self, name):
         return next(step for step in self.steps if step.get("name") == name)
 
-    def test_is_manual_only_and_binds_provenance_to_the_exact_tag_commit(self):
-        self.assertEqual(set(self.workflow["on"]), {"workflow_dispatch"})
-        inputs = self.workflow["on"]["workflow_dispatch"]["inputs"]
-        self.assertEqual(inputs["version"]["required"], "true")
-        self.assertEqual(inputs["commit"]["required"], "true")
-        self.assertEqual(inputs["allow_npm_token_bootstrap"]["default"], "false")
+    def test_root_tag_push_automatically_binds_the_exact_release_identity(self):
+        self.assertEqual(set(self.workflow["on"]), {"push"})
+        self.assertEqual(self.workflow["on"]["push"]["tags"], ["v*.*.*"])
 
-        identity = self.step("Validate exact dispatch identity")["run"]
+        identity = self.step("Validate exact root tag identity")["run"]
         for required in (
             "^v(0|[1-9][0-9]*)",
             "^[0-9a-f]{40}$",
+            '"${GITHUB_EVENT_NAME}" != \'push\'',
             '"${GITHUB_REF_TYPE}" != \'tag\'',
-            '"${GITHUB_REF_NAME}" != "${INPUT_VERSION}"',
-            '"${GITHUB_SHA}" != "${INPUT_COMMIT}"',
+            "RELEASE_VERSION=${GITHUB_REF_NAME}",
+            "RELEASE_COMMIT=${GITHUB_SHA}",
         ):
             self.assertIn(required, identity)
 
         checkout = self.step("Checkout exact release commit")
-        self.assertEqual(checkout["with"]["ref"], "${{ inputs.commit }}")
+        self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")
         self.assertEqual(checkout["with"]["fetch-depth"], "0")
+        for forbidden in (
+            "workflow_dispatch",
+            "inputs.version",
+            "inputs.commit",
+            "allow_npm_token_bootstrap",
+            "Root Release publish",
+        ):
+            self.assertNotIn(forbidden, self.content)
 
     def test_uses_the_trusted_publisher_environment_and_minimal_permissions(self):
         self.assertEqual(self.job["runs-on"], "ubuntu-24.04")
-        self.assertEqual(self.job["environment"], "release-v6")
+        self.assertEqual(self.job["environment"], "npm-auto")
+        self.assertEqual(
+            self.workflow["concurrency"],
+            {
+                "group": "official-npm-publication",
+                "cancel-in-progress": "false",
+            },
+        )
         self.assertEqual(
             self.job["permissions"],
             {
@@ -67,35 +80,39 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("minor < 5", npm_setup)
         self.assertIn("patch < 1", npm_setup)
 
-    def test_requires_merged_main_and_the_complete_stable_release_train(self):
+    def test_requires_merged_main_preview_and_only_the_frontend_release(self):
         source = self.step("Verify merged-main release source")["run"]
         self.assertIn("verify_release_source.py", source)
         self.assertIn('--commit "${RELEASE_COMMIT}"', source)
         self.assertIn('--tag "${RELEASE_VERSION}"', source)
         self.assertIn("--intent publish", source)
 
-        train = self.step("Require the complete exact-commit release train")["run"]
+        preview = self.step("Require successful exact preview")["run"]
+        self.assertIn("resolve_successful_preview.sh", preview)
+        self.assertIn('--commit "${RELEASE_COMMIT}"', preview)
+        self.assertIn('--version "${RELEASE_VERSION}"', preview)
+        self.assertIn("--actor lwnmengjing", preview)
+
+        train = self.step("Require the exact frontend release")["run"]
         for required in (
-            "${RELEASE_VERSION}\n",
-            "mss-boot/${RELEASE_VERSION}",
-            "admin/${RELEASE_VERSION}",
             "web/antd-v6/${RELEASE_VERSION}",
-            "docs/${RELEASE_VERSION}",
+            "--json tagName,isDraft,isPrerelease",
             ".isDraft == false",
             ".isPrerelease == false",
-            "framework-release.yml|mss-boot/${RELEASE_VERSION}|push|",
-            "admin-release.yml|admin/${RELEASE_VERSION}|push|",
-            "frontend-v6-release.yml|web/antd-v6/${RELEASE_VERSION}|push|",
-            "docs.yml|docs/${RELEASE_VERSION}|push|",
-            "container.yml|${RELEASE_VERSION}|push|Container Image ${RELEASE_VERSION}",
-            "release.yml|${RELEASE_VERSION}|push|Root Release ${RELEASE_VERSION}",
-            "release.yml|${RELEASE_VERSION}|workflow_dispatch|Root Release publish ${RELEASE_VERSION}",
-            ".head_branch == $component_ref",
-            ".head_sha == $commit",
-            ".display_title == $display_title",
-            ".conclusion == \"success\"",
+            "required frontend tag ${frontend_tag} is not available",
+            "required frontend release ${frontend_tag} is not public",
         ):
             self.assertIn(required, train)
+        for unrelated_prerequisite in (
+            "mss-boot/${RELEASE_VERSION}",
+            "admin/${RELEASE_VERSION}",
+            "container.yml",
+            "release.yml",
+            "docs.yml",
+        ):
+            self.assertNotIn(unrelated_prerequisite, train)
+        self.assertNotIn("for attempt in", train)
+        self.assertNotIn("sleep ", train)
 
     def test_downloads_and_qualifies_existing_assets_without_rebuilding(self):
         assets = self.step("Download and verify existing frontend package assets")[
@@ -133,13 +150,52 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
             "https://npm.pkg.github.com",
             'version gitHead dist.integrity dist.tarball --json',
             '."dist.integrity" == $integrity',
-            "dist-tags.latest",
+            '"release-${UNPREFIXED_VERSION}"',
+            "tr '[:upper:].' '[:lower:]-'",
+            '"dist-tags.${mirror_dist_tag}"',
             'Authorization: Bearer ${NODE_AUTH_TOKEN}',
             'cmp -- "${PACKAGE_TARBALL}" "${github_tarball}"',
             "/packages/npm/admin-web",
             ".repository.full_name == $repository",
         ):
             self.assertIn(required, github_packages)
+        self.assertNotIn("dist-tags.latest", github_packages)
+
+    def test_official_dist_tag_is_monotonic_and_old_versions_are_version_scoped(self):
+        selector = self.step("Select a monotonic official npm dist-tag")
+        self.assertEqual(selector["id"], "npm-tag")
+        script = selector["run"]
+        for required in (
+            "selected_tag=latest",
+            'expected_latest="${UNPREFIXED_VERSION}"',
+            'npm view "${package}" dist-tags.latest --json',
+            'sort -V | tail -n 1',
+            '"${highest}" != "${UNPREFIXED_VERSION}"',
+            '"release-${UNPREFIXED_VERSION}"',
+            'expected_latest="${current_latest}"',
+            'echo "dist-tag=${selected_tag}"',
+            'echo "expected-latest=${expected_latest}"',
+        ):
+            self.assertIn(required, script)
+
+        publish = self.step("Publish the existing tarball to official npm")
+        self.assertEqual(
+            publish["env"]["NPM_DIST_TAG"],
+            "${{ steps.npm-tag.outputs.dist-tag }}",
+        )
+        self.assertIn("latest|release-*", publish["run"])
+        self.assertIn('--tag "${NPM_DIST_TAG}"', publish["run"])
+
+        verify = self.step(
+            "Verify npmjs integrity provenance and immutable identity"
+        )
+        self.assertEqual(
+            verify["env"]["EXPECTED_LATEST"],
+            "${{ steps.npm-tag.outputs.expected-latest }}",
+        )
+        self.assertIn('"${latest}" == "${EXPECTED_LATEST}"', verify["run"])
+        self.assertIn('"dist-tags.${NPM_DIST_TAG}"', verify["run"])
+        self.assertIn('"${NPM_DIST_TAG}" != \'latest\'', verify["run"])
 
     def test_npmjs_preflight_is_fail_closed_and_safe_to_rerun(self):
         reconcile = self.step("Reconcile immutable npmjs publication state")
@@ -161,43 +217,32 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
             self.assertIn(required, script)
         self.assertNotIn("npm unpublish", self.content)
         self.assertNotIn("npm deprecate", self.content)
-        self.assertNotIn("npm dist-tag", self.content)
+        self.assertNotRegex(self.content, r"\bnpm dist-tag (?:add|rm)\b")
 
-    def test_official_publish_is_the_only_and_last_external_mutation(self):
-        publish = self.step("Publish the existing tarball to official npm last")
+    def test_official_publish_is_the_only_external_mutation(self):
+        publish = self.step("Publish the existing tarball to official npm")
         self.assertEqual(publish["if"], "steps.npmjs.outputs.publish == 'true'")
-        self.assertEqual(
-            publish["env"]["NPM_TOKEN"], "${{ secrets.NPM_TOKEN }}"
-        )
+        self.assertNotIn("NPM_TOKEN", publish["env"])
         script = publish["run"]
         for required in (
-            "ALLOW_NPM_TOKEN_BOOTSTRAP",
             "PACKAGE_ABSENT",
-            "bootstrap is allowed only while the entire npmjs package is absent",
-            'npm view "${package}@*" name --json',
-            'all(.[]; . == $package)',
-            "authenticated npmjs package existence check failed without an authoritative E404",
-            "already exists for the bootstrap token; refusing bootstrap",
-            "the first npmjs package creation requires the explicit one-time token bootstrap",
+            "the first npmjs package creation requires a separately reviewed one-time bootstrap",
+            "the automatic tag workflow is trusted-publishing only",
             "unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG",
             "npm publish",
             "--access public",
-            "--tag latest",
+            '--tag "${NPM_DIST_TAG}"',
             "--provenance",
             "--registry=https://registry.npmjs.org",
         ):
             self.assertIn(required, script)
-        self.assertLess(
-            script.index('npm view "${package}@*" name --json'),
-            script.index("npm publish"),
-        )
-        self.assertNotIn("::add-mask::${NPM_TOKEN}", script)
-        self.assertNotIn('echo "${NPM_TOKEN}"', script)
+        self.assertNotIn("ALLOW_NPM_TOKEN_BOOTSTRAP", script)
+        self.assertNotIn("secrets.NPM_TOKEN", self.content)
         self.assertEqual(self.content.count("npm publish"), 1)
 
         publish_index = self.steps.index(publish)
         verify_index = self.steps.index(
-            self.step("Verify npmjs integrity provenance identity and consumer install")
+            self.step("Verify npmjs integrity provenance and immutable identity")
         )
         self.assertLess(publish_index, verify_index)
         after_publish = "\n".join(
@@ -215,9 +260,9 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
             self.assertNotIn(forbidden, after_publish)
         self.assertNotIn("actions/upload-artifact", self.content)
 
-    def test_post_publication_verification_is_bounded_and_installs_a_consumer(self):
+    def test_post_publication_verification_is_bounded_and_identity_only(self):
         verify = self.step(
-            "Verify npmjs integrity provenance identity and consumer install"
+            "Verify npmjs integrity provenance and immutable identity"
         )["run"]
         for required in (
             "for attempt in $(seq 1 24)",
@@ -226,12 +271,16 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
             '."dist.attestations".provenance.predicateType',
             "dist-tags.latest",
             'cmp -- "${PACKAGE_TARBALL}" "${published_tarball}"',
-            "npm install",
-            "--ignore-scripts",
-            "--registry=https://registry.npmjs.org",
-            "require('@mss-boot-io/admin-web/package.json')",
+            '"${latest}" == "${EXPECTED_LATEST}"',
+            '"dist-tags.${NPM_DIST_TAG}"',
         ):
             self.assertIn(required, verify)
+        for forbidden in (
+            "npm install",
+            "--ignore-scripts",
+            "require('@mss-boot-io/admin-web/package.json')",
+        ):
+            self.assertNotIn(forbidden, verify)
 
     def test_all_run_blocks_are_valid_bash(self):
         for index, step in enumerate(self.steps):

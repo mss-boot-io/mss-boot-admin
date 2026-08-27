@@ -1,52 +1,48 @@
 ---
-title: mss-boot Admin v1.3.5
+title: mss-boot Admin 采用状态
 hero:
   title: mss-boot Admin
-  description: 通过已发布工具和包创建、开发、验证与升级可维护的 Thin Host
+  description: 当前稳定版本为 v1.3.2；v1.3.5 是不可安装、不可升级的不可变部分发布
   actions:
-    - text: 5 分钟快速开始
+    - text: 查看采用状态
       link: /getting-started
-    - text: 查看 v1.3.5
+    - text: 查看 v1.3.5 部分发布
       link: /releases/v1-3-5
 features:
-  - title: Package first
-    emoji: 📦
-    description: 精确固定 Admin Go Module 与 Admin Web npm 包，不复制 Foundation 核心源码。
-  - title: Agent native
-    emoji: 🧭
-    description: mss 提供可检查的生成、诊断、开发、验证和三方升级入口。
-  - title: Thin Host
-    emoji: 🧩
-    description: 下游只拥有组合胶水和业务模块，安全与运行时核心由统一发行版维护。
+  - title: Current stable
+    emoji: ✅
+    description: v1.3.2 仍是当前稳定基线；稳定命令与资产只从该版本记录进入。
+  - title: Immutable partial
+    emoji: 🧊
+    description: v1.3.5 已公开部分组件，但 Root 工具、npmjs 与 Docs 缺失，不能补发或拼装。
+  - title: Fail closed
+    emoji: 🔒
+    description: 完整公开对账前不展示候选安装、创建、开发或升级命令。
 ---
 
-# 从 v1.3.5 开始
-
-当前文档只维护一条采用者路径：
+# 当前采用边界
 
 :::warning
-v1.3.5 仍是候选合同。以下路径只在 Root Release、Go/npm 包、镜像与 Docs 全部完成
-公共对账后开放；源码页面不能单独证明版本已经可安装。
+v1.3.5 已停止为不可变部分发布：Framework、Admin、Admin Web 与 Root Tag 已公开；Root
+Release 及工具、官方 npmjs 包、Docs 和后端镜像未发布。已公开身份保持不可变，缺失制品
+不得补附，也不能用本地包、源码或其他 registry 拼成完整发行。
 :::
 
-1. 从 `v1.3.5` Release 安装 `mss` 与 `mss-mcp`；
-2. 在空目录运行 `mss new app`；
-3. 运行 `mss doctor --strict`、`mss setup` 与 `mss dev`；
-4. 用 `mss verify --changed` 验证变更；
-5. 用 `mss upgrade admin v1.3.5` 查看匹配发行版的升级计划。
-
-[进入快速开始](/getting-started)
+当前稳定版本仍是 **v1.3.2**。需要可执行的稳定安装资料时，请从
+[v1.3.2 稳定记录](/releases/archive/v1-3-2)进入；不要把本页的 v1.3.5 组件事实解释为
+安装、创建或升级指引。
 
 ## 按任务阅读
 
 | 目标 | 文档 |
 | --- | --- |
-| 创建第一个应用 | [快速开始](/getting-started) |
-| 理解 Go/npm 依赖 | [包与导入边界](/getting-started/packages) |
-| 安装和验证工具 | [工具说明](/getting-started/tooling) |
-| 参考真实业务范本 | [mss-shop](/getting-started/mss-shop) |
-| 配置和运行 Admin | [Admin 指南](/admin) |
-| 编写规格与生成模块 | [Agent 开发](/agent) |
-| 了解版本边界 | [v1.3.5 发布合同](/releases/v1-3-5) |
+| 判断当前能否采用 | [采用状态](/getting-started) |
+| 查看包与组件边界 | [包发布状态](/getting-started/packages) |
+| 查看 Root 工具缺口 | [工具发布状态](/getting-started/tooling) |
+| 了解 mss-shop 前置条件 | [mss-shop 范本采用状态](/getting-started/mss-shop) |
+| 审计 v1.3.5 事实 | [v1.3.5 不可变部分发布记录](/releases/v1-3-5) |
+| 查找当前稳定资料 | [v1.3.2 稳定记录](/releases/archive/v1-3-2) |
+| 阅读其他历史版本 | [历史归档](/releases/archive) |
 
-旧版本发布材料只作为不可变证据保留在[历史归档](/releases/archive)，不会参与当前入门。
+配置、开发和 Agent 页面描述产品与仓库合同；在 v1.3.5 部分发布状态下，它们不能替代
+缺失的 Root、npmjs 与 Docs 发布证据。

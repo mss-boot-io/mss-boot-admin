@@ -3,19 +3,19 @@ set -euo pipefail
 
 usage() {
   printf '%s\n' \
-    'Usage: verify_remote_release_governance.sh --repository OWNER/REPO --reviewer-login LOGIN'
+    'Usage: verify_remote_release_governance.sh --repository OWNER/REPO --release-actor-login LOGIN'
 }
 
 repository=''
-reviewer_login=''
+release_actor_login=''
 while (($#)); do
   case "$1" in
     --repository)
       repository=${2:-}
       shift 2
       ;;
-    --reviewer-login)
-      reviewer_login=${2:-}
+    --release-actor-login)
+      release_actor_login=${2:-}
       shift 2
       ;;
     --help)
@@ -34,28 +34,61 @@ if [[ ! "${repository}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
   echo '--repository must be OWNER/REPO' >&2
   exit 2
 fi
-if [[ ! "${reviewer_login}" =~ ^[A-Za-z0-9-]+$ ]]; then
-  echo '--reviewer-login must be one GitHub login' >&2
+if [[ ! "${release_actor_login}" =~ ^[A-Za-z0-9-]+$ ]]; then
+  echo '--release-actor-login must be one GitHub login' >&2
   exit 2
 fi
 command -v gh >/dev/null
 command -v jq >/dev/null
 
-actor_json="$(gh api user)"
-actor_login="$(jq -er '.login' <<< "${actor_json}")"
-actor_id="$(jq -er '.id' <<< "${actor_json}")"
-reviewer_json="$(gh api "/users/${reviewer_login}")"
-reviewer_id="$(jq -er '.id' <<< "${reviewer_json}")"
-if [[ "${actor_id}" == "${reviewer_id}" ]]; then
-  echo 'release actor and protected-environment reviewer must be different accounts' >&2
-  exit 1
-fi
+inspector_json="$(gh api user)"
+inspector_login="$(jq -er '.login' <<< "${inspector_json}")"
+release_actor_json="$(gh api "/users/${release_actor_login}")"
+release_actor_id="$(jq -er '.id' <<< "${release_actor_json}")"
 repository_json="$(gh api "/repos/${repository}")"
 jq -e '.permissions.admin == true' <<< "${repository_json}" >/dev/null || {
-  echo "${actor_login} must have repository admin access to inspect bypass actors" >&2
+  echo "${inspector_login} must have repository admin access to inspect release governance" >&2
   exit 1
 }
 repository_id="$(jq -er '.id' <<< "${repository_json}")"
+
+deploy_keys="$(gh api "/repos/${repository}/keys?per_page=100")"
+if jq -e 'any(.[]; .title == "mss-root-tag-promotion")' \
+  <<< "${deploy_keys}" >/dev/null; then
+  echo 'the retired Root promotion DeployKey is still present' >&2
+  exit 1
+fi
+
+environments="$(gh api "/repos/${repository}/environments?per_page=100")"
+if jq -e 'any(.environments[]; .name == "root-promotion")' \
+  <<< "${environments}" >/dev/null; then
+  echo 'the retired root-promotion environment is still present' >&2
+  exit 1
+fi
+
+actions_variables="$(gh api "/repos/${repository}/actions/variables?per_page=100")"
+if jq -e 'any(.variables[]; .name == "RELEASE_READINESS_RUN_ID")' \
+  <<< "${actions_variables}" >/dev/null; then
+  echo 'the retired RELEASE_READINESS_RUN_ID repository variable is still present' >&2
+  exit 1
+fi
+
+reject_environment_variable() {
+  local environment_name=$1
+  local variable_name=$2
+  local variables
+
+  variables="$(gh api "/repositories/${repository_id}/environments/${environment_name}/variables?per_page=100")"
+  if jq -e --arg name "${variable_name}" \
+    'any(.variables[]; .name == $name)' <<< "${variables}" >/dev/null; then
+    echo "the retired ${variable_name} variable is still present in ${environment_name}" >&2
+    exit 1
+  fi
+}
+
+for environment_name in release release-v6 release-auto release-v6-auto npm-auto prod; do
+  reject_environment_variable "${environment_name}" RELEASE_READINESS_RUN_ID
+done
 
 rulesets="$(gh api "/repos/${repository}/rulesets?includes_parents=true&per_page=100")"
 mapfile -t creation_names < <(
@@ -71,8 +104,8 @@ mapfile -t creation_names < <(
 mapfile -t creation_names < <(printf '%s\n' "${creation_names[@]}" | sort)
 if [[ "${#creation_names[@]}" -ne 2 \
   || "${creation_names[0]}" != "release-tags-controlled-creation" \
-  || "${creation_names[1]}" != "root-release-tag-controlled-creation" ]]; then
-  echo 'exactly the component and root creation rulesets may create release tags' >&2
+  || "${creation_names[1]}" != "v1.3.5-stopped-tags-never-create" ]]; then
+  echo 'exactly the consolidated controlled-creation and v1.3.5 stop rulesets may govern release-tag creation' >&2
   exit 1
 fi
 
@@ -91,55 +124,19 @@ unique_ruleset_id() {
   jq -r '.[0]' <<< "${ids}"
 }
 
-root_id="$(unique_ruleset_id root-release-tag-controlled-creation)"
-root_ruleset="$(gh api "/repos/${repository}/rulesets/${root_id}?includes_parents=true")"
-jq -e \
-  --arg repository "${repository}" '
-  .source_type == "Repository" and
-  .source == $repository and
-  .target == "tag" and
-  .enforcement == "active" and
-  .conditions.ref_name.include == ["refs/tags/v*"] and
-  .conditions.ref_name.exclude == [] and
-  ([.rules[].type] == ["creation"]) and
-  (.bypass_actors == [{
-    actor_id: null,
-    actor_type: "DeployKey",
-    bypass_mode: "always"
-  }])
-' <<< "${root_ruleset}" >/dev/null || {
-  echo 'root creation authority must be root-only and deploy-key-only' >&2
-  exit 1
-}
-
-deploy_keys="$(gh api "/repos/${repository}/keys?per_page=100")"
-jq -e '
-  length == 1 and
-  .[0].title == "mss-root-tag-promotion" and
-  .[0].read_only == false and
-  .[0].verified == true and
-  .[0].enabled == true and
-  (.[0].key | startswith("ssh-ed25519 "))
-' <<< "${deploy_keys}" >/dev/null || {
-  echo 'repository must have exactly one verified, enabled, write-enabled Ed25519 deploy key titled mss-root-tag-promotion' >&2
-  exit 1
-}
-deploy_key_id="$(jq -er '.[0].id' <<< "${deploy_keys}")"
-
 controlled_id="$(unique_ruleset_id release-tags-controlled-creation)"
 controlled_ruleset="$(gh api "/repos/${repository}/rulesets/${controlled_id}?includes_parents=true")"
 jq -e \
   --arg repository "${repository}" \
-  --argjson actor_id "${actor_id}" \
-  --argjson reviewer_id "${reviewer_id}" '
+  --argjson release_actor_id "${release_actor_id}" '
   ([
     "refs/tags/admin/v*",
     "refs/tags/docs/v*",
     "refs/tags/mss-boot/v*",
+    "refs/tags/v*",
     "refs/tags/web/antd-v6/v*",
     "refs/tags/web/antd/v*"
   ] | sort) as $expected_refs |
-  ([$actor_id, $reviewer_id] | sort) as $expected_actors |
   .source_type == "Repository" and
   .source == $repository and
   .target == "tag" and
@@ -147,12 +144,38 @@ jq -e \
   (.conditions.ref_name.include | sort) == $expected_refs and
   .conditions.ref_name.exclude == [] and
   ([.rules[].type] == ["creation"]) and
-  ([.bypass_actors[] | select(
-    .actor_type == "User" and .bypass_mode == "always"
-  ) | .actor_id] | sort) == $expected_actors and
-  ([.bypass_actors[] | select(.actor_type != "User")] | length) == 0
+  .bypass_actors == [{
+    actor_id: $release_actor_id,
+    actor_type: "User",
+    bypass_mode: "always"
+  }]
 ' <<< "${controlled_ruleset}" >/dev/null || {
-  echo 'component and Docs creation authority is not confined to the two release accounts' >&2
+  echo 'Root, component, and Docs creation authority must belong only to the explicit release actor' >&2
+  exit 1
+}
+
+stopped_id="$(unique_ruleset_id v1.3.5-stopped-tags-never-create)"
+stopped_ruleset="$(gh api "/repos/${repository}/rulesets/${stopped_id}?includes_parents=true")"
+jq -e \
+  --arg repository "${repository}" '
+  ([
+    "refs/tags/admin/v1.3.5",
+    "refs/tags/docs/v1.3.5",
+    "refs/tags/mss-boot/v1.3.5",
+    "refs/tags/v1.3.5",
+    "refs/tags/web/antd/v1.3.5",
+    "refs/tags/web/antd-v6/v1.3.5"
+  ] | sort) as $expected_refs |
+  .source_type == "Repository" and
+  .source == $repository and
+  .target == "tag" and
+  .enforcement == "active" and
+  (.conditions.ref_name.include | sort) == $expected_refs and
+  .conditions.ref_name.exclude == [] and
+  .bypass_actors == [] and
+  ([.rules[].type] == ["creation"])
+' <<< "${stopped_ruleset}" >/dev/null || {
+  echo 'v1.3.5 stopped-tag creation must be blocked by the exact no-bypass ruleset' >&2
   exit 1
 }
 
@@ -181,71 +204,147 @@ jq -e \
   exit 1
 }
 
-environment="$(gh api "/repos/${repository}/environments/root-promotion")"
-jq -e \
-  --argjson reviewer_id "${reviewer_id}" '
-  .name == "root-promotion" and
-  .can_admins_bypass == false and
-  .deployment_branch_policy.protected_branches == false and
-  .deployment_branch_policy.custom_branch_policies == true and
-  ([.protection_rules[] | select(.type == "required_reviewers")] | length) == 1 and
-  ([.protection_rules[] | select(.type == "required_reviewers")][0] |
-    .prevent_self_review == true and
-    ([.reviewers[] | select(.type == "User") | .reviewer.id] == [$reviewer_id])
-  )
-' <<< "${environment}" >/dev/null || {
-  echo 'root-promotion environment is not protected by the exact second account' >&2
-  exit 1
+verify_active_environment() {
+  local environment_name=$1
+  shift
+  local environment
+  local branch_policies
+  local expected_policies
+
+  expected_policies="$({
+    printf '%s\n' "$@"
+  } | jq -Rsc '
+    split("\n") |
+    map(select(length > 0) | split("|") | {name: .[0], type: .[1]}) |
+    sort_by(.name, .type)
+  ')"
+
+  environment="$(gh api "/repos/${repository}/environments/${environment_name}")"
+  jq -e \
+    --arg environment_name "${environment_name}" '
+    .name == $environment_name and
+    .can_admins_bypass == false and
+    .deployment_branch_policy.protected_branches == false and
+    .deployment_branch_policy.custom_branch_policies == true and
+    ([.protection_rules[].type] | sort) == ["branch_policy"] and
+    ([.protection_rules[] | select(.type == "required_reviewers")] | length) == 0
+  ' <<< "${environment}" >/dev/null || {
+    echo "${environment_name} environment must have no required reviewers and no administrator bypass" >&2
+    exit 1
+  }
+
+  branch_policies="$(gh api "/repos/${repository}/environments/${environment_name}/deployment-branch-policies?per_page=100")"
+  jq -e \
+    --argjson expected_policies "${expected_policies}" '
+    .total_count == ($expected_policies | length) and
+    (.branch_policies | length) == ($expected_policies | length) and
+    ([.branch_policies[] | {name, type}] | sort_by(.name, .type)) == $expected_policies
+  ' <<< "${branch_policies}" >/dev/null || {
+    echo "${environment_name} environment deployment branch or tag policies are not exact" >&2
+    exit 1
+  }
 }
 
-branch_policies="$(gh api "/repos/${repository}/environments/root-promotion/deployment-branch-policies?per_page=100")"
-jq -e '
-  .total_count == 1 and
-  (.branch_policies | length) == 1 and
-  .branch_policies[0].name == "main" and
-  .branch_policies[0].type == "branch"
-' <<< "${branch_policies}" >/dev/null || {
-  echo 'root-promotion environment must allow only the main branch' >&2
-  exit 1
+verify_retired_environment() {
+  local environment_name=$1
+  local environment
+  local branch_policies
+
+  environment="$(gh api "/repos/${repository}/environments/${environment_name}")"
+  jq -e \
+    --arg environment_name "${environment_name}" '
+    .name == $environment_name and
+    .can_admins_bypass == false and
+    .deployment_branch_policy.protected_branches == false and
+    .deployment_branch_policy.custom_branch_policies == true and
+    ([.protection_rules[] | select(.type == "branch_policy")] | length) == 1
+  ' <<< "${environment}" >/dev/null || {
+    echo "${environment_name} must remain a non-bypassable retired environment" >&2
+    exit 1
+  }
+
+  branch_policies="$(gh api "/repos/${repository}/environments/${environment_name}/deployment-branch-policies?per_page=100")"
+  jq -e '
+    .total_count == 0 and (.branch_policies | length) == 0
+  ' <<< "${branch_policies}" >/dev/null || {
+    echo "${environment_name} must allow no branch or tag deployments" >&2
+    exit 1
+  }
 }
 
-environment_secrets="$(gh api "/repositories/${repository_id}/environments/root-promotion/secrets?per_page=100")"
-jq -e '
-  .total_count == 1 and
-  (.secrets | length) == 1 and
-  .secrets[0].name == "ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY"
-' <<< "${environment_secrets}" >/dev/null || {
-  echo 'root-promotion environment must contain only ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY' >&2
-  exit 1
+verify_retired_environment release
+verify_retired_environment release-v6
+verify_active_environment release-auto \
+  'admin/v*|tag' \
+  'mss-boot/v*|tag' \
+  'v*|tag'
+verify_active_environment release-v6-auto \
+  'web/antd-v6/v*|tag'
+verify_active_environment npm-auto \
+  'v*|tag'
+verify_active_environment prod \
+  'docs/v*|tag'
+
+verify_environment_secrets() {
+  local environment_name=$1
+  shift
+  local environment_secrets
+  local expected_names
+
+  environment_secrets="$(gh api "/repositories/${repository_id}/environments/${environment_name}/secrets?per_page=100")"
+  expected_names="$({ printf '%s\n' "$@"; } | jq -Rsc 'split("\n") | map(select(length > 0)) | sort')"
+  jq -e \
+    --argjson expected_names "${expected_names}" '
+    .total_count == ($expected_names | length) and
+    ([.secrets[].name] | sort) == $expected_names
+  ' <<< "${environment_secrets}" >/dev/null || {
+    echo "${environment_name} environment secret names are not exact" >&2
+    exit 1
+  }
 }
+
+verify_environment_secrets release
+verify_environment_secrets release-v6
+verify_environment_secrets release-auto
+verify_environment_secrets release-v6-auto
+verify_environment_secrets npm-auto
+verify_environment_secrets prod cf_api_token
 
 jq -n \
   --arg repository "${repository}" \
-  --arg actor "${actor_login}" \
-  --arg reviewer "${reviewer_login}" \
-  --argjson root_ruleset_id "${root_id}" \
+  --arg inspector "${inspector_login}" \
+  --arg actor "${release_actor_login}" \
   --argjson controlled_ruleset_id "${controlled_id}" \
+  --argjson stopped_ruleset_id "${stopped_id}" \
   --argjson immutable_ruleset_id "${immutable_id}" \
-  --argjson deploy_key_id "${deploy_key_id}" \
   '{
     success: true,
     repository: $repository,
+    inspector: $inspector,
     releaseActor: $actor,
-    protectedReviewer: $reviewer,
-    rootCreationRuleset: $root_ruleset_id,
-    rootPromotionDeployKey: {
-      id: $deploy_key_id,
-      title: "mss-root-tag-promotion",
-      writeEnabled: true,
-      verified: true,
-      enabled: true
-    },
-    rootPromotionEnvironmentSecret: {
-      name: "ROOT_TAG_PROMOTION_SSH_PRIVATE_KEY",
-      configured: true
-    },
-    componentCreationRuleset: $controlled_ruleset_id,
+    controlledCreationRuleset: $controlled_ruleset_id,
+    stoppedV135CreationRuleset: $stopped_ruleset_id,
     immutableRuleset: $immutable_ruleset_id,
-    environment: "root-promotion",
-    allowedRef: "refs/heads/main"
+    retiredResources: {
+      rootPromotionDeployKey: false,
+      rootPromotionEnvironment: false,
+      readinessRunVariables: [],
+      npmToken: false
+    },
+    environments: {
+      release: [],
+      releaseV6: [],
+      releaseAuto: ["refs/tags/admin/v*", "refs/tags/mss-boot/v*", "refs/tags/v*"],
+      releaseV6Auto: ["refs/tags/web/antd-v6/v*"],
+      npmAuto: ["refs/tags/v*"],
+      prod: ["refs/tags/docs/v*"]
+    },
+    environmentSecrets: {
+      release: [],
+      releaseV6: [],
+      releaseAuto: [],
+      releaseV6Auto: [],
+      npmAuto: [],
+      prod: ["cf_api_token"]
+    }
   }'

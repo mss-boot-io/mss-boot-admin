@@ -7,7 +7,7 @@ export default defineConfig({
     logo: '/favicon.ico',
     nav: [
       {
-        title: '快速开始',
+        title: '采用状态',
         link: '/getting-started',
         activePath: '/getting-started',
       },

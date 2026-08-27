@@ -15,8 +15,21 @@ RETIRED_WORKFLOWS = (
     "docs-drift.yml",
     "frontend-cloudflare.yml",
     "release-draft.yml",
+    "release-readiness.yml",
+    "root-tag-promotion.yml",
     "web-editor-usage.yml",
     "web-lockfile-finalize.yml",
+)
+RETIRED_RELEASE_HELPERS = (
+    "tools/release/verify_readiness_run.sh",
+    "tools/release/release_readiness_attestation.py",
+    "tools/release/release_phase_evidence.py",
+    "tools/release/release_qualification_decision.py",
+)
+RETIRED_RELEASE_HELPER_TESTS = (
+    "tools/release/test_release_readiness_attestation.py",
+    "tools/release/test_release_phase_evidence.py",
+    "tools/release/test_release_qualification_decision.py",
 )
 
 
@@ -205,14 +218,35 @@ class WorkflowGovernanceTest(unittest.TestCase):
         )
         self.assertIn("test_detect_component_scope.py", governance["run"])
         self.assertIn("test_check_release_policy.py", governance["run"])
-        self.assertIn("test_release_phase_evidence.py", governance["run"])
-        self.assertIn("test_release_qualification_decision.py", governance["run"])
-        self.assertIn("test_release_readiness_attestation.py", governance["run"])
-        self.assertIn("test_release_readiness_workflow.py", governance["run"])
+        for retired_test in RETIRED_RELEASE_HELPER_TESTS:
+            self.assertNotIn(Path(retired_test).name, governance["run"])
+        self.assertNotIn("test_release_readiness_workflow.py", governance["run"])
         self.assertIn("test_root_release_workflow.py", governance["run"])
         self.assertIn("test_verify_framework_admin_checksum.py", governance["run"])
         self.assertIn("test_verify_release_source.py", governance["run"])
         self.assertIn("test_workflow_governance.py", governance["run"])
+
+    def test_retired_release_evidence_chain_has_no_active_entrypoint(self):
+        for relative_path in RETIRED_RELEASE_HELPERS + RETIRED_RELEASE_HELPER_TESTS:
+            with self.subTest(path=relative_path):
+                self.assertFalse((REPOSITORY_ROOT / relative_path).exists())
+
+        active_surfaces = (
+            ".mss/commands.yaml",
+            ".agents/skills/mss-release/SKILL.md",
+            ".github/workflows/agent-native-ci.yml",
+            "tools/compatibility/test-thin-host-external-consumer.sh",
+        )
+        retired_names = tuple(
+            Path(relative_path).name
+            for relative_path in RETIRED_RELEASE_HELPERS
+            + RETIRED_RELEASE_HELPER_TESTS
+        )
+        for active_surface in active_surfaces:
+            content = (REPOSITORY_ROOT / active_surface).read_text(encoding="utf-8")
+            for retired_name in retired_names:
+                with self.subTest(surface=active_surface, retired=retired_name):
+                    self.assertNotIn(retired_name, content)
 
     def test_reusable_scope_classifier_owns_component_routing(self):
         workflow = self.workflows["component-scope.yml"]
@@ -528,7 +562,7 @@ class WorkflowGovernanceTest(unittest.TestCase):
     def test_frontend_release_is_protected_and_fails_closed_without_github_packages_authority(self):
         workflow = self.workflows["frontend-v6-release.yml"]
         release = workflow["jobs"]["release"]
-        self.assertEqual(release["environment"], "release-v6")
+        self.assertEqual(release["environment"], "release-v6-auto")
         for permission in ("attestations", "id-token"):
             self.assertEqual(release["permissions"][permission], "write")
         steps = release["steps"]
@@ -537,9 +571,21 @@ class WorkflowGovernanceTest(unittest.TestCase):
             for step in steps
             if step.get("name") == "Resolve immutable v6 release identity"
         )["run"]
-        self.assertIn("npm_dist_tag=latest", identity)
-        self.assertIn("npm_dist_tag=next", identity)
+        self.assertIn('"release-${version#v}"', identity)
+        self.assertIn("tr '[:upper:].' '[:lower:]-'", identity)
         self.assertIn('echo "npm_dist_tag=${npm_dist_tag}"', identity)
+        self.assertNotIn("npm_dist_tag=latest", identity)
+        self.assertNotIn("npm_dist_tag=next", identity)
+        preview = next(
+            step
+            for step in steps
+            if step.get("name") == "Require successful exact preview"
+        )
+        self.assertEqual(preview["id"], "preview")
+        self.assertIn("resolve_successful_preview.sh", preview["run"])
+        self.assertIn('--commit "${GITHUB_SHA}"', preview["run"])
+        self.assertIn('--version "${FRONTEND_V6_VERSION}"', preview["run"])
+        self.assertIn('echo "run-id=${preview_run_id}"', preview["run"])
         admin_predecessor = next(
             step
             for step in steps
@@ -550,13 +596,75 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn('${GITHUB_SHA}', admin_predecessor["run"])
         self.assertIn(".isDraft == false", admin_predecessor["run"])
         self.assertIn(".isPrerelease == $prerelease", admin_predecessor["run"])
-        package_qualification = next(
+        download = next(
             step
             for step in steps
             if step.get("name")
-            == "Inject and qualify the Admin Distribution package version"
+            == "Download exact Frontend package from the successful preview"
+        )
+        self.assertRegex(
+            download["uses"], r"^actions/download-artifact@[0-9a-f]{40}$"
+        )
+        self.assertEqual(download["with"]["name"], "frontend-v6-dist")
+        self.assertEqual(
+            download["with"]["run-id"],
+            "${{ steps.preview.outputs.run-id }}",
+        )
+        self.assertEqual(download["with"]["github-token"], "${{ github.token }}")
+        self.assertEqual(download["with"]["repository"], "${{ github.repository }}")
+
+        stage = next(
+            step
+            for step in steps
+            if step.get("name")
+            == "Verify and stage the exact Frontend preview package"
         )["run"]
-        self.assertIn("manifest.gitHead = process.env.GITHUB_SHA", package_qualification)
+        for required in (
+            'sha256sum --check SHA256SUMS.frontend-v6',
+            'sha256sum --check SHA256SUMS.admin-web',
+            "check_portable_paths.py",
+            'version=${RELEASE_VERSION}',
+            'commit=${GITHUB_SHA}',
+            '"${extracted_dist}/dist/release.json"',
+            "verify_admin_web_package.py",
+            'cmp -- "${verified_evidence}"',
+            '.spdxVersion == "SPDX-2.3"',
+            'cp -a "${extracted_dist}/dist" ./dist',
+            'cp -a "${preview_package_dir}/." "${package_dir}/"',
+        ):
+            self.assertIn(required, stage)
+        for forbidden in (
+            "pnpm install",
+            "pnpm pack",
+            "pnpm list",
+            "generate_admin_web_sbom.py",
+            "build:release",
+            "delivery:smoke",
+        ):
+            self.assertNotIn(forbidden, stage)
+
+        step_names = [step.get("name") for step in steps]
+        for forbidden in (
+            "Setup pnpm",
+            "Setup Node",
+            "Install frozen v6 dependency graph",
+            "Build same-origin v6 release",
+            "Smoke-test v6 production delivery",
+            "Inject and qualify the Admin Distribution package version",
+            "Upload Admin Web package evidence",
+            "Upload v6 build artifact",
+        ):
+            self.assertNotIn(forbidden, step_names)
+
+        auth = next(
+            step
+            for step in steps
+            if step.get("name") == "Configure GitHub Packages authentication"
+        )
+        self.assertEqual(auth["env"]["NODE_AUTH_TOKEN"], "${{ github.token }}")
+        self.assertIn("NPM_CONFIG_USERCONFIG", auth["run"])
+        self.assertIn("npm.pkg.github.com/:_authToken", auth["run"])
+
         image_build = next(
             step
             for step in steps
@@ -570,6 +678,10 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn(
             f"org.opencontainers.image.description={package_description}",
             image_build["with"]["labels"],
+        )
+        self.assertEqual(
+            image_build["with"]["cache-from"],
+            "type=gha,scope=frontend-v6-image",
         )
         image_identity = next(
             step
@@ -590,24 +702,11 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn("dist.integrity", credential["run"])
         self.assertIn("https://npm.pkg.github.com", credential["run"])
         self.assertIn("existing npm version has different immutable content", credential["run"])
-        preflight = next(
-            step
-            for step in steps
-            if step.get("name")
-            == "Preflight immutable Admin Web publication without mutation"
+        self.assertNotIn(
+            "Preflight immutable Admin Web publication without mutation",
+            [step.get("name") for step in steps],
         )
-        self.assertEqual(
-            preflight["if"], "steps.npm-version.outputs.publish == 'true'"
-        )
-        self.assertEqual(
-            preflight["env"]["NPM_DIST_TAG"],
-            "${{ steps.version.outputs.npm_dist_tag }}",
-        )
-        self.assertEqual(preflight["env"]["NODE_AUTH_TOKEN"], "${{ github.token }}")
-        self.assertIn("npm publish", preflight["run"])
-        self.assertIn("--dry-run", preflight["run"])
-        self.assertIn('--tag "${NPM_DIST_TAG}"', preflight["run"])
-        self.assertIn("https://npm.pkg.github.com", preflight["run"])
+        self.assertNotIn("--dry-run", (WORKFLOW_DIR / "frontend-v6-release.yml").read_text(encoding="utf-8"))
 
         attestation = next(
             step
@@ -618,6 +717,9 @@ class WorkflowGovernanceTest(unittest.TestCase):
             attestation["uses"],
             r"^actions/attest-build-provenance@[0-9a-f]{40}$",
         )
+        self.assertEqual(
+            attestation["if"], "steps.npm-version.outputs.publish == 'true'"
+        )
         publish = next(
             step
             for step in steps
@@ -626,7 +728,8 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn("npm publish", publish["run"])
         self.assertIn('--tag "${NPM_DIST_TAG}"', publish["run"])
         self.assertIn("https://npm.pkg.github.com", publish["run"])
-        self.assertIn("latest|next", publish["run"])
+        self.assertIn("release-*", publish["run"])
+        self.assertNotIn("latest|next", publish["run"])
         self.assertEqual(
             publish["if"], "steps.npm-version.outputs.publish == 'true'"
         )
@@ -635,15 +738,23 @@ class WorkflowGovernanceTest(unittest.TestCase):
             "${{ steps.version.outputs.npm_dist_tag }}",
         )
         self.assertEqual(publish["env"]["NODE_AUTH_TOKEN"], "${{ github.token }}")
-        self.assertLess(steps.index(preflight), steps.index(publish))
+        self.assertLess(steps.index(attestation), steps.index(publish))
+        require_public = next(
+            step
+            for step in steps
+            if step.get("name")
+            == "Require the GitHub Packages mirror to be public"
+        )
+        self.assertIn('.visibility == "public"', require_public["run"])
+        self.assertNotIn('.visibility == "private"', require_public["run"])
         verify_package = next(
             step
             for step in steps
             if step.get("name")
             == "Verify GitHub Packages identity and repository binding"
         )
-        self.assertIn('.visibility == "private"', verify_package["run"])
         self.assertIn('.visibility == "public"', verify_package["run"])
+        self.assertNotIn('.visibility == "private"', verify_package["run"])
         self.assertIn("npm dist-tag ls", verify_package["run"])
         self.assertNotIn(
             "npm view '@mss-boot-io/admin-web' dist-tags",
@@ -666,7 +777,7 @@ class WorkflowGovernanceTest(unittest.TestCase):
             for step in steps
             if step.get("name") == "Inspect immutable v6 image publication state"
         )
-        self.assertLess(steps.index(preflight), steps.index(image_state))
+        self.assertLess(steps.index(credential), steps.index(image_state))
         self.assertIn("imagetools inspect", image_state["run"])
         self.assertIn("exists=true", image_state["run"])
         self.assertIn("authoritative not-found", image_state["run"])
@@ -707,298 +818,271 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertIn("gh release download", github_release["run"])
         self.assertIn("cmp --", github_release["run"])
         self.assertIn(".isDraft'", github_release["run"])
-        stable_alias = next(
-            step
-            for step in steps
-            if step.get("name") == "Update the mutable stable v6 image alias last"
+        self.assertNotIn(
+            "Update the mutable stable v6 image alias last",
+            [step.get("name") for step in steps],
         )
-        self.assertGreater(steps.index(stable_alias), steps.index(github_release))
-        self.assertIn("imagetools create", stable_alias["run"])
-        self.assertIn(":latest", stable_alias["run"])
+        self.assertNotIn(":latest", metadata["with"]["tags"])
 
-    def test_admin_module_release_is_exact_tag_and_external_module_qualified(self):
+    def test_admin_module_tag_is_a_light_preview_backed_publication(self):
         workflow = self.workflows["admin-release.yml"]
         self.assertEqual(workflow["on"]["push"]["tags"], ["admin/v*.*.*"])
         release = workflow["jobs"]["release"]
-        self.assertEqual(release["environment"], "release")
+        self.assertEqual(release["environment"], "release-auto")
         steps = release["steps"]
+        self.assertEqual(
+            [step.get("name") for step in steps],
+            [
+                "Require authorized release operator",
+                "Checkout",
+                "Resolve immutable Admin module identity",
+                "Verify merged-main release source",
+                "Enforce coordinated Admin Distribution target",
+                "Require successful exact preview",
+                "Reconcile existing public Admin release",
+                "Require the already-published matching Framework release",
+                "Prepare component-scoped release notes",
+                "Publish immutable Admin module release",
+            ],
+        )
+
         source = next(
-            step for step in steps if step.get("name") == "Verify merged-main release source"
+            step
+            for step in steps
+            if step.get("name") == "Verify merged-main release source"
         )["run"]
         self.assertIn("verify_release_source.py", source)
         self.assertIn('--tag "${GITHUB_REF_NAME}"', source)
+
         policy = next(
             step
             for step in steps
             if step.get("name") == "Enforce coordinated Admin Distribution target"
         )["run"]
         self.assertIn("--component admin", policy)
-        framework_predecessor = next(
+
+        preview = next(
+            step
+            for step in steps
+            if step.get("name") == "Require successful exact preview"
+        )["run"]
+        self.assertIn("resolve_successful_preview.sh", preview)
+        self.assertIn('--commit "${GITHUB_SHA}"', preview)
+        self.assertIn('--version "${ADMIN_VERSION}"', preview)
+
+        release_state = next(
+            step
+            for step in steps
+            if step.get("name") == "Reconcile existing public Admin release"
+        )
+        self.assertEqual(release_state["id"], "release-state")
+        self.assertIn("--json tagName,isDraft,isPrerelease", release_state["run"])
+        self.assertIn(".tagName == $tag", release_state["run"])
+        self.assertIn(".isPrerelease == $prerelease", release_state["run"])
+
+        framework = next(
             step
             for step in steps
             if step.get("name")
             == "Require the already-published matching Framework release"
         )["run"]
-        self.assertIn('mss-boot/${ADMIN_VERSION}', framework_predecessor)
-        self.assertIn('${GITHUB_SHA}', framework_predecessor)
-        self.assertIn(".isDraft == false", framework_predecessor)
-        self.assertIn(".isPrerelease == $prerelease", framework_predecessor)
-        framework = next(
+        self.assertIn('mss-boot/${ADMIN_VERSION}', framework)
+        self.assertIn('${GITHUB_SHA}', framework)
+        self.assertIn(".isDraft == false", framework)
+        self.assertIn(".isPrerelease == $prerelease", framework)
+
+        notes = next(
             step
             for step in steps
-            if step.get("name") == "Require the matching Framework dependency"
+            if step.get("name") == "Prepare component-scoped release notes"
         )["run"]
-        self.assertIn('"${framework_version}" != "${ADMIN_VERSION}"', framework)
-        parity = next(
+        self.assertIn("successful Root preview", notes)
+        self.assertIn("go get github.com/mss-boot-io/mss-boot-admin/admin@", notes)
+        self.assertNotIn("generate-notes", notes)
+
+        publish = next(
             step
             for step in steps
-            if step.get("name") == "Verify final Framework and Admin checksum parity"
+            if step.get("name") == "Publish immutable Admin module release"
         )
-        self.assertEqual(parity["id"], "candidate-checksums")
-        self.assertIn("verify_framework_admin_checksum.py", parity["run"])
-        self.assertIn('--version "${ADMIN_VERSION}"', parity["run"])
-        for required in (
-            ".sum",
-            ".goModSum",
-            ".adminSum",
-            ".adminGoModSum",
-            'echo "framework_sum=${framework_sum}"',
-            'echo "framework_go_mod_sum=${framework_go_mod_sum}"',
-            'echo "admin_sum=${admin_sum}"',
-            'echo "admin_go_mod_sum=${admin_go_mod_sum}"',
-            "Framework Module Sum:",
-            "Framework GoModSum:",
-            "Admin Module Sum:",
-            "Admin GoModSum:",
-        ):
-            self.assertIn(required, parity["run"])
-        self.assertLess(steps.index(parity), steps.index(next(
-            step for step in steps if step.get("name") == "Qualify the independent Admin module"
-        )))
-        probe_step = next(
-            step
-            for step in steps
-            if step.get("name")
-            == "Probe the tagged Admin module from a clean external workspace"
+        self.assertRegex(
+            publish["uses"],
+            r"^softprops/action-gh-release@[0-9a-f]{40}$",
         )
-        probe = probe_step["run"]
+        self.assertEqual(publish["with"]["make_latest"], "false")
+        self.assertEqual(publish["with"]["target_commitish"], "${{ github.sha }}")
         self.assertEqual(
-            probe_step["env"]["ADMIN_SUM"],
-            "${{ steps.candidate-checksums.outputs.admin_sum }}",
+            publish["if"], "steps.release-state.outputs.public != 'true'"
         )
-        self.assertEqual(
-            probe_step["env"]["ADMIN_GO_MOD_SUM"],
-            "${{ steps.candidate-checksums.outputs.admin_go_mod_sum }}",
-        )
-        self.assertIn("GOPROXY=direct", probe)
-        self.assertIn("GOWORK=off", probe)
-        self.assertIn(".Origin.Hash == $commit", probe)
-        self.assertIn('--arg sum "${ADMIN_SUM}"', probe)
-        self.assertIn('--arg go_mod_sum "${ADMIN_GO_MOD_SUM}"', probe)
-        self.assertIn(".Sum == $sum", probe)
-        self.assertIn(".GoModSum == $go_mod_sum", probe)
-        self.assertNotIn('startswith("h1:")', probe)
-        self.assertIn("application.ExecuteArgsContext(context.Background(), args)", probe)
-        self.assertIn('{"--help"}', probe)
-        self.assertIn('{"server", "--help"}', probe)
-        self.assertIn('{"migrate", "--help"}', probe)
-        self.assertIn("go build -trimpath -o mss-admin-release-probe .", probe)
-        self.assertIn("./mss-admin-release-probe >/dev/null", probe)
-        self.assertNotIn(".Command()", probe)
-        self.assertNotIn("admin/internal/cmd", probe)
 
-        marker = 'cat > "${probe_dir}/main.go" <<\'EOF\'\n'
-        self.assertIn(marker, probe)
-        probe_source = probe.split(marker, 1)[1].split("\nEOF\n", 1)[0]
-        self.assertNotIn(".Command()", probe_source)
-        self.assertIn("ExecuteArgsContext", probe_source)
-
-        framework_module = "github.com/mss-boot-io/mss-boot-admin/mss-boot"
-        fixture_version = None
-        for line in (REPOSITORY_ROOT / "admin" / "go.mod").read_text(
+        tag_content = (WORKFLOW_DIR / "admin-release.yml").read_text(
             encoding="utf-8"
-        ).splitlines():
-            fields = line.split()
-            if len(fields) >= 2 and fields[0] == framework_module:
-                fixture_version = fields[1]
-                break
-        self.assertIsNotNone(fixture_version)
+        )
+        for preview_owned_check in (
+            "Setup Go",
+            "go test",
+            "go vet",
+            "go build",
+            "verify_framework_admin_checksum.py",
+            "Probe the tagged Admin module",
+            "test-thin-host-external-consumer.sh",
+        ):
+            self.assertNotIn(preview_owned_check, tag_content)
 
-        module = "github.com/mss-boot-io/mss-boot-admin/admin"
-        with tempfile.TemporaryDirectory(
-            prefix="mss-admin-release-probe-governance-"
-        ) as temporary_directory:
-            probe_dir = Path(temporary_directory)
-            proxy_dir = probe_dir / "proxy"
-            write_file_module_proxy(
-                proxy_dir,
-                framework_module,
-                fixture_version,
-                REPOSITORY_ROOT / "mss-boot",
-            )
-            write_file_module_proxy(
-                proxy_dir,
-                module,
-                fixture_version,
-                REPOSITORY_ROOT / "admin",
-            )
-            admin_archive = proxy_dir.joinpath(
-                *module.split("/"), "@v", f"{fixture_version}.zip"
-            )
-            with zipfile.ZipFile(admin_archive) as archive:
-                self.assertEqual(
-                    archive.read(f"{module}@{fixture_version}/LICENSE"),
-                    (REPOSITORY_ROOT / "LICENSE").read_bytes(),
-                )
-            go_mod = (
-                "module example.com/mss-admin-release-probe-governance\n\n"
-                "go 1.26.6\n\n"
-                f"require {module} {fixture_version}\n"
-            )
-            self.assertNotIn("replace ", go_mod)
-            (probe_dir / "go.mod").write_text(go_mod, encoding="utf-8")
-            (probe_dir / "main.go").write_text(
-                probe_source + "\n", encoding="utf-8"
-            )
-            environment = os.environ.copy()
-            # The release workflow itself remains fail-closed on GOPROXY=direct
-            # and verifies the tag origin hash above. Before that tag exists,
-            # this executable fixture exposes the exact candidate source through
-            # the Go proxy protocol. It uses no replace directive and exercises
-            # the Admin dependency graph; dependency module go.sum files are not
-            # consumed by Go, so verify_framework_admin_checksum.py separately
-            # compares Admin's committed sums with this final candidate tree.
-            environment.update(
-                {
-                    "GOWORK": "off",
-                    "GOPROXY": f"{proxy_dir.as_uri()},https://proxy.golang.org,direct",
-                    "GONOPROXY": "none",
-                    "GONOSUMDB": "github.com/mss-boot-io/mss-boot-admin/*",
-                    "GOTOOLCHAIN": "local",
-                }
-            )
-            commands = (
-                ("go", "mod", "tidy"),
-                ("go", "test", "./..."),
-                ("go", "vet", "./..."),
-                ("go", "build", "-trimpath", "-o", "release-probe", "."),
-                (str(probe_dir / "release-probe"),),
-            )
-            for command in commands:
-                result = subprocess.run(
-                    command,
-                    cwd=probe_dir,
-                    env=environment,
-                    capture_output=True,
-                    text=True,
-                    timeout=300,
-                    check=False,
-                )
-                self.assertEqual(
-                    result.returncode,
-                    0,
-                    msg=(
-                        f"release probe command failed: {' '.join(command)}\n"
-                        f"stdout:\n{result.stdout}\n"
-                        f"stderr:\n{result.stderr}"
-                    ),
-                )
+    def test_framework_tag_is_a_light_preview_backed_publication(self):
+        workflow = self.workflows["framework-release.yml"]
+        self.assertEqual(workflow["on"]["push"]["tags"], ["mss-boot/v*.*.*"])
+        release = workflow["jobs"]["release"]
+        self.assertEqual(release["environment"], "release-auto")
+        steps = release["steps"]
+        self.assertEqual(
+            [step.get("name") for step in steps],
+            [
+                "Require authorized release operator",
+                "Checkout",
+                "Resolve framework version",
+                "Verify merged-main release source",
+                "Enforce reviewed public release target",
+                "Require successful exact preview",
+                "Reconcile existing public component release",
+                "Prepare component-scoped release notes",
+                "Publish framework release",
+            ],
+        )
 
-    def test_framework_release_rechecks_final_admin_checksum_before_module_qualification(self):
-        steps = self.workflows["framework-release.yml"]["jobs"]["release"]["steps"]
-        parity = next(
+        source = next(
             step
             for step in steps
-            if step.get("name") == "Verify final Framework and Admin checksum parity"
-        )
-        qualification = next(
-            step for step in steps if step.get("name") == "Test framework module"
-        )
-        probe_step = next(
+            if step.get("name") == "Verify merged-main release source"
+        )["run"]
+        self.assertIn("verify_release_source.py", source)
+        self.assertIn('--tag "${GITHUB_REF_NAME}"', source)
+
+        policy = next(
+            step
+            for step in steps
+            if step.get("name") == "Enforce reviewed public release target"
+        )["run"]
+        self.assertIn("--component framework", policy)
+
+        preview = next(
+            step
+            for step in steps
+            if step.get("name") == "Require successful exact preview"
+        )["run"]
+        self.assertIn("resolve_successful_preview.sh", preview)
+        self.assertIn('--commit "${GITHUB_SHA}"', preview)
+        self.assertIn('--version "${FRAMEWORK_VERSION}"', preview)
+
+        release_state = next(
             step
             for step in steps
             if step.get("name")
-            == "Probe the published module from a clean external workspace"
+            == "Reconcile existing public component release"
         )
-        self.assertEqual(parity["id"], "candidate-checksums")
-        self.assertIn("verify_framework_admin_checksum.py", parity["run"])
-        self.assertIn('--version "${FRAMEWORK_VERSION}"', parity["run"])
-        for required in (
-            ".sum",
-            ".goModSum",
-            ".adminSum",
-            ".adminGoModSum",
-            'echo "framework_sum=${framework_sum}"',
-            'echo "framework_go_mod_sum=${framework_go_mod_sum}"',
-            'echo "admin_sum=${admin_sum}"',
-            'echo "admin_go_mod_sum=${admin_go_mod_sum}"',
-            "Framework Module Sum:",
-            "Framework GoModSum:",
-            "Admin Module Sum:",
-            "Admin GoModSum:",
-        ):
-            self.assertIn(required, parity["run"])
-        self.assertLess(steps.index(parity), steps.index(qualification))
-        self.assertEqual(
-            probe_step["env"]["FRAMEWORK_SUM"],
-            "${{ steps.candidate-checksums.outputs.framework_sum }}",
-        )
-        self.assertEqual(
-            probe_step["env"]["FRAMEWORK_GO_MOD_SUM"],
-            "${{ steps.candidate-checksums.outputs.framework_go_mod_sum }}",
-        )
-        probe = probe_step["run"]
-        self.assertIn(".Origin.Hash == $commit", probe)
-        self.assertIn('--arg sum "${FRAMEWORK_SUM}"', probe)
-        self.assertIn('--arg go_mod_sum "${FRAMEWORK_GO_MOD_SUM}"', probe)
-        self.assertIn(".Sum == $sum", probe)
-        self.assertIn(".GoModSum == $go_mod_sum", probe)
-        self.assertNotIn('startswith("h1:")', probe)
+        self.assertEqual(release_state["id"], "release-state")
+        self.assertIn("--json tagName,isDraft,isPrerelease", release_state["run"])
+        self.assertIn(".tagName == $tag", release_state["run"])
+        self.assertIn(".isPrerelease == $prerelease", release_state["run"])
 
-    def test_root_publication_requires_the_complete_distribution_train(self):
+        notes = next(
+            step
+            for step in steps
+            if step.get("name") == "Prepare component-scoped release notes"
+        )["run"]
+        self.assertIn("successful Root preview", notes)
+        self.assertIn("go get github.com/mss-boot-io/mss-boot-admin/mss-boot@", notes)
+        self.assertNotIn("generate-notes", notes)
+
+        publish = next(
+            step
+            for step in steps
+            if step.get("name") == "Publish framework release"
+        )
+        self.assertRegex(
+            publish["uses"],
+            r"^softprops/action-gh-release@[0-9a-f]{40}$",
+        )
+        self.assertEqual(publish["with"]["make_latest"], "false")
+        self.assertEqual(publish["with"]["target_commitish"], "${{ github.sha }}")
+        self.assertEqual(
+            publish["if"], "steps.release-state.outputs.public != 'true'"
+        )
+
+        tag_content = (WORKFLOW_DIR / "framework-release.yml").read_text(
+            encoding="utf-8"
+        )
+        for preview_owned_check in (
+            "Setup Go",
+            "go test",
+            "go vet",
+            "go build",
+            "verify_framework_admin_checksum.py",
+            "Probe the published module",
+            "test-thin-host-external-consumer.sh",
+        ):
+            self.assertNotIn(preview_owned_check, tag_content)
+
+    def test_root_publication_reuses_preview_and_checks_component_identity_once(self):
         workflow = self.workflows["release.yml"]
         evidence_steps = workflow["jobs"]["release-evidence"]["steps"]
+        preview = next(
+            step
+            for step in evidence_steps
+            if step.get("name") == "Require successful exact preview"
+        )["run"]
+        self.assertIn("resolve_successful_preview.sh", preview)
+        self.assertIn('--commit "${RELEASE_COMMIT}"', preview)
+        self.assertIn('--version "${RELEASE_VERSION}"', preview)
+        self.assertIn('--actor "${RELEASE_ACTOR_LOGIN}"', preview)
         evidence = next(
             step
             for step in evidence_steps
-            if step.get("name") == "Require successful exact-commit release evidence"
+            if step.get("name") == "Require exact component releases"
         )["run"]
         for required in (
-            'resolve_tag_commit "mss-boot/${RELEASE_VERSION}"',
-            'resolve_tag_commit "admin/${RELEASE_VERSION}"',
-            'resolve_tag_commit "web/antd-v6/${RELEASE_VERSION}"',
-            '"mss-boot/${RELEASE_VERSION}"',
-            '"admin/${RELEASE_VERSION}"',
-            '"web/antd-v6/${RELEASE_VERSION}"',
-            "framework-release.yml",
-            "admin-release.yml",
-            "frontend-v6-release.yml",
-            "github.com/mss-boot-io/mss-boot-admin/admin",
-            "@mss-boot-io/admin-web@${RELEASE_VERSION#v}",
-        ):
-            self.assertIn(required, evidence)
-        self.assertIn("gitHead", evidence)
-        self.assertIn("dist.integrity", evidence)
-        self.assertIn("https://npm.pkg.github.com", evidence)
-        self.assertIn('.visibility == "public"', evidence)
-        self.assertEqual(
-            workflow["jobs"]["release-evidence"]["permissions"]["packages"],
-            "read",
-        )
-        for required in (
-            '.event == "push"',
-            ".head_branch == $component_ref",
-            ".head_sha == $commit",
-            ".path == $workflow_path",
             "mss-boot/${RELEASE_VERSION}",
             "admin/${RELEASE_VERSION}",
             "web/antd-v6/${RELEASE_VERSION}",
+            "required component tag ${component_tag} is not available",
+            "required component release ${component_tag} is not public",
         ):
             self.assertIn(required, evidence)
-        workflow_list = evidence.split("for workflow in", 1)[1].split("; do", 1)[0]
-        self.assertNotIn("docs.yml", workflow_list)
+        for obsolete_wait in (
+            "for attempt in",
+            "sleep ",
+            "component_train_ready",
+            "/actions/workflows/",
+            ".workflow_runs",
+            "framework-release.yml",
+            "admin-release.yml",
+            "frontend-v6-release.yml",
+        ):
+            self.assertNotIn(obsolete_wait, evidence)
+        for duplicate_probe in (
+            "GOPROXY=direct",
+            "npm view",
+            "https://npm.pkg.github.com",
+            "go mod download",
+        ):
+            self.assertNotIn(duplicate_probe, evidence)
+        self.assertNotIn(
+            "packages", workflow["jobs"]["release-evidence"]["permissions"]
+        )
+        self.assertNotIn("docs.yml", evidence)
+        publish = workflow["jobs"]["publish"]
+        self.assertEqual(publish["environment"], "release-auto")
+        self.assertEqual(
+            [step.get("name") for step in publish["steps"]],
+            [
+                "Require authorized release operator",
+                "Download exact preview packages",
+                "Prepare deterministic root release notes",
+                "Stage, verify, and publish GitHub release atomically",
+            ],
+        )
 
-    def test_docs_publication_requires_the_stable_matching_root_release(self):
+    def test_docs_publication_can_follow_from_a_later_merged_main_commit(self):
         workflow = self.workflows["docs.yml"]
         self.assertEqual(workflow["permissions"]["actions"], "read")
         steps = workflow["jobs"]["build"]["steps"]
@@ -1006,25 +1090,29 @@ class WorkflowGovernanceTest(unittest.TestCase):
             step
             for step in steps
             if step.get("name")
-            == "Require the already-published matching root release"
+            == "Require the already-published base root release"
         )
         script = predecessor["run"]
         for required in (
+            'root_tag="${DOCS_VERSION%%+docs.*}"',
             'git rev-parse "refs/tags/${root_tag}^{commit}"',
             'gh release view "${root_tag}"',
             ".isDraft == false",
             ".isPrerelease == false",
             'actions/workflows/release.yml/runs',
-            '.event == "workflow_dispatch"',
+            '.event == "push"',
             ".head_branch == $root_tag",
             ".head_sha == $commit",
             '.path == ".github/workflows/release.yml"',
-            '--arg display_title "Root Release publish ${root_tag}"',
+            '--arg display_title "Root Release ${root_tag}"',
             ".display_title == $display_title",
             '.conclusion == "success"',
         ):
             self.assertIn(required, script)
-        self.assertNotIn('Root Release candidate ${root_tag}', script)
+        self.assertIn('-f head_sha="${root_commit}"', script)
+        self.assertIn('--arg commit "${root_commit}"', script)
+        self.assertNotIn('"${root_commit}" != "${GITHUB_SHA}"', script)
+        self.assertNotIn("workflow_dispatch", script)
         self.assertLess(
             steps.index(predecessor),
             next(
@@ -1033,6 +1121,114 @@ class WorkflowGovernanceTest(unittest.TestCase):
                 if step.get("name") == "Build documentation"
             ),
         )
+
+    def test_root_tag_automatically_drives_root_image_and_npm_without_docs(self):
+        root = self.workflows["release.yml"]
+        metadata = next(
+            step
+            for step in root["jobs"]["metadata"]["steps"]
+            if step.get("name") == "Resolve and validate release metadata"
+        )
+        self.assertIn("publish=true", metadata["run"])
+        self.assertIn("publish=false", metadata["run"])
+        self.assertEqual(
+            set(root["on"]["workflow_dispatch"]["inputs"]), {"version"}
+        )
+        self.assertEqual(root["on"]["push"]["tags"], ["v*.*.*"])
+        self.assertEqual(root["jobs"]["publish"]["environment"], "release-auto")
+        self.assertIn(
+            "'root-release-publication'", root["concurrency"]["group"]
+        )
+
+        container = self.workflows["container.yml"]
+        self.assertEqual(container["on"]["push"]["tags"], ["v*.*.*"])
+        self.assertIn("github.event_name == 'push'", container["jobs"]["publish"]["if"])
+        self.assertEqual(container["jobs"]["publish"]["environment"], "release-auto")
+        npm = self.workflows["npm-release.yml"]
+        self.assertEqual(npm["on"]["push"]["tags"], ["v*.*.*"])
+        self.assertEqual(npm["jobs"]["publish"]["environment"], "npm-auto")
+        self.assertEqual(
+            npm["concurrency"],
+            {
+                "group": "official-npm-publication",
+                "cancel-in-progress": "false",
+            },
+        )
+        npm_content = (WORKFLOW_DIR / "npm-release.yml").read_text(encoding="utf-8")
+        self.assertIn("Require the exact frontend release", npm_content)
+        self.assertNotIn("Root Release ${RELEASE_VERSION}", npm_content)
+        self.assertNotIn("container.yml", npm_content)
+        self.assertNotIn("docs.yml", npm_content)
+        self.assertNotIn("docs/${RELEASE_VERSION}", npm_content)
+        for forbidden in (
+            "root-tag-promotion.yml",
+            "readiness_run_id",
+            "Root Release publish",
+        ):
+            self.assertNotIn(forbidden, (WORKFLOW_DIR / "release.yml").read_text(encoding="utf-8"))
+
+    def test_release_authority_requires_the_exact_operator_before_checkout_or_write(self):
+        gated_jobs = {
+            ("npm-release.yml", "publish"): None,
+            ("framework-release.yml", "release"): None,
+            ("admin-release.yml", "release"): None,
+            ("frontend-v6-release.yml", "release"): None,
+            ("release.yml", "metadata"): (
+                "${{ github.event_name == 'workflow_dispatch' || "
+                "github.ref_type == 'tag' }}"
+            ),
+            ("release.yml", "publish"): None,
+            ("container.yml", "build"): (
+                "${{ github.event_name == 'workflow_call' || "
+                "github.ref_type == 'tag' }}"
+            ),
+            ("container.yml", "publish"): None,
+            ("docs.yml", "build"): "startsWith(github.ref, 'refs/tags/docs/v')",
+            ("docs.yml", "deployment"): None,
+        }
+        for (workflow_name, job_name), expected_condition in gated_jobs.items():
+            with self.subTest(workflow=workflow_name, job=job_name):
+                job = self.workflows[workflow_name]["jobs"][job_name]
+                gate = job["steps"][0]
+                self.assertEqual(gate["name"], "Require authorized release operator")
+                self.assertEqual(gate["env"]["RELEASE_ACTOR_LOGIN"], "lwnmengjing")
+                self.assertEqual(gate.get("if"), expected_condition)
+                self.assertIn(
+                    '"${GITHUB_ACTOR}" != "${RELEASE_ACTOR_LOGIN}"', gate["run"]
+                )
+                self.assertIn(
+                    '"${GITHUB_TRIGGERING_ACTOR}" != "${RELEASE_ACTOR_LOGIN}"',
+                    gate["run"],
+                )
+                self.assertNotIn(
+                    "SullivanPrime",
+                    (WORKFLOW_DIR / workflow_name).read_text(encoding="utf-8"),
+                )
+
+        root_gate = self.workflows["release.yml"]["jobs"]["metadata"]["steps"][0]
+        self.assertIn("github.ref_type == 'tag'", root_gate["if"])
+        self.assertIn("github.event_name == 'workflow_dispatch'", root_gate["if"])
+
+        container_gate = self.workflows["container.yml"]["jobs"]["build"][
+            "steps"
+        ][0]
+        self.assertIn("github.ref_type == 'tag'", container_gate["if"])
+        self.assertIn("github.event_name == 'workflow_call'", container_gate["if"])
+        self.assertNotIn("github.event_name == 'workflow_dispatch'", container_gate["if"])
+
+        docs_gate = self.workflows["docs.yml"]["jobs"]["build"]["steps"][0]
+        self.assertNotIn("github.event_name == 'push'", docs_gate["if"])
+        self.assertIn("refs/tags/docs/v", docs_gate["if"])
+
+        for workflow_name, job_name in (
+            ("frontend-v6-release.yml", "release"),
+            ("docs.yml", "build"),
+        ):
+            with self.subTest(workflow=workflow_name, pre_checkout_directory=True):
+                gate = self.workflows[workflow_name]["jobs"][job_name]["steps"][0]
+                self.assertEqual(
+                    gate["working-directory"], "${{ github.workspace }}"
+                )
 
     def test_root_release_keeps_the_foundation_checkout_immutable_for_evals(self):
         makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")

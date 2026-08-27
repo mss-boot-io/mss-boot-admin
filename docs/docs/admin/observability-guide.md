@@ -88,4 +88,4 @@ keywords: [admin observability metrics pprof logs websocket]
 ## 推荐阅读
 
 - [运营能力说明](/admin/operations-guide)
-- [发布验证清单](/admin/release-verification-checklist)
+- [Admin 发布与部署验证清单](/admin/release-verification-checklist)

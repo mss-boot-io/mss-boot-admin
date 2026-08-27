@@ -227,7 +227,7 @@ spec:
 
     release-policy-check:
       command: python3 tools/release/check_release_policy.py --component <root|framework|admin|frontend|docs> --version <version> --tag <tag> --intent <qualify|publish>
-      description: Validate the reviewed target and namespace; qualify permits unpublished candidate work, while publish also requires publication workflow readiness and is not itself phase approval.
+      description: Validate the reviewed target and namespace; qualify permits unpublished candidate work, while publish also requires the tag-driven publication workflows to be enabled.
       outputFormats: [text]
       category: release
 
@@ -239,62 +239,22 @@ spec:
       idempotent: true
 
     framework-admin-checksum-verify:
-      command: python3 tools/release/verify_framework_admin_checksum.py --version v1.3.5 [--write]
+      command: python3 tools/release/verify_framework_admin_checksum.py --version <version> [--write]
       description: Fail closed on source drift, generate replace-free local Go proxies from exact HEAD blobs, and verify or deterministically refresh the approved Framework-to-Admin-to-Thin-Host checksum metadata.
       outputFormats: [json]
       category: release
       idempotent: true
 
-    release-phase-evidence-plan:
-      command: python3 tools/release/release_phase_evidence.py plan --target-version v1.3.5 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root|post-publication> --output .mss/reports/release-phase-plan.json
-      description: Resolve the explicitly selected v1.3.5 Feature contracts into a shell-free, phase-scoped command plan while retaining manual, report, and non-exact evidence as release-manager review items.
-      outputFormats: [json]
-      category: release
-      idempotent: true
-
-    release-phase-evidence-run:
-      command: python3 tools/release/release_phase_evidence.py run --target-version v1.3.5 --commit <full-sha> --phase <feature-freeze|pre-framework|pre-root> --output .mss/reports/release-phase-command-evidence.json
-      description: On one clean frozen commit, execute only the selected phase's release Feature commands without a shell, retain per-command digests and logs, and fail when a selected command fails, times out, or still uses non-exact named Go test evidence.
-      outputFormats: [json]
-      category: release
-
-    release-qualification-decision:
-      command: python3 tools/release/release_qualification_decision.py --target-version v1.3.5 --commit <full-sha> --phase feature-freeze --browser-evidence-commit <full-sha> --browser-evidence-ref <reference> --blueprint-evidence-commit <full-sha> --blueprint-evidence-ref <reference> --output .mss/reports/release-qualification-decision.json
-      description: Bind the Codex in-app Browser and external Blueprint rehearsal evidence to the exact frozen SHA while recording carry-forward and optional ObjectStore/RustFS decisions.
-      outputFormats: [json]
-      category: release
-      idempotent: true
-
-    release-readiness-attestation-create:
-      command: python3 tools/release/release_readiness_attestation.py create --output <attestation.json> --policy .mss/release-policy.yaml --target-version v1.3.5 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --publication-authority <true|false>
-      description: Create strict readiness metadata for one exact workflow run; checkpoint and feature-freeze remain qualification-only, while an explicitly authorized pre-framework or pre-root run may grant publication authority when the reviewed policy enables publication workflows.
-      outputFormats: [text]
-      category: release
-
-    release-readiness-attestation-verify:
-      command: python3 tools/release/release_readiness_attestation.py verify --attestation <attestation.json> --policy .mss/release-policy.yaml --target-version v1.3.5 --commit <full-sha> --phase <checkpoint|feature-freeze|pre-framework|pre-root> --workflow-run-id <run-id> --workflow-run-url <run-url> --intent <qualify|publish>
-      description: Reject an attestation unless its exact schema, version, commit, phase, policy digest, selected run identity, URL, and authority match the requested intent.
-      outputFormats: [text]
-      category: release
-      idempotent: true
-
-    release-readiness-run-verify:
-      command: bash tools/release/verify_readiness_run.sh --repository <owner/repository> --run-id <run-id> --target-version v1.3.5 --commit <full-sha> --phase <pre-framework|pre-root> --policy .mss/release-policy.yaml
-      description: Read the specifically selected successful release-readiness workflow run and its run-named artifact, then require an exact publication attestation before a publishing workflow writes externally.
-      outputFormats: [text]
-      category: release
-      idempotent: true
-
     remote-release-governance-verify:
-      command: bash tools/release/verify_remote_release_governance.sh --repository <owner/repository> --reviewer-login <login>
-      description: As a repository administrator, emit sanitized metadata proving the main-only root-promotion environment, its sole named secret, the sole write-enabled deploy key, exact DeployKey root bypass, two-account component authority, and no-bypass release-tag immutability; no secret value is read or reported.
+      command: bash tools/release/verify_remote_release_governance.sh --repository <owner/repository> --release-actor-login lwnmengjing
+      description: As any authenticated repository administrator, emit sanitized metadata proving that Root, component, and Docs tag creation belongs only to lwnmengjing, stopped v1.3.5 refs have a creation-only no-bypass freeze, every release tag remains immutable, active publishing environments have exact tag policies with no reviewer pause or administrator bypass, and retired environments allow no ref; required environment secret names are checked without reading secret values.
       outputFormats: [json]
       category: release
       idempotent: true
 
-    official-npm-publish:
-      command: gh workflow run npm-release.yml --ref <root-tag> -f version=v1.3.5 -f commit=<full-sha> -f allow_npm_token_bootstrap=false
-      description: As the final artifact publication, publish the already-qualified Admin Web GitHub Release tarball to public npmjs from the exact root tag through the bound npm Trusted Publisher; the completed one-time bootstrap path is historical and future runs fail closed without matching OIDC identity.
+    root-release-preview:
+      command: gh workflow run release.yml --ref main -f version=<version>
+      description: Run the unique non-publishing Root candidate preview for one reviewed active version on the exact merged-main commit; a later matching Root tag push automatically publishes Root artifacts, the image, and the already-bootstrapped npm package through protected workflows.
       outputFormats: [text]
       category: release
 
@@ -330,7 +290,7 @@ spec:
 
     eval-run:
       command: go run ./cmd/mss eval run
-      description: Execute selected Agent evaluation cases; the complete --all matrix is a feature-freeze and release-readiness activity.
+      description: Execute selected Agent evaluation cases; the complete --all matrix is a release-preparation and candidate-preview activity.
       outputFormats: [text, markdown, json]
       category: eval
 

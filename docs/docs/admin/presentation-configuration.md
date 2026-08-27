@@ -10,11 +10,17 @@ keywords: [v1.3.5 admin presentation configuration publish rollback recovery eta
 
 # 页面展示配置发布治理
 
+:::warning
+v1.3.5 是不可变部分发布，Root 工具、官方 npmjs 与完整 Thin Host 路径未发布；当前
+稳定版本仍是 v1.3.2。本页记录 merged-main 源码中的展示配置能力与未来完整发行合同，
+不是 v1.3.5 部署指引。
+:::
+
 页面展示配置把“已经编译并授权的页面能力”与日常展示选择分开。维护者可以准备列顺序、搜索项、
 表单布局、详情布局、文案、密度和动作位置等数据，但不能通过配置创建字段、接口、路由、权限、
 组件实现或业务模型。
 
-:::warning P1 阶段边界
+:::warning
 P1 只提供受治理的草稿、发布、历史、回滚、有效层读取和管理控制台。生产能力注册表目前故意为空，
 也没有业务页面读取有效展示层，因此本阶段不会改变任何现有业务页面。Supplier 等真实页面要等 P2
 通过生成器投影能力定义并完成单独验收后才能接入。
@@ -72,12 +78,8 @@ P1 只提供受治理的草稿、发布、历史、回滚、有效层读取和�
 
 ## 部署与升级
 
-本地 Thin Host 使用统一工具完成幂等迁移并启动完整拓扑：
-
-```sh
-mss setup
-mss dev --detach
-```
+Foundation 源码可以按仓库 `.mss/commands.yaml` 验证幂等迁移与完整拓扑；这属于
+source-only 贡献者合同，不能作为 v1.3.5 Thin Host 的本地启动路径。
 
 生产部署必须复用同一个不可变 Thin Host 后端镜像和配置：先运行 `migrate` init job，
 再运行一次 `server -a` 路由同步 job，两者成功后才启动长期 `server`。全新数据库

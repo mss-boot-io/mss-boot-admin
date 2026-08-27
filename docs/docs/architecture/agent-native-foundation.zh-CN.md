@@ -6,6 +6,12 @@ description: v1.3.5 人机协作、机器合同、确定性工具与运行时产
 
 # Agent-native Foundation
 
+:::warning
+v1.3.5 是不可变部分发布，Root 工具、官方 npmjs、Docs 与完整 Thin Host 路径未发布；
+当前稳定版本仍是 v1.3.2。本页描述 Foundation 源码架构和未来完整发行合同，不是
+v1.3.5 采用指引。
+:::
+
 ## 目标
 
 Foundation 让人和 Agent 在同一套可审查合同上开发管理系统。Agent 可以发现能力、
@@ -39,10 +45,10 @@ Foundation 让人和 Agent 在同一套可审查合同上开发管理系统。Ag
 
 ### 执行平面
 
-公共对账完成后，v1.3.5 对外工具只有 `mss` 与 `mss-mcp`。`mss` 提供
-context、doctor、setup、dev、spec、module、verify、eval、new app 和 upgrade；
-`mss-mcp` 复用相同实现和权限边界。写操作默认 dry-run、路径受限、拒绝未知覆盖、
-输出稳定且不发送遥测。
+源码执行平面包含 CLI、MCP 适配、Skills、generator、verifier 和 upgrader。未来完整
+Root Release 只把 `mss` 与 `mss-mcp` 作为公共工具；二者复用相同实现和权限边界，
+写操作默认 dry-run、路径受限、拒绝未知覆盖、输出稳定且不发送遥测。v1.3.5 没有发布
+这些公共工具，源码能力不能替代 Release 二进制。
 
 ### 产品平面
 
@@ -54,20 +60,20 @@ context、doctor、setup、dev、spec、module、verify、eval、new app 和 upg
 Agent 工具不进入 Admin 运行时。Framework 只提供领域无关基础设施；Admin 统一拥有
 身份、授权、迁移、配置和应用壳；Thin Host 只拥有组合和业务。
 
-## Package-first 采用路径
+## 未来 package-first 采用路径
 
 ```text
-v1.3.5 Release 工具
+完整 Root Release 工具
         │ 内置同源 Blueprint
         ▼
-空目录 --mss new app--> Thin Host
+空目录 ──生成──> Thin Host
         │
-        ├── Go: Admin / Framework @ v1.3.5
-        └── npm: Admin Web @ 1.3.5
+        ├── Go: 同版本 Admin / Framework
+        └── npm: 同版本 Admin Web
 ```
 
-采用者不需要 Foundation checkout、`go.work` 或本地 `replace`。公共包资格必须在空
-目录、`GOWORK=off` 和匿名 npmjs 安装条件下证明。
+未来采用者不需要 Foundation checkout、`go.work` 或本地 `replace`。公共包资格必须
+在空目录、`GOWORK=off` 和匿名 npmjs 安装条件下证明。v1.3.5 缺少这条完整证据链。
 
 ## 变更闭环
 
@@ -97,5 +103,6 @@ v1.3.5 Release 工具
 必须来自同一个已合入 `main` 的干净提交，公开标签和摘要不可移动。发布后的修复使用
 下一补丁版本。
 
-外部 [mss-shop](/getting-started/mss-shop) 从公开 v1.3.5 生成，作为 package-first
-路径和单租户业务扩展的真实验证。
+外部 [mss-shop](/getting-started/mss-shop) 必须等待维护者显式选择的未使用完整版本，
+再验证 package-first 路径和单租户业务扩展；它不能从 v1.3.5 或本地 Foundation 制品
+生成。

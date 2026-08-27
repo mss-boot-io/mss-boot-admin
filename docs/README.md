@@ -1,19 +1,21 @@
 # mss-boot documentation
 
-This source tree documents the package-first **v1.3.5** Complete Admin
-Distribution candidate. It becomes public adopter guidance only after the
-coordinated artifacts and deployed Docs site reconcile to one release commit.
-Start at [`docs/getting-started`](./docs/getting-started/index.md); there is no
-second quick start.
+This source tree records **v1.3.2** as the current stable baseline and **v1.3.5**
+as a permanently stopped immutable partial release. It also documents the source-
+only architecture and the contract for a future unused Complete Admin
+Distribution version. Start at
+[`docs/getting-started`](./docs/getting-started/index.md) for adoption status;
+operational onboarding remains disabled until a future version has complete
+public reconciliation.
 
 ## Information architecture
 
-- `docs/getting-started/`: installation, packages, tools, and mss-shop;
+- `docs/getting-started/`: adoption status, package and tool availability, and mss-shop;
 - `docs/guide/`: day-to-day operation and troubleshooting;
 - `docs/admin/`: current Admin configuration, security, and operations;
 - `docs/agent/`: specifications, generation, verification, and contributor workflows;
 - `docs/architecture/`: current architecture summaries;
-- `docs/releases/`: v1.3.5 and a clearly separated read-only archive;
+- `docs/releases/`: the v1.3.5 immutable-partial record and a clearly separated read-only archive;
 - `../adr/`: durable decisions and their status.
 
 Prompt dumps, one-off plans, test snapshots, and duplicate tutorials are not
@@ -30,6 +32,6 @@ python3 tools/docs/check_current_docs.py
 corepack pnpm@9.15.9 --dir docs build
 ```
 
-The drift check verifies the active v1.3.5 version, package-first commands,
-single quick-start route, navigation targets, internal links, archive banners,
-and ADR status markers.
+The drift check verifies the v1.3.2 stable and v1.3.5 immutable-partial boundary,
+rejects unpublished v1.3.5 onboarding commands, and checks navigation targets,
+internal links, archive banners, and ADR status markers.

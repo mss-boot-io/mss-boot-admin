@@ -24,35 +24,143 @@ class ReleasePolicyTest(unittest.TestCase):
     def setUp(self):
         self.policy = POLICY.load_policy(POLICY_PATH)
 
-    def test_v135_matches_every_distribution_component_namespace(self):
+    def test_v135_refs_are_machine_readable_and_permanently_stopped(self):
         cases = {
             "root": "v1.3.5",
             "framework": "mss-boot/v1.3.5",
             "admin": "admin/v1.3.5",
             "frontend": "web/antd-v6/v1.3.5",
             "docs": "docs/v1.3.5",
+            "npm": "@mss-boot-io/admin-web@1.3.5",
         }
-        for component, tag in cases.items():
-            with self.subTest(component=component):
+        self.assertEqual(
+            self.policy["immutableStoppedVersion"], POLICY.PERMANENTLY_STOPPED_VERSION
+        )
+        self.assertEqual(POLICY.immutable_stopped_public_refs(self.policy), cases)
+        self.assertEqual(POLICY.PERMANENTLY_STOPPED_PUBLIC_REFS, cases)
+        self.assertEqual(self.policy["releaseTargetState"], "stopped")
+
+        for component, public_ref in cases.items():
+            for intent in ("qualify", "publish"):
+                with self.subTest(component=component, intent=intent):
+                    with self.assertRaisesRegex(
+                        POLICY.PolicyError, "immutable stopped version"
+                    ):
+                        POLICY.check_public_ref(
+                            self.policy,
+                            component,
+                            "v1.3.5",
+                            public_ref,
+                            intent=intent,
+                        )
+
+        with self.assertRaisesRegex(POLICY.PolicyError, "immutable stopped version"):
+            POLICY.coordinated_tags(self.policy, "v1.3.5")
+
+    def test_publication_is_disabled_after_the_immutable_partial_train(self):
+        self.assertIs(self.policy["publicationWorkflowsReady"], False)
+        self.assertIs(self.policy["publicPrereleases"], False)
+
+        original = POLICY_PATH.read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory) / "policy.yaml"
+            candidate.write_text(
+                original.replace(
+                    "  publicationWorkflowsReady: false\n",
+                    "  publicationWorkflowsReady: true\n",
+                ),
+                encoding="utf-8",
+            )
+            ready_policy = POLICY.load_policy(candidate)
+            with self.assertRaisesRegex(
+                POLICY.PolicyError, "immutable stopped version"
+            ):
                 POLICY.check_public_ref(
-                    self.policy, component, "v1.3.5", tag, intent="qualify"
+                    ready_policy, "root", "v1.3.5", "v1.3.5", intent="publish"
                 )
 
-        self.assertEqual(
-            POLICY.coordinated_tags(self.policy, "v1.3.5"),
-            {component: cases[component] for component in POLICY.COORDINATED_COMPONENTS},
-        )
+    def test_future_reviewed_active_version_can_qualify_and_publish(self):
+        original = POLICY_PATH.read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory) / "policy.yaml"
+            candidate.write_text(
+                original.replace(
+                    "  nextPublicVersion: v1.3.5\n",
+                    "  nextPublicVersion: v1.3.6\n",
+                )
+                .replace(
+                    "  distributionVersion: v1.3.5\n",
+                    "  distributionVersion: v1.3.6\n",
+                )
+                .replace(
+                    "  releaseTargetState: stopped\n",
+                    "  releaseTargetState: active\n",
+                )
+                .replace(
+                    "  publicationWorkflowsReady: false\n",
+                    "  publicationWorkflowsReady: true\n",
+                ),
+                encoding="utf-8",
+            )
+            active_policy = POLICY.load_policy(candidate)
+            expected_refs = {
+                "root": "v1.3.6",
+                "framework": "mss-boot/v1.3.6",
+                "admin": "admin/v1.3.6",
+                "frontend": "web/antd-v6/v1.3.6",
+                "docs": "docs/v1.3.6",
+                "npm": "@mss-boot-io/admin-web@1.3.6",
+            }
+            for component, public_ref in expected_refs.items():
+                for intent in ("qualify", "publish"):
+                    with self.subTest(component=component, intent=intent):
+                        POLICY.check_public_ref(
+                            active_policy,
+                            component,
+                            "v1.3.6",
+                            public_ref,
+                            intent=intent,
+                        )
 
-    def test_publication_is_enabled_after_protected_workflows_are_ready(self):
-        self.assertIs(self.policy["publicationWorkflowsReady"], True)
-        self.assertIs(self.policy["publicPrereleases"], False)
-        POLICY.check_public_ref(self.policy, "root", "v1.3.5", "v1.3.5")
+            with self.assertRaisesRegex(
+                POLICY.PolicyError, "immutable stopped version"
+            ):
+                POLICY.check_public_ref(
+                    active_policy,
+                    "root",
+                    "v1.3.5",
+                    "v1.3.5",
+                    intent="publish",
+                )
 
-    def test_docs_revision_can_publish_current_stable_without_reusing_its_tag(self):
+    def test_docs_revision_remains_disabled_without_exact_source_binding(self):
+        self.assertIs(self.policy["docsRevisionPublicationReady"], False)
         for intent in ("qualify", "publish"):
             with self.subTest(intent=intent):
+                with self.assertRaisesRegex(POLICY.PolicyError, "docs revision"):
+                    POLICY.check_public_ref(
+                        self.policy,
+                        "docs",
+                        "v1.3.2+docs.1",
+                        "docs/v1.3.2+docs.1",
+                        intent=intent,
+                    )
+
+    def test_reviewed_docs_revision_can_publish_without_reopening_the_distribution(self):
+        original = POLICY_PATH.read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory) / "policy.yaml"
+            candidate.write_text(
+                original.replace(
+                    "  docsRevisionPublicationReady: false\n",
+                    "  docsRevisionPublicationReady: true\n",
+                ),
+                encoding="utf-8",
+            )
+            docs_policy = POLICY.load_policy(candidate)
+            for intent in ("qualify", "publish"):
                 POLICY.check_public_ref(
-                    self.policy,
+                    docs_policy,
                     "docs",
                     "v1.3.2+docs.1",
                     "docs/v1.3.2+docs.1",
@@ -167,6 +275,49 @@ class ReleasePolicyTest(unittest.TestCase):
                     with self.assertRaises(POLICY.PolicyError):
                         POLICY.load_policy(candidate)
 
+    def test_policy_rejects_weakening_the_permanent_v135_boundary(self):
+        original = POLICY_PATH.read_text(encoding="utf-8")
+        replacements = (
+            (
+                "  releaseTargetState: stopped\n",
+                "  releaseTargetState: active\n",
+            ),
+            (
+                "  immutableStoppedVersion: v1.3.5\n",
+                "  immutableStoppedVersion: v1.3.6\n",
+            ),
+            (
+                "docs=docs/v1.3.5,npm=@mss-boot-io/admin-web@1.3.5",
+                "docs=docs/v1.3.5",
+            ),
+            (
+                "framework=mss-boot/v1.3.5",
+                "framework=mss-boot/v1.3.6",
+            ),
+        )
+        for old, new in replacements:
+            with self.subTest(replacement=new.strip()):
+                with tempfile.TemporaryDirectory() as directory:
+                    candidate = Path(directory) / "policy.yaml"
+                    candidate.write_text(original.replace(old, new), encoding="utf-8")
+                    with self.assertRaises(POLICY.PolicyError):
+                        POLICY.load_policy(candidate)
+
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory) / "policy.yaml"
+            candidate.write_text(
+                original.replace(
+                    "npm=@mss-boot-io/admin-web@1.3.5",
+                    "npm=@mss-boot-io/admin-web-next@1.3.5",
+                ).replace(
+                    'npmPackageTemplate: "@mss-boot-io/admin-web@{npmVersion}"',
+                    'npmPackageTemplate: "@mss-boot-io/admin-web-next@{npmVersion}"',
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(POLICY.PolicyError, "every exact v1.3.5"):
+                POLICY.load_policy(candidate)
+
     def test_policy_rejects_invalid_release_channel_contracts(self):
         original = POLICY_PATH.read_text(encoding="utf-8")
         replacements = (
@@ -218,7 +369,7 @@ class ReleasePolicyTest(unittest.TestCase):
                     with self.assertRaises(POLICY.PolicyError):
                         POLICY.load_policy(candidate)
 
-    def test_publication_workflows_share_policy_and_exact_attestation_guards(self):
+    def test_publication_workflows_share_policy_without_readiness_run_gates(self):
         workflows = (
             "release.yml",
             "framework-release.yml",
@@ -232,11 +383,9 @@ class ReleasePolicyTest(unittest.TestCase):
                     REPOSITORY_ROOT / ".github" / "workflows" / workflow
                 ).read_text(encoding="utf-8")
                 self.assertIn("check_release_policy.py", content)
-                self.assertIn("verify_readiness_run.sh", content)
-                self.assertIn("RELEASE_READINESS_RUN_ID", content)
-                self.assertNotIn(
-                    "/actions/workflows/release-readiness.yml/runs", content
-                )
+                self.assertNotIn("verify_readiness_run.sh", content)
+                self.assertNotIn("RELEASE_READINESS_RUN_ID", content)
+                self.assertNotIn("readiness_run_id", content)
 
     def test_release_workflows_require_pr_merged_main_source_and_exact_tag(self):
         cases = {
@@ -247,7 +396,6 @@ class ReleasePolicyTest(unittest.TestCase):
             "container.yml": ("publish", True),
             "docs.yml": ("build", True),
             "npm-release.yml": ("publish", True),
-            "release-readiness.yml": ("full-verification", False),
         }
         for workflow_name, (job_name, requires_tag) in cases.items():
             with self.subTest(workflow=workflow_name):
@@ -277,7 +425,7 @@ class ReleasePolicyTest(unittest.TestCase):
             Loader=yaml.BaseLoader,
         )
         self.assertIn(
-            "release-evidence", root_release["jobs"]["release"]["needs"]
+            "release-evidence", root_release["jobs"]["publish"]["needs"]
         )
 
     def test_release_workflow_yaml_and_run_blocks_are_valid(self):
@@ -289,7 +437,6 @@ class ReleasePolicyTest(unittest.TestCase):
             "frontend-v6-release.yml",
             "frontend-v6-ci.yml",
             "container.yml",
-            "release-readiness.yml",
             "docs.yml",
             "npm-release.yml",
         )
@@ -321,62 +468,95 @@ class ReleasePolicyTest(unittest.TestCase):
                             ),
                         )
 
-    def test_every_frontend_release_upload_uses_portable_archive_only(self):
-        cases = {
-            "frontend-v6-release.yml": (
-                "release",
-                "Embed and verify v6 artifact identity",
-                "Upload v6 build artifact",
+    def test_frontend_preview_upload_is_portable_and_tag_reuses_it(self):
+        preview_workflow = yaml.load(
+            (REPOSITORY_ROOT / ".github" / "workflows" / "release.yml").read_text(
+                encoding="utf-8"
             ),
-            "release.yml": (
-                "frontend-build",
-                "Package and verify portable primary V6 artifact",
-                "Upload primary V6 artifact",
-            ),
-        }
-        portable_paths = [
+            Loader=yaml.BaseLoader,
+        )
+        preview_steps = preview_workflow["jobs"]["frontend-build"]["steps"]
+        package = next(
+            step
+            for step in preview_steps
+            if step.get("name") == "Package and verify portable primary V6 artifact"
+        )
+        upload = next(
+            step
+            for step in preview_steps
+            if step.get("name") == "Upload primary V6 artifact"
+        )
+
+        for required in (
+            "tar",
+            "--create",
+            "--gzip",
+            "--file dist-v6.tar.gz",
+            "dist",
+            "--sort=name",
+            'sha256sum --check SHA256SUMS.frontend-v6',
+            "check_portable_paths.py",
+        ):
+            self.assertIn(required, package["run"])
+
+        expected_paths = [
             "web/antd-v6/dist-v6.tar.gz",
             "web/antd-v6/FRONTEND-V6-BUILD-INFO",
             "web/antd-v6/SHA256SUMS.frontend-v6",
+            "web/antd-v6/admin-web-release-package/*.tgz",
+            "web/antd-v6/admin-web-release-package/admin-web-package.json",
+            "web/antd-v6/admin-web-release-package/admin-web.spdx.json",
+            "web/antd-v6/admin-web-release-package/SHA256SUMS.admin-web",
         ]
-        for workflow_name, (job_name, package_name, upload_name) in cases.items():
-            with self.subTest(workflow=workflow_name):
-                workflow = yaml.load(
-                    (
-                        REPOSITORY_ROOT / ".github" / "workflows" / workflow_name
-                    ).read_text(encoding="utf-8"),
-                    Loader=yaml.BaseLoader,
-                )
-                steps = workflow["jobs"][job_name]["steps"]
-                package = next(
-                    step for step in steps if step.get("name") == package_name
-                )
-                upload = next(
-                    step for step in steps if step.get("name") == upload_name
-                )
-                paths = [
-                    line.strip()
-                    for line in upload["with"]["path"].splitlines()
-                    if line.strip()
-                ]
+        paths = [
+            line.strip()
+            for line in upload["with"]["path"].splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(paths, expected_paths)
 
-                for required in (
-                    "tar",
-                    "--create",
-                    "--gzip",
-                    "--file dist-v6.tar.gz",
-                    "dist",
-                ):
-                    self.assertIn(required, package["run"])
-                self.assertIn("check_portable_paths.py", package["run"])
-                expected_paths = list(portable_paths)
-                if workflow_name == "release.yml":
-                    # The root release performs the installed-consumer smoke
-                    # against the exact packed Admin Web candidate before the
-                    # final npmjs publication. It travels as a single verified
-                    # tarball, never as a raw frontend directory.
-                    expected_paths.append("web/antd-v6/admin-web-candidate.tgz")
-                self.assertEqual(paths, expected_paths)
+        tag_workflow = yaml.load(
+            (
+                REPOSITORY_ROOT
+                / ".github"
+                / "workflows"
+                / "frontend-v6-release.yml"
+            ).read_text(encoding="utf-8"),
+            Loader=yaml.BaseLoader,
+        )
+        tag_steps = tag_workflow["jobs"]["release"]["steps"]
+        download = next(
+            step
+            for step in tag_steps
+            if step.get("name")
+            == "Download exact Frontend package from the successful preview"
+        )
+        self.assertEqual(download["with"]["name"], "frontend-v6-dist")
+        self.assertEqual(
+            download["with"]["run-id"],
+            "${{ steps.preview.outputs.run-id }}",
+        )
+        stage = next(
+            step
+            for step in tag_steps
+            if step.get("name")
+            == "Verify and stage the exact Frontend preview package"
+        )["run"]
+        for required in (
+            'sha256sum --check SHA256SUMS.frontend-v6',
+            'sha256sum --check SHA256SUMS.admin-web',
+            "check_portable_paths.py",
+            "tar --extract --gzip",
+            'cp -a "${extracted_dist}/dist" ./dist',
+            'cp -a "${preview_package_dir}/." "${package_dir}/"',
+        ):
+            self.assertIn(required, stage)
+        self.assertFalse(
+            any(
+                "actions/upload-artifact@" in step.get("uses", "")
+                for step in tag_steps
+            )
+        )
 
     def test_all_raw_directory_uploads_have_portability_guards(self):
         extensionless_files = {"FRONTEND-V6-BUILD-INFO", "SHA256SUMS"}
@@ -438,7 +618,6 @@ class ReleasePolicyTest(unittest.TestCase):
                     "web/antd-v6/playwright-report",
                 ),
                 ("frontend-v6-ci.yml", "browser", "web/antd-v6/test-results"),
-                ("release-readiness.yml", "full-verification", ".mss/reports"),
                 (
                     "release.yml",
                     "backend-build",
@@ -454,7 +633,7 @@ class ReleasePolicyTest(unittest.TestCase):
         workflow = yaml.load(content, Loader=yaml.BaseLoader)
         assemble = next(
             step
-            for step in workflow["jobs"]["release"]["steps"]
+            for step in workflow["jobs"]["assemble"]["steps"]
             if step.get("name") == "Assemble release packages"
         )
         script = assemble["run"]
@@ -580,39 +759,27 @@ class ReleasePolicyTest(unittest.TestCase):
             self.assertIn("{ timeout: 20_000 }", content)
             self.assertIn("toBeVisible({ timeout: 15_000 })", content)
 
-    def test_publication_workflows_require_the_phase_they_publish_from(self):
-        expected_phases = {
-            "framework-release.yml": "--phase pre-framework",
-            "admin-release.yml": "--phase pre-framework",
-            "frontend-v6-release.yml": "--phase pre-framework",
-            "container.yml": "--phase pre-root",
-            "release.yml": "--phase pre-root",
-        }
-        for workflow, expected_phase in expected_phases.items():
-            with self.subTest(workflow=workflow):
-                content = (
-                    REPOSITORY_ROOT / ".github" / "workflows" / workflow
-                ).read_text(encoding="utf-8")
-                self.assertIn(expected_phase, content)
-
-    def test_readiness_is_manual_and_release_bound(self):
-        content = (
-            REPOSITORY_ROOT / ".github" / "workflows" / "release-readiness.yml"
-        ).read_text(encoding="utf-8")
-        self.assertNotIn("\n  pull_request:", content)
-        self.assertNotIn("\n  push:", content)
-        for required in (
-            "workflow_dispatch:",
-            "frozen_commit:",
-            "feature_freeze_confirmed:",
-            "phase:",
-            "publication_authority:",
-            "release-readiness-metadata.json",
-            "release-readiness-attestation-${{ github.run_id }}",
-            "release_readiness_attestation.py",
-            "check_release_policy.py",
-        ):
-            self.assertIn(required, content)
+    def test_root_dispatch_is_the_only_preview_and_never_publishes(self):
+        workflow_path = REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
+        content = workflow_path.read_text(encoding="utf-8")
+        workflow = yaml.load(content, Loader=yaml.BaseLoader)
+        self.assertEqual(
+            set(workflow["on"]["workflow_dispatch"]["inputs"]), {"version"}
+        )
+        metadata = next(
+            step
+            for step in workflow["jobs"]["metadata"]["steps"]
+            if step.get("name") == "Resolve and validate release metadata"
+        )["run"]
+        self.assertIn('publish=true', metadata)
+        self.assertIn('publish=false', metadata)
+        self.assertNotIn("inputs.publish", content)
+        self.assertFalse(
+            (REPOSITORY_ROOT / ".github" / "workflows" / "release-readiness.yml").exists()
+        )
+        self.assertFalse(
+            (REPOSITORY_ROOT / ".github" / "workflows" / "root-tag-promotion.yml").exists()
+        )
 
     def test_development_push_does_not_publish_a_checkpoint_image(self):
         content = (
@@ -622,25 +789,18 @@ class ReleasePolicyTest(unittest.TestCase):
             '[[ "${GITHUB_EVENT_NAME}" == "push" ]]',
             content,
         )
-        self.assertIn("verify_readiness_run.sh", content)
-        self.assertNotIn(
-            "/actions/workflows/release-readiness.yml/runs", content
-        )
+        self.assertNotIn("verify_readiness_run.sh", content)
+        self.assertNotIn("inputs.publish", content)
 
-    def test_selected_run_helper_verifies_run_and_artifact_identity(self):
-        content = (
-            REPOSITORY_ROOT / "tools" / "release" / "verify_readiness_run.sh"
-        ).read_text(encoding="utf-8")
-        for required in (
-            "/actions/runs/${run_id}",
-            '.head_sha == $commit',
-            '.conclusion == "success"',
-            '.path == $workflow_path',
-            '.html_url == $workflow_run_url',
-            "release-readiness-attestation-${run_id}",
-            "--intent publish",
+    def test_retired_release_evidence_helpers_are_absent(self):
+        for relative_path in (
+            "tools/release/verify_readiness_run.sh",
+            "tools/release/release_readiness_attestation.py",
+            "tools/release/release_phase_evidence.py",
+            "tools/release/release_qualification_decision.py",
         ):
-            self.assertIn(required, content)
+            with self.subTest(path=relative_path):
+                self.assertFalse((REPOSITORY_ROOT / relative_path).exists())
 
     def test_root_release_has_no_published_version_default(self):
         content = (

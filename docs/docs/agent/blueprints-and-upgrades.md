@@ -1,23 +1,26 @@
 ---
-title: Blueprint 与升级
+title: Blueprint 与升级状态
 order: 4
-description: v1.3.5 内置 Blueprint、Thin Host 所有权和三方升级合同
+description: v1.3.5 Blueprint 工具未发布，以及未来 Thin Host 所有权和三方升级合同
 ---
 
-# Blueprint 与升级
+# Blueprint 与升级状态
 
-v1.3.5 的 `mss` 二进制内置与版本、完整提交、提交时间和源码仓库绑定的
-`management-system` Blueprint。采用者不需要 Foundation checkout。
+:::warning
+v1.3.5 是不可变部分发布，Root Release 与工具未发布，因此没有可核验的内置 Blueprint，也没有受支持的
+v1.3.5 Thin Host 创建或升级路径。当前稳定版本仍是 v1.3.2；本页只描述未来完整发行应
+满足的合同。
+:::
 
-## 创建
+## Blueprint 来源
 
-```sh
-mss new app customer-admin --module github.com/acme/customer-admin --destination ./customer-admin
-mss new app customer-admin --module github.com/acme/customer-admin --destination ./customer-admin --write --git-init
-```
+未来完整 Root Release 中的工具必须内置一个与版本、完整源提交、构建时间和仓库绑定的
+`management-system` Blueprint。采用者不需要 Foundation checkout，且工具必须能从
+自身 Release 来源证明 Blueprint 身份；本地编译或源码目录不能替代这条来源链。
 
-第一条只读计划，第二条在无冲突后原子写入并初始化 Git。目标必须在允许目录内，未知
-文件导致失败，两次生成输出稳定。
+创建过程先返回只读计划，只有显式确认后才原子写入。目标路径必须受限，未知文件导致
+失败，生成结果应固定一个完整协调版本的公共依赖与冻结锁，并写入同源 manifest、lock
+和快照。两次生成输出必须稳定。
 
 ## 文件所有权
 
@@ -29,47 +32,27 @@ mss new app customer-admin --module github.com/acme/customer-admin --destination
 | 未知 | 用户新增且未登记的文件 | 自动升级必须保留 |
 
 `.mss/blueprint-manifest.json` 保存受管文件摘要，`.mss/lock.yaml` 保存当前发行版与
-升级记录。不要手改摘要伪造一致。
+升级记录。不得手改摘要伪造一致。
 
-## 升级计划
+## 三方升级合同
 
-先备份仓库、配置和数据库，并安装目标 Distribution 的工具。确认二进制身份和 Blueprint
-基线都存在：
+升级前必须备份仓库、配置、数据库和业务数据，并验证目标完整发行工具与 Blueprint
+同源。计划比较旧 Blueprint 基线、当前工作树和目标版本新基线，只列出新增、更新、保留
+和冲突，不写文件。
 
-```sh
-mss --version
-mss-mcp --version
-mss upgrade status --format json
-```
+手工拼装或丢失 manifest 的仓库不能直接三方升级。它必须在独立目录建立由目标完整版本
+生成的新 Thin Host，再按所有权迁入业务规格和业务文件；不得复制或伪造其他仓库的
+manifest。
 
-三方合并需要原始 Blueprint 摘要。手工拼装的仓库或丢失 manifest 的仓库必须先在新
-目录生成目标版本 Thin Host，再按所有权迁入业务规格与业务文件；不得手写摘要把它伪装
-成可升级基线。
-
-```sh
-mss upgrade status --format json
-mss upgrade admin v1.3.5
-```
-
-计划比较旧基线、当前工作树和安装工具内置的新基线。它不写文件，并明确列出新增、更新、
-保留和冲突。
-
-## 应用
-
-在备份、评审和冲突清零后：
-
-```sh
-mss upgrade admin v1.3.5 --apply --yes
-mss upgrade status --format json
-mss doctor --strict
-mss verify --all
-mss upgrade admin v1.3.5
-```
-
-写入使用事务式暂存，业务与未知文件保留，快照最后更新。第二次应用必须为空。请求版本
-与安装工具内置发行版不一致时，先安装匹配版本，不要用本地源码替代公共制品。
+应用阶段只有在备份可恢复、计划已评审且冲突清零后才允许执行。实现必须使用事务式暂存，
+保留业务和未知文件，最后更新快照；完成后的第二次计划必须为空。请求版本、工具版本、
+Blueprint 来源或公共包身份不一致时直接失败。
 
 ## 失败与恢复
 
-计划失败不会写入。应用失败应保留原工作树和可诊断报告；修复输入后重新计划。已经执行
+计划失败不写入。应用失败应保留原工作树和可诊断报告；修复输入后重新计划。已经执行
 数据库迁移的部署回滚必须同时考虑数据快照，不能只恢复文件。
+
+v1.3.5 的组件身份只能用于不可变审计，不能被本地 Blueprint、旧工具或相邻版本补齐。
+未来版本只有在 Root、Framework、Admin、Admin Web、官方 npmjs、Docs 与外部使用方
+证据全部完成公共对账后，才可以把本页合同转成具体命令。

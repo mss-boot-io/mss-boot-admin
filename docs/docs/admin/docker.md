@@ -1,23 +1,26 @@
 ---
-title: 容器部署
+title: 容器发布状态与部署合同
 order: 6
-description: v1.3.5 Admin 后端与前端镜像的拉取、配置、验证和回滚边界
+description: v1.3.5 镜像部分发布事实，以及未来 Thin Host 的构建、配置、验证和回滚边界
 ---
 
-# v1.3.5 容器部署
+# v1.3.5 容器发布状态与部署合同
 
-协调发行完成后，官方镜像与 Go/npm 包来自同一个发行提交：
+当前稳定版本仍是 **v1.3.2**。v1.3.5 是不可变部分发布，镜像发布只完成了一部分：
 
-- `ghcr.io/mss-boot-io/mss-boot-admin:v1.3.5`；
-- `ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.5`。
+| 镜像身份 | v1.3.5 结果 |
+| --- | --- |
+| `ghcr.io/mss-boot-io/mss-boot-admin:v1.3.5` | 后端 Root 镜像未发布 |
+| `ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.5` | 前端镜像已发布并保持不可变 |
 
-这两个镜像是 Foundation 发行与参考应用证据，不包含你的业务模块、组合入口或业务
-前端路由。Thin Host 不能直接部署它们来代替自己的应用镜像。
+单个前端镜像不能证明完整 Admin Distribution。即使两个参考镜像未来都存在，它们也只
+是 Foundation 发行证据，不包含采用者的业务模块、组合入口或业务前端路由，Thin Host
+不能直接部署它们来代替自己的业务镜像。
 
 ## 构建 Thin Host 镜像
 
-`mss new app` 生成的 Dockerfile 从精确 v1.3.5 依赖和冻结锁构建后端、Admin Web 与
-业务代码，并把 Go、Node 和最终运行时基础镜像固定到已核验的多架构 digest。配套
+未来完整发行生成的 Dockerfile 从同一协调版本的公共依赖和冻结锁构建后端、Admin Web
+与业务代码，并把 Go、Node 和最终运行时基础镜像固定到已核验的多架构 digest。配套
 `.dockerignore` 会排除 Git 元数据、Agent 指令、运行报告/日志、数据库、环境文件、配置
 覆盖和前端构建缓存；不得删除这些边界把本地 secret 带入构建上下文。应在业务仓库自己
 的 CI 中构建、测试并推送不可变应用镜像，例如：
@@ -33,19 +36,10 @@ docker buildx build \
 而不是只依赖可移动标签。基础镜像 digest 需要升级时，通过新的应用 PR 更新并重跑构建
 与浏览器验收。
 
-发布前不要把候选标签当作可用镜像。生产部署应在首次解析后记录不可变 digest，并在
-变更单中同时记录版本、源提交和平台。
-
-## 拉取与检查
-
-```sh
-docker pull ghcr.io/mss-boot-io/mss-boot-admin:v1.3.5
-docker pull ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.5
-docker image inspect ghcr.io/mss-boot-io/mss-boot-admin:v1.3.5
-docker image inspect ghcr.io/mss-boot-io/mss-boot-admin-antd-v6:v1.3.5
-```
-
-多架构标签对应 OCI index；部署证据应区分 index digest 与节点实际平台 manifest。
+发布前不要把候选或部分发布身份当作可用镜像。生产部署应记录实际业务镜像的不可变
+digest、源提交、锁文件和平台。多架构标签对应 OCI index；部署证据应区分 index digest
+与节点实际平台 manifest。v1.3.5 后端镜像不存在，因此本页不提供 Root 镜像拉取或运行
+命令，也不建议用前端镜像拼装不完整部署。
 
 ## 配置与数据
 

@@ -6,14 +6,67 @@ tag namespaces.
 
 ## [Unreleased]
 
-No unreleased changes are recorded.
+### Fixed
+
+- Make a manual Root Release dispatch a candidate-only preview and make an
+  exact formal Root tag push publish automatically, eliminating the second
+  publish dispatch, manually selected run IDs, evidence URL, and protected
+  Root-promotion handoff.
+- Put all expensive tests, browser checks, dependency audits, package assembly,
+  and multi-platform image qualification in the single Root preview. Formal
+  tags perform only identity checks, necessary publication, and public-state
+  reconciliation.
+- Start Root assets, the Root image, and official npm publication independently
+  from one Root tag, without cross-workflow waits or mutable image aliases.
+- Serialize Root Release and official npm publication across versions, reuse an
+  exact already-public result on rerun, and never move either `latest` pointer
+  backward when an older tag workflow is resumed.
+- Decouple Docs from the package train: Root assets, the Root image, tools, and
+  official npmjs publication complete from formal tags, while Docs follows later
+  from its own versioned tag.
+
+### Release governance
+
+- Record v1.3.5 as an immutable partial train after root promotion created the
+  exact root tag but failed its post-push metadata check. The naturally
+  triggered Root candidate and container runs were cancelled before Root
+  assets, the Root Release, Docs, or the public npmjs package were published.
+  No later repair may delete, move, recreate, or reuse a v1.3.5 identity. A
+  complete train requires a fresh merged-main commit and an unused version;
+  that version has not been selected.
+- Permanently reject v1.3.5 qualification and publication independently of the
+  general publication-ready switch, and require a no-bypass server ruleset to
+  block late creation of every exact v1.3.5 release-tag namespace.
+- Restrict release previews and every component, Root, npm, or Docs tag path to
+  `lwnmengjing`, reject reruns triggered by any other account, remove manual
+  environment approvals from the tag-driven path, and retain `SullivanPrime`
+  as the independent pull-request reviewer.
+- Consolidate all release-tag creation under one lwnmengjing-only ruleset and
+  retire the Root promotion workflow, write-enabled DeployKey, environment
+  secret, protected environment, and root-only creation ruleset.
+- Replace incomplete v1.3.5 quick-start and deep-link commands with explicit
+  v1.3.2 stable and v1.3.5 immutable-partial availability pages. Source Docs
+  changes do not claim that the public site has moved from `v1.3.2+docs.1`.
 
 ## [v1.3.5] - 2026-08-26
 
-This coordinated patch completes the package-first distribution from one new
-merged-main commit after v1.3.4 stopped as an immutable component-partial
-train. It does not move or overwrite any v1.3.4 tag, Release, package, or
-artifact.
+Status: **published components / immutable partial train**. Framework
+`mss-boot/v1.3.5`, Admin `admin/v1.3.5`, and Admin Web
+`web/antd-v6/v1.3.5` were published from
+`396f60615cdfa589353b16ef9d3531e249e65432`. The protected promotion then
+created the exact annotated Root tag `v1.3.5`, but its post-push check compared
+the GitHub tag message without Git's canonical trailing newline and failed.
+The natural Root candidate and container runs were cancelled before they
+published Root assets, the Root Release, Docs `docs/v1.3.5`, or the public
+npmjs package. The Root tag is already public and Go Proxy indexed, so every
+v1.3.5 identity remains immutable. The governance recovery under Unreleased is
+not publication authority for this stopped train.
+
+This coordinated patch was intended to complete the package-first distribution
+from one new merged-main commit after v1.3.4 stopped as an immutable
+component-partial train. Its reviewed implementation remains attached to the
+exact v1.3.5 source commit, and it did not move or overwrite any v1.3.4 tag,
+Release, package, or artifact.
 
 ### Fixed
 

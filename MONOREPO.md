@@ -35,11 +35,17 @@ make docs-install docs-build
 
 Runtime components have independently triggered workflows, but one Admin
 Distribution release requires the same version core and exact merged-main commit.
-The fail-closed v1.3.5 publication order is Framework, Admin, Admin Web, protected
-Root tag promotion, Root release, Docs, and finally npm Trusted Publishing. Each
-phase rechecks the same frozen merged-main commit and the evidence produced by its
-predecessors. The Docs phase packages its portable static site and deploys through
-the protected `prod` environment without reissuing runtime components.
+v1.3.5 is permanently stopped as an immutable partial release and cannot be
+qualified, resumed, completed, or reused.
+
+For a future unused version, run one non-publishing Root preview on the exact
+merged-main commit. After it succeeds, publish the Framework, Admin, and Admin Web
+tags in order. One Root tag then starts the Root release, backend image, and
+official npm publication independently and in parallel. Formal tag workflows
+reuse the exact preview and do not repeat its expensive qualification or accept a
+promotion, readiness run ID, second publish dispatch, or manual environment
+approval. Docs follows later from its own tag and later merged-main documentation
+commit without reissuing runtime components.
 
 ## Workflow location
 

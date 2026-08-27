@@ -1,5 +1,5 @@
 name: Container Image
-run-name: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && format('Root Image publish {0}', inputs.version) || github.event_name == 'workflow_dispatch' && format('Root Image candidate {0}', inputs.version) || format('Container Image {0}', github.ref_name) }}
+run-name: ${{ github.event_name == 'workflow_call' && format('Root Image candidate {0}', inputs.version) || format('Container Image {0}', github.ref_name) }}
 
 on:
   pull_request:
@@ -32,21 +32,11 @@ on:
       - 'Dockerfile'
       - '.dockerignore'
       - '.github/workflows/container.yml'
-  workflow_dispatch:
+  workflow_call:
     inputs:
       version:
-        description: Version embedded in a manually built image
+        description: Exact candidate version supplied by the Root preview
         required: true
-        default: devel
-        type: string
-      publish:
-        description: Push the manually built image to GHCR
-        required: true
-        default: false
-        type: boolean
-      readiness_run_id:
-        description: Exact release-readiness workflow run ID required for publication
-        required: false
         type: string
 
 permissions:
@@ -54,7 +44,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ startsWith(github.ref, 'refs/tags/') && format('foundation-release-{0}', github.ref) || format('container-{0}', github.event.pull_request.number || github.ref) }}
+  group: container-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 env:
@@ -72,10 +62,22 @@ jobs:
       publish: ${{ steps.build-info.outputs.publish }}
       stable: ${{ steps.build-info.outputs.stable }}
     steps:
+      - name: Require authorized release operator
+        if: ${{ github.event_name == 'workflow_call' || github.ref_type == 'tag' }}
+        env:
+          RELEASE_ACTOR_LOGIN: lwnmengjing
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" || "${GITHUB_TRIGGERING_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" ]]; then
+            echo "release operations must be initiated and triggered by ${RELEASE_ACTOR_LOGIN}" >&2
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Go
+        if: github.ref_type != 'tag'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: admin/go.mod
@@ -87,13 +89,13 @@ jobs:
             mss-boot/go.sum
 
       - name: Vendor workspace for Docker context
+        if: github.ref_type != 'tag'
         run: go work vendor
 
       - name: Resolve build metadata
         id: build-info
         env:
           INPUT_VERSION: ${{ inputs.version }}
-          INPUT_PUBLISH: ${{ inputs.publish }}
         run: |
           set -euo pipefail
 
@@ -126,9 +128,8 @@ jobs:
 
           version="sha-${GITHUB_SHA:0:12}"
           publish=false
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_call" ]]; then
             version="${INPUT_VERSION}"
-            publish="${INPUT_PUBLISH}"
           elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             version="${GITHUB_REF_NAME}"
             publish=true
@@ -152,16 +153,6 @@ jobs:
               --tag "${version}" \
               --intent qualify
           fi
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${publish}" == "true" ]]; then
-            if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${version}" ]]; then
-              echo "manual publication requires workflow_dispatch from the exact ${version} tag" >&2
-              exit 1
-            fi
-            if ! validate_release_version "${version}"; then
-              echo "manual publication requires a valid release version" >&2
-              exit 1
-            fi
-          fi
           stable=false
           if [[ "${version}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             stable=true
@@ -173,13 +164,28 @@ jobs:
             echo "local-tag=${REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}"
           } >> "${GITHUB_OUTPUT}"
 
+      - name: Require successful exact preview
+        if: steps.build-info.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.build-info.outputs.version }}
+        run: |
+          bash tools/release/resolve_successful_preview.sh \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${GITHUB_SHA}" \
+            --version "${RELEASE_VERSION}" \
+            --actor lwnmengjing
+
       - name: Set up QEMU
+        if: github.event_name == 'workflow_call'
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
 
       - name: Set up Docker Buildx
+        if: github.ref_type != 'tag'
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
 
       - name: Extract Docker metadata
+        if: github.ref_type != 'tag'
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
@@ -190,11 +196,10 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=ref,event=tag
-            type=raw,value=latest,enable=${{ steps.build-info.outputs.stable == 'true' }}
-            type=raw,value=${{ steps.build-info.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
             type=sha,prefix=,format=long,enable=true,priority=100
 
       - name: Build candidate image
+        if: github.ref_type != 'tag'
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
@@ -219,6 +224,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=admin-image
 
       - name: Smoke-test candidate image
+        if: github.ref_type != 'tag'
         env:
           IMAGE: ${{ steps.build-info.outputs.local-tag }}
           EXPECTED_VERSION: ${{ steps.build-info.outputs.version }}
@@ -231,28 +237,57 @@ jobs:
           test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.title" }}' "${IMAGE}")" = 'mss-boot-admin'
           test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.description" }}' "${IMAGE}")" = 'Complete Go Admin backend for the mss-boot agent-native management-system distribution.'
 
+      - name: Qualify the exact multi-platform release image
+        if: github.event_name == 'workflow_call'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.title=mss-boot-admin
+            org.opencontainers.image.description=Complete Go Admin backend for the mss-boot agent-native management-system distribution.
+            org.opencontainers.image.version=${{ steps.build-info.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            VERSION=${{ steps.build-info.outputs.version }}
+            COMMIT=${{ github.sha }}
+          provenance: true
+          sbom: true
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha,scope=admin-image
+          cache-to: type=gha,mode=max,scope=admin-image
+
   publish:
     name: publish
     needs: build
     if: >-
       ${{
         needs.build.outputs.publish == 'true' &&
+        github.event_name == 'push' &&
         github.ref_type == 'tag' &&
-        github.ref_name == needs.build.outputs.version &&
-        (
-          github.event_name == 'push' ||
-          (github.event_name == 'workflow_dispatch' && inputs.publish == true)
-        )
+        github.ref_name == needs.build.outputs.version
       }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
-    environment: release
+    environment: release-auto
     permissions:
       actions: read
       contents: read
       packages: write
       pull-requests: read
     steps:
+      - name: Require authorized release operator
+        env:
+          RELEASE_ACTOR_LOGIN: lwnmengjing
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" || "${GITHUB_TRIGGERING_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" ]]; then
+            echo "release operations must be initiated and triggered by ${RELEASE_ACTOR_LOGIN}" >&2
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -285,23 +320,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          INPUT_PUBLISH: ${{ inputs.publish }}
-          INPUT_READINESS_RUN_ID: ${{ inputs.readiness_run_id }}
-          RELEASE_READINESS_RUN_ID: ${{ vars.RELEASE_READINESS_RUN_ID }}
           RELEASE_VERSION: ${{ needs.build.outputs.version }}
         run: |
           set -euo pipefail
 
-          if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${RELEASE_VERSION}" ]]; then
-            echo "publication requires the exact ${RELEASE_VERSION} tag" >&2
-            exit 1
-          fi
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${INPUT_PUBLISH}" != "true" ]]; then
-            echo "manual publication requires publish=true" >&2
-            exit 1
-          fi
-          if [[ "${GITHUB_EVENT_NAME}" != "push" && "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ]]; then
-            echo "unsupported publication event: ${GITHUB_EVENT_NAME}" >&2
+          if [[ "${GITHUB_EVENT_NAME}" != "push" || "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${RELEASE_VERSION}" ]]; then
+            echo "publication requires the exact ${RELEASE_VERSION} tag push" >&2
             exit 1
           fi
 
@@ -310,22 +334,6 @@ jobs:
             --version "${RELEASE_VERSION}" \
             --tag "${GITHUB_REF_NAME}" \
             --intent publish
-
-          readiness_run_id="${INPUT_READINESS_RUN_ID:-${RELEASE_READINESS_RUN_ID}}"
-          bash tools/release/verify_readiness_run.sh \
-            --repository "${GITHUB_REPOSITORY}" \
-            --run-id "${readiness_run_id}" \
-            --target-version "${RELEASE_VERSION}" \
-            --commit "${GITHUB_SHA}" \
-            --phase pre-root \
-            --policy .mss/release-policy.yaml
-
-          if release_json="$(gh release view "${RELEASE_VERSION}" --json isDraft 2>/dev/null)"; then
-            if [[ "$(jq -r '.isDraft' <<< "${release_json}")" != "true" ]]; then
-              echo "release ${RELEASE_VERSION} is already public; refusing to mutate its image tag" >&2
-              exit 1
-            fi
-          fi
 
       - name: Log into registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
@@ -436,8 +444,6 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=ref,event=tag
-            type=raw,value=latest,enable=${{ needs.build.outputs.stable == 'true' }}
-            type=raw,value=${{ needs.build.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
             type=sha,prefix=,format=long,enable=true,priority=100
 
       - name: Build and publish image
@@ -464,18 +470,6 @@ jobs:
           cache-from: type=gha,scope=admin-image
           cache-to: type=gha,mode=max,scope=admin-image
 
-      - name: Restore stable alias from a recovered immutable image
-        if: ${{ needs.build.outputs.stable == 'true' && steps.existing-image.outputs.exists == 'true' }}
-        env:
-          IMAGE_DIGEST: ${{ steps.existing-image.outputs.digest }}
-        run: |
-          set -euo pipefail
-          [[ "${IMAGE_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          image_repository="${REGISTRY}/${IMAGE_NAME}"
-          docker buildx imagetools create \
-            --tag "${image_repository}:latest" \
-            "${image_repository}@${IMAGE_DIGEST}"
-
       - name: Record published image digest
         env:
           IMAGE_DIGEST: ${{ steps.publish.outputs.digest || steps.existing-image.outputs.digest }}
@@ -499,8 +493,7 @@ jobs:
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Verify stable image aliases resolve to the published digest
-        if: ${{ needs.build.outputs.stable == 'true' }}
+      - name: Verify immutable image tag resolves to the published digest
         env:
           EXPECTED_DIGEST: ${{ steps.publish.outputs.digest || steps.existing-image.outputs.digest }}
           RELEASE_VERSION: ${{ needs.build.outputs.version }}
@@ -509,32 +502,23 @@ jobs:
           [[ "${EXPECTED_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
           image_repository="${REGISTRY}/${IMAGE_NAME}"
           version_digest=""
-          latest_digest=""
           for attempt in $(seq 1 12); do
             version_digest=""
-            latest_digest=""
             if version_manifest="$(
               docker buildx imagetools inspect \
                 "${image_repository}:${RELEASE_VERSION}" \
                 --format '{{json .Manifest}}'
-            )" && latest_manifest="$(
-              docker buildx imagetools inspect \
-                "${image_repository}:latest" \
-                --format '{{json .Manifest}}'
-            )" && version_digest="$(jq -er '.digest' <<< "${version_manifest}")" \
-              && latest_digest="$(jq -er '.digest' <<< "${latest_manifest}")"; then
-              if [[ "${version_digest}" == "${EXPECTED_DIGEST}" \
-                && "${latest_digest}" == "${version_digest}" ]]; then
+            )" && version_digest="$(jq -er '.digest' <<< "${version_manifest}")"; then
+              if [[ "${version_digest}" == "${EXPECTED_DIGEST}" ]]; then
                 break
               fi
             fi
-            echo "waiting for stable image aliases to converge (attempt ${attempt}/12)"
+            echo "waiting for immutable image tag to converge (attempt ${attempt}/12)"
             if [[ "${attempt}" -lt 12 ]]; then
               sleep 5
             fi
           done
-          if [[ "${version_digest}" != "${EXPECTED_DIGEST}" \
-            || "${latest_digest}" != "${version_digest}" ]]; then
-            echo "stable image aliases do not resolve to the published manifest digest" >&2
+          if [[ "${version_digest}" != "${EXPECTED_DIGEST}" ]]; then
+            echo "immutable image tag does not resolve to the published manifest digest" >&2
             exit 1
           fi

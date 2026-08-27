@@ -1,5 +1,5 @@
 name: Release
-run-name: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && format('Root Release publish {0}', inputs.version) || github.event_name == 'workflow_dispatch' && format('Root Release candidate {0}', inputs.version) || format('Root Release {0}', github.ref_name) }}
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Root Release candidate {0}', inputs.version) || format('Root Release {0}', github.ref_name) }}
 
 on:
   push:
@@ -11,36 +11,13 @@ on:
         description: Release version used for artifact metadata
         required: true
         type: string
-      feature_freeze_confirmed:
-        description: Confirm the target version is feature-frozen and concentrated validation may start
-        required: true
-        default: false
-        type: boolean
-      publish:
-        description: Publish the GitHub Release after all artifacts and the matching image are ready
-        required: true
-        default: false
-        type: boolean
-      manual_evidence_complete:
-        description: Confirm restore rehearsal, OAuth revocation, secret scan, external GOWORK=off module probe, and release approval are attached
-        required: true
-        default: false
-        type: boolean
-      evidence_url:
-        description: Repository issue URL containing the sanitized manual release evidence
-        required: false
-        type: string
-      readiness_run_id:
-        description: Exact pre-root release-readiness workflow run ID required for publication
-        required: false
-        type: string
 
 permissions:
   actions: read
   contents: read
 
 concurrency:
-  group: foundation-release-${{ github.ref }}
+  group: ${{ github.event_name == 'push' && 'root-release-publication' || format('root-release-preview-{0}', github.ref) }}
   cancel-in-progress: false
 
 env:
@@ -56,8 +33,18 @@ jobs:
       commit: ${{ steps.release.outputs.commit }}
       prerelease: ${{ steps.release.outputs.prerelease }}
       publish: ${{ steps.release.outputs.publish }}
-      evidence_url: ${{ steps.release.outputs.evidence_url }}
     steps:
+      - name: Require authorized release operator
+        if: ${{ github.event_name == 'workflow_dispatch' || github.ref_type == 'tag' }}
+        env:
+          RELEASE_ACTOR_LOGIN: lwnmengjing
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" || "${GITHUB_TRIGGERING_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" ]]; then
+            echo "release operations must be initiated and triggered by ${RELEASE_ACTOR_LOGIN}" >&2
+            exit 1
+          fi
+
       - name: Checkout release policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -69,10 +56,6 @@ jobs:
         id: release
         env:
           INPUT_VERSION: ${{ inputs.version }}
-          INPUT_PUBLISH: ${{ inputs.publish }}
-          INPUT_FEATURE_FREEZE_CONFIRMED: ${{ inputs.feature_freeze_confirmed }}
-          INPUT_MANUAL_EVIDENCE_COMPLETE: ${{ inputs.manual_evidence_complete }}
-          INPUT_EVIDENCE_URL: ${{ inputs.evidence_url }}
         run: |
           set -euo pipefail
 
@@ -104,27 +87,21 @@ jobs:
           }
 
           version="${GITHUB_REF_NAME}"
-          publish=false
-          evidence_url=""
+          publish=true
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            version="${INPUT_VERSION}"
-            publish="${INPUT_PUBLISH}"
-            evidence_url="${INPUT_EVIDENCE_URL}"
-            if [[ "${INPUT_FEATURE_FREEZE_CONFIRMED}" != "true" ]]; then
-              echo "manual release work starts only after feature freeze is confirmed" >&2
+            if [[ "${GITHUB_REF_TYPE}" != "branch" || "${GITHUB_REF_NAME}" != "main" ]]; then
+              echo 'the unique release preview must run from the main branch' >&2
               exit 1
             fi
+            version="${INPUT_VERSION}"
+            publish=false
           fi
           if ! validate_release_version "${version}"; then
             echo "invalid release version: ${version}" >&2
             exit 1
           fi
-          if [[ "${publish}" != "true" && "${publish}" != "false" ]]; then
-            echo "publish must be true or false" >&2
-            exit 1
-          fi
           policy_intent=qualify
-          if [[ "${GITHUB_REF_TYPE}" == "tag" || "${publish}" == "true" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_TYPE}" == "tag" ]]; then
             policy_intent=publish
           fi
           python3 tools/release/check_release_policy.py \
@@ -132,20 +109,9 @@ jobs:
             --version "${version}" \
             --tag "${version}" \
             --intent "${policy_intent}"
-          if [[ "${publish}" == "true" ]]; then
-            if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${version}" ]]; then
-              echo "publishing requires workflow_dispatch from the exact ${version} tag" >&2
-              exit 1
-            fi
-            if [[ "${INPUT_MANUAL_EVIDENCE_COMPLETE}" != "true" ]]; then
-              echo "manual release evidence must be confirmed before publication" >&2
-              exit 1
-            fi
-            evidence_pattern="^https://github.com/${GITHUB_REPOSITORY}/issues/[0-9]+$"
-            if [[ ! "${evidence_url}" =~ ${evidence_pattern} ]]; then
-              echo "evidence_url must be an issue in ${GITHUB_REPOSITORY}" >&2
-              exit 1
-            fi
+          if [[ "${publish}" == "true" && ("${GITHUB_EVENT_NAME}" != "push" || "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${version}") ]]; then
+            echo "publication is authorized only by the exact ${version} tag push" >&2
+            exit 1
           fi
           prerelease=false
           if [[ "${version}" == *-* ]]; then
@@ -156,26 +122,26 @@ jobs:
             echo "commit=${GITHUB_SHA}"
             echo "prerelease=${prerelease}"
             echo "publish=${publish}"
-            echo "evidence_url=${evidence_url}"
           } >> "${GITHUB_OUTPUT}"
 
   release-evidence:
     needs: metadata
+    if: needs.metadata.outputs.publish == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    outputs:
+      preview-run-id: ${{ steps.preview.outputs.run-id }}
     permissions:
       actions: read
       contents: read
-      packages: read
       pull-requests: read
     steps:
       - name: Checkout release source
-        if: github.ref_type == 'tag'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
       - name: Verify merged-main release source
-        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
@@ -187,49 +153,29 @@ jobs:
             --tag "${RELEASE_VERSION}" \
             --policy .mss/release-policy.yaml
 
-      - name: Setup Go for the external framework probe
-        if: needs.metadata.outputs.publish == 'true'
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version: 1.26.6
-          cache: false
-
-      - name: Setup Node for the public Admin Web probe
-        if: needs.metadata.outputs.publish == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 24
-          registry-url: https://npm.pkg.github.com
-          scope: '@mss-boot-io'
-
-      - name: Require selected pre-root readiness attestation
-        if: github.ref_type == 'tag'
+      - name: Require successful exact preview
+        id: preview
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-          INPUT_READINESS_RUN_ID: ${{ inputs.readiness_run_id }}
-          RELEASE_READINESS_RUN_ID: ${{ vars.RELEASE_READINESS_RUN_ID }}
+          RELEASE_ACTOR_LOGIN: lwnmengjing
         run: |
           set -euo pipefail
-          readiness_run_id="${INPUT_READINESS_RUN_ID:-${RELEASE_READINESS_RUN_ID}}"
-          bash tools/release/verify_readiness_run.sh \
-            --repository "${GITHUB_REPOSITORY}" \
-            --run-id "${readiness_run_id}" \
-            --target-version "${RELEASE_VERSION}" \
-            --commit "${RELEASE_COMMIT}" \
-            --phase pre-root \
-            --policy .mss/release-policy.yaml
 
-      - name: Require successful exact-commit release evidence
-        if: needs.metadata.outputs.publish == 'true'
+          preview_run_id="$(bash tools/release/resolve_successful_preview.sh \
+            --repository "${GITHUB_REPOSITORY}" \
+            --commit "${RELEASE_COMMIT}" \
+            --version "${RELEASE_VERSION}" \
+            --actor "${RELEASE_ACTOR_LOGIN}")"
+          echo "run-id=${preview_run_id}" >> "${GITHUB_OUTPUT}"
+
+      - name: Require exact component releases
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          NODE_AUTH_TOKEN: ${{ github.token }}
           RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-          RELEASE_EVIDENCE_URL: ${{ needs.metadata.outputs.evidence_url }}
         run: |
           set -euo pipefail
 
@@ -261,42 +207,8 @@ jobs:
           }
 
           root_commit="$(resolve_tag_commit "${RELEASE_VERSION}")"
-          framework_commit="$(resolve_tag_commit "mss-boot/${RELEASE_VERSION}")"
-          admin_commit="$(resolve_tag_commit "admin/${RELEASE_VERSION}")"
-          frontend_commit="$(resolve_tag_commit "web/antd-v6/${RELEASE_VERSION}")"
           if [[ "${root_commit}" != "${RELEASE_COMMIT}" ]]; then
             echo "root tag ${RELEASE_VERSION} resolves to ${root_commit}, not ${RELEASE_COMMIT}" >&2
-            exit 1
-          fi
-          if [[ "${framework_commit}" != "${RELEASE_COMMIT}" ]]; then
-            echo "framework tag mss-boot/${RELEASE_VERSION} resolves to ${framework_commit}, not ${RELEASE_COMMIT}" >&2
-            exit 1
-          fi
-          if [[ "${admin_commit}" != "${RELEASE_COMMIT}" ]]; then
-            echo "Admin tag admin/${RELEASE_VERSION} resolves to ${admin_commit}, not ${RELEASE_COMMIT}" >&2
-            exit 1
-          fi
-          if [[ "${frontend_commit}" != "${RELEASE_COMMIT}" ]]; then
-            echo "frontend tag web/antd-v6/${RELEASE_VERSION} resolves to ${frontend_commit}, not ${RELEASE_COMMIT}" >&2
-            exit 1
-          fi
-
-          required_framework_version="$(
-            cd "${GITHUB_WORKSPACE}/admin"
-            GOWORK=off go mod edit -json |
-              jq -r '.Require[] | select(.Path == "github.com/mss-boot-io/mss-boot-admin/mss-boot") | .Version'
-          )"
-          if [[ "${required_framework_version}" != "${RELEASE_VERSION}" ]]; then
-            echo "admin/go.mod requires mss-boot ${required_framework_version}, not ${RELEASE_VERSION}" >&2
-            exit 1
-          fi
-
-          evidence_number="${RELEASE_EVIDENCE_URL##*/}"
-          evidence_issue="$(gh api "/repos/${GITHUB_REPOSITORY}/issues/${evidence_number}")"
-          if ! jq -e \
-            '.pull_request == null and ((.body // "") | length > 0)' \
-            <<< "${evidence_issue}" >/dev/null; then
-            echo "manual evidence URL must resolve to a non-empty repository issue" >&2
             exit 1
           fi
 
@@ -304,174 +216,48 @@ jobs:
           if [[ "${RELEASE_VERSION}" == *-* ]]; then
             expected_component_prerelease=true
           fi
-          for component_tag in \
-            "mss-boot/${RELEASE_VERSION}" \
-            "admin/${RELEASE_VERSION}" \
-            "web/antd-v6/${RELEASE_VERSION}"; do
-            component_release="$(gh release view "${component_tag}" --json tagName,isDraft,isPrerelease)"
-            if [[ "$(jq -r '.tagName' <<< "${component_release}")" != "${component_tag}" ]]; then
-              echo "component release tag identity does not match ${component_tag}" >&2
+          while IFS= read -r component_tag; do
+            if ! component_commit="$(resolve_tag_commit "${component_tag}" 2>/dev/null)"; then
+              echo "required component tag ${component_tag} is not available" >&2
               exit 1
             fi
-            if [[ "$(jq -r '.isDraft' <<< "${component_release}")" != "false" ]]; then
-              echo "component release ${component_tag} is missing or still a draft" >&2
+            if [[ "${component_commit}" != "${RELEASE_COMMIT}" ]]; then
+              echo "component tag ${component_tag} resolves to ${component_commit}, not ${RELEASE_COMMIT}" >&2
               exit 1
             fi
-            if [[ "$(jq -r '.isPrerelease' <<< "${component_release}")" != "${expected_component_prerelease}" ]]; then
-              echo "component release ${component_tag} prerelease state does not match ${RELEASE_VERSION}" >&2
+            if ! component_release="$(gh release view "${component_tag}" --json tagName,isDraft,isPrerelease 2>/dev/null)"; then
+              echo "required component release ${component_tag} is not public" >&2
               exit 1
             fi
-          done
-
-          while IFS='|' read -r workflow component_ref; do
-            workflow_path=".github/workflows/${workflow}"
-            runs="$(gh api \
-              --method GET \
-              -H 'Accept: application/vnd.github+json' \
-              "/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs" \
-              -f head_sha="${RELEASE_COMMIT}" \
-              -f status=completed \
-              -f per_page=20)"
-            successes="$(jq \
-              --arg commit "${RELEASE_COMMIT}" \
-              --arg component_ref "${component_ref}" \
-              --arg workflow_path "${workflow_path}" \
-              '[.workflow_runs[] | select(
-                .event == "push" and
-                .head_branch == $component_ref and
-                .head_sha == $commit and
-                .path == $workflow_path and
-                .conclusion == "success"
-              )] | length' <<< "${runs}")"
-            if [[ "${successes}" -lt 1 ]]; then
-              echo "no successful ${workflow} run exists for exact tag ${component_ref} at ${RELEASE_COMMIT}" >&2
-              exit 1
-            fi
+            jq -e \
+              --arg tag "${component_tag}" \
+              --argjson prerelease "${expected_component_prerelease}" \
+              '.tagName == $tag and .isDraft == false and .isPrerelease == $prerelease' \
+              <<< "${component_release}" >/dev/null || {
+                echo "component release ${component_tag} has conflicting immutable identity" >&2
+                exit 1
+              }
           done <<EOF
-          framework-release.yml|mss-boot/${RELEASE_VERSION}
-          admin-release.yml|admin/${RELEASE_VERSION}
-          frontend-v6-release.yml|web/antd-v6/${RELEASE_VERSION}
+          mss-boot/${RELEASE_VERSION}
+          admin/${RELEASE_VERSION}
+          web/antd-v6/${RELEASE_VERSION}
           EOF
-
-          for workflow in \
-            v0.7-upgrade-integration.yml \
-            theme-settings-integration.yml; do
-            workflow_path=".github/workflows/${workflow}"
-            runs="$(gh api \
-              --method GET \
-              -H 'Accept: application/vnd.github+json' \
-              "/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs" \
-              -f head_sha="${RELEASE_COMMIT}" \
-              -f status=completed \
-              -f per_page=20)"
-            successes="$(jq \
-              --arg workflow_path "${workflow_path}" \
-              '[.workflow_runs[] | select(
-                .path == $workflow_path and .conclusion == "success"
-              )] | length' <<< "${runs}")"
-            if [[ "${successes}" -lt 1 ]]; then
-              echo "no successful ${workflow} run exists for ${RELEASE_COMMIT}" >&2
-              exit 1
-            fi
-          done
-
-          probe_dir="$(mktemp -d)"
-          trap 'rm -rf "${probe_dir}"' EXIT
-          module="github.com/mss-boot-io/mss-boot-admin/mss-boot"
-          module_version="${RELEASE_VERSION}"
-          download_json="$(
-            cd "${probe_dir}"
-            GOWORK=off GOPROXY=direct go mod init example.com/mss-release-probe >/dev/null
-            GOWORK=off GOPROXY=direct go mod download -json "${module}@${module_version}"
-          )"
-          jq -e \
-            --arg module "${module}" \
-            --arg version "${module_version}" \
-            --arg commit "${RELEASE_COMMIT}" \
-            '.Path == $module and .Version == $version and .Origin.Hash == $commit and (.Sum | startswith("h1:"))' \
-            <<< "${download_json}" >/dev/null
-          cat > "${probe_dir}/main.go" <<'EOF'
-          package main
-
-          import (
-            "fmt"
-
-            "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
-          )
-
-          func main() {
-            if enum.Enabled.String() != "enabled" {
-              panic("unexpected framework enum contract")
-            }
-            fmt.Println(enum.Enabled)
-          }
-          EOF
-          (
-            cd "${probe_dir}"
-            GOWORK=off go mod edit -require="${module}@${module_version}"
-            GOWORK=off GOPROXY=direct go mod tidy
-            GOWORK=off GOPROXY=direct go build ./...
-          )
-
-          admin_probe_dir="$(mktemp -d)"
-          trap 'rm -rf "${probe_dir}" "${admin_probe_dir}"' EXIT
-          admin_module="github.com/mss-boot-io/mss-boot-admin/admin"
-          admin_download_json="$(
-            cd "${admin_probe_dir}"
-            GOWORK=off GOPROXY=direct go mod init example.com/mss-admin-root-release-probe >/dev/null
-            GOWORK=off GOPROXY=direct go mod download -json "${admin_module}@${RELEASE_VERSION}"
-          )"
-          jq -e \
-            --arg module "${admin_module}" \
-            --arg version "${RELEASE_VERSION}" \
-            --arg commit "${RELEASE_COMMIT}" \
-            '.Path == $module and .Version == $version and .Origin.Hash == $commit and (.Sum | startswith("h1:"))' \
-            <<< "${admin_download_json}" >/dev/null
-          cat > "${admin_probe_dir}/main.go" <<'EOF'
-          package main
-
-          import adminapp "github.com/mss-boot-io/mss-boot-admin/admin/app"
-
-          func main() {
-            if _, err := adminapp.New(); err != nil {
-              panic(err)
-            }
-          }
-          EOF
-          (
-            cd "${admin_probe_dir}"
-            GOWORK=off go mod edit -require="${admin_module}@${RELEASE_VERSION}"
-            GOWORK=off GOPROXY=direct go mod tidy
-            GOWORK=off GOPROXY=direct go test ./...
-            GOWORK=off GOPROXY=direct go build ./...
-          )
-
-          npm_metadata="$(npm view \
-            "@mss-boot-io/admin-web@${RELEASE_VERSION#v}" \
-            version gitHead dist.integrity --json \
-            --registry=https://npm.pkg.github.com)"
-          jq -e \
-            --arg version "${RELEASE_VERSION#v}" \
-            --arg commit "${RELEASE_COMMIT}" \
-            '.version == $version and .gitHead == $commit and
-             (."dist.integrity" | startswith("sha512-"))' \
-            <<< "${npm_metadata}" >/dev/null
-          package_record="$(
-            gh api "/orgs/${GITHUB_REPOSITORY_OWNER}/packages/npm/admin-web"
-          )"
-          jq -e \
-            --arg repository "${GITHUB_REPOSITORY}" \
-            '.name == "admin-web" and .package_type == "npm" and
-             .visibility == "public" and
-             (.repository.full_name == $repository)' \
-            <<< "${package_record}" >/dev/null
 
   foundation-compatibility:
     needs: metadata
+    if: needs.metadata.outputs.publish != 'true'
     uses: ./.github/workflows/foundation-compatibility.yml
+
+  container-preview:
+    needs: metadata
+    if: needs.metadata.outputs.publish != 'true'
+    uses: ./.github/workflows/container.yml
+    with:
+      version: ${{ needs.metadata.outputs.version }}
 
   test:
     needs: metadata
+    if: needs.metadata.outputs.publish != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     services:
@@ -542,6 +328,7 @@ jobs:
       - metadata
       - test
       - foundation-compatibility
+    if: needs.metadata.outputs.publish != 'true'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -627,6 +414,7 @@ jobs:
 
   frontend-build:
     needs: metadata
+    if: needs.metadata.outputs.publish != 'true'
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -654,6 +442,23 @@ jobs:
         run: |
           pnpm run deps:check
           pnpm run audit:release
+
+      - name: Qualify V6 lint and unit behavior
+        run: |
+          pnpm run lint
+          pnpm run test:ci
+
+      - name: Create ephemeral browser administrator secret
+        run: |
+          set -euo pipefail
+          password="MssE2E-A1-$(openssl rand -hex 24)"
+          echo "::add-mask::${password}"
+          echo "MSS_E2E_PASSWORD=${password}" >> "${GITHUB_ENV}"
+
+      - name: Qualify browser permission and parity behavior
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm run test:e2e
 
       - name: Build same-origin primary V6 frontend
         run: pnpm run build:release
@@ -689,14 +494,25 @@ jobs:
             echo "version=${RELEASE_VERSION}"
             echo "commit=${RELEASE_COMMIT}"
           } > FRONTEND-V6-BUILD-INFO
-          tar --create --gzip --file dist-v6.tar.gz dist
+          source_epoch="$(git show -s --format=%ct "${RELEASE_COMMIT}")"
+          tar \
+            --sort=name \
+            --mtime="@${source_epoch}" \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            --create \
+            --gzip \
+            --file dist-v6.tar.gz \
+            dist
           sha256sum dist-v6.tar.gz FRONTEND-V6-BUILD-INFO > SHA256SUMS.frontend-v6
+          sha256sum --check SHA256SUMS.frontend-v6
           python3 ../../tools/release/check_portable_paths.py \
             dist-v6.tar.gz \
             FRONTEND-V6-BUILD-INFO \
             SHA256SUMS.frontend-v6
 
-      - name: Pack exact Admin Web candidate for tool smoke
+      - name: Pack exact Admin Web package and release evidence
         env:
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
           RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
@@ -704,8 +520,8 @@ jobs:
           set -euo pipefail
           candidate_root="$(mktemp -d)"
           trap 'rm -rf "${candidate_root}"' EXIT
-          candidate_output="${GITHUB_WORKSPACE}/web/antd-v6/admin-web-candidate"
-          mkdir -p "${candidate_root}/source" "${candidate_output}"
+          package_dir="${GITHUB_WORKSPACE}/web/antd-v6/admin-web-release-package"
+          mkdir -p "${candidate_root}/source" "${package_dir}"
           git -C ../.. -c core.autocrlf=false archive \
             --format=tar \
             "${RELEASE_COMMIT}:web/antd-v6" \
@@ -731,22 +547,65 @@ jobs:
           PY
           (
             cd "${candidate_root}/source"
-            pnpm pack --pack-destination "${candidate_output}" >/dev/null
+            pnpm pack --pack-destination "${package_dir}" >/dev/null
           )
           mapfile -t candidate_tarballs < <(
-            find "${candidate_output}" -maxdepth 1 -type f -name '*.tgz' -print
+            find "${package_dir}" -maxdepth 1 -type f -name '*.tgz' -print
           )
           [[ ${#candidate_tarballs[@]} -eq 1 ]]
-          install -m 0644 \
-            "${candidate_tarballs[0]}" \
-            "${GITHUB_WORKSPACE}/web/antd-v6/admin-web-candidate.tgz"
-          tar -xOf admin-web-candidate.tgz package/package.json \
-            | jq -e \
-                --arg version "${RELEASE_VERSION#v}" \
-                --arg commit "${RELEASE_COMMIT}" \
-                '.name == "@mss-boot-io/admin-web" and
-                 .version == $version and .gitHead == $commit' \
-            >/dev/null
+          tarball="${candidate_tarballs[0]}"
+
+          pnpm list --prod --json --depth Infinity > "${package_dir}/pnpm-tree.json"
+          created="$(date -u -d "$(git show -s --format=%cI "${RELEASE_COMMIT}")" '+%Y-%m-%dT%H:%M:%SZ')"
+          python3 ../../tools/release/verify_admin_web_package.py \
+            --tarball "${tarball}" \
+            --expected-name '@mss-boot-io/admin-web' \
+            --expected-version "${RELEASE_VERSION#v}" \
+            --source-repository "${GITHUB_REPOSITORY}" \
+            --source-commit "${RELEASE_COMMIT}" \
+            --output "${package_dir}/admin-web-package.json"
+          python3 ../../tools/release/generate_admin_web_sbom.py \
+            --dependency-tree "${package_dir}/pnpm-tree.json" \
+            --package-evidence "${package_dir}/admin-web-package.json" \
+            --source-repository "${GITHUB_REPOSITORY}" \
+            --source-commit "${RELEASE_COMMIT}" \
+            --created "${created}" \
+            --output "${package_dir}/admin-web.spdx.json"
+          rm -f "${package_dir}/pnpm-tree.json"
+          (
+            cd "${package_dir}"
+            sha256sum -- *.tgz admin-web-package.json admin-web.spdx.json \
+              > SHA256SUMS.admin-web
+            sha256sum --check SHA256SUMS.admin-web
+          )
+          python3 ../../tools/release/check_portable_paths.py \
+            "${tarball}" \
+            "${package_dir}/admin-web-package.json" \
+            "${package_dir}/admin-web.spdx.json" \
+            "${package_dir}/SHA256SUMS.admin-web"
+
+      - name: Set up V6 multi-platform emulation
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+
+      - name: Set up V6 image builder
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+      - name: Qualify the exact V6 multi-platform release image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: web/antd-v6
+          file: web/antd-v6/Dockerfile
+          push: false
+          labels: |
+            org.opencontainers.image.title=mss-boot-admin-antd-v6
+            org.opencontainers.image.description=Complete React 19 and Ant Design 6 Admin application for mss-boot business hosts.
+            org.opencontainers.image.version=${{ needs.metadata.outputs.version }}
+            org.opencontainers.image.revision=${{ needs.metadata.outputs.commit }}
+          platforms: linux/amd64,linux/arm64
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=frontend-v6-image
+          cache-to: type=gha,mode=max,scope=frontend-v6-image
 
       - name: Upload primary V6 artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -756,20 +615,24 @@ jobs:
             web/antd-v6/dist-v6.tar.gz
             web/antd-v6/FRONTEND-V6-BUILD-INFO
             web/antd-v6/SHA256SUMS.frontend-v6
-            web/antd-v6/admin-web-candidate.tgz
+            web/antd-v6/admin-web-release-package/*.tgz
+            web/antd-v6/admin-web-release-package/admin-web-package.json
+            web/antd-v6/admin-web-release-package/admin-web.spdx.json
+            web/antd-v6/admin-web-release-package/SHA256SUMS.admin-web
           if-no-files-found: error
 
-  release:
+  assemble:
     needs:
       - metadata
-      - release-evidence
+      - test
+      - foundation-compatibility
+      - container-preview
       - backend-build
       - frontend-build
+    if: needs.metadata.outputs.publish != 'true'
     runs-on: ubuntu-24.04
-    environment: release
     permissions:
-      contents: write
-      packages: read
+      contents: read
     steps:
       - name: Checkout release validation tooling
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -811,9 +674,18 @@ jobs:
             --arg commit "${RELEASE_COMMIT}" \
             '.application == "mss-boot-admin-antd-v6" and .version == $version and .commit == $commit' \
             frontend-v6-extracted/dist/release.json >/dev/null
-          admin_web_candidate="frontend-v6-dist/admin-web-candidate.tgz"
-          test -f "${admin_web_candidate}"
-          tar -xOf "${admin_web_candidate}" package/package.json \
+          admin_web_package_dir="frontend-v6-dist/admin-web-release-package"
+          test -d "${admin_web_package_dir}"
+          (
+            cd "${admin_web_package_dir}"
+            sha256sum --check SHA256SUMS.admin-web
+          )
+          mapfile -t admin_web_packages < <(
+            find "${admin_web_package_dir}" -maxdepth 1 -type f -name '*.tgz' -print
+          )
+          [[ ${#admin_web_packages[@]} -eq 1 ]]
+          admin_web_package="${admin_web_packages[0]}"
+          tar -xOf "${admin_web_package}" package/package.json \
             | jq -e \
                 --arg version "${RELEASE_VERSION#v}" \
                 --arg commit "${RELEASE_COMMIT}" \
@@ -964,7 +836,7 @@ jobs:
           registry_ready="${smoke_dir}/registry-url"
           registry_log="${smoke_dir}/registry.log"
           python3 - \
-            "${admin_web_candidate}" \
+            "${admin_web_package}" \
             "${RELEASE_VERSION#v}" \
             "${registry_ready}" \
             >"${registry_log}" 2>&1 <<'PY' &
@@ -1076,95 +948,64 @@ jobs:
             install-mss.sh
             install-mss.ps1
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
 
-      - name: Log into the runtime registry
-        if: needs.metadata.outputs.publish == 'true'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Wait for the matching runtime image
-        if: needs.metadata.outputs.publish == 'true'
-        id: image
+  publish:
+    needs:
+      - metadata
+      - release-evidence
+    if: needs.metadata.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: release-auto
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Require authorized release operator
         env:
-          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-          RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
+          RELEASE_ACTOR_LOGIN: lwnmengjing
         run: |
           set -euo pipefail
-          image="${REGISTRY}/${IMAGE_NAME}:${RELEASE_VERSION}"
-          for attempt in $(seq 1 60); do
-            if docker pull "${image}" >/dev/null 2>&1; then
-              image_version="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "${image}")"
-              image_commit="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${image}")"
-              repo_digest="$(docker image inspect --format '{{ index .RepoDigests 0 }}' "${image}")"
-              if [[ "${image_version}" == "${RELEASE_VERSION}" && "${image_commit}" == "${RELEASE_COMMIT}" && "${repo_digest}" == *@sha256:* ]]; then
-                runtime_output="$(docker run --rm "${repo_digest}" --version)"
-                if [[ "${runtime_output}" != *"${RELEASE_VERSION}"* || "${runtime_output}" != *"${RELEASE_COMMIT}"* ]]; then
-                  echo "runtime image identity did not match ${RELEASE_VERSION}/${RELEASE_COMMIT}" >&2
-                  exit 1
-                fi
-                echo "digest=${repo_digest##*@}" >> "${GITHUB_OUTPUT}"
-                echo "image=${image}" >> "${GITHUB_OUTPUT}"
-                exit 0
-              fi
-            fi
-            echo "waiting for ${image} built from ${RELEASE_COMMIT} (attempt ${attempt}/60)"
-            sleep 20
-          done
-          echo "matching runtime image was not available before the release deadline" >&2
-          exit 1
+          if [[ "${GITHUB_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" || "${GITHUB_TRIGGERING_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" ]]; then
+            echo "release operations must be initiated and triggered by ${RELEASE_ACTOR_LOGIN}" >&2
+            exit 1
+          fi
+
+      - name: Download exact preview packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-packages-${{ needs.metadata.outputs.version }}
+          path: .
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.release-evidence.outputs.preview-run-id }}
 
       - name: Prepare deterministic root release notes
-        if: needs.metadata.outputs.publish == 'true'
         id: release-notes
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
           RELEASE_COMMIT: ${{ needs.metadata.outputs.commit }}
-          RELEASE_EVIDENCE_URL: ${{ needs.metadata.outputs.evidence_url }}
-          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
         run: |
           set -euo pipefail
-          previous_tag=""
-          while IFS= read -r candidate; do
-            if [[ "${candidate}" == "${RELEASE_VERSION}" ]]; then
-              continue
-            fi
-            if [[ "${candidate}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-              previous_tag="${candidate}"
-              break
-            fi
-          done < <(gh api --paginate "/repos/${GITHUB_REPOSITORY}/releases" --jq '.[].tag_name')
-
           notes_file="${RUNNER_TEMP}/root-release-notes.md"
-          api_args=(
-            --method POST
-            "/repos/${GITHUB_REPOSITORY}/releases/generate-notes"
-            -f "tag_name=${RELEASE_VERSION}"
-            -f "target_commitish=${RELEASE_COMMIT}"
-          )
-          if [[ -n "${previous_tag}" ]]; then
-            api_args+=(-f "previous_tag_name=${previous_tag}")
-          fi
-          gh api "${api_args[@]}" --jq .body > "${notes_file}"
+          : > "${notes_file}"
           {
+            echo "# mss-boot-admin ${RELEASE_VERSION}"
+            echo
+            echo "This release was assembled and qualified by the exact successful Root preview for commit \`${RELEASE_COMMIT}\`."
             echo
             echo '## Runtime image'
             echo
             echo '```shell'
             echo "docker pull ${REGISTRY}/${IMAGE_NAME}:${RELEASE_VERSION}"
-            echo "docker pull ${REGISTRY}/${IMAGE_NAME}@${IMAGE_DIGEST}"
             echo '```'
             echo
-            echo "Image digest: \`${IMAGE_DIGEST}\`"
+            echo 'The independent Container Image workflow publishes and verifies this immutable version tag from the same Root tag.'
             echo
             echo "Source commit: \`${RELEASE_COMMIT}\`"
-            echo
-            echo "Manual release evidence: ${RELEASE_EVIDENCE_URL}"
             echo
             echo '## Package-first runtime and tools'
             echo
@@ -1177,7 +1018,6 @@ jobs:
           echo "path=${notes_file}" >> "${GITHUB_OUTPUT}"
 
       - name: Stage, verify, and publish GitHub release atomically
-        if: needs.metadata.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -1208,11 +1048,38 @@ jobs:
           )
           sha256sum --check SHA256SUMS
           sha256sum --check "SHA256SUMS.tools-${RELEASE_VERSION}"
+          expected_names="$(printf '%s\n' "${assets[@]}" | jq -R . | jq -cs 'sort')"
 
-          if release_json="$(gh release view "${RELEASE_VERSION}" --json isDraft,assets 2>/dev/null)"; then
+          verify_release_assets() {
+            local release_json="$1"
+            local actual_names
+            local asset
+            local local_size
+            local remote_size
+            actual_names="$(jq -c '[.assets[].name] | sort' <<< "${release_json}")"
+            if [[ "${actual_names}" != "${expected_names}" ]]; then
+              echo "release assets do not match the exact preview package set" >&2
+              return 1
+            fi
+            for asset in "${assets[@]}"; do
+              local_size="$(stat --format='%s' "${asset}")"
+              remote_size="$(jq -r --arg name "${asset}" '.assets[] | select(.name == $name) | .size' <<< "${release_json}")"
+              if [[ -z "${remote_size}" || "${remote_size}" != "${local_size}" || "${remote_size}" -le 0 ]]; then
+                echo "release asset ${asset} failed size verification" >&2
+                return 1
+              fi
+            done
+          }
+
+          if release_json="$(gh release view "${RELEASE_VERSION}" --json isDraft,isPrerelease,assets 2>/dev/null)"; then
             if [[ "$(jq -r '.isDraft' <<< "${release_json}")" != "true" ]]; then
-              echo "release ${RELEASE_VERSION} is already public; refusing to mutate it" >&2
-              exit 1
+              jq -e \
+                --argjson prerelease "${RELEASE_PRERELEASE}" \
+                '.isDraft == false and .isPrerelease == $prerelease' \
+                <<< "${release_json}" >/dev/null
+              verify_release_assets "${release_json}"
+              echo "release ${RELEASE_VERSION} is already public with the exact preview assets"
+              exit 0
             fi
             gh release edit "${RELEASE_VERSION}" \
               --title "${title}" \
@@ -1233,25 +1100,24 @@ jobs:
           fi
 
           gh release upload "${RELEASE_VERSION}" "${assets[@]}" --clobber
-          release_json="$(gh release view "${RELEASE_VERSION}" --json isDraft,assets)"
-          expected_names="$(printf '%s\n' "${assets[@]}" | jq -R . | jq -cs 'sort')"
-          actual_names="$(jq -c '[.assets[].name] | sort' <<< "${release_json}")"
-          if [[ "${actual_names}" != "${expected_names}" ]]; then
-            echo "release draft assets do not match the expected set" >&2
-            exit 1
-          fi
-          for asset in "${assets[@]}"; do
-            local_size="$(stat --format='%s' "${asset}")"
-            remote_size="$(jq -r --arg name "${asset}" '.assets[] | select(.name == $name) | .size' <<< "${release_json}")"
-            if [[ -z "${remote_size}" || "${remote_size}" != "${local_size}" || "${remote_size}" -le 0 ]]; then
-              echo "release asset ${asset} failed size verification" >&2
-              exit 1
-            fi
-          done
+          release_json="$(gh release view "${RELEASE_VERSION}" --json isDraft,isPrerelease,assets)"
+          verify_release_assets "${release_json}"
 
-          release_latest=true
-          if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
-            release_latest=false
+          release_latest=false
+          if [[ "${RELEASE_PRERELEASE}" != "true" ]]; then
+            current_latest="$(gh api "/repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name 2>/dev/null || true)"
+            if [[ -z "${current_latest}" ]]; then
+              release_latest=true
+            else
+              if [[ ! "${current_latest}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+                echo "current latest release has an unexpected tag: ${current_latest}" >&2
+                exit 1
+              fi
+              highest="$(printf '%s\n' "${current_latest}" "${RELEASE_VERSION}" | sort -V | tail -n 1)"
+              if [[ "${highest}" == "${RELEASE_VERSION}" ]]; then
+                release_latest=true
+              fi
+            fi
           fi
           gh release edit "${RELEASE_VERSION}" \
             --title "${title}" \
