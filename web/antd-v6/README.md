@@ -7,8 +7,9 @@ v1.3.6 is the selected complete package-first candidate, but
 The exact candidate tarball must pass the shared Root preview and later publish
 from the same merged-main commit before it is an adopter dependency.
 
-v1.3.5 remains an immutable-partial train. `web/antd-v6/v1.3.5` and the corresponding GitHub Release and GitHub
-Packages identity are public and immutable. The official npmjs identity
+v1.3.5 remains an immutable-partial train. `web/antd-v6/v1.3.5` and the
+corresponding GitHub Release and GitHub Packages identities are public and
+immutable. The official npmjs identity
 `@mss-boot-io/admin-web@1.3.5` was **not** published, so v1.3.5 has no
 supported public npm installation path and cannot complete a Thin Host.
 
