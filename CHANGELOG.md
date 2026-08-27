@@ -51,6 +51,9 @@ commit. This entry does not authorize installation or mixed-version adoption.
 
 ### Fixed
 
+- Run the complete Agent evaluation catalog against the existing loopback
+  candidate registry in Foundation compatibility instead of asking public npm
+  for an Admin Web version that cannot exist before the preview succeeds.
 - Allow the Root candidate to call the reusable container workflow with its
   exact nested permission ceiling. GitHub can now start the candidate graph,
   while the version-only preview remains non-publishing and its container build

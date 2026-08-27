@@ -201,6 +201,31 @@ class WorkflowGovernanceTest(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, script)
 
+    def test_foundation_compatibility_runs_agent_evals_against_candidate_registry(self):
+        foundation = self.workflows["foundation-compatibility.yml"]
+        steps = foundation["jobs"]["downstream-generation-and-upgrade"]["steps"]
+        evaluation = next(
+            step
+            for step in steps
+            if step.get("name") == "Run deterministic Agent evaluations"
+        )
+        script = evaluation["run"]
+        self.assertIn('"${RUNNER_TEMP}/mss-current" eval run --all', script)
+        self.assertIn(
+            '--contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}"',
+            script,
+        )
+        self.assertNotIn("npm publish", script)
+        self.assertNotIn("pnpm publish", script)
+
+        root = self.workflows["release.yml"]
+        root_agent = next(
+            step
+            for step in root["jobs"]["test"]["steps"]
+            if step.get("name") == "Verify Agent module and contracts"
+        )
+        self.assertNotIn("eval run", root_agent["run"])
+
     def test_scorecard_does_not_run_on_every_main_push(self):
         triggers = self.workflows["scorecard.yml"]["on"]
         self.assertEqual(
@@ -1541,9 +1566,20 @@ exit 66
             for step in steps
             if step.get("name") == "Verify Agent module and contracts"
         )["run"]
-        eval_index = agent_contracts.index("go run ./cmd/mss eval run --all")
-        self.assertLess(agent_contracts.index("git diff --exit-code"), eval_index)
-        self.assertLess(agent_contracts.index("git diff --cached --exit-code"), eval_index)
+        self.assertNotIn("eval run", agent_contracts)
+
+        compatibility_steps = self.workflows["foundation-compatibility.yml"]["jobs"][
+            "downstream-generation-and-upgrade"
+        ]["steps"]
+        names = [step.get("name") for step in compatibility_steps]
+        self.assertLess(
+            names.index("Generate a standalone downstream repository"),
+            names.index("Run deterministic Agent evaluations"),
+        )
+        self.assertLess(
+            names.index("Run deterministic Agent evaluations"),
+            names.index("Stop temporary Admin Web metadata registry"),
+        )
 
 
 if __name__ == "__main__":
