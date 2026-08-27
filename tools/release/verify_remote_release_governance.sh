@@ -52,17 +52,17 @@ jq -e '.permissions.admin == true' <<< "${repository_json}" >/dev/null || {
 }
 repository_id="$(jq -er '.id' <<< "${repository_json}")"
 
-repository_secrets="$(gh api "/repos/${repository}/actions/secrets?per_page=100")"
-if jq -e '
-  any(.secrets[]; (.name | ascii_upcase) == "CF_API_TOKEN")
+repository_secrets="$(gh api --paginate "/repos/${repository}/actions/secrets?per_page=100")"
+if jq -s -e '
+  any(.[]; any(.secrets[]; (.name | ascii_upcase) == "CF_API_TOKEN"))
 ' <<< "${repository_secrets}" >/dev/null; then
   echo 'repository-level CF_API_TOKEN would override the organization secret' >&2
   exit 1
 fi
 
-organization_secrets="$(gh api "/repos/${repository}/actions/organization-secrets?per_page=100")"
-jq -e '
-  ([.secrets[] | select((.name | ascii_upcase) == "CF_API_TOKEN")] | length) == 1
+organization_secrets="$(gh api --paginate "/repos/${repository}/actions/organization-secrets?per_page=100")"
+jq -s -e '
+  ([.[] | .secrets[] | select((.name | ascii_upcase) == "CF_API_TOKEN")] | length) == 1
 ' <<< "${organization_secrets}" >/dev/null || {
   echo 'CF_API_TOKEN must be available to this repository from organization Actions secrets' >&2
   exit 1
