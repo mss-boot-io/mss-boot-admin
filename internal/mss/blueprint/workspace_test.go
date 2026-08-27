@@ -142,6 +142,7 @@ func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testi
 		"templates/application/cmd/server/main.go.tmpl",
 		"internal/modules/customer-extension",
 		"Start temporary Admin Web metadata registry",
+		"Run deterministic Agent evaluations",
 		"COMPATIBILITY_FRONTEND_REGISTRY_URL=${registry_url}",
 		"COMPATIBILITY_FRONTEND_REGISTRY_PID=${registry_pid}",
 		"COMPATIBILITY_FRONTEND_REGISTRY_READY=${registry_ready}",
@@ -173,17 +174,18 @@ func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testi
 			t.Errorf("Foundation compatibility workflow retains coupled or untraceable fixture %q", forbidden)
 		}
 	}
-	if count := strings.Count(workflow, `--contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}"`); count != 5 {
-		t.Errorf("Foundation compatibility workflow contributor registry CLI uses = %d, want 5", count)
+	if count := strings.Count(workflow, `--contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}"`); count != 6 {
+		t.Errorf("Foundation compatibility workflow contributor registry CLI uses = %d, want 6", count)
 	}
-	if count := strings.Count(workflow, "COMPATIBILITY_FRONTEND_REGISTRY_URL"); count != 7 {
-		t.Errorf("Foundation compatibility workflow registry URL references = %d, want 7", count)
+	if count := strings.Count(workflow, "COMPATIBILITY_FRONTEND_REGISTRY_URL"); count != 8 {
+		t.Errorf("Foundation compatibility workflow registry URL references = %d, want 8", count)
 	}
 	start := strings.Index(workflow, "Start temporary Admin Web metadata registry")
+	evaluate := strings.Index(workflow, "Run deterministic Agent evaluations")
 	generate := strings.Index(workflow, "Generate a standalone downstream repository")
 	stop := strings.Index(workflow, "Stop temporary Admin Web metadata registry")
 	upload := strings.Index(workflow, "Upload compatibility evidence")
-	if start < 0 || generate < 0 || stop < 0 || upload < 0 || !(start < generate && generate < stop && stop < upload) {
+	if start < 0 || evaluate < 0 || generate < 0 || stop < 0 || upload < 0 || !(start < generate && generate < evaluate && evaluate < stop && stop < upload) {
 		t.Errorf("Foundation compatibility registry lifecycle is not ordered around generation and evidence upload")
 	}
 }

@@ -51,6 +51,11 @@ commit. This entry does not authorize installation or mixed-version adoption.
 
 ### Fixed
 
+- Keep upload-admission leak checks scoped to the user-visible error message so
+  an unrelated randomized trace ID cannot fail the Admin race gate.
+- Run the complete Agent evaluation catalog against the existing loopback
+  candidate registry in Foundation compatibility instead of asking public npm
+  for an Admin Web version that cannot exist before the preview succeeds.
 - Allow the Root candidate to call the reusable container workflow with its
   exact nested permission ceiling. GitHub can now start the candidate graph,
   while the version-only preview remains non-publishing and its container build

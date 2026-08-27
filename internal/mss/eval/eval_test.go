@@ -89,9 +89,23 @@ func TestApplicationBlueprintSizeEnforcesThinHostBounds(t *testing.T) {
 	}
 }
 
+func TestApplicationBlueprintOptionsKeepContributorRegistryExplicit(t *testing.T) {
+	const registry = "http://127.0.0.1:4873"
+	options := applicationBlueprintOptions("/foundation", registry)
+	if options.FoundationRoot != "/foundation" {
+		t.Fatalf("FoundationRoot = %q", options.FoundationRoot)
+	}
+	if options.FrontendRegistryURL != registry {
+		t.Fatalf("FrontendRegistryURL = %q, want %q", options.FrontendRegistryURL, registry)
+	}
+	if defaultOptions := applicationBlueprintOptions("/foundation", ""); defaultOptions.FrontendRegistryURL != "" {
+		t.Fatalf("default FrontendRegistryURL = %q, want public resolver default", defaultOptions.FrontendRegistryURL)
+	}
+}
+
 func TestRunMCPToolsEvaluation(t *testing.T) {
 	root := writeEvaluationFixture(t)
-	report, err := Run(context.Background(), root, []string{"mcp-project-tools"})
+	report, err := Run(context.Background(), root, RunOptions{CaseIDs: []string{"mcp-project-tools"}})
 	if err != nil {
 		t.Fatalf("run evaluation: %v", err)
 	}

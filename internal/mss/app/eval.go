@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,8 @@ import (
 
 	evalcmd "github.com/mss-boot-io/mss-boot-admin/internal/mss/eval"
 )
+
+type evalRunner func(context.Context, string, evalcmd.RunOptions) (evalcmd.Report, error)
 
 func newEvalCommand(rootOverride *string) *cobra.Command {
 	command := &cobra.Command{
@@ -60,8 +63,13 @@ func newEvalListCommand(rootOverride *string) *cobra.Command {
 }
 
 func newEvalRunCommand(rootOverride *string) *cobra.Command {
+	return newEvalRunCommandWithRunner(rootOverride, evalcmd.Run)
+}
+
+func newEvalRunCommandWithRunner(rootOverride *string, runner evalRunner) *cobra.Command {
 	var all bool
 	var format string
+	var frontendRegistry string
 	command := &cobra.Command{
 		Use:   "run [case...]",
 		Short: "Run selected evaluations; no case means the complete catalog",
@@ -77,7 +85,10 @@ func newEvalRunCommand(rootOverride *string) *cobra.Command {
 			if all {
 				args = nil
 			}
-			report, runErr := evalcmd.Run(cmd.Context(), projectContext.Root, args)
+			report, runErr := runner(cmd.Context(), projectContext.Root, evalcmd.RunOptions{
+				CaseIDs:                        args,
+				ContributorFrontendRegistryURL: frontendRegistry,
+			})
 			if outputErr := writeEvalReport(cmd.OutOrStdout(), report, format); outputErr != nil {
 				return outputErr
 			}
@@ -86,6 +97,7 @@ func newEvalRunCommand(rootOverride *string) *cobra.Command {
 	}
 	command.Flags().BoolVar(&all, "all", false, "run all catalog cases")
 	command.Flags().StringVar(&format, "format", "text", "output format: text, markdown, or json")
+	addContributorFrontendRegistryFlag(command, &frontendRegistry)
 	return command
 }
 

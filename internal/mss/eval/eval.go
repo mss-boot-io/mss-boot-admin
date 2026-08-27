@@ -76,6 +76,15 @@ type Report struct {
 	Cases          []CaseResult `json:"cases"`
 }
 
+// RunOptions selects evaluation cases and qualification-only dependency seams.
+// An empty ContributorFrontendRegistryURL keeps the normal public npm lookup.
+// The Blueprint resolver remains responsible for accepting only an explicit
+// loopback HTTP override.
+type RunOptions struct {
+	CaseIDs                        []string
+	ContributorFrontendRegistryURL string
+}
+
 // CaseResult is the outcome of one evaluation scenario.
 type CaseResult struct {
 	ID       string        `json:"id"`
@@ -232,8 +241,8 @@ func (c *Catalog) List(ids []string) ([]Case, error) {
 	return result, nil
 }
 
-// Run executes selected cases. An empty ID set executes the complete catalog.
-func Run(ctx context.Context, root string, ids []string) (Report, error) {
+// Run executes selected cases. An empty CaseIDs set executes the complete catalog.
+func Run(ctx context.Context, root string, options RunOptions) (Report, error) {
 	absoluteRoot, err := filepath.Abs(root)
 	if err != nil {
 		return Report{}, err
@@ -246,7 +255,7 @@ func Run(ctx context.Context, root string, ids []string) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
-	cases, err := catalog.List(ids)
+	cases, err := catalog.List(options.CaseIDs)
 	if err != nil {
 		return Report{}, err
 	}
@@ -259,7 +268,7 @@ func Run(ctx context.Context, root string, ids []string) (Report, error) {
 		Cases:          make([]CaseResult, 0, len(cases)),
 	}
 	for _, evaluation := range cases {
-		caseResult := runCase(ctx, absoluteRoot, projectContext, evaluation)
+		caseResult := runCase(ctx, absoluteRoot, projectContext, evaluation, options)
 		report.Cases = append(report.Cases, caseResult)
 		if !caseResult.Success {
 			report.Success = false
@@ -274,7 +283,7 @@ func Run(ctx context.Context, root string, ids []string) (Report, error) {
 	return report, nil
 }
 
-func runCase(ctx context.Context, root string, projectContext *project.Context, evaluation Case) CaseResult {
+func runCase(ctx context.Context, root string, projectContext *project.Context, evaluation Case, options RunOptions) CaseResult {
 	started := time.Now()
 	result := CaseResult{
 		ID:      evaluation.ID,
@@ -283,7 +292,7 @@ func runCase(ctx context.Context, root string, projectContext *project.Context, 
 		Checks:  make([]CheckResult, 0, len(evaluation.Checks)),
 	}
 	for _, check := range evaluation.Checks {
-		checkResult := runCheck(ctx, root, projectContext, check)
+		checkResult := runCheck(ctx, root, projectContext, check, options)
 		result.Checks = append(result.Checks, checkResult)
 		if !checkResult.Success {
 			result.Success = false
@@ -293,7 +302,7 @@ func runCase(ctx context.Context, root string, projectContext *project.Context, 
 	return result
 }
 
-func runCheck(ctx context.Context, root string, projectContext *project.Context, check CheckSpec) CheckResult {
+func runCheck(ctx context.Context, root string, projectContext *project.Context, check CheckSpec, options RunOptions) CheckResult {
 	started := time.Now()
 	result := CheckResult{Type: check.Type, Success: true}
 	var value any
@@ -311,7 +320,7 @@ func runCheck(ctx context.Context, root string, projectContext *project.Context,
 	case "module-generation-plan":
 		value, err = checkModuleGeneration(root, check.Path, check.Minimum)
 	case "application-blueprint-plan":
-		value, err = checkApplicationBlueprint(ctx, root, check.Minimum, check.Maximum)
+		value, err = checkApplicationBlueprint(ctx, root, check.Minimum, check.Maximum, options.ContributorFrontendRegistryURL)
 	case "feature-spec":
 		value, err = checkFeatureSpec(root, check.Path)
 	case "feature-plan":
@@ -469,16 +478,8 @@ func checkFeaturePlan(root, inputPath string, minimum int) (map[string]any, erro
 	}, nil
 }
 
-func checkApplicationBlueprint(ctx context.Context, root string, minimum, maximum int) (map[string]any, error) {
-	plan, err := blueprint.Generate(ctx, blueprint.Options{
-		FoundationRoot: root,
-		Application: blueprint.Application{
-			Name:        "eval-admin",
-			DisplayName: "Evaluation Administration",
-			Module:      "github.com/example/eval-admin",
-			Repository:  "example/eval-admin",
-		},
-	})
+func checkApplicationBlueprint(ctx context.Context, root string, minimum, maximum int, frontendRegistryURL string) (map[string]any, error) {
+	plan, err := blueprint.Generate(ctx, applicationBlueprintOptions(root, frontendRegistryURL))
 	if err != nil {
 		return nil, err
 	}
@@ -505,6 +506,19 @@ func checkApplicationBlueprint(ctx context.Context, root string, minimum, maximu
 		"minimumFiles":     minimum,
 		"maximumFiles":     maximum,
 	}, nil
+}
+
+func applicationBlueprintOptions(root, frontendRegistryURL string) blueprint.Options {
+	return blueprint.Options{
+		FoundationRoot:      root,
+		FrontendRegistryURL: frontendRegistryURL,
+		Application: blueprint.Application{
+			Name:        "eval-admin",
+			DisplayName: "Evaluation Administration",
+			Module:      "github.com/example/eval-admin",
+			Repository:  "example/eval-admin",
+		},
+	}
 }
 
 func validateApplicationBlueprintSize(totalFiles, minimum, maximum int) error {

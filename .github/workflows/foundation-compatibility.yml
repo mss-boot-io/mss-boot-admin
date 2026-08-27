@@ -572,6 +572,13 @@ jobs:
 
           cmp "${DOWNSTREAM}/cmd/server/main.go" "${RUNNER_TEMP}/downstream-admin-main-before-conflict.go"
 
+      - name: Run deterministic Agent evaluations
+        run: |
+          set -euo pipefail
+          "${RUNNER_TEMP}/mss-current" eval run --all \
+            --contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}" \
+            --format json
+
       - name: Stop temporary Admin Web metadata registry
         if: always()
         run: |
