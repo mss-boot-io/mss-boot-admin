@@ -14,7 +14,7 @@ nav:
 
 This document is generated deterministically from [`.mss/modules/example-supplier.yaml`](../../../.mss/modules/example-supplier.yaml). Change the source specification or generator templates instead of editing this file.
 
-:::info
+:::info Foundation contributor projection
 This checked-in page documents the Foundation reference projection. Its
 `admin/modules/**` and `web/antd-v6/**` paths are contributor evidence, not a
 downstream application layout. v1.3.5 is an immutable-partial train without

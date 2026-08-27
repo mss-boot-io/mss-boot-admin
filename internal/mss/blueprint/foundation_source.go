@@ -40,22 +40,27 @@ type foundationReleasePolicy struct {
 		Name string `yaml:"name"`
 	} `yaml:"metadata"`
 	Spec struct {
-		Mode                      string `yaml:"mode"`
-		ReleaseBranch             string `yaml:"releaseBranch"`
-		RequireMergedPRSource     *bool  `yaml:"requireMergedPullRequestSource"`
-		CurrentStableVersion      string `yaml:"currentStableVersion"`
-		CurrentStableCommit       string `yaml:"currentStableCommit"`
-		NextPublicVersion         string `yaml:"nextPublicVersion"`
-		DistributionVersion       string `yaml:"distributionVersion"`
-		DistributionComponents    string `yaml:"distributionComponents"`
-		PublicationWorkflowsReady *bool  `yaml:"publicationWorkflowsReady"`
-		PublicPrereleases         *bool  `yaml:"publicPrereleases"`
-		RootTagTemplate           string `yaml:"rootTagTemplate"`
-		FrameworkTagTemplate      string `yaml:"frameworkTagTemplate"`
-		AdminTagTemplate          string `yaml:"adminTagTemplate"`
-		FrontendTagTemplate       string `yaml:"frontendTagTemplate"`
-		FrontendV6TagTemplate     string `yaml:"frontendV6TagTemplate"`
-		DocsTagTemplate           string `yaml:"docsTagTemplate"`
+		Mode                         string `yaml:"mode"`
+		ReleaseBranch                string `yaml:"releaseBranch"`
+		RequireMergedPRSource        *bool  `yaml:"requireMergedPullRequestSource"`
+		CurrentStableVersion         string `yaml:"currentStableVersion"`
+		CurrentStableCommit          string `yaml:"currentStableCommit"`
+		NextPublicVersion            string `yaml:"nextPublicVersion"`
+		DistributionVersion          string `yaml:"distributionVersion"`
+		DistributionComponents       string `yaml:"distributionComponents"`
+		ReleaseTargetState           string `yaml:"releaseTargetState"`
+		ImmutableStoppedVersion      string `yaml:"immutableStoppedVersion"`
+		ImmutableStoppedPublicRefs   string `yaml:"immutableStoppedPublicRefs"`
+		PublicationWorkflowsReady    *bool  `yaml:"publicationWorkflowsReady"`
+		DocsRevisionPublicationReady *bool  `yaml:"docsRevisionPublicationReady"`
+		PublicPrereleases            *bool  `yaml:"publicPrereleases"`
+		RootTagTemplate              string `yaml:"rootTagTemplate"`
+		FrameworkTagTemplate         string `yaml:"frameworkTagTemplate"`
+		AdminTagTemplate             string `yaml:"adminTagTemplate"`
+		FrontendTagTemplate          string `yaml:"frontendTagTemplate"`
+		FrontendV6TagTemplate        string `yaml:"frontendV6TagTemplate"`
+		DocsTagTemplate              string `yaml:"docsTagTemplate"`
+		NpmPackageTemplate           string `yaml:"npmPackageTemplate"`
 	} `yaml:"spec"`
 }
 
@@ -357,7 +362,13 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 	if policy.Spec.Mode != "development-first" {
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy mode must equal development-first")
 	}
-	if policy.Spec.PublicationWorkflowsReady == nil || policy.Spec.PublicPrereleases == nil {
+	extendedReleaseContract := strings.TrimSpace(policy.Spec.ReleaseTargetState) != "" ||
+		strings.TrimSpace(policy.Spec.ImmutableStoppedVersion) != "" ||
+		strings.TrimSpace(policy.Spec.ImmutableStoppedPublicRefs) != "" ||
+		policy.Spec.DocsRevisionPublicationReady != nil ||
+		strings.TrimSpace(policy.Spec.NpmPackageTemplate) != ""
+	if policy.Spec.PublicationWorkflowsReady == nil || policy.Spec.PublicPrereleases == nil ||
+		(extendedReleaseContract && policy.Spec.DocsRevisionPublicationReady == nil) {
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy boolean controls are required")
 	}
 	currentRaw := strings.TrimSpace(policy.Spec.CurrentStableVersion)
@@ -380,6 +391,29 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 	}
 	if distributionRaw != nextRaw {
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy distributionVersion must equal nextPublicVersion")
+	}
+	if extendedReleaseContract {
+		targetState := strings.TrimSpace(policy.Spec.ReleaseTargetState)
+		if targetState != "active" && targetState != "stopped" {
+			return foundationReleasePolicy{}, errors.New("committed foundation release policy releaseTargetState must equal active or stopped")
+		}
+		stoppedVersionRaw := strings.TrimSpace(policy.Spec.ImmutableStoppedVersion)
+		stoppedVersion := strings.TrimPrefix(stoppedVersionRaw, "v")
+		if !strings.HasPrefix(stoppedVersionRaw, "v") || !validSemanticVersion(stoppedVersion) {
+			return foundationReleasePolicy{}, errors.New("committed foundation release policy immutableStoppedVersion must be a v-prefixed semantic version")
+		}
+		if strings.TrimSpace(policy.Spec.ImmutableStoppedPublicRefs) == "" {
+			return foundationReleasePolicy{}, errors.New("committed foundation release policy immutableStoppedPublicRefs is required")
+		}
+		if targetState == "stopped" && stoppedVersionRaw != nextRaw {
+			return foundationReleasePolicy{}, errors.New("committed foundation release policy immutableStoppedVersion must equal nextPublicVersion for a stopped target")
+		}
+		if targetState == "active" && stoppedVersionRaw == nextRaw {
+			return foundationReleasePolicy{}, errors.New("committed foundation release policy active target must not select immutableStoppedVersion")
+		}
+		if strings.Count(policy.Spec.NpmPackageTemplate, "{npmVersion}") != 1 {
+			return foundationReleasePolicy{}, errors.New("committed foundation release policy npmPackageTemplate must contain exactly one {npmVersion} placeholder")
+		}
 	}
 	if strings.TrimSpace(policy.Spec.DistributionComponents) != "root,framework,admin,frontend" {
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy distributionComponents must equal root,framework,admin,frontend")
