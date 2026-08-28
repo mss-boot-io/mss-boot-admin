@@ -1,20 +1,20 @@
 ---
 title: Blueprint 与升级状态
 order: 4
-description: v1.3.6 候选 Blueprint、Thin Host 所有权和三方升级合同
+description: v1.3.7 候选 Blueprint、Thin Host 所有权和三方升级合同
 ---
 
 # Blueprint 与升级状态
 
 :::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
 为 release candidate，但 Root Release 和工具尚未发布。本页只描述候选 Blueprint 与升级
-合同；公共制品对账前，v1.3.6 不可采用，也不开放创建或升级命令。
+合同；公共制品对账前，v1.3.7 不可采用，也不开放创建或升级命令。
 :::
 
 ## Blueprint 来源
 
-v1.3.6 候选 Root Release 中的工具必须内置一个与版本、完整源提交、构建时间和仓库绑定的
+v1.3.7 候选 Root Release 中的工具必须内置一个与版本、完整源提交、构建时间和仓库绑定的
 `management-system` Blueprint。采用者不需要 Foundation checkout，且工具必须能从
 自身 Release 来源证明 Blueprint 身份；本地编译或源码目录不能替代这条来源链。
 

@@ -259,6 +259,7 @@ jobs:
     uses: ./.github/workflows/container.yml
     with:
       version: ${{ needs.metadata.outputs.version }}
+      release_preview: true
 
   test:
     needs: metadata
@@ -738,6 +739,48 @@ jobs:
           source_date_epoch="$(git show -s --format=%ct "${RELEASE_COMMIT}")"
           [[ "${release_timestamp}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([+-][0-9]{2}:[0-9]{2}|Z)$ ]]
           [[ "${source_date_epoch}" =~ ^[0-9]+$ ]]
+
+          root_image_dir="root-image-preview-${RELEASE_VERSION}"
+          test -d "${root_image_dir}"
+          (
+            cd "${root_image_dir}"
+            sha256sum --check SHA256SUMS.root-image
+          )
+          root_image_archive="${root_image_dir}/root-image.oci.tar"
+          root_image_index="$(mktemp)"
+          root_image_manifest="$(mktemp)"
+          test -s "${root_image_archive}"
+          tar -xOf "${root_image_archive}" index.json > "${root_image_index}"
+          root_image_digest="$(
+            jq -er '
+              if (.manifests | length) == 1 then
+                .manifests[0].digest
+              else
+                error("Root OCI layout must expose exactly one top-level image")
+              end
+            ' "${root_image_index}"
+          )"
+          [[ "${root_image_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          tar -xOf \
+            "${root_image_archive}" \
+            "blobs/sha256/${root_image_digest#sha256:}" \
+            > "${root_image_manifest}"
+          test "sha256:$(sha256sum "${root_image_manifest}" | awk '{print $1}')" = "${root_image_digest}"
+          jq -e '
+            (.mediaType == "application/vnd.oci.image.index.v1+json" or
+             .mediaType == "application/vnd.docker.distribution.manifest.list.v2+json") and
+            ([.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "amd64"
+            )] | length) == 1 and
+            ([.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "arm64"
+            )] | length) == 1
+          ' "${root_image_manifest}" >/dev/null
+          grep -Fx 'application=mss-boot-admin' "${root_image_dir}/ROOT-IMAGE-INFO.txt" >/dev/null
+          grep -Fx "version=${RELEASE_VERSION}" "${root_image_dir}/ROOT-IMAGE-INFO.txt" >/dev/null
+          grep -Fx "commit=${RELEASE_COMMIT}" "${root_image_dir}/ROOT-IMAGE-INFO.txt" >/dev/null
+          grep -Fx "digest=${root_image_digest}" "${root_image_dir}/ROOT-IMAGE-INFO.txt" >/dev/null
+
           test -d frontend-v6-dist
           (
             cd frontend-v6-dist

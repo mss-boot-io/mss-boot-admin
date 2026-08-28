@@ -2,249 +2,186 @@ apiVersion: mss.io/v1alpha1
 kind: Feature
 metadata:
   name: foundation-v1-3-6-release
-  displayName: Foundation v1.3.6 complete package-first release
+  displayName: Foundation v1.3.6 immutable partial release
   description: >-
-    Qualifies the first complete package-first Admin Distribution after the
-    permanently stopped v1.3.5 partial train, using one merged-main Root preview
-    and automatic tag-driven publication from the same exact commit.
+    Freezes the exact v1.3.6 publication ledger after the coordinated train
+    published its component and Root releases but failed the Root image and
+    official npm publication paths, with Docs never created.
   owner: release-engineering
   labels:
-    domain: release
+    domain: release-recovery
     target-version: v1.3.6
-    release-status: candidate
+    release-status: immutable-partial
+    release-commit: b1fe47a3a83209574e09d53526b122dd2cbc5277
 spec:
   problem: >-
-    v1.3.5 published immutable component identities and an indexed Root tag but
-    did not complete Root tools, the Root Release, the backend image, Docs, or
-    official npmjs. The repaired workflows must be exercised under an unused
-    version, while package-first tools, Thin Host generation and upgrade,
-    presentation configuration, migrations, authorization, and rollback are
-    qualified together from one exact merged-main commit.
+    The exact merged-main commit b1fe47a3a83209574e09d53526b122dd2cbc5277
+    passed preview and published the Framework, Admin, Admin Web, and Root
+    releases. The preview nevertheless omitted the Root OCI artifact because a
+    reusable workflow tested github.event_name for workflow_call instead of an
+    explicit caller input. The later container run could not download that
+    artifact. Official npm publication failed with ENEEDAUTH because the npm
+    Trusted Publisher still named the retired release-v6 environment while the
+    workflow used npm-auto. Docs was never tagged. Existing v1.3.6 tags and
+    Releases are immutable, so new source cannot append the missing surfaces.
   goals:
-    - Publish a coordinated v1.3.6 Root, Framework, Admin, and Admin Web distribution without moving or completing any v1.3.5 identity.
-    - Make one non-publishing Root preview the reusable qualification source for every later formal component and Root tag.
-    - Deliver checksummed cross-platform mss and mss-mcp tools with an embedded Blueprint so adopters create, set up, verify, run, and upgrade Thin Hosts without cloning the Foundation.
-    - Ship the governed presentation-configuration management surface with additive schema, explicit backend authorization, immutable history, conflict control, and recovery mode.
-    - Keep v1.3.2 as the rollback baseline until every v1.3.6 public surface has reconciled, and publish Docs independently after the package train.
+    - Preserve every successful v1.3.6 component and Root identity at the exact release commit.
+    - Record failed and absent surfaces precisely instead of presenting v1.3.6 as complete or wholly unpublished.
+    - Permanently prevent v1.3.6 qualification, continuation, late publication, and mixed-version adoption.
+    - Carry the workflow and Trusted Publisher corrections into a new v1.3.7 candidate through a reviewed pull request.
+    - Keep v1.3.2 as the only current stable and rollback baseline.
   nonGoals:
-    - Delete, move, recreate, reuse, or append authority to a v1.3.5 tag, Release, package, image, checksum, or workflow run.
-    - Mark v1.3.6 current stable, expose adopter download commands, or claim mss-shop completion before public reconciliation succeeds.
-    - Reintroduce runtime dynamic-model, virtual CRUD, or browser code-generation capabilities.
-    - Grant presentation permissions to existing non-root roles automatically or make presentation configuration active on business pages by default.
+    - Delete, move, recreate, reuse, or append artifacts to any v1.3.6 tag, Release, package, image, checksum, or run.
+    - Publish the missing v1.3.6 npm package, Root image, or Docs from repaired source.
+    - Restore or create a long-lived NPM_TOKEN or NODE_AUTH_TOKEN.
+    - Describe a public v1.3.6 component as a complete or supported Thin Host distribution.
+    - Change any v1.3.5, v1.3.4, v1.3.3, or v1.3.2 identity.
   actors:
     - id: release-operator
       displayName: Release operator
-      description: lwnmengjing runs the one preview and creates formal annotated tags after independent pull-request review.
-    - id: thin-host-adopter
-      displayName: Thin Host adopter
-      description: Installs immutable tools and exact public Go and npm dependencies without a Foundation checkout.
-    - id: presentation-administrator
-      displayName: Presentation administrator
-      description: Uses explicitly authorized APIs and UI actions to validate, publish, inspect, roll back, or recover presentation profiles.
+      description: lwnmengjing created the v1.3.6 tags; no operator may continue the stopped train.
+    - id: independent-reviewer
+      displayName: Independent reviewer
+      description: Reviews the recovery and new-candidate pull request without becoming a second release operator.
+    - id: documentation-reader
+      displayName: Documentation reader
+      description: Sees the exact partial ledger and is directed only to the v1.3.2 stable baseline.
   modules:
-    - name: release-governance
+    - name: release-ledger
       kind: infrastructure
       operation: extend
-      description: Unused-version policy, exact merged-main preview, lightweight tag publication, and immutable public reconciliation.
-    - name: package-first-tools
+      description: Immutable public, failed, and absent v1.3.6 release evidence.
+    - name: documentation
       kind: infrastructure
       operation: extend
-      description: Cross-platform tools, embedded Blueprint, deterministic Thin Host lifecycle, and external-consumer qualification.
-    - name: presentation-configuration
-      kind: infrastructure
-      operation: extend
-      description: Additive Admin schema, service, API, permissions, menu, frontend route, immutable revisions, and recovery behavior.
+      description: Fail-closed adopter guidance and historical release records.
   requirements:
-    - id: select-unused-v136
-      title: Select one unused active target
-      description: Release policy activates only v1.3.6 while preserving v1.3.5 as permanently stopped and v1.3.2 as current stable.
+    - id: freeze-v136-ledger
+      title: Freeze the exact public ledger
+      description: Every v1.3.6 surface is recorded against one merged-main commit and exact workflow evidence.
       priority: must
       actor: release-operator
-      module: release-governance
+      module: release-ledger
       rules:
-        - Root, Framework, Admin, frontend, Docs, npmjs, Go Proxy, and preview ledgers are checked before qualification and again before publication.
-        - immutableStoppedVersion and every immutableStoppedPublicRef remain exactly v1.3.5.
-        - The candidate source must be a clean exact commit already merged into origin/main through a reviewed pull request.
-    - id: qualify-once-publish-by-tag
-      title: Reuse one exact candidate preview
-      description: Full validation and artifact assembly run once before tags; formal tag jobs reuse exact successful evidence and do only identity, publication, and reconciliation work.
+        - Candidate preview run 33075770677 succeeded for commit b1fe47a3a83209574e09d53526b122dd2cbc5277 but contained no Root image artifact.
+        - Framework run 33078214740, Admin run 33078370221, and Admin Web run 33078525148 succeeded for the same commit.
+        - Root run 33079323437 succeeded and published the immutable Root Release and assets for the same commit.
+        - Container run 33079323174 failed because the required Root image preview artifact was absent; no Root image v1.3.6 exists.
+        - Official npm run 33079323187 failed with ENEEDAUTH; @mss-boot-io/admin-web@1.3.6 does not exist on npmjs.
+        - No docs/v1.3.6 tag, Docs Release, or production Docs deployment was created.
+    - id: explain-v136-failures
+      title: Preserve actionable root-cause evidence
+      description: Recovery distinguishes workflow defects from credentials that should not exist.
+      priority: must
+      actor: independent-reviewer
+      module: release-ledger
+      rules:
+        - The reusable container workflow selected preview-only work through github.event_name == workflow_call even though reusable workflows retain caller event context.
+        - The npm workflow correctly requested id-token write, used npm publish --provenance, and removed NPM_TOKEN and NODE_AUTH_TOKEN from the publish process.
+        - npm Trusted Publisher identity must match owner mss-boot-io, repository mss-boot-admin, workflow npm-release.yml, and environment npm-auto exactly.
+        - ENEEDAUTH is repaired by correcting that Trusted Publisher binding for a future version, not by restoring a repository or environment npm token.
+    - id: close-v136-continuation
+      title: Close every continuation path
+      description: Published Root and component identities make v1.3.6 an immutable partial train.
       priority: must
       actor: release-operator
-      module: release-governance
+      module: release-ledger
       rules:
-        - The manual Root workflow accepts only version v1.3.6, runs from main, and never publishes.
-        - Candidate Admin checks use the same checkout's go.work Framework because mss-boot/v1.3.6 cannot exist before Framework publication.
-        - Formal tags are annotated and created in Framework, Admin, frontend, then Root order by lwnmengjing.
-        - Formal Admin publication still resolves the exact public Framework with GOWORK off after the Framework Release exists.
-        - Root assets, Root image, and official npmjs publication start from the Root tag and reconcile the exact preview bytes independently.
-        - Docs remains an independent later tag and never blocks package or image publication.
-    - id: ship-package-first-distribution
-      title: Complete the package-first adopter path
-      description: Released tools and dependencies support the full Thin Host lifecycle from an empty directory without Foundation source.
+        - Release policy accepts only the newly selected active candidate and rejects v1.3.6 qualify and publish intents.
+        - Existing release-tag protection prevents update or deletion of v1.3.6 Root and component refs.
+        - No rerun, manual publish, repaired workflow, token, or Trusted Publisher change authorizes a late v1.3.6 artifact.
+        - A source repair uses a new version and a new exact merged-main preview.
+    - id: publish-truthful-v136-docs
+      title: Publish truthful partial-release documentation
+      description: Current-facing pages keep stable, partial, and candidate identities distinct.
       priority: must
-      actor: thin-host-adopter
-      module: package-first-tools
+      actor: documentation-reader
+      module: documentation
       rules:
-        - Linux, macOS, and Windows amd64 and arm64 archives contain mss, mss-mcp, BUILD-INFO, and LICENSE with immutable checksums and source provenance.
-        - Shell and PowerShell installers verify checksums, archive boundaries, requested version, and source identity before installation.
-        - mss new app, setup, dev, verify, and upgrade use the version-matched embedded Blueprint and exact Admin, Framework, and Admin Web dependencies.
-        - A generated Thin Host preserves business-owned backend modules, frontend routes, locale files, and configuration through reviewed three-way upgrades.
-        - Candidate and post-publication external-consumer tests start outside the repository and reject local replacements, copied Foundation source, and mixed versions.
-    - id: migrate-presentation-safely
-      title: Apply additive presentation schema and authorization
-      description: Presentation configuration remains data-only, explicitly authorized, auditable, conflict-safe, and dormant for business pages until a capability is registered.
-      priority: must
-      actor: presentation-administrator
-      module: presentation-configuration
-      rules:
-        - Migration adds mss_boot_presentation_profiles and mss_boot_presentation_revisions with unique identity, aggregate version, revision, and idempotency constraints without changing existing business rows.
-        - Deployment runs migrate first, then one server -a synchronization, then the long-running service.
-        - The /presentation-config menu, three action nodes, and ten API permission nodes grant no compatibility access to ordinary roles; backend RBAC remains authoritative.
-        - Accepted documents are strictly data-only and cannot carry JavaScript, HTML, SQL, URLs, permissions, executable components, or dynamic code.
-        - Strong ETags, hashed idempotency keys, capability-hash revalidation, immutable revisions, and redacted audits prevent stale or secret-bearing writes.
-        - Production capability registration remains empty, so existing business pages keep compiled defaults after upgrade.
-    - id: preserve-bootstrap-security
-      title: Keep initial administrator secrets out of durable state
-      description: Fresh initialization removes the legacy password flag and uses an interactive hidden prompt or one-use environment injection.
-      priority: must
-      actor: thin-host-adopter
-      module: package-first-tools
-      rules:
-        - migrate rejects --password, -p, and any default administrator password.
-        - Interactive mss setup reads the initial secret without echo; automation exposes MSS_ADMIN_INITIAL_PASSWORD only to the one initialization job.
-        - Route synchronization and long-running services never retain the initialization secret, and an already initialized database does not recreate the administrator.
-    - id: prove-rollback-and-public-state
-      title: Rehearse rollback and reconcile publication
-      description: Candidate evidence covers rollback before publication and exact public installation after publication.
-      priority: must
-      actor: release-operator
-      module: release-governance
-      rules:
-        - A normal binary rollback first enables presentation.recoveryMode, verifies compiled defaults, and redeploys only a matching v1.3.2 Admin, frontend, configuration, and lock while retaining the live database.
-        - Normal rollback preserves the forward-compatible schema and data, additive presentation tables, immutable history, permission metadata, audit evidence, and business writes; no down migration deletes state.
-        - Restoring the full v1.3.2 database backup is disaster recovery only and discards every write after the backup time; whenever current storage remains readable, post-backup audit and business data are exported and preserved outside the target database before restore.
-        - The final ledger proves exact component commits, Release assets, npmjs package, images, installers, Go modules, checksums, and release notes before v1.3.6 can become current stable.
-        - mss-shop begins only after the complete public v1.3.6 ledger succeeds and is verified as an external single-tenant consumer.
+        - v1.3.2 remains current stable and rollback evidence.
+        - v1.3.5 and v1.3.6 are both immutable partial trains and are not installation or upgrade targets.
+        - v1.3.7 is a candidate only and exposes no adopter installation, creation, or upgrade commands before complete reconciliation.
+        - The public Docs site remains separately deployment-pending until a later authorized Docs tag publishes merged source.
   constraints:
-    - id: merged-main-only
+    - id: exact-release-commit
       type: operations
-      statement: Candidate preview and every formal tag must resolve to the same clean commit already contained in current origin/main.
-    - id: immutable-v135
+      statement: Every v1.3.6 success, failure, and absence is bound to b1fe47a3a83209574e09d53526b122dd2cbc5277.
+    - id: preserve-public-identities
       type: compatibility
-      statement: Every v1.3.5 public or stopped identity remains unchanged and permanently unauthorized for continuation.
-    - id: matched-distribution
-      type: compatibility
-      statement: Framework, Admin, Admin Web, Root tools, and images use one v1.3.6 identity; mixed patch versions are unsupported.
-    - id: no-release-secret-persistence
+      statement: No v1.3.6 public tag, Release, package, image, checksum, or run is deleted, moved, recreated, reused, or completed.
+    - id: no-long-lived-npm-token
       type: security
-      statement: Release credentials and initial administrator secrets are never committed, packaged, logged, or retained outside their bounded jobs.
+      statement: Official npm publication uses Trusted Publishing and OIDC; no NPM_TOKEN or NODE_AUTH_TOKEN is restored.
+    - id: no-mixed-distribution
+      type: compatibility
+      statement: Public v1.3.6 components cannot be combined with v1.3.2 or a later repair to manufacture a complete distribution.
   acceptance:
-    - id: policy-and-vacancy
-      requirement: select-unused-v136
-      statement: Policy validates v1.3.6 for qualify and publish intents, permanently rejects v1.3.5, and the fresh remote ledger has no conflicting v1.3.6 identity.
+    - id: exact-v136-run-ledger
+      requirement: freeze-v136-ledger
+      statement: The immutable record names the exact commit, successful publication and preview runs, both failed Root-tag child workflows, and the absent Docs identity.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: report
+          value: GitHub run and public-registry audit for commit b1fe47a3a83209574e09d53526b122dd2cbc5277.
+    - id: v136-root-cause-review
+      requirement: explain-v136-failures
+      statement: Workflow and npm configuration evidence explains both failures without introducing a stored npm credential.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: report
+          value: Root preview artifact inventory, failed container and npm logs, workflow source, and npm Trusted Publisher identity review.
+    - id: v136-policy-denial
+      requirement: close-v136-continuation
+      statement: v1.3.6 is rejected after v1.3.7 becomes the sole active target and immutable public tag rules remain enforced.
       level: contract
       phase: checkpoint
       required: true
       evidence:
         - type: command
           value: python3 -m unittest tools/release/test_check_release_policy.py
-        - type: report
-          value: Sanitized remote tag, Release, preview, npmjs, and Go Proxy vacancy ledger for v1.3.6.
-    - id: simplified-preview-contract
-      requirement: qualify-once-publish-by-tag
-      statement: Workflow tests prove one candidate-only dispatch, repository-workspace Admin dependency resolution before publication, and lightweight preview-backed formal tags.
+    - id: v136-documentation-ledger
+      requirement: publish-truthful-v136-docs
+      statement: Source documentation labels v1.3.6 partial, v1.3.7 candidate, and v1.3.2 stable without candidate adoption commands.
       level: contract
       phase: checkpoint
       required: true
       evidence:
         - type: command
-          value: python3 -m unittest discover -s tools/release -p 'test_*.py'
-    - id: external-thin-host
-      requirement: ship-package-first-distribution
-      statement: Tool installation and external Thin Host creation, setup, lifecycle, verification, upgrade, no-op, build, and browser checks pass from candidate archives without a Foundation checkout.
-      level: integration
-      phase: feature-freeze
-      required: true
-      evidence:
+          value: python3 tools/docs/check_current_docs.py
         - type: command
-          value: bash tools/compatibility/test-standalone-mss-consumer.sh --lifecycle --upgrade
-        - type: command
-          value: bash tools/compatibility/test-thin-host-external-consumer.sh
-    - id: presentation-migration-auth
-      requirement: migrate-presentation-safely
-      statement: Fresh, repeated, and v1.3.2 upgrade migrations preserve existing rows; ordinary roles receive 403 while explicitly authorized roles can manage data-only profiles and immutable history.
-      level: integration
-      phase: feature-freeze
-      required: true
-      evidence:
-        - type: command
-          value: cd admin && go test ./presentation ./models ./service ./apis ./middleware ./cmd/migrate/migration/system ./internal/cmd/migrate ./router
-    - id: secure-bootstrap
-      requirement: preserve-bootstrap-security
-      statement: Installer, setup, migration, redaction, argument-rejection, and process-boundary tests expose no reusable initial password.
-      level: security
-      phase: feature-freeze
-      required: true
-      evidence:
-        - type: command
-          value: bash tools/install/test-install-mss.sh
-    - id: browser-and-rollback
-      requirement: prove-rollback-and-public-state
-      statement: The in-app Browser covers permission denial, empty, draft, invalid, publish, conflict, history, rollback, recovery, direct refresh, console, and failed-request states; the normal v1.3.2 matching-pair binary rollback drill preserves the live forward-compatible schema, data, and history.
-      level: e2e
-      phase: feature-freeze
-      required: true
-      evidence:
-        - type: report
-          value: Candidate artifact browser evidence and rollback drill attached to the exact successful Root preview.
+          value: corepack pnpm@9.15.9 --dir docs build
   risks:
-    - id: prepublication-public-framework-cycle
-      description: Candidate Admin dependency setup could try to download v1.3.6 Framework before its tag exists.
+    - id: partial-train-top-up
+      description: A rerun or repaired publisher could append a missing artifact to the already-public v1.3.6 identity.
       severity: critical
-      mitigation: Use the exact candidate checkout's go.work during preview and retain public GOWORK-off resolution only after Framework publication.
-    - id: mixed-version-adoption
-      description: Partial or out-of-order tags could create an unsupported mixed Distribution.
+      mitigation: Deny v1.3.6 in policy and documentation and require every repair to use v1.3.7 from a new merged-main commit.
+    - id: token-regression
+      description: Treating ENEEDAUTH as a missing secret could restore a broad, long-lived npm credential.
       severity: critical
-      mitigation: Publish sequentially, reconcile each immutable component before the next tag, and create Root only after all component Releases match the preview commit.
-    - id: stale-permission-or-presentation-write
-      description: A stale client or changed capability set could publish unauthorized or non-data configuration.
+      mitigation: Keep token variables absent and correct the exact npm Trusted Publisher binding for the future candidate.
+    - id: misleading-component-availability
+      description: Public v1.3.6 Go modules or Releases could be mistaken for a complete supported distribution.
       severity: high
-      mitigation: Enforce backend RBAC, strong ETags, idempotency, schema validation, and in-transaction capability-hash revalidation.
-    - id: premature-stable-docs
-      description: Candidate source documentation could expose downloads before public artifacts exist.
-      severity: high
-      mitigation: Keep current stable at v1.3.2 and reject v1.3.6 stable or installation claims until post-publication Docs reconciliation.
+      mitigation: Present a per-surface matrix and point adopters only to the complete v1.3.2 stable train.
   validation:
     changed: mss verify --changed
     all: mss verify --all
     custom:
-      - python3 -m unittest discover -s tools/release -p 'test_*.py'
-      - GOWORK=off go test ./internal/mss/...
-      - cd mss-boot && GOWORK=off go test ./...
-      - cd admin && go test ./...
-      - corepack pnpm@10.34.5 --dir web/antd-v6 lint
-      - corepack pnpm@10.34.5 --dir web/antd-v6 test:ci
-      - corepack pnpm@10.34.5 --dir web/antd-v6 build:release
+      - python3 -m unittest tools/release/test_check_release_policy.py
       - python3 tools/docs/check_current_docs.py
+      - corepack pnpm@9.15.9 --dir docs build
   rollout:
     strategy: phased
     migration: >-
-      Before deployment, verify a v1.3.2 database backup, record its time,
-      rehearse disaster recovery, and document how readable post-backup audit
-      and business data will be exported and preserved. Merge the release
-      preparation through normal review, freeze the new clean origin/main
-      commit, run one non-publishing v1.3.6 Root preview, complete artifact and
-      Browser acceptance, then create annotated Framework, Admin, frontend, and
-      Root tags in order as lwnmengjing. Reconcile every public identity before
-      continuing. Publish corrected Docs later from an independent tag, then
-      update currentStableVersion through another pull request only after the
-      complete public ledger passes.
+      Do not continue v1.3.6. Merge the recovery through a pull request, select
+      v1.3.7 as the only candidate, repair the reusable container contract, and
+      correct the npm Trusted Publisher binding before freezing a new exact
+      merged-main commit.
     rollback: >-
-      Stop before the next tag when any component fails. Before deployment
-      rollback, enable presentation recoveryMode and confirm compiled defaults,
-      then redeploy only the matching v1.3.2 Admin, frontend, configuration, and
-      lock while keeping the live forward-compatible database schema and data.
-      Full database-backup restore is disaster recovery only and discards every
-      write after the backup time; export and preserve readable post-backup
-      audit and business data outside the target database first. Never run a
-      destructive down migration, delete or move a public tag, or mix versions.
+      Existing adopters remain on the complete matching v1.3.2 distribution.
+      Never combine public v1.3.6 components with another patch or restore a
+      stored npm token to complete the stopped train.

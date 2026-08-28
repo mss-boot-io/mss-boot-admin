@@ -31,7 +31,13 @@ class ResolveSuccessfulPreviewTest(unittest.TestCase):
                                 "name": "release-packages-v9.8.7",
                                 "expired": False,
                                 "size_in_bytes": 4096,
-                            }
+                            },
+                            {
+                                "id": 901,
+                                "name": "root-image-preview-v9.8.7",
+                                "expired": False,
+                                "size_in_bytes": 8192,
+                            },
                         ]
                     }
                 ),
@@ -149,18 +155,39 @@ esac
                 self.assertEqual(len(requests), 1)
 
     def test_rejects_missing_expired_empty_or_duplicate_exact_artifacts(self):
-        valid = {
+        valid_packages = {
             "id": 900,
             "name": "release-packages-v9.8.7",
             "expired": False,
             "size_in_bytes": 4096,
         }
+        valid_image = {
+            "id": 901,
+            "name": "root-image-preview-v9.8.7",
+            "expired": False,
+            "size_in_bytes": 8192,
+        }
         cases = {
             "missing": [],
-            "wrong name": [{**valid, "name": "release-packages-v9.8.6"}],
-            "expired": [{**valid, "expired": True}],
-            "empty": [{**valid, "size_in_bytes": 0}],
-            "duplicate": [valid, {**valid, "id": 901}],
+            "wrong package name": [
+                {**valid_packages, "name": "release-packages-v9.8.6"},
+                valid_image,
+            ],
+            "expired package": [{**valid_packages, "expired": True}, valid_image],
+            "empty package": [{**valid_packages, "size_in_bytes": 0}, valid_image],
+            "duplicate package": [
+                valid_packages,
+                {**valid_packages, "id": 902},
+                valid_image,
+            ],
+            "missing image": [valid_packages],
+            "expired image": [valid_packages, {**valid_image, "expired": True}],
+            "empty image": [valid_packages, {**valid_image, "size_in_bytes": 0}],
+            "duplicate image": [
+                valid_packages,
+                valid_image,
+                {**valid_image, "id": 902},
+            ],
         }
         for name, artifacts in cases.items():
             with self.subTest(artifact=name):
@@ -168,10 +195,7 @@ esac
                     [self.successful_run(200)], artifacts=artifacts
                 )
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(
-                    "has no exact unexpired release-packages-v9.8.7 artifact",
-                    result.stderr,
-                )
+                self.assertIn("has no exact unexpired", result.stderr)
                 self.assertEqual(len(requests), 2)
                 self.assertIn("/actions/runs/200/artifacts", requests[1])
 

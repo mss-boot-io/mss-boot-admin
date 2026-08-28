@@ -1,22 +1,22 @@
 ---
 title: Agent 开发合同状态
 order: 2
-description: Foundation 源码与 v1.3.6 候选 Thin Host 的检查、规划和交付顺序
+description: Foundation 源码与 v1.3.7 候选 Thin Host 的检查、规划和交付顺序
 ---
 
 # Agent 开发合同状态
 
 :::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
 为 release candidate，但尚未发布。本页保留 source-only 和候选 Agent 工作流合同；
-公共制品对账前，v1.3.6 不可采用，也不是 Thin Host 操作指南。
+公共制品对账前，v1.3.7 不可采用，也不是 Thin Host 操作指南。
 :::
 
 ## 1. 建立可验证上下文
 
 Agent 先读取根和目标目录最近的 `AGENTS.md`，再读取 `.mss/project.yaml`、
 `.mss/capabilities.yaml` 与 `.mss/commands.yaml`，并记录工作树状态。Foundation
-源码使用仓库声明的命令；v1.3.6 候选 Thin Host 仅在发布后使用其 Release 工具。两种上下文不能混用。
+源码使用仓库声明的命令；v1.3.7 候选 Thin Host 仅在发布后使用其 Release 工具。两种上下文不能混用。
 
 ## 2. 先查能力，再写规格
 

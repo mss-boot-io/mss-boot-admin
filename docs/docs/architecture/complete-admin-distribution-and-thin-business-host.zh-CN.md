@@ -1,7 +1,7 @@
 ---
 title: Complete Admin Distribution 与 Thin Host
 order: 2
-description: v1.3.6 候选 Admin 发行架构与 v1.3.5 永久停止事实
+description: v1.3.7 候选 Admin 发行架构与 v1.3.5/v1.3.6 永久停止事实
 ---
 
 # Complete Admin Distribution 与 Thin Host
@@ -9,9 +9,9 @@ description: v1.3.6 候选 Admin 发行架构与 v1.3.5 永久停止事实
 ## 当前版本状态
 
 :::warning
-发布策略仍将 **v1.3.2** 定义为当前稳定版本。v1.3.5 已永久停止并保持不可变部分发布；
-v1.3.6 已选为 release candidate，但尚未发布。本页只描述源码和候选架构；公共制品对账
-前，v1.3.6 不可采用，也不开放安装、创建或升级命令。
+发布策略仍将 **v1.3.2** 定义为当前稳定版本。v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；
+v1.3.7 已选为 release candidate，但尚未发布。本页只描述源码和候选架构；公共制品对账
+前，v1.3.7 不可采用，也不开放安装、创建或升级命令。
 :::
 
 | 组件 | v1.3.5 身份 | 实际结果 |
@@ -26,6 +26,10 @@ v1.3.6 已选为 release candidate，但尚未发布。本页只描述源码和�
 
 所有已公开身份保持不可变，但不能与 v1.3.2、分支头、Foundation 源码、本地替换或其他
 registry 拼成完整发行。
+
+v1.3.6 从 `b1fe47a3a83209574e09d53526b122dd2cbc5277` 公开了 Framework、Admin、
+Admin Web 与 Root Release/工具，但 Root image 与官方 npm 发布失败，Docs 未创建。
+这些身份也保持不可变，不能补发、混用或由 v1.3.7 修复源码完成。
 
 ## 架构决策
 

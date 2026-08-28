@@ -106,8 +106,25 @@ spec:
   distributionVersion: v1.1.0-rc.1
   distributionComponents: "root,framework,admin,frontend"
   releaseTargetState: active
-  immutableStoppedVersion: v1.3.5
-  immutableStoppedPublicRefs: "root=v1.3.5"
+  immutableStoppedTrains:
+    - version: v1.3.5
+      commit: 396f60615cdfa589353b16ef9d3531e249e65432
+      refs:
+        root: v1.3.5
+        framework: mss-boot/v1.3.5
+        admin: admin/v1.3.5
+        frontend: web/antd-v6/v1.3.5
+        docs: docs/v1.3.5
+        npm: "@mss-boot-io/admin-web@1.3.5"
+    - version: v1.3.6
+      commit: b1fe47a3a83209574e09d53526b122dd2cbc5277
+      refs:
+        root: v1.3.6
+        framework: mss-boot/v1.3.6
+        admin: admin/v1.3.6
+        frontend: web/antd-v6/v1.3.6
+        docs: docs/v1.3.6
+        npm: "@mss-boot-io/admin-web@1.3.6"
   publicationWorkflowsReady: true
   docsRevisionPublicationReady: false
   publicPrereleases: true
@@ -145,8 +162,25 @@ spec:
   distributionVersion: v1.1.0
   distributionComponents: "root,framework,admin,frontend"
   releaseTargetState: active
-  immutableStoppedVersion: v1.3.5
-  immutableStoppedPublicRefs: "root=v1.3.5"
+  immutableStoppedTrains:
+    - version: v1.3.5
+      commit: 396f60615cdfa589353b16ef9d3531e249e65432
+      refs:
+        root: v1.3.5
+        framework: mss-boot/v1.3.5
+        admin: admin/v1.3.5
+        frontend: web/antd-v6/v1.3.5
+        docs: docs/v1.3.5
+        npm: "@mss-boot-io/admin-web@1.3.5"
+    - version: v1.3.6
+      commit: b1fe47a3a83209574e09d53526b122dd2cbc5277
+      refs:
+        root: v1.3.6
+        framework: mss-boot/v1.3.6
+        admin: admin/v1.3.6
+        frontend: web/antd-v6/v1.3.6
+        docs: docs/v1.3.6
+        npm: "@mss-boot-io/admin-web@1.3.6"
   publicationWorkflowsReady: false
   docsRevisionPublicationReady: false
   publicPrereleases: false
@@ -188,7 +222,12 @@ spec:
 		{name: "invalid Admin tag", data: strings.Replace(valid, "admin/{version}", "admin/v1.1.0", 1), want: "adminTagTemplate must contain exactly one {version} placeholder"},
 		{name: "invalid target state", data: strings.Replace(valid, "releaseTargetState: active", "releaseTargetState: pending", 1), want: "releaseTargetState must equal active or stopped"},
 		{name: "missing docs publication boolean", data: strings.Replace(valid, "  docsRevisionPublicationReady: false\n", "", 1), want: "boolean controls are required"},
-		{name: "stopped target version mismatch", data: strings.Replace(valid, "releaseTargetState: active", "releaseTargetState: stopped", 1), want: "immutableStoppedVersion must equal nextPublicVersion"},
+		{name: "stopped target version mismatch", data: strings.Replace(valid, "releaseTargetState: active", "releaseTargetState: stopped", 1), want: "stopped target must belong to immutableStoppedTrains"},
+		{name: "duplicate stopped version", data: strings.Replace(valid, "- version: v1.3.6", "- version: v1.3.5", 1), want: "duplicates version v1.3.5"},
+		{name: "abbreviated stopped commit", data: strings.Replace(valid, "b1fe47a3a83209574e09d53526b122dd2cbc5277", "b1fe47a3", 1), want: "commit must be a full commit"},
+		{name: "missing stopped ref", data: strings.Replace(valid, "        docs: docs/v1.3.6\n", "", 1), want: "missing docs ref"},
+		{name: "stopped ref template mismatch", data: strings.Replace(valid, "framework: mss-boot/v1.3.6", "framework: mss-boot/v1.3.5", 1), want: "framework ref must remain"},
+		{name: "unknown stopped train field", data: strings.Replace(valid, "      commit: b1fe47a3a83209574e09d53526b122dd2cbc5277\n", "      commit: b1fe47a3a83209574e09d53526b122dd2cbc5277\n      unsupported: true\n", 1), want: "field unsupported"},
 		{name: "invalid npm package template", data: strings.Replace(valid, "@mss-boot-io/admin-web@{npmVersion}", "@mss-boot-io/admin-web@1.1.0", 1), want: "npmPackageTemplate must contain exactly one {npmVersion} placeholder"},
 	}
 	for _, test := range tests {
@@ -209,8 +248,18 @@ func TestDecodeCanonicalFoundationReleasePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode canonical release policy: %v", err)
 	}
-	if policy.Spec.DocsRevisionPublicationReady == nil || strings.TrimSpace(policy.Spec.ImmutableStoppedPublicRefs) == "" {
+	if policy.Spec.DocsRevisionPublicationReady == nil || len(policy.Spec.ImmutableStoppedTrains) != 2 {
 		t.Fatalf("canonical extended release controls = %#v", policy.Spec)
+	}
+	if policy.Spec.NextPublicVersion != "v1.3.7" || policy.Spec.PublicationWorkflowsReady == nil || *policy.Spec.PublicationWorkflowsReady {
+		t.Fatalf("canonical recovery target = %#v, want v1.3.7 with publication disabled", policy.Spec)
+	}
+	stopped, err := validateFoundationStoppedTrains(policy)
+	if err != nil {
+		t.Fatalf("validate canonical immutable stopped trains: %v", err)
+	}
+	if stopped["v1.3.5"].Commit != "396f60615cdfa589353b16ef9d3531e249e65432" || stopped["v1.3.6"].Commit != "b1fe47a3a83209574e09d53526b122dd2cbc5277" {
+		t.Fatalf("canonical immutable stopped trains = %#v", stopped)
 	}
 }
 

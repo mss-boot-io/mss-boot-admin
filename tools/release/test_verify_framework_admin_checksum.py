@@ -79,10 +79,10 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
     def test_final_repository_tree_matches_admin_metadata(self):
         result = CHECKSUM.verify_repository(
             REPOSITORY_ROOT,
-            version="v1.3.6",
+            version="v1.3.7",
         )
         self.assertTrue(result["success"])
-        self.assertEqual(result["version"], "v1.3.6")
+        self.assertEqual(result["version"], "v1.3.7")
         self.assertGreater(result["candidateFiles"], 0)
         self.assertGreater(result["adminCandidateFiles"], 0)
         self.assertEqual(result["sum"], EXPECTED_FRAMEWORK_SUM)

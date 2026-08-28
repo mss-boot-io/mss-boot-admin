@@ -10,9 +10,9 @@ description: Thin Host 日常开发、配置、验证、部署与故障排查入
 # 使用指南
 
 :::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
 为 release candidate，但尚未发布。本区记录 Foundation source-only 能力和候选合同；
-公共制品对账前，v1.3.6 不可采用，版本判断从[采用状态](/getting-started)进入。
+公共制品对账前，v1.3.7 不可采用，版本判断从[采用状态](/getting-started)进入。
 :::
 
 ## 合同入口
@@ -30,4 +30,4 @@ description: Thin Host 日常开发、配置、验证、部署与故障排查入
 
 Foundation 源码中的业务模块先修改 `.mss/modules/<name>.yaml`，再按仓库
 `.mss/commands.yaml` 生成并检查确定性变更。不要手改生成区，也不要把源码生成结果
-称为 v1.3.5 下游应用。
+称为 v1.3.5 或 v1.3.6 下游应用。

@@ -157,7 +157,10 @@ class RootReleaseWorkflowTest(unittest.TestCase):
         self.assertEqual(
             preview["if"], "needs.metadata.outputs.publish != 'true'"
         )
-        self.assertEqual(set(preview["with"]), {"version"})
+        self.assertEqual(
+            set(preview["with"]), {"version", "release_preview"}
+        )
+        self.assertEqual(preview["with"]["release_preview"], "true")
 
     def test_root_requires_only_exact_public_component_releases(self):
         evidence = self.step(
@@ -450,7 +453,23 @@ class RootReleaseWorkflowTest(unittest.TestCase):
             container_preview["with"]["version"],
             "${{ needs.metadata.outputs.version }}",
         )
+        self.assertEqual(
+            container_preview["with"]["release_preview"], "true"
+        )
         self.assertIn("container-preview", self.jobs["assemble"]["needs"])
+        assemble = self.step("assemble", "Assemble release packages")["run"]
+        for required in (
+            'root_image_dir="root-image-preview-${RELEASE_VERSION}"',
+            'sha256sum --check SHA256SUMS.root-image',
+            'tar -xOf "${root_image_archive}" index.json',
+            'Root OCI layout must expose exactly one top-level image',
+            '.platform.architecture == "amd64"',
+            '.platform.architecture == "arm64"',
+            'grep -Fx "version=${RELEASE_VERSION}"',
+            'grep -Fx "commit=${RELEASE_COMMIT}"',
+            'grep -Fx "digest=${root_image_digest}"',
+        ):
+            self.assertIn(required, assemble)
 
         frontend_step_names = {
             step["name"] for step in self.jobs["frontend-build"]["steps"]

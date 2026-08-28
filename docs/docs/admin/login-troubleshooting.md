@@ -1,19 +1,19 @@
 ---
-title: v1.3.6 候选登录与会话排障
+title: v1.3.7 候选登录与会话排障
 order: 14
 nav:
   order: 1
   title: admin
-description: v1.3.6 候选 HttpOnly Cookie 会话、CSRF、刷新、权限和同源代理合同
-keywords: [v1.3.6 v1.3.5 v1.3.2 admin login session cookie csrf troubleshooting]
+description: v1.3.7 候选 HttpOnly Cookie 会话、CSRF、刷新、权限和同源代理合同
+keywords: [v1.3.7 v1.3.5 v1.3.2 admin login session cookie csrf troubleshooting]
 ---
 
-# v1.3.6 候选登录与会话排障
+# v1.3.7 候选登录与会话排障
 
 :::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
 为 release candidate，但尚未发布。本页记录 Foundation 源码会话合同与候选排障顺序；
-公共制品对账前，v1.3.6 不可采用，也不是运行手册。
+公共制品对账前，v1.3.7 不可采用，也不是运行手册。
 :::
 
 浏览器登录使用服务端会话和 HttpOnly Cookie；浏览器不会接收或保存 Admin JWT，

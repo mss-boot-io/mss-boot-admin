@@ -1,8 +1,8 @@
 ---
 title: mss-shop 范本采用状态
 order: 4
-description: v1.3.6 候选通用单租户商城范本边界与公共验收前置条件
-keywords: [mss-shop v1.3.6 v1.3.5 v1.3.2 single tenant reference r1shop]
+description: v1.3.7 候选通用单租户商城范本边界与公共验收前置条件
+keywords: [mss-shop v1.3.7 v1.3.6 v1.3.5 v1.3.2 single tenant reference r1shop]
 ---
 
 # mss-shop 范本采用状态
@@ -12,9 +12,12 @@ Distribution 公开对账后创建。v1.3.5 已停止为不可变部分发布，
 npmjs 包和 Docs，因此不能成为范本的生成、安装或升级基线。当前稳定版本仍是 v1.3.2，
 但它也不是本轮 mss-shop 重构所声明的生成基线。
 
-v1.3.6 已选为 release candidate，但尚未发布。实施必须等待其完整公共证据证明工具、Go
+v1.3.6 公开了 Framework、Admin、Admin Web 与 Root Release/工具，但 Root image 与
+官方 npm 发布失败、Docs 未创建；它同样不可续，也不能作为范本基线。
+
+v1.3.7 已选为 release candidate，但尚未发布。实施必须等待其完整公共证据证明工具、Go
 Module、npmjs、镜像、Docs 与外部使用方路径全部可用。本页只保留 source-only 的业务和
-架构设计；公共制品对账前，v1.3.6 不可采用，也不提供候选命令。
+架构设计；公共制品对账前，v1.3.7 不可采用，也不提供候选命令。
 
 ## 可复现基线要求
 
@@ -75,5 +78,6 @@ mss-shop 会先盘点而后选择性重构以下项目的业务能力：
 并用 Codex 内置浏览器验证桌面和窄屏关键流程、深链刷新、权限拒绝、网络错误与控制台
 零异常。在完整发行版本被显式选择前，这些只是验收合同，不表示 mss-shop 已可创建。
 
-当前版本状态见 [v1.3.5 不可变部分发布记录](/releases/v1-3-5)；稳定历史见
+当前版本状态见 [v1.3.5 不可变部分发布记录](/releases/v1-3-5) 与
+[v1.3.6 不可变部分发布记录](/releases/v1-3-6)；稳定历史见
 [v1.3.2 稳定记录](/releases/archive/v1-3-2)。

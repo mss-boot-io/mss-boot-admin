@@ -13,6 +13,16 @@ check_current_docs = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(check_current_docs)
 
 
+def candidate_state() -> check_current_docs.ReleaseDocumentationState:
+    return check_current_docs.ReleaseDocumentationState(
+        distribution_version="v1.3.7",
+        current_stable_version="v1.3.2",
+        immutable_stopped_versions=("v1.3.5", "v1.3.6"),
+        publication_workflows_ready=True,
+        release_status="candidate",
+    )
+
+
 class CurrentDocsContractTest(unittest.TestCase):
     def test_repository_satisfies_contract(self) -> None:
         self.assertEqual(check_current_docs.collect_errors(), [])
@@ -25,8 +35,10 @@ class CurrentDocsContractTest(unittest.TestCase):
             policy.write_text(
                 "spec:\n"
                 "  currentStableVersion: v1.3.2\n"
-                "  distributionVersion: v1.3.6\n"
-                "  immutableStoppedVersion: v1.3.5\n"
+                "  distributionVersion: v1.3.7\n"
+                "  immutableStoppedTrains:\n"
+                "    - version: v1.3.5\n"
+                "    - version: v1.3.6\n"
                 "  publicationWorkflowsReady: true\n",
                 encoding="utf-8",
             )
@@ -35,18 +47,46 @@ class CurrentDocsContractTest(unittest.TestCase):
             feature.write_text(
                 "metadata:\n"
                 "  labels:\n"
-                "    target-version: v1.3.6\n"
+                "    target-version: v1.3.7\n"
                 "    release-status: candidate\n",
                 encoding="utf-8",
             )
             state = check_current_docs.release_documentation_state(root)
 
-        self.assertEqual(state.distribution_version, "v1.3.6")
+        self.assertEqual(state.distribution_version, "v1.3.7")
         self.assertEqual(state.current_stable_version, "v1.3.2")
-        self.assertEqual(state.immutable_stopped_version, "v1.3.5")
+        self.assertEqual(
+            state.immutable_stopped_versions,
+            ("v1.3.5", "v1.3.6"),
+        )
         self.assertTrue(state.publication_workflows_ready)
         self.assertEqual(state.release_status, "candidate")
         self.assertFalse(state.operational_onboarding_allowed)
+
+    def test_release_state_fails_closed_on_invalid_stopped_train_list(self) -> None:
+        policies = (
+            "  immutableStoppedVersion: v1.3.5\n",
+            "  immutableStoppedTrains:\n    - commit: deadbeef\n",
+            "  immutableStoppedTrains:\n"
+            "    - version: v1.3.5\n"
+            "    - version: v1.3.5\n",
+        )
+        for stopped_contract in policies:
+            with self.subTest(stopped_contract=stopped_contract):
+                with tempfile.TemporaryDirectory() as temp:
+                    root = Path(temp)
+                    policy = root / ".mss/release-policy.yaml"
+                    policy.parent.mkdir(parents=True)
+                    policy.write_text(
+                        "spec:\n"
+                        "  currentStableVersion: v1.3.2\n"
+                        "  distributionVersion: v1.3.7\n"
+                        f"{stopped_contract}"
+                        "  publicationWorkflowsReady: false\n",
+                        encoding="utf-8",
+                    )
+                    with self.assertRaisesRegex(ValueError, "immutableStoppedTrains"):
+                        check_current_docs.release_documentation_state(root)
 
     def test_partial_release_rejects_version_specific_dead_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -56,35 +96,29 @@ class CurrentDocsContractTest(unittest.TestCase):
             page.parent.mkdir(parents=True)
             page.write_text(
                 "https://github.com/mss-boot-io/mss-boot-admin/releases/download/"
-                "v1.3.6/install-mss.sh\n"
-                "bash ./install-mss.sh --version v1.3.6\n"
-                "& .\\install-mss.ps1 -Version v1.3.6\n"
+                "v1.3.7/install-mss.sh\n"
+                "bash ./install-mss.sh --version v1.3.7\n"
+                "& .\\install-mss.ps1 -Version v1.3.7\n"
                 "mss new app demo\n"
                 "mss setup\n"
-                "mss upgrade admin v1.3.6\n"
-                "corepack pnpm add @mss-boot-io/admin-web@1.3.6\n"
-                "docker pull ghcr.io/mss-boot-io/mss-boot-admin:v1.3.6\n"
+                "mss upgrade admin v1.3.7\n"
+                "corepack pnpm add @mss-boot-io/admin-web@1.3.7\n"
+                "docker pull ghcr.io/mss-boot-io/mss-boot-admin:v1.3.7\n"
                 '{\"command\": \"mss-mcp\"}\n'
-                "go install example.invalid/cmd/mss@v1.3.6\n",
+                "go install example.invalid/cmd/mss@v1.3.7\n",
                 encoding="utf-8",
             )
-            state = check_current_docs.ReleaseDocumentationState(
-                distribution_version="v1.3.6",
-                current_stable_version="v1.3.2",
-                immutable_stopped_version="v1.3.5",
-                publication_workflows_ready=True,
-                release_status="candidate",
-            )
+            state = candidate_state()
             errors = check_current_docs.partial_release_operational_errors(root, state)
 
         joined = "\n".join(errors)
-        self.assertIn("unpublished v1.3.6 installer URL", joined)
+        self.assertIn("unpublished v1.3.7 installer URL", joined)
         self.assertIn("unpublished shell installer invocation", joined)
         self.assertIn("unpublished PowerShell installer invocation", joined)
-        self.assertIn("unpublished v1.3.6 Admin upgrade", joined)
+        self.assertIn("unpublished v1.3.7 Admin upgrade", joined)
         self.assertIn("unpublished official npmjs install", joined)
         self.assertIn("unpublished Root image command", joined)
-        self.assertIn("source-built v1.3.6 Root tool", joined)
+        self.assertIn("source-built v1.3.7 Root tool", joined)
         self.assertNotIn("mss new app", joined)
         self.assertNotIn("mss setup", joined)
         self.assertNotIn("mss-mcp client", joined)
@@ -98,16 +132,10 @@ class CurrentDocsContractTest(unittest.TestCase):
             for page in (deep, archived, contributor):
                 page.parent.mkdir(parents=True, exist_ok=True)
                 page.write_text(
-                    "mss upgrade admin v1.3.6\n",
+                    "mss upgrade admin v1.3.7\n",
                     encoding="utf-8",
                 )
-            state = check_current_docs.ReleaseDocumentationState(
-                distribution_version="v1.3.6",
-                current_stable_version="v1.3.2",
-                immutable_stopped_version="v1.3.5",
-                publication_workflows_ready=True,
-                release_status="candidate",
-            )
+            state = candidate_state()
             errors = check_current_docs.partial_release_operational_errors(root, state)
 
         joined = "\n".join(errors)
@@ -128,13 +156,7 @@ class CurrentDocsContractTest(unittest.TestCase):
                 "mss-mcp --root /workspace\n",
                 encoding="utf-8",
             )
-            state = check_current_docs.ReleaseDocumentationState(
-                distribution_version="v1.3.6",
-                current_stable_version="v1.3.2",
-                immutable_stopped_version="v1.3.5",
-                publication_workflows_ready=True,
-                release_status="candidate",
-            )
+            state = candidate_state()
             errors = check_current_docs.partial_release_operational_errors(root, state)
 
         self.assertEqual(errors, [])
@@ -146,16 +168,11 @@ class CurrentDocsContractTest(unittest.TestCase):
             page = root / relative
             page.parent.mkdir(parents=True)
             page.write_text(
-                "v1.3.6 components, permanently stopped v1.3.5, and current stable v1.3.2.\n",
+                "v1.3.7 components; v1.3.5 is permanently stopped; "
+                "current stable is v1.3.2.\n",
                 encoding="utf-8",
             )
-            state = check_current_docs.ReleaseDocumentationState(
-                distribution_version="v1.3.6",
-                current_stable_version="v1.3.2",
-                immutable_stopped_version="v1.3.5",
-                publication_workflows_ready=True,
-                release_status="candidate",
-            )
+            state = candidate_state()
             errors = check_current_docs.partial_release_semantic_errors(
                 root,
                 state,
@@ -164,9 +181,11 @@ class CurrentDocsContractTest(unittest.TestCase):
             )
             self.assertTrue(any("release-status=candidate" in error for error in errors))
             self.assertTrue(any("future-contract" in error for error in errors))
+            self.assertTrue(any("immutable stopped v1.3.6" in error for error in errors))
 
             page.write_text(
-                "v1.3.6 is a release candidate; v1.3.5 is permanently stopped; "
+                "v1.3.7 is a release candidate; v1.3.5 and v1.3.6 are "
+                "permanently stopped; "
                 "current stable is v1.3.2. "
                 "This is a future contract, not an adoptable release.\n",
                 encoding="utf-8",
@@ -188,19 +207,14 @@ class CurrentDocsContractTest(unittest.TestCase):
             page = root / relative
             page.parent.mkdir(parents=True)
             page.write_text(
-                "v1.3.6 is a release candidate; v1.3.5 is permanently stopped; "
+                "v1.3.7 is a release candidate; v1.3.5 and v1.3.6 are "
+                "permanently stopped; "
                 "current stable is v1.3.2. "
                 "This is a future contract, not an adoptable release.\n"
-                "The v1.3.6 candidate publishes a complete adopter package.\n",
+                "The v1.3.7 candidate publishes a complete adopter package.\n",
                 encoding="utf-8",
             )
-            state = check_current_docs.ReleaseDocumentationState(
-                distribution_version="v1.3.6",
-                current_stable_version="v1.3.2",
-                immutable_stopped_version="v1.3.5",
-                publication_workflows_ready=True,
-                release_status="candidate",
-            )
+            state = candidate_state()
             errors = check_current_docs.partial_release_semantic_errors(
                 root,
                 state,
@@ -212,6 +226,31 @@ class CurrentDocsContractTest(unittest.TestCase):
             any("candidate publication claim" in error for error in errors)
         )
 
+    def test_partial_release_semantics_reject_stale_candidate_admin_web_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            relative = Path("docs/docs/admin/status.md")
+            page = root / relative
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                "v1.3.7 is a release candidate; v1.3.5 and v1.3.6 are "
+                "permanently stopped; current stable is v1.3.2. "
+                "This is a future contract, not an adoptable release.\n"
+                "Admin Web candidate identity: "
+                "@mss-boot-io/admin-web@1.3.6.\n",
+                encoding="utf-8",
+            )
+            errors = check_current_docs.partial_release_semantic_errors(
+                root,
+                candidate_state(),
+                status_paths=[relative],
+                claim_paths=[relative],
+            )
+
+        self.assertTrue(
+            any("stale candidate Admin Web identity 1.3.6" in error for error in errors)
+        )
+
     def test_candidate_rejects_current_stable_claim_before_reconciliation(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -219,18 +258,13 @@ class CurrentDocsContractTest(unittest.TestCase):
             page = root / relative
             page.parent.mkdir(parents=True)
             page.write_text(
-                "v1.3.6 is a release candidate; v1.3.5 is permanently stopped; "
+                "v1.3.7 is a release candidate; v1.3.5 and v1.3.6 are "
+                "permanently stopped; "
                 "current stable is v1.3.2. This is not an adoptable release.\n"
-                "Current stable version is v1.3.6.\n",
+                "Current stable version is v1.3.7.\n",
                 encoding="utf-8",
             )
-            state = check_current_docs.ReleaseDocumentationState(
-                distribution_version="v1.3.6",
-                current_stable_version="v1.3.2",
-                immutable_stopped_version="v1.3.5",
-                publication_workflows_ready=True,
-                release_status="candidate",
-            )
+            state = candidate_state()
             errors = check_current_docs.partial_release_semantic_errors(
                 root,
                 state,
@@ -243,30 +277,29 @@ class CurrentDocsContractTest(unittest.TestCase):
     def test_stopped_release_history_is_separate_from_active_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            page = root / check_current_docs.STOPPED_RELEASE_PAGE
-            page.parent.mkdir(parents=True)
-            page.write_text(
-                "v1.3.5 is permanently stopped as immutable-partial history. "
-                "The rollback baseline is v1.3.2.\n",
-                encoding="utf-8",
-            )
-            state = check_current_docs.ReleaseDocumentationState(
-                distribution_version="v1.3.6",
-                current_stable_version="v1.3.2",
-                immutable_stopped_version="v1.3.5",
-                publication_workflows_ready=True,
-                release_status="candidate",
-            )
+            for path, version in zip(
+                check_current_docs.STOPPED_RELEASE_PAGES,
+                ("v1.3.5", "v1.3.6"),
+                strict=True,
+            ):
+                page = root / path
+                page.parent.mkdir(parents=True, exist_ok=True)
+                page.write_text(
+                    f"{version} is permanently stopped as immutable-partial "
+                    "history. The rollback baseline is v1.3.2.\n",
+                    encoding="utf-8",
+                )
+            state = candidate_state()
             self.assertEqual(
                 check_current_docs.stopped_release_history_errors(root, state),
                 [],
             )
 
-            page.write_text("v1.3.6 candidate only.\n", encoding="utf-8")
+            page.write_text("v1.3.7 candidate only.\n", encoding="utf-8")
             joined = "\n".join(
                 check_current_docs.stopped_release_history_errors(root, state)
             )
-            self.assertIn("immutable stopped v1.3.5", joined)
+            self.assertIn("immutable stopped v1.3.6", joined)
             self.assertIn("rollback baseline v1.3.2", joined)
             self.assertIn("immutable-partial", joined)
 
@@ -285,29 +318,18 @@ class CurrentDocsContractTest(unittest.TestCase):
                 "ghcr.io/mss-boot-io/mss-boot-admin:v1.3.5.\n",
                 encoding="utf-8",
             )
-            state = check_current_docs.ReleaseDocumentationState(
-                distribution_version="v1.3.6",
-                current_stable_version="v1.3.2",
-                immutable_stopped_version="v1.3.5",
-                publication_workflows_ready=True,
-                release_status="candidate",
-            )
+            state = candidate_state()
             errors = check_current_docs.partial_release_operational_errors(root, state)
 
         self.assertEqual(errors, [])
 
     def test_partial_release_success_message_is_not_package_first(self) -> None:
-        state = check_current_docs.ReleaseDocumentationState(
-            distribution_version="v1.3.6",
-            current_stable_version="v1.3.2",
-            immutable_stopped_version="v1.3.5",
-            publication_workflows_ready=True,
-            release_status="candidate",
-        )
+        state = candidate_state()
         message = check_current_docs.success_message(state)
         self.assertNotIn("package-first", message)
         self.assertIn("candidate", message)
         self.assertIn("current stable v1.3.2", message)
+        self.assertIn("immutable stopped v1.3.5, v1.3.6", message)
         self.assertIn("operational onboarding disabled", message)
 
     def test_rejects_source_checkout_commands_and_old_versions(self) -> None:
@@ -337,19 +359,25 @@ class CurrentDocsContractTest(unittest.TestCase):
             path = Path("page.md")
             (root / path).write_text(
                 "v1.3.5 is permanently stopped immutable history.\n"
-                "mss upgrade admin v1.3.5\n",
+                "v1.3.6 is permanently stopped immutable history.\n"
+                "mss upgrade admin v1.3.5\n"
+                "mss upgrade admin v1.3.6\n"
+                "pnpm add @mss-boot-io/admin-web@1.3.6\n",
                 encoding="utf-8",
             )
             errors = check_current_docs.forbidden_content_errors(
                 root,
-                "v1.3.6",
+                "v1.3.7",
                 [path],
                 current_stable_version="v1.3.2",
-                immutable_stopped_version="v1.3.5",
+                immutable_stopped_versions=("v1.3.5", "v1.3.6"),
             )
 
-        self.assertEqual(len(errors), 1)
-        self.assertIn("stale distribution token v1.3.5", errors[0])
+        self.assertEqual(len(errors), 3)
+        joined = "\n".join(errors)
+        self.assertIn("stale distribution token v1.3.5", joined)
+        self.assertIn("stale distribution token v1.3.6", joined)
+        self.assertIn("stale Admin Web version 1.3.6", joined)
 
     def test_allows_bounded_release_history_but_rejects_stale_commands(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -502,10 +530,10 @@ class CurrentDocsContractTest(unittest.TestCase):
             complete = (
                 "Back up code and database. Hand-assembled repositories missing their manifest migrate to a clean baseline.\n"
                 "mss --version\nmss-mcp --version\n.mss/blueprint-manifest.json\n"
-                "mss upgrade admin v1.3.6\n"
-                "mss upgrade admin v1.3.6 --apply --yes\n"
+                "mss upgrade admin v1.3.7\n"
+                "mss upgrade admin v1.3.7 --apply --yes\n"
                 "mss doctor --strict\nmss verify --all\n"
-                "mss upgrade admin v1.3.6\n"
+                "mss upgrade admin v1.3.7\n"
             )
             for relative in check_current_docs.UPGRADE_CONTRACT_FILES:
                 path = root / relative
@@ -514,7 +542,7 @@ class CurrentDocsContractTest(unittest.TestCase):
             self.assertEqual(check_current_docs.upgrade_contract_errors(root), [])
 
             incomplete = root / check_current_docs.UPGRADE_CONTRACT_FILES[0]
-            incomplete.write_text("mss upgrade admin v1.3.6\n", encoding="utf-8")
+            incomplete.write_text("mss upgrade admin v1.3.7\n", encoding="utf-8")
             errors = check_current_docs.upgrade_contract_errors(root)
             self.assertTrue(any("blueprint-manifest" in error for error in errors))
             self.assertTrue(any("final no-op" in error for error in errors))
@@ -566,8 +594,8 @@ class CurrentDocsContractTest(unittest.TestCase):
             packages = root / "docs/docs/getting-started/packages.md"
             packages.parent.mkdir(parents=True)
             packages.write_text(
-                "go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.6\n"
-                "go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.6\n"
+                "go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7\n"
+                "go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.7\n"
                 "$previousGowork\nRemove-Item Env:GOWORK\n",
                 encoding="utf-8",
             )
@@ -602,9 +630,11 @@ class CurrentDocsContractTest(unittest.TestCase):
     def test_repository_context_rejects_stale_contributor_release_and_ui_text(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
+            stopped_versions = ("v1.3.5", "v1.3.6")
             contributor = root / "CONTRIBUTING.md"
             contributor.write_text(
                 "v1.3.5 已永久停止\n"
+                "v1.3.6 已永久停止\n"
                 "v1.3.2 稳定记录\n"
                 "本文只适用于修改 Foundation 本身的贡献者\n"
                 "go run ./cmd/mss context\n"
@@ -615,6 +645,7 @@ class CurrentDocsContractTest(unittest.TestCase):
             monorepo = root / "MONOREPO.md"
             valid_monorepo = (
                 "v1.3.5 is permanently stopped as an immutable partial release. "
+                "v1.3.6 is permanently stopped as an immutable partial release. "
                 "For a future unused version, run one non-publishing Root preview, "
                 "then publish the Framework, Admin, and Admin Web tags in order. "
                 "One Root tag starts the Root release, backend image, and official "
@@ -636,7 +667,13 @@ class CurrentDocsContractTest(unittest.TestCase):
                 "## [v1.3.5]\n",
                 encoding="utf-8",
             )
-            self.assertEqual(check_current_docs.repository_context_errors(root), [])
+            self.assertEqual(
+                check_current_docs.repository_context_errors(
+                    root,
+                    immutable_stopped_versions=stopped_versions,
+                ),
+                [],
+            )
 
             monorepo.write_text(
                 valid_monorepo
@@ -645,7 +682,10 @@ class CurrentDocsContractTest(unittest.TestCase):
                 encoding="utf-8",
             )
             obsolete = "\n".join(
-                check_current_docs.repository_context_errors(root)
+                check_current_docs.repository_context_errors(
+                    root,
+                    immutable_stopped_versions=stopped_versions,
+                )
             )
             self.assertIn("protected Root tag promotion", obsolete)
             self.assertIn("finally npm Trusted Publishing", obsolete)
@@ -655,7 +695,13 @@ class CurrentDocsContractTest(unittest.TestCase):
                 "## [Unreleased]\n\n- future change\n\n## [v1.3.5]\n",
                 encoding="utf-8",
             )
-            self.assertEqual(check_current_docs.repository_context_errors(root), [])
+            self.assertEqual(
+                check_current_docs.repository_context_errors(
+                    root,
+                    immutable_stopped_versions=stopped_versions,
+                ),
+                [],
+            )
 
             contributor.write_text(
                 contributor.read_text(encoding="utf-8")
@@ -677,7 +723,10 @@ class CurrentDocsContractTest(unittest.TestCase):
                 encoding="utf-8",
             )
             joined = "\n".join(
-                check_current_docs.repository_context_errors(root)
+                check_current_docs.repository_context_errors(
+                    root,
+                    immutable_stopped_versions=stopped_versions,
+                )
             )
             self.assertIn("stopped-version adopter quick start", joined)
             self.assertIn("repository-wide gofmt", joined)
