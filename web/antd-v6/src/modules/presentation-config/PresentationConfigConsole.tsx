@@ -17,6 +17,7 @@ import {
   Input,
   Popconfirm,
   Row,
+  Segmented,
   Select,
   Space,
   Table,
@@ -40,6 +41,8 @@ import {
   presentationConflictVersion,
 } from './contract';
 import { usePresentationIntl } from './messages';
+import PresentationVisualEditor from './PresentationVisualEditor';
+import { formatPresentationDraftAST, parsePresentationDraftAST } from './presentationDraftAst';
 import { buildPresentationPreview } from './preview';
 import {
   usePresentationCapabilities,
@@ -107,6 +110,7 @@ export default function PresentationConfigConsole({
   const [scope, setScope] = useState<PresentationScope>('application');
   const [subjectID, setSubjectID] = useState('');
   const [editorText, setEditorText] = useState('');
+  const [editorMode, setEditorMode] = useState<'raw' | 'visual'>('raw');
   const [dirty, setDirty] = useState(false);
   const [localError, setLocalError] = useState<string>();
   const [validation, setValidation] = useState<PresentationValidationResult>();
@@ -141,6 +145,14 @@ export default function PresentationConfigConsole({
       return undefined;
     }
   }, [intl.locale, selectedCapability, validation]);
+  const visualDocument = useMemo(() => {
+    if (!editorText) return undefined;
+    try {
+      return parsePresentationDraftAST(editorText);
+    } catch {
+      return undefined;
+    }
+  }, [editorText]);
 
   const identity = useMemo<PresentationProfileIdentity>(
     () => ({
@@ -373,6 +385,23 @@ export default function PresentationConfigConsole({
     setLocalError(undefined);
     loadedSourceKey.current = '';
     await Promise.all([profile.refetch(), profiles.refetch()]);
+  };
+
+  const openRawIssue = (path: string) => {
+    setEditorMode('raw');
+    globalThis.requestAnimationFrame(() => {
+      const editor = globalThis.document.getElementById(
+        'presentation-profile-json',
+      ) as HTMLTextAreaElement | null;
+      if (!editor) return;
+      editor.focus();
+      const property = path
+        .split('.')
+        .at(-1)
+        ?.replace(/\[\d+\]/g, '');
+      const offset = property ? editor.value.indexOf(`"${property}"`) : -1;
+      if (offset >= 0) editor.setSelectionRange(offset, offset + (property?.length ?? 0) + 2);
+    });
   };
 
   const profileColumns: TableColumnsType<PresentationProfileSummary> = [
@@ -686,20 +715,60 @@ export default function PresentationConfigConsole({
               ) : null}
             </Space>
 
-            <Input.TextArea
-              aria-label={intl.formatMessage({ id: 'presentation.document' })}
-              autoSize={{ minRows: 18, maxRows: 36 }}
-              maxLength={128 * 1024}
-              showCount
-              style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
-              value={editorText}
-              onChange={(event) => {
-                setEditorText(event.target.value);
-                setDirty(true);
-                setValidation(undefined);
+            <Segmented
+              aria-label={intl.formatMessage({ id: 'presentation.editor.title' })}
+              options={[
+                {
+                  value: 'visual',
+                  label: intl.formatMessage({ id: 'presentation.editor.mode.visual' }),
+                },
+                {
+                  value: 'raw',
+                  label: intl.formatMessage({ id: 'presentation.editor.mode.raw' }),
+                },
+              ]}
+              value={editorMode}
+              onChange={(mode) => {
+                if (mode === 'visual' && !visualDocument) {
+                  setLocalError(
+                    intl.formatMessage({ id: 'presentation.editor.visual.unavailable' }),
+                  );
+                  setEditorMode('raw');
+                  return;
+                }
                 setLocalError(undefined);
+                setEditorMode(mode as 'raw' | 'visual');
               }}
             />
+
+            {editorMode === 'visual' && visualDocument && selectedCapability ? (
+              <PresentationVisualEditor
+                capability={selectedCapability}
+                document={visualDocument}
+                onChange={(document) => {
+                  setEditorText(formatPresentationDraftAST(document));
+                  setDirty(true);
+                  setValidation(undefined);
+                  setLocalError(undefined);
+                }}
+              />
+            ) : (
+              <Input.TextArea
+                id="presentation-profile-json"
+                aria-label={intl.formatMessage({ id: 'presentation.document' })}
+                autoSize={{ minRows: 18, maxRows: 36 }}
+                maxLength={128 * 1024}
+                showCount
+                style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+                value={editorText}
+                onChange={(event) => {
+                  setEditorText(event.target.value);
+                  setDirty(true);
+                  setValidation(undefined);
+                  setLocalError(undefined);
+                }}
+              />
+            )}
 
             {validation ? (
               <Alert
@@ -710,6 +779,9 @@ export default function PresentationConfigConsole({
                         <Space key={`${issue.path}:${issue.code}`} wrap>
                           <Typography.Text code>{issue.path}</Typography.Text>
                           <Typography.Text>{`${issue.code}: ${issue.message}`}</Typography.Text>
+                          <Button size="small" type="link" onClick={() => openRawIssue(issue.path)}>
+                            {intl.formatMessage({ id: 'presentation.validation.openRaw' })}
+                          </Button>
                         </Space>
                       ))}
                     </Space>

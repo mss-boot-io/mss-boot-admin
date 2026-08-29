@@ -313,6 +313,68 @@ describe('presentation configuration console', () => {
     expect(runtime.api.replaceDraft).not.toHaveBeenCalled();
   });
 
+  it('round-trips between raw and visual modes through one lossless draft AST', async () => {
+    renderConsole();
+    const editor = (await screen.findByLabelText('presentation.document')) as HTMLTextAreaElement;
+    const localDocument = {
+      ...document,
+      spec: {
+        title: { 'en-US': 'Orders' },
+        search: { collapsedByDefault: false },
+        detail: {
+          fields: [
+            {
+              field: 'status',
+              hidden: false,
+              visibleWhen: {
+                all: [
+                  { field: 'status', operator: 'exists' },
+                  { not: { field: 'status', operator: 'eq', value: 'closed' } },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      futureRoot: { enabled: false },
+    };
+    fireEvent.change(editor, { target: { value: JSON.stringify(localDocument, null, 2) } });
+    fireEvent.click(screen.getByText('presentation.editor.mode.visual'));
+    const visualTitle = await screen.findByLabelText('presentation.visual.title en-US');
+    fireEvent.change(visualTitle, { target: { value: 'Configured orders' } });
+    fireEvent.click(screen.getByText('presentation.editor.mode.raw'));
+
+    const roundTripEditor = (await screen.findByLabelText(
+      'presentation.document',
+    )) as HTMLTextAreaElement;
+    const roundTrip = JSON.parse(roundTripEditor.value);
+    expect(roundTrip.spec.title['en-US']).toBe('Configured orders');
+    expect(roundTrip.spec.search.collapsedByDefault).toBe(false);
+    expect(roundTrip.spec.detail.fields[0].hidden).toBe(false);
+    expect(roundTrip.spec.detail.fields[0].visibleWhen.all).toHaveLength(2);
+    expect(roundTrip.futureRoot.enabled).toBe(false);
+  });
+
+  it('opens the raw editor and focuses it from a validation issue path', async () => {
+    runtime.api.validate.mockResolvedValue({
+      structurallyValid: true,
+      semanticallyValid: false,
+      issues: [{ code: 'unknown-field', path: 'spec.list.columns[0].field', message: 'Unknown' }],
+    });
+    renderConsole();
+    await screen.findByLabelText('presentation.document');
+    fireEvent.click(screen.getByText('presentation.editor.mode.visual'));
+    fireEvent.click(screen.getByText('presentation.validate.action'));
+    const locate = await screen.findByText('presentation.validation.openRaw');
+    fireEvent.click(locate);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('presentation.document')).toBe(
+        globalThis.document.activeElement,
+      );
+    });
+  });
+
   it('does not retry the disabled published revision query for a draft detail error', async () => {
     const profileRefetch = vi.fn(async () => ({ data: draftProfile }));
     runtime.profile = queryResult(undefined, {
