@@ -11,13 +11,13 @@ spec:
   sourceProjectName: mss-boot-admin
   distribution:
     name: mss-boot-admin
-    version: v1.3.6
+    version: v1.3.7
     backend:
       module: github.com/mss-boot-io/mss-boot-admin/admin
-      version: v1.3.6
+      version: v1.3.7
     frontend:
       package: "@mss-boot-io/admin-web"
-      version: 1.3.6
+      version: 1.3.7
   defaultOutputDirectory: .mss/output
   manifestPath: .mss/blueprint-manifest.json
   lockPath: .mss/lock.yaml

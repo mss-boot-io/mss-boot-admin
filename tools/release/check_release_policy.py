@@ -28,8 +28,7 @@ REQUIRED_KEYS = {
     "distributionVersion",
     "distributionComponents",
     "releaseTargetState",
-    "immutableStoppedVersion",
-    "immutableStoppedPublicRefs",
+    "immutableStoppedTrains",
     "publicationWorkflowsReady",
     "docsRevisionPublicationReady",
     "publicPrereleases",
@@ -49,16 +48,34 @@ COMPONENT_TEMPLATE_KEYS = {
     "npm": "npmPackageTemplate",
 }
 COORDINATED_COMPONENTS = ("root", "framework", "admin", "frontend")
-PERMANENTLY_STOPPED_VERSION = "v1.3.5"
-PERMANENTLY_STOPPED_PUBLIC_REFS = {
-    "root": "v1.3.5",
-    "framework": "mss-boot/v1.3.5",
-    "admin": "admin/v1.3.5",
-    "frontend": "web/antd-v6/v1.3.5",
-    "docs": "docs/v1.3.5",
-    "npm": "@mss-boot-io/admin-web@1.3.5",
+IMMUTABLE_STOPPED_COMPONENTS = tuple(COMPONENT_TEMPLATE_KEYS)
+STOPPED_TRAIN_KEYS = {"version", "commit", "refs"}
+PERMANENTLY_STOPPED_TRAINS = {
+    "v1.3.5": {
+        "version": "v1.3.5",
+        "commit": "396f60615cdfa589353b16ef9d3531e249e65432",
+        "refs": {
+            "root": "v1.3.5",
+            "framework": "mss-boot/v1.3.5",
+            "admin": "admin/v1.3.5",
+            "frontend": "web/antd-v6/v1.3.5",
+            "docs": "docs/v1.3.5",
+            "npm": "@mss-boot-io/admin-web@1.3.5",
+        },
+    },
+    "v1.3.6": {
+        "version": "v1.3.6",
+        "commit": "b1fe47a3a83209574e09d53526b122dd2cbc5277",
+        "refs": {
+            "root": "v1.3.6",
+            "framework": "mss-boot/v1.3.6",
+            "admin": "admin/v1.3.6",
+            "frontend": "web/antd-v6/v1.3.6",
+            "docs": "docs/v1.3.6",
+            "npm": "@mss-boot-io/admin-web@1.3.6",
+        },
+    },
 }
-IMMUTABLE_STOPPED_COMPONENTS = tuple(PERMANENTLY_STOPPED_PUBLIC_REFS)
 
 
 class PolicyError(ValueError):
@@ -77,7 +94,7 @@ def parse_scalar(value: str) -> str | bool:
 
 
 def release_ref(
-    policy: dict[str, str | bool], component: str, version: str
+    policy: dict[str, object], component: str, version: str
 ) -> str:
     template_key = COMPONENT_TEMPLATE_KEYS.get(component)
     if template_key is None:
@@ -93,60 +110,209 @@ def release_ref(
     return template.format(version=version)
 
 
-def immutable_stopped_public_refs(
-    policy: dict[str, str | bool],
-) -> dict[str, str]:
-    raw_refs = policy["immutableStoppedPublicRefs"]
-    if not isinstance(raw_refs, str) or not raw_refs:
+def _parse_stopped_train_block(
+    lines: list[str], start: int
+) -> tuple[list[dict[str, object]], int]:
+    """Parse the deliberately small, dependency-free YAML subset used by the policy."""
+
+    trains: list[dict[str, object]] = []
+    current: dict[str, object] | None = None
+    current_refs: dict[str, object] | None = None
+    index = start
+    while index < len(lines):
+        line = lines[index]
+        line_number = index + 1
+        if not line.strip() or line.lstrip().startswith("#"):
+            index += 1
+            continue
+        if not line.startswith("    "):
+            break
+
+        item_match = re.fullmatch(
+            r"    - ([A-Za-z][A-Za-z0-9]*):\s*(.*)", line
+        )
+        field_match = re.fullmatch(
+            r"      ([A-Za-z][A-Za-z0-9]*):\s*(.*)", line
+        )
+        ref_match = re.fullmatch(
+            r"        ([A-Za-z][A-Za-z0-9]*):\s*(.+)", line
+        )
+        if item_match:
+            current = {}
+            trains.append(current)
+            current_refs = None
+            key, raw_value = item_match.groups()
+            if not raw_value:
+                raise PolicyError(
+                    f"immutable stopped train field {key} is empty at line {line_number}"
+                )
+            current[key] = parse_scalar(raw_value)
+        elif field_match:
+            if current is None:
+                raise PolicyError(
+                    f"immutable stopped train field appears before a list item at line {line_number}"
+                )
+            key, raw_value = field_match.groups()
+            if key in current:
+                raise PolicyError(f"immutable stopped train duplicates field {key}")
+            if key == "refs":
+                if raw_value:
+                    raise PolicyError(
+                        "immutable stopped train refs must be a YAML mapping"
+                    )
+                current_refs = {}
+                current[key] = current_refs
+            else:
+                if not raw_value:
+                    raise PolicyError(
+                        f"immutable stopped train field {key} is empty at line {line_number}"
+                    )
+                current[key] = parse_scalar(raw_value)
+                current_refs = None
+        elif ref_match:
+            if current_refs is None:
+                raise PolicyError(
+                    f"immutable stopped train ref appears outside refs at line {line_number}"
+                )
+            component, raw_value = ref_match.groups()
+            if component in current_refs:
+                raise PolicyError(
+                    f"immutable stopped train duplicates ref component {component}"
+                )
+            current_refs[component] = parse_scalar(raw_value)
+        else:
+            raise PolicyError(
+                f"unsupported immutable stopped train syntax at line {line_number}"
+            )
+        index += 1
+    return trains, index
+
+
+def immutable_stopped_trains(
+    policy: dict[str, object],
+) -> dict[str, dict[str, object]]:
+    raw_trains = policy["immutableStoppedTrains"]
+    if not isinstance(raw_trains, list) or not raw_trains:
         raise PolicyError(
-            "release policy immutableStoppedPublicRefs must be a non-empty mapping"
+            "release policy immutableStoppedTrains must be a non-empty YAML list"
         )
 
-    refs: dict[str, str] = {}
-    for entry in raw_refs.split(","):
-        component, separator, public_ref = entry.partition("=")
-        if not separator or not component or not public_ref:
+    trains: dict[str, dict[str, object]] = {}
+    public_refs: dict[str, str] = {}
+    for index, raw_train in enumerate(raw_trains):
+        if not isinstance(raw_train, dict):
             raise PolicyError(
-                "release policy immutableStoppedPublicRefs must use component=ref entries"
+                f"release policy immutableStoppedTrains item {index} must be a mapping"
             )
-        if component not in IMMUTABLE_STOPPED_COMPONENTS:
+        keys = set(raw_train)
+        missing = sorted(STOPPED_TRAIN_KEYS - keys)
+        extra = sorted(keys - STOPPED_TRAIN_KEYS)
+        if missing:
             raise PolicyError(
-                f"release policy immutableStoppedPublicRefs has unsupported component {component}"
+                f"immutable stopped train {index} is missing fields: {', '.join(missing)}"
             )
-        if component in refs:
+        if extra:
             raise PolicyError(
-                f"release policy immutableStoppedPublicRefs duplicates component {component}"
+                f"immutable stopped train {index} has unknown fields: {', '.join(extra)}"
             )
-        refs[component] = public_ref
 
-    missing = sorted(set(IMMUTABLE_STOPPED_COMPONENTS) - refs.keys())
-    if missing:
-        raise PolicyError(
-            "release policy immutableStoppedPublicRefs is missing components: "
-            + ", ".join(missing)
-        )
-    return refs
+        version = raw_train["version"]
+        commit = raw_train["commit"]
+        refs = raw_train["refs"]
+        if not isinstance(version, str) or not VERSION_RE.fullmatch(version):
+            raise PolicyError(
+                f"immutable stopped train {index} version must be a semantic version"
+            )
+        if version in trains:
+            raise PolicyError(
+                f"release policy immutableStoppedTrains duplicates version {version}"
+            )
+        if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+            raise PolicyError(
+                f"immutable stopped train {version} commit must be a full commit SHA"
+            )
+        if not isinstance(refs, dict):
+            raise PolicyError(
+                f"immutable stopped train {version} refs must be a YAML mapping"
+            )
+        ref_keys = set(refs)
+        missing_refs = sorted(set(IMMUTABLE_STOPPED_COMPONENTS) - ref_keys)
+        extra_refs = sorted(ref_keys - set(IMMUTABLE_STOPPED_COMPONENTS))
+        if missing_refs:
+            raise PolicyError(
+                f"immutable stopped train {version} is missing refs: "
+                + ", ".join(missing_refs)
+            )
+        if extra_refs:
+            raise PolicyError(
+                f"immutable stopped train {version} has unknown refs: "
+                + ", ".join(extra_refs)
+            )
+        normalized_refs: dict[str, str] = {}
+        for component in IMMUTABLE_STOPPED_COMPONENTS:
+            public_ref = refs[component]
+            if not isinstance(public_ref, str) or not public_ref:
+                raise PolicyError(
+                    f"immutable stopped train {version} {component} ref must be a string"
+                )
+            expected = release_ref(policy, component, version)
+            if public_ref != expected:
+                raise PolicyError(
+                    f"immutable stopped train {version} {component} ref must remain {expected!r}"
+                )
+            if public_ref in public_refs:
+                raise PolicyError(
+                    f"immutable stopped ref {public_ref!r} is duplicated by {version} "
+                    f"and {public_refs[public_ref]}"
+                )
+            public_refs[public_ref] = version
+            normalized_refs[component] = public_ref
+        trains[version] = {
+            "version": version,
+            "commit": commit,
+            "refs": normalized_refs,
+        }
+
+    for version, expected in PERMANENTLY_STOPPED_TRAINS.items():
+        if trains.get(version) != expected:
+            raise PolicyError(
+                f"release policy immutableStoppedTrains must preserve the exact "
+                f"{version} stopped train permanently"
+            )
+    return trains
 
 
-def load_policy(path: Path) -> dict[str, str | bool]:
+def load_policy(path: Path) -> dict[str, object]:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as exc:
         raise PolicyError(f"cannot read release policy {path}: {exc}") from exc
 
     in_spec = False
-    policy: dict[str, str | bool] = {}
-    for line_number, line in enumerate(lines, start=1):
+    policy: dict[str, object] = {}
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        line_number = index + 1
         if line == "spec:":
             if in_spec:
                 raise PolicyError("release policy contains more than one spec block")
             in_spec = True
+            index += 1
             continue
         if not in_spec:
+            index += 1
             continue
         if line and not line.startswith("  "):
             break
         if not line.strip() or line.lstrip().startswith("#"):
+            index += 1
+            continue
+        if re.fullmatch(r"  immutableStoppedTrains:\s*", line):
+            key = "immutableStoppedTrains"
+            if key in policy:
+                raise PolicyError(f"duplicate release policy key: {key}")
+            policy[key], index = _parse_stopped_train_block(lines, index + 1)
             continue
         match = re.fullmatch(r"  ([A-Za-z][A-Za-z0-9]*):\s*(.+)", line)
         if not match:
@@ -155,6 +321,7 @@ def load_policy(path: Path) -> dict[str, str | bool]:
         if key in policy:
             raise PolicyError(f"duplicate release policy key: {key}")
         policy[key] = parse_scalar(raw_value)
+        index += 1
 
     missing = sorted(REQUIRED_KEYS - policy.keys())
     extra = sorted(policy.keys() - REQUIRED_KEYS)
@@ -188,17 +355,13 @@ def load_policy(path: Path) -> dict[str, str | bool]:
     target_state = policy["releaseTargetState"]
     if target_state not in {"active", "stopped"}:
         raise PolicyError("release policy releaseTargetState must be active or stopped")
-    stopped_version = policy["immutableStoppedVersion"]
-    if stopped_version != PERMANENTLY_STOPPED_VERSION:
+    stopped_trains = immutable_stopped_trains(policy)
+    if policy["nextPublicVersion"] in stopped_trains and target_state != "stopped":
         raise PolicyError(
-            "release policy immutableStoppedVersion must preserve v1.3.5 permanently"
+            "release policy releaseTargetState must be stopped when the reviewed "
+            "target belongs to immutableStoppedTrains"
         )
-    if policy["nextPublicVersion"] == stopped_version and target_state != "stopped":
-        raise PolicyError(
-            "release policy releaseTargetState must be stopped while v1.3.5 remains "
-            "the unselectable legacy target"
-        )
-    if policy["nextPublicVersion"] != stopped_version and target_state != "active":
+    if policy["nextPublicVersion"] not in stopped_trains and target_state != "active":
         raise PolicyError(
             "release policy releaseTargetState must be active for a reviewed target "
             "that is not permanently stopped"
@@ -221,23 +384,11 @@ def load_policy(path: Path) -> dict[str, str | bool]:
     commit = policy["currentStableCommit"]
     if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise PolicyError("release policy currentStableCommit must be a full commit SHA")
-    stopped_refs = immutable_stopped_public_refs(policy)
-    if stopped_refs != PERMANENTLY_STOPPED_PUBLIC_REFS:
-        raise PolicyError(
-            "release policy immutableStoppedPublicRefs must preserve every exact "
-            "v1.3.5 public or stopped ref permanently"
-        )
-    for component in IMMUTABLE_STOPPED_COMPONENTS:
-        expected = release_ref(policy, component, stopped_version)
-        if stopped_refs[component] != expected:
-            raise PolicyError(
-                f"release policy immutable stopped {component} ref must remain {expected!r}"
-            )
     return policy
 
 
 def coordinated_tags(
-    policy: dict[str, str | bool], version: str
+    policy: dict[str, object], version: str
 ) -> dict[str, str]:
     """Resolve and validate every coordinated Admin Distribution tag."""
 
@@ -250,7 +401,7 @@ def coordinated_tags(
 
 
 def check_public_ref(
-    policy: dict[str, str | bool],
+    policy: dict[str, object],
     component: str,
     version: str,
     tag: str,
@@ -270,11 +421,24 @@ def check_public_ref(
             f"{expected!r}"
         )
 
-    stopped_version = policy["immutableStoppedVersion"]
-    stopped_refs = immutable_stopped_public_refs(policy)
-    if version == stopped_version or tag in stopped_refs.values():
+    stopped_trains = immutable_stopped_trains(policy)
+    stopped_refs = {
+        public_ref
+        for train in stopped_trains.values()
+        for public_ref in train["refs"].values()
+    }
+    if version in stopped_trains or tag in stopped_refs:
+        stopped_version = (
+            version
+            if version in stopped_trains
+            else next(
+                train_version
+                for train_version, train in stopped_trains.items()
+                if tag in train["refs"].values()
+            )
+        )
         raise PolicyError(
-            f"{component} public ref {tag!r} belongs to immutable stopped version "
+            f"{component} public ref {tag!r} belongs to immutable stopped train "
             f"{stopped_version}; qualify and publish are permanently forbidden"
         )
 

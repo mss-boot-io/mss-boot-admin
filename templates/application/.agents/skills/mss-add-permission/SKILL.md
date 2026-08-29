@@ -1,11 +1,11 @@
 ---
 name: mss-add-permission
-description: Add or change coarse backend RBAC, API, menu, or action permissions in a Thin Host v1.3.6 module. Trigger for role access or authorization defects. Row-level ownership and department scope require separate handwritten enforcement.
+description: Add or change coarse backend RBAC, API, menu, or action permissions in a Thin Host v1.3.7 module. Trigger for role access or authorization defects. Row-level ownership and department scope require separate handwritten enforcement.
 ---
 
 # Add a coarse module permission
 
-The generated v1.3.6 profile projects module permission codes into backend API/RBAC registration and frontend menu/action visibility while `ownership.mode` remains `none`.
+The generated v1.3.7 profile projects module permission codes into backend API/RBAC registration and frontend menu/action visibility while `ownership.mode` remains `none`.
 
 1. Write an allow/deny matrix for resource, action, and role.
 2. Inspect `.mss/modules/<module>.yaml`, current routes, generated authorization migration, middleware, and frontend access checks.

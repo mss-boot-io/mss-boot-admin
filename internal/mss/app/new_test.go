@@ -30,7 +30,7 @@ func TestGenerateApplicationUsesEmbeddedSourceInEmptyDirectory(t *testing.T) {
 	t.Cleanup(func() {
 		buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp = originalVersion, originalCommit, originalTimestamp
 	})
-	buildinfo.Version = "v1.3.6"
+	buildinfo.Version = "v1.3.7"
 	buildinfo.Commit = strings.Repeat("a", 40)
 	buildinfo.Timestamp = "2026-08-25T12:34:56Z"
 
@@ -50,7 +50,7 @@ func TestGenerateApplicationUsesEmbeddedSourceInEmptyDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generateApplication() error = %v", err)
 	}
-	if plan.Identities.Foundation.Version != "1.3.6" || plan.Destination != filepath.Join(working, "generated-admin") {
+	if plan.Identities.Foundation.Version != "1.3.7" || plan.Destination != filepath.Join(working, "generated-admin") {
 		t.Fatalf("standalone application plan = %#v", plan)
 	}
 	if _, err := os.Stat(filepath.Join(working, "generated-admin", "README.md")); err != nil {
@@ -97,9 +97,9 @@ func appFrontendRegistry(t *testing.T) string {
 		writer.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(
 			writer,
-			`{"name":"@mss-boot-io/admin-web","version":"1.3.6","dist":{"integrity":%q,"tarball":%q}}`,
+			`{"name":"@mss-boot-io/admin-web","version":"1.3.7","dist":{"integrity":%q,"tarball":%q}}`,
 			integrity,
-			"http://"+request.Host+"/artifacts/app-admin-web-1.3.6.tgz",
+			"http://"+request.Host+"/artifacts/app-admin-web-1.3.7.tgz",
 		)
 	}))
 	t.Cleanup(server.Close)
@@ -112,7 +112,7 @@ func setAppReleaseBuild(t *testing.T) {
 	t.Cleanup(func() {
 		buildinfo.Version, buildinfo.Commit, buildinfo.Timestamp = originalVersion, originalCommit, originalTimestamp
 	})
-	buildinfo.Version = "v1.3.6"
+	buildinfo.Version = "v1.3.7"
 	buildinfo.Commit = strings.Repeat("a", 40)
 	buildinfo.Timestamp = "2026-08-25T12:34:56Z"
 }

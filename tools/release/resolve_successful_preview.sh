@@ -94,15 +94,18 @@ artifacts="$(gh api \
   -H 'Accept: application/vnd.github+json' \
   "/repos/${repository}/actions/runs/${run_id}/artifacts" \
   -f per_page=100)"
-artifact_name="release-packages-${version}"
-if ! jq -e \
-  --arg name "${artifact_name}" \
-  '[.artifacts[] | select(
-    .name == $name and
-    .expired == false and
-    (.size_in_bytes | type == "number" and . > 0)
-  )] | length == 1' <<< "${artifacts}" >/dev/null; then
-  echo "successful preview ${run_id} has no exact unexpired ${artifact_name} artifact" >&2
-  exit 1
-fi
+for artifact_name in \
+  "release-packages-${version}" \
+  "root-image-preview-${version}"; do
+  if ! jq -e \
+    --arg name "${artifact_name}" \
+    '[.artifacts[] | select(
+      .name == $name and
+      .expired == false and
+      (.size_in_bytes | type == "number" and . > 0)
+    )] | length == 1' <<< "${artifacts}" >/dev/null; then
+    echo "successful preview ${run_id} has no exact unexpired ${artifact_name} artifact" >&2
+    exit 1
+  fi
+done
 printf '%s\n' "${run_id}"

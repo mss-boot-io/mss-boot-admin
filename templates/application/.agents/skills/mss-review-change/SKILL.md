@@ -21,7 +21,7 @@ description: Review a Thin Host pull request or working-tree change for correctn
    mss module generate .mss/modules/<module>.yaml --check
    ```
 
-5. The v1.3.6 generated profile is limited to `string`/`enum`/`bool`, `ownership: none`, simple CRUD/export, and coarse permissions. Treat generated relation, import, workflow, or row-scope claims as unsupported until separately implemented and tested.
+5. The v1.3.7 generated profile is limited to `string`/`enum`/`bool`, `ownership: none`, simple CRUD/export, and coarse permissions. Treat generated relation, import, workflow, or row-scope claims as unsupported until separately implemented and tested.
 6. Confirm suspected defects with the smallest focused check. Rank findings by severity and give location, scenario, missing guard, minimal repair, and required validation.
 
 Do not approve from a status badge alone, treat frontend hiding as authorization, accept destructive schema changes without upgrade evidence, or quote secrets. If no material defect is found, state remaining risks and test gaps.

@@ -55,11 +55,11 @@ replacements = {
     "__MSS_APP_REPOSITORY__": "example/presentation-thin-host",
     "__MSS_APP_MODULE__": "example.com/presentation-thin-host",
     "__MSS_DISTRIBUTION_NAME__": "mss-boot-admin",
-    "__MSS_DISTRIBUTION_VERSION__": "v1.3.6",
+    "__MSS_DISTRIBUTION_VERSION__": "v1.3.7",
     "__MSS_DISTRIBUTION_BACKEND_MODULE__": "github.com/mss-boot-io/mss-boot-admin/admin",
-    "__MSS_DISTRIBUTION_BACKEND_VERSION__": "v1.3.6",
+    "__MSS_DISTRIBUTION_BACKEND_VERSION__": "v1.3.7",
     "__MSS_DISTRIBUTION_FRONTEND_PACKAGE__": "@mss-boot-io/admin-web",
-    "__MSS_DISTRIBUTION_FRONTEND_VERSION__": "1.3.6",
+    "__MSS_DISTRIBUTION_FRONTEND_VERSION__": "1.3.7",
 }
 for relative in (".mss/project.yaml", ".mss/capabilities.yaml", ".mss/commands.yaml"):
     content = (foundation / "templates/application" / relative).read_text(encoding="utf-8")

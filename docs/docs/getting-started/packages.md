@@ -1,16 +1,16 @@
 ---
-title: v1.3.6 候选包发布状态
+title: v1.3.7 候选包发布状态
 order: 2
-description: v1.3.6 未发布候选包与 v1.3.5 永久停止组件边界
-keywords: [v1.3.6 v1.3.5 v1.3.2 candidate go module npm admin web immutable partial]
+description: v1.3.7 未发布候选包与 v1.3.5/v1.3.6 永久停止组件边界
+keywords: [v1.3.7 v1.3.6 v1.3.5 v1.3.2 candidate go module npm admin web immutable partial]
 ---
 
-# v1.3.6 候选包发布状态
+# v1.3.7 候选包发布状态
 
 :::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 已永久停止并保持不可变部分发布；v1.3.6 已选
+发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
 为 release candidate，但 Go Module、Admin Web npmjs 与 Root 包面尚未发布。公共制品
-对账前，v1.3.6 不可采用，也不开放安装或升级命令。
+对账前，v1.3.7 不可采用，也不开放安装或升级命令。
 :::
 
 ## 已公开与缺失的身份
@@ -22,6 +22,11 @@ keywords: [v1.3.6 v1.3.5 v1.3.2 candidate go module npm admin web immutable part
 | Admin Web | `@mss-boot-io/admin-web@1.3.5` | GitHub Release 与 GitHub Packages 已公开，npmjs 未发布 |
 | Root | `v1.3.5` | 只有不可变 Tag；Root Release、工具和后端镜像未发布 |
 | Docs | `docs/v1.3.5` | 未创建、未部署 |
+| Framework | `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.6` | Go Module 与 Release 已公开；只作为部分列车组件 |
+| Admin | `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.6` | Go Module 与 Release 已公开；只作为部分列车组件 |
+| Admin Web | `@mss-boot-io/admin-web@1.3.6` | GitHub Release/Packages 已公开；官方 npmjs 不存在 |
+| Root | `v1.3.6` | Root Release 与工具公开；Root image 不存在 |
+| Docs | `docs/v1.3.6` | 未创建、未部署 |
 
 这些身份可以用于审计已经公开的不可变组件，不能拼成受支持的 Thin Host。尤其不能把
 GitHub Packages、Release 附件、本地 tarball、源码目录、分支或 `replace` 当作 npmjs 和
@@ -53,7 +58,8 @@ GitHub Packages、Release 附件、本地 tarball、源码目录、分支或 `re
 - `web/src/business/locales/zh-CN.ts` 与 `en-US.ts` 同步业务文案；
 - 受管组合层合并核心、生成和手写条目，并对重复路径失败关闭。
 
-三方升级只能更新受管文件，必须原字节保留业务和未知文件。v1.3.5 没有完整公共工具、
+三方升级只能更新受管文件，必须原字节保留业务和未知文件。v1.3.5 与 v1.3.6 都没有完整公共工具、
 npmjs 包和 Root 发布，因此不能用来创建、验证或升级这种 Thin Host。
 
-完整证据见 [v1.3.5 不可变部分发布记录](/releases/v1-3-5)。
+完整证据见 [v1.3.5 不可变部分发布记录](/releases/v1-3-5) 与
+[v1.3.6 不可变部分发布记录](/releases/v1-3-6)。

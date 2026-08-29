@@ -118,10 +118,11 @@ mapfile -t creation_names < <(
   ) | .id' <<< "${rulesets}")
 )
 mapfile -t creation_names < <(printf '%s\n' "${creation_names[@]}" | sort)
-if [[ "${#creation_names[@]}" -ne 2 \
+if [[ "${#creation_names[@]}" -ne 3 \
   || "${creation_names[0]}" != "release-tags-controlled-creation" \
-  || "${creation_names[1]}" != "v1.3.5-stopped-tags-never-create" ]]; then
-  echo 'exactly the consolidated controlled-creation and v1.3.5 stop rulesets may govern release-tag creation' >&2
+  || "${creation_names[1]}" != "v1.3.5-stopped-tags-never-create" \
+  || "${creation_names[2]}" != "v1.3.6-stopped-tags-never-create" ]]; then
+  echo 'exactly the consolidated controlled-creation plus v1.3.5 and v1.3.6 stop rulesets may govern release-tag creation' >&2
   exit 1
 fi
 
@@ -170,30 +171,41 @@ jq -e \
   exit 1
 }
 
-stopped_id="$(unique_ruleset_id v1.3.5-stopped-tags-never-create)"
-stopped_ruleset="$(gh api "/repos/${repository}/rulesets/${stopped_id}?includes_parents=true")"
-jq -e \
-  --arg repository "${repository}" '
-  ([
-    "refs/tags/admin/v1.3.5",
-    "refs/tags/docs/v1.3.5",
-    "refs/tags/mss-boot/v1.3.5",
-    "refs/tags/v1.3.5",
-    "refs/tags/web/antd/v1.3.5",
-    "refs/tags/web/antd-v6/v1.3.5"
-  ] | sort) as $expected_refs |
-  .source_type == "Repository" and
-  .source == $repository and
-  .target == "tag" and
-  .enforcement == "active" and
-  (.conditions.ref_name.include | sort) == $expected_refs and
-  .conditions.ref_name.exclude == [] and
-  .bypass_actors == [] and
-  ([.rules[].type] == ["creation"])
-' <<< "${stopped_ruleset}" >/dev/null || {
-  echo 'v1.3.5 stopped-tag creation must be blocked by the exact no-bypass ruleset' >&2
-  exit 1
+verify_stopped_ruleset() {
+  local version=$1
+  local ruleset_id
+  local ruleset
+
+  ruleset_id="$(unique_ruleset_id "${version}-stopped-tags-never-create")"
+  ruleset="$(gh api "/repos/${repository}/rulesets/${ruleset_id}?includes_parents=true")"
+  jq -e \
+    --arg repository "${repository}" \
+    --arg version "${version}" '
+    ([
+      "refs/tags/admin/\($version)",
+      "refs/tags/docs/\($version)",
+      "refs/tags/mss-boot/\($version)",
+      "refs/tags/\($version)",
+      "refs/tags/web/antd/\($version)",
+      "refs/tags/web/antd-v6/\($version)"
+    ] | sort) as $expected_refs |
+    .source_type == "Repository" and
+    .source == $repository and
+    .target == "tag" and
+    .enforcement == "active" and
+    (.conditions.ref_name.include | sort) == $expected_refs and
+    .conditions.ref_name.exclude == [] and
+    .bypass_actors == [] and
+    ([.rules[].type] == ["creation"])
+  ' <<< "${ruleset}" >/dev/null || {
+    echo "${version} stopped-tag creation must be blocked by the exact no-bypass ruleset" >&2
+    exit 1
+  }
+  printf '%s\n' "${ruleset_id}"
 }
+
+stopped_v135_id="$(verify_stopped_ruleset v1.3.5)"
+stopped_v136_id="$(verify_stopped_ruleset v1.3.6)"
 
 immutable_id="$(unique_ruleset_id release-tags-immutable)"
 immutable_ruleset="$(gh api "/repos/${repository}/rulesets/${immutable_id}?includes_parents=true")"
@@ -331,7 +343,8 @@ jq -n \
   --arg inspector "${inspector_login}" \
   --arg actor "${release_actor_login}" \
   --argjson controlled_ruleset_id "${controlled_id}" \
-  --argjson stopped_ruleset_id "${stopped_id}" \
+  --argjson stopped_v135_ruleset_id "${stopped_v135_id}" \
+  --argjson stopped_v136_ruleset_id "${stopped_v136_id}" \
   --argjson immutable_ruleset_id "${immutable_id}" \
   '{
     success: true,
@@ -339,7 +352,8 @@ jq -n \
     inspector: $inspector,
     releaseActor: $actor,
     controlledCreationRuleset: $controlled_ruleset_id,
-    stoppedV135CreationRuleset: $stopped_ruleset_id,
+    stoppedV135CreationRuleset: $stopped_v135_ruleset_id,
+    stoppedV136CreationRuleset: $stopped_v136_ruleset_id,
     immutableRuleset: $immutable_ruleset_id,
     retiredResources: {
       rootPromotionDeployKey: false,

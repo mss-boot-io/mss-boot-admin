@@ -8,12 +8,37 @@ and the project uses semantic versioning for nested-module releases.
 
 No unreleased changes are recorded.
 
+## [mss-boot/v1.3.7] - 2026-08-29
+
+Status: **coordinated v1.3.7 release candidate / not published or adoptable**.
+The Framework API remains source compatible. This new candidate requalifies the
+domain-neutral Framework from a new merged-main commit because the coordinated
+v1.3.6 train stopped before Root image, official npm, and Docs completion.
+
+### Changed
+
+- Requalify the exact Framework tree as `mss-boot/v1.3.7` for the coordinated
+  Admin and generated Thin Host consumers without changing its domain-neutral
+  boundary or public APIs.
+- Keep v1.3.6 public Framework bytes and checksums immutable; they are component
+  history and must not be mixed with v1.3.7 or presented as a complete Thin
+  Host distribution.
+
+### Compatibility
+
+- Candidate preview uses the exact repository workspace before the Framework
+  tag exists. Formal Admin publication must resolve the public v1.3.7
+  Framework with `GOWORK=off` from the same merged-main commit.
+- v1.3.2 remains the coordinated stable and matching-pair rollback baseline.
+
 ## [mss-boot/v1.3.6] - 2026-08-27
 
-Status: **coordinated v1.3.6 release candidate / not yet published**. The
-Framework public API remains source compatible. v1.3.6 is a fresh component
-identity for the complete package-first train and does not move, rebuild, or
-complete the immutable `mss-boot/v1.3.5` Release.
+Status: **published Framework component / immutable partial distribution**.
+`mss-boot/v1.3.6` and its GitHub Release were published from exact commit
+`b1fe47a3a83209574e09d53526b122dd2cbc5277` by run `33078214740`. The
+Framework public API remains source compatible, but the coordinated train later
+failed its Root image and official npm workflows and never created Docs. This
+component is immutable evidence, not a complete or supported Thin Host release.
 
 ### Changed
 
@@ -27,9 +52,9 @@ complete the immutable `mss-boot/v1.3.5` Release.
 
 ### Compatibility
 
-- Candidate preview uses the same repository workspace because the public
-  Framework tag cannot exist before qualification. Formal Admin publication
-  must later resolve this exact public Framework version with `GOWORK=off`.
+- Candidate preview used the same repository workspace before the public
+  Framework tag existed. Formal Admin publication then resolved this exact
+  public Framework version with `GOWORK=off`.
 - Rollback selects the matching v1.3.2 Framework, Admin, frontend, configuration,
   lock, and database backup; mixed patch versions are unsupported.
 

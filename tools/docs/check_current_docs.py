@@ -12,9 +12,12 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS_ROOT = Path("docs/docs")
-EXPECTED_DISTRIBUTION_VERSION = "v1.3.6"
-CURRENT_RELEASE_PAGE = Path("docs/docs/releases/v1-3-6.md")
-STOPPED_RELEASE_PAGE = Path("docs/docs/releases/v1-3-5.md")
+EXPECTED_DISTRIBUTION_VERSION = "v1.3.7"
+CURRENT_RELEASE_PAGE = Path("docs/docs/releases/v1-3-7.md")
+STOPPED_RELEASE_PAGES = (
+    Path("docs/docs/releases/v1-3-5.md"),
+    Path("docs/docs/releases/v1-3-6.md"),
+)
 
 CORE_CURRENT_FILES = (
     Path("README.md"),
@@ -180,7 +183,7 @@ REMOVED_ADMIN_PAGES = {
 ALLOWED_RELEASE_ROOT = {
     "index.md",
     CURRENT_RELEASE_PAGE.name,
-    STOPPED_RELEASE_PAGE.name,
+    *(path.name for path in STOPPED_RELEASE_PAGES),
 }
 REQUIRED_ARCHIVE_PAGES = {
     "index.md",
@@ -227,13 +230,14 @@ ADMIN_WEB_TOKEN = re.compile(r"@mss-boot-io/admin-web@(\d+\.\d+\.\d+)")
 FENCED_CODE_BLOCK = re.compile(r"```[^\n]*\n.*?```", re.DOTALL)
 OPERATIONAL_VERSION_LINE = re.compile(
     r"^\s*(?:[$>]\s*)?(?:mss\b|go\s+(?:get|install|mod)\b|corepack\b|"
-    r"curl\b|bash\b|Invoke-WebRequest\b|&\s+\.\\install-mss|docker\b)",
+    r"npm\b|pnpm\b|yarn\b|curl\b|bash\b|Invoke-WebRequest\b|"
+    r"&\s+\.\\install-mss|docker\b)",
     re.IGNORECASE,
 )
 HISTORICAL_RELEASE_VERSION_REFERENCES = {
     Path("docs/docs/releases/index.md"): {"v1.3.4"},
     CURRENT_RELEASE_PAGE: {"v1.3.4"},
-    STOPPED_RELEASE_PAGE: {"v1.3.4"},
+    STOPPED_RELEASE_PAGES[0]: {"v1.3.4"},
 }
 FORBIDDEN_SOURCE_COMMANDS = {
     "Foundation clone command": re.compile(r"\bgit\s+clone\b"),
@@ -359,7 +363,7 @@ def unreconciled_adoption_claims(version: str) -> dict[str, re.Pattern[str]]:
 class ReleaseDocumentationState(NamedTuple):
     distribution_version: str
     current_stable_version: str
-    immutable_stopped_version: str
+    immutable_stopped_versions: tuple[str, ...]
     publication_workflows_ready: bool
     release_status: str
 
@@ -393,9 +397,63 @@ def release_documentation_state(root: Path) -> ReleaseDocumentationState:
     stable = required_value(
         "currentStableVersion", r"v\d+\.\d+\.\d+"
     )
-    immutable_stopped = required_value(
-        "immutableStoppedVersion", r"v\d+\.\d+\.\d+"
+
+    stopped_headers = list(
+        re.finditer(
+            r"^(?P<indent> *)immutableStoppedTrains:\s*$",
+            text,
+            re.MULTILINE,
+        )
     )
+    if len(stopped_headers) != 1:
+        raise ValueError(
+            ".mss/release-policy.yaml must declare exactly one "
+            "spec.immutableStoppedTrains list"
+        )
+    stopped_header = stopped_headers[0]
+    header_indent = len(stopped_header.group("indent"))
+    lines = text[stopped_header.end() :].splitlines()
+    stopped_versions: list[str] = []
+    item_pattern = re.compile(
+        rf"^ {{{header_indent + 2}}}- version:\s*(?P<quote>['\"]?)"
+        r"(?P<version>v\d+\.\d+\.\d+)(?P=quote)\s*$"
+    )
+    direct_item_pattern = re.compile(rf"^ {{{header_indent + 2}}}-\s")
+    for line in lines:
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if "\t" in line[: len(line) - len(line.lstrip())]:
+            raise ValueError(
+                ".mss/release-policy.yaml spec.immutableStoppedTrains "
+                "must use space indentation"
+            )
+        indent = len(line) - len(line.lstrip(" "))
+        if indent <= header_indent:
+            break
+        if indent == header_indent + 2 and not direct_item_pattern.match(line):
+            raise ValueError(
+                ".mss/release-policy.yaml spec.immutableStoppedTrains must be "
+                "a list of version records"
+            )
+        if not direct_item_pattern.match(line):
+            continue
+        item = item_pattern.fullmatch(line)
+        if not item:
+            raise ValueError(
+                ".mss/release-policy.yaml spec.immutableStoppedTrains entries "
+                "must start with '- version: vX.Y.Z'"
+            )
+        stopped_versions.append(item.group("version"))
+    if not stopped_versions:
+        raise ValueError(
+            ".mss/release-policy.yaml spec.immutableStoppedTrains must contain "
+            "at least one version"
+        )
+    if len(set(stopped_versions)) != len(stopped_versions):
+        raise ValueError(
+            ".mss/release-policy.yaml spec.immutableStoppedTrains contains "
+            "duplicate versions"
+        )
     publication_ready_text = required_value(
         "publicationWorkflowsReady", r"true|false"
     )
@@ -435,7 +493,7 @@ def release_documentation_state(root: Path) -> ReleaseDocumentationState:
     return ReleaseDocumentationState(
         distribution_version=distribution,
         current_stable_version=stable,
-        immutable_stopped_version=immutable_stopped,
+        immutable_stopped_versions=tuple(stopped_versions),
         publication_workflows_ready=publication_ready_text == "true",
         release_status=matching_features[0][1],
     )
@@ -480,10 +538,11 @@ def forbidden_content_errors(
     paths: Iterable[Path],
     *,
     current_stable_version: str | None = None,
-    immutable_stopped_version: str | None = None,
+    immutable_stopped_versions: tuple[str, ...] = (),
 ) -> list[str]:
     errors: list[str] = []
     npm_version = version.removeprefix("v")
+    stopped_versions = frozenset(immutable_stopped_versions)
     for path in paths:
         absolute = root / path
         if not absolute.is_file():
@@ -519,7 +578,7 @@ def forbidden_content_errors(
                 and not (
                     (
                         token in allowed_historical_versions
-                        or token == immutable_stopped_version
+                        or token in stopped_versions
                     )
                     and not in_fenced_code(match.start())
                     and not on_operational_line(match.start())
@@ -534,7 +593,7 @@ def forbidden_content_errors(
             if token != npm_version and not (
                 (
                     f"v{token}" in allowed_historical_versions
-                    or f"v{token}" == immutable_stopped_version
+                    or f"v{token}" in stopped_versions
                 )
                 and not in_fenced_code(match.start())
                 and not on_operational_line(match.start())
@@ -606,15 +665,16 @@ def partial_release_semantic_errors(
                 f"{path}: partial-release status page must name current stable "
                 f"{state.current_stable_version}"
             )
-        if (
-            state.immutable_stopped_version != state.distribution_version
-            and state.immutable_stopped_version not in text
-        ):
-            errors.append(
-                f"{path}: pre-publication status page must name immutable stopped "
-                f"{state.immutable_stopped_version} separately from active target "
-                f"{state.distribution_version}"
-            )
+        for stopped_version in state.immutable_stopped_versions:
+            if (
+                stopped_version != state.distribution_version
+                and stopped_version not in text
+            ):
+                errors.append(
+                    f"{path}: pre-publication status page must name immutable "
+                    f"stopped {stopped_version} separately from active target "
+                    f"{state.distribution_version}"
+                )
         if not status_marker.search(text):
             errors.append(
                 f"{path}: must explicitly label {state.distribution_version} "
@@ -625,6 +685,16 @@ def partial_release_semantic_errors(
                 f"{path}: must distinguish source-only or future-contract content "
                 "from current adoption"
             )
+        expected_npm_version = state.distribution_version.removeprefix("v")
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            if "candidate" not in line.casefold() and "候选" not in line:
+                continue
+            for match in ADMIN_WEB_TOKEN.finditer(line):
+                if match.group(1) != expected_npm_version:
+                    errors.append(
+                        f"{path}:{line_number}: stale candidate Admin Web identity "
+                        f"{match.group(1)}; expected {expected_npm_version}"
+                    )
 
     if claim_paths is None:
         scanned_claim_paths = active_markdown_paths(root)
@@ -652,24 +722,29 @@ def partial_release_semantic_errors(
 def stopped_release_history_errors(
     root: Path, state: ReleaseDocumentationState
 ) -> list[str]:
-    path = STOPPED_RELEASE_PAGE
-    absolute = root / path
-    if not absolute.is_file():
-        return [f"missing immutable stopped release record: {path}"]
-    text = absolute.read_text(encoding="utf-8")
     errors: list[str] = []
-    if state.immutable_stopped_version not in text:
-        errors.append(
-            f"{path}: must name immutable stopped {state.immutable_stopped_version}"
+    for stopped_version in state.immutable_stopped_versions:
+        path = Path(
+            "docs/docs/releases/"
+            f"{stopped_version.replace('.', '-')}.md"
         )
-    if state.current_stable_version not in text:
-        errors.append(
-            f"{path}: must retain rollback baseline {state.current_stable_version}"
-        )
-    if not PARTIAL_RELEASE_STATUS_MARKER.search(text):
-        errors.append(
-            f"{path}: must retain the immutable-partial or permanently stopped boundary"
-        )
+        absolute = root / path
+        if not absolute.is_file():
+            errors.append(f"missing immutable stopped release record: {path}")
+            continue
+        text = absolute.read_text(encoding="utf-8")
+        if stopped_version not in text:
+            errors.append(f"{path}: must name immutable stopped {stopped_version}")
+        if state.current_stable_version not in text:
+            errors.append(
+                f"{path}: must retain rollback baseline "
+                f"{state.current_stable_version}"
+            )
+        if not PARTIAL_RELEASE_STATUS_MARKER.search(text):
+            errors.append(
+                f"{path}: must retain the immutable-partial or permanently "
+                "stopped boundary"
+            )
     return errors
 
 
@@ -850,7 +925,9 @@ def package_and_container_contract_errors(
     return errors
 
 
-def repository_context_errors(root: Path) -> list[str]:
+def repository_context_errors(
+    root: Path, *, immutable_stopped_versions: tuple[str, ...]
+) -> list[str]:
     """Reject stale monorepo, contributor, release, and user-visible context."""
 
     errors: list[str] = []
@@ -860,7 +937,7 @@ def repository_context_errors(root: Path) -> list[str]:
     else:
         text = contributor.read_text(encoding="utf-8")
         for marker in (
-            "v1.3.5 已永久停止",
+            *(f"{version} 已永久停止" for version in immutable_stopped_versions),
             "v1.3.2 稳定记录",
             "本文只适用于修改 Foundation 本身的贡献者",
             "go run ./cmd/mss context",
@@ -869,8 +946,13 @@ def repository_context_errors(root: Path) -> list[str]:
         ):
             if marker not in text:
                 errors.append(f"CONTRIBUTING.md: missing contributor boundary {marker}")
+        stopped_pattern = "|".join(
+            re.escape(version) for version in immutable_stopped_versions
+        )
         for label, pattern in {
-            "stopped-version adopter quick start": r"v1\.3\.5\s+快速开始",
+            "stopped-version adopter quick start": (
+                rf"(?:{stopped_pattern})\s+快速开始"
+            ),
             "repository-wide gofmt": r"(?m)^\s*gofmt\s+-w\s+\.\s*$",
             "uncontracted log file": r"(?m)^\s*tail\s+-f\s+logs/app\.log\s*$",
         }.items():
@@ -883,7 +965,10 @@ def repository_context_errors(root: Path) -> list[str]:
     else:
         normalized = " ".join(monorepo.read_text(encoding="utf-8").split())
         for marker in (
-            "v1.3.5 is permanently stopped as an immutable partial release",
+            *(
+                f"{version} is permanently stopped as an immutable partial release"
+                for version in immutable_stopped_versions
+            ),
             "one non-publishing Root preview",
             "Framework, Admin, and Admin Web tags in order",
             "Root release, backend image, and official npm publication "
@@ -1023,8 +1108,15 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         if not absolute.is_file():
             errors.append(f"missing current documentation file: {path}")
             continue
-        if version not in absolute.read_text(encoding="utf-8"):
+        text = absolute.read_text(encoding="utf-8")
+        if version not in text:
             errors.append(f"{path}: must name current distribution {version}")
+        for stopped_version in state.immutable_stopped_versions:
+            if stopped_version not in text:
+                errors.append(
+                    f"{path}: must distinguish immutable stopped "
+                    f"{stopped_version} from current distribution {version}"
+                )
 
     for tree in REMOVED_TREES:
         absolute = root / tree
@@ -1065,7 +1157,7 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             version,
             active_paths,
             current_stable_version=state.current_stable_version,
-            immutable_stopped_version=state.immutable_stopped_version,
+            immutable_stopped_versions=state.immutable_stopped_versions,
         )
     )
     errors.extend(stopped_release_history_errors(root, state))
@@ -1113,7 +1205,12 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             version=version,
         )
     )
-    errors.extend(repository_context_errors(root))
+    errors.extend(
+        repository_context_errors(
+            root,
+            immutable_stopped_versions=state.immutable_stopped_versions,
+        )
+    )
 
     quick_start_titles: list[Path] = []
     for path in sorted((root / DOCS_ROOT).rglob("*.md")):
@@ -1218,13 +1315,19 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         else (
             state.current_stable_version,
             state.distribution_version,
-            "github.com/mss-boot-io/mss-boot-admin/mss-boot@"
-            f"{state.immutable_stopped_version}",
-            "github.com/mss-boot-io/mss-boot-admin/admin@"
-            f"{state.immutable_stopped_version}",
-            "@mss-boot-io/admin-web@"
-            f"{state.immutable_stopped_version.removeprefix('v')}",
-            f"docs/{state.immutable_stopped_version}",
+            *(
+                marker
+                for stopped_version in state.immutable_stopped_versions
+                for marker in (
+                    "github.com/mss-boot-io/mss-boot-admin/mss-boot@"
+                    f"{stopped_version}",
+                    "github.com/mss-boot-io/mss-boot-admin/admin@"
+                    f"{stopped_version}",
+                    "@mss-boot-io/admin-web@"
+                    f"{stopped_version.removeprefix('v')}",
+                    f"docs/{stopped_version}",
+                )
+            ),
             "Root Release",
         )
     )
@@ -1245,6 +1348,7 @@ def success_message(state: ReleaseDocumentationState) -> str:
     return (
         f"current documentation contract OK: {state.distribution_version} "
         f"{state.release_status}; current stable {state.current_stable_version}; "
+        f"immutable stopped {', '.join(state.immutable_stopped_versions)}; "
         "operational onboarding disabled"
     )
 

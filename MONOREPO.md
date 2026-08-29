@@ -35,18 +35,25 @@ make docs-install docs-build
 
 Runtime components have independently triggered workflows, but one Admin
 Distribution release requires the same version core and exact merged-main commit.
-v1.3.5 is permanently stopped as an immutable partial release and cannot be
-qualified, resumed, completed, or reused.
+v1.3.5 is permanently stopped as an immutable partial release. v1.3.6 is
+permanently stopped as an immutable partial release. Neither can be qualified,
+resumed, completed, or reused. v1.3.6 published its Framework, Admin, Admin Web,
+and Root releases, but its Root image and npm workflows failed and Docs was
+never created.
 
-v1.3.6 is the selected release candidate and is not published or adoptable yet.
-Run one non-publishing Root preview for v1.3.6 on the exact merged-main commit.
+v1.3.7 is the selected release candidate and is not published or adoptable yet.
+Run one non-publishing Root preview for v1.3.7 on the exact merged-main commit.
+The reusable container call must receive `release_preview: true`, and the
+preview must contain the verified Root image artifact. The npm Trusted
+Publisher must match `npm-release.yml` plus `npm-auto`; no npm token is used.
 After it succeeds, publish the Framework, Admin, and Admin Web
 tags in order. One Root tag then starts the Root release, backend image, and
 official npm publication independently and in parallel. Formal tag workflows
 reuse the exact preview and do not repeat its expensive qualification or accept a
 promotion, readiness run ID, second publish dispatch, or manual environment
 approval. Docs follows later from its own tag and later merged-main documentation
-commit without reissuing runtime components.
+commit without reissuing runtime components. A failure after any public v1.3.7
+identity requires another unused version rather than a late artifact.
 
 ## Workflow location
 

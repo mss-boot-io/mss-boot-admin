@@ -8,14 +8,50 @@ tag namespaces.
 
 No unreleased changes are recorded.
 
+## [v1.3.7] - 2026-08-29
+
+Status: **release candidate / not published or adoptable**. v1.3.7 is the new
+complete-distribution recovery identity after v1.3.6 became an immutable
+partial train. The current stable and rollback baseline remains v1.3.2. No
+v1.3.7 installer, package, image, application-creation, or upgrade command is
+supported before one exact merged-main preview and full public reconciliation.
+
+### Fixed
+
+- Select reusable Root-image preview behavior through a required boolean
+  `release_preview` caller input. The v1.3.6 preview inherited its caller's
+  `workflow_dispatch` event and skipped every Root OCI qualification and upload
+  step that depended on `github.event_name == 'workflow_call'`.
+- Require the Root preview to contain and verify the Root image artifact before
+  formal tags can be created, so the Root container workflow cannot discover a
+  missing candidate artifact after public component and Root identities exist.
+- Reconcile official npm Trusted Publishing to organization `mss-boot-io`,
+  repository `mss-boot-admin`, workflow `npm-release.yml`, and environment
+  `npm-auto`. Publication remains credentialless through GitHub Actions OIDC
+  and provenance; no long-lived `NPM_TOKEN` or `NODE_AUTH_TOKEN` is restored.
+
+### Release governance
+
+- Freeze v1.3.6 as an immutable partial train at
+  `b1fe47a3a83209574e09d53526b122dd2cbc5277` and preserve its successful
+  Framework, Admin, Admin Web, and Root releases alongside the failed container
+  and npm runs and absent Docs identity.
+- Require a new reviewed merged-main commit and one complete non-publishing
+  v1.3.7 preview before the first formal component tag. Any defect found after
+  a public v1.3.7 identity requires another unused patch version rather than a
+  late artifact or moved tag.
+
 ## [v1.3.6] - 2026-08-27
 
-Status: **release candidate / not yet published**. v1.3.6 is the unused
-identity selected to complete the package-first distribution after the
-immutable partial v1.3.5 train. The current stable and rollback baseline
-remains v1.3.2 until every v1.3.6 component, package, image, tool archive, and
-Release has been published and publicly reconciled from one exact merged-main
-commit. This entry does not authorize installation or mixed-version adoption.
+Status: **published components and Root / immutable partial train**. Candidate
+preview run `33075770677` and Framework, Admin, Admin Web, and Root publication
+runs `33078214740`, `33078370221`, `33078525148`, and `33079323437` succeeded
+from exact commit `b1fe47a3a83209574e09d53526b122dd2cbc5277`.
+Container run `33079323174` failed because the preview had skipped the Root OCI
+artifact, npm run `33079323187` failed with `ENEEDAUTH`, and Docs was never
+created. The Root and component identities are already public and immutable;
+the missing Root image, official npm package, and Docs must not be added later.
+v1.3.2 remains the only coordinated stable and rollback baseline.
 
 ### Added
 
@@ -114,9 +150,9 @@ commit. This entry does not authorize installation or mixed-version adoption.
   every write after the backup time; before it starts, export and preserve
   post-backup audit and business data outside the target database whenever the
   current storage remains readable.
-- Keep `mss-shop` outside this candidate claim. It becomes a v1.3.6 development
-  exemplar only after the complete public distribution ledger and an external
-  single-tenant package-consumer acceptance both pass.
+- Keep `mss-shop` outside this release claim. v1.3.6 never completed its public
+  distribution ledger or external single-tenant package-consumer acceptance,
+  so it did not become a development exemplar or adoption baseline.
 
 ### Release governance
 
@@ -126,7 +162,7 @@ commit. This entry does not authorize installation or mixed-version adoption.
   assets, the Root Release, Docs, or the public npmjs package were published.
   No later repair may delete, move, recreate, or reuse a v1.3.5 identity. A
   complete train requires a fresh merged-main commit and an unused version;
-  v1.3.6 is that candidate identity, not a continuation of v1.3.5.
+  v1.3.6 used a fresh identity but later became an independent partial train.
 - Permanently reject v1.3.5 qualification and publication independently of the
   general publication-ready switch, and require a no-bypass server ruleset to
   block late creation of every exact v1.3.5 release-tag namespace.

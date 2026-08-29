@@ -5,7 +5,7 @@ description: Add or safely adjust a string, enum, or boolean field in an existin
 
 # Add or evolve a generated field
 
-The v1.3.6 public profile covers non-relational `string`, `enum`, and `bool` fields while `spec.ownership.mode` remains `none`.
+The v1.3.7 public profile covers non-relational `string`, `enum`, and `bool` fields while `spec.ownership.mode` remains `none`.
 
 1. Inspect `.mss/modules/<module>.yaml`, generated output, migration history, API clients, and existing-row constraints.
 2. Decide whether the change is fresh-install-only or needs a separate forward migration. Never rewrite a released migration as an upgrade strategy.
