@@ -1426,6 +1426,10 @@ exit 66
         npm = self.workflows["npm-release.yml"]
         self.assertEqual(npm["on"]["push"]["tags"], ["v*.*.*"])
         self.assertEqual(npm["jobs"]["publish"]["environment"], "npm-auto")
+        self.assertEqual(npm["permissions"]["id-token"], "write")
+        self.assertEqual(
+            npm["jobs"]["publish"]["permissions"]["id-token"], "write"
+        )
         self.assertEqual(
             npm["concurrency"],
             {
@@ -1435,6 +1439,18 @@ exit 66
         )
         npm_content = (WORKFLOW_DIR / "npm-release.yml").read_text(encoding="utf-8")
         self.assertIn("Require the exact frontend release", npm_content)
+        official_publish = next(
+            step
+            for step in npm["jobs"]["publish"]["steps"]
+            if step.get("name") == "Publish the existing tarball to official npm"
+        )
+        self.assertIn("unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG", official_publish["run"])
+        self.assertIn("npm publish", official_publish["run"])
+        self.assertIn("--provenance", official_publish["run"])
+        self.assertNotIn("NODE_AUTH_TOKEN", official_publish.get("env", {}))
+        self.assertNotIn("NPM_TOKEN", official_publish.get("env", {}))
+        self.assertNotIn("secrets.NPM_TOKEN", npm_content)
+        self.assertNotIn("secrets.NODE_AUTH_TOKEN", npm_content)
         self.assertNotIn("Root Release ${RELEASE_VERSION}", npm_content)
         self.assertNotIn("container.yml", npm_content)
         self.assertNotIn("docs.yml", npm_content)
@@ -1458,7 +1474,7 @@ exit 66
             ),
             ("release.yml", "publish"): None,
             ("container.yml", "build"): (
-                "${{ github.event_name == 'workflow_call' || "
+                "${{ inputs.release_preview == true || "
                 "github.ref_type == 'tag' }}"
             ),
             ("container.yml", "publish"): None,
@@ -1492,7 +1508,8 @@ exit 66
             "steps"
         ][0]
         self.assertIn("github.ref_type == 'tag'", container_gate["if"])
-        self.assertIn("github.event_name == 'workflow_call'", container_gate["if"])
+        self.assertIn("inputs.release_preview == true", container_gate["if"])
+        self.assertNotIn("github.event_name == 'workflow_call'", container_gate["if"])
         self.assertNotIn("github.event_name == 'workflow_dispatch'", container_gate["if"])
 
         docs_gate = self.workflows["docs.yml"]["jobs"]["build"]["steps"][0]

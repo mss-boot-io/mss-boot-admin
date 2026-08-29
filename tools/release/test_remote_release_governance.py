@@ -30,6 +30,14 @@ STOPPED_V135_REFS = [
     "refs/tags/web/antd/v1.3.5",
     "refs/tags/web/antd-v6/v1.3.5",
 ]
+STOPPED_V136_REFS = [
+    "refs/tags/admin/v1.3.6",
+    "refs/tags/docs/v1.3.6",
+    "refs/tags/mss-boot/v1.3.6",
+    "refs/tags/v1.3.6",
+    "refs/tags/web/antd/v1.3.6",
+    "refs/tags/web/antd-v6/v1.3.6",
+]
 ACTIVE_ENVIRONMENT_POLICIES = {
     "release-auto": [
         {"name": "admin/v*", "type": "tag"},
@@ -142,6 +150,12 @@ else:
                 "target": "tag",
                 "enforcement": "active",
             },
+            {
+                "id": 104,
+                "name": "v1.3.6-stopped-tags-never-create",
+                "target": "tag",
+                "enforcement": "active",
+            },
         ]
         common_ruleset = {
             "source_type": "Repository",
@@ -215,6 +229,16 @@ else:
                 ],
                 "bypass_actors": [],
             },
+            f"/repos/{REPOSITORY}/rulesets/104?includes_parents=true": {
+                **common_ruleset,
+                "id": 104,
+                "name": "v1.3.6-stopped-tags-never-create",
+                "conditions": {
+                    "ref_name": {"include": STOPPED_V136_REFS, "exclude": []}
+                },
+                "rules": [{"type": "creation"}],
+                "bypass_actors": [],
+            },
         }
         for name in ALL_ENVIRONMENTS:
             state[f"/repos/{REPOSITORY}/environments/{name}"] = environment(name)
@@ -282,6 +306,7 @@ else:
         self.assertEqual(report["releaseActor"], "lwnmengjing")
         self.assertEqual(report["controlledCreationRuleset"], 101)
         self.assertEqual(report["stoppedV135CreationRuleset"], 102)
+        self.assertEqual(report["stoppedV136CreationRuleset"], 104)
         self.assertEqual(report["immutableRuleset"], 103)
         self.assertEqual(
             report["environments"],
@@ -473,7 +498,31 @@ else:
         ]
         self.assert_rejected(
             state,
-            "exactly the consolidated controlled-creation and v1.3.5 stop rulesets may govern release-tag creation",
+            "exactly the consolidated controlled-creation plus v1.3.5 and v1.3.6 stop rulesets may govern release-tag creation",
+        )
+
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/rulesets/104?includes_parents=true"][
+            "bypass_actors"
+        ] = [
+            {
+                "actor_id": RELEASE_ACTOR_ID,
+                "actor_type": "User",
+                "bypass_mode": "always",
+            }
+        ]
+        self.assert_rejected(
+            state,
+            "v1.3.6 stopped-tag creation must be blocked by the exact no-bypass ruleset",
+        )
+
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/rulesets/104?includes_parents=true"][
+            "conditions"
+        ]["ref_name"]["include"].remove("refs/tags/docs/v1.3.6")
+        self.assert_rejected(
+            state,
+            "v1.3.6 stopped-tag creation must be blocked by the exact no-bypass ruleset",
         )
 
         state = copy.deepcopy(self.state)

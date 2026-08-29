@@ -31,7 +31,7 @@ const (
 	backendTemplateRevision      = "1.3.0-backend.2"
 	instructionsTemplateRevision = "1.3.0-module-instructions.1"
 	frontendV6TemplateRevision   = "1.3.0-frontend-v6.5"
-	docsTemplateRevision         = "1.3.6-docs.1"
+	docsTemplateRevision         = "1.3.7-docs.1"
 	e2eV6TemplateRevision        = "1.3.0-e2e-v6.8"
 )
 

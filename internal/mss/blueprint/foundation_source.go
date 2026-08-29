@@ -33,6 +33,21 @@ type committedFile struct {
 	GitMode string
 }
 
+type foundationStoppedRefs struct {
+	Root      string `yaml:"root"`
+	Framework string `yaml:"framework"`
+	Admin     string `yaml:"admin"`
+	Frontend  string `yaml:"frontend"`
+	Docs      string `yaml:"docs"`
+	NPM       string `yaml:"npm"`
+}
+
+type foundationStoppedTrain struct {
+	Version string                `yaml:"version"`
+	Commit  string                `yaml:"commit"`
+	Refs    foundationStoppedRefs `yaml:"refs"`
+}
+
 type foundationReleasePolicy struct {
 	APIVersion string `yaml:"apiVersion"`
 	Kind       string `yaml:"kind"`
@@ -40,27 +55,26 @@ type foundationReleasePolicy struct {
 		Name string `yaml:"name"`
 	} `yaml:"metadata"`
 	Spec struct {
-		Mode                         string `yaml:"mode"`
-		ReleaseBranch                string `yaml:"releaseBranch"`
-		RequireMergedPRSource        *bool  `yaml:"requireMergedPullRequestSource"`
-		CurrentStableVersion         string `yaml:"currentStableVersion"`
-		CurrentStableCommit          string `yaml:"currentStableCommit"`
-		NextPublicVersion            string `yaml:"nextPublicVersion"`
-		DistributionVersion          string `yaml:"distributionVersion"`
-		DistributionComponents       string `yaml:"distributionComponents"`
-		ReleaseTargetState           string `yaml:"releaseTargetState"`
-		ImmutableStoppedVersion      string `yaml:"immutableStoppedVersion"`
-		ImmutableStoppedPublicRefs   string `yaml:"immutableStoppedPublicRefs"`
-		PublicationWorkflowsReady    *bool  `yaml:"publicationWorkflowsReady"`
-		DocsRevisionPublicationReady *bool  `yaml:"docsRevisionPublicationReady"`
-		PublicPrereleases            *bool  `yaml:"publicPrereleases"`
-		RootTagTemplate              string `yaml:"rootTagTemplate"`
-		FrameworkTagTemplate         string `yaml:"frameworkTagTemplate"`
-		AdminTagTemplate             string `yaml:"adminTagTemplate"`
-		FrontendTagTemplate          string `yaml:"frontendTagTemplate"`
-		FrontendV6TagTemplate        string `yaml:"frontendV6TagTemplate"`
-		DocsTagTemplate              string `yaml:"docsTagTemplate"`
-		NpmPackageTemplate           string `yaml:"npmPackageTemplate"`
+		Mode                         string                   `yaml:"mode"`
+		ReleaseBranch                string                   `yaml:"releaseBranch"`
+		RequireMergedPRSource        *bool                    `yaml:"requireMergedPullRequestSource"`
+		CurrentStableVersion         string                   `yaml:"currentStableVersion"`
+		CurrentStableCommit          string                   `yaml:"currentStableCommit"`
+		NextPublicVersion            string                   `yaml:"nextPublicVersion"`
+		DistributionVersion          string                   `yaml:"distributionVersion"`
+		DistributionComponents       string                   `yaml:"distributionComponents"`
+		ReleaseTargetState           string                   `yaml:"releaseTargetState"`
+		ImmutableStoppedTrains       []foundationStoppedTrain `yaml:"immutableStoppedTrains"`
+		PublicationWorkflowsReady    *bool                    `yaml:"publicationWorkflowsReady"`
+		DocsRevisionPublicationReady *bool                    `yaml:"docsRevisionPublicationReady"`
+		PublicPrereleases            *bool                    `yaml:"publicPrereleases"`
+		RootTagTemplate              string                   `yaml:"rootTagTemplate"`
+		FrameworkTagTemplate         string                   `yaml:"frameworkTagTemplate"`
+		AdminTagTemplate             string                   `yaml:"adminTagTemplate"`
+		FrontendTagTemplate          string                   `yaml:"frontendTagTemplate"`
+		FrontendV6TagTemplate        string                   `yaml:"frontendV6TagTemplate"`
+		DocsTagTemplate              string                   `yaml:"docsTagTemplate"`
+		NpmPackageTemplate           string                   `yaml:"npmPackageTemplate"`
 	} `yaml:"spec"`
 }
 
@@ -363,8 +377,7 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy mode must equal development-first")
 	}
 	extendedReleaseContract := strings.TrimSpace(policy.Spec.ReleaseTargetState) != "" ||
-		strings.TrimSpace(policy.Spec.ImmutableStoppedVersion) != "" ||
-		strings.TrimSpace(policy.Spec.ImmutableStoppedPublicRefs) != "" ||
+		len(policy.Spec.ImmutableStoppedTrains) != 0 ||
 		policy.Spec.DocsRevisionPublicationReady != nil ||
 		strings.TrimSpace(policy.Spec.NpmPackageTemplate) != ""
 	if policy.Spec.PublicationWorkflowsReady == nil || policy.Spec.PublicPrereleases == nil ||
@@ -392,24 +405,10 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 	if distributionRaw != nextRaw {
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy distributionVersion must equal nextPublicVersion")
 	}
+	targetState := strings.TrimSpace(policy.Spec.ReleaseTargetState)
 	if extendedReleaseContract {
-		targetState := strings.TrimSpace(policy.Spec.ReleaseTargetState)
 		if targetState != "active" && targetState != "stopped" {
 			return foundationReleasePolicy{}, errors.New("committed foundation release policy releaseTargetState must equal active or stopped")
-		}
-		stoppedVersionRaw := strings.TrimSpace(policy.Spec.ImmutableStoppedVersion)
-		stoppedVersion := strings.TrimPrefix(stoppedVersionRaw, "v")
-		if !strings.HasPrefix(stoppedVersionRaw, "v") || !validSemanticVersion(stoppedVersion) {
-			return foundationReleasePolicy{}, errors.New("committed foundation release policy immutableStoppedVersion must be a v-prefixed semantic version")
-		}
-		if strings.TrimSpace(policy.Spec.ImmutableStoppedPublicRefs) == "" {
-			return foundationReleasePolicy{}, errors.New("committed foundation release policy immutableStoppedPublicRefs is required")
-		}
-		if targetState == "stopped" && stoppedVersionRaw != nextRaw {
-			return foundationReleasePolicy{}, errors.New("committed foundation release policy immutableStoppedVersion must equal nextPublicVersion for a stopped target")
-		}
-		if targetState == "active" && stoppedVersionRaw == nextRaw {
-			return foundationReleasePolicy{}, errors.New("committed foundation release policy active target must not select immutableStoppedVersion")
 		}
 		if strings.Count(policy.Spec.NpmPackageTemplate, "{npmVersion}") != 1 {
 			return foundationReleasePolicy{}, errors.New("committed foundation release policy npmPackageTemplate must contain exactly one {npmVersion} placeholder")
@@ -443,7 +442,128 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 			return foundationReleasePolicy{}, fmt.Errorf("committed foundation release policy %s must contain exactly one {version} placeholder", template.name)
 		}
 	}
+	if extendedReleaseContract {
+		stoppedVersions, err := validateFoundationStoppedTrains(policy)
+		if err != nil {
+			return foundationReleasePolicy{}, err
+		}
+		_, targetIsStopped := stoppedVersions[nextRaw]
+		if targetState == "stopped" && !targetIsStopped {
+			return foundationReleasePolicy{}, errors.New("committed foundation release policy stopped target must belong to immutableStoppedTrains")
+		}
+		if targetState == "active" && targetIsStopped {
+			return foundationReleasePolicy{}, errors.New("committed foundation release policy active target must not select an immutable stopped train")
+		}
+	}
 	return policy, nil
+}
+
+func foundationStoppedRefMap(refs foundationStoppedRefs) map[string]string {
+	return map[string]string{
+		"root":      refs.Root,
+		"framework": refs.Framework,
+		"admin":     refs.Admin,
+		"frontend":  refs.Frontend,
+		"docs":      refs.Docs,
+		"npm":       refs.NPM,
+	}
+}
+
+func foundationPolicyReleaseRef(policy foundationReleasePolicy, component, version string) string {
+	var template string
+	var placeholder string
+	switch component {
+	case "root":
+		template, placeholder = policy.Spec.RootTagTemplate, "{version}"
+	case "framework":
+		template, placeholder = policy.Spec.FrameworkTagTemplate, "{version}"
+	case "admin":
+		template, placeholder = policy.Spec.AdminTagTemplate, "{version}"
+	case "frontend":
+		template, placeholder = policy.Spec.FrontendTagTemplate, "{version}"
+	case "docs":
+		template, placeholder = policy.Spec.DocsTagTemplate, "{version}"
+	case "npm":
+		template, placeholder = policy.Spec.NpmPackageTemplate, "{npmVersion}"
+		version = strings.TrimPrefix(version, "v")
+	default:
+		return ""
+	}
+	return strings.Replace(template, placeholder, version, 1)
+}
+
+func validateFoundationStoppedTrains(policy foundationReleasePolicy) (map[string]foundationStoppedTrain, error) {
+	if len(policy.Spec.ImmutableStoppedTrains) == 0 {
+		return nil, errors.New("committed foundation release policy immutableStoppedTrains must be a non-empty YAML list")
+	}
+
+	stopped := make(map[string]foundationStoppedTrain, len(policy.Spec.ImmutableStoppedTrains))
+	seenRefs := make(map[string]string, len(policy.Spec.ImmutableStoppedTrains)*6)
+	for index, train := range policy.Spec.ImmutableStoppedTrains {
+		version := strings.TrimSpace(train.Version)
+		semanticVersion := strings.TrimPrefix(version, "v")
+		if !strings.HasPrefix(version, "v") || !validSemanticVersion(semanticVersion) {
+			return nil, fmt.Errorf("committed foundation immutable stopped train %d version must be a v-prefixed semantic version", index)
+		}
+		if _, exists := stopped[version]; exists {
+			return nil, fmt.Errorf("committed foundation release policy immutableStoppedTrains duplicates version %s", version)
+		}
+		commit := strings.TrimSpace(train.Commit)
+		if !fullCommitPattern.MatchString(commit) {
+			return nil, fmt.Errorf("committed foundation immutable stopped train %s commit must be a full commit", version)
+		}
+
+		refs := foundationStoppedRefMap(train.Refs)
+		for _, component := range []string{"root", "framework", "admin", "frontend", "docs", "npm"} {
+			publicRef := strings.TrimSpace(refs[component])
+			if publicRef == "" {
+				return nil, fmt.Errorf("committed foundation immutable stopped train %s is missing %s ref", version, component)
+			}
+			expected := foundationPolicyReleaseRef(policy, component, version)
+			if publicRef != expected {
+				return nil, fmt.Errorf("committed foundation immutable stopped train %s %s ref must remain %q", version, component, expected)
+			}
+			if owner, exists := seenRefs[publicRef]; exists {
+				return nil, fmt.Errorf("committed foundation immutable stopped ref %q is duplicated by %s and %s", publicRef, version, owner)
+			}
+			seenRefs[publicRef] = version
+		}
+		train.Version = version
+		train.Commit = commit
+		stopped[version] = train
+	}
+
+	required := map[string]foundationStoppedTrain{
+		"v1.3.5": {
+			Version: "v1.3.5",
+			Commit:  "396f60615cdfa589353b16ef9d3531e249e65432",
+			Refs: foundationStoppedRefs{
+				Root: "v1.3.5", Framework: "mss-boot/v1.3.5", Admin: "admin/v1.3.5",
+				Frontend: "web/antd-v6/v1.3.5", Docs: "docs/v1.3.5", NPM: "@mss-boot-io/admin-web@1.3.5",
+			},
+		},
+		"v1.3.6": {
+			Version: "v1.3.6",
+			Commit:  "b1fe47a3a83209574e09d53526b122dd2cbc5277",
+			Refs: foundationStoppedRefs{
+				Root: "v1.3.6", Framework: "mss-boot/v1.3.6", Admin: "admin/v1.3.6",
+				Frontend: "web/antd-v6/v1.3.6", Docs: "docs/v1.3.6", NPM: "@mss-boot-io/admin-web@1.3.6",
+			},
+		},
+	}
+	for version, expected := range required {
+		actual, exists := stopped[version]
+		if !exists || actual.Commit != expected.Commit {
+			return nil, fmt.Errorf("committed foundation release policy must preserve the exact %s stopped train permanently", version)
+		}
+		actualRefs, expectedRefs := foundationStoppedRefMap(actual.Refs), foundationStoppedRefMap(expected.Refs)
+		for component, expectedRef := range expectedRefs {
+			if actualRefs[component] != expectedRef {
+				return nil, fmt.Errorf("committed foundation release policy must preserve the exact %s stopped train permanently", version)
+			}
+		}
+	}
+	return stopped, nil
 }
 
 func foundationReleaseVersion(ctx context.Context, root, commit string, policy foundationReleasePolicy) (string, string, error) {

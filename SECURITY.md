@@ -16,17 +16,20 @@ private GitHub advisories are the preferred intake path.
 
 The active `main` branch and the current stable Complete Admin Distribution are
 supported by default. v1.3.2 remains the current stable and rollback baseline.
-v1.3.6 is a release candidate and becomes the supported stable Distribution
+v1.3.7 is a release candidate and becomes the supported stable Distribution
 only after its coordinated Framework, Admin, frontend, Root, tools, images,
 official npmjs package, and later Docs have been published and publicly
-reconciled from one exact merged-main commit. v1.3.5 is an immutable partial
-train and never becomes a complete supported Distribution. During release
+reconciled from one exact merged-main commit. v1.3.5 and v1.3.6 are immutable
+partial trains and never become complete supported Distributions. v1.3.6
+published component and Root identities but lacks the Root image, official
+npmjs package, and Docs; no stored npm token may be introduced to complete it.
+During release
 preparation, `.mss/release-policy.yaml` remains the authority for the supported
 stable, candidate, stopped, and rollback identities.
 Preview and release-candidate refs remain immutable evidence but do not receive
 the stable support commitment. Older stable versions are handled case by case.
 
-## v1.3.6 candidate security boundary
+## v1.3.7 candidate security boundary
 
 - Presentation profiles are untrusted, strictly data-only overlays over exact
   compiled capabilities. They cannot define code, HTML, SQL, transport, routes,

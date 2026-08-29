@@ -24,66 +24,61 @@ class ReleasePolicyTest(unittest.TestCase):
     def setUp(self):
         self.policy = POLICY.load_policy(POLICY_PATH)
 
-    def test_v135_refs_are_machine_readable_and_permanently_stopped(self):
-        cases = {
-            "root": "v1.3.5",
-            "framework": "mss-boot/v1.3.5",
-            "admin": "admin/v1.3.5",
-            "frontend": "web/antd-v6/v1.3.5",
-            "docs": "docs/v1.3.5",
-            "npm": "@mss-boot-io/admin-web@1.3.5",
-        }
-        self.assertEqual(
-            self.policy["immutableStoppedVersion"], POLICY.PERMANENTLY_STOPPED_VERSION
-        )
-        self.assertEqual(POLICY.immutable_stopped_public_refs(self.policy), cases)
-        self.assertEqual(POLICY.PERMANENTLY_STOPPED_PUBLIC_REFS, cases)
+    def test_v135_and_v136_trains_are_machine_readable_and_permanently_stopped(self):
+        trains = POLICY.immutable_stopped_trains(self.policy)
+        self.assertEqual(trains, POLICY.PERMANENTLY_STOPPED_TRAINS)
         self.assertEqual(self.policy["releaseTargetState"], "active")
-        self.assertEqual(self.policy["nextPublicVersion"], "v1.3.6")
+        self.assertEqual(self.policy["nextPublicVersion"], "v1.3.7")
 
-        for component, public_ref in cases.items():
-            for intent in ("qualify", "publish"):
-                with self.subTest(component=component, intent=intent):
-                    with self.assertRaisesRegex(
-                        POLICY.PolicyError, "immutable stopped version"
+        for version, train in trains.items():
+            self.assertRegex(train["commit"], r"^[0-9a-f]{40}$")
+            for component, public_ref in train["refs"].items():
+                for intent in ("qualify", "publish"):
+                    with self.subTest(
+                        version=version, component=component, intent=intent
                     ):
-                        POLICY.check_public_ref(
-                            self.policy,
-                            component,
-                            "v1.3.5",
-                            public_ref,
-                            intent=intent,
-                        )
+                        with self.assertRaisesRegex(
+                            POLICY.PolicyError, "immutable stopped train"
+                        ):
+                            POLICY.check_public_ref(
+                                self.policy,
+                                component,
+                                version,
+                                public_ref,
+                                intent=intent,
+                            )
 
-        with self.assertRaisesRegex(POLICY.PolicyError, "immutable stopped version"):
-            POLICY.coordinated_tags(self.policy, "v1.3.5")
+            with self.assertRaisesRegex(POLICY.PolicyError, "immutable stopped train"):
+                POLICY.coordinated_tags(self.policy, version)
 
-    def test_publication_is_ready_without_reopening_the_immutable_partial_train(self):
-        self.assertIs(self.policy["publicationWorkflowsReady"], True)
+    def test_v137_can_qualify_but_cannot_publish_until_workflows_are_ready(self):
+        self.assertIs(self.policy["publicationWorkflowsReady"], False)
         self.assertIs(self.policy["publicPrereleases"], False)
-        with self.assertRaisesRegex(POLICY.PolicyError, "immutable stopped version"):
-            POLICY.check_public_ref(
-                self.policy, "root", "v1.3.5", "v1.3.5", intent="publish"
-            )
-
-    def test_reviewed_active_v136_can_qualify_and_publish(self):
         expected_refs = {
-            "root": "v1.3.6",
-            "framework": "mss-boot/v1.3.6",
-            "admin": "admin/v1.3.6",
-            "frontend": "web/antd-v6/v1.3.6",
-            "docs": "docs/v1.3.6",
-            "npm": "@mss-boot-io/admin-web@1.3.6",
+            "root": "v1.3.7",
+            "framework": "mss-boot/v1.3.7",
+            "admin": "admin/v1.3.7",
+            "frontend": "web/antd-v6/v1.3.7",
+            "docs": "docs/v1.3.7",
+            "npm": "@mss-boot-io/admin-web@1.3.7",
         }
         for component, public_ref in expected_refs.items():
-            for intent in ("qualify", "publish"):
-                with self.subTest(component=component, intent=intent):
+            with self.subTest(component=component, intent="qualify"):
+                POLICY.check_public_ref(
+                    self.policy,
+                    component,
+                    "v1.3.7",
+                    public_ref,
+                    intent="qualify",
+                )
+            with self.subTest(component=component, intent="publish"):
+                with self.assertRaisesRegex(POLICY.PolicyError, "remain disabled"):
                     POLICY.check_public_ref(
                         self.policy,
                         component,
-                        "v1.3.6",
+                        "v1.3.7",
                         public_ref,
-                        intent=intent,
+                        intent="publish",
                     )
 
     def test_docs_revision_remains_disabled_without_exact_source_binding(self):
@@ -145,7 +140,7 @@ class ReleasePolicyTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn(
-            "github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.6",
+            "github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.7",
             admin_mod,
         )
         self.assertNotIn(
@@ -155,7 +150,7 @@ class ReleasePolicyTest(unittest.TestCase):
         workspace = (REPOSITORY_ROOT / "go.work").read_text(encoding="utf-8")
         self.assertIn("\t./mss-boot", workspace)
         self.assertIn(
-            "replace github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.6 => ./mss-boot",
+            "replace github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.7 => ./mss-boot",
             workspace,
         )
 
@@ -166,13 +161,13 @@ class ReleasePolicyTest(unittest.TestCase):
             line
             for line in admin_sum.splitlines()
             if line.startswith(
-                "github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.6"
+                "github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.7"
             )
         ]
         self.assertEqual(len(module_lines), 2)
         self.assertTrue(all(line.split()[-1].startswith("h1:") for line in module_lines))
 
-    def test_policy_rejects_versions_other_than_v136(self):
+    def test_policy_rejects_versions_other_than_v137(self):
         for version in (
             "v1.0.1",
             "v1.1.0",
@@ -187,6 +182,7 @@ class ReleasePolicyTest(unittest.TestCase):
             "v1.3.3",
             "v1.3.4",
             "v1.3.5",
+            "v1.3.6",
         ):
             with self.subTest(version=version):
                 with self.assertRaisesRegex(POLICY.PolicyError, "forbidden"):
@@ -199,23 +195,23 @@ class ReleasePolicyTest(unittest.TestCase):
             POLICY.check_public_ref(
                 self.policy,
                 "root",
-                "v1.3.6-rc.1",
-                "v1.3.6-rc.1",
+                "v1.3.7-rc.1",
+                "v1.3.7-rc.1",
                 intent="qualify",
             )
         with self.assertRaisesRegex(POLICY.PolicyError, "does not match"):
             POLICY.check_public_ref(
                 self.policy,
                 "framework",
-                "v1.3.6",
-                "v1.3.6",
+                "v1.3.7",
+                "v1.3.7",
                 intent="qualify",
             )
 
     def test_policy_rejects_distribution_version_or_component_drift(self):
         original = POLICY_PATH.read_text(encoding="utf-8")
         replacements = (
-            ("  distributionVersion: v1.3.6\n", "  distributionVersion: v1.3.7\n"),
+            ("  distributionVersion: v1.3.7\n", "  distributionVersion: v1.3.8\n"),
             (
                 '  distributionComponents: "root,framework,admin,frontend"\n',
                 '  distributionComponents: "root,framework,frontend"\n',
@@ -229,7 +225,7 @@ class ReleasePolicyTest(unittest.TestCase):
                     with self.assertRaises(POLICY.PolicyError):
                         POLICY.load_policy(candidate)
 
-    def test_policy_rejects_weakening_the_permanent_v135_boundary(self):
+    def test_policy_rejects_weakening_any_permanent_stopped_train(self):
         original = POLICY_PATH.read_text(encoding="utf-8")
         replacements = (
             (
@@ -237,16 +233,33 @@ class ReleasePolicyTest(unittest.TestCase):
                 "  releaseTargetState: stopped\n",
             ),
             (
-                "  immutableStoppedVersion: v1.3.5\n",
-                "  immutableStoppedVersion: v1.3.6\n",
+                "      commit: 396f60615cdfa589353b16ef9d3531e249e65432\n",
+                "      commit: 396f60615cdfa589353b16ef9d3531e249e65430\n",
             ),
             (
-                "docs=docs/v1.3.5,npm=@mss-boot-io/admin-web@1.3.5",
-                "docs=docs/v1.3.5",
+                "        docs: docs/v1.3.5\n",
+                "",
             ),
             (
-                "framework=mss-boot/v1.3.5",
-                "framework=mss-boot/v1.3.6",
+                "        framework: mss-boot/v1.3.6\n",
+                "        framework: mss-boot/v1.3.5\n",
+            ),
+            (
+                "      commit: b1fe47a3a83209574e09d53526b122dd2cbc5277\n",
+                "      commit: b1fe47a3\n",
+            ),
+            (
+                "    - version: v1.3.6\n",
+                "    - version: v1.3.5\n",
+            ),
+            (
+                "      commit: b1fe47a3a83209574e09d53526b122dd2cbc5277\n",
+                "      commit: b1fe47a3a83209574e09d53526b122dd2cbc5277\n"
+                "      unsupported: true\n",
+            ),
+            (
+                "        docs: docs/v1.3.6\n",
+                "        docs: docs/v1.3.6\n        docs: docs/v1.3.6\n",
             ),
         )
         for old, new in replacements:
@@ -257,26 +270,19 @@ class ReleasePolicyTest(unittest.TestCase):
                     with self.assertRaises(POLICY.PolicyError):
                         POLICY.load_policy(candidate)
 
+        v136 = original.index("    - version: v1.3.6\n")
+        end = original.index("  publicationWorkflowsReady:", v136)
         with tempfile.TemporaryDirectory() as directory:
             candidate = Path(directory) / "policy.yaml"
-            candidate.write_text(
-                original.replace(
-                    "npm=@mss-boot-io/admin-web@1.3.5",
-                    "npm=@mss-boot-io/admin-web-next@1.3.5",
-                ).replace(
-                    'npmPackageTemplate: "@mss-boot-io/admin-web@{npmVersion}"',
-                    'npmPackageTemplate: "@mss-boot-io/admin-web-next@{npmVersion}"',
-                ),
-                encoding="utf-8",
-            )
-            with self.assertRaisesRegex(POLICY.PolicyError, "every exact v1.3.5"):
+            candidate.write_text(original[:v136] + original[end:], encoding="utf-8")
+            with self.assertRaisesRegex(POLICY.PolicyError, "exact v1.3.6"):
                 POLICY.load_policy(candidate)
 
     def test_policy_rejects_invalid_release_channel_contracts(self):
         original = POLICY_PATH.read_text(encoding="utf-8")
         replacements = (
             ("  publicPrereleases: false\n", "  publicPrereleases: true\n"),
-            ("  nextPublicVersion: v1.3.6\n", "  nextPublicVersion: v1.3.6-rc.01\n"),
+            ("  nextPublicVersion: v1.3.7\n", "  nextPublicVersion: v1.3.7-rc.01\n"),
             ("  currentStableVersion: v1.3.2\n", "  currentStableVersion: v1.3.2-rc.1\n"),
         )
         for old, new in replacements:
@@ -286,8 +292,8 @@ class ReleasePolicyTest(unittest.TestCase):
                     content = original.replace(old, new)
                     if "nextPublicVersion" in new:
                         content = content.replace(
-                            "  distributionVersion: v1.3.6\n",
-                            "  distributionVersion: v1.3.6-rc.01\n",
+                            "  distributionVersion: v1.3.7\n",
+                            "  distributionVersion: v1.3.7-rc.01\n",
                         )
                     candidate.write_text(content, encoding="utf-8")
                     with self.assertRaises(POLICY.PolicyError):
@@ -297,7 +303,7 @@ class ReleasePolicyTest(unittest.TestCase):
         original = POLICY_PATH.read_text(encoding="utf-8")
         for suffix in (
             "  unexpected: true\n",
-            "  nextPublicVersion: v1.3.6\n",
+            "  nextPublicVersion: v1.3.7\n",
         ):
             with self.subTest(suffix=suffix.strip()):
                 with tempfile.TemporaryDirectory() as directory:

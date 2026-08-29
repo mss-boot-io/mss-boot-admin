@@ -8,11 +8,39 @@ and the root changelog, not as a current release surface.
 
 No unreleased changes are recorded.
 
+## [web/antd-v6/v1.3.7] - 2026-08-29
+
+Status: **coordinated v1.3.7 release candidate / not published or adoptable**.
+The current public coordinated stable frontend remains v1.3.2. This new
+candidate keeps the single Admin Web application and package contract while the
+release path repairs Root image preview and official npm Trusted Publishing.
+
+### Changed
+
+- Requalify the same React 19 and Ant Design 6 package-first application under
+  the new v1.3.7 identity from one reviewed merged-main commit.
+- Preserve public `web/antd-v6/v1.3.6` assets as immutable component history;
+  do not use a local tarball, GitHub Packages, or the GitHub Release asset to
+  substitute for its absent official npmjs package.
+
+### Release
+
+- Publish `@mss-boot-io/admin-web@1.3.7` only through the exact npm Trusted
+  Publisher binding for `npm-release.yml` and `npm-auto`, with OIDC provenance
+  and no `NPM_TOKEN` or `NODE_AUTH_TOKEN` fallback.
+- Keep v1.3.7 unavailable until the Admin Web Release, official npm package,
+  Root image, complete Root ledger, and external Thin Host acceptance all
+  reconcile from the same commit.
+
 ## [web/antd-v6/v1.3.6] - 2026-08-27
 
-Status: **coordinated v1.3.6 release candidate / not yet published**. The
-current public stable frontend remains v1.3.2. This candidate uses a new
-identity and does not move or complete the immutable v1.3.5 component Release.
+Status: **published Admin Web component / immutable partial distribution**.
+`web/antd-v6/v1.3.6`, its GitHub Release, and GitHub Packages assets were
+published from exact commit `b1fe47a3a83209574e09d53526b122dd2cbc5277`
+by run `33078525148`. The official npmjs package
+`@mss-boot-io/admin-web@1.3.6` was not published because run `33079323187`
+failed with `ENEEDAUTH`; the Root image also failed and Docs was absent. The
+public component remains immutable and is not a complete installation path.
 
 ### Added
 

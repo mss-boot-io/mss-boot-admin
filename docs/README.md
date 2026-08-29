@@ -1,12 +1,12 @@
 # mss-boot documentation
 
 This source tree records **v1.3.2** as the current stable baseline and **v1.3.5**
-as a permanently stopped immutable partial release. **v1.3.6 is the selected
+plus **v1.3.6** as permanently stopped immutable partial releases. **v1.3.7 is the selected
 release candidate but is not published or adoptable yet.** This tree documents
-the source-only architecture and the v1.3.6 Complete Admin Distribution
+the source-only architecture and the v1.3.7 Complete Admin Distribution
 candidate contract. Start at
 [`docs/getting-started`](./docs/getting-started/index.md) for adoption status;
-operational onboarding remains disabled until v1.3.6 has complete
+operational onboarding remains disabled until v1.3.7 has complete
 public reconciliation.
 
 ## Information architecture
@@ -16,7 +16,7 @@ public reconciliation.
 - `docs/admin/`: current Admin configuration, security, and operations;
 - `docs/agent/`: specifications, generation, verification, and contributor workflows;
 - `docs/architecture/`: current architecture summaries;
-- `docs/releases/`: the v1.3.6 candidate, v1.3.5 immutable-partial record, and a clearly separated read-only archive;
+- `docs/releases/`: the v1.3.7 candidate, v1.3.6 and v1.3.5 immutable-partial records, and a clearly separated read-only archive;
 - `../adr/`: durable decisions and their status.
 
 Prompt dumps, one-off plans, test snapshots, and duplicate tutorials are not
@@ -33,7 +33,7 @@ python3 tools/docs/check_current_docs.py
 corepack pnpm@9.15.9 --dir docs build
 ```
 
-The drift check verifies the v1.3.2 stable, v1.3.5 immutable-partial, and
-unpublished v1.3.6 candidate boundaries; rejects prepublication v1.3.6 adopter
+The drift check verifies the v1.3.2 stable, v1.3.5/v1.3.6 immutable-partial, and
+unpublished v1.3.7 candidate boundaries; rejects prepublication v1.3.7 adopter
 commands; and checks navigation targets, internal links, archive banners, and
 ADR status markers.

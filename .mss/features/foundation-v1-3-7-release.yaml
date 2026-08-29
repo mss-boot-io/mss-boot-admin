@@ -1,0 +1,222 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: foundation-v1-3-7-release
+  displayName: Foundation v1.3.7 complete release recovery
+  description: >-
+    Qualifies a new complete package-first Admin Distribution after v1.3.6
+    became immutable partial, with an explicit reusable-container preview mode
+    and exact credentialless npm Trusted Publishing identity.
+  owner: release-engineering
+  labels:
+    domain: release-recovery
+    target-version: v1.3.7
+    release-status: candidate
+spec:
+  problem: >-
+    v1.3.6 published Framework, Admin, Admin Web, and Root releases from commit
+    b1fe47a3a83209574e09d53526b122dd2cbc5277, but its preview omitted the Root
+    OCI artifact, its Root container workflow failed, official npm publication
+    failed with ENEEDAUTH, and Docs was not created. Those public identities
+    cannot be completed from repaired source. A new v1.3.7 merged-main commit
+    must prove both corrections and rerun the complete coordinated ledger.
+  goals:
+    - Select v1.3.7 as the only active candidate while v1.3.2 remains current stable.
+    - Make reusable Root-image preview behavior depend on an explicit validated caller input.
+    - Bind npm Trusted Publishing exactly to npm-release.yml and npm-auto without a stored npm token.
+    - Requalify the complete package-first tools, Go modules, Admin Web package, images, external Thin Host, presentation configuration, migrations, authorization, and rollback from one new merged-main commit.
+    - Publish formal tags only after one successful non-publishing preview and reconcile every public surface before any stable promotion.
+  nonGoals:
+    - Continue, repair, rerun, or append artifacts to v1.3.5 or v1.3.6.
+    - Restore NPM_TOKEN or NODE_AUTH_TOKEN in repository, organization, or environment secrets.
+    - Mark v1.3.7 stable or expose adopter commands before complete public reconciliation.
+    - Reintroduce runtime dynamic-model, virtual CRUD, browser code generation, or remote executable presentation configuration.
+  actors:
+    - id: release-operator
+      displayName: Release operator
+      description: lwnmengjing freezes the exact merged-main commit, runs the preview, and creates formal tags in order.
+    - id: independent-reviewer
+      displayName: Independent reviewer
+      description: SullivanPrime reviews the repair pull request and exact Head evidence but does not create release identities.
+    - id: thin-host-adopter
+      displayName: Thin Host adopter
+      description: May consume v1.3.7 only after every required public surface reconciles.
+  modules:
+    - name: release-governance
+      kind: infrastructure
+      operation: extend
+      description: New-version selection, explicit reusable-workflow inputs, immutable tags, and exact public reconciliation.
+    - name: npm-trusted-publishing
+      kind: infrastructure
+      operation: extend
+      description: OIDC publication bound to one package, repository, workflow filename, and environment.
+    - name: package-first-distribution
+      kind: infrastructure
+      operation: extend
+      description: Checksummed tools, Go modules, Admin Web package, images, Docs, and external Thin Host qualification.
+  requirements:
+    - id: select-unused-v137
+      title: Select a new exact candidate identity
+      description: v1.3.7 is the sole active candidate and every partial or stable predecessor remains immutable.
+      priority: must
+      actor: release-operator
+      module: release-governance
+      rules:
+        - Remote Root, Framework, Admin, Admin Web, npmjs, Docs, image, Go Proxy, and preview ledgers are checked for conflicting v1.3.7 identities before qualification and publication.
+        - The source is one clean exact commit already merged into current origin/main through a reviewed pull request.
+        - v1.3.2 remains current stable; v1.3.5 and v1.3.6 remain non-adoptable immutable partial trains.
+        - A failed gate requires another pull request, another merged-main commit, and a new unused patch version after any v1.3.7 public identity exists.
+    - id: pass-root-image-preview-mode
+      title: Make Root image preview explicit
+      description: Reusable workflow behavior is selected by a typed caller contract instead of inherited event context.
+      priority: must
+      actor: release-operator
+      module: release-governance
+      rules:
+        - container.yml declares a required boolean release_preview workflow_call input.
+        - release.yml passes release_preview true together with the exact candidate version.
+        - Authorization, build metadata, multi-platform build, staging, and artifact upload test the explicit input.
+        - Workflow contract tests reject github.event_name == workflow_call as a reusable-preview selector.
+        - The successful Root preview contains and verifies the exact Root image artifact before any formal tag.
+    - id: use-credentialless-npm-publishing
+      title: Restore exact npm Trusted Publishing identity
+      description: Official npm publication uses GitHub Actions OIDC and provenance without a reusable token.
+      priority: must
+      actor: release-operator
+      module: npm-trusted-publishing
+      rules:
+        - npmjs package @mss-boot-io/admin-web trusts owner mss-boot-io, repository mss-boot-admin, workflow filename npm-release.yml, and environment npm-auto exactly, including case.
+        - npm-release.yml grants id-token write, uses the supported npm CLI, and publishes the previously qualified tarball with --provenance.
+        - The publish step removes NPM_TOKEN and NODE_AUTH_TOKEN before invoking npm publish.
+        - Repository, organization, and npm-auto environment state contains no replacement npm publication token.
+        - The exact Trusted Publisher identity is recorded and rechecked before the Root tag; a mismatch stops release before any public identity is created.
+    - id: reuse-one-v137-preview
+      title: Reuse one complete non-publishing preview
+      description: Formal tags publish exact preview bytes from one merged-main commit without repeating expensive qualification.
+      priority: must
+      actor: release-operator
+      module: release-governance
+      rules:
+        - The manual Root workflow accepts only v1.3.7 from main and never publishes.
+        - Framework, Admin, and Admin Web tags are annotated and created in order before Root.
+        - Formal Admin publication resolves the exact public Framework with GOWORK off.
+        - The Root tag starts Root assets, Root image, and official npm publication independently from the same preview evidence.
+        - Docs is a later independent tag after the package and image ledger reconciles.
+    - id: reconcile-complete-v137-ledger
+      title: Prove the complete adopter boundary
+      description: Stable promotion is blocked until every distribution surface and external-consumer path is public and exact.
+      priority: must
+      actor: thin-host-adopter
+      module: package-first-distribution
+      rules:
+        - Root tools, Framework, Admin, Admin Web, official npmjs, Root and frontend images, checksums, provenance, Release notes, and Docs resolve to the same version and release commit.
+        - Empty-directory installers and external Thin Hosts reject local replacements, copied Foundation source, mixed versions, and mutable image references.
+        - Fresh and v1.3.2 upgrade migrations, authorization positive and negative cases, browser states, presentation recovery mode, and matching-pair rollback pass from release artifacts.
+        - v1.3.7 remains non-adoptable until post-publication reconciliation and a later reviewed stable-policy update complete.
+  constraints:
+    - id: merged-main-only
+      type: operations
+      statement: Preview and every formal tag resolve to one clean commit contained in current origin/main.
+    - id: immutable-partial-trains
+      type: compatibility
+      statement: v1.3.5 and v1.3.6 identities remain unchanged and cannot authorize or receive later publication.
+    - id: credentialless-npm
+      type: security
+      statement: npm Trusted Publishing and OIDC replace long-lived npm publication tokens.
+    - id: matched-distribution
+      type: compatibility
+      statement: Framework, Admin, Admin Web, Root tools, images, npmjs, and Docs use one v1.3.7 version and exact commit; mixed patch versions are unsupported.
+  acceptance:
+    - id: v137-policy-and-vacancy
+      requirement: select-unused-v137
+      statement: Policy accepts only v1.3.7 and a fresh remote ledger contains no conflicting v1.3.7 identity.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: python3 -m unittest tools/release/test_check_release_policy.py
+        - type: report
+          value: Sanitized Root, component, npmjs, image, Docs, Go Proxy, and preview vacancy ledger for v1.3.7.
+    - id: v137-root-image-contract
+      requirement: pass-root-image-preview-mode
+      statement: Workflow tests and the exact preview prove that reusable invocation uploads the required Root image artifact.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: python3 -m unittest tools.release.test_container_workflow tools.release.test_root_release_workflow
+        - type: report
+          value: Exact successful v1.3.7 Root preview artifact inventory.
+    - id: v137-npm-oidc-contract
+      requirement: use-credentialless-npm-publishing
+      statement: Live npm settings and workflow tests prove the exact Trusted Publisher identity and absence of token-based publication.
+      level: security
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: report
+          value: Authenticated npm package-access evidence for npm-release.yml and npm-auto, with no credential value recorded.
+        - type: command
+          value: python3 -m unittest tools.release.test_npm_release_workflow
+    - id: v137-complete-preview
+      requirement: reuse-one-v137-preview
+      statement: One candidate-only run qualifies tools, modules, packages, images, migrations, security, browser behavior, and rollback from the exact merged-main commit.
+      level: e2e
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: report
+          value: Exact successful v1.3.7 Root preview, artifact checksums, and Codex in-app Browser acceptance evidence.
+    - id: v137-public-reconciliation
+      requirement: reconcile-complete-v137-ledger
+      statement: Every public surface and repository-external consumer probe succeeds before any stable promotion.
+      level: integration
+      phase: post-publication
+      required: true
+      evidence:
+        - type: report
+          value: Exact Framework, Admin, Admin Web, Root, npmjs, image, Docs, Go Proxy, installer, and external Thin Host public ledger.
+  risks:
+    - id: reusable-event-context
+      description: A called workflow could inherit workflow_dispatch and silently skip preview-only image work.
+      severity: critical
+      mitigation: Use a required boolean input, validate it explicitly, and assert the caller passes true.
+    - id: npm-publisher-drift
+      description: A renamed environment or workflow could make npm OIDC fail after public component tags exist.
+      severity: critical
+      mitigation: Verify the exact live Trusted Publisher identity before the Root tag and fail closed without a token fallback.
+    - id: repeated-partial-train
+      description: Publishing tags before the complete preview and credential audit could create another irreversible partial train.
+      severity: critical
+      mitigation: Freeze one merged-main commit, finish all preview and live-governance gates, and stop before the first tag on any failure.
+  validation:
+    changed: mss verify --changed
+    all: mss verify --all
+    custom:
+      - python3 -m unittest discover -s tools/release -p 'test_*.py'
+      - python3 tools/docs/check_current_docs.py
+      - GOWORK=off go test ./internal/mss/...
+      - cd mss-boot && GOWORK=off go test ./...
+      - cd admin && GOWORK=off go test ./...
+      - corepack pnpm@10.34.5 --dir web/antd-v6 lint
+      - corepack pnpm@10.34.5 --dir web/antd-v6 test:ci
+      - corepack pnpm@10.34.5 --dir web/antd-v6 build:release
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      Merge the recovery through a reviewed pull request. Correct the npm
+      Trusted Publisher to npm-release.yml plus npm-auto without creating a
+      token. Freeze one clean exact origin/main commit, run one non-publishing
+      v1.3.7 Root preview, inspect every expected artifact, and complete Browser
+      acceptance. As lwnmengjing, create annotated Framework, Admin, Admin Web,
+      and Root tags in order. Reconcile package, image, and Release surfaces,
+      then publish Docs from its independent tag. Stable promotion is a later
+      reviewed policy and documentation change after the ledger is complete.
+    rollback: >-
+      Stop before the next tag on any failed gate. Existing adopters remain on
+      the matching v1.3.2 Admin, frontend, configuration, and lock. Never move a
+      public tag, complete v1.3.5 or v1.3.6, mix patch versions, or restore a
+      stored npm publication token.

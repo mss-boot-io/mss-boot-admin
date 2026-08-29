@@ -20,6 +20,8 @@ Record:
   frontend, Root, container, npm, and later Docs run URLs;
 - public release URLs, image digests, artifact checksums, and the active GitHub
   actor;
+- the npm Trusted Publisher identity as package, owner, repository, workflow
+  filename, GitHub environment, and allowed action; record no credential value;
 - status as `missing`, `running`, `successful`, `failed-before-publication`, or
   `public`.
 
@@ -109,6 +111,15 @@ Classify a missing local browser binary or package as workstation setup first. I
 
 Treat broad documentation-site visual polish as release-preparation work. Do not mix a cosmetic sweep into ordinary feature delivery. During release preparation, start the docs site locally from the candidate branch and inspect the home page plus at least one representative nested release or guide page at desktop and narrow mobile widths. Check the nested-route logo and other static assets, header wrapping, hero actions, card rhythm, dark mode when offered, content readability, table scrolling, and document-level horizontal overflow. Fix visual defects through the release-preparation PR, rebuild the docs, and capture browser evidence before freezing `SHA`; after freeze, any visual fix is a source change and requires a new PR and frozen commit.
 
+Treat reusable-workflow call mode as explicit data. A called workflow inherits the
+caller's `github` context, so it must not infer `workflow_call` mode from
+`github.event_name`. Require a typed input for release-preview behavior, pass it
+explicitly from the caller, fail closed when a release version is supplied
+without that mode, and execute the metadata script in tests with the caller's
+real event name. A successful Root preview is valid only when both the Root
+package artifact and the exact multi-platform Root OCI artifact exist,
+are non-empty, unexpired, and verified.
+
 Submit every source, workflow, dependency, generated, contract, or documentation change through a PR to `main`. After merge, freeze the new full SHA and do not carry forward topic-branch evidence as publication authority.
 
 ### 3. Reconstruct remote state before preview or tags
@@ -124,7 +135,7 @@ for tag in "${FRAMEWORK_TAG}" "${ADMIN_TAG}" "${FRONTEND_TAG}" "${ROOT_TAG}" "${
 done
 ```
 
-Immediately before the preview and every tag push, fetch `origin/main` again and require it to remain `SHA`. If `main` advanced, stop before creating an immutable ref and select the new merged-main commit. If the reviewed policy marks the version stopped, stop: in particular, v1.3.5 and all six of its public refs are permanently rejected and must never be deleted, moved, recreated, or resumed.
+Immediately before the preview and every tag push, fetch `origin/main` again and require it to remain `SHA`. If `main` advanced, stop before creating an immutable ref and select the new merged-main commit. If the reviewed policy lists the version in `immutableStoppedTrains`, stop: every listed ref is permanently rejected and must never be deleted, moved, recreated, completed, or resumed.
 
 ### 4. Run the unique Root candidate preview
 
@@ -163,7 +174,17 @@ bash tools/release/verify_remote_release_governance.sh \
   > ".mss/reports/remote-release-governance-${VERSION}.json"
 ```
 
-The verifier requires exactly one consolidated controlled-creation ruleset, the no-bypass v1.3.5 stopped-tag creation ruleset, and the no-bypass immutable tag ruleset. It also requires exact tag policies, no administrator bypass, and no required reviewers on the active publishing environments. The Docs credential must be the organization-managed `CF_API_TOKEN` shared with this repository, with no repository or environment override; the environment-bound Docs workflow checks effective availability without printing its value before deployment. The retired publishing environments must remain blocked so an old workflow cannot regain publication authority.
+The verifier requires exactly one consolidated controlled-creation ruleset, one exact no-bypass stopped-tag creation ruleset for every train in `immutableStoppedTrains`, and the no-bypass immutable tag ruleset. It also requires exact tag policies, no administrator bypass, and no required reviewers on the active publishing environments. The Docs credential must be the organization-managed `CF_API_TOKEN` shared with this repository, with no repository or environment override; the environment-bound Docs workflow checks effective availability without printing its value before deployment. The retired publishing environments must remain blocked so an old workflow cannot regain publication authority.
+
+Before the Root tag, independently inspect the target npm package access page
+and require exactly the reviewed GitHub Actions Trusted Publisher identity. For
+`@mss-boot-io/admin-web`, the identity is owner `mss-boot-io`, repository
+`mss-boot-admin`, workflow filename `npm-release.yml`, environment `npm-auto`,
+and allowed action `npm publish`. Match spelling and case exactly. Record
+sanitized evidence in the ledger and stop if authentication prevents inspection,
+the binding differs, or another publisher creates ambiguity. Changing this
+access binding is an external permission mutation: obtain explicit authorization
+immediately before saving it.
 
 ### 7. Push the Root tag; publish Docs later
 
@@ -178,7 +199,7 @@ That one push naturally starts `release.yml`, `container.yml`, and `npm-release.
 
 Never dispatch a second publish run or approve a release environment after the tag. A retry is an ordinary workflow rerun by `lwnmengjing`; immutable identity checks refuse conflicting public state.
 
-The automatic npm path is OIDC-only. If the npm package does not exist at all, it fails closed and requires a separately reviewed one-time bootstrap; do not expose a bootstrap token to the automatic tag workflow. Existing packages never use a long-lived npm write token.
+The automatic npm path is OIDC-only. If the npm package does not exist at all, it fails closed and requires a separately reviewed one-time bootstrap; do not expose a bootstrap token to the automatic tag workflow. Existing packages never use a long-lived npm write token. An `ENEEDAUTH` result from `npm publish --provenance` is a Trusted Publisher identity failure until disproved: compare the package, owner, repository, workflow filename, and environment first. Never add or restore `NPM_TOKEN` or `NODE_AUTH_TOKEN` as a fallback, and keep the workflow's explicit token unsetting intact.
 
 After the documentation content is merged, create `DOCS_TAG` from that later exact `origin/main` commit. Docs remains an independent later tag workflow: it requires the already-published base Root Release, then publishes the immutable Docs Release and deployment from its own merged-main source. Docs is not a prerequisite for Root or npm, and its commit need not equal the older Root commit.
 
@@ -204,6 +225,10 @@ Write one sanitized reconciliation comment to the evidence issue with run URLs, 
 
 - Stop before the first tag when a checkpoint, exact-SHA evidence, policy, portability, workflow-governance, or source check fails. Repair through a PR, merge, and freeze the new commit.
 - Stop before the next component when publication fails. Inspect whether any public mutation occurred before deciding between an exact-stage rerun and a new patch version.
+- If a Root tag or Release is already public and either the Root image candidate
+  or npm publication requires a source or access-contract repair, freeze the
+  partial train and prepare the next unused patch through a PR. Do not complete
+  the old version by adding a token or moving an immutable ref.
 - Never delete, move, overwrite, or reuse a public tag, Release, package, image, or checksum.
 - Never release from a topic branch, detached commit, local-only fix, dirty worktree, or commit absent from current `origin/main`.
 - Never weaken a test, bypass an environment policy, forge evidence, or invent a
