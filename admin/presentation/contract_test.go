@@ -160,7 +160,7 @@ func TestSemanticValidationRejectsDriftUnknownReferencesAndRequiredHide(t *testi
 	capability := validCapability(t)
 	raw := validProfileJSON(`{
   "dataSource":"orders.unknown",
-  "form":{"fields":[{"field":"status","hidden":true},{"field":"missing"}]},
+	  "form":{"fields":[{"field":"status","hidden":true,"visibleWhen":{"field":"status","operator":"eq","value":"open"}},{"field":"missing"}]},
   "actions":[{"action":"orders.missing"}]
 }`)
 	document, issues := ParseDocument([]byte(raw))
@@ -170,6 +170,7 @@ func TestSemanticValidationRejectsDriftUnknownReferencesAndRequiredHide(t *testi
 	require.Subset(t, issueCodes(issues), []string{
 		"definition-drift",
 		"required-form-field-hidden",
+		"required-form-field-conditional",
 		"unknown-action",
 		"unknown-data-source",
 		"unknown-field",

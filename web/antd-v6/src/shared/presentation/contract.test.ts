@@ -564,7 +564,13 @@ describe('Admin page presentation contract', () => {
           columns: [{ field: 'invented', component: 'remote-widget' }],
         },
         form: {
-          fields: [{ field: 'code', hidden: true }],
+          fields: [
+            {
+              field: 'code',
+              hidden: true,
+              visibleWhen: { field: 'enabled', operator: 'eq', value: true },
+            },
+          ],
         },
       },
     );
@@ -575,6 +581,7 @@ describe('Admin page presentation contract', () => {
       expect.arrayContaining([
         expect.objectContaining({ code: 'unknown-field' }),
         expect.objectContaining({ code: 'required-form-field-hidden' }),
+        expect.objectContaining({ code: 'required-form-field-conditional' }),
         expect.objectContaining({ code: 'forbidden-profile-key', path: '$.spec.url' }),
         expect.objectContaining({ code: 'forbidden-profile-key', path: '$.spec.method' }),
       ]),

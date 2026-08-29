@@ -398,6 +398,7 @@ type presentationTemplateData struct {
 	Enabled                     bool
 	TemplateRevision            string
 	Identifier                  string
+	PageKey                     string
 	JSONGo                      string
 	JSONPretty                  string
 	DefinitionHashTS            string
@@ -637,6 +638,9 @@ func buildTemplateData(module *spec.Module) (templateData, error) {
 	}
 	if data.SourceSpec == "" {
 		data.SourceSpec = "module.yaml"
+	}
+	if module.Spec.Presentation != nil {
+		data.Presentation.PageKey = module.Spec.Presentation.PageKey
 	}
 	data.SourceSpecLink = data.SourceSpec
 

@@ -16,21 +16,18 @@ import {
   Descriptions,
   Drawer,
   Form,
-  Input,
   Modal,
   Popconfirm,
   Result,
   Row,
-  Select,
   Space,
-  Switch,
   Table,
   Tag,
   Typography,
   type TableColumnsType,
   type TableProps,
 } from 'antd';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getRequestErrorMessage,
   getRequestStatus,
@@ -42,6 +39,14 @@ import {
   type InitialState,
 } from '@mss-boot-io/admin-web/runtime';
 import { compilePortablePresentationPattern } from '@mss-boot-io/admin-web/runtime/presentation';
+import {
+  buildPresentationConditionContext,
+  evaluatePresentationCondition,
+  PresentationFieldControl,
+  renderPresentationValue,
+  usePagePresentation,
+} from '@mss-boot-io/admin-web/runtime/presentation/client';
+import { generatedPresentationRegistry } from '../../presentation-registry.generated';
 import { supplierAPI } from './api';
 import { buildSupplierQuery, getSupplierCapabilities } from './contract';
 import {
@@ -78,17 +83,103 @@ export default function SupplierPage() {
     () => getSupplierCapabilities(initialState?.currentUser),
     [initialState?.currentUser],
   );
+  const presentationRuntime = usePagePresentation(
+    generatedPresentationRegistry["supplier.list"],
+    intl.locale === 'en-US' ? 'en-US' : 'zh-CN',
+    initialState?.currentUser,
+    initialState?.authorizationVersion,
+  );
+  const presentation = presentationRuntime.model;
+  const defaultPresentationSort = presentation.list.defaultSort[0];
   const [filterForm] = Form.useForm<SupplierFilterValues>();
+  const [editorForm] = Form.useForm<CreateSupplierInput>();
   const [filters, setFilters] = useState<SupplierFilterValues>(initialFilters);
+  const [searchExpanded, setSearchExpanded] = useState(
+    () => !presentation.search.collapsedByDefault,
+  );
+  const searchExpansionWasChanged = useRef(false);
   const [params, setParams] = useState<SupplierQuery>(() =>
-    buildSupplierQuery(1, 20, initialFilters),
+    buildSupplierQuery(
+      1,
+      presentation.list.pageSize,
+      initialFilters,
+      defaultPresentationSort
+        ? {
+            field: defaultPresentationSort.field,
+            order: defaultPresentationSort.direction === 'desc' ? 'descend' : 'ascend',
+          }
+        : undefined,
+    ),
   );
   const [detailID, setDetailID] = useState<string>();
   const [editorRecord, setEditorRecord] = useState<Supplier>();
   const [editorSession, setEditorSession] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
   const [conflict, setConflict] = useState(false);
-  const list = useSupplierPage(params, capabilities.canList);
+  const queryWasChanged = useRef(false);
+  const appliedPresentation = useRef('');
+  const filterDraft = (Form.useWatch([], filterForm) ?? filters) as Readonly<Record<string, unknown>>;
+  const searchConditionValues = buildPresentationConditionContext(filterDraft, {
+    code: 'q',
+  });
+  const formDraft = (Form.useWatch([], editorForm) ?? editorRecord ?? createDefaults) as Readonly<Record<string, unknown>>;
+  const visibleField = (
+    field: { visibleWhen?: Parameters<typeof evaluatePresentationCondition>[0] } | undefined,
+    values: Readonly<Record<string, unknown>>,
+  ) =>
+    Boolean(
+      field &&
+        evaluatePresentationCondition(
+          field.visibleWhen,
+          values,
+          presentationRuntime.definition,
+        ),
+    );
+  const presentationAction = (
+    actionID: string,
+    placement: 'toolbar' | 'row' | 'form' | 'detail',
+    values: Readonly<Record<string, unknown>> = {},
+  ) => {
+    const action = presentation.actions.find(
+      (candidate) => candidate.action === actionID && candidate.placement === placement,
+    );
+    return visibleField(action, values) ? action : undefined;
+  };
+  const presentationActionAny = (
+    actionID: string,
+    values: Readonly<Record<string, unknown>> = {},
+  ) => {
+    const action = presentation.actions.find((candidate) => candidate.action === actionID);
+    return visibleField(action, values) ? action : undefined;
+  };
+  useEffect(() => {
+    if (presentationRuntime.source !== 'active' || queryWasChanged.current) return;
+    const signature = `${presentation.list.pageSize}:${presentation.list.defaultSort
+      .map((sort) => `${sort.field}:${sort.direction}`)
+      .join(',')}`;
+    if (appliedPresentation.current === signature) return;
+    const sort = presentation.list.defaultSort[0];
+    setParams(
+      buildSupplierQuery(
+        1,
+        presentation.list.pageSize,
+        initialFilters,
+        sort
+          ? { field: sort.field, order: sort.direction === 'desc' ? 'descend' : 'ascend' }
+          : undefined,
+      ),
+    );
+    appliedPresentation.current = signature;
+  }, [presentation.list.defaultSort, presentation.list.pageSize, presentationRuntime.source]);
+  useEffect(() => {
+    if (presentationRuntime.source === 'active' && !searchExpansionWasChanged.current) {
+      setSearchExpanded(!presentation.search.collapsedByDefault);
+    }
+  }, [presentation.search.collapsedByDefault, presentationRuntime.source]);
+  const list = useSupplierPage(
+    params,
+    capabilities.canList && presentation.status === 'ready',
+  );
   const detail = useSupplier(detailID);
   const save = useMutation({
     mutationFn: async (values: CreateSupplierInput) => {
@@ -128,7 +219,7 @@ export default function SupplierPage() {
     },
   });
 
-  const title = intl.formatMessage({ id: `${localePrefix}.title` });
+  const title = presentation.title;
   const formatDate = (value: string) =>
     new Intl.DateTimeFormat(intl.locale || 'zh-CN', {
       dateStyle: 'short',
@@ -157,7 +248,7 @@ export default function SupplierPage() {
     },
   ];
 
-  if (!capabilities.canList || getRequestStatus(list.error) === 403) {
+  if (!capabilities.canList || presentation.status === 'permission-denied' || getRequestStatus(list.error) === 403) {
     return (
       <PageContainer title={title}>
         <PageForbidden message={intl.formatMessage({ id: `${localePrefix}.states.forbidden` })} />
@@ -200,59 +291,114 @@ export default function SupplierPage() {
     setEditorOpen(true);
   };
 
-  const columns: TableColumnsType<Supplier> = [
+  const compiledColumns: TableColumnsType<Supplier> = [
     {
       title: intl.formatMessage({ id: `${localePrefix}.fields.code` }),
       dataIndex: 'code',
       width: 180,
       sorter: true,
-      ellipsis: true,
+      render: (_, record) =>
+        renderPresentationValue({
+          component:
+            presentation.list.columns.find((field) => field.field === 'code')
+              ?.component ?? 'text',
+          value: record.code,
+          enabledLabel: intl.formatMessage({ id: `${localePrefix}.values.enabled` }),
+          disabledLabel: intl.formatMessage({ id: `${localePrefix}.values.disabled` }),
+          formatDate,
+        }),
     },
     {
       title: intl.formatMessage({ id: `${localePrefix}.fields.name` }),
       dataIndex: 'name',
       width: 240,
       sorter: true,
-      ellipsis: true,
+      render: (_, record) =>
+        renderPresentationValue({
+          component:
+            presentation.list.columns.find((field) => field.field === 'name')
+              ?.component ?? 'text',
+          value: record.name,
+          enabledLabel: intl.formatMessage({ id: `${localePrefix}.values.enabled` }),
+          disabledLabel: intl.formatMessage({ id: `${localePrefix}.values.disabled` }),
+          formatDate,
+        }),
     },
     {
       title: intl.formatMessage({ id: `${localePrefix}.fields.country` }),
       dataIndex: 'country',
       responsive: ['md'],
-      ellipsis: true,
+      render: (_, record) =>
+        renderPresentationValue({
+          component:
+            presentation.list.columns.find((field) => field.field === 'country')
+              ?.component ?? 'text',
+          value: record.country,
+          enabledLabel: intl.formatMessage({ id: `${localePrefix}.values.enabled` }),
+          disabledLabel: intl.formatMessage({ id: `${localePrefix}.values.disabled` }),
+          formatDate,
+        }),
     },
     {
       title: intl.formatMessage({ id: `${localePrefix}.fields.contactName` }),
       dataIndex: 'contactName',
       responsive: ['lg'],
-      ellipsis: true,
+      render: (_, record) =>
+        renderPresentationValue({
+          component:
+            presentation.list.columns.find((field) => field.field === 'contactName')
+              ?.component ?? 'text',
+          value: record.contactName,
+          enabledLabel: intl.formatMessage({ id: `${localePrefix}.values.enabled` }),
+          disabledLabel: intl.formatMessage({ id: `${localePrefix}.values.disabled` }),
+          formatDate,
+        }),
     },
     {
       title: intl.formatMessage({ id: `${localePrefix}.fields.contactEmail` }),
       dataIndex: 'contactEmail',
       responsive: ['lg'],
-      ellipsis: true,
+      render: (_, record) =>
+        renderPresentationValue({
+          component:
+            presentation.list.columns.find((field) => field.field === 'contactEmail')
+              ?.component ?? 'text',
+          value: record.contactEmail,
+          enabledLabel: intl.formatMessage({ id: `${localePrefix}.values.enabled` }),
+          disabledLabel: intl.formatMessage({ id: `${localePrefix}.values.disabled` }),
+          formatDate,
+        }),
     },
     {
       title: intl.formatMessage({ id: `${localePrefix}.fields.creditLevel` }),
       dataIndex: 'creditLevel',
       responsive: ['lg'],
-      render: (_, record) => {
-        const option = creditLevelOptions.find((entry) => entry.value === record.creditLevel);
-        return option ? <Tag color={option.color}>{option.label}</Tag> : record.creditLevel;
-      },
+      render: (_, record) =>
+        renderPresentationValue({
+          component:
+            presentation.list.columns.find((field) => field.field === 'creditLevel')
+              ?.component ?? 'text',
+          value: record.creditLevel,
+          options: creditLevelOptions,
+          enabledLabel: intl.formatMessage({ id: `${localePrefix}.values.enabled` }),
+          disabledLabel: intl.formatMessage({ id: `${localePrefix}.values.disabled` }),
+          formatDate,
+        }),
     },
     {
       title: intl.formatMessage({ id: `${localePrefix}.fields.enabled` }),
       dataIndex: 'enabled',
       responsive: ['lg'],
-      render: (_, record) => (
-        <Tag color={record.enabled ? 'green' : 'default'}>
-          {intl.formatMessage({
-            id: `${localePrefix}.values.${record.enabled ? 'enabled' : 'disabled'}`,
-          })}
-        </Tag>
-      ),
+      render: (_, record) =>
+        renderPresentationValue({
+          component:
+            presentation.list.columns.find((field) => field.field === 'enabled')
+              ?.component ?? 'text',
+          value: record.enabled,
+          enabledLabel: intl.formatMessage({ id: `${localePrefix}.values.enabled` }),
+          disabledLabel: intl.formatMessage({ id: `${localePrefix}.values.disabled` }),
+          formatDate,
+        }),
     },
     {
       title: intl.formatMessage({ id: `${localePrefix}.actions.label` }),
@@ -260,31 +406,33 @@ export default function SupplierPage() {
       width: 230,
       render: (_, record) => (
         <Space size="small" wrap>
-          {capabilities.canRead ? (
+          {capabilities.canRead && presentationActionAny('supplier.read', record) ? (
             <Button
               aria-label={intl.formatMessage({ id: `${localePrefix}.actions.detail` })}
               icon={<EyeOutlined />}
               size="small"
+              style={ { order: presentationActionAny('supplier.read', record)?.order } }
               type="link"
               onClick={() => setDetailID(record.id)}
             >
-              {intl.formatMessage({ id: `${localePrefix}.actions.detail` })}
+              {presentationActionAny('supplier.read', record)?.label}
             </Button>
           ) : null}
-          {capabilities.canUpdate ? (
+          {capabilities.canUpdate && presentationActionAny('supplier.update', record) ? (
             <Button
               aria-label={intl.formatMessage({ id: `${localePrefix}.actions.edit` })}
               icon={<EditOutlined />}
               size="small"
+              style={ { order: presentationActionAny('supplier.update', record)?.order } }
               type="link"
               onClick={() => openEdit(record)}
             >
-              {intl.formatMessage({ id: `${localePrefix}.actions.edit` })}
+              {presentationActionAny('supplier.update', record)?.label}
             </Button>
           ) : null}
-          {capabilities.canDelete ? (
+          {capabilities.canDelete && presentationAction('supplier.delete', 'row', record) ? (
             <Popconfirm
-              title={intl.formatMessage({ id: `${localePrefix}.actions.confirmDelete` })}
+              title={presentationAction('supplier.delete', 'row', record)?.confirm ?? intl.formatMessage({ id: `${localePrefix}.actions.confirmDelete` })}
               onConfirm={() => remove.mutate(record)}
             >
               <Button
@@ -293,9 +441,10 @@ export default function SupplierPage() {
                 icon={<DeleteOutlined />}
                 loading={remove.isPending}
                 size="small"
+                style={ { order: presentationAction('supplier.delete', 'row', record)?.order } }
                 type="link"
               >
-                {intl.formatMessage({ id: `${localePrefix}.actions.delete` })}
+                {presentationAction('supplier.delete', 'row', record)?.label}
               </Button>
             </Popconfirm>
           ) : null}
@@ -303,8 +452,36 @@ export default function SupplierPage() {
       ),
     },
   ];
+  const compiledColumnByField = new Map<string, TableColumnsType<Supplier>[number]>();
+  let compiledActionColumn: TableColumnsType<Supplier>[number] | undefined;
+  for (const column of compiledColumns) {
+    if ('dataIndex' in column && typeof column.dataIndex === 'string') {
+      compiledColumnByField.set(column.dataIndex, column);
+    } else if ('key' in column && column.key === 'actions') {
+      compiledActionColumn = column;
+    }
+  }
+  const columns: TableColumnsType<Supplier> = presentation.list.columns.flatMap((field) => {
+    const column = compiledColumnByField.get(field.field);
+    if (!column) return [];
+    const configuredSort = presentation.list.defaultSort.find((sort) => sort.field === field.field);
+    return [
+      {
+        ...column,
+        title: field.label,
+        ...(field.width !== undefined ? { width: field.width } : {}),
+        ...(configuredSort
+          ? { defaultSortOrder: configuredSort.direction === 'desc' ? 'descend' : 'ascend' }
+          : {}),
+      },
+    ];
+  });
+  if (compiledActionColumn && presentation.actions.some((action) => action.placement === 'row')) {
+    columns.push(compiledActionColumn);
+  }
 
   const handleTableChange: TableProps<Supplier>['onChange'] = (pagination, _, sorter) => {
+    queryWasChanged.current = true;
     const activeSorter = Array.isArray(sorter) ? sorter[0] : sorter;
     setParams(
       buildSupplierQuery(
@@ -359,51 +536,135 @@ export default function SupplierPage() {
             onClose={() => exportRecords.reset()}
           />
         ) : null}
+        {!searchExpanded ? (
+          <Button
+            icon={<SearchOutlined />}
+            onClick={() => {
+              searchExpansionWasChanged.current = true;
+              setSearchExpanded(true);
+            }}
+          >
+            {intl.formatMessage({ id: `${localePrefix}.actions.search` })}
+          </Button>
+        ) : (
         <Form<SupplierFilterValues>
           form={filterForm}
           initialValues={initialFilters}
           layout="vertical"
           name="supplier-filters"
           onFinish={(values) => {
+            queryWasChanged.current = true;
             setFilters(values);
             setParams(buildSupplierQuery(1, params.pageSize, values));
           }}
         >
           <Row align="bottom" gutter={12}>
-            <Col xs={24} sm={12} lg={6}>
-              <Form.Item name="q" label={intl.formatMessage({ id: `${localePrefix}.fields.code` })}>
-                <Input allowClear autoComplete="off" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} lg={6}>
-              <Form.Item name="country" label={intl.formatMessage({ id: `${localePrefix}.fields.country` })}>
-                <Input allowClear autoComplete="off" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} lg={6}>
-              <Form.Item name="creditLevel" label={intl.formatMessage({ id: `${localePrefix}.fields.creditLevel` })}>
-                <Select
-                  options={[
-                    { value: 'all', label: intl.formatMessage({ id: `${localePrefix}.values.all` }) },
-                    ...creditLevelOptions,
-                  ]}
-                  virtual={false}
+            {visibleField(
+              presentation.search.fields.find((field) => field.field === 'code'),
+              searchConditionValues,
+            ) ? (
+            <Col
+              xs={24}
+              sm={12}
+              lg={6}
+              style={ {
+                order: presentation.search.fields.find((field) => field.field === 'code')?.order,
+              } }
+            >
+              <Form.Item
+                name="q"
+                label={presentation.search.fields.find((field) => field.field === 'code')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.code` })}
+              >
+                <PresentationFieldControl
+                  allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+                  component={presentation.search.fields.find((field) => field.field === 'code')?.component ?? 'input'}
+                  disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+                  enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+                  placeholder={presentation.search.fields.find((field) => field.field === 'code')?.placeholder}
                 />
               </Form.Item>
             </Col>
-            <Col xs={24} sm={12} lg={6}>
-              <Form.Item name="enabled" label={intl.formatMessage({ id: `${localePrefix}.fields.enabled` })}>
-                <Select
-                  options={[
-                    { value: 'all', label: intl.formatMessage({ id: `${localePrefix}.values.all` }) },
-                    { value: 'true', label: intl.formatMessage({ id: `${localePrefix}.values.enabled` }) },
-                    { value: 'false', label: intl.formatMessage({ id: `${localePrefix}.values.disabled` }) },
-                  ]}
-                  virtual={false}
+            ) : null}
+            {visibleField(
+              presentation.search.fields.find((field) => field.field === 'country'),
+              searchConditionValues,
+            ) ? (
+            <Col
+              xs={24}
+              sm={12}
+              lg={6}
+              style={ {
+                order: presentation.search.fields.find((field) => field.field === 'country')?.order,
+              } }
+            >
+              <Form.Item
+                name="country"
+                label={presentation.search.fields.find((field) => field.field === 'country')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.country` })}
+              >
+                <PresentationFieldControl
+                  allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+                  component={presentation.search.fields.find((field) => field.field === 'country')?.component ?? 'input'}
+                  disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+                  enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+                  placeholder={presentation.search.fields.find((field) => field.field === 'country')?.placeholder}
                 />
               </Form.Item>
             </Col>
-            <Col flex="none">
+            ) : null}
+            {visibleField(
+              presentation.search.fields.find((field) => field.field === 'creditLevel'),
+              searchConditionValues,
+            ) ? (
+            <Col
+              xs={24}
+              sm={12}
+              lg={6}
+              style={ {
+                order: presentation.search.fields.find((field) => field.field === 'creditLevel')?.order,
+              } }
+            >
+              <Form.Item
+                name="creditLevel"
+                label={presentation.search.fields.find((field) => field.field === 'creditLevel')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.creditLevel` })}
+              >
+                <PresentationFieldControl
+                  allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+                  component={presentation.search.fields.find((field) => field.field === 'creditLevel')?.component ?? 'input'}
+                  disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+                  enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+                  options={ creditLevelOptions }
+                  placeholder={presentation.search.fields.find((field) => field.field === 'creditLevel')?.placeholder}
+                />
+              </Form.Item>
+            </Col>
+            ) : null}
+            {visibleField(
+              presentation.search.fields.find((field) => field.field === 'enabled'),
+              searchConditionValues,
+            ) ? (
+            <Col
+              xs={24}
+              sm={12}
+              lg={6}
+              style={ {
+                order: presentation.search.fields.find((field) => field.field === 'enabled')?.order,
+              } }
+            >
+              <Form.Item
+                name="enabled"
+                label={presentation.search.fields.find((field) => field.field === 'enabled')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.enabled` })}
+              >
+                <PresentationFieldControl
+                  allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+                  component={presentation.search.fields.find((field) => field.field === 'enabled')?.component ?? 'input'}
+                  disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+                  enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+                  placeholder={presentation.search.fields.find((field) => field.field === 'enabled')?.placeholder}
+                />
+              </Form.Item>
+            </Col>
+            ) : null}
+            <Col flex="none" style={ { order: 10_001 } }>
               <Form.Item>
                 <Space>
                   <Button
@@ -417,8 +678,9 @@ export default function SupplierPage() {
                   <Button
                     onClick={() => {
                       filterForm.resetFields();
+                      queryWasChanged.current = true;
                       setFilters(initialFilters);
-                      setParams(buildSupplierQuery(1, 20, initialFilters));
+                      setParams(buildSupplierQuery(1, presentation.list.pageSize, initialFilters));
                     }}
                   >
                     {intl.formatMessage({ id: `${localePrefix}.actions.reset` })}
@@ -428,6 +690,7 @@ export default function SupplierPage() {
             </Col>
           </Row>
         </Form>
+        )}
         <Row justify="space-between" gutter={[12, 12]}>
           <Col>
             <Typography.Title level={4} className="m-0">
@@ -436,24 +699,26 @@ export default function SupplierPage() {
           </Col>
           <Col>
             <Space wrap>
-              {capabilities.canExport ? (
+              {capabilities.canExport && presentationAction('supplier.export', 'toolbar', searchConditionValues) ? (
                 <Button
                   aria-label={intl.formatMessage({ id: `${localePrefix}.actions.export` })}
                   icon={<DownloadOutlined />}
                   loading={exportRecords.isPending}
+                  style={ { order: presentationAction('supplier.export', 'toolbar', searchConditionValues)?.order } }
                   onClick={() => exportRecords.mutate()}
                 >
-                  {intl.formatMessage({ id: `${localePrefix}.actions.export` })}
+                  {presentationAction('supplier.export', 'toolbar', searchConditionValues)?.label}
                 </Button>
               ) : null}
-              {capabilities.canCreate ? (
+              {capabilities.canCreate && presentationAction('supplier.create', 'toolbar', searchConditionValues) ? (
                 <Button
                   aria-label={intl.formatMessage({ id: `${localePrefix}.actions.create` })}
                   icon={<PlusOutlined />}
+                  style={ { order: presentationAction('supplier.create', 'toolbar', searchConditionValues)?.order } }
                   type="primary"
                   onClick={openCreate}
                 >
-                  {intl.formatMessage({ id: `${localePrefix}.actions.create` })}
+                  {presentationAction('supplier.create', 'toolbar', searchConditionValues)?.label}
                 </Button>
               ) : null}
             </Space>
@@ -473,6 +738,7 @@ export default function SupplierPage() {
             showSizeChanger: true,
             total: list.data?.total ?? 0,
           } }
+          size={presentation.list.density === 'compact' ? 'small' : presentation.list.density}
           rowKey="id"
           scroll={ { x: 'max-content' } }
           onChange={handleTableChange}
@@ -488,6 +754,9 @@ export default function SupplierPage() {
           form: 'supplier-editor',
           htmlType: 'submit',
           loading: save.isPending,
+          ...(editorRecord && presentationAction('supplier.update', 'form', formDraft)
+            ? { style: { display: 'none' } }
+            : {}),
         } }
         onCancel={() => {
           setEditorOpen(false);
@@ -497,6 +766,7 @@ export default function SupplierPage() {
         }}
       >
         <Form<CreateSupplierInput>
+          form={editorForm}
           initialValues={editorRecord ?? createDefaults}
           key={editorSession}
           layout="vertical"
@@ -521,9 +791,21 @@ export default function SupplierPage() {
               type="error"
             />
           ) : null}
+          <div style={ { display: 'flex', flexWrap: 'wrap' } }>
+          {visibleField(
+            presentation.form.fields.find((field) => field.field === 'code'),
+            formDraft,
+          ) ? (
+            <div
+              style={ {
+                order: presentation.form.fields.find((field) => field.field === 'code')?.order,
+                width: `${((presentation.form.fields.find((field) => field.field === 'code')?.span ?? Math.floor(24 / presentation.form.columns)) / 24) * 100}%`,
+              } }
+            >
           <Form.Item
             name="code"
-            label={intl.formatMessage({ id: `${localePrefix}.fields.code` })}
+            label={presentation.form.fields.find((field) => field.field === 'code')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.code` })}
+            help={presentation.form.fields.find((field) => field.field === 'code')?.help}
             rules={[
               {
                 required: true,
@@ -543,11 +825,31 @@ export default function SupplierPage() {
               },
             ]}
           >
-            <Input autoComplete="off" />
+            <PresentationFieldControl
+              allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+              component={presentation.form.fields.find((field) => field.field === 'code')?.component ?? 'input'}
+              disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+              enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+              maxLength={ 64 }
+              placeholder={presentation.form.fields.find((field) => field.field === 'code')?.placeholder}
+            />
           </Form.Item>
+            </div>
+          ) : null}
+          {visibleField(
+            presentation.form.fields.find((field) => field.field === 'name'),
+            formDraft,
+          ) ? (
+            <div
+              style={ {
+                order: presentation.form.fields.find((field) => field.field === 'name')?.order,
+                width: `${((presentation.form.fields.find((field) => field.field === 'name')?.span ?? Math.floor(24 / presentation.form.columns)) / 24) * 100}%`,
+              } }
+            >
           <Form.Item
             name="name"
-            label={intl.formatMessage({ id: `${localePrefix}.fields.name` })}
+            label={presentation.form.fields.find((field) => field.field === 'name')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.name` })}
+            help={presentation.form.fields.find((field) => field.field === 'name')?.help}
             rules={[
               {
                 required: true,
@@ -563,11 +865,31 @@ export default function SupplierPage() {
               },
             ]}
           >
-            <Input autoComplete="off" />
+            <PresentationFieldControl
+              allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+              component={presentation.form.fields.find((field) => field.field === 'name')?.component ?? 'input'}
+              disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+              enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+              maxLength={ 200 }
+              placeholder={presentation.form.fields.find((field) => field.field === 'name')?.placeholder}
+            />
           </Form.Item>
+            </div>
+          ) : null}
+          {visibleField(
+            presentation.form.fields.find((field) => field.field === 'country'),
+            formDraft,
+          ) ? (
+            <div
+              style={ {
+                order: presentation.form.fields.find((field) => field.field === 'country')?.order,
+                width: `${((presentation.form.fields.find((field) => field.field === 'country')?.span ?? Math.floor(24 / presentation.form.columns)) / 24) * 100}%`,
+              } }
+            >
           <Form.Item
             name="country"
-            label={intl.formatMessage({ id: `${localePrefix}.fields.country` })}
+            label={presentation.form.fields.find((field) => field.field === 'country')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.country` })}
+            help={presentation.form.fields.find((field) => field.field === 'country')?.help}
             rules={[
               {
                 max: 100,
@@ -575,11 +897,31 @@ export default function SupplierPage() {
               },
             ]}
           >
-            <Input autoComplete="off" />
+            <PresentationFieldControl
+              allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+              component={presentation.form.fields.find((field) => field.field === 'country')?.component ?? 'input'}
+              disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+              enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+              maxLength={ 100 }
+              placeholder={presentation.form.fields.find((field) => field.field === 'country')?.placeholder}
+            />
           </Form.Item>
+            </div>
+          ) : null}
+          {visibleField(
+            presentation.form.fields.find((field) => field.field === 'contactName'),
+            formDraft,
+          ) ? (
+            <div
+              style={ {
+                order: presentation.form.fields.find((field) => field.field === 'contactName')?.order,
+                width: `${((presentation.form.fields.find((field) => field.field === 'contactName')?.span ?? Math.floor(24 / presentation.form.columns)) / 24) * 100}%`,
+              } }
+            >
           <Form.Item
             name="contactName"
-            label={intl.formatMessage({ id: `${localePrefix}.fields.contactName` })}
+            label={presentation.form.fields.find((field) => field.field === 'contactName')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.contactName` })}
+            help={presentation.form.fields.find((field) => field.field === 'contactName')?.help}
             rules={[
               {
                 required: true,
@@ -591,11 +933,31 @@ export default function SupplierPage() {
               },
             ]}
           >
-            <Input autoComplete="off" />
+            <PresentationFieldControl
+              allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+              component={presentation.form.fields.find((field) => field.field === 'contactName')?.component ?? 'input'}
+              disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+              enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+              maxLength={ 100 }
+              placeholder={presentation.form.fields.find((field) => field.field === 'contactName')?.placeholder}
+            />
           </Form.Item>
+            </div>
+          ) : null}
+          {visibleField(
+            presentation.form.fields.find((field) => field.field === 'contactEmail'),
+            formDraft,
+          ) ? (
+            <div
+              style={ {
+                order: presentation.form.fields.find((field) => field.field === 'contactEmail')?.order,
+                width: `${((presentation.form.fields.find((field) => field.field === 'contactEmail')?.span ?? Math.floor(24 / presentation.form.columns)) / 24) * 100}%`,
+              } }
+            >
           <Form.Item
             name="contactEmail"
-            label={intl.formatMessage({ id: `${localePrefix}.fields.contactEmail` })}
+            label={presentation.form.fields.find((field) => field.field === 'contactEmail')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.contactEmail` })}
+            help={presentation.form.fields.find((field) => field.field === 'contactEmail')?.help}
             rules={[
               {
                 max: 254,
@@ -607,11 +969,31 @@ export default function SupplierPage() {
               },
             ]}
           >
-            <Input autoComplete="off" />
+            <PresentationFieldControl
+              allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+              component={presentation.form.fields.find((field) => field.field === 'contactEmail')?.component ?? 'input'}
+              disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+              enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+              maxLength={ 254 }
+              placeholder={presentation.form.fields.find((field) => field.field === 'contactEmail')?.placeholder}
+            />
           </Form.Item>
+            </div>
+          ) : null}
+          {visibleField(
+            presentation.form.fields.find((field) => field.field === 'creditLevel'),
+            formDraft,
+          ) ? (
+            <div
+              style={ {
+                order: presentation.form.fields.find((field) => field.field === 'creditLevel')?.order,
+                width: `${((presentation.form.fields.find((field) => field.field === 'creditLevel')?.span ?? Math.floor(24 / presentation.form.columns)) / 24) * 100}%`,
+              } }
+            >
           <Form.Item
             name="creditLevel"
-            label={intl.formatMessage({ id: `${localePrefix}.fields.creditLevel` })}
+            label={presentation.form.fields.find((field) => field.field === 'creditLevel')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.creditLevel` })}
+            help={presentation.form.fields.find((field) => field.field === 'creditLevel')?.help}
             rules={[
               {
                 required: true,
@@ -619,11 +1001,31 @@ export default function SupplierPage() {
               },
             ]}
           >
-            <Select options={ creditLevelOptions } virtual={false} />
+            <PresentationFieldControl
+              allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+              component={presentation.form.fields.find((field) => field.field === 'creditLevel')?.component ?? 'input'}
+              disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+              enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+              options={ creditLevelOptions }
+              placeholder={presentation.form.fields.find((field) => field.field === 'creditLevel')?.placeholder}
+            />
           </Form.Item>
+            </div>
+          ) : null}
+          {visibleField(
+            presentation.form.fields.find((field) => field.field === 'enabled'),
+            formDraft,
+          ) ? (
+            <div
+              style={ {
+                order: presentation.form.fields.find((field) => field.field === 'enabled')?.order,
+                width: `${((presentation.form.fields.find((field) => field.field === 'enabled')?.span ?? Math.floor(24 / presentation.form.columns)) / 24) * 100}%`,
+              } }
+            >
           <Form.Item
             name="enabled"
-            label={intl.formatMessage({ id: `${localePrefix}.fields.enabled` })}
+            label={presentation.form.fields.find((field) => field.field === 'enabled')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.enabled` })}
+            help={presentation.form.fields.find((field) => field.field === 'enabled')?.help}
             valuePropName="checked"
             rules={[
               {
@@ -632,8 +1034,36 @@ export default function SupplierPage() {
               },
             ]}
           >
-            <Switch />
+            <PresentationFieldControl
+              allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+              component={presentation.form.fields.find((field) => field.field === 'enabled')?.component ?? 'input'}
+              disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+              enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+              placeholder={presentation.form.fields.find((field) => field.field === 'enabled')?.placeholder}
+            />
           </Form.Item>
+            </div>
+          ) : null}
+          </div>
+          {editorRecord && capabilities.canUpdate ? (() => {
+            const action = presentationAction('supplier.update', 'form', formDraft);
+            if (!action) return null;
+            const submit = (
+              <Button
+                htmlType={action.confirm ? 'button' : 'submit'}
+                loading={save.isPending}
+                style={ { order: action.order } }
+                type="primary"
+              >
+                {action.label}
+              </Button>
+            );
+            return action.confirm ? (
+              <Popconfirm title={action.confirm} onConfirm={() => editorForm.submit()}>
+                {submit}
+              </Popconfirm>
+            ) : submit;
+          })() : null}
         </Form>
       </Modal>
       <Drawer
@@ -661,11 +1091,30 @@ export default function SupplierPage() {
             {detail.isError ? (
               <Alert showIcon title={intl.formatMessage({ id: `${localePrefix}.states.refreshFailed` })} type="warning" />
             ) : null}
+            {capabilities.canRead ? (() => {
+              const action = presentationAction(
+                'supplier.read',
+                'detail',
+                detail.data as unknown as Readonly<Record<string, unknown>>,
+              );
+              if (!action) return null;
+              const refresh = (
+                <Button loading={detail.isFetching} style={ { order: action.order } } onClick={() => void detail.refetch()}>
+                  {action.label}
+                </Button>
+              );
+              return action.confirm ? (
+                <Popconfirm title={action.confirm} onConfirm={() => void detail.refetch()}>
+                  {refresh}
+                </Popconfirm>
+              ) : refresh;
+            })() : null}
             <Descriptions
               bordered
-              column={1}
+              column={presentation.detail.columns}
               size="small"
-              items={[
+              items={(() => {
+                const compiledItems = [
                 {
                   key: 'id',
                   label: intl.formatMessage({ id: `${localePrefix}.fields.id` }),
@@ -721,7 +1170,39 @@ export default function SupplierPage() {
                   label: intl.formatMessage({ id: `${localePrefix}.fields.updatedAt` }),
                   children: formatDate(detail.data.updatedAt),
                 },
-              ]}
+                ];
+                const byField = new Map(compiledItems.map((item) => [item.key, item]));
+                return presentation.detail.fields.flatMap((field) => {
+                  const item = byField.get(field.field);
+                  if (!item || !visibleField(field, detail.data as Readonly<Record<string, unknown>>)) {
+                    return [];
+                  }
+                  const gridSpan = field.span
+                    ? Math.max(
+                        1,
+                        Math.min(
+                          presentation.detail.columns,
+                          Math.ceil(field.span / (24 / presentation.detail.columns)),
+                        ),
+                      )
+                    : 1;
+                  return [
+                    {
+                      ...item,
+                      label: field.label,
+                      span: gridSpan,
+                      children: renderPresentationValue({
+                        component: field.component,
+                        value: (detail.data as unknown as Readonly<Record<string, unknown>>)[field.field],
+                        ...(field.field === 'creditLevel' ? { options: creditLevelOptions } : {}),
+                        enabledLabel: intl.formatMessage({ id: `${localePrefix}.values.enabled` }),
+                        disabledLabel: intl.formatMessage({ id: `${localePrefix}.values.disabled` }),
+                        formatDate,
+                      }),
+                    },
+                  ];
+                });
+              })()}
             />
           </Space>
         ) : null}

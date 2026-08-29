@@ -352,6 +352,7 @@ func renderPresentationOutputs(module *spec.Module, data templateData, layout ta
 	}
 	data.Presentation.JSONGo = strconv.Quote(string(compact))
 	data.Presentation.JSONPretty = string(pretty)
+	data.Presentation.PageKey = projection.PageKey
 	data.Presentation.DefinitionHashTS = strconv.Quote(projection.DefinitionHash)
 	data.Presentation.ViewAdapterJSONPretty = string(viewJSON)
 	data.Presentation.BusinessAdapterJSONPretty = string(businessJSON)

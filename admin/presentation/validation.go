@@ -484,6 +484,9 @@ func validateSemanticFields(fields []FieldPatch, surface Surface, path string, d
 		if surface == SurfaceForm && definition.Required && field.Hidden != nil && *field.Hidden {
 			addIssue(issues, "required-form-field-hidden", currentPath+".hidden", "required form field cannot be hidden")
 		}
+		if surface == SurfaceForm && definition.Required && field.VisibleWhen != nil {
+			addIssue(issues, "required-form-field-conditional", currentPath+".visibleWhen", "required form field cannot be conditionally hidden")
+		}
 		validateSemanticCondition(field.VisibleWhen, currentPath+".visibleWhen", definitions, issues)
 	}
 }
@@ -809,6 +812,9 @@ func validateCompleteFields(fields []CompleteField, surface Surface, path string
 		}
 		if surface == SurfaceForm && definition.Required && field.Hidden {
 			addIssue(issues, "required-form-field-hidden", currentPath+".hidden", "required form field cannot be hidden")
+		}
+		if surface == SurfaceForm && definition.Required && field.VisibleWhen != nil {
+			addIssue(issues, "required-form-field-conditional", currentPath+".visibleWhen", "required form field cannot be conditionally hidden")
 		}
 		if field.Order < 0 || field.Order > 10000 {
 			addIssue(issues, "invalid-field-order", currentPath+".order", "default field order must be 0 to 10000")

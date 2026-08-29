@@ -27,21 +27,27 @@ import {
   Descriptions,
   Drawer,
   Form,
+{{- if not .Presentation.Enabled }}
   Input,
+{{- end }}
   Modal,
   Popconfirm,
   Result,
   Row,
+{{- if not .Presentation.Enabled }}
   Select,
+{{- end }}
   Space,
+{{- if not .Presentation.Enabled }}
   Switch,
+{{- end }}
   Table,
   Tag,
   Typography,
   type TableColumnsType,
   type TableProps,
 } from 'antd';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getRequestErrorMessage,
   getRequestStatus,
@@ -54,6 +60,16 @@ import {
 } from '{{ .AdminWebPackage }}/runtime';
 {{- if and .Presentation.Enabled .NeedsRegexp }}
 import { compilePortablePresentationPattern } from '{{ .AdminWebPackage }}/runtime/presentation';
+{{- end }}
+{{- if .Presentation.Enabled }}
+import {
+  buildPresentationConditionContext,
+  evaluatePresentationCondition,
+  PresentationFieldControl,
+  renderPresentationValue,
+  usePagePresentation,
+} from '{{ .AdminWebPackage }}/runtime/presentation/client';
+import { generatedPresentationRegistry } from '../../presentation-registry.generated';
 {{- end }}
 import { {{ .ModuleName }}API } from './api';
 import { build{{ .ModelName }}Query, get{{ .ModelName }}Capabilities } from './contract';
@@ -101,17 +117,115 @@ export default function {{ .ModelName }}Page() {
     () => get{{ .ModelName }}Capabilities(initialState?.currentUser),
     [initialState?.currentUser],
   );
+{{- if .Presentation.Enabled }}
+  const presentationRuntime = usePagePresentation(
+    generatedPresentationRegistry[{{ printf "%q" .Presentation.PageKey }}],
+    intl.locale === 'en-US' ? 'en-US' : 'zh-CN',
+    initialState?.currentUser,
+    initialState?.authorizationVersion,
+  );
+  const presentation = presentationRuntime.model;
+  const defaultPresentationSort = presentation.list.defaultSort[0];
+{{- end }}
   const [filterForm] = Form.useForm<{{ .ModelName }}FilterValues>();
+{{- if .Presentation.Enabled }}
+  const [editorForm] = Form.useForm<Create{{ .ModelName }}Input>();
+{{- end }}
   const [filters, setFilters] = useState<{{ .ModelName }}FilterValues>(initialFilters);
+{{- if .Presentation.Enabled }}
+  const [searchExpanded, setSearchExpanded] = useState(
+    () => !presentation.search.collapsedByDefault,
+  );
+  const searchExpansionWasChanged = useRef(false);
+{{- end }}
   const [params, setParams] = useState<{{ .ModelName }}Query>(() =>
-    build{{ .ModelName }}Query(1, 20, initialFilters),
+    build{{ .ModelName }}Query(
+      1,
+      {{ if .Presentation.Enabled }}presentation.list.pageSize{{ else }}20{{ end }},
+      initialFilters,
+{{- if .Presentation.Enabled }}
+      defaultPresentationSort
+        ? {
+            field: defaultPresentationSort.field,
+            order: defaultPresentationSort.direction === 'desc' ? 'descend' : 'ascend',
+          }
+        : undefined,
+{{- end }}
+    ),
   );
   const [detailID, setDetailID] = useState<string>();
   const [editorRecord, setEditorRecord] = useState<{{ .ModelName }}>();
   const [editorSession, setEditorSession] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
   const [conflict, setConflict] = useState(false);
-  const list = use{{ .ModelName }}Page(params, capabilities.canList);
+{{- if .Presentation.Enabled }}
+  const queryWasChanged = useRef(false);
+  const appliedPresentation = useRef('');
+  const filterDraft = (Form.useWatch([], filterForm) ?? filters) as Readonly<Record<string, unknown>>;
+  const searchConditionValues = buildPresentationConditionContext(filterDraft, {
+{{- if .HasSearchField }}
+    {{ .SearchField.JSONName }}: 'q',
+{{- end }}
+  });
+  const formDraft = (Form.useWatch([], editorForm) ?? editorRecord ?? createDefaults) as Readonly<Record<string, unknown>>;
+  const visibleField = (
+    field: { visibleWhen?: Parameters<typeof evaluatePresentationCondition>[0] } | undefined,
+    values: Readonly<Record<string, unknown>>,
+  ) =>
+    Boolean(
+      field &&
+        evaluatePresentationCondition(
+          field.visibleWhen,
+          values,
+          presentationRuntime.definition,
+        ),
+    );
+  const presentationAction = (
+    actionID: string,
+    placement: 'toolbar' | 'row' | 'form' | 'detail',
+    values: Readonly<Record<string, unknown>> = {},
+  ) => {
+    const action = presentation.actions.find(
+      (candidate) => candidate.action === actionID && candidate.placement === placement,
+    );
+    return visibleField(action, values) ? action : undefined;
+  };
+  const presentationActionAny = (
+    actionID: string,
+    values: Readonly<Record<string, unknown>> = {},
+  ) => {
+    const action = presentation.actions.find((candidate) => candidate.action === actionID);
+    return visibleField(action, values) ? action : undefined;
+  };
+  useEffect(() => {
+    if (presentationRuntime.source !== 'active' || queryWasChanged.current) return;
+    const signature = `${presentation.list.pageSize}:${presentation.list.defaultSort
+      .map((sort) => `${sort.field}:${sort.direction}`)
+      .join(',')}`;
+    if (appliedPresentation.current === signature) return;
+    const sort = presentation.list.defaultSort[0];
+    setParams(
+      build{{ .ModelName }}Query(
+        1,
+        presentation.list.pageSize,
+        initialFilters,
+        sort
+          ? { field: sort.field, order: sort.direction === 'desc' ? 'descend' : 'ascend' }
+          : undefined,
+      ),
+    );
+    appliedPresentation.current = signature;
+  }, [presentation.list.defaultSort, presentation.list.pageSize, presentationRuntime.source]);
+  useEffect(() => {
+    if (presentationRuntime.source === 'active' && !searchExpansionWasChanged.current) {
+      setSearchExpanded(!presentation.search.collapsedByDefault);
+    }
+  }, [presentation.search.collapsedByDefault, presentationRuntime.source]);
+{{- end }}
+  const list = use{{ .ModelName }}Page(
+    params,
+    capabilities.canList{{ if .Presentation.Enabled }} && presentation.status === 'ready'{{ end }},
+  );
 {{- if .HasGet }}
   const detail = use{{ .ModelName }}(detailID);
 {{- end }}
@@ -168,7 +282,7 @@ export default function {{ .ModelName }}Page() {
   });
 {{- end }}
 
-  const title = intl.formatMessage({ id: `${localePrefix}.title` });
+  const title = {{ if .Presentation.Enabled }}presentation.title{{ else }}intl.formatMessage({ id: `${localePrefix}.title` }){{ end }};
   const formatDate = (value: string) =>
     new Intl.DateTimeFormat(intl.locale || 'zh-CN', {
       dateStyle: 'short',
@@ -187,7 +301,7 @@ export default function {{ .ModelName }}Page() {
   ];
 {{- end }}{{- end }}
 
-  if (!capabilities.canList || getRequestStatus(list.error) === 403) {
+  if (!capabilities.canList{{ if .Presentation.Enabled }} || presentation.status === 'permission-denied'{{ end }} || getRequestStatus(list.error) === 403) {
     return (
       <PageContainer title={title}>
         <PageForbidden message={intl.formatMessage({ id: `${localePrefix}.states.forbidden` })} />
@@ -230,7 +344,7 @@ export default function {{ .ModelName }}Page() {
     setEditorOpen(true);
   };
 
-  const columns: TableColumnsType<{{ .ModelName }}> = [
+  const compiledColumns: TableColumnsType<{{ .ModelName }}> = [
 {{- range $index, $field := .ListFields }}
     {
       title: intl.formatMessage({ id: `${localePrefix}.fields.{{ $field.JSONName }}` }),
@@ -246,6 +360,21 @@ export default function {{ .ModelName }}Page() {
 {{- if $field.Sortable }}
       sorter: true,
 {{- end }}
+{{- if $.Presentation.Enabled }}
+      render: (_, record) =>
+        renderPresentationValue({
+          component:
+            presentation.list.columns.find((field) => field.field === '{{ $field.JSONName }}')
+              ?.component ?? 'text',
+          value: record.{{ $field.JSONName }},
+{{- if $field.IsEnum }}
+          options: {{ $field.JSONName }}Options,
+{{- end }}
+          enabledLabel: intl.formatMessage({ id: `${localePrefix}.values.enabled` }),
+          disabledLabel: intl.formatMessage({ id: `${localePrefix}.values.disabled` }),
+          formatDate,
+        }),
+{{- else }}
 {{- if $field.IsEnum }}
       render: (_, record) => {
         const option = {{ $field.JSONName }}Options.find((entry) => entry.value === record.{{ $field.JSONName }});
@@ -262,6 +391,7 @@ export default function {{ .ModelName }}Page() {
 {{- else }}
       ellipsis: true,
 {{- end }}
+{{- end }}
     },
 {{- end }}
     {
@@ -271,35 +401,45 @@ export default function {{ .ModelName }}Page() {
       render: (_, record) => (
         <Space size="small" wrap>
 {{- if .HasGet }}
-          {capabilities.canRead ? (
+          {capabilities.canRead{{ if .Presentation.Enabled }} && presentationActionAny('{{ .ModuleName }}.read', record){{ end }} ? (
             <Button
               aria-label={intl.formatMessage({ id: `${localePrefix}.actions.detail` })}
               icon={<EyeOutlined />}
               size="small"
+{{- if .Presentation.Enabled }}
+              style={ { order: presentationActionAny('{{ .ModuleName }}.read', record)?.order } }
+{{- end }}
               type="link"
               onClick={() => setDetailID(record.id)}
             >
-              {intl.formatMessage({ id: `${localePrefix}.actions.detail` })}
+              {{ if .Presentation.Enabled }}{presentationActionAny('{{ .ModuleName }}.read', record)?.label}{{ else }}{intl.formatMessage({ id: `${localePrefix}.actions.detail` })}{{ end }}
             </Button>
           ) : null}
 {{- end }}
 {{- if .HasUpdate }}
-          {capabilities.canUpdate ? (
+          {capabilities.canUpdate{{ if .Presentation.Enabled }} && presentationActionAny('{{ .ModuleName }}.update', record){{ end }} ? (
             <Button
               aria-label={intl.formatMessage({ id: `${localePrefix}.actions.edit` })}
               icon={<EditOutlined />}
               size="small"
+{{- if .Presentation.Enabled }}
+              style={ { order: presentationActionAny('{{ .ModuleName }}.update', record)?.order } }
+{{- end }}
               type="link"
               onClick={() => openEdit(record)}
             >
-              {intl.formatMessage({ id: `${localePrefix}.actions.edit` })}
+              {{ if .Presentation.Enabled }}{presentationActionAny('{{ .ModuleName }}.update', record)?.label}{{ else }}{intl.formatMessage({ id: `${localePrefix}.actions.edit` })}{{ end }}
             </Button>
           ) : null}
 {{- end }}
 {{- if .HasDelete }}
-          {capabilities.canDelete ? (
+          {capabilities.canDelete{{ if .Presentation.Enabled }} && presentationAction('{{ .ModuleName }}.delete', 'row', record){{ end }} ? (
             <Popconfirm
+{{- if .Presentation.Enabled }}
+              title={presentationAction('{{ .ModuleName }}.delete', 'row', record)?.confirm ?? intl.formatMessage({ id: `${localePrefix}.actions.confirmDelete` })}
+{{- else }}
               title={intl.formatMessage({ id: `${localePrefix}.actions.confirmDelete` })}
+{{- end }}
               onConfirm={() => remove.mutate(record)}
             >
               <Button
@@ -308,9 +448,12 @@ export default function {{ .ModelName }}Page() {
                 icon={<DeleteOutlined />}
                 loading={remove.isPending}
                 size="small"
+{{- if .Presentation.Enabled }}
+                style={ { order: presentationAction('{{ .ModuleName }}.delete', 'row', record)?.order } }
+{{- end }}
                 type="link"
               >
-                {intl.formatMessage({ id: `${localePrefix}.actions.delete` })}
+                {{ if .Presentation.Enabled }}{presentationAction('{{ .ModuleName }}.delete', 'row', record)?.label}{{ else }}{intl.formatMessage({ id: `${localePrefix}.actions.delete` })}{{ end }}
               </Button>
             </Popconfirm>
           ) : null}
@@ -319,8 +462,42 @@ export default function {{ .ModelName }}Page() {
       ),
     },
   ];
+{{- if .Presentation.Enabled }}
+  const compiledColumnByField = new Map<string, TableColumnsType<{{ .ModelName }}>[number]>();
+  let compiledActionColumn: TableColumnsType<{{ .ModelName }}>[number] | undefined;
+  for (const column of compiledColumns) {
+    if ('dataIndex' in column && typeof column.dataIndex === 'string') {
+      compiledColumnByField.set(column.dataIndex, column);
+    } else if ('key' in column && column.key === 'actions') {
+      compiledActionColumn = column;
+    }
+  }
+  const columns: TableColumnsType<{{ .ModelName }}> = presentation.list.columns.flatMap((field) => {
+    const column = compiledColumnByField.get(field.field);
+    if (!column) return [];
+    const configuredSort = presentation.list.defaultSort.find((sort) => sort.field === field.field);
+    return [
+      {
+        ...column,
+        title: field.label,
+        ...(field.width !== undefined ? { width: field.width } : {}),
+        ...(configuredSort
+          ? { defaultSortOrder: configuredSort.direction === 'desc' ? 'descend' : 'ascend' }
+          : {}),
+      },
+    ];
+  });
+  if (compiledActionColumn && presentation.actions.some((action) => action.placement === 'row')) {
+    columns.push(compiledActionColumn);
+  }
+{{- else }}
+  const columns = compiledColumns;
+{{- end }}
 
   const handleTableChange: TableProps<{{ .ModelName }}>['onChange'] = (pagination, _, sorter) => {
+{{- if .Presentation.Enabled }}
+    queryWasChanged.current = true;
+{{- end }}
     const activeSorter = Array.isArray(sorter) ? sorter[0] : sorter;
     setParams(
       build{{ .ModelName }}Query(
@@ -379,27 +556,112 @@ export default function {{ .ModelName }}Page() {
           />
         ) : null}
 {{- end }}
+{{- if .Presentation.Enabled }}
+        {!searchExpanded ? (
+          <Button
+            icon={<SearchOutlined />}
+            onClick={() => {
+              searchExpansionWasChanged.current = true;
+              setSearchExpanded(true);
+            }}
+          >
+            {intl.formatMessage({ id: `${localePrefix}.actions.search` })}
+          </Button>
+        ) : (
+{{- end }}
         <Form<{{ .ModelName }}FilterValues>
           form={filterForm}
           initialValues={initialFilters}
           layout="vertical"
           name="{{ .ModuleName }}-filters"
           onFinish={(values) => {
+{{- if .Presentation.Enabled }}
+            queryWasChanged.current = true;
+{{- end }}
             setFilters(values);
             setParams(build{{ .ModelName }}Query(1, params.pageSize, values));
           }}
         >
           <Row align="bottom" gutter={12}>
 {{- if .HasSearchField }}
-            <Col xs={24} sm={12} lg={6}>
-              <Form.Item name="q" label={intl.formatMessage({ id: `${localePrefix}.fields.{{ .SearchField.JSONName }}` })}>
-                <Input allowClear autoComplete="off" />
+{{- if .Presentation.Enabled }}
+            {visibleField(
+              presentation.search.fields.find((field) => field.field === '{{ .SearchField.JSONName }}'),
+              searchConditionValues,
+            ) ? (
+{{- end }}
+            <Col
+              xs={24}
+              sm={12}
+              lg={6}
+{{- if .Presentation.Enabled }}
+              style={ {
+                order: presentation.search.fields.find((field) => field.field === '{{ .SearchField.JSONName }}')?.order,
+              } }
+{{- end }}
+            >
+              <Form.Item
+                name="q"
+{{- if .Presentation.Enabled }}
+                label={presentation.search.fields.find((field) => field.field === '{{ .SearchField.JSONName }}')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.{{ .SearchField.JSONName }}` })}
+{{- else }}
+                label={intl.formatMessage({ id: `${localePrefix}.fields.{{ .SearchField.JSONName }}` })}
+{{- end }}
+              >
+{{- if .Presentation.Enabled }}
+                <PresentationFieldControl
+                  allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+                  component={presentation.search.fields.find((field) => field.field === '{{ .SearchField.JSONName }}')?.component ?? 'input'}
+                  disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+                  enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+                  placeholder={presentation.search.fields.find((field) => field.field === '{{ .SearchField.JSONName }}')?.placeholder}
+                />
+{{- else }}
+                <Input allowClear autoComplete="off"{{ if .Presentation.Enabled }} placeholder={presentation.search.fields.find((field) => field.field === '{{ .SearchField.JSONName }}')?.placeholder}{{ end }} />
+{{- end }}
               </Form.Item>
             </Col>
+{{- if .Presentation.Enabled }}
+            ) : null}
+{{- end }}
 {{- end }}
 {{- range .FilterFields }}
-            <Col xs={24} sm={12} lg={6}>
-              <Form.Item name="{{ .JSONName }}" label={intl.formatMessage({ id: `${localePrefix}.fields.{{ .JSONName }}` })}>
+{{- if $.Presentation.Enabled }}
+            {visibleField(
+              presentation.search.fields.find((field) => field.field === '{{ .JSONName }}'),
+              searchConditionValues,
+            ) ? (
+{{- end }}
+            <Col
+              xs={24}
+              sm={12}
+              lg={6}
+{{- if $.Presentation.Enabled }}
+              style={ {
+                order: presentation.search.fields.find((field) => field.field === '{{ .JSONName }}')?.order,
+              } }
+{{- end }}
+            >
+              <Form.Item
+                name="{{ .JSONName }}"
+{{- if $.Presentation.Enabled }}
+                label={presentation.search.fields.find((field) => field.field === '{{ .JSONName }}')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.{{ .JSONName }}` })}
+{{- else }}
+                label={intl.formatMessage({ id: `${localePrefix}.fields.{{ .JSONName }}` })}
+{{- end }}
+              >
+{{- if $.Presentation.Enabled }}
+                <PresentationFieldControl
+                  allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+                  component={presentation.search.fields.find((field) => field.field === '{{ .JSONName }}')?.component ?? 'input'}
+                  disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+                  enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+{{- if .IsEnum }}
+                  options={ {{ .JSONName }}Options }
+{{- end }}
+                  placeholder={presentation.search.fields.find((field) => field.field === '{{ .JSONName }}')?.placeholder}
+                />
+{{- else }}
 {{- if .IsEnum }}
                 <Select
                   options={[
@@ -418,12 +680,16 @@ export default function {{ .ModelName }}Page() {
                   virtual={false}
                 />
 {{- else }}
-                <Input allowClear autoComplete="off" />
+                <Input allowClear autoComplete="off"{{ if $.Presentation.Enabled }} placeholder={presentation.search.fields.find((field) => field.field === '{{ .JSONName }}')?.placeholder}{{ end }} />
+{{- end }}
 {{- end }}
               </Form.Item>
             </Col>
+{{- if $.Presentation.Enabled }}
+            ) : null}
 {{- end }}
-            <Col flex="none">
+{{- end }}
+            <Col flex="none"{{ if .Presentation.Enabled }} style={ { order: 10_001 } }{{ end }}>
               <Form.Item>
                 <Space>
                   <Button
@@ -437,8 +703,11 @@ export default function {{ .ModelName }}Page() {
                   <Button
                     onClick={() => {
                       filterForm.resetFields();
+{{- if .Presentation.Enabled }}
+                      queryWasChanged.current = true;
+{{- end }}
                       setFilters(initialFilters);
-                      setParams(build{{ .ModelName }}Query(1, 20, initialFilters));
+                      setParams(build{{ .ModelName }}Query(1, {{ if .Presentation.Enabled }}presentation.list.pageSize{{ else }}20{{ end }}, initialFilters));
                     }}
                   >
                     {intl.formatMessage({ id: `${localePrefix}.actions.reset` })}
@@ -448,6 +717,9 @@ export default function {{ .ModelName }}Page() {
             </Col>
           </Row>
         </Form>
+{{- if .Presentation.Enabled }}
+        )}
+{{- end }}
         <Row justify="space-between" gutter={[12, 12]}>
           <Col>
             <Typography.Title level={4} className="m-0">
@@ -457,26 +729,32 @@ export default function {{ .ModelName }}Page() {
           <Col>
             <Space wrap>
 {{- if .HasExport }}
-              {capabilities.canExport ? (
+              {capabilities.canExport{{ if .Presentation.Enabled }} && presentationAction('{{ .ModuleName }}.export', 'toolbar', searchConditionValues){{ end }} ? (
                 <Button
                   aria-label={intl.formatMessage({ id: `${localePrefix}.actions.export` })}
                   icon={<DownloadOutlined />}
                   loading={exportRecords.isPending}
+{{- if .Presentation.Enabled }}
+                  style={ { order: presentationAction('{{ .ModuleName }}.export', 'toolbar', searchConditionValues)?.order } }
+{{- end }}
                   onClick={() => exportRecords.mutate()}
                 >
-                  {intl.formatMessage({ id: `${localePrefix}.actions.export` })}
+                  {{ if .Presentation.Enabled }}{presentationAction('{{ .ModuleName }}.export', 'toolbar', searchConditionValues)?.label}{{ else }}{intl.formatMessage({ id: `${localePrefix}.actions.export` })}{{ end }}
                 </Button>
               ) : null}
 {{- end }}
 {{- if .HasCreate }}
-              {capabilities.canCreate ? (
+              {capabilities.canCreate{{ if .Presentation.Enabled }} && presentationAction('{{ .ModuleName }}.create', 'toolbar', searchConditionValues){{ end }} ? (
                 <Button
                   aria-label={intl.formatMessage({ id: `${localePrefix}.actions.create` })}
                   icon={<PlusOutlined />}
+{{- if .Presentation.Enabled }}
+                  style={ { order: presentationAction('{{ .ModuleName }}.create', 'toolbar', searchConditionValues)?.order } }
+{{- end }}
                   type="primary"
                   onClick={openCreate}
                 >
-                  {intl.formatMessage({ id: `${localePrefix}.actions.create` })}
+                  {{ if .Presentation.Enabled }}{presentationAction('{{ .ModuleName }}.create', 'toolbar', searchConditionValues)?.label}{{ else }}{intl.formatMessage({ id: `${localePrefix}.actions.create` })}{{ end }}
                 </Button>
               ) : null}
 {{- end }}
@@ -497,6 +775,9 @@ export default function {{ .ModelName }}Page() {
             showSizeChanger: true,
             total: list.data?.total ?? 0,
           } }
+{{- if .Presentation.Enabled }}
+          size={presentation.list.density === 'compact' ? 'small' : presentation.list.density}
+{{- end }}
           rowKey="id"
           scroll={ { x: 'max-content' } }
           onChange={handleTableChange}
@@ -514,6 +795,11 @@ export default function {{ .ModelName }}Page() {
           form: '{{ .ModuleName }}-editor',
           htmlType: 'submit',
           loading: save.isPending,
+{{- if and .Presentation.Enabled .HasUpdate }}
+          ...(editorRecord && presentationAction('{{ .ModuleName }}.update', 'form', formDraft)
+            ? { style: { display: 'none' } }
+            : {}),
+{{- end }}
         } }
         onCancel={() => {
           setEditorOpen(false);
@@ -523,6 +809,9 @@ export default function {{ .ModelName }}Page() {
         }}
       >
         <Form<Create{{ .ModelName }}Input>
+{{- if .Presentation.Enabled }}
+          form={editorForm}
+{{- end }}
           initialValues={editorRecord ?? createDefaults}
           key={editorSession}
           layout="vertical"
@@ -547,10 +836,32 @@ export default function {{ .ModelName }}Page() {
               type="error"
             />
           ) : null}
+{{- if .Presentation.Enabled }}
+          <div style={ { display: 'flex', flexWrap: 'wrap' } }>
+{{- end }}
 {{- range .Fields }}{{ if .Form }}
+{{- if $.Presentation.Enabled }}
+          {visibleField(
+            presentation.form.fields.find((field) => field.field === '{{ .JSONName }}'),
+            formDraft,
+          ) ? (
+            <div
+              style={ {
+                order: presentation.form.fields.find((field) => field.field === '{{ .JSONName }}')?.order,
+                width: `${((presentation.form.fields.find((field) => field.field === '{{ .JSONName }}')?.span ?? Math.floor(24 / presentation.form.columns)) / 24) * 100}%`,
+              } }
+            >
+{{- end }}
           <Form.Item
             name="{{ .JSONName }}"
+{{- if $.Presentation.Enabled }}
+            label={presentation.form.fields.find((field) => field.field === '{{ .JSONName }}')?.label ?? intl.formatMessage({ id: `${localePrefix}.fields.{{ .JSONName }}` })}
+{{- else }}
             label={intl.formatMessage({ id: `${localePrefix}.fields.{{ .JSONName }}` })}
+{{- end }}
+{{- if $.Presentation.Enabled }}
+            help={presentation.form.fields.find((field) => field.field === '{{ .JSONName }}')?.help}
+{{- end }}
 {{- if .IsBool }}
             valuePropName="checked"
 {{- end }}
@@ -587,6 +898,21 @@ export default function {{ .ModelName }}Page() {
 {{- end }}
             ]}
           >
+{{- if $.Presentation.Enabled }}
+            <PresentationFieldControl
+              allLabel={intl.formatMessage({ id: `${localePrefix}.values.all` })}
+              component={presentation.form.fields.find((field) => field.field === '{{ .JSONName }}')?.component ?? 'input'}
+              disabledLabel={intl.formatMessage({ id: `${localePrefix}.values.disabled` })}
+              enabledLabel={intl.formatMessage({ id: `${localePrefix}.values.enabled` })}
+{{- if .HasMaxLength }}
+              maxLength={ {{ .MaxLength }} }
+{{- end }}
+{{- if .IsEnum }}
+              options={ {{ .JSONName }}Options }
+{{- end }}
+              placeholder={presentation.form.fields.find((field) => field.field === '{{ .JSONName }}')?.placeholder{{ if .UIPlaceholder }} ?? {{ .UIPlaceholder }}{{ end }}}
+            />
+{{- else }}
 {{- if .IsEnum }}
             <Select options={ {{ .JSONName }}Options } virtual={false} />
 {{- else if .IsBool }}
@@ -594,10 +920,39 @@ export default function {{ .ModelName }}Page() {
 {{- else if or (eq .UIComponent "textarea") (eq .SpecType "text") }}
             <Input.TextArea{{ if .HasMaxLength }} maxLength={ {{ .MaxLength }} }{{ end }} showCount />
 {{- else }}
-            <Input autoComplete="off"{{ if .UIPlaceholder }} placeholder={{ .UIPlaceholder }}{{ end }} />
+            <Input autoComplete="off"{{ if $.Presentation.Enabled }} placeholder={presentation.form.fields.find((field) => field.field === '{{ .JSONName }}')?.placeholder{{ if .UIPlaceholder }} ?? {{ .UIPlaceholder }}{{ end }}}{{ else if .UIPlaceholder }} placeholder={{ .UIPlaceholder }}{{ end }} />
+{{- end }}
 {{- end }}
           </Form.Item>
+{{- if $.Presentation.Enabled }}
+            </div>
+          ) : null}
+{{- end }}
 {{- end }}{{- end }}
+{{- if .Presentation.Enabled }}
+          </div>
+{{- if .HasUpdate }}
+          {editorRecord && capabilities.canUpdate ? (() => {
+            const action = presentationAction('{{ .ModuleName }}.update', 'form', formDraft);
+            if (!action) return null;
+            const submit = (
+              <Button
+                htmlType={action.confirm ? 'button' : 'submit'}
+                loading={save.isPending}
+                style={ { order: action.order } }
+                type="primary"
+              >
+                {action.label}
+              </Button>
+            );
+            return action.confirm ? (
+              <Popconfirm title={action.confirm} onConfirm={() => editorForm.submit()}>
+                {submit}
+              </Popconfirm>
+            ) : submit;
+          })() : null}
+{{- end }}
+{{- end }}
         </Form>
       </Modal>
 {{- end }}
@@ -628,11 +983,38 @@ export default function {{ .ModelName }}Page() {
             {detail.isError ? (
               <Alert showIcon title={intl.formatMessage({ id: `${localePrefix}.states.refreshFailed` })} type="warning" />
             ) : null}
+{{- if .Presentation.Enabled }}
+{{- if .HasGet }}
+            {capabilities.canRead ? (() => {
+              const action = presentationAction(
+                '{{ .ModuleName }}.read',
+                'detail',
+                detail.data as unknown as Readonly<Record<string, unknown>>,
+              );
+              if (!action) return null;
+              const refresh = (
+                <Button loading={detail.isFetching} style={ { order: action.order } } onClick={() => void detail.refetch()}>
+                  {action.label}
+                </Button>
+              );
+              return action.confirm ? (
+                <Popconfirm title={action.confirm} onConfirm={() => void detail.refetch()}>
+                  {refresh}
+                </Popconfirm>
+              ) : refresh;
+            })() : null}
+{{- end }}
+{{- end }}
             <Descriptions
               bordered
-              column={1}
+              column={{ if .Presentation.Enabled }}{presentation.detail.columns}{{ else }}{1}{{ end }}
               size="small"
+{{- if .Presentation.Enabled }}
+              items={(() => {
+                const compiledItems = [
+{{- else }}
               items={[
+{{- end }}
                 {
                   key: 'id',
                   label: intl.formatMessage({ id: `${localePrefix}.fields.id` }),
@@ -666,7 +1048,45 @@ export default function {{ .ModelName }}Page() {
                   label: intl.formatMessage({ id: `${localePrefix}.fields.updatedAt` }),
                   children: formatDate(detail.data.updatedAt),
                 },
+{{- if .Presentation.Enabled }}
+                ];
+                const byField = new Map(compiledItems.map((item) => [item.key, item]));
+                return presentation.detail.fields.flatMap((field) => {
+                  const item = byField.get(field.field);
+                  if (!item || !visibleField(field, detail.data as Readonly<Record<string, unknown>>)) {
+                    return [];
+                  }
+                  const gridSpan = field.span
+                    ? Math.max(
+                        1,
+                        Math.min(
+                          presentation.detail.columns,
+                          Math.ceil(field.span / (24 / presentation.detail.columns)),
+                        ),
+                      )
+                    : 1;
+                  return [
+                    {
+                      ...item,
+                      label: field.label,
+                      span: gridSpan,
+                      children: renderPresentationValue({
+                        component: field.component,
+                        value: (detail.data as unknown as Readonly<Record<string, unknown>>)[field.field],
+{{- range .Fields }}{{ if .IsEnum }}
+                        ...(field.field === '{{ .JSONName }}' ? { options: {{ .JSONName }}Options } : {}),
+{{- end }}{{- end }}
+                        enabledLabel: intl.formatMessage({ id: `${localePrefix}.values.enabled` }),
+                        disabledLabel: intl.formatMessage({ id: `${localePrefix}.values.disabled` }),
+                        formatDate,
+                      }),
+                    },
+                  ];
+                });
+              })()}
+{{- else }}
               ]}
+{{- end }}
             />
           </Space>
         ) : null}

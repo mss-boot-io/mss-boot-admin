@@ -124,6 +124,28 @@ func TestGeneratePresentationArtifactsHaveOneV2IdentityAndAreIdempotent(t *testi
 	if strings.Contains(adapter, `"enumValues": null`) {
 		t.Fatalf("adapter metadata emitted a nullable enum value collection:\n%s", adapter)
 	}
+	page := string(readGeneratedTestFile(t, root, "web/antd-v6/src/generated/modules/supplier/SupplierPage.tsx"))
+	for _, runtimeContract := range []string{
+		"usePagePresentation(",
+		"generatedPresentationRegistry",
+		"buildPresentationConditionContext",
+		`code: 'q'`,
+		"evaluatePresentationCondition(",
+		"PresentationFieldControl",
+		"renderPresentationValue",
+		`"supplier.list"`,
+		"presentation.list.columns",
+		"presentation.search.fields",
+		"presentation.form.fields",
+		"presentation.detail.fields",
+		"presentation.actions",
+		`'form'`,
+		`'detail'`,
+	} {
+		if !strings.Contains(page, runtimeContract) {
+			t.Errorf("generated Supplier page omitted P2C runtime contract %q", runtimeContract)
+		}
+	}
 	view := buildPresentationViewAdapter(projection)
 	for _, field := range view.Fields {
 		if field.ValueType != "enum" && field.EnumValues == nil {

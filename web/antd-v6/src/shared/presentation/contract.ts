@@ -635,6 +635,14 @@ function validateFieldCollection(
         `Required form field ${field.field} cannot be hidden`,
       );
     }
+    if (surface === 'form' && definition.required && field.visibleWhen !== undefined) {
+      addIssue(
+        issues,
+        'required-form-field-conditional',
+        `${fieldPath}.visibleWhen`,
+        `Required form field ${field.field} cannot be conditionally hidden`,
+      );
+    }
     if (field.order !== undefined && (!Number.isInteger(field.order) || field.order < 0)) {
       addIssue(
         issues,
