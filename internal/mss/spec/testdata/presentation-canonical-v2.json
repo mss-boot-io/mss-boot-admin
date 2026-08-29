@@ -1,0 +1,14 @@
+{
+  "value": {
+    "zeta": [
+      "供应商 &<>\u2028\u2029Literal\\u2028",
+      {
+        "empty": [],
+        "enabled": false
+      }
+    ],
+    "alpha": "first"
+  },
+  "canonical": "{\"alpha\":\"first\",\"zeta\":[\"供应商 &<>\u2028\u2029Literal\\\\u2028\",{\"empty\":[],\"enabled\":false}]}",
+  "sha256": "2798fca04773e87c6482b8feb4ed739849f9b812d182a682d4e0452a68a43cbb"
+}

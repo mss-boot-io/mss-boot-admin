@@ -50,6 +50,7 @@ describe('Admin web package contract', () => {
         './runtime',
         './runtime/access',
         './runtime/app',
+        './runtime/presentation',
         './runtime/locales/en-US',
         './runtime/locales/zh-CN',
         './styles',

@@ -13,6 +13,14 @@ import (
 )
 
 func canonicalJSON(value any) ([]byte, error) {
+	return canonicalJSONWithMode(value, true)
+}
+
+func canonicalJSONV2(value any) ([]byte, error) {
+	return canonicalJSONWithMode(value, false)
+}
+
+func canonicalJSONWithMode(value any, escapeHTML bool) ([]byte, error) {
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
@@ -24,7 +32,7 @@ func canonicalJSON(value any) ([]byte, error) {
 		return nil, err
 	}
 	var output bytes.Buffer
-	if err = writeCanonicalJSON(&output, generic); err != nil {
+	if err = writeCanonicalJSONValue(&output, generic, escapeHTML); err != nil {
 		return nil, err
 	}
 	return output.Bytes(), nil
@@ -48,14 +56,22 @@ func canonicalJSONBytes(raw []byte) ([]byte, error) {
 }
 
 func writeCanonicalJSON(output *bytes.Buffer, value any) error {
+	return writeCanonicalJSONValue(output, value, true)
+}
+
+func writeCanonicalJSONValue(output *bytes.Buffer, value any, escapeHTML bool) error {
 	switch current := value.(type) {
 	case nil:
 		output.WriteString("null")
 	case bool:
 		output.WriteString(strconv.FormatBool(current))
 	case string:
-		encoded, _ := json.Marshal(current)
-		output.Write(encoded)
+		if escapeHTML {
+			encoded, _ := json.Marshal(current)
+			output.Write(encoded)
+		} else if err := writeCanonicalJSONString(output, current); err != nil {
+			return err
+		}
 	case json.Number:
 		if _, err := strconv.ParseFloat(current.String(), 64); err != nil {
 			return fmt.Errorf("invalid JSON number %q", current)
@@ -67,7 +83,7 @@ func writeCanonicalJSON(output *bytes.Buffer, value any) error {
 			if index > 0 {
 				output.WriteByte(',')
 			}
-			if err := writeCanonicalJSON(output, current[index]); err != nil {
+			if err := writeCanonicalJSONValue(output, current[index], escapeHTML); err != nil {
 				return err
 			}
 		}
@@ -83,10 +99,14 @@ func writeCanonicalJSON(output *bytes.Buffer, value any) error {
 			if index > 0 {
 				output.WriteByte(',')
 			}
-			encoded, _ := json.Marshal(key)
-			output.Write(encoded)
+			if escapeHTML {
+				encoded, _ := json.Marshal(key)
+				output.Write(encoded)
+			} else if err := writeCanonicalJSONString(output, key); err != nil {
+				return err
+			}
 			output.WriteByte(':')
-			if err := writeCanonicalJSON(output, current[key]); err != nil {
+			if err := writeCanonicalJSONValue(output, current[key], escapeHTML); err != nil {
 				return err
 			}
 		}
@@ -94,6 +114,36 @@ func writeCanonicalJSON(output *bytes.Buffer, value any) error {
 	default:
 		return fmt.Errorf("unsupported JSON value %T", value)
 	}
+	return nil
+}
+
+func writeCanonicalJSONString(output *bytes.Buffer, value string) error {
+	output.WriteByte('"')
+	for _, current := range value {
+		switch current {
+		case '"':
+			output.WriteString(`\"`)
+		case '\\':
+			output.WriteString(`\\`)
+		case '\b':
+			output.WriteString(`\b`)
+		case '\t':
+			output.WriteString(`\t`)
+		case '\n':
+			output.WriteString(`\n`)
+		case '\f':
+			output.WriteString(`\f`)
+		case '\r':
+			output.WriteString(`\r`)
+		default:
+			if current < 0x20 {
+				fmt.Fprintf(output, `\u%04x`, current)
+			} else {
+				output.WriteRune(current)
+			}
+		}
+	}
+	output.WriteByte('"')
 	return nil
 }
 

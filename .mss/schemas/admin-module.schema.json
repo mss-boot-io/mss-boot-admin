@@ -77,6 +77,9 @@
         "ui": {
           "$ref": "#/$defs/ui"
         },
+        "presentation": {
+          "$ref": "#/$defs/presentation"
+        },
         "workflow": {
           "$ref": "#/$defs/workflow"
         },
@@ -158,6 +161,10 @@
         "displayName": {
           "type": "string",
           "minLength": 1,
+          "maxLength": 100
+        },
+        "displayNameEn": {
+          "type": "string",
           "maxLength": 100
         },
         "description": {
@@ -532,6 +539,177 @@
           "default": false
         }
       }
+    },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pageKey",
+        "definitionVersion",
+        "title",
+        "dataSource",
+        "list",
+        "search",
+        "form",
+        "detail",
+        "actions"
+      ],
+      "properties": {
+        "pageKey": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$",
+          "maxLength": 120
+        },
+        "definitionVersion": { "const": "2" },
+        "title": { "$ref": "#/$defs/presentationLocalizedTextComplete" },
+        "dataSource": { "$ref": "#/$defs/presentationLocalID" },
+        "list": { "$ref": "#/$defs/presentationList" },
+        "search": { "$ref": "#/$defs/presentationSearch" },
+        "form": { "$ref": "#/$defs/presentationForm" },
+        "detail": { "$ref": "#/$defs/presentationDetail" },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/presentationAction" }
+        }
+      }
+    },
+    "presentationLocalizedTextOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "zh-CN": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "en-US": { "type": "string", "minLength": 1, "maxLength": 200 }
+      }
+    },
+    "presentationLocalizedTextComplete": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["zh-CN", "en-US"],
+      "properties": {
+        "zh-CN": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "en-US": { "type": "string", "minLength": 1, "maxLength": 200 }
+      }
+    },
+    "presentationList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["density", "pageSize", "defaultSort", "fields"],
+      "properties": {
+        "density": {
+          "type": "string",
+          "enum": ["compact", "middle", "large"]
+        },
+        "pageSize": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "defaultSort": {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/presentationSort" }
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/presentationField" }
+        }
+      }
+    },
+    "presentationSearch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["collapsedByDefault", "fields"],
+      "properties": {
+        "collapsedByDefault": { "type": "boolean" },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/presentationField" }
+        }
+      }
+    },
+    "presentationForm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["columns", "fields"],
+      "properties": {
+        "columns": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/presentationField" }
+        }
+      }
+    },
+    "presentationDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["columns", "fields"],
+      "properties": {
+        "columns": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/presentationField" }
+        }
+      }
+    },
+    "presentationField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "component", "order"],
+      "properties": {
+        "field": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z0-9]*$",
+          "maxLength": 64
+        },
+        "label": { "$ref": "#/$defs/presentationLocalizedTextOverride" },
+        "component": { "$ref": "#/$defs/presentationLocalID" },
+        "allowedComponents": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/presentationLocalID" }
+        },
+        "order": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "hidden": { "type": "boolean", "default": false },
+        "width": { "type": "integer", "minimum": 60, "maximum": 1200 },
+        "span": { "type": "integer", "minimum": 1, "maximum": 24 },
+        "placeholder": { "$ref": "#/$defs/presentationLocalizedTextComplete" },
+        "help": { "$ref": "#/$defs/presentationLocalizedTextComplete" }
+      }
+    },
+    "presentationSort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "direction"],
+      "properties": {
+        "field": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z0-9]*$",
+          "maxLength": 64
+        },
+        "direction": { "type": "string", "enum": ["asc", "desc"] }
+      }
+    },
+    "presentationAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "placement", "order"],
+      "properties": {
+        "action": { "$ref": "#/$defs/presentationLocalID" },
+        "label": { "$ref": "#/$defs/presentationLocalizedTextOverride" },
+        "placement": {
+          "type": "string",
+          "enum": ["toolbar", "row", "form", "detail"]
+        },
+        "order": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "hidden": { "type": "boolean", "default": false },
+        "confirm": { "$ref": "#/$defs/presentationLocalizedTextComplete" }
+      }
+    },
+    "presentationLocalID": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "maxLength": 64
     },
     "workflow": {
       "type": "object",

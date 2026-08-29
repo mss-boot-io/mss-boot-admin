@@ -121,6 +121,11 @@
       "import": "./src/app.tsx",
       "default": "./src/app.tsx"
     },
+    "./runtime/presentation": {
+      "types": "./src/shared/presentation/contract.ts",
+      "import": "./src/shared/presentation/contract.ts",
+      "default": "./src/shared/presentation/contract.ts"
+    },
     "./runtime/locales/en-US": {
       "types": "./package/locales/en-US.ts",
       "import": "./package/locales/en-US.ts",

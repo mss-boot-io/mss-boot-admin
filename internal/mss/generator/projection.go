@@ -184,6 +184,9 @@ func buildProjectionReport(module *spec.Module) ([]Projection, error) {
 	add("spec.menu", ProjectionImplemented, "menu path, parent, icon, order, visibility, permission metadata, and default-role policies are persisted transactionally", "authorization-policy", "menu-migration", "tests")
 	add("spec.menu", ProjectionImplemented, "the generated Umi route and synchronized locales bind the persisted menu path to the typed module page", "frontend-route", "frontend-locales", "frontend-tests")
 	add("spec.ui", ProjectionImplemented, "list, create/edit form, detail, responsive layout, export, loading, empty, error, forbidden, conflict, and destructive confirmation states are generated as declared", "frontend", "frontend-tests")
+	if module.Spec.Presentation != nil {
+		add("spec.presentation", ProjectionImplemented, "one normalized version 2 manifest produces matching backend, frontend, adapter, snapshot, executable contract tests, and explicit inventory projections", "backend-presentation", "frontend-presentation", "presentation-adapter", "presentation-manifest", "presentation-tests", "presentation-registries")
+	}
 	if module.Spec.Workflow != nil {
 		add("spec.workflow", ProjectionUnsupported, "workflow generation is outside this backend checkpoint", "api", "migration", "service", "tests")
 	}

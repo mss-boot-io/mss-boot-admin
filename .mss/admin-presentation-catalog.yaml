@@ -1,0 +1,90 @@
+apiVersion: mss.io/v1alpha1
+kind: AdminPresentationCatalog
+metadata:
+  name: admin-presentation-v2
+  definitionVersion: "2"
+spec:
+  components:
+    - id: boolean
+      valueTypes: [boolean]
+      formats: [plain]
+      surfaces: [list, detail]
+      readOnly: any
+    - id: boolean-filter
+      valueTypes: [boolean]
+      formats: [plain]
+      surfaces: [search]
+      readOnly: any
+    - id: copyable-code
+      valueTypes: [string, integer]
+      formats: [identifier]
+      surfaces: [detail]
+      readOnly: required
+    - id: date-time
+      valueTypes: [date-time]
+      formats: [date-time]
+      surfaces: [detail]
+      readOnly: required
+    - id: email-input
+      valueTypes: [string]
+      formats: [email]
+      surfaces: [form]
+      readOnly: forbidden
+    - id: input
+      valueTypes: [string]
+      formats: [plain, identifier]
+      surfaces: [search, form]
+      readOnly: forbidden
+    - id: select
+      valueTypes: [enum]
+      formats: [plain]
+      surfaces: [search, form]
+      readOnly: forbidden
+    - id: switch
+      valueTypes: [boolean]
+      formats: [plain]
+      surfaces: [form]
+      readOnly: forbidden
+    - id: tag
+      valueTypes: [enum]
+      formats: [plain]
+      surfaces: [list, detail]
+      readOnly: any
+    - id: text
+      valueTypes: [string]
+      formats: [plain, email, identifier]
+      surfaces: [list, detail]
+      readOnly: any
+  dataSources:
+    - id: list
+      apiOperation: list
+      permissionAction: list
+      pageSizeOptions: [20, 50, 100]
+      maxPageSize: 100
+      maxSortFields: 1
+  actions:
+    - id: create
+      apiOperation: create
+      permissionAction: create
+      placements: [toolbar]
+      destructive: false
+    - id: delete
+      apiOperation: delete
+      permissionAction: delete
+      placements: [row]
+      destructive: true
+    - id: export
+      apiOperation: export
+      permissionAction: export
+      placements: [toolbar]
+      destructive: false
+    - id: read
+      apiOperation: get
+      permissionAction: read
+      placements: [row, detail]
+      destructive: false
+    - id: update
+      apiOperation: update
+      permissionAction: update
+      placements: [row, form]
+      destructive: false

@@ -110,11 +110,22 @@ func TestCapabilityRegistryValidatesHashDuplicatesAndProtectedPages(t *testing.T
 	require.NoError(t, err)
 	require.ErrorIs(t, registry.Register(capability), ErrCapabilityAlreadyRegistered)
 
-	protected := capability
-	protected.PageKey = "authorization.roles"
-	protected.DefinitionHash, err = ComputeDefinitionHash(&protected)
+	for _, pageKey := range []string{
+		"account.users", "app-config.theme", "authorization.roles", "config.theme",
+		"login.page", "presentation.governance", "system.settings",
+	} {
+		protected := capability
+		protected.PageKey = pageKey
+		protected.DefinitionHash, err = ComputeDefinitionHash(&protected)
+		require.NoError(t, err)
+		require.Contains(t, issueCodes(ValidateCapability(&protected)), "protected-page", pageKey)
+	}
+
+	overlong := capability
+	overlong.PageKey = "a." + strings.Repeat("b", 119)
+	overlong.DefinitionHash, err = ComputeDefinitionHash(&overlong)
 	require.NoError(t, err)
-	require.Contains(t, issueCodes(ValidateCapability(&protected)), "protected-page")
+	require.Contains(t, issueCodes(ValidateCapability(&overlong)), "invalid-identifier")
 
 	duplicate := capability
 	duplicate.Fields = append(duplicate.Fields, duplicate.Fields[0])
@@ -175,6 +186,182 @@ func TestDefinitionHashCoversCompatibilityButNotDefaultPresentation(t *testing.T
 	require.NotEqual(t, original, hash)
 }
 
+func TestVersionOneWireSerializationKeepsZeroValuedVersionTwoFactsCompatible(t *testing.T) {
+	capability := validCapability(t)
+	raw, err := json.Marshal(capability)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"format":""`)
+	require.Contains(t, string(raw), `"surfaceComponents":null`)
+	require.Contains(t, string(raw), `"enumValues":null`)
+	require.Contains(t, string(raw), `"validation":{}`)
+}
+
+func TestVersionOneActionlessCapabilityKeepsHistoricalDefinitionHash(t *testing.T) {
+	label := text("状态", "Status")
+	capability := CapabilityDefinition{
+		PageKey:           "orders.list",
+		DefinitionVersion: DefinitionVersionV1,
+		Components:        []CapabilityComponent{{ID: "text"}},
+		Fields: []CapabilityField{{
+			ID: "status", Label: label, ValueType: "string",
+			Surfaces: []Surface{SurfaceList}, Components: []string{"text"},
+		}},
+		DataSources: []CapabilityDataSource{{
+			ID: "orders.list", RequiredPermissions: []string{"/orders"},
+		}},
+		Actions: nil,
+		DefaultPresentation: CompletePresentation{
+			Title: label, DataSource: "orders.list",
+			List: CompleteListPresentation{
+				Columns: []CompleteField{{Field: "status", Component: "text", Order: 0}},
+				Density: "middle", PageSize: 20, DefaultSort: []Sort{},
+			},
+			Form:    CompleteFormPresentation{Columns: 1},
+			Detail:  CompleteDetailPresentation{Columns: 1},
+			Actions: nil,
+		},
+	}
+
+	hash, err := ComputeDefinitionHash(&capability)
+	require.NoError(t, err)
+	require.Equal(t, "sha256:73ccff32c5e5e165826dd1aabbe99dbacea36d404a3388800b5fb38a7a4cd030", hash)
+	capability.DefinitionHash = hash
+	require.Empty(t, ValidateCapability(&capability))
+
+	capability.Actions = []CapabilityAction{}
+	emptyHash, err := ComputeDefinitionHash(&capability)
+	require.NoError(t, err)
+	require.NotEqual(t, hash, emptyHash)
+}
+
+func TestVersionOneDefinitionHashDistinguishesNilAndEmptyLegacySlices(t *testing.T) {
+	base := CapabilityDefinition{PageKey: "orders.list", DefinitionVersion: DefinitionVersionV1}
+	tests := []struct {
+		name      string
+		makeEmpty func(*CapabilityDefinition)
+	}{
+		{name: "fields", makeEmpty: func(capability *CapabilityDefinition) { capability.Fields = []CapabilityField{} }},
+		{name: "data sources", makeEmpty: func(capability *CapabilityDefinition) { capability.DataSources = []CapabilityDataSource{} }},
+		{name: "actions", makeEmpty: func(capability *CapabilityDefinition) { capability.Actions = []CapabilityAction{} }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			nilHash, err := ComputeDefinitionHash(&base)
+			require.NoError(t, err)
+			withEmpty := base
+			test.makeEmpty(&withEmpty)
+			emptyHash, err := ComputeDefinitionHash(&withEmpty)
+			require.NoError(t, err)
+			require.NotEqual(t, nilHash, emptyHash)
+		})
+	}
+}
+
+func TestVersionOneKeepsHistoricalQualifiedFieldIdentifiersCompatible(t *testing.T) {
+	capability := validCapability(t)
+	const legacyFieldID = "status-code"
+	capability.Fields[0].ID = legacyFieldID
+	capability.DefaultPresentation.List.Columns[0].Field = legacyFieldID
+	capability.DefaultPresentation.List.DefaultSort[0].Field = legacyFieldID
+	capability.DefaultPresentation.Search.Fields[0].Field = legacyFieldID
+	capability.DefaultPresentation.Form.Fields[0].Field = legacyFieldID
+	capability.DefaultPresentation.Detail.Fields[0].Field = legacyFieldID
+	var err error
+	capability.DefinitionHash, err = ComputeDefinitionHash(&capability)
+	require.NoError(t, err)
+	require.Empty(t, ValidateCapability(&capability))
+}
+
+func TestDefinitionHashVersionTwoCoversCompleteDefaultsAndUsesUTF8JSON(t *testing.T) {
+	capability := validCapabilityV2(t)
+	original := capability.DefinitionHash
+
+	capability.DefaultPresentation.Title = text("订单 &<>", "Orders &<>")
+	hash, err := ComputeDefinitionHash(&capability)
+	require.NoError(t, err)
+	require.NotEqual(t, original, hash)
+
+	canonical, err := canonicalJSONV2(map[string]any{"text": "中文 &<>\u2028\u2029Literal\\u2028"})
+	require.NoError(t, err)
+	require.Equal(t, `{"text":"中文 &<>`+"\u2028\u2029"+`Literal\\u2028"}`, string(canonical))
+}
+
+func TestVersionTwoComponentSelectionUsesSurfaceBindings(t *testing.T) {
+	capability := validCapabilityV2(t)
+	document, issues := ParseDocument([]byte(validProfileJSON(`{
+  "list":{"columns":[{"field":"status","component":"select"}]}
+}`)))
+	require.Empty(t, issues)
+	document.Profile.Metadata.DefinitionHash = capability.DefinitionHash
+	issues = ValidateProfile(&capability, document.Profile)
+	require.Contains(t, issueCodes(issues), "unsupported-field-component")
+
+	capability.DefaultPresentation.List.Columns[0].Component = "select"
+	var err error
+	capability.DefinitionHash, err = ComputeDefinitionHash(&capability)
+	require.NoError(t, err)
+	require.Contains(t, issueCodes(ValidateCapability(&capability)), "unsupported-field-component")
+}
+
+func TestVersionTwoRejectsNonPortableCompiledPattern(t *testing.T) {
+	for _, pattern := range []string{
+		`(?P<status>[A-Z]+)`, `^.$`, `^\s$`, `^\S$`, `^\u0041$`, `^\cA$`,
+		`^[\b]$`, `^a{1001}$`, `^[]a]$`, `^[]$`, `^[^]$`, `^a{$`, `^a}$`, `^a]$`,
+		`^\-$`, `^\_$`, `^\#$`,
+	} {
+		capability := validCapabilityV2(t)
+		capability.Fields[0].Validation.Pattern = pattern
+		var err error
+		capability.DefinitionHash, err = ComputeDefinitionHash(&capability)
+		require.NoError(t, err)
+		require.Contains(t, issueCodes(ValidateCapability(&capability)), "non-portable-field-pattern", pattern)
+	}
+}
+
+func TestVersionTwoAcceptsUnicodeSafePortablePatterns(t *testing.T) {
+	for _, pattern := range []string{
+		`^[A-Z0-9_-]+$`, `^[^A]$`, `^[^\n]$`, `^[\t\n\f\r ]$`, `^[\-]$`, `^(\{|\}|\])$`,
+	} {
+		capability := validCapabilityV2(t)
+		capability.Fields[0].Validation.Pattern = pattern
+		var err error
+		capability.DefinitionHash, err = ComputeDefinitionHash(&capability)
+		require.NoError(t, err)
+		require.NotContains(t, issueCodes(ValidateCapability(&capability)), "non-portable-field-pattern", pattern)
+	}
+}
+
+func TestVersionTwoCapabilityEnforcesCompiledPaginationAndSortLimits(t *testing.T) {
+	capability := validCapabilityV2(t)
+	document, issues := ParseDocument([]byte(validProfileJSON(`{
+  "list":{"pageSize":200,"defaultSort":[
+    {"field":"status","direction":"asc"},
+    {"field":"status","direction":"desc"}
+  ]}
+}`)))
+	require.Empty(t, issues)
+	document.Profile.Metadata.DefinitionHash = capability.DefinitionHash
+
+	issues = ValidateProfile(&capability, document.Profile)
+	require.Subset(t, issueCodes(issues), []string{
+		"page-size-exceeds-data-source-limit",
+		"unsupported-page-size",
+		"too-many-data-source-sort-fields",
+	})
+
+	unsupported := capability
+	unsupported.DefinitionVersion = "3"
+	issues = ValidateCapability(&unsupported)
+	require.Contains(t, issueCodes(issues), "unsupported-definition-version")
+
+	zeroSortLimit := validCapabilityV2(t)
+	zeroSortLimit.DataSources[0].MaxSortFields = 0
+	hash, err := ComputeDefinitionHash(&zeroSortLimit)
+	require.NoError(t, err)
+	zeroSortLimit.DefinitionHash = hash
+	require.Contains(t, issueCodes(ValidateCapability(&zeroSortLimit)), "invalid-max-sort-fields")
+}
+
 func validCapability(t *testing.T) CapabilityDefinition {
 	t.Helper()
 	capability := CapabilityDefinition{
@@ -210,6 +397,31 @@ func validCapability(t *testing.T) CapabilityDefinition {
 			Actions: []CompleteAction{{Action: "orders.read", Placement: PlacementRow, Order: 10}},
 		},
 	}
+	var err error
+	capability.DefinitionHash, err = ComputeDefinitionHash(&capability)
+	require.NoError(t, err)
+	return capability
+}
+
+func validCapabilityV2(t *testing.T) CapabilityDefinition {
+	t.Helper()
+	capability := validCapability(t)
+	capability.DefinitionVersion = DefinitionVersionV2
+	capability.Fields[0].Format = "plain"
+	capability.Fields[0].Searchable = true
+	capability.Fields[0].SurfaceComponents = []CapabilitySurfaceComponents{
+		{Surface: SurfaceList, Components: []string{"text"}},
+		{Surface: SurfaceSearch, Components: []string{"select"}},
+		{Surface: SurfaceForm, Components: []string{"select"}},
+		{Surface: SurfaceDetail, Components: []string{"text"}},
+	}
+	capability.Fields[0].EnumValues = []CapabilityEnumValue{
+		{Value: "open", Label: text("开放", "Open"), Color: "green"},
+		{Value: "closed", Label: text("关闭", "Closed"), Color: "red"},
+	}
+	capability.DataSources[0].PageSizeOptions = []int{20, 50, 100}
+	capability.DataSources[0].MaxPageSize = 100
+	capability.DataSources[0].MaxSortFields = 1
 	var err error
 	capability.DefinitionHash, err = ComputeDefinitionHash(&capability)
 	require.NoError(t, err)

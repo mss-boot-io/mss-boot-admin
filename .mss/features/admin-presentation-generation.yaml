@@ -183,7 +183,7 @@ spec:
         - type: test
           value: internal/mss/generator presentation output suites
         - type: command
-          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend antd-v6 --check
+          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --check
     - id: supplier-staging-parity-gate
       requirement: preserve-supplier-runtime-parity
       statement: Generated Supplier Go and TypeScript definitions share one version 2 identity, match current compiled defaults, and remain absent from production route and application imports.

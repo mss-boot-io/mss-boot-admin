@@ -98,7 +98,7 @@ spec:
       kind: infrastructure
       operation: create
       description: Reports capability hashes and profile drift across generation and Distribution upgrades.
-    - name: supplier-production-adoption
+    - name: supplier
       kind: admin-module
       operation: extend
       specPath: .mss/modules/example-supplier.yaml
@@ -276,7 +276,7 @@ spec:
       description: Supplier proves generation, publication, runtime application, drift, recovery, and no-profile parity before broader rollout.
       priority: must
       actor: platform-maintainer
-      module: supplier-production-adoption
+      module: supplier
       rules:
         - The handwritten P0 Supplier prototype is replaced by generator-owned Go and TypeScript projections sourced from .mss/modules/example-supplier.yaml.
         - Supplier retains the stable supplier.list page key and existing compiled API, query, permission, route, CRUD, export, validation, and locale contracts.

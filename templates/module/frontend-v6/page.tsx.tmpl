@@ -52,6 +52,9 @@ import {
   PageLoading,
   type InitialState,
 } from '{{ .AdminWebPackage }}/runtime';
+{{- if and .Presentation.Enabled .NeedsRegexp }}
+import { compilePortablePresentationPattern } from '{{ .AdminWebPackage }}/runtime/presentation';
+{{- end }}
 import { {{ .ModuleName }}API } from './api';
 import { build{{ .ModelName }}Query, get{{ .ModelName }}Capabilities } from './contract';
 import {
@@ -572,7 +575,7 @@ export default function {{ .ModelName }}Page() {
 {{- end }}
 {{- if .HasPattern }}
               {
-                pattern: new RegExp({{ .PatternTS }}),
+                pattern: {{ if $.Presentation.Enabled }}compilePortablePresentationPattern({{ .PatternTS }}){{ else }}new RegExp({{ .PatternTS }}){{ end }},
                 message: intl.formatMessage({ id: `${localePrefix}.validation.{{ .JSONName }}.pattern` }),
               },
 {{- end }}
