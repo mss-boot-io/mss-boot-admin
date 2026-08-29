@@ -7,6 +7,8 @@ export const PRESENTATION_PAGE_SIZE = 100;
 
 export type PresentationScope = 'application' | 'role' | 'user';
 
+export type PresentationAdoptionMode = 'active' | 'disabled' | 'shadow';
+
 export type PresentationJSONValue =
   | boolean
   | null
@@ -58,6 +60,8 @@ export interface PresentationCapability {
 export interface PresentationCapabilityCatalog {
   items: PresentationCapability[];
   recoveryMode: boolean;
+  adoptionMode: PresentationAdoptionMode;
+  activePages: string[];
 }
 
 export interface PresentationProfileIdentity {
@@ -411,7 +415,26 @@ export function parsePresentationCapabilityCatalog(value: unknown): Presentation
   if (new Set(items.map((item) => item.pageKey)).size !== items.length) {
     throw invalidResponse();
   }
-  return { items, recoveryMode: requiredBoolean(value, 'recoveryMode') };
+  const adoptionMode = value.adoptionMode;
+  if (adoptionMode !== 'active' && adoptionMode !== 'disabled' && adoptionMode !== 'shadow') {
+    throw invalidResponse();
+  }
+  const recoveryMode = requiredBoolean(value, 'recoveryMode');
+  const activePages = stringArray(value.activePages, 500);
+  const registeredPages = new Set(items.map((item) => item.pageKey));
+  if (
+    new Set(activePages).size !== activePages.length ||
+    activePages.some((pageKey) => [...pageKey].length > 120) ||
+    (!recoveryMode && activePages.some((pageKey) => !registeredPages.has(pageKey)))
+  ) {
+    throw invalidResponse();
+  }
+  return {
+    items,
+    recoveryMode,
+    adoptionMode,
+    activePages,
+  };
 }
 
 function parseScope(value: unknown): PresentationScope {

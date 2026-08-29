@@ -46,6 +46,27 @@ func ValidateFile(path string) (*ValidatedDocument, error) {
 	}
 	cleanPath := filepath.ToSlash(path)
 	switch header.Kind {
+	case CorePagePresentationKind:
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil, fmt.Errorf("read core page presentation: %w", readErr)
+		}
+		document, parseErr := ParseCorePagePresentation(data, cleanPath)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		return &ValidatedDocument{
+			Path:       cleanPath,
+			APIVersion: document.APIVersion,
+			Kind:       document.Kind,
+			Name:       document.Metadata.Name,
+			Summary: map[string]any{
+				"binding": document.Spec.Binding,
+				"pageKey": document.Spec.PageKey,
+				"version": document.Spec.DefinitionVersion,
+			},
+			Document: document,
+		}, nil
 	case "AdminModule":
 		module, err := LoadModule(path)
 		if err != nil {

@@ -364,7 +364,7 @@ func TestVersionTwoCapabilityEnforcesCompiledPaginationAndSortLimits(t *testing.
 	hash, err := ComputeDefinitionHash(&zeroSortLimit)
 	require.NoError(t, err)
 	zeroSortLimit.DefinitionHash = hash
-	require.Contains(t, issueCodes(ValidateCapability(&zeroSortLimit)), "invalid-max-sort-fields")
+	require.NotContains(t, issueCodes(ValidateCapability(&zeroSortLimit)), "invalid-max-sort-fields")
 }
 
 func validCapability(t *testing.T) CapabilityDefinition {

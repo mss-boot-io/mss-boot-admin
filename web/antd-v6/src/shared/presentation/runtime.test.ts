@@ -7,9 +7,10 @@ import {
   ADMIN_PRESENTATION_KIND,
   type AdminPagePresentationProfile,
   type PageCapabilityDefinition,
+  type PagePresentationScope,
 } from './contract';
 import { parseEffectivePresentationResponse } from './effective';
-import { resolveEffectivePagePresentation } from './runtime';
+import { createEffectivePresentationAPI, resolveEffectivePagePresentation } from './runtime';
 
 const definition = supplierPresentationDefinition as PageCapabilityDefinition;
 const entry = {
@@ -37,7 +38,10 @@ function user(root = false): CurrentUser {
   };
 }
 
-function profile(spec: AdminPagePresentationProfile['spec']): AdminPagePresentationProfile {
+function profile(
+  spec: AdminPagePresentationProfile['spec'],
+  scope: PagePresentationScope = { kind: 'application' },
+): AdminPagePresentationProfile {
   return {
     apiVersion: ADMIN_PRESENTATION_API_VERSION,
     kind: ADMIN_PRESENTATION_KIND,
@@ -45,7 +49,7 @@ function profile(spec: AdminPagePresentationProfile['spec']): AdminPagePresentat
       name: 'supplier-application',
       pageKey: definition.pageKey,
       definitionHash: definition.definitionHash,
-      scope: { kind: 'application' },
+      scope,
     },
     spec,
   };
@@ -130,6 +134,37 @@ describe('effective presentation runtime', () => {
     expect(runtime.model.actions.map((action) => action.action)).not.toContain('supplier.export');
   });
 
+  it('merges application, role, and user layers in deterministic precedence order', () => {
+    const runtime = resolveEffectivePagePresentation({
+      entry,
+      locale: 'en-US',
+      user: user(),
+      response: effective('active', {
+        application: profile({
+          title: { 'en-US': 'Application suppliers' },
+          list: { density: 'compact' },
+        }),
+        role: profile(
+          {
+            title: { 'en-US': 'Role suppliers' },
+            list: { pageSize: 50 },
+          },
+          { kind: 'role', subject: 'role-1' },
+        ),
+        user: profile(
+          { title: { 'en-US': 'Personal suppliers' } },
+          { kind: 'user', subject: 'user-1' },
+        ),
+      }),
+      settled: true,
+    });
+
+    expect(runtime.source).toBe('active');
+    expect(runtime.model.title).toBe('Personal suppliers');
+    expect(runtime.model.list.density).toBe('compact');
+    expect(runtime.model.list.pageSize).toBe(50);
+  });
+
   it('fails closed for mismatched identity and intersects action permissions last', () => {
     const mismatched = resolveEffectivePagePresentation({
       entry,
@@ -148,7 +183,9 @@ describe('effective presentation runtime', () => {
       entry,
       locale: 'en-US',
       user: limited,
-      response: effective('active'),
+      response: effective('active', {
+        application: profile({ actions: [{ action: 'supplier.export', hidden: false }] }),
+      }),
       settled: true,
     });
 
@@ -168,6 +205,26 @@ describe('effective presentation runtime', () => {
         diagnostics: [],
       }),
     ).toThrow('Invalid effective presentation response');
+  });
+
+  it('aborts a bounded effective request without retrying or blocking the caller', async () => {
+    let attempts = 0;
+    const api = createEffectivePresentationAPI(
+      (_path, options) =>
+        new Promise((_resolve, reject) => {
+          attempts += 1;
+          options.signal.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          );
+        }),
+    );
+
+    await expect(
+      api.load(definition.pageKey, new AbortController().signal, 1),
+    ).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(attempts).toBe(1);
   });
 });
 

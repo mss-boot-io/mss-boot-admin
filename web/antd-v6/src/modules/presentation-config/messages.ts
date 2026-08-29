@@ -15,6 +15,36 @@ const messages = {
     '当前没有页面开放展示配置；运行时继续使用代码默认值。',
   ],
   'presentation.recovery.title': ['Presentation recovery is active', '展示恢复模式已启用'],
+  'presentation.recovery.description': [
+    'Recovery overrides runtime adoption. Pages use compiled defaults while profiles and publication history remain manageable.',
+    '恢复模式会覆盖运行时采用策略；页面使用代码默认值，同时仍可管理配置档案和发布历史。',
+  ],
+  'presentation.adoption.active.title': [
+    'Runtime presentation adoption is active',
+    '运行时展示配置已启用',
+  ],
+  'presentation.adoption.active.description': [
+    'Published profiles apply at runtime only to the configured active pages.',
+    '已发布配置仅会在配置的活动页面中于运行时生效。',
+  ],
+  'presentation.adoption.shadow.title': [
+    'Runtime presentation adoption is in shadow mode',
+    '运行时展示配置处于影子模式',
+  ],
+  'presentation.adoption.shadow.description': [
+    'Published profiles are resolved for diagnostics, but pages continue to use compiled defaults.',
+    '已发布配置会被解析用于诊断，但页面仍继续使用代码默认值。',
+  ],
+  'presentation.adoption.disabled.title': [
+    'Runtime presentation adoption is disabled',
+    '运行时展示配置未启用',
+  ],
+  'presentation.adoption.disabled.description': [
+    'Profiles remain manageable, but runtime pages use compiled defaults.',
+    '配置档案仍可管理，但运行时页面使用代码默认值。',
+  ],
+  'presentation.adoption.activePages': ['Configured active pages:', '已配置活动页面：'],
+  'presentation.adoption.activePages.empty': ['None', '无'],
   'presentation.profile': ['Profile', '配置档案'],
   'presentation.state': ['State', '状态'],
   'presentation.version': ['Version', '版本'],

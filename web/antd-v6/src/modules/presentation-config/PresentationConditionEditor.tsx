@@ -49,6 +49,12 @@ function defaultConditionValue(field: PageCapabilityField | undefined): Presenta
   return '';
 }
 
+function isScalarArray(
+  value: PresentationScalar | readonly PresentationScalar[] | undefined,
+): value is readonly PresentationScalar[] {
+  return Array.isArray(value);
+}
+
 function valueForOperator(
   operator: PresentationPredicateOperator,
   field: PageCapabilityField | undefined,
@@ -57,10 +63,10 @@ function valueForOperator(
   if (operator === 'exists' || operator === 'not-exists') return undefined;
   const fallback = defaultConditionValue(field);
   if (operator === 'in' || operator === 'not-in') {
-    if (Array.isArray(current)) return current;
+    if (isScalarArray(current)) return current;
     return [current ?? fallback];
   }
-  if (Array.isArray(current)) return current[0] ?? fallback;
+  if (isScalarArray(current)) return current[0] ?? fallback;
   return current ?? fallback;
 }
 

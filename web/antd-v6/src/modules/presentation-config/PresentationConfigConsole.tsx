@@ -341,13 +341,48 @@ export default function PresentationConfigConsole({
     );
   }
   const recoveryNotice = capabilities.data?.recoveryMode ? (
-    <Alert title={intl.formatMessage({ id: 'presentation.recovery.title' })} type="warning" />
+    <Alert
+      description={intl.formatMessage({ id: 'presentation.recovery.description' })}
+      showIcon
+      title={intl.formatMessage({ id: 'presentation.recovery.title' })}
+      type="warning"
+    />
   ) : null;
+  const adoptionMode = capabilities.data?.adoptionMode ?? 'disabled';
+  const activePages = capabilities.data?.activePages ?? [];
+  const adoptionNotice = (
+    <Alert
+      description={
+        <Space orientation="vertical" size={4}>
+          <Typography.Text>
+            {intl.formatMessage({ id: `presentation.adoption.${adoptionMode}.description` })}
+          </Typography.Text>
+          <Space size={[4, 4]} wrap>
+            <Typography.Text strong>
+              {intl.formatMessage({ id: 'presentation.adoption.activePages' })}
+            </Typography.Text>
+            {activePages.length ? (
+              activePages.map((activePage) => <Tag key={activePage}>{activePage}</Tag>)
+            ) : (
+              <Typography.Text type="secondary">
+                {intl.formatMessage({ id: 'presentation.adoption.activePages.empty' })}
+              </Typography.Text>
+            )}
+          </Space>
+        </Space>
+      }
+      showIcon
+      title={intl.formatMessage({ id: `presentation.adoption.${adoptionMode}.title` })}
+      type={adoptionMode === 'active' ? 'success' : 'info'}
+    />
+  );
   if (!capabilityItems.length && !profiles.data?.items.length) {
     return (
-      recoveryNotice ?? (
+      <Space orientation="vertical" size="middle" className="w-full">
+        {recoveryNotice}
+        {adoptionNotice}
         <PageEmpty description={intl.formatMessage({ id: 'presentation.capabilities.empty' })} />
-      )
+      </Space>
     );
   }
 
@@ -497,6 +532,7 @@ export default function PresentationConfigConsole({
   return (
     <Space orientation="vertical" size="middle" className="w-full">
       {recoveryNotice}
+      {adoptionNotice}
       {!capabilityItems.length ? (
         <PageEmpty description={intl.formatMessage({ id: 'presentation.capabilities.empty' })} />
       ) : null}

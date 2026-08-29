@@ -294,7 +294,7 @@ describe('Admin page presentation contract', () => {
       ...dataSource,
       maxSortFields: 0,
     }));
-    expect(validatePageCapabilityDefinition(zeroSortLimit)).toEqual(
+    expect(validatePageCapabilityDefinition(zeroSortLimit)).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ code: 'invalid-max-sort-fields' })]),
     );
   });

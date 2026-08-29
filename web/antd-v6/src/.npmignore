@@ -1,6 +1,9 @@
 .umi/
 .umi-production/
-generated/
+generated/locales/
+generated/modules/
+generated/presentation-registry.generated.ts
+generated/routes.ts
 locales/
 pages/generated/
 **/*.test.ts

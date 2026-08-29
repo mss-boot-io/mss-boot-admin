@@ -55,12 +55,13 @@ type PresentationCatalogComponent struct {
 }
 
 type PresentationCatalogDataSource struct {
-	ID               string `yaml:"id" json:"id"`
-	APIOperation     string `yaml:"apiOperation" json:"apiOperation"`
-	PermissionAction string `yaml:"permissionAction" json:"permissionAction"`
-	PageSizeOptions  []int  `yaml:"pageSizeOptions" json:"pageSizeOptions"`
-	MaxPageSize      int    `yaml:"maxPageSize" json:"maxPageSize"`
-	MaxSortFields    int    `yaml:"maxSortFields" json:"maxSortFields"`
+	ID                   string `yaml:"id" json:"id"`
+	APIOperation         string `yaml:"apiOperation" json:"apiOperation"`
+	PermissionAction     string `yaml:"permissionAction" json:"permissionAction"`
+	PageSizeOptions      []int  `yaml:"pageSizeOptions" json:"pageSizeOptions"`
+	MaxPageSize          int    `yaml:"maxPageSize" json:"maxPageSize"`
+	MaxSortFields        int    `yaml:"maxSortFields" json:"maxSortFields"`
+	maxSortFieldsOmitted bool
 }
 
 type PresentationCatalogAction struct {
@@ -216,8 +217,8 @@ func (c *PresentationCatalog) Validate() []Issue {
 		if dataSource.MaxPageSize < 1 || dataSource.MaxPageSize > 200 {
 			add(path+".maxPageSize", "max-page-size-out-of-range", "maximum page size must be between 1 and 200")
 		}
-		if dataSource.MaxSortFields < 1 || dataSource.MaxSortFields > 3 {
-			add(path+".maxSortFields", "max-sort-fields-out-of-range", "maximum sort fields must be between 1 and 3")
+		if dataSource.maxSortFieldsOmitted || dataSource.MaxSortFields < 0 || dataSource.MaxSortFields > 3 {
+			add(path+".maxSortFields", "max-sort-fields-out-of-range", "maximum sort fields must be between 0 and 3")
 		}
 	}
 	if len(c.Spec.DataSources) == 0 {

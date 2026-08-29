@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mss-boot-io/mss-boot-admin/admin/modules/supplier"
+	"github.com/mss-boot-io/mss-boot-admin/admin/presentation"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
 )
 
@@ -39,6 +40,49 @@ func TestApplicationsConstructWithoutRegistryPollution(t *testing.T) {
 	if err := supplier.RegisterMigration(afterConstruction); err != nil {
 		t.Fatalf("Application construction polluted global migrations: %v", err)
 	}
+}
+
+func TestApplicationsAlwaysIncludeFrozenCorePresentationInventory(t *testing.T) {
+	application, err := New()
+	if err != nil {
+		t.Fatalf("construct zero-business Application: %v", err)
+	}
+	definitions := application.PresentationDefinitions()
+	if !hasPresentationPage(definitions, "user.list") {
+		t.Fatalf("zero-business presentation inventory = %#v, want user.list", definitions)
+	}
+
+	definitions[0].PageKey = "mutated.list"
+	if current := application.PresentationDefinitions(); !hasPresentationPage(current, "user.list") {
+		t.Fatalf("mutating Application inventory escaped into registry: %#v", current)
+	}
+	presentationRegistry, err := application.registry.PresentationRegistry()
+	if err != nil {
+		t.Fatalf("application presentation registry: %v", err)
+	}
+	if err := presentationRegistry.Register(definitions[0]); !errors.Is(err, presentation.ErrRegistryFrozen) {
+		t.Fatalf("application presentation registry mutation error = %v", err)
+	}
+
+	withSupplier, err := New(WithBusinessModules(supplier.Module()))
+	if err != nil {
+		t.Fatalf("construct Application with Supplier: %v", err)
+	}
+	completeInventory := withSupplier.PresentationDefinitions()
+	for _, pageKey := range []string{"supplier.list", "user.list"} {
+		if !hasPresentationPage(completeInventory, pageKey) {
+			t.Fatalf("complete presentation inventory = %#v, want %s", completeInventory, pageKey)
+		}
+	}
+}
+
+func hasPresentationPage(definitions []presentation.CapabilityDefinition, pageKey string) bool {
+	for index := range definitions {
+		if definitions[index].PageKey == pageKey {
+			return true
+		}
+	}
+	return false
 }
 
 func TestDeprecatedCommandFailsClosedWithoutExecutableTree(t *testing.T) {

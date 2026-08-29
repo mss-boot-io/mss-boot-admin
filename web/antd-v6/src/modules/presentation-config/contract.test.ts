@@ -93,26 +93,78 @@ const draftProfile = {
 describe('presentation configuration contract', () => {
   it('accepts a bounded capability catalog and rejects duplicate page keys', () => {
     expect(
-      parsePresentationCapabilityCatalog({ items: [capability], recoveryMode: false }),
-    ).toMatchObject({ items: [{ pageKey: 'orders.list' }], recoveryMode: false });
+      parsePresentationCapabilityCatalog({
+        items: [capability],
+        recoveryMode: false,
+        adoptionMode: 'active',
+        activePages: ['orders.list'],
+      }),
+    ).toMatchObject({
+      items: [{ pageKey: 'orders.list' }],
+      recoveryMode: false,
+      adoptionMode: 'active',
+      activePages: ['orders.list'],
+    });
     expect(() =>
       parsePresentationCapabilityCatalog({
         items: [capability, capability],
         recoveryMode: false,
+        adoptionMode: 'disabled',
+        activePages: [],
       }),
     ).toThrow(PresentationContractError);
     expect(() =>
       parsePresentationCapabilityCatalog({
         items: [{ ...capability, defaultPresentation: {} }],
         recoveryMode: false,
+        adoptionMode: 'disabled',
+        activePages: [],
       }),
     ).toThrow(PresentationContractError);
+  });
+
+  it('requires an exact adoption mode and a unique bounded active-page list', () => {
+    const base = { items: [capability], recoveryMode: false };
+    expect(() =>
+      parsePresentationCapabilityCatalog({
+        ...base,
+        adoptionMode: 'preview',
+        activePages: ['orders.list'],
+      }),
+    ).toThrow(PresentationContractError);
+    expect(() =>
+      parsePresentationCapabilityCatalog({
+        ...base,
+        adoptionMode: 'active',
+        activePages: ['orders.list', 'orders.list'],
+      }),
+    ).toThrow(PresentationContractError);
+    expect(() => parsePresentationCapabilityCatalog({ ...base, adoptionMode: 'active' })).toThrow(
+      PresentationContractError,
+    );
+    expect(() =>
+      parsePresentationCapabilityCatalog({
+        ...base,
+        adoptionMode: 'active',
+        activePages: ['retired.list'],
+      }),
+    ).toThrow(PresentationContractError);
+    expect(
+      parsePresentationCapabilityCatalog({
+        ...base,
+        recoveryMode: true,
+        adoptionMode: 'active',
+        activePages: ['retired.list'],
+      }),
+    ).toMatchObject({ recoveryMode: true, activePages: ['retired.list'] });
   });
 
   it('builds scope-safe initial documents and enforces the editor size boundary', () => {
     const catalog = parsePresentationCapabilityCatalog({
       items: [capability],
       recoveryMode: false,
+      adoptionMode: 'disabled',
+      activePages: [],
     });
     const parsedCapability = catalog.items[0];
     if (!parsedCapability) throw new Error('capability fixture is missing');

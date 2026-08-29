@@ -1130,8 +1130,8 @@ func validateDataSourceLimits(dataSource *CapabilityDataSource, index int, issue
 		seen[option] = struct{}{}
 		previous = option
 	}
-	if dataSource.MaxSortFields < 1 || dataSource.MaxSortFields > 3 {
-		addIssue(issues, "invalid-max-sort-fields", path+".maxSortFields", "maximum sort fields must be 1 to 3")
+	if dataSource.MaxSortFields < 0 || dataSource.MaxSortFields > 3 {
+		addIssue(issues, "invalid-max-sort-fields", path+".maxSortFields", "maximum sort fields must be 0 to 3")
 	}
 }
 

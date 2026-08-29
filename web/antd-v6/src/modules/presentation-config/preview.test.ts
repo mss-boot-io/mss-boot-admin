@@ -5,6 +5,8 @@ import { buildPresentationPreview } from './preview';
 const definitionHash = `sha256:${'a'.repeat(64)}`;
 const capability = parsePresentationCapabilityCatalog({
   recoveryMode: false,
+  adoptionMode: 'disabled',
+  activePages: [],
   items: [
     {
       pageKey: 'orders.list',

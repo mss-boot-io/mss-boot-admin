@@ -462,6 +462,97 @@ func TestPresentationRegistrationIsAtomicAndFrozenWithComposition(t *testing.T) 
 	}
 }
 
+func TestCorePresentationsAreDefensivelyCopiedAndFrozenWithComposition(t *testing.T) {
+	definition := testPresentationCapability(t, "core.list")
+	wantTitle := *definition.DefaultPresentation.Title.EnUS
+	registry, err := ComposeWithPresentations(
+		migration.New(),
+		[]presentation.CapabilityDefinition{definition},
+	)
+	if err != nil {
+		t.Fatalf("compose core presentation: %v", err)
+	}
+
+	// Mutating the caller-owned definition after composition must not alter the
+	// application inventory, including pointer-backed localized values.
+	*definition.DefaultPresentation.Title.EnUS = "Mutated caller title"
+	definition.Fields[0].ID = "mutated"
+	presentations, err := registry.PresentationRegistry()
+	if err != nil {
+		t.Fatalf("presentation registry: %v", err)
+	}
+	stored, ok := presentations.Lookup("core.list")
+	if !ok {
+		t.Fatal("core.list was not present in the frozen registry")
+	}
+	if stored.DefaultPresentation.Title.EnUS == nil || *stored.DefaultPresentation.Title.EnUS != wantTitle {
+		t.Fatalf("stored title = %#v, want %q", stored.DefaultPresentation.Title.EnUS, wantTitle)
+	}
+	if stored.Fields[0].ID != "name" {
+		t.Fatalf("stored field ID = %q, want name", stored.Fields[0].ID)
+	}
+
+	// Inventory results are defensive copies and the published registry is
+	// immutable after the unified core/business composition freezes.
+	inventory := presentations.List()
+	inventory[0].PageKey = "mutated.list"
+	if _, ok := presentations.Lookup("core.list"); !ok {
+		t.Fatal("mutating inventory escaped into the frozen registry")
+	}
+	if err := presentations.Register(testPresentationCapability(t, "later.list")); !errors.Is(err, presentation.ErrRegistryFrozen) {
+		t.Fatalf("post-freeze presentation mutation error = %v", err)
+	}
+}
+
+func TestCorePresentationDuplicatesFailWithoutPublishingBusinessState(t *testing.T) {
+	coreDefinition := testPresentationCapability(t, "core.list")
+	if _, err := NewRegistryWithPresentations(
+		migration.New(),
+		coreDefinition,
+		coreDefinition,
+	); !errors.Is(err, presentation.ErrCapabilityAlreadyRegistered) {
+		t.Fatalf("duplicate core presentation error = %v", err)
+	}
+
+	registry, err := NewRegistryWithPresentations(migration.New(), coreDefinition)
+	if err != nil {
+		t.Fatalf("new registry with core presentation: %v", err)
+	}
+	duplicate := validTestModule("duplicate", "202608290101")
+	duplicate.registration.Presentations = []presentation.CapabilityDefinition{coreDefinition}
+	if err := registry.Add(duplicate); !errors.Is(err, presentation.ErrCapabilityAlreadyRegistered) {
+		t.Fatalf("business/core duplicate error = %v", err)
+	}
+	if got := registry.Descriptors(); len(got) != 0 {
+		t.Fatalf("duplicate business presentation leaked descriptors: %#v", got)
+	}
+	if _, err := registry.PresentationRegistry(); !errors.Is(err, ErrRegistryNotFrozen) {
+		t.Fatalf("failed composition published a presentation registry: %v", err)
+	}
+
+	// Reusing the rejected module identity and migration proves the entire
+	// business registration was rolled back while the trusted core definition
+	// remained staged for the final unified freeze.
+	replacement := validTestModule("duplicate", "202608290101")
+	replacement.registration.Presentations = []presentation.CapabilityDefinition{
+		testPresentationCapability(t, "business.list"),
+	}
+	if err := registry.Add(replacement); err != nil {
+		t.Fatalf("add replacement module: %v", err)
+	}
+	if err := registry.Freeze(); err != nil {
+		t.Fatalf("freeze replacement registry: %v", err)
+	}
+	presentations, err := registry.PresentationRegistry()
+	if err != nil {
+		t.Fatalf("presentation registry: %v", err)
+	}
+	definitions := presentations.List()
+	if got := []string{definitions[0].PageKey, definitions[1].PageKey}; !reflect.DeepEqual(got, []string{"business.list", "core.list"}) {
+		t.Fatalf("unified presentation inventory = %v", got)
+	}
+}
+
 func testPresentationCapability(t *testing.T, pageKey string) presentation.CapabilityDefinition {
 	t.Helper()
 	zhCN, enUS := "名称", "Name"

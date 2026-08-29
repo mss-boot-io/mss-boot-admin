@@ -761,14 +761,14 @@ function validateDataSourceLimits(
   if (
     dataSource.maxSortFields === undefined ||
     !Number.isSafeInteger(dataSource.maxSortFields) ||
-    dataSource.maxSortFields < 1 ||
+    dataSource.maxSortFields < 0 ||
     dataSource.maxSortFields > 3
   ) {
     addIssue(
       issues,
       'invalid-max-sort-fields',
       `${path}.maxSortFields`,
-      'Maximum sort fields must be 1 to 3',
+      'Maximum sort fields must be 0 to 3',
     );
   }
 }

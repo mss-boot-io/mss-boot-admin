@@ -98,6 +98,18 @@ func trackPresentationCatalogPresence(data []byte, catalog *PresentationCatalog)
 		presentationYAMLMappingValue(root, "spec"),
 		"actions",
 	)
+	dataSourcesNode := presentationYAMLMappingValue(
+		presentationYAMLMappingValue(root, "spec"),
+		"dataSources",
+	)
+	dataSourceItems := presentationYAMLSequenceItems(dataSourcesNode)
+	for index := range catalog.Spec.DataSources {
+		if index >= len(dataSourceItems) {
+			break
+		}
+		catalog.Spec.DataSources[index].maxSortFieldsOmitted =
+			presentationYAMLMappingValue(dataSourceItems[index], "maxSortFields") == nil
+	}
 	items := presentationYAMLSequenceItems(actionsNode)
 	for index := range catalog.Spec.Actions {
 		if index >= len(items) {

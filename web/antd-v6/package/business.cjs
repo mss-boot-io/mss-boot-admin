@@ -97,21 +97,21 @@ function defineBusinessAdmin(options = {}) {
       memo.optimization.splitChunks({
         cacheGroups: {
           antDesignRuntime: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'ant-design-runtime',
             priority: 35,
             test: /[\\/]node_modules[\\/]@ant-design[\\/]/,
           },
           antdRuntime: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'antd-runtime',
             priority: 35,
             test: /[\\/]node_modules[\\/]antd[\\/]/,
           },
           applicationShell: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'application-shell',
             priority: 34,
@@ -125,28 +125,28 @@ function defineBusinessAdmin(options = {}) {
             test: /[\\/]node_modules[\\/]@ant-design[\\/]pro-/,
           },
           queryRuntime: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'query-runtime',
             priority: 32,
             test: /[\\/]node_modules[\\/](?:@tanstack|axios|ahooks)[\\/]/,
           },
           umiRuntime: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'umi-runtime',
             priority: 33,
             test: /(?:[\\/]src[\\/]\.umi-production[\\/]|[\\/]node_modules[\\/](?:@umijs|umi)[\\/])/,
           },
           rcRuntime: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'rc-runtime',
             priority: 35,
             test: /[\\/]node_modules[\\/](?:@rc-component|rc-[^\\/]+)[\\/]/,
           },
           vendors: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'vendors',
             priority: 20,

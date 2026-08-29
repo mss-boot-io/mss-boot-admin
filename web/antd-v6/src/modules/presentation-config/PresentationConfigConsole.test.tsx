@@ -198,7 +198,12 @@ function renderConsole(props = { canDraft: true, canPublish: true, canRollback: 
 
 describe('presentation configuration console', () => {
   beforeEach(() => {
-    runtime.capabilities = queryResult({ items: [capability], recoveryMode: false });
+    runtime.capabilities = queryResult({
+      items: [capability],
+      recoveryMode: false,
+      adoptionMode: 'active',
+      activePages: ['orders.list'],
+    });
     runtime.profiles = queryResult({ items: [draftProfile], page: 1, pageSize: 100, total: 1 });
     runtime.profile = queryResult(draftProfile);
     runtime.profilesByID = {};
@@ -210,17 +215,57 @@ describe('presentation configuration console', () => {
   });
 
   it('renders explicit empty and recovery states', async () => {
-    runtime.capabilities = queryResult({ items: [], recoveryMode: false });
+    runtime.capabilities = queryResult({
+      items: [],
+      recoveryMode: false,
+      adoptionMode: 'disabled',
+      activePages: [],
+    });
     const empty = renderConsole();
     expect(screen.getByText('presentation.capabilities.empty')).toBeTruthy();
+    expect(screen.getByText('presentation.adoption.disabled.title')).toBeTruthy();
     empty.unmount();
 
-    runtime.capabilities = queryResult({ items: [], recoveryMode: true });
+    runtime.capabilities = queryResult({
+      items: [],
+      recoveryMode: true,
+      adoptionMode: 'active',
+      activePages: ['retired.list'],
+    });
     runtime.profiles = queryResult({ items: [draftProfile], page: 1, pageSize: 100, total: 1 });
     renderConsole();
     expect(screen.getByText('presentation.recovery.title')).toBeTruthy();
+    expect(screen.getByText('presentation.adoption.active.title')).toBeTruthy();
+    expect(screen.getByText('retired.list')).toBeTruthy();
     expect(screen.getByText('presentation.profiles.title')).toBeTruthy();
     await waitFor(() => expect(screen.getByLabelText('presentation.document')).toBeTruthy());
+  });
+
+  it('distinguishes active, shadow, and disabled runtime adoption', () => {
+    const active = renderConsole();
+    expect(screen.getByText('presentation.adoption.active.title')).toBeTruthy();
+    expect(screen.getByText('presentation.adoption.activePages')).toBeTruthy();
+    active.unmount();
+
+    runtime.capabilities = queryResult({
+      items: [capability],
+      recoveryMode: false,
+      adoptionMode: 'shadow',
+      activePages: ['orders.list'],
+    });
+    const shadow = renderConsole();
+    expect(screen.getByText('presentation.adoption.shadow.title')).toBeTruthy();
+    shadow.unmount();
+
+    runtime.capabilities = queryResult({
+      items: [capability],
+      recoveryMode: false,
+      adoptionMode: 'disabled',
+      activePages: [],
+    });
+    renderConsole();
+    expect(screen.getByText('presentation.adoption.disabled.title')).toBeTruthy();
+    expect(screen.getByText('presentation.adoption.activePages.empty')).toBeTruthy();
   });
 
   it('waits for the profile page before deciding whether to create a draft', async () => {
@@ -241,6 +286,8 @@ describe('presentation configuration console', () => {
     runtime.capabilities = queryResult({
       items: [capability, customerCapability],
       recoveryMode: false,
+      adoptionMode: 'active',
+      activePages: ['orders.list', 'customers.list'],
     });
     runtime.profiles = queryResult({
       items: [draftProfile, customerProfile],

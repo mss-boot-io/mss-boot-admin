@@ -3,18 +3,59 @@ import MenuManagement from '@mss-admin-core/modules/administration/MenuManagemen
 import PostManagement from '@mss-admin-core/modules/administration/PostManagement';
 import RoleManagement from '@mss-admin-core/modules/administration/RoleManagement';
 import UserManagement from '@mss-admin-core/modules/administration/UserManagement';
+import { userPresentationRegistryEntry } from '@mss-admin-core/modules/administration/userPresentation';
 import { hasPermission, isRootIdentity } from '@mss-admin-core/shared/auth/access';
 import type { InitialState } from '@mss-admin-core/shared/auth/types';
 import { PageContainer } from '@mss-admin-core/shared/design-system/PageContainer';
 import { PageForbidden } from '@mss-admin-core/shared/design-system/PageState';
 import type { ManagementRouteIntent } from '@mss-admin-core/shared/navigation/managementRoute';
+import { usePagePresentation } from '@mss-admin-core/shared/presentation/runtime';
 import { useIntl, useLocation, useModel } from '@umijs/max';
 
 interface AdministrationRouteDefinition {
   description: string;
   permission: string;
-  render: (root: boolean, intent?: ManagementRouteIntent) => React.ReactNode;
+  render: (
+    root: boolean,
+    intent: ManagementRouteIntent | undefined,
+    initialState: InitialState | undefined,
+  ) => React.ReactNode;
   title: string;
+  wrapInPageContainer?: boolean;
+}
+
+function UserAdministrationPage({
+  initialState,
+  root,
+  routeIntent,
+}: {
+  initialState?: InitialState;
+  root: boolean;
+  routeIntent?: ManagementRouteIntent;
+}) {
+  const intl = useIntl();
+  const presentationRuntime = usePagePresentation(
+    userPresentationRegistryEntry,
+    intl.locale === 'en-US' ? 'en-US' : 'zh-CN',
+    initialState?.currentUser,
+    initialState?.authorizationVersion,
+  );
+
+  return (
+    <PageContainer
+      content={intl.formatMessage({ id: 'user.description' })}
+      title={presentationRuntime.model.title}
+    >
+      <UserManagement
+        canCreate={root}
+        canDelete={root}
+        canEdit={root}
+        canResetPassword={root}
+        presentationRuntime={presentationRuntime}
+        routeIntent={routeIntent}
+      />
+    </PageContainer>
+  );
 }
 
 const administrationRoutes: Record<string, AdministrationRouteDefinition> = {
@@ -22,14 +63,9 @@ const administrationRoutes: Record<string, AdministrationRouteDefinition> = {
     permission: '/users',
     title: 'user.title',
     description: 'user.description',
-    render: (root, routeIntent) => (
-      <UserManagement
-        canCreate={root}
-        canDelete={root}
-        canEdit={root}
-        canResetPassword={root}
-        routeIntent={routeIntent}
-      />
+    wrapInPageContainer: false,
+    render: (root, routeIntent, initialState) => (
+      <UserAdministrationPage initialState={initialState} root={root} routeIntent={routeIntent} />
     ),
   },
   '/role': {
@@ -117,12 +153,14 @@ export default function AdministrationPage() {
 
   const root = isRootIdentity(user);
   const intent = routeIntent(rawPathname, pathname ?? rawPathname);
+  const rendered = route.render(root, intent, initialState);
+  if (route.wrapInPageContainer === false) return rendered;
   return (
     <PageContainer
       content={intl.formatMessage({ id: route.description })}
       title={intl.formatMessage({ id: route.title })}
     >
-      {route.render(root, intent)}
+      {rendered}
     </PageContainer>
   );
 }

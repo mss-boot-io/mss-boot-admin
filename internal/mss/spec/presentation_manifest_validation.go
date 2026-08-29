@@ -257,8 +257,8 @@ func validateNormalizedDataSourceLimits(dataSource *NormalizedPresentationDataSo
 	if dataSource.MaxPageSize < 1 || dataSource.MaxPageSize > 200 {
 		add(path+".maxPageSize", "invalid-max-page-size", "maximum page size must be between 1 and 200")
 	}
-	if dataSource.MaxSortFields < 1 || dataSource.MaxSortFields > 3 {
-		add(path+".maxSortFields", "invalid-max-sort-fields", "maximum sort fields must be between 1 and 3")
+	if dataSource.MaxSortFields < 0 || dataSource.MaxSortFields > 3 {
+		add(path+".maxSortFields", "invalid-max-sort-fields", "maximum sort fields must be between 0 and 3")
 	}
 	validateNormalizedCollection(path+".pageSizeOptions", dataSource.PageSizeOptions == nil, len(dataSource.PageSizeOptions), true, add)
 	seen := map[int]bool{}
@@ -306,7 +306,13 @@ func validateNormalizedCompletePresentation(
 	}
 	fieldsBySurface := make(map[string]map[string]bool, len(collections))
 	for _, collection := range collections {
-		validateNormalizedCollection(collection.path, collection.fields == nil, len(collection.fields), true, add)
+		validateNormalizedCollection(
+			collection.path,
+			collection.fields == nil,
+			len(collection.fields),
+			collection.surface == "list",
+			add,
+		)
 		fieldsBySurface[collection.surface] = validateNormalizedCompleteFields(collection.surface, collection.path, collection.fields, fieldByID, componentIDs, add)
 	}
 	for fieldID, field := range fieldByID {

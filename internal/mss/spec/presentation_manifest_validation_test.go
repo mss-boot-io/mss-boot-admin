@@ -102,9 +102,9 @@ func TestValidateNormalizedPresentationManifestRejectsFinalDerivedViolations(t *
 			code: "unsorted-page-size-options",
 		},
 		{
-			name: "zero maximum sort fields",
+			name: "negative maximum sort fields",
 			mutate: func(manifest *NormalizedPresentationManifest) {
-				manifest.DataSources[0].MaxSortFields = 0
+				manifest.DataSources[0].MaxSortFields = -1
 			},
 			code: "invalid-max-sort-fields",
 		},

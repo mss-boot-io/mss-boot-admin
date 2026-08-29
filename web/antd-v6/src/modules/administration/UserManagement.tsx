@@ -4,12 +4,13 @@ import {
   type ManagementRouteIntent,
   useManagementRouteIntent,
 } from '@mss-admin-core/shared/navigation/managementRoute';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
 import type { TableColumnsType } from 'antd';
 import { Alert, App, Avatar, Button, Form, Input, Modal, Popconfirm, Select, Space } from 'antd';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AdministrationTable, { AdministrationStatusTag } from './AdministrationTable';
 import { administrationAPI } from './api';
 import {
@@ -17,16 +18,23 @@ import {
   administrationReferenceName,
   administrationSelectOptions,
   flattenAdministrationTree,
+  isAdminPageSize,
   type UserSummary,
   type UserWriteValues,
 } from './contract';
 import { useAdministrationCatalog, useAdministrationPage } from './query';
+import {
+  userPresentationListComponents,
+  userPresentationMobileFields,
+  userPresentationSearchComponents,
+} from './userPresentation';
 
 interface UserManagementProps {
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
   canResetPassword: boolean;
+  presentationRuntime: PagePresentationRuntime;
   routeIntent?: ManagementRouteIntent;
 }
 
@@ -41,12 +49,33 @@ export default function UserManagement({
   canDelete,
   canEdit,
   canResetPassword,
+  presentationRuntime,
   routeIntent,
 }: UserManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const client = useQueryClient();
-  const [params, setParams] = useState(initialParams);
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isAdminPageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialParams.pageSize;
+  const [params, setParams] = useState<AdministrationListParams>(() => ({
+    ...initialParams,
+    pageSize: configuredPageSize,
+  }));
+  const queryWasChanged = useRef(false);
+  const appliedPresentationPageSize = useRef(configuredPageSize);
+  const updateParams: typeof setParams = (value) => {
+    queryWasChanged.current = true;
+    setParams(value);
+  };
+  useEffect(() => {
+    if (queryWasChanged.current || appliedPresentationPageSize.current === configuredPageSize) {
+      return;
+    }
+    setParams((current) => ({ ...current, current: 1, pageSize: configuredPageSize }));
+    appliedPresentationPageSize.current = configuredPageSize;
+  }, [configuredPageSize]);
   const users = useAdministrationPage('users', params);
   const roles = useAdministrationCatalog('roles');
   const departments = useAdministrationCatalog('departments');
@@ -148,7 +177,7 @@ export default function UserManagement({
     },
   });
 
-  const columns: TableColumnsType<UserSummary> = [
+  const compiledColumns: TableColumnsType<UserSummary> = [
     {
       title: intl.formatMessage({ id: 'user.field.account' }),
       dataIndex: 'username',
@@ -175,7 +204,7 @@ export default function UserManagement({
     },
     {
       title: intl.formatMessage({ id: 'user.field.role' }),
-      key: 'role',
+      key: 'roleName',
       width: 150,
       render: (_, user) => administrationReferenceName(user.role, user.roleID, roleNamesByID),
     },
@@ -248,17 +277,62 @@ export default function UserManagement({
     },
   ];
 
+  const compiledColumnByField = new Map<string, TableColumnsType<UserSummary>[number]>();
+  let compiledActionColumn: TableColumnsType<UserSummary>[number] | undefined;
+  for (const column of compiledColumns) {
+    if ('dataIndex' in column && typeof column.dataIndex === 'string') {
+      compiledColumnByField.set(column.dataIndex, column);
+    } else if ('key' in column && typeof column.key === 'string') {
+      if (column.key === 'actions') compiledActionColumn = column;
+      else compiledColumnByField.set(column.key, column);
+    }
+  }
+  const columns: TableColumnsType<UserSummary> = presentation.list.columns.flatMap((field) => {
+    const expectedComponent =
+      userPresentationListComponents[field.field as keyof typeof userPresentationListComponents];
+    const column = compiledColumnByField.get(field.field);
+    if (!column || !expectedComponent || field.component !== expectedComponent) return [];
+    return [
+      {
+        ...column,
+        title: field.label,
+        ...(field.width !== undefined ? { width: field.width } : {}),
+      },
+    ];
+  });
+  if (compiledActionColumn) columns.push(compiledActionColumn);
+  const mobileFields = new Set<string>(userPresentationMobileFields);
+  const mobileColumnKeys = presentation.list.columns
+    .map((field) => field.field)
+    .filter((field) => mobileFields.has(field));
+  if (compiledActionColumn) mobileColumnKeys.push('actions');
+  const nameSearch =
+    presentation.search.fields.find(
+      (field) =>
+        field.field === 'name' && field.component === userPresentationSearchComponents.name,
+    ) ?? null;
+  const statusSearch =
+    presentation.search.fields.find(
+      (field) =>
+        field.field === 'status' && field.component === userPresentationSearchComponents.status,
+    ) ?? null;
+
   const dependencyError = roles.error || departments.error || posts.error;
 
   return (
     <>
       <AdministrationTable
         columns={columns}
+        density={presentation.list.density}
         emptyText={intl.formatMessage({ id: 'user.empty' })}
+        nameSearch={nameSearch}
         params={params}
         query={users}
-        setParams={setParams}
-        mobileColumnKeys={['username', 'name', 'role', 'status', 'actions']}
+        resetPageSize={configuredPageSize}
+        searchCollapsedByDefault={presentation.search.collapsedByDefault}
+        setParams={updateParams}
+        statusSearch={statusSearch}
+        mobileColumnKeys={mobileColumnKeys}
         toolbar={
           canCreate ? (
             <Button type="primary" onClick={() => openEditor('create')}>

@@ -1,12 +1,13 @@
 import type { InitialState } from '@mss-admin-core/shared/auth/types';
 import { cleanup, render, screen } from '@testing-library/react';
-import type { PropsWithChildren } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AdministrationPage from './Administration';
 
 const runtime = vi.hoisted(() => ({
   initialState: undefined as InitialState | undefined,
   pathname: '/users',
+  presentationTitle: 'Users',
 }));
 
 function permissionFlags(props: Record<string, unknown>): string {
@@ -16,13 +17,22 @@ function permissionFlags(props: Record<string, unknown>): string {
 }
 
 vi.mock('@umijs/max', () => ({
-  useIntl: () => ({ formatMessage: ({ id }: { id: string }) => id }),
+  useIntl: () => ({ formatMessage: ({ id }: { id: string }) => id, locale: 'en-US' }),
   useLocation: () => ({ pathname: runtime.pathname }),
   useModel: () => ({ initialState: runtime.initialState }),
 }));
 
 vi.mock('@ant-design/pro-components', () => ({
-  PageContainer: ({ children }: PropsWithChildren) => <main>{children}</main>,
+  PageContainer: ({ children, title }: PropsWithChildren<{ title?: ReactNode }>) => (
+    <main>
+      {title}
+      {children}
+    </main>
+  ),
+}));
+
+vi.mock('@mss-admin-core/shared/presentation/runtime', () => ({
+  usePagePresentation: () => ({ model: { title: runtime.presentationTitle } }),
 }));
 
 vi.mock('@mss-admin-core/modules/administration/UserManagement', () => ({
@@ -59,6 +69,7 @@ describe('administration route guards', () => {
   beforeEach(() => {
     runtime.initialState = undefined;
     runtime.pathname = '/users';
+    runtime.presentationTitle = 'Users';
   });
   afterEach(cleanup);
 
@@ -108,5 +119,15 @@ describe('administration route guards', () => {
     cleanup();
     renderRoute('/menu');
     expect(screen.getByText('menus:true:true:true:true')).toBeTruthy();
+  });
+
+  it('uses the effective user presentation title without changing root mutation flags', () => {
+    runtime.initialState = state({ '/users': true });
+    runtime.presentationTitle = 'Directory operators';
+
+    renderRoute('/users');
+
+    expect(screen.getByRole('heading', { name: 'Directory operators' })).toBeTruthy();
+    expect(screen.getByText('users:false:false:false:false')).toBeTruthy();
   });
 });

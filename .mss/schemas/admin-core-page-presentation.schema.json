@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mss-boot.io/schemas/admin-core-page-presentation.v1alpha1.json",
+  "title": "MSS Foundation core page presentation source",
+  "description": "A closed, data-only baseline for a handwritten Foundation core page. Authority and transport facts are compiled from a Foundation-owned binding.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {"const": "mss.io/v1alpha1"},
+    "kind": {"const": "AdminCorePagePresentation"},
+    "metadata": {"$ref": "#/$defs/metadata"},
+    "spec": {"$ref": "#/$defs/spec"}
+  },
+  "$defs": {
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+          "minLength": 2,
+          "maxLength": 120
+        }
+      }
+    },
+    "localizedText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["zh-CN", "en-US"],
+      "properties": {
+        "zh-CN": {"type": "string", "minLength": 1, "maxLength": 200},
+        "en-US": {"type": "string", "minLength": 1, "maxLength": 200}
+      }
+    },
+    "list": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["density", "pageSize"],
+      "properties": {
+        "density": {"type": "string", "enum": ["compact", "middle", "large"]},
+        "pageSize": {"type": "integer", "enum": [20, 50, 100]}
+      }
+    },
+    "search": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields"],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "name"},
+            {"const": "status"}
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "emptyCollection": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding",
+        "pageKey",
+        "definitionVersion",
+        "title",
+        "list",
+        "search",
+        "form",
+        "detail",
+        "actions"
+      ],
+      "properties": {
+        "binding": {"const": "administration.users"},
+        "pageKey": {"const": "user.list"},
+        "definitionVersion": {"const": "2"},
+        "title": {"$ref": "#/$defs/localizedText"},
+        "list": {"$ref": "#/$defs/list"},
+        "search": {"$ref": "#/$defs/search"},
+        "form": {"$ref": "#/$defs/emptyCollection"},
+        "detail": {"$ref": "#/$defs/emptyCollection"},
+        "actions": {"$ref": "#/$defs/emptyCollection"}
+      }
+    }
+  }
+}

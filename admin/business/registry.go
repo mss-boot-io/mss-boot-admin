@@ -252,9 +252,20 @@ type Registry struct {
 	frozen             bool
 }
 
-// NewRegistry clones only the core migration registrations. It never copies a
-// database handle, version model, or previous execution state.
+// NewRegistry clones only the core migration registrations. It preserves the
+// original empty-core-presentation construction contract for existing hosts.
 func NewRegistry(coreMigrations *migration.Migration) (*Registry, error) {
+	return NewRegistryWithPresentations(coreMigrations)
+}
+
+// NewRegistryWithPresentations creates an application-local registry seeded
+// with trusted core presentation definitions. Both migrations and definitions
+// are defensively cloned so later caller mutations cannot alter composition.
+// Business-module definitions are still staged transactionally by Add.
+func NewRegistryWithPresentations(
+	coreMigrations *migration.Migration,
+	corePresentations ...presentation.CapabilityDefinition,
+) (*Registry, error) {
 	if coreMigrations == nil {
 		return nil, errors.New("core migration runner is required")
 	}
@@ -262,17 +273,33 @@ func NewRegistry(coreMigrations *migration.Migration) (*Registry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("clone core migrations: %w", err)
 	}
+	corePresentationRegistry, err := presentation.NewRegistry(corePresentations...)
+	if err != nil {
+		return nil, fmt.Errorf("validate core presentation definitions: %w", err)
+	}
 	return &Registry{
 		registrationGate:   make(chan struct{}, 1),
 		coreMigrations:     coreRunner,
 		businessMigrations: migration.New(),
+		presentationDefs:   corePresentationRegistry.List(),
 		modules:            make(map[string]struct{}),
 	}, nil
 }
 
 // Compose creates, registers, and freezes one deterministic module set.
 func Compose(coreMigrations *migration.Migration, modules ...Module) (*Registry, error) {
-	registry, err := NewRegistry(coreMigrations)
+	return ComposeWithPresentations(coreMigrations, nil, modules...)
+}
+
+// ComposeWithPresentations creates one deterministic application registry from
+// trusted core definitions and transactional business modules, then freezes the
+// unified presentation inventory before it can be used by the runtime.
+func ComposeWithPresentations(
+	coreMigrations *migration.Migration,
+	corePresentations []presentation.CapabilityDefinition,
+	modules ...Module,
+) (*Registry, error) {
+	registry, err := NewRegistryWithPresentations(coreMigrations, corePresentations...)
 	if err != nil {
 		return nil, err
 	}

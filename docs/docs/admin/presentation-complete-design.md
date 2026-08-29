@@ -11,10 +11,10 @@ keywords: [admin presentation configuration generator visual editor drift recove
 # 页面展示配置完整设计
 
 :::warning
-当前状态：本文是 D0 完整设计检查点。仓库已经具备 P0 展示合同和 P1 草稿、发布、历史、回滚、
-权限、审计、恢复模式与治理控制台，但生产能力注册表仍为空，现有业务页面尚未应用展示配置。
-本检查点只落盘设计，不修改运行时代码、数据库、迁移、生成结果或生产页面。收到维护者明确确认后，
-才进入 P2A 开发。
+当前状态：D0 设计已获得维护者确认，当前开发分支正在实现并验收真实页面运行时。Supplier 是首个
+生成业务页面；维护者又明确授权 `user.list` 作为第二个、单独审查的 Foundation Core Page
+Presentation 试点。本文记录当前实现目标，不把尚未执行或尚未基于最终精确 Head 的命令、内置浏览器、
+Thin Host 或安全检查写成已通过证据。
 :::
 
 ## 目标
@@ -42,8 +42,8 @@ keywords: [admin presentation configuration generator visual editor drift recove
 
 一句话边界：
 
-> 已经编译、生成并授权的页面能力可以调整展示；新增业务能力仍必须经过
-> AdminModule、确定性生成、代码评审、迁移、测试和发布。
+> 已经编译、生成并授权的页面能力可以调整展示；生成业务页通过 AdminModule，单独审查的 Foundation
+> 核心页通过专用机器规格进入同一确定性生成链；新增业务能力仍必须经过代码评审、迁移、测试和发布。
 
 ## 当前基础
 
@@ -83,7 +83,7 @@ P1 故意保持生产能力注册表为空，因此不会改变任何业务页�
 ## 完整架构
 
 ```text
-.mss/modules/<module>.yaml
+.mss/modules/<module>.yaml 或经单独审查的 .mss/core-pages/<page>.yaml
         │
         │ AdminModule 结构与语义校验
         ▼
@@ -111,6 +111,12 @@ P1 校验/发布/有效层 ──► 浏览器解析器与渲染器
 
 `AdminModule` 是生成业务页面的唯一源头。模块可以选择性增加 `spec.presentation`。
 没有该段时，当前静态页面保持原样，不注册展示能力，完全向后兼容。
+
+任意手写 Foundation 核心页默认仍然排除。当前阶段唯一例外是维护者明确授权并单独审查的
+`user.list`：其唯一源头为 `.mss/core-pages/user-list.yaml`。它不能伪装成 `AdminModule`，因为现有用户
+路由、服务、DTO、权限和安全规则仍属于 Foundation 核心代码；它也不能分别手写 Go 与 TypeScript
+定义。该机器规格进入同一个标准化与规范哈希流水线，由生成器产出 Go 定义、TypeScript 定义、唯一
+哈希、标准化 manifest 和两端注册表条目。
 
 下面只展示 Supplier 的结构片段。P2A 提交的 AdminModule 必须完整列出与当前生产页面等价的默认项，
 本片段中省略的字段不代表存在隐式默认值。
@@ -248,11 +254,18 @@ Go 与 TypeScript 必须嵌入同一个哈希，并用 Unicode、HTML 特殊字�
 | `admin/modules/<module>/presentation_generated.go` | 生成器 | 后端可信能力定义 |
 | `web/antd-v6/src/generated/modules/<module>/presentation.generated.ts` | 生成器 | 前端可信可序列化定义 |
 | `presentation.adapter.generated.tsx` | 生成器 | 编译期查询、字段、组件和动作适配 |
+| `admin/presentation/core/definitions_generated.go` | 生成器 | Foundation 核心页可信定义，在业务模块前显式注入 |
+| `admin/presentation/core/manifest.generated.json` | 生成器 | 核心页标准化 manifest 与哈希一致性证据；运行时不读取 |
+| `web/antd-v6/src/generated/core-presentation-registry.generated.ts` | 生成器 | 静态导入的 Foundation 核心页注册表 |
 | 后端/前端应用注册表索引 | 生成器 | 显式列出启用模块 |
 | 每模块标准化 manifest 快照 | 生成器 | 双端一致性证据和以后升级前后结构化 diff 输入；运行时不读取 |
 | 模块 `custom` 扩展文件 | 业务代码 | 通过强类型入口提供编译期自定义实现 |
 
 生成文件不手改。生成器必须支持 dry-run、路径限制、稳定排序、旧生成文件清理和连续两次运行零差异。
+
+Foundation 与 Thin Host 的所有权不对称：只有 Foundation 生成过程读取
+`.mss/core-pages/user-list.yaml`；Thin Host 从固定版本的 Admin Go 与 npm 包消费生成后的核心定义和
+静态注册表，不复制该 YAML，也不把 Foundation 核心产物重新生成到业务自有路径。
 
 ### 二、发布与控制平面
 
@@ -266,6 +279,7 @@ P1 的发布模型保持不变：
 
 后端变化只在能力来源和组合方式：
 
+- 应用组合根先显式注入生成的 Foundation 核心页定义，再组合业务模块；两类来源页面键冲突时启动前失败；
 - 每个业务模块在一个注册事务中同时暂存描述、迁移、就绪检查、路由和展示能力；
 - 任一部分失败，整个模块注册都不可见；
 - 注册表冻结后再挂载业务路由和启动监听；
@@ -502,7 +516,49 @@ Supplier 保留稳定页面键 `supplier.list`。当前手写 P0 原型只证明
 6. **权限矩阵：** 前端按钮与后端直接 API 正负权限。
 7. **Thin Host：** 外部生成、构建、启动、升级、幂等和自有文件保留。
 
-Supplier 通过之前不开放其他页面。
+Supplier 的证据不能自动授权其他页面。维护者已经明确授权 `user.list` 作为下一个隔离试点，但它必须
+独立完成自己的合同、生成、权限边界和内置浏览器验收。
+
+## 用户管理 Foundation 核心页试点
+
+`user.list` 是当前开发分支获准接入的第二个页面，也是本阶段唯一允许配置的手写 Foundation 核心页。
+“核心页”只表示所有权，不表示可以绕过生成：`.mss/core-pages/user-list.yaml` 是唯一源头，生成器必须
+从它产出一致的 Go 定义、TypeScript 定义、规范定义哈希、标准化 manifest 和两端注册表条目。不得为
+现有用户管理伪造 `AdminModule`，也不得分别手写 Go/TypeScript 能力定义。
+
+首版只开放以下展示面：
+
+- 中英文页面标题；
+- 生成定义明确列出的安全列表展示字段；
+- 仅 `name` 与 `status` 两个搜索项；
+- 表格密度；
+- 分页大小；
+- `maxSortFields: 0`，因此编译默认值与 profile 都不能开启排序。
+
+`status` 必须由后端执行精确过滤，并且值域由编译合同封闭。它不是只在浏览器中过滤当前页，也不能由
+profile 指定查询参数名、编码方式、模糊匹配或任意新搜索字段。
+
+以下内容从核心页 manifest、合成预览、有效层与可视化编辑器中结构性排除：
+
+- 密码、确认密码与任何凭证；
+- OAuth 信息、token 和 session；
+- 角色、部门、岗位及其他关系 ID；
+- root、特权、所有者或等价授权标记；
+- form 与 detail；
+- 包括新建、编辑、删除、重置密码在内的全部 actions；
+- 权限、路由、HTTP 方法、端点、传输参数和 API 选择。
+
+现有用户路由、列表 API、权限判断、root-only 控制，以及当前用户与目标用户保护全部保持编译态并继续
+作为唯一权威。展示配置可以隐藏或调整已批准显示字段、搜索项，不能暴露敏感事实、创建 mutation、
+放宽 root 检查或改变 handler 正在保护的目标。
+
+后端在业务模块之前显式注入生成的 Foundation 核心注册表并冻结组合结果；前端只使用静态导入的 core
+registry。采用顺序必须按页面隔离执行：先 `disabled`，再进入不改变渲染且不产生隐藏业务操作的独立
+`shadow`，最后只有在自己的测试和内置浏览器证据完成后，才允许精确白名单中的 `user.list` 进入
+`active`。`recoveryMode` 始终优先。Thin Host 只消费 Admin Go/npm 包内的核心能力，不复制源规格或产物。
+
+当前只表示实现与验收正在进行。最终 Head 的生成器、后端、前端、安全、Thin Host、刷新、控制台和
+失败网络请求检查尚未实际记录前，都不能写成已通过。
 
 ## 开发检查点
 
@@ -519,7 +575,7 @@ Supplier 通过之前不开放其他页面。
 | P2C | 前端静态注册表、共享 Hook/解析/渲染、Supplier 适配、Disabled/Shadow | lint、tsc、单测、集成、默认行为一致 |
 | P2D | Supplier Active 白名单 | 内置浏览器、API 权限、漂移、故障、恢复、Thin Host 全矩阵 |
 | P3 | 可视化编辑器 | AST 无损往返、冲突、发布、历史、回滚、浏览器验收 |
-| P4 | 逐页接入其他生成页面 | 每个页面独立规格和浏览器证据 |
+| P4 | 先接入单独审查并生成的 `user.list` Foundation 核心页，再逐页接入其他生成业务页 | 核心单源生成/哈希/注册表一致；敏感面排除；status 精确过滤；独立 disabled/shadow/active 浏览器证据；每个后续页面另行验收 |
 
 ## 验收原则
 
@@ -535,24 +591,21 @@ Supplier 通过之前不开放其他页面。
 - 定义漂移不会自动改写或自动发布；
 - Recovery 能在数据库配置错误时恢复全部页面；
 - Thin Host 升级不覆盖业务自有代码；
+- `user.list` 只来自 `.mss/core-pages/user-list.yaml`，两端投影和哈希一致，Thin Host 不复制核心产物；
+- 用户页 status 由后端精确过滤，敏感字段、form/detail/actions、权限/route/API 不进入展示合同；
+- 用户页 root 与目标用户保护保持编译态，disabled、独立 shadow、精确 active 白名单和 Recovery 顺序有证据；
 - 所有命令、测试和浏览器证据基于精确远端 Head；
 - 未执行的验证必须明确标注，不能把设计、编写、推送和验证混为一谈。
 
-## 本检查点不做的事情
+## 当前实现与证据边界
 
-D0 不修改：
+D0 曾经只落盘设计；该历史检查点已经结束。当前开发分支正在实现并验收生成器、运行时、可视化编辑器
+以及 `user.list` 核心页试点。本文描述目标合同，不等于实现已经完成。
 
-- `admin/presentation` 运行时代码；
-- 业务模块注册表；
-- 数据模型和迁移；
-- API 和路由；
-- Supplier 生成文件；
-- 前端运行时；
-- 启动配置；
-- P1 数据库内容；
-- 生产采用状态。
-
-D0 也不创建 PR、不合并 `main`、不打标签、不发布制品。
+每项证据必须写明实际执行的命令、结果和精确 Head。内置浏览器证据必须真实访问运行中的页面、刷新、
+检查可见内容、控制台和失败网络请求，并保存关键截图；Thin Host 必须证明消费包内核心能力而不是复制。
+若最终 Head 变化，之前的证据不能用于 PASS。本文更新本身不创建 PR、不合并 `main`、不打标签或发布
+制品。
 
 ## 设计证据
 
@@ -562,4 +615,5 @@ D0 也不创建 PR、不合并 `main`、不打标签、不发布制品。
 - P1 ADR：`docs/adr/2026-08-24-admin-presentation-publication-workflow.md`
 - 现有发布治理说明：`docs/docs/admin/presentation-configuration.md`
 
-维护者确认 D0 远端设计后，下一项可执行工作是 P2A，而不是直接把手写 Supplier 原型接入生产。
+当前下一项是完成 `user.list` 单源生成、后端精确 status 过滤、前后端静态组合、安全排除测试和独立
+disabled/shadow/active 内置浏览器验收；在这些证据完成前，不能宣称该第二页面已经验收通过。

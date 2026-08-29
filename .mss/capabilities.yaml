@@ -165,6 +165,7 @@ spec:
         - .mss/features/admin-presentation-configuration.yaml
         - .mss/features/admin-presentation-publication-workflow.yaml
         - .mss/features/admin-presentation-complete-design.yaml
+        - .mss/core-pages/user-list.yaml
         - .mss/schemas/admin-page-presentation.schema.json
         - docs/adr/2026-08-24-governed-admin-presentation-configuration.md
         - docs/adr/2026-08-24-admin-presentation-publication-workflow.md
@@ -173,6 +174,7 @@ spec:
         - docs/docs/admin/presentation-complete-design.md
       backendPaths:
         - admin/presentation
+        - admin/presentation/core
         - admin/models/presentation_profile.go
         - admin/dto/presentation_profile.go
         - admin/service/presentation_profile.go
@@ -181,20 +183,29 @@ spec:
         - admin/cmd/migrate/migration/system/20260824121000_presentation_profile_permissions.go
       frontendPaths:
         - web/antd-v6/src/shared/presentation
+        - web/antd-v6/src/generated/core-presentation-registry.generated.ts
         - web/antd-v6/src/modules/presentation-config
         - web/antd-v6/src/pages/PresentationConfig
       guidance: >-
         P0 defines a strict data-only sparse profile over compiled page, field, data-source,
-        component, action, and permission capabilities and proves it with a non-production Supplier
-        prototype. Code defaults resolve beneath application, role, and user layers; exact definition
-        hash validation rejects stale profiles, and trusted permissions are intersected last. P0 and the
-        P1 publication control plane are implemented and tested, but deliberately register no production
-        business page. The approved complete design now stages production adoption through P2A generator
-        contracts, P2B backend composition, P2C disabled and shadow frontend parity, and P2D allowlisted
-        Supplier activation before P3 visual editing. Keep the overall capability Planned until P2D exact-
-        Head browser and Thin Host evidence pass. Never add scripts, HTML, SQL, transport definitions,
-        component imports, permissions, runtime models, virtual CRUD, or browser code generation to a
-        presentation profile.
+        component, action, and permission capabilities, and P1 owns draft, publication, history,
+        rollback, and recovery. Supplier remains the first generated AdminModule reference. The maintainer
+        has now explicitly authorized user.list as one separately reviewed Foundation Core Page
+        Presentation pilot; implementation and exact-Head acceptance are in progress on the current
+        development branch, so no pending test or browser check is completion evidence. user.list is not
+        an AdminModule and must have exactly one source at .mss/core-pages/user-list.yaml. The deterministic
+        generator owns its Go definition, TypeScript definition, canonical hash, normalized manifest,
+        and statically imported frontend core registry; application composition injects the generated core
+        definition before business modules. Handwritten Go/TypeScript duplicates are forbidden. Its first surface is limited to title, safe list display,
+        name/status search, density, and page size with maxSortFields=0 and an exact backend status filter.
+        Passwords, credentials, OAuth, tokens, sessions, relation IDs, root markers, form, detail, actions,
+        permissions, routes, and API selection remain outside profiles; compiled root and target-user
+        protections remain authoritative. Roll out disabled, then isolated shadow, then exact-allowlisted
+        active, with recovery taking precedence. Thin Hosts consume the packaged Foundation core registry
+        and never copy it. Every other protected or arbitrary handwritten core page remains excluded until
+        separately reviewed and moved to a single generated source. Never add scripts, HTML, SQL, transport
+        definitions, component imports, permissions, runtime models, virtual CRUD, or browser code
+        generation to a presentation profile.
 
     - id: platform.cache-lock-queue
       displayName: Legacy Cache, Distributed Lock, and Queue Adapters

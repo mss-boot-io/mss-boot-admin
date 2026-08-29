@@ -1,6 +1,9 @@
-# The package consumes the reusable core source but not the reference
-# application's generated Supplier fixture or repository-only validation files.
-src/generated/
+# The package consumes the reusable core source and the generated Foundation
+# core presentation registry, but not application-owned business fixtures.
+src/generated/locales/
+src/generated/modules/
+src/generated/presentation-registry.generated.ts
+src/generated/routes.ts
 src/pages/generated/
 src/**/*.test.ts
 src/**/*.test.tsx

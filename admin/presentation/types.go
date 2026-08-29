@@ -206,7 +206,9 @@ type CapabilityDataSource struct {
 	RequiredPermissions []string `json:"requiredPermissions"`
 	PageSizeOptions     []int    `json:"pageSizeOptions,omitempty"`
 	MaxPageSize         int      `json:"maxPageSize,omitempty"`
-	MaxSortFields       int      `json:"maxSortFields,omitempty"`
+	// MaxSortFields is explicit in the v2 wire identity. Zero is the valid
+	// fail-closed value for data sources that expose no sorting contract.
+	MaxSortFields int `json:"maxSortFields"`
 }
 
 type CapabilityAction struct {

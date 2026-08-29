@@ -184,6 +184,43 @@ describe('Admin web package contract', () => {
     });
   });
 
+  it('deduplicates release dependencies across initial and lazy route chunks', () => {
+    const businessPath = resolve(import.meta.dirname, '../package/business.cjs');
+    const output = execFileSync(
+      process.execPath,
+      [
+        '-e',
+        `const { defineBusinessAdmin } = require(${JSON.stringify(businessPath)});
+let groups;
+const config = defineBusinessAdmin();
+const memo = {
+  plugin: () => ({ use: () => undefined }),
+  optimization: {
+    runtimeChunk: () => undefined,
+    splitChunks: (value) => { groups = value.cacheGroups; },
+  },
+};
+config.chainWebpack(memo);
+console.log(JSON.stringify(Object.fromEntries(Object.entries(groups).map(([name, value]) => [name, value.chunks]))));`,
+      ],
+      {
+        cwd: resolve(import.meta.dirname, '..'),
+        encoding: 'utf8',
+        env: { ...process.env, UMI_ENV: 'release' },
+      },
+    );
+    expect(JSON.parse(output)).toEqual({
+      antDesignRuntime: 'all',
+      antdRuntime: 'all',
+      applicationShell: 'all',
+      proComponents: 'all',
+      queryRuntime: 'all',
+      rcRuntime: 'all',
+      umiRuntime: 'all',
+      vendors: 'all',
+    });
+  });
+
   it('resolves generated Tailwind CSS from the Admin Web dependency tree', () => {
     const absTmpPath = resolve(import.meta.dirname, 'fixtures/external-host/.umi');
     let generateFiles: (() => void) | undefined;

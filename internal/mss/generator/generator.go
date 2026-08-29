@@ -235,6 +235,12 @@ func Generate(module *spec.Module, options Options) (Plan, error) {
 		return plan, err
 	}
 	outputs = append(outputs, registryOutputs...)
+	corePresentationOutputs, err := renderCorePresentationOutputs(repository, layout)
+	if err != nil {
+		return plan, err
+	}
+	corePresentationEnabled := len(corePresentationOutputs) > 0
+	outputs = append(outputs, corePresentationOutputs...)
 
 	plan.Changes = make([]Change, 0, len(outputs))
 
@@ -244,6 +250,17 @@ func Generate(module *spec.Module, options Options) (Plan, error) {
 			return plan, err
 		}
 		plan.Changes = append(plan.Changes, change)
+	}
+	if layout.Kind == layoutFoundation && !corePresentationEnabled {
+		for _, obsoletePath := range corePresentationOutputGroupPaths(layout) {
+			change, exists, err := compareObsoleteOutput(repository, obsoletePath)
+			if err != nil {
+				return plan, err
+			}
+			if exists {
+				plan.Changes = append(plan.Changes, change)
+			}
+		}
 	}
 	for _, obsoletePath := range obsoleteModuleOutputPaths(module, frontendTarget, layout, presentationEnabled) {
 		change, exists, err := compareObsoleteOutput(repository, obsoletePath)
@@ -258,6 +275,9 @@ func Generate(module *spec.Module, options Options) (Plan, error) {
 		return plan, err
 	}
 	if err := validatePresentationRegistryOutputPair(repository, layout); err != nil {
+		return plan, err
+	}
+	if err := validateCorePresentationOutputGroup(repository, layout, corePresentationEnabled); err != nil {
 		return plan, err
 	}
 	sort.SliceStable(plan.Changes, func(i, j int) bool {
