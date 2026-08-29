@@ -4,17 +4,11 @@
   "features": [
     ".mss/features/foundation-v1-3-7-release.yaml",
     ".mss/features/admin-presentation-configuration.yaml",
-    ".mss/features/admin-presentation-publication-workflow.yaml"
+    ".mss/features/admin-presentation-publication-workflow.yaml",
+    ".mss/features/admin-presentation-generation.yaml",
+    ".mss/features/admin-presentation-complete-design.yaml"
   ],
   "excludedFeatures": [
-    {
-      "path": ".mss/features/admin-presentation-complete-design.yaml",
-      "reason": "not-yet-qualified: the complete page-presentation implementation, including the user.list Foundation core-page pilot, remains in exact-Head implementation acceptance. It must not silently authorize or block the v1.3.7 release candidate until its focused tests, built-in-browser evidence, external Thin Host qualification, and maintainer acceptance are frozen in a follow-up release-qualification change."
-    },
-    {
-      "path": ".mss/features/admin-presentation-generation.yaml",
-      "reason": "carry-forward pending complete-design acceptance: the P2A deterministic generation checkpoint is permanent regression coverage for the broader page-presentation implementation, but it is not an independently selected v1.3.7 release Feature while the encompassing exact-Head acceptance remains open."
-    },
     {
       "path": ".mss/features/foundation-v1-3-6-release.yaml",
       "reason": "carry-forward: v1.3.6 is an immutable partial train bound to b1fe47a3a83209574e09d53526b122dd2cbc5277. Framework run 33078214740, Admin run 33078370221, Admin Web run 33078525148, and Root run 33079323437 succeeded; preview run 33075770677 omitted the Root image artifact, container run 33079323174 failed, npm run 33079323187 failed with ENEEDAUTH, and Docs was never created. No v1.3.6 identity may authorize or receive v1.3.7 repair publication."
