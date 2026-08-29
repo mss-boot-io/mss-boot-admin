@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/mss-boot-io/mss-boot-admin/admin/presentation"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
 	migrationmodels "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
@@ -412,6 +413,98 @@ func TestComposePreservesOrderCopiesDescriptorsAndFreezes(t *testing.T) {
 	if err := registry.Register(Registration{}); !errors.Is(err, ErrRegistryFrozen) {
 		t.Fatalf("post-freeze Register error = %v", err)
 	}
+}
+
+func TestPresentationRegistrationIsAtomicAndFrozenWithComposition(t *testing.T) {
+	registry, err := NewRegistry(migration.New())
+	if err != nil {
+		t.Fatalf("new registry: %v", err)
+	}
+	if _, err := registry.PresentationRegistry(); !errors.Is(err, ErrRegistryNotFrozen) {
+		t.Fatalf("unfrozen presentation registry error = %v", err)
+	}
+
+	capability := testPresentationCapability(t, "first.list")
+	first := validTestModule("first", "202608190130")
+	first.registration.Presentations = []presentation.CapabilityDefinition{capability}
+	if err := registry.Add(first); err != nil {
+		t.Fatalf("add first presentation module: %v", err)
+	}
+
+	duplicate := validTestModule("second", "202608190131")
+	duplicate.registration.Presentations = []presentation.CapabilityDefinition{capability}
+	if err := registry.Add(duplicate); !errors.Is(err, presentation.ErrCapabilityAlreadyRegistered) {
+		t.Fatalf("duplicate presentation error = %v", err)
+	}
+	if got := registry.Descriptors(); len(got) != 1 || got[0].Name != "first" {
+		t.Fatalf("failed presentation registration leaked descriptor: %#v", got)
+	}
+
+	replacement := validTestModule("second", "202608190131")
+	replacement.registration.Presentations = []presentation.CapabilityDefinition{
+		testPresentationCapability(t, "second.list"),
+	}
+	if err := registry.Add(replacement); err != nil {
+		t.Fatalf("replacement inherited failed registration state: %v", err)
+	}
+	if err := registry.Freeze(); err != nil {
+		t.Fatalf("freeze registry: %v", err)
+	}
+	presentations, err := registry.PresentationRegistry()
+	if err != nil {
+		t.Fatalf("presentation registry: %v", err)
+	}
+	if got := presentations.List(); len(got) != 2 || got[0].PageKey != "first.list" || got[1].PageKey != "second.list" {
+		t.Fatalf("presentation definitions = %#v", got)
+	}
+	if err := presentations.Register(capability); !errors.Is(err, presentation.ErrRegistryFrozen) {
+		t.Fatalf("post-freeze presentation mutation error = %v", err)
+	}
+}
+
+func testPresentationCapability(t *testing.T, pageKey string) presentation.CapabilityDefinition {
+	t.Helper()
+	zhCN, enUS := "名称", "Name"
+	label := presentation.LocalizedText{ZhCN: &zhCN, EnUS: &enUS}
+	capability := presentation.CapabilityDefinition{
+		PageKey: pageKey, DefinitionVersion: presentation.DefinitionVersion,
+		Components: []presentation.CapabilityComponent{{ID: "input"}, {ID: "text"}},
+		Fields: []presentation.CapabilityField{{
+			ID: "name", Label: label, ValueType: "string", Required: true,
+			Searchable: true, Sortable: true,
+			Surfaces: []presentation.Surface{
+				presentation.SurfaceList, presentation.SurfaceSearch,
+				presentation.SurfaceForm, presentation.SurfaceDetail,
+			},
+			Components: []string{"input", "text"},
+		}},
+		DataSources: []presentation.CapabilityDataSource{{
+			ID: pageKey, RequiredPermissions: []string{"/test/permissions/list"},
+		}},
+		DefaultPresentation: presentation.CompletePresentation{
+			Title: label, DataSource: pageKey,
+			List: presentation.CompleteListPresentation{
+				Columns: []presentation.CompleteField{{Field: "name", Component: "text", Order: 10}},
+				Density: "middle", PageSize: 20, DefaultSort: []presentation.Sort{},
+			},
+			Search: presentation.CompleteSearchPresentation{
+				Fields: []presentation.CompleteField{{Field: "name", Component: "input", Order: 10}},
+			},
+			Form: presentation.CompleteFormPresentation{
+				Fields: []presentation.CompleteField{{Field: "name", Component: "input", Order: 10}}, Columns: 1,
+			},
+			Detail: presentation.CompleteDetailPresentation{
+				Fields: []presentation.CompleteField{{Field: "name", Component: "text", Order: 10}}, Columns: 1,
+			},
+			Actions: []presentation.CompleteAction{},
+		},
+	}
+	definitionHash, err := presentation.ComputeDefinitionHash(&capability)
+	if err != nil {
+		t.Fatalf("hash presentation capability: %v", err)
+	}
+	capability.DefinitionHash = definitionHash
+	return capability
 }
 
 func TestComposeDetectsMigrationCollisionWithoutMutatingCore(t *testing.T) {

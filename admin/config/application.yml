@@ -12,6 +12,10 @@ presentation:
   # Startup-only emergency bypass. When true, effective presentation reads
   # return no stored layers and every page uses its compiled defaults.
   recoveryMode: false
+  # disabled returns compiled defaults; shadow validates stored layers without
+  # applying them; active applies only pages listed in activePages.
+  adoptionMode: disabled
+  activePages: []
 application:
   mode: dev
   origin: http://127.0.0.1:8080

@@ -371,11 +371,15 @@ func setupPresentationProfileAPITest(t *testing.T) (*gorm.DB, *gin.Engine, prese
 	require.NoError(t, db.Session(&gorm.Session{SkipHooks: true}).Omit("Role", "Post", "Department", "OAuth2").Create(user).Error)
 
 	capability := apiPresentationCapability(t)
-	api := newPresentationProfileController()
-	api.service = &service.PresentationProfileService{
-		Database: db,
-		Registry: presentation.MustNewRegistry(capability),
-	}
+	registry := presentation.MustNewRegistry(capability)
+	policy := presentation.MustNewAdoptionPolicy(
+		presentation.AdoptionActive, []string{capability.PageKey}, false, registry,
+	)
+	profileService, err := service.NewPresentationProfileService(registry, policy)
+	require.NoError(t, err)
+	profileService.Database = db
+	api, err := NewPresentationProfileController(profileService)
+	require.NoError(t, err)
 	previousIdentityKey := config.Cfg.Auth.IdentityKey
 	previousAuthHandler := response.AuthHandler
 	config.Cfg.Auth.IdentityKey = "presentation-api-test-identity"

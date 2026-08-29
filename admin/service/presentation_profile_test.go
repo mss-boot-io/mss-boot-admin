@@ -236,7 +236,13 @@ func TestPresentationRollbackAndEffectiveReadRejectDefinitionDrift(t *testing.T)
 	changed.Fields[0].Required = false
 	changed.DefinitionHash, err = presentation.ComputeDefinitionHash(&changed)
 	require.NoError(t, err)
-	drifted := &PresentationProfileService{Database: db, Registry: presentation.MustNewRegistry(changed)}
+	driftedRegistry := presentation.MustNewRegistry(changed)
+	driftedPolicy := presentation.MustNewAdoptionPolicy(
+		presentation.AdoptionActive, []string{changed.PageKey}, false, driftedRegistry,
+	)
+	drifted, err := NewPresentationProfileService(driftedRegistry, driftedPolicy)
+	require.NoError(t, err)
+	drifted.Database = db
 
 	_, err = drifted.Rollback(ctx, created.ID, published.Profile.Version, 1, "rollback-drift-1", "recovery")
 	require.ErrorIs(t, err, ErrPresentationInvalidDocument)
@@ -324,7 +330,13 @@ func newPresentationService(t *testing.T) (*PresentationProfileService, *gorm.DB
 		&models.PresentationProfile{}, &models.PresentationRevision{}, &models.Role{}, &models.User{},
 	))
 	capability := servicePresentationCapability(t)
-	service := &PresentationProfileService{Database: db, Registry: presentation.MustNewRegistry(capability)}
+	registry := presentation.MustNewRegistry(capability)
+	policy := presentation.MustNewAdoptionPolicy(
+		presentation.AdoptionActive, []string{capability.PageKey}, false, registry,
+	)
+	service, err := NewPresentationProfileService(registry, policy)
+	require.NoError(t, err)
+	service.Database = db
 	ctx := newPresentationServiceTestContext()
 	return service, db, ctx, capability
 }

@@ -31,15 +31,33 @@ var (
 	errPresentationIfMatchRequired     = errors.New("presentation mutation requires If-Match")
 )
 
-func init() {
-	response.AppendController(newPresentationProfileController())
+// newPresentationProfileController preserves the package-local P1 test and
+// compatibility entrypoint with an explicit empty, disabled composition.
+func newPresentationProfileController() *PresentationProfileAPI {
+	registry := presentation.MustNewFrozenRegistry()
+	policy := presentation.MustNewAdoptionPolicy(
+		presentation.AdoptionDisabled, nil, false, registry,
+	)
+	profileService, err := service.NewPresentationProfileService(registry, policy)
+	if err != nil {
+		panic(err)
+	}
+	api, err := NewPresentationProfileController(profileService)
+	if err != nil {
+		panic(err)
+	}
+	return api
 }
 
-func newPresentationProfileController() *PresentationProfileAPI {
-	return &PresentationProfileAPI{
-		Simple:  controller.NewSimple(),
-		service: &service.PresentationProfileService{},
+// NewPresentationProfileController makes the presentation dependency explicit
+// at the route composition boundary.
+func NewPresentationProfileController(
+	profileService *service.PresentationProfileService,
+) (*PresentationProfileAPI, error) {
+	if profileService == nil {
+		return nil, errors.New("presentation profile service is required")
 	}
+	return &PresentationProfileAPI{Simple: controller.NewSimple(), service: profileService}, nil
 }
 
 type PresentationProfileAPI struct {
@@ -53,7 +71,7 @@ func (api *PresentationProfileAPI) profileService() *service.PresentationProfile
 	if api != nil && api.service != nil {
 		return api.service
 	}
-	return &service.PresentationProfileService{}
+	return newPresentationProfileController().service
 }
 
 func (api *PresentationProfileAPI) Other(router *gin.RouterGroup) {
@@ -75,6 +93,8 @@ func (api *PresentationProfileAPI) Capabilities(ctx *gin.Context) {
 	response.Make(ctx).OK(dto.PresentationCapabilityListResponse{
 		Items:        api.profileService().Capabilities(),
 		RecoveryMode: api.profileService().RecoveryEnabled(),
+		AdoptionMode: api.profileService().AdoptionMode(),
+		ActivePages:  api.profileService().ActivePages(),
 	})
 }
 

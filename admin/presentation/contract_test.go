@@ -109,6 +109,10 @@ func TestCapabilityRegistryValidatesHashDuplicatesAndProtectedPages(t *testing.T
 	registry, err := NewRegistry(capability)
 	require.NoError(t, err)
 	require.ErrorIs(t, registry.Register(capability), ErrCapabilityAlreadyRegistered)
+	_, err = NewRegistry(capability, capability)
+	require.ErrorIs(t, err, ErrCapabilityAlreadyRegistered)
+	require.NoError(t, registry.Freeze())
+	require.ErrorIs(t, registry.Register(validCapability(t)), ErrRegistryFrozen)
 
 	for _, pageKey := range []string{
 		"account.users", "app-config.theme", "authorization.roles", "config.theme",

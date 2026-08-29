@@ -69,16 +69,72 @@ func TestPresentationEffectiveLayersUseServerSubjectsAndNeverExposeDrafts(t *tes
 	require.Empty(t, other.Layers.Role)
 	require.Empty(t, other.Layers.User)
 
-	recovery := &PresentationProfileService{
-		Database: db,
-		Registry: service.Registry,
-		RecoveryMode: func() bool {
-			return true
-		},
-	}
+	recoveryPolicy := presentation.MustNewAdoptionPolicy(
+		presentation.AdoptionActive, []string{capability.PageKey}, true, service.Registry,
+	)
+	recovery, err := NewPresentationProfileService(service.Registry, recoveryPolicy)
+	require.NoError(t, err)
+	recovery.Database = db
 	recovered, err := recovery.Effective(ctx, capability.PageKey, "user-a", "role-a")
 	require.NoError(t, err)
 	require.True(t, recovered.RecoveryMode)
 	require.True(t, recovered.Fallback)
 	require.Empty(t, recovered.Layers.Application)
+}
+
+func TestPresentationEffectiveAdoptionModesFailClosed(t *testing.T) {
+	activeService, db, ctx, capability := newPresentationService(t)
+	raw := presentationProfileJSON(
+		t, capability, presentation.Scope{Kind: presentation.ScopeApplication}, nil,
+	)
+	created, err := activeService.CreateDraft(ctx, dto.PresentationProfileIdentity{
+		Scope: presentation.ScopeApplication, PageKey: capability.PageKey,
+	}, raw, "author")
+	require.NoError(t, err)
+	_, err = activeService.Publish(ctx, created.ID, created.Version, "publish-adoption-1", "publisher")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		mode           presentation.AdoptionMode
+		activePages    []string
+		wantState      presentation.AdoptionState
+		wantDiagnostic string
+		wantResolved   bool
+	}{
+		{
+			name: "disabled", mode: presentation.AdoptionDisabled,
+			wantState: presentation.AdoptionStateDisabled, wantDiagnostic: "adoption-disabled",
+		},
+		{
+			name: "shadow", mode: presentation.AdoptionShadow,
+			wantState: presentation.AdoptionStateShadow, wantDiagnostic: "adoption-shadow", wantResolved: true,
+		},
+		{
+			name: "active page not allowlisted", mode: presentation.AdoptionActive,
+			wantState: presentation.AdoptionStateNotAllowlisted, wantDiagnostic: "adoption-not-allowlisted",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			policy := presentation.MustNewAdoptionPolicy(
+				test.mode, test.activePages, false, activeService.Registry,
+			)
+			current, serviceErr := NewPresentationProfileService(activeService.Registry, policy)
+			require.NoError(t, serviceErr)
+			current.Database = db
+			effective, effectiveErr := current.Effective(ctx, capability.PageKey, "", "")
+			require.NoError(t, effectiveErr)
+			require.True(t, effective.Fallback)
+			if test.wantResolved {
+				require.NotEmpty(t, effective.Layers.Application)
+			} else {
+				require.Empty(t, effective.Layers.Application)
+			}
+			require.Equal(t, test.wantState, effective.Adoption.State)
+			require.Equal(t, test.wantResolved, effective.Adoption.ResolveLayers)
+			require.False(t, effective.Adoption.ApplyLayers)
+			require.Equal(t, test.wantDiagnostic, effective.Diagnostics[0].Code)
+		})
+	}
 }

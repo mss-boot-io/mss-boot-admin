@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/business"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	"github.com/mss-boot-io/mss-boot-admin/admin/presentation"
 	"gorm.io/gorm"
 )
 
@@ -26,10 +27,11 @@ func (businessModule) Register(registry *business.Registry) error {
 		return errors.New("supplier business registry is required")
 	}
 	return registry.Register(business.Registration{
-		Descriptor: Descriptor(),
-		Migrations: RegisterMigration,
-		Readiness:  verifyRuntimeReadiness,
-		Routes:     registerBusinessRoutes,
+		Descriptor:    Descriptor(),
+		Migrations:    RegisterMigration,
+		Readiness:     verifyRuntimeReadiness,
+		Routes:        registerBusinessRoutes,
+		Presentations: []presentation.CapabilityDefinition{PresentationDefinition()},
 	})
 }
 

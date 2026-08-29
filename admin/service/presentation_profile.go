@@ -11,7 +11,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
-	"github.com/mss-boot-io/mss-boot-admin/admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/admin/dto"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	"github.com/mss-boot-io/mss-boot-admin/admin/presentation"
@@ -67,9 +66,26 @@ func (err *PresentationRevisionConflictError) Unwrap() error {
 }
 
 type PresentationProfileService struct {
-	Database     *gorm.DB
-	Registry     *presentation.Registry
+	Database *gorm.DB
+	Registry *presentation.Registry
+	Adoption presentation.AdoptionPolicy
+	// RecoveryMode is retained only for source compatibility with P1 callers.
+	// The production composition path always injects an immutable Adoption
+	// snapshot and never evaluates this callback.
 	RecoveryMode func() bool
+}
+
+func NewPresentationProfileService(
+	registry *presentation.Registry,
+	adoption presentation.AdoptionPolicy,
+) (*PresentationProfileService, error) {
+	if registry == nil {
+		return nil, errors.New("presentation capability registry is required")
+	}
+	if !adoption.Initialized() {
+		return nil, errors.New("presentation adoption policy is required")
+	}
+	return &PresentationProfileService{Registry: registry, Adoption: adoption}, nil
 }
 
 func (service *PresentationProfileService) registry() *presentation.Registry {
@@ -92,11 +108,22 @@ func (service *PresentationProfileService) database(ctx *gin.Context) *gorm.DB {
 		Session(&gorm.Session{})
 }
 
-func (service *PresentationProfileService) recoveryMode() bool {
-	if service != nil && service.RecoveryMode != nil {
-		return service.RecoveryMode()
+func (service *PresentationProfileService) adoptionDecision(pageKey string) presentation.AdoptionDecision {
+	if service != nil && service.Adoption.Initialized() {
+		return service.Adoption.Decide(pageKey)
 	}
-	return config.Cfg.Presentation.RecoveryMode
+	// P1 compatibility for direct service construction. Production uses the
+	// constructor above and cannot reach this path.
+	if service != nil && service.RecoveryMode != nil && service.RecoveryMode() {
+		return presentation.AdoptionDecision{
+			Mode: presentation.AdoptionActive, State: presentation.AdoptionStateRecovery,
+			RecoveryMode: true,
+		}
+	}
+	return presentation.AdoptionDecision{
+		Mode: presentation.AdoptionActive, State: presentation.AdoptionStateActive,
+		Allowlisted: true, ResolveLayers: true, ApplyLayers: true,
+	}
 }
 
 func (service *PresentationProfileService) Capabilities() []presentation.CapabilityDefinition {
@@ -104,7 +131,18 @@ func (service *PresentationProfileService) Capabilities() []presentation.Capabil
 }
 
 func (service *PresentationProfileService) RecoveryEnabled() bool {
-	return service.recoveryMode()
+	return service.adoptionDecision("").RecoveryMode
+}
+
+func (service *PresentationProfileService) AdoptionMode() presentation.AdoptionMode {
+	return service.adoptionDecision("").Mode
+}
+
+func (service *PresentationProfileService) ActivePages() []string {
+	if service != nil && service.Adoption.Initialized() {
+		return service.Adoption.ActivePages()
+	}
+	return []string{}
 }
 
 func (service *PresentationProfileService) Validate(raw json.RawMessage) *dto.PresentationValidationResponse {
@@ -502,7 +540,12 @@ func (service *PresentationProfileService) Effective(
 		Layers:      dto.EffectivePresentationLayers{},
 		Diagnostics: []dto.EffectivePresentationDiagnostic{},
 	}
-	if service.recoveryMode() {
+	decision := service.adoptionDecision(pageKey)
+	response.Adoption = dto.PresentationAdoptionResource{
+		Mode: decision.Mode, State: decision.State, Allowlisted: decision.Allowlisted,
+		ResolveLayers: decision.ResolveLayers, ApplyLayers: decision.ApplyLayers,
+	}
+	if decision.RecoveryMode {
 		response.RecoveryMode = true
 		response.Fallback = true
 		response.Diagnostics = append(response.Diagnostics, dto.EffectivePresentationDiagnostic{Code: "recovery-mode"})
@@ -510,9 +553,24 @@ func (service *PresentationProfileService) Effective(
 	}
 	capability, registered := service.registry().Lookup(pageKey)
 	if !registered {
+		response.Adoption.State = presentation.AdoptionStateUnknownPage
 		response.Fallback = true
 		response.Diagnostics = append(response.Diagnostics, dto.EffectivePresentationDiagnostic{Code: "unknown-page"})
 		return response, nil
+	}
+	response.DefinitionHash = capability.DefinitionHash
+	if !decision.ResolveLayers {
+		response.Fallback = true
+		code := "adoption-disabled"
+		if decision.State == presentation.AdoptionStateNotAllowlisted {
+			code = "adoption-not-allowlisted"
+		}
+		response.Diagnostics = append(response.Diagnostics, dto.EffectivePresentationDiagnostic{Code: code})
+		return response, nil
+	}
+	if !decision.ApplyLayers {
+		response.Fallback = true
+		response.Diagnostics = append(response.Diagnostics, dto.EffectivePresentationDiagnostic{Code: "adoption-shadow"})
 	}
 	db := service.database(ctx)
 	layers := []struct {
@@ -540,6 +598,9 @@ func (service *PresentationProfileService) Effective(
 			response.Diagnostics = append(response.Diagnostics, *diagnostic)
 			continue
 		}
+		// Shadow mode deliberately returns validated layers together with
+		// applyLayers=false so the browser can prove parity without rendering
+		// them. Disabled, non-allowlisted, and recovery decisions return earlier.
 		if len(raw) > 0 {
 			layer.assign(raw)
 		}
@@ -582,7 +643,12 @@ func (service *PresentationProfileService) loadEffectiveLayer(
 	}
 	issues = presentation.ValidateProfile(capability, document.Profile)
 	if len(issues) > 0 {
-		return nil, &dto.EffectivePresentationDiagnostic{Layer: scope, ProfileID: profile.ID, Code: "published-definition-drift", Issues: issues}, nil
+		return nil, &dto.EffectivePresentationDiagnostic{
+			Layer: scope, ProfileID: profile.ID, Code: "published-definition-drift",
+			ExpectedDefinitionHash: capability.DefinitionHash,
+			ObservedDefinitionHash: revision.DefinitionHash,
+			Issues:                 issues,
+		}, nil
 	}
 	return append(json.RawMessage(nil), document.Canonical...), nil, nil
 }

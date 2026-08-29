@@ -47,6 +47,8 @@ type PresentationProfileListResponse struct {
 type PresentationCapabilityListResponse struct {
 	Items        []presentation.CapabilityDefinition `json:"items"`
 	RecoveryMode bool                                `json:"recoveryMode"`
+	AdoptionMode presentation.AdoptionMode           `json:"adoptionMode"`
+	ActivePages  []string                            `json:"activePages"`
 }
 
 type PresentationProfileSummary struct {
@@ -126,11 +128,21 @@ type PresentationConflictResource struct {
 }
 
 type EffectivePresentationResponse struct {
-	PageKey      string                            `json:"pageKey"`
-	RecoveryMode bool                              `json:"recoveryMode"`
-	Fallback     bool                              `json:"fallback"`
-	Layers       EffectivePresentationLayers       `json:"layers"`
-	Diagnostics  []EffectivePresentationDiagnostic `json:"diagnostics"`
+	PageKey        string                            `json:"pageKey"`
+	DefinitionHash string                            `json:"definitionHash,omitempty"`
+	RecoveryMode   bool                              `json:"recoveryMode"`
+	Fallback       bool                              `json:"fallback"`
+	Adoption       PresentationAdoptionResource      `json:"adoption"`
+	Layers         EffectivePresentationLayers       `json:"layers"`
+	Diagnostics    []EffectivePresentationDiagnostic `json:"diagnostics"`
+}
+
+type PresentationAdoptionResource struct {
+	Mode          presentation.AdoptionMode  `json:"mode"`
+	State         presentation.AdoptionState `json:"state"`
+	Allowlisted   bool                       `json:"allowlisted"`
+	ResolveLayers bool                       `json:"resolveLayers"`
+	ApplyLayers   bool                       `json:"applyLayers"`
 }
 
 type EffectivePresentationLayers struct {
@@ -140,10 +152,12 @@ type EffectivePresentationLayers struct {
 }
 
 type EffectivePresentationDiagnostic struct {
-	Layer     presentation.ScopeKind `json:"layer,omitempty"`
-	ProfileID string                 `json:"profileID,omitempty"`
-	Code      string                 `json:"code"`
-	Issues    []presentation.Issue   `json:"issues,omitempty"`
+	Layer                  presentation.ScopeKind `json:"layer,omitempty"`
+	ProfileID              string                 `json:"profileID,omitempty"`
+	Code                   string                 `json:"code"`
+	ExpectedDefinitionHash string                 `json:"expectedDefinitionHash,omitempty"`
+	ObservedDefinitionHash string                 `json:"observedDefinitionHash,omitempty"`
+	Issues                 []presentation.Issue   `json:"issues,omitempty"`
 }
 
 type PresentationConflictResponseData struct {
