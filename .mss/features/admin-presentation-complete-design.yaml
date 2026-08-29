@@ -129,10 +129,13 @@ spec:
       rules:
         - spec.presentation is optional; omission preserves the current generated page and registers no presentation capability.
         - pageKey is explicit, stable, globally unique, and never derived from a route, display name, package path, or database table.
-        - definitionVersion changes only when the capability contract changes incompatibly; definitionHash changes for every normalized semantic definition change.
-        - List, search, form, detail, and action defaults reference existing entity fields, API operations, and permission actions by local stable identifiers.
+        - definitionVersion changes only when the capability contract changes incompatibly; the first generated contract is version 2 because version 1 excluded complete defaults from hash interpretation.
+        - definitionHash changes for every normalized semantic definition change, including title, layout, complete defaults, pagination, and sorting constraints.
+        - List, search, form, detail, and action defaults reference existing entity or generated response fields, API operations, and permission actions by unqualified local stable identifiers.
+        - The generator qualifies list data source and action references as <module>.<local-id>; source values containing a dot are rejected, while pageKey remains explicit and is never derived.
         - Data-source and action permission requirements are generated from existing trusted API and permission contracts and are not accepted as editable strings in presentation source.
-        - Components are selected from a Foundation-owned compile-time registry; a module may narrow a field allowlist but cannot name an unregistered implementation.
+        - Data-source capabilities derive page-size options, maximum page size, and maximum sort-field count from the compiled API/query contract; the global profile schema is only an outer safety bound.
+        - Components are selected from the embedded Foundation-owned .mss/admin-presentation-catalog.yaml compatibility matrix; a module may narrow a field allowlist but cannot name an unregistered implementation.
         - Existing field type, required, searchable, sortable, filterable, list, form, detail, enum, validation, and UI facts remain authoritative inputs.
     - id: normalize-one-manifest
       title: Build one canonical capability manifest
@@ -142,8 +145,9 @@ spec:
       module: presentation-generator
       rules:
         - The generator validates references, surfaces, component compatibility, default completeness, required-form visibility, sort and filter support, and action placement before rendering files.
-        - Stable ordering is by declared order and then stable identifier; duplicate orders are allowed only when the identifier tie-break remains deterministic.
-        - The definition hash is SHA-256 over canonical UTF-8 JSON for the normalized compatibility surface, excluding the hash field, generated headers, timestamps, and file paths.
+        - Stable ordering is by declared order and then stable identifier; duplicate orders are allowed only when the identifier tie-break remains deterministic, while sort precedence preserves declared order.
+        - The definition hash is SHA-256 over canonical UTF-8 JSON for the complete normalized compatibility surface, including complete defaults and compiled pagination or sorting limits but excluding the hash field, generated headers, timestamps, and file paths.
+        - Canonical JSON uses fixed ASCII property-name ordering, normalized array order, UTF-8 JSON strings without HTML-only escaping, and only bounded integer numbers; Go and TypeScript golden vectors include Unicode and HTML-significant characters.
         - Go and TypeScript outputs embed the same page key, definition version, definition hash, fields, components, data sources, actions, permissions, and complete defaults.
         - Cross-language golden vectors fail when either projection canonicalizes, validates, or resolves the same manifest differently.
         - Generation supports dry-run, path confinement, obsolete generated-file cleanup, stable output, and two-run idempotency.
@@ -157,6 +161,7 @@ spec:
         - Backend modules receive a generated presentation definition beside their other generated registration artifacts.
         - Frontend modules receive a generated definition and compiled page adapter beside the generated page, API, query, contract, and type files.
         - Application composition receives deterministic generated registry indexes containing only explicitly enabled modules.
+        - Each enabled module receives one generated data-only normalized manifest snapshot used by parity tests and future upgrade drift planning; runtime profile resolution never reads the snapshot file.
         - Generated files identify the AdminModule source and generator version and are never hand-edited.
         - Custom business files may provide compiled renderer or action extensions only through typed registration points declared by the module contract.
         - Missing backend or frontend projection for an enabled presentation page fails generation and qualification rather than leaving a one-sided capability.
@@ -207,7 +212,9 @@ spec:
         - One page hook fetches effective presentation with a bounded request and resolves it against the exact compiled definition and verified frontend permissions.
         - Page shell and business data loading may proceed concurrently; timeout, cancellation, or endpoint failure settles immediately to compiled defaults.
         - The renderer may change localized text, visible registered fields, component selection, order, width, span, density, page size, default sort, layout columns, action placement, and bounded conditions only.
-        - Conditions read only registered fields present in the compiled data adapter and use type-compatible allowlisted operators and bounded scalar values.
+        - Conditions read only fields explicitly exposed by the compiled adapter for the surface context and use type-compatible allowlisted operators and bounded scalar values.
+        - Version 2 rejects conditions for list columns and toolbar actions, evaluates search against filter draft, form against form draft, detail against the loaded record, and row actions against the current row; conditions affect rendering only.
+        - Missing and null remain distinct, exists accepts a present null, comparisons on missing are false, equality and membership perform no coercion, and ordered comparisons require registered number, date, or date-time values.
         - Required create or edit fields cannot be hidden, incompatible components cannot be selected, unsupported sort or filter fields cannot be activated, and invalid layers are never partially applied.
         - Trusted data-source and action permissions are intersected after all layers; a denied data source produces the existing forbidden state and no visible actions.
         - No-profile and recovery rendering must be semantically equivalent to the pre-adoption generated page, including pagination, search, CRUD, export, error, empty, and conflict behavior.
@@ -235,7 +242,8 @@ spec:
         - Operators can reorder, hide, restore inheritance, edit localized plain text, choose allowed components, adjust width or span, set density, page size, sort, layout, placement, confirmation, and bounded visibility conditions.
         - Every control is derived from the selected compiled capability; unsupported fields, components, operators, placements, and protected properties are not offered.
         - Visual and raw JSON modes share one typed draft abstract syntax tree and round-trip canonically without dropping explicit false values, conditions, or inheritance omissions.
-        - Preview uses generated synthetic values and compiled adapters by default and never fetches a business record merely to render the editor.
+        - Generated adapters separate a pure view surface from effectful query, mutation, and action bindings; preview imports only the pure surface and its dependency graph contains no network or business callbacks.
+        - Preview uses generated synthetic values and the pure view adapter by default and never fetches a business record merely to render the editor.
         - Validation issues link to the affected control and raw path; a structurally safe but semantically invalid draft may be saved but cannot be published.
         - Save, conflict preservation, publish confirmation, immutable history, rollback, permission separation, and audit redaction continue through existing P1 endpoints.
     - id: govern-definition-drift
@@ -248,9 +256,9 @@ spec:
         - A changed generated definition hash causes every older published or draft document for that page to be reported stale and prevents the layer from applying.
         - Runtime falls back to lower valid layers and compiled defaults; deployment never rewrites, drops, or republishes stored profile content automatically.
         - The governance console distinguishes current, stale, unregistered, corrupt, invalid, disabled, shadow, active, and recovery states.
-        - A rebase helper may create or replace an inactive draft only after showing added, removed, renamed, incompatible, and retained identifiers; it never publishes and never silently drops an invalid reference.
+        - A rebase helper may create or replace an inactive draft only after showing added, removed, changed, incompatible, and retained identifiers; version 2 never guesses renames without future explicit source-controlled hints.
         - Admin Distribution upgrade planning reports old and new page hashes and capability changes from generated snapshots while preserving runtime database independence.
-        - Breaking identifier changes require an explicit reviewed migration note and browser qualification; display-only source changes still receive a new exact hash under the conservative v1 contract.
+        - Breaking identifier changes require an explicit reviewed migration note and browser qualification; display-only source changes still receive a new exact hash under the conservative version 2 contract.
     - id: preserve-thin-host-upgrades
       title: Keep presentation generation compatible with Thin Hosts
       description: Downstream business repositories consume coordinated Admin versions without copying Foundation presentation runtime.
@@ -272,6 +280,7 @@ spec:
       rules:
         - The handwritten P0 Supplier prototype is replaced by generator-owned Go and TypeScript projections sourced from .mss/modules/example-supplier.yaml.
         - Supplier retains the stable supplier.list page key and existing compiled API, query, permission, route, CRUD, export, validation, and locale contracts.
+        - "The generated Supplier default matches the current page: large density, page size 20 from 20/50/100, no initial sort, expanded keyword/country/credit-level/three-state-enabled search, single-column form and detail, derived read-only ID and timestamps, and export before create."
         - With no published profile, disabled mode, shadow mode, invalid content, stale hash, store outage, or recovery mode, Supplier renders compiled defaults with no business behavior regression.
         - Active application, role, and user profiles prove deterministic precedence across list, search, create or edit form, detail, actions, density, pagination, sorting, labels, and conditions.
         - Direct API authorization tests prove profiles cannot expose denied data or actions, and browser tests prove hidden controls never substitute for backend enforcement.
@@ -329,6 +338,24 @@ spec:
       type: operations
       statement: This D0 checkpoint changes documentation and machine-readable design only and has no database, API, route, menu, registry, page, or release effect.
   acceptance:
+    - id: compiled-authority-gate
+      requirement: preserve-compiled-authority
+      statement: Generated capability and runtime contract tests prove profiles can reference only exact compiled identifiers and every invalid or unavailable layer falls back to lower valid layers or complete defaults.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/presentation and web/antd-v6 shared presentation contract suites
+    - id: admin-module-presentation-schema-gate
+      requirement: define-admin-module-extension
+      statement: AdminModule schema and semantic tests prove presentation is optional, page keys are explicit and unique, defaults are complete, and every field, data-source, action, permission, and component reference comes from trusted module contracts.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: internal/mss/spec presentation-focused AdminModule suites
     - id: complete-design-contract
       requirement: phase-implementation-checkpoints
       statement: The complete FeatureSpec, ADR, and Chinese product design agree on boundaries, phases, generated ownership, runtime fallback, visual editing, drift, and Supplier rollout.
@@ -364,7 +391,7 @@ spec:
           value: corepack pnpm@9.15.9 --dir docs build
     - id: generator-contract-gate
       requirement: normalize-one-manifest
-      statement: P2A schema, semantic, golden, canonical-hash, Go or TypeScript parity, cleanup, confinement, and two-run idempotency tests pass.
+      statement: P2A schema, semantic, golden, canonical-hash, Go and TypeScript parity, cleanup, confinement, and two-run idempotency tests pass.
       level: contract
       phase: checkpoint
       required: true
@@ -373,6 +400,15 @@ spec:
           value: internal/mss/spec and internal/mss/generator presentation-focused suites
         - type: test
           value: generated Supplier Go and TypeScript definition parity tests
+    - id: generated-artifact-ownership-gate
+      requirement: generate-owned-artifacts
+      statement: P2A generation emits both owned projections and deterministic registry indexes from one AdminModule source, removes only obsolete generated presentation files, and fails when either language projection is absent.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: internal/mss/generator presentation output, cleanup, confinement, and idempotency suites
     - id: backend-composition-gate
       requirement: compose-backend-registry
       statement: P2B tests prove atomic registration, freeze, duplicate and protected-key rejection, dependency injection, adoption modes, effective precedence, fallback, and recovery behavior.
@@ -384,6 +420,33 @@ spec:
           value: admin/business and admin/presentation focused suites
         - type: test
           value: admin/service and admin/apis presentation effective-profile suites
+    - id: effective-layer-selection-gate
+      requirement: select-effective-layers
+      statement: P2B effective-profile tests prove the server selects only published application, current-role, and current-user layers, treats missing rows normally, and omits complete stale, corrupt, invalid, unavailable, or recovery-bypassed layers with bounded diagnostics.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/service presentation effective-profile principal, precedence, outage, and recovery suites
+    - id: adoption-control-gate
+      requirement: control-production-adoption
+      statement: P2B and P2C tests prove startup-owned disabled, shadow, active allowlist, and recovery precedence while database content cannot activate a page and shadow mode performs no business mutation.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin presentation adoption configuration and web/antd-v6 disabled or shadow parity suites
+    - id: frontend-registry-parity-gate
+      requirement: compose-frontend-registry
+      statement: P2C build and Thin Host tests prove every enabled page uses one statically imported definition and compiled adapter whose inventory and definition hash exactly match the backend registry, with no profile-controlled dynamic import.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6 generated presentation registry and backend and frontend parity suites
     - id: frontend-runtime-gate
       requirement: resolve-and-render-pages
       statement: P2C tests prove compiled-default parity, exact-layer resolution, permission intersection, bounded failure fallback, component allowlists, and no dynamic imports.
@@ -397,6 +460,15 @@ spec:
           value: corepack pnpm@10.34.5 --dir web/antd-v6 lint
         - type: command
           value: corepack pnpm@10.34.5 --dir web/antd-v6 tsc
+    - id: definition-drift-gate
+      requirement: govern-definition-drift
+      statement: Upgrade planning, governance, and runtime tests report old and new hashes and structured capability changes, reject stale layers as units, preserve stored documents, and limit rebase assistance to an inactive reviewed draft.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: presentation drift, draft rebase, and Admin Distribution upgrade-plan suites
     - id: supplier-active-browser-gate
       requirement: qualify-supplier-production
       statement: P2D built-in browser evidence covers disabled, shadow, active, no-profile, layered profiles, drift, outage, recovery, permissions, refresh, console, and failed-request checks on the exact Head.

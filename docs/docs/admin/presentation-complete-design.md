@@ -112,20 +112,22 @@ P1 校验/发布/有效层 ──► 浏览器解析器与渲染器
 `AdminModule` 是生成业务页面的唯一源头。模块可以选择性增加 `spec.presentation`。
 没有该段时，当前静态页面保持原样，不注册展示能力，完全向后兼容。
 
-Supplier 的设计形态如下：
+下面只展示 Supplier 的结构片段。P2A 提交的 AdminModule 必须完整列出与当前生产页面等价的默认项，
+本片段中省略的字段不代表存在隐式默认值。
 
 ```yaml
 spec:
   presentation:
     pageKey: supplier.list
-    definitionVersion: "1"
+    definitionVersion: "2"
+    title:
+      zh-CN: 供应商管理
+      en-US: Suppliers
     dataSource: list
     list:
-      density: middle
+      density: large
       pageSize: 20
-      defaultSort:
-        - field: code
-          direction: asc
+      defaultSort: []
       fields:
         - field: code
           component: text
@@ -142,7 +144,7 @@ spec:
           component: boolean
           order: 70
     search:
-      collapsedByDefault: true
+      collapsedByDefault: false
       fields:
         - field: code
           component: input
@@ -151,32 +153,32 @@ spec:
           component: select
           order: 50
     form:
-      columns: 2
+      columns: 1
       fields:
         - field: code
           component: input
           order: 10
-          span: 12
+          span: 24
         - field: enabled
           component: switch
           order: 70
-          span: 12
+          span: 24
     detail:
-      columns: 2
+      columns: 1
       fields:
         - field: code
           component: text
           order: 10
-          span: 12
+          span: 24
         - field: enabled
           component: boolean
           order: 70
-          span: 12
+          span: 24
     actions:
-      - action: create
+      - action: export
         placement: toolbar
         order: 10
-      - action: export
+      - action: create
         placement: toolbar
         order: 20
       - action: read
@@ -193,14 +195,40 @@ spec:
 关键规则：
 
 - `pageKey` 必须显式声明、全局唯一并长期稳定，不从路由、文件名、表名或显示名称推导；
-- `definitionVersion` 只在定义合同不兼容时升级；
+- `definitionVersion` 只在定义合同不兼容时升级；首个生产生成合同使用 `2`，因为测试用 P0
+  的 `1` 未把完整默认展示纳入哈希，不能静默沿用；
 - 字段引用必须来自当前模块实体；
 - 数据源来自当前模块已生成的 API 和查询适配器；
 - 动作权限来自当前模块已生成的权限合同；
-- 组件来自 Foundation 的静态组件注册表；
+- 组件和字段类型/页面表面兼容关系来自 Foundation 内嵌的
+  `.mss/admin-presentation-catalog.yaml` 机器合同；
 - 模块只能缩小组件可选范围，不能用字符串注册新的组件实现；
 - 必填、可搜索、可排序、可过滤、表单/详情可用性等事实继续来自现有字段定义；
 - `spec.presentation` 不接受权限字符串、URL、方法、请求头、SQL、导入路径或处理函数。
+
+展示源只接受未限定的本地引用：`dataSource: list` 标准化为 `<module>.list`，
+`action: create` 标准化为 `<module>.create`。数据源和动作源值只要包含 `.` 就拒绝，避免出现两种限定
+方式。字段 ID 保持页面本地，组件 ID 保持 Foundation 全局，`pageKey` 始终显式声明、绝不由该规则推导。
+生成的数据源能力还必须携带编译 API/查询适配器已经执行的分页选项、最大分页和最大排序字段数；
+profile 只能在这些范围内缩小行为，不能提供查询参数名或编码方式。
+
+版本 `2` 的 catalog 只开放 Supplier 首闭环已经需要的最小矩阵，其他组合一律拒绝：
+
+| 组件 | 兼容值与页面表面 |
+| --- | --- |
+| `text` | 字符串；列表/详情 |
+| `input` | 字符串；搜索/表单 |
+| `email-input` | email 格式字符串；表单 |
+| `tag` | 枚举；列表/详情 |
+| `select` | 枚举；搜索/表单 |
+| `boolean` | 布尔；列表/详情 |
+| `boolean-filter` | 布尔；搜索，使用编译期 all/true/false 编码 |
+| `switch` | 布尔；表单 |
+| `copyable-code` | 生成的标识字段；详情 |
+| `date-time` | 生成的时间戳字段；详情 |
+
+新增组件 ID、兼容项或 React 实现都属于独立 Foundation 变更。catalog 随 `mss` 分发内嵌；Schema
+只校验结构，Go 语义校验读取 catalog，前端构建测试证明每个 catalog ID 都有且只有一个静态实现。
 
 生成器先构造一个标准化内存清单，再从同一清单输出 Go 和 TypeScript。定义哈希只计算一次：
 
@@ -208,8 +236,10 @@ spec:
 sha256(canonical-json(normalized-capability-without-hash))
 ```
 
-哈希输入包含页面、字段、表面、组件、数据源、动作、可信权限要求和完整默认展示；不包含生成文件头、
-时间、路径和哈希字段自身。Go 与 TypeScript 必须嵌入同一个哈希，并通过跨语言金丝雀向量验证。
+哈希输入包含页面、字段、表面、组件、数据源、动作、可信权限要求、分页/排序限制和完整默认展示；
+不包含生成文件头、时间、路径和哈希字段自身。规范 JSON 固定使用 ASCII 属性名排序、按声明顺序再按
+稳定 ID 排列数组（排序优先级除外）、不做 HTML 专用转义的 UTF-8 JSON 字符串，并只允许有界整数。
+Go 与 TypeScript 必须嵌入同一个哈希，并用 Unicode、HTML 特殊字符、键序、数组序和空集合金丝雀验证。
 
 计划生成的所有权边界：
 
@@ -219,6 +249,7 @@ sha256(canonical-json(normalized-capability-without-hash))
 | `web/antd-v6/src/generated/modules/<module>/presentation.generated.ts` | 生成器 | 前端可信可序列化定义 |
 | `presentation.adapter.generated.tsx` | 生成器 | 编译期查询、字段、组件和动作适配 |
 | 后端/前端应用注册表索引 | 生成器 | 显式列出启用模块 |
+| 每模块标准化 manifest 快照 | 生成器 | 双端一致性证据和以后升级前后结构化 diff 输入；运行时不读取 |
 | 模块 `custom` 扩展文件 | 业务代码 | 通过强类型入口提供编译期自定义实现 |
 
 生成文件不手改。生成器必须支持 dry-run、路径限制、稳定排序、旧生成文件清理和连续两次运行零差异。
@@ -296,6 +327,13 @@ pageKey -> {
 的 `tag` 样式，不会改变列表 API；隐藏“删除”按钮也不会改变删除接口权限；配置不能把任意 URL
 变成数据源。
 
+条件的上下文按页面表面固定。首个生产合同不允许列表列和 toolbar 动作使用条件，因为它们没有唯一
+记录上下文；搜索字段读取当前过滤草稿；表单字段和 form 动作读取表单草稿；详情字段和 detail 动作
+读取已加载记录；row 动作读取当前行。只能读取编译 adapter 为该上下文显式开放的字段。missing 与
+`null` 不同，属性存在且值为 `null` 时 `exists=true`；missing 上的比较为 false；相等和集合判断不做
+类型转换；有序比较只允许已登记的 number/date/date-time。条件只影响渲染，不删除查询/提交值、不改
+handler，也不授予权限。
+
 ### 四、运行控制与恢复
 
 注册能力与真正应用配置必须分开。启动配置增加：
@@ -370,7 +408,11 @@ P3 不创建第二套产品，而是在现有“页面展示配置”治理控�
 - 保存、冲突、刷新和预览不能改变文档语义；
 - Canonical JSON 仍通过现有 P1 API 保存和发布。
 
-预览默认使用按字段类型和枚举生成的合成数据，不为了预览读取生产业务记录，也不执行任何动作。
+生成 adapter 在类型上拆成纯 `PresentationViewAdapter` 和有副作用的 `BusinessPageAdapter`。前者只含
+静态组件、格式化、codec、校验和合成预览绑定；后者才含 query、mutation 和动作回调。治理预览只能
+导入纯 view adapter，构建测试必须拒绝其依赖图出现网络 client、查询、变更或动作回调。
+
+预览默认使用按字段类型和枚举生成的合成数据和纯 view adapter，不为了预览读取生产业务记录，也不执行任何动作。
 结构安全但语义错误的草稿可以保存继续修复，发布仍必须通过当前定义校验。
 
 现有四项权限保持独立：
@@ -409,8 +451,9 @@ P3 不创建第二套产品，而是在现有“页面展示配置”治理控�
 - Active；
 - Recovery。
 
-“迁移到当前定义”只能生成未发布草稿。它必须展示保留、新增、移除、重命名和不兼容项，不能只改
-哈希，不能静默删除未知引用，更不能自动发布。
+“迁移到当前定义”只能生成未发布草稿。版本 `2` 只展示保留、新增、移除、变更和不兼容项，不根据
+名称相似度猜测重命名；以后只有增加显式、源码受控的 rename hint 合同后才可报告“重命名”。它不能
+只改哈希，不能静默删除未知引用，更不能自动发布。
 
 `mss upgrade admin` 的计划阶段根据旧、新生成快照报告：
 
@@ -431,8 +474,11 @@ Thin Host 升级继续使用受管理快照和三方比较：
 
 ## Supplier 首个生产试点
 
-Supplier 保留稳定页面键 `supplier.list`。当前手写 P0 原型会被生成器产物替代，源头移动到
-`.mss/modules/example-supplier.yaml`。
+Supplier 保留稳定页面键 `supplier.list`。当前手写 P0 原型只证明过 resolver，不是生产等价默认值；
+它会被版本 `2` 生成器产物替代，源头移动到 `.mss/modules/example-supplier.yaml`。生成默认必须匹配
+当前页面：large 密度、20 条分页且选项为 `[20, 50, 100]`、初始不排序、搜索始终展开并包含关键词/
+国家或地区/信用等级/三态启用状态、表单和详情单列、详情包含只读 ID 与创建/更新时间、toolbar 先导出
+后新建。关键词展示字段由编译 adapter 固定执行 `code -> q` 绑定，profile 永远看不到传输参数 `q`。
 
 接入不能改变已有：
 

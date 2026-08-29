@@ -77,25 +77,28 @@ The first schema fixes these identities:
 - `pageKey`: explicit, globally unique, and stable; it is not derived from route, display name, table,
   Go package, or file path;
 - `definitionVersion`: semantic contract version, changed only for an incompatible definition format or
-  interpretation;
+  interpretation. Generated definitions start at version `2`: the test-only P0 version `1` excluded
+  `defaultPresentation` from its hash, while the production contract hashes complete defaults;
 - local field, data-source, and action references: resolved against the existing entity, API,
   permission, and UI specification;
 - complete defaults for list, search, form, detail, and action surfaces.
 
-A representative Supplier source shape is:
+A shape-only Supplier excerpt is shown below. The committed P2A AdminModule source must enumerate the
+complete production-equivalent defaults; omitted fields in this excerpt are not implicit defaults.
 
 ```yaml
 spec:
   presentation:
     pageKey: supplier.list
-    definitionVersion: "1"
+    definitionVersion: "2"
+    title:
+      zh-CN: 供应商管理
+      en-US: Suppliers
     dataSource: list
     list:
-      density: middle
+      density: large
       pageSize: 20
-      defaultSort:
-        - field: code
-          direction: asc
+      defaultSort: []
       fields:
         - field: code
           component: text
@@ -112,7 +115,7 @@ spec:
           component: boolean
           order: 70
     search:
-      collapsedByDefault: true
+      collapsedByDefault: false
       fields:
         - field: code
           component: input
@@ -121,32 +124,32 @@ spec:
           component: select
           order: 50
     form:
-      columns: 2
+      columns: 1
       fields:
         - field: code
           component: input
           order: 10
-          span: 12
+          span: 24
         - field: enabled
           component: switch
           order: 70
-          span: 12
+          span: 24
     detail:
-      columns: 2
+      columns: 1
       fields:
         - field: code
           component: text
           order: 10
-          span: 12
+          span: 24
         - field: enabled
           component: boolean
           order: 70
-          span: 12
+          span: 24
     actions:
-      - action: create
+      - action: export
         placement: toolbar
         order: 10
-      - action: export
+      - action: create
         placement: toolbar
         order: 20
       - action: read
@@ -168,13 +171,48 @@ contracts:
   eligibility come from the existing entity specification;
 - the generated list data source comes from the compiled list operation and typed query adapter;
 - action permissions come from existing generated permissions and route-policy contracts;
-- component identifiers come from a Foundation-owned static registry;
+- component identifiers and field-type/surface compatibility come from the embedded Foundation-owned
+  `.mss/admin-presentation-catalog.yaml` contract;
 - modules may narrow a generated component allowlist but cannot register an implementation through data.
 
+The presentation source accepts only unqualified local references. `dataSource: list` normalizes to
+`<module>.list`, and `action: create` normalizes to `<module>.create`. A source data-source or action value
+containing `.` is rejected so qualification has one meaning. Field identifiers remain page-local, component
+identifiers are Foundation-global, and `pageKey` remains explicit rather than being derived by this rule.
+The generated data-source capability also carries the transport-adjacent limits already enforced by the
+compiled API/query adapter, including page-size choices, maximum page size, and maximum sort-field count.
+Profiles may narrow behavior only within those limits and cannot provide query parameter names or encoders.
+
+The version `2` catalog begins with the smallest closed Supplier matrix and rejects everything else:
+
+| Component | Compatible value/surface |
+| --- | --- |
+| `text` | string on list/detail |
+| `input` | string on search/form |
+| `email-input` | email-formatted string on form |
+| `tag` | enum on list/detail |
+| `select` | enum on search/form |
+| `boolean` | boolean on list/detail |
+| `boolean-filter` | boolean on search with compiled all/true/false encoding |
+| `switch` | boolean on form |
+| `copyable-code` | generated identifier on detail |
+| `date-time` | generated timestamp on detail |
+
+Adding a component ID, compatibility row, or React implementation is a reviewed Foundation change. The
+catalog inventory is embedded into the `mss` distribution; schema validation checks shape, semantic
+validation checks this catalog, and frontend build tests prove every catalog ID has one static implementation.
+
 The generator first produces one normalized in-memory manifest. It validates every reference and complete
-default before writing a file. The definition hash is SHA-256 over canonical UTF-8 JSON for that normalized
-compatibility surface, excluding the hash field, generated headers, timestamps, and file paths. Ordering is
-stable by declared order and then stable identifier.
+default before writing a file. The definition hash is SHA-256 over canonical UTF-8 JSON for that complete
+normalized compatibility surface, including title, layout, defaults, and compiled pagination/sorting limits,
+but excluding the hash field, generated headers, timestamps, and file paths. Version `2` therefore retires
+the P0 hash interpretation rather than silently reusing version `1`.
+
+Canonical JSON uses fixed ASCII property-name ordering, arrays normalized by declared order and then stable
+identifier (except semantically ordered sort precedence), UTF-8 JSON strings without HTML-only escaping, and
+bounded integer numbers only. Go and TypeScript golden vectors cover Unicode, HTML-significant characters,
+property ordering, array ordering, and empty collections. A default title, field order, layout, component,
+pagination constraint, or action change must change the hash.
 
 One manifest produces both sides:
 
@@ -184,6 +222,7 @@ One manifest produces both sides:
 | `web/antd-v6/src/generated/modules/<module>/presentation.generated.ts` | Generated | Trusted browser definition for resolution and editor preview. |
 | `web/antd-v6/src/generated/modules/<module>/presentation.adapter.generated.tsx` | Generated | Compiled data, field, component, and action adapter wiring. |
 | Application presentation registry indexes | Generated | Explicit inventory of enabled modules; no runtime discovery. |
+| Per-module normalized manifest snapshot | Generated | Data-only parity evidence and future old/new upgrade diff input; never a runtime database source. |
 | Golden normalized manifest in tests | Test evidence | Proves Go/TypeScript identity and canonical hash parity. |
 
 Generated regions are never hand-edited. A module custom file may register a typed compiled formatter,
@@ -283,6 +322,15 @@ Required create/edit fields cannot be hidden. Sort and filter choices must be su
 query contract. Conditions use only allowlisted operators compatible with the registered value type and do
 not read backend-only or absent record fields.
 
+Condition context is surface-specific. List columns and toolbar actions do not accept conditions in the
+first production contract because they have no single record context. Search fields read the current filter
+draft; form fields and form actions read the current form draft; detail fields and detail actions read the
+loaded record; row actions read that row. Only fields explicitly exposed by the compiled adapter for that
+context are readable. Missing is distinct from `null`; `exists` is true for a present `null`, comparisons on
+a missing value are false, equality and membership are strictly typed with no coercion, and ordered
+comparisons are limited to registered number/date/date-time values. A condition controls rendering only and
+never removes a query or submission value, changes a handler, or grants permission.
+
 Permissions are applied last. A selected data source is usable only when the verified principal has its
 trusted required permissions. Every action is intersected with its generated permission requirement.
 Frontend checks improve the experience; direct backend authorization remains the security boundary.
@@ -347,7 +395,12 @@ field, operator, action placement, or property. Validation issues link both to t
 JSON path. Structurally safe but semantically invalid work may remain an inactive draft; publish remains
 blocked.
 
-Preview uses generated synthetic values and compiled adapters by default. It does not fetch a production
+Generated adapters expose two type-separated surfaces: a pure view adapter containing static component,
+formatter, codec, validation, and synthetic-preview bindings, and an effectful business adapter containing
+query, mutation, and action callbacks. Preview may import only the view adapter. A build test rejects any
+query, mutation, action callback, or network client in the governance preview dependency graph.
+
+Preview uses generated synthetic values and the pure view adapter by default. It does not fetch a production
 business record merely to make the editor realistic. It does not execute actions. Existing P1 permissions
 remain independent:
 
@@ -386,10 +439,11 @@ The governance console distinguishes:
 - active;
 - recovery bypass.
 
-A rebase helper may prepare an inactive draft against the current definition. It shows retained, added,
-removed, renamed, and incompatible identifiers. It cannot publish, cannot move a history pointer, and
-cannot silently delete an unresolved reference. Updating only the hash without current validation is
-forbidden.
+A rebase helper may prepare an inactive draft against the current definition. Version `2` reports retained,
+added, removed, changed, and incompatible identifiers. It never guesses a rename from similar names; a
+future explicit source-controlled rename-hint contract is required before `renamed` can be reported. The
+helper cannot publish, cannot move a history pointer, and cannot silently delete an unresolved reference.
+Updating only the hash without current validation is forbidden.
 
 `mss upgrade admin` planning gains source-level presentation impact information from the old and new
 generated snapshots:
@@ -411,10 +465,15 @@ supported.
 
 Supplier is the first and only initial active reference.
 
-The current handwritten `supplier.prototype.ts` proves P0 behavior but is not production source. P2A moves
-that definition into `.mss/modules/example-supplier.yaml` and generator-owned Go and TypeScript outputs.
-The stable page key remains `supplier.list`; current APIs, permissions, route, query behavior, CRUD,
-export, validation, locales, and page states remain compiled.
+The current handwritten `supplier.prototype.ts` proves P0 resolver behavior but is not a production-equivalent
+default and is not production source. P2A replaces it as the definition source with a version `2` declaration
+in `.mss/modules/example-supplier.yaml` and generator-owned Go and TypeScript outputs. The generated default
+matches the current page: large list density, page size 20 from `[20, 50, 100]`, no initial sort, expanded
+search with keyword/country/credit-level/three-state-enabled controls, single-column form and detail, derived
+read-only ID/timestamps, and export before create in the toolbar. The keyword field remains the compiled
+`code -> q` adapter binding; profiles never receive the transport key. The stable page key remains
+`supplier.list`; current APIs, permissions, route, query behavior, CRUD, export, validation, locales,
+responsive rules, and page states remain compiled.
 
 Qualification order is mandatory:
 

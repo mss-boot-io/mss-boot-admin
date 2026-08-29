@@ -164,10 +164,13 @@ spec:
       paths:
         - .mss/features/admin-presentation-configuration.yaml
         - .mss/features/admin-presentation-publication-workflow.yaml
+        - .mss/features/admin-presentation-complete-design.yaml
         - .mss/schemas/admin-page-presentation.schema.json
         - docs/adr/2026-08-24-governed-admin-presentation-configuration.md
         - docs/adr/2026-08-24-admin-presentation-publication-workflow.md
+        - docs/adr/2026-08-28-admin-presentation-complete-design.md
         - docs/docs/admin/presentation-configuration.md
+        - docs/docs/admin/presentation-complete-design.md
       backendPaths:
         - admin/presentation
         - admin/models/presentation_profile.go
@@ -184,15 +187,14 @@ spec:
         P0 defines a strict data-only sparse profile over compiled page, field, data-source,
         component, action, and permission capabilities and proves it with a non-production Supplier
         prototype. Code defaults resolve beneath application, role, and user layers; exact definition
-        hash validation rejects stale profiles, and trusted permissions are intersected last. The
-        prototype has no production route, persistence, API, menu, migration, browser storage, or
-        generated-file replacement. The dedicated P1 contract now fixes authoritative drafts, strong
-        conditional transitions, idempotent publication, immutable history, rollback republication,
-        independent permissions, redacted audit, drift fallback, startup recovery mode, and a compiled
-        governance console, while deliberately registering no production business page. Keep this
-        capability Planned until P1 implementation and exact-Head browser evidence pass. Never add scripts,
-        HTML, SQL, transport definitions, component imports, permissions, runtime models, virtual CRUD, or
-        browser code generation to a presentation profile.
+        hash validation rejects stale profiles, and trusted permissions are intersected last. P0 and the
+        P1 publication control plane are implemented and tested, but deliberately register no production
+        business page. The approved complete design now stages production adoption through P2A generator
+        contracts, P2B backend composition, P2C disabled and shadow frontend parity, and P2D allowlisted
+        Supplier activation before P3 visual editing. Keep the overall capability Planned until P2D exact-
+        Head browser and Thin Host evidence pass. Never add scripts, HTML, SQL, transport definitions,
+        component imports, permissions, runtime models, virtual CRUD, or browser code generation to a
+        presentation profile.
 
     - id: platform.cache-lock-queue
       displayName: Legacy Cache, Distributed Lock, and Queue Adapters
