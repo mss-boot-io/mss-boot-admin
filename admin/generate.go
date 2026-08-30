@@ -7,4 +7,4 @@ package main
  * @Last Modified time: 2023/8/6 08:33:26
  */
 
-//go:generate swag init -g main.go --parseDependency --parseDepth=4 --parseVendor
+//go:generate swag init -g main.go --parseDependency --parseDepth=4 --parseVendor --overridesFile .swaggo

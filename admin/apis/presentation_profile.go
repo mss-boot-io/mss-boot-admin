@@ -143,10 +143,10 @@ func (api *PresentationProfileAPI) Validate(ctx *gin.Context) {
 // @Summary List presentation profiles
 // @Tags presentation
 // @Produce application/json
-// @Param page query int false "page number" minimum(1)
+// @Param page query int false "page number" minimum(1) maximum(1000000)
 // @Param pageSize query int false "page size" minimum(1) maximum(100)
-// @Param scope query string false "application, role, or user"
-// @Param pageKey query string false "registered page key"
+// @Param scope query string false "application, role, or user" Enums(application,role,user)
+// @Param pageKey query string false "registered page key" maxLength(120)
 // @Success 200 {object} dto.PresentationProfileListResponse
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
@@ -172,7 +172,7 @@ func (api *PresentationProfileAPI) List(ctx *gin.Context) {
 // @Summary Get a presentation profile
 // @Tags presentation
 // @Produce application/json
-// @Param id path string true "profile id"
+// @Param id path string true "profile id" maxLength(64)
 // @Success 200 {object} dto.PresentationProfileResource
 // @Header 200 {string} ETag "strong profile ETag"
 // @Failure 401 {object} response.Response
@@ -202,7 +202,7 @@ func (api *PresentationProfileAPI) Get(ctx *gin.Context) {
 // @Tags presentation
 // @Accept application/json
 // @Produce application/json
-// @Param If-None-Match header string true "must be *"
+// @Param If-None-Match header string true "must be *" Enums(*)
 // @Param data body dto.PresentationProfileCreateRequest true "profile identity and presentation document"
 // @Success 201 {object} dto.PresentationProfileResource
 // @Header 201 {string} ETag "strong profile ETag"
@@ -251,7 +251,7 @@ func (api *PresentationProfileAPI) CreateDraft(ctx *gin.Context) {
 // @Tags presentation
 // @Accept application/json
 // @Produce application/json
-// @Param id path string true "profile id"
+// @Param id path string true "profile id" maxLength(64)
 // @Param If-Match header string true "strong profile ETag"
 // @Param data body dto.PresentationDraftReplaceRequest true "replacement presentation document"
 // @Success 200 {object} dto.PresentationProfileResource
@@ -303,9 +303,9 @@ func (api *PresentationProfileAPI) ReplaceDraft(ctx *gin.Context) {
 // @Summary Publish a presentation profile
 // @Tags presentation
 // @Produce application/json
-// @Param id path string true "profile id"
+// @Param id path string true "profile id" maxLength(64)
 // @Param If-Match header string true "strong profile ETag"
-// @Param Idempotency-Key header string true "idempotent transition key"
+// @Param Idempotency-Key header string true "idempotent transition key" minLength(8) maxLength(200)
 // @Success 200 {object} dto.PresentationTransitionResponse
 // @Header 200 {string} ETag "strong profile ETag"
 // @Failure 400 {object} response.Response
@@ -353,9 +353,9 @@ func (api *PresentationProfileAPI) Publish(ctx *gin.Context) {
 // @Tags presentation
 // @Accept application/json
 // @Produce application/json
-// @Param id path string true "profile id"
+// @Param id path string true "profile id" maxLength(64)
 // @Param If-Match header string true "strong profile ETag"
-// @Param Idempotency-Key header string true "idempotent transition key"
+// @Param Idempotency-Key header string true "idempotent transition key" minLength(8) maxLength(200)
 // @Param data body dto.PresentationRollbackRequest true "historical revision"
 // @Success 200 {object} dto.PresentationTransitionResponse
 // @Header 200 {string} ETag "strong profile ETag"
@@ -412,8 +412,8 @@ func (api *PresentationProfileAPI) Rollback(ctx *gin.Context) {
 // @Summary List presentation revisions
 // @Tags presentation
 // @Produce application/json
-// @Param id path string true "profile id"
-// @Param page query int false "page number" minimum(1)
+// @Param id path string true "profile id" maxLength(64)
+// @Param page query int false "page number" minimum(1) maximum(1000000)
 // @Param pageSize query int false "page size" minimum(1) maximum(100)
 // @Success 200 {object} dto.PresentationRevisionListResponse
 // @Failure 401 {object} response.Response
@@ -445,8 +445,8 @@ func (api *PresentationProfileAPI) ListRevisions(ctx *gin.Context) {
 // @Summary Get a presentation revision
 // @Tags presentation
 // @Produce application/json
-// @Param id path string true "profile id"
-// @Param revision path int true "positive revision number"
+// @Param id path string true "profile id" maxLength(64)
+// @Param revision path int true "positive revision number" minimum(1)
 // @Success 200 {object} dto.PresentationRevisionResource
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
@@ -479,7 +479,7 @@ func (api *PresentationProfileAPI) GetRevision(ctx *gin.Context) {
 // @Description Returns a safe fallback document with diagnostics when a published layer cannot be applied.
 // @Tags presentation
 // @Produce application/json
-// @Param pageKey path string true "registered page key"
+// @Param pageKey path string true "registered page key" maxLength(120)
 // @Success 200 {object} dto.EffectivePresentationResponse
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response

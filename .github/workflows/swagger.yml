@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'admin/**/*.go'
+      - 'admin/.swaggo'
       - 'admin/go.mod'
       - 'admin/go.sum'
       - 'mss-boot/**/*.go'

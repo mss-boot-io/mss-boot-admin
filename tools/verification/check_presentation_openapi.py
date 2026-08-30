@@ -20,13 +20,30 @@ def _parameter(
     required: bool,
     primitive_type: str | None = None,
     schema_ref: str | None = None,
+    minimum: int | None = None,
+    maximum: int | None = None,
+    min_length: int | None = None,
+    max_length: int | None = None,
+    enum: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
+    constraints = {
+        key: value
+        for key, value in {
+            "minimum": minimum,
+            "maximum": maximum,
+            "minLength": min_length,
+            "maxLength": max_length,
+            "enum": list(enum) if enum is not None else None,
+        }.items()
+        if value is not None
+    }
     return {
         "name": name,
         "in": location,
         "required": required,
         "type": primitive_type,
         "$ref": schema_ref,
+        "constraints": constraints,
     }
 
 
@@ -54,21 +71,60 @@ def _operation(
     }
 
 
-ID = _parameter("id", "path", required=True, primitive_type="string")
-REVISION = _parameter("revision", "path", required=True, primitive_type="integer")
-PAGE = _parameter("page", "query", required=False, primitive_type="integer")
-PAGE_SIZE = _parameter("pageSize", "query", required=False, primitive_type="integer")
-SCOPE = _parameter("scope", "query", required=False, primitive_type="string")
-PAGE_KEY_QUERY = _parameter(
-    "pageKey", "query", required=False, primitive_type="string"
+ID = _parameter(
+    "id", "path", required=True, primitive_type="string", max_length=64
 )
-PAGE_KEY_PATH = _parameter("pageKey", "path", required=True, primitive_type="string")
+REVISION = _parameter(
+    "revision", "path", required=True, primitive_type="integer", minimum=1
+)
+PAGE = _parameter(
+    "page",
+    "query",
+    required=False,
+    primitive_type="integer",
+    minimum=1,
+    maximum=1_000_000,
+)
+PAGE_SIZE = _parameter(
+    "pageSize",
+    "query",
+    required=False,
+    primitive_type="integer",
+    minimum=1,
+    maximum=100,
+)
+SCOPE = _parameter(
+    "scope",
+    "query",
+    required=False,
+    primitive_type="string",
+    enum=("application", "role", "user"),
+)
+PAGE_KEY_QUERY = _parameter(
+    "pageKey",
+    "query",
+    required=False,
+    primitive_type="string",
+    max_length=120,
+)
+PAGE_KEY_PATH = _parameter(
+    "pageKey", "path", required=True, primitive_type="string", max_length=120
+)
 IF_NONE_MATCH = _parameter(
-    "If-None-Match", "header", required=True, primitive_type="string"
+    "If-None-Match",
+    "header",
+    required=True,
+    primitive_type="string",
+    enum=("*",),
 )
 IF_MATCH = _parameter("If-Match", "header", required=True, primitive_type="string")
 IDEMPOTENCY_KEY = _parameter(
-    "Idempotency-Key", "header", required=True, primitive_type="string"
+    "Idempotency-Key",
+    "header",
+    required=True,
+    primitive_type="string",
+    min_length=8,
+    max_length=200,
 )
 
 
@@ -218,6 +274,140 @@ RAW_JSON_OBJECT_PROPERTIES = {
     "dto.EffectivePresentationLayers": ("application", "role", "user"),
 }
 
+OPAQUE_JSON_PROPERTIES = {
+    "presentation.Condition": ("value",),
+}
+
+
+def _type_schema(schema_type: str) -> dict[str, Any]:
+    return {"type": schema_type}
+
+
+def _ref_schema(reference: str) -> dict[str, Any]:
+    return {"$ref": reference}
+
+
+def _array_schema(item_schema: dict[str, Any]) -> dict[str, Any]:
+    return {"type": "array", "items": item_schema}
+
+
+DEFINITION_PROPERTY_CONTRACTS: dict[str, dict[str, dict[str, Any]]] = {
+    "response.Response": {
+        "success": _type_schema("boolean"),
+        "status": _type_schema("string"),
+        "code": _type_schema("integer"),
+        "errorCode": _type_schema("string"),
+        "errorMessage": _type_schema("string"),
+        "traceId": _type_schema("string"),
+    },
+    "dto.PresentationConflictResponse": {
+        "success": _type_schema("boolean"),
+        "status": _type_schema("string"),
+        "code": _type_schema("integer"),
+        "errorCode": _type_schema("string"),
+        "errorMessage": _type_schema("string"),
+        "traceID": _type_schema("string"),
+        "data": _ref_schema(
+            "#/definitions/dto.PresentationConflictResponseData"
+        ),
+    },
+    "dto.PresentationCapabilityListResponse": {
+        "items": _array_schema(
+            _ref_schema("#/definitions/presentation.CapabilityDefinition")
+        ),
+        "recoveryMode": _type_schema("boolean"),
+        "adoptionMode": _ref_schema("#/definitions/presentation.AdoptionMode"),
+        "activePages": _array_schema(_type_schema("string")),
+    },
+    "dto.PresentationValidationResponse": {
+        "structurallyValid": _type_schema("boolean"),
+        "semanticallyValid": _type_schema("boolean"),
+        "canonicalDocument": _type_schema("object"),
+        "digest": _type_schema("string"),
+        "currentDefinition": _type_schema("string"),
+        "issues": _array_schema(_ref_schema("#/definitions/presentation.Issue")),
+    },
+    "dto.PresentationProfileListResponse": {
+        "items": _array_schema(
+            _ref_schema("#/definitions/dto.PresentationProfileSummary")
+        ),
+        "page": _type_schema("integer"),
+        "pageSize": _type_schema("integer"),
+        "total": _type_schema("integer"),
+    },
+    "dto.PresentationProfileResource": {
+        "id": _type_schema("string"),
+        "scope": _ref_schema("#/definitions/presentation.ScopeKind"),
+        "pageKey": _type_schema("string"),
+        "state": _type_schema("string"),
+        "version": _type_schema("integer"),
+        "draft": _ref_schema("#/definitions/dto.PresentationDraftResource"),
+        "published": _ref_schema(
+            "#/definitions/dto.PresentationRevisionSummary"
+        ),
+    },
+    "dto.PresentationTransitionResponse": {
+        "profile": _ref_schema("#/definitions/dto.PresentationProfileResource"),
+        "revision": _ref_schema("#/definitions/dto.PresentationRevisionResource"),
+        "replayed": _type_schema("boolean"),
+    },
+    "dto.PresentationRevisionListResponse": {
+        "items": _array_schema(
+            _ref_schema("#/definitions/dto.PresentationRevisionSummary")
+        ),
+        "page": _type_schema("integer"),
+        "pageSize": _type_schema("integer"),
+        "total": _type_schema("integer"),
+    },
+    "dto.PresentationRevisionResource": {
+        "profileID": _type_schema("string"),
+        "revision": _type_schema("integer"),
+        "aggregateVersion": _type_schema("integer"),
+        "contentDigest": _type_schema("string"),
+        "definitionHash": _type_schema("string"),
+        "document": _type_schema("object"),
+    },
+    "dto.EffectivePresentationResponse": {
+        "pageKey": _type_schema("string"),
+        "definitionHash": _type_schema("string"),
+        "recoveryMode": _type_schema("boolean"),
+        "fallback": _type_schema("boolean"),
+        "adoption": _ref_schema("#/definitions/dto.PresentationAdoptionResource"),
+        "layers": _ref_schema("#/definitions/dto.EffectivePresentationLayers"),
+        "diagnostics": _array_schema(
+            _ref_schema("#/definitions/dto.EffectivePresentationDiagnostic")
+        ),
+    },
+    "dto.PresentationProfileCreateRequest": {
+        "scope": _ref_schema("#/definitions/presentation.ScopeKind"),
+        "pageKey": _type_schema("string"),
+        "subjectID": _type_schema("string"),
+        "document": _type_schema("object"),
+    },
+    "dto.PresentationDraftReplaceRequest": {
+        "document": _type_schema("object"),
+    },
+    "dto.PresentationValidationRequest": {
+        "document": _type_schema("object"),
+    },
+    "dto.PresentationRollbackRequest": {
+        "revision": _type_schema("integer"),
+    },
+    "dto.EffectivePresentationLayers": {
+        "application": _type_schema("object"),
+        "role": _type_schema("object"),
+        "user": _type_schema("object"),
+    },
+}
+
+
+REQUIRED_DEFINITION_PROPERTIES = {
+    "dto.PresentationProfileCreateRequest": {"document", "pageKey", "scope"},
+    "dto.PresentationDraftReplaceRequest": {"document"},
+    "dto.PresentationValidationRequest": {"document"},
+    "dto.PresentationRollbackRequest": {"revision"},
+}
+
 
 def _parameter_key(parameter: dict[str, Any]) -> tuple[Any, Any]:
     return parameter.get("name"), parameter.get("in")
@@ -228,6 +418,31 @@ def _definition_name(reference: Any) -> str | None:
     if isinstance(reference, str) and reference.startswith(prefix):
         return reference[len(prefix) :]
     return None
+
+
+def _collect_reference_names(value: Any) -> set[str]:
+    names: set[str] = set()
+    if isinstance(value, dict):
+        definition_name = _definition_name(value.get("$ref"))
+        if definition_name is not None:
+            names.add(definition_name)
+        for child in value.values():
+            names.update(_collect_reference_names(child))
+    elif isinstance(value, list):
+        for child in value:
+            names.update(_collect_reference_names(child))
+    return names
+
+
+def _schema_contains(actual: Any, expected: Any) -> bool:
+    if isinstance(expected, dict):
+        return isinstance(actual, dict) and all(
+            key in actual and _schema_contains(actual[key], value)
+            for key, value in expected.items()
+        )
+    if isinstance(expected, list):
+        return isinstance(actual, list) and actual == expected
+    return actual == expected
 
 
 def _check_parameter(
@@ -245,6 +460,15 @@ def _check_parameter(
         reference = schema.get("$ref") if isinstance(schema, dict) else None
         if reference != expected["$ref"]:
             errors.append(f"{label} has wrong schema; expected {expected['$ref']}")
+    constraint_keys = ("minimum", "maximum", "minLength", "maxLength", "enum")
+    actual_constraints = {
+        key: actual[key] for key in constraint_keys if key in actual
+    }
+    if actual_constraints != expected["constraints"]:
+        errors.append(
+            f"{label} has wrong validation constraints; "
+            f"expected {expected['constraints']}"
+        )
     return errors
 
 
@@ -337,6 +561,14 @@ def collect_errors(document: dict[str, Any]) -> list[str]:
             _parameter_key(parameter): parameter
             for parameter in expected["parameters"]
         }
+        actual_parameter_keys = [
+            _parameter_key(parameter) for parameter in actual_parameters
+        ]
+        duplicate_parameter_keys = {
+            key for key in actual_parameter_keys if actual_parameter_keys.count(key) > 1
+        }
+        for key in sorted(duplicate_parameter_keys):
+            errors.append(f"duplicate parameter {key[1]}:{key[0]} on {operation_label}")
         actual_parameter_map = {
             _parameter_key(parameter): parameter for parameter in actual_parameters
         }
@@ -387,8 +619,47 @@ def collect_errors(document: dict[str, Any]) -> list[str]:
     if not isinstance(definitions, dict):
         errors.append("Swagger document has no definitions object")
         definitions = {}
-    for name in sorted(referenced_definitions - set(definitions)):
-        errors.append(f"referenced definition is missing: {name}")
+
+    pending_definitions = list(referenced_definitions)
+    checked_definitions: set[str] = set()
+    while pending_definitions:
+        name = pending_definitions.pop()
+        if name in checked_definitions:
+            continue
+        checked_definitions.add(name)
+        definition = definitions.get(name)
+        if not isinstance(definition, dict):
+            errors.append(f"referenced definition is missing: {name}")
+            continue
+        for nested_name in _collect_reference_names(definition):
+            if nested_name not in checked_definitions:
+                pending_definitions.append(nested_name)
+
+    for definition_name, property_contracts in DEFINITION_PROPERTY_CONTRACTS.items():
+        definition = definitions.get(definition_name)
+        properties = definition.get("properties") if isinstance(definition, dict) else None
+        if not isinstance(definition, dict) or definition.get("type") != "object":
+            errors.append(f"definition must be an object: {definition_name}")
+            continue
+        if not isinstance(properties, dict):
+            errors.append(f"definition is missing object properties: {definition_name}")
+            continue
+        for property_name, expected_schema in property_contracts.items():
+            if not _schema_contains(properties.get(property_name), expected_schema):
+                errors.append(
+                    f"{definition_name}.{property_name} has wrong or missing schema"
+                )
+
+    for definition_name, expected_required in REQUIRED_DEFINITION_PROPERTIES.items():
+        definition = definitions.get(definition_name)
+        actual_required = (
+            definition.get("required") if isinstance(definition, dict) else None
+        )
+        if not isinstance(actual_required, list) or set(actual_required) != expected_required:
+            errors.append(
+                f"{definition_name} has wrong required properties; "
+                f"expected {sorted(expected_required)}"
+            )
 
     for definition_name, property_names in RAW_JSON_OBJECT_PROPERTIES.items():
         definition = definitions.get(definition_name)
@@ -405,6 +676,25 @@ def collect_errors(document: dict[str, Any]) -> list[str]:
             elif "items" in property_schema:
                 errors.append(
                     f"{definition_name}.{property_name} must not be documented as an array"
+                )
+
+    for definition_name, property_names in OPAQUE_JSON_PROPERTIES.items():
+        definition = definitions.get(definition_name)
+        properties = definition.get("properties") if isinstance(definition, dict) else None
+        if not isinstance(properties, dict):
+            errors.append(f"definition is missing object properties: {definition_name}")
+            continue
+        for property_name in property_names:
+            property_schema = properties.get(property_name)
+            if not isinstance(property_schema, dict):
+                errors.append(
+                    f"{definition_name}.{property_name} must be documented as opaque JSON"
+                )
+                continue
+            forbidden_keys = {"type", "$ref", "items", "allOf", "properties"}
+            if forbidden_keys & property_schema.keys():
+                errors.append(
+                    f"{definition_name}.{property_name} must be documented as opaque JSON"
                 )
 
     return errors

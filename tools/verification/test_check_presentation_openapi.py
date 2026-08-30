@@ -23,6 +23,7 @@ def _swagger_parameter(expected: dict) -> dict:
         parameter["type"] = expected["type"]
     if expected["$ref"] is not None:
         parameter["schema"] = {"$ref": expected["$ref"]}
+    parameter.update(expected["constraints"])
     return parameter
 
 
@@ -79,6 +80,38 @@ def valid_document() -> dict:
         definition["properties"].update(
             {property_name: {"type": "object"} for property_name in properties}
         )
+    for definition_name, properties in (
+        check_presentation_openapi.DEFINITION_PROPERTY_CONTRACTS.items()
+    ):
+        definition = definitions.setdefault(
+            definition_name, {"type": "object", "properties": {}}
+        )
+        definition["type"] = "object"
+        definition.setdefault("properties", {}).update(deepcopy(properties))
+    for definition_name, required in (
+        check_presentation_openapi.REQUIRED_DEFINITION_PROPERTIES.items()
+    ):
+        definitions[definition_name]["required"] = sorted(required)
+    for definition_name, properties in (
+        check_presentation_openapi.OPAQUE_JSON_PROPERTIES.items()
+    ):
+        definition = definitions.setdefault(
+            definition_name, {"type": "object", "properties": {}}
+        )
+        definition.setdefault("properties", {}).update(
+            {property_name: {} for property_name in properties}
+        )
+    while True:
+        referenced = set()
+        for definition in definitions.values():
+            referenced.update(
+                check_presentation_openapi._collect_reference_names(definition)
+            )
+        missing = referenced - set(definitions)
+        if not missing:
+            break
+        for definition_name in missing:
+            definitions[definition_name] = {"type": "object", "properties": {}}
     return {
         "swagger": "2.0",
         "securityDefinitions": {
@@ -151,12 +184,19 @@ class PresentationOpenAPIContractTest(unittest.TestCase):
             if parameter["name"] == "Idempotency-Key"
         )
         idempotency_key["required"] = False
+        del idempotency_key["minLength"]
         operation["responses"]["412"]["schema"]["$ref"] = (
             check_presentation_openapi.GENERIC_RESPONSE_REF
         )
         errors = check_presentation_openapi.collect_errors(document)
         self.assertTrue(
             any("Idempotency-Key" in error and "required flag" in error for error in errors)
+        )
+        self.assertTrue(
+            any(
+                "Idempotency-Key" in error and "validation constraints" in error
+                for error in errors
+            )
         )
         self.assertTrue(
             any("response 412" in error and "wrong schema" in error for error in errors)
@@ -177,6 +217,60 @@ class PresentationOpenAPIContractTest(unittest.TestCase):
         )
         self.assertIn(
             "missing response 428 on POST /admin/api/presentation-profiles", errors
+        )
+
+    def test_rejects_duplicate_parameters_and_removed_pagination_bounds(self) -> None:
+        document = deepcopy(valid_document())
+        operation = document["paths"]["/admin/api/presentation-profiles"]["get"]
+        page = next(
+            parameter
+            for parameter in operation["parameters"]
+            if parameter["name"] == "page"
+        )
+        del page["minimum"]
+        operation["parameters"].append(deepcopy(page))
+        errors = check_presentation_openapi.collect_errors(document)
+        self.assertIn(
+            "duplicate parameter query:page on GET /admin/api/presentation-profiles",
+            errors,
+        )
+        self.assertTrue(
+            any(
+                "query:page" in error and "validation constraints" in error
+                for error in errors
+            )
+        )
+
+    def test_rejects_empty_success_definition_and_missing_body_requirement(self) -> None:
+        document = deepcopy(valid_document())
+        document["definitions"]["dto.EffectivePresentationResponse"] = {
+            "type": "object",
+            "properties": {},
+        }
+        required = document["definitions"][
+            "dto.PresentationProfileCreateRequest"
+        ]["required"]
+        required.remove("document")
+        errors = check_presentation_openapi.collect_errors(document)
+        self.assertIn(
+            "dto.EffectivePresentationResponse.pageKey has wrong or missing schema",
+            errors,
+        )
+        self.assertIn(
+            "dto.PresentationProfileCreateRequest has wrong required properties; "
+            "expected ['document', 'pageKey', 'scope']",
+            errors,
+        )
+
+    def test_rejects_condition_value_as_a_byte_array(self) -> None:
+        document = deepcopy(valid_document())
+        document["definitions"]["presentation.Condition"]["properties"]["value"] = {
+            "type": "array",
+            "items": {"type": "integer"},
+        }
+        errors = check_presentation_openapi.collect_errors(document)
+        self.assertIn(
+            "presentation.Condition.value must be documented as opaque JSON", errors
         )
 
 
