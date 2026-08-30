@@ -282,6 +282,16 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
             "PACKAGE_ABSENT",
             "the first npmjs package creation requires a separately reviewed one-time bootstrap",
             "the automatic tag workflow is trusted-publishing only",
+            "publish_authority_ref='refs/remotes/origin/npm-publish-authority'",
+            'git fetch --no-tags origin',
+            '"+refs/heads/main:${publish_authority_ref}"',
+            'git show "${publish_authority_ref}:.mss/release-policy.yaml"',
+            "python3 tools/release/check_release_policy.py",
+            '--component npm',
+            '--version "${RELEASE_VERSION}"',
+            '--tag "@mss-boot-io/admin-web@${UNPREFIXED_VERSION}"',
+            '--intent promote',
+            '--commit "${RELEASE_COMMIT}"',
             "unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG",
             "npm publish",
             "--access public",
@@ -293,6 +303,30 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
         self.assertNotIn("ALLOW_NPM_TOKEN_BOOTSTRAP", script)
         self.assertNotIn("secrets.NPM_TOKEN", self.content)
         self.assertEqual(self.content.count("npm publish"), 1)
+
+        final_fetch_index = script.index("git fetch --no-tags origin")
+        final_policy_index = script.index(
+            "python3 tools/release/check_release_policy.py",
+            final_fetch_index,
+        )
+        unset_index = script.index(
+            "unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG",
+            final_policy_index,
+        )
+        mutation_index = script.index('npm publish "${PACKAGE_TARBALL}"')
+        self.assertLess(final_fetch_index, final_policy_index)
+        self.assertLess(final_policy_index, unset_index)
+        self.assertLess(unset_index, mutation_index)
+        self.assertNotIn("${{", script)
+        between_policy_and_publish = script[final_policy_index:mutation_index]
+        for forbidden in (
+            "npm view",
+            "gh api",
+            "gh release",
+            "curl ",
+            "sleep ",
+        ):
+            self.assertNotIn(forbidden, between_policy_and_publish)
 
         publish_index = self.steps.index(publish)
         verify_index = self.steps.index(

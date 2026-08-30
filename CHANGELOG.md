@@ -10,11 +10,13 @@ No unreleased changes are recorded.
 
 ## [v1.3.7] - 2026-08-29
 
-Status: **release candidate / not published or adoptable**. v1.3.7 is the new
-complete-distribution recovery identity after v1.3.6 became an immutable
-partial train. The current stable and rollback baseline remains v1.3.2. No
-v1.3.7 installer, package, image, application-creation, or upgrade command is
-supported before one exact merged-main preview and full public reconciliation.
+Status: **release candidate / not stable or adoptable**. Candidate component
+surfaces can become public in stages; the remote release ledger is authoritative
+until stable promotion and final reconciliation complete. v1.3.7 is the new
+complete-distribution recovery identity after v1.3.6 became an immutable partial
+train. The current stable and rollback baseline remains v1.3.2. No v1.3.7
+installer, package, image, application-creation, or upgrade command is supported
+before one exact merged-main preview and full public reconciliation.
 
 ### Fixed
 

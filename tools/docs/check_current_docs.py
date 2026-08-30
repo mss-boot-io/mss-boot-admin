@@ -366,17 +366,27 @@ ACTIVE_TARGET_STATUS_MARKER = re.compile(
 )
 ABSOLUTE_UNPUBLISHED_CLAIMS = (
     re.compile(
-        r"{version}[\s\S]{{0,120}}(?:remains?\s+unpublished|"
-        r"is\s+not\s+(?:yet\s+)?published|has\s+not\s+been\s+published)",
+        r"{version}(?:(?!\n\s*(?:[-*+]\s|\d+[.)]\s))[\s\S]){{0,160}}"
+        r"(?:unpublished|"
+        r"not\s+(?:(?:yet\s+)?(?:public|published)|"
+        r"(?:public|published)\s+yet)|(?:has|have)\s+not\s+been\s+published)",
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?:remains?\s+unpublished|is\s+not\s+(?:yet\s+)?published|"
-        r"has\s+not\s+been\s+published)[\s\S]{{0,120}}{version}",
+        r"(?:unpublished\s+{version}|"
+        r"(?:not\s+(?:(?:yet\s+)?(?:public|published)|"
+        r"(?:public|published)\s+yet)|(?:has|have)\s+not\s+been\s+published)"
+        r"(?:(?!\n\s*(?:[-*+]\s|\d+[.)]\s))[\s\S]){{0,160}}{version})",
         re.IGNORECASE,
     ),
-    re.compile(r"{version}[\s\S]{{0,80}}(?:尚未发布|还未发布|未发布|未公开)"),
-    re.compile(r"(?:尚未发布|还未发布|未发布|未公开)[\s\S]{{0,80}}{version}"),
+    re.compile(
+        r"{version}(?:(?!\n\s*(?:[-*+]\s|\d+[.)]\s))[\s\S]){{0,120}}"
+        r"(?:尚未发布|还未发布|未发布|未公开)"
+    ),
+    re.compile(
+        r"(?:尚未发布|还未发布|未发布|未公开)"
+        r"(?:(?!\n\s*(?:[-*+]\s|\d+[.)]\s))[\s\S]){{0,120}}{version}"
+    ),
 )
 PARTIAL_RELEASE_BOUNDARY_MARKER = re.compile(
     r"(?:source-only|source (?:checkout|contract|development)|"
@@ -593,6 +603,48 @@ def active_markdown_paths(root: Path) -> list[Path]:
             for absolute in sorted(application_template.rglob("*.md"))
         )
     return paths
+
+
+def packaged_stage_claim_paths(root: Path) -> list[Path]:
+    """Return current Markdown that ships in a v1.3.7 immutable artifact.
+
+    The Root source/module surface includes root guidance and Thin Host
+    templates; the nested Go modules ship their top-level governance files;
+    and the npm package explicitly includes its README and changelog. Public
+    Docs current pages are already supplied by ``active_markdown_paths``.
+    Historical release pages remain evidence and are intentionally excluded.
+    """
+
+    paths = set(active_markdown_paths(root))
+    paths.update(path.relative_to(root) for path in root.glob("*.md"))
+
+    for relative_root in (
+        Path("admin"),
+        Path("mss-boot"),
+        Path("web/antd-v6"),
+    ):
+        absolute_root = root / relative_root
+        if absolute_root.is_dir():
+            paths.update(
+                path.relative_to(root) for path in absolute_root.glob("*.md")
+            )
+
+    for relative in (Path("docs/README.md"), Path("docs/CONTRIBUTING.md")):
+        if (root / relative).is_file():
+            paths.add(relative)
+
+    templates_root = root / "templates"
+    if templates_root.is_dir():
+        paths.update(
+            path.relative_to(root) for path in templates_root.rglob("*.md")
+        )
+
+    historical_pages = frozenset(STOPPED_RELEASE_PAGES)
+    return sorted(
+        path
+        for path in paths
+        if path not in historical_pages and ARCHIVE_PREFIX not in path.parents
+    )
 
 
 def forbidden_content_errors(
@@ -1317,10 +1369,12 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             immutable_stopped_versions=state.immutable_stopped_versions,
         )
     )
-    stage_claim_paths = list(active_paths)
-    stage_claim_paths.extend((Path("MONOREPO.md"), Path("docs/CONTRIBUTING.md")))
     errors.extend(
-        absolute_unpublished_claim_errors(root, version, stage_claim_paths)
+        absolute_unpublished_claim_errors(
+            root,
+            version,
+            packaged_stage_claim_paths(root),
+        )
     )
     errors.extend(stopped_release_history_errors(root, state))
 

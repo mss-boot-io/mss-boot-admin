@@ -49,6 +49,6 @@ corepack pnpm@9.15.9 --dir docs build
 ```
 
 The drift check verifies the v1.3.2 stable, v1.3.5/v1.3.6 immutable-partial, and
-unpublished v1.3.7 candidate boundaries; rejects prepublication v1.3.7 adopter
-commands; and checks the audience split, navigation targets, internal links,
-archive banners, and ADR status markers.
+stage-sensitive v1.3.7 candidate boundaries; rejects candidate-stage v1.3.7
+adopter commands; and checks the audience split, navigation targets, internal
+links, archive banners, and ADR status markers.

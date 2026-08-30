@@ -169,6 +169,9 @@ class CurrentDocsContractTest(unittest.TestCase):
             page.parent.mkdir(parents=True)
             claims = (
                 "v1.3.7 remains unpublished.\n",
+                "v1.3.7 is not public yet.\n",
+                "v1.3.7 is not published.\n",
+                "unpublished v1.3.7 must not be adopted.\n",
                 "v1.3.7 is the selected train but is not yet\npublished.\n",
                 "v1.3.7 尚未发布。\n",
                 "未公开的版本是 v1.3.7。\n",
@@ -192,6 +195,34 @@ class CurrentDocsContractTest(unittest.TestCase):
                 ),
                 [],
             )
+
+    def test_packaged_stage_claim_paths_cover_current_artifact_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            included = (
+                Path("CONTRIBUTING.md"),
+                Path("CHANGELOG.md"),
+                Path("admin/README.md"),
+                Path("mss-boot/CHANGELOG.md"),
+                Path("web/antd-v6/CHANGELOG.md"),
+                Path("docs/README.md"),
+                Path("docs/CONTRIBUTING.md"),
+                Path("templates/application/README.md"),
+            )
+            excluded = (
+                Path("docs/docs/releases/v1-3-5.md"),
+                Path("docs/docs/releases/v1-3-6.md"),
+                Path("docs/docs/releases/archive/v1-3-2.md"),
+            )
+            for relative in (*included, *excluded):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("release evidence\n", encoding="utf-8")
+
+            actual = set(check_current_docs.packaged_stage_claim_paths(root))
+
+        self.assertTrue(set(included).issubset(actual))
+        self.assertTrue(set(excluded).isdisjoint(actual))
 
     def test_partial_release_semantics_require_status_and_boundary_anchors(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

@@ -10,10 +10,12 @@ No unreleased changes are recorded.
 
 ## [web/antd-v6/v1.3.7] - 2026-08-29
 
-Status: **coordinated v1.3.7 release candidate / not published or adoptable**.
-The current public coordinated stable frontend remains v1.3.2. This new
-candidate keeps the single Admin Web application and package contract while the
-release path repairs Root image preview and official npm Trusted Publishing.
+Status: **coordinated v1.3.7 release candidate / not stable or adoptable**.
+Candidate component surfaces can become public in stages; the remote release
+ledger is authoritative until stable promotion and final reconciliation
+complete. The current public coordinated stable frontend remains v1.3.2. This
+new candidate keeps the single Admin Web application and package contract while
+the release path repairs Root image preview and official npm Trusted Publishing.
 
 ### Changed
 

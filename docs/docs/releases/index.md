@@ -30,8 +30,10 @@ npmjs、镜像摘要和空目录使用方验证证明。PR 成功、标签存在
 v1.3.5 已发布 Framework、Admin 与 Admin Web，并由受保护 promotion 创建了公开 Root
 Tag；随后标签消息校验错误使 promotion 失败，Root Release 与工具、Docs、官方 npmjs
 包和后端镜像均未发布。自然触发的 Root candidate 与 container 运行在公开前取消。
-v1.3.5 不会成为完整可安装版本，所有已公开身份保持不可变；完整修复由已选定但尚未稳定的
-v1.3.7 候选承接，并需要新的 merged-main 资格证据。v1.3.6 也从
+v1.3.5 不会成为完整可安装版本，所有已公开身份保持不可变。
+
+完整修复由已选定但尚未稳定或可采用的 v1.3.7 候选承接；其组件可能分阶段公开，稳定提升
+与最终对账完成前以远端发布台账为权威，并需要新的 merged-main 资格证据。v1.3.6 也从
 `b1fe47a3a83209574e09d53526b122dd2cbc5277` 公开了 Framework、Admin、Admin Web 与
 Root，但 Root image 和 npm 失败、Docs 未创建，因此同样冻结为不可续的部分列车。
 

@@ -584,6 +584,26 @@ jobs:
             echo 'the first npmjs package creation requires a separately reviewed one-time bootstrap; the automatic tag workflow is trusted-publishing only' >&2
             exit 1
           fi
+
+          publish_authority_ref='refs/remotes/origin/npm-publish-authority'
+          git fetch --no-tags origin \
+            "+refs/heads/main:${publish_authority_ref}"
+          publish_authority_commit="$(git rev-parse "${publish_authority_ref}")"
+          [[ "${publish_authority_commit}" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor \
+            "${RELEASE_COMMIT}" \
+            "${publish_authority_ref}"
+          publish_policy="${RUNNER_TEMP}/npm-publish-policy.yaml"
+          git show "${publish_authority_ref}:.mss/release-policy.yaml" \
+            > "${publish_policy}"
+          python3 tools/release/check_release_policy.py \
+            --policy "${publish_policy}" \
+            --component npm \
+            --version "${RELEASE_VERSION}" \
+            --tag "@mss-boot-io/admin-web@${UNPREFIXED_VERSION}" \
+            --intent promote \
+            --commit "${RELEASE_COMMIT}"
+
           unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG
           npm publish "${PACKAGE_TARBALL}" \
             --access public \

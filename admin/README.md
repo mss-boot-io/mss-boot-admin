@@ -2,10 +2,13 @@
 
 ## v1.3.7 candidate status
 
-v1.3.7 is the selected complete package-first candidate, but
-`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7` is not public yet and must
-not be installed or combined with unpublished candidate components. It can
-publish only after one exact merged-main preview qualifies the complete train.
+v1.3.7 is the selected complete package-first candidate, but it is not yet a
+stable or adoptable distribution. Candidate components can become public in
+stages; the remote release ledger is authoritative until stable promotion and
+final reconciliation complete. Do not install or combine
+`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7` with unreconciled candidate
+components. It becomes an adopter dependency only after one exact merged-main
+preview and the complete train qualify.
 
 v1.3.5 and v1.3.6 remain immutable-partial trains. v1.3.6 published the Admin
 identity `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.6` from commit
@@ -15,7 +18,7 @@ immutable and is not, by itself, a complete Thin Host distribution.
 
 The release policy still identifies **v1.3.2** as the current stable
 distribution. Do not combine a v1.3.5 or v1.3.6 Admin module with another patch,
-Foundation source, a local replacement, or an unpublished frontend package to
+Foundation source, a local replacement, or an unreconciled frontend package to
 manufacture a mixed distribution.
 
 ## Composition contract

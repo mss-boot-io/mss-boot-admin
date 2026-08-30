@@ -10,10 +10,13 @@ No unreleased changes are recorded.
 
 ## [mss-boot/v1.3.7] - 2026-08-29
 
-Status: **coordinated v1.3.7 release candidate / not published or adoptable**.
-The Framework API remains source compatible. This new candidate requalifies the
-domain-neutral Framework from a new merged-main commit because the coordinated
-v1.3.6 train stopped before Root image, official npm, and Docs completion.
+Status: **coordinated v1.3.7 release candidate / not stable or adoptable**.
+Candidate component surfaces can become public in stages; the remote release
+ledger is authoritative until stable promotion and final reconciliation
+complete. The Framework API remains source compatible. This new candidate
+requalifies the domain-neutral Framework from a new merged-main commit because
+the coordinated v1.3.6 train stopped before Root image, official npm, and Docs
+completion.
 
 ### Changed
 

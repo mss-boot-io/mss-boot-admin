@@ -2,10 +2,13 @@
 
 ## v1.3.7 candidate status
 
-v1.3.7 is the selected complete package-first candidate, but
-`web/antd-v6/v1.3.7` and `@mss-boot-io/admin-web@1.3.7` are not public yet.
-The exact candidate tarball must pass the shared Root preview and later publish
-from the same merged-main commit before it is an adopter dependency.
+v1.3.7 is the selected complete package-first candidate, but it is not yet a
+stable or adoptable distribution. Candidate component surfaces can become
+public in stages; the remote release ledger is authoritative until stable
+promotion and final reconciliation complete. The exact
+`web/antd-v6/v1.3.7` / `@mss-boot-io/admin-web@1.3.7` candidate tarball must pass
+the shared Root preview and reconcile from the same merged-main commit before it
+is an adopter dependency.
 
 v1.3.5 and v1.3.6 remain immutable-partial trains. `web/antd-v6/v1.3.6`, its
 GitHub Release, and GitHub Packages assets are public and immutable, but the
