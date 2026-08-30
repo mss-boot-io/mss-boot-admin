@@ -1734,7 +1734,7 @@ runtime_dir="${host_root}/runtime"
 mkdir -p -- "${runtime_dir}/config" "${host_root}/.mss/run/antd-v6-e2e"
 python3 - \
   "${foundation_root}/admin/config/application-e2e.yml" \
-  "${runtime_dir}/config/application-e2e.yml" \
+  "${runtime_dir}/config/application.yml" \
   "${backend_port}" \
   "${web_port}" <<'PY'
 import sys
