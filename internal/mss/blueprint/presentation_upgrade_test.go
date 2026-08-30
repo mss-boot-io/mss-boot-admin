@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -16,6 +17,33 @@ import (
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/spec"
 )
+
+func TestPresentationCapabilityCapacityRejectsIntegerOverflow(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		sizes   []int
+		want    int
+		wantErr bool
+	}{
+		{name: "defaults only", want: 8},
+		{name: "normal collections", sizes: []int{1, 2, 3, 4}, want: 18},
+		{name: "maximum safe capacity", sizes: []int{math.MaxInt - 8}, want: math.MaxInt},
+		{name: "maximum safe capacity across collections", sizes: []int{math.MaxInt - 10, 2}, want: math.MaxInt},
+		{name: "overflow", sizes: []int{math.MaxInt - 7}, wantErr: true},
+		{name: "overflow across collections", sizes: []int{math.MaxInt - 10, 3}, wantErr: true},
+		{name: "negative size", sizes: []int{-1}, wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := presentationCapabilityCapacity(test.sizes...)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("presentationCapabilityCapacity(%v) error = %v, wantErr %t", test.sizes, err, test.wantErr)
+			}
+			if !test.wantErr && got != test.want {
+				t.Fatalf("presentationCapabilityCapacity(%v) = %d, want %d", test.sizes, got, test.want)
+			}
+		})
+	}
+}
 
 func TestAdminDistributionUpgradeReportsPresentationImpactWithoutWritingDownstream(t *testing.T) {
 	oldFoundation := writeThinHostBlueprintFixture(t)

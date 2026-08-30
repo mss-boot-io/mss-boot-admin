@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"sort"
 	"strings"
@@ -364,8 +365,16 @@ func parseGeneratedPresentationPages(data []byte) ([]presentationPageSnapshot, e
 }
 
 func presentationCapabilityIdentities(page generatedPresentationPage) ([]presentationCapabilityIdentity, error) {
-	capabilities := make([]presentationCapabilityIdentity, 0,
-		len(page.Components)+len(page.Fields)+len(page.DataSources)+len(page.Actions)+8)
+	capacity, err := presentationCapabilityCapacity(
+		len(page.Components),
+		len(page.Fields),
+		len(page.DataSources),
+		len(page.Actions),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("count capabilities for page %s: %w", page.PageKey, err)
+	}
+	capabilities := make([]presentationCapabilityIdentity, 0, capacity)
 	seen := map[string]bool{}
 	appendCollection := func(kind string, values []json.RawMessage) error {
 		for index, raw := range values {
@@ -445,6 +454,17 @@ func presentationCapabilityIdentities(page generatedPresentationPage) ([]present
 	capabilities = append(capabilities, presentationCapabilityIdentity{ID: page.PageKey + "/defaults", SHA256: defaultHash})
 	sort.SliceStable(capabilities, func(i, j int) bool { return capabilities[i].ID < capabilities[j].ID })
 	return capabilities, nil
+}
+
+func presentationCapabilityCapacity(collectionSizes ...int) (int, error) {
+	capacity := 8
+	for _, size := range collectionSizes {
+		if size < 0 || size > math.MaxInt-capacity {
+			return 0, errors.New("presentation capability count overflows int")
+		}
+		capacity += size
+	}
+	return capacity, nil
 }
 
 func presentationCapabilityToken(value string) string {
