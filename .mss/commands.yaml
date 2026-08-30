@@ -221,7 +221,7 @@ spec:
 
     verify-all:
       command: go run ./cmd/mss verify --all
-      description: Execute the complete repository validation suite after feature freeze or when explicitly requested for diagnosis.
+      description: Execute the complete local release-quality suite, including strict contracts, standalone compatibility, dependency policy, frontend delivery and browser behavior, release workflow contracts, backend, framework, Thin Host, and docs checks; candidate packaging does not repeat these broad gates.
       outputFormats: [text, json]
       category: verification
 
@@ -254,13 +254,13 @@ spec:
 
     root-release-preview:
       command: gh workflow run release.yml --ref main -f version=<version>
-      description: Run the unique non-publishing Root candidate preview for one reviewed active version on the exact merged-main commit; a later matching Root tag push automatically publishes Root artifacts, the image, and the already-bootstrapped npm package through protected workflows.
+      description: Build and verify the unique non-publishing Root artifact candidate for one locally and through-PR qualified active version on the exact merged-main commit; a later matching Root tag push reuses those bytes to publish Root artifacts, images, and the already-bootstrapped npm package through protected workflows.
       outputFormats: [text]
       category: release
 
     direct-verify-all:
       command: make verify-all
-      description: Compatibility fallback before the mss verifier is available.
+      description: Make alias for the canonical complete local mss verification suite.
       category: verification
 
     module-spec-validate:
@@ -290,7 +290,7 @@ spec:
 
     eval-run:
       command: go run ./cmd/mss eval run
-      description: Execute selected Agent evaluation cases; the complete --all matrix is a release-preparation and candidate-preview activity.
+      description: Execute selected Agent evaluation cases; the complete --all matrix is local release-preparation evidence and is not repeated by candidate packaging.
       outputFormats: [text, markdown, json]
       category: eval
 

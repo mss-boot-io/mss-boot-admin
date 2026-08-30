@@ -108,15 +108,18 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 			add(thinHostFrontendTest(ctx), "full Thin Host verification includes host frontend tests")
 			add(thinHostFrontendBuild(ctx), "full Thin Host verification builds the single composed Umi application")
 		} else {
+			add(strictAgentDoctor(ctx.Root), "full local verification validates the Agent environment contract before release preparation")
+			add(strictBackendDoctor(ctx.Root), "full local verification validates the Admin environment contract before release preparation")
+			add(skillContractValidation(ctx.Root), "full local verification validates every checked-in Agent skill")
 			add(toolingTest(ctx.Root), "full verification includes agent infrastructure tests")
+			add(foundationCompatibility(ctx.Root), "full local verification qualifies standalone package-first generation and upgrade behavior")
 			add(frameworkTest(ctx.Root), "full verification includes reusable framework tests")
 			add(backendTest(ctx.Root), "full verification includes backend tests")
 			add(backendBuild(ctx.Root), "full verification includes backend build")
 			add(presentationThinHostContract(ctx.Root), "full verification qualifies the fixed core-plus-business presentation contract through external Go and npm consumers")
+			add(releaseContractTest(ctx.Root), "full local verification validates release policy and workflow contracts before candidate packaging")
 			if hasFrontendApplication(ctx, "web/antd-v6") {
-				add(frontendLint(ctx.Root), "full verification includes the Ant Design 6 frontend lint and type checks")
-				add(frontendTest(ctx.Root), "full verification includes the Ant Design 6 frontend unit tests")
-				add(frontendBuild(ctx.Root), "full verification includes the Ant Design 6 frontend production build")
+				add(frontendQualification(ctx.Root), "full local verification includes dependency policy, lint, unit, release build, delivery, and browser qualification")
 			}
 			add(docsBuild(ctx.Root), "full verification includes documentation build")
 		}
@@ -139,6 +142,9 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 					}
 				}
 				continue
+			}
+			if releaseWorkflowContractSensitive(path) {
+				add(releaseWorkflowContractTest(ctx.Root), path+" affects release policy or workflow contracts")
 			}
 			if presentationThinHostContractSensitive(path) {
 				add(
@@ -605,6 +611,78 @@ func toolingTest(root string) command.Spec {
 	}
 }
 
+func strictAgentDoctor(root string) command.Spec {
+	return command.Spec{
+		ID:          "agent-doctor-strict",
+		Description: "validate the Agent environment contract in strict mode",
+		Directory:   root,
+		Args:        []string{"go", "run", "./cmd/mss", "doctor", "--strict", "--component", "agent", "--format", "json"},
+		Environment: map[string]string{"GOFLAGS": "-mod=readonly", "GOWORK": filepath.Join(root, "go.work")},
+		Timeout:     10 * time.Minute,
+	}
+}
+
+func strictBackendDoctor(root string) command.Spec {
+	return command.Spec{
+		ID:          "backend-doctor-strict",
+		Description: "validate the Admin environment contract in strict mode",
+		Directory:   root,
+		Args:        []string{"go", "run", "./cmd/mss", "doctor", "--strict", "--component", "backend", "--format", "json"},
+		Environment: map[string]string{"GOFLAGS": "-mod=readonly", "GOWORK": filepath.Join(root, "go.work")},
+		Timeout:     10 * time.Minute,
+	}
+}
+
+func skillContractValidation(root string) command.Spec {
+	return command.Spec{
+		ID:          "agent-skills-validation",
+		Description: "validate checked-in Agent skill contracts",
+		Directory:   root,
+		Args:        []string{"go", "run", "./cmd/mss", "skills", "validate", "--format", "json"},
+		Environment: map[string]string{"GOFLAGS": "-mod=readonly", "GOWORK": filepath.Join(root, "go.work")},
+		Timeout:     10 * time.Minute,
+	}
+}
+
+func foundationCompatibility(root string) command.Spec {
+	return command.Spec{
+		ID:          "foundation-compatibility",
+		Description: "qualify standalone package-first generation and upgrade behavior",
+		Directory:   root,
+		Args:        []string{"bash", "tools/compatibility/test-standalone-mss-consumer.sh", "--upgrade"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     60 * time.Minute,
+	}
+}
+
+func releaseContractTest(root string) command.Spec {
+	return command.Spec{
+		ID:          "release-contract-test",
+		Description: "validate release policy and workflow contracts",
+		Directory:   root,
+		Args:        []string{"python3", "-m", "unittest", "discover", "-s", "tools/release", "-p", "test_*.py"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     20 * time.Minute,
+	}
+}
+
+func releaseWorkflowContractTest(root string) command.Spec {
+	return command.Spec{
+		ID:          "release-workflow-contract-test",
+		Description: "validate changed release workflow and policy contracts without requiring a clean feature-freeze commit",
+		Directory:   root,
+		Args: []string{
+			"python3", "-m", "unittest",
+			"tools.release.test_root_release_workflow",
+			"tools.release.test_container_workflow",
+			"tools.release.test_workflow_governance",
+			"tools.release.test_check_release_policy",
+		},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     20 * time.Minute,
+	}
+}
+
 func frameworkTest(root string) command.Spec {
 	return command.Spec{
 		ID:          "framework-test",
@@ -690,6 +768,17 @@ func frontendBuild(root string) command.Spec {
 		Args:        []string{"corepack", "pnpm@10.34.5", "build:release"},
 		Environment: map[string]string{"CI": "true"},
 		Timeout:     20 * time.Minute,
+	}
+}
+
+func frontendQualification(root string) command.Spec {
+	return command.Spec{
+		ID:          "frontend-qualification",
+		Description: "qualify dependency policy, lint, unit behavior, release build, delivery, and browser behavior for Ant Design 6",
+		Directory:   root,
+		Args:        []string{"make", "web-v6-qualify"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     60 * time.Minute,
 	}
 }
 
@@ -918,6 +1007,16 @@ func presentationThinHostContractSensitive(path string) bool {
 		}
 	}
 	return false
+}
+
+func releaseWorkflowContractSensitive(path string) bool {
+	return strings.HasPrefix(path, ".github/workflows/") ||
+		strings.HasPrefix(path, "tools/release/") ||
+		path == ".mss/release-policy.yaml" ||
+		path == ".mss/release-qualification.json" ||
+		path == ".mss/commands.yaml" ||
+		path == ".agents/skills/mss-release/SKILL.md" ||
+		path == "Makefile"
 }
 
 func isFrontend(path string) bool {

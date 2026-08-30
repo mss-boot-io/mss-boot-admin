@@ -24,7 +24,7 @@ mss verify --all
 
 - `--changed` 是默认日常入口；
 - `--module` 聚焦一个垂直模块；
-- `--all` 用于升级、合并或发布资格。
+- `--all` 是升级、合并或发布前的完整本地质量入口，包含严格环境与 Skill 合同、独立升级兼容、依赖策略、release workflow 合同、前端 delivery 与 Playwright、后端、Framework、Thin Host 和文档构建。合并后的候选流水线只构建并核验发布制品，不重复这些宽泛测试。
 
 机器报告位于 `.mss/reports/verify.json`，Markdown 摘要用于审查。退出码和单项结果都
 应保留。

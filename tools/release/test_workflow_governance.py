@@ -219,12 +219,8 @@ class WorkflowGovernanceTest(unittest.TestCase):
         self.assertNotIn("pnpm publish", script)
 
         root = self.workflows["release.yml"]
-        root_agent = next(
-            step
-            for step in root["jobs"]["test"]["steps"]
-            if step.get("name") == "Verify Agent module and contracts"
-        )
-        self.assertNotIn("eval run", root_agent["run"])
+        self.assertNotIn("test", root["jobs"])
+        self.assertNotIn("foundation-compatibility", root["jobs"])
 
     def test_scorecard_does_not_run_on_every_main_push(self):
         triggers = self.workflows["scorecard.yml"]["on"]
@@ -1526,7 +1522,7 @@ exit 66
                     gate["working-directory"], "${{ github.workspace }}"
                 )
 
-    def test_root_release_keeps_the_foundation_checkout_immutable_for_evals(self):
+    def test_local_release_qualification_owns_quality_gates_before_artifact_preview(self):
         makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertIn(
             "deps-admin:\n\tcd $(ADMIN_DIR) && GOWORK=off go mod download",
@@ -1561,29 +1557,20 @@ exit 66
             makefile,
         )
 
-        steps = self.workflows["release.yml"]["jobs"]["test"]["steps"]
-        preview_dependencies = next(
-            step
-            for step in steps
-            if step.get("name") == "Install same-commit preview dependencies"
-        )["run"]
-        self.assertEqual(preview_dependencies, "make deps-release-preview")
-        self.assertNotIn("deps-all", preview_dependencies)
-
-        preview_admin = next(
-            step
-            for step in steps
-            if step.get("name") == "Verify independent Admin module"
-        )["run"]
-        self.assertEqual(preview_admin, "make verify-admin-preview")
-        self.assertNotEqual(preview_admin, "make verify-admin")
-
-        agent_contracts = next(
-            step
-            for step in steps
-            if step.get("name") == "Verify Agent module and contracts"
-        )["run"]
-        self.assertNotIn("eval run", agent_contracts)
+        root_jobs = self.workflows["release.yml"]["jobs"]
+        self.assertNotIn("test", root_jobs)
+        self.assertNotIn("foundation-compatibility", root_jobs)
+        for required in (
+            "corepack pnpm@10.34.5 deps:check",
+            "corepack pnpm@10.34.5 dedupe --check",
+            "corepack pnpm@10.34.5 audit:release",
+            "$(MAKE) web-v6-lint",
+            "$(MAKE) web-v6-test",
+            "$(MAKE) web-v6-build",
+            "corepack pnpm@10.34.5 delivery:smoke",
+            "bash tools/verification/run-frontend-e2e.sh",
+        ):
+            self.assertIn(required, makefile)
 
         compatibility_steps = self.workflows["foundation-compatibility.yml"]["jobs"][
             "downstream-generation-and-upgrade"

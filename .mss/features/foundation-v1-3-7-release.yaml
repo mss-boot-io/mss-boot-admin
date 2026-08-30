@@ -25,6 +25,7 @@ spec:
     - Make reusable Root-image preview behavior depend on an explicit validated caller input.
     - Bind npm Trusted Publishing exactly to npm-release.yml and npm-auto without a stored npm token.
     - Requalify the complete package-first tools, Go modules, Admin Web package, images, external Thin Host, presentation configuration, migrations, authorization, and rollback from one new merged-main commit.
+    - Keep behavioral, dependency, contract, and browser qualification in the complete local verifier and required PR checks instead of repeating them during candidate packaging.
     - Publish formal tags only after one successful non-publishing preview and reconcile every public surface before any stable promotion.
   nonGoals:
     - Continue, repair, rerun, or append artifacts to v1.3.5 or v1.3.6.
@@ -91,13 +92,15 @@ spec:
         - Repository, organization, and npm-auto environment state contains no replacement npm publication token.
         - The exact Trusted Publisher identity is recorded and rechecked before the Root tag; a mismatch stops release before any public identity is created.
     - id: reuse-one-v137-preview
-      title: Reuse one complete non-publishing preview
-      description: Formal tags publish exact preview bytes from one merged-main commit without repeating expensive qualification.
+      title: Reuse one artifact-only non-publishing preview
+      description: Formal tags publish exact candidate bytes from one locally and through-PR qualified merged-main commit without repeating broad quality suites.
       priority: must
       actor: release-operator
       module: release-governance
       rules:
+        - The exact commit passes mss verify --all, Codex in-app Browser acceptance, and every required pull-request check before merge.
         - The manual Root workflow accepts only v1.3.7 from main and never publishes.
+        - The Root preview builds and verifies only exact publication binaries, archives, packages, SBOMs, checksums, portable delivery, candidate Thin Host composition, and multi-platform images; it does not rerun Go, dependency, lint, unit, or Playwright suites.
         - Framework, Admin, and Admin Web tags are annotated and created in order before Root.
         - Formal Admin publication resolves the exact public Framework with GOWORK off.
         - The Root tag starts Root assets, Root image, and official npm publication independently from the same preview evidence.
@@ -162,13 +165,13 @@ spec:
           value: python3 -m unittest tools.release.test_npm_release_workflow
     - id: v137-complete-preview
       requirement: reuse-one-v137-preview
-      statement: One candidate-only run qualifies tools, modules, packages, images, migrations, security, browser behavior, and rollback from the exact merged-main commit.
+      statement: Complete local and PR evidence qualifies behavior, while one candidate-only run builds and verifies the exact tools, packages, archives, and images later published from the same merged-main commit.
       level: e2e
       phase: feature-freeze
       required: true
       evidence:
         - type: report
-          value: Exact successful v1.3.7 Root preview, artifact checksums, and Codex in-app Browser acceptance evidence.
+          value: Exact mss verify --all report, required PR checks, Codex in-app Browser acceptance evidence, and successful v1.3.7 Root artifact preview with checksums.
     - id: v137-public-reconciliation
       requirement: reconcile-complete-v137-ledger
       statement: Every public surface and repository-external consumer probe succeeds before any stable promotion.
@@ -190,7 +193,7 @@ spec:
     - id: repeated-partial-train
       description: Publishing tags before the complete preview and credential audit could create another irreversible partial train.
       severity: critical
-      mitigation: Freeze one merged-main commit, finish all preview and live-governance gates, and stop before the first tag on any failure.
+      mitigation: Freeze one locally and through-PR qualified merged-main commit, finish the artifact preview and live-governance gates, and stop before the first tag on any failure.
   validation:
     changed: mss verify --changed
     all: mss verify --all
@@ -209,9 +212,10 @@ spec:
     migration: >-
       Merge the recovery through a reviewed pull request. Correct the npm
       Trusted Publisher to npm-release.yml plus npm-auto without creating a
-      token. Freeze one clean exact origin/main commit, run one non-publishing
-      v1.3.7 Root preview, inspect every expected artifact, and complete Browser
-      acceptance. As lwnmengjing, create annotated Framework, Admin, Admin Web,
+      token. Complete mss verify --all and Browser acceptance on the exact PR
+      Head, merge only after required checks pass, then freeze the clean exact
+      origin/main commit. Run one non-publishing v1.3.7 Root artifact preview
+      and inspect every expected artifact. As lwnmengjing, create annotated Framework, Admin, Admin Web,
       and Root tags in order. Reconcile package, image, and Release surfaces,
       then publish Docs from its independent tag. Stable promotion is a later
       reviewed policy and documentation change after the ledger is complete.

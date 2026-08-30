@@ -139,11 +139,14 @@ web-v6-build:
 	cd web/antd-v6 && corepack pnpm@10.34.5 build:release
 
 web-v6-qualify:
+	cd web/antd-v6 && corepack pnpm@10.34.5 deps:check
+	cd web/antd-v6 && corepack pnpm@10.34.5 dedupe --check --config.strict-peer-dependencies=false --config.ignore-scripts=true
+	cd web/antd-v6 && corepack pnpm@10.34.5 audit:release
 	$(MAKE) web-v6-lint
 	$(MAKE) web-v6-test
 	$(MAKE) web-v6-build
 	cd web/antd-v6 && corepack pnpm@10.34.5 delivery:smoke
-	cd web/antd-v6 && corepack pnpm@10.34.5 test:e2e
+	bash tools/verification/run-frontend-e2e.sh
 
 docs-install:
 	cd docs && corepack pnpm@9.15.9 install --frozen-lockfile
@@ -151,7 +154,8 @@ docs-install:
 docs-build:
 	cd docs && corepack pnpm@9.15.9 build
 
-verify-all: verify-admin verify-framework test-agent web-v6-lint web-v6-test web-v6-build docs-build
+verify-all:
+	GOWORK=off go run ./cmd/mss verify --all
 
 clean:
 	rm -rf $(BIN_DIR) $(COVERAGE_DIR)

@@ -10,6 +10,77 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
 
+func TestFoundationModeAllOwnsLocalReleaseQualification(t *testing.T) {
+	root := t.TempDir()
+	ctx := &project.Context{
+		Root: root,
+		Project: project.ProjectDocument{Spec: project.ProjectSpec{
+			RepositoryLayout: map[string]string{
+				"kind":    "foundation",
+				"backend": "admin",
+				"modules": "admin/modules",
+			},
+			Frontend: project.FrontendSpec{Applications: []project.FrontendApplicationSpec{
+				{ID: "antd-v6", Path: "web/antd-v6"},
+			}},
+		}},
+	}
+
+	plan, err := PlanChecks(ctx, Options{Mode: ModeAll})
+	if err != nil {
+		t.Fatalf("PlanChecks(Foundation all): %v", err)
+	}
+	wantIDs := []string{
+		"agent-doctor-strict",
+		"agent-skills-validation",
+		"agent-tooling-test",
+		"backend-build",
+		"backend-doctor-strict",
+		"backend-test",
+		"docs-build",
+		"foundation-compatibility",
+		"framework-test",
+		"frontend-qualification",
+		"git-diff-check",
+		"git-worktree-check",
+		"presentation-thin-host-contract",
+		"release-contract-test",
+	}
+	gotIDs := make([]string, 0, len(plan.Checks))
+	for _, check := range plan.Checks {
+		gotIDs = append(gotIDs, check.ID)
+	}
+	if !reflect.DeepEqual(gotIDs, wantIDs) {
+		t.Fatalf("Foundation all check IDs = %q, want %q", gotIDs, wantIDs)
+	}
+}
+
+func TestReleaseWorkflowContractSensitivity(t *testing.T) {
+	for _, path := range []string{
+		".github/workflows/release.yml",
+		".github/workflows/container.yml",
+		".mss/release-policy.yaml",
+		".mss/release-qualification.json",
+		".mss/commands.yaml",
+		".agents/skills/mss-release/SKILL.md",
+		"Makefile",
+		"tools/release/test_root_release_workflow.py",
+	} {
+		if !releaseWorkflowContractSensitive(path) {
+			t.Errorf("release workflow contract did not select %q", path)
+		}
+	}
+	for _, path := range []string{
+		"admin/presentation/validation.go",
+		"docs/docs/admin/release-verification-checklist.md",
+		"web/antd-v6/src/app.tsx",
+	} {
+		if releaseWorkflowContractSensitive(path) {
+			t.Errorf("release workflow contract unexpectedly selected %q", path)
+		}
+	}
+}
+
 func TestWriteReportsUsesPrivateFilePermissions(t *testing.T) {
 	root := t.TempDir()
 	ctx := &project.Context{Root: root}
