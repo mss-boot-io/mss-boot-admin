@@ -191,6 +191,8 @@ describe('Admin web package contract', () => {
       [
         '-e',
         `const { defineBusinessAdmin } = require(${JSON.stringify(businessPath)});
+const path = require('node:path');
+const packageRoot = path.resolve(path.dirname(${JSON.stringify(businessPath)}), '..');
 let groups;
 const config = defineBusinessAdmin();
 const memo = {
@@ -201,7 +203,16 @@ const memo = {
   },
 };
 config.chainWebpack(memo);
-console.log(JSON.stringify(Object.fromEntries(Object.entries(groups).map(([name, value]) => [name, value.chunks]))));`,
+const moduleAt = (resource) => ({ nameForCondition: () => resource });
+console.log(JSON.stringify({
+  chunks: Object.fromEntries(Object.entries(groups).map(([name, value]) => [name, value.chunks])),
+  vendorMatches: {
+    packageSource: groups.vendors.test(moduleAt(path.resolve(packageRoot, 'src/node_modules/fixture/page.tsx'))),
+    packageDependency: groups.vendors.test(moduleAt(path.resolve(packageRoot, 'node_modules/react/index.js'))),
+    externalDependency: groups.vendors.test(moduleAt(path.resolve(packageRoot, '../host/node_modules/dayjs/index.js'))),
+    hostSource: groups.vendors.test(moduleAt(path.resolve(packageRoot, '../host/src/business/page.tsx'))),
+  },
+}));`,
       ],
       {
         cwd: resolve(import.meta.dirname, '..'),
@@ -210,14 +221,22 @@ console.log(JSON.stringify(Object.fromEntries(Object.entries(groups).map(([name,
       },
     );
     expect(JSON.parse(output)).toEqual({
-      antDesignRuntime: 'all',
-      antdRuntime: 'all',
-      applicationShell: 'all',
-      proComponents: 'all',
-      queryRuntime: 'all',
-      rcRuntime: 'all',
-      umiRuntime: 'all',
-      vendors: 'all',
+      chunks: {
+        antDesignRuntime: 'all',
+        antdRuntime: 'all',
+        applicationShell: 'all',
+        proComponents: 'all',
+        queryRuntime: 'all',
+        rcRuntime: 'all',
+        umiRuntime: 'all',
+        vendors: 'all',
+      },
+      vendorMatches: {
+        packageSource: false,
+        packageDependency: true,
+        externalDependency: true,
+        hostSource: false,
+      },
     });
   });
 
